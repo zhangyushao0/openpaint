@@ -73,3 +73,9 @@ Only decisions that constrain future code and are not self-evident. Each entry i
 - Decision: `apps/harness` is a dev-only binary: offscreen wgpu rendering with readback, recorded-input replay through the full frame loop, JSON scenarios with pixel checkpoints, PNG and hash output. No window, no mouse handling, no desktop product.
 - Reason: agents need a seconds-long loop on the dev machine (the previous project's headless lane ran 180 steps in 4 s against 199 s on the tablet), but a windowed desktop app would pull output into windowing and mouse code that proves nothing about a stylus product.
 - Consequences: "seeing" a result means reading the PNG the harness wrote; pen feel and real input are judged only on the tablet.
+
+## D13 2026-10-02 The UI is designed from the user inward, with Procreate as the default model
+
+- Decision: every slice that changes what the user sees or does starts with a walk-through written as the user and ends with that walk-through as a passing harness scenario plus a screenshot review against the checklist in ARCHITECTURE section 10. Procreate's interaction model is the default; the theme and the components are defined once.
+- Reason: in the previous project features were built function-first with the UI attached afterwards. The result resembled Procreate but felt unpolished in small aesthetic and usability details, because nobody had walked through it as a user. An agent cannot feel the tablet, but it can look at screenshots, count taps and verify hit sizes, so those are made explicit and checkable.
+- Consequences: the walk-through lives in the scenario file and the commit message, never in a document; the author's on-device judgement at stage exits is the only authority on feel and beauty.

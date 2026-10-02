@@ -67,6 +67,15 @@ Agent output belongs in `crates/` product code and tests. The following count as
 - At most 2 subagents, no nesting, no reviewer swarms. Do in the main session what can be done there.
 - Code rules (enforced by repo-check and clippy): .rs files at most 400 lines; functions at most 60 lines; dependencies only point down (see ARCHITECTURE); core never mentions GPU, UI, file system or threads; `Result<_, String>` only at platform boundaries and in xtask; no `cfg(feature)` in product crates; every crate root has `#![forbid(unsafe_code)]` (JNI in `apps/android` excepted).
 
+## Design from the user inward
+
+A feature is an interaction first and code second. For every slice that changes what the user sees or does:
+
+1. Before writing code, write the walk-through as the user: goal, entry point, gestures, what appears, success, failure, cancel, undo, what is there after reopen. Put it in the slice's scenario file (`tests/scenarios/<slice>.json`, from S5 on) and in the commit message; never in a document.
+2. Derive the intents and the projection from the walk-through, then the core commands, then rendering. Do not build the function first and attach a UI afterwards.
+3. Finish by replaying the walk-through through the harness, looking at the screenshots it writes, and checking the UI checklist in ARCHITECTURE section 10. A slice whose walk-through is not a passing scenario is not done.
+4. In the handover, tell the author in five lines what to try on the tablet.
+
 ## Handover note
 
 At the end, state: what was done, what was verified (commands and results), what was not done, what the author must decide. Do not restate the documents.

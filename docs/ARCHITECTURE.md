@@ -158,3 +158,14 @@ Test fixtures live in each crate's `tests/` or in a dedicated test crate, never 
 ## 9. Enforced rules
 
 `cargo repo-check` (`xtask/src/check/rules.rs`): .rs files at most 400 lines; dependency direction per the table in section 2; purity tokens per table; egui in render only under adapter; no cargo features in product crates; crate roots carry `#![forbid(unsafe_code)]` (android excepted); markdown limited to six files plus the archive; no script files; no CRLF. clippy: functions at most 60 lines, no `todo!` / `unimplemented!` / `dbg!`, warnings are errors.
+
+## 10. UI conventions
+
+The UI is designed from the user inward (AGENTS.md, "Design from the user inward"). These are the fixed defaults.
+
+- The default interaction model is Procreate's. Before building a feature, read its Procreate Handbook page (entry point, gesture, feedback) and follow it. Deviate only for Android tablet hardware or on the author's instruction. Never copy icons, colours or assets.
+- Layout skeleton: the canvas fills the screen. A top bar holds gallery, undo/redo and tools. A side bar holds the size and opacity sliders and can be mirrored for left-handed use. Panels are popovers over the canvas and close with one tap outside. A modal appears only before a destructive action.
+- The theme is defined once in `ui/src/design/`: neutral dark greys for chrome (saturated chrome shifts colour perception), an 8 px spacing scale, one type scale, one icon set. Every button, slider and panel is a component in `ui/src/components/`; screens compose components and never style widgets inline.
+- Every feature ships with a discoverable entry, visible feedback for success, failure and cancel, undo for anything that changes the artwork, and state that survives reopen. Missing any of these means the slice is not done.
+- Checklist that harness screenshots and scenarios must show: the most frequent actions (brush, size, opacity, colour, undo, layer) within two taps; hit targets at least 48 px at tablet density; nothing covers the canvas while a stroke is possible; feedback within one frame; the same component for the same job everywhere.
+- Who decides: details are the agent's. The author judges on the tablet at stage exits and sends one-line change requests. Ask the author in advance only for a deviation from Procreate's mental model, for anything the hand touches continuously (side bar position, gesture mapping, pen buttons) or for anything that changes the persistent format.

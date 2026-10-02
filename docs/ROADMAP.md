@@ -12,6 +12,7 @@ Non-goals (G0 to G5): network, accounts, cloud sync, community, animation, 3D, m
 
 - A slice is a vertical cut one session can finish, verify and roll back on its own. Slices run in numbered order; no skipping.
 - Every slice states its goal, the crates involved and done criteria. Done criteria are executable or observable, never "better".
+- A slice that changes what the user sees or does begins with its walk-through written as the user and ends with that walk-through as a passing scenario plus a screenshot review (AGENTS.md, "Design from the user inward").
 - The dev-machine loop is the harness (`apps/harness`): offscreen rendering, replay, scenarios, PNG and hash output. "Seeing" a result means reading its PNG. Real input and pen feel exist only on the tablet.
 - When a slice is done: rewrite STATUS, move the slice to "Done" at the end of this file (one line), add a DECISIONS entry only if a decision was made.
 - Stage-exit items that need the author on the tablet are recorded as `pass` / `fail` / `not_run`; a dev-machine result never substitutes.
@@ -40,33 +41,33 @@ Exit: on the tablet, draw with pressure, undo, kill the app, reopen, the stroke 
 - `FrameRequest`, `Scene` / `Plan`, stroke geometry -> coverage shader for a round continuous brush, `RegionEvaluator` as the single entry, readback; the harness command `render-stroke` renders a hard-coded stroke to PNG.
 - Done: GPU test with a fixed pixel hash for a fixed stroke; incremental = cold evaluation bit for bit; the harness writes the stroke PNG; render contains no `egui` outside adapter.
 
-**S4 Input to stroke** (runtime, app, ui, harness)
-- Normaliser: platform batches -> `InputBatch` (pressure, tilt, timestamp), shared by Android and the harness; app `Session` plus `Intent::Stroke`; the UI canvas hands contacts to the session; the in-progress stroke goes to the renderer separately; the harness command `replay` feeds a recorded stroke through the full frame loop and reports frame time.
-- Done: replaying a 10,000-sample stroke keeps frame time under 8 ms on the dev machine and its PNG matches a golden hash; the normaliser has unit tests.
+**S4 Input to stroke, first screen** (runtime, app, ui, harness)
+- Walk-through first: open the app, draw with the pen, see the stroke appear under the tip. Normaliser: platform batches -> `InputBatch` (pressure, tilt, timestamp), shared by Android and the harness; app `Session` plus `Intent::Stroke`; the UI canvas hands contacts to the session; the in-progress stroke goes to the renderer separately. `ui/src/design/` installs the theme once and `ui/src/components/` holds the first shared widgets (top bar, canvas frame). The harness command `replay` feeds a recorded stroke through the full frame loop, reports frame time and writes a screenshot.
+- Done: replaying a 10,000-sample stroke keeps frame time under 8 ms on the dev machine and its PNG matches a golden hash; the normaliser has unit tests; the screenshot shows the top bar and canvas per ARCHITECTURE section 10.
 
-**S5 History** (app, ui)
-- `History` version stack with a byte budget; undo/redo intents; top-bar buttons; the projection reports availability.
-- Done: 20 undo/redo round trips leave the artwork equal; budget trimming has tests; buttons disable per availability.
+**S5 Scenario runner** (new crate devtools, harness, xtask)
+- JSON steps (tap, drag, stroke, wait, restart) plus checkpoints (readback hash, screenshot); `cargo scenario <name>`; `tests/scenarios/` holds the walk-throughs; the gate runs `smoke`.
+- Done: `smoke` draws a stroke and passes a checkpoint in under 5 s; a failed checkpoint writes the diff PNG under `artifacts/` (untracked) and prints its path; later slices add their steps to the runner as they need them.
 
-**S6 Storage and autosave** (store, runtime, harness)
-- fjall library; `Project` DTO schema 1 with a frozen sample; `ProjectStore` implemented; a worker autosaves after each stroke; the last artwork opens on start; save failures show a message with retry.
-- Done: a runtime test draws through the frame loop, saves, drops the runtime, reopens and gets identical pixels; sample round-trip test; gate under 60 s.
+**S6 History** (app, ui)
+- Walk-through: draw, tap undo, the stroke disappears; tap redo, it returns; the buttons grey out when nothing is left. `History` version stack with a byte budget; undo/redo intents; the projection reports availability.
+- Done: the walk-through is a passing scenario; 20 undo/redo round trips leave the artwork equal; budget trimming has tests.
 
-**S7 Android loop on the device** (android, runtime)
-- Wire S2 to S6 on the Android host; stylus and touch batches enter the same normaliser; basic palm rejection; pen-to-pixel latency instrumented.
+**S7 Storage and autosave** (store, runtime, harness)
+- Walk-through: draw, leave, come back, everything is there; if saving fails, a message says so and offers retry. fjall library; `Project` DTO schema 1 with a frozen sample; `ProjectStore` implemented; a worker autosaves after each stroke; the last artwork opens on start.
+- Done: the walk-through is a passing scenario using the `restart` step with identical pixels; sample round-trip test; gate under 60 s.
+
+**S8 Android loop on the device** (android, runtime)
+- Wire S2 to S7 on the Android host; stylus and touch batches enter the same normaliser; basic palm rejection; pen-to-pixel latency instrumented.
 - Done: draw, undo and reopen on the tablet; the latency number is in STATUS; the author judges pen feel. G1 exit.
 
 ## G2 Artworks and layers
 
 Exit: the author finishes an inked and flat-coloured piece (W1) on the tablet.
 
-**S8 Scenario runner** (new crate devtools, harness, xtask)
-- JSON steps (tap, drag, stroke, undo, save, reopen) plus pixel checkpoints (readback hashes); `cargo scenario <name>`; the gate runs the `smoke` scenario.
-- Done: `smoke` covers draw, undo, save and reopen in under 5 s; a failed checkpoint writes the diff PNG under `artifacts/` (untracked) and prints its path.
-
 **S9 Layers** (core, app, ui, render, store)
 - Multiple layers: create, delete, reorder, visibility, opacity, active layer; Normal compositing; layer panel; schema 2 with migration.
-- Done: GPU test for compositing order; panel actions go through intents and are undoable; the schema 1 sample upgrades.
+- Done: GPU test for compositing order; panel actions go through intents and are undoable; the schema 1 sample upgrades; the walk-through scenario passes.
 
 **S10 Artwork library** (app, store, ui, render)
 - Gallery: list, create, open, rename, duplicate, delete, thumbnails (small export); autosave per artwork.
