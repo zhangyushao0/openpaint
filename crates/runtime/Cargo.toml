@@ -1,0 +1,17 @@
+[package]
+name = "openpaint-runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+openpaint-app.workspace = true
+openpaint-core.workspace = true
+openpaint-render.workspace = true
+openpaint-store.workspace = true
+openpaint-ui.workspace = true
+
+[lints]
+workspace = true

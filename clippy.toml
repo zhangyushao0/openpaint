@@ -1,0 +1,3 @@
+# Lines of code per function (blank lines and comments excluded). Enforced as an error by
+# `too_many_lines = "deny"` in the workspace lints.
+too-many-lines-threshold = 60

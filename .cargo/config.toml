@@ -1,0 +1,6 @@
+[alias]
+xtask = "run --quiet --package xtask --"
+# Tier 3: fmt, clippy, every test, repo-check. Exit code is the verdict.
+gate = "xtask gate"
+# Structural rules the compiler cannot enforce (see xtask/src/check/rules.rs).
+repo-check = "xtask check"

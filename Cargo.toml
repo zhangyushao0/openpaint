@@ -1,0 +1,39 @@
+[workspace]
+members = [
+    "apps/android",
+    "apps/desktop",
+    "crates/app",
+    "crates/core",
+    "crates/render",
+    "crates/runtime",
+    "crates/store",
+    "crates/ui",
+    "xtask",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+license = "MIT"
+publish = false
+
+[workspace.dependencies]
+openpaint-app = { path = "crates/app" }
+openpaint-core = { path = "crates/core" }
+openpaint-render = { path = "crates/render" }
+openpaint-runtime = { path = "crates/runtime" }
+openpaint-store = { path = "crates/store" }
+openpaint-ui = { path = "crates/ui" }
+
+# Lints apply to every crate through `[lints] workspace = true`.
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+# Threshold lives in clippy.toml (60 lines of code per function).
+too_many_lines = "deny"
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
