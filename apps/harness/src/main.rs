@@ -7,15 +7,17 @@ mod error;
 mod output;
 mod shell;
 mod smoke;
+mod stroke;
 
 use std::process::ExitCode;
 
-const USAGE: &str = "usage: openpaint-harness <command>\n\ncommands:\n  render-smoke  clear an offscreen GPU target, write artifacts/harness/smoke.png, print its hash\n  shell-smoke   draw one runtime frame at tablet size, write artifacts/harness/shell.png";
+const USAGE: &str = "usage: openpaint-harness <command>\n\ncommands:\n  render-smoke   clear an offscreen GPU target, write artifacts/harness/smoke.png, print its hash\n  render-stroke  evaluate a fixed stroke, write artifacts/harness/stroke.png, print its hash\n  shell-smoke    draw one runtime frame at tablet size, write artifacts/harness/shell.png";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let result = match args.iter().map(String::as_str).collect::<Vec<_>>()[..] {
         ["render-smoke"] => smoke::run(),
+        ["render-stroke"] => stroke::run(),
         ["shell-smoke"] => shell::run(),
         _ => {
             eprintln!("{USAGE}");

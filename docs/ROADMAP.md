@@ -20,17 +20,13 @@ Non-goals (G0 to G5): network, accounts, cloud sync, community, animation, 3D, m
 
 ## G0 Skeleton
 
-S0 and S1 are done (see "Done"); S1's on-tablet confirmation is pending with the author (STATUS).
+S0 and S1 are done (see "Done").
 
 ## G1 One stroke, end to end
 
 Exit: on the tablet, draw with pressure, undo, kill the app, reopen, the stroke is still there; pen-to-pixel latency has a measured number; the author judges basic pen feel `pass` / `fail`.
 
-S2 is done (see "Done").
-
-**S3 Render core** (render, harness)
-- `FrameRequest`, `Scene` / `Plan`, stroke geometry -> coverage shader for a round continuous brush, `RegionEvaluator` as the single entry, readback; the harness command `render-stroke` renders a hard-coded stroke to PNG.
-- Done: GPU test with a fixed pixel hash for a fixed stroke; incremental = cold evaluation bit for bit; the harness writes the stroke PNG; render contains no `egui` outside adapter.
+S2 and S3 are done (see "Done").
 
 **S4 Input to stroke, first screen** (runtime, app, ui, harness)
 - Walk-through first: open the app, draw with the pen, see the stroke appear under the tip. Normaliser: platform batches -> `InputBatch` (pressure, tilt, timestamp), shared by Android and the harness; app `Session` plus `Intent::Stroke`; the UI canvas hands contacts to the session; the in-progress stroke goes to the renderer separately. `ui/src/design/` installs the theme once and `ui/src/components/` holds the first shared widgets (top bar, canvas frame). The harness command `replay` feeds a recorded stroke through the full frame loop, reports frame time and writes a screenshot.
@@ -109,5 +105,6 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 (One line per slice: id, date, commit. At 30 lines, move to `docs/archive/ROADMAP-<YYYY-MM>.md`.)
 
 - S0 2026-10-02 `feat(render): headless GPU device, offscreen clear and readback smoke (S0)`
-- S1 2026-10-02 `feat(android): Kotlin host, surface frames with an egui top bar, typed motion batches (S1)`; tablet confirmation pending
+- S1 2026-10-02 `feat(android): Kotlin host, surface frames with an egui top bar, typed motion batches (S1)`; confirmed on the tablet
 - S2 2026-10-02 `feat(core): immutable artwork value, layer commands, stroke sessions, validated storage entry (S2)`
+- S3 2026-10-02 `feat(render): region evaluator with tile-binned ops and a continuous round brush (S3)`

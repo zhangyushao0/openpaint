@@ -11,6 +11,15 @@ pub(crate) const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 
 /// A texture that can be rendered into and then read back.
 pub(crate) fn offscreen_texture(gpu: &Gpu, size: [u32; 2]) -> Result<wgpu::Texture, RenderError> {
+    target_texture(gpu, size, wgpu::TextureUsages::RENDER_ATTACHMENT)
+}
+
+/// A `FORMAT` texture of `size` pixels with `usage`, readable back.
+pub(crate) fn target_texture(
+    gpu: &Gpu,
+    size: [u32; 2],
+    usage: wgpu::TextureUsages,
+) -> Result<wgpu::Texture, RenderError> {
     let max = gpu.device.limits().max_texture_dimension_2d;
     if size.contains(&0) {
         return Err(RenderError::Invalid("offscreen target has a zero side"));
@@ -31,7 +40,7 @@ pub(crate) fn offscreen_texture(gpu: &Gpu, size: [u32; 2]) -> Result<wgpu::Textu
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
         format: FORMAT,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        usage: usage | wgpu::TextureUsages::COPY_SRC,
         view_formats: &[],
     }))
 }

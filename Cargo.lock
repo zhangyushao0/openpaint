@@ -910,6 +910,7 @@ version = "0.1.0"
 name = "openpaint-harness"
 version = "0.1.0"
 dependencies = [
+ "openpaint-core",
  "openpaint-render",
  "openpaint-runtime",
  "png",

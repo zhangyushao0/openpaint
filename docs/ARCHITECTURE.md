@@ -96,18 +96,20 @@ The UI reads projections, keeps UI-local state and emits intents. Availability a
 ### render
 
 ```rust
-pub struct Core { gpu: Gpu, pipelines: Pipelines, pages: PageCache,
+pub struct Core { gpu: Gpu, evaluate: EvaluatePipeline, pages: PageCache,
                   residuals: Mutex<smudge::Engine>, grain: GrainTexture }
 pub struct Renderer { core: Arc<Core>, instances: Mutex<Instances>, sinks: Sinks }
-pub struct FrameRequest { snapshot: Artwork, active: Option<ActiveStroke>, images: ImageSet,
-                          view: ViewFrame, viewport_px: [u32; 2], consumer: Consumer }
+pub struct FrameRequest<'a> { artwork: &'a Artwork, active: Option<&'a ActiveStroke>, background: Color,
+                              images: ImageSet, view: ViewFrame, consumer: Consumer }
 pub struct RegionEvaluator<'a> { core: &'a Core, executor: &'a mut Executor, target: Target<'a> }  // the single evaluation entry
 pub enum Target<'a> { Pages(..), Readback(..), Planes(..), SmudgeTiles(..) }
 pub enum Batching { Frame, Bounded { visits: u64, invocations: usize, dispatches: usize } }
-#[repr(u32)] pub enum Opcode { Segment, EndLayer, Image, BeginScope, EndScope, Fill, Smudge }  // generates the WGSL constant block
+#[repr(u32)] pub enum Opcode { Segment, EndStroke, EndLayer, Image, BeginScope, EndScope, Fill, Smudge }  // generates the WGSL constants
 pub enum RenderError { Admission { what: &'static str, limit: u64 }, Cancelled,
                        MissingImage(AssetId), Device(String), Invalid(&'static str) }
 ```
+
+Evaluation (DECISIONS D16): `Scene::build(&FrameRequest)` flattens visible layers, their strokes and the active stroke into ops in drawing order, each segment op with conservative pixel bounds; `Plan::build(scene, size, regions)` widens the regions to 16 px tiles and lists per tile, in scene order, only the ops that reach it; the compute shader runs one workgroup per tile and one invocation per pixel through that list. `protocol.rs` owns the opcodes and the `Op`, `Tile` and `Params` records and generates their WGSL; a naga-based test checks every offset and size. Landed in S3: `Core { gpu, evaluate }`, `FrameRequest { artwork, active, background }`, `RegionEvaluator { core, target: &CanvasTarget }` (an `Rgba8Unorm` storage texture at canvas size, read back with `CanvasTarget::read`), `PixelRect`, `stroke_region(style, samples)` for the dirty region of new samples, opcodes `Segment`, `EndStroke`, `EndLayer`.
 
 Directories: `core/ error budget geom adapter/ scene/ program/ gpu/ cache/ view/ tasks/ consumers/ tests/`. `adapter/` is the only directory that depends on egui. Background consumers (export, fill, pick) hold only an `Arc<Core>` and never touch a UI lock. Incremental evaluation and cold evaluation are bit-identical, proven by tests.
 

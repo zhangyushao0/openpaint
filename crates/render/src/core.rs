@@ -4,17 +4,22 @@
 use crate::error::RenderError;
 use crate::gpu::Gpu;
 use crate::image::RgbaImage;
+use crate::program::EvaluatePipeline;
 use crate::readback::{offscreen_texture, read_rgba};
 
 pub struct Core {
     pub(crate) gpu: Gpu,
+    /// The region evaluator's compute pipeline (`RegionEvaluator`).
+    pub(crate) evaluate: EvaluatePipeline,
 }
 
 impl Core {
-    /// Opens the GPU device without a window. Offscreen rendering and readback work at once;
-    /// platform windows attach later through `Core::create_surface`.
+    /// Opens the GPU device without a window and builds the pipelines. Offscreen rendering and
+    /// readback work at once; platform windows attach later through `Core::create_surface`.
     pub fn headless() -> Result<Self, RenderError> {
-        Ok(Self { gpu: Gpu::new()? })
+        let gpu = Gpu::new()?;
+        let evaluate = EvaluatePipeline::new(&gpu.device);
+        Ok(Self { gpu, evaluate })
     }
 
     /// Adapter name and backend, for logs and harness output.
