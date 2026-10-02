@@ -5,10 +5,12 @@ use crate::core::Core;
 use crate::error::{RenderError, device};
 
 /// A platform window the renderer can present into. Hosts implement `raw-window-handle`'s
-/// `HasWindowHandle` for their window type; no display handle is needed on Android.
-pub trait SurfaceWindow: wgpu::WindowHandle + 'static {}
+/// `HasWindowHandle` and `HasDisplayHandle` for their window type (on Android the display is
+/// the handle-less `DisplayHandle::android()`). The instance is created before any window, so
+/// wgpu takes the display from the window: without one every surface fails to create.
+pub trait SurfaceWindow: wgpu::DisplayAndWindowHandle + 'static {}
 
-impl<T: wgpu::WindowHandle + 'static> SurfaceWindow for T {}
+impl<T: wgpu::DisplayAndWindowHandle + 'static> SurfaceWindow for T {}
 
 pub struct Surface {
     surface: wgpu::Surface<'static>,
@@ -25,7 +27,7 @@ impl Core {
         window: impl SurfaceWindow,
         size: [u32; 2],
     ) -> Result<Surface, RenderError> {
-        let target = wgpu::SurfaceTarget::from_window_without_display(window);
+        let target = wgpu::SurfaceTarget::from(window);
         let surface = self.gpu.instance.create_surface(target).map_err(device)?;
         let caps = surface.get_capabilities(&self.gpu.adapter);
         let format = preferred_format(&caps.formats).ok_or(RenderError::Invalid(

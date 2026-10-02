@@ -13,8 +13,8 @@ pub(crate) struct Gpu {
 
 impl Gpu {
     /// Opens a device before any window exists: offscreen targets work at once, surfaces attach
-    /// later. No display handle is needed on Android or for offscreen work. `WGPU_BACKEND` and
-    /// the other wgpu environment variables select the adapter.
+    /// later and bring their own display handle (`SurfaceWindow`). `WGPU_BACKEND` and the other
+    /// wgpu environment variables select the adapter.
     pub(crate) fn new() -> Result<Self, RenderError> {
         let instance =
             wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());

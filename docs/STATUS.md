@@ -4,12 +4,12 @@ Updated 2026-10-02. Current facts only; rewritten at the end of every slice, nev
 
 ## Stage
 
-G1 one stroke, end to end. S0, S1 and S2 done in code; S1's device criteria wait for the author (below). Next slice: S3 in ROADMAP.
+G1 one stroke, end to end. S0, S1 and S2 done; S1 runs on the tablet, rotation and real pen values wait for the author (below). Next slice: S3 in ROADMAP.
 
 ## Working features
 
 - core: `Artwork` is an immutable value (`Arc` state: canvas, layers bottom to top, active layer, id counters); `Artwork::new(canvas)` starts with "Layer 1". `apply(ArtworkCommand::Layer(..))` returns `Applied { artwork, change }` for create, delete, reorder, select, rename, visibility, opacity and lock; `StrokeSession` (begin on the active layer, extend all-or-nothing, finish as one version, cancel to the base); `to_parts` / `from_storage` with full validation; typed `CoreError`. Layer strokes are a chunked `StrokeList` (256 per chunk) shared between versions. No dependencies; not yet used by any other crate.
-- render: `Core::headless()` opens a wgpu device without a window and keeps instance and adapter so windows attach later through `Core::create_surface(window, size)` (any `raw-window-handle` window, Fifo, first non-sRGB format). `Core::render_clear` clears an offscreen `Rgba8Unorm` target and reads back an `RgbaImage` with an FNV-1a 64 `content_hash`. `adapter/` holds `UiPainter` (egui-wgpu) and `UiFrame`; `Core::present` clears the surface to the canvas colour and paints the UI over it, `Core::render_ui` does the same offscreen with readback.
+- render: `Core::headless()` opens a wgpu device without a window and keeps instance and adapter so windows attach later through `Core::create_surface(window, size)` (a `SurfaceWindow`: `raw-window-handle` window and display handles, since the instance carries no display; Fifo, first non-sRGB format). `Core::render_clear` clears an offscreen `Rgba8Unorm` target and reads back an `RgbaImage` with an FNV-1a 64 `content_hash`. `adapter/` holds `UiPainter` (egui-wgpu) and `UiFrame`; `Core::present` clears the surface to the canvas colour and paints the UI over it, `Core::render_ui` does the same offscreen with readback.
 - ui: `shell(ui)` draws a 48-point top bar labelled "OpenPaint"; the rest of the screen is the canvas.
 - runtime: `Runtime` is the frame loop a host drives from one thread: `start(density)`, `attach(window, size)`, `resize(size, density)`, `detach()`, `motion(&MotionBatch)` (logs one line per batch under target `openpaint::input`), `frame() -> wants another frame`, `screenshot(size)`. Typed input: `MotionBatch { phase, buttons, pointers }`, `Pointer { id, tool, samples }`, `PointerSample { position, pressure, tilt, orientation, time_ms }`; history samples come first, the current one last. The canvas is cleared white (`CANVAS`) until S3.
 - android: Kotlin `MainActivity` (no AndroidX, no GameActivity, no winit) owns a full-screen `SurfaceView`, paces frames with `Choreographer` on the main thread, hides system bars on API 30+, handles rotation through `configChanges`, and forwards every `MotionEvent` (touch and generic, so hover too) as primitive arrays: action, action index, button state, pointer ids, tool types, per step and pointer x/y/pressure/tilt/orientation, per step time in ms. Rust decodes them in `motion.rs` (host-tested) and hands them to the runtime; JNI errors and panics are logged under tag `openpaint`, never thrown into Java.
@@ -29,9 +29,11 @@ G1 one stroke, end to end. S0, S1 and S2 done in code; S1's device criteria wait
 | `motion.rs` decoding tests | pass | 2026-10-02 | history order, hover, pointer index, malformed shapes |
 | `cargo test -p openpaint-core` | pass, 33 tests | 2026-10-02 | success and error cases per layer command, stroke session, storage round trip and rejections, value ranges |
 | `cargo android-build` | pass | 2026-10-02 | dev machine, NDK 29.0.14206865, JDK 17; 16 MB debug APK, 7 JNI symbols exported; no Gradle or Kotlin warnings |
-| APK install, top bar on the tablet | not_run | — | no device attached to the dev machine; author to confirm |
-| Stylus pressure and tool type in logcat | not_run | — | needs the tablet |
-| Background/foreground and rotation without a crash | not_run | — | needs the tablet |
+| APK install, top bar on the tablet | pass | 2026-10-02 | MovinkPad 14 (Android 15, Adreno 735, Vulkan), 2880 x 1800 at density 1.75; `artifacts/device/s1-launch.png`: dark "OpenPaint" bar over white |
+| Finger and stylus tool type in logcat (adb `input tap/swipe`, `input stylus swipe`) | pass | 2026-10-02 | Finger and Stylus lines with history samples; no error lines |
+| Real pen pressure and tilt | not_run | — | adb injects p=1.0, tilt=0; needs the author's pen |
+| Background/foreground (HOME, then relaunch) | pass | 2026-10-02 | surface detached and reattached, same process, no error; `artifacts/device/s1-resume.png` |
+| Rotation without a crash | not_run | — | device settings are not changed by agents; author to rotate by hand |
 | CI (GitHub Actions `gate`) | not_run | — | no remote yet; workflow installs lavapipe for GPU tests |
 
 ## Known limits
@@ -44,10 +46,11 @@ G1 one stroke, end to end. S0, S1 and S2 done in code; S1's device criteria wait
 - The UI painter is created with the first surface's format; a later surface with another format fails with `RenderError::Invalid` (not seen on any device yet).
 - On API 28 and 29 the navigation bar stays visible (the system-bar hiding needs API 30).
 - The Gradle and Kotlin daemons outlive `cargo android-build` and hold its output handles: piping the command into `tail` or `grep` waits for them. Redirect to a file instead.
-- No emulator image is installed on the dev machine; Android lifecycle has had no automated run.
+- No emulator image is installed on the dev machine; Android lifecycle is checked by hand over adb on the tablet.
+- The harness renders offscreen only, so window surface creation is covered by the `SurfaceWindow` bound (a window without a display handle does not compile) and by the device, not by a host test.
 - core: a stroke style is size, opacity and an opaque sRGB colour only (recipes arrive in S11); layer lock blocks strokes only; drawing on a hidden layer is allowed.
 - core: every layer command clones the layer table (O(layers), strokes shared); fine at the 256-layer limit.
 
 ## Pending author decisions
 
-- Confirm S1 on the tablet: install, top bar visible, stylus log lines, background/foreground and rotation.
+- Confirm on the tablet by hand: rotation without a crash, and real pen pressure and tilt in `adb logcat -s openpaint:V`.

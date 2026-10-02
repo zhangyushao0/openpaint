@@ -7,7 +7,8 @@ use std::ptr::NonNull;
 use jni::Env;
 use jni::objects::JObject;
 use raw_window_handle::{
-    AndroidNdkWindowHandle, HandleError, HasWindowHandle, RawWindowHandle, WindowHandle,
+    AndroidNdkWindowHandle, DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle,
+    RawWindowHandle, WindowHandle,
 };
 
 #[link(name = "android")]
@@ -49,5 +50,12 @@ impl HasWindowHandle for NativeWindow {
         let raw = RawWindowHandle::AndroidNdk(AndroidNdkWindowHandle::new(self.0));
         // SAFETY: the window stays acquired for as long as `self`, which outlives the borrow.
         Ok(unsafe { WindowHandle::borrow_raw(raw) })
+    }
+}
+
+/// wgpu refuses to create a surface without a display handle; Android's carries no data.
+impl HasDisplayHandle for NativeWindow {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+        Ok(DisplayHandle::android())
     }
 }
