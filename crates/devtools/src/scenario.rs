@@ -54,7 +54,16 @@ pub enum Step {
         tool: Tool,
     },
     /// A pen stroke through `[x, y, pressure]` points, pressure interpolated between them.
-    Stroke { points: Vec<[f32; 3]> },
+    Stroke {
+        points: Vec<[f32; 3]>,
+        /// Where the pen leaves the glass, reported as Android does: one more sample with
+        /// pressure 0. Without it the last point is the lift.
+        #[serde(default)]
+        lift: Option<[f32; 2]>,
+        /// A hand resting on the glass around the stroke.
+        #[serde(default)]
+        palm: Option<Palm>,
+    },
     /// Frames with no input.
     Wait { frames: u32 },
     /// The app process ends and starts again with the same screen and the same library, as
@@ -89,6 +98,24 @@ impl Tool {
     }
 }
 
+/// A hand on the glass at `at` (window pixels), a touch of its own beside the pen.
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Palm {
+    pub at: [f32; 2],
+    pub lands: Lands,
+}
+
+/// When the hand touches the glass, relative to the pen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Lands {
+    /// Before the pen touches down; it lifts after the pen.
+    Before,
+    /// After the pen touched down; it lifts before the pen.
+    During,
+}
+
 impl Scenario {
     /// Parses and validates a scenario file's text.
     pub fn parse(text: &str) -> Result<Self, ScenarioError> {
@@ -108,7 +135,7 @@ impl Scenario {
         for (index, step) in self.steps.iter().enumerate() {
             let invalid = |reason: &str| ScenarioError::Invalid(format!("step {index}: {reason}"));
             match step {
-                Step::Stroke { points } if points.is_empty() => {
+                Step::Stroke { points, .. } if points.is_empty() => {
                     return Err(invalid("a stroke needs at least one point"));
                 }
                 Step::Checkpoint { name, .. } | Step::Screenshot { name } => {
@@ -157,6 +184,8 @@ mod tests {
                 { "tap": { "at": [10, 20] } },
                 { "drag": { "from": [1, 2], "to": [3, 4], "tool": "stylus" } },
                 { "stroke": { "points": [[100, 200, 0.5]] } },
+                { "stroke": { "points": [[1, 2, 0.5]], "lift": [3, 4],
+                              "palm": { "at": [5, 6], "lands": "during" } } },
                 { "wait": { "frames": 2 } },
                 "restart",
                 { "checkpoint": { "name": "a", "canvas": "1f94cbfbd4b11e02" } },
@@ -167,9 +196,20 @@ mod tests {
         }"#;
         let scenario = Scenario::parse(text).expect("parses");
         assert_eq!(scenario.walkthrough, ["Open the app."]);
-        assert_eq!(scenario.steps.len(), 9);
-        assert_eq!(scenario.steps[7], Step::StorageFails);
-        assert_eq!(scenario.steps[8], Step::StorageWorks);
+        assert_eq!(scenario.steps.len(), 10);
+        assert_eq!(scenario.steps[8], Step::StorageFails);
+        assert_eq!(scenario.steps[9], Step::StorageWorks);
+        assert_eq!(
+            scenario.steps[3],
+            Step::Stroke {
+                points: vec![[1.0, 2.0, 0.5]],
+                lift: Some([3.0, 4.0]),
+                palm: Some(Palm {
+                    at: [5.0, 6.0],
+                    lands: Lands::During
+                }),
+            }
+        );
         assert_eq!(
             scenario.steps[0],
             Step::Tap {
@@ -177,9 +217,9 @@ mod tests {
                 tool: Tool::Finger
             }
         );
-        assert_eq!(scenario.steps[4], Step::Restart);
+        assert_eq!(scenario.steps[5], Step::Restart);
         assert_eq!(
-            scenario.steps[5],
+            scenario.steps[6],
             Step::Checkpoint {
                 name: "a".into(),
                 canvas: 0x1f94_cbfb_d4b1_1e02

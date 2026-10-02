@@ -2,14 +2,14 @@
 //! its window, hands over input batches and asks for frames; all calls come from one thread.
 //!
 //! A frame: take what the storage worker finished -> take the input normalised since the last
-//! frame -> run the UI from the session's projection -> route the canvas contacts and the
+//! frame, palms removed -> run the UI from the session's projection -> route the canvas contacts and the
 //! chrome's taps to the session as intents -> evaluate what changed into the canvas target ->
 //! hand a version that is not stored yet to the storage worker -> draw the canvas and the UI
 //! over it.
 
 use std::time::Duration;
 
-use openpaint_app::{InputBatch, ProjectStore, SessionProjection};
+use openpaint_app::{InputBatch, PalmRejection, ProjectStore, SessionProjection};
 use openpaint_core::Artwork;
 use openpaint_render::{
     Core, RenderError, RgbaImage, ScreenFrame, ScreenPainter, ScreenTarget, Surface, SurfaceWindow,
@@ -38,7 +38,9 @@ pub struct Runtime {
     offscreen: Option<ScreenTarget>,
     pixels_per_point: f32,
     normaliser: Normaliser,
-    /// Input normalised since the last frame, oldest first.
+    /// Drops the hand resting on the glass before the UI or the session sees it.
+    palms: PalmRejection,
+    /// Input normalised since the last frame, palms removed, oldest first.
     pending: Vec<InputBatch>,
     /// What the library opened, kept until a frame knows the canvas area.
     opened: Option<Opened>,
@@ -72,6 +74,7 @@ impl Runtime {
             offscreen: None,
             pixels_per_point,
             normaliser: Normaliser::default(),
+            palms: PalmRejection::default(),
             pending: Vec::new(),
             canvas: None,
         })
@@ -124,13 +127,13 @@ impl Runtime {
     /// in which case the host should ask for a frame.
     pub fn motion(&mut self, batch: &MotionBatch) -> bool {
         log::debug!(target: "openpaint::input", "{batch}");
-        match self.normaliser.normalise(batch) {
-            Some(input) => {
-                self.pending.push(input);
-                true
-            }
-            None => false,
-        }
+        let Some(input) = self.normaliser.normalise(batch) else {
+            return false;
+        };
+        let kept = self.palms.filter(input);
+        let wanted = !kept.is_empty();
+        self.pending.extend(kept);
+        wanted
     }
 
     /// Runs one frame into the window. Returns whether another frame is wanted at once.

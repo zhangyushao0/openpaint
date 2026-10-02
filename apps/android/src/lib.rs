@@ -3,8 +3,10 @@
 //!
 //! The Kotlin host (`app/src/main/java/dev/openpaint/`) owns the lifecycle and the
 //! `SurfaceView` (DECISIONS D11); this crate turns its calls into `Runtime` calls. Everything
-//! JNI is Android-only; the motion decoding is plain Rust and tested on the host.
+//! JNI is Android-only; the motion decoding and the pen latency probe are plain Rust and
+//! tested on the host.
 
+pub mod latency;
 pub mod motion;
 
 #[cfg(target_os = "android")]

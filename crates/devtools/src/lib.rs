@@ -13,4 +13,4 @@ mod switch;
 pub use crate::diff::{Diff, diff};
 pub use crate::error::ScenarioError;
 pub use crate::runner::{Checkpoint, Record, Report, Screenshot, run};
-pub use crate::scenario::{Scenario, Step, Tool, is_file_name};
+pub use crate::scenario::{Lands, Palm, Scenario, Step, Tool, is_file_name};

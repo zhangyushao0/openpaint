@@ -90,7 +90,7 @@ Only decisions that constrain future code and are not self-evident. Each entry i
 
 - Decision: the Kotlin activity calls Rust only from the main thread: `Choreographer` paces frames on demand (Rust answers whether it wants the next one) and `MotionEvent`s cross JNI as primitive arrays (ids, tool types, x/y/pressure/tilt/orientation per step and pointer, times), decoded into typed batches in plain Rust. The UI painter lives for the process because egui sends its font atlas once. `cargo android-build` launches the Gradle wrapper jar from xtask; no gradlew scripts are tracked. The gate clippy-checks the JNI crate for `aarch64-linux-android`.
 - Reason: one thread needs no locks between lifecycle, surface and input calls; arrays keep Kotlin free of product types and make decoding testable on the dev machine; gradlew and gradlew.bat are scripts (D05); without the Android clippy step the JNI code would be compiled by nobody but the APK build.
-- Consequences: a slow frame delays input until a render thread exists (decided with S8's latency number); surfaces must be detached in `surfaceDestroyed` before it returns; changing the sample layout means changing `SAMPLE_FIELDS` in both `motion.rs` and `MainActivity.kt`.
+- Consequences: a slow frame delays input; S8's latency number kept frames on the main thread (D22); surfaces must be detached in `surfaceDestroyed` before it returns; changing the sample layout means changing `SAMPLE_FIELDS` in both `motion.rs` and `MainActivity.kt`.
 
 ## D16 2026-10-02 Evaluation is a per-pixel op interpreter over tile-binned lists; strokes are coverage unions
 
@@ -128,3 +128,9 @@ Only decisions that constrain future code and are not self-evident. Each entry i
 - Autosave (app `storage.rs`): one save in flight on the runtime's storage worker; a failed version is not retried by itself (only after the next change, a Retry tap, or leaving the app); a library that cannot be opened starts a blank artwork in a new project and leaves the old records untouched, with a notice.
 - Reason: principle 5 (pay per change): rewriting a whole artwork after each stroke would cost megabytes per stroke on the tablet's flash; per-stroke records make a stroke cost its own bytes. An owned byte layout cannot change with a dependency upgrade, and the frozen bytes prove it.
 - Consequences: schema 2 (S9) adds a migration over these records and its own sample. History and editor state are not stored. Layer reorder and property changes rewrite only the head; deleting a layer removes its records.
+
+## D22 2026-10-02 Rendering stays on the Android main thread; latency work targets presentation
+
+- Decision: D15's open question is closed for G1: no render thread. The pen latency probe stays in the Android host and logs one summary per stroke.
+- Reason: measured on the MovinkPad 14 at 120 Hz (S8, injected strokes): event to present call p50 9.2 ms, p95 10.4 ms, of which the frame's own work is p50 2.5 ms, p95 3.3 ms of an 8.3 ms vsync; the rest is waiting for the next Choreographer frame. Queue to on-screen present (SurfaceFlinger) is p50 28 ms, unchanged with `desired_maximum_frame_latency` 1 instead of 2. A render thread would remove at most the 2.5 ms of frame work from input delivery and buys nothing against the 28 ms.
+- Consequences: latency work goes to presentation (front-buffered or low-latency presentation, frame timing) as its own candidate, not to threads. Revisit when frame work passes half a vsync (4 ms p95) or input handling is seen to stall.

@@ -3,6 +3,10 @@
 
 use openpaint_app::{ContactPhase, InputBatch};
 
+/// Where a cancelled contact is released: off the screen, further from any press than egui's
+/// click distance, so a cancel never taps the button it rested on.
+const NOWHERE: egui::Pos2 = egui::pos2(-100_000.0, -100_000.0);
+
 /// The pointer events of `batches` for a screen of `pixels_per_point`.
 pub(crate) fn pointer_events(batches: &[InputBatch], pixels_per_point: f32) -> Vec<egui::Event> {
     let mut events = Vec::new();
@@ -11,7 +15,7 @@ pub(crate) fn pointer_events(batches: &[InputBatch], pixels_per_point: f32) -> V
             continue;
         };
         let pos = egui::pos2(last.position[0], last.position[1]) / pixels_per_point;
-        let button = |pressed| egui::Event::PointerButton {
+        let button = |pos, pressed| egui::Event::PointerButton {
             pos,
             button: egui::PointerButton::Primary,
             pressed,
@@ -22,16 +26,22 @@ pub(crate) fn pointer_events(batches: &[InputBatch], pixels_per_point: f32) -> V
                 events.push(egui::Event::PointerMoved(pos));
             }
             ContactPhase::Down => {
-                events.extend([egui::Event::PointerMoved(pos), button(true)]);
+                events.extend([egui::Event::PointerMoved(pos), button(pos, true)]);
             }
             ContactPhase::Up => {
                 events.extend([
                     egui::Event::PointerMoved(pos),
-                    button(false),
+                    button(pos, false),
                     egui::Event::PointerGone,
                 ]);
             }
-            ContactPhase::Cancel | ContactPhase::Leave => events.push(egui::Event::PointerGone),
+            // egui has no cancel: the press ends far away, which is a release but no click.
+            ContactPhase::Cancel => events.extend([
+                egui::Event::PointerMoved(NOWHERE),
+                button(NOWHERE, false),
+                egui::Event::PointerGone,
+            ]),
+            ContactPhase::Leave => events.push(egui::Event::PointerGone),
         }
     }
     events
@@ -79,5 +89,18 @@ mod tests {
             egui::Event::PointerGone,
         ];
         assert_eq!(events, expected);
+    }
+
+    #[test]
+    fn a_cancel_releases_off_the_screen() {
+        let events = pointer_events(&[batch(ContactPhase::Cancel)], 2.0);
+        let released = egui::Event::PointerButton {
+            pos: NOWHERE,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers: egui::Modifiers::NONE,
+        };
+        assert_eq!(events[1], released);
+        assert_eq!(events.last(), Some(&egui::Event::PointerGone));
     }
 }

@@ -33,6 +33,11 @@ pub enum MotionPhase {
     PointerUp {
         index: usize,
     },
+    /// The platform took one pointer away while others stay down (Android: `ACTION_POINTER_UP`
+    /// with `FLAG_CANCELED`, a touch judged to be a palm); everything it did is void.
+    PointerCancel {
+        index: usize,
+    },
     HoverEnter,
     HoverMove,
     HoverExit,

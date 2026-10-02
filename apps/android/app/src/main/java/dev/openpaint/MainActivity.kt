@@ -67,7 +67,7 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
 
     /** Rotation and resizing wait for this, so the new size never shows a stale frame. */
     override fun surfaceRedrawNeeded(holder: SurfaceHolder) {
-        Native.frame(handle)
+        Native.frame(handle, System.nanoTime())
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
@@ -77,7 +77,7 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
 
     override fun doFrame(frameTimeNanos: Long) {
         frameRequested = false
-        if (Native.frame(handle)) requestFrame()
+        if (Native.frame(handle, System.nanoTime())) requestFrame()
     }
 
     private fun requestFrame() {
@@ -122,11 +122,19 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
             }
         }
         val wantsFrame = Native.motion(
-            handle, event.actionMasked, event.actionIndex, event.buttonState,
-            ids, tools, samples, times,
+            handle, event.actionMasked, event.actionIndex, event.flags, event.buttonState,
+            ids, tools, samples, times, eventNanos(event),
         )
         if (wantsFrame) requestFrame()
     }
+
+    /** The event's time in System.nanoTime()'s clock; to the millisecond before API 34. */
+    private fun eventNanos(event: MotionEvent): Long =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            event.eventTimeNanos
+        } else {
+            event.eventTime * 1_000_000
+        }
 
     private fun density(): Float = resources.displayMetrics.density
 

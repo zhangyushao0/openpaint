@@ -3,8 +3,10 @@
 
 use openpaint_runtime::{Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, ToolKind};
 
-use crate::scenario::Tool;
+use crate::scenario::{Lands, Palm, Tool};
 
+/// The pointer id of a hand beside the pen (the pen is 0).
+const PALM_ID: i32 = 1;
 /// Milliseconds between samples.
 const SAMPLE_MS: i64 = 4;
 /// Samples per batch; one batch per frame.
@@ -27,6 +29,55 @@ pub(crate) fn tap(tool: Tool, at: [f32; 2], start_ms: i64) -> Vec<MotionBatch> {
 /// A path through `points` (`[x, y, pressure]`), resampled so no two samples are more than
 /// `SPACING` apart, pressure interpolated linearly, starting at `start_ms`.
 pub(crate) fn path(tool: Tool, points: &[[f32; 3]], start_ms: i64) -> Vec<MotionBatch> {
+    batches(tool, &resampled(points, start_ms))
+}
+
+/// A pen stroke along `points` as `path` draws it. With `lift`, the pen leaves the glass
+/// there as Android reports it: the lift is one more sample, with pressure 0. A `palm` touches
+/// down beside it as a pointer of its own.
+pub(crate) fn stroke(
+    points: &[[f32; 3]],
+    lift: Option<[f32; 2]>,
+    palm: Option<Palm>,
+    start_ms: i64,
+) -> Vec<MotionBatch> {
+    let mut samples = resampled(points, start_ms);
+    if let (Some(at), Some(last)) = (lift, samples.last()) {
+        samples.push(sample(at, 0.0, last.time_ms + SAMPLE_MS));
+    }
+    let mut pen = batches(Tool::Stylus, &samples);
+    let Some(palm) = palm.filter(|_| !pen.is_empty()) else {
+        return pen;
+    };
+    let end_ms = end_ms(&pen, start_ms);
+    let hand = |phase, time_ms| MotionBatch {
+        phase,
+        buttons: Buttons::default(),
+        pointers: vec![Pointer {
+            id: PALM_ID,
+            tool: ToolKind::Finger,
+            samples: vec![sample(palm.at, 1.0, time_ms)],
+        }],
+    };
+    let (down, up) = (
+        hand(MotionPhase::Down, start_ms),
+        hand(MotionPhase::Up, end_ms),
+    );
+    match palm.lands {
+        Lands::Before => {
+            pen.insert(0, down);
+            pen.push(up);
+        }
+        Lands::During => {
+            pen.insert(1, down);
+            pen.insert(pen.len() - 1, up);
+        }
+    }
+    pen
+}
+
+/// `points` resampled as `path` describes, one sample every `SAMPLE_MS` from `start_ms`.
+fn resampled(points: &[[f32; 3]], start_ms: i64) -> Vec<PointerSample> {
     let mut vertices = Vec::new();
     for pair in points.windows(2) {
         let ([ax, ay, ap], [bx, by, bp]) = (pair[0], pair[1]);
@@ -37,11 +88,10 @@ pub(crate) fn path(tool: Tool, points: &[[f32; 3]], start_ms: i64) -> Vec<Motion
         }));
     }
     vertices.extend(points.last());
-    let samples: Vec<PointerSample> = (0i64..)
+    (0i64..)
         .zip(&vertices)
         .map(|(i, &[x, y, pressure])| sample([x, y], pressure, start_ms + i * SAMPLE_MS))
-        .collect();
-    batches(tool, &samples)
+        .collect()
 }
 
 /// The time of the last sample in `batches`, or `fallback` when there is none.
@@ -131,6 +181,51 @@ mod tests {
             batches
                 .iter()
                 .all(|b| b.pointers[0].samples.len() <= PER_BATCH)
+        );
+    }
+
+    #[test]
+    fn a_lift_ends_the_stroke_with_one_zero_pressure_sample() {
+        let batches = stroke(
+            &[[0.0, 0.0, 0.5], [8.0, 0.0, 0.5]],
+            Some([12.0, 3.0]),
+            None,
+            0,
+        );
+        let up = batches.last().expect("up");
+        assert_eq!(up.phase, MotionPhase::Up);
+        assert_eq!(up.pointers[0].samples.len(), 1);
+        let lift = up.pointers[0].samples[0];
+        assert_eq!((lift.position, lift.pressure), ([12.0, 3.0], 0.0));
+        assert_eq!(lift.time_ms, 3 * SAMPLE_MS);
+    }
+
+    #[test]
+    fn a_palm_lands_before_the_pen_or_during_the_stroke() {
+        let line = [[0.0, 0.0, 0.5], [40.0, 0.0, 0.5]];
+        let hand = |lands| Palm {
+            at: [5.0, 5.0],
+            lands,
+        };
+        let who = |batches: &[MotionBatch]| -> Vec<(i32, MotionPhase)> {
+            batches
+                .iter()
+                .map(|b| (b.pointers[0].id, b.phase))
+                .collect()
+        };
+        let before = who(&stroke(&line, None, Some(hand(Lands::Before)), 0));
+        assert_eq!(before.first(), Some(&(PALM_ID, MotionPhase::Down)));
+        assert_eq!(before[1], (0, MotionPhase::Down));
+        assert_eq!(before.last(), Some(&(PALM_ID, MotionPhase::Up)));
+        let during = who(&stroke(&line, None, Some(hand(Lands::During)), 0));
+        assert_eq!(
+            during[..2],
+            [(0, MotionPhase::Down), (PALM_ID, MotionPhase::Down)]
+        );
+        let n = during.len();
+        assert_eq!(
+            during[n - 2..],
+            [(PALM_ID, MotionPhase::Up), (0, MotionPhase::Up)]
         );
     }
 

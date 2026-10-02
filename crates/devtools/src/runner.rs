@@ -15,7 +15,7 @@ use openpaint_runtime::{MotionBatch, Runtime};
 
 use crate::error::ScenarioError;
 use crate::gesture;
-use crate::scenario::{Scenario, Step, Tool};
+use crate::scenario::{Scenario, Step};
 use crate::switch::Switched;
 
 /// Milliseconds of one 60 Hz frame, for the input clock.
@@ -147,8 +147,9 @@ impl Runner<'_> {
                 let points = [[from[0], from[1], 1.0], [to[0], to[1], 1.0]];
                 self.gesture(runtime, &gesture::path(*tool, &points, now))?;
             }
-            Step::Stroke { points } => {
-                self.gesture(runtime, &gesture::path(Tool::Stylus, points, now))?;
+            Step::Stroke { points, lift, palm } => {
+                let batches = gesture::stroke(points, *lift, *palm, now);
+                self.gesture(runtime, &batches)?;
             }
             Step::Wait { frames } => {
                 for _ in 0..*frames {

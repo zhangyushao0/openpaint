@@ -1,0 +1,49 @@
+{
+  "walkthrough": [
+    "Goal: draw on the tablet the way a hand really holds a pen: the side of the hand rests on the glass, strokes end where the ink ends, undo works, and the drawing is still there after the app was closed.",
+    "Entry: open OpenPaint on the tablet (2880 x 1800, landscape) on an empty library: the dark top bar reads OpenPaint with grey undo and redo arrows; the white canvas fills the rest.",
+    "Draw a curve with the pen and lift it. The ink follows the tip with pressure and ends in the brush's round tip right where the pen left the glass: no thin tail flicking towards the point the pen reported as it lifted.",
+    "Rest the side of the hand on the canvas, then draw a second curve. The resting hand leaves no mark and does not interrupt or bend the stroke; lifting the pen and then the hand changes nothing more.",
+    "Draw a third stroke near the top while the hand brushes over the undo arrow and leaves it again before the pen lifts: the stroke is complete, nothing is undone, the arrow never reacts.",
+    "Let the hand lie on the undo arrow before the pen touches, draw a fourth stroke, lift the pen, then the hand: the moment the pen lands the hand's touch is dropped, so nothing is undone when the hand lifts.",
+    "Tap undo with a finger: the fourth stroke disappears. With the pen off the glass a finger is a finger again, so deliberate taps work.",
+    "Leave the app and let the system close it, open it again: the three strokes are there, undo is grey (history is not stored).",
+    "Failure: a touch the system itself cancels as a palm does nothing, even over a button. If the system cancels the pen's own contact, that stroke is dropped and the canvas shows the version before it.",
+    "Not here: telling a resting hand from a finger before the pen lands (a hand that taps a button and lifts before the pen touches counts as a tap); gestures such as two-finger undo; pen feel, which the author judges on the tablet."
+  ],
+  "screen": [2880, 1800],
+  "density": 1.75,
+  "steps": [
+    { "screenshot": { "name": "start" } },
+    { "stroke": {
+      "points": [[400, 600, 0.4], [1100, 350, 0.9], [1800, 650, 0.7]],
+      "lift": [1830, 700]
+    } },
+    { "checkpoint": { "name": "round-end", "canvas": "fd2fc755444a58d9" } },
+    { "screenshot": { "name": "first-stroke" } },
+    { "tap": { "at": [230, 42] } },
+    { "stroke": { "points": [[400, 600, 0.4], [1100, 350, 0.9], [1800, 650, 0.7]] } },
+    { "checkpoint": { "name": "lift-not-drawn", "canvas": "fd2fc755444a58d9" } },
+    { "stroke": {
+      "points": [[500, 1300, 0.5], [1400, 1100, 1.0], [2400, 1400, 0.6]],
+      "palm": { "at": [2100, 1550], "lands": "before" }
+    } },
+    { "checkpoint": { "name": "palm-on-canvas", "canvas": "83ea2f0fd20aca1a" } },
+    { "stroke": {
+      "points": [[600, 250, 0.5], [1500, 200, 0.9], [2500, 300, 0.5]],
+      "palm": { "at": [230, 42], "lands": "during" }
+    } },
+    { "checkpoint": { "name": "palm-over-undo", "canvas": "b72a8c615f05e373" } },
+    { "stroke": {
+      "points": [[700, 1600, 0.4], [1600, 1500, 0.9], [2600, 1650, 0.5]],
+      "palm": { "at": [230, 42], "lands": "before" }
+    } },
+    { "checkpoint": { "name": "palm-resting-on-undo", "canvas": "996871cb313b5815" } },
+    { "screenshot": { "name": "four-strokes" } },
+    { "tap": { "at": [230, 42] } },
+    { "checkpoint": { "name": "finger-undo", "canvas": "b72a8c615f05e373" } },
+    "restart",
+    { "checkpoint": { "name": "reopened", "canvas": "b72a8c615f05e373" } },
+    { "screenshot": { "name": "after-restart" } }
+  ]
+}

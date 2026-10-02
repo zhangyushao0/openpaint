@@ -70,6 +70,43 @@ fn a_pen_swipe_commits_one_stroke_timed_from_its_start() {
 }
 
 #[test]
+fn the_zero_pressure_lift_is_not_part_of_the_stroke() {
+    let mut session = session();
+    let steps = [
+        (ContactPhase::Down, vec![sample(10.0, 0)]),
+        (ContactPhase::Move, vec![sample(20.0, 4)]),
+        // As Android reports the lift: pressure 0, a little further on.
+        (
+            ContactPhase::Up,
+            vec![InputSample {
+                pressure: 0.0,
+                ..sample(26.0, 8)
+            }],
+        ),
+    ];
+    for (phase, samples) in steps {
+        session
+            .dispatch(contact(1, Device::Pen, phase, &samples))
+            .expect("dispatch");
+    }
+    let artwork = session.artwork();
+    let layer = artwork.layer(artwork.active()).expect("layer");
+    let stroke = layer.strokes().iter().next().expect("committed");
+    let xs: Vec<f32> = stroke.samples().iter().map(|s| s.position().x()).collect();
+    assert_eq!(xs, [10.0, 20.0], "the stroke ends where the ink stopped");
+}
+
+#[test]
+fn a_lift_with_pressure_still_draws_its_sample() {
+    let mut session = session();
+    swipe(&mut session, 2, Device::Pen);
+    let artwork = session.artwork();
+    let layer = artwork.layer(artwork.active()).expect("layer");
+    let stroke = layer.strokes().iter().next().expect("committed");
+    assert_eq!(stroke.samples().len(), 4);
+}
+
+#[test]
 fn the_stroke_stays_beside_the_artwork_until_the_pen_lifts() {
     let mut session = session();
     let blank = session.artwork().clone();

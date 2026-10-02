@@ -76,7 +76,10 @@ fn phase(batch: MotionPhase, index: usize) -> Option<ContactPhase> {
         MotionPhase::Cancel => ContactPhase::Cancel,
         MotionPhase::PointerDown { index: down } if down == index => ContactPhase::Down,
         MotionPhase::PointerUp { index: up } if up == index => ContactPhase::Up,
-        MotionPhase::PointerDown { .. } | MotionPhase::PointerUp { .. } => ContactPhase::Move,
+        MotionPhase::PointerCancel { index: gone } if gone == index => ContactPhase::Cancel,
+        MotionPhase::PointerDown { .. }
+        | MotionPhase::PointerUp { .. }
+        | MotionPhase::PointerCancel { .. } => ContactPhase::Move,
         MotionPhase::HoverEnter | MotionPhase::HoverMove => ContactPhase::Hover,
         MotionPhase::HoverExit => ContactPhase::Leave,
         MotionPhase::ButtonPress | MotionPhase::ButtonRelease => return None,
@@ -188,10 +191,12 @@ mod tests {
         };
         let down = normaliser.normalise(&two(MotionPhase::PointerDown { index: 1 }));
         let up = normaliser.normalise(&two(MotionPhase::PointerUp { index: 0 }));
+        let palm = normaliser.normalise(&two(MotionPhase::PointerCancel { index: 1 }));
         let cancel = normaliser.normalise(&two(MotionPhase::Cancel));
         use ContactPhase::{Cancel, Down, Move, Up};
         assert_eq!(phases(&down.expect("down")), [(4, Move), (9, Down)]);
         assert_eq!(phases(&up.expect("up")), [(4, Up), (9, Move)]);
+        assert_eq!(phases(&palm.expect("palm")), [(4, Move), (9, Cancel)]);
         assert_eq!(phases(&cancel.expect("cancel")), [(4, Cancel), (9, Cancel)]);
     }
 

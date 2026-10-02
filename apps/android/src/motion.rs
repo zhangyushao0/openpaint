@@ -16,6 +16,8 @@ pub struct RawMotion<'a> {
     pub action: i32,
     /// `MotionEvent.getActionIndex()`.
     pub action_index: i32,
+    /// `MotionEvent.getFlags()`.
+    pub flags: i32,
     /// `MotionEvent.getButtonState()`.
     pub buttons: i32,
     /// `getPointerId(p)` per pointer.
@@ -53,10 +55,12 @@ pub fn decode(raw: &RawMotion<'_>) -> Result<Option<MotionBatch>, DecodeError> {
     if raw.samples.len() != steps * pointers * SAMPLE_FIELDS {
         return Err(DecodeError("sample count does not match steps x pointers"));
     }
-    let Some(phase) = phase(raw.action, raw.action_index)? else {
+    let Some(phase) = phase(raw.action, raw.action_index, raw.flags)? else {
         return Ok(None);
     };
-    if let MotionPhase::PointerDown { index } | MotionPhase::PointerUp { index } = phase
+    if let MotionPhase::PointerDown { index }
+    | MotionPhase::PointerUp { index }
+    | MotionPhase::PointerCancel { index } = phase
         && index >= pointers
     {
         return Err(DecodeError("action index is not a pointer of the event"));
@@ -88,15 +92,22 @@ fn sample(raw: &RawMotion<'_>, step: usize, pointer: usize) -> PointerSample {
     }
 }
 
+/// `MotionEvent.FLAG_CANCELED`: since Android 13 an up that the system cancelled, typically a
+/// touch its palm rejection caught; it must not act as a lift.
+const FLAG_CANCELED: i32 = 0x20;
+
 /// `MotionEvent.ACTION_*` values.
-fn phase(action: i32, action_index: i32) -> Result<Option<MotionPhase>, DecodeError> {
+fn phase(action: i32, action_index: i32, flags: i32) -> Result<Option<MotionPhase>, DecodeError> {
     let index = || usize::try_from(action_index).map_err(|_| DecodeError("negative action index"));
+    let cancelled = flags & FLAG_CANCELED != 0;
     Ok(Some(match action {
         0 => MotionPhase::Down,
+        1 if cancelled => MotionPhase::Cancel,
         1 => MotionPhase::Up,
         2 => MotionPhase::Move,
         3 => MotionPhase::Cancel,
         5 => MotionPhase::PointerDown { index: index()? },
+        6 if cancelled => MotionPhase::PointerCancel { index: index()? },
         6 => MotionPhase::PointerUp { index: index()? },
         7 => MotionPhase::HoverMove,
         9 => MotionPhase::HoverEnter,
@@ -140,6 +151,7 @@ mod tests {
         RawMotion {
             action,
             action_index,
+            flags: 0,
             buttons: 0x20,
             ids: &[0, 7],
             tools: &[2, 1],
@@ -184,6 +196,20 @@ mod tests {
         assert_eq!(hover.phase, MotionPhase::HoverMove);
         let down = decode(&raw(5, 1, &SAMPLES)).unwrap().unwrap();
         assert_eq!(down.phase, MotionPhase::PointerDown { index: 1 });
+    }
+
+    #[test]
+    fn an_up_the_system_cancelled_is_a_cancel() {
+        let cancelled = |action, index| RawMotion {
+            flags: FLAG_CANCELED,
+            ..raw(action, index, &SAMPLES)
+        };
+        let one = decode(&cancelled(6, 1)).unwrap().unwrap();
+        assert_eq!(one.phase, MotionPhase::PointerCancel { index: 1 });
+        let last = decode(&cancelled(1, 0)).unwrap().unwrap();
+        assert_eq!(last.phase, MotionPhase::Cancel);
+        let plain = decode(&raw(6, 1, &SAMPLES)).unwrap().unwrap();
+        assert_eq!(plain.phase, MotionPhase::PointerUp { index: 1 });
     }
 
     #[test]

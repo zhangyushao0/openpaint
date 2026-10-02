@@ -26,11 +26,7 @@ S0 and S1 are done (see "Done").
 
 Exit: on the tablet, draw with pressure, undo, kill the app, reopen, the stroke is still there; pen-to-pixel latency has a measured number; the author judges basic pen feel `pass` / `fail`.
 
-S2 to S7 are done (see "Done").
-
-**S8 Android loop on the device** (android, runtime)
-- Wire S2 to S7 on the Android host; stylus and touch batches enter the same normaliser; basic palm rejection; pen-to-pixel latency instrumented.
-- Done: draw, undo and reopen on the tablet; the latency number is in STATUS; the author judges pen feel. G1 exit.
+S2 to S8 are done (see "Done"). The exit waits for the author: pen feel and palm rejection by hand on the tablet (STATUS, "Pending author decisions").
 
 ## G2 Artworks and layers
 
@@ -87,8 +83,9 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - 2026-10-02 View transform (zoom, pan, rotate, refit after device rotation): no slice owns it; until then the canvas is fixed at its first size, one screen pixel per canvas pixel.
 - 2026-10-02 Vulkan staging stall (~1.5 ms every ~4,000 `write_buffer` calls on the dev machine): pack the evaluator's per-frame writes or use a staging belt if the tablet shows it.
 - 2026-10-02 Finished-stroke cost per frame: cache the tile binning of finished ops per artwork version before long sessions make the plan step slow.
-- 2026-10-02 Android log noise: fjall and lsm-tree log every keyspace recovery at info level under the `openpaint` tag; filter their targets to warn in the host's logger.
 - 2026-10-02 Touch gestures for history (two-finger tap undo, three-finger tap redo, Procreate's model): gesture mapping is the author's call (ARCHITECTURE section 10); needs multi-touch routing and a multi-pointer scenario step. Undo/redo are top-bar buttons until then.
+- 2026-10-02 Presentation latency: on the tablet a queued frame reaches the glass p50 28 ms later (about 3.4 vsyncs at 120 Hz) against 9 ms from pen event to queue (D22); front-buffered stylus rendering or tighter frame timing is the lever, not a render thread.
+- 2026-10-02 Pen stroke cancelled by a landing touch: with injected input the dispatcher cancels the pen's gesture when a touch lands mid-stroke and the stroke is dropped; if real hardware does the same, commit the stroke drawn so far on such a cancel.
 
 ## Done
 
@@ -102,3 +99,4 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - S5 2026-10-02 `feat(devtools): scenario runner with canvas checkpoints, cargo scenario, smoke in the gate (S5)`
 - S6 2026-10-02 `feat(app): history with a byte budget, undo and redo in the top bar (S6)`; confirmed on the tablet with injected input
 - S7 2026-10-02 `feat(store): fjall library with per-stroke records, autosave worker, save-failure retry (S7)`; confirmed on the tablet with injected input
+- S8 2026-10-02 `feat(android): palm rejection, round stroke ends, pen latency probe on the tablet (S8)`; draw, undo, reopen and latency confirmed on the tablet with injected input; G1 exit awaits the author (pen feel, palm by hand)

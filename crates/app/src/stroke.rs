@@ -65,8 +65,9 @@ impl Strokes {
             ContactPhase::Down => self.begin(artwork, &contact),
             ContactPhase::Move => self.extend(&contact),
             ContactPhase::Up => {
-                let extended = self.extend(&contact);
-                self.finish(artwork, contact.id);
+                let id = contact.id;
+                let extended = self.extend(&without_lift(contact));
+                self.finish(artwork, id);
                 extended
             }
             ContactPhase::Cancel => {
@@ -131,6 +132,15 @@ impl Strokes {
             *artwork = drawing.session.finish().artwork;
         }
     }
+}
+
+/// The lifting contact without the samples of the pen leaving the glass. Android reports the
+/// lift with pressure 0, at a point the tip may already have drifted to; drawn, it would end
+/// the stroke in a tail tapering to nothing, bent towards that point, instead of the brush's
+/// round tip where the ink stopped.
+fn without_lift(mut contact: Contact) -> Contact {
+    contact.samples.retain(|sample| sample.pressure > 0.0);
+    contact
 }
 
 /// `sample` as a stroke sample timed from `start_ms`.

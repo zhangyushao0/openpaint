@@ -30,22 +30,27 @@ internal object Native {
     /** Must return before the surface is destroyed. */
     @JvmStatic external fun detach(handle: Long)
 
-    /** Draws one frame. Returns true when another frame is wanted right away. */
-    @JvmStatic external fun frame(handle: Long): Boolean
+    /**
+     * Draws one frame; `startNanos` is `System.nanoTime()` at the call, for the pen latency
+     * log. Returns true when another frame is wanted right away.
+     */
+    @JvmStatic external fun frame(handle: Long, startNanos: Long): Boolean
 
     /**
      * One MotionEvent. `samples` holds `timesMs.size` steps (history, then current), each with
-     * one block of [SAMPLE_FIELDS] floats per pointer. Returns true when the event needs a
-     * frame.
+     * one block of [SAMPLE_FIELDS] floats per pointer; `eventNanos` is the event's time in
+     * `System.nanoTime()`'s clock. Returns true when the event needs a frame.
      */
     @JvmStatic external fun motion(
         handle: Long,
         action: Int,
         actionIndex: Int,
+        flags: Int,
         buttons: Int,
         ids: IntArray,
         tools: IntArray,
         samples: FloatArray,
         timesMs: LongArray,
+        eventNanos: Long,
     ): Boolean
 }
