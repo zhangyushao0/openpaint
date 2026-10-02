@@ -7,6 +7,7 @@
 
 mod active;
 mod adapter;
+mod change;
 mod core;
 mod error;
 mod evaluator;
@@ -23,6 +24,7 @@ mod screen;
 mod surface;
 
 pub use crate::adapter::{ScreenFrame, ScreenPainter, UiFrame};
+pub use crate::change::changed_regions;
 pub use crate::core::Core;
 pub use crate::error::RenderError;
 pub use crate::evaluator::{CanvasTarget, RegionEvaluator};

@@ -59,6 +59,50 @@ impl StrokeList {
     pub fn iter(&self) -> impl Iterator<Item = &Stroke> {
         self.chunks.iter().flat_map(|chunk| chunk.iter())
     }
+
+    /// The strokes from position `start` on, oldest first; finding `start` is O(1).
+    pub fn since(&self, start: usize) -> impl Iterator<Item = &Stroke> {
+        let first = start / CHUNK;
+        let skip = start % CHUNK;
+        self.chunks
+            .get(first..)
+            .unwrap_or_default()
+            .iter()
+            .flat_map(|chunk| chunk.iter())
+            .skip(skip)
+    }
+
+    /// The stroke at position `index`, oldest first; O(1).
+    #[must_use]
+    pub fn get(&self, index: usize) -> Option<&Stroke> {
+        self.chunks.get(index / CHUNK)?.get(index % CHUNK)
+    }
+
+    /// Heap bytes this list holds that `base` does not share: the chunk table, every chunk not
+    /// shared with `base`'s chunk at the same place, and the samples of strokes in those chunks
+    /// whose samples `base` does not share. O(chunks) plus O(`CHUNK`) per unshared chunk.
+    pub(crate) fn bytes_since(&self, base: Option<&Self>) -> usize {
+        if base.is_some_and(|base| Arc::ptr_eq(&self.chunks, &base.chunks)) {
+            return 0;
+        }
+        let mut bytes = size_of_val::<[Arc<[Stroke]>]>(&self.chunks);
+        for (index, chunk) in self.chunks.iter().enumerate() {
+            let old = base.and_then(|base| base.chunks.get(index));
+            if old.is_some_and(|old| Arc::ptr_eq(old, chunk)) {
+                continue;
+            }
+            bytes += size_of_val::<[Stroke]>(chunk);
+            for (place, stroke) in chunk.iter().enumerate() {
+                let shared = old
+                    .and_then(|old| old.get(place))
+                    .is_some_and(|old| stroke.shares_samples(old));
+                if !shared {
+                    bytes += size_of_val(stroke.samples());
+                }
+            }
+        }
+        bytes
+    }
 }
 
 impl Default for StrokeList {

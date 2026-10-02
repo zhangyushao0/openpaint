@@ -71,6 +71,29 @@ impl Artwork {
         Arc::ptr_eq(&self.0, &other.0)
     }
 
+    /// Heap bytes this version holds that `base` does not share, for history budgets: the
+    /// state and its layer table, and per layer the stroke chunks and samples that `base`'s
+    /// layer of the same id does not share. Unchanged layers cost O(1), changed ones O(chunks),
+    /// never O(strokes). Names are not counted.
+    #[must_use]
+    pub fn bytes_since(&self, base: &Self) -> usize {
+        if self.same_version(base) {
+            return 0;
+        }
+        let layers = &self.0.layers;
+        let mut bytes = size_of::<ArtworkState>() + size_of_val::<[Layer]>(layers);
+        for (index, layer) in layers.iter().enumerate() {
+            let before = match base.0.layers.get(index) {
+                Some(same) if same.id == layer.id => Some(same),
+                _ => base.layer(layer.id),
+            };
+            bytes += layer
+                .strokes
+                .bytes_since(before.map(|before| &before.strokes));
+        }
+        bytes
+    }
+
     pub(crate) fn from_state(state: ArtworkState) -> Self {
         Self(Arc::new(state))
     }

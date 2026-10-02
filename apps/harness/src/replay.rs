@@ -1,6 +1,7 @@
 //! `replay`: the S4 walk-through on the dev machine. A recorded pen stroke of 10,000 samples,
 //! then a finger swipe, go batch by batch through the full frame loop at the author's tablet
-//! size; every frame is timed until the GPU is done. Writes the last screen and the canvas,
+//! size, followed by 20 undo and redo round trips tapped on the top bar (S6); every frame is
+//! timed until the GPU is done. Writes the last screen and the canvas,
 //! checks the canvas's hash against the golden value and the slowest frame against the
 //! budget. The golden is the canvas, not the screen: the evaluator's pixels are the same on
 //! every backend (DECISIONS D16), egui's text antialiasing is not.
@@ -28,6 +29,11 @@ const SAMPLE_MS: i64 = 4;
 const BUDGET: Duration = Duration::from_millis(8);
 /// Hash of `artifacts/harness/replay-canvas.png`. Same on Vulkan and DX12.
 const GOLDEN: u64 = 0x1f94_cbfb_d4b1_1e02;
+/// Undo and redo round trips after the strokes.
+const TRIPS: usize = 20;
+/// Centres of the undo and redo buttons in the top bar, in window pixels.
+const UNDO: [f32; 2] = [230.0, 42.0];
+const REDO: [f32; 2] = [328.0, 42.0];
 
 pub fn run() -> Result<(), HarnessError> {
     let mut runtime = Runtime::start(PIXELS_PER_POINT)?;
@@ -37,12 +43,9 @@ pub fn run() -> Result<(), HarnessError> {
     let recording = [pen_stroke(), finger_swipe()].concat();
     let mut times = Vec::with_capacity(recording.len());
     for batch in &recording {
-        let start = Instant::now();
-        runtime.motion(batch);
-        runtime.frame_offscreen(SIZE)?;
-        runtime.wait_idle()?;
-        times.push(start.elapsed());
+        times.push(timed_frame(&mut runtime, batch)?);
     }
+    let jumps = round_trips(&mut runtime)?;
     let screen = runtime
         .read_offscreen()?
         .ok_or(HarnessError::Missing("the replay drew no frame"))?;
@@ -52,16 +55,20 @@ pub fn run() -> Result<(), HarnessError> {
     let artwork = runtime
         .artwork()
         .ok_or(HarnessError::Missing("the replay opened no canvas"))?;
-    let strokes: usize = artwork.layers().iter().map(|l| l.strokes().len()).sum();
     println!("adapter {}", runtime.adapter());
-    println!("strokes committed {strokes} (the pen's; the finger draws nothing)");
+    println!(
+        "strokes committed {} (the pen's; the finger draws nothing)",
+        strokes(artwork)
+    );
+    println!("{TRIPS} undo/redo round trips tapped, each undo empties the artwork");
     if cold(artwork)? != canvas {
         return Err(HarnessError::Missing(
             "the canvas drawn frame by frame differs from a cold evaluation",
         ));
     }
     println!("canvas drawn frame by frame = cold evaluation of the artwork");
-    report(&times);
+    report("drawing", &times);
+    report("undo/redo taps", &jumps);
     let path = write_png("replay.png", &screen)?;
     println!(
         "wrote {} (screen, hash {:016x})",
@@ -69,8 +76,13 @@ pub fn run() -> Result<(), HarnessError> {
         screen.content_hash()
     );
     let path = write_png("replay-canvas.png", &canvas)?;
-    let hash = canvas.content_hash();
     println!("wrote {} (canvas)", path.display());
+    check(&canvas, times.iter().chain(&jumps).max().copied())
+}
+
+/// The canvas against the golden hash, the slowest frame against the budget.
+fn check(canvas: &RgbaImage, slowest: Option<Duration>) -> Result<(), HarnessError> {
+    let hash = canvas.content_hash();
     println!("hash {hash:016x} (golden {GOLDEN:016x})");
     if hash != GOLDEN {
         return Err(HarnessError::Golden {
@@ -78,7 +90,7 @@ pub fn run() -> Result<(), HarnessError> {
             actual: hash,
         });
     }
-    let slowest = times.iter().max().copied().unwrap_or_default();
+    let slowest = slowest.unwrap_or_default();
     if slowest >= BUDGET {
         return Err(HarnessError::Budget {
             slowest,
@@ -86,6 +98,61 @@ pub fn run() -> Result<(), HarnessError> {
         });
     }
     Ok(())
+}
+
+/// One batch and its frame, timed until the GPU is done.
+fn timed_frame(runtime: &mut Runtime, batch: &MotionBatch) -> Result<Duration, HarnessError> {
+    let start = Instant::now();
+    runtime.motion(batch);
+    runtime.frame_offscreen(SIZE)?;
+    runtime.wait_idle()?;
+    Ok(start.elapsed())
+}
+
+/// Twenty finger taps on undo, each followed by one on redo: the scribble disappears and comes
+/// back. Returns the frame times of every tap's down and up.
+fn round_trips(runtime: &mut Runtime) -> Result<Vec<Duration>, HarnessError> {
+    let mut times = Vec::new();
+    let mut clock = i64::from(PEN_SAMPLES) * SAMPLE_MS + 2000;
+    for _ in 0..TRIPS {
+        for at in [UNDO, REDO] {
+            let down = PointerSample {
+                position: at,
+                pressure: 1.0,
+                tilt: 0.0,
+                orientation: 0.0,
+                time_ms: clock,
+            };
+            let up = PointerSample {
+                time_ms: clock + 60,
+                ..down
+            };
+            for batch in batches(ToolKind::Finger, 2, &[down, up]) {
+                times.push(timed_frame(runtime, &batch)?);
+                // The frames the runtime asks for next, as the host's pacing runs them: the
+                // button state the tap changed shows before the next tap.
+                for _ in 0..4 {
+                    let start = Instant::now();
+                    let again = runtime.frame_offscreen(SIZE)?;
+                    runtime.wait_idle()?;
+                    times.push(start.elapsed());
+                    if !again {
+                        break;
+                    }
+                }
+            }
+            clock += 200;
+            let expected = usize::from(at == REDO);
+            if runtime.artwork().map(strokes) != Some(expected) {
+                return Err(HarnessError::Missing("a tap on undo or redo did not act"));
+            }
+        }
+    }
+    Ok(times)
+}
+
+fn strokes(artwork: &Artwork) -> usize {
+    artwork.layers().iter().map(|l| l.strokes().len()).sum()
 }
 
 /// `artwork` evaluated whole into a fresh target.
@@ -104,7 +171,8 @@ fn cold(artwork: &Artwork) -> Result<RgbaImage, HarnessError> {
 }
 
 /// Frame count, mean, percentiles and the slowest frame, in milliseconds.
-fn report(times: &[Duration]) {
+fn report(what: &str, times: &[Duration]) {
+    println!("{what}:");
     let mut order: Vec<usize> = (0..times.len()).collect();
     order.sort_by_key(|&index| std::cmp::Reverse(times[index]));
     let worst: Vec<String> = order

@@ -2,9 +2,9 @@
 //! target shows on screen.
 
 use openpaint_app::{Intent, Session};
-use openpaint_core::{CanvasSize, Color};
+use openpaint_core::{Artwork, CanvasSize, Color};
 use openpaint_render::{
-    CanvasPlacement, CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator,
+    CanvasPlacement, CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, changed_regions,
 };
 use openpaint_ui::ScreenArea;
 
@@ -18,6 +18,8 @@ pub(crate) struct Canvas {
     target: CanvasTarget,
     /// False until the whole canvas has been evaluated once.
     evaluated: bool,
+    /// The version shown before this frame's first undo or redo, until it is evaluated.
+    jumped_from: Option<Artwork>,
 }
 
 impl Canvas {
@@ -35,6 +37,7 @@ impl Canvas {
             session,
             target: CanvasTarget::new(core, area.size)?,
             evaluated: false,
+            jumped_from: None,
         }))
     }
 
@@ -42,21 +45,30 @@ impl Canvas {
     /// sample must not stop the frame.
     pub(crate) fn dispatch(&mut self, intents: Vec<Intent>) {
         for intent in intents {
-            if let Err(error) = self.session.dispatch(intent) {
-                log::warn!("intent refused: {error}");
+            let jump = matches!(intent, Intent::History(_));
+            let before = self.session.artwork().clone();
+            match self.session.dispatch(intent) {
+                Ok(()) if jump => {
+                    self.jumped_from.get_or_insert(before);
+                }
+                Ok(()) => {}
+                Err(error) => log::warn!("intent refused: {error}"),
             }
         }
     }
 
-    /// Brings the target up to date. Until history exists (S6) the artwork changes only by
-    /// committing the stroke being drawn, which the evaluator follows by itself, so after the
-    /// first full evaluation no region is ever passed.
+    /// Brings the target up to date. Committing the stroke being drawn is followed by the
+    /// evaluator itself (D17); a history jump passes the pixels that differ between the version
+    /// shown before it and the current one; the first evaluation covers the whole canvas.
     pub(crate) fn evaluate(&mut self, core: &Core) -> Result<(), RuntimeError> {
-        let regions = if self.evaluated {
+        let mut regions = if self.evaluated {
             Vec::new()
         } else {
             vec![PixelRect::full(self.target.size())]
         };
+        if let Some(before) = self.jumped_from.take() {
+            regions.extend(changed_regions(&before, self.session.artwork()));
+        }
         let request = FrameRequest {
             artwork: self.session.artwork(),
             active: self.session.active(),

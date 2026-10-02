@@ -1,11 +1,11 @@
 //! `Runtime`: the frame loop a platform host drives. The host attaches, resizes and detaches
 //! its window, hands over input batches and asks for frames; all calls come from one thread.
 //!
-//! A frame: take the input normalised since the last frame -> run the UI -> route the canvas
-//! contacts to the session as intents -> evaluate what changed into the canvas target -> draw
-//! the canvas and the UI over it.
+//! A frame: take the input normalised since the last frame -> run the UI from the session's
+//! projection -> route the canvas contacts and the chrome's taps to the session as intents ->
+//! evaluate what changed into the canvas target -> draw the canvas and the UI over it.
 
-use openpaint_app::InputBatch;
+use openpaint_app::{InputBatch, SessionProjection};
 use openpaint_core::Artwork;
 use openpaint_render::{
     Core, RenderError, RgbaImage, ScreenFrame, ScreenPainter, ScreenTarget, Surface, SurfaceWindow,
@@ -176,16 +176,29 @@ impl Runtime {
             .map(|canvas| canvas.session().artwork())
     }
 
-    /// Everything before drawing: input, UI, intents, evaluation.
+    /// The open session's projection; before the canvas opens, nothing is available.
+    fn projection(&self) -> SessionProjection {
+        self.canvas
+            .as_ref()
+            .map(|canvas| canvas.session().projection())
+            .unwrap_or_default()
+    }
+
+    /// Everything before drawing: input, UI, intents, evaluation. Asks for another frame when
+    /// the intents changed what the UI offers, so it never shows a stale state while idle.
     fn update(&mut self, size: [u32; 2]) -> Result<(UiFrame, bool), RuntimeError> {
         let batches = std::mem::take(&mut self.pending);
         let events = pointer_events(&batches, self.pixels_per_point);
+        let shown = self.projection();
         let (ui, repaint) = run_ui(
             &self.ui,
-            &mut self.shell,
-            size,
-            self.pixels_per_point,
-            events,
+            UiPass {
+                shell: &mut self.shell,
+                projection: &shown,
+                size,
+                pixels_per_point: self.pixels_per_point,
+                events,
+            },
         );
         let intents = self.shell.route(&batches);
         if self.canvas.is_none()
@@ -197,8 +210,18 @@ impl Runtime {
             canvas.dispatch(intents);
             canvas.evaluate(&self.core)?;
         }
-        Ok((ui, repaint))
+        Ok((ui, repaint || self.projection() != shown))
     }
+}
+
+/// What one UI pass needs.
+struct UiPass<'a> {
+    shell: &'a mut Shell,
+    projection: &'a SessionProjection,
+    /// The screen in pixels.
+    size: [u32; 2],
+    pixels_per_point: f32,
+    events: Vec<egui::Event>,
 }
 
 fn screen_frame<'a>(canvas: Option<&'a Canvas>, shell: &Shell, ui: UiFrame) -> ScreenFrame<'a> {
@@ -210,15 +233,16 @@ fn screen_frame<'a>(canvas: Option<&'a Canvas>, shell: &Shell, ui: UiFrame) -> S
     }
 }
 
-/// One UI pass over a screen of `size` pixels. Returns the tessellated frame and whether egui
-/// wants the next frame immediately (animations, first-frame layout).
-fn run_ui(
-    ctx: &egui::Context,
-    shell: &mut Shell,
-    size: [u32; 2],
-    pixels_per_point: f32,
-    events: Vec<egui::Event>,
-) -> (UiFrame, bool) {
+/// One UI pass over the screen. Returns the tessellated frame and whether egui wants the next
+/// frame immediately (animations, first-frame layout).
+fn run_ui(ctx: &egui::Context, pass: UiPass<'_>) -> (UiFrame, bool) {
+    let UiPass {
+        shell,
+        projection,
+        size,
+        pixels_per_point,
+        events,
+    } = pass;
     let points = egui::vec2(size[0] as f32, size[1] as f32) / pixels_per_point;
     let mut input = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, points)),
@@ -230,7 +254,7 @@ fn run_ui(
         .entry(egui::ViewportId::ROOT)
         .or_default()
         .native_pixels_per_point = Some(pixels_per_point);
-    let output = ctx.run_ui(input, |ui| shell.show(ui));
+    let output = ctx.run_ui(input, |ui| shell.show(ui, projection));
     let repaint = output
         .viewport_output
         .get(&egui::ViewportId::ROOT)

@@ -125,9 +125,16 @@ impl Fresh {
 /// region to evaluate again.
 #[must_use]
 pub fn stroke_region(style: &StrokeStyle, samples: &[StrokeSample]) -> Option<PixelRect> {
-    segments(style, samples)
-        .map(|segment| segment.bounds().pixels())
-        .reduce(|all, next| all.union(&next))
+    segment_regions(style, samples).reduce(|all, next| all.union(&next))
+}
+
+/// The pixels each segment of a stroke can change, one rectangle per segment: tighter than
+/// their union for a long curved stroke.
+pub(crate) fn segment_regions<'a>(
+    style: &'a StrokeStyle,
+    samples: &'a [StrokeSample],
+) -> impl Iterator<Item = PixelRect> + 'a {
+    segments(style, samples).map(|segment| segment.bounds().pixels())
 }
 
 /// A tapered capsule between two samples, in target pixels.

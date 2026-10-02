@@ -113,7 +113,10 @@ mod tests {
     fn positions(intents: &[Intent]) -> Vec<[f32; 2]> {
         intents
             .iter()
-            .map(|Intent::Stroke(StrokeIntent::Contact(contact))| contact.samples[0].position)
+            .filter_map(|intent| match intent {
+                Intent::Stroke(StrokeIntent::Contact(contact)) => Some(contact.samples[0].position),
+                Intent::History(_) => None,
+            })
             .collect()
     }
 

@@ -1,6 +1,7 @@
 //! Runs a scenario through the product frame loop, offscreen: each gesture batch is handed to
-//! the runtime and followed by one frame, as on the tablet. Checkpoints and screenshots are
-//! collected into a report; a failed checkpoint does not stop the run.
+//! the runtime and followed by one frame, plus the frames the runtime asks for at once, as on
+//! the tablet. Checkpoints and screenshots are collected into a report; a failed checkpoint
+//! does not stop the run.
 
 use std::time::{Duration, Instant};
 
@@ -13,6 +14,8 @@ use crate::scenario::{Scenario, Step, Tool};
 
 /// Milliseconds of one 60 Hz frame, for the input clock.
 const FRAME_MS: i64 = 16;
+/// Most frames run after one because the runtime asked for them.
+const FOLLOW_UPS: usize = 4;
 
 /// The canvas at a checkpoint and the hash it should have.
 #[derive(Debug, Clone)]
@@ -157,9 +160,17 @@ impl Runner<'_> {
         self.frame()
     }
 
+    /// One frame and the frames the runtime then asks for at once (a button that changed what
+    /// the UI offers, egui's own layout), as the host's frame pacing gives them, up to
+    /// `FOLLOW_UPS` more.
     fn frame(&mut self) -> Result<(), ScenarioError> {
-        self.runtime.frame_offscreen(self.scenario.screen)?;
-        self.frames += 1;
+        for _ in 0..=FOLLOW_UPS {
+            let again = self.runtime.frame_offscreen(self.scenario.screen)?;
+            self.frames += 1;
+            if !again {
+                break;
+            }
+        }
         Ok(())
     }
 }

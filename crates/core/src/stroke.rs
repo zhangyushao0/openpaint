@@ -151,6 +151,13 @@ impl Stroke {
     pub fn samples(&self) -> &[StrokeSample] {
         &self.samples
     }
+
+    /// True when both strokes hold one shared sample array: one stroke seen from two artwork
+    /// versions. O(1). Strokes drawn on two branches of a history may share an id, never this.
+    #[must_use]
+    pub fn shares_samples(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.samples, &other.samples)
+    }
 }
 
 /// Checks that `next` continues after `previous` without going back in time.

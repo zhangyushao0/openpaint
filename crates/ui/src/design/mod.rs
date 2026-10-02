@@ -2,17 +2,27 @@
 //! never tints how colours on the canvas are seen; an 8-point spacing scale; one type scale;
 //! 48-point hit targets. Components read these values; screens never style widgets inline.
 
+mod icons;
+
 use egui::{Color32, FontId, TextStyle, Vec2};
+
+pub use icons::{ICON_SIZE, Icon, paint as paint_icon};
 
 /// The spacing unit in points; every gap and margin is a multiple of it.
 pub const SPACE: f32 = 8.0;
 /// Smallest side of anything the hand taps, in points (48 px at density 1, more on a tablet).
 pub const TOUCH_TARGET: f32 = 48.0;
+/// Corner radius of pressed and selected highlights, in points.
+pub const CORNER: f32 = SPACE;
 
 /// Bars and panels.
 pub const CHROME: Color32 = Color32::from_gray(38);
 /// Text and icons on the chrome.
 pub const ON_CHROME: Color32 = Color32::from_gray(222);
+/// Icons of actions that are unavailable now: still visible, clearly not tappable.
+pub const ON_CHROME_DISABLED: Color32 = Color32::from_gray(92);
+/// Behind a control while the hand presses it.
+pub const PRESSED: Color32 = Color32::from_gray(64);
 /// Behind the canvas where the canvas does not reach, as RGBA bytes for the renderer.
 pub const SURROUND: [u8; 4] = [24, 24, 24, 255];
 
