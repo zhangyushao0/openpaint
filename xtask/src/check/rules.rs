@@ -47,7 +47,7 @@ pub const LAYERS: &[(&str, &[&str])] = &[
             "openpaint-ui",
         ],
     ),
-    ("apps/desktop", &ALL_PRODUCT),
+    ("apps/harness", &ALL_PRODUCT),
     ("apps/android", &ALL_PRODUCT),
 ];
 

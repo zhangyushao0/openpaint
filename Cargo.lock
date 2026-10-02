@@ -21,7 +21,7 @@ name = "openpaint-core"
 version = "0.1.0"
 
 [[package]]
-name = "openpaint-desktop"
+name = "openpaint-harness"
 version = "0.1.0"
 dependencies = [
  "openpaint-runtime",

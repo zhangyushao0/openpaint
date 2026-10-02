@@ -4,7 +4,7 @@ Only decisions that constrain future code and are not self-evident. Each entry i
 
 ## D01 2026-10-02 Stack: Rust 2024, wgpu, egui, one workspace
 
-- Decision: core, rendering, application, storage and UI are all Rust; GPU through wgpu; UI through egui; Android is the product platform, desktop is a development host only.
+- Decision: core, rendering, application, storage and UI are all Rust; GPU through wgpu; UI through egui; Android is the only product host; the development machine runs a headless harness (D12).
 - Reason: the previous project proved this stack on the target tablet (pressure, palm rejection, multi-layer compositing, smudge). Switching stacks would discard verified experience.
 - Consequences: renderer state never lives in egui's type map; egui appears only under `render/src/adapter/`. The previous project paid heavily for ignoring this.
 
@@ -61,3 +61,15 @@ Only decisions that constrain future code and are not self-evident. Each entry i
 - Decision: `CoreError`, `AppError`, `PortError`, `RenderError`, `RuntimeError`; `Result<_, String>` only in JNI, system APIs and xtask. Product crates have no `cfg(feature)`; diagnostics, experiments and automation probes live in separate crates assembled only by composition roots.
 - Reason: in the previous project `String` errors ran through renderer, runtime and xtask, 379 `cfg` sites stitched diagnostics into product code, 47% of the runtime crate was diagnostics, and `--all-features` produced four build combinations.
 - Consequences: `cargo repo-check` rejects `[features]` and `cfg(feature`; the platform layer translates typed errors into user-facing messages.
+
+## D11 2026-10-02 Android host: a hand-written Activity, JNI and SurfaceView; no winit
+
+- Decision: `apps/android` is a small Kotlin Activity that owns the lifecycle, a `SurfaceView` and the system pickers. Rust receives the Surface through JNI and renders with wgpu. `MotionEvent` fields (tool type, pressure, tilt, orientation, buttons, hover, historical samples) are forwarded as typed batches. winit and `android-activity` are not used anywhere.
+- Reason: winit's Android touch abstraction drops stylus detail (tool type, tilt, buttons, hover, batched history). The previous project needed all of it and ran on exactly this host shape.
+- Consequences: egui gets its `RawInput` from our own normaliser on every platform; Kotlin code stays limited to lifecycle, Surface, pickers and share; product rules never live in the host.
+
+## D12 2026-10-02 The development machine runs a headless harness, never a desktop window
+
+- Decision: `apps/harness` is a dev-only binary: offscreen wgpu rendering with readback, recorded-input replay through the full frame loop, JSON scenarios with pixel checkpoints, PNG and hash output. No window, no mouse handling, no desktop product.
+- Reason: agents need a seconds-long loop on the dev machine (the previous project's headless lane ran 180 steps in 4 s against 199 s on the tablet), but a windowed desktop app would pull output into windowing and mouse code that proves nothing about a stylus product.
+- Consequences: "seeing" a result means reading the PNG the harness wrote; pen feel and real input are judged only on the tablet.

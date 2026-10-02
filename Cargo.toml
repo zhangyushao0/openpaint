@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "apps/android",
-    "apps/desktop",
+    "apps/harness",
     "crates/app",
     "crates/core",
     "crates/render",

@@ -6,26 +6,27 @@ An Android-first, stylus-first 2D painting app that completes, on one tablet: sk
 
 Stage exits are judged on representative artworks made by the author on the tablet: W1 inking and flat colour, W2 painterly shading, W3 complex composition revision, W4 edit, restore and deliver.
 
-Non-goals (G0 to G5): network, accounts, cloud sync, community, animation, 3D, multi-platform, plugin systems, a desktop product.
+Non-goals (G0 to G5): network, accounts, cloud sync, community, animation, 3D, multi-platform, plugin systems, a desktop product or desktop window of any kind.
 
 ## Rules
 
 - A slice is a vertical cut one session can finish, verify and roll back on its own. Slices run in numbered order; no skipping.
 - Every slice states its goal, the crates involved and done criteria. Done criteria are executable or observable, never "better".
+- The dev-machine loop is the harness (`apps/harness`): offscreen rendering, replay, scenarios, PNG and hash output. "Seeing" a result means reading its PNG. Real input and pen feel exist only on the tablet.
 - When a slice is done: rewrite STATUS, move the slice to "Done" at the end of this file (one line), add a DECISIONS entry only if a decision was made.
 - Stage-exit items that need the author on the tablet are recorded as `pass` / `fail` / `not_run`; a dev-machine result never substitutes.
 - Findings outside the slice go under "Candidates"; they are not fixed in passing.
 
 ## G0 Skeleton
 
-**S0 Desktop host and dependencies** (desktop, render, ui, runtime)
-- Add and pin wgpu, egui, egui-wgpu, winit (versions recorded in DECISIONS).
-- The desktop host opens a window: an egui top bar plus a canvas area cleared through the render adapter with wgpu; resizing does not crash.
-- Done: `cargo run -p openpaint-desktop` shows the window; `cargo gate` under 60 s warm; no new markdown.
+**S0 Dependencies and offscreen GPU smoke** (render, harness)
+- Add and pin wgpu, egui and egui-wgpu (versions recorded in DECISIONS). No winit, no windowing crate.
+- render `Core` creates a wgpu device without a window, clears an offscreen texture and reads it back; the harness command `render-smoke` writes the PNG and prints its hash.
+- Done: `cargo run -p openpaint-harness -- render-smoke` writes `artifacts/harness/smoke.png`; a render test asserts the hash; `cargo gate` under 60 s warm; no window code, no new markdown.
 
 **S1 Android host** (android, runtime)
-- Decide the host form first (`android-activity` + winit, or a hand-written Activity + JNI) and record it in DECISIONS; add the `aarch64-linux-android` target, `cargo-ndk`, a minimal Gradle project and a `cargo android-build` alias.
-- Done: the APK installs on the author's tablet and shows the same interface as the desktop; stylus events with pressure reach Rust and are logged; background/foreground and rotation do not crash. The author confirms the install.
+- Kotlin Activity + JNI + `SurfaceView` per D11; add the `aarch64-linux-android` target, `cargo-ndk`, a minimal Gradle project and the `cargo android-build` / `cargo android-install` aliases. `MotionEvent` fields are forwarded to Rust as typed batches and logged.
+- Done: the APK installs on the author's tablet and shows an egui top bar over a cleared canvas; stylus events with pressure and tool type appear in the log; background/foreground and rotation do not crash. The author confirms the install.
 
 ## G1 One stroke, end to end
 
@@ -35,33 +36,33 @@ Exit: on the tablet, draw with pressure, undo, kill the app, reopen, the stroke 
 - `Artwork(Arc<State>)`, `Layer`, `Stroke`, `StrokeSample`, ids; `LayerCommand` (create, delete, reorder, properties); `apply` -> `Applied { artwork, change }`; `StrokeSession` begin/extend/finish/cancel; `from_storage` full validation; `CoreError`.
 - Done: every command has success and error cases; no public mutable setters; `cargo test -p openpaint-core` passes; core has no external dependencies.
 
-**S3 Render core** (render, desktop)
-- `Core` (device, queue, pipelines), `FrameRequest`, `Scene` / `Plan`, stroke geometry -> coverage shader for a round continuous brush, `RegionEvaluator` as the single entry, readback.
-- Done: GPU test with a fixed pixel hash for a fixed stroke; incremental = cold evaluation bit for bit; the desktop shows a hard-coded stroke; render contains no `egui` outside adapter.
+**S3 Render core** (render, harness)
+- `FrameRequest`, `Scene` / `Plan`, stroke geometry -> coverage shader for a round continuous brush, `RegionEvaluator` as the single entry, readback; the harness command `render-stroke` renders a hard-coded stroke to PNG.
+- Done: GPU test with a fixed pixel hash for a fixed stroke; incremental = cold evaluation bit for bit; the harness writes the stroke PNG; render contains no `egui` outside adapter.
 
-**S4 Input to stroke** (runtime, app, ui, desktop)
-- Normaliser: winit pen and mouse events -> `InputBatch` (pressure, tilt, timestamp); app `Session` plus `Intent::Stroke`; the UI canvas hands contacts to the session; the in-progress stroke goes to the renderer separately.
-- Done: continuous drawing on the desktop with mouse or pen; frame time under 8 ms with a 10,000-sample stroke (dev machine); the normaliser has unit tests.
+**S4 Input to stroke** (runtime, app, ui, harness)
+- Normaliser: platform batches -> `InputBatch` (pressure, tilt, timestamp), shared by Android and the harness; app `Session` plus `Intent::Stroke`; the UI canvas hands contacts to the session; the in-progress stroke goes to the renderer separately; the harness command `replay` feeds a recorded stroke through the full frame loop and reports frame time.
+- Done: replaying a 10,000-sample stroke keeps frame time under 8 ms on the dev machine and its PNG matches a golden hash; the normaliser has unit tests.
 
 **S5 History** (app, ui)
 - `History` version stack with a byte budget; undo/redo intents; top-bar buttons; the projection reports availability.
-- Done: 20 undo/redo round trips leave the artwork equal; budget trimming has tests; UI buttons disable per availability.
+- Done: 20 undo/redo round trips leave the artwork equal; budget trimming has tests; buttons disable per availability.
 
-**S6 Storage and autosave** (store, runtime, desktop)
+**S6 Storage and autosave** (store, runtime, harness)
 - fjall library; `Project` DTO schema 1 with a frozen sample; `ProjectStore` implemented; a worker autosaves after each stroke; the last artwork opens on start; save failures show a message with retry.
-- Done: draw on the desktop, kill the process, reopen with identical content; sample round-trip test; gate under 60 s.
+- Done: a runtime test draws through the frame loop, saves, drops the runtime, reopens and gets identical pixels; sample round-trip test; gate under 60 s.
 
 **S7 Android loop on the device** (android, runtime)
-- Wire S2 to S6 on the Android host; Android touch and stylus events enter the same normaliser; basic palm rejection; pen-to-pixel latency instrumented.
+- Wire S2 to S6 on the Android host; stylus and touch batches enter the same normaliser; basic palm rejection; pen-to-pixel latency instrumented.
 - Done: draw, undo and reopen on the tablet; the latency number is in STATUS; the author judges pen feel. G1 exit.
 
 ## G2 Artworks and layers
 
 Exit: the author finishes an inked and flat-coloured piece (W1) on the tablet.
 
-**S8 Desktop automated regression** (new crate devtools, desktop, xtask)
-- Headless scenario runner: JSON steps (tap, drag, stroke, undo, save, reopen) plus pixel checkpoints (readback hashes); `cargo scenario <name>`; the gate runs the `smoke` scenario.
-- Done: `smoke` covers draw, undo, save and reopen in under 5 s; a failed checkpoint prints the diff image path (under `artifacts/`, untracked).
+**S8 Scenario runner** (new crate devtools, harness, xtask)
+- JSON steps (tap, drag, stroke, undo, save, reopen) plus pixel checkpoints (readback hashes); `cargo scenario <name>`; the gate runs the `smoke` scenario.
+- Done: `smoke` covers draw, undo, save and reopen in under 5 s; a failed checkpoint writes the diff PNG under `artifacts/` (untracked) and prints its path.
 
 **S9 Layers** (core, app, ui, render, store)
 - Multiple layers: create, delete, reorder, visibility, opacity, active layer; Normal compositing; layer panel; schema 2 with migration.
@@ -69,7 +70,7 @@ Exit: the author finishes an inked and flat-coloured piece (W1) on the tablet.
 
 **S10 Artwork library** (app, store, ui, render)
 - Gallery: list, create, open, rename, duplicate, delete, thumbnails (small export); autosave per artwork.
-- Done: a desktop scenario covers create, rename, delete and reopen; thumbnails match the artwork.
+- Done: a scenario covers create, rename, delete and reopen; thumbnails match the artwork.
 
 **S11 Brush recipes v1** (core, render, ui, store)
 - `BrushRecipe` TOML: shape, size and opacity curves over pressure and speed, grain; built-in pencil, ink pen and soft brush; brush picker with size and opacity sliders; strokes store a recipe snapshot.

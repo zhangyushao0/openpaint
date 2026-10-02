@@ -1,6 +1,6 @@
 # Architecture
 
-OpenPaint is an Android-first, stylus-first 2D painting app whose goal is to take an illustration from sketch to delivery on one tablet. The desktop host exists for development and automated regression only; it is not a product promise.
+OpenPaint is an Android-first, stylus-first 2D painting app whose goal is to take an illustration from sketch to delivery on one tablet. Android is the only product host. On the development machine a headless harness renders offscreen, replays recorded input and runs scenarios; there is no desktop window and no desktop product.
 
 This page is the design contract: how modules are cut, which way dependencies point, what the core types look like, how threads and errors are handled. When code and this page disagree, change the code or change this page and record a decision; never keep both. Type sketches land slice by slice; once landed, code is the truth and this page follows.
 
@@ -25,7 +25,7 @@ This page is the design contract: how modules are cut, which way dependencies po
 | `openpaint-render` | derived rendering: wgpu pipelines, stroke programs, region evaluation; export, pick and preview consumers | core | file system; `egui` only under `src/adapter/` |
 | `openpaint-ui` | shared interface: egui panels, input ownership, canvas arbitration; reads app projections, emits intents | core, app, render | direct wgpu, file system |
 | `openpaint-runtime` | frame loop, input normalisation, bounded workers, lifecycle draining, startup | core, app, store, render, ui | JNI |
-| `openpaint-desktop` | development host: window, mouse and pen input, headless regression entry | all | — |
+| `openpaint-harness` | development harness: offscreen rendering, recorded-input replay, scenario runner, PNG and hash output; never shipped | all | windowing, mouse input, product rules |
 | `openpaint-android` | the only product composition root: activity lifecycle, Surface, system pickers, JNI | all | product rules |
 | `xtask` | repository tooling: `cargo gate`, `cargo repo-check` | nothing | product code |
 
@@ -33,7 +33,7 @@ Dependencies only point down (`A <- B` means B depends on A):
 
 ```text
 core <- app <- store
-core <- app <- ui <- runtime <- {desktop, android}
+core <- app <- ui <- runtime <- {harness, android}
 core <- render <- ui
 store, render <- runtime
 ```
@@ -125,7 +125,7 @@ pub trait FrameHook { /* before_ui, after_ui, takeover */ }     // devtools atta
 
 ## 4. Input
 
-Android and desktop share one normaliser: raw events -> `InputBatch` (device kind, phase, position, pressure, tilt, timestamp). Gestures, palm rejection and stabilisation live in the app's stroke intent, not in the UI and not in the platform layer. The in-progress stroke travels to the renderer as a separate item and never enters the artwork.
+The Android host and the harness feed one normaliser: platform events (Android `MotionEvent` fields, or recorded samples in the harness) -> `InputBatch` (device kind, phase, position, pressure, tilt, timestamp). egui receives its `RawInput` from this normaliser on every platform; no windowing library sits in between. Gestures, palm rejection and stabilisation live in the app's stroke intent, not in the UI and not in the platform layer. The in-progress stroke travels to the renderer as a separate item and never enters the artwork.
 
 ## 5. Persistence
 
@@ -150,7 +150,7 @@ Android and desktop share one normaliser: raw events -> `InputBatch` (device kin
 | --- | --- | --- |
 | unit | pure tests for core/app/store; GPU readback tests for render (golden hashes, incremental = cold) | `cargo test -p` |
 | gate | fmt, clippy, all tests, repo-check; target under 60 s warm | before the commit |
-| regression | headless desktop scenarios: JSON steps plus pixel checkpoints, seconds | the short scenario runs inside the gate |
+| regression | harness scenarios on the dev machine: JSON steps plus pixel checkpoints, seconds | the short scenario runs inside the gate |
 | device | one smoke scenario of at most 20 s; full scenarios and manual feel checks only at stage exits | slices marked in ROADMAP |
 
 Test fixtures live in each crate's `tests/` or in a dedicated test crate, never in the product API.
