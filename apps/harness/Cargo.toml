@@ -7,7 +7,9 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+openpaint-render.workspace = true
 openpaint-runtime.workspace = true
+png.workspace = true
 
 [lints]
 workspace = true

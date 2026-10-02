@@ -20,11 +20,6 @@ Non-goals (G0 to G5): network, accounts, cloud sync, community, animation, 3D, m
 
 ## G0 Skeleton
 
-**S0 Dependencies and offscreen GPU smoke** (render, harness)
-- Add and pin wgpu, egui and egui-wgpu (versions recorded in DECISIONS). No winit, no windowing crate.
-- render `Core` creates a wgpu device without a window, clears an offscreen texture and reads it back; the harness command `render-smoke` writes the PNG and prints its hash.
-- Done: `cargo run -p openpaint-harness -- render-smoke` writes `artifacts/harness/smoke.png`; a render test asserts the hash; `cargo gate` under 60 s warm; no window code, no new markdown.
-
 **S1 Android host** (android, runtime)
 - Kotlin Activity + JNI + `SurfaceView` per D11; add the `aarch64-linux-android` target, `cargo-ndk`, a minimal Gradle project and the `cargo android-build` / `cargo android-install` aliases. `MotionEvent` fields are forwarded to Rust as typed batches and logged.
 - Done: the APK installs on the author's tablet and shows an egui top bar over a cleared canvas; stylus events with pressure and tool type appear in the log; background/foreground and rotation do not crash. The author confirms the install.
@@ -116,3 +111,5 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 ## Done
 
 (One line per slice: id, date, commit. At 30 lines, move to `docs/archive/ROADMAP-<YYYY-MM>.md`.)
+
+- S0 2026-10-02 `feat(render): headless GPU device, offscreen clear and readback smoke (S0)`
