@@ -5,6 +5,7 @@
 //! (`cargo repo-check`).
 #![forbid(unsafe_code)]
 
+mod active;
 mod adapter;
 mod core;
 mod error;
@@ -18,9 +19,10 @@ mod program;
 mod protocol;
 mod readback;
 mod scene;
+mod screen;
 mod surface;
 
-pub use crate::adapter::{UiFrame, UiPainter};
+pub use crate::adapter::{ScreenFrame, ScreenPainter, UiFrame};
 pub use crate::core::Core;
 pub use crate::error::RenderError;
 pub use crate::evaluator::{CanvasTarget, RegionEvaluator};
@@ -28,4 +30,5 @@ pub use crate::frame::FrameRequest;
 pub use crate::geom::PixelRect;
 pub use crate::image::RgbaImage;
 pub use crate::scene::stroke_region;
+pub use crate::screen::{CanvasPlacement, ScreenTarget};
 pub use crate::surface::{Surface, SurfaceWindow};

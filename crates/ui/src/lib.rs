@@ -4,6 +4,9 @@
 //! No direct GPU API, no file system (`cargo repo-check`).
 #![forbid(unsafe_code)]
 
+pub mod components;
+pub mod design;
 mod shell;
 
-pub use crate::shell::{TOP_BAR_HEIGHT, shell};
+pub use crate::components::{ScreenArea, TOP_BAR_HEIGHT};
+pub use crate::shell::Shell;

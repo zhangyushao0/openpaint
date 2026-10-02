@@ -91,8 +91,8 @@ pub fn request(artwork: &Artwork) -> FrameRequest<'_> {
 
 /// Evaluates the whole of `artwork` into a fresh target and reads it back.
 pub fn cold(core: &Core, artwork: &Artwork) -> RgbaImage {
-    let target = CanvasTarget::new(core, SIZE).expect("target");
-    RegionEvaluator::new(core, &target)
+    let mut target = CanvasTarget::new(core, SIZE).expect("target");
+    RegionEvaluator::new(core, &mut target)
         .evaluate(&request(artwork), &[PixelRect::full(SIZE)])
         .expect("evaluate");
     target.read(core).expect("readback")

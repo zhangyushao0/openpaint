@@ -1,0 +1,194 @@
+//! `replay`: the S4 walk-through on the dev machine. A recorded pen stroke of 10,000 samples,
+//! then a finger swipe, go batch by batch through the full frame loop at the author's tablet
+//! size; every frame is timed until the GPU is done. Writes the last screen and the canvas,
+//! checks the canvas's hash against the golden value and the slowest frame against the
+//! budget. The golden is the canvas, not the screen: the evaluator's pixels are the same on
+//! every backend (DECISIONS D16), egui's text antialiasing is not.
+
+use std::f32::consts::TAU;
+use std::time::{Duration, Instant};
+
+use openpaint_core::{Artwork, Color};
+use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, RgbaImage};
+use openpaint_runtime::{
+    Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime, ToolKind,
+};
+
+use crate::error::HarnessError;
+use crate::output::write_png;
+
+/// The MovinkPad 14: 2880 x 1800 pixels at density 1.75.
+const SIZE: [u32; 2] = [2880, 1800];
+const PIXELS_PER_POINT: f32 = 1.75;
+const PEN_SAMPLES: u16 = 10_000;
+/// A 240 Hz pen read once per frame at 60 frames per second.
+const PER_BATCH: usize = 4;
+const SAMPLE_MS: i64 = 4;
+/// Slowest frame allowed, input to GPU done (ROADMAP S4).
+const BUDGET: Duration = Duration::from_millis(8);
+/// Hash of `artifacts/harness/replay-canvas.png`. Same on Vulkan and DX12.
+const GOLDEN: u64 = 0x1f94_cbfb_d4b1_1e02;
+
+pub fn run() -> Result<(), HarnessError> {
+    let mut runtime = Runtime::start(PIXELS_PER_POINT)?;
+    // Opens the canvas and uploads the font atlas; not part of drawing.
+    runtime.frame_offscreen(SIZE)?;
+    runtime.wait_idle()?;
+    let recording = [pen_stroke(), finger_swipe()].concat();
+    let mut times = Vec::with_capacity(recording.len());
+    for batch in &recording {
+        let start = Instant::now();
+        runtime.motion(batch);
+        runtime.frame_offscreen(SIZE)?;
+        runtime.wait_idle()?;
+        times.push(start.elapsed());
+    }
+    let screen = runtime
+        .read_offscreen()?
+        .ok_or(HarnessError::Missing("the replay drew no frame"))?;
+    let canvas = runtime
+        .read_canvas()?
+        .ok_or(HarnessError::Missing("the replay opened no canvas"))?;
+    let artwork = runtime
+        .artwork()
+        .ok_or(HarnessError::Missing("the replay opened no canvas"))?;
+    let strokes: usize = artwork.layers().iter().map(|l| l.strokes().len()).sum();
+    println!("adapter {}", runtime.adapter());
+    println!("strokes committed {strokes} (the pen's; the finger draws nothing)");
+    if cold(artwork)? != canvas {
+        return Err(HarnessError::Missing(
+            "the canvas drawn frame by frame differs from a cold evaluation",
+        ));
+    }
+    println!("canvas drawn frame by frame = cold evaluation of the artwork");
+    report(&times);
+    let path = write_png("replay.png", &screen)?;
+    println!(
+        "wrote {} (screen, hash {:016x})",
+        path.display(),
+        screen.content_hash()
+    );
+    let path = write_png("replay-canvas.png", &canvas)?;
+    let hash = canvas.content_hash();
+    println!("wrote {} (canvas)", path.display());
+    println!("hash {hash:016x} (golden {GOLDEN:016x})");
+    if hash != GOLDEN {
+        return Err(HarnessError::Golden {
+            expected: GOLDEN,
+            actual: hash,
+        });
+    }
+    let slowest = times.iter().max().copied().unwrap_or_default();
+    if slowest >= BUDGET {
+        return Err(HarnessError::Budget {
+            slowest,
+            budget: BUDGET,
+        });
+    }
+    Ok(())
+}
+
+/// `artwork` evaluated whole into a fresh target.
+fn cold(artwork: &Artwork) -> Result<RgbaImage, HarnessError> {
+    let core = Core::headless()?;
+    let canvas = artwork.canvas();
+    let size = [canvas.width(), canvas.height()];
+    let mut target = CanvasTarget::new(&core, size)?;
+    let request = FrameRequest {
+        artwork,
+        active: None,
+        background: Color::WHITE,
+    };
+    RegionEvaluator::new(&core, &mut target).evaluate(&request, &[PixelRect::full(size)])?;
+    Ok(target.read(&core)?)
+}
+
+/// Frame count, mean, percentiles and the slowest frame, in milliseconds.
+fn report(times: &[Duration]) {
+    let mut order: Vec<usize> = (0..times.len()).collect();
+    order.sort_by_key(|&index| std::cmp::Reverse(times[index]));
+    let worst: Vec<String> = order
+        .iter()
+        .take(5)
+        .map(|&index| format!("#{index} {:.3}", times[index].as_secs_f64() * 1000.0))
+        .collect();
+    println!("slowest frames (ms) {}", worst.join(", "));
+    let mut sorted = times.to_vec();
+    sorted.sort();
+    let ms = |duration: Duration| duration.as_secs_f64() * 1000.0;
+    let at = |fraction: f64| {
+        let index = ((sorted.len() as f64 - 1.0) * fraction).round() as usize;
+        sorted.get(index).copied().map_or(0.0, ms)
+    };
+    let total: Duration = sorted.iter().sum();
+    let mean = ms(total) / sorted.len().max(1) as f64;
+    println!(
+        "frames {} | mean {mean:.3} ms | p50 {:.3} | p95 {:.3} | p99 {:.3} | max {:.3} | budget {:.0}",
+        sorted.len(),
+        at(0.5),
+        at(0.95),
+        at(0.99),
+        at(1.0),
+        ms(BUDGET)
+    );
+}
+
+/// A long scribble over the canvas: a drifting 3:2 Lissajous figure, pressure and tilt
+/// changing along it, about 7 pixels between samples.
+fn pen_stroke() -> Vec<MotionBatch> {
+    let samples: Vec<PointerSample> = (0..PEN_SAMPLES)
+        .map(|i| {
+            let t = f32::from(i) / f32::from(PEN_SAMPLES - 1);
+            let angle = TAU * 4.0 * t;
+            let reach = 0.55 + 0.4 * (angle / 9.0).cos();
+            PointerSample {
+                position: [
+                    1440.0 + 1250.0 * reach * (3.0 * angle).sin(),
+                    942.0 + 760.0 * reach * (2.0 * angle + 0.3).sin(),
+                ],
+                pressure: 0.35 + 0.3 * (1.0 + (5.0 * angle).sin()),
+                tilt: 0.5 + 0.3 * (angle / 3.0).sin(),
+                orientation: (angle / 2.0).sin(),
+                time_ms: i64::from(i) * SAMPLE_MS,
+            }
+        })
+        .collect();
+    batches(ToolKind::Stylus, 0, &samples)
+}
+
+/// A finger dragged across the middle of the canvas; it must leave no ink.
+fn finger_swipe() -> Vec<MotionBatch> {
+    let start = i64::from(PEN_SAMPLES) * SAMPLE_MS + 500;
+    let samples: Vec<PointerSample> = (0..120u8)
+        .map(|i| PointerSample {
+            position: [200.0 + 20.0 * f32::from(i), 1500.0 - 4.0 * f32::from(i)],
+            pressure: 1.0,
+            tilt: 0.0,
+            orientation: 0.0,
+            time_ms: start + i64::from(i) * 8,
+        })
+        .collect();
+    batches(ToolKind::Finger, 1, &samples)
+}
+
+/// Down with the first sample, moves of `PER_BATCH` samples, up with the last.
+fn batches(tool: ToolKind, id: i32, samples: &[PointerSample]) -> Vec<MotionBatch> {
+    let batch = |phase, samples: &[PointerSample]| MotionBatch {
+        phase,
+        buttons: Buttons::default(),
+        pointers: vec![Pointer {
+            id,
+            tool,
+            samples: samples.to_vec(),
+        }],
+    };
+    let last = samples.len() - 1;
+    let mut out = vec![batch(MotionPhase::Down, &samples[..1])];
+    out.extend(
+        samples[1..last]
+            .chunks(PER_BATCH)
+            .map(|chunk| batch(MotionPhase::Move, chunk)),
+    );
+    out.push(batch(MotionPhase::Up, &samples[last..]));
+    out
+}

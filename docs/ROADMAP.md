@@ -26,11 +26,7 @@ S0 and S1 are done (see "Done").
 
 Exit: on the tablet, draw with pressure, undo, kill the app, reopen, the stroke is still there; pen-to-pixel latency has a measured number; the author judges basic pen feel `pass` / `fail`.
 
-S2 and S3 are done (see "Done").
-
-**S4 Input to stroke, first screen** (runtime, app, ui, harness)
-- Walk-through first: open the app, draw with the pen, see the stroke appear under the tip. Normaliser: platform batches -> `InputBatch` (pressure, tilt, timestamp), shared by Android and the harness; app `Session` plus `Intent::Stroke`; the UI canvas hands contacts to the session; the in-progress stroke goes to the renderer separately. `ui/src/design/` installs the theme once and `ui/src/components/` holds the first shared widgets (top bar, canvas frame). The harness command `replay` feeds a recorded stroke through the full frame loop, reports frame time and writes a screenshot.
-- Done: replaying a 10,000-sample stroke keeps frame time under 8 ms on the dev machine and its PNG matches a golden hash; the normaliser has unit tests; the screenshot shows the top bar and canvas per ARCHITECTURE section 10.
+S2 to S4 are done (see "Done").
 
 **S5 Scenario runner** (new crate devtools, harness, xtask)
 - JSON steps (tap, drag, stroke, wait, restart) plus checkpoints (readback hash, screenshot); `cargo scenario <name>`; `tests/scenarios/` holds the walk-throughs; the gate runs `smoke`.
@@ -100,6 +96,10 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 
 (Findings outside the current slice, one line each, dated.)
 
+- 2026-10-02 View transform (zoom, pan, rotate, refit after device rotation): no slice owns it; until then the canvas is fixed at its first size, one screen pixel per canvas pixel.
+- 2026-10-02 Vulkan staging stall (~1.5 ms every ~4,000 `write_buffer` calls on the dev machine): pack the evaluator's per-frame writes or use a staging belt if the tablet shows it.
+- 2026-10-02 Finished-stroke cost per frame: cache the tile binning of finished ops per artwork version before long sessions make the plan step slow.
+
 ## Done
 
 (One line per slice: id, date, commit. At 30 lines, move to `docs/archive/ROADMAP-<YYYY-MM>.md`.)
@@ -108,3 +108,4 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - S1 2026-10-02 `feat(android): Kotlin host, surface frames with an egui top bar, typed motion batches (S1)`; confirmed on the tablet
 - S2 2026-10-02 `feat(core): immutable artwork value, layer commands, stroke sessions, validated storage entry (S2)`
 - S3 2026-10-02 `feat(render): region evaluator with tile-binned ops and a continuous round brush (S3)`
+- S4 2026-10-02 `feat(runtime): pen input to strokes on the first screen (S4)`; confirmed on the tablet with injected input

@@ -143,10 +143,10 @@ pub extern "system" fn Java_dev_openpaint_Native_motion<'local>(
     tools: JIntArray<'local>,
     samples: JFloatArray<'local>,
     times_ms: JLongArray<'local>,
-) {
-    env.with_env(|env| -> Result<(), HostError> {
+) -> jboolean {
+    env.with_env(|env| -> Result<jboolean, HostError> {
         let Some(runtime) = runtime(handle) else {
-            return Ok(());
+            return Ok(false);
         };
         let (ids, tools) = (read(env, &ids)?, read(env, &tools)?);
         let (samples, times_ms) = (read(env, &samples)?, read(env, &times_ms)?);
@@ -159,12 +159,12 @@ pub extern "system" fn Java_dev_openpaint_Native_motion<'local>(
             samples: &samples,
             times_ms: &times_ms,
         };
-        if let Some(batch) = decode(&raw)? {
-            runtime.motion(&batch);
-        }
-        Ok(())
+        Ok(match decode(&raw)? {
+            Some(batch) => runtime.motion(&batch),
+            None => false,
+        })
     })
-    .resolve::<LogErrorAndDefault>();
+    .resolve::<LogErrorAndDefault>()
 }
 
 /// Copies a whole Java primitive array.

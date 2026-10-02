@@ -1,16 +1,19 @@
 //! `Core`: the renderer's GPU state. Created once per process and shared; never stored in the
 //! UI framework.
 
-use crate::error::RenderError;
+use crate::error::{RenderError, device};
 use crate::gpu::Gpu;
 use crate::image::RgbaImage;
 use crate::program::EvaluatePipeline;
 use crate::readback::{offscreen_texture, read_rgba};
+use crate::screen::blit_layout;
 
 pub struct Core {
     pub(crate) gpu: Gpu,
     /// The region evaluator's compute pipeline (`RegionEvaluator`).
     pub(crate) evaluate: EvaluatePipeline,
+    /// How a canvas target binds for showing on screen, the same for every frame format.
+    pub(crate) blit_layout: wgpu::BindGroupLayout,
 }
 
 impl Core {
@@ -19,12 +22,26 @@ impl Core {
     pub fn headless() -> Result<Self, RenderError> {
         let gpu = Gpu::new()?;
         let evaluate = EvaluatePipeline::new(&gpu.device);
-        Ok(Self { gpu, evaluate })
+        let blit_layout = blit_layout(&gpu.device);
+        Ok(Self {
+            gpu,
+            evaluate,
+            blit_layout,
+        })
     }
 
     /// Adapter name and backend, for logs and harness output.
     pub fn adapter(&self) -> String {
         self.gpu.describe()
+    }
+
+    /// Blocks until the GPU has finished all submitted work, for timing a whole frame.
+    pub fn wait_idle(&self) -> Result<(), RenderError> {
+        self.gpu
+            .device
+            .poll(wgpu::PollType::wait_indefinitely())
+            .map(|_| ())
+            .map_err(device)
     }
 
     /// Clears an offscreen target of `size` pixels to the 8-bit RGBA `color` and reads it back.

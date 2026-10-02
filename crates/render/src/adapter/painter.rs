@@ -1,9 +1,9 @@
-//! `UiPainter`: draws one frame of egui output over a cleared canvas.
+//! `ScreenPainter`: draws one screen frame, the placed canvas with egui output over it.
 
 use crate::core::{Core, clear_attachment};
 use crate::error::RenderError;
-use crate::image::RgbaImage;
-use crate::readback::{FORMAT, offscreen_texture, read_rgba};
+use crate::readback::FORMAT;
+use crate::screen::{CanvasBlit, CanvasPlacement, ScreenTarget};
 use crate::surface::Surface;
 
 /// One frame of UI output, already tessellated.
@@ -13,20 +13,29 @@ pub struct UiFrame {
     pub pixels_per_point: f32,
 }
 
-/// Paints UI frames. It holds the UI's textures (the font atlas among them), which egui sends
-/// only once, so one painter lives as long as the UI context that feeds it.
-pub struct UiPainter {
+/// Everything one screen frame shows, bottom to top.
+pub struct ScreenFrame<'a> {
+    /// Fills the screen where the canvas does not reach.
+    pub surround: [u8; 4],
+    pub canvas: Option<CanvasPlacement<'a>>,
+    pub ui: UiFrame,
+}
+
+/// Paints screen frames. It holds the UI's textures (the font atlas among them), which egui
+/// sends only once, so one painter lives as long as the UI context that feeds it.
+pub struct ScreenPainter {
     renderer: egui_wgpu::Renderer,
+    blit: CanvasBlit,
     format: wgpu::TextureFormat,
 }
 
-impl UiPainter {
+impl ScreenPainter {
     /// A painter for `surface` and every later surface of the same format.
     pub fn for_surface(core: &Core, surface: &Surface) -> Self {
         Self::new(core, surface.format())
     }
 
-    /// A painter for offscreen targets read back by `Core::render_ui`.
+    /// A painter for `ScreenTarget`s.
     pub fn offscreen(core: &Core) -> Self {
         Self::new(core, FORMAT)
     }
@@ -35,6 +44,7 @@ impl UiPainter {
         let options = egui_wgpu::RendererOptions::default();
         Self {
             renderer: egui_wgpu::Renderer::new(&core.gpu.device, format, options),
+            blit: CanvasBlit::new(core, format),
             format,
         }
     }
@@ -44,7 +54,7 @@ impl UiPainter {
             Ok(())
         } else {
             Err(RenderError::Invalid(
-                "the UI painter was made for another target format",
+                "the screen painter was made for another target format",
             ))
         }
     }
@@ -66,16 +76,16 @@ impl UiPainter {
         textures.clear();
     }
 
-    /// Clears `view` to `canvas` and draws `ui` over it in one pass.
+    /// Clears `view` to the surround, draws the canvas and then the UI, in one pass.
     fn paint(
         &mut self,
         core: &Core,
         view: &wgpu::TextureView,
         size: [u32; 2],
-        canvas: [u8; 4],
-        ui: &UiFrame,
+        frame: &ScreenFrame<'_>,
     ) {
         let (device, queue) = (&core.gpu.device, &core.gpu.queue);
+        let ui = &frame.ui;
         let screen = egui_wgpu::ScreenDescriptor {
             size_in_pixels: size,
             pixels_per_point: ui.pixels_per_point,
@@ -86,11 +96,14 @@ impl UiPainter {
                 .update_buffers(device, queue, &mut encoder, &ui.primitives, &screen);
         let mut pass = encoder
             .begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("ui"),
-                color_attachments: &[Some(clear_attachment(view, canvas))],
+                label: Some("screen"),
+                color_attachments: &[Some(clear_attachment(view, frame.surround))],
                 ..Default::default()
             })
             .forget_lifetime();
+        if let Some(canvas) = &frame.canvas {
+            self.blit.draw(&mut pass, canvas);
+        }
         self.renderer.render(&mut pass, &ui.primitives, &screen);
         drop(pass);
         commands.push(encoder.finish());
@@ -99,63 +112,49 @@ impl UiPainter {
 }
 
 impl Core {
-    /// Clears `surface` to `canvas`, draws `ui` over it and presents. Returns `false` when the
-    /// window had no frame to give (the frame is skipped; the UI's texture changes still apply).
+    /// Draws `frame` into `surface` and presents. Returns `false` when the window had no frame
+    /// to give (the frame is skipped; the UI's texture changes still apply).
     pub fn present(
         &self,
         surface: &mut Surface,
-        painter: &mut UiPainter,
-        canvas: [u8; 4],
-        mut ui: UiFrame,
+        painter: &mut ScreenPainter,
+        mut frame: ScreenFrame<'_>,
     ) -> Result<bool, RenderError> {
-        let presented = self.present_frame(surface, painter, canvas, &ui);
-        painter.release(&mut ui.textures);
+        let presented = self.present_frame(surface, painter, &frame);
+        painter.release(&mut frame.ui.textures);
         presented
     }
 
-    /// The same frame drawn into an offscreen target of `size` pixels and read back.
-    pub fn render_ui(
+    /// Draws `frame` into an offscreen `target`; read it back with `ScreenTarget::read`.
+    pub fn render_screen(
         &self,
-        painter: &mut UiPainter,
-        size: [u32; 2],
-        canvas: [u8; 4],
-        mut ui: UiFrame,
-    ) -> Result<RgbaImage, RenderError> {
-        let image = self.render_offscreen(painter, size, canvas, &ui);
-        painter.release(&mut ui.textures);
-        image
+        painter: &mut ScreenPainter,
+        target: &ScreenTarget,
+        mut frame: ScreenFrame<'_>,
+    ) -> Result<(), RenderError> {
+        let drawn = painter.check_format(FORMAT).map(|()| {
+            painter.upload(self, &frame.ui.textures);
+            let view = target.texture().create_view(&Default::default());
+            painter.paint(self, &view, target.size(), &frame);
+        });
+        painter.release(&mut frame.ui.textures);
+        drawn
     }
 
     fn present_frame(
         &self,
         surface: &mut Surface,
-        painter: &mut UiPainter,
-        canvas: [u8; 4],
-        ui: &UiFrame,
+        painter: &mut ScreenPainter,
+        frame: &ScreenFrame<'_>,
     ) -> Result<bool, RenderError> {
         painter.check_format(surface.format())?;
-        painter.upload(self, &ui.textures);
-        let Some(frame) = surface.acquire(self)? else {
+        painter.upload(self, &frame.ui.textures);
+        let Some(texture) = surface.acquire(self)? else {
             return Ok(false);
         };
-        let view = frame.texture.create_view(&Default::default());
-        painter.paint(self, &view, surface.size(), canvas, ui);
-        self.gpu.queue.present(frame);
+        let view = texture.texture.create_view(&Default::default());
+        painter.paint(self, &view, surface.size(), frame);
+        self.gpu.queue.present(texture);
         Ok(true)
-    }
-
-    fn render_offscreen(
-        &self,
-        painter: &mut UiPainter,
-        size: [u32; 2],
-        canvas: [u8; 4],
-        ui: &UiFrame,
-    ) -> Result<RgbaImage, RenderError> {
-        painter.check_format(FORMAT)?;
-        painter.upload(self, &ui.textures);
-        let texture = offscreen_texture(&self.gpu, size)?;
-        let view = texture.create_view(&Default::default());
-        painter.paint(self, &view, size, canvas, ui);
-        read_rgba(&self.gpu, &texture)
     }
 }

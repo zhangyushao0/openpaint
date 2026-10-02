@@ -18,13 +18,13 @@ const SIZE: [u32; 2] = [320, 200];
 pub fn run() -> Result<(), HarnessError> {
     let artwork = wave()?;
     let core = Core::headless()?;
-    let target = CanvasTarget::new(&core, SIZE)?;
+    let mut target = CanvasTarget::new(&core, SIZE)?;
     let request = FrameRequest {
         artwork: &artwork,
         active: None,
         background: Color::WHITE,
     };
-    RegionEvaluator::new(&core, &target).evaluate(&request, &[PixelRect::full(SIZE)])?;
+    RegionEvaluator::new(&core, &mut target).evaluate(&request, &[PixelRect::full(SIZE)])?;
     let image = target.read(&core)?;
     let path = write_png("stroke.png", &image)?;
     println!("adapter {}", core.adapter());

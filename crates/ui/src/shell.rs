@@ -1,16 +1,37 @@
-//! The screen skeleton: a top bar over the canvas, which fills the rest of the screen and is
-//! left unpainted so the renderer's canvas shows through.
+//! The screen: the top bar over the canvas frame, which fills the rest of the screen.
 
-/// Top bar height in points; a 48-point bar holds 48 px hit targets at any density.
-pub const TOP_BAR_HEIGHT: f32 = 48.0;
+use openpaint_app::{InputBatch, Intent};
 
-/// Builds one frame of the shell inside the root `ui`.
-pub fn shell(ui: &mut egui::Ui) {
-    egui::Panel::top("top_bar")
-        .exact_size(TOP_BAR_HEIGHT)
-        .show(ui, |ui| {
-            ui.horizontal_centered(|ui| {
-                ui.label("OpenPaint");
-            });
+use crate::components::{CanvasInput, ScreenArea, canvas_frame, top_bar};
+
+/// The screen's UI-local state between frames.
+#[derive(Debug, Default)]
+pub struct Shell {
+    canvas: Option<ScreenArea>,
+    input: CanvasInput,
+}
+
+impl Shell {
+    /// Builds one frame inside the root `ui` and remembers where the canvas is.
+    pub fn show(&mut self, ui: &mut egui::Ui) {
+        top_bar(ui, |ui| {
+            ui.label("OpenPaint");
         });
+        let rect = canvas_frame(ui);
+        self.canvas = Some(ScreenArea::from_points(rect, ui.ctx().pixels_per_point()));
+    }
+
+    /// Where the canvas shows on screen, once a frame has been laid out.
+    #[must_use]
+    pub fn canvas_area(&self) -> Option<ScreenArea> {
+        self.canvas
+    }
+
+    /// The intents this frame's input asks for. Call after `show`.
+    pub fn route(&mut self, batches: &[InputBatch]) -> Vec<Intent> {
+        match &self.canvas {
+            Some(area) => self.input.route(area, batches),
+            None => Vec::new(),
+        }
+    }
 }

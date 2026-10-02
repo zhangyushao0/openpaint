@@ -49,6 +49,12 @@ impl StrokeList {
         self.len == 0
     }
 
+    /// The newest stroke.
+    #[must_use]
+    pub fn last(&self) -> Option<&Stroke> {
+        self.chunks.last().and_then(|chunk| chunk.last())
+    }
+
     /// Oldest first.
     pub fn iter(&self) -> impl Iterator<Item = &Stroke> {
         self.chunks.iter().flat_map(|chunk| chunk.iter())

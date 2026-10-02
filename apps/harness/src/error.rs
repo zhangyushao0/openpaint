@@ -1,5 +1,6 @@
 //! `HarnessError`: why a harness command failed. Printed once by `main`.
 
+use std::time::Duration;
 use std::{fmt, io};
 
 use openpaint_core::CoreError;
@@ -13,6 +14,18 @@ pub enum HarnessError {
     Runtime(RuntimeError),
     Io(io::Error),
     Png(png::EncodingError),
+    /// Something the command needs was not produced.
+    Missing(&'static str),
+    /// The written image's hash is not the golden value.
+    Golden {
+        expected: u64,
+        actual: u64,
+    },
+    /// The slowest frame took longer than the budget.
+    Budget {
+        slowest: Duration,
+        budget: Duration,
+    },
 }
 
 impl fmt::Display for HarnessError {
@@ -23,6 +36,13 @@ impl fmt::Display for HarnessError {
             Self::Runtime(error) => write!(f, "{error}"),
             Self::Io(error) => write!(f, "file error: {error}"),
             Self::Png(error) => write!(f, "PNG encoding error: {error}"),
+            Self::Missing(what) => write!(f, "{what}"),
+            Self::Golden { expected, actual } => {
+                write!(f, "hash {actual:016x} differs from golden {expected:016x}")
+            }
+            Self::Budget { slowest, budget } => {
+                write!(f, "slowest frame {slowest:?} is over the {budget:?} budget")
+            }
         }
     }
 }

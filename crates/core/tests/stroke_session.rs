@@ -148,6 +148,9 @@ fn many_strokes_keep_order_and_old_versions() {
         .map(|stroke| stroke.id().get())
         .collect();
     assert_eq!(ids, (1..=600).collect::<Vec<u64>>());
+    let newest = last.strokes().last().map(|stroke| stroke.id().get());
+    assert_eq!(newest, Some(600));
+    assert!(versions[0].layers()[0].strokes().last().is_none());
     assert_eq!(versions[300].layers()[0].strokes().len(), 300);
     assert_ne!(versions[599], versions[600]);
 }

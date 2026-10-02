@@ -115,10 +115,11 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
                 }
             }
         }
-        Native.motion(
+        val wantsFrame = Native.motion(
             handle, event.actionMasked, event.actionIndex, event.buttonState,
             ids, tools, samples, times,
         )
+        if (wantsFrame) requestFrame()
     }
 
     private fun density(): Float = resources.displayMetrics.density

@@ -4,23 +4,32 @@
 //! on which regions are evaluated together: incremental evaluation equals cold evaluation.
 
 use crate::geom::PixelRect;
-use crate::protocol::{TILE, TileRecord};
-use crate::scene::{Item, Scene};
+use crate::protocol::{FRESH, TILE, TileRecord};
+use crate::scene::{Fresh, Item, Scene};
 
 #[derive(Debug, Default)]
 pub(crate) struct Plan {
     pub(crate) tiles: Vec<TileRecord>,
-    /// Scene item indices; each tile owns `start..start + count`.
+    /// Scene item indices, or fresh op indices with the `FRESH` bit; each tile owns
+    /// `start..start + count`.
     pub(crate) indices: Vec<u32>,
 }
 
 impl Plan {
-    /// Regions are clipped to the target of `size` pixels and widened to whole tiles.
-    pub(crate) fn build(scene: &Scene, size: [u32; 2], regions: &[PixelRect]) -> Self {
+    /// Regions are clipped to the target of `size` pixels and widened to whole tiles. At the
+    /// scene's `Active` place every tile lists the fresh segments that reach it and then the
+    /// fresh paint op: the in-progress stroke's earlier coverage may lie in any tile.
+    pub(crate) fn build(
+        scene: &Scene,
+        fresh: &Fresh,
+        size: [u32; 2],
+        regions: &[PixelRect],
+    ) -> Self {
         let grid = Grid::new(size, regions);
         let mut lists = vec![Vec::new(); grid.origins.len()];
         let mut stroke = Touched::new(lists.len());
         let mut layer = Touched::new(lists.len());
+        let mut fresh_lists = Some(grid.bin(fresh));
         for (index, item) in scene.items.iter().enumerate() {
             let index = u32::try_from(index).unwrap_or(u32::MAX);
             match item {
@@ -33,6 +42,14 @@ impl Plan {
                 Item::EndStroke(_) => {
                     for slot in stroke.close() {
                         lists[slot].push(index);
+                        layer.touch(slot);
+                    }
+                }
+                Item::Active => {
+                    let binned = fresh_lists.take().unwrap_or_default();
+                    for (slot, mut list) in binned.into_iter().enumerate() {
+                        list.push(FRESH);
+                        lists[slot].append(&mut list);
                         layer.touch(slot);
                     }
                 }
@@ -115,6 +132,17 @@ impl Grid {
     fn slots(&self, rect: &PixelRect) -> impl Iterator<Item = usize> + '_ {
         self.tiles(rect).filter_map(|tile| self.slot_of[tile])
     }
+
+    /// Per slot, the fresh segments that reach it, as `FRESH` indices in order.
+    fn bin(&self, fresh: &Fresh) -> Vec<Vec<u32>> {
+        let mut lists = vec![Vec::new(); self.origins.len()];
+        for (index, bounds) in (1..).zip(&fresh.bounds) {
+            for slot in self.slots(&bounds.pixels()) {
+                lists[slot].push(FRESH | index);
+            }
+        }
+        lists
+    }
 }
 
 /// The slots one stroke or layer has reached so far, each listed once.
@@ -183,7 +211,8 @@ mod tests {
 
     #[test]
     fn tiles_list_only_the_ops_that_reach_them_in_scene_order() {
-        let plan = Plan::build(&scene(), [48, 20], &[PixelRect::full([48, 20])]);
+        let none = Fresh::default();
+        let plan = Plan::build(&scene(), &none, [48, 20], &[PixelRect::full([48, 20])]);
         let expected = [
             ([0, 0], vec![0, 1, 4]),
             ([16, 0], vec![0, 1, 4]),
@@ -215,8 +244,31 @@ mod tests {
                 max: [5, 9],
             },
         ];
-        let plan = Plan::build(&scene(), [48, 20], &regions);
+        let plan = Plan::build(&scene(), &Fresh::default(), [48, 20], &regions);
         let expected = [([0, 0], vec![0, 1, 4]), ([32, 16], vec![])];
+        assert_eq!(lists(&plan), expected);
+    }
+
+    #[test]
+    fn every_tile_paints_the_active_stroke_after_the_fresh_segments_that_reach_it() {
+        let scene = Scene {
+            items: vec![
+                segment([2.0, 2.0, 4.0, 4.0]),
+                Item::EndStroke(Op::end_stroke([0.0; 3], 1.0)),
+                Item::Active,
+                Item::EndLayer(Op::end_layer(1.0)),
+            ],
+        };
+        let fresh = Fresh {
+            ops: vec![Op::end_active([0.0; 3], 1.0); 2],
+            bounds: vec![Bounds([20.0, 2.0, 22.0, 3.0])],
+        };
+        let plan = Plan::build(&scene, &fresh, [48, 16], &[PixelRect::full([48, 16])]);
+        let expected = [
+            ([0, 0], vec![0, 1, FRESH, 3]),
+            ([16, 0], vec![FRESH | 1, FRESH, 3]),
+            ([32, 0], vec![FRESH, 3]),
+        ];
         assert_eq!(lists(&plan), expected);
     }
 }

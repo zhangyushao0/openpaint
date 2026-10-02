@@ -28,7 +28,8 @@ internal object Native {
 
     /**
      * One MotionEvent. `samples` holds `timesMs.size` steps (history, then current), each with
-     * one block of [SAMPLE_FIELDS] floats per pointer.
+     * one block of [SAMPLE_FIELDS] floats per pointer. Returns true when the event needs a
+     * frame.
      */
     @JvmStatic external fun motion(
         handle: Long,
@@ -39,5 +40,5 @@ internal object Native {
         tools: IntArray,
         samples: FloatArray,
         timesMs: LongArray,
-    )
+    ): Boolean
 }
