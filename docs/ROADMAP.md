@@ -1,114 +1,116 @@
-# 路线图
+# Roadmap
 
-## 产品定义
+## Product definition
 
-Android 优先、手写笔优先的二维绘画软件，在一台平板上独立完成：草稿 → 线稿 → 分层铺色 → 涂抹塑造 → 选区修订 → 蒙版叠色 → 调色与成品 → 导出 → 中断后继续。交互默认参考 Procreate 的用户心智，再按 Android 平板取舍，不复制外观与素材。
+An Android-first, stylus-first 2D painting app that completes, on one tablet: sketch -> inking -> layered flat colour -> smudging and shaping -> selection revisions -> masks and colour overlays -> adjustments and finishing -> export -> resume after interruption. Interaction follows the user's mental model from Procreate by default, adapted to Android tablets; no copying of look, icons or assets.
 
-非目标（G0–G5）：网络、账号、云同步、社区、动画、3D、多端、插件系统、桌面产品。
+Stage exits are judged on representative artworks made by the author on the tablet: W1 inking and flat colour, W2 painterly shading, W3 complex composition revision, W4 edit, restore and deliver.
 
-## 规则
+Non-goals (G0 to G5): network, accounts, cloud sync, community, animation, 3D, multi-platform, plugin systems, a desktop product.
 
-- 一刀 = 一个会话能做完、能独立验证和回滚的纵向切片。按编号顺序做，不跳。
-- 每刀写明目标、涉及 crate、完成标准。完成标准必须可执行或可观察，不写"更好"。
-- 刀做完：STATUS 改写、本刀移到文末"已完成"（一行）、必要时 DECISIONS 加条目。
-- 阶段出口需要作者在平板上人工判断的项，写 `pass` / `fail` / `not_run`，不用开发机结果替代。
-- 范围外的发现写进"候选"，不顺手做。
+## Rules
 
-## G0 骨架
+- A slice is a vertical cut one session can finish, verify and roll back on its own. Slices run in numbered order; no skipping.
+- Every slice states its goal, the crates involved and done criteria. Done criteria are executable or observable, never "better".
+- When a slice is done: rewrite STATUS, move the slice to "Done" at the end of this file (one line), add a DECISIONS entry only if a decision was made.
+- Stage-exit items that need the author on the tablet are recorded as `pass` / `fail` / `not_run`; a dev-machine result never substitutes.
+- Findings outside the slice go under "Candidates"; they are not fixed in passing.
 
-**S0 桌面宿主与依赖**（desktop, render, ui, runtime）
-- 加入并固定版本：wgpu、egui、egui-wgpu、winit（版本写进 DECISIONS）。
-- desktop 开一个窗口：egui 顶栏 + 画布区域由 render 的 adapter 用 wgpu 清屏；窗口尺寸变化不崩。
-- 完成：`cargo run -p openpaint-desktop` 可见窗口；`cargo gate` 热缓存 < 60 s；没有新的 markdown。
+## G0 Skeleton
 
-**S1 Android 宿主**（android, runtime）
-- 先决定宿主形态（`android-activity` + winit，或自写 Activity + JNI），记 DECISIONS；加 `aarch64-linux-android` target、`cargo-ndk`、最小 Gradle 工程、`cargo android-build` 别名。
-- 完成：APK 装到作者平板，显示与桌面相同的界面；手写笔事件带压力到达 Rust 并打印；前后台切换、旋转不崩。作者确认安装成功。
+**S0 Desktop host and dependencies** (desktop, render, ui, runtime)
+- Add and pin wgpu, egui, egui-wgpu, winit (versions recorded in DECISIONS).
+- The desktop host opens a window: an egui top bar plus a canvas area cleared through the render adapter with wgpu; resizing does not crash.
+- Done: `cargo run -p openpaint-desktop` shows the window; `cargo gate` under 60 s warm; no new markdown.
 
-## G1 画一条线的闭环
+**S1 Android host** (android, runtime)
+- Decide the host form first (`android-activity` + winit, or a hand-written Activity + JNI) and record it in DECISIONS; add the `aarch64-linux-android` target, `cargo-ndk`, a minimal Gradle project and a `cargo android-build` alias.
+- Done: the APK installs on the author's tablet and shows the same interface as the desktop; stylus events with pressure reach Rust and are logged; background/foreground and rotation do not crash. The author confirms the install.
 
-出口：平板上用笔压画线、撤销、杀掉应用重开，线还在；笔到像素延迟有实测数字；作者在平板判断基础笔感 `pass`/`fail`。
+## G1 One stroke, end to end
 
-**S2 core 作品值**（core）
-- `Artwork(Arc<State>)`、`Layer`、`Stroke`、`StrokeSample`、ID；`LayerCommand`（新建、删除、重排、属性）；`apply` → `Applied{artwork, change}`；`StrokeSession` begin/extend/finish/cancel；`from_storage` 全量校验；`CoreError`。
-- 完成：每个命令有成功与错误用例；没有公开可变 setter；`cargo test -p openpaint-core` 通过；core 无外部依赖。
+Exit: on the tablet, draw with pressure, undo, kill the app, reopen, the stroke is still there; pen-to-pixel latency has a measured number; the author judges basic pen feel `pass` / `fail`.
 
-**S3 渲染核心**（render, desktop）
-- `Core`（设备、队列、管线）、`FrameRequest`、`Scene`/`Plan`、笔画几何 → 圆头连续笔刷的 coverage 着色器、`RegionEvaluator` 唯一入口、读回。
-- 完成：GPU 测试：固定笔画渲染结果的像素哈希固定；增量求值 = 冷求值逐位一致；desktop 显示一条写死的笔画；render 不含 `egui`（adapter 除外）。
+**S2 Core artwork value** (core)
+- `Artwork(Arc<State>)`, `Layer`, `Stroke`, `StrokeSample`, ids; `LayerCommand` (create, delete, reorder, properties); `apply` -> `Applied { artwork, change }`; `StrokeSession` begin/extend/finish/cancel; `from_storage` full validation; `CoreError`.
+- Done: every command has success and error cases; no public mutable setters; `cargo test -p openpaint-core` passes; core has no external dependencies.
 
-**S4 输入到笔画**（runtime, app, ui, desktop）
-- 规范化器：winit 笔/鼠标事件 → `InputBatch`（压力、倾斜、时间戳）；app `Session` + `Intent::Stroke`；UI 画布把触点交给会话；进行中笔画单独送渲染。
-- 完成：桌面用鼠标或笔连续绘画；一笔 10,000 样本时帧时间 < 8 ms（开发机）；规范化器有单元测试。
+**S3 Render core** (render, desktop)
+- `Core` (device, queue, pipelines), `FrameRequest`, `Scene` / `Plan`, stroke geometry -> coverage shader for a round continuous brush, `RegionEvaluator` as the single entry, readback.
+- Done: GPU test with a fixed pixel hash for a fixed stroke; incremental = cold evaluation bit for bit; the desktop shows a hard-coded stroke; render contains no `egui` outside adapter.
 
-**S5 历史**（app, ui）
-- `History` 版本栈 + 字节预算；Undo/Redo 意图；顶栏按钮；投影给出可用性。
-- 完成：撤销/重做 20 步往返作品相等；预算裁剪有测试；UI 按钮按可用性禁用。
+**S4 Input to stroke** (runtime, app, ui, desktop)
+- Normaliser: winit pen and mouse events -> `InputBatch` (pressure, tilt, timestamp); app `Session` plus `Intent::Stroke`; the UI canvas hands contacts to the session; the in-progress stroke goes to the renderer separately.
+- Done: continuous drawing on the desktop with mouse or pen; frame time under 8 ms with a 10,000-sample stroke (dev machine); the normaliser has unit tests.
 
-**S6 存储与自动保存**（store, runtime, desktop）
-- fjall 作品库；`Project` DTO schema 1 与冻结样本；实现 `ProjectStore`；笔画结束后 worker 自动保存；启动打开上次作品；保存失败提示与重试。
-- 完成：桌面画几笔、杀进程、重开后内容一致；样本往返测试；门禁 < 60 s。
+**S5 History** (app, ui)
+- `History` version stack with a byte budget; undo/redo intents; top-bar buttons; the projection reports availability.
+- Done: 20 undo/redo round trips leave the artwork equal; budget trimming has tests; UI buttons disable per availability.
 
-**S7 Android 真机闭环**（android, runtime）
-- 接通 S2–S6；Android 触摸/笔事件进同一规范化器；掌触拒绝基础版；笔到像素延迟打点。
-- 完成：平板画线、撤销、重开；延迟数字写进 STATUS；作者判断笔感。G1 出口。
+**S6 Storage and autosave** (store, runtime, desktop)
+- fjall library; `Project` DTO schema 1 with a frozen sample; `ProjectStore` implemented; a worker autosaves after each stroke; the last artwork opens on start; save failures show a message with retry.
+- Done: draw on the desktop, kill the process, reopen with identical content; sample round-trip test; gate under 60 s.
 
-## G2 作品与图层
+**S7 Android loop on the device** (android, runtime)
+- Wire S2 to S6 on the Android host; Android touch and stylus events enter the same normaliser; basic palm rejection; pen-to-pixel latency instrumented.
+- Done: draw, undo and reopen on the tablet; the latency number is in STATUS; the author judges pen feel. G1 exit.
 
-出口：作者在平板完成一张线稿加平涂（W1）。
+## G2 Artworks and layers
 
-**S8 桌面自动回归**（devtools 新 crate, desktop, xtask）
-- 无头场景运行器：JSON 步骤（点、拖、笔画、撤销、保存、重开）+ 像素检查点（读回哈希）；`cargo scenario <name>`；门禁跑 `smoke` 场景。
-- 完成：`smoke` 覆盖画线、撤销、保存重开，< 5 s；检查点失败时输出差异图路径（放 `artifacts/`，不跟踪）。
+Exit: the author finishes an inked and flat-coloured piece (W1) on the tablet.
 
-**S9 图层**（core, app, ui, render, store）
-- 多图层：新建、删除、重排、显隐、不透明度、选中；Normal 合成；图层面板；schema 2 与迁移。
-- 完成：合成顺序 GPU 测试；面板操作走意图且可撤销；schema 1 样本升级通过。
+**S8 Desktop automated regression** (new crate devtools, desktop, xtask)
+- Headless scenario runner: JSON steps (tap, drag, stroke, undo, save, reopen) plus pixel checkpoints (readback hashes); `cargo scenario <name>`; the gate runs the `smoke` scenario.
+- Done: `smoke` covers draw, undo, save and reopen in under 5 s; a failed checkpoint prints the diff image path (under `artifacts/`, untracked).
 
-**S10 作品库**（app, store, ui, render）
-- Gallery：列表、新建、打开、重命名、复制、删除、缩略图（导出小图）；每作品自动保存。
-- 完成：桌面场景覆盖新建、改名、删除、重开；缩略图与作品一致。
+**S9 Layers** (core, app, ui, render, store)
+- Multiple layers: create, delete, reorder, visibility, opacity, active layer; Normal compositing; layer panel; schema 2 with migration.
+- Done: GPU test for compositing order; panel actions go through intents and are undoable; the schema 1 sample upgrades.
 
-**S11 笔刷配方 v1**（core, render, ui, store）
-- `BrushRecipe` TOML：形状、尺寸/不透明度随压力与速度的曲线、颗粒；内置铅笔、墨线笔、软笔；笔刷选择器与大小、不透明度滑杆；笔画保存配方快照。
-- 完成：三支笔的 GPU 哈希测试；配方解析错误有类型；改内置配方不改变旧作品渲染（测试）。
+**S10 Artwork library** (app, store, ui, render)
+- Gallery: list, create, open, rename, duplicate, delete, thumbnails (small export); autosave per artwork.
+- Done: a desktop scenario covers create, rename, delete and reopen; thumbnails match the artwork.
 
-**S12 橡皮、Alpha Lock、颜色**（core, app, ui, render）
-- 橡皮擦用同一套配方；Alpha Lock；HSV 色轮与最近颜色；吸管经 render 取色。
-- 完成：擦除与 Alpha Lock 的 GPU 测试；取色与导出像素一致。
+**S11 Brush recipes v1** (core, render, ui, store)
+- `BrushRecipe` TOML: shape, size and opacity curves over pressure and speed, grain; built-in pencil, ink pen and soft brush; brush picker with size and opacity sliders; strokes store a recipe snapshot.
+- Done: GPU hash tests for the three brushes; recipe parse errors are typed; changing a built-in recipe does not change old artworks (test).
 
-**S13 导出与参考图**（app, store, render, ui, android）
-- PNG/JPEG 导出走 `RegionEvaluator` 读回、在 worker 执行；参考图浮窗（移动、缩放、取色）；Android 系统选图与分享在宿主。
-- 完成：导出图与屏幕逐像素一致（测试）；平板选图、导出、分享可用。G2 出口由作者判断。
+**S12 Eraser, Alpha Lock, colour** (core, app, ui, render)
+- The eraser uses the same recipes; Alpha Lock; HSV wheel with recent colours; eyedropper through render picking.
+- Done: GPU tests for erasing and Alpha Lock; picked colours match exported pixels.
 
-## G3 编辑与塑造
+**S13 Export and reference image** (app, store, render, ui, android)
+- PNG/JPEG export through `RegionEvaluator` readback on a worker; floating reference window (move, zoom, pick); Android system picker and share in the host.
+- Done: the exported image matches the screen pixel for pixel (test); picking, exporting and sharing work on the tablet. The author judges the G2 exit.
 
-出口：作者在平板完成厚涂明暗（W2）与复杂构图修订（W3）。
+## G3 Editing and shaping
 
-**S14 选区**（core, app, ui, render）：手绘与矩形选区；选区内绘画；取消选区；选区是工具状态不进作品。完成：选区外像素不变的 GPU 测试。
-**S15 变换**（core, app, ui, render）：移动、缩放、旋转图层或选区，预览走渲染器，提交为 `RegionEdit`。完成：预览与提交结果一致。
-**S16 填色**（raster 新 crate, core, app, ui）：连通域填色、容差、选区相交。完成：软边、断线、细孔的用例。
-**S17 涂抹**（core, render, ui）：涂抹笔刷拖动当前图层颜色；增量残差分块；增量 = 冷求值逐位一致。完成：GPU 一致性测试；平板涂抹 ≥ 60 Hz。
-**S18 图层组、剪贴蒙版、混合模式**（core, app, ui, render, store）：单层组、剪贴链、Multiply/Screen/Overlay；schema 升级。完成：合成公式 GPU 测试。
-**S19 图层蒙版**（core, app, ui, render, store）：添加、停用、反转、清空、删除蒙版及撤销；蒙版绘制。完成：蒙版与不透明度、剪贴、组叠加的 GPU 测试。
+Exit: the author finishes painterly shading (W2) and a complex composition revision (W3) on the tablet.
 
-## G4 色彩、调整、交换
+**S14 Selection** (core, app, ui, render): freehand and rectangle selection; paint inside; deselect; the selection is tool state, not artwork. Done: GPU test that pixels outside the selection stay unchanged.
+**S15 Transform** (core, app, ui, render): move, scale and rotate a layer or selection; preview through the renderer; commit as a `RegionEdit`. Done: preview and committed result match.
+**S16 Fill** (new crate raster, core, app, ui): connected-region fill, tolerance, intersection with the selection. Done: cases for soft edges, gaps and pinholes.
+**S17 Smudge** (core, render, ui): a smudge brush drags the current layer's colour; incremental residual tiles; incremental = cold evaluation bit for bit. Done: GPU consistency test; at least 60 Hz smudging on the tablet.
+**S18 Groups, clipping masks, blend modes** (core, app, ui, render, store): single-level groups, clipping chains, Multiply/Screen/Overlay; schema upgrade. Done: GPU tests for the compositing formulas.
+**S19 Layer masks** (core, app, ui, render, store): add, disable, invert, clear and delete masks with undo; painting on masks. Done: GPU tests for masks combined with opacity, clipping and groups.
 
-**S20 色彩管理**：P3 显示、导入解释、导出转换分开定义。**S21 调整**：色相/饱和度/亮度、曲线、模糊、锐化，各有预览、取消、历史。**S22 工程交换**：自有格式完整原稿；OpenRaster 导入导出。**S23 作品库管理**：搜索、版本恢复、外部备份。
-出口：作者完成修改、恢复与交付（W5）。
+## G4 Colour, adjustments, exchange
 
-## G5 稳定与发布
+**S20 Colour management**: P3 display, import interpretation and export conversion defined separately. **S21 Adjustments**: hue/saturation/brightness, curves, blur, sharpen, each with preview, cancel and history. **S22 Project exchange**: the native format as the full original; OpenRaster import and export. **S23 Library management**: search, version restore, external backup.
+Exit: the author completes edit, restore and delivery (W4).
 
-设备分级、长会话、前后台、存储不足、升级失败；GPU 设备丢失恢复与显存预算；真机冒烟场景 ≤ 20 s；签名发行与版本策略。出口：声明支持的设备矩阵通过，没有已知作品损坏或静默丢失。
+## G5 Stability and release
 
-## G6 稳定后的独立扩展
+Device tiers, long sessions, background/foreground, low storage, failed upgrades; GPU device-loss recovery and a VRAM budget; a device smoke scenario of at most 20 s; signed releases and a version policy. Exit: the declared device matrix passes with no known artwork corruption or silent loss.
 
-湿画材质、双笔刷、笔刷生态、动画、多端、云同步、插件：各自立项，不自动进入主线。
+## G6 Independent extensions after stabilisation
 
-## 候选
+Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud sync, plugins: each is its own project and never enters the main line automatically.
 
-（范围外的发现写在这里，一行一条，带日期。）
+## Candidates
 
-## 已完成
+(Findings outside the current slice, one line each, dated.)
 
-（一刀一行：编号、日期、提交。满 30 行移到 `docs/archive/ROADMAP-<YYYY-MM>.md`。）
+## Done
+
+(One line per slice: id, date, commit. At 30 lines, move to `docs/archive/ROADMAP-<YYYY-MM>.md`.)

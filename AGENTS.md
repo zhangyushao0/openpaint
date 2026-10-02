@@ -1,72 +1,72 @@
-# OpenPaint 仓库规则
+# OpenPaint repository rules
 
-本文件是 agent 与维护者共用的入口，规定默认工作方式。作者在当前任务里的明确指示优先于本文件。
+This file is the shared entry point for agents and maintainers and sets the default way of working. Explicit instructions from the author in the current task take precedence.
 
-## 读取顺序
+## Reading order
 
-1. `docs/STATUS.md`：现在什么能用、什么经过验证。
-2. `docs/ROADMAP.md`：找到"下一刀"，只做这一刀。
-3. `docs/ARCHITECTURE.md`：只读与本刀相关的 crate 一节。
-4. 受影响的源码。文件都在 400 行以内，用 Read 读整个文件；用 Grep 定位。
-5. `docs/DECISIONS.md`：只在要改变已有决定、或需要知道"为什么"时读。
+1. `docs/STATUS.md`: what works now and what has been verified.
+2. `docs/ROADMAP.md`: find the next slice; do only that slice.
+3. `docs/ARCHITECTURE.md`: only the sections for the crates this slice touches.
+4. The affected sources. Every file is under 400 lines: read whole files with Read, locate with Grep.
+5. `docs/DECISIONS.md`: only when changing an existing decision or when you need the "why".
 
-不要从源码重建全局认识，模块地图在 ARCHITECTURE；不要翻 git 历史找进度，进度在 STATUS。
+Do not rebuild the big picture from source; the module map is in ARCHITECTURE. Do not dig through git history for progress; progress is in STATUS.
 
-## 一个会话一刀
+## One session, one slice
 
-- 一个会话只做 ROADMAP 里的一刀。门禁通过、提交、文档更新后就结束，不自动开始下一刀。
-- 开始前看 `git status --short --branch`，不碰已有的未提交修改。
-- 范围由 ROADMAP 规定。范围外的问题写进 STATUS 的"已知限制"或 ROADMAP 的候选，不顺手做。
-- 可以停下来问作者。先把不依赖答案的部分做完，再列出具体选项并给出推荐。
+- A session does exactly one slice from ROADMAP. When the gate passes, the commit exists and the documents are updated, the session ends. Do not start the next slice.
+- Run `git status --short --branch` first; never touch pre-existing uncommitted changes.
+- ROADMAP defines the scope. Problems outside it go to STATUS "Known limits" or ROADMAP "Candidates"; do not fix them in passing.
+- Stopping to ask the author is fine. Finish the parts that do not depend on the answer first, then list concrete options with a recommendation.
 
-## 读与改
+## Reading and editing
 
-- 读源码用 Read，搜索用 Grep / Glob。不用 cat、sed、grep 命令读源码。
-- 改源码用 Edit；新文件和整文件重写用 Write。不写 Python、sed、heredoc 脚本改代码。
-- 仓库里不允许 .py / .sh / .ps1 文件；工具代码只写在 `xtask`（Rust）。`cargo repo-check` 会拒绝。
-- Bash 只用于 cargo、git 和运行程序。
+- Read source with Read; search with Grep / Glob. Do not read source through cat, sed or grep commands.
+- Edit source with Edit; use Write for new files or full rewrites. Never edit through Python, sed or heredoc scripts.
+- No .py / .sh / .ps1 files in the repository; tooling is Rust in `xtask`. `cargo repo-check` rejects them.
+- Bash is for cargo, git and running programs only.
 
-## 验证三级，按顺序
+## Three verification tiers, in order
 
-| 级 | 命令 | 何时 |
+| Tier | Command | When |
 | --- | --- | --- |
-| 1 | `cargo check -p <crate>` | 每次连贯修改后，几秒 |
-| 2 | `cargo test -p <crate> [过滤器]` | 本刀涉及的测试 |
-| 3 | `cargo gate` | 提交前一次：fmt、clippy、全部测试、repo-check |
+| 1 | `cargo check -p <crate>` | after every coherent edit; seconds |
+| 2 | `cargo test -p <crate> [filter]` | the tests this slice touches |
+| 3 | `cargo gate` | once before the commit: fmt, clippy, all tests, repo-check |
 
-- 级 3 失败时回到级 1 修，不反复跑级 3。
-- 看退出码。不要用 `| tail`、`| grep` 截断门禁输出后判断通过。
-- clippy 报错就改代码，不加 `#[allow]`；确需例外写 `#[expect(lint, reason = "...")]`。
-- 真机验证是单独一级，只在 ROADMAP 标明的刀上做。没做就在 STATUS 写 `not_run`，不写"通过"。
+- When tier 3 fails, go back to tier 1 to fix; do not rerun tier 3 repeatedly.
+- Read the exit code. Never judge a pass from gate output piped through `tail` or `grep`.
+- Fix clippy findings in code; no `#[allow]`. A justified exception is `#[expect(lint, reason = "...")]`.
+- Device verification is a separate tier, done only on the slices ROADMAP marks. If it did not run, STATUS says `not_run`, never "pass".
 
-## 提交
+## Commits
 
-- Conventional Commits，scope 是 crate 名，末尾带刀号：`feat(core): artwork value type (S2)`。
-- 一刀通常一个提交。逐文件暂存，提交前看 `git diff --cached --stat`；禁止 `git add -A`。
-- 门禁没过不提交。push、rebase、amend 只按作者明确指示做。
+- Conventional Commits, scope is the crate name, slice id at the end: `feat(core): artwork value type (S2)`.
+- Usually one commit per slice. Stage file by file and review `git diff --cached --stat` before committing; never `git add -A`.
+- No commit while the gate fails. Push, rebase and amend only on the author's explicit instruction.
 
-## 文档：四份，有上限，repo-check 强制
+## Documents: four files, hard limits, enforced by repo-check
 
-| 文件 | 上限 | 内容 | 不写什么 |
+| File | Limit | Contains | Never contains |
 | --- | --- | --- | --- |
-| docs/STATUS.md | 150 行 | 当前事实：能用的功能、验证结果与日期、已知限制、not_run、待作者决定 | 历史、过程、计划 |
-| docs/ROADMAP.md | 250 行 | 产品定义、阶段、每一刀的目标与完成标准；已完成的刀各一行 | 实现细节、结果 |
-| docs/ARCHITECTURE.md | 300 行 | crate 地图、依赖方向、核心类型、线程与错误模型、强制规则 | 迁移计划、审计发现 |
-| docs/DECISIONS.md | 300 行 | 约束未来代码且不自明的决定，每条 ≤ 15 行：日期、决定、理由、影响 | 调研报告、备选方案长文 |
+| docs/STATUS.md | 150 lines | current facts: working features, verification results with dates, known limits, not_run items, decisions pending from the author | history, process, plans |
+| docs/ROADMAP.md | 250 lines | product definition, stages, each slice's goal and done criteria; finished slices as one line each | implementation detail, results |
+| docs/ARCHITECTURE.md | 300 lines | crate map, dependency direction, core types, threading and error model, enforced rules | migration plans, audit findings |
+| docs/DECISIONS.md | 300 lines | decisions that constrain future code and are not self-evident; each at most 15 lines: date, decision, reason, consequences | research reports, long option comparisons |
 
-- 仓库里没有其他 markdown（README.md ≤ 60 行与本文件 ≤ 150 行除外）。没有 CHANGELOG，历史在 git log。没有 ADR 目录、research 目录、本地笔记目录。
-- 每刀结束时：STATUS 改写成新的当前事实，删掉过时的句子，不追加；ROADMAP 把这一刀移到"已完成"，一行；只有产生了新决定才改 DECISIONS。
-- 归档：某份文档超过上限时先删无用内容；仍超过，把已完成的刀或已被替代的决定整段移到 `docs/archive/<文件名>-<YYYY-MM>.md`。archive 只写不读，没有上限。
-- 调研、审计、方案比较不写成文件。结论进 DECISIONS（≤ 15 行）或提交信息，过程留在会话里。
+- No other markdown in the repository (README.md at most 60 lines and this file at most 150 lines excepted). No CHANGELOG: history is `git log`. No ADR directory, no research directory, no local notes directory.
+- At the end of a slice: rewrite STATUS as the new current facts (delete stale sentences, do not append); move the slice to "Done" in ROADMAP as one line; touch DECISIONS only when a new decision was made.
+- Archiving: when a document exceeds its limit, delete useless content first; if it still exceeds, move finished slices or superseded decisions wholesale to `docs/archive/<name>-<YYYY-MM>.md`. The archive is written, never read, and has no limit.
+- Research, audits and option comparisons are not written as files. Conclusions go to DECISIONS (at most 15 lines) or the commit message; the process stays in the session.
 
-## 输出去哪里
+## Where output goes
 
-agent 的输出应落在 `crates/` 的产品代码和测试里。以下都算浪费，默认不做：为未来功能预留的模块或抽象、通用插件系统、产品 crate 里的 feature 开关、第二条实现路径或静默回退、脚本、报告、笔记、每步一篇的记录。
+Agent output belongs in `crates/` product code and tests. The following count as waste and are not done by default: modules or abstractions reserved for future features, generic plugin systems, cargo features in product crates, second implementation paths or silent fallbacks, scripts, reports, notes, one record per step.
 
-- 思考档位由作者在会话开始时设定：设计与取舍用高档位，拆文件、改调用点、修编译错误用低档位。
-- 子代理最多 2 个，不嵌套，不派审查员群。能在主会话做的就在主会话做。
-- 代码规则（repo-check 与 clippy 强制）：.rs 文件 ≤ 400 行；函数 ≤ 60 行；依赖只能向下（见 ARCHITECTURE）；core 不得出现 GPU、UI、文件系统、线程；`Result<_, String>` 只能出现在平台边界和 xtask；产品 crate 没有 `cfg(feature)`；每个 crate 根 `#![forbid(unsafe_code)]`（`apps/android` 的 JNI 除外）。
+- Reasoning effort is set by the author at session start: high for design and trade-offs, low for splitting files, updating call sites and fixing compile errors.
+- At most 2 subagents, no nesting, no reviewer swarms. Do in the main session what can be done there.
+- Code rules (enforced by repo-check and clippy): .rs files at most 400 lines; functions at most 60 lines; dependencies only point down (see ARCHITECTURE); core never mentions GPU, UI, file system or threads; `Result<_, String>` only at platform boundaries and in xtask; no `cfg(feature)` in product crates; every crate root has `#![forbid(unsafe_code)]` (JNI in `apps/android` excepted).
 
-## 交付说明
+## Handover note
 
-结束时用中文说明：做了什么、验证了什么（命令与结果）、没做什么、需要作者决定什么。不复述文档内容。
+At the end, state: what was done, what was verified (commands and results), what was not done, what the author must decide. Do not restate the documents.

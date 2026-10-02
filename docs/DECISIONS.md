@@ -1,63 +1,63 @@
-# 决定记录
+# Decisions
 
-只记约束未来代码且不自明的决定。每条 ≤ 15 行：日期、决定、理由、影响。被替代的决定整条移到 `docs/archive/`，不原地改写。
+Only decisions that constrain future code and are not self-evident. Each entry is at most 15 lines: date, decision, reason, consequences. A superseded decision moves to `docs/archive/` as a whole; it is never rewritten in place. "The previous project" is Draweave (2026-07 to 2026-10), the predecessor this repository replaces.
 
-## D01 2026-10-02 技术栈：Rust 2024、wgpu、egui，单 workspace
+## D01 2026-10-02 Stack: Rust 2024, wgpu, egui, one workspace
 
-- 决定：核心、渲染、应用、存储、界面全部用 Rust；GPU 用 wgpu；界面用 egui；Android 是产品平台，桌面只做开发宿主。
-- 理由：上一代项目（draweave）用同一栈在目标平板上跑通了笔压、掌触、多层合成与涂抹，证明可行；换栈会把已验证的经验归零。
-- 影响：渲染器状态不得寄存在 egui 的类型表里，egui 只出现在 `render/src/adapter/`；上一代为此付出过大代价。
+- Decision: core, rendering, application, storage and UI are all Rust; GPU through wgpu; UI through egui; Android is the product platform, desktop is a development host only.
+- Reason: the previous project proved this stack on the target tablet (pressure, palm rejection, multi-layer compositing, smudge). Switching stacks would discard verified experience.
+- Consequences: renderer state never lives in egui's type map; egui appears only under `render/src/adapter/`. The previous project paid heavily for ignoring this.
 
-## D02 2026-10-02 crate 分层与纯度由工具强制
+## D02 2026-10-02 Crate layering and purity are tool-enforced
 
-- 决定：`core ← app ← {store, ui} ← runtime ← {desktop, android}`，`core ← render ← ui`。core 不得出现 GPU、UI、文件系统、线程、时钟；表在 `xtask/src/check/rules.rs`。
-- 理由：上一代的依赖方向是对的，但每层内部长出了巨型文件和重复结构。方向用工具守，内部用文件长度守。
-- 影响：新增 crate 必须先登记在 `LAYERS`；越层依赖直接门禁失败。
+- Decision: `core <- app <- {store, ui} <- runtime <- {desktop, android}` and `core <- render <- ui`. core never mentions GPU, UI, file system, threads or clocks. The tables live in `xtask/src/check/rules.rs`.
+- Reason: the previous project had the right dependency direction but grew huge files and duplicated structures inside each layer. The direction is guarded by tooling; the inside is guarded by file length.
+- Consequences: a new crate is registered in `LAYERS` first; an upward dependency fails the gate.
 
-## D03 2026-10-02 文件 ≤ 400 行，函数 ≤ 60 行，从第一个提交起
+## D03 2026-10-02 Files at most 400 lines, functions at most 60 lines, from the first commit
 
-- 决定：`cargo repo-check` 拒绝超过 400 行的 .rs；clippy `too_many_lines` 60 行视为错误。
-- 理由：上一代 09-26 前有 8 个文件超过 1,900 行，拆它们花了一整天、重写了 3 万行；agent 读大文件靠 sed 分段，同一文件被读上百次。小文件让 Read 整文件便宜、让改动的锚点短。
-- 影响：测试也要按主题拆文件；长函数拆成命名清楚的步骤函数。
+- Decision: `cargo repo-check` rejects .rs files over 400 lines; clippy `too_many_lines` at 60 is an error.
+- Reason: the previous project had eight files over 1,900 lines before its big refactor; splitting them took a full day and rewrote 30,000 lines. Agents read big files in sed slices and re-read the same file over a hundred times. Small files make a whole-file Read cheap and edit anchors short.
+- Consequences: tests are split by topic too; long functions become named step functions.
 
-## D04 2026-10-02 文档只有四份，有上限，溢出即归档
+## D04 2026-10-02 Four documents with hard limits; overflow is archived
 
-- 决定：STATUS 150、ROADMAP 250、ARCHITECTURE 300、DECISIONS 300 行；其他 markdown 一律不允许（README、AGENTS 除外）；溢出内容移到 `docs/archive/`，归档只写不读。
-- 理由：上一代写了 55 个 ADR、53 篇调研、每个里程碑一篇记录，仓库外还有 2,089 个本地笔记；文档产出的字符比 Rust 代码还多，而大部分从未被再次读到。
-- 影响：调研和审计的结论只能以 ≤ 15 行的决定或提交信息存在。
+- Decision: STATUS 150, ROADMAP 250, ARCHITECTURE 300, DECISIONS 300 lines; no other markdown (README and AGENTS excepted); overflow moves to `docs/archive/`, which is written and never read.
+- Reason: the previous project wrote 55 ADRs, 53 research notes and one record per milestone, plus 2,089 local notes outside the repo. Documents produced more characters than Rust, and most were never read again.
+- Consequences: research and audit conclusions exist only as a decision of at most 15 lines or as a commit message.
 
-## D05 2026-10-02 工具只用 Rust，仓库里没有脚本
+## D05 2026-10-02 Tooling is Rust only; no scripts in the repository
 
-- 决定：工具代码只在 `xtask`；.py / .sh / .ps1 不得被 git 跟踪；agent 不写脚本改代码。
-- 理由：上一代 agent 写了 391 个 Python 替换脚本（212 万字符），其中新代码只占三成，其余是锚点和样板；本地目录里积累了 9,818 个 .py。
-- 影响：改代码只用 Edit / Write；批量机械改动也先拆成小文件再逐个改。
+- Decision: tooling lives in `xtask`; .py / .sh / .ps1 are never tracked; agents do not edit code through scripts.
+- Reason: in the previous project agents wrote 391 Python replacement scripts (2.1 million characters) of which only a third was new code, the rest anchors and boilerplate; the local directory accumulated 9,818 .py files.
+- Consequences: code changes go through Edit / Write only; mechanical bulk changes are made file by file after splitting.
 
-## D06 2026-10-02 验证三级，桌面回归为主、真机冒烟为辅
+## D06 2026-10-02 Three verification tiers; desktop regression first, device smoke second
 
-- 决定：`check -p` → `test -p` → `cargo gate`（提交前一次）。自动回归走桌面无头场景（几秒）；真机只跑一条 ≤ 20 秒的冒烟场景，完整真机场景与人工笔感只在阶段出口。
-- 理由：上一代把 50 秒的全门禁当作日常检查跑了 207 次，编译失败率 48%，四分之一的机器时间在等 cargo；真机 180 步场景 199 秒且早期 11 次只通过 2 次。
-- 影响：GPU 测试在门禁里只跑一次；没有真机证据写 `not_run`。
+- Decision: `check -p` -> `test -p` -> `cargo gate` (once before the commit). Automated regression runs as headless desktop scenarios (seconds); the device runs one smoke scenario of at most 20 seconds; full device scenarios and manual feel checks happen only at stage exits.
+- Reason: the previous project ran its 50-second full gate 207 times as a routine check with a 48% build failure rate; a quarter of machine time was spent waiting for cargo. Its 180-step device scenario took 199 seconds and passed 2 of its first 11 runs.
+- Consequences: GPU tests run once per gate; without device evidence STATUS says `not_run`.
 
-## D07 2026-10-02 笔刷是连续配方，不是图章，也不是节点图
+## D07 2026-10-02 Brushes are continuous recipes, not stamps and not node graphs
 
-- 决定：笔刷用声明式配方（TOML：形状、压力/速度曲线、颗粒、动态）描述，沿笔画连续逐像素求值；不做 dab/stamp 引擎、节点图或 shader 插件。
-- 理由：作者在 ZPaint 的 Brush Graph 上试过节点图，结果"混乱、不统一"：图不携带笔刷身份、参数在不同渲染路径含义不同、多套累积规则、坐标空间混杂、CPU/GPU 双重求值。图章引擎的质量依赖间距技巧。
-- 影响：配方格式固定阶段、字段有类型；笔画保存配方快照，重开不套用同名笔刷的新行为。
+- Decision: a brush is a declarative recipe (TOML: shape, pressure and speed curves, grain, dynamics) evaluated continuously per pixel along the stroke. No dab/stamp engine, no node graph, no shader plugins.
+- Reason: the author tried a node graph in ZPaint's Brush Graph; it ended chaotic and non-uniform: the graph carried no brush identity, parameters meant different things per render path, several accumulation laws, mixed coordinate spaces, CPU/GPU double evaluation. Stamp engines make quality depend on spacing tricks.
+- Consequences: the recipe format has fixed stages with typed fields; a stroke stores a recipe snapshot, so reopening never silently applies a renamed brush's new behaviour.
 
-## D08 2026-10-02 作品是不可变值，撤销是版本切换
+## D08 2026-10-02 The artwork is an immutable value; undo is a version switch
 
-- 决定：`Artwork(Arc<State>)`；编辑返回新版本与变化种类；历史保存版本并按字节预算裁剪；`from_storage` 是唯一的全量校验入口；没有公开的可变 setter。
-- 理由：上一代可变图层与三套快照并存，导致每帧复制活动笔画、为读一个字段构造整份快照、结构操作深比较；改成值类型后撤销更快、分配从 239 KB 降到 12.5 KB。
-- 影响：渲染器按身份比较判断变化；进行中的笔画作为单独一项送渲染，不进作品。
+- Decision: `Artwork(Arc<State>)`; an edit returns a new version plus the kind of change; history stores versions trimmed by a byte budget; `from_storage` is the single full-validation entry; no public mutable setters.
+- Reason: the previous project kept mutable layers next to three snapshot structures, which copied the active stroke every frame, built whole snapshots to read one field and deep-compared structural edits. The value form made undo faster and cut per-frame allocation from 239 KB to 12.5 KB.
+- Consequences: the renderer detects change by identity; the in-progress stroke travels to the renderer as a separate item and never enters the artwork.
 
-## D09 2026-10-02 持久化：嵌入式 KV（fjall）、整数 schema、纯数据迁移、冻结样本
+## D09 2026-10-02 Persistence: embedded KV (fjall), integer schema, pure-data migrations, frozen samples
 
-- 决定：store 用 fjall 存作品库；`Project` DTO 带整数 schema 版本；每个版本一个纯数据迁移步骤和一份冻结样本，门禁跑全部样本往返；编辑器状态与作品分开记录，损坏即退回默认。
-- 理由：fjall 在上一代的 Android 真机上验证过（需要 Rust 1.98 的文件锁）；编辑器状态驱动了上一代 7 次迁移中的 3 次，分开后作品格式更稳定。
-- 影响：改格式的刀必须附带迁移步骤和样本；旧 APK 可装不等于旧版能打开新工程，发行时说明。
+- Decision: the store uses fjall for the artwork library; the `Project` DTO carries an integer schema version; every version has one pure-data migration step and one frozen sample, and the gate round-trips every sample; editor state is stored separately and falls back to defaults when corrupt.
+- Reason: fjall was verified on the previous project's Android device (it needs Rust 1.98 file locking); editor state drove 3 of its 7 migrations, so separating it keeps the artwork format stable.
+- Consequences: a slice that changes the format ships the migration step and sample; an old APK installing is not the same as an old build opening a new project, and releases say so.
 
-## D10 2026-10-02 错误是类型，产品 crate 没有 feature
+## D10 2026-10-02 Errors are types; product crates have no cargo features
 
-- 决定：`CoreError`、`AppError`、`PortError`、`RenderError`、`RuntimeError`；`Result<_, String>` 只在 JNI、系统 API 与 xtask。产品 crate 没有 `cfg(feature)`；诊断、实验、自动化探针放独立 crate，只在组合根组装。
-- 理由：上一代 `String` 错误贯穿 renderer/runtime/xtask，379 处 `cfg` 把诊断缝进产品代码，runtime 47% 的行数是诊断，`--all-features` 产生 4 种编译组合。
-- 影响：`cargo repo-check` 拒绝 `[features]` 与 `cfg(feature`；平台层负责把类型错误翻译成用户提示。
+- Decision: `CoreError`, `AppError`, `PortError`, `RenderError`, `RuntimeError`; `Result<_, String>` only in JNI, system APIs and xtask. Product crates have no `cfg(feature)`; diagnostics, experiments and automation probes live in separate crates assembled only by composition roots.
+- Reason: in the previous project `String` errors ran through renderer, runtime and xtask, 379 `cfg` sites stitched diagnostics into product code, 47% of the runtime crate was diagnostics, and `--all-features` produced four build combinations.
+- Consequences: `cargo repo-check` rejects `[features]` and `cfg(feature`; the platform layer translates typed errors into user-facing messages.
