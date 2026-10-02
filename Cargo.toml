@@ -4,6 +4,7 @@ members = [
     "apps/harness",
     "crates/app",
     "crates/core",
+    "crates/devtools",
     "crates/render",
     "crates/runtime",
     "crates/store",
@@ -22,6 +23,7 @@ publish = false
 [workspace.dependencies]
 openpaint-app = { path = "crates/app" }
 openpaint-core = { path = "crates/core" }
+openpaint-devtools = { path = "crates/devtools" }
 openpaint-render = { path = "crates/render" }
 openpaint-runtime = { path = "crates/runtime" }
 openpaint-store = { path = "crates/store" }
@@ -37,6 +39,9 @@ log = "=0.4.34"
 png = "=0.18.1"
 pollster = "=1.0.1"
 raw-window-handle = "=0.6.2"
+# Scenario files only (devtools); never in a product crate.
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
 wgpu = "=30.0.1"
 
 # Lints apply to every crate through `[lints] workspace = true`.

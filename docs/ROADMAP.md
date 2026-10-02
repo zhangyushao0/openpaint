@@ -26,11 +26,7 @@ S0 and S1 are done (see "Done").
 
 Exit: on the tablet, draw with pressure, undo, kill the app, reopen, the stroke is still there; pen-to-pixel latency has a measured number; the author judges basic pen feel `pass` / `fail`.
 
-S2 to S4 are done (see "Done").
-
-**S5 Scenario runner** (new crate devtools, harness, xtask)
-- JSON steps (tap, drag, stroke, wait, restart) plus checkpoints (readback hash, screenshot); `cargo scenario <name>`; `tests/scenarios/` holds the walk-throughs; the gate runs `smoke`.
-- Done: `smoke` draws a stroke and passes a checkpoint in under 5 s; a failed checkpoint writes the diff PNG under `artifacts/` (untracked) and prints its path; later slices add their steps to the runner as they need them.
+S2 to S5 are done (see "Done").
 
 **S6 History** (app, ui)
 - Walk-through: draw, tap undo, the stroke disappears; tap redo, it returns; the buttons grey out when nothing is left. `History` version stack with a byte budget; undo/redo intents; the projection reports availability.
@@ -109,3 +105,4 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - S2 2026-10-02 `feat(core): immutable artwork value, layer commands, stroke sessions, validated storage entry (S2)`
 - S3 2026-10-02 `feat(render): region evaluator with tile-binned ops and a continuous round brush (S3)`
 - S4 2026-10-02 `feat(runtime): pen input to strokes on the first screen (S4)`; confirmed on the tablet with injected input
+- S5 2026-10-02 `feat(devtools): scenario runner with canvas checkpoints, cargo scenario, smoke in the gate (S5)`

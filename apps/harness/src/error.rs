@@ -4,6 +4,7 @@ use std::time::Duration;
 use std::{fmt, io};
 
 use openpaint_core::CoreError;
+use openpaint_devtools::ScenarioError;
 use openpaint_render::RenderError;
 use openpaint_runtime::RuntimeError;
 
@@ -26,6 +27,12 @@ pub enum HarnessError {
         slowest: Duration,
         budget: Duration,
     },
+    Scenario(ScenarioError),
+    /// A scenario ran to the end but some checkpoints did not match.
+    Checkpoints {
+        failed: usize,
+        total: usize,
+    },
 }
 
 impl fmt::Display for HarnessError {
@@ -42,6 +49,10 @@ impl fmt::Display for HarnessError {
             }
             Self::Budget { slowest, budget } => {
                 write!(f, "slowest frame {slowest:?} is over the {budget:?} budget")
+            }
+            Self::Scenario(error) => write!(f, "{error}"),
+            Self::Checkpoints { failed, total } => {
+                write!(f, "{failed} of {total} checkpoints failed")
             }
         }
     }
@@ -62,6 +73,12 @@ impl From<RenderError> for HarnessError {
 impl From<RuntimeError> for HarnessError {
     fn from(error: RuntimeError) -> Self {
         Self::Runtime(error)
+    }
+}
+
+impl From<ScenarioError> for HarnessError {
+    fn from(error: ScenarioError) -> Self {
+        Self::Scenario(error)
     }
 }
 

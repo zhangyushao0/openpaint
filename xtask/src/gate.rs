@@ -12,6 +12,7 @@ const STEPS: &[(&str, Step)] = &[
     ("clippy", clippy),
     ("clippy-android", clippy_android),
     ("test", test),
+    ("scenario smoke", scenario_smoke),
     ("repo-check", check::run),
 ];
 
@@ -47,6 +48,20 @@ fn clippy_android() -> Result<(), String> {
 
 fn test() -> Result<(), String> {
     cargo(&["test", "--workspace"])
+}
+
+/// The short harness scenario: the app opens, takes a pen stroke and passes a canvas checkpoint
+/// (`tests/scenarios/smoke.json`). Debug build, sharing the test step's compiled crates.
+fn scenario_smoke() -> Result<(), String> {
+    cargo(&[
+        "run",
+        "--quiet",
+        "--package",
+        "openpaint-harness",
+        "--",
+        "scenario",
+        "smoke",
+    ])
 }
 
 pub fn run() -> Result<(), String> {

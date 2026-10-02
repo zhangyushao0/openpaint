@@ -47,8 +47,21 @@ pub const LAYERS: &[(&str, &[&str])] = &[
             "openpaint-ui",
         ],
     ),
-    ("apps/harness", &ALL_PRODUCT),
+    // Diagnostics and automation: never a dependency of a product crate (DECISIONS D10).
+    ("crates/devtools", &ALL_PRODUCT),
+    ("apps/harness", &WITH_DEVTOOLS),
     ("apps/android", &ALL_PRODUCT),
+];
+
+/// The harness assembles the product crates and the devtools.
+const WITH_DEVTOOLS: [&str; 7] = [
+    "openpaint-core",
+    "openpaint-app",
+    "openpaint-store",
+    "openpaint-render",
+    "openpaint-ui",
+    "openpaint-runtime",
+    "openpaint-devtools",
 ];
 
 /// Substrings that must not appear in a crate's sources; they keep the lower layers pure.
@@ -63,6 +76,7 @@ pub const FORBIDDEN_TOKENS: &[(&str, &[&str])] = &[
             "std::fs",
             "std::thread",
             "std::time::Instant",
+            "serde",
         ],
     ),
     ("crates/app", &["wgpu", "egui", "winit", "jni", "std::fs"]),
@@ -70,6 +84,7 @@ pub const FORBIDDEN_TOKENS: &[(&str, &[&str])] = &[
     ("crates/render", &["winit", "jni", "std::fs"]),
     ("crates/ui", &["wgpu", "winit", "jni", "std::fs"]),
     ("crates/runtime", &["jni"]),
+    ("crates/devtools", &["jni", "std::fs"]),
 ];
 
 /// The renderer may mention the UI framework only inside its adapter directory.

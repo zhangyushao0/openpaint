@@ -25,7 +25,8 @@ This page is the design contract: how modules are cut, which way dependencies po
 | `openpaint-render` | derived rendering: wgpu pipelines, stroke programs, region evaluation; export, pick and preview consumers | core | file system; `egui` only under `src/adapter/` |
 | `openpaint-ui` | shared interface: egui panels, input ownership, canvas arbitration; reads app projections, emits intents | core, app, render | direct wgpu, file system |
 | `openpaint-runtime` | frame loop, input normalisation, bounded workers, lifecycle draining, startup | core, app, store, render, ui | JNI |
-| `openpaint-harness` | development harness: offscreen rendering, recorded-input replay, scenario runner, PNG and hash output; never shipped | all | windowing, mouse input, product rules |
+| `openpaint-devtools` | diagnostics and automation: scenario files, the scenario runner, checkpoint diffs; later observers and statistics | product crates (uses runtime, render) | file system, product rules; never a dependency of a product crate |
+| `openpaint-harness` | development harness: offscreen rendering, recorded-input replay, `scenario` command, PNG and hash output; never shipped | all, devtools | windowing, mouse input, product rules |
 | `openpaint-android` | the only product composition root: activity lifecycle, Surface, system pickers, JNI | all | product rules |
 | `xtask` | repository tooling: `cargo gate`, `cargo repo-check` | nothing | product code |
 
@@ -36,9 +37,10 @@ core <- app <- store
 core <- app <- ui <- runtime <- {harness, android}
 core <- render <- ui
 store, render <- runtime
+runtime <- devtools <- harness
 ```
 
-Crates added by later slices: `openpaint-raster` (pure geometry: flood-fill regions, mask to selection; depends on core) and `openpaint-devtools` (scenario runner, observers, statistics; depends on runtime, assembled by hosts on demand). Register them in `LAYERS` in `xtask/src/check/rules.rs` first.
+Crates added by later slices: `openpaint-raster` (pure geometry: flood-fill regions, mask to selection; depends on core). Register it in `LAYERS` in `xtask/src/check/rules.rs` first.
 
 ## 3. Core types (target shape)
 
@@ -124,7 +126,7 @@ pub trait PlatformServices { fn input_batch(&mut self) -> Option<InputBatch>; fn
 pub trait FrameHook { /* before_ui, after_ui, takeover */ }     // devtools attach here; the product runtime does not know them
 ```
 
-`run_frame` has fixed steps: drain receipts -> platform events -> UI -> dispatch intents -> submit requests -> mount rendering -> schedule repaint. Background work uses only the three primitives; `thread::spawn` never appears directly in product code. Landed in S4: `Runtime` with `motion(&MotionBatch) -> bool` (normalised and queued), `frame()` (input -> egui -> `Shell::route` -> `Session::dispatch` -> evaluate -> present) and the harness's `frame_offscreen`; no workers, no `PlatformServices` or `FrameHook` yet.
+`run_frame` has fixed steps: drain receipts -> platform events -> UI -> dispatch intents -> submit requests -> mount rendering -> schedule repaint. Background work uses only the three primitives; `thread::spawn` never appears directly in product code. Landed in S4: `Runtime` with `motion(&MotionBatch) -> bool` (normalised and queued), `frame()` (input -> egui -> `Shell::route` -> `Session::dispatch` -> evaluate -> present) and the harness's `frame_offscreen`; no workers, no `PlatformServices` or `FrameHook` yet. The S5 scenario runner drives `Runtime` from outside through that same public API (motion, frame, readback), so it needs no hook.
 
 ## 4. Input
 
@@ -152,15 +154,17 @@ Hosts deliver platform events as `runtime::MotionBatch` (phase, buttons, pointer
 | Tier | Content | When |
 | --- | --- | --- |
 | unit | pure tests for core/app/store; GPU readback tests for render (golden hashes, incremental = cold) | `cargo test -p` |
-| gate | fmt, clippy, all tests, repo-check; target under 60 s warm | before the commit |
+| gate | fmt, clippy, all tests, the `smoke` scenario, repo-check; target under 60 s warm | before the commit |
 | regression | harness scenarios on the dev machine: JSON steps plus pixel checkpoints, seconds | the short scenario runs inside the gate |
 | device | one smoke scenario of at most 20 s; full scenarios and manual feel checks only at stage exits | slices marked in ROADMAP |
 
 Test fixtures live in each crate's `tests/` or in a dedicated test crate, never in the product API.
 
+Scenarios (S5, DECISIONS D19): `tests/scenarios/<name>.json` holds a walk-through (text) and the screen size, density and steps that replay it: `tap`, `drag`, `stroke`, `wait`, `restart`, `checkpoint` (canvas hash) and `screenshot`. `openpaint_devtools::run` turns gestures into `MotionBatch`es (one batch per frame, 4 samples 4 ms apart, at most 4 px apart) and drives `Runtime` offscreen; `cargo scenario <name>` (harness) writes PNGs and failure diffs under `artifacts/scenarios/<name>/`. The gate runs `smoke`. Later slices add the steps they need to `Step`.
+
 ## 9. Enforced rules
 
-`cargo repo-check` (`xtask/src/check/rules.rs`): .rs files at most 400 lines; dependency direction per the table in section 2; purity tokens per table; egui in render only under adapter; no cargo features in product crates; crate roots carry `#![forbid(unsafe_code)]` (android excepted); markdown limited to six files plus the archive; no script files; no CRLF. clippy: functions at most 60 lines, no `todo!` / `unimplemented!` / `dbg!`, warnings are errors; the gate also runs clippy on `openpaint-android` for `aarch64-linux-android`, the only build that compiles its JNI code.
+`cargo repo-check` (`xtask/src/check/rules.rs`): .rs files at most 400 lines; dependency direction per the table in section 2; purity tokens per table (core never mentions serde; devtools never touches `std::fs`); egui in render only under adapter; no cargo features in product crates; crate roots carry `#![forbid(unsafe_code)]` (android excepted); markdown limited to six files plus the archive; no script files; no CRLF. clippy: functions at most 60 lines, no `todo!` / `unimplemented!` / `dbg!`, warnings are errors; the gate also runs clippy on `openpaint-android` for `aarch64-linux-android`, the only build that compiles its JNI code.
 
 ## 10. UI conventions
 

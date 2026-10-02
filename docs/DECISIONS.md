@@ -82,7 +82,7 @@ Only decisions that constrain future code and are not self-evident. Each entry i
 
 ## D14 2026-10-02 External crates are pinned exactly in the workspace manifest
 
-- Decision: every external crate is declared once in `[workspace.dependencies]` with an exact `=` version; crates use `.workspace = true`. Current pins: wgpu 30.0.1, egui 0.36.2, egui-wgpu 0.36.2 (requires wgpu 30.0), pollster 1.0.1 (blocks on wgpu's adapter/device futures), png 0.18.1 (harness only), log 0.4.34, and for the Android host only jni 0.22.4, android_logger 0.15.1, raw-window-handle 0.6.2 (the version wgpu 30 uses). Gradle side, pinned in `apps/android`: Gradle 8.13 (wrapper with checksum), Android Gradle plugin 8.13.2, Kotlin 2.2.21.
+- Decision: every external crate is declared once in `[workspace.dependencies]` with an exact `=` version; crates use `.workspace = true`. Current pins: wgpu 30.0.1, egui 0.36.2, egui-wgpu 0.36.2 (requires wgpu 30.0), pollster 1.0.1 (blocks on wgpu's adapter/device futures), png 0.18.1 (harness only), serde 1.0.229 and serde_json 1.0.151 (scenario files; devtools only, never core), log 0.4.34, and for the Android host only jni 0.22.4, android_logger 0.15.1, raw-window-handle 0.6.2 (the version wgpu 30 uses). Gradle side, pinned in `apps/android`: Gradle 8.13 (wrapper with checksum), Android Gradle plugin 8.13.2, Kotlin 2.2.21.
 - Reason: wgpu and egui break APIs every release and egui-wgpu ties them together; a silent minor bump would change GPU behaviour and golden hashes without a reviewed change.
 - Consequences: wgpu, egui and egui-wgpu are upgraded together in one commit that reruns the GPU tests; golden hashes that move are re-recorded in that commit with the reason. egui and egui-wgpu are pinned before any crate uses them, so the first user inherits a known-compatible pair.
 
@@ -103,3 +103,15 @@ Only decisions that constrain future code and are not self-evident. Each entry i
 - Decision: a `CanvasTarget` keeps the in-progress stroke's coverage so far in an `R32Float` texture. Each evaluation adds only the segments of its new samples (`EndActive`: maximum with the kept texel, stored back, then painted like `EndStroke`) and evaluates only the tiles they reach. The target remembers which stroke it holds (layer, style, samples) and the artwork version it was drawn over: a stroke that disappears while that version stays was dropped and is erased; one committed into a new version only gets the samples it gained since its last evaluation drawn. A lone dot that grows starts its coverage over, because later segments replace a dot rather than join it.
 - Reason: rebuilding every segment of a 10,000-sample stroke each frame made frame cost grow with stroke length. A maximum is exact in floats, so the kept coverage equals the coverage over all segments: incremental equals cold by construction (D16), proven by GPU tests and by the 10,000-sample replay.
 - Consequences: callers pass regions only for artwork changes other than committing the drawn stroke (S6 undo, layer edits). A brush whose stroke coverage is not a maximum (smudge, wet media) needs its own kept state and its own exactness proof. Per-frame GPU resources (bind groups, buffers) are kept on the target and rewritten in place.
+
+## D18 2026-10-02 Only the stylus paints; touch is reserved for gestures
+
+- Decision: a finger never draws. Pen contacts paint; touch contacts are reserved for gestures (two-finger tap undo, pinch zoom and the like). Decided by the author.
+- Reason: the author's choice; it follows Procreate-style gesture use on a stylus tablet, where touch drives the canvas and the pen draws.
+- Consequences: gesture slices map touch to gestures; palm rejection (S8) can treat touch as non-painting. A "finger paints" option, if ever wanted, is a separate later decision. S4 already behaves this way.
+
+## D19 2026-10-02 Scenario checkpoints compare canvas hashes; references stay untracked
+
+- Decision: a scenario checkpoint passes when the canvas readback (artwork pixels, no UI) hashes to the value in the scenario file. Screenshots of the whole screen are written for looking at and never compared. The diff reference is the canvas of the checkpoint's last pass on this machine (`artifacts/scenarios/<name>/<checkpoint>.canvas.png`, untracked); no reference images are committed.
+- Reason: the evaluator's pixels are identical on Vulkan and DX12 (D16), egui's text edges are not (S4), so screen hashes would fail by backend. A hash is one reviewable line in the scenario; PNGs in the repository would duplicate it and grow with every slice.
+- Consequences: a checkpoint that fails on a fresh clone has no diff, only the actual canvas; a slice that changes pixels on purpose updates the hash in the same commit after looking at the PNG. UI changes are verified by looking at screenshots and by GPU tests on specific pixels, not by scenario hashes.
