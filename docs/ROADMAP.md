@@ -26,7 +26,7 @@ S0 and S1 are done (see "Done").
 
 Exit: on the tablet, draw with pressure, undo, kill the app, reopen, the stroke is still there; pen-to-pixel latency has a measured number; the author judges basic pen feel `pass` / `fail`.
 
-S2 to S8 are done (see "Done"). The exit waits for the author: pen feel and palm rejection by hand on the tablet (STATUS, "Pending author decisions").
+Passed 2026-10-02: S2 to S8 done (see "Done"); the author judged pen feel and palm rejection by hand `pass` on the tablet.
 
 ## G2 Artworks and layers
 
@@ -41,7 +41,7 @@ Exit: the author finishes an inked and flat-coloured piece (W1) on the tablet.
 - Done: a scenario covers create, rename, delete and reopen; thumbnails match the artwork.
 
 **S11 Brush recipes v1** (core, render, ui, store)
-- `BrushRecipe` TOML: shape, size and opacity curves over pressure and speed, grain; built-in pencil, ink pen and soft brush; brush picker with size and opacity sliders; strokes store a recipe snapshot.
+- `BrushRecipe` TOML: shape, size and opacity curves over pressure and speed, grain; built-in pencil, ink pen and soft brush; brush picker with size and opacity sliders; strokes store a recipe snapshot. The side bar (size, opacity) also takes over the undo/redo buttons from the top bar, as in Procreate (author, 2026-10-02).
 - Done: GPU hash tests for the three brushes; recipe parse errors are typed; changing a built-in recipe does not change old artworks (test).
 
 **S12 Eraser, Alpha Lock, colour** (core, app, ui, render)

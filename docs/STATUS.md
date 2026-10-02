@@ -4,7 +4,7 @@ Updated 2026-10-02. Current facts only; rewritten at the end of every slice, nev
 
 ## Stage
 
-G1 one stroke, end to end. S0 to S8 done; S1, S4, S6, S7 and S8 are confirmed on the tablet with injected input. The G1 exit waits for the author's hand checks on the tablet (see "Pending author decisions"). Next slice after the exit: S9 in ROADMAP.
+G1 exit passed 2026-10-02: S0 to S8 done; the author judged pen feel and palm rejection by hand on the tablet. Next slice: S9 in ROADMAP.
 
 ## Working features
 
@@ -41,8 +41,9 @@ G1 one stroke, end to end. S0 to S8 done; S1, S4, S6, S7 and S8 are confirmed on
 | Pen latency on the tablet, software part (injected strokes, 7 strokes of 300 to 2,000 ms) | measured | 2026-10-02 | kernel event time to the frame's present call: p50 8.8 to 9.4 ms, p95 10.2 to 10.5 ms, max 10.7 to 19.7 ms. Of it, waiting for the next Choreographer frame p50 6.7 to 6.9 ms; frame work (UI, evaluation, encode, submit, present call) p50 2.0 to 2.5 ms, p95 3.0 to 3.8 ms, max 6.9 ms of an 8.3 ms vsync. One earlier run measured frame work p50 7.2 ms, p95 8.6 ms (not reproduced) |
 | Queue to on-screen present on the tablet (`dumpsys SurfaceFlinger --latency`, same strokes) | measured | 2026-10-02 | buffer queued to present fence p50 28.2 to 28.6 ms, p95 29.3 to 30.1 ms (about 3.4 vsyncs); GPU finished p50 4.6 ms after queueing. Unchanged with `desired_maximum_frame_latency` 1 (tried, reverted) |
 | Estimated event-to-glass on the tablet | about 37 ms p50 | 2026-10-02 | 9 ms software + 28 ms presentation. Not covered: digitizer scan and firmware before the kernel stamps the event (injected events have none), display scan-out and pixel response after the present fence |
-| Real pen pressure and feel on the tablet | not_run | — | the author's judgement; G1 exit |
-| Palm rejection with a real hand on the tablet | not_run | — | `adb shell input` cannot rest a real palm beside the real pen; the author checks by hand |
+| Real pen pressure and feel on the tablet | pass (author) | 2026-10-02 | G1 exit: light and heavy, fast and slow, flicks; stroke ends round |
+| Palm rejection with a real hand on the tablet | pass (author) | 2026-10-02 | palm on the canvas and on undo while drawing, hand over the top bar: no marks, no lost strokes, nothing undone; strokes back after swiping the app away |
+| Pen latency with the real pen (author's strokes, 15 strokes of 5 to 494 events) | measured | 2026-10-02 | event to present call p50 7.5 to 8.5 ms, p95 8.5 to 11.7 ms, max 19.3 ms; frame work p50 1.4 to 2.2 ms, max 9.4 ms; no error or panic in logcat |
 | `cargo android-install` | pass | 2026-10-02 | dev machine, NDK 29.0.14206865, JDK 17; the S8 build is installed with a cleared library |
 | CI (GitHub Actions `gate`) | not_run | — | no remote yet |
 
@@ -72,7 +73,4 @@ G1 one stroke, end to end. S0 to S8 done; S1, S4, S6, S7 and S8 are confirmed on
 
 ## Pending author decisions
 
-- G1 exit, pen feel: draw with the real pen (light and heavy pressure, fast and slow, short flicks); report `pass` / `fail` with one line on what felt wrong (lag, thickness response, stroke ends).
-- G1 exit, palm rejection by hand: rest the hand on the canvas and on the undo arrow while drawing; report whether any stroke was cut short, any mark appeared or anything was undone.
-- Undo/redo placement: they sit in the top bar next to the title; Procreate puts them in the side bar under the size and opacity sliders. Keep the top bar until the side bar exists (S11), or move them then? Recommendation: move them into the side bar in S11.
-- Palm while the pen hovers: should touches be ignored while the pen is in hover range (fewer accidental palm taps, but no finger taps with the pen held near the glass)? Recommendation: keep the current rule until the author sees accidental taps.
+None. Settled 2026-10-02: undo/redo move into the side bar in S11; a hovering pen keeps not counting for palm rejection; undo history is not kept across an app restart (matches Procreate, which clears it when leaving the canvas).
