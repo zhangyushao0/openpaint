@@ -4,3 +4,7 @@ xtask = "run --quiet --package xtask --"
 gate = "xtask gate"
 # Structural rules the compiler cannot enforce (see xtask/src/check/rules.rs).
 repo-check = "xtask check"
+# The tablet APK: Rust library through cargo-ndk, then Gradle (see xtask/src/android.rs).
+android-build = "xtask android-build"
+# Build, install over adb and launch on the connected device.
+android-install = "xtask android-install"

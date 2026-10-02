@@ -10,6 +10,7 @@ type Step = fn() -> Result<(), String>;
 const STEPS: &[(&str, Step)] = &[
     ("fmt", fmt),
     ("clippy", clippy),
+    ("clippy-android", clippy_android),
     ("test", test),
     ("repo-check", check::run),
 ];
@@ -22,6 +23,21 @@ fn clippy() -> Result<(), String> {
     cargo(&[
         "clippy",
         "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings",
+    ])
+}
+
+/// The JNI host compiles only for Android. Checking it needs the rustup target, not the NDK.
+fn clippy_android() -> Result<(), String> {
+    cargo(&[
+        "clippy",
+        "--package",
+        "openpaint-android",
+        "--target",
+        "aarch64-linux-android",
         "--all-targets",
         "--",
         "-D",

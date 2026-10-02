@@ -125,7 +125,7 @@ pub trait FrameHook { /* before_ui, after_ui, takeover */ }     // devtools atta
 
 ## 4. Input
 
-The Android host and the harness feed one normaliser: platform events (Android `MotionEvent` fields, or recorded samples in the harness) -> `InputBatch` (device kind, phase, position, pressure, tilt, timestamp). egui receives its `RawInput` from this normaliser on every platform; no windowing library sits in between. Gestures, palm rejection and stabilisation live in the app's stroke intent, not in the UI and not in the platform layer. The in-progress stroke travels to the renderer as a separate item and never enters the artwork.
+Hosts deliver platform events as `runtime::MotionBatch` (phase, buttons, pointers with tool kind and batched samples: position, pressure, tilt, orientation, time); the Android host decodes `MotionEvent` arrays into it in `apps/android/src/motion.rs`. The Android host and the harness feed one normaliser: platform events (Android `MotionEvent` fields, or recorded samples in the harness) -> `InputBatch` (device kind, phase, position, pressure, tilt, timestamp). egui receives its `RawInput` from this normaliser on every platform; no windowing library sits in between. Gestures, palm rejection and stabilisation live in the app's stroke intent, not in the UI and not in the platform layer. The in-progress stroke travels to the renderer as a separate item and never enters the artwork.
 
 ## 5. Persistence
 
@@ -157,7 +157,7 @@ Test fixtures live in each crate's `tests/` or in a dedicated test crate, never 
 
 ## 9. Enforced rules
 
-`cargo repo-check` (`xtask/src/check/rules.rs`): .rs files at most 400 lines; dependency direction per the table in section 2; purity tokens per table; egui in render only under adapter; no cargo features in product crates; crate roots carry `#![forbid(unsafe_code)]` (android excepted); markdown limited to six files plus the archive; no script files; no CRLF. clippy: functions at most 60 lines, no `todo!` / `unimplemented!` / `dbg!`, warnings are errors.
+`cargo repo-check` (`xtask/src/check/rules.rs`): .rs files at most 400 lines; dependency direction per the table in section 2; purity tokens per table; egui in render only under adapter; no cargo features in product crates; crate roots carry `#![forbid(unsafe_code)]` (android excepted); markdown limited to six files plus the archive; no script files; no CRLF. clippy: functions at most 60 lines, no `todo!` / `unimplemented!` / `dbg!`, warnings are errors; the gate also runs clippy on `openpaint-android` for `aarch64-linux-android`, the only build that compiles its JNI code.
 
 ## 10. UI conventions
 

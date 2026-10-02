@@ -1,2 +1,20 @@
 //! Android composition root: activity lifecycle, Surface, system pickers, JNI. The only crate
-//! allowed to hold `unsafe` (add `#![allow(unsafe_code)]` when JNI arrives). No product rules.
+//! allowed to hold `unsafe`, and only in the JNI and native-window modules. No product rules.
+//!
+//! The Kotlin host (`app/src/main/java/dev/openpaint/`) owns the lifecycle and the
+//! `SurfaceView` (DECISIONS D11); this crate turns its calls into `Runtime` calls. Everything
+//! JNI is Android-only; the motion decoding is plain Rust and tested on the host.
+
+pub mod motion;
+
+#[cfg(target_os = "android")]
+mod error;
+#[cfg(target_os = "android")]
+#[expect(unsafe_code, reason = "JNI entry points export unmangled symbols")]
+mod jni_entry;
+#[cfg(target_os = "android")]
+#[expect(
+    unsafe_code,
+    reason = "ANativeWindow is reached through the NDK's C API"
+)]
+mod window;

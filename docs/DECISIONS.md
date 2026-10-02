@@ -82,6 +82,12 @@ Only decisions that constrain future code and are not self-evident. Each entry i
 
 ## D14 2026-10-02 External crates are pinned exactly in the workspace manifest
 
-- Decision: every external crate is declared once in `[workspace.dependencies]` with an exact `=` version; crates use `.workspace = true`. Current pins: wgpu 30.0.1, egui 0.36.2, egui-wgpu 0.36.2 (requires wgpu 30.0), pollster 1.0.1 (blocks on wgpu's adapter/device futures), png 0.18.1 (harness only).
+- Decision: every external crate is declared once in `[workspace.dependencies]` with an exact `=` version; crates use `.workspace = true`. Current pins: wgpu 30.0.1, egui 0.36.2, egui-wgpu 0.36.2 (requires wgpu 30.0), pollster 1.0.1 (blocks on wgpu's adapter/device futures), png 0.18.1 (harness only), log 0.4.34, and for the Android host only jni 0.22.4, android_logger 0.15.1, raw-window-handle 0.6.2 (the version wgpu 30 uses). Gradle side, pinned in `apps/android`: Gradle 8.13 (wrapper with checksum), Android Gradle plugin 8.13.2, Kotlin 2.2.21.
 - Reason: wgpu and egui break APIs every release and egui-wgpu ties them together; a silent minor bump would change GPU behaviour and golden hashes without a reviewed change.
 - Consequences: wgpu, egui and egui-wgpu are upgraded together in one commit that reruns the GPU tests; golden hashes that move are re-recorded in that commit with the reason. egui and egui-wgpu are pinned before any crate uses them, so the first user inherits a known-compatible pair.
+
+## D15 2026-10-02 Android host: main-thread frames, array-packed input, xtask-driven build
+
+- Decision: the Kotlin activity calls Rust only from the main thread: `Choreographer` paces frames on demand (Rust answers whether it wants the next one) and `MotionEvent`s cross JNI as primitive arrays (ids, tool types, x/y/pressure/tilt/orientation per step and pointer, times), decoded into typed batches in plain Rust. The UI painter lives for the process because egui sends its font atlas once. `cargo android-build` launches the Gradle wrapper jar from xtask; no gradlew scripts are tracked. The gate clippy-checks the JNI crate for `aarch64-linux-android`.
+- Reason: one thread needs no locks between lifecycle, surface and input calls; arrays keep Kotlin free of product types and make decoding testable on the dev machine; gradlew and gradlew.bat are scripts (D05); without the Android clippy step the JNI code would be compiled by nobody but the APK build.
+- Consequences: a slow frame delays input until a render thread exists (decided with S8's latency number); surfaces must be detached in `surfaceDestroyed` before it returns; changing the sample layout means changing `SAMPLE_FIELDS` in both `motion.rs` and `MainActivity.kt`.

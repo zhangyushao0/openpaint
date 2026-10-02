@@ -10,6 +10,7 @@ publish.workspace = true
 openpaint-app.workspace = true
 openpaint-core.workspace = true
 openpaint-render.workspace = true
+egui.workspace = true
 
 [lints]
 workspace = true

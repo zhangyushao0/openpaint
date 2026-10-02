@@ -12,6 +12,8 @@ openpaint-core.workspace = true
 openpaint-render.workspace = true
 openpaint-store.workspace = true
 openpaint-ui.workspace = true
+egui.workspace = true
+log.workspace = true
 
 [lints]
 workspace = true

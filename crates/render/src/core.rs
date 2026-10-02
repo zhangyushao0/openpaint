@@ -7,15 +7,14 @@ use crate::image::RgbaImage;
 use crate::readback::{offscreen_texture, read_rgba};
 
 pub struct Core {
-    gpu: Gpu,
+    pub(crate) gpu: Gpu,
 }
 
 impl Core {
-    /// A core without a window: offscreen rendering and readback only.
+    /// Opens the GPU device without a window. Offscreen rendering and readback work at once;
+    /// platform windows attach later through `Core::create_surface`.
     pub fn headless() -> Result<Self, RenderError> {
-        Ok(Self {
-            gpu: Gpu::headless()?,
-        })
+        Ok(Self { gpu: Gpu::new()? })
     }
 
     /// Adapter name and backend, for logs and harness output.
@@ -30,20 +29,28 @@ impl Core {
         let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
         let pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("clear"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &view,
-                depth_slice: None,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(unorm_color(color)),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
+            color_attachments: &[Some(clear_attachment(&view, color))],
             ..Default::default()
         });
         drop(pass);
         self.gpu.queue.submit([encoder.finish()]);
         read_rgba(&self.gpu, &texture)
+    }
+}
+
+/// A colour attachment over `view` that starts by clearing it to the 8-bit RGBA `color`.
+pub(crate) fn clear_attachment(
+    view: &wgpu::TextureView,
+    color: [u8; 4],
+) -> wgpu::RenderPassColorAttachment<'_> {
+    wgpu::RenderPassColorAttachment {
+        view,
+        depth_slice: None,
+        resolve_target: None,
+        ops: wgpu::Operations {
+            load: wgpu::LoadOp::Clear(unorm_color(color)),
+            store: wgpu::StoreOp::Store,
+        },
     }
 }
 

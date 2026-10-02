@@ -2,4 +2,6 @@
 # Pinned stable release. Upgrade by editing this line and running `cargo gate`.
 channel = "1.98.1"
 components = ["clippy", "rustfmt"]
+# The tablet. The gate clippy-checks the Android host for it; building the APK also needs the NDK.
+targets = ["aarch64-linux-android"]
 profile = "minimal"

@@ -1,18 +1,21 @@
-//! The wgpu device and queue. They belong to the renderer's `Core`, never to the UI framework
-//! (DECISIONS D01).
+//! The wgpu instance, adapter, device and queue. They belong to the renderer's `Core`, never to
+//! the UI framework (DECISIONS D01).
 
 use crate::error::{RenderError, device};
 
 pub(crate) struct Gpu {
+    /// Kept so platform windows can be attached as surfaces after the device exists.
+    pub(crate) instance: wgpu::Instance,
+    pub(crate) adapter: wgpu::Adapter,
     pub(crate) device: wgpu::Device,
     pub(crate) queue: wgpu::Queue,
-    info: wgpu::AdapterInfo,
 }
 
 impl Gpu {
-    /// Opens a device without a window or surface: offscreen targets and readback only.
-    /// `WGPU_BACKEND` and the other wgpu environment variables select the adapter.
-    pub(crate) fn headless() -> Result<Self, RenderError> {
+    /// Opens a device before any window exists: offscreen targets work at once, surfaces attach
+    /// later. No display handle is needed on Android or for offscreen work. `WGPU_BACKEND` and
+    /// the other wgpu environment variables select the adapter.
+    pub(crate) fn new() -> Result<Self, RenderError> {
         let instance =
             wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
         let adapter =
@@ -27,14 +30,16 @@ impl Gpu {
         let (device, queue) =
             pollster::block_on(adapter.request_device(&descriptor)).map_err(device)?;
         Ok(Self {
+            instance,
+            adapter,
             device,
             queue,
-            info: adapter.get_info(),
         })
     }
 
     /// Adapter name and backend, for logs and harness output.
     pub(crate) fn describe(&self) -> String {
-        format!("{} ({})", self.info.name, self.info.backend)
+        let info = self.adapter.get_info();
+        format!("{} ({})", info.name, info.backend)
     }
 }

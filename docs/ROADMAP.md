@@ -20,9 +20,7 @@ Non-goals (G0 to G5): network, accounts, cloud sync, community, animation, 3D, m
 
 ## G0 Skeleton
 
-**S1 Android host** (android, runtime)
-- Kotlin Activity + JNI + `SurfaceView` per D11; add the `aarch64-linux-android` target, `cargo-ndk`, a minimal Gradle project and the `cargo android-build` / `cargo android-install` aliases. `MotionEvent` fields are forwarded to Rust as typed batches and logged.
-- Done: the APK installs on the author's tablet and shows an egui top bar over a cleared canvas; stylus events with pressure and tool type appear in the log; background/foreground and rotation do not crash. The author confirms the install.
+S0 and S1 are done (see "Done"); S1's on-tablet confirmation is pending with the author (STATUS).
 
 ## G1 One stroke, end to end
 
@@ -113,3 +111,4 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 (One line per slice: id, date, commit. At 30 lines, move to `docs/archive/ROADMAP-<YYYY-MM>.md`.)
 
 - S0 2026-10-02 `feat(render): headless GPU device, offscreen clear and readback smoke (S0)`
+- S1 2026-10-02 `feat(android): Kotlin host, surface frames with an egui top bar, typed motion batches (S1)`; tablet confirmation pending

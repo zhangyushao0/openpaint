@@ -3,3 +3,7 @@
 //!
 //! No direct GPU API, no file system (`cargo repo-check`).
 #![forbid(unsafe_code)]
+
+mod shell;
+
+pub use crate::shell::{TOP_BAR_HEIGHT, shell};

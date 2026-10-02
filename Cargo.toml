@@ -29,10 +29,14 @@ openpaint-ui = { path = "crates/ui" }
 
 # External crates are pinned exactly; upgrades are reviewed changes (DECISIONS D14).
 # egui-wgpu 0.36.2 requires wgpu 30.0; the three move together.
+android_logger = "=0.15.1"
 egui = "=0.36.2"
 egui-wgpu = "=0.36.2"
+jni = "=0.22.4"
+log = "=0.4.34"
 png = "=0.18.1"
 pollster = "=1.0.1"
+raw-window-handle = "=0.6.2"
 wgpu = "=30.0.1"
 
 # Lints apply to every crate through `[lints] workspace = true`.

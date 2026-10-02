@@ -12,5 +12,12 @@ crate-type = ["cdylib"]
 [dependencies]
 openpaint-runtime.workspace = true
 
+# The JNI surface exists only on Android; the host build of this crate holds the pure decoding.
+[target.'cfg(target_os = "android")'.dependencies]
+android_logger.workspace = true
+jni.workspace = true
+log.workspace = true
+raw-window-handle.workspace = true
+
 [lints]
 workspace = true

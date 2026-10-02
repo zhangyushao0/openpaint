@@ -7,7 +7,7 @@ use crate::gpu::Gpu;
 use crate::image::RgbaImage;
 
 /// The offscreen colour format: 8 bits per channel, no sRGB conversion on write or read.
-const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
+pub(crate) const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 
 /// A texture that can be rendered into and then read back.
 pub(crate) fn offscreen_texture(gpu: &Gpu, size: [u32; 2]) -> Result<wgpu::Texture, RenderError> {

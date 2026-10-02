@@ -8,6 +8,8 @@ publish.workspace = true
 
 [dependencies]
 openpaint-core.workspace = true
+egui.workspace = true
+egui-wgpu.workspace = true
 pollster.workspace = true
 wgpu.workspace = true
 
