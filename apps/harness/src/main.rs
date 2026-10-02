@@ -4,6 +4,7 @@
 #![forbid(unsafe_code)]
 
 mod error;
+mod launch;
 mod output;
 mod replay;
 mod scenario;

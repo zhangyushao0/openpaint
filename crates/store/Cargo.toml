@@ -9,6 +9,8 @@ publish.workspace = true
 [dependencies]
 openpaint-app.workspace = true
 openpaint-core.workspace = true
+fjall.workspace = true
+log.workspace = true
 
 [lints]
 workspace = true

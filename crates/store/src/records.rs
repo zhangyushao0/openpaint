@@ -1,0 +1,209 @@
+//! Schema 1: the keys and values the library stores (DECISIONS D21).
+//!
+//! Keyspace `library`: `last` -> project id (u64 LE) opened or saved last; `next` -> the next
+//! unused project id (u64 LE).
+//!
+//! Keyspace `projects`, keys big-endian so a project's records sort together:
+//! - `[project u64]['h']` -> the head: schema (u32), canvas width and height (u32), active
+//!   layer, next layer id and next stroke id (u64), then the layers bottom to top, each id
+//!   (u64), name (u32 length + UTF-8), visible (u8), opacity (f32), locked (u8) and its stroke
+//!   count (u32);
+//! - `[project u64]['s'][layer u64][index u64]` -> one stroke, oldest at index 0: id (u64),
+//!   size, opacity, red, green, blue (f32), sample count (u32), then per sample x, y, pressure,
+//!   tilt, azimuth (f32) and time (u32 ms).
+//!
+//! Integers and floats are little-endian inside values. A save rewrites the head and only the
+//! stroke records that changed.
+
+use openpaint_app::{PortError, ProjectId};
+use openpaint_core::{Artwork, LayerParts, SampleParts, Stroke, StrokeParts};
+
+use crate::codec::{Reader, Writer};
+
+/// The schema this build writes and the newest it reads.
+pub const SCHEMA: u32 = 1;
+
+pub(crate) const LIBRARY: &str = "library";
+pub(crate) const PROJECTS: &str = "projects";
+pub(crate) const LAST: &[u8] = b"last";
+pub(crate) const NEXT: &[u8] = b"next";
+
+const HEAD: u8 = b'h';
+const STROKE: u8 = b's';
+/// Bytes of one encoded sample.
+const SAMPLE_BYTES: usize = 24;
+/// Bytes of a layer entry in the head without its name.
+const LAYER_BYTES: usize = 8 + 4 + 1 + 4 + 1 + 4;
+
+pub(crate) fn head_key(project: ProjectId) -> Vec<u8> {
+    let mut key = project.get().to_be_bytes().to_vec();
+    key.push(HEAD);
+    key
+}
+
+/// The prefix of every stroke record of `project`.
+pub(crate) fn strokes_prefix(project: ProjectId) -> Vec<u8> {
+    let mut key = project.get().to_be_bytes().to_vec();
+    key.push(STROKE);
+    key
+}
+
+/// The prefix of the stroke records of one layer, in drawing order.
+pub(crate) fn layer_prefix(project: ProjectId, layer: u64) -> Vec<u8> {
+    let mut key = strokes_prefix(project);
+    key.extend_from_slice(&layer.to_be_bytes());
+    key
+}
+
+pub(crate) fn stroke_key(project: ProjectId, layer: u64, index: usize) -> Vec<u8> {
+    let mut key = layer_prefix(project, layer);
+    key.extend_from_slice(&(index as u64).to_be_bytes());
+    key
+}
+
+/// The index at the end of a stroke key under a layer prefix.
+pub(crate) fn stroke_index(key: &[u8]) -> Option<u64> {
+    let (_, index) = key.split_last_chunk::<8>()?;
+    Some(u64::from_be_bytes(*index))
+}
+
+pub(crate) fn encode_id(id: u64) -> Vec<u8> {
+    id.to_le_bytes().to_vec()
+}
+
+pub(crate) fn decode_id(bytes: &[u8], what: &'static str) -> Result<u64, PortError> {
+    let mut reader = Reader::new(bytes, what);
+    let id = reader.u64()?;
+    reader.end()?;
+    Ok(id)
+}
+
+/// The head of a stored artwork: everything but the strokes, plus each layer's stroke count.
+#[derive(Debug)]
+pub(crate) struct Head {
+    pub(crate) width: u32,
+    pub(crate) height: u32,
+    pub(crate) active: u64,
+    pub(crate) next_layer_id: u64,
+    pub(crate) next_stroke_id: u64,
+    /// Bottom to top, strokes still empty, with how many each has.
+    pub(crate) layers: Vec<(LayerParts, usize)>,
+}
+
+pub(crate) fn encode_head(artwork: &Artwork) -> Vec<u8> {
+    let mut writer = Writer::with_capacity(48 + artwork.layers().len() * (LAYER_BYTES + 16));
+    writer.u32(SCHEMA);
+    let canvas = artwork.canvas();
+    writer.u32(canvas.width());
+    writer.u32(canvas.height());
+    writer.u64(artwork.active().get());
+    writer.u64(artwork.next_layer_id());
+    writer.u64(artwork.next_stroke_id());
+    writer.len(artwork.layers().len());
+    for layer in artwork.layers() {
+        writer.u64(layer.id().get());
+        writer.str(layer.name().as_str());
+        writer.bool(layer.props().visible());
+        writer.f32(layer.props().opacity());
+        writer.bool(layer.props().locked());
+        writer.len(layer.strokes().len());
+    }
+    writer.finish()
+}
+
+pub(crate) fn decode_head(bytes: &[u8]) -> Result<Head, PortError> {
+    let mut reader = Reader::new(bytes, "artwork head");
+    let schema = reader.u32()?;
+    if schema > SCHEMA {
+        return Err(PortError::NewerSchema {
+            found: schema,
+            newest: SCHEMA,
+        });
+    }
+    if schema != SCHEMA {
+        return Err(reader.corrupt());
+    }
+    let (width, height) = (reader.u32()?, reader.u32()?);
+    let (active, next_layer_id, next_stroke_id) = (reader.u64()?, reader.u64()?, reader.u64()?);
+    let count = reader.count(LAYER_BYTES)?;
+    let mut layers = Vec::with_capacity(count);
+    for _ in 0..count {
+        let id = reader.u64()?;
+        let name = reader.str()?;
+        let (visible, opacity, locked) = (reader.bool()?, reader.f32()?, reader.bool()?);
+        let strokes = reader.u32()? as usize;
+        let layer = LayerParts {
+            id,
+            name,
+            visible,
+            opacity,
+            locked,
+            strokes: Vec::new(),
+        };
+        layers.push((layer, strokes));
+    }
+    reader.end()?;
+    Ok(Head {
+        width,
+        height,
+        active,
+        next_layer_id,
+        next_stroke_id,
+        layers,
+    })
+}
+
+pub(crate) fn encode_stroke(stroke: &Stroke) -> Vec<u8> {
+    let samples = stroke.samples();
+    let mut writer = Writer::with_capacity(32 + samples.len() * SAMPLE_BYTES);
+    writer.u64(stroke.id().get());
+    let style = stroke.style();
+    writer.f32(style.size());
+    writer.f32(style.opacity());
+    let color = style.color();
+    for channel in [color.r(), color.g(), color.b()] {
+        writer.f32(channel);
+    }
+    writer.len(samples.len());
+    for sample in samples {
+        let position = sample.position();
+        for value in [
+            position.x(),
+            position.y(),
+            sample.pressure(),
+            sample.tilt(),
+            sample.azimuth(),
+        ] {
+            writer.f32(value);
+        }
+        writer.u32(sample.time_ms());
+    }
+    writer.finish()
+}
+
+pub(crate) fn decode_stroke(bytes: &[u8]) -> Result<StrokeParts, PortError> {
+    let mut reader = Reader::new(bytes, "stroke");
+    let id = reader.u64()?;
+    let (size, opacity) = (reader.f32()?, reader.f32()?);
+    let color = [reader.f32()?, reader.f32()?, reader.f32()?];
+    let count = reader.count(SAMPLE_BYTES)?;
+    let mut samples = Vec::with_capacity(count);
+    for _ in 0..count {
+        samples.push(SampleParts {
+            x: reader.f32()?,
+            y: reader.f32()?,
+            pressure: reader.f32()?,
+            tilt: reader.f32()?,
+            azimuth: reader.f32()?,
+            time_ms: reader.u32()?,
+        });
+    }
+    reader.end()?;
+    Ok(StrokeParts {
+        id,
+        size,
+        opacity,
+        color,
+        samples,
+    })
+}

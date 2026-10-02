@@ -11,6 +11,7 @@ openpaint-core.workspace = true
 openpaint-devtools.workspace = true
 openpaint-render.workspace = true
 openpaint-runtime.workspace = true
+openpaint-store.workspace = true
 png.workspace = true
 
 [lints]

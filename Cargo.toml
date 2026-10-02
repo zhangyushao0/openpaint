@@ -34,6 +34,8 @@ openpaint-ui = { path = "crates/ui" }
 android_logger = "=0.15.1"
 egui = "=0.36.2"
 egui-wgpu = "=0.36.2"
+# The artwork library's key-value store (DECISIONS D09); store only.
+fjall = "=3.1.11"
 jni = "=0.22.4"
 log = "=0.4.34"
 png = "=0.18.1"

@@ -18,10 +18,16 @@ pub enum Icon {
     Undo,
     /// The undo arrow mirrored: it turns back to the right.
     Redo,
+    /// An exclamation mark in a circle: something needs the user's attention.
+    Alert,
 }
 
 /// Draws `icon` into `rect` (square, `ICON_SIZE` on a side) in `color`.
 pub fn paint(painter: &egui::Painter, icon: Icon, rect: Rect, color: Color32) {
+    if icon == Icon::Alert {
+        paint_alert(painter, rect, color);
+        return;
+    }
     let mirrored = icon == Icon::Redo;
     let at = |[x, y]: [f32; 2]| -> Pos2 {
         let x = if mirrored { 1.0 - x } else { x };
@@ -31,6 +37,16 @@ pub fn paint(painter: &egui::Painter, icon: Icon, rect: Rect, color: Color32) {
     let (shaft, head) = turn_back_arrow();
     painter.add(Shape::line(shaft.into_iter().map(at).collect(), stroke));
     painter.add(Shape::line(head.into_iter().map(at).collect(), stroke));
+}
+
+/// A circle with a bar and a dot inside, all in the icon line weight.
+fn paint_alert(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let at = |x: f32, y: f32| rect.min + egui::vec2(x, y) * rect.size();
+    let unit = rect.width();
+    let stroke = Stroke::new(ICON_LINE, color);
+    painter.circle_stroke(rect.center(), 0.4 * unit, stroke);
+    painter.line_segment([at(0.5, 0.27), at(0.5, 0.56)], stroke);
+    painter.circle_filled(at(0.5, 0.72), ICON_LINE * 0.75, color);
 }
 
 /// An arrow pointing left along the top, turning down and back along the bottom, in a unit

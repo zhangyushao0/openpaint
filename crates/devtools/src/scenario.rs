@@ -57,8 +57,13 @@ pub enum Step {
     Stroke { points: Vec<[f32; 3]> },
     /// Frames with no input.
     Wait { frames: u32 },
-    /// The app process ends and starts again with the same screen.
+    /// The app process ends and starts again with the same screen and the same library, as
+    /// after leaving the app and coming back once the system has closed it.
     Restart,
+    /// From now on every storage call fails, as on a full or removed disk.
+    StorageFails,
+    /// Storage works again.
+    StorageWorks,
     /// The canvas pixels (the artwork without the UI) must hash to `canvas`. The canvas, not
     /// the screen, because only the evaluator's pixels are the same on every GPU backend.
     Checkpoint {
@@ -155,12 +160,16 @@ mod tests {
                 { "wait": { "frames": 2 } },
                 "restart",
                 { "checkpoint": { "name": "a", "canvas": "1f94cbfbd4b11e02" } },
-                { "screenshot": { "name": "b" } }
+                { "screenshot": { "name": "b" } },
+                "storage_fails",
+                "storage_works"
             ]
         }"#;
         let scenario = Scenario::parse(text).expect("parses");
         assert_eq!(scenario.walkthrough, ["Open the app."]);
-        assert_eq!(scenario.steps.len(), 7);
+        assert_eq!(scenario.steps.len(), 9);
+        assert_eq!(scenario.steps[7], Step::StorageFails);
+        assert_eq!(scenario.steps[8], Step::StorageWorks);
         assert_eq!(
             scenario.steps[0],
             Step::Tap {

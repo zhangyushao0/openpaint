@@ -32,11 +32,17 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        handle = Native.create(density())
+        handle = Native.create(density(), filesDir.absolutePath)
         val view = SurfaceView(this)
         view.holder.addCallback(this)
         setContentView(view)
         hideSystemBars()
+    }
+
+    /** Leaving (home, another app, the screen off): the artwork is stored before anything else. */
+    override fun onPause() {
+        Native.leave(handle)
+        super.onPause()
     }
 
     override fun onDestroy() {

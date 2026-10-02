@@ -1,0 +1,180 @@
+//! The library on disk: what is saved opens again exactly, a save touches only the records that
+//! changed, unreadable data is refused with a typed error, and a failed call is retried by the
+//! next one.
+
+mod common;
+
+use common::{fresh_dir, records, write_records};
+use openpaint_app::{PortError, ProjectStore};
+use openpaint_core::{
+    Artwork, ArtworkCommand, CanvasPoint, CanvasSize, Color, LayerCommand, StrokeSample,
+    StrokeStyle,
+};
+use openpaint_store::Library;
+
+fn blank() -> Artwork {
+    Artwork::new(CanvasSize::new(320, 200).expect("size"))
+}
+
+/// `artwork` with one more stroke on the active layer, from `x` rightwards over `samples`.
+fn draw(artwork: &Artwork, x: f32, samples: u16) -> Artwork {
+    let style = StrokeStyle::new(12.0, 1.0, Color::BLACK).expect("style");
+    let sample = |i: u16| {
+        let point = CanvasPoint::new(x + f32::from(i), 20.0 + f32::from(i % 7)).expect("point");
+        StrokeSample::new(point, 0.5, 0.2, -1.0, u32::from(i) * 4).expect("sample")
+    };
+    let mut session = artwork.begin_stroke(style, sample(0)).expect("begin");
+    let rest: Vec<StrokeSample> = (1..samples).map(sample).collect();
+    session.extend(&rest).expect("extend");
+    session.finish().artwork
+}
+
+fn reopened(dir: &std::path::Path) -> Artwork {
+    Library::at(dir)
+        .open_last()
+        .expect("opens")
+        .expect("a project")
+        .artwork
+}
+
+fn stroke_records(dir: &std::path::Path) -> usize {
+    records(dir)
+        .iter()
+        .filter(|(keyspace, key, _)| keyspace == "projects" && key.len() == 25)
+        .count()
+}
+
+#[test]
+fn an_empty_library_has_no_last_project() {
+    let dir = fresh_dir("empty");
+    assert_eq!(Library::at(&dir).open_last(), Ok(None));
+}
+
+#[test]
+fn every_saved_version_opens_again_exactly() {
+    let dir = fresh_dir("versions");
+    let one = draw(&blank(), 10.0, 40);
+    let two = draw(&one, 50.0, 300);
+    let branch = draw(&one, 90.0, 5);
+    let layered = branch
+        .apply(ArtworkCommand::Layer(LayerCommand::Create))
+        .expect("create")
+        .artwork;
+    let on_top = draw(&layered, 120.0, 12);
+    let bottom = on_top.layers()[0].id();
+    let deleted = on_top
+        .apply(ArtworkCommand::Layer(LayerCommand::Delete(bottom)))
+        .expect("delete")
+        .artwork;
+    let mut library = Library::at(&dir);
+    let id = library.create(&one).expect("create");
+    for (version, strokes) in [
+        (&two, 2),
+        (&one, 1),
+        (&branch, 2),
+        (&on_top, 3),
+        (&deleted, 1),
+    ] {
+        library.save(id, version).expect("save");
+        drop(library);
+        assert_eq!(reopened(&dir).to_parts(), version.to_parts());
+        assert_eq!(stroke_records(&dir), strokes, "no stale stroke records");
+        library = Library::at(&dir);
+        assert!(library.open_last().expect("reopen").is_some());
+    }
+}
+
+#[test]
+fn a_save_without_a_known_base_rewrites_the_project() {
+    let dir = fresh_dir("rewrite");
+    let one = draw(&blank(), 10.0, 20);
+    let three = draw(&draw(&one, 40.0, 20), 70.0, 20);
+    let mut first = Library::at(&dir);
+    let id = first.create(&three).expect("create");
+    drop(first);
+    // A library that never read the project saves an older version over it.
+    let mut second = Library::at(&dir);
+    second.save(id, &one).expect("save");
+    drop(second);
+    assert_eq!(reopened(&dir).to_parts(), one.to_parts());
+    assert_eq!(stroke_records(&dir), 1);
+}
+
+fn corrupted(name: &str, change: impl Fn(&mut Vec<(String, Vec<u8>, Vec<u8>)>)) -> PortError {
+    let source = fresh_dir(&format!("{name}-source"));
+    let artwork = draw(&draw(&blank(), 10.0, 20), 40.0, 20);
+    Library::at(&source).create(&artwork).expect("create");
+    let mut stored = records(&source);
+    change(&mut stored);
+    let dir = fresh_dir(name);
+    write_records(&dir, &stored);
+    Library::at(&dir).open_last().expect_err("refused")
+}
+
+fn head(records: &mut [(String, Vec<u8>, Vec<u8>)]) -> &mut Vec<u8> {
+    let head = records.iter_mut().find(|(_, key, _)| key.len() == 9);
+    &mut head.expect("head record").2
+}
+
+#[test]
+fn unreadable_records_are_refused_with_a_reason() {
+    let newer = corrupted("newer", |records| head(records)[0] = 2);
+    assert_eq!(
+        newer,
+        PortError::NewerSchema {
+            found: 2,
+            newest: 1
+        }
+    );
+    let short = corrupted("short", |records| {
+        head(records).pop();
+    });
+    assert_eq!(
+        short,
+        PortError::Corrupt {
+            what: "artwork head"
+        }
+    );
+    let missing = corrupted("missing", |records| {
+        let last = records.iter().rposition(|(_, key, _)| key.len() == 25);
+        records.remove(last.expect("a stroke record"));
+    });
+    assert_eq!(
+        missing,
+        PortError::Corrupt {
+            what: "stroke records"
+        }
+    );
+    let invalid = corrupted("invalid", |records| {
+        // The canvas width: zero breaks an artwork rule, not the encoding.
+        head(records)[4..8].copy_from_slice(&0u32.to_le_bytes());
+    });
+    assert!(matches!(invalid, PortError::Invalid(_)), "{invalid}");
+}
+
+#[test]
+fn a_failed_call_is_retried_by_the_next_one() {
+    let dir = fresh_dir("locked");
+    let mut holder = Library::at(&dir);
+    let id = holder.create(&draw(&blank(), 10.0, 5)).expect("create");
+    // Another library on the same directory cannot open it while the first holds it.
+    let mut other = Library::at(&dir);
+    let later = draw(&reopened_with(&mut holder), 30.0, 5);
+    let refused = other.save(id, &later);
+    assert!(
+        matches!(refused, Err(PortError::Device { .. })),
+        "{refused:?}"
+    );
+    drop(holder);
+    other.save(id, &later).expect("the retry opens the library");
+    drop(other);
+    assert_eq!(reopened(&dir).to_parts(), later.to_parts());
+}
+
+fn reopened_with(library: &mut Library) -> Artwork {
+    library
+        .open_last()
+        .expect("opens")
+        .expect("a project")
+        .artwork
+}

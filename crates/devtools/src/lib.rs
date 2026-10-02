@@ -8,6 +8,7 @@ mod error;
 mod gesture;
 mod runner;
 mod scenario;
+mod switch;
 
 pub use crate::diff::{Diff, diff};
 pub use crate::error::ScenarioError;

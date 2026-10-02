@@ -1,9 +1,13 @@
 //! The screen: the top bar over the canvas frame, which fills the rest of the screen. The bar
-//! holds the title (the gallery's place, S10) and undo and redo.
+//! holds the title (the gallery's place, S10), undo and redo, and at its right end a notice when
+//! saving or opening failed.
 
-use openpaint_app::{EditorAction, HistoryIntent, InputBatch, Intent, SessionProjection};
+use openpaint_app::{
+    EditorAction, HistoryIntent, InputBatch, Intent, SessionProjection, StorageIntent,
+    StorageNotice,
+};
 
-use crate::components::{CanvasInput, ScreenArea, canvas_frame, icon_button, top_bar};
+use crate::components::{CanvasInput, ScreenArea, canvas_frame, icon_button, notice, top_bar};
 use crate::design::{Icon, SPACE};
 
 /// The history buttons, left to right.
@@ -35,9 +39,39 @@ impl Shell {
                     self.taps.push(Intent::History(intent));
                 }
             }
+            self.storage_notice(ui, projection);
         });
         let rect = canvas_frame(ui);
         self.canvas = Some(ScreenArea::from_points(rect, ui.ctx().pixels_per_point()));
+    }
+
+    /// The notice for a failed save (with Retry) or a failed open (with OK), if any.
+    fn storage_notice(&mut self, ui: &mut egui::Ui, projection: &SessionProjection) {
+        let (message, action, editor_action, intent) = match projection.storage() {
+            StorageNotice::None => return,
+            StorageNotice::SaveFailed { retrying: false } => (
+                "Couldn't save. Your drawing is still here.",
+                "Retry",
+                EditorAction::RetrySave,
+                StorageIntent::RetrySave,
+            ),
+            StorageNotice::SaveFailed { retrying: true } => (
+                "Saving…",
+                "Retry",
+                EditorAction::RetrySave,
+                StorageIntent::RetrySave,
+            ),
+            StorageNotice::OpenFailed => (
+                "Couldn't open the last drawing. This is a new one.",
+                "OK",
+                EditorAction::DismissNotice,
+                StorageIntent::Dismiss,
+            ),
+        };
+        let enabled = projection.availability(editor_action).is_available();
+        if notice(ui, message, action, enabled).clicked() {
+            self.taps.push(Intent::Storage(intent));
+        }
     }
 
     /// Where the canvas shows on screen, once a frame has been laid out.

@@ -12,6 +12,8 @@ pub enum RuntimeError {
     Render(RenderError),
     App(AppError),
     Core(CoreError),
+    /// The system refused to start the named worker thread.
+    Worker(&'static str),
 }
 
 impl fmt::Display for RuntimeError {
@@ -20,6 +22,7 @@ impl fmt::Display for RuntimeError {
             Self::Render(error) => write!(f, "{error}"),
             Self::App(error) => write!(f, "{error}"),
             Self::Core(error) => write!(f, "{error}"),
+            Self::Worker(name) => write!(f, "could not start the {name} thread"),
         }
     }
 }

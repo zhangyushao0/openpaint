@@ -2,11 +2,14 @@
 //! finger does not draw, and the screen shows exactly what a cold evaluation of the committed
 //! artwork gives.
 
+mod support;
+
 use openpaint_core::{Artwork, Color};
 use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, RgbaImage};
 use openpaint_runtime::{
     Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime, ToolKind,
 };
+use support::Nowhere;
 
 const SIZE: [u32; 2] = [640, 400];
 const PIXELS_PER_POINT: f32 = 2.0;
@@ -77,9 +80,7 @@ fn cold(artwork: &Artwork) -> RgbaImage {
 
 #[test]
 fn the_pen_draws_under_its_tip_and_a_finger_does_not() {
-    let mut runtime =
-        Runtime::start(PIXELS_PER_POINT).expect("a GPU adapter is required for runtime tests");
-    runtime.frame_offscreen(SIZE).expect("first frame");
+    let mut runtime = support::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere));
     swipe(&mut runtime, ToolKind::Stylus, 200.0);
     swipe(&mut runtime, ToolKind::Finger, 320.0);
     let screen = runtime.screenshot(SIZE).expect("screenshot");

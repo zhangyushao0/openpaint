@@ -1,0 +1,50 @@
+{
+  "walkthrough": [
+    "Goal: draw, leave the app, come back later and find everything as it was; if saving fails, know it and save again.",
+    "Entry: the app opens on the tablet (2880 x 1800, landscape) on an empty library: a blank canvas under the top bar, nothing else to see.",
+    "Draw two strokes with the pen. Each is saved in the background the moment the pen lifts: nothing on screen changes, there is no save button, no spinner, nothing to wait for.",
+    "Leave the app (home, another app, the screen turns off) and the system closes it. Open it again: the same two strokes, pixel for pixel, at the same place. Undo is grey: history starts fresh, it is not stored.",
+    "Draw a third stroke and undo it, leave and come back: two strokes. What is on screen when leaving is what comes back, undo included.",
+    "The storage fails (the disk is full): draw a fourth stroke. It stays on screen and drawing goes on. At the right end of the top bar an alert sign and 'Couldn't save. Your drawing is still here.' appear with a Retry button; the canvas is not covered or moved.",
+    "Tap Retry while the disk is still full: the notice stays. Free space and tap Retry: the notice disappears. Leave and come back: all three strokes are there.",
+    "Failure while leaving: the disk fails, draw a fifth stroke, the notice appears; the disk recovers, but the user leaves without tapping Retry. Leaving tries the failed save once more, so on return all four strokes are there.",
+    "Cancel: there is nothing to cancel; saving never blocks drawing. Not yet: a gallery of several drawings (S10), history surviving a restart."
+  ],
+  "screen": [2880, 1800],
+  "density": 1.75,
+  "steps": [
+    { "screenshot": { "name": "start" } },
+    { "stroke": { "points": [
+      [400, 700, 0.3], [900, 400, 0.8], [1500, 600, 1.0], [2000, 900, 0.7], [2500, 500, 0.3]
+    ] } },
+    { "stroke": { "points": [[500, 1300, 0.5], [1400, 1100, 1.0], [2400, 1400, 0.6]] } },
+    { "checkpoint": { "name": "two-strokes", "canvas": "89059432dd1fda18" } },
+    { "screenshot": { "name": "drawn" } },
+    "restart",
+    { "checkpoint": { "name": "reopened", "canvas": "89059432dd1fda18" } },
+    { "screenshot": { "name": "back-again" } },
+    { "stroke": { "points": [[600, 1550, 0.4], [1600, 1600, 0.9], [2300, 1500, 0.5]] } },
+    { "tap": { "at": [230, 42] } },
+    { "checkpoint": { "name": "undone", "canvas": "89059432dd1fda18" } },
+    "restart",
+    { "checkpoint": { "name": "undo-kept", "canvas": "89059432dd1fda18" } },
+    "storage_fails",
+    { "stroke": { "points": [[300, 300, 0.6], [700, 1500, 0.9]] } },
+    { "checkpoint": { "name": "unsaved-stroke-stays", "canvas": "bab6206485558079" } },
+    { "screenshot": { "name": "save-failed" } },
+    { "tap": { "at": [2789, 42] } },
+    { "screenshot": { "name": "retry-still-failing" } },
+    "storage_works",
+    { "tap": { "at": [2789, 42] } },
+    { "screenshot": { "name": "saved-again" } },
+    "restart",
+    { "checkpoint": { "name": "three-strokes-back", "canvas": "bab6206485558079" } },
+    "storage_fails",
+    { "stroke": { "points": [[2600, 300, 0.5], [2200, 1600, 1.0]] } },
+    { "screenshot": { "name": "failed-again" } },
+    "storage_works",
+    "restart",
+    { "checkpoint": { "name": "leaving-saved-it", "canvas": "8504fa0aadaeaef0" } },
+    { "screenshot": { "name": "four-strokes" } }
+  ]
+}

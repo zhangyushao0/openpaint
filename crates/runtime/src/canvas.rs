@@ -9,6 +9,7 @@ use openpaint_render::{
 use openpaint_ui::ScreenArea;
 
 use crate::error::RuntimeError;
+use crate::storage::Opened;
 
 /// The paper under the layers until artworks carry their own background.
 const PAPER: Color = Color::WHITE;
@@ -23,19 +24,29 @@ pub(crate) struct Canvas {
 }
 
 impl Canvas {
-    /// A blank artwork the size of `area`, which shows it at one screen pixel per canvas pixel.
-    /// `None` while the area is empty. Later area changes (rotation) move the canvas, never
-    /// resize it.
-    pub(crate) fn open(core: &Core, area: &ScreenArea) -> Result<Option<Self>, RuntimeError> {
+    /// The artwork the library `opened`, or a blank one the size of `area`, shown at one screen
+    /// pixel per canvas pixel from the area's corner. `None` while the area is empty. Later
+    /// area changes (rotation) move the canvas, never resize it.
+    pub(crate) fn open(
+        core: &Core,
+        area: &ScreenArea,
+        opened: &Opened,
+    ) -> Result<Option<Self>, RuntimeError> {
         if area.size.contains(&0) {
             return Ok(None);
         }
-        let [width, height] = area.size;
-        let session = Session::new(CanvasSize::new(width, height)?)?;
-        log::info!("canvas opened at {width} x {height}");
+        let blank = || CanvasSize::new(area.size[0], area.size[1]);
+        let session = match opened {
+            Opened::Last(artwork) => Session::open(artwork.clone())?,
+            Opened::Empty => Session::new(blank()?)?,
+            Opened::Failed(_) => Session::after_failed_open(blank()?)?,
+        };
+        let canvas = session.artwork().canvas();
+        let size = [canvas.width(), canvas.height()];
+        log::info!("canvas opened at {} x {}", size[0], size[1]);
         Ok(Some(Self {
             session,
-            target: CanvasTarget::new(core, area.size)?,
+            target: CanvasTarget::new(core, size)?,
             evaluated: false,
             jumped_from: None,
         }))
@@ -89,6 +100,10 @@ impl Canvas {
 
     pub(crate) fn session(&self) -> &Session {
         &self.session
+    }
+
+    pub(crate) fn session_mut(&mut self) -> &mut Session {
+        &mut self.session
     }
 
     pub(crate) fn target(&self) -> &CanvasTarget {

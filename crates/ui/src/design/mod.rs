@@ -23,6 +23,8 @@ pub const ON_CHROME: Color32 = Color32::from_gray(222);
 pub const ON_CHROME_DISABLED: Color32 = Color32::from_gray(92);
 /// Behind a control while the hand presses it.
 pub const PRESSED: Color32 = Color32::from_gray(64);
+/// The face of a text button at rest: lighter than the chrome, darker than pressed.
+pub const RAISED: Color32 = Color32::from_gray(52);
 /// Behind the canvas where the canvas does not reach, as RGBA bytes for the renderer.
 pub const SURROUND: [u8; 4] = [24, 24, 24, 255];
 

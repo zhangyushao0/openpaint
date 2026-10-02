@@ -9,3 +9,4 @@
 *.otf binary
 *.apk binary
 *.jar binary
+*.bin binary

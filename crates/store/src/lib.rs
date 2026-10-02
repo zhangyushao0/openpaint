@@ -3,3 +3,11 @@
 //!
 //! No GPU, no UI (`cargo repo-check`).
 #![forbid(unsafe_code)]
+
+mod codec;
+mod delta;
+mod library;
+mod records;
+
+pub use crate::library::Library;
+pub use crate::records::SCHEMA;

@@ -16,6 +16,7 @@ use openpaint_runtime::{
 };
 
 use crate::error::HarnessError;
+use crate::launch::launch;
 use crate::output::write_png;
 
 /// The MovinkPad 14: 2880 x 1800 pixels at density 1.75.
@@ -36,9 +37,8 @@ const UNDO: [f32; 2] = [230.0, 42.0];
 const REDO: [f32; 2] = [328.0, 42.0];
 
 pub fn run() -> Result<(), HarnessError> {
-    let mut runtime = Runtime::start(PIXELS_PER_POINT)?;
-    // Opens the canvas and uploads the font atlas; not part of drawing.
-    runtime.frame_offscreen(SIZE)?;
+    // Opens the library and the canvas and uploads the font atlas; not part of drawing.
+    let mut runtime = launch("replay", PIXELS_PER_POINT, SIZE)?;
     runtime.wait_idle()?;
     let recording = [pen_stroke(), finger_swipe()].concat();
     let mut times = Vec::with_capacity(recording.len());

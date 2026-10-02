@@ -8,6 +8,8 @@ mod frame;
 mod input;
 mod normalise;
 mod pointer;
+mod storage;
+mod worker;
 
 pub use crate::error::RuntimeError;
 pub use crate::frame::Runtime;

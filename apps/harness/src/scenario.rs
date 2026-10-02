@@ -1,5 +1,6 @@
-//! `scenario <name>`: runs `tests/scenarios/<name>.json` through the product frame loop and
-//! writes what it saw under `artifacts/scenarios/<name>/`:
+//! `scenario <name>`: runs `tests/scenarios/<name>.json` through the product frame loop on a
+//! fresh library in `artifacts/scenarios/<name>/library/` (which `restart` reopens) and writes
+//! what it saw under `artifacts/scenarios/<name>/`:
 //!
 //! - `<screenshot>.png`: the screen at each screenshot step, for looking at;
 //! - `<checkpoint>.canvas.png`: the canvas each time its checkpoint passes, the reference for
@@ -13,6 +14,7 @@ use std::path::Path;
 use openpaint_devtools::{Checkpoint, Record, Scenario, diff, is_file_name};
 
 use crate::error::HarnessError;
+use crate::launch::fresh_library;
 use crate::output::{read_rgba, workspace_root, write_rgba};
 
 pub fn run(name: &str) -> Result<(), HarnessError> {
@@ -28,9 +30,10 @@ pub fn run(name: &str) -> Result<(), HarnessError> {
         .join(format!("{name}.json"));
     println!("scenario {}", file.display());
     let scenario = Scenario::parse(&fs::read_to_string(&file)?)?;
-    let report = openpaint_devtools::run(&scenario)?;
-    println!("adapter {}", report.adapter);
     let dir = root.join("artifacts").join("scenarios").join(name);
+    let library = fresh_library(dir.join("library"))?;
+    let report = openpaint_devtools::run(&scenario, &library)?;
+    println!("adapter {}", report.adapter);
     fs::create_dir_all(&dir)?;
     for record in &report.records {
         match record {

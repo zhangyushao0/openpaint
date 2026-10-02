@@ -1,11 +1,15 @@
 //! `Runtime`: the frame loop a platform host drives. The host attaches, resizes and detaches
 //! its window, hands over input batches and asks for frames; all calls come from one thread.
 //!
-//! A frame: take the input normalised since the last frame -> run the UI from the session's
-//! projection -> route the canvas contacts and the chrome's taps to the session as intents ->
-//! evaluate what changed into the canvas target -> draw the canvas and the UI over it.
+//! A frame: take what the storage worker finished -> take the input normalised since the last
+//! frame -> run the UI from the session's projection -> route the canvas contacts and the
+//! chrome's taps to the session as intents -> evaluate what changed into the canvas target ->
+//! hand a version that is not stored yet to the storage worker -> draw the canvas and the UI
+//! over it.
 
-use openpaint_app::{InputBatch, SessionProjection};
+use std::time::Duration;
+
+use openpaint_app::{InputBatch, ProjectStore, SessionProjection};
 use openpaint_core::Artwork;
 use openpaint_render::{
     Core, RenderError, RgbaImage, ScreenFrame, ScreenPainter, ScreenTarget, Surface, SurfaceWindow,
@@ -18,6 +22,10 @@ use crate::error::RuntimeError;
 use crate::input::MotionBatch;
 use crate::normalise::Normaliser;
 use crate::pointer::pointer_events;
+use crate::storage::{Done, Opened, Storage};
+
+/// Longest `leave` waits for the store; a longer save goes on in the background.
+const LEAVE_WAIT: Duration = Duration::from_secs(2);
 
 pub struct Runtime {
     core: Core,
@@ -32,19 +40,30 @@ pub struct Runtime {
     normaliser: Normaliser,
     /// Input normalised since the last frame, oldest first.
     pending: Vec<InputBatch>,
-    /// Opened by the first frame that knows the canvas area.
+    /// What the library opened, kept until a frame knows the canvas area.
+    opened: Option<Opened>,
+    /// Opened by the first frame that knows the canvas area once the library has opened.
     canvas: Option<Canvas>,
+    /// Declared last: dropping it writes what it was handed before the process goes.
+    storage: Storage,
 }
 
 impl Runtime {
-    /// Opens the GPU device and installs the theme. `pixels_per_point` is the display density
-    /// (Android's `DisplayMetrics.density`): physical pixels per UI point.
-    pub fn start(pixels_per_point: f32) -> Result<Self, RuntimeError> {
+    /// Opens the GPU device, installs the theme and starts opening the last artwork from
+    /// `store` on the storage worker. `pixels_per_point` is the display density (Android's
+    /// `DisplayMetrics.density`): physical pixels per UI point.
+    pub fn start(
+        pixels_per_point: f32,
+        store: Box<dyn ProjectStore>,
+    ) -> Result<Self, RuntimeError> {
+        let storage = Storage::start(store)?;
         let core = Core::headless()?;
         log::info!("GPU adapter: {}", core.adapter());
         let ui = egui::Context::default();
         design::install(&ui);
         Ok(Self {
+            storage,
+            opened: None,
             core,
             ui,
             shell: Shell::default(),
@@ -84,6 +103,21 @@ impl Runtime {
     /// The window is about to be destroyed; call before the host lets it go.
     pub fn detach(&mut self) {
         self.surface = None;
+    }
+
+    /// The user is leaving the app (Android `onPause`): the current version is handed to the
+    /// store, a failed one included, and this waits until it is written, at most `LEAVE_WAIT`;
+    /// a longer save goes on in the background. A stroke still being drawn is not part of it.
+    pub fn leave(&mut self) {
+        if let Some(canvas) = &mut self.canvas
+            && let Some(version) = canvas.session_mut().leave_request()
+        {
+            self.storage.save(version);
+        }
+        if !self.storage.drain(LEAVE_WAIT) {
+            log::warn!("leaving while the store is still writing");
+        }
+        self.receive();
     }
 
     /// Takes one platform input batch for the next frame. Returns whether it holds anything,
@@ -176,17 +210,63 @@ impl Runtime {
             .map(|canvas| canvas.session().artwork())
     }
 
-    /// The open session's projection; before the canvas opens, nothing is available.
-    fn projection(&self) -> SessionProjection {
+    /// The open session's projection, what the UI offers; before the canvas opens, nothing is
+    /// available.
+    #[must_use]
+    pub fn projection(&self) -> SessionProjection {
         self.canvas
             .as_ref()
             .map(|canvas| canvas.session().projection())
             .unwrap_or_default()
     }
 
-    /// Everything before drawing: input, UI, intents, evaluation. Asks for another frame when
-    /// the intents changed what the UI offers, so it never shows a stale state while idle.
+    /// Applies what the storage worker finished: the opened library, or a save's result.
+    fn receive(&mut self) {
+        match self.storage.take() {
+            Some(Done::Opened(opened)) => {
+                if let Opened::Failed(error) = &opened {
+                    log::error!("opening the last artwork failed: {error}");
+                }
+                self.opened = Some(opened);
+            }
+            Some(Done::Saved(version, result)) => {
+                match &result {
+                    Ok(()) => log::debug!("saved"),
+                    Err(error) => log::error!("saving failed: {error}"),
+                }
+                if let Some(canvas) = &mut self.canvas {
+                    canvas.session_mut().save_finished(&version, &result);
+                }
+            }
+            None => {}
+        }
+    }
+
+    /// Opens the canvas once the library has opened and the area is known.
+    fn open_canvas(&mut self) -> Result<(), RuntimeError> {
+        if self.canvas.is_none()
+            && let (Some(opened), Some(area)) = (&self.opened, self.shell.canvas_area())
+        {
+            self.canvas = Canvas::open(&self.core, &area, opened)?;
+        }
+        Ok(())
+    }
+
+    /// True while the storage worker has something the frame loop waits for: the library is
+    /// opening or a save runs. Frames keep coming meanwhile, so the result shows without input.
+    #[must_use]
+    pub fn storing(&self) -> bool {
+        match &self.canvas {
+            Some(canvas) => canvas.session().saving(),
+            None => self.opened.is_none(),
+        }
+    }
+
+    /// Everything before drawing: storage results, input, UI, intents, evaluation, autosave.
+    /// Asks for another frame when the intents changed what the UI offers, so it never shows a
+    /// stale state while idle, and while waiting for the storage worker.
     fn update(&mut self, size: [u32; 2]) -> Result<(UiFrame, bool), RuntimeError> {
+        self.receive();
         let batches = std::mem::take(&mut self.pending);
         let events = pointer_events(&batches, self.pixels_per_point);
         let shown = self.projection();
@@ -201,16 +281,15 @@ impl Runtime {
             },
         );
         let intents = self.shell.route(&batches);
-        if self.canvas.is_none()
-            && let Some(area) = self.shell.canvas_area()
-        {
-            self.canvas = Canvas::open(&self.core, &area)?;
-        }
+        self.open_canvas()?;
         if let Some(canvas) = &mut self.canvas {
             canvas.dispatch(intents);
             canvas.evaluate(&self.core)?;
+            if let Some(version) = canvas.session_mut().save_request() {
+                self.storage.save(version);
+            }
         }
-        Ok((ui, repaint || self.projection() != shown))
+        Ok((ui, repaint || self.projection() != shown || self.storing()))
     }
 }
 

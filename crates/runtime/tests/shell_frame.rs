@@ -1,6 +1,8 @@
 //! GPU test: one runtime frame, drawn offscreen, shows the top bar over the blank canvas.
 
-use openpaint_runtime::Runtime;
+mod support;
+
+use support::Nowhere;
 
 const SIZE: [u32; 2] = [640, 400];
 /// Density 2: the 48-point top bar covers the top 96 pixel rows.
@@ -15,8 +17,7 @@ fn row(pixels: &[[u8; 4]], y: usize) -> &[[u8; 4]] {
 
 #[test]
 fn frame_shows_the_top_bar_over_the_canvas() {
-    let mut runtime =
-        Runtime::start(PIXELS_PER_POINT).expect("a GPU adapter is required for runtime tests");
+    let mut runtime = support::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere));
     let image = runtime.screenshot(SIZE).expect("offscreen frame");
     assert_eq!(image.size(), SIZE);
     let (pixels, _) = image.pixels().as_chunks::<4>();
@@ -35,17 +36,13 @@ fn frame_shows_the_top_bar_over_the_canvas() {
         .flat_map(|y| row(pixels, y))
         .any(|pixel| pixel != &bar[0]);
     assert!(label, "the top bar carries a label");
-    let canvas = runtime
-        .artwork()
-        .expect("the first frame opens the canvas")
-        .canvas();
+    let canvas = runtime.artwork().expect("the canvas is open").canvas();
     assert_eq!([canvas.width(), canvas.height()], [SIZE[0], SIZE[1] - 96]);
 }
 
 #[test]
 fn second_frame_reuses_the_ui_textures() {
-    let mut runtime =
-        Runtime::start(PIXELS_PER_POINT).expect("a GPU adapter is required for runtime tests");
+    let mut runtime = support::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere));
     let first = runtime.screenshot(SIZE).expect("first frame");
     let second = runtime.screenshot(SIZE).expect("second frame");
     assert_eq!(first.content_hash(), second.content_hash());

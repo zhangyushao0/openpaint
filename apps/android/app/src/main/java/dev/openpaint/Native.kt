@@ -11,9 +11,16 @@ internal object Native {
         System.loadLibrary("openpaint_android")
     }
 
-    /** Opens the GPU device. Returns 0 when that failed; the reason is in the log. */
-    @JvmStatic external fun create(density: Float): Long
+    /**
+     * Opens the GPU device and starts opening the artwork library in `filesDir` on a worker.
+     * Returns 0 when that failed; the reason is in the log.
+     */
+    @JvmStatic external fun create(density: Float, filesDir: String): Long
 
+    /** Stores what is left to store before the process may be killed. Waits at most 2 s. */
+    @JvmStatic external fun leave(handle: Long)
+
+    /** Also finishes a save still running before it returns. */
     @JvmStatic external fun destroy(handle: Long)
 
     @JvmStatic external fun attach(handle: Long, surface: Surface, width: Int, height: Int, density: Float)

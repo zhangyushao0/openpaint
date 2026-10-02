@@ -64,6 +64,18 @@ impl Artwork {
         self.0.active
     }
 
+    /// The id the next new layer gets; ids are never reused. For storage.
+    #[must_use]
+    pub fn next_layer_id(&self) -> u64 {
+        self.0.ids.next_layer
+    }
+
+    /// The id the next finished stroke gets; ids are never reused. For storage.
+    #[must_use]
+    pub fn next_stroke_id(&self) -> u64 {
+        self.0.ids.next_stroke
+    }
+
     /// True when both handles share one version, which means nothing changed between them.
     /// Equal content in different versions compares equal with `==` but is not the same version.
     #[must_use]

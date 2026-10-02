@@ -26,11 +26,7 @@ S0 and S1 are done (see "Done").
 
 Exit: on the tablet, draw with pressure, undo, kill the app, reopen, the stroke is still there; pen-to-pixel latency has a measured number; the author judges basic pen feel `pass` / `fail`.
 
-S2 to S6 are done (see "Done").
-
-**S7 Storage and autosave** (store, runtime, harness)
-- Walk-through: draw, leave, come back, everything is there; if saving fails, a message says so and offers retry. fjall library; `Project` DTO schema 1 with a frozen sample; `ProjectStore` implemented; a worker autosaves after each stroke; the last artwork opens on start.
-- Done: the walk-through is a passing scenario using the `restart` step with identical pixels; sample round-trip test; gate under 60 s.
+S2 to S7 are done (see "Done").
 
 **S8 Android loop on the device** (android, runtime)
 - Wire S2 to S7 on the Android host; stylus and touch batches enter the same normaliser; basic palm rejection; pen-to-pixel latency instrumented.
@@ -91,6 +87,7 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - 2026-10-02 View transform (zoom, pan, rotate, refit after device rotation): no slice owns it; until then the canvas is fixed at its first size, one screen pixel per canvas pixel.
 - 2026-10-02 Vulkan staging stall (~1.5 ms every ~4,000 `write_buffer` calls on the dev machine): pack the evaluator's per-frame writes or use a staging belt if the tablet shows it.
 - 2026-10-02 Finished-stroke cost per frame: cache the tile binning of finished ops per artwork version before long sessions make the plan step slow.
+- 2026-10-02 Android log noise: fjall and lsm-tree log every keyspace recovery at info level under the `openpaint` tag; filter their targets to warn in the host's logger.
 - 2026-10-02 Touch gestures for history (two-finger tap undo, three-finger tap redo, Procreate's model): gesture mapping is the author's call (ARCHITECTURE section 10); needs multi-touch routing and a multi-pointer scenario step. Undo/redo are top-bar buttons until then.
 
 ## Done
@@ -104,3 +101,4 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - S4 2026-10-02 `feat(runtime): pen input to strokes on the first screen (S4)`; confirmed on the tablet with injected input
 - S5 2026-10-02 `feat(devtools): scenario runner with canvas checkpoints, cargo scenario, smoke in the gate (S5)`
 - S6 2026-10-02 `feat(app): history with a byte budget, undo and redo in the top bar (S6)`; confirmed on the tablet with injected input
+- S7 2026-10-02 `feat(store): fjall library with per-stroke records, autosave worker, save-failure retry (S7)`; confirmed on the tablet with injected input

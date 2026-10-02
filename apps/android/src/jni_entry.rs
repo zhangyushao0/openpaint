@@ -2,15 +2,17 @@
 //! thread. Errors and panics are logged and turned into a default return value; nothing is
 //! thrown into Java.
 
+use std::path::PathBuf;
 use std::sync::Once;
 
 use jni::errors::LogErrorAndDefault;
 use jni::objects::{
-    JClass, JFloatArray, JIntArray, JLongArray, JObject, JPrimitiveArray, TypeArray,
+    JClass, JFloatArray, JIntArray, JLongArray, JObject, JPrimitiveArray, JString, TypeArray,
 };
 use jni::sys::{jboolean, jfloat, jint, jlong};
 use jni::{Env, EnvUnowned};
 use openpaint_runtime::Runtime;
+use openpaint_store::Library;
 
 use crate::error::HostError;
 use crate::motion::{RawMotion, decode};
@@ -45,13 +47,29 @@ pub extern "system" fn Java_dev_openpaint_Native_create<'local>(
     mut env: EnvUnowned<'local>,
     _class: JClass<'local>,
     density: jfloat,
+    files_dir: JString<'local>,
 ) -> jlong {
     init_logging();
-    env.with_env(|_| -> Result<jlong, HostError> {
-        let runtime = Runtime::start(density)?;
+    env.with_env(|env| -> Result<jlong, HostError> {
+        // The app's private storage (`Context.getFilesDir()`); the library opens on a worker.
+        let library = PathBuf::from(files_dir.try_to_string(env)?).join("library");
+        let runtime = Runtime::start(density, Box::new(Library::at(library)))?;
         Ok(Box::into_raw(Box::new(runtime)) as jlong)
     })
     .resolve::<LogErrorAndDefault>()
+}
+
+/// The user leaves the app (`onPause`): waits briefly for the current version to be stored.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_openpaint_Native_leave<'local>(
+    _env: EnvUnowned<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+) {
+    if let Some(runtime) = runtime(handle) {
+        runtime.leave();
+        log::info!("left the app");
+    }
 }
 
 #[unsafe(no_mangle)]

@@ -2,11 +2,14 @@
 //! through history, the canvas always equals a cold evaluation of the version shown, and the
 //! bar never takes a stroke that started on the canvas or paints one that started on it.
 
+mod support;
+
 use openpaint_core::{Artwork, Color};
 use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, RgbaImage};
 use openpaint_runtime::{
     Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime, ToolKind,
 };
+use support::Nowhere;
 
 const SIZE: [u32; 2] = [640, 400];
 const PIXELS_PER_POINT: f32 = 2.0;
@@ -94,8 +97,7 @@ fn assert_cold(core: &Core, runtime: &Runtime, when: &str) {
 #[test]
 fn taps_move_through_history_and_the_canvas_stays_exact() {
     let core = Core::headless().expect("a GPU adapter is required for runtime tests");
-    let mut runtime = Runtime::start(PIXELS_PER_POINT).expect("runtime");
-    runtime.frame_offscreen(SIZE).expect("first frame");
+    let mut runtime = support::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere));
     let mut clock = 0;
     for y in [150.0, 220.0, 290.0] {
         gesture(&mut runtime, ToolKind::Stylus, &line(y), &mut clock);
@@ -124,8 +126,7 @@ fn taps_move_through_history_and_the_canvas_stays_exact() {
 
 #[test]
 fn the_bar_and_the_canvas_keep_their_own_contacts() {
-    let mut runtime = Runtime::start(PIXELS_PER_POINT).expect("runtime");
-    runtime.frame_offscreen(SIZE).expect("first frame");
+    let mut runtime = support::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere));
     let mut clock = 0;
     gesture(&mut runtime, ToolKind::Stylus, &line(200.0), &mut clock);
     // A stroke that starts on the canvas and lifts over undo stays a stroke.
