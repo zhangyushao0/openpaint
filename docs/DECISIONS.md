@@ -10,7 +10,7 @@ Only decisions that constrain future code and are not self-evident. Each entry i
 
 ## D02 2026-10-02 Crate layering and purity are tool-enforced
 
-- Decision: `core <- app <- {store, ui} <- runtime <- {desktop, android}` and `core <- render <- ui`. core never mentions GPU, UI, file system, threads or clocks. The tables live in `xtask/src/check/rules.rs`.
+- Decision: `core <- app <- {store, ui} <- runtime <- {harness, android}` and `core <- render <- ui`. core never mentions GPU, UI, file system, threads or clocks. The tables live in `xtask/src/check/rules.rs`.
 - Reason: the previous project had the right dependency direction but grew huge files and duplicated structures inside each layer. The direction is guarded by tooling; the inside is guarded by file length.
 - Consequences: a new crate is registered in `LAYERS` first; an upward dependency fails the gate.
 
@@ -32,9 +32,9 @@ Only decisions that constrain future code and are not self-evident. Each entry i
 - Reason: in the previous project agents wrote 391 Python replacement scripts (2.1 million characters) of which only a third was new code, the rest anchors and boilerplate; the local directory accumulated 9,818 .py files.
 - Consequences: code changes go through Edit / Write only; mechanical bulk changes are made file by file after splitting.
 
-## D06 2026-10-02 Three verification tiers; desktop regression first, device smoke second
+## D06 2026-10-02 Three verification tiers; harness regression first, device smoke second
 
-- Decision: `check -p` -> `test -p` -> `cargo gate` (once before the commit). Automated regression runs as headless desktop scenarios (seconds); the device runs one smoke scenario of at most 20 seconds; full device scenarios and manual feel checks happen only at stage exits.
+- Decision: `check -p` -> `test -p` -> `cargo gate` (once before the commit). Automated regression runs as headless harness scenarios on the dev machine (seconds); the device runs one smoke scenario of at most 20 seconds; full device scenarios and manual feel checks happen only at stage exits.
 - Reason: the previous project ran its 50-second full gate 207 times as a routine check with a 48% build failure rate; a quarter of machine time was spent waiting for cargo. Its 180-step device scenario took 199 seconds and passed 2 of its first 11 runs.
 - Consequences: GPU tests run once per gate; without device evidence STATUS says `not_run`.
 
