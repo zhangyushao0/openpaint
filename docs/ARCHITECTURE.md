@@ -55,7 +55,7 @@ pub struct LayerProps { visible: bool, opacity: f32, locked: bool, alpha_locked:
 pub struct StrokeList { chunks: Arc<[Arc<[Stroke]>]> }         // appending copies only the last chunk (<= 256 strokes)
 pub struct Stroke { id: StrokeId, tool: StrokeTool, style: StrokeStyle,
                     samples: Arc<[StrokeSample]>, constraints: StrokeConstraints }
-pub struct StrokeSample { position: CanvasPoint, pressure: f32, tilt: [f32; 2], time_ms: u32 }
+pub struct StrokeSample { position: CanvasPoint, pressure: f32, tilt: f32, azimuth: f32, time_ms: u32 }  // time from stroke start
 pub struct StrokeStyle { recipe: BrushRecipe, size: f32, opacity: f32, color: Color }
 pub enum ArtworkCommand { Layer(LayerCommand), Group(GroupCommand),
                           Reference(ReferenceCommand), Background(BackgroundCommand) }
@@ -63,13 +63,14 @@ pub struct Applied { pub artwork: Artwork, pub change: Change }  // Change: None
 impl Artwork {
     pub fn apply(&self, cmd: ArtworkCommand) -> Result<Applied, CoreError>;     // one editable_layer() precheck
     pub fn edit_region(&self, edit: RegionEdit) -> Result<Applied, CoreError>;   // commits of selection, fill, transform
-    pub fn begin_stroke(&self, begin: BeginStroke) -> Result<StrokeSession, CoreError>;
+    pub fn begin_stroke(&self, style: StrokeStyle, first: StrokeSample) -> Result<StrokeSession, CoreError>;  // on the active layer
     pub fn from_storage(parts: ArtworkParts) -> Result<Self, CoreError>;        // the single full-validation entry
+    pub fn to_parts(&self) -> ArtworkParts;                                     // plain data for the store
 }
 pub struct StrokeSession { base: Artwork, active: ActiveStroke }   // extend / finish / cancel; the active stroke is not in a layer
 ```
 
-No public mutable setters. Layers come only from `from_storage` or commands; single values (`Stroke`, `LayerGroup`, `LayerImage`) validate themselves on construction.
+No public mutable setters. Layers come only from `from_storage` or commands; single values (`Stroke`, `LayerGroup`, `LayerImage`) validate themselves on construction. Landed in S2: canvas, layers, active, ids; `LayerProps { visible, opacity, locked }`; `StrokeStyle` without a recipe; `ArtworkCommand::Layer` only; `Change` without `Reference`. `LayerCommand` is `Create` (above the active layer, becomes active), `Delete`, `Reorder`, `Select`, `Rename`, `SetVisible`, `SetOpacity`, `SetLocked`; a command that changes nothing returns `Change::None` and the same version. Lock blocks content (strokes), not properties or position. Ids are never reused; limits (`MAX_LAYERS`, `MAX_STROKE_SAMPLES`, `MAX_CANVAS_SIDE`, ...) are public constants.
 
 ### app
 

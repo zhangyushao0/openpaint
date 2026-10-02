@@ -26,9 +26,7 @@ S0 and S1 are done (see "Done"); S1's on-tablet confirmation is pending with the
 
 Exit: on the tablet, draw with pressure, undo, kill the app, reopen, the stroke is still there; pen-to-pixel latency has a measured number; the author judges basic pen feel `pass` / `fail`.
 
-**S2 Core artwork value** (core)
-- `Artwork(Arc<State>)`, `Layer`, `Stroke`, `StrokeSample`, ids; `LayerCommand` (create, delete, reorder, properties); `apply` -> `Applied { artwork, change }`; `StrokeSession` begin/extend/finish/cancel; `from_storage` full validation; `CoreError`.
-- Done: every command has success and error cases; no public mutable setters; `cargo test -p openpaint-core` passes; core has no external dependencies.
+S2 is done (see "Done").
 
 **S3 Render core** (render, harness)
 - `FrameRequest`, `Scene` / `Plan`, stroke geometry -> coverage shader for a round continuous brush, `RegionEvaluator` as the single entry, readback; the harness command `render-stroke` renders a hard-coded stroke to PNG.
@@ -112,3 +110,4 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 
 - S0 2026-10-02 `feat(render): headless GPU device, offscreen clear and readback smoke (S0)`
 - S1 2026-10-02 `feat(android): Kotlin host, surface frames with an egui top bar, typed motion batches (S1)`; tablet confirmation pending
+- S2 2026-10-02 `feat(core): immutable artwork value, layer commands, stroke sessions, validated storage entry (S2)`
