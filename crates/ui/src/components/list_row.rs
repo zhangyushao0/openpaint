@@ -1,0 +1,101 @@
+//! The list row: one touch target high across a panel, a name at its left, an optional detail
+//! before an icon button at its right end. Tapping the row chooses it; the chosen row is
+//! highlighted. The icon button acts on the row without choosing it.
+
+use egui::{Align2, Rect, Sense, TextStyle, Vec2, WidgetInfo, WidgetType};
+
+use crate::design::{
+    CORNER, ICON_SIZE, Icon, ON_CHROME, ON_CHROME_DISABLED, ON_CHROME_SECONDARY, PRESSED, SELECTED,
+    SPACE, TOUCH_TARGET, paint_icon,
+};
+
+/// What one row shows.
+#[derive(Debug, Clone, Copy)]
+pub struct ListRow<'a> {
+    pub label: &'a str,
+    /// Shown dimmer, right-aligned before the icon; empty for none.
+    pub detail: &'a str,
+    pub selected: bool,
+    pub icon: Icon,
+    /// Names the icon button for accessibility.
+    pub icon_label: &'a str,
+    pub enabled: bool,
+}
+
+/// The row's two touch targets.
+pub struct RowResponse {
+    pub row: egui::Response,
+    pub icon: egui::Response,
+}
+
+pub fn list_row(ui: &mut egui::Ui, row: &ListRow<'_>) -> RowResponse {
+    let sense = if row.enabled {
+        Sense::click()
+    } else {
+        Sense::hover()
+    };
+    let size = Vec2::new(ui.available_width(), TOUCH_TARGET);
+    let (rect, response) = ui.allocate_exact_size(size, sense);
+    let button = Rect::from_min_size(
+        rect.right_top() - Vec2::new(TOUCH_TARGET, 0.0),
+        Vec2::splat(TOUCH_TARGET),
+    );
+    // Added after the row, so it takes the contacts that land on it.
+    let icon = ui.interact(button, response.id.with("icon"), sense);
+    response.widget_info(|| {
+        WidgetInfo::selected(WidgetType::Button, row.enabled, row.selected, row.label)
+    });
+    icon.widget_info(|| WidgetInfo::labeled(WidgetType::Button, row.enabled, row.icon_label));
+    if ui.is_rect_visible(rect) {
+        paint(ui, row, rect, (&response, &icon));
+    }
+    RowResponse {
+        row: response,
+        icon,
+    }
+}
+
+fn paint(
+    ui: &egui::Ui,
+    row: &ListRow<'_>,
+    rect: Rect,
+    (body, icon): (&egui::Response, &egui::Response),
+) {
+    let painter = ui.painter();
+    let face = if row.enabled && body.is_pointer_button_down_on() {
+        Some(PRESSED)
+    } else if row.selected {
+        Some(SELECTED)
+    } else {
+        None
+    };
+    if let Some(face) = face {
+        painter.rect_filled(rect.shrink2(Vec2::new(0.0, SPACE / 4.0)), CORNER, face);
+    }
+    let color = if row.enabled {
+        ON_CHROME
+    } else {
+        ON_CHROME_DISABLED
+    };
+    let font = TextStyle::Body.resolve(ui.style());
+    let left = rect.left_center() + Vec2::new(2.0 * SPACE, 0.0);
+    painter.text(left, Align2::LEFT_CENTER, row.label, font.clone(), color);
+    let right = rect.right_center() - Vec2::new(TOUCH_TARGET, 0.0);
+    let small = TextStyle::Small.resolve(ui.style());
+    painter.text(
+        right,
+        Align2::RIGHT_CENTER,
+        row.detail,
+        small,
+        ON_CHROME_SECONDARY,
+    );
+    let button = Rect::from_center_size(
+        right + Vec2::new(TOUCH_TARGET / 2.0, 0.0),
+        Vec2::splat(TOUCH_TARGET),
+    );
+    if row.enabled && icon.is_pointer_button_down_on() {
+        painter.rect_filled(button.shrink(SPACE / 2.0), CORNER, PRESSED);
+    }
+    let square = Rect::from_center_size(button.center(), Vec2::splat(ICON_SIZE));
+    paint_icon(painter, row.icon, square, color);
+}

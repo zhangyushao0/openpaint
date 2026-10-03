@@ -32,9 +32,7 @@ Passed 2026-10-02: S2 to S8 done (see "Done"); the author judged pen feel and pa
 
 Exit: the author finishes an inked and flat-coloured piece (W1) on the tablet.
 
-**S9 Layers** (core, app, ui, render, store)
-- Multiple layers: create, delete, reorder, visibility, opacity, active layer; Normal compositing; layer panel; schema 2 with migration.
-- Done: GPU test for compositing order; panel actions go through intents and are undoable; the schema 1 sample upgrades; the walk-through scenario passes.
+S9 is done (see "Done").
 
 **S10 Artwork library** (app, store, ui, render)
 - Gallery: list, create, open, rename, duplicate, delete, thumbnails (small export); autosave per artwork.
@@ -85,6 +83,7 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - 2026-10-02 Finished-stroke cost per frame: cache the tile binning of finished ops per artwork version before long sessions make the plan step slow.
 - 2026-10-02 Touch gestures for history (two-finger tap undo, three-finger tap redo, Procreate's model): gesture mapping is the author's call (ARCHITECTURE section 10); needs multi-touch routing and a multi-pointer scenario step. Undo/redo are top-bar buttons until then.
 - 2026-10-02 Presentation latency: on the tablet a queued frame reaches the glass p50 28 ms later (about 3.4 vsyncs at 120 Hz) against 9 ms from pen event to queue (D22); front-buffered stylus rendering or tighter frame timing is the lever, not a render thread.
+- 2026-10-02 Layer panel follow-ups (S9): drag rows to reorder (press and hold), rename, layer thumbnails; `changed_regions` for a layer property change could cover only that layer's strokes instead of the whole canvas (an opacity drag re-evaluates the whole canvas every frame).
 - 2026-10-02 Pen stroke cancelled by a landing touch: with injected input the dispatcher cancels the pen's gesture when a touch lands mid-stroke and the stroke is dropped; if real hardware does the same, commit the stroke drawn so far on such a cancel.
 
 ## Done
@@ -100,3 +99,4 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - S6 2026-10-02 `feat(app): history with a byte budget, undo and redo in the top bar (S6)`; confirmed on the tablet with injected input
 - S7 2026-10-02 `feat(store): fjall library with per-stroke records, autosave worker, save-failure retry (S7)`; confirmed on the tablet with injected input
 - S8 2026-10-02 `feat(android): palm rejection, round stroke ends, pen latency probe on the tablet (S8)`; draw, undo, reopen and latency confirmed on the tablet with injected input; G1 exit awaits the author (pen feel, palm by hand)
+- S9 2026-10-02 `feat(app): layers with a popover panel, undoable layer actions, ordered compositing (S9)`; confirmed on the tablet with injected input; no schema 2 (D24, the author to confirm)

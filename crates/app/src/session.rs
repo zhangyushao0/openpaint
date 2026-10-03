@@ -8,8 +8,9 @@ use openpaint_core::{ActiveStroke, Artwork, CanvasSize};
 use crate::error::AppError;
 use crate::history::{HISTORY_BUDGET, History, HistoryIntent};
 use crate::intent::Intent;
+use crate::layers::{self, LayerList, Layers};
 use crate::project::PortError;
-use crate::projection::{Availability, EditorAction, SessionProjection};
+use crate::projection::{Availability, EditorAction, LAYER_ACTIONS, SessionProjection};
 use crate::storage::{Autosave, StorageIntent};
 use crate::stroke::Strokes;
 
@@ -17,6 +18,7 @@ use crate::stroke::Strokes;
 pub struct Session {
     history: History,
     strokes: Strokes,
+    layers: Layers,
     autosave: Autosave,
 }
 
@@ -38,6 +40,7 @@ impl Session {
             autosave: Autosave::new(artwork.clone()),
             history: History::new(artwork, HISTORY_BUDGET),
             strokes: Strokes::new()?,
+            layers: Layers::default(),
         })
     }
 
@@ -59,6 +62,11 @@ impl Session {
     /// `Core` when the artwork refuses the edit (a locked layer, an invalid sample);
     /// `Unavailable` when the projection does not offer the action.
     pub fn dispatch(&mut self, intent: Intent) -> Result<(), AppError> {
+        if let Intent::Layer(layer) = &intent {
+            let drawing = self.strokes.active().is_some();
+            return self.layers.handle(&mut self.history, drawing, layer);
+        }
+        self.layers.interrupt();
         match intent {
             Intent::Stroke(stroke) => {
                 let mut artwork = self.history.current().clone();
@@ -68,6 +76,7 @@ impl Session {
             }
             Intent::History(step) => self.step(step),
             Intent::Storage(storage) => self.storage(storage),
+            Intent::Layer(_) => Ok(()),
         }
     }
 
@@ -107,12 +116,17 @@ impl Session {
         } else {
             Availability::NothingLeft
         };
+        let artwork = self.history.current();
+        let drawing = self.strokes.active().is_some();
         SessionProjection {
             undo: availability(self.history.can_undo()),
             redo: availability(self.history.can_redo()),
             retry_save,
             dismiss_notice,
+            layer_actions: LAYER_ACTIONS
+                .map(|action| layers::availability(artwork, drawing, action, artwork.active())),
             storage: self.autosave.notice(),
+            layers: Some(LayerList::of(artwork)),
         }
     }
 

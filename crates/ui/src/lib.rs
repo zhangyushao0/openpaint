@@ -6,6 +6,7 @@
 
 pub mod components;
 pub mod design;
+mod layer_panel;
 mod shell;
 
 pub use crate::components::{ScreenArea, TOP_BAR_HEIGHT};

@@ -1,14 +1,17 @@
 //! The screen: the top bar over the canvas frame, which fills the rest of the screen. The bar
-//! holds the title (the gallery's place, S10), undo and redo, and at its right end a notice when
-//! saving or opening failed.
+//! holds the title (the gallery's place, S10), undo and redo, at its right end the Layers
+//! button and left of it a notice when saving or opening failed. The layer panel opens over the
+//! canvas.
 
+use egui::{Align, Layout};
 use openpaint_app::{
-    EditorAction, HistoryIntent, InputBatch, Intent, SessionProjection, StorageIntent,
-    StorageNotice,
+    ContactPhase, EditorAction, HistoryIntent, InputBatch, Intent, SessionProjection,
+    StorageIntent, StorageNotice,
 };
 
 use crate::components::{CanvasInput, ScreenArea, canvas_frame, icon_button, notice, top_bar};
 use crate::design::{Icon, SPACE};
+use crate::layer_panel::LayerPanel;
 
 /// The history buttons, left to right.
 const HISTORY_BUTTONS: [(Icon, &str, EditorAction, HistoryIntent); 2] = [
@@ -21,6 +24,7 @@ const HISTORY_BUTTONS: [(Icon, &str, EditorAction, HistoryIntent); 2] = [
 pub struct Shell {
     canvas: Option<ScreenArea>,
     input: CanvasInput,
+    layers: LayerPanel,
     /// Intents from taps on the chrome since the last `route`.
     taps: Vec<Intent>,
 }
@@ -39,10 +43,14 @@ impl Shell {
                     self.taps.push(Intent::History(intent));
                 }
             }
-            self.storage_notice(ui, projection);
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                self.layers.button(ui);
+                self.storage_notice(ui, projection);
+            });
         });
         let rect = canvas_frame(ui);
         self.canvas = Some(ScreenArea::from_points(rect, ui.ctx().pixels_per_point()));
+        self.layers.show(ui.ctx(), projection, &mut self.taps);
     }
 
     /// The notice for a failed save (with Retry) or a failed open (with OK), if any.
@@ -84,11 +92,27 @@ impl Shell {
     /// so a stroke lifted just before undo is tapped is committed before it is undone. Call
     /// after `show`.
     pub fn route(&mut self, batches: &[InputBatch]) -> Vec<Intent> {
-        let mut intents = match &self.canvas {
-            Some(area) => self.input.route(area, batches),
-            None => Vec::new(),
+        let Some(area) = self.canvas else {
+            return std::mem::take(&mut self.taps);
         };
+        let cover = self.layers.area();
+        let mut intents = self.input.route(&area, cover.as_ref(), batches);
+        if let Some(cover) = cover
+            && touched_outside(&area, &cover, batches)
+        {
+            self.layers.close();
+        }
         intents.append(&mut self.taps);
         intents
     }
+}
+
+/// True when a contact of `batches` touches down on the canvas `area` outside `cover`.
+fn touched_outside(area: &ScreenArea, cover: &ScreenArea, batches: &[InputBatch]) -> bool {
+    batches
+        .iter()
+        .flat_map(|batch| &batch.contacts)
+        .filter(|contact| contact.phase == ContactPhase::Down)
+        .filter_map(|contact| contact.samples.first())
+        .any(|first| area.contains(first.position) && !cover.contains(first.position))
 }

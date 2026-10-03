@@ -72,6 +72,35 @@ impl History {
         true
     }
 
+    /// Replaces the current version with `artwork` without adding a step: what can be undone
+    /// and redone stays, and undo goes back past both. For changes that are not edits of their
+    /// own (choosing the layer to draw on) and for the values of one continuous gesture. Returns
+    /// false, changing nothing, when `artwork` already is the current version.
+    pub fn amend(&mut self, artwork: Artwork) -> bool {
+        if artwork.same_version(self.current()) {
+            return false;
+        }
+        let bytes = match self.cursor.checked_sub(1) {
+            Some(before) => artwork.bytes_since(&self.entries[before].artwork),
+            None => 0,
+        };
+        self.reprice(self.cursor, artwork, bytes);
+        if let Some(after) = self.entries.get(self.cursor + 1) {
+            let next = after.artwork.clone();
+            let bytes = next.bytes_since(self.current());
+            self.reprice(self.cursor + 1, next, bytes);
+        }
+        self.trim();
+        true
+    }
+
+    /// Puts `artwork` costing `bytes` at `index`, keeping the total right.
+    fn reprice(&mut self, index: usize, artwork: Artwork, bytes: usize) {
+        let entry = &mut self.entries[index];
+        self.total_bytes = self.total_bytes - entry.bytes + bytes;
+        *entry = Entry { artwork, bytes };
+    }
+
     /// Steps back one version; `None` when there is none.
     pub fn undo(&mut self) -> Option<&Artwork> {
         self.cursor = self.cursor.checked_sub(1)?;

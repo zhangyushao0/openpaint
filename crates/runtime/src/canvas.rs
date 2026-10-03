@@ -19,8 +19,9 @@ pub(crate) struct Canvas {
     target: CanvasTarget,
     /// False until the whole canvas has been evaluated once.
     evaluated: bool,
-    /// The version shown before this frame's first undo or redo, until it is evaluated.
-    jumped_from: Option<Artwork>,
+    /// The version shown before this frame's first change other than a stroke (undo, redo, a
+    /// layer edit), until it is evaluated.
+    changed_from: Option<Artwork>,
 }
 
 impl Canvas {
@@ -48,7 +49,7 @@ impl Canvas {
             session,
             target: CanvasTarget::new(core, size)?,
             evaluated: false,
-            jumped_from: None,
+            changed_from: None,
         }))
     }
 
@@ -56,11 +57,12 @@ impl Canvas {
     /// sample must not stop the frame.
     pub(crate) fn dispatch(&mut self, intents: Vec<Intent>) {
         for intent in intents {
-            let jump = matches!(intent, Intent::History(_));
+            // Committing a stroke is followed by the evaluator itself (D17).
+            let stroke = matches!(intent, Intent::Stroke(_));
             let before = self.session.artwork().clone();
             match self.session.dispatch(intent) {
-                Ok(()) if jump => {
-                    self.jumped_from.get_or_insert(before);
+                Ok(()) if !stroke => {
+                    self.changed_from.get_or_insert(before);
                 }
                 Ok(()) => {}
                 Err(error) => log::warn!("intent refused: {error}"),
@@ -69,7 +71,7 @@ impl Canvas {
     }
 
     /// Brings the target up to date. Committing the stroke being drawn is followed by the
-    /// evaluator itself (D17); a history jump passes the pixels that differ between the version
+    /// evaluator itself (D17); any other change passes the pixels that differ between the version
     /// shown before it and the current one; the first evaluation covers the whole canvas.
     pub(crate) fn evaluate(&mut self, core: &Core) -> Result<(), RuntimeError> {
         let mut regions = if self.evaluated {
@@ -77,7 +79,7 @@ impl Canvas {
         } else {
             vec![PixelRect::full(self.target.size())]
         };
-        if let Some(before) = self.jumped_from.take() {
+        if let Some(before) = self.changed_from.take() {
             regions.extend(changed_regions(&before, self.session.artwork()));
         }
         let request = FrameRequest {

@@ -27,7 +27,9 @@ impl ScreenArea {
         }
     }
 
-    fn contains(&self, [x, y]: [f32; 2]) -> bool {
+    /// True when the screen point `[x, y]` (pixels) lies inside.
+    #[must_use]
+    pub fn contains(&self, [x, y]: [f32; 2]) -> bool {
         let [left, top] = self.origin.map(|side| side as f32);
         let [width, height] = self.size.map(|side| side as f32);
         (left..left + width).contains(&x) && (top..top + height).contains(&y)
@@ -41,8 +43,8 @@ pub fn canvas_frame(ui: &mut egui::Ui) -> egui::Rect {
         .inner
 }
 
-/// Which contacts the canvas owns: each one that touches down inside its area, until it lifts
-/// or is cancelled, wherever it moves meanwhile.
+/// Which contacts the canvas owns: each one that touches down inside its area and outside the
+/// panel covering it, until it lifts or is cancelled, wherever it moves meanwhile.
 #[derive(Debug, Default)]
 pub struct CanvasInput {
     owned: Vec<i32>,
@@ -50,15 +52,21 @@ pub struct CanvasInput {
 
 impl CanvasInput {
     /// The owned contacts of `batches` as stroke intents, positions moved into canvas pixels.
-    /// Hover does not reach the canvas yet.
-    pub fn route(&mut self, area: &ScreenArea, batches: &[InputBatch]) -> Vec<Intent> {
+    /// A contact touching down on `cover` (a panel over the canvas) is never owned. Hover does
+    /// not reach the canvas yet.
+    pub fn route(
+        &mut self,
+        area: &ScreenArea,
+        cover: Option<&ScreenArea>,
+        batches: &[InputBatch],
+    ) -> Vec<Intent> {
         let mut intents = Vec::new();
         for contact in batches.iter().flat_map(|batch| &batch.contacts) {
             let starts_here = contact.phase == ContactPhase::Down
-                && contact
-                    .samples
-                    .first()
-                    .is_some_and(|first| area.contains(first.position));
+                && contact.samples.first().is_some_and(|first| {
+                    area.contains(first.position)
+                        && !cover.is_some_and(|cover| cover.contains(first.position))
+                });
             if starts_here && !self.owned.contains(&contact.id) {
                 self.owned.push(contact.id);
             }
@@ -115,9 +123,26 @@ mod tests {
             .iter()
             .filter_map(|intent| match intent {
                 Intent::Stroke(StrokeIntent::Contact(contact)) => Some(contact.samples[0].position),
-                Intent::History(_) | Intent::Storage(_) => None,
+                Intent::History(_) | Intent::Storage(_) | Intent::Layer(_) => None,
             })
             .collect()
+    }
+
+    #[test]
+    fn a_contact_that_starts_on_a_panel_over_the_canvas_is_not_routed() {
+        let mut input = CanvasInput::default();
+        let panel = ScreenArea {
+            origin: [200, 100],
+            size: [100, 100],
+        };
+        let batches = [
+            batch(1, ContactPhase::Down, 250.0, 150.0),
+            batch(1, ContactPhase::Move, 50.0, 150.0),
+            batch(1, ContactPhase::Up, 40.0, 150.0),
+            batch(2, ContactPhase::Down, 150.0, 150.0),
+        ];
+        let intents = input.route(&AREA, Some(&panel), &batches);
+        assert_eq!(positions(&intents), [[150.0, 66.0]]);
     }
 
     #[test]
@@ -130,7 +155,7 @@ mod tests {
             batch(1, ContactPhase::Up, 14.0, 90.0),
             batch(1, ContactPhase::Move, 16.0, 120.0),
         ];
-        let intents = input.route(&AREA, &batches);
+        let intents = input.route(&AREA, None, &batches);
         assert_eq!(
             positions(&intents),
             [[10.0, 16.0], [12.0, -64.0], [14.0, 6.0]]
@@ -146,7 +171,7 @@ mod tests {
             batch(2, ContactPhase::Up, 10.0, 210.0),
             batch(3, ContactPhase::Down, 500.0, 200.0),
         ];
-        assert!(input.route(&AREA, &batches).is_empty());
+        assert!(input.route(&AREA, None, &batches).is_empty());
     }
 
     #[test]
@@ -158,7 +183,7 @@ mod tests {
             batch(1, ContactPhase::Move, 10.0, 110.0),
             batch(1, ContactPhase::Hover, 10.0, 110.0),
         ];
-        assert_eq!(input.route(&AREA, &batches).len(), 2);
+        assert_eq!(input.route(&AREA, None, &batches).len(), 2);
     }
 
     #[test]

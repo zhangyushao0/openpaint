@@ -19,12 +19,20 @@ pub const CORNER: f32 = SPACE;
 pub const CHROME: Color32 = Color32::from_gray(38);
 /// Text and icons on the chrome.
 pub const ON_CHROME: Color32 = Color32::from_gray(222);
+/// Secondary text on the chrome: readable on every face, quieter than the main text.
+pub const ON_CHROME_SECONDARY: Color32 = Color32::from_gray(170);
 /// Icons of actions that are unavailable now: still visible, clearly not tappable.
 pub const ON_CHROME_DISABLED: Color32 = Color32::from_gray(92);
 /// Behind a control while the hand presses it.
 pub const PRESSED: Color32 = Color32::from_gray(64);
 /// The face of a text button at rest: lighter than the chrome, darker than pressed.
 pub const RAISED: Color32 = Color32::from_gray(52);
+/// Behind the chosen item of a list and a button whose panel is open: lighter than pressed.
+pub const SELECTED: Color32 = Color32::from_gray(80);
+/// The edge of a panel over the canvas, so it stands apart from dark artwork too.
+pub const OUTLINE: Color32 = Color32::from_gray(72);
+/// Width of a panel over the canvas, in points.
+pub const PANEL_WIDTH: f32 = 320.0;
 /// Behind the canvas where the canvas does not reach, as RGBA bytes for the renderer.
 pub const SURROUND: [u8; 4] = [24, 24, 24, 255];
 

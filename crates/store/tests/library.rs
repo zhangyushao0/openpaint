@@ -85,6 +85,63 @@ fn every_saved_version_opens_again_exactly() {
 }
 
 #[test]
+fn layer_edits_open_again_exactly_and_an_undone_delete_restores_the_strokes() {
+    let dir = fresh_dir("layers");
+    let layer = |artwork: &Artwork, command| {
+        artwork
+            .apply(ArtworkCommand::Layer(command))
+            .expect("layer command")
+            .artwork
+    };
+    let bottom_drawn = draw(&draw(&blank(), 10.0, 30), 40.0, 30);
+    let bottom = bottom_drawn.active();
+    let two = draw(&layer(&bottom_drawn, LayerCommand::Create), 80.0, 20);
+    let top = two.active();
+    let hidden = layer(
+        &two,
+        LayerCommand::SetVisible {
+            layer: bottom,
+            visible: false,
+        },
+    );
+    let faded = layer(
+        &hidden,
+        LayerCommand::SetOpacity {
+            layer: top,
+            opacity: 0.35,
+        },
+    );
+    let lowered = layer(
+        &faded,
+        LayerCommand::Reorder {
+            layer: top,
+            index: 0,
+        },
+    );
+    let chosen = layer(&lowered, LayerCommand::Select(bottom));
+    let deleted = layer(&chosen, LayerCommand::Delete(bottom));
+    let mut library = Library::at(&dir);
+    let id = library.create(&bottom_drawn).expect("create");
+    // The last one is undo after the delete: the deleted layer's strokes come back.
+    for (version, strokes) in [
+        (&two, 3),
+        (&hidden, 3),
+        (&faded, 3),
+        (&lowered, 3),
+        (&chosen, 3),
+        (&deleted, 1),
+        (&chosen, 3),
+    ] {
+        library.save(id, version).expect("save");
+        drop(library);
+        assert_eq!(reopened(&dir).to_parts(), version.to_parts());
+        assert_eq!(stroke_records(&dir), strokes);
+        library = Library::at(&dir);
+        assert!(library.open_last().expect("reopen").is_some());
+    }
+}
+
+#[test]
 fn a_save_without_a_known_base_rewrites_the_project() {
     let dir = fresh_dir("rewrite");
     let one = draw(&blank(), 10.0, 20);
