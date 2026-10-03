@@ -33,7 +33,7 @@ pub(crate) fn screen_frame<'a>(
 ) -> ScreenFrame<'a> {
     let placement = canvas.zip(shell.canvas_area());
     let pixels_per_point = ui.pixels_per_point;
-    let cursor = shell.cursor();
+    let cursor = shell.cursor(canvas.and_then(Canvas::erasing_tip));
     ScreenFrame {
         surround: design::SURROUND,
         canvas: placement.map(|(canvas, area)| canvas.placement(&area, pixels_per_point, cursor)),

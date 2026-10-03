@@ -225,3 +225,45 @@ fn while_picking_a_finger_picks_instead_of_navigating() {
     let intents = input.route(&picking, &[batch]);
     assert_eq!(positions(&intents), [at_fit([5.0, 200.0])]);
 }
+
+#[test]
+fn a_picking_contact_over_a_control_previews_nothing_but_the_loupe_follows() {
+    let mut input = CanvasInput::default();
+    let island = ScreenArea {
+        origin: [300, 84],
+        size: [100, 50],
+    };
+    let picking = CanvasFrame {
+        picking: true,
+        ..frame(std::slice::from_ref(&island))
+    };
+    let batches = [
+        pen(1, ContactPhase::Down, 150.0, 200.0),
+        pen(1, ContactPhase::Move, 350.0, 100.0),
+    ];
+    let intents = input.route(&picking, &batches);
+    assert_eq!(positions(&intents), [at_fit([150.0, 200.0])]);
+    assert_eq!(input.picking_at(), Some([350.0, 100.0]));
+    let lifted = input.route(&picking, &[pen(1, ContactPhase::Up, 352.0, 100.0)]);
+    assert_eq!(lifted.len(), 1, "the lift still picks the last preview");
+    assert_eq!(input.picking_at(), None);
+}
+
+#[test]
+fn the_drawing_pen_is_pressing_over_open_canvas_only_and_never_with_a_finger_down() {
+    let mut input = CanvasInput::default();
+    let island = ScreenArea {
+        origin: [300, 84],
+        size: [100, 50],
+    };
+    let covered = frame(std::slice::from_ref(&island));
+    input.route(&covered, &[pen(1, ContactPhase::Down, 150.0, 200.0)]);
+    assert_eq!(input.pressing(), Some([150.0, 200.0]));
+    input.route(&covered, &[pen(1, ContactPhase::Move, 350.0, 100.0)]);
+    assert_eq!(input.pressing(), None, "over a control");
+    input.route(&covered, &[pen(1, ContactPhase::Move, 160.0, 200.0)]);
+    input.route(&covered, &[fingers(ContactPhase::Down, &[[50.0, 250.0]])]);
+    assert_eq!(input.pressing(), None, "with a finger down");
+    input.route(&covered, &[pen(1, ContactPhase::Up, 160.0, 200.0)]);
+    assert_eq!(input.pressing(), None, "lifted");
+}

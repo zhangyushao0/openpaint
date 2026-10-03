@@ -1,69 +1,123 @@
-//! The floating window: a panel over the canvas that the hand puts where it likes (Procreate's
-//! reference window). A title bar one touch target high, its name at the left and icon buttons
-//! at the right end; dragging the bar anywhere but on a button moves the window. Under the bar,
-//! the body. Nothing under the window takes a contact that starts on it.
+//! The floating window: a picture over the canvas in a paper mat with an ink outline, with no
+//! title bar (Procreate's reference window, restrained). Only while asked for, a slim bar
+//! across its top holds a move grip at the left and icon buttons at the right end, and a resize
+//! mark sits in its bottom-right corner. The window's owner routes the contacts on the grip,
+//! the mark and the picture from the raw input; this only draws and lays out. Nothing under the
+//! window takes a contact that starts on it.
 
-use egui::{Align, Align2, Layout, Margin, Order, Pos2, Rect, Sense, TextStyle, UiBuilder};
-use egui::{Vec2, WidgetInfo, WidgetType};
+use egui::{Align, Layout, Order, Rect, Sense, Stroke, UiBuilder, Vec2};
 
-use crate::design::{INK, SPACE, TOUCH_TARGET, panel_frame};
+use crate::design::{
+    CORNER, ICON_SIZE, INK, Icon, PANEL, PANEL_RULE, PANEL_RULE_WIDTH, SPACE, TOUCH_TARGET,
+    paint_icon,
+};
+
+/// The paper between the window's outline and its picture, in points.
+pub const MAT: f32 = SPACE / 2.0;
+
+/// Where the window's parts lie this frame, in points.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct FloatingLayout {
+    /// The whole window.
+    pub window: Rect,
+    /// The picture, inside the mat.
+    pub picture: Rect,
+    /// While the bar shows: the bar, its grip (the bar left of the buttons) and the resize
+    /// mark's touch target.
+    pub bar: Option<Rect>,
+    pub grip: Option<Rect>,
+    pub resize: Option<Rect>,
+}
 
 /// What the window gave this frame.
 pub struct Floating<B, T> {
-    /// The whole window, in points.
-    pub rect: Rect,
-    /// How far the hand dragged the title bar this frame, in points.
-    pub moved: Vec2,
-    /// What the buttons and the body returned.
-    pub buttons: B,
+    pub layout: FloatingLayout,
+    /// What the buttons returned, while the bar shows.
+    pub buttons: Option<B>,
+    /// What the body returned.
     pub body: T,
 }
 
-/// Shows the window `id` with its top-left corner at `origin` (points), `width` points wide,
-/// named `title`; `add_buttons` lays out right to left at the bar's right end and `add_body`
-/// fills the rest, top to bottom.
+/// Shows the window `id` over `window` (points), the bar too when `bar`. `add_body` paints the
+/// picture into the rectangle it is given; `add_buttons` lays out right to left at the bar's
+/// right end.
 pub fn floating<B, T>(
     ctx: &egui::Context,
     id: &str,
-    (origin, width): (Pos2, f32),
-    title: &str,
+    (window, bar): (Rect, bool),
     add_buttons: impl FnOnce(&mut egui::Ui) -> B,
-    add_body: impl FnOnce(&mut egui::Ui) -> T,
+    add_body: impl FnOnce(&mut egui::Ui, Rect) -> T,
 ) -> Floating<B, T> {
-    let shown = egui::Area::new(egui::Id::new(id))
+    egui::Area::new(egui::Id::new(id))
         .order(Order::Middle)
         .movable(false)
         .constrain(false)
         .fade_in(false)
-        .fixed_pos(origin)
+        .fixed_pos(window.min)
         .show(ctx, |ui| {
-            panel_frame(Margin::ZERO)
-                .show(ui, |ui| {
-                    ui.spacing_mut().item_spacing = Vec2::ZERO;
-                    let size = Vec2::new(width, TOUCH_TARGET);
-                    let (bar, drag) = ui.allocate_exact_size(size, Sense::drag());
-                    drag.widget_info(|| WidgetInfo::labeled(WidgetType::Other, true, title));
-                    let font = TextStyle::Body.resolve(ui.style());
-                    let left = bar.left_center() + Vec2::new(2.0 * SPACE, 0.0);
-                    ui.painter()
-                        .text(left, Align2::LEFT_CENTER, title, font, INK);
-                    let mut row = ui.new_child(
-                        UiBuilder::new()
-                            .max_rect(bar)
-                            .layout(Layout::right_to_left(Align::Center)),
-                    );
-                    row.spacing_mut().item_spacing = Vec2::ZERO;
-                    let buttons = add_buttons(&mut row);
-                    let body = add_body(ui);
-                    (drag.drag_delta(), buttons, body)
-                })
-                .inner
-        });
-    let (moved, buttons, body) = shown.inner;
-    Floating {
-        rect: shown.response.rect,
-        moved,
-        buttons,
-        body,
-    }
+            ui.spacing_mut().item_spacing = Vec2::ZERO;
+            let (window, _) = ui.allocate_exact_size(window.size(), Sense::hover());
+            let outline = Stroke::new(PANEL_RULE_WIDTH, PANEL_RULE);
+            ui.painter().rect_filled(window, CORNER, PANEL);
+            let picture = window.shrink(MAT);
+            let body = add_body(ui, picture);
+            let mut layout = FloatingLayout {
+                window,
+                picture,
+                bar: None,
+                grip: None,
+                resize: None,
+            };
+            let buttons = bar.then(|| show_bar(ui, &mut layout, add_buttons));
+            ui.painter()
+                .rect_stroke(window, CORNER, outline, egui::StrokeKind::Inside);
+            Floating {
+                layout,
+                buttons,
+                body,
+            }
+        })
+        .inner
+}
+
+/// The bar over the picture's top and the resize mark in its bottom-right corner.
+fn show_bar<B>(
+    ui: &mut egui::Ui,
+    layout: &mut FloatingLayout,
+    add_buttons: impl FnOnce(&mut egui::Ui) -> B,
+) -> B {
+    let window = layout.window;
+    let bar = Rect::from_min_size(window.min, Vec2::new(window.width(), TOUCH_TARGET));
+    let painter = ui.painter().clone();
+    let corner = CORNER as u8;
+    let top = egui::CornerRadius {
+        nw: corner,
+        ne: corner,
+        sw: 0,
+        se: 0,
+    };
+    painter.rect_filled(bar, top, PANEL);
+    let rule = Stroke::new(PANEL_RULE_WIDTH, PANEL_RULE);
+    painter.hline(bar.x_range(), bar.bottom(), rule);
+    let mut row = ui.new_child(
+        UiBuilder::new()
+            .max_rect(bar)
+            .layout(Layout::right_to_left(Align::Center)),
+    );
+    let buttons = add_buttons(&mut row);
+    let grip = Rect::from_min_max(bar.min, egui::pos2(row.min_rect().left(), bar.bottom()));
+    let icon = |rect: Rect| Rect::from_center_size(rect.center(), Vec2::splat(ICON_SIZE));
+    let grip_icon = Rect::from_min_size(bar.min, Vec2::splat(TOUCH_TARGET));
+    paint_icon(&painter, Icon::Move, icon(grip_icon), INK);
+    let resize = Rect::from_min_size(
+        window.max - Vec2::splat(TOUCH_TARGET),
+        Vec2::splat(TOUCH_TARGET),
+    );
+    let mark = Rect::from_center_size(resize.center(), Vec2::splat(ICON_SIZE + SPACE));
+    painter.rect(mark, CORNER / 2.0, PANEL, rule, egui::StrokeKind::Inside);
+    paint_icon(&painter, Icon::Resize, icon(resize), INK);
+    layout.bar = Some(bar);
+    layout.grip = Some(grip);
+    layout.resize = Some(resize);
+    buttons
 }

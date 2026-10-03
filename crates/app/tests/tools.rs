@@ -1,5 +1,6 @@
 //! Tools and colour: the eraser has its own brush and sizes, the colour and its recent ones are
-//! editor state that survives a restart, the eyedropper ends when it picks, and Alpha Lock is an
+//! editor state that survives a restart, the eyedropper commits its last preview and ends when it
+//! picks, and Alpha Lock is an
 //! undoable layer change that the eraser respects.
 
 use openpaint_app::{
@@ -99,6 +100,39 @@ fn the_eyedropper_ends_when_a_colour_settles_or_a_tool_is_chosen() {
         toolbox.save_request().map(|state| state.tool),
         Some(Tool::Brush),
         "the eyedropper itself is never stored"
+    );
+}
+
+#[test]
+fn picking_commits_the_last_preview_and_keeps_the_colour_until_then() {
+    let mut toolbox = toolbox();
+    let (blue, green) = (rgb(0.0, 0.0, 1.0), rgb(0.0, 1.0, 0.0));
+    toolbox.dispatch_tool(&ToolIntent::Preview(blue));
+    assert_eq!(toolbox.projection().preview, None, "only while picking");
+    toolbox.dispatch_tool(&ToolIntent::Eyedropper(true));
+    toolbox.dispatch_tool(&ToolIntent::Pick);
+    assert!(
+        toolbox.picking(),
+        "a lift with nothing previewed keeps looking"
+    );
+    toolbox.dispatch_tool(&ToolIntent::Preview(blue));
+    toolbox.dispatch_tool(&ToolIntent::Preview(green));
+    let shown = toolbox.projection();
+    assert_eq!((shown.preview, shown.color), (Some(green), Color::BLACK));
+    // The contact drifted over a control: no new preview; lifting keeps the last one.
+    toolbox.dispatch_tool(&ToolIntent::Pick);
+    let picked = toolbox.projection();
+    assert_eq!((picked.color, picked.preview), (green, None));
+    assert_eq!(*picked.recent, [green]);
+    assert!(!picked.picking);
+    toolbox.dispatch_tool(&ToolIntent::Eyedropper(true));
+    toolbox.dispatch_tool(&ToolIntent::Preview(blue));
+    toolbox.dispatch_tool(&ToolIntent::Eyedropper(false));
+    toolbox.dispatch_tool(&ToolIntent::Pick);
+    assert_eq!(
+        toolbox.projection().color,
+        green,
+        "turned off: nothing picked"
     );
 }
 

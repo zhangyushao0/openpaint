@@ -49,8 +49,10 @@ pub enum Icon {
     Actions,
     /// A cross: close.
     Close,
-    /// A minus: one step less (zoom out).
-    Minus,
+    /// Four arrows out from the middle: move the window.
+    Move,
+    /// Two short slants in the bottom-right corner: resize from here.
+    Resize,
     /// A check mark: done.
     Done,
     /// A small dot: the thin end of the size slider.
@@ -134,7 +136,11 @@ fn polylines(icon: Icon) -> Vec<Line> {
             vec![[0.27, 0.27], [0.73, 0.73]],
             vec![[0.73, 0.27], [0.27, 0.73]],
         ],
-        Icon::Minus => vec![vec![[0.22, 0.5], [0.78, 0.5]]],
+        Icon::Move => four_arrows(),
+        Icon::Resize => vec![
+            vec![[0.34, 0.82], [0.82, 0.34]],
+            vec![[0.58, 0.82], [0.82, 0.58]],
+        ],
         Icon::Done => vec![vec![[0.22, 0.52], [0.42, 0.72], [0.78, 0.32]]],
         // Discs, painted whole.
         Icon::SizeSmall | Icon::SizeLarge | Icon::OpacityLight | Icon::OpacityDark => Vec::new(),
@@ -275,6 +281,27 @@ fn tools(icon: Icon) -> Vec<Line> {
     }
 }
 
+/// A cross whose four ends are open arrow heads.
+fn four_arrows() -> Vec<Line> {
+    let head = |[x, y]: [f32; 2], [dx, dy]: [f32; 2]| {
+        // Back from the tip along the arm, spread across it.
+        let (bx, by) = (x - 0.1 * dx, y - 0.1 * dy);
+        vec![
+            [bx + 0.1 * dy, by + 0.1 * dx],
+            [x, y],
+            [bx - 0.1 * dy, by - 0.1 * dx],
+        ]
+    };
+    vec![
+        vec![[0.5, 0.16], [0.5, 0.84]],
+        vec![[0.16, 0.5], [0.84, 0.5]],
+        head([0.5, 0.16], [0.0, -1.0]),
+        head([0.5, 0.84], [0.0, 1.0]),
+        head([0.16, 0.5], [-1.0, 0.0]),
+        head([0.84, 0.5], [1.0, 0.0]),
+    ]
+}
+
 /// Three flat rhombi stacked; of the two below the top one only the front edges show.
 fn sheets() -> Vec<Line> {
     let top = [
@@ -345,7 +372,8 @@ mod tests {
             Icon::Eyedropper,
             Icon::Actions,
             Icon::Close,
-            Icon::Minus,
+            Icon::Move,
+            Icon::Resize,
             Icon::Done,
         ];
         for icon in icons {

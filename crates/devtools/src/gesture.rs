@@ -90,9 +90,9 @@ pub(crate) fn stroke(
     pen
 }
 
-/// One contact through `[x, y, ms]` keys, a sample every `SAMPLE_MS` from `start_ms`, each
-/// placed by time between the keys around it: equal places hold the contact still.
-pub(crate) fn press(tool: Tool, keys: &[[f32; 3]], start_ms: i64) -> Vec<MotionBatch> {
+/// One contact through `[x, y, ms]` keys at `pressure`, a sample every `SAMPLE_MS` from
+/// `start` (ms), each placed by time between the keys around it: equal places hold it still.
+pub(crate) fn press(tool: Tool, keys: &[[f32; 3]], pressure: f32, start: i64) -> Vec<MotionBatch> {
     let Some(end) = keys.last().map(|key| key[2]) else {
         return Vec::new();
     };
@@ -112,7 +112,7 @@ pub(crate) fn press(tool: Tool, keys: &[[f32; 3]], start_ms: i64) -> Vec<MotionB
     };
     let count = (end / SAMPLE_MS as f32).ceil() as i64;
     let samples: Vec<PointerSample> = (0..=count)
-        .map(|i| sample(at((i * SAMPLE_MS) as f32), 1.0, start_ms + i * SAMPLE_MS))
+        .map(|i| sample(at((i * SAMPLE_MS) as f32), pressure, start + i * SAMPLE_MS))
         .collect();
     batches(tool, &samples)
 }
@@ -374,7 +374,7 @@ mod tests {
             [40.0, 0.0, 440.0],
             [80.0, 0.0, 480.0],
         ];
-        let samples: Vec<PointerSample> = press(Tool::Finger, &keys, 100)
+        let samples: Vec<PointerSample> = press(Tool::Finger, &keys, 1.0, 100)
             .iter()
             .flat_map(|batch| batch.pointers[0].samples.clone())
             .collect();

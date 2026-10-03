@@ -121,6 +121,14 @@ pub fn stroke_region(
     segment_regions(style, samples, from).reduce(|all, next| all.union(&next))
 }
 
+/// The radius in canvas pixels at the last of `samples`, exactly as a stroke of `style` draws
+/// it there: the size dynamics at that sample's pressure and pen speed. `None` without samples.
+#[must_use]
+pub fn tip_radius(style: &StrokeStyle, samples: &[StrokeSample]) -> Option<f32> {
+    let last = samples.len().checked_sub(1)?;
+    Some(dab(style, samples, last, style.recipe().uses_speed()).radius)
+}
+
 /// The pixels each segment can change, one rectangle per segment: tighter than their union for
 /// a long curved stroke.
 pub(crate) fn segment_regions<'a>(
@@ -237,6 +245,12 @@ mod tests {
         assert_eq!(segment.radii, [0.5 * 10.0 * 1.0, 0.5 * 10.0 * 0.2]);
         assert_eq!((segment.flows, segment.edge), ([1.0, 1.0], 1.0));
         assert_eq!((segment.contacts, segment.tip), ([0.0; 2], Tip::Cover));
+        let drawn = segment.radii[1];
+        assert_eq!(
+            tip_radius(&style(BrushRecipe::plain()), &samples),
+            Some(drawn)
+        );
+        assert_eq!(tip_radius(&style(BrushRecipe::plain()), &[]), None);
     }
 
     #[test]

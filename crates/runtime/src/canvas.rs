@@ -5,10 +5,10 @@ use openpaint_app::{
     Contact, ContactPhase, FillFailed, Intent, Session, StrokeIntent, Thumbnail, Title, ToolIntent,
     Toolbox,
 };
-use openpaint_core::{Artwork, CanvasSize, Color, RegionMask};
+use openpaint_core::{Artwork, CanvasSize, Color, RegionMask, StrokeTool};
 use openpaint_render::{
     BrushCursor, CanvasPlacement, CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator,
-    changed_regions,
+    changed_regions, tip_radius,
 };
 use openpaint_ui::{CanvasArea, ScreenArea};
 
@@ -141,20 +141,18 @@ impl Canvas {
         }
     }
 
-    /// The eyedropper: a contact on the canvas (pen or finger) picks the colour the canvas shows
-    /// under it, read back from the target (render picking), as it touches down and moves; the
-    /// colour shows at once. Lifting settles it: it joins the recent colours and the tool used
-    /// before comes back. A cancelled contact ends the eyedropper with the colour it showed.
+    /// The eyedropper: a contact on the canvas (pen or finger) previews the colour the canvas
+    /// shows under it, read back from the target (render picking), as it touches down and
+    /// moves; the loupe shows it. Lifting picks the last colour previewed, never one at the
+    /// release point: it joins the recent colours and the tool used before comes back. A
+    /// cancelled contact ends the eyedropper and keeps the colour.
     fn pick(&self, core: &Core, contact: &Contact, toolbox: &mut Toolbox) {
-        let settled = match contact.phase {
-            ContactPhase::Down | ContactPhase::Move => false,
-            ContactPhase::Up => true,
-            ContactPhase::Cancel => {
-                toolbox.dispatch_tool(&ToolIntent::Eyedropper(false));
-                return;
-            }
+        match contact.phase {
+            ContactPhase::Down | ContactPhase::Move => {}
+            ContactPhase::Up => return toolbox.dispatch_tool(&ToolIntent::Pick),
+            ContactPhase::Cancel => return toolbox.dispatch_tool(&ToolIntent::Eyedropper(false)),
             ContactPhase::Hover | ContactPhase::Leave => return,
-        };
+        }
         let Some(sample) = contact.samples.last() else {
             return;
         };
@@ -168,11 +166,11 @@ impl Canvas {
             Ok(Some([r, g, b, _])) => {
                 let channel = |value: u8| f32::from(value) / 255.0;
                 match Color::rgb(channel(r), channel(g), channel(b)) {
-                    Ok(color) => toolbox.dispatch_tool(&ToolIntent::Color { color, settled }),
+                    Ok(color) => toolbox.dispatch_tool(&ToolIntent::Preview(color)),
                     Err(error) => log::error!("picked no colour: {error}"),
                 }
             }
-            // Off the canvas: nothing to pick there; lifting there keeps the eyedropper on.
+            // Off the canvas: nothing to preview there; the last preview stays.
             Ok(None) => {}
             Err(error) => log::error!("picking failed: {error}"),
         }
@@ -238,6 +236,17 @@ impl Canvas {
             to_canvas: mapping.to_canvas_rows(),
             cursor,
         }
+    }
+
+    /// While the pen erases: the eraser's tip in canvas pixels, where the stroke is now and its
+    /// radius at the pen's pressure there, so the hand sees what it takes away.
+    pub(crate) fn erasing_tip(&self) -> Option<([f32; 2], f32)> {
+        let active = self.session.active()?;
+        let samples = active.samples();
+        let position = samples.last()?.position();
+        let radius = tip_radius(active.style(), samples)?;
+        (active.style().tool() == StrokeTool::Erase)
+            .then_some(([position.x(), position.y()], radius))
     }
 
     pub(crate) fn session(&self) -> &Session {

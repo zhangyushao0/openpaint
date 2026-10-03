@@ -60,15 +60,24 @@ pub(crate) struct CanvasInput {
     fingers: Vec<i32>,
     /// Where the pen hovers over open canvas (screen pixels), while no finger is down.
     hover: Option<[f32; 2]>,
+    /// Where the pen drawing on the canvas is, while it is over open canvas and no finger is
+    /// down (screen pixels).
+    pressing: Option<[f32; 2]>,
+    /// Where the contact picking a colour is (screen pixels).
+    picking_at: Option<[f32; 2]>,
 }
 
 impl CanvasInput {
     /// The intents of `batches`: stroke contacts first, in order, then what the fingers did.
+    /// While picking, a contact over a control previews nothing: the last preview stays.
     pub(crate) fn route(&mut self, frame: &CanvasFrame<'_>, batches: &[InputBatch]) -> Vec<Intent> {
         let mapping = frame.mapping();
         let mut intents = Vec::new();
         let mut touches = Vec::new();
         let mut pen = false;
+        if !frame.picking {
+            self.picking_at = None;
+        }
         for contact in batches.iter().flat_map(|batch| &batch.contacts) {
             self.follow(contact, frame);
             let first = contact.samples.first().map(|sample| sample.position);
@@ -89,8 +98,15 @@ impl CanvasInput {
             if !self.owned.contains(&contact.id) {
                 continue;
             }
-            if matches!(contact.phase, ContactPhase::Up | ContactPhase::Cancel) {
+            let ends = matches!(contact.phase, ContactPhase::Up | ContactPhase::Cancel);
+            if ends {
                 self.owned.retain(|id| *id != contact.id);
+            }
+            let at = contact.samples.last().map(|sample| sample.position);
+            self.track(at.filter(|_| !ends), frame);
+            let covered = !at.is_some_and(|at| frame.open(at));
+            if frame.picking && contact.phase == ContactPhase::Move && covered {
+                continue;
             }
             if !matches!(contact.phase, ContactPhase::Hover | ContactPhase::Leave) {
                 intents.push(Intent::Stroke(StrokeIntent::Contact(mapped(
@@ -131,6 +147,18 @@ impl CanvasInput {
         }
     }
 
+    /// Where an owned contact is now (`None` once it ended): the picking contact's place, or the
+    /// drawing pen's while over open canvas with no finger down.
+    fn track(&mut self, at: Option<[f32; 2]>, frame: &CanvasFrame<'_>) {
+        if frame.picking {
+            self.picking_at = at;
+            self.pressing = None;
+        } else {
+            let open = |at: &[f32; 2]| frame.open(*at) && self.fingers.is_empty();
+            self.pressing = at.filter(open);
+        }
+    }
+
     /// Keeps the fingers down and where the pen hovers: over open canvas, with no finger down
     /// and the eyedropper off; any other contact of the pen hides it.
     fn follow(&mut self, contact: &Contact, frame: &CanvasFrame<'_>) {
@@ -146,6 +174,7 @@ impl CanvasInput {
             }
             if !self.fingers.is_empty() {
                 self.hover = None;
+                self.pressing = None;
             }
             return;
         }
@@ -161,6 +190,16 @@ impl CanvasInput {
     /// Where the pen hovers over open canvas, in screen pixels.
     pub(crate) const fn hover(&self) -> Option<[f32; 2]> {
         self.hover
+    }
+
+    /// Where the pen drawing on open canvas is, with no finger down, in screen pixels.
+    pub(crate) const fn pressing(&self) -> Option<[f32; 2]> {
+        self.pressing
+    }
+
+    /// Where the contact picking from the canvas is, in screen pixels.
+    pub(crate) const fn picking_at(&self) -> Option<[f32; 2]> {
+        self.picking_at
     }
 
     /// The input clock when the view last moved, while it may still be on the move.

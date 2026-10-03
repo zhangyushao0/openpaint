@@ -64,13 +64,15 @@ pub enum Step {
         #[serde(default)]
         palm: Option<Palm>,
     },
-    /// One contact through `[x, y, ms]` keys at full pressure, `ms` from touching down: it
-    /// moves straight between keys in their time and rests where two keys share a place
-    /// (holding still), sampled every 4 ms.
+    /// One contact through `[x, y, ms]` keys at `pressure` (default full), `ms` from touching
+    /// down: it moves straight between keys in their time and rests where two keys share a
+    /// place (holding still), sampled every 4 ms.
     Press {
         path: Vec<[f32; 3]>,
         #[serde(default = "Tool::finger")]
         tool: Tool,
+        #[serde(default = "full_pressure")]
+        pressure: f32,
         /// A screenshot of this name just before the contact lifts.
         #[serde(default)]
         before_lift: Option<String>,
@@ -163,6 +165,10 @@ impl Tool {
 
 fn default_touch_ms() -> u32 {
     64
+}
+
+fn full_pressure() -> f32 {
+    1.0
 }
 
 /// A hand on the glass at `at` (window pixels), a touch of its own beside the pen.

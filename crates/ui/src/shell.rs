@@ -5,7 +5,8 @@
 //! over the left edge; the reference window where the hand left it; the Actions, colour, layer
 //! and brush panels under the islands, one at a time. While the fingers move the view, a quiet
 //! pill in the top band tells its zoom and turn, then fades. The pen hovering over the canvas
-//! shows the brush's outline. In the gallery: its name, "+" in an island, and the cards.
+//! shows the brush's outline, the eraser shows it while it erases, and a contact picking a
+//! colour shows the loupe (`pen_marks`). In the gallery: its name, "+" in an island, the cards.
 
 use openpaint_app::{
     BrushKey, CanvasView, ContactPhase, EditorAction, GalleryIntent, InputBatch, Intent,
@@ -27,6 +28,7 @@ use crate::drop_bar;
 use crate::gallery::GalleryScreen;
 use crate::layer_panel::LayerPanel;
 use crate::notices::notice_pill;
+use crate::pen_marks;
 use crate::reference_window::ReferenceWindow;
 use crate::side_bar::SideBar;
 
@@ -51,10 +53,6 @@ enum Showing {
 /// The view status shows this long after the view stopped, then fades for `STATUS_FADE_MS`.
 const STATUS_HOLD_MS: i64 = 700;
 const STATUS_FADE_MS: i64 = 300;
-/// Smallest radius of the pen's hover outline, in points, so a thin brush still shows a ring.
-const CURSOR_MIN_RADIUS: f32 = 2.0;
-/// Width of the pen's hover outline, in points.
-const CURSOR_WIDTH: f32 = 1.0;
 
 /// What the canvas showed in the last pass, for routing this frame's contacts.
 #[derive(Debug, Clone, Copy)]
@@ -163,12 +161,16 @@ impl Shell {
         self.top_islands(&ctx, projection);
         self.side
             .show(&ctx, projection, self.scale(&area), &mut self.taps);
-        self.reference.show(&ctx, projection, &mut self.taps);
+        let now_ms = self.now_ms;
+        self.reference
+            .show(&ctx, projection, now_ms, &mut self.taps);
         self.actions.show(&ctx, projection, &mut self.taps);
         self.layers.show(&ctx, projection, &mut self.taps);
         self.brushes.show(&ctx, projection, &mut self.taps);
         self.colors.show(&ctx, projection, &mut self.taps);
         self.drop_bar = drop_bar::show(&mut self.drop, &ctx, projection, self.pixels_per_point);
+        let picking_at = self.reference.picking_at().or(self.input.picking_at());
+        pen_marks::show_loupe(&ctx, picking_at, brush, self.pixels_per_point);
         rect
     }
 
@@ -252,20 +254,17 @@ impl Shell {
         view_status(ctx, &text, strength, self.drop.bar().is_some());
     }
 
-    /// The pen's hover outline: the current brush at full size around where the pen hovers over
-    /// open canvas, in screen pixels; `None` over controls, during multi-touch, while picking
-    /// and off the canvas screen.
+    /// The pen's outline in screen pixels: the current brush at full size around where the pen
+    /// hovers over open canvas, or, while the pen erases there, `erasing` (the eraser's tip:
+    /// centre and radius in canvas pixels); `None` over controls, during multi-touch, while
+    /// picking, while the brush draws and off the canvas screen.
     #[must_use]
-    pub fn cursor(&self) -> Option<BrushCursor> {
+    pub fn cursor(&self, erasing: Option<([f32; 2], f32)>) -> Option<BrushCursor> {
         let (shown, area) = (self.shown?, self.canvas?);
-        let centre = self.input.hover()?;
         let ppp = self.pixels_per_point;
-        let diameter = shown.brush_size? * self.scale(&area);
-        Some(BrushCursor {
-            centre,
-            radius: (diameter / 2.0).max(CURSOR_MIN_RADIUS * ppp),
-            width: CURSOR_WIDTH * ppp,
-        })
+        let mapping = shown.view.mapping(shown.canvas, &area.viewport(ppp));
+        let erasing = erasing.filter(|_| self.input.pressing().is_some());
+        pen_marks::cursor(self.input.hover(), erasing, shown.brush_size, &mapping, ppp)
     }
 
     /// True while the screen changes without input: the view status fading, or fingers held
@@ -275,7 +274,7 @@ impl Shell {
         let fading = self.input.navigated().is_some_and(|moved| {
             self.now_ms.saturating_sub(moved) < STATUS_HOLD_MS + STATUS_FADE_MS
         });
-        let held = self.input.holding() || self.drop.holding();
+        let held = self.input.holding() || self.drop.holding() || self.reference.bar_shown();
         self.showing == Showing::Canvas && (fading || held)
     }
 
@@ -359,7 +358,9 @@ impl Shell {
             threshold: shown.threshold,
             bar: self.drop_bar,
         };
-        let (mut intents, rest) = self.drop.route(&frame, &drop, batches);
+        let mut intents = self.reference.route(batches, now_ms, shown.picking);
+        let (dropped, rest) = self.drop.route(&frame, &drop, batches);
+        intents.extend(dropped);
         if self.drop.carried().is_some() {
             self.close_panels();
         }

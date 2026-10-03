@@ -39,7 +39,9 @@ pub use crate::gallery::{
     CanvasPreset, Gallery, GalleryIntent, GalleryNotice, GalleryProjection, LibraryAnswer,
     LibraryRequest,
 };
-pub use crate::gestures::{GestureFrame, Gestured, Gestures, Touch, TouchAction};
+pub use crate::gestures::{
+    GestureFrame, Gestured, Gestures, PictureGestured, PictureGestures, Touch, TouchAction,
+};
 pub use crate::history::{HISTORY_BUDGET, History, HistoryIntent};
 pub use crate::input::{Contact, ContactPhase, Device, InputBatch, InputSample};
 pub use crate::intent::Intent;

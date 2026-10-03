@@ -10,7 +10,10 @@
 mod filter;
 mod pair;
 mod pan;
+mod picture;
 mod taps;
+
+pub use picture::{PictureGestured, PictureGestures};
 
 use crate::input::ContactPhase;
 use crate::view::ViewGesture;

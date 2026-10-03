@@ -56,9 +56,16 @@ pub enum ToolIntent {
     /// The next contact on the canvas picks a colour instead of drawing (on), or draws again
     /// (off).
     Eyedropper(bool),
-    /// Paint with `color`. `settled` when the hand lifts (from the wheel, a recent colour or the
-    /// canvas under the eyedropper): the colour joins the recent ones and the eyedropper ends.
+    /// Paint with `color`. `settled` when the hand lifts from the wheel or a recent colour: the
+    /// colour joins the recent ones and the eyedropper ends.
     Color { color: Color, settled: bool },
+    /// While the eyedropper is on: the colour under the picking contact now (the loupe's top
+    /// half). The current colour stays until the contact lifts.
+    Preview(Color),
+    /// The picking contact lifted: the last colour previewed, not one where the contact drifted
+    /// to, becomes the colour, joins the recent ones and ends the eyedropper. With none
+    /// previewed the eyedropper stays on.
+    Pick,
 }
 
 /// One brush as the picker lists it.
@@ -88,6 +95,8 @@ pub struct BrushProjection {
     pub recent: Arc<[Color]>,
     /// The eyedropper is on: the next contact on the canvas picks a colour.
     pub picking: bool,
+    /// While picking, the colour under the contact, which lifting makes the colour.
+    pub preview: Option<Color>,
 }
 
 /// The toolbox as plain data for the store.
@@ -140,6 +149,8 @@ pub struct Toolbox {
     sets: [ToolSet; 2],
     palette: Palette,
     picking: bool,
+    /// While picking, the last colour under the contact.
+    preview: Option<Color>,
     /// Changed since the state was last handed to the store.
     unsaved: bool,
     /// A slider or the colour wheel is held; the store gets the value it settles on.
@@ -174,6 +185,7 @@ impl Toolbox {
             sets: [set.clone(), set],
             palette: Palette::default(),
             picking: false,
+            preview: None,
             unsaved: false,
             holding: false,
         }
@@ -265,7 +277,7 @@ impl Toolbox {
                     let set = &mut self.sets[tool];
                     self.unsaved |= index != set.current;
                     set.current = index;
-                    self.picking = false;
+                    self.set_picking(false);
                 }
             }
             BrushIntent::Size { position, settled } if position.is_finite() => {
@@ -291,17 +303,31 @@ impl Toolbox {
             ToolIntent::Use(tool) => {
                 self.unsaved |= tool != self.tool;
                 self.tool = tool;
-                self.picking = false;
+                self.set_picking(false);
             }
-            ToolIntent::Eyedropper(on) => self.picking = on,
+            ToolIntent::Eyedropper(on) => self.set_picking(on),
             ToolIntent::Color { color, settled } => {
                 self.unsaved |= self.palette.set(color, settled);
                 self.holding = !settled;
                 if settled {
-                    self.picking = false;
+                    self.set_picking(false);
                 }
             }
+            ToolIntent::Preview(color) if self.picking => self.preview = Some(color),
+            ToolIntent::Pick => {
+                if let Some(color) = self.preview.filter(|_| self.picking) {
+                    self.unsaved |= self.palette.set(color, true);
+                    self.set_picking(false);
+                }
+            }
+            ToolIntent::Preview(_) => {}
         }
+    }
+
+    /// The eyedropper on or off; either way it starts without a preview.
+    fn set_picking(&mut self, on: bool) {
+        self.picking = on;
+        self.preview = None;
     }
 
     fn set(&mut self, slot: usize, value: f32, settled: bool) {
@@ -356,6 +382,7 @@ impl Toolbox {
             color: self.palette.color(),
             recent: self.palette.recent(),
             picking: self.picking,
+            preview: self.preview,
         }
     }
 

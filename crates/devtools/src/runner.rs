@@ -210,9 +210,10 @@ impl Runner<'_> {
             Step::Press {
                 path,
                 tool,
+                pressure,
                 before_lift,
             } => {
-                let batches = gesture::press(*tool, path, now);
+                let batches = gesture::press(*tool, path, *pressure, now);
                 return self.press(runtime, &batches, before_lift.as_ref());
             }
             Step::Stroke { points, lift, palm } => {

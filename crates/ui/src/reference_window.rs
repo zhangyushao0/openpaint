@@ -1,45 +1,55 @@
-//! The reference window (Procreate's reference companion): the chosen image in a window
-//! floating over the canvas, first at the lower right. Drag its title bar to move it; − and +
-//! zoom the picture about the window's middle (1x to 8x); dragging the picture looks around the
-//! zoomed image; × closes it (the Reference switch turns off; the image stays for this run of
-//! the app). With the eyedropper on, touching the picture picks the colour under the hand while
-//! it moves; lifting settles it, as on the canvas. Nothing under the window takes a contact
-//! that starts on it.
+//! The reference window (Procreate's reference companion, restrained): the chosen image in a
+//! window floating over the canvas, first at the lower right, with no title bar. A tap on it
+//! shows a slim bar: drag the bar to move the whole window, the corner mark to resize it, ×
+//! to close it (the Reference switch turns off; the image stays for this run of the app). The
+//! bar hides again after `BAR_IDLE_MS` without a touch on the window, or with a touch outside.
+//! In the picture one finger drags the image about and two pinch-zoom it about their middle
+//! (1x to 8x), with the canvas's dead zones; the canvas never moves with them. The pen never
+//! paints here. With the eyedropper on, a touch on the picture previews the colour under it in
+//! the loupe and lifting picks the last one previewed, as on the canvas. Contacts are routed
+//! from the raw input (`reference_touch`): egui sees only one contact per batch.
 
-use std::cell::Cell;
+use egui::{Color32, Pos2, Rect, Vec2};
+use openpaint_app::{
+    Intent, PictureGestures, ReferenceImage, ReferenceIntent, SessionProjection, ViewGesture,
+};
 
-use egui::{Color32, Pos2, Rect, Sense, Vec2};
-use openpaint_app::{Intent, ReferenceImage, ReferenceIntent, SessionProjection, ToolIntent};
-use openpaint_core::Color;
+use crate::components::{FloatingLayout, MAT, ScreenArea, UNDER_ISLANDS, floating, icon_button};
+use crate::design::{Icon, REFERENCE_HEIGHT, REFERENCE_WIDTH, SPACE};
 
-use crate::components::{ScreenArea, UNDER_ISLANDS, floating, icon_button};
-use crate::design::{Icon, REFERENCE_HEIGHT, REFERENCE_WIDTH, SPACE, TOUCH_TARGET};
-
-/// The zoom steps of − and +.
-const ZOOMS: [f32; 7] = [1.0, 1.5, 2.0, 3.0, 4.0, 6.0, 8.0];
+/// How long the bar stays without a touch on the window, in milliseconds.
+pub(crate) const BAR_IDLE_MS: i64 = 3000;
+/// Zoom of the picture relative to the whole image in the window.
+const ZOOM: [f32; 2] = [1.0, 8.0];
+/// Least window size, in points; at most this share of the screen.
+const LEAST: Vec2 = Vec2::new(240.0, 180.0);
+const MOST: f32 = 0.85;
 
 #[derive(Default)]
 pub(crate) struct ReferenceWindow {
     /// The image shown and its texture, replaced when another image is chosen.
     texture: Option<(ReferenceImage, egui::TextureHandle)>,
-    /// The window's top-left corner in points; `None` until it first shows.
-    origin: Option<Pos2>,
-    /// Index into `ZOOMS`.
-    zoom: usize,
-    /// The image point (in image pixels) at the middle of the picture area.
-    centre: Vec2,
-    /// The colour picked during the touch on the picture, settled when it lifts.
-    picked: Option<Color>,
-    /// Where the window lies on screen, in pixels, from the last pass.
-    area: Option<ScreenArea>,
+    /// The window in points; `None` until it first shows.
+    pub(crate) place: Option<Rect>,
+    /// The picture's zoom (`ZOOM`) and the image point (in image pixels) at its middle.
+    pub(crate) zoom: f32,
+    pub(crate) centre: Vec2,
+    /// Until when (input clock, ms) the bar shows.
+    pub(crate) bar_until: Option<i64>,
+    /// Where the last pass laid the window out, and on what screen (points).
+    pub(crate) layout: Option<(FloatingLayout, Rect)>,
+    pub(crate) pixels_per_point: f32,
+    /// The contacts on the window and the gestures on its picture.
+    pub(crate) touch: crate::reference_touch::WindowTouch,
+    pub(crate) gestures: PictureGestures,
 }
 
 impl std::fmt::Debug for ReferenceWindow {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ReferenceWindow")
-            .field("origin", &self.origin)
-            .field("zoom", &ZOOMS[self.zoom])
-            .field("area", &self.area)
+            .field("place", &self.place)
+            .field("zoom", &self.zoom)
+            .field("bar_until", &self.bar_until)
             .finish_non_exhaustive()
     }
 }
@@ -49,6 +59,7 @@ impl ReferenceWindow {
         &mut self,
         ctx: &egui::Context,
         projection: &SessionProjection,
+        now_ms: i64,
         taps: &mut Vec<Intent>,
     ) {
         let transfers = projection.transfers();
@@ -56,99 +67,103 @@ impl ReferenceWindow {
             .filter(|transfers| transfers.reference_shown)
             .and_then(|transfers| transfers.reference.as_ref());
         let Some(image) = image else {
-            self.area = None;
-            self.picked = None;
+            self.hide();
             return;
         };
         let texture = self.load(ctx, image);
-        let picking = projection.brush().is_some_and(|brush| brush.picking);
-        let size = body_size(image.size());
         let screen = ctx.content_rect();
-        let origin = *self.origin.get_or_insert_with(|| {
-            screen.max - Vec2::new(REFERENCE_WIDTH, TOUCH_TARGET + size.y) - Vec2::splat(SPACE)
+        self.pixels_per_point = ctx.pixels_per_point();
+        let place = self.place.unwrap_or_else(|| {
+            let size = body_size(image.size()) + Vec2::splat(2.0 * MAT);
+            Rect::from_min_size(screen.max - size - Vec2::splat(SPACE), size)
         });
-        // The bar is laid out before the picture: a zoom tapped shows in the same frame.
-        let zoom = Cell::new(self.zoom);
+        let place = kept_on(screen, place);
+        self.place = Some(place);
+        self.bar_until = self.bar_until.filter(|until| now_ms < *until);
         let shown = floating(
             ctx,
             "reference",
-            (origin, REFERENCE_WIDTH),
-            "Reference",
-            |ui| buttons(ui, &zoom),
-            |ui| {
-                self.zoom = zoom.get();
-                self.picture(ui, (image, &texture), size, picking)
-            },
+            (place, self.bar_until.is_some()),
+            |ui| icon_button(ui, Icon::Close, "Close reference", true).clicked(),
+            |ui, picture| self.paint_picture(ui, picture, (image, &texture)),
         );
-        if let Some(intent) = shown.body {
-            push(taps, intent);
-        }
-        if shown.buttons {
+        if shown.buttons == Some(true) {
+            self.bar_until = None;
             push(taps, Intent::Reference(ReferenceIntent::Show(false)));
         }
-        let moved = origin + shown.moved;
-        let height = shown.rect.height();
-        self.origin = Some(Pos2::new(
-            moved
-                .x
-                .clamp(0.0, (screen.width() - REFERENCE_WIDTH).max(0.0)),
-            moved
-                .y
-                .clamp(UNDER_ISLANDS, (screen.height() - height).max(UNDER_ISLANDS)),
-        ));
-        self.area = Some(ScreenArea::from_points(shown.rect, ctx.pixels_per_point()));
+        self.layout = Some((shown.layout, screen));
+    }
+
+    /// No window: nothing of it lies on screen and nothing it held goes on.
+    fn hide(&mut self) {
+        self.layout = None;
+        self.bar_until = None;
+        self.touch = crate::reference_touch::WindowTouch::default();
+        self.gestures.reset();
     }
 
     /// Where the window lies, which the canvas must not take contacts from.
-    pub(crate) const fn area(&self) -> Option<ScreenArea> {
-        self.area
+    pub(crate) fn area(&self) -> Option<ScreenArea> {
+        let (layout, _) = self.layout?;
+        Some(ScreenArea::from_points(
+            layout.window,
+            self.pixels_per_point,
+        ))
     }
 
-    /// The picture area: the image fitted, zoomed about `centre`, on white. Returns the colour
-    /// intent of a pick, if any.
-    fn picture(
-        &mut self,
-        ui: &mut egui::Ui,
+    /// True while the bar shows: frames must keep coming to hide it on time.
+    pub(crate) const fn bar_shown(&self) -> bool {
+        self.bar_until.is_some()
+    }
+
+    /// The image on white in `picture`, fitted and zoomed about `centre`.
+    fn paint_picture(
+        &self,
+        ui: &egui::Ui,
+        picture: Rect,
         (image, texture): (&ReferenceImage, &egui::TextureHandle),
-        size: Vec2,
-        picking: bool,
-    ) -> Option<Intent> {
-        let (rect, response) = ui.allocate_exact_size(size, Sense::click_and_drag());
-        let pixels = Vec2::new(image.size()[0] as f32, image.size()[1] as f32);
-        let scale = (size.x / pixels.x).min(size.y / pixels.y) * ZOOMS[self.zoom];
-        if !picking && response.dragged() {
-            self.centre -= response.drag_delta() / scale;
-        }
-        self.centre = clamp_centre(self.centre, pixels, size / scale);
-        let shown = Rect::from_min_size(rect.center() - self.centre * scale, pixels * scale);
-        let painter = ui.painter_at(rect);
-        painter.rect_filled(rect, 0.0, Color32::WHITE);
+    ) {
+        let painter = ui.painter_at(picture);
+        painter.rect_filled(picture, 0.0, Color32::WHITE);
+        let (shown, _) = self.shown_image(picture, image);
         let whole = Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0));
         painter.image(texture.id(), shown, whole, Color32::WHITE);
-        if !picking {
-            self.picked = None;
-            return None;
-        }
-        let settled = response.drag_stopped() || response.clicked();
-        let held = response.is_pointer_button_down_on();
-        if let Some(at) = response.interact_pointer_pos().filter(|_| held || settled) {
-            let pixel = (at - shown.min) / scale;
-            if pixel.x >= 0.0 && pixel.y >= 0.0 {
-                let color = image.color_at([pixel.x as u32, pixel.y as u32]);
-                self.picked = color.or(self.picked);
-            }
-        }
-        let color = self.picked?;
-        if settled {
-            self.picked = None;
-        } else if !held {
-            return None;
-        }
-        Some(Intent::Tool(ToolIntent::Color { color, settled }))
     }
 
-    /// The texture of `image`, uploaded when the image is new.
-    fn load(&mut self, ctx: &egui::Context, image: &ReferenceImage) -> egui::TextureHandle {
+    /// Where `image` lies over `picture` (points), and how many points one image pixel is.
+    pub(crate) fn shown_image(&self, picture: Rect, image: &ReferenceImage) -> (Rect, f32) {
+        let pixels = image_pixels(image);
+        let scale = fit(picture.size(), pixels) * self.zoom;
+        let min = picture.center() - self.centre * scale;
+        (Rect::from_min_size(min, pixels * scale), scale)
+    }
+
+    /// The picture's pan and zoom by `gesture` (screen pixels): the image point under the
+    /// gesture's start stays under its pivot.
+    pub(crate) fn navigate(&mut self, gesture: ViewGesture, picture: Rect, image: &ReferenceImage) {
+        let ppp = self.pixels_per_point;
+        let pixels = image_pixels(image);
+        let fit = fit(picture.size(), pixels);
+        let pivot = Pos2::new(gesture.pivot[0], gesture.pivot[1]) / ppp;
+        let moved = Vec2::new(gesture.translation[0], gesture.translation[1]) / ppp;
+        let held = self.centre + (pivot - moved - picture.center()) / (fit * self.zoom);
+        self.zoom = (self.zoom * gesture.zoom).clamp(ZOOM[0], ZOOM[1]);
+        let centre = held - (pivot - picture.center()) / (fit * self.zoom);
+        self.centre = clamp_centre(centre, pixels, picture.size() / (fit * self.zoom));
+    }
+
+    /// The image the window shows now.
+    pub(crate) fn image(&self) -> Option<&ReferenceImage> {
+        self.texture.as_ref().map(|(image, _)| image)
+    }
+
+    /// The texture of `image`, uploaded when the image is new; a new image starts whole and
+    /// centred in a window of its shape where the last one was.
+    pub(crate) fn load(
+        &mut self,
+        ctx: &egui::Context,
+        image: &ReferenceImage,
+    ) -> egui::TextureHandle {
         if let Some((shown, texture)) = &self.texture
             && shown == image
         {
@@ -157,30 +172,46 @@ impl ReferenceWindow {
         let [width, height] = image.size().map(|side| side as usize);
         let picture = egui::ColorImage::from_rgba_unmultiplied([width, height], image.pixels());
         let texture = ctx.load_texture("reference", picture, egui::TextureOptions::LINEAR);
-        // A new image starts whole and centred.
-        self.zoom = 0;
-        self.centre = Vec2::new(image.size()[0] as f32, image.size()[1] as f32) / 2.0;
+        self.zoom = ZOOM[0];
+        self.centre = image_pixels(image) / 2.0;
+        let size = body_size(image.size()) + Vec2::splat(2.0 * MAT);
+        self.place = self.place.map(|place| Rect::from_min_size(place.min, size));
         self.texture = Some((image.clone(), texture.clone()));
         texture
     }
 }
 
-/// Close, +, − right to left; − and + step `zoom`. Returns whether close was tapped.
-fn buttons(ui: &mut egui::Ui, zoom: &Cell<usize>) -> bool {
-    let close = icon_button(ui, Icon::Close, "Close reference", true).clicked();
-    let step = zoom.get();
-    let (more, less) = (step + 1 < ZOOMS.len(), step > 0);
-    if icon_button(ui, Icon::Add, "Zoom in", more).clicked() && more {
-        zoom.set(step + 1);
-    }
-    if icon_button(ui, Icon::Minus, "Zoom out", less).clicked() && less {
-        zoom.set(step - 1);
-    }
-    close
+/// `place` moved and shrunk onto `screen`, under the islands.
+pub(crate) fn kept_on(screen: Rect, place: Rect) -> Rect {
+    let top = screen.top() + UNDER_ISLANDS;
+    let room = Vec2::new(screen.width(), screen.bottom() - top);
+    let size = place.size().min(room * MOST).max(LEAST.min(room));
+    let x = place
+        .left()
+        .clamp(screen.left(), (screen.right() - size.x).max(screen.left()));
+    let y = place.top().clamp(top, (screen.bottom() - size.y).max(top));
+    Rect::from_min_size(Pos2::new(x, y), size)
 }
 
-/// The picture area for an image of `size` pixels: the window's width, as tall as the image's
-/// shape asks within `REFERENCE_HEIGHT`.
+/// `place` with its bottom-right corner moved by `delta`, its top-left corner kept, at least
+/// `LEAST` and at most `MOST` of the screen.
+pub(crate) fn resized(screen: Rect, place: Rect, delta: Vec2) -> Rect {
+    let most = (screen.size() * MOST).min(screen.max - place.min);
+    let size = (place.size() + delta).clamp(LEAST.min(most), most);
+    Rect::from_min_size(place.min, size)
+}
+
+fn image_pixels(image: &ReferenceImage) -> Vec2 {
+    Vec2::new(image.size()[0] as f32, image.size()[1] as f32)
+}
+
+/// Points per image pixel when an image of `pixels` fits `area` whole.
+fn fit(area: Vec2, pixels: Vec2) -> f32 {
+    (area.x / pixels.x).min(area.y / pixels.y)
+}
+
+/// The picture area for an image of `size` pixels: `REFERENCE_WIDTH` wide, as tall as the
+/// image's shape asks within `REFERENCE_HEIGHT`.
 fn body_size([width, height]: [u32; 2]) -> Vec2 {
     let tall = REFERENCE_WIDTH * height as f32 / width.max(1) as f32;
     Vec2::new(
@@ -225,5 +256,22 @@ mod tests {
         assert_eq!(zoomed, Vec2::new(50.0, 175.0));
         assert_eq!(body_size([4000, 3000]), Vec2::new(360.0, 270.0));
         assert_eq!(body_size([1000, 4000]), Vec2::new(360.0, 420.0));
+    }
+
+    #[test]
+    fn the_window_stays_on_the_screen_and_resizes_within_bounds() {
+        let screen = Rect::from_min_size(Pos2::ZERO, Vec2::new(1000.0, 800.0));
+        let off = Rect::from_min_size(Pos2::new(900.0, 0.0), Vec2::new(300.0, 200.0));
+        let kept = kept_on(screen, off);
+        assert_eq!(kept.min, Pos2::new(700.0, UNDER_ISLANDS));
+        assert_eq!(kept.size(), off.size());
+        let place = Rect::from_min_size(Pos2::new(100.0, 100.0), Vec2::new(300.0, 200.0));
+        let small = resized(screen, place, Vec2::new(-500.0, -500.0));
+        assert_eq!(small.size(), LEAST);
+        let large = resized(screen, place, Vec2::new(2000.0, 2000.0));
+        assert_eq!(
+            (large.min, large.size()),
+            (place.min, Vec2::new(850.0, 680.0))
+        );
     }
 }

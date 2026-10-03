@@ -15,6 +15,8 @@ mod drop_bar;
 mod gallery;
 mod layer_panel;
 mod notices;
+mod pen_marks;
+mod reference_touch;
 mod reference_window;
 mod shell;
 mod side_bar;
