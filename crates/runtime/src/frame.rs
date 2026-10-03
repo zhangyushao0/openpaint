@@ -24,11 +24,12 @@ use openpaint_ui::{Shell, design};
 use crate::canvas::Leaving;
 use crate::clock::InputClock;
 use crate::error::RuntimeError;
+use crate::fill::FillWorker;
 use crate::input::MotionBatch;
 use crate::normalise::Normaliser;
 use crate::pointer::pointer_events;
 use crate::preview::brush_previews;
-use crate::screen::{Screen, leave_job};
+use crate::screen::{Screen, dispatch_gallery, leave_job};
 use crate::storage::{Job, Storage};
 use crate::text::{TextInput, text_events};
 use crate::transfer::{TransferWorker, route};
@@ -66,6 +67,7 @@ pub struct Runtime {
     /// Export and the reference image: the app's, kept across artworks.
     transfers: Transfers,
     transfer: TransferWorker,
+    fill: FillWorker,
     /// Declared last: dropping it writes what it was handed before the process goes.
     storage: Storage,
 }
@@ -93,6 +95,7 @@ impl Runtime {
             toolbox,
             transfers: Transfers::default(),
             transfer: TransferWorker::start(Arc::clone(&core))?,
+            fill: FillWorker::start(Arc::clone(&core))?,
             core,
             ui,
             shell,
@@ -315,11 +318,12 @@ impl Runtime {
         self.screen.projection(&self.toolbox, &self.transfers)
     }
 
-    /// True while the frame loop waits for something without input: the storage or transfer
-    /// worker, or a canvas about to open. Frames keep coming meanwhile, so the result shows.
+    /// True while the frame loop waits for something without input: the storage, transfer or
+    /// fill worker, or a canvas about to open. Frames keep coming meanwhile, so the result shows.
     #[must_use]
     pub fn storing(&self) -> bool {
-        self.storage.busy() || self.transfer.busy() || matches!(self.screen, Screen::Opening(_))
+        let working = self.storage.busy() || self.transfer.busy() || self.fill.busy();
+        working || matches!(self.screen, Screen::Opening(_))
     }
 
     /// Applies everything the workers finished, then opens a canvas that is ready.
@@ -358,7 +362,10 @@ impl Runtime {
         let area = self.shell.canvas_area();
         self.screen.open(&self.core, area, &self.toolbox)?;
         match &mut self.screen {
-            Screen::Canvas(canvas) => canvas.dispatch(&self.core, intents, &mut self.toolbox),
+            Screen::Canvas(canvas) => {
+                canvas.dispatch(&self.core, intents, &mut self.toolbox);
+                self.fill.step(canvas);
+            }
             Screen::Gallery(gallery) => dispatch_gallery(gallery, intents),
             Screen::Opening(_) => {}
         }
@@ -369,21 +376,5 @@ impl Runtime {
         let changed = self.screen() != shown;
         let again = pass.repaint || changed || self.storing() || self.shell.animating();
         Ok((pass.frame, again))
-    }
-}
-
-/// The gallery's intents in order; anything else from a gallery frame is a stray.
-fn dispatch_gallery(gallery: &mut openpaint_app::Gallery, intents: Vec<openpaint_app::Intent>) {
-    for intent in intents {
-        let result = match intent {
-            openpaint_app::Intent::Gallery(intent) => gallery.dispatch(intent),
-            other => {
-                log::debug!("ignored in the gallery: {other:?}");
-                Ok(())
-            }
-        };
-        if let Err(error) = result {
-            log::warn!("intent refused: {error}");
-        }
     }
 }

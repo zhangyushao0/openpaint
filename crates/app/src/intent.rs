@@ -2,6 +2,7 @@
 //! its handler and tests.
 
 use crate::export::ExportIntent;
+use crate::fill::FillIntent;
 use crate::gallery::GalleryIntent;
 use crate::history::HistoryIntent;
 use crate::layers::LayerIntent;
@@ -18,6 +19,7 @@ pub enum Intent {
     History(HistoryIntent),
     Storage(StorageIntent),
     Layer(LayerIntent),
+    Fill(FillIntent),
     Gallery(GalleryIntent),
     Brush(BrushIntent),
     Tool(ToolIntent),

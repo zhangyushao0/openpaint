@@ -7,6 +7,7 @@
 mod brushes;
 mod error;
 mod export;
+mod fill;
 mod gallery;
 mod gestures;
 mod history;
@@ -30,6 +31,9 @@ mod view;
 pub use crate::brushes::{Brush, BrushKey, BrushLibrary, SizeRange};
 pub use crate::error::AppError;
 pub use crate::export::{ExportIntent, ExportJob, ExportNotice, file_name};
+pub use crate::fill::{
+    DEFAULT_THRESHOLD, FillFailed, FillIntent, FillJob, FillProjection, FillRefusal,
+};
 pub use crate::gallery::{
     CanvasPreset, Gallery, GalleryIntent, GalleryNotice, GalleryProjection, LibraryAnswer,
     LibraryRequest,

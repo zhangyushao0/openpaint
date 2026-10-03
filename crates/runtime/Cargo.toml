@@ -9,6 +9,7 @@ publish.workspace = true
 [dependencies]
 openpaint-app.workspace = true
 openpaint-core.workspace = true
+openpaint-raster.workspace = true
 openpaint-render.workspace = true
 openpaint-store.workspace = true
 openpaint-ui.workspace = true

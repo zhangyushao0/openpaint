@@ -9,7 +9,8 @@ use crate::brush::BrushRecipe;
 use crate::error::CoreError;
 use crate::id::{IdCounters, LayerId, MAX_ID, StrokeId};
 use crate::layer::{Layer, LayerProps};
-use crate::parts::{ArtworkParts, LayerParts, RecipeParts, SampleParts, StrokeParts};
+use crate::parts::{ArtworkParts, FillParts, LayerParts, RecipeParts, SampleParts, StrokeParts};
+use crate::region::{RegionEdit, RegionMask};
 use crate::stroke::{
     MAX_STROKE_SAMPLES, Stroke, StrokeBlend, StrokeSample, StrokeStyle, StrokeTool, check_order,
 };
@@ -68,7 +69,8 @@ impl Artwork {
     /// # Errors
     /// `InvalidValue` for any out-of-range value; `NoLayers` / `LayerLimit` for the layer count;
     /// `IdOutOfRange` / `DuplicateId` for ids; `UnknownLayer` when `active` names no layer;
-    /// `EmptyStroke`, `SampleLimit` and `SampleOrder` for stroke samples.
+    /// `EmptyStroke`, `SampleLimit` and `SampleOrder` for stroke samples; `InvalidValue` for a
+    /// fill whose mask leaves the canvas or whose place is out of order or past the strokes.
     pub fn from_storage(parts: ArtworkParts) -> Result<Self, CoreError> {
         let canvas = CanvasSize::new(parts.width, parts.height)?;
         if parts.layers.is_empty() {
@@ -90,7 +92,7 @@ impl Artwork {
         let layers = parts
             .layers
             .iter()
-            .map(|layer| layer_from(layer, &mut ids))
+            .map(|layer| layer_from(layer, canvas, &mut ids))
             .collect::<Result<Vec<_>, _>>()?;
         let active = LayerId::new(parts.active);
         if !layers.iter().any(|layer| layer.id == active) {
@@ -113,7 +115,11 @@ fn counter(next: u64) -> Result<u64, CoreError> {
     }
 }
 
-fn layer_from(parts: &LayerParts, ids: &mut IdCheck) -> Result<Layer, CoreError> {
+fn layer_from(
+    parts: &LayerParts,
+    canvas: CanvasSize,
+    ids: &mut IdCheck,
+) -> Result<Layer, CoreError> {
     let id = ids.layer(parts.id)?;
     let name = LayerName::new(&parts.name)?;
     let props = LayerProps::new(
@@ -127,11 +133,33 @@ fn layer_from(parts: &LayerParts, ids: &mut IdCheck) -> Result<Layer, CoreError>
         .iter()
         .map(|stroke| stroke_from(stroke, ids))
         .collect::<Result<Vec<_>, _>>()?;
+    let mut after = 0;
+    let mut edits = Vec::with_capacity(parts.fills.len());
+    for fill in &parts.fills {
+        let edit = fill_from(fill, canvas)?;
+        if edit.after < after || edit.after > strokes.len() {
+            return Err(invalid("fill place"));
+        }
+        after = edit.after;
+        edits.push(edit);
+    }
     Ok(Layer {
         id,
         name,
         props,
         strokes: StrokeList::from_strokes(&strokes),
+        edits: Arc::from(edits),
+    })
+}
+
+fn fill_from(parts: &FillParts, canvas: CanvasSize) -> Result<RegionEdit, CoreError> {
+    let [r, g, b] = parts.color;
+    let mask = RegionMask::from_runs(canvas, parts.origin, parts.size, &parts.runs)?;
+    Ok(RegionEdit {
+        after: usize::try_from(parts.after).map_err(|_| invalid("fill place"))?,
+        mask,
+        color: Color::rgb(r, g, b)?,
+        alpha_locked: parts.alpha_locked,
     })
 }
 

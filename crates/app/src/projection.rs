@@ -5,6 +5,7 @@ use std::fmt;
 
 use openpaint_core::CanvasSize;
 
+use crate::fill::{DEFAULT_THRESHOLD, FillProjection};
 use crate::gallery::GalleryProjection;
 use crate::layers::LayerList;
 use crate::storage::StorageNotice;
@@ -32,6 +33,8 @@ pub enum EditorAction {
     Export,
     /// Choose a reference image with the system's picker.
     ChooseReference,
+    /// Fill a region with the colour (ColorDrop).
+    Fill,
 }
 
 /// Whether an action can run now, and why not.
@@ -81,6 +84,7 @@ pub struct SessionProjection {
     pub(crate) view: CanvasView,
     pub(crate) canvas: Option<CanvasSize>,
     pub(crate) drawing: bool,
+    pub(crate) fill: FillProjection,
     pub(crate) brush: Option<BrushProjection>,
     /// Boxed: rarely more than a notice, but its errors are large.
     pub(crate) transfers: Option<Box<TransferProjection>>,
@@ -123,7 +127,22 @@ impl SessionProjection {
             EditorAction::LowerLayer => self.layer_actions[3],
             EditorAction::EditLayer => self.layer_actions[4],
             EditorAction::Gallery => self.gallery,
+            EditorAction::Fill => {
+                if self.canvas.is_none() {
+                    Availability::NothingLeft
+                } else if self.drawing {
+                    Availability::StrokeInProgress
+                } else {
+                    Availability::Available
+                }
+            }
         }
+    }
+
+    /// Filling: the threshold, whether a fill is being placed, its notice.
+    #[must_use]
+    pub const fn fill(&self) -> FillProjection {
+        self.fill
     }
 
     /// What to tell the user about saving and opening.
@@ -201,6 +220,13 @@ impl Default for SessionProjection {
             view: CanvasView::FIT,
             canvas: None,
             drawing: false,
+            fill: FillProjection {
+                threshold: DEFAULT_THRESHOLD,
+                active: false,
+                pending: false,
+                refused: None,
+                failed: false,
+            },
             brush: None,
             transfers: None,
         }
@@ -222,6 +248,7 @@ impl fmt::Display for EditorAction {
             Self::Gallery => "use the gallery",
             Self::Export => "export the artwork",
             Self::ChooseReference => "choose a reference image",
+            Self::Fill => "fill",
         })
     }
 }

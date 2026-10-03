@@ -1,4 +1,4 @@
-//! Schema migrations: one pure-data step per version (DECISIONS D09, D25, D28, D29). A step takes the
+//! Schema migrations: one pure-data step per version (DECISIONS D09, D25, D28, D29, D36). A step takes the
 //! records it needs as they were read and returns the records to write; the library writes them
 //! in one atomic batch when it opens an older library, before anything else reads it.
 
@@ -147,6 +147,51 @@ fn head_3_to_4(head: &[u8]) -> Option<Vec<u8>> {
     Some(writer.finish())
 }
 
+/// Schema 4 -> 5, from every project's head as schema 4 stored it. Each layer of a head gets a
+/// fill count of 0 after its stroke count: no artwork had fills. Strokes and the toolbox keep
+/// their bytes. A head that is not a whole schema-4 head is left as it is.
+pub(crate) fn upgrade_4_to_5(heads: &[(ProjectId, Vec<u8>)]) -> Upgrade {
+    let mut upgrade = Upgrade::default();
+    for (id, head) in heads {
+        if let Some(head) = head_4_to_5(head) {
+            upgrade.projects.push((head_key(*id), head));
+        }
+    }
+    upgrade
+        .library
+        .push((SCHEMA_KEY.to_vec(), encode_schema(5)));
+    upgrade
+}
+
+/// A schema-4 head as schema 5 stores it: every byte kept, the schema 5, and after each layer's
+/// stroke count its fill count, 0. `None` when it is not a whole schema-4 head.
+fn head_4_to_5(head: &[u8]) -> Option<Vec<u8>> {
+    let mut reader = Reader::new(head, "artwork head");
+    let mut writer = Writer::with_capacity(head.len() + 64);
+    (reader.u32().ok()? == 4).then_some(())?;
+    writer.u32(5);
+    for _ in 0..2 {
+        writer.u32(reader.u32().ok()?);
+    }
+    for _ in 0..3 {
+        writer.u64(reader.u64().ok()?);
+    }
+    let count = reader.u32().ok()?;
+    writer.u32(count);
+    for _ in 0..count {
+        writer.u64(reader.u64().ok()?);
+        writer.str(&reader.str().ok()?);
+        writer.u8(reader.u8().ok()?);
+        writer.f32(reader.f32().ok()?);
+        writer.u8(reader.u8().ok()?);
+        writer.u8(reader.u8().ok()?);
+        writer.u32(reader.u32().ok()?);
+        writer.u32(0);
+    }
+    reader.end().ok()?;
+    Some(writer.finish())
+}
+
 /// `head` marked with schema `to` instead of `from`; `None` when it is not marked `from`.
 fn remarked(head: &[u8], from: u32, to: u32) -> Option<Vec<u8>> {
     let layout = head.strip_prefix(&from.to_le_bytes()[..])?;
@@ -279,20 +324,27 @@ mod tests {
         let heads = [(id, head_3()), (ProjectId::new(5), vec![3, 0, 0, 0, 1])];
         let upgrade = upgrade_3_to_4(&heads, &[], Some(&old_editor.finish()));
         assert_eq!(upgrade.projects.len(), 1, "a broken head stays as it is");
-        let head = decode_head(&upgrade.projects[0].1).expect("a schema-4 head");
+        let then = upgrade_4_to_5(&[(id, upgrade.projects[0].1.clone()), heads[1].clone()]);
+        assert_eq!(then.projects.len(), 1, "a broken head stays as it is");
+        assert_eq!(then.library, [(SCHEMA_KEY.to_vec(), encode_schema(5))]);
+        let head = decode_head(&then.projects[0].1).expect("a schema-5 head");
         let layers: Vec<_> = head
             .layers
             .iter()
-            .map(|(layer, count)| {
+            .map(|(layer, strokes, fills)| {
                 (
                     layer.name.as_str(),
                     layer.locked,
                     layer.alpha_locked,
-                    *count,
+                    *strokes,
+                    *fills,
                 )
             })
             .collect();
-        assert_eq!(layers, [("A", true, false, 3), ("Bé", false, false, 0)]);
+        assert_eq!(
+            layers,
+            [("A", true, false, 3, 0), ("Bé", false, false, 0, 0)]
+        );
         assert_eq!((head.width, head.next_stroke_id), (64, 9));
         let (key, editor) = &upgrade.library[0];
         assert_eq!(key, EDITOR);

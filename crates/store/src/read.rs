@@ -1,11 +1,12 @@
-//! Reading the library: a project's artwork from its head and stroke records, the catalogue for
+//! Reading the library: a project's artwork from its head, stroke and fill records, the catalogue for
 //! the gallery, and the small library values.
 
 use openpaint_app::{PortError, Project, ProjectId, ProjectSummary, Title};
-use openpaint_core::{Artwork, ArtworkParts, StrokeParts};
+use openpaint_core::{Artwork, ArtworkParts};
 
 use crate::catalogue::{Entry, decode_entry, decode_thumbnail};
 use crate::editor::EDITOR;
+use crate::fills::{decode_fill, fill_layer_prefix};
 use crate::library::{Open, device};
 use crate::records::{
     CLOCK, ENTRY, LAST, decode_head, decode_id, decode_stroke, entry_key, entry_project, head_key,
@@ -37,8 +38,15 @@ pub(crate) fn project(open: &Open, id: ProjectId) -> Result<Project, PortError> 
         .ok_or(PortError::Missing(id))?;
     let head = decode_head(&head)?;
     let mut layers = Vec::with_capacity(head.layers.len());
-    for (mut layer, count) in head.layers {
-        layer.strokes = read_strokes(open, id, layer.id, count)?;
+    for (mut layer, strokes, fills) in head.layers {
+        layer.strokes = read_records(open, layer_prefix(id, layer.id), strokes, "stroke records")?
+            .iter()
+            .map(|bytes| decode_stroke(bytes))
+            .collect::<Result<_, _>>()?;
+        layer.fills = read_records(open, fill_layer_prefix(id, layer.id), fills, "fill records")?
+            .iter()
+            .map(|bytes| decode_fill(bytes))
+            .collect::<Result<_, _>>()?;
         layers.push(layer);
     }
     let artwork = Artwork::from_storage(ArtworkParts {
@@ -61,28 +69,26 @@ pub(crate) fn project(open: &Open, id: ProjectId) -> Result<Project, PortError> 
     Ok(Project { id, title, artwork })
 }
 
-/// The `count` stroke records of one layer, which must sit at indices `0..count`.
-fn read_strokes(
+/// The values of the `count` records under one layer's `prefix` (its strokes or its fills),
+/// which must sit at indices `0..count`.
+fn read_records(
     open: &Open,
-    id: ProjectId,
-    layer: u64,
+    prefix: Vec<u8>,
     count: usize,
-) -> Result<Vec<StrokeParts>, PortError> {
-    let corrupt = PortError::Corrupt {
-        what: "stroke records",
-    };
-    let prefix = layer_prefix(id, layer);
-    let mut strokes = Vec::new();
+    what: &'static str,
+) -> Result<Vec<fjall::Slice>, PortError> {
+    let corrupt = PortError::Corrupt { what };
+    let mut values = Vec::new();
     for (expected, guard) in open.projects.prefix(&prefix).enumerate() {
         let (key, value) = guard.into_inner().map_err(device)?;
         let in_place = key.len() == prefix.len() + 8 && stroke_index(&key) == Some(expected as u64);
         if expected >= count || !in_place {
             return Err(corrupt);
         }
-        strokes.push(decode_stroke(&value)?);
+        values.push(value);
     }
-    if strokes.len() == count {
-        Ok(strokes)
+    if values.len() == count {
+        Ok(values)
     } else {
         Err(corrupt)
     }

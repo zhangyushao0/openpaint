@@ -5,6 +5,7 @@ members = [
     "crates/app",
     "crates/core",
     "crates/devtools",
+    "crates/raster",
     "crates/render",
     "crates/runtime",
     "crates/store",
@@ -24,6 +25,7 @@ publish = false
 openpaint-app = { path = "crates/app" }
 openpaint-core = { path = "crates/core" }
 openpaint-devtools = { path = "crates/devtools" }
+openpaint-raster = { path = "crates/raster" }
 openpaint-render = { path = "crates/render" }
 openpaint-runtime = { path = "crates/runtime" }
 openpaint-store = { path = "crates/store" }

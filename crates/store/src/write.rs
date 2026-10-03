@@ -10,6 +10,7 @@ use openpaint_core::Artwork;
 use crate::catalogue::{Entry, encode_entry, encode_thumbnail};
 use crate::delta::delta;
 use crate::editor::{EDITOR, encode_editor};
+use crate::fills::{encode_fill, fill_key, fills_prefix};
 use crate::library::{Open, device};
 use crate::read;
 use crate::records::{
@@ -70,8 +71,8 @@ pub(crate) fn open(open: &Open, id: ProjectId) -> Result<(), PortError> {
     commit(batch)
 }
 
-/// The head and the stroke records that turn `base` (what the disk holds, when known) into
-/// `artwork`; without a base, every stroke record. The project is touched and stays open.
+/// The head and the stroke and fill records that turn `base` (what the disk holds, when known)
+/// into `artwork`; without a base, every record. The project is touched and stays open.
 pub(crate) fn save(
     open: &Open,
     id: ProjectId,
@@ -176,10 +177,21 @@ fn write_delta(
     for (layer, index) in changes.remove {
         batch.remove(&open.projects, stroke_key(id, layer, index));
     }
+    for ((layer, index), fill) in changes.write_fills {
+        batch.insert(
+            &open.projects,
+            fill_key(id, layer, index),
+            encode_fill(fill),
+        );
+    }
+    for (layer, index) in changes.remove_fills {
+        batch.remove(&open.projects, fill_key(id, layer, index));
+    }
 }
 
-/// Every stroke record of `artwork`, and the removal of any other stroke record the project
-/// has on disk. For a new project, and for a save whose base is unknown after a failure.
+/// Every stroke and fill record of `artwork`, and the removal of any other stroke or fill
+/// record the project has on disk. For a new project, and for a save whose base is unknown
+/// after a failure.
 fn write_all(
     open: &Open,
     batch: &mut OwnedWriteBatch,
@@ -193,11 +205,18 @@ fn write_all(
             batch.insert(&open.projects, key.clone(), encode_stroke(stroke));
             written.insert(key);
         }
+        for (index, fill) in layer.edits().iter().enumerate() {
+            let key = fill_key(id, layer.id().get(), index);
+            batch.insert(&open.projects, key.clone(), encode_fill(fill));
+            written.insert(key);
+        }
     }
-    for guard in open.projects.prefix(strokes_prefix(id)) {
-        let key = guard.key().map_err(device)?;
-        if !written.contains(key.as_ref()) {
-            batch.remove(&open.projects, key);
+    for prefix in [strokes_prefix(id), fills_prefix(id)] {
+        for guard in open.projects.prefix(prefix) {
+            let key = guard.key().map_err(device)?;
+            if !written.contains(key.as_ref()) {
+                batch.remove(&open.projects, key);
+            }
         }
     }
     Ok(())

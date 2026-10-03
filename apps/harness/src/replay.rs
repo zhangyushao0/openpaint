@@ -1,6 +1,6 @@
 //! `replay`: the S4 walk-through on the dev machine. A recorded pen stroke of 10,000 samples,
 //! then a finger swipe, go batch by batch through the full frame loop at the author's tablet
-//! size, followed by 20 undo and redo round trips tapped on the top bar (S6); every frame is
+//! size, followed by 20 undo and redo round trips tapped on the side bar (S6, S11); every frame is
 //! timed until the GPU is done. Writes the last screen and the canvas,
 //! checks the canvas's hash against the golden value and the slowest frame against the
 //! budget. The golden is the canvas, not the screen: the evaluator's pixels are the same on
@@ -28,13 +28,16 @@ const PER_BATCH: usize = 4;
 const SAMPLE_MS: i64 = 4;
 /// Slowest frame allowed, input to GPU done (ROADMAP S4).
 const BUDGET: Duration = Duration::from_millis(8);
-/// Hash of `artifacts/harness/replay-canvas.png`. Same on Vulkan and DX12.
-const GOLDEN: u64 = 0x1f94_cbfb_d4b1_1e02;
+/// Hash of `artifacts/harness/replay-canvas.png`. Same on Vulkan and DX12. Re-recorded in S15:
+/// since S14 the pen lands through the fit view (0.92), so the scribble is the screen's
+/// scribble scaled by 1 / 0.92 about the centre; the finger swipe pans the view, no ink.
+const GOLDEN: u64 = 0xc332_0cf5_0b57_27af;
 /// Undo and redo round trips after the strokes.
 const TRIPS: usize = 20;
-/// Centres of the undo and redo buttons in the top bar, in window pixels.
-const UNDO: [f32; 2] = [230.0, 42.0];
-const REDO: [f32; 2] = [328.0, 42.0];
+/// Centres of the undo and redo buttons at the bottom of the side bar (S11), in window pixels
+/// at `SIZE` and `PIXELS_PER_POINT`; the scenarios tap the same points.
+const UNDO: [f32; 2] = [70.0, 1271.0];
+const REDO: [f32; 2] = [70.0, 1369.0];
 
 pub fn run() -> Result<(), HarnessError> {
     // Opens the library and the canvas and uploads the font atlas; not part of drawing.

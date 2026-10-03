@@ -37,6 +37,16 @@ impl Writer {
         self.bytes.extend_from_slice(&value.to_le_bytes());
     }
 
+    /// `value` in 1 to 5 bytes, 7 bits each, least significant first (LEB128): small values,
+    /// such as most runs of a fill mask, take one byte.
+    pub(crate) fn varint(&mut self, mut value: u32) {
+        while value >= 0x80 {
+            self.u8((value & 0x7f) as u8 | 0x80);
+            value >>= 7;
+        }
+        self.u8(value as u8);
+    }
+
     /// A count or length, which the store keeps below 2^32.
     pub(crate) fn len(&mut self, len: usize) {
         self.u32(u32::try_from(len).unwrap_or(u32::MAX));
@@ -102,6 +112,23 @@ impl<'a> Reader<'a> {
         self.take().map(f32::from_le_bytes)
     }
 
+    /// A value `Writer::varint` wrote; longer or larger than a `u32` is corrupt.
+    pub(crate) fn varint(&mut self) -> Result<u32, PortError> {
+        let mut value = 0u32;
+        for shift in (0..35).step_by(7) {
+            let byte = self.u8()?;
+            let bits = u32::from(byte & 0x7f);
+            if shift == 28 && bits > 0x0f {
+                return Err(self.corrupt());
+            }
+            value |= bits << shift;
+            if byte & 0x80 == 0 {
+                return Ok(value);
+            }
+        }
+        Err(self.corrupt())
+    }
+
     /// A count of items of at least `item_bytes` each; refused when the bytes left cannot hold
     /// that many, so a corrupt count never allocates.
     pub(crate) fn count(&mut self, item_bytes: usize) -> Result<usize, PortError> {
@@ -160,6 +187,27 @@ mod tests {
         let mut short = Reader::new(&bytes[..3], "test");
         assert_eq!(short.u8(), Ok(7));
         assert_eq!(short.u32(), Err(PortError::Corrupt { what: "test" }));
+    }
+
+    #[test]
+    fn varints_round_trip_in_few_bytes_and_overlong_ones_are_corrupt() {
+        let mut writer = Writer::default();
+        for value in [0, 127, 128, 300, u32::MAX] {
+            writer.varint(value);
+        }
+        let bytes = writer.finish();
+        assert_eq!(bytes.len(), 1 + 1 + 2 + 2 + 5);
+        let mut reader = Reader::new(&bytes, "varint");
+        for value in [0, 127, 128, 300, u32::MAX] {
+            assert_eq!(reader.varint(), Ok(value));
+        }
+        assert!(
+            Reader::new(&[0xff, 0xff, 0xff, 0xff, 0x1f], "v")
+                .varint()
+                .is_err()
+        );
+        assert!(Reader::new(&[0x80; 6], "v").varint().is_err());
+        assert!(Reader::new(&[0x80], "v").varint().is_err());
     }
 
     #[test]

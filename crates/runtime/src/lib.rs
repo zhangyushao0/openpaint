@@ -5,6 +5,7 @@
 mod canvas;
 mod clock;
 mod error;
+mod fill;
 mod frame;
 mod input;
 mod normalise;

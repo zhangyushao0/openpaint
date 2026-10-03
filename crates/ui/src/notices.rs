@@ -1,11 +1,13 @@
 //! What the top bar tells on the canvas, one thing at a time, most urgent first: a failed save
-//! or open (with Retry or OK), then exporting (working, saved, failed), then the reference image
+//! or open (with Retry or OK), a refused or failed fill (with OK), then exporting (working,
+//! saved, failed), then the reference image
 //! (opening, failed). Running work shows a spinner and asks nothing; a result waits for OK. The
 //! messages are the user-facing form of the app's typed errors.
 
 use openpaint_app::{
-    Delivery, EditorAction, ExportError, ExportIntent, ExportNotice, ImageError, Intent,
-    ReferenceIntent, ReferenceNotice, SessionProjection, StorageIntent, StorageNotice,
+    Delivery, EditorAction, ExportError, ExportIntent, ExportNotice, FillIntent, FillRefusal,
+    ImageError, Intent, ReferenceIntent, ReferenceNotice, SessionProjection, StorageIntent,
+    StorageNotice,
 };
 
 use crate::components::{confirmation, notice, status};
@@ -17,7 +19,7 @@ pub(crate) fn top_bar_notice(
     projection: &SessionProjection,
     taps: &mut Vec<Intent>,
 ) {
-    if storage(ui, projection, taps) {
+    if storage(ui, projection, taps) || fill(ui, projection, taps) {
         return;
     }
     let Some(transfers) = projection.transfers() else {
@@ -97,6 +99,22 @@ fn storage(ui: &mut egui::Ui, projection: &SessionProjection, taps: &mut Vec<Int
     let enabled = projection.availability(editor_action).is_available();
     if notice(ui, message, action, enabled).clicked() {
         taps.push(Intent::Storage(intent));
+    }
+    true
+}
+
+/// The notice for a refused or failed fill, with OK. Returns whether one showed.
+fn fill(ui: &mut egui::Ui, projection: &SessionProjection, taps: &mut Vec<Intent>) -> bool {
+    let fill = projection.fill();
+    let message = match (fill.refused, fill.failed) {
+        (Some(FillRefusal::Hidden), _) => "Can't fill: the layer is hidden.",
+        (Some(FillRefusal::Locked), _) => "Can't fill: the layer is locked.",
+        (None, true) => "Couldn't fill there. Try again.",
+        (None, false) => return false,
+    };
+    let dismiss = Intent::Fill(FillIntent::Cancel);
+    if notice(ui, message, "OK", true).clicked() && taps.last() != Some(&dismiss) {
+        taps.push(dismiss);
     }
     true
 }

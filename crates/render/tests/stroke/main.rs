@@ -4,6 +4,7 @@
 
 mod compositing;
 mod erase;
+mod fill;
 mod fixture;
 mod golden;
 mod incremental;

@@ -2,13 +2,14 @@
 //! regions to evaluate again when the version changes other than by committing the stroke the
 //! target is drawing (undo and redo; later layer edits). DECISIONS D17: callers pass these.
 
-use openpaint_core::{Artwork, StrokeList};
+use openpaint_core::{Artwork, RegionEdit, RegionMask, StrokeList};
 
 use crate::geom::PixelRect;
 use crate::stroke::segment_regions;
 
 /// The pixels that can differ between `before` and `after`. Strokes one version has beyond the
-/// other count segment by segment, so an undo costs only the undone stroke's tiles. Any other
+/// other count segment by segment, so an undo costs only the undone stroke's tiles; fills count
+/// by their mask's rectangle. Any other
 /// difference (layers added, removed, moved or with other properties) is the whole canvas.
 #[must_use]
 pub fn changed_regions(before: &Artwork, after: &Artwork) -> Vec<PixelRect> {
@@ -29,8 +30,37 @@ pub fn changed_regions(before: &Artwork, after: &Artwork) -> Vec<PixelRect> {
             Some(tail) => regions.extend(tail),
             None => return full,
         }
+        regions.extend(fill_regions(old.edits(), new.edits()));
     }
     regions
+}
+
+/// The rectangles of the fills either list has beyond their common start: a fill reaches only
+/// its mask's rectangle, wherever it lies among the strokes, so a fill added, undone or
+/// swapped for another (a preview changing) costs only those rectangles.
+fn fill_regions(a: &[RegionEdit], b: &[RegionEdit]) -> Vec<PixelRect> {
+    let same = |x: &RegionEdit, y: &RegionEdit| {
+        x.mask().shares(y.mask())
+            && x.after() == y.after()
+            && x.color() == y.color()
+            && x.alpha_locked() == y.alpha_locked()
+    };
+    let common = a.iter().zip(b).take_while(|(x, y)| same(x, y)).count();
+    a[common..]
+        .iter()
+        .chain(&b[common..])
+        .map(|edit| fill_rect(edit.mask()))
+        .collect()
+}
+
+/// The pixels of a mask's rectangle.
+pub(crate) fn fill_rect(mask: &RegionMask) -> PixelRect {
+    let side = |value: u32| i32::try_from(value).unwrap_or(i32::MAX);
+    let ([x, y], [w, h]) = (mask.origin(), mask.size());
+    PixelRect {
+        min: [side(x), side(y)],
+        max: [side(x + w), side(y + h)],
+    }
 }
 
 /// The segments of the strokes the longer list has beyond the shorter, when the shorter is its
@@ -92,6 +122,45 @@ mod tests {
         assert_eq!(undo.len(), 2, "two segments");
         assert!(undo.iter().all(|region| region.min[0] >= 96));
         assert!(changed_regions(&first, &first).is_empty());
+    }
+
+    fn mask(x: std::ops::Range<usize>) -> RegionMask {
+        let mut inside = vec![false; 200 * 40];
+        for y in 5..9 {
+            for column in x.clone() {
+                inside[y * 200 + column] = true;
+            }
+        }
+        RegionMask::from_pixels(CanvasSize::new(200, 40).expect("size"), &inside).expect("mask")
+    }
+
+    #[test]
+    fn a_fill_changes_its_rectangle_and_a_new_preview_both_rectangles() {
+        let base = draw(&blank(), 0.0);
+        let left = base
+            .fill_region(mask(3..9), Color::WHITE)
+            .expect("fill")
+            .artwork;
+        let rect = |x: [i32; 2]| PixelRect {
+            min: [x[0], 5],
+            max: [x[1], 9],
+        };
+        assert_eq!(changed_regions(&base, &left), [rect([3, 9])]);
+        assert_eq!(changed_regions(&left, &base), [rect([3, 9])]);
+        let right = base
+            .fill_region(mask(150..160), Color::WHITE)
+            .expect("fill")
+            .artwork;
+        assert_eq!(
+            changed_regions(&left, &right),
+            [rect([3, 9]), rect([150, 160])]
+        );
+        let later = draw(&left, 100.0);
+        assert!(
+            changed_regions(&left, &later)
+                .iter()
+                .all(|r| r.min[0] >= 96)
+        );
     }
 
     #[test]

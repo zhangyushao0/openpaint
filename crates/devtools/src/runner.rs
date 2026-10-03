@@ -198,6 +198,14 @@ impl Runner<'_> {
                 let points = [[from[0], from[1], 1.0], [to[0], to[1], 1.0]];
                 self.gesture(runtime, &gesture::path(*tool, &points, now))?;
             }
+            Step::Press {
+                path,
+                tool,
+                before_lift,
+            } => {
+                let batches = gesture::press(*tool, path, now);
+                return self.press(runtime, &batches, before_lift.as_ref());
+            }
             Step::Stroke { points, lift, palm } => {
                 let batches = gesture::stroke(points, *lift, *palm, now);
                 self.gesture(runtime, &batches)?;
@@ -206,19 +214,7 @@ impl Runner<'_> {
                 let to = to.as_ref().unwrap_or(from);
                 self.gesture(runtime, &gesture::fingers(from, to, *ms, now))?;
             }
-            Step::View {
-                name,
-                zoom,
-                rotation,
-                pan,
-            } => {
-                let view = runtime.projection().view();
-                return Ok(Some(Record::View(ViewCheck {
-                    name: name.clone(),
-                    expected: (*zoom, *rotation, *pan),
-                    actual: (view.zoom(), view.rotation().to_degrees(), view.pan()),
-                })));
-            }
+            Step::View { .. } => return Ok(view_check(runtime, step)),
             Step::Type(text) => {
                 runtime.text(TextInput::Commit(text.clone()));
                 self.frame(runtime)?;
@@ -249,6 +245,27 @@ impl Runner<'_> {
             }
         }
         Ok(None)
+    }
+
+    /// A press's batches; with `before_lift`, a screenshot of that name before the lift.
+    fn press(
+        &mut self,
+        runtime: &mut Runtime,
+        batches: &[MotionBatch],
+        before_lift: Option<&String>,
+    ) -> Result<Option<Record>, ScenarioError> {
+        let Some(name) = before_lift else {
+            self.gesture(runtime, batches)?;
+            return Ok(None);
+        };
+        let (lift, held) = batches
+            .split_last()
+            .ok_or(ScenarioError::Missing("a press has no samples"))?;
+        self.gesture(runtime, held)?;
+        let step = Step::Screenshot { name: name.clone() };
+        let shot = record(runtime, &step, &self.written)?;
+        self.gesture(runtime, std::slice::from_ref(lift))?;
+        Ok(Some(shot))
     }
 
     /// Each batch is one platform event followed by one frame.
@@ -294,6 +311,25 @@ impl Runner<'_> {
             .extend(std::iter::from_fn(|| runtime.host_request()));
         Ok(())
     }
+}
+
+/// The view a view step looks at.
+fn view_check(runtime: &Runtime, step: &Step) -> Option<Record> {
+    let Step::View {
+        name,
+        zoom,
+        rotation,
+        pan,
+    } = step
+    else {
+        return None;
+    };
+    let view = runtime.projection().view();
+    Some(Record::View(ViewCheck {
+        name: name.clone(),
+        expected: (*zoom, *rotation, *pan),
+        actual: (view.zoom(), view.rotation().to_degrees(), view.pan()),
+    }))
 }
 
 /// What a checkpoint, screenshot or export step looks at.

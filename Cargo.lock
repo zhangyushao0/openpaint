@@ -1139,6 +1139,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "openpaint-raster"
+version = "0.1.0"
+dependencies = [
+ "openpaint-core",
+]
+
+[[package]]
 name = "openpaint-render"
 version = "0.1.0"
 dependencies = [
@@ -1157,6 +1164,7 @@ dependencies = [
  "log",
  "openpaint-app",
  "openpaint-core",
+ "openpaint-raster",
  "openpaint-render",
  "openpaint-store",
  "openpaint-ui",

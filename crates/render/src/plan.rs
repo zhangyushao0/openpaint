@@ -45,6 +45,12 @@ impl Plan {
                         layer.touch(slot);
                     }
                 }
+                Item::Fill { bounds, .. } => {
+                    for slot in grid.slots(&bounds.pixels()) {
+                        lists[slot].push(index);
+                        layer.touch(slot);
+                    }
+                }
                 Item::Active => {
                     let binned = fresh_lists.take().unwrap_or_default();
                     for (slot, mut list) in binned.into_iter().enumerate() {
@@ -189,14 +195,18 @@ mod tests {
         }
     }
 
-    fn black() -> Op {
-        Op::end_stroke(&Paint {
+    fn paint() -> Paint {
+        Paint {
             color: [0.0; 3],
             opacity: 1.0,
             grain: 0,
             grain_scale: 1,
             blend: Blend::Over,
-        })
+        }
+    }
+
+    fn black() -> Op {
+        Op::end_stroke(&paint())
     }
 
     fn scene() -> Scene {
@@ -208,6 +218,7 @@ mod tests {
                 Item::EndStroke(black()),
                 Item::EndLayer(Op::end_layer(1.0)),
             ],
+            masks: Vec::new(),
         }
     }
 
@@ -232,6 +243,34 @@ mod tests {
             ([32, 16], vec![]),
         ];
         assert_eq!(lists(&plan), expected);
+    }
+
+    #[test]
+    fn a_fill_reaches_the_tiles_of_its_rectangle_and_ends_their_layer() {
+        let mut items = scene().items;
+        let fill = Item::Fill {
+            op: Op::fill(&paint(), 0),
+            bounds: Bounds([16.0, 16.0, 19.5, 19.5]),
+        };
+        items.insert(2, fill);
+        let scene = Scene {
+            items,
+            masks: Vec::new(),
+        };
+        let plan = Plan::build(
+            &scene,
+            &Fresh::default(),
+            [48, 20],
+            &[PixelRect::full([48, 20])],
+        );
+        let listed = lists(&plan);
+        assert_eq!(
+            listed[4],
+            ([16, 16], vec![2, 5]),
+            "the fill, then its layer"
+        );
+        assert_eq!(listed[3], ([0, 16], vec![]));
+        assert_eq!(listed[0], ([0, 0], vec![0, 1, 5]));
     }
 
     #[test]
@@ -268,6 +307,7 @@ mod tests {
                 Item::Active,
                 Item::EndLayer(Op::end_layer(1.0)),
             ],
+            masks: Vec::new(),
         };
         let fresh = Fresh {
             ops: vec![black(); 2],

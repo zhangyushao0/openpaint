@@ -13,7 +13,7 @@ use openpaint_app::{
 use openpaint_core::Artwork;
 
 use crate::editor::decode_editor;
-use crate::migrate::{upgrade_1_to_2, upgrade_2_to_3, upgrade_3_to_4};
+use crate::migrate::{upgrade_1_to_2, upgrade_2_to_3, upgrade_3_to_4, upgrade_4_to_5};
 use crate::records::{
     LIBRARY, NEXT, PROJECTS, SCHEMA, SCHEMA_KEY, decode_id, decode_schema, encode_schema, head_key,
     strokes_prefix,
@@ -109,7 +109,7 @@ fn prepare(open: &Open) -> Result<(), PortError> {
             found,
             newest: SCHEMA,
         }),
-        1..=3 => upgrade(open, schema),
+        1..=4 => upgrade(open, schema),
         _ => Err(PortError::Corrupt {
             what: "library schema",
         }),
@@ -132,7 +132,8 @@ fn upgrade(open: &Open, from: u32) -> Result<(), PortError> {
         let upgrade = match step {
             1 => upgrade_1_to_2(&heads),
             2 => upgrade_2_to_3(&heads, &strokes),
-            _ => upgrade_3_to_4(&heads, &strokes, editor.as_deref()),
+            3 => upgrade_3_to_4(&heads, &strokes, editor.as_deref()),
+            _ => upgrade_4_to_5(&heads),
         };
         for (key, value) in &upgrade.projects {
             if let Some(at) = index.get(key) {

@@ -76,6 +76,33 @@ pub(crate) fn stroke(
     pen
 }
 
+/// One contact through `[x, y, ms]` keys, a sample every `SAMPLE_MS` from `start_ms`, each
+/// placed by time between the keys around it: equal places hold the contact still.
+pub(crate) fn press(tool: Tool, keys: &[[f32; 3]], start_ms: i64) -> Vec<MotionBatch> {
+    let Some(end) = keys.last().map(|key| key[2]) else {
+        return Vec::new();
+    };
+    let at = |ms: f32| -> [f32; 2] {
+        let next = keys
+            .iter()
+            .position(|key| key[2] >= ms)
+            .unwrap_or(keys.len() - 1);
+        let (a, b) = (keys[next.saturating_sub(1)], keys[next]);
+        let span = b[2] - a[2];
+        let t = if span > 0.0 {
+            ((ms - a[2]) / span).clamp(0.0, 1.0)
+        } else {
+            1.0
+        };
+        [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
+    };
+    let count = (end / SAMPLE_MS as f32).ceil() as i64;
+    let samples: Vec<PointerSample> = (0..=count)
+        .map(|i| sample(at((i * SAMPLE_MS) as f32), 1.0, start_ms + i * SAMPLE_MS))
+        .collect();
+    batches(tool, &samples)
+}
+
 /// `points` resampled as `path` describes, one sample every `SAMPLE_MS` from `start_ms`.
 fn resampled(points: &[[f32; 3]], start_ms: i64) -> Vec<PointerSample> {
     let mut vertices = Vec::new();
@@ -323,6 +350,30 @@ mod tests {
         let last = lift.pointers[1].samples.last().expect("sample");
         assert_eq!((last.position, last.time_ms), ([200.0, 0.0], 10 + 64));
         assert_eq!(batches[n - 1].pointers[0].samples[0].position, [0.0, 0.0]);
+    }
+
+    #[test]
+    fn a_press_moves_by_time_and_holds_where_keys_share_a_place() {
+        let keys = [
+            [0.0, 0.0, 0.0],
+            [40.0, 0.0, 40.0],
+            [40.0, 0.0, 440.0],
+            [80.0, 0.0, 480.0],
+        ];
+        let samples: Vec<PointerSample> = press(Tool::Finger, &keys, 100)
+            .iter()
+            .flat_map(|batch| batch.pointers[0].samples.clone())
+            .collect();
+        assert_eq!(samples.len(), 121, "every 4 ms over 480 ms");
+        assert_eq!(samples[5].position, [20.0, 0.0]);
+        assert!(
+            samples[10..=110].iter().all(|s| s.position == [40.0, 0.0]),
+            "held"
+        );
+        assert_eq!(
+            (samples[120].position, samples[120].time_ms),
+            ([80.0, 0.0], 580)
+        );
     }
 
     #[test]

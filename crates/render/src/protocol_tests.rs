@@ -52,6 +52,17 @@ fn named_slots_hold_what_the_constructors_write() {
     assert_eq!(op.data[PAINT_GRAIN_SCALE], 5.0);
     assert_eq!(op.data[PAINT_BLEND], 2.0);
     assert_eq!(Op::end_active(&paint).data, op.data);
+    let fill = Op::fill(&paint, (3 << 16) | 9);
+    assert_eq!(
+        fill.data[..FILL_MASK],
+        op.data[..FILL_MASK],
+        "a paint op's operands"
+    );
+    assert_eq!(
+        fill.data[FILL_MASK..],
+        [3.0, 9.0],
+        "the mask offset, high part first"
+    );
 }
 
 #[test]
@@ -94,6 +105,7 @@ fn opcode_constants_match_the_enum() {
     assert_eq!(value("TILE"), TILE);
     assert_eq!(value("FRESH"), FRESH);
     assert_eq!(value("GRAIN_ONE"), GRAIN_ONE);
+    assert_eq!(value("MASK_HEADER"), MASK_HEADER);
     for (name, slot) in SLOTS {
         assert_eq!(value(name) as usize, slot, "{name}");
     }

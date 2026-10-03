@@ -1,4 +1,4 @@
-//! Schema 4: the keys and values the library stores (DECISIONS D21, D25, D28, D29).
+//! Schema 5: the keys and values the library stores (DECISIONS D21, D25, D28, D29, D36).
 //!
 //! Keyspace `library`: `schema` -> the schema of every record (u32 LE); `next` -> the next
 //! unused project id (u64 LE); `clock` -> the last value of the change counter (u64 LE); `last`
@@ -10,21 +10,22 @@
 //! - `[project u64]['h']` -> the head: schema (u32), canvas width and height (u32), active
 //!   layer, next layer id and next stroke id (u64), then the layers bottom to top, each id
 //!   (u64), name (u32 length + UTF-8), visible (u8), opacity (f32), locked (u8), alpha locked
-//!   (u8) and its stroke count (u32);
+//!   (u8), its stroke count (u32) and its fill count (u32);
 //! - `[project u64]['s'][layer u64][index u64]` -> one stroke, oldest at index 0: id (u64),
 //!   size, opacity, red, green, blue (f32), blend (u8: 0 paint over, 1 paint atop under Alpha
 //!   Lock, 2 erase), its brush recipe (softness (f32); the curves size over pressure, size over
 //!   speed, opacity over pressure, opacity over speed, each a point count (u32) and per point x,
 //!   y (f32); grain strength (f32) and scale (u32)), sample count (u32), then per sample x, y,
 //!   pressure, tilt, azimuth (f32) and time (u32 ms);
+//! - `[project u64]['f'][layer u64][index u64]` -> one fill, oldest at index 0 (`fills.rs`);
 //! - `[project u64]['t']` -> the gallery thumbnail (`catalogue.rs`), derived from the artwork
 //!   when it was last left; absent until then.
 //!
 //! Integers and floats are little-endian inside values. A save rewrites the head and only the
-//! stroke records that changed. Schema 1 (S7) had no `schema`, `clock`, catalogue entries or
-//! thumbnails, and `last` named the project saved last; schema 2 (S10) had no recipe in its
-//! strokes and no `editor`; schema 3 (S11) had no alpha lock, no blend and a toolbox of one
-//! tool without colours; `migrate.rs` upgrades them.
+//! stroke and fill records that changed. Schema 1 (S7) had no `schema`, `clock`, catalogue
+//! entries or thumbnails, and `last` named the project saved last; schema 2 (S10) had no recipe
+//! in its strokes and no `editor`; schema 3 (S11) had no alpha lock, no blend and a toolbox of
+//! one tool without colours; schema 4 (S12) had no fills; `migrate.rs` upgrades them.
 
 use openpaint_app::{PortError, ProjectId};
 use openpaint_core::{
@@ -34,7 +35,7 @@ use openpaint_core::{
 use crate::codec::{Reader, Writer};
 
 /// The schema this build writes and the newest it reads.
-pub const SCHEMA: u32 = 4;
+pub const SCHEMA: u32 = 5;
 
 pub(crate) const LIBRARY: &str = "library";
 pub(crate) const PROJECTS: &str = "projects";
@@ -55,7 +56,7 @@ pub(crate) const STROKE_STYLE_BYTES: usize = 8 + 5 * 4;
 /// Bytes of one curve point.
 const POINT_BYTES: usize = 8;
 /// Bytes of a layer entry in the head without its name.
-const LAYER_BYTES: usize = 8 + 4 + 1 + 4 + 1 + 1 + 4;
+const LAYER_BYTES: usize = 8 + 4 + 1 + 4 + 1 + 1 + 4 + 4;
 
 /// The prefix of every record of `project` in `projects`.
 pub(crate) fn project_prefix(project: ProjectId) -> Vec<u8> {
@@ -143,8 +144,8 @@ pub(crate) struct Head {
     pub(crate) active: u64,
     pub(crate) next_layer_id: u64,
     pub(crate) next_stroke_id: u64,
-    /// Bottom to top, strokes still empty, with how many each has.
-    pub(crate) layers: Vec<(LayerParts, usize)>,
+    /// Bottom to top, strokes and fills still empty, with how many strokes and fills each has.
+    pub(crate) layers: Vec<(LayerParts, usize, usize)>,
 }
 
 pub(crate) fn encode_head(artwork: &Artwork) -> Vec<u8> {
@@ -165,6 +166,7 @@ pub(crate) fn encode_head(artwork: &Artwork) -> Vec<u8> {
         writer.bool(layer.props().locked());
         writer.bool(layer.props().alpha_locked());
         writer.len(layer.strokes().len());
+        writer.len(layer.edits().len());
     }
     writer.finish()
 }
@@ -190,7 +192,7 @@ pub(crate) fn decode_head(bytes: &[u8]) -> Result<Head, PortError> {
         let name = reader.str()?;
         let (visible, opacity, locked) = (reader.bool()?, reader.f32()?, reader.bool()?);
         let alpha_locked = reader.bool()?;
-        let strokes = reader.u32()? as usize;
+        let (strokes, fills) = (reader.u32()? as usize, reader.u32()? as usize);
         let layer = LayerParts {
             id,
             name,
@@ -199,8 +201,9 @@ pub(crate) fn decode_head(bytes: &[u8]) -> Result<Head, PortError> {
             locked,
             alpha_locked,
             strokes: Vec::new(),
+            fills: Vec::new(),
         };
-        layers.push((layer, strokes));
+        layers.push((layer, strokes, fills));
     }
     reader.end()?;
     Ok(Head {

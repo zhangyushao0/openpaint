@@ -21,14 +21,20 @@ const PAINT_BLEND: usize = 6;
 /// The flow at `a`; the flow at `b` follows it.
 const SEGMENT_FLOW: usize = 6;
 const SEGMENT_EDGE: usize = 8;
-const SLOTS: [(&str, usize); 6] = [
+/// Where a fill's mask starts in the mask words, split in two whole numbers below 2^16 (high
+/// part first) so each stays exact as a float.
+const FILL_MASK: usize = 7;
+const SLOTS: [(&str, usize); 7] = [
     ("PAINT_OPACITY", PAINT_OPACITY),
     ("PAINT_GRAIN", PAINT_GRAIN),
     ("PAINT_GRAIN_SCALE", PAINT_GRAIN_SCALE),
     ("PAINT_BLEND", PAINT_BLEND),
     ("SEGMENT_FLOW", SEGMENT_FLOW),
     ("SEGMENT_EDGE", SEGMENT_EDGE),
+    ("FILL_MASK", FILL_MASK),
 ];
+/// Words before a mask's rows in the mask words: origin x, origin y, width, height.
+pub(crate) const MASK_HEADER: u32 = 4;
 
 /// A paint op's blend, declared to WGSL as constants by `prelude`.
 #[repr(u32)]
@@ -65,14 +71,18 @@ pub(crate) enum Opcode {
     /// texel joins the current coverage (the new segments' maximum), the result is stored back
     /// for the next evaluation, then it is painted like `EndStroke`.
     EndActive = 3,
+    /// A fill: its colour painted over the current layer wherever its mask holds the pixel
+    /// (coverage exactly 1 or 0), like a stroke's paint op.
+    Fill = 4,
 }
 
 impl Opcode {
-    const ALL: [Self; 4] = [
+    const ALL: [Self; 5] = [
         Self::Segment,
         Self::EndStroke,
         Self::EndLayer,
         Self::EndActive,
+        Self::Fill,
     ];
 
     const fn wgsl_name(self) -> &'static str {
@@ -81,6 +91,7 @@ impl Opcode {
             Self::EndStroke => "OP_END_STROKE",
             Self::EndLayer => "OP_END_LAYER",
             Self::EndActive => "OP_END_ACTIVE",
+            Self::Fill => "OP_FILL",
         }
     }
 }
@@ -94,6 +105,9 @@ impl Opcode {
 ///   straight sRGB colour; `grain` a whole number in `0..=GRAIN_ONE`, `grain_scale` whole
 ///   pixels, `blend` a `Blend`.
 /// - `EndLayer`: `[opacity, _, ...]`.
+/// - `Fill`: a paint op's first seven operands, then where its mask starts in the mask words
+///   (`offset / 2^16`, `offset % 2^16`); the mask is `MASK_HEADER` words, then rows of
+///   `ceil(width / 32)` words, bit `x % 32` of word `x / 32`.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Op {
@@ -154,6 +168,16 @@ impl Op {
 
     pub(crate) fn end_active(paint: &Paint) -> Self {
         Self::new(Opcode::EndActive, &paint.operands())
+    }
+
+    /// A fill whose mask starts at word `mask` of the mask words.
+    pub(crate) fn fill(paint: &Paint, mask: u32) -> Self {
+        let mut data = [0.0; OP_DATA];
+        data[..7].copy_from_slice(&paint.operands());
+        // Each part below 2^16: exact as a float.
+        data[FILL_MASK] = (mask >> 16) as f32;
+        data[FILL_MASK + 1] = (mask & 0xffff) as f32;
+        Self::new(Opcode::Fill, &data)
     }
 
     /// An op no plan refers to; it keeps a scene's item and op indices equal.
@@ -281,6 +305,7 @@ pub(crate) fn prelude() -> String {
     wgsl.push_str(&format!("const TILE: u32 = {TILE}u;\n"));
     wgsl.push_str(&format!("const FRESH: u32 = {FRESH}u;\n"));
     wgsl.push_str(&format!("const GRAIN_ONE: u32 = {GRAIN_ONE}u;\n"));
+    wgsl.push_str(&format!("const MASK_HEADER: u32 = {MASK_HEADER}u;\n"));
     for (name, slot) in SLOTS {
         wgsl.push_str(&format!("const {name}: u32 = {slot}u;\n"));
     }

@@ -64,6 +64,17 @@ pub enum Step {
         #[serde(default)]
         palm: Option<Palm>,
     },
+    /// One contact through `[x, y, ms]` keys at full pressure, `ms` from touching down: it
+    /// moves straight between keys in their time and rests where two keys share a place
+    /// (holding still), sampled every 4 ms.
+    Press {
+        path: Vec<[f32; 3]>,
+        #[serde(default = "Tool::finger")]
+        tool: Tool,
+        /// A screenshot of this name just before the contact lifts.
+        #[serde(default)]
+        before_lift: Option<String>,
+    },
     /// Fingers touch down at `from`, move together straight to `to` (default: stay) over `ms`
     /// (default 64), and lift: two fingers apart or together pinch, turned they rotate, moved
     /// alike they pan; fingers that stay tap.
@@ -191,6 +202,11 @@ impl Scenario {
                 Step::Stroke { points, .. } if points.is_empty() => {
                     return Err(invalid("a stroke needs at least one point"));
                 }
+                Step::Press { path, .. }
+                    if path.is_empty() || path.windows(2).any(|keys| keys[1][2] < keys[0][2]) =>
+                {
+                    return Err(invalid("a press needs keys whose times never go back"));
+                }
                 Step::Touch { from, to, .. }
                     if from.is_empty()
                         || from.len() > 5
@@ -199,6 +215,10 @@ impl Scenario {
                     return Err(invalid("a touch needs 1 to 5 fingers, as many at the end"));
                 }
                 Step::Checkpoint { name, .. }
+                | Step::Press {
+                    before_lift: Some(name),
+                    ..
+                }
                 | Step::Screenshot { name }
                 | Step::Exported { name }
                 | Step::View { name, .. } => {

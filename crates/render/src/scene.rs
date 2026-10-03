@@ -2,11 +2,13 @@
 //! reach, and `Fresh`: the in-progress stroke's part of one evaluation. The geometry of one
 //! stroke is in `stroke.rs`.
 
-use openpaint_core::{ActiveStroke, Artwork, LayerId, StrokeBlend, StrokeSample, StrokeStyle};
+use openpaint_core::{
+    ActiveStroke, Artwork, Layer, LayerId, RegionEdit, StrokeBlend, StrokeSample, StrokeStyle,
+};
 
 use crate::error::RenderError;
 use crate::geom::Bounds;
-use crate::protocol::Op;
+use crate::protocol::{Blend, MASK_HEADER, Op, Paint};
 use crate::stroke::{paint, segments};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -16,6 +18,11 @@ pub(crate) enum Item {
         bounds: Bounds,
     },
     EndStroke(Op),
+    /// A fill, painted over its layer inside its mask's rectangle.
+    Fill {
+        op: Op,
+        bounds: Bounds,
+    },
     EndLayer(Op),
     /// Where the in-progress stroke draws: above its layer's finished strokes. Its ops are the
     /// evaluation's `Fresh` ops, which change every frame while the scene stays.
@@ -26,22 +33,27 @@ impl Item {
     /// For `Active`, an op no plan refers to, so item and op indices stay equal.
     pub(crate) fn op(&self) -> Op {
         match self {
-            Self::Segment { op, .. } | Self::EndStroke(op) | Self::EndLayer(op) => *op,
+            Self::Segment { op, .. }
+            | Self::Fill { op, .. }
+            | Self::EndStroke(op)
+            | Self::EndLayer(op) => *op,
             Self::Active => Op::unused(),
         }
     }
 }
 
-/// Bottom layer first; inside a layer, finished strokes oldest first, then the in-progress
-/// stroke's place.
+/// Bottom layer first; inside a layer, finished strokes oldest first with each fill after the
+/// strokes it was made over, then the in-progress stroke's place. `masks` holds the fills'
+/// masks (`MASK_HEADER` words each, then their rows), which the fill ops point into.
 #[derive(Debug, Default)]
 pub(crate) struct Scene {
     pub(crate) items: Vec<Item>,
+    pub(crate) masks: Vec<u32>,
 }
 
 impl Scene {
     /// The finished content of `artwork`, with the place of an in-progress stroke on `active`.
-    /// Hidden layers, and layers with neither strokes nor that place, contribute no ops.
+    /// Hidden layers, and layers with neither content nor that place, contribute no ops.
     pub(crate) fn build(artwork: &Artwork, active: Option<LayerId>) -> Result<Self, RenderError> {
         if let Some(layer) = active
             && artwork.layer(layer).is_none()
@@ -52,22 +64,78 @@ impl Scene {
         }
         let mut scene = Self::default();
         for layer in artwork.layers() {
-            if !layer.props().visible() {
-                continue;
-            }
-            let start = scene.items.len();
-            for stroke in layer.strokes().iter() {
-                scene.push_stroke(stroke.style(), stroke.blend(), stroke.samples());
-            }
-            if active == Some(layer.id()) {
-                scene.items.push(Item::Active);
-            }
-            if scene.items.len() > start {
-                let op = Op::end_layer(layer.props().opacity());
-                scene.items.push(Item::EndLayer(op));
+            if layer.props().visible() {
+                let place = active == Some(layer.id());
+                scene.push_layer(layer, place, layer.props().opacity())?;
             }
         }
         Ok(scene)
+    }
+
+    /// `layer` of `artwork` alone, at full opacity, whether it is shown or not: what a fill
+    /// samples.
+    pub(crate) fn layer(artwork: &Artwork, layer: LayerId) -> Result<Self, RenderError> {
+        let layer = artwork
+            .layer(layer)
+            .ok_or(RenderError::Invalid("the layer is not in the artwork"))?;
+        let mut scene = Self::default();
+        scene.push_layer(layer, false, 1.0)?;
+        Ok(scene)
+    }
+
+    fn push_layer(&mut self, layer: &Layer, active: bool, opacity: f32) -> Result<(), RenderError> {
+        let start = self.items.len();
+        let mut edits = layer.edits().iter().peekable();
+        for (index, stroke) in layer.strokes().iter().enumerate() {
+            while let Some(edit) = edits.next_if(|edit| edit.after() == index) {
+                self.push_fill(edit)?;
+            }
+            self.push_stroke(stroke.style(), stroke.blend(), stroke.samples());
+        }
+        for edit in edits {
+            self.push_fill(edit)?;
+        }
+        if active {
+            self.items.push(Item::Active);
+        }
+        if self.items.len() > start {
+            self.items.push(Item::EndLayer(Op::end_layer(opacity)));
+        }
+        Ok(())
+    }
+
+    fn push_fill(&mut self, edit: &RegionEdit) -> Result<(), RenderError> {
+        let mask = edit.mask();
+        let at = u32::try_from(self.masks.len())
+            .map_err(|_| RenderError::Invalid("the fill masks exceed 2^32 words"))?;
+        let ([x, y], [width, height]) = (mask.origin(), mask.size());
+        self.masks.extend([x, y, width, height]);
+        self.masks.extend_from_slice(mask.words());
+        debug_assert_eq!(MASK_HEADER, 4);
+        let color = edit.color();
+        let paint = Paint {
+            color: [color.r(), color.g(), color.b()],
+            opacity: 1.0,
+            grain: 0,
+            grain_scale: 1,
+            blend: if edit.alpha_locked() {
+                Blend::Atop
+            } else {
+                Blend::Over
+            },
+        };
+        // The mask's pixels, from their top-left corner to past their bottom-right one.
+        let bounds = Bounds([
+            x as f32,
+            y as f32,
+            (x + width) as f32 - 0.5,
+            (y + height) as f32 - 0.5,
+        ]);
+        self.items.push(Item::Fill {
+            op: Op::fill(&paint, at),
+            bounds,
+        });
+        Ok(())
     }
 
     /// Whether the in-progress stroke has a place, that is, its layer is visible.
@@ -136,6 +204,7 @@ mod tests {
         let name = |item: &Item| match item {
             Item::Segment { .. } => "segment",
             Item::EndStroke(_) => "stroke",
+            Item::Fill { .. } => "fill",
             Item::EndLayer(_) => "layer",
             Item::Active => "active",
         };

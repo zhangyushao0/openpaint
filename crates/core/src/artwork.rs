@@ -85,8 +85,9 @@ impl Artwork {
 
     /// Heap bytes this version holds that `base` does not share, for history budgets: the
     /// state and its layer table, and per layer the stroke chunks and samples that `base`'s
-    /// layer of the same id does not share. Unchanged layers cost O(1), changed ones O(chunks),
-    /// never O(strokes). Names are not counted.
+    /// layer of the same id does not share, and the fill masks it does not share. Unchanged
+    /// layers cost O(1), changed ones O(chunks + edits), never O(strokes). Names are not
+    /// counted.
     #[must_use]
     pub fn bytes_since(&self, base: &Self) -> usize {
         if self.same_version(base) {
@@ -102,6 +103,7 @@ impl Artwork {
             bytes += layer
                 .strokes
                 .bytes_since(before.map(|before| &before.strokes));
+            bytes += layer.edit_bytes_since(before);
         }
         bytes
     }

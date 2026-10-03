@@ -205,6 +205,22 @@ pub(crate) fn leave_job(
     }
 }
 
+/// The gallery's intents in order; anything else from a gallery frame is a stray.
+pub(crate) fn dispatch_gallery(gallery: &mut Gallery, intents: Vec<openpaint_app::Intent>) {
+    for intent in intents {
+        let result = match intent {
+            openpaint_app::Intent::Gallery(intent) => gallery.dispatch(intent),
+            other => {
+                log::debug!("ignored in the gallery: {other:?}");
+                Ok(())
+            }
+        };
+        if let Err(error) = result {
+            log::warn!("intent refused: {error}");
+        }
+    }
+}
+
 fn started(opened: Opened) -> Screen {
     match opened {
         Opened::Last(project) => {

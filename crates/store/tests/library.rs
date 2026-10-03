@@ -46,11 +46,42 @@ fn reopened(dir: &std::path::Path) -> Artwork {
         .artwork
 }
 
-fn stroke_records(dir: &std::path::Path) -> usize {
+/// How many records of `kind` (`b's'` strokes, `b'f'` fills) the library holds.
+fn kind_records(dir: &std::path::Path, kind: u8) -> usize {
     records(dir)
         .iter()
-        .filter(|(keyspace, key, _)| keyspace == "projects" && key.len() == 25)
+        .filter(|(keyspace, key, _)| keyspace == "projects" && key.len() == 25 && key[8] == kind)
         .count()
+}
+
+fn stroke_records(dir: &std::path::Path) -> usize {
+    kind_records(dir, b's')
+}
+
+#[test]
+fn fills_are_saved_by_their_own_records_and_open_again_exactly() {
+    let dir = fresh_dir("fills");
+    let one = draw(&blank(), 10.0, 20);
+    let mut inside = vec![false; 320 * 200];
+    inside[30 * 320 + 40..][..100].fill(true);
+    inside[31 * 320 + 40..][..100].fill(true);
+    let mask = openpaint_core::RegionMask::from_pixels(one.canvas(), &inside).expect("mask");
+    let red = Color::rgb(1.0, 0.0, 0.0).expect("red");
+    let filled = one.fill_region(mask, red).expect("fill").artwork;
+    let later = draw(&filled, 60.0, 20);
+    let mut library = Library::at(&dir);
+    let id = library.create(&one, &untitled()).expect("create");
+    for (version, strokes, fills) in [(&filled, 1, 1), (&later, 2, 1), (&one, 1, 0)] {
+        library.save(id, version).expect("save");
+        drop(library);
+        assert_eq!(reopened(&dir).to_parts(), version.to_parts());
+        assert_eq!(
+            (stroke_records(&dir), kind_records(&dir, b'f')),
+            (strokes, fills)
+        );
+        library = Library::at(&dir);
+        assert!(library.open_last().expect("reopen").is_some());
+    }
 }
 
 #[test]
@@ -188,23 +219,23 @@ fn head(records: &mut [(String, Vec<u8>, Vec<u8>)]) -> &mut Vec<u8> {
 
 #[test]
 fn unreadable_records_are_refused_with_a_reason() {
-    let newer = corrupted("newer", |records| head(records)[0] = 5);
+    let newer = corrupted("newer", |records| head(records)[0] = 6);
     assert_eq!(
         newer,
         PortError::NewerSchema {
-            found: 5,
-            newest: 4
+            found: 6,
+            newest: 5
         }
     );
     let newer_library = corrupted("newer-library", |records| {
         let schema = records.iter_mut().find(|(_, key, _)| key == b"schema");
-        schema.expect("schema record").2 = 5u32.to_le_bytes().to_vec();
+        schema.expect("schema record").2 = 6u32.to_le_bytes().to_vec();
     });
     assert_eq!(
         newer_library,
         PortError::NewerSchema {
-            found: 5,
-            newest: 4
+            found: 6,
+            newest: 5
         }
     );
     let short = corrupted("short", |records| {

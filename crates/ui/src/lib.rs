@@ -7,6 +7,7 @@
 mod actions_panel;
 mod brush_panel;
 mod canvas_input;
+mod color_drop;
 mod color_panel;
 pub mod components;
 pub mod design;

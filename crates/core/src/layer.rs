@@ -1,7 +1,10 @@
 //! `Layer` and its properties. Layers change only through artwork commands and stroke sessions.
 
+use std::sync::Arc;
+
 use crate::error::CoreError;
 use crate::id::LayerId;
+use crate::region::RegionEdit;
 use crate::stroke_list::StrokeList;
 use crate::value::{LayerName, invalid, is_unit};
 
@@ -74,13 +77,16 @@ pub(crate) fn check_opacity(opacity: f32) -> Result<f32, CoreError> {
     }
 }
 
-/// One layer: identity, name, properties and strokes. Clone is cheap (shared strokes and name).
+/// One layer: identity, name, properties, strokes and region edits (fills). Clone is cheap
+/// (shared strokes, edits and name).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Layer {
     pub(crate) id: LayerId,
     pub(crate) name: LayerName,
     pub(crate) props: LayerProps,
     pub(crate) strokes: StrokeList,
+    /// Oldest first; each lies after its `after` strokes, so `after` never decreases.
+    pub(crate) edits: Arc<[RegionEdit]>,
 }
 
 impl Layer {
@@ -91,7 +97,31 @@ impl Layer {
             name: LayerName::numbered(id.get()),
             props: LayerProps::default(),
             strokes: StrokeList::default(),
+            edits: Arc::from([]),
         }
+    }
+
+    /// The fills, oldest first. Drawing order: the edits with `after` 0, stroke 0, the edits
+    /// with `after` 1, stroke 1, and so on.
+    #[must_use]
+    pub fn edits(&self) -> &[RegionEdit] {
+        &self.edits
+    }
+
+    /// Heap bytes of the edits that `base` (the same layer in an older version) does not share.
+    pub(crate) fn edit_bytes_since(&self, base: Option<&Self>) -> usize {
+        let old = base.map_or(&[][..], |base| &base.edits[..]);
+        if base.is_some_and(|base| Arc::ptr_eq(&self.edits, &base.edits)) {
+            return 0;
+        }
+        let mut bytes = size_of_val::<[RegionEdit]>(&self.edits);
+        for (index, edit) in self.edits.iter().enumerate() {
+            let shared = old.get(index).is_some_and(|o| o.mask.shares(&edit.mask));
+            if !shared {
+                bytes += size_of_val(edit.mask.words());
+            }
+        }
+        bytes
     }
 
     #[must_use]

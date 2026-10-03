@@ -4,9 +4,10 @@
 //! to save and reports how saving went. The session also keeps how the artwork is viewed, which
 //! is no history step and is not stored.
 
-use openpaint_core::{ActiveStroke, Artwork, CanvasSize, StrokeStyle};
+use openpaint_core::{ActiveStroke, Artwork, CanvasSize, RegionMask, StrokeStyle};
 
 use crate::error::AppError;
+use crate::fill::{FillFailed, FillJob, Fills};
 use crate::history::{HISTORY_BUDGET, History, HistoryIntent};
 use crate::intent::Intent;
 use crate::layers::{self, LayerList, Layers};
@@ -21,6 +22,7 @@ pub struct Session {
     history: History,
     strokes: Strokes,
     layers: Layers,
+    fills: Fills,
     autosave: Autosave,
     /// How the artwork shows; it lives as long as the session (every artwork opens at fit).
     view: CanvasView,
@@ -42,6 +44,7 @@ impl Session {
             history: History::new(artwork, HISTORY_BUDGET),
             strokes: Strokes::new(brush),
             layers: Layers::default(),
+            fills: Fills::default(),
             view: CanvasView::FIT,
         }
     }
@@ -69,6 +72,7 @@ impl Session {
     pub fn dispatch(&mut self, intent: Intent) -> Result<(), AppError> {
         if let Intent::Layer(layer) = &intent {
             let drawing = self.strokes.active().is_some();
+            self.fills.interrupt();
             return self.layers.handle(&mut self.history, drawing, layer);
         }
         if let Intent::View(view) = intent {
@@ -76,6 +80,16 @@ impl Session {
             return Ok(());
         }
         self.layers.interrupt();
+        if let Intent::Fill(fill) = intent {
+            let drawing = self.strokes.active().is_some();
+            return self.fills.handle(&mut self.history, drawing, fill);
+        }
+        if matches!(
+            intent,
+            Intent::Stroke(_) | Intent::History(_) | Intent::Gallery(_)
+        ) {
+            self.fills.interrupt();
+        }
         match intent {
             Intent::Stroke(stroke) => {
                 let mut artwork = self.history.current().clone();
@@ -89,6 +103,7 @@ impl Session {
             // runtime hands their intents to them (and the brush's style to `set_brush`).
             Intent::Layer(_)
             | Intent::View(_)
+            | Intent::Fill(_)
             | Intent::Brush(_)
             | Intent::Tool(_)
             | Intent::Export(_)
@@ -109,6 +124,30 @@ impl Session {
     #[must_use]
     pub fn active(&self) -> Option<&ActiveStroke> {
         self.strokes.active()
+    }
+
+    /// What the canvas shows: the current version, or the preview of the fill being placed on
+    /// it (which is not in history).
+    #[must_use]
+    pub fn shown(&self) -> &Artwork {
+        let current = self.history.current();
+        self.fills.shown(current).unwrap_or(current)
+    }
+
+    /// The newest fill request for the fill worker, when none runs and it was not handed out.
+    pub fn fill_request(&mut self) -> Option<FillJob> {
+        self.fills.job()
+    }
+
+    /// The fill worker computed request `sequence`: the region, or why there is none.
+    pub fn fill_finished(&mut self, sequence: u64, result: Result<RegionMask, FillFailed>) {
+        self.fills.finished(&mut self.history, sequence, result);
+    }
+
+    /// True while a fill is being placed or adjusted.
+    #[must_use]
+    pub fn filling(&self) -> bool {
+        self.fills.projection().active
     }
 
     /// What the UI may offer now. Something there is nothing for is `NothingLeft` even while a
@@ -151,6 +190,7 @@ impl Session {
             view: self.view,
             canvas: Some(artwork.canvas()),
             drawing,
+            fill: self.fills.projection(),
             brush: None,
             transfers: None,
         }

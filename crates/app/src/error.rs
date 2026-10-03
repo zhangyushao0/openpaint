@@ -5,6 +5,7 @@ use std::fmt;
 
 use openpaint_core::CoreError;
 
+use crate::fill::FillRefusal;
 use crate::projection::{Availability, EditorAction};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -15,12 +16,15 @@ pub enum AppError {
         action: EditorAction,
         availability: Availability,
     },
+    /// A fill cannot go on the active layer.
+    FillRefused(FillRefusal),
 }
 
 impl fmt::Display for AppError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Core(error) => write!(f, "{error}"),
+            Self::FillRefused(refusal) => write!(f, "no fill: {refusal}"),
             Self::Unavailable {
                 action,
                 availability,

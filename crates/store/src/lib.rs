@@ -8,6 +8,7 @@ mod catalogue;
 mod codec;
 mod delta;
 mod editor;
+mod fills;
 mod image_file;
 mod library;
 mod migrate;

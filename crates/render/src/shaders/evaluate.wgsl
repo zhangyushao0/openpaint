@@ -14,6 +14,7 @@
 @group(0) @binding(4) var canvas_out: texture_storage_2d<rgba8unorm, write>;
 @group(0) @binding(5) var<storage, read> fresh: array<Op>;
 @group(0) @binding(6) var kept: texture_storage_2d<r32float, read_write>;
+@group(0) @binding(7) var<storage, read> masks: array<u32>;
 
 @compute @workgroup_size(TILE, TILE)
 fn evaluate(
@@ -56,6 +57,9 @@ fn evaluate(
                 layer = blend(stroke_paint(coverage, pixel, op), layer, op);
                 coverage = 0.0;
             }
+            case OP_FILL: {
+                layer = blend(stroke_paint(fill_coverage(pixel, op), pixel, op), layer, op);
+            }
             case OP_END_LAYER: {
                 canvas = over(layer * op.data[0], canvas);
                 layer = vec4<f32>(0.0);
@@ -71,6 +75,21 @@ fn evaluate(
 fn stroke_paint(coverage: f32, pixel: vec2<u32>, op: Op) -> vec4<f32> {
     let alpha = coverage * grain(pixel, op) * op.data[PAINT_OPACITY];
     return vec4<f32>(vec3<f32>(op.data[0], op.data[1], op.data[2]) * alpha, alpha);
+}
+
+// 1 where the fill's mask holds `pixel`, else 0: a hard edge. The mask starts at word
+// `offset` of `masks`: origin, size, then rows of whole words, one bit per pixel.
+fn fill_coverage(pixel: vec2<u32>, op: Op) -> f32 {
+    let at = u32(op.data[FILL_MASK]) * 65536u + u32(op.data[FILL_MASK + 1u]);
+    let origin = vec2<u32>(masks[at], masks[at + 1u]);
+    let size = vec2<u32>(masks[at + 2u], masks[at + 3u]);
+    if any(pixel < origin) || any(pixel >= origin + size) {
+        return 0.0;
+    }
+    let local = pixel - origin;
+    let stride = (size.x + 31u) / 32u;
+    let word = masks[at + MASK_HEADER + local.y * stride + local.x / 32u];
+    return f32((word >> (local.x % 32u)) & 1u);
 }
 
 fn over(source: vec4<f32>, destination: vec4<f32>) -> vec4<f32> {

@@ -12,14 +12,17 @@ use openpaint_app::{
     BrushKey, CanvasView, ContactPhase, EditorAction, GalleryIntent, InputBatch, Intent,
     ScreenProjection, SessionProjection,
 };
-use openpaint_core::CanvasSize;
+use openpaint_core::{CanvasSize, Color};
 use openpaint_render::RgbaImage;
 
 use crate::actions_panel::ActionsPanel;
 use crate::brush_panel::BrushPanel;
 use crate::canvas_input::{CanvasFrame, CanvasInput};
+use crate::color_drop::{ColorDrop, DropBar, DropFrame};
 use crate::color_panel::ColorPanel;
-use crate::components::{ScreenArea, canvas_frame, text_button, top_bar, view_status, view_text};
+use crate::components::{
+    ScreenArea, canvas_frame, carried_drop, fill_bar, text_button, top_bar, view_status, view_text,
+};
 use crate::gallery::GalleryScreen;
 use crate::layer_panel::LayerPanel;
 use crate::notices::top_bar_notice;
@@ -55,6 +58,9 @@ struct Shown {
     view: CanvasView,
     picking: bool,
     drawing: bool,
+    /// The colour a drop carries and the threshold it starts with.
+    color: Option<Color>,
+    threshold: f32,
 }
 
 /// The screen's UI-local state between frames.
@@ -74,6 +80,9 @@ pub struct Shell {
     colors: ColorPanel,
     side: SideBar,
     reference: ReferenceWindow,
+    drop: ColorDrop,
+    /// Where the fill bar lies, from the last pass.
+    drop_bar: Option<ScreenArea>,
     gallery: GalleryScreen,
     /// Intents from taps on the chrome since the last `route`.
     taps: Vec<Intent>,
@@ -101,6 +110,8 @@ impl Shell {
             self.side.hide();
             self.gallery.back();
             self.input = CanvasInput::default();
+            self.drop.reset();
+            self.drop_bar = None;
             self.showing = showing;
         }
         self.pixels_per_point = ui.ctx().pixels_per_point();
@@ -132,6 +143,8 @@ impl Shell {
             view: projection.view(),
             picking: projection.brush().is_some_and(|brush| brush.picking),
             drawing: projection.drawing(),
+            color: projection.brush().map(|brush| brush.color),
+            threshold: projection.fill().threshold,
         });
         top_bar(ui, |ui| {
             let enabled = projection.availability(EditorAction::Gallery).is_offered();
@@ -164,7 +177,41 @@ impl Shell {
         self.layers.show(ctx, projection, &mut self.taps);
         self.brushes.show(ctx, projection, &mut self.taps);
         self.colors.show(ctx, projection, &mut self.taps);
+        self.show_drop(ctx, projection);
         rect
+    }
+
+    /// The drop the hand carries and the fill bar: what to do while dropping, the threshold
+    /// while it is adjusted, then the offer to keep filling.
+    fn show_drop(&mut self, ctx: &egui::Context, projection: &SessionProjection) {
+        self.drop_bar = None;
+        let ppp = self.pixels_per_point;
+        if let (Some([x, y]), Some(brush)) = (self.drop.carried(), projection.brush()) {
+            carried_drop(ctx, egui::pos2(x / ppp, y / ppp), brush.color);
+        }
+        let Some(bar) = self.drop.bar() else {
+            return;
+        };
+        // A refused or failed drop filled nothing: no offer to keep filling.
+        let fill = projection.fill();
+        if bar == DropBar::Offered && (fill.refused.is_some() || fill.failed) {
+            self.drop.set_continuing(false);
+            return;
+        }
+        let (text, action) = match bar {
+            DropBar::Dropping(None) => ("Lift to fill. Hold still to adjust.".to_owned(), None),
+            DropBar::Dropping(Some(threshold)) => (
+                format!("Threshold {:.1} % · slide to adjust", threshold * 100.0),
+                None,
+            ),
+            DropBar::Offered => ("Filled.".to_owned(), Some("Continue filling")),
+            DropBar::Continuing => ("Tap an area to fill it.".to_owned(), Some("Done")),
+        };
+        let (rect, clicked) = fill_bar(ctx, &text, action);
+        self.drop_bar = Some(ScreenArea::from_points(rect, ppp));
+        if clicked {
+            self.drop.set_continuing(bar == DropBar::Offered);
+        }
     }
 
     /// The input clock now (the platform time input samples carry), for the frame about to be
@@ -197,7 +244,8 @@ impl Shell {
         let fading = self.input.navigated().is_some_and(|moved| {
             self.now_ms.saturating_sub(moved) < STATUS_HOLD_MS + STATUS_FADE_MS
         });
-        self.showing == Showing::Canvas && (fading || self.input.holding())
+        let held = self.input.holding() || self.drop.holding();
+        self.showing == Showing::Canvas && (fading || held)
     }
 
     fn close_panels(&mut self) {
@@ -259,6 +307,7 @@ impl Shell {
             .or(self.colors.area());
         let covers: Vec<ScreenArea> = [self.side.area(), self.reference.area(), panel]
             .into_iter()
+            .chain([self.drop_bar])
             .flatten()
             .collect();
         let frame = CanvasFrame {
@@ -272,9 +321,23 @@ impl Shell {
             drawing: shown.drawing,
             control: !self.taps.is_empty(),
         };
-        let mut intents = self.input.route(&frame, batches);
+        let drop = DropFrame {
+            swatch: self.colors.button_area(),
+            color: shown.color,
+            threshold: shown.threshold,
+            bar: self.drop_bar,
+        };
+        let (mut intents, rest) = self.drop.route(&frame, &drop, batches);
+        if self.drop.carried().is_some() {
+            self.close_panels();
+        }
+        intents.extend(self.input.route(&frame, &rest));
         if panel.is_some() && touched_outside(&area, &covers, batches) {
             self.close_panels();
+        }
+        // Choosing a tool ends continuing to fill.
+        if self.taps.iter().any(|tap| matches!(tap, Intent::Tool(_))) {
+            self.drop.set_continuing(false);
         }
         intents.append(&mut self.taps);
         intents

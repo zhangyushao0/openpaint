@@ -10,7 +10,7 @@ use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
 use crate::image::RgbaImage;
 use crate::plan::Plan;
-use crate::program::{Bindings, COVERAGE_FORMAT, Dispatch, scene_ops};
+use crate::program::{Bindings, COVERAGE_FORMAT, Dispatch, SceneOps, scene_ops};
 use crate::readback::{read_rgba, read_texel, target_texture};
 use crate::scene::{Fresh, Scene};
 use crate::screen::{VIEW_BYTES, blit_bind_group};
@@ -34,7 +34,7 @@ struct SceneCache {
     artwork: Artwork,
     active: Option<LayerId>,
     scene: Scene,
-    ops: wgpu::Buffer,
+    ops: SceneOps,
 }
 
 impl CanvasTarget {
@@ -173,6 +173,39 @@ impl<'a> RegionEvaluator<'a> {
             self.target.track.forget();
         }
         result
+    }
+
+    /// Evaluates `layer` of `artwork` alone over the whole target, at full opacity, on nothing
+    /// (transparent black), whether the layer is shown or not: premultiplied layer pixels for a
+    /// fill to sample. The target then holds no frame of the artwork.
+    pub(crate) fn evaluate_layer(
+        &mut self,
+        artwork: &Artwork,
+        layer: LayerId,
+    ) -> Result<(), RenderError> {
+        let size = self.target.size();
+        let canvas = artwork.canvas();
+        if size != [canvas.width(), canvas.height()] {
+            return Err(RenderError::Invalid(
+                "the target's size differs from the canvas size",
+            ));
+        }
+        let scene = Scene::layer(artwork, layer)?;
+        let ops = scene_ops(&self.core.gpu, &scene);
+        let plan = Plan::build(&scene, &Fresh::default(), size, &[PixelRect::full(size)]);
+        self.target.scene = None;
+        self.target.track.forget();
+        self.core.evaluate.dispatch(
+            &self.core.gpu,
+            &mut self.target.bindings,
+            &Dispatch {
+                ops: &ops,
+                fresh: &[],
+                plan: &plan,
+                background: [0.0; 4],
+                reset: false,
+            },
+        )
     }
 
     fn dispatch(

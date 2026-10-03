@@ -20,8 +20,8 @@ pub(crate) fn shader_source() -> String {
 
 /// What one dispatch evaluates.
 pub(crate) struct Dispatch<'a> {
-    /// The scene's ops (`scene_ops`), uploaded once per scene.
-    pub(crate) ops: &'a wgpu::Buffer,
+    /// The scene's ops and its fill masks (`scene_ops`), uploaded once per scene.
+    pub(crate) ops: &'a SceneOps,
     /// The in-progress stroke's ops for this evaluation.
     pub(crate) fresh: &'a [Op],
     pub(crate) plan: &'a Plan,
@@ -42,7 +42,14 @@ pub(crate) struct Bindings {
     params: wgpu::Buffer,
     /// Tiles, indices and fresh ops, in binding order 2, 3, 5.
     lists: [wgpu::Buffer; 3],
+    /// Built for the scene ops buffer it names.
     group: Option<(wgpu::Buffer, wgpu::BindGroup)>,
+}
+
+/// One scene on the GPU: its ops (item index = op index) and its fill masks.
+pub(crate) struct SceneOps {
+    pub(crate) ops: wgpu::Buffer,
+    pub(crate) masks: wgpu::Buffer,
 }
 
 impl Bindings {
@@ -109,6 +116,7 @@ impl EvaluatePipeline {
                 texture_entry(4, wgpu::StorageTextureAccess::WriteOnly, FORMAT),
                 buffer_entry(5, read_only),
                 texture_entry(6, wgpu::StorageTextureAccess::ReadWrite, COVERAGE_FORMAT),
+                buffer_entry(7, read_only),
             ],
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -149,10 +157,10 @@ impl EvaluatePipeline {
         if bindings
             .group
             .as_ref()
-            .is_none_or(|(ops, _)| ops != work.ops)
+            .is_none_or(|(ops, _)| *ops != work.ops.ops)
         {
             let group = self.bind_group(gpu, bindings, work.ops);
-            bindings.group = Some((work.ops.clone(), group));
+            bindings.group = Some((work.ops.ops.clone(), group));
         }
         let mut encoder = gpu.device.create_command_encoder(&Default::default());
         if work.reset {
@@ -168,14 +176,15 @@ impl EvaluatePipeline {
         Ok(())
     }
 
-    fn bind_group(&self, gpu: &Gpu, bindings: &Bindings, ops: &wgpu::Buffer) -> wgpu::BindGroup {
+    fn bind_group(&self, gpu: &Gpu, bindings: &Bindings, scene: &SceneOps) -> wgpu::BindGroup {
         let [tiles, indices, fresh] = &bindings.lists;
         let buffers = [
             (0, &bindings.params),
-            (1, ops),
+            (1, &scene.ops),
             (2, tiles),
             (3, indices),
             (5, fresh),
+            (7, &scene.masks),
         ];
         let mut entries: Vec<_> = buffers
             .into_iter()
@@ -198,10 +207,13 @@ impl EvaluatePipeline {
     }
 }
 
-/// The scene's ops as one GPU buffer, item index = op index.
-pub(crate) fn scene_ops(gpu: &Gpu, scene: &Scene) -> wgpu::Buffer {
+/// The scene's ops (item index = op index) and its fill masks as GPU buffers.
+pub(crate) fn scene_ops(gpu: &Gpu, scene: &Scene) -> SceneOps {
     let ops: Vec<Op> = scene.items.iter().map(|item| item.op()).collect();
-    buffer(gpu, wgpu::BufferUsages::STORAGE, &ops)
+    SceneOps {
+        ops: buffer(gpu, wgpu::BufferUsages::STORAGE, &ops),
+        masks: buffer(gpu, wgpu::BufferUsages::STORAGE, &scene.masks),
+    }
 }
 
 /// Zero coverage everywhere, through a render pass: clearing a texture directly needs an

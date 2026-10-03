@@ -32,11 +32,7 @@ Passed 2026-10-02: S2 to S8 done (see "Done"); the author judged pen feel and pa
 
 Exit: the author finishes an inked and flat-coloured piece (W1) on the tablet.
 
-S9 to S14 are done (see "Done"). Inking and flat colour need navigation, fill, stabilisation and a finished look first (author, 2026-10-02), so S14 to S17 come before the exit. Every slice from S14 on starts from the predecessor's implementation of the same feature (`C:\repo\draweave`: behaviour, constants, tested edge cases, fix commits; never its architecture) and the lessons in ARCHITECTURE section 10.
-
-**S15 Fill** (new crate raster, core, app, ui, render)
-- Connected-region fill on the active layer: drag the colour swatch onto the canvas (Procreate's ColorDrop) and a fill tap; tolerance set by holding and dragging; behaviour and edge cases as in draweave. Undoable; stored as artwork content.
-- Done: cases for soft edges, gaps and pinholes; the walk-through scenario passes.
+S9 to S15 are done (see "Done"). Inking and flat colour need navigation, fill, stabilisation and a finished look first (author, 2026-10-02), so S14 to S17 come before the exit. Every slice from S14 on starts from the predecessor's implementation of the same feature (`C:\repo\draweave`: behaviour, constants, tested edge cases, fix commits; never its architecture) and the lessons in ARCHITECTURE section 10.
 
 **S16 Stabilisation and pencil** (app, core, render)
 - A StreamLine-like smoothing amount per brush in the stroke intent; the pencil retuned to draweave's tuned pencil (grain, pressure and tilt response). Old artworks keep their recipe snapshots.
@@ -84,7 +80,8 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - 2026-10-02 Narrow windows (S12): the top bar's right end holds four buttons, so on a window under about 700 points the save notice and Retry no longer fit; the side bar runs off the bottom under about 450 points.
 - 2026-10-02 Reference and export follow-ups (S13): pinch zoom and resizing in the reference window (the gesture trackers exist since S14), storing the reference with the artwork (asset store, format change), export with a transparent background, layers or PSD.
 - 2026-10-03 View follow-ups (S14): remember the view per artwork (draweave did, committed once at gesture end; a format change); rotation snapping (draweave had none); Procreate's four-finger tap to hide the interface (needs a visible control first, D32); a flip; mipmaps or a reduced copy for far zoomed-out views if shimmer shows on the tablet; ask for frames by deadline instead of continuously while fingers hold.
-- 2026-10-03 `replay` (harness): its undo/redo taps aim at the top bar since S11 moved them to the side bar, and its golden predates the fit view; re-aim and re-record.
+- 2026-10-03 Fill follow-ups (S15): draweave's fill reference layer (flood one layer, fill another); gap closing; filling inside a selection (S18); keeping the threshold across artworks and launches (toolbox state); the fill bar covers the canvas's top middle while offered; a pencil's grain stops low-threshold fills at its specks.
+- 2026-10-03 Fill cost (S15): each scene rebuild re-uploads every fill mask (618 KB for a full-canvas fill), and a full-canvas flood takes about 145 ms on the tablet; cache masks on the target and flood incrementally if long sessions or fast slides show it (G5).
 - 2026-10-02 Pen stroke cancelled by a landing touch: with injected input the dispatcher cancels the pen's gesture when a touch lands mid-stroke and the stroke is dropped; if real hardware does the same, commit the stroke drawn so far on such a cancel.
 
 ## Done
@@ -106,3 +103,4 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - S12 2026-10-02 `feat(render): eraser, Alpha Lock, colour wheel with recent colours, eyedropper by render picking, schema 4 (S12)`; confirmed on the tablet with injected input; the author's schema-3 library upgraded pixel-identical
 - S13 2026-10-02 `feat(android): export, share and a floating reference image (S13)`; exported PNG equals the screen (test and tablet, AE 0); picking, saving and sharing confirmed on the tablet with injected input; G2 exit awaits the author
 - S14 2026-10-03 `feat(ui): canvas view, navigation gestures, finger undo and redo, canvas size presets (S14)`; gestures, pen at zoom and rotation, taps and quick pinch confirmed on the tablet through the debug gesture instrumentation; no format change
+- S15 2026-10-03 `feat(raster): ColorDrop fill with threshold hold, continue filling, fills as artwork content, schema 5 (S15)`; drop, hold-and-slide, fill tap, undo, hidden-layer refusal and reopen confirmed on the tablet with injected input; the author's schema-4 library upgraded pixel-identical

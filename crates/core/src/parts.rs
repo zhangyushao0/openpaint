@@ -5,6 +5,7 @@ use crate::artwork::Artwork;
 use crate::brush::{BrushRecipe, Curve, Dynamics, Grain};
 use crate::error::CoreError;
 use crate::layer::Layer;
+use crate::region::RegionEdit;
 use crate::stroke::{Stroke, StrokeBlend, StrokeSample};
 
 /// A whole artwork as plain data.
@@ -29,6 +30,23 @@ pub struct LayerParts {
     pub alpha_locked: bool,
     /// Oldest first.
     pub strokes: Vec<StrokeParts>,
+    /// Fills, oldest first.
+    pub fills: Vec<FillParts>,
+}
+
+/// A fill as plain data: its place among the layer's strokes, its colour and its mask as runs
+/// over a rectangle (`RegionMask::from_runs`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct FillParts {
+    /// How many of the layer's strokes lie under it.
+    pub after: u64,
+    /// sRGB red, green, blue.
+    pub color: [f32; 3],
+    pub alpha_locked: bool,
+    pub origin: [u32; 2],
+    pub size: [u32; 2],
+    /// Alternately outside and inside, row by row, starting outside.
+    pub runs: Vec<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -125,6 +143,19 @@ fn layer_parts(layer: &Layer) -> LayerParts {
         locked: layer.props.locked,
         alpha_locked: layer.props.alpha_locked,
         strokes: layer.strokes.iter().map(stroke_parts).collect(),
+        fills: layer.edits.iter().map(fill_parts).collect(),
+    }
+}
+
+fn fill_parts(edit: &RegionEdit) -> FillParts {
+    let color = edit.color;
+    FillParts {
+        after: edit.after as u64,
+        color: [color.r(), color.g(), color.b()],
+        alpha_locked: edit.alpha_locked,
+        origin: edit.mask.origin(),
+        size: edit.mask.size(),
+        runs: edit.mask.runs(),
     }
 }
 

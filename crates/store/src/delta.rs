@@ -2,16 +2,18 @@
 //! between the stored version and the new one only the strokes after their common prefix
 //! change: drawing appends one, undo drops the last, a branch replaces the tail.
 
-use openpaint_core::{Artwork, Stroke, StrokeList};
+use openpaint_core::{Artwork, RegionEdit, Stroke, StrokeList};
 
-/// One stroke record by layer id and position.
+/// One stroke or fill record by layer id and position.
 pub(crate) type Slot = (u64, usize);
 
-/// The stroke records to write and the ones to remove; never the same slot in both.
+/// The stroke and fill records to write and the ones to remove; never the same slot in both.
 #[derive(Debug, Default, PartialEq)]
 pub(crate) struct Delta<'a> {
     pub(crate) write: Vec<(Slot, &'a Stroke)>,
     pub(crate) remove: Vec<Slot>,
+    pub(crate) write_fills: Vec<(Slot, &'a RegionEdit)>,
+    pub(crate) remove_fills: Vec<Slot>,
 }
 
 /// The records that turn the stored `base` into `artwork`. Per layer this compares stroke
@@ -34,6 +36,18 @@ pub(crate) fn delta<'a>(base: &Artwork, artwork: &'a Artwork) -> Delta<'a> {
         delta
             .remove
             .extend((new.len().max(kept)..old_len).map(|index| (id, index)));
+        let old_fills = base.layer(layer.id()).map_or(&[][..], |old| old.edits());
+        let new_fills = layer.edits();
+        let kept = old_fills
+            .iter()
+            .zip(new_fills)
+            .take_while(|(old, new)| same_fill(old, new))
+            .count();
+        for (index, fill) in new_fills.iter().enumerate().skip(kept) {
+            delta.write_fills.push(((id, index), fill));
+        }
+        let removed = new_fills.len().max(kept)..old_fills.len();
+        delta.remove_fills.extend(removed.map(|index| (id, index)));
     }
     for old in base.layers() {
         if artwork.layer(old.id()).is_none() {
@@ -41,9 +55,19 @@ pub(crate) fn delta<'a>(base: &Artwork, artwork: &'a Artwork) -> Delta<'a> {
             delta
                 .remove
                 .extend((0..old.strokes().len()).map(|index| (id, index)));
+            let fills = 0..old.edits().len();
+            delta.remove_fills.extend(fills.map(|index| (id, index)));
         }
     }
     delta
+}
+
+/// One fill seen from two versions: one shared mask, the same place and paint.
+fn same_fill(old: &RegionEdit, new: &RegionEdit) -> bool {
+    old.mask().shares(new.mask())
+        && old.after() == new.after()
+        && old.color() == new.color()
+        && old.alpha_locked() == new.alpha_locked()
 }
 
 /// How many strokes from the start both lists hold as the same stroke.
@@ -105,6 +129,29 @@ mod tests {
         // Undo twice, then draw: the new stroke reuses position 1 with the id undone there.
         let branch = draw(&one, 9.0);
         assert_eq!(slots(&delta(&three, &branch)), (vec![(1, 1)], vec![(1, 2)]));
+    }
+
+    #[test]
+    fn a_fill_writes_its_record_once_and_undo_removes_it() {
+        let one = draw(&blank(), 1.0);
+        let canvas = one.canvas();
+        let mut inside = vec![false; 64 * 48];
+        inside[100] = true;
+        let mask = openpaint_core::RegionMask::from_pixels(canvas, &inside).expect("mask");
+        let filled = one.fill_region(mask, Color::WHITE).expect("fill").artwork;
+        let fills = |delta: &Delta<'_>| {
+            let written: Vec<Slot> = delta.write_fills.iter().map(|(slot, _)| *slot).collect();
+            (written, delta.remove_fills.clone())
+        };
+        assert_eq!(fills(&delta(&one, &filled)), (vec![(1, 0)], vec![]));
+        assert_eq!(
+            slots(&delta(&one, &filled)),
+            (vec![], vec![]),
+            "no stroke record"
+        );
+        let later = draw(&filled, 9.0);
+        assert_eq!(fills(&delta(&filled, &later)), (vec![], vec![]));
+        assert_eq!(fills(&delta(&later, &one)), (vec![], vec![(1, 0)]));
     }
 
     #[test]

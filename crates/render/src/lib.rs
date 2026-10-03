@@ -20,6 +20,7 @@ mod plan;
 mod program;
 mod protocol;
 mod readback;
+mod sample;
 mod scene;
 mod screen;
 mod stroke;

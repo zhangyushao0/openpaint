@@ -40,12 +40,12 @@ impl CanvasFrame<'_> {
         self.area.viewport(self.pixels_per_point)
     }
 
-    fn mapping(&self) -> ViewMapping {
+    pub(crate) fn mapping(&self) -> ViewMapping {
         self.view.mapping(self.canvas, &self.viewport())
     }
 
     /// True when the screen point `at` lies in the canvas area outside every control.
-    fn open(&self, at: [f32; 2]) -> bool {
+    pub(crate) fn open(&self, at: [f32; 2]) -> bool {
         self.area.contains(at) && !self.covers.iter().any(|cover| cover.contains(at))
     }
 }

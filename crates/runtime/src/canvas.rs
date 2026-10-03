@@ -2,9 +2,10 @@
 //! target shows on screen, and whether the user is leaving it for the gallery.
 
 use openpaint_app::{
-    Contact, ContactPhase, Intent, Session, StrokeIntent, Thumbnail, Title, ToolIntent, Toolbox,
+    Contact, ContactPhase, FillFailed, Intent, Session, StrokeIntent, Thumbnail, Title, ToolIntent,
+    Toolbox,
 };
-use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
+use openpaint_core::{Artwork, CanvasSize, Color, RegionMask, StrokeStyle};
 use openpaint_render::{
     CanvasPlacement, CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, changed_regions,
 };
@@ -123,7 +124,7 @@ impl Canvas {
             // Committing a stroke is followed by the evaluator itself (D17).
             let stroke = matches!(intent, Intent::Stroke(_));
             let gallery = matches!(intent, Intent::Gallery(_));
-            let before = self.session.artwork().clone();
+            let before = self.session.shown().clone();
             match self.session.dispatch(intent) {
                 Ok(()) if gallery => self.leaving = Leaving::Waiting,
                 Ok(()) if !stroke => {
@@ -172,9 +173,20 @@ impl Canvas {
         }
     }
 
-    /// Brings the target up to date. Committing the stroke being drawn is followed by the
-    /// evaluator itself (D17); any other change passes the pixels that differ between the version
-    /// shown before it and the current one; the first evaluation covers the whole canvas.
+    /// The fill worker computed request `sequence`; a new preview (or the committed fill) is
+    /// evaluated by the pixels it changes.
+    pub(crate) fn fill_finished(&mut self, sequence: u64, result: Result<RegionMask, FillFailed>) {
+        let before = self.session.shown().clone();
+        self.session.fill_finished(sequence, result);
+        if !before.same_version(self.session.shown()) {
+            self.changed_from.get_or_insert(before);
+        }
+    }
+
+    /// Brings the target up to date with what the session shows (the current version, or a
+    /// fill's preview over it). Committing the stroke being drawn is followed by the evaluator
+    /// itself (D17); any other change passes the pixels that differ between the version shown
+    /// before it and the one shown now; the first evaluation covers the whole canvas.
     pub(crate) fn evaluate(&mut self, core: &Core) -> Result<(), RuntimeError> {
         let mut regions = if self.evaluated {
             Vec::new()
@@ -182,10 +194,10 @@ impl Canvas {
             vec![PixelRect::full(self.target.size())]
         };
         if let Some(before) = self.changed_from.take() {
-            regions.extend(changed_regions(&before, self.session.artwork()));
+            regions.extend(changed_regions(&before, self.session.shown()));
         }
         let request = FrameRequest {
-            artwork: self.session.artwork(),
+            artwork: self.session.shown(),
             active: self.session.active(),
             background: PAPER,
         };

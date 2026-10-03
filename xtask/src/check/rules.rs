@@ -18,8 +18,9 @@ pub const DOCS: &[(&str, usize)] = &[
 pub const ARCHIVE_DIR: &str = "docs/archive/";
 
 /// Every workspace crate a composition root may use.
-pub const ALL_PRODUCT: [&str; 6] = [
+pub const ALL_PRODUCT: [&str; 7] = [
     "openpaint-core",
+    "openpaint-raster",
     "openpaint-app",
     "openpaint-store",
     "openpaint-render",
@@ -30,6 +31,8 @@ pub const ALL_PRODUCT: [&str; 6] = [
 /// Every crate directory and the workspace crates it may depend on. Dependencies point down.
 pub const LAYERS: &[(&str, &[&str])] = &[
     ("crates/core", &[]),
+    // Pure pixel geometry (flood fill): no GPU, no threads, no file system.
+    ("crates/raster", &["openpaint-core"]),
     ("crates/app", &["openpaint-core"]),
     ("crates/store", &["openpaint-core", "openpaint-app"]),
     ("crates/render", &["openpaint-core"]),
@@ -41,6 +44,7 @@ pub const LAYERS: &[(&str, &[&str])] = &[
         "crates/runtime",
         &[
             "openpaint-core",
+            "openpaint-raster",
             "openpaint-app",
             "openpaint-store",
             "openpaint-render",
@@ -54,8 +58,9 @@ pub const LAYERS: &[(&str, &[&str])] = &[
 ];
 
 /// The harness assembles the product crates and the devtools.
-const WITH_DEVTOOLS: [&str; 7] = [
+const WITH_DEVTOOLS: [&str; 8] = [
     "openpaint-core",
+    "openpaint-raster",
     "openpaint-app",
     "openpaint-store",
     "openpaint-render",
@@ -77,6 +82,18 @@ pub const FORBIDDEN_TOKENS: &[(&str, &[&str])] = &[
             "std::thread",
             "std::time::Instant",
             "serde",
+        ],
+    ),
+    (
+        "crates/raster",
+        &[
+            "wgpu",
+            "egui",
+            "winit",
+            "jni",
+            "std::fs",
+            "std::thread",
+            "std::time::Instant",
         ],
     ),
     ("crates/app", &["wgpu", "egui", "winit", "jni", "std::fs"]),
