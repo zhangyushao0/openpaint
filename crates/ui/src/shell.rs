@@ -12,8 +12,8 @@
 //! quick pinch settles the view at fit.
 
 use openpaint_app::{
-    BrushKey, CanvasView, EditorAction, GalleryIntent, InputBatch, Intent, ScreenProjection,
-    SessionProjection, ViewIntent, ViewMapping,
+    BrushKey, CanvasView, GalleryIntent, InputBatch, Intent, ScreenProjection, SessionProjection,
+    TransformFrame, ViewIntent, ViewMapping,
 };
 use openpaint_core::{CanvasSize, Color};
 use openpaint_render::{BrushCursor, RgbaImage};
@@ -21,20 +21,21 @@ use openpaint_render::{BrushCursor, RgbaImage};
 use crate::canvas_input::{CanvasFrame, CanvasInput, touched_outside};
 use crate::color_drop::{ColorDrop, DropFrame};
 use crate::components::carry::{Opening, sheet_at};
-use crate::components::{
-    CanvasArea, Place, ScreenArea, ViewSettle, canvas_frame, chrome, island, moving, text_button,
-};
+use crate::components::{CanvasArea, ScreenArea, ViewSettle, canvas_frame, chrome, moving};
+use crate::design::DESK;
 use crate::design::motion::{OPEN, SETTLE};
-use crate::design::{DESK, SPACE};
 use crate::drop_bar;
 use crate::gallery::GalleryScreen;
-use crate::notices::notice_pill;
-use crate::panels::{Panel, Panels};
+use crate::panels::Panels;
 use crate::pen_marks;
 use crate::reference_window::ReferenceWindow;
 use crate::selection_bar::{self, SelectionBar};
 use crate::sheet::{self, Showing};
 use crate::side_bar::SideBar;
+use crate::transform_bar::TransformBar;
+
+#[path = "shell_islands.rs"]
+mod islands;
 
 /// What the canvas showed in the last pass, for routing this frame's contacts.
 #[derive(Debug, Clone, Copy)]
@@ -44,6 +45,9 @@ pub(crate) struct Shown {
     pub(crate) picking: bool,
     /// The Selection tool is on.
     pub(crate) selecting: bool,
+    /// The Transform tool is on, and its frame once the content is lifted.
+    pub(crate) transforming: bool,
+    pub(crate) transform: Option<TransformFrame>,
     pub(crate) drawing: bool,
     /// The colour a drop carries and the threshold it starts with.
     pub(crate) color: Option<Color>,
@@ -66,6 +70,7 @@ pub struct Shell {
     panels: Panels,
     side: SideBar,
     selection: SelectionBar,
+    transform: TransformBar,
     reference: ReferenceWindow,
     pub(crate) drop: ColorDrop,
     /// Where the fill bar lies, from the last pass.
@@ -166,6 +171,8 @@ impl Shell {
             view: projection.view(),
             picking: brush.is_some_and(|brush| brush.picking),
             selecting: projection.selection().tool,
+            transforming: projection.transform().tool,
+            transform: projection.transform().frame,
             drawing: projection.drawing(),
             color: brush.map(|brush| brush.color),
             threshold: projection.fill().threshold,
@@ -181,10 +188,13 @@ impl Shell {
             self.shown_at =
                 sheet::show_sheet(&ctx, rect, self.shown, &shown, self.pixels_per_point);
             selection_bar::show_path(&ctx, projection, &shown, self.pixels_per_point);
+            let ppp = self.pixels_per_point;
+            self.transform.show_frame(&ctx, projection, &shown, ppp);
         }
         sheet::show_view(self, &ctx, &area);
         self.top_islands(&ctx, projection);
         self.selection.show(&ctx, projection, &mut self.taps);
+        self.transform.show(&ctx, projection, &mut self.taps);
         self.side
             .show(&ctx, projection, self.scale(&area), &mut self.taps);
         let opener = self.panels.actions.button_rect();
@@ -208,43 +218,6 @@ impl Shell {
             self.view
                 .start(ViewMapping::placed(shown.canvas, origin, size), OPEN);
         }
-    }
-
-    /// The left island (Gallery, Actions), the right one (Brush, Eraser, Layers, the colour)
-    /// and, left of it, the notice pill. Opening one panel closes the others.
-    fn top_islands(&mut self, ctx: &egui::Context, projection: &SessionProjection) {
-        let panels = &mut self.panels;
-        let ((), left) = island(ctx, "left island", Place::top_left(), |ui| {
-            let enabled = projection.availability(EditorAction::Gallery).is_offered();
-            if text_button(ui, "Gallery", enabled).clicked() {
-                self.taps.push(Intent::Gallery(GalleryIntent::Show));
-            }
-            if panels.actions.button(ui) {
-                panels.close_but(Panel::Actions);
-            }
-            if self.selection.button(ui, projection, &mut self.taps) {
-                panels.close();
-            }
-        });
-        let ((), right) = island(ctx, "right island", Place::top_right(0.0), |ui| {
-            if panels.brushes.buttons(ui, projection, &mut self.taps) {
-                panels.close_but(Panel::Brushes);
-            }
-            if panels.layers.button(ui) {
-                panels.close_but(Panel::Layers);
-            }
-            if panels.colors.button(ui, projection) {
-                panels.close_but(Panel::Colors);
-            }
-        });
-        let place = Place::top_right(right.width() + SPACE);
-        let notice = notice_pill(ctx, projection, place, &mut self.taps);
-        let ppp = self.pixels_per_point;
-        self.islands = [Some(left), Some(right), notice]
-            .into_iter()
-            .flatten()
-            .map(|rect| ScreenArea::from_points(rect, ppp))
-            .collect();
     }
 
     /// The view's map in `area` now, while the canvas shows.
@@ -284,8 +257,9 @@ impl Shell {
     /// picking, while the brush draws and off the canvas screen.
     #[must_use]
     pub fn cursor(&self, erasing: Option<([f32; 2], f32)>) -> Option<BrushCursor> {
-        // While the Selection tool is on the pen draws no paint: no brush outline.
-        let (shown, area) = (self.shown.filter(|shown| !shown.selecting)?, self.canvas?);
+        // While the Selection or the Transform tool is on the pen draws no paint: no outline.
+        let painting = |shown: &Shown| !shown.selecting && !shown.transforming;
+        let (shown, area) = (self.shown.filter(painting)?, self.canvas?);
         let ppp = self.pixels_per_point;
         let mapping = shown.view.mapping(shown.canvas, &area.viewport(ppp));
         let erasing = erasing.filter(|_| self.input.pressing().is_some());
@@ -341,7 +315,7 @@ impl Shell {
         let panel = self.panels.area();
         let covers: Vec<ScreenArea> = [self.side.area(), self.reference.area(), panel]
             .into_iter()
-            .chain([self.drop_bar, self.selection.area()])
+            .chain([self.drop_bar, self.selection.area(), self.transform.area()])
             .flatten()
             .chain(self.islands.iter().copied())
             .collect();
@@ -354,6 +328,7 @@ impl Shell {
             now_ms,
             picking: shown.picking,
             selecting: shown.selecting,
+            transform: shown.transform,
             drawing: shown.drawing,
             control: !self.taps.is_empty(),
         };
@@ -388,7 +363,10 @@ impl Shell {
         for intent in intents {
             match intent {
                 Intent::View(ViewIntent::Fit) => self.view.start(self.view.shown(mapping), SETTLE),
-                Intent::View(_) | Intent::Stroke(_) | Intent::Selection(_) => self.view.stop(),
+                Intent::View(_)
+                | Intent::Stroke(_)
+                | Intent::Selection(_)
+                | Intent::Transform(_) => self.view.stop(),
                 _ => {}
             }
         }

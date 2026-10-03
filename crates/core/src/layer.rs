@@ -101,8 +101,8 @@ impl Layer {
         }
     }
 
-    /// The fills, oldest first. Drawing order: the edits with `after` 0, stroke 0, the edits
-    /// with `after` 1, stroke 1, and so on.
+    /// The fills and transforms, oldest first. Drawing order: the edits with `after` 0, stroke
+    /// 0, the edits with `after` 1, stroke 1, and so on.
     #[must_use]
     pub fn edits(&self) -> &[RegionEdit] {
         &self.edits
@@ -116,10 +116,7 @@ impl Layer {
         }
         let mut bytes = size_of_val::<[RegionEdit]>(&self.edits);
         for (index, edit) in self.edits.iter().enumerate() {
-            let shared = old.get(index).is_some_and(|o| o.mask.shares(&edit.mask));
-            if !shared {
-                bytes += size_of_val(edit.mask.words());
-            }
+            bytes += edit.bytes_since(old.get(index));
         }
         bytes
     }

@@ -38,9 +38,8 @@ Passed 2026-10-03: S9 to S17 and the G2 follow-ups done (see "Done"); the author
 
 Exit: the author finishes painterly shading (W2) and a complex composition revision (W3) on the tablet.
 
-S18 and S19 are done (see "Done"). Next: S20.
+S18 to S20 are done (see "Done"). Next: S21.
 
-**S20 Transform** (core, app, ui, render): move, scale and rotate a layer or selection; preview through the renderer; commit as a `RegionEdit`. Done: preview and committed result match.
 **S21 Smudge** (core, render, ui): a smudge brush drags the current layer's colour; incremental residual tiles; incremental = cold evaluation bit for bit. Done: GPU consistency test; at least 60 Hz smudging on the tablet.
 **S22 Groups, clipping masks, blend modes** (core, app, ui, render, store): single-level groups, clipping chains, Multiply/Screen/Overlay; schema upgrade. Done: GPU tests for the compositing formulas.
 **S23 Layer masks** (core, app, ui, render, store): add, disable, invert, clear and delete masks with undo; painting on masks. Done: GPU tests for masks combined with opacity, clipping and groups.
@@ -80,6 +79,7 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - 2026-10-03 Visual design follow-ups (S17): the scenario walk-throughs before S17 still say "top bar" in their prose (their taps follow the islands); on windows under about 700 points the two top islands and a notice pill meet; egui's hover label fades in rather than appearing at once; Chinese typed into a title on the tablet itself (only the system font loading and the harness's Chinese title are checked); a left-handed mirror of the side bar and the islands.
 - 2026-10-03 Selection follow-ups (S18): Add and Remove modes, feather and antialiased edges (a coverage clip, a format change), Automatic and Ellipse, saving selections; one clip record per selection instead of its runs in every clipped stroke; counting clip masks in history bytes; the bar's buttons shift when Close appears (centred pill).
 - 2026-10-03 Motion follow-ups (S19): the chrome pass and egui's motion bookkeeping add about 1 ms of frame work while idle on the tablet (G5); rows crossing on a reorder overlap their text; a rotated canvas shrinks into its card upright; finger injection on the tablet was refused system-wide this session (pen worked), so the quick-pinch glide is checked in the harness only.
+- 2026-10-03 Transform follow-ups (S20): Freeform, Distort and Warp; angle snapping while turning (draweave had only the 45° button); Fit to screen; mipmapped or bicubic resampling for strong shrinking; the moved selection kept selected instead of deselecting; lifting on a worker instead of the main thread (a full-canvas lift waits for one GPU readback); a transform still open when the app is left is not saved (commit it on leave); a whole-layer patch per transform in history (64 MiB budget).
 - 2026-10-02 Pen stroke cancelled by a landing touch: with injected input the dispatcher cancels the pen's gesture when a touch lands mid-stroke and the stroke is dropped; if real hardware does the same, commit the stroke drawn so far on such a cancel.
 
 ## Done
@@ -108,3 +108,4 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - G2 follow-ups 2026-10-03 `feat(ui): eyedropper loupe, eraser outline while pressed, gesture-driven reference window (G2 follow-ups)`; walk-through confirmed on the tablet with injected pen and finger input; the author's library byte-identical
 - S18 2026-10-03 `feat(app): freehand and rectangle selection, painting and filling inside, schema 7 (S18)`; walk-through confirmed on the tablet with injected pen and finger input; the author's schema-6 library upgraded pixel-identical
 - S19 2026-10-03 `feat(ui): motion foundation: one spring, four patterns, chrome grown from its islands (S19)`; SDF chrome landed; walk-through recorded on the tablet with injected pen input; the author judges the feel
+- S20 2026-10-03 `feat(app): transform a layer or a selection as a placed patch, preview equal to commit, schema 8 (S20)`

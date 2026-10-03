@@ -11,6 +11,7 @@ use crate::selection::SelectionIntent;
 use crate::storage::StorageIntent;
 use crate::stroke::StrokeIntent;
 use crate::toolbox::{BrushIntent, ToolIntent};
+use crate::transform::TransformIntent;
 use crate::view::ViewIntent;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -22,6 +23,7 @@ pub enum Intent {
     Layer(LayerIntent),
     Fill(FillIntent),
     Selection(SelectionIntent),
+    Transform(TransformIntent),
     Gallery(GalleryIntent),
     Brush(BrushIntent),
     Tool(ToolIntent),

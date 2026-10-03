@@ -5,8 +5,9 @@ use std::path::PathBuf;
 
 use openpaint_app::{BrushChoice, BrushSetting, EditorState, Thumbnail, Title, Tool};
 use openpaint_core::{
-    AccumulationParts, ArtworkParts, BrushRecipe, FillParts, LayerParts, MaskParts, PaperParts,
-    PaperTexture, RecipeParts, SampleParts, StrokeBlend, StrokeParts, Tip,
+    AccumulationParts, ArtworkParts, BrushRecipe, EditParts, FillParts, LayerParts, MaskParts,
+    PaperParts, PaperTexture, RecipeParts, SampleParts, StrokeBlend, StrokeParts, Tip,
+    TransformParts,
 };
 
 use crate::common::KEYSPACES;
@@ -108,7 +109,7 @@ fn layer(
         locked,
         alpha_locked: false,
         strokes,
-        fills: Vec::new(),
+        edits: Vec::new(),
     }
 }
 
@@ -194,7 +195,7 @@ pub fn schema_6_parts() -> ArtworkParts {
 
 /// The schema-6 sample with what schema 7 adds: both sketch strokes drawn inside one selection
 /// with a hole, and the ink layer's eraser stroke inside another.
-pub fn parts() -> ArtworkParts {
+pub fn schema_7_parts() -> ArtworkParts {
     let mut parts = schema_6_parts();
     let holed = MaskParts {
         origin: [2, 1],
@@ -216,22 +217,61 @@ pub fn parts() -> ArtworkParts {
 /// ends inside.
 pub fn schema_5_parts() -> ArtworkParts {
     let mut parts = schema_4_parts();
-    parts.layers[0].fills.push(FillParts {
+    parts.layers[0].edits.push(EditParts::Fill(FillParts {
         after: 1,
         color: [0.75, 0.25, 0.5],
         alpha_locked: true,
         origin: [10, 8],
         size: [6, 3],
         runs: vec![0, 8, 1, 9],
-    });
-    parts.layers[2].fills.push(FillParts {
+    }));
+    parts.layers[2].edits.push(EditParts::Fill(FillParts {
         after: 0,
         color: [0.0, 0.5, 1.0],
         alpha_locked: false,
         origin: [40, 30],
         size: [3, 2],
         runs: vec![1, 5],
-    });
+    }));
+    parts
+}
+
+/// The schema-7 sample with what schema 8 adds: on the sketch layer, after both strokes, the
+/// pixels of a selection turned a quarter and moved; on the top layer, after its fill, the
+/// whole layer scaled and mirrored.
+pub fn parts() -> ArtworkParts {
+    let mut parts = schema_7_parts();
+    let pixels = |count: u8| -> Vec<u8> {
+        (0..count)
+            .flat_map(|i| [i * 9, 255 - i * 9, i * 3, 128 + i])
+            .collect()
+    };
+    parts.layers[0]
+        .edits
+        .push(EditParts::Transform(TransformParts {
+            after: 2,
+            lift: Some(MaskParts {
+                origin: [4, 6],
+                size: [4, 3],
+                runs: vec![1, 10, 1],
+            }),
+            origin: [4, 6],
+            size: [4, 3],
+            pixels: pixels(12),
+            matrix: [0.0, -1.0, 1.0, 0.0],
+            translation: [10.5, -2.25],
+        }));
+    parts.layers[2]
+        .edits
+        .push(EditParts::Transform(TransformParts {
+            after: 0,
+            lift: None,
+            origin: [40, 30],
+            size: [3, 2],
+            pixels: pixels(6),
+            matrix: [-1.5, 0.0, 0.0, 1.5],
+            translation: [100.0, -15.0],
+        }));
     parts
 }
 

@@ -9,6 +9,7 @@ mod active;
 mod adapter;
 mod change;
 mod core;
+mod edits;
 mod error;
 mod evaluator;
 mod export;

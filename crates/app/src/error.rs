@@ -7,6 +7,7 @@ use openpaint_core::CoreError;
 
 use crate::fill::FillRefusal;
 use crate::projection::{Availability, EditorAction};
+use crate::transform::TransformRefusal;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AppError {
@@ -18,6 +19,8 @@ pub enum AppError {
     },
     /// A fill cannot go on the active layer.
     FillRefused(FillRefusal),
+    /// The active layer cannot be transformed.
+    TransformRefused(TransformRefusal),
 }
 
 impl fmt::Display for AppError {
@@ -25,6 +28,7 @@ impl fmt::Display for AppError {
         match self {
             Self::Core(error) => write!(f, "{error}"),
             Self::FillRefused(refusal) => write!(f, "no fill: {refusal}"),
+            Self::TransformRefused(refusal) => write!(f, "no transform: {refusal}"),
             Self::Unavailable {
                 action,
                 availability,

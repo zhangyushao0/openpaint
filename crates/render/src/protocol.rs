@@ -33,7 +33,9 @@ const SEGMENT_TIP: usize = 11;
 /// Where a fill's mask starts in the mask words, split in two whole numbers below 2^16 (high
 /// part first) so each stays exact as a float.
 const FILL_MASK: usize = 7;
-const SLOTS: [(&str, usize); 12] = [
+/// Where a patch starts in the patch words, split like `FILL_MASK`.
+const PATCH_AT: usize = 6;
+const SLOTS: [(&str, usize); 13] = [
     ("PAINT_OPACITY", PAINT_OPACITY),
     ("PAINT_GRAIN", PAINT_GRAIN),
     ("PAINT_GRAIN_SCALE", PAINT_GRAIN_SCALE),
@@ -46,6 +48,7 @@ const SLOTS: [(&str, usize); 12] = [
     ("SEGMENT_CONTACT", SEGMENT_CONTACT),
     ("SEGMENT_TIP", SEGMENT_TIP),
     ("FILL_MASK", FILL_MASK),
+    ("PATCH_AT", PATCH_AT),
 ];
 
 /// How a segment adds to its stroke at a pixel, declared to WGSL as constants by `prelude`.
@@ -65,7 +68,8 @@ const TIPS: [(&str, Tip); 3] = [
     ("TIP_FLAT", Tip::Flat),
     ("TIP_BELL", Tip::Bell),
 ];
-/// Words before a mask's rows in the mask words: origin x, origin y, width, height.
+/// Words before a mask's rows in the mask words, and before a patch's pixels in the patch
+/// words: origin x, origin y, width, height.
 pub(crate) const MASK_HEADER: u32 = 4;
 
 /// A paint op's blend, declared to WGSL as constants by `prelude`.
@@ -106,15 +110,19 @@ pub(crate) enum Opcode {
     /// A fill: its colour painted over the current layer wherever its mask holds the pixel
     /// (coverage exactly 1 or 0), like a stroke's paint op.
     Fill = 4,
+    /// A transform's lifted pixels, sampled bilinearly where the pixel's centre maps back to,
+    /// over the current layer (premultiplied source over).
+    Patch = 5,
 }
 
 impl Opcode {
-    const ALL: [Self; 5] = [
+    const ALL: [Self; 6] = [
         Self::Segment,
         Self::EndStroke,
         Self::EndLayer,
         Self::EndActive,
         Self::Fill,
+        Self::Patch,
     ];
 
     const fn wgsl_name(self) -> &'static str {
@@ -124,6 +132,7 @@ impl Opcode {
             Self::EndLayer => "OP_END_LAYER",
             Self::EndActive => "OP_END_ACTIVE",
             Self::Fill => "OP_FILL",
+            Self::Patch => "OP_PATCH",
         }
     }
 }
@@ -144,6 +153,10 @@ impl Opcode {
 /// - `Fill`: a paint op's first seven operands, then where its mask starts in the mask words
 ///   (`offset / 2^16`, `offset % 2^16`); the mask is `MASK_HEADER` words, then rows of
 ///   `ceil(width / 32)` words, bit `x % 32` of word `x / 32`.
+/// - `Patch`: `[a, b, c, d, e, f, at / 2^16, at % 2^16]`: the pixel centre `(x, y)` samples
+///   the patch at `(a x + b y + c, d x + e y + f)` in canvas pixels; the patch starts at word
+///   `at` of the patch words: `MASK_HEADER` words, then one premultiplied RGBA8 word per
+///   pixel, rows top first.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Op {
@@ -256,6 +269,15 @@ impl Op {
         data[..FILL_MASK].copy_from_slice(&paint.operands()[..FILL_MASK]);
         data[FILL_MASK..FILL_MASK + 2].copy_from_slice(&halves(mask));
         Self::new(Opcode::Fill, &data)
+    }
+
+    /// A patch starting at word `at` of the patch words, sampled through `rows` (the
+    /// placement's inverse).
+    pub(crate) fn patch(rows: [f32; 6], at: u32) -> Self {
+        let mut data = [0.0; OP_DATA];
+        data[..PATCH_AT].copy_from_slice(&rows);
+        data[PATCH_AT..PATCH_AT + 2].copy_from_slice(&halves(at));
+        Self::new(Opcode::Patch, &data)
     }
 
     /// An op no plan refers to; it keeps a scene's item and op indices equal.

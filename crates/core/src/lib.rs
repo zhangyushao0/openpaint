@@ -19,6 +19,7 @@ mod session;
 mod storage;
 mod stroke;
 mod stroke_list;
+mod transform;
 mod value;
 
 pub use artwork::{Artwork, MAX_LAYERS};
@@ -33,15 +34,16 @@ pub use error::CoreError;
 pub use id::{LayerId, MAX_ID, StrokeId};
 pub use layer::{Layer, LayerProps};
 pub use parts::{
-    AccumulationParts, ArtworkParts, FillParts, LayerParts, MaskParts, PaperParts, RecipeParts,
-    SampleParts, StrokeParts,
+    AccumulationParts, ArtworkParts, EditParts, FillParts, LayerParts, MaskParts, PaperParts,
+    RecipeParts, SampleParts, StrokeParts, TransformParts,
 };
-pub use region::{RegionEdit, RegionMask};
+pub use region::{FillEdit, RegionEdit, RegionMask};
 pub use session::{ActiveStroke, StrokeSession};
 pub use stroke::{
     MAX_BRUSH_SIZE, MAX_STROKE_SAMPLES, Stroke, StrokeBlend, StrokeSample, StrokeStyle, StrokeTool,
 };
 pub use stroke_list::StrokeList;
+pub use transform::{MAX_SCALE, Patch, Placement, TransformEdit};
 pub use value::{
     COORD_LIMIT, CanvasPoint, CanvasSize, Color, LayerName, MAX_CANVAS_SIDE, MAX_NAME_CHARS,
 };

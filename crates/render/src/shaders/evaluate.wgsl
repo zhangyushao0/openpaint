@@ -19,6 +19,7 @@
 @group(0) @binding(7) var<storage, read> masks: array<u32>;
 @group(0) @binding(8) var kept_contact: texture_storage_2d<r32float, read_write>;
 @group(0) @binding(9) var<storage, read> paper: array<u32>;
+@group(0) @binding(10) var<storage, read> patches: array<u32>;
 
 @compute @workgroup_size(TILE, TILE)
 fn evaluate(
@@ -84,6 +85,9 @@ fn evaluate(
             case OP_FILL: {
                 layer = blend(paint_color(fill_coverage(pixel, op) * op.data[PAINT_OPACITY], op), layer, op);
             }
+            case OP_PATCH: {
+                layer = over(patch_sample(centre, op), layer);
+            }
             case OP_END_LAYER: {
                 canvas = over(layer * op.data[0], canvas);
                 layer = vec4<f32>(0.0);
@@ -137,6 +141,38 @@ fn mask_bit(pixel: vec2<u32>, at: u32) -> f32 {
     let stride = (size.x + 31u) / 32u;
     let word = masks[at + MASK_HEADER + local.y * stride + local.x / 32u];
     return f32((word >> (local.x % 32u)) & 1u);
+}
+
+// A transform's patch where the pixel centre maps back to: bilinear between the four nearest
+// patch pixels (premultiplied), transparent beyond the patch's edge. A centre that maps onto a
+// pixel's centre gets that pixel exactly, so in place nothing changes.
+fn patch_sample(centre: vec2<f32>, op: Op) -> vec4<f32> {
+    let at = u32(op.data[PATCH_AT]) * 65536u + u32(op.data[PATCH_AT + 1u]);
+    let source = vec2<f32>(
+        op.data[0] * centre.x + op.data[1] * centre.y + op.data[2],
+        op.data[3] * centre.x + op.data[4] * centre.y + op.data[5],
+    );
+    let origin = vec2<f32>(f32(patches[at]), f32(patches[at + 1u]));
+    let local = source - origin - vec2<f32>(0.5);
+    let base = floor(local);
+    let t = local - base;
+    let cell = vec2<i32>(base);
+    let top = mix(patch_texel(at, cell), patch_texel(at, cell + vec2<i32>(1, 0)), t.x);
+    let bottom = mix(
+        patch_texel(at, cell + vec2<i32>(0, 1)),
+        patch_texel(at, cell + vec2<i32>(1, 1)),
+        t.x,
+    );
+    return mix(top, bottom, t.y);
+}
+
+// The patch's pixel `cell` (from its top-left one), or transparent outside it.
+fn patch_texel(at: u32, cell: vec2<i32>) -> vec4<f32> {
+    let size = vec2<i32>(i32(patches[at + 2u]), i32(patches[at + 3u]));
+    if any(cell < vec2<i32>(0)) || any(cell >= size) {
+        return vec4<f32>(0.0);
+    }
+    return unpack4x8unorm(patches[at + MASK_HEADER + u32(cell.y * size.x + cell.x)]);
 }
 
 fn over(source: vec4<f32>, destination: vec4<f32>) -> vec4<f32> {

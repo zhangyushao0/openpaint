@@ -124,6 +124,7 @@ fn only_the_newest_request_runs_and_the_last_preview_stays_meanwhile() {
     assert_eq!(fills(session.shown()), 1, "still the old preview");
     session.fill_finished(newest.sequence, Ok(region(12)));
     let kept = &session.artwork().layers()[0].edits()[0];
+    let kept = kept.fill().expect("a fill");
     assert_eq!(kept.mask().size(), [12, 20], "the newest fill was kept");
     assert!(session.fill_request().is_none());
 }

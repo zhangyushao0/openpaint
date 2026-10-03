@@ -6,7 +6,7 @@ use openpaint_core::{Artwork, ArtworkParts};
 
 use crate::catalogue::{Entry, decode_entry, decode_thumbnail};
 use crate::editor::EDITOR;
-use crate::fills::{decode_fill, fill_layer_prefix};
+use crate::fills::{decode_edit, fill_layer_prefix};
 use crate::library::{Open, device};
 use crate::records::{
     CLOCK, ENTRY, LAST, decode_head, decode_id, decode_stroke, entry_key, entry_project, head_key,
@@ -43,9 +43,9 @@ pub(crate) fn project(open: &Open, id: ProjectId) -> Result<Project, PortError> 
             .iter()
             .map(|bytes| decode_stroke(bytes))
             .collect::<Result<_, _>>()?;
-        layer.fills = read_records(open, fill_layer_prefix(id, layer.id), fills, "fill records")?
+        layer.edits = read_records(open, fill_layer_prefix(id, layer.id), fills, "edit records")?
             .iter()
-            .map(|bytes| decode_fill(bytes))
+            .map(|bytes| decode_edit(bytes))
             .collect::<Result<_, _>>()?;
         layers.push(layer);
     }

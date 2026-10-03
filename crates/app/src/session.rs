@@ -17,6 +17,10 @@ use crate::selection::Selection;
 use crate::storage::{Autosave, StorageIntent};
 use crate::streamline::StreamLine;
 use crate::stroke::Strokes;
+use crate::transform::Transforms;
+
+#[path = "session_transform.rs"]
+mod session_transform;
 use crate::view::{CanvasView, ViewIntent};
 
 #[derive(Debug)]
@@ -27,6 +31,8 @@ pub struct Session {
     fills: Fills,
     /// The Selection tool and what is selected: tool state, never artwork or history (D42).
     selection: Selection,
+    /// The Transform tool and the content it holds until it is committed (D45).
+    transforms: Transforms,
     autosave: Autosave,
     /// How the artwork shows; it lives as long as the session (every artwork opens at fit).
     view: CanvasView,
@@ -50,6 +56,7 @@ impl Session {
             layers: Layers::default(),
             fills: Fills::default(),
             selection: Selection::default(),
+            transforms: Transforms::default(),
             view: CanvasView::FIT,
         }
     }
@@ -81,6 +88,18 @@ impl Session {
     /// `Core` when the artwork refuses the edit (a locked layer, an invalid sample);
     /// `Unavailable` when the projection does not offer the action.
     pub fn dispatch(&mut self, intent: Intent) -> Result<(), AppError> {
+        let keeps = matches!(
+            intent,
+            Intent::Transform(_) | Intent::View(_) | Intent::History(_) | Intent::Storage(_)
+        );
+        if !keeps {
+            // Any other edit or tool ends the transform where it shows (Procreate).
+            self.commit_transform();
+            self.transforms.forget_refusal();
+        }
+        if let Intent::Transform(transform) = intent {
+            return self.transform(transform);
+        }
         if let Intent::Layer(layer) = &intent {
             let drawing = self.strokes.active().is_some();
             self.fills.interrupt();
@@ -122,6 +141,7 @@ impl Session {
             Intent::Layer(_)
             | Intent::View(_)
             | Intent::Fill(_)
+            | Intent::Transform(_)
             | Intent::Brush(_)
             | Intent::Tool(_)
             | Intent::Export(_)
@@ -144,12 +164,15 @@ impl Session {
         self.strokes.active()
     }
 
-    /// What the canvas shows: the current version, or the preview of the fill being placed on
-    /// it (which is not in history).
+    /// What the canvas shows: the current version, or the preview of the transform or the fill
+    /// being placed on it (which is not in history).
     #[must_use]
     pub fn shown(&self) -> &Artwork {
         let current = self.history.current();
-        self.fills.shown(current).unwrap_or(current)
+        self.transforms
+            .shown(current)
+            .or_else(|| self.fills.shown(current))
+            .unwrap_or(current)
     }
 
     /// The newest fill request for the fill worker, when none runs and it was not handed out.
@@ -195,7 +218,9 @@ impl Session {
         };
         let artwork = self.history.current();
         let drawing = self.strokes.active().is_some();
-        let (can_undo, can_redo) = if self.selection.tool() {
+        let (can_undo, can_redo) = if self.transforms.active() {
+            (self.transforms.can_undo(), self.transforms.can_redo())
+        } else if self.selection.tool() {
             (self.selection.can_undo(), self.selection.can_redo())
         } else {
             (self.history.can_undo(), self.history.can_redo())
@@ -215,6 +240,7 @@ impl Session {
             drawing,
             fill: self.fills.projection(),
             selection: Box::new(self.selection.projection()),
+            transform: Box::new(self.transforms.projection()),
             brush: None,
             transfers: None,
         }
@@ -279,6 +305,13 @@ impl Session {
             HistoryIntent::Redo => EditorAction::Redo,
         };
         self.check(action)?;
+        if self.transforms.active() {
+            match step {
+                HistoryIntent::Undo => self.transforms.undo(),
+                HistoryIntent::Redo => self.transforms.redo(),
+            }
+            return Ok(());
+        }
         match (step, self.selection.tool()) {
             (HistoryIntent::Undo, true) => self.selection.undo(),
             (HistoryIntent::Redo, true) => self.selection.redo(),
@@ -293,9 +326,10 @@ impl Session {
     }
 
     /// The pixels selected now, which strokes and fills stay inside; the screen marks them.
+    /// None while a transform holds what was selected.
     #[must_use]
     pub fn selection(&self) -> Option<&RegionMask> {
-        self.selection.mask()
+        self.selection.mask().filter(|_| !self.transforms.active())
     }
 
     fn storage(&mut self, intent: StorageIntent) -> Result<(), AppError> {

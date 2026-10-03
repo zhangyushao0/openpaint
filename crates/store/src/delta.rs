@@ -41,7 +41,7 @@ pub(crate) fn delta<'a>(base: &Artwork, artwork: &'a Artwork) -> Delta<'a> {
         let kept = old_fills
             .iter()
             .zip(new_fills)
-            .take_while(|(old, new)| same_fill(old, new))
+            .take_while(|(old, new)| old.same(new))
             .count();
         for (index, fill) in new_fills.iter().enumerate().skip(kept) {
             delta.write_fills.push(((id, index), fill));
@@ -60,14 +60,6 @@ pub(crate) fn delta<'a>(base: &Artwork, artwork: &'a Artwork) -> Delta<'a> {
         }
     }
     delta
-}
-
-/// One fill seen from two versions: one shared mask, the same place and paint.
-fn same_fill(old: &RegionEdit, new: &RegionEdit) -> bool {
-    old.mask().shares(new.mask())
-        && old.after() == new.after()
-        && old.color() == new.color()
-        && old.alpha_locked() == new.alpha_locked()
 }
 
 /// How many strokes from the start both lists hold as the same stroke.

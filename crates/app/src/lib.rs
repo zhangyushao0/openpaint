@@ -28,6 +28,7 @@ mod stroke;
 mod title;
 mod toolbox;
 mod transfer;
+mod transform;
 mod view;
 
 pub use crate::brushes::{Brush, BrushKey, BrushLibrary, SizeRange};
@@ -69,6 +70,10 @@ pub use crate::toolbox::{
 pub use crate::transfer::{
     Delivery, ExportError, HostAnswer, HostRequest, ImageError, ImageFormat, ImageSink,
     ImageSource, OpenJob, TransferJob, TransferProjection, Transfers,
+};
+pub use crate::transform::{
+    LiftFailed, TransformFrame, TransformIntent, TransformJob, TransformProjection,
+    TransformRefusal,
 };
 pub use crate::view::{
     CanvasView, FIT_MARGIN, MAX_ZOOM, MIN_ZOOM, ViewGesture, ViewIntent, ViewMapping, Viewport,

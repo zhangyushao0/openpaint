@@ -13,9 +13,11 @@ use openpaint_app::{
 use openpaint_core::Artwork;
 
 use crate::editor::{EDITOR, decode_editor};
+use crate::fills::fills_prefix;
 use crate::migrate::{upgrade_1_to_2, upgrade_2_to_3, upgrade_3_to_4, upgrade_4_to_5};
 use crate::migrate_6::upgrade_5_to_6;
 use crate::migrate_7::upgrade_6_to_7;
+use crate::migrate_8::upgrade_7_to_8;
 use crate::records::{
     LIBRARY, NEXT, PROJECTS, SCHEMA, SCHEMA_KEY, decode_id, decode_schema, encode_schema, head_key,
     strokes_prefix,
@@ -111,7 +113,7 @@ fn prepare(open: &Open) -> Result<(), PortError> {
             found,
             newest: SCHEMA,
         }),
-        1..=6 => upgrade(open, schema),
+        1..=7 => upgrade(open, schema),
         _ => Err(PortError::Corrupt {
             what: "library schema",
         }),
@@ -121,7 +123,7 @@ fn prepare(open: &Open) -> Result<(), PortError> {
 /// Runs every migration step from schema `from` on over the records as they are, each step
 /// seeing the heads and strokes the one before it wrote, and writes the result in one batch.
 fn upgrade(open: &Open, from: u32) -> Result<(), PortError> {
-    let (mut heads, mut strokes) = old_records(open)?;
+    let (mut heads, mut strokes, fills) = old_records(open)?;
     let mut editor = read::editor(open)?;
     let index: HashMap<Vec<u8>, usize> = strokes
         .iter()
@@ -137,7 +139,9 @@ fn upgrade(open: &Open, from: u32) -> Result<(), PortError> {
             3 => upgrade_3_to_4(&heads, &strokes, editor.as_deref()),
             4 => upgrade_4_to_5(&heads),
             5 => upgrade_5_to_6(&heads, &strokes, editor.as_deref()),
-            _ => upgrade_6_to_7(&heads, &strokes),
+            6 => upgrade_6_to_7(&heads, &strokes),
+            // Only this last step reads the fill records, so they are never rewritten twice.
+            _ => upgrade_7_to_8(&heads, &fills),
         };
         if let Some((_, value)) = upgrade.library.iter().find(|(key, _)| key == EDITOR) {
             editor = Some(value.clone());
@@ -168,25 +172,32 @@ fn upgrade(open: &Open, from: u32) -> Result<(), PortError> {
     Ok(())
 }
 
-/// Every project's head and every stroke record, by key.
-type OldRecords = (Vec<(ProjectId, Vec<u8>)>, Vec<(Vec<u8>, Vec<u8>)>);
+/// Records by key.
+type Records = Vec<(Vec<u8>, Vec<u8>)>;
+/// Every project's head, every stroke record and every fill record.
+type OldRecords = (Vec<(ProjectId, Vec<u8>)>, Records, Records);
 
 fn old_records(open: &Open) -> Result<OldRecords, PortError> {
     let next = match open.library.get(NEXT).map_err(device)? {
         Some(next) => decode_id(&next, "next project id")?,
         None => 1,
     };
-    let (mut heads, mut strokes) = (Vec::new(), Vec::new());
+    let (mut heads, mut strokes, mut fills) = (Vec::new(), Vec::new(), Vec::new());
     for id in (1..next).map(ProjectId::new) {
         if let Some(head) = open.projects.get(head_key(id)).map_err(device)? {
             heads.push((id, head.to_vec()));
         }
-        for guard in open.projects.prefix(strokes_prefix(id)) {
-            let (key, value) = guard.into_inner().map_err(device)?;
-            strokes.push((key.to_vec(), value.to_vec()));
+        for (prefix, records) in [
+            (strokes_prefix(id), &mut strokes),
+            (fills_prefix(id), &mut fills),
+        ] {
+            for guard in open.projects.prefix(prefix) {
+                let (key, value) = guard.into_inner().map_err(device)?;
+                records.push((key.to_vec(), value.to_vec()));
+            }
         }
     }
-    Ok((heads, strokes))
+    Ok((heads, strokes, fills))
 }
 
 fn commit(batch: fjall::OwnedWriteBatch) -> Result<(), PortError> {

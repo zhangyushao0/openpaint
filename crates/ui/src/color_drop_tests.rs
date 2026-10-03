@@ -28,6 +28,7 @@ fn frame(now_ms: i64) -> CanvasFrame<'static> {
         now_ms,
         picking: false,
         selecting: false,
+        transform: None,
         drawing: false,
         control: false,
     }

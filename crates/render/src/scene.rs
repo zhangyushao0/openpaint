@@ -3,12 +3,13 @@
 //! stroke is in `stroke.rs`.
 
 use openpaint_core::{
-    ActiveStroke, Artwork, Layer, LayerId, RegionEdit, RegionMask, StrokeSample, StrokeStyle,
+    ActiveStroke, Artwork, Layer, LayerId, Patch, RegionMask, StrokeSample, StrokeStyle,
 };
 
+use crate::edits::restart;
 use crate::error::RenderError;
 use crate::geom::Bounds;
-use crate::protocol::{Blend, MASK_HEADER, Op, Paint};
+use crate::protocol::{MASK_HEADER, Op, Paint};
 use crate::stroke::{paint, segments};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -18,7 +19,8 @@ pub(crate) enum Item {
         bounds: Bounds,
     },
     EndStroke(Op),
-    /// A fill, painted over its layer inside its mask's rectangle.
+    /// A region edit's op over its layer within `bounds`: a fill, a transform's lift (an
+    /// erasing fill) or its patch.
     Fill {
         op: Op,
         bounds: Bounds,
@@ -55,6 +57,9 @@ pub(crate) struct Scene {
     pub(crate) active_clip: u32,
     /// The clip pushed last and its paint op value.
     pub(crate) last_clip: Option<(RegionMask, u32)>,
+    /// The transforms' patches in the patch words, in order, and how many words they take.
+    pub(crate) patches: Vec<Patch>,
+    pub(crate) patch_words: usize,
 }
 
 /// Where the in-progress stroke draws: its layer, and the selection it is drawn inside.
@@ -111,12 +116,15 @@ impl Scene {
         Ok(scene)
     }
 
+    /// A transform of the whole layer clears everything before it, so the layer's ops start at
+    /// the last one (`restart`): the same pixels, and earlier patches stay off the GPU.
     fn push_layer(&mut self, layer: &Layer, active: bool, opacity: f32) -> Result<(), RenderError> {
         let start = self.items.len();
-        let mut edits = layer.edits().iter().peekable();
-        for (index, stroke) in layer.strokes().iter().enumerate() {
+        let (first, after) = restart(layer);
+        let mut edits = layer.edits()[first..].iter().peekable();
+        for (index, stroke) in layer.strokes().iter().enumerate().skip(after) {
             while let Some(edit) = edits.next_if(|edit| edit.after() == index) {
-                self.push_fill(edit)?;
+                self.push_edit(edit)?;
             }
             let clip = stroke.clip().map(|clip| self.clip(clip)).transpose()?;
             let mut paint = paint(stroke.style(), stroke.blend());
@@ -124,7 +132,7 @@ impl Scene {
             self.push_stroke(stroke.style(), &paint, stroke.samples());
         }
         for edit in edits {
-            self.push_fill(edit)?;
+            self.push_edit(edit)?;
         }
         if active {
             self.items.push(Item::Active);
@@ -136,7 +144,7 @@ impl Scene {
     }
 
     /// Appends `mask` to the mask words; returns where it starts.
-    fn push_mask(&mut self, mask: &RegionMask) -> Result<u32, RenderError> {
+    pub(crate) fn push_mask(&mut self, mask: &RegionMask) -> Result<u32, RenderError> {
         // Below 2^32 - 1, so a clip's value (one more) fits too.
         let at = u32::try_from(self.masks.len())
             .ok()
@@ -160,31 +168,6 @@ impl Scene {
         let value = self.push_mask(mask)? + 1;
         self.last_clip = Some((mask.clone(), value));
         Ok(value)
-    }
-
-    fn push_fill(&mut self, edit: &RegionEdit) -> Result<(), RenderError> {
-        let mask = edit.mask();
-        let at = self.push_mask(mask)?;
-        let ([x, y], [width, height]) = (mask.origin(), mask.size());
-        let color = edit.color();
-        let blend = if edit.alpha_locked() {
-            Blend::Atop
-        } else {
-            Blend::Over
-        };
-        let paint = Paint::solid([color.r(), color.g(), color.b()], blend);
-        // The mask's pixels, from their top-left corner to past their bottom-right one.
-        let bounds = Bounds([
-            x as f32,
-            y as f32,
-            (x + width) as f32 - 0.5,
-            (y + height) as f32 - 0.5,
-        ]);
-        self.items.push(Item::Fill {
-            op: Op::fill(&paint, at),
-            bounds,
-        });
-        Ok(())
     }
 
     /// Whether the in-progress stroke has a place, that is, its layer is visible.

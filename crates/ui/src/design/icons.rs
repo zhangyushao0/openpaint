@@ -50,6 +50,8 @@ pub enum Icon {
     Actions,
     /// A lasso, its loop in dashes: the Selection tool.
     Selection,
+    /// A pointer arrow, its tip up to the left: the Transform tool.
+    Transform,
     /// A cross: close.
     Close,
     /// Four arrows out from the middle: move the window.
@@ -133,7 +135,9 @@ fn polylines(icon: Icon) -> Vec<Line> {
         Icon::Visible => vec![eye_outline()],
         Icon::Hidden => vec![eye_outline(), vec![[0.2, 0.8], [0.8, 0.2]]],
         Icon::Duplicate => vec![rounded_rect([0.38, 0.38], [0.82, 0.82], 0.08), back_sheet()],
-        Icon::Brush | Icon::Eraser | Icon::Eyedropper | Icon::Selection => tools(icon),
+        Icon::Brush | Icon::Eraser | Icon::Eyedropper | Icon::Selection | Icon::Transform => {
+            tools(icon)
+        }
         Icon::Actions => spanner(),
         Icon::Close => vec![
             vec![[0.27, 0.27], [0.73, 0.73]],
@@ -331,6 +335,7 @@ mod tests {
             Icon::Eyedropper,
             Icon::Actions,
             Icon::Selection,
+            Icon::Transform,
             Icon::Close,
             Icon::Move,
             Icon::Resize,

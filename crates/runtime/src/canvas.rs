@@ -1,11 +1,13 @@
 //! The open canvas: the app session, the target its artwork is evaluated into, where that
 //! target shows on screen, and whether the user is leaving it for the gallery.
 
+use std::time::Instant;
+
 use openpaint_app::{
-    Contact, ContactPhase, FillFailed, Intent, SelectionIntent, Session, StrokeIntent, Thumbnail,
-    Title, ToolIntent, Toolbox, ViewMapping,
+    Contact, ContactPhase, FillFailed, Intent, LiftFailed, SelectionIntent, Session, StrokeIntent,
+    Thumbnail, Title, ToolIntent, Toolbox, TransformJob, ViewMapping,
 };
-use openpaint_core::{Artwork, CanvasSize, Color, RegionMask, StrokeTool};
+use openpaint_core::{Artwork, CanvasSize, Color, Patch, RegionMask, StrokeTool};
 use openpaint_render::{
     BrushCursor, CanvasPlacement, CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator,
     changed_regions, tip_radius,
@@ -110,11 +112,16 @@ impl Canvas {
                 }
                 Intent::Tool(tool) => {
                     toolbox.dispatch_tool(tool);
-                    // Choosing a tool or the eyedropper leaves the Selection tool (Procreate).
+                    // Choosing a tool or the eyedropper leaves the Selection tool and commits a
+                    // transform (Procreate).
                     if matches!(tool, ToolIntent::Use(_) | ToolIntent::Eyedropper(true)) {
+                        let before = self.session.shown().clone();
                         let leave = Intent::Selection(SelectionIntent::Tool(false));
                         if let Err(error) = self.session.dispatch(leave) {
                             log::warn!("intent refused: {error}");
+                        }
+                        if !before.same_version(self.session.shown()) {
+                            self.changed_from.get_or_insert(before);
                         }
                     }
                     true
@@ -144,6 +151,10 @@ impl Canvas {
                 }
                 Ok(()) => {}
                 Err(error) => log::warn!("intent refused: {error}"),
+            }
+            // A transform just begun lifts its pixels now, so the frame shows it at once.
+            if let Some(job) = self.session.transform_request() {
+                self.session.transform_lifted(lift(core, &job));
             }
         }
     }
@@ -274,6 +285,24 @@ impl Canvas {
     pub(crate) fn target(&self) -> &CanvasTarget {
         &self.target
     }
+}
+
+/// A transform's pixels: the job's layer sampled through the renderer (the single evaluator, a
+/// target of its own), then its painted pixels inside the job's selection, if any. Waits for
+/// the GPU, once per transform.
+fn lift(core: &Core, job: &TransformJob) -> Result<Option<Patch>, LiftFailed> {
+    let started = Instant::now();
+    let pixels = core
+        .layer_pixels(&job.artwork, job.layer)
+        .inspect_err(|error| log::error!("sampling the layer for a transform failed: {error}"))
+        .map_err(|_| LiftFailed)?;
+    let patch = openpaint_raster::lift(job.artwork.canvas(), pixels.pixels(), job.clip.as_ref());
+    log::info!(
+        "transform lifted {:?} px in {} ms",
+        patch.as_ref().map(Patch::size),
+        started.elapsed().as_millis()
+    );
+    Ok(patch)
 }
 
 /// The size of a blank artwork that fills `area`.

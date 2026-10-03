@@ -12,6 +12,7 @@ use crate::selection::SelectionProjection;
 use crate::storage::StorageNotice;
 use crate::toolbox::BrushProjection;
 use crate::transfer::TransferProjection;
+use crate::transform::TransformProjection;
 use crate::view::CanvasView;
 
 /// Something the user can ask for whose availability depends on the session. The layer actions
@@ -36,6 +37,8 @@ pub enum EditorAction {
     ChooseReference,
     /// Fill a region with the colour (ColorDrop).
     Fill,
+    /// Move, scale or turn the layer's content or the selection's.
+    Transform,
 }
 
 /// Whether an action can run now, and why not.
@@ -88,6 +91,8 @@ pub struct SessionProjection {
     pub(crate) fill: FillProjection,
     /// Boxed: a mask and a path, most frames nothing.
     pub(crate) selection: Box<SelectionProjection>,
+    /// Boxed: a frame, most frames nothing.
+    pub(crate) transform: Box<TransformProjection>,
     pub(crate) brush: Option<BrushProjection>,
     /// Boxed: rarely more than a notice, but its errors are large.
     pub(crate) transfers: Option<Box<TransferProjection>>,
@@ -130,7 +135,7 @@ impl SessionProjection {
             EditorAction::LowerLayer => self.layer_actions[3],
             EditorAction::EditLayer => self.layer_actions[4],
             EditorAction::Gallery => self.gallery,
-            EditorAction::Fill => {
+            EditorAction::Fill | EditorAction::Transform => {
                 if self.canvas.is_none() {
                     Availability::NothingLeft
                 } else if self.drawing {
@@ -152,6 +157,12 @@ impl SessionProjection {
     #[must_use]
     pub fn selection(&self) -> &SelectionProjection {
         &self.selection
+    }
+
+    /// The Transform tool, its frame and its notice.
+    #[must_use]
+    pub fn transform(&self) -> TransformProjection {
+        *self.transform
     }
 
     /// What to tell the user about saving and opening.
@@ -237,6 +248,7 @@ impl Default for SessionProjection {
                 failed: false,
             },
             selection: Box::default(),
+            transform: Box::default(),
             brush: None,
             transfers: None,
         }
@@ -259,6 +271,7 @@ impl fmt::Display for EditorAction {
             Self::Export => "export the artwork",
             Self::ChooseReference => "choose a reference image",
             Self::Fill => "fill",
+            Self::Transform => "transform",
         })
     }
 }

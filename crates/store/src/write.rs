@@ -10,7 +10,7 @@ use openpaint_core::Artwork;
 use crate::catalogue::{Entry, encode_entry, encode_thumbnail};
 use crate::delta::delta;
 use crate::editor::{EDITOR, encode_editor};
-use crate::fills::{encode_fill, fill_key, fills_prefix};
+use crate::fills::{encode_edit, fill_key, fills_prefix};
 use crate::library::{Open, device};
 use crate::read;
 use crate::records::{
@@ -181,7 +181,7 @@ fn write_delta(
         batch.insert(
             &open.projects,
             fill_key(id, layer, index),
-            encode_fill(fill),
+            encode_edit(fill),
         );
     }
     for (layer, index) in changes.remove_fills {
@@ -207,7 +207,7 @@ fn write_all(
         }
         for (index, fill) in layer.edits().iter().enumerate() {
             let key = fill_key(id, layer.id().get(), index);
-            batch.insert(&open.projects, key.clone(), encode_fill(fill));
+            batch.insert(&open.projects, key.clone(), encode_edit(fill));
             written.insert(key);
         }
     }

@@ -4,8 +4,8 @@
 use std::sync::Arc;
 
 use openpaint_core::{
-    Artwork, ArtworkCommand, BrushRecipe, CanvasPoint, CanvasSize, Color, CoreError, LayerCommand,
-    RegionMask, StrokeSample, StrokeStyle,
+    Artwork, ArtworkCommand, BrushRecipe, CanvasPoint, CanvasSize, Color, CoreError, EditParts,
+    FillParts, LayerCommand, RegionMask, StrokeSample, StrokeStyle,
 };
 
 fn canvas() -> CanvasSize {
@@ -81,7 +81,7 @@ fn a_fill_lies_after_the_strokes_so_far_and_keeps_alpha_lock() {
     let drawn = draw(&Artwork::new(canvas()));
     let id = drawn.active();
     let filled = drawn.fill_region(ring(), Color::WHITE).unwrap().artwork;
-    let edit = &filled.layer(id).unwrap().edits()[0];
+    let edit = filled.layer(id).unwrap().edits()[0].fill().unwrap();
     assert_eq!((edit.after(), edit.alpha_locked()), (1, false));
     let again = draw(&filled);
     assert_eq!(
@@ -95,7 +95,7 @@ fn a_fill_lies_after_the_strokes_so_far_and_keeps_alpha_lock() {
     };
     let locked = again.apply(layer(lock)).unwrap().artwork;
     let atop = locked.fill_region(ring(), Color::BLACK).unwrap().artwork;
-    let second = &atop.layer(id).unwrap().edits()[1];
+    let second = atop.layer(id).unwrap().edits()[1].fill().unwrap();
     assert_eq!((second.after(), second.alpha_locked()), (2, true));
     let hard_lock = LayerCommand::SetLocked {
         layer: id,
@@ -125,13 +125,19 @@ fn fills_round_trip_through_storage_and_bad_ones_are_rejected() {
         .unwrap()
         .artwork;
     let parts = filled.to_parts();
-    assert_eq!(parts.layers[0].fills[0].after, 1);
+    let fill = |parts: &mut openpaint_core::ArtworkParts| match &mut parts.layers[0].edits[0] {
+        EditParts::Fill(fill) => fill.clone(),
+        EditParts::Transform(_) => panic!("a fill"),
+    };
+    assert_eq!(fill(&mut parts.clone()).after, 1);
     let loaded = Artwork::from_storage(parts.clone()).unwrap();
     assert_eq!(loaded, filled);
     assert_eq!(loaded.to_parts(), parts);
-    let rejects = |change: fn(&mut openpaint_core::FillParts)| {
+    let rejects = |change: fn(&mut FillParts)| {
         let mut broken = parts.clone();
-        change(&mut broken.layers[0].fills[0]);
+        let mut edit = fill(&mut broken);
+        change(&mut edit);
+        broken.layers[0].edits[0] = EditParts::Fill(edit);
         Artwork::from_storage(broken).is_err()
     };
     assert!(rejects(|fill| fill.after = 2), "past the strokes");
@@ -139,9 +145,9 @@ fn fills_round_trip_through_storage_and_bad_ones_are_rejected() {
     assert!(rejects(|fill| fill.color = [2.0, 0.0, 0.0]));
     assert!(rejects(|fill| fill.runs.push(1)));
     let mut unordered = parts;
-    let mut first = unordered.layers[0].fills[0].clone();
+    let mut first = fill(&mut unordered);
     first.after = 0;
-    unordered.layers[0].fills.push(first);
+    unordered.layers[0].edits.push(EditParts::Fill(first));
     assert!(Artwork::from_storage(unordered).is_err(), "places go back");
 }
 

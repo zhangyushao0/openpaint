@@ -1,12 +1,13 @@
-//! Region edits: a set of canvas pixels (`RegionMask`) and what was done to them. A fill
-//! (ColorDrop) paints one colour over every pixel of its mask, with a hard edge, at its place
-//! between the layer's strokes.
+//! Region edits: a set of canvas pixels (`RegionMask`) and what was done to them, at their place
+//! between the layer's strokes. A fill (ColorDrop) paints one colour over every pixel of its
+//! mask, with a hard edge; a transform (`transform.rs`) moves pixels.
 
 use std::sync::Arc;
 
 use crate::artwork::Artwork;
 use crate::command::{Applied, Change};
 use crate::error::CoreError;
+use crate::transform::TransformEdit;
 use crate::value::{CanvasSize, Color, invalid};
 
 /// A non-empty set of canvas pixels inside a bounding rectangle. Rows are bit-packed: pixel
@@ -176,18 +177,97 @@ impl PartialEq for RegionMask {
     }
 }
 
+/// What was done to a layer's pixels, at its place among the layer's strokes: a fill or a
+/// transform.
+#[derive(Debug, Clone, PartialEq)]
+pub enum RegionEdit {
+    Fill(FillEdit),
+    Transform(TransformEdit),
+}
+
+impl RegionEdit {
+    /// How many of the layer's strokes lie under the edit (oldest first).
+    #[must_use]
+    pub const fn after(&self) -> usize {
+        match self {
+            Self::Fill(fill) => fill.after,
+            Self::Transform(transform) => transform.after,
+        }
+    }
+
+    #[must_use]
+    pub const fn fill(&self) -> Option<&FillEdit> {
+        match self {
+            Self::Fill(fill) => Some(fill),
+            Self::Transform(_) => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn transform(&self) -> Option<&TransformEdit> {
+        match self {
+            Self::Transform(transform) => Some(transform),
+            Self::Fill(_) => None,
+        }
+    }
+
+    /// The same edit seen from two versions: its pixels shared, its place and values equal.
+    /// O(1): never compares pixels.
+    #[must_use]
+    pub fn same(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Fill(a), Self::Fill(b)) => {
+                a.mask.shares(&b.mask)
+                    && a.after == b.after
+                    && a.color == b.color
+                    && a.alpha_locked == b.alpha_locked
+            }
+            (Self::Transform(a), Self::Transform(b)) => a.same(b),
+            _ => false,
+        }
+    }
+
+    /// Heap bytes of its masks and pixels that `old` (the edit at its index in an older
+    /// version) does not share.
+    pub(crate) fn bytes_since(&self, old: Option<&Self>) -> usize {
+        let mask = |mask: &RegionMask, old: Option<&RegionMask>| {
+            if old.is_some_and(|old| old.shares(mask)) {
+                0
+            } else {
+                size_of_val(mask.words())
+            }
+        };
+        match self {
+            Self::Fill(fill) => mask(&fill.mask, old.and_then(Self::fill).map(|o| &o.mask)),
+            Self::Transform(transform) => {
+                let old = old.and_then(Self::transform);
+                let lift = transform
+                    .lift
+                    .as_ref()
+                    .map_or(0, |lift| mask(lift, old.and_then(TransformEdit::lift)));
+                let shared = old.is_some_and(|old| old.patch.shares(&transform.patch));
+                lift + if shared {
+                    0
+                } else {
+                    transform.patch.pixels().len()
+                }
+            }
+        }
+    }
+}
+
 /// A fill on a layer: `color` over every pixel of `mask`, painted after the layer's first
 /// `after` strokes. With `alpha_locked` (the layer's Alpha Lock when it was made) the colour
 /// changes only where the layer already has paint, keeping its alpha.
 #[derive(Debug, Clone, PartialEq)]
-pub struct RegionEdit {
+pub struct FillEdit {
     pub(crate) after: usize,
     pub(crate) mask: RegionMask,
     pub(crate) color: Color,
     pub(crate) alpha_locked: bool,
 }
 
-impl RegionEdit {
+impl FillEdit {
     /// How many of the layer's strokes lie under the fill (oldest first).
     #[must_use]
     pub const fn after(&self) -> usize {
@@ -232,20 +312,26 @@ impl Artwork {
     pub fn fill_region(&self, mask: RegionMask, color: Color) -> Result<Applied, CoreError> {
         let index = self.editable_layer(self.active())?;
         check_mask(self.canvas(), &mask)?;
-        let mut next = self.state().clone();
-        let layer = &mut next.layers[index];
-        let edit = RegionEdit {
+        let layer = &self.state().layers[index];
+        let edit = FillEdit {
             after: layer.strokes.len(),
             mask,
             color,
             alpha_locked: layer.props.alpha_locked,
         };
-        let mut edits = layer.edits.to_vec();
-        edits.push(edit);
-        layer.edits = Arc::from(edits);
         Ok(Applied {
-            artwork: Artwork::from_state(next),
+            artwork: push_edit(self, index, RegionEdit::Fill(edit)),
             change: Change::Content,
         })
     }
+}
+
+/// `artwork` with `edit` added to the edits of its layer at `index`.
+pub(crate) fn push_edit(artwork: &Artwork, index: usize, edit: RegionEdit) -> Artwork {
+    let mut next = artwork.state().clone();
+    let layer = &mut next.layers[index];
+    let mut edits = layer.edits.to_vec();
+    edits.push(edit);
+    layer.edits = Arc::from(edits);
+    Artwork::from_state(next)
 }

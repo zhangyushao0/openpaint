@@ -7,7 +7,7 @@
 use openpaint_app::{
     Delivery, EditorAction, ExportError, ExportIntent, ExportNotice, FillIntent, FillRefusal,
     ImageError, Intent, ReferenceIntent, ReferenceNotice, SessionProjection, StorageIntent,
-    StorageNotice,
+    StorageNotice, TransformIntent, TransformRefusal,
 };
 
 use crate::components::{Place, Source, confirmation, notice, pill, status};
@@ -33,6 +33,7 @@ pub(crate) fn notice_pill(
 ) -> Option<egui::Rect> {
     let told = storage(projection)
         .or_else(|| fill(projection))
+        .or_else(|| transform(projection))
         .or_else(|| transfers(projection))?;
     // It comes out of its right end, beside the right island.
     let source = Source::Within(egui::Align::Max);
@@ -98,6 +99,18 @@ fn fill(projection: &SessionProjection) -> Option<Told> {
         (None, false) => return None,
     };
     let dismiss = Intent::Fill(FillIntent::Cancel);
+    Some(Told::Failed(message.to_owned(), "OK", true, dismiss))
+}
+
+/// Why the Transform tool did not turn on, with OK.
+fn transform(projection: &SessionProjection) -> Option<Told> {
+    let message = match projection.transform().refused? {
+        TransformRefusal::Hidden => "Can't transform: the layer is hidden.",
+        TransformRefusal::Locked => "Can't transform: the layer is locked.",
+        TransformRefusal::Empty => "Nothing to transform here.",
+        TransformRefusal::Failed => "Couldn't pick up the layer. Try again.",
+    };
+    let dismiss = Intent::Transform(TransformIntent::Tool(false));
     Some(Told::Failed(message.to_owned(), "OK", true, dismiss))
 }
 

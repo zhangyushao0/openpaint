@@ -10,13 +10,15 @@ use crate::error::CoreError;
 use crate::id::{IdCounters, LayerId, MAX_ID, StrokeId};
 use crate::layer::{Layer, LayerProps};
 use crate::parts::{
-    ArtworkParts, FillParts, LayerParts, MaskParts, RecipeParts, SampleParts, StrokeParts,
+    ArtworkParts, EditParts, FillParts, LayerParts, MaskParts, RecipeParts, SampleParts,
+    StrokeParts, TransformParts,
 };
-use crate::region::{RegionEdit, RegionMask};
+use crate::region::{FillEdit, RegionEdit, RegionMask};
 use crate::stroke::{
     MAX_STROKE_SAMPLES, Stroke, StrokeBlend, StrokeSample, StrokeStyle, StrokeTool, check_order,
 };
 use crate::stroke_list::StrokeList;
+use crate::transform::{Patch, Placement, TransformEdit, transform_from};
 use crate::value::{CanvasPoint, CanvasSize, Color, LayerName, invalid};
 
 /// Ids seen so far, checked against the stored counters, and the recipes built so far: strokes
@@ -149,13 +151,18 @@ fn layer_from(
         .map(|stroke| stroke_from(stroke, canvas, ids))
         .collect::<Result<Vec<_>, _>>()?;
     let mut after = 0;
-    let mut edits = Vec::with_capacity(parts.fills.len());
-    for fill in &parts.fills {
-        let edit = fill_from(fill, canvas)?;
-        if edit.after < after || edit.after > strokes.len() {
-            return Err(invalid("fill place"));
+    let mut edits = Vec::with_capacity(parts.edits.len());
+    for edit in &parts.edits {
+        let edit = match edit {
+            EditParts::Fill(fill) => RegionEdit::Fill(fill_from(fill, canvas)?),
+            EditParts::Transform(transform) => {
+                RegionEdit::Transform(transform_parts_from(transform, canvas)?)
+            }
+        };
+        if edit.after() < after || edit.after() > strokes.len() {
+            return Err(invalid("edit place"));
         }
-        after = edit.after;
+        after = edit.after();
         edits.push(edit);
     }
     Ok(Layer {
@@ -167,15 +174,31 @@ fn layer_from(
     })
 }
 
-fn fill_from(parts: &FillParts, canvas: CanvasSize) -> Result<RegionEdit, CoreError> {
+fn fill_from(parts: &FillParts, canvas: CanvasSize) -> Result<FillEdit, CoreError> {
     let [r, g, b] = parts.color;
     let mask = RegionMask::from_runs(canvas, parts.origin, parts.size, &parts.runs)?;
-    Ok(RegionEdit {
+    Ok(FillEdit {
         after: usize::try_from(parts.after).map_err(|_| invalid("fill place"))?,
         mask,
         color: Color::rgb(r, g, b)?,
         alpha_locked: parts.alpha_locked,
     })
+}
+
+fn transform_parts_from(
+    parts: &TransformParts,
+    canvas: CanvasSize,
+) -> Result<TransformEdit, CoreError> {
+    let after = usize::try_from(parts.after).map_err(|_| invalid("transform place"))?;
+    let lift = parts
+        .lift
+        .as_ref()
+        .map(|lift| RegionMask::from_runs(canvas, lift.origin, lift.size, &lift.runs))
+        .transpose()?;
+    let patch = Patch::new(canvas, parts.origin, parts.size, parts.pixels.clone())?;
+    let placement =
+        Placement::new(parts.matrix, parts.translation).ok_or(invalid("transform placement"))?;
+    transform_from(canvas, after, lift, patch, placement)
 }
 
 fn stroke_from(

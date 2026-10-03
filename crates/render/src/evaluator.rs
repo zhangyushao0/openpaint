@@ -134,7 +134,12 @@ impl CanvasTarget {
             .is_some_and(|cache| cache.artwork.same_version(artwork) && cache.active == active);
         if !reuse {
             let scene = Scene::build(artwork, active.as_ref())?;
-            let ops = scene_ops(&core.gpu, &scene);
+            let patches = self.scene.as_ref().and_then(|cache| {
+                let (old, new) = (&cache.scene.patches, &scene.patches);
+                let same = old.len() == new.len() && old.iter().zip(new).all(|(a, b)| a.shares(b));
+                same.then(|| cache.ops.patches.clone())
+            });
+            let ops = scene_ops(&core.gpu, &scene, patches);
             self.scene = Some(SceneCache {
                 artwork: artwork.clone(),
                 active,
@@ -208,7 +213,7 @@ impl<'a> RegionEvaluator<'a> {
             ));
         }
         let scene = Scene::layer(artwork, layer)?;
-        let ops = scene_ops(&self.core.gpu, &scene);
+        let ops = scene_ops(&self.core.gpu, &scene, None);
         let plan = Plan::build(&scene, &Fresh::default(), size, &[PixelRect::full(size)]);
         self.target.scene = None;
         self.target.track.forget();

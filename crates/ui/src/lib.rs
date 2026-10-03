@@ -23,6 +23,8 @@ mod selection_bar;
 mod sheet;
 mod shell;
 mod side_bar;
+mod transform_bar;
+mod transform_drag;
 
 pub use crate::components::{CanvasArea, ScreenArea, TOP_BAND};
 pub use crate::shell::Shell;

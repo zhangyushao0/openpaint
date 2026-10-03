@@ -2,6 +2,7 @@
 
 use wgpu::util::DeviceExt;
 
+use crate::edits::patch_bytes;
 use crate::error::RenderError;
 use crate::gpu::Gpu;
 use crate::paper::paper_levels;
@@ -49,10 +50,12 @@ pub(crate) struct Bindings {
     group: Option<(wgpu::Buffer, wgpu::BindGroup)>,
 }
 
-/// One scene on the GPU: its ops (item index = op index) and its fill masks.
+/// One scene on the GPU: its ops (item index = op index), its fill masks and its transforms'
+/// patches.
 pub(crate) struct SceneOps {
     pub(crate) ops: wgpu::Buffer,
     pub(crate) masks: wgpu::Buffer,
+    pub(crate) patches: wgpu::Buffer,
 }
 
 impl Bindings {
@@ -152,6 +155,7 @@ impl EvaluatePipeline {
                 buffer_entry(7, read_only),
                 texture_entry(8, wgpu::StorageTextureAccess::ReadWrite, COVERAGE_FORMAT),
                 buffer_entry(9, read_only),
+                buffer_entry(10, read_only),
             ],
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -227,6 +231,7 @@ impl EvaluatePipeline {
             (5, fresh),
             (7, &scene.masks),
             (9, &self.paper),
+            (10, &scene.patches),
         ];
         let mut entries: Vec<_> = buffers
             .into_iter()
@@ -250,12 +255,27 @@ impl EvaluatePipeline {
     }
 }
 
-/// The scene's ops (item index = op index) and its fill masks as GPU buffers.
-pub(crate) fn scene_ops(gpu: &Gpu, scene: &Scene) -> SceneOps {
+/// The scene's ops (item index = op index), fill masks and patches as GPU buffers; `patches`
+/// is a buffer that already holds this scene's patch words (the scene before had the same
+/// patches), so a transform being dragged uploads its pixels once.
+pub(crate) fn scene_ops(gpu: &Gpu, scene: &Scene, patches: Option<wgpu::Buffer>) -> SceneOps {
     let ops: Vec<Op> = scene.items.iter().map(|item| item.op()).collect();
+    let patches = patches.unwrap_or_else(|| {
+        let mut bytes = patch_bytes(scene);
+        if bytes.is_empty() {
+            bytes.resize(4, 0);
+        }
+        gpu.device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("patches"),
+                contents: &bytes,
+                usage: wgpu::BufferUsages::STORAGE,
+            })
+    });
     SceneOps {
         ops: buffer(gpu, wgpu::BufferUsages::STORAGE, &ops),
         masks: buffer(gpu, wgpu::BufferUsages::STORAGE, &scene.masks),
+        patches,
     }
 }
 

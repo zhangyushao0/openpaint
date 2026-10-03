@@ -1,5 +1,5 @@
-//! The tools' icons: what the pen does, each held at a slant with its tip down to the left, and
-//! the Selection tool's lasso.
+//! The tools' icons: what the pen does, each held at a slant with its tip down to the left, the
+//! Selection tool's lasso and the Transform tool's pointer.
 
 use std::f32::consts::PI;
 
@@ -46,6 +46,17 @@ pub(super) fn tools(icon: Icon) -> Vec<Line> {
             },
         ],
         Icon::Selection => lasso(),
+        // A pointer: the tip, down its left side, a notch, the tail and back up its right side.
+        Icon::Transform => vec![vec![
+            [0.3, 0.16],
+            [0.3, 0.78],
+            [0.45, 0.64],
+            [0.56, 0.86],
+            [0.66, 0.81],
+            [0.55, 0.6],
+            [0.75, 0.6],
+            [0.3, 0.16],
+        ]],
         _ => Vec::new(),
     }
 }

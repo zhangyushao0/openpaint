@@ -20,6 +20,7 @@ fn frame(covers: &[ScreenArea]) -> CanvasFrame<'_> {
         now_ms: 0,
         picking: false,
         selecting: false,
+        transform: None,
         drawing: false,
         control: false,
     }
@@ -248,6 +249,70 @@ fn a_picking_contact_over_a_control_previews_nothing_but_the_loupe_follows() {
     let lifted = input.route(&picking, &[pen(1, ContactPhase::Up, 352.0, 100.0)]);
     assert_eq!(lifted.len(), 1, "the lift still picks the last preview");
     assert_eq!(input.picking_at(), None);
+}
+
+/// The frame of a transform holding canvas pixels 100..200 x 100..200, unmoved.
+fn transforming() -> CanvasFrame<'static> {
+    CanvasFrame {
+        transform: Some(TransformFrame {
+            origin: [100.0, 100.0],
+            size: [100.0, 100.0],
+            placement: openpaint_core::Placement::IDENTITY,
+        }),
+        ..frame(&[])
+    }
+}
+
+fn placements(intents: &[Intent]) -> Vec<String> {
+    intents
+        .iter()
+        .map(|intent| match intent {
+            Intent::Transform(TransformIntent::Place(p)) => {
+                let [x, y] = p.apply([0.0, 0.0]);
+                format!("place {x:.0} {y:.0}")
+            }
+            Intent::Transform(TransformIntent::Settle) => "settle".to_owned(),
+            other => format!("{other:?}"),
+        })
+        .collect()
+}
+
+#[test]
+fn while_transforming_the_pen_moves_the_frame_and_never_draws() {
+    let mut input = CanvasInput::default();
+    // The frame's centre (150, 150) shows at (200, 234) at fit; 0.92 screen px per canvas px.
+    let inside = [
+        pen(1, ContactPhase::Down, 200.0, 234.0),
+        pen(1, ContactPhase::Move, 223.0, 234.0),
+        pen(1, ContactPhase::Up, 246.0, 234.0),
+    ];
+    let intents = input.route(&transforming(), &inside);
+    assert_eq!(placements(&intents), ["place 25 0", "place 50 0", "settle"]);
+    let outside = [
+        pen(2, ContactPhase::Down, 20.0, 234.0),
+        pen(2, ContactPhase::Up, 30.0, 234.0),
+    ];
+    assert!(input.route(&transforming(), &outside).is_empty(), "nothing");
+}
+
+#[test]
+fn while_transforming_fingers_inside_the_frame_move_it_and_outside_the_view() {
+    let mut input = CanvasInput::default();
+    let two = [[190.0, 234.0], [210.0, 234.0]];
+    input.route(&transforming(), &[fingers(ContactPhase::Down, &two)]);
+    let spread = [[150.0, 234.0], [250.0, 234.0]];
+    let moved = input.route(&transforming(), &[fingers(ContactPhase::Move, &spread)]);
+    assert!(
+        matches!(moved[..], [Intent::Transform(TransformIntent::Place(_))]),
+        "{moved:?}"
+    );
+    let lifted = input.route(&transforming(), &[fingers(ContactPhase::Up, &spread)]);
+    assert_eq!(placements(&lifted), ["settle"]);
+    let apart = [[20.0, 234.0], [40.0, 234.0]];
+    input.route(&transforming(), &[fingers(ContactPhase::Down, &apart)]);
+    let wide = [[5.0, 234.0], [80.0, 234.0]];
+    let viewed = input.route(&transforming(), &[fingers(ContactPhase::Move, &wide)]);
+    assert!(matches!(viewed[..], [Intent::View(_)]), "{viewed:?}");
 }
 
 #[test]

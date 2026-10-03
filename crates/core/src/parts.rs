@@ -31,8 +31,30 @@ pub struct LayerParts {
     pub alpha_locked: bool,
     /// Oldest first.
     pub strokes: Vec<StrokeParts>,
-    /// Fills, oldest first.
-    pub fills: Vec<FillParts>,
+    /// Fills and transforms, oldest first.
+    pub edits: Vec<EditParts>,
+}
+
+/// A region edit as plain data.
+#[derive(Debug, Clone, PartialEq)]
+pub enum EditParts {
+    Fill(FillParts),
+    Transform(TransformParts),
+}
+
+/// A transform as plain data: its place among the layer's strokes, what it lifted (`None`: the
+/// whole layer), the lifted pixels and where they went.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TransformParts {
+    pub after: u64,
+    pub lift: Option<MaskParts>,
+    pub origin: [u32; 2],
+    pub size: [u32; 2],
+    /// Premultiplied 8-bit RGBA, rows top first.
+    pub pixels: Vec<u8>,
+    /// `[a, b, c, d]` and the translation, as `Placement::new` takes them.
+    pub matrix: [f32; 4],
+    pub translation: [f32; 2],
 }
 
 /// A fill as plain data: its place among the layer's strokes, its colour and its mask as runs
@@ -218,19 +240,36 @@ fn layer_parts(layer: &Layer) -> LayerParts {
         locked: layer.props.locked,
         alpha_locked: layer.props.alpha_locked,
         strokes: layer.strokes.iter().map(stroke_parts).collect(),
-        fills: layer.edits.iter().map(fill_parts).collect(),
+        edits: layer.edits.iter().map(edit_parts).collect(),
     }
 }
 
-fn fill_parts(edit: &RegionEdit) -> FillParts {
-    let color = edit.color;
-    FillParts {
-        after: edit.after as u64,
-        color: [color.r(), color.g(), color.b()],
-        alpha_locked: edit.alpha_locked,
-        origin: edit.mask.origin(),
-        size: edit.mask.size(),
-        runs: edit.mask.runs(),
+fn edit_parts(edit: &RegionEdit) -> EditParts {
+    match edit {
+        RegionEdit::Fill(fill) => {
+            let color = fill.color;
+            EditParts::Fill(FillParts {
+                after: fill.after as u64,
+                color: [color.r(), color.g(), color.b()],
+                alpha_locked: fill.alpha_locked,
+                origin: fill.mask.origin(),
+                size: fill.mask.size(),
+                runs: fill.mask.runs(),
+            })
+        }
+        RegionEdit::Transform(transform) => {
+            let patch = transform.patch();
+            let placement = transform.placement();
+            EditParts::Transform(TransformParts {
+                after: transform.after() as u64,
+                lift: transform.lift().map(RegionMask::to_parts),
+                origin: patch.origin(),
+                size: patch.size(),
+                pixels: patch.pixels().to_vec(),
+                matrix: placement.matrix(),
+                translation: placement.translation(),
+            })
+        }
     }
 }
 

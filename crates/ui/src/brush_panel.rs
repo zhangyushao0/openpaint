@@ -62,7 +62,9 @@ impl BrushPanel {
             (Tool::Brush, Icon::Brush, "Brushes"),
             (Tool::Eraser, Icon::Eraser, "Eraser"),
         ] {
-            let current = brush.tool == tool && !projection.selection().tool;
+            // While the Selection or the Transform tool is on, the pen does not paint.
+            let other = projection.selection().tool || projection.transform().tool;
+            let current = brush.tool == tool && !other;
             let response = icon_toggle(ui, icon, label, current);
             if brush.tool == tool {
                 self.button = Some(response.rect);

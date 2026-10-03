@@ -14,6 +14,7 @@ mod library;
 mod migrate;
 mod migrate_6;
 mod migrate_7;
+mod migrate_8;
 mod read;
 mod records;
 mod strokes;

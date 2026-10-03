@@ -11,13 +11,15 @@
 
 use openpaint_app::{
     CanvasView, Contact, ContactPhase, Device, GestureFrame, Gestured, Gestures, HistoryIntent,
-    InputBatch, Intent, SelectionIntent, StrokeIntent, Touch, TouchAction, ViewIntent, ViewMapping,
-    Viewport,
+    InputBatch, Intent, SelectionIntent, StrokeIntent, Touch, TouchAction, TransformFrame,
+    TransformIntent, ViewIntent, ViewMapping, Viewport,
 };
 use openpaint_core::CanvasSize;
 
 use crate::components::{CanvasArea, ScreenArea};
 use crate::selection_bar::CLOSE_POINTS;
+use crate::transform_bar::Handles;
+use crate::transform_drag::{TransformDrag, gesture_placement};
 
 /// What routing one frame's contacts needs to know.
 #[derive(Debug, Clone, Copy)]
@@ -34,6 +36,8 @@ pub(crate) struct CanvasFrame<'a> {
     pub(crate) picking: bool,
     /// The Selection tool is on: the pen draws selections, from anywhere open (the desk too).
     pub(crate) selecting: bool,
+    /// The Transform tool's frame: the pen and the fingers move what it holds, never draw.
+    pub(crate) transform: Option<TransformFrame>,
     pub(crate) drawing: bool,
     /// A control took a contact this frame.
     pub(crate) control: bool,
@@ -69,6 +73,8 @@ pub(crate) struct CanvasInput {
     pressing: Option<[f32; 2]>,
     /// Where the contact picking a colour is (screen pixels).
     picking_at: Option<[f32; 2]>,
+    /// Contacts on the Transform tool's frame.
+    drag: TransformDrag,
 }
 
 impl CanvasInput {
@@ -87,6 +93,10 @@ impl CanvasInput {
             let first = contact.samples.first().map(|sample| sample.position);
             let open =
                 contact.phase == ContactPhase::Down && first.is_some_and(|at| frame.open(at));
+            if let Some(mut taken) = self.transform_contact(contact, frame, &mapping, open) {
+                intents.append(&mut taken);
+                continue;
+            }
             if contact.device == Device::Finger && !frame.picking {
                 touches.extend(touch(contact, open));
                 continue;
@@ -133,20 +143,58 @@ impl CanvasInput {
         intents
     }
 
+    /// While the Transform tool is on: the intents of a contact on its frame, or none for the
+    /// pen elsewhere (it never draws then); `None` for a finger left to the gesture trackers,
+    /// which notes whether the fingers' gesture began inside the frame.
+    fn transform_contact(
+        &mut self,
+        contact: &Contact,
+        frame: &CanvasFrame<'_>,
+        mapping: &ViewMapping,
+        open: bool,
+    ) -> Option<Vec<Intent>> {
+        let transform = frame.transform.as_ref()?;
+        let held = (frame.pixels_per_point, open);
+        if let Some(taken) = self.drag.route(contact, transform, mapping, held) {
+            return Some(taken);
+        }
+        if contact.device != Device::Finger {
+            return Some(Vec::new());
+        }
+        if contact.phase == ContactPhase::Down && self.fingers.len() == 1 {
+            let handles = Handles::of(transform, mapping, frame.pixels_per_point);
+            let first = contact.samples.first().map(|sample| sample.position);
+            self.drag.fingers = open && first.is_some_and(|at| handles.inside(at));
+        }
+        None
+    }
+
     fn apply(&mut self, gestured: Gestured, frame: &CanvasFrame<'_>, intents: &mut Vec<Intent>) {
+        let on_frame = frame.transform.filter(|_| self.drag.fingers);
         match gestured.action {
             Some(TouchAction::Undo) => intents.push(Intent::History(HistoryIntent::Undo)),
             Some(TouchAction::Redo) => intents.push(Intent::History(HistoryIntent::Redo)),
+            Some(TouchAction::Fit) if on_frame.is_some() => {}
             Some(TouchAction::Fit) => {
                 self.navigated_ms = Some(frame.now_ms);
                 intents.push(Intent::View(ViewIntent::Fit));
             }
             None => {}
         }
-        if let Some(gesture) = gestured.view {
+        if let (Some(gesture), Some(transform)) = (gestured.view, on_frame) {
+            let placed = gesture_placement(transform.placement, &gesture, &frame.mapping());
+            if let Some(placement) = placed {
+                intents.push(Intent::Transform(TransformIntent::Place(placement)));
+            }
+        } else if let Some(gesture) = gestured.view {
             self.navigated_ms = Some(frame.now_ms);
             let viewport = frame.viewport();
             intents.push(Intent::View(ViewIntent::Gesture { gesture, viewport }));
+        }
+        if self.drag.fingers && self.fingers.is_empty() {
+            // The fingers that moved the frame's content lifted: one step.
+            self.drag.fingers = false;
+            intents.push(Intent::Transform(TransformIntent::Settle));
         }
     }
 

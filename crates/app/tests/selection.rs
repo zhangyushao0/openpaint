@@ -226,7 +226,8 @@ fn strokes_and_fills_keep_inside_the_selection_and_keep_their_clip_after_deselec
     session
         .dispatch(Intent::Fill(FillIntent::Commit))
         .expect("commit");
-    let fill = session.artwork().layers()[0].edits()[0].mask().clone();
+    let edit = &session.artwork().layers()[0].edits()[0];
+    let fill = edit.fill().expect("a fill").mask().clone();
     assert_eq!(fill, selected, "the whole flood, cut to the selection");
     select(&mut session, SelectionIntent::Deselect);
     stroke(&mut session, [5.0, 30.0], [95.0, 30.0]);
