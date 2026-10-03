@@ -12,10 +12,11 @@ internal object Native {
     }
 
     /**
-     * Opens the GPU device and starts opening the artwork library in `filesDir` on a worker.
-     * Returns 0 when that failed; the reason is in the log.
+     * Opens the GPU device and starts opening the artwork library in `filesDir` on a worker;
+     * files to share are made in `cacheDir/share`. Returns 0 when that failed; the reason is in
+     * the log.
      */
-    @JvmStatic external fun create(density: Float, filesDir: String): Long
+    @JvmStatic external fun create(density: Float, filesDir: String, cacheDir: String): Long
 
     /** Stores what is left to store before the process may be killed. Waits at most 2 s. */
     @JvmStatic external fun leave(handle: Long)
@@ -68,4 +69,16 @@ internal object Native {
 
     /** The back button; true when the app used it, false for the system's own back. */
     @JvmStatic external fun back(handle: Long): Boolean
+
+    /**
+     * The next thing to show, as tab-separated fields: "save", mime, name (the save dialog);
+     * "open" (the image picker); "send", mime, path (the share sheet). Null when there is none.
+     */
+    @JvmStatic external fun request(handle: Long): String?
+
+    /**
+     * What the user chose in the last picker: `fd` a descriptor detached for Rust, which owns
+     * it from now on; -1 with a null `error` when cancelled; `error` when the system failed.
+     */
+    @JvmStatic external fun answer(handle: Long, fd: Int, error: String?)
 }

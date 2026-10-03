@@ -1,7 +1,7 @@
 //! Reading the library: a project's artwork from its head and stroke records, the catalogue for
 //! the gallery, and the small library values.
 
-use openpaint_app::{PortError, Project, ProjectId, ProjectSummary};
+use openpaint_app::{PortError, Project, ProjectId, ProjectSummary, Title};
 use openpaint_core::{Artwork, ArtworkParts, StrokeParts};
 
 use crate::catalogue::{Entry, decode_entry, decode_thumbnail};
@@ -49,8 +49,16 @@ pub(crate) fn project(open: &Open, id: ProjectId) -> Result<Project, PortError> 
         next_layer_id: head.next_layer_id,
         next_stroke_id: head.next_stroke_id,
     })?;
+    // The title is the catalogue's; a missing entry must not keep the artwork from opening.
+    let title = entry(open, id).map_or_else(
+        |error| {
+            log::warn!("project {}: no title: {error}", id.get());
+            Title::untitled()
+        },
+        |entry| entry.title,
+    );
     log::info!("project {} opened", id.get());
-    Ok(Project { id, artwork })
+    Ok(Project { id, title, artwork })
 }
 
 /// The `count` stroke records of one layer, which must sit at indices `0..count`.

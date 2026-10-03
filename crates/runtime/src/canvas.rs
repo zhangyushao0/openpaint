@@ -2,7 +2,7 @@
 //! target shows on screen, and whether the user is leaving it for the gallery.
 
 use openpaint_app::{
-    Contact, ContactPhase, Intent, Session, StrokeIntent, Thumbnail, ToolIntent, Toolbox,
+    Contact, ContactPhase, Intent, Session, StrokeIntent, Thumbnail, Title, ToolIntent, Toolbox,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_render::{
@@ -12,16 +12,16 @@ use openpaint_ui::ScreenArea;
 
 use crate::error::RuntimeError;
 
-/// The paper under the layers until artworks carry their own background.
-const PAPER: Color = Color::WHITE;
+/// The paper under the layers until artworks carry their own background; exports show it too.
+pub(crate) const PAPER: Color = Color::WHITE;
 /// Largest gallery thumbnail in pixels: a gallery card's picture at density 1.75.
 pub(crate) const THUMBNAIL_MAX: [u32; 2] = [448, 336];
 
 /// What a canvas opens with.
 #[derive(Debug, Clone)]
 pub(crate) enum Content {
-    /// An artwork as the library holds it.
-    Stored(Artwork),
+    /// An artwork as the library holds it, and its title.
+    Stored(Artwork, Title),
     /// A blank artwork the size of the canvas area, not in the library yet.
     Blank,
     /// As `Blank`, after the last artwork could not be opened.
@@ -41,6 +41,8 @@ pub(crate) enum Leaving {
 
 pub(crate) struct Canvas {
     session: Session,
+    /// The gallery's name for the artwork, which exported files carry.
+    title: Title,
     target: CanvasTarget,
     /// False until the whole canvas has been evaluated once.
     evaluated: bool,
@@ -63,16 +65,22 @@ impl Canvas {
         if area.size.contains(&0) {
             return Ok(None);
         }
-        let session = match content {
-            Content::Stored(artwork) => Session::open(artwork.clone(), brush),
-            Content::Blank => Session::new(blank_size(area)?, brush),
-            Content::BlankAfterFailedOpen => Session::after_failed_open(blank_size(area)?, brush),
+        let (session, title) = match content {
+            Content::Stored(artwork, title) => {
+                (Session::open(artwork.clone(), brush), title.clone())
+            }
+            Content::Blank => (Session::new(blank_size(area)?, brush), Title::untitled()),
+            Content::BlankAfterFailedOpen => (
+                Session::after_failed_open(blank_size(area)?, brush),
+                Title::untitled(),
+            ),
         };
         let canvas = session.artwork().canvas();
         let size = [canvas.width(), canvas.height()];
         log::info!("canvas opened at {} x {}", size[0], size[1]);
         Ok(Some(Self {
             session,
+            title,
             target: CanvasTarget::new(core, size)?,
             evaluated: false,
             changed_from: None,
@@ -205,6 +213,10 @@ impl Canvas {
 
     pub(crate) fn session(&self) -> &Session {
         &self.session
+    }
+
+    pub(crate) fn title(&self) -> &Title {
+        &self.title
     }
 
     pub(crate) fn session_mut(&mut self) -> &mut Session {

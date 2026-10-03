@@ -18,16 +18,21 @@ use openpaint_store::Library;
 use crate::error::HostError;
 use crate::latency::PenLatency;
 use crate::motion::{RawMotion, decode};
+use crate::transfer::Pick;
 use crate::window::NativeWindow;
 
 /// What the handle Kotlin holds points to.
-struct Host {
-    runtime: Runtime,
+pub(crate) struct Host {
+    pub(crate) runtime: Runtime,
     latency: PenLatency,
+    /// Where files to share are made (`Context.getCacheDir()/share`, served by `ShareProvider`).
+    pub(crate) share_dir: PathBuf,
+    /// What the Kotlin host was last asked to show; its answer is for that.
+    pub(crate) pending: Option<Pick>,
 }
 
 /// The handle Kotlin holds is a leaked `Box<Host>`; 0 means "no runtime".
-fn host<'a>(handle: jlong) -> Option<&'a mut Host> {
+pub(crate) fn host<'a>(handle: jlong) -> Option<&'a mut Host> {
     // SAFETY: non-zero handles come from `create` and stay valid until `destroy`; Kotlin calls
     // in on one thread only, so no other reference is alive during a call.
     unsafe { (handle as *mut Host).as_mut() }
@@ -66,15 +71,19 @@ pub extern "system" fn Java_dev_openpaint_Native_create<'local>(
     _class: JClass<'local>,
     density: jfloat,
     files_dir: JString<'local>,
+    cache_dir: JString<'local>,
 ) -> jlong {
     init_logging();
     env.with_env(|env| -> Result<jlong, HostError> {
         // The app's private storage (`Context.getFilesDir()`); the library opens on a worker.
         let library = PathBuf::from(files_dir.try_to_string(env)?).join("library");
+        let share_dir = PathBuf::from(cache_dir.try_to_string(env)?).join("share");
         let runtime = Runtime::start(density, Box::new(Library::at(library)))?;
         let host = Host {
             runtime,
             latency: PenLatency::default(),
+            share_dir,
+            pending: None,
         };
         Ok(Box::into_raw(Box::new(host)) as jlong)
     })

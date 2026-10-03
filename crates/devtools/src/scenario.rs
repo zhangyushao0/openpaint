@@ -86,6 +86,32 @@ pub enum Step {
     },
     /// The last frame's screen, kept for looking at; never compared.
     Screenshot { name: String },
+    /// The user answers the system picker, dialog or share sheet the app asked for.
+    System(SystemAnswer),
+    /// The file the last export wrote, decoded: a PNG must equal the canvas pixel for pixel, a
+    /// JPEG come close to it.
+    Exported { name: String },
+}
+
+/// How the user answers what the system shows for the app.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SystemAnswer {
+    /// Back or Cancel in the picker or dialog.
+    Cancel,
+    /// The system cannot show the picker.
+    PickerFails,
+    /// A place is chosen in the save dialog, or the file to share is made: the export goes
+    /// into a file the runner keeps.
+    ChooseFile,
+    /// As `choose_file`, on storage that refuses the write.
+    FullStorage,
+    /// A PNG test picture (colour bands over a grey ramp) is chosen in the image picker.
+    TestImage,
+    /// A text file is chosen in the image picker.
+    TextFile,
+    /// The share sheet shows the exported file; the user closes it with Back.
+    ShareSheet,
 }
 
 /// What touches the screen.
@@ -142,7 +168,9 @@ impl Scenario {
                 Step::Stroke { points, .. } if points.is_empty() => {
                     return Err(invalid("a stroke needs at least one point"));
                 }
-                Step::Checkpoint { name, .. } | Step::Screenshot { name } => {
+                Step::Checkpoint { name, .. }
+                | Step::Screenshot { name }
+                | Step::Exported { name } => {
                     if !is_file_name(name) {
                         return Err(invalid("names use a-z, 0-9 and '-' only"));
                     }
@@ -197,12 +225,16 @@ mod tests {
                 "storage_fails",
                 "storage_works",
                 { "type": "Harbour" },
-                "back"
+                "back",
+                { "system": "choose_file" },
+                { "exported": { "name": "png" } }
             ]
         }"#;
         let scenario = Scenario::parse(text).expect("parses");
         assert_eq!(scenario.walkthrough, ["Open the app."]);
-        assert_eq!(scenario.steps.len(), 12);
+        assert_eq!(scenario.steps.len(), 14);
+        assert_eq!(scenario.steps[12], Step::System(SystemAnswer::ChooseFile));
+        assert_eq!(scenario.steps[13], Step::Exported { name: "png".into() });
         assert_eq!(scenario.steps[8], Step::StorageFails);
         assert_eq!(scenario.steps[9], Step::StorageWorks);
         assert_eq!(scenario.steps[10], Step::Type("Harbour".into()));

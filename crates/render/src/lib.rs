@@ -11,6 +11,7 @@ mod change;
 mod core;
 mod error;
 mod evaluator;
+mod export;
 mod frame;
 mod geom;
 mod gpu;

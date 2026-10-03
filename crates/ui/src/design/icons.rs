@@ -1,7 +1,7 @@
 //! The icon set: simple line drawings in one stroke weight, drawn with the painter so they stay
 //! sharp at every density. Our own shapes; no icon from another app is copied.
 
-use std::f32::consts::{FRAC_PI_2, PI};
+use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 
 use egui::{Color32, Pos2, Rect, Shape, Stroke};
 
@@ -42,6 +42,14 @@ pub enum Icon {
     Eraser,
     /// A pipette at a slant, its tip down to the left: pick a colour from the canvas.
     Eyedropper,
+    /// A spanner at a slant, its open ring up to the right: the Actions menu.
+    Actions,
+    /// A cross: close.
+    Close,
+    /// A minus: one step less (zoom out).
+    Minus,
+    /// A check mark: done.
+    Done,
 }
 
 /// Draws `icon` into `rect` (square, `ICON_SIZE` on a side) in `color`.
@@ -108,7 +116,35 @@ fn polylines(icon: Icon) -> Vec<Vec<[f32; 2]>> {
             ],
         ],
         Icon::Brush | Icon::Eraser | Icon::Eyedropper => tools(icon),
+        Icon::Actions => spanner(),
+        Icon::Close => vec![
+            vec![[0.26, 0.26], [0.74, 0.74]],
+            vec![[0.74, 0.26], [0.26, 0.74]],
+        ],
+        Icon::Minus => vec![vec![[0.2, 0.5], [0.8, 0.5]]],
+        Icon::Done => vec![vec![[0.2, 0.52], [0.42, 0.74], [0.8, 0.3]]],
     }
+}
+
+/// A handle from the lower left up to a ring that is open towards the upper right.
+fn spanner() -> Vec<Vec<[f32; 2]>> {
+    let (centre, radius) = ([0.62, 0.38], 0.2);
+    // The gap faces up and to the right (y down), 70 degrees wide.
+    let open = -PI / 4.0;
+    let gap = 35f32.to_radians();
+    let mut ring = Vec::new();
+    for step in 0..=ARC_STEPS * 2 {
+        let angle = open + gap + (2.0 * PI - 2.0 * gap) * step as f32 / (ARC_STEPS * 2) as f32;
+        ring.push([
+            centre[0] + radius * angle.cos(),
+            centre[1] + radius * angle.sin(),
+        ]);
+    }
+    let foot = [
+        centre[0] - radius * FRAC_PI_4.cos(),
+        centre[1] + radius * FRAC_PI_4.sin(),
+    ];
+    vec![ring, vec![foot, [0.16, 0.84]]]
 }
 
 /// The tools held at a slant, tip down to the left.
@@ -239,6 +275,10 @@ mod tests {
             Icon::Brush,
             Icon::Eraser,
             Icon::Eyedropper,
+            Icon::Actions,
+            Icon::Close,
+            Icon::Minus,
+            Icon::Done,
         ];
         for icon in icons {
             let lines = polylines(icon);

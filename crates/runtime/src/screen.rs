@@ -2,7 +2,9 @@
 //! onto the canvas, leaving the canvas for the gallery once the artwork is stored, and the
 //! gallery's calls on the storage worker.
 
-use openpaint_app::{Gallery, LibraryAnswer, LibraryRequest, PortError, ScreenProjection, Toolbox};
+use openpaint_app::{
+    Gallery, LibraryAnswer, LibraryRequest, PortError, ScreenProjection, Toolbox, Transfers,
+};
 use openpaint_core::Artwork;
 use openpaint_render::Core;
 use openpaint_ui::ScreenArea;
@@ -20,13 +22,18 @@ pub(crate) enum Screen {
 }
 
 impl Screen {
-    /// What the screen offers; on the canvas with the toolbox's brush, size and opacity.
-    pub(crate) fn projection(&self, toolbox: &Toolbox) -> ScreenProjection {
+    /// What the screen offers; on the canvas with the toolbox's brush, size and opacity, and the
+    /// export and reference flows.
+    pub(crate) fn projection(&self, toolbox: &Toolbox, transfers: &Transfers) -> ScreenProjection {
         match self {
             Self::Opening(_) => ScreenProjection::Starting,
             Self::Canvas(canvas) => {
                 let session = canvas.session().projection();
-                ScreenProjection::Canvas(session.with_brush(toolbox.projection()))
+                ScreenProjection::Canvas(
+                    session
+                        .with_brush(toolbox.projection())
+                        .with_transfers(transfers.projection()),
+                )
             }
             Self::Gallery(gallery) => ScreenProjection::Gallery(gallery.projection()),
         }
@@ -92,16 +99,16 @@ impl Screen {
                 closed,
             } => self.left(version.as_ref(), &result, closed),
             Done::Loaded(Ok(project)) => {
-                *self = Self::Opening(Some(Content::Stored(project.artwork)))
+                *self = Self::Opening(Some(Content::Stored(project.artwork, project.title)));
             }
-            Done::Created(artwork, Ok(id)) => {
+            Done::Created(artwork, title, Ok(id)) => {
                 log::info!("new artwork {}", id.get());
-                *self = Self::Opening(Some(Content::Stored(artwork)));
+                *self = Self::Opening(Some(Content::Stored(artwork, title)));
             }
             Done::Listed(listed) => self.gallery_answer(LibraryAnswer::Listed(listed)),
             Done::Changed(result) => self.gallery_answer(LibraryAnswer::Changed(result)),
             Done::Loaded(Err(error)) => self.gallery_answer(LibraryAnswer::OpenFailed(error)),
-            Done::Created(_, Err(error)) => {
+            Done::Created(_, _, Err(error)) => {
                 self.gallery_answer(LibraryAnswer::CreateFailed(error));
             }
         }
@@ -200,7 +207,9 @@ pub(crate) fn leave_job(
 
 fn started(opened: Opened) -> Screen {
     match opened {
-        Opened::Last(artwork) => Screen::Opening(Some(Content::Stored(artwork))),
+        Opened::Last(project) => {
+            Screen::Opening(Some(Content::Stored(project.artwork, project.title)))
+        }
         Opened::Empty => Screen::Opening(Some(Content::Blank)),
         Opened::Failed(error) => {
             log::error!("opening the last artwork failed: {error}");

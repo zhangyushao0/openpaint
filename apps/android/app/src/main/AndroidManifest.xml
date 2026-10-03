@@ -20,5 +20,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- The exported picture for the share sheet; readable only with the grant it carries. -->
+        <provider
+            android:name=".ShareProvider"
+            android:authorities="dev.openpaint.share"
+            android:exported="false"
+            android:grantUriPermissions="true" />
     </application>
 </manifest>

@@ -9,6 +9,7 @@
 pub mod keys;
 pub mod latency;
 pub mod motion;
+pub mod transfer;
 
 #[cfg(target_os = "android")]
 mod error;
@@ -18,6 +19,12 @@ mod jni_entry;
 #[cfg(target_os = "android")]
 #[expect(unsafe_code, reason = "JNI entry points export unmangled symbols")]
 mod jni_keyboard;
+#[cfg(target_os = "android")]
+#[expect(
+    unsafe_code,
+    reason = "JNI entry points export unmangled symbols and take over file descriptors"
+)]
+mod jni_transfer;
 #[cfg(target_os = "android")]
 #[expect(
     unsafe_code,

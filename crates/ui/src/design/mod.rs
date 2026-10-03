@@ -54,6 +54,11 @@ pub const COLOR_WHEEL: f32 = 272.0;
 pub const HUE_RING: f32 = 32.0;
 /// Side of a recent colour's swatch, in points: eight fill a panel's width.
 pub const RECENT_SWATCH: f32 = 38.0;
+/// Width of the reference window, in points.
+pub const REFERENCE_WIDTH: f32 = 360.0;
+/// Least and most height of the reference window's picture, in points; between them it
+/// follows the picture's shape.
+pub const REFERENCE_HEIGHT: [f32; 2] = [180.0, 420.0];
 
 /// The type scale in points: one size per role.
 const TYPE_SCALE: [(TextStyle, f32); 5] = [

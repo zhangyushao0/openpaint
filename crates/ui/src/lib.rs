@@ -4,12 +4,15 @@
 //! No direct GPU API, no file system (`cargo repo-check`).
 #![forbid(unsafe_code)]
 
+mod actions_panel;
 mod brush_panel;
 mod color_panel;
 pub mod components;
 pub mod design;
 mod gallery;
 mod layer_panel;
+mod notices;
+mod reference_window;
 mod shell;
 mod side_bar;
 

@@ -54,6 +54,12 @@ fn the_gallery_lists_the_artwork_changed_last_first() {
         [(1, "One".into()), (2, "Harbour".into())],
         "a rename keeps the place"
     );
+    let opened = library.load(two).expect("load");
+    assert_eq!(
+        opened.title,
+        title("Harbour"),
+        "an opened artwork knows its title"
+    );
     assert_eq!(
         library.rename(ProjectId::new(9), &title("x")),
         Err(PortError::Missing(ProjectId::new(9)))

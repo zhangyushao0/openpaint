@@ -8,11 +8,12 @@
 //! evaluate what changed into the canvas target -> hand the store what it must write or read
 //! -> draw the canvas and the UI over it.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use openpaint_app::{
-    BrushLibrary, InputBatch, PalmRejection, ProjectStore, ScreenProjection, SessionProjection,
-    Toolbox,
+    BrushLibrary, HostAnswer, HostRequest, InputBatch, PalmRejection, ProjectStore,
+    ScreenProjection, SessionProjection, Toolbox, Transfers,
 };
 use openpaint_core::Artwork;
 use openpaint_render::{
@@ -29,13 +30,15 @@ use crate::preview::brush_previews;
 use crate::screen::{Screen, leave_job};
 use crate::storage::{Job, Storage};
 use crate::text::{TextInput, text_events};
+use crate::transfer::{TransferWorker, route};
 use crate::ui_pass::{UiPass, run_ui, screen_frame};
 
 /// Longest `leave` waits for the store; a longer save goes on in the background.
 const LEAVE_WAIT: Duration = Duration::from_secs(2);
 
 pub struct Runtime {
-    core: Core,
+    /// Shared with the transfer worker, which renders exports.
+    core: Arc<Core>,
     ui: egui::Context,
     shell: Shell,
     /// Created with the first target and kept for the process: it holds the UI's textures.
@@ -57,6 +60,9 @@ pub struct Runtime {
     /// The brush, size and opacity: the app's, kept across artworks; the open session gets the
     /// style it makes.
     toolbox: Toolbox,
+    /// Export and the reference image: the app's, kept across artworks.
+    transfers: Transfers,
+    transfer: TransferWorker,
     /// Declared last: dropping it writes what it was handed before the process goes.
     storage: Storage,
 }
@@ -72,7 +78,7 @@ impl Runtime {
     ) -> Result<Self, RuntimeError> {
         let toolbox = Toolbox::new(BrushLibrary::built_in()?);
         let storage = Storage::start(store)?;
-        let core = Core::headless()?;
+        let core = Arc::new(Core::headless()?);
         log::info!("GPU adapter: {}", core.adapter());
         let ui = egui::Context::default();
         design::install(&ui);
@@ -82,6 +88,8 @@ impl Runtime {
             storage,
             screen: Screen::Opening(None),
             toolbox,
+            transfers: Transfers::default(),
+            transfer: TransferWorker::start(Arc::clone(&core))?,
             core,
             ui,
             shell,
@@ -184,7 +192,27 @@ impl Runtime {
     /// more): from the canvas it goes to the gallery, in the gallery it closes an open dialog.
     /// Otherwise the system's own back applies.
     pub fn back(&mut self) -> bool {
-        self.shell.back(&self.screen.projection(&self.toolbox))
+        self.shell.back(&self.screen())
+    }
+
+    /// The next thing the app asks the host to show or make (a system picker, a file to share,
+    /// the share sheet), once; call after each frame until `None`.
+    pub fn host_request(&mut self) -> Option<HostRequest> {
+        self.transfers.request()
+    }
+
+    /// The host's answer to the last request that asks for one. The work it starts runs on the
+    /// transfer worker at once, also while the app has no window; the host should ask for a
+    /// frame.
+    pub fn answer(&mut self, answer: HostAnswer) {
+        if !self.transfers.waiting() {
+            log::warn!("an answer from the host nobody waits for: {answer:?}");
+            return;
+        }
+        log::info!("the host answered: {answer:?}");
+        if let Some(job) = self.transfers.answer(answer) {
+            self.transfer.submit(job);
+        }
     }
 
     /// Runs one frame into the window. Returns whether another frame is wanted at once.
@@ -268,7 +296,7 @@ impl Runtime {
     /// available.
     #[must_use]
     pub fn projection(&self) -> SessionProjection {
-        match self.screen.projection(&self.toolbox) {
+        match self.screen() {
             ScreenProjection::Canvas(projection) => projection,
             _ => SessionProjection::default(),
         }
@@ -277,18 +305,19 @@ impl Runtime {
     /// What the whole screen offers: the canvas, the gallery, or nothing yet.
     #[must_use]
     pub fn screen(&self) -> ScreenProjection {
-        self.screen.projection(&self.toolbox)
+        self.screen.projection(&self.toolbox, &self.transfers)
     }
 
-    /// True while the frame loop waits for something without input: the storage worker, or a
-    /// canvas about to open. Frames keep coming meanwhile, so the result shows.
+    /// True while the frame loop waits for something without input: the storage or transfer
+    /// worker, or a canvas about to open. Frames keep coming meanwhile, so the result shows.
     #[must_use]
     pub fn storing(&self) -> bool {
-        self.storage.busy() || matches!(self.screen, Screen::Opening(_))
+        self.storage.busy() || self.transfer.busy() || matches!(self.screen, Screen::Opening(_))
     }
 
-    /// Applies everything the storage worker finished, then opens a canvas that is ready.
+    /// Applies everything the workers finished, then opens a canvas that is ready.
     fn receive(&mut self) -> Result<(), RuntimeError> {
+        self.transfer.receive(&mut self.transfers);
         while let Some(done) = self.storage.take() {
             self.screen.answer(done, &mut self.toolbox);
         }
@@ -304,7 +333,7 @@ impl Runtime {
         let batches = std::mem::take(&mut self.pending);
         let mut events = pointer_events(&batches, self.pixels_per_point);
         events.append(&mut self.typed);
-        let shown = self.screen.projection(&self.toolbox);
+        let shown = self.screen();
         let pass = run_ui(
             &self.ui,
             UiPass {
@@ -317,6 +346,7 @@ impl Runtime {
         );
         self.keyboard = pass.keyboard;
         let intents = self.shell.route(&batches);
+        let intents = route(&mut self.transfers, self.screen.canvas(), intents);
         let area = self.shell.canvas_area();
         self.screen.open(&self.core, area, &self.toolbox)?;
         match &mut self.screen {
@@ -328,7 +358,7 @@ impl Runtime {
             self.storage.submit(Job::SaveEditor(state));
         }
         self.screen.progress(&self.core, &mut self.storage, area)?;
-        let changed = self.screen.projection(&self.toolbox) != shown;
+        let changed = self.screen() != shown;
         Ok((pass.frame, pass.repaint || changed || self.storing()))
     }
 }

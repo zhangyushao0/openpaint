@@ -26,10 +26,12 @@ impl ProjectId {
     }
 }
 
-/// A stored artwork. History is not stored; the editor state (`EditorState`) is stored apart.
+/// A stored artwork and its title. History is not stored; the editor state (`EditorState`) is
+/// stored apart.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Project {
     pub id: ProjectId,
+    pub title: Title,
     pub artwork: Artwork,
 }
 

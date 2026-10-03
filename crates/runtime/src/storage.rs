@@ -18,7 +18,7 @@ use crate::worker::Queue;
 #[derive(Debug, Clone)]
 pub(crate) enum Opened {
     /// The artwork open when the app was left.
-    Last(Artwork),
+    Last(Project),
     /// No artwork was open: the user was in the gallery, which lists these.
     Gallery(Result<Vec<ProjectSummary>, PortError>),
     /// An empty library: start blank.
@@ -71,7 +71,7 @@ pub(crate) enum Done {
     },
     Listed(Result<Vec<ProjectSummary>, PortError>),
     Loaded(Result<Project, PortError>),
-    Created(Artwork, Result<ProjectId, PortError>),
+    Created(Artwork, Title, Result<ProjectId, PortError>),
     Changed(Result<(), PortError>),
 }
 
@@ -135,7 +135,7 @@ fn stopped(job: &Job) -> Done {
             result: Err(error),
             closed: false,
         },
-        Job::Create { artwork, .. } => Done::Created(artwork.clone(), Err(error)),
+        Job::Create { artwork, title } => Done::Created(artwork.clone(), title.clone(), Err(error)),
         Job::Library(LibraryCall::List) => Done::Listed(Err(error)),
         Job::Library(LibraryCall::Load(_)) => Done::Loaded(Err(error)),
         Job::Library(_) => Done::Changed(Err(error)),
@@ -166,7 +166,7 @@ fn run(store: &mut dyn ProjectStore, open: &mut Option<ProjectId>, job: Job) -> 
         Job::Create { artwork, title } => {
             let result = store.create(&artwork, &title);
             *open = result.as_ref().ok().copied().or(*open);
-            Done::Created(artwork, result)
+            Done::Created(artwork, title, result)
         }
         Job::Library(request) => library(store, open, request),
     }
@@ -176,7 +176,7 @@ fn start(store: &mut dyn ProjectStore, open: &mut Option<ProjectId>) -> Opened {
     match store.open_last() {
         Ok(Some(last)) => {
             *open = Some(last.id);
-            Opened::Last(last.artwork)
+            Opened::Last(last)
         }
         Ok(None) => match store.list() {
             Ok(items) if items.is_empty() => Opened::Empty,

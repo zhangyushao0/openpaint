@@ -1,23 +1,36 @@
-//! The screen: a top bar over the rest. On the canvas the bar holds Gallery at its left end and
-//! at its right end, right to left, the colour button, Layers, Eraser, Brush and a notice when
-//! saving or opening failed; the canvas frame fills the rest, the side bar (size, eyedropper,
-//! opacity, undo, redo) floats over its left edge, and the colour, layer and brush panels open
-//! over it, one at a time.
+//! The screen: a top bar over the rest. On the canvas the bar holds Gallery and Actions at its
+//! left end and at its right end, right to left, the colour button, Layers, Eraser, Brush and a
+//! notice (a failed save or open, an export, the reference image); the canvas frame fills the
+//! rest, the side bar (size, eyedropper, opacity, undo, redo) floats over its left edge, the
+//! reference window floats where the hand left it, and the Actions, colour, layer and brush
+//! panels open over it, one at a time.
 //! In the gallery the bar holds the screen's name and "+", and the cards fill the rest.
 
 use egui::{Align, Layout};
 use openpaint_app::{
     BrushKey, ContactPhase, EditorAction, GalleryIntent, InputBatch, Intent, ScreenProjection,
-    SessionProjection, StorageIntent, StorageNotice,
+    SessionProjection,
 };
 use openpaint_render::RgbaImage;
 
+use crate::actions_panel::ActionsPanel;
 use crate::brush_panel::BrushPanel;
 use crate::color_panel::ColorPanel;
-use crate::components::{CanvasInput, ScreenArea, canvas_frame, notice, text_button, top_bar};
+use crate::components::{CanvasInput, ScreenArea, canvas_frame, text_button, top_bar};
 use crate::gallery::GalleryScreen;
 use crate::layer_panel::LayerPanel;
+use crate::notices::top_bar_notice;
+use crate::reference_window::ReferenceWindow;
 use crate::side_bar::SideBar;
+
+/// The popovers, one open at a time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Panel {
+    Actions,
+    Layers,
+    Brushes,
+    Colors,
+}
 
 /// Which screen the last pass showed.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -35,10 +48,12 @@ pub struct Shell {
     canvas: Option<ScreenArea>,
     showing: Showing,
     input: CanvasInput,
+    actions: ActionsPanel,
     layers: LayerPanel,
     brushes: BrushPanel,
     colors: ColorPanel,
     side: SideBar,
+    reference: ReferenceWindow,
     gallery: GalleryScreen,
     /// Intents from taps on the chrome since the last `route`.
     taps: Vec<Intent>,
@@ -97,26 +112,28 @@ impl Shell {
             if text_button(ui, "Gallery", enabled).clicked() {
                 self.taps.push(Intent::Gallery(GalleryIntent::Show));
             }
+            // One panel at a time: opening one closes the others.
+            if self.actions.button(ui) {
+                self.close_panels_but(Panel::Actions);
+            }
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                // One panel at a time: opening one closes the others.
                 if self.colors.button(ui, projection) {
-                    self.layers.close();
-                    self.brushes.close();
+                    self.close_panels_but(Panel::Colors);
                 }
                 if self.layers.button(ui) {
-                    self.colors.close();
-                    self.brushes.close();
+                    self.close_panels_but(Panel::Layers);
                 }
                 if self.brushes.buttons(ui, projection, &mut self.taps) {
-                    self.colors.close();
-                    self.layers.close();
+                    self.close_panels_but(Panel::Brushes);
                 }
-                self.storage_notice(ui, projection);
+                top_bar_notice(ui, projection, &mut self.taps);
             });
         });
         let rect = canvas_frame(ui);
         let ctx = ui.ctx();
         self.side.show(ctx, projection, &mut self.taps);
+        self.reference.show(ctx, projection, &mut self.taps);
+        self.actions.show(ctx, projection, &mut self.taps);
         self.layers.show(ctx, projection, &mut self.taps);
         self.brushes.show(ctx, projection, &mut self.taps);
         self.colors.show(ctx, projection, &mut self.taps);
@@ -124,37 +141,24 @@ impl Shell {
     }
 
     fn close_panels(&mut self) {
+        self.actions.close();
         self.layers.close();
         self.brushes.close();
         self.colors.close();
     }
 
-    /// The notice for a failed save (with Retry) or a failed open (with OK), if any.
-    fn storage_notice(&mut self, ui: &mut egui::Ui, projection: &SessionProjection) {
-        let (message, action, editor_action, intent) = match projection.storage() {
-            StorageNotice::None => return,
-            StorageNotice::SaveFailed { retrying: false } => (
-                "Couldn't save. Your drawing is still here.",
-                "Retry",
-                EditorAction::RetrySave,
-                StorageIntent::RetrySave,
-            ),
-            StorageNotice::SaveFailed { retrying: true } => (
-                "Saving…",
-                "Retry",
-                EditorAction::RetrySave,
-                StorageIntent::RetrySave,
-            ),
-            StorageNotice::OpenFailed => (
-                "Couldn't open the last drawing. This is a new one.",
-                "OK",
-                EditorAction::DismissNotice,
-                StorageIntent::Dismiss,
-            ),
-        };
-        let enabled = projection.availability(editor_action).is_available();
-        if notice(ui, message, action, enabled).clicked() {
-            self.taps.push(Intent::Storage(intent));
+    fn close_panels_but(&mut self, open: Panel) {
+        if open != Panel::Actions {
+            self.actions.close();
+        }
+        if open != Panel::Layers {
+            self.layers.close();
+        }
+        if open != Panel::Brushes {
+            self.brushes.close();
+        }
+        if open != Panel::Colors {
+            self.colors.close();
         }
     }
 
@@ -186,11 +190,15 @@ impl Shell {
             return std::mem::take(&mut self.taps);
         };
         let panel = self
-            .layers
+            .actions
             .area()
+            .or(self.layers.area())
             .or(self.brushes.area())
             .or(self.colors.area());
-        let covers: Vec<ScreenArea> = [self.side.area(), panel].into_iter().flatten().collect();
+        let covers: Vec<ScreenArea> = [self.side.area(), self.reference.area(), panel]
+            .into_iter()
+            .flatten()
+            .collect();
         let mut intents = self.input.route(&area, &covers, batches);
         if panel.is_some() && touched_outside(&area, &covers, batches) {
             self.close_panels();

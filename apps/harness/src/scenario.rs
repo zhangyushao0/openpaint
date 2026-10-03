@@ -6,12 +6,13 @@
 //! - `<checkpoint>.canvas.png`: the canvas each time its checkpoint passes, the reference for
 //!   later diffs (a pass also removes the failure files below);
 //! - on a failed checkpoint, `<checkpoint>.actual.png` and `<checkpoint>.diff.png` (pixels that
-//!   differ from the last passing canvas in red), with their paths printed.
+//!   differ from the last passing canvas in red), with their paths printed;
+//! - `<export>.export.png` or `.export.jpg`: each exported file as the app wrote it.
 
 use std::fs;
 use std::path::Path;
 
-use openpaint_devtools::{Checkpoint, Record, Scenario, diff, is_file_name};
+use openpaint_devtools::{Checkpoint, Export, Record, Scenario, diff, is_file_name};
 
 use crate::error::HarnessError;
 use crate::launch::fresh_library;
@@ -43,12 +44,14 @@ pub fn run(name: &str) -> Result<(), HarnessError> {
                 write_rgba(&path, shot.screen.size(), shot.screen.pixels())?;
                 println!("screenshot {}: {}", shot.name, path.display());
             }
+            Record::Export(export) => write_export(&dir, export)?,
         }
     }
-    let total = report.checkpoints().count();
-    let failed = report.checkpoints().filter(|c| !c.passed()).count();
+    let total = report.checkpoints().count() + report.exports().count();
+    let failed = report.checkpoints().filter(|c| !c.passed()).count()
+        + report.exports().filter(|e| !e.passed()).count();
     println!(
-        "scenario {name}: {} of {total} checkpoints passed, {} frames, {:.2} s",
+        "scenario {name}: {} of {total} checkpoints and exports passed, {} frames, {:.2} s",
         total - failed,
         report.frames,
         report.elapsed.as_secs_f64()
@@ -56,6 +59,28 @@ pub fn run(name: &str) -> Result<(), HarnessError> {
     if failed > 0 {
         return Err(HarnessError::Checkpoints { failed, total });
     }
+    Ok(())
+}
+
+fn write_export(dir: &Path, export: &Export) -> Result<(), HarnessError> {
+    let path = dir.join(format!(
+        "{}.export.{}",
+        export.name,
+        export.format.extension()
+    ));
+    fs::write(&path, &export.bytes)?;
+    let [width, height] = export.size;
+    println!(
+        "export {}: {}, {} {width} x {height}, {} bytes, largest difference from the canvas {}, \
+         mean {:.3}: {}",
+        export.name,
+        if export.passed() { "pass" } else { "FAIL" },
+        export.format.name(),
+        export.bytes.len(),
+        export.largest_difference,
+        export.mean_difference,
+        path.display()
+    );
     Ok(())
 }
 

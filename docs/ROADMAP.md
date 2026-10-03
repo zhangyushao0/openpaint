@@ -32,11 +32,7 @@ Passed 2026-10-02: S2 to S8 done (see "Done"); the author judged pen feel and pa
 
 Exit: the author finishes an inked and flat-coloured piece (W1) on the tablet.
 
-S9 to S12 are done (see "Done").
-
-**S13 Export and reference image** (app, store, render, ui, android)
-- PNG/JPEG export through `RegionEvaluator` readback on a worker; floating reference window (move, zoom, pick); Android system picker and share in the host.
-- Done: the exported image matches the screen pixel for pixel (test); picking, exporting and sharing work on the tablet. The author judges the G2 exit.
+S9 to S13 are done (see "Done"). The exit awaits the author on the tablet (STATUS, "Pending author decisions"); G3 starts after it.
 
 ## G3 Editing and shaping
 
@@ -78,6 +74,7 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - 2026-10-02 Brush follow-ups (S11): brush editing and import through a `BrushStore`; flow that builds up within a stroke (needs kept state, D17); cache per-sample speed per stroke so a scene rebuild does not recompute it.
 - 2026-10-02 Colour and eyedropper follow-ups (S12): a loupe under the contact while picking; touch-and-hold eyedropper and the pen's eraser end or buttons (gesture and pen mapping are the author's call); on black or grey a tap on the hue ring changes no visible colour (Procreate's disc behaves alike); colour sliders, palettes, harmony.
 - 2026-10-02 Narrow windows (S12): the top bar's right end holds four buttons, so on a window under about 700 points the save notice and Retry no longer fit; the side bar runs off the bottom under about 450 points.
+- 2026-10-02 Reference and export follow-ups (S13): pinch zoom and resizing in the reference window (multi-touch routing), storing the reference with the artwork (asset store, format change), export with a transparent background, layers or PSD.
 - 2026-10-02 Pen stroke cancelled by a landing touch: with injected input the dispatcher cancels the pen's gesture when a touch lands mid-stroke and the stroke is dropped; if real hardware does the same, commit the stroke drawn so far on such a cancel.
 
 ## Done
@@ -97,3 +94,4 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - S10 2026-10-02 `feat(store): artwork library with a gallery, schema 2, thumbnails, rename by keyboard (S10)`; confirmed on the tablet with injected input and Gboard; the author's schema-1 library upgraded unchanged
 - S11 2026-10-02 `feat(render): brush recipes, brush panel, side bar with size, opacity and history, schema 3 (S11)`; confirmed on the tablet with injected input; the author's schema-2 library upgraded pixel-identical
 - S12 2026-10-02 `feat(render): eraser, Alpha Lock, colour wheel with recent colours, eyedropper by render picking, schema 4 (S12)`; confirmed on the tablet with injected input; the author's schema-3 library upgraded pixel-identical
+- S13 2026-10-02 `feat(android): export, share and a floating reference image (S13)`; exported PNG equals the screen (test and tablet, AE 0); picking, saving and sharing confirmed on the tablet with injected input; G2 exit awaits the author

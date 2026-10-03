@@ -7,6 +7,7 @@ use crate::gallery::GalleryProjection;
 use crate::layers::LayerList;
 use crate::storage::StorageNotice;
 use crate::toolbox::BrushProjection;
+use crate::transfer::TransferProjection;
 
 /// Something the user can ask for whose availability depends on the session. The layer actions
 /// are offered for the active layer.
@@ -24,6 +25,10 @@ pub enum EditorAction {
     EditLayer,
     /// Leave the canvas for the gallery, or act in the gallery.
     Gallery,
+    /// Export the artwork to a file or another app.
+    Export,
+    /// Choose a reference image with the system's picker.
+    ChooseReference,
 }
 
 /// Whether an action can run now, and why not.
@@ -63,6 +68,8 @@ pub struct SessionProjection {
     pub(crate) storage: StorageNotice,
     pub(crate) layers: Option<LayerList>,
     pub(crate) brush: Option<BrushProjection>,
+    /// Boxed: rarely more than a notice, but its errors are large.
+    pub(crate) transfers: Option<Box<TransferProjection>>,
 }
 
 /// What the whole screen shows for one UI frame.
@@ -88,6 +95,10 @@ impl SessionProjection {
     #[must_use]
     pub const fn availability(&self, action: EditorAction) -> Availability {
         match action {
+            EditorAction::Export | EditorAction::ChooseReference => match &self.transfers {
+                Some(transfers) => transfers.available,
+                None => Availability::NothingLeft,
+            },
             EditorAction::Undo => self.undo,
             EditorAction::Redo => self.redo,
             EditorAction::RetrySave => self.retry_save,
@@ -127,6 +138,21 @@ impl SessionProjection {
             ..self
         }
     }
+
+    /// Export and the reference image, once the app's projection is added (`with_transfers`).
+    #[must_use]
+    pub fn transfers(&self) -> Option<&TransferProjection> {
+        self.transfers.as_deref()
+    }
+
+    /// This projection with the export and reference flows, which belong to the app.
+    #[must_use]
+    pub fn with_transfers(self, transfers: TransferProjection) -> Self {
+        Self {
+            transfers: Some(Box::new(transfers)),
+            ..self
+        }
+    }
 }
 
 impl Default for SessionProjection {
@@ -141,6 +167,7 @@ impl Default for SessionProjection {
             storage: StorageNotice::None,
             layers: None,
             brush: None,
+            transfers: None,
         }
     }
 }
@@ -158,6 +185,8 @@ impl fmt::Display for EditorAction {
             Self::LowerLayer => "move the layer down",
             Self::EditLayer => "change the layer",
             Self::Gallery => "use the gallery",
+            Self::Export => "export the artwork",
+            Self::ChooseReference => "choose a reference image",
         })
     }
 }

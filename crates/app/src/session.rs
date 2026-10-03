@@ -76,9 +76,13 @@ impl Session {
             }
             Intent::History(step) => self.step(step),
             Intent::Storage(storage) => self.storage(storage),
-            // The toolbox belongs to the app, not to this artwork: the runtime hands brush and
-            // tool intents to it and the resulting style to `set_brush`.
-            Intent::Layer(_) | Intent::Brush(_) | Intent::Tool(_) => Ok(()),
+            // The toolbox, export and the reference belong to the app, not to this artwork: the
+            // runtime hands their intents to them (and the brush's style to `set_brush`).
+            Intent::Layer(_)
+            | Intent::Brush(_)
+            | Intent::Tool(_)
+            | Intent::Export(_)
+            | Intent::Reference(_) => Ok(()),
             // Leaving is the runtime's (it stores the artwork first); the session only says
             // whether it may happen now.
             Intent::Gallery(_) => self.check(EditorAction::Gallery),
@@ -134,6 +138,7 @@ impl Session {
             storage: self.autosave.notice(),
             layers: Some(LayerList::of(artwork)),
             brush: None,
+            transfers: None,
         }
     }
 

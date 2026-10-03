@@ -8,11 +8,13 @@ mod catalogue;
 mod codec;
 mod delta;
 mod editor;
+mod image_file;
 mod library;
 mod migrate;
 mod read;
 mod records;
 mod write;
 
+pub use crate::image_file::{decode_image, encode_image, open_reference};
 pub use crate::library::Library;
 pub use crate::records::SCHEMA;

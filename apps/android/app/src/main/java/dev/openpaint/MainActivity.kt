@@ -1,6 +1,7 @@
 package dev.openpaint
 
 import android.app.Activity
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.Choreographer
@@ -31,12 +32,13 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
     private var attached = false
     private var frameRequested = false
     private lateinit var view: CanvasView
+    private val pickers = Pickers(this) { handle }
     /** The app used the back button's press; its release is the app's too. */
     private var backUsed = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        handle = Native.create(density(), filesDir.absolutePath)
+        handle = Native.create(density(), filesDir.absolutePath, cacheDir.absolutePath)
         view = CanvasView(this)
         view.handle = handle
         view.onInput = { requestFrame() }
@@ -85,6 +87,17 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
         frameRequested = false
         if (Native.frame(handle, System.nanoTime())) requestFrame()
         syncKeyboard()
+        if (handle != 0L) pickers.serve()
+    }
+
+    /** A system picker closed; what it gave goes to Rust, which starts the work at once. */
+    @Deprecated("Activity results without AndroidX")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (handle != 0L && pickers.result(requestCode, resultCode, data)) {
+            requestFrame()
+            return
+        }
+        super.onActivityResult(requestCode, resultCode, data)
     }
 
     /** Shows the soft keyboard while a text field waits for typing, hides it after. */

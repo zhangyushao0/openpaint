@@ -1,6 +1,7 @@
-//! The popover: a panel that drops down over the canvas from under the top bar's right end,
-//! above everything else. It closes with one tap outside it; the screen that opens it decides
-//! when (ARCHITECTURE section 10).
+//! The popover: a panel that drops down over the canvas from under one end of the top bar,
+//! above everything else: under the right end for the tools (colour, layers, brushes), under the
+//! left end for Actions, each under its button. It closes with one tap outside it; the screen
+//! that opens it decides when (ARCHITECTURE section 10).
 
 use egui::{Align2, Frame, Margin, Order, Stroke, Vec2};
 
@@ -15,12 +16,30 @@ pub fn popover(
     id: &str,
     add_contents: impl FnOnce(&mut egui::Ui),
 ) -> egui::Rect {
+    panel(ctx, id, (Align2::RIGHT_TOP, -SPACE), add_contents)
+}
+
+/// As `popover`, its left edge one space from the screen's.
+pub fn popover_left(
+    ctx: &egui::Context,
+    id: &str,
+    add_contents: impl FnOnce(&mut egui::Ui),
+) -> egui::Rect {
+    panel(ctx, id, (Align2::LEFT_TOP, SPACE), add_contents)
+}
+
+fn panel(
+    ctx: &egui::Context,
+    id: &str,
+    (corner, inset): (Align2, f32),
+    add_contents: impl FnOnce(&mut egui::Ui),
+) -> egui::Rect {
     egui::Area::new(egui::Id::new(id))
         .order(Order::Foreground)
         .movable(false)
         // Whole in the frame it opens: feedback within one frame.
         .fade_in(false)
-        .anchor(Align2::RIGHT_TOP, Vec2::new(-SPACE, TOP_BAR_HEIGHT + SPACE))
+        .anchor(corner, Vec2::new(inset, TOP_BAR_HEIGHT + SPACE))
         .show(ctx, |ui| {
             Frame::new()
                 .fill(CHROME)

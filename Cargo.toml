@@ -36,6 +36,8 @@ egui = "=0.36.2"
 egui-wgpu = "=0.36.2"
 # The artwork library's key-value store (DECISIONS D09); store only.
 fjall = "=3.1.11"
+# PNG and JPEG files for export and reference images (DECISIONS D14); store only.
+image = { version = "=0.25.10", default-features = false, features = ["jpeg", "png"] }
 jni = "=0.22.4"
 log = "=0.4.34"
 png = "=0.18.1"
