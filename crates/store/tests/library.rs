@@ -4,7 +4,7 @@
 
 mod common;
 
-use common::{fresh_dir, records, write_records};
+use common::{fresh_dir, records, untitled, write_records};
 use openpaint_app::{PortError, ProjectStore};
 use openpaint_core::{
     Artwork, ArtworkCommand, CanvasPoint, CanvasSize, Color, LayerCommand, StrokeSample,
@@ -67,7 +67,7 @@ fn every_saved_version_opens_again_exactly() {
         .expect("delete")
         .artwork;
     let mut library = Library::at(&dir);
-    let id = library.create(&one).expect("create");
+    let id = library.create(&one, &untitled()).expect("create");
     for (version, strokes) in [
         (&two, 2),
         (&one, 1),
@@ -121,7 +121,7 @@ fn layer_edits_open_again_exactly_and_an_undone_delete_restores_the_strokes() {
     let chosen = layer(&lowered, LayerCommand::Select(bottom));
     let deleted = layer(&chosen, LayerCommand::Delete(bottom));
     let mut library = Library::at(&dir);
-    let id = library.create(&bottom_drawn).expect("create");
+    let id = library.create(&bottom_drawn, &untitled()).expect("create");
     // The last one is undo after the delete: the deleted layer's strokes come back.
     for (version, strokes) in [
         (&two, 3),
@@ -147,7 +147,7 @@ fn a_save_without_a_known_base_rewrites_the_project() {
     let one = draw(&blank(), 10.0, 20);
     let three = draw(&draw(&one, 40.0, 20), 70.0, 20);
     let mut first = Library::at(&dir);
-    let id = first.create(&three).expect("create");
+    let id = first.create(&three, &untitled()).expect("create");
     drop(first);
     // A library that never read the project saves an older version over it.
     let mut second = Library::at(&dir);
@@ -160,7 +160,9 @@ fn a_save_without_a_known_base_rewrites_the_project() {
 fn corrupted(name: &str, change: impl Fn(&mut Vec<(String, Vec<u8>, Vec<u8>)>)) -> PortError {
     let source = fresh_dir(&format!("{name}-source"));
     let artwork = draw(&draw(&blank(), 10.0, 20), 40.0, 20);
-    Library::at(&source).create(&artwork).expect("create");
+    Library::at(&source)
+        .create(&artwork, &untitled())
+        .expect("create");
     let mut stored = records(&source);
     change(&mut stored);
     let dir = fresh_dir(name);
@@ -169,18 +171,31 @@ fn corrupted(name: &str, change: impl Fn(&mut Vec<(String, Vec<u8>, Vec<u8>)>)) 
 }
 
 fn head(records: &mut [(String, Vec<u8>, Vec<u8>)]) -> &mut Vec<u8> {
-    let head = records.iter_mut().find(|(_, key, _)| key.len() == 9);
+    let head = records
+        .iter_mut()
+        .find(|(keyspace, key, _)| keyspace == "projects" && key.len() == 9);
     &mut head.expect("head record").2
 }
 
 #[test]
 fn unreadable_records_are_refused_with_a_reason() {
-    let newer = corrupted("newer", |records| head(records)[0] = 2);
+    let newer = corrupted("newer", |records| head(records)[0] = 3);
     assert_eq!(
         newer,
         PortError::NewerSchema {
-            found: 2,
-            newest: 1
+            found: 3,
+            newest: 2
+        }
+    );
+    let newer_library = corrupted("newer-library", |records| {
+        let schema = records.iter_mut().find(|(_, key, _)| key == b"schema");
+        schema.expect("schema record").2 = 3u32.to_le_bytes().to_vec();
+    });
+    assert_eq!(
+        newer_library,
+        PortError::NewerSchema {
+            found: 3,
+            newest: 2
         }
     );
     let short = corrupted("short", |records| {
@@ -213,7 +228,9 @@ fn unreadable_records_are_refused_with_a_reason() {
 fn a_failed_call_is_retried_by_the_next_one() {
     let dir = fresh_dir("locked");
     let mut holder = Library::at(&dir);
-    let id = holder.create(&draw(&blank(), 10.0, 5)).expect("create");
+    let id = holder
+        .create(&draw(&blank(), 10.0, 5), &untitled())
+        .expect("create");
     // Another library on the same directory cannot open it while the first holds it.
     let mut other = Library::at(&dir);
     let later = draw(&reopened_with(&mut holder), 30.0, 5);

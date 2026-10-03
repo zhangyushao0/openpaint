@@ -8,10 +8,13 @@ mod frame;
 mod input;
 mod normalise;
 mod pointer;
+mod screen;
 mod storage;
+mod text;
 mod worker;
 
 pub use crate::error::RuntimeError;
 pub use crate::frame::Runtime;
 pub use crate::input::{Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, ToolKind};
+pub use crate::text::{EditKey, TextInput};
 pub use openpaint_render::SurfaceWindow;

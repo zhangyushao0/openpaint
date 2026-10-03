@@ -4,11 +4,12 @@ import android.app.Activity
 import android.os.Build
 import android.os.Bundle
 import android.view.Choreographer
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.SurfaceHolder
-import android.view.SurfaceView
 import android.view.WindowInsets
 import android.view.WindowInsetsController
+import android.view.inputmethod.InputMethodManager
 
 /** Floats per pointer sample: x, y, pressure, tilt, orientation. Must match motion.rs. */
 private const val SAMPLE_FIELDS = 5
@@ -29,11 +30,16 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
     private var handle = 0L
     private var attached = false
     private var frameRequested = false
+    private lateinit var view: CanvasView
+    /** The app used the back button's press; its release is the app's too. */
+    private var backUsed = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handle = Native.create(density(), filesDir.absolutePath)
-        val view = SurfaceView(this)
+        view = CanvasView(this)
+        view.handle = handle
+        view.onInput = { requestFrame() }
         view.holder.addCallback(this)
         setContentView(view)
         hideSystemBars()
@@ -78,6 +84,70 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
     override fun doFrame(frameTimeNanos: Long) {
         frameRequested = false
         if (Native.frame(handle, System.nanoTime())) requestFrame()
+        syncKeyboard()
+    }
+
+    /** Shows the soft keyboard while a text field waits for typing, hides it after. */
+    private fun syncKeyboard() {
+        val wanted = Native.keyboard(handle)
+        if (wanted == view.editing) return
+        view.editing = wanted
+        val keyboard = getSystemService(InputMethodManager::class.java) ?: return
+        if (wanted) {
+            view.requestFocus()
+            keyboard.restartInput(view)
+            keyboard.showSoftInput(view, 0)
+        } else {
+            keyboard.hideSoftInputFromWindow(view.windowToken, 0)
+            keyboard.restartInput(view)
+        }
+    }
+
+    /**
+     * Back goes to the app first (canvas to gallery, closing a dialog); when it does not use
+     * it, the system's back applies. While a text field waits for typing, keys type into it.
+     */
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode == KeyEvent.KEYCODE_BACK) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                backUsed = Native.back(handle)
+                if (backUsed) requestFrame()
+            }
+            val used = backUsed
+            if (event.action == KeyEvent.ACTION_UP) backUsed = false
+            return used || super.dispatchKeyEvent(event)
+        }
+        if (view.editing && type(event)) {
+            requestFrame()
+            return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    /** Sends a key event to the focused text field; false when it is not a typing key. */
+    private fun type(event: KeyEvent): Boolean {
+        if (event.action == KeyEvent.ACTION_MULTIPLE && event.keyCode == KeyEvent.KEYCODE_UNKNOWN) {
+            event.characters?.let { Native.text(handle, 1, it) }
+            return true
+        }
+        val code = when (event.keyCode) {
+            KeyEvent.KEYCODE_DEL -> KEY_BACKSPACE
+            KeyEvent.KEYCODE_FORWARD_DEL -> KEY_DELETE
+            KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> KEY_ENTER
+            KeyEvent.KEYCODE_DPAD_LEFT -> KEY_LEFT
+            KeyEvent.KEYCODE_DPAD_RIGHT -> KEY_RIGHT
+            else -> null
+        }
+        val character = event.unicodeChar
+        if (code == null && (character == 0 || event.isCtrlPressed)) return false
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            if (code != null) {
+                Native.key(handle, code)
+            } else {
+                Native.text(handle, 1, String(Character.toChars(character)))
+            }
+        }
+        return true
     }
 
     private fun requestFrame() {

@@ -77,6 +77,9 @@ impl Session {
             Intent::History(step) => self.step(step),
             Intent::Storage(storage) => self.storage(storage),
             Intent::Layer(_) => Ok(()),
+            // Leaving is the runtime's (it stores the artwork first); the session only says
+            // whether it may happen now.
+            Intent::Gallery(_) => self.check(EditorAction::Gallery),
         }
     }
 
@@ -125,6 +128,7 @@ impl Session {
             dismiss_notice,
             layer_actions: LAYER_ACTIONS
                 .map(|action| layers::availability(artwork, drawing, action, artwork.active())),
+            gallery: availability(true),
             storage: self.autosave.notice(),
             layers: Some(LayerList::of(artwork)),
         }

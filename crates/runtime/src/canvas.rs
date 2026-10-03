@@ -1,7 +1,7 @@
-//! The open canvas: the app session, the target its artwork is evaluated into, and where that
-//! target shows on screen.
+//! The open canvas: the app session, the target its artwork is evaluated into, where that
+//! target shows on screen, and whether the user is leaving it for the gallery.
 
-use openpaint_app::{Intent, Session};
+use openpaint_app::{Intent, Session, Thumbnail};
 use openpaint_core::{Artwork, CanvasSize, Color};
 use openpaint_render::{
     CanvasPlacement, CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, changed_regions,
@@ -9,10 +9,33 @@ use openpaint_render::{
 use openpaint_ui::ScreenArea;
 
 use crate::error::RuntimeError;
-use crate::storage::Opened;
 
 /// The paper under the layers until artworks carry their own background.
 const PAPER: Color = Color::WHITE;
+/// Largest gallery thumbnail in pixels: a gallery card's picture at density 1.75.
+pub(crate) const THUMBNAIL_MAX: [u32; 2] = [448, 336];
+
+/// What a canvas opens with.
+#[derive(Debug, Clone)]
+pub(crate) enum Content {
+    /// An artwork as the library holds it.
+    Stored(Artwork),
+    /// A blank artwork the size of the canvas area, not in the library yet.
+    Blank,
+    /// As `Blank`, after the last artwork could not be opened.
+    BlankAfterFailedOpen,
+}
+
+/// Leaving the canvas for the gallery: the artwork is stored first, and the canvas stays until
+/// that succeeded.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Leaving {
+    Staying,
+    /// Asked to leave; waits for a save still running.
+    Waiting,
+    /// The last version and the thumbnail are on their way to the store.
+    Storing,
+}
 
 pub(crate) struct Canvas {
     session: Session,
@@ -22,25 +45,25 @@ pub(crate) struct Canvas {
     /// The version shown before this frame's first change other than a stroke (undo, redo, a
     /// layer edit), until it is evaluated.
     changed_from: Option<Artwork>,
+    pub(crate) leaving: Leaving,
 }
 
 impl Canvas {
-    /// The artwork the library `opened`, or a blank one the size of `area`, shown at one screen
-    /// pixel per canvas pixel from the area's corner. `None` while the area is empty. Later
-    /// area changes (rotation) move the canvas, never resize it.
+    /// `content` shown at one screen pixel per canvas pixel from the area's corner; a blank
+    /// artwork is the size of `area`. `None` while the area is empty. Later area changes
+    /// (rotation) move the canvas, never resize it.
     pub(crate) fn open(
         core: &Core,
         area: &ScreenArea,
-        opened: &Opened,
+        content: &Content,
     ) -> Result<Option<Self>, RuntimeError> {
         if area.size.contains(&0) {
             return Ok(None);
         }
-        let blank = || CanvasSize::new(area.size[0], area.size[1]);
-        let session = match opened {
-            Opened::Last(artwork) => Session::open(artwork.clone())?,
-            Opened::Empty => Session::new(blank()?)?,
-            Opened::Failed(_) => Session::after_failed_open(blank()?)?,
+        let session = match content {
+            Content::Stored(artwork) => Session::open(artwork.clone())?,
+            Content::Blank => Session::new(blank_size(area)?)?,
+            Content::BlankAfterFailedOpen => Session::after_failed_open(blank_size(area)?)?,
         };
         let canvas = session.artwork().canvas();
         let size = [canvas.width(), canvas.height()];
@@ -50,17 +73,24 @@ impl Canvas {
             target: CanvasTarget::new(core, size)?,
             evaluated: false,
             changed_from: None,
+            leaving: Leaving::Staying,
         }))
     }
 
     /// Applies the frame's intents in order. A refused intent is logged and skipped: one bad
-    /// sample must not stop the frame.
+    /// sample must not stop the frame. A gallery intent the session allows starts leaving;
+    /// while leaving, nothing else is applied.
     pub(crate) fn dispatch(&mut self, intents: Vec<Intent>) {
         for intent in intents {
+            if self.leaving != Leaving::Staying {
+                return;
+            }
             // Committing a stroke is followed by the evaluator itself (D17).
             let stroke = matches!(intent, Intent::Stroke(_));
+            let gallery = matches!(intent, Intent::Gallery(_));
             let before = self.session.artwork().clone();
             match self.session.dispatch(intent) {
+                Ok(()) if gallery => self.leaving = Leaving::Waiting,
                 Ok(()) if !stroke => {
                     self.changed_from.get_or_insert(before);
                 }
@@ -92,6 +122,15 @@ impl Canvas {
         Ok(())
     }
 
+    /// The gallery picture of what the canvas shows now; call after `evaluate`.
+    pub(crate) fn thumbnail(&self, core: &Core) -> Result<Thumbnail, RuntimeError> {
+        let image = core.thumbnail(&self.target, THUMBNAIL_MAX)?;
+        let size = image.size();
+        Thumbnail::new(size, image.into_pixels()).ok_or(RuntimeError::Render(
+            openpaint_render::RenderError::Invalid("a thumbnail of the wrong length"),
+        ))
+    }
+
     /// The target with its top-left corner at the canvas area's.
     pub(crate) fn placement(&self, area: &ScreenArea) -> CanvasPlacement<'_> {
         CanvasPlacement {
@@ -111,4 +150,9 @@ impl Canvas {
     pub(crate) fn target(&self) -> &CanvasTarget {
         &self.target
     }
+}
+
+/// The size of a blank artwork that fills `area`.
+pub(crate) fn blank_size(area: &ScreenArea) -> Result<CanvasSize, RuntimeError> {
+    Ok(CanvasSize::new(area.size[0], area.size[1])?)
 }

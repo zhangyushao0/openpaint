@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 
 mod error;
+mod gallery;
 mod history;
 mod input;
 mod intent;
@@ -15,15 +16,20 @@ mod projection;
 mod session;
 mod storage;
 mod stroke;
+mod title;
 
 pub use crate::error::AppError;
+pub use crate::gallery::{
+    Gallery, GalleryIntent, GalleryNotice, GalleryProjection, LibraryAnswer, LibraryRequest,
+};
 pub use crate::history::{HISTORY_BUDGET, History, HistoryIntent};
 pub use crate::input::{Contact, ContactPhase, Device, InputBatch, InputSample};
 pub use crate::intent::Intent;
 pub use crate::layers::{LayerIntent, LayerList, LayerRow};
 pub use crate::palm::PalmRejection;
-pub use crate::project::{PortError, Project, ProjectId, ProjectStore};
-pub use crate::projection::{Availability, EditorAction, SessionProjection};
+pub use crate::project::{PortError, Project, ProjectId, ProjectStore, ProjectSummary, Thumbnail};
+pub use crate::projection::{Availability, EditorAction, ScreenProjection, SessionProjection};
 pub use crate::session::Session;
 pub use crate::storage::{StorageIntent, StorageNotice};
 pub use crate::stroke::StrokeIntent;
+pub use crate::title::{MAX_TITLE_CHARS, Title, TitleError, UNTITLED};

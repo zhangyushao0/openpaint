@@ -1,25 +1,27 @@
-//! `Library`: the artwork library on disk, a fjall database (DECISIONS D09, D21), implementing
-//! the app's `ProjectStore`. Every save is one atomic batch synced to disk; it rewrites the head
-//! and only the stroke records that changed since the version this library last stored.
+//! `Library`: the artwork library on disk, a fjall database (DECISIONS D09, D21, D25),
+//! implementing the app's `ProjectStore`. Every call that writes is one atomic batch synced to
+//! disk; a save rewrites the head and only the stroke records that changed since the version
+//! this library last stored. An older library is upgraded when it is opened.
 
-use std::collections::HashSet;
 use std::path::PathBuf;
 
-use fjall::{Database, Keyspace, KeyspaceCreateOptions, OwnedWriteBatch, PersistMode};
-use openpaint_app::{PortError, Project, ProjectId, ProjectStore};
-use openpaint_core::{Artwork, ArtworkParts, StrokeParts};
-
-use crate::delta::delta;
-use crate::records::{
-    LAST, LIBRARY, NEXT, PROJECTS, decode_head, decode_id, decode_stroke, encode_head, encode_id,
-    encode_stroke, head_key, layer_prefix, stroke_index, stroke_key, strokes_prefix,
+use fjall::{Database, Keyspace, KeyspaceCreateOptions, PersistMode};
+use openpaint_app::{
+    PortError, Project, ProjectId, ProjectStore, ProjectSummary, Thumbnail, Title,
 };
+use openpaint_core::Artwork;
+
+use crate::migrate::upgrade_1_to_2;
+use crate::records::{
+    LIBRARY, NEXT, PROJECTS, SCHEMA, SCHEMA_KEY, decode_id, decode_schema, encode_schema, head_key,
+};
+use crate::{read, write};
 
 /// The database and its two keyspaces.
-struct Open {
-    db: Database,
-    library: Keyspace,
-    projects: Keyspace,
+pub(crate) struct Open {
+    pub(crate) db: Database,
+    pub(crate) library: Keyspace,
+    pub(crate) projects: Keyspace,
 }
 
 /// The artwork library in one directory. The database opens on the first call, so creating a
@@ -33,14 +35,14 @@ pub struct Library {
     stored: Option<(ProjectId, Artwork)>,
 }
 
-fn device(error: fjall::Error) -> PortError {
+pub(crate) fn device(error: fjall::Error) -> PortError {
     PortError::Device {
         detail: error.to_string(),
     }
 }
 
 impl Library {
-    /// The library kept in `dir`, created on the first save if missing.
+    /// The library kept in `dir`, created on the first call if missing.
     #[must_use]
     pub fn at(dir: impl Into<PathBuf>) -> Self {
         Self {
@@ -59,12 +61,14 @@ impl Library {
             let projects = db
                 .keyspace(PROJECTS, KeyspaceCreateOptions::default)
                 .map_err(device)?;
-            log::info!("library opened at {}", self.dir.display());
-            self.open = Some(Open {
+            let open = Open {
                 db,
                 library,
                 projects,
-            });
+            };
+            prepare(&open)?;
+            log::info!("library opened at {}", self.dir.display());
+            self.open = Some(open);
         }
         self.open.as_ref().ok_or(PortError::Stopped)
     }
@@ -72,171 +76,124 @@ impl Library {
     /// Runs `call` on the open database; any failure closes it and forgets the stored version.
     fn with<T>(
         &mut self,
-        call: impl FnOnce(&Open, Option<(ProjectId, Artwork)>) -> Result<T, PortError>,
+        call: impl FnOnce(&Open) -> Result<T, PortError>,
     ) -> Result<T, PortError> {
-        let stored = self.stored.take();
-        let result = self.opened().and_then(|open| call(open, stored));
+        let result = self.opened().and_then(call);
         if result.is_err() {
             self.open = None;
+            self.stored = None;
         }
         result
     }
 }
 
-impl ProjectStore for Library {
-    fn open_last(&mut self) -> Result<Option<Project>, PortError> {
-        let project = self.with(|open, _| read_last(open))?;
-        self.stored = project
-            .as_ref()
-            .map(|project| (project.id, project.artwork.clone()));
-        Ok(project)
+/// Checks the schema of an opened database: a new one is marked with this build's schema, a
+/// schema-1 one is upgraded, a newer one is refused.
+fn prepare(open: &Open) -> Result<(), PortError> {
+    if let Some(bytes) = open.library.get(SCHEMA_KEY).map_err(device)? {
+        return match decode_schema(&bytes)? {
+            SCHEMA => Ok(()),
+            found if found > SCHEMA => Err(PortError::NewerSchema {
+                found,
+                newest: SCHEMA,
+            }),
+            _ => Err(PortError::Corrupt {
+                what: "library schema",
+            }),
+        };
     }
-
-    fn create(&mut self, artwork: &Artwork) -> Result<ProjectId, PortError> {
-        let id = self.with(|open, _| {
-            let next = match open.library.get(NEXT).map_err(device)? {
-                Some(bytes) => decode_id(&bytes, "next project id")?,
-                None => 1,
-            };
-            let id = ProjectId::new(next);
-            let mut batch = open.db.batch();
-            batch.insert(&open.library, NEXT, encode_id(next + 1));
-            write_all(open, &mut batch, id, artwork)?;
-            commit(open, batch, id, artwork)?;
-            Ok(id)
-        })?;
-        log::info!("project {} created", id.get());
-        self.stored = Some((id, artwork.clone()));
-        Ok(id)
-    }
-
-    fn save(&mut self, id: ProjectId, artwork: &Artwork) -> Result<(), PortError> {
-        self.with(|open, stored| {
-            let mut batch = open.db.batch();
-            match stored.filter(|(stored, _)| *stored == id) {
-                Some((_, base)) => write_delta(open, &mut batch, id, &base, artwork),
-                None => write_all(open, &mut batch, id, artwork)?,
+    let mut batch = open.db.batch();
+    match open.library.get(NEXT).map_err(device)? {
+        None => batch.insert(&open.library, SCHEMA_KEY, encode_schema(SCHEMA)),
+        Some(next) => {
+            let next = decode_id(&next, "next project id")?;
+            let mut heads = Vec::new();
+            for id in (1..next).map(ProjectId::new) {
+                if let Some(head) = open.projects.get(head_key(id)).map_err(device)? {
+                    heads.push((id, head.to_vec()));
+                }
             }
-            commit(open, batch, id, artwork)
-        })?;
-        self.stored = Some((id, artwork.clone()));
-        Ok(())
+            let upgrade = upgrade_1_to_2(&heads);
+            for (key, value) in upgrade.library {
+                batch.insert(&open.library, key, value);
+            }
+            for (key, value) in upgrade.projects {
+                batch.insert(&open.projects, key, value);
+            }
+            log::info!("library upgraded from schema 1 ({} projects)", heads.len());
+        }
     }
-}
-
-/// Adds the head and `last`, then writes the batch atomically and syncs it to disk.
-fn commit(
-    open: &Open,
-    mut batch: OwnedWriteBatch,
-    id: ProjectId,
-    artwork: &Artwork,
-) -> Result<(), PortError> {
-    batch.insert(&open.projects, head_key(id), encode_head(artwork));
-    batch.insert(&open.library, LAST, encode_id(id.get()));
     batch
         .durability(Some(PersistMode::SyncData))
         .commit()
         .map_err(device)
 }
 
-fn write_delta(
-    open: &Open,
-    batch: &mut OwnedWriteBatch,
-    id: ProjectId,
-    base: &Artwork,
-    artwork: &Artwork,
-) {
-    let changes = delta(base, artwork);
-    for ((layer, index), stroke) in changes.write {
-        batch.insert(
-            &open.projects,
-            stroke_key(id, layer, index),
-            encode_stroke(stroke),
-        );
+impl ProjectStore for Library {
+    fn open_last(&mut self) -> Result<Option<Project>, PortError> {
+        let project = self.with(read::last)?;
+        self.stored = project
+            .as_ref()
+            .map(|project| (project.id, project.artwork.clone()));
+        Ok(project)
     }
-    for (layer, index) in changes.remove {
-        batch.remove(&open.projects, stroke_key(id, layer, index));
-    }
-}
 
-/// Every stroke record of `artwork`, and the removal of any other stroke record the project
-/// has on disk. For a new project, and for a save whose base is unknown after a failure.
-fn write_all(
-    open: &Open,
-    batch: &mut OwnedWriteBatch,
-    id: ProjectId,
-    artwork: &Artwork,
-) -> Result<(), PortError> {
-    let mut written = HashSet::new();
-    for layer in artwork.layers() {
-        for (index, stroke) in layer.strokes().iter().enumerate() {
-            let key = stroke_key(id, layer.id().get(), index);
-            batch.insert(&open.projects, key.clone(), encode_stroke(stroke));
-            written.insert(key);
-        }
+    fn list(&mut self) -> Result<Vec<ProjectSummary>, PortError> {
+        self.with(read::list)
     }
-    for guard in open.projects.prefix(strokes_prefix(id)) {
-        let key = guard.key().map_err(device)?;
-        if !written.contains(key.as_ref()) {
-            batch.remove(&open.projects, key);
-        }
-    }
-    Ok(())
-}
 
-fn read_last(open: &Open) -> Result<Option<Project>, PortError> {
-    let Some(last) = open.library.get(LAST).map_err(device)? else {
-        return Ok(None);
-    };
-    let id = ProjectId::new(decode_id(&last, "last project")?);
-    let head = open
-        .projects
-        .get(head_key(id))
-        .map_err(device)?
-        .ok_or(PortError::Corrupt {
-            what: "artwork head",
+    fn create(&mut self, artwork: &Artwork, title: &Title) -> Result<ProjectId, PortError> {
+        let id = self.with(|open| write::create(open, artwork, title))?;
+        log::info!("project {} created", id.get());
+        self.stored = Some((id, artwork.clone()));
+        Ok(id)
+    }
+
+    fn load(&mut self, id: ProjectId) -> Result<Project, PortError> {
+        let project = self.with(|open| {
+            let project = read::project(open, id)?;
+            write::open(open, id)?;
+            Ok(project)
         })?;
-    let head = decode_head(&head)?;
-    let mut layers = Vec::with_capacity(head.layers.len());
-    for (mut layer, count) in head.layers {
-        layer.strokes = read_strokes(open, id, layer.id, count)?;
-        layers.push(layer);
+        self.stored = Some((id, project.artwork.clone()));
+        Ok(project)
     }
-    let artwork = Artwork::from_storage(ArtworkParts {
-        width: head.width,
-        height: head.height,
-        layers,
-        active: head.active,
-        next_layer_id: head.next_layer_id,
-        next_stroke_id: head.next_stroke_id,
-    })?;
-    log::info!("project {} opened", id.get());
-    Ok(Some(Project { id, artwork }))
-}
 
-/// The `count` stroke records of one layer, which must sit at indices `0..count`.
-fn read_strokes(
-    open: &Open,
-    id: ProjectId,
-    layer: u64,
-    count: usize,
-) -> Result<Vec<StrokeParts>, PortError> {
-    let corrupt = PortError::Corrupt {
-        what: "stroke records",
-    };
-    let prefix = layer_prefix(id, layer);
-    let mut strokes = Vec::new();
-    for (expected, guard) in open.projects.prefix(&prefix).enumerate() {
-        let (key, value) = guard.into_inner().map_err(device)?;
-        let in_place = key.len() == prefix.len() + 8 && stroke_index(&key) == Some(expected as u64);
-        if expected >= count || !in_place {
-            return Err(corrupt);
-        }
-        strokes.push(decode_stroke(&value)?);
+    fn save(&mut self, id: ProjectId, artwork: &Artwork) -> Result<(), PortError> {
+        let base = self.stored.take().filter(|(stored, _)| *stored == id);
+        self.with(|open| write::save(open, id, base.as_ref().map(|(_, base)| base), artwork))?;
+        self.stored = Some((id, artwork.clone()));
+        Ok(())
     }
-    if strokes.len() == count {
-        Ok(strokes)
-    } else {
-        Err(corrupt)
+
+    fn save_thumbnail(&mut self, id: ProjectId, thumbnail: &Thumbnail) -> Result<(), PortError> {
+        self.with(|open| write::thumbnail(open, id, thumbnail))
+    }
+
+    fn close(&mut self) -> Result<(), PortError> {
+        self.with(write::close)
+    }
+
+    fn rename(&mut self, id: ProjectId, title: &Title) -> Result<(), PortError> {
+        self.with(|open| write::rename(open, id, title))
+    }
+
+    fn duplicate(&mut self, id: ProjectId) -> Result<ProjectId, PortError> {
+        let copy = self.with(|open| write::duplicate(open, id))?;
+        log::info!("project {} duplicated as {}", id.get(), copy.get());
+        Ok(copy)
+    }
+
+    fn delete(&mut self, id: ProjectId) -> Result<(), PortError> {
+        self.with(|open| write::delete(open, id))?;
+        if self
+            .stored
+            .as_ref()
+            .is_some_and(|(stored, _)| *stored == id)
+        {
+            self.stored = None;
+        }
+        log::info!("project {} deleted", id.get());
+        Ok(())
     }
 }

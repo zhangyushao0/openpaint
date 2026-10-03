@@ -1,7 +1,9 @@
-//! Schema 1: the keys and values the library stores (DECISIONS D21).
+//! Schema 2: the keys and values the library stores (DECISIONS D21, D25).
 //!
-//! Keyspace `library`: `last` -> project id (u64 LE) opened or saved last; `next` -> the next
-//! unused project id (u64 LE).
+//! Keyspace `library`: `schema` -> the schema of every record (u32 LE); `next` -> the next
+//! unused project id (u64 LE); `clock` -> the last value of the change counter (u64 LE); `last`
+//! -> the project open when the app was left (u64 LE), absent when none was; `['a'][project
+//! u64]` -> the project's catalogue entry (`catalogue.rs`): title and when it last changed.
 //!
 //! Keyspace `projects`, keys big-endian so a project's records sort together:
 //! - `[project u64]['h']` -> the head: schema (u32), canvas width and height (u32), active
@@ -10,10 +12,13 @@
 //!   count (u32);
 //! - `[project u64]['s'][layer u64][index u64]` -> one stroke, oldest at index 0: id (u64),
 //!   size, opacity, red, green, blue (f32), sample count (u32), then per sample x, y, pressure,
-//!   tilt, azimuth (f32) and time (u32 ms).
+//!   tilt, azimuth (f32) and time (u32 ms);
+//! - `[project u64]['t']` -> the gallery thumbnail (`catalogue.rs`), derived from the artwork
+//!   when it was last left; absent until then.
 //!
 //! Integers and floats are little-endian inside values. A save rewrites the head and only the
-//! stroke records that changed.
+//! stroke records that changed. Schema 1 (S7) had no `schema`, `clock`, catalogue entries or
+//! thumbnails, and `last` named the project saved last; `migrate.rs` upgrades it.
 
 use openpaint_app::{PortError, ProjectId};
 use openpaint_core::{Artwork, LayerParts, SampleParts, Stroke, StrokeParts};
@@ -21,29 +26,58 @@ use openpaint_core::{Artwork, LayerParts, SampleParts, Stroke, StrokeParts};
 use crate::codec::{Reader, Writer};
 
 /// The schema this build writes and the newest it reads.
-pub const SCHEMA: u32 = 1;
+pub const SCHEMA: u32 = 2;
 
 pub(crate) const LIBRARY: &str = "library";
 pub(crate) const PROJECTS: &str = "projects";
+pub(crate) const SCHEMA_KEY: &[u8] = b"schema";
 pub(crate) const LAST: &[u8] = b"last";
 pub(crate) const NEXT: &[u8] = b"next";
+pub(crate) const CLOCK: &[u8] = b"clock";
+/// The first byte of every catalogue entry's key.
+pub(crate) const ENTRY: &[u8] = b"a";
 
 const HEAD: u8 = b'h';
 const STROKE: u8 = b's';
+const THUMBNAIL: u8 = b't';
 /// Bytes of one encoded sample.
 const SAMPLE_BYTES: usize = 24;
 /// Bytes of a layer entry in the head without its name.
 const LAYER_BYTES: usize = 8 + 4 + 1 + 4 + 1 + 4;
 
+/// The prefix of every record of `project` in `projects`.
+pub(crate) fn project_prefix(project: ProjectId) -> Vec<u8> {
+    project.get().to_be_bytes().to_vec()
+}
+
 pub(crate) fn head_key(project: ProjectId) -> Vec<u8> {
-    let mut key = project.get().to_be_bytes().to_vec();
+    let mut key = project_prefix(project);
     key.push(HEAD);
     key
 }
 
+pub(crate) fn thumbnail_key(project: ProjectId) -> Vec<u8> {
+    let mut key = project_prefix(project);
+    key.push(THUMBNAIL);
+    key
+}
+
+/// The key of `project`'s catalogue entry in `library`.
+pub(crate) fn entry_key(project: ProjectId) -> Vec<u8> {
+    let mut key = ENTRY.to_vec();
+    key.extend_from_slice(&project.get().to_be_bytes());
+    key
+}
+
+/// The project a catalogue entry's key names.
+pub(crate) fn entry_project(key: &[u8]) -> Option<ProjectId> {
+    let id = key.strip_prefix(ENTRY)?;
+    Some(ProjectId::new(u64::from_be_bytes(id.try_into().ok()?)))
+}
+
 /// The prefix of every stroke record of `project`.
 pub(crate) fn strokes_prefix(project: ProjectId) -> Vec<u8> {
-    let mut key = project.get().to_be_bytes().to_vec();
+    let mut key = project_prefix(project);
     key.push(STROKE);
     key
 }
@@ -69,6 +103,17 @@ pub(crate) fn stroke_index(key: &[u8]) -> Option<u64> {
 
 pub(crate) fn encode_id(id: u64) -> Vec<u8> {
     id.to_le_bytes().to_vec()
+}
+
+pub(crate) fn encode_schema(schema: u32) -> Vec<u8> {
+    schema.to_le_bytes().to_vec()
+}
+
+pub(crate) fn decode_schema(bytes: &[u8]) -> Result<u32, PortError> {
+    let mut reader = Reader::new(bytes, "library schema");
+    let schema = reader.u32()?;
+    reader.end()?;
+    Ok(schema)
 }
 
 pub(crate) fn decode_id(bytes: &[u8], what: &'static str) -> Result<u64, PortError> {

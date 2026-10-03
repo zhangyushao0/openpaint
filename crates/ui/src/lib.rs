@@ -6,6 +6,7 @@
 
 pub mod components;
 pub mod design;
+mod gallery;
 mod layer_panel;
 mod shell;
 

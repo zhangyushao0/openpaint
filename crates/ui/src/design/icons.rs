@@ -34,6 +34,8 @@ pub enum Icon {
     Visible,
     /// The eye struck through: hidden.
     Hidden,
+    /// Two sheets, one offset behind the other: make a copy.
+    Duplicate,
 }
 
 /// Draws `icon` into `rect` (square, `ICON_SIZE` on a side) in `color`.
@@ -83,6 +85,22 @@ fn polylines(icon: Icon) -> Vec<Vec<[f32; 2]>> {
         ],
         Icon::Visible => vec![eye_outline()],
         Icon::Hidden => vec![eye_outline(), vec![[0.18, 0.82], [0.82, 0.18]]],
+        Icon::Duplicate => vec![
+            vec![
+                [0.36, 0.36],
+                [0.82, 0.36],
+                [0.82, 0.82],
+                [0.36, 0.82],
+                [0.36, 0.36],
+            ],
+            vec![
+                [0.64, 0.36],
+                [0.64, 0.18],
+                [0.18, 0.18],
+                [0.18, 0.64],
+                [0.36, 0.64],
+            ],
+        ],
     }
 }
 
@@ -165,6 +183,7 @@ mod tests {
             Icon::Delete,
             Icon::Visible,
             Icon::Hidden,
+            Icon::Duplicate,
         ];
         for icon in icons {
             let lines = polylines(icon);

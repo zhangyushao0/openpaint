@@ -82,6 +82,29 @@ pub(crate) fn read_rgba(gpu: &Gpu, texture: &wgpu::Texture) -> Result<RgbaImage,
     Ok(RgbaImage::new([width, height], pixels))
 }
 
+/// Copies the first `bytes` of a `COPY_SRC` buffer into memory, waiting for the GPU.
+pub(crate) fn read_buffer(
+    gpu: &Gpu,
+    source: &wgpu::Buffer,
+    bytes: u64,
+) -> Result<Vec<u8>, RenderError> {
+    let buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("readback"),
+        size: bytes,
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+    let mut encoder = gpu.device.create_command_encoder(&Default::default());
+    encoder.copy_buffer_to_buffer(source, 0, &buffer, 0, bytes);
+    gpu.queue.submit([encoder.finish()]);
+    map_and_wait(gpu, &buffer)?;
+    let view = buffer.get_mapped_range(..).map_err(device)?;
+    let data = view.to_vec();
+    drop(view);
+    buffer.unmap();
+    Ok(data)
+}
+
 fn map_and_wait(gpu: &Gpu, buffer: &wgpu::Buffer) -> Result<(), RenderError> {
     let (sender, receiver) = mpsc::channel();
     buffer.map_async(wgpu::MapMode::Read, .., move |result| {

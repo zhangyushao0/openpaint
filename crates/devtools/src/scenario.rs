@@ -64,6 +64,10 @@ pub enum Step {
         #[serde(default)]
         palm: Option<Palm>,
     },
+    /// Text committed by the keyboard into the field that has the focus.
+    Type(String),
+    /// The system's back button.
+    Back,
     /// Frames with no input.
     Wait { frames: u32 },
     /// The app process ends and starts again with the same screen and the same library, as
@@ -191,14 +195,18 @@ mod tests {
                 { "checkpoint": { "name": "a", "canvas": "1f94cbfbd4b11e02" } },
                 { "screenshot": { "name": "b" } },
                 "storage_fails",
-                "storage_works"
+                "storage_works",
+                { "type": "Harbour" },
+                "back"
             ]
         }"#;
         let scenario = Scenario::parse(text).expect("parses");
         assert_eq!(scenario.walkthrough, ["Open the app."]);
-        assert_eq!(scenario.steps.len(), 10);
+        assert_eq!(scenario.steps.len(), 12);
         assert_eq!(scenario.steps[8], Step::StorageFails);
         assert_eq!(scenario.steps[9], Step::StorageWorks);
+        assert_eq!(scenario.steps[10], Step::Type("Harbour".into()));
+        assert_eq!(scenario.steps[11], Step::Back);
         assert_eq!(
             scenario.steps[3],
             Step::Stroke {

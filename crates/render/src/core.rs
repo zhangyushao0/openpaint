@@ -7,6 +7,7 @@ use crate::image::RgbaImage;
 use crate::program::EvaluatePipeline;
 use crate::readback::{offscreen_texture, read_rgba};
 use crate::screen::blit_layout;
+use crate::thumbnail::ThumbnailPipeline;
 
 pub struct Core {
     pub(crate) gpu: Gpu,
@@ -14,6 +15,8 @@ pub struct Core {
     pub(crate) evaluate: EvaluatePipeline,
     /// How a canvas target binds for showing on screen, the same for every frame format.
     pub(crate) blit_layout: wgpu::BindGroupLayout,
+    /// Reduces a canvas target to a gallery thumbnail (`Core::thumbnail`).
+    pub(crate) thumbnail: ThumbnailPipeline,
 }
 
 impl Core {
@@ -23,10 +26,12 @@ impl Core {
         let gpu = Gpu::new()?;
         let evaluate = EvaluatePipeline::new(&gpu.device);
         let blit_layout = blit_layout(&gpu.device);
+        let thumbnail = ThumbnailPipeline::new(&gpu.device);
         Ok(Self {
             gpu,
             evaluate,
             blit_layout,
+            thumbnail,
         })
     }
 

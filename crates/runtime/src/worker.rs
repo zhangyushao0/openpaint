@@ -1,106 +1,108 @@
-//! `Latest`: one background thread serving one request at a time. A new request replaces the
-//! one still waiting; the result waits until the frame loop takes it. Dropping it serves the
-//! request still waiting, then joins the thread, so nothing handed over is lost on shutdown.
+//! `Queue`: one background thread serving requests in the order they were submitted, each
+//! result kept until the frame loop takes it. Dropping it serves every request still queued,
+//! then joins the thread, so nothing handed over is lost on shutdown.
 //!
 //! This module is the only place product code starts a thread (ARCHITECTURE section 3).
 
-use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+use std::collections::VecDeque;
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use crate::error::RuntimeError;
 
-struct Slots<Req, Out> {
-    /// The request waiting to run; a newer one replaces it.
-    waiting: Option<Req>,
-    running: bool,
-    /// The newest result not taken yet.
-    done: Option<Out>,
-    closing: bool,
-}
-
-struct Shared<Req, Out> {
-    slots: Mutex<Slots<Req, Out>>,
-    changed: Condvar,
-}
-
-impl<Req, Out> Shared<Req, Out> {
-    /// The job runs outside the lock, so a poisoned lock only means a panic elsewhere while
-    /// holding it; the slots stay consistent and are used as they are.
-    fn lock(&self) -> MutexGuard<'_, Slots<Req, Out>> {
-        self.slots.lock().unwrap_or_else(PoisonError::into_inner)
-    }
-}
-
-pub(crate) struct Latest<Req, Out> {
-    shared: Arc<Shared<Req, Out>>,
+pub(crate) struct Queue<Req, Out> {
+    /// Dropped first on shutdown, which ends the thread's loop after the queued requests.
+    requests: Option<Sender<Req>>,
+    results: Receiver<Out>,
+    /// Results received while draining, handed out by `take` first.
+    ready: VecDeque<Out>,
+    /// Requests submitted whose result has not been received.
+    outstanding: usize,
     thread: Option<JoinHandle<()>>,
 }
 
-impl<Req: Send + 'static, Out: Send + 'static> Latest<Req, Out> {
+impl<Req: Send + 'static, Out: Send + 'static> Queue<Req, Out> {
     /// Starts the thread `name`, which runs `job` for each request.
     pub(crate) fn spawn(
         name: &'static str,
         mut job: impl FnMut(Req) -> Out + Send + 'static,
     ) -> Result<Self, RuntimeError> {
-        let shared = Arc::new(Shared {
-            slots: Mutex::new(Slots {
-                waiting: None,
-                running: false,
-                done: None,
-                closing: false,
-            }),
-            changed: Condvar::new(),
-        });
-        let serving = Arc::clone(&shared);
+        let (requests, inbox) = mpsc::channel::<Req>();
+        let (outbox, results) = mpsc::channel();
         let thread = std::thread::Builder::new()
             .name(name.to_owned())
-            .spawn(move || serve(&serving, &mut job))
+            .spawn(move || {
+                for request in inbox {
+                    // The receiver goes only after the thread is joined.
+                    let _ = outbox.send(job(request));
+                }
+            })
             .map_err(|_| RuntimeError::Worker(name))?;
         Ok(Self {
-            shared,
+            requests: Some(requests),
+            results,
+            ready: VecDeque::new(),
+            outstanding: 0,
             thread: Some(thread),
         })
     }
 }
 
-impl<Req, Out> Latest<Req, Out> {
-    /// Hands `request` to the thread, replacing one still waiting.
-    pub(crate) fn submit(&self, request: Req) {
-        self.shared.lock().waiting = Some(request);
-        self.shared.changed.notify_all();
+impl<Req, Out> Queue<Req, Out> {
+    /// Queues `request` after the ones submitted before it.
+    pub(crate) fn submit(&mut self, request: Req) {
+        let sent = self
+            .requests
+            .as_ref()
+            .is_some_and(|requests| requests.send(request).is_ok());
+        if sent {
+            self.outstanding += 1;
+        } else {
+            log::error!("a worker thread stopped; a request was dropped");
+        }
     }
 
-    /// The newest finished result, once.
-    pub(crate) fn take(&self) -> Option<Out> {
-        self.shared.lock().done.take()
+    /// The oldest result not taken yet.
+    pub(crate) fn take(&mut self) -> Option<Out> {
+        if let Some(out) = self.ready.pop_front() {
+            return Some(out);
+        }
+        let out = self.results.try_recv().ok()?;
+        self.outstanding -= 1;
+        Some(out)
     }
 
-    /// Waits until no request is waiting or running, at most `limit`. Returns whether it is
-    /// idle; the results stay for `take`.
-    pub(crate) fn drain(&self, limit: Duration) -> bool {
+    /// True while a request is queued or running, or a result waits to be taken.
+    pub(crate) fn busy(&self) -> bool {
+        self.outstanding > 0 || !self.ready.is_empty()
+    }
+
+    /// Waits until every submitted request has run, at most `limit`. Returns whether they all
+    /// did; the results stay for `take`.
+    pub(crate) fn drain(&mut self, limit: Duration) -> bool {
         let deadline = Instant::now() + limit;
-        let mut slots = self.shared.lock();
-        while slots.waiting.is_some() || slots.running {
+        while self.outstanding > 0 {
             let left = deadline.saturating_duration_since(Instant::now());
-            if left.is_zero() {
-                return false;
+            match self.results.recv_timeout(left) {
+                Ok(out) => {
+                    self.outstanding -= 1;
+                    self.ready.push_back(out);
+                }
+                Err(RecvTimeoutError::Timeout) => return false,
+                Err(RecvTimeoutError::Disconnected) => {
+                    log::error!("a worker thread stopped with requests left");
+                    self.outstanding = 0;
+                }
             }
-            slots = self
-                .shared
-                .changed
-                .wait_timeout(slots, left)
-                .unwrap_or_else(PoisonError::into_inner)
-                .0;
         }
         true
     }
 }
 
-impl<Req, Out> Drop for Latest<Req, Out> {
+impl<Req, Out> Drop for Queue<Req, Out> {
     fn drop(&mut self) {
-        self.shared.lock().closing = true;
-        self.shared.changed.notify_all();
+        self.requests = None;
         if let Some(thread) = self.thread.take()
             && thread.join().is_err()
         {
@@ -109,73 +111,43 @@ impl<Req, Out> Drop for Latest<Req, Out> {
     }
 }
 
-/// The thread's loop: wait for a request, run it, publish the result; after `closing`, finish
-/// the request still waiting and stop.
-fn serve<Req, Out>(shared: &Shared<Req, Out>, job: &mut impl FnMut(Req) -> Out) {
-    loop {
-        let request = {
-            let mut slots = shared.lock();
-            loop {
-                if let Some(request) = slots.waiting.take() {
-                    slots.running = true;
-                    break request;
-                }
-                if slots.closing {
-                    return;
-                }
-                slots = shared
-                    .changed
-                    .wait(slots)
-                    .unwrap_or_else(PoisonError::into_inner);
-            }
-        };
-        let out = job(request);
-        let mut slots = shared.lock();
-        slots.running = false;
-        slots.done = Some(out);
-        drop(slots);
-        shared.changed.notify_all();
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use std::sync::mpsc;
-
     use super::*;
 
     #[test]
-    fn results_come_back_and_a_newer_request_replaces_a_waiting_one() {
+    fn results_come_back_in_order_and_drain_waits_for_all() {
         let (release, gate) = mpsc::channel::<()>();
-        let worker = Latest::spawn("test-worker", move |n: u32| {
+        let mut worker = Queue::spawn("test-worker", move |n: u32| {
             gate.recv().ok();
             n * 10
         })
         .expect("spawn");
-        worker.submit(1);
-        // 1 is running (blocked on the gate) once 2 waits; 3 replaces 2.
-        while !worker.shared.lock().running {
-            std::thread::yield_now();
+        for n in 1..=3 {
+            worker.submit(n);
         }
-        worker.submit(2);
-        worker.submit(3);
+        assert!(worker.busy());
         assert!(!worker.drain(Duration::from_millis(10)), "still blocked");
-        release.send(()).expect("release 1");
-        release.send(()).expect("release 3");
+        for _ in 0..3 {
+            release.send(()).expect("release");
+        }
         assert!(worker.drain(Duration::from_secs(5)));
-        assert_eq!(worker.take(), Some(30), "the newest result");
-        assert_eq!(worker.take(), None, "taken once");
+        let results: Vec<u32> = std::iter::from_fn(|| worker.take()).collect();
+        assert_eq!(results, [10, 20, 30]);
+        assert!(!worker.busy());
     }
 
     #[test]
-    fn drop_serves_the_waiting_request_first() {
+    fn drop_serves_the_queued_requests_first() {
         let (sender, results) = mpsc::channel();
-        let worker = Latest::spawn("test-worker", move |n: u32| {
+        let mut worker = Queue::spawn("test-worker", move |n: u32| {
             sender.send(n).ok();
         })
         .expect("spawn");
         worker.submit(7);
+        worker.submit(8);
         drop(worker);
-        assert_eq!(results.recv_timeout(Duration::from_secs(5)), Ok(7));
+        let served: Vec<u32> = results.try_iter().collect();
+        assert_eq!(served, [7, 8]);
     }
 }

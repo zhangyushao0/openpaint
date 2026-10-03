@@ -7,7 +7,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use openpaint_app::{PortError, Project, ProjectId, ProjectStore, StorageNotice};
+use openpaint_app::{
+    PortError, Project, ProjectId, ProjectStore, ProjectSummary, StorageNotice, Thumbnail, Title,
+};
 use openpaint_core::Artwork;
 use openpaint_runtime::{
     Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime, ToolKind,
@@ -121,22 +123,54 @@ impl ProjectStore for Flaky {
         Ok(None)
     }
 
-    fn create(&mut self, artwork: &Artwork) -> Result<ProjectId, PortError> {
+    fn list(&mut self) -> Result<Vec<ProjectSummary>, PortError> {
+        Ok(Vec::new())
+    }
+
+    fn create(&mut self, artwork: &Artwork, _title: &Title) -> Result<ProjectId, PortError> {
         self.call(artwork).map(|()| ProjectId::new(1))
+    }
+
+    fn load(&mut self, id: ProjectId) -> Result<Project, PortError> {
+        Err(PortError::Missing(id))
     }
 
     fn save(&mut self, _id: ProjectId, artwork: &Artwork) -> Result<(), PortError> {
         self.call(artwork)
     }
+
+    fn save_thumbnail(&mut self, _id: ProjectId, _thumbnail: &Thumbnail) -> Result<(), PortError> {
+        Ok(())
+    }
+
+    fn close(&mut self) -> Result<(), PortError> {
+        Ok(())
+    }
+
+    fn rename(&mut self, _id: ProjectId, _title: &Title) -> Result<(), PortError> {
+        Ok(())
+    }
+
+    fn duplicate(&mut self, id: ProjectId) -> Result<ProjectId, PortError> {
+        Err(PortError::Missing(id))
+    }
+
+    fn delete(&mut self, _id: ProjectId) -> Result<(), PortError> {
+        Ok(())
+    }
 }
 
-/// The centre of the text button in the top bar, found by its face colour.
+/// The centre of the text button in the right half of the top bar (Gallery is at the left
+/// end), found by its face colour.
 fn retry_button(runtime: &mut Runtime) -> [f32; 2] {
     let screen = runtime.screenshot(SIZE).expect("screenshot");
     let y = 48;
     let row = &screen.pixels()[y * SIZE[0] as usize * 4..(y + 1) * SIZE[0] as usize * 4];
     let (pixels, _) = row.as_chunks::<4>();
-    let face: Vec<usize> = (0..pixels.len()).filter(|&x| pixels[x] == RAISED).collect();
+    let half = pixels.len() / 2;
+    let face: Vec<usize> = (half..pixels.len())
+        .filter(|&x| pixels[x] == RAISED)
+        .collect();
     let (first, last) = (
         face.first().expect("a button"),
         face.last().expect("a button"),

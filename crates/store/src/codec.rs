@@ -47,6 +47,11 @@ impl Writer {
         self.bytes.extend_from_slice(text.as_bytes());
     }
 
+    /// Raw bytes without a length: only as the last field of a record.
+    pub(crate) fn bytes(&mut self, bytes: &[u8]) {
+        self.bytes.extend_from_slice(bytes);
+    }
+
     pub(crate) fn finish(self) -> Vec<u8> {
         self.bytes
     }
@@ -113,6 +118,11 @@ impl<'a> Reader<'a> {
         let (text, rest) = self.bytes.split_at(len);
         self.bytes = rest;
         String::from_utf8(text.to_vec()).map_err(|_| self.corrupt())
+    }
+
+    /// Every byte not read yet: the last field of a record.
+    pub(crate) fn rest(&mut self) -> &'a [u8] {
+        std::mem::take(&mut self.bytes)
     }
 
     /// Succeeds only when every byte was read.

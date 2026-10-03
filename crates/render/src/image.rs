@@ -26,6 +26,11 @@ impl RgbaImage {
         &self.pixels
     }
 
+    #[must_use]
+    pub fn into_pixels(self) -> Vec<u8> {
+        self.pixels
+    }
+
     /// FNV-1a 64 over the size and the pixels: a stable fingerprint for golden tests and
     /// harness output. Not cryptographic.
     pub fn content_hash(&self) -> u64 {

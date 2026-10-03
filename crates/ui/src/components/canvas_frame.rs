@@ -123,7 +123,9 @@ mod tests {
             .iter()
             .filter_map(|intent| match intent {
                 Intent::Stroke(StrokeIntent::Contact(contact)) => Some(contact.samples[0].position),
-                Intent::History(_) | Intent::Storage(_) | Intent::Layer(_) => None,
+                Intent::History(_) | Intent::Storage(_) | Intent::Layer(_) | Intent::Gallery(_) => {
+                    None
+                }
             })
             .collect()
     }

@@ -6,6 +6,7 @@
 //! JNI is Android-only; the motion decoding and the pen latency probe are plain Rust and
 //! tested on the host.
 
+pub mod keys;
 pub mod latency;
 pub mod motion;
 
@@ -14,6 +15,9 @@ mod error;
 #[cfg(target_os = "android")]
 #[expect(unsafe_code, reason = "JNI entry points export unmangled symbols")]
 mod jni_entry;
+#[cfg(target_os = "android")]
+#[expect(unsafe_code, reason = "JNI entry points export unmangled symbols")]
+mod jni_keyboard;
 #[cfg(target_os = "android")]
 #[expect(
     unsafe_code,

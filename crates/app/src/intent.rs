@@ -1,6 +1,7 @@
 //! `Intent`: everything the UI can ask of the session. Each family lives in its own module with
 //! its handler and tests.
 
+use crate::gallery::GalleryIntent;
 use crate::history::HistoryIntent;
 use crate::layers::LayerIntent;
 use crate::storage::StorageIntent;
@@ -12,4 +13,5 @@ pub enum Intent {
     History(HistoryIntent),
     Storage(StorageIntent),
     Layer(LayerIntent),
+    Gallery(GalleryIntent),
 }

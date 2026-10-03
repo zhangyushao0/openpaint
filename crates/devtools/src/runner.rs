@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use openpaint_render::RgbaImage;
-use openpaint_runtime::{MotionBatch, Runtime};
+use openpaint_runtime::{MotionBatch, Runtime, TextInput};
 
 use crate::error::ScenarioError;
 use crate::gesture;
@@ -150,6 +150,16 @@ impl Runner<'_> {
             Step::Stroke { points, lift, palm } => {
                 let batches = gesture::stroke(points, *lift, *palm, now);
                 self.gesture(runtime, &batches)?;
+            }
+            Step::Type(text) => {
+                runtime.text(TextInput::Commit(text.clone()));
+                self.frame(runtime)?;
+            }
+            Step::Back => {
+                if !runtime.back() {
+                    return Err(ScenarioError::Missing("back was not used by the app"));
+                }
+                self.frame(runtime)?;
             }
             Step::Wait { frames } => {
                 for _ in 0..*frames {

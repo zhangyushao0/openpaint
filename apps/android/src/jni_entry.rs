@@ -33,7 +33,7 @@ fn host<'a>(handle: jlong) -> Option<&'a mut Host> {
     unsafe { (handle as *mut Host).as_mut() }
 }
 
-fn runtime<'a>(handle: jlong) -> Option<&'a mut Runtime> {
+pub(crate) fn runtime<'a>(handle: jlong) -> Option<&'a mut Runtime> {
     host(handle).map(|host| &mut host.runtime)
 }
 

@@ -22,6 +22,7 @@ mod readback;
 mod scene;
 mod screen;
 mod surface;
+mod thumbnail;
 
 pub use crate::adapter::{ScreenFrame, ScreenPainter, UiFrame};
 pub use crate::change::changed_regions;
@@ -34,3 +35,4 @@ pub use crate::image::RgbaImage;
 pub use crate::scene::stroke_region;
 pub use crate::screen::{CanvasPlacement, ScreenTarget};
 pub use crate::surface::{Surface, SurfaceWindow};
+pub use crate::thumbnail::{thumbnail_reference, thumbnail_size};

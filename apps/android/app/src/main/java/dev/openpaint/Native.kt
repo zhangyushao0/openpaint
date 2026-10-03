@@ -53,4 +53,19 @@ internal object Native {
         timesMs: LongArray,
         eventNanos: Long,
     ): Boolean
+
+    /** Keyboard text for the focused field: `kind` 0 composing, 1 committed. */
+    @JvmStatic external fun text(handle: Long, kind: Int, text: String)
+
+    /** The keyboard deletes characters around the cursor. */
+    @JvmStatic external fun deleteSurrounding(handle: Long, before: Int, after: Int)
+
+    /** An editing key: 0 backspace, 1 delete, 2 enter, 3 left, 4 right. */
+    @JvmStatic external fun key(handle: Long, code: Int)
+
+    /** True while a text field waits for typing: show the soft keyboard. */
+    @JvmStatic external fun keyboard(handle: Long): Boolean
+
+    /** The back button; true when the app used it, false for the system's own back. */
+    @JvmStatic external fun back(handle: Long): Boolean
 }

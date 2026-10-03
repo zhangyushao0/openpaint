@@ -33,6 +33,15 @@ pub const SELECTED: Color32 = Color32::from_gray(80);
 pub const OUTLINE: Color32 = Color32::from_gray(72);
 /// Width of a panel over the canvas, in points.
 pub const PANEL_WIDTH: f32 = 320.0;
+/// Width of a dialog, in points.
+pub const DIALOG_WIDTH: f32 = 400.0;
+/// Over everything behind a dialog: it dims, so the dialog is the one thing to answer.
+pub const BACKDROP: Color32 = Color32::from_black_alpha(140);
+/// A gallery card's picture, in points: 448 x 336 pixels at density 1.75, the largest
+/// thumbnail the runtime makes.
+pub const CARD_PICTURE: Vec2 = Vec2::new(256.0, 192.0);
+/// Between gallery cards and around the grid, in points.
+pub const CARD_GAP: f32 = 4.0 * SPACE;
 /// Behind the canvas where the canvas does not reach, as RGBA bytes for the renderer.
 pub const SURROUND: [u8; 4] = [24, 24, 24, 255];
 

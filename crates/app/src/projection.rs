@@ -3,6 +3,7 @@
 
 use std::fmt;
 
+use crate::gallery::GalleryProjection;
 use crate::layers::LayerList;
 use crate::storage::StorageNotice;
 
@@ -20,6 +21,8 @@ pub enum EditorAction {
     LowerLayer,
     /// Choose, show, hide or fade a layer.
     EditLayer,
+    /// Leave the canvas for the gallery, or act in the gallery.
+    Gallery,
 }
 
 /// Whether an action can run now, and why not.
@@ -55,8 +58,19 @@ pub struct SessionProjection {
     pub(crate) dismiss_notice: Availability,
     /// Add, delete, raise, lower and edit, for the active layer.
     pub(crate) layer_actions: [Availability; 5],
+    pub(crate) gallery: Availability,
     pub(crate) storage: StorageNotice,
     pub(crate) layers: Option<LayerList>,
+}
+
+/// What the whole screen shows for one UI frame.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub enum ScreenProjection {
+    /// The library is opening; nothing can be done yet.
+    #[default]
+    Starting,
+    Canvas(SessionProjection),
+    Gallery(GalleryProjection),
 }
 
 /// The layer actions in the order of `SessionProjection::layer_actions`.
@@ -81,6 +95,7 @@ impl SessionProjection {
             EditorAction::RaiseLayer => self.layer_actions[2],
             EditorAction::LowerLayer => self.layer_actions[3],
             EditorAction::EditLayer => self.layer_actions[4],
+            EditorAction::Gallery => self.gallery,
         }
     }
 
@@ -105,6 +120,7 @@ impl Default for SessionProjection {
             retry_save: Availability::NothingLeft,
             dismiss_notice: Availability::NothingLeft,
             layer_actions: [Availability::NothingLeft; 5],
+            gallery: Availability::NothingLeft,
             storage: StorageNotice::None,
             layers: None,
         }
@@ -123,6 +139,7 @@ impl fmt::Display for EditorAction {
             Self::RaiseLayer => "move the layer up",
             Self::LowerLayer => "move the layer down",
             Self::EditLayer => "change the layer",
+            Self::Gallery => "use the gallery",
         })
     }
 }

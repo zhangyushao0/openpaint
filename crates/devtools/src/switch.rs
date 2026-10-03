@@ -6,7 +6,9 @@ use std::path::Path;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use openpaint_app::{PortError, Project, ProjectId, ProjectStore};
+use openpaint_app::{
+    PortError, Project, ProjectId, ProjectStore, ProjectSummary, Thumbnail, Title,
+};
 use openpaint_core::Artwork;
 use openpaint_store::Library;
 
@@ -24,30 +26,59 @@ impl Switched {
         }
     }
 
-    fn check(&self) -> Result<(), PortError> {
+    /// `call` on the library unless the switch is off.
+    fn on<T>(
+        &mut self,
+        call: impl FnOnce(&mut Library) -> Result<T, PortError>,
+    ) -> Result<T, PortError> {
         if self.off.load(Ordering::Relaxed) {
             Err(PortError::Device {
                 detail: "storage switched off by the scenario".into(),
             })
         } else {
-            Ok(())
+            call(&mut self.library)
         }
     }
 }
 
 impl ProjectStore for Switched {
     fn open_last(&mut self) -> Result<Option<Project>, PortError> {
-        self.check()?;
-        self.library.open_last()
+        self.on(Library::open_last)
     }
 
-    fn create(&mut self, artwork: &Artwork) -> Result<ProjectId, PortError> {
-        self.check()?;
-        self.library.create(artwork)
+    fn list(&mut self) -> Result<Vec<ProjectSummary>, PortError> {
+        self.on(Library::list)
+    }
+
+    fn create(&mut self, artwork: &Artwork, title: &Title) -> Result<ProjectId, PortError> {
+        self.on(|library| library.create(artwork, title))
+    }
+
+    fn load(&mut self, id: ProjectId) -> Result<Project, PortError> {
+        self.on(|library| library.load(id))
     }
 
     fn save(&mut self, id: ProjectId, artwork: &Artwork) -> Result<(), PortError> {
-        self.check()?;
-        self.library.save(id, artwork)
+        self.on(|library| library.save(id, artwork))
+    }
+
+    fn save_thumbnail(&mut self, id: ProjectId, thumbnail: &Thumbnail) -> Result<(), PortError> {
+        self.on(|library| library.save_thumbnail(id, thumbnail))
+    }
+
+    fn close(&mut self) -> Result<(), PortError> {
+        self.on(Library::close)
+    }
+
+    fn rename(&mut self, id: ProjectId, title: &Title) -> Result<(), PortError> {
+        self.on(|library| library.rename(id, title))
+    }
+
+    fn duplicate(&mut self, id: ProjectId) -> Result<ProjectId, PortError> {
+        self.on(|library| library.duplicate(id))
+    }
+
+    fn delete(&mut self, id: ProjectId) -> Result<(), PortError> {
+        self.on(|library| library.delete(id))
     }
 }

@@ -79,6 +79,10 @@ impl CanvasTarget {
         &self.shown
     }
 
+    pub(crate) fn texture(&self) -> &wgpu::Texture {
+        &self.texture
+    }
+
     /// The scene of `artwork` with the in-progress stroke's place on `active`, built and
     /// uploaded only when either differs from the last call.
     fn scene(
