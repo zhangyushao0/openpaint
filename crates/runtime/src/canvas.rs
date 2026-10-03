@@ -5,7 +5,7 @@ use openpaint_app::{
     Contact, ContactPhase, FillFailed, Intent, Session, StrokeIntent, Thumbnail, Title, ToolIntent,
     Toolbox,
 };
-use openpaint_core::{Artwork, CanvasSize, Color, RegionMask, StrokeStyle};
+use openpaint_core::{Artwork, CanvasSize, Color, RegionMask};
 use openpaint_render::{
     CanvasPlacement, CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, changed_regions,
 };
@@ -54,19 +54,20 @@ pub(crate) struct Canvas {
 }
 
 impl Canvas {
-    /// `content` shown at fit; a blank artwork is the size of `area`. `None` while the area is
-    /// empty. Later area changes (rotation) refit the view, which is relative to fit, and never
-    /// resize the canvas.
+    /// `content` shown at fit; a blank artwork is the size of `area`; strokes start with the
+    /// toolbox's brush and StreamLine. `None` while the area is empty. Later area changes
+    /// (rotation) refit the view, which is relative to fit, and never resize the canvas.
     pub(crate) fn open(
         core: &Core,
         area: &ScreenArea,
         content: &Content,
-        brush: StrokeStyle,
+        toolbox: &Toolbox,
     ) -> Result<Option<Self>, RuntimeError> {
         if area.size.contains(&0) {
             return Ok(None);
         }
-        let (session, title) = match content {
+        let brush = toolbox.style()?;
+        let (mut session, title) = match content {
             Content::Stored(artwork, title) => {
                 (Session::open(artwork.clone(), brush), title.clone())
             }
@@ -76,6 +77,7 @@ impl Canvas {
                 Title::untitled(),
             ),
         };
+        session.set_streamline(toolbox.streamline());
         let canvas = session.artwork().canvas();
         let size = [canvas.width(), canvas.height()];
         log::info!("canvas opened at {} x {}", size[0], size[1]);
@@ -119,6 +121,7 @@ impl Canvas {
                     Ok(style) => self.session.set_brush(style),
                     Err(error) => log::error!("no brush style: {error}"),
                 }
+                self.session.set_streamline(toolbox.streamline());
                 continue;
             }
             // Committing a stroke is followed by the evaluator itself (D17).

@@ -215,6 +215,8 @@ fn legacy_recipe() -> Vec<u8> {
             opacity_speed: vec![[0.0, 1.0]],
             grain_strength: 0.0,
             grain_scale: 1,
+            // Not written: schema 3 had no deposit; the 5 -> 6 step adds "cover".
+            deposit: None,
         },
     );
     writer.finish()
@@ -224,6 +226,7 @@ fn legacy_recipe() -> Vec<u8> {
 mod tests {
     use super::*;
     use crate::editor::decode_editor;
+    use crate::migrate_6::upgrade_5_to_6;
     use crate::records::{decode_head, decode_stroke};
     use openpaint_app::Tool;
     use openpaint_core::{BrushRecipe, StrokeBlend};
@@ -278,7 +281,8 @@ mod tests {
         assert_eq!(upgrade.projects.len(), 2, "the short record stays as it is");
         assert_eq!(upgrade.library, [(SCHEMA_KEY.to_vec(), encode_schema(3))]);
         let then = upgrade_3_to_4(&[], &upgrade.projects[1..], None);
-        let stroke = decode_stroke(&then.projects[0].1).expect("a schema-4 stroke");
+        let six = upgrade_5_to_6(&[], &then.projects, None);
+        let stroke = decode_stroke(&six.projects[0].1).expect("a schema-4 stroke, upgraded");
         assert_eq!((stroke.id, stroke.size, stroke.opacity), (9, 12.0, 0.5));
         assert_eq!(stroke.blend, StrokeBlend::Over);
         assert_eq!(stroke.samples.len(), 1);
@@ -311,23 +315,30 @@ mod tests {
     #[test]
     fn layers_get_alpha_lock_off_and_the_toolbox_the_eraser_and_black() {
         let id = ProjectId::new(2);
+        // Schema 3's toolbox: the pencil, one setting of key, size and opacity.
         let mut old_editor = Writer::default();
+        old_editor.str("pencil");
+        old_editor.u32(1);
+        old_editor.str("pencil");
+        old_editor.f32(4.0);
+        old_editor.f32(0.5);
         let pencil = BrushChoice {
             brush: "pencil".into(),
             brushes: vec![openpaint_app::BrushSetting {
                 key: "pencil".into(),
                 size: 4.0,
                 opacity: 0.5,
+                streamline: 0.0,
             }],
         };
-        write_choice(&mut old_editor, &pencil);
         let heads = [(id, head_3()), (ProjectId::new(5), vec![3, 0, 0, 0, 1])];
         let upgrade = upgrade_3_to_4(&heads, &[], Some(&old_editor.finish()));
         assert_eq!(upgrade.projects.len(), 1, "a broken head stays as it is");
         let then = upgrade_4_to_5(&[(id, upgrade.projects[0].1.clone()), heads[1].clone()]);
         assert_eq!(then.projects.len(), 1, "a broken head stays as it is");
         assert_eq!(then.library, [(SCHEMA_KEY.to_vec(), encode_schema(5))]);
-        let head = decode_head(&then.projects[0].1).expect("a schema-5 head");
+        let six = upgrade_5_to_6(&[(id, then.projects[0].1.clone())], &[], None);
+        let head = decode_head(&six.projects[0].1).expect("a schema-5 head, upgraded");
         let layers: Vec<_> = head
             .layers
             .iter()
@@ -348,7 +359,8 @@ mod tests {
         assert_eq!((head.width, head.next_stroke_id), (64, 9));
         let (key, editor) = &upgrade.library[0];
         assert_eq!(key, EDITOR);
-        let editor = decode_editor(editor).expect("a schema-4 toolbox");
+        let six = upgrade_5_to_6(&[], &[], Some(editor));
+        let editor = decode_editor(&six.library[0].1).expect("a schema-4 toolbox, upgraded");
         assert_eq!((editor.tool, &editor.paint), (Tool::Brush, &pencil));
         assert_eq!(editor.erase.brush, "", "the default brush");
         assert_eq!((editor.color, editor.recent.len()), ([0.0; 3], 0));

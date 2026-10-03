@@ -11,6 +11,7 @@ use crate::stroke::{
     MAX_STROKE_SAMPLES, Stroke, StrokeBlend, StrokeSample, StrokeStyle, StrokeTool, blend,
     check_order,
 };
+use crate::value::invalid;
 
 /// The in-progress stroke: what the renderer draws on top of the base artwork.
 #[derive(Debug, Clone, PartialEq)]
@@ -111,6 +112,29 @@ impl StrokeSession {
             });
         }
         check_order(self.active.samples.last(), samples)?;
+        self.active.samples.extend_from_slice(samples);
+        Ok(())
+    }
+
+    /// Replaces the samples from index `from` on with `samples`, oldest first: a stroke whose
+    /// end is redrawn as it lifts (stabilisation catching up with the pen). The first sample
+    /// stays. All or nothing.
+    ///
+    /// # Errors
+    /// `InvalidValue` when `from` is 0 or beyond the samples; `SampleOrder` and `SampleLimit`
+    /// as for `extend`.
+    pub fn revise(&mut self, from: usize, samples: &[StrokeSample]) -> Result<(), CoreError> {
+        let held = &self.active.samples;
+        if from == 0 || from > held.len() {
+            return Err(invalid("revised samples"));
+        }
+        if from + samples.len() > MAX_STROKE_SAMPLES {
+            return Err(CoreError::SampleLimit {
+                max: MAX_STROKE_SAMPLES,
+            });
+        }
+        check_order(held.get(from - 1), samples)?;
+        self.active.samples.truncate(from);
         self.active.samples.extend_from_slice(samples);
         Ok(())
     }

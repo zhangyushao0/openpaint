@@ -14,6 +14,8 @@ import android.view.MotionEvent
  * `am instrument -w --no-restart -e from x,y[,x,y...] [-e to ...] [-e ms N] [-e tool stylus]
  * dev.openpaint/.GestureInstrumentation`: the fingers (or the pen) touch down one after another
  * at `from`, move straight to `to` over `ms` in 16 ms frames, and lift one after another.
+ * One pointer can instead follow `-e path x,y,x,y...`, one point per 8 ms event, and the pen
+ * presses with `-e pressure P` (default 0.6).
  */
 class GestureInstrumentation : Instrumentation() {
     private var arguments = Bundle()
@@ -42,7 +44,14 @@ class GestureInstrumentation : Instrumentation() {
         ?.chunked(2)
         ?.map { floatArrayOf(it[0], it[1]) }
 
+    private val pressure: Float
+        get() = arguments.getString("pressure")?.toFloat() ?: 0.6f
+
     private fun inject() {
+        points("path")?.let { path ->
+            follow(path)
+            return
+        }
         val from = points("from") ?: error("no from")
         val to = points("to") ?: from
         require(to.size == from.size) { "from and to differ in fingers" }
@@ -68,6 +77,19 @@ class GestureInstrumentation : Instrumentation() {
         }
     }
 
+    /** One pointer down at the path's first point, a move per later point, up at its last. */
+    private fun follow(path: List<FloatArray>) {
+        val stylus = arguments.getString("tool") == "stylus"
+        val down = SystemClock.uptimeMillis()
+        send(down, MotionEvent.ACTION_DOWN, path.take(1), stylus)
+        for (point in path.drop(1)) {
+            SystemClock.sleep(8)
+            send(down, MotionEvent.ACTION_MOVE, listOf(point), stylus)
+        }
+        SystemClock.sleep(8)
+        send(down, MotionEvent.ACTION_UP, path.takeLast(1), stylus)
+    }
+
     private fun pointer(action: Int, index: Int) = action or (index shl MotionEvent.ACTION_POINTER_INDEX_SHIFT)
 
     private fun send(downTime: Long, action: Int, points: List<FloatArray>, stylus: Boolean) {
@@ -85,7 +107,7 @@ class GestureInstrumentation : Instrumentation() {
             MotionEvent.PointerCoords().apply {
                 x = point[0]
                 y = point[1]
-                pressure = if (stylus) 0.6f else 1.0f
+                pressure = if (stylus) this@GestureInstrumentation.pressure else 1.0f
                 size = 0.08f
             }
         }.toTypedArray()

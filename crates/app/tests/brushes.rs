@@ -4,10 +4,10 @@
 
 use openpaint_app::{
     BrushChoice, BrushIntent, BrushLibrary, BrushSetting, Contact, ContactPhase, Device,
-    EditorState, InputSample, Intent, MIN_OPACITY, RecipeError, Session, StrokeIntent, Tool,
-    Toolbox,
+    EditorState, InputSample, Intent, MIN_OPACITY, RecipeError, Session, StreamLine, StrokeIntent,
+    Tool, Toolbox,
 };
-use openpaint_core::{BrushRecipe, CanvasSize};
+use openpaint_core::{BrushRecipe, CanvasSize, Deposit, PaperTexture, Tip};
 
 const PENCIL: &str = include_str!("../brushes/pencil.toml");
 
@@ -37,9 +37,34 @@ fn the_built_in_brushes_are_pencil_ink_pen_and_soft_brush() {
         "the round brush before recipes"
     );
     assert_eq!((ink.size().default, ink.opacity()), (12.0, 1.0));
-    assert!(pencil.recipe().uses_speed());
-    assert!(pencil.recipe().grain().strength() > 0.0);
-    assert_eq!(soft.recipe().softness(), 1.0);
+    // draweave's tuned pencil: graphite building up on the sketch paper.
+    let Deposit::Accumulate(graphite) = pencil.recipe().deposit() else {
+        panic!("the pencil accumulates");
+    };
+    assert_eq!(
+        (graphite.tip(), graphite.flow(), graphite.max_density()),
+        (Tip::Flat, 3.1, 1.0)
+    );
+    let paper = graphite.paper().expect("on paper");
+    assert_eq!(paper.texture(), PaperTexture::Sketch);
+    assert_eq!(paper.contact().points(), [[0.0, 0.4], [1.0, 0.95]]);
+    assert_eq!(
+        [paper.scale(), paper.depth(), paper.dust()],
+        [4.5, 0.3, 0.3]
+    );
+    assert_eq!(pencil.recipe().size().pressure().at(0.0), 0.3);
+    let flow = |p: f32| graphite.flow() * pencil.recipe().opacity().at(p, 0.0);
+    assert!((flow(0.0) - 0.9).abs() < 1e-6 && (flow(1.0) - 3.1).abs() < 1e-6);
+    assert!(!pencil.recipe().uses_speed(), "neither speed nor tilt");
+    let Deposit::Accumulate(airbrush) = soft.recipe().deposit() else {
+        panic!("the soft brush accumulates");
+    };
+    assert_eq!((airbrush.tip(), airbrush.paper()), (Tip::Bell, None));
+    assert_eq!(
+        *ink.recipe().deposit(),
+        Deposit::Cover,
+        "ink never darkens itself"
+    );
     let toolbox = Toolbox::new(library.clone());
     assert_eq!(toolbox.projection().current, ink.key(), "the default brush");
     assert_eq!(toolbox.style().expect("style").size(), 12.0);
@@ -104,6 +129,39 @@ fn broken_files_are_refused_with_typed_errors() {
 }
 
 #[test]
+fn broken_deposits_and_papers_are_refused_with_typed_errors() {
+    let brush = |extra: &str| {
+        format!(
+            "name = \"A\"\n[size]\ndefault = 4\nmin = 1\nmax = 10\n[opacity]\ndefault = 0.5\n{extra}"
+        )
+    };
+    let wrong = [
+        ("[accumulate]\ntip = \"round\"\nflow = 1", "accumulate.tip"),
+        ("[accumulate]\ntip = \"bell\"\nflow = 99", "accumulate.flow"),
+        (
+            "[shape]\nsoftness = 0.5\n[accumulate]\ntip = \"bell\"\nflow = 1",
+            "shape.softness",
+        ),
+        (
+            "[accumulate]\ntip = \"flat\"\nflow = 1\n[paper]\ntexture = \"sketch\"\n\
+             contact = [[0.0, 0.5]]\nscale = 900\ndepth = 0.3\ndust = 0.3",
+            "paper.scale",
+        ),
+    ];
+    for (extra, at) in wrong {
+        let expected = RecipeError::OutOfRange { field: field(at) };
+        assert_eq!(parse(&brush(extra)).err(), Some(expected), "{extra}");
+    }
+    let paper_alone = brush(
+        "[paper]\ntexture = \"sketch\"\ncontact = [[0.0, 0.5]]\nscale = 4\ndepth = 0.3\ndust = 0",
+    );
+    let expected = RecipeError::Missing {
+        field: field("accumulate"),
+    };
+    assert_eq!(parse(&paper_alone).err(), Some(expected));
+}
+
+#[test]
 fn every_brush_keeps_its_own_size_and_opacity() {
     let library = built_in();
     let [pencil, ink, _] = library.brushes() else {
@@ -130,8 +188,21 @@ fn every_brush_keeps_its_own_size_and_opacity() {
         settled: true,
     });
     assert_eq!(toolbox.projection().opacity, MIN_OPACITY);
+    toolbox.dispatch(&BrushIntent::StreamLine {
+        amount: 1.5,
+        settled: true,
+    });
+    assert_eq!(toolbox.streamline().amount(), 1.0, "clamped");
     toolbox.dispatch(&BrushIntent::Choose(ink.key()));
     assert_eq!(toolbox.projection().size, ink.size().max, "kept while away");
+    assert_eq!(
+        toolbox.streamline(),
+        StreamLine::OFF,
+        "every brush starts off"
+    );
+    toolbox.dispatch(&BrushIntent::Choose(pencil.key()));
+    assert_eq!(toolbox.projection().streamline.amount(), 1.0, "its own");
+    toolbox.dispatch(&BrushIntent::Choose(ink.key()));
     let state = toolbox.state();
     let mut reopened = Toolbox::new(library);
     assert!(reopened.restore(&state));
@@ -151,11 +222,19 @@ fn a_stored_state_that_does_not_fit_falls_back_to_defaults() {
                 key: "ink-pen".into(),
                 size: 5000.0,
                 opacity: 0.5,
+                streamline: 0.0,
             },
             BrushSetting {
                 key: "charcoal".into(),
                 size: 4.0,
                 opacity: 0.5,
+                streamline: 0.0,
+            },
+            BrushSetting {
+                key: "pencil".into(),
+                size: 4.0,
+                opacity: 0.5,
+                streamline: 2.0,
             },
         ],
     };
@@ -213,10 +292,10 @@ fn a_changed_built_in_brush_leaves_strokes_drawn_before_as_they_were() {
     let old = Toolbox::new(before).style().expect("style");
     let mut session = Session::new(CanvasSize::new(200, 100).expect("size"), old.clone());
     draw(&mut session, 10.0);
-    // A later version of the app ships a pencil with another pressure curve and grain.
+    // A later version of the app ships a pencil with another pressure curve and flow.
     let changed = PENCIL
-        .replace("[[0.0, 0.45], [1.0, 1.0]]", "[[0.0, 1.0]]")
-        .replace("strength = 0.65", "strength = 0.1");
+        .replace("[[0.0, 0.3], [1.0, 1.0]]", "[[0.0, 1.0]]")
+        .replace("flow = 3.1", "flow = 2.0");
     let after = BrushLibrary::from_files(&[("pencil", &changed)], "pencil").expect("pencil");
     let new = Toolbox::new(after).style().expect("style");
     assert_ne!(new.recipe(), old.recipe());

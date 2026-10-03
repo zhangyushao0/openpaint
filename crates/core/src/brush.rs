@@ -1,9 +1,10 @@
 //! `BrushRecipe`: how a brush turns pen samples into paint (DECISIONS D07). A recipe has fixed
 //! stages with typed values: the edge of its round shape, size and opacity dynamics over pressure
-//! and speed, and grain. The renderer evaluates it continuously per pixel; there are no dabs.
-//! Every stroke keeps the recipe it was drawn with, so a brush that changes later never changes
-//! strokes already drawn.
+//! and speed, grain, and how its segments deposit paint (`deposit.rs`). The renderer evaluates it
+//! continuously per pixel; there are no dabs. Every stroke keeps the recipe it was drawn with, so
+//! a brush that changes later never changes strokes already drawn.
 
+use crate::deposit::Deposit;
 use crate::error::CoreError;
 use crate::value::{invalid, is_unit};
 
@@ -78,7 +79,7 @@ impl Curve {
         self.points.windows(2).all(|pair| pair[0][1] == pair[1][1])
     }
 
-    fn last_x(&self) -> f32 {
+    pub(crate) fn last_x(&self) -> f32 {
         self.points.last().map_or(0.0, |[x, _]| *x)
     }
 }
@@ -155,19 +156,23 @@ impl Grain {
     }
 }
 
-/// A brush as data. The diameter at a sample is the stroke's size times the size dynamics; the
-/// paint's strength there is the stroke's opacity times the opacity dynamics times the grain.
-/// `softness` in `0..=1`: 0 is a hard edge (one pixel of antialiasing), 1 fades from the centre
-/// line to the edge.
+/// A brush as data. The diameter at a sample is the stroke's size times the size dynamics. A
+/// covering brush's strength there is the stroke's opacity times the opacity dynamics times the
+/// grain; an accumulating one lays the opacity dynamics times its flow as density and is capped
+/// by the stroke's opacity. `softness` in `0..=1` shapes a covering brush's edge: 0 is a hard
+/// edge (one pixel of antialiasing), 1 fades from the centre line to the edge.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BrushRecipe {
     softness: f32,
     size: Dynamics,
     opacity: Dynamics,
     grain: Grain,
+    deposit: Deposit,
 }
 
 impl BrushRecipe {
+    /// A covering brush (`Deposit::Cover`); `with_deposit` makes it accumulate.
+    ///
     /// # Errors
     /// `InvalidValue` when `softness` is outside `0..=1`.
     pub fn new(
@@ -182,10 +187,23 @@ impl BrushRecipe {
                 size,
                 opacity,
                 grain,
+                deposit: Deposit::Cover,
             })
         } else {
             Err(invalid("brush softness"))
         }
+    }
+
+    /// This recipe depositing by `deposit`. An accumulating tip has its own cross-section, so
+    /// it takes no softness.
+    ///
+    /// # Errors
+    /// `InvalidValue` for an accumulating deposit on a recipe with softness.
+    pub fn with_deposit(self, deposit: Deposit) -> Result<Self, CoreError> {
+        if matches!(deposit, Deposit::Accumulate(_)) && self.softness != 0.0 {
+            return Err(invalid("brush deposit"));
+        }
+        Ok(Self { deposit, ..self })
     }
 
     /// The plain round brush: a hard edge, the diameter in proportion to pressure, full
@@ -205,6 +223,7 @@ impl BrushRecipe {
                 speed: Curve::flat(1.0),
             },
             grain: Grain::NONE,
+            deposit: Deposit::Cover,
         }
     }
 
@@ -226,6 +245,11 @@ impl BrushRecipe {
     #[must_use]
     pub const fn grain(&self) -> Grain {
         self.grain
+    }
+
+    #[must_use]
+    pub const fn deposit(&self) -> &Deposit {
+        &self.deposit
     }
 
     /// True when speed changes anything, so evaluating a stroke needs its pen speed.

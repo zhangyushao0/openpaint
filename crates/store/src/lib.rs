@@ -12,6 +12,7 @@ mod fills;
 mod image_file;
 mod library;
 mod migrate;
+mod migrate_6;
 mod read;
 mod records;
 mod write;

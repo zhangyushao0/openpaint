@@ -61,7 +61,7 @@ impl Screen {
         toolbox: &Toolbox,
     ) -> Result<(), RuntimeError> {
         if let (Self::Opening(Some(content)), Some(area)) = (&*self, area)
-            && let Some(canvas) = Canvas::open(core, &area, content, toolbox.style()?)?
+            && let Some(canvas) = Canvas::open(core, &area, content, toolbox)?
         {
             *self = Self::Canvas(Box::new(canvas));
         }

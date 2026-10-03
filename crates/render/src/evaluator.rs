@@ -10,7 +10,7 @@ use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
 use crate::image::RgbaImage;
 use crate::plan::Plan;
-use crate::program::{Bindings, COVERAGE_FORMAT, Dispatch, SceneOps, scene_ops};
+use crate::program::{Bindings, Dispatch, SceneOps, scene_ops};
 use crate::readback::{read_rgba, read_texel, target_texture};
 use crate::scene::{Fresh, Scene};
 use crate::screen::{VIEW_BYTES, blit_bind_group};
@@ -43,20 +43,6 @@ impl CanvasTarget {
         let usage = wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING;
         // First: it rejects sizes the device cannot hold.
         let texture = target_texture(&core.gpu, size, usage)?;
-        let coverage = core.gpu.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("active coverage"),
-            size: wgpu::Extent3d {
-                width: size[0],
-                height: size[1],
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: COVERAGE_FORMAT,
-            usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[],
-        });
         let view = core.gpu.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("canvas view"),
             size: VIEW_BYTES,
@@ -66,7 +52,7 @@ impl CanvasTarget {
         Ok(Self {
             shown: blit_bind_group(core, &texture, &view),
             view,
-            bindings: Bindings::new(&core.gpu, &texture, &coverage),
+            bindings: Bindings::new(&core.gpu, &texture),
             texture,
             track: ActiveTrack::default(),
             scene: None,

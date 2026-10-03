@@ -6,7 +6,8 @@ use openpaint_render::{
 };
 
 use crate::fixture::{
-    SIZE, blank, cold, core, diagonal, diagonal_with, request, rich, wave, with_layer, with_stroke,
+    SIZE, airbrush, blank, cold, core, diagonal, diagonal_with, graphite, request, rich, wave,
+    with_layer, with_stroke,
 };
 
 /// Chunk sizes cycle through these, so chunk boundaries fall at varied places.
@@ -84,6 +85,9 @@ fn a_stroke_drawn_in_chunks_equals_the_finished_artwork_evaluated_cold() {
         (Dirty::Evaluator, diagonal()),
         // Speed, a soft edge, flow and grain all depend only on samples up to their own.
         (Dirty::Evaluator, diagonal_with(rich())),
+        // Density summed from the kept float on, and the paper contact's maximum.
+        (Dirty::Evaluator, diagonal_with(graphite())),
+        (Dirty::Caller, diagonal_with(airbrush())),
     ];
     for (dirty, stroke) in strokes {
         let mut target = evaluated(&core, &under);

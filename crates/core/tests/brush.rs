@@ -4,8 +4,9 @@
 use std::sync::Arc;
 
 use openpaint_core::{
-    Artwork, BrushRecipe, CanvasPoint, CanvasSize, Color, CoreError, Curve, Dynamics, Grain,
-    MAX_CURVE_POINTS, MAX_GRAIN_SCALE, MAX_SPEED, StrokeSample, StrokeStyle,
+    Accumulation, Artwork, BrushRecipe, CanvasPoint, CanvasSize, Color, CoreError, Curve, Deposit,
+    Dynamics, Grain, MAX_CURVE_POINTS, MAX_FLOW, MAX_GRAIN_SCALE, MAX_SPEED, PAPER_SCALES, Paper,
+    PaperTexture, StrokeSample, StrokeStyle, Tip,
 };
 
 fn invalid(what: &'static str) -> CoreError {
@@ -97,6 +98,54 @@ fn a_recipe_with_speed_says_so_and_round_trips_through_parts() {
     assert_eq!(
         BrushRecipe::from_parts(&broken),
         Err(invalid("brush grain"))
+    );
+}
+
+#[test]
+fn an_accumulating_deposit_has_ranges_and_round_trips_through_parts() {
+    let contact = || curve(&[[0.0, 0.4], [1.0, 0.95]]);
+    let paper = Paper::new(PaperTexture::Sketch, contact(), 4.5, 0.3, 0.3).unwrap();
+    let flat = Accumulation::new(Tip::Flat, 3.1, 1.0, Some(paper.clone())).unwrap();
+    let recipe = BrushRecipe::plain()
+        .with_deposit(Deposit::Accumulate(flat))
+        .unwrap();
+    assert_eq!(BrushRecipe::from_parts(&recipe.to_parts()), Ok(recipe));
+    assert_eq!(BrushRecipe::plain().to_parts().deposit, None, "covering");
+    for (tip, flow, density) in [
+        (Tip::Flat, 0.0, 1.0),
+        (Tip::Flat, 1.0, 1.5),
+        (Tip::Bell, MAX_FLOW + 1.0, 1.0),
+    ] {
+        let refused = Accumulation::new(tip, flow, density, None);
+        assert_eq!(refused, Err(invalid("brush deposit")));
+    }
+    let bell_on_paper = Accumulation::new(Tip::Bell, 1.0, 1.0, Some(paper));
+    assert_eq!(bell_on_paper, Err(invalid("brush deposit")));
+    let [finest, coarsest] = PAPER_SCALES;
+    for (scale, depth, dust) in [
+        (finest / 2.0, 0.3, 0.3),
+        (coarsest * 2.0, 0.3, 0.3),
+        (4.5, 0.0, 0.3),
+        (4.5, 0.3, 1.5),
+    ] {
+        let refused = Paper::new(PaperTexture::Sketch, contact(), scale, depth, dust);
+        assert_eq!(refused, Err(invalid("brush paper")));
+    }
+    let deep = curve(&[[0.0, 0.4], [1.5, 0.95]]);
+    let refused = Paper::new(PaperTexture::Sketch, deep, 4.5, 0.3, 0.3);
+    assert_eq!(refused, Err(invalid("brush paper")));
+    // An accumulating tip has its own cross-section: no softness on top.
+    let bell = Accumulation::new(Tip::Bell, 1.0, 1.0, None).unwrap();
+    let soft = BrushRecipe::new(
+        0.5,
+        BrushRecipe::plain().size().clone(),
+        BrushRecipe::plain().opacity().clone(),
+        Grain::NONE,
+    )
+    .unwrap();
+    assert_eq!(
+        soft.with_deposit(Deposit::Accumulate(bell)),
+        Err(invalid("brush deposit"))
     );
 }
 

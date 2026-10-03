@@ -186,23 +186,26 @@ impl Touched {
 mod tests {
     use super::*;
     use crate::geom::Bounds;
-    use crate::protocol::{Blend, Op, Paint};
+    use crate::protocol::{Blend, Op, Paint, SegmentOperands, Tip};
 
     fn segment(bounds: [f32; 4]) -> Item {
+        let operands = SegmentOperands {
+            a: [0.0; 2],
+            b: [0.0; 2],
+            radii: [1.0; 2],
+            flows: [1.0; 2],
+            edge: 1.0,
+            contacts: [0.0; 2],
+            tip: Tip::Cover,
+        };
         Item::Segment {
-            op: Op::segment([0.0; 2], [0.0; 2], [1.0; 2], [1.0; 2], 1.0),
+            op: Op::segment(&operands),
             bounds: Bounds(bounds),
         }
     }
 
     fn paint() -> Paint {
-        Paint {
-            color: [0.0; 3],
-            opacity: 1.0,
-            grain: 0,
-            grain_scale: 1,
-            blend: Blend::Over,
-        }
+        Paint::solid([0.0; 3], Blend::Over)
     }
 
     fn black() -> Op {

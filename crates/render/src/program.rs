@@ -4,18 +4,21 @@ use wgpu::util::DeviceExt;
 
 use crate::error::RenderError;
 use crate::gpu::Gpu;
+use crate::paper::paper_levels;
 use crate::plan::Plan;
 use crate::protocol::{Op, Params, Record, encode, prelude};
 use crate::readback::FORMAT;
 use crate::scene::Scene;
 
 const SHADER: &str = include_str!("shaders/evaluate.wgsl");
-/// The in-progress stroke's coverage texture: one float per canvas pixel.
+const DEPOSIT: &str = include_str!("shaders/deposit.wgsl");
+/// The in-progress stroke's coverage (or density) and paper contact textures: one float per
+/// canvas pixel each.
 pub(crate) const COVERAGE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::R32Float;
 
-/// The protocol prelude followed by the evaluator.
+/// The protocol prelude followed by the evaluator and its accumulating deposits.
 pub(crate) fn shader_source() -> String {
-    prelude() + SHADER
+    prelude() + SHADER + DEPOSIT
 }
 
 /// What one dispatch evaluates.
@@ -37,8 +40,8 @@ pub(crate) struct Dispatch<'a> {
 pub(crate) struct Bindings {
     size: [u32; 2],
     canvas: wgpu::TextureView,
-    coverage: wgpu::Texture,
-    coverage_view: wgpu::TextureView,
+    /// The in-progress stroke's coverage or density, then its paper contact.
+    kept: [(wgpu::Texture, wgpu::TextureView); 2],
     params: wgpu::Buffer,
     /// Tiles, indices and fresh ops, in binding order 2, 3, 5.
     lists: [wgpu::Buffer; 3],
@@ -53,14 +56,19 @@ pub(crate) struct SceneOps {
 }
 
 impl Bindings {
-    pub(crate) fn new(gpu: &Gpu, canvas: &wgpu::Texture, coverage: &wgpu::Texture) -> Self {
+    /// Bindings for `canvas`, with the in-progress stroke's two kept textures of its size.
+    pub(crate) fn new(gpu: &Gpu, canvas: &wgpu::Texture) -> Self {
         let storage = wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST;
         let uniform = wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST;
+        let size = [canvas.width(), canvas.height()];
         Self {
-            size: [canvas.width(), canvas.height()],
+            size,
             canvas: canvas.create_view(&Default::default()),
-            coverage: coverage.clone(),
-            coverage_view: coverage.create_view(&Default::default()),
+            kept: ["active coverage", "active contact"].map(|label| {
+                let texture = kept_texture(gpu, size, label);
+                let view = texture.create_view(&Default::default());
+                (texture, view)
+            }),
             params: empty_buffer(gpu, uniform, size_of::<Params>() as u64),
             lists: [0; 3].map(|_| empty_buffer(gpu, storage, MIN_LIST_BYTES)),
             group: None,
@@ -85,6 +93,24 @@ impl Bindings {
 /// Smallest list buffer: room for 128 ops.
 const MIN_LIST_BYTES: u64 = 128 * size_of::<Op>() as u64;
 
+/// One float per canvas pixel that the evaluator reads and writes.
+fn kept_texture(gpu: &Gpu, [width, height]: [u32; 2], label: &str) -> wgpu::Texture {
+    gpu.device.create_texture(&wgpu::TextureDescriptor {
+        label: Some(label),
+        size: wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: COVERAGE_FORMAT,
+        usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
+        view_formats: &[],
+    })
+}
+
 fn empty_buffer(gpu: &Gpu, usage: wgpu::BufferUsages, size: u64) -> wgpu::Buffer {
     gpu.device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("evaluate"),
@@ -97,10 +123,17 @@ fn empty_buffer(gpu: &Gpu, usage: wgpu::BufferUsages, size: u64) -> wgpu::Buffer
 pub(crate) struct EvaluatePipeline {
     pipeline: wgpu::ComputePipeline,
     layout: wgpu::BindGroupLayout,
+    /// The paper's mip chain (`paper.rs`), uploaded once.
+    paper: wgpu::Buffer,
 }
 
 impl EvaluatePipeline {
     pub(crate) fn new(device: &wgpu::Device) -> Self {
+        let paper = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("paper"),
+            contents: &encode(&paper_levels()),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("evaluate"),
             source: wgpu::ShaderSource::Wgsl(shader_source().into()),
@@ -117,6 +150,8 @@ impl EvaluatePipeline {
                 buffer_entry(5, read_only),
                 texture_entry(6, wgpu::StorageTextureAccess::ReadWrite, COVERAGE_FORMAT),
                 buffer_entry(7, read_only),
+                texture_entry(8, wgpu::StorageTextureAccess::ReadWrite, COVERAGE_FORMAT),
+                buffer_entry(9, read_only),
             ],
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -132,7 +167,11 @@ impl EvaluatePipeline {
             compilation_options: Default::default(),
             cache: None,
         });
-        Self { pipeline, layout }
+        Self {
+            pipeline,
+            layout,
+            paper,
+        }
     }
 
     /// Writes the fresh ops and the plan, then evaluates every plan tile into the canvas.
@@ -164,7 +203,9 @@ impl EvaluatePipeline {
         }
         let mut encoder = gpu.device.create_command_encoder(&Default::default());
         if work.reset {
-            clear_coverage(&mut encoder, &bindings.coverage);
+            for (_, view) in &bindings.kept {
+                clear_kept(&mut encoder, view);
+            }
         }
         if let Some((_, group)) = &bindings.group {
             let mut pass = encoder.begin_compute_pass(&Default::default());
@@ -185,6 +226,7 @@ impl EvaluatePipeline {
             (3, indices),
             (5, fresh),
             (7, &scene.masks),
+            (9, &self.paper),
         ];
         let mut entries: Vec<_> = buffers
             .into_iter()
@@ -193,7 +235,8 @@ impl EvaluatePipeline {
                 resource: buffer.as_entire_binding(),
             })
             .collect();
-        for (binding, view) in [(4, &bindings.canvas), (6, &bindings.coverage_view)] {
+        let [(_, coverage), (_, contact)] = &bindings.kept;
+        for (binding, view) in [(4, &bindings.canvas), (6, coverage), (8, contact)] {
             entries.push(wgpu::BindGroupEntry {
                 binding,
                 resource: wgpu::BindingResource::TextureView(view),
@@ -216,14 +259,13 @@ pub(crate) fn scene_ops(gpu: &Gpu, scene: &Scene) -> SceneOps {
     }
 }
 
-/// Zero coverage everywhere, through a render pass: clearing a texture directly needs an
-/// optional device feature.
-fn clear_coverage(encoder: &mut wgpu::CommandEncoder, coverage: &wgpu::Texture) {
-    let view = coverage.create_view(&Default::default());
+/// Zero everywhere, through a render pass: clearing a texture directly needs an optional
+/// device feature.
+fn clear_kept(encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
     let pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some("clear coverage"),
+        label: Some("clear kept"),
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view: &view,
+            view,
             depth_slice: None,
             resolve_target: None,
             ops: wgpu::Operations {

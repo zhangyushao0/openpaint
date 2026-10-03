@@ -1,0 +1,54 @@
+{
+  "walkthrough": [
+    "Goal: sketch with a pencil that behaves like graphite, then ink over the sketch in calm, smooth lines although the hand wobbles, and find both as they were after closing the app.",
+    "Entry: open OpenPaint on the tablet (2880 x 1800, landscape) on an empty library; the pen draws with the Ink Pen. Tap the Brush button: the brush panel lists Pencil, Ink Pen (highlighted) and Soft Brush, and under them a line 'StreamLine 0 %' with a slider: how strongly the chosen brush smooths the line, off at first.",
+    "Tap Pencil and scribble lightly, a loop that crosses itself: a thin grey line with the paper's tooth showing through, fixed to the paper (draw over the same place again and the same specks stay white), darker where the loop crosses itself. Press hard: the line widens, goes near black, the tooth fills in; crossings darken further but never beyond the stroke's opacity. More or fewer pen events over the same path never change how dark it is.",
+    "Tap the Brush button, tap Ink Pen, drag the opacity slider down to about 40 % and draw a loop crossing itself: one even translucent line; ink never darkens where it crosses itself (Procreate's ink and the Ink Pen before).",
+    "Tap the Brush button: StreamLine reads 0 % for the Ink Pen. Tap the slider's right end: 100 %. Draw a shaky line with the pen: while the pen is down the line follows it on a leash, smooth, visibly trailing the tip (up to three brush sizes, at least 24 and at most 96 pixels behind); lift the pen: the line's end slides onto the point where the pen left, so the finished stroke ends exactly there. Pressure is never smoothed, only the path.",
+    "Undo takes the smooth line away whole, redo brings it back; StreamLine is no history step. Each brush keeps its own StreamLine per tool: the Pencil still reads 0 %.",
+    "Leave the app and let the system close it, open it again: every stroke looks exactly as before (older strokes keep the pencil and soft brush they were drawn with), and the Ink Pen's StreamLine still reads 100 %.",
+    "Failure: a stored toolbox that cannot be read starts every brush with StreamLine off; it never keeps the drawing from opening. A StreamLine changed while a stroke is drawn applies from the next stroke. Not here: smoothing of corners into curves, the tilt of the pen (draweave's pencil ignores it too), the paper's look when zoomed far out, pen feel, which the author judges on the tablet."
+  ],
+  "screen": [2880, 1800],
+  "density": 1.75,
+  "steps": [
+    { "tap": { "at": [2516, 42] } },
+    { "screenshot": { "name": "brush-panel" } },
+    { "tap": { "at": [2450, 252] } },
+    { "stroke": { "points": [[300, 300, 0.25], [900, 600, 0.25], [900, 300, 0.25], [300, 600, 0.25]] } },
+    { "stroke": { "points": [[1100, 300, 0.9], [1700, 600, 0.9], [1700, 300, 0.9], [1100, 600, 0.9]] } },
+    { "checkpoint": { "name": "pencil-loops", "canvas": "ddd2fe86a3e2c8e6" } },
+    { "screenshot": { "name": "pencil-loops-screen" } },
+    { "tap": { "at": [2516, 42] } },
+    { "tap": { "at": [2450, 364] } },
+    { "drag": { "from": [70, 942], "to": [70, 1074] } },
+    { "stroke": { "points": [[300, 800, 0.8], [900, 1100, 0.8], [900, 800, 0.8], [300, 1100, 0.8]] } },
+    { "checkpoint": { "name": "ink-loop", "canvas": "e87cdae15c31d6cb" } },
+    { "tap": { "at": [2516, 42] } },
+    { "screenshot": { "name": "streamline-off" } },
+    { "tap": { "at": [2850, 670] } },
+    { "screenshot": { "name": "streamline-full" } },
+    { "press": {
+        "tool": "stylus",
+        "path": [
+          [1100, 900, 0], [1150, 885, 40], [1200, 915, 80], [1250, 885, 120], [1300, 915, 160],
+          [1350, 885, 200], [1400, 915, 240], [1450, 885, 280], [1500, 915, 320], [1550, 885, 360],
+          [1600, 915, 400], [1650, 885, 440], [1700, 915, 480], [1750, 885, 520], [1800, 915, 560],
+          [1850, 885, 600], [1900, 915, 640], [1950, 885, 680], [2000, 915, 720], [2050, 900, 760]
+        ],
+        "before_lift": "smooth-line-trails"
+    } },
+    { "checkpoint": { "name": "smooth-line", "canvas": "8c371d28a7bb0710" } },
+    { "screenshot": { "name": "smooth-line-screen" } },
+    { "tap": { "at": [70, 1271] } },
+    { "checkpoint": { "name": "smooth-undone", "canvas": "e87cdae15c31d6cb" } },
+    { "tap": { "at": [70, 1369] } },
+    { "checkpoint": { "name": "smooth-redone", "canvas": "8c371d28a7bb0710" } },
+    "restart",
+    { "checkpoint": { "name": "reopened", "canvas": "8c371d28a7bb0710" } },
+    { "tap": { "at": [2516, 42] } },
+    { "screenshot": { "name": "reopened-ink-streamline" } },
+    { "tap": { "at": [2450, 252] } },
+    { "screenshot": { "name": "pencil-streamline-own" } }
+  ]
+}

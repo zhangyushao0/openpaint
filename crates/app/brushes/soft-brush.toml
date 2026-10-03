@@ -1,8 +1,6 @@
-# Soft brush: a wide round brush whose edge fades out; pressure sets how much paint lands.
+# Soft brush: a wide round brush whose edge fades out; pressure sets how much paint lands, and
+# going over the same place again builds it up, up to the opacity (an airbrush's flow).
 name = "Soft Brush"
-
-[shape]
-softness = 1.0
 
 [size]
 default = 120
@@ -13,3 +11,8 @@ pressure = [[0.0, 0.8], [1.0, 1.0]]
 [opacity]
 default = 0.8
 pressure = [[0.0, 0.05], [1.0, 1.0]]
+
+[accumulate]
+tip = "bell"
+# One pass at full pressure lays about 72 % of the opacity; a second about 92 %.
+flow = 1.2

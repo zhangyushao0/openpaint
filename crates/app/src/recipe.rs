@@ -22,14 +22,29 @@
 //! [grain]                              # optional
 //! strength = 0.65                      # 0 none .. 1
 //! scale = 3                            # coarse cells in canvas pixels, 1 to 64
+//!
+//! [accumulate]                         # optional: density builds up along the stroke
+//! tip = "flat"                         # "flat" (1 - d^8) or "bell" ((1 - d^2)^2)
+//! flow = 3.1                           # density per radius travelled, times the opacity
+//! max_density = 1.0                    # optional, in (0, 1], default 1
+//!
+//! [paper]                              # optional, under an accumulating flat tip
+//! texture = "sketch"
+//! contact = [[0.0, 0.4], [1.0, 0.95]]  # share of the paper touched, over pressure
+//! scale = 4.5                          # texels per canvas pixel
+//! depth = 0.3                          # how fast a ridge takes graphite above the contact
+//! dust = 0.3                           # the share the valleys take, 0..=1
 //! ```
 //!
-//! A missing curve is flat at 1; a missing `[shape]` is a hard edge; a missing `[grain]` none.
+//! A missing curve is flat at 1; a missing `[shape]` is a hard edge; a missing `[grain]` none;
+//! without `[accumulate]` the brush covers (crossings never darken).
 
 use std::fmt;
 use std::sync::Arc;
 
-use openpaint_core::{BrushRecipe, CoreError, Curve, Dynamics, Grain};
+use openpaint_core::{
+    Accumulation, BrushRecipe, CoreError, Curve, Deposit, Dynamics, Grain, Paper, PaperTexture, Tip,
+};
 use toml::{Table, Value};
 
 use crate::brushes::{Brush, BrushKey, SizeRange};
@@ -78,7 +93,15 @@ pub(crate) fn parse(key: BrushKey, text: &str) -> Result<Brush, RecipeError> {
         table: &table,
         path: "",
     };
-    root.only(&["name", "size", "opacity", "shape", "grain"])?;
+    root.only(&[
+        "name",
+        "size",
+        "opacity",
+        "shape",
+        "grain",
+        "accumulate",
+        "paper",
+    ])?;
     let name = root.string("name")?.ok_or_else(|| missing(&root, "name"))?;
     let name = name.trim();
     if name.is_empty() || name.chars().count() > MAX_BRUSH_NAME {
@@ -105,6 +128,12 @@ pub(crate) fn parse(key: BrushKey, text: &str) -> Result<Brush, RecipeError> {
         grain(&root)?,
     )
     .map_err(|_| out_of_range(&root, "shape.softness"))?;
+    let recipe = match deposit(&root)? {
+        Some(deposit) => recipe
+            .with_deposit(deposit)
+            .map_err(|_| out_of_range(&root, "shape.softness"))?,
+        None => recipe,
+    };
     Ok(Brush {
         key,
         name: name.to_owned(),
@@ -142,6 +171,51 @@ fn grain(root: &Section<'_>) -> Result<Grain, RecipeError> {
     let scale = grain.integer("scale")?.unwrap_or(1);
     let scale = u32::try_from(scale).map_err(|_| out_of_range(&grain, "scale"))?;
     Grain::new(strength, scale).map_err(|_| out_of_range(&grain, "strength"))
+}
+
+/// The `[accumulate]` deposit with its `[paper]`, if the brush accumulates.
+fn deposit(root: &Section<'_>) -> Result<Option<Deposit>, RecipeError> {
+    let paper_section = root.section("paper")?;
+    let Some(section) = root.section("accumulate")? else {
+        return match paper_section {
+            Some(_) => Err(missing(root, "accumulate")),
+            None => Ok(None),
+        };
+    };
+    section.only(&["tip", "flow", "max_density"])?;
+    let tip = match section.string("tip")? {
+        None => return Err(missing(&section, "tip")),
+        Some("flat") => Tip::Flat,
+        Some("bell") => Tip::Bell,
+        Some(_) => return Err(out_of_range(&section, "tip")),
+    };
+    let flow = section.required_number("flow")?;
+    let max_density = section.number("max_density")?.unwrap_or(1.0);
+    let paper = paper_section.map(|paper| paper_of(&paper)).transpose()?;
+    let accumulation = Accumulation::new(tip, flow, max_density, paper)
+        .map_err(|_| out_of_range(&section, "flow"))?;
+    Ok(Some(Deposit::Accumulate(accumulation)))
+}
+
+fn paper_of(section: &Section<'_>) -> Result<Paper, RecipeError> {
+    section.only(&["texture", "contact", "scale", "depth", "dust"])?;
+    let texture = match section.string("texture")? {
+        None => return Err(missing(section, "texture")),
+        Some("sketch") => PaperTexture::Sketch,
+        Some(_) => return Err(out_of_range(section, "texture")),
+    };
+    let points = section
+        .curve("contact")?
+        .ok_or_else(|| missing(section, "contact"))?;
+    let contact = Curve::new(&points).map_err(|_| out_of_range(section, "contact"))?;
+    Paper::new(
+        texture,
+        contact,
+        section.required_number("scale")?,
+        section.required_number("depth")?,
+        section.required_number("dust")?,
+    )
+    .map_err(|_| out_of_range(section, "scale"))
 }
 
 /// The line and column where `span` starts in `text`, from 1.

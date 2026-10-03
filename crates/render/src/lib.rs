@@ -16,6 +16,7 @@ mod frame;
 mod geom;
 mod gpu;
 mod image;
+mod paper;
 mod plan;
 mod program;
 mod protocol;

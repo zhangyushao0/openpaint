@@ -163,6 +163,49 @@ fn extend_rejects_time_going_back_and_keeps_the_stroke() {
 }
 
 #[test]
+fn revise_replaces_the_end_and_keeps_the_first_sample() {
+    let mut session = begin(&blank());
+    session
+        .extend(&[sample(1.0, 4), sample(2.0, 8), sample(3.0, 12)])
+        .unwrap();
+    let invalid = Err(CoreError::InvalidValue {
+        what: "revised samples",
+    });
+    assert_eq!(session.revise(0, &[sample(9.0, 0)]), invalid);
+    assert_eq!(session.revise(5, &[]), invalid);
+    let back = session.revise(2, &[sample(2.5, 3)]);
+    assert!(
+        matches!(back, Err(CoreError::SampleOrder { .. })),
+        "{back:?}"
+    );
+    assert_eq!(
+        session.active().samples().len(),
+        4,
+        "a refusal changes nothing"
+    );
+    session
+        .revise(2, &[sample(2.5, 8), sample(3.5, 12)])
+        .unwrap();
+    let xs: Vec<f32> = session
+        .active()
+        .samples()
+        .iter()
+        .map(|s| s.position().x())
+        .collect();
+    assert_eq!(xs, [0.0, 1.0, 2.5, 3.5]);
+    let finished = session.finish().artwork;
+    assert_eq!(
+        finished.layers()[0]
+            .strokes()
+            .last()
+            .unwrap()
+            .samples()
+            .len(),
+        4
+    );
+}
+
+#[test]
 fn extend_stops_at_the_sample_limit() {
     let mut session = begin(&blank());
     let batch = vec![sample(1.0, 1); MAX_STROKE_SAMPLES - 1];

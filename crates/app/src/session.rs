@@ -14,6 +14,7 @@ use crate::layers::{self, LayerList, Layers};
 use crate::project::PortError;
 use crate::projection::{Availability, EditorAction, LAYER_ACTIONS, SessionProjection};
 use crate::storage::{Autosave, StorageIntent};
+use crate::streamline::StreamLine;
 use crate::stroke::Strokes;
 use crate::view::{CanvasView, ViewIntent};
 
@@ -61,6 +62,12 @@ impl Session {
     /// The next stroke starts with `brush`; a stroke being drawn keeps the style it began with.
     pub fn set_brush(&mut self, brush: StrokeStyle) {
         self.strokes.set_style(brush);
+    }
+
+    /// The next stroke follows the pen through `streamline` (the toolbox's, per brush); a
+    /// stroke being drawn keeps the StreamLine it began with.
+    pub const fn set_streamline(&mut self, streamline: StreamLine) {
+        self.strokes.set_streamline(streamline);
     }
 
     /// Applies one intent. On error the session is as it was before, except that a stroke

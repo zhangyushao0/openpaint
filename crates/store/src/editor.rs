@@ -1,10 +1,11 @@
-//! The toolbox record, `library` / `editor` (schema 4, DECISIONS D28, D29): the tool (u8: 0
-//! brush, 1 eraser); the brush tool's choice, then the eraser's, each its brush's key (u32
+//! The toolbox record, `library` / `editor` (schema 6, DECISIONS D28, D29, D39): the tool (u8:
+//! 0 brush, 1 eraser); the brush tool's choice, then the eraser's, each its brush's key (u32
 //! length + UTF-8, empty for the default brush), the brush count (u32) and per brush its key,
-//! size and opacity (f32); the colour, red, green, blue (f32); the recent colours, a count
-//! (u32) and per colour red, green, blue (f32), newest first. It is not artwork: the app falls
-//! back to the defaults when it cannot be read, and nothing else depends on it. Schema 3 held
-//! only the brush tool's choice; `migrate.rs` upgrades it.
+//! size, opacity and StreamLine (f32); the colour, red, green, blue (f32); the recent colours, a
+//! count (u32) and per colour red, green, blue (f32), newest first. It is not artwork: the app
+//! falls back to the defaults when it cannot be read, and nothing else depends on it. Schema 3
+//! held only the brush tool's choice, schemas 4 and 5 no StreamLine; `migrate.rs` and
+//! `migrate_6.rs` upgrade them.
 
 use openpaint_app::{BrushChoice, BrushSetting, EditorState, PortError, Tool};
 
@@ -12,7 +13,7 @@ use crate::codec::{Reader, Writer};
 
 pub(crate) const EDITOR: &[u8] = b"editor";
 /// Bytes of one brush entry with an empty key.
-const SETTING_BYTES: usize = 4 + 4 + 4;
+const SETTING_BYTES: usize = 4 + 4 + 4 + 4;
 /// Bytes of one colour.
 const COLOR_BYTES: usize = 3 * 4;
 
@@ -33,7 +34,8 @@ pub(crate) fn encode_editor(state: &EditorState) -> Vec<u8> {
     writer.finish()
 }
 
-/// One tool's brush choice as the record holds it; schema 3's whole record was one of these.
+/// One tool's brush choice as the record holds it; schema 3's whole record was one of these,
+/// without the StreamLine.
 pub(crate) fn write_choice(writer: &mut Writer, choice: &BrushChoice) {
     writer.str(&choice.brush);
     writer.len(choice.brushes.len());
@@ -41,6 +43,7 @@ pub(crate) fn write_choice(writer: &mut Writer, choice: &BrushChoice) {
         writer.str(&setting.key);
         writer.f32(setting.size);
         writer.f32(setting.opacity);
+        writer.f32(setting.streamline);
     }
 }
 
@@ -83,6 +86,7 @@ fn read_choice(reader: &mut Reader<'_>) -> Result<BrushChoice, PortError> {
             key: reader.str()?,
             size: reader.f32()?,
             opacity: reader.f32()?,
+            streamline: reader.f32()?,
         });
     }
     Ok(BrushChoice { brush, brushes })
@@ -102,6 +106,7 @@ mod tests {
             key: key.into(),
             size,
             opacity,
+            streamline: 0.75,
         };
         let state = EditorState {
             tool: Tool::Eraser,

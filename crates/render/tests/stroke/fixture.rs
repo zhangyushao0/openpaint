@@ -4,8 +4,9 @@
 use std::sync::Arc;
 
 use openpaint_core::{
-    Artwork, ArtworkCommand, BrushRecipe, CanvasPoint, CanvasSize, Color, Curve, Dynamics, Grain,
-    LayerCommand, StrokeSample, StrokeStyle,
+    Accumulation, Artwork, ArtworkCommand, BrushRecipe, CanvasPoint, CanvasSize, Color, CoreError,
+    Curve, Deposit, Dynamics, Grain, LayerCommand, Paper, PaperTexture, StrokeSample, StrokeStyle,
+    Tip,
 };
 use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, RgbaImage};
 
@@ -58,6 +59,46 @@ pub fn rich() -> Arc<BrushRecipe> {
     let grain = Grain::new(0.7, 5).expect("grain");
     let recipe = BrushRecipe::new(0.6, size.expect("size"), opacity.expect("opacity"), grain);
     Arc::new(recipe.expect("recipe"))
+}
+
+/// The S16 pencil: graphite building up on the sketch paper under a flat tip.
+pub fn graphite() -> Arc<BrushRecipe> {
+    let curve = |points: &[[f32; 2]]| Curve::new(points).expect("curve");
+    let size = Dynamics::new(curve(&[[0.0, 0.3], [1.0, 1.0]]), curve(&[[0.0, 1.0]]));
+    let opacity = Dynamics::new(curve(&[[0.0, 0.29]]), curve(&[[0.0, 1.0]]));
+    let paper = Paper::new(
+        PaperTexture::Sketch,
+        curve(&[[0.0, 0.4], [1.0, 0.95]]),
+        4.5,
+        0.3,
+        0.3,
+    );
+    let deposit = Accumulation::new(Tip::Flat, 3.1, 1.0, Some(paper.expect("paper")));
+    accumulating(size, opacity, deposit)
+}
+
+/// An airbrush: a bell tip building up density, no paper.
+pub fn airbrush() -> Arc<BrushRecipe> {
+    let curve = |points: &[[f32; 2]]| Curve::new(points).expect("curve");
+    let size = Dynamics::new(curve(&[[0.0, 0.8], [1.0, 1.0]]), curve(&[[0.0, 1.0]]));
+    let opacity = Dynamics::new(curve(&[[0.0, 0.05], [1.0, 1.0]]), curve(&[[0.0, 1.0]]));
+    accumulating(size, opacity, Accumulation::new(Tip::Bell, 1.2, 1.0, None))
+}
+
+fn accumulating(
+    size: Result<Dynamics, CoreError>,
+    opacity: Result<Dynamics, CoreError>,
+    deposit: Result<Accumulation, CoreError>,
+) -> Arc<BrushRecipe> {
+    let recipe = BrushRecipe::new(
+        0.0,
+        size.expect("size"),
+        opacity.expect("opacity"),
+        Grain::NONE,
+    );
+    let recipe = recipe.expect("recipe");
+    let deposit = Deposit::Accumulate(deposit.expect("deposit"));
+    Arc::new(recipe.with_deposit(deposit).expect("accumulating"))
 }
 
 /// A straight stroke crossing the wave, pressure rising along it.

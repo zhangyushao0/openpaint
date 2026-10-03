@@ -131,21 +131,34 @@ impl Tracked {
             && !grew_from_dot
     }
 
-    /// What to evaluate again now that the stroke is no longer drawn over `artwork`.
+    /// What to evaluate again now that the stroke is no longer drawn over `artwork`. Committed,
+    /// it may have gained samples after its last evaluation, and its end may have moved as it
+    /// lifted (StreamLine catching up with the pen): where it differs from what was drawn, both
+    /// the old end and the new one are evaluated again. Its first sample never changes.
     fn gone(&self, artwork: &Artwork) -> Option<PixelRect> {
         if artwork.same_version(&self.base) {
             return self.region;
         }
         let stroke = artwork.layer(self.layer)?.strokes().last()?;
         let samples = stroke.samples();
-        let committed = *stroke.style() == self.style && samples.starts_with(&self.samples);
-        if !committed || samples.len() == self.samples.len() {
+        let shared = samples
+            .iter()
+            .zip(&self.samples)
+            .take_while(|(now, drawn)| now == drawn)
+            .count();
+        let committed = *stroke.style() == self.style && shared > 0;
+        if !committed || (shared == samples.len() && shared == self.samples.len()) {
             return None;
         }
-        // From the last evaluated sample on; after a lone dot that is the whole stroke, whose
+        // From the last sample both share on; after a lone dot that is the whole stroke, whose
         // first segment covers the dot it replaces.
-        let from = self.samples.len().saturating_sub(1);
-        stroke_region(&self.style, samples, from)
+        let from = shared - 1;
+        let drawn = stroke_region(&self.style, &self.samples, from);
+        let now = stroke_region(&self.style, samples, from);
+        match (drawn, now) {
+            (Some(drawn), Some(now)) => Some(drawn.union(&now)),
+            (drawn, now) => drawn.or(now),
+        }
     }
 }
 
@@ -220,6 +233,27 @@ mod tests {
         let expected = stroke_region(&style, &all, 1);
         assert_eq!(all[1..], [sample(20.0, 4), tail[0], tail[1]]);
         assert_eq!(committed.redraw, expected);
+    }
+
+    #[test]
+    fn a_stroke_whose_end_moved_as_it_lifted_redraws_the_old_end_and_the_new() {
+        let base = blank();
+        let mut track = ActiveTrack::default();
+        let mut session = begin(&base, 1.0);
+        session
+            .extend(&[sample(10.0, 4), sample(20.0, 8), sample(30.0, 12)])
+            .expect("extend");
+        track.advance(&base, Some(session.active()), true);
+        let style = session.active().style().clone();
+        let drawn = session.active().samples().to_vec();
+        session
+            .revise(2, &[sample(24.0, 8), sample(50.0, 12)])
+            .expect("revise");
+        let moved = session.active().samples().to_vec();
+        let committed = track.advance(&session.finish().artwork, None, true);
+        let old = stroke_region(&style, &drawn, 1).expect("old end");
+        let new = stroke_region(&style, &moved, 1).expect("new end");
+        assert_eq!(committed.redraw, Some(old.union(&new)));
     }
 
     #[test]

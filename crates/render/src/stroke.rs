@@ -1,15 +1,16 @@
 //! Stroke geometry: a stroke is a chain of tapered capsules between consecutive samples
 //! (DECISIONS D07: no dabs). At every sample the stroke's recipe turns pressure and pen speed
-//! into a radius (size dynamics) and a flow (opacity dynamics); the paint op carries the colour,
-//! the stroke's opacity and the recipe's grain.
+//! into a radius (size dynamics), a flow (opacity dynamics, times the recipe's flow when it
+//! accumulates) and a paper contact; the paint op carries the colour, the stroke's opacity, the
+//! recipe's grain and how its density becomes coverage (D38).
 //!
 //! Everything here depends only on the samples up to the one it describes, so a stroke drawn a
 //! few samples at a time gets exactly the segments it gets when drawn at once.
 
-use openpaint_core::{StrokeBlend, StrokeSample, StrokeStyle};
+use openpaint_core::{Deposit, StrokeBlend, StrokeSample, StrokeStyle, Tip as RecipeTip};
 
 use crate::geom::{Bounds, PixelRect};
-use crate::protocol::{Blend, GRAIN_ONE, Op, Paint};
+use crate::protocol::{Blend, GRAIN_ONE, Op, Paint, SegmentOperands, Tip};
 
 /// Antialiasing reaches half a pixel beyond the shape; one pixel keeps the bounds conservative
 /// against float error.
@@ -22,27 +23,24 @@ const SPEED_LOOKBACK: usize = 64;
 
 /// A tapered capsule between two samples, in target pixels.
 pub(crate) struct Segment {
-    a: [f32; 2],
-    b: [f32; 2],
-    radii: [f32; 2],
-    flows: [f32; 2],
-    /// One over the width the coverage fades in over, in pixels.
-    edge: f32,
+    operands: SegmentOperands,
 }
 
 impl Segment {
     pub(crate) fn op(&self) -> Op {
-        Op::segment(self.a, self.b, self.radii, self.flows, self.edge)
+        Op::segment(&self.operands)
     }
 
-    /// Coverage is zero from half a pixel outside the capsule, whatever its edge.
+    /// Coverage and density are zero from half a pixel outside the capsule, whatever its edge
+    /// or tip.
     pub(crate) fn bounds(&self) -> Bounds {
-        let reach = self.radii[0].max(self.radii[1]) + REACH;
+        let SegmentOperands { a, b, radii, .. } = self.operands;
+        let reach = radii[0].max(radii[1]) + REACH;
         Bounds([
-            self.a[0].min(self.b[0]) - reach,
-            self.a[1].min(self.b[1]) - reach,
-            self.a[0].max(self.b[0]) + reach,
-            self.a[1].max(self.b[1]) + reach,
+            a[0].min(b[0]) - reach,
+            a[1].min(b[1]) - reach,
+            a[0].max(b[0]) + reach,
+            a[1].max(b[1]) + reach,
         ])
     }
 }
@@ -57,16 +55,27 @@ pub(crate) fn segments<'a>(
     let speed = style.recipe().uses_speed();
     let pairs = (from + 1..samples.len()).map(|i| (i - 1, i));
     let dot = (samples.len() == 1 && from == 0).then_some((0, 0));
+    let tip = match style.recipe().deposit() {
+        Deposit::Cover => Tip::Cover,
+        Deposit::Accumulate(accumulation) => match accumulation.tip() {
+            RecipeTip::Flat => Tip::Flat,
+            RecipeTip::Bell => Tip::Bell,
+        },
+    };
     pairs.chain(dot).map(move |(i, j)| {
-        let (ra, fa) = dab(style, samples, i, speed);
-        let (rb, fb) = dab(style, samples, j, speed);
-        let width = style.recipe().softness() * ra.max(rb);
+        let a = dab(style, samples, i, speed);
+        let b = dab(style, samples, j, speed);
+        let width = style.recipe().softness() * a.radius.max(b.radius);
         Segment {
-            a: point(&samples[i]),
-            b: point(&samples[j]),
-            radii: [ra, rb],
-            flows: [fa, fb],
-            edge: 1.0 / width.max(1.0),
+            operands: SegmentOperands {
+                a: point(&samples[i]),
+                b: point(&samples[j]),
+                radii: [a.radius, b.radius],
+                flows: [a.flow, b.flow],
+                edge: 1.0 / width.max(1.0),
+                contacts: [a.contact, b.contact],
+                tip,
+            },
         }
     })
 }
@@ -75,6 +84,16 @@ pub(crate) fn segments<'a>(
 pub(crate) fn paint(style: &StrokeStyle, blend: StrokeBlend) -> Paint {
     let color = style.color();
     let grain = style.recipe().grain();
+    let (density, paper) = match style.recipe().deposit() {
+        Deposit::Cover => (0.0, [0.0; 4]),
+        Deposit::Accumulate(accumulation) => {
+            let paper = accumulation.paper().map_or([0.0; 4], |paper| {
+                let level = paper.scale().log2().max(0.0);
+                [paper.scale(), level, paper.depth(), paper.dust()]
+            });
+            (accumulation.max_density(), paper)
+        }
+    };
     Paint {
         color: [color.r(), color.g(), color.b()],
         opacity: style.opacity(),
@@ -85,6 +104,8 @@ pub(crate) fn paint(style: &StrokeStyle, blend: StrokeBlend) -> Paint {
             StrokeBlend::Atop => Blend::Atop,
             StrokeBlend::Erase => Blend::Erase,
         },
+        density,
+        paper,
     }
 }
 
@@ -110,13 +131,36 @@ pub(crate) fn segment_regions<'a>(
     segments(style, samples, from).map(|segment| segment.bounds().pixels())
 }
 
-/// The radius and the flow at sample `i`.
-fn dab(style: &StrokeStyle, samples: &[StrokeSample], i: usize, speed: bool) -> (f32, f32) {
+/// What a stroke is at one sample.
+struct Dab {
+    radius: f32,
+    /// A covering stroke's coverage factor; an accumulating one's density per radius.
+    flow: f32,
+    /// The share of the paper the tip touches; 0 without paper.
+    contact: f32,
+}
+
+/// The stroke at sample `i`.
+fn dab(style: &StrokeStyle, samples: &[StrokeSample], i: usize, speed: bool) -> Dab {
     let pressure = samples[i].pressure();
     let speed = if speed { pen_speed(samples, i) } else { 0.0 };
     let recipe = style.recipe();
     let radius = 0.5 * style.size() * recipe.size().at(pressure, speed);
-    (radius, recipe.opacity().at(pressure, speed))
+    let opacity = recipe.opacity().at(pressure, speed);
+    match recipe.deposit() {
+        Deposit::Cover => Dab {
+            radius,
+            flow: opacity,
+            contact: 0.0,
+        },
+        Deposit::Accumulate(accumulation) => Dab {
+            radius,
+            flow: opacity * accumulation.flow(),
+            contact: accumulation
+                .paper()
+                .map_or(0.0, |paper| paper.contact().at(pressure)),
+        },
+    }
 }
 
 /// Canvas pixels per millisecond at sample `i`: the path of the last `SPEED_WINDOW_MS` before
@@ -188,9 +232,11 @@ mod tests {
         let samples = [sample(10.0, 1.0, 0), sample(30.0, 0.2, 4)];
         let segment = segments(&style(BrushRecipe::plain()), &samples, 0)
             .next()
-            .expect("one segment");
+            .expect("one segment")
+            .operands;
         assert_eq!(segment.radii, [0.5 * 10.0 * 1.0, 0.5 * 10.0 * 0.2]);
         assert_eq!((segment.flows, segment.edge), ([1.0, 1.0], 1.0));
+        assert_eq!((segment.contacts, segment.tip), ([0.0; 2], Tip::Cover));
     }
 
     #[test]
@@ -225,7 +271,10 @@ mod tests {
         let whole: Vec<Op> = segments(&style, &samples, 0).map(|s| s.op()).collect();
         let tail: Vec<Op> = segments(&style, &samples, 25).map(|s| s.op()).collect();
         assert_eq!(tail, whole[25..]);
-        let thin = segments(&style, &samples, 30).next().expect("segment");
+        let thin = segments(&style, &samples, 30)
+            .next()
+            .expect("segment")
+            .operands;
         assert!(thin.radii[0] < 5.0, "faster is thinner: {:?}", thin.radii);
         assert!((thin.edge - 1.0 / (0.5 * thin.radii[0].max(thin.radii[1]))).abs() < 1e-6);
     }

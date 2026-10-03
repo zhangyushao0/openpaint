@@ -1,18 +1,29 @@
-# Pencil: a thin hard line with paper grain; lighter when pressed softly or drawn fast.
+# Pencil: graphite on the paper's tooth, as draweave tuned it (DECISIONS D38). Pressure widens the
+# line, presses the tip into more of the paper and lays more graphite; where the stroke crosses
+# itself it darkens. The paper is fixed to the canvas, never to the stroke.
 name = "Pencil"
 
 [size]
 default = 5
 min = 1
 max = 40
-pressure = [[0.0, 0.45], [1.0, 1.0]]
+# Radius 0.3 + 0.7 p of the size.
+pressure = [[0.0, 0.3], [1.0, 1.0]]
 
 [opacity]
 default = 1.0
-pressure = [[0.0, 0.15], [0.8, 0.9], [1.0, 1.0]]
-# Canvas pixels per millisecond.
-speed = [[0.0, 1.0], [6.0, 0.7]]
+# Flow 0.9 + 2.2 p per radius travelled: 3.1 times this curve.
+pressure = [[0.0, 0.29032258], [1.0, 1.0]]
 
-[grain]
-strength = 0.65
-scale = 3
+[accumulate]
+tip = "flat"
+flow = 3.1
+max_density = 1.0
+
+[paper]
+texture = "sketch"
+contact = [[0.0, 0.4], [1.0, 0.95]]
+# draweave's 9 texels per unit on its 2048-texel paper; this paper is that one at half size.
+scale = 4.5
+depth = 0.3
+dust = 0.3

@@ -113,17 +113,12 @@ impl Scene {
         self.masks.extend_from_slice(mask.words());
         debug_assert_eq!(MASK_HEADER, 4);
         let color = edit.color();
-        let paint = Paint {
-            color: [color.r(), color.g(), color.b()],
-            opacity: 1.0,
-            grain: 0,
-            grain_scale: 1,
-            blend: if edit.alpha_locked() {
-                Blend::Atop
-            } else {
-                Blend::Over
-            },
+        let blend = if edit.alpha_locked() {
+            Blend::Atop
+        } else {
+            Blend::Over
         };
+        let paint = Paint::solid([color.r(), color.g(), color.b()], blend);
         // The mask's pixels, from their top-left corner to past their bottom-right one.
         let bounds = Bounds([
             x as f32,

@@ -22,6 +22,7 @@ mod recipe;
 mod reference;
 mod session;
 mod storage;
+mod streamline;
 mod stroke;
 mod title;
 mod toolbox;
@@ -54,6 +55,7 @@ pub use crate::reference::{
 };
 pub use crate::session::Session;
 pub use crate::storage::{StorageIntent, StorageNotice};
+pub use crate::streamline::StreamLine;
 pub use crate::stroke::StrokeIntent;
 pub use crate::title::{MAX_TITLE_CHARS, Title, TitleError, UNTITLED};
 pub use crate::toolbox::{

@@ -3,14 +3,15 @@
 //! (Procreate's brush library, reduced to one set): header "Brushes" or "Eraser", then one row
 //! per brush with its name and a stroke it painted, the tool's brush highlighted. The eraser
 //! chooses from the same brushes. A tap chooses the brush; the panel stays until a contact lands
-//! on the canvas outside it, and a pen stroke there draws with the brush just chosen.
+//! on the canvas outside it, and a pen stroke there draws with the brush just chosen. Under the
+//! rows, the chosen brush's StreamLine slider (0 to 100 %).
 
 use std::fmt;
 
 use openpaint_app::{BrushIntent, BrushKey, Intent, SessionProjection, Tool, ToolIntent};
 use openpaint_render::RgbaImage;
 
-use crate::components::{ScreenArea, brush_row, icon_toggle, popover};
+use crate::components::{ScreenArea, brush_row, icon_toggle, popover, slider};
 use crate::design::{CHROME, Icon, ON_CHROME, SPACE, TOUCH_TARGET};
 
 /// The panel's UI-local state and the brushes' preview pictures.
@@ -109,6 +110,7 @@ impl BrushPanel {
                     }
                 }
             }
+            streamline(ui, brush.streamline.amount(), taps);
         });
         self.area = Some(ScreenArea::from_points(rect, ctx.pixels_per_point()));
     }
@@ -130,6 +132,32 @@ impl BrushPanel {
             let name = format!("brush preview {}", key.as_str());
             let texture = ctx.load_texture(name, picture, egui::TextureOptions::LINEAR);
             self.textures.push((key, texture));
+        }
+    }
+}
+
+/// The chosen brush's StreamLine under the rows (Procreate keeps it in the brush's settings):
+/// its name and value, then a slider from off to the strongest. It applies from the next
+/// stroke on and is the brush's own, per tool.
+fn streamline(ui: &mut egui::Ui, amount: f32, taps: &mut Vec<Intent>) {
+    ui.separator();
+    ui.horizontal(|ui| {
+        ui.set_height(TOUCH_TARGET);
+        ui.add_space(2.0 * SPACE);
+        ui.label("StreamLine");
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.add_space(2.0 * SPACE);
+            ui.label(format!("{} %", (amount * 100.0).round()));
+        });
+    });
+    if let Some(change) = slider(ui, "StreamLine", amount, true) {
+        let intent = Intent::Brush(BrushIntent::StreamLine {
+            amount: change.value,
+            settled: change.settled,
+        });
+        // egui may run a pass twice; one value is sent once.
+        if taps.last() != Some(&intent) {
+            taps.push(intent);
         }
     }
 }

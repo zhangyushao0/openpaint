@@ -5,8 +5,8 @@ use std::path::PathBuf;
 
 use openpaint_app::{BrushChoice, BrushSetting, EditorState, Thumbnail, Title, Tool};
 use openpaint_core::{
-    ArtworkParts, BrushRecipe, FillParts, LayerParts, RecipeParts, SampleParts, StrokeBlend,
-    StrokeParts,
+    AccumulationParts, ArtworkParts, BrushRecipe, FillParts, LayerParts, PaperParts, PaperTexture,
+    RecipeParts, SampleParts, StrokeBlend, StrokeParts, Tip,
 };
 
 use crate::common::KEYSPACES;
@@ -38,6 +38,45 @@ fn grainy() -> RecipeParts {
         opacity_speed: vec![[0.0, 1.0]],
         grain_strength: 0.625,
         grain_scale: 3,
+        deposit: None,
+    }
+}
+
+/// A recipe building up graphite on the sketch paper, as the S16 pencil does.
+fn graphite() -> RecipeParts {
+    RecipeParts {
+        softness: 0.0,
+        size_pressure: vec![[0.0, 0.3], [1.0, 1.0]],
+        size_speed: vec![[0.0, 1.0]],
+        opacity_pressure: vec![[0.0, 0.25], [1.0, 1.0]],
+        opacity_speed: vec![[0.0, 1.0]],
+        grain_strength: 0.0,
+        grain_scale: 1,
+        deposit: Some(AccumulationParts {
+            tip: Tip::Flat,
+            flow: 3.125,
+            max_density: 0.875,
+            paper: Some(PaperParts {
+                texture: PaperTexture::Sketch,
+                contact: vec![[0.0, 0.375], [1.0, 0.9375]],
+                scale: 4.5,
+                depth: 0.25,
+                dust: 0.375,
+            }),
+        }),
+    }
+}
+
+/// An accumulating recipe with a bell tip and no paper, as the S16 soft brush.
+fn airbrush() -> RecipeParts {
+    RecipeParts {
+        deposit: Some(AccumulationParts {
+            tip: Tip::Bell,
+            flow: 1.25,
+            max_density: 1.0,
+            paper: None,
+        }),
+        ..BrushRecipe::plain().to_parts()
     }
 }
 
@@ -143,10 +182,19 @@ pub fn schema_4_parts() -> ArtworkParts {
     parts
 }
 
+/// The schema-5 sample with what schema 6 adds: the sketch's second stroke builds up graphite
+/// on paper, the ink layer's dot is an airbrush.
+pub fn parts() -> ArtworkParts {
+    let mut parts = schema_5_parts();
+    parts.layers[0].strokes[1].recipe = graphite();
+    parts.layers[1].strokes[0].recipe = airbrush();
+    parts
+}
+
 /// The schema-4 sample with what schema 5 adds: a fill with a one-pixel hole between the
 /// sketch's strokes, alpha-locked like its layer, and a fill on the empty top layer whose mask
 /// ends inside.
-pub fn parts() -> ArtworkParts {
+pub fn schema_5_parts() -> ArtworkParts {
     let mut parts = schema_4_parts();
     parts.layers[0].fills.push(FillParts {
         after: 1,
@@ -218,11 +266,12 @@ fn setting(key: &str, size: f32, opacity: f32) -> BrushSetting {
         key: key.to_owned(),
         size,
         opacity,
+        streamline: 0.0,
     }
 }
 
 /// The brush tool's choice of the schema-3 sample: the pencil current, small and light, the
-/// ink pen at its default.
+/// ink pen at its default; StreamLine off, as every brush had it before schema 6.
 fn pencil_choice() -> BrushChoice {
     BrushChoice {
         brush: "pencil".into(),
@@ -242,6 +291,15 @@ pub fn upgraded_editor() -> EditorState {
         color: [0.0; 3],
         recent: Vec::new(),
     }
+}
+
+/// The toolbox of the schema-6 sample: the schema-5 one with StreamLine on the ink pen and on
+/// the eraser's soft brush.
+pub fn sample_editor_6() -> EditorState {
+    let mut editor = sample_editor();
+    editor.paint.brushes[1].streamline = 0.625;
+    editor.erase.brushes[0].streamline = 1.0;
+    editor
 }
 
 /// The eraser current on the soft brush at half opacity; an orange colour, two recent ones.

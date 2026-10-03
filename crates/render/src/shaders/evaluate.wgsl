@@ -4,8 +4,10 @@
 //
 // A pixel's value depends only on the ops that can reach it, never on which tiles are evaluated
 // together; that is what makes incremental evaluation equal cold evaluation. The in-progress
-// stroke keeps its coverage so far in `kept`: a maximum is exact, so adding only the new
-// segments to it equals taking the maximum over all of them.
+// stroke keeps its coverage (or density) and its paper contact so far in `kept` and
+// `kept_contact`, and each evaluation starts from them before adding the new segments in
+// order: a maximum is exact, and a sum continued from its stored float adds the same floats in
+// the same order as one pass over every segment, so either equals the finished stroke.
 
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var<storage, read> ops: array<Op>;
@@ -15,6 +17,8 @@
 @group(0) @binding(5) var<storage, read> fresh: array<Op>;
 @group(0) @binding(6) var kept: texture_storage_2d<r32float, read_write>;
 @group(0) @binding(7) var<storage, read> masks: array<u32>;
+@group(0) @binding(8) var kept_contact: texture_storage_2d<r32float, read_write>;
+@group(0) @binding(9) var<storage, read> paper: array<u32>;
 
 @compute @workgroup_size(TILE, TILE)
 fn evaluate(
@@ -34,31 +38,51 @@ fn evaluate(
     // Premultiplied colours throughout; blending happens on sRGB-encoded values.
     var canvas = params.background;
     var layer = vec4<f32>(0.0);
+    // The current stroke's coverage (covering) or optical density (accumulating), and the
+    // largest paper contact along it.
     var coverage = 0.0;
+    var contact = 0.0;
+    // The in-progress stroke's kept values have been taken up.
+    var resumed = false;
     for (var i = tile.start; i < tile.start + tile.count; i++) {
         let entry = indices[i];
         var op: Op;
         if entry >= FRESH {
             op = fresh[entry - FRESH];
+            if !resumed {
+                // Every fresh op is the in-progress stroke's, after its layer's finished
+                // strokes, so nothing is held here yet.
+                coverage = textureLoad(kept, pixel).r;
+                contact = textureLoad(kept_contact, pixel).r;
+                resumed = true;
+            }
         } else {
             op = ops[entry];
         }
         switch op.code {
             case OP_SEGMENT: {
-                coverage = max(coverage, segment_coverage(centre, op));
+                if u32(op.data[SEGMENT_TIP]) == TIP_COVER {
+                    coverage = max(coverage, segment_coverage(centre, op));
+                } else {
+                    let laid = segment_density(centre, op);
+                    coverage += laid.x;
+                    contact = max(contact, laid.y);
+                }
             }
             case OP_END_STROKE: {
-                layer = blend(stroke_paint(coverage, pixel, op), layer, op);
+                layer = blend(stroke_paint(coverage, contact, centre, pixel, op), layer, op);
                 coverage = 0.0;
+                contact = 0.0;
             }
             case OP_END_ACTIVE: {
-                coverage = max(coverage, textureLoad(kept, pixel).r);
                 textureStore(kept, pixel, vec4<f32>(coverage, 0.0, 0.0, 0.0));
-                layer = blend(stroke_paint(coverage, pixel, op), layer, op);
+                textureStore(kept_contact, pixel, vec4<f32>(contact, 0.0, 0.0, 0.0));
+                layer = blend(stroke_paint(coverage, contact, centre, pixel, op), layer, op);
                 coverage = 0.0;
+                contact = 0.0;
             }
             case OP_FILL: {
-                layer = blend(stroke_paint(fill_coverage(pixel, op), pixel, op), layer, op);
+                layer = blend(paint_color(fill_coverage(pixel, op) * op.data[PAINT_OPACITY], op), layer, op);
             }
             case OP_END_LAYER: {
                 canvas = over(layer * op.data[0], canvas);
@@ -70,10 +94,19 @@ fn evaluate(
     textureStore(canvas_out, pixel, quantized(canvas));
 }
 
-// A stroke's colour (`op.data[0..3]`) at `coverage` times the grain at `pixel` times its
-// opacity, premultiplied. Without grain the factor is exactly 1.
-fn stroke_paint(coverage: f32, pixel: vec2<u32>, op: Op) -> vec4<f32> {
-    let alpha = coverage * grain(pixel, op) * op.data[PAINT_OPACITY];
+// A stroke's colour at its coverage times the grain at `pixel` times its opacity. A covering
+// stroke's coverage is `held` itself; an accumulating one's comes from its density
+// (`deposit_coverage`). Without grain the factor is exactly 1.
+fn stroke_paint(held: f32, contact: f32, centre: vec2<f32>, pixel: vec2<u32>, op: Op) -> vec4<f32> {
+    var coverage = held;
+    if op.data[PAINT_DENSITY] > 0.0 {
+        coverage = deposit_coverage(held, contact, centre, op);
+    }
+    return paint_color(coverage * grain(pixel, op) * op.data[PAINT_OPACITY], op);
+}
+
+// The op's colour (`op.data[0..3]`) at `alpha`, premultiplied.
+fn paint_color(alpha: f32, op: Op) -> vec4<f32> {
     return vec4<f32>(vec3<f32>(op.data[0], op.data[1], op.data[2]) * alpha, alpha);
 }
 

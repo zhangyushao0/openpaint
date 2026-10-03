@@ -13,11 +13,13 @@ use openpaint_core::{
 use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, RgbaImage};
 
 const SIZE: [u32; 2] = [320, 200];
-/// Per brush key: the wave's golden hash.
+/// Per brush key: the wave's golden hash. Re-recorded in S16 for the pencil (draweave's tuned
+/// graphite on the sketch paper) and the soft brush (density building up under a bell tip);
+/// the brushes before keep their hashes below.
 const GOLDEN: [(&str, u64); 3] = [
-    ("pencil", 0xc7db_069e_23a2_2e48),
+    ("pencil", 0x0b09_3229_5b55_3b12),
     ("ink-pen", 0xa8c1_7ea8_d659_a519),
-    ("soft-brush", 0x9e52_723c_6f49_00f9),
+    ("soft-brush", 0x91ac_be03_f571_da3e),
 ];
 
 /// An S-curve whose pressure rises from 0.1 to 1 and falls back, drawn faster in its middle,
@@ -92,11 +94,44 @@ fn incremental(core: &Core, stroke: &(StrokeStyle, Vec<StrokeSample>)) -> (Artwo
 
 #[test]
 fn every_built_in_brush_draws_its_golden_wave_and_incremental_equals_cold() {
-    let core = Core::headless().expect("a GPU adapter is required for runtime tests");
     let library = BrushLibrary::built_in().expect("built-in brushes");
+    draws_the_goldens(&library, &GOLDEN);
+}
+
+/// The pencil and the soft brush as S11 to S15 shipped them, whose recipes the strokes drawn
+/// then keep (D07): they draw exactly the pixels they drew then.
+const BEFORE_S16: [(&str, &str); 2] = [
+    (
+        "pencil",
+        "name = \"Pencil\"\n[size]\ndefault = 5\nmin = 1\nmax = 40\n\
+         pressure = [[0.0, 0.45], [1.0, 1.0]]\n[opacity]\ndefault = 1.0\n\
+         pressure = [[0.0, 0.15], [0.8, 0.9], [1.0, 1.0]]\nspeed = [[0.0, 1.0], [6.0, 0.7]]\n\
+         [grain]\nstrength = 0.65\nscale = 3\n",
+    ),
+    (
+        "soft-brush",
+        "name = \"Soft Brush\"\n[shape]\nsoftness = 1.0\n[size]\ndefault = 120\nmin = 8\n\
+         max = 600\npressure = [[0.0, 0.8], [1.0, 1.0]]\n[opacity]\ndefault = 0.8\n\
+         pressure = [[0.0, 0.05], [1.0, 1.0]]\n",
+    ),
+];
+/// Their golden hashes before S16, unchanged.
+const GOLDEN_BEFORE_S16: [(&str, u64); 2] = [
+    ("pencil", 0xc7db_069e_23a2_2e48),
+    ("soft-brush", 0x9e52_723c_6f49_00f9),
+];
+
+#[test]
+fn strokes_of_the_brushes_before_s16_draw_exactly_as_they_did() {
+    let library = BrushLibrary::from_files(&BEFORE_S16, "pencil").expect("the old brushes");
+    draws_the_goldens(&library, &GOLDEN_BEFORE_S16);
+}
+
+fn draws_the_goldens(library: &BrushLibrary, goldens: &[(&str, u64)]) {
+    let core = Core::headless().expect("a GPU adapter is required for runtime tests");
     let mut hashes = Vec::new();
-    for (key, golden) in GOLDEN {
-        let stroke = wave(&library, key, 40.0);
+    for &(key, golden) in goldens {
+        let stroke = wave(library, key, 40.0);
         let (finished, drawn) = incremental(&core, &stroke);
         let image = cold(&core, &finished);
         assert!(drawn == image, "{key}: incremental differs from cold");

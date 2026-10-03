@@ -1,8 +1,8 @@
 //! The toolbox: what the pen does (paint with a brush or erase with one), which brush each tool
-//! uses at what size and opacity, the colour, and the eyedropper. It belongs to the app, not to
-//! one artwork (Procreate's model: the brush stays when another artwork opens). Like Procreate,
-//! the eraser chooses its own brush from the same library, and every brush remembers its own
-//! size and opacity per tool. Stored apart from artworks (ARCHITECTURE section 5, DECISIONS
+//! uses at what size, opacity and StreamLine, the colour, and the eyedropper. It belongs to the
+//! app, not to one artwork (Procreate's model: the brush stays when another artwork opens). Like
+//! Procreate, the eraser chooses its own brush from the same library, and every brush remembers
+//! its own size, opacity and StreamLine per tool. Stored apart from artworks (ARCHITECTURE section 5, DECISIONS
 //! D09): a state that cannot be used falls back to the defaults.
 
 use std::sync::Arc;
@@ -11,6 +11,7 @@ use openpaint_core::{Color, CoreError, StrokeStyle, StrokeTool};
 
 use crate::brushes::{BrushKey, BrushLibrary};
 use crate::palette::Palette;
+use crate::streamline::StreamLine;
 
 /// The lowest opacity the slider gives: a stroke always leaves some paint.
 pub const MIN_OPACITY: f32 = 0.01;
@@ -43,6 +44,8 @@ pub enum BrushIntent {
     Size { position: f32, settled: bool },
     /// `opacity` in `0..=1` from the slider; below `MIN_OPACITY` counts as it.
     Opacity { opacity: f32, settled: bool },
+    /// The StreamLine `amount` in `0..=1` from the brush panel's slider, from the next stroke on.
+    StreamLine { amount: f32, settled: bool },
 }
 
 /// The tool, the colour and the eyedropper.
@@ -78,6 +81,8 @@ pub struct BrushProjection {
     pub size_position: f32,
     /// In `MIN_OPACITY..=1`.
     pub opacity: f32,
+    /// The current brush's StreamLine for the current tool.
+    pub streamline: StreamLine,
     pub color: Color,
     /// Newest first.
     pub recent: Arc<[Color]>,
@@ -97,8 +102,8 @@ pub struct EditorState {
     pub recent: Vec<[f32; 3]>,
 }
 
-/// One tool's brush and each brush's size and opacity for it, by key. An empty `brush` means
-/// the library's default brush.
+/// One tool's brush and each brush's size, opacity and StreamLine for it, by key. An empty
+/// `brush` means the library's default brush.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BrushChoice {
     pub brush: String,
@@ -110,13 +115,20 @@ pub struct BrushSetting {
     pub key: String,
     pub size: f32,
     pub opacity: f32,
+    /// The StreamLine amount, `0..=1`.
+    pub streamline: f32,
 }
 
-/// One tool's brush and, per brush of the library in its order, size and opacity.
+/// Slots of a brush's settings: size, opacity, StreamLine.
+const SIZE: usize = 0;
+const OPACITY: usize = 1;
+const STREAMLINE: usize = 2;
+
+/// One tool's brush and, per brush of the library in its order, size, opacity and StreamLine.
 #[derive(Debug, Clone)]
 struct ToolSet {
     current: usize,
-    settings: Vec<[f32; 2]>,
+    settings: Vec<[f32; 3]>,
 }
 
 #[derive(Debug, Clone)]
@@ -152,7 +164,7 @@ impl Toolbox {
             settings: library
                 .brushes()
                 .iter()
-                .map(|brush| [brush.size().default, brush.opacity()])
+                .map(|brush| [brush.size().default, brush.opacity(), 0.0])
                 .collect(),
         };
         Self {
@@ -199,8 +211,9 @@ impl Toolbox {
             };
             let brush = &self.library.brushes()[index];
             let opacity = (MIN_OPACITY..=1.0).contains(&setting.opacity);
-            if brush.size().contains(setting.size) && opacity {
-                set.settings[index] = [setting.size, setting.opacity];
+            let streamline = StreamLine::new(setting.streamline).is_some();
+            if brush.size().contains(setting.size) && opacity && streamline {
+                set.settings[index] = [setting.size, setting.opacity, setting.streamline];
             } else {
                 whole = false;
             }
@@ -224,10 +237,11 @@ impl Toolbox {
                 .brushes()
                 .iter()
                 .zip(&set.settings)
-                .map(|(brush, [size, opacity])| BrushSetting {
+                .map(|(brush, [size, opacity, streamline])| BrushSetting {
                     key: brush.key().as_str().to_owned(),
                     size: *size,
                     opacity: *opacity,
+                    streamline: *streamline,
                 })
                 .collect(),
         };
@@ -257,12 +271,17 @@ impl Toolbox {
             BrushIntent::Size { position, settled } if position.is_finite() => {
                 let current = self.sets[tool].current;
                 let size = self.library.brushes()[current].size().at(position);
-                self.set(0, size, settled);
+                self.set(SIZE, size, settled);
             }
             BrushIntent::Opacity { opacity, settled } if opacity.is_finite() => {
-                self.set(1, opacity.clamp(MIN_OPACITY, 1.0), settled);
+                self.set(OPACITY, opacity.clamp(MIN_OPACITY, 1.0), settled);
             }
-            BrushIntent::Size { .. } | BrushIntent::Opacity { .. } => {}
+            BrushIntent::StreamLine { amount, settled } if amount.is_finite() => {
+                self.set(STREAMLINE, amount.clamp(0.0, 1.0), settled);
+            }
+            BrushIntent::Size { .. }
+            | BrushIntent::Opacity { .. }
+            | BrushIntent::StreamLine { .. } => {}
         }
     }
 
@@ -301,7 +320,7 @@ impl Toolbox {
     pub fn style(&self) -> Result<StrokeStyle, CoreError> {
         let set = &self.sets[self.tool.index()];
         let brush = &self.library.brushes()[set.current];
-        let [size, opacity] = set.settings[set.current];
+        let [size, opacity, _] = set.settings[set.current];
         let style = StrokeStyle::new(
             Arc::clone(brush.recipe()),
             size,
@@ -314,11 +333,18 @@ impl Toolbox {
         }))
     }
 
+    /// How the next stroke follows the pen: the current tool's brush's StreamLine.
+    #[must_use]
+    pub fn streamline(&self) -> StreamLine {
+        let set = &self.sets[self.tool.index()];
+        StreamLine::new(set.settings[set.current][STREAMLINE]).unwrap_or_default()
+    }
+
     #[must_use]
     pub fn projection(&self) -> BrushProjection {
         let set = &self.sets[self.tool.index()];
         let brush = &self.library.brushes()[set.current];
-        let [size, opacity] = set.settings[set.current];
+        let [size, opacity, _] = set.settings[set.current];
         BrushProjection {
             brushes: Arc::clone(&self.rows),
             tool: self.tool,
@@ -326,6 +352,7 @@ impl Toolbox {
             size,
             size_position: brush.size().position(size),
             opacity,
+            streamline: self.streamline(),
             color: self.palette.color(),
             recent: self.palette.recent(),
             picking: self.picking,

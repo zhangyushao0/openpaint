@@ -3,6 +3,7 @@
 
 use crate::artwork::Artwork;
 use crate::brush::{BrushRecipe, Curve, Dynamics, Grain};
+use crate::deposit::{Accumulation, Deposit, Paper, PaperTexture, Tip};
 use crate::error::CoreError;
 use crate::layer::Layer;
 use crate::region::RegionEdit;
@@ -73,29 +74,79 @@ pub struct RecipeParts {
     pub opacity_speed: Vec<[f32; 2]>,
     pub grain_strength: f32,
     pub grain_scale: u32,
+    /// `None` for a covering brush.
+    pub deposit: Option<AccumulationParts>,
+}
+
+/// An accumulating deposit as plain data.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AccumulationParts {
+    pub tip: Tip,
+    pub flow: f32,
+    pub max_density: f32,
+    pub paper: Option<PaperParts>,
+}
+
+/// A paper as plain data; `contact` a curve over pressure.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PaperParts {
+    pub texture: PaperTexture,
+    pub contact: Vec<[f32; 2]>,
+    pub scale: f32,
+    pub depth: f32,
+    pub dust: f32,
 }
 
 impl BrushRecipe {
     /// Builds a recipe from plain data, checking every value.
     ///
     /// # Errors
-    /// `InvalidValue` for any curve, softness or grain out of its range.
+    /// `InvalidValue` for any curve, softness, grain or deposit value out of its range.
     pub fn from_parts(parts: &RecipeParts) -> Result<Self, CoreError> {
         let dynamics = |pressure: &[[f32; 2]], speed: &[[f32; 2]]| {
             Dynamics::new(Curve::new(pressure)?, Curve::new(speed)?)
         };
-        Self::new(
+        let recipe = Self::new(
             parts.softness,
             dynamics(&parts.size_pressure, &parts.size_speed)?,
             dynamics(&parts.opacity_pressure, &parts.opacity_speed)?,
             Grain::new(parts.grain_strength, parts.grain_scale)?,
-        )
+        )?;
+        let Some(deposit) = &parts.deposit else {
+            return Ok(recipe);
+        };
+        let paper = deposit
+            .paper
+            .as_ref()
+            .map(|paper| {
+                let contact = Curve::new(&paper.contact)?;
+                Paper::new(paper.texture, contact, paper.scale, paper.depth, paper.dust)
+            })
+            .transpose()?;
+        let accumulation =
+            Accumulation::new(deposit.tip, deposit.flow, deposit.max_density, paper)?;
+        recipe.with_deposit(Deposit::Accumulate(accumulation))
     }
 
     /// The recipe as plain data.
     #[must_use]
     pub fn to_parts(&self) -> RecipeParts {
         let points = |curve: &Curve| curve.points().to_vec();
+        let deposit = match self.deposit() {
+            Deposit::Cover => None,
+            Deposit::Accumulate(accumulation) => Some(AccumulationParts {
+                tip: accumulation.tip(),
+                flow: accumulation.flow(),
+                max_density: accumulation.max_density(),
+                paper: accumulation.paper().map(|paper| PaperParts {
+                    texture: paper.texture(),
+                    contact: points(paper.contact()),
+                    scale: paper.scale(),
+                    depth: paper.depth(),
+                    dust: paper.dust(),
+                }),
+            }),
+        };
         RecipeParts {
             softness: self.softness(),
             size_pressure: points(self.size().pressure()),
@@ -104,6 +155,7 @@ impl BrushRecipe {
             opacity_speed: points(self.opacity().speed()),
             grain_strength: self.grain().strength(),
             grain_scale: self.grain().scale(),
+            deposit,
         }
     }
 }

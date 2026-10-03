@@ -2,12 +2,10 @@
 //! evaluator. Defined here once; `prelude` generates the matching WGSL declarations, which are
 //! prepended to every shader, and the layout test below proves both sides agree.
 
-use std::mem::{offset_of, size_of};
-
 /// Side of a square evaluation tile in pixels; also the evaluator's workgroup size.
 pub(crate) const TILE: u32 = 16;
 /// Number of `f32` operands in one op record.
-const OP_DATA: usize = 9;
+const OP_DATA: usize = 12;
 /// A paint op's grain strength is a whole number in `0..=GRAIN_ONE`, so the shader's grain is
 /// exact integer arithmetic on every backend.
 pub(crate) const GRAIN_ONE: u32 = 256;
@@ -18,20 +16,50 @@ const PAINT_GRAIN: usize = 4;
 const PAINT_GRAIN_SCALE: usize = 5;
 /// How the paint combines with the layer: one of `BLENDS`, a whole number.
 const PAINT_BLEND: usize = 6;
+/// An accumulating stroke's maximum density; 0 for a covering one.
+const PAINT_DENSITY: usize = 7;
+/// The paper: texels per pixel (0: none), the mip level of one pixel, depth and dust.
+const PAINT_PAPER: usize = 8;
 /// The flow at `a`; the flow at `b` follows it.
 const SEGMENT_FLOW: usize = 6;
 const SEGMENT_EDGE: usize = 8;
+/// The paper contact at `a`; the contact at `b` follows it.
+const SEGMENT_CONTACT: usize = 9;
+/// How the segment deposits: one of `TIPS`, a whole number.
+const SEGMENT_TIP: usize = 11;
 /// Where a fill's mask starts in the mask words, split in two whole numbers below 2^16 (high
 /// part first) so each stays exact as a float.
 const FILL_MASK: usize = 7;
-const SLOTS: [(&str, usize); 7] = [
+const SLOTS: [(&str, usize); 11] = [
     ("PAINT_OPACITY", PAINT_OPACITY),
     ("PAINT_GRAIN", PAINT_GRAIN),
     ("PAINT_GRAIN_SCALE", PAINT_GRAIN_SCALE),
     ("PAINT_BLEND", PAINT_BLEND),
+    ("PAINT_DENSITY", PAINT_DENSITY),
+    ("PAINT_PAPER", PAINT_PAPER),
     ("SEGMENT_FLOW", SEGMENT_FLOW),
     ("SEGMENT_EDGE", SEGMENT_EDGE),
+    ("SEGMENT_CONTACT", SEGMENT_CONTACT),
+    ("SEGMENT_TIP", SEGMENT_TIP),
     ("FILL_MASK", FILL_MASK),
+];
+
+/// How a segment adds to its stroke at a pixel, declared to WGSL as constants by `prelude`.
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Tip {
+    /// Coverage of a soft-edged capsule; the stroke keeps the maximum (D16).
+    Cover = 0,
+    /// Optical density of a flat cross-section `1 - d^8` over the radii travelled, summed.
+    Flat = 1,
+    /// As `Flat` with the bell `(1 - d^2)^2`.
+    Bell = 2,
+}
+
+const TIPS: [(&str, Tip); 3] = [
+    ("TIP_COVER", Tip::Cover),
+    ("TIP_FLAT", Tip::Flat),
+    ("TIP_BELL", Tip::Bell),
 ];
 /// Words before a mask's rows in the mask words: origin x, origin y, width, height.
 pub(crate) const MASK_HEADER: u32 = 4;
@@ -97,13 +125,15 @@ impl Opcode {
 }
 
 /// One op. Operands by opcode:
-/// - `Segment`: `[ax, ay, bx, by, ra, rb, fa, fb, edge]`, a tapered capsule from `a` (radius
-///   `ra`) to `b` (radius `rb`) in target pixels; its coverage is multiplied by the flow, `fa`
-///   at `a` changing evenly to `fb` at `b`; `edge` is one over the width in pixels over which
-///   the coverage fades in from the outline (1: a hard, antialiased edge).
-/// - `EndStroke` and `EndActive`: `[r, g, b, opacity, grain, grain_scale, blend, _, _]`,
-///   straight sRGB colour; `grain` a whole number in `0..=GRAIN_ONE`, `grain_scale` whole
-///   pixels, `blend` a `Blend`.
+/// - `Segment`: `[ax, ay, bx, by, ra, rb, fa, fb, edge, ca, cb, tip]`, a tapered capsule from
+///   `a` (radius `ra`) to `b` (radius `rb`) in target pixels; its coverage (`Tip::Cover`) or
+///   its density (the others) is multiplied by the flow, `fa` at `a` changing evenly to `fb` at
+///   `b`; `edge` is one over the width in pixels over which a covering segment fades in from
+///   the outline (1: a hard, antialiased edge); `ca` to `cb` the paper contact along it.
+/// - `EndStroke` and `EndActive`: `[r, g, b, opacity, grain, grain_scale, blend, density,
+///   paper scale, paper level, depth, dust]`, straight sRGB colour; `grain` a whole number in
+///   `0..=GRAIN_ONE`, `grain_scale` whole pixels, `blend` a `Blend`; `density` 0 for a covering
+///   stroke, else its maximum density; `paper scale` 0 without paper.
 /// - `EndLayer`: `[opacity, _, ...]`.
 /// - `Fill`: a paint op's first seven operands, then where its mask starts in the mask words
 ///   (`offset / 2^16`, `offset % 2^16`); the mask is `MASK_HEADER` words, then rows of
@@ -115,7 +145,8 @@ pub(crate) struct Op {
     data: [f32; OP_DATA],
 }
 
-/// What a stroke's paint op carries: colour, opacity and grain.
+/// What a stroke's paint op carries: colour, opacity, grain, and how its density turns into
+/// coverage.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Paint {
     pub(crate) color: [f32; 3],
@@ -124,12 +155,30 @@ pub(crate) struct Paint {
     pub(crate) grain: u32,
     pub(crate) grain_scale: u32,
     pub(crate) blend: Blend,
+    /// 0 for a covering stroke; an accumulating one's maximum density.
+    pub(crate) density: f32,
+    /// Texels per pixel (0: no paper), the mip level a pixel covers, depth, dust.
+    pub(crate) paper: [f32; 4],
 }
 
 impl Paint {
-    fn operands(&self) -> [f32; 7] {
+    /// Plain colour: covering, full opacity, no grain; what a fill paints with.
+    pub(crate) const fn solid(color: [f32; 3], blend: Blend) -> Self {
+        Self {
+            color,
+            opacity: 1.0,
+            grain: 0,
+            grain_scale: 1,
+            blend,
+            density: 0.0,
+            paper: [0.0; 4],
+        }
+    }
+
+    fn operands(&self) -> [f32; OP_DATA] {
         // Small whole numbers, exact as floats.
         let [r, g, b] = self.color;
+        let [scale, level, depth, dust] = self.paper;
         [
             r,
             g,
@@ -138,23 +187,37 @@ impl Paint {
             self.grain as f32,
             self.grain_scale as f32,
             self.blend as u32 as f32,
+            self.density,
+            scale,
+            level,
+            depth,
+            dust,
         ]
     }
 }
 
+/// One segment's geometry and strength, as `Op::segment` lays it out.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct SegmentOperands {
+    pub(crate) a: [f32; 2],
+    pub(crate) b: [f32; 2],
+    pub(crate) radii: [f32; 2],
+    pub(crate) flows: [f32; 2],
+    pub(crate) edge: f32,
+    pub(crate) contacts: [f32; 2],
+    pub(crate) tip: Tip,
+}
+
 impl Op {
-    pub(crate) fn segment(
-        a: [f32; 2],
-        b: [f32; 2],
-        radii: [f32; 2],
-        flows: [f32; 2],
-        edge: f32,
-    ) -> Self {
+    pub(crate) fn segment(s: &SegmentOperands) -> Self {
         let mut data = [0.0; OP_DATA];
-        data[..6].copy_from_slice(&[a[0], a[1], b[0], b[1], radii[0], radii[1]]);
-        data[SEGMENT_FLOW] = flows[0];
-        data[SEGMENT_FLOW + 1] = flows[1];
-        data[SEGMENT_EDGE] = edge;
+        data[..6].copy_from_slice(&[s.a[0], s.a[1], s.b[0], s.b[1], s.radii[0], s.radii[1]]);
+        data[SEGMENT_FLOW] = s.flows[0];
+        data[SEGMENT_FLOW + 1] = s.flows[1];
+        data[SEGMENT_EDGE] = s.edge;
+        data[SEGMENT_CONTACT] = s.contacts[0];
+        data[SEGMENT_CONTACT + 1] = s.contacts[1];
+        data[SEGMENT_TIP] = s.tip as u32 as f32;
         Self::new(Opcode::Segment, &data)
     }
 
@@ -173,7 +236,7 @@ impl Op {
     /// A fill whose mask starts at word `mask` of the mask words.
     pub(crate) fn fill(paint: &Paint, mask: u32) -> Self {
         let mut data = [0.0; OP_DATA];
-        data[..7].copy_from_slice(&paint.operands());
+        data[..FILL_MASK].copy_from_slice(&paint.operands()[..FILL_MASK]);
         // Each part below 2^16: exact as a float.
         data[FILL_MASK] = (mask >> 16) as f32;
         data[FILL_MASK + 1] = (mask & 0xffff) as f32;
@@ -261,76 +324,9 @@ pub(crate) fn encode<R: Record>(records: &[R]) -> Vec<u8> {
     out
 }
 
-/// A WGSL struct generated from a Rust record: name, size and `(field, WGSL type, offset)`.
-struct Layout {
-    name: &'static str,
-    size: usize,
-    fields: &'static [(&'static str, &'static str, usize)],
-}
-
-const LAYOUTS: [Layout; 3] = [
-    Layout {
-        name: "Op",
-        size: size_of::<Op>(),
-        fields: &[
-            ("code", "u32", offset_of!(Op, code)),
-            ("data", "array<f32, 9>", offset_of!(Op, data)),
-        ],
-    },
-    Layout {
-        name: "Tile",
-        size: size_of::<TileRecord>(),
-        fields: &[
-            ("origin", "vec2<u32>", offset_of!(TileRecord, origin)),
-            ("start", "u32", offset_of!(TileRecord, start)),
-            ("count", "u32", offset_of!(TileRecord, count)),
-        ],
-    },
-    Layout {
-        name: "Params",
-        size: size_of::<Params>(),
-        fields: &[
-            ("background", "vec4<f32>", offset_of!(Params, background)),
-            ("tiles", "u32", offset_of!(Params, tiles)),
-            ("row", "u32", offset_of!(Params, row)),
-            ("size", "vec2<u32>", offset_of!(Params, size)),
-        ],
-    },
-];
-
-/// WGSL declarations of the protocol: the tile size, one constant per opcode and per named
-/// operand slot, one struct per record.
-pub(crate) fn prelude() -> String {
-    let mut wgsl = String::from("// Generated by crates/render/src/protocol.rs.\n");
-    wgsl.push_str(&format!("const TILE: u32 = {TILE}u;\n"));
-    wgsl.push_str(&format!("const FRESH: u32 = {FRESH}u;\n"));
-    wgsl.push_str(&format!("const GRAIN_ONE: u32 = {GRAIN_ONE}u;\n"));
-    wgsl.push_str(&format!("const MASK_HEADER: u32 = {MASK_HEADER}u;\n"));
-    for (name, slot) in SLOTS {
-        wgsl.push_str(&format!("const {name}: u32 = {slot}u;\n"));
-    }
-    for (name, blend) in BLENDS {
-        wgsl.push_str(&format!("const {name}: u32 = {}u;\n", blend as u32));
-    }
-    for opcode in Opcode::ALL {
-        wgsl.push_str(&format!(
-            "const {}: u32 = {}u;\n",
-            opcode.wgsl_name(),
-            opcode as u32
-        ));
-    }
-    for layout in &LAYOUTS {
-        wgsl.push_str(&format!(
-            "// {} bytes, as in Rust.\nstruct {} {{\n",
-            layout.size, layout.name
-        ));
-        for (field, ty, _) in layout.fields {
-            wgsl.push_str(&format!("    {field}: {ty},\n"));
-        }
-        wgsl.push_str("}\n");
-    }
-    wgsl
-}
+#[path = "protocol_wgsl.rs"]
+mod wgsl;
+pub(crate) use wgsl::prelude;
 
 #[cfg(test)]
 #[path = "protocol_tests.rs"]

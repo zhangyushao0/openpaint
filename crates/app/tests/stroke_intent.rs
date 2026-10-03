@@ -1,8 +1,8 @@
 //! The stroke intent: pen contacts draw, other devices do not, cancel leaves no trace.
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent,
-    Toolbox,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StreamLine,
+    StrokeIntent, Toolbox,
 };
 use openpaint_core::{Artwork, CanvasSize};
 
@@ -205,4 +205,91 @@ fn an_invalid_sample_is_refused_and_the_stroke_keeps_its_samples() {
     ));
     assert!(result.is_err());
     assert_eq!(session.active().expect("active").samples().len(), 1);
+}
+
+/// A pen moving right along y = 50 every 2 px with a wobble, pressure rising; `streamline` set
+/// before it touches down. Returns the session after the lift and the trailing end seen while
+/// the pen was still down at its last position.
+fn wobbly(streamline: f32) -> (Session, [f32; 2]) {
+    let mut session = session();
+    session.set_streamline(StreamLine::new(streamline).expect("amount"));
+    let at = |i: u16| InputSample {
+        position: [
+            10.0 + 2.0 * f32::from(i),
+            50.0 + 6.0 * (f32::from(i) * 0.4).sin(),
+        ],
+        pressure: 0.2 + 0.005 * f32::from(i),
+        tilt: 0.3,
+        azimuth: -1.0,
+        time_ms: 1000 + 4 * i64::from(i),
+    };
+    let down = contact(1, Device::Pen, ContactPhase::Down, &[at(0)]);
+    session.dispatch(down).expect("down");
+    let moves: Vec<InputSample> = (1..=80).map(at).collect();
+    let moving = contact(1, Device::Pen, ContactPhase::Move, &moves);
+    session.dispatch(moving).expect("move");
+    let active = session.active().expect("drawing").samples();
+    let end = active.last().expect("end").position();
+    // StreamLine set while drawing waits for the next stroke.
+    session.set_streamline(StreamLine::OFF);
+    let lift = InputSample {
+        pressure: 0.0,
+        ..at(81)
+    };
+    let up = contact(1, Device::Pen, ContactPhase::Up, &[lift]);
+    session.dispatch(up).expect("up");
+    (session, [end.x(), end.y()])
+}
+
+#[test]
+fn completed_geometry_reaches_the_lift_point_while_active_geometry_trails() {
+    let pen = [170.0, 50.0 + 6.0 * (80.0f32 * 0.4).sin()];
+    let (session, trailing) = wobbly(1.0);
+    let lag = (pen[0] - trailing[0]).hypot(pen[1] - trailing[1]);
+    // The Ink Pen is 12 px: its full leash is three sizes, 36 px.
+    assert!(
+        (lag - 36.0).abs() < 0.01,
+        "the line trails the pen by the leash: {lag}"
+    );
+    let stroke = session.artwork().layers()[0]
+        .strokes()
+        .last()
+        .expect("stroke")
+        .clone();
+    let end = stroke.samples().last().expect("end").position();
+    assert_eq!(
+        [end.x(), end.y()],
+        pen,
+        "the finished stroke ends where the pen left"
+    );
+    assert_eq!(stroke.samples().len(), 81, "the lift sample is not drawn");
+    let (plain, _) = wobbly(0.0);
+    let raw = plain.artwork().layers()[0]
+        .strokes()
+        .last()
+        .expect("stroke")
+        .clone();
+    for (smooth, pen) in stroke.samples().iter().zip(raw.samples()) {
+        assert_eq!(
+            smooth.pressure(),
+            pen.pressure(),
+            "pressure is never filtered"
+        );
+        assert_eq!(smooth.time_ms(), pen.time_ms());
+    }
+    let wobble = |samples: &[openpaint_core::StrokeSample]| {
+        samples[10..60]
+            .iter()
+            .map(|s| (s.position().y() - 50.0).abs())
+            .fold(0.0f32, f32::max)
+    };
+    assert!(
+        wobble(stroke.samples()) < 0.5 * wobble(raw.samples()),
+        "smoothed"
+    );
+    assert_eq!(
+        raw.samples()[40].position().x(),
+        90.0,
+        "off: exactly the pen"
+    );
 }

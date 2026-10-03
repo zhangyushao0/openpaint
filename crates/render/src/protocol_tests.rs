@@ -1,7 +1,9 @@
 //! The protocol's layout test: the generated WGSL declares exactly the Rust records, opcodes,
 //! named slots and blends.
 
+use super::wgsl::LAYOUTS;
 use super::*;
+use crate::paper::{MOMENT_ONE, PAPER_SIZE, level_count};
 use wgpu::naga;
 
 fn parsed() -> naga::Module {
@@ -31,13 +33,25 @@ fn wgsl_layouts_match_the_rust_records() {
     }
 }
 
+fn operands(tip: Tip) -> SegmentOperands {
+    SegmentOperands {
+        a: [1.0, 2.0],
+        b: [3.0, 4.0],
+        radii: [5.0, 6.0],
+        flows: [0.25, 0.75],
+        edge: 0.5,
+        contacts: [0.375, 0.625],
+        tip,
+    }
+}
+
 #[test]
 fn named_slots_hold_what_the_constructors_write() {
-    let op = Op::segment([1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [0.25, 0.75], 0.5);
+    let op = Op::segment(&operands(Tip::Bell));
     assert_eq!(
-        op.data[SEGMENT_FLOW..=SEGMENT_EDGE],
-        [0.25, 0.75, 0.5],
-        "flows, then the edge"
+        op.data[SEGMENT_FLOW..=SEGMENT_TIP],
+        [0.25, 0.75, 0.5, 0.375, 0.625, 2.0],
+        "flows, the edge, the contacts, the tip"
     );
     let paint = Paint {
         color: [0.1, 0.2, 0.3],
@@ -45,12 +59,16 @@ fn named_slots_hold_what_the_constructors_write() {
         grain: 77,
         grain_scale: 5,
         blend: Blend::Erase,
+        density: 0.875,
+        paper: [4.5, 2.25, 0.3, 0.25],
     };
     let op = Op::end_stroke(&paint);
     assert_eq!(op.data[PAINT_OPACITY], 0.4);
     assert_eq!(op.data[PAINT_GRAIN], 77.0);
     assert_eq!(op.data[PAINT_GRAIN_SCALE], 5.0);
     assert_eq!(op.data[PAINT_BLEND], 2.0);
+    assert_eq!(op.data[PAINT_DENSITY], 0.875);
+    assert_eq!(op.data[PAINT_PAPER..], [4.5, 2.25, 0.3, 0.25]);
     assert_eq!(Op::end_active(&paint).data, op.data);
     let fill = Op::fill(&paint, (3 << 16) | 9);
     assert_eq!(
@@ -59,7 +77,7 @@ fn named_slots_hold_what_the_constructors_write() {
         "a paint op's operands"
     );
     assert_eq!(
-        fill.data[FILL_MASK..],
+        fill.data[FILL_MASK..FILL_MASK + 2],
         [3.0, 9.0],
         "the mask offset, high part first"
     );
@@ -67,7 +85,7 @@ fn named_slots_hold_what_the_constructors_write() {
 
 #[test]
 fn encoding_fills_exactly_the_record_size() {
-    let op = Op::segment([1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [1.0; 2], 1.0);
+    let op = Op::segment(&operands(Tip::Cover));
     assert_eq!(encode(&[op, op]).len(), 2 * size_of::<Op>());
     let tile = TileRecord {
         origin: [16, 32],
@@ -112,4 +130,11 @@ fn opcode_constants_match_the_enum() {
     for (name, blend) in BLENDS {
         assert_eq!(value(name), blend as u32, "{name}");
     }
+    for (name, tip) in TIPS {
+        assert_eq!(value(name), tip as u32, "{name}");
+    }
+    assert_eq!(value("PAPER_WIDTH"), PAPER_SIZE[0]);
+    assert_eq!(value("PAPER_HEIGHT"), PAPER_SIZE[1]);
+    assert_eq!(value("PAPER_LEVELS"), level_count());
+    assert_eq!(value("MOMENT_ONE"), MOMENT_ONE);
 }

@@ -14,7 +14,7 @@ use openpaint_core::{
 };
 use openpaint_store::Library;
 
-/// The built-in pencil (curves, speed and grain all stored) at `size`, black.
+/// The built-in pencil (curves, deposit and paper all stored) at `size`, black.
 fn pencil(size: f32) -> StrokeStyle {
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let recipe = Arc::clone(library.brushes()[0].recipe());
@@ -219,23 +219,23 @@ fn head(records: &mut [(String, Vec<u8>, Vec<u8>)]) -> &mut Vec<u8> {
 
 #[test]
 fn unreadable_records_are_refused_with_a_reason() {
-    let newer = corrupted("newer", |records| head(records)[0] = 6);
+    let newer = corrupted("newer", |records| head(records)[0] = 7);
     assert_eq!(
         newer,
         PortError::NewerSchema {
-            found: 6,
-            newest: 5
+            found: 7,
+            newest: 6
         }
     );
     let newer_library = corrupted("newer-library", |records| {
         let schema = records.iter_mut().find(|(_, key, _)| key == b"schema");
-        schema.expect("schema record").2 = 6u32.to_le_bytes().to_vec();
+        schema.expect("schema record").2 = 7u32.to_le_bytes().to_vec();
     });
     assert_eq!(
         newer_library,
         PortError::NewerSchema {
-            found: 6,
-            newest: 5
+            found: 7,
+            newest: 6
         }
     );
     let short = corrupted("short", |records| {
