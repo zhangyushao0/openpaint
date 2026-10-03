@@ -1,7 +1,9 @@
 //! The open canvas: the app session, the target its artwork is evaluated into, where that
 //! target shows on screen, and whether the user is leaving it for the gallery.
 
-use openpaint_app::{Intent, Session, Thumbnail, Toolbox};
+use openpaint_app::{
+    Contact, ContactPhase, Intent, Session, StrokeIntent, Thumbnail, ToolIntent, Toolbox,
+};
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_render::{
     CanvasPlacement, CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, changed_regions,
@@ -80,15 +82,30 @@ impl Canvas {
 
     /// Applies the frame's intents in order. A refused intent is logged and skipped: one bad
     /// sample must not stop the frame. A gallery intent the session allows starts leaving;
-    /// while leaving, nothing else is applied. Brush intents go to `toolbox`, and the session
-    /// draws its next stroke with the style that results.
-    pub(crate) fn dispatch(&mut self, intents: Vec<Intent>, toolbox: &mut Toolbox) {
+    /// while leaving, nothing else is applied. Brush and tool intents go to `toolbox`, and the
+    /// session draws its next stroke with the style that results. While the eyedropper is on,
+    /// canvas contacts pick colours instead of drawing (`pick`).
+    pub(crate) fn dispatch(&mut self, core: &Core, intents: Vec<Intent>, toolbox: &mut Toolbox) {
         for intent in intents {
             if self.leaving != Leaving::Staying {
                 return;
             }
-            if let Intent::Brush(brush) = &intent {
-                toolbox.dispatch(brush);
+            let tool = match &intent {
+                Intent::Brush(brush) => {
+                    toolbox.dispatch(brush);
+                    true
+                }
+                Intent::Tool(tool) => {
+                    toolbox.dispatch_tool(tool);
+                    true
+                }
+                Intent::Stroke(StrokeIntent::Contact(contact)) if toolbox.picking() => {
+                    self.pick(core, contact, toolbox);
+                    true
+                }
+                _ => false,
+            };
+            if tool {
                 match toolbox.style() {
                     Ok(style) => self.session.set_brush(style),
                     Err(error) => log::error!("no brush style: {error}"),
@@ -107,6 +124,43 @@ impl Canvas {
                 Ok(()) => {}
                 Err(error) => log::warn!("intent refused: {error}"),
             }
+        }
+    }
+
+    /// The eyedropper: a contact on the canvas (pen or finger) picks the colour the canvas shows
+    /// under it, read back from the target (render picking), as it touches down and moves; the
+    /// colour shows at once. Lifting settles it: it joins the recent colours and the tool used
+    /// before comes back. A cancelled contact ends the eyedropper with the colour it showed.
+    fn pick(&self, core: &Core, contact: &Contact, toolbox: &mut Toolbox) {
+        let settled = match contact.phase {
+            ContactPhase::Down | ContactPhase::Move => false,
+            ContactPhase::Up => true,
+            ContactPhase::Cancel => {
+                toolbox.dispatch_tool(&ToolIntent::Eyedropper(false));
+                return;
+            }
+            ContactPhase::Hover | ContactPhase::Leave => return,
+        };
+        let Some(sample) = contact.samples.last() else {
+            return;
+        };
+        let [x, y] = sample.position.map(f32::floor);
+        let picked = if x >= 0.0 && y >= 0.0 {
+            self.target.pick(core, [x as u32, y as u32])
+        } else {
+            Ok(None)
+        };
+        match picked {
+            Ok(Some([r, g, b, _])) => {
+                let channel = |value: u8| f32::from(value) / 255.0;
+                match Color::rgb(channel(r), channel(g), channel(b)) {
+                    Ok(color) => toolbox.dispatch_tool(&ToolIntent::Color { color, settled }),
+                    Err(error) => log::error!("picked no colour: {error}"),
+                }
+            }
+            // Off the canvas: nothing to pick there; lifting there keeps the eyedropper on.
+            Ok(None) => {}
+            Err(error) => log::error!("picking failed: {error}"),
         }
     }
 

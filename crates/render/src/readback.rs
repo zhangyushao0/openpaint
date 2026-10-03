@@ -82,6 +82,55 @@ pub(crate) fn read_rgba(gpu: &Gpu, texture: &wgpu::Texture) -> Result<RgbaImage,
     Ok(RgbaImage::new([width, height], pixels))
 }
 
+/// Copies the RGBA texel at `[x, y]` of `texture` into memory, waiting for the GPU; `None` when
+/// the texel lies outside the texture.
+pub(crate) fn read_texel(
+    gpu: &Gpu,
+    texture: &wgpu::Texture,
+    [x, y]: [u32; 2],
+) -> Result<Option<[u8; 4]>, RenderError> {
+    if x >= texture.width() || y >= texture.height() {
+        return Ok(None);
+    }
+    let row = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+    let buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("texel readback"),
+        size: u64::from(row),
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+    let mut encoder = gpu.device.create_command_encoder(&Default::default());
+    encoder.copy_texture_to_buffer(
+        wgpu::TexelCopyTextureInfo {
+            texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d { x, y, z: 0 },
+            aspect: wgpu::TextureAspect::All,
+        },
+        wgpu::TexelCopyBufferInfo {
+            buffer: &buffer,
+            layout: wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(row),
+                rows_per_image: Some(1),
+            },
+        },
+        wgpu::Extent3d {
+            width: 1,
+            height: 1,
+            depth_or_array_layers: 1,
+        },
+    );
+    gpu.queue.submit([encoder.finish()]);
+    map_and_wait(gpu, &buffer)?;
+    let view = buffer.get_mapped_range(..).map_err(device)?;
+    let mut texel = [0; 4];
+    texel.copy_from_slice(&view[..4]);
+    drop(view);
+    buffer.unmap();
+    Ok(Some(texel))
+}
+
 /// Copies the first `bytes` of a `COPY_SRC` buffer into memory, waiting for the GPU.
 pub(crate) fn read_buffer(
     gpu: &Gpu,

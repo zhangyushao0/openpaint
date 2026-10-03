@@ -13,8 +13,8 @@ use support::Nowhere;
 const SIZE: [u32; 2] = [1280, 800];
 const PIXELS_PER_POINT: f32 = 2.0;
 /// The side bar's undo button: the bar starts one space under the top bar, its sliders 96
-/// points long.
-const UNDO: [f32; 2] = [80.0, 624.0];
+/// points long, the eyedropper between them.
+const UNDO: [f32; 2] = [80.0, 720.0];
 const PEN: i32 = 0;
 const PALM: i32 = 1;
 

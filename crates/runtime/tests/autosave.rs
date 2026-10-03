@@ -16,7 +16,8 @@ use openpaint_runtime::{
 };
 use openpaint_store::Library;
 
-const SIZE: [u32; 2] = [640, 400];
+/// Wide enough for the notice beside the four tool buttons at the top bar's right end.
+const SIZE: [u32; 2] = [1280, 800];
 const PIXELS_PER_POINT: f32 = 2.0;
 /// The face of a text button (`design::RAISED`).
 const RAISED: [u8; 4] = [52, 52, 52, 255];

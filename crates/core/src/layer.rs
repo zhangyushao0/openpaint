@@ -11,14 +11,21 @@ pub struct LayerProps {
     pub(crate) visible: bool,
     pub(crate) opacity: f32,
     pub(crate) locked: bool,
+    pub(crate) alpha_locked: bool,
 }
 
 impl LayerProps {
-    pub(crate) fn new(visible: bool, opacity: f32, locked: bool) -> Result<Self, CoreError> {
+    pub(crate) fn new(
+        visible: bool,
+        opacity: f32,
+        locked: bool,
+        alpha_locked: bool,
+    ) -> Result<Self, CoreError> {
         Ok(Self {
             visible,
             opacity: check_opacity(opacity)?,
             locked,
+            alpha_locked,
         })
     }
 
@@ -38,15 +45,23 @@ impl LayerProps {
     pub const fn locked(&self) -> bool {
         self.locked
     }
+
+    /// Strokes begun while this is on paint only where the layer already has paint, keeping
+    /// its alpha; the eraser does nothing on such a layer (Procreate's Alpha Lock).
+    #[must_use]
+    pub const fn alpha_locked(&self) -> bool {
+        self.alpha_locked
+    }
 }
 
 impl Default for LayerProps {
-    /// Visible, fully opaque, unlocked.
+    /// Visible, fully opaque, unlocked, alpha not locked.
     fn default() -> Self {
         Self {
             visible: true,
             opacity: 1.0,
             locked: false,
+            alpha_locked: false,
         }
     }
 }

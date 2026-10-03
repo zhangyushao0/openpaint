@@ -1,15 +1,16 @@
 //! The side bar: a narrow column over the canvas at the left edge, centred on it (Procreate's
 //! default place), with what the hand reaches for most while drawing: the brush size slider on
-//! top, the opacity slider under it, then undo and redo. Each slider shows its value beside the
-//! bar while it is held; letting go keeps the value for the brush. A contact starting on the
-//! bar never paints.
+//! top, the eyedropper, the opacity slider, then undo and redo. Each slider shows its value
+//! beside the bar while it is held; letting go keeps the value for the current tool's brush. A
+//! contact starting on the bar never paints.
 
 use openpaint_app::{
     BrushIntent, BrushProjection, EditorAction, HistoryIntent, Intent, SessionProjection,
+    ToolIntent,
 };
 
 use crate::components::{
-    ScreenArea, SideSlider, TOP_BAR_HEIGHT, icon_button, side_panel, side_slider,
+    ScreenArea, SideSlider, TOP_BAR_HEIGHT, icon_button, icon_toggle, side_panel, side_slider,
 };
 use crate::design::{Icon, SIDE_SLIDER, SPACE, TOUCH_TARGET};
 
@@ -33,9 +34,9 @@ impl SideBar {
         taps: &mut Vec<Intent>,
     ) {
         let length = slider_length(ctx.content_rect().height());
-        // Two sliders, the gaps (a double one after each slider, one between the buttons),
-        // two buttons and the margins.
-        let height = 2.0 * length + 5.0 * SPACE + 2.0 * TOUCH_TARGET + 2.0 * SPACE;
+        // Two sliders, the gaps (one around the eyedropper, a double one after the sliders, one
+        // between the history buttons), three buttons and the margins.
+        let height = 2.0 * length + 5.0 * SPACE + 3.0 * TOUCH_TARGET + 2.0 * SPACE;
         let rect = side_panel(ctx, "side bar", height, |ui| {
             if let Some(brush) = projection.brush() {
                 sliders(ui, brush, length, taps);
@@ -66,8 +67,8 @@ impl SideBar {
 /// would not.
 fn slider_length(height: f32) -> f32 {
     // Around the sliders: the space outside the bar, its margins, the gaps between its parts
-    // (a double one after each slider, one between the buttons) and the two history buttons.
-    let around = 2.0 * SPACE + 2.0 * SPACE + 5.0 * SPACE + 2.0 * TOUCH_TARGET;
+    // and its three buttons.
+    let around = 2.0 * SPACE + 2.0 * SPACE + 5.0 * SPACE + 3.0 * TOUCH_TARGET;
     ((height - TOP_BAR_HEIGHT - around) / 2.0).clamp(2.0 * TOUCH_TARGET, SIDE_SLIDER)
 }
 
@@ -88,8 +89,15 @@ fn sliders(ui: &mut egui::Ui, brush: &BrushProjection, length: f32, taps: &mut V
             },
         );
     }
-    // Apart, so the two tracks never read as one.
-    ui.add_space(SPACE);
+    // Between the sliders, as Procreate's: the eyedropper. On, the next contact on the canvas
+    // picks a colour; tapped again, the pen draws again.
+    let label = "Eyedropper";
+    if icon_toggle(ui, Icon::Eyedropper, label, brush.picking).clicked() {
+        let intent = Intent::Tool(ToolIntent::Eyedropper(!brush.picking));
+        if taps.last() != Some(&intent) {
+            taps.push(intent);
+        }
+    }
     let opacity = SideSlider {
         label: "Brush opacity",
         value: brush.opacity,

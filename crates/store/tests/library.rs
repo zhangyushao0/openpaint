@@ -188,23 +188,23 @@ fn head(records: &mut [(String, Vec<u8>, Vec<u8>)]) -> &mut Vec<u8> {
 
 #[test]
 fn unreadable_records_are_refused_with_a_reason() {
-    let newer = corrupted("newer", |records| head(records)[0] = 4);
+    let newer = corrupted("newer", |records| head(records)[0] = 5);
     assert_eq!(
         newer,
         PortError::NewerSchema {
-            found: 4,
-            newest: 3
+            found: 5,
+            newest: 4
         }
     );
     let newer_library = corrupted("newer-library", |records| {
         let schema = records.iter_mut().find(|(_, key, _)| key == b"schema");
-        schema.expect("schema record").2 = 4u32.to_le_bytes().to_vec();
+        schema.expect("schema record").2 = 5u32.to_le_bytes().to_vec();
     });
     assert_eq!(
         newer_library,
         PortError::NewerSchema {
-            found: 4,
-            newest: 3
+            found: 5,
+            newest: 4
         }
     );
     let short = corrupted("short", |records| {
@@ -240,9 +240,16 @@ fn the_toolbox_is_stored_apart_and_an_unreadable_one_never_blocks_an_artwork() {
     let artwork = draw(&blank(), 10.0, 5);
     library.create(&artwork, &untitled()).expect("create");
     assert_eq!(library.editor(), Ok(None));
-    let state = openpaint_app::EditorState {
+    let choice = openpaint_app::BrushChoice {
         brush: "pencil".into(),
         brushes: Vec::new(),
+    };
+    let state = openpaint_app::EditorState {
+        tool: openpaint_app::Tool::Eraser,
+        paint: choice.clone(),
+        erase: choice,
+        color: [0.5, 0.25, 1.0],
+        recent: vec![[0.5, 0.25, 1.0]],
     };
     library.save_editor(&state).expect("toolbox");
     assert_eq!(library.editor(), Ok(Some(state)));

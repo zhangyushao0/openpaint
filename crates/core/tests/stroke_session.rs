@@ -5,7 +5,8 @@ use std::sync::Arc;
 
 use openpaint_core::{
     Artwork, ArtworkCommand, BrushRecipe, CanvasPoint, CanvasSize, Change, Color, CoreError,
-    LayerCommand, LayerId, MAX_STROKE_SAMPLES, StrokeId, StrokeSample, StrokeSession, StrokeStyle,
+    LayerCommand, LayerId, MAX_STROKE_SAMPLES, StrokeBlend, StrokeId, StrokeSample, StrokeSession,
+    StrokeStyle, StrokeTool,
 };
 
 fn blank() -> Artwork {
@@ -91,6 +92,47 @@ fn begin_on_a_locked_layer_fails() {
         .artwork;
     let result = locked.begin_stroke(style(), sample(0.0, 0));
     assert_eq!(result.unwrap_err(), CoreError::LayerLocked(id));
+}
+
+#[test]
+fn alpha_lock_is_kept_per_stroke_and_refuses_the_eraser() {
+    let id = LayerId::new(1);
+    let set = |artwork: &Artwork, locked| {
+        let command = LayerCommand::SetAlphaLocked { layer: id, locked };
+        artwork.apply(ArtworkCommand::Layer(command)).unwrap()
+    };
+    let painted = draw(&blank());
+    let locked = set(&painted, true);
+    assert_eq!(locked.change, Change::Content);
+    let locked = locked.artwork;
+    assert!(locked.layers()[0].props().alpha_locked());
+    let eraser = style().with_tool(StrokeTool::Erase);
+    let refused = locked.begin_stroke(eraser.clone(), sample(0.0, 0));
+    assert_eq!(refused.unwrap_err(), CoreError::AlphaLocked(id));
+    let atop = draw(&locked);
+    let unlocked = set(&atop, false).artwork;
+    let erased = {
+        let mut session = unlocked.begin_stroke(eraser, sample(0.0, 0)).unwrap();
+        assert_eq!(session.active().blend(), StrokeBlend::Erase);
+        session.extend(&[sample(4.0, 4)]).unwrap();
+        session.finish().artwork
+    };
+    let blends: Vec<StrokeBlend> = erased.layers()[0]
+        .strokes()
+        .iter()
+        .map(|stroke| stroke.blend())
+        .collect();
+    assert_eq!(
+        blends,
+        [StrokeBlend::Over, StrokeBlend::Atop, StrokeBlend::Erase],
+        "turning the lock off leaves the stroke drawn under it atop"
+    );
+    let stored = Artwork::from_storage(erased.to_parts()).unwrap();
+    assert_eq!(stored.to_parts(), erased.to_parts());
+    assert_eq!(
+        stored.layers()[0].strokes().last().unwrap().style().tool(),
+        StrokeTool::Erase
+    );
 }
 
 #[test]

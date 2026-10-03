@@ -37,6 +37,11 @@ pub enum LayerIntent {
         opacity: f32,
         settled: bool,
     },
+    /// Alpha Lock on or off: strokes begun while it is on paint only over the layer's paint.
+    SetAlphaLock {
+        layer: LayerId,
+        locked: bool,
+    },
 }
 
 /// One row of the layer panel.
@@ -47,6 +52,7 @@ pub struct LayerRow {
     pub visible: bool,
     /// In `0..=1`.
     pub opacity: f32,
+    pub alpha_locked: bool,
 }
 
 /// The layers as the panel shows them, bottom to top, and the one drawn on.
@@ -66,6 +72,7 @@ impl LayerList {
                 name: layer.name().clone(),
                 visible: layer.props().visible(),
                 opacity: layer.props().opacity(),
+                alpha_locked: layer.props().alpha_locked(),
             })
             .collect();
         Self {
@@ -119,7 +126,8 @@ impl LayerIntent {
             Self::Lower(layer) => (EditorAction::LowerLayer, layer),
             Self::Select(layer)
             | Self::SetVisible { layer, .. }
-            | Self::SetOpacity { layer, .. } => (EditorAction::EditLayer, layer),
+            | Self::SetOpacity { layer, .. }
+            | Self::SetAlphaLock { layer, .. } => (EditorAction::EditLayer, layer),
         }
     }
 
@@ -140,6 +148,7 @@ impl LayerIntent {
             },
             Self::SetVisible { layer, visible } => LayerCommand::SetVisible { layer, visible },
             Self::SetOpacity { layer, opacity, .. } => LayerCommand::SetOpacity { layer, opacity },
+            Self::SetAlphaLock { layer, locked } => LayerCommand::SetAlphaLocked { layer, locked },
         }
     }
 }

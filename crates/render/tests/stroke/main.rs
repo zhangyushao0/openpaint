@@ -2,6 +2,7 @@
 //! equal to cold evaluation bit for bit, layer compositing order, and thumbnails that match.
 
 mod compositing;
+mod erase;
 mod fixture;
 mod golden;
 mod incremental;

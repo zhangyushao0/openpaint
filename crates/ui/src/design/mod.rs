@@ -48,6 +48,12 @@ pub const SURROUND: [u8; 4] = [24, 24, 24, 255];
 pub const BRUSH_PREVIEW: Vec2 = Vec2::new(160.0, 48.0);
 /// Length of a side bar slider, in points.
 pub const SIDE_SLIDER: f32 = 176.0;
+/// Side of the colour wheel, in points: the hue ring around the saturation and value square.
+pub const COLOR_WHEEL: f32 = 272.0;
+/// Width of the colour wheel's hue ring, in points: wide enough to hold a fingertip.
+pub const HUE_RING: f32 = 32.0;
+/// Side of a recent colour's swatch, in points: eight fill a panel's width.
+pub const RECENT_SWATCH: f32 = 38.0;
 
 /// The type scale in points: one size per role.
 const TYPE_SCALE: [(TextStyle, f32); 5] = [

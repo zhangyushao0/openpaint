@@ -7,7 +7,10 @@ use crate::artwork::Artwork;
 use crate::command::{Applied, Change};
 use crate::error::CoreError;
 use crate::id::LayerId;
-use crate::stroke::{MAX_STROKE_SAMPLES, Stroke, StrokeSample, StrokeStyle, check_order};
+use crate::stroke::{
+    MAX_STROKE_SAMPLES, Stroke, StrokeBlend, StrokeSample, StrokeStyle, StrokeTool, blend,
+    check_order,
+};
 
 /// The in-progress stroke: what the renderer draws on top of the base artwork.
 #[derive(Debug, Clone, PartialEq)]
@@ -16,6 +19,8 @@ pub struct ActiveStroke {
     /// The layer's position in the base artwork, which cannot change under the session.
     index: usize,
     style: StrokeStyle,
+    /// The layer's Alpha Lock when the stroke began.
+    alpha_locked: bool,
     samples: Vec<StrokeSample>,
 }
 
@@ -29,6 +34,12 @@ impl ActiveStroke {
     #[must_use]
     pub const fn style(&self) -> &StrokeStyle {
         &self.style
+    }
+
+    /// How the stroke combines with its layer.
+    #[must_use]
+    pub const fn blend(&self) -> StrokeBlend {
+        blend(self.style.tool(), self.alpha_locked)
     }
 
     /// Oldest first; never empty.
@@ -46,10 +57,12 @@ pub struct StrokeSession {
 }
 
 impl Artwork {
-    /// Starts a stroke on the active layer with its first sample.
+    /// Starts a stroke on the active layer with its first sample. A paint stroke on a layer
+    /// with Alpha Lock on paints only over the layer's paint, for its whole life.
     ///
     /// # Errors
-    /// `LayerLocked` when the active layer is locked.
+    /// `LayerLocked` when the active layer is locked; `AlphaLocked` for the eraser on a layer
+    /// whose alpha is locked (it could take nothing away).
     pub fn begin_stroke(
         &self,
         style: StrokeStyle,
@@ -57,12 +70,17 @@ impl Artwork {
     ) -> Result<StrokeSession, CoreError> {
         let layer = self.active();
         let index = self.editable_layer(layer)?;
+        let alpha_locked = self.state().layers[index].props.alpha_locked;
+        if alpha_locked && style.tool() == StrokeTool::Erase {
+            return Err(CoreError::AlphaLocked(layer));
+        }
         Ok(StrokeSession {
             base: self.clone(),
             active: ActiveStroke {
                 layer,
                 index,
                 style,
+                alpha_locked,
                 samples: vec![first],
             },
         })
@@ -103,7 +121,8 @@ impl StrokeSession {
         let mut next = self.base.state().clone();
         let id = next.ids.take_stroke();
         let active = self.active;
-        let stroke = Stroke::new(id, active.style, Arc::from(active.samples));
+        let samples = Arc::from(active.samples);
+        let stroke = Stroke::new(id, active.style, active.alpha_locked, samples);
         let layer = &mut next.layers[active.index];
         layer.strokes = layer.strokes.pushed(stroke);
         Applied {

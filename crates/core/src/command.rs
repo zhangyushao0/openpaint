@@ -43,6 +43,12 @@ pub enum LayerCommand {
         layer: LayerId,
         locked: bool,
     },
+    /// Alpha Lock: strokes begun from now on paint only over the layer's existing paint.
+    /// Strokes drawn before keep how they were drawn.
+    SetAlphaLocked {
+        layer: LayerId,
+        locked: bool,
+    },
 }
 
 /// What an edit changed, so callers can decide on history, saving and redrawing.

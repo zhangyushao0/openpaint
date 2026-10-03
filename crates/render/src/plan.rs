@@ -180,7 +180,7 @@ impl Touched {
 mod tests {
     use super::*;
     use crate::geom::Bounds;
-    use crate::protocol::{Op, Paint};
+    use crate::protocol::{Blend, Op, Paint};
 
     fn segment(bounds: [f32; 4]) -> Item {
         Item::Segment {
@@ -195,6 +195,7 @@ mod tests {
             opacity: 1.0,
             grain: 0,
             grain_scale: 1,
+            blend: Blend::Over,
         })
     }
 

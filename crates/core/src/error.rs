@@ -17,6 +17,8 @@ pub enum CoreError {
     LayerLimit { max: usize },
     /// The layer is locked; its content cannot change.
     LayerLocked(LayerId),
+    /// The layer's alpha is locked; the eraser cannot take paint away.
+    AlphaLocked(LayerId),
     /// A layer position outside `0..len`.
     IndexOutOfRange { index: usize, len: usize },
     /// Stroke sample times must never go backwards.
@@ -41,6 +43,7 @@ impl fmt::Display for CoreError {
             Self::LastLayer => f.write_str("the last layer cannot be deleted"),
             Self::LayerLimit { max } => write!(f, "an artwork holds at most {max} layers"),
             Self::LayerLocked(id) => write!(f, "layer {} is locked", id.get()),
+            Self::AlphaLocked(id) => write!(f, "layer {}'s alpha is locked", id.get()),
             Self::IndexOutOfRange { index, len } => {
                 write!(f, "layer position {index} is outside 0..{len}")
             }

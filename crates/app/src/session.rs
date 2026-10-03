@@ -76,9 +76,9 @@ impl Session {
             }
             Intent::History(step) => self.step(step),
             Intent::Storage(storage) => self.storage(storage),
-            // The toolbox belongs to the app, not to this artwork: the runtime hands brush
-            // intents to it and the resulting style to `set_brush`.
-            Intent::Layer(_) | Intent::Brush(_) => Ok(()),
+            // The toolbox belongs to the app, not to this artwork: the runtime hands brush and
+            // tool intents to it and the resulting style to `set_brush`.
+            Intent::Layer(_) | Intent::Brush(_) | Intent::Tool(_) => Ok(()),
             // Leaving is the runtime's (it stores the artwork first); the session only says
             // whether it may happen now.
             Intent::Gallery(_) => self.check(EditorAction::Gallery),

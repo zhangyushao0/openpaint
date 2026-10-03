@@ -10,13 +10,14 @@ use openpaint_render::Core;
 use openpaint_runtime::{Runtime, ToolKind};
 use support::Nowhere;
 
-/// 640 x 400 points at density 2: the side bar's sliders at their shortest.
-const SIZE: [u32; 2] = [1280, 800];
+/// 640 x 500 points at density 2: the side bar's sliders shortened to fit.
+const SIZE: [u32; 2] = [1280, 1000];
 const PIXELS_PER_POINT: f32 = 2.0;
 /// Centres of the side bar's undo and redo buttons: the bar starts one space under the top bar
-/// (the screen is too short to centre it), its sliders 96 points long.
-const UNDO: [f32; 2] = [80.0, 624.0];
-const REDO: [f32; 2] = [80.0, 736.0];
+/// (the screen is too short to centre it), its sliders 118 points long, the eyedropper between
+/// them.
+const UNDO: [f32; 2] = [80.0, 808.0];
+const REDO: [f32; 2] = [80.0, 920.0];
 
 /// Right of the side bar.
 fn line(y: f32) -> Vec<[f32; 2]> {
@@ -70,7 +71,7 @@ fn the_bar_and_the_canvas_keep_their_own_contacts() {
     hand.gesture(&mut runtime, ToolKind::Stylus, &up_to_undo);
     assert_eq!(strokes(&runtime), 2, "the lift over undo did not undo");
     // A pen that starts on a bar and drags into the canvas paints nothing.
-    for from in [[1100.0, 48.0], [80.0, 300.0]] {
+    for from in [[700.0, 48.0], [80.0, 300.0]] {
         let from_bar = [from, [560.0, 400.0], [700.0, 500.0]];
         hand.gesture(&mut runtime, ToolKind::Stylus, &from_bar);
         assert_eq!(strokes(&runtime), 2, "a drag from {from:?} painted");

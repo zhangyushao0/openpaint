@@ -3,7 +3,7 @@
 //! disk; a save rewrites the head and only the stroke records that changed since the version
 //! this library last stored. An older library is upgraded when it is opened.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 
 use fjall::{Database, Keyspace, KeyspaceCreateOptions, PersistMode};
@@ -13,7 +13,7 @@ use openpaint_app::{
 use openpaint_core::Artwork;
 
 use crate::editor::decode_editor;
-use crate::migrate::{upgrade_1_to_2, upgrade_2_to_3};
+use crate::migrate::{upgrade_1_to_2, upgrade_2_to_3, upgrade_3_to_4};
 use crate::records::{
     LIBRARY, NEXT, PROJECTS, SCHEMA, SCHEMA_KEY, decode_id, decode_schema, encode_schema, head_key,
     strokes_prefix,
@@ -109,7 +109,7 @@ fn prepare(open: &Open) -> Result<(), PortError> {
             found,
             newest: SCHEMA,
         }),
-        1 | 2 => upgrade(open, schema),
+        1..=3 => upgrade(open, schema),
         _ => Err(PortError::Corrupt {
             what: "library schema",
         }),
@@ -117,25 +117,32 @@ fn prepare(open: &Open) -> Result<(), PortError> {
 }
 
 /// Runs every migration step from schema `from` on over the records as they are, each step
-/// seeing the heads the one before it wrote, and writes the result in one batch.
+/// seeing the heads and strokes the one before it wrote, and writes the result in one batch.
 fn upgrade(open: &Open, from: u32) -> Result<(), PortError> {
-    let (mut heads, strokes) = old_records(open)?;
+    let (mut heads, mut strokes) = old_records(open)?;
+    let editor = read::editor(open)?;
+    let index: HashMap<Vec<u8>, usize> = strokes
+        .iter()
+        .enumerate()
+        .map(|(at, (key, _))| (key.clone(), at))
+        .collect();
     let mut library = BTreeMap::new();
     let mut projects = BTreeMap::new();
-    let mut steps = Vec::new();
-    if from == 1 {
-        steps.push(upgrade_1_to_2(&heads));
-        for (id, head) in &mut heads {
-            let key = head_key(*id);
-            if let Some((_, marked)) = steps[0].projects.iter().find(|(k, _)| *k == key) {
-                head.clone_from(marked);
+    for step in from..SCHEMA {
+        let upgrade = match step {
+            1 => upgrade_1_to_2(&heads),
+            2 => upgrade_2_to_3(&heads, &strokes),
+            _ => upgrade_3_to_4(&heads, &strokes, editor.as_deref()),
+        };
+        for (key, value) in &upgrade.projects {
+            if let Some(at) = index.get(key) {
+                strokes[*at].1.clone_from(value);
+            } else if let Some((_, head)) = heads.iter_mut().find(|(id, _)| head_key(*id) == *key) {
+                head.clone_from(value);
             }
         }
-    }
-    steps.push(upgrade_2_to_3(&heads, &strokes));
-    for step in steps {
-        library.extend(step.library);
-        projects.extend(step.projects);
+        library.extend(upgrade.library);
+        projects.extend(upgrade.projects);
     }
     let mut batch = open.db.batch();
     for (key, value) in library {

@@ -80,10 +80,33 @@ impl StrokeSample {
     }
 }
 
-/// How a stroke is drawn: its brush recipe (a snapshot, shared between strokes drawn with the
-/// same brush), its largest diameter `size`, its `opacity` and `color`. Cloning is cheap.
+/// What a stroke does to its layer: lay paint on it or take paint away. Both use any recipe.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum StrokeTool {
+    #[default]
+    Paint,
+    /// Removes coverage times opacity from the layer (destination-out); the colour is unused.
+    Erase,
+}
+
+/// How a stroke combines with the layer under it, fixed when the stroke begins: the tool, and
+/// for paint whether the layer's Alpha Lock was on then.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StrokeBlend {
+    /// Paint over the layer (source over).
+    Over,
+    /// Paint only where the layer already has paint, keeping its alpha (source atop).
+    Atop,
+    /// Take paint away (destination out).
+    Erase,
+}
+
+/// How a stroke is drawn: its tool, its brush recipe (a snapshot, shared between strokes drawn
+/// with the same brush), its largest diameter `size`, its `opacity` and `color`. Cloning is
+/// cheap.
 #[derive(Debug, Clone, PartialEq)]
 pub struct StrokeStyle {
+    tool: StrokeTool,
     recipe: Arc<BrushRecipe>,
     size: f32,
     opacity: f32,
@@ -108,11 +131,23 @@ impl StrokeStyle {
             return Err(invalid("stroke opacity"));
         }
         Ok(Self {
+            tool: StrokeTool::Paint,
             recipe,
             size,
             opacity,
             color,
         })
+    }
+
+    /// This style with `tool`; `new` paints.
+    #[must_use]
+    pub fn with_tool(self, tool: StrokeTool) -> Self {
+        Self { tool, ..self }
+    }
+
+    #[must_use]
+    pub const fn tool(&self) -> StrokeTool {
+        self.tool
     }
 
     #[must_use]
@@ -142,12 +177,24 @@ impl StrokeStyle {
 pub struct Stroke {
     id: StrokeId,
     style: StrokeStyle,
+    /// The layer's Alpha Lock when the stroke began; never with the eraser.
+    alpha_locked: bool,
     samples: Arc<[StrokeSample]>,
 }
 
 impl Stroke {
-    pub(crate) fn new(id: StrokeId, style: StrokeStyle, samples: Arc<[StrokeSample]>) -> Self {
-        Self { id, style, samples }
+    pub(crate) fn new(
+        id: StrokeId,
+        style: StrokeStyle,
+        alpha_locked: bool,
+        samples: Arc<[StrokeSample]>,
+    ) -> Self {
+        Self {
+            id,
+            style,
+            alpha_locked,
+            samples,
+        }
     }
 
     #[must_use]
@@ -158,6 +205,12 @@ impl Stroke {
     #[must_use]
     pub const fn style(&self) -> &StrokeStyle {
         &self.style
+    }
+
+    /// How the stroke combines with its layer.
+    #[must_use]
+    pub const fn blend(&self) -> StrokeBlend {
+        blend(self.style.tool, self.alpha_locked)
     }
 
     /// Oldest first; never empty.
@@ -171,6 +224,15 @@ impl Stroke {
     #[must_use]
     pub fn shares_samples(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.samples, &other.samples)
+    }
+}
+
+/// The blend of a stroke of `tool` begun on a layer whose Alpha Lock was `alpha_locked`.
+pub(crate) const fn blend(tool: StrokeTool, alpha_locked: bool) -> StrokeBlend {
+    match (tool, alpha_locked) {
+        (StrokeTool::Erase, _) => StrokeBlend::Erase,
+        (StrokeTool::Paint, true) => StrokeBlend::Atop,
+        (StrokeTool::Paint, false) => StrokeBlend::Over,
     }
 }
 

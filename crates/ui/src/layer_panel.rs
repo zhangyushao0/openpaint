@@ -1,13 +1,16 @@
 //! The layer panel: the Layers button at the right end of the top bar opens it as a popover over
 //! the canvas (Procreate's model). Header: "Layers" and the add button. Rows: the layers, top of
-//! the stack first, the one drawn on highlighted, each with its eye. Footer, for the highlighted
-//! layer: its opacity slider, move up, move down and delete. Delete asks nothing: undo brings
-//! the layer back. Any contact landing on the canvas outside the panel closes it; a pen stroke
+//! the stack first, the one drawn on highlighted, each with its eye ("Alpha Lock" beside the
+//! name of a layer whose alpha is locked). Footer, for the highlighted layer: its opacity
+//! slider, the Alpha Lock switch (Procreate keeps it in the layer's options), move up, move
+//! down and delete. Delete asks nothing: undo brings the layer back, as it does Alpha Lock. Any contact landing on the canvas outside the panel closes it; a pen stroke
 //! there also draws.
 
 use openpaint_app::{EditorAction, Intent, LayerIntent, LayerList, SessionProjection};
 
-use crate::components::{ListRow, ScreenArea, icon_button, icon_toggle, list_row, popover, slider};
+use crate::components::{
+    ListRow, ScreenArea, icon_button, icon_toggle, list_row, popover, slider, switch_row,
+};
 use crate::design::{Icon, SPACE, TOUCH_TARGET};
 
 /// Opacity shown as a whole percentage.
@@ -91,15 +94,16 @@ fn rows(
     taps: &mut Vec<Intent>,
 ) {
     let enabled = offered(projection, EditorAction::EditLayer);
-    let room = ui.ctx().content_rect().height() - 6.0 * TOUCH_TARGET;
+    let room = ui.ctx().content_rect().height() - 7.0 * TOUCH_TARGET;
     egui::ScrollArea::vertical()
         .max_height(room.max(TOUCH_TARGET))
         .show(ui, |ui| {
             for row in list.rows.iter().rev() {
-                let detail = if row.opacity < 1.0 {
-                    percent(row.opacity)
-                } else {
-                    String::new()
+                let detail = match (row.alpha_locked, row.opacity < 1.0) {
+                    (true, true) => format!("Alpha Lock · {}", percent(row.opacity)),
+                    (true, false) => "Alpha Lock".to_owned(),
+                    (false, true) => percent(row.opacity),
+                    (false, false) => String::new(),
                 };
                 let (icon, icon_label) = if row.visible {
                     (Icon::Visible, "Hide layer")
@@ -161,6 +165,12 @@ fn footer(
         if taps.last() != Some(&intent) {
             taps.push(intent);
         }
+    }
+    if switch_row(ui, "Alpha Lock", active.alpha_locked, enabled).clicked() {
+        taps.push(Intent::Layer(LayerIntent::SetAlphaLock {
+            layer: active.id,
+            locked: !active.alpha_locked,
+        }));
     }
     ui.horizontal(|ui| {
         let moves = [

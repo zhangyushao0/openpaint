@@ -11,7 +11,7 @@ use crate::geom::PixelRect;
 use crate::image::RgbaImage;
 use crate::plan::Plan;
 use crate::program::{Bindings, COVERAGE_FORMAT, Dispatch, scene_ops};
-use crate::readback::{read_rgba, target_texture};
+use crate::readback::{read_rgba, read_texel, target_texture};
 use crate::scene::{Fresh, Scene};
 use crate::screen::blit_bind_group;
 
@@ -73,6 +73,13 @@ impl CanvasTarget {
     /// Waits for every submitted evaluation and copies the target into memory.
     pub fn read(&self, core: &Core) -> Result<RgbaImage, RenderError> {
         read_rgba(&core.gpu, &self.texture)
+    }
+
+    /// Render picking: waits for every submitted evaluation and reads the RGBA pixel at `[x, y]`
+    /// (the colour the canvas shows there, everything composited); `None` outside the target.
+    /// The same bytes `read` gives at that position.
+    pub fn pick(&self, core: &Core, at: [u32; 2]) -> Result<Option<[u8; 4]>, RenderError> {
+        read_texel(&core.gpu, &self.texture, at)
     }
 
     pub(crate) fn shown(&self) -> &wgpu::BindGroup {
@@ -172,7 +179,7 @@ impl<'a> RegionEvaluator<'a> {
             .track
             .advance(request.artwork, request.active, drawn);
         let fresh = match request.active.filter(|_| drawn) {
-            Some(active) => Fresh::new(active.style(), active.samples(), step.fresh.start),
+            Some(active) => Fresh::new(active, step.fresh.start),
             None => Fresh::default(),
         };
         let mut all = regions.to_vec();

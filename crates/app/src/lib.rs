@@ -11,6 +11,7 @@ mod history;
 mod input;
 mod intent;
 mod layers;
+mod palette;
 mod palm;
 mod project;
 mod projection;
@@ -30,6 +31,7 @@ pub use crate::history::{HISTORY_BUDGET, History, HistoryIntent};
 pub use crate::input::{Contact, ContactPhase, Device, InputBatch, InputSample};
 pub use crate::intent::Intent;
 pub use crate::layers::{LayerIntent, LayerList, LayerRow};
+pub use crate::palette::{Hsv, RECENT_COLORS};
 pub use crate::palm::PalmRejection;
 pub use crate::project::{PortError, Project, ProjectId, ProjectStore, ProjectSummary, Thumbnail};
 pub use crate::projection::{Availability, EditorAction, ScreenProjection, SessionProjection};
@@ -39,5 +41,6 @@ pub use crate::storage::{StorageIntent, StorageNotice};
 pub use crate::stroke::StrokeIntent;
 pub use crate::title::{MAX_TITLE_CHARS, Title, TitleError, UNTITLED};
 pub use crate::toolbox::{
-    BrushIntent, BrushProjection, BrushRow, BrushSetting, EditorState, MIN_OPACITY, Toolbox,
+    BrushChoice, BrushIntent, BrushProjection, BrushRow, BrushSetting, EditorState, MIN_OPACITY,
+    Tool, ToolIntent, Toolbox,
 };

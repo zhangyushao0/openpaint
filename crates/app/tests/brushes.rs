@@ -3,8 +3,9 @@
 //! drawn with when a built-in brush changes later.
 
 use openpaint_app::{
-    BrushIntent, BrushLibrary, BrushSetting, Contact, ContactPhase, Device, EditorState,
-    InputSample, Intent, MIN_OPACITY, RecipeError, Session, StrokeIntent, Toolbox,
+    BrushChoice, BrushIntent, BrushLibrary, BrushSetting, Contact, ContactPhase, Device,
+    EditorState, InputSample, Intent, MIN_OPACITY, RecipeError, Session, StrokeIntent, Tool,
+    Toolbox,
 };
 use openpaint_core::{BrushRecipe, CanvasSize};
 
@@ -143,7 +144,7 @@ fn a_stored_state_that_does_not_fit_falls_back_to_defaults() {
     let library = built_in();
     let mut toolbox = Toolbox::new(library);
     let fresh = toolbox.projection();
-    let state = EditorState {
+    let paint = BrushChoice {
         brush: "charcoal".into(),
         brushes: vec![
             BrushSetting {
@@ -158,8 +159,26 @@ fn a_stored_state_that_does_not_fit_falls_back_to_defaults() {
             },
         ],
     };
+    let state = EditorState {
+        tool: Tool::Brush,
+        erase: paint.clone(),
+        paint,
+        color: [0.0, 2.0, 0.0],
+        recent: vec![[0.5, 0.5, f32::NAN]],
+    };
     assert!(!toolbox.restore(&state));
     assert_eq!(toolbox.projection(), fresh);
+    // An empty brush key is the default brush, not a misfit.
+    let defaults = toolbox.state();
+    let unset = EditorState {
+        erase: BrushChoice {
+            brush: String::new(),
+            brushes: Vec::new(),
+        },
+        ..defaults.clone()
+    };
+    assert!(toolbox.restore(&unset));
+    assert_eq!(toolbox.state(), defaults);
 }
 
 fn pen(phase: ContactPhase, x: f32, time_ms: i64) -> Intent {

@@ -38,6 +38,10 @@ pub enum Icon {
     Duplicate,
     /// A brush held at a slant, its tip down to the left: the brushes.
     Brush,
+    /// A block at a slant, its rubber end down to the left, on a line: the eraser.
+    Eraser,
+    /// A pipette at a slant, its tip down to the left: pick a colour from the canvas.
+    Eyedropper,
 }
 
 /// Draws `icon` into `rect` (square, `ICON_SIZE` on a side) in `color`.
@@ -103,6 +107,13 @@ fn polylines(icon: Icon) -> Vec<Vec<[f32; 2]>> {
                 [0.36, 0.64],
             ],
         ],
+        Icon::Brush | Icon::Eraser | Icon::Eyedropper => tools(icon),
+    }
+}
+
+/// The tools held at a slant, tip down to the left.
+fn tools(icon: Icon) -> Vec<Vec<[f32; 2]>> {
+    match icon {
         Icon::Brush => vec![
             // The handle, then the bristles closing to a point.
             vec![[0.84, 0.16], [0.56, 0.44]],
@@ -117,6 +128,31 @@ fn polylines(icon: Icon) -> Vec<Vec<[f32; 2]>> {
                 [0.49, 0.41],
             ],
         ],
+        Icon::Eraser => vec![
+            vec![
+                [0.2, 0.58],
+                [0.54, 0.24],
+                [0.82, 0.52],
+                [0.48, 0.86],
+                [0.2, 0.58],
+            ],
+            vec![[0.32, 0.46], [0.6, 0.74]],
+            vec![[0.48, 0.86], [0.86, 0.86]],
+        ],
+        Icon::Eyedropper => vec![
+            // The tube from its tip, the collar, then the bulb.
+            vec![
+                [0.16, 0.84],
+                [0.2, 0.7],
+                [0.5, 0.4],
+                [0.6, 0.5],
+                [0.3, 0.8],
+                [0.16, 0.84],
+            ],
+            vec![[0.42, 0.36], [0.64, 0.58]],
+            vec![[0.53, 0.43], [0.7, 0.2], [0.8, 0.3], [0.57, 0.47]],
+        ],
+        _ => Vec::new(),
     }
 }
 
@@ -201,6 +237,8 @@ mod tests {
             Icon::Hidden,
             Icon::Duplicate,
             Icon::Brush,
+            Icon::Eraser,
+            Icon::Eyedropper,
         ];
         for icon in icons {
             let lines = polylines(icon);

@@ -320,7 +320,7 @@ impl Runtime {
         let area = self.shell.canvas_area();
         self.screen.open(&self.core, area, &self.toolbox)?;
         match &mut self.screen {
-            Screen::Canvas(canvas) => canvas.dispatch(intents, &mut self.toolbox),
+            Screen::Canvas(canvas) => canvas.dispatch(&self.core, intents, &mut self.toolbox),
             Screen::Gallery(gallery) => dispatch_gallery(gallery, intents),
             Screen::Opening(_) => {}
         }

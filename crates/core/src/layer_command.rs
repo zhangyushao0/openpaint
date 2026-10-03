@@ -23,6 +23,9 @@ pub(crate) fn apply(artwork: &Artwork, command: LayerCommand) -> Result<Applied,
         LayerCommand::SetLocked { layer, locked } => {
             edit(artwork, layer, |l| l.props.locked = locked)
         }
+        LayerCommand::SetAlphaLocked { layer, locked } => {
+            edit(artwork, layer, |l| l.props.alpha_locked = locked)
+        }
     }
 }
 

@@ -5,7 +5,7 @@ use crate::artwork::Artwork;
 use crate::brush::{BrushRecipe, Curve, Dynamics, Grain};
 use crate::error::CoreError;
 use crate::layer::Layer;
-use crate::stroke::{Stroke, StrokeSample};
+use crate::stroke::{Stroke, StrokeBlend, StrokeSample};
 
 /// A whole artwork as plain data.
 #[derive(Debug, Clone, PartialEq)]
@@ -26,6 +26,7 @@ pub struct LayerParts {
     pub visible: bool,
     pub opacity: f32,
     pub locked: bool,
+    pub alpha_locked: bool,
     /// Oldest first.
     pub strokes: Vec<StrokeParts>,
 }
@@ -33,6 +34,8 @@ pub struct LayerParts {
 #[derive(Debug, Clone, PartialEq)]
 pub struct StrokeParts {
     pub id: u64,
+    /// Paint over, paint atop (Alpha Lock) or erase; gives the style's tool.
+    pub blend: StrokeBlend,
     /// The brush recipe the stroke was drawn with.
     pub recipe: RecipeParts,
     pub size: f32,
@@ -120,6 +123,7 @@ fn layer_parts(layer: &Layer) -> LayerParts {
         visible: layer.props.visible,
         opacity: layer.props.opacity,
         locked: layer.props.locked,
+        alpha_locked: layer.props.alpha_locked,
         strokes: layer.strokes.iter().map(stroke_parts).collect(),
     }
 }
@@ -129,6 +133,7 @@ fn stroke_parts(stroke: &Stroke) -> StrokeParts {
     let color = style.color();
     StrokeParts {
         id: stroke.id().get(),
+        blend: stroke.blend(),
         recipe: style.recipe().to_parts(),
         size: style.size(),
         opacity: style.opacity(),

@@ -6,10 +6,10 @@
 //! Everything here depends only on the samples up to the one it describes, so a stroke drawn a
 //! few samples at a time gets exactly the segments it gets when drawn at once.
 
-use openpaint_core::{StrokeSample, StrokeStyle};
+use openpaint_core::{StrokeBlend, StrokeSample, StrokeStyle};
 
 use crate::geom::{Bounds, PixelRect};
-use crate::protocol::{GRAIN_ONE, Op, Paint};
+use crate::protocol::{Blend, GRAIN_ONE, Op, Paint};
 
 /// Antialiasing reaches half a pixel beyond the shape; one pixel keeps the bounds conservative
 /// against float error.
@@ -71,8 +71,8 @@ pub(crate) fn segments<'a>(
     })
 }
 
-/// The paint op's operands for `style`.
-pub(crate) fn paint(style: &StrokeStyle) -> Paint {
+/// The paint op's operands for a stroke of `style` combining with its layer by `blend`.
+pub(crate) fn paint(style: &StrokeStyle, blend: StrokeBlend) -> Paint {
     let color = style.color();
     let grain = style.recipe().grain();
     Paint {
@@ -80,6 +80,11 @@ pub(crate) fn paint(style: &StrokeStyle) -> Paint {
         opacity: style.opacity(),
         grain: (grain.strength() * GRAIN_ONE as f32).round() as u32,
         grain_scale: grain.scale(),
+        blend: match blend {
+            StrokeBlend::Over => Blend::Over,
+            StrokeBlend::Atop => Blend::Atop,
+            StrokeBlend::Erase => Blend::Erase,
+        },
     }
 }
 

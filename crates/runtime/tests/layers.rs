@@ -1,5 +1,5 @@
 //! GPU test of the layer panel through the whole frame loop: the Layers button opens it, its
-//! buttons, eyes and slider change the layers, undo takes each change back, the canvas always
+//! buttons, eyes, slider and Alpha Lock switch change the layers, undo takes each change back, the canvas always
 //! equals a cold evaluation, a pen starting on the panel never paints and a tap outside closes
 //! it.
 
@@ -18,7 +18,8 @@ const PIXELS_PER_POINT: f32 = 2.0;
 /// space from the right edge and under the top bar; rows, slider and buttons one touch target
 /// high), times 2. Undo is in the side bar, whose sliders are 142 points long on this screen.
 const UNDO: [f32; 2] = [80.0, 808.0];
-const LAYERS: [f32; 2] = [1520.0, 48.0];
+/// Left of the colour button at the top bar's right end.
+const LAYERS: [f32; 2] = [1408.0, 48.0];
 const ADD: [f32; 2] = [1520.0, 176.0];
 /// The eye of the first row (the top layer).
 const TOP_EYE: [f32; 2] = [1520.0, 272.0];
@@ -26,8 +27,9 @@ const TOP_EYE: [f32; 2] = [1520.0, 272.0];
 const SECOND_ROW: [f32; 2] = [1100.0, 368.0];
 /// The slider's track runs from x 984 to 1544, with two layers.
 const SLIDER_Y: f32 = 572.0;
-const RAISE: [f32; 2] = [1008.0, 668.0];
-const DELETE: [f32; 2] = [1520.0, 668.0];
+const ALPHA_LOCK: [f32; 2] = [1100.0, 668.0];
+const RAISE: [f32; 2] = [1008.0, 764.0];
+const DELETE: [f32; 2] = [1520.0, 764.0];
 
 fn layers(runtime: &Runtime) -> Vec<(u64, bool, f32)> {
     let artwork = runtime.artwork().expect("artwork");
@@ -66,14 +68,20 @@ fn panel_actions_change_the_layers_and_undo_takes_each_back() {
     hand.gesture(&mut runtime, ToolKind::Finger, &slide);
     let (_, _, opacity) = layers(&runtime)[1];
     assert!((opacity - 0.5).abs() < 0.01, "opacity {opacity}");
+    hand.tap(&mut runtime, ALPHA_LOCK);
+    let artwork = runtime.artwork().expect("artwork");
+    assert!(
+        artwork.layers()[1].props().alpha_locked(),
+        "the switch locks"
+    );
     hand.tap(&mut runtime, SECOND_ROW);
     hand.tap(&mut runtime, RAISE);
     assert_eq!(layers(&runtime)[1].0, 1, "layer 1 is on top");
     hand.tap(&mut runtime, DELETE);
     assert_eq!(layers(&runtime).len(), 1);
     assert_cold(&core, &runtime, "after the panel actions");
-    // Delete, raise, the whole slide, show, hide, add: six steps back.
-    for step in 0..6 {
+    // Delete, raise, Alpha Lock, the whole slide, show, hide, add: seven steps back.
+    for step in 0..7 {
         hand.tap(&mut runtime, UNDO);
         assert_cold(&core, &runtime, &format!("after undo {step}"));
     }

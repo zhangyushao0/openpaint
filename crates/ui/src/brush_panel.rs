@@ -1,12 +1,13 @@
-//! The brush picker: the Brush button in the top bar, left of Layers, opens it as a popover over
-//! the canvas (Procreate's brush library, reduced to one set): header "Brushes", then one row
-//! per brush with its name and a stroke it painted, the current one highlighted. A tap chooses
-//! the brush; the panel stays until a contact lands on the canvas outside it, and a pen stroke
-//! there draws with the brush just chosen.
+//! The brush picker and the tool buttons: Brush and Eraser sit in the top bar left of Layers
+//! (Procreate's order). The current tool's button opens the picker as a popover over the canvas
+//! (Procreate's brush library, reduced to one set): header "Brushes" or "Eraser", then one row
+//! per brush with its name and a stroke it painted, the tool's brush highlighted. The eraser
+//! chooses from the same brushes. A tap chooses the brush; the panel stays until a contact lands
+//! on the canvas outside it, and a pen stroke there draws with the brush just chosen.
 
 use std::fmt;
 
-use openpaint_app::{BrushIntent, BrushKey, Intent, SessionProjection};
+use openpaint_app::{BrushIntent, BrushKey, Intent, SessionProjection, Tool, ToolIntent};
 use openpaint_render::RgbaImage;
 
 use crate::components::{ScreenArea, brush_row, icon_toggle, popover};
@@ -39,13 +40,37 @@ impl BrushPanel {
         self.textures.clear();
     }
 
-    /// The Brush button, inside the top bar. Returns whether it opened the panel.
-    pub(crate) fn button(&mut self, ui: &mut egui::Ui) -> bool {
-        if icon_toggle(ui, Icon::Brush, "Brushes", self.open).clicked() {
-            self.open = !self.open;
-            return self.open;
+    /// The Eraser and, left of it, the Brush button, inside a right-to-left part of the top bar;
+    /// the one of the pen's tool is highlighted (Procreate's model). Tapping the other tool's
+    /// button makes the pen use it; tapping the current tool's button opens or closes its
+    /// brushes. Returns whether a tap opened the panel.
+    pub(crate) fn buttons(
+        &mut self,
+        ui: &mut egui::Ui,
+        projection: &SessionProjection,
+        taps: &mut Vec<Intent>,
+    ) -> bool {
+        let Some(brush) = projection.brush() else {
+            return false;
+        };
+        let mut opened = false;
+        for (tool, icon, label) in [
+            (Tool::Eraser, Icon::Eraser, "Eraser"),
+            (Tool::Brush, Icon::Brush, "Brushes"),
+        ] {
+            let current = brush.tool == tool;
+            if !icon_toggle(ui, icon, label, current).clicked() {
+                continue;
+            }
+            if current {
+                self.open = !self.open;
+                opened = self.open;
+            } else {
+                self.close();
+                taps.push(Intent::Tool(ToolIntent::Use(tool)));
+            }
         }
-        false
+        opened
     }
 
     /// The panel when it is open, its taps pushed to `taps`.
@@ -66,7 +91,10 @@ impl BrushPanel {
             ui.horizontal(|ui| {
                 ui.set_height(TOUCH_TARGET);
                 ui.add_space(2.0 * SPACE);
-                ui.heading("Brushes");
+                ui.heading(match brush.tool {
+                    Tool::Brush => "Brushes",
+                    Tool::Eraser => "Eraser",
+                });
             });
             for row in brush.brushes.iter() {
                 let preview = textures

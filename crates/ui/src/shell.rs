@@ -1,7 +1,8 @@
 //! The screen: a top bar over the rest. On the canvas the bar holds Gallery at its left end and
-//! at its right end, right to left, the Layers button, the Brush button and a notice when
-//! saving or opening failed; the canvas frame fills the rest, the side bar (size, opacity, undo,
-//! redo) floats over its left edge, and the brush and layer panels open over it, one at a time.
+//! at its right end, right to left, the colour button, Layers, Eraser, Brush and a notice when
+//! saving or opening failed; the canvas frame fills the rest, the side bar (size, eyedropper,
+//! opacity, undo, redo) floats over its left edge, and the colour, layer and brush panels open
+//! over it, one at a time.
 //! In the gallery the bar holds the screen's name and "+", and the cards fill the rest.
 
 use egui::{Align, Layout};
@@ -12,6 +13,7 @@ use openpaint_app::{
 use openpaint_render::RgbaImage;
 
 use crate::brush_panel::BrushPanel;
+use crate::color_panel::ColorPanel;
 use crate::components::{CanvasInput, ScreenArea, canvas_frame, notice, text_button, top_bar};
 use crate::gallery::GalleryScreen;
 use crate::layer_panel::LayerPanel;
@@ -35,6 +37,7 @@ pub struct Shell {
     input: CanvasInput,
     layers: LayerPanel,
     brushes: BrushPanel,
+    colors: ColorPanel,
     side: SideBar,
     gallery: GalleryScreen,
     /// Intents from taps on the chrome since the last `route`.
@@ -59,8 +62,7 @@ impl Shell {
         };
         if showing != self.showing {
             // A new screen starts with its panels and dialogs closed.
-            self.layers.close();
-            self.brushes.close();
+            self.close_panels();
             self.side.hide();
             self.gallery.back();
             self.input = CanvasInput::default();
@@ -96,11 +98,17 @@ impl Shell {
                 self.taps.push(Intent::Gallery(GalleryIntent::Show));
             }
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                // One panel at a time: opening one closes the other.
-                if self.layers.button(ui) {
+                // One panel at a time: opening one closes the others.
+                if self.colors.button(ui, projection) {
+                    self.layers.close();
                     self.brushes.close();
                 }
-                if self.brushes.button(ui) {
+                if self.layers.button(ui) {
+                    self.colors.close();
+                    self.brushes.close();
+                }
+                if self.brushes.buttons(ui, projection, &mut self.taps) {
+                    self.colors.close();
                     self.layers.close();
                 }
                 self.storage_notice(ui, projection);
@@ -111,7 +119,14 @@ impl Shell {
         self.side.show(ctx, projection, &mut self.taps);
         self.layers.show(ctx, projection, &mut self.taps);
         self.brushes.show(ctx, projection, &mut self.taps);
+        self.colors.show(ctx, projection, &mut self.taps);
         rect
+    }
+
+    fn close_panels(&mut self) {
+        self.layers.close();
+        self.brushes.close();
+        self.colors.close();
     }
 
     /// The notice for a failed save (with Retry) or a failed open (with OK), if any.
@@ -170,12 +185,15 @@ impl Shell {
         let Some(area) = self.canvas.filter(|_| self.showing == Showing::Canvas) else {
             return std::mem::take(&mut self.taps);
         };
-        let panel = self.layers.area().or(self.brushes.area());
+        let panel = self
+            .layers
+            .area()
+            .or(self.brushes.area())
+            .or(self.colors.area());
         let covers: Vec<ScreenArea> = [self.side.area(), panel].into_iter().flatten().collect();
         let mut intents = self.input.route(&area, &covers, batches);
         if panel.is_some() && touched_outside(&area, &covers, batches) {
-            self.layers.close();
-            self.brushes.close();
+            self.close_panels();
         }
         intents.append(&mut self.taps);
         intents

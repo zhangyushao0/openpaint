@@ -10,7 +10,9 @@ use crate::error::CoreError;
 use crate::id::{IdCounters, LayerId, MAX_ID, StrokeId};
 use crate::layer::{Layer, LayerProps};
 use crate::parts::{ArtworkParts, LayerParts, RecipeParts, SampleParts, StrokeParts};
-use crate::stroke::{MAX_STROKE_SAMPLES, Stroke, StrokeSample, StrokeStyle, check_order};
+use crate::stroke::{
+    MAX_STROKE_SAMPLES, Stroke, StrokeBlend, StrokeSample, StrokeStyle, StrokeTool, check_order,
+};
 use crate::stroke_list::StrokeList;
 use crate::value::{CanvasPoint, CanvasSize, Color, LayerName, invalid};
 
@@ -114,7 +116,12 @@ fn counter(next: u64) -> Result<u64, CoreError> {
 fn layer_from(parts: &LayerParts, ids: &mut IdCheck) -> Result<Layer, CoreError> {
     let id = ids.layer(parts.id)?;
     let name = LayerName::new(&parts.name)?;
-    let props = LayerProps::new(parts.visible, parts.opacity, parts.locked)?;
+    let props = LayerProps::new(
+        parts.visible,
+        parts.opacity,
+        parts.locked,
+        parts.alpha_locked,
+    )?;
     let strokes = parts
         .strokes
         .iter()
@@ -133,6 +140,11 @@ fn stroke_from(parts: &StrokeParts, ids: &mut IdCheck) -> Result<Stroke, CoreErr
     let [r, g, b] = parts.color;
     let recipe = ids.recipe(&parts.recipe)?;
     let style = StrokeStyle::new(recipe, parts.size, parts.opacity, Color::rgb(r, g, b)?)?;
+    let (tool, alpha_locked) = match parts.blend {
+        StrokeBlend::Over => (StrokeTool::Paint, false),
+        StrokeBlend::Atop => (StrokeTool::Paint, true),
+        StrokeBlend::Erase => (StrokeTool::Erase, false),
+    };
     if parts.samples.is_empty() {
         return Err(CoreError::EmptyStroke);
     }
@@ -147,7 +159,8 @@ fn stroke_from(parts: &StrokeParts, ids: &mut IdCheck) -> Result<Stroke, CoreErr
         .map(sample_from)
         .collect::<Result<Vec<_>, _>>()?;
     check_order(None, &samples)?;
-    Ok(Stroke::new(id, style, Arc::from(samples)))
+    let style = style.with_tool(tool);
+    Ok(Stroke::new(id, style, alpha_locked, Arc::from(samples)))
 }
 
 fn sample_from(parts: &SampleParts) -> Result<StrokeSample, CoreError> {

@@ -16,15 +16,36 @@ pub(crate) const GRAIN_ONE: u32 = 256;
 const PAINT_OPACITY: usize = 3;
 const PAINT_GRAIN: usize = 4;
 const PAINT_GRAIN_SCALE: usize = 5;
+/// How the paint combines with the layer: one of `BLENDS`, a whole number.
+const PAINT_BLEND: usize = 6;
 /// The flow at `a`; the flow at `b` follows it.
 const SEGMENT_FLOW: usize = 6;
 const SEGMENT_EDGE: usize = 8;
-const SLOTS: [(&str, usize); 5] = [
+const SLOTS: [(&str, usize); 6] = [
     ("PAINT_OPACITY", PAINT_OPACITY),
     ("PAINT_GRAIN", PAINT_GRAIN),
     ("PAINT_GRAIN_SCALE", PAINT_GRAIN_SCALE),
+    ("PAINT_BLEND", PAINT_BLEND),
     ("SEGMENT_FLOW", SEGMENT_FLOW),
     ("SEGMENT_EDGE", SEGMENT_EDGE),
+];
+
+/// A paint op's blend, declared to WGSL as constants by `prelude`.
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Blend {
+    /// Source over the layer.
+    Over = 0,
+    /// Source atop the layer: colour changes only where the layer has alpha, which stays.
+    Atop = 1,
+    /// Destination out: the layer loses the paint's alpha.
+    Erase = 2,
+}
+
+const BLENDS: [(&str, Blend); 3] = [
+    ("BLEND_OVER", Blend::Over),
+    ("BLEND_ATOP", Blend::Atop),
+    ("BLEND_ERASE", Blend::Erase),
 ];
 /// A plan index with this bit set refers to the evaluation's fresh ops (the in-progress
 /// stroke's new segments and its `EndActive`), not to the scene's ops.
@@ -69,8 +90,9 @@ impl Opcode {
 ///   `ra`) to `b` (radius `rb`) in target pixels; its coverage is multiplied by the flow, `fa`
 ///   at `a` changing evenly to `fb` at `b`; `edge` is one over the width in pixels over which
 ///   the coverage fades in from the outline (1: a hard, antialiased edge).
-/// - `EndStroke` and `EndActive`: `[r, g, b, opacity, grain, grain_scale, _, _, _]`, straight
-///   sRGB colour; `grain` a whole number in `0..=GRAIN_ONE`, `grain_scale` whole pixels.
+/// - `EndStroke` and `EndActive`: `[r, g, b, opacity, grain, grain_scale, blend, _, _]`,
+///   straight sRGB colour; `grain` a whole number in `0..=GRAIN_ONE`, `grain_scale` whole
+///   pixels, `blend` a `Blend`.
 /// - `EndLayer`: `[opacity, _, ...]`.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -87,11 +109,12 @@ pub(crate) struct Paint {
     /// In `0..=GRAIN_ONE`.
     pub(crate) grain: u32,
     pub(crate) grain_scale: u32,
+    pub(crate) blend: Blend,
 }
 
 impl Paint {
-    fn operands(&self) -> [f32; 6] {
-        // Both are small whole numbers, exact as floats.
+    fn operands(&self) -> [f32; 7] {
+        // Small whole numbers, exact as floats.
         let [r, g, b] = self.color;
         [
             r,
@@ -100,6 +123,7 @@ impl Paint {
             self.opacity,
             self.grain as f32,
             self.grain_scale as f32,
+            self.blend as u32 as f32,
         ]
     }
 }
@@ -260,6 +284,9 @@ pub(crate) fn prelude() -> String {
     for (name, slot) in SLOTS {
         wgsl.push_str(&format!("const {name}: u32 = {slot}u;\n"));
     }
+    for (name, blend) in BLENDS {
+        wgsl.push_str(&format!("const {name}: u32 = {}u;\n", blend as u32));
+    }
     for opcode in Opcode::ALL {
         wgsl.push_str(&format!(
             "const {}: u32 = {}u;\n",
@@ -281,100 +308,5 @@ pub(crate) fn prelude() -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use wgpu::naga;
-
-    fn parsed() -> naga::Module {
-        let source = crate::program::shader_source();
-        naga::front::wgsl::parse_str(&source).expect("the evaluator shader parses")
-    }
-
-    #[test]
-    fn wgsl_layouts_match_the_rust_records() {
-        let module = parsed();
-        for layout in &LAYOUTS {
-            let (_, ty) = module
-                .types
-                .iter()
-                .find(|(_, ty)| ty.name.as_deref() == Some(layout.name))
-                .unwrap_or_else(|| panic!("struct {} in WGSL", layout.name));
-            let naga::TypeInner::Struct { members, span } = &ty.inner else {
-                panic!("{} is a struct", layout.name);
-            };
-            assert_eq!(*span as usize, layout.size, "size of {}", layout.name);
-            let wgsl: Vec<_> = members
-                .iter()
-                .map(|member| (member.name.as_deref().unwrap_or(""), member.offset as usize))
-                .collect();
-            let rust: Vec<_> = layout.fields.iter().map(|(n, _, o)| (*n, *o)).collect();
-            assert_eq!(wgsl, rust, "fields of {}", layout.name);
-        }
-    }
-
-    #[test]
-    fn named_slots_hold_what_the_constructors_write() {
-        let op = Op::segment([1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [0.25, 0.75], 0.5);
-        assert_eq!(
-            op.data[SEGMENT_FLOW..=SEGMENT_EDGE],
-            [0.25, 0.75, 0.5],
-            "flows, then the edge"
-        );
-        let paint = Paint {
-            color: [0.1, 0.2, 0.3],
-            opacity: 0.4,
-            grain: 77,
-            grain_scale: 5,
-        };
-        let op = Op::end_stroke(&paint);
-        assert_eq!(op.data[PAINT_OPACITY], 0.4);
-        assert_eq!(op.data[PAINT_GRAIN], 77.0);
-        assert_eq!(op.data[PAINT_GRAIN_SCALE], 5.0);
-        assert_eq!(Op::end_active(&paint).data, op.data);
-    }
-
-    #[test]
-    fn encoding_fills_exactly_the_record_size() {
-        let op = Op::segment([1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [1.0; 2], 1.0);
-        assert_eq!(encode(&[op, op]).len(), 2 * size_of::<Op>());
-        let tile = TileRecord {
-            origin: [16, 32],
-            start: 7,
-            count: 9,
-        };
-        assert_eq!(encode(&[tile]).len(), size_of::<TileRecord>());
-        assert_eq!(&encode(&[tile])[8..12], &7u32.to_le_bytes());
-        let params = Params {
-            background: [1.0; 4],
-            tiles: 1,
-            row: 1,
-            size: [1, 1],
-        };
-        assert_eq!(encode(&[params]).len(), size_of::<Params>());
-    }
-
-    #[test]
-    fn opcode_constants_match_the_enum() {
-        let module = parsed();
-        let value = |name: &str| {
-            let (_, constant) = module
-                .constants
-                .iter()
-                .find(|(_, constant)| constant.name.as_deref() == Some(name))
-                .unwrap_or_else(|| panic!("{name} declared in WGSL"));
-            match module.global_expressions[constant.init] {
-                naga::Expression::Literal(naga::Literal::U32(value)) => value,
-                ref other => panic!("{name} is {other:?}"),
-            }
-        };
-        for opcode in Opcode::ALL {
-            assert_eq!(value(opcode.wgsl_name()), opcode as u32);
-        }
-        assert_eq!(value("TILE"), TILE);
-        assert_eq!(value("FRESH"), FRESH);
-        assert_eq!(value("GRAIN_ONE"), GRAIN_ONE);
-        for (name, slot) in SLOTS {
-            assert_eq!(value(name) as usize, slot, "{name}");
-        }
-    }
-}
+#[path = "protocol_tests.rs"]
+mod tests;

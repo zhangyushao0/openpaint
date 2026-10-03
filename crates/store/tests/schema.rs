@@ -1,17 +1,19 @@
 //! The frozen samples (`tests/samples/schema-<n>.bin`), one per schema (DECISIONS D09, D25,
-//! D27): every record of a library holding one project with the sample artwork.
+//! D28, D29): every record of a library holding one project with the sample artwork.
 //!
-//! - Schema 1 (written by S7 to S9) and schema 2 (S10): opening either upgrades it to schema 3
-//!   and gives the sample artwork with every stroke drawn by the plain round brush, the only
-//!   brush there was; every old record is kept, heads only marked 3, strokes only given that
-//!   recipe after their colour.
-//! - Schema 3: storing the sample artwork (strokes of two recipes) with its title, thumbnail and
-//!   toolbox gives exactly these bytes, so schema 3 can never change by accident, and opening
-//!   it gives them back.
+//! - Schema 1 (written by S7 to S9), 2 (S10) and 3 (S11): opening any of them upgrades it to
+//!   schema 4 and gives the sample artwork as that schema held it, every stroke painting over
+//!   and no layer alpha-locked; schemas 1 and 2 give every stroke the plain round brush, the
+//!   only brush there was. Every old record is kept: heads marked 4 and given Alpha Lock off
+//!   per layer, strokes given their blend (and before schema 3 the plain recipe) after their
+//!   colour, the toolbox given the eraser and black.
+//! - Schema 4: storing the sample artwork (an alpha-locked layer, a stroke painted atop, an
+//!   eraser stroke) with its title, thumbnail and toolbox gives exactly these bytes, so schema 4
+//!   can never change by accident, and opening it gives them back.
 //!
 //! A file is a record dump: per record the keyspace index (u8: 0 `library`, 1 `projects`),
 //! then key and value, each as a u32 little-endian length and the bytes, sorted by keyspace and
-//! key. A missing schema-3 file is written from the current encoding and the test fails, so a
+//! key. A missing schema-4 file is written from the current encoding and the test fails, so a
 //! new sample is reviewed before it is committed.
 
 mod common;
@@ -19,9 +21,10 @@ mod common;
 use std::path::PathBuf;
 
 use common::{KEYSPACES, fresh_dir, records, untitled, write_records};
-use openpaint_app::{BrushSetting, EditorState, ProjectStore, Thumbnail, Title};
+use openpaint_app::{BrushChoice, BrushSetting, EditorState, ProjectStore, Thumbnail, Title, Tool};
 use openpaint_core::{
-    Artwork, ArtworkParts, BrushRecipe, LayerParts, RecipeParts, SampleParts, StrokeParts,
+    Artwork, ArtworkParts, BrushRecipe, LayerParts, RecipeParts, SampleParts, StrokeBlend,
+    StrokeParts,
 };
 use openpaint_store::{Library, SCHEMA};
 
@@ -55,9 +58,9 @@ fn grainy() -> RecipeParts {
     }
 }
 
-/// The sample artwork as schemas 1 and 2 stored it, opened by schema 3: every stroke plain.
+/// The sample artwork as schemas 1 and 2 stored it, opened by schema 4: every stroke plain.
 fn legacy_parts() -> ArtworkParts {
-    let mut parts = parts();
+    let mut parts = schema_3_parts();
     for layer in &mut parts.layers {
         for stroke in &mut layer.strokes {
             stroke.recipe = BrushRecipe::plain().to_parts();
@@ -68,46 +71,56 @@ fn legacy_parts() -> ArtworkParts {
 
 /// Three layers (one deleted before, so ids skip 2), a hidden locked one with a non-ASCII
 /// name, half opacity, coloured and translucent strokes of two recipes, undone stroke ids
-/// skipped.
-fn parts() -> ArtworkParts {
+/// skipped: the sample of schema 3, every stroke painting over, no layer alpha-locked.
+fn schema_3_parts() -> ArtworkParts {
     let layer = |id, name: &str, visible, opacity, locked, strokes| LayerParts {
         id,
         name: name.to_owned(),
         visible,
         opacity,
         locked,
+        alpha_locked: false,
         strokes,
     };
+    let stroke = |id, recipe, size, opacity, color, samples| StrokeParts {
+        id,
+        blend: StrokeBlend::Over,
+        recipe,
+        size,
+        opacity,
+        color,
+        samples,
+    };
     let sketch = vec![
-        StrokeParts {
-            id: 1,
-            recipe: grainy(),
-            size: 12.0,
-            opacity: 1.0,
-            color: [0.0, 0.0, 0.0],
-            samples: vec![
+        stroke(
+            1,
+            grainy(),
+            12.0,
+            1.0,
+            [0.0, 0.0, 0.0],
+            vec![
                 sample(4.0, 5.0, 0.25, 0),
                 sample(30.5, 9.25, 1.0, 16),
                 sample(60.0, -3.0, 0.5, 16),
             ],
-        },
-        StrokeParts {
-            id: 3,
-            recipe: BrushRecipe::plain().to_parts(),
-            size: 3.5,
-            opacity: 0.25,
-            color: [0.2, 0.4, 0.6],
-            samples: vec![sample(10.0, 40.0, 0.125, 7), sample(11.0, 41.0, 0.0, 9)],
-        },
+        ),
+        stroke(
+            3,
+            BrushRecipe::plain().to_parts(),
+            3.5,
+            0.25,
+            [0.2, 0.4, 0.6],
+            vec![sample(10.0, 40.0, 0.125, 7), sample(11.0, 41.0, 0.0, 9)],
+        ),
     ];
-    let ink = vec![StrokeParts {
-        id: 4,
-        recipe: grainy(),
-        size: 1000.0,
-        opacity: 0.5,
-        color: [1.0, 0.5, 0.0],
-        samples: vec![sample(32.0, 24.0, 1.0, 0)],
-    }];
+    let ink = vec![stroke(
+        4,
+        grainy(),
+        1000.0,
+        0.5,
+        [1.0, 0.5, 0.0],
+        vec![sample(32.0, 24.0, 1.0, 0)],
+    )];
     ArtworkParts {
         width: 64,
         height: 48,
@@ -120,6 +133,19 @@ fn parts() -> ArtworkParts {
         next_layer_id: 5,
         next_stroke_id: 6,
     }
+}
+
+/// The schema-3 sample with what schema 4 adds: the sketch layer alpha-locked with its second
+/// stroke painted atop, and an eraser stroke on the ink layer.
+fn parts() -> ArtworkParts {
+    let mut parts = schema_3_parts();
+    parts.layers[0].alpha_locked = true;
+    parts.layers[0].strokes[1].blend = StrokeBlend::Atop;
+    let mut erase = parts.layers[0].strokes[0].clone();
+    erase.id = 5;
+    erase.blend = StrokeBlend::Erase;
+    parts.layers[1].strokes.push(erase);
+    parts
 }
 
 fn encode(records: &Records) -> Vec<u8> {
@@ -168,26 +194,59 @@ fn sample_thumbnail() -> Thumbnail {
     Thumbnail::new([2, 1], vec![255, 0, 0, 255, 128, 128, 128, 128]).expect("thumbnail")
 }
 
-/// The pencil current; the pencil small and light, the ink pen at its default.
-fn sample_editor() -> EditorState {
-    let setting = |key: &str, size, opacity| BrushSetting {
+fn setting(key: &str, size: f32, opacity: f32) -> BrushSetting {
+    BrushSetting {
         key: key.to_owned(),
         size,
         opacity,
-    };
-    EditorState {
+    }
+}
+
+/// The brush tool's choice of the schema-3 sample: the pencil current, small and light, the
+/// ink pen at its default.
+fn pencil_choice() -> BrushChoice {
+    BrushChoice {
         brush: "pencil".into(),
         brushes: vec![setting("pencil", 3.5, 0.25), setting("ink-pen", 12.0, 1.0)],
     }
 }
 
-/// Bytes of a schema-2 stroke record before the place schema 3 puts the recipe.
-const STYLE_BYTES: usize = 28;
+/// The schema-3 sample's toolbox as schema 4 reads it after the upgrade.
+fn upgraded_editor() -> EditorState {
+    EditorState {
+        tool: Tool::Brush,
+        paint: pencil_choice(),
+        erase: BrushChoice {
+            brush: String::new(),
+            brushes: Vec::new(),
+        },
+        color: [0.0; 3],
+        recent: Vec::new(),
+    }
+}
 
-/// Opens the older sample `schema`: it upgrades to schema 3 and holds the sample artwork with
-/// every stroke plain. Every old record is kept: heads only marked 3, strokes only given the
-/// plain recipe after their colour, the library's schema 3. Returns the library (still open)
-/// and the keys the upgrade added.
+/// The eraser current on the soft brush at half opacity; an orange colour, two recent ones.
+fn sample_editor() -> EditorState {
+    EditorState {
+        tool: Tool::Eraser,
+        paint: pencil_choice(),
+        erase: BrushChoice {
+            brush: "soft-brush".into(),
+            brushes: vec![setting("soft-brush", 64.0, 0.5)],
+        },
+        color: [1.0, 0.5, 0.125],
+        recent: vec![[1.0, 0.5, 0.125], [0.0, 0.25, 0.75]],
+    }
+}
+
+/// Bytes of a stroke record before the place schema 3 puts the recipe and schema 4 the blend.
+const STYLE_BYTES: usize = 28;
+/// Layers in the sample's head, each of which schema 4 gives one Alpha Lock byte.
+const LAYERS: usize = 3;
+
+/// Opens the older sample `schema`: it upgrades to schema 4 and holds the sample artwork as
+/// that schema held it. Every old record is kept, as the module documentation lists. Returns
+/// the library (still open) and the keys the upgrade added.
 fn open_older(schema: u32) -> (Library, Vec<Vec<u8>>) {
     let frozen = decode(&std::fs::read(sample_path(schema)).expect("the older sample"));
     let dir = fresh_dir(&format!("sample-{schema}"));
@@ -198,23 +257,38 @@ fn open_older(schema: u32) -> (Library, Vec<Vec<u8>>) {
         .expect("the sample opens")
         .expect("the sample holds a project");
     assert_eq!(project.id.get(), 1);
-    assert_eq!(project.artwork.to_parts(), legacy_parts());
+    let expected = if schema < 3 {
+        legacy_parts()
+    } else {
+        schema_3_parts()
+    };
+    assert_eq!(project.artwork.to_parts(), expected);
     drop(library);
     let upgraded = records(&dir);
-    let plain = upgraded_recipe_length();
+    // Bytes schema 3 put after the colour: the plain recipe, when the record had none.
+    let recipe = if schema < 3 { plain_recipe_length() } else { 0 };
     for (keyspace, key, value) in &frozen {
         let now = upgraded.iter().find(|(s, k, _)| s == keyspace && k == key);
         let (_, _, now) = now.expect("every older record is kept");
         match (keyspace.as_str(), key.get(8)) {
             ("projects", Some(b'h')) => {
-                assert_eq!(now[..4], 3u32.to_le_bytes(), "the head is marked schema 3");
-                assert_eq!(now[4..], value[4..], "and otherwise unchanged");
+                assert_eq!(now[..4], 4u32.to_le_bytes(), "the head is marked schema 4");
+                assert_eq!(
+                    now.len(),
+                    value.len() + LAYERS,
+                    "and given Alpha Lock per layer"
+                );
             }
             ("projects", Some(b's')) => {
                 assert_eq!(now[..STYLE_BYTES], value[..STYLE_BYTES]);
-                assert_eq!(now[STYLE_BYTES + plain..], value[STYLE_BYTES..]);
+                assert_eq!(now[STYLE_BYTES], 0, "painting over");
+                assert_eq!(now[STYLE_BYTES + 1 + recipe..], value[STYLE_BYTES..]);
             }
-            ("library", _) if key == b"schema" => assert_eq!(now, &3u32.to_le_bytes()),
+            ("library", _) if key == b"schema" => assert_eq!(now, &4u32.to_le_bytes()),
+            ("library", _) if key == b"editor" => {
+                assert_eq!(now[0], 0, "the brush tool");
+                assert_eq!(now[1..=value.len()], value[..], "the brush choice kept");
+            }
             _ => assert_eq!(now, value),
         }
     }
@@ -228,7 +302,7 @@ fn open_older(schema: u32) -> (Library, Vec<Vec<u8>>) {
 
 /// Bytes of the plain recipe in a stroke record: softness, four curves of five points in all,
 /// grain.
-fn upgraded_recipe_length() -> usize {
+fn plain_recipe_length() -> usize {
     4 + 4 * 4 + 5 * 8 + 4 + 4
 }
 
@@ -258,8 +332,18 @@ fn the_schema_2_sample_opens_upgraded_and_keeps_its_records() {
 }
 
 #[test]
-fn the_schema_3_sample_round_trips() {
-    assert_eq!(SCHEMA, 3, "a new schema ships its own sample and migration");
+fn the_schema_3_sample_opens_upgraded_and_keeps_its_records() {
+    let (mut library, added) = open_older(3);
+    let listed = library.list().expect("list");
+    assert_eq!(listed[0].title, sample_title());
+    assert_eq!(listed[0].thumbnail, Some(sample_thumbnail()));
+    assert_eq!(library.editor(), Ok(Some(upgraded_editor())));
+    assert!(added.is_empty(), "{added:?}");
+}
+
+#[test]
+fn the_schema_4_sample_round_trips() {
+    assert_eq!(SCHEMA, 4, "a new schema ships its own sample and migration");
     let artwork = Artwork::from_storage(parts()).expect("valid sample artwork");
     let dir = fresh_dir("sample-write");
     let mut library = Library::at(&dir);
@@ -270,7 +354,7 @@ fn the_schema_3_sample_round_trips() {
     library.save_editor(&sample_editor()).expect("toolbox");
     drop(library);
     let written = encode(&records(&dir));
-    let path = sample_path(3);
+    let path = sample_path(4);
     let Ok(frozen) = std::fs::read(&path) else {
         std::fs::write(&path, &written).expect("write sample");
         panic!(
@@ -280,7 +364,7 @@ fn the_schema_3_sample_round_trips() {
     };
     assert!(
         written == frozen,
-        "storing the sample artwork no longer gives the schema-3 bytes"
+        "storing the sample artwork no longer gives the schema-4 bytes"
     );
 
     let dir = fresh_dir("sample-read");

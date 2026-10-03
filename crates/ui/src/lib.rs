@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 
 mod brush_panel;
+mod color_panel;
 pub mod components;
 pub mod design;
 mod gallery;

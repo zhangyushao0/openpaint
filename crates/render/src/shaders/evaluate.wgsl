@@ -47,13 +47,13 @@ fn evaluate(
                 coverage = max(coverage, segment_coverage(centre, op));
             }
             case OP_END_STROKE: {
-                layer = over(stroke_paint(coverage, pixel, op), layer);
+                layer = blend(stroke_paint(coverage, pixel, op), layer, op);
                 coverage = 0.0;
             }
             case OP_END_ACTIVE: {
                 coverage = max(coverage, textureLoad(kept, pixel).r);
                 textureStore(kept, pixel, vec4<f32>(coverage, 0.0, 0.0, 0.0));
-                layer = over(stroke_paint(coverage, pixel, op), layer);
+                layer = blend(stroke_paint(coverage, pixel, op), layer, op);
                 coverage = 0.0;
             }
             case OP_END_LAYER: {
@@ -75,6 +75,24 @@ fn stroke_paint(coverage: f32, pixel: vec2<u32>, op: Op) -> vec4<f32> {
 
 fn over(source: vec4<f32>, destination: vec4<f32>) -> vec4<f32> {
     return source + destination * (1.0 - source.a);
+}
+
+// A stroke's premultiplied paint combined with its layer by the op's blend: over the layer;
+// atop it (Alpha Lock: the colour changes only where the layer has alpha, and the alpha stays);
+// or erasing (the layer keeps `1 - alpha` of itself). Zero paint leaves the layer exactly as
+// it was in every case, as the scene's bounds require.
+fn blend(paint: vec4<f32>, layer: vec4<f32>, op: Op) -> vec4<f32> {
+    switch u32(op.data[PAINT_BLEND]) {
+        case BLEND_ATOP: {
+            return paint * layer.a + layer * (1.0 - paint.a);
+        }
+        case BLEND_ERASE: {
+            return layer * (1.0 - paint.a);
+        }
+        default: {
+            return over(paint, layer);
+        }
+    }
 }
 
 // Coverage of a pixel whose centre lies `distance` outside the capsule: it fades in over

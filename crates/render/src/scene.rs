@@ -2,7 +2,7 @@
 //! reach, and `Fresh`: the in-progress stroke's part of one evaluation. The geometry of one
 //! stroke is in `stroke.rs`.
 
-use openpaint_core::{Artwork, LayerId, StrokeSample, StrokeStyle};
+use openpaint_core::{ActiveStroke, Artwork, LayerId, StrokeBlend, StrokeSample, StrokeStyle};
 
 use crate::error::RenderError;
 use crate::geom::Bounds;
@@ -57,7 +57,7 @@ impl Scene {
             }
             let start = scene.items.len();
             for stroke in layer.strokes().iter() {
-                scene.push_stroke(stroke.style(), stroke.samples());
+                scene.push_stroke(stroke.style(), stroke.blend(), stroke.samples());
             }
             if active == Some(layer.id()) {
                 scene.items.push(Item::Active);
@@ -75,7 +75,7 @@ impl Scene {
         self.items.contains(&Item::Active)
     }
 
-    fn push_stroke(&mut self, style: &StrokeStyle, samples: &[StrokeSample]) {
+    fn push_stroke(&mut self, style: &StrokeStyle, blend: StrokeBlend, samples: &[StrokeSample]) {
         for segment in segments(style, samples, 0) {
             self.items.push(Item::Segment {
                 op: segment.op(),
@@ -83,7 +83,7 @@ impl Scene {
             });
         }
         self.items
-            .push(Item::EndStroke(Op::end_stroke(&paint(style))));
+            .push(Item::EndStroke(Op::end_stroke(&paint(style, blend))));
     }
 }
 
@@ -98,9 +98,10 @@ pub(crate) struct Fresh {
 impl Fresh {
     /// The segments of `samples` (every sample so far) after sample `from`: the new samples
     /// with the one before them, or the whole stroke (`from` 0) when its coverage starts over.
-    pub(crate) fn new(style: &StrokeStyle, samples: &[StrokeSample], from: usize) -> Self {
+    pub(crate) fn new(active: &ActiveStroke, from: usize) -> Self {
+        let (style, samples) = (active.style(), active.samples());
         let mut fresh = Self {
-            ops: vec![Op::end_active(&paint(style))],
+            ops: vec![Op::end_active(&paint(style, active.blend()))],
             bounds: Vec::new(),
         };
         for segment in segments(style, samples, from) {
@@ -183,15 +184,18 @@ mod tests {
     #[test]
     fn fresh_ops_start_with_the_paint_op() {
         let samples = [sample(10.0, 20.0, 1.0, 0), sample(30.0, 20.0, 0.2, 4)];
-        let fresh = Fresh::new(&style(), &samples, 0);
+        let blank = Artwork::new(CanvasSize::new(64, 64).expect("size"));
+        let mut session = blank.begin_stroke(style(), samples[0]).expect("begin");
+        let dot = Fresh::new(session.active(), 0);
+        assert_eq!(dot.bounds.len(), 1);
+        session.extend(&samples[1..]).expect("extend");
+        let fresh = Fresh::new(session.active(), 0);
         assert_eq!(fresh.ops.len(), 2);
         assert_eq!(fresh.bounds.len(), 1);
         assert_eq!(
             Some(fresh.bounds[0].pixels()),
             stroke_region(&style(), &samples, 0)
         );
-        let dot = Fresh::new(&style(), &samples[..1], 0);
-        assert_eq!(dot.bounds.len(), 1);
-        assert_eq!(Fresh::new(&style(), &samples, 1).bounds.len(), 0);
+        assert_eq!(Fresh::new(session.active(), 1).bounds.len(), 0);
     }
 }

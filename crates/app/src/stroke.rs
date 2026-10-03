@@ -2,8 +2,9 @@
 //! stroke when it touches down, extends it while it moves and commits it as one new artwork
 //! version when it lifts; a cancelled contact leaves the artwork as it was.
 //!
-//! Only the pen draws. Fingers and the eraser end do nothing yet: what a finger does on the
-//! canvas is the author's decision (ARCHITECTURE section 10), the eraser arrives in S12.
+//! Only the pen draws, with the style the toolbox gives (painting or erasing). Fingers and the
+//! pen's eraser end do nothing: what they do on the canvas is the author's decision (gesture
+//! and pen-button mapping, ARCHITECTURE section 10).
 
 use openpaint_core::{
     ActiveStroke, Artwork, CanvasPoint, StrokeSample, StrokeSession, StrokeStyle,
