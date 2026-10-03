@@ -40,14 +40,15 @@ Exit: the author finishes painterly shading (W2) and a complex composition revis
 
 S18 is done (see "Done"). Next: S19.
 
-**S19 Transform** (core, app, ui, render): move, scale and rotate a layer or selection; preview through the renderer; commit as a `RegionEdit`. Done: preview and committed result match.
-**S20 Smudge** (core, render, ui): a smudge brush drags the current layer's colour; incremental residual tiles; incremental = cold evaluation bit for bit. Done: GPU consistency test; at least 60 Hz smudging on the tablet.
-**S21 Groups, clipping masks, blend modes** (core, app, ui, render, store): single-level groups, clipping chains, Multiply/Screen/Overlay; schema upgrade. Done: GPU tests for the compositing formulas.
-**S22 Layer masks** (core, app, ui, render, store): add, disable, invert, clear and delete masks with undo; painting on masks. Done: GPU tests for masks combined with opacity, clipping and groups.
+**S19 Motion foundation** (ui, render adapter, runtime, devtools): the motion system of D44 (ARCHITECTURE section 10): one spring with a few presets in `ui/src/design/motion.rs`, the four patterns built into the shared components, chrome shapes drawn so a panel grows out of its island button (the approved demo, `C:\repo\openpaint-lab\motion-demo` v3). Applied to every existing surface: panels and their switches, dialogs, notices, the loupe, the reference window, gallery card to canvas and back, layer rows settling, quick pinch to fit. Done: scenarios step a fixed clock and check pixels only after motion settles; mid-motion screenshots reviewed; no input is ever blocked or delayed by motion; the author judges the feel on the tablet.
+**S20 Transform** (core, app, ui, render): move, scale and rotate a layer or selection; preview through the renderer; commit as a `RegionEdit`. Done: preview and committed result match.
+**S21 Smudge** (core, render, ui): a smudge brush drags the current layer's colour; incremental residual tiles; incremental = cold evaluation bit for bit. Done: GPU consistency test; at least 60 Hz smudging on the tablet.
+**S22 Groups, clipping masks, blend modes** (core, app, ui, render, store): single-level groups, clipping chains, Multiply/Screen/Overlay; schema upgrade. Done: GPU tests for the compositing formulas.
+**S23 Layer masks** (core, app, ui, render, store): add, disable, invert, clear and delete masks with undo; painting on masks. Done: GPU tests for masks combined with opacity, clipping and groups.
 
 ## G4 Colour, adjustments, exchange
 
-**S23 Colour management**: P3 display, import interpretation and export conversion defined separately. **S24 Adjustments**: hue/saturation/brightness, curves, blur, sharpen, each with preview, cancel and history. **S25 Project exchange**: the native format as the full original; OpenRaster import and export. **S26 Library management**: search, version restore, external backup.
+**S24 Colour management**: P3 display, import interpretation and export conversion defined separately. **S25 Adjustments**: hue/saturation/brightness, curves, blur, sharpen, each with preview, cancel and history. **S26 Project exchange**: the native format as the full original; OpenRaster import and export. **S27 Library management**: search, version restore, external backup.
 Exit: the author completes edit, restore and delivery (W4).
 
 ## G5 Stability and release
