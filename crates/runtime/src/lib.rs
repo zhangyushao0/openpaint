@@ -9,6 +9,7 @@ mod fill;
 mod frame;
 mod input;
 mod normalise;
+mod offscreen;
 mod pointer;
 mod preview;
 mod screen;

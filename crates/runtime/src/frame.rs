@@ -16,14 +16,12 @@ use openpaint_app::{
     ScreenProjection, SessionProjection, Toolbox, Transfers,
 };
 use openpaint_core::Artwork;
-use openpaint_render::{
-    Core, RenderError, RgbaImage, ScreenPainter, ScreenTarget, Surface, SurfaceWindow, UiFrame,
-};
+use openpaint_render::{Core, ScreenPainter, ScreenTarget, Surface, SurfaceWindow, UiFrame};
 use openpaint_ui::Shell;
 use openpaint_ui::design::{self, TextFonts};
 
 use crate::canvas::Leaving;
-use crate::clock::InputClock;
+use crate::clock::{FrameClock, InputClock};
 use crate::error::RuntimeError;
 use crate::fill::FillWorker;
 use crate::input::MotionBatch;
@@ -34,34 +32,37 @@ use crate::screen::{Screen, dispatch_gallery, leave_job};
 use crate::storage::{Job, Storage};
 use crate::text::{TextInput, text_events};
 use crate::transfer::{TransferWorker, route};
-use crate::ui_pass::{UiPass, run_ui, screen_frame};
+pub(crate) use crate::ui_pass::screen_frame;
+use crate::ui_pass::{UiPass, run_ui};
 
 /// Longest `leave` waits for the store; a longer save goes on in the background.
 const LEAVE_WAIT: Duration = Duration::from_secs(2);
 
 pub struct Runtime {
     /// Shared with the transfer worker, which renders exports.
-    core: Arc<Core>,
+    pub(crate) core: Arc<Core>,
     ui: egui::Context,
-    shell: Shell,
+    pub(crate) shell: Shell,
     /// Created with the first target and kept for the process: it holds the UI's textures.
-    painter: Option<ScreenPainter>,
+    pub(crate) painter: Option<ScreenPainter>,
     surface: Option<Surface>,
     /// The harness's frame, in place of a window.
-    offscreen: Option<ScreenTarget>,
+    pub(crate) offscreen: Option<ScreenTarget>,
     pixels_per_point: f32,
     normaliser: Normaliser,
     /// Drops the hand resting on the glass before the UI or the session sees it.
     palms: PalmRejection,
     /// The input samples' clock, carried on between batches for gestures.
     clock: InputClock,
+    /// The clock motion runs on.
+    pub(crate) frame_clock: FrameClock,
     /// Input normalised since the last frame, palms removed, oldest first.
     pending: Vec<InputBatch>,
     /// Keyboard text for the focused text field since the last frame.
     typed: Vec<egui::Event>,
     /// Whether the last frame had a text field waiting for the keyboard.
     keyboard: bool,
-    screen: Screen,
+    pub(crate) screen: Screen,
     /// The brush, size and opacity: the app's, kept across artworks; the open session gets the
     /// style it makes.
     toolbox: Toolbox,
@@ -107,6 +108,7 @@ impl Runtime {
             normaliser: Normaliser::default(),
             palms: PalmRejection::default(),
             clock: InputClock::default(),
+            frame_clock: FrameClock::default(),
             pending: Vec::new(),
             typed: Vec::new(),
             keyboard: false,
@@ -246,61 +248,6 @@ impl Runtime {
         Ok(repaint || !presented)
     }
 
-    /// Runs one frame into an offscreen target of `size` pixels, for the harness, which never
-    /// attaches a window. Returns whether another frame is wanted at once.
-    pub fn frame_offscreen(&mut self, size: [u32; 2]) -> Result<bool, RuntimeError> {
-        if self
-            .offscreen
-            .as_ref()
-            .is_none_or(|target| target.size() != size)
-        {
-            self.offscreen = Some(ScreenTarget::new(&self.core, size)?);
-        }
-        let (ui, repaint) = self.update(size)?;
-        let painter = self
-            .painter
-            .get_or_insert_with(|| ScreenPainter::offscreen(&self.core));
-        if let Some(target) = &self.offscreen {
-            let frame = screen_frame(self.screen.canvas(), &self.shell, ui);
-            self.core.render_screen(painter, target, frame)?;
-        }
-        Ok(repaint)
-    }
-
-    /// The last offscreen frame, read back.
-    pub fn read_offscreen(&self) -> Result<Option<RgbaImage>, RuntimeError> {
-        match &self.offscreen {
-            Some(target) => Ok(Some(target.read(&self.core)?)),
-            None => Ok(None),
-        }
-    }
-
-    /// The canvas as evaluated so far, read back: the artwork's pixels without the UI.
-    pub fn read_canvas(&self) -> Result<Option<RgbaImage>, RuntimeError> {
-        match self.screen.canvas() {
-            Some(canvas) => Ok(Some(canvas.target().read(&self.core)?)),
-            None => Ok(None),
-        }
-    }
-
-    /// One offscreen frame of `size` pixels, read back.
-    pub fn screenshot(&mut self, size: [u32; 2]) -> Result<RgbaImage, RuntimeError> {
-        self.frame_offscreen(size)?;
-        let missing = RenderError::Invalid("no offscreen frame was drawn");
-        self.read_offscreen()?.ok_or(RuntimeError::Render(missing))
-    }
-
-    /// Blocks until the GPU has finished every submitted frame, for timing.
-    pub fn wait_idle(&self) -> Result<(), RuntimeError> {
-        Ok(self.core.wait_idle()?)
-    }
-
-    /// Adapter name and backend, for logs and harness output.
-    #[must_use]
-    pub fn adapter(&self) -> String {
-        self.core.adapter()
-    }
-
     /// The open artwork, while the canvas shows one.
     #[must_use]
     pub fn artwork(&self) -> Option<&Artwork> {
@@ -345,8 +292,9 @@ impl Runtime {
 
     /// Everything before drawing: storage results, input, UI, intents, evaluation, storage
     /// calls. Asks for another frame when the screen changed what it offers, so it never
-    /// shows a stale state while idle, and while waiting for the storage worker.
-    fn update(&mut self, size: [u32; 2]) -> Result<(UiFrame, bool), RuntimeError> {
+    /// shows a stale state while idle, while waiting for the storage worker and while
+    /// something moves (D44).
+    pub(crate) fn update(&mut self, size: [u32; 2]) -> Result<(UiFrame, bool), RuntimeError> {
         self.receive()?;
         let batches = std::mem::take(&mut self.pending);
         let mut events = pointer_events(&batches, self.pixels_per_point);
@@ -361,6 +309,7 @@ impl Runtime {
                 size,
                 pixels_per_point: self.pixels_per_point,
                 events,
+                time: self.frame_clock.seconds(),
             },
         );
         self.keyboard = pass.keyboard;

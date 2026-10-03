@@ -7,6 +7,8 @@
 
 use egui::{Align, Layout, Order, Rect, Sense, Stroke, UiBuilder, Vec2};
 
+use crate::components::chrome::Source;
+use crate::components::paper::paper;
 use crate::design::{
     CORNER, ICON_SIZE, INK, Icon, PANEL, PANEL_RULE, PANEL_RULE_WIDTH, SPACE, TOUCH_TARGET,
     paint_icon,
@@ -38,46 +40,43 @@ pub struct Floating<B, T> {
     pub body: T,
 }
 
-/// Shows the window `id` over `window` (points), the bar too when `bar`. `add_body` paints the
-/// picture into the rectangle it is given; `add_buttons` lays out right to left at the bar's
-/// right end.
+/// Shows the window `id` over `window` (points), the bar too when `bar`, grown out of `source`
+/// when it comes and going back into it once it is no longer shown (D44). `add_body` paints
+/// the picture into the rectangle it is given; `add_buttons` lays out right to left at the
+/// bar's right end. The paper and its outline are the motion's (`paper`).
 pub fn floating<B, T>(
     ctx: &egui::Context,
     id: &str,
-    (window, bar): (Rect, bool),
+    (window, bar, source): (Rect, bool, Source),
     add_buttons: impl FnOnce(&mut egui::Ui) -> B,
     add_body: impl FnOnce(&mut egui::Ui, Rect) -> T,
 ) -> Floating<B, T> {
-    egui::Area::new(egui::Id::new(id))
+    let area = egui::Area::new(egui::Id::new(id))
         .order(Order::Middle)
         .movable(false)
         .constrain(false)
         .fade_in(false)
-        .fixed_pos(window.min)
-        .show(ctx, |ui| {
-            ui.spacing_mut().item_spacing = Vec2::ZERO;
-            let (window, _) = ui.allocate_exact_size(window.size(), Sense::hover());
-            let outline = Stroke::new(PANEL_RULE_WIDTH, PANEL_RULE);
-            ui.painter().rect_filled(window, CORNER, PANEL);
-            let picture = window.shrink(MAT);
-            let body = add_body(ui, picture);
-            let mut layout = FloatingLayout {
-                window,
-                picture,
-                bar: None,
-                grip: None,
-                resize: None,
-            };
-            let buttons = bar.then(|| show_bar(ui, &mut layout, add_buttons));
-            ui.painter()
-                .rect_stroke(window, CORNER, outline, egui::StrokeKind::Inside);
-            Floating {
-                layout,
-                buttons,
-                body,
-            }
-        })
-        .inner
+        .fixed_pos(window.min);
+    let (shown, _) = paper(ctx, egui::Id::new(id), source, area, |ui| {
+        ui.spacing_mut().item_spacing = Vec2::ZERO;
+        let (window, _) = ui.allocate_exact_size(window.size(), Sense::hover());
+        let picture = window.shrink(MAT);
+        let body = add_body(ui, picture);
+        let mut layout = FloatingLayout {
+            window,
+            picture,
+            bar: None,
+            grip: None,
+            resize: None,
+        };
+        let buttons = bar.then(|| show_bar(ui, &mut layout, add_buttons));
+        Floating {
+            layout,
+            buttons,
+            body,
+        }
+    });
+    shown
 }
 
 /// The bar over the picture's top and the resize mark in its bottom-right corner.

@@ -9,7 +9,9 @@ use openpaint_app::{
     Delivery, EditorAction, ExportIntent, ImageFormat, Intent, ReferenceIntent, SessionProjection,
 };
 
-use crate::components::{ScreenArea, icon_toggle, menu_row, popover_left, section, switch_row};
+use crate::components::{
+    Opener, ScreenArea, icon_toggle, menu_row, popover_left, section, switch_row,
+};
 use crate::design::{Icon, SPACE, TOUCH_TARGET};
 
 /// The export rows, top to bottom.
@@ -26,33 +28,45 @@ pub(crate) struct ActionsPanel {
     open: bool,
     /// Where the open panel lies on screen, in pixels, from the last pass.
     area: Option<ScreenArea>,
+    /// Where the Actions button lies, in points, from this pass.
+    button: Option<egui::Rect>,
 }
 
 impl ActionsPanel {
     /// The Actions button, in the left island. Returns whether it opened the panel.
     pub(crate) fn button(&mut self, ui: &mut egui::Ui) -> bool {
-        if icon_toggle(ui, Icon::Actions, "Actions", self.open).clicked() {
+        let response = icon_toggle(ui, Icon::Actions, "Actions", self.open);
+        self.button = Some(response.rect);
+        if response.clicked() {
             self.open = !self.open;
             return self.open;
         }
         false
     }
 
-    /// The panel when it is open, its taps pushed to `taps`.
+    /// Where the Actions button lies, in points: the reference window comes out of it.
+    pub(crate) fn button_rect(&self) -> egui::Rect {
+        self.button.unwrap_or(egui::Rect::ZERO)
+    }
+
+    /// The panel while it is open or closing, its taps pushed to `taps`.
     pub(crate) fn show(
         &mut self,
         ctx: &egui::Context,
         projection: &SessionProjection,
         taps: &mut Vec<Intent>,
     ) {
-        let transfers = projection.transfers().filter(|_| self.open);
-        let Some(transfers) = transfers else {
-            self.area = None;
+        self.area = None;
+        let Some(transfers) = projection.transfers() else {
             return;
         };
         let offered = |action| projection.availability(action).is_available();
         let mut close = false;
-        let rect = popover_left(ctx, "actions", |ui| {
+        let opener = Opener {
+            island: "left island",
+            button: self.button_rect(),
+        };
+        let rect = popover_left(ctx, "actions", (opener, self.open), |ui| {
             ui.horizontal(|ui| {
                 ui.set_height(TOUCH_TARGET);
                 ui.add_space(2.0 * SPACE);
@@ -81,7 +95,7 @@ impl ActionsPanel {
         });
         if close {
             self.close();
-        } else {
+        } else if let Some(rect) = rect {
             self.area = Some(ScreenArea::from_points(rect, ctx.pixels_per_point()));
         }
     }

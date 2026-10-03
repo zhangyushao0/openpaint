@@ -3,7 +3,7 @@
 
 use openpaint_app::{
     Contact, ContactPhase, FillFailed, Intent, SelectionIntent, Session, StrokeIntent, Thumbnail,
-    Title, ToolIntent, Toolbox,
+    Title, ToolIntent, Toolbox, ViewMapping,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, RegionMask, StrokeTool};
 use openpaint_render::{
@@ -226,17 +226,18 @@ impl Canvas {
         ))
     }
 
-    /// The target shown in the canvas area through the session's view, on a screen of
-    /// `pixels_per_point`, with the pen's hover outline when it shows.
+    /// The target shown in the canvas area through the session's view as `shown` shows it (the
+    /// same, or on its way there while the view settles), on a screen of `pixels_per_point`,
+    /// with the pen's hover outline when it shows.
     pub(crate) fn placement(
         &self,
-        area: &CanvasArea,
-        pixels_per_point: f32,
+        (area, pixels_per_point): (&CanvasArea, f32),
         cursor: Option<BrushCursor>,
+        shown: impl FnOnce(ViewMapping) -> ViewMapping,
     ) -> CanvasPlacement<'_> {
         let canvas = self.session.artwork().canvas();
         let viewport = area.viewport(pixels_per_point);
-        let mapping = self.session.view().mapping(canvas, &viewport);
+        let mapping = shown(self.session.view().mapping(canvas, &viewport));
         CanvasPlacement {
             target: &self.target,
             origin: area.screen.origin,

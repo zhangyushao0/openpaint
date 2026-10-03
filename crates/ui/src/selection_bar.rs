@@ -9,7 +9,7 @@
 use egui::{Color32, Order, Pos2, Stroke};
 use openpaint_app::{Intent, SelectionIntent, SelectionShape, SessionProjection, ViewMapping};
 
-use crate::components::{Place, ScreenArea, icon_toggle, pill, text_button, text_choice};
+use crate::components::{Place, ScreenArea, icon_toggle, pill, ring_of, text_button, text_choice};
 use crate::design::{INK, Icon, PANEL, SPACE, ink_line};
 
 /// How near the path's first point, in points, a pen contact closes it (draweave's).
@@ -22,18 +22,22 @@ const PATH_UNDER: f32 = 3.5;
 pub(crate) struct SelectionBar {
     /// Where the bar lies on screen, in pixels, from the last pass.
     area: Option<ScreenArea>,
+    /// Where the Selection button lies, in points: the bar comes out of it.
+    button: Option<egui::Rect>,
 }
 
 impl SelectionBar {
     /// The Selection button. Returns whether a tap turned the tool on.
     pub(crate) fn button(
-        &self,
+        &mut self,
         ui: &mut egui::Ui,
         projection: &SessionProjection,
         taps: &mut Vec<Intent>,
     ) -> bool {
         let on = projection.selection().tool;
-        if icon_toggle(ui, Icon::Selection, "Selection", on).clicked() {
+        let response = icon_toggle(ui, Icon::Selection, "Selection", on);
+        self.button = Some(response.rect);
+        if response.clicked() {
             push(taps, Intent::Selection(SelectionIntent::Tool(!on)));
             return !on;
         }
@@ -52,7 +56,8 @@ impl SelectionBar {
             self.area = None;
             return;
         }
-        let ((), rect) = pill(ctx, "selection bar", Place::top_middle(), |ui| {
+        let source = ring_of(self.button.unwrap_or(egui::Rect::ZERO));
+        let ((), rect) = pill(ctx, "selection bar", Place::top_middle(), source, |ui| {
             for (shape, label) in [
                 (SelectionShape::Freehand, "Freehand"),
                 (SelectionShape::Rectangle, "Rectangle"),

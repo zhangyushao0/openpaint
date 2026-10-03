@@ -15,10 +15,12 @@ mod drop_bar;
 mod gallery;
 mod layer_panel;
 mod notices;
+mod panels;
 mod pen_marks;
 mod reference_touch;
 mod reference_window;
 mod selection_bar;
+mod sheet;
 mod shell;
 mod side_bar;
 

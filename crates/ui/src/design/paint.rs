@@ -11,7 +11,7 @@ use super::palette::{INK_ACTIVE, PANEL, PANEL_RULE, PANEL_RULE_WIDTH, PRESSED, S
 use super::{CORNER, SPACE};
 
 /// Weight of the active mark's line, in points.
-const MARK_LINE: f32 = 1.5;
+pub const MARK_LINE: f32 = 1.5;
 /// Points on a sheet shadow's rounded corner.
 const CORNER_STEPS: usize = 6;
 
@@ -25,18 +25,33 @@ pub fn panel_frame(margin: Margin) -> Frame {
         .inner_margin(margin)
 }
 
+/// The frame of a surface whose paper the motion draws (D44): `panel_frame`'s layout, outline
+/// width included, painting nothing itself.
+pub fn surface_frame(margin: Margin) -> Frame {
+    Frame::new()
+        .stroke(Stroke::new(PANEL_RULE_WIDTH, Color32::TRANSPARENT))
+        .corner_radius(CORNER)
+        .inner_margin(margin)
+}
+
 /// Under the hand while it presses the control in `rect`.
 pub fn paint_pressed(painter: &egui::Painter, rect: Rect) {
     painter.rect_filled(rect, CORNER, PRESSED);
 }
 
-/// The active mark of an icon button or swatch whose touch target is `rect`: an ink ring.
-pub fn paint_icon_mark(painter: &egui::Painter, rect: Rect) {
+/// The active mark of an icon button or swatch whose touch target is `rect`: an ink ring,
+/// `shown` from 0 (none) to 1 (whole). Coming and going it draws in from a little wider and
+/// fades, so the change is seen where it happens (acknowledge, D44).
+pub fn paint_icon_mark(painter: &egui::Painter, rect: Rect, shown: f32) {
+    if shown <= 0.0 {
+        return;
+    }
     let side = rect.width().min(rect.height());
+    let shown = shown.min(1.0);
     painter.circle_stroke(
         rect.center(),
-        0.4 * side,
-        Stroke::new(MARK_LINE, INK_ACTIVE),
+        (0.48 - 0.08 * shown) * side,
+        Stroke::new(MARK_LINE, INK_ACTIVE.gamma_multiply(shown)),
     );
 }
 

@@ -28,7 +28,10 @@ mod stroke;
 mod surface;
 mod thumbnail;
 
-pub use crate::adapter::{ScreenFrame, ScreenPainter, UiFrame};
+pub use crate::adapter::{
+    CHROME_ISLANDS, CHROME_PANELS, ChromePanel, ChromeShapes, ScreenFrame, ScreenPainter, UiFrame,
+    chrome_shape,
+};
 pub use crate::change::changed_regions;
 pub use crate::core::Core;
 pub use crate::error::RenderError;

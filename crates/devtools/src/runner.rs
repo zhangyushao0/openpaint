@@ -5,20 +5,26 @@
 //! the app asks of the system (pickers, the share sheet) waits for a `system` step to answer it
 //! as the user would (`system.rs`). Checkpoints, screenshots and exported files are collected
 //! into a report; a failed checkpoint does not stop the run.
+//!
+//! Motion (D44) runs on a clock the runner holds: the time of the input being handed over, then
+//! one 60 Hz frame further per frame without input. Input steps never wait for motion (the hand
+//! acts on the final state at once); a step that looks (a checkpoint, a screenshot, a view, an
+//! export) first lets every motion settle, unless a screenshot asks for a moment `after_ms` the
+//! last input.
 
 use std::path::Path;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, PoisonError};
 use std::time::{Duration, Instant};
 
-use openpaint_render::RgbaImage;
 use openpaint_runtime::{HostRequest, MotionBatch, Runtime, TextFonts, TextInput};
 
 use crate::error::ScenarioError;
 use crate::gesture;
+use crate::report::{Record, Report, record, view_check};
 use crate::scenario::{Scenario, Step};
 use crate::switch::Switched;
-use crate::system::{self, Export, Written};
+use crate::system::{self, Written};
 
 /// Milliseconds of one 60 Hz frame, for the input clock.
 const FRAME_MS: i64 = 16;
@@ -26,106 +32,8 @@ const FRAME_MS: i64 = 16;
 const FOLLOW_UPS: usize = 4;
 /// Longest wait for the storage worker after a step.
 const STORAGE_LIMIT: Duration = Duration::from_secs(10);
-
-/// The canvas at a checkpoint and the hash it should have.
-#[derive(Debug, Clone)]
-pub struct Checkpoint {
-    pub name: String,
-    pub expected: u64,
-    pub canvas: RgbaImage,
-}
-
-impl Checkpoint {
-    #[must_use]
-    pub fn actual(&self) -> u64 {
-        self.canvas.content_hash()
-    }
-
-    #[must_use]
-    pub fn passed(&self) -> bool {
-        self.actual() == self.expected
-    }
-}
-
-/// The screen of the last frame.
-#[derive(Debug, Clone)]
-pub struct Screenshot {
-    pub name: String,
-    pub screen: RgbaImage,
-}
-
-/// The view at a view checkpoint and what it should be: zoom relative to fit, rotation in
-/// degrees, and pan in points when the step gives one.
-#[derive(Debug, Clone)]
-pub struct ViewCheck {
-    pub name: String,
-    pub expected: (f32, f32, Option<[f32; 2]>),
-    pub actual: (f32, f32, [f32; 2]),
-}
-
-impl ViewCheck {
-    /// Zoom within 1 %, rotation within half a degree, pan within a point.
-    #[must_use]
-    pub fn passed(&self) -> bool {
-        let (zoom, rotation, pan) = self.expected;
-        let (actual_zoom, actual_rotation, actual_pan) = self.actual;
-        let turn = (actual_rotation - rotation + 180.0).rem_euclid(360.0) - 180.0;
-        (actual_zoom / zoom - 1.0).abs() <= 0.01
-            && turn.abs() <= 0.5
-            && pan.is_none_or(|[x, y]| {
-                (actual_pan[0] - x).abs() <= 1.0 && (actual_pan[1] - y).abs() <= 1.0
-            })
-    }
-}
-
-#[derive(Debug, Clone)]
-pub enum Record {
-    Checkpoint(Checkpoint),
-    Screenshot(Screenshot),
-    Export(Export),
-    View(ViewCheck),
-}
-
-#[derive(Debug, Clone)]
-pub struct Report {
-    /// In step order.
-    pub records: Vec<Record>,
-    /// From starting the runtime (GPU device included) to the last step.
-    pub elapsed: Duration,
-    pub frames: u64,
-    pub adapter: String,
-}
-
-impl Report {
-    pub fn checkpoints(&self) -> impl Iterator<Item = &Checkpoint> {
-        self.records.iter().filter_map(|record| match record {
-            Record::Checkpoint(checkpoint) => Some(checkpoint),
-            _ => None,
-        })
-    }
-
-    pub fn exports(&self) -> impl Iterator<Item = &Export> {
-        self.records.iter().filter_map(|record| match record {
-            Record::Export(export) => Some(export),
-            _ => None,
-        })
-    }
-
-    pub fn views(&self) -> impl Iterator<Item = &ViewCheck> {
-        self.records.iter().filter_map(|record| match record {
-            Record::View(view) => Some(view),
-            _ => None,
-        })
-    }
-
-    /// True when every checkpoint, export and view checkpoint passed.
-    #[must_use]
-    pub fn passed(&self) -> bool {
-        self.checkpoints().all(Checkpoint::passed)
-            && self.exports().all(Export::passed)
-            && self.views().all(ViewCheck::passed)
-    }
-}
+/// Most frames motion may take to settle before a step looks.
+const SETTLE_FRAMES: usize = 240;
 
 /// Starts the app on the library in `library` (created when missing), with the text faces a
 /// host would hand over, opens it and runs every step.
@@ -141,6 +49,7 @@ pub fn run(
         fonts,
         storage_off: Arc::new(AtomicBool::new(false)),
         clock_ms: 0,
+        input_ms: 0,
         frames: 0,
         requests: Vec::new(),
         written: Written::default(),
@@ -174,8 +83,11 @@ struct Runner<'a> {
     fonts: &'a TextFonts,
     /// Set by `storage_fails`, cleared by `storage_works`; survives restarts.
     storage_off: Arc<AtomicBool>,
-    /// Time of the next input sample, in milliseconds; never goes back, restarts included.
+    /// The runner's clock in milliseconds: the time of the next input sample and of the frames;
+    /// never goes back, restarts included.
     clock_ms: i64,
+    /// When the last input step's last batch was handed over.
+    input_ms: i64,
     frames: u64,
     /// What the app asked the system for and the user has not answered yet.
     requests: Vec<HostRequest>,
@@ -224,7 +136,10 @@ impl Runner<'_> {
                 let to = to.as_ref().unwrap_or(from);
                 self.gesture(runtime, &gesture::fingers(from, to, *ms, now))?;
             }
-            Step::View { .. } => return Ok(view_check(runtime, step)),
+            Step::View { .. }
+            | Step::Checkpoint { .. }
+            | Step::Screenshot { .. }
+            | Step::Exported { .. } => return self.look(runtime, step),
             Step::Type(text) => {
                 runtime.text(TextInput::Commit(text.clone()));
                 self.frame(runtime)?;
@@ -234,6 +149,7 @@ impl Runner<'_> {
                     return Err(ScenarioError::Missing("back was not used by the app"));
                 }
                 self.frame(runtime)?;
+                self.input_ms = self.clock_ms;
             }
             Step::Wait { frames } => {
                 for _ in 0..*frames {
@@ -248,13 +164,30 @@ impl Runner<'_> {
                 if let Some(answer) = system::answer(&mut self.requests, *answer, &self.written)? {
                     runtime.answer(answer);
                     self.frame(runtime)?;
+                    // What the answer brings (a picture, a notice) appears from here.
+                    self.input_ms = self.clock_ms;
                 }
-            }
-            Step::Checkpoint { .. } | Step::Screenshot { .. } | Step::Exported { .. } => {
-                return record(runtime, step, &self.written).map(Some);
             }
         }
         Ok(None)
+    }
+
+    /// A step that looks: once motion settled, or a screenshot `after_ms` the last input.
+    fn look(
+        &mut self,
+        runtime: &mut Runtime,
+        step: &Step,
+    ) -> Result<Option<Record>, ScenarioError> {
+        match step {
+            Step::Screenshot {
+                after_ms: Some(ms), ..
+            } => self.advance_to(runtime, self.input_ms + i64::from(*ms))?,
+            _ => self.settle(runtime)?,
+        }
+        if matches!(step, Step::View { .. }) {
+            return Ok(view_check(runtime, step));
+        }
+        record(runtime, step, &self.written).map(Some)
     }
 
     /// A press's batches; with `before_lift`, a screenshot of that name before the lift.
@@ -272,33 +205,65 @@ impl Runner<'_> {
             .split_last()
             .ok_or(ScenarioError::Missing("a press has no samples"))?;
         self.gesture(runtime, held)?;
-        let step = Step::Screenshot { name: name.clone() };
+        let step = Step::Screenshot {
+            name: name.clone(),
+            after_ms: None,
+        };
         let shot = record(runtime, &step, &self.written)?;
         self.gesture(runtime, std::slice::from_ref(lift))?;
         Ok(Some(shot))
     }
 
-    /// Each batch is one platform event followed by one frame.
+    /// Each batch is one platform event followed by one frame at the batch's time.
     fn gesture(
         &mut self,
         runtime: &mut Runtime,
         batches: &[MotionBatch],
     ) -> Result<(), ScenarioError> {
         for batch in batches {
+            let at = gesture::end_ms(std::slice::from_ref(batch), self.clock_ms);
+            self.clock_ms = self.clock_ms.max(at);
             runtime.motion(batch);
             self.frame(runtime)?;
         }
-        self.clock_ms = gesture::end_ms(batches, self.clock_ms) + FRAME_MS;
+        self.input_ms = self.clock_ms;
+        self.clock_ms = gesture::end_ms(batches, self.clock_ms).max(self.clock_ms) + FRAME_MS;
+        Ok(())
+    }
+
+    /// Frames one 60 Hz frame apart until nothing moves on screen, at most `SETTLE_FRAMES`.
+    fn settle(&mut self, runtime: &mut Runtime) -> Result<(), ScenarioError> {
+        for _ in 0..SETTLE_FRAMES {
+            if !runtime.moving() {
+                return Ok(());
+            }
+            self.frame(runtime)?;
+            self.clock_ms += FRAME_MS;
+        }
+        Err(ScenarioError::Missing("motion did not settle"))
+    }
+
+    /// Frames one 60 Hz frame apart up to `target`, then one at `target`.
+    fn advance_to(&mut self, runtime: &mut Runtime, target: i64) -> Result<(), ScenarioError> {
+        while self.clock_ms < target {
+            self.frame(runtime)?;
+            self.clock_ms += FRAME_MS;
+        }
+        let next = self.clock_ms;
+        self.clock_ms = target;
+        self.frame(runtime)?;
+        self.clock_ms = next;
         Ok(())
     }
 
     /// One frame and the frames the runtime then asks for at once (a button that changed what
     /// the UI offers, egui's own layout), as the host's frame pacing gives them, up to
-    /// `FOLLOW_UPS` more; again while a worker (storage, transfer) is busy, until it is done.
-    /// Then the host takes what the app asks of the system.
+    /// `FOLLOW_UPS` more, all at the runner's clock now; again while a worker (storage,
+    /// transfer) is busy, until it is done. Then the host takes what the app asks of the system.
     fn frame(&mut self, runtime: &mut Runtime) -> Result<(), ScenarioError> {
         let screen = self.scenario.screen;
         let start = Instant::now();
+        runtime.fix_clock(self.clock_ms);
         loop {
             // The frame that takes a worker's result may ask for more (a window laid out).
             for _ in 0..=FOLLOW_UPS {
@@ -321,56 +286,4 @@ impl Runner<'_> {
             .extend(std::iter::from_fn(|| runtime.host_request()));
         Ok(())
     }
-}
-
-/// The view a view step looks at.
-fn view_check(runtime: &Runtime, step: &Step) -> Option<Record> {
-    let Step::View {
-        name,
-        zoom,
-        rotation,
-        pan,
-    } = step
-    else {
-        return None;
-    };
-    let view = runtime.projection().view();
-    Some(Record::View(ViewCheck {
-        name: name.clone(),
-        expected: (*zoom, *rotation, *pan),
-        actual: (view.zoom(), view.rotation().to_degrees(), view.pan()),
-    }))
-}
-
-/// What a checkpoint, screenshot or export step looks at.
-fn record(runtime: &Runtime, step: &Step, written: &Written) -> Result<Record, ScenarioError> {
-    let canvas = || {
-        runtime
-            .read_canvas()?
-            .ok_or(ScenarioError::Missing("no canvas is open"))
-    };
-    Ok(match step {
-        Step::Checkpoint { name, canvas: hash } => Record::Checkpoint(Checkpoint {
-            name: name.clone(),
-            expected: *hash,
-            canvas: canvas()?,
-        }),
-        Step::Exported { name } => {
-            let bytes = written
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .take();
-            let bytes = bytes.ok_or(ScenarioError::Missing("no export was written"))?;
-            Record::Export(Export::of(name, bytes, &canvas()?)?)
-        }
-        Step::Screenshot { name } => {
-            let image = runtime.read_offscreen()?;
-            let screen = image.ok_or(ScenarioError::Missing("no frame was drawn"))?;
-            Record::Screenshot(Screenshot {
-                name: name.clone(),
-                screen,
-            })
-        }
-        _ => return Err(ScenarioError::Missing("not a step that records")),
-    })
 }

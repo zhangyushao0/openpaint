@@ -9,7 +9,7 @@
 use openpaint_app::{EditorAction, Intent, LayerIntent, LayerList, SessionProjection};
 
 use crate::components::{
-    ListRow, ScreenArea, icon_button, icon_toggle, list_row, popover, slider, switch_row,
+    ListRow, Opener, ScreenArea, icon_button, icon_toggle, list_row, popover, slider, switch_row,
 };
 use crate::design::{Icon, SPACE, TOUCH_TARGET};
 
@@ -27,36 +27,43 @@ pub(crate) struct LayerPanel {
     open: bool,
     /// Where the open panel lies on screen, in pixels, from the last pass.
     area: Option<ScreenArea>,
+    /// Where the Layers button lies, in points: the panel comes out of it.
+    button: Option<egui::Rect>,
 }
 
 impl LayerPanel {
     /// The Layers button, in the right island. Returns whether it opened the panel.
     pub(crate) fn button(&mut self, ui: &mut egui::Ui) -> bool {
-        if icon_toggle(ui, Icon::Layers, "Layers", self.open).clicked() {
+        let response = icon_toggle(ui, Icon::Layers, "Layers", self.open);
+        self.button = Some(response.rect);
+        if response.clicked() {
             self.open = !self.open;
             return self.open;
         }
         false
     }
 
-    /// The panel when it is open, its taps pushed to `taps`.
+    /// The panel while it is open or closing, its taps pushed to `taps`.
     pub(crate) fn show(
         &mut self,
         ctx: &egui::Context,
         projection: &SessionProjection,
         taps: &mut Vec<Intent>,
     ) {
-        let list = projection.layers().filter(|_| self.open);
-        let Some(list) = list else {
-            self.area = None;
+        self.area = None;
+        let Some(list) = projection.layers() else {
             return;
         };
-        let rect = popover(ctx, "layers", |ui| {
+        let opener = Opener {
+            island: "right island",
+            button: self.button.unwrap_or(egui::Rect::ZERO),
+        };
+        let rect = popover(ctx, "layers", (opener, self.open), |ui| {
             header(ui, projection, taps);
             rows(ui, list, projection, taps);
             footer(ui, list, projection, taps);
         });
-        self.area = Some(ScreenArea::from_points(rect, ctx.pixels_per_point()));
+        self.area = rect.map(|rect| ScreenArea::from_points(rect, ctx.pixels_per_point()));
     }
 
     /// Where the open panel lies, which the canvas must not take contacts from.
@@ -119,6 +126,7 @@ fn rows(
                 let response = list_row(
                     ui,
                     &ListRow {
+                        key: egui::Id::new(("layer row", row.id.get())),
                         label: row.name.as_str(),
                         detail: &detail,
                         selected: row.id == list.active,

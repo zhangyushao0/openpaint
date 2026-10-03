@@ -4,20 +4,26 @@
 //! open it, its title to rename it (a dialog under the islands, above the soft keyboard), the
 //! copy button to duplicate it and the bin to delete it, which asks first: it cannot be undone.
 
+#[path = "gallery_dialogs.rs"]
+mod dialogs;
+
 use std::collections::HashMap;
 
-use egui::{Align, Layout, Vec2};
+use egui::{Align, Layout, Rect, Vec2};
 use openpaint_app::{
-    CanvasPreset, GalleryIntent, GalleryNotice, GalleryProjection, Intent, MAX_TITLE_CHARS,
-    ProjectId, ProjectSummary, Thumbnail, Title,
+    CanvasPreset, GalleryIntent, GalleryNotice, GalleryProjection, Intent, ProjectId,
+    ProjectSummary, Thumbnail, Title,
 };
 
+use crate::components::carry::{Arrival, Opening, land};
 use crate::components::{
-    ArtworkCard, ISLAND_TOP, Place, Placement, ScreenArea, TOP_BAND, artwork_card, card_size,
-    dialog, icon_button, icon_toggle, island, menu_row, notice, pill, popover, text_button,
-    text_field,
+    ArtworkCard, ISLAND_TOP, Opener, Place, ScreenArea, Source, TOP_BAND, artwork_card, card_size,
+    icon_button, icon_toggle, island, menu_row, notice, pill, popover,
 };
 use crate::design::{CARD_GAP, Icon, SPACE, TOUCH_TARGET};
+
+/// The island "+" sits on; the new-canvas popover grows out of it.
+const ISLAND: &str = "gallery island";
 
 /// The sizes "+" offers, top to bottom.
 const PRESETS: [(CanvasPreset, &str); 4] = [
@@ -44,8 +50,15 @@ pub(crate) struct GalleryScreen {
     /// One texture per listed thumbnail, replaced when the thumbnail changes.
     pictures: HashMap<ProjectId, (Thumbnail, egui::TextureHandle)>,
     rename: Option<Rename>,
-    /// The artwork whose deletion waits for the user's answer.
-    confirm: Option<(ProjectId, Title)>,
+    /// The artwork whose deletion waits for the user's answer, and its card (points).
+    confirm: Option<(ProjectId, Title, Rect)>,
+    /// Where "+" lies, in points, from this pass.
+    plus: Option<Rect>,
+    /// The artwork just opened or made, until the canvas takes it.
+    opening: Option<Opening>,
+    /// The artwork coming back from the canvas into its card.
+    arriving: Option<Arrival>,
+    arrivals: u64,
 }
 
 impl std::fmt::Debug for GalleryScreen {
@@ -65,9 +78,27 @@ struct Rename {
     text: String,
     /// True until the field has taken the focus.
     focus: bool,
+    /// The card it came from, in points.
+    card: Rect,
 }
 
 impl GalleryScreen {
+    /// The artwork just opened or made, once: the canvas grows out of where it lay.
+    pub(crate) fn take_opening(&mut self) -> Option<Opening> {
+        self.opening.take()
+    }
+
+    /// The canvas, last shown at `from` (points), comes back into the card of `id` (or the
+    /// first card).
+    pub(crate) fn arrive(&mut self, from: Rect, id: Option<ProjectId>) {
+        self.arrivals += 1;
+        self.arriving = Some(Arrival {
+            from,
+            id,
+            run: self.arrivals,
+        });
+    }
+
     /// The top band: the screen's name on the desk at the left, and at the right an island with
     /// "+" and, left of it, a pill with any notice. "+" opens the new-canvas popover (and closes
     /// it again).
@@ -90,20 +121,22 @@ impl GalleryScreen {
             });
         let enabled = projection.availability().is_available();
         let open = self.sizes != Sizes::Closed;
-        let (tapped, plus) = island(ctx, "gallery island", Place::top_right(0.0), |ui| {
+        let (button, plus) = island(ctx, ISLAND, Place::top_right(0.0), |ui| {
             let label = "New artwork";
             if enabled {
-                icon_toggle(ui, Icon::Add, label, open).clicked()
+                icon_toggle(ui, Icon::Add, label, open)
             } else {
-                icon_button(ui, Icon::Add, label, false).clicked()
+                icon_button(ui, Icon::Add, label, false)
             }
         });
-        if tapped {
+        self.plus = Some(button.rect);
+        if button.clicked() {
             self.sizes = if open { Sizes::Closed } else { Sizes::Opened };
         }
         if let Some(message) = message(projection.notice()) {
             let place = Place::top_right(plus.width() + SPACE);
-            let (dismissed, _) = pill(ctx, "gallery notice", place, |ui| {
+            let source = Source::Within(Align::Max);
+            let (dismissed, _) = pill(ctx, "gallery notice", place, source, |ui| {
                 notice(ui, message, "OK", true).clicked()
             });
             if dismissed {
@@ -127,6 +160,7 @@ impl GalleryScreen {
         under.min.y += TOP_BAND;
         let mut list = ui.new_child(egui::UiBuilder::new().max_rect(under));
         if projection.listed() && projection.items().is_empty() {
+            self.arriving = None;
             list.centered_and_justified(|ui| ui.label("No artworks yet. Tap + to start one."));
         } else {
             egui::ScrollArea::vertical().show(&mut list, |ui| {
@@ -143,11 +177,13 @@ impl GalleryScreen {
     /// "New canvas": one row per size, its pixels at the right end. A row makes the artwork;
     /// a tap outside closes the popover, and the tap that opened it does not.
     fn sizes_popover(&mut self, ctx: &egui::Context, area: [u32; 2], taps: &mut Vec<Intent>) {
-        if self.sizes == Sizes::Closed {
-            return;
-        }
         let mut chosen = None;
-        let rect = popover(ctx, "new canvas", |ui| {
+        let opener = Opener {
+            island: ISLAND,
+            button: self.plus.unwrap_or(Rect::ZERO),
+        };
+        let open = self.sizes != Sizes::Closed;
+        let rect = popover(ctx, "new canvas", (opener, open), |ui| {
             ui.horizontal(|ui| {
                 ui.set_height(TOUCH_TARGET);
                 ui.add_space(2.0 * SPACE);
@@ -156,11 +192,15 @@ impl GalleryScreen {
             for (preset, label) in PRESETS {
                 let [width, height] = preset.size(area);
                 let note = format!("{width} × {height}");
-                if menu_row(ui, label, &note, true).clicked() {
-                    chosen = Some(preset);
+                let row = menu_row(ui, label, &note, true);
+                if row.clicked() {
+                    chosen = Some((preset, row.rect));
                 }
             }
         });
+        let Some(rect) = rect else {
+            return;
+        };
         let released_outside = ctx.input(|input| {
             input.pointer.any_released()
                 && input
@@ -168,8 +208,13 @@ impl GalleryScreen {
                     .interact_pos()
                     .is_some_and(|at| !rect.contains(at))
         });
-        if let Some(preset) = chosen {
+        if let Some((preset, row)) = chosen {
             taps.push(Intent::Gallery(GalleryIntent::Create(preset)));
+            self.opening = Some(Opening {
+                from: row,
+                id: None,
+                picture: None,
+            });
             self.sizes = Sizes::Closed;
         } else if self.sizes == Sizes::Opened {
             self.sizes = Sizes::Shown;
@@ -193,21 +238,38 @@ impl GalleryScreen {
         let origin = ui.cursor().min + Vec2::splat(CARD_GAP);
         let height = rows as f32 * pitch.y + CARD_GAP;
         ui.allocate_space(Vec2::new(width, height));
+        // The card the canvas comes back into: its own, else the first (changed last).
+        let arriving = self.arriving.map(|arrival| {
+            let listed = items.iter().any(|item| Some(item.id) == arrival.id);
+            let id = arrival
+                .id
+                .filter(|_| listed)
+                .or(items.first().map(|item| item.id));
+            (arrival, id)
+        });
         for (index, item) in items.iter().enumerate() {
             let cell = Vec2::new((index % columns) as f32, (index / columns) as f32);
             let rect = egui::Rect::from_min_size(origin + cell * pitch, card_size());
             let mut slot = ui.new_child(egui::UiBuilder::new().max_rect(rect));
-            self.card(&mut slot, item, enabled, taps);
+            let landing = arriving.filter(|(_, id)| *id == Some(item.id));
+            let card = self.card(&mut slot, item, (enabled, landing.is_some()), taps);
+            if let Some((arrival, _)) = landing {
+                let picture = self.pictures.get(&item.id).map(|(_, texture)| texture);
+                if land(ui.ctx(), &arrival, picture, card) {
+                    self.arriving = None;
+                }
+            }
         }
     }
 
+    /// One card; returns where its picture lies.
     fn card(
         &mut self,
         ui: &mut egui::Ui,
         item: &ProjectSummary,
-        enabled: bool,
+        (enabled, away): (bool, bool),
         taps: &mut Vec<Intent>,
-    ) {
+    ) -> Rect {
         let picture = self.pictures.get(&item.id).map(|(_, texture)| texture);
         let tapped = artwork_card(
             ui,
@@ -216,71 +278,30 @@ impl GalleryScreen {
                 title: item.title.as_str(),
                 picture,
                 enabled,
+                away,
             },
         );
+        let card = ui.max_rect();
         if tapped.open {
             taps.push(Intent::Gallery(GalleryIntent::Open(item.id)));
+            self.opening = Some(Opening {
+                from: tapped.picture,
+                id: Some(item.id),
+                picture: picture.cloned(),
+            });
         } else if tapped.rename {
             self.rename = Some(Rename {
                 id: item.id,
                 text: item.title.as_str().to_owned(),
                 focus: true,
+                card,
             });
         } else if tapped.duplicate {
             taps.push(Intent::Gallery(GalleryIntent::Duplicate(item.id)));
         } else if tapped.delete {
-            self.confirm = Some((item.id, item.title.clone()));
+            self.confirm = Some((item.id, item.title.clone(), card));
         }
-    }
-
-    /// The title in a text field with Cancel and Done; Done (or Enter) renames when the text
-    /// is a valid title.
-    fn rename_dialog(&mut self, ctx: &egui::Context, taps: &mut Vec<Intent>) {
-        let Some(rename) = &mut self.rename else {
-            return;
-        };
-        let ((cancel, done), outside) = dialog(ctx, "rename", Placement::Top, |ui| {
-            ui.heading("Rename");
-            let field = text_field(
-                ui,
-                "rename-field",
-                &mut rename.text,
-                MAX_TITLE_CHARS,
-                rename.focus,
-            );
-            if field.response.has_focus() {
-                rename.focus = false;
-            }
-            let valid = Title::new(&rename.text).is_ok();
-            let (cancel, done) = answer_row(ui, "Cancel", "Done", valid);
-            (cancel, done || (field.submitted && valid))
-        });
-        if done && let Ok(title) = Title::new(&rename.text) {
-            taps.push(Intent::Gallery(GalleryIntent::Rename {
-                id: rename.id,
-                title,
-            }));
-            self.rename = None;
-        } else if cancel || outside {
-            self.rename = None;
-        }
-    }
-
-    fn confirm_dialog(&mut self, ctx: &egui::Context, taps: &mut Vec<Intent>) {
-        let Some((id, title)) = &self.confirm else {
-            return;
-        };
-        let ((cancel, delete), outside) = dialog(ctx, "delete", Placement::Centre, |ui| {
-            ui.heading(format!("Delete “{title}”?"));
-            ui.label("This can't be undone.");
-            answer_row(ui, "Cancel", "Delete", true)
-        });
-        if delete {
-            taps.push(Intent::Gallery(GalleryIntent::Delete(*id)));
-            self.confirm = None;
-        } else if cancel || outside {
-            self.confirm = None;
-        }
+        tapped.picture
     }
 
     /// Closes an open dialog as Cancel would, or the new-canvas popover. Returns whether one
@@ -317,17 +338,6 @@ impl GalleryScreen {
             self.pictures.insert(item.id, (thumbnail.clone(), texture));
         }
     }
-}
-
-/// Two buttons at the right of a dialog's last row: the cancelling one, then the answering one.
-fn answer_row(ui: &mut egui::Ui, cancel: &str, answer: &str, enabled: bool) -> (bool, bool) {
-    ui.add_space(SPACE);
-    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-        let answered = text_button(ui, answer, enabled).clicked();
-        let cancelled = text_button(ui, cancel, true).clicked();
-        (cancelled, answered)
-    })
-    .inner
 }
 
 fn message(notice: GalleryNotice) -> Option<&'static str> {

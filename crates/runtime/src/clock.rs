@@ -1,6 +1,8 @@
 //! The input clock: platform time as input samples carry it, carried on by the wall clock
 //! between batches, so gestures that wait without input (fingers held for a repeating
-//! shortcut, the view status fading) see time pass in the same clock their samples use.
+//! shortcut, the view status fading) see time pass in the same clock their samples use. And the
+//! frame clock motion runs on (D44): real elapsed time from the start, or a time the harness
+//! holds fixed so scenarios are deterministic.
 
 use std::time::Instant;
 
@@ -44,5 +46,37 @@ impl InputClock {
         let (base, since) = self.last.unwrap_or((0, self.started));
         let elapsed = i64::try_from(since.elapsed().as_millis()).unwrap_or(i64::MAX);
         base.saturating_add(elapsed)
+    }
+}
+
+/// The clock motion runs on.
+#[derive(Debug)]
+pub(crate) struct FrameClock {
+    started: Instant,
+    /// Milliseconds the harness holds the clock at, instead of the wall clock.
+    fixed: Option<i64>,
+}
+
+impl Default for FrameClock {
+    fn default() -> Self {
+        Self {
+            started: Instant::now(),
+            fixed: None,
+        }
+    }
+}
+
+impl FrameClock {
+    /// From now on the clock reads `ms` until the next call.
+    pub(crate) const fn fix(&mut self, ms: i64) {
+        self.fixed = Some(ms);
+    }
+
+    /// Seconds now.
+    pub(crate) fn seconds(&self) -> f64 {
+        match self.fixed {
+            Some(ms) => ms as f64 / 1000.0,
+            None => self.started.elapsed().as_secs_f64(),
+        }
     }
 }

@@ -15,12 +15,14 @@ pub(crate) struct UiPass<'a> {
     pub(crate) size: [u32; 2],
     pub(crate) pixels_per_point: f32,
     pub(crate) events: Vec<egui::Event>,
+    /// The frame clock in seconds: what motion runs on (D44).
+    pub(crate) time: f64,
 }
 
 /// What one UI pass gives.
 pub(crate) struct UiOutput {
     pub(crate) frame: UiFrame,
-    /// egui wants the next frame immediately (animations, first-frame layout).
+    /// egui wants the next frame immediately (motion, first-frame layout).
     pub(crate) repaint: bool,
     /// A text field has the focus and waits for typing.
     pub(crate) keyboard: bool,
@@ -36,7 +38,11 @@ pub(crate) fn screen_frame<'a>(
     let cursor = shell.cursor(canvas.and_then(Canvas::erasing_tip));
     ScreenFrame {
         surround: design::SURROUND,
-        canvas: placement.map(|(canvas, area)| canvas.placement(&area, pixels_per_point, cursor)),
+        canvas: placement.map(|(canvas, area)| {
+            canvas.placement((&area, pixels_per_point), cursor, |mapping| {
+                shell.displayed(mapping)
+            })
+        }),
         ui,
     }
 }
@@ -49,11 +55,13 @@ pub(crate) fn run_ui(ctx: &egui::Context, pass: UiPass<'_>) -> UiOutput {
         size,
         pixels_per_point,
         events,
+        time,
     } = pass;
     let points = egui::vec2(size[0] as f32, size[1] as f32) / pixels_per_point;
     let mut input = egui::RawInput {
         screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, points)),
         events,
+        time: Some(time),
         ..Default::default()
     };
     input

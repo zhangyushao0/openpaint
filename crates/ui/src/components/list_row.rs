@@ -4,6 +4,8 @@
 
 use egui::{Align2, Rect, Sense, TextStyle, Vec2, WidgetInfo, WidgetType};
 
+use crate::components::animate::{animate_from, settle};
+use crate::design::motion::{ACKNOWLEDGE, SETTLE};
 use crate::design::{
     ICON_SIZE, INK, INK_ACTIVE, INK_DISABLED, INK_SECONDARY, Icon, SPACE, TOUCH_TARGET, paint_icon,
     paint_pressed, paint_row_mark,
@@ -12,6 +14,8 @@ use crate::design::{
 /// What one row shows.
 #[derive(Debug, Clone, Copy)]
 pub struct ListRow<'a> {
+    /// Stays the same for one row's subject from frame to frame, wherever the row moves.
+    pub key: egui::Id,
     pub label: &'a str,
     /// Shown dimmer, right-aligned before the icon; empty for none.
     pub detail: &'a str,
@@ -36,6 +40,10 @@ pub fn list_row(ui: &mut egui::Ui, row: &ListRow<'_>) -> RowResponse {
     };
     let size = Vec2::new(ui.available_width(), TOUCH_TARGET);
     let (rect, response) = ui.allocate_exact_size(size, sense);
+    // Rows that moved (a reorder, a row added or deleted above) slide to their new place; the
+    // place itself takes the contact at once. Measured in the list, so scrolling never lags.
+    let place = rect.top() - ui.max_rect().top();
+    let offset = settle(ui.ctx(), row.key, place, SETTLE);
     let button = Rect::from_min_size(
         rect.right_top() - Vec2::new(TOUCH_TARGET, 0.0),
         Vec2::splat(TOUCH_TARGET),
@@ -46,8 +54,13 @@ pub fn list_row(ui: &mut egui::Ui, row: &ListRow<'_>) -> RowResponse {
         WidgetInfo::selected(WidgetType::Button, row.enabled, row.selected, row.label)
     });
     icon.widget_info(|| WidgetInfo::labeled(WidgetType::Button, row.enabled, row.icon_label));
-    if ui.is_rect_visible(rect) {
-        paint(ui, row, rect, (&response, &icon));
+    // A row seen for the first time (a layer just added) fades in where it lands.
+    let appear = animate_from(ui.ctx(), row.key.with("appear"), 0.0, 1.0, ACKNOWLEDGE);
+    let shown = rect.translate(Vec2::new(0.0, offset));
+    if ui.is_rect_visible(shown) {
+        let mut painter = ui.painter().clone();
+        painter.multiply_opacity(appear);
+        paint(ui, &painter, row, shown, (&response, &icon));
     }
     RowResponse {
         row: response,
@@ -57,11 +70,11 @@ pub fn list_row(ui: &mut egui::Ui, row: &ListRow<'_>) -> RowResponse {
 
 fn paint(
     ui: &egui::Ui,
+    painter: &egui::Painter,
     row: &ListRow<'_>,
     rect: Rect,
     (body, icon): (&egui::Response, &egui::Response),
 ) {
-    let painter = ui.painter();
     if row.enabled && body.is_pointer_button_down_on() {
         paint_pressed(painter, rect.shrink2(Vec2::new(0.0, SPACE / 4.0)));
     }

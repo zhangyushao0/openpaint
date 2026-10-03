@@ -14,7 +14,9 @@ use openpaint_app::{
     Intent, PictureGestures, ReferenceImage, ReferenceIntent, SessionProjection, ViewGesture,
 };
 
-use crate::components::{FloatingLayout, MAT, ScreenArea, UNDER_ISLANDS, floating, icon_button};
+use crate::components::{
+    FloatingLayout, MAT, ScreenArea, UNDER_ISLANDS, floating, icon_button, ring_of,
+};
 use crate::design::{Icon, REFERENCE_HEIGHT, REFERENCE_WIDTH, SPACE};
 
 /// How long the bar stays without a touch on the window, in milliseconds.
@@ -55,11 +57,13 @@ impl std::fmt::Debug for ReferenceWindow {
 }
 
 impl ReferenceWindow {
+    /// The window while its image is shown; it comes out of `opener` (the Actions button, in
+    /// points), where its switch is, and goes back into it.
     pub(crate) fn show(
         &mut self,
         ctx: &egui::Context,
         projection: &SessionProjection,
-        now_ms: i64,
+        (now_ms, opener): (i64, Rect),
         taps: &mut Vec<Intent>,
     ) {
         let transfers = projection.transfers();
@@ -83,7 +87,7 @@ impl ReferenceWindow {
         let shown = floating(
             ctx,
             "reference",
-            (place, self.bar_until.is_some()),
+            (place, self.bar_until.is_some(), ring_of(opener)),
             |ui| icon_button(ui, Icon::Close, "Close reference", true).clicked(),
             |ui, picture| self.paint_picture(ui, picture, (image, &texture)),
         );

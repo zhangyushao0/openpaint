@@ -7,8 +7,10 @@
 use egui::{Id, Order, Pos2, Rect, Sense, Stroke, Vec2};
 use openpaint_core::Color;
 
+use crate::components::chrome::Source;
 use crate::components::color32;
-use crate::design::{HAIRLINE, PANEL, PANEL_RULE, PANEL_RULE_WIDTH, SPACE};
+use crate::components::paper::paper;
+use crate::design::{HAIRLINE, PANEL_RULE, PANEL_RULE_WIDTH, SPACE};
 
 /// The loupe's side, in points.
 pub const LOUPE: f32 = 76.0;
@@ -29,29 +31,32 @@ pub fn loupe_origin(contact: Pos2, screen: Rect) -> Pos2 {
     at.clamp(screen.min + Vec2::splat(SPACE), max)
 }
 
-/// Shows the loupe for a contact at `contact` (points): `under` it now over `current`.
+/// Shows the loupe for a contact at `contact` (points): `under` it now over `current`. It grows
+/// out of the contact and goes back into it when the contact lifts (D44).
 pub fn loupe(ctx: &egui::Context, contact: Pos2, under: Color, current: Color) {
     let origin = loupe_origin(contact, ctx.content_rect());
-    egui::Area::new(Id::new("loupe"))
+    let area = egui::Area::new(Id::new("loupe"))
         .order(Order::Tooltip)
         .interactable(false)
         .fade_in(false)
-        .fixed_pos(origin)
-        .show(ctx, |ui| {
-            let (rect, _) = ui.allocate_exact_size(Vec2::splat(LOUPE), Sense::hover());
-            let painter = ui.painter();
-            let centre = rect.center();
-            let outer = LOUPE / 2.0 - PANEL_RULE_WIDTH;
-            let outline = Stroke::new(PANEL_RULE_WIDTH, PANEL_RULE);
-            painter.circle(centre, outer, PANEL, outline);
-            let inner = outer - RING;
-            painter.circle_filled(centre, inner, color32(current));
-            let top = Rect::from_min_max(rect.min, Pos2::new(rect.right(), centre.y));
-            painter
-                .with_clip_rect(top)
-                .circle_filled(centre, inner, color32(under));
-            painter.circle_stroke(centre, inner, Stroke::new(HAIRLINE, PANEL_RULE));
-        });
+        .fixed_pos(origin);
+    let source = Source::Rect {
+        rect: Rect::from_center_size(contact, Vec2::splat(SPACE)),
+        radius: (SPACE / 2.0, LOUPE / 2.0),
+        veil: false,
+    };
+    paper(ctx, Id::new("loupe"), source, area, |ui| {
+        let (rect, _) = ui.allocate_exact_size(Vec2::splat(LOUPE), Sense::hover());
+        let painter = ui.painter();
+        let centre = rect.center();
+        let inner = LOUPE / 2.0 - PANEL_RULE_WIDTH - RING;
+        painter.circle_filled(centre, inner, color32(current));
+        let top = Rect::from_min_max(rect.min, Pos2::new(rect.right(), centre.y));
+        painter
+            .with_clip_rect(top)
+            .circle_filled(centre, inner, color32(under));
+        painter.circle_stroke(centre, inner, Stroke::new(HAIRLINE, PANEL_RULE));
+    });
 }
 
 #[cfg(test)]

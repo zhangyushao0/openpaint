@@ -119,8 +119,14 @@ pub enum Step {
         #[serde(deserialize_with = "hex_hash")]
         canvas: u64,
     },
-    /// The last frame's screen, kept for looking at; never compared.
-    Screenshot { name: String },
+    /// The screen, kept for looking at; never compared. Taken once every motion has settled,
+    /// or, with `after_ms`, that long after the last input step ended, while it may still move
+    /// (the runner's clock is fixed, so it moves alike every run).
+    Screenshot {
+        name: String,
+        #[serde(default)]
+        after_ms: Option<u32>,
+    },
     /// The user answers the system picker, dialog or share sheet the app asked for.
     System(SystemAnswer),
     /// The file the last export wrote, decoded: a PNG must equal the canvas pixel for pixel, a
@@ -228,7 +234,7 @@ impl Scenario {
                     before_lift: Some(name),
                     ..
                 }
-                | Step::Screenshot { name }
+                | Step::Screenshot { name, .. }
                 | Step::Exported { name }
                 | Step::View { name, .. } => {
                     if !is_file_name(name) {

@@ -1,9 +1,13 @@
 //! Shared widgets. Every button, slider and panel is one of these; screens compose them and
 //! never style widgets inline (ARCHITECTURE section 10).
 
+mod animate;
 mod artwork_card;
 mod brush_row;
 mod canvas_frame;
+pub(crate) mod carry;
+pub(crate) mod chrome;
+mod chrome_frame;
 mod color_wheel;
 mod dialog;
 mod fill_bar;
@@ -14,20 +18,25 @@ mod list_row;
 mod loupe;
 mod menu_row;
 mod notice;
+mod paper;
 mod popover;
 mod side_panel;
 mod side_slider;
 mod slider;
 mod status;
+mod surface;
 mod swatch;
 mod switch_row;
 mod text_button;
 mod text_field;
+mod view_settle;
 mod view_status;
 
-pub use artwork_card::{ArtworkCard, CardTaps, artwork_card, card_size};
+pub use animate::{animate, animate_from, moving};
+pub use artwork_card::{ArtworkCard, CardTaps, artwork_card, card_size, paint_sheet};
 pub use brush_row::brush_row;
 pub use canvas_frame::{CanvasArea, ScreenArea, canvas_frame};
+pub use chrome::{Source, ring_of};
 pub use color_wheel::{WheelChange, color_wheel};
 pub use dialog::{Placement, dialog};
 pub use fill_bar::{carried_drop, fill_bar};
@@ -38,7 +47,7 @@ pub use list_row::{ListRow, RowResponse, list_row};
 pub use loupe::{LOUPE, LOUPE_OFFSET, loupe, loupe_origin};
 pub use menu_row::{menu_row, section};
 pub use notice::{confirmation, notice};
-pub use popover::{popover, popover_left};
+pub use popover::{Opener, popover, popover_left};
 pub use side_panel::side_panel;
 pub use side_slider::{Preview, SideSlider, side_slider, side_slider_height};
 pub use slider::{SliderChange, slider};
@@ -47,4 +56,5 @@ pub use swatch::{color32, swatch};
 pub use switch_row::switch_row;
 pub use text_button::{text_button, text_choice};
 pub use text_field::{FieldResponse, text_field};
+pub(crate) use view_settle::ViewSettle;
 pub use view_status::{view_status, view_text};

@@ -4,6 +4,8 @@
 
 use egui::{Align2, Pos2, Rect, Sense, Stroke, TextStyle, Vec2, WidgetInfo, WidgetType};
 
+use crate::components::animate;
+use crate::design::motion::{ACKNOWLEDGE, lerp};
 use crate::design::{
     INK, INK_ACTIVE, INK_DISABLED, INK_SECONDARY, SPACE, TOUCH_TARGET, paint_pressed,
 };
@@ -34,10 +36,17 @@ pub fn switch_row(ui: &mut egui::Ui, label: &str, on: bool, enabled: bool) -> eg
     let centre = rect.right_center() - Vec2::new(2.0 * SPACE + TRACK.x / 2.0, 0.0);
     let track = Rect::from_center_size(centre, TRACK);
     // Off: an empty outline with a hollow knob at the left. On: the knob inked at the right.
-    let (line, x) = match (on, enabled) {
-        (_, false) => (INK_DISABLED, if on { track.right() } else { track.left() }),
-        (true, true) => (INK_ACTIVE, track.right()),
-        (false, true) => (INK_SECONDARY, track.left()),
+    // Flipped, the knob slides across and inks in on its way (acknowledge, D44).
+    let flipped = animate(
+        ui.ctx(),
+        response.id.with("knob"),
+        f32::from(u8::from(on)),
+        ACKNOWLEDGE,
+    );
+    let line = match (on, enabled) {
+        (_, false) => INK_DISABLED,
+        (true, true) => INK_ACTIVE,
+        (false, true) => INK_SECONDARY,
     };
     let radius = TRACK.y / 2.0;
     painter.rect_stroke(
@@ -46,12 +55,13 @@ pub fn switch_row(ui: &mut egui::Ui, label: &str, on: bool, enabled: bool) -> eg
         Stroke::new(1.5, line),
         egui::StrokeKind::Inside,
     );
-    let inset = if on { -radius } else { radius };
-    let knob = Pos2::new(x + inset, centre.y);
-    if on {
-        painter.circle_filled(knob, radius - 4.0, line);
-    } else {
-        painter.circle_stroke(knob, radius - 4.0, Stroke::new(1.5, line));
-    }
+    let x = lerp(track.left() + radius, track.right() - radius, flipped);
+    let knob = Pos2::new(x, centre.y);
+    painter.circle(
+        knob,
+        radius - 4.0,
+        line.gamma_multiply(flipped.clamp(0.0, 1.0)),
+        Stroke::new(1.5, line),
+    );
     response
 }

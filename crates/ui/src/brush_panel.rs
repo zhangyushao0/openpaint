@@ -11,7 +11,7 @@ use std::fmt;
 use openpaint_app::{BrushIntent, BrushKey, Intent, SessionProjection, Tool, ToolIntent};
 use openpaint_render::RgbaImage;
 
-use crate::components::{ScreenArea, brush_row, icon_toggle, popover, slider};
+use crate::components::{Opener, ScreenArea, brush_row, icon_toggle, popover, slider};
 use crate::design::{INK, Icon, SPACE, TOUCH_TARGET};
 
 /// The panel's UI-local state and the brushes' preview pictures.
@@ -20,6 +20,8 @@ pub(crate) struct BrushPanel {
     open: bool,
     /// Where the open panel lies on screen, in pixels, from the last pass.
     area: Option<ScreenArea>,
+    /// Where the current tool's button lies, in points: the panel comes out of it.
+    button: Option<egui::Rect>,
     /// Previews waiting for the first pass, which loads them as textures.
     pending: Vec<(BrushKey, RgbaImage)>,
     textures: Vec<(BrushKey, egui::TextureHandle)>,
@@ -61,7 +63,11 @@ impl BrushPanel {
             (Tool::Eraser, Icon::Eraser, "Eraser"),
         ] {
             let current = brush.tool == tool && !projection.selection().tool;
-            if !icon_toggle(ui, icon, label, current).clicked() {
+            let response = icon_toggle(ui, icon, label, current);
+            if brush.tool == tool {
+                self.button = Some(response.rect);
+            }
+            if !response.clicked() {
                 continue;
             }
             if current {
@@ -75,7 +81,7 @@ impl BrushPanel {
         opened
     }
 
-    /// The panel when it is open, its taps pushed to `taps`.
+    /// The panel while it is open or closing, its taps pushed to `taps`.
     pub(crate) fn show(
         &mut self,
         ctx: &egui::Context,
@@ -83,13 +89,16 @@ impl BrushPanel {
         taps: &mut Vec<Intent>,
     ) {
         self.load(ctx);
-        let brush = projection.brush().filter(|_| self.open);
-        let Some(brush) = brush else {
-            self.area = None;
+        self.area = None;
+        let Some(brush) = projection.brush() else {
             return;
         };
         let textures = &self.textures;
-        let rect = popover(ctx, "brushes", |ui| {
+        let opener = Opener {
+            island: "right island",
+            button: self.button.unwrap_or(egui::Rect::ZERO),
+        };
+        let rect = popover(ctx, "brushes", (opener, self.open), |ui| {
             ui.horizontal(|ui| {
                 ui.set_height(TOUCH_TARGET);
                 ui.add_space(2.0 * SPACE);
@@ -113,7 +122,7 @@ impl BrushPanel {
             }
             streamline(ui, brush.streamline.amount(), taps);
         });
-        self.area = Some(ScreenArea::from_points(rect, ctx.pixels_per_point()));
+        self.area = rect.map(|rect| ScreenArea::from_points(rect, ctx.pixels_per_point()));
     }
 
     /// Where the open panel lies, which the canvas must not take contacts from.

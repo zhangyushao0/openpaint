@@ -7,6 +7,7 @@
 mod fonts;
 mod icon_tools;
 mod icons;
+pub mod motion;
 mod paint;
 mod palette;
 
@@ -16,7 +17,8 @@ use egui::{Color32, FontId, Stroke, TextStyle, Vec2};
 pub use fonts::{FontFile, TextFonts};
 pub use icons::{ICON_SIZE, Icon, paint as paint_icon};
 pub use paint::{
-    ink_line, paint_icon_mark, paint_pressed, paint_row_mark, paint_sheet_shadow, panel_frame,
+    MARK_LINE, ink_line, paint_icon_mark, paint_pressed, paint_row_mark, paint_sheet_shadow,
+    panel_frame, surface_frame,
 };
 pub use palette::{
     BUTTON_RULE, DESK, INK, INK_ACTIVE, INK_DISABLED, INK_SECONDARY, PANEL, PANEL_RULE,

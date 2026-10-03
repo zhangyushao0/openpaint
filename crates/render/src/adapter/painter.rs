@@ -42,8 +42,10 @@ impl ScreenPainter {
 
     fn new(core: &Core, format: wgpu::TextureFormat) -> Self {
         let options = egui_wgpu::RendererOptions::default();
+        let mut renderer = egui_wgpu::Renderer::new(&core.gpu.device, format, options);
+        super::chrome::install(&core.gpu.device, &mut renderer, format);
         Self {
-            renderer: egui_wgpu::Renderer::new(&core.gpu.device, format, options),
+            renderer,
             blit: CanvasBlit::new(core, format),
             format,
         }

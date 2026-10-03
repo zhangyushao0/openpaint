@@ -5,9 +5,11 @@
 //! pill in the band between them, and the side bar is an island at the left edge. At fit the
 //! top islands lie on the desk, above the canvas.
 
-use egui::{Align, Align2, Layout, Margin, Order, Rect, Vec2};
+use egui::{Align, Align2, Id, Layout, Margin, Order, Rect, Vec2};
 
-use crate::design::{SPACE, TOUCH_TARGET, panel_frame};
+use crate::components::chrome::{self, Source};
+use crate::components::paper::paper;
+use crate::design::{SPACE, TOUCH_TARGET, surface_frame};
 
 /// The islands' top edge, in points from the screen's top.
 pub const ISLAND_TOP: f32 = SPACE;
@@ -55,7 +57,8 @@ impl Place {
 }
 
 /// Shows the island `id` at `place`, one touch target high, with `add_contents` laid out left
-/// to right. Returns what the contents returned and the island's rectangle in points, which
+/// to right. Its paper is the chrome pass's, so the panels its buttons open grow out of it with
+/// one outline. Returns what the contents returned and the island's rectangle in points, which
 /// nothing under it may take a contact from.
 pub fn island<R>(
     ctx: &egui::Context,
@@ -63,36 +66,51 @@ pub fn island<R>(
     place: Place,
     add_contents: impl FnOnce(&mut egui::Ui) -> R,
 ) -> (R, Rect) {
-    let shown = egui::Area::new(egui::Id::new(id))
-        .order(Order::Middle)
+    let shown = egui::Area::new(Id::new(id))
+        // In front, over the chrome pass's paper.
+        .order(Order::Foreground)
         .movable(false)
         // Whole in the frame it opens: feedback within one frame.
         .fade_in(false)
         .anchor(place.anchor, place.offset)
-        .show(ctx, |ui| {
-            panel_frame(Margin::symmetric((SPACE / 2.0) as i8, 0))
-                .show(ui, |ui| {
-                    ui.spacing_mut().item_spacing = Vec2::new(SPACE / 2.0, 0.0);
-                    ui.set_height(TOUCH_TARGET);
-                    ui.with_layout(Layout::left_to_right(Align::Center), add_contents)
-                        .inner
-                })
-                .inner
-        });
+        .show(ctx, |ui| row(ui, add_contents));
+    chrome::island(ctx, Id::new(id), shown.response.rect);
     (shown.inner, shown.response.rect)
 }
 
-/// A pill: an island with a message and at most one button, its text two spaces from its ends.
+/// A pill: a piece of paper one island high in the top band with a message and at most one
+/// button, its text two spaces from its ends. It grows out of `source` when it comes and goes
+/// back into it once it is no longer shown.
 pub fn pill<R>(
     ctx: &egui::Context,
     id: &str,
     place: Place,
+    source: Source,
     add_contents: impl FnOnce(&mut egui::Ui) -> R,
 ) -> (R, Rect) {
-    island(ctx, id, place, |ui| {
-        ui.add_space(1.5 * SPACE);
-        let inner = add_contents(ui);
-        ui.add_space(SPACE);
-        inner
+    let area = egui::Area::new(Id::new(id))
+        .order(Order::Middle)
+        .movable(false)
+        .fade_in(false)
+        .anchor(place.anchor, place.offset);
+    paper(ctx, Id::new(id), source, area, |ui| {
+        row(ui, |ui| {
+            ui.add_space(1.5 * SPACE);
+            let inner = add_contents(ui);
+            ui.add_space(SPACE);
+            inner
+        })
     })
+}
+
+/// One touch target high, left to right, half a space in from the ends.
+fn row<R>(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    surface_frame(Margin::symmetric((SPACE / 2.0) as i8, 0))
+        .show(ui, |ui| {
+            ui.spacing_mut().item_spacing = Vec2::new(SPACE / 2.0, 0.0);
+            ui.set_height(TOUCH_TARGET);
+            ui.with_layout(Layout::left_to_right(Align::Center), add_contents)
+                .inner
+        })
+        .inner
 }

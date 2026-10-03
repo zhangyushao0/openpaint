@@ -5,6 +5,8 @@
 
 use egui::{Rect, Sense, Vec2, WidgetInfo, WidgetType};
 
+use crate::components::animate;
+use crate::design::motion::ACKNOWLEDGE;
 use crate::design::{
     ICON_SIZE, INK, INK_ACTIVE, INK_DISABLED, Icon, SPACE, TOUCH_TARGET, paint_icon,
     paint_icon_mark, paint_pressed,
@@ -29,14 +31,18 @@ fn button(ui: &mut egui::Ui, icon: Icon, label: &str, enabled: bool, on: bool) -
     };
     let (rect, response) = ui.allocate_exact_size(Vec2::splat(TOUCH_TARGET), sense);
     response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, enabled, label));
+    let mark = animate(
+        ui.ctx(),
+        response.id.with("mark"),
+        f32::from(u8::from(on)),
+        ACKNOWLEDGE,
+    );
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
         if enabled && response.is_pointer_button_down_on() {
             paint_pressed(painter, rect.shrink(SPACE / 2.0));
         }
-        if on {
-            paint_icon_mark(painter, rect);
-        }
+        paint_icon_mark(painter, rect, mark);
         let color = match (enabled, on) {
             (false, _) => INK_DISABLED,
             (true, true) => INK_ACTIVE,

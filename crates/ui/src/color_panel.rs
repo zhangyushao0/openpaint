@@ -9,7 +9,7 @@
 use egui::Align;
 use openpaint_app::{BrushProjection, Hsv, Intent, SessionProjection, ToolIntent};
 
-use crate::components::{ScreenArea, color_wheel, color32, popover, swatch};
+use crate::components::{Opener, ScreenArea, color_wheel, color32, popover, swatch};
 use crate::design::{COLOR_WHEEL, INK_SECONDARY, RECENT_SWATCH, SPACE, TOUCH_TARGET};
 
 /// The panel's UI-local state.
@@ -18,8 +18,9 @@ pub(crate) struct ColorPanel {
     open: bool,
     /// Where the open panel lies on screen, in pixels, from the last pass.
     area: Option<ScreenArea>,
-    /// Where the colour button lies, from the last pass.
+    /// Where the colour button lies, from the last pass, in pixels and in points.
     button: Option<ScreenArea>,
+    opener: Option<egui::Rect>,
     /// The hue, saturation and value last set here: a grey or black has no hue of its own, so
     /// the wheel keeps the one the hand left while the colour is still the one it set.
     shown: Option<Hsv>,
@@ -33,6 +34,7 @@ impl ColorPanel {
             return false;
         };
         let response = swatch(ui, brush.color, "Colour", TOUCH_TARGET, self.open);
+        self.opener = Some(response.rect);
         self.button = Some(ScreenArea::from_points(
             response.rect,
             ui.ctx().pixels_per_point(),
@@ -49,16 +51,15 @@ impl ColorPanel {
         self.button
     }
 
-    /// The panel when it is open, its taps pushed to `taps`.
+    /// The panel while it is open or closing, its taps pushed to `taps`.
     pub(crate) fn show(
         &mut self,
         ctx: &egui::Context,
         projection: &SessionProjection,
         taps: &mut Vec<Intent>,
     ) {
-        let brush = projection.brush().filter(|_| self.open);
-        let Some(brush) = brush else {
-            self.area = None;
+        self.area = None;
+        let (Some(brush), Some(button)) = (projection.brush(), self.opener) else {
             return;
         };
         let hsv = self
@@ -66,7 +67,11 @@ impl ColorPanel {
             .filter(|shown| color32(shown.color()) == color32(brush.color))
             .unwrap_or_else(|| Hsv::of(brush.color));
         let mut set = None;
-        let rect = popover(ctx, "colours", |ui| {
+        let opener = Opener {
+            island: "right island",
+            button,
+        };
+        let rect = popover(ctx, "colours", (opener, self.open), |ui| {
             ui.horizontal(|ui| {
                 ui.set_height(TOUCH_TARGET);
                 ui.add_space(2.0 * SPACE);
@@ -84,7 +89,7 @@ impl ColorPanel {
         if let Some(hsv) = set {
             self.shown = Some(hsv);
         }
-        self.area = Some(ScreenArea::from_points(rect, ctx.pixels_per_point()));
+        self.area = rect.map(|rect| ScreenArea::from_points(rect, ctx.pixels_per_point()));
     }
 
     /// Where the open panel lies, which the canvas must not take contacts from.

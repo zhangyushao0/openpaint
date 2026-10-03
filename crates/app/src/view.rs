@@ -208,6 +208,41 @@ impl ViewMapping {
         let [cx, cy] = self.canvas_centre;
         [a, b, cx - a * sx - b * sy, d, e, cy - d * sx - e * sy]
     }
+
+    /// The whole of `canvas`, upright, fitted into the screen rectangle at `origin` of `size`
+    /// pixels and centred there: where a gallery card shows it.
+    #[must_use]
+    pub fn placed(canvas: CanvasSize, origin: [f32; 2], size: [f32; 2]) -> Self {
+        let [cw, ch] = [canvas.width() as f32, canvas.height() as f32];
+        Self {
+            canvas_centre: [cw / 2.0, ch / 2.0],
+            screen_centre: [origin[0] + size[0] / 2.0, origin[1] + size[1] / 2.0],
+            scale: (size[0] / cw).min(size[1] / ch).max(f32::MIN_POSITIVE),
+            sin: 0.0,
+            cos: 1.0,
+        }
+    }
+
+    /// The way from this map to `to` (of the same canvas) at `t`, 0 this one and 1 `to`: the
+    /// canvas's centre moves in a line, the scale changes by an even ratio and the rotation turns
+    /// the short way round. For showing a view settle; input always uses `to`.
+    #[must_use]
+    pub fn toward(&self, to: &Self, t: f32) -> Self {
+        let lerp = |a: f32, b: f32| a + (b - a) * t;
+        let from = self.sin.atan2(self.cos);
+        let angle = from + wrapped(to.sin.atan2(to.cos) - from) * t;
+        let (sin, cos) = angle.sin_cos();
+        Self {
+            canvas_centre: to.canvas_centre,
+            screen_centre: [
+                lerp(self.screen_centre[0], to.screen_centre[0]),
+                lerp(self.screen_centre[1], to.screen_centre[1]),
+            ],
+            scale: self.scale * (to.scale / self.scale).powf(t),
+            sin,
+            cos,
+        }
+    }
 }
 
 /// `angle` in `-pi..=pi`.
@@ -302,6 +337,28 @@ mod tests {
         assert_eq!(small.zoom(), MIN_ZOOM);
         let broken = CanvasView::FIT.after(&pinch(f32::NAN, 0.0), size, &VIEWPORT);
         assert_eq!(broken, CanvasView::FIT);
+    }
+
+    #[test]
+    fn a_placed_canvas_settles_into_its_view_by_the_short_way() {
+        let size = canvas(400, 300);
+        let card = ViewMapping::placed(size, [100.0, 50.0], [200.0, 200.0]);
+        assert!(close(card.to_screen([0.0, 0.0]), [100.0, 75.0]));
+        assert!(close(card.to_screen([400.0, 300.0]), [300.0, 225.0]));
+        let turned = CanvasView::new([0.0; 2], 2.0, 3.0).expect("view");
+        let to = turned.mapping(size, &VIEWPORT);
+        assert_eq!(card.toward(&to, 0.0), card);
+        let end = card.toward(&to, 1.0);
+        assert!(close(
+            end.to_screen([10.0, 20.0]),
+            to.to_screen([10.0, 20.0])
+        ));
+        let half = card.toward(&to, 0.5);
+        assert!((half.scale() - (card.scale() * to.scale()).sqrt()).abs() < 1e-4);
+        assert!(
+            (half.sin.atan2(half.cos) - 1.5).abs() < 1e-4,
+            "never the long way"
+        );
     }
 
     #[test]

@@ -10,7 +10,7 @@ use openpaint_app::{
     StorageNotice,
 };
 
-use crate::components::{Place, confirmation, notice, pill, status};
+use crate::components::{Place, Source, confirmation, notice, pill, status};
 
 /// One thing to tell.
 enum Told {
@@ -34,7 +34,9 @@ pub(crate) fn notice_pill(
     let told = storage(projection)
         .or_else(|| fill(projection))
         .or_else(|| transfers(projection))?;
-    let (tapped, rect) = pill(ctx, "notice", place, |ui| match told {
+    // It comes out of its right end, beside the right island.
+    let source = Source::Within(egui::Align::Max);
+    let (tapped, rect) = pill(ctx, "notice", place, source, |ui| match told {
         Told::Running(message) => {
             status(ui, &message);
             None

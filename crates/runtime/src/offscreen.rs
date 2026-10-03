@@ -1,0 +1,77 @@
+//! The harness's side of the frame loop: frames into an offscreen target instead of a window,
+//! reading them and the canvas back, and the fixed clock that makes motion deterministic in
+//! scenarios (D44).
+
+use openpaint_render::{RenderError, RgbaImage, ScreenPainter, ScreenTarget};
+
+use crate::error::RuntimeError;
+use crate::frame::{Runtime, screen_frame};
+
+impl Runtime {
+    /// Runs one frame into an offscreen target of `size` pixels, for the harness, which never
+    /// attaches a window. Returns whether another frame is wanted at once.
+    pub fn frame_offscreen(&mut self, size: [u32; 2]) -> Result<bool, RuntimeError> {
+        if self
+            .offscreen
+            .as_ref()
+            .is_none_or(|target| target.size() != size)
+        {
+            self.offscreen = Some(ScreenTarget::new(&self.core, size)?);
+        }
+        let (ui, repaint) = self.update(size)?;
+        let painter = self
+            .painter
+            .get_or_insert_with(|| ScreenPainter::offscreen(&self.core));
+        if let Some(target) = &self.offscreen {
+            let frame = screen_frame(self.screen.canvas(), &self.shell, ui);
+            self.core.render_screen(painter, target, frame)?;
+        }
+        Ok(repaint)
+    }
+
+    /// Holds the clock motion runs on at `ms` until the next call, instead of the wall clock:
+    /// the harness steps it, so every run moves alike.
+    pub fn fix_clock(&mut self, ms: i64) {
+        self.frame_clock.fix(ms);
+    }
+
+    /// True while something on screen moves (D44); frames are wanted until it rests.
+    #[must_use]
+    pub fn moving(&self) -> bool {
+        self.shell.moving()
+    }
+
+    /// The last offscreen frame, read back.
+    pub fn read_offscreen(&self) -> Result<Option<RgbaImage>, RuntimeError> {
+        match &self.offscreen {
+            Some(target) => Ok(Some(target.read(&self.core)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// The canvas as evaluated so far, read back: the artwork's pixels without the UI.
+    pub fn read_canvas(&self) -> Result<Option<RgbaImage>, RuntimeError> {
+        match self.screen.canvas() {
+            Some(canvas) => Ok(Some(canvas.target().read(&self.core)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// One offscreen frame of `size` pixels, read back.
+    pub fn screenshot(&mut self, size: [u32; 2]) -> Result<RgbaImage, RuntimeError> {
+        self.frame_offscreen(size)?;
+        let missing = RenderError::Invalid("no offscreen frame was drawn");
+        self.read_offscreen()?.ok_or(RuntimeError::Render(missing))
+    }
+
+    /// Blocks until the GPU has finished every submitted frame, for timing.
+    pub fn wait_idle(&self) -> Result<(), RuntimeError> {
+        Ok(self.core.wait_idle()?)
+    }
+
+    /// Adapter name and backend, for logs and harness output.
+    #[must_use]
+    pub fn adapter(&self) -> String {
+        self.core.adapter()
+    }
+}
