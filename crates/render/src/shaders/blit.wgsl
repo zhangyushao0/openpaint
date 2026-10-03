@@ -4,20 +4,35 @@
 // cleared to shows. At one screen pixel per canvas pixel, upright and on whole pixels, every
 // sample lands on a texel centre, so the screen shows the evaluated bytes unchanged.
 // The pen's hover outline is one thin circle drawn here, where what lies under it is known: each
-// of its pixels is black over light and white over dark (draweave's adaptive cursor).
+// of its pixels is black over light and white over dark (draweave's adaptive cursor). So is the
+// selection's outline, just outside its pixels, and outside it the canvas carries light diagonal
+// stripes (Procreate's, still): ink lines on paper, never moving.
 
 @group(0) @binding(0) var canvas: texture_2d<f32>;
 @group(0) @binding(1) var filtering: sampler;
 // Rows of the map from screen pixels to canvas pixels: canvas = (a x + b y + c, d x + e y + f);
 // the outline (centre x, y, radius, half its width; no outline when the width is 0), all in
-// screen pixels; the surround's colour.
+// screen pixels; the surround's colour; the selection's rectangle in canvas pixels (x, y,
+// width, height); whether a selection shows (1 or 0) and screen pixels per point.
 struct View {
     first: vec4<f32>,
     second: vec4<f32>,
     cursor: vec4<f32>,
     surround: vec4<f32>,
+    chosen: vec4<f32>,
+    marks: vec4<f32>,
 }
 @group(0) @binding(2) var<uniform> view: View;
+// The selection's mask rows, one word per texel, bit `x % 32` of texel `x / 32`.
+@group(0) @binding(3) var selection: texture_2d<u32>;
+
+// The selection's outline and stripes, in points: the outline's width, the stripes' spacing and
+// width, and how strongly ink lies on the stripes and between them.
+const OUTLINE_POINTS: f32 = 1.5;
+const STRIPE_SPACING: f32 = 9.0;
+const STRIPE_POINTS: f32 = 1.0;
+const STRIPE_INK: f32 = 0.28;
+const DIM_INK: f32 = 0.06;
 
 // How much of the outline covers the pixel at `at`, from 0 to 1.
 fn outline(at: vec2<f32>) -> f32 {
@@ -29,12 +44,42 @@ fn outline(at: vec2<f32>) -> f32 {
     return clamp(half + 0.5 - off, 0.0, 1.0);
 }
 
-// `under` with the outline over it, in black or white, whichever stands out. The canvas holds
+// `under` with ink over it at `cover`, in black or white, whichever stands out. The canvas holds
 // encoded values, so the split lies a little under the encoded middle grey.
 fn with_outline(under: vec4<f32>, cover: f32) -> vec4<f32> {
     let luminance = dot(under.rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
     let ink = select(1.0, 0.0, luminance >= 0.4);
     return vec4<f32>(mix(under.rgb, vec3<f32>(ink), cover), under.a);
+}
+
+// Whether the canvas pixel under canvas point `point` is selected.
+fn selected(point: vec2<f32>) -> bool {
+    let local = vec2<i32>(floor(point)) - vec2<i32>(view.chosen.xy);
+    if any(local < vec2<i32>(0)) || any(local >= vec2<i32>(view.chosen.zw)) {
+        return false;
+    }
+    let word = textureLoad(selection, vec2<i32>(local.x / 32, local.y), 0).r;
+    return ((word >> u32(local.x % 32)) & 1u) == 1u;
+}
+
+// `shown` (the canvas at canvas point `point`, screen pixel `screen`) with the selection's
+// marks: unchanged inside; on the outline, where a pixel an outline's width away on screen is
+// selected, ink; elsewhere outside, the stripes.
+fn with_selection(shown: vec4<f32>, point: vec2<f32>, screen: vec2<f32>) -> vec4<f32> {
+    if view.marks.x <= 0.0 || selected(point) {
+        return shown;
+    }
+    let reach = max(round(OUTLINE_POINTS * view.marks.y), 1.0);
+    let across = vec2<f32>(view.first.x, view.second.x) * reach;
+    let down = vec2<f32>(view.first.y, view.second.y) * reach;
+    if selected(point + across) || selected(point - across) || selected(point + down)
+        || selected(point - down) {
+        return with_outline(shown, 1.0);
+    }
+    let spacing = STRIPE_SPACING * view.marks.y;
+    let phase = (screen.x + screen.y) - floor((screen.x + screen.y) / spacing) * spacing;
+    let on_stripe = phase < STRIPE_POINTS * view.marks.y * 1.41;
+    return with_outline(shown, select(DIM_INK, STRIPE_INK, on_stripe));
 }
 
 @vertex
@@ -56,7 +101,7 @@ fn fragment(@builtin(position) screen: vec4<f32>) -> @location(0) vec4<f32> {
         }
         return with_outline(view.surround, cover);
     }
-    let shown = textureSampleLevel(canvas, filtering, point / size, 0.0);
+    let shown = with_selection(textureSampleLevel(canvas, filtering, point / size, 0.0), point, screen.xy);
     if cover <= 0.0 {
         return shown;
     }

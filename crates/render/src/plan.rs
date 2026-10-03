@@ -221,7 +221,7 @@ mod tests {
                 Item::EndStroke(black()),
                 Item::EndLayer(Op::end_layer(1.0)),
             ],
-            masks: Vec::new(),
+            ..Scene::default()
         }
     }
 
@@ -258,7 +258,7 @@ mod tests {
         items.insert(2, fill);
         let scene = Scene {
             items,
-            masks: Vec::new(),
+            ..Scene::default()
         };
         let plan = Plan::build(
             &scene,
@@ -310,7 +310,7 @@ mod tests {
                 Item::Active,
                 Item::EndLayer(Op::end_layer(1.0)),
             ],
-            masks: Vec::new(),
+            ..Scene::default()
         };
         let fresh = Fresh {
             ops: vec![black(); 2],

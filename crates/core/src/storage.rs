@@ -9,7 +9,9 @@ use crate::brush::BrushRecipe;
 use crate::error::CoreError;
 use crate::id::{IdCounters, LayerId, MAX_ID, StrokeId};
 use crate::layer::{Layer, LayerProps};
-use crate::parts::{ArtworkParts, FillParts, LayerParts, RecipeParts, SampleParts, StrokeParts};
+use crate::parts::{
+    ArtworkParts, FillParts, LayerParts, MaskParts, RecipeParts, SampleParts, StrokeParts,
+};
 use crate::region::{RegionEdit, RegionMask};
 use crate::stroke::{
     MAX_STROKE_SAMPLES, Stroke, StrokeBlend, StrokeSample, StrokeStyle, StrokeTool, check_order,
@@ -24,9 +26,21 @@ struct IdCheck {
     layers: HashSet<u64>,
     strokes: HashSet<u64>,
     recipes: Vec<Arc<BrushRecipe>>,
+    /// The last clip built: strokes drawn one after another inside one selection share it, as
+    /// they did before they were stored.
+    clip: Option<RegionMask>,
 }
 
 impl IdCheck {
+    fn clip(&mut self, canvas: CanvasSize, parts: &MaskParts) -> Result<RegionMask, CoreError> {
+        let clip = RegionMask::from_runs(canvas, parts.origin, parts.size, &parts.runs)?;
+        if let Some(known) = self.clip.as_ref().filter(|known| **known == clip) {
+            return Ok(known.clone());
+        }
+        self.clip = Some(clip.clone());
+        Ok(clip)
+    }
+
     fn recipe(&mut self, parts: &RecipeParts) -> Result<Arc<BrushRecipe>, CoreError> {
         let recipe = BrushRecipe::from_parts(parts)?;
         if let Some(known) = self.recipes.iter().find(|known| ***known == recipe) {
@@ -88,6 +102,7 @@ impl Artwork {
             layers: HashSet::new(),
             strokes: HashSet::new(),
             recipes: Vec::new(),
+            clip: None,
         };
         let layers = parts
             .layers
@@ -131,7 +146,7 @@ fn layer_from(
     let strokes = parts
         .strokes
         .iter()
-        .map(|stroke| stroke_from(stroke, ids))
+        .map(|stroke| stroke_from(stroke, canvas, ids))
         .collect::<Result<Vec<_>, _>>()?;
     let mut after = 0;
     let mut edits = Vec::with_capacity(parts.fills.len());
@@ -163,7 +178,11 @@ fn fill_from(parts: &FillParts, canvas: CanvasSize) -> Result<RegionEdit, CoreEr
     })
 }
 
-fn stroke_from(parts: &StrokeParts, ids: &mut IdCheck) -> Result<Stroke, CoreError> {
+fn stroke_from(
+    parts: &StrokeParts,
+    canvas: CanvasSize,
+    ids: &mut IdCheck,
+) -> Result<Stroke, CoreError> {
     let id = ids.stroke(parts.id)?;
     let [r, g, b] = parts.color;
     let recipe = ids.recipe(&parts.recipe)?;
@@ -188,7 +207,18 @@ fn stroke_from(parts: &StrokeParts, ids: &mut IdCheck) -> Result<Stroke, CoreErr
         .collect::<Result<Vec<_>, _>>()?;
     check_order(None, &samples)?;
     let style = style.with_tool(tool);
-    Ok(Stroke::new(id, style, alpha_locked, Arc::from(samples)))
+    let clip = parts
+        .clip
+        .as_ref()
+        .map(|clip| ids.clip(canvas, clip))
+        .transpose()?;
+    Ok(Stroke::new(
+        id,
+        style,
+        alpha_locked,
+        Arc::from(samples),
+        clip,
+    ))
 }
 
 fn sample_from(parts: &SampleParts) -> Result<StrokeSample, CoreError> {

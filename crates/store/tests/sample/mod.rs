@@ -5,8 +5,8 @@ use std::path::PathBuf;
 
 use openpaint_app::{BrushChoice, BrushSetting, EditorState, Thumbnail, Title, Tool};
 use openpaint_core::{
-    AccumulationParts, ArtworkParts, BrushRecipe, FillParts, LayerParts, PaperParts, PaperTexture,
-    RecipeParts, SampleParts, StrokeBlend, StrokeParts, Tip,
+    AccumulationParts, ArtworkParts, BrushRecipe, FillParts, LayerParts, MaskParts, PaperParts,
+    PaperTexture, RecipeParts, SampleParts, StrokeBlend, StrokeParts, Tip,
 };
 
 use crate::common::KEYSPACES;
@@ -124,6 +124,7 @@ pub fn schema_3_parts() -> ArtworkParts {
         opacity,
         color,
         samples,
+        clip: None,
     };
     let sketch = vec![
         stroke(
@@ -184,10 +185,29 @@ pub fn schema_4_parts() -> ArtworkParts {
 
 /// The schema-5 sample with what schema 6 adds: the sketch's second stroke builds up graphite
 /// on paper, the ink layer's dot is an airbrush.
-pub fn parts() -> ArtworkParts {
+pub fn schema_6_parts() -> ArtworkParts {
     let mut parts = schema_5_parts();
     parts.layers[0].strokes[1].recipe = graphite();
     parts.layers[1].strokes[0].recipe = airbrush();
+    parts
+}
+
+/// The schema-6 sample with what schema 7 adds: both sketch strokes drawn inside one selection
+/// with a hole, and the ink layer's eraser stroke inside another.
+pub fn parts() -> ArtworkParts {
+    let mut parts = schema_6_parts();
+    let holed = MaskParts {
+        origin: [2, 1],
+        size: [30, 20],
+        runs: vec![0, 300, 5, 295],
+    };
+    parts.layers[0].strokes[0].clip = Some(holed.clone());
+    parts.layers[0].strokes[1].clip = Some(holed);
+    parts.layers[1].strokes[1].clip = Some(MaskParts {
+        origin: [60, 40],
+        size: [4, 8],
+        runs: vec![3, 29],
+    });
     parts
 }
 

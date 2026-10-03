@@ -87,7 +87,8 @@ fn editor_5_to_6(editor: &[u8]) -> Option<Vec<u8>> {
 mod tests {
     use super::*;
     use crate::editor::decode_editor;
-    use crate::records::{STROKE_STYLE_BYTES, decode_stroke, write_recipe};
+    use crate::records::{STROKE_STYLE_BYTES, write_recipe};
+    use crate::strokes::read_stroke_6;
     use openpaint_app::{BrushChoice, BrushSetting, Tool};
     use openpaint_core::{BrushRecipe, Deposit};
 
@@ -138,7 +139,9 @@ mod tests {
         let (key, new) = &upgrade.projects[1];
         assert_eq!(key, b"key");
         assert_eq!(new.len(), old.len() + 1);
-        let stroke = decode_stroke(new).expect("a schema-6 stroke");
+        let mut reader = Reader::new(new, "stroke");
+        let stroke = read_stroke_6(&mut reader).expect("a schema-6 stroke");
+        reader.end().expect("whole");
         let recipe = BrushRecipe::from_parts(&stroke.recipe).expect("valid");
         assert_eq!(recipe, BrushRecipe::plain());
         assert_eq!(*recipe.deposit(), Deposit::Cover);

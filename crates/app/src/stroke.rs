@@ -11,7 +11,7 @@
 //! pen before the stroke is committed.
 
 use openpaint_core::{
-    ActiveStroke, Artwork, CanvasPoint, StrokeSample, StrokeSession, StrokeStyle,
+    ActiveStroke, Artwork, CanvasPoint, RegionMask, StrokeSample, StrokeSession, StrokeStyle,
 };
 
 use crate::error::AppError;
@@ -70,18 +70,20 @@ impl Strokes {
             .map(|drawing| drawing.session.active())
     }
 
-    /// Applies `intent` to `artwork`, which changes only when a stroke is committed.
+    /// Applies `intent` to `artwork`, which changes only when a stroke is committed. A stroke
+    /// begun while `clip` is selected stays inside it.
     pub(crate) fn handle(
         &mut self,
         artwork: &mut Artwork,
         intent: StrokeIntent,
+        clip: Option<&RegionMask>,
     ) -> Result<(), AppError> {
         let StrokeIntent::Contact(contact) = intent;
         if contact.device != Device::Pen {
             return Ok(());
         }
         match contact.phase {
-            ContactPhase::Down => self.begin(artwork, &contact),
+            ContactPhase::Down => self.begin(artwork, &contact, clip),
             ContactPhase::Move => self.extend(&contact),
             ContactPhase::Up => {
                 let id = contact.id;
@@ -107,7 +109,12 @@ impl Strokes {
 
     /// A pen that touches down while another stroke is open keeps that stroke as drawn: its
     /// lift was lost.
-    fn begin(&mut self, artwork: &mut Artwork, contact: &Contact) -> Result<(), AppError> {
+    fn begin(
+        &mut self,
+        artwork: &mut Artwork,
+        contact: &Contact,
+        clip: Option<&RegionMask>,
+    ) -> Result<(), AppError> {
         if let Some(open) = self.drawing.take() {
             let (committed, result) = commit(open);
             *artwork = committed;
@@ -120,7 +127,10 @@ impl Strokes {
         let pen = first.position;
         let first = stroke_sample(first, pen, start_ms)?;
         let leash = self.streamline.leash(self.style.size());
-        let session = artwork.begin_stroke(self.style.clone(), first)?;
+        let mut session = artwork.begin_stroke(self.style.clone(), first)?;
+        if let Some(clip) = clip {
+            session = session.clipped(clip.clone())?;
+        }
         self.drawing = Some(Drawing {
             contact: contact.id,
             start_ms,

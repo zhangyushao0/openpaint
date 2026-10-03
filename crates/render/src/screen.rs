@@ -10,14 +10,15 @@ use crate::image::RgbaImage;
 use crate::readback::{offscreen_texture, read_rgba};
 
 const SHADER: &str = include_str!("shaders/blit.wgsl");
-/// Bytes of the view uniform: four rows of four floats (the map's two rows, the cursor, the
-/// surround).
-pub(crate) const VIEW_BYTES: u64 = 64;
+/// Bytes of the view uniform: six rows of four floats (the map's two rows, the cursor, the
+/// surround, the selection's rectangle, whether it shows and the screen's density).
+pub(crate) const VIEW_BYTES: u64 = 96;
 
 /// Where a canvas target shows on screen: the canvas area it is clipped to (top-left corner and
 /// size in screen pixels), the view's map from screen pixels to canvas pixels, as the rows
-/// `[a, b, c, d, e, f]` of `canvas = (a x + b y + c, d x + e y + f)`, and the pen's hover
-/// outline, if it shows.
+/// `[a, b, c, d, e, f]` of `canvas = (a x + b y + c, d x + e y + f)`, the pen's hover outline,
+/// if it shows, and the screen's pixels per point, which the selection's outline and stripes
+/// are measured in (the selection itself is the target's, `CanvasTarget::show_selection`).
 #[derive(Clone, Copy)]
 pub struct CanvasPlacement<'a> {
     pub target: &'a CanvasTarget,
@@ -25,6 +26,7 @@ pub struct CanvasPlacement<'a> {
     pub size: [u32; 2],
     pub to_canvas: [f32; 6],
     pub cursor: Option<BrushCursor>,
+    pub pixels_per_point: f32,
 }
 
 /// The pen's hover outline: a circle around `centre` of `radius`, `width` wide, all in screen
@@ -68,8 +70,53 @@ pub(crate) fn blit_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
                     min_binding_size: wgpu::BufferSize::new(VIEW_BYTES),
                 },
             ),
+            entry(
+                3,
+                wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Uint,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+            ),
         ],
     })
+}
+
+/// The selection's mask rows for the blit: one `R32Uint` texel per mask word, so its words
+/// upload as they are (`words`, `stride` per row); a 1 x 1 texture of 0 when none.
+pub(crate) fn selection_texture(core: &Core, words: &[u32], stride: u32) -> wgpu::Texture {
+    let (words, stride) = if words.is_empty() {
+        (&[0u32][..], 1)
+    } else {
+        (words, stride)
+    };
+    let size = wgpu::Extent3d {
+        width: stride,
+        height: words.len() as u32 / stride,
+        depth_or_array_layers: 1,
+    };
+    let texture = core.gpu.device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("selection"),
+        size,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::R32Uint,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        view_formats: &[],
+    });
+    let bytes: Vec<u8> = words.iter().flat_map(|word| word.to_le_bytes()).collect();
+    core.gpu.queue.write_texture(
+        texture.as_image_copy(),
+        &bytes,
+        wgpu::TexelCopyBufferLayout {
+            offset: 0,
+            bytes_per_row: Some(stride * 4),
+            rows_per_image: None,
+        },
+        size,
+    );
+    texture
 }
 
 /// The screen's sampler: bilinear, clamped at the canvas's edges.
@@ -82,13 +129,15 @@ pub(crate) fn blit_sampler(device: &wgpu::Device) -> wgpu::Sampler {
     })
 }
 
-/// Binds a canvas texture and its view uniform for the blit.
+/// Binds a canvas texture, its view uniform and its selection for the blit.
 pub(crate) fn blit_bind_group(
     core: &Core,
     texture: &wgpu::Texture,
     view: &wgpu::Buffer,
+    selection: &wgpu::Texture,
 ) -> wgpu::BindGroup {
     let texture = texture.create_view(&Default::default());
+    let selection = selection.create_view(&Default::default());
     core.gpu
         .device
         .create_bind_group(&wgpu::BindGroupDescriptor {
@@ -106,6 +155,10 @@ pub(crate) fn blit_bind_group(
                 wgpu::BindGroupEntry {
                     binding: 2,
                     resource: view.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::TextureView(&selection),
                 },
             ],
         })
@@ -178,7 +231,22 @@ impl CanvasBlit {
             [x, y, cursor.radius, cursor.width / 2.0]
         });
         let surround = surround.map(|channel| f32::from(channel) / 255.0);
-        let rows = [[a, b, c, 0.0], [d, e, f, 0.0], cursor, surround];
+        // Whole numbers below 2^24: exact as floats.
+        let (chosen, shows) = placement
+            .target
+            .selection_rect()
+            .map_or(([0.0; 4], 0.0), |([x, y], [width, height])| {
+                ([x as f32, y as f32, width as f32, height as f32], 1.0)
+            });
+        let marks = [shows, placement.pixels_per_point, 0.0, 0.0];
+        let rows = [
+            [a, b, c, 0.0],
+            [d, e, f, 0.0],
+            cursor,
+            surround,
+            chosen,
+            marks,
+        ];
         let bytes: Vec<u8> = rows
             .iter()
             .flatten()

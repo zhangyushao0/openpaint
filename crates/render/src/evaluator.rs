@@ -1,7 +1,7 @@
 //! `RegionEvaluator`: the single entry that evaluates a frame request into regions of a target.
 //! Every consumer (screen, export, picking) goes through it.
 
-use openpaint_core::{Artwork, LayerId};
+use openpaint_core::{Artwork, LayerId, RegionMask};
 
 use crate::active::ActiveTrack;
 use crate::core::Core;
@@ -12,8 +12,8 @@ use crate::image::RgbaImage;
 use crate::plan::Plan;
 use crate::program::{Bindings, Dispatch, SceneOps, scene_ops};
 use crate::readback::{read_rgba, read_texel, target_texture};
-use crate::scene::{Fresh, Scene};
-use crate::screen::{VIEW_BYTES, blit_bind_group};
+use crate::scene::{ActivePlace, Fresh, Scene};
+use crate::screen::{VIEW_BYTES, blit_bind_group, selection_texture};
 
 /// An 8-bit RGBA texture holding the canvas at one target pixel per canvas pixel. It keeps its
 /// pixels between evaluations, so later evaluations update only the regions that changed. It
@@ -27,12 +27,14 @@ pub struct CanvasTarget {
     bindings: Bindings,
     track: ActiveTrack,
     scene: Option<SceneCache>,
+    /// The selection the screen shows over the canvas (`show_selection`).
+    selection: Option<RegionMask>,
 }
 
 /// One artwork version's scene and its ops on the GPU, reused while the version stays.
 struct SceneCache {
     artwork: Artwork,
-    active: Option<LayerId>,
+    active: Option<ActivePlace>,
     scene: Scene,
     ops: SceneOps,
 }
@@ -49,14 +51,43 @@ impl CanvasTarget {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+        let none = selection_texture(core, &[], 1);
         Ok(Self {
-            shown: blit_bind_group(core, &texture, &view),
+            shown: blit_bind_group(core, &texture, &view, &none),
             view,
             bindings: Bindings::new(&core.gpu, &texture),
             texture,
             track: ActiveTrack::default(),
             scene: None,
+            selection: None,
         })
+    }
+
+    /// The screen shows `selection` over the canvas from the next frame on: an outline around
+    /// it and light stripes outside; `None` shows none. Uploads only when it changes. The
+    /// canvas's pixels are untouched: the selection is tool state, not artwork.
+    pub fn show_selection(&mut self, core: &Core, selection: Option<&RegionMask>) {
+        let same = match (&self.selection, selection) {
+            (Some(shown), Some(new)) => shown.shares(new),
+            (None, None) => true,
+            _ => false,
+        };
+        if same {
+            return;
+        }
+        let texture = match selection {
+            Some(mask) => selection_texture(core, mask.words(), mask.stride()),
+            None => selection_texture(core, &[], 1),
+        };
+        self.shown = blit_bind_group(core, &self.texture, &self.view, &texture);
+        self.selection = selection.cloned();
+    }
+
+    /// The shown selection's rectangle: top-left pixel and size.
+    pub(crate) fn selection_rect(&self) -> Option<([u32; 2], [u32; 2])> {
+        self.selection
+            .as_ref()
+            .map(|mask| (mask.origin(), mask.size()))
     }
 
     /// `[width, height]` in pixels.
@@ -89,20 +120,20 @@ impl CanvasTarget {
         &self.texture
     }
 
-    /// The scene of `artwork` with the in-progress stroke's place on `active`, built and
-    /// uploaded only when either differs from the last call.
+    /// The scene of `artwork` with the in-progress stroke's place `active`, built and uploaded
+    /// only when either differs from the last call.
     fn scene(
         &mut self,
         core: &Core,
         artwork: &Artwork,
-        active: Option<LayerId>,
+        active: Option<ActivePlace>,
     ) -> Result<&SceneCache, RenderError> {
         let reuse = self
             .scene
             .as_ref()
             .is_some_and(|cache| cache.artwork.same_version(artwork) && cache.active == active);
         if !reuse {
-            let scene = Scene::build(artwork, active)?;
+            let scene = Scene::build(artwork, active.as_ref())?;
             let ops = scene_ops(&core.gpu, &scene);
             self.scene = Some(SceneCache {
                 artwork: artwork.clone(),
@@ -200,18 +231,15 @@ impl<'a> RegionEvaluator<'a> {
         regions: &[PixelRect],
     ) -> Result<(), RenderError> {
         let core = self.core;
-        let layer = request.active.map(|active| active.layer());
-        let drawn = self
-            .target
-            .scene(core, request.artwork, layer)?
-            .scene
-            .has_active();
+        let place = request.active.map(ActivePlace::of);
+        let scene = &self.target.scene(core, request.artwork, place)?.scene;
+        let (drawn, clip) = (scene.has_active(), scene.active_clip);
         let step = self
             .target
             .track
             .advance(request.artwork, request.active, drawn);
         let fresh = match request.active.filter(|_| drawn) {
-            Some(active) => Fresh::new(active, step.fresh.start),
+            Some(active) => Fresh::new(active, step.fresh.start, clip),
             None => Fresh::default(),
         };
         let mut all = regions.to_vec();

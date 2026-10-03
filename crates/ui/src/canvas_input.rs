@@ -11,11 +11,13 @@
 
 use openpaint_app::{
     CanvasView, Contact, ContactPhase, Device, GestureFrame, Gestured, Gestures, HistoryIntent,
-    InputBatch, Intent, StrokeIntent, Touch, TouchAction, ViewIntent, ViewMapping, Viewport,
+    InputBatch, Intent, SelectionIntent, StrokeIntent, Touch, TouchAction, ViewIntent, ViewMapping,
+    Viewport,
 };
 use openpaint_core::CanvasSize;
 
 use crate::components::{CanvasArea, ScreenArea};
+use crate::selection_bar::CLOSE_POINTS;
 
 /// What routing one frame's contacts needs to know.
 #[derive(Debug, Clone, Copy)]
@@ -30,6 +32,8 @@ pub(crate) struct CanvasFrame<'a> {
     pub(crate) now_ms: i64,
     /// The next contact picks a colour.
     pub(crate) picking: bool,
+    /// The Selection tool is on: the pen draws selections, from anywhere open (the desk too).
+    pub(crate) selecting: bool,
     pub(crate) drawing: bool,
     /// A control took a contact this frame.
     pub(crate) control: bool,
@@ -88,8 +92,8 @@ impl CanvasInput {
                 continue;
             }
             pen |= matches!(contact.device, Device::Pen | Device::Eraser);
-            let on_canvas =
-                first.is_some_and(|at| frame.picking || inside(&mapping, frame.canvas, at));
+            let anywhere = frame.picking || frame.selecting;
+            let on_canvas = first.is_some_and(|at| anywhere || inside(&mapping, frame.canvas, at));
             if open && on_canvas && !self.owned.contains(&contact.id) {
                 self.owned.push(contact.id);
                 // The view status gives way to the pen at once.
@@ -108,11 +112,10 @@ impl CanvasInput {
             if frame.picking && contact.phase == ContactPhase::Move && covered {
                 continue;
             }
-            if !matches!(contact.phase, ContactPhase::Hover | ContactPhase::Leave) {
-                intents.push(Intent::Stroke(StrokeIntent::Contact(mapped(
-                    contact, &mapping,
-                ))));
+            if matches!(contact.phase, ContactPhase::Hover | ContactPhase::Leave) {
+                continue;
             }
+            intents.push(owned_intent(mapped(contact, &mapping), frame, &mapping));
         }
         let gestured = if frame.picking || frame.control {
             self.gestures.reset();
@@ -215,6 +218,36 @@ impl CanvasInput {
     pub(crate) fn holding(&self) -> bool {
         self.gestures.holding()
     }
+}
+
+/// What an owned contact in canvas pixels asks for: drawing a selection while the Selection
+/// tool is on (closing within `CLOSE_POINTS` of the path's start at this view), else a stroke
+/// (or, while the eyedropper is on, a pick).
+fn owned_intent(contact: Contact, frame: &CanvasFrame<'_>, mapping: &ViewMapping) -> Intent {
+    if frame.selecting && !frame.picking {
+        let close = CLOSE_POINTS * frame.pixels_per_point / mapping.scale();
+        Intent::Selection(SelectionIntent::Contact { contact, close })
+    } else {
+        Intent::Stroke(StrokeIntent::Contact(contact))
+    }
+}
+
+/// True when a contact of `batches` touches down on the canvas `area` outside every one of
+/// `covers`.
+pub(crate) fn touched_outside(
+    area: &ScreenArea,
+    covers: &[ScreenArea],
+    batches: &[InputBatch],
+) -> bool {
+    batches
+        .iter()
+        .flat_map(|batch| &batch.contacts)
+        .filter(|contact| contact.phase == ContactPhase::Down)
+        .filter_map(|contact| contact.samples.first())
+        .any(|first| {
+            area.contains(first.position)
+                && !covers.iter().any(|cover| cover.contains(first.position))
+        })
 }
 
 /// `contact` as the gesture trackers see it: its current position.

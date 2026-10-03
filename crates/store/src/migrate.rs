@@ -227,6 +227,7 @@ mod tests {
     use super::*;
     use crate::editor::decode_editor;
     use crate::migrate_6::upgrade_5_to_6;
+    use crate::migrate_7::upgrade_6_to_7;
     use crate::records::{decode_head, decode_stroke};
     use openpaint_app::Tool;
     use openpaint_core::{BrushRecipe, StrokeBlend};
@@ -282,7 +283,8 @@ mod tests {
         assert_eq!(upgrade.library, [(SCHEMA_KEY.to_vec(), encode_schema(3))]);
         let then = upgrade_3_to_4(&[], &upgrade.projects[1..], None);
         let six = upgrade_5_to_6(&[], &then.projects, None);
-        let stroke = decode_stroke(&six.projects[0].1).expect("a schema-4 stroke, upgraded");
+        let seven = upgrade_6_to_7(&[], &six.projects);
+        let stroke = decode_stroke(&seven.projects[0].1).expect("a schema-4 stroke, upgraded");
         assert_eq!((stroke.id, stroke.size, stroke.opacity), (9, 12.0, 0.5));
         assert_eq!(stroke.blend, StrokeBlend::Over);
         assert_eq!(stroke.samples.len(), 1);
@@ -338,7 +340,8 @@ mod tests {
         assert_eq!(then.projects.len(), 1, "a broken head stays as it is");
         assert_eq!(then.library, [(SCHEMA_KEY.to_vec(), encode_schema(5))]);
         let six = upgrade_5_to_6(&[(id, then.projects[0].1.clone())], &[], None);
-        let head = decode_head(&six.projects[0].1).expect("a schema-5 head, upgraded");
+        let seven = upgrade_6_to_7(&[(id, six.projects[0].1.clone())], &[]);
+        let head = decode_head(&seven.projects[0].1).expect("a schema-5 head, upgraded");
         let layers: Vec<_> = head
             .layers
             .iter()

@@ -38,6 +38,8 @@ pub enum FillRefusal {
     Hidden,
     /// The active layer is locked.
     Locked,
+    /// A selection exists and the drop landed outside it, where nothing may change.
+    OutsideSelection,
 }
 
 impl fmt::Display for FillRefusal {
@@ -45,8 +47,17 @@ impl fmt::Display for FillRefusal {
         f.write_str(match self {
             Self::Hidden => "the layer is hidden",
             Self::Locked => "the layer is locked",
+            Self::OutsideSelection => "the drop is outside the selection",
         })
     }
+}
+
+/// A fill request's values.
+#[derive(Debug, Clone, Copy)]
+struct Request {
+    point: [f32; 2],
+    threshold: f32,
+    color: Color,
 }
 
 /// Why a computed fill failed (sampling the layer on the GPU, or the region).
@@ -94,6 +105,8 @@ struct Draft {
     preview: Option<(u64, Artwork)>,
     /// Commit once the newest request is computed.
     commit: bool,
+    /// The selection when the fill was asked for: the fill is the flooded region inside it.
+    clip: Option<RegionMask>,
 }
 
 #[derive(Debug)]
@@ -121,18 +134,28 @@ impl Default for Fills {
 }
 
 impl Fills {
+    /// Applies `intent`; while `clip` is selected a fill covers only its pixels, and a drop
+    /// outside it is refused.
     pub(crate) fn handle(
         &mut self,
         history: &mut History,
         drawing: bool,
         intent: FillIntent,
+        clip: Option<&RegionMask>,
     ) -> Result<(), AppError> {
         match intent {
             FillIntent::Request {
                 point,
                 threshold,
                 color,
-            } => self.request(history.current(), drawing, point, threshold, color),
+            } => {
+                let request = Request {
+                    point,
+                    threshold,
+                    color,
+                };
+                self.request(history.current(), drawing, request, clip)
+            }
             FillIntent::Commit => {
                 if let Some(draft) = self.draft.as_mut() {
                     draft.commit = true;
@@ -151,9 +174,12 @@ impl Fills {
         &mut self,
         artwork: &Artwork,
         drawing: bool,
-        point: [f32; 2],
-        threshold: f32,
-        color: Color,
+        Request {
+            point,
+            threshold,
+            color,
+        }: Request,
+        clip: Option<&RegionMask>,
     ) -> Result<(), AppError> {
         if drawing {
             return Err(AppError::Unavailable {
@@ -173,9 +199,13 @@ impl Fills {
         }
         let layer = artwork.active();
         let props = artwork.layer(layer).map(|layer| *layer.props());
+        let point = point.map(|value| value as u32);
         let refusal = match props {
             Some(props) if !props.visible() => Some(FillRefusal::Hidden),
             Some(props) if props.locked() => Some(FillRefusal::Locked),
+            _ if clip.is_some_and(|clip| !clip.contains(point)) => {
+                Some(FillRefusal::OutsideSelection)
+            }
             _ => None,
         };
         self.refused = refusal;
@@ -186,10 +216,12 @@ impl Fills {
         self.failed = false;
         self.threshold = threshold;
         self.sequence += 1;
-        let point = point.map(|value| value as u32);
         // Adjusting one fill keeps its last preview until the next one is computed.
         let same = self.draft.as_ref().is_some_and(|draft| {
-            draft.base.same_version(artwork) && draft.layer == layer && draft.point == point
+            draft.base.same_version(artwork)
+                && draft.layer == layer
+                && draft.point == point
+                && draft.clip.as_ref() == clip
         });
         let preview = self.draft.take().filter(|_| same).and_then(|d| d.preview);
         self.draft = Some(Draft {
@@ -202,6 +234,7 @@ impl Fills {
             handed: false,
             preview,
             commit: false,
+            clip: clip.cloned(),
         });
         Ok(())
     }
@@ -242,8 +275,11 @@ impl Fills {
             self.draft = None;
             return;
         }
+        // Inside a selection, the flooded region's pixels that are selected.
+        let clip = draft.clip.as_ref();
         let filled = result
             .ok()
+            .and_then(|mask| clip.map_or(Some(mask.clone()), |clip| mask.intersect(clip)))
             .and_then(|mask| current.fill_region(mask, color).ok());
         match filled {
             Some(applied) => draft.preview = Some((running, applied.artwork)),

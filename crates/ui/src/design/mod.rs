@@ -5,6 +5,7 @@
 //! hit targets. Components read these values; screens never style widgets inline.
 
 mod fonts;
+mod icon_tools;
 mod icons;
 mod paint;
 mod palette;

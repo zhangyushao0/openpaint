@@ -7,6 +7,7 @@ use crate::artwork::Artwork;
 use crate::command::{Applied, Change};
 use crate::error::CoreError;
 use crate::id::LayerId;
+use crate::region::{RegionMask, check_mask};
 use crate::stroke::{
     MAX_STROKE_SAMPLES, Stroke, StrokeBlend, StrokeSample, StrokeStyle, StrokeTool, blend,
     check_order,
@@ -23,9 +24,17 @@ pub struct ActiveStroke {
     /// The layer's Alpha Lock when the stroke began.
     alpha_locked: bool,
     samples: Vec<StrokeSample>,
+    /// The selection the stroke is drawn inside.
+    clip: Option<RegionMask>,
 }
 
 impl ActiveStroke {
+    /// The selection the stroke is drawn inside, if any.
+    #[must_use]
+    pub const fn clip(&self) -> Option<&RegionMask> {
+        self.clip.as_ref()
+    }
+
     /// The layer the stroke will land on.
     #[must_use]
     pub const fn layer(&self) -> LayerId {
@@ -83,12 +92,24 @@ impl Artwork {
                 style,
                 alpha_locked,
                 samples: vec![first],
+                clip: None,
             },
         })
     }
 }
 
 impl StrokeSession {
+    /// This stroke drawn inside the selection `clip`: it changes only the pixels of `clip`,
+    /// while it is drawn and once committed.
+    ///
+    /// # Errors
+    /// `InvalidValue` when the mask leaves the canvas.
+    pub fn clipped(mut self, clip: RegionMask) -> Result<Self, CoreError> {
+        check_mask(self.base.canvas(), &clip)?;
+        self.active.clip = Some(clip);
+        Ok(self)
+    }
+
     /// The artwork the stroke started on.
     #[must_use]
     pub const fn base(&self) -> &Artwork {
@@ -146,7 +167,7 @@ impl StrokeSession {
         let id = next.ids.take_stroke();
         let active = self.active;
         let samples = Arc::from(active.samples);
-        let stroke = Stroke::new(id, active.style, active.alpha_locked, samples);
+        let stroke = Stroke::new(id, active.style, active.alpha_locked, samples, active.clip);
         let layer = &mut next.layers[active.index];
         layer.strokes = layer.strokes.pushed(stroke);
         Applied {

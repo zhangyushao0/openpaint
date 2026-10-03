@@ -91,6 +91,7 @@ fn fill(projection: &SessionProjection) -> Option<Told> {
     let message = match (fill.refused, fill.failed) {
         (Some(FillRefusal::Hidden), _) => "Can't fill: the layer is hidden.",
         (Some(FillRefusal::Locked), _) => "Can't fill: the layer is locked.",
+        (Some(FillRefusal::OutsideSelection), _) => "Drop inside the selection to fill.",
         (None, true) => "Couldn't fill there. Try again.",
         (None, false) => return None,
     };

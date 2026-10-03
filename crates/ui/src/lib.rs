@@ -18,6 +18,7 @@ mod notices;
 mod pen_marks;
 mod reference_touch;
 mod reference_window;
+mod selection_bar;
 mod shell;
 mod side_bar;
 

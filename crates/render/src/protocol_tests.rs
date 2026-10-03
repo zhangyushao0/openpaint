@@ -61,6 +61,7 @@ fn named_slots_hold_what_the_constructors_write() {
         blend: Blend::Erase,
         density: 0.875,
         paper: [4.5, 2.25, 0.3, 0.25],
+        clip: (5 << 16) | 11,
     };
     let op = Op::end_stroke(&paint);
     assert_eq!(op.data[PAINT_OPACITY], 0.4);
@@ -68,7 +69,12 @@ fn named_slots_hold_what_the_constructors_write() {
     assert_eq!(op.data[PAINT_GRAIN_SCALE], 5.0);
     assert_eq!(op.data[PAINT_BLEND], 2.0);
     assert_eq!(op.data[PAINT_DENSITY], 0.875);
-    assert_eq!(op.data[PAINT_PAPER..], [4.5, 2.25, 0.3, 0.25]);
+    assert_eq!(op.data[PAINT_PAPER..PAINT_CLIP], [4.5, 2.25, 0.3, 0.25]);
+    assert_eq!(
+        op.data[PAINT_CLIP..],
+        [5.0, 11.0],
+        "the clip, high part first"
+    );
     assert_eq!(Op::end_active(&paint).data, op.data);
     let fill = Op::fill(&paint, (3 << 16) | 9);
     assert_eq!(

@@ -19,6 +19,7 @@ fn frame(covers: &[ScreenArea]) -> CanvasFrame<'_> {
         pixels_per_point: 1.0,
         now_ms: 0,
         picking: false,
+        selecting: false,
         drawing: false,
         control: false,
     }

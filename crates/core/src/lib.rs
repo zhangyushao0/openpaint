@@ -12,6 +12,7 @@ mod error;
 mod id;
 mod layer;
 mod layer_command;
+mod mask_ops;
 mod parts;
 mod region;
 mod session;
@@ -32,8 +33,8 @@ pub use error::CoreError;
 pub use id::{LayerId, MAX_ID, StrokeId};
 pub use layer::{Layer, LayerProps};
 pub use parts::{
-    AccumulationParts, ArtworkParts, FillParts, LayerParts, PaperParts, RecipeParts, SampleParts,
-    StrokeParts,
+    AccumulationParts, ArtworkParts, FillParts, LayerParts, MaskParts, PaperParts, RecipeParts,
+    SampleParts, StrokeParts,
 };
 pub use region::{RegionEdit, RegionMask};
 pub use session::{ActiveStroke, StrokeSession};

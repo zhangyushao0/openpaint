@@ -20,6 +20,7 @@ mod project;
 mod projection;
 mod recipe;
 mod reference;
+mod selection;
 mod session;
 mod storage;
 mod streamline;
@@ -55,6 +56,7 @@ pub use crate::reference::{
     MAX_IMAGE_BYTES, MAX_IMAGE_PIXELS, MAX_REFERENCE_SIDE, ReferenceImage, ReferenceIntent,
     ReferenceNotice,
 };
+pub use crate::selection::{SelectionIntent, SelectionProjection, SelectionShape};
 pub use crate::session::Session;
 pub use crate::storage::{StorageIntent, StorageNotice};
 pub use crate::streamline::StreamLine;

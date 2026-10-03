@@ -35,7 +35,8 @@ pub(crate) fn show(
         DropBar::Offered => ("Filled.".to_owned(), Some("Continue filling")),
         DropBar::Continuing => ("Tap an area to fill it.".to_owned(), Some("Done")),
     };
-    let (rect, clicked) = fill_bar(ctx, &text, action);
+    let taken = projection.selection().tool;
+    let (rect, clicked) = fill_bar(ctx, &text, action, taken);
     if clicked {
         drop.set_continuing(bar == DropBar::Offered);
     }

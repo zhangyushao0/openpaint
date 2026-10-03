@@ -102,7 +102,17 @@ fn stroke_paint(held: f32, contact: f32, centre: vec2<f32>, pixel: vec2<u32>, op
     if op.data[PAINT_DENSITY] > 0.0 {
         coverage = deposit_coverage(held, contact, centre, op);
     }
-    return paint_color(coverage * grain(pixel, op) * op.data[PAINT_OPACITY], op);
+    return paint_color(coverage * grain(pixel, op) * clip(pixel, op) * op.data[PAINT_OPACITY], op);
+}
+
+// 1 where a stroke drawn inside a selection may paint (the selection's mask holds `pixel`) or
+// where it has no selection, else 0: zero paint, which leaves the layer exactly as it was.
+fn clip(pixel: vec2<u32>, op: Op) -> f32 {
+    let at = u32(op.data[PAINT_CLIP]) * 65536u + u32(op.data[PAINT_CLIP + 1u]);
+    if at == 0u {
+        return 1.0;
+    }
+    return mask_bit(pixel, at - 1u);
 }
 
 // The op's colour (`op.data[0..3]`) at `alpha`, premultiplied.
@@ -110,10 +120,14 @@ fn paint_color(alpha: f32, op: Op) -> vec4<f32> {
     return vec4<f32>(vec3<f32>(op.data[0], op.data[1], op.data[2]) * alpha, alpha);
 }
 
-// 1 where the fill's mask holds `pixel`, else 0: a hard edge. The mask starts at word
-// `offset` of `masks`: origin, size, then rows of whole words, one bit per pixel.
+// 1 where the fill's mask holds `pixel`, else 0: a hard edge.
 fn fill_coverage(pixel: vec2<u32>, op: Op) -> f32 {
-    let at = u32(op.data[FILL_MASK]) * 65536u + u32(op.data[FILL_MASK + 1u]);
+    return mask_bit(pixel, u32(op.data[FILL_MASK]) * 65536u + u32(op.data[FILL_MASK + 1u]));
+}
+
+// 1 where the mask starting at word `at` of `masks` holds `pixel`, else 0. A mask is its
+// origin, its size, then rows of whole words, one bit per pixel.
+fn mask_bit(pixel: vec2<u32>, at: u32) -> f32 {
     let origin = vec2<u32>(masks[at], masks[at + 1u]);
     let size = vec2<u32>(masks[at + 2u], masks[at + 3u]);
     if any(pixel < origin) || any(pixel >= origin + size) {

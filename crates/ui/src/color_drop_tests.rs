@@ -27,6 +27,7 @@ fn frame(now_ms: i64) -> CanvasFrame<'static> {
         pixels_per_point: 1.0,
         now_ms,
         picking: false,
+        selecting: false,
         drawing: false,
         control: false,
     }

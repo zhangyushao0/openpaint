@@ -13,9 +13,9 @@ use crate::value::{CanvasSize, Color, invalid};
 /// `origin + (x, y)` is bit `x % 32` of word `y * stride + x / 32`. Clone is O(1).
 #[derive(Debug, Clone)]
 pub struct RegionMask {
-    origin: [u32; 2],
-    size: [u32; 2],
-    words: Arc<[u32]>,
+    pub(crate) origin: [u32; 2],
+    pub(crate) size: [u32; 2],
+    pub(crate) words: Arc<[u32]>,
 }
 
 impl RegionMask {
@@ -162,7 +162,7 @@ impl RegionMask {
         Arc::ptr_eq(&self.words, &other.words)
     }
 
-    fn bit(&self, x: u32, y: u32) -> bool {
+    pub(crate) fn bit(&self, x: u32, y: u32) -> bool {
         let word = self.words[(y * self.stride() + x / 32) as usize];
         word >> (x % 32) & 1 == 1
     }

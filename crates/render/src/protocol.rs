@@ -5,7 +5,7 @@
 /// Side of a square evaluation tile in pixels; also the evaluator's workgroup size.
 pub(crate) const TILE: u32 = 16;
 /// Number of `f32` operands in one op record.
-const OP_DATA: usize = 12;
+const OP_DATA: usize = 14;
 /// A paint op's grain strength is a whole number in `0..=GRAIN_ONE`, so the shader's grain is
 /// exact integer arithmetic on every backend.
 pub(crate) const GRAIN_ONE: u32 = 256;
@@ -20,6 +20,9 @@ const PAINT_BLEND: usize = 6;
 const PAINT_DENSITY: usize = 7;
 /// The paper: texels per pixel (0: none), the mip level of one pixel, depth and dust.
 const PAINT_PAPER: usize = 8;
+/// The selection a stroke is drawn inside: one more than where its mask starts in the mask
+/// words (0: none), split like `FILL_MASK`.
+const PAINT_CLIP: usize = 12;
 /// The flow at `a`; the flow at `b` follows it.
 const SEGMENT_FLOW: usize = 6;
 const SEGMENT_EDGE: usize = 8;
@@ -30,13 +33,14 @@ const SEGMENT_TIP: usize = 11;
 /// Where a fill's mask starts in the mask words, split in two whole numbers below 2^16 (high
 /// part first) so each stays exact as a float.
 const FILL_MASK: usize = 7;
-const SLOTS: [(&str, usize); 11] = [
+const SLOTS: [(&str, usize); 12] = [
     ("PAINT_OPACITY", PAINT_OPACITY),
     ("PAINT_GRAIN", PAINT_GRAIN),
     ("PAINT_GRAIN_SCALE", PAINT_GRAIN_SCALE),
     ("PAINT_BLEND", PAINT_BLEND),
     ("PAINT_DENSITY", PAINT_DENSITY),
     ("PAINT_PAPER", PAINT_PAPER),
+    ("PAINT_CLIP", PAINT_CLIP),
     ("SEGMENT_FLOW", SEGMENT_FLOW),
     ("SEGMENT_EDGE", SEGMENT_EDGE),
     ("SEGMENT_CONTACT", SEGMENT_CONTACT),
@@ -131,9 +135,11 @@ impl Opcode {
 ///   `b`; `edge` is one over the width in pixels over which a covering segment fades in from
 ///   the outline (1: a hard, antialiased edge); `ca` to `cb` the paper contact along it.
 /// - `EndStroke` and `EndActive`: `[r, g, b, opacity, grain, grain_scale, blend, density,
-///   paper scale, paper level, depth, dust]`, straight sRGB colour; `grain` a whole number in
-///   `0..=GRAIN_ONE`, `grain_scale` whole pixels, `blend` a `Blend`; `density` 0 for a covering
-///   stroke, else its maximum density; `paper scale` 0 without paper.
+///   paper scale, paper level, depth, dust, clip / 2^16, clip % 2^16]`, straight sRGB colour;
+///   `grain` a whole number in `0..=GRAIN_ONE`, `grain_scale` whole pixels, `blend` a `Blend`;
+///   `density` 0 for a covering stroke, else its maximum density; `paper scale` 0 without
+///   paper; `clip` 0, or one more than where the mask of the selection the stroke is drawn
+///   inside starts in the mask words: the paint lands only on the mask's pixels.
 /// - `EndLayer`: `[opacity, _, ...]`.
 /// - `Fill`: a paint op's first seven operands, then where its mask starts in the mask words
 ///   (`offset / 2^16`, `offset % 2^16`); the mask is `MASK_HEADER` words, then rows of
@@ -159,6 +165,8 @@ pub(crate) struct Paint {
     pub(crate) density: f32,
     /// Texels per pixel (0: no paper), the mip level a pixel covers, depth, dust.
     pub(crate) paper: [f32; 4],
+    /// 0, or one more than where the clip's mask starts in the mask words.
+    pub(crate) clip: u32,
 }
 
 impl Paint {
@@ -172,6 +180,7 @@ impl Paint {
             blend,
             density: 0.0,
             paper: [0.0; 4],
+            clip: 0,
         }
     }
 
@@ -179,6 +188,7 @@ impl Paint {
         // Small whole numbers, exact as floats.
         let [r, g, b] = self.color;
         let [scale, level, depth, dust] = self.paper;
+        let [clip_high, clip_low] = halves(self.clip);
         [
             r,
             g,
@@ -192,8 +202,15 @@ impl Paint {
             level,
             depth,
             dust,
+            clip_high,
+            clip_low,
         ]
     }
+}
+
+/// A word index as two whole numbers below 2^16, high part first, each exact as a float.
+fn halves(value: u32) -> [f32; 2] {
+    [(value >> 16) as f32, (value & 0xffff) as f32]
 }
 
 /// One segment's geometry and strength, as `Op::segment` lays it out.
@@ -237,9 +254,7 @@ impl Op {
     pub(crate) fn fill(paint: &Paint, mask: u32) -> Self {
         let mut data = [0.0; OP_DATA];
         data[..FILL_MASK].copy_from_slice(&paint.operands()[..FILL_MASK]);
-        // Each part below 2^16: exact as a float.
-        data[FILL_MASK] = (mask >> 16) as f32;
-        data[FILL_MASK + 1] = (mask & 0xffff) as f32;
+        data[FILL_MASK..FILL_MASK + 2].copy_from_slice(&halves(mask));
         Self::new(Opcode::Fill, &data)
     }
 

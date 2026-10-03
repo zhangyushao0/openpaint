@@ -3,7 +3,7 @@
 //! stroke is in `stroke.rs`.
 
 use openpaint_core::{
-    ActiveStroke, Artwork, Layer, LayerId, RegionEdit, StrokeBlend, StrokeSample, StrokeStyle,
+    ActiveStroke, Artwork, Layer, LayerId, RegionEdit, RegionMask, StrokeSample, StrokeStyle,
 };
 
 use crate::error::RenderError;
@@ -44,19 +44,44 @@ impl Item {
 
 /// Bottom layer first; inside a layer, finished strokes oldest first with each fill after the
 /// strokes it was made over, then the in-progress stroke's place. `masks` holds the fills'
-/// masks (`MASK_HEADER` words each, then their rows), which the fill ops point into.
+/// masks and the clips of strokes drawn inside a selection (`MASK_HEADER` words each, then
+/// their rows), which the fill and paint ops point into; strokes in a row sharing one clip
+/// share its words.
 #[derive(Debug, Default)]
 pub(crate) struct Scene {
     pub(crate) items: Vec<Item>,
     pub(crate) masks: Vec<u32>,
+    /// The in-progress stroke's clip as its paint op names it (0: none).
+    pub(crate) active_clip: u32,
+    /// The clip pushed last and its paint op value.
+    pub(crate) last_clip: Option<(RegionMask, u32)>,
+}
+
+/// Where the in-progress stroke draws: its layer, and the selection it is drawn inside.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct ActivePlace {
+    pub(crate) layer: LayerId,
+    pub(crate) clip: Option<RegionMask>,
+}
+
+impl ActivePlace {
+    pub(crate) fn of(active: &ActiveStroke) -> Self {
+        Self {
+            layer: active.layer(),
+            clip: active.clip().cloned(),
+        }
+    }
 }
 
 impl Scene {
-    /// The finished content of `artwork`, with the place of an in-progress stroke on `active`.
+    /// The finished content of `artwork`, with the place of an in-progress stroke `active`.
     /// Hidden layers, and layers with neither content nor that place, contribute no ops.
-    pub(crate) fn build(artwork: &Artwork, active: Option<LayerId>) -> Result<Self, RenderError> {
-        if let Some(layer) = active
-            && artwork.layer(layer).is_none()
+    pub(crate) fn build(
+        artwork: &Artwork,
+        active: Option<&ActivePlace>,
+    ) -> Result<Self, RenderError> {
+        if let Some(place) = active
+            && artwork.layer(place.layer).is_none()
         {
             return Err(RenderError::Invalid(
                 "the active stroke's layer is not in the artwork",
@@ -65,8 +90,11 @@ impl Scene {
         let mut scene = Self::default();
         for layer in artwork.layers() {
             if layer.props().visible() {
-                let place = active == Some(layer.id());
-                scene.push_layer(layer, place, layer.props().opacity())?;
+                let place = active.filter(|place| place.layer == layer.id());
+                if let Some(clip) = place.and_then(|place| place.clip.as_ref()) {
+                    scene.active_clip = scene.clip(clip)?;
+                }
+                scene.push_layer(layer, place.is_some(), layer.props().opacity())?;
             }
         }
         Ok(scene)
@@ -90,7 +118,10 @@ impl Scene {
             while let Some(edit) = edits.next_if(|edit| edit.after() == index) {
                 self.push_fill(edit)?;
             }
-            self.push_stroke(stroke.style(), stroke.blend(), stroke.samples());
+            let clip = stroke.clip().map(|clip| self.clip(clip)).transpose()?;
+            let mut paint = paint(stroke.style(), stroke.blend());
+            paint.clip = clip.unwrap_or(0);
+            self.push_stroke(stroke.style(), &paint, stroke.samples());
         }
         for edit in edits {
             self.push_fill(edit)?;
@@ -104,14 +135,37 @@ impl Scene {
         Ok(())
     }
 
-    fn push_fill(&mut self, edit: &RegionEdit) -> Result<(), RenderError> {
-        let mask = edit.mask();
+    /// Appends `mask` to the mask words; returns where it starts.
+    fn push_mask(&mut self, mask: &RegionMask) -> Result<u32, RenderError> {
+        // Below 2^32 - 1, so a clip's value (one more) fits too.
         let at = u32::try_from(self.masks.len())
-            .map_err(|_| RenderError::Invalid("the fill masks exceed 2^32 words"))?;
+            .ok()
+            .filter(|at| *at < u32::MAX)
+            .ok_or(RenderError::Invalid("the masks exceed 2^32 words"))?;
         let ([x, y], [width, height]) = (mask.origin(), mask.size());
         self.masks.extend([x, y, width, height]);
         self.masks.extend_from_slice(mask.words());
         debug_assert_eq!(MASK_HEADER, 4);
+        Ok(at)
+    }
+
+    /// The paint op value of the clip `mask`: one more than where its words start, shared with
+    /// the clip pushed last when that is the same mask.
+    fn clip(&mut self, mask: &RegionMask) -> Result<u32, RenderError> {
+        if let Some((last, value)) = &self.last_clip
+            && last.shares(mask)
+        {
+            return Ok(*value);
+        }
+        let value = self.push_mask(mask)? + 1;
+        self.last_clip = Some((mask.clone(), value));
+        Ok(value)
+    }
+
+    fn push_fill(&mut self, edit: &RegionEdit) -> Result<(), RenderError> {
+        let mask = edit.mask();
+        let at = self.push_mask(mask)?;
+        let ([x, y], [width, height]) = (mask.origin(), mask.size());
         let color = edit.color();
         let blend = if edit.alpha_locked() {
             Blend::Atop
@@ -138,15 +192,14 @@ impl Scene {
         self.items.contains(&Item::Active)
     }
 
-    fn push_stroke(&mut self, style: &StrokeStyle, blend: StrokeBlend, samples: &[StrokeSample]) {
+    fn push_stroke(&mut self, style: &StrokeStyle, paint: &Paint, samples: &[StrokeSample]) {
         for segment in segments(style, samples, 0) {
             self.items.push(Item::Segment {
                 op: segment.op(),
                 bounds: segment.bounds(),
             });
         }
-        self.items
-            .push(Item::EndStroke(Op::end_stroke(&paint(style, blend))));
+        self.items.push(Item::EndStroke(Op::end_stroke(paint)));
     }
 }
 
@@ -161,10 +214,13 @@ pub(crate) struct Fresh {
 impl Fresh {
     /// The segments of `samples` (every sample so far) after sample `from`: the new samples
     /// with the one before them, or the whole stroke (`from` 0) when its coverage starts over.
-    pub(crate) fn new(active: &ActiveStroke, from: usize) -> Self {
+    /// `clip` is the stroke's clip as the scene placed it (`Scene::active_clip`).
+    pub(crate) fn new(active: &ActiveStroke, from: usize, clip: u32) -> Self {
         let (style, samples) = (active.style(), active.samples());
+        let mut paint = paint(style, active.blend());
+        paint.clip = clip;
         let mut fresh = Self {
-            ops: vec![Op::end_active(&paint(style, active.blend()))],
+            ops: vec![Op::end_active(&paint)],
             bounds: Vec::new(),
         };
         for segment in segments(style, samples, from) {
@@ -214,11 +270,40 @@ mod tests {
             .expect("begin");
         session.extend(&[sample(9.0, 9.0, 1.0, 5)]).expect("extend");
         let one = session.finish().artwork;
-        let scene = Scene::build(&one, Some(one.active())).expect("scene");
+        let scene = Scene::build(&one, Some(&place(one.active(), None))).expect("scene");
         assert_eq!(codes(&scene), ["segment", "stroke", "active", "layer"]);
         assert!(scene.has_active());
-        let empty = Scene::build(&blank, Some(blank.active())).expect("scene");
+        let empty = Scene::build(&blank, Some(&place(blank.active(), None))).expect("scene");
         assert_eq!(codes(&empty), ["active", "layer"]);
+    }
+
+    fn place(layer: LayerId, clip: Option<RegionMask>) -> ActivePlace {
+        ActivePlace { layer, clip }
+    }
+
+    #[test]
+    fn strokes_inside_one_selection_share_its_mask_with_the_stroke_being_drawn() {
+        let canvas = CanvasSize::new(64, 64).expect("size");
+        let clip = RegionMask::polygon(canvas, &[[4.0, 4.0], [40.0, 4.0], [40.0, 40.0]])
+            .expect("a triangle");
+        let mut artwork = Artwork::new(canvas);
+        for x in [5.0, 9.0] {
+            let session = artwork
+                .begin_stroke(style(), sample(x, 10.0, 1.0, 0))
+                .expect("begin");
+            artwork = session
+                .clipped(clip.clone())
+                .expect("clip")
+                .finish()
+                .artwork;
+        }
+        let words = MASK_HEADER as usize + clip.words().len();
+        let place = place(artwork.active(), Some(clip.clone()));
+        let scene = Scene::build(&artwork, Some(&place)).expect("scene");
+        assert_eq!(scene.masks.len(), words, "one copy");
+        assert_eq!(scene.active_clip, 1);
+        let alone = Scene::build(&artwork, None).expect("scene");
+        assert_eq!((alone.masks.len(), alone.active_clip), (words, 0));
     }
 
     #[test]
@@ -240,7 +325,9 @@ mod tests {
         let build = |artwork: &Artwork, active| Scene::build(artwork, active).expect("scene");
         assert_eq!(codes(&build(&blank, None)), [""; 0]);
         assert_eq!(codes(&build(&hidden, None)), [""; 0]);
-        assert!(!build(&hidden, Some(layer)).has_active());
+        let place = place(layer, None);
+        let hidden_place = Scene::build(&hidden, Some(&place)).expect("scene");
+        assert!(!hidden_place.has_active());
         let shown = codes(&build(&drawn, None));
         assert_eq!(shown, ["segment", "stroke", "layer"]);
     }
@@ -250,16 +337,21 @@ mod tests {
         let samples = [sample(10.0, 20.0, 1.0, 0), sample(30.0, 20.0, 0.2, 4)];
         let blank = Artwork::new(CanvasSize::new(64, 64).expect("size"));
         let mut session = blank.begin_stroke(style(), samples[0]).expect("begin");
-        let dot = Fresh::new(session.active(), 0);
+        let dot = Fresh::new(session.active(), 0, 0);
         assert_eq!(dot.bounds.len(), 1);
         session.extend(&samples[1..]).expect("extend");
-        let fresh = Fresh::new(session.active(), 0);
+        let fresh = Fresh::new(session.active(), 0, 7);
         assert_eq!(fresh.ops.len(), 2);
+        let clipped = Paint {
+            clip: 7,
+            ..paint(&style(), openpaint_core::StrokeBlend::Over)
+        };
+        assert_eq!(fresh.ops[0], Op::end_active(&clipped), "with the clip");
         assert_eq!(fresh.bounds.len(), 1);
         assert_eq!(
             Some(fresh.bounds[0].pixels()),
             stroke_region(&style(), &samples, 0)
         );
-        assert_eq!(Fresh::new(session.active(), 1).bounds.len(), 0);
+        assert_eq!(Fresh::new(session.active(), 1, 0).bounds.len(), 0);
     }
 }

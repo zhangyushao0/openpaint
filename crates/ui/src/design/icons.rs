@@ -6,6 +6,7 @@ use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 
 use egui::{Color32, Pos2, Rect, Stroke};
 
+use super::icon_tools::tools;
 use super::paint::ink_line;
 
 /// Side of an icon's square, in points.
@@ -13,7 +14,7 @@ pub const ICON_SIZE: f32 = 26.0;
 /// Line weight of every icon, in points.
 const ICON_LINE: f32 = 1.5;
 /// Points on a curve.
-const ARC_STEPS: usize = 12;
+pub(super) const ARC_STEPS: usize = 12;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Icon {
@@ -47,6 +48,8 @@ pub enum Icon {
     Eyedropper,
     /// A spanner at a slant, its open ring up to the right: the Actions menu.
     Actions,
+    /// A lasso, its loop in dashes: the Selection tool.
+    Selection,
     /// A cross: close.
     Close,
     /// Four arrows out from the middle: move the window.
@@ -65,7 +68,7 @@ pub enum Icon {
     OpacityDark,
 }
 
-type Line = Vec<[f32; 2]>;
+pub(super) type Line = Vec<[f32; 2]>;
 
 /// Draws `icon` into `rect` (square, `ICON_SIZE` on a side) in `color`.
 pub fn paint(painter: &egui::Painter, icon: Icon, rect: Rect, color: Color32) {
@@ -130,7 +133,7 @@ fn polylines(icon: Icon) -> Vec<Line> {
         Icon::Visible => vec![eye_outline()],
         Icon::Hidden => vec![eye_outline(), vec![[0.2, 0.8], [0.8, 0.2]]],
         Icon::Duplicate => vec![rounded_rect([0.38, 0.38], [0.82, 0.82], 0.08), back_sheet()],
-        Icon::Brush | Icon::Eraser | Icon::Eyedropper => tools(icon),
+        Icon::Brush | Icon::Eraser | Icon::Eyedropper | Icon::Selection => tools(icon),
         Icon::Actions => spanner(),
         Icon::Close => vec![
             vec![[0.27, 0.27], [0.73, 0.73]],
@@ -160,7 +163,7 @@ fn back_sheet() -> Line {
 
 /// Points on a circle about `centre` from angle `from` to `to` (radians, y down: positive
 /// turns clockwise on screen), `steps` segments.
-fn arc(centre: [f32; 2], radius: f32, from: f32, to: f32, steps: usize) -> Line {
+pub(super) fn arc(centre: [f32; 2], radius: f32, from: f32, to: f32, steps: usize) -> Line {
     (0..=steps)
         .map(|step| {
             let angle = from + (to - from) * step as f32 / steps as f32;
@@ -189,7 +192,7 @@ fn rounded_rect(min: [f32; 2], max: [f32; 2], radius: f32) -> Line {
 }
 
 /// Points on the quadratic curve from `a` through the pull of `c` to `b`.
-fn curve(a: [f32; 2], c: [f32; 2], b: [f32; 2]) -> Line {
+pub(super) fn curve(a: [f32; 2], c: [f32; 2], b: [f32; 2]) -> Line {
     (0..=ARC_STEPS)
         .map(|step| {
             let t = step as f32 / ARC_STEPS as f32;
@@ -235,50 +238,6 @@ fn spanner() -> Vec<Line> {
         centre[1] + radius * FRAC_PI_4.sin(),
     ];
     vec![ring, vec![foot, [0.18, 0.82]]]
-}
-
-/// The tools held at a slant, tip down to the left.
-fn tools(icon: Icon) -> Vec<Line> {
-    match icon {
-        Icon::Brush => {
-            // The handle, the ferrule across it, then the bristles swelling and closing to a
-            // point.
-            let (a, b, tip) = ([0.46, 0.4], [0.6, 0.54], [0.14, 0.86]);
-            let mut bristles = curve(b, [0.56, 0.78], tip);
-            bristles.extend(curve(tip, [0.22, 0.44], a).into_iter().skip(1));
-            vec![vec![[0.86, 0.14], [0.6, 0.4]], vec![a, b], bristles]
-        }
-        Icon::Eraser => vec![
-            vec![
-                [0.2, 0.58],
-                [0.54, 0.24],
-                [0.82, 0.52],
-                [0.48, 0.86],
-                [0.2, 0.58],
-            ],
-            vec![[0.33, 0.45], [0.61, 0.73]],
-            vec![[0.6, 0.86], [0.84, 0.86]],
-        ],
-        Icon::Eyedropper => vec![
-            // The tube from its tip, the collar, then the bulb.
-            vec![
-                [0.18, 0.82],
-                [0.21, 0.7],
-                [0.5, 0.41],
-                [0.59, 0.5],
-                [0.3, 0.79],
-                [0.18, 0.82],
-            ],
-            vec![[0.42, 0.36], [0.64, 0.58]],
-            {
-                let mut bulb = vec![[0.49, 0.43]];
-                bulb.extend(arc([0.67, 0.33], 0.06, 1.25 * PI, 2.25 * PI, ARC_STEPS));
-                bulb.push([0.57, 0.51]);
-                bulb
-            },
-        ],
-        _ => Vec::new(),
-    }
 }
 
 /// A cross whose four ends are open arrow heads.
@@ -371,6 +330,7 @@ mod tests {
             Icon::Eraser,
             Icon::Eyedropper,
             Icon::Actions,
+            Icon::Selection,
             Icon::Close,
             Icon::Move,
             Icon::Resize,

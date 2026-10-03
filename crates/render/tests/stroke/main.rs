@@ -10,4 +10,5 @@ mod fixture;
 mod golden;
 mod incremental;
 mod screen;
+mod selection;
 mod thumbnail;

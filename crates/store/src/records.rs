@@ -1,4 +1,5 @@
-//! Schema 6: the keys and values the library stores (DECISIONS D21, D25, D28, D29, D36, D38).
+//! Schema 7: the keys and values the library stores (DECISIONS D21, D25, D28, D29, D36, D38,
+//! D43).
 //!
 //! Keyspace `library`: `schema` -> the schema of every record (u32 LE); `next` -> the next
 //! unused project id (u64 LE); `clock` -> the last value of the change counter (u64 LE); `last`
@@ -11,14 +12,16 @@
 //!   layer, next layer id and next stroke id (u64), then the layers bottom to top, each id
 //!   (u64), name (u32 length + UTF-8), visible (u8), opacity (f32), locked (u8), alpha locked
 //!   (u8), its stroke count (u32) and its fill count (u32);
-//! - `[project u64]['s'][layer u64][index u64]` -> one stroke, oldest at index 0: id (u64),
-//!   size, opacity, red, green, blue (f32), blend (u8: 0 paint over, 1 paint atop under Alpha
-//!   Lock, 2 erase), its brush recipe (softness (f32); the curves size over pressure, size over
-//!   speed, opacity over pressure, opacity over speed, each a point count (u32) and per point x,
-//!   y (f32); grain strength (f32) and scale (u32); the deposit (u8: 0 cover, 1 accumulate),
-//!   when accumulating its tip (u8: 0 flat, 1 bell), flow and maximum density (f32) and paper
-//!   (u8: 0 none, 1 sketch), on paper its contact curve, scale, depth and dust (f32)), sample
-//!   count (u32), then per sample x, y, pressure, tilt, azimuth (f32) and time (u32 ms);
+//! - `[project u64]['s'][layer u64][index u64]` -> one stroke, oldest at index 0 (`strokes.rs`):
+//!   id (u64), size, opacity, red, green, blue (f32), blend (u8: 0 paint over, 1 paint atop
+//!   under Alpha Lock, 2 erase), its brush recipe (softness (f32); the curves size over
+//!   pressure, size over speed, opacity over pressure, opacity over speed, each a point count
+//!   (u32) and per point x, y (f32); grain strength (f32) and scale (u32); the deposit (u8: 0
+//!   cover, 1 accumulate), when accumulating its tip (u8: 0 flat, 1 bell), flow and maximum
+//!   density (f32) and paper (u8: 0 none, 1 sketch), on paper its contact curve, scale, depth
+//!   and dust (f32)), sample count (u32), then per sample x, y, pressure, tilt, azimuth (f32)
+//!   and time (u32 ms), then its clip (u8: 0 none, 1 a mask as a fill stores it: rectangle,
+//!   run count and runs, `fills.rs`);
 //! - `[project u64]['f'][layer u64][index u64]` -> one fill, oldest at index 0 (`fills.rs`);
 //! - `[project u64]['t']` -> the gallery thumbnail (`catalogue.rs`), derived from the artwork
 //!   when it was last left; absent until then.
@@ -28,18 +31,19 @@
 //! entries or thumbnails, and `last` named the project saved last; schema 2 (S10) had no recipe
 //! in its strokes and no `editor`; schema 3 (S11) had no alpha lock, no blend and a toolbox of
 //! one tool without colours; schema 4 (S12) had no fills; schema 5 (S15) had no deposit in its
-//! recipes and no StreamLine in its toolbox; `migrate.rs` and `migrate_6.rs` upgrade them.
+//! recipes and no StreamLine in its toolbox; schema 6 (S16) had no clip in its strokes;
+//! `migrate.rs`, `migrate_6.rs` and `migrate_7.rs` upgrade them.
 
 use openpaint_app::{PortError, ProjectId};
-use openpaint_core::{
-    AccumulationParts, Artwork, LayerParts, PaperParts, PaperTexture, RecipeParts, SampleParts,
-    Stroke, StrokeBlend, StrokeParts, Tip,
-};
+use openpaint_core::{Artwork, LayerParts};
 
 use crate::codec::{Reader, Writer};
+pub(crate) use crate::strokes::{
+    STROKE_STYLE_BYTES, decode_stroke, encode_stroke, read_curve, write_recipe,
+};
 
 /// The schema this build writes and the newest it reads.
-pub const SCHEMA: u32 = 6;
+pub const SCHEMA: u32 = 7;
 
 pub(crate) const LIBRARY: &str = "library";
 pub(crate) const PROJECTS: &str = "projects";
@@ -53,12 +57,6 @@ pub(crate) const ENTRY: &[u8] = b"a";
 const HEAD: u8 = b'h';
 const STROKE: u8 = b's';
 const THUMBNAIL: u8 = b't';
-/// Bytes of one encoded sample.
-const SAMPLE_BYTES: usize = 24;
-/// Bytes of a stroke record before its blend: id, size, opacity and colour.
-pub(crate) const STROKE_STYLE_BYTES: usize = 8 + 5 * 4;
-/// Bytes of one curve point.
-const POINT_BYTES: usize = 8;
 /// Bytes of a layer entry in the head without its name.
 const LAYER_BYTES: usize = 8 + 4 + 1 + 4 + 1 + 1 + 4 + 4;
 
@@ -218,180 +216,4 @@ pub(crate) fn decode_head(bytes: &[u8]) -> Result<Head, PortError> {
         next_stroke_id,
         layers,
     })
-}
-
-pub(crate) fn encode_stroke(stroke: &Stroke) -> Vec<u8> {
-    let samples = stroke.samples();
-    let mut writer = Writer::with_capacity(32 + samples.len() * SAMPLE_BYTES);
-    writer.u64(stroke.id().get());
-    let style = stroke.style();
-    writer.f32(style.size());
-    writer.f32(style.opacity());
-    let color = style.color();
-    for channel in [color.r(), color.g(), color.b()] {
-        writer.f32(channel);
-    }
-    writer.u8(match stroke.blend() {
-        StrokeBlend::Over => 0,
-        StrokeBlend::Atop => 1,
-        StrokeBlend::Erase => 2,
-    });
-    write_whole_recipe(&mut writer, &style.recipe().to_parts());
-    writer.len(samples.len());
-    for sample in samples {
-        let position = sample.position();
-        for value in [
-            position.x(),
-            position.y(),
-            sample.pressure(),
-            sample.tilt(),
-            sample.azimuth(),
-        ] {
-            writer.f32(value);
-        }
-        writer.u32(sample.time_ms());
-    }
-    writer.finish()
-}
-
-pub(crate) fn decode_stroke(bytes: &[u8]) -> Result<StrokeParts, PortError> {
-    let mut reader = Reader::new(bytes, "stroke");
-    let id = reader.u64()?;
-    let (size, opacity) = (reader.f32()?, reader.f32()?);
-    let color = [reader.f32()?, reader.f32()?, reader.f32()?];
-    let blend = match reader.u8()? {
-        0 => StrokeBlend::Over,
-        1 => StrokeBlend::Atop,
-        2 => StrokeBlend::Erase,
-        _ => return Err(reader.corrupt()),
-    };
-    let recipe = read_recipe(&mut reader)?;
-    let count = reader.count(SAMPLE_BYTES)?;
-    let mut samples = Vec::with_capacity(count);
-    for _ in 0..count {
-        samples.push(SampleParts {
-            x: reader.f32()?,
-            y: reader.f32()?,
-            pressure: reader.f32()?,
-            tilt: reader.f32()?,
-            azimuth: reader.f32()?,
-            time_ms: reader.u32()?,
-        });
-    }
-    reader.end()?;
-    Ok(StrokeParts {
-        id,
-        blend,
-        recipe,
-        size,
-        opacity,
-        color,
-        samples,
-    })
-}
-
-/// A recipe as a stroke record holds it, after the blend: its stages up to the grain (schema
-/// 3's recipe), then its deposit.
-fn write_whole_recipe(writer: &mut Writer, recipe: &RecipeParts) {
-    write_recipe(writer, recipe);
-    let Some(deposit) = &recipe.deposit else {
-        writer.u8(0);
-        return;
-    };
-    writer.u8(1);
-    writer.u8(match deposit.tip {
-        Tip::Flat => 0,
-        Tip::Bell => 1,
-    });
-    writer.f32(deposit.flow);
-    writer.f32(deposit.max_density);
-    let Some(paper) = &deposit.paper else {
-        writer.u8(0);
-        return;
-    };
-    writer.u8(match paper.texture {
-        PaperTexture::Sketch => 1,
-    });
-    write_curve(writer, &paper.contact);
-    for value in [paper.scale, paper.depth, paper.dust] {
-        writer.f32(value);
-    }
-}
-
-fn write_curve(writer: &mut Writer, curve: &[[f32; 2]]) {
-    writer.len(curve.len());
-    for [x, y] in curve {
-        writer.f32(*x);
-        writer.f32(*y);
-    }
-}
-
-/// A recipe's stages up to its grain, as schemas 3 to 5 stored the whole recipe.
-pub(crate) fn write_recipe(writer: &mut Writer, recipe: &RecipeParts) {
-    writer.f32(recipe.softness);
-    for curve in [
-        &recipe.size_pressure,
-        &recipe.size_speed,
-        &recipe.opacity_pressure,
-        &recipe.opacity_speed,
-    ] {
-        write_curve(writer, curve);
-    }
-    writer.f32(recipe.grain_strength);
-    writer.u32(recipe.grain_scale);
-}
-
-pub(crate) fn read_curve(reader: &mut Reader<'_>) -> Result<Vec<[f32; 2]>, PortError> {
-    let count = reader.count(POINT_BYTES)?;
-    (0..count)
-        .map(|_| Ok([reader.f32()?, reader.f32()?]))
-        .collect()
-}
-
-fn read_recipe(reader: &mut Reader<'_>) -> Result<RecipeParts, PortError> {
-    let softness = reader.f32()?;
-    let (size_pressure, size_speed) = (read_curve(reader)?, read_curve(reader)?);
-    let (opacity_pressure, opacity_speed) = (read_curve(reader)?, read_curve(reader)?);
-    let (grain_strength, grain_scale) = (reader.f32()?, reader.u32()?);
-    Ok(RecipeParts {
-        softness,
-        size_pressure,
-        size_speed,
-        opacity_pressure,
-        opacity_speed,
-        grain_strength,
-        grain_scale,
-        deposit: read_deposit(reader)?,
-    })
-}
-
-fn read_deposit(reader: &mut Reader<'_>) -> Result<Option<AccumulationParts>, PortError> {
-    match reader.u8()? {
-        0 => return Ok(None),
-        1 => {}
-        _ => return Err(reader.corrupt()),
-    }
-    let tip = match reader.u8()? {
-        0 => Tip::Flat,
-        1 => Tip::Bell,
-        _ => return Err(reader.corrupt()),
-    };
-    let (flow, max_density) = (reader.f32()?, reader.f32()?);
-    let paper = match reader.u8()? {
-        0 => None,
-        1 => Some(PaperParts {
-            texture: PaperTexture::Sketch,
-            contact: read_curve(reader)?,
-            scale: reader.f32()?,
-            depth: reader.f32()?,
-            dust: reader.f32()?,
-        }),
-        _ => return Err(reader.corrupt()),
-    };
-    Ok(Some(AccumulationParts {
-        tip,
-        flow,
-        max_density,
-        paper,
-    }))
 }

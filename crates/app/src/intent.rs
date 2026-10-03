@@ -7,6 +7,7 @@ use crate::gallery::GalleryIntent;
 use crate::history::HistoryIntent;
 use crate::layers::LayerIntent;
 use crate::reference::ReferenceIntent;
+use crate::selection::SelectionIntent;
 use crate::storage::StorageIntent;
 use crate::stroke::StrokeIntent;
 use crate::toolbox::{BrushIntent, ToolIntent};
@@ -20,6 +21,7 @@ pub enum Intent {
     Storage(StorageIntent),
     Layer(LayerIntent),
     Fill(FillIntent),
+    Selection(SelectionIntent),
     Gallery(GalleryIntent),
     Brush(BrushIntent),
     Tool(ToolIntent),

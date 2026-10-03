@@ -52,6 +52,7 @@ fn at_one_pixel_per_pixel_the_screen_shows_the_canvas_bytes() {
         size: SIZE,
         to_canvas: [1.0, 0.0, -30.0, 0.0, 1.0, -50.0],
         cursor: None,
+        pixels_per_point: 1.0,
     };
     let screen = shown(&core, placement);
     let same = (0..SIZE[1])
@@ -104,6 +105,7 @@ fn turned(target: &CanvasTarget, cursor: Option<BrushCursor>) -> CanvasPlacement
         size: [230, 300],
         to_canvas: [0.0, 2.0, -140.0, -2.0, 0.0, 500.0],
         cursor,
+        pixels_per_point: 1.0,
     }
 }
 

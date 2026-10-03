@@ -13,8 +13,10 @@ mod image_file;
 mod library;
 mod migrate;
 mod migrate_6;
+mod migrate_7;
 mod read;
 mod records;
+mod strokes;
 mod write;
 
 pub use crate::image_file::{decode_image, encode_image, open_reference};

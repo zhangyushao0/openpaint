@@ -7,16 +7,26 @@
 use egui::{Order, Pos2, Stroke};
 use openpaint_core::Color;
 
-use crate::components::{Place, color32, pill, text_button};
+use crate::components::{Place, UNDER_ISLANDS, color32, pill, text_button};
 use crate::design::{INK, PANEL};
 
 /// Radius of the carried drop, in points.
 const DROP_RADIUS: f32 = 12.0;
 
-/// Shows `text` and, with `action`, a button reading it, in the middle of the top band.
-/// Returns the bar's rectangle in points and whether the button was clicked.
-pub fn fill_bar(ctx: &egui::Context, text: &str, action: Option<&str>) -> (egui::Rect, bool) {
-    let (clicked, rect) = pill(ctx, "fill bar", Place::top_middle(), |ui| {
+/// Shows `text` and, with `action`, a button reading it, in the middle of the top band, or just
+/// under the islands while the band's middle is `taken` (by the selection bar). Returns the
+/// bar's rectangle in points and whether the button was clicked.
+pub fn fill_bar(
+    ctx: &egui::Context,
+    text: &str,
+    action: Option<&str>,
+    taken: bool,
+) -> (egui::Rect, bool) {
+    let mut place = Place::top_middle();
+    if taken {
+        place.offset.y = UNDER_ISLANDS;
+    }
+    let (clicked, rect) = pill(ctx, "fill bar", place, |ui| {
         ui.label(text);
         action.is_some_and(|label| text_button(ui, label, true).clicked())
     });

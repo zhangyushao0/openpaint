@@ -21,7 +21,7 @@ pub(super) const LAYOUTS: [Layout; 3] = [
         size: size_of::<Op>(),
         fields: &[
             ("code", "u32", offset_of!(Op, code)),
-            ("data", "array<f32, 12>", offset_of!(Op, data)),
+            ("data", "array<f32, 14>", offset_of!(Op, data)),
         ],
     },
     Layout {

@@ -219,23 +219,23 @@ fn head(records: &mut [(String, Vec<u8>, Vec<u8>)]) -> &mut Vec<u8> {
 
 #[test]
 fn unreadable_records_are_refused_with_a_reason() {
-    let newer = corrupted("newer", |records| head(records)[0] = 7);
+    let newer = corrupted("newer", |records| head(records)[0] = 8);
     assert_eq!(
         newer,
         PortError::NewerSchema {
-            found: 7,
-            newest: 6
+            found: 8,
+            newest: 7
         }
     );
     let newer_library = corrupted("newer-library", |records| {
         let schema = records.iter_mut().find(|(_, key, _)| key == b"schema");
-        schema.expect("schema record").2 = 7u32.to_le_bytes().to_vec();
+        schema.expect("schema record").2 = 8u32.to_le_bytes().to_vec();
     });
     assert_eq!(
         newer_library,
         PortError::NewerSchema {
-            found: 7,
-            newest: 6
+            found: 8,
+            newest: 7
         }
     );
     let short = corrupted("short", |records| {

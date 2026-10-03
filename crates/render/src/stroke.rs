@@ -106,6 +106,7 @@ pub(crate) fn paint(style: &StrokeStyle, blend: StrokeBlend) -> Paint {
         },
         density,
         paper,
+        clip: 0,
     }
 }
 

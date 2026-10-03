@@ -32,13 +32,14 @@ Passed 2026-10-02: S2 to S8 done (see "Done"); the author judged pen feel and pa
 
 Exit: the author finishes an inked and flat-coloured piece (W1) on the tablet.
 
-Passed 2026-10-03: S9 to S17 and the G2 follow-ups done (see "Done"); the author judged W1 `pass` on the tablet. Inking and flat colour needed navigation, fill, stabilisation and a finished look first (author, 2026-10-02), so S14 to S17 came before the exit. Next: S18. Every slice from S14 on starts from the predecessor's implementation of the same feature (`C:\repo\draweave`: behaviour, constants, tested edge cases, fix commits; never its architecture) and the lessons in ARCHITECTURE section 10.
+Passed 2026-10-03: S9 to S17 and the G2 follow-ups done (see "Done"); the author judged W1 `pass` on the tablet. Inking and flat colour needed navigation, fill, stabilisation and a finished look first (author, 2026-10-02), so S14 to S17 came before the exit. Every slice from S14 on starts from the predecessor's implementation of the same feature (`C:\repo\draweave`: behaviour, constants, tested edge cases, fix commits; never its architecture) and the lessons in ARCHITECTURE section 10.
 
 ## G3 Editing and shaping
 
 Exit: the author finishes painterly shading (W2) and a complex composition revision (W3) on the tablet.
 
-**S18 Selection** (core, app, ui, render): freehand and rectangle selection; paint and fill inside; deselect; the selection is tool state, not artwork. Done: GPU test that pixels outside the selection stay unchanged.
+S18 is done (see "Done"). Next: S19.
+
 **S19 Transform** (core, app, ui, render): move, scale and rotate a layer or selection; preview through the renderer; commit as a `RegionEdit`. Done: preview and committed result match.
 **S20 Smudge** (core, render, ui): a smudge brush drags the current layer's colour; incremental residual tiles; incremental = cold evaluation bit for bit. Done: GPU consistency test; at least 60 Hz smudging on the tablet.
 **S21 Groups, clipping masks, blend modes** (core, app, ui, render, store): single-level groups, clipping chains, Multiply/Screen/Overlay; schema upgrade. Done: GPU tests for the compositing formulas.
@@ -73,10 +74,11 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - 2026-10-03 Eyedropper across windows (G2 follow-ups): a picking contact that crosses between the canvas and the reference picture keeps sampling only where it started.
 - 2026-10-02 Reference and export follow-ups (S13): remembering the window's place, size and zoom, storing the reference with the artwork (asset store, format change), export with a transparent background, layers or PSD.
 - 2026-10-03 View follow-ups (S14): remember the view per artwork (draweave did, committed once at gesture end; a format change); rotation snapping (draweave had none); Procreate's four-finger tap to hide the interface (needs a visible control first, D32); a flip; mipmaps or a reduced copy for far zoomed-out views if shimmer shows on the tablet; ask for frames by deadline instead of continuously while fingers hold.
-- 2026-10-03 Fill follow-ups (S15): draweave's fill reference layer (flood one layer, fill another); gap closing; filling inside a selection (S18); keeping the threshold across artworks and launches (toolbox state); the fill bar covers the canvas's top middle while offered; a pencil's grain stops low-threshold fills at its specks.
+- 2026-10-03 Fill follow-ups (S15): draweave's fill reference layer (flood one layer, fill another); gap closing; keeping the threshold across artworks and launches (toolbox state); the fill bar covers the canvas's top middle while offered; a pencil's grain stops low-threshold fills at its specks.
 - 2026-10-03 Fill cost (S15): each scene rebuild re-uploads every fill mask (618 KB for a full-canvas fill), and a full-canvas flood takes about 145 ms on the tablet; cache masks on the target and flood incrementally if long sessions or fast slides show it (G5).
 - 2026-10-03 Pencil and StreamLine follow-ups (S16): grain filtering by view zoom (draweave's Gauss-Hermite at the screen's footprint, only if a re-evaluation at screen resolution ever comes; the screen samples the canvas bilinearly today); breaking the paper's repeat (every ~228 x 114 canvas pixels) with offsets; tilt widening the pencil (draweave's pencil ignored it); corner smoothing and Catmull-Rom curves if sparse input shows polyline corners; keeping the raw pen path to re-smooth strokes; pressure smoothing.
 - 2026-10-03 Visual design follow-ups (S17): the scenario walk-throughs before S17 still say "top bar" in their prose (their taps follow the islands); on windows under about 700 points the two top islands and a notice pill meet; egui's hover label fades in rather than appearing at once; Chinese typed into a title on the tablet itself (only the system font loading and the harness's Chinese title are checked); a left-handed mirror of the side bar and the islands.
+- 2026-10-03 Selection follow-ups (S18): Add and Remove modes, feather and antialiased edges (a coverage clip, a format change), Automatic and Ellipse, saving selections; one clip record per selection instead of its runs in every clipped stroke; counting clip masks in history bytes; the bar's buttons shift when Close appears (centred pill).
 - 2026-10-02 Pen stroke cancelled by a landing touch: with injected input the dispatcher cancels the pen's gesture when a touch lands mid-stroke and the stroke is dropped; if real hardware does the same, commit the stroke drawn so far on such a cancel.
 
 ## Done
@@ -103,3 +105,4 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - S17 2026-10-03 `feat(ui): paper-white line art in floating islands, system fonts, pen hover outline, self-explanatory side bar (S17)`; option A chosen from three style sets; walk-through confirmed on the tablet with injected pen, hover and finger input; the author's canvas unchanged pixel for pixel
 - G2 exit 2026-10-03: the author's W1 piece on the tablet, `pass`
 - G2 follow-ups 2026-10-03 `feat(ui): eyedropper loupe, eraser outline while pressed, gesture-driven reference window (G2 follow-ups)`; walk-through confirmed on the tablet with injected pen and finger input; the author's library byte-identical
+- S18 2026-10-03 `feat(app): freehand and rectangle selection, painting and filling inside, schema 7 (S18)`; walk-through confirmed on the tablet with injected pen and finger input; the author's schema-6 library upgraded pixel-identical

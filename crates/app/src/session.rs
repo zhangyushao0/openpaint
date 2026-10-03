@@ -13,6 +13,7 @@ use crate::intent::Intent;
 use crate::layers::{self, LayerList, Layers};
 use crate::project::PortError;
 use crate::projection::{Availability, EditorAction, LAYER_ACTIONS, SessionProjection};
+use crate::selection::Selection;
 use crate::storage::{Autosave, StorageIntent};
 use crate::streamline::StreamLine;
 use crate::stroke::Strokes;
@@ -24,6 +25,8 @@ pub struct Session {
     strokes: Strokes,
     layers: Layers,
     fills: Fills,
+    /// The Selection tool and what is selected: tool state, never artwork or history (D42).
+    selection: Selection,
     autosave: Autosave,
     /// How the artwork shows; it lives as long as the session (every artwork opens at fit).
     view: CanvasView,
@@ -46,6 +49,7 @@ impl Session {
             strokes: Strokes::new(brush),
             layers: Layers::default(),
             fills: Fills::default(),
+            selection: Selection::default(),
             view: CanvasView::FIT,
         }
     }
@@ -89,20 +93,27 @@ impl Session {
         self.layers.interrupt();
         if let Intent::Fill(fill) = intent {
             let drawing = self.strokes.active().is_some();
-            return self.fills.handle(&mut self.history, drawing, fill);
+            let clip = self.selection.mask();
+            return self.fills.handle(&mut self.history, drawing, fill, clip);
         }
         if matches!(
             intent,
-            Intent::Stroke(_) | Intent::History(_) | Intent::Gallery(_)
+            Intent::Stroke(_) | Intent::History(_) | Intent::Gallery(_) | Intent::Selection(_)
         ) {
             self.fills.interrupt();
         }
         match intent {
             Intent::Stroke(stroke) => {
                 let mut artwork = self.history.current().clone();
-                let result = self.strokes.handle(&mut artwork, stroke);
+                let clip = self.selection.mask();
+                let result = self.strokes.handle(&mut artwork, stroke, clip);
                 self.history.record(artwork);
                 result
+            }
+            Intent::Selection(selection) => {
+                let canvas = self.artwork().canvas();
+                self.selection.handle(canvas, selection);
+                Ok(())
             }
             Intent::History(step) => self.step(step),
             Intent::Storage(storage) => self.storage(storage),
@@ -184,9 +195,14 @@ impl Session {
         };
         let artwork = self.history.current();
         let drawing = self.strokes.active().is_some();
+        let (can_undo, can_redo) = if self.selection.tool() {
+            (self.selection.can_undo(), self.selection.can_redo())
+        } else {
+            (self.history.can_undo(), self.history.can_redo())
+        };
         SessionProjection {
-            undo: availability(self.history.can_undo()),
-            redo: availability(self.history.can_redo()),
+            undo: availability(can_undo),
+            redo: availability(can_redo),
             retry_save,
             dismiss_notice,
             layer_actions: LAYER_ACTIONS
@@ -198,6 +214,7 @@ impl Session {
             canvas: Some(artwork.canvas()),
             drawing,
             fill: self.fills.projection(),
+            selection: Box::new(self.selection.projection()),
             brush: None,
             transfers: None,
         }
@@ -254,17 +271,31 @@ impl Session {
         self.autosave.saving()
     }
 
+    /// Undo and redo: while the Selection tool is on they walk the selection's steps, otherwise
+    /// the artwork's history (D42).
     fn step(&mut self, step: HistoryIntent) -> Result<(), AppError> {
         let action = match step {
             HistoryIntent::Undo => EditorAction::Undo,
             HistoryIntent::Redo => EditorAction::Redo,
         };
         self.check(action)?;
-        match step {
-            HistoryIntent::Undo => self.history.undo(),
-            HistoryIntent::Redo => self.history.redo(),
-        };
+        match (step, self.selection.tool()) {
+            (HistoryIntent::Undo, true) => self.selection.undo(),
+            (HistoryIntent::Redo, true) => self.selection.redo(),
+            (HistoryIntent::Undo, false) => {
+                self.history.undo();
+            }
+            (HistoryIntent::Redo, false) => {
+                self.history.redo();
+            }
+        }
         Ok(())
+    }
+
+    /// The pixels selected now, which strokes and fills stay inside; the screen marks them.
+    #[must_use]
+    pub fn selection(&self) -> Option<&RegionMask> {
+        self.selection.mask()
     }
 
     fn storage(&mut self, intent: StorageIntent) -> Result<(), AppError> {

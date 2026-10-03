@@ -2,8 +2,8 @@
 //! target shows on screen, and whether the user is leaving it for the gallery.
 
 use openpaint_app::{
-    Contact, ContactPhase, FillFailed, Intent, Session, StrokeIntent, Thumbnail, Title, ToolIntent,
-    Toolbox,
+    Contact, ContactPhase, FillFailed, Intent, SelectionIntent, Session, StrokeIntent, Thumbnail,
+    Title, ToolIntent, Toolbox,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, RegionMask, StrokeTool};
 use openpaint_render::{
@@ -110,6 +110,13 @@ impl Canvas {
                 }
                 Intent::Tool(tool) => {
                     toolbox.dispatch_tool(tool);
+                    // Choosing a tool or the eyedropper leaves the Selection tool (Procreate).
+                    if matches!(tool, ToolIntent::Use(_) | ToolIntent::Eyedropper(true)) {
+                        let leave = Intent::Selection(SelectionIntent::Tool(false));
+                        if let Err(error) = self.session.dispatch(leave) {
+                            log::warn!("intent refused: {error}");
+                        }
+                    }
                     true
                 }
                 Intent::Stroke(StrokeIntent::Contact(contact)) if toolbox.picking() => {
@@ -205,6 +212,7 @@ impl Canvas {
             background: PAPER,
         };
         RegionEvaluator::new(core, &mut self.target).evaluate(&request, &regions)?;
+        self.target.show_selection(core, self.session.selection());
         self.evaluated = true;
         Ok(())
     }
@@ -235,6 +243,7 @@ impl Canvas {
             size: area.screen.size,
             to_canvas: mapping.to_canvas_rows(),
             cursor,
+            pixels_per_point,
         }
     }
 

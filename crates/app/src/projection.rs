@@ -8,6 +8,7 @@ use openpaint_core::CanvasSize;
 use crate::fill::{DEFAULT_THRESHOLD, FillProjection};
 use crate::gallery::GalleryProjection;
 use crate::layers::LayerList;
+use crate::selection::SelectionProjection;
 use crate::storage::StorageNotice;
 use crate::toolbox::BrushProjection;
 use crate::transfer::TransferProjection;
@@ -85,6 +86,8 @@ pub struct SessionProjection {
     pub(crate) canvas: Option<CanvasSize>,
     pub(crate) drawing: bool,
     pub(crate) fill: FillProjection,
+    /// Boxed: a mask and a path, most frames nothing.
+    pub(crate) selection: Box<SelectionProjection>,
     pub(crate) brush: Option<BrushProjection>,
     /// Boxed: rarely more than a notice, but its errors are large.
     pub(crate) transfers: Option<Box<TransferProjection>>,
@@ -143,6 +146,12 @@ impl SessionProjection {
     #[must_use]
     pub const fn fill(&self) -> FillProjection {
         self.fill
+    }
+
+    /// The Selection tool, what is selected and the shape being drawn.
+    #[must_use]
+    pub fn selection(&self) -> &SelectionProjection {
+        &self.selection
     }
 
     /// What to tell the user about saving and opening.
@@ -227,6 +236,7 @@ impl Default for SessionProjection {
                 refused: None,
                 failed: false,
             },
+            selection: Box::default(),
             brush: None,
             transfers: None,
         }

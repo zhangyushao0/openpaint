@@ -6,7 +6,7 @@
 //! A closed shape costs a few bytes per row.
 
 use openpaint_app::{PortError, ProjectId};
-use openpaint_core::{FillParts, RegionEdit};
+use openpaint_core::{FillParts, MaskParts, RegionEdit};
 
 use crate::codec::{Reader, Writer};
 use crate::records::project_prefix;
@@ -34,22 +34,15 @@ pub(crate) fn fill_key(project: ProjectId, layer: u64, index: usize) -> Vec<u8> 
 }
 
 pub(crate) fn encode_fill(edit: &RegionEdit) -> Vec<u8> {
-    let mask = edit.mask();
-    let runs = mask.runs();
-    let mut writer = Writer::with_capacity(48 + runs.len() * 2);
+    let mask = edit.mask().to_parts();
+    let mut writer = Writer::with_capacity(48 + mask.runs.len() * 2);
     writer.len(edit.after());
     let color = edit.color();
     for channel in [color.r(), color.g(), color.b()] {
         writer.f32(channel);
     }
     writer.bool(edit.alpha_locked());
-    for value in mask.origin().into_iter().chain(mask.size()) {
-        writer.u32(value);
-    }
-    writer.len(runs.len());
-    for run in runs {
-        writer.varint(run);
-    }
+    write_mask(&mut writer, &mask);
     writer.finish()
 }
 
@@ -58,12 +51,7 @@ pub(crate) fn decode_fill(bytes: &[u8]) -> Result<FillParts, PortError> {
     let after = u64::from(reader.u32()?);
     let color = [reader.f32()?, reader.f32()?, reader.f32()?];
     let alpha_locked = reader.bool()?;
-    let origin = [reader.u32()?, reader.u32()?];
-    let size = [reader.u32()?, reader.u32()?];
-    let count = reader.count(1)?;
-    let runs = (0..count)
-        .map(|_| reader.varint())
-        .collect::<Result<Vec<_>, _>>()?;
+    let MaskParts { origin, size, runs } = read_mask(&mut reader)?;
     reader.end()?;
     Ok(FillParts {
         after,
@@ -73,6 +61,28 @@ pub(crate) fn decode_fill(bytes: &[u8]) -> Result<FillParts, PortError> {
         size,
         runs,
     })
+}
+
+/// A mask as fills and clipped strokes store it: its rectangle (x, y, width, height: u32), the
+/// run count (u32) and the runs as LEB128 varints.
+pub(crate) fn write_mask(writer: &mut Writer, mask: &MaskParts) {
+    for value in mask.origin.into_iter().chain(mask.size) {
+        writer.u32(value);
+    }
+    writer.len(mask.runs.len());
+    for &run in &mask.runs {
+        writer.varint(run);
+    }
+}
+
+pub(crate) fn read_mask(reader: &mut Reader<'_>) -> Result<MaskParts, PortError> {
+    let origin = [reader.u32()?, reader.u32()?];
+    let size = [reader.u32()?, reader.u32()?];
+    let count = reader.count(1)?;
+    let runs = (0..count)
+        .map(|_| reader.varint())
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(MaskParts { origin, size, runs })
 }
 
 #[cfg(test)]

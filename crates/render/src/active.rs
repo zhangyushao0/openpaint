@@ -3,7 +3,7 @@
 
 use std::ops::Range;
 
-use openpaint_core::{ActiveStroke, Artwork, LayerId, StrokeSample, StrokeStyle};
+use openpaint_core::{ActiveStroke, Artwork, LayerId, RegionMask, StrokeSample, StrokeStyle};
 
 use crate::geom::PixelRect;
 use crate::stroke::stroke_region;
@@ -15,6 +15,7 @@ struct Tracked {
     base: Artwork,
     layer: LayerId,
     style: StrokeStyle,
+    clip: Option<RegionMask>,
     samples: Vec<StrokeSample>,
     /// Every pixel the evaluated samples can have changed.
     region: Option<PixelRect>,
@@ -105,6 +106,7 @@ impl ActiveTrack {
                 base: artwork.clone(),
                 layer: active.layer(),
                 style: active.style().clone(),
+                clip: active.clip().cloned(),
                 samples: Vec::new(),
                 region: None,
             }),
@@ -127,6 +129,7 @@ impl Tracked {
         let grew_from_dot = self.samples.len() == 1 && samples.len() > 1;
         self.layer == active.layer()
             && self.style == *active.style()
+            && self.clip.as_ref() == active.clip()
             && samples.starts_with(&self.samples)
             && !grew_from_dot
     }

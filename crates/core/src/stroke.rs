@@ -6,6 +6,7 @@ use std::sync::Arc;
 use crate::brush::BrushRecipe;
 use crate::error::CoreError;
 use crate::id::StrokeId;
+use crate::region::RegionMask;
 use crate::value::{CanvasPoint, Color, invalid, is_unit};
 
 /// Largest brush diameter in canvas pixels.
@@ -180,6 +181,8 @@ pub struct Stroke {
     /// The layer's Alpha Lock when the stroke began; never with the eraser.
     alpha_locked: bool,
     samples: Arc<[StrokeSample]>,
+    /// The selection the stroke was drawn inside: it changes only these pixels, for good.
+    clip: Option<RegionMask>,
 }
 
 impl Stroke {
@@ -188,13 +191,21 @@ impl Stroke {
         style: StrokeStyle,
         alpha_locked: bool,
         samples: Arc<[StrokeSample]>,
+        clip: Option<RegionMask>,
     ) -> Self {
         Self {
             id,
             style,
             alpha_locked,
             samples,
+            clip,
         }
+    }
+
+    /// The selection the stroke was drawn inside, if any: it paints (or erases) only there.
+    #[must_use]
+    pub const fn clip(&self) -> Option<&RegionMask> {
+        self.clip.as_ref()
     }
 
     #[must_use]

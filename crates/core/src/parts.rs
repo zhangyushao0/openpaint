@@ -6,7 +6,7 @@ use crate::brush::{BrushRecipe, Curve, Dynamics, Grain};
 use crate::deposit::{Accumulation, Deposit, Paper, PaperTexture, Tip};
 use crate::error::CoreError;
 use crate::layer::Layer;
-use crate::region::RegionEdit;
+use crate::region::{RegionEdit, RegionMask};
 use crate::stroke::{Stroke, StrokeBlend, StrokeSample};
 
 /// A whole artwork as plain data.
@@ -62,6 +62,29 @@ pub struct StrokeParts {
     /// sRGB red, green, blue.
     pub color: [f32; 3],
     pub samples: Vec<SampleParts>,
+    /// The selection the stroke was drawn inside.
+    pub clip: Option<MaskParts>,
+}
+
+/// A region mask as plain data: runs over a rectangle (`RegionMask::from_runs`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct MaskParts {
+    pub origin: [u32; 2],
+    pub size: [u32; 2],
+    /// Alternately outside and inside, row by row, starting outside.
+    pub runs: Vec<u32>,
+}
+
+impl RegionMask {
+    /// The mask as plain data.
+    #[must_use]
+    pub fn to_parts(&self) -> MaskParts {
+        MaskParts {
+            origin: self.origin(),
+            size: self.size(),
+            runs: self.runs(),
+        }
+    }
 }
 
 /// A brush recipe as plain data: curves as `[x, y]` points.
@@ -222,6 +245,7 @@ fn stroke_parts(stroke: &Stroke) -> StrokeParts {
         opacity: style.opacity(),
         color: [color.r(), color.g(), color.b()],
         samples: stroke.samples().iter().map(sample_parts).collect(),
+        clip: stroke.clip().map(RegionMask::to_parts),
     }
 }
 

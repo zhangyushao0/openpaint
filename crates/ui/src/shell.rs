@@ -9,15 +9,15 @@
 //! colour shows the loupe (`pen_marks`). In the gallery: its name, "+" in an island, the cards.
 
 use openpaint_app::{
-    BrushKey, CanvasView, ContactPhase, EditorAction, GalleryIntent, InputBatch, Intent,
-    ScreenProjection, SessionProjection,
+    BrushKey, CanvasView, EditorAction, GalleryIntent, InputBatch, Intent, ScreenProjection,
+    SessionProjection,
 };
 use openpaint_core::{CanvasSize, Color};
 use openpaint_render::{BrushCursor, RgbaImage};
 
 use crate::actions_panel::ActionsPanel;
 use crate::brush_panel::BrushPanel;
-use crate::canvas_input::{CanvasFrame, CanvasInput};
+use crate::canvas_input::{CanvasFrame, CanvasInput, touched_outside};
 use crate::color_drop::{ColorDrop, DropFrame};
 use crate::color_panel::ColorPanel;
 use crate::components::{
@@ -30,6 +30,7 @@ use crate::layer_panel::LayerPanel;
 use crate::notices::notice_pill;
 use crate::pen_marks;
 use crate::reference_window::ReferenceWindow;
+use crate::selection_bar::{self, SelectionBar};
 use crate::side_bar::SideBar;
 
 /// The popovers, one open at a time.
@@ -60,6 +61,8 @@ struct Shown {
     canvas: CanvasSize,
     view: CanvasView,
     picking: bool,
+    /// The Selection tool is on.
+    selecting: bool,
     drawing: bool,
     /// The colour a drop carries and the threshold it starts with.
     color: Option<Color>,
@@ -84,6 +87,7 @@ pub struct Shell {
     brushes: BrushPanel,
     colors: ColorPanel,
     side: SideBar,
+    selection: SelectionBar,
     reference: ReferenceWindow,
     drop: ColorDrop,
     /// Where the fill bar lies, from the last pass.
@@ -148,6 +152,7 @@ impl Shell {
             canvas,
             view: projection.view(),
             picking: brush.is_some_and(|brush| brush.picking),
+            selecting: projection.selection().tool,
             drawing: projection.drawing(),
             color: brush.map(|brush| brush.color),
             threshold: projection.fill().threshold,
@@ -159,6 +164,13 @@ impl Shell {
         self.show_sheet(&ctx, rect, &area);
         self.show_view(&ctx, &area);
         self.top_islands(&ctx, projection);
+        self.selection.show(&ctx, projection, &mut self.taps);
+        if let Some(shown) = self.shown {
+            let mapping = shown
+                .view
+                .mapping(shown.canvas, &area.viewport(self.pixels_per_point));
+            selection_bar::show_path(&ctx, projection, &mapping, self.pixels_per_point);
+        }
         self.side
             .show(&ctx, projection, self.scale(&area), &mut self.taps);
         let now_ms = self.now_ms;
@@ -184,6 +196,9 @@ impl Shell {
             }
             if self.actions.button(ui) {
                 self.close_panels_but(Panel::Actions);
+            }
+            if self.selection.button(ui, projection, &mut self.taps) {
+                self.close_panels();
             }
         });
         let ((), right) = island(ctx, "right island", Place::top_right(0.0), |ui| {
@@ -251,7 +266,8 @@ impl Shell {
             return;
         }
         let text = view_text(self.scale(area), shown.view.rotation());
-        view_status(ctx, &text, strength, self.drop.bar().is_some());
+        let taken = self.drop.bar().is_some() || shown.selecting;
+        view_status(ctx, &text, strength, taken);
     }
 
     /// The pen's outline in screen pixels: the current brush at full size around where the pen
@@ -260,7 +276,8 @@ impl Shell {
     /// picking, while the brush draws and off the canvas screen.
     #[must_use]
     pub fn cursor(&self, erasing: Option<([f32; 2], f32)>) -> Option<BrushCursor> {
-        let (shown, area) = (self.shown?, self.canvas?);
+        // While the Selection tool is on the pen draws no paint: no brush outline.
+        let (shown, area) = (self.shown.filter(|shown| !shown.selecting)?, self.canvas?);
         let ppp = self.pixels_per_point;
         let mapping = shown.view.mapping(shown.canvas, &area.viewport(ppp));
         let erasing = erasing.filter(|_| self.input.pressing().is_some());
@@ -337,7 +354,7 @@ impl Shell {
             .or(self.colors.area());
         let covers: Vec<ScreenArea> = [self.side.area(), self.reference.area(), panel]
             .into_iter()
-            .chain([self.drop_bar])
+            .chain([self.drop_bar, self.selection.area()])
             .flatten()
             .chain(self.islands.iter().copied())
             .collect();
@@ -349,6 +366,7 @@ impl Shell {
             pixels_per_point: self.pixels_per_point,
             now_ms,
             picking: shown.picking,
+            selecting: shown.selecting,
             drawing: shown.drawing,
             control: !self.taps.is_empty(),
         };
@@ -375,18 +393,4 @@ impl Shell {
         intents.append(&mut self.taps);
         intents
     }
-}
-
-/// True when a contact of `batches` touches down on the canvas `area` outside every one of
-/// `covers`.
-fn touched_outside(area: &ScreenArea, covers: &[ScreenArea], batches: &[InputBatch]) -> bool {
-    batches
-        .iter()
-        .flat_map(|batch| &batch.contacts)
-        .filter(|contact| contact.phase == ContactPhase::Down)
-        .filter_map(|contact| contact.samples.first())
-        .any(|first| {
-            area.contains(first.position)
-                && !covers.iter().any(|cover| cover.contains(first.position))
-        })
 }

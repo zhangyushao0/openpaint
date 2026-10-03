@@ -42,9 +42,10 @@ impl BrushPanel {
     }
 
     /// The Brush and, right of it, the Eraser button, in the right island; the one of the pen's
-    /// tool carries the ink ring (Procreate's model). Tapping the other tool's button makes the
-    /// pen use it; tapping the current tool's button opens or closes its brushes. Returns
-    /// whether a tap opened the panel.
+    /// tool carries the ink ring (Procreate's model), none while the Selection tool is on.
+    /// Tapping the other tool's button makes the pen use it (and leaves the Selection tool);
+    /// tapping the current tool's button opens or closes its brushes. Returns whether a tap
+    /// opened the panel.
     pub(crate) fn buttons(
         &mut self,
         ui: &mut egui::Ui,
@@ -59,7 +60,7 @@ impl BrushPanel {
             (Tool::Brush, Icon::Brush, "Brushes"),
             (Tool::Eraser, Icon::Eraser, "Eraser"),
         ] {
-            let current = brush.tool == tool;
+            let current = brush.tool == tool && !projection.selection().tool;
             if !icon_toggle(ui, icon, label, current).clicked() {
                 continue;
             }
