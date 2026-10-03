@@ -8,7 +8,7 @@
   "density": 2.0,
   "steps": [
     { "stroke": { "points": [[180, 180, 0.3], [380, 260, 0.7], [580, 200, 1.0]] } },
-    { "checkpoint": { "name": "line", "canvas": "bc6e5fe383cf6a9c" } },
+    { "checkpoint": { "name": "line", "canvas": "b02869052184e10b" } },
     { "screenshot": { "name": "screen" } }
   ]
 }

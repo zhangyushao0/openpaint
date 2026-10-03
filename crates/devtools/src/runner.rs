@@ -54,11 +54,36 @@ pub struct Screenshot {
     pub screen: RgbaImage,
 }
 
+/// The view at a view checkpoint and what it should be: zoom relative to fit, rotation in
+/// degrees, and pan in points when the step gives one.
+#[derive(Debug, Clone)]
+pub struct ViewCheck {
+    pub name: String,
+    pub expected: (f32, f32, Option<[f32; 2]>),
+    pub actual: (f32, f32, [f32; 2]),
+}
+
+impl ViewCheck {
+    /// Zoom within 1 %, rotation within half a degree, pan within a point.
+    #[must_use]
+    pub fn passed(&self) -> bool {
+        let (zoom, rotation, pan) = self.expected;
+        let (actual_zoom, actual_rotation, actual_pan) = self.actual;
+        let turn = (actual_rotation - rotation + 180.0).rem_euclid(360.0) - 180.0;
+        (actual_zoom / zoom - 1.0).abs() <= 0.01
+            && turn.abs() <= 0.5
+            && pan.is_none_or(|[x, y]| {
+                (actual_pan[0] - x).abs() <= 1.0 && (actual_pan[1] - y).abs() <= 1.0
+            })
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Record {
     Checkpoint(Checkpoint),
     Screenshot(Screenshot),
     Export(Export),
+    View(ViewCheck),
 }
 
 #[derive(Debug, Clone)]
@@ -86,10 +111,19 @@ impl Report {
         })
     }
 
-    /// True when every checkpoint and every export passed.
+    pub fn views(&self) -> impl Iterator<Item = &ViewCheck> {
+        self.records.iter().filter_map(|record| match record {
+            Record::View(view) => Some(view),
+            _ => None,
+        })
+    }
+
+    /// True when every checkpoint, export and view checkpoint passed.
     #[must_use]
     pub fn passed(&self) -> bool {
-        self.checkpoints().all(Checkpoint::passed) && self.exports().all(Export::passed)
+        self.checkpoints().all(Checkpoint::passed)
+            && self.exports().all(Export::passed)
+            && self.views().all(ViewCheck::passed)
     }
 }
 
@@ -167,6 +201,23 @@ impl Runner<'_> {
             Step::Stroke { points, lift, palm } => {
                 let batches = gesture::stroke(points, *lift, *palm, now);
                 self.gesture(runtime, &batches)?;
+            }
+            Step::Touch { from, to, ms } => {
+                let to = to.as_ref().unwrap_or(from);
+                self.gesture(runtime, &gesture::fingers(from, to, *ms, now))?;
+            }
+            Step::View {
+                name,
+                zoom,
+                rotation,
+                pan,
+            } => {
+                let view = runtime.projection().view();
+                return Ok(Some(Record::View(ViewCheck {
+                    name: name.clone(),
+                    expected: (*zoom, *rotation, *pan),
+                    actual: (view.zoom(), view.rotation().to_degrees(), view.pan()),
+                })));
             }
             Step::Type(text) => {
                 runtime.text(TextInput::Commit(text.clone()));

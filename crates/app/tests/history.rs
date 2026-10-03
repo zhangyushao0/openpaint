@@ -116,8 +116,10 @@ fn history_waits_while_a_stroke_is_drawn() {
     session
         .dispatch(pen(ContactPhase::Down, 50.0, 100))
         .expect("down");
+    // Undo keeps its look (there is a step) but waits; redo has nothing either way.
     let drawing = Availability::StrokeInProgress;
-    assert_eq!(availability(&session), (drawing, drawing));
+    assert_eq!(availability(&session), (drawing, Availability::NothingLeft));
+    assert!(drawing.is_offered() && !Availability::NothingLeft.is_offered());
     let refused = step(&mut session, HistoryIntent::Undo).expect_err("busy");
     assert!(refused.to_string().contains("stroke is in progress"));
     assert!(session.active().is_some(), "the stroke goes on");

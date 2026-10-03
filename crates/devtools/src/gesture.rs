@@ -94,6 +94,72 @@ fn resampled(points: &[[f32; 3]], start_ms: i64) -> Vec<PointerSample> {
         .collect()
 }
 
+/// Fingers touching down at `from` (one after another in the same instant, as Android reports
+/// them), moving straight to `to` over `ms`, sampled every `SAMPLE_MS` and batched per frame,
+/// then lifting one after another, the last move batched with the first lift.
+pub(crate) fn fingers(
+    from: &[[f32; 2]],
+    to: &[[f32; 2]],
+    ms: u32,
+    start_ms: i64,
+) -> Vec<MotionBatch> {
+    let frames = (i64::from(ms) / (SAMPLE_MS * PER_BATCH as i64)).max(1);
+    let samples = frames * PER_BATCH as i64;
+    let at = |k: i64| -> Vec<[f32; 2]> {
+        let t = k as f32 / samples as f32;
+        from.iter()
+            .zip(to)
+            .map(|(a, b)| [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t])
+            .collect()
+    };
+    let pointers = |ks: &[i64], count: usize| -> Vec<Pointer> {
+        (0..count)
+            .map(|finger| Pointer {
+                id: finger as i32,
+                tool: ToolKind::Finger,
+                samples: ks
+                    .iter()
+                    .map(|&k| sample(at(k)[finger], 1.0, start_ms + k * SAMPLE_MS))
+                    .collect(),
+            })
+            .collect()
+    };
+    let batch = |phase, pointers| MotionBatch {
+        phase,
+        buttons: Buttons::default(),
+        pointers,
+    };
+    let count = from.len().min(to.len());
+    let mut out: Vec<MotionBatch> = (0..count)
+        .map(|index| match index {
+            0 => batch(MotionPhase::Down, pointers(&[0], 1)),
+            _ => batch(
+                MotionPhase::PointerDown { index },
+                pointers(&[0], index + 1),
+            ),
+        })
+        .collect();
+    for frame in 0..frames - 1 {
+        let ks: Vec<i64> = (1..=PER_BATCH as i64)
+            .map(|k| frame * PER_BATCH as i64 + k)
+            .collect();
+        out.push(batch(MotionPhase::Move, pointers(&ks, count)));
+    }
+    let last: Vec<i64> = (samples - PER_BATCH as i64 + 1..=samples).collect();
+    for index in (0..count).rev() {
+        let ks = if index + 1 == count {
+            &last[..]
+        } else {
+            &[samples][..]
+        };
+        out.push(match index {
+            0 => batch(MotionPhase::Up, pointers(ks, 1)),
+            _ => batch(MotionPhase::PointerUp { index }, pointers(ks, index + 1)),
+        });
+    }
+    out
+}
+
 /// The time of the last sample in `batches`, or `fallback` when there is none.
 pub(crate) fn end_ms(batches: &[MotionBatch], fallback: i64) -> i64 {
     batches
@@ -227,6 +293,36 @@ mod tests {
             during[n - 2..],
             [(PALM_ID, MotionPhase::Up), (0, MotionPhase::Up)]
         );
+    }
+
+    #[test]
+    fn fingers_land_one_by_one_move_together_and_lift_with_the_last_move() {
+        let batches = fingers(
+            &[[0.0, 0.0], [100.0, 0.0]],
+            &[[0.0, 0.0], [200.0, 0.0]],
+            64,
+            10,
+        );
+        let phases = phases(&batches);
+        assert_eq!(
+            phases[..2],
+            [MotionPhase::Down, MotionPhase::PointerDown { index: 1 }]
+        );
+        let n = phases.len();
+        assert_eq!(
+            phases[n - 2..],
+            [MotionPhase::PointerUp { index: 1 }, MotionPhase::Up]
+        );
+        assert_eq!(
+            n,
+            2 + 3 + 2,
+            "four frames of 16 ms: three moves, the last with the lift"
+        );
+        let lift = &batches[n - 2];
+        assert_eq!(lift.pointers.len(), 2);
+        let last = lift.pointers[1].samples.last().expect("sample");
+        assert_eq!((last.position, last.time_ms), ([200.0, 0.0], 10 + 64));
+        assert_eq!(batches[n - 1].pointers[0].samples[0].position, [0.0, 0.0]);
     }
 
     #[test]

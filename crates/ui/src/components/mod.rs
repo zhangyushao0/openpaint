@@ -21,10 +21,11 @@ mod switch_row;
 mod text_button;
 mod text_field;
 mod top_bar;
+mod view_status;
 
 pub use artwork_card::{ArtworkCard, CardTaps, artwork_card, card_size};
 pub use brush_row::brush_row;
-pub use canvas_frame::{CanvasInput, ScreenArea, canvas_frame};
+pub use canvas_frame::{ScreenArea, canvas_frame};
 pub use color_wheel::{WheelChange, color_wheel};
 pub use dialog::{Placement, dialog};
 pub use floating::{Floating, floating};
@@ -42,3 +43,4 @@ pub use switch_row::switch_row;
 pub use text_button::text_button;
 pub use text_field::{FieldResponse, text_field};
 pub use top_bar::{TOP_BAR_HEIGHT, top_bar};
+pub use view_status::{view_status, view_text};

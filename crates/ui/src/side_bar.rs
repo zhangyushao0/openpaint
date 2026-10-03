@@ -43,7 +43,9 @@ impl SideBar {
                 ui.add_space(SPACE);
             }
             for (icon, label, action, intent) in HISTORY_BUTTONS {
-                let enabled = projection.availability(action).is_available();
+                // Greyed only when there is no step: while drawing they look the same and a
+                // tap is refused at the intent.
+                let enabled = projection.availability(action).is_offered();
                 if icon_button(ui, icon, label, enabled).clicked() {
                     taps.push(Intent::History(intent));
                 }

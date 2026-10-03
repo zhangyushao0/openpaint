@@ -8,6 +8,7 @@ mod brushes;
 mod error;
 mod export;
 mod gallery;
+mod gestures;
 mod history;
 mod input;
 mod intent;
@@ -24,13 +25,16 @@ mod stroke;
 mod title;
 mod toolbox;
 mod transfer;
+mod view;
 
 pub use crate::brushes::{Brush, BrushKey, BrushLibrary, SizeRange};
 pub use crate::error::AppError;
 pub use crate::export::{ExportIntent, ExportJob, ExportNotice, file_name};
 pub use crate::gallery::{
-    Gallery, GalleryIntent, GalleryNotice, GalleryProjection, LibraryAnswer, LibraryRequest,
+    CanvasPreset, Gallery, GalleryIntent, GalleryNotice, GalleryProjection, LibraryAnswer,
+    LibraryRequest,
 };
+pub use crate::gestures::{GestureFrame, Gestured, Gestures, Touch, TouchAction};
 pub use crate::history::{HISTORY_BUDGET, History, HistoryIntent};
 pub use crate::input::{Contact, ContactPhase, Device, InputBatch, InputSample};
 pub use crate::intent::Intent;
@@ -55,4 +59,7 @@ pub use crate::toolbox::{
 pub use crate::transfer::{
     Delivery, ExportError, HostAnswer, HostRequest, ImageError, ImageFormat, ImageSink,
     ImageSource, OpenJob, TransferJob, TransferProjection, Transfers,
+};
+pub use crate::view::{
+    CanvasView, FIT_MARGIN, MAX_ZOOM, MIN_ZOOM, ViewGesture, ViewIntent, ViewMapping, Viewport,
 };

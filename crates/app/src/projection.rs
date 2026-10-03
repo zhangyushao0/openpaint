@@ -1,13 +1,16 @@
-//! `SessionProjection`: what the UI may offer right now. The UI greys out what is unavailable
-//! and never works out the rules itself.
+//! `SessionProjection`: what the UI may offer right now. The UI greys out what there is nothing
+//! for (`Availability::is_offered`) and never works out the rules itself.
 
 use std::fmt;
+
+use openpaint_core::CanvasSize;
 
 use crate::gallery::GalleryProjection;
 use crate::layers::LayerList;
 use crate::storage::StorageNotice;
 use crate::toolbox::BrushProjection;
 use crate::transfer::TransferProjection;
+use crate::view::CanvasView;
 
 /// Something the user can ask for whose availability depends on the session. The layer actions
 /// are offered for the active layer.
@@ -52,6 +55,14 @@ impl Availability {
     pub const fn is_available(self) -> bool {
         matches!(self, Self::Available)
     }
+
+    /// Whether a control for the action looks usable: available now, or only blocked while a
+    /// stroke is drawn, when a tap is refused without any visual change (ARCHITECTURE section
+    /// 10). Nothing greys out or flickers per stroke.
+    #[must_use]
+    pub const fn is_offered(self) -> bool {
+        matches!(self, Self::Available | Self::StrokeInProgress)
+    }
 }
 
 /// A snapshot of the session for one UI frame. The default is no open session: nothing is
@@ -67,6 +78,9 @@ pub struct SessionProjection {
     pub(crate) gallery: Availability,
     pub(crate) storage: StorageNotice,
     pub(crate) layers: Option<LayerList>,
+    pub(crate) view: CanvasView,
+    pub(crate) canvas: Option<CanvasSize>,
+    pub(crate) drawing: bool,
     pub(crate) brush: Option<BrushProjection>,
     /// Boxed: rarely more than a notice, but its errors are large.
     pub(crate) transfers: Option<Box<TransferProjection>>,
@@ -124,6 +138,24 @@ impl SessionProjection {
         self.layers.as_ref()
     }
 
+    /// How the artwork shows.
+    #[must_use]
+    pub const fn view(&self) -> CanvasView {
+        self.view
+    }
+
+    /// The artwork's size, once an artwork is open.
+    #[must_use]
+    pub const fn canvas(&self) -> Option<CanvasSize> {
+        self.canvas
+    }
+
+    /// True while a stroke is being drawn.
+    #[must_use]
+    pub const fn drawing(&self) -> bool {
+        self.drawing
+    }
+
     /// The brush, size and opacity, once the toolbox's projection is added (`with_brush`).
     #[must_use]
     pub const fn brush(&self) -> Option<&BrushProjection> {
@@ -166,6 +198,9 @@ impl Default for SessionProjection {
             gallery: Availability::NothingLeft,
             storage: StorageNotice::None,
             layers: None,
+            view: CanvasView::FIT,
+            canvas: None,
+            drawing: false,
             brush: None,
             transfers: None,
         }

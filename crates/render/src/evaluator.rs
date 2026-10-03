@@ -13,15 +13,17 @@ use crate::plan::Plan;
 use crate::program::{Bindings, COVERAGE_FORMAT, Dispatch, scene_ops};
 use crate::readback::{read_rgba, read_texel, target_texture};
 use crate::scene::{Fresh, Scene};
-use crate::screen::blit_bind_group;
+use crate::screen::{VIEW_BYTES, blit_bind_group};
 
 /// An 8-bit RGBA texture holding the canvas at one target pixel per canvas pixel. It keeps its
 /// pixels between evaluations, so later evaluations update only the regions that changed. It
 /// also keeps the in-progress stroke's coverage so far and the last scene's ops on the GPU.
 pub struct CanvasTarget {
     texture: wgpu::Texture,
-    /// Binds the texture for showing it on screen (`CanvasBlit`).
+    /// Binds the texture and the view for showing it on screen (`CanvasBlit`).
     shown: wgpu::BindGroup,
+    /// The view the screen shows the canvas through, written each frame it is drawn.
+    view: wgpu::Buffer,
     bindings: Bindings,
     track: ActiveTrack,
     scene: Option<SceneCache>,
@@ -55,8 +57,15 @@ impl CanvasTarget {
             usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
             view_formats: &[],
         });
+        let view = core.gpu.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("canvas view"),
+            size: VIEW_BYTES,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         Ok(Self {
-            shown: blit_bind_group(core, &texture),
+            shown: blit_bind_group(core, &texture, &view),
+            view,
             bindings: Bindings::new(&core.gpu, &texture, &coverage),
             texture,
             track: ActiveTrack::default(),
@@ -84,6 +93,10 @@ impl CanvasTarget {
 
     pub(crate) fn shown(&self) -> &wgpu::BindGroup {
         &self.shown
+    }
+
+    pub(crate) fn view_buffer(&self) -> &wgpu::Buffer {
+        &self.view
     }
 
     pub(crate) fn texture(&self) -> &wgpu::Texture {

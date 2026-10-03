@@ -69,7 +69,7 @@ impl LayerPanel {
 }
 
 fn offered(projection: &SessionProjection, action: EditorAction) -> bool {
-    projection.availability(action).is_available()
+    projection.availability(action).is_offered()
 }
 
 fn header(ui: &mut egui::Ui, projection: &SessionProjection, taps: &mut Vec<Intent>) {

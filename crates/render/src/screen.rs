@@ -1,6 +1,7 @@
 //! Putting the canvas on screen: `CanvasBlit` draws a canvas target into a window or offscreen
-//! frame at one screen pixel per canvas pixel, and `ScreenTarget` is the offscreen frame the
-//! harness draws into instead of a window.
+//! frame through the view (scale, rotation, pan), and `ScreenTarget` is the offscreen frame the
+//! harness draws into instead of a window. The target itself stays at canvas resolution; the
+//! screen samples it bilinearly, without mipmaps (D35).
 
 use crate::core::Core;
 use crate::error::RenderError;
@@ -9,45 +10,92 @@ use crate::image::RgbaImage;
 use crate::readback::{offscreen_texture, read_rgba};
 
 const SHADER: &str = include_str!("shaders/blit.wgsl");
+/// Bytes of the view uniform: two rows of four floats.
+pub(crate) const VIEW_BYTES: u64 = 32;
 
-/// Where a canvas target shows on screen: its top-left corner in screen pixels. The canvas may
-/// reach past the screen's edges; only the overlap shows.
+/// Where a canvas target shows on screen: the canvas area it is clipped to (top-left corner and
+/// size in screen pixels) and the view's map from screen pixels to canvas pixels, as the rows
+/// `[a, b, c, d, e, f]` of `canvas = (a x + b y + c, d x + e y + f)`.
 #[derive(Clone, Copy)]
 pub struct CanvasPlacement<'a> {
     pub target: &'a CanvasTarget,
     pub origin: [i32; 2],
+    pub size: [u32; 2],
+    pub to_canvas: [f32; 6],
 }
 
-/// The blit's one binding: the canvas texture. Shared by every frame format, so each canvas
-/// target binds its texture once (`blit_bind_group`).
+/// The blit's bindings: the canvas texture, the sampler and the view. Shared by every frame
+/// format, so each canvas target binds them once (`blit_bind_group`).
 pub(crate) fn blit_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+    let entry = |binding, ty| wgpu::BindGroupLayoutEntry {
+        binding,
+        visibility: wgpu::ShaderStages::FRAGMENT,
+        ty,
+        count: None,
+    };
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("blit"),
-        entries: &[wgpu::BindGroupLayoutEntry {
-            binding: 0,
-            visibility: wgpu::ShaderStages::FRAGMENT,
-            ty: wgpu::BindingType::Texture {
-                sample_type: wgpu::TextureSampleType::Float { filterable: false },
-                view_dimension: wgpu::TextureViewDimension::D2,
-                multisampled: false,
-            },
-            count: None,
-        }],
+        entries: &[
+            entry(
+                0,
+                wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+            ),
+            entry(
+                1,
+                wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+            ),
+            entry(
+                2,
+                wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: wgpu::BufferSize::new(VIEW_BYTES),
+                },
+            ),
+        ],
     })
 }
 
-/// Binds a canvas texture for the blit.
-pub(crate) fn blit_bind_group(core: &Core, texture: &wgpu::Texture) -> wgpu::BindGroup {
-    let view = texture.create_view(&Default::default());
+/// The screen's sampler: bilinear, clamped at the canvas's edges.
+pub(crate) fn blit_sampler(device: &wgpu::Device) -> wgpu::Sampler {
+    device.create_sampler(&wgpu::SamplerDescriptor {
+        label: Some("blit"),
+        mag_filter: wgpu::FilterMode::Linear,
+        min_filter: wgpu::FilterMode::Linear,
+        ..Default::default()
+    })
+}
+
+/// Binds a canvas texture and its view uniform for the blit.
+pub(crate) fn blit_bind_group(
+    core: &Core,
+    texture: &wgpu::Texture,
+    view: &wgpu::Buffer,
+) -> wgpu::BindGroup {
+    let texture = texture.create_view(&Default::default());
     core.gpu
         .device
         .create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("blit"),
             layout: &core.blit_layout,
-            entries: &[wgpu::BindGroupEntry {
-                binding: 0,
-                resource: wgpu::BindingResource::TextureView(&view),
-            }],
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&texture),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&core.blit_sampler),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: view.as_entire_binding(),
+                },
+            ],
         })
 }
 
@@ -92,14 +140,36 @@ impl CanvasBlit {
         Self { pipeline }
     }
 
-    /// Draws the placed canvas into `pass`, whose target is the screen.
-    pub(crate) fn draw(&self, pass: &mut wgpu::RenderPass<'_>, placement: &CanvasPlacement<'_>) {
-        let [x, y] = placement.origin.map(|side| side as f32);
-        let [width, height] = placement.target.size().map(|side| side as f32);
-        pass.set_viewport(x, y, width, height, 0.0, 1.0);
+    /// Draws the placed canvas into `pass`, whose target is the screen of `screen` pixels,
+    /// clipped to the placement's area. Writes the view before the pass is submitted.
+    pub(crate) fn draw(
+        &self,
+        core: &Core,
+        pass: &mut wgpu::RenderPass<'_>,
+        placement: &CanvasPlacement<'_>,
+        screen: [u32; 2],
+    ) {
+        let clip = |origin: i32, size: u32, limit: u32| {
+            let start = origin.clamp(0, limit as i32) as u32;
+            let end = (i64::from(origin) + i64::from(size)).clamp(0, i64::from(limit)) as u32;
+            (start, end - start)
+        };
+        let (x, width) = clip(placement.origin[0], placement.size[0], screen[0]);
+        let (y, height) = clip(placement.origin[1], placement.size[1], screen[1]);
+        if width == 0 || height == 0 {
+            return;
+        }
+        let [a, b, c, d, e, f] = placement.to_canvas;
+        let rows = [a, b, c, 0.0, d, e, f, 0.0];
+        let bytes: Vec<u8> = rows.iter().flat_map(|v| v.to_le_bytes()).collect();
+        core.gpu
+            .queue
+            .write_buffer(placement.target.view_buffer(), 0, &bytes);
+        pass.set_scissor_rect(x, y, width, height);
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, placement.target.shown(), &[]);
         pass.draw(0..3, 0..1);
+        pass.set_scissor_rect(0, 0, screen[0], screen[1]);
     }
 }
 

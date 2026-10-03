@@ -64,6 +64,25 @@ pub enum Step {
         #[serde(default)]
         palm: Option<Palm>,
     },
+    /// Fingers touch down at `from`, move together straight to `to` (default: stay) over `ms`
+    /// (default 64), and lift: two fingers apart or together pinch, turned they rotate, moved
+    /// alike they pan; fingers that stay tap.
+    Touch {
+        from: Vec<[f32; 2]>,
+        #[serde(default)]
+        to: Option<Vec<[f32; 2]>>,
+        #[serde(default = "default_touch_ms")]
+        ms: u32,
+    },
+    /// The view must be at `zoom` (relative to fit, within 1 %) and `rotation` (degrees,
+    /// within half a degree), and with `pan` (points, within one) when given.
+    View {
+        name: String,
+        zoom: f32,
+        rotation: f32,
+        #[serde(default)]
+        pan: Option<[f32; 2]>,
+    },
     /// Text committed by the keyboard into the field that has the focus.
     Type(String),
     /// The system's back button.
@@ -128,6 +147,10 @@ impl Tool {
     }
 }
 
+fn default_touch_ms() -> u32 {
+    64
+}
+
 /// A hand on the glass at `at` (window pixels), a touch of its own beside the pen.
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -168,9 +191,17 @@ impl Scenario {
                 Step::Stroke { points, .. } if points.is_empty() => {
                     return Err(invalid("a stroke needs at least one point"));
                 }
+                Step::Touch { from, to, .. }
+                    if from.is_empty()
+                        || from.len() > 5
+                        || to.as_ref().is_some_and(|to| to.len() != from.len()) =>
+                {
+                    return Err(invalid("a touch needs 1 to 5 fingers, as many at the end"));
+                }
                 Step::Checkpoint { name, .. }
                 | Step::Screenshot { name }
-                | Step::Exported { name } => {
+                | Step::Exported { name }
+                | Step::View { name, .. } => {
                     if !is_file_name(name) {
                         return Err(invalid("names use a-z, 0-9 and '-' only"));
                     }
@@ -265,6 +296,38 @@ mod tests {
                 canvas: 0x1f94_cbfb_d4b1_1e02
             }
         );
+    }
+
+    #[test]
+    fn finger_and_view_steps_parse() {
+        let steps = r#"
+            { "touch": { "from": [[1, 2], [3, 4]], "to": [[0, 2], [5, 4]], "ms": 200 } },
+            { "touch": { "from": [[1, 2], [3, 4], [5, 6]] } },
+            { "view": { "name": "zoomed", "zoom": 2.5, "rotation": -30 } }"#;
+        let scenario = with_steps(steps).expect("parses");
+        let two = Step::Touch {
+            from: vec![[1.0, 2.0], [3.0, 4.0]],
+            to: Some(vec![[0.0, 2.0], [5.0, 4.0]]),
+            ms: 200,
+        };
+        assert_eq!(scenario.steps[0], two);
+        assert!(matches!(
+            &scenario.steps[1],
+            Step::Touch {
+                to: None,
+                ms: 64,
+                ..
+            }
+        ));
+        let view = Step::View {
+            name: "zoomed".into(),
+            zoom: 2.5,
+            rotation: -30.0,
+            pan: None,
+        };
+        assert_eq!(scenario.steps[2], view);
+        let uneven = r#"{ "touch": { "from": [[1, 2]], "to": [[1, 2], [3, 4]] } }"#;
+        assert!(matches!(with_steps(uneven), Err(ScenarioError::Invalid(_))));
     }
 
     fn with_steps(steps: &str) -> Result<Scenario, ScenarioError> {

@@ -9,10 +9,12 @@ use crate::reference::ReferenceIntent;
 use crate::storage::StorageIntent;
 use crate::stroke::StrokeIntent;
 use crate::toolbox::{BrushIntent, ToolIntent};
+use crate::view::ViewIntent;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Intent {
     Stroke(StrokeIntent),
+    View(ViewIntent),
     History(HistoryIntent),
     Storage(StorageIntent),
     Layer(LayerIntent),

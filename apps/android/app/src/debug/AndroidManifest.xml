@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only: lets the dev machine replay multi-finger gestures on the tablet, which
+     `adb shell input` cannot (GestureInstrumentation.kt). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <instrumentation
+        android:name=".GestureInstrumentation"
+        android:targetPackage="dev.openpaint" />
+</manifest>

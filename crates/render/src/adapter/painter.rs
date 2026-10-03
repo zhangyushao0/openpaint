@@ -102,7 +102,7 @@ impl ScreenPainter {
             })
             .forget_lifetime();
         if let Some(canvas) = &frame.canvas {
-            self.blit.draw(&mut pass, canvas);
+            self.blit.draw(core, &mut pass, canvas, size);
         }
         self.renderer.render(&mut pass, &ui.primitives, &screen);
         drop(pass);

@@ -3,8 +3,8 @@
 //! artwork is being opened.
 
 use openpaint_app::{
-    AppError, Availability, EditorAction, Gallery, GalleryIntent, GalleryNotice, LibraryAnswer,
-    LibraryRequest, PortError, ProjectId, ProjectSummary, Thumbnail, Title,
+    AppError, Availability, CanvasPreset, EditorAction, Gallery, GalleryIntent, GalleryNotice,
+    LibraryAnswer, LibraryRequest, PortError, ProjectId, ProjectSummary, Thumbnail, Title,
 };
 
 fn summary(id: u64, title: &str) -> ProjectSummary {
@@ -72,7 +72,7 @@ fn opening_waits_for_the_library_and_a_failure_is_told_and_dismissed() {
         .dispatch(GalleryIntent::Open(ProjectId::new(1)))
         .expect("open");
     assert_eq!(gallery.projection().availability(), Availability::Running);
-    let refused = gallery.dispatch(GalleryIntent::Create);
+    let refused = gallery.dispatch(GalleryIntent::Create(CanvasPreset::Screen));
     assert_eq!(
         refused,
         Err(AppError::Unavailable {
@@ -90,11 +90,18 @@ fn opening_waits_for_the_library_and_a_failure_is_told_and_dismissed() {
     assert_eq!(projection.availability(), Availability::Available);
     gallery.dispatch(GalleryIntent::Dismiss).expect("dismiss");
     assert_eq!(gallery.projection().notice(), GalleryNotice::None);
-    gallery.dispatch(GalleryIntent::Create).expect("create");
+    let square = GalleryIntent::Create(CanvasPreset::Square);
+    gallery.dispatch(square).expect("create");
     assert_eq!(
         requests(&mut gallery),
-        [LibraryRequest::Create(Title::untitled())]
+        [LibraryRequest::Create(
+            Title::untitled(),
+            CanvasPreset::Square
+        )]
     );
+    assert_eq!(CanvasPreset::Square.size([2880, 1716]), [2048, 2048]);
+    assert_eq!(CanvasPreset::Screen.size([2880, 1716]), [2880, 1716]);
+    assert_eq!(CanvasPreset::A4Portrait.size([1, 1]), [2480, 3508]);
     gallery.answer(LibraryAnswer::CreateFailed(failure()));
     assert_eq!(gallery.projection().notice(), GalleryNotice::CreateFailed);
 }

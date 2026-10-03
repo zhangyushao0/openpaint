@@ -1,7 +1,8 @@
 //! `Session`: the open artwork, its history and the editor flow around it. The UI emits
 //! intents, the session applies them; the renderer reads the current version and the
 //! in-progress stroke beside it; the UI reads the projection; the runtime asks it which version
-//! to save and reports how saving went.
+//! to save and reports how saving went. The session also keeps how the artwork is viewed, which
+//! is no history step and is not stored.
 
 use openpaint_core::{ActiveStroke, Artwork, CanvasSize, StrokeStyle};
 
@@ -13,6 +14,7 @@ use crate::project::PortError;
 use crate::projection::{Availability, EditorAction, LAYER_ACTIONS, SessionProjection};
 use crate::storage::{Autosave, StorageIntent};
 use crate::stroke::Strokes;
+use crate::view::{CanvasView, ViewIntent};
 
 #[derive(Debug)]
 pub struct Session {
@@ -20,6 +22,8 @@ pub struct Session {
     strokes: Strokes,
     layers: Layers,
     autosave: Autosave,
+    /// How the artwork shows; it lives as long as the session (every artwork opens at fit).
+    view: CanvasView,
 }
 
 impl Session {
@@ -38,6 +42,7 @@ impl Session {
             history: History::new(artwork, HISTORY_BUDGET),
             strokes: Strokes::new(brush),
             layers: Layers::default(),
+            view: CanvasView::FIT,
         }
     }
 
@@ -66,6 +71,10 @@ impl Session {
             let drawing = self.strokes.active().is_some();
             return self.layers.handle(&mut self.history, drawing, layer);
         }
+        if let Intent::View(view) = intent {
+            self.navigate(view);
+            return Ok(());
+        }
         self.layers.interrupt();
         match intent {
             Intent::Stroke(stroke) => {
@@ -79,6 +88,7 @@ impl Session {
             // The toolbox, export and the reference belong to the app, not to this artwork: the
             // runtime hands their intents to them (and the brush's style to `set_brush`).
             Intent::Layer(_)
+            | Intent::View(_)
             | Intent::Brush(_)
             | Intent::Tool(_)
             | Intent::Export(_)
@@ -101,16 +111,17 @@ impl Session {
         self.strokes.active()
     }
 
-    /// What the UI may offer now.
+    /// What the UI may offer now. Something there is nothing for is `NothingLeft` even while a
+    /// stroke is drawn, so a control's look never changes between pen-down and pen-up.
     #[must_use]
     pub fn projection(&self) -> SessionProjection {
         let availability = |possible: bool| {
-            if self.strokes.active().is_some() {
-                Availability::StrokeInProgress
-            } else if possible {
-                Availability::Available
-            } else {
+            if !possible {
                 Availability::NothingLeft
+            } else if self.strokes.active().is_some() {
+                Availability::StrokeInProgress
+            } else {
+                Availability::Available
             }
         };
         let retry_save = if self.autosave.can_retry() {
@@ -137,8 +148,28 @@ impl Session {
             gallery: availability(true),
             storage: self.autosave.notice(),
             layers: Some(LayerList::of(artwork)),
+            view: self.view,
+            canvas: Some(artwork.canvas()),
+            drawing,
             brush: None,
             transfers: None,
+        }
+    }
+
+    /// How the artwork shows now.
+    #[must_use]
+    pub const fn view(&self) -> CanvasView {
+        self.view
+    }
+
+    /// Navigation never touches the artwork or its history.
+    fn navigate(&mut self, intent: ViewIntent) {
+        match intent {
+            ViewIntent::Gesture { gesture, viewport } => {
+                let canvas = self.artwork().canvas();
+                self.view = self.view.after(&gesture, canvas, &viewport);
+            }
+            ViewIntent::Fit => self.view = CanvasView::FIT,
         }
     }
 

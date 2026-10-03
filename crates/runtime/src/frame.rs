@@ -22,6 +22,7 @@ use openpaint_render::{
 use openpaint_ui::{Shell, design};
 
 use crate::canvas::Leaving;
+use crate::clock::InputClock;
 use crate::error::RuntimeError;
 use crate::input::MotionBatch;
 use crate::normalise::Normaliser;
@@ -50,6 +51,8 @@ pub struct Runtime {
     normaliser: Normaliser,
     /// Drops the hand resting on the glass before the UI or the session sees it.
     palms: PalmRejection,
+    /// The input samples' clock, carried on between batches for gestures.
+    clock: InputClock,
     /// Input normalised since the last frame, palms removed, oldest first.
     pending: Vec<InputBatch>,
     /// Keyboard text for the focused text field since the last frame.
@@ -99,6 +102,7 @@ impl Runtime {
             pixels_per_point,
             normaliser: Normaliser::default(),
             palms: PalmRejection::default(),
+            clock: InputClock::default(),
             pending: Vec::new(),
             typed: Vec::new(),
             keyboard: false,
@@ -172,6 +176,9 @@ impl Runtime {
         };
         let kept = self.palms.filter(input);
         let wanted = !kept.is_empty();
+        for batch in &kept {
+            self.clock.saw(batch);
+        }
         self.pending.extend(kept);
         wanted
     }
@@ -333,6 +340,7 @@ impl Runtime {
         let batches = std::mem::take(&mut self.pending);
         let mut events = pointer_events(&batches, self.pixels_per_point);
         events.append(&mut self.typed);
+        self.shell.set_now(self.clock.now_ms());
         let shown = self.screen();
         let pass = run_ui(
             &self.ui,
@@ -359,7 +367,8 @@ impl Runtime {
         }
         self.screen.progress(&self.core, &mut self.storage, area)?;
         let changed = self.screen() != shown;
-        Ok((pass.frame, pass.repaint || changed || self.storing()))
+        let again = pass.repaint || changed || self.storing() || self.shell.animating();
+        Ok((pass.frame, again))
     }
 }
 

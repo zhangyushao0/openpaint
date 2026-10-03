@@ -1,5 +1,6 @@
-//! The gallery screen (Procreate's model): the top bar with the "+" that makes a new artwork,
-//! and below it every artwork as a card in a grid, the one changed last first. Tap a picture to
+//! The gallery screen (Procreate's model): the top bar with the "+" that makes a new artwork of
+//! a size chosen in a small popover, and below it every artwork as a card in a grid, the one
+//! changed last first. Tap a picture to
 //! open it, its title to rename it (a dialog under the top bar, above the soft keyboard), the
 //! copy button to duplicate it and the bin to delete it, which asks first: it cannot be undone.
 
@@ -7,19 +8,38 @@ use std::collections::HashMap;
 
 use egui::{Align, Layout, Vec2};
 use openpaint_app::{
-    GalleryIntent, GalleryNotice, GalleryProjection, Intent, MAX_TITLE_CHARS, ProjectId,
-    ProjectSummary, Thumbnail, Title,
+    CanvasPreset, GalleryIntent, GalleryNotice, GalleryProjection, Intent, MAX_TITLE_CHARS,
+    ProjectId, ProjectSummary, Thumbnail, Title,
 };
 
 use crate::components::{
-    ArtworkCard, Placement, artwork_card, card_size, dialog, icon_button, notice, text_button,
-    text_field,
+    ArtworkCard, Placement, ScreenArea, artwork_card, card_size, dialog, icon_button, icon_toggle,
+    menu_row, notice, popover, text_button, text_field,
 };
-use crate::design::{CARD_GAP, Icon, SPACE};
+use crate::design::{CARD_GAP, Icon, SPACE, TOUCH_TARGET};
+
+/// The sizes "+" offers, top to bottom.
+const PRESETS: [(CanvasPreset, &str); 4] = [
+    (CanvasPreset::Screen, "Screen size"),
+    (CanvasPreset::Square, "Square"),
+    (CanvasPreset::A4Portrait, "A4 portrait"),
+    (CanvasPreset::A4Landscape, "A4 landscape"),
+];
+
+/// The new-canvas popover.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+enum Sizes {
+    #[default]
+    Closed,
+    /// Opened by this frame's tap, which must not close it again.
+    Opened,
+    Shown,
+}
 
 /// The gallery's UI-local state.
 #[derive(Default)]
 pub(crate) struct GalleryScreen {
+    sizes: Sizes,
     /// One texture per listed thumbnail, replaced when the thumbnail changes.
     pictures: HashMap<ProjectId, (Thumbnail, egui::TextureHandle)>,
     rename: Option<Rename>,
@@ -30,6 +50,7 @@ pub(crate) struct GalleryScreen {
 impl std::fmt::Debug for GalleryScreen {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("GalleryScreen")
+            .field("sizes", &self.sizes)
             .field("pictures", &self.pictures.len())
             .field("rename", &self.rename)
             .field("confirm", &self.confirm)
@@ -47,8 +68,9 @@ struct Rename {
 
 impl GalleryScreen {
     /// The top bar's contents: the screen's name, and at the right end "+" with any notice.
+    /// "+" opens the new-canvas popover (and closes it again).
     pub(crate) fn bar(
-        &self,
+        &mut self,
         ui: &mut egui::Ui,
         projection: &GalleryProjection,
         taps: &mut Vec<Intent>,
@@ -56,8 +78,15 @@ impl GalleryScreen {
         ui.label("Gallery");
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             let enabled = projection.availability().is_available();
-            if icon_button(ui, Icon::Add, "New artwork", enabled).clicked() {
-                taps.push(Intent::Gallery(GalleryIntent::Create));
+            let label = "New artwork";
+            let open = self.sizes != Sizes::Closed;
+            let tapped = if enabled {
+                icon_toggle(ui, Icon::Add, label, open).clicked()
+            } else {
+                icon_button(ui, Icon::Add, label, false).clicked()
+            };
+            if tapped {
+                self.sizes = if open { Sizes::Closed } else { Sizes::Opened };
             }
             if let Some(message) = message(projection.notice())
                 && notice(ui, message, "OK", true).clicked()
@@ -75,7 +104,8 @@ impl GalleryScreen {
         taps: &mut Vec<Intent>,
     ) {
         self.load_pictures(ui.ctx(), projection.items());
-        let enabled = projection.availability().is_available();
+        // While the sizes are open a tap elsewhere only closes them.
+        let enabled = projection.availability().is_available() && self.sizes == Sizes::Closed;
         if projection.listed() && projection.items().is_empty() {
             ui.centered_and_justified(|ui| ui.label("No artworks yet. Tap + to start one."));
         } else {
@@ -85,6 +115,46 @@ impl GalleryScreen {
         }
         self.rename_dialog(ui.ctx(), taps);
         self.confirm_dialog(ui.ctx(), taps);
+        let screen = ScreenArea::from_points(ui.max_rect(), ui.ctx().pixels_per_point());
+        self.sizes_popover(ui.ctx(), screen.size, taps);
+    }
+
+    /// "New canvas": one row per size, its pixels at the right end. A row makes the artwork;
+    /// a tap outside closes the popover, and the tap that opened it does not.
+    fn sizes_popover(&mut self, ctx: &egui::Context, area: [u32; 2], taps: &mut Vec<Intent>) {
+        if self.sizes == Sizes::Closed {
+            return;
+        }
+        let mut chosen = None;
+        let rect = popover(ctx, "new canvas", |ui| {
+            ui.horizontal(|ui| {
+                ui.set_height(TOUCH_TARGET);
+                ui.add_space(2.0 * SPACE);
+                ui.heading("New canvas");
+            });
+            for (preset, label) in PRESETS {
+                let [width, height] = preset.size(area);
+                let note = format!("{width} × {height}");
+                if menu_row(ui, label, &note, true).clicked() {
+                    chosen = Some(preset);
+                }
+            }
+        });
+        let released_outside = ctx.input(|input| {
+            input.pointer.any_released()
+                && input
+                    .pointer
+                    .interact_pos()
+                    .is_some_and(|at| !rect.contains(at))
+        });
+        if let Some(preset) = chosen {
+            taps.push(Intent::Gallery(GalleryIntent::Create(preset)));
+            self.sizes = Sizes::Closed;
+        } else if self.sizes == Sizes::Opened {
+            self.sizes = Sizes::Shown;
+        } else if released_outside {
+            self.sizes = Sizes::Closed;
+        }
     }
 
     fn grid(
@@ -192,11 +262,13 @@ impl GalleryScreen {
         }
     }
 
-    /// Closes an open dialog as Cancel would. Returns whether one was open.
+    /// Closes an open dialog as Cancel would, or the new-canvas popover. Returns whether one
+    /// was open.
     pub(crate) fn back(&mut self) -> bool {
-        let open = self.rename.is_some() || self.confirm.is_some();
+        let open = self.rename.is_some() || self.confirm.is_some() || self.sizes != Sizes::Closed;
         self.rename = None;
         self.confirm = None;
+        self.sizes = Sizes::Closed;
         open
     }
 

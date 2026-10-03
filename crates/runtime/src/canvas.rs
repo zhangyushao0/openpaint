@@ -53,9 +53,9 @@ pub(crate) struct Canvas {
 }
 
 impl Canvas {
-    /// `content` shown at one screen pixel per canvas pixel from the area's corner; a blank
-    /// artwork is the size of `area`. `None` while the area is empty. Later area changes
-    /// (rotation) move the canvas, never resize it.
+    /// `content` shown at fit; a blank artwork is the size of `area`. `None` while the area is
+    /// empty. Later area changes (rotation) refit the view, which is relative to fit, and never
+    /// resize the canvas.
     pub(crate) fn open(
         core: &Core,
         area: &ScreenArea,
@@ -203,11 +203,21 @@ impl Canvas {
         ))
     }
 
-    /// The target with its top-left corner at the canvas area's.
-    pub(crate) fn placement(&self, area: &ScreenArea) -> CanvasPlacement<'_> {
+    /// The target shown in the canvas area through the session's view, on a screen of
+    /// `pixels_per_point`.
+    pub(crate) fn placement(
+        &self,
+        area: &ScreenArea,
+        pixels_per_point: f32,
+    ) -> CanvasPlacement<'_> {
+        let canvas = self.session.artwork().canvas();
+        let viewport = area.viewport(pixels_per_point);
+        let mapping = self.session.view().mapping(canvas, &viewport);
         CanvasPlacement {
             target: &self.target,
             origin: area.origin,
+            size: area.size,
+            to_canvas: mapping.to_canvas_rows(),
         }
     }
 

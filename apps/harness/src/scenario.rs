@@ -45,13 +45,26 @@ pub fn run(name: &str) -> Result<(), HarnessError> {
                 println!("screenshot {}: {}", shot.name, path.display());
             }
             Record::Export(export) => write_export(&dir, export)?,
+            Record::View(view) => {
+                let (zoom, rotation, pan) = view.actual;
+                println!(
+                    "view {}: {}, zoom {zoom:.3}, rotation {rotation:.1}°, pan [{:.1}, {:.1}] \
+                     (expected {:?})",
+                    view.name,
+                    if view.passed() { "pass" } else { "FAIL" },
+                    pan[0],
+                    pan[1],
+                    view.expected
+                );
+            }
         }
     }
-    let total = report.checkpoints().count() + report.exports().count();
+    let total = report.checkpoints().count() + report.exports().count() + report.views().count();
     let failed = report.checkpoints().filter(|c| !c.passed()).count()
-        + report.exports().filter(|e| !e.passed()).count();
+        + report.exports().filter(|e| !e.passed()).count()
+        + report.views().filter(|v| !v.passed()).count();
     println!(
-        "scenario {name}: {} of {total} checkpoints and exports passed, {} frames, {:.2} s",
+        "scenario {name}: {} of {total} checkpoints, exports and views passed, {} frames, {:.2} s",
         total - failed,
         report.frames,
         report.elapsed.as_secs_f64()

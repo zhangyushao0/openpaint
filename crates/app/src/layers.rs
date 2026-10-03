@@ -105,14 +105,14 @@ pub(crate) fn availability(
         EditorAction::EditLayer => position.is_some(),
         _ => false,
     };
-    if drawing {
-        Availability::StrokeInProgress
-    } else if possible {
-        Availability::Available
-    } else if action == EditorAction::AddLayer {
+    if !possible && action == EditorAction::AddLayer {
         Availability::Full
-    } else {
+    } else if !possible {
         Availability::NothingLeft
+    } else if drawing {
+        Availability::StrokeInProgress
+    } else {
+        Availability::Available
     }
 }
 

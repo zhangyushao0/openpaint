@@ -1,5 +1,5 @@
-//! GPU test: one runtime frame, drawn offscreen, shows the top bar over the blank canvas and the
-//! side bar over its left edge.
+//! GPU test: one runtime frame, drawn offscreen, shows the top bar over the blank canvas, the
+//! canvas at fit inside the surround, and the side bar over its left edge.
 
 mod support;
 
@@ -12,6 +12,7 @@ const BAR_ROWS: usize = 96;
 /// The side bar (8 + 64 points from the left edge) and some room.
 const SIDE_BAR_COLUMNS: usize = 160;
 const PAPER: [u8; 4] = [255; 4];
+const SURROUND: [u8; 4] = openpaint_ui::design::SURROUND;
 
 fn row(pixels: &[[u8; 4]], y: usize) -> &[[u8; 4]] {
     let width = SIZE[0] as usize;
@@ -29,15 +30,25 @@ fn frame_shows_the_top_bar_over_the_canvas() {
         bar.iter().all(|pixel| *pixel != PAPER),
         "the top bar covers its rows"
     );
+    // At fit the canvas fills 92 % of the area under the bar, centred: paper across the middle
+    // row right of the side bar, the surround above, below and beside it.
+    let middle = BAR_ROWS + (SIZE[1] as usize - BAR_ROWS) / 2;
+    assert!(
+        row(pixels, middle)[SIDE_BAR_COLUMNS..600]
+            .iter()
+            .all(|pixel| *pixel == PAPER),
+        "the middle row shows the canvas right of the side bar"
+    );
     for y in [BAR_ROWS, SIZE[1] as usize - 1] {
         assert!(
             row(pixels, y)[SIDE_BAR_COLUMNS..]
                 .iter()
-                .all(|pixel| *pixel == PAPER),
-            "row {y} shows the canvas right of the side bar"
+                .all(|pixel| *pixel == SURROUND),
+            "row {y} shows the surround of the fitted canvas"
         );
     }
-    let side = &row(pixels, BAR_ROWS + 40)[..SIDE_BAR_COLUMNS];
+    assert_eq!(row(pixels, middle)[SIZE[0] as usize - 1], SURROUND);
+    let side = &row(pixels, middle)[..SIDE_BAR_COLUMNS];
     assert!(
         side.iter().any(|pixel| *pixel != PAPER),
         "the side bar floats over the canvas's left edge"

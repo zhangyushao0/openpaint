@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 mod canvas;
+mod clock;
 mod error;
 mod frame;
 mod input;

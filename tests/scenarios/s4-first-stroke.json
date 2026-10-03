@@ -4,7 +4,7 @@
     "Entry: open the app on the tablet (2880 x 1800, landscape). A dark top bar reads OpenPaint; below it the whole screen is a white canvas.",
     "Gesture: draw a curve with the pen, light at the start, pressing harder, then easing off.",
     "What appears: a black line follows the tip, thin where the pen is light and up to 12 px where it presses; lifting leaves it there.",
-    "A finger dragged across the canvas, or a finger tap, draws nothing: only the pen paints.",
+    "A finger dragged across the canvas, or a finger tap, draws nothing: only the pen paints (since S14 the drag moves the canvas).",
     "Not yet: undo (S6) and reopening with the line still there (S7)."
   ],
   "screen": [2880, 1800],
@@ -13,11 +13,11 @@
     { "stroke": { "points": [
       [400, 900, 0.2], [900, 500, 0.6], [1500, 700, 1.0], [2000, 1200, 0.8], [2500, 800, 0.3]
     ] } },
-    { "checkpoint": { "name": "pen-line", "canvas": "ee6a94bf9052c12f" } },
+    { "checkpoint": { "name": "pen-line", "canvas": "b1c5dba8326a2f75" } },
     { "drag": { "from": [400, 1500], "to": [2500, 1400] } },
     { "tap": { "at": [1440, 1100] } },
     { "wait": { "frames": 2 } },
-    { "checkpoint": { "name": "finger-drew-nothing", "canvas": "ee6a94bf9052c12f" } },
+    { "checkpoint": { "name": "finger-drew-nothing", "canvas": "b1c5dba8326a2f75" } },
     { "screenshot": { "name": "first-stroke" } }
   ]
 }

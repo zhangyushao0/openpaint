@@ -13,6 +13,6 @@ mod system;
 
 pub use crate::diff::{Diff, diff};
 pub use crate::error::ScenarioError;
-pub use crate::runner::{Checkpoint, Record, Report, Screenshot, run};
+pub use crate::runner::{Checkpoint, Record, Report, Screenshot, ViewCheck, run};
 pub use crate::scenario::{Lands, Palm, Scenario, Step, SystemAnswer, Tool, is_file_name};
 pub use crate::system::{Export, TEST_BANDS};

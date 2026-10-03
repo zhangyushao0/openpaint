@@ -1,8 +1,9 @@
 //! GPU tests of export and the reference image through the whole frame loop: the PNG the
-//! export writes holds exactly the pixels the screen shows; the reference picture's colours are
-//! picked exactly.
+//! export writes holds exactly the canvas the screen shows through the view; the reference
+//! picture's colours are picked exactly.
 
 mod hand;
+mod screen_map;
 mod support;
 
 use std::sync::{Arc, Mutex};
@@ -14,12 +15,13 @@ use openpaint_runtime::{
     HostAnswer, HostRequest, ImageFormat, ImageSink, ImageSource, PortError, Runtime, ToolKind,
 };
 use openpaint_store::{decode_image, encode_image};
+use screen_map::{mapping, pixel_at};
 use support::Nowhere;
 
 /// 800 x 500 points at density 2.
 const SIZE: [u32; 2] = [1600, 1000];
 const PIXELS_PER_POINT: f32 = 2.0;
-/// The canvas starts under the top bar, one screen pixel per canvas pixel.
+/// The canvas area starts under the top bar.
 const BAR: u32 = 96;
 /// Right of Gallery at the top bar's left end.
 const ACTIONS: [f32; 2] = [258.0, 48.0];
@@ -95,18 +97,28 @@ fn the_exported_png_holds_exactly_what_the_screen_shows() {
         "the file is the canvas, pixel for pixel"
     );
     assert_cold(&core, &runtime, "after exporting");
-    // On screen, right of the side bar and under the top bar, nothing covers the canvas.
+    // On screen, right of the side bar and under the top bar, nothing covers the canvas: at
+    // fit, every screen pixel whose canvas neighbourhood is one colour shows that colour.
     let screen = runtime.screenshot(SIZE).expect("screen");
-    let width = SIZE[0] as usize;
-    for y in BAR as usize..SIZE[1] as usize {
-        let row = (y - BAR as usize) * width * 4;
-        let from = (y * width + 200) * 4;
-        let to = (y * width + width) * 4;
-        assert!(
-            screen.pixels()[from..to] == pixels[row + 800..row + width * 4],
-            "screen row {y} differs from the file"
-        );
+    let map = mapping(&runtime, SIZE, PIXELS_PER_POINT);
+    let mut compared = 0;
+    for y in (BAR..SIZE[1]).step_by(5) {
+        for x in (200..SIZE[0]).step_by(5) {
+            let at = [x as f32 + 0.5, y as f32 + 0.5];
+            let [cx, cy] = map.to_canvas(at).map(|v| v - 0.5);
+            let inside = cx >= 0.0 && cy >= 0.0 && cx + 1.0 < size[0] as f32;
+            if !inside || cy + 1.0 >= size[1] as f32 {
+                continue;
+            }
+            let texels = [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]]
+                .map(|[dx, dy]| pixel_at(&canvas, [cx + dx, cy + dy]));
+            if texels.iter().all(|texel| *texel == texels[0]) {
+                assert_eq!(pixel_at(&screen, at), texels[0], "screen pixel {at:?}");
+                compared += 1;
+            }
+        }
     }
+    assert!(compared > 30_000, "{compared} pixels compared");
 }
 
 #[test]

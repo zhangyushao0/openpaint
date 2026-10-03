@@ -16,8 +16,8 @@ use crate::title::Title;
 pub enum GalleryIntent {
     /// From the canvas: store the artwork, drop its history and show the gallery.
     Show,
-    /// A new blank artwork, opened at once.
-    Create,
+    /// A new blank artwork of the chosen size, opened at once.
+    Create(CanvasPreset),
     Open(ProjectId),
     Rename {
         id: ProjectId,
@@ -30,11 +30,45 @@ pub enum GalleryIntent {
     Dismiss,
 }
 
+/// The canvas sizes "+" offers (Procreate's new-canvas menu, reduced to four).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CanvasPreset {
+    /// The canvas area of the screen as it is held now.
+    Screen,
+    /// 2048 x 2048.
+    Square,
+    /// A4 at 300 dpi, 2480 x 3508.
+    A4Portrait,
+    /// 3508 x 2480.
+    A4Landscape,
+}
+
+impl CanvasPreset {
+    pub const ALL: [Self; 4] = [
+        Self::Screen,
+        Self::Square,
+        Self::A4Portrait,
+        Self::A4Landscape,
+    ];
+
+    /// The size in pixels on a canvas area of `screen` pixels. No side exceeds 4096, which
+    /// every Vulkan device holds as a texture, nor `MAX_CANVAS_SIDE`.
+    #[must_use]
+    pub fn size(self, screen: [u32; 2]) -> [u32; 2] {
+        match self {
+            Self::Screen => screen.map(|side| side.clamp(1, 4096)),
+            Self::Square => [2048, 2048],
+            Self::A4Portrait => [2480, 3508],
+            Self::A4Landscape => [3508, 2480],
+        }
+    }
+}
+
 /// A call the gallery needs from the library, in the order it must run.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LibraryRequest {
     List,
-    Create(Title),
+    Create(Title, CanvasPreset),
     Open(ProjectId),
     Rename(ProjectId, Title),
     Duplicate(ProjectId),
@@ -126,13 +160,16 @@ impl Gallery {
         }
         let request = match intent {
             GalleryIntent::Show | GalleryIntent::Dismiss => return Ok(()),
-            GalleryIntent::Create => LibraryRequest::Create(Title::untitled()),
+            GalleryIntent::Create(preset) => LibraryRequest::Create(Title::untitled(), preset),
             GalleryIntent::Open(id) => LibraryRequest::Open(id),
             GalleryIntent::Rename { id, title } => LibraryRequest::Rename(id, title),
             GalleryIntent::Duplicate(id) => LibraryRequest::Duplicate(id),
             GalleryIntent::Delete(id) => LibraryRequest::Delete(id),
         };
-        self.opening = matches!(request, LibraryRequest::Create(_) | LibraryRequest::Open(_));
+        self.opening = matches!(
+            request,
+            LibraryRequest::Create(..) | LibraryRequest::Open(_)
+        );
         self.requests.push_back(request);
         if !self.opening {
             self.requests.push_back(LibraryRequest::List);

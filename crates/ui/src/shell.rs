@@ -3,20 +3,23 @@
 //! notice (a failed save or open, an export, the reference image); the canvas frame fills the
 //! rest, the side bar (size, eyedropper, opacity, undo, redo) floats over its left edge, the
 //! reference window floats where the hand left it, and the Actions, colour, layer and brush
-//! panels open over it, one at a time.
+//! panels open over it, one at a time. While the fingers move the view, a quiet line under the
+//! bar tells its zoom and turn, then fades.
 //! In the gallery the bar holds the screen's name and "+", and the cards fill the rest.
 
 use egui::{Align, Layout};
 use openpaint_app::{
-    BrushKey, ContactPhase, EditorAction, GalleryIntent, InputBatch, Intent, ScreenProjection,
-    SessionProjection,
+    BrushKey, CanvasView, ContactPhase, EditorAction, GalleryIntent, InputBatch, Intent,
+    ScreenProjection, SessionProjection,
 };
+use openpaint_core::CanvasSize;
 use openpaint_render::RgbaImage;
 
 use crate::actions_panel::ActionsPanel;
 use crate::brush_panel::BrushPanel;
+use crate::canvas_input::{CanvasFrame, CanvasInput};
 use crate::color_panel::ColorPanel;
-use crate::components::{CanvasInput, ScreenArea, canvas_frame, text_button, top_bar};
+use crate::components::{ScreenArea, canvas_frame, text_button, top_bar, view_status, view_text};
 use crate::gallery::GalleryScreen;
 use crate::layer_panel::LayerPanel;
 use crate::notices::top_bar_notice;
@@ -41,12 +44,29 @@ enum Showing {
     Gallery,
 }
 
+/// The view status shows this long after the view stopped, then fades for `STATUS_FADE_MS`.
+const STATUS_HOLD_MS: i64 = 700;
+const STATUS_FADE_MS: i64 = 300;
+
+/// What the canvas showed in the last pass, for routing this frame's contacts.
+#[derive(Debug, Clone, Copy)]
+struct Shown {
+    canvas: CanvasSize,
+    view: CanvasView,
+    picking: bool,
+    drawing: bool,
+}
+
 /// The screen's UI-local state between frames.
 #[derive(Debug, Default)]
 pub struct Shell {
     /// The area under the top bar: where the canvas shows, or the gallery's cards.
     canvas: Option<ScreenArea>,
     showing: Showing,
+    shown: Option<Shown>,
+    pixels_per_point: f32,
+    /// The input clock for this frame (`set_now`).
+    now_ms: i64,
     input: CanvasInput,
     actions: ActionsPanel,
     layers: LayerPanel,
@@ -83,6 +103,8 @@ impl Shell {
             self.input = CanvasInput::default();
             self.showing = showing;
         }
+        self.pixels_per_point = ui.ctx().pixels_per_point();
+        self.shown = None;
         let rect = match projection {
             ScreenProjection::Starting => {
                 top_bar(ui, |ui| {
@@ -105,10 +127,14 @@ impl Shell {
     }
 
     fn canvas_screen(&mut self, ui: &mut egui::Ui, projection: &SessionProjection) -> egui::Rect {
+        self.shown = projection.canvas().map(|canvas| Shown {
+            canvas,
+            view: projection.view(),
+            picking: projection.brush().is_some_and(|brush| brush.picking),
+            drawing: projection.drawing(),
+        });
         top_bar(ui, |ui| {
-            let enabled = projection
-                .availability(EditorAction::Gallery)
-                .is_available();
+            let enabled = projection.availability(EditorAction::Gallery).is_offered();
             if text_button(ui, "Gallery", enabled).clicked() {
                 self.taps.push(Intent::Gallery(GalleryIntent::Show));
             }
@@ -131,6 +157,7 @@ impl Shell {
         });
         let rect = canvas_frame(ui);
         let ctx = ui.ctx();
+        self.show_view(ctx, rect);
         self.side.show(ctx, projection, &mut self.taps);
         self.reference.show(ctx, projection, &mut self.taps);
         self.actions.show(ctx, projection, &mut self.taps);
@@ -138,6 +165,39 @@ impl Shell {
         self.brushes.show(ctx, projection, &mut self.taps);
         self.colors.show(ctx, projection, &mut self.taps);
         rect
+    }
+
+    /// The input clock now (the platform time input samples carry), for the frame about to be
+    /// shown and routed; call before `show`.
+    pub fn set_now(&mut self, now_ms: i64) {
+        self.now_ms = now_ms;
+    }
+
+    /// The view status while the fingers move the view and briefly after.
+    fn show_view(&self, ctx: &egui::Context, rect: egui::Rect) {
+        let (Some(shown), Some(moved)) = (self.shown, self.input.navigated()) else {
+            return;
+        };
+        let since = self.now_ms.saturating_sub(moved);
+        let fading = since.saturating_sub(STATUS_HOLD_MS).max(0);
+        let strength = 1.0 - fading as f32 / STATUS_FADE_MS as f32;
+        if strength <= 0.0 {
+            return;
+        }
+        let area = ScreenArea::from_points(rect, self.pixels_per_point);
+        let viewport = area.viewport(self.pixels_per_point);
+        let scale = shown.view.mapping(shown.canvas, &viewport).scale();
+        view_status(ctx, &view_text(scale, shown.view.rotation()), strength);
+    }
+
+    /// True while the screen changes without input: the view status fading, or fingers held
+    /// for a shortcut that repeats. The host should keep frames coming.
+    #[must_use]
+    pub fn animating(&self) -> bool {
+        let fading = self.input.navigated().is_some_and(|moved| {
+            self.now_ms.saturating_sub(moved) < STATUS_HOLD_MS + STATUS_FADE_MS
+        });
+        self.showing == Showing::Canvas && (fading || self.input.holding())
     }
 
     fn close_panels(&mut self) {
@@ -186,7 +246,9 @@ impl Shell {
     /// chrome, so a stroke lifted just before undo is tapped is committed before it is undone.
     /// Call after `show`.
     pub fn route(&mut self, batches: &[InputBatch]) -> Vec<Intent> {
-        let Some(area) = self.canvas.filter(|_| self.showing == Showing::Canvas) else {
+        let now_ms = self.now_ms;
+        let area = self.canvas.filter(|_| self.showing == Showing::Canvas);
+        let (Some(area), Some(shown)) = (area, self.shown) else {
             return std::mem::take(&mut self.taps);
         };
         let panel = self
@@ -199,7 +261,18 @@ impl Shell {
             .into_iter()
             .flatten()
             .collect();
-        let mut intents = self.input.route(&area, &covers, batches);
+        let frame = CanvasFrame {
+            area,
+            covers: &covers,
+            canvas: shown.canvas,
+            view: shown.view,
+            pixels_per_point: self.pixels_per_point,
+            now_ms,
+            picking: shown.picking,
+            drawing: shown.drawing,
+            control: !self.taps.is_empty(),
+        };
+        let mut intents = self.input.route(&frame, batches);
         if panel.is_some() && touched_outside(&area, &covers, batches) {
             self.close_panels();
         }

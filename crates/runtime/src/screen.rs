@@ -5,11 +5,11 @@
 use openpaint_app::{
     Gallery, LibraryAnswer, LibraryRequest, PortError, ScreenProjection, Toolbox, Transfers,
 };
-use openpaint_core::Artwork;
+use openpaint_core::{Artwork, CanvasSize};
 use openpaint_render::Core;
 use openpaint_ui::ScreenArea;
 
-use crate::canvas::{Canvas, Content, Leaving, blank_size};
+use crate::canvas::{Canvas, Content, Leaving};
 use crate::error::RuntimeError;
 use crate::storage::{Done, Job, LibraryCall, Opened, Storage};
 
@@ -223,14 +223,16 @@ fn started(opened: Opened) -> Screen {
     }
 }
 
-/// The store's job for a gallery request; a new artwork is blank and fills the canvas `area`.
+/// The store's job for a gallery request; a new artwork is blank, of the size chosen for the
+/// canvas `area`.
 fn gallery_job(request: LibraryRequest, area: Option<ScreenArea>) -> Result<Job, RuntimeError> {
     Ok(Job::Library(match request {
-        LibraryRequest::Create(title) => {
+        LibraryRequest::Create(title, preset) => {
             let area = area.ok_or(RuntimeError::Render(
                 openpaint_render::RenderError::Invalid("the canvas area is unknown"),
             ))?;
-            let artwork = Artwork::new(blank_size(&area)?);
+            let [width, height] = preset.size(area.size);
+            let artwork = Artwork::new(CanvasSize::new(width, height)?);
             return Ok(Job::Create { artwork, title });
         }
         LibraryRequest::List => LibraryCall::List,
