@@ -1,4 +1,4 @@
-//! The layer panel: the Layers button at the right end of the top bar opens it as a popover over
+//! The layer panel: the Layers button in the right island opens it as a popover over
 //! the canvas (Procreate's model). Header: "Layers" and the add button. Rows: the layers, top of
 //! the stack first, the one drawn on highlighted, each with its eye ("Alpha Lock" beside the
 //! name of a layer whose alpha is locked). Footer, for the highlighted layer: its opacity
@@ -12,6 +12,9 @@ use crate::components::{
     ListRow, ScreenArea, icon_button, icon_toggle, list_row, popover, slider, switch_row,
 };
 use crate::design::{Icon, SPACE, TOUCH_TARGET};
+
+/// How much of the first row below the list's end shows: enough to cut through its name.
+const CUT_ROW: f32 = 0.65;
 
 /// Opacity shown as a whole percentage.
 fn percent(opacity: f32) -> String {
@@ -27,7 +30,7 @@ pub(crate) struct LayerPanel {
 }
 
 impl LayerPanel {
-    /// The Layers button, inside the top bar. Returns whether it opened the panel.
+    /// The Layers button, in the right island. Returns whether it opened the panel.
     pub(crate) fn button(&mut self, ui: &mut egui::Ui) -> bool {
         if icon_toggle(ui, Icon::Layers, "Layers", self.open).clicked() {
             self.open = !self.open;
@@ -86,7 +89,9 @@ fn header(ui: &mut egui::Ui, projection: &SessionProjection, taps: &mut Vec<Inte
     });
 }
 
-/// Top of the stack first; scrolls when the layers outgrow the screen.
+/// Top of the stack first; scrolls when the layers outgrow the screen. No scroll bar at rest:
+/// the list stops partway through a row, its name cut, and fades there, so more rows are
+/// plainly below.
 fn rows(
     ui: &mut egui::Ui,
     list: &LayerList,
@@ -95,8 +100,9 @@ fn rows(
 ) {
     let enabled = offered(projection, EditorAction::EditLayer);
     let room = ui.ctx().content_rect().height() - 7.0 * TOUCH_TARGET;
+    let whole = (room / TOUCH_TARGET - CUT_ROW).floor().max(1.0);
     egui::ScrollArea::vertical()
-        .max_height(room.max(TOUCH_TARGET))
+        .max_height((whole + CUT_ROW) * TOUCH_TARGET)
         .show(ui, |ui| {
             for row in list.rows.iter().rev() {
                 let detail = match (row.alpha_locked, row.opacity < 1.0) {

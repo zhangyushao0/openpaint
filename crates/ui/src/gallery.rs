@@ -1,7 +1,7 @@
-//! The gallery screen (Procreate's model): the top bar with the "+" that makes a new artwork of
-//! a size chosen in a small popover, and below it every artwork as a card in a grid, the one
-//! changed last first. Tap a picture to
-//! open it, its title to rename it (a dialog under the top bar, above the soft keyboard), the
+//! The gallery screen (Procreate's model): its name on the desk at the top left, an island at
+//! the top right with the "+" that makes a new artwork of a size chosen in a small popover, and
+//! below them every artwork as a card in a grid, the one changed last first. Tap a picture to
+//! open it, its title to rename it (a dialog under the islands, above the soft keyboard), the
 //! copy button to duplicate it and the bin to delete it, which asks first: it cannot be undone.
 
 use std::collections::HashMap;
@@ -13,8 +13,9 @@ use openpaint_app::{
 };
 
 use crate::components::{
-    ArtworkCard, Placement, ScreenArea, artwork_card, card_size, dialog, icon_button, icon_toggle,
-    menu_row, notice, popover, text_button, text_field,
+    ArtworkCard, ISLAND_TOP, Place, Placement, ScreenArea, TOP_BAND, artwork_card, card_size,
+    dialog, icon_button, icon_toggle, island, menu_row, notice, pill, popover, text_button,
+    text_field,
 };
 use crate::design::{CARD_GAP, Icon, SPACE, TOUCH_TARGET};
 
@@ -67,36 +68,52 @@ struct Rename {
 }
 
 impl GalleryScreen {
-    /// The top bar's contents: the screen's name, and at the right end "+" with any notice.
-    /// "+" opens the new-canvas popover (and closes it again).
-    pub(crate) fn bar(
+    /// The top band: the screen's name on the desk at the left, and at the right an island with
+    /// "+" and, left of it, a pill with any notice. "+" opens the new-canvas popover (and closes
+    /// it again).
+    pub(crate) fn islands(
         &mut self,
-        ui: &mut egui::Ui,
+        ctx: &egui::Context,
         projection: &GalleryProjection,
         taps: &mut Vec<Intent>,
     ) {
-        ui.label("Gallery");
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            let enabled = projection.availability().is_available();
+        egui::Area::new(egui::Id::new("gallery title"))
+            .order(egui::Order::Background)
+            .interactable(false)
+            .fade_in(false)
+            .anchor(egui::Align2::LEFT_TOP, Vec2::new(2.0 * SPACE, ISLAND_TOP))
+            .show(ctx, |ui| {
+                ui.set_height(TOUCH_TARGET);
+                ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                    ui.heading("Gallery");
+                });
+            });
+        let enabled = projection.availability().is_available();
+        let open = self.sizes != Sizes::Closed;
+        let (tapped, plus) = island(ctx, "gallery island", Place::top_right(0.0), |ui| {
             let label = "New artwork";
-            let open = self.sizes != Sizes::Closed;
-            let tapped = if enabled {
+            if enabled {
                 icon_toggle(ui, Icon::Add, label, open).clicked()
             } else {
                 icon_button(ui, Icon::Add, label, false).clicked()
-            };
-            if tapped {
-                self.sizes = if open { Sizes::Closed } else { Sizes::Opened };
-            }
-            if let Some(message) = message(projection.notice())
-                && notice(ui, message, "OK", true).clicked()
-            {
-                taps.push(Intent::Gallery(GalleryIntent::Dismiss));
             }
         });
+        if tapped {
+            self.sizes = if open { Sizes::Closed } else { Sizes::Opened };
+        }
+        if let Some(message) = message(projection.notice()) {
+            let place = Place::top_right(plus.width() + SPACE);
+            let (dismissed, _) = pill(ctx, "gallery notice", place, |ui| {
+                notice(ui, message, "OK", true).clicked()
+            });
+            if dismissed {
+                taps.push(Intent::Gallery(GalleryIntent::Dismiss));
+            }
+        }
     }
 
-    /// The grid of cards inside `ui` (the area under the top bar), and an open dialog.
+    /// The grid of cards inside `ui` (the whole screen, the cards under the top band), and an
+    /// open dialog.
     pub(crate) fn body(
         &mut self,
         ui: &mut egui::Ui,
@@ -106,16 +123,20 @@ impl GalleryScreen {
         self.load_pictures(ui.ctx(), projection.items());
         // While the sizes are open a tap elsewhere only closes them.
         let enabled = projection.availability().is_available() && self.sizes == Sizes::Closed;
+        let mut under = ui.max_rect();
+        under.min.y += TOP_BAND;
+        let mut list = ui.new_child(egui::UiBuilder::new().max_rect(under));
         if projection.listed() && projection.items().is_empty() {
-            ui.centered_and_justified(|ui| ui.label("No artworks yet. Tap + to start one."));
+            list.centered_and_justified(|ui| ui.label("No artworks yet. Tap + to start one."));
         } else {
-            egui::ScrollArea::vertical().show(ui, |ui| {
+            egui::ScrollArea::vertical().show(&mut list, |ui| {
                 self.grid(ui, projection.items(), enabled, taps);
             });
         }
         self.rename_dialog(ui.ctx(), taps);
         self.confirm_dialog(ui.ctx(), taps);
-        let screen = ScreenArea::from_points(ui.max_rect(), ui.ctx().pixels_per_point());
+        // "Screen size" is the area a canvas fits in.
+        let screen = ScreenArea::from_points(under, ui.ctx().pixels_per_point());
         self.sizes_popover(ui.ctx(), screen.size, taps);
     }
 

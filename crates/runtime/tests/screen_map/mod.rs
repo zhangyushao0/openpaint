@@ -4,12 +4,13 @@
 use openpaint_app::{ViewMapping, Viewport};
 use openpaint_render::RgbaImage;
 use openpaint_runtime::Runtime;
-use openpaint_ui::TOP_BAR_HEIGHT;
+use openpaint_ui::TOP_BAND;
 
 /// The map between screen and canvas pixels as the runtime on a screen of `size` at
-/// `pixels_per_point` shows its canvas now: under the top bar, through the session's view.
+/// `pixels_per_point` shows its canvas now: fitted under the top band, through the session's
+/// view.
 pub fn mapping(runtime: &Runtime, size: [u32; 2], pixels_per_point: f32) -> ViewMapping {
-    let top = (TOP_BAR_HEIGHT * pixels_per_point).round();
+    let top = (TOP_BAND * pixels_per_point).round();
     let viewport = Viewport {
         origin: [0.0, top],
         size: [size[0] as f32, size[1] as f32 - top],

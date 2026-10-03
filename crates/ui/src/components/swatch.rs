@@ -1,12 +1,11 @@
-//! The swatch: a round patch of one colour inside a square touch target, ringed in the chrome's
-//! text colour so that dark colours stand out on the dark chrome too. Pressed, it shows a
-//! highlight under the hand; `on`, it stays highlighted (the colour panel is open, or this is
-//! the current colour).
+//! The swatch: a round patch of one colour inside a square touch target, ringed with a fine ink
+//! line so white shows on the paper too. Pressed, a faint wash shows under the hand; `on`, it
+//! carries the active mark (the colour panel is open, or this is the current colour).
 
 use egui::{Color32, Sense, Stroke, Vec2, WidgetInfo, WidgetType};
 use openpaint_core::Color;
 
-use crate::design::{CORNER, ON_CHROME, PRESSED, SELECTED, SPACE};
+use crate::design::{INK, SPACE, paint_icon_mark, paint_pressed};
 
 /// The colour as egui paints it: 8-bit sRGB, opaque.
 #[must_use]
@@ -21,23 +20,14 @@ pub fn swatch(ui: &mut egui::Ui, color: Color, label: &str, side: f32, on: bool)
     response.widget_info(|| WidgetInfo::selected(WidgetType::Button, true, on, label));
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
-        let face = if response.is_pointer_button_down_on() {
-            Some(PRESSED)
-        } else if on {
-            Some(SELECTED)
-        } else {
-            None
-        };
-        if let Some(face) = face {
-            painter.rect_filled(rect.shrink(SPACE / 4.0), CORNER, face);
+        if response.is_pointer_button_down_on() {
+            paint_pressed(painter, rect.shrink(SPACE / 4.0));
+        }
+        if on {
+            paint_icon_mark(painter, rect);
         }
         let radius = 0.3 * side;
-        painter.circle(
-            rect.center(),
-            radius,
-            color32(color),
-            Stroke::new(2.0, ON_CHROME),
-        );
+        painter.circle(rect.center(), radius, color32(color), Stroke::new(1.0, INK));
     }
-    response
+    response.on_hover_text(label)
 }

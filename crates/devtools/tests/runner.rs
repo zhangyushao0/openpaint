@@ -37,7 +37,9 @@ fn library() -> PathBuf {
 #[test]
 fn steps_reach_the_canvas_and_restart_reopens_the_library() {
     let scenario = Scenario::parse(SCENARIO).expect("valid scenario");
-    let report = run(&scenario, &library()).expect("a GPU adapter is required for devtools tests");
+    let fonts = openpaint_runtime::TextFonts::default();
+    let report =
+        run(&scenario, &library(), &fonts).expect("a GPU adapter is required for devtools tests");
     let checkpoints: Vec<&Checkpoint> = report.checkpoints().collect();
     let hashes: Vec<u64> = checkpoints.iter().map(|c| c.actual()).collect();
     assert_ne!(hashes[0], hashes[1], "the stroke reached the canvas");

@@ -1,12 +1,12 @@
 //! The list row: one touch target high across a panel, a name at its left, an optional detail
-//! before an icon button at its right end. Tapping the row chooses it; the chosen row is
-//! highlighted. The icon button acts on the row without choosing it.
+//! before an icon button at its right end. Tapping the row chooses it; the chosen row carries
+//! the active mark. The icon button acts on the row without choosing it.
 
 use egui::{Align2, Rect, Sense, TextStyle, Vec2, WidgetInfo, WidgetType};
 
 use crate::design::{
-    CORNER, ICON_SIZE, Icon, ON_CHROME, ON_CHROME_DISABLED, ON_CHROME_SECONDARY, PRESSED, SELECTED,
-    SPACE, TOUCH_TARGET, paint_icon,
+    ICON_SIZE, INK, INK_ACTIVE, INK_DISABLED, INK_SECONDARY, Icon, SPACE, TOUCH_TARGET, paint_icon,
+    paint_pressed, paint_row_mark,
 };
 
 /// What one row shows.
@@ -51,7 +51,7 @@ pub fn list_row(ui: &mut egui::Ui, row: &ListRow<'_>) -> RowResponse {
     }
     RowResponse {
         row: response,
-        icon,
+        icon: icon.on_hover_text(row.icon_label),
     }
 }
 
@@ -62,20 +62,16 @@ fn paint(
     (body, icon): (&egui::Response, &egui::Response),
 ) {
     let painter = ui.painter();
-    let face = if row.enabled && body.is_pointer_button_down_on() {
-        Some(PRESSED)
-    } else if row.selected {
-        Some(SELECTED)
-    } else {
-        None
-    };
-    if let Some(face) = face {
-        painter.rect_filled(rect.shrink2(Vec2::new(0.0, SPACE / 4.0)), CORNER, face);
+    if row.enabled && body.is_pointer_button_down_on() {
+        paint_pressed(painter, rect.shrink2(Vec2::new(0.0, SPACE / 4.0)));
     }
-    let color = if row.enabled {
-        ON_CHROME
-    } else {
-        ON_CHROME_DISABLED
+    if row.selected {
+        paint_row_mark(painter, rect);
+    }
+    let color = match (row.enabled, row.selected) {
+        (false, _) => INK_DISABLED,
+        (true, true) => INK_ACTIVE,
+        (true, false) => INK,
     };
     let font = TextStyle::Body.resolve(ui.style());
     let left = rect.left_center() + Vec2::new(2.0 * SPACE, 0.0);
@@ -87,15 +83,16 @@ fn paint(
         Align2::RIGHT_CENTER,
         row.detail,
         small,
-        ON_CHROME_SECONDARY,
+        INK_SECONDARY,
     );
     let button = Rect::from_center_size(
         right + Vec2::new(TOUCH_TARGET / 2.0, 0.0),
         Vec2::splat(TOUCH_TARGET),
     );
     if row.enabled && icon.is_pointer_button_down_on() {
-        painter.rect_filled(button.shrink(SPACE / 2.0), CORNER, PRESSED);
+        paint_pressed(painter, button.shrink(SPACE / 2.0));
     }
+    let color = if row.enabled { INK } else { INK_DISABLED };
     let square = Rect::from_center_size(button.center(), Vec2::splat(ICON_SIZE));
     paint_icon(painter, row.icon, square, color);
 }

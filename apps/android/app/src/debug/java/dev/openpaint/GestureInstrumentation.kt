@@ -15,7 +15,8 @@ import android.view.MotionEvent
  * dev.openpaint/.GestureInstrumentation`: the fingers (or the pen) touch down one after another
  * at `from`, move straight to `to` over `ms` in 16 ms frames, and lift one after another.
  * One pointer can instead follow `-e path x,y,x,y...`, one point per 8 ms event, and the pen
- * presses with `-e pressure P` (default 0.6).
+ * presses with `-e pressure P` (default 0.6). `-e hover x,y` holds the pen just above the glass
+ * there instead for `-e ms` (default 1500), then takes it away (hover enter, move, exit).
  */
 class GestureInstrumentation : Instrumentation() {
     private var arguments = Bundle()
@@ -48,6 +49,15 @@ class GestureInstrumentation : Instrumentation() {
         get() = arguments.getString("pressure")?.toFloat() ?: 0.6f
 
     private fun inject() {
+        points("hover")?.let { hover ->
+            val time = SystemClock.uptimeMillis()
+            send(time, MotionEvent.ACTION_HOVER_ENTER, hover.take(1), true, 0f)
+            SystemClock.sleep(8)
+            send(time, MotionEvent.ACTION_HOVER_MOVE, hover.take(1), true, 0f)
+            SystemClock.sleep(arguments.getString("ms")?.toLong() ?: 1500L)
+            send(time, MotionEvent.ACTION_HOVER_EXIT, hover.take(1), true, 0f)
+            return
+        }
         points("path")?.let { path ->
             follow(path)
             return
@@ -92,7 +102,13 @@ class GestureInstrumentation : Instrumentation() {
 
     private fun pointer(action: Int, index: Int) = action or (index shl MotionEvent.ACTION_POINTER_INDEX_SHIFT)
 
-    private fun send(downTime: Long, action: Int, points: List<FloatArray>, stylus: Boolean) {
+    private fun send(
+        downTime: Long,
+        action: Int,
+        points: List<FloatArray>,
+        stylus: Boolean,
+        penPressure: Float = pressure,
+    ) {
         val source = if (stylus) InputDevice.SOURCE_STYLUS else InputDevice.SOURCE_TOUCHSCREEN
         val device = InputDevice.getDeviceIds().firstOrNull { id ->
             InputDevice.getDevice(id)?.supportsSource(source) == true
@@ -107,7 +123,7 @@ class GestureInstrumentation : Instrumentation() {
             MotionEvent.PointerCoords().apply {
                 x = point[0]
                 y = point[1]
-                pressure = if (stylus) this@GestureInstrumentation.pressure else 1.0f
+                pressure = if (stylus) penPressure else 1.0f
                 size = 0.08f
             }
         }.toTypedArray()

@@ -3,10 +3,10 @@
 //! at the right end; dragging the bar anywhere but on a button moves the window. Under the bar,
 //! the body. Nothing under the window takes a contact that starts on it.
 
-use egui::{Align, Align2, Frame, Layout, Order, Pos2, Rect, Sense, Stroke, TextStyle, UiBuilder};
+use egui::{Align, Align2, Layout, Margin, Order, Pos2, Rect, Sense, TextStyle, UiBuilder};
 use egui::{Vec2, WidgetInfo, WidgetType};
 
-use crate::design::{CHROME, CORNER, ON_CHROME, OUTLINE, SPACE, TOUCH_TARGET};
+use crate::design::{INK, SPACE, TOUCH_TARGET, panel_frame};
 
 /// What the window gave this frame.
 pub struct Floating<B, T> {
@@ -37,10 +37,7 @@ pub fn floating<B, T>(
         .fade_in(false)
         .fixed_pos(origin)
         .show(ctx, |ui| {
-            Frame::new()
-                .fill(CHROME)
-                .stroke(Stroke::new(1.0, OUTLINE))
-                .corner_radius(CORNER)
+            panel_frame(Margin::ZERO)
                 .show(ui, |ui| {
                     ui.spacing_mut().item_spacing = Vec2::ZERO;
                     let size = Vec2::new(width, TOUCH_TARGET);
@@ -49,7 +46,7 @@ pub fn floating<B, T>(
                     let font = TextStyle::Body.resolve(ui.style());
                     let left = bar.left_center() + Vec2::new(2.0 * SPACE, 0.0);
                     ui.painter()
-                        .text(left, Align2::LEFT_CENTER, title, font, ON_CHROME);
+                        .text(left, Align2::LEFT_CENTER, title, font, INK);
                     let mut row = ui.new_child(
                         UiBuilder::new()
                             .max_rect(bar)

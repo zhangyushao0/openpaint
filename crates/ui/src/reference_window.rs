@@ -12,7 +12,7 @@ use egui::{Color32, Pos2, Rect, Sense, Vec2};
 use openpaint_app::{Intent, ReferenceImage, ReferenceIntent, SessionProjection, ToolIntent};
 use openpaint_core::Color;
 
-use crate::components::{ScreenArea, TOP_BAR_HEIGHT, floating, icon_button};
+use crate::components::{ScreenArea, UNDER_ISLANDS, floating, icon_button};
 use crate::design::{Icon, REFERENCE_HEIGHT, REFERENCE_WIDTH, SPACE, TOUCH_TARGET};
 
 /// The zoom steps of − and +.
@@ -92,10 +92,9 @@ impl ReferenceWindow {
             moved
                 .x
                 .clamp(0.0, (screen.width() - REFERENCE_WIDTH).max(0.0)),
-            moved.y.clamp(
-                TOP_BAR_HEIGHT,
-                (screen.height() - height).max(TOP_BAR_HEIGHT),
-            ),
+            moved
+                .y
+                .clamp(UNDER_ISLANDS, (screen.height() - height).max(UNDER_ISLANDS)),
         ));
         self.area = Some(ScreenArea::from_points(shown.rect, ctx.pixels_per_point()));
     }

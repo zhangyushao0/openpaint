@@ -1,7 +1,7 @@
-//! The brush picker and the tool buttons: Brush and Eraser sit in the top bar left of Layers
+//! The brush picker and the tool buttons: Brush and Eraser sit in the right island before Layers
 //! (Procreate's order). The current tool's button opens the picker as a popover over the canvas
 //! (Procreate's brush library, reduced to one set): header "Brushes" or "Eraser", then one row
-//! per brush with its name and a stroke it painted, the tool's brush highlighted. The eraser
+//! per brush with its name and a stroke it painted, the tool's brush outlined in ink. The eraser
 //! chooses from the same brushes. A tap chooses the brush; the panel stays until a contact lands
 //! on the canvas outside it, and a pen stroke there draws with the brush just chosen. Under the
 //! rows, the chosen brush's StreamLine slider (0 to 100 %).
@@ -12,7 +12,7 @@ use openpaint_app::{BrushIntent, BrushKey, Intent, SessionProjection, Tool, Tool
 use openpaint_render::RgbaImage;
 
 use crate::components::{ScreenArea, brush_row, icon_toggle, popover, slider};
-use crate::design::{CHROME, Icon, ON_CHROME, SPACE, TOUCH_TARGET};
+use crate::design::{INK, Icon, SPACE, TOUCH_TARGET};
 
 /// The panel's UI-local state and the brushes' preview pictures.
 #[derive(Default)]
@@ -41,10 +41,10 @@ impl BrushPanel {
         self.textures.clear();
     }
 
-    /// The Eraser and, left of it, the Brush button, inside a right-to-left part of the top bar;
-    /// the one of the pen's tool is highlighted (Procreate's model). Tapping the other tool's
-    /// button makes the pen use it; tapping the current tool's button opens or closes its
-    /// brushes. Returns whether a tap opened the panel.
+    /// The Brush and, right of it, the Eraser button, in the right island; the one of the pen's
+    /// tool carries the ink ring (Procreate's model). Tapping the other tool's button makes the
+    /// pen use it; tapping the current tool's button opens or closes its brushes. Returns
+    /// whether a tap opened the panel.
     pub(crate) fn buttons(
         &mut self,
         ui: &mut egui::Ui,
@@ -56,8 +56,8 @@ impl BrushPanel {
         };
         let mut opened = false;
         for (tool, icon, label) in [
-            (Tool::Eraser, Icon::Eraser, "Eraser"),
             (Tool::Brush, Icon::Brush, "Brushes"),
+            (Tool::Eraser, Icon::Eraser, "Eraser"),
         ] {
             let current = brush.tool == tool;
             if !icon_toggle(ui, icon, label, current).clicked() {
@@ -162,18 +162,14 @@ fn streamline(ui: &mut egui::Ui, amount: f32, taps: &mut Vec<Intent>) {
     }
 }
 
-/// A preview painted in `ON_CHROME` on `CHROME` as that ink with the paint's strength as alpha,
-/// so it sits on any row face. The evaluator blends on encoded values: a pixel's share of the way
-/// from the grey to the ink is that strength.
+/// A preview painted in black on white as `INK` with the paint's strength as alpha, so it sits
+/// on any panel. The evaluator blends on encoded values: a pixel's share of the way from white
+/// to black is that strength.
 fn ink(image: &RgbaImage) -> Vec<u8> {
-    let (paper, ink) = (CHROME.r(), ON_CHROME.r());
-    let span = f32::from(ink - paper);
     let (pixels, _) = image.pixels().as_chunks::<4>();
     let mut out = Vec::with_capacity(image.pixels().len());
     for [value, ..] in pixels {
-        let strength = f32::from(value.saturating_sub(paper)) / span;
-        let alpha = (strength * 255.0).round().min(255.0) as u8;
-        out.extend_from_slice(&[ink, ink, ink, alpha]);
+        out.extend_from_slice(&[INK.r(), INK.g(), INK.b(), 255 - value]);
     }
     out
 }

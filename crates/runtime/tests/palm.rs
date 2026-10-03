@@ -12,9 +12,9 @@ use support::Nowhere;
 /// 640 x 400 points at density 2.
 const SIZE: [u32; 2] = [1280, 800];
 const PIXELS_PER_POINT: f32 = 2.0;
-/// The side bar's undo button: the bar starts one space under the top bar, its sliders 96
-/// points long, the eyedropper between them.
-const UNDO: [f32; 2] = [80.0, 720.0];
+/// The side bar's undo button: the bar starts under the top islands, the eyedropper between
+/// its sliders.
+const UNDO: [f32; 2] = [80.0, 706.0];
 const PEN: i32 = 0;
 const PALM: i32 = 1;
 

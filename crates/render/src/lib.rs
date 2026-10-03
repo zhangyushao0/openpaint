@@ -36,7 +36,7 @@ pub use crate::evaluator::{CanvasTarget, RegionEvaluator};
 pub use crate::frame::FrameRequest;
 pub use crate::geom::PixelRect;
 pub use crate::image::RgbaImage;
-pub use crate::screen::{CanvasPlacement, ScreenTarget};
+pub use crate::screen::{BrushCursor, CanvasPlacement, ScreenTarget};
 pub use crate::stroke::stroke_region;
 pub use crate::surface::{Surface, SurfaceWindow};
 pub use crate::thumbnail::{thumbnail_reference, thumbnail_size};

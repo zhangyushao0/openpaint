@@ -121,7 +121,7 @@ pub enum ReferenceIntent {
     Dismiss,
 }
 
-/// What the top bar says about the reference.
+/// What the canvas's notice says about the reference.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum ReferenceNotice {
     #[default]

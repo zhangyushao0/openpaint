@@ -68,7 +68,7 @@ pub struct BrushRow {
     pub name: String,
 }
 
-/// What the top bar, the brush picker, the side bar and the colour panel show.
+/// What the tool buttons, the brush picker, the side bar and the colour panel show.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BrushProjection {
     /// In picker order.

@@ -1,31 +1,32 @@
-//! The screen: a top bar over the rest. On the canvas the bar holds Gallery and Actions at its
-//! left end and at its right end, right to left, the colour button, Layers, Eraser, Brush and a
-//! notice (a failed save or open, an export, the reference image); the canvas frame fills the
-//! rest, the side bar (size, eyedropper, opacity, undo, redo) floats over its left edge, the
-//! reference window floats where the hand left it, and the Actions, colour, layer and brush
-//! panels open over it, one at a time. While the fingers move the view, a quiet line under the
-//! bar tells its zoom and turn, then fades.
-//! In the gallery the bar holds the screen's name and "+", and the cards fill the rest.
+//! The screen: the canvas (or the gallery) on the whole screen, with the controls floating over
+//! it as islands (D40). On the canvas: Gallery and Actions in the left island; Brush, Eraser,
+//! Layers and the colour in the right one; a notice (a failed save or open, an export, the
+//! reference image) in a pill left of it; the side bar (size, eyedropper, opacity, undo, redo)
+//! over the left edge; the reference window where the hand left it; the Actions, colour, layer
+//! and brush panels under the islands, one at a time. While the fingers move the view, a quiet
+//! pill in the top band tells its zoom and turn, then fades. The pen hovering over the canvas
+//! shows the brush's outline. In the gallery: its name, "+" in an island, and the cards.
 
-use egui::{Align, Layout};
 use openpaint_app::{
     BrushKey, CanvasView, ContactPhase, EditorAction, GalleryIntent, InputBatch, Intent,
     ScreenProjection, SessionProjection,
 };
 use openpaint_core::{CanvasSize, Color};
-use openpaint_render::RgbaImage;
+use openpaint_render::{BrushCursor, RgbaImage};
 
 use crate::actions_panel::ActionsPanel;
 use crate::brush_panel::BrushPanel;
 use crate::canvas_input::{CanvasFrame, CanvasInput};
-use crate::color_drop::{ColorDrop, DropBar, DropFrame};
+use crate::color_drop::{ColorDrop, DropFrame};
 use crate::color_panel::ColorPanel;
 use crate::components::{
-    ScreenArea, canvas_frame, carried_drop, fill_bar, text_button, top_bar, view_status, view_text,
+    CanvasArea, Place, ScreenArea, canvas_frame, island, text_button, view_status, view_text,
 };
+use crate::design::{DESK, SPACE, paint_sheet_shadow};
+use crate::drop_bar;
 use crate::gallery::GalleryScreen;
 use crate::layer_panel::LayerPanel;
-use crate::notices::top_bar_notice;
+use crate::notices::notice_pill;
 use crate::reference_window::ReferenceWindow;
 use crate::side_bar::SideBar;
 
@@ -50,6 +51,10 @@ enum Showing {
 /// The view status shows this long after the view stopped, then fades for `STATUS_FADE_MS`.
 const STATUS_HOLD_MS: i64 = 700;
 const STATUS_FADE_MS: i64 = 300;
+/// Smallest radius of the pen's hover outline, in points, so a thin brush still shows a ring.
+const CURSOR_MIN_RADIUS: f32 = 2.0;
+/// Width of the pen's hover outline, in points.
+const CURSOR_WIDTH: f32 = 1.0;
 
 /// What the canvas showed in the last pass, for routing this frame's contacts.
 #[derive(Debug, Clone, Copy)]
@@ -61,13 +66,15 @@ struct Shown {
     /// The colour a drop carries and the threshold it starts with.
     color: Option<Color>,
     threshold: f32,
+    /// The current tool's brush diameter in canvas pixels.
+    brush_size: Option<f32>,
 }
 
 /// The screen's UI-local state between frames.
 #[derive(Debug, Default)]
 pub struct Shell {
-    /// The area under the top bar: where the canvas shows, or the gallery's cards.
-    canvas: Option<ScreenArea>,
+    /// Where the canvas shows and fits, or the gallery's cards.
+    canvas: Option<CanvasArea>,
     showing: Showing,
     shown: Option<Shown>,
     pixels_per_point: f32,
@@ -83,6 +90,8 @@ pub struct Shell {
     drop: ColorDrop,
     /// Where the fill bar lies, from the last pass.
     drop_bar: Option<ScreenArea>,
+    /// Where the top islands and the notice pill lie, from the last pass.
+    islands: Vec<ScreenArea>,
     gallery: GalleryScreen,
     /// Intents from taps on the chrome since the last `route`.
     taps: Vec<Intent>,
@@ -116,17 +125,15 @@ impl Shell {
         }
         self.pixels_per_point = ui.ctx().pixels_per_point();
         self.shown = None;
+        self.islands.clear();
         let rect = match projection {
-            ScreenProjection::Starting => {
-                top_bar(ui, |ui| {
-                    ui.label("OpenPaint");
-                });
-                canvas_frame(ui)
-            }
+            ScreenProjection::Starting => canvas_frame(ui),
             ScreenProjection::Canvas(session) => self.canvas_screen(ui, session),
             ScreenProjection::Gallery(gallery) => {
-                top_bar(ui, |ui| self.gallery.bar(ui, gallery, &mut self.taps));
-                egui::CentralPanel::no_frame()
+                self.gallery.islands(ui.ctx(), gallery, &mut self.taps);
+                // On the desk, so the list's edge fade has its colour.
+                egui::CentralPanel::default()
+                    .frame(egui::Frame::new().fill(DESK))
                     .show(ui, |ui| {
                         self.gallery.body(ui, gallery, &mut self.taps);
                         ui.max_rect()
@@ -134,84 +141,94 @@ impl Shell {
                     .inner
             }
         };
-        self.canvas = Some(ScreenArea::from_points(rect, ui.ctx().pixels_per_point()));
+        self.canvas = Some(CanvasArea::from_points(rect, self.pixels_per_point));
     }
 
     fn canvas_screen(&mut self, ui: &mut egui::Ui, projection: &SessionProjection) -> egui::Rect {
+        let brush = projection.brush();
         self.shown = projection.canvas().map(|canvas| Shown {
             canvas,
             view: projection.view(),
-            picking: projection.brush().is_some_and(|brush| brush.picking),
+            picking: brush.is_some_and(|brush| brush.picking),
             drawing: projection.drawing(),
-            color: projection.brush().map(|brush| brush.color),
+            color: brush.map(|brush| brush.color),
             threshold: projection.fill().threshold,
+            brush_size: brush.map(|brush| brush.size),
         });
-        top_bar(ui, |ui| {
+        let rect = canvas_frame(ui);
+        let ctx = ui.ctx().clone();
+        let area = CanvasArea::from_points(rect, self.pixels_per_point);
+        self.show_sheet(&ctx, rect, &area);
+        self.show_view(&ctx, &area);
+        self.top_islands(&ctx, projection);
+        self.side
+            .show(&ctx, projection, self.scale(&area), &mut self.taps);
+        self.reference.show(&ctx, projection, &mut self.taps);
+        self.actions.show(&ctx, projection, &mut self.taps);
+        self.layers.show(&ctx, projection, &mut self.taps);
+        self.brushes.show(&ctx, projection, &mut self.taps);
+        self.colors.show(&ctx, projection, &mut self.taps);
+        self.drop_bar = drop_bar::show(&mut self.drop, &ctx, projection, self.pixels_per_point);
+        rect
+    }
+
+    /// The left island (Gallery, Actions), the right one (Brush, Eraser, Layers, the colour)
+    /// and, left of it, the notice pill. Opening one panel closes the others.
+    fn top_islands(&mut self, ctx: &egui::Context, projection: &SessionProjection) {
+        let ((), left) = island(ctx, "left island", Place::top_left(), |ui| {
             let enabled = projection.availability(EditorAction::Gallery).is_offered();
             if text_button(ui, "Gallery", enabled).clicked() {
                 self.taps.push(Intent::Gallery(GalleryIntent::Show));
             }
-            // One panel at a time: opening one closes the others.
             if self.actions.button(ui) {
                 self.close_panels_but(Panel::Actions);
             }
-            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                if self.colors.button(ui, projection) {
-                    self.close_panels_but(Panel::Colors);
-                }
-                if self.layers.button(ui) {
-                    self.close_panels_but(Panel::Layers);
-                }
-                if self.brushes.buttons(ui, projection, &mut self.taps) {
-                    self.close_panels_but(Panel::Brushes);
-                }
-                top_bar_notice(ui, projection, &mut self.taps);
-            });
         });
-        let rect = canvas_frame(ui);
-        let ctx = ui.ctx();
-        self.show_view(ctx, rect);
-        self.side.show(ctx, projection, &mut self.taps);
-        self.reference.show(ctx, projection, &mut self.taps);
-        self.actions.show(ctx, projection, &mut self.taps);
-        self.layers.show(ctx, projection, &mut self.taps);
-        self.brushes.show(ctx, projection, &mut self.taps);
-        self.colors.show(ctx, projection, &mut self.taps);
-        self.show_drop(ctx, projection);
-        rect
+        let ((), right) = island(ctx, "right island", Place::top_right(0.0), |ui| {
+            if self.brushes.buttons(ui, projection, &mut self.taps) {
+                self.close_panels_but(Panel::Brushes);
+            }
+            if self.layers.button(ui) {
+                self.close_panels_but(Panel::Layers);
+            }
+            if self.colors.button(ui, projection) {
+                self.close_panels_but(Panel::Colors);
+            }
+        });
+        let place = Place::top_right(right.width() + SPACE);
+        let notice = notice_pill(ctx, projection, place, &mut self.taps);
+        let ppp = self.pixels_per_point;
+        self.islands = [Some(left), Some(right), notice]
+            .into_iter()
+            .flatten()
+            .map(|rect| ScreenArea::from_points(rect, ppp))
+            .collect();
     }
 
-    /// The drop the hand carries and the fill bar: what to do while dropping, the threshold
-    /// while it is adjusted, then the offer to keep filling.
-    fn show_drop(&mut self, ctx: &egui::Context, projection: &SessionProjection) {
-        self.drop_bar = None;
+    /// Screen pixels per canvas pixel in `area` now.
+    fn scale(&self, area: &CanvasArea) -> f32 {
+        self.shown.map_or(1.0, |shown| {
+            let viewport = area.viewport(self.pixels_per_point);
+            shown.view.mapping(shown.canvas, &viewport).scale()
+        })
+    }
+
+    /// The canvas's soft shadow on the desk, under everything else and outside the canvas, so
+    /// the white sheet stands apart from the paper chrome however the view turns.
+    fn show_sheet(&self, ctx: &egui::Context, rect: egui::Rect, area: &CanvasArea) {
+        let Some(shown) = self.shown else {
+            return;
+        };
         let ppp = self.pixels_per_point;
-        if let (Some([x, y]), Some(brush)) = (self.drop.carried(), projection.brush()) {
-            carried_drop(ctx, egui::pos2(x / ppp, y / ppp), brush.color);
-        }
-        let Some(bar) = self.drop.bar() else {
-            return;
-        };
-        // A refused or failed drop filled nothing: no offer to keep filling.
-        let fill = projection.fill();
-        if bar == DropBar::Offered && (fill.refused.is_some() || fill.failed) {
-            self.drop.set_continuing(false);
-            return;
-        }
-        let (text, action) = match bar {
-            DropBar::Dropping(None) => ("Lift to fill. Hold still to adjust.".to_owned(), None),
-            DropBar::Dropping(Some(threshold)) => (
-                format!("Threshold {:.1} % · slide to adjust", threshold * 100.0),
-                None,
-            ),
-            DropBar::Offered => ("Filled.".to_owned(), Some("Continue filling")),
-            DropBar::Continuing => ("Tap an area to fill it.".to_owned(), Some("Done")),
-        };
-        let (rect, clicked) = fill_bar(ctx, &text, action);
-        self.drop_bar = Some(ScreenArea::from_points(rect, ppp));
-        if clicked {
-            self.drop.set_continuing(bar == DropBar::Offered);
-        }
+        let mapping = shown.view.mapping(shown.canvas, &area.viewport(ppp));
+        let [w, h] = [shown.canvas.width(), shown.canvas.height()].map(|side| side as f32);
+        let corners = [[0.0, 0.0], [w, 0.0], [w, h], [0.0, h]].map(|corner| {
+            let [x, y] = mapping.to_screen(corner);
+            egui::pos2(x / ppp, y / ppp)
+        });
+        let layer = egui::LayerId::new(egui::Order::Background, egui::Id::new("canvas sheet"));
+        let painter = ctx.layer_painter(layer).with_clip_rect(rect);
+        paint_sheet_shadow(&painter, corners);
     }
 
     /// The input clock now (the platform time input samples carry), for the frame about to be
@@ -221,7 +238,7 @@ impl Shell {
     }
 
     /// The view status while the fingers move the view and briefly after.
-    fn show_view(&self, ctx: &egui::Context, rect: egui::Rect) {
+    fn show_view(&self, ctx: &egui::Context, area: &CanvasArea) {
         let (Some(shown), Some(moved)) = (self.shown, self.input.navigated()) else {
             return;
         };
@@ -231,10 +248,24 @@ impl Shell {
         if strength <= 0.0 {
             return;
         }
-        let area = ScreenArea::from_points(rect, self.pixels_per_point);
-        let viewport = area.viewport(self.pixels_per_point);
-        let scale = shown.view.mapping(shown.canvas, &viewport).scale();
-        view_status(ctx, &view_text(scale, shown.view.rotation()), strength);
+        let text = view_text(self.scale(area), shown.view.rotation());
+        view_status(ctx, &text, strength, self.drop.bar().is_some());
+    }
+
+    /// The pen's hover outline: the current brush at full size around where the pen hovers over
+    /// open canvas, in screen pixels; `None` over controls, during multi-touch, while picking
+    /// and off the canvas screen.
+    #[must_use]
+    pub fn cursor(&self) -> Option<BrushCursor> {
+        let (shown, area) = (self.shown?, self.canvas?);
+        let centre = self.input.hover()?;
+        let ppp = self.pixels_per_point;
+        let diameter = shown.brush_size? * self.scale(&area);
+        Some(BrushCursor {
+            centre,
+            radius: (diameter / 2.0).max(CURSOR_MIN_RADIUS * ppp),
+            width: CURSOR_WIDTH * ppp,
+        })
     }
 
     /// True while the screen changes without input: the view status fading, or fingers held
@@ -283,10 +314,10 @@ impl Shell {
         }
     }
 
-    /// Where the canvas shows on screen (the area under the top bar), once a frame has been
-    /// laid out.
+    /// Where the canvas shows and fits (the whole screen, fitting under the top band), once a
+    /// frame has been laid out.
     #[must_use]
-    pub fn canvas_area(&self) -> Option<ScreenArea> {
+    pub fn canvas_area(&self) -> Option<CanvasArea> {
         self.canvas
     }
 
@@ -309,6 +340,7 @@ impl Shell {
             .into_iter()
             .chain([self.drop_bar])
             .flatten()
+            .chain(self.islands.iter().copied())
             .collect();
         let frame = CanvasFrame {
             area,
@@ -332,7 +364,7 @@ impl Shell {
             self.close_panels();
         }
         intents.extend(self.input.route(&frame, &rest));
-        if panel.is_some() && touched_outside(&area, &covers, batches) {
+        if panel.is_some() && touched_outside(&area.screen, &covers, batches) {
             self.close_panels();
         }
         // Choosing a tool ends continuing to fill.

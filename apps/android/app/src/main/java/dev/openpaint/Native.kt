@@ -18,6 +18,12 @@ internal object Native {
      */
     @JvmStatic external fun create(density: Float, filesDir: String, cacheDir: String): Long
 
+    /**
+     * The system's text faces, each "<face index>\n<path>" or null: the regular sans and the
+     * regular Simplified Chinese face ([SystemFonts]). Call once, before the first frame.
+     */
+    @JvmStatic external fun fonts(handle: Long, latin: String?, cjk: String?)
+
     /** Stores what is left to store before the process may be killed. Waits at most 2 s. */
     @JvmStatic external fun leave(handle: Long)
 

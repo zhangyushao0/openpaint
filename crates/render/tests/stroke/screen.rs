@@ -4,8 +4,8 @@
 
 use openpaint_core::Color;
 use openpaint_render::{
-    CanvasPlacement, CanvasTarget, Core, PixelRect, RegionEvaluator, RgbaImage, ScreenFrame,
-    ScreenPainter, ScreenTarget, UiFrame,
+    BrushCursor, CanvasPlacement, CanvasTarget, Core, PixelRect, RegionEvaluator, RgbaImage,
+    ScreenFrame, ScreenPainter, ScreenTarget, UiFrame,
 };
 
 use crate::fixture::{
@@ -51,6 +51,7 @@ fn at_one_pixel_per_pixel_the_screen_shows_the_canvas_bytes() {
         origin: [30, 50],
         size: SIZE,
         to_canvas: [1.0, 0.0, -30.0, 0.0, 1.0, -50.0],
+        cursor: None,
     };
     let screen = shown(&core, placement);
     let same = (0..SIZE[1])
@@ -63,21 +64,8 @@ fn at_one_pixel_per_pixel_the_screen_shows_the_canvas_bytes() {
 #[test]
 fn a_zoomed_and_turned_view_shows_each_canvas_point_where_its_map_puts_it() {
     let core = core();
-    // A black band across the canvas: rows 70 to 130, columns 40 to 280.
-    let band = (
-        plain(60.0, 1.0, Color::BLACK),
-        vec![sample(40.0, 100.0, 1.0, 0), sample(280.0, 100.0, 1.0, 8)],
-    );
-    let target = evaluated(&core, &with_stroke(&blank(), band));
-    // Half size, turned a quarter clockwise, the canvas's centre at the screen's (200, 150);
-    // the canvas area ends at x = 230.
-    let placement = CanvasPlacement {
-        target: &target,
-        origin: [0, 0],
-        size: [230, 300],
-        to_canvas: [0.0, 2.0, -140.0, -2.0, 0.0, 500.0],
-    };
-    let screen = shown(&core, placement);
+    let target = banded(&core);
+    let screen = shown(&core, turned(&target, None));
     assert_eq!(
         pixel(&screen, [200, 150]),
         [0, 0, 0, 255],
@@ -95,5 +83,61 @@ fn a_zoomed_and_turned_view_shows_each_canvas_point_where_its_map_puts_it() {
         pixel(&screen, [240, 150]),
         SURROUND,
         "outside the canvas area"
+    );
+}
+
+/// A black band across the canvas: rows 70 to 130, columns 40 to 280.
+fn banded(core: &Core) -> CanvasTarget {
+    let band = (
+        plain(60.0, 1.0, Color::BLACK),
+        vec![sample(40.0, 100.0, 1.0, 0), sample(280.0, 100.0, 1.0, 8)],
+    );
+    evaluated(core, &with_stroke(&blank(), band))
+}
+
+/// Half size, turned a quarter clockwise, the canvas's centre at the screen's (200, 150); the
+/// canvas area ends at x = 230.
+fn turned(target: &CanvasTarget, cursor: Option<BrushCursor>) -> CanvasPlacement<'_> {
+    CanvasPlacement {
+        target,
+        origin: [0, 0],
+        size: [230, 300],
+        to_canvas: [0.0, 2.0, -140.0, -2.0, 0.0, 500.0],
+        cursor,
+    }
+}
+
+#[test]
+fn the_hover_outline_is_white_over_dark_and_black_over_light_and_leaves_the_rest() {
+    let core = core();
+    let target = banded(&core);
+    let ring = |centre, radius| {
+        Some(BrushCursor {
+            centre,
+            radius,
+            width: 2.0,
+        })
+    };
+    let screen = shown(&core, turned(&target, ring([200.5, 150.5], 30.0)));
+    // The ring's top lies in the band, its left on the paper; its middle is untouched.
+    assert_eq!(pixel(&screen, [200, 120]), [255; 4], "over the band");
+    assert_eq!(pixel(&screen, [170, 150]), [0, 0, 0, 255], "over the paper");
+    assert_eq!(
+        pixel(&screen, [200, 150]),
+        [0, 0, 0, 255],
+        "inside the ring: the band"
+    );
+    assert_eq!(
+        pixel(&screen, [178, 150]),
+        [255; 4],
+        "inside the ring: the paper"
+    );
+    // Over the dark surround off the canvas, white.
+    let off = shown(&core, turned(&target, ring([5.5, 25.5], 20.0)));
+    assert_eq!(pixel(&off, [5, 5]), [255; 4], "over the surround");
+    assert_eq!(
+        pixel(&off, [5, 25]),
+        SURROUND,
+        "inside the ring off the canvas"
     );
 }

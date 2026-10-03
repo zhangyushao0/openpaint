@@ -21,7 +21,7 @@
     } },
     { "checkpoint": { "name": "round-end", "canvas": "01ebd7a6fcfb1d4f" } },
     { "screenshot": { "name": "first-stroke" } },
-    { "tap": { "at": [70, 1271] } },
+    { "tap": { "at": [70, 1315] } },
     { "stroke": { "points": [[400, 600, 0.4], [1100, 350, 0.9], [1800, 650, 0.7]] } },
     { "checkpoint": { "name": "lift-not-drawn", "canvas": "01ebd7a6fcfb1d4f" } },
     { "stroke": {
@@ -31,16 +31,16 @@
     { "checkpoint": { "name": "palm-on-canvas", "canvas": "611a99ea1bb9950f" } },
     { "stroke": {
       "points": [[600, 250, 0.5], [1500, 200, 0.9], [2500, 300, 0.5]],
-      "palm": { "at": [70, 1271], "lands": "during" }
+      "palm": { "at": [70, 1315], "lands": "during" }
     } },
     { "checkpoint": { "name": "palm-over-undo", "canvas": "3e81831944ef9c8d" } },
     { "stroke": {
       "points": [[700, 1600, 0.4], [1600, 1500, 0.9], [2600, 1650, 0.5]],
-      "palm": { "at": [70, 1271], "lands": "before" }
+      "palm": { "at": [70, 1315], "lands": "before" }
     } },
     { "checkpoint": { "name": "palm-resting-on-undo", "canvas": "69628d1cb852ef49" } },
     { "screenshot": { "name": "four-strokes" } },
-    { "tap": { "at": [70, 1271] } },
+    { "tap": { "at": [70, 1315] } },
     { "checkpoint": { "name": "finger-undo", "canvas": "3e81831944ef9c8d" } },
     "restart",
     { "checkpoint": { "name": "reopened", "canvas": "3e81831944ef9c8d" } },

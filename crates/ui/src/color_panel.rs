@@ -1,4 +1,4 @@
-//! The colour panel: the colour button at the right end of the top bar (a swatch of the current
+//! The colour panel: the colour button at the end of the right island (a swatch of the current
 //! colour, Procreate's place) opens it as a popover over the canvas: header "Colour", the colour
 //! wheel (hue ring, saturation and value square), then the recent colours, newest first. The
 //! colour changes while the hand moves on the wheel and is shown at once in the button; lifting
@@ -10,7 +10,7 @@ use egui::Align;
 use openpaint_app::{BrushProjection, Hsv, Intent, SessionProjection, ToolIntent};
 
 use crate::components::{ScreenArea, color_wheel, color32, popover, swatch};
-use crate::design::{COLOR_WHEEL, ON_CHROME_SECONDARY, RECENT_SWATCH, SPACE, TOUCH_TARGET};
+use crate::design::{COLOR_WHEEL, INK_SECONDARY, RECENT_SWATCH, SPACE, TOUCH_TARGET};
 
 /// The panel's UI-local state.
 #[derive(Debug, Default)]
@@ -26,7 +26,7 @@ pub(crate) struct ColorPanel {
 }
 
 impl ColorPanel {
-    /// The colour button, inside the top bar. Returns whether it opened the panel.
+    /// The colour button, in the right island. Returns whether it opened the panel.
     pub(crate) fn button(&mut self, ui: &mut egui::Ui, projection: &SessionProjection) -> bool {
         let Some(brush) = projection.brush() else {
             self.button = None;
@@ -105,7 +105,7 @@ fn recent(ui: &mut egui::Ui, brush: &BrushProjection, taps: &mut Vec<Intent>) {
         if brush.recent.is_empty() {
             ui.add_space(2.0 * SPACE);
             ui.with_layout(egui::Layout::left_to_right(Align::Center), |ui| {
-                ui.colored_label(ON_CHROME_SECONDARY, "Colours you choose appear here.");
+                ui.colored_label(INK_SECONDARY, "Colours you choose appear here.");
             });
             return;
         }

@@ -1,6 +1,6 @@
 //! GPU test of autosave through the whole frame loop: strokes are stored on the worker and a new
 //! runtime on the same library opens them with identical pixels; a failing store shows the
-//! notice, Retry tapped on the bar tries again and clears it once the store works.
+//! notice, Retry tapped in its pill tries again and clears it once the store works.
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -16,11 +16,14 @@ use openpaint_runtime::{
 };
 use openpaint_store::Library;
 
-/// Wide enough for the notice beside the four tool buttons at the top bar's right end.
-const SIZE: [u32; 2] = [1280, 800];
+/// Wide enough for the notice pill beside the right island.
+const SIZE: [u32; 2] = [1600, 1000];
 const PIXELS_PER_POINT: f32 = 2.0;
-/// The face of a text button (`design::RAISED`).
-const RAISED: [u8; 4] = [52, 52, 52, 255];
+/// Pixel rows through the top edge of a text button's ink outline in the top islands and pills
+/// (the island's top, its outline and the button's inset, 13.25 points, give or take a pixel).
+const BUTTON_TOP: [usize; 3] = [26, 27, 28];
+/// Shortest run of ink along a row that is a button's top edge, in pixels.
+const BUTTON_EDGE: usize = 40;
 
 fn gesture(runtime: &mut Runtime, tool: ToolKind, points: &[[f32; 2]]) {
     let last = points.len() - 1;
@@ -170,22 +173,32 @@ impl ProjectStore for Flaky {
     }
 }
 
-/// The centre of the text button in the right half of the top bar (Gallery is at the left
-/// end), found by its face colour.
+/// The centre of the text button in the right half of the top band (Gallery is at the left),
+/// found by the ink of its outline's top edge: the longest dark run along that row.
 fn retry_button(runtime: &mut Runtime) -> [f32; 2] {
     let screen = runtime.screenshot(SIZE).expect("screenshot");
-    let y = 48;
-    let row = &screen.pixels()[y * SIZE[0] as usize * 4..(y + 1) * SIZE[0] as usize * 4];
-    let (pixels, _) = row.as_chunks::<4>();
-    let half = pixels.len() / 2;
-    let face: Vec<usize> = (half..pixels.len())
-        .filter(|&x| pixels[x] == RAISED)
-        .collect();
-    let (first, last) = (
-        face.first().expect("a button"),
-        face.last().expect("a button"),
-    );
-    [(first + last) as f32 / 2.0, y as f32]
+    let width = SIZE[0] as usize;
+    for y in BUTTON_TOP {
+        let row = &screen.pixels()[y * width * 4..(y + 1) * width * 4];
+        let (pixels, _) = row.as_chunks::<4>();
+        let dark = |x: usize| pixels[x][..3].iter().all(|channel| *channel < 160);
+        let mut runs: Vec<(usize, usize)> = Vec::new();
+        for x in (width / 2..width).filter(|&x| dark(x)) {
+            match runs.last_mut() {
+                Some(run) if run.1 + 1 == x => run.1 = x,
+                _ => runs.push((x, x)),
+            }
+        }
+        if let Some((first, last)) = runs
+            .into_iter()
+            .filter(|(first, last)| last - first >= BUTTON_EDGE)
+            .max_by_key(|(first, last)| last - first)
+        {
+            let middle = (13.25 + 24.0) * PIXELS_PER_POINT;
+            return [(first + last) as f32 / 2.0, middle];
+        }
+    }
+    panic!("no text button in the top band's right half");
 }
 
 #[test]

@@ -2,12 +2,11 @@
 //! duplicate and delete buttons. Tapping the picture opens the artwork, tapping the title
 //! renames it. Pressed, the picture darkens under the hand.
 
-use egui::{Align, Color32, Layout, Rect, Sense, Stroke, TextStyle, UiBuilder, Vec2};
+use egui::{Align, Color32, Layout, Rect, Sense, TextStyle, UiBuilder, Vec2};
 
 use crate::components::icon_button;
 use crate::design::{
-    CARD_PICTURE, CHROME, Icon, ON_CHROME, ON_CHROME_DISABLED, ON_CHROME_SECONDARY, OUTLINE, SPACE,
-    TOUCH_TARGET,
+    CARD_PICTURE, INK, INK_DISABLED, INK_SECONDARY, Icon, SPACE, TOUCH_TARGET, paint_sheet_shadow,
 };
 
 /// What one card shows.
@@ -75,25 +74,28 @@ pub fn artwork_card(ui: &mut egui::Ui, card: &ArtworkCard<'_>) -> CardTaps {
     taps
 }
 
-/// The thumbnail fitted into the picture box, centred on its bottom edge, with an outline; a dark face with "No
-/// preview" when there is none.
+/// The thumbnail fitted into the picture box, centred on its bottom edge, lying on the desk
+/// with the canvas's shadow; a blank sheet with "No preview" when there is none.
 fn paint_picture(ui: &egui::Ui, card: &ArtworkCard<'_>, rect: Rect, pressed: bool) {
     let painter = ui.painter();
+    let corners = |r: Rect| {
+        [
+            r.left_top(),
+            r.right_top(),
+            r.right_bottom(),
+            r.left_bottom(),
+        ]
+    };
     let Some(texture) = card.picture else {
-        painter.rect_filled(rect, 0.0, CHROME);
-        painter.rect_stroke(
-            rect,
-            0.0,
-            Stroke::new(1.0, OUTLINE),
-            egui::StrokeKind::Inside,
-        );
+        paint_sheet_shadow(painter, corners(rect));
+        painter.rect_filled(rect, 0.0, Color32::WHITE);
         let font = TextStyle::Small.resolve(ui.style());
         painter.text(
             rect.center(),
             egui::Align2::CENTER_CENTER,
             "No preview",
             font,
-            ON_CHROME_SECONDARY,
+            INK_SECONDARY,
         );
         return;
     };
@@ -104,26 +106,17 @@ fn paint_picture(ui: &egui::Ui, card: &ArtworkCard<'_>, rect: Rect, pressed: boo
         .translate(Vec2::new(0.0, -size.y * scale / 2.0));
     let uv = Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
     let tint = if pressed {
-        Color32::from_gray(170)
+        Color32::from_gray(200)
     } else {
         Color32::WHITE
     };
+    paint_sheet_shadow(painter, corners(shown));
     painter.image(texture.id(), shown, uv, tint);
-    painter.rect_stroke(
-        shown,
-        0.0,
-        Stroke::new(1.0, OUTLINE),
-        egui::StrokeKind::Outside,
-    );
 }
 
 /// The title on one line, cut with an ellipsis when it is too long.
 fn paint_title(ui: &egui::Ui, card: &ArtworkCard<'_>, rect: Rect) {
-    let color = if card.enabled {
-        ON_CHROME
-    } else {
-        ON_CHROME_DISABLED
-    };
+    let color = if card.enabled { INK } else { INK_DISABLED };
     let mut job = egui::text::LayoutJob::single_section(
         card.title.to_owned(),
         egui::TextFormat::simple(TextStyle::Body.resolve(ui.style()), color),

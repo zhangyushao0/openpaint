@@ -16,8 +16,8 @@ use support::Nowhere;
 /// 800 x 500 points at density 2.
 const SIZE: [u32; 2] = [1600, 1000];
 const PIXELS_PER_POINT: f32 = 2.0;
-/// The colour button at the top bar's right end.
-const COLOUR: [f32; 2] = [1520.0, 48.0];
+/// The colour button at the right island's end.
+const COLOUR: [f32; 2] = [1524.0, 66.0];
 const UNDO: [f32; 2] = [80.0, 808.0];
 const CENTRE: [f32; 2] = [800.0, 520.0];
 

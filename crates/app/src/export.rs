@@ -21,7 +21,7 @@ pub enum ExportIntent {
     Dismiss,
 }
 
-/// What the top bar says about exporting.
+/// What the canvas's notice says about exporting.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum ExportNotice {
     #[default]

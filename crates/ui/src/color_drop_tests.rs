@@ -17,7 +17,10 @@ const SIDE: ScreenArea = ScreenArea {
 
 fn frame(now_ms: i64) -> CanvasFrame<'static> {
     CanvasFrame {
-        area: AREA,
+        area: crate::components::CanvasArea {
+            screen: AREA,
+            fit: AREA,
+        },
         covers: &[SIDE],
         canvas: CanvasSize::new(400, 300).expect("size"),
         view: CanvasView::FIT,

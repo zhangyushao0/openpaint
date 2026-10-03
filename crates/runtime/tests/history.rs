@@ -13,11 +13,11 @@ use support::Nowhere;
 /// 640 x 500 points at density 2: the side bar's sliders shortened to fit.
 const SIZE: [u32; 2] = [1280, 1000];
 const PIXELS_PER_POINT: f32 = 2.0;
-/// Centres of the side bar's undo and redo buttons: the bar starts one space under the top bar
-/// (the screen is too short to centre it), its sliders 118 points long, the eyedropper between
-/// them.
-const UNDO: [f32; 2] = [80.0, 808.0];
-const REDO: [f32; 2] = [80.0, 920.0];
+/// Centres of the side bar's undo and redo buttons: the bar starts under the top islands (the
+/// screen is too short to centre it), its sliders 74 points long between their end marks, the
+/// eyedropper between them.
+const UNDO: [f32; 2] = [80.0, 810.0];
+const REDO: [f32; 2] = [80.0, 922.0];
 
 /// Right of the side bar.
 fn line(y: f32) -> Vec<[f32; 2]> {

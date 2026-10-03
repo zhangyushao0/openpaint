@@ -1,5 +1,5 @@
 //! `shell-smoke`: one runtime frame drawn offscreen at tablet size and density, written as a PNG
-//! so the top bar over the canvas can be looked at.
+//! so the islands over the canvas can be looked at.
 
 use crate::error::HarnessError;
 use crate::launch::launch;

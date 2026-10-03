@@ -1,15 +1,15 @@
-//! The popover: a panel that drops down over the canvas from under one end of the top bar,
-//! above everything else: under the right end for the tools (colour, layers, brushes), under the
-//! left end for Actions, each under its button. It closes with one tap outside it; the screen
-//! that opens it decides when (ARCHITECTURE section 10).
+//! The popover: a panel that drops down over the canvas from under one of the top islands,
+//! above everything else: under the right island for the tools (colour, layers, brushes), under
+//! the left one for Actions, each under its button. It closes with one tap outside it; the
+//! screen that opens it decides when (ARCHITECTURE section 10).
 
-use egui::{Align2, Frame, Margin, Order, Stroke, Vec2};
+use egui::{Align2, Margin, Order, Vec2};
 
-use crate::components::TOP_BAR_HEIGHT;
-use crate::design::{CHROME, CORNER, OUTLINE, PANEL_WIDTH, SPACE};
+use crate::components::UNDER_ISLANDS;
+use crate::design::{PANEL_WIDTH, SPACE, panel_frame};
 
 /// Shows the popover `id` with `add_contents` laid out top to bottom, `PANEL_WIDTH` wide, its
-/// right edge one space from the screen's and its top one space under the top bar. Returns the
+/// right edge one space from the screen's and its top one space under the islands. Returns the
 /// panel's rectangle in points, which nothing under it may take a contact from.
 pub fn popover(
     ctx: &egui::Context,
@@ -39,19 +39,14 @@ fn panel(
         .movable(false)
         // Whole in the frame it opens: feedback within one frame.
         .fade_in(false)
-        .anchor(corner, Vec2::new(inset, TOP_BAR_HEIGHT + SPACE))
+        .anchor(corner, Vec2::new(inset, UNDER_ISLANDS))
         .show(ctx, |ui| {
-            Frame::new()
-                .fill(CHROME)
-                .stroke(Stroke::new(1.0, OUTLINE))
-                .corner_radius(CORNER)
-                .inner_margin(Margin::same(SPACE as i8))
-                .show(ui, |ui| {
-                    let inner = PANEL_WIDTH - 2.0 * SPACE;
-                    ui.set_width(inner);
-                    ui.spacing_mut().item_spacing = Vec2::splat(0.0);
-                    add_contents(ui);
-                });
+            panel_frame(Margin::same(SPACE as i8)).show(ui, |ui| {
+                let inner = PANEL_WIDTH - 2.0 * SPACE;
+                ui.set_width(inner);
+                ui.spacing_mut().item_spacing = Vec2::splat(0.0);
+                add_contents(ui);
+            });
         })
         .response
         .rect

@@ -15,11 +15,11 @@ use support::Nowhere;
 const SIZE: [u32; 2] = [1600, 1000];
 const PIXELS_PER_POINT: f32 = 2.0;
 /// Button centres in pixels: points from the panel's layout (popover 320 points wide, one
-/// space from the right edge and under the top bar; rows, slider and buttons one touch target
-/// high), times 2. Undo is in the side bar, whose sliders are 142 points long on this screen.
-const UNDO: [f32; 2] = [80.0, 808.0];
-/// Left of the colour button at the top bar's right end.
-const LAYERS: [f32; 2] = [1408.0, 48.0];
+/// space from the right edge and under the top islands; rows, slider and buttons one touch
+/// target high), times 2. Undo is in the side bar.
+const UNDO: [f32; 2] = [80.0, 810.0];
+/// Left of the colour button in the right island.
+const LAYERS: [f32; 2] = [1420.0, 66.0];
 const ADD: [f32; 2] = [1520.0, 176.0];
 /// The eye of the first row (the top layer).
 const TOP_EYE: [f32; 2] = [1520.0, 272.0];

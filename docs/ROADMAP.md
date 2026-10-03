@@ -32,11 +32,7 @@ Passed 2026-10-02: S2 to S8 done (see "Done"); the author judged pen feel and pa
 
 Exit: the author finishes an inked and flat-coloured piece (W1) on the tablet.
 
-S9 to S16 are done (see "Done"). Inking and flat colour need navigation, fill, stabilisation and a finished look first (author, 2026-10-02), so S14 to S17 come before the exit. Every slice from S14 on starts from the predecessor's implementation of the same feature (`C:\repo\draweave`: behaviour, constants, tested edge cases, fix commits; never its architecture) and the lessons in ARCHITECTURE section 10.
-
-**S17 Visual design** (ui, render adapter, android)
-- Paper-white line-art look (D32): light paper chrome, ink-line self-drawn icons, a white canvas on the paper; intuitive and restrained (ARCHITECTURE section 10). Self-explanatory side bar (end icons, labels on pen hover, a size preview while dragging); scroll cues instead of scrollbars; a CJK-capable font from the host.
-- Done: two or three style screenshots shown to the author before the full pass; every screen then reviewed against the section 10 checklist; scenarios pass.
+S9 to S17 are done (see "Done"). Inking and flat colour needed navigation, fill, stabilisation and a finished look first (author, 2026-10-02), so S14 to S17 came before the exit, which is next: the author's W1 piece on the tablet. Every slice from S14 on starts from the predecessor's implementation of the same feature (`C:\repo\draweave`: behaviour, constants, tested edge cases, fix commits; never its architecture) and the lessons in ARCHITECTURE section 10.
 
 ## G3 Editing and shaping
 
@@ -79,6 +75,7 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - 2026-10-03 Fill follow-ups (S15): draweave's fill reference layer (flood one layer, fill another); gap closing; filling inside a selection (S18); keeping the threshold across artworks and launches (toolbox state); the fill bar covers the canvas's top middle while offered; a pencil's grain stops low-threshold fills at its specks.
 - 2026-10-03 Fill cost (S15): each scene rebuild re-uploads every fill mask (618 KB for a full-canvas fill), and a full-canvas flood takes about 145 ms on the tablet; cache masks on the target and flood incrementally if long sessions or fast slides show it (G5).
 - 2026-10-03 Pencil and StreamLine follow-ups (S16): grain filtering by view zoom (draweave's Gauss-Hermite at the screen's footprint, only if a re-evaluation at screen resolution ever comes; the screen samples the canvas bilinearly today); breaking the paper's repeat (every ~228 x 114 canvas pixels) with offsets; tilt widening the pencil (draweave's pencil ignored it); corner smoothing and Catmull-Rom curves if sparse input shows polyline corners; keeping the raw pen path to re-smooth strokes; pressure smoothing.
+- 2026-10-03 Visual design follow-ups (S17): the scenario walk-throughs before S17 still say "top bar" in their prose (their taps follow the islands); on windows under about 700 points the two top islands and a notice pill meet; egui's hover label fades in rather than appearing at once; Chinese typed into a title on the tablet itself (only the system font loading and the harness's Chinese title are checked); a left-handed mirror of the side bar and the islands.
 - 2026-10-02 Pen stroke cancelled by a landing touch: with injected input the dispatcher cancels the pen's gesture when a touch lands mid-stroke and the stroke is dropped; if real hardware does the same, commit the stroke drawn so far on such a cancel.
 
 ## Done
@@ -102,3 +99,4 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - S14 2026-10-03 `feat(ui): canvas view, navigation gestures, finger undo and redo, canvas size presets (S14)`; gestures, pen at zoom and rotation, taps and quick pinch confirmed on the tablet through the debug gesture instrumentation; no format change
 - S15 2026-10-03 `feat(raster): ColorDrop fill with threshold hold, continue filling, fills as artwork content, schema 5 (S15)`; drop, hold-and-slide, fill tap, undo, hidden-layer refusal and reopen confirmed on the tablet with injected input; the author's schema-4 library upgraded pixel-identical
 - S16 2026-10-03 `feat(render): accumulating pencil on canvas-fixed paper, StreamLine in the stroke intent, schema 6 (S16)`; pencil, ink and StreamLine confirmed on the tablet with injected pen paths; the author's schema-5 library upgraded pixel-identical
+- S17 2026-10-03 `feat(ui): paper-white line art in floating islands, system fonts, pen hover outline, self-explanatory side bar (S17)`; option A chosen from three style sets; walk-through confirmed on the tablet with injected pen, hover and finger input; the author's canvas unchanged pixel for pixel

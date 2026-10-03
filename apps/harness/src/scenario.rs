@@ -15,7 +15,7 @@ use std::path::Path;
 use openpaint_devtools::{Checkpoint, Export, Record, Scenario, diff, is_file_name};
 
 use crate::error::HarnessError;
-use crate::launch::fresh_library;
+use crate::launch::{fresh_library, text_fonts};
 use crate::output::{read_rgba, workspace_root, write_rgba};
 
 pub fn run(name: &str) -> Result<(), HarnessError> {
@@ -33,7 +33,7 @@ pub fn run(name: &str) -> Result<(), HarnessError> {
     let scenario = Scenario::parse(&fs::read_to_string(&file)?)?;
     let dir = root.join("artifacts").join("scenarios").join(name);
     let library = fresh_library(dir.join("library"))?;
-    let report = openpaint_devtools::run(&scenario, &library)?;
+    let report = openpaint_devtools::run(&scenario, &library, &text_fonts())?;
     println!("adapter {}", report.adapter);
     fs::create_dir_all(&dir)?;
     for record in &report.records {

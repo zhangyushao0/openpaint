@@ -12,7 +12,7 @@ use std::sync::{Arc, PoisonError};
 use std::time::{Duration, Instant};
 
 use openpaint_render::RgbaImage;
-use openpaint_runtime::{HostRequest, MotionBatch, Runtime, TextInput};
+use openpaint_runtime::{HostRequest, MotionBatch, Runtime, TextFonts, TextInput};
 
 use crate::error::ScenarioError;
 use crate::gesture;
@@ -127,13 +127,18 @@ impl Report {
     }
 }
 
-/// Starts the app on the library in `library` (created when missing), opens it and runs every
-/// step.
-pub fn run(scenario: &Scenario, library: &Path) -> Result<Report, ScenarioError> {
+/// Starts the app on the library in `library` (created when missing), with the text faces a
+/// host would hand over, opens it and runs every step.
+pub fn run(
+    scenario: &Scenario,
+    library: &Path,
+    fonts: &TextFonts,
+) -> Result<Report, ScenarioError> {
     let started = Instant::now();
     let mut runner = Runner {
         scenario,
         library,
+        fonts,
         storage_off: Arc::new(AtomicBool::new(false)),
         clock_ms: 0,
         frames: 0,
@@ -165,6 +170,8 @@ pub fn run(scenario: &Scenario, library: &Path) -> Result<Report, ScenarioError>
 struct Runner<'a> {
     scenario: &'a Scenario,
     library: &'a Path,
+    /// The text faces a host would hand over, given to every start.
+    fonts: &'a TextFonts,
     /// Set by `storage_fails`, cleared by `storage_works`; survives restarts.
     storage_off: Arc<AtomicBool>,
     /// Time of the next input sample, in milliseconds; never goes back, restarts included.
@@ -182,6 +189,7 @@ impl Runner<'_> {
     fn start(&mut self) -> Result<Runtime, ScenarioError> {
         let store = Switched::new(self.library, Arc::clone(&self.storage_off));
         let mut runtime = Runtime::start(self.scenario.density, Box::new(store))?;
+        runtime.set_text_fonts(self.fonts.clone());
         self.frame(&mut runtime)?;
         Ok(runtime)
     }
@@ -194,6 +202,7 @@ impl Runner<'_> {
         let now = self.clock_ms;
         match step {
             Step::Tap { at, tool } => self.gesture(runtime, &gesture::tap(*tool, *at, now))?,
+            Step::Hover { at } => self.gesture(runtime, &gesture::hover(*at, now))?,
             Step::Drag { from, to, tool } => {
                 let points = [[from[0], from[1], 1.0], [to[0], to[1], 1.0]];
                 self.gesture(runtime, &gesture::path(*tool, &points, now))?;

@@ -14,7 +14,7 @@
 //! }
 //! ```
 //!
-//! Positions are window pixels, as the host delivers them; the top bar is part of the screen.
+//! Positions are window pixels, as the host delivers them; the islands are part of the screen.
 
 use std::collections::HashSet;
 
@@ -75,6 +75,9 @@ pub enum Step {
         #[serde(default)]
         before_lift: Option<String>,
     },
+    /// The pen hovers just above the glass at `at`, touching nothing; it stays there until the
+    /// next contact.
+    Hover { at: [f32; 2] },
     /// Fingers touch down at `from`, move together straight to `to` (default: stay) over `ms`
     /// (default 64), and lift: two fingers apart or together pinch, turned they rotate, moved
     /// alike they pan; fingers that stay tap.

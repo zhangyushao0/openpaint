@@ -9,7 +9,7 @@ use egui::{Color32, Mesh, Pos2, Rect, Sense, Shape, Stroke, Vec2, WidgetInfo, Wi
 use openpaint_app::Hsv;
 
 use crate::components::swatch::color32;
-use crate::design::{CHROME, HUE_RING, ON_CHROME, SPACE};
+use crate::design::{HUE_RING, INK, PANEL, SPACE};
 
 /// Steps around the ring and across the square; enough that the shading looks smooth.
 const RING_STEPS: usize = 96;
@@ -154,8 +154,8 @@ fn paint(ui: &egui::Ui, shape: &Geometry, hsv: Hsv) {
         square.bottom() - hsv.v * square.height(),
     );
     for centre in [ring, spot] {
-        painter.circle_stroke(centre, MARKER, Stroke::new(3.0, CHROME));
-        painter.circle_stroke(centre, MARKER, Stroke::new(1.5, ON_CHROME));
+        painter.circle_stroke(centre, MARKER, Stroke::new(4.0, PANEL));
+        painter.circle_stroke(centre, MARKER, Stroke::new(1.5, INK));
     }
 }
 

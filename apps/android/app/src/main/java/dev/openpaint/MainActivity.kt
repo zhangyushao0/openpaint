@@ -39,6 +39,7 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handle = Native.create(density(), filesDir.absolutePath, cacheDir.absolutePath)
+        Native.fonts(handle, SystemFonts.latin(), SystemFonts.chinese())
         view = CanvasView(this)
         view.handle = handle
         view.onInput = { requestFrame() }

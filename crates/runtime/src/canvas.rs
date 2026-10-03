@@ -7,9 +7,10 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, RegionMask};
 use openpaint_render::{
-    CanvasPlacement, CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, changed_regions,
+    BrushCursor, CanvasPlacement, CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator,
+    changed_regions,
 };
-use openpaint_ui::ScreenArea;
+use openpaint_ui::{CanvasArea, ScreenArea};
 
 use crate::error::RuntimeError;
 
@@ -54,15 +55,16 @@ pub(crate) struct Canvas {
 }
 
 impl Canvas {
-    /// `content` shown at fit; a blank artwork is the size of `area`; strokes start with the
-    /// toolbox's brush and StreamLine. `None` while the area is empty. Later area changes
-    /// (rotation) refit the view, which is relative to fit, and never resize the canvas.
+    /// `content` shown at fit; a blank artwork is the size of the area it fits in; strokes
+    /// start with the toolbox's brush and StreamLine. `None` while the area is empty. Later area
+    /// changes (rotation) refit the view, which is relative to fit, and never resize the canvas.
     pub(crate) fn open(
         core: &Core,
-        area: &ScreenArea,
+        area: &CanvasArea,
         content: &Content,
         toolbox: &Toolbox,
     ) -> Result<Option<Self>, RuntimeError> {
+        let area = &area.fit;
         if area.size.contains(&0) {
             return Ok(None);
         }
@@ -219,20 +221,22 @@ impl Canvas {
     }
 
     /// The target shown in the canvas area through the session's view, on a screen of
-    /// `pixels_per_point`.
+    /// `pixels_per_point`, with the pen's hover outline when it shows.
     pub(crate) fn placement(
         &self,
-        area: &ScreenArea,
+        area: &CanvasArea,
         pixels_per_point: f32,
+        cursor: Option<BrushCursor>,
     ) -> CanvasPlacement<'_> {
         let canvas = self.session.artwork().canvas();
         let viewport = area.viewport(pixels_per_point);
         let mapping = self.session.view().mapping(canvas, &viewport);
         CanvasPlacement {
             target: &self.target,
-            origin: area.origin,
-            size: area.size,
+            origin: area.screen.origin,
+            size: area.screen.size,
             to_canvas: mapping.to_canvas_rows(),
+            cursor,
         }
     }
 

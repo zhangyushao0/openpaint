@@ -19,7 +19,8 @@ use openpaint_core::Artwork;
 use openpaint_render::{
     Core, RenderError, RgbaImage, ScreenPainter, ScreenTarget, Surface, SurfaceWindow, UiFrame,
 };
-use openpaint_ui::{Shell, design};
+use openpaint_ui::Shell;
+use openpaint_ui::design::{self, TextFonts};
 
 use crate::canvas::Leaving;
 use crate::clock::InputClock;
@@ -110,6 +111,12 @@ impl Runtime {
             typed: Vec::new(),
             keyboard: false,
         })
+    }
+
+    /// The host's text faces: its system's sans and a face with the Chinese characters, read
+    /// from the system's font files. Call before the first frame.
+    pub fn set_text_fonts(&mut self, fonts: TextFonts) {
+        design::install_text_fonts(&self.ui, fonts);
     }
 
     /// The host's window exists, `size` pixels large. Replaces any previous window.

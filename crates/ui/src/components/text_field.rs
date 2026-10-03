@@ -1,9 +1,9 @@
 //! The text field: one line of text, one touch target high, across its panel. Focused, it asks
 //! the host for the keyboard (egui's IME output); Enter ends the edit.
 
-use egui::{TextEdit, TextStyle, Vec2};
+use egui::{Color32, TextEdit, TextStyle, Vec2};
 
-use crate::design::{PRESSED, SPACE, TOUCH_TARGET};
+use crate::design::{SPACE, TOUCH_TARGET};
 
 /// What the field did this frame.
 pub struct FieldResponse {
@@ -29,7 +29,7 @@ pub fn text_field(
         .desired_width(f32::INFINITY)
         .min_size(Vec2::new(0.0, TOUCH_TARGET))
         .margin(Vec2::new(2.0 * SPACE, SPACE))
-        .background_color(PRESSED)
+        .background_color(Color32::WHITE)
         .vertical_align(egui::Align::Center)
         .show(ui);
     let response = output.response.response;

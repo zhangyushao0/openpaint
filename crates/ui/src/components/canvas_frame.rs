@@ -1,8 +1,12 @@
 //! The canvas frame: the screen area that shows the canvas and owns the contacts that touch
-//! down in it (`CanvasInput`). It paints nothing, so the renderer's canvas shows through, and
-//! nothing covers it while a stroke is possible.
+//! down in it (`CanvasInput`): the whole screen, with the islands floating over it. It paints
+//! nothing, so the renderer's canvas shows through, and nothing covers it while a stroke is
+//! possible. The canvas fits into the area under the top band, so at fit the top islands lie on
+//! the desk above it.
 
 use openpaint_app::Viewport;
+
+use crate::components::TOP_BAND;
 
 /// A rectangle of screen pixels: `origin` is its top-left pixel.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,7 +35,7 @@ impl ScreenArea {
         (left..left + width).contains(&x) && (top..top + height).contains(&y)
     }
 
-    /// This area as the view's viewport on a screen of `pixels_per_point`.
+    /// This area as a view's viewport on a screen of `pixels_per_point`.
     #[must_use]
     pub fn viewport(&self, pixels_per_point: f32) -> Viewport {
         Viewport {
@@ -39,6 +43,35 @@ impl ScreenArea {
             size: self.size.map(|side| side as f32),
             pixels_per_point,
         }
+    }
+}
+
+/// Where the canvas shows and where it fits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CanvasArea {
+    /// Where the canvas shows and takes the contacts that touch down outside every control.
+    pub screen: ScreenArea,
+    /// Where the view's fit places the canvas: the screen under the top band. A blank artwork
+    /// of "Screen size" is this large.
+    pub fit: ScreenArea,
+}
+
+impl CanvasArea {
+    /// The canvas area for `rect` (points) on a screen of `pixels_per_point`.
+    #[must_use]
+    pub fn from_points(rect: egui::Rect, pixels_per_point: f32) -> Self {
+        let mut under = rect;
+        under.min.y += TOP_BAND;
+        Self {
+            screen: ScreenArea::from_points(rect, pixels_per_point),
+            fit: ScreenArea::from_points(under, pixels_per_point),
+        }
+    }
+
+    /// The view's viewport: the fit area.
+    #[must_use]
+    pub fn viewport(&self, pixels_per_point: f32) -> Viewport {
+        self.fit.viewport(pixels_per_point)
     }
 }
 
@@ -60,6 +93,15 @@ mod tests {
         assert_eq!(area.origin, [0, 84]);
         assert_eq!(area.size, [2880, 1716]);
         assert!(area.contains([0.0, 84.0]) && !area.contains([0.0, 83.9]));
+        assert_eq!(area.viewport(1.75).size, [2880.0, 1716.0]);
+    }
+
+    #[test]
+    fn the_canvas_shows_on_the_whole_screen_and_fits_under_the_top_band() {
+        let screen = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1645.7, 1028.6));
+        let area = CanvasArea::from_points(screen, 1.75);
+        assert_eq!(area.screen.size, [2880, 1800]);
+        assert_eq!(area.fit.origin, [0, 84]);
         assert_eq!(area.viewport(1.75).size, [2880.0, 1716.0]);
     }
 }

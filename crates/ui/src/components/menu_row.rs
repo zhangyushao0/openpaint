@@ -4,9 +4,7 @@
 
 use egui::{Align2, Sense, TextStyle, Vec2, WidgetInfo, WidgetType};
 
-use crate::design::{
-    CORNER, ON_CHROME, ON_CHROME_DISABLED, ON_CHROME_SECONDARY, PRESSED, SPACE, TOUCH_TARGET,
-};
+use crate::design::{INK, INK_DISABLED, INK_SECONDARY, SPACE, TOUCH_TARGET, paint_pressed};
 
 /// Shows a row reading `label`, with `note` (empty for none) at its right end.
 pub fn menu_row(ui: &mut egui::Ui, label: &str, note: &str, enabled: bool) -> egui::Response {
@@ -23,12 +21,12 @@ pub fn menu_row(ui: &mut egui::Ui, label: &str, note: &str, enabled: bool) -> eg
     }
     let painter = ui.painter();
     if enabled && response.is_pointer_button_down_on() {
-        painter.rect_filled(rect.shrink2(Vec2::new(0.0, SPACE / 4.0)), CORNER, PRESSED);
+        paint_pressed(painter, rect.shrink2(Vec2::new(0.0, SPACE / 4.0)));
     }
     let (text, quiet) = if enabled {
-        (ON_CHROME, ON_CHROME_SECONDARY)
+        (INK, INK_SECONDARY)
     } else {
-        (ON_CHROME_DISABLED, ON_CHROME_DISABLED)
+        (INK_DISABLED, INK_DISABLED)
     };
     let font = TextStyle::Body.resolve(ui.style());
     let left = rect.left_center() + Vec2::new(2.0 * SPACE, 0.0);
@@ -46,5 +44,5 @@ pub fn section(ui: &mut egui::Ui, title: &str) {
     let font = TextStyle::Small.resolve(ui.style());
     let at = rect.left_bottom() + Vec2::new(2.0 * SPACE, -SPACE);
     ui.painter()
-        .text(at, Align2::LEFT_BOTTOM, title, font, ON_CHROME_SECONDARY);
+        .text(at, Align2::LEFT_BOTTOM, title, font, INK_SECONDARY);
 }

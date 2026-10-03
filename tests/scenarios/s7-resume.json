@@ -24,7 +24,7 @@
     { "checkpoint": { "name": "reopened", "canvas": "c86c38a17b3b0164" } },
     { "screenshot": { "name": "back-again" } },
     { "stroke": { "points": [[600, 1550, 0.4], [1600, 1600, 0.9], [2300, 1500, 0.5]] } },
-    { "tap": { "at": [70, 1271] } },
+    { "tap": { "at": [70, 1315] } },
     { "checkpoint": { "name": "undone", "canvas": "c86c38a17b3b0164" } },
     "restart",
     { "checkpoint": { "name": "undo-kept", "canvas": "c86c38a17b3b0164" } },

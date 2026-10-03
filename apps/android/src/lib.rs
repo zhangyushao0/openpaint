@@ -6,6 +6,7 @@
 //! JNI is Android-only; the motion decoding and the pen latency probe are plain Rust and
 //! tested on the host.
 
+pub mod fonts;
 pub mod keys;
 pub mod latency;
 pub mod motion;

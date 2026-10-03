@@ -1,8 +1,8 @@
-//! What the top bar tells on the canvas, one thing at a time, most urgent first: a failed save
-//! or open (with Retry or OK), a refused or failed fill (with OK), then exporting (working,
-//! saved, failed), then the reference image
-//! (opening, failed). Running work shows a spinner and asks nothing; a result waits for OK. The
-//! messages are the user-facing form of the app's typed errors.
+//! What the canvas tells in a pill in the top band, one thing at a time, most urgent first: a
+//! failed save or open (with Retry or OK), a refused or failed fill (with OK), then exporting
+//! (working, saved, failed), then the reference image (opening, failed). Running work shows a
+//! spinner and asks nothing; a result waits for OK. The messages are the user-facing form of the
+//! app's typed errors. At fit the pill lies on the desk above the canvas.
 
 use openpaint_app::{
     Delivery, EditorAction, ExportError, ExportIntent, ExportNotice, FillIntent, FillRefusal,
@@ -10,73 +10,53 @@ use openpaint_app::{
     StorageNotice,
 };
 
-use crate::components::{confirmation, notice, status};
+use crate::components::{Place, confirmation, notice, pill, status};
 
-/// The notice for `projection`, if any, at the right end of the current row; its taps go to
-/// `taps`.
-pub(crate) fn top_bar_notice(
-    ui: &mut egui::Ui,
-    projection: &SessionProjection,
-    taps: &mut Vec<Intent>,
-) {
-    if storage(ui, projection, taps) || fill(ui, projection, taps) {
-        return;
-    }
-    let Some(transfers) = projection.transfers() else {
-        return;
-    };
-    let ok = |ui: &mut egui::Ui, message: &str, intent: Intent, taps: &mut Vec<Intent>| {
-        if notice(ui, message, "OK", true).clicked() && taps.last() != Some(&intent) {
-            taps.push(intent);
-        }
-    };
-    let dismiss_export = Intent::Export(ExportIntent::Dismiss);
-    match &transfers.export {
-        ExportNotice::Working { format, delivery } => {
-            let doing = match delivery {
-                Delivery::Save => "Saving",
-                Delivery::Share => "Preparing",
-            };
-            status(ui, &format!("{doing} {}…", format.name()));
-            return;
-        }
-        ExportNotice::Saved { name } => {
-            let message = format!("Saved “{name}”.");
-            if confirmation(ui, &message).clicked() && taps.last() != Some(&dismiss_export) {
-                taps.push(dismiss_export);
-            }
-            return;
-        }
-        ExportNotice::Failed {
-            format,
-            delivery,
-            error,
-        } => {
-            let message = export_failed(format.name(), *delivery, error);
-            return ok(ui, &message, dismiss_export, taps);
-        }
-        ExportNotice::None => {}
-    }
-    match &transfers.reference_notice {
-        ReferenceNotice::Opening => status(ui, "Opening the image…"),
-        ReferenceNotice::Failed(error) => {
-            let message = format!("Couldn't open the image: {}", image_failed(error));
-            ok(
-                ui,
-                &message,
-                Intent::Reference(ReferenceIntent::Dismiss),
-                taps,
-            );
-        }
-        ReferenceNotice::None => {}
-    }
+/// One thing to tell.
+enum Told {
+    /// Work running in the background.
+    Running(String),
+    /// Something went wrong: the message, the answer's label, whether it can be given now, and
+    /// what giving it asks for.
+    Failed(String, &'static str, bool, Intent),
+    /// Work that succeeded, dismissed with OK.
+    Done(String, Intent),
 }
 
-/// The notice for a failed save (with Retry) or a failed open (with OK). Returns whether one
-/// showed.
-fn storage(ui: &mut egui::Ui, projection: &SessionProjection, taps: &mut Vec<Intent>) -> bool {
+/// The pill for `projection`, if there is something to tell, at `place`; its taps go to
+/// `taps`. Returns its rectangle in points.
+pub(crate) fn notice_pill(
+    ctx: &egui::Context,
+    projection: &SessionProjection,
+    place: Place,
+    taps: &mut Vec<Intent>,
+) -> Option<egui::Rect> {
+    let told = storage(projection)
+        .or_else(|| fill(projection))
+        .or_else(|| transfers(projection))?;
+    let (tapped, rect) = pill(ctx, "notice", place, |ui| match told {
+        Told::Running(message) => {
+            status(ui, &message);
+            None
+        }
+        Told::Failed(message, action, enabled, intent) => notice(ui, &message, action, enabled)
+            .clicked()
+            .then_some(intent),
+        Told::Done(message, intent) => confirmation(ui, &message).clicked().then_some(intent),
+    });
+    // egui may run a pass twice; one tap is sent once.
+    if let Some(intent) = tapped
+        && taps.last() != Some(&intent)
+    {
+        taps.push(intent);
+    }
+    Some(rect)
+}
+
+/// A failed save (with Retry) or a failed open (with OK).
+fn storage(projection: &SessionProjection) -> Option<Told> {
     let (message, action, editor_action, intent) = match projection.storage() {
-        StorageNotice::None => return false,
+        StorageNotice::None => return None,
         StorageNotice::SaveFailed { retrying: false } => (
             "Couldn't save. Your drawing is still here.",
             "Retry",
@@ -97,26 +77,62 @@ fn storage(ui: &mut egui::Ui, projection: &SessionProjection, taps: &mut Vec<Int
         ),
     };
     let enabled = projection.availability(editor_action).is_available();
-    if notice(ui, message, action, enabled).clicked() {
-        taps.push(Intent::Storage(intent));
-    }
-    true
+    Some(Told::Failed(
+        message.to_owned(),
+        action,
+        enabled,
+        Intent::Storage(intent),
+    ))
 }
 
-/// The notice for a refused or failed fill, with OK. Returns whether one showed.
-fn fill(ui: &mut egui::Ui, projection: &SessionProjection, taps: &mut Vec<Intent>) -> bool {
+/// A refused or failed fill, with OK.
+fn fill(projection: &SessionProjection) -> Option<Told> {
     let fill = projection.fill();
     let message = match (fill.refused, fill.failed) {
         (Some(FillRefusal::Hidden), _) => "Can't fill: the layer is hidden.",
         (Some(FillRefusal::Locked), _) => "Can't fill: the layer is locked.",
         (None, true) => "Couldn't fill there. Try again.",
-        (None, false) => return false,
+        (None, false) => return None,
     };
     let dismiss = Intent::Fill(FillIntent::Cancel);
-    if notice(ui, message, "OK", true).clicked() && taps.last() != Some(&dismiss) {
-        taps.push(dismiss);
+    Some(Told::Failed(message.to_owned(), "OK", true, dismiss))
+}
+
+/// Exporting, then the reference image.
+fn transfers(projection: &SessionProjection) -> Option<Told> {
+    let transfers = projection.transfers()?;
+    let dismiss_export = Intent::Export(ExportIntent::Dismiss);
+    match &transfers.export {
+        ExportNotice::Working { format, delivery } => {
+            let doing = match delivery {
+                Delivery::Save => "Saving",
+                Delivery::Share => "Preparing",
+            };
+            return Some(Told::Running(format!("{doing} {}…", format.name())));
+        }
+        ExportNotice::Saved { name } => {
+            return Some(Told::Done(format!("Saved “{name}”."), dismiss_export));
+        }
+        ExportNotice::Failed {
+            format,
+            delivery,
+            error,
+        } => {
+            let message = export_failed(format.name(), *delivery, error);
+            return Some(Told::Failed(message, "OK", true, dismiss_export));
+        }
+        ExportNotice::None => {}
     }
-    true
+    match &transfers.reference_notice {
+        ReferenceNotice::Opening => Some(Told::Running("Opening the image…".to_owned())),
+        ReferenceNotice::Failed(error) => Some(Told::Failed(
+            format!("Couldn't open the image: {}", image_failed(error)),
+            "OK",
+            true,
+            Intent::Reference(ReferenceIntent::Dismiss),
+        )),
+        ReferenceNotice::None => None,
+    }
 }
 
 fn export_failed(format: &str, delivery: Delivery, error: &ExportError) -> String {

@@ -1,6 +1,6 @@
 //! The brush picker's previews: each brush draws one S-shaped stroke through the product
-//! evaluator, so a preview shows exactly what the brush paints: light ink on the panel's grey,
-//! which the panel turns into ink and alpha.
+//! evaluator, so a preview shows exactly what the brush paints: black on white, which the panel
+//! turns into its ink and alpha.
 
 use std::f32::consts::{PI, TAU};
 use std::sync::Arc;
@@ -45,21 +45,21 @@ fn preview(core: &Core, brush: &Brush, size: [u32; 2]) -> Result<RgbaImage, Runt
     let request = FrameRequest {
         artwork: &artwork,
         active: None,
-        background: gray(design::CHROME.r())?,
+        background: gray(255)?,
     };
     RegionEvaluator::new(core, &mut target).evaluate(&request, &[PixelRect::full(size)])?;
     Ok(target.read(core)?)
 }
 
-/// A blank artwork of `size` with one S-shaped stroke across it, light on the panel's grey,
-/// its pressure rising and falling again.
+/// A blank artwork of `size` with one S-shaped stroke across it, black on white, its pressure
+/// rising and falling again.
 fn stroke(brush: &Brush, [width, height]: [u32; 2]) -> Result<Artwork, CoreError> {
     let (width, height) = (width as f32, height as f32);
     let diameter = brush
         .size()
         .default
         .clamp(THINNEST_SHARE * height, HEIGHT_SHARE * height);
-    let ink = gray(design::ON_CHROME.r())?;
+    let ink = gray(0)?;
     let style = StrokeStyle::new(Arc::clone(brush.recipe()), diameter, brush.opacity(), ink)?;
     let margin = 0.5 * height;
     let samples = (0..SAMPLES)

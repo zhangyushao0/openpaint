@@ -15,12 +15,12 @@ use openpaint_app::{
 };
 use openpaint_core::CanvasSize;
 
-use crate::components::ScreenArea;
+use crate::components::{CanvasArea, ScreenArea};
 
 /// What routing one frame's contacts needs to know.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct CanvasFrame<'a> {
-    pub(crate) area: ScreenArea,
+    pub(crate) area: CanvasArea,
     /// Controls over the canvas: a contact touching down on one is never the canvas's.
     pub(crate) covers: &'a [ScreenArea],
     /// The open artwork's size and how it is viewed.
@@ -46,7 +46,7 @@ impl CanvasFrame<'_> {
 
     /// True when the screen point `at` lies in the canvas area outside every control.
     pub(crate) fn open(&self, at: [f32; 2]) -> bool {
-        self.area.contains(at) && !self.covers.iter().any(|cover| cover.contains(at))
+        self.area.screen.contains(at) && !self.covers.iter().any(|cover| cover.contains(at))
     }
 }
 
@@ -56,6 +56,10 @@ pub(crate) struct CanvasInput {
     gestures: Gestures,
     /// When the view last moved, by the input clock.
     navigated_ms: Option<i64>,
+    /// Fingers on the glass now.
+    fingers: Vec<i32>,
+    /// Where the pen hovers over open canvas (screen pixels), while no finger is down.
+    hover: Option<[f32; 2]>,
 }
 
 impl CanvasInput {
@@ -66,6 +70,7 @@ impl CanvasInput {
         let mut touches = Vec::new();
         let mut pen = false;
         for contact in batches.iter().flat_map(|batch| &batch.contacts) {
+            self.follow(contact, frame);
             let first = contact.samples.first().map(|sample| sample.position);
             let open =
                 contact.phase == ContactPhase::Down && first.is_some_and(|at| frame.open(at));
@@ -124,6 +129,38 @@ impl CanvasInput {
             let viewport = frame.viewport();
             intents.push(Intent::View(ViewIntent::Gesture { gesture, viewport }));
         }
+    }
+
+    /// Keeps the fingers down and where the pen hovers: over open canvas, with no finger down
+    /// and the eyedropper off; any other contact of the pen hides it.
+    fn follow(&mut self, contact: &Contact, frame: &CanvasFrame<'_>) {
+        if contact.device == Device::Finger {
+            match contact.phase {
+                ContactPhase::Down if !self.fingers.contains(&contact.id) => {
+                    self.fingers.push(contact.id);
+                }
+                ContactPhase::Up | ContactPhase::Cancel => {
+                    self.fingers.retain(|id| *id != contact.id);
+                }
+                _ => {}
+            }
+            if !self.fingers.is_empty() {
+                self.hover = None;
+            }
+            return;
+        }
+        let at = contact.samples.last().map(|sample| sample.position);
+        self.hover = at.filter(|at| {
+            contact.phase == ContactPhase::Hover
+                && self.fingers.is_empty()
+                && !frame.picking
+                && frame.open(*at)
+        });
+    }
+
+    /// Where the pen hovers over open canvas, in screen pixels.
+    pub(crate) const fn hover(&self) -> Option<[f32; 2]> {
+        self.hover
     }
 
     /// The input clock when the view last moved, while it may still be on the move.

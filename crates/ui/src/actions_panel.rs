@@ -1,5 +1,5 @@
 //! The Actions panel (Procreate's Actions menu, reduced to what exists): the spanner right of
-//! Gallery at the top bar's left end opens it as a popover under it. Header "Actions"; under
+//! Gallery in the left island opens it as a popover under it. Header "Actions"; under
 //! "Share", saving the artwork as a PNG or JPEG file where the user chooses and sending it to
 //! another app; under "Canvas", the Reference switch that shows the floating reference window
 //! and the row that chooses its image. A row that opens a system dialog closes the panel; the
@@ -29,7 +29,7 @@ pub(crate) struct ActionsPanel {
 }
 
 impl ActionsPanel {
-    /// The Actions button, inside the top bar. Returns whether it opened the panel.
+    /// The Actions button, in the left island. Returns whether it opened the panel.
     pub(crate) fn button(&mut self, ui: &mut egui::Ui) -> bool {
         if icon_toggle(ui, Icon::Actions, "Actions", self.open).clicked() {
             self.open = !self.open;

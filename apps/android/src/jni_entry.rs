@@ -12,10 +12,11 @@ use jni::objects::{
 };
 use jni::sys::{jboolean, jfloat, jint, jlong};
 use jni::{Env, EnvUnowned};
-use openpaint_runtime::Runtime;
+use openpaint_runtime::{Runtime, TextFonts};
 use openpaint_store::Library;
 
 use crate::error::HostError;
+use crate::fonts::read_face;
 use crate::latency::PenLatency;
 use crate::motion::{RawMotion, decode};
 use crate::transfer::Pick;
@@ -88,6 +89,42 @@ pub extern "system" fn Java_dev_openpaint_Native_create<'local>(
         Ok(Box::into_raw(Box::new(host)) as jlong)
     })
     .resolve::<LogErrorAndDefault>()
+}
+
+/// The system's text faces, each "<index>\n<path>" or null when the Kotlin host found none:
+/// the regular sans and the regular Simplified Chinese face. Called once, before the first
+/// frame; a face that cannot be read is logged and left out.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_openpaint_Native_fonts<'local>(
+    mut env: EnvUnowned<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+    latin: JString<'local>,
+    cjk: JString<'local>,
+) {
+    env.with_env(|env| -> Result<(), HostError> {
+        let Some(runtime) = runtime(handle) else {
+            return Ok(());
+        };
+        let face = |line: &JString<'local>, what: &str| -> Result<_, HostError> {
+            if line.is_null() {
+                log::warn!("no system {what} face");
+                return Ok(None);
+            }
+            let line = line.try_to_string(env)?;
+            Ok(read_face(&line)
+                .inspect(|face| log::info!("{what} face: {} bytes", face.bytes.len()))
+                .inspect_err(|error| log::error!("{what} face unreadable: {error}"))
+                .ok())
+        };
+        let fonts = TextFonts {
+            latin: face(&latin, "Latin")?,
+            cjk: face(&cjk, "Chinese")?,
+        };
+        runtime.set_text_fonts(fonts);
+        Ok(())
+    })
+    .resolve::<LogErrorAndDefault>();
 }
 
 /// The user leaves the app (`onPause`): waits briefly for the current version to be stored.

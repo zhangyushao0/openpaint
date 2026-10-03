@@ -34,7 +34,7 @@ pub(crate) struct DropFrame {
     pub(crate) color: Option<Color>,
     /// The threshold a new drop starts with.
     pub(crate) threshold: f32,
-    /// The bar under the top bar, which the drop's contacts never start on.
+    /// The fill bar in the top band, which the drop's contacts never start on.
     pub(crate) bar: Option<ScreenArea>,
 }
 
@@ -69,7 +69,7 @@ pub(crate) struct ColorDrop {
     offered: bool,
 }
 
-/// What the bar under the top bar shows.
+/// What the fill bar shows.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum DropBar {
     /// A drop is carried; with the threshold once it is anchored.
@@ -209,7 +209,7 @@ impl ColorDrop {
         }
     }
 
-    /// What the bar under the top bar shows, if anything.
+    /// What the fill bar shows, if anything.
     pub(crate) fn bar(&self) -> Option<DropBar> {
         if let Some(drag) = self.drag.as_ref().filter(|drag| drag.active) {
             return Some(DropBar::Dropping(drag.sent.map(|(_, threshold)| threshold)));

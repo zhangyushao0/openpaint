@@ -1,8 +1,10 @@
-//! The side bar: a narrow column over the canvas at the left edge, centred on it (Procreate's
+//! The side bar: a narrow island over the canvas at the left edge, centred on it (Procreate's
 //! default place), with what the hand reaches for most while drawing: the brush size slider on
-//! top, the eyedropper, the opacity slider, then undo and redo. Each slider shows its value
-//! beside the bar while it is held; letting go keeps the value for the current tool's brush. A
-//! contact starting on the bar never paints.
+//! top, the eyedropper, the opacity slider, then undo and redo. Each slider says what it sets by
+//! the marks at its ends (a small and a large dot; a faint and a solid disc) and, under the
+//! hovering pen, its name; while it is held, a bubble beside the bar shows the value with the
+//! brush's circle at its real size on the canvas or a swatch at that opacity. Letting go keeps
+//! the value for the current tool's brush. A contact starting on the bar never paints.
 
 use openpaint_app::{
     BrushIntent, BrushProjection, EditorAction, HistoryIntent, Intent, SessionProjection,
@@ -10,7 +12,8 @@ use openpaint_app::{
 };
 
 use crate::components::{
-    ScreenArea, SideSlider, TOP_BAR_HEIGHT, icon_button, icon_toggle, side_panel, side_slider,
+    Preview, ScreenArea, SideSlider, UNDER_ISLANDS, color32, icon_button, icon_toggle, side_panel,
+    side_slider, side_slider_height,
 };
 use crate::design::{Icon, SIDE_SLIDER, SPACE, TOUCH_TARGET};
 
@@ -19,6 +22,9 @@ const HISTORY_BUTTONS: [(Icon, &str, EditorAction, HistoryIntent); 2] = [
     (Icon::Undo, "Undo", EditorAction::Undo, HistoryIntent::Undo),
     (Icon::Redo, "Redo", EditorAction::Redo, HistoryIntent::Redo),
 ];
+/// Between the side bar's parts: one around the eyedropper, a double one after the sliders, one
+/// between the history buttons, in points.
+const GAPS: f32 = 5.0 * SPACE;
 
 #[derive(Debug, Default)]
 pub(crate) struct SideBar {
@@ -27,19 +33,22 @@ pub(crate) struct SideBar {
 }
 
 impl SideBar {
+    /// The bar for `projection`; `scale` is screen pixels per canvas pixel now, for the size
+    /// preview.
     pub(crate) fn show(
         &mut self,
         ctx: &egui::Context,
         projection: &SessionProjection,
+        scale: f32,
         taps: &mut Vec<Intent>,
     ) {
         let length = slider_length(ctx.content_rect().height());
-        // Two sliders, the gaps (one around the eyedropper, a double one after the sliders, one
-        // between the history buttons), three buttons and the margins.
-        let height = 2.0 * length + 5.0 * SPACE + 3.0 * TOUCH_TARGET + 2.0 * SPACE;
+        // Two sliders, the gaps, three buttons and the margins.
+        let height = 2.0 * side_slider_height(length) + GAPS + 3.0 * TOUCH_TARGET + 2.0 * SPACE;
         let rect = side_panel(ctx, "side bar", height, |ui| {
             if let Some(brush) = projection.brush() {
-                sliders(ui, brush, length, taps);
+                let screen = scale / ctx.pixels_per_point();
+                sliders(ui, brush, (length, screen), taps);
                 ui.add_space(SPACE);
             }
             for (icon, label, action, intent) in HISTORY_BUTTONS {
@@ -64,21 +73,34 @@ impl SideBar {
     }
 }
 
-/// Each slider's length on a screen `height` points tall: `SIDE_SLIDER` where the bar fits
-/// under the top bar with a space around it, shorter (never under two touch targets) where it
-/// would not.
+/// Each slider's track length on a screen `height` points tall: `SIDE_SLIDER` where the bar fits
+/// between the top islands and a space above the bottom edge, shorter (never under one touch
+/// target) where it would not.
 fn slider_length(height: f32) -> f32 {
-    // Around the sliders: the space outside the bar, its margins, the gaps between its parts
-    // and its three buttons.
-    let around = 2.0 * SPACE + 2.0 * SPACE + 5.0 * SPACE + 3.0 * TOUCH_TARGET;
-    ((height - TOP_BAR_HEIGHT - around) / 2.0).clamp(2.0 * TOUCH_TARGET, SIDE_SLIDER)
+    // Around the tracks: the space under the bar, its margins, the gaps, the end marks and the
+    // three buttons.
+    let around = 3.0 * SPACE + GAPS + 2.0 * side_slider_height(0.0) + 3.0 * TOUCH_TARGET;
+    ((height - UNDER_ISLANDS - around) / 2.0).clamp(TOUCH_TARGET, SIDE_SLIDER)
 }
 
-fn sliders(ui: &mut egui::Ui, brush: &BrushProjection, length: f32, taps: &mut Vec<Intent>) {
+/// The size and opacity sliders with the eyedropper between them; `points` is screen points
+/// per canvas pixel now.
+fn sliders(
+    ui: &mut egui::Ui,
+    brush: &BrushProjection,
+    (length, points): (f32, f32),
+    taps: &mut Vec<Intent>,
+) {
+    let color = color32(brush.color);
     let size = SideSlider {
         label: "Brush size",
         value: brush.size_position,
         shown: &pixels(brush.size),
+        ends: [Icon::SizeSmall, Icon::SizeLarge],
+        preview: Preview::Size {
+            diameter: brush.size * points,
+            color,
+        },
         enabled: true,
         length,
     };
@@ -104,6 +126,11 @@ fn sliders(ui: &mut egui::Ui, brush: &BrushProjection, length: f32, taps: &mut V
         label: "Brush opacity",
         value: brush.opacity,
         shown: &format!("{} %", (brush.opacity * 100.0).round()),
+        ends: [Icon::OpacityLight, Icon::OpacityDark],
+        preview: Preview::Opacity {
+            color,
+            opacity: brush.opacity,
+        },
         enabled: true,
         length,
     };

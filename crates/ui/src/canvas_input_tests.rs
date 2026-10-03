@@ -9,7 +9,10 @@ const AREA: ScreenArea = ScreenArea {
 /// A canvas as large as the area, so at fit it shows at 0.92 around the area's centre.
 fn frame(covers: &[ScreenArea]) -> CanvasFrame<'_> {
     CanvasFrame {
-        area: AREA,
+        area: CanvasArea {
+            screen: AREA,
+            fit: AREA,
+        },
         covers,
         canvas: CanvasSize::new(400, 300).expect("size"),
         view: CanvasView::FIT,
@@ -93,7 +96,7 @@ fn the_pen_is_owned_until_it_lifts_and_lands_on_the_canvas_through_the_view() {
     let mut input = CanvasInput::default();
     let batches = [
         pen(1, ContactPhase::Down, 100.0, 200.0),
-        // Moving over the top bar keeps drawing.
+        // Moving out of the area keeps drawing.
         pen(1, ContactPhase::Move, 112.0, 20.0),
         pen(1, ContactPhase::Up, 114.0, 190.0),
         pen(1, ContactPhase::Move, 116.0, 220.0),
@@ -113,7 +116,7 @@ fn the_pen_draws_nothing_from_outside_the_canvas_or_the_area() {
         pen(2, ContactPhase::Down, 5.0, 200.0),
         pen(2, ContactPhase::Move, 100.0, 200.0),
         pen(2, ContactPhase::Up, 100.0, 210.0),
-        // The top bar.
+        // Above the area.
         pen(3, ContactPhase::Down, 100.0, 40.0),
         pen(4, ContactPhase::Down, 500.0, 200.0),
     ];
@@ -179,6 +182,36 @@ fn a_pinch_moves_the_view_until_the_fingers_lift() {
     let lifted = input.route(&frame(&[]), &[fingers(ContactPhase::Up, &spread)]);
     assert!(lifted.is_empty(), "a pinch is no tap: {lifted:?}");
     assert_eq!(input.navigated(), Some(0), "stopped at the input clock's 0");
+}
+
+#[test]
+fn the_hovering_pen_shows_over_open_canvas_only_and_never_with_a_finger_down() {
+    let mut input = CanvasInput::default();
+    let island = ScreenArea {
+        origin: [300, 84],
+        size: [100, 50],
+    };
+    let covered = frame(std::slice::from_ref(&island));
+    let hover = |x, y| pen(1, ContactPhase::Hover, x, y);
+    input.route(&covered, &[hover(150.0, 200.0)]);
+    assert_eq!(input.hover(), Some([150.0, 200.0]), "over open canvas");
+    input.route(&covered, &[hover(350.0, 100.0)]);
+    assert_eq!(input.hover(), None, "over a control");
+    input.route(&covered, &[hover(150.0, 200.0)]);
+    input.route(&covered, &[fingers(ContactPhase::Down, &[[50.0, 250.0]])]);
+    input.route(&covered, &[hover(160.0, 200.0)]);
+    assert_eq!(input.hover(), None, "with a finger down");
+    input.route(&covered, &[fingers(ContactPhase::Up, &[[50.0, 250.0]])]);
+    input.route(&covered, &[hover(160.0, 200.0)]);
+    assert_eq!(input.hover(), Some([160.0, 200.0]), "the finger lifted");
+    input.route(&covered, &[pen(1, ContactPhase::Down, 160.0, 200.0)]);
+    assert_eq!(
+        input.hover(),
+        None,
+        "touching down: the stroke shows instead"
+    );
+    input.route(&covered, &[pen(1, ContactPhase::Leave, 160.0, 200.0)]);
+    assert_eq!(input.hover(), None, "gone");
 }
 
 #[test]

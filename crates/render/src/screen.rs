@@ -10,18 +10,30 @@ use crate::image::RgbaImage;
 use crate::readback::{offscreen_texture, read_rgba};
 
 const SHADER: &str = include_str!("shaders/blit.wgsl");
-/// Bytes of the view uniform: two rows of four floats.
-pub(crate) const VIEW_BYTES: u64 = 32;
+/// Bytes of the view uniform: four rows of four floats (the map's two rows, the cursor, the
+/// surround).
+pub(crate) const VIEW_BYTES: u64 = 64;
 
 /// Where a canvas target shows on screen: the canvas area it is clipped to (top-left corner and
-/// size in screen pixels) and the view's map from screen pixels to canvas pixels, as the rows
-/// `[a, b, c, d, e, f]` of `canvas = (a x + b y + c, d x + e y + f)`.
+/// size in screen pixels), the view's map from screen pixels to canvas pixels, as the rows
+/// `[a, b, c, d, e, f]` of `canvas = (a x + b y + c, d x + e y + f)`, and the pen's hover
+/// outline, if it shows.
 #[derive(Clone, Copy)]
 pub struct CanvasPlacement<'a> {
     pub target: &'a CanvasTarget,
     pub origin: [i32; 2],
     pub size: [u32; 2],
     pub to_canvas: [f32; 6],
+    pub cursor: Option<BrushCursor>,
+}
+
+/// The pen's hover outline: a circle around `centre` of `radius`, `width` wide, all in screen
+/// pixels; each of its pixels black or white, whichever stands out from what lies under it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BrushCursor {
+    pub centre: [f32; 2],
+    pub radius: f32,
+    pub width: f32,
 }
 
 /// The blit's bindings: the canvas texture, the sampler and the view. Shared by every frame
@@ -140,14 +152,15 @@ impl CanvasBlit {
         Self { pipeline }
     }
 
-    /// Draws the placed canvas into `pass`, whose target is the screen of `screen` pixels,
-    /// clipped to the placement's area. Writes the view before the pass is submitted.
+    /// Draws the placed canvas into `pass`, whose target is the screen of `screen` pixels
+    /// cleared to `surround`, clipped to the placement's area. Writes the view before the pass
+    /// is submitted.
     pub(crate) fn draw(
         &self,
         core: &Core,
         pass: &mut wgpu::RenderPass<'_>,
         placement: &CanvasPlacement<'_>,
-        screen: [u32; 2],
+        (screen, surround): ([u32; 2], [u8; 4]),
     ) {
         let clip = |origin: i32, size: u32, limit: u32| {
             let start = origin.clamp(0, limit as i32) as u32;
@@ -160,8 +173,17 @@ impl CanvasBlit {
             return;
         }
         let [a, b, c, d, e, f] = placement.to_canvas;
-        let rows = [a, b, c, 0.0, d, e, f, 0.0];
-        let bytes: Vec<u8> = rows.iter().flat_map(|v| v.to_le_bytes()).collect();
+        let cursor = placement.cursor.map_or([0.0; 4], |cursor| {
+            let [x, y] = cursor.centre;
+            [x, y, cursor.radius, cursor.width / 2.0]
+        });
+        let surround = surround.map(|channel| f32::from(channel) / 255.0);
+        let rows = [[a, b, c, 0.0], [d, e, f, 0.0], cursor, surround];
+        let bytes: Vec<u8> = rows
+            .iter()
+            .flatten()
+            .flat_map(|v| v.to_le_bytes())
+            .collect();
         core.gpu
             .queue
             .write_buffer(placement.target.view_buffer(), 0, &bytes);

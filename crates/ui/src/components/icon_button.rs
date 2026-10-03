@@ -1,12 +1,13 @@
-//! The icon button: one touch target on the chrome with an icon. Pressed, it shows a highlight
-//! under the hand; unavailable, its icon dims and taps go nowhere. The toggle form stays
-//! highlighted while what it opens is open.
+//! The icon button: one touch target on the chrome with an ink-line icon. Pressed, a faint wash
+//! shows under the hand; unavailable, its icon fades to pencil grey and taps go nowhere; the pen
+//! hovering over it shows its name. The toggle form carries the active mark (an ink ring, never
+//! a filled block) while what it opens is open.
 
 use egui::{Rect, Sense, Vec2, WidgetInfo, WidgetType};
 
 use crate::design::{
-    CORNER, ICON_SIZE, Icon, ON_CHROME, ON_CHROME_DISABLED, PRESSED, SELECTED, SPACE, TOUCH_TARGET,
-    paint_icon,
+    ICON_SIZE, INK, INK_ACTIVE, INK_DISABLED, Icon, SPACE, TOUCH_TARGET, paint_icon,
+    paint_icon_mark, paint_pressed,
 };
 
 /// Shows a button of one touch target with `icon`; `label` names it for accessibility. Only an
@@ -30,23 +31,20 @@ fn button(ui: &mut egui::Ui, icon: Icon, label: &str, enabled: bool, on: bool) -
     response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, enabled, label));
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
-        let face = if enabled && response.is_pointer_button_down_on() {
-            Some(PRESSED)
-        } else if on {
-            Some(SELECTED)
-        } else {
-            None
-        };
-        if let Some(face) = face {
-            painter.rect_filled(rect.shrink(SPACE / 2.0), CORNER, face);
+        if enabled && response.is_pointer_button_down_on() {
+            paint_pressed(painter, rect.shrink(SPACE / 2.0));
         }
-        let color = if enabled {
-            ON_CHROME
-        } else {
-            ON_CHROME_DISABLED
+        if on {
+            paint_icon_mark(painter, rect);
+        }
+        let color = match (enabled, on) {
+            (false, _) => INK_DISABLED,
+            (true, true) => INK_ACTIVE,
+            (true, false) => INK,
         };
         let square = Rect::from_center_size(rect.center(), Vec2::splat(ICON_SIZE));
         paint_icon(painter, icon, square, color);
     }
-    response
+    // The pen hovering over it reads its name (fingers do not hover).
+    response.on_hover_text(label)
 }

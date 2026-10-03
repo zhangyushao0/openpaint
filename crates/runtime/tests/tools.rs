@@ -18,10 +18,10 @@ use support::Nowhere;
 const SIZE: [u32; 2] = [1600, 1000];
 const PIXELS_PER_POINT: f32 = 2.0;
 /// The side bar's eyedropper, between its sliders (118 points long on this screen).
-const EYEDROPPER: [f32; 2] = [80.0, 428.0];
-/// Right to left from the top bar's right end: colour, Layers, Eraser, Brush.
-const ERASER: [f32; 2] = [1296.0, 48.0];
-const UNDO: [f32; 2] = [80.0, 808.0];
+const EYEDROPPER: [f32; 2] = [80.0, 438.0];
+/// In the right island, left to right: Brush, Eraser, Layers, colour.
+const ERASER: [f32; 2] = [1316.0, 66.0];
+const UNDO: [f32; 2] = [80.0, 810.0];
 
 fn line(y: f32) -> Vec<[f32; 2]> {
     (0..=12u8)

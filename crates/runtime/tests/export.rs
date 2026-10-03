@@ -21,15 +21,15 @@ use support::Nowhere;
 /// 800 x 500 points at density 2.
 const SIZE: [u32; 2] = [1600, 1000];
 const PIXELS_PER_POINT: f32 = 2.0;
-/// The canvas area starts under the top bar.
+/// The canvas fits under the top band.
 const BAR: u32 = 96;
-/// Right of Gallery at the top bar's left end.
-const ACTIONS: [f32; 2] = [258.0, 48.0];
+/// Right of Gallery in the left island.
+const ACTIONS: [f32; 2] = [258.0, 66.0];
 /// Rows of the Actions panel.
-const SAVE_PNG: [f32; 2] = [330.0, 337.0];
-const REFERENCE: [f32; 2] = [400.0, 785.0];
+const SAVE_PNG: [f32; 2] = [330.0, 353.0];
+const REFERENCE: [f32; 2] = [400.0, 801.0];
 /// The side bar's eyedropper.
-const EYEDROPPER: [f32; 2] = [80.0, 428.0];
+const EYEDROPPER: [f32; 2] = [80.0, 438.0];
 /// In the reference window's picture, first at the lower right: the red band.
 const RED_BAND: [f32; 2] = [950.0, 600.0];
 
@@ -97,7 +97,7 @@ fn the_exported_png_holds_exactly_what_the_screen_shows() {
         "the file is the canvas, pixel for pixel"
     );
     assert_cold(&core, &runtime, "after exporting");
-    // On screen, right of the side bar and under the top bar, nothing covers the canvas: at
+    // On screen, right of the side bar and under the top band, nothing covers the canvas: at
     // fit, every screen pixel whose canvas neighbourhood is one colour shows that colour.
     let screen = runtime.screenshot(SIZE).expect("screen");
     let map = mapping(&runtime, SIZE, PIXELS_PER_POINT);

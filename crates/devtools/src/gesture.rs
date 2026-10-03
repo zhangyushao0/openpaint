@@ -26,6 +26,20 @@ pub(crate) fn tap(tool: Tool, at: [f32; 2], start_ms: i64) -> Vec<MotionBatch> {
     batches(tool, &[down, up])
 }
 
+/// The pen hovering over `at` without touching, at `start_ms`: one hover move, as Android
+/// reports a stylus held just above the glass.
+pub(crate) fn hover(at: [f32; 2], start_ms: i64) -> Vec<MotionBatch> {
+    vec![MotionBatch {
+        phase: MotionPhase::HoverMove,
+        buttons: Buttons::default(),
+        pointers: vec![Pointer {
+            id: 0,
+            tool: ToolKind::Stylus,
+            samples: vec![sample(at, 0.0, start_ms)],
+        }],
+    }]
+}
+
 /// A path through `points` (`[x, y, pressure]`), resampled so no two samples are more than
 /// `SPACING` apart, pressure interpolated linearly, starting at `start_ms`.
 pub(crate) fn path(tool: Tool, points: &[[f32; 3]], start_ms: i64) -> Vec<MotionBatch> {

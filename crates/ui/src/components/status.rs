@@ -1,19 +1,16 @@
-//! The status: a short message at the right end of the top bar while something runs in the
-//! background (an export being written, an image being opened), after a turning spinner. It
-//! asks nothing of the user and sits in the chrome, so drawing goes on.
+//! The status: a turning spinner and a short message, left to right inside a pill in the top
+//! band, while something runs in the background (an export being written, an image being
+//! opened). It asks nothing of the user, so drawing goes on.
 
-use egui::{Align, Layout, Vec2};
+use egui::Vec2;
 
-use crate::design::{ICON_SIZE, ON_CHROME, SPACE};
+use crate::design::{ICON_SIZE, INK};
 
-/// Shows the spinner and `message` at the right end of the current row.
+/// Shows the spinner and `message`.
 pub fn status(ui: &mut egui::Ui, message: &str) {
-    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-        ui.add_space(SPACE);
-        ui.label(message);
-        ui.add_sized(
-            Vec2::splat(ICON_SIZE),
-            egui::Spinner::new().size(ICON_SIZE).color(ON_CHROME),
-        );
-    });
+    ui.add_sized(
+        Vec2::splat(ICON_SIZE),
+        egui::Spinner::new().size(ICON_SIZE).color(INK),
+    );
+    ui.label(message);
 }

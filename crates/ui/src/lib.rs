@@ -11,6 +11,7 @@ mod color_drop;
 mod color_panel;
 pub mod components;
 pub mod design;
+mod drop_bar;
 mod gallery;
 mod layer_panel;
 mod notices;
@@ -18,5 +19,5 @@ mod reference_window;
 mod shell;
 mod side_bar;
 
-pub use crate::components::{ScreenArea, TOP_BAR_HEIGHT};
+pub use crate::components::{CanvasArea, ScreenArea, TOP_BAND};
 pub use crate::shell::Shell;
