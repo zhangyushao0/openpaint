@@ -4,7 +4,7 @@ Updated 2026-10-03. Current facts only; rewritten at the end of every slice, nev
 
 ## Stage
 
-G3 in progress: S18 Selection is done (D42, D43). Next: S19 Transform. G2 passed 2026-10-03 (W1 `pass`); G1 passed 2026-10-02.
+G3 in progress: S18 Selection is done (D42, D43). Next: S19 Motion foundation (D44), then S20 Transform. G2 passed 2026-10-03 (W1 `pass`); G1 passed 2026-10-02.
 
 ## Working features
 
