@@ -1,5 +1,5 @@
 //! GPU test of palm rejection through the whole frame loop: a hand on the glass while the pen
-//! draws neither paints, nor taps the top bar's buttons, nor disturbs the stroke; a touch the
+//! draws neither paints, nor taps the side bar's buttons, nor disturbs the stroke; a touch the
 //! platform cancels never taps.
 
 mod support;
@@ -9,10 +9,12 @@ use openpaint_runtime::{
 };
 use support::Nowhere;
 
-const SIZE: [u32; 2] = [640, 400];
+/// 640 x 400 points at density 2.
+const SIZE: [u32; 2] = [1280, 800];
 const PIXELS_PER_POINT: f32 = 2.0;
-/// The undo button's centre at density 2.
-const UNDO: [f32; 2] = [263.0, 48.0];
+/// The side bar's undo button: the bar starts one space under the top bar, its sliders 96
+/// points long.
+const UNDO: [f32; 2] = [80.0, 624.0];
 const PEN: i32 = 0;
 const PALM: i32 = 1;
 
@@ -52,11 +54,11 @@ fn palm(runtime: &mut Runtime, phase: MotionPhase, at: [f32; 2]) {
     send(runtime, phase, &[(PALM, ToolKind::Finger, at)]);
 }
 
-/// A pen stroke along y = `y`.
+/// A pen stroke along y = `y`, right of the side bar.
 fn stroke(runtime: &mut Runtime, y: f32) {
-    pen(runtime, MotionPhase::Down, [100.0, y]);
-    pen(runtime, MotionPhase::Move, [300.0, y]);
-    pen(runtime, MotionPhase::Up, [500.0, y]);
+    pen(runtime, MotionPhase::Down, [200.0, y]);
+    pen(runtime, MotionPhase::Move, [600.0, y]);
+    pen(runtime, MotionPhase::Up, [1000.0, y]);
 }
 
 fn strokes(runtime: &Runtime) -> usize {
@@ -67,12 +69,12 @@ fn strokes(runtime: &Runtime) -> usize {
 #[test]
 fn a_hand_on_undo_while_the_pen_draws_taps_nothing() {
     let mut runtime = support::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere));
-    stroke(&mut runtime, 150.0);
+    stroke(&mut runtime, 300.0);
     // The hand lands on undo during the stroke and lifts after the pen.
-    pen(&mut runtime, MotionPhase::Down, [100.0, 250.0]);
+    pen(&mut runtime, MotionPhase::Down, [200.0, 500.0]);
     palm(&mut runtime, MotionPhase::Down, UNDO);
-    pen(&mut runtime, MotionPhase::Move, [300.0, 250.0]);
-    pen(&mut runtime, MotionPhase::Up, [500.0, 250.0]);
+    pen(&mut runtime, MotionPhase::Move, [600.0, 500.0]);
+    pen(&mut runtime, MotionPhase::Up, [1000.0, 500.0]);
     palm(&mut runtime, MotionPhase::Up, UNDO);
     assert_eq!(
         strokes(&runtime),
@@ -84,9 +86,9 @@ fn a_hand_on_undo_while_the_pen_draws_taps_nothing() {
 #[test]
 fn a_hand_resting_on_undo_before_the_pen_lands_is_dropped() {
     let mut runtime = support::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere));
-    stroke(&mut runtime, 150.0);
+    stroke(&mut runtime, 300.0);
     palm(&mut runtime, MotionPhase::Down, UNDO);
-    stroke(&mut runtime, 250.0);
+    stroke(&mut runtime, 500.0);
     palm(&mut runtime, MotionPhase::Up, UNDO);
     assert_eq!(strokes(&runtime), 2, "lifting the hand did not undo");
     // A finger tap with the pen off the glass still undoes.
@@ -98,9 +100,9 @@ fn a_hand_resting_on_undo_before_the_pen_lands_is_dropped() {
 #[test]
 fn a_touch_the_platform_cancels_never_taps() {
     let mut runtime = support::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere));
-    stroke(&mut runtime, 150.0);
+    stroke(&mut runtime, 300.0);
     // A finger and the hand on undo; the system judges the hand a palm and cancels it alone.
-    let finger = (2, ToolKind::Finger, [600.0, 380.0]);
+    let finger = (2, ToolKind::Finger, [1200.0, 760.0]);
     let hand = (PALM, ToolKind::Finger, UNDO);
     send(&mut runtime, MotionPhase::Down, &[hand]);
     send(

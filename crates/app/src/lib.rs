@@ -4,6 +4,7 @@
 //! Depends on `openpaint-core` only. No GPU, no UI, no file system (`cargo repo-check`).
 #![forbid(unsafe_code)]
 
+mod brushes;
 mod error;
 mod gallery;
 mod history;
@@ -13,11 +14,14 @@ mod layers;
 mod palm;
 mod project;
 mod projection;
+mod recipe;
 mod session;
 mod storage;
 mod stroke;
 mod title;
+mod toolbox;
 
+pub use crate::brushes::{Brush, BrushKey, BrushLibrary, SizeRange};
 pub use crate::error::AppError;
 pub use crate::gallery::{
     Gallery, GalleryIntent, GalleryNotice, GalleryProjection, LibraryAnswer, LibraryRequest,
@@ -29,7 +33,11 @@ pub use crate::layers::{LayerIntent, LayerList, LayerRow};
 pub use crate::palm::PalmRejection;
 pub use crate::project::{PortError, Project, ProjectId, ProjectStore, ProjectSummary, Thumbnail};
 pub use crate::projection::{Availability, EditorAction, ScreenProjection, SessionProjection};
+pub use crate::recipe::RecipeError;
 pub use crate::session::Session;
 pub use crate::storage::{StorageIntent, StorageNotice};
 pub use crate::stroke::StrokeIntent;
 pub use crate::title::{MAX_TITLE_CHARS, Title, TitleError, UNTITLED};
+pub use crate::toolbox::{
+    BrushIntent, BrushProjection, BrushRow, BrushSetting, EditorState, MIN_OPACITY, Toolbox,
+};

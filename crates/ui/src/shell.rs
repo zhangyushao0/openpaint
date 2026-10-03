@@ -1,26 +1,21 @@
-//! The screen: a top bar over the rest. On the canvas the bar holds, left to right, Gallery,
-//! undo and redo, and at its right end the Layers button with a notice left of it when saving
-//! or opening failed; the canvas frame fills the rest and the layer panel opens over it. In the
-//! gallery the bar holds the screen's name and "+", and the cards fill the rest.
+//! The screen: a top bar over the rest. On the canvas the bar holds Gallery at its left end and
+//! at its right end, right to left, the Layers button, the Brush button and a notice when
+//! saving or opening failed; the canvas frame fills the rest, the side bar (size, opacity, undo,
+//! redo) floats over its left edge, and the brush and layer panels open over it, one at a time.
+//! In the gallery the bar holds the screen's name and "+", and the cards fill the rest.
 
 use egui::{Align, Layout};
 use openpaint_app::{
-    ContactPhase, EditorAction, GalleryIntent, HistoryIntent, InputBatch, Intent, ScreenProjection,
+    BrushKey, ContactPhase, EditorAction, GalleryIntent, InputBatch, Intent, ScreenProjection,
     SessionProjection, StorageIntent, StorageNotice,
 };
+use openpaint_render::RgbaImage;
 
-use crate::components::{
-    CanvasInput, ScreenArea, canvas_frame, icon_button, notice, text_button, top_bar,
-};
-use crate::design::{Icon, SPACE};
+use crate::brush_panel::BrushPanel;
+use crate::components::{CanvasInput, ScreenArea, canvas_frame, notice, text_button, top_bar};
 use crate::gallery::GalleryScreen;
 use crate::layer_panel::LayerPanel;
-
-/// The history buttons, left to right.
-const HISTORY_BUTTONS: [(Icon, &str, EditorAction, HistoryIntent); 2] = [
-    (Icon::Undo, "Undo", EditorAction::Undo, HistoryIntent::Undo),
-    (Icon::Redo, "Redo", EditorAction::Redo, HistoryIntent::Redo),
-];
+use crate::side_bar::SideBar;
 
 /// Which screen the last pass showed.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -39,12 +34,20 @@ pub struct Shell {
     showing: Showing,
     input: CanvasInput,
     layers: LayerPanel,
+    brushes: BrushPanel,
+    side: SideBar,
     gallery: GalleryScreen,
     /// Intents from taps on the chrome since the last `route`.
     taps: Vec<Intent>,
 }
 
 impl Shell {
+    /// The brush picker's preview of each brush, drawn by the renderer at the screen's density
+    /// (`design::BRUSH_PREVIEW` points); loaded as textures by the next pass.
+    pub fn set_brush_previews(&mut self, previews: Vec<(BrushKey, RgbaImage)>) {
+        self.brushes.set_previews(previews);
+    }
+
     /// Builds one frame inside the root `ui` from `projection`, remembers where the canvas is
     /// and collects the buttons tapped. egui hands input to the first pass of a frame only, so
     /// a tap is collected once however many passes run.
@@ -57,6 +60,8 @@ impl Shell {
         if showing != self.showing {
             // A new screen starts with its panels and dialogs closed.
             self.layers.close();
+            self.brushes.close();
+            self.side.hide();
             self.gallery.back();
             self.input = CanvasInput::default();
             self.showing = showing;
@@ -90,20 +95,22 @@ impl Shell {
             if text_button(ui, "Gallery", enabled).clicked() {
                 self.taps.push(Intent::Gallery(GalleryIntent::Show));
             }
-            ui.add_space(SPACE);
-            for (icon, label, action, intent) in HISTORY_BUTTONS {
-                let enabled = projection.availability(action).is_available();
-                if icon_button(ui, icon, label, enabled).clicked() {
-                    self.taps.push(Intent::History(intent));
-                }
-            }
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                self.layers.button(ui);
+                // One panel at a time: opening one closes the other.
+                if self.layers.button(ui) {
+                    self.brushes.close();
+                }
+                if self.brushes.button(ui) {
+                    self.layers.close();
+                }
                 self.storage_notice(ui, projection);
             });
         });
         let rect = canvas_frame(ui);
-        self.layers.show(ui.ctx(), projection, &mut self.taps);
+        let ctx = ui.ctx();
+        self.side.show(ctx, projection, &mut self.taps);
+        self.layers.show(ctx, projection, &mut self.taps);
+        self.brushes.show(ctx, projection, &mut self.taps);
         rect
     }
 
@@ -163,24 +170,28 @@ impl Shell {
         let Some(area) = self.canvas.filter(|_| self.showing == Showing::Canvas) else {
             return std::mem::take(&mut self.taps);
         };
-        let cover = self.layers.area();
-        let mut intents = self.input.route(&area, cover.as_ref(), batches);
-        if let Some(cover) = cover
-            && touched_outside(&area, &cover, batches)
-        {
+        let panel = self.layers.area().or(self.brushes.area());
+        let covers: Vec<ScreenArea> = [self.side.area(), panel].into_iter().flatten().collect();
+        let mut intents = self.input.route(&area, &covers, batches);
+        if panel.is_some() && touched_outside(&area, &covers, batches) {
             self.layers.close();
+            self.brushes.close();
         }
         intents.append(&mut self.taps);
         intents
     }
 }
 
-/// True when a contact of `batches` touches down on the canvas `area` outside `cover`.
-fn touched_outside(area: &ScreenArea, cover: &ScreenArea, batches: &[InputBatch]) -> bool {
+/// True when a contact of `batches` touches down on the canvas `area` outside every one of
+/// `covers`.
+fn touched_outside(area: &ScreenArea, covers: &[ScreenArea], batches: &[InputBatch]) -> bool {
     batches
         .iter()
         .flat_map(|batch| &batch.contacts)
         .filter(|contact| contact.phase == ContactPhase::Down)
         .filter_map(|contact| contact.samples.first())
-        .any(|first| area.contains(first.position) && !cover.contains(first.position))
+        .any(|first| {
+            area.contains(first.position)
+                && !covers.iter().any(|cover| cover.contains(first.position))
+        })
 }

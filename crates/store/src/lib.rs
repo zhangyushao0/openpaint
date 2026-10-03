@@ -7,6 +7,7 @@
 mod catalogue;
 mod codec;
 mod delta;
+mod editor;
 mod library;
 mod migrate;
 mod read;

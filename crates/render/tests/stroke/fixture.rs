@@ -1,9 +1,11 @@
 //! Stroke fixtures shared by the GPU tests. `apps/harness/src/stroke.rs` draws the same wave,
 //! so `render-stroke` prints the golden hash of `golden.rs`.
 
+use std::sync::Arc;
+
 use openpaint_core::{
-    Artwork, ArtworkCommand, CanvasPoint, CanvasSize, Color, LayerCommand, StrokeSample,
-    StrokeStyle,
+    Artwork, ArtworkCommand, BrushRecipe, CanvasPoint, CanvasSize, Color, Curve, Dynamics, Grain,
+    LayerCommand, StrokeSample, StrokeStyle,
 };
 use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, RgbaImage};
 
@@ -17,11 +19,21 @@ pub fn blank() -> Artwork {
     Artwork::new(CanvasSize::new(SIZE[0], SIZE[1]).expect("canvas size"))
 }
 
+/// The plain round brush, the only brush before recipes.
+pub fn plain(size: f32, opacity: f32, color: Color) -> StrokeStyle {
+    StrokeStyle::new(Arc::new(BrushRecipe::plain()), size, opacity, color).expect("style")
+}
+
 /// An S-curve across the canvas whose pressure rises from 0.1 to 1 and falls back: tapered
 /// round ends, translucent so any seam between segments would show.
 pub fn wave() -> (StrokeStyle, Vec<StrokeSample>) {
+    wave_with(Arc::new(BrushRecipe::plain()))
+}
+
+/// The wave drawn with `recipe`.
+pub fn wave_with(recipe: Arc<BrushRecipe>) -> (StrokeStyle, Vec<StrokeSample>) {
     let color = Color::rgb(0.12, 0.25, 0.65).expect("colour");
-    let style = StrokeStyle::new(40.0, 0.8, color).expect("style");
+    let style = StrokeStyle::new(recipe, 40.0, 0.8, color).expect("style");
     let samples = (0..48u16)
         .map(|i| {
             let t = f32::from(i) / 47.0;
@@ -34,10 +46,29 @@ pub fn wave() -> (StrokeStyle, Vec<StrokeSample>) {
     (style, samples)
 }
 
+/// Every stage at work: a soft edge, size over pressure and speed, opacity over pressure, a
+/// coarse grain.
+pub fn rich() -> Arc<BrushRecipe> {
+    let curve = |points: &[[f32; 2]]| Curve::new(points).expect("curve");
+    let size = Dynamics::new(
+        curve(&[[0.0, 0.3], [1.0, 1.0]]),
+        curve(&[[0.0, 1.0], [3.0, 0.6]]),
+    );
+    let opacity = Dynamics::new(curve(&[[0.0, 0.2], [1.0, 1.0]]), curve(&[[0.0, 1.0]]));
+    let grain = Grain::new(0.7, 5).expect("grain");
+    let recipe = BrushRecipe::new(0.6, size.expect("size"), opacity.expect("opacity"), grain);
+    Arc::new(recipe.expect("recipe"))
+}
+
 /// A straight stroke crossing the wave, pressure rising along it.
 pub fn diagonal() -> (StrokeStyle, Vec<StrokeSample>) {
+    diagonal_with(Arc::new(BrushRecipe::plain()))
+}
+
+/// The diagonal drawn with `recipe`.
+pub fn diagonal_with(recipe: Arc<BrushRecipe>) -> (StrokeStyle, Vec<StrokeSample>) {
     let color = Color::rgb(0.85, 0.2, 0.1).expect("colour");
-    let style = StrokeStyle::new(24.0, 0.6, color).expect("style");
+    let style = StrokeStyle::new(recipe, 24.0, 0.6, color).expect("style");
     let samples = (0..40u16)
         .map(|i| {
             let t = f32::from(i) / 39.0;

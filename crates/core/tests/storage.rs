@@ -1,8 +1,8 @@
 //! `from_storage`: stored data round-trips, and every broken invariant is rejected with a type.
 
 use openpaint_core::{
-    Artwork, ArtworkCommand, ArtworkParts, CanvasPoint, CanvasSize, Color, CoreError, LayerCommand,
-    LayerId, LayerName, MAX_ID, MAX_LAYERS, StrokeSample, StrokeStyle,
+    Artwork, ArtworkCommand, ArtworkParts, BrushRecipe, CanvasPoint, CanvasSize, Color, CoreError,
+    LayerCommand, LayerId, LayerName, MAX_ID, MAX_LAYERS, StrokeSample, StrokeStyle,
 };
 
 fn sample(x: f32, time_ms: u32) -> StrokeSample {
@@ -16,9 +16,10 @@ fn layer(command: LayerCommand) -> ArtworkCommand {
 
 /// Two layers with one stroke each; the bottom one renamed, hidden and half transparent.
 fn painted() -> Artwork {
-    let style = StrokeStyle::new(5.0, 0.5, Color::rgb(0.2, 0.4, 0.6).unwrap()).unwrap();
+    let recipe = std::sync::Arc::new(BrushRecipe::plain());
+    let style = StrokeStyle::new(recipe, 5.0, 0.5, Color::rgb(0.2, 0.4, 0.6).unwrap()).unwrap();
     let draw = |artwork: &Artwork| {
-        let mut session = artwork.begin_stroke(style, sample(0.0, 0)).unwrap();
+        let mut session = artwork.begin_stroke(style.clone(), sample(0.0, 0)).unwrap();
         session.extend(&[sample(1.0, 5), sample(2.0, 9)]).unwrap();
         session.finish().artwork
     };

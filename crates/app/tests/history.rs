@@ -2,15 +2,18 @@
 //! budget that trims the oldest steps.
 
 use openpaint_app::{
-    AppError, Availability, Contact, ContactPhase, Device, EditorAction, History, HistoryIntent,
-    InputSample, Intent, Session, StrokeIntent,
+    AppError, Availability, BrushLibrary, Contact, ContactPhase, Device, EditorAction, History,
+    HistoryIntent, InputSample, Intent, Session, StrokeIntent, Toolbox,
 };
-use openpaint_core::{
-    Artwork, CanvasPoint, CanvasSize, Color, StrokeSample, StrokeSession, StrokeStyle,
-};
+use openpaint_core::{Artwork, CanvasPoint, CanvasSize, StrokeSample, StrokeSession, StrokeStyle};
+
+fn brush() -> StrokeStyle {
+    let library = BrushLibrary::built_in().expect("built-in brushes");
+    Toolbox::new(library).style().expect("style")
+}
 
 fn session() -> Session {
-    Session::new(CanvasSize::new(200, 100).expect("size")).expect("session")
+    Session::new(CanvasSize::new(200, 100).expect("size"), brush())
 }
 
 fn pen(phase: ContactPhase, x: f32, time_ms: i64) -> Intent {
@@ -164,8 +167,9 @@ fn sample(x: f32, time_ms: u32) -> StrokeSample {
 
 /// The artwork with one more stroke of `samples` samples.
 fn stroke(artwork: &Artwork, samples: u32) -> Artwork {
-    let style = StrokeStyle::new(4.0, 1.0, Color::BLACK).expect("style");
-    let mut session: StrokeSession = artwork.begin_stroke(style, sample(0.0, 0)).expect("begin");
+    let mut session: StrokeSession = artwork
+        .begin_stroke(brush(), sample(0.0, 0))
+        .expect("begin");
     let rest: Vec<StrokeSample> = (1..samples).map(|i| sample(i as f32, i)).collect();
     session.extend(&rest).expect("extend");
     session.finish().artwork

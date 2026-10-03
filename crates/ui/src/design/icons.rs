@@ -36,6 +36,8 @@ pub enum Icon {
     Hidden,
     /// Two sheets, one offset behind the other: make a copy.
     Duplicate,
+    /// A brush held at a slant, its tip down to the left: the brushes.
+    Brush,
 }
 
 /// Draws `icon` into `rect` (square, `ICON_SIZE` on a side) in `color`.
@@ -99,6 +101,20 @@ fn polylines(icon: Icon) -> Vec<Vec<[f32; 2]>> {
                 [0.18, 0.18],
                 [0.18, 0.64],
                 [0.36, 0.64],
+            ],
+        ],
+        Icon::Brush => vec![
+            // The handle, then the bristles closing to a point.
+            vec![[0.84, 0.16], [0.56, 0.44]],
+            vec![
+                [0.49, 0.41],
+                [0.59, 0.51],
+                [0.5, 0.68],
+                [0.36, 0.78],
+                [0.16, 0.84],
+                [0.22, 0.64],
+                [0.32, 0.5],
+                [0.49, 0.41],
             ],
         ],
     }
@@ -184,6 +200,7 @@ mod tests {
             Icon::Visible,
             Icon::Hidden,
             Icon::Duplicate,
+            Icon::Brush,
         ];
         for icon in icons {
             let lines = polylines(icon);

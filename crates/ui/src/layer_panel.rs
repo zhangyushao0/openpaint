@@ -24,11 +24,13 @@ pub(crate) struct LayerPanel {
 }
 
 impl LayerPanel {
-    /// The Layers button, inside the top bar.
-    pub(crate) fn button(&mut self, ui: &mut egui::Ui) {
+    /// The Layers button, inside the top bar. Returns whether it opened the panel.
+    pub(crate) fn button(&mut self, ui: &mut egui::Ui) -> bool {
         if icon_toggle(ui, Icon::Layers, "Layers", self.open).clicked() {
             self.open = !self.open;
+            return self.open;
         }
+        false
     }
 
     /// The panel when it is open, its taps pushed to `taps`.

@@ -2,7 +2,7 @@
 //! its canvas is open (the library opens on a worker).
 
 use openpaint_app::{
-    PortError, Project, ProjectId, ProjectStore, ProjectSummary, Thumbnail, Title,
+    EditorState, PortError, Project, ProjectId, ProjectStore, ProjectSummary, Thumbnail, Title,
 };
 use openpaint_core::Artwork;
 use openpaint_runtime::Runtime;
@@ -48,6 +48,14 @@ impl ProjectStore for Nowhere {
     }
 
     fn delete(&mut self, _id: ProjectId) -> Result<(), PortError> {
+        Ok(())
+    }
+
+    fn editor(&mut self) -> Result<Option<EditorState>, PortError> {
+        Ok(None)
+    }
+
+    fn save_editor(&mut self, _state: &EditorState) -> Result<(), PortError> {
         Ok(())
     }
 }

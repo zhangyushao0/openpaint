@@ -1,17 +1,13 @@
 //! `Scene`: an artwork flattened into ops in drawing order, with the bounds each segment can
-//! reach, and `Fresh`: the in-progress stroke's part of one evaluation. Stroke geometry lives
-//! here: a round continuous brush is a chain of tapered capsules between consecutive samples
-//! (DECISIONS D07: no dabs).
+//! reach, and `Fresh`: the in-progress stroke's part of one evaluation. The geometry of one
+//! stroke is in `stroke.rs`.
 
 use openpaint_core::{Artwork, LayerId, StrokeSample, StrokeStyle};
 
 use crate::error::RenderError;
-use crate::geom::{Bounds, PixelRect};
+use crate::geom::Bounds;
 use crate::protocol::Op;
-
-/// Antialiasing reaches half a pixel beyond the shape; one pixel keeps the bounds conservative
-/// against float error.
-const REACH: f32 = 1.0;
+use crate::stroke::{paint, segments};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Item {
@@ -80,15 +76,14 @@ impl Scene {
     }
 
     fn push_stroke(&mut self, style: &StrokeStyle, samples: &[StrokeSample]) {
-        for segment in segments(style, samples) {
+        for segment in segments(style, samples, 0) {
             self.items.push(Item::Segment {
                 op: segment.op(),
                 bounds: segment.bounds(),
             });
         }
-        let color = style.color();
-        let op = Op::end_stroke([color.r(), color.g(), color.b()], style.opacity());
-        self.items.push(Item::EndStroke(op));
+        self.items
+            .push(Item::EndStroke(Op::end_stroke(&paint(style))));
     }
 }
 
@@ -101,18 +96,14 @@ pub(crate) struct Fresh {
 }
 
 impl Fresh {
-    /// `samples` are the new samples together with the one before them, or the whole stroke
-    /// when its coverage starts over.
-    pub(crate) fn new(style: &StrokeStyle, samples: &[StrokeSample]) -> Self {
-        let color = style.color();
+    /// The segments of `samples` (every sample so far) after sample `from`: the new samples
+    /// with the one before them, or the whole stroke (`from` 0) when its coverage starts over.
+    pub(crate) fn new(style: &StrokeStyle, samples: &[StrokeSample], from: usize) -> Self {
         let mut fresh = Self {
-            ops: vec![Op::end_active(
-                [color.r(), color.g(), color.b()],
-                style.opacity(),
-            )],
+            ops: vec![Op::end_active(&paint(style))],
             bounds: Vec::new(),
         };
-        for segment in segments(style, samples) {
+        for segment in segments(style, samples, from) {
             fresh.ops.push(segment.op());
             fresh.bounds.push(segment.bounds());
         }
@@ -120,77 +111,15 @@ impl Fresh {
     }
 }
 
-/// The pixels a stroke of `style` through `samples` can change. For an in-progress stroke, pass
-/// the samples added since the last frame together with the one before them: the result is the
-/// region to evaluate again.
-#[must_use]
-pub fn stroke_region(style: &StrokeStyle, samples: &[StrokeSample]) -> Option<PixelRect> {
-    segment_regions(style, samples).reduce(|all, next| all.union(&next))
-}
-
-/// The pixels each segment of a stroke can change, one rectangle per segment: tighter than
-/// their union for a long curved stroke.
-pub(crate) fn segment_regions<'a>(
-    style: &'a StrokeStyle,
-    samples: &'a [StrokeSample],
-) -> impl Iterator<Item = PixelRect> + 'a {
-    segments(style, samples).map(|segment| segment.bounds().pixels())
-}
-
-/// A tapered capsule between two samples, in target pixels.
-struct Segment {
-    a: [f32; 2],
-    b: [f32; 2],
-    radii: [f32; 2],
-}
-
-impl Segment {
-    fn op(&self) -> Op {
-        Op::segment(self.a, self.b, self.radii)
-    }
-
-    fn bounds(&self) -> Bounds {
-        let reach = self.radii[0].max(self.radii[1]) + REACH;
-        Bounds([
-            self.a[0].min(self.b[0]) - reach,
-            self.a[1].min(self.b[1]) - reach,
-            self.a[0].max(self.b[0]) + reach,
-            self.a[1].max(self.b[1]) + reach,
-        ])
-    }
-}
-
-/// One segment per consecutive pair; a single sample is a round dot.
-fn segments<'a>(
-    style: &'a StrokeStyle,
-    samples: &'a [StrokeSample],
-) -> impl Iterator<Item = Segment> + 'a {
-    let pairs = samples.windows(2).map(|pair| (pair[0], pair[1]));
-    let dot = match samples {
-        [only] => Some((*only, *only)),
-        _ => None,
-    };
-    pairs.chain(dot).map(|(a, b)| Segment {
-        a: point(&a),
-        b: point(&b),
-        radii: [radius(style, &a), radius(style, &b)],
-    })
-}
-
-fn point(sample: &StrokeSample) -> [f32; 2] {
-    let position = sample.position();
-    [position.x(), position.y()]
-}
-
-/// The round brush until recipes (S11): the diameter scales linearly with pressure.
-fn radius(style: &StrokeStyle, sample: &StrokeSample) -> f32 {
-    0.5 * style.size() * sample.pressure()
-}
-
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
-    use openpaint_core::{ArtworkCommand, CanvasPoint, CanvasSize, Color, LayerCommand};
+    use crate::stroke::stroke_region;
+    use openpaint_core::{
+        ArtworkCommand, BrushRecipe, CanvasPoint, CanvasSize, Color, LayerCommand,
+    };
 
     fn sample(x: f32, y: f32, pressure: f32, time_ms: u32) -> StrokeSample {
         let position = CanvasPoint::new(x, y).expect("point");
@@ -198,7 +127,8 @@ mod tests {
     }
 
     fn style() -> StrokeStyle {
-        StrokeStyle::new(10.0, 1.0, Color::BLACK).expect("style")
+        let recipe = Arc::new(BrushRecipe::plain());
+        StrokeStyle::new(recipe, 10.0, 1.0, Color::BLACK).expect("style")
     }
 
     fn codes(scene: &Scene) -> Vec<&'static str> {
@@ -253,23 +183,15 @@ mod tests {
     #[test]
     fn fresh_ops_start_with_the_paint_op() {
         let samples = [sample(10.0, 20.0, 1.0, 0), sample(30.0, 20.0, 0.2, 4)];
-        let fresh = Fresh::new(&style(), &samples);
+        let fresh = Fresh::new(&style(), &samples, 0);
         assert_eq!(fresh.ops.len(), 2);
         assert_eq!(fresh.bounds.len(), 1);
         assert_eq!(
             Some(fresh.bounds[0].pixels()),
-            stroke_region(&style(), &samples)
+            stroke_region(&style(), &samples, 0)
         );
-        let dot = Fresh::new(&style(), &samples[..1]);
+        let dot = Fresh::new(&style(), &samples[..1], 0);
         assert_eq!(dot.bounds.len(), 1);
-    }
-
-    #[test]
-    fn region_covers_the_widest_radius_plus_antialiasing() {
-        let samples = [sample(10.0, 20.0, 1.0, 0), sample(30.0, 20.0, 0.2, 4)];
-        let region = stroke_region(&style(), &samples).expect("region");
-        assert_eq!(region.min, [4, 14]);
-        assert_eq!(region.max, [37, 27]);
-        assert_eq!(stroke_region(&style(), &[]), None);
+        assert_eq!(Fresh::new(&style(), &samples, 1).bounds.len(), 0);
     }
 }

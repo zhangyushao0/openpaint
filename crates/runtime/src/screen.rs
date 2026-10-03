@@ -2,7 +2,7 @@
 //! onto the canvas, leaving the canvas for the gallery once the artwork is stored, and the
 //! gallery's calls on the storage worker.
 
-use openpaint_app::{Gallery, LibraryAnswer, LibraryRequest, PortError, ScreenProjection};
+use openpaint_app::{Gallery, LibraryAnswer, LibraryRequest, PortError, ScreenProjection, Toolbox};
 use openpaint_core::Artwork;
 use openpaint_render::Core;
 use openpaint_ui::ScreenArea;
@@ -20,10 +20,14 @@ pub(crate) enum Screen {
 }
 
 impl Screen {
-    pub(crate) fn projection(&self) -> ScreenProjection {
+    /// What the screen offers; on the canvas with the toolbox's brush, size and opacity.
+    pub(crate) fn projection(&self, toolbox: &Toolbox) -> ScreenProjection {
         match self {
             Self::Opening(_) => ScreenProjection::Starting,
-            Self::Canvas(canvas) => ScreenProjection::Canvas(canvas.session().projection()),
+            Self::Canvas(canvas) => {
+                let session = canvas.session().projection();
+                ScreenProjection::Canvas(session.with_brush(toolbox.projection()))
+            }
             Self::Gallery(gallery) => ScreenProjection::Gallery(gallery.projection()),
         }
     }
@@ -42,24 +46,37 @@ impl Screen {
         }
     }
 
-    /// Shows `content` on a canvas once the area is known.
+    /// Shows `content` on a canvas once the area is known, drawing with the toolbox's brush.
     pub(crate) fn open(
         &mut self,
         core: &Core,
         area: Option<ScreenArea>,
+        toolbox: &Toolbox,
     ) -> Result<(), RuntimeError> {
         if let (Self::Opening(Some(content)), Some(area)) = (&*self, area)
-            && let Some(canvas) = Canvas::open(core, &area, content)?
+            && let Some(canvas) = Canvas::open(core, &area, content, toolbox.style()?)?
         {
             *self = Self::Canvas(Box::new(canvas));
         }
         Ok(())
     }
 
-    /// Applies what the storage worker finished.
-    pub(crate) fn answer(&mut self, done: Done) {
+    /// Applies what the storage worker finished; the stored toolbox goes to `toolbox`.
+    pub(crate) fn answer(&mut self, done: Done, toolbox: &mut Toolbox) {
         match done {
-            Done::Started(opened) => *self = started(opened),
+            Done::Started(opened, editor) => {
+                if let Some(state) = editor
+                    && !toolbox.restore(&state)
+                {
+                    log::warn!("part of the stored toolbox did not fit the brushes");
+                }
+                *self = started(opened);
+            }
+            Done::EditorSaved(result) => {
+                if let Err(error) = result {
+                    log::warn!("storing the toolbox failed: {error}");
+                }
+            }
             Done::Saved(version, result) => {
                 match &result {
                     Ok(()) => log::debug!("saved"),

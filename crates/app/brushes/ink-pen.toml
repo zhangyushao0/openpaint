@@ -1,0 +1,13 @@
+# Ink pen: a hard edge, the line swells with pressure, full strength all along. It is the round
+# brush every stroke was drawn with before brush recipes.
+name = "Ink Pen"
+
+[size]
+# Diameter in canvas pixels: what the size slider starts at, and its two ends.
+default = 12
+min = 1
+max = 80
+pressure = [[0.0, 0.0], [1.0, 1.0]]
+
+[opacity]
+default = 1.0

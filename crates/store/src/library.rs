@@ -3,17 +3,20 @@
 //! disk; a save rewrites the head and only the stroke records that changed since the version
 //! this library last stored. An older library is upgraded when it is opened.
 
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use fjall::{Database, Keyspace, KeyspaceCreateOptions, PersistMode};
 use openpaint_app::{
-    PortError, Project, ProjectId, ProjectStore, ProjectSummary, Thumbnail, Title,
+    EditorState, PortError, Project, ProjectId, ProjectStore, ProjectSummary, Thumbnail, Title,
 };
 use openpaint_core::Artwork;
 
-use crate::migrate::upgrade_1_to_2;
+use crate::editor::decode_editor;
+use crate::migrate::{upgrade_1_to_2, upgrade_2_to_3};
 use crate::records::{
     LIBRARY, NEXT, PROJECTS, SCHEMA, SCHEMA_KEY, decode_id, decode_schema, encode_schema, head_key,
+    strokes_prefix,
 };
 use crate::{read, write};
 
@@ -87,42 +90,91 @@ impl Library {
     }
 }
 
-/// Checks the schema of an opened database: a new one is marked with this build's schema, a
-/// schema-1 one is upgraded, a newer one is refused.
+/// Checks the schema of an opened database: a new one is marked with this build's schema, an
+/// older one is upgraded step by step in one batch, a newer one is refused.
 fn prepare(open: &Open) -> Result<(), PortError> {
-    if let Some(bytes) = open.library.get(SCHEMA_KEY).map_err(device)? {
-        return match decode_schema(&bytes)? {
-            SCHEMA => Ok(()),
-            found if found > SCHEMA => Err(PortError::NewerSchema {
-                found,
-                newest: SCHEMA,
-            }),
-            _ => Err(PortError::Corrupt {
-                what: "library schema",
-            }),
-        };
+    let schema = match open.library.get(SCHEMA_KEY).map_err(device)? {
+        Some(bytes) => decode_schema(&bytes)?,
+        // Schema 1 had no schema record; an empty database has no project counter either.
+        None if open.library.get(NEXT).map_err(device)?.is_some() => 1,
+        None => {
+            let mut batch = open.db.batch();
+            batch.insert(&open.library, SCHEMA_KEY, encode_schema(SCHEMA));
+            return commit(batch);
+        }
+    };
+    match schema {
+        SCHEMA => Ok(()),
+        found if found > SCHEMA => Err(PortError::NewerSchema {
+            found,
+            newest: SCHEMA,
+        }),
+        1 | 2 => upgrade(open, schema),
+        _ => Err(PortError::Corrupt {
+            what: "library schema",
+        }),
     }
-    let mut batch = open.db.batch();
-    match open.library.get(NEXT).map_err(device)? {
-        None => batch.insert(&open.library, SCHEMA_KEY, encode_schema(SCHEMA)),
-        Some(next) => {
-            let next = decode_id(&next, "next project id")?;
-            let mut heads = Vec::new();
-            for id in (1..next).map(ProjectId::new) {
-                if let Some(head) = open.projects.get(head_key(id)).map_err(device)? {
-                    heads.push((id, head.to_vec()));
-                }
+}
+
+/// Runs every migration step from schema `from` on over the records as they are, each step
+/// seeing the heads the one before it wrote, and writes the result in one batch.
+fn upgrade(open: &Open, from: u32) -> Result<(), PortError> {
+    let (mut heads, strokes) = old_records(open)?;
+    let mut library = BTreeMap::new();
+    let mut projects = BTreeMap::new();
+    let mut steps = Vec::new();
+    if from == 1 {
+        steps.push(upgrade_1_to_2(&heads));
+        for (id, head) in &mut heads {
+            let key = head_key(*id);
+            if let Some((_, marked)) = steps[0].projects.iter().find(|(k, _)| *k == key) {
+                head.clone_from(marked);
             }
-            let upgrade = upgrade_1_to_2(&heads);
-            for (key, value) in upgrade.library {
-                batch.insert(&open.library, key, value);
-            }
-            for (key, value) in upgrade.projects {
-                batch.insert(&open.projects, key, value);
-            }
-            log::info!("library upgraded from schema 1 ({} projects)", heads.len());
         }
     }
+    steps.push(upgrade_2_to_3(&heads, &strokes));
+    for step in steps {
+        library.extend(step.library);
+        projects.extend(step.projects);
+    }
+    let mut batch = open.db.batch();
+    for (key, value) in library {
+        batch.insert(&open.library, key, value);
+    }
+    for (key, value) in projects {
+        batch.insert(&open.projects, key, value);
+    }
+    commit(batch)?;
+    log::info!(
+        "library upgraded from schema {from} ({} projects, {} strokes)",
+        heads.len(),
+        strokes.len()
+    );
+    Ok(())
+}
+
+/// Every project's head and every stroke record, by key.
+type OldRecords = (Vec<(ProjectId, Vec<u8>)>, Vec<(Vec<u8>, Vec<u8>)>);
+
+fn old_records(open: &Open) -> Result<OldRecords, PortError> {
+    let next = match open.library.get(NEXT).map_err(device)? {
+        Some(next) => decode_id(&next, "next project id")?,
+        None => 1,
+    };
+    let (mut heads, mut strokes) = (Vec::new(), Vec::new());
+    for id in (1..next).map(ProjectId::new) {
+        if let Some(head) = open.projects.get(head_key(id)).map_err(device)? {
+            heads.push((id, head.to_vec()));
+        }
+        for guard in open.projects.prefix(strokes_prefix(id)) {
+            let (key, value) = guard.into_inner().map_err(device)?;
+            strokes.push((key.to_vec(), value.to_vec()));
+        }
+    }
+    Ok((heads, strokes))
+}
+
+fn commit(batch: fjall::OwnedWriteBatch) -> Result<(), PortError> {
     batch
         .durability(Some(PersistMode::SyncData))
         .commit()
@@ -195,5 +247,15 @@ impl ProjectStore for Library {
         }
         log::info!("project {} deleted", id.get());
         Ok(())
+    }
+
+    fn editor(&mut self) -> Result<Option<EditorState>, PortError> {
+        // Decoded outside `with`: an unreadable toolbox is no reason to reopen the database.
+        let bytes = self.with(read::editor)?;
+        bytes.as_deref().map(decode_editor).transpose()
+    }
+
+    fn save_editor(&mut self, state: &EditorState) -> Result<(), PortError> {
+        self.with(|open| write::editor(open, state))
     }
 }

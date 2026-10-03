@@ -15,6 +15,8 @@ const SIZE: [u32; 2] = [640, 400];
 const PIXELS_PER_POINT: f32 = 2.0;
 /// The 48-point top bar at density 2.
 const BAR_ROWS: u32 = 96;
+/// The side bar over the canvas's left edge (8 + 64 points) at density 2, and some room.
+const SIDE_BAR_COLUMNS: u32 = 160;
 const PAPER: [u8; 4] = [255; 4];
 
 fn sample(x: f32, y: f32, time_ms: i64) -> PointerSample {
@@ -27,11 +29,11 @@ fn sample(x: f32, y: f32, time_ms: i64) -> PointerSample {
     }
 }
 
-/// A straight swipe from x = 100 to x = 500 at screen row `y`: down, moves of three samples,
-/// up; one frame after each batch.
+/// A straight swipe from x = 180 to x = 580 at screen row `y`, right of the side bar: down,
+/// moves of three samples, up; one frame after each batch.
 fn swipe(runtime: &mut Runtime, tool: ToolKind, y: f32) {
     let points: Vec<PointerSample> = (0..=40u8)
-        .map(|i| sample(100.0 + 10.0 * f32::from(i), y, i64::from(i) * 4))
+        .map(|i| sample(180.0 + 10.0 * f32::from(i), y, i64::from(i) * 4))
         .collect();
     let mut batches = vec![(MotionPhase::Down, points[..1].to_vec())];
     batches.extend(
@@ -96,8 +98,9 @@ fn the_pen_draws_under_its_tip_and_a_finger_does_not() {
     assert_eq!(strokes, 1);
     let cold = cold(&artwork);
     let [width, height] = cold.size();
-    let rows = (0..height)
-        .all(|y| (0..width).all(|x| pixel(&screen, [x, y + BAR_ROWS]) == pixel(&cold, [x, y])));
+    let rows = (0..height).all(|y| {
+        (SIDE_BAR_COLUMNS..width).all(|x| pixel(&screen, [x, y + BAR_ROWS]) == pixel(&cold, [x, y]))
+    });
     assert!(
         rows,
         "the screen differs from a cold evaluation of the artwork"

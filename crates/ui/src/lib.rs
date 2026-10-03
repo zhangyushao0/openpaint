@@ -4,11 +4,13 @@
 //! No direct GPU API, no file system (`cargo repo-check`).
 #![forbid(unsafe_code)]
 
+mod brush_panel;
 pub mod components;
 pub mod design;
 mod gallery;
 mod layer_panel;
 mod shell;
+mod side_bar;
 
 pub use crate::components::{ScreenArea, TOP_BAR_HEIGHT};
 pub use crate::shell::Shell;

@@ -2,8 +2,8 @@
 //! positional access into a layer's strokes.
 
 use openpaint_core::{
-    Artwork, ArtworkCommand, CanvasPoint, CanvasSize, Color, LayerCommand, StrokeSample,
-    StrokeStyle,
+    Artwork, ArtworkCommand, BrushRecipe, CanvasPoint, CanvasSize, Color, LayerCommand,
+    StrokeSample, StrokeStyle,
 };
 
 fn blank() -> Artwork {
@@ -16,7 +16,8 @@ fn sample(x: f32, time_ms: u32) -> StrokeSample {
 
 /// A stroke of `samples` samples on the active layer.
 fn draw(artwork: &Artwork, samples: u32) -> Artwork {
-    let style = StrokeStyle::new(8.0, 1.0, Color::BLACK).unwrap();
+    let recipe = std::sync::Arc::new(BrushRecipe::plain());
+    let style = StrokeStyle::new(recipe, 8.0, 1.0, Color::BLACK).unwrap();
     let mut session = artwork.begin_stroke(style, sample(0.0, 0)).unwrap();
     let rest: Vec<StrokeSample> = (1..samples).map(|i| sample(i as f32, i)).collect();
     session.extend(&rest).unwrap();

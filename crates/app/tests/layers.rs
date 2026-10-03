@@ -5,10 +5,13 @@ use openpaint_app::{
     AppError, Availability, Contact, ContactPhase, Device, EditorAction, HistoryIntent,
     InputSample, Intent, LayerIntent, Session, StrokeIntent,
 };
+use openpaint_app::{BrushLibrary, Toolbox};
 use openpaint_core::{CanvasSize, LayerId};
 
 fn session() -> Session {
-    Session::new(CanvasSize::new(200, 100).expect("size")).expect("session")
+    let library = BrushLibrary::built_in().expect("built-in brushes");
+    let brush = Toolbox::new(library).style().expect("style");
+    Session::new(CanvasSize::new(200, 100).expect("size"), brush)
 }
 
 fn layer(session: &mut Session, intent: LayerIntent) -> Result<(), AppError> {

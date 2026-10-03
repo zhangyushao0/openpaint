@@ -44,6 +44,10 @@ pub const CARD_PICTURE: Vec2 = Vec2::new(256.0, 192.0);
 pub const CARD_GAP: f32 = 4.0 * SPACE;
 /// Behind the canvas where the canvas does not reach, as RGBA bytes for the renderer.
 pub const SURROUND: [u8; 4] = [24, 24, 24, 255];
+/// A brush's stroke preview in the brush picker, in points.
+pub const BRUSH_PREVIEW: Vec2 = Vec2::new(160.0, 48.0);
+/// Length of a side bar slider, in points.
+pub const SIDE_SLIDER: f32 = 176.0;
 
 /// The type scale in points: one size per role.
 const TYPE_SCALE: [(TextStyle, f32); 5] = [

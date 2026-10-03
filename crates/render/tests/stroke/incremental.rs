@@ -5,7 +5,9 @@ use openpaint_render::{
     CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, RgbaImage, stroke_region,
 };
 
-use crate::fixture::{SIZE, blank, cold, core, diagonal, request, wave, with_layer, with_stroke};
+use crate::fixture::{
+    SIZE, blank, cold, core, diagonal, diagonal_with, request, rich, wave, with_layer, with_stroke,
+};
 
 /// Chunk sizes cycle through these, so chunk boundaries fall at varied places.
 const CHUNKS: [usize; 5] = [1, 2, 3, 5, 8];
@@ -34,9 +36,11 @@ fn draw_incrementally(
     dirty: Dirty,
 ) -> StrokeSession {
     let mut evaluator = RegionEvaluator::new(core, target);
-    let mut session = artwork.begin_stroke(*style, samples[0]).expect("begin");
+    let mut session = artwork
+        .begin_stroke(style.clone(), samples[0])
+        .expect("begin");
     let mut drawn = 1;
-    let mut region = stroke_region(style, &samples[..1]);
+    let mut region = stroke_region(style, &samples[..1], 0);
     for size in CHUNKS.iter().cycle() {
         let frame = FrameRequest {
             active: Some(session.active()),
@@ -53,7 +57,7 @@ fn draw_incrementally(
         let end = (drawn + size).min(samples.len());
         session.extend(&samples[drawn..end]).expect("extend");
         // The new segments start at the last sample drawn before them.
-        region = stroke_region(style, &samples[drawn - 1..end]);
+        region = stroke_region(style, &samples[..end], drawn - 1);
         drawn = end;
     }
     session
@@ -75,12 +79,18 @@ fn evaluated(core: &Core, artwork: &Artwork) -> CanvasTarget {
 fn a_stroke_drawn_in_chunks_equals_the_finished_artwork_evaluated_cold() {
     let core = core();
     let under = under();
-    for dirty in [Dirty::Caller, Dirty::Evaluator] {
+    let strokes = [
+        (Dirty::Caller, diagonal()),
+        (Dirty::Evaluator, diagonal()),
+        // Speed, a soft edge, flow and grain all depend only on samples up to their own.
+        (Dirty::Evaluator, diagonal_with(rich())),
+    ];
+    for (dirty, stroke) in strokes {
         let mut target = evaluated(&core, &under);
         let before = read(&core, &target);
-        let session = draw_incrementally(&core, &mut target, &under, &diagonal(), dirty);
+        let session = draw_incrementally(&core, &mut target, &under, &stroke, dirty);
         let finished = session.finish().artwork;
-        assert_eq!(finished, with_stroke(&under, diagonal()));
+        assert_eq!(finished, with_stroke(&under, stroke));
         // The committed stroke already shows; evaluating the new version changes nothing.
         let incremental = read(&core, &target);
         RegionEvaluator::new(&core, &mut target)

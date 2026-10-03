@@ -6,7 +6,7 @@ use openpaint_core::{
 };
 use openpaint_render::{CanvasTarget, FrameRequest, PixelRect, RegionEvaluator, changed_regions};
 
-use crate::fixture::{SIZE, blank, cold, core, pixel, request, sample, with_stroke};
+use crate::fixture::{SIZE, blank, cold, core, pixel, plain, request, sample, with_stroke};
 
 const RED: [u8; 4] = [255, 0, 0, 255];
 const BLUE: [u8; 4] = [0, 0, 255, 255];
@@ -16,7 +16,7 @@ const HALF: [u8; 4] = [128, 0, 128, 255];
 const CROSSING: [u32; 2] = [160, 100];
 
 fn line(color: Color, from: [f32; 2], to: [f32; 2]) -> (StrokeStyle, Vec<StrokeSample>) {
-    let style = StrokeStyle::new(24.0, 1.0, color).expect("style");
+    let style = plain(24.0, 1.0, color);
     let samples = (0..=8u16)
         .map(|i| {
             let t = f32::from(i) / 8.0;

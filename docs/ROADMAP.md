@@ -32,11 +32,7 @@ Passed 2026-10-02: S2 to S8 done (see "Done"); the author judged pen feel and pa
 
 Exit: the author finishes an inked and flat-coloured piece (W1) on the tablet.
 
-S9 and S10 are done (see "Done").
-
-**S11 Brush recipes v1** (core, render, ui, store)
-- `BrushRecipe` TOML: shape, size and opacity curves over pressure and speed, grain; built-in pencil, ink pen and soft brush; brush picker with size and opacity sliders; strokes store a recipe snapshot. The side bar (size, opacity) also takes over the undo/redo buttons from the top bar, as in Procreate (author, 2026-10-02).
-- Done: GPU hash tests for the three brushes; recipe parse errors are typed; changing a built-in recipe does not change old artworks (test).
+S9 to S11 are done (see "Done").
 
 **S12 Eraser, Alpha Lock, colour** (core, app, ui, render)
 - The eraser uses the same recipes; Alpha Lock; HSV wheel with recent colours; eyedropper through render picking.
@@ -77,11 +73,13 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - 2026-10-02 View transform (zoom, pan, rotate, refit after device rotation): no slice owns it; until then the canvas is fixed at its first size, one screen pixel per canvas pixel.
 - 2026-10-02 Vulkan staging stall (~1.5 ms every ~4,000 `write_buffer` calls on the dev machine): pack the evaluator's per-frame writes or use a staging belt if the tablet shows it.
 - 2026-10-02 Finished-stroke cost per frame: cache the tile binning of finished ops per artwork version before long sessions make the plan step slow.
-- 2026-10-02 Touch gestures for history (two-finger tap undo, three-finger tap redo, Procreate's model): gesture mapping is the author's call (ARCHITECTURE section 10); needs multi-touch routing and a multi-pointer scenario step. Undo/redo are top-bar buttons until then.
+- 2026-10-02 Touch gestures for history (two-finger tap undo, three-finger tap redo, Procreate's model): gesture mapping is the author's call (ARCHITECTURE section 10); needs multi-touch routing and a multi-pointer scenario step. Undo/redo are side-bar buttons until then (and after, as in Procreate).
 - 2026-10-02 Presentation latency: on the tablet a queued frame reaches the glass p50 28 ms later (about 3.4 vsyncs at 120 Hz) against 9 ms from pen event to queue (D22); front-buffered stylus rendering or tighter frame timing is the lever, not a render thread.
 - 2026-10-02 Layer panel follow-ups (S9): drag rows to reorder (press and hold), rename, layer thumbnails; `changed_regions` for a layer property change could cover only that layer's strokes instead of the whole canvas (an opacity drag re-evaluates the whole canvas every frame).
 - 2026-10-02 CJK and other non-Latin glyphs (S10): egui's built-in fonts have none, so a Chinese title or layer name shows boxes; the host would hand a system font (for example Noto Sans CJK) to the UI at start.
 - 2026-10-02 Gallery follow-ups (S10): Procreate's swipe-left on a card for duplicate and delete, sorting by hand, selecting several; re-show the soft keyboard when the field is tapped after the keyboard was closed with its own button; a canvas size menu for "+".
+- 2026-10-02 Side bar follow-ups (S11): a left-handed setting that mirrors it (one constant in `components/side_panel.rs`, the bubble side in `side_slider.rs`); Procreate's modify button between the sliders (eyedropper, S12); a hold-to-show size preview circle.
+- 2026-10-02 Brush follow-ups (S11): brush editing and import through a `BrushStore`; flow that builds up within a stroke (needs kept state, D17); cache per-sample speed per stroke so a scene rebuild does not recompute it.
 - 2026-10-02 Pen stroke cancelled by a landing touch: with injected input the dispatcher cancels the pen's gesture when a touch lands mid-stroke and the stroke is dropped; if real hardware does the same, commit the stroke drawn so far on such a cancel.
 
 ## Done
@@ -99,3 +97,4 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - S8 2026-10-02 `feat(android): palm rejection, round stroke ends, pen latency probe on the tablet (S8)`; draw, undo, reopen and latency confirmed on the tablet with injected input; G1 exit awaits the author (pen feel, palm by hand)
 - S9 2026-10-02 `feat(app): layers with a popover panel, undoable layer actions, ordered compositing (S9)`; confirmed on the tablet with injected input; no schema 2 (D24, the author to confirm)
 - S10 2026-10-02 `feat(store): artwork library with a gallery, schema 2, thumbnails, rename by keyboard (S10)`; confirmed on the tablet with injected input and Gboard; the author's schema-1 library upgraded unchanged
+- S11 2026-10-02 `feat(render): brush recipes, brush panel, side bar with size, opacity and history, schema 3 (S11)`; confirmed on the tablet with injected input; the author's schema-2 library upgraded pixel-identical

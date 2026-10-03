@@ -1,9 +1,10 @@
-//! Schema 2: the keys and values the library stores (DECISIONS D21, D25).
+//! Schema 3: the keys and values the library stores (DECISIONS D21, D25, D27).
 //!
 //! Keyspace `library`: `schema` -> the schema of every record (u32 LE); `next` -> the next
 //! unused project id (u64 LE); `clock` -> the last value of the change counter (u64 LE); `last`
 //! -> the project open when the app was left (u64 LE), absent when none was; `['a'][project
-//! u64]` -> the project's catalogue entry (`catalogue.rs`): title and when it last changed.
+//! u64]` -> the project's catalogue entry (`catalogue.rs`): title and when it last changed;
+//! `editor` -> the toolbox (`editor.rs`), absent until the user first changed it.
 //!
 //! Keyspace `projects`, keys big-endian so a project's records sort together:
 //! - `[project u64]['h']` -> the head: schema (u32), canvas width and height (u32), active
@@ -11,22 +12,25 @@
 //!   (u64), name (u32 length + UTF-8), visible (u8), opacity (f32), locked (u8) and its stroke
 //!   count (u32);
 //! - `[project u64]['s'][layer u64][index u64]` -> one stroke, oldest at index 0: id (u64),
-//!   size, opacity, red, green, blue (f32), sample count (u32), then per sample x, y, pressure,
-//!   tilt, azimuth (f32) and time (u32 ms);
+//!   size, opacity, red, green, blue (f32), its brush recipe (softness (f32); the curves size
+//!   over pressure, size over speed, opacity over pressure, opacity over speed, each a point
+//!   count (u32) and per point x, y (f32); grain strength (f32) and scale (u32)), sample count
+//!   (u32), then per sample x, y, pressure, tilt, azimuth (f32) and time (u32 ms);
 //! - `[project u64]['t']` -> the gallery thumbnail (`catalogue.rs`), derived from the artwork
 //!   when it was last left; absent until then.
 //!
 //! Integers and floats are little-endian inside values. A save rewrites the head and only the
 //! stroke records that changed. Schema 1 (S7) had no `schema`, `clock`, catalogue entries or
-//! thumbnails, and `last` named the project saved last; `migrate.rs` upgrades it.
+//! thumbnails, and `last` named the project saved last; schema 2 (S10) had no recipe in its
+//! strokes and no `editor`; `migrate.rs` upgrades both.
 
 use openpaint_app::{PortError, ProjectId};
-use openpaint_core::{Artwork, LayerParts, SampleParts, Stroke, StrokeParts};
+use openpaint_core::{Artwork, LayerParts, RecipeParts, SampleParts, Stroke, StrokeParts};
 
 use crate::codec::{Reader, Writer};
 
 /// The schema this build writes and the newest it reads.
-pub const SCHEMA: u32 = 2;
+pub const SCHEMA: u32 = 3;
 
 pub(crate) const LIBRARY: &str = "library";
 pub(crate) const PROJECTS: &str = "projects";
@@ -42,6 +46,10 @@ const STROKE: u8 = b's';
 const THUMBNAIL: u8 = b't';
 /// Bytes of one encoded sample.
 const SAMPLE_BYTES: usize = 24;
+/// Bytes of a stroke record before its recipe: id, size, opacity and colour.
+pub(crate) const STROKE_STYLE_BYTES: usize = 8 + 5 * 4;
+/// Bytes of one curve point.
+const POINT_BYTES: usize = 8;
 /// Bytes of a layer entry in the head without its name.
 const LAYER_BYTES: usize = 8 + 4 + 1 + 4 + 1 + 4;
 
@@ -209,6 +217,7 @@ pub(crate) fn encode_stroke(stroke: &Stroke) -> Vec<u8> {
     for channel in [color.r(), color.g(), color.b()] {
         writer.f32(channel);
     }
+    write_recipe(&mut writer, &style.recipe().to_parts());
     writer.len(samples.len());
     for sample in samples {
         let position = sample.position();
@@ -231,6 +240,7 @@ pub(crate) fn decode_stroke(bytes: &[u8]) -> Result<StrokeParts, PortError> {
     let id = reader.u64()?;
     let (size, opacity) = (reader.f32()?, reader.f32()?);
     let color = [reader.f32()?, reader.f32()?, reader.f32()?];
+    let recipe = read_recipe(&mut reader)?;
     let count = reader.count(SAMPLE_BYTES)?;
     let mut samples = Vec::with_capacity(count);
     for _ in 0..count {
@@ -246,9 +256,50 @@ pub(crate) fn decode_stroke(bytes: &[u8]) -> Result<StrokeParts, PortError> {
     reader.end()?;
     Ok(StrokeParts {
         id,
+        recipe,
         size,
         opacity,
         color,
         samples,
+    })
+}
+
+/// A recipe as a stroke record holds it, after the colour.
+pub(crate) fn write_recipe(writer: &mut Writer, recipe: &RecipeParts) {
+    writer.f32(recipe.softness);
+    for curve in [
+        &recipe.size_pressure,
+        &recipe.size_speed,
+        &recipe.opacity_pressure,
+        &recipe.opacity_speed,
+    ] {
+        writer.len(curve.len());
+        for [x, y] in curve {
+            writer.f32(*x);
+            writer.f32(*y);
+        }
+    }
+    writer.f32(recipe.grain_strength);
+    writer.u32(recipe.grain_scale);
+}
+
+fn read_recipe(reader: &mut Reader<'_>) -> Result<RecipeParts, PortError> {
+    let softness = reader.f32()?;
+    let mut curve = || -> Result<Vec<[f32; 2]>, PortError> {
+        let count = reader.count(POINT_BYTES)?;
+        (0..count)
+            .map(|_| Ok([reader.f32()?, reader.f32()?]))
+            .collect()
+    };
+    let (size_pressure, size_speed) = (curve()?, curve()?);
+    let (opacity_pressure, opacity_speed) = (curve()?, curve()?);
+    Ok(RecipeParts {
+        softness,
+        size_pressure,
+        size_speed,
+        opacity_pressure,
+        opacity_speed,
+        grain_strength: reader.f32()?,
+        grain_scale: reader.u32()?,
     })
 }

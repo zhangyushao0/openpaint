@@ -6,6 +6,7 @@ use crate::history::HistoryIntent;
 use crate::layers::LayerIntent;
 use crate::storage::StorageIntent;
 use crate::stroke::StrokeIntent;
+use crate::toolbox::BrushIntent;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Intent {
@@ -14,4 +15,5 @@ pub enum Intent {
     Storage(StorageIntent),
     Layer(LayerIntent),
     Gallery(GalleryIntent),
+    Brush(BrushIntent),
 }

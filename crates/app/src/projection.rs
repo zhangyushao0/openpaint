@@ -6,6 +6,7 @@ use std::fmt;
 use crate::gallery::GalleryProjection;
 use crate::layers::LayerList;
 use crate::storage::StorageNotice;
+use crate::toolbox::BrushProjection;
 
 /// Something the user can ask for whose availability depends on the session. The layer actions
 /// are offered for the active layer.
@@ -61,6 +62,7 @@ pub struct SessionProjection {
     pub(crate) gallery: Availability,
     pub(crate) storage: StorageNotice,
     pub(crate) layers: Option<LayerList>,
+    pub(crate) brush: Option<BrushProjection>,
 }
 
 /// What the whole screen shows for one UI frame.
@@ -110,6 +112,21 @@ impl SessionProjection {
     pub const fn layers(&self) -> Option<&LayerList> {
         self.layers.as_ref()
     }
+
+    /// The brush, size and opacity, once the toolbox's projection is added (`with_brush`).
+    #[must_use]
+    pub const fn brush(&self) -> Option<&BrushProjection> {
+        self.brush.as_ref()
+    }
+
+    /// This projection with the toolbox's, which the app keeps apart from any one artwork.
+    #[must_use]
+    pub fn with_brush(self, brush: BrushProjection) -> Self {
+        Self {
+            brush: Some(brush),
+            ..self
+        }
+    }
 }
 
 impl Default for SessionProjection {
@@ -123,6 +140,7 @@ impl Default for SessionProjection {
             gallery: Availability::NothingLeft,
             storage: StorageNotice::None,
             layers: None,
+            brush: None,
         }
     }
 }

@@ -2,7 +2,7 @@
 
 use openpaint_core::{ArtworkCommand, LayerCommand};
 
-use crate::fixture::{SIZE, blank, cold, core, pixel, wave, with_stroke};
+use crate::fixture::{SIZE, blank, cold, core, pixel, rich, wave, wave_with, with_stroke};
 
 /// `cargo run -p openpaint-harness -- render-stroke` renders the same wave and prints this hash.
 /// Same on Vulkan and DX12.
@@ -23,6 +23,25 @@ fn wave_matches_the_golden_hash() {
         image.content_hash(),
         core.adapter()
     );
+}
+
+/// The wave drawn with every recipe stage at work (`fixture::rich`); same on Vulkan and DX12.
+const RICH_GOLDEN: u64 = 0xcfc0_2779_7b0b_9f75;
+
+#[test]
+fn a_rich_recipe_matches_its_golden_hash() {
+    let core = core();
+    let image = cold(&core, &with_stroke(&blank(), wave_with(rich())));
+    assert_eq!(
+        image.content_hash(),
+        RICH_GOLDEN,
+        "hash {:016x} on {}",
+        image.content_hash(),
+        core.adapter()
+    );
+    // Grain takes paint away in places: the body is no longer one flat colour.
+    let row: Vec<[u8; 4]> = (140..180).map(|x| pixel(&image, [x, 100])).collect();
+    assert!(row.windows(2).any(|pair| pair[0] != pair[1]), "{row:?}");
 }
 
 #[test]

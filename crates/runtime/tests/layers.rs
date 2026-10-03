@@ -16,8 +16,8 @@ const SIZE: [u32; 2] = [1600, 1000];
 const PIXELS_PER_POINT: f32 = 2.0;
 /// Button centres in pixels: points from the panel's layout (popover 320 points wide, one
 /// space from the right edge and under the top bar; rows, slider and buttons one touch target
-/// high), times 2.
-const UNDO: [f32; 2] = [263.0, 48.0];
+/// high), times 2. Undo is in the side bar, whose sliders are 142 points long on this screen.
+const UNDO: [f32; 2] = [80.0, 808.0];
 const LAYERS: [f32; 2] = [1520.0, 48.0];
 const ADD: [f32; 2] = [1520.0, 176.0];
 /// The eye of the first row (the top layer).
@@ -42,9 +42,10 @@ fn strokes(runtime: &Runtime) -> usize {
     artwork.layers().iter().map(|l| l.strokes().len()).sum()
 }
 
+/// Right of the side bar.
 fn line(y: f32) -> Vec<[f32; 2]> {
     (0..=12u8)
-        .map(|i| [100.0 + 40.0 * f32::from(i), y])
+        .map(|i| [200.0 + 40.0 * f32::from(i), y])
         .collect()
 }
 

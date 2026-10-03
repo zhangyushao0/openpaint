@@ -1,14 +1,14 @@
 {
   "walkthrough": [
     "The gate's quick check that the app opens, takes pen input and shows it.",
-    "Open the app on a small screen: the top bar, a white canvas below it.",
-    "Draw one line with the pen, pressing harder towards the end; the line stays after lifting."
+    "Open the app on a small screen: the top bar, a white canvas below it, the side bar over its left edge.",
+    "Draw one line with the pen right of the side bar, pressing harder towards the end; the line stays after lifting."
   ],
   "screen": [640, 400],
   "density": 2.0,
   "steps": [
-    { "stroke": { "points": [[80, 180, 0.3], [320, 260, 0.7], [560, 200, 1.0]] } },
-    { "checkpoint": { "name": "line", "canvas": "2c6751195ed1a7ae" } },
+    { "stroke": { "points": [[180, 180, 0.3], [380, 260, 0.7], [580, 200, 1.0]] } },
+    { "checkpoint": { "name": "line", "canvas": "bc6e5fe383cf6a9c" } },
     { "screenshot": { "name": "screen" } }
   ]
 }

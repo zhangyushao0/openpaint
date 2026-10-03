@@ -72,7 +72,8 @@ mod tests {
     }
 
     fn draw(artwork: &Artwork, x: f32) -> Artwork {
-        let style = StrokeStyle::new(4.0, 1.0, Color::BLACK).expect("style");
+        let recipe = std::sync::Arc::new(openpaint_core::BrushRecipe::plain());
+        let style = StrokeStyle::new(recipe, 4.0, 1.0, Color::BLACK).expect("style");
         let sample = |x| {
             let point = CanvasPoint::new(x, 10.0).expect("point");
             StrokeSample::new(point, 0.5, 0.0, 0.0, 0).expect("sample")

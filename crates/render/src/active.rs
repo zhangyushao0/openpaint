@@ -6,7 +6,7 @@ use std::ops::Range;
 use openpaint_core::{ActiveStroke, Artwork, LayerId, StrokeSample, StrokeStyle};
 
 use crate::geom::PixelRect;
-use crate::scene::stroke_region;
+use crate::stroke::stroke_region;
 
 /// The stroke whose coverage the texture holds, as far as it was evaluated, and the artwork
 /// version it was last drawn over.
@@ -77,7 +77,7 @@ impl ActiveTrack {
             }
             _ => (true, 0..samples.len()),
         };
-        let fresh_region = stroke_region(active.style(), &samples[fresh.clone()]);
+        let fresh_region = stroke_region(active.style(), samples, fresh.start);
         self.record(artwork, active, reset, fresh_region);
         Step {
             reset,
@@ -104,7 +104,7 @@ impl ActiveTrack {
             _ => self.tracked.insert(Tracked {
                 base: artwork.clone(),
                 layer: active.layer(),
-                style: *active.style(),
+                style: active.style().clone(),
                 samples: Vec::new(),
                 region: None,
             }),
@@ -145,14 +145,14 @@ impl Tracked {
         // From the last evaluated sample on; after a lone dot that is the whole stroke, whose
         // first segment covers the dot it replaces.
         let from = self.samples.len().saturating_sub(1);
-        stroke_region(&self.style, &samples[from..])
+        stroke_region(&self.style, samples, from)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use openpaint_core::{CanvasPoint, CanvasSize, Color, StrokeSession};
+    use openpaint_core::{BrushRecipe, CanvasPoint, CanvasSize, Color, StrokeSession};
 
     fn sample(x: f32, time_ms: u32) -> StrokeSample {
         let position = CanvasPoint::new(x, 10.0).expect("point");
@@ -160,7 +160,8 @@ mod tests {
     }
 
     fn begin(artwork: &Artwork, x: f32) -> StrokeSession {
-        let style = StrokeStyle::new(4.0, 1.0, Color::BLACK).expect("style");
+        let recipe = std::sync::Arc::new(BrushRecipe::plain());
+        let style = StrokeStyle::new(recipe, 4.0, 1.0, Color::BLACK).expect("style");
         artwork.begin_stroke(style, sample(x, 0)).expect("begin")
     }
 
@@ -213,9 +214,11 @@ mod tests {
         track.advance(&base, Some(session.active()), true);
         let tail = [sample(30.0, 8), sample(40.0, 12)];
         session.extend(&tail).expect("extend");
-        let style = *session.active().style();
+        let style = session.active().style().clone();
+        let all = session.active().samples().to_vec();
         let committed = track.advance(&session.finish().artwork, None, true);
-        let expected = stroke_region(&style, &[sample(20.0, 4), tail[0], tail[1]]);
+        let expected = stroke_region(&style, &all, 1);
+        assert_eq!(all[1..], [sample(20.0, 4), tail[0], tail[1]]);
         assert_eq!(committed.redraw, expected);
     }
 

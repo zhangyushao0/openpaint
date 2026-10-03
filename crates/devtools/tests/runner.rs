@@ -12,7 +12,7 @@ const SCENARIO: &str = r#"{
     "density": 2,
     "steps": [
         { "checkpoint": { "name": "blank", "canvas": "0000000000000000" } },
-        { "stroke": { "points": [[40, 150, 0.4], [280, 150, 1.0]] } },
+        { "stroke": { "points": [[160, 150, 0.4], [300, 150, 1.0]] } },
         { "checkpoint": { "name": "stroke", "canvas": "0000000000000000" } },
         { "tap": { "at": [160, 200] } },
         { "wait": { "frames": 2 } },

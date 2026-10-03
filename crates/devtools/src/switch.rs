@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use openpaint_app::{
-    PortError, Project, ProjectId, ProjectStore, ProjectSummary, Thumbnail, Title,
+    EditorState, PortError, Project, ProjectId, ProjectStore, ProjectSummary, Thumbnail, Title,
 };
 use openpaint_core::Artwork;
 use openpaint_store::Library;
@@ -80,5 +80,13 @@ impl ProjectStore for Switched {
 
     fn delete(&mut self, id: ProjectId) -> Result<(), PortError> {
         self.on(|library| library.delete(id))
+    }
+
+    fn editor(&mut self) -> Result<Option<EditorState>, PortError> {
+        self.on(Library::editor)
+    }
+
+    fn save_editor(&mut self, state: &EditorState) -> Result<(), PortError> {
+        self.on(|library| library.save_editor(state))
     }
 }

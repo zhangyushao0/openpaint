@@ -7,7 +7,25 @@ use std::mem::{offset_of, size_of};
 /// Side of a square evaluation tile in pixels; also the evaluator's workgroup size.
 pub(crate) const TILE: u32 = 16;
 /// Number of `f32` operands in one op record.
-const OP_DATA: usize = 7;
+const OP_DATA: usize = 9;
+/// A paint op's grain strength is a whole number in `0..=GRAIN_ONE`, so the shader's grain is
+/// exact integer arithmetic on every backend.
+pub(crate) const GRAIN_ONE: u32 = 256;
+
+/// Operand slots the evaluator reads by name, declared to WGSL as constants by `prelude`.
+const PAINT_OPACITY: usize = 3;
+const PAINT_GRAIN: usize = 4;
+const PAINT_GRAIN_SCALE: usize = 5;
+/// The flow at `a`; the flow at `b` follows it.
+const SEGMENT_FLOW: usize = 6;
+const SEGMENT_EDGE: usize = 8;
+const SLOTS: [(&str, usize); 5] = [
+    ("PAINT_OPACITY", PAINT_OPACITY),
+    ("PAINT_GRAIN", PAINT_GRAIN),
+    ("PAINT_GRAIN_SCALE", PAINT_GRAIN_SCALE),
+    ("SEGMENT_FLOW", SEGMENT_FLOW),
+    ("SEGMENT_EDGE", SEGMENT_EDGE),
+];
 /// A plan index with this bit set refers to the evaluation's fresh ops (the in-progress
 /// stroke's new segments and its `EndActive`), not to the scene's ops.
 pub(crate) const FRESH: u32 = 1 << 31;
@@ -47,10 +65,13 @@ impl Opcode {
 }
 
 /// One op. Operands by opcode:
-/// - `Segment`: `[ax, ay, bx, by, ra, rb, _]`, a tapered capsule from `a` (radius `ra`) to `b`
-///   (radius `rb`) in target pixels.
-/// - `EndStroke` and `EndActive`: `[r, g, b, opacity, _, _, _]`, straight sRGB colour.
-/// - `EndLayer`: `[opacity, _, _, _, _, _, _]`.
+/// - `Segment`: `[ax, ay, bx, by, ra, rb, fa, fb, edge]`, a tapered capsule from `a` (radius
+///   `ra`) to `b` (radius `rb`) in target pixels; its coverage is multiplied by the flow, `fa`
+///   at `a` changing evenly to `fb` at `b`; `edge` is one over the width in pixels over which
+///   the coverage fades in from the outline (1: a hard, antialiased edge).
+/// - `EndStroke` and `EndActive`: `[r, g, b, opacity, grain, grain_scale, _, _, _]`, straight
+///   sRGB colour; `grain` a whole number in `0..=GRAIN_ONE`, `grain_scale` whole pixels.
+/// - `EndLayer`: `[opacity, _, ...]`.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Op {
@@ -58,24 +79,57 @@ pub(crate) struct Op {
     data: [f32; OP_DATA],
 }
 
+/// What a stroke's paint op carries: colour, opacity and grain.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct Paint {
+    pub(crate) color: [f32; 3],
+    pub(crate) opacity: f32,
+    /// In `0..=GRAIN_ONE`.
+    pub(crate) grain: u32,
+    pub(crate) grain_scale: u32,
+}
+
+impl Paint {
+    fn operands(&self) -> [f32; 6] {
+        // Both are small whole numbers, exact as floats.
+        let [r, g, b] = self.color;
+        [
+            r,
+            g,
+            b,
+            self.opacity,
+            self.grain as f32,
+            self.grain_scale as f32,
+        ]
+    }
+}
+
 impl Op {
-    pub(crate) fn segment(a: [f32; 2], b: [f32; 2], radii: [f32; 2]) -> Self {
-        Self::new(
-            Opcode::Segment,
-            &[a[0], a[1], b[0], b[1], radii[0], radii[1]],
-        )
+    pub(crate) fn segment(
+        a: [f32; 2],
+        b: [f32; 2],
+        radii: [f32; 2],
+        flows: [f32; 2],
+        edge: f32,
+    ) -> Self {
+        let mut data = [0.0; OP_DATA];
+        data[..6].copy_from_slice(&[a[0], a[1], b[0], b[1], radii[0], radii[1]]);
+        data[SEGMENT_FLOW] = flows[0];
+        data[SEGMENT_FLOW + 1] = flows[1];
+        data[SEGMENT_EDGE] = edge;
+        Self::new(Opcode::Segment, &data)
     }
 
-    pub(crate) fn end_stroke(color: [f32; 3], opacity: f32) -> Self {
-        Self::new(Opcode::EndStroke, &[color[0], color[1], color[2], opacity])
+    pub(crate) fn end_stroke(paint: &Paint) -> Self {
+        Self::new(Opcode::EndStroke, &paint.operands())
     }
 
     pub(crate) fn end_layer(opacity: f32) -> Self {
         Self::new(Opcode::EndLayer, &[opacity])
     }
 
-    pub(crate) fn end_active(color: [f32; 3], opacity: f32) -> Self {
-        Self::new(Opcode::EndActive, &[color[0], color[1], color[2], opacity])
+    pub(crate) fn end_active(paint: &Paint) -> Self {
+        Self::new(Opcode::EndActive, &paint.operands())
     }
 
     /// An op no plan refers to; it keeps a scene's item and op indices equal.
@@ -172,7 +226,7 @@ const LAYOUTS: [Layout; 3] = [
         size: size_of::<Op>(),
         fields: &[
             ("code", "u32", offset_of!(Op, code)),
-            ("data", "array<f32, 7>", offset_of!(Op, data)),
+            ("data", "array<f32, 9>", offset_of!(Op, data)),
         ],
     },
     Layout {
@@ -196,12 +250,16 @@ const LAYOUTS: [Layout; 3] = [
     },
 ];
 
-/// WGSL declarations of the protocol: the tile size, one constant per opcode, one struct per
-/// record.
+/// WGSL declarations of the protocol: the tile size, one constant per opcode and per named
+/// operand slot, one struct per record.
 pub(crate) fn prelude() -> String {
     let mut wgsl = String::from("// Generated by crates/render/src/protocol.rs.\n");
     wgsl.push_str(&format!("const TILE: u32 = {TILE}u;\n"));
     wgsl.push_str(&format!("const FRESH: u32 = {FRESH}u;\n"));
+    wgsl.push_str(&format!("const GRAIN_ONE: u32 = {GRAIN_ONE}u;\n"));
+    for (name, slot) in SLOTS {
+        wgsl.push_str(&format!("const {name}: u32 = {slot}u;\n"));
+    }
     for opcode in Opcode::ALL {
         wgsl.push_str(&format!(
             "const {}: u32 = {}u;\n",
@@ -255,8 +313,29 @@ mod tests {
     }
 
     #[test]
+    fn named_slots_hold_what_the_constructors_write() {
+        let op = Op::segment([1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [0.25, 0.75], 0.5);
+        assert_eq!(
+            op.data[SEGMENT_FLOW..=SEGMENT_EDGE],
+            [0.25, 0.75, 0.5],
+            "flows, then the edge"
+        );
+        let paint = Paint {
+            color: [0.1, 0.2, 0.3],
+            opacity: 0.4,
+            grain: 77,
+            grain_scale: 5,
+        };
+        let op = Op::end_stroke(&paint);
+        assert_eq!(op.data[PAINT_OPACITY], 0.4);
+        assert_eq!(op.data[PAINT_GRAIN], 77.0);
+        assert_eq!(op.data[PAINT_GRAIN_SCALE], 5.0);
+        assert_eq!(Op::end_active(&paint).data, op.data);
+    }
+
+    #[test]
     fn encoding_fills_exactly_the_record_size() {
-        let op = Op::segment([1.0, 2.0], [3.0, 4.0], [5.0, 6.0]);
+        let op = Op::segment([1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [1.0; 2], 1.0);
         assert_eq!(encode(&[op, op]).len(), 2 * size_of::<Op>());
         let tile = TileRecord {
             origin: [16, 32],
@@ -293,5 +372,9 @@ mod tests {
         }
         assert_eq!(value("TILE"), TILE);
         assert_eq!(value("FRESH"), FRESH);
+        assert_eq!(value("GRAIN_ONE"), GRAIN_ONE);
+        for (name, slot) in SLOTS {
+            assert_eq!(value(name) as usize, slot, "{name}");
+        }
     }
 }

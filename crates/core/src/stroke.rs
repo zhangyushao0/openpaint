@@ -3,6 +3,7 @@
 use std::f32::consts::{FRAC_PI_2, PI};
 use std::sync::Arc;
 
+use crate::brush::BrushRecipe;
 use crate::error::CoreError;
 use crate::id::StrokeId;
 use crate::value::{CanvasPoint, Color, invalid, is_unit};
@@ -79,9 +80,11 @@ impl StrokeSample {
     }
 }
 
-/// How a stroke is drawn: a round brush of `size` diameter, `opacity` and `color`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// How a stroke is drawn: its brush recipe (a snapshot, shared between strokes drawn with the
+/// same brush), its largest diameter `size`, its `opacity` and `color`. Cloning is cheap.
+#[derive(Debug, Clone, PartialEq)]
 pub struct StrokeStyle {
+    recipe: Arc<BrushRecipe>,
     size: f32,
     opacity: f32,
     color: Color,
@@ -92,7 +95,12 @@ impl StrokeStyle {
     ///
     /// # Errors
     /// `InvalidValue` when `size` or `opacity` is not finite or outside its range.
-    pub fn new(size: f32, opacity: f32, color: Color) -> Result<Self, CoreError> {
+    pub fn new(
+        recipe: Arc<BrushRecipe>,
+        size: f32,
+        opacity: f32,
+        color: Color,
+    ) -> Result<Self, CoreError> {
         if !(size > 0.0 && size <= MAX_BRUSH_SIZE) {
             return Err(invalid("brush size"));
         }
@@ -100,10 +108,16 @@ impl StrokeStyle {
             return Err(invalid("stroke opacity"));
         }
         Ok(Self {
+            recipe,
             size,
             opacity,
             color,
         })
+    }
+
+    #[must_use]
+    pub fn recipe(&self) -> &Arc<BrushRecipe> {
+        &self.recipe
     }
 
     #[must_use]

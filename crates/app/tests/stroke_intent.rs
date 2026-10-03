@@ -1,10 +1,15 @@
 //! The stroke intent: pen contacts draw, other devices do not, cancel leaves no trace.
 
-use openpaint_app::{Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent};
+use openpaint_app::{
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Session, StrokeIntent,
+    Toolbox,
+};
 use openpaint_core::{Artwork, CanvasSize};
 
 fn session() -> Session {
-    Session::new(CanvasSize::new(200, 100).expect("size")).expect("session")
+    let library = BrushLibrary::built_in().expect("built-in brushes");
+    let brush = Toolbox::new(library).style().expect("style");
+    Session::new(CanvasSize::new(200, 100).expect("size"), brush)
 }
 
 fn sample(x: f32, time_ms: i64) -> InputSample {

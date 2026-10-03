@@ -57,7 +57,8 @@ fn the_gallery_shows_a_matching_thumbnail_and_renames_by_keyboard() {
     let wave: Vec<[f32; 2]> = (0..=30u8)
         .map(|i| {
             [
-                100.0 + 45.0 * f32::from(i),
+                // Right of the side bar.
+                200.0 + 45.0 * f32::from(i),
                 500.0 + 200.0 * (f32::from(i) / 4.0).sin(),
             ]
         })

@@ -180,22 +180,31 @@ impl Touched {
 mod tests {
     use super::*;
     use crate::geom::Bounds;
-    use crate::protocol::Op;
+    use crate::protocol::{Op, Paint};
 
     fn segment(bounds: [f32; 4]) -> Item {
         Item::Segment {
-            op: Op::segment([0.0; 2], [0.0; 2], [1.0; 2]),
+            op: Op::segment([0.0; 2], [0.0; 2], [1.0; 2], [1.0; 2], 1.0),
             bounds: Bounds(bounds),
         }
+    }
+
+    fn black() -> Op {
+        Op::end_stroke(&Paint {
+            color: [0.0; 3],
+            opacity: 1.0,
+            grain: 0,
+            grain_scale: 1,
+        })
     }
 
     fn scene() -> Scene {
         Scene {
             items: vec![
                 segment([2.0, 2.0, 20.0, 4.0]),
-                Item::EndStroke(Op::end_stroke([0.0; 3], 1.0)),
+                Item::EndStroke(black()),
                 segment([40.0, 2.0, 41.0, 3.0]),
-                Item::EndStroke(Op::end_stroke([0.0; 3], 1.0)),
+                Item::EndStroke(black()),
                 Item::EndLayer(Op::end_layer(1.0)),
             ],
         }
@@ -254,13 +263,13 @@ mod tests {
         let scene = Scene {
             items: vec![
                 segment([2.0, 2.0, 4.0, 4.0]),
-                Item::EndStroke(Op::end_stroke([0.0; 3], 1.0)),
+                Item::EndStroke(black()),
                 Item::Active,
                 Item::EndLayer(Op::end_layer(1.0)),
             ],
         };
         let fresh = Fresh {
-            ops: vec![Op::end_active([0.0; 3], 1.0); 2],
+            ops: vec![black(); 2],
             bounds: vec![Bounds([20.0, 2.0, 22.0, 3.0])],
         };
         let plan = Plan::build(&scene, &fresh, [48, 16], &[PixelRect::full([48, 16])]);

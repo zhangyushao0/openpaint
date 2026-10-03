@@ -49,9 +49,10 @@ fn gesture(runtime: &mut Runtime, tool: ToolKind, points: &[[f32; 2]]) {
     }
 }
 
+/// Right of the side bar, which covers the canvas's left edge.
 fn line(y: f32) -> Vec<[f32; 2]> {
     (0..=20u8)
-        .map(|i| [100.0 + 20.0 * f32::from(i), y])
+        .map(|i| [180.0 + 20.0 * f32::from(i), y])
         .collect()
 }
 
@@ -156,6 +157,14 @@ impl ProjectStore for Flaky {
     }
 
     fn delete(&mut self, _id: ProjectId) -> Result<(), PortError> {
+        Ok(())
+    }
+
+    fn editor(&mut self) -> Result<Option<openpaint_app::EditorState>, PortError> {
+        Ok(None)
+    }
+
+    fn save_editor(&mut self, _state: &openpaint_app::EditorState) -> Result<(), PortError> {
         Ok(())
     }
 }

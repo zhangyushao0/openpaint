@@ -10,22 +10,26 @@
 
 use std::time::Duration;
 
-use openpaint_app::{InputBatch, PalmRejection, ProjectStore, ScreenProjection, SessionProjection};
+use openpaint_app::{
+    BrushLibrary, InputBatch, PalmRejection, ProjectStore, ScreenProjection, SessionProjection,
+    Toolbox,
+};
 use openpaint_core::Artwork;
 use openpaint_render::{
-    Core, RenderError, RgbaImage, ScreenFrame, ScreenPainter, ScreenTarget, Surface, SurfaceWindow,
-    UiFrame,
+    Core, RenderError, RgbaImage, ScreenPainter, ScreenTarget, Surface, SurfaceWindow, UiFrame,
 };
 use openpaint_ui::{Shell, design};
 
-use crate::canvas::{Canvas, Leaving};
+use crate::canvas::Leaving;
 use crate::error::RuntimeError;
 use crate::input::MotionBatch;
 use crate::normalise::Normaliser;
 use crate::pointer::pointer_events;
+use crate::preview::brush_previews;
 use crate::screen::{Screen, leave_job};
-use crate::storage::Storage;
+use crate::storage::{Job, Storage};
 use crate::text::{TextInput, text_events};
+use crate::ui_pass::{UiPass, run_ui, screen_frame};
 
 /// Longest `leave` waits for the store; a longer save goes on in the background.
 const LEAVE_WAIT: Duration = Duration::from_secs(2);
@@ -50,29 +54,37 @@ pub struct Runtime {
     /// Whether the last frame had a text field waiting for the keyboard.
     keyboard: bool,
     screen: Screen,
+    /// The brush, size and opacity: the app's, kept across artworks; the open session gets the
+    /// style it makes.
+    toolbox: Toolbox,
     /// Declared last: dropping it writes what it was handed before the process goes.
     storage: Storage,
 }
 
 impl Runtime {
-    /// Opens the GPU device, installs the theme and starts opening the library from `store` on
-    /// the storage worker. `pixels_per_point` is the display density (Android's
-    /// `DisplayMetrics.density`): physical pixels per UI point.
+    /// Opens the GPU device, installs the theme, draws the brush picker's previews and starts
+    /// opening the library (and the stored toolbox) from `store` on the storage worker.
+    /// `pixels_per_point` is the display density (Android's `DisplayMetrics.density`):
+    /// physical pixels per UI point.
     pub fn start(
         pixels_per_point: f32,
         store: Box<dyn ProjectStore>,
     ) -> Result<Self, RuntimeError> {
+        let toolbox = Toolbox::new(BrushLibrary::built_in()?);
         let storage = Storage::start(store)?;
         let core = Core::headless()?;
         log::info!("GPU adapter: {}", core.adapter());
         let ui = egui::Context::default();
         design::install(&ui);
+        let mut shell = Shell::default();
+        shell.set_brush_previews(brush_previews(&core, toolbox.library(), pixels_per_point)?);
         Ok(Self {
             storage,
             screen: Screen::Opening(None),
+            toolbox,
             core,
             ui,
-            shell: Shell::default(),
+            shell,
             painter: None,
             surface: None,
             offscreen: None,
@@ -172,7 +184,7 @@ impl Runtime {
     /// more): from the canvas it goes to the gallery, in the gallery it closes an open dialog.
     /// Otherwise the system's own back applies.
     pub fn back(&mut self) -> bool {
-        self.shell.back(&self.screen.projection())
+        self.shell.back(&self.screen.projection(&self.toolbox))
     }
 
     /// Runs one frame into the window. Returns whether another frame is wanted at once.
@@ -256,16 +268,16 @@ impl Runtime {
     /// available.
     #[must_use]
     pub fn projection(&self) -> SessionProjection {
-        self.screen
-            .canvas()
-            .map(|canvas| canvas.session().projection())
-            .unwrap_or_default()
+        match self.screen.projection(&self.toolbox) {
+            ScreenProjection::Canvas(projection) => projection,
+            _ => SessionProjection::default(),
+        }
     }
 
     /// What the whole screen offers: the canvas, the gallery, or nothing yet.
     #[must_use]
     pub fn screen(&self) -> ScreenProjection {
-        self.screen.projection()
+        self.screen.projection(&self.toolbox)
     }
 
     /// True while the frame loop waits for something without input: the storage worker, or a
@@ -278,9 +290,10 @@ impl Runtime {
     /// Applies everything the storage worker finished, then opens a canvas that is ready.
     fn receive(&mut self) -> Result<(), RuntimeError> {
         while let Some(done) = self.storage.take() {
-            self.screen.answer(done);
+            self.screen.answer(done, &mut self.toolbox);
         }
-        self.screen.open(&self.core, self.shell.canvas_area())
+        let area = self.shell.canvas_area();
+        self.screen.open(&self.core, area, &self.toolbox)
     }
 
     /// Everything before drawing: storage results, input, UI, intents, evaluation, storage
@@ -291,7 +304,7 @@ impl Runtime {
         let batches = std::mem::take(&mut self.pending);
         let mut events = pointer_events(&batches, self.pixels_per_point);
         events.append(&mut self.typed);
-        let shown = self.screen.projection();
+        let shown = self.screen.projection(&self.toolbox);
         let pass = run_ui(
             &self.ui,
             UiPass {
@@ -304,15 +317,18 @@ impl Runtime {
         );
         self.keyboard = pass.keyboard;
         let intents = self.shell.route(&batches);
-        self.screen.open(&self.core, self.shell.canvas_area())?;
+        let area = self.shell.canvas_area();
+        self.screen.open(&self.core, area, &self.toolbox)?;
         match &mut self.screen {
-            Screen::Canvas(canvas) => canvas.dispatch(intents),
+            Screen::Canvas(canvas) => canvas.dispatch(intents, &mut self.toolbox),
             Screen::Gallery(gallery) => dispatch_gallery(gallery, intents),
             Screen::Opening(_) => {}
         }
-        let area = self.shell.canvas_area();
+        if let Some(state) = self.toolbox.save_request() {
+            self.storage.submit(Job::SaveEditor(state));
+        }
         self.screen.progress(&self.core, &mut self.storage, area)?;
-        let changed = self.screen.projection() != shown;
+        let changed = self.screen.projection(&self.toolbox) != shown;
         Ok((pass.frame, pass.repaint || changed || self.storing()))
     }
 }
@@ -330,71 +346,5 @@ fn dispatch_gallery(gallery: &mut openpaint_app::Gallery, intents: Vec<openpaint
         if let Err(error) = result {
             log::warn!("intent refused: {error}");
         }
-    }
-}
-
-/// What one UI pass needs.
-struct UiPass<'a> {
-    shell: &'a mut Shell,
-    projection: &'a ScreenProjection,
-    /// The screen in pixels.
-    size: [u32; 2],
-    pixels_per_point: f32,
-    events: Vec<egui::Event>,
-}
-
-/// What one UI pass gives.
-struct UiOutput {
-    frame: UiFrame,
-    /// egui wants the next frame immediately (animations, first-frame layout).
-    repaint: bool,
-    /// A text field has the focus and waits for typing.
-    keyboard: bool,
-}
-
-fn screen_frame<'a>(canvas: Option<&'a Canvas>, shell: &Shell, ui: UiFrame) -> ScreenFrame<'a> {
-    let placement = canvas.zip(shell.canvas_area());
-    ScreenFrame {
-        surround: design::SURROUND,
-        canvas: placement.map(|(canvas, area)| canvas.placement(&area)),
-        ui,
-    }
-}
-
-/// One UI pass over the screen.
-fn run_ui(ctx: &egui::Context, pass: UiPass<'_>) -> UiOutput {
-    let UiPass {
-        shell,
-        projection,
-        size,
-        pixels_per_point,
-        events,
-    } = pass;
-    let points = egui::vec2(size[0] as f32, size[1] as f32) / pixels_per_point;
-    let mut input = egui::RawInput {
-        screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, points)),
-        events,
-        ..Default::default()
-    };
-    input
-        .viewports
-        .entry(egui::ViewportId::ROOT)
-        .or_default()
-        .native_pixels_per_point = Some(pixels_per_point);
-    let output = ctx.run_ui(input, |ui| shell.show(ui, projection));
-    let repaint = output
-        .viewport_output
-        .get(&egui::ViewportId::ROOT)
-        .is_some_and(|viewport| viewport.repaint_delay.is_zero());
-    let keyboard = output.platform_output.ime.is_some();
-    let primitives = ctx.tessellate(output.shapes, output.pixels_per_point);
-    UiOutput {
-        frame: UiFrame {
-            primitives,
-            textures: output.textures_delta,
-            pixels_per_point: output.pixels_per_point,
-        },
-        repaint,
-        keyboard,
     }
 }

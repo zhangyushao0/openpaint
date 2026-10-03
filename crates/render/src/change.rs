@@ -5,7 +5,7 @@
 use openpaint_core::{Artwork, StrokeList};
 
 use crate::geom::PixelRect;
-use crate::scene::segment_regions;
+use crate::stroke::segment_regions;
 
 /// The pixels that can differ between `before` and `after`. Strokes one version has beyond the
 /// other count segment by segment, so an undo costs only the undone stroke's tiles. Any other
@@ -47,7 +47,7 @@ fn tail_regions(a: &StrokeList, b: &StrokeList) -> Option<Vec<PixelRect>> {
     }
     let tail = long
         .since(short.len())
-        .flat_map(|stroke| segment_regions(stroke.style(), stroke.samples()));
+        .flat_map(|stroke| segment_regions(stroke.style(), stroke.samples(), 0));
     Some(tail.collect())
 }
 
@@ -70,7 +70,8 @@ mod tests {
     }
 
     fn draw(artwork: &Artwork, from: f32) -> Artwork {
-        let style = StrokeStyle::new(4.0, 1.0, Color::BLACK).expect("style");
+        let recipe = std::sync::Arc::new(openpaint_core::BrushRecipe::plain());
+        let style = StrokeStyle::new(recipe, 4.0, 1.0, Color::BLACK).expect("style");
         let mut session = artwork.begin_stroke(style, sample(from, 0)).expect("begin");
         session
             .extend(&[sample(from + 10.0, 4), sample(from + 20.0, 8)])

@@ -1,9 +1,11 @@
 //! `StrokeSession`: begin, extend, finish and cancel, and that a stroke in progress never
 //! touches the artwork it started on.
 
+use std::sync::Arc;
+
 use openpaint_core::{
-    Artwork, ArtworkCommand, CanvasPoint, CanvasSize, Change, Color, CoreError, LayerCommand,
-    LayerId, MAX_STROKE_SAMPLES, StrokeId, StrokeSample, StrokeSession, StrokeStyle,
+    Artwork, ArtworkCommand, BrushRecipe, CanvasPoint, CanvasSize, Change, Color, CoreError,
+    LayerCommand, LayerId, MAX_STROKE_SAMPLES, StrokeId, StrokeSample, StrokeSession, StrokeStyle,
 };
 
 fn blank() -> Artwork {
@@ -16,7 +18,7 @@ fn sample(x: f32, time_ms: u32) -> StrokeSample {
 }
 
 fn style() -> StrokeStyle {
-    StrokeStyle::new(8.0, 1.0, Color::BLACK).unwrap()
+    StrokeStyle::new(Arc::new(BrushRecipe::plain()), 8.0, 1.0, Color::BLACK).unwrap()
 }
 
 fn begin(artwork: &Artwork) -> StrokeSession {

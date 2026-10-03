@@ -8,9 +8,11 @@ mod frame;
 mod input;
 mod normalise;
 mod pointer;
+mod preview;
 mod screen;
 mod storage;
 mod text;
+mod ui_pass;
 mod worker;
 
 pub use crate::error::RuntimeError;

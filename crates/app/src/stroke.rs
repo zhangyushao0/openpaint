@@ -6,14 +6,11 @@
 //! canvas is the author's decision (ARCHITECTURE section 10), the eraser arrives in S12.
 
 use openpaint_core::{
-    ActiveStroke, Artwork, CanvasPoint, Color, StrokeSample, StrokeSession, StrokeStyle,
+    ActiveStroke, Artwork, CanvasPoint, StrokeSample, StrokeSession, StrokeStyle,
 };
 
 use crate::error::AppError;
 use crate::input::{Contact, ContactPhase, Device, InputSample};
-
-/// The brush until brush settings exist (S11): a 12-pixel round black pen at full opacity.
-const BRUSH_SIZE: f32 = 12.0;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum StrokeIntent {
@@ -30,7 +27,7 @@ struct Drawing {
     session: StrokeSession,
 }
 
-/// The stroke intent's state: the brush and the stroke in progress.
+/// The stroke intent's state: the style the next stroke starts with and the stroke in progress.
 #[derive(Debug)]
 pub(crate) struct Strokes {
     style: StrokeStyle,
@@ -38,11 +35,16 @@ pub(crate) struct Strokes {
 }
 
 impl Strokes {
-    pub(crate) fn new() -> Result<Self, AppError> {
-        Ok(Self {
-            style: StrokeStyle::new(BRUSH_SIZE, 1.0, Color::BLACK)?,
+    pub(crate) const fn new(style: StrokeStyle) -> Self {
+        Self {
+            style,
             drawing: None,
-        })
+        }
+    }
+
+    /// The next stroke starts with `style`; a stroke in progress keeps its own.
+    pub(crate) fn set_style(&mut self, style: StrokeStyle) {
+        self.style = style;
     }
 
     pub(crate) fn active(&self) -> Option<&ActiveStroke> {
@@ -96,7 +98,8 @@ impl Strokes {
             return Ok(());
         };
         let start_ms = first.time_ms;
-        let session = artwork.begin_stroke(self.style, stroke_sample(first, start_ms)?)?;
+        let first = stroke_sample(first, start_ms)?;
+        let session = artwork.begin_stroke(self.style.clone(), first)?;
         self.drawing = Some(Drawing {
             contact: contact.id,
             start_ms,

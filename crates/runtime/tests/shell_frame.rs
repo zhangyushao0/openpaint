@@ -1,4 +1,5 @@
-//! GPU test: one runtime frame, drawn offscreen, shows the top bar over the blank canvas.
+//! GPU test: one runtime frame, drawn offscreen, shows the top bar over the blank canvas and the
+//! side bar over its left edge.
 
 mod support;
 
@@ -8,6 +9,8 @@ const SIZE: [u32; 2] = [640, 400];
 /// Density 2: the 48-point top bar covers the top 96 pixel rows.
 const PIXELS_PER_POINT: f32 = 2.0;
 const BAR_ROWS: usize = 96;
+/// The side bar (8 + 64 points from the left edge) and some room.
+const SIDE_BAR_COLUMNS: usize = 160;
 const PAPER: [u8; 4] = [255; 4];
 
 fn row(pixels: &[[u8; 4]], y: usize) -> &[[u8; 4]] {
@@ -28,10 +31,17 @@ fn frame_shows_the_top_bar_over_the_canvas() {
     );
     for y in [BAR_ROWS, SIZE[1] as usize - 1] {
         assert!(
-            row(pixels, y).iter().all(|pixel| *pixel == PAPER),
-            "row {y} shows the canvas"
+            row(pixels, y)[SIDE_BAR_COLUMNS..]
+                .iter()
+                .all(|pixel| *pixel == PAPER),
+            "row {y} shows the canvas right of the side bar"
         );
     }
+    let side = &row(pixels, BAR_ROWS + 40)[..SIDE_BAR_COLUMNS];
+    assert!(
+        side.iter().any(|pixel| *pixel != PAPER),
+        "the side bar floats over the canvas's left edge"
+    );
     let label = (0..BAR_ROWS)
         .flat_map(|y| row(pixels, y))
         .any(|pixel| pixel != &bar[0]);

@@ -47,13 +47,13 @@ fn evaluate(
                 coverage = max(coverage, segment_coverage(centre, op));
             }
             case OP_END_STROKE: {
-                layer = over(stroke_paint(coverage, op), layer);
+                layer = over(stroke_paint(coverage, pixel, op), layer);
                 coverage = 0.0;
             }
             case OP_END_ACTIVE: {
                 coverage = max(coverage, textureLoad(kept, pixel).r);
                 textureStore(kept, pixel, vec4<f32>(coverage, 0.0, 0.0, 0.0));
-                layer = over(stroke_paint(coverage, op), layer);
+                layer = over(stroke_paint(coverage, pixel, op), layer);
                 coverage = 0.0;
             }
             case OP_END_LAYER: {
@@ -66,10 +66,10 @@ fn evaluate(
     textureStore(canvas_out, pixel, quantized(canvas));
 }
 
-// A stroke's colour (`op.data[0..3]`) at `coverage` times its opacity (`op.data[3]`),
-// premultiplied.
-fn stroke_paint(coverage: f32, op: Op) -> vec4<f32> {
-    let alpha = coverage * op.data[3];
+// A stroke's colour (`op.data[0..3]`) at `coverage` times the grain at `pixel` times its
+// opacity, premultiplied. Without grain the factor is exactly 1.
+fn stroke_paint(coverage: f32, pixel: vec2<u32>, op: Op) -> vec4<f32> {
+    let alpha = coverage * grain(pixel, op) * op.data[PAINT_OPACITY];
     return vec4<f32>(vec3<f32>(op.data[0], op.data[1], op.data[2]) * alpha, alpha);
 }
 
@@ -77,13 +77,71 @@ fn over(source: vec4<f32>, destination: vec4<f32>) -> vec4<f32> {
     return source + destination * (1.0 - source.a);
 }
 
-// Box-filtered coverage of a pixel whose centre lies `distance` outside the shape: exactly zero
-// from half a pixel out, which the scene's bounds rely on.
+// Coverage of a pixel whose centre lies `distance` outside the capsule: it fades in over
+// `1 / edge` pixels from half a pixel outside the outline (`edge` 1: box-filtered antialiasing;
+// smaller: a soft edge, smoothed), so it is exactly zero from half a pixel out, which the
+// scene's bounds rely on. Then times the flow, which changes evenly from `a` to `b`; equal
+// flows give that flow exactly.
 fn segment_coverage(centre: vec2<f32>, op: Op) -> f32 {
     let a = vec2<f32>(op.data[0], op.data[1]);
     let b = vec2<f32>(op.data[2], op.data[3]);
     let distance = capsule_distance(centre, a, b, op.data[4], op.data[5]);
-    return clamp(0.5 - distance, 0.0, 1.0);
+    let edge = op.data[SEGMENT_EDGE];
+    var coverage = clamp((0.5 - distance) * edge, 0.0, 1.0);
+    if edge < 1.0 {
+        coverage = coverage * coverage * (3.0 - 2.0 * coverage);
+    }
+    let ab = b - a;
+    let h = dot(ab, ab);
+    var t = 0.0;
+    if h > 0.0 {
+        t = clamp(dot(centre - a, ab) / h, 0.0, 1.0);
+    }
+    let flow_a = op.data[SEGMENT_FLOW];
+    let flow_b = op.data[SEGMENT_FLOW + 1u];
+    return coverage * (flow_a + (flow_b - flow_a) * t);
+}
+
+// The share of paint that lands at `pixel` through the paper's grain, fixed to the canvas: one
+// minus the grain strength times the grain's height there. The height is the mean of a fine
+// value per pixel and a coarse one, smoothly interpolated between cells of `grain_scale`
+// pixels. Integers throughout and a power-of-two divisor at the end: exact on every backend.
+fn grain(pixel: vec2<u32>, op: Op) -> f32 {
+    let strength = u32(op.data[PAINT_GRAIN]);
+    if strength == 0u {
+        return 1.0;
+    }
+    let scale = max(u32(op.data[PAINT_GRAIN_SCALE]), 1u);
+    let fine = hash(pixel) >> 24u;
+    let cell = pixel / scale;
+    let f = pixel % scale;
+    let g = scale - f;
+    let corners = vec4<u32>(
+        hash(cell + vec2<u32>(7919u, 0u)) >> 24u,
+        hash(cell + vec2<u32>(7920u, 0u)) >> 24u,
+        hash(cell + vec2<u32>(7919u, 1u)) >> 24u,
+        hash(cell + vec2<u32>(7920u, 1u)) >> 24u,
+    );
+    let weighted = corners.x * g.x * g.y + corners.y * f.x * g.y + corners.z * g.x * f.y
+        + corners.w * f.x * f.y;
+    let coarse = weighted / (scale * scale);
+    let height = (fine + coarse) / 2u;
+    let reduce = (strength * height) / GRAIN_ONE;
+    return f32(GRAIN_ONE - reduce) * GRAIN_STEP;
+}
+
+// One step of the grain factor: a power of two, so multiplying by it is exact.
+const GRAIN_STEP: f32 = 1.0 / f32(GRAIN_ONE);
+
+// A well-mixed 32-bit value per pixel (PCG).
+fn hash(p: vec2<u32>) -> u32 {
+    return pcg(p.x ^ pcg(p.y));
+}
+
+fn pcg(value: u32) -> u32 {
+    let state = value * 747796405u + 2891336453u;
+    let word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+    return (word >> 22u) ^ word;
 }
 
 // Signed distance to the convex hull of the disc at `a` (radius `ra`) and the disc at `b`

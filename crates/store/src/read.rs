@@ -5,6 +5,7 @@ use openpaint_app::{PortError, Project, ProjectId, ProjectSummary};
 use openpaint_core::{Artwork, ArtworkParts, StrokeParts};
 
 use crate::catalogue::{Entry, decode_entry, decode_thumbnail};
+use crate::editor::EDITOR;
 use crate::library::{Open, device};
 use crate::records::{
     CLOCK, ENTRY, LAST, decode_head, decode_id, decode_stroke, entry_key, entry_project, head_key,
@@ -116,6 +117,12 @@ pub(crate) fn entry(open: &Open, id: ProjectId) -> Result<Entry, PortError> {
         .map_err(device)?
         .ok_or(PortError::Missing(id))?;
     decode_entry(&bytes)
+}
+
+/// The toolbox record's bytes, if one was ever written.
+pub(crate) fn editor(open: &Open) -> Result<Option<Vec<u8>>, PortError> {
+    let bytes = open.library.get(EDITOR).map_err(device)?;
+    Ok(bytes.map(|bytes| bytes.to_vec()))
 }
 
 /// The change counter's last value.

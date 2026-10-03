@@ -1,6 +1,6 @@
-//! GPU test of undo and redo through the whole frame loop: taps on the top bar's buttons move
+//! GPU test of undo and redo through the whole frame loop: taps on the side bar's buttons move
 //! through history, the canvas always equals a cold evaluation of the version shown, and the
-//! bar never takes a stroke that started on the canvas or paints one that started on it.
+//! bars never take a stroke that started on the canvas or paint one that started on them.
 
 mod hand;
 mod support;
@@ -10,15 +10,18 @@ use openpaint_render::Core;
 use openpaint_runtime::{Runtime, ToolKind};
 use support::Nowhere;
 
-const SIZE: [u32; 2] = [640, 400];
+/// 640 x 400 points at density 2: the side bar's sliders at their shortest.
+const SIZE: [u32; 2] = [1280, 800];
 const PIXELS_PER_POINT: f32 = 2.0;
-/// Centres of the undo and redo buttons at density 2 (the scenario's at 1.75, rescaled).
-const UNDO: [f32; 2] = [263.0, 48.0];
-const REDO: [f32; 2] = [375.0, 48.0];
+/// Centres of the side bar's undo and redo buttons: the bar starts one space under the top bar
+/// (the screen is too short to centre it), its sliders 96 points long.
+const UNDO: [f32; 2] = [80.0, 624.0];
+const REDO: [f32; 2] = [80.0, 736.0];
 
+/// Right of the side bar.
 fn line(y: f32) -> Vec<[f32; 2]> {
     (0..=20u8)
-        .map(|i| [100.0 + 20.0 * f32::from(i), y])
+        .map(|i| [200.0 + 40.0 * f32::from(i), y])
         .collect()
 }
 
@@ -32,7 +35,7 @@ fn taps_move_through_history_and_the_canvas_stays_exact() {
     let core = Core::headless().expect("a GPU adapter is required for runtime tests");
     let mut runtime = support::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere));
     let mut hand = Hand::new(SIZE);
-    for y in [150.0, 220.0, 290.0] {
+    for y in [300.0, 440.0, 580.0] {
         hand.gesture(&mut runtime, ToolKind::Stylus, &line(y));
     }
     let drawn = runtime.artwork().expect("artwork").clone();
@@ -61,15 +64,17 @@ fn taps_move_through_history_and_the_canvas_stays_exact() {
 fn the_bar_and_the_canvas_keep_their_own_contacts() {
     let mut runtime = support::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere));
     let mut hand = Hand::new(SIZE);
-    hand.gesture(&mut runtime, ToolKind::Stylus, &line(200.0));
+    hand.gesture(&mut runtime, ToolKind::Stylus, &line(400.0));
     // A stroke that starts on the canvas and lifts over undo stays a stroke.
-    let up_to_undo = [[263.0, 300.0], [263.0, 200.0], [263.0, 120.0], UNDO];
+    let up_to_undo = [[400.0, 700.0], [300.0, 660.0], [200.0, 630.0], UNDO];
     hand.gesture(&mut runtime, ToolKind::Stylus, &up_to_undo);
     assert_eq!(strokes(&runtime), 2, "the lift over undo did not undo");
-    // A pen that starts on the bar and drags into the canvas paints nothing.
-    let from_bar = [[560.0, 48.0], [560.0, 200.0], [500.0, 300.0]];
-    hand.gesture(&mut runtime, ToolKind::Stylus, &from_bar);
-    assert_eq!(strokes(&runtime), 2, "a drag from the bar painted");
+    // A pen that starts on a bar and drags into the canvas paints nothing.
+    for from in [[1100.0, 48.0], [80.0, 300.0]] {
+        let from_bar = [from, [560.0, 400.0], [700.0, 500.0]];
+        hand.gesture(&mut runtime, ToolKind::Stylus, &from_bar);
+        assert_eq!(strokes(&runtime), 2, "a drag from {from:?} painted");
+    }
     // The pen taps undo like a finger does.
     hand.gesture(&mut runtime, ToolKind::Stylus, &[UNDO, UNDO]);
     assert_eq!(strokes(&runtime), 1);

@@ -7,7 +7,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::time::Duration;
 
 use openpaint_app::{
-    PortError, Project, ProjectId, ProjectStore, ProjectSummary, Thumbnail, Title,
+    EditorState, PortError, Project, ProjectId, ProjectStore, ProjectSummary, Thumbnail, Title,
 };
 use openpaint_core::Artwork;
 
@@ -29,7 +29,10 @@ pub(crate) enum Opened {
 }
 
 pub(crate) enum Job {
+    /// Opens the library and reads the stored toolbox.
     Start,
+    /// The toolbox changed (`Toolbox::save_request`).
+    SaveEditor(EditorState),
     /// A version of the open artwork; the first save of an artwork not in the library yet
     /// creates its project.
     Save(Artwork),
@@ -41,10 +44,7 @@ pub(crate) enum Job {
         close: bool,
     },
     /// A new artwork, which becomes the open one.
-    Create {
-        artwork: Artwork,
-        title: Title,
-    },
+    Create { artwork: Artwork, title: Title },
     /// A gallery call other than create, which needs the blank artwork from the frame loop.
     Library(LibraryCall),
 }
@@ -59,7 +59,10 @@ pub(crate) enum LibraryCall {
 }
 
 pub(crate) enum Done {
-    Started(Opened),
+    /// What opening found, and the stored toolbox; `None` when there is none or it could not
+    /// be read (logged here): the brushes keep their defaults.
+    Started(Opened, Option<EditorState>),
+    EditorSaved(Result<(), PortError>),
     Saved(Artwork, Result<(), PortError>),
     Left {
         version: Option<Artwork>,
@@ -124,7 +127,8 @@ fn serve(store: &mut dyn ProjectStore, open: &mut Option<ProjectId>, job: Job) -
 fn stopped(job: &Job) -> Done {
     let error = PortError::Stopped;
     match job {
-        Job::Start => Done::Started(Opened::Failed(error)),
+        Job::Start => Done::Started(Opened::Failed(error), None),
+        Job::SaveEditor(_) => Done::EditorSaved(Err(error)),
         Job::Save(artwork) => Done::Saved(artwork.clone(), Err(error)),
         Job::Leave { version, .. } => Done::Left {
             version: version.clone(),
@@ -140,7 +144,16 @@ fn stopped(job: &Job) -> Done {
 
 fn run(store: &mut dyn ProjectStore, open: &mut Option<ProjectId>, job: Job) -> Done {
     match job {
-        Job::Start => Done::Started(start(store, open)),
+        Job::Start => {
+            let opened = start(store, open);
+            let editor = store
+                .editor()
+                .inspect_err(|error| log::warn!("the stored toolbox is unreadable: {error}"))
+                .ok()
+                .flatten();
+            Done::Started(opened, editor)
+        }
+        Job::SaveEditor(state) => Done::EditorSaved(store.save_editor(&state)),
         Job::Save(artwork) => {
             let result = save(store, open, &artwork);
             Done::Saved(artwork, result)

@@ -4,13 +4,22 @@
 
 mod common;
 
+use std::sync::Arc;
+
 use common::{fresh_dir, records, untitled, write_records};
-use openpaint_app::{PortError, ProjectStore};
+use openpaint_app::{BrushLibrary, PortError, ProjectStore};
 use openpaint_core::{
     Artwork, ArtworkCommand, CanvasPoint, CanvasSize, Color, LayerCommand, StrokeSample,
     StrokeStyle,
 };
 use openpaint_store::Library;
+
+/// The built-in pencil (curves, speed and grain all stored) at `size`, black.
+fn pencil(size: f32) -> StrokeStyle {
+    let library = BrushLibrary::built_in().expect("built-in brushes");
+    let recipe = Arc::clone(library.brushes()[0].recipe());
+    StrokeStyle::new(recipe, size, 1.0, Color::BLACK).expect("style")
+}
 
 fn blank() -> Artwork {
     Artwork::new(CanvasSize::new(320, 200).expect("size"))
@@ -18,7 +27,7 @@ fn blank() -> Artwork {
 
 /// `artwork` with one more stroke on the active layer, from `x` rightwards over `samples`.
 fn draw(artwork: &Artwork, x: f32, samples: u16) -> Artwork {
-    let style = StrokeStyle::new(12.0, 1.0, Color::BLACK).expect("style");
+    let style = pencil(12.0);
     let sample = |i: u16| {
         let point = CanvasPoint::new(x + f32::from(i), 20.0 + f32::from(i % 7)).expect("point");
         StrokeSample::new(point, 0.5, 0.2, -1.0, u32::from(i) * 4).expect("sample")
@@ -179,23 +188,23 @@ fn head(records: &mut [(String, Vec<u8>, Vec<u8>)]) -> &mut Vec<u8> {
 
 #[test]
 fn unreadable_records_are_refused_with_a_reason() {
-    let newer = corrupted("newer", |records| head(records)[0] = 3);
+    let newer = corrupted("newer", |records| head(records)[0] = 4);
     assert_eq!(
         newer,
         PortError::NewerSchema {
-            found: 3,
-            newest: 2
+            found: 4,
+            newest: 3
         }
     );
     let newer_library = corrupted("newer-library", |records| {
         let schema = records.iter_mut().find(|(_, key, _)| key == b"schema");
-        schema.expect("schema record").2 = 3u32.to_le_bytes().to_vec();
+        schema.expect("schema record").2 = 4u32.to_le_bytes().to_vec();
     });
     assert_eq!(
         newer_library,
         PortError::NewerSchema {
-            found: 3,
-            newest: 2
+            found: 4,
+            newest: 3
         }
     );
     let short = corrupted("short", |records| {
@@ -222,6 +231,34 @@ fn unreadable_records_are_refused_with_a_reason() {
         head(records)[4..8].copy_from_slice(&0u32.to_le_bytes());
     });
     assert!(matches!(invalid, PortError::Invalid(_)), "{invalid}");
+}
+
+#[test]
+fn the_toolbox_is_stored_apart_and_an_unreadable_one_never_blocks_an_artwork() {
+    let dir = fresh_dir("editor");
+    let mut library = Library::at(&dir);
+    let artwork = draw(&blank(), 10.0, 5);
+    library.create(&artwork, &untitled()).expect("create");
+    assert_eq!(library.editor(), Ok(None));
+    let state = openpaint_app::EditorState {
+        brush: "pencil".into(),
+        brushes: Vec::new(),
+    };
+    library.save_editor(&state).expect("toolbox");
+    assert_eq!(library.editor(), Ok(Some(state)));
+    drop(library);
+    let mut stored = records(&dir);
+    let editor = stored.iter_mut().find(|(_, key, _)| key == b"editor");
+    editor.expect("the toolbox record").2.truncate(3);
+    let damaged = fresh_dir("editor-damaged");
+    write_records(&damaged, &stored);
+    let mut library = Library::at(&damaged);
+    let corrupt = PortError::Corrupt {
+        what: "editor state",
+    };
+    assert_eq!(library.editor(), Err(corrupt));
+    let reopened = reopened_with(&mut library);
+    assert_eq!(reopened.to_parts(), artwork.to_parts());
 }
 
 #[test]

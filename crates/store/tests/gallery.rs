@@ -5,7 +5,9 @@ mod common;
 
 use common::{fresh_dir, records, untitled, write_records};
 use openpaint_app::{PortError, ProjectId, ProjectStore, Thumbnail, Title};
-use openpaint_core::{Artwork, CanvasPoint, CanvasSize, Color, StrokeSample, StrokeStyle};
+use openpaint_core::{
+    Artwork, BrushRecipe, CanvasPoint, CanvasSize, Color, StrokeSample, StrokeStyle,
+};
 use openpaint_store::Library;
 
 fn blank() -> Artwork {
@@ -13,7 +15,8 @@ fn blank() -> Artwork {
 }
 
 fn draw(artwork: &Artwork, y: f32) -> Artwork {
-    let style = StrokeStyle::new(4.0, 1.0, Color::BLACK).expect("style");
+    let recipe = std::sync::Arc::new(BrushRecipe::plain());
+    let style = StrokeStyle::new(recipe, 4.0, 1.0, Color::BLACK).expect("style");
     let sample = |x| {
         let point = CanvasPoint::new(x, y).expect("point");
         StrokeSample::new(point, 0.5, 0.0, 0.0, 0).expect("sample")

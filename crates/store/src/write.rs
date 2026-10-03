@@ -4,11 +4,12 @@
 use std::collections::HashSet;
 
 use fjall::{OwnedWriteBatch, PersistMode};
-use openpaint_app::{PortError, ProjectId, Thumbnail, Title};
+use openpaint_app::{EditorState, PortError, ProjectId, Thumbnail, Title};
 use openpaint_core::Artwork;
 
 use crate::catalogue::{Entry, encode_entry, encode_thumbnail};
 use crate::delta::delta;
+use crate::editor::{EDITOR, encode_editor};
 use crate::library::{Open, device};
 use crate::read;
 use crate::records::{
@@ -101,6 +102,12 @@ pub(crate) fn thumbnail(
         thumbnail_key(id),
         encode_thumbnail(thumbnail),
     );
+    commit(batch)
+}
+
+pub(crate) fn editor(open: &Open, state: &EditorState) -> Result<(), PortError> {
+    let mut batch = open.db.batch();
+    batch.insert(&open.library, EDITOR, encode_editor(state));
     commit(batch)
 }
 

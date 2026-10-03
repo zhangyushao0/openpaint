@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 
 mod artwork;
+mod brush;
 mod command;
 mod error;
 mod id;
@@ -18,11 +19,14 @@ mod stroke_list;
 mod value;
 
 pub use artwork::{Artwork, MAX_LAYERS};
+pub use brush::{
+    BrushRecipe, Curve, Dynamics, Grain, MAX_CURVE_POINTS, MAX_GRAIN_SCALE, MAX_SPEED,
+};
 pub use command::{Applied, ArtworkCommand, Change, LayerCommand};
 pub use error::CoreError;
 pub use id::{LayerId, MAX_ID, StrokeId};
 pub use layer::{Layer, LayerProps};
-pub use parts::{ArtworkParts, LayerParts, SampleParts, StrokeParts};
+pub use parts::{ArtworkParts, LayerParts, RecipeParts, SampleParts, StrokeParts};
 pub use session::{ActiveStroke, StrokeSession};
 pub use stroke::{MAX_BRUSH_SIZE, MAX_STROKE_SAMPLES, Stroke, StrokeSample, StrokeStyle};
 pub use stroke_list::StrokeList;

@@ -1,9 +1,10 @@
 //! Validated values: every constructor accepts its range and rejects what lies outside.
 
 use std::f32::consts::{FRAC_PI_2, PI};
+use std::sync::Arc;
 
 use openpaint_core::{
-    COORD_LIMIT, CanvasPoint, CanvasSize, Color, CoreError, LayerName, MAX_BRUSH_SIZE,
+    BrushRecipe, COORD_LIMIT, CanvasPoint, CanvasSize, Color, CoreError, LayerName, MAX_BRUSH_SIZE,
     MAX_CANVAS_SIDE, StrokeSample, StrokeStyle,
 };
 
@@ -82,16 +83,19 @@ fn sample_ranges() {
 
 #[test]
 fn style_ranges() {
-    let style = StrokeStyle::new(12.0, 0.8, Color::WHITE).unwrap();
-    assert_eq!((style.size(), style.opacity()), (12.0, 0.8));
-    assert_eq!(style.color(), Color::WHITE);
-    assert!(StrokeStyle::new(MAX_BRUSH_SIZE, 1.0, Color::BLACK).is_ok());
+    let plain = Arc::new(BrushRecipe::plain());
+    let style = |size, opacity, color| StrokeStyle::new(Arc::clone(&plain), size, opacity, color);
+    let white = style(12.0, 0.8, Color::WHITE).unwrap();
+    assert_eq!((white.size(), white.opacity()), (12.0, 0.8));
+    assert_eq!(white.color(), Color::WHITE);
+    assert!(Arc::ptr_eq(white.recipe(), &plain));
+    assert!(style(MAX_BRUSH_SIZE, 1.0, Color::BLACK).is_ok());
     for size in [0.0, -1.0, MAX_BRUSH_SIZE + 1.0, f32::NAN] {
-        let result = StrokeStyle::new(size, 1.0, Color::BLACK);
+        let result = style(size, 1.0, Color::BLACK);
         assert_eq!(result, Err(invalid("brush size")));
     }
     for opacity in [0.0, 1.5, f32::NAN] {
-        let result = StrokeStyle::new(10.0, opacity, Color::BLACK);
+        let result = style(10.0, opacity, Color::BLACK);
         assert_eq!(result, Err(invalid("stroke opacity")));
     }
 }

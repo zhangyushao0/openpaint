@@ -1,0 +1,18 @@
+# Pencil: a thin hard line with paper grain; lighter when pressed softly or drawn fast.
+name = "Pencil"
+
+[size]
+default = 5
+min = 1
+max = 40
+pressure = [[0.0, 0.45], [1.0, 1.0]]
+
+[opacity]
+default = 1.0
+pressure = [[0.0, 0.15], [0.8, 0.9], [1.0, 1.0]]
+# Canvas pixels per millisecond.
+speed = [[0.0, 1.0], [6.0, 0.7]]
+
+[grain]
+strength = 0.65
+scale = 3

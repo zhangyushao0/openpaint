@@ -3,7 +3,7 @@
 
 use std::fmt;
 
-use openpaint_app::AppError;
+use openpaint_app::{AppError, RecipeError};
 use openpaint_core::CoreError;
 use openpaint_render::RenderError;
 
@@ -12,6 +12,8 @@ pub enum RuntimeError {
     Render(RenderError),
     App(AppError),
     Core(CoreError),
+    /// A built-in brush file is broken (a bug the app's tests catch).
+    Brush(RecipeError),
     /// The system refused to start the named worker thread.
     Worker(&'static str),
 }
@@ -22,6 +24,7 @@ impl fmt::Display for RuntimeError {
             Self::Render(error) => write!(f, "{error}"),
             Self::App(error) => write!(f, "{error}"),
             Self::Core(error) => write!(f, "{error}"),
+            Self::Brush(error) => write!(f, "built-in brush: {error}"),
             Self::Worker(name) => write!(f, "could not start the {name} thread"),
         }
     }
@@ -44,5 +47,11 @@ impl From<AppError> for RuntimeError {
 impl From<CoreError> for RuntimeError {
     fn from(error: CoreError) -> Self {
         Self::Core(error)
+    }
+}
+
+impl From<RecipeError> for RuntimeError {
+    fn from(error: RecipeError) -> Self {
+        Self::Brush(error)
     }
 }

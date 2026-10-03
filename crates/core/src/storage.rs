@@ -5,22 +5,35 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use crate::artwork::{Artwork, ArtworkState, MAX_LAYERS};
+use crate::brush::BrushRecipe;
 use crate::error::CoreError;
 use crate::id::{IdCounters, LayerId, MAX_ID, StrokeId};
 use crate::layer::{Layer, LayerProps};
-use crate::parts::{ArtworkParts, LayerParts, SampleParts, StrokeParts};
+use crate::parts::{ArtworkParts, LayerParts, RecipeParts, SampleParts, StrokeParts};
 use crate::stroke::{MAX_STROKE_SAMPLES, Stroke, StrokeSample, StrokeStyle, check_order};
 use crate::stroke_list::StrokeList;
 use crate::value::{CanvasPoint, CanvasSize, Color, LayerName, invalid};
 
-/// Ids seen so far, checked against the stored counters.
+/// Ids seen so far, checked against the stored counters, and the recipes built so far: strokes
+/// drawn with one brush share one recipe, as they did before they were stored.
 struct IdCheck {
     counters: IdCounters,
     layers: HashSet<u64>,
     strokes: HashSet<u64>,
+    recipes: Vec<Arc<BrushRecipe>>,
 }
 
 impl IdCheck {
+    fn recipe(&mut self, parts: &RecipeParts) -> Result<Arc<BrushRecipe>, CoreError> {
+        let recipe = BrushRecipe::from_parts(parts)?;
+        if let Some(known) = self.recipes.iter().find(|known| ***known == recipe) {
+            return Ok(Arc::clone(known));
+        }
+        let recipe = Arc::new(recipe);
+        self.recipes.push(Arc::clone(&recipe));
+        Ok(recipe)
+    }
+
     fn layer(&mut self, id: u64) -> Result<LayerId, CoreError> {
         claim(&mut self.layers, id, self.counters.next_layer, "layer id")?;
         Ok(LayerId::new(id))
@@ -70,6 +83,7 @@ impl Artwork {
             counters,
             layers: HashSet::new(),
             strokes: HashSet::new(),
+            recipes: Vec::new(),
         };
         let layers = parts
             .layers
@@ -117,7 +131,8 @@ fn layer_from(parts: &LayerParts, ids: &mut IdCheck) -> Result<Layer, CoreError>
 fn stroke_from(parts: &StrokeParts, ids: &mut IdCheck) -> Result<Stroke, CoreError> {
     let id = ids.stroke(parts.id)?;
     let [r, g, b] = parts.color;
-    let style = StrokeStyle::new(parts.size, parts.opacity, Color::rgb(r, g, b)?)?;
+    let recipe = ids.recipe(&parts.recipe)?;
+    let style = StrokeStyle::new(recipe, parts.size, parts.opacity, Color::rgb(r, g, b)?)?;
     if parts.samples.is_empty() {
         return Err(CoreError::EmptyStroke);
     }

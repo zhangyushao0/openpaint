@@ -5,10 +5,16 @@ use openpaint_app::{
     AppError, Availability, Contact, ContactPhase, Device, EditorAction, HistoryIntent,
     InputSample, Intent, PortError, Session, StorageIntent, StorageNotice, StrokeIntent,
 };
-use openpaint_core::CanvasSize;
+use openpaint_app::{BrushLibrary, Toolbox};
+use openpaint_core::{CanvasSize, StrokeStyle};
 
 fn canvas() -> CanvasSize {
     CanvasSize::new(200, 100).expect("size")
+}
+
+fn brush() -> StrokeStyle {
+    let library = BrushLibrary::built_in().expect("built-in brushes");
+    Toolbox::new(library).style().expect("style")
 }
 
 fn pen(phase: ContactPhase, x: f32) -> Intent {
@@ -45,7 +51,7 @@ fn retry(session: &mut Session) -> Result<(), AppError> {
 
 #[test]
 fn each_finished_stroke_is_handed_to_the_store_once() {
-    let mut session = Session::new(canvas()).expect("session");
+    let mut session = Session::new(canvas(), brush());
     assert!(
         session.save_request().is_none(),
         "a blank artwork has nothing to lose"
@@ -73,7 +79,7 @@ fn each_finished_stroke_is_handed_to_the_store_once() {
 
 #[test]
 fn undo_back_to_the_stored_version_needs_no_save() {
-    let mut session = Session::new(canvas()).expect("session");
+    let mut session = Session::new(canvas(), brush());
     draw(&mut session, 10.0);
     let stored = session.save_request().expect("stroke");
     session.save_finished(&stored, &Ok(()));
@@ -86,7 +92,7 @@ fn undo_back_to_the_stored_version_needs_no_save() {
 
 #[test]
 fn a_failed_save_shows_waits_and_is_retried_on_request() {
-    let mut session = Session::new(canvas()).expect("session");
+    let mut session = Session::new(canvas(), brush());
     let projection = session.projection();
     assert_eq!(
         projection.availability(EditorAction::RetrySave),
@@ -127,7 +133,7 @@ fn a_failed_save_shows_waits_and_is_retried_on_request() {
 
 #[test]
 fn the_next_stroke_after_a_failure_tries_again() {
-    let mut session = Session::new(canvas()).expect("session");
+    let mut session = Session::new(canvas(), brush());
     draw(&mut session, 10.0);
     let version = session.save_request().expect("stroke");
     session.save_finished(&version, &failure());
@@ -140,7 +146,7 @@ fn the_next_stroke_after_a_failure_tries_again() {
 
 #[test]
 fn leaving_tries_a_failed_version_once_more() {
-    let mut session = Session::new(canvas()).expect("session");
+    let mut session = Session::new(canvas(), brush());
     draw(&mut session, 10.0);
     let version = session.save_request().expect("stroke");
     session.save_finished(&version, &failure());
@@ -151,7 +157,7 @@ fn leaving_tries_a_failed_version_once_more() {
 
 #[test]
 fn a_late_result_for_another_version_changes_nothing() {
-    let mut session = Session::new(canvas()).expect("session");
+    let mut session = Session::new(canvas(), brush());
     draw(&mut session, 10.0);
     let stale = session.artwork().clone();
     session.save_finished(&stale, &failure());
@@ -160,7 +166,7 @@ fn a_late_result_for_another_version_changes_nothing() {
 
 #[test]
 fn a_failed_open_is_told_until_dismissed() {
-    let mut session = Session::after_failed_open(canvas()).expect("session");
+    let mut session = Session::after_failed_open(canvas(), brush());
     assert_eq!(session.projection().storage(), StorageNotice::OpenFailed);
     assert!(session.artwork().layers()[0].strokes().is_empty());
     session
@@ -173,9 +179,9 @@ fn a_failed_open_is_told_until_dismissed() {
 
 #[test]
 fn an_opened_artwork_counts_as_stored() {
-    let mut drawn = Session::new(canvas()).expect("session");
+    let mut drawn = Session::new(canvas(), brush());
     draw(&mut drawn, 10.0);
-    let mut session = Session::open(drawn.artwork().clone()).expect("open");
+    let mut session = Session::open(drawn.artwork().clone(), brush());
     assert!(session.save_request().is_none());
     assert!(!session.history().can_undo(), "history is not stored");
 }

@@ -8,6 +8,7 @@ use std::sync::Arc;
 use openpaint_core::{Artwork, CoreError};
 
 use crate::title::Title;
+use crate::toolbox::EditorState;
 
 /// Identifies a project in the library for its whole life; never reused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -25,7 +26,7 @@ impl ProjectId {
     }
 }
 
-/// A stored artwork. History is not stored; editor state joins once there is some (brushes, S11).
+/// A stored artwork. History is not stored; the editor state (`EditorState`) is stored apart.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Project {
     pub id: ProjectId,
@@ -121,6 +122,13 @@ pub trait ProjectStore: Send {
     /// Removes project `id` and everything stored for it, for good. Deleting a project that is
     /// not there succeeds.
     fn delete(&mut self, id: ProjectId) -> Result<(), PortError>;
+
+    /// The toolbox as it was last stored; `None` before it ever was. Kept apart from every
+    /// artwork: an error here never keeps an artwork from opening.
+    fn editor(&mut self) -> Result<Option<EditorState>, PortError>;
+
+    /// Replaces the stored toolbox.
+    fn save_editor(&mut self, state: &EditorState) -> Result<(), PortError>;
 }
 
 /// Why a port (storage now; pickers and assets later) could not serve a call.

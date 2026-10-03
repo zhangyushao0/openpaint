@@ -3,7 +3,7 @@
 //! in-progress stroke beside it; the UI reads the projection; the runtime asks it which version
 //! to save and reports how saving went.
 
-use openpaint_core::{ActiveStroke, Artwork, CanvasSize};
+use openpaint_core::{ActiveStroke, Artwork, CanvasSize, StrokeStyle};
 
 use crate::error::AppError;
 use crate::history::{HISTORY_BUDGET, History, HistoryIntent};
@@ -23,36 +23,36 @@ pub struct Session {
 }
 
 impl Session {
-    /// A blank artwork of `canvas` pixels with an empty history.
-    ///
-    /// # Errors
-    /// `Core` when the default brush is invalid (a programming error).
-    pub fn new(canvas: CanvasSize) -> Result<Self, AppError> {
-        Self::open(Artwork::new(canvas))
+    /// A blank artwork of `canvas` pixels with an empty history; strokes start with `brush`
+    /// (the toolbox's style, `Toolbox::style`).
+    #[must_use]
+    pub fn new(canvas: CanvasSize, brush: StrokeStyle) -> Self {
+        Self::open(Artwork::new(canvas), brush)
     }
 
     /// `artwork` as the store holds it, with an empty history (history is not stored).
-    ///
-    /// # Errors
-    /// `Core` when the default brush is invalid (a programming error).
-    pub fn open(artwork: Artwork) -> Result<Self, AppError> {
-        Ok(Self {
+    #[must_use]
+    pub fn open(artwork: Artwork, brush: StrokeStyle) -> Self {
+        Self {
             autosave: Autosave::new(artwork.clone()),
             history: History::new(artwork, HISTORY_BUDGET),
-            strokes: Strokes::new()?,
+            strokes: Strokes::new(brush),
             layers: Layers::default(),
-        })
+        }
     }
 
     /// A blank artwork after the last one could not be opened; the projection tells the user
     /// until they close the notice.
-    ///
-    /// # Errors
-    /// `Core` when the default brush is invalid (a programming error).
-    pub fn after_failed_open(canvas: CanvasSize) -> Result<Self, AppError> {
-        let mut session = Self::new(canvas)?;
+    #[must_use]
+    pub fn after_failed_open(canvas: CanvasSize, brush: StrokeStyle) -> Self {
+        let mut session = Self::new(canvas, brush);
         session.autosave = Autosave::after_failed_open(session.artwork().clone());
-        Ok(session)
+        session
+    }
+
+    /// The next stroke starts with `brush`; a stroke being drawn keeps the style it began with.
+    pub fn set_brush(&mut self, brush: StrokeStyle) {
+        self.strokes.set_style(brush);
     }
 
     /// Applies one intent. On error the session is as it was before, except that a stroke
@@ -76,7 +76,9 @@ impl Session {
             }
             Intent::History(step) => self.step(step),
             Intent::Storage(storage) => self.storage(storage),
-            Intent::Layer(_) => Ok(()),
+            // The toolbox belongs to the app, not to this artwork: the runtime hands brush
+            // intents to it and the resulting style to `set_brush`.
+            Intent::Layer(_) | Intent::Brush(_) => Ok(()),
             // Leaving is the runtime's (it stores the artwork first); the session only says
             // whether it may happen now.
             Intent::Gallery(_) => self.check(EditorAction::Gallery),
@@ -131,6 +133,7 @@ impl Session {
             gallery: availability(true),
             storage: self.autosave.notice(),
             layers: Some(LayerList::of(artwork)),
+            brush: None,
         }
     }
 

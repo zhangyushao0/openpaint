@@ -1,8 +1,8 @@
 //! The open canvas: the app session, the target its artwork is evaluated into, where that
 //! target shows on screen, and whether the user is leaving it for the gallery.
 
-use openpaint_app::{Intent, Session, Thumbnail};
-use openpaint_core::{Artwork, CanvasSize, Color};
+use openpaint_app::{Intent, Session, Thumbnail, Toolbox};
+use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_render::{
     CanvasPlacement, CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, changed_regions,
 };
@@ -56,14 +56,15 @@ impl Canvas {
         core: &Core,
         area: &ScreenArea,
         content: &Content,
+        brush: StrokeStyle,
     ) -> Result<Option<Self>, RuntimeError> {
         if area.size.contains(&0) {
             return Ok(None);
         }
         let session = match content {
-            Content::Stored(artwork) => Session::open(artwork.clone())?,
-            Content::Blank => Session::new(blank_size(area)?)?,
-            Content::BlankAfterFailedOpen => Session::after_failed_open(blank_size(area)?)?,
+            Content::Stored(artwork) => Session::open(artwork.clone(), brush),
+            Content::Blank => Session::new(blank_size(area)?, brush),
+            Content::BlankAfterFailedOpen => Session::after_failed_open(blank_size(area)?, brush),
         };
         let canvas = session.artwork().canvas();
         let size = [canvas.width(), canvas.height()];
@@ -79,11 +80,20 @@ impl Canvas {
 
     /// Applies the frame's intents in order. A refused intent is logged and skipped: one bad
     /// sample must not stop the frame. A gallery intent the session allows starts leaving;
-    /// while leaving, nothing else is applied.
-    pub(crate) fn dispatch(&mut self, intents: Vec<Intent>) {
+    /// while leaving, nothing else is applied. Brush intents go to `toolbox`, and the session
+    /// draws its next stroke with the style that results.
+    pub(crate) fn dispatch(&mut self, intents: Vec<Intent>, toolbox: &mut Toolbox) {
         for intent in intents {
             if self.leaving != Leaving::Staying {
                 return;
+            }
+            if let Intent::Brush(brush) = &intent {
+                toolbox.dispatch(brush);
+                match toolbox.style() {
+                    Ok(style) => self.session.set_brush(style),
+                    Err(error) => log::error!("no brush style: {error}"),
+                }
+                continue;
             }
             // Committing a stroke is followed by the evaluator itself (D17).
             let stroke = matches!(intent, Intent::Stroke(_));

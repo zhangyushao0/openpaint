@@ -4,7 +4,7 @@
 use std::f32::consts::{PI, TAU};
 
 use openpaint_core::{
-    Artwork, CanvasPoint, CanvasSize, Color, CoreError, StrokeSample, StrokeStyle,
+    Artwork, BrushRecipe, CanvasPoint, CanvasSize, Color, CoreError, StrokeSample, StrokeStyle,
 };
 use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator};
 
@@ -35,7 +35,8 @@ pub fn run() -> Result<(), HarnessError> {
 
 /// An S-curve whose pressure rises from 0.1 to 1 and falls back, 80 % opaque.
 fn wave() -> Result<Artwork, CoreError> {
-    let style = StrokeStyle::new(40.0, 0.8, Color::rgb(0.12, 0.25, 0.65)?)?;
+    let plain = std::sync::Arc::new(BrushRecipe::plain());
+    let style = StrokeStyle::new(plain, 40.0, 0.8, Color::rgb(0.12, 0.25, 0.65)?)?;
     let samples = (0..48u16)
         .map(|i| {
             let t = f32::from(i) / 47.0;

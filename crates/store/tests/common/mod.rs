@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use fjall::{Database, KeyspaceCreateOptions};
 use openpaint_app::Title;
 
-/// The keyspaces of schemas 1 and 2, in dump order.
+/// The keyspaces of schemas 1 to 3, in dump order.
 pub const KEYSPACES: [&str; 2] = ["library", "projects"];
 
 pub fn untitled() -> Title {

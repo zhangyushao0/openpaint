@@ -2,6 +2,8 @@
 //! `Artwork::from_storage` is the only way back and validates everything.
 
 use crate::artwork::Artwork;
+use crate::brush::{BrushRecipe, Curve, Dynamics, Grain};
+use crate::error::CoreError;
 use crate::layer::Layer;
 use crate::stroke::{Stroke, StrokeSample};
 
@@ -31,11 +33,58 @@ pub struct LayerParts {
 #[derive(Debug, Clone, PartialEq)]
 pub struct StrokeParts {
     pub id: u64,
+    /// The brush recipe the stroke was drawn with.
+    pub recipe: RecipeParts,
     pub size: f32,
     pub opacity: f32,
     /// sRGB red, green, blue.
     pub color: [f32; 3],
     pub samples: Vec<SampleParts>,
+}
+
+/// A brush recipe as plain data: curves as `[x, y]` points.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RecipeParts {
+    pub softness: f32,
+    pub size_pressure: Vec<[f32; 2]>,
+    pub size_speed: Vec<[f32; 2]>,
+    pub opacity_pressure: Vec<[f32; 2]>,
+    pub opacity_speed: Vec<[f32; 2]>,
+    pub grain_strength: f32,
+    pub grain_scale: u32,
+}
+
+impl BrushRecipe {
+    /// Builds a recipe from plain data, checking every value.
+    ///
+    /// # Errors
+    /// `InvalidValue` for any curve, softness or grain out of its range.
+    pub fn from_parts(parts: &RecipeParts) -> Result<Self, CoreError> {
+        let dynamics = |pressure: &[[f32; 2]], speed: &[[f32; 2]]| {
+            Dynamics::new(Curve::new(pressure)?, Curve::new(speed)?)
+        };
+        Self::new(
+            parts.softness,
+            dynamics(&parts.size_pressure, &parts.size_speed)?,
+            dynamics(&parts.opacity_pressure, &parts.opacity_speed)?,
+            Grain::new(parts.grain_strength, parts.grain_scale)?,
+        )
+    }
+
+    /// The recipe as plain data.
+    #[must_use]
+    pub fn to_parts(&self) -> RecipeParts {
+        let points = |curve: &Curve| curve.points().to_vec();
+        RecipeParts {
+            softness: self.softness(),
+            size_pressure: points(self.size().pressure()),
+            size_speed: points(self.size().speed()),
+            opacity_pressure: points(self.opacity().pressure()),
+            opacity_speed: points(self.opacity().speed()),
+            grain_strength: self.grain().strength(),
+            grain_scale: self.grain().scale(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -80,6 +129,7 @@ fn stroke_parts(stroke: &Stroke) -> StrokeParts {
     let color = style.color();
     StrokeParts {
         id: stroke.id().get(),
+        recipe: style.recipe().to_parts(),
         size: style.size(),
         opacity: style.opacity(),
         color: [color.r(), color.g(), color.b()],
