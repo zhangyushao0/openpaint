@@ -4,7 +4,7 @@ Updated 2026-10-02. Current facts only; rewritten at the end of every slice, nev
 
 ## Stage
 
-G2 slices done: S9 (layers), S10 (artwork library), S11 (brush recipes), S12 (eraser, Alpha Lock, colour) and S13 (export, share, reference image). The G2 exit (W1) awaits the author on the tablet; no further slice starts before it. G1 exit passed 2026-10-02.
+G2 slices done: S9 (layers), S10 (artwork library), S11 (brush recipes), S12 (eraser, Alpha Lock, colour) and S13 (export, share, reference image). Before the G2 exit (W1) the author added S14 to S17 (canvas view and gestures, fill, stabilisation and pencil, visual design; ROADMAP, D32 to D34). Next slice: S14. G1 exit passed 2026-10-02.
 
 ## Working features
 
@@ -75,11 +75,11 @@ G2 slices done: S9 (layers), S10 (artwork library), S11 (brush recipes), S12 (er
 
 ## Pending author decisions
 
-1. G2 exit (W1): finish an inked and flat-coloured piece on the tablet, and judge with the real pen the feel of the brushes and the eraser, the colour wheel, the eyedropper and the panels, export (save and share) and the reference window. Record `pass` / `fail` here.
+1. G2 exit (W1), after S17: finish an inked and flat-coloured piece on the tablet, and judge with the real pen the feel of the brushes and the eraser, the colour wheel, the eyedropper and the panels, export (save and share) and the reference window. Record `pass` / `fail` here.
 2. Layer panel (S9, D23): reorder by up/down buttons instead of dragging rows; opacity slider and Alpha Lock in the panel footer instead of behind a per-layer menu. Recommended: keep until used; drag-to-reorder is a ROADMAP candidate.
 3. Gallery (S10): duplicate and delete as buttons on every card instead of swipe-left; Rename as a dialog under the top bar instead of editing in place; order by last change only. Recommended: keep until used.
 4. Brushes (S11, D27): the brush panel stays open after a choice; the size slider follows a square curve over each brush's range; Ink Pen is the default. Recommended: keep until drawn with.
-5. Eyedropper and gestures (S12, D30): only the side-bar button is wired. Recommended: Procreate's touch-and-hold with a finger, together with two-finger undo, as one gesture slice after G2.
+5. Touch-and-hold eyedropper (S12, D30): only the side-bar button is wired; navigation and history gestures are decided (D34, S14). Recommended: add Procreate's finger touch-and-hold in S14 if it fits draweave's gesture arbitration.
 6. The pen's eraser end (S12): today it does nothing. Recommended: erase with the eraser's brush (an Android-hardware choice; Procreate has none).
 7. Reference image (S13, D31): kept for the app's run only, not stored with the artwork (Procreate keeps it per canvas, which would be a format change and a stored image asset). Recommended: keep until used; storing it belongs with the asset store (S22 or a later slice).
 8. Actions entry (S13, D31): a spanner right of Gallery at the top bar's left end, as in Procreate; Save and Share each offer PNG and JPEG as four rows instead of one Share row with a format list. Recommended: keep until used.

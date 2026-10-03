@@ -193,3 +193,21 @@ Only decisions that constrain future code and are not self-evident. Each entry i
 - Decision: Procreate's Actions panel (a spanner right of Gallery) holds Save PNG/JPEG, Share PNG/JPEG, the Reference switch and Choose reference image. `app::Transfers` owns both flows for the app, not per artwork; the app never sees a path or URI: it asks the host through `HostRequest` and receives `ImageSink`/`ImageSource` ports in `HostAnswer`. Export is `render::Core::export`, a canvas target of its own evaluated whole through `RegionEvaluator` on the `openpaint-transfer` worker (an `Arc<Core>`, nothing the frame loop holds), then encoded and written there; JPEG quality 92 on the paper colour. The Android host serves the save dialog and the picker through the Storage Access Framework (detached descriptors to Rust) and shares through its own read-only `ShareProvider` over `cacheDir/share` (no AndroidX). PNG and JPEG go through the `image` crate in store (D14). The reference image is decoded on the worker, scaled to at most 2048 px, kept for the app's run and never stored: the format stays schema 4.
 - Reason: a pixel never depends on which regions are evaluated with it (D16), so a separate target gives the screen's pixels exactly without touching the screen's target or stalling drawing. Ports keep the app and the harness free of Android; devtools plays the platform in scenarios. Storing the reference would add an image asset to the format, which needs the author (ARCHITECTURE section 10) and the asset store.
 - Consequences: a new export format is an `ImageFormat` value plus an encoder; layered or PSD export needs its own job. One system dialog at a time (`Availability::Running`). Storing the reference with the artwork is a later format change with its own migration.
+
+## D32 2026-10-02 The UI is paper-white line art, intuitive and restrained
+
+- Decision: the chrome is light, near-neutral warm paper with ink-line outlines and self-drawn ink-line icons (no icon library); the white canvas sits on the paper; one deep ink colour marks the active state; no dark theme. Two rules: intuitive (a first-day tablet user needs no instructions; every control explains itself) and restrained (UI appears when needed and recedes; cues over controls, e.g. a cut-off last row and an edge fade instead of a scrollbar, an indicator only while scrolling). Hidden shortcuts such as gestures only duplicate a visible control. Supersedes "neutral dark greys for chrome" in ARCHITECTURE section 10.
+- Reason: the author's direction; the dark, engineering look of Photoshop, Procreate and Clip Studio is not wanted. Near-neutral paper keeps colour judgement honest.
+- Consequences: S17 applies it to every component through `ui/src/design/`; style screenshots go to the author before the full pass.
+
+## D33 2026-10-02 Simplest design first; optimisation is coarse-grained and comes in G5; draweave is the behaviour reference
+
+- Decision: each slice builds the simplest direct design that meets its done criteria and budgets; caches, incremental schemes and tuning beyond that are written under ROADMAP "Candidates" and done in G5, coarse-grained and measured on the tablet. Before building a feature, the slice reads draweave's implementation of the same feature (behaviour, constants, tests, fix commits) and carries its lessons over; its architecture is not copied.
+- Reason: the author's direction; the predecessor spent heavily on structure and tuning, and agents here re-hit pitfalls it had already solved (undo/redo greying out on every stroke).
+- Consequences: subagent briefs name the draweave files for the feature; lessons that apply to all UI live in ARCHITECTURE section 10.
+
+## D34 2026-10-02 Gestures follow Procreate's defaults as draweave tuned them
+
+- Decision: pinch zoom and rotate, two-finger pan, quick pinch to fit, two-finger tap undo, three-finger tap redo; dead zones, thresholds and snapping take draweave's tested values. Touch never paints (D18); the pen never navigates.
+- Reason: the author's direction; feel lives in the dead zones and thresholds, which draweave already tuned on this kind of tablet.
+- Consequences: S14 adds multi-pointer routing and scenario steps; touch-and-hold eyedropper and pen-button mapping remain separate decisions.

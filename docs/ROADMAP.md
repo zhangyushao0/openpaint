@@ -32,27 +32,42 @@ Passed 2026-10-02: S2 to S8 done (see "Done"); the author judged pen feel and pa
 
 Exit: the author finishes an inked and flat-coloured piece (W1) on the tablet.
 
-S9 to S13 are done (see "Done"). The exit awaits the author on the tablet (STATUS, "Pending author decisions"); G3 starts after it.
+S9 to S13 are done (see "Done"). Inking and flat colour need navigation, fill, stabilisation and a finished look first (author, 2026-10-02), so S14 to S17 come before the exit. Every slice from S14 on starts from the predecessor's implementation of the same feature (`C:\repo\draweave`: behaviour, constants, tested edge cases, fix commits; never its architecture) and the lessons in ARCHITECTURE section 10.
+
+**S14 Canvas view and gestures** (app, ui, render, runtime, devtools)
+- Procreate's defaults, tuned as in draweave: pinch to zoom and rotate, two-finger pan, dead zones that separate pan, zoom and rotate, rotation snapping, a quick pinch to fit; refit after device rotation; two-finger tap undo, three-finger tap redo (they duplicate the side-bar buttons). The pen never navigates. Canvas size is chosen when creating an artwork. Undo and redo never grey out while drawing; a tap then is refused without a visual change.
+- Done: the walk-through scenario passes with multi-pointer steps and view checkpoints; screen-to-canvas mapping round-trips in tests; painting at any zoom and rotation lands under the pen.
+
+**S15 Fill** (new crate raster, core, app, ui, render)
+- Connected-region fill on the active layer: drag the colour swatch onto the canvas (Procreate's ColorDrop) and a fill tap; tolerance set by holding and dragging; behaviour and edge cases as in draweave. Undoable; stored as artwork content.
+- Done: cases for soft edges, gaps and pinholes; the walk-through scenario passes.
+
+**S16 Stabilisation and pencil** (app, core, render)
+- A StreamLine-like smoothing amount per brush in the stroke intent; the pencil retuned to draweave's tuned pencil (grain, pressure and tilt response). Old artworks keep their recipe snapshots.
+- Done: smoothing tests (bounded lag, the stroke end reaches the pen); the pencil's golden re-recorded with the reason; old strokes unchanged (test).
+
+**S17 Visual design** (ui, render adapter, android)
+- Paper-white line-art look (D32): light paper chrome, ink-line self-drawn icons, a white canvas on the paper; intuitive and restrained (ARCHITECTURE section 10). Self-explanatory side bar (end icons, labels on pen hover, a size preview while dragging); scroll cues instead of scrollbars; a CJK-capable font from the host.
+- Done: two or three style screenshots shown to the author before the full pass; every screen then reviewed against the section 10 checklist; scenarios pass.
 
 ## G3 Editing and shaping
 
 Exit: the author finishes painterly shading (W2) and a complex composition revision (W3) on the tablet.
 
-**S14 Selection** (core, app, ui, render): freehand and rectangle selection; paint inside; deselect; the selection is tool state, not artwork. Done: GPU test that pixels outside the selection stay unchanged.
-**S15 Transform** (core, app, ui, render): move, scale and rotate a layer or selection; preview through the renderer; commit as a `RegionEdit`. Done: preview and committed result match.
-**S16 Fill** (new crate raster, core, app, ui): connected-region fill, tolerance, intersection with the selection. Done: cases for soft edges, gaps and pinholes.
-**S17 Smudge** (core, render, ui): a smudge brush drags the current layer's colour; incremental residual tiles; incremental = cold evaluation bit for bit. Done: GPU consistency test; at least 60 Hz smudging on the tablet.
-**S18 Groups, clipping masks, blend modes** (core, app, ui, render, store): single-level groups, clipping chains, Multiply/Screen/Overlay; schema upgrade. Done: GPU tests for the compositing formulas.
-**S19 Layer masks** (core, app, ui, render, store): add, disable, invert, clear and delete masks with undo; painting on masks. Done: GPU tests for masks combined with opacity, clipping and groups.
+**S18 Selection** (core, app, ui, render): freehand and rectangle selection; paint and fill inside; deselect; the selection is tool state, not artwork. Done: GPU test that pixels outside the selection stay unchanged.
+**S19 Transform** (core, app, ui, render): move, scale and rotate a layer or selection; preview through the renderer; commit as a `RegionEdit`. Done: preview and committed result match.
+**S20 Smudge** (core, render, ui): a smudge brush drags the current layer's colour; incremental residual tiles; incremental = cold evaluation bit for bit. Done: GPU consistency test; at least 60 Hz smudging on the tablet.
+**S21 Groups, clipping masks, blend modes** (core, app, ui, render, store): single-level groups, clipping chains, Multiply/Screen/Overlay; schema upgrade. Done: GPU tests for the compositing formulas.
+**S22 Layer masks** (core, app, ui, render, store): add, disable, invert, clear and delete masks with undo; painting on masks. Done: GPU tests for masks combined with opacity, clipping and groups.
 
 ## G4 Colour, adjustments, exchange
 
-**S20 Colour management**: P3 display, import interpretation and export conversion defined separately. **S21 Adjustments**: hue/saturation/brightness, curves, blur, sharpen, each with preview, cancel and history. **S22 Project exchange**: the native format as the full original; OpenRaster import and export. **S23 Library management**: search, version restore, external backup.
+**S23 Colour management**: P3 display, import interpretation and export conversion defined separately. **S24 Adjustments**: hue/saturation/brightness, curves, blur, sharpen, each with preview, cancel and history. **S25 Project exchange**: the native format as the full original; OpenRaster import and export. **S26 Library management**: search, version restore, external backup.
 Exit: the author completes edit, restore and delivery (W4).
 
 ## G5 Stability and release
 
-Device tiers, long sessions, background/foreground, low storage, failed upgrades; GPU device-loss recovery and a VRAM budget; a device smoke scenario of at most 20 s; signed releases and a version policy. Exit: the declared device matrix passes with no known artwork corruption or silent loss.
+Device tiers, long sessions, background/foreground, low storage, failed upgrades; GPU device-loss recovery and a VRAM budget; a device smoke scenario of at most 20 s; signed releases and a version policy. Optimisation happens here, coarse-grained, driven by measurements on the tablet; earlier slices build the simplest design that meets their budgets (D33) and leave performance ideas under "Candidates". Exit: the declared device matrix passes with no known artwork corruption or silent loss.
 
 ## G6 Independent extensions after stabilisation
 
@@ -62,13 +77,10 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 
 (Findings outside the current slice, one line each, dated.)
 
-- 2026-10-02 View transform (zoom, pan, rotate, refit after device rotation): no slice owns it; until then the canvas is fixed at its first size, one screen pixel per canvas pixel.
 - 2026-10-02 Vulkan staging stall (~1.5 ms every ~4,000 `write_buffer` calls on the dev machine): pack the evaluator's per-frame writes or use a staging belt if the tablet shows it.
 - 2026-10-02 Finished-stroke cost per frame: cache the tile binning of finished ops per artwork version before long sessions make the plan step slow.
-- 2026-10-02 Touch gestures for history (two-finger tap undo, three-finger tap redo, Procreate's model): gesture mapping is the author's call (ARCHITECTURE section 10); needs multi-touch routing and a multi-pointer scenario step. Undo/redo are side-bar buttons until then (and after, as in Procreate).
 - 2026-10-02 Presentation latency: on the tablet a queued frame reaches the glass p50 28 ms later (about 3.4 vsyncs at 120 Hz) against 9 ms from pen event to queue (D22); front-buffered stylus rendering or tighter frame timing is the lever, not a render thread.
 - 2026-10-02 Layer panel follow-ups (S9): drag rows to reorder (press and hold), rename, layer thumbnails; `changed_regions` for a layer property change could cover only that layer's strokes instead of the whole canvas (an opacity drag re-evaluates the whole canvas every frame).
-- 2026-10-02 CJK and other non-Latin glyphs (S10): egui's built-in fonts have none, so a Chinese title or layer name shows boxes; the host would hand a system font (for example Noto Sans CJK) to the UI at start.
 - 2026-10-02 Gallery follow-ups (S10): Procreate's swipe-left on a card for duplicate and delete, sorting by hand, selecting several; re-show the soft keyboard when the field is tapped after the keyboard was closed with its own button; a canvas size menu for "+".
 - 2026-10-02 Side bar follow-ups (S11): a left-handed setting that mirrors it (one constant in `components/side_panel.rs`, the bubble side in `side_slider.rs`); a hold-to-show size preview circle.
 - 2026-10-02 Brush follow-ups (S11): brush editing and import through a `BrushStore`; flow that builds up within a stroke (needs kept state, D17); cache per-sample speed per stroke so a scene rebuild does not recompute it.
