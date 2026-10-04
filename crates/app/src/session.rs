@@ -137,8 +137,9 @@ impl Session {
             }
             Intent::History(step) => self.step(step),
             Intent::Storage(storage) => self.storage(storage),
-            // The toolbox, export and the reference belong to the app, not to this artwork: the
-            // runtime hands their intents to them (and the brush's style to `set_brush`).
+            // The toolbox, export, the reference and choosing a picture to insert belong to the
+            // app, not to this artwork: the runtime hands their intents to them (and the brush's
+            // style to `set_brush`, an inserted picture as `TransformIntent::Insert`).
             Intent::Layer(_)
             | Intent::View(_)
             | Intent::Fill(_)
@@ -146,7 +147,8 @@ impl Session {
             | Intent::Brush(_)
             | Intent::Tool(_)
             | Intent::Export(_)
-            | Intent::Reference(_) => Ok(()),
+            | Intent::Reference(_)
+            | Intent::Insert(_) => Ok(()),
             // Leaving is the runtime's (it stores the artwork first); the session only says
             // whether it may happen now.
             Intent::Gallery(_) => self.check(EditorAction::Gallery),
@@ -279,8 +281,10 @@ impl Session {
     }
 
     /// The version the store should write as the user leaves the app: as `save_request`, but a
-    /// version whose save failed is tried once more, since the process may not come back.
+    /// version whose save failed is tried once more, since the process may not come back. A
+    /// transform in progress (an inserted picture too) is committed first, so it is not lost.
     pub fn leave_request(&mut self) -> Option<Artwork> {
+        self.commit_transform();
         if self.autosave.can_retry() {
             self.autosave.retry();
         }

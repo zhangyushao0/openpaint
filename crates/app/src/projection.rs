@@ -43,6 +43,8 @@ pub enum EditorAction {
     Export,
     /// Choose a reference image with the system's picker.
     ChooseReference,
+    /// Choose a picture with the system's picker to insert as a new layer.
+    InsertImage,
     /// Fill a region with the colour (ColorDrop).
     Fill,
     /// Move, scale or turn the layer's content or the selection's.
@@ -135,6 +137,12 @@ impl SessionProjection {
         match action {
             EditorAction::Export | EditorAction::ChooseReference => match &self.transfers {
                 Some(transfers) => transfers.available,
+                None => Availability::NothingLeft,
+            },
+            // A picker or transfer running first, then room for the picture's layer.
+            EditorAction::InsertImage => match &self.transfers {
+                Some(transfers) if !transfers.available.is_available() => transfers.available,
+                Some(_) => self.layer_actions[0],
                 None => Availability::NothingLeft,
             },
             EditorAction::Undo => self.undo,
@@ -290,6 +298,7 @@ impl fmt::Display for EditorAction {
             Self::Gallery => "use the gallery",
             Self::Export => "export the artwork",
             Self::ChooseReference => "choose a reference image",
+            Self::InsertImage => "insert an image",
             Self::Fill => "fill",
             Self::Transform => "transform",
         })

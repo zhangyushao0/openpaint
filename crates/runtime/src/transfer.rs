@@ -1,5 +1,6 @@
 //! The transfer worker: exports (render through the single evaluation entry, encode, write the
-//! file the user chose) and reference images (read, decode, scale down), off the UI thread. It
+//! file the user chose), reference images (read, decode, scale down) and pictures to insert
+//! (read, decode, fit inside the canvas), off the UI thread. It
 //! holds only an `Arc<Core>` and the jobs' own values, never anything the frame loop holds; the
 //! frame loop takes its results into the app's `Transfers`.
 
@@ -8,11 +9,12 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use openpaint_app::{
-    ContactPhase, ExportError, ExportIntent, ExportJob, ImageError, Intent, MAX_IMAGE_BYTES,
-    OpenJob, ReferenceImage, StrokeIntent, TransferJob, Transfers,
+    ContactPhase, ExportError, ExportIntent, ExportJob, ImageError, ImageSource, InsertJob, Intent,
+    MAX_IMAGE_BYTES, OpenJob, ReferenceImage, StrokeIntent, TransferJob, Transfers,
 };
+use openpaint_core::Patch;
 use openpaint_render::Core;
-use openpaint_store::{encode_image, open_reference};
+use openpaint_store::{encode_image, open_picture, open_reference};
 
 use crate::canvas::{Canvas, PAPER};
 use crate::error::RuntimeError;
@@ -21,6 +23,7 @@ use crate::worker::Queue;
 pub(crate) enum TransferDone {
     Exported(Result<(), ExportError>),
     Opened(Result<ReferenceImage, ImageError>),
+    Inserted(Result<Patch, ImageError>),
 }
 
 pub(crate) struct TransferWorker {
@@ -48,6 +51,7 @@ impl TransferWorker {
             match done {
                 TransferDone::Exported(result) => transfers.exported(result),
                 TransferDone::Opened(result) => transfers.opened(result),
+                TransferDone::Inserted(result) => transfers.inserted(result),
             }
         }
     }
@@ -72,6 +76,10 @@ pub(crate) fn route(
                 transfers.export(export, open)
             }
             Intent::Reference(reference) => transfers.reference(reference),
+            Intent::Insert(insert) => {
+                let open = canvas.map(|canvas| canvas.session().artwork().canvas());
+                transfers.insert(*insert, open)
+            }
             Intent::Stroke(StrokeIntent::Contact(contact)) => {
                 if contact.phase == ContactPhase::Down {
                     transfers.interrupt();
@@ -108,6 +116,13 @@ fn serve(core: &Core, job: TransferJob) -> TransferDone {
                 Err(ImageError::Damaged)
             }))
         }
+        TransferJob::Insert(job) => {
+            let result = catch_unwind(AssertUnwindSafe(|| insert(job)));
+            TransferDone::Inserted(result.unwrap_or_else(|_| {
+                log::error!("opening a picture to insert panicked");
+                Err(ImageError::Damaged)
+            }))
+        }
     }
 }
 
@@ -138,10 +153,7 @@ fn export(core: &Core, job: ExportJob) -> Result<(), ExportError> {
 /// Reads the chosen file (at most `MAX_IMAGE_BYTES`) and decodes it as a reference image.
 fn open(job: OpenJob) -> Result<ReferenceImage, ImageError> {
     let started = Instant::now();
-    let bytes = job.source.read(MAX_IMAGE_BYTES).map_err(ImageError::Read)?;
-    if bytes.len() as u64 > MAX_IMAGE_BYTES {
-        return Err(ImageError::TooLarge);
-    }
+    let bytes = read(job.source)?;
     let image = open_reference(&bytes)
         .inspect_err(|error| log::warn!("the chosen image cannot be used: {error}"))?;
     let [width, height] = image.size();
@@ -151,4 +163,27 @@ fn open(job: OpenJob) -> Result<ReferenceImage, ImageError> {
         started.elapsed().as_millis()
     );
     Ok(image)
+}
+
+/// Reads the chosen file (at most `MAX_IMAGE_BYTES`) and fits its picture inside the canvas.
+fn insert(job: InsertJob) -> Result<Patch, ImageError> {
+    let started = Instant::now();
+    let bytes = read(job.source)?;
+    let picture = open_picture(&bytes, job.canvas)
+        .inspect_err(|error| log::warn!("the chosen picture cannot be inserted: {error}"))?;
+    let ([x, y], [width, height]) = (picture.origin(), picture.size());
+    log::info!(
+        "picture to insert opened at {width} x {height} (at {x}, {y}) from {} bytes in {} ms",
+        bytes.len(),
+        started.elapsed().as_millis()
+    );
+    Ok(picture)
+}
+
+fn read(source: Box<dyn ImageSource>) -> Result<Vec<u8>, ImageError> {
+    let bytes = source.read(MAX_IMAGE_BYTES).map_err(ImageError::Read)?;
+    if bytes.len() as u64 > MAX_IMAGE_BYTES {
+        return Err(ImageError::TooLarge);
+    }
+    Ok(bytes)
 }

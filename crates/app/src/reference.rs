@@ -8,7 +8,7 @@ use std::sync::Arc;
 use openpaint_core::Color;
 
 use crate::project::PortError;
-use crate::transfer::{HostAnswer, HostRequest, ImageError, OpenJob};
+use crate::transfer::{HostAnswer, HostRequest, ImageError, ImageSource, OpenJob};
 
 /// Longest side of a reference image as kept: larger images are scaled down to it when opened.
 /// The window shows it at most a few hundred points large, zoomed up to 8 times.
@@ -181,21 +181,14 @@ impl Reference {
             return None;
         }
         self.state = State::Idle;
-        match answer {
-            HostAnswer::Image(source) => {
+        match picked(answer) {
+            Ok(Some(source)) => {
                 self.state = State::Opening;
                 Some(OpenJob { source })
             }
-            HostAnswer::Cancelled => None,
-            HostAnswer::Failed(error) => {
-                self.state = State::Failed(ImageError::Picker(error));
-                None
-            }
-            HostAnswer::File(_) => {
-                let error = PortError::Device {
-                    detail: "a file to write came back for an image".into(),
-                };
-                self.state = State::Failed(ImageError::Picker(error));
+            Ok(None) => None,
+            Err(error) => {
+                self.state = State::Failed(error);
                 None
             }
         }
@@ -231,6 +224,18 @@ impl Reference {
             State::Choosing | State::Opening => ReferenceNotice::Opening,
             State::Failed(error) => ReferenceNotice::Failed(error.clone()),
         }
+    }
+}
+
+/// The image picker's answer: the chosen file, nothing (the user cancelled) or why it failed.
+pub(crate) fn picked(answer: HostAnswer) -> Result<Option<Box<dyn ImageSource>>, ImageError> {
+    match answer {
+        HostAnswer::Image(source) => Ok(Some(source)),
+        HostAnswer::Cancelled => Ok(None),
+        HostAnswer::Failed(error) => Err(ImageError::Picker(error)),
+        HostAnswer::File(_) => Err(ImageError::Picker(PortError::Device {
+            detail: "a file to write came back for an image".into(),
+        })),
     }
 }
 

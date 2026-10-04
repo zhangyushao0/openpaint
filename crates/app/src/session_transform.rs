@@ -1,6 +1,7 @@
 //! The session's side of the Transform tool (`transform.rs`): turning it on lifts the active
 //! layer's content or the selection's (the runtime samples the pixels), turning it off or any
-//! other edit commits it, and a selection's content moved leaves nothing selected.
+//! other edit commits it, and a selection's content moved leaves nothing selected. An inserted
+//! picture is framed the same way on a layer of its own (`transform_insert.rs`).
 
 use openpaint_core::Patch;
 
@@ -39,6 +40,17 @@ impl Session {
                 self.transforms.begin(current, drawing, clip.as_ref())
             }
             TransformIntent::Tool(true) => Ok(()),
+            TransformIntent::Insert(picture) => {
+                // The picture goes above what shows now: a transform in progress first.
+                self.commit_transform();
+                self.fills.interrupt();
+                self.layers.interrupt();
+                let canvas = self.artwork().canvas();
+                self.selection.handle(canvas, SelectionIntent::Tool(false));
+                let drawing = self.strokes.active().is_some();
+                let current = self.history.current();
+                self.transforms.insert(current, drawing, picture)
+            }
             TransformIntent::Tool(false) => {
                 self.commit_transform();
                 self.transforms.forget_refusal();

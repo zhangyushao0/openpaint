@@ -1,6 +1,6 @@
 //! The system around the app in a scenario: the pickers, the save dialog and the share sheet
-//! answered as the user would (`SystemAnswer`), files kept in memory, a test picture, and the
-//! check that an exported file shows the canvas.
+//! answered as the user would (`SystemAnswer`), files kept in memory, a test picture and the
+//! fixture pictures, and the check that an exported file shows the canvas.
 
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -8,8 +8,40 @@ use openpaint_render::RgbaImage;
 use openpaint_runtime::{HostAnswer, HostRequest, ImageFormat, ImageSink, ImageSource, PortError};
 use openpaint_store::{decode_image, encode_image};
 
+use serde::Deserialize;
+
 use crate::error::ScenarioError;
-use crate::scenario::SystemAnswer;
+
+/// How the user answers what the system shows for the app.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SystemAnswer {
+    /// Back or Cancel in the picker or dialog.
+    Cancel,
+    /// The system cannot show the picker.
+    PickerFails,
+    /// A place is chosen in the save dialog, or the file to share is made: the export goes
+    /// into a file the runner keeps.
+    ChooseFile,
+    /// As `choose_file`, on storage that refuses the write.
+    FullStorage,
+    /// A PNG test picture (colour bands over a grey ramp) is chosen in the image picker.
+    TestImage,
+    /// `tests/fixtures/s26-cutout.png` is chosen in the image picker: 640 x 420, a disc on
+    /// transparency with a half transparent glow.
+    CutoutPng,
+    /// `tests/fixtures/s26-photo.jpg` is chosen in the image picker: a camera's 1800 x 1200
+    /// JPEG whose EXIF says to turn it a quarter clockwise (upright 1200 x 1800, the sun on top).
+    PhotoJpeg,
+    /// A text file is chosen in the image picker.
+    TextFile,
+    /// The share sheet shows the exported file; the user closes it with Back.
+    ShareSheet,
+}
+
+/// The fixture pictures, built into the runner (it never reads files).
+const CUTOUT_PNG: &[u8] = include_bytes!("../../../tests/fixtures/s26-cutout.png");
+const PHOTO_JPEG: &[u8] = include_bytes!("../../../tests/fixtures/s26-photo.jpg");
 
 /// The test picture's size: wider than tall, like a photo.
 const TEST_IMAGE: [u32; 2] = [480, 320];
@@ -63,9 +95,10 @@ pub(crate) fn answer(
             request,
             HostRequest::SaveFile { .. } | HostRequest::ShareFile { .. }
         ),
-        SystemAnswer::TestImage | SystemAnswer::TextFile => {
-            matches!(request, HostRequest::OpenImage)
-        }
+        SystemAnswer::TestImage
+        | SystemAnswer::CutoutPng
+        | SystemAnswer::PhotoJpeg
+        | SystemAnswer::TextFile => matches!(request, HostRequest::OpenImage),
         SystemAnswer::Cancel | SystemAnswer::PickerFails => {
             !matches!(request, HostRequest::Send { .. })
         }
@@ -88,6 +121,12 @@ pub(crate) fn answer(
         }
         SystemAnswer::FullStorage => Some(HostAnswer::File(Box::new(FullStorage))),
         SystemAnswer::TestImage => Some(HostAnswer::Image(Box::new(MemorySource(test_image()?)))),
+        SystemAnswer::CutoutPng => Some(HostAnswer::Image(Box::new(MemorySource(
+            CUTOUT_PNG.to_vec(),
+        )))),
+        SystemAnswer::PhotoJpeg => Some(HostAnswer::Image(Box::new(MemorySource(
+            PHOTO_JPEG.to_vec(),
+        )))),
         SystemAnswer::TextFile => Some(HostAnswer::Image(Box::new(MemorySource(
             b"Shopping list: ink, paper.\n".to_vec(),
         )))),

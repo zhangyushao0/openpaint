@@ -74,6 +74,8 @@ fn panel(
         .order(Order::Foreground)
         .movable(false)
         .interactable(open)
+        // Taller than the screen, it runs off the bottom rather than over its own button.
+        .constrain(false)
         .fade_in(false)
         .anchor(corner, Vec2::new(inset, UNDER_ISLANDS))
         .show(ctx, |ui| {

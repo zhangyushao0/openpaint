@@ -1,12 +1,14 @@
 //! The Actions panel (Procreate's Actions menu, reduced to what exists): the spanner right of
-//! Gallery in the left island opens it as a popover under it. Header "Actions"; under
+//! Gallery in the left island opens it as a popover under it. Header "Actions"; under "Add",
+//! inserting a picture from the system's picker as a new layer (S26); under
 //! "Share", saving the artwork as a PNG or JPEG file where the user chooses and sending it to
 //! another app; under "Canvas", the Reference switch that shows the floating reference window
 //! and the row that chooses its image. A row that opens a system dialog closes the panel; the
 //! switch leaves it open. Any contact landing on the canvas outside closes it.
 
 use openpaint_app::{
-    Delivery, EditorAction, ExportIntent, ImageFormat, Intent, ReferenceIntent, SessionProjection,
+    Delivery, EditorAction, ExportIntent, ImageFormat, InsertIntent, Intent, ReferenceIntent,
+    SessionProjection,
 };
 
 use crate::components::{
@@ -72,6 +74,12 @@ impl ActionsPanel {
                 ui.add_space(2.0 * SPACE);
                 ui.heading("Actions");
             });
+            section(ui, "Add");
+            let insert = offered(EditorAction::InsertImage);
+            if menu_row(ui, "Insert image…", "As a new layer", insert).clicked() {
+                push(taps, Intent::Insert(InsertIntent::Choose));
+                close = true;
+            }
             section(ui, "Share");
             for (label, note, format, delivery) in EXPORTS {
                 if menu_row(ui, label, note, offered(EditorAction::Export)).clicked() {

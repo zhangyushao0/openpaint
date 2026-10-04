@@ -12,8 +12,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use openpaint_app::{
-    BrushLibrary, HostAnswer, HostRequest, InputBatch, PalmRejection, ProjectStore,
-    ScreenProjection, SessionProjection, Toolbox, Transfers,
+    BrushLibrary, HostAnswer, HostRequest, InputBatch, Intent, PalmRejection, ProjectStore,
+    ScreenProjection, SessionProjection, Toolbox, Transfers, TransformIntent,
 };
 use openpaint_core::Artwork;
 use openpaint_render::{Core, ScreenPainter, ScreenTarget, Surface, SurfaceWindow, UiFrame};
@@ -335,7 +335,11 @@ impl Runtime {
         );
         self.keyboard = pass.keyboard;
         let intents = self.shell.route(&batches);
-        let intents = route(&mut self.transfers, self.screen.canvas(), intents);
+        let mut intents = route(&mut self.transfers, self.screen.canvas(), intents);
+        // A picture read for inserting goes to the canvas open now, before this frame's taps.
+        if let Some(picture) = self.transfers.take_picture() {
+            intents.insert(0, Intent::Transform(TransformIntent::Insert(picture)));
+        }
         let area = self.shell.canvas_area();
         self.screen.open(&self.core, area, &self.toolbox)?;
         match &mut self.screen {

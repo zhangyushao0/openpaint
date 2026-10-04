@@ -1,5 +1,6 @@
-//! `cargo device-check [label] [--no-install]`: wakes the tablet, builds and installs the debug
-//! APK (unless `--no-install`), launches the app, waits, writes a screenshot to
+//! `cargo device-check [label] [--no-install] [--no-launch]`: wakes the tablet, builds and
+//! installs the debug APK (unless `--no-install`), launches the app (unless `--no-launch`, which
+//! keeps a system picker over it open), waits, writes a screenshot to
 //! `artifacts/device/<label>.png` and prints the app's error, panic and crash lines logged since;
 //! a panic or crash fails it.
 //!
@@ -26,19 +27,26 @@ const SETTLE: Duration = Duration::from_secs(3);
 const PNG: &[u8] = b"\x89PNG\r\n\x1a\n";
 
 pub fn check(args: &[String]) -> Result<()> {
-    let install = !args.iter().any(|arg| arg == "--no-install");
-    let labels: Vec<&String> = args.iter().filter(|arg| *arg != "--no-install").collect();
+    let flag = |name: &str| args.iter().any(|arg| arg == name);
+    // `--no-launch`: the screen as it is (a system picker over the app stays open).
+    let (install, launch) = (!flag("--no-install"), !flag("--no-launch"));
+    let labels: Vec<&String> = args.iter().filter(|arg| !arg.starts_with("--")).collect();
     let label = match labels[..] {
         [] => "check",
         [label] => plain(label)?,
         _ => {
             return Err(DeviceError::Usage(
-                "cargo device-check [label] [--no-install]",
+                "cargo device-check [label] [--no-install] [--no-launch]",
             ));
         }
     };
     let adb = Adb::connected()?;
     wake(&adb)?;
+    if !launch {
+        let since = adb.shell(&["date", "+%s"])?;
+        screenshot(&adb, label)?;
+        return report_log(&adb, since.trim());
+    }
     if install {
         crate::android::build().map_err(|output| DeviceError::Failed {
             command: "android-build".into(),
@@ -50,6 +58,12 @@ pub fn check(args: &[String]) -> Result<()> {
     let since = adb.shell(&["date", "+%s"])?;
     adb.shell(&["am", "start", "-W", "-n", ACTIVITY])?;
     std::thread::sleep(SETTLE);
+    screenshot(&adb, label)?;
+    report_log(&adb, since.trim())
+}
+
+/// The screen now as `artifacts/device/<label>.png`.
+fn screenshot(adb: &Adb, label: &str) -> Result<()> {
     let path = artifacts().join(format!("{label}.png"));
     let shot = adb.bytes(&["exec-out", "screencap", "-p"])?;
     if !shot.starts_with(PNG) {
@@ -60,7 +74,7 @@ pub fn check(args: &[String]) -> Result<()> {
     }
     write_file(&path, &shot)?;
     println!("screenshot {}", path.display());
-    report_log(&adb, since.trim())
+    Ok(())
 }
 
 /// The app's error lines logged since `since` (device seconds); a panic, a crash or no app

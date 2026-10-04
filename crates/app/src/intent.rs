@@ -5,6 +5,7 @@ use crate::export::ExportIntent;
 use crate::fill::FillIntent;
 use crate::gallery::GalleryIntent;
 use crate::history::HistoryIntent;
+use crate::insert::InsertIntent;
 use crate::layers::LayerIntent;
 use crate::reference::ReferenceIntent;
 use crate::selection::SelectionIntent;
@@ -29,4 +30,5 @@ pub enum Intent {
     Tool(ToolIntent),
     Export(ExportIntent),
     Reference(ReferenceIntent),
+    Insert(InsertIntent),
 }

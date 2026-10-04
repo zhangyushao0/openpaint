@@ -1,13 +1,14 @@
 //! What the canvas tells in a pill in the top band, one thing at a time, most urgent first: a
 //! failed save or open (with Retry or OK), a refused or failed fill (with OK), then exporting
-//! (working, saved, failed), then the reference image (opening, failed). Running work shows a
+//! (working, saved, failed), then the reference image and a picture to insert (opening,
+//! failed). Running work shows a
 //! spinner and asks nothing; a result waits for OK. The messages are the user-facing form of the
 //! app's typed errors. At fit the pill lies on the desk above the canvas.
 
 use openpaint_app::{
     Delivery, EditorAction, ExportError, ExportIntent, ExportNotice, FillIntent, FillRefusal,
-    ImageError, Intent, ReferenceIntent, ReferenceNotice, SessionProjection, StorageIntent,
-    StorageNotice, TransformIntent, TransformRefusal,
+    ImageError, InsertIntent, Intent, ReferenceIntent, ReferenceNotice, SessionProjection,
+    StorageIntent, StorageNotice, TransformIntent, TransformRefusal,
 };
 
 use crate::components::{Place, Source, confirmation, notice, pill, status};
@@ -110,6 +111,7 @@ fn transform(projection: &SessionProjection) -> Option<Told> {
         TransformRefusal::Empty => "Nothing to transform here.",
         TransformRefusal::Failed => "Couldn't pick up the layer. Try again.",
         TransformRefusal::Mask => "A mask can't be transformed. Tap the layer to move its paint.",
+        TransformRefusal::Full => "Can't insert: no room for another layer.",
     };
     let dismiss = Intent::Transform(TransformIntent::Tool(false));
     Some(Told::Failed(message.to_owned(), "OK", true, dismiss))
@@ -140,13 +142,21 @@ fn transfers(projection: &SessionProjection) -> Option<Told> {
         }
         ExportNotice::None => {}
     }
-    match &transfers.reference_notice {
+    let reference = Intent::Reference(ReferenceIntent::Dismiss);
+    let insert = Intent::Insert(InsertIntent::Dismiss);
+    image(&transfers.reference_notice, "open", reference)
+        .or_else(|| image(&transfers.insert_notice, "insert", insert))
+}
+
+/// Opening a reference image or a picture to insert, or why it failed.
+fn image(notice: &ReferenceNotice, verb: &str, dismiss: Intent) -> Option<Told> {
+    match notice {
         ReferenceNotice::Opening => Some(Told::Running("Opening the image…".to_owned())),
         ReferenceNotice::Failed(error) => Some(Told::Failed(
-            format!("Couldn't open the image: {}", image_failed(error)),
+            format!("Couldn't {verb} the image: {}", image_failed(error)),
             "OK",
             true,
-            Intent::Reference(ReferenceIntent::Dismiss),
+            dismiss,
         )),
         ReferenceNotice::None => None,
     }

@@ -13,6 +13,7 @@ mod gallery;
 mod gestures;
 mod history;
 mod input;
+mod insert;
 mod intent;
 mod layer_rules;
 mod layers;
@@ -49,6 +50,7 @@ pub use crate::gestures::{
 };
 pub use crate::history::{HISTORY_BUDGET, History, HistoryIntent};
 pub use crate::input::{Contact, ContactPhase, Device, InputBatch, InputSample};
+pub use crate::insert::{InsertIntent, InsertJob};
 pub use crate::intent::Intent;
 pub use crate::layers::{GroupRow, LayerIntent, LayerList, LayerRow, MaskRow};
 pub use crate::palette::{Hsv, RECENT_COLORS};
@@ -75,7 +77,7 @@ pub use crate::transfer::{
 };
 pub use crate::transform::{
     LiftFailed, TransformFrame, TransformIntent, TransformJob, TransformProjection,
-    TransformRefusal,
+    TransformRefusal, picture_place,
 };
 pub use crate::view::{
     CanvasView, FIT_MARGIN, MAX_ZOOM, MIN_ZOOM, ViewGesture, ViewIntent, ViewMapping, Viewport,

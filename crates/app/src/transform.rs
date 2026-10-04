@@ -20,6 +20,10 @@ use crate::error::AppError;
 use crate::history::History;
 use crate::projection::{Availability, EditorAction};
 
+#[path = "transform_insert.rs"]
+mod insert;
+pub use insert::picture_place;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum TransformIntent {
     /// The Transform tool on (the active layer's content, or the selection's, is framed) or
@@ -36,6 +40,10 @@ pub enum TransformIntent {
     Rotate,
     /// Puts the content back where it was.
     Reset,
+    /// A picture (premultiplied, fitted inside the canvas, `insert::picture_place`) becomes a
+    /// new layer above the active one, framed at once: the layer, the picture and where it is
+    /// placed are one history step when the transform commits (S26).
+    Insert(Patch),
 }
 
 /// Why the tool did not turn on, for the notice.
@@ -51,12 +59,15 @@ pub enum TransformRefusal {
     Failed,
     /// The layer's mask is the target; a mask does not move.
     Mask,
+    /// No room for the inserted picture's layer (`MAX_LAYERS`).
+    Full,
 }
 
 impl fmt::Display for TransformRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::Hidden => "the layer is hidden",
+            Self::Full => "no room for another layer",
             Self::Locked => "the layer is locked",
             Self::Mask => "a mask cannot be transformed",
             Self::Empty => "nothing to transform",
@@ -116,6 +127,8 @@ pub struct TransformProjection {
 
 #[derive(Debug)]
 struct Draft {
+    /// The version before an inserted picture's layer, which `base` adds; `None` otherwise.
+    from: Option<Artwork>,
     /// The version the transform applies to.
     base: Artwork,
     lift: Option<RegionMask>,
@@ -164,6 +177,7 @@ impl Transforms {
             return Err(AppError::TransformRefused(refusal));
         }
         self.draft = Some(Draft {
+            from: None,
             base: artwork.clone(),
             lift: clip.cloned(),
             lifted: None,
@@ -263,11 +277,12 @@ impl Transforms {
         }
     }
 
-    /// Undo inside the tool: a placement not settled yet goes first, then the step before.
+    /// Undo inside the tool: a placement not settled yet goes first, then the step before; at
+    /// an inserted picture's first step, the picture and its layer go.
     pub(crate) fn can_undo(&self) -> bool {
         self.draft
             .as_ref()
-            .is_some_and(|d| d.preview != d.steps[d.at] || d.at > 0)
+            .is_some_and(|d| d.preview != d.steps[d.at] || d.at > 0 || d.from.is_some())
     }
 
     pub(crate) fn can_redo(&self) -> bool {
@@ -280,7 +295,12 @@ impl Transforms {
         let Some(draft) = self.draft.as_ref() else {
             return;
         };
-        let back = if draft.preview == draft.steps[draft.at] {
+        let settled = draft.preview == draft.steps[draft.at];
+        if settled && draft.at == 0 && draft.from.is_some() {
+            self.draft = None;
+            return;
+        }
+        let back = if settled {
             draft.at.saturating_sub(1)
         } else {
             draft.at
@@ -307,17 +327,19 @@ impl Transforms {
     }
 
     /// Ends the transform: the content where it shows becomes one history step, unless it is
-    /// where it was or was never lifted. Returns whether a selection's content was committed.
+    /// where it was (an inserted picture always is a step) or was never lifted. Returns whether
+    /// a selection's content was committed.
     pub(crate) fn commit(&mut self, history: &mut History) -> bool {
         let Some(draft) = self.draft.take() else {
             return false;
         };
+        let unchanged = draft.preview == Placement::IDENTITY && draft.from.is_none();
+        if unchanged || !draft.version().same_version(history.current()) {
+            return false;
+        }
         let Some((_, shown)) = draft.lifted else {
             return false;
         };
-        if draft.preview == Placement::IDENTITY || !draft.base.same_version(history.current()) {
-            return false;
-        }
         history.record(shown);
         draft.lift.is_some()
     }
@@ -325,7 +347,7 @@ impl Transforms {
     /// The preview to show over `current`.
     pub(crate) fn shown<'a>(&'a self, current: &Artwork) -> Option<&'a Artwork> {
         let draft = self.draft.as_ref()?;
-        draft.base.same_version(current).then_some(())?;
+        draft.version().same_version(current).then_some(())?;
         draft.lifted.as_ref().map(|(_, shown)| shown)
     }
 

@@ -1,13 +1,17 @@
 //! Picture files: an artwork's pixels written as PNG or JPEG for export, and PNG or JPEG files
-//! read as reference images. The `image` crate does the coding (DECISIONS D14); colours are
-//! taken as sRGB both ways (colour management is a later slice).
+//! read as reference images or pictures to insert. The `image` crate does the coding (DECISIONS
+//! D14); colours are taken as sRGB both ways (colour management is a later slice).
 
 use std::io::Cursor;
 
 use image::codecs::jpeg::JpegEncoder;
 use image::codecs::png::{CompressionType, FilterType, PngEncoder};
-use image::{DynamicImage, ExtendedColorType, ImageDecoder, ImageEncoder, ImageReader};
-use openpaint_app::{ExportError, ImageError, ImageFormat, MAX_IMAGE_PIXELS, ReferenceImage};
+use image::imageops::{self, FilterType as Filter};
+use image::{DynamicImage, ExtendedColorType, ImageDecoder, ImageEncoder, ImageReader, RgbaImage};
+use openpaint_app::{
+    ExportError, ImageError, ImageFormat, MAX_IMAGE_PIXELS, ReferenceImage, picture_place,
+};
+use openpaint_core::{CanvasSize, Patch};
 
 /// JPEG quality, 1 to 100: high, so ink edges stay clean.
 const JPEG_QUALITY: u8 = 92;
@@ -92,6 +96,37 @@ pub fn open_reference(bytes: &[u8]) -> Result<ReferenceImage, ImageError> {
     ReferenceImage::fitted(size, &pixels).ok_or(ImageError::Damaged)
 }
 
+/// A PNG or JPEG file as a picture to insert into a canvas of `canvas` (S26): decoded, turned
+/// upright, premultiplied, reduced once by a triangle filter when it is larger than the canvas
+/// (on premultiplied pixels, so a transparent pixel's colour never bleeds into its neighbours)
+/// and centred (`picture_place`). Colours are taken as sRGB; an ICC profile is ignored.
+///
+/// # Errors
+/// As `decode_image`.
+pub fn open_picture(bytes: &[u8], canvas: CanvasSize) -> Result<Patch, ImageError> {
+    let (size, mut pixels) = decode_image(bytes)?;
+    let (origin, fitted) = picture_place(canvas, size).ok_or(ImageError::Damaged)?;
+    for pixel in pixels.as_chunks_mut::<4>().0 {
+        let alpha = u32::from(pixel[3]);
+        for channel in &mut pixel[..3] {
+            *channel = ((u32::from(*channel) * alpha + 127) / 255) as u8;
+        }
+    }
+    if fitted != size {
+        let image = RgbaImage::from_raw(size[0], size[1], pixels).ok_or(ImageError::Damaged)?;
+        let reduced = imageops::resize(&image, fitted[0], fitted[1], Filter::Triangle);
+        pixels = reduced.into_raw();
+        // Rounding each channel alone may lift a colour a step above its alpha.
+        for pixel in pixels.as_chunks_mut::<4>().0 {
+            let alpha = pixel[3];
+            for channel in &mut pixel[..3] {
+                *channel = (*channel).min(alpha);
+            }
+        }
+    }
+    Patch::new(canvas, origin, fitted, pixels).map_err(|_| ImageError::Damaged)
+}
+
 fn decoding(error: image::ImageError) -> ImageError {
     match error {
         image::ImageError::Limits(_) => ImageError::TooLarge,
@@ -160,6 +195,66 @@ mod tests {
         let red = |at: usize| upright[at * 4] > 150 && upright[at * 4 + 2] < 100;
         assert!(red(2 * 8 + 4), "the left half is on top");
         assert!(!red(13 * 8 + 4), "the right half is below");
+    }
+
+    fn canvas(width: u32, height: u32) -> CanvasSize {
+        CanvasSize::new(width, height).expect("canvas")
+    }
+
+    #[test]
+    fn a_small_picture_is_premultiplied_pixel_for_pixel_and_centred() {
+        let bytes = encode_image(ImageFormat::Png, [3, 2], &pixels()).expect("encode");
+        let patch = open_picture(&bytes, canvas(9, 6)).expect("picture");
+        assert_eq!((patch.origin(), patch.size()), ([3, 2], [3, 2]));
+        // The half transparent pixel (200, 100, 50, 128) is premultiplied; the rest are opaque.
+        assert_eq!(&patch.pixels()[16..20], [100, 50, 25, 128]);
+        assert_eq!(&patch.pixels()[..4], [255, 0, 0, 255]);
+        assert!(
+            open_picture(b"no picture", canvas(9, 6)).is_err(),
+            "refused as before"
+        );
+    }
+
+    #[test]
+    fn a_large_camera_picture_is_turned_upright_and_fitted_inside() {
+        // 16 x 8, red left half and blue right half, the camera saying "turn a quarter": upright
+        // it is 8 x 16 with red on top, fitted into 10 x 4 as 2 x 4.
+        let pixels: Vec<u8> = (0..16 * 8)
+            .flat_map(|i| {
+                if i % 16 < 8 {
+                    [220, 30, 30, 255]
+                } else {
+                    [30, 30, 220, 255]
+                }
+            })
+            .collect();
+        let jpeg = encode_image(ImageFormat::Jpeg, [16, 8], &pixels).expect("encode");
+        let patch = open_picture(&rotated(&jpeg), canvas(10, 4)).expect("picture");
+        assert_eq!((patch.origin(), patch.size()), ([4, 0], [2, 4]));
+        let red = |row: usize| patch.pixels()[row * 8] > 150 && patch.pixels()[row * 8 + 2] < 100;
+        assert!(red(0) && !red(3), "red on top, blue below");
+        assert!(
+            patch
+                .pixels()
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .all(|p| p[3] == 255)
+        );
+    }
+
+    #[test]
+    fn reducing_never_bleeds_a_transparent_colour_in() {
+        // 4 x 1: opaque white, then transparent pixels whose colour is pure red.
+        let pixels = [255, 255, 255, 255, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0];
+        let bytes = encode_image(ImageFormat::Png, [4, 1], &pixels).expect("encode");
+        let patch = open_picture(&bytes, canvas(2, 2)).expect("picture");
+        assert_eq!(patch.size(), [2, 1]);
+        for pixel in patch.pixels().as_chunks::<4>().0 {
+            let [r, g, b, a] = *pixel;
+            assert!(r <= a && g <= a && b <= a, "premultiplied: {pixel:?}");
+            assert_eq!(r, g, "no red in the white: {pixel:?}");
+        }
     }
 
     #[test]

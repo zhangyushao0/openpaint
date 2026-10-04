@@ -22,6 +22,7 @@ use std::collections::HashSet;
 use serde::{Deserialize, Deserializer};
 
 use crate::error::ScenarioError;
+pub use crate::system::SystemAnswer;
 use crate::target::{Key, Spot};
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
@@ -133,27 +134,6 @@ pub enum Step {
     /// The file the last export wrote, decoded: a PNG must equal the canvas pixel for pixel, a
     /// JPEG come close to it.
     Exported { name: String },
-}
-
-/// How the user answers what the system shows for the app.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum SystemAnswer {
-    /// Back or Cancel in the picker or dialog.
-    Cancel,
-    /// The system cannot show the picker.
-    PickerFails,
-    /// A place is chosen in the save dialog, or the file to share is made: the export goes
-    /// into a file the runner keeps.
-    ChooseFile,
-    /// As `choose_file`, on storage that refuses the write.
-    FullStorage,
-    /// A PNG test picture (colour bands over a grey ramp) is chosen in the image picker.
-    TestImage,
-    /// A text file is chosen in the image picker.
-    TextFile,
-    /// The share sheet shows the exported file; the user closes it with Back.
-    ShareSheet,
 }
 
 /// What touches the screen.

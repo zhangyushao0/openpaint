@@ -11,6 +11,7 @@ mod fixture;
 mod golden;
 mod groups;
 mod incremental;
+mod insert;
 mod masks;
 mod screen;
 mod selection;
