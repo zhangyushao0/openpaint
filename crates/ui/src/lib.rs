@@ -26,5 +26,5 @@ mod side_bar;
 mod transform_bar;
 mod transform_drag;
 
-pub use crate::components::{CanvasArea, ScreenArea, TOP_BAND};
+pub use crate::components::{CanvasArea, Control, ControlMap, ScreenArea, TOP_BAND, Unresolved};
 pub use crate::shell::Shell;

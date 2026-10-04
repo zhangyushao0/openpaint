@@ -12,8 +12,8 @@ use crate::process::{cargo_command, root, run};
 const ABI: &str = "arm64-v8a";
 /// Must equal `minSdk` in `apps/android/app/build.gradle.kts`.
 const MIN_SDK: &str = "28";
-const ACTIVITY: &str = "dev.openpaint/.MainActivity";
-const APK: &str = "apps/android/app/build/outputs/apk/debug/app-debug.apk";
+pub const ACTIVITY: &str = "dev.openpaint/.MainActivity";
+pub const APK: &str = "apps/android/app/build/outputs/apk/debug/app-debug.apk";
 const WRAPPER_JAR: &str = "apps/android/gradle/wrapper/gradle-wrapper.jar";
 
 pub fn build() -> Result<(), String> {
@@ -51,7 +51,7 @@ pub fn install() -> Result<(), String> {
 }
 
 /// `ANDROID_HOME`, `ANDROID_SDK_ROOT`, then Android Studio's default location.
-fn sdk_dir() -> Result<PathBuf, String> {
+pub fn sdk_dir() -> Result<PathBuf, String> {
     let from_env = ["ANDROID_HOME", "ANDROID_SDK_ROOT"]
         .iter()
         .find_map(std::env::var_os);

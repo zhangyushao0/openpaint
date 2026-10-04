@@ -289,3 +289,8 @@ Only decisions that constrain future code and are not self-evident. Each entry i
 - Decision: a slice must be fluid at its feature's default sizes on the tablet (a frame within one 60 Hz vsync); every other performance number is measured and recorded in STATUS, never a done criterion; chasing it belongs to G5 (D33). Large smudge brushes (about 25 to 35 Hz at 600 px, S21) stay as they are until then.
 - Reason: S21 spent a large share of its time on a 60 Hz criterion for sizes the author rarely uses; criteria written before D33 contradicted it.
 - Consequences: briefs state the floor and a stop rule (one contained attempt, then record and report); ROADMAP slices carry no other performance criteria.
+
+## D48 2026-10-04 Scenarios name controls by their accessible label; device chores are xtask commands
+- Decision: every shared component registers its label and rectangle in a per-pass `ControlMap` (always on, no feature); scenario steps target that name (`name #n` when shared), pixels only on the canvas, and pixels on a control fail the run. Device work goes through `cargo device-*` (adb with explicit arguments; restore is verified byte for byte).
+- Reason: S14 to S21 rewrote hard-coded taps after every layout change (13 files in S21) and hand-rolled device chores, once wiping the author's library through a Git Bash path rewrite.
+- Consequences: a new component registers its control; a label change is a scenario change. Slider and wheel positions keep pixel offsets from the control's middle (exact old hashes), so resizing those controls still moves them.

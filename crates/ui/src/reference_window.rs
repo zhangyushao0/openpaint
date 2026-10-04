@@ -86,7 +86,7 @@ impl ReferenceWindow {
         self.bar_until = self.bar_until.filter(|until| now_ms < *until);
         let shown = floating(
             ctx,
-            "reference",
+            "Reference",
             (place, self.bar_until.is_some(), ring_of(opener)),
             |ui| icon_button(ui, Icon::Close, "Close reference", true).clicked(),
             |ui, picture| self.paint_picture(ui, picture, (image, &texture)),

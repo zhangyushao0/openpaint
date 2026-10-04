@@ -69,8 +69,14 @@ pub fn run(name: &str) -> Result<(), HarnessError> {
         report.frames,
         report.elapsed.as_secs_f64()
     );
+    for unnamed in &report.unnamed {
+        println!("unnamed {unnamed}");
+    }
     if failed > 0 {
         return Err(HarnessError::Checkpoints { failed, total });
+    }
+    if !report.unnamed.is_empty() {
+        return Err(HarnessError::Unnamed(report.unnamed.len()));
     }
     Ok(())
 }

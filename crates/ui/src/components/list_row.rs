@@ -5,6 +5,7 @@
 use egui::{Align2, Rect, Sense, TextStyle, Vec2, WidgetInfo, WidgetType};
 
 use crate::components::animate::{animate_from, settle};
+use crate::components::controls;
 use crate::design::motion::{ACKNOWLEDGE, SETTLE};
 use crate::design::{
     ICON_SIZE, INK, INK_ACTIVE, INK_DISABLED, INK_SECONDARY, Icon, SPACE, TOUCH_TARGET, paint_icon,
@@ -54,6 +55,9 @@ pub fn list_row(ui: &mut egui::Ui, row: &ListRow<'_>) -> RowResponse {
         WidgetInfo::selected(WidgetType::Button, row.enabled, row.selected, row.label)
     });
     icon.widget_info(|| WidgetInfo::labeled(WidgetType::Button, row.enabled, row.icon_label));
+    // The icon after the row: it lies on top.
+    controls::register(ui, row.label, rect);
+    controls::register(ui, row.icon_label, button);
     // A row seen for the first time (a layer just added) fades in where it lands.
     let appear = animate_from(ui.ctx(), row.key.with("appear"), 0.0, 1.0, ACKNOWLEDGE);
     let shown = rect.translate(Vec2::new(0.0, offset));

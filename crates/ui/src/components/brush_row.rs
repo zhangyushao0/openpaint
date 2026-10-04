@@ -3,6 +3,7 @@
 
 use egui::{Align2, Color32, Rect, Sense, TextStyle, Vec2, WidgetInfo, WidgetType};
 
+use crate::components::controls;
 use crate::design::{BRUSH_PREVIEW, INK, INK_ACTIVE, SPACE, paint_pressed, paint_row_mark};
 
 /// Shows one row: `name`, and `preview` (a texture of `BRUSH_PREVIEW` points) when it is loaded.
@@ -15,6 +16,7 @@ pub fn brush_row(
     let size = Vec2::new(ui.available_width(), BRUSH_PREVIEW.y + 2.0 * SPACE);
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
     response.widget_info(|| WidgetInfo::selected(WidgetType::Button, true, selected, name));
+    controls::register(ui, name, rect);
     if !ui.is_rect_visible(rect) {
         return response;
     }

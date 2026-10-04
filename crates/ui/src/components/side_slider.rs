@@ -7,8 +7,8 @@
 
 use egui::{Color32, Order, Pos2, Rect, Sense, Stroke, TextStyle, Vec2, WidgetInfo};
 
-use crate::components::SliderChange;
 use crate::components::slider::paint_track;
+use crate::components::{SliderChange, controls};
 use crate::design::{
     INK, INK_DISABLED, Icon, PANEL_RULE, SIDE_SLIDER, SPACE, TOUCH_TARGET, paint_icon, panel_frame,
 };
@@ -63,6 +63,7 @@ pub fn side_slider(ui: &mut egui::Ui, slider: &SideSlider<'_>) -> Option<SliderC
     let (rect, response) = ui.allocate_exact_size(size, sense);
     response
         .widget_info(|| WidgetInfo::slider(slider.enabled, f64::from(slider.value), slider.label));
+    controls::register(ui, slider.label, rect);
     let track = rect.shrink2(Vec2::new(0.0, END + KNOB));
     let settled = response.drag_stopped() || response.clicked();
     let held = slider.enabled && response.is_pointer_button_down_on();

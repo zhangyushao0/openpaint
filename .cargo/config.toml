@@ -10,3 +10,10 @@ repo-check = "xtask check"
 android-build = "xtask android-build"
 # Build, install over adb and launch on the connected device.
 android-install = "xtask android-install"
+# Device chores over adb (see xtask/src/device.rs): the app's library out and back in, byte
+# for byte; wake, install, launch, screenshot and logcat; one injected gesture; test files away.
+device-backup = "xtask device-backup"
+device-restore = "xtask device-restore"
+device-check = "xtask device-check"
+device-input = "xtask device-input"
+device-clean = "xtask device-clean"

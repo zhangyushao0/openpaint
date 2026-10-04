@@ -74,6 +74,9 @@ pub enum Record {
 pub struct Report {
     /// In step order.
     pub records: Vec<Record>,
+    /// Steps whose contact landed on a control given as window pixels, each with the name to
+    /// use instead: a scenario names every control it touches.
+    pub unnamed: Vec<String>,
     /// From starting the runtime (GPU device included) to the last step.
     pub elapsed: Duration,
     pub frames: u64,
@@ -102,10 +105,12 @@ impl Report {
         })
     }
 
-    /// True when every checkpoint, export and view checkpoint passed.
+    /// True when every checkpoint, export and view checkpoint passed and every control touched
+    /// was named.
     #[must_use]
     pub fn passed(&self) -> bool {
-        self.checkpoints().all(Checkpoint::passed)
+        self.unnamed.is_empty()
+            && self.checkpoints().all(Checkpoint::passed)
             && self.exports().all(Export::passed)
             && self.views().all(ViewCheck::passed)
     }

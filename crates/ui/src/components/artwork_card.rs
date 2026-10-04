@@ -4,7 +4,7 @@
 
 use egui::{Align, Color32, Layout, Rect, Sense, TextStyle, UiBuilder, Vec2};
 
-use crate::components::icon_button;
+use crate::components::{controls, icon_button};
 use crate::design::{
     CARD_PICTURE, INK, INK_DISABLED, INK_SECONDARY, Icon, SPACE, TOUCH_TARGET, paint_sheet_shadow,
 };
@@ -46,6 +46,7 @@ pub fn artwork_card(ui: &mut egui::Ui, card: &ArtworkCard<'_>) -> CardTaps {
     let (rect, _) = ui.allocate_exact_size(card_size(), Sense::hover());
     let picture = Rect::from_min_size(rect.min, CARD_PICTURE);
     let open = ui.interact(picture, card.id, sense);
+    controls::register(ui, "Open artwork", picture);
     let shown = shown_picture(card.picture, picture);
     if !card.away {
         paint_picture(ui, card, shown, open.is_pointer_button_down_on());
@@ -78,6 +79,7 @@ pub fn artwork_card(ui: &mut egui::Ui, card: &ArtworkCard<'_>) -> CardTaps {
         egui::pos2(row.max.x - 2.0 * TOUCH_TARGET, row.max.y),
     );
     let rename = ui.interact(title, open.id.with("title"), sense);
+    controls::register(ui, "Rename artwork", title);
     taps.rename = rename.clicked();
     paint_title(ui, card, title);
     taps

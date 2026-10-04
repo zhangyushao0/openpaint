@@ -39,9 +39,8 @@ Passed 2026-10-03: S9 to S17 and the G2 follow-ups done (see "Done"); the author
 
 Exit: the author finishes painterly shading (W2) and a complex composition revision (W3) on the tablet.
 
-S18 to S21 are done (see "Done"); S21's 60 Hz holds up to about 340 px and fails at the largest sizes, an author decision (STATUS). Next: S22.
+S18 to S22 are done (see "Done"); S21's 60 Hz holds up to about 340 px and fails at the largest sizes, an author decision (STATUS). Next: S23.
 
-**S22 Development loop** (devtools, harness, xtask, ui): scenario steps name their targets (`tap "undo"`, `drag "size slider"`) and the runner resolves them from the UI's laid-out controls, so a layout change never touches scenario files; existing scenarios move to names with unchanged hashes. Device chores become xtask commands with typed errors: `cargo device-backup` / `device-restore` (the author's library, verified byte for byte, never through a shell path), `cargo device-check` (wake, install, launch, screenshot, logcat errors), and a cleanup of the agent's own test files. Done: every scenario passes with its old hashes and no coordinates; one slice's device routine runs through the commands alone.
 **S23 Groups, clipping masks, blend modes** (core, app, ui, render, store): single-level groups, clipping chains, Multiply/Screen/Overlay; schema upgrade. Done: GPU tests for the compositing formulas.
 **S24 Layer masks** (core, app, ui, render, store): add, disable, invert, clear and delete masks with undo; painting on masks. Done: GPU tests for masks combined with opacity, clipping and groups.
 
@@ -112,3 +111,4 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - S19 2026-10-03 `feat(ui): motion foundation: one spring, four patterns, chrome grown from its islands (S19)`; SDF chrome landed; walk-through recorded on the tablet with injected pen input; the author judges the feel
 - S20 2026-10-03 `feat(app): transform a layer or a selection as a placed patch, preview equal to commit, schema 8 (S20)`; walk-through confirmed on the tablet with injected pen and fingers
 - S21 2026-10-03 `feat(render): smudge as a residual evaluated in layer order, in progress equal to cold, schema 9 (S21)`; walk-through confirmed on the tablet; 60 Hz `pass` up to about 340 px, `fail` at 600 px
+- S22 2026-10-04 `chore(devtools): named scenario targets and device commands (S22)`; every scenario on names with its old hashes; one device routine through the commands alone, library byte-identical after restore

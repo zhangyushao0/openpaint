@@ -5,6 +5,7 @@
 
 use egui::{Rect, Sense, Stroke, TextStyle, Vec2, WidgetInfo, WidgetType};
 
+use crate::components::controls;
 use crate::design::{
     BUTTON_RULE, CORNER, HAIRLINE, INK, INK_ACTIVE, INK_DISABLED, SPACE, TOUCH_TARGET,
     paint_pressed, paint_row_mark,
@@ -36,6 +37,7 @@ fn button(ui: &mut egui::Ui, label: &str, enabled: bool, chosen: bool) -> egui::
     let width = (galley.size().x + 4.0 * SPACE).max(TOUCH_TARGET);
     let (rect, response) = ui.allocate_exact_size(Vec2::new(width, TOUCH_TARGET), sense);
     response.widget_info(|| WidgetInfo::selected(WidgetType::Button, enabled, chosen, label));
+    controls::register(ui, label, rect);
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
         let face = rect.shrink(SPACE / 2.0);

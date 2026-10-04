@@ -5,7 +5,7 @@
 
 use egui::{Rect, Sense, Vec2, WidgetInfo, WidgetType};
 
-use crate::components::animate;
+use crate::components::{animate, controls};
 use crate::design::motion::ACKNOWLEDGE;
 use crate::design::{
     ICON_SIZE, INK, INK_ACTIVE, INK_DISABLED, Icon, SPACE, TOUCH_TARGET, paint_icon,
@@ -31,6 +31,7 @@ fn button(ui: &mut egui::Ui, icon: Icon, label: &str, enabled: bool, on: bool) -
     };
     let (rect, response) = ui.allocate_exact_size(Vec2::splat(TOUCH_TARGET), sense);
     response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, enabled, label));
+    controls::register(ui, label, rect);
     let mark = animate(
         ui.ctx(),
         response.id.with("mark"),

@@ -3,6 +3,7 @@
 
 use egui::{Pos2, Rect, Sense, Stroke, Vec2, WidgetInfo};
 
+use crate::components::controls;
 use crate::design::{HAIRLINE, INK, INK_DISABLED, PANEL, SPACE, TOUCH_TARGET, ink_line};
 
 /// Radius of the knob, in points.
@@ -30,6 +31,7 @@ pub fn slider(ui: &mut egui::Ui, label: &str, value: f32, enabled: bool) -> Opti
     let size = Vec2::new(ui.available_width(), TOUCH_TARGET);
     let (rect, response) = ui.allocate_exact_size(size, sense);
     response.widget_info(|| WidgetInfo::slider(enabled, f64::from(value), label));
+    controls::register(ui, label, rect);
     let track = rect.shrink2(Vec2::new(KNOB, 0.0));
     let settled = response.drag_stopped() || response.clicked();
     let touched = enabled && (response.is_pointer_button_down_on() || settled);

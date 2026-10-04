@@ -4,7 +4,7 @@
 
 use egui::{Align2, Pos2, Rect, Sense, Stroke, TextStyle, Vec2, WidgetInfo, WidgetType};
 
-use crate::components::animate;
+use crate::components::{animate, controls};
 use crate::design::motion::{ACKNOWLEDGE, lerp};
 use crate::design::{
     INK, INK_ACTIVE, INK_DISABLED, INK_SECONDARY, SPACE, TOUCH_TARGET, paint_pressed,
@@ -22,6 +22,7 @@ pub fn switch_row(ui: &mut egui::Ui, label: &str, on: bool, enabled: bool) -> eg
     let size = Vec2::new(ui.available_width(), TOUCH_TARGET);
     let (rect, response) = ui.allocate_exact_size(size, sense);
     response.widget_info(|| WidgetInfo::selected(WidgetType::Checkbox, enabled, on, label));
+    controls::register(ui, label, rect);
     if !ui.is_rect_visible(rect) {
         return response;
     }

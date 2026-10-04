@@ -8,25 +8,26 @@
 //!   "density": 2.0,
 //!   "steps": [
 //!     { "stroke": { "points": [[100, 200, 0.8], [500, 200, 0.8]] } },
+//!     { "tap": { "at": "Undo" } },
 //!     { "checkpoint": { "name": "line", "canvas": "0123456789abcdef" } },
 //!     { "screenshot": { "name": "line" } }
 //!   ]
 //! }
 //! ```
 //!
-//! Positions are window pixels, as the host delivers them; the islands are part of the screen.
+//! Controls are named (`target.rs`); places on the canvas are window pixels.
 
 use std::collections::HashSet;
 
 use serde::{Deserialize, Deserializer};
 
 use crate::error::ScenarioError;
+use crate::target::{Key, Spot};
 
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Scenario {
-    /// The walk-through as the user lives it: goal, gestures, what appears, success, failure.
-    /// Not executed; the steps are its replay.
+    /// The walk-through as the user lives it (not executed; the steps are its replay).
     #[serde(default)]
     pub walkthrough: Vec<String>,
     /// `[width, height]` of the screen in pixels.
@@ -42,14 +43,14 @@ pub struct Scenario {
 pub enum Step {
     /// Touch down and lift at one spot.
     Tap {
-        at: [f32; 2],
+        at: Spot,
         #[serde(default = "Tool::finger")]
         tool: Tool,
     },
     /// A straight drag at full pressure.
     Drag {
-        from: [f32; 2],
-        to: [f32; 2],
+        from: Spot,
+        to: Spot,
         #[serde(default = "Tool::finger")]
         tool: Tool,
     },
@@ -64,11 +65,11 @@ pub enum Step {
         #[serde(default)]
         palm: Option<Palm>,
     },
-    /// One contact through `[x, y, ms]` keys at `pressure` (default full), `ms` from touching
-    /// down: it moves straight between keys in their time and rests where two keys share a
+    /// One contact through keys (a place and `ms` from touching down) at `pressure` (default
+    /// full): it moves straight between keys in their time and rests where two keys share a
     /// place (holding still), sampled every 4 ms.
     Press {
-        path: Vec<[f32; 3]>,
+        path: Vec<Key>,
         #[serde(default = "Tool::finger")]
         tool: Tool,
         #[serde(default = "full_pressure")]
@@ -79,14 +80,14 @@ pub enum Step {
     },
     /// The pen hovers just above the glass at `at`, touching nothing; it stays there until the
     /// next contact.
-    Hover { at: [f32; 2] },
+    Hover { at: Spot },
     /// Fingers touch down at `from`, move together straight to `to` (default: stay) over `ms`
     /// (default 64), and lift: two fingers apart or together pinch, turned they rotate, moved
     /// alike they pan; fingers that stay tap.
     Touch {
-        from: Vec<[f32; 2]>,
+        from: Vec<Spot>,
         #[serde(default)]
-        to: Option<Vec<[f32; 2]>>,
+        to: Option<Vec<Spot>>,
         #[serde(default = "default_touch_ms")]
         ms: u32,
     },
@@ -218,7 +219,8 @@ impl Scenario {
                     return Err(invalid("a stroke needs at least one point"));
                 }
                 Step::Press { path, .. }
-                    if path.is_empty() || path.windows(2).any(|keys| keys[1][2] < keys[0][2]) =>
+                    if path.is_empty()
+                        || path.windows(2).any(|keys| keys[1].ms() < keys[0].ms()) =>
                 {
                     return Err(invalid("a press needs keys whose times never go back"));
                 }
@@ -319,7 +321,7 @@ mod tests {
         assert_eq!(
             scenario.steps[0],
             Step::Tap {
-                at: [10.0, 20.0],
+                at: Spot::Point([10.0, 20.0]),
                 tool: Tool::Finger
             }
         );
@@ -340,9 +342,10 @@ mod tests {
             { "touch": { "from": [[1, 2], [3, 4], [5, 6]] } },
             { "view": { "name": "zoomed", "zoom": 2.5, "rotation": -30 } }"#;
         let scenario = with_steps(steps).expect("parses");
+        let points = |a: [f32; 2], b: [f32; 2]| vec![Spot::Point(a), Spot::Point(b)];
         let two = Step::Touch {
-            from: vec![[1.0, 2.0], [3.0, 4.0]],
-            to: Some(vec![[0.0, 2.0], [5.0, 4.0]]),
+            from: points([1.0, 2.0], [3.0, 4.0]),
+            to: Some(points([0.0, 2.0], [5.0, 4.0])),
             ms: 200,
         };
         assert_eq!(scenario.steps[0], two);

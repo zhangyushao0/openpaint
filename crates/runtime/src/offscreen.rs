@@ -3,6 +3,7 @@
 //! scenarios (D44).
 
 use openpaint_render::{RenderError, RgbaImage, ScreenPainter, ScreenTarget};
+use openpaint_ui::ControlMap;
 
 use crate::error::RuntimeError;
 use crate::frame::{Runtime, screen_frame};
@@ -39,6 +40,13 @@ impl Runtime {
     #[must_use]
     pub fn moving(&self) -> bool {
         self.shell.moving()
+    }
+
+    /// Every control the last frame laid out, by name, in screen pixels: what scenario steps
+    /// name instead of coordinates.
+    #[must_use]
+    pub fn controls(&self) -> &ControlMap {
+        self.shell.controls()
     }
 
     /// The last offscreen frame, read back.

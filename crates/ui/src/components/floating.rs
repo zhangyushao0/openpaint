@@ -8,6 +8,7 @@
 use egui::{Align, Layout, Order, Rect, Sense, Stroke, UiBuilder, Vec2};
 
 use crate::components::chrome::Source;
+use crate::components::controls;
 use crate::components::paper::paper;
 use crate::design::{
     CORNER, ICON_SIZE, INK, Icon, PANEL, PANEL_RULE, PANEL_RULE_WIDTH, SPACE, TOUCH_TARGET,
@@ -61,6 +62,8 @@ pub fn floating<B, T>(
         ui.spacing_mut().item_spacing = Vec2::ZERO;
         let (window, _) = ui.allocate_exact_size(window.size(), Sense::hover());
         let picture = window.shrink(MAT);
+        // Named after `id`: the picture; while the bar shows, its grip and the resize mark too.
+        controls::register(ui, &format!("{id} picture"), picture);
         let body = add_body(ui, picture);
         let mut layout = FloatingLayout {
             window,
@@ -70,6 +73,10 @@ pub fn floating<B, T>(
             resize: None,
         };
         let buttons = bar.then(|| show_bar(ui, &mut layout, add_buttons));
+        if let (Some(grip), Some(resize)) = (layout.grip, layout.resize) {
+            controls::register(ui, &format!("{id} bar"), grip);
+            controls::register(ui, &format!("{id} corner"), resize);
+        }
         Floating {
             layout,
             buttons,

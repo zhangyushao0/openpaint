@@ -8,6 +8,7 @@ use std::f32::consts::{SQRT_2, TAU};
 use egui::{Color32, Mesh, Pos2, Rect, Sense, Shape, Stroke, Vec2, WidgetInfo, WidgetType};
 use openpaint_app::Hsv;
 
+use crate::components::controls;
 use crate::components::swatch::color32;
 use crate::design::{HUE_RING, INK, PANEL, SPACE};
 
@@ -91,6 +92,9 @@ pub fn color_wheel(ui: &mut egui::Ui, hsv: Hsv, side: f32) -> Option<WheelChange
     let (rect, response) = ui.allocate_exact_size(Vec2::splat(side), Sense::click_and_drag());
     response.widget_info(|| WidgetInfo::labeled(WidgetType::Other, true, "Colour wheel"));
     let shape = Geometry::of(rect);
+    // The square lies on the ring's control.
+    controls::register(ui, "Colour wheel", rect);
+    controls::register(ui, "Saturation and value", shape.square);
     let held = response.is_pointer_button_down_on();
     let settled = response.drag_stopped() || response.clicked();
     let mut part = ui.data(|data| data.get_temp::<Part>(response.id));

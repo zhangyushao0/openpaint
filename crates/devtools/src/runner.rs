@@ -25,6 +25,7 @@ use crate::report::{Record, Report, record, view_check};
 use crate::scenario::{Scenario, Step};
 use crate::switch::Switched;
 use crate::system::{self, Written};
+use crate::target::{self, Key, Spot};
 
 /// Milliseconds of one 60 Hz frame, for the input clock.
 const FRAME_MS: i64 = 16;
@@ -53,10 +54,13 @@ pub fn run(
         frames: 0,
         requests: Vec::new(),
         written: Written::default(),
+        index: 0,
+        unnamed: Vec::new(),
     };
     let mut runtime = runner.start()?;
     let mut records = Vec::new();
-    for step in &scenario.steps {
+    for (index, step) in scenario.steps.iter().enumerate() {
+        runner.index = index;
         if *step == Step::Restart {
             // The user leaves (the host's `onPause`), then the system ends the process: what
             // the leave handed over is written and the library closes before the new start.
@@ -70,6 +74,7 @@ pub fn run(
     }
     Ok(Report {
         records,
+        unnamed: runner.unnamed,
         elapsed: started.elapsed(),
         frames: runner.frames,
         adapter: runtime.adapter(),
@@ -93,6 +98,10 @@ struct Runner<'a> {
     requests: Vec<HostRequest>,
     /// The file the last export wrote.
     written: Written,
+    /// The step running, from 0.
+    index: usize,
+    /// Contacts given as window pixels that land on a control, which the step should name.
+    unnamed: Vec<String>,
 }
 
 impl Runner<'_> {
@@ -111,31 +120,13 @@ impl Runner<'_> {
         runtime: &mut Runtime,
         step: &Step,
     ) -> Result<Option<Record>, ScenarioError> {
-        let now = self.clock_ms;
         match step {
-            Step::Tap { at, tool } => self.gesture(runtime, &gesture::tap(*tool, *at, now))?,
-            Step::Hover { at } => self.gesture(runtime, &gesture::hover(*at, now))?,
-            Step::Drag { from, to, tool } => {
-                let points = [[from[0], from[1], 1.0], [to[0], to[1], 1.0]];
-                self.gesture(runtime, &gesture::path(*tool, &points, now))?;
-            }
-            Step::Press {
-                path,
-                tool,
-                pressure,
-                before_lift,
-            } => {
-                let batches = gesture::press(*tool, path, *pressure, now);
-                return self.press(runtime, &batches, before_lift.as_ref());
-            }
-            Step::Stroke { points, lift, palm } => {
-                let batches = gesture::stroke(points, *lift, *palm, now);
-                self.gesture(runtime, &batches)?;
-            }
-            Step::Touch { from, to, ms } => {
-                let to = to.as_ref().unwrap_or(from);
-                self.gesture(runtime, &gesture::fingers(from, to, *ms, now))?;
-            }
+            Step::Tap { .. }
+            | Step::Hover { .. }
+            | Step::Drag { .. }
+            | Step::Press { .. }
+            | Step::Stroke { .. }
+            | Step::Touch { .. } => return self.contact(runtime, step),
             Step::View { .. }
             | Step::Checkpoint { .. }
             | Step::Screenshot { .. }
@@ -170,6 +161,78 @@ impl Runner<'_> {
             }
         }
         Ok(None)
+    }
+
+    /// A step that touches the screen, its spots resolved on the screen the last frame laid
+    /// out.
+    fn contact(
+        &mut self,
+        runtime: &mut Runtime,
+        step: &Step,
+    ) -> Result<Option<Record>, ScenarioError> {
+        let now = self.clock_ms;
+        let batches = match step {
+            Step::Tap { at, tool } => gesture::tap(*tool, self.spot(runtime, at)?, now),
+            Step::Hover { at } => gesture::hover(self.spot(runtime, at)?, now),
+            Step::Drag { from, to, tool } => {
+                let (from, to) = (self.spot(runtime, from)?, self.spot(runtime, to)?);
+                let points = [[from[0], from[1], 1.0], [to[0], to[1], 1.0]];
+                gesture::path(*tool, &points, now)
+            }
+            Step::Press {
+                path,
+                tool,
+                pressure,
+                before_lift,
+            } => {
+                let keys = self.keys(runtime, path)?;
+                let batches = gesture::press(*tool, &keys, *pressure, now);
+                return self.press(runtime, &batches, before_lift.as_ref());
+            }
+            Step::Stroke { points, lift, palm } => gesture::stroke(points, *lift, *palm, now),
+            Step::Touch { from, to, ms } => {
+                let from = self.spots(runtime, from)?;
+                let to = match to {
+                    Some(to) => self.spots(runtime, to)?,
+                    None => from.clone(),
+                };
+                gesture::fingers(&from, &to, *ms, now)
+            }
+            _ => return Err(ScenarioError::Missing("not a step that touches")),
+        };
+        self.gesture(runtime, &batches)?;
+        Ok(None)
+    }
+
+    /// `spot` in window pixels on the screen the last frame laid out. Window pixels on a
+    /// control are noted: the step should name it.
+    fn spot(&mut self, runtime: &Runtime, spot: &Spot) -> Result<[f32; 2], ScenarioError> {
+        let map = runtime.controls();
+        let at = target::resolve(map, spot)?;
+        if matches!(spot, Spot::Point(_))
+            && let Some(instead) = target::named_instead(map, at)
+        {
+            self.unnamed.push(format!("step {}: {instead}", self.index));
+        }
+        Ok(at)
+    }
+
+    fn spots(&mut self, runtime: &Runtime, spots: &[Spot]) -> Result<Vec<[f32; 2]>, ScenarioError> {
+        spots.iter().map(|spot| self.spot(runtime, spot)).collect()
+    }
+
+    /// A press's keys as `[x, y, ms]`.
+    fn keys(&mut self, runtime: &Runtime, keys: &[Key]) -> Result<Vec<[f32; 3]>, ScenarioError> {
+        let mut out = Vec::with_capacity(keys.len());
+        for key in keys {
+            let (spot, ms) = match key {
+                Key::Point([x, y, ms]) => (Spot::Point([*x, *y]), *ms),
+                Key::At { at, ms } => (at.clone(), *ms),
+            };
+            let [x, y] = self.spot(runtime, &spot)?;
+            out.push([x, y, ms]);
+        }
+        Ok(out)
     }
 
     /// A step that looks: once motion settled, or a screenshot `after_ms` the last input.

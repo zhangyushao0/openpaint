@@ -4,6 +4,7 @@
 
 use egui::{Align2, Sense, TextStyle, Vec2, WidgetInfo, WidgetType};
 
+use crate::components::controls;
 use crate::design::{INK, INK_DISABLED, INK_SECONDARY, SPACE, TOUCH_TARGET, paint_pressed};
 
 /// Shows a row reading `label`, with `note` (empty for none) at its right end.
@@ -16,6 +17,7 @@ pub fn menu_row(ui: &mut egui::Ui, label: &str, note: &str, enabled: bool) -> eg
     let size = Vec2::new(ui.available_width(), TOUCH_TARGET);
     let (rect, response) = ui.allocate_exact_size(size, sense);
     response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, enabled, label));
+    controls::register(ui, label, rect);
     if !ui.is_rect_visible(rect) {
         return response;
     }

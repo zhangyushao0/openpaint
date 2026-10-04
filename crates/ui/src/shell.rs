@@ -21,7 +21,9 @@ use openpaint_render::{BrushCursor, RgbaImage};
 use crate::canvas_input::{CanvasFrame, CanvasInput, touched_outside};
 use crate::color_drop::{ColorDrop, DropFrame};
 use crate::components::carry::{Opening, sheet_at};
-use crate::components::{CanvasArea, ScreenArea, ViewSettle, canvas_frame, chrome, moving};
+use crate::components::{
+    CanvasArea, ControlMap, ScreenArea, ViewSettle, canvas_frame, chrome, controls, moving,
+};
 use crate::design::DESK;
 use crate::design::motion::{OPEN, SETTLE};
 use crate::drop_bar;
@@ -88,6 +90,8 @@ pub struct Shell {
     shown_at: Option<egui::Rect>,
     /// Something moved in the last pass.
     moving: bool,
+    /// The controls of the last pass.
+    controls: ControlMap,
 }
 
 impl Shell {
@@ -103,6 +107,7 @@ impl Shell {
     pub fn show(&mut self, ui: &mut egui::Ui, projection: &ScreenProjection) {
         let ctx = ui.ctx().clone();
         chrome::begin(&ctx);
+        controls::begin(&ctx);
         let showing = Showing::of(projection);
         if showing != self.showing {
             self.switch(&ctx, showing);
@@ -134,6 +139,13 @@ impl Shell {
         self.canvas = Some(CanvasArea::from_points(rect, self.pixels_per_point));
         chrome::finish(&ctx);
         self.moving = moving(&ctx);
+        self.controls = controls::take(&ctx);
+    }
+
+    /// Every control the last pass laid out, by name, in screen pixels.
+    #[must_use]
+    pub const fn controls(&self) -> &ControlMap {
+        &self.controls
     }
 
     /// A new screen starts with its panels and dialogs closed. An artwork opened from its

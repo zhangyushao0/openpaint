@@ -38,6 +38,15 @@ Do not rebuild the big picture from source; the module map is in ARCHITECTURE. D
 - Read the exit code. Never judge a pass from gate output piped through `tail` or `grep`.
 - Fix clippy findings in code; no `#[allow]`. A justified exception is `#[expect(lint, reason = "...")]`.
 - Device verification is a separate tier, done only on the slices ROADMAP marks. If it did not run, STATUS says `not_run`, never "pass".
+- Scenario steps name the controls they touch (`{ "tap": { "at": "Undo" } }`, see `crates/devtools/src/target.rs`); only places on the canvas are pixels. The runner fails a step that touches a control by pixels and prints the name to use.
+
+## Device chores: these commands only, never hand-typed adb
+
+- `cargo device-backup [name]`: the author's library to `artifacts/device/backups/<name>.tar`, listed. Always first.
+- `cargo device-check [label] [--no-install]`: wake, build and install, launch, screenshot to `artifacts/device/<label>.png`, the app's logcat errors; fails on a panic.
+- `cargo device-input pen x,y,... [pressure]` | `finger x,y[,x,y] [x,y[,x,y] [ms]]` | `hover x,y [ms]`: one injected gesture (debug build), screen woken first.
+- `cargo device-restore <name>`: the backup put back in place and compared byte for byte. Always last, after removing test artworks in the gallery.
+- `cargo device-clean`: the agent's test files (`/sdcard/{Pictures,Download}/openpaint-test`, `/sdcard/openpaint-*.mp4`), nothing else.
 
 ## Commits
 

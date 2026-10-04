@@ -5,7 +5,7 @@
 use egui::{Color32, Sense, Stroke, Vec2, WidgetInfo, WidgetType};
 use openpaint_core::Color;
 
-use crate::components::animate;
+use crate::components::{animate, controls};
 use crate::design::motion::ACKNOWLEDGE;
 use crate::design::{INK, SPACE, paint_icon_mark, paint_pressed};
 
@@ -20,6 +20,7 @@ pub fn color32(color: Color) -> Color32 {
 pub fn swatch(ui: &mut egui::Ui, color: Color, label: &str, side: f32, on: bool) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(Vec2::splat(side), Sense::click());
     response.widget_info(|| WidgetInfo::selected(WidgetType::Button, true, on, label));
+    controls::register(ui, label, rect);
     let target = f32::from(u8::from(on));
     let mark = animate(ui.ctx(), response.id.with("mark"), target, ACKNOWLEDGE);
     if ui.is_rect_visible(rect) {

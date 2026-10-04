@@ -6,10 +6,10 @@
 //! that opens it decides when (ARCHITECTURE section 10). The screen only says whether it is
 //! open; it is drawn while it closes too, taking no contacts then.
 
-use egui::{Align2, Id, Margin, Order, Rect, Vec2};
+use egui::{Align2, Id, LayerId, Margin, Order, Rect, Vec2};
 
-use crate::components::UNDER_ISLANDS;
 use crate::components::chrome::{self, Source};
+use crate::components::{UNDER_ISLANDS, controls};
 use crate::design::{PANEL_WIDTH, SPACE, surface_frame};
 
 /// The button a popover grows out of: the island it lies on and its rectangle, in points.
@@ -67,6 +67,9 @@ fn panel(
         button: opener.button,
     };
     let showing = chrome::declare(ctx, id, source, Order::Foreground, open)?;
+    if !open {
+        controls::mute(ctx, LayerId::new(Order::Foreground, id));
+    }
     let shown = egui::Area::new(id)
         .order(Order::Foreground)
         .movable(false)
