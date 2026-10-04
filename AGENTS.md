@@ -22,7 +22,8 @@ Do not rebuild the big picture from source; the module map is in ARCHITECTURE. D
 ## Reading and editing
 
 - Read source with Read; search with Grep / Glob. Do not read source through cat, sed or grep commands.
-- Edit source with Edit; use Write for new files or full rewrites. Never edit through Python, sed or heredoc scripts.
+- Edit source with Edit; use Write for new files or full rewrites. `sed` is fine where it is quicker (one-line changes, renames, hash replacements; author, 2026-10-04, after a trial in S30); no Python or heredoc scripts.
+- Delete a file by its exact path, one at a time; never wildcards, recursive deletes, `cargo clean` or `git clean`, and never anything under `artifacts/device/backups/`.
 - No .py / .sh / .ps1 files in the repository; tooling is Rust in `xtask`. `cargo repo-check` rejects them.
 - Bash is for cargo, git and running programs only.
 
