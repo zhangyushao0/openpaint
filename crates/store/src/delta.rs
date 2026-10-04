@@ -4,6 +4,8 @@
 
 use openpaint_core::{Artwork, RegionEdit, Stroke, StrokeList};
 
+use crate::records::mask_slot;
+
 /// One stroke or fill record by layer id and position.
 pub(crate) type Slot = (u64, usize);
 
@@ -16,47 +18,65 @@ pub(crate) struct Delta<'a> {
     pub(crate) remove_fills: Vec<Slot>,
 }
 
-/// The records that turn the stored `base` into `artwork`. Per layer this compares stroke
-/// handles (pointer and id, never samples) up to the first difference, then touches only what
-/// follows it; layers `base` has and `artwork` lacks lose all their records.
+/// What one slot holds: a layer's paint under its id, or its mask under `mask_slot`.
+pub(crate) type Content<'a> = (u64, &'a StrokeList, &'a [RegionEdit]);
+
+/// Every slot of `artwork`: each layer's paint, then its mask's if it has one.
+pub(crate) fn contents(artwork: &Artwork) -> Vec<Content<'_>> {
+    let mut contents = Vec::with_capacity(artwork.layers().len());
+    for layer in artwork.layers() {
+        let id = layer.id().get();
+        contents.push((id, layer.strokes(), layer.edits()));
+        if let Some(mask) = layer.mask() {
+            contents.push((mask_slot(id), mask.strokes(), mask.edits()));
+        }
+    }
+    contents
+}
+
+/// The records that turn the stored `base` into `artwork`. Per slot (a layer's paint or its
+/// mask) this compares stroke handles (pointer and id, never samples) up to the first
+/// difference, then touches only what follows it; slots `base` has and `artwork` lacks (a
+/// deleted layer or mask) lose all their records.
 pub(crate) fn delta<'a>(base: &Artwork, artwork: &'a Artwork) -> Delta<'a> {
     let mut delta = Delta::default();
     if base.same_version(artwork) {
         return delta;
     }
-    for layer in artwork.layers() {
-        let id = layer.id().get();
-        let new = layer.strokes();
-        let old = base.layer(layer.id()).map(|old| old.strokes());
-        let kept = old.map_or(0, |old| common_prefix(old, new));
-        for (offset, stroke) in new.since(kept).enumerate() {
+    let old = contents(base);
+    let new = contents(artwork);
+    let find = |slots: &[Content<'_>], id: u64| slots.iter().position(|(slot, ..)| *slot == id);
+    for &(id, strokes, edits) in &new {
+        let before = find(&old, id).map(|at| old[at]);
+        let old_strokes = before.map(|(_, strokes, _)| strokes);
+        let kept = old_strokes.map_or(0, |old| common_prefix(old, strokes));
+        for (offset, stroke) in strokes.since(kept).enumerate() {
             delta.write.push(((id, kept + offset), stroke));
         }
-        let old_len = old.map_or(0, StrokeList::len);
+        let old_len = old_strokes.map_or(0, StrokeList::len);
         delta
             .remove
-            .extend((new.len().max(kept)..old_len).map(|index| (id, index)));
-        let old_fills = base.layer(layer.id()).map_or(&[][..], |old| old.edits());
-        let new_fills = layer.edits();
+            .extend((strokes.len().max(kept)..old_len).map(|index| (id, index)));
+        let old_fills = before.map_or(&[][..], |(_, _, edits)| edits);
         let kept = old_fills
             .iter()
-            .zip(new_fills)
+            .zip(edits)
             .take_while(|(old, new)| old.same(new))
             .count();
-        for (index, fill) in new_fills.iter().enumerate().skip(kept) {
+        for (index, fill) in edits.iter().enumerate().skip(kept) {
             delta.write_fills.push(((id, index), fill));
         }
-        let removed = new_fills.len().max(kept)..old_fills.len();
+        let removed = edits.len().max(kept)..old_fills.len();
         delta.remove_fills.extend(removed.map(|index| (id, index)));
     }
-    for old in base.layers() {
-        if artwork.layer(old.id()).is_none() {
-            let id = old.id().get();
+    for &(id, strokes, edits) in &old {
+        if find(&new, id).is_none() {
             delta
                 .remove
-                .extend((0..old.strokes().len()).map(|index| (id, index)));
-            let fills = 0..old.edits().len();
-            delta.remove_fills.extend(fills.map(|index| (id, index)));
+                .extend((0..strokes.len()).map(|index| (id, index)));
+            delta
+                .remove_fills
+                .extend((0..edits.len()).map(|index| (id, index)));
         }
     }
     delta

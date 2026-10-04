@@ -48,7 +48,7 @@ fn create(artwork: &Artwork) -> Result<Applied, CoreError> {
     let mut layer = Layer::empty(id);
     layer.props.group = state.layers[below].props.group;
     next.layers.insert(below + 1, layer);
-    next.active = id;
+    next.activate(id);
     Ok(content(next))
 }
 
@@ -62,18 +62,19 @@ fn delete(artwork: &Artwork, id: LayerId) -> Result<Applied, CoreError> {
     next.layers.remove(index);
     prune(&next.layers, &mut next.groups);
     if next.active == id {
-        next.active = next.layers[index.saturating_sub(1)].id;
+        next.activate(next.layers[index.saturating_sub(1)].id);
     }
     Ok(content(next))
 }
 
+/// The layer's paint becomes the target (not its mask).
 fn select(artwork: &Artwork, id: LayerId) -> Result<Applied, CoreError> {
     artwork.position(id)?;
-    if artwork.active() == id {
+    if artwork.active() == id && !artwork.on_mask() {
         return Ok(Applied::unchanged(artwork));
     }
     let mut next = artwork.state().clone();
-    next.active = id;
+    next.activate(id);
     Ok(Applied {
         artwork: Artwork::from_state(next),
         change: Change::ActiveLayer,

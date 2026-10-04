@@ -1,5 +1,5 @@
-//! Schema 10: the keys and values the library stores (DECISIONS D36, D38, D43, D45, D46, D49,
-//! D50; the archived D21, D25, D28, D29).
+//! Schema 11: the keys and values the library stores (DECISIONS D36, D38, D43, D45, D46, D49,
+//! D50, D51; the archived D21, D25, D28, D29).
 //!
 //! Keyspace `library`: `schema` -> the schema of every record (u32 LE); `next` -> the next
 //! unused project id (u64 LE); `clock` -> the last value of the change counter (u64 LE); `last`
@@ -12,8 +12,10 @@
 //!   layer, next layer id and next stroke id (u64), then the layers bottom to top, each id
 //!   (u64), name (u32 length + UTF-8), visible (u8), opacity (f32), locked (u8), alpha locked
 //!   (u8), clipping (u8), blend (u8: 0 normal, 1 multiply, 2 screen, 3 overlay), group (u64, 0
-//!   none), its stroke count (u32) and its edit count (u32); then the groups oldest first, each
-//!   id (u64), name, visible (u8) and opacity (f32);
+//!   none), its stroke count (u32) and its edit count (u32), its mask (`read_mask`: flags u8,
+//!   with a mask its stroke and edit counts); then the groups oldest first, each id (u64),
+//!   name, visible (u8) and opacity (f32); then whether the active layer's mask is the target
+//!   (u8);
 //! - `[project u64]['s'][layer u64][index u64]` -> one stroke, oldest at index 0 (`strokes.rs`):
 //!   id (u64), size, opacity, red, green, blue (f32), blend (u8: 0 paint over, 1 paint atop
 //!   under Alpha Lock, 2 erase, 3 smudge, 4 smudge under Alpha Lock), its brush recipe (softness (f32); the curves size over
@@ -26,6 +28,7 @@
 //!   run count and runs, `fills.rs`);
 //! - `[project u64]['f'][layer u64][index u64]` -> one fill or transform, oldest at index 0
 //!   (`fills.rs`);
+//! - a mask's strokes and edits as a layer's, under `mask_slot(layer)` (the id with bit 63 set);
 //! - `[project u64]['t']` -> the gallery thumbnail (`catalogue.rs`), derived from the artwork
 //!   when it was last left; absent until then.
 //!
@@ -36,11 +39,11 @@
 //! one tool without colours; schema 4 (S12) had no fills; schema 5 (S15) had no deposit in its
 //! recipes and no StreamLine in its toolbox; schema 6 (S16) had no clip in its strokes; schema
 //! 7 (S18) had fills only, without a kind; schema 8 (S20) had no smudge in its strokes or its
-//! toolbox; schema 9 (S21) had no clipping, blend or group in its heads; `migrate.rs` and
-//! `migrate_6.rs` to `migrate_10.rs` upgrade them.
+//! toolbox; schema 9 (S21) had no clipping, blend or group in its heads; schema 10 (S23) had
+//! no masks; `migrate.rs` and `migrate_6.rs` to `migrate_11.rs` upgrade them.
 
 use openpaint_app::{PortError, ProjectId};
-use openpaint_core::{Artwork, BlendMode, GroupParts, LayerParts};
+use openpaint_core::{Artwork, BlendMode, GroupParts, LayerMaskParts, LayerParts};
 
 use crate::codec::{Reader, Writer};
 pub(crate) use crate::strokes::{
@@ -48,7 +51,7 @@ pub(crate) use crate::strokes::{
 };
 
 /// The schema this build writes and the newest it reads.
-pub const SCHEMA: u32 = 10;
+pub const SCHEMA: u32 = 11;
 
 pub(crate) const LIBRARY: &str = "library";
 pub(crate) const PROJECTS: &str = "projects";
@@ -62,8 +65,16 @@ pub(crate) const ENTRY: &[u8] = b"a";
 const HEAD: u8 = b'h';
 const STROKE: u8 = b's';
 const THUMBNAIL: u8 = b't';
-/// Bytes of a layer entry in the head without its name.
-const LAYER_BYTES: usize = 8 + 4 + 1 + 4 + 1 + 1 + 1 + 1 + 8 + 4 + 4;
+/// Bytes of a layer entry in the head without its name and its mask's flags and counts.
+const LAYER_BYTES: usize = 8 + 4 + 1 + 4 + 1 + 1 + 1 + 1 + 8 + 4 + 4 + 1;
+/// A mask's stroke and edit records sit under its layer's id with this bit set (layer ids stay
+/// below 2^53), so they are keyed, read, saved and removed as a layer's are.
+const MASK_SLOT: u64 = 1 << 63;
+
+/// The id a layer's mask records are keyed by.
+pub(crate) const fn mask_slot(layer: u64) -> u64 {
+    layer | MASK_SLOT
+}
 /// Bytes of a group entry in the head without its name.
 const GROUP_BYTES: usize = 8 + 4 + 1 + 4;
 
@@ -151,10 +162,12 @@ pub(crate) struct Head {
     pub(crate) width: u32,
     pub(crate) height: u32,
     pub(crate) active: u64,
+    pub(crate) on_mask: bool,
     pub(crate) next_layer_id: u64,
     pub(crate) next_stroke_id: u64,
-    /// Bottom to top, strokes and fills still empty, with how many strokes and fills each has.
-    pub(crate) layers: Vec<(LayerParts, usize, usize)>,
+    /// Bottom to top, strokes and fills still empty (a mask's too), with how many strokes and
+    /// fills each has and its mask has (0 without one).
+    pub(crate) layers: Vec<(LayerParts, usize, usize, [usize; 2])>,
     pub(crate) groups: Vec<GroupParts>,
 }
 
@@ -202,6 +215,15 @@ pub(crate) fn encode_head(artwork: &Artwork) -> Vec<u8> {
         writer.u64(layer.props().group().map_or(0, |group| group.get()));
         writer.len(layer.strokes().len());
         writer.len(layer.edits().len());
+        match layer.mask() {
+            Some(mask) => {
+                let flags = 1 | u8::from(mask.enabled()) << 1 | u8::from(mask.inverted()) << 2;
+                writer.u8(flags);
+                writer.len(mask.strokes().len());
+                writer.len(mask.edits().len());
+            }
+            None => writer.u8(0),
+        }
     }
     writer.len(artwork.groups().len());
     for group in artwork.groups() {
@@ -210,7 +232,28 @@ pub(crate) fn encode_head(artwork: &Artwork) -> Vec<u8> {
         writer.bool(group.visible());
         writer.f32(group.opacity());
     }
+    writer.bool(artwork.on_mask());
     writer.finish()
+}
+
+/// A layer's mask in the head: flags (u8: bit 0 a mask, bit 1 enabled, bit 2 inverted), then
+/// with a mask its stroke and edit counts (u32).
+fn read_mask(reader: &mut Reader<'_>) -> Result<(Option<LayerMaskParts>, [usize; 2]), PortError> {
+    let flags = reader.u8()?;
+    if flags == 0 {
+        return Ok((None, [0; 2]));
+    }
+    if flags & 1 == 0 || flags > 7 {
+        return Err(reader.corrupt());
+    }
+    let counts = [reader.u32()? as usize, reader.u32()? as usize];
+    let mask = LayerMaskParts {
+        enabled: flags & 2 != 0,
+        inverted: flags & 4 != 0,
+        strokes: Vec::new(),
+        edits: Vec::new(),
+    };
+    Ok((Some(mask), counts))
 }
 
 pub(crate) fn decode_head(bytes: &[u8]) -> Result<Head, PortError> {
@@ -236,6 +279,7 @@ pub(crate) fn decode_head(bytes: &[u8]) -> Result<Head, PortError> {
         let (alpha_locked, clipping) = (reader.bool()?, reader.bool()?);
         let (blend, group) = (read_blend(&mut reader)?, reader.u64()?);
         let (strokes, fills) = (reader.u32()? as usize, reader.u32()? as usize);
+        let (mask, masked) = read_mask(&mut reader)?;
         let layer = LayerParts {
             id,
             name,
@@ -248,15 +292,18 @@ pub(crate) fn decode_head(bytes: &[u8]) -> Result<Head, PortError> {
             group: (group != 0).then_some(group),
             strokes: Vec::new(),
             edits: Vec::new(),
+            mask,
         };
-        layers.push((layer, strokes, fills));
+        layers.push((layer, strokes, fills, masked));
     }
     let groups = read_groups(&mut reader)?;
+    let on_mask = reader.bool()?;
     reader.end()?;
     Ok(Head {
         width,
         height,
         active,
+        on_mask,
         next_layer_id,
         next_stroke_id,
         layers,

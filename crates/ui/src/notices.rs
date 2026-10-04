@@ -109,6 +109,7 @@ fn transform(projection: &SessionProjection) -> Option<Told> {
         TransformRefusal::Locked => "Can't transform: the layer is locked.",
         TransformRefusal::Empty => "Nothing to transform here.",
         TransformRefusal::Failed => "Couldn't pick up the layer. Try again.",
+        TransformRefusal::Mask => "A mask can't be transformed. Tap the layer to move its paint.",
     };
     let dismiss = Intent::Transform(TransformIntent::Tool(false));
     Some(Told::Failed(message.to_owned(), "OK", true, dismiss))

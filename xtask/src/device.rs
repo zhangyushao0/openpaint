@@ -2,8 +2,8 @@
 //!
 //! - `cargo device-backup [name]`: the app's library (`files/library`) streamed out of the app's
 //!   private storage into `artifacts/device/backups/<name>.tar`, listed and checked;
-//! - `cargo device-restore <name|file.tar>`: that archive written back in place (nothing is
-//!   deleted), read out again and compared with the backup file by file, byte for byte;
+//! - `cargo device-restore <name|file.tar>`: the app stopped (no process left), that archive
+//!   written back in place (nothing is deleted), read out again and compared with the backup file by file, byte for byte;
 //! - `cargo device-check [label] [--no-install]` and `cargo device-input ...` (`check.rs`);
 //! - `cargo device-clean`: removes the agent's own test files, and only those.
 //!
@@ -14,6 +14,7 @@ mod check;
 mod tar;
 
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 use crate::process::root;
 use adb::{Adb, PACKAGE, Result, read_file, write_file};
@@ -93,7 +94,7 @@ pub fn restore(args: &[String]) -> Result<()> {
     }
     let adb = Adb::connected()?;
     // The app must not write while its library is put back.
-    adb.shell(&["am", "force-stop", PACKAGE])?;
+    stop_app(&adb)?;
     adb.feed(&["exec-in", "run-as", PACKAGE, "tar", "xf", "-"], &archive)?;
     let now = tar::entries(&pull_library(&adb)?)?;
     let differences = tar::differences(&backup, &now);
@@ -106,6 +107,28 @@ pub fn restore(args: &[String]) -> Result<()> {
         backup.len()
     );
     Ok(())
+}
+
+/// How long `stop_app` waits for the app's process to end after `am force-stop`.
+const STOP_WAIT: Duration = Duration::from_secs(5);
+
+/// Force-stops the app and waits until no process of it is left (`pidof` prints nothing), so
+/// nothing writes the library afterwards; a process still there after `STOP_WAIT` fails.
+fn stop_app(adb: &Adb) -> Result<()> {
+    adb.shell(&["am", "force-stop", PACKAGE])?;
+    let started = Instant::now();
+    loop {
+        // `pidof` exits 1 when nothing runs; `; true` keeps that from being a failure.
+        let pids = adb.shell(&[&format!("pidof {PACKAGE}; true")])?;
+        let pids = pids.trim();
+        if pids.is_empty() {
+            return Ok(());
+        }
+        if started.elapsed() >= STOP_WAIT {
+            return Err(DeviceError::StillRunning(pids.to_owned()));
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
 }
 
 /// A backup's name (`artifacts/device/backups/<name>.tar`) or an archive's path.

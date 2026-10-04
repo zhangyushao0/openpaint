@@ -69,7 +69,7 @@ fn new(artwork: &Artwork) -> Result<Applied, CoreError> {
     layer.props.group = Some(group);
     next.layers.insert(at, layer);
     next.groups.push(LayerGroup::numbered(group));
-    next.active = layer_id;
+    next.activate(layer_id);
     Ok(content(next))
 }
 

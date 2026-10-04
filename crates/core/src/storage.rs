@@ -10,9 +10,10 @@ use crate::error::CoreError;
 use crate::group::{LayerGroup, check_groups};
 use crate::id::{GroupId, IdCounters, LayerId, MAX_ID, StrokeId};
 use crate::layer::{Layer, LayerProps};
+use crate::mask::{LayerMask, is_neutral};
 use crate::parts::{
-    ArtworkParts, EditParts, FillParts, GroupParts, LayerParts, MaskParts, RecipeParts,
-    SampleParts, StrokeParts, TransformParts,
+    ArtworkParts, EditParts, FillParts, GroupParts, LayerMaskParts, LayerParts, MaskParts,
+    RecipeParts, SampleParts, StrokeParts, TransformParts,
 };
 use crate::region::{FillEdit, RegionEdit, RegionMask};
 use crate::stroke::{
@@ -119,14 +120,22 @@ impl Artwork {
             .collect::<Result<Vec<_>, _>>()?;
         check_groups(&layers, &groups)?;
         let active = LayerId::new(parts.active);
-        if !layers.iter().any(|layer| layer.id == active) {
+        let Some(on) = layers.iter().find(|layer| layer.id == active) else {
             return Err(CoreError::UnknownLayer(active));
+        };
+        match &on.mask {
+            None if parts.on_mask => return Err(CoreError::NoMask(active)),
+            Some(mask) if parts.on_mask && !mask.enabled => {
+                return Err(CoreError::MaskOff(active));
+            }
+            _ => {}
         }
         Ok(Self::from_state(ArtworkState {
             canvas,
             layers,
             groups,
             active,
+            on_mask: parts.on_mask,
             ids: counters,
         }))
     }
@@ -165,14 +174,64 @@ fn layer_from(
         (parts.clipping, parts.blend),
         parts.group.map(GroupId::new),
     )?;
-    let strokes = parts
-        .strokes
+    let (strokes, edits) = content_from(&parts.strokes, &parts.edits, canvas, ids)?;
+    let mask = parts
+        .mask
+        .as_ref()
+        .map(|mask| mask_from(mask, canvas, ids))
+        .transpose()?;
+    Ok(Layer {
+        id,
+        name,
+        props,
+        strokes,
+        edits,
+        mask,
+    })
+}
+
+/// A mask's strokes paint neutral grey over it or smudge it, never under Alpha Lock; its edits
+/// are neutral fills.
+fn mask_from(
+    parts: &LayerMaskParts,
+    canvas: CanvasSize,
+    ids: &mut IdCheck,
+) -> Result<LayerMask, CoreError> {
+    let (strokes, edits) = content_from(&parts.strokes, &parts.edits, canvas, ids)?;
+    let stroke_ok = |stroke: &Stroke| match stroke.blend() {
+        StrokeBlend::Over => is_neutral(stroke.style().color()),
+        StrokeBlend::Smudge => true,
+        _ => false,
+    };
+    let edit_ok = |edit: &RegionEdit| {
+        edit.fill()
+            .is_some_and(|fill| !fill.alpha_locked && is_neutral(fill.color))
+    };
+    if !strokes.iter().all(stroke_ok) || !edits.iter().all(edit_ok) {
+        return Err(invalid("mask content"));
+    }
+    Ok(LayerMask {
+        enabled: parts.enabled,
+        inverted: parts.inverted,
+        strokes,
+        edits,
+    })
+}
+
+/// Strokes and edits, each edit at a place among the strokes that never goes back.
+fn content_from(
+    strokes: &[StrokeParts],
+    edits: &[EditParts],
+    canvas: CanvasSize,
+    ids: &mut IdCheck,
+) -> Result<(StrokeList, Arc<[RegionEdit]>), CoreError> {
+    let strokes = strokes
         .iter()
         .map(|stroke| stroke_from(stroke, canvas, ids))
         .collect::<Result<Vec<_>, _>>()?;
     let mut after = 0;
-    let mut edits = Vec::with_capacity(parts.edits.len());
-    for edit in &parts.edits {
+    let mut built = Vec::with_capacity(edits.len());
+    for edit in edits {
         let edit = match edit {
             EditParts::Fill(fill) => RegionEdit::Fill(fill_from(fill, canvas)?),
             EditParts::Transform(transform) => {
@@ -183,15 +242,9 @@ fn layer_from(
             return Err(invalid("edit place"));
         }
         after = edit.after();
-        edits.push(edit);
+        built.push(edit);
     }
-    Ok(Layer {
-        id,
-        name,
-        props,
-        strokes: StrokeList::from_strokes(&strokes),
-        edits: Arc::from(edits),
-    })
+    Ok((StrokeList::from_strokes(&strokes), Arc::from(built)))
 }
 
 fn fill_from(parts: &FillParts, canvas: CanvasSize) -> Result<FillEdit, CoreError> {

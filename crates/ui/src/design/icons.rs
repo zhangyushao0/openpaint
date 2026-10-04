@@ -79,6 +79,8 @@ pub enum Icon {
     Collapsed,
     /// An arrow bending down: the layer clips to the one under it.
     Clipped,
+    /// A sheet with a round window in it: a layer mask.
+    Mask,
 }
 
 pub(super) type Line = Vec<[f32; 2]>;
@@ -163,7 +165,9 @@ fn polylines(icon: Icon) -> Vec<Line> {
             vec![[0.58, 0.82], [0.82, 0.58]],
         ],
         Icon::Done => vec![vec![[0.22, 0.52], [0.42, 0.72], [0.78, 0.32]]],
-        Icon::Group | Icon::Expanded | Icon::Collapsed | Icon::Clipped => layer_icons(icon),
+        Icon::Group | Icon::Expanded | Icon::Collapsed | Icon::Clipped | Icon::Mask => {
+            layer_icons(icon)
+        }
         // Discs, painted whole.
         Icon::SizeSmall | Icon::SizeLarge | Icon::OpacityLight | Icon::OpacityDark => Vec::new(),
     }
@@ -360,6 +364,7 @@ mod tests {
             Icon::Expanded,
             Icon::Collapsed,
             Icon::Clipped,
+            Icon::Mask,
         ];
         for icon in icons {
             let lines = polylines(icon);

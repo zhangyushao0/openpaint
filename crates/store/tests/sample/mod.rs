@@ -6,13 +6,13 @@ use std::path::PathBuf;
 use openpaint_app::{Thumbnail, Title};
 use openpaint_core::{
     AccumulationParts, ArtworkParts, BlendMode, BrushRecipe, EditParts, FillParts, GroupParts,
-    LayerParts, MaskParts, PaperParts, PaperTexture, RecipeParts, SampleParts, StrokeBlend,
-    StrokeParts, Tip, TransformParts,
+    LayerMaskParts, LayerParts, MaskParts, PaperParts, PaperTexture, RecipeParts, SampleParts,
+    StrokeBlend, StrokeParts, Tip, TransformParts,
 };
 
-use crate::common::KEYSPACES;
-
+mod dump;
 mod editor;
+pub use dump::{decode, encode};
 pub use editor::{sample_editor, sample_editor_6, sample_editor_9, upgraded_editor};
 
 pub type Records = Vec<(String, Vec<u8>, Vec<u8>)>;
@@ -116,6 +116,7 @@ fn layer(
         group: None,
         strokes,
         edits: Vec::new(),
+        mask: None,
     }
 }
 
@@ -173,6 +174,7 @@ pub fn schema_3_parts() -> ArtworkParts {
         ],
         groups: Vec::new(),
         active: 3,
+        on_mask: false,
         next_layer_id: 5,
         next_stroke_id: 6,
     }
@@ -243,10 +245,59 @@ pub fn schema_5_parts() -> ArtworkParts {
     parts
 }
 
+/// The schema-10 sample with what schema 11 adds: the sketch layer's mask inverted, with a grey
+/// stroke inside a selection, a smudge and a grey fill between them; the ink layer's mask
+/// white with one black stroke, and the target (the ink layer is active); the clipping top
+/// layer's mask disabled and empty.
+pub fn parts() -> ArtworkParts {
+    let mut parts = schema_10_parts();
+    let model = parts.layers[0].strokes[1].clone();
+    let grey = |id, color: f32, blend| StrokeParts {
+        id,
+        blend,
+        color: [color; 3],
+        ..model.clone()
+    };
+    let mut clipped = grey(8, 0.25, StrokeBlend::Over);
+    clipped.clip = Some(MaskParts {
+        origin: [1, 2],
+        size: [9, 3],
+        runs: vec![2, 20, 5],
+    });
+    parts.layers[0].mask = Some(LayerMaskParts {
+        enabled: true,
+        inverted: true,
+        strokes: vec![clipped, grey(9, 1.0, StrokeBlend::Smudge)],
+        edits: vec![EditParts::Fill(FillParts {
+            after: 1,
+            color: [0.5; 3],
+            alpha_locked: false,
+            origin: [20, 10],
+            size: [4, 4],
+            runs: vec![0, 16],
+        })],
+    });
+    parts.layers[1].mask = Some(LayerMaskParts {
+        enabled: true,
+        inverted: false,
+        strokes: vec![grey(10, 0.0, StrokeBlend::Over)],
+        edits: Vec::new(),
+    });
+    parts.layers[2].mask = Some(LayerMaskParts {
+        enabled: false,
+        inverted: false,
+        strokes: Vec::new(),
+        edits: Vec::new(),
+    });
+    parts.on_mask = true;
+    parts.next_stroke_id = 11;
+    parts
+}
+
 /// The schema-9 sample with what schema 10 adds: the ink and top layers in a hidden, faded
 /// group with a non-ASCII name, the top layer clipping to the ink layer, the ink layer by
 /// Multiply and the sketch by Overlay.
-pub fn parts() -> ArtworkParts {
+pub fn schema_10_parts() -> ArtworkParts {
     let mut parts = schema_9_parts();
     parts.layers[0].blend = BlendMode::Overlay;
     parts.layers[1].blend = BlendMode::Multiply;
@@ -318,43 +369,6 @@ pub fn schema_8_parts() -> ArtworkParts {
             translation: [100.0, -15.0],
         }));
     parts
-}
-
-pub fn encode(records: &Records) -> Vec<u8> {
-    let mut bytes = Vec::new();
-    for (keyspace, key, value) in records {
-        let index = KEYSPACES
-            .iter()
-            .position(|name| name == keyspace)
-            .expect("known");
-        bytes.push(u8::try_from(index).expect("small"));
-        for part in [key, value] {
-            bytes.extend_from_slice(&u32::try_from(part.len()).expect("len").to_le_bytes());
-            bytes.extend_from_slice(part);
-        }
-    }
-    bytes
-}
-
-fn take<'a>(bytes: &'a [u8], at: &mut usize, len: usize) -> &'a [u8] {
-    let part = &bytes[*at..*at + len];
-    *at += len;
-    part
-}
-
-pub fn decode(bytes: &[u8]) -> Records {
-    let mut at = 0;
-    let mut out = Vec::new();
-    while at < bytes.len() {
-        let index = take(bytes, &mut at, 1)[0];
-        let mut part = || {
-            let len = take(bytes, &mut at, 4).try_into().expect("length");
-            take(bytes, &mut at, u32::from_le_bytes(len) as usize).to_vec()
-        };
-        let (key, value) = (part(), part());
-        out.push((KEYSPACES[usize::from(index)].to_owned(), key, value));
-    }
-    out
 }
 
 pub fn sample_title() -> Title {

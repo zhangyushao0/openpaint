@@ -3,9 +3,11 @@
 use std::sync::Arc;
 
 use super::*;
+use crate::protocol::Paint;
 use crate::stroke::stroke_region;
 use openpaint_core::{
     ArtworkCommand, BrushRecipe, CanvasPoint, CanvasSize, Color, GroupCommand, LayerCommand,
+    MaskCommand, StrokeSample, StrokeStyle,
 };
 
 fn sample(x: f32, y: f32, pressure: f32, time_ms: u32) -> StrokeSample {
@@ -30,6 +32,7 @@ fn codes(scene: &Scene) -> Vec<&'static str> {
         Item::Active => "active",
         Item::Reach(_) => "reach",
         Item::Smudge(_) => "smudge",
+        Item::BeginMask(_) => "mask",
     };
     scene.items.iter().map(name).collect()
 }
@@ -55,7 +58,80 @@ fn active_place_follows_its_layers_finished_strokes() {
 }
 
 fn place(layer: LayerId, clip: Option<RegionMask>) -> ActivePlace {
-    ActivePlace { layer, clip }
+    ActivePlace {
+        layer,
+        on_mask: false,
+        clip,
+    }
+}
+
+fn drawn(artwork: &Artwork, tool: StrokeTool) -> Artwork {
+    let mut session = artwork
+        .begin_stroke(style().with_tool(tool), sample(4.0, 4.0, 1.0, 0))
+        .expect("begin");
+    session
+        .extend(&[sample(20.0, 9.0, 1.0, 5)])
+        .expect("extend");
+    session.finish().artwork
+}
+
+fn masked(artwork: &Artwork, command: MaskCommand) -> Artwork {
+    let applied = artwork.apply(ArtworkCommand::Mask(command));
+    applied.expect("mask command").artwork
+}
+
+#[test]
+fn a_masked_layer_sets_its_paint_aside_then_draws_its_mask_before_its_end() {
+    let blank = Artwork::new(CanvasSize::new(64, 64).expect("size"));
+    let layer = blank.active();
+    let bare = masked(&blank, MaskCommand::Add(layer));
+    assert_eq!(codes(&Scene::build(&bare, None).expect("scene")), [""; 0]);
+    let painted = drawn(&drawn(&bare, StrokeTool::Paint), StrokeTool::Smudge);
+    let on_mask = ActivePlace {
+        on_mask: true,
+        ..place(layer, None)
+    };
+    assert_eq!(
+        codes(&Scene::build(&painted, Some(&on_mask)).expect("scene")),
+        [""; 0],
+        "no paint: the mask shows nothing"
+    );
+    let content = masked(&painted, MaskCommand::Select(layer));
+    let paint = Artwork::apply(&content, ArtworkCommand::Layer(LayerCommand::Select(layer)));
+    let both = drawn(&paint.expect("select").artwork, StrokeTool::Paint);
+    let scene = Scene::build(&both, Some(&on_mask)).expect("scene");
+    let expected = [
+        "segment", "stroke", "mask", "segment", "stroke", "reach", "smudge", "active", "layer",
+    ];
+    assert_eq!(codes(&scene), expected);
+    let Some(Item::EndLayer { op, .. }) = scene.items.last() else {
+        panic!("a layer end");
+    };
+    assert_eq!(
+        *op,
+        Op::end_layer(1.0).masked(crate::protocol::Masking::Shown)
+    );
+    assert_eq!(
+        scene.smudges[0].before,
+        3..5,
+        "the mask's own items before it"
+    );
+    assert!(scene.smudges[0].on_mask);
+    assert_eq!(scene.active_before, Some(3..7));
+    let off = masked(
+        &both,
+        MaskCommand::SetEnabled {
+            layer,
+            enabled: false,
+        },
+    );
+    let unmasked = codes(&Scene::build(&off, None).expect("scene"));
+    assert_eq!(unmasked, ["segment", "stroke", "layer"], "a disabled mask");
+    let alone = Scene::layer(&both, layer, true).expect("the mask alone");
+    let mask_codes = ["segment", "stroke", "reach", "smudge", "layer"];
+    assert_eq!(codes(&alone), mask_codes);
+    let paint_alone = Scene::layer(&both, layer, false).expect("the paint alone");
+    assert_eq!(codes(&paint_alone), ["segment", "stroke", "layer"]);
 }
 
 #[test]

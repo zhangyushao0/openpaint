@@ -11,10 +11,31 @@ const LAYER_INTO: usize = 1;
 const LAYER_MODE: usize = 2;
 /// 1 when the layer or chain lies in a group, whose `EndGroup` follows.
 const LAYER_GROUPED: usize = 3;
-pub(super) const LAYER_SLOTS: [(&str, usize); 3] = [
+/// How a layer's mask applies: one of `MASKINGS`, a whole number.
+const LAYER_MASK: usize = 4;
+pub(super) const LAYER_SLOTS: [(&str, usize); 4] = [
     ("LAYER_INTO", LAYER_INTO),
     ("LAYER_MODE", LAYER_MODE),
     ("LAYER_GROUPED", LAYER_GROUPED),
+    ("LAYER_MASK", LAYER_MASK),
+];
+
+/// How an `EndLayer` applies the layer's mask (S24), declared to WGSL as constants by
+/// `prelude`. With a mask the layer's paint waits in `held` from its `BeginMask` on, the mask's
+/// strokes and fills paint over transparent in `layer`, read as grey over white
+/// (`m = r + 1 - a`), and the end shows `held x m` (or `x (1 - m)`).
+#[repr(u32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Masking {
+    None = 0,
+    Shown = 1,
+    Inverted = 2,
+}
+
+pub(super) const MASKINGS: [(&str, Masking); 3] = [
+    ("MASK_NONE", Masking::None),
+    ("MASK_SHOWN", Masking::Shown),
+    ("MASK_INVERTED", Masking::Inverted),
 ];
 
 /// A layer's or chain's blend mode, declared to WGSL as constants by `prelude`.
@@ -74,6 +95,17 @@ impl Op {
         data[LAYER_MODE] = mode as u32 as f32;
         data[LAYER_GROUPED] = f32::from(u8::from(grouped));
         Self::new(Opcode::EndLayer, &data)
+    }
+
+    /// This layer end applying the layer's mask by `masking`.
+    pub(crate) fn masked(mut self, masking: Masking) -> Self {
+        self.data[LAYER_MASK] = masking as u32 as f32;
+        self
+    }
+
+    /// Where a masked layer's paint is set aside and its mask starts (`Masking`).
+    pub(crate) fn begin_mask() -> Self {
+        Self::new(Opcode::BeginMask, &[])
     }
 
     /// The end of a clipping chain whose base has `opacity` and `mode`.

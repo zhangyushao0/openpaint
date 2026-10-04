@@ -8,7 +8,7 @@ use openpaint_app::{EditorState, PortError, ProjectId, Thumbnail, Title};
 use openpaint_core::Artwork;
 
 use crate::catalogue::{Entry, encode_entry, encode_thumbnail};
-use crate::delta::delta;
+use crate::delta::{contents, delta};
 use crate::editor::{EDITOR, encode_editor};
 use crate::fills::{encode_edit, fill_key, fills_prefix};
 use crate::library::{Open, device};
@@ -199,14 +199,14 @@ fn write_all(
     artwork: &Artwork,
 ) -> Result<(), PortError> {
     let mut written = HashSet::new();
-    for layer in artwork.layers() {
-        for (index, stroke) in layer.strokes().iter().enumerate() {
-            let key = stroke_key(id, layer.id().get(), index);
+    for (slot, strokes, edits) in contents(artwork) {
+        for (index, stroke) in strokes.iter().enumerate() {
+            let key = stroke_key(id, slot, index);
             batch.insert(&open.projects, key.clone(), encode_stroke(stroke));
             written.insert(key);
         }
-        for (index, fill) in layer.edits().iter().enumerate() {
-            let key = fill_key(id, layer.id().get(), index);
+        for (index, fill) in edits.iter().enumerate() {
+            let key = fill_key(id, slot, index);
             batch.insert(&open.projects, key.clone(), encode_edit(fill));
             written.insert(key);
         }

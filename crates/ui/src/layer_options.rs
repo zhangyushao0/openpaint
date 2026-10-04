@@ -1,18 +1,24 @@
 //! The layer panel's footer, for the highlighted layer (Procreate keeps these in the layer's
 //! options): its opacity, its blend mode (Normal, Multiply, Screen, Overlay), Alpha Lock,
-//! Clipping Mask, move up, move down, Group (Ungroup in a group) and delete; under them, for a
-//! layer in a group, the group's name and opacity.
+//! Clipping Mask, Mask (adds a white mask), move up, move down, Group (Ungroup in a group) and
+//! delete; under them, for a layer in a group, the group's name and opacity. While the layer's
+//! mask is highlighted instead: Invert, Clear and delete the mask.
 
 use openpaint_app::{EditorAction, Intent, LayerIntent, LayerList, LayerRow, SessionProjection};
 use openpaint_core::BlendMode;
 
-use crate::components::{icon_button, slider, switch_row, text_button, text_choice_wide};
+use crate::components::{icon_button, menu_row, slider, switch_row, text_button, text_choice_wide};
 use crate::design::{Icon, SPACE, TOUCH_TARGET};
 use crate::layer_rows::percent;
 
-/// Rows of touch targets the footer takes, with the group's two when the layer is in one.
-pub(crate) const fn footer_rows(grouped: bool) -> f32 {
-    if grouped { 9.0 } else { 7.0 }
+/// Rows of touch targets the footer takes, with the group's two when the layer is in one; the
+/// mask's options take two.
+pub(crate) const fn footer_rows(grouped: bool, on_mask: bool) -> f32 {
+    match (on_mask, grouped) {
+        (true, _) => 2.0,
+        (false, true) => 10.0,
+        (false, false) => 8.0,
+    }
 }
 
 fn offered(projection: &SessionProjection, action: EditorAction) -> bool {
@@ -57,6 +63,10 @@ pub(crate) fn footer(
     let Some(active) = list.active_row() else {
         return;
     };
+    if list.on_mask {
+        mask_options(ui, active, projection, taps);
+        return;
+    }
     let enabled = offered(projection, EditorAction::EditLayer);
     ui.separator();
     value_row(ui, "Opacity", &percent(active.opacity));
@@ -81,8 +91,40 @@ pub(crate) fn footer(
             clipping: !active.clipping,
         }));
     }
+    let can_mask = offered(projection, EditorAction::AddMask);
+    let note = if can_mask { "White: shows all" } else { "" };
+    if menu_row(ui, "Mask", note, can_mask).clicked() {
+        taps.push(Intent::Layer(LayerIntent::AddMask(active.id)));
+    }
     moves(ui, active, projection, taps);
     group(ui, list, active, enabled, taps);
+}
+
+/// While the active layer's mask is the target: what painting there does, Invert, Clear and
+/// delete. Turning it off is its row's eye.
+fn mask_options(
+    ui: &mut egui::Ui,
+    active: &LayerRow,
+    projection: &SessionProjection,
+    taps: &mut Vec<Intent>,
+) {
+    ui.separator();
+    value_row(ui, "Black hides · white shows", "");
+    ui.horizontal(|ui| {
+        let enabled = offered(projection, EditorAction::ChangeMask);
+        if text_button(ui, "Invert", enabled).clicked() {
+            taps.push(Intent::Layer(LayerIntent::InvertMask(active.id)));
+        }
+        if text_button(ui, "Clear", enabled).clicked() {
+            taps.push(Intent::Layer(LayerIntent::ClearMask(active.id)));
+        }
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let enabled = offered(projection, EditorAction::EditMask);
+            if icon_button(ui, Icon::Delete, "Delete mask", enabled).clicked() {
+                taps.push(Intent::Layer(LayerIntent::DeleteMask(active.id)));
+            }
+        });
+    });
 }
 
 /// The four modes in two even columns, the layer's own outlined.

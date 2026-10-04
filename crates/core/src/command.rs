@@ -5,13 +5,35 @@ use crate::blend::BlendMode;
 use crate::error::CoreError;
 use crate::id::{GroupId, LayerId};
 use crate::value::LayerName;
-use crate::{group_command, layer_command};
+use crate::{group_command, layer_command, mask_command};
 
 /// Every structural edit of an artwork, one family per variant.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ArtworkCommand {
     Layer(LayerCommand),
     Group(GroupCommand),
+    Mask(MaskCommand),
+}
+
+/// Layer masks (S24). Every one but `Select` acts on a layer that is not locked
+/// (`LayerLocked`) and, but `Add`, has a mask (`NoMask`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MaskCommand {
+    /// Gives the layer a white mask (nothing changes on the canvas) and makes it the active
+    /// layer with its mask the target. A layer with a mask keeps it: `Change::None`.
+    Add(LayerId),
+    /// Makes the layer active with its mask the target of strokes and fills; no edit.
+    /// `MaskOff` for a disabled mask.
+    Select(LayerId),
+    /// A disabled mask keeps what was painted on it and shows the whole layer; it is never
+    /// the target (disabling the target makes the layer's paint the target).
+    SetEnabled { layer: LayerId, enabled: bool },
+    /// Black for white and white for black, from now on. `MaskOff` while disabled.
+    Invert(LayerId),
+    /// Back to white everywhere, not inverted. `MaskOff` while disabled.
+    Clear(LayerId),
+    /// The mask goes; the layer shows whole. Its paint becomes the target.
+    Delete(LayerId),
 }
 
 /// Layer structure and properties.
@@ -106,7 +128,7 @@ pub enum GroupCommand {
 pub enum Change {
     /// Nothing; `Applied::artwork` is the same version as the input.
     None,
-    /// Only the active layer moved.
+    /// Only the active layer, or whether its mask is the target, moved.
     ActiveLayer,
     /// Layers, their properties or their strokes changed.
     Content,
@@ -138,6 +160,7 @@ impl Artwork {
         match command {
             ArtworkCommand::Layer(command) => layer_command::apply(self, command),
             ArtworkCommand::Group(command) => group_command::apply(self, command),
+            ArtworkCommand::Mask(command) => mask_command::apply(self, command),
         }
     }
 }

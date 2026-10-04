@@ -346,11 +346,12 @@ mod tests {
         let eight = upgrade_7_to_8(&[(id, seven.projects[0].1.clone())], &[]);
         let nine = upgrade_8_to_9(&[(id, eight.projects[0].1.clone())], None);
         let ten = crate::migrate_10::upgrade_9_to_10(&[(id, nine.projects[0].1.clone())]);
-        let head = decode_head(&ten.projects[0].1).expect("a schema-5 head, upgraded");
+        let eleven = crate::migrate_11::upgrade_10_to_11(&[(id, ten.projects[0].1.clone())]);
+        let head = decode_head(&eleven.projects[0].1).expect("a schema-5 head, upgraded");
         let layers: Vec<_> = head
             .layers
             .iter()
-            .map(|(layer, strokes, fills)| {
+            .map(|(layer, strokes, fills, _)| {
                 (
                     layer.name.as_str(),
                     layer.locked,

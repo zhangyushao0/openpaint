@@ -14,6 +14,8 @@ use crate::stroke::stroke_region;
 struct Tracked {
     base: Artwork,
     layer: LayerId,
+    /// On the layer's mask.
+    on_mask: bool,
     style: StrokeStyle,
     clip: Option<RegionMask>,
     samples: Vec<StrokeSample>,
@@ -105,6 +107,7 @@ impl ActiveTrack {
             _ => self.tracked.insert(Tracked {
                 base: artwork.clone(),
                 layer: active.layer(),
+                on_mask: active.on_mask(),
                 style: active.style().clone(),
                 clip: active.clip().cloned(),
                 samples: Vec::new(),
@@ -128,6 +131,7 @@ impl Tracked {
         let samples = active.samples();
         let grew_from_dot = self.samples.len() == 1 && samples.len() > 1;
         self.layer == active.layer()
+            && self.on_mask == active.on_mask()
             && self.style == *active.style()
             && self.clip.as_ref() == active.clip()
             && samples.starts_with(&self.samples)
@@ -142,7 +146,12 @@ impl Tracked {
         if artwork.same_version(&self.base) {
             return self.region;
         }
-        let stroke = artwork.layer(self.layer)?.strokes().last()?;
+        let layer = artwork.layer(self.layer)?;
+        let strokes = match layer.mask().filter(|_| self.on_mask) {
+            Some(mask) => mask.strokes(),
+            None => layer.strokes(),
+        };
+        let stroke = strokes.last()?;
         let samples = stroke.samples();
         let shared = samples
             .iter()

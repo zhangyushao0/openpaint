@@ -34,6 +34,8 @@ struct Run {
 /// The in-progress smudge: its stroke as far as it was walked, over the version it was drawn on.
 struct Active {
     layer: LayerId,
+    /// It smudges the layer's mask.
+    on_mask: bool,
     base: Artwork,
     style: StrokeStyle,
     samples: Vec<StrokeSample>,
@@ -184,6 +186,7 @@ impl Smudges {
             let size = [artwork.canvas().width(), artwork.canvas().height()];
             self.active = Some(Active {
                 layer: stroke.layer(),
+                on_mask: stroke.on_mask(),
                 base: artwork.clone(),
                 style: stroke.style().clone(),
                 samples: Vec::new(),
@@ -215,35 +218,45 @@ impl Active {
     /// True when `stroke` is this one with samples added, over the same version.
     fn continues(&self, artwork: &Artwork, stroke: &ActiveStroke) -> bool {
         self.layer == stroke.layer()
+            && self.on_mask == stroke.on_mask()
             && self.style == *stroke.style()
             && stroke.samples().starts_with(&self.samples)
             && self.base.same_version(artwork)
     }
 
-    /// True when `item` of `artwork` is this stroke committed onto the layer it was drawn on:
-    /// the layer's newest stroke, with everything before it as it was under the residual.
+    /// True when `item` of `artwork` is this stroke committed onto the layer (or mask) it was
+    /// drawn on: its newest stroke, with everything before it as it was under the residual.
     fn adopts(&self, item: &SmudgeItem, artwork: &Artwork) -> bool {
         let stroke = &item.stroke;
         if item.layer != self.layer
+            || item.on_mask != self.on_mask
             || !item.newest
             || *stroke.style() != self.style
             || !stroke.samples().starts_with(&self.samples)
         {
             return false;
         }
-        let (Some(old), Some(new)) = (self.base.layer(self.layer), artwork.layer(self.layer))
+        let content = |artwork: &'_ Artwork| {
+            let layer = artwork.layer(self.layer)?;
+            match (self.on_mask, layer.mask()) {
+                (false, _) => Some((layer.strokes().clone(), layer.edits().to_vec())),
+                (true, Some(mask)) => Some((mask.strokes().clone(), mask.edits().to_vec())),
+                (true, None) => None,
+            }
+        };
+        let (Some((old, old_edits)), Some((new, new_edits))) =
+            (content(&self.base), content(artwork))
         else {
             return false;
         };
-        let count = old.strokes().len();
-        let strokes = new.strokes().len() == count + 1
-            && old.strokes().last().is_none_or(|last| {
-                new.strokes()
-                    .get(count - 1)
+        let count = old.len();
+        let strokes = new.len() == count + 1
+            && old.last().is_none_or(|last| {
+                new.get(count - 1)
                     .is_some_and(|same| same.shares_samples(last))
             });
-        let edits = old.edits().len() == new.edits().len()
-            && old.edits().iter().zip(new.edits()).all(|(a, b)| a.same(b));
+        let edits = old_edits.len() == new_edits.len()
+            && old_edits.iter().zip(&new_edits).all(|(a, b)| a.same(b));
         strokes && edits
     }
 }

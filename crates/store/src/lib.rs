@@ -13,6 +13,7 @@ mod image_file;
 mod library;
 mod migrate;
 mod migrate_10;
+mod migrate_11;
 mod migrate_6;
 mod migrate_7;
 mod migrate_8;

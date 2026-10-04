@@ -6,6 +6,7 @@ use crate::error::CoreError;
 use crate::group::LayerGroup;
 use crate::id::{GroupId, IdCounters, LayerId};
 use crate::layer::Layer;
+use crate::mask::LayerMask;
 use crate::value::CanvasSize;
 
 /// Most layers one artwork may hold.
@@ -21,7 +22,18 @@ pub(crate) struct ArtworkState {
     pub(crate) groups: Vec<LayerGroup>,
     /// Always the id of one of `layers`.
     pub(crate) active: LayerId,
+    /// The active layer's mask is the target of strokes and fills; only while it has one and
+    /// it is enabled.
+    pub(crate) on_mask: bool,
     pub(crate) ids: IdCounters,
+}
+
+impl ArtworkState {
+    /// Makes `id` the active layer, its paint the target.
+    pub(crate) fn activate(&mut self, id: LayerId) {
+        self.active = id;
+        self.on_mask = false;
+    }
 }
 
 /// A painting as a value: clone is O(1), equal versions compare equal, and nothing mutates it.
@@ -43,6 +55,7 @@ impl Artwork {
             active: first.id,
             layers: vec![first],
             groups: Vec::new(),
+            on_mask: false,
             ids,
         })
     }
@@ -139,12 +152,16 @@ impl Artwork {
                 Some(same) if same.id == layer.id => Some(same),
                 _ => base.layer(layer.id),
             };
-            bytes += layer
-                .strokes
-                .bytes_since(before.map(|before| &before.strokes));
-            bytes += layer.edit_bytes_since(before);
+            bytes += layer.bytes_since(before);
         }
         bytes
+    }
+
+    /// Whether new strokes and fills go to the active layer's mask rather than its paint (S24).
+    /// Only ever true while the active layer has a mask.
+    #[must_use]
+    pub fn on_mask(&self) -> bool {
+        self.0.on_mask
     }
 
     pub(crate) fn from_state(state: ArtworkState) -> Self {
@@ -185,5 +202,20 @@ impl Artwork {
             return Err(CoreError::LayerLocked(id));
         }
         Ok(index)
+    }
+
+    /// The active layer's position and, when its mask is the target, that mask, provided what
+    /// new strokes and fills go to may change: `MaskOff` for a disabled mask.
+    pub(crate) fn target(&self) -> Result<(usize, Option<&LayerMask>), CoreError> {
+        let id = self.0.active;
+        let index = self.editable_layer(id)?;
+        let mask = self.0.layers[index]
+            .mask
+            .as_ref()
+            .filter(|_| self.0.on_mask);
+        if mask.is_some_and(|mask| !mask.enabled) {
+            return Err(CoreError::MaskOff(id));
+        }
+        Ok((index, mask))
     }
 }

@@ -101,13 +101,14 @@ mod tests {
         assert_eq!(upgrade.projects.len(), 1, "a foreign head stays");
         let (key, head) = &upgrade.projects[0];
         assert_eq!(key, &head_key(ProjectId::new(1)));
-        let head = decode_head(head).expect("a schema-10 head");
+        let head = crate::migrate_11::head_10_to_11(head).expect("a schema-10 head");
+        let head = decode_head(&head).expect("a schema-10 head, upgraded");
         assert_eq!((head.width, head.active, head.next_stroke_id), (64, 2, 9));
         assert!(head.groups.is_empty());
         let layers: Vec<_> = head
             .layers
             .iter()
-            .map(|(layer, strokes, edits)| {
+            .map(|(layer, strokes, edits, _)| {
                 let props = (layer.clipping, layer.blend, layer.group);
                 assert_eq!(props, (false, BlendMode::Normal, None));
                 (

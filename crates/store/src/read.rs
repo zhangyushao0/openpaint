@@ -2,7 +2,7 @@
 //! the gallery, and the small library values.
 
 use openpaint_app::{PortError, Project, ProjectId, ProjectSummary, Title};
-use openpaint_core::{Artwork, ArtworkParts};
+use openpaint_core::{Artwork, ArtworkParts, EditParts, StrokeParts};
 
 use crate::catalogue::{Entry, decode_entry, decode_thumbnail};
 use crate::editor::EDITOR;
@@ -10,7 +10,7 @@ use crate::fills::{decode_edit, fill_layer_prefix};
 use crate::library::{Open, device};
 use crate::records::{
     CLOCK, ENTRY, LAST, decode_head, decode_id, decode_stroke, entry_key, entry_project, head_key,
-    layer_prefix, stroke_index, thumbnail_key,
+    layer_prefix, mask_slot, stroke_index, thumbnail_key,
 };
 
 /// The project open when the app was left, if any.
@@ -38,15 +38,12 @@ pub(crate) fn project(open: &Open, id: ProjectId) -> Result<Project, PortError> 
         .ok_or(PortError::Missing(id))?;
     let head = decode_head(&head)?;
     let mut layers = Vec::with_capacity(head.layers.len());
-    for (mut layer, strokes, fills) in head.layers {
-        layer.strokes = read_records(open, layer_prefix(id, layer.id), strokes, "stroke records")?
-            .iter()
-            .map(|bytes| decode_stroke(bytes))
-            .collect::<Result<_, _>>()?;
-        layer.edits = read_records(open, fill_layer_prefix(id, layer.id), fills, "edit records")?
-            .iter()
-            .map(|bytes| decode_edit(bytes))
-            .collect::<Result<_, _>>()?;
+    for (mut layer, strokes, fills, [mask_strokes, mask_fills]) in head.layers {
+        (layer.strokes, layer.edits) = content(open, id, layer.id, [strokes, fills])?;
+        if let Some(mask) = layer.mask.as_mut() {
+            let slot = mask_slot(layer.id);
+            (mask.strokes, mask.edits) = content(open, id, slot, [mask_strokes, mask_fills])?;
+        }
         layers.push(layer);
     }
     let artwork = Artwork::from_storage(ArtworkParts {
@@ -55,6 +52,7 @@ pub(crate) fn project(open: &Open, id: ProjectId) -> Result<Project, PortError> 
         layers,
         groups: head.groups,
         active: head.active,
+        on_mask: head.on_mask,
         next_layer_id: head.next_layer_id,
         next_stroke_id: head.next_stroke_id,
     })?;
@@ -68,6 +66,25 @@ pub(crate) fn project(open: &Open, id: ProjectId) -> Result<Project, PortError> 
     );
     log::info!("project {} opened", id.get());
     Ok(Project { id, title, artwork })
+}
+
+/// The `strokes` stroke records and `edits` edit records stored under `slot` (a layer's id or
+/// its mask's, `mask_slot`).
+fn content(
+    open: &Open,
+    id: ProjectId,
+    slot: u64,
+    [strokes, edits]: [usize; 2],
+) -> Result<(Vec<StrokeParts>, Vec<EditParts>), PortError> {
+    let strokes = read_records(open, layer_prefix(id, slot), strokes, "stroke records")?
+        .iter()
+        .map(|bytes| decode_stroke(bytes))
+        .collect::<Result<_, _>>()?;
+    let edits = read_records(open, fill_layer_prefix(id, slot), edits, "edit records")?
+        .iter()
+        .map(|bytes| decode_edit(bytes))
+        .collect::<Result<_, _>>()?;
+    Ok((strokes, edits))
 }
 
 /// The values of the `count` records under one layer's `prefix` (its strokes or its fills),

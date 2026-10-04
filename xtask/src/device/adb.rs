@@ -34,6 +34,8 @@ pub enum DeviceError {
     Panic(Vec<String>),
     /// The gesture instrumentation did not inject the gesture.
     Injection(String),
+    /// The app's process (these pids) was still running after a force-stop.
+    StillRunning(String),
     /// The command line asks for something else.
     Usage(&'static str),
 }
@@ -59,6 +61,9 @@ impl fmt::Display for DeviceError {
                 lines.iter().try_for_each(|line| write!(f, "\n  {line}"))
             }
             Self::Injection(output) => write!(f, "the gesture was not injected: {output}"),
+            Self::StillRunning(pids) => {
+                write!(f, "{PACKAGE} still runs (pid {pids}) after am force-stop")
+            }
             Self::Usage(usage) => write!(f, "usage: {usage}"),
         }
     }

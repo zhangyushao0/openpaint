@@ -18,7 +18,12 @@ pub(crate) fn availability(
     let grouped = artwork
         .layer(layer)
         .is_some_and(|layer| layer.props().group().is_some());
+    let unlocked = artwork.layer(layer).filter(|layer| !layer.props().locked());
+    let mask = unlocked.and_then(|layer| layer.mask());
     let possible = match action {
+        EditorAction::AddMask => unlocked.is_some() && mask.is_none(),
+        EditorAction::EditMask => mask.is_some(),
+        EditorAction::ChangeMask => mask.is_some_and(|mask| mask.enabled()),
         EditorAction::AddLayer => count < MAX_LAYERS,
         EditorAction::DeleteLayer => count > 1 && position.is_some(),
         EditorAction::RaiseLayer => position.is_some_and(|at| at + 1 < count || grouped),

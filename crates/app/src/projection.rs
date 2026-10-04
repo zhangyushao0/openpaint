@@ -31,6 +31,12 @@ pub enum EditorAction {
     EditLayer,
     /// Group the layer with the one under it.
     GroupLayer,
+    /// Give the layer a mask (it has none).
+    AddMask,
+    /// Turn the layer's mask on or off, or delete it.
+    EditMask,
+    /// Paint on, invert or clear the layer's mask (it is on).
+    ChangeMask,
     /// Leave the canvas for the gallery, or act in the gallery.
     Gallery,
     /// Export the artwork to a file or another app.
@@ -82,8 +88,8 @@ pub struct SessionProjection {
     pub(crate) redo: Availability,
     pub(crate) retry_save: Availability,
     pub(crate) dismiss_notice: Availability,
-    /// Add, delete, raise, lower, edit and group, for the active layer.
-    pub(crate) layer_actions: [Availability; 6],
+    /// Add, delete, raise, lower, edit, group and the mask's three, for the active layer.
+    pub(crate) layer_actions: [Availability; 9],
     pub(crate) gallery: Availability,
     pub(crate) storage: StorageNotice,
     pub(crate) layers: Option<LayerList>,
@@ -111,13 +117,16 @@ pub enum ScreenProjection {
 }
 
 /// The layer actions in the order of `SessionProjection::layer_actions`.
-pub(crate) const LAYER_ACTIONS: [EditorAction; 6] = [
+pub(crate) const LAYER_ACTIONS: [EditorAction; 9] = [
     EditorAction::AddLayer,
     EditorAction::DeleteLayer,
     EditorAction::RaiseLayer,
     EditorAction::LowerLayer,
     EditorAction::EditLayer,
     EditorAction::GroupLayer,
+    EditorAction::AddMask,
+    EditorAction::EditMask,
+    EditorAction::ChangeMask,
 ];
 
 impl SessionProjection {
@@ -138,6 +147,9 @@ impl SessionProjection {
             EditorAction::LowerLayer => self.layer_actions[3],
             EditorAction::EditLayer => self.layer_actions[4],
             EditorAction::GroupLayer => self.layer_actions[5],
+            EditorAction::AddMask => self.layer_actions[6],
+            EditorAction::EditMask => self.layer_actions[7],
+            EditorAction::ChangeMask => self.layer_actions[8],
             EditorAction::Gallery => self.gallery,
             EditorAction::Fill | EditorAction::Transform => {
                 if self.canvas.is_none() {
@@ -237,7 +249,7 @@ impl Default for SessionProjection {
             redo: Availability::NothingLeft,
             retry_save: Availability::NothingLeft,
             dismiss_notice: Availability::NothingLeft,
-            layer_actions: [Availability::NothingLeft; 6],
+            layer_actions: [Availability::NothingLeft; 9],
             gallery: Availability::NothingLeft,
             storage: StorageNotice::None,
             layers: None,
@@ -272,6 +284,9 @@ impl fmt::Display for EditorAction {
             Self::LowerLayer => "move the layer down",
             Self::EditLayer => "change the layer",
             Self::GroupLayer => "group the layer",
+            Self::AddMask => "add a mask",
+            Self::EditMask => "change the mask",
+            Self::ChangeMask => "paint on the mask",
             Self::Gallery => "use the gallery",
             Self::Export => "export the artwork",
             Self::ChooseReference => "choose a reference image",

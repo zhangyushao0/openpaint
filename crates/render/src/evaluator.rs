@@ -204,11 +204,13 @@ impl<'a> RegionEvaluator<'a> {
 
     /// Evaluates `layer` of `artwork` alone over the whole target, at full opacity, on nothing
     /// (transparent black), whether the layer is shown or not: premultiplied layer pixels for a
-    /// fill to sample. The target then holds no frame of the artwork.
+    /// fill to sample. With `mask`, its mask alone on white: the mask's grey, opaque. The
+    /// target then holds no frame of the artwork.
     pub(crate) fn evaluate_layer(
         &mut self,
         artwork: &Artwork,
         layer: LayerId,
+        mask: bool,
     ) -> Result<(), RenderError> {
         let size = self.target.size();
         let canvas = artwork.canvas();
@@ -217,7 +219,7 @@ impl<'a> RegionEvaluator<'a> {
                 "the target's size differs from the canvas size",
             ));
         }
-        let scene = Scene::layer(artwork, layer)?;
+        let scene = Scene::layer(artwork, layer, mask)?;
         let ops = scene_ops(&self.core.gpu, &scene, None);
         let plan = Plan::build(&scene, &Fresh::default(), size, &[PixelRect::full(size)]);
         self.target.scene = None;
@@ -232,7 +234,7 @@ impl<'a> RegionEvaluator<'a> {
                 ops: &ops,
                 fresh: &[],
                 plan: &plan,
-                background: [0.0; 4],
+                background: if mask { [1.0; 4] } else { [0.0; 4] },
                 reset: false,
                 residuals: smudges.residuals(),
             },

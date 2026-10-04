@@ -26,9 +26,17 @@ pub struct ActiveStroke {
     samples: Vec<StrokeSample>,
     /// The selection the stroke is drawn inside.
     clip: Option<RegionMask>,
+    /// It lands on the layer's mask, not its paint.
+    on_mask: bool,
 }
 
 impl ActiveStroke {
+    /// Whether the stroke lands on its layer's mask (its style then paints the mask's grey).
+    #[must_use]
+    pub const fn on_mask(&self) -> bool {
+        self.on_mask
+    }
+
     /// The selection the stroke is drawn inside, if any.
     #[must_use]
     pub const fn clip(&self) -> Option<&RegionMask> {
@@ -69,19 +77,25 @@ pub struct StrokeSession {
 impl Artwork {
     /// Starts a stroke on the active layer with its first sample. A paint stroke on a layer
     /// with Alpha Lock on paints only over the layer's paint, for its whole life; a smudge
-    /// there moves colour and keeps the layer's alpha.
+    /// there moves colour and keeps the layer's alpha. When the layer's mask is the target the
+    /// stroke lands there instead: the brush lays its colour's grey, the eraser white, the
+    /// smudge moves the mask's grey (`LayerMask::style`); Alpha Lock does not apply.
     ///
     /// # Errors
-    /// `LayerLocked` when the active layer is locked; `AlphaLocked` for the eraser on a layer
-    /// whose alpha is locked (it could take nothing away).
+    /// `LayerLocked` when the active layer is locked; `MaskOff` when its mask is the target
+    /// and disabled; `AlphaLocked` for the eraser on a layer whose alpha is locked (it could
+    /// take nothing away).
     pub fn begin_stroke(
         &self,
         style: StrokeStyle,
         first: StrokeSample,
     ) -> Result<StrokeSession, CoreError> {
         let layer = self.active();
-        let index = self.editable_layer(layer)?;
-        let alpha_locked = self.state().layers[index].props.alpha_locked;
+        let (index, mask) = self.target()?;
+        let (style, alpha_locked) = match mask {
+            Some(mask) => (mask.style(style), false),
+            None => (style, self.state().layers[index].props.alpha_locked),
+        };
         if alpha_locked && style.tool() == StrokeTool::Erase {
             return Err(CoreError::AlphaLocked(layer));
         }
@@ -94,6 +108,7 @@ impl Artwork {
                 alpha_locked,
                 samples: vec![first],
                 clip: None,
+                on_mask: mask.is_some(),
             },
         })
     }
@@ -170,7 +185,10 @@ impl StrokeSession {
         let samples = Arc::from(active.samples);
         let stroke = Stroke::new(id, active.style, active.alpha_locked, samples, active.clip);
         let layer = &mut next.layers[active.index];
-        layer.strokes = layer.strokes.pushed(stroke);
+        match layer.mask.as_mut().filter(|_| active.on_mask) {
+            Some(mask) => mask.strokes = mask.strokes.pushed(stroke),
+            None => layer.strokes = layer.strokes.pushed(stroke),
+        }
         Applied {
             artwork: Artwork::from_state(next),
             change: Change::Content,

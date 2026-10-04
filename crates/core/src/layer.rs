@@ -5,6 +5,7 @@ use std::sync::Arc;
 use crate::blend::BlendMode;
 use crate::error::CoreError;
 use crate::id::{GroupId, LayerId};
+use crate::mask::LayerMask;
 use crate::region::RegionEdit;
 use crate::stroke_list::StrokeList;
 use crate::value::{LayerName, invalid, is_unit};
@@ -99,6 +100,19 @@ impl Default for LayerProps {
     }
 }
 
+/// Heap bytes of `edits` that `base` (the same list in an older version) does not share.
+fn edit_bytes_since(edits: &Arc<[RegionEdit]>, base: Option<&Arc<[RegionEdit]>>) -> usize {
+    if base.is_some_and(|base| Arc::ptr_eq(edits, base)) {
+        return 0;
+    }
+    let old = base.map_or(&[][..], |base| &base[..]);
+    let mut bytes = size_of_val::<[RegionEdit]>(edits);
+    for (index, edit) in edits.iter().enumerate() {
+        bytes += edit.bytes_since(old.get(index));
+    }
+    bytes
+}
+
 pub(crate) fn check_opacity(opacity: f32) -> Result<f32, CoreError> {
     if is_unit(opacity) {
         Ok(opacity)
@@ -117,10 +131,11 @@ pub struct Layer {
     pub(crate) strokes: StrokeList,
     /// Oldest first; each lies after its `after` strokes, so `after` never decreases.
     pub(crate) edits: Arc<[RegionEdit]>,
+    pub(crate) mask: Option<LayerMask>,
 }
 
 impl Layer {
-    /// An empty layer with default properties.
+    /// An empty layer with default properties and no mask.
     pub(crate) fn empty(id: LayerId) -> Self {
         Self {
             id,
@@ -128,7 +143,14 @@ impl Layer {
             props: LayerProps::default(),
             strokes: StrokeList::default(),
             edits: Arc::from([]),
+            mask: None,
         }
+    }
+
+    /// The layer's mask, if it has one (S24).
+    #[must_use]
+    pub const fn mask(&self) -> Option<&LayerMask> {
+        self.mask.as_ref()
     }
 
     /// The fills and transforms, oldest first. Drawing order: the edits with `after` 0, stroke
@@ -138,15 +160,15 @@ impl Layer {
         &self.edits
     }
 
-    /// Heap bytes of the edits that `base` (the same layer in an older version) does not share.
-    pub(crate) fn edit_bytes_since(&self, base: Option<&Self>) -> usize {
-        let old = base.map_or(&[][..], |base| &base.edits[..]);
-        if base.is_some_and(|base| Arc::ptr_eq(&self.edits, &base.edits)) {
-            return 0;
-        }
-        let mut bytes = size_of_val::<[RegionEdit]>(&self.edits);
-        for (index, edit) in self.edits.iter().enumerate() {
-            bytes += edit.bytes_since(old.get(index));
+    /// Heap bytes of the strokes and edits, its mask's included, that `base` (the same layer in
+    /// an older version) does not share.
+    pub(crate) fn bytes_since(&self, base: Option<&Self>) -> usize {
+        let mut bytes = self.strokes.bytes_since(base.map(|base| &base.strokes))
+            + edit_bytes_since(&self.edits, base.map(|base| &base.edits));
+        if let Some(mask) = &self.mask {
+            let old = base.and_then(|base| base.mask.as_ref());
+            bytes += mask.strokes.bytes_since(old.map(|old| &old.strokes))
+                + edit_bytes_since(&mask.edits, old.map(|old| &old.edits));
         }
         bytes
     }

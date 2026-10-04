@@ -148,6 +148,11 @@ fn opcode_constants_match_the_enum() {
     for (name, into) in layers::INTOS {
         assert_eq!(value(name), into as u32, "{name}");
     }
+    for (name, masking) in layers::MASKINGS {
+        assert_eq!(value(name), masking as u32, "{name}");
+    }
+    let masked = Op::end_layer(1.0).masked(Masking::Inverted);
+    assert_eq!(masked.data[..5], [1.0, 0.0, 0.0, 0.0, 2.0], "the mask last");
     let end = Op::end_layer_into(0.5, LayerInto::Clipped, layers::Mode::Overlay, true);
     assert_eq!(
         end.data[..4],

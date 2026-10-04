@@ -16,6 +16,8 @@ mod id;
 mod layer;
 mod layer_command;
 mod layer_moves;
+mod mask;
+mod mask_command;
 mod mask_ops;
 mod parts;
 mod region;
@@ -31,7 +33,7 @@ pub use blend::BlendMode;
 pub use brush::{
     BrushRecipe, Curve, Dynamics, Grain, MAX_CURVE_POINTS, MAX_GRAIN_SCALE, MAX_SPEED,
 };
-pub use command::{Applied, ArtworkCommand, Change, GroupCommand, LayerCommand};
+pub use command::{Applied, ArtworkCommand, Change, GroupCommand, LayerCommand, MaskCommand};
 pub use deposit::{
     Accumulation, Deposit, MAX_FLOW, MAX_PAPER_DEPTH, PAPER_SCALES, Paper, PaperTexture, Tip,
 };
@@ -39,9 +41,10 @@ pub use error::CoreError;
 pub use group::LayerGroup;
 pub use id::{GroupId, LayerId, MAX_ID, StrokeId};
 pub use layer::{Layer, LayerProps};
+pub use mask::{LayerMask, grey_of};
 pub use parts::{
-    AccumulationParts, ArtworkParts, EditParts, FillParts, GroupParts, LayerParts, MaskParts,
-    PaperParts, RecipeParts, SampleParts, StrokeParts, TransformParts,
+    AccumulationParts, ArtworkParts, EditParts, FillParts, GroupParts, LayerMaskParts, LayerParts,
+    MaskParts, PaperParts, RecipeParts, SampleParts, StrokeParts, TransformParts,
 };
 pub use region::{FillEdit, RegionEdit, RegionMask};
 pub use session::{ActiveStroke, StrokeSession};

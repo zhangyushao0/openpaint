@@ -6,14 +6,13 @@ use std::ops::Range;
 
 use openpaint_core::{
     ActiveStroke, Artwork, Layer, LayerGroup, LayerId, Patch, RegionMask, Stroke, StrokeBlend,
-    StrokeSample, StrokeStyle, StrokeTool,
+    StrokeTool,
 };
 
-use crate::edits::restart;
 use crate::error::RenderError;
 use crate::geom::Bounds;
-use crate::protocol::{LayerInto, MASK_HEADER, Op, Paint};
-use crate::smudge::smudge_reach;
+use crate::protocol::{LayerInto, MASK_HEADER, Op};
+use crate::scene_layer::{LayerOps, smudge_count};
 use crate::stroke::{paint, segments};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -43,6 +42,8 @@ pub(crate) enum Item {
     },
     /// A group's end.
     EndGroup(Op),
+    /// A masked layer's paint is set aside; its mask's ops follow (S24).
+    BeginMask(Op),
     /// Where the in-progress stroke draws: above its layer's finished strokes. Its ops are the
     /// evaluation's `Fresh` ops, which change every frame while the scene stays.
     Active,
@@ -62,6 +63,7 @@ impl Item {
             | Self::EndLayer { op, .. }
             | Self::EndChain { op, .. }
             | Self::EndGroup(op)
+            | Self::BeginMask(op)
             | Self::Smudge(op) => *op,
             Self::Active | Self::Reach(_) => Op::unused(),
         }
@@ -73,6 +75,8 @@ impl Item {
 #[derive(Debug, Clone)]
 pub(crate) struct SmudgeItem {
     pub(crate) layer: LayerId,
+    /// It smudges the layer's mask, not its paint.
+    pub(crate) on_mask: bool,
     pub(crate) stroke: Stroke,
     /// The items of its layer before it: the pixels it carries.
     pub(crate) before: Range<usize>,
@@ -104,10 +108,12 @@ pub(crate) struct Scene {
     pub(crate) active_before: Option<Range<usize>>,
 }
 
-/// Where the in-progress stroke draws: its layer, and the selection it is drawn inside.
+/// Where the in-progress stroke draws: its layer (its paint or its mask), and the selection it
+/// is drawn inside.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct ActivePlace {
     pub(crate) layer: LayerId,
+    pub(crate) on_mask: bool,
     pub(crate) clip: Option<RegionMask>,
 }
 
@@ -115,6 +121,7 @@ impl ActivePlace {
     pub(crate) fn of(active: &ActiveStroke) -> Self {
         Self {
             layer: active.layer(),
+            on_mask: active.on_mask(),
             clip: active.clip().cloned(),
         }
     }
@@ -140,8 +147,9 @@ impl Scene {
         let mut scene = Self::default();
         let layers = artwork.layers();
         let drawn = drawn(artwork);
+        let ops = shown_ops;
         let shown = layers.iter().zip(&drawn).filter(|(_, drawn)| **drawn);
-        scene.reserve_bases(shown.map(|(layer, _)| smudge_count(layer)).sum());
+        scene.reserve_bases(shown.map(|(layer, _)| smudge_count(&ops(layer))).sum());
         let mut base = 0;
         for (index, layer) in layers.iter().enumerate() {
             let (props, clipped) = (layer.props(), artwork.clips_at(index));
@@ -164,7 +172,7 @@ impl Scene {
                     chain: chained,
                     grouped,
                 };
-                scene.push_layer(layer, place.is_some(), end)?;
+                scene.push_layer(&ops(layer), place.map(|place| place.on_mask), end)?;
             }
             if chained && !artwork.clips_at(index + 1) && drawn[base] {
                 let base = layers[base].props();
@@ -184,20 +192,39 @@ impl Scene {
         Ok(scene)
     }
 
-    /// `layer` of `artwork` alone, at full opacity, whether it is shown or not: what a fill
-    /// samples.
-    pub(crate) fn layer(artwork: &Artwork, layer: LayerId) -> Result<Self, RenderError> {
+    /// `layer` of `artwork` alone, its paint at full opacity without its mask, whether it is
+    /// shown or not: what a fill samples and a transform lifts. With `mask`, its mask's
+    /// strokes and fills alone instead, which over white show its grey (not inverted): what a
+    /// fill on the mask samples.
+    pub(crate) fn layer(
+        artwork: &Artwork,
+        layer: LayerId,
+        mask: bool,
+    ) -> Result<Self, RenderError> {
         let layer = artwork
             .layer(layer)
             .ok_or(RenderError::Invalid("the layer is not in the artwork"))?;
         let mut scene = Self::default();
-        scene.reserve_bases(smudge_count(layer));
         let end = Item::EndLayer {
             op: Op::end_layer(1.0),
             chain: false,
             grouped: false,
         };
-        scene.push_layer(layer, false, end)?;
+        match layer.mask().filter(|_| mask) {
+            Some(mask) => {
+                scene.reserve_bases(smudge_count(&LayerOps::of(layer, Some(mask))));
+                let content = (mask.strokes(), mask.edits());
+                scene.push_content(layer.id(), content, 0, false, true)?;
+                if !scene.items.is_empty() {
+                    scene.items.push(end);
+                }
+            }
+            None => {
+                let ops = LayerOps::of(layer, None);
+                scene.reserve_bases(smudge_count(&ops));
+                scene.push_layer(&ops, None, end)?;
+            }
+        }
         Ok(scene)
     }
 
@@ -205,46 +232,6 @@ impl Scene {
     fn reserve_bases(&mut self, count: usize) {
         self.bases_at = 0;
         self.masks.resize(count, 0);
-    }
-
-    /// A transform of the whole layer clears everything before it, so the layer's ops start at
-    /// the last one (`restart`): the same pixels, and earlier patches stay off the GPU. `end`
-    /// closes the layer when it has any op.
-    fn push_layer(&mut self, layer: &Layer, active: bool, end: Item) -> Result<(), RenderError> {
-        let start = self.items.len();
-        let (first, after) = restart(layer);
-        let mut edits = layer.edits()[first..].iter().peekable();
-        let newest = layer.strokes().len().checked_sub(1);
-        for (index, stroke) in layer.strokes().iter().enumerate().skip(after) {
-            while let Some(edit) = edits.next_if(|edit| edit.after() == index) {
-                self.push_edit(edit)?;
-            }
-            let clip = stroke.clip().map(|clip| self.clip(clip)).transpose()?;
-            if stroke.style().tool() == StrokeTool::Smudge {
-                let item = SmudgeItem {
-                    layer: layer.id(),
-                    stroke: stroke.clone(),
-                    before: start..self.items.len(),
-                    newest: newest == Some(index),
-                };
-                self.push_smudge(item, clip.unwrap_or(0));
-                continue;
-            }
-            let mut paint = paint(stroke.style(), stroke.blend());
-            paint.clip = clip.unwrap_or(0);
-            self.push_stroke(stroke.style(), &paint, stroke.samples());
-        }
-        for edit in edits {
-            self.push_edit(edit)?;
-        }
-        if active {
-            self.active_before = Some(start..self.items.len());
-            self.items.push(Item::Active);
-        }
-        if self.items.len() > start {
-            self.items.push(end);
-        }
-        Ok(())
     }
 
     /// Appends `mask` to the mask words; returns where it starts.
@@ -263,7 +250,7 @@ impl Scene {
 
     /// The paint op value of the clip `mask`: one more than where its words start, shared with
     /// the clip pushed last when that is the same mask.
-    fn clip(&mut self, mask: &RegionMask) -> Result<u32, RenderError> {
+    pub(crate) fn clip(&mut self, mask: &RegionMask) -> Result<u32, RenderError> {
         if let Some((last, value)) = &self.last_clip
             && last.shares(mask)
         {
@@ -278,30 +265,11 @@ impl Scene {
     pub(crate) fn has_active(&self) -> bool {
         self.items.contains(&Item::Active)
     }
+}
 
-    fn push_stroke(&mut self, style: &StrokeStyle, paint: &Paint, samples: &[StrokeSample]) {
-        for segment in segments(style, samples, 0) {
-            self.items.push(Item::Segment {
-                op: segment.op(),
-                bounds: segment.bounds(),
-            });
-        }
-        self.items.push(Item::EndStroke(Op::end_stroke(paint)));
-    }
-
-    /// A finished smudge: its reach, then its op, which finds its residual's base in the mask
-    /// word of its place among the scene's smudges.
-    fn push_smudge(&mut self, item: SmudgeItem, clip: u32) {
-        let stroke = &item.stroke;
-        for bounds in smudge_reach(stroke.style(), stroke.samples(), 0) {
-            self.items.push(Item::Reach(bounds));
-        }
-        let locked = stroke.blend() == StrokeBlend::SmudgeLocked;
-        let at = self.bases_at + self.smudges.len() as u32;
-        self.items
-            .push(Item::Smudge(Op::smudge(Some(at), clip, locked)));
-        self.smudges.push(item);
-    }
+/// What a shown layer draws: its paint, and its mask while that is enabled.
+fn shown_ops(layer: &Layer) -> LayerOps<'_> {
+    LayerOps::of(layer, layer.mask().filter(|mask| mask.enabled()))
 }
 
 /// Per layer bottom to top, whether it shows: its eye and its group's are open, and a layer
@@ -320,16 +288,6 @@ fn drawn(artwork: &Artwork) -> Vec<bool> {
         }
     }
     drawn
-}
-
-/// How many smudges of `layer` a scene draws: those after a transform of the whole layer.
-fn smudge_count(layer: &Layer) -> usize {
-    let (_, after) = restart(layer);
-    layer
-        .strokes()
-        .since(after)
-        .filter(|stroke| stroke.style().tool() == StrokeTool::Smudge)
-        .count()
 }
 
 /// The in-progress stroke's ops for one evaluation: `ops[0]` paints it (`EndActive`), the rest

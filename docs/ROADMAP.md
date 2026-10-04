@@ -39,9 +39,7 @@ Passed 2026-10-03: S9 to S17 and the G2 follow-ups done (see "Done"); the author
 
 Exit: the author finishes painterly shading (W2) and a complex composition revision (W3) on the tablet.
 
-S18 to S23 are done (see "Done"); S21's 60 Hz holds up to about 340 px and fails at the largest sizes, an author decision (STATUS). Next: S24.
-
-**S24 Layer masks** (core, app, ui, render, store): add, disable, invert, clear and delete masks with undo; painting on masks. Done: GPU tests for masks combined with opacity, clipping and groups.
+S18 to S24 are done (see "Done"); S21's 60 Hz holds up to about 340 px and fails at the largest sizes, an author decision (STATUS). The G3 exit (W2, W3) awaits the author on the tablet.
 
 ## G4 Colour, adjustments, exchange
 
@@ -80,6 +78,7 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - 2026-10-03 Motion follow-ups (S19): the chrome pass and egui's motion bookkeeping add about 1 ms of frame work while idle on the tablet (G5); rows crossing on a reorder overlap their text; a rotated canvas shrinks into its card upright; finger injection on the tablet was refused system-wide this session (pen worked), so the quick-pinch glide is checked in the harness only.
 - 2026-10-03 Transform follow-ups (S20): Freeform, Distort and Warp; angle snapping while turning (draweave had only the 45° button); Fit to screen; mipmapped or bicubic resampling for strong shrinking; the moved selection kept selected instead of deselecting; lifting on a worker instead of the main thread (a full-canvas lift waits for one GPU readback); a transform still open when the app is left is not saved (commit it on leave); a whole-layer patch per transform in history (64 MiB budget).
 - 2026-10-03 Smudge follow-ups (S21): large smudges are slow (600 px: frame work p50 21 to 28 ms; the contacts' kernels grow with the radius squared, and the footprint is evaluated again over everything beneath, as for a large paint brush); a coarser residual grid for large radii, fused stamp and commit, or a size cap are the levers (author's call, STATUS). Reopening evaluates every smudge cold; residual memory (20 bytes per pixel of its tiles) is never trimmed below the arena's live blocks; a smudge reads only its own layer (Procreate can sample all layers).
+- 2026-10-04 Mask follow-ups (S24): move a mask with its layer's whole-layer transform (Procreate links them) and transform a mask on its own; masks on groups; apply a mask into its layer (with merging); a mask thumbnail on its row; a grey-only colour panel while a mask is chosen (Procreate) instead of the colour's luma; swipe a mask row to delete.
 - 2026-10-02 Pen stroke cancelled by a landing touch: with injected input the dispatcher cancels the pen's gesture when a touch lands mid-stroke and the stroke is dropped; if real hardware does the same, commit the stroke drawn so far on such a cancel.
 
 ## Done
@@ -112,3 +111,4 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - S21 2026-10-03 `feat(render): smudge as a residual evaluated in layer order, in progress equal to cold, schema 9 (S21)`; walk-through confirmed on the tablet; 60 Hz `pass` up to about 340 px, `fail` at 600 px
 - S22 2026-10-04 `chore(devtools): named scenario targets and device commands (S22)`; every scenario on names with its old hashes; one device routine through the commands alone, library byte-identical after restore
 - S23 2026-10-04 `feat(render): groups, clipping masks and blend modes, schema 10 (S23)`; GPU tests per formula against hand-worked values, chains, pass-through group opacity, incremental = cold (D49, D50)
+- S24 2026-10-04 `feat(render): layer masks painted in grey, applied before the layer's end, schema 11 (S24)`; GPU tests for masks with opacity, clipping chains, faded groups, off and inverted, incremental = cold (D51); confirmed on the tablet; the G3 exit awaits the author

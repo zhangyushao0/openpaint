@@ -110,6 +110,16 @@ impl Color {
         }
     }
 
+    /// Grey `level` in each channel, clamped to `0..=1`.
+    pub(crate) fn neutral(level: f32) -> Self {
+        let level = level.clamp(0.0, 1.0);
+        Self {
+            r: level,
+            g: level,
+            b: level,
+        }
+    }
+
     #[must_use]
     pub const fn r(self) -> f32 {
         self.r

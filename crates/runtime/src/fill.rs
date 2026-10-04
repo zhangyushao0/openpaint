@@ -105,8 +105,13 @@ fn fill(core: &Core, source: &mut Option<Source>, job: &FillJob) -> Result<Regio
         .is_some_and(|s| s.artwork.same_version(&job.artwork) && s.layer == job.layer);
     if !kept {
         *source = None;
-        let pixels = core
-            .layer_pixels(&job.artwork, job.layer)
+        // On a mask the flood runs over its grey (the version tells the two apart).
+        let pixels = if job.mask {
+            core.mask_pixels(&job.artwork, job.layer)
+        } else {
+            core.layer_pixels(&job.artwork, job.layer)
+        };
+        let pixels = pixels
             .inspect_err(|error| log::error!("sampling the layer for a fill failed: {error}"))
             .map_err(|_| FillFailed)?;
         *source = Some(Source {

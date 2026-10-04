@@ -63,7 +63,7 @@ impl LayerPanel {
         let rect = popover(ctx, "layers", (opener, self.open), |ui| {
             header(ui, projection, taps);
             let grouped = list.active_row().is_some_and(|row| row.group.is_some());
-            let kept = (KEPT_ROWS + footer_rows(grouped)) * TOUCH_TARGET;
+            let kept = (KEPT_ROWS + footer_rows(grouped, list.on_mask)) * TOUCH_TARGET;
             let room = ui.ctx().content_rect().height() - kept;
             let enabled = projection
                 .availability(EditorAction::EditLayer)

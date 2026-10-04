@@ -64,13 +64,16 @@ struct Request {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FillFailed;
 
-/// One fill for the worker: flood `layer` of `artwork` from `point` at `threshold`. While one
-/// fill is adjusted its jobs name the same version and layer, so the worker samples it once.
+/// One fill for the worker: flood `layer` of `artwork` (its mask's grey with `mask`) from
+/// `point` at `threshold`. While one fill is adjusted its jobs name the same version and layer,
+/// so the worker samples it once.
 #[derive(Debug, Clone)]
 pub struct FillJob {
     pub sequence: u64,
     pub artwork: Artwork,
     pub layer: LayerId,
+    /// The layer's mask is the target: the flood runs over the mask, not the paint.
+    pub mask: bool,
     pub point: [u32; 2],
     pub threshold: f32,
 }
@@ -252,6 +255,7 @@ impl Fills {
             sequence: draft.sequence,
             artwork: draft.base.clone(),
             layer: draft.layer,
+            mask: draft.base.on_mask(),
             point: draft.point,
             threshold: draft.threshold,
         })

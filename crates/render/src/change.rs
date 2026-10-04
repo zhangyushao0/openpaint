@@ -35,6 +35,19 @@ pub fn changed_regions(before: &Artwork, after: &Artwork) -> Vec<PixelRect> {
             None => return full,
         }
         regions.extend(edit_regions(canvas, old.edits(), new.edits()));
+        match (old.mask(), new.mask()) {
+            (None, None) => {}
+            // Strokes and fills on a mask count as a layer's; a mask added, deleted, enabled,
+            // disabled or inverted changes the whole layer.
+            (Some(a), Some(b)) if (a.enabled(), a.inverted()) == (b.enabled(), b.inverted()) => {
+                match tail_regions(a.strokes(), b.strokes()) {
+                    Some(tail) => regions.extend(tail),
+                    None => return full,
+                }
+                regions.extend(edit_regions(canvas, a.edits(), b.edits()));
+            }
+            _ => return full,
+        }
     }
     regions
 }

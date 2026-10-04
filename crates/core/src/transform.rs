@@ -265,8 +265,8 @@ impl Artwork {
     /// `None`) and draws `patch`, the pixels lifted from it, through `placement`.
     ///
     /// # Errors
-    /// `LayerLocked` when the active layer is locked; `InvalidValue` when the lift or the patch
-    /// leaves the canvas.
+    /// `LayerLocked` when the active layer is locked; `OnMask` when its mask is the target (a
+    /// mask does not move); `InvalidValue` when the lift or the patch leaves the canvas.
     pub fn transform_region(
         &self,
         lift: Option<RegionMask>,
@@ -274,6 +274,9 @@ impl Artwork {
         placement: Placement,
     ) -> Result<Applied, CoreError> {
         let index = self.editable_layer(self.active())?;
+        if self.on_mask() {
+            return Err(CoreError::OnMask(self.active()));
+        }
         let after = self.state().layers[index].strokes.len();
         let edit = transform_from(self.canvas(), after, lift, patch, placement)?;
         let artwork = push_edit(self, index, RegionEdit::Transform(edit));

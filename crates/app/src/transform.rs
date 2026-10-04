@@ -49,6 +49,8 @@ pub enum TransformRefusal {
     Empty,
     /// Sampling the layer failed.
     Failed,
+    /// The layer's mask is the target; a mask does not move.
+    Mask,
 }
 
 impl fmt::Display for TransformRefusal {
@@ -56,6 +58,7 @@ impl fmt::Display for TransformRefusal {
         f.write_str(match self {
             Self::Hidden => "the layer is hidden",
             Self::Locked => "the layer is locked",
+            Self::Mask => "a mask cannot be transformed",
             Self::Empty => "nothing to transform",
             Self::Failed => "the layer could not be sampled",
         })
@@ -154,6 +157,7 @@ impl Transforms {
             // Hidden by its own eye or its group's (draweave cc51b74).
             Some(_) if !artwork.shown(artwork.active()) => Some(TransformRefusal::Hidden),
             Some(props) if props.locked() => Some(TransformRefusal::Locked),
+            _ if artwork.on_mask() => Some(TransformRefusal::Mask),
             _ => None,
         };
         if let Some(refusal) = self.refused {

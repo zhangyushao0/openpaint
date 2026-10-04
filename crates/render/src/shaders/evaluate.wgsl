@@ -48,6 +48,8 @@ fn evaluate(
     // reached this pixel (`opened`) until its end.
     var backdrop = vec4<f32>(0.0);
     var opened = false;
+    // A masked layer's paint, set aside while its mask is painted in `layer` (`OP_BEGIN_MASK`).
+    var held = vec4<f32>(0.0);
     // The current stroke's coverage (covering) or optical density (accumulating), and the
     // largest paper contact along it.
     var coverage = 0.0;
@@ -100,12 +102,18 @@ fn evaluate(
             case OP_SMUDGE: {
                 layer = smudged(layer, pixel, op);
             }
+            case OP_BEGIN_MASK: {
+                held = layer;
+                layer = vec4<f32>(0.0);
+            }
             case OP_END_LAYER: {
-                let source = layer * op.data[0];
+                let shown = masked(layer, held, u32(op.data[LAYER_MASK]));
+                held = vec4<f32>(0.0);
+                let source = shown * op.data[0];
                 let mode = u32(op.data[LAYER_MODE]);
                 switch u32(op.data[LAYER_INTO]) {
                     case INTO_BASE: {
-                        chain = layer;
+                        chain = shown;
                     }
                     case INTO_CLIPPED: {
                         chain = clipped(source, chain, mode);
@@ -140,6 +148,21 @@ fn evaluate(
         }
     }
     textureStore(canvas_out, pixel, quantized(canvas));
+}
+
+// A layer as its end shows it: without a mask `layer` itself; with one, its paint `held` times
+// the mask, whose strokes painted grey over transparent in `layer`, read over white
+// (`1 - (a - r)`: nothing painted, or white, is exactly 1), inverted for `MASK_INVERTED`. A
+// white mask leaves the paint exactly as it was.
+fn masked(layer: vec4<f32>, held: vec4<f32>, masking: u32) -> vec4<f32> {
+    if masking == MASK_NONE {
+        return layer;
+    }
+    var value = clamp(1.0 - (layer.a - layer.r), 0.0, 1.0);
+    if masking == MASK_INVERTED {
+        value = 1.0 - value;
+    }
+    return held * value;
 }
 
 // A stroke's colour at its coverage times the grain at `pixel` times its opacity. A covering

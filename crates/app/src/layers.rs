@@ -1,15 +1,16 @@
 //! The layer intents: what the layer panel asks of the session, and the layer list it shows.
 //!
-//! Every change of the layers and groups is one history step that undo takes back, with two
-//! exceptions (DECISIONS D23): choosing the layer to draw on is not an edit and changes the
-//! current step in place, and an opacity slider (a layer's or a group's) moved in one touch is
-//! one step however many values it passed. Collapsing a group is the panel's own state.
+//! Every change of the layers, groups and masks is one history step that undo takes back, with
+//! two exceptions (DECISIONS D23): choosing the layer to draw on (its paint or its mask) is not
+//! an edit and changes the current step in place, and an opacity slider (a layer's or a
+//! group's) moved in one touch is one step however many values it passed. Collapsing a group is
+//! the panel's own state.
 
 use std::sync::Arc;
 
 use openpaint_core::{
     Artwork, ArtworkCommand, BlendMode, Change, GroupCommand, GroupId, LayerCommand, LayerId,
-    LayerName,
+    LayerName, MaskCommand,
 };
 
 use crate::error::AppError;
@@ -71,6 +72,26 @@ pub enum LayerIntent {
         opacity: f32,
         settled: bool,
     },
+    /// A white mask on the layer, which becomes active with its mask the target (S24).
+    AddMask(LayerId),
+    /// Paint on the layer's mask from now on; like `Select`, not an edit of its own.
+    SelectMask(LayerId),
+    /// The mask on or off; off, the layer's paint is the target again.
+    SetMaskEnabled {
+        layer: LayerId,
+        enabled: bool,
+    },
+    InvertMask(LayerId),
+    /// Back to white everywhere.
+    ClearMask(LayerId),
+    DeleteMask(LayerId),
+}
+
+/// A layer's mask in the panel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MaskRow {
+    pub enabled: bool,
+    pub inverted: bool,
 }
 
 /// One row of the layer panel.
@@ -88,6 +109,7 @@ pub struct LayerRow {
     pub clipped: bool,
     pub blend: BlendMode,
     pub group: Option<GroupId>,
+    pub mask: Option<MaskRow>,
 }
 
 /// One group of the layer panel.
@@ -106,6 +128,8 @@ pub struct LayerList {
     pub rows: Arc<[LayerRow]>,
     pub groups: Arc<[GroupRow]>,
     pub active: LayerId,
+    /// Strokes and fills go to the active layer's mask.
+    pub on_mask: bool,
 }
 
 impl LayerList {
@@ -126,6 +150,10 @@ impl LayerList {
                     clipped: artwork.clips_at(index),
                     blend: props.blend(),
                     group: props.group(),
+                    mask: layer.mask().map(|mask| MaskRow {
+                        enabled: mask.enabled(),
+                        inverted: mask.inverted(),
+                    }),
                 }
             })
             .collect();
@@ -143,6 +171,7 @@ impl LayerList {
             rows,
             groups,
             active: artwork.active(),
+            on_mask: artwork.on_mask(),
         }
     }
 
@@ -175,6 +204,13 @@ impl LayerIntent {
             | Self::SetBlend { layer, .. } => (EditorAction::EditLayer, layer),
             Self::Ungroup(_) | Self::SetGroupVisible { .. } | Self::SetGroupOpacity { .. } => {
                 (EditorAction::EditLayer, active)
+            }
+            Self::AddMask(layer) => (EditorAction::AddMask, layer),
+            Self::SetMaskEnabled { layer, .. } | Self::DeleteMask(layer) => {
+                (EditorAction::EditMask, layer)
+            }
+            Self::SelectMask(layer) | Self::InvertMask(layer) | Self::ClearMask(layer) => {
+                (EditorAction::ChangeMask, layer)
             }
         }
     }
@@ -217,6 +253,14 @@ impl LayerIntent {
             Self::SetGroupOpacity {
                 group: id, opacity, ..
             } => group(GroupCommand::SetOpacity { group: id, opacity }),
+            Self::AddMask(id) => ArtworkCommand::Mask(MaskCommand::Add(id)),
+            Self::SelectMask(id) => ArtworkCommand::Mask(MaskCommand::Select(id)),
+            Self::SetMaskEnabled { layer: id, enabled } => {
+                ArtworkCommand::Mask(MaskCommand::SetEnabled { layer: id, enabled })
+            }
+            Self::InvertMask(id) => ArtworkCommand::Mask(MaskCommand::Invert(id)),
+            Self::ClearMask(id) => ArtworkCommand::Mask(MaskCommand::Clear(id)),
+            Self::DeleteMask(id) => ArtworkCommand::Mask(MaskCommand::Delete(id)),
         }
     }
 

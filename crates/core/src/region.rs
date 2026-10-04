@@ -304,20 +304,29 @@ pub(crate) fn check_mask(canvas: CanvasSize, mask: &RegionMask) -> Result<(), Co
 
 impl Artwork {
     /// Fills `mask` with `color` on the active layer, above its strokes so far (ColorDrop). On
-    /// a layer with Alpha Lock on, the fill keeps the layer's alpha.
+    /// a layer with Alpha Lock on, the fill keeps the layer's alpha. When the layer's mask is
+    /// the target the fill lands there, in the colour's grey.
     ///
     /// # Errors
-    /// `LayerLocked` when the active layer is locked; `InvalidValue` when the mask leaves the
-    /// canvas.
+    /// `LayerLocked` when the active layer is locked; `MaskOff` when its mask is the target
+    /// and disabled; `InvalidValue` when the mask leaves the canvas.
     pub fn fill_region(&self, mask: RegionMask, color: Color) -> Result<Applied, CoreError> {
-        let index = self.editable_layer(self.active())?;
+        let (index, target) = self.target()?;
         check_mask(self.canvas(), &mask)?;
         let layer = &self.state().layers[index];
-        let edit = FillEdit {
-            after: layer.strokes.len(),
-            mask,
-            color,
-            alpha_locked: layer.props.alpha_locked,
+        let edit = match target {
+            Some(target) => FillEdit {
+                after: target.strokes.len(),
+                mask,
+                color: target.grey(color),
+                alpha_locked: false,
+            },
+            None => FillEdit {
+                after: layer.strokes.len(),
+                mask,
+                color,
+                alpha_locked: layer.props.alpha_locked,
+            },
         };
         Ok(Applied {
             artwork: push_edit(self, index, RegionEdit::Fill(edit)),
@@ -326,12 +335,18 @@ impl Artwork {
     }
 }
 
-/// `artwork` with `edit` added to the edits of its layer at `index`.
+/// `artwork` with `edit` added to the edits of its layer at `index`, or of that layer's mask
+/// when the mask is the target.
 pub(crate) fn push_edit(artwork: &Artwork, index: usize, edit: RegionEdit) -> Artwork {
     let mut next = artwork.state().clone();
+    let on_mask = next.on_mask;
     let layer = &mut next.layers[index];
-    let mut edits = layer.edits.to_vec();
-    edits.push(edit);
-    layer.edits = Arc::from(edits);
+    let edits = match layer.mask.as_mut().filter(|_| on_mask) {
+        Some(mask) => &mut mask.edits,
+        None => &mut layer.edits,
+    };
+    let mut grown = edits.to_vec();
+    grown.push(edit);
+    *edits = Arc::from(grown);
     Artwork::from_state(next)
 }

@@ -21,8 +21,21 @@ pub struct ArtworkParts {
     /// Oldest first.
     pub groups: Vec<GroupParts>,
     pub active: u64,
+    /// The active layer's mask is the target of strokes and fills.
+    pub on_mask: bool,
     pub next_layer_id: u64,
     pub next_stroke_id: u64,
+}
+
+/// A layer mask as plain data: its strokes and fills are in neutral grey.
+#[derive(Debug, Clone, PartialEq)]
+pub struct LayerMaskParts {
+    pub enabled: bool,
+    pub inverted: bool,
+    /// Oldest first; paint over or smudge, never under Alpha Lock.
+    pub strokes: Vec<StrokeParts>,
+    /// Fills only, oldest first.
+    pub edits: Vec<EditParts>,
 }
 
 /// A layer group as plain data; its layers name its id.
@@ -50,6 +63,7 @@ pub struct LayerParts {
     pub strokes: Vec<StrokeParts>,
     /// Fills and transforms, oldest first.
     pub edits: Vec<EditParts>,
+    pub mask: Option<LayerMaskParts>,
 }
 
 /// A region edit as plain data.
@@ -252,6 +266,7 @@ impl Artwork {
                 })
                 .collect(),
             active: state.active.get(),
+            on_mask: state.on_mask,
             next_layer_id: state.ids.next_layer,
             next_stroke_id: state.ids.next_stroke,
         }
@@ -271,6 +286,12 @@ fn layer_parts(layer: &Layer) -> LayerParts {
         group: layer.props.group.map(GroupId::get),
         strokes: layer.strokes.iter().map(stroke_parts).collect(),
         edits: layer.edits.iter().map(edit_parts).collect(),
+        mask: layer.mask.as_ref().map(|mask| LayerMaskParts {
+            enabled: mask.enabled,
+            inverted: mask.inverted,
+            strokes: mask.strokes.iter().map(stroke_parts).collect(),
+            edits: mask.edits.iter().map(edit_parts).collect(),
+        }),
     }
 }
 

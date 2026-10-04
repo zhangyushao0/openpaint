@@ -9,8 +9,8 @@ use std::sync::Arc;
 use common::{fresh_dir, records, untitled, write_records};
 use openpaint_app::{BrushLibrary, PortError, ProjectStore};
 use openpaint_core::{
-    Artwork, ArtworkCommand, CanvasPoint, CanvasSize, Color, LayerCommand, StrokeSample,
-    StrokeStyle,
+    Artwork, ArtworkCommand, CanvasPoint, CanvasSize, Color, LayerCommand, MaskCommand,
+    StrokeSample, StrokeStyle,
 };
 use openpaint_store::Library;
 
@@ -82,6 +82,49 @@ fn fills_are_saved_by_their_own_records_and_open_again_exactly() {
         library = Library::at(&dir);
         assert!(library.open_last().expect("reopen").is_some());
     }
+}
+
+#[test]
+fn masks_are_saved_by_their_own_records_and_deleting_one_removes_them() {
+    let dir = fresh_dir("masks");
+    let one = draw(&blank(), 10.0, 20);
+    let layer = one.active();
+    let mask = |command| one_more(&one, command);
+    let added = mask(MaskCommand::Add(layer));
+    let painted = draw(&added, 30.0, 20);
+    let inverted = one_more(&painted, MaskCommand::Invert(layer));
+    let off = one_more(
+        &inverted,
+        MaskCommand::SetEnabled {
+            layer,
+            enabled: false,
+        },
+    );
+    let deleted = one_more(&off, MaskCommand::Delete(layer));
+    let mut library = Library::at(&dir);
+    let id = library.create(&one, &untitled()).expect("create");
+    for (version, strokes) in [
+        (&added, 1),
+        (&painted, 2),
+        (&inverted, 2),
+        (&off, 2),
+        (&deleted, 1),
+        (&painted, 2),
+    ] {
+        library.save(id, version).expect("save");
+        drop(library);
+        assert_eq!(reopened(&dir).to_parts(), version.to_parts());
+        assert_eq!(stroke_records(&dir), strokes);
+        library = Library::at(&dir);
+        assert!(library.open_last().expect("reopen").is_some());
+    }
+    drop(library);
+    assert!(reopened(&dir).on_mask(), "the mask stays the target");
+}
+
+fn one_more(artwork: &Artwork, command: MaskCommand) -> Artwork {
+    let applied = artwork.apply(ArtworkCommand::Mask(command));
+    applied.expect("mask command").artwork
 }
 
 #[test]
@@ -219,23 +262,23 @@ fn head(records: &mut [(String, Vec<u8>, Vec<u8>)]) -> &mut Vec<u8> {
 
 #[test]
 fn unreadable_records_are_refused_with_a_reason() {
-    let newer = corrupted("newer", |records| head(records)[0] = 11);
+    let newer = corrupted("newer", |records| head(records)[0] = 12);
     assert_eq!(
         newer,
         PortError::NewerSchema {
-            found: 11,
-            newest: 10
+            found: 12,
+            newest: 11
         }
     );
     let newer_library = corrupted("newer-library", |records| {
         let schema = records.iter_mut().find(|(_, key, _)| key == b"schema");
-        schema.expect("schema record").2 = 11u32.to_le_bytes().to_vec();
+        schema.expect("schema record").2 = 12u32.to_le_bytes().to_vec();
     });
     assert_eq!(
         newer_library,
         PortError::NewerSchema {
-            found: 11,
-            newest: 10
+            found: 12,
+            newest: 11
         }
     );
     let short = corrupted("short", |records| {

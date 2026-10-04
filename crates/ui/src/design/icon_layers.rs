@@ -1,5 +1,6 @@
 //! The layer panel's own icons: a folder for groups, the chevron that opens and closes one,
-//! and the bent arrow of a Clipping Mask, pointing down to the base it clips to.
+//! the bent arrow of a Clipping Mask, pointing down to the base it clips to, and a layer mask's
+//! sheet with a round window.
 
 use std::f32::consts::{FRAC_PI_2, PI};
 
@@ -16,6 +17,16 @@ pub(super) fn layer_icons(icon: Icon) -> Vec<Line> {
             shaft.extend(arc([0.46, 0.42], 0.12, -FRAC_PI_2, -PI, 6));
             shaft.push([0.34, 0.74]);
             vec![shaft, vec![[0.22, 0.6], [0.34, 0.74], [0.46, 0.6]]]
+        }
+        Icon::Mask => {
+            let sheet = vec![
+                [0.2, 0.22],
+                [0.8, 0.22],
+                [0.8, 0.78],
+                [0.2, 0.78],
+                [0.2, 0.22],
+            ];
+            vec![sheet, arc([0.5, 0.5], 0.16, 0.0, 2.0 * PI, 16)]
         }
         _ => Vec::new(),
     }

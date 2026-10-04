@@ -155,6 +155,11 @@ impl StrokeStyle {
         Self { tool, ..self }
     }
 
+    /// This style painting `color`.
+    pub(crate) fn with_color(self, color: Color) -> Self {
+        Self { color, ..self }
+    }
+
     #[must_use]
     pub const fn tool(&self) -> StrokeTool {
         self.tool

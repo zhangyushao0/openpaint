@@ -128,10 +128,12 @@ pub(crate) enum Opcode {
     EndChain = 7,
     /// A group's result replaces what lay under it by the group's opacity (pass-through).
     EndGroup = 8,
+    /// The current layer's paint is set aside and its mask starts (`Masking`).
+    BeginMask = 9,
 }
 
 impl Opcode {
-    const ALL: [Self; 9] = [
+    const ALL: [Self; 10] = [
         Self::Segment,
         Self::EndStroke,
         Self::EndLayer,
@@ -141,6 +143,7 @@ impl Opcode {
         Self::Smudge,
         Self::EndChain,
         Self::EndGroup,
+        Self::BeginMask,
     ];
 
     const fn wgsl_name(self) -> &'static str {
@@ -154,6 +157,7 @@ impl Opcode {
             Self::Smudge => "OP_SMUDGE",
             Self::EndChain => "OP_END_CHAIN",
             Self::EndGroup => "OP_END_GROUP",
+            Self::BeginMask => "OP_BEGIN_MASK",
         }
     }
 }
@@ -170,9 +174,10 @@ impl Opcode {
 ///   `density` 0 for a covering stroke, else its maximum density; `paper scale` 0 without
 ///   paper; `clip` 0, or one more than where the mask of the selection the stroke is drawn
 ///   inside starts in the mask words: the paint lands only on the mask's pixels.
-/// - `EndLayer`: `[opacity, into, mode, grouped]`: `into` a `LayerInto`, `mode` a `Mode`,
-///   `grouped` 1 inside a group (`protocol_layers.rs`); `EndChain`: `[opacity, _, mode,
-///   grouped]`, the base's; `EndGroup`: `[opacity]`.
+/// - `EndLayer`: `[opacity, into, mode, grouped, mask]`: `into` a `LayerInto`, `mode` a
+///   `Mode`, `grouped` 1 inside a group, `mask` a `Masking` (`protocol_layers.rs`);
+///   `EndChain`: `[opacity, _, mode, grouped]`, the base's; `EndGroup`: `[opacity]`;
+///   `BeginMask`: none.
 /// - `Fill`: a paint op's first seven operands, then where its mask starts in the mask words
 ///   (`offset / 2^16`, `offset % 2^16`); the mask is `MASK_HEADER` words, then rows of
 ///   `ceil(width / 32)` words, bit `x % 32` of word `x / 32`.
@@ -359,7 +364,7 @@ pub(crate) use records::{Record, encode};
 
 #[path = "protocol_layers.rs"]
 mod layers;
-pub(crate) use layers::LayerInto;
+pub(crate) use layers::{LayerInto, Masking};
 
 #[path = "protocol_wgsl.rs"]
 mod wgsl;

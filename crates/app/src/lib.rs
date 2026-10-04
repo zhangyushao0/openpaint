@@ -50,7 +50,7 @@ pub use crate::gestures::{
 pub use crate::history::{HISTORY_BUDGET, History, HistoryIntent};
 pub use crate::input::{Contact, ContactPhase, Device, InputBatch, InputSample};
 pub use crate::intent::Intent;
-pub use crate::layers::{GroupRow, LayerIntent, LayerList, LayerRow};
+pub use crate::layers::{GroupRow, LayerIntent, LayerList, LayerRow, MaskRow};
 pub use crate::palette::{Hsv, RECENT_COLORS};
 pub use crate::palm::PalmRejection;
 pub use crate::project::{PortError, Project, ProjectId, ProjectStore, ProjectSummary, Thumbnail};
