@@ -118,6 +118,7 @@ fn shown(core: &Core, target: &CanvasTarget) -> RgbaImage {
         to_canvas: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
         cursor: None,
         pixels_per_point: 2.0,
+        view: None,
     };
     let frame = ScreenFrame {
         surround: [40, 50, 60, 255],

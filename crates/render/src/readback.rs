@@ -49,7 +49,16 @@ pub(crate) fn target_texture(
 /// Copies `texture` into memory, waiting for the GPU. Strips the 256-byte row padding the copy
 /// requires, so the result is tightly packed.
 pub(crate) fn read_rgba(gpu: &Gpu, texture: &wgpu::Texture) -> Result<RgbaImage, RenderError> {
-    let [width, height] = [texture.width(), texture.height()];
+    read_rect(gpu, texture, [0, 0], [texture.width(), texture.height()])
+}
+
+/// As `read_rgba`, the `[width, height]` texels from `[x, y]` on (inside the texture).
+pub(crate) fn read_rect(
+    gpu: &Gpu,
+    texture: &wgpu::Texture,
+    [x, y]: [u32; 2],
+    [width, height]: [u32; 2],
+) -> Result<RgbaImage, RenderError> {
     let row = width * 4;
     let padded_row = row.next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
     let buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
@@ -60,7 +69,12 @@ pub(crate) fn read_rgba(gpu: &Gpu, texture: &wgpu::Texture) -> Result<RgbaImage,
     });
     let mut encoder = gpu.device.create_command_encoder(&Default::default());
     encoder.copy_texture_to_buffer(
-        texture.as_image_copy(),
+        wgpu::TexelCopyTextureInfo {
+            texture,
+            mip_level: 0,
+            origin: wgpu::Origin3d { x, y, z: 0 },
+            aspect: wgpu::TextureAspect::All,
+        },
         wgpu::TexelCopyBufferInfo {
             buffer: &buffer,
             layout: wgpu::TexelCopyBufferLayout {
@@ -69,7 +83,11 @@ pub(crate) fn read_rgba(gpu: &Gpu, texture: &wgpu::Texture) -> Result<RgbaImage,
                 rows_per_image: Some(height),
             },
         },
-        texture.size(),
+        wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        },
     );
     gpu.queue.submit([encoder.finish()]);
     map_and_wait(gpu, &buffer)?;

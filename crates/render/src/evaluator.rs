@@ -1,7 +1,7 @@
 //! `RegionEvaluator`: the single entry that evaluates a frame request into regions of a target.
 //! Every consumer (screen, export, picking) goes through it.
 
-use openpaint_core::{Artwork, LayerId, RegionMask, StrokeTool};
+use openpaint_core::{ActiveStroke, Artwork, LayerId, RegionMask, StrokeTool};
 
 use crate::active::ActiveTrack;
 use crate::affine::Affine;
@@ -34,7 +34,12 @@ pub struct CanvasTarget {
     selection: Option<RegionMask>,
     /// The smudges' residuals the scene draws (D46).
     smudges: Smudges,
+    /// The canvas pixels evaluations changed since a view cache last took them (S32).
+    changed: Vec<PixelRect>,
 }
+
+/// More changed rectangles than this are kept as the one rectangle holding them.
+const CHANGED_KEPT: usize = 256;
 
 /// One artwork version's scene and its ops on the GPU, reused while the version stays.
 struct SceneCache {
@@ -80,7 +85,36 @@ impl CanvasTarget {
             scene: None,
             selection: None,
             smudges: Smudges::new(core),
+            changed: Vec::new(),
         })
+    }
+
+    /// The canvas pixels evaluations changed since the last call (the in-progress stroke's new
+    /// samples, what the caller passed, what a dropped or committed stroke left): what a view
+    /// tier evaluates again.
+    pub(crate) fn take_changed(&mut self) -> Vec<PixelRect> {
+        std::mem::take(&mut self.changed)
+    }
+
+    /// The scene and its ops on the GPU the last evaluation drew, when it drew `artwork` with
+    /// the in-progress stroke `active`: what a view tier evaluates too, with the same smudges'
+    /// residuals (`residuals`).
+    pub(crate) fn scene_of(
+        &self,
+        artwork: &Artwork,
+        active: Option<&ActiveStroke>,
+    ) -> Option<(&Scene, &SceneOps)> {
+        let place = active.map(ActivePlace::of);
+        self.scene
+            .as_ref()
+            .filter(|cache| cache.artwork.same_version(artwork) && cache.active == place)
+            .map(|cache| (&cache.scene, &cache.ops))
+    }
+
+    /// The smudge arena and the in-progress smudge's residual, as the last evaluation left
+    /// them.
+    pub(crate) fn residuals(&self) -> [&wgpu::Buffer; 2] {
+        self.smudges.residuals()
     }
 
     /// The screen shows `selection` over the canvas from the next frame on: an outline around
@@ -212,11 +246,22 @@ impl<'a> RegionEvaluator<'a> {
                 "the target's size differs from the canvas size",
             ));
         }
-        let result = self.dispatch(request, Output::CANVAS, regions);
-        if result.is_err() {
-            self.target.track.forget();
+        match self.dispatch(request, Output::CANVAS, regions) {
+            Ok(evaluated) => {
+                let changed = &mut self.target.changed;
+                changed.extend(evaluated);
+                if changed.len() > CHANGED_KEPT
+                    && let Some(all) = changed.iter().copied().reduce(|a, b| a.union(&b))
+                {
+                    *changed = vec![all];
+                }
+                Ok(())
+            }
+            Err(error) => {
+                self.target.track.forget();
+                Err(error)
+            }
         }
-        result
     }
 
     /// Evaluates the whole target as the piece of the output at `output` (its scale and the
@@ -238,7 +283,7 @@ impl<'a> RegionEvaluator<'a> {
                 "an output piece never draws an in-progress stroke",
             ));
         }
-        self.dispatch(request, output, &[region])
+        self.dispatch(request, output, &[region]).map(drop)
     }
 
     /// Evaluates `layer` of `artwork` alone over the whole target, at full opacity, on nothing
@@ -283,12 +328,14 @@ impl<'a> RegionEvaluator<'a> {
         )
     }
 
+    /// Evaluates `regions` and what the in-progress stroke needs; returns every region it
+    /// evaluated, in target pixels.
     fn dispatch(
         &mut self,
         request: &FrameRequest<'_>,
         output: Output,
         regions: &[PixelRect],
-    ) -> Result<(), RenderError> {
+    ) -> Result<Vec<PixelRect>, RenderError> {
         let core = self.core;
         let place = request.active.map(ActivePlace::of);
         let scene = &self.target.scene(core, request.artwork, place)?.scene;
@@ -323,11 +370,11 @@ impl<'a> RegionEvaluator<'a> {
             None => target.smudges.end_active(),
         }
         if all.is_empty() && !step.reset {
-            return Ok(());
+            return Ok(all);
         }
         let plan = Plan::build(&cache.scene, &fresh, (size, output), &all);
         if plan.tiles.is_empty() && !step.reset {
-            return Ok(());
+            return Ok(all);
         }
         let paper = request.background;
         core.evaluate.dispatch(
@@ -343,6 +390,7 @@ impl<'a> RegionEvaluator<'a> {
                 residuals: target.smudges.residuals(),
                 base: Affine::IDENTITY,
             },
-        )
+        )?;
+        Ok(all)
     }
 }

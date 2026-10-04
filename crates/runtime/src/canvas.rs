@@ -10,7 +10,7 @@ use openpaint_app::{
 use openpaint_core::{Artwork, CanvasSize, Color, Patch, RegionMask, StrokeTool};
 use openpaint_render::{
     BrushCursor, CanvasPlacement, CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator,
-    changed_regions, tip_radius,
+    ViewCache, ViewFrame, changed_regions, tip_radius,
 };
 use openpaint_ui::{CanvasArea, ScreenArea};
 
@@ -48,6 +48,10 @@ pub(crate) struct Canvas {
     /// The gallery's name for the artwork, which exported files carry.
     title: Title,
     target: CanvasTarget,
+    /// The view tiers shown instead of the target while the view magnifies it (S32).
+    view: ViewCache,
+    /// The last view update left tiles to fill or a tier to start.
+    view_pending: bool,
     /// False until the whole canvas has been evaluated once.
     evaluated: bool,
     /// The version shown before this frame's first change other than a stroke (undo, redo, a
@@ -89,6 +93,8 @@ impl Canvas {
             session,
             title,
             target: CanvasTarget::new(core, size)?,
+            view: ViewCache::new(core),
+            view_pending: false,
             evaluated: false,
             changed_from: None,
             leaving: Leaving::Staying,
@@ -246,17 +252,57 @@ impl Canvas {
         cursor: Option<BrushCursor>,
         shown: impl FnOnce(ViewMapping) -> ViewMapping,
     ) -> CanvasPlacement<'_> {
+        let frame = self.view_frame((area, pixels_per_point), shown);
+        CanvasPlacement {
+            target: &self.target,
+            origin: frame.origin,
+            size: frame.size,
+            to_canvas: frame.to_canvas,
+            cursor,
+            pixels_per_point,
+            view: Some(&self.view),
+        }
+    }
+
+    /// Where the canvas shows in the canvas area through the session's view as `shown` shows
+    /// it, on a screen of `pixels_per_point`.
+    pub(crate) fn view_frame(
+        &self,
+        (area, pixels_per_point): (&CanvasArea, f32),
+        shown: impl FnOnce(ViewMapping) -> ViewMapping,
+    ) -> ViewFrame {
         let canvas = self.session.artwork().canvas();
         let viewport = area.viewport(pixels_per_point);
         let mapping = shown(self.session.view().mapping(canvas, &viewport));
-        CanvasPlacement {
-            target: &self.target,
+        ViewFrame {
+            to_canvas: mapping.to_canvas_rows(),
             origin: area.screen.origin,
             size: area.screen.size,
-            to_canvas: mapping.to_canvas_rows(),
-            cursor,
-            pixels_per_point,
         }
+    }
+
+    /// Brings the view tiers up to date with the target, just evaluated, for showing it
+    /// through `frame` at `now` (seconds on the frame clock, S32); call after `evaluate`.
+    pub(crate) fn update_view(
+        &mut self,
+        core: &Core,
+        (frame, now): (&ViewFrame, f64),
+    ) -> Result<(), RuntimeError> {
+        let request = FrameRequest {
+            artwork: self.session.shown(),
+            active: self.session.active(),
+            background: PAPER,
+        };
+        self.view_pending = self
+            .view
+            .update(core, &mut self.target, &request, (frame, now))?
+            .pending();
+        Ok(())
+    }
+
+    /// The view tiers still change what shows: tiles missing, or a tier about to start.
+    pub(crate) fn view_pending(&self) -> bool {
+        self.view_pending
     }
 
     /// While the pen erases or smudges: the tip in canvas pixels, where the stroke is now and

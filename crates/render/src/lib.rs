@@ -36,6 +36,12 @@ mod smudge;
 mod stroke;
 mod surface;
 mod thumbnail;
+mod view_atlas;
+mod view_fill;
+mod view_needed;
+mod view_shown;
+mod view_tier;
+mod view_tiles;
 
 pub use crate::adapter::{
     CHROME_ISLANDS, CHROME_PANELS, ChromePanel, ChromeShapes, ScreenFrame, ScreenPainter, UiFrame,
@@ -54,3 +60,4 @@ pub use crate::screen::{BrushCursor, CanvasPlacement, ScreenTarget};
 pub use crate::stroke::{stroke_region, tip_radius};
 pub use crate::surface::{Surface, SurfaceWindow};
 pub use crate::thumbnail::{thumbnail_reference, thumbnail_size};
+pub use crate::view_tier::{ViewCache, ViewFrame, ViewWork};

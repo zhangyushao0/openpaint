@@ -24,6 +24,15 @@ impl PixelRect {
         self.max[0] <= self.min[0] || self.max[1] <= self.min[1]
     }
 
+    /// The pixels in both; empty (`is_empty`) when they do not meet.
+    #[must_use]
+    pub(crate) fn intersect(&self, other: &Self) -> Self {
+        Self {
+            min: [self.min[0].max(other.min[0]), self.min[1].max(other.min[1])],
+            max: [self.max[0].min(other.max[0]), self.max[1].min(other.max[1])],
+        }
+    }
+
     /// The smallest rectangle holding both.
     #[must_use]
     pub fn union(&self, other: &Self) -> Self {

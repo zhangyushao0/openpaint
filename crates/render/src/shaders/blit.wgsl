@@ -25,6 +25,69 @@ struct View {
 @group(0) @binding(2) var<uniform> view: View;
 // The selection's mask rows, one word per texel, bit `x % 32` of texel `x / 32`.
 @group(0) @binding(3) var selection: texture_2d<u32>;
+// The view tiers (S32): the current tier's atlas of tiles and its index (per view tile, its
+// slot plus one while ready, else 0), the previous tier's, and their scales (output pixels per
+// canvas pixel; 0: none). Where a tier has the four texels a pixel needs, it shows, the
+// current one first; elsewhere the canvas.
+@group(1) @binding(0) var tier_atlas: texture_2d<f32>;
+@group(1) @binding(1) var tier_index: texture_2d<u32>;
+@group(1) @binding(2) var earlier_atlas: texture_2d<f32>;
+@group(1) @binding(3) var earlier_index: texture_2d<u32>;
+@group(1) @binding(4) var<uniform> tiers: vec4<f32>;
+
+// Output pixels along a view tile's side (`view_tiles.rs`).
+const TIER_TILE: i32 = 256;
+
+// A tier's texel `at` of the canvas's output (clamped to it) from the slot holding its tile;
+// alpha -1 when the tile is not ready.
+fn tier_texel(atlas: texture_2d<f32>, index: texture_2d<u32>, at: vec2<i32>, size: vec2<i32>) -> vec4<f32> {
+    let texel = clamp(at, vec2<i32>(0), size - vec2<i32>(1));
+    let tile = texel / TIER_TILE;
+    let held = textureLoad(index, tile, 0).r;
+    if held == 0u {
+        return vec4<f32>(0.0, 0.0, 0.0, -1.0);
+    }
+    let across = i32(textureDimensions(atlas).x) / TIER_TILE;
+    let slot = i32(held - 1u);
+    let origin = vec2<i32>(slot % across, slot / across) * TIER_TILE;
+    return textureLoad(atlas, origin + texel % TIER_TILE, 0);
+}
+
+// The tier at `scale` at canvas point `point`, bilinear between its four nearest texels as the
+// canvas's sampler would be; alpha -1 when one of them is not ready.
+fn tier_sample(atlas: texture_2d<f32>, index: texture_2d<u32>, scale: f32, point: vec2<f32>) -> vec4<f32> {
+    let size = vec2<i32>(vec2<f32>(textureDimensions(canvas)) * scale);
+    let at = point * scale - vec2<f32>(0.5);
+    let base = floor(at);
+    let t = at - base;
+    let cell = vec2<i32>(base);
+    let a = tier_texel(atlas, index, cell, size);
+    let b = tier_texel(atlas, index, cell + vec2<i32>(1, 0), size);
+    let c = tier_texel(atlas, index, cell + vec2<i32>(0, 1), size);
+    let d = tier_texel(atlas, index, cell + vec2<i32>(1, 1), size);
+    if min(min(a.a, b.a), min(c.a, d.a)) < 0.0 {
+        return vec4<f32>(0.0, 0.0, 0.0, -1.0);
+    }
+    return mix(mix(a, b, t.x), mix(c, d, t.x), t.y);
+}
+
+// What the screen shows of the canvas at canvas point `point`: the current tier, the previous
+// one, or the canvas target, whichever is first ready there.
+fn canvas_at(point: vec2<f32>, size: vec2<f32>) -> vec4<f32> {
+    if tiers.x > 0.0 {
+        let shown = tier_sample(tier_atlas, tier_index, tiers.x, point);
+        if shown.a >= 0.0 {
+            return shown;
+        }
+    }
+    if tiers.y > 0.0 {
+        let shown = tier_sample(earlier_atlas, earlier_index, tiers.y, point);
+        if shown.a >= 0.0 {
+            return shown;
+        }
+    }
+    return textureSampleLevel(canvas, filtering, point / size, 0.0);
+}
 
 // The selection's outline and stripes, in points: the outline's width, the stripes' spacing and
 // width, and how strongly ink lies on the stripes and between them.
@@ -101,7 +164,7 @@ fn fragment(@builtin(position) screen: vec4<f32>) -> @location(0) vec4<f32> {
         }
         return with_outline(view.surround, cover);
     }
-    let shown = with_selection(textureSampleLevel(canvas, filtering, point / size, 0.0), point, screen.xy);
+    let shown = with_selection(canvas_at(point, size), point, screen.xy);
     if cover <= 0.0 {
         return shown;
     }

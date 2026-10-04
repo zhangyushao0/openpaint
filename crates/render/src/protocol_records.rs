@@ -3,11 +3,14 @@
 
 use super::Op;
 
-/// One tile of a plan: its top-left pixel and its range in the plan's op index list.
+/// One tile of a plan: its top-left pixel in the target, the output pixel that pixel holds (S32:
+/// a view tier's target holds its tiles at places of their own) and its range in the plan's op
+/// index list.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct TileRecord {
     pub(crate) origin: [u32; 2],
+    pub(crate) output: [u32; 2],
     pub(crate) start: u32,
     pub(crate) count: u32,
 }
@@ -24,9 +27,13 @@ pub(crate) struct Params {
     pub(crate) row: u32,
     /// Target size in pixels.
     pub(crate) size: [u32; 2],
-    /// The output pixel at the target's top-left, output pixels per canvas pixel (a power of
-    /// two) and its inverse: an output pixel's centre `(p + 0.5) x inverse` in canvas pixels.
-    pub(crate) origin: [u32; 2],
+    /// 1 when the target keeps the in-progress stroke's coverage between evaluations (the
+    /// canvas); 0 when every evaluation lists all of its segments (a view tier, S32).
+    pub(crate) kept: u32,
+    /// The base-2 log of `scale`.
+    pub(crate) level: f32,
+    /// Output pixels per canvas pixel (a power of two) and its inverse: an output pixel's
+    /// centre `(p + 0.5) x inverse` in canvas pixels.
     pub(crate) scale: f32,
     pub(crate) inverse: f32,
     /// Where those centres lie on the canvas (S31; the identity but for a smudge's material
@@ -51,7 +58,9 @@ impl Record for Op {
 
 impl Record for TileRecord {
     fn write(&self, out: &mut Vec<u8>) {
-        let words = [self.origin[0], self.origin[1], self.start, self.count];
+        let [x, y] = self.origin;
+        let [output_x, output_y] = self.output;
+        let words = [x, y, output_x, output_y, self.start, self.count];
         out.extend(words.iter().flat_map(|word| word.to_le_bytes()));
     }
 }
@@ -61,7 +70,8 @@ impl Record for Params {
         out.extend(self.background.iter().flat_map(|value| value.to_le_bytes()));
         let words = [self.tiles, self.row, self.size[0], self.size[1]];
         out.extend(words.iter().flat_map(|word| word.to_le_bytes()));
-        out.extend(self.origin.iter().flat_map(|word| word.to_le_bytes()));
+        out.extend(self.kept.to_le_bytes());
+        out.extend(self.level.to_le_bytes());
         out.extend(self.scale.to_le_bytes());
         out.extend(self.inverse.to_le_bytes());
         let base = self.base_x.iter().chain(&self.base_y);

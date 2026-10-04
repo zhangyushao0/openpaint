@@ -57,6 +57,8 @@ pub(crate) struct Dispatch<'a> {
 /// stall.
 pub(crate) struct Bindings {
     size: [u32; 2],
+    /// It keeps the in-progress stroke's coverage, in kept textures of its size.
+    pub(crate) keeps: bool,
     canvas: wgpu::TextureView,
     /// The in-progress stroke's coverage or density, then its paper contact.
     kept: [(wgpu::Texture, wgpu::TextureView); 2],
@@ -78,24 +80,24 @@ pub(crate) struct SceneOps {
 impl Bindings {
     /// Bindings for `canvas`, with the in-progress stroke's two kept textures of its size.
     pub(crate) fn new(gpu: &Gpu, canvas: &wgpu::Texture) -> Self {
-        Self::with_kept(gpu, canvas, [canvas.width(), canvas.height()])
+        Self::with_kept(gpu, canvas, true)
     }
 
-    /// Bindings for a target that never draws an in-progress stroke: its kept textures are a
-    /// pixel each.
+    /// Bindings for a target that keeps no in-progress stroke (an export piece, a view tier).
     pub(crate) fn without_kept(gpu: &Gpu, canvas: &wgpu::Texture) -> Self {
-        Self::with_kept(gpu, canvas, [1, 1])
+        Self::with_kept(gpu, canvas, false)
     }
 
-    fn with_kept(gpu: &Gpu, canvas: &wgpu::Texture, kept: [u32; 2]) -> Self {
+    fn with_kept(gpu: &Gpu, canvas: &wgpu::Texture, keeps: bool) -> Self {
         let storage = wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST;
         let uniform = wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST;
         let size = [canvas.width(), canvas.height()];
         Self {
             size,
+            keeps,
             canvas: canvas.create_view(&Default::default()),
             kept: ["active coverage", "active contact"].map(|label| {
-                let texture = kept_texture(gpu, kept, label);
+                let texture = kept_texture(gpu, if keeps { size } else { [1, 1] }, label);
                 let view = texture.create_view(&Default::default());
                 (texture, view)
             }),
@@ -225,7 +227,7 @@ impl EvaluatePipeline {
             ));
         }
         let groups = workgroups(gpu, work.plan.tiles.len())?;
-        let (origin, scale, inverse) = work.output.operands();
+        let (scale, inverse) = work.output.operands();
         let [a, b, c, d, e, f] = work.base.rows();
         let (foot, level) = if work.base.is_identity() {
             (1.0, 0.0)
@@ -238,7 +240,8 @@ impl EvaluatePipeline {
             tiles: groups.tiles,
             row: groups.row,
             size: bindings.size,
-            origin,
+            kept: u32::from(bindings.keeps),
+            level: scale.log2(),
             scale,
             inverse,
             base_x: [a, b, c, foot],

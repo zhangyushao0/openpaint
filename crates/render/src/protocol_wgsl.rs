@@ -34,6 +34,7 @@ pub(super) const LAYOUTS: [Layout; 3] = [
         size: size_of::<TileRecord>(),
         fields: &[
             ("origin", "vec2<u32>", offset_of!(TileRecord, origin)),
+            ("output", "vec2<u32>", offset_of!(TileRecord, output)),
             ("start", "u32", offset_of!(TileRecord, start)),
             ("count", "u32", offset_of!(TileRecord, count)),
         ],
@@ -46,7 +47,8 @@ pub(super) const LAYOUTS: [Layout; 3] = [
             ("tiles", "u32", offset_of!(Params, tiles)),
             ("row", "u32", offset_of!(Params, row)),
             ("size", "vec2<u32>", offset_of!(Params, size)),
-            ("origin", "vec2<u32>", offset_of!(Params, origin)),
+            ("kept", "u32", offset_of!(Params, kept)),
+            ("level", "f32", offset_of!(Params, level)),
             ("scale", "f32", offset_of!(Params, scale)),
             ("inverse", "f32", offset_of!(Params, inverse)),
             ("base_x", "vec4<f32>", offset_of!(Params, base_x)),

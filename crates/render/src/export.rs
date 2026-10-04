@@ -1,7 +1,7 @@
-//! Export (S29): an artwork at 1, 2 or 4 output pixels per canvas pixel, evaluated through the
-//! single evaluation entry into a target of its own, a band of rows at a time, each band in
-//! pieces at most `Banding::columns` wide, read back and handed on, so a 4x export never holds
-//! the whole picture on the GPU. The target shares nothing with the screen's, so a worker
+//! Export (S29): an artwork at 1, 2, 4 or 8 output pixels per canvas pixel (the app offers up to
+//! 4), evaluated through the single evaluation entry into a target of its own, a band of rows at a
+//! time, each band in pieces at most `Banding::columns` wide, read back and handed on, so a 4x
+//! export never holds the whole picture on the GPU. The target shares nothing with the screen's, so a worker
 //! holding an `Arc<Core>` runs it while the screen draws on. Since a pixel never depends on
 //! which regions are evaluated with it (D16), bands equal one piece, and at 1x the result is
 //! the screen's canvas pixel for pixel.
@@ -56,7 +56,7 @@ impl Core {
     /// every layer composited, cut by `banding`. Evaluation happens as the bands are taken.
     ///
     /// # Errors
-    /// `Invalid` for a scale other than 1, 2 or 4, an empty banding, or a piece the device
+    /// `Invalid` for a scale other than 1, 2, 4 or 8, an empty banding, or a piece the device
     /// cannot hold.
     pub fn export_bands(
         &self,

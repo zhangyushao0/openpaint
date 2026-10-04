@@ -10,6 +10,7 @@ use crate::geom::PixelRect;
 use crate::output::Output;
 use crate::protocol::{FRESH, TILE, TileRecord};
 use crate::scene::{Fresh, Scene};
+use crate::view_tiles::TileMap;
 
 #[derive(Debug, Default)]
 pub(crate) struct Plan {
@@ -33,9 +34,19 @@ impl Plan {
         (size, output): ([u32; 2], Output),
         regions: &[PixelRect],
     ) -> Self {
-        let grid = Grid::new(size, output, regions);
+        Self::laid_out(scene, fresh, (size, Layout::Linear(output)), regions)
+    }
+
+    /// As `build`, for a target laid out as `layout` (a view tier's tiles, S32).
+    pub(crate) fn laid_out(
+        scene: &Scene,
+        fresh: &Fresh,
+        (size, layout): ([u32; 2], Layout<'_>),
+        regions: &[PixelRect],
+    ) -> Self {
+        let grid = Grid::new(size, layout, regions);
         let (lists, deepest) = Binner::new(&grid, None).bin(&scene.items, 0, fresh);
-        Self::flatten(&grid.origins, lists, deepest)
+        Self::flatten(&grid, lists, deepest)
     }
 
     /// One layer's pixels before a smudge: the scene's `items` (that layer's ops before it),
@@ -49,26 +60,28 @@ impl Plan {
         regions: &[PixelRect],
     ) -> Self {
         let first = u32::try_from(items.start).unwrap_or(u32::MAX);
-        let grid = Grid::new(size, Output::CANVAS, regions);
+        let layout = Layout::Linear(Output::CANVAS);
+        let grid = Grid::new(size, layout, regions);
         let view = (!to_canvas.is_identity()).then(|| to_canvas.inverse());
         let binner = Binner::new(&grid, view);
         let (mut lists, deepest) = binner.bin(&scene.items[items], first, &Fresh::default());
         for list in &mut lists {
             list.push(FRESH);
         }
-        Self::flatten(&grid.origins, lists, deepest)
+        Self::flatten(&grid, lists, deepest)
     }
 
-    fn flatten(origins: &[[u32; 2]], lists: Vec<Vec<u32>>, deepest: u32) -> Self {
+    fn flatten(grid: &Grid, lists: Vec<Vec<u32>>, deepest: u32) -> Self {
         let mut plan = Self {
             deepest,
             ..Self::default()
         };
-        for (origin, list) in origins.iter().zip(lists) {
+        for ((origin, output), list) in grid.origins.iter().zip(&grid.outputs).zip(lists) {
             let start = u32::try_from(plan.indices.len()).unwrap_or(u32::MAX);
             let count = u32::try_from(list.len()).unwrap_or(u32::MAX);
             plan.tiles.push(TileRecord {
                 origin: *origin,
+                output: *output,
                 start,
                 count,
             });
@@ -78,35 +91,54 @@ impl Plan {
     }
 }
 
-/// The target's tile grid, where the target lies in the output, and which tiles are being
-/// evaluated (a dense slot each).
-struct Grid {
-    columns: usize,
-    rows: usize,
-    output: Output,
-    /// Per grid tile, row major: its slot, or `None` when not evaluated.
-    slot_of: Vec<Option<usize>>,
-    /// Per slot: the tile's top-left pixel.
-    origins: Vec<[u32; 2]>,
+/// How a target's pixels hold output pixels.
+#[derive(Clone, Copy)]
+pub(crate) enum Layout<'a> {
+    /// One rectangle of the output: the target's pixel `p` holds output pixel `origin + p`
+    /// (the canvas, an export's piece).
+    Linear(Output),
+    /// A view tier's tiles, each in a slot of the target (S32).
+    Tiles(&'a TileMap),
 }
 
-impl Grid {
-    fn new(size: [u32; 2], output: Output, regions: &[PixelRect]) -> Self {
+/// The target's tile grid, how it lies in the output, and which tiles are being evaluated (a
+/// dense slot each).
+struct Grid<'a> {
+    columns: usize,
+    rows: usize,
+    layout: Layout<'a>,
+    /// Per grid tile, row major: its slot, or `None` when not evaluated.
+    slot_of: Vec<Option<usize>>,
+    /// Per slot: the tile's top-left pixel, and the output pixel it holds.
+    origins: Vec<[u32; 2]>,
+    outputs: Vec<[u32; 2]>,
+}
+
+impl<'a> Grid<'a> {
+    fn new(size: [u32; 2], layout: Layout<'a>, regions: &[PixelRect]) -> Self {
         let columns = size[0].div_ceil(TILE) as usize;
         let rows = size[1].div_ceil(TILE) as usize;
         let mut grid = Self {
             columns,
             rows,
-            output,
+            layout,
             slot_of: vec![None; columns * rows],
             origins: Vec::new(),
+            outputs: Vec::new(),
         };
         for region in regions {
             for tile in grid.tiles(region) {
                 if grid.slot_of[tile].is_none() {
                     grid.slot_of[tile] = Some(grid.origins.len());
                     let (column, row) = (tile % columns, tile / columns);
-                    grid.origins.push([column as u32 * TILE, row as u32 * TILE]);
+                    let origin = [column as u32 * TILE, row as u32 * TILE];
+                    grid.origins.push(origin);
+                    grid.outputs.push(match layout {
+                        Layout::Linear(output) => {
+                            [0, 1].map(|axis| output.origin[axis] + origin[axis])
+                        }
+                        Layout::Tiles(map) => map.output_of(origin),
+                    });
                 }
             }
         }
@@ -131,9 +163,16 @@ impl Grid {
     }
 
     /// Slots of the evaluated tiles that meet the canvas pixels `rect`.
-    fn slots(&self, rect: &PixelRect) -> impl Iterator<Item = usize> + '_ {
-        self.tiles(&self.output.place(rect))
-            .filter_map(|tile| self.slot_of[tile])
+    fn slots(&self, rect: &PixelRect) -> Vec<usize> {
+        let mut slots = Vec::new();
+        let mut add = |target: &PixelRect| {
+            slots.extend(self.tiles(target).filter_map(|tile| self.slot_of[tile]));
+        };
+        match self.layout {
+            Layout::Linear(output) => add(&output.place(rect)),
+            Layout::Tiles(map) => map.targets(&map.place(rect), &mut add),
+        }
+        slots
     }
 
     /// Per slot, the fresh segments that reach it, as `FRESH` indices in order.

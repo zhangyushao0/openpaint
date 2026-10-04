@@ -22,3 +22,4 @@ mod selection;
 mod smudge;
 mod thumbnail;
 mod transform;
+mod view;

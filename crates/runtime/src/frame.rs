@@ -20,7 +20,7 @@ use openpaint_render::{Core, ScreenPainter, ScreenTarget, Surface, SurfaceWindow
 use openpaint_ui::Shell;
 use openpaint_ui::design::{self, TextFonts};
 
-use crate::canvas::Leaving;
+use crate::canvas::{Canvas, Leaving};
 use crate::clock::{FrameClock, InputClock};
 use crate::error::RuntimeError;
 use crate::fill::FillWorker;
@@ -355,8 +355,16 @@ impl Runtime {
             self.storage.submit(Job::SaveEditor(state));
         }
         self.screen.progress(&self.core, &mut self.storage, area)?;
+        if let (Some(canvas), Some(area)) = (self.screen.canvas_mut(), area) {
+            let shell = &self.shell;
+            let frame = canvas.view_frame((&area, self.pixels_per_point), |mapping| {
+                shell.displayed(mapping)
+            });
+            canvas.update_view(&self.core, (&frame, self.frame_clock.seconds()))?;
+        }
         let changed = self.screen() != shown;
-        let again = pass.repaint || changed || self.storing() || self.shell.animating();
+        let viewing = self.screen.canvas().is_some_and(Canvas::view_pending);
+        let again = pass.repaint || changed || self.storing() || self.shell.animating() || viewing;
         Ok((pass.frame, again))
     }
 }

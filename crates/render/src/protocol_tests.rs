@@ -102,17 +102,19 @@ fn encoding_fills_exactly_the_record_size() {
     assert_eq!(encode(&[op, op]).len(), 2 * size_of::<Op>());
     let tile = TileRecord {
         origin: [16, 32],
+        output: [48, 64],
         start: 7,
         count: 9,
     };
     assert_eq!(encode(&[tile]).len(), size_of::<TileRecord>());
-    assert_eq!(&encode(&[tile])[8..12], &7u32.to_le_bytes());
+    assert_eq!(&encode(&[tile])[16..20], &7u32.to_le_bytes());
     let params = Params {
         background: [1.0; 4],
         tiles: 1,
         row: 1,
         size: [1, 1],
-        origin: [0, 0],
+        kept: 1,
+        level: 0.0,
         scale: 1.0,
         inverse: 1.0,
         base_x: [1.0, 0.0, 0.0, 1.0],

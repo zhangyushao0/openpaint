@@ -40,17 +40,17 @@ fn evaluate(
         return;
     }
     let tile = tiles[index];
-    // `pixel` is the target's; ops are evaluated at the output pixel's centre mapped back to
-    // canvas pixels (`centre`), and sources on the canvas grid (masks, grain, clips) are read
-    // at the canvas pixel holding it (`cell`). On the canvas itself (scale 1, origin 0) both
-    // are the pixel's own, exactly.
+    // `pixel` is the target's, holding the tile's output pixel plus `local`; ops are evaluated
+    // at the output pixel's centre mapped back to canvas pixels (`centre`), and sources on the
+    // canvas grid (masks, grain, clips) are read at the canvas pixel holding it (`cell`). On
+    // the canvas itself (scale 1, output = target) both are the pixel's own, exactly.
     let pixel = tile.origin + local.xy;
     if any(pixel >= params.size) {
         return;
     }
     // A transform record's earlier content is evaluated where the centre maps back to (S31):
     // a frame op moves `point` and `cell` there; `based` is the centre on the canvas.
-    let centre = (vec2<f32>(params.origin + pixel) + vec2<f32>(0.5)) * params.inverse;
+    let centre = (vec2<f32>(tile.output + local.xy) + vec2<f32>(0.5)) * params.inverse;
     let based = vec2<f32>(
         params.base_x.x * centre.x + params.base_x.y * centre.y + params.base_x.z,
         params.base_y.x * centre.x + params.base_y.y * centre.y + params.base_y.z,
@@ -59,7 +59,7 @@ fn evaluate(
     var cell = vec2<u32>(floor(based));
     foot_scale = params.scale * params.base_x.w;
     foot_inverse = params.inverse / params.base_x.w;
-    foot_level = f32(countTrailingZeros(u32(params.scale))) + params.base_y.w;
+    foot_level = params.level + params.base_y.w;
     // What moved selections set aside, innermost last (`OP_BEGIN_MOVE`).
     var moves: array<vec4<f32>, MOVE_DEPTH>;
     var depth = 0u;
@@ -85,13 +85,14 @@ fn evaluate(
         var op: Op;
         if entry >= FRESH {
             op = fresh[entry - FRESH];
-            if !resumed {
+            if !resumed && params.kept == 1u {
                 // Every fresh op is the in-progress stroke's, after its layer's finished
-                // strokes, so nothing is held here yet.
+                // strokes, so nothing is held here yet. A target that keeps nothing lists
+                // every segment and starts from none.
                 coverage = textureLoad(kept, pixel).r;
                 contact = textureLoad(kept_contact, pixel).r;
-                resumed = true;
             }
+            resumed = true;
         } else {
             op = ops[entry];
         }
@@ -111,8 +112,10 @@ fn evaluate(
                 contact = 0.0;
             }
             case OP_END_ACTIVE: {
-                textureStore(kept, pixel, vec4<f32>(coverage, 0.0, 0.0, 0.0));
-                textureStore(kept_contact, pixel, vec4<f32>(contact, 0.0, 0.0, 0.0));
+                if params.kept == 1u {
+                    textureStore(kept, pixel, vec4<f32>(coverage, 0.0, 0.0, 0.0));
+                    textureStore(kept_contact, pixel, vec4<f32>(contact, 0.0, 0.0, 0.0));
+                }
                 layer = blend(stroke_paint(coverage, contact, point, cell, op), layer, op);
                 coverage = 0.0;
                 contact = 0.0;
@@ -136,8 +139,7 @@ fn evaluate(
                 let foot = params.base_x.w * op.data[FRAME_FOOT];
                 foot_scale = params.scale * foot;
                 foot_inverse = params.inverse / foot;
-                foot_level = f32(countTrailingZeros(u32(params.scale))) + params.base_y.w
-                    + op.data[FRAME_LEVEL];
+                foot_level = params.level + params.base_y.w + op.data[FRAME_LEVEL];
             }
             case OP_BEGIN_MOVE: {
                 moves[min(depth, MOVE_DEPTH - 1u)] = layer;

@@ -27,7 +27,7 @@ struct Move {
 }
 
 pub(super) struct Binner<'a> {
-    grid: &'a Grid,
+    grid: &'a Grid<'a>,
     lists: Vec<Vec<u32>>,
     stroke: Touched,
     layer: Touched,
@@ -52,7 +52,7 @@ pub(super) struct Binner<'a> {
 }
 
 impl<'a> Binner<'a> {
-    pub(super) fn new(grid: &'a Grid, view: Option<Affine>) -> Self {
+    pub(super) fn new(grid: &'a Grid<'a>, view: Option<Affine>) -> Self {
         let slots = grid.origins.len();
         Self {
             grid,
@@ -176,7 +176,7 @@ impl<'a> Binner<'a> {
         let Some(rect) = self.place(bounds) else {
             return Vec::new();
         };
-        self.grid.slots(&rect).collect()
+        self.grid.slots(&rect)
     }
 
     /// `bounds` cut to the frame's clip and mapped to the target's pixels; `None` when the

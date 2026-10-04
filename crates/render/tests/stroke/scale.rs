@@ -136,7 +136,7 @@ fn painted() -> Artwork {
 
 /// Every source at work: `painted` in a faded group; a turned picture on layer 2 with a grey
 /// mask; layer 3 clipping to it by Multiply; an adjustment inside a selection on layer 2.
-fn every_source() -> Artwork {
+pub fn every_source() -> Artwork {
     let grouped = apply(
         &painted(),
         ArtworkCommand::Group(GroupCommand::Create { layer: layer(1) }),

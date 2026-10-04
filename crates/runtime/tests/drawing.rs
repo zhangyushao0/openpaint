@@ -244,3 +244,50 @@ fn the_side_bar_looks_the_same_between_pen_down_and_pen_up() {
         runtime.frame_offscreen(SIZE).expect("frame");
     }
 }
+
+/// Screen pixels neither ink nor paper along row `y` from `x0` to `x1`, and how many ink runs.
+fn partial_pixels(screen: &RgbaImage, y: u32, (x0, x1): (u32, u32)) -> (usize, usize) {
+    let red = |x: u32| screen.pixels()[((y * screen.size()[0] + x) * 4) as usize];
+    let partial = (x0..x1).filter(|x| !matches!(red(*x), 0 | 255)).count();
+    let runs = (x0 + 1..x1)
+        .filter(|x| red(*x) < 128 && red(*x - 1) >= 128)
+        .count();
+    (partial, runs)
+}
+
+#[test]
+fn zoomed_in_the_screen_shows_ink_edges_one_screen_pixel_wide() {
+    let mut runtime = support::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere));
+    swipe(
+        &mut runtime,
+        ToolKind::Stylus,
+        [300.0, 120.0],
+        [330.0, 300.0],
+    );
+    let row = (200, (250, 400));
+    let fit = partial_pixels(&runtime.screenshot(SIZE).expect("screenshot"), row.0, row.1);
+    assert_eq!(fit.1, 1, "one line crosses the row at fit");
+    // Spread to about four screen pixels per canvas pixel; the view tier fills in.
+    let from = [[270.0, 200.0], [370.0, 200.0]];
+    let to = [[95.0, 200.0], [545.0, 200.0]];
+    touch(&mut runtime, ToolKind::Finger, &from, &to, 24);
+    // Frames 16 ms apart on a held clock, as the host paces them, until it rests.
+    for frame in 0..300 {
+        if !runtime.moving() {
+            break;
+        }
+        runtime.fix_clock(60_000 + frame * 16);
+        runtime.frame_offscreen(SIZE).expect("frame");
+    }
+    assert!(!runtime.moving(), "the tier filled in");
+    let zoom = runtime.projection().view().zoom();
+    assert!(zoom > 3.5, "zoomed in: {zoom}");
+    let screen = runtime.screenshot(SIZE).expect("screenshot");
+    let (partial, runs) = partial_pixels(&screen, 200, (SIDE_BAR_COLUMNS, SIZE[0]));
+    assert_eq!(runs, 1, "the line still crosses the row once");
+    // The canvas enlarged about four times blurs the edges over 18 pixels (measured).
+    assert!(
+        partial <= 4,
+        "{partial} partly covered pixels across both edges"
+    );
+}

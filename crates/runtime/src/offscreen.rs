@@ -5,6 +5,7 @@
 use openpaint_render::{RenderError, RgbaImage, ScreenPainter, ScreenTarget};
 use openpaint_ui::ControlMap;
 
+use crate::canvas::Canvas;
 use crate::error::RuntimeError;
 use crate::frame::{Runtime, screen_frame};
 
@@ -36,10 +37,11 @@ impl Runtime {
         self.frame_clock.fix(ms);
     }
 
-    /// True while something on screen moves (D44); frames are wanted until it rests.
+    /// True while something on screen moves (D44) or the view tiers fill in (S32); frames are
+    /// wanted until it rests.
     #[must_use]
     pub fn moving(&self) -> bool {
-        self.shell.moving()
+        self.shell.moving() || self.screen.canvas().is_some_and(Canvas::view_pending)
     }
 
     /// Every control the last frame laid out, by name, in screen pixels: what scenario steps

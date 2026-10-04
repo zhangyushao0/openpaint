@@ -1,0 +1,40 @@
+{
+  "walkthrough": [
+    "Goal: zoom in close to ink fine details and see the lines as crisp as the file they will export to, not enlarged canvas pixels.",
+    "Entry: a screen-size canvas at fit with a few Ink Pen lines (the default brush, black). Spread two fingers: the canvas zooms in about them as before (S14); while the fingers move the picture is the one shown so far, enlarged.",
+    "What appears: when the fingers stand still or lift, the lines sharpen within a moment: the canvas is drawn again at 2, 4 or 8 times its resolution (whichever is nearest the zoom), the middle of the screen first, the edges a few frames later; an ink edge is about one screen pixel wide at any zoom from about 140 % of the canvas's pixels on. Below that the screen shows the canvas as before.",
+    "Turning the canvas with two fingers keeps the lines sharp; panning shows the new edge enlarged for a few frames, then sharp too.",
+    "Drawing while zoomed in: the Ink Pen's line is sharp under the tip as it is drawn and stays so when the pen lifts; undo takes it back at once, sharp.",
+    "Done: a quick inward pinch fits the canvas again, which shows exactly as before S32.",
+    "Nothing to cancel or undo: the view is no step of the drawing; the drawing, its history and exports are unchanged by zooming."
+  ],
+  "screen": [2880, 1800],
+  "density": 1.75,
+  "steps": [
+    { "stroke": { "points": [[500, 1300, 0.3], [900, 600, 1.0], [1400, 1200, 0.7], [1900, 500, 1.0], [2400, 1100, 0.5]] } },
+    { "stroke": { "points": [[1300, 700, 1.0], [1450, 950, 0.6], [1600, 1150, 1.0]] } },
+    { "checkpoint": { "name": "drawn", "canvas": "7d5c7947826cdb4f" } },
+    { "screenshot": { "name": "fit" } },
+    { "touch": { "from": [[1340, 900], [1540, 900]], "to": [[1040, 900], [1840, 900]], "ms": 320 } },
+    { "view": { "name": "spread-4x", "zoom": 3.843, "rotation": 0.0, "pan": [0.0, 68.2] } },
+    { "screenshot": { "name": "zoomed-4x" } },
+    { "touch": { "from": [[1040, 900], [1840, 900]], "to": [[1100, 650], [1780, 1150]], "ms": 320 } },
+    { "view": { "name": "turned", "zoom": 3.843, "rotation": 28.3, "pan": [-43.7, 57.2] } },
+    { "screenshot": { "name": "turned-4x" } },
+    { "touch": { "from": [[1100, 650], [1780, 1150]], "to": [[1040, 900], [1840, 900]], "ms": 320 } },
+    { "touch": { "from": [[1340, 900], [1540, 900]], "to": [[1240, 900], [1640, 900]], "ms": 320 } },
+    { "view": { "name": "spread-8x", "zoom": 7.285, "rotation": 5.7, "pan": [-17.5, 150.0] } },
+    { "screenshot": { "name": "zoomed-8x" } },
+    { "touch": { "from": [[1300, 900], [1500, 900]], "to": [[1000, 750], [1200, 750]], "ms": 320 } },
+    { "screenshot": { "name": "panned" } },
+    { "stroke": { "points": [[1100, 1100, 0.5], [1500, 900, 1.0], [1900, 1200, 0.7]] } },
+    { "checkpoint": { "name": "drawn-at-8x", "canvas": "7942a31264f141c5" } },
+    { "screenshot": { "name": "stroke-at-8x" } },
+    { "tap": { "at": "Undo" } },
+    { "checkpoint": { "name": "undone", "canvas": "7d5c7947826cdb4f" } },
+    { "screenshot": { "name": "undone-at-8x" } },
+    { "touch": { "from": [[900, 900], [2000, 900]], "to": [[1400, 900], [1500, 900]], "ms": 160 } },
+    { "view": { "name": "fits-again", "zoom": 1.0, "rotation": 0.0, "pan": [0.0, 0.0] } },
+    { "screenshot": { "name": "fitted" } }
+  ]
+}

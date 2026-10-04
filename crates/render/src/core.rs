@@ -9,6 +9,7 @@ use crate::readback::{offscreen_texture, read_rgba, wait};
 use crate::screen::{blit_layout, blit_sampler};
 use crate::smudge::SmudgePipeline;
 use crate::thumbnail::ThumbnailPipeline;
+use crate::view_shown::TierBindings;
 
 pub struct Core {
     pub(crate) gpu: Gpu,
@@ -22,6 +23,8 @@ pub struct Core {
     pub(crate) thumbnail: ThumbnailPipeline,
     /// Applies smudge contacts to residuals (`smudge`).
     pub(crate) smudge: SmudgePipeline,
+    /// How the blit binds the view tiers (S32), and its group without any.
+    pub(crate) tiers: TierBindings,
 }
 
 impl Core {
@@ -34,6 +37,7 @@ impl Core {
         let blit_sampler = blit_sampler(&gpu.device);
         let thumbnail = ThumbnailPipeline::new(&gpu.device);
         let smudge = SmudgePipeline::new(&gpu.device);
+        let tiers = TierBindings::new(&gpu.device);
         Ok(Self {
             gpu,
             evaluate,
@@ -41,6 +45,7 @@ impl Core {
             blit_sampler,
             thumbnail,
             smudge,
+            tiers,
         })
     }
 

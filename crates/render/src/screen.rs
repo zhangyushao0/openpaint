@@ -1,13 +1,14 @@
 //! Putting the canvas on screen: `CanvasBlit` draws a canvas target into a window or offscreen
 //! frame through the view (scale, rotation, pan), and `ScreenTarget` is the offscreen frame the
 //! harness draws into instead of a window. The target itself stays at canvas resolution; the
-//! screen samples it bilinearly, without mipmaps (D35).
+//! screen samples it bilinearly, without mipmaps, or a view tier where one is ready (S32, D58).
 
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::evaluator::CanvasTarget;
 use crate::image::RgbaImage;
 use crate::readback::{offscreen_texture, read_rgba};
+use crate::view_tier::ViewCache;
 
 const SHADER: &str = include_str!("shaders/blit.wgsl");
 /// Bytes of the view uniform: six rows of four floats (the map's two rows, the cursor, the
@@ -27,6 +28,9 @@ pub struct CanvasPlacement<'a> {
     pub to_canvas: [f32; 6],
     pub cursor: Option<BrushCursor>,
     pub pixels_per_point: f32,
+    /// The view tiers shown instead of the target where they are ready (S32); `None`: the
+    /// target alone.
+    pub view: Option<&'a ViewCache>,
 }
 
 /// The pen's hover outline: a circle around `centre` of `radius`, `width` wide, all in screen
@@ -178,7 +182,7 @@ impl CanvasBlit {
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("blit"),
-            bind_group_layouts: &[Some(&core.blit_layout)],
+            bind_group_layouts: &[Some(&core.blit_layout), Some(&core.tiers.layout)],
             immediate_size: 0,
         });
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -258,6 +262,8 @@ impl CanvasBlit {
         pass.set_scissor_rect(x, y, width, height);
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, placement.target.shown(), &[]);
+        let tiers = placement.view.map_or(&core.tiers.none, ViewCache::group);
+        pass.set_bind_group(1, tiers, &[]);
         pass.draw(0..3, 0..1);
         pass.set_scissor_rect(0, 0, screen[0], screen[1]);
     }
