@@ -1,6 +1,7 @@
 //! Offscreen targets and GPU-to-memory readback.
 
 use std::sync::mpsc;
+use std::time::Duration;
 
 use crate::error::{RenderError, device};
 use crate::gpu::Gpu;
@@ -154,18 +155,44 @@ pub(crate) fn read_buffer(
     Ok(data)
 }
 
+/// The longest any wait for the GPU may take. Work here finishes in milliseconds; a wait this
+/// long is a stalled driver or device, reported as `RenderError::Timeout` instead of blocking
+/// the caller (a test, a worker) forever.
+pub(crate) const GPU_WAIT: Duration = Duration::from_secs(30);
+
+/// Blocks until the GPU has finished every submitted command, at most `GPU_WAIT`; `what` names
+/// the wait in the error.
+pub(crate) fn wait(gpu: &Gpu, what: &'static str) -> Result<(), RenderError> {
+    let poll = wgpu::PollType::Wait {
+        submission_index: None,
+        timeout: Some(GPU_WAIT),
+    };
+    match gpu.device.poll(poll) {
+        Ok(_) => Ok(()),
+        Err(wgpu::PollError::Timeout) => Err(timeout(what)),
+        Err(error) => Err(device(error)),
+    }
+}
+
+fn timeout(what: &'static str) -> RenderError {
+    RenderError::Timeout {
+        what,
+        seconds: GPU_WAIT.as_secs(),
+    }
+}
+
 fn map_and_wait(gpu: &Gpu, buffer: &wgpu::Buffer) -> Result<(), RenderError> {
     let (sender, receiver) = mpsc::channel();
     buffer.map_async(wgpu::MapMode::Read, .., move |result| {
         // The receiver outlives the wait below; a failed send cannot happen.
         let _ = sender.send(result);
     });
-    gpu.device
-        .poll(wgpu::PollType::wait_indefinitely())
-        .map_err(device)?;
-    match receiver.recv() {
+    wait(gpu, "a readback")?;
+    // The finished wait ran the callback; the timeout only guards a driver that never does.
+    match receiver.recv_timeout(GPU_WAIT) {
         Ok(result) => result.map_err(device),
-        Err(_) => Err(RenderError::Device(
+        Err(mpsc::RecvTimeoutError::Timeout) => Err(timeout("a readback's buffer map")),
+        Err(mpsc::RecvTimeoutError::Disconnected) => Err(RenderError::Device(
             "buffer map callback never ran".to_string(),
         )),
     }

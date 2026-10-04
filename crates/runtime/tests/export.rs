@@ -2,6 +2,7 @@
 //! export writes holds exactly the canvas the screen shows through the view; the reference
 //! picture's colours are picked exactly.
 
+mod gpu;
 mod hand;
 mod screen_map;
 mod support;
@@ -23,15 +24,6 @@ const SIZE: [u32; 2] = [1600, 1000];
 const PIXELS_PER_POINT: f32 = 2.0;
 /// The canvas fits under the top band.
 const BAR: u32 = 96;
-/// Right of Gallery in the left island.
-const ACTIONS: [f32; 2] = [258.0, 66.0];
-/// Rows of the Actions panel.
-const SAVE_PNG: [f32; 2] = [330.0, 353.0];
-const REFERENCE: [f32; 2] = [400.0, 801.0];
-/// The side bar's eyedropper.
-const EYEDROPPER: [f32; 2] = [80.0, 438.0];
-/// In the reference window's picture, first at the lower right: the red band.
-const RED_BAND: [f32; 2] = [950.0, 600.0];
 
 #[derive(Clone, Default)]
 struct Memory(Arc<Mutex<Option<Vec<u8>>>>);
@@ -71,13 +63,13 @@ fn line(y: f32) -> Vec<[f32; 2]> {
 
 #[test]
 fn the_exported_png_holds_exactly_what_the_screen_shows() {
-    let core = openpaint_render::Core::headless().expect("a GPU adapter is required");
+    let core = gpu::core();
     let mut runtime = support::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere));
     let mut hand = Hand::new(SIZE);
     hand.gesture(&mut runtime, ToolKind::Stylus, &line(400.0));
     hand.gesture(&mut runtime, ToolKind::Stylus, &line(700.0));
-    hand.tap(&mut runtime, ACTIONS);
-    hand.tap(&mut runtime, SAVE_PNG);
+    hand.tap(&mut runtime, "Actions");
+    hand.tap(&mut runtime, "Save PNG…");
     assert_eq!(
         runtime.host_request(),
         Some(HostRequest::SaveFile {
@@ -125,8 +117,8 @@ fn the_exported_png_holds_exactly_what_the_screen_shows() {
 fn the_eyedropper_picks_the_reference_pictures_colour_exactly() {
     let mut runtime = support::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere));
     let mut hand = Hand::new(SIZE);
-    hand.tap(&mut runtime, ACTIONS);
-    hand.tap(&mut runtime, REFERENCE);
+    hand.tap(&mut runtime, "Actions");
+    hand.tap(&mut runtime, "Reference");
     assert_eq!(runtime.host_request(), Some(HostRequest::OpenImage));
     // 480 x 320: red, green, blue and yellow bands.
     let bands = [[220, 40, 40], [40, 170, 70], [40, 80, 220], [240, 200, 40]];
@@ -146,9 +138,10 @@ fn the_eyedropper_picks_the_reference_pictures_colour_exactly() {
         .expect("transfers");
     assert!(transfers.reference_shown);
     assert_eq!(transfers.reference.expect("image").size(), [480, 320]);
-    hand.tap(&mut runtime, ACTIONS);
-    hand.tap(&mut runtime, EYEDROPPER);
-    hand.tap(&mut runtime, RED_BAND);
+    hand.tap(&mut runtime, "Actions");
+    hand.tap(&mut runtime, "Eyedropper");
+    // In the reference window's picture (first at the lower right), its left quarter: the red band.
+    hand.tap(&mut runtime, ("Reference picture", [0.13, 0.22]));
     let toolbox = runtime.projection().brush().cloned().expect("toolbox");
     let red = Color::rgb(220.0 / 255.0, 40.0 / 255.0, 40.0 / 255.0).expect("colour");
     assert_eq!(toolbox.color, red);

@@ -1,11 +1,11 @@
 //! `Core`: the renderer's GPU state. Created once per process and shared; never stored in the
 //! UI framework.
 
-use crate::error::{RenderError, device};
+use crate::error::RenderError;
 use crate::gpu::Gpu;
 use crate::image::RgbaImage;
 use crate::program::EvaluatePipeline;
-use crate::readback::{offscreen_texture, read_rgba};
+use crate::readback::{offscreen_texture, read_rgba, wait};
 use crate::screen::{blit_layout, blit_sampler};
 use crate::smudge::SmudgePipeline;
 use crate::thumbnail::ThumbnailPipeline;
@@ -49,13 +49,10 @@ impl Core {
         self.gpu.describe()
     }
 
-    /// Blocks until the GPU has finished all submitted work, for timing a whole frame.
+    /// Blocks until the GPU has finished all submitted work, for timing a whole frame; at most
+    /// `GPU_WAIT`, then `RenderError::Timeout`.
     pub fn wait_idle(&self) -> Result<(), RenderError> {
-        self.gpu
-            .device
-            .poll(wgpu::PollType::wait_indefinitely())
-            .map(|_| ())
-            .map_err(device)
+        wait(&self.gpu, "the submitted frames")
     }
 
     /// Clears an offscreen target of `size` pixels to the 8-bit RGBA `color` and reads it back.

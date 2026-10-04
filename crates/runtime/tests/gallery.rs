@@ -2,23 +2,22 @@
 //! stores a thumbnail that matches the canvas, the title field asks for the keyboard and takes
 //! typed text, and an artwork opened again equals a cold evaluation.
 
+mod gpu;
 mod hand;
 
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Instant;
 
 use hand::{Hand, assert_cold};
 use openpaint_app::{GalleryProjection, ScreenProjection};
-use openpaint_render::{Core, thumbnail_reference, thumbnail_size};
+use openpaint_render::{thumbnail_reference, thumbnail_size};
 use openpaint_runtime::{EditKey, Runtime, TextInput, ToolKind};
 use openpaint_store::Library;
 
 /// 800 x 500 points at density 2.
 const SIZE: [u32; 2] = [1600, 1000];
 const PIXELS_PER_POINT: f32 = 2.0;
-/// The first card (points from the gallery layout, times 2): its picture, below it the title.
-const PICTURE: [f32; 2] = [320.0, 400.0];
-const TITLE: [f32; 2] = [200.0, 592.0];
 /// The largest thumbnail the runtime makes.
 const THUMBNAIL_MAX: [u32; 2] = [448, 336];
 
@@ -48,10 +47,11 @@ fn gallery(runtime: &Runtime) -> Option<GalleryProjection> {
 
 #[test]
 fn the_gallery_shows_a_matching_thumbnail_and_renames_by_keyboard() {
-    let core = Core::headless().expect("a GPU adapter is required for runtime tests");
+    let core = gpu::core();
     let dir = library_dir("rename");
-    let mut runtime = Runtime::start(PIXELS_PER_POINT, Box::new(Library::at(&dir)))
-        .expect("a GPU adapter is required for runtime tests");
+    let store = Box::new(Library::at(&dir));
+    let mut runtime =
+        Runtime::start_on(Arc::clone(&core), PIXELS_PER_POINT, store).expect("the runtime starts");
     until(&mut runtime, |runtime| runtime.artwork().is_some());
     let mut hand = Hand::new(SIZE);
     let wave: Vec<[f32; 2]> = (0..=30u8)
@@ -77,7 +77,8 @@ fn the_gallery_shows_a_matching_thumbnail_and_renames_by_keyboard() {
     );
     assert!(!runtime.back(), "back in the gallery is the system's");
 
-    hand.tap(&mut runtime, TITLE);
+    // The only card's title, below its picture.
+    hand.tap(&mut runtime, "Rename artwork");
     assert!(
         runtime.keyboard_wanted(),
         "the title field asks for the keyboard"
@@ -92,7 +93,7 @@ fn the_gallery_shows_a_matching_thumbnail_and_renames_by_keyboard() {
         "the keyboard goes when the field closes"
     );
 
-    hand.tap(&mut runtime, PICTURE);
+    hand.tap(&mut runtime, "Open artwork");
     until(&mut runtime, |runtime| runtime.artwork().is_some());
     assert_cold(&core, &runtime, "reopened from the gallery");
     let reopened = runtime.read_canvas().expect("readback").expect("canvas");

@@ -1,7 +1,8 @@
 //! Stroke fixtures shared by the GPU tests. `apps/harness/src/stroke.rs` draws the same wave,
 //! so `render-stroke` prints the golden hash of `golden.rs`.
 
-use std::sync::Arc;
+use std::ops::Deref;
+use std::sync::{Arc, OnceLock};
 
 use openpaint_core::{
     Accumulation, Artwork, ArtworkCommand, BrushRecipe, CanvasPoint, CanvasSize, Color, CoreError,
@@ -12,8 +13,26 @@ use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RegionEvalua
 
 pub const SIZE: [u32; 2] = [320, 200];
 
-pub fn core() -> Core {
-    Core::headless().expect("a GPU adapter is required for render tests")
+/// The one GPU device of this test binary, opened by the first test that asks. A device per
+/// test once deadlocked NVIDIA's Windows driver: opening one loads a library under the driver's
+/// lock while an exiting thread holds the loader lock and waits for the driver's (2026-10-04).
+pub fn core() -> Shared {
+    static CORE: OnceLock<Core> = OnceLock::new();
+    Shared(
+        CORE.get_or_init(|| Core::headless().expect("a GPU adapter is required for render tests")),
+    )
+}
+
+/// A test's hold on the shared device; `&core` lends the `Core` as an owned one did.
+#[derive(Clone, Copy)]
+pub struct Shared(&'static Core);
+
+impl Deref for Shared {
+    type Target = Core;
+
+    fn deref(&self) -> &Core {
+        self.0
+    }
 }
 
 pub fn blank() -> Artwork {

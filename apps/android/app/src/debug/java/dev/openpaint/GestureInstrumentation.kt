@@ -17,6 +17,8 @@ import android.view.MotionEvent
  * One pointer can instead follow `-e path x,y,x,y...`, one point per 8 ms event, and the pen
  * presses with `-e pressure P` (default 0.6). `-e hover x,y` holds the pen just above the glass
  * there instead for `-e ms` (default 1500), then takes it away (hover enter, move, exit).
+ * `-e tap <name>` is a finger tap on the middle of the control the app last drew under that
+ * name ([DebugControls]); the result's `tapped` says where.
  */
 class GestureInstrumentation : Instrumentation() {
     private var arguments = Bundle()
@@ -30,6 +32,11 @@ class GestureInstrumentation : Instrumentation() {
     override fun onStart() {
         val result = Bundle()
         try {
+            arguments.getString("tap")?.let { name ->
+                val at = control(name)
+                arguments.putString("from", "${at[0]},${at[1]}")
+                result.putString("tapped", "$name at ${at[0]},${at[1]}")
+            }
             inject()
             result.putString("gesture", "injected")
             finish(Activity.RESULT_OK, result)
@@ -44,6 +51,16 @@ class GestureInstrumentation : Instrumentation() {
         ?.map { it.trim().toFloat() }
         ?.chunked(2)
         ?.map { floatArrayOf(it[0], it[1]) }
+
+    /** The middle of the control called [name], asked on the main thread as every JNI call is. */
+    private fun control(name: String): FloatArray {
+        var found: String? = null
+        runOnMainSync { found = DebugControls.find(name) }
+        val answer = found ?: error("no answer for $name")
+        val point = answer.split(',').mapNotNull { it.toFloatOrNull() }
+        require(point.size == 2) { "$name: $answer" }
+        return floatArrayOf(point[0], point[1])
+    }
 
     private val pressure: Float
         get() = arguments.getString("pressure")?.toFloat() ?: 0.6f

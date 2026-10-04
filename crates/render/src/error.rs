@@ -13,6 +13,9 @@ pub enum RenderError {
     /// Derived data would exceed what the device holds in one binding (`limit` bytes): a smudge
     /// residual or the arena of them.
     Admission { what: &'static str, limit: u64 },
+    /// The GPU did not finish `what` within `seconds`: a stalled driver or device. Every wait
+    /// for the GPU is bounded, so a stall fails instead of hanging.
+    Timeout { what: &'static str, seconds: u64 },
 }
 
 impl fmt::Display for RenderError {
@@ -21,6 +24,9 @@ impl fmt::Display for RenderError {
             Self::Device(message) => write!(f, "GPU device error: {message}"),
             Self::Invalid(what) => write!(f, "invalid render request: {what}"),
             Self::Admission { what, limit } => write!(f, "{what} exceeds {limit} bytes"),
+            Self::Timeout { what, seconds } => {
+                write!(f, "the GPU did not finish {what} within {seconds} s")
+            }
         }
     }
 }

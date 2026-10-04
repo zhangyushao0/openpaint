@@ -2,6 +2,7 @@
 //! band on the desk, the top islands at the band's ends with the desk between them (nothing
 //! spans the width), and the side bar over the canvas's left edge.
 
+mod gpu;
 mod support;
 
 use support::Nowhere;

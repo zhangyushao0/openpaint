@@ -55,9 +55,58 @@ impl Hand {
         }
     }
 
-    /// A finger tap at `at`.
-    pub fn tap(&mut self, runtime: &mut Runtime, at: [f32; 2]) {
+    /// A finger tap on `spot`: a control's name, or window pixels off every control.
+    pub fn tap(&mut self, runtime: &mut Runtime, spot: impl Spot) {
+        let at = spot.point(runtime);
         self.gesture(runtime, ToolKind::Finger, &[at, at]);
+    }
+}
+
+/// Where a tap lands, as the scenario runner reads its spots (D48): a control by its name, so a
+/// layout change never moves what a test taps, or window pixels, which must lie off every
+/// control of the last frame.
+pub trait Spot {
+    fn point(&self, runtime: &Runtime) -> [f32; 2];
+}
+
+/// The middle of the control called this.
+impl Spot for &str {
+    fn point(&self, runtime: &Runtime) -> [f32; 2] {
+        on(runtime, self, [0.5, 0.5])
+    }
+}
+
+/// Window pixels on the canvas or the desk; on a control they fail with its name to write.
+impl Spot for [f32; 2] {
+    fn point(&self, runtime: &Runtime) -> [f32; 2] {
+        if let Some((name, control)) = runtime.controls().under(*self) {
+            let [left, top, right, bottom] = control.rect;
+            let fraction = [
+                (self[0] - left) / (right - left),
+                (self[1] - top) / (bottom - top),
+            ];
+            panic!("the tap at {self:?} lands on (\"{name}\", {fraction:?}): name it");
+        }
+        *self
+    }
+}
+
+/// The point at a fraction of the named control's width and height from its top-left corner.
+impl Spot for (&str, [f32; 2]) {
+    fn point(&self, runtime: &Runtime) -> [f32; 2] {
+        on(runtime, self.0, self.1)
+    }
+}
+
+/// The point `fraction` across the control `name` of the last frame, in pixels; panics with
+/// every name on screen when no single control has that name.
+pub fn on(runtime: &Runtime, name: &str, fraction: [f32; 2]) -> [f32; 2] {
+    match runtime.controls().find(name) {
+        Ok(control) => control.at(fraction),
+        Err(why) => panic!(
+            "{name}: {why:?}; on screen: {:?}",
+            runtime.controls().names()
+        ),
     }
 }
 

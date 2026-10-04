@@ -86,6 +86,27 @@ impl Runtime {
         let toolbox = Toolbox::new(BrushLibrary::built_in()?);
         let storage = Storage::start(store)?;
         let core = Arc::new(Core::headless()?);
+        Self::assemble(core, toolbox, storage, pixels_per_point)
+    }
+
+    /// As `start`, on a GPU device already open: the GPU tests open one per process, as a device
+    /// per test once deadlocked a desktop driver while another test's threads exited.
+    pub fn start_on(
+        core: Arc<Core>,
+        pixels_per_point: f32,
+        store: Box<dyn ProjectStore>,
+    ) -> Result<Self, RuntimeError> {
+        let toolbox = Toolbox::new(BrushLibrary::built_in()?);
+        let storage = Storage::start(store)?;
+        Self::assemble(core, toolbox, storage, pixels_per_point)
+    }
+
+    fn assemble(
+        core: Arc<Core>,
+        toolbox: Toolbox,
+        storage: Storage,
+        pixels_per_point: f32,
+    ) -> Result<Self, RuntimeError> {
         log::info!("GPU adapter: {}", core.adapter());
         let ui = egui::Context::default();
         design::install(&ui);

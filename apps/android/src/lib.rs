@@ -16,6 +16,9 @@ pub mod transfer;
 mod error;
 #[cfg(target_os = "android")]
 #[expect(unsafe_code, reason = "JNI entry points export unmangled symbols")]
+mod jni_debug;
+#[cfg(target_os = "android")]
+#[expect(unsafe_code, reason = "JNI entry points export unmangled symbols")]
 mod jni_entry;
 #[cfg(target_os = "android")]
 #[expect(unsafe_code, reason = "JNI entry points export unmangled symbols")]

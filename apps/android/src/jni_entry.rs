@@ -86,7 +86,9 @@ pub extern "system" fn Java_dev_openpaint_Native_create<'local>(
             share_dir,
             pending: None,
         };
-        Ok(Box::into_raw(Box::new(host)) as jlong)
+        let handle = Box::into_raw(Box::new(host)) as jlong;
+        crate::jni_debug::remember(handle);
+        Ok(handle)
     })
     .resolve::<LogErrorAndDefault>()
 }
@@ -146,6 +148,7 @@ pub extern "system" fn Java_dev_openpaint_Native_destroy<'local>(
     _class: JClass<'local>,
     handle: jlong,
 ) {
+    crate::jni_debug::remember(0);
     if handle != 0 {
         // SAFETY: the handle came from `create`, and Kotlin forgets it after this call.
         drop(unsafe { Box::from_raw(handle as *mut Host) });

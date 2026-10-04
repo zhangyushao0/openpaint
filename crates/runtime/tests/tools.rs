@@ -2,6 +2,7 @@
 //! the eyedropper on picks exactly the pixel the canvas readback holds there and draws nothing; the
 //! Eraser button makes the pen take paint away, and the canvas always equals a cold evaluation.
 
+mod gpu;
 mod hand;
 mod screen_map;
 mod support;
@@ -9,7 +10,7 @@ mod support;
 use hand::{Hand, assert_cold};
 use openpaint_app::Tool;
 use openpaint_core::Color;
-use openpaint_render::{Core, RgbaImage};
+use openpaint_render::RgbaImage;
 use openpaint_runtime::{Runtime, ToolKind};
 use screen_map::{mapping, pixel_at};
 use support::Nowhere;
@@ -17,11 +18,6 @@ use support::Nowhere;
 /// 800 x 500 points at density 2.
 const SIZE: [u32; 2] = [1600, 1000];
 const PIXELS_PER_POINT: f32 = 2.0;
-/// The side bar's eyedropper, between its sliders (118 points long on this screen).
-const EYEDROPPER: [f32; 2] = [80.0, 438.0];
-/// In the right island, left to right: Brush, Eraser, Layers, colour.
-const ERASER: [f32; 2] = [1316.0, 66.0];
-const UNDO: [f32; 2] = [80.0, 810.0];
 
 fn line(y: f32) -> Vec<[f32; 2]> {
     (0..=12u8)
@@ -54,7 +50,7 @@ fn the_eyedropper_picks_the_pixel_the_readback_holds() {
         .find(|at| (1..255).contains(&pixel_at(&canvas, *at)[1]))
         .expect("an antialiased edge below the line's middle");
     let [r, g, b, _] = pixel_at(&canvas, edge);
-    hand.tap(&mut runtime, EYEDROPPER);
+    hand.tap(&mut runtime, "Eyedropper");
     assert!(runtime.projection().brush().expect("toolbox").picking);
     hand.tap(&mut runtime, map.to_screen(edge));
     let toolbox = runtime.projection().brush().cloned().expect("toolbox");
@@ -78,14 +74,14 @@ fn the_eyedropper_picks_the_pixel_the_readback_holds() {
 
 #[test]
 fn the_eraser_button_makes_the_pen_take_paint_away() {
-    let core = Core::headless().expect("a GPU adapter is required for runtime tests");
+    let core = gpu::core();
     let mut runtime = support::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere));
     let mut hand = Hand::new(SIZE);
     hand.gesture(&mut runtime, ToolKind::Stylus, &line(500.0));
     let crossing = [780.0, 500.0];
     let canvas = runtime.read_canvas().expect("readback").expect("canvas");
     assert_eq!(pixel(&runtime, &canvas, crossing), [0, 0, 0, 255]);
-    hand.tap(&mut runtime, ERASER);
+    hand.tap(&mut runtime, "Eraser");
     let toolbox = runtime.projection().brush().cloned().expect("toolbox");
     assert_eq!(toolbox.tool, Tool::Eraser);
     let down = [[780.0, 300.0], [780.0, 500.0], [780.0, 700.0]];
@@ -98,7 +94,7 @@ fn the_eraser_button_makes_the_pen_take_paint_away() {
         "erased to the paper"
     );
     assert_cold(&core, &runtime, "after erasing");
-    hand.tap(&mut runtime, UNDO);
+    hand.tap(&mut runtime, "Undo");
     let canvas = runtime.read_canvas().expect("readback").expect("canvas");
     assert_eq!(
         pixel(&runtime, &canvas, crossing),

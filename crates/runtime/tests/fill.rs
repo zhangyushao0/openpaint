@@ -3,12 +3,13 @@
 //! under the line's soft inner edge (draweave 674c59b), leaves the outside alone, equals a cold
 //! evaluation, and undo takes it back.
 
+mod gpu;
 mod hand;
 mod screen_map;
 mod support;
 
-use hand::{Hand, assert_cold};
-use openpaint_render::{Core, RgbaImage};
+use hand::{Hand, assert_cold, on};
+use openpaint_render::RgbaImage;
 use openpaint_runtime::{Runtime, ToolKind};
 use screen_map::{mapping, pixel_at};
 use support::Nowhere;
@@ -16,9 +17,6 @@ use support::Nowhere;
 /// 800 x 500 points at density 2.
 const SIZE: [u32; 2] = [1600, 1000];
 const PIXELS_PER_POINT: f32 = 2.0;
-/// The colour button at the right island's end.
-const COLOUR: [f32; 2] = [1524.0, 66.0];
-const UNDO: [f32; 2] = [80.0, 808.0];
 const CENTRE: [f32; 2] = [800.0, 520.0];
 
 /// A closed circle of `radius` screen pixels about `CENTRE`.
@@ -57,11 +55,13 @@ fn fills(runtime: &Runtime) -> usize {
 
 #[test]
 fn a_colour_dropped_into_a_closed_curve_fills_it_without_a_seam() {
-    let core = Core::headless().expect("a GPU adapter is required for runtime tests");
+    let core = gpu::core();
     let mut runtime = support::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere));
     let mut hand = Hand::new(SIZE);
     hand.gesture(&mut runtime, ToolKind::Stylus, &circle(260.0));
-    let drop = [COLOUR, [1300.0, 300.0], [1000.0, 450.0], CENTRE, CENTRE];
+    // From the colour button at the right island's end.
+    let colour = on(&runtime, "Colour", [0.5, 0.5]);
+    let drop = [colour, [1300.0, 300.0], [1000.0, 450.0], CENTRE, CENTRE];
     hand.gesture(&mut runtime, ToolKind::Finger, &drop);
     settle(&mut runtime);
     assert_eq!(fills(&runtime), 1, "one fill, committed");
@@ -87,7 +87,7 @@ fn a_colour_dropped_into_a_closed_curve_fills_it_without_a_seam() {
     }
     assert_eq!(at(line + 30.0), [255; 4], "outside stays paper");
     assert_cold(&core, &runtime, "after the fill");
-    hand.tap(&mut runtime, UNDO);
+    hand.tap(&mut runtime, "Undo");
     settle(&mut runtime);
     assert_eq!(fills(&runtime), 0);
     assert_eq!(

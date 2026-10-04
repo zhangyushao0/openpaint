@@ -2,6 +2,8 @@
 //! runtime on the same library opens them with identical pixels; a failing store shows the
 //! notice, Retry tapped in its pill tries again and clears it once the store works.
 
+mod gpu;
+
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -19,11 +21,6 @@ use openpaint_store::Library;
 /// Wide enough for the notice pill beside the right island.
 const SIZE: [u32; 2] = [1600, 1000];
 const PIXELS_PER_POINT: f32 = 2.0;
-/// Pixel rows through the top edge of a text button's ink outline in the top islands and pills
-/// (the island's top, its outline and the button's inset, 13.25 points, give or take a pixel).
-const BUTTON_TOP: [usize; 3] = [26, 27, 28];
-/// Shortest run of ink along a row that is a button's top edge, in pixels.
-const BUTTON_EDGE: usize = 40;
 
 fn gesture(runtime: &mut Runtime, tool: ToolKind, points: &[[f32; 2]]) {
     let last = points.len() - 1;
@@ -62,8 +59,8 @@ fn line(y: f32) -> Vec<[f32; 2]> {
 
 /// A runtime on `store`, with frames until the library has opened the canvas.
 fn start(store: Box<dyn ProjectStore>) -> Runtime {
-    let mut runtime = Runtime::start(PIXELS_PER_POINT, store)
-        .expect("a GPU adapter is required for runtime tests");
+    let mut runtime =
+        Runtime::start_on(gpu::core(), PIXELS_PER_POINT, store).expect("the runtime starts");
     let start = Instant::now();
     while runtime.artwork().is_none() {
         runtime.frame_offscreen(SIZE).expect("frame");
@@ -173,32 +170,10 @@ impl ProjectStore for Flaky {
     }
 }
 
-/// The centre of the text button in the right half of the top band (Gallery is at the left),
-/// found by the ink of its outline's top edge: the longest dark run along that row.
-fn retry_button(runtime: &mut Runtime) -> [f32; 2] {
-    let screen = runtime.screenshot(SIZE).expect("screenshot");
-    let width = SIZE[0] as usize;
-    for y in BUTTON_TOP {
-        let row = &screen.pixels()[y * width * 4..(y + 1) * width * 4];
-        let (pixels, _) = row.as_chunks::<4>();
-        let dark = |x: usize| pixels[x][..3].iter().all(|channel| *channel < 160);
-        let mut runs: Vec<(usize, usize)> = Vec::new();
-        for x in (width / 2..width).filter(|&x| dark(x)) {
-            match runs.last_mut() {
-                Some(run) if run.1 + 1 == x => run.1 = x,
-                _ => runs.push((x, x)),
-            }
-        }
-        if let Some((first, last)) = runs
-            .into_iter()
-            .filter(|(first, last)| last - first >= BUTTON_EDGE)
-            .max_by_key(|(first, last)| last - first)
-        {
-            let middle = (13.25 + 24.0) * PIXELS_PER_POINT;
-            return [(first + last) as f32 / 2.0, middle];
-        }
-    }
-    panic!("no text button in the top band's right half");
+/// The middle of the notice pill's Retry button, found by its name (D48).
+fn retry_button(runtime: &Runtime) -> [f32; 2] {
+    let control = runtime.controls().find("Retry").expect("Retry on screen");
+    control.at([0.5, 0.5])
 }
 
 #[test]
@@ -214,7 +189,7 @@ fn a_failed_save_shows_a_retry_that_saves_once_the_store_works() {
     settle(&mut runtime);
     let failed = StorageNotice::SaveFailed { retrying: false };
     assert_eq!(runtime.projection().storage(), failed);
-    let retry = retry_button(&mut runtime);
+    let retry = retry_button(&runtime);
     gesture(&mut runtime, ToolKind::Finger, &[retry, retry]);
     settle(&mut runtime);
     assert_eq!(runtime.projection().storage(), failed, "still failing");

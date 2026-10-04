@@ -9,7 +9,9 @@
 //! - `pen x,y,x,y,... [pressure]`: one pen path, a point per 8 ms (repeat a point to hold);
 //! - `finger x,y[,x,y...] [x,y[,x,y...] [ms]]`: fingers down at the first points, moving to the
 //!   second over `ms` (default 64), then lifting;
-//! - `hover x,y [ms]`: the pen held above the glass for `ms` (default 1500).
+//! - `hover x,y [ms]`: the pen held above the glass for `ms` (default 1500);
+//! - `tap <name>`: a finger tap on the middle of the control the app last drew under that name
+//!   (D48's names; `name #n` for a shared one), looked up on the device by the debug build.
 
 use std::time::Duration;
 
@@ -114,23 +116,33 @@ pub fn input(args: &[String]) -> Result<()> {
     wake(&adb)?;
     let mut words = vec!["am", "instrument", "-w", "--no-restart"];
     for (key, value) in &extras {
-        words.extend(["-e", key, value]);
+        words.extend(["-e", key, value.as_str()]);
     }
     words.push(INSTRUMENTATION);
     let output = adb.shell(&words)?;
     if !output.contains("gesture=injected") {
         return Err(DeviceError::Injection(output.trim().to_owned()));
     }
-    println!("injected {}", args.join(" "));
+    match output.lines().find_map(|line| line.split_once("tapped=")) {
+        Some((_, tapped)) => println!("tapped {}", tapped.trim()),
+        None => println!("injected {}", args.join(" ")),
+    }
     Ok(())
 }
 
 const INPUT_USAGE: &str = "cargo device-input pen x,y,... [pressure] | finger x,y[,...] \
-                           [x,y[,...] [ms]] | hover x,y [ms]";
+                           [x,y[,...] [ms]] | hover x,y [ms] | tap <control name>";
 
 /// The instrumentation's `-e` arguments for a `device-input` command line.
-fn extras<'a>(args: &[&'a str]) -> Result<Vec<(&'static str, &'a str)>> {
+fn extras(args: &[&str]) -> Result<Vec<(&'static str, String)>> {
     let usage = DeviceError::Usage(INPUT_USAGE);
+    if let ["tap", name] = args {
+        // The device's shell reads the line: the name goes in single quotes, so none inside.
+        if name.is_empty() || name.chars().any(|c| c == '\'' || c.is_control()) {
+            return Err(usage);
+        }
+        return Ok(vec![("tap", format!("'{name}'"))]);
+    }
     // Only digits, points, commas and a sign reach the device's shell.
     if !args[1.min(args.len())..].iter().all(|arg| {
         arg.bytes()
@@ -138,7 +150,7 @@ fn extras<'a>(args: &[&'a str]) -> Result<Vec<(&'static str, &'a str)>> {
     }) {
         return Err(usage);
     }
-    Ok(match args {
+    let extras: Vec<(&'static str, &str)> = match *args {
         ["pen", path] => vec![("tool", "stylus"), ("path", path)],
         ["pen", path, pressure] => vec![("tool", "stylus"), ("pressure", pressure), ("path", path)],
         ["finger", from] => vec![("from", from)],
@@ -147,7 +159,11 @@ fn extras<'a>(args: &[&'a str]) -> Result<Vec<(&'static str, &'a str)>> {
         ["hover", at] => vec![("hover", at)],
         ["hover", at, ms] => vec![("hover", at), ("ms", ms)],
         _ => return Err(usage),
-    })
+    };
+    Ok(extras
+        .into_iter()
+        .map(|(key, value)| (key, value.to_owned()))
+        .collect())
 }
 
 #[cfg(test)]
@@ -160,13 +176,17 @@ mod tests {
         assert_eq!(
             pen,
             [
-                ("tool", "stylus"),
-                ("pressure", "0.8"),
-                ("path", "100,200,300,400")
+                ("tool", "stylus".to_owned()),
+                ("pressure", "0.8".to_owned()),
+                ("path", "100,200,300,400".to_owned())
             ]
         );
         let fingers = extras(&["finger", "1,2,3,4", "0,2,5,4", "200"]).expect("fingers");
-        assert_eq!(fingers[2], ("ms", "200"));
+        assert_eq!(fingers[2], ("ms", "200".to_owned()));
+        let tap = extras(&["tap", "Move layer up"]).expect("tap");
+        assert_eq!(tap, [("tap", "'Move layer up'".to_owned())]);
+        assert!(extras(&["tap", "it's"]).is_err());
+        assert!(extras(&["tap", "a\nb"]).is_err());
         assert!(extras(&["pen", "1,2;rm -rf /"]).is_err());
         assert!(extras(&["walk", "1,2"]).is_err());
         assert!(extras(&[]).is_err());

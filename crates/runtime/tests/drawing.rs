@@ -3,6 +3,7 @@
 //! the canvas); a two-finger tap undoes; the side bar looks the same while the pen draws; the
 //! screen shows what a cold evaluation of the committed artwork gives, through the view.
 
+mod gpu;
 mod screen_map;
 mod support;
 

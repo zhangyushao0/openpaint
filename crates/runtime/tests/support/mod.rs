@@ -72,10 +72,10 @@ pub fn open(runtime: &mut Runtime, size: [u32; 2]) {
     }
 }
 
-/// A runtime on `store` with its canvas open.
+/// A runtime on `store` and the binary's one device (`gpu::core`) with its canvas open.
 pub fn start(pixels_per_point: f32, size: [u32; 2], store: Box<dyn ProjectStore>) -> Runtime {
-    let mut runtime = Runtime::start(pixels_per_point, store)
-        .expect("a GPU adapter is required for runtime tests");
+    let mut runtime =
+        Runtime::start_on(crate::gpu::core(), pixels_per_point, store).expect("the runtime starts");
     open(&mut runtime, size);
     runtime
 }
