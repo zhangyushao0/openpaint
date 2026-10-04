@@ -13,6 +13,7 @@ mod groups;
 mod incremental;
 mod insert;
 mod masks;
+mod scale;
 mod screen;
 mod selection;
 mod smudge;

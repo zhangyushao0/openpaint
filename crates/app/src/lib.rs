@@ -39,7 +39,7 @@ pub use crate::adjust::{AdjustIntent, AdjustProjection, AdjustRefusal};
 pub use crate::brushes::{Brush, BrushKey, BrushLibrary, SizeRange};
 pub use crate::editor_state::{BrushChoice, BrushSetting, EditorState};
 pub use crate::error::AppError;
-pub use crate::export::{ExportIntent, ExportJob, ExportNotice, file_name};
+pub use crate::export::{ExportIntent, ExportJob, ExportNotice, ExportScale, file_name};
 pub use crate::fill::{
     DEFAULT_THRESHOLD, FillFailed, FillIntent, FillJob, FillProjection, FillRefusal,
 };

@@ -6,15 +6,15 @@
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use openpaint_app::{
     ContactPhase, ExportError, ExportIntent, ExportJob, ImageError, ImageSource, InsertJob, Intent,
     MAX_IMAGE_BYTES, OpenJob, ReferenceImage, StrokeIntent, TransferJob, Transfers,
 };
 use openpaint_core::Patch;
-use openpaint_render::Core;
-use openpaint_store::{encode_image, open_picture, open_reference};
+use openpaint_render::{Banding, Core, RenderError};
+use openpaint_store::{ImageEncoder, open_picture, open_reference};
 
 use crate::canvas::{Canvas, PAPER};
 use crate::error::RuntimeError;
@@ -69,8 +69,14 @@ pub(crate) fn route(
     for intent in intents {
         let result = match &intent {
             Intent::Export(export) => {
-                if let ExportIntent::Start { format, delivery } = export {
-                    log::info!("export as {} by {delivery:?}", format.name());
+                if let ExportIntent::Start {
+                    format,
+                    delivery,
+                    scale,
+                } = export
+                {
+                    let factor = scale.factor();
+                    log::info!("export as {} at {factor}x by {delivery:?}", format.name());
                 }
                 let open = canvas.map(|canvas| (canvas.session().artwork(), canvas.title()));
                 transfers.export(export, open)
@@ -126,26 +132,47 @@ fn serve(core: &Core, job: TransferJob) -> TransferDone {
     }
 }
 
-/// Renders the job's artwork at its full size, encodes it and writes the chosen file.
+/// Renders the job's artwork at its scale in bands, streams each band into the encoder (S29: a
+/// 4x export is never held whole as pixels) and writes the chosen file.
 fn export(core: &Core, job: ExportJob) -> Result<(), ExportError> {
     let started = Instant::now();
-    let image = core
-        .export(&job.artwork, PAPER)
-        .inspect_err(|error| log::error!("export rendering failed: {error}"))
-        .map_err(|_| ExportError::Render)?;
-    let rendered = started.elapsed();
-    let bytes = encode_image(job.format, image.size(), image.pixels())?;
+    let rendering = |error: RenderError| {
+        log::error!("export rendering failed: {error}");
+        ExportError::Render
+    };
+    let scale = job.scale.factor();
+    let mut bands = core
+        .export_bands(&job.artwork, PAPER, scale, Banding::DEFAULT)
+        .map_err(rendering)?;
+    let size = bands.size();
+    let mut encoder = ImageEncoder::new(job.format, size)?;
+    let mut encoding = Duration::ZERO;
+    for band in &mut bands {
+        let band = band.map_err(rendering)?;
+        let at = Instant::now();
+        encoder.rows(band.pixels())?;
+        encoding += at.elapsed();
+    }
+    let (planned, waited) = bands.timing();
+    let at = Instant::now();
+    let bytes = encoder.finish()?;
+    encoding += at.elapsed();
+    let written = Instant::now();
     job.sink
         .write(&bytes)
         .inspect_err(|error| log::error!("writing the export failed: {error}"))
         .map_err(ExportError::Write)?;
-    let [width, height] = image.size();
+    let [width, height] = size;
     log::info!(
-        "exported {} {width} x {height}, {} bytes: rendered in {} ms, encoded and written in {} ms",
+        "exported {} at {scale}x, {width} x {height}, {} bytes in {} ms: planned and submitted \
+         {} ms, GPU and readback {} ms, encoded {} ms, written {} ms",
         job.format.name(),
         bytes.len(),
-        rendered.as_millis(),
-        (started.elapsed() - rendered).as_millis()
+        started.elapsed().as_millis(),
+        planned.as_millis(),
+        waited.as_millis(),
+        encoding.as_millis(),
+        written.elapsed().as_millis()
     );
     Ok(())
 }

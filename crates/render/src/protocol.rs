@@ -168,10 +168,11 @@ impl Opcode {
 
 /// One op. Operands by opcode:
 /// - `Segment`: `[ax, ay, bx, by, ra, rb, fa, fb, edge, ca, cb, tip]`, a tapered capsule from
-///   `a` (radius `ra`) to `b` (radius `rb`) in target pixels; its coverage (`Tip::Cover`) or
+///   `a` (radius `ra`) to `b` (radius `rb`) in canvas pixels; its coverage (`Tip::Cover`) or
 ///   its density (the others) is multiplied by the flow, `fa` at `a` changing evenly to `fb` at
-///   `b`; `edge` is one over the width in pixels over which a covering segment fades in from
-///   the outline (1: a hard, antialiased edge); `ca` to `cb` the paper contact along it.
+///   `b`; `edge` is one over the width in canvas pixels over which a covering segment fades in
+///   from the outline (1: a hard edge, antialiased over one output pixel at any scale); `ca`
+///   to `cb` the paper contact along it.
 /// - `EndStroke` and `EndActive`: `[r, g, b, opacity, grain, grain_scale, blend, density,
 ///   paper scale, paper level, depth, dust, clip / 2^16, clip % 2^16]`, straight sRGB colour;
 ///   `grain` a whole number in `0..=GRAIN_ONE`, `grain_scale` whole pixels, `blend` a `Blend`;
@@ -362,6 +363,11 @@ pub(crate) struct Params {
     pub(crate) row: u32,
     /// Target size in pixels.
     pub(crate) size: [u32; 2],
+    /// The output pixel at the target's top-left, output pixels per canvas pixel (a power of
+    /// two) and its inverse: an output pixel's centre `(p + 0.5) x inverse` in canvas pixels.
+    pub(crate) origin: [u32; 2],
+    pub(crate) scale: f32,
+    pub(crate) inverse: f32,
 }
 
 #[path = "protocol_records.rs"]

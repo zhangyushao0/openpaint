@@ -43,10 +43,10 @@ Passed 2026-10-04: S18 to S26 and the G3 follow-ups done (see "Done"); the autho
 
 ## G4 Colour, adjustments, sharp rendering, library
 
-S27 Colour management and S28 Adjustments (hue/saturation/brightness and curves; blur and sharpen wait for S33) are done (see "Done").
+S27 Colour management, S28 Adjustments (hue/saturation/brightness and curves; blur and sharpen wait for S33) and S29 are done (see "Done").
 
 Render architecture (author, 2026-10-04): the truth stays operation records, pixels are only derived, discardable caches; strokes stay sharp at any scale. Steps in order, each shippable alone; not built: per-layer pyramids, disk caches, vector fill contours, stroke editing, a filter graph, 8x export.
-- **S29 Scale-aware evaluation and export at 1x / 2x / 4x**: every op knows its footprint in output pixels (stroke edges, grain level, masks); export renders in bands at the chosen scale; 1x equals today's canvas bit for bit. Op binning that stays cheap at high scales (a per-version spatial index) is designed here.
+- S29 Scale-aware evaluation and export at 1x / 2x / 4x is done (see "Done"); per-band binning measured cheap, so no spatial index (D55).
 - **S30 Fill edges**: a distance field derived once per fill from its stored mask gives smooth edges at every scale; the 1x look changes slightly, the author judges with screenshots before it ships.
 - **S31 Transform as a record**: selection mask plus placement, evaluated by mapping back to the earlier records (scaled strokes stay sharp); the lifted patch is only the drag preview, settled equals committed; old patch records and inserted pictures stay raster sources.
 - **S32 Sharp zoom**: one view-tier cache (power-of-two tiers, the visible tiles and a ring), filled progressively after a pinch; first measured on the author's busiest artwork on the tablet.
@@ -100,6 +100,7 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - 2026-10-04 Colour follow-ups (S27): PNG `gAMA`/`cHRM`/`cICP` without `iCCP`, grey ICC profiles and CMYK JPEGs' profiles (taken as sRGB today); converting 16-bit PNGs before reducing them to 8 bits; deeper stored pixels (16-bit patches, fills and images) if S28's adjustments show banding; no P3 working space (author, 2026-10-04); the 10-bit surface is S31.
 - 2026-10-04 Blur and sharpen (S28): wait for derived per-layer pixel caches (render architecture), never as baked patches.
 - 2026-10-04 Adjustment follow-ups (S28): Procreate's other adjustments (colour balance, gradient map, noise, liquify and the rest) and its Pencil mode (adjusting by painting); removing a curve point (Reset clears the curve shown); curves through 8-bit tables band a strong curve on a smooth gradient (STATUS): interpolate between table entries or evaluate the curve per pixel if the author sees it; a cheaper preview than re-evaluating the whole canvas per value if large artworks lag.
+- 2026-10-04 Export follow-ups (S29): write the PNG to the chosen file band by band (`ImageSink` as a writer) instead of holding the encoded file; a JPEG at 4x through a streaming encoder; PNG encoding is about 90 % of a 4x export (a faster deflate level or encoding on a second thread).
 - 2026-10-02 Pen stroke cancelled by a landing touch: with injected input the dispatcher cancels the pen's gesture when a touch lands mid-stroke and the stroke is dropped; if real hardware does the same, commit the stroke drawn so far on such a cancel.
 
 ## Done
@@ -120,3 +121,4 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - G3 follow-ups 2026-10-04 `feat(ui): the chosen mark slides, press wash in the control's shape, a clear Add Mask (G3 follow-ups)`; mid-slide screenshots reviewed, scenario hashes unchanged; checked on the tablet, library byte-identical on the first restore
 - S27 2026-10-04 `feat(store): colour-managed import and sRGB-tagged export (S27)`; Display P3 PNG and JPEG come in as their sRGB colours (also on the tablet), exports embed sRGB, the surface declared sRGB; display facts in STATUS (D53)
 - S28 2026-10-04 `feat(render): adjustments with live preview: hue/saturation/brightness and curves (S28)`; parametric ops in the one evaluator, preview = commit and incremental = cold on the GPU, schema 12 (D54); confirmed on the tablet, the author's library upgraded pixel-identical and restored byte-identical; blur and sharpen moved to Candidates
+- S29 2026-10-04 `feat(render): scale-aware evaluation, export at 1x, 2x and 4x in bands (S29)`; every golden and older scenario hash unchanged at 1x, banded = one piece, sharp edges at 2x/4x on the GPU; PNG streamed, JPEG up to 2x (D55)

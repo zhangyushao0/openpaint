@@ -8,6 +8,7 @@ use std::ops::Range;
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::geom::PixelRect;
+use crate::output::Output;
 use crate::plan::Plan;
 use crate::program::{Bindings, Dispatch, SceneOps};
 use crate::protocol::Op;
@@ -56,6 +57,7 @@ impl Material {
                 ops,
                 fresh: &[Op::end_layer(1.0)],
                 plan: &plan,
+                output: Output::CANVAS,
                 background: [0.0; 4],
                 reset: false,
                 residuals,

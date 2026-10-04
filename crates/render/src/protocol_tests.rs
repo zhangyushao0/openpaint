@@ -105,6 +105,9 @@ fn encoding_fills_exactly_the_record_size() {
         tiles: 1,
         row: 1,
         size: [1, 1],
+        origin: [0, 0],
+        scale: 1.0,
+        inverse: 1.0,
     };
     assert_eq!(encode(&[params]).len(), size_of::<Params>());
 }

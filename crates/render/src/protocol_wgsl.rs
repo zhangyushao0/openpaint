@@ -44,6 +44,9 @@ pub(super) const LAYOUTS: [Layout; 3] = [
             ("tiles", "u32", offset_of!(Params, tiles)),
             ("row", "u32", offset_of!(Params, row)),
             ("size", "vec2<u32>", offset_of!(Params, size)),
+            ("origin", "vec2<u32>", offset_of!(Params, origin)),
+            ("scale", "f32", offset_of!(Params, scale)),
+            ("inverse", "f32", offset_of!(Params, inverse)),
         ],
     },
 ];

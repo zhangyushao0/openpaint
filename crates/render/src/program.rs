@@ -5,11 +5,16 @@ use wgpu::util::DeviceExt;
 use crate::edits::patch_bytes;
 use crate::error::RenderError;
 use crate::gpu::Gpu;
+use crate::output::Output;
 use crate::paper::paper_levels;
 use crate::plan::Plan;
 use crate::protocol::{Op, Params, Record, encode, prelude};
 use crate::readback::FORMAT;
 use crate::scene::Scene;
+
+#[path = "program_layout.rs"]
+mod layout;
+use layout::{buffer_entry, texture_entry};
 
 const SHADER: &str = include_str!("shaders/evaluate.wgsl");
 const DEPOSIT: &str = include_str!("shaders/deposit.wgsl");
@@ -32,6 +37,8 @@ pub(crate) struct Dispatch<'a> {
     /// The in-progress stroke's ops for this evaluation.
     pub(crate) fresh: &'a [Op],
     pub(crate) plan: &'a Plan,
+    /// Where the target lies in the output (`Output::CANVAS` for the canvas itself).
+    pub(crate) output: Output,
     pub(crate) background: [f32; 4],
     /// Clears the coverage texture first: the in-progress stroke starts over.
     pub(crate) reset: bool,
@@ -208,11 +215,15 @@ impl EvaluatePipeline {
         work: &Dispatch<'_>,
     ) -> Result<(), RenderError> {
         let groups = workgroups(gpu, work.plan.tiles.len())?;
+        let (origin, scale, inverse) = work.output.operands();
         let params = Params {
             background: work.background,
             tiles: groups.tiles,
             row: groups.row,
             size: bindings.size,
+            origin,
+            scale,
+            inverse,
         };
         gpu.queue
             .write_buffer(&bindings.params, 0, &encode(&[params]));
@@ -330,36 +341,6 @@ fn clear_kept(encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
         ..Default::default()
     });
     drop(pass);
-}
-
-fn buffer_entry(binding: u32, ty: wgpu::BufferBindingType) -> wgpu::BindGroupLayoutEntry {
-    wgpu::BindGroupLayoutEntry {
-        binding,
-        visibility: wgpu::ShaderStages::COMPUTE,
-        ty: wgpu::BindingType::Buffer {
-            ty,
-            has_dynamic_offset: false,
-            min_binding_size: None,
-        },
-        count: None,
-    }
-}
-
-fn texture_entry(
-    binding: u32,
-    access: wgpu::StorageTextureAccess,
-    format: wgpu::TextureFormat,
-) -> wgpu::BindGroupLayoutEntry {
-    wgpu::BindGroupLayoutEntry {
-        binding,
-        visibility: wgpu::ShaderStages::COMPUTE,
-        ty: wgpu::BindingType::StorageTexture {
-            access,
-            format,
-            view_dimension: wgpu::TextureViewDimension::D2,
-        },
-        count: None,
-    }
 }
 
 /// A buffer holding `records`. An empty list still gets one zeroed record, because a binding

@@ -17,6 +17,14 @@ impl RgbaImage {
         Self { size, pixels }
     }
 
+    /// `pixels` as an image of `size` (a decoded file, for comparing); `None` when they do
+    /// not hold exactly `width * height * 4` bytes.
+    #[must_use]
+    pub fn from_rgba(size: [u32; 2], pixels: Vec<u8>) -> Option<Self> {
+        let whole = pixels.len() as u64 == u64::from(size[0]) * u64::from(size[1]) * 4;
+        whole.then_some(Self { size, pixels })
+    }
+
     /// `[width, height]` in pixels.
     pub fn size(&self) -> [u32; 2] {
         self.size

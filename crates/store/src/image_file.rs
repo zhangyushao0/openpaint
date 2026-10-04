@@ -1,68 +1,15 @@
-//! Picture files: an artwork's pixels written as PNG or JPEG for export, and PNG or JPEG files
-//! read as reference images or pictures to insert. The `image` crate does the coding (DECISIONS
-//! D14); colours are sRGB both ways: a file's embedded ICC profile is honoured on the way in and
-//! every export embeds the sRGB profile (`colour`, S27, D53).
+//! Picture files read: PNG or JPEG files as reference images or pictures to insert. The `image`
+//! crate does the decoding (DECISIONS D14); a file's embedded ICC profile is honoured, so colours
+//! come in as sRGB (`colour`, S27, D53). Writing is `export_file.rs`.
 
 use std::io::Cursor;
 
-use image::codecs::jpeg::JpegEncoder;
-use image::codecs::png::{CompressionType, FilterType, PngEncoder};
 use image::imageops::{self, FilterType as Filter};
-use image::{DynamicImage, ExtendedColorType, ImageDecoder, ImageEncoder, ImageReader, RgbaImage};
-use openpaint_app::{
-    ExportError, ImageError, ImageFormat, MAX_IMAGE_PIXELS, ReferenceImage, picture_place,
-};
+use image::{DynamicImage, ImageDecoder, ImageReader, RgbaImage};
+use openpaint_app::{ImageError, MAX_IMAGE_PIXELS, ReferenceImage, picture_place};
 use openpaint_core::{CanvasSize, Patch};
 
-use crate::colour::{Interpretation, SRGB_PROFILE, into_srgb};
-
-/// JPEG quality, 1 to 100: high, so ink edges stay clean.
-const JPEG_QUALITY: u8 = 92;
-
-/// `rgba` (8-bit sRGB RGBA, `size`, rows top first) as a file of `format` declaring sRGB by an
-/// embedded profile (PNG `iCCP`, JPEG APP2). PNG keeps every byte; JPEG drops the alpha channel
-/// (the canvas is opaque on its paper).
-///
-/// # Errors
-/// `Encode` when `rgba` does not hold `size` or the encoder refuses it (JPEG sides above 65535).
-pub fn encode_image(
-    format: ImageFormat,
-    size: [u32; 2],
-    rgba: &[u8],
-) -> Result<Vec<u8>, ExportError> {
-    let [width, height] = size;
-    if rgba.len() as u64 != u64::from(width) * u64::from(height) * 4 {
-        return Err(ExportError::Encode);
-    }
-    let mut out = Vec::new();
-    let result = match format {
-        ImageFormat::Png => {
-            let mut encoder = PngEncoder::new_with_quality(
-                &mut out,
-                CompressionType::Default,
-                FilterType::Adaptive,
-            );
-            encoder
-                .set_icc_profile(SRGB_PROFILE.to_vec())
-                .map_err(|_| ExportError::Encode)?;
-            encoder.write_image(rgba, width, height, ExtendedColorType::Rgba8)
-        }
-        ImageFormat::Jpeg => {
-            let (pixels, _) = rgba.as_chunks::<4>();
-            let rgb: Vec<u8> = pixels
-                .iter()
-                .flat_map(|[r, g, b, _]| [*r, *g, *b])
-                .collect();
-            let mut encoder = JpegEncoder::new_with_quality(&mut out, JPEG_QUALITY);
-            encoder
-                .set_icc_profile(SRGB_PROFILE.to_vec())
-                .map_err(|_| ExportError::Encode)?;
-            encoder.write_image(&rgb, width, height, ExtendedColorType::Rgb8)
-        }
-    };
-    result.map_err(|_| ExportError::Encode)?;
-    Ok(out)
-}
+use crate::colour::{Interpretation, into_srgb};
 
 /// The picture in a PNG or JPEG file as 8-bit sRGB RGBA at its full size, turned upright as its
 /// EXIF orientation says (camera pictures). An embedded RGB ICC profile (a phone's Display P3)
@@ -154,6 +101,8 @@ fn decoding(error: image::ImageError) -> ImageError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::export_file::encode_image;
+    use openpaint_app::{ExportError, ImageFormat};
 
     /// 3 x 2 pixels of distinct colours, one half transparent.
     fn pixels() -> Vec<u8> {

@@ -174,22 +174,29 @@ impl Transfers {
     /// Starts or dismisses an export of `open` (the artwork on the canvas and its title).
     ///
     /// # Errors
-    /// `Unavailable` while another export or a system picker runs, or without an artwork.
+    /// `Unavailable` while another export or a system picker runs, without an artwork, or for
+    /// a format the scale does not fit (`ExportScale::fits`: a JPEG at 4x).
     pub fn export(
         &mut self,
         intent: &ExportIntent,
         open: Option<(&Artwork, &Title)>,
     ) -> Result<(), AppError> {
         match *intent {
-            ExportIntent::Start { format, delivery } => {
+            ExportIntent::Start {
+                format,
+                delivery,
+                scale,
+            } => {
                 self.check(EditorAction::Export)?;
-                let Some((artwork, title)) = open else {
-                    return Err(AppError::Unavailable {
-                        action: EditorAction::Export,
-                        availability: Availability::NothingLeft,
-                    });
+                let refused = AppError::Unavailable {
+                    action: EditorAction::Export,
+                    availability: Availability::NothingLeft,
                 };
-                let request = self.export.start(format, delivery, artwork, title);
+                let Some((artwork, title)) = open.filter(|_| scale.fits(format)) else {
+                    return Err(refused);
+                };
+                let order = (format, scale, delivery);
+                let request = self.export.start(order, artwork, title);
                 self.requests.push_back(request);
             }
             ExportIntent::Dismiss => self.export.dismiss(),

@@ -161,11 +161,13 @@ fn write_export(dir: &Path, export: &Export, log: &mut Log) -> Result<(), Harnes
     fs::write(&path, &export.bytes)?;
     let [width, height] = export.size;
     log.push(format!(
-        "export {}: {}, {} {width} x {height}, {} bytes, largest difference from the canvas {}, \
-         mean {:.3}: {}",
+        "export {}: {}, {} {width} x {height} at {}x, pixels {:016x}, {} bytes, largest \
+         difference from the canvas {}, mean {:.3}: {}",
         export.name,
         if export.passed() { "pass" } else { "FAIL" },
         export.format.name(),
+        export.expected.scale,
+        export.pixels,
         export.bytes.len(),
         export.largest_difference,
         export.mean_difference,

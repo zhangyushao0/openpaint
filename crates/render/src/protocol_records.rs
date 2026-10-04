@@ -28,6 +28,9 @@ impl Record for Params {
         out.extend(self.background.iter().flat_map(|value| value.to_le_bytes()));
         let words = [self.tiles, self.row, self.size[0], self.size[1]];
         out.extend(words.iter().flat_map(|word| word.to_le_bytes()));
+        out.extend(self.origin.iter().flat_map(|word| word.to_le_bytes()));
+        out.extend(self.scale.to_le_bytes());
+        out.extend(self.inverse.to_le_bytes());
     }
 }
 

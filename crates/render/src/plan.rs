@@ -6,6 +6,7 @@
 use std::ops::Range;
 
 use crate::geom::PixelRect;
+use crate::output::Output;
 use crate::protocol::{FRESH, TILE, TileRecord};
 use crate::scene::{Fresh, Item, Scene};
 
@@ -18,16 +19,18 @@ pub(crate) struct Plan {
 }
 
 impl Plan {
-    /// Regions are clipped to the target of `size` pixels and widened to whole tiles. At the
-    /// scene's `Active` place every tile lists the fresh segments that reach it and then the
-    /// fresh paint op: the in-progress stroke's earlier coverage may lie in any tile.
+    /// Regions (target pixels) are clipped to the target of `size` pixels, which lies at
+    /// `output`, and widened to whole tiles; ops reach the tiles their canvas bounds cover
+    /// there. At the scene's `Active` place every tile lists the fresh segments that reach it
+    /// and then the fresh paint op: the in-progress stroke's earlier coverage may lie in any
+    /// tile.
     pub(crate) fn build(
         scene: &Scene,
         fresh: &Fresh,
-        size: [u32; 2],
+        (size, output): ([u32; 2], Output),
         regions: &[PixelRect],
     ) -> Self {
-        let grid = Grid::new(size, regions);
+        let grid = Grid::new(size, output, regions);
         let lists = Self::bin(&grid, &scene.items, 0, fresh);
         Self::flatten(&grid.origins, lists)
     }
@@ -108,7 +111,7 @@ impl Plan {
         regions: &[PixelRect],
     ) -> Self {
         let first = u32::try_from(items.start).unwrap_or(u32::MAX);
-        let grid = Grid::new(size, regions);
+        let grid = Grid::new(size, Output::CANVAS, regions);
         let mut lists = Self::bin(&grid, &scene.items[items], first, &Fresh::default());
         for list in &mut lists {
             list.push(FRESH);
@@ -132,10 +135,12 @@ impl Plan {
     }
 }
 
-/// The target's tile grid and which tiles are being evaluated (a dense slot each).
+/// The target's tile grid, where the target lies in the output, and which tiles are being
+/// evaluated (a dense slot each).
 struct Grid {
     columns: usize,
     rows: usize,
+    output: Output,
     /// Per grid tile, row major: its slot, or `None` when not evaluated.
     slot_of: Vec<Option<usize>>,
     /// Per slot: the tile's top-left pixel.
@@ -143,12 +148,13 @@ struct Grid {
 }
 
 impl Grid {
-    fn new(size: [u32; 2], regions: &[PixelRect]) -> Self {
+    fn new(size: [u32; 2], output: Output, regions: &[PixelRect]) -> Self {
         let columns = size[0].div_ceil(TILE) as usize;
         let rows = size[1].div_ceil(TILE) as usize;
         let mut grid = Self {
             columns,
             rows,
+            output,
             slot_of: vec![None; columns * rows],
             origins: Vec::new(),
         };
@@ -181,9 +187,10 @@ impl Grid {
         rows.flat_map(move |row| columns.clone().map(move |column| row * width + column))
     }
 
-    /// Slots of the evaluated tiles that meet `rect`.
+    /// Slots of the evaluated tiles that meet the canvas pixels `rect`.
     fn slots(&self, rect: &PixelRect) -> impl Iterator<Item = usize> + '_ {
-        self.tiles(rect).filter_map(|tile| self.slot_of[tile])
+        self.tiles(&self.output.place(rect))
+            .filter_map(|tile| self.slot_of[tile])
     }
 
     /// Per slot, the fresh segments that reach it, as `FRESH` indices in order.

@@ -20,6 +20,9 @@ fn segment(bounds: [f32; 4]) -> Item {
     }
 }
 
+/// A target of 48 x 20 pixels holding the canvas.
+const CANVAS_48X20: ([u32; 2], Output) = ([48, 20], Output::CANVAS);
+
 fn paint() -> Paint {
     Paint::solid([0.0; 3], Blend::Over)
 }
@@ -60,7 +63,7 @@ fn lists(plan: &Plan) -> Vec<([u32; 2], Vec<u32>)> {
 #[test]
 fn tiles_list_only_the_ops_that_reach_them_in_scene_order() {
     let none = Fresh::default();
-    let plan = Plan::build(&scene(), &none, [48, 20], &[PixelRect::full([48, 20])]);
+    let plan = Plan::build(&scene(), &none, CANVAS_48X20, &[PixelRect::full([48, 20])]);
     let expected = [
         ([0, 0], vec![0, 1, 4]),
         ([16, 0], vec![0, 1, 4]),
@@ -87,7 +90,7 @@ fn a_mask_begins_where_the_paint_reached_and_the_end_lists_where_either_did() {
     let plan = Plan::build(
         &scene,
         &Fresh::default(),
-        [48, 20],
+        CANVAS_48X20,
         &[PixelRect::full([48, 20])],
     );
     let listed = lists(&plan);
@@ -117,7 +120,7 @@ fn a_fill_reaches_the_tiles_of_its_rectangle_and_ends_their_layer() {
     let plan = Plan::build(
         &scene,
         &Fresh::default(),
-        [48, 20],
+        CANVAS_48X20,
         &[PixelRect::full([48, 20])],
     );
     let listed = lists(&plan);
@@ -150,9 +153,38 @@ fn regions_are_clipped_widened_to_tiles_and_deduplicated() {
             max: [5, 9],
         },
     ];
-    let plan = Plan::build(&scene(), &Fresh::default(), [48, 20], &regions);
+    let plan = Plan::build(&scene(), &Fresh::default(), CANVAS_48X20, &regions);
     let expected = [([0, 0], vec![0, 1, 4]), ([32, 16], vec![])];
     assert_eq!(lists(&plan), expected);
+}
+
+#[test]
+fn at_scale_two_ops_reach_the_tiles_their_canvas_bounds_cover_there() {
+    // The first segment's canvas pixels 2..21 (widened: 1..22) are output pixels 2..44 at 2x:
+    // all three tiles of the first row; the second one's (39..43) lie past the target.
+    let output = Output::at(2, [0, 0]).expect("2x");
+    let size = [48, 16];
+    let plan = Plan::build(
+        &scene(),
+        &Fresh::default(),
+        (size, output),
+        &[PixelRect::full(size)],
+    );
+    let expected = [
+        ([0, 0], vec![0, 1, 4]),
+        ([16, 0], vec![0, 1, 4]),
+        ([32, 0], vec![0, 1, 4]),
+    ];
+    assert_eq!(lists(&plan), expected);
+    // Lower in the output (origin row 16), the segments' rows 1..6 (output 2..12) are above.
+    let below = Output::at(2, [0, 16]).expect("2x");
+    let plan = Plan::build(
+        &scene(),
+        &Fresh::default(),
+        (size, below),
+        &[PixelRect::full(size)],
+    );
+    assert!(lists(&plan).iter().all(|(_, list)| list.is_empty()));
 }
 
 #[test]
@@ -170,7 +202,8 @@ fn every_tile_paints_the_active_stroke_after_the_fresh_segments_that_reach_it() 
         ops: vec![black(); 2],
         bounds: vec![Bounds([20.0, 2.0, 22.0, 3.0])],
     };
-    let plan = Plan::build(&scene, &fresh, [48, 16], &[PixelRect::full([48, 16])]);
+    let target = ([48, 16], Output::CANVAS);
+    let plan = Plan::build(&scene, &fresh, target, &[PixelRect::full([48, 16])]);
     let expected = [
         ([0, 0], vec![0, 1, FRESH, 3]),
         ([16, 0], vec![FRESH | 1, FRESH, 3]),

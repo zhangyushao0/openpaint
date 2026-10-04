@@ -9,6 +9,7 @@ use crate::error::RenderError;
 use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
 use crate::image::RgbaImage;
+use crate::output::Output;
 use crate::plan::Plan;
 use crate::program::{Bindings, Dispatch, SceneOps, scene_ops};
 use crate::readback::{read_rgba, read_texel, target_texture};
@@ -45,6 +46,16 @@ struct SceneCache {
 impl CanvasTarget {
     /// A target of `size` pixels. Its content is undefined until a region is evaluated.
     pub fn new(core: &Core, size: [u32; 2]) -> Result<Self, RenderError> {
+        Self::with_kept(core, size, true)
+    }
+
+    /// A target of `size` pixels for a piece of a scaled output (export): it never draws an
+    /// in-progress stroke, so it keeps no coverage of one.
+    pub(crate) fn piece(core: &Core, size: [u32; 2]) -> Result<Self, RenderError> {
+        Self::with_kept(core, size, false)
+    }
+
+    fn with_kept(core: &Core, size: [u32; 2], kept: bool) -> Result<Self, RenderError> {
         let usage = wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING;
         // First: it rejects sizes the device cannot hold.
         let texture = target_texture(&core.gpu, size, usage)?;
@@ -58,7 +69,11 @@ impl CanvasTarget {
         Ok(Self {
             shown: blit_bind_group(core, &texture, &view, &none),
             view,
-            bindings: Bindings::new(&core.gpu, &texture),
+            bindings: if kept {
+                Bindings::new(&core.gpu, &texture)
+            } else {
+                Bindings::without_kept(&core.gpu, &texture)
+            },
             texture,
             track: ActiveTrack::default(),
             scene: None,
@@ -195,11 +210,33 @@ impl<'a> RegionEvaluator<'a> {
                 "the target's size differs from the canvas size",
             ));
         }
-        let result = self.dispatch(request, regions);
+        let result = self.dispatch(request, Output::CANVAS, regions);
         if result.is_err() {
             self.target.track.forget();
         }
         result
+    }
+
+    /// Evaluates the whole target as the piece of the output at `output` (its scale and the
+    /// output pixel at its top-left), or the part of it inside `region` (target pixels): every
+    /// op at the output pixel's centre mapped back to the canvas. At `Output::CANVAS` it is
+    /// `evaluate` over `region`. The scene and the smudges' residuals are kept for the next
+    /// piece of the same version.
+    ///
+    /// # Errors
+    /// `Invalid` for a request with an in-progress stroke (only the canvas draws one).
+    pub(crate) fn evaluate_piece(
+        &mut self,
+        request: &FrameRequest<'_>,
+        output: Output,
+        region: PixelRect,
+    ) -> Result<(), RenderError> {
+        if request.active.is_some() {
+            return Err(RenderError::Invalid(
+                "an output piece never draws an in-progress stroke",
+            ));
+        }
+        self.dispatch(request, output, &[region])
     }
 
     /// Evaluates `layer` of `artwork` alone over the whole target, at full opacity, on nothing
@@ -221,7 +258,8 @@ impl<'a> RegionEvaluator<'a> {
         }
         let scene = Scene::layer(artwork, layer, mask)?;
         let ops = scene_ops(&self.core.gpu, &scene, None);
-        let plan = Plan::build(&scene, &Fresh::default(), size, &[PixelRect::full(size)]);
+        let target = (size, Output::CANVAS);
+        let plan = Plan::build(&scene, &Fresh::default(), target, &[PixelRect::full(size)]);
         self.target.scene = None;
         self.target.track.forget();
         let smudges = &mut self.target.smudges;
@@ -234,6 +272,7 @@ impl<'a> RegionEvaluator<'a> {
                 ops: &ops,
                 fresh: &[],
                 plan: &plan,
+                output: Output::CANVAS,
                 background: if mask { [1.0; 4] } else { [0.0; 4] },
                 reset: false,
                 residuals: smudges.residuals(),
@@ -244,6 +283,7 @@ impl<'a> RegionEvaluator<'a> {
     fn dispatch(
         &mut self,
         request: &FrameRequest<'_>,
+        output: Output,
         regions: &[PixelRect],
     ) -> Result<(), RenderError> {
         let core = self.core;
@@ -282,7 +322,7 @@ impl<'a> RegionEvaluator<'a> {
         if all.is_empty() && !step.reset {
             return Ok(());
         }
-        let plan = Plan::build(&cache.scene, &fresh, size, &all);
+        let plan = Plan::build(&cache.scene, &fresh, (size, output), &all);
         if plan.tiles.is_empty() && !step.reset {
             return Ok(());
         }
@@ -294,6 +334,7 @@ impl<'a> RegionEvaluator<'a> {
                 ops: &cache.ops,
                 fresh: &fresh.ops,
                 plan: &plan,
+                output,
                 background: [paper.r(), paper.g(), paper.b(), 1.0],
                 reset: step.reset,
                 residuals: target.smudges.residuals(),

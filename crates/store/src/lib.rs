@@ -10,6 +10,7 @@ mod codec;
 mod colour;
 mod delta;
 mod editor;
+mod export_file;
 mod fills;
 mod image_file;
 mod library;
@@ -26,6 +27,7 @@ mod records;
 mod strokes;
 mod write;
 
-pub use crate::image_file::{decode_image, encode_image, open_picture, open_reference};
+pub use crate::export_file::{ImageEncoder, encode_image};
+pub use crate::image_file::{decode_image, open_picture, open_reference};
 pub use crate::library::Library;
 pub use crate::records::SCHEMA;

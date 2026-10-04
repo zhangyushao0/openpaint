@@ -3,8 +3,8 @@
 
 use openpaint_app::{
     AppError, Availability, Delivery, EditorAction, ExportError, ExportIntent, ExportNotice,
-    HostAnswer, HostRequest, ImageError, ImageFormat, ImageSink, ImageSource, PortError,
-    ReferenceImage, ReferenceIntent, ReferenceNotice, Title, TransferJob, Transfers,
+    ExportScale, HostAnswer, HostRequest, ImageError, ImageFormat, ImageSink, ImageSource,
+    PortError, ReferenceImage, ReferenceIntent, ReferenceNotice, Title, TransferJob, Transfers,
 };
 use openpaint_core::{Artwork, CanvasSize};
 
@@ -29,14 +29,52 @@ fn artwork() -> Artwork {
 }
 
 fn start(transfers: &mut Transfers, format: ImageFormat, delivery: Delivery) {
+    start_at(transfers, format, delivery, ExportScale::One).expect("export starts");
+}
+
+fn start_at(
+    transfers: &mut Transfers,
+    format: ImageFormat,
+    delivery: Delivery,
+    scale: ExportScale,
+) -> Result<(), AppError> {
     let artwork = artwork();
     let title = Title::new("Harbour").expect("title");
-    transfers
-        .export(
-            &ExportIntent::Start { format, delivery },
-            Some((&artwork, &title)),
-        )
-        .expect("export starts");
+    transfers.export(
+        &ExportIntent::Start {
+            format,
+            delivery,
+            scale,
+        },
+        Some((&artwork, &title)),
+    )
+}
+
+#[test]
+fn the_scale_travels_to_the_job_and_jpeg_goes_up_to_two_x() {
+    let mut transfers = Transfers::default();
+    let jpeg = start_at(
+        &mut transfers,
+        ImageFormat::Jpeg,
+        Delivery::Save,
+        ExportScale::Four,
+    );
+    assert!(jpeg.is_err(), "no 4x JPEG");
+    assert_eq!(transfers.request(), None, "nothing asked");
+    assert!(!ExportScale::Four.fits(ImageFormat::Jpeg));
+    assert!(ExportScale::Two.fits(ImageFormat::Jpeg) && ExportScale::Four.fits(ImageFormat::Png));
+    start_at(
+        &mut transfers,
+        ImageFormat::Png,
+        Delivery::Save,
+        ExportScale::Four,
+    )
+    .expect("4x PNG");
+    let Some(TransferJob::Export(job)) = transfers.answer(HostAnswer::File(Box::new(Sink))) else {
+        panic!("a file starts the export");
+    };
+    assert_eq!((job.scale, job.scale.factor()), (ExportScale::Four, 4));
+    assert_eq!(ExportScale::default(), ExportScale::One, "1x unless chosen");
 }
 
 fn image() -> ReferenceImage {
@@ -66,6 +104,7 @@ fn saving_asks_for_a_file_renders_it_and_reports_the_name() {
     let again = ExportIntent::Start {
         format: ImageFormat::Jpeg,
         delivery: Delivery::Save,
+        scale: ExportScale::One,
     };
     let refused = transfers.export(&again, Some((&artwork(), &Title::untitled())));
     assert_eq!(
@@ -160,6 +199,7 @@ fn failures_stay_until_dismissed() {
         &ExportIntent::Start {
             format: ImageFormat::Png,
             delivery: Delivery::Save,
+            scale: ExportScale::One,
         },
         None,
     );

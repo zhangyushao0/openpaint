@@ -34,11 +34,16 @@ fn evaluate(
         return;
     }
     let tile = tiles[index];
+    // `pixel` is the target's; ops are evaluated at the output pixel's centre mapped back to
+    // canvas pixels (`centre`), and sources on the canvas grid (masks, grain, clips) are read
+    // at the canvas pixel holding it (`cell`). On the canvas itself (scale 1, origin 0) both
+    // are the pixel's own, exactly.
     let pixel = tile.origin + local.xy;
     if any(pixel >= params.size) {
         return;
     }
-    let centre = vec2<f32>(pixel) + vec2<f32>(0.5);
+    let centre = (vec2<f32>(params.origin + pixel) + vec2<f32>(0.5)) * params.inverse;
+    let cell = vec2<u32>(floor(centre));
     // Premultiplied colours throughout; blending happens on sRGB-encoded values.
     var canvas = params.background;
     var layer = vec4<f32>(0.0);
@@ -82,28 +87,28 @@ fn evaluate(
                 }
             }
             case OP_END_STROKE: {
-                layer = blend(stroke_paint(coverage, contact, centre, pixel, op), layer, op);
+                layer = blend(stroke_paint(coverage, contact, centre, cell, op), layer, op);
                 coverage = 0.0;
                 contact = 0.0;
             }
             case OP_END_ACTIVE: {
                 textureStore(kept, pixel, vec4<f32>(coverage, 0.0, 0.0, 0.0));
                 textureStore(kept_contact, pixel, vec4<f32>(contact, 0.0, 0.0, 0.0));
-                layer = blend(stroke_paint(coverage, contact, centre, pixel, op), layer, op);
+                layer = blend(stroke_paint(coverage, contact, centre, cell, op), layer, op);
                 coverage = 0.0;
                 contact = 0.0;
             }
             case OP_FILL: {
-                layer = blend(paint_color(fill_coverage(pixel, op) * op.data[PAINT_OPACITY], op), layer, op);
+                layer = blend(paint_color(fill_coverage(cell, op) * op.data[PAINT_OPACITY], op), layer, op);
             }
             case OP_PATCH: {
                 layer = over(patch_sample(centre, op), layer);
             }
             case OP_SMUDGE: {
-                layer = smudged(layer, pixel, op);
+                layer = smudged(layer, centre, cell, op);
             }
             case OP_ADJUST: {
-                layer = adjusted(layer, pixel, op);
+                layer = adjusted(layer, cell, op);
             }
             case OP_BEGIN_MASK: {
                 held = layer;
@@ -168,7 +173,8 @@ fn masked(layer: vec4<f32>, held: vec4<f32>, masking: u32) -> vec4<f32> {
     return held * value;
 }
 
-// A stroke's colour at its coverage times the grain at `pixel` times its opacity. A covering
+// A stroke's colour at its coverage times the grain at canvas pixel `pixel` times its opacity
+// (the grain and the clip are canvas pixels: nearest at a scale above 1). A covering
 // stroke's coverage is `held` itself; an accumulating one's comes from its density
 // (`deposit_coverage`). Without grain the factor is exactly 1.
 fn stroke_paint(held: f32, contact: f32, centre: vec2<f32>, pixel: vec2<u32>, op: Op) -> vec4<f32> {
@@ -308,17 +314,23 @@ fn blend(paint: vec4<f32>, layer: vec4<f32>, op: Op) -> vec4<f32> {
     }
 }
 
-// Coverage of a pixel whose centre lies `distance` outside the capsule: it fades in over
-// `1 / edge` pixels from half a pixel outside the outline (`edge` 1: box-filtered antialiasing;
-// smaller: a soft edge, smoothed), so it is exactly zero from half a pixel out, which the
-// scene's bounds rely on. Then times the flow, which changes evenly from `a` to `b`; equal
-// flows give that flow exactly.
+// Coverage of a pixel whose centre lies `distance` canvas pixels outside the capsule, measured
+// in output pixels: it fades in from half an output pixel outside the outline, over one output
+// pixel for a hard edge (`edge` 1: box-filtered antialiasing, as sharp at 4x as at 1x) or over
+// `1 / edge` canvas pixels for a soft one (smoothed; its look keeps its canvas width). It is
+// exactly zero from half an output pixel out, inside the scene's bounds. Then times the flow,
+// which changes evenly from `a` to `b`; equal flows give that flow exactly. At scale 1 both
+// factors are 1, so the canvas is as before scales.
 fn segment_coverage(centre: vec2<f32>, op: Op) -> f32 {
     let a = vec2<f32>(op.data[0], op.data[1]);
     let b = vec2<f32>(op.data[2], op.data[3]);
     let distance = capsule_distance(centre, a, b, op.data[4], op.data[5]);
     let edge = op.data[SEGMENT_EDGE];
-    var coverage = clamp((0.5 - distance) * edge, 0.0, 1.0);
+    var ramp = edge;
+    if edge < 1.0 {
+        ramp = edge * params.inverse;
+    }
+    var coverage = clamp((0.5 - distance * params.scale) * ramp, 0.0, 1.0);
     if edge < 1.0 {
         coverage = coverage * coverage * (3.0 - 2.0 * coverage);
     }

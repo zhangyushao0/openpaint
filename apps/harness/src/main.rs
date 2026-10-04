@@ -4,6 +4,7 @@
 #![forbid(unsafe_code)]
 
 mod error;
+mod export_timing;
 mod launch;
 mod output;
 mod replay;
@@ -14,7 +15,7 @@ mod stroke;
 
 use std::process::ExitCode;
 
-const USAGE: &str = "usage: openpaint-harness <command>\n\ncommands:\n  render-smoke   clear an offscreen GPU target, write artifacts/harness/smoke.png, print its hash\n  render-stroke  evaluate a fixed stroke, write artifacts/harness/stroke.png, print its hash\n  shell-smoke    draw one runtime frame at tablet size, write artifacts/harness/shell.png\n  replay         replay a 10,000-sample pen stroke and a finger swipe through the frame loop,\n                 report frame times, write artifacts/harness/replay.png, check its golden hash\n                 (time it with --release)\n  scenario NAME  run tests/scenarios/NAME.json, check its canvas checkpoints, write PNGs and\n                 failure diffs under artifacts/scenarios/NAME/ (also `cargo scenario NAME`)\n  scenario --all every tests/scenarios/*.json in one process, one line each, the report of\n                 each failure (also `cargo scenarios`)";
+const USAGE: &str = "usage: openpaint-harness <command>\n\ncommands:\n  render-smoke   clear an offscreen GPU target, write artifacts/harness/smoke.png, print its hash\n  render-stroke  evaluate a fixed stroke, write artifacts/harness/stroke.png, print its hash\n  shell-smoke    draw one runtime frame at tablet size, write artifacts/harness/shell.png\n  replay         replay a 10,000-sample pen stroke and a finger swipe through the frame loop,\n                 report frame times, write artifacts/harness/replay.png, check its golden hash\n                 (time it with --release)\n  export-timing  export a busy 2732 x 2048 artwork at 1x, 2x and 4x as PNG in bands, report\n                 planning, GPU and encoding times (time it with --release)\n  scenario NAME  run tests/scenarios/NAME.json, check its canvas checkpoints, write PNGs and\n                 failure diffs under artifacts/scenarios/NAME/ (also `cargo scenario NAME`)\n  scenario --all every tests/scenarios/*.json in one process, one line each, the report of\n                 each failure (also `cargo scenarios`)";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -23,6 +24,7 @@ fn main() -> ExitCode {
         ["render-stroke"] => stroke::run(),
         ["shell-smoke"] => shell::run(),
         ["replay"] => replay::run(),
+        ["export-timing"] => export_timing::run(),
         ["scenario", "--all"] => scenario::run_all(),
         ["scenario", name] => scenario::run(name),
         _ => {

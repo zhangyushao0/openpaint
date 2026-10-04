@@ -164,6 +164,18 @@ fn test_image() -> Result<Vec<u8>, ScenarioError> {
         .map_err(|_| ScenarioError::Missing("the test picture could not be encoded"))
 }
 
+/// Mean difference per channel a picture exported above 1x may have from the canvas once
+/// reduced by its scale (edges are sharper; S29 measured about 0.1).
+const SCALED_MEAN: f64 = 1.0;
+
+/// What an export step expects: the scale it was written at and, when given, the hash of its
+/// decoded pixels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Expected {
+    pub scale: u32,
+    pub pixels: Option<u64>,
+}
+
 /// An exported file compared with the canvas it came from.
 #[derive(Debug, Clone)]
 pub struct Export {
@@ -171,20 +183,25 @@ pub struct Export {
     pub format: ImageFormat,
     /// The file as written.
     pub bytes: Vec<u8>,
-    /// The decoded picture's size, and the canvas's.
+    /// The decoded picture's size, and the canvas's times the expected scale.
     pub size: [u32; 2],
     pub canvas: [u32; 2],
-    /// Largest and mean difference of a channel between the picture and the canvas.
+    pub expected: Expected,
+    /// The hash of the decoded picture (`RgbaImage::content_hash`).
+    pub pixels: u64,
+    /// Largest and mean difference of a channel between the picture, reduced by its scale (the
+    /// mean of each block), and the canvas.
     pub largest_difference: u8,
     pub mean_difference: f64,
 }
 
 impl Export {
-    /// Compares `bytes` (a PNG or JPEG file) with `canvas`.
+    /// Compares `bytes` (a PNG or JPEG file) with `canvas` at the `expected` scale.
     pub(crate) fn of(
         name: &str,
         bytes: Vec<u8>,
         canvas: &RgbaImage,
+        expected: Expected,
     ) -> Result<Self, ScenarioError> {
         let format = if bytes.starts_with(b"\x89PNG") {
             ImageFormat::Png
@@ -193,33 +210,69 @@ impl Export {
         };
         let (size, pixels) = decode_image(&bytes)
             .map_err(|_| ScenarioError::Missing("the exported file does not decode"))?;
+        let scaled = canvas.size().map(|side| side * expected.scale);
         let (mut largest, mut total) = (0u8, 0u64);
-        let same = size == canvas.size();
+        let same = size == scaled;
         if same {
-            for (a, b) in pixels.iter().zip(canvas.pixels()) {
+            let reduced = reduce(size, &pixels, expected.scale);
+            for (a, b) in reduced.iter().zip(canvas.pixels()) {
                 let difference = a.abs_diff(*b);
                 largest = largest.max(difference);
                 total += u64::from(difference);
             }
         }
         let count = canvas.pixels().len().max(1) as f64;
+        let hash = RgbaImage::from_rgba(size, pixels).map_or(0, |image| image.content_hash());
         Ok(Self {
             name: name.to_owned(),
             format,
             bytes,
             size,
-            canvas: canvas.size(),
+            canvas: scaled,
+            expected,
+            pixels: hash,
             largest_difference: if same { largest } else { u8::MAX },
             mean_difference: if same { total as f64 / count } else { f64::MAX },
         })
     }
 
-    /// A PNG equals the canvas pixel for pixel; a JPEG has its size and stays close.
+    /// The size is the canvas's times the scale and the pixels hash as expected (when given). At
+    /// 1x a PNG equals the canvas pixel for pixel; above, reduced by its scale it stays close; a
+    /// JPEG stays close.
     #[must_use]
     pub fn passed(&self) -> bool {
-        match self.format {
-            ImageFormat::Png => self.size == self.canvas && self.largest_difference == 0,
-            ImageFormat::Jpeg => self.size == self.canvas && self.mean_difference <= JPEG_MEAN,
+        let close = match (self.format, self.expected.scale) {
+            (ImageFormat::Png, 1) => self.largest_difference == 0,
+            (ImageFormat::Png, _) => self.mean_difference <= SCALED_MEAN,
+            (ImageFormat::Jpeg, _) => self.mean_difference <= JPEG_MEAN,
+        };
+        let hashed = self.expected.pixels.is_none_or(|hash| hash == self.pixels);
+        self.size == self.canvas && close && hashed
+    }
+}
+
+/// `pixels` of `size` reduced by `factor`: the rounded mean of each block, as RGBA.
+fn reduce(size: [u32; 2], pixels: &[u8], factor: u32) -> Vec<u8> {
+    if factor == 1 {
+        return pixels.to_vec();
+    }
+    let [width, height] = size.map(|side| (side / factor) as usize);
+    let (factor, stride) = (factor as usize, size[0] as usize * 4);
+    let count = (factor * factor) as u32;
+    let mut out = Vec::with_capacity(width * height * 4);
+    for y in 0..height {
+        for x in 0..width {
+            for channel in 0..4 {
+                let mut sum = 0u32;
+                for dy in 0..factor {
+                    let row = (y * factor + dy) * stride;
+                    for dx in 0..factor {
+                        sum += u32::from(pixels[row + (x * factor + dx) * 4 + channel]);
+                    }
+                }
+                out.push(((sum + count / 2) / count) as u8);
+            }
         }
     }
+    out
 }

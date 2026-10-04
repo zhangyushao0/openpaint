@@ -85,8 +85,9 @@ fn segment_density(centre: vec2<f32>, op: Op) -> vec2<f32> {
     return vec2<f32>(max(work, 0.0) * max(flow, 0.0), touched);
 }
 
-// An accumulating stroke's coverage at `centre` from its density: max_density (1 - exp(-d)),
-// or through the paper its expectation over the ranks under the pixel. Exactly 0 without
+// An accumulating stroke's coverage at `centre` (canvas pixels) from its density: max_density
+// (1 - exp(-d)), or through the paper its expectation over the ranks under the output pixel
+// (its footprint picks the mip level of the paper's moments). Exactly 0 without
 // density, as the scene's bounds require.
 fn deposit_coverage(density: f32, contact: f32, centre: vec2<f32>, op: Op) -> f32 {
     if density <= 0.0 {
@@ -100,7 +101,10 @@ fn deposit_coverage(density: f32, contact: f32, centre: vec2<f32>, op: Op) -> f3
     if contact <= 0.0 {
         return 0.0;
     }
-    let moments = paper_moments(centre * scale, op.data[PAINT_PAPER + 1u]);
+    // An output pixel covers `scale / params.scale` texels: the paper's level by that footprint
+    // (one level finer per doubling, exactly the stroke's own level at scale 1).
+    let finer = f32(countTrailingZeros(u32(params.scale)));
+    let moments = paper_moments(centre * scale, op.data[PAINT_PAPER + 1u] - finer);
     let deviation = sqrt(moments.y);
     let level = 1.0 - contact;
     let dust_share = op.data[PAINT_PAPER + 3u];

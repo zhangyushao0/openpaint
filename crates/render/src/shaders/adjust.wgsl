@@ -5,8 +5,10 @@
 // over on an inverted mask), as a colour whose luma is kept, and stored again as black at the
 // hidden share, which shows that grey.
 
-fn adjusted(layer: vec4<f32>, pixel: vec2<u32>, op: Op) -> vec4<f32> {
-    if clip(pixel, op) == 0.0 {
+// `cell`: the canvas pixel holding the evaluated centre, for the clip. A point operation, so
+// the same at every output scale.
+fn adjusted(layer: vec4<f32>, cell: vec2<u32>, op: Op) -> vec4<f32> {
+    if clip(cell, op) == 0.0 {
         return layer;
     }
     let on = u32(op.data[ADJUST_ON]);

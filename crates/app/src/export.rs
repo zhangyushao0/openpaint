@@ -9,13 +9,56 @@ use crate::project::PortError;
 use crate::title::Title;
 use crate::transfer::{Delivery, ExportError, HostAnswer, HostRequest, ImageFormat, ImageSink};
 
+/// How many file pixels an export gives each canvas pixel along a side (S29): strokes are
+/// evaluated sharp at that scale, raster content (fills, pictures, smudges) is resampled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ExportScale {
+    /// The canvas's own size.
+    #[default]
+    One,
+    Two,
+    Four,
+}
+
+impl ExportScale {
+    pub const ALL: [Self; 3] = [Self::One, Self::Two, Self::Four];
+
+    /// File pixels per canvas pixel along a side.
+    #[must_use]
+    pub const fn factor(self) -> u32 {
+        match self {
+            Self::One => 1,
+            Self::Two => 2,
+            Self::Four => 4,
+        }
+    }
+
+    /// The name the user reads.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::One => "1×",
+            Self::Two => "2×",
+            Self::Four => "4×",
+        }
+    }
+
+    /// Whether `format` is written at this scale: JPEG up to 2x, since its encoder takes the
+    /// whole picture at once (a 4x JPEG of the largest canvas would hold 268 MB of pixels).
+    #[must_use]
+    pub const fn fits(self, format: ImageFormat) -> bool {
+        !matches!((format, self), (ImageFormat::Jpeg, Self::Four))
+    }
+}
+
 /// What the user asks of exporting.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExportIntent {
-    /// Export the artwork on the canvas as `format`, to a file or to another app.
+    /// Export the artwork on the canvas as `format` at `scale`, to a file or to another app.
     Start {
         format: ImageFormat,
         delivery: Delivery,
+        scale: ExportScale,
     },
     /// Close the notice that the export finished or failed.
     Dismiss,
@@ -40,10 +83,12 @@ pub enum ExportNotice {
     },
 }
 
-/// One export for the transfer worker: render `artwork`, encode it as `format`, write `sink`.
+/// One export for the transfer worker: render `artwork` at `scale`, encode it as `format`,
+/// write `sink`.
 pub struct ExportJob {
     pub artwork: Artwork,
     pub format: ImageFormat,
+    pub scale: ExportScale,
     pub sink: Box<dyn ImageSink>,
 }
 
@@ -51,16 +96,18 @@ impl std::fmt::Debug for ExportJob {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ExportJob")
             .field("format", &self.format)
+            .field("scale", &self.scale)
             .finish_non_exhaustive()
     }
 }
 
-/// The export asked for: what, as what, where to and under which name.
+/// The export asked for: what, as what, at which scale, where to and under which name.
 #[derive(Debug, Clone)]
 struct Order {
     artwork: Artwork,
     name: String,
     format: ImageFormat,
+    scale: ExportScale,
     delivery: Delivery,
 }
 
@@ -86,8 +133,7 @@ impl Export {
     /// Call only when not `busy`.
     pub(crate) fn start(
         &mut self,
-        format: ImageFormat,
-        delivery: Delivery,
+        (format, scale, delivery): (ImageFormat, ExportScale, Delivery),
         artwork: &Artwork,
         title: &Title,
     ) -> HostRequest {
@@ -106,6 +152,7 @@ impl Export {
             artwork: artwork.clone(),
             name,
             format,
+            scale,
             delivery,
         });
         request
@@ -131,6 +178,7 @@ impl Export {
                 let job = ExportJob {
                     artwork: order.artwork.clone(),
                     format: order.format,
+                    scale: order.scale,
                     sink,
                 };
                 self.state = State::Running(order);

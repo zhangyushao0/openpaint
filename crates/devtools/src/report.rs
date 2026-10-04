@@ -9,7 +9,7 @@ use openpaint_runtime::Runtime;
 
 use crate::error::ScenarioError;
 use crate::scenario::Step;
-use crate::system::{Export, Written};
+use crate::system::{Expected, Export, Written};
 
 /// The canvas at a checkpoint and the hash it should have.
 #[derive(Debug, Clone)]
@@ -152,13 +152,21 @@ pub(crate) fn record(
             expected: *hash,
             canvas: canvas()?,
         }),
-        Step::Exported { name } => {
+        Step::Exported {
+            name,
+            scale,
+            pixels,
+        } => {
             let bytes = written
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
                 .take();
             let bytes = bytes.ok_or(ScenarioError::Missing("no export was written"))?;
-            Record::Export(Export::of(name, bytes, &canvas()?)?)
+            let expected = Expected {
+                scale: *scale,
+                pixels: *pixels,
+            };
+            Record::Export(Export::of(name, bytes, &canvas()?, expected)?)
         }
         Step::Screenshot { name, .. } => {
             let image = runtime.read_offscreen()?;

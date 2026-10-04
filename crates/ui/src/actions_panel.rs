@@ -7,12 +7,13 @@
 //! switch leaves it open. Any contact landing on the canvas outside closes it.
 
 use openpaint_app::{
-    Delivery, EditorAction, ExportIntent, ImageFormat, InsertIntent, Intent, ReferenceIntent,
-    SessionProjection,
+    Delivery, EditorAction, ExportIntent, ExportScale, ImageFormat, InsertIntent, Intent,
+    ReferenceIntent, SessionProjection,
 };
 
 use crate::components::{
-    Opener, ScreenArea, icon_toggle, menu_row, popover_left, section, switch_row,
+    Opener, ScreenArea, choices, hint, icon_toggle, menu_row, popover_left, section, switch_row,
+    text_choice,
 };
 use crate::design::{Icon, SPACE, TOUCH_TARGET};
 
@@ -32,6 +33,8 @@ pub(crate) struct ActionsPanel {
     area: Option<ScreenArea>,
     /// Where the Actions button lies, in points, from this pass.
     button: Option<egui::Rect>,
+    /// The scale the export rows write at; 1x until another is chosen, for the app's run.
+    scale: ExportScale,
 }
 
 impl ActionsPanel {
@@ -81,11 +84,20 @@ impl ActionsPanel {
                 close = true;
             }
             section(ui, "Share");
+            self.scale_row(ui, projection);
+            let scale = self.scale;
             for (label, note, format, delivery) in EXPORTS {
-                if menu_row(ui, label, note, offered(EditorAction::Export)).clicked() {
+                let fits = scale.fits(format);
+                let note = if fits { note } else { "Up to 2×" };
+                let enabled = fits && offered(EditorAction::Export);
+                if menu_row(ui, label, note, enabled).clicked() {
                     push(
                         taps,
-                        Intent::Export(ExportIntent::Start { format, delivery }),
+                        Intent::Export(ExportIntent::Start {
+                            format,
+                            delivery,
+                            scale,
+                        }),
                     );
                     close = true;
                 }
@@ -106,6 +118,28 @@ impl ActionsPanel {
         } else if let Some(rect) = rect {
             self.area = Some(ScreenArea::from_points(rect, ctx.pixels_per_point()));
         }
+    }
+
+    /// The export scale's words, the one chosen in the ink pill (it slides), then the file's
+    /// size in pixels at that scale, quieter.
+    fn scale_row(&mut self, ui: &mut egui::Ui, projection: &SessionProjection) {
+        ui.horizontal(|ui| {
+            ui.set_height(TOUCH_TARGET);
+            ui.add_space(SPACE);
+            choices(ui, "export scale", |ui, group| {
+                for scale in ExportScale::ALL {
+                    let chosen = self.scale == scale;
+                    if text_choice(ui, group, scale.label(), chosen).clicked() {
+                        self.scale = scale;
+                    }
+                }
+            });
+            if let Some(canvas) = projection.canvas() {
+                let factor = self.scale.factor();
+                let size = format!("{} × {}", canvas.width() * factor, canvas.height() * factor);
+                hint(ui, &size);
+            }
+        });
     }
 
     /// Where the open panel lies, which the canvas must not take contacts from.

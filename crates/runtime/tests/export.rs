@@ -19,8 +19,8 @@ use openpaint_store::{decode_image, encode_image};
 use screen_map::{mapping, pixel_at};
 use support::Nowhere;
 
-/// 800 x 500 points at density 2.
-const SIZE: [u32; 2] = [1600, 1000];
+/// 800 x 600 points at density 2: the Actions panel, with S29's scale row, fits.
+const SIZE: [u32; 2] = [1600, 1200];
 const PIXELS_PER_POINT: f32 = 2.0;
 /// The canvas fits under the top band.
 const BAR: u32 = 96;
