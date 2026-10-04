@@ -4,7 +4,9 @@ use std::sync::Arc;
 
 use super::*;
 use crate::stroke::stroke_region;
-use openpaint_core::{ArtworkCommand, BrushRecipe, CanvasPoint, CanvasSize, Color, LayerCommand};
+use openpaint_core::{
+    ArtworkCommand, BrushRecipe, CanvasPoint, CanvasSize, Color, GroupCommand, LayerCommand,
+};
 
 fn sample(x: f32, y: f32, pressure: f32, time_ms: u32) -> StrokeSample {
     let position = CanvasPoint::new(x, y).expect("point");
@@ -21,7 +23,10 @@ fn codes(scene: &Scene) -> Vec<&'static str> {
         Item::Segment { .. } => "segment",
         Item::EndStroke(_) => "stroke",
         Item::Fill { .. } => "fill",
-        Item::EndLayer(_) => "layer",
+        Item::EndLayer { chain: false, .. } => "layer",
+        Item::EndLayer { chain: true, .. } => "chained",
+        Item::EndChain { .. } => "chain",
+        Item::EndGroup(_) => "group",
         Item::Active => "active",
         Item::Reach(_) => "reach",
         Item::Smudge(_) => "smudge",
@@ -131,6 +136,62 @@ fn hidden_and_empty_layers_add_nothing() {
     assert!(!hidden_place.has_active());
     let shown = codes(&build(&drawn, None));
     assert_eq!(shown, ["segment", "stroke", "layer"]);
+}
+
+/// Layers 1 to 3 with one stroke each, 3 clipping to 2, and 2 and 3 in group 4.
+fn chained_in_a_group() -> Artwork {
+    let mut artwork = Artwork::new(CanvasSize::new(64, 64).expect("size"));
+    for at in 0..3 {
+        if at > 0 {
+            let created = artwork.apply(ArtworkCommand::Layer(LayerCommand::Create));
+            artwork = created.expect("create").artwork;
+        }
+        let session = artwork
+            .begin_stroke(style(), sample(4.0, 4.0, 1.0, 0))
+            .expect("begin");
+        artwork = session.finish().artwork;
+    }
+    let clip = LayerCommand::SetClipping {
+        layer: LayerId::new(3),
+        clipping: true,
+    };
+    let group = GroupCommand::Create {
+        layer: LayerId::new(3),
+    };
+    let artwork = artwork.apply(ArtworkCommand::Layer(clip)).expect("clip");
+    let artwork = artwork.artwork.apply(ArtworkCommand::Group(group));
+    artwork.expect("group").artwork
+}
+
+#[test]
+fn a_chain_ends_after_its_last_clipping_layer_and_a_group_after_its_top_layer() {
+    let artwork = chained_in_a_group();
+    let scene = Scene::build(&artwork, None).expect("scene");
+    let expected = [
+        "segment", "stroke", "layer", "segment", "stroke", "chained", "segment", "stroke",
+        "chained", "chain", "group",
+    ];
+    assert_eq!(codes(&scene), expected);
+    let set = |artwork: &Artwork, command| {
+        let applied = artwork.apply(command).expect("command");
+        Scene::build(&applied.artwork, None).expect("scene")
+    };
+    let hide_base = LayerCommand::SetVisible {
+        layer: LayerId::new(2),
+        visible: false,
+    };
+    let base_hidden = set(&artwork, ArtworkCommand::Layer(hide_base));
+    assert_eq!(
+        codes(&base_hidden),
+        ["segment", "stroke", "layer", "group"],
+        "a hidden base takes its chain along"
+    );
+    let hide_group = GroupCommand::SetVisible {
+        group: openpaint_core::GroupId::new(4),
+        visible: false,
+    };
+    let group_hidden = set(&artwork, ArtworkCommand::Group(hide_group));
+    assert_eq!(codes(&group_hidden), ["segment", "stroke", "layer"]);
 }
 
 #[test]

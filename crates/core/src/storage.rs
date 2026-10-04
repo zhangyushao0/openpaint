@@ -7,11 +7,12 @@ use std::sync::Arc;
 use crate::artwork::{Artwork, ArtworkState, MAX_LAYERS};
 use crate::brush::BrushRecipe;
 use crate::error::CoreError;
-use crate::id::{IdCounters, LayerId, MAX_ID, StrokeId};
+use crate::group::{LayerGroup, check_groups};
+use crate::id::{GroupId, IdCounters, LayerId, MAX_ID, StrokeId};
 use crate::layer::{Layer, LayerProps};
 use crate::parts::{
-    ArtworkParts, EditParts, FillParts, LayerParts, MaskParts, RecipeParts, SampleParts,
-    StrokeParts, TransformParts,
+    ArtworkParts, EditParts, FillParts, GroupParts, LayerParts, MaskParts, RecipeParts,
+    SampleParts, StrokeParts, TransformParts,
 };
 use crate::region::{FillEdit, RegionEdit, RegionMask};
 use crate::stroke::{
@@ -111,6 +112,12 @@ impl Artwork {
             .iter()
             .map(|layer| layer_from(layer, canvas, &mut ids))
             .collect::<Result<Vec<_>, _>>()?;
+        let groups = parts
+            .groups
+            .iter()
+            .map(|group| group_from(group, &mut ids))
+            .collect::<Result<Vec<_>, _>>()?;
+        check_groups(&layers, &groups)?;
         let active = LayerId::new(parts.active);
         if !layers.iter().any(|layer| layer.id == active) {
             return Err(CoreError::UnknownLayer(active));
@@ -118,10 +125,23 @@ impl Artwork {
         Ok(Self::from_state(ArtworkState {
             canvas,
             layers,
+            groups,
             active,
             ids: counters,
         }))
     }
+}
+
+/// A group's id comes from the layer ids' counter and is never a layer's.
+fn group_from(parts: &GroupParts, ids: &mut IdCheck) -> Result<LayerGroup, CoreError> {
+    claim(
+        &mut ids.layers,
+        parts.id,
+        ids.counters.next_layer,
+        "group id",
+    )?;
+    let name = LayerName::new(&parts.name)?;
+    LayerGroup::new(GroupId::new(parts.id), name, parts.visible, parts.opacity)
 }
 
 fn counter(next: u64) -> Result<u64, CoreError> {
@@ -140,10 +160,10 @@ fn layer_from(
     let id = ids.layer(parts.id)?;
     let name = LayerName::new(&parts.name)?;
     let props = LayerProps::new(
-        parts.visible,
-        parts.opacity,
-        parts.locked,
-        parts.alpha_locked,
+        (parts.visible, parts.opacity),
+        (parts.locked, parts.alpha_locked),
+        (parts.clipping, parts.blend),
+        parts.group.map(GroupId::new),
     )?;
     let strokes = parts
         .strokes

@@ -20,6 +20,11 @@ pub struct ListRow<'a> {
     pub label: &'a str,
     /// Shown dimmer, right-aligned before the icon; empty for none.
     pub detail: &'a str,
+    /// How far the row's content starts right of its usual place (a layer in a group); a row
+    /// whose indent changes slides there (settle).
+    pub indent: f32,
+    /// A small icon before the label (a group's chevron, a Clipping Mask's arrow).
+    pub lead: Option<Icon>,
     pub selected: bool,
     pub icon: Icon,
     /// Names the icon button for accessibility.
@@ -45,6 +50,7 @@ pub fn list_row(ui: &mut egui::Ui, row: &ListRow<'_>) -> RowResponse {
     // place itself takes the contact at once. Measured in the list, so scrolling never lags.
     let place = rect.top() - ui.max_rect().top();
     let offset = settle(ui.ctx(), row.key, place, SETTLE);
+    let indent = row.indent + settle(ui.ctx(), row.key.with("indent"), row.indent, SETTLE);
     let button = Rect::from_min_size(
         rect.right_top() - Vec2::new(TOUCH_TARGET, 0.0),
         Vec2::splat(TOUCH_TARGET),
@@ -64,7 +70,7 @@ pub fn list_row(ui: &mut egui::Ui, row: &ListRow<'_>) -> RowResponse {
     if ui.is_rect_visible(shown) {
         let mut painter = ui.painter().clone();
         painter.multiply_opacity(appear);
-        paint(ui, &painter, row, shown, (&response, &icon));
+        paint(ui, &painter, (row, indent), shown, (&response, &icon));
     }
     RowResponse {
         row: response,
@@ -75,7 +81,7 @@ pub fn list_row(ui: &mut egui::Ui, row: &ListRow<'_>) -> RowResponse {
 fn paint(
     ui: &egui::Ui,
     painter: &egui::Painter,
-    row: &ListRow<'_>,
+    (row, indent): (&ListRow<'_>, f32),
     rect: Rect,
     (body, icon): (&egui::Response, &egui::Response),
 ) {
@@ -91,7 +97,20 @@ fn paint(
         (true, false) => INK,
     };
     let font = TextStyle::Body.resolve(ui.style());
-    let left = rect.left_center() + Vec2::new(2.0 * SPACE, 0.0);
+    let mut left = rect.left_center() + Vec2::new(2.0 * SPACE + indent, 0.0);
+    if let Some(lead) = row.lead {
+        let square = Rect::from_min_size(
+            left - Vec2::new(0.0, ICON_SIZE / 2.0),
+            Vec2::splat(ICON_SIZE),
+        );
+        let lead_color = if row.enabled {
+            INK_SECONDARY
+        } else {
+            INK_DISABLED
+        };
+        paint_icon(painter, lead, square, lead_color);
+        left += Vec2::new(ICON_SIZE + SPACE / 2.0, 0.0);
+    }
     painter.text(left, Align2::LEFT_CENTER, row.label, font.clone(), color);
     let right = rect.right_center() - Vec2::new(TOUCH_TARGET, 0.0);
     let small = TextStyle::Small.resolve(ui.style());

@@ -42,6 +42,12 @@ fn evaluate(
     // Premultiplied colours throughout; blending happens on sRGB-encoded values.
     var canvas = params.background;
     var layer = vec4<f32>(0.0);
+    // The clipping chain so far: its base, and its clipping layers atop it.
+    var chain = vec4<f32>(0.0);
+    // What lay under the group being composited, kept from its first layer or chain that
+    // reached this pixel (`opened`) until its end.
+    var backdrop = vec4<f32>(0.0);
+    var opened = false;
     // The current stroke's coverage (covering) or optical density (accumulating), and the
     // largest paper contact along it.
     var coverage = 0.0;
@@ -95,8 +101,40 @@ fn evaluate(
                 layer = smudged(layer, pixel, op);
             }
             case OP_END_LAYER: {
-                canvas = over(layer * op.data[0], canvas);
+                let source = layer * op.data[0];
+                let mode = u32(op.data[LAYER_MODE]);
+                switch u32(op.data[LAYER_INTO]) {
+                    case INTO_BASE: {
+                        chain = layer;
+                    }
+                    case INTO_CLIPPED: {
+                        chain = clipped(source, chain, mode);
+                    }
+                    default: {
+                        if op.data[LAYER_GROUPED] > 0.0 && !opened {
+                            backdrop = canvas;
+                            opened = true;
+                        }
+                        canvas = composite(source, canvas, mode);
+                    }
+                }
                 layer = vec4<f32>(0.0);
+            }
+            case OP_END_CHAIN: {
+                if op.data[LAYER_GROUPED] > 0.0 && !opened {
+                    backdrop = canvas;
+                    opened = true;
+                }
+                canvas = composite(chain * op.data[0], canvas, u32(op.data[LAYER_MODE]));
+                chain = vec4<f32>(0.0);
+            }
+            case OP_END_GROUP: {
+                // Pass-through: the layers composited onto what lay under the group, then the
+                // group's opacity between that and what lay under it (1: exactly the former).
+                if opened {
+                    canvas = canvas * op.data[0] + backdrop * (1.0 - op.data[0]);
+                    opened = false;
+                }
             }
             default: {}
         }
@@ -183,6 +221,47 @@ fn patch_texel(at: u32, cell: vec2<i32>) -> vec4<f32> {
 
 fn over(source: vec4<f32>, destination: vec4<f32>) -> vec4<f32> {
     return source + destination * (1.0 - source.a);
+}
+
+// What source and backdrop (premultiplied) make together where both have paint: the blend
+// function times both alphas (W3C compositing, `Sa Da B(Cs, Cb)`), written without dividing by
+// an alpha, so it is exactly zero where either has none.
+fn mixed(s: vec4<f32>, d: vec4<f32>, mode: u32) -> vec3<f32> {
+    switch mode {
+        case MODE_MULTIPLY: {
+            return s.rgb * d.rgb;
+        }
+        case MODE_SCREEN: {
+            return s.rgb * d.a + d.rgb * s.a - s.rgb * d.rgb;
+        }
+        case MODE_OVERLAY: {
+            let low = 2.0 * s.rgb * d.rgb;
+            let high = s.a * d.a - 2.0 * (d.a - d.rgb) * (s.a - s.rgb);
+            return select(high, low, 2.0 * d.rgb <= vec3<f32>(d.a));
+        }
+        default: {
+            return s.rgb * d.a;
+        }
+    }
+}
+
+// `source` onto `backdrop` by `mode`: each keeps what the other does not cover, plus what both
+// make together; alpha is source over. Normal is `over` itself, so a Normal layer composites
+// exactly as before blend modes. Zero source leaves the backdrop exactly as it was.
+fn composite(source: vec4<f32>, backdrop: vec4<f32>, mode: u32) -> vec4<f32> {
+    if mode == MODE_NORMAL {
+        return over(source, backdrop);
+    }
+    let rgb = source.rgb * (1.0 - backdrop.a) + backdrop.rgb * (1.0 - source.a)
+        + mixed(source, backdrop, mode);
+    return vec4<f32>(rgb, source.a + backdrop.a * (1.0 - source.a));
+}
+
+// A clipping layer's `source` onto its chain: by `mode` against the chain so far, where only
+// the chain has paint, its alpha kept (Normal is source atop). Nothing shows where the chain
+// has no paint, and zero source leaves the chain exactly as it was.
+fn clipped(source: vec4<f32>, chain: vec4<f32>, mode: u32) -> vec4<f32> {
+    return vec4<f32>(chain.rgb * (1.0 - source.a) + mixed(source, chain, mode), chain.a);
 }
 
 // A stroke's premultiplied paint combined with its layer by the op's blend: over the layer;

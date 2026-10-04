@@ -53,6 +53,7 @@ pub(crate) fn project(open: &Open, id: ProjectId) -> Result<Project, PortError> 
         width: head.width,
         height: head.height,
         layers,
+        groups: head.groups,
         active: head.active,
         next_layer_id: head.next_layer_id,
         next_stroke_id: head.next_stroke_id,

@@ -124,10 +124,14 @@ pub(crate) enum Opcode {
     Patch = 5,
     /// A smudge: the current layer becomes `A x layer + R` from its residual at the pixel.
     Smudge = 6,
+    /// A clipping chain is composited onto the canvas by its base's opacity and mode, and reset.
+    EndChain = 7,
+    /// A group's result replaces what lay under it by the group's opacity (pass-through).
+    EndGroup = 8,
 }
 
 impl Opcode {
-    const ALL: [Self; 7] = [
+    const ALL: [Self; 9] = [
         Self::Segment,
         Self::EndStroke,
         Self::EndLayer,
@@ -135,6 +139,8 @@ impl Opcode {
         Self::Fill,
         Self::Patch,
         Self::Smudge,
+        Self::EndChain,
+        Self::EndGroup,
     ];
 
     const fn wgsl_name(self) -> &'static str {
@@ -146,6 +152,8 @@ impl Opcode {
             Self::Fill => "OP_FILL",
             Self::Patch => "OP_PATCH",
             Self::Smudge => "OP_SMUDGE",
+            Self::EndChain => "OP_END_CHAIN",
+            Self::EndGroup => "OP_END_GROUP",
         }
     }
 }
@@ -162,7 +170,9 @@ impl Opcode {
 ///   `density` 0 for a covering stroke, else its maximum density; `paper scale` 0 without
 ///   paper; `clip` 0, or one more than where the mask of the selection the stroke is drawn
 ///   inside starts in the mask words: the paint lands only on the mask's pixels.
-/// - `EndLayer`: `[opacity, _, ...]`.
+/// - `EndLayer`: `[opacity, into, mode, grouped]`: `into` a `LayerInto`, `mode` a `Mode`,
+///   `grouped` 1 inside a group (`protocol_layers.rs`); `EndChain`: `[opacity, _, mode,
+///   grouped]`, the base's; `EndGroup`: `[opacity]`.
 /// - `Fill`: a paint op's first seven operands, then where its mask starts in the mask words
 ///   (`offset / 2^16`, `offset % 2^16`); the mask is `MASK_HEADER` words, then rows of
 ///   `ceil(width / 32)` words, bit `x % 32` of word `x / 32`.
@@ -343,48 +353,13 @@ pub(crate) struct Params {
     pub(crate) size: [u32; 2],
 }
 
-/// A record that crosses to the GPU. Every field is a 4-byte scalar or an array of them, so
-/// writing the fields in declaration order reproduces the `repr(C)` layout without padding.
-pub(crate) trait Record {
-    fn write(&self, out: &mut Vec<u8>);
-}
+#[path = "protocol_records.rs"]
+mod records;
+pub(crate) use records::{Record, encode};
 
-impl Record for Op {
-    fn write(&self, out: &mut Vec<u8>) {
-        out.extend(self.code.to_le_bytes());
-        out.extend(self.data.iter().flat_map(|value| value.to_le_bytes()));
-    }
-}
-
-impl Record for TileRecord {
-    fn write(&self, out: &mut Vec<u8>) {
-        let words = [self.origin[0], self.origin[1], self.start, self.count];
-        out.extend(words.iter().flat_map(|word| word.to_le_bytes()));
-    }
-}
-
-impl Record for Params {
-    fn write(&self, out: &mut Vec<u8>) {
-        out.extend(self.background.iter().flat_map(|value| value.to_le_bytes()));
-        let words = [self.tiles, self.row, self.size[0], self.size[1]];
-        out.extend(words.iter().flat_map(|word| word.to_le_bytes()));
-    }
-}
-
-impl Record for u32 {
-    fn write(&self, out: &mut Vec<u8>) {
-        out.extend(self.to_le_bytes());
-    }
-}
-
-/// The records as GPU bytes, little endian.
-pub(crate) fn encode<R: Record>(records: &[R]) -> Vec<u8> {
-    let mut out = Vec::with_capacity(size_of_val(records));
-    for record in records {
-        record.write(&mut out);
-    }
-    out
-}
+#[path = "protocol_layers.rs"]
+mod layers;
+pub(crate) use layers::LayerInto;
 
 #[path = "protocol_wgsl.rs"]
 mod wgsl;

@@ -1,29 +1,43 @@
 //! Artwork commands and the result of applying one.
 
 use crate::artwork::Artwork;
+use crate::blend::BlendMode;
 use crate::error::CoreError;
-use crate::id::LayerId;
-use crate::layer_command;
+use crate::id::{GroupId, LayerId};
 use crate::value::LayerName;
+use crate::{group_command, layer_command};
 
 /// Every structural edit of an artwork, one family per variant.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ArtworkCommand {
     Layer(LayerCommand),
+    Group(GroupCommand),
 }
 
 /// Layer structure and properties.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LayerCommand {
-    /// Adds an empty layer directly above the active one and makes it active.
+    /// Adds an empty layer directly above the active one, in the active one's group, and makes
+    /// it active.
     Create,
     /// Removes a layer; if it was active, the layer below it (or the new bottom) becomes active.
+    /// A group losing its last layer goes with it.
     Delete(LayerId),
-    /// Moves a layer to `index`, counted from the bottom after the move.
+    /// Moves a layer to `index`, counted from the bottom after the move. It lands in the group
+    /// of the layers on both sides when they share one, stays in its own group when it lands
+    /// beside it, and is in no group otherwise; a group is never split.
     Reorder {
         layer: LayerId,
         index: usize,
     },
+    /// One step up: the top layer of a group leaves it (it stays where it is, above the group);
+    /// a layer in no group right under a group joins it as its bottom layer; any other layer
+    /// swaps places with the one above. `IndexOutOfRange` at the top of the stack outside a
+    /// group.
+    Raise(LayerId),
+    /// `Raise` downwards: a group's bottom layer leaves it under it, a layer in no group right
+    /// above a group joins it as its top layer, any other swaps with the one below.
+    Lower(LayerId),
     /// Makes a layer the target of new strokes.
     Select(LayerId),
     Rename {
@@ -48,6 +62,42 @@ pub enum LayerCommand {
     SetAlphaLocked {
         layer: LayerId,
         locked: bool,
+    },
+    /// Clipping Mask on or off (`LayerProps::clipping`).
+    SetClipping {
+        layer: LayerId,
+        clipping: bool,
+    },
+    SetBlend {
+        layer: LayerId,
+        blend: BlendMode,
+    },
+}
+
+/// Groups: making, unmaking, showing and fading them. Groups are one level deep.
+#[derive(Debug, Clone, PartialEq)]
+pub enum GroupCommand {
+    /// Puts `layer`, which lies in no group, into a new group ("Group n") with the layer under
+    /// it. Clipping chains stay whole: when `layer` is in a chain (a base with layers clipping
+    /// to it, or one of those), the group holds that chain alone; otherwise it holds `layer`
+    /// and the chain or layer right under it, or `layer` alone at the bottom of the stack
+    /// (`GroupLayered` when either lies in a group).
+    Create {
+        layer: LayerId,
+    },
+    /// A new empty layer in a new group above the active layer and its chain (above its group
+    /// when it lies in one); the new layer becomes active.
+    New,
+    /// Removes the group; its layers stay where they are, hidden when the group was hidden.
+    Ungroup(GroupId),
+    SetVisible {
+        group: GroupId,
+        visible: bool,
+    },
+    /// `opacity` in `0..=1`.
+    SetOpacity {
+        group: GroupId,
+        opacity: f32,
     },
 }
 
@@ -82,11 +132,12 @@ impl Artwork {
     /// Applies one command and returns the new version; `self` is unchanged.
     ///
     /// # Errors
-    /// `UnknownLayer` for an id not in the artwork; `LayerLimit`, `LastLayer`,
-    /// `IndexOutOfRange` and `InvalidValue` as documented on each command.
+    /// `UnknownLayer` or `UnknownGroup` for an id not in the artwork; `LayerLimit`, `LastLayer`,
+    /// `IndexOutOfRange`, `GroupLayered` and `InvalidValue` as documented on each command.
     pub fn apply(&self, command: ArtworkCommand) -> Result<Applied, CoreError> {
         match command {
             ArtworkCommand::Layer(command) => layer_command::apply(self, command),
+            ArtworkCommand::Group(command) => group_command::apply(self, command),
         }
     }
 }

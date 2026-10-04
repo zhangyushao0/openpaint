@@ -3,7 +3,8 @@
 use std::sync::Arc;
 
 use crate::error::CoreError;
-use crate::id::{IdCounters, LayerId};
+use crate::group::LayerGroup;
+use crate::id::{GroupId, IdCounters, LayerId};
 use crate::layer::Layer;
 use crate::value::CanvasSize;
 
@@ -15,6 +16,9 @@ pub(crate) struct ArtworkState {
     pub(crate) canvas: CanvasSize,
     /// Bottom to top; never empty.
     pub(crate) layers: Vec<Layer>,
+    /// Oldest first; each holds at least one layer, its layers next to each other
+    /// (`group::check_groups`).
+    pub(crate) groups: Vec<LayerGroup>,
     /// Always the id of one of `layers`.
     pub(crate) active: LayerId,
     pub(crate) ids: IdCounters,
@@ -38,8 +42,41 @@ impl Artwork {
             canvas,
             active: first.id,
             layers: vec![first],
+            groups: Vec::new(),
             ids,
         })
+    }
+
+    /// The groups, oldest first.
+    #[must_use]
+    pub fn groups(&self) -> &[LayerGroup] {
+        &self.0.groups
+    }
+
+    #[must_use]
+    pub fn group(&self, id: GroupId) -> Option<&LayerGroup> {
+        self.0.groups.iter().find(|group| group.id == id)
+    }
+
+    /// Whether the layer shows: its own eye and its group's are open. False for an unknown id.
+    #[must_use]
+    pub fn shown(&self, id: LayerId) -> bool {
+        self.layer(id).is_some_and(|layer| {
+            let group = layer.props.group.and_then(|group| self.group(group));
+            layer.props.visible && group.is_none_or(LayerGroup::visible)
+        })
+    }
+
+    /// Whether the layer at `index` (from the bottom) clips to a base under it: it is a
+    /// Clipping Mask and the layer right under it lies in the same group (or in none, as it
+    /// does). Its base is then the nearest layer under it that does not clip. False out of range.
+    #[must_use]
+    pub fn clips_at(&self, index: usize) -> bool {
+        let layers = &self.0.layers;
+        index > 0
+            && index < layers.len()
+            && layers[index].props.clipping
+            && layers[index - 1].props.group == layers[index].props.group
     }
 
     #[must_use]
@@ -94,7 +131,9 @@ impl Artwork {
             return 0;
         }
         let layers = &self.0.layers;
-        let mut bytes = size_of::<ArtworkState>() + size_of_val::<[Layer]>(layers);
+        let mut bytes = size_of::<ArtworkState>()
+            + size_of_val::<[Layer]>(layers)
+            + size_of_val::<[LayerGroup]>(&self.0.groups);
         for (index, layer) in layers.iter().enumerate() {
             let before = match base.0.layers.get(index) {
                 Some(same) if same.id == layer.id => Some(same),
@@ -123,6 +162,20 @@ impl Artwork {
             .iter()
             .position(|layer| layer.id == id)
             .ok_or(CoreError::UnknownLayer(id))
+    }
+
+    /// The positions of the clipping chain holding the layer at `index`: its base and every
+    /// layer clipping to it (just `index` for a layer in no chain).
+    pub(crate) fn chain(&self, index: usize) -> std::ops::Range<usize> {
+        let mut start = index;
+        while self.clips_at(start) {
+            start -= 1;
+        }
+        let mut end = index + 1;
+        while self.clips_at(end) {
+            end += 1;
+        }
+        start..end
     }
 
     /// The layer's position, provided its content may change.

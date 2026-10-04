@@ -1,5 +1,5 @@
-//! Schema 9: the keys and values the library stores (DECISIONS D21, D25, D28, D29, D36, D38,
-//! D43, D45, D46).
+//! Schema 10: the keys and values the library stores (DECISIONS D36, D38, D43, D45, D46, D49,
+//! D50; the archived D21, D25, D28, D29).
 //!
 //! Keyspace `library`: `schema` -> the schema of every record (u32 LE); `next` -> the next
 //! unused project id (u64 LE); `clock` -> the last value of the change counter (u64 LE); `last`
@@ -11,7 +11,9 @@
 //! - `[project u64]['h']` -> the head: schema (u32), canvas width and height (u32), active
 //!   layer, next layer id and next stroke id (u64), then the layers bottom to top, each id
 //!   (u64), name (u32 length + UTF-8), visible (u8), opacity (f32), locked (u8), alpha locked
-//!   (u8), its stroke count (u32) and its edit count (u32);
+//!   (u8), clipping (u8), blend (u8: 0 normal, 1 multiply, 2 screen, 3 overlay), group (u64, 0
+//!   none), its stroke count (u32) and its edit count (u32); then the groups oldest first, each
+//!   id (u64), name, visible (u8) and opacity (f32);
 //! - `[project u64]['s'][layer u64][index u64]` -> one stroke, oldest at index 0 (`strokes.rs`):
 //!   id (u64), size, opacity, red, green, blue (f32), blend (u8: 0 paint over, 1 paint atop
 //!   under Alpha Lock, 2 erase, 3 smudge, 4 smudge under Alpha Lock), its brush recipe (softness (f32); the curves size over
@@ -34,11 +36,11 @@
 //! one tool without colours; schema 4 (S12) had no fills; schema 5 (S15) had no deposit in its
 //! recipes and no StreamLine in its toolbox; schema 6 (S16) had no clip in its strokes; schema
 //! 7 (S18) had fills only, without a kind; schema 8 (S20) had no smudge in its strokes or its
-//! toolbox; `migrate.rs`, `migrate_6.rs`, `migrate_7.rs`, `migrate_8.rs` and `migrate_9.rs`
-//! upgrade them.
+//! toolbox; schema 9 (S21) had no clipping, blend or group in its heads; `migrate.rs` and
+//! `migrate_6.rs` to `migrate_10.rs` upgrade them.
 
 use openpaint_app::{PortError, ProjectId};
-use openpaint_core::{Artwork, LayerParts};
+use openpaint_core::{Artwork, BlendMode, GroupParts, LayerParts};
 
 use crate::codec::{Reader, Writer};
 pub(crate) use crate::strokes::{
@@ -46,7 +48,7 @@ pub(crate) use crate::strokes::{
 };
 
 /// The schema this build writes and the newest it reads.
-pub const SCHEMA: u32 = 9;
+pub const SCHEMA: u32 = 10;
 
 pub(crate) const LIBRARY: &str = "library";
 pub(crate) const PROJECTS: &str = "projects";
@@ -61,7 +63,9 @@ const HEAD: u8 = b'h';
 const STROKE: u8 = b's';
 const THUMBNAIL: u8 = b't';
 /// Bytes of a layer entry in the head without its name.
-const LAYER_BYTES: usize = 8 + 4 + 1 + 4 + 1 + 1 + 4 + 4;
+const LAYER_BYTES: usize = 8 + 4 + 1 + 4 + 1 + 1 + 1 + 1 + 8 + 4 + 4;
+/// Bytes of a group entry in the head without its name.
+const GROUP_BYTES: usize = 8 + 4 + 1 + 4;
 
 /// The prefix of every record of `project` in `projects`.
 pub(crate) fn project_prefix(project: ProjectId) -> Vec<u8> {
@@ -151,10 +155,33 @@ pub(crate) struct Head {
     pub(crate) next_stroke_id: u64,
     /// Bottom to top, strokes and fills still empty, with how many strokes and fills each has.
     pub(crate) layers: Vec<(LayerParts, usize, usize)>,
+    pub(crate) groups: Vec<GroupParts>,
+}
+
+/// A blend mode's byte.
+fn blend_byte(blend: BlendMode) -> u8 {
+    match blend {
+        BlendMode::Normal => 0,
+        BlendMode::Multiply => 1,
+        BlendMode::Screen => 2,
+        BlendMode::Overlay => 3,
+    }
+}
+
+fn read_blend(reader: &mut Reader<'_>) -> Result<BlendMode, PortError> {
+    match reader.u8()? {
+        0 => Ok(BlendMode::Normal),
+        1 => Ok(BlendMode::Multiply),
+        2 => Ok(BlendMode::Screen),
+        3 => Ok(BlendMode::Overlay),
+        _ => Err(reader.corrupt()),
+    }
 }
 
 pub(crate) fn encode_head(artwork: &Artwork) -> Vec<u8> {
-    let mut writer = Writer::with_capacity(48 + artwork.layers().len() * (LAYER_BYTES + 16));
+    let groups = artwork.groups().len() * (GROUP_BYTES + 16);
+    let mut writer =
+        Writer::with_capacity(52 + artwork.layers().len() * (LAYER_BYTES + 16) + groups);
     writer.u32(SCHEMA);
     let canvas = artwork.canvas();
     writer.u32(canvas.width());
@@ -170,8 +197,18 @@ pub(crate) fn encode_head(artwork: &Artwork) -> Vec<u8> {
         writer.f32(layer.props().opacity());
         writer.bool(layer.props().locked());
         writer.bool(layer.props().alpha_locked());
+        writer.bool(layer.props().clipping());
+        writer.u8(blend_byte(layer.props().blend()));
+        writer.u64(layer.props().group().map_or(0, |group| group.get()));
         writer.len(layer.strokes().len());
         writer.len(layer.edits().len());
+    }
+    writer.len(artwork.groups().len());
+    for group in artwork.groups() {
+        writer.u64(group.id().get());
+        writer.str(group.name().as_str());
+        writer.bool(group.visible());
+        writer.f32(group.opacity());
     }
     writer.finish()
 }
@@ -196,7 +233,8 @@ pub(crate) fn decode_head(bytes: &[u8]) -> Result<Head, PortError> {
         let id = reader.u64()?;
         let name = reader.str()?;
         let (visible, opacity, locked) = (reader.bool()?, reader.f32()?, reader.bool()?);
-        let alpha_locked = reader.bool()?;
+        let (alpha_locked, clipping) = (reader.bool()?, reader.bool()?);
+        let (blend, group) = (read_blend(&mut reader)?, reader.u64()?);
         let (strokes, fills) = (reader.u32()? as usize, reader.u32()? as usize);
         let layer = LayerParts {
             id,
@@ -205,11 +243,15 @@ pub(crate) fn decode_head(bytes: &[u8]) -> Result<Head, PortError> {
             opacity,
             locked,
             alpha_locked,
+            clipping,
+            blend,
+            group: (group != 0).then_some(group),
             strokes: Vec::new(),
             edits: Vec::new(),
         };
         layers.push((layer, strokes, fills));
     }
+    let groups = read_groups(&mut reader)?;
     reader.end()?;
     Ok(Head {
         width,
@@ -218,5 +260,22 @@ pub(crate) fn decode_head(bytes: &[u8]) -> Result<Head, PortError> {
         next_layer_id,
         next_stroke_id,
         layers,
+        groups,
     })
+}
+
+fn read_groups(reader: &mut Reader<'_>) -> Result<Vec<GroupParts>, PortError> {
+    let count = reader.count(GROUP_BYTES)?;
+    let mut groups = Vec::with_capacity(count);
+    for _ in 0..count {
+        let (id, name) = (reader.u64()?, reader.str()?);
+        let (visible, opacity) = (reader.bool()?, reader.f32()?);
+        groups.push(GroupParts {
+            id,
+            name,
+            visible,
+            opacity,
+        });
+    }
+    Ok(groups)
 }

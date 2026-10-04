@@ -2,9 +2,11 @@
 //! `Artwork::from_storage` is the only way back and validates everything.
 
 use crate::artwork::Artwork;
+use crate::blend::BlendMode;
 use crate::brush::{BrushRecipe, Curve, Dynamics, Grain};
 use crate::deposit::{Accumulation, Deposit, Paper, PaperTexture, Tip};
 use crate::error::CoreError;
+use crate::id::GroupId;
 use crate::layer::Layer;
 use crate::region::{RegionEdit, RegionMask};
 use crate::stroke::{Stroke, StrokeBlend, StrokeSample};
@@ -16,9 +18,20 @@ pub struct ArtworkParts {
     pub height: u32,
     /// Bottom to top.
     pub layers: Vec<LayerParts>,
+    /// Oldest first.
+    pub groups: Vec<GroupParts>,
     pub active: u64,
     pub next_layer_id: u64,
     pub next_stroke_id: u64,
+}
+
+/// A layer group as plain data; its layers name its id.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GroupParts {
+    pub id: u64,
+    pub name: String,
+    pub visible: bool,
+    pub opacity: f32,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -29,6 +42,10 @@ pub struct LayerParts {
     pub opacity: f32,
     pub locked: bool,
     pub alpha_locked: bool,
+    pub clipping: bool,
+    pub blend: BlendMode,
+    /// The group's id, if the layer lies in one.
+    pub group: Option<u64>,
     /// Oldest first.
     pub strokes: Vec<StrokeParts>,
     /// Fills and transforms, oldest first.
@@ -224,6 +241,16 @@ impl Artwork {
             width: state.canvas.width(),
             height: state.canvas.height(),
             layers: state.layers.iter().map(layer_parts).collect(),
+            groups: state
+                .groups
+                .iter()
+                .map(|group| GroupParts {
+                    id: group.id.get(),
+                    name: group.name.as_str().to_owned(),
+                    visible: group.visible,
+                    opacity: group.opacity,
+                })
+                .collect(),
             active: state.active.get(),
             next_layer_id: state.ids.next_layer,
             next_stroke_id: state.ids.next_stroke,
@@ -239,6 +266,9 @@ fn layer_parts(layer: &Layer) -> LayerParts {
         opacity: layer.props.opacity,
         locked: layer.props.locked,
         alpha_locked: layer.props.alpha_locked,
+        clipping: layer.props.clipping,
+        blend: layer.props.blend,
+        group: layer.props.group.map(GroupId::get),
         strokes: layer.strokes.iter().map(stroke_parts).collect(),
         edits: layer.edits.iter().map(edit_parts).collect(),
     }

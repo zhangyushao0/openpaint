@@ -11,25 +11,26 @@ use openpaint_render::Core;
 use openpaint_runtime::{Runtime, ToolKind};
 use support::Nowhere;
 
-/// 800 x 500 points at density 2.
-const SIZE: [u32; 2] = [1600, 1000];
+/// 800 x 700 points at density 2: the whole panel fits.
+const SIZE: [u32; 2] = [1600, 1400];
 const PIXELS_PER_POINT: f32 = 2.0;
-/// Button centres in pixels: points from the panel's layout (popover 320 points wide, one
-/// space from the right edge and under the top islands; rows, slider and buttons one touch
-/// target high), times 2. Undo is in the side bar.
-const UNDO: [f32; 2] = [80.0, 810.0];
-/// Left of the colour button in the right island.
+/// Left of the colour button in the right island, in pixels.
 const LAYERS: [f32; 2] = [1420.0, 66.0];
+/// The panel's add button, in pixels (the second test needs the spot while the panel is shut).
 const ADD: [f32; 2] = [1520.0, 176.0];
-/// The eye of the first row (the top layer).
-const TOP_EYE: [f32; 2] = [1520.0, 272.0];
-/// The name of the second row, with two layers.
-const SECOND_ROW: [f32; 2] = [1100.0, 368.0];
-/// The slider's track runs from x 984 to 1544, with two layers.
-const SLIDER_Y: f32 = 572.0;
-const ALPHA_LOCK: [f32; 2] = [1100.0, 668.0];
-const RAISE: [f32; 2] = [1008.0, 764.0];
-const DELETE: [f32; 2] = [1520.0, 764.0];
+
+/// The point `fraction` across the control `name` of the last frame, in pixels.
+fn on(runtime: &Runtime, name: &str, fraction: [f32; 2]) -> [f32; 2] {
+    let control = runtime.controls().find(name);
+    control
+        .unwrap_or_else(|_| panic!("{name} on screen"))
+        .at(fraction)
+}
+
+fn tap(hand: &mut Hand, runtime: &mut Runtime, name: &str) {
+    let at = on(runtime, name, [0.5, 0.5]);
+    hand.tap(runtime, at);
+}
 
 fn layers(runtime: &Runtime) -> Vec<(u64, bool, f32)> {
     let artwork = runtime.artwork().expect("artwork");
@@ -59,30 +60,30 @@ fn panel_actions_change_the_layers_and_undo_takes_each_back() {
     hand.gesture(&mut runtime, ToolKind::Stylus, &line(500.0));
     let start = runtime.artwork().expect("artwork").clone();
     hand.tap(&mut runtime, LAYERS);
-    hand.tap(&mut runtime, ADD);
+    tap(&mut hand, &mut runtime, "Add layer");
     assert_eq!(layers(&runtime), [(1, true, 1.0), (2, true, 1.0)]);
-    hand.tap(&mut runtime, TOP_EYE);
+    tap(&mut hand, &mut runtime, "Hide layer #1");
     assert_eq!(layers(&runtime)[1], (2, false, 1.0));
-    hand.tap(&mut runtime, TOP_EYE);
-    let slide = [[1540.0, SLIDER_Y], [1400.0, SLIDER_Y], [1264.0, SLIDER_Y]];
+    tap(&mut hand, &mut runtime, "Show layer");
+    let slide = [0.97, 0.75, 0.5].map(|x| on(&runtime, "Opacity", [x, 0.5]));
     hand.gesture(&mut runtime, ToolKind::Finger, &slide);
     let (_, _, opacity) = layers(&runtime)[1];
     assert!((opacity - 0.5).abs() < 0.01, "opacity {opacity}");
-    hand.tap(&mut runtime, ALPHA_LOCK);
+    tap(&mut hand, &mut runtime, "Alpha Lock");
     let artwork = runtime.artwork().expect("artwork");
     assert!(
         artwork.layers()[1].props().alpha_locked(),
         "the switch locks"
     );
-    hand.tap(&mut runtime, SECOND_ROW);
-    hand.tap(&mut runtime, RAISE);
+    tap(&mut hand, &mut runtime, "Layer 1");
+    tap(&mut hand, &mut runtime, "Move layer up");
     assert_eq!(layers(&runtime)[1].0, 1, "layer 1 is on top");
-    hand.tap(&mut runtime, DELETE);
+    tap(&mut hand, &mut runtime, "Delete layer");
     assert_eq!(layers(&runtime).len(), 1);
     assert_cold(&core, &runtime, "after the panel actions");
     // Delete, raise, Alpha Lock, the whole slide, show, hide, add: seven steps back.
     for step in 0..7 {
-        hand.tap(&mut runtime, UNDO);
+        tap(&mut hand, &mut runtime, "Undo");
         assert_cold(&core, &runtime, &format!("after undo {step}"));
     }
     assert!(runtime.artwork().expect("artwork").same_version(&start));

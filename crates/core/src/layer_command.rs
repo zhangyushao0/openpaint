@@ -3,14 +3,18 @@
 use crate::artwork::{Artwork, ArtworkState, MAX_LAYERS};
 use crate::command::{Applied, Change, LayerCommand};
 use crate::error::CoreError;
+use crate::group::prune;
 use crate::id::LayerId;
 use crate::layer::{Layer, check_opacity};
+use crate::layer_moves::{lower, raise, reorder};
 
 pub(crate) fn apply(artwork: &Artwork, command: LayerCommand) -> Result<Applied, CoreError> {
     match command {
         LayerCommand::Create => create(artwork),
         LayerCommand::Delete(id) => delete(artwork, id),
         LayerCommand::Reorder { layer, index } => reorder(artwork, layer, index),
+        LayerCommand::Raise(id) => raise(artwork, id),
+        LayerCommand::Lower(id) => lower(artwork, id),
         LayerCommand::Select(id) => select(artwork, id),
         LayerCommand::Rename { layer, name } => edit(artwork, layer, |l| l.name = name),
         LayerCommand::SetVisible { layer, visible } => {
@@ -26,6 +30,10 @@ pub(crate) fn apply(artwork: &Artwork, command: LayerCommand) -> Result<Applied,
         LayerCommand::SetAlphaLocked { layer, locked } => {
             edit(artwork, layer, |l| l.props.alpha_locked = locked)
         }
+        LayerCommand::SetClipping { layer, clipping } => {
+            edit(artwork, layer, |l| l.props.clipping = clipping)
+        }
+        LayerCommand::SetBlend { layer, blend } => edit(artwork, layer, |l| l.props.blend = blend),
     }
 }
 
@@ -34,10 +42,12 @@ fn create(artwork: &Artwork) -> Result<Applied, CoreError> {
     if state.layers.len() >= MAX_LAYERS {
         return Err(CoreError::LayerLimit { max: MAX_LAYERS });
     }
-    let above = artwork.position(state.active)? + 1;
+    let below = artwork.position(state.active)?;
     let mut next = state.clone();
     let id = next.ids.take_layer();
-    next.layers.insert(above, Layer::empty(id));
+    let mut layer = Layer::empty(id);
+    layer.props.group = state.layers[below].props.group;
+    next.layers.insert(below + 1, layer);
     next.active = id;
     Ok(content(next))
 }
@@ -50,24 +60,10 @@ fn delete(artwork: &Artwork, id: LayerId) -> Result<Applied, CoreError> {
     }
     let mut next = state.clone();
     next.layers.remove(index);
+    prune(&next.layers, &mut next.groups);
     if next.active == id {
         next.active = next.layers[index.saturating_sub(1)].id;
     }
-    Ok(content(next))
-}
-
-fn reorder(artwork: &Artwork, id: LayerId, index: usize) -> Result<Applied, CoreError> {
-    let from = artwork.position(id)?;
-    let len = artwork.state().layers.len();
-    if index >= len {
-        return Err(CoreError::IndexOutOfRange { index, len });
-    }
-    if from == index {
-        return Ok(Applied::unchanged(artwork));
-    }
-    let mut next = artwork.state().clone();
-    let layer = next.layers.remove(from);
-    next.layers.insert(index, layer);
     Ok(content(next))
 }
 
@@ -101,7 +97,7 @@ fn edit(
     Ok(content(next))
 }
 
-fn content(state: ArtworkState) -> Applied {
+pub(crate) fn content(state: ArtworkState) -> Applied {
     Applied {
         artwork: Artwork::from_state(state),
         change: Change::Content,

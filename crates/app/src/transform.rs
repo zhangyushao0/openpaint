@@ -151,7 +151,8 @@ impl Transforms {
         }
         let props = artwork.layer(artwork.active()).map(|layer| *layer.props());
         self.refused = match props {
-            Some(props) if !props.visible() => Some(TransformRefusal::Hidden),
+            // Hidden by its own eye or its group's (draweave cc51b74).
+            Some(_) if !artwork.shown(artwork.active()) => Some(TransformRefusal::Hidden),
             Some(props) if props.locked() => Some(TransformRefusal::Locked),
             _ => None,
         };

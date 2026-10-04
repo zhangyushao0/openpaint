@@ -19,7 +19,10 @@ pub fn changed_regions(before: &Artwork, after: &Artwork) -> Vec<PixelRect> {
     }
     let canvas = after.canvas();
     let full = vec![PixelRect::full([canvas.width(), canvas.height()])];
-    if before.canvas() != canvas || before.layers().len() != after.layers().len() {
+    if before.canvas() != canvas
+        || before.layers().len() != after.layers().len()
+        || before.groups() != after.groups()
+    {
         return full;
     }
     let mut regions = Vec::new();

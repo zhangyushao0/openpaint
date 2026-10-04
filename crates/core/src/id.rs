@@ -20,6 +20,23 @@ impl LayerId {
     }
 }
 
+/// Identifies a layer group for the artwork's whole life. Group ids come from the layer ids'
+/// counter, so a group and a layer never share an id.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct GroupId(u64);
+
+impl GroupId {
+    #[must_use]
+    pub const fn new(raw: u64) -> Self {
+        Self(raw)
+    }
+
+    #[must_use]
+    pub const fn get(self) -> u64 {
+        self.0
+    }
+}
+
 /// Identifies a finished stroke within its artwork; never reused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StrokeId(u64);
@@ -46,6 +63,12 @@ pub(crate) struct IdCounters {
 impl IdCounters {
     pub(crate) fn take_layer(&mut self) -> LayerId {
         let id = LayerId(self.next_layer);
+        self.next_layer += 1;
+        id
+    }
+
+    pub(crate) fn take_group(&mut self) -> GroupId {
+        let id = GroupId(self.next_layer);
         self.next_layer += 1;
         id
     }

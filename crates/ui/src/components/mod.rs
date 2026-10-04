@@ -56,7 +56,7 @@ pub use slider::{SliderChange, slider};
 pub use status::status;
 pub use swatch::{color32, swatch};
 pub use switch_row::switch_row;
-pub use text_button::{text_button, text_choice};
+pub use text_button::{text_button, text_choice, text_choice_wide};
 pub use text_field::{FieldResponse, text_field};
 pub(crate) use view_settle::ViewSettle;
 pub use view_status::{view_status, view_text};

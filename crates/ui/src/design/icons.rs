@@ -6,6 +6,7 @@ use std::f32::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 
 use egui::{Color32, Pos2, Rect, Stroke};
 
+use super::icon_layers::layer_icons;
 use super::icon_tools::tools;
 use super::paint::ink_line;
 
@@ -70,6 +71,14 @@ pub enum Icon {
     OpacityLight,
     /// A solid disc: the opaque end of the opacity slider.
     OpacityDark,
+    /// A folder: a group of layers.
+    Group,
+    /// A chevron pointing down: an open group; tapping closes it.
+    Expanded,
+    /// A chevron pointing right: a closed group; tapping opens it.
+    Collapsed,
+    /// An arrow bending down: the layer clips to the one under it.
+    Clipped,
 }
 
 pub(super) type Line = Vec<[f32; 2]>;
@@ -154,6 +163,7 @@ fn polylines(icon: Icon) -> Vec<Line> {
             vec![[0.58, 0.82], [0.82, 0.58]],
         ],
         Icon::Done => vec![vec![[0.22, 0.52], [0.42, 0.72], [0.78, 0.32]]],
+        Icon::Group | Icon::Expanded | Icon::Collapsed | Icon::Clipped => layer_icons(icon),
         // Discs, painted whole.
         Icon::SizeSmall | Icon::SizeLarge | Icon::OpacityLight | Icon::OpacityDark => Vec::new(),
     }
@@ -346,6 +356,10 @@ mod tests {
             Icon::Move,
             Icon::Resize,
             Icon::Done,
+            Icon::Group,
+            Icon::Expanded,
+            Icon::Collapsed,
+            Icon::Clipped,
         ];
         for icon in icons {
             let lines = polylines(icon);

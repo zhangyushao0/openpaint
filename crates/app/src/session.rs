@@ -10,7 +10,8 @@ use crate::error::AppError;
 use crate::fill::{FillFailed, FillJob, Fills};
 use crate::history::{HISTORY_BUDGET, History, HistoryIntent};
 use crate::intent::Intent;
-use crate::layers::{self, LayerList, Layers};
+use crate::layer_rules;
+use crate::layers::{LayerList, Layers};
 use crate::project::PortError;
 use crate::projection::{Availability, EditorAction, LAYER_ACTIONS, SessionProjection};
 use crate::selection::Selection;
@@ -230,8 +231,9 @@ impl Session {
             redo: availability(can_redo),
             retry_save,
             dismiss_notice,
-            layer_actions: LAYER_ACTIONS
-                .map(|action| layers::availability(artwork, drawing, action, artwork.active())),
+            layer_actions: LAYER_ACTIONS.map(|action| {
+                layer_rules::availability(artwork, drawing, action, artwork.active())
+            }),
             gallery: availability(true),
             storage: self.autosave.notice(),
             layers: Some(LayerList::of(artwork)),

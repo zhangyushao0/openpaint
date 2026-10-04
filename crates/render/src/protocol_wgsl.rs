@@ -3,6 +3,7 @@
 
 use std::mem::{offset_of, size_of};
 
+use super::layers::{INTOS, LAYER_SLOTS, MODES};
 use super::{
     BLENDS, FRESH, GRAIN_ONE, MASK_HEADER, Op, Opcode, Params, SLOTS, TILE, TIPS, TileRecord,
 };
@@ -70,8 +71,17 @@ pub(crate) fn prelude() -> String {
     for (name, slot) in SLOTS {
         wgsl.push_str(&format!("const {name}: u32 = {slot}u;\n"));
     }
+    for (name, slot) in LAYER_SLOTS {
+        wgsl.push_str(&format!("const {name}: u32 = {slot}u;\n"));
+    }
     for (name, blend) in BLENDS {
         wgsl.push_str(&format!("const {name}: u32 = {}u;\n", blend as u32));
+    }
+    for (name, mode) in MODES {
+        wgsl.push_str(&format!("const {name}: u32 = {}u;\n", mode as u32));
+    }
+    for (name, into) in INTOS {
+        wgsl.push_str(&format!("const {name}: u32 = {}u;\n", into as u32));
     }
     for (name, tip) in TIPS {
         wgsl.push_str(&format!("const {name}: u32 = {}u;\n", tip as u32));

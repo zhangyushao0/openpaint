@@ -139,6 +139,26 @@ fn opcode_constants_match_the_enum() {
     for (name, tip) in TIPS {
         assert_eq!(value(name), tip as u32, "{name}");
     }
+    for (name, slot) in layers::LAYER_SLOTS {
+        assert_eq!(value(name) as usize, slot, "{name}");
+    }
+    for (name, mode) in layers::MODES {
+        assert_eq!(value(name), mode as u32, "{name}");
+    }
+    for (name, into) in layers::INTOS {
+        assert_eq!(value(name), into as u32, "{name}");
+    }
+    let end = Op::end_layer_into(0.5, LayerInto::Clipped, layers::Mode::Overlay, true);
+    assert_eq!(
+        end.data[..4],
+        [0.5, 2.0, 3.0, 1.0],
+        "opacity, into, mode, grouped"
+    );
+    assert_eq!(
+        Op::end_layer_into(0.25, LayerInto::Canvas, layers::Mode::Normal, false),
+        Op::end_layer(0.25),
+        "a plain layer's end as before blend modes"
+    );
     assert_eq!(value("PAPER_WIDTH"), PAPER_SIZE[0]);
     assert_eq!(value("PAPER_HEIGHT"), PAPER_SIZE[1]);
     assert_eq!(value("PAPER_LEVELS"), level_count());

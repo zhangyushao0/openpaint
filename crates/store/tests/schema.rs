@@ -1,27 +1,30 @@
-//! The frozen samples (`tests/samples/schema-<n>.bin`), one per schema (DECISIONS D09, D25,
-//! D28, D29, D36, D38, D43, D45, D46): every record of a library holding one project with the
+//! The frozen samples (`tests/samples/schema-<n>.bin`), one per schema (DECISIONS D09, D36,
+//! D38, D43, D45, D46, D49, D50): every record of a library holding one project with the
 //! sample artwork.
 //!
 //! - Schema 1 (written by S7 to S9), 2 (S10), 3 (S11), 4 (S12 to S14), 5 (S15), 6 (S16 and
-//!   S17), 7 (S18 and S19) and 8 (S20): opening any of them upgrades it to schema 9 and gives
-//!   the sample artwork as that schema held it; no old stroke smudges; before schema 8 no layer
-//!   has a transform; before schema 7 no stroke has a clip (nothing was ever drawn inside a
-//!   selection); before schema 6 every stroke covers (crossings never darken), as every stroke
-//!   did then; before schema 5 no layer has fills; before schema 4 every stroke paints over and
-//!   no layer is alpha-locked; schemas 1 and 2 give every stroke the plain round brush, the
-//!   only brush there was. Every old record is kept: heads marked 9 and given (before 4) Alpha
-//!   Lock off and (before 5) a fill count of 0 per layer; strokes given (before 4) their blend,
-//!   (before 3) the plain recipe after their colour, (before 6) the deposit "cover" after their
-//!   recipe, and (before 7) "no clip" after their samples; fills given (before 8) the kind
-//!   "fill" in front; the toolbox given (before 4) the eraser and black, (before 6) StreamLine
-//!   off for every brush, and (before 9) the smudge at its defaults.
-//! - Schema 9: storing the sample artwork (schema 8's with two smudges, one under Alpha Lock)
-//!   with its title, thumbnail and toolbox gives exactly these bytes, so schema 9 can never
-//!   change by accident, and opening it gives them back.
+//!   S17), 7 (S18 and S19), 8 (S20) and 9 (S21 and S22): opening any of them upgrades it to
+//!   schema 10 and gives the sample artwork as that schema held it; no old layer clips, blends
+//!   other than Normal or lies in a group; before schema 9 no stroke smudges; before schema 8
+//!   no layer has a transform; before schema 7 no stroke has a clip (nothing was ever drawn
+//!   inside a selection); before schema 6 every stroke covers (crossings never darken), as every
+//!   stroke did then; before schema 5 no layer has fills; before schema 4 every stroke paints
+//!   over and no layer is alpha-locked; schemas 1 and 2 give every stroke the plain round brush,
+//!   the only brush there was. Every old record is kept: heads marked 10 and given (before 4)
+//!   Alpha Lock off, (before 5) a fill count of 0 per layer, (before 10) no clipping, Normal and
+//!   no group per layer and no groups; strokes given (before 4) their blend, (before 3) the
+//!   plain recipe after their colour, (before 6) the deposit "cover" after their recipe, and
+//!   (before 7) "no clip" after their samples; fills given (before 8) the kind "fill" in front;
+//!   the toolbox given (before 4) the eraser and black, (before 6) StreamLine off for every
+//!   brush, and (before 9) the smudge at its defaults.
+//! - Schema 10: storing the sample artwork (schema 9's with a hidden, faded group of two
+//!   layers, one clipping to the other, and two blend modes) with its title, thumbnail and
+//!   toolbox gives exactly these bytes, so schema 10 can never change by accident, and opening
+//!   it gives them back.
 //!
 //! A file is a record dump: per record the keyspace index (u8: 0 `library`, 1 `projects`),
 //! then key and value, each as a u32 little-endian length and the bytes, sorted by keyspace and
-//! key. A missing schema-9 file is written from the current encoding and the test fails, so a
+//! key. A missing schema-10 file is written from the current encoding and the test fails, so a
 //! new sample is reviewed before it is committed.
 
 mod common;
@@ -34,16 +37,16 @@ use openpaint_store::{Library, SCHEMA};
 use sample::{
     decode, encode, legacy_parts, parts, sample_editor, sample_editor_6, sample_editor_9,
     sample_path, sample_thumbnail, sample_title, schema_3_parts, schema_4_parts, schema_5_parts,
-    schema_6_parts, schema_7_parts, schema_8_parts, upgraded_editor,
+    schema_6_parts, schema_7_parts, schema_8_parts, schema_9_parts, upgraded_editor,
 };
 
 /// Bytes of a stroke record before the place schema 3 puts the recipe and schema 4 the blend.
 const STYLE_BYTES: usize = 28;
-/// Layers in the sample's head, each of which schema 4 gives one Alpha Lock byte and schema 5
-/// a fill count of four bytes.
+/// Layers in the sample's head, each of which schema 4 gives one Alpha Lock byte, schema 5
+/// a fill count of four bytes and schema 10 clipping, blend and group (ten bytes).
 const LAYERS: usize = 3;
 
-/// Opens the older sample `schema`: it upgrades to schema 9 and holds the sample artwork as
+/// Opens the older sample `schema`: it upgrades to schema 10 and holds the sample artwork as
 /// that schema held it. Every old record is kept, as the module documentation lists. Returns
 /// the library (still open) and the keys the upgrade added.
 fn open_older(schema: u32) -> (Library, Vec<Vec<u8>>) {
@@ -63,7 +66,8 @@ fn open_older(schema: u32) -> (Library, Vec<Vec<u8>>) {
         5 => schema_5_parts(),
         6 => schema_6_parts(),
         7 => schema_7_parts(),
-        _ => schema_8_parts(),
+        8 => schema_8_parts(),
+        _ => schema_9_parts(),
     };
     assert_eq!(project.artwork.to_parts(), expected);
     drop(library);
@@ -86,10 +90,17 @@ fn open_older(schema: u32) -> (Library, Vec<Vec<u8>>) {
 fn kept(schema: u32, keyspace: &str, key: &[u8], value: &[u8], now: &[u8]) {
     let alpha_lock = if schema < 4 { LAYERS } else { 0 };
     let fill_counts = if schema < 5 { 4 * LAYERS } else { 0 };
+    // Clipping, blend and group per layer, and the group count.
+    let groups = 10 * LAYERS + 4;
     match (keyspace, key.get(8)) {
         ("projects", Some(b'h')) => {
-            assert_eq!(now[..4], 9u32.to_le_bytes(), "the head is marked schema 9");
-            assert_eq!(now.len(), value.len() + alpha_lock + fill_counts);
+            assert_eq!(
+                now[..4],
+                10u32.to_le_bytes(),
+                "the head is marked schema 10"
+            );
+            assert_eq!(now.len(), value.len() + alpha_lock + fill_counts + groups);
+            assert_eq!(now[now.len() - 4..], [0; 4], "no groups");
         }
         ("projects", Some(b's')) if schema >= 7 => assert_eq!(now, value, "the stroke"),
         ("projects", Some(b's')) => {
@@ -104,7 +115,7 @@ fn kept(schema: u32, keyspace: &str, key: &[u8], value: &[u8], now: &[u8]) {
         ("projects", Some(b'f')) if schema < 8 => {
             assert_eq!((now[0], &now[1..]), (0, value), "the kind, then the fill");
         }
-        ("library", _) if key == b"schema" => assert_eq!(now, &9u32.to_le_bytes()),
+        ("library", _) if key == b"schema" => assert_eq!(now, &10u32.to_le_bytes()),
         ("library", _) if key == b"editor" => {}
         _ => assert_eq!(now, value),
     }
@@ -190,16 +201,16 @@ fn the_schema_3_sample_opens_upgraded_and_keeps_its_records() {
 }
 
 #[test]
-fn the_schema_4_to_8_samples_open_upgraded_and_keep_their_records() {
-    for schema in [4, 5, 6, 7, 8] {
+fn the_schema_4_to_9_samples_open_upgraded_and_keep_their_records() {
+    for schema in [4, 5, 6, 7, 8, 9] {
         let (mut library, added) = open_older(schema);
         let listed = library.list().expect("list");
         assert_eq!(listed[0].title, sample_title());
         assert_eq!(listed[0].thumbnail, Some(sample_thumbnail()));
-        let editor = if schema >= 6 {
-            sample_editor_6()
-        } else {
-            sample_editor()
+        let editor = match schema {
+            9 => sample_editor_9(),
+            6.. => sample_editor_6(),
+            _ => sample_editor(),
         };
         assert_eq!(library.editor(), Ok(Some(editor)));
         assert!(added.is_empty(), "{added:?}");
@@ -207,8 +218,11 @@ fn the_schema_4_to_8_samples_open_upgraded_and_keep_their_records() {
 }
 
 #[test]
-fn the_schema_9_sample_round_trips() {
-    assert_eq!(SCHEMA, 9, "a new schema ships its own sample and migration");
+fn the_schema_10_sample_round_trips() {
+    assert_eq!(
+        SCHEMA, 10,
+        "a new schema ships its own sample and migration"
+    );
     let artwork = Artwork::from_storage(parts()).expect("valid sample artwork");
     let dir = fresh_dir("sample-write");
     let mut library = Library::at(&dir);
@@ -219,7 +233,7 @@ fn the_schema_9_sample_round_trips() {
     library.save_editor(&sample_editor_9()).expect("toolbox");
     drop(library);
     let written = encode(&records(&dir));
-    let path = sample_path(9);
+    let path = sample_path(10);
     let Ok(frozen) = std::fs::read(&path) else {
         std::fs::write(&path, &written).expect("write sample");
         panic!(
@@ -229,7 +243,7 @@ fn the_schema_9_sample_round_trips() {
     };
     assert!(
         written == frozen,
-        "storing the sample artwork no longer gives the schema-9 bytes"
+        "storing the sample artwork no longer gives the schema-10 bytes"
     );
 
     let dir = fresh_dir("sample-read");

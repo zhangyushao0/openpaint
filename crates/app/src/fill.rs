@@ -201,7 +201,8 @@ impl Fills {
         let props = artwork.layer(layer).map(|layer| *layer.props());
         let point = point.map(|value| value as u32);
         let refusal = match props {
-            Some(props) if !props.visible() => Some(FillRefusal::Hidden),
+            // Hidden by its own eye or its group's (draweave cc51b74).
+            Some(_) if !artwork.shown(layer) => Some(FillRefusal::Hidden),
             Some(props) if props.locked() => Some(FillRefusal::Locked),
             _ if clip.is_some_and(|clip| !clip.contains(point)) => {
                 Some(FillRefusal::OutsideSelection)

@@ -27,8 +27,10 @@ pub enum EditorAction {
     DeleteLayer,
     RaiseLayer,
     LowerLayer,
-    /// Choose, show, hide or fade a layer.
+    /// Choose, show, hide, fade, clip or blend a layer; show, hide, fade or undo its group.
     EditLayer,
+    /// Group the layer with the one under it.
+    GroupLayer,
     /// Leave the canvas for the gallery, or act in the gallery.
     Gallery,
     /// Export the artwork to a file or another app.
@@ -80,8 +82,8 @@ pub struct SessionProjection {
     pub(crate) redo: Availability,
     pub(crate) retry_save: Availability,
     pub(crate) dismiss_notice: Availability,
-    /// Add, delete, raise, lower and edit, for the active layer.
-    pub(crate) layer_actions: [Availability; 5],
+    /// Add, delete, raise, lower, edit and group, for the active layer.
+    pub(crate) layer_actions: [Availability; 6],
     pub(crate) gallery: Availability,
     pub(crate) storage: StorageNotice,
     pub(crate) layers: Option<LayerList>,
@@ -109,12 +111,13 @@ pub enum ScreenProjection {
 }
 
 /// The layer actions in the order of `SessionProjection::layer_actions`.
-pub(crate) const LAYER_ACTIONS: [EditorAction; 5] = [
+pub(crate) const LAYER_ACTIONS: [EditorAction; 6] = [
     EditorAction::AddLayer,
     EditorAction::DeleteLayer,
     EditorAction::RaiseLayer,
     EditorAction::LowerLayer,
     EditorAction::EditLayer,
+    EditorAction::GroupLayer,
 ];
 
 impl SessionProjection {
@@ -134,6 +137,7 @@ impl SessionProjection {
             EditorAction::RaiseLayer => self.layer_actions[2],
             EditorAction::LowerLayer => self.layer_actions[3],
             EditorAction::EditLayer => self.layer_actions[4],
+            EditorAction::GroupLayer => self.layer_actions[5],
             EditorAction::Gallery => self.gallery,
             EditorAction::Fill | EditorAction::Transform => {
                 if self.canvas.is_none() {
@@ -233,7 +237,7 @@ impl Default for SessionProjection {
             redo: Availability::NothingLeft,
             retry_save: Availability::NothingLeft,
             dismiss_notice: Availability::NothingLeft,
-            layer_actions: [Availability::NothingLeft; 5],
+            layer_actions: [Availability::NothingLeft; 6],
             gallery: Availability::NothingLeft,
             storage: StorageNotice::None,
             layers: None,
@@ -267,6 +271,7 @@ impl fmt::Display for EditorAction {
             Self::RaiseLayer => "move the layer up",
             Self::LowerLayer => "move the layer down",
             Self::EditLayer => "change the layer",
+            Self::GroupLayer => "group the layer",
             Self::Gallery => "use the gallery",
             Self::Export => "export the artwork",
             Self::ChooseReference => "choose a reference image",

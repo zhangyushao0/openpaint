@@ -39,9 +39,8 @@ Passed 2026-10-03: S9 to S17 and the G2 follow-ups done (see "Done"); the author
 
 Exit: the author finishes painterly shading (W2) and a complex composition revision (W3) on the tablet.
 
-S18 to S22 are done (see "Done"); S21's 60 Hz holds up to about 340 px and fails at the largest sizes, an author decision (STATUS). Next: S23.
+S18 to S23 are done (see "Done"); S21's 60 Hz holds up to about 340 px and fails at the largest sizes, an author decision (STATUS). Next: S24.
 
-**S23 Groups, clipping masks, blend modes** (core, app, ui, render, store): single-level groups, clipping chains, Multiply/Screen/Overlay; schema upgrade. Done: GPU tests for the compositing formulas.
 **S24 Layer masks** (core, app, ui, render, store): add, disable, invert, clear and delete masks with undo; painting on masks. Done: GPU tests for masks combined with opacity, clipping and groups.
 
 ## G4 Colour, adjustments, exchange
@@ -112,3 +111,4 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - S20 2026-10-03 `feat(app): transform a layer or a selection as a placed patch, preview equal to commit, schema 8 (S20)`; walk-through confirmed on the tablet with injected pen and fingers
 - S21 2026-10-03 `feat(render): smudge as a residual evaluated in layer order, in progress equal to cold, schema 9 (S21)`; walk-through confirmed on the tablet; 60 Hz `pass` up to about 340 px, `fail` at 600 px
 - S22 2026-10-04 `chore(devtools): named scenario targets and device commands (S22)`; every scenario on names with its old hashes; one device routine through the commands alone, library byte-identical after restore
+- S23 2026-10-04 `feat(render): groups, clipping masks and blend modes, schema 10 (S23)`; GPU tests per formula against hand-worked values, chains, pass-through group opacity, incremental = cold (D49, D50)

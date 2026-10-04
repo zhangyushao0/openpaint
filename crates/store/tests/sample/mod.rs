@@ -5,9 +5,9 @@ use std::path::PathBuf;
 
 use openpaint_app::{Thumbnail, Title};
 use openpaint_core::{
-    AccumulationParts, ArtworkParts, BrushRecipe, EditParts, FillParts, LayerParts, MaskParts,
-    PaperParts, PaperTexture, RecipeParts, SampleParts, StrokeBlend, StrokeParts, Tip,
-    TransformParts,
+    AccumulationParts, ArtworkParts, BlendMode, BrushRecipe, EditParts, FillParts, GroupParts,
+    LayerParts, MaskParts, PaperParts, PaperTexture, RecipeParts, SampleParts, StrokeBlend,
+    StrokeParts, Tip, TransformParts,
 };
 
 use crate::common::KEYSPACES;
@@ -111,6 +111,9 @@ fn layer(
         opacity,
         locked,
         alpha_locked: false,
+        clipping: false,
+        blend: BlendMode::Normal,
+        group: None,
         strokes,
         edits: Vec::new(),
     }
@@ -168,6 +171,7 @@ pub fn schema_3_parts() -> ArtworkParts {
             layer(3, "Tinte ✒ 墨", false, 1.0, true, ink),
             layer(4, "Layer 4", true, 1.0, false, Vec::new()),
         ],
+        groups: Vec::new(),
         active: 3,
         next_layer_id: 5,
         next_stroke_id: 6,
@@ -239,9 +243,29 @@ pub fn schema_5_parts() -> ArtworkParts {
     parts
 }
 
+/// The schema-9 sample with what schema 10 adds: the ink and top layers in a hidden, faded
+/// group with a non-ASCII name, the top layer clipping to the ink layer, the ink layer by
+/// Multiply and the sketch by Overlay.
+pub fn parts() -> ArtworkParts {
+    let mut parts = schema_9_parts();
+    parts.layers[0].blend = BlendMode::Overlay;
+    parts.layers[1].blend = BlendMode::Multiply;
+    parts.layers[1].group = Some(5);
+    parts.layers[2].group = Some(5);
+    parts.layers[2].clipping = true;
+    parts.groups.push(GroupParts {
+        id: 5,
+        name: "Gruppe ✒ 组".to_owned(),
+        visible: false,
+        opacity: 0.625,
+    });
+    parts.next_layer_id = 6;
+    parts
+}
+
 /// The schema-8 sample with what schema 9 adds: a smudge on the alpha-locked sketch layer after
 /// its transform, and a smudge on the top layer over its transformed fill.
-pub fn parts() -> ArtworkParts {
+pub fn schema_9_parts() -> ArtworkParts {
     let mut parts = schema_8_parts();
     let mut locked = parts.layers[0].strokes[0].clone();
     locked.id = 6;

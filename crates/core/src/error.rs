@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use crate::id::LayerId;
+use crate::id::{GroupId, LayerId};
 
 /// Why core refused a value, a command, a stroke step or a stored artwork.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -15,6 +15,10 @@ pub enum CoreError {
     LastLayer,
     /// The artwork already holds the maximum number of layers.
     LayerLimit { max: usize },
+    /// No group with this id exists in the artwork.
+    UnknownGroup(GroupId),
+    /// Groups are one level deep: this layer, or one it would group, already lies in a group.
+    GroupLayered(LayerId),
     /// The layer is locked; its content cannot change.
     LayerLocked(LayerId),
     /// The layer's alpha is locked; the eraser cannot take paint away.
@@ -42,6 +46,8 @@ impl fmt::Display for CoreError {
             Self::UnknownLayer(id) => write!(f, "no layer with id {}", id.get()),
             Self::LastLayer => f.write_str("the last layer cannot be deleted"),
             Self::LayerLimit { max } => write!(f, "an artwork holds at most {max} layers"),
+            Self::UnknownGroup(id) => write!(f, "no group with id {}", id.get()),
+            Self::GroupLayered(id) => write!(f, "layer {} already lies in a group", id.get()),
             Self::LayerLocked(id) => write!(f, "layer {} is locked", id.get()),
             Self::AlphaLocked(id) => write!(f, "layer {}'s alpha is locked", id.get()),
             Self::IndexOutOfRange { index, len } => {

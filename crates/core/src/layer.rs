@@ -2,33 +2,40 @@
 
 use std::sync::Arc;
 
+use crate::blend::BlendMode;
 use crate::error::CoreError;
-use crate::id::LayerId;
+use crate::id::{GroupId, LayerId};
 use crate::region::RegionEdit;
 use crate::stroke_list::StrokeList;
 use crate::value::{LayerName, invalid, is_unit};
 
-/// Layer properties the user toggles or slides.
+/// Layer properties the user toggles or slides, and the group the layer belongs to.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LayerProps {
     pub(crate) visible: bool,
     pub(crate) opacity: f32,
     pub(crate) locked: bool,
     pub(crate) alpha_locked: bool,
+    pub(crate) clipping: bool,
+    pub(crate) blend: BlendMode,
+    pub(crate) group: Option<GroupId>,
 }
 
 impl LayerProps {
     pub(crate) fn new(
-        visible: bool,
-        opacity: f32,
-        locked: bool,
-        alpha_locked: bool,
+        (visible, opacity): (bool, f32),
+        (locked, alpha_locked): (bool, bool),
+        (clipping, blend): (bool, BlendMode),
+        group: Option<GroupId>,
     ) -> Result<Self, CoreError> {
         Ok(Self {
             visible,
             opacity: check_opacity(opacity)?,
             locked,
             alpha_locked,
+            clipping,
+            blend,
+            group,
         })
     }
 
@@ -55,16 +62,39 @@ impl LayerProps {
     pub const fn alpha_locked(&self) -> bool {
         self.alpha_locked
     }
+
+    /// Clipping Mask: the layer shows only where the nearest layer below it in the same group
+    /// that does not clip (its base) has paint. A clipping layer with no such layer under it in
+    /// its group (the bottom of the stack or of a group) is a base itself
+    /// (`Artwork::clips_at`).
+    #[must_use]
+    pub const fn clipping(&self) -> bool {
+        self.clipping
+    }
+
+    #[must_use]
+    pub const fn blend(&self) -> BlendMode {
+        self.blend
+    }
+
+    /// The group the layer lies in, if any.
+    #[must_use]
+    pub const fn group(&self) -> Option<GroupId> {
+        self.group
+    }
 }
 
 impl Default for LayerProps {
-    /// Visible, fully opaque, unlocked, alpha not locked.
+    /// Visible, fully opaque, unlocked, alpha not locked, not clipping, Normal, in no group.
     fn default() -> Self {
         Self {
             visible: true,
             opacity: 1.0,
             locked: false,
             alpha_locked: false,
+            clipping: false,
+            blend: BlendMode::Normal,
+            group: None,
         }
     }
 }

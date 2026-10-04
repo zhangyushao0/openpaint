@@ -33,10 +33,15 @@ impl Plan {
     }
 
     /// Per evaluated tile, the indices (from `first` on) of `items` that reach it, in order.
+    /// A layer's end lists where its ops reached, a chain's end where its layers' ends did, a
+    /// group's end where its layers' and chains' ends did: each end resets what it closes, so
+    /// a tile nothing reached keeps no state from an earlier one.
     fn bin(grid: &Grid, items: &[Item], first: u32, fresh: &Fresh) -> Vec<Vec<u32>> {
         let mut lists = vec![Vec::new(); grid.origins.len()];
         let mut stroke = Touched::new(lists.len());
         let mut layer = Touched::new(lists.len());
+        let mut chain = Touched::new(lists.len());
+        let mut group = Touched::new(lists.len());
         let mut fresh_lists = Some(grid.bin(fresh));
         for (index, item) in items.iter().enumerate() {
             let index = u32::try_from(index)
@@ -55,10 +60,7 @@ impl Plan {
                     }
                 }
                 Item::EndStroke(_) | Item::Smudge(_) => {
-                    for slot in stroke.close() {
-                        lists[slot].push(index);
-                        layer.touch(slot);
-                    }
+                    close_into(&mut stroke, (&mut lists, index), Some(&mut layer));
                 }
                 Item::Fill { bounds, .. } => {
                     for slot in grid.slots(&bounds.pixels()) {
@@ -74,11 +76,23 @@ impl Plan {
                         layer.touch(slot);
                     }
                 }
-                Item::EndLayer(_) => {
-                    for slot in layer.close() {
-                        lists[slot].push(index);
-                    }
+                Item::EndLayer {
+                    chain: chained,
+                    grouped,
+                    ..
+                } => {
+                    let into = if *chained {
+                        Some(&mut chain)
+                    } else {
+                        grouped.then_some(&mut group)
+                    };
+                    close_into(&mut layer, (&mut lists, index), into);
                 }
+                Item::EndChain { grouped, .. } => {
+                    let into = grouped.then_some(&mut group);
+                    close_into(&mut chain, (&mut lists, index), into);
+                }
+                Item::EndGroup(_) => close_into(&mut group, (&mut lists, index), None),
             }
         }
         lists
@@ -183,6 +197,24 @@ impl Grid {
     }
 }
 
+/// An end: listed in every slot `from` reached, which `into` (what the end composites into)
+/// has then reached too.
+fn close_into(
+    from: &mut Touched,
+    (lists, index): (&mut [Vec<u32>], u32),
+    into: Option<&mut Touched>,
+) {
+    let slots = from.close();
+    for slot in &slots {
+        lists[*slot].push(index);
+    }
+    if let Some(into) = into {
+        for slot in slots {
+            into.touch(slot);
+        }
+    }
+}
+
 /// The slots one stroke or layer has reached so far, each listed once.
 struct Touched {
     /// Per slot, the epoch it was last touched in.
@@ -244,6 +276,14 @@ mod tests {
         Op::end_stroke(&paint())
     }
 
+    fn end_layer() -> Item {
+        Item::EndLayer {
+            op: Op::end_layer(1.0),
+            chain: false,
+            grouped: false,
+        }
+    }
+
     fn scene() -> Scene {
         Scene {
             items: vec![
@@ -251,7 +291,7 @@ mod tests {
                 Item::EndStroke(black()),
                 segment([40.0, 2.0, 41.0, 3.0]),
                 Item::EndStroke(black()),
-                Item::EndLayer(Op::end_layer(1.0)),
+                end_layer(),
             ],
             ..Scene::default()
         }
@@ -340,7 +380,7 @@ mod tests {
                 segment([2.0, 2.0, 4.0, 4.0]),
                 Item::EndStroke(black()),
                 Item::Active,
-                Item::EndLayer(Op::end_layer(1.0)),
+                end_layer(),
             ],
             ..Scene::default()
         };

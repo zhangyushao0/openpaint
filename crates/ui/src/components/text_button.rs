@@ -13,15 +13,30 @@ use crate::design::{
 
 /// Shows a button reading `label`; only an `enabled` button can be clicked.
 pub fn text_button(ui: &mut egui::Ui, label: &str, enabled: bool) -> egui::Response {
-    button(ui, label, enabled, false)
+    button(ui, label, (enabled, false), TOUCH_TARGET)
 }
 
 /// A button reading `label` that shows whether it is the option `chosen`.
 pub fn text_choice(ui: &mut egui::Ui, label: &str, chosen: bool) -> egui::Response {
-    button(ui, label, true, chosen)
+    button(ui, label, (true, chosen), TOUCH_TARGET)
 }
 
-fn button(ui: &mut egui::Ui, label: &str, enabled: bool, chosen: bool) -> egui::Response {
+/// As `text_choice`, at least `width` wide (options in even columns); unavailable ones grey.
+pub fn text_choice_wide(
+    ui: &mut egui::Ui,
+    label: &str,
+    (enabled, chosen): (bool, bool),
+    width: f32,
+) -> egui::Response {
+    button(ui, label, (enabled, chosen), width)
+}
+
+fn button(
+    ui: &mut egui::Ui,
+    label: &str,
+    (enabled, chosen): (bool, bool),
+    min_width: f32,
+) -> egui::Response {
     let sense = if enabled {
         Sense::click()
     } else {
@@ -34,7 +49,7 @@ fn button(ui: &mut egui::Ui, label: &str, enabled: bool, chosen: bool) -> egui::
         (true, false) => (INK, BUTTON_RULE),
     };
     let galley = ui.painter().layout_no_wrap(label.to_owned(), font, color);
-    let width = (galley.size().x + 4.0 * SPACE).max(TOUCH_TARGET);
+    let width = (galley.size().x + 4.0 * SPACE).max(min_width);
     let (rect, response) = ui.allocate_exact_size(Vec2::new(width, TOUCH_TARGET), sense);
     response.widget_info(|| WidgetInfo::selected(WidgetType::Button, enabled, chosen, label));
     controls::register(ui, label, rect);

@@ -5,14 +5,14 @@
 use std::ops::Range;
 
 use openpaint_core::{
-    ActiveStroke, Artwork, Layer, LayerId, Patch, RegionMask, Stroke, StrokeBlend, StrokeSample,
-    StrokeStyle, StrokeTool,
+    ActiveStroke, Artwork, Layer, LayerGroup, LayerId, Patch, RegionMask, Stroke, StrokeBlend,
+    StrokeSample, StrokeStyle, StrokeTool,
 };
 
 use crate::edits::restart;
 use crate::error::RenderError;
 use crate::geom::Bounds;
-use crate::protocol::{MASK_HEADER, Op, Paint};
+use crate::protocol::{LayerInto, MASK_HEADER, Op, Paint};
 use crate::smudge::smudge_reach;
 use crate::stroke::{paint, segments};
 
@@ -29,7 +29,20 @@ pub(crate) enum Item {
         op: Op,
         bounds: Bounds,
     },
-    EndLayer(Op),
+    /// A layer's end: onto the canvas, or (`chain`) starting or joining a clipping chain;
+    /// `grouped` inside a group.
+    EndLayer {
+        op: Op,
+        chain: bool,
+        grouped: bool,
+    },
+    /// A clipping chain's end, onto the canvas.
+    EndChain {
+        op: Op,
+        grouped: bool,
+    },
+    /// A group's end.
+    EndGroup(Op),
     /// Where the in-progress stroke draws: above its layer's finished strokes. Its ops are the
     /// evaluation's `Fresh` ops, which change every frame while the scene stays.
     Active,
@@ -46,7 +59,9 @@ impl Item {
             Self::Segment { op, .. }
             | Self::Fill { op, .. }
             | Self::EndStroke(op)
-            | Self::EndLayer(op)
+            | Self::EndLayer { op, .. }
+            | Self::EndChain { op, .. }
+            | Self::EndGroup(op)
             | Self::Smudge(op) => *op,
             Self::Active | Self::Reach(_) => Op::unused(),
         }
@@ -107,7 +122,10 @@ impl ActivePlace {
 
 impl Scene {
     /// The finished content of `artwork`, with the place of an in-progress stroke `active`.
-    /// Hidden layers, and layers with neither content nor that place, contribute no ops.
+    /// Layers that do not show (hidden, in a hidden group, clipping to a hidden base), and
+    /// layers with neither content nor that place, contribute no ops. A layer ends onto the
+    /// canvas, or into its clipping chain, which ends onto the canvas by its base's opacity and
+    /// mode; a group's layers end onto the canvas too, and its own end fades them (D50).
     pub(crate) fn build(
         artwork: &Artwork,
         active: Option<&ActivePlace>,
@@ -120,18 +138,47 @@ impl Scene {
             ));
         }
         let mut scene = Self::default();
-        let shown = artwork
-            .layers()
-            .iter()
-            .filter(|layer| layer.props().visible());
-        scene.reserve_bases(shown.map(smudge_count).sum());
-        for layer in artwork.layers() {
-            if layer.props().visible() {
+        let layers = artwork.layers();
+        let drawn = drawn(artwork);
+        let shown = layers.iter().zip(&drawn).filter(|(_, drawn)| **drawn);
+        scene.reserve_bases(shown.map(|(layer, _)| smudge_count(layer)).sum());
+        let mut base = 0;
+        for (index, layer) in layers.iter().enumerate() {
+            let (props, clipped) = (layer.props(), artwork.clips_at(index));
+            let chained = clipped || artwork.clips_at(index + 1);
+            base = if clipped { base } else { index };
+            let grouped = props.group().is_some();
+            if drawn[index] {
                 let place = active.filter(|place| place.layer == layer.id());
                 if let Some(clip) = place.and_then(|place| place.clip.as_ref()) {
                     scene.active_clip = scene.clip(clip)?;
                 }
-                scene.push_layer(layer, place.is_some(), layer.props().opacity())?;
+                let into = match (clipped, chained) {
+                    (true, _) => LayerInto::Clipped,
+                    (false, true) => LayerInto::Base,
+                    (false, false) => LayerInto::Canvas,
+                };
+                let op = Op::end_layer_into(props.opacity(), into, props.blend().into(), grouped);
+                let end = Item::EndLayer {
+                    op,
+                    chain: chained,
+                    grouped,
+                };
+                scene.push_layer(layer, place.is_some(), end)?;
+            }
+            if chained && !artwork.clips_at(index + 1) && drawn[base] {
+                let base = layers[base].props();
+                let op = Op::end_chain(base.opacity(), base.blend().into(), grouped);
+                scene.items.push(Item::EndChain { op, grouped });
+            }
+            let next = layers.get(index + 1).and_then(|next| next.props().group());
+            let group = props.group().filter(|group| next != Some(*group));
+            if let Some(group) = group.and_then(|group| artwork.group(group))
+                && group.visible()
+            {
+                scene
+                    .items
+                    .push(Item::EndGroup(Op::end_group(group.opacity())));
             }
         }
         Ok(scene)
@@ -145,7 +192,12 @@ impl Scene {
             .ok_or(RenderError::Invalid("the layer is not in the artwork"))?;
         let mut scene = Self::default();
         scene.reserve_bases(smudge_count(layer));
-        scene.push_layer(layer, false, 1.0)?;
+        let end = Item::EndLayer {
+            op: Op::end_layer(1.0),
+            chain: false,
+            grouped: false,
+        };
+        scene.push_layer(layer, false, end)?;
         Ok(scene)
     }
 
@@ -156,8 +208,9 @@ impl Scene {
     }
 
     /// A transform of the whole layer clears everything before it, so the layer's ops start at
-    /// the last one (`restart`): the same pixels, and earlier patches stay off the GPU.
-    fn push_layer(&mut self, layer: &Layer, active: bool, opacity: f32) -> Result<(), RenderError> {
+    /// the last one (`restart`): the same pixels, and earlier patches stay off the GPU. `end`
+    /// closes the layer when it has any op.
+    fn push_layer(&mut self, layer: &Layer, active: bool, end: Item) -> Result<(), RenderError> {
         let start = self.items.len();
         let (first, after) = restart(layer);
         let mut edits = layer.edits()[first..].iter().peekable();
@@ -189,7 +242,7 @@ impl Scene {
             self.items.push(Item::Active);
         }
         if self.items.len() > start {
-            self.items.push(Item::EndLayer(Op::end_layer(opacity)));
+            self.items.push(end);
         }
         Ok(())
     }
@@ -249,6 +302,24 @@ impl Scene {
             .push(Item::Smudge(Op::smudge(Some(at), clip, locked)));
         self.smudges.push(item);
     }
+}
+
+/// Per layer bottom to top, whether it shows: its eye and its group's are open, and a layer
+/// clipping to a base needs that base to show.
+fn drawn(artwork: &Artwork) -> Vec<bool> {
+    let mut drawn: Vec<bool> = Vec::with_capacity(artwork.layers().len());
+    let mut base = false;
+    for (index, layer) in artwork.layers().iter().enumerate() {
+        let group = layer.props().group().and_then(|group| artwork.group(group));
+        let shown = layer.props().visible() && group.is_none_or(LayerGroup::visible);
+        if artwork.clips_at(index) {
+            drawn.push(shown && base);
+        } else {
+            base = shown;
+            drawn.push(shown);
+        }
+    }
+    drawn
 }
 
 /// How many smudges of `layer` a scene draws: those after a transform of the whole layer.

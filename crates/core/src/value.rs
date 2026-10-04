@@ -149,7 +149,12 @@ impl LayerName {
 
     /// The default name of a new layer: "Layer" and its id.
     pub(crate) fn numbered(number: u64) -> Self {
-        Self(Arc::from(format!("Layer {number}")))
+        Self::titled("Layer", number)
+    }
+
+    /// "`word` `number`", such as "Group 7".
+    pub(crate) fn titled(word: &str, number: u64) -> Self {
+        Self(Arc::from(format!("{word} {number}")))
     }
 
     #[must_use]

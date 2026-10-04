@@ -19,6 +19,7 @@ use crate::migrate_6::upgrade_5_to_6;
 use crate::migrate_7::upgrade_6_to_7;
 use crate::migrate_8::upgrade_7_to_8;
 use crate::migrate_9::upgrade_8_to_9;
+use crate::migrate_10::upgrade_9_to_10;
 use crate::records::{
     LIBRARY, NEXT, PROJECTS, SCHEMA, SCHEMA_KEY, decode_id, decode_schema, encode_schema, head_key,
     strokes_prefix,
@@ -114,7 +115,7 @@ fn prepare(open: &Open) -> Result<(), PortError> {
             found,
             newest: SCHEMA,
         }),
-        1..=8 => upgrade(open, schema),
+        1..=9 => upgrade(open, schema),
         _ => Err(PortError::Corrupt {
             what: "library schema",
         }),
@@ -143,7 +144,8 @@ fn upgrade(open: &Open, from: u32) -> Result<(), PortError> {
             6 => upgrade_6_to_7(&heads, &strokes),
             // Only this step reads the fill records, so they are never rewritten twice.
             7 => upgrade_7_to_8(&heads, &fills),
-            _ => upgrade_8_to_9(&heads, editor.as_deref()),
+            8 => upgrade_8_to_9(&heads, editor.as_deref()),
+            _ => upgrade_9_to_10(&heads),
         };
         if let Some((_, value)) = upgrade.library.iter().find(|(key, _)| key == EDITOR) {
             editor = Some(value.clone());
