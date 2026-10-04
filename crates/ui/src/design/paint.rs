@@ -1,13 +1,16 @@
 //! How the chrome is drawn, once: the frame of every island and panel, the hand's press, the
-//! active mark (an ink ring or outline, never a filled block), ink lines with round joins, and
-//! the soft shadow a sheet of paper casts on the desk. Components draw with these; nothing else
+//! active mark (an ink ring, the same ring as a pill around a word, or an outline; never a
+//! filled block), the divider in a bar, ink lines with round joins, and the soft shadow a sheet
+//! of paper casts on the desk. Components draw with these; nothing else
 //! picks a fill or a line.
 
 use std::f32::consts::PI;
 
 use egui::{Color32, Frame, Margin, Mesh, Pos2, Rect, Shape, Stroke, Vec2};
 
-use super::palette::{INK_ACTIVE, PANEL, PANEL_RULE, PANEL_RULE_WIDTH, PRESSED, SHEET_SHADOW};
+use super::palette::{
+    DIVIDER, INK_ACTIVE, PANEL, PANEL_RULE, PANEL_RULE_WIDTH, PRESSED, SHEET_SHADOW,
+};
 use super::{CORNER, SPACE};
 
 /// Weight of the active mark's line, in points.
@@ -52,6 +55,39 @@ pub fn paint_icon_mark(painter: &egui::Painter, rect: Rect, shown: f32) {
         rect.center(),
         (0.48 - 0.08 * shown) * side,
         Stroke::new(MARK_LINE, INK_ACTIVE.gamma_multiply(shown)),
+    );
+}
+
+/// The active mark of a chosen word whose touch target is `rect`: the icon's ink ring drawn
+/// as a pill (fully rounded, the ring's weight and ink), as high as the ring is across. It
+/// comes and goes as the ring does (acknowledge, D44).
+pub fn paint_choice_mark(painter: &egui::Painter, rect: Rect, shown: f32) {
+    if shown <= 0.0 {
+        return;
+    }
+    let side = rect.width().min(rect.height());
+    let shown = shown.min(1.0);
+    let wider = 0.08 * side * (1.0 - shown);
+    let pill = Rect::from_center_size(
+        rect.center(),
+        Vec2::new(rect.width() - 1.5 * SPACE, 0.8 * side) + Vec2::splat(2.0 * wider),
+    );
+    painter.rect_stroke(
+        pill,
+        pill.height() / 2.0,
+        Stroke::new(MARK_LINE, INK_ACTIVE.gamma_multiply(shown)),
+        egui::StrokeKind::Middle,
+    );
+}
+
+/// A thin upright line at `x` across `height` points centred on `middle_y`, setting a group of
+/// controls apart from the next in a bar: the outline's weight in faint ink.
+pub fn paint_divider(painter: &egui::Painter, x: f32, middle_y: f32, height: f32) {
+    let half = height / 2.0;
+    painter.vline(
+        x,
+        (middle_y - half)..=(middle_y + half),
+        Stroke::new(PANEL_RULE_WIDTH, DIVIDER),
     );
 }
 

@@ -39,6 +39,17 @@ pub fn menu_row(ui: &mut egui::Ui, label: &str, note: &str, enabled: bool) -> eg
     response
 }
 
+/// A hint across a panel, one touch target high: what something does, in the quieter ink, so the
+/// bare words that are commands stay what reads as tappable.
+pub fn hint(ui: &mut egui::Ui, text: &str) {
+    let size = Vec2::new(ui.available_width(), TOUCH_TARGET);
+    let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+    let font = TextStyle::Body.resolve(ui.style());
+    let at = rect.left_center() + Vec2::new(2.0 * SPACE, 0.0);
+    ui.painter()
+        .text(at, Align2::LEFT_CENTER, text, font, INK_SECONDARY);
+}
+
 /// A section's name over its rows: small and quiet, so the rows stay what the eye reads.
 pub fn section(ui: &mut egui::Ui, title: &str) {
     let size = Vec2::new(ui.available_width(), 4.0 * SPACE);

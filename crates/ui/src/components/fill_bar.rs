@@ -1,14 +1,14 @@
 //! The fill bar: a pill in the middle of the top band while a colour is dropped (what to do, and
 //! the threshold while it is adjusted) and right after (the offer to keep filling), with at
-//! most one text button. At fit it lies on the desk above the canvas, between the islands.
+//! most one text button, set after a divider. At fit it lies on the desk above the canvas, between the islands.
 //! Nothing under it takes a contact that starts on it. Beside it, the drop the hand carries: a
 //! disc of the colour, ringed so it shows on any canvas.
 
 use egui::{Order, Pos2, Stroke};
 use openpaint_core::Color;
 
-use crate::components::{Place, Source, UNDER_ISLANDS, color32, pill, text_button};
-use crate::design::{INK, PANEL};
+use crate::components::{Place, Source, UNDER_ISLANDS, color32, divider, pill, text_button};
+use crate::design::{INK, PANEL, SPACE};
 
 /// Radius of the carried drop, in points.
 const DROP_RADIUS: f32 = 12.0;
@@ -29,7 +29,12 @@ pub fn fill_bar(
     let source = Source::Within(egui::Align::Center);
     let (clicked, rect) = pill(ctx, "fill bar", place, source, |ui| {
         ui.label(text);
-        action.is_some_and(|label| text_button(ui, label, true).clicked())
+        action.is_some_and(|label| {
+            // As far from the text as the word's own margin keeps it from the line.
+            ui.add_space(2.0 * SPACE);
+            divider(ui);
+            text_button(ui, label, true).clicked()
+        })
     });
     (rect, clicked)
 }

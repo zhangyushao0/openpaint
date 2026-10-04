@@ -1,16 +1,18 @@
 //! The Selection tool's chrome (Procreate's Selection, with draweave's behaviour): its button
 //! in the left island after Actions, carrying the ink ring while the tool is on; while it is on,
-//! the selection bar in the middle of the top band: Freehand and Rectangle (the one in use
-//! outlined in deeper ink), Close while a freehand path is open, Invert, and Deselect (greyed
-//! with nothing selected). Over the canvas, the path being drawn: an ink line on a paper line,
+//! the selection bar in the middle of the top band: the words Freehand and Rectangle (the one in
+//! use carries the ink pill), a divider, then the commands Close while a freehand path is open,
+//! Invert, and Deselect (greyed with nothing selected). Over the canvas, the path being drawn: an ink line on a paper line,
 //! its first point a dot, ringed once the path can close there. What is selected is marked by
 //! the screen's blit (an outline and stripes outside), not here.
 
 use egui::{Color32, Order, Pos2, Stroke};
 use openpaint_app::{Intent, SelectionIntent, SelectionShape, SessionProjection, ViewMapping};
 
-use crate::components::{Place, ScreenArea, icon_toggle, pill, ring_of, text_button, text_choice};
-use crate::design::{INK, Icon, PANEL, SPACE, ink_line};
+use crate::components::{
+    Place, ScreenArea, divider, icon_toggle, pill, ring_of, text_button, text_choice,
+};
+use crate::design::{INK, Icon, PANEL, ink_line};
 
 /// How near the path's first point, in points, a pen contact closes it (draweave's).
 pub(crate) const CLOSE_POINTS: f32 = 14.0;
@@ -66,7 +68,7 @@ impl SelectionBar {
                     push(taps, Intent::Selection(SelectionIntent::Shape(shape)));
                 }
             }
-            ui.add_space(SPACE);
+            divider(ui);
             if selection.closable && text_button(ui, "Close", true).clicked() {
                 push(taps, Intent::Selection(SelectionIntent::Close));
             }

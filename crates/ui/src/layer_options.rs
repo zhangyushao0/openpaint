@@ -7,7 +7,9 @@
 use openpaint_app::{EditorAction, Intent, LayerIntent, LayerList, LayerRow, SessionProjection};
 use openpaint_core::BlendMode;
 
-use crate::components::{icon_button, menu_row, slider, switch_row, text_button, text_choice_wide};
+use crate::components::{
+    hint, icon_button, menu_row, slider, switch_row, text_button, text_choice_wide,
+};
 use crate::design::{Icon, SPACE, TOUCH_TARGET};
 use crate::layer_rows::percent;
 
@@ -100,8 +102,8 @@ pub(crate) fn footer(
     group(ui, list, active, enabled, taps);
 }
 
-/// While the active layer's mask is the target: what painting there does, Invert, Clear and
-/// delete. Turning it off is its row's eye.
+/// While the active layer's mask is the target: what painting there does (a quieter hint),
+/// Invert and Clear as bare words, and delete. Turning it off is its row's eye.
 fn mask_options(
     ui: &mut egui::Ui,
     active: &LayerRow,
@@ -109,7 +111,7 @@ fn mask_options(
     taps: &mut Vec<Intent>,
 ) {
     ui.separator();
-    value_row(ui, "Black hides · white shows", "");
+    hint(ui, "Black hides · white shows");
     ui.horizontal(|ui| {
         let enabled = offered(projection, EditorAction::ChangeMask);
         if text_button(ui, "Invert", enabled).clicked() {
@@ -127,7 +129,7 @@ fn mask_options(
     });
 }
 
-/// The four modes in two even columns, the layer's own outlined.
+/// The four modes in two even columns, the layer's own carrying the ink pill.
 fn blends(ui: &mut egui::Ui, active: &LayerRow, enabled: bool, taps: &mut Vec<Intent>) {
     let half = (ui.available_width() / 2.0).floor();
     for pair in BlendMode::ALL.chunks(2) {

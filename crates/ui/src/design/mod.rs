@@ -18,11 +18,11 @@ use egui::{Color32, FontId, Stroke, TextStyle, Vec2};
 pub use fonts::{FontFile, TextFonts};
 pub use icons::{ICON_SIZE, Icon, paint as paint_icon};
 pub use paint::{
-    MARK_LINE, ink_line, paint_icon_mark, paint_pressed, paint_row_mark, paint_sheet_shadow,
-    panel_frame, surface_frame,
+    MARK_LINE, ink_line, paint_choice_mark, paint_divider, paint_icon_mark, paint_pressed,
+    paint_row_mark, paint_sheet_shadow, panel_frame, surface_frame,
 };
 pub use palette::{
-    BUTTON_RULE, DESK, INK, INK_ACTIVE, INK_DISABLED, INK_SECONDARY, PANEL, PANEL_RULE,
+    BUTTON_RULE, DESK, DIVIDER, INK, INK_ACTIVE, INK_DISABLED, INK_SECONDARY, PANEL, PANEL_RULE,
     PANEL_RULE_WIDTH, PRESSED,
 };
 
@@ -88,7 +88,7 @@ pub fn install(ctx: &egui::Context) {
         visuals.text_cursor.stroke = Stroke::new(2.0, INK_ACTIVE);
         visuals.selection.bg_fill = Color32::from_rgba_unmultiplied(22, 28, 44, 48);
         visuals.selection.stroke = Stroke::new(1.5, INK_ACTIVE);
-        visuals.widgets.noninteractive.bg_stroke = Stroke::new(HAIRLINE, INK_DISABLED);
+        visuals.widgets.noninteractive.bg_stroke = Stroke::new(HAIRLINE, DIVIDER);
         for widget in [&mut visuals.widgets.inactive, &mut visuals.widgets.hovered] {
             widget.bg_stroke = Stroke::new(HAIRLINE, BUTTON_RULE);
         }

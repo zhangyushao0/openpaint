@@ -1,24 +1,28 @@
-//! The text button: a word inside a hairline outline, one touch target high and at least one
-//! wide. Pressed, a faint wash shows under the hand; unavailable, word and outline fade to pencil
-//! grey and taps go nowhere. The choice form (one of a few options, such as the selection's
-//! shape) carries the active mark, a deeper ink outline, while it is the one chosen.
+//! Words the hand taps (S25, one ring rule): a word in ink, bare on the paper, one touch target
+//! high and at least one wide (the frame was never the hit area). Pressed, a faint wash shows
+//! under the hand; unavailable, the word fades to pencil grey and taps go nowhere. A command
+//! stays bare. A choice among words (one of a few options, such as the selection's shape)
+//! carries the active mark while it is the one chosen: the icon's ink ring as a pill around the
+//! word, drawing in and fading where it is (acknowledge, D44). When a bar holds a choice and
+//! commands, a `divider` sets them apart; never a frame inside a frame.
 
-use egui::{Rect, Sense, Stroke, TextStyle, Vec2, WidgetInfo, WidgetType};
+use egui::{Rect, Sense, TextStyle, Vec2, WidgetInfo, WidgetType};
 
-use crate::components::controls;
+use crate::components::{animate, controls};
+use crate::design::motion::ACKNOWLEDGE;
 use crate::design::{
-    BUTTON_RULE, CORNER, HAIRLINE, INK, INK_ACTIVE, INK_DISABLED, SPACE, TOUCH_TARGET,
-    paint_pressed, paint_row_mark,
+    INK, INK_ACTIVE, INK_DISABLED, SPACE, TOUCH_TARGET, paint_choice_mark, paint_divider,
+    paint_pressed,
 };
 
-/// Shows a button reading `label`; only an `enabled` button can be clicked.
+/// Shows a command reading `label`; only an `enabled` one can be clicked.
 pub fn text_button(ui: &mut egui::Ui, label: &str, enabled: bool) -> egui::Response {
-    button(ui, label, (enabled, false), TOUCH_TARGET)
+    button(ui, label, (enabled, None), TOUCH_TARGET)
 }
 
-/// A button reading `label` that shows whether it is the option `chosen`.
+/// A word reading `label` among a few options, showing whether it is the one `chosen`.
 pub fn text_choice(ui: &mut egui::Ui, label: &str, chosen: bool) -> egui::Response {
-    button(ui, label, (true, chosen), TOUCH_TARGET)
+    button(ui, label, (true, Some(chosen)), TOUCH_TARGET)
 }
 
 /// As `text_choice`, at least `width` wide (options in even columns); unavailable ones grey.
@@ -28,13 +32,26 @@ pub fn text_choice_wide(
     (enabled, chosen): (bool, bool),
     width: f32,
 ) -> egui::Response {
-    button(ui, label, (enabled, chosen), width)
+    button(ui, label, (enabled, Some(chosen)), width)
 }
 
+/// A thin upright line between a bar's choice and its commands; it takes no width of its own,
+/// lying in the middle of the usual gap between the two.
+pub fn divider(ui: &mut egui::Ui) {
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(0.0, TOUCH_TARGET), Sense::hover());
+    paint_divider(
+        ui.painter(),
+        rect.left(),
+        rect.center().y,
+        TOUCH_TARGET / 2.0,
+    );
+}
+
+/// `chosen` is `None` for a command, `Some` for one word of a choice.
 fn button(
     ui: &mut egui::Ui,
     label: &str,
-    (enabled, chosen): (bool, bool),
+    (enabled, chosen): (bool, Option<bool>),
     min_width: f32,
 ) -> egui::Response {
     let sense = if enabled {
@@ -43,31 +60,30 @@ fn button(
         Sense::hover()
     };
     let font = TextStyle::Button.resolve(ui.style());
-    let (color, rule) = match (enabled, chosen) {
-        (false, _) => (INK_DISABLED, INK_DISABLED),
-        (true, true) => (INK_ACTIVE, INK_ACTIVE),
-        (true, false) => (INK, BUTTON_RULE),
+    let on = chosen == Some(true);
+    let color = match (enabled, on) {
+        (false, _) => INK_DISABLED,
+        (true, true) => INK_ACTIVE,
+        (true, false) => INK,
     };
     let galley = ui.painter().layout_no_wrap(label.to_owned(), font, color);
     let width = (galley.size().x + 4.0 * SPACE).max(min_width);
     let (rect, response) = ui.allocate_exact_size(Vec2::new(width, TOUCH_TARGET), sense);
-    response.widget_info(|| WidgetInfo::selected(WidgetType::Button, enabled, chosen, label));
+    response.widget_info(|| WidgetInfo::selected(WidgetType::Button, enabled, on, label));
     controls::register(ui, label, rect);
+    let mark = chosen.map(|on| {
+        let target = f32::from(u8::from(on));
+        animate(ui.ctx(), response.id.with("mark"), target, ACKNOWLEDGE)
+    });
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
-        let face = rect.shrink(SPACE / 2.0);
         if enabled && response.is_pointer_button_down_on() {
-            paint_pressed(painter, face);
+            paint_pressed(painter, rect.shrink(SPACE / 2.0));
         }
-        if chosen {
-            paint_row_mark(painter, rect.shrink2(Vec2::new(SPACE / 4.0, 0.0)));
-        } else {
-            painter.rect_stroke(
-                face,
-                CORNER,
-                Stroke::new(HAIRLINE, rule),
-                egui::StrokeKind::Inside,
-            );
+        if let Some(mark) = mark {
+            // The pill holds the word, not the whole column of a wide choice.
+            let hug = Vec2::new(width.min(galley.size().x + 4.0 * SPACE), TOUCH_TARGET);
+            paint_choice_mark(painter, Rect::from_center_size(rect.center(), hug), mark);
         }
         let text = Rect::from_center_size(rect.center(), galley.size());
         painter.galley(text.min, galley, color);
