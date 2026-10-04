@@ -12,7 +12,7 @@ use std::fmt;
 use openpaint_app::{BrushIntent, BrushKey, Intent, SessionProjection, Tool, ToolIntent};
 use openpaint_render::RgbaImage;
 
-use crate::components::{Opener, ScreenArea, brush_row, icon_toggle, popover, slider};
+use crate::components::{Opener, ScreenArea, brush_row, choices, icon_choice, popover, slider};
 use crate::design::{INK, Icon, SPACE, TOUCH_TARGET};
 
 /// The panel's UI-local state and the brushes' preview pictures.
@@ -45,7 +45,8 @@ impl BrushPanel {
     }
 
     /// The Brush, Smudge and Eraser buttons, left to right, in the right island; the one of the
-    /// pen's tool carries the ink ring (Procreate's model), none while the Selection tool is on.
+    /// pen's tool carries the ink ring (Procreate's model), which slides to the tool chosen;
+    /// none while the Selection or the Transform tool is on (the ring fades where it is).
     /// Tapping the other tool's button makes the pen use it (and leaves the Selection tool);
     /// tapping the current tool's button opens or closes its brushes. Returns whether a tap
     /// opened the panel.
@@ -58,31 +59,33 @@ impl BrushPanel {
         let Some(brush) = projection.brush() else {
             return false;
         };
-        let mut opened = false;
-        for (tool, icon, label) in [
-            (Tool::Brush, Icon::Brush, "Brushes"),
-            (Tool::Smudge, Icon::Smudge, "Smudge"),
-            (Tool::Eraser, Icon::Eraser, "Eraser"),
-        ] {
-            // While the Selection or the Transform tool is on, the pen does not paint.
-            let other = projection.selection().tool || projection.transform().tool;
-            let current = brush.tool == tool && !other;
-            let response = icon_toggle(ui, icon, label, current);
-            if brush.tool == tool {
-                self.button = Some(response.rect);
+        // While the Selection or the Transform tool is on, the pen does not paint: no ring.
+        let other = projection.selection().tool || projection.transform().tool;
+        choices(ui, "tools", |ui, group| {
+            let mut opened = false;
+            for (tool, icon, label) in [
+                (Tool::Brush, Icon::Brush, "Brushes"),
+                (Tool::Smudge, Icon::Smudge, "Smudge"),
+                (Tool::Eraser, Icon::Eraser, "Eraser"),
+            ] {
+                let current = brush.tool == tool && !other;
+                let response = icon_choice(ui, group, (icon, label), current);
+                if brush.tool == tool {
+                    self.button = Some(response.rect);
+                }
+                if !response.clicked() {
+                    continue;
+                }
+                if current {
+                    self.open = !self.open;
+                    opened = self.open;
+                } else {
+                    self.close();
+                    taps.push(Intent::Tool(ToolIntent::Use(tool)));
+                }
             }
-            if !response.clicked() {
-                continue;
-            }
-            if current {
-                self.open = !self.open;
-                opened = self.open;
-            } else {
-                self.close();
-                taps.push(Intent::Tool(ToolIntent::Use(tool)));
-            }
-        }
-        opened
+            opened
+        })
     }
 
     /// The panel while it is open or closing, its taps pushed to `taps`.

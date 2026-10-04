@@ -1,7 +1,7 @@
-//! How the chrome is drawn, once: the frame of every island and panel, the hand's press, the
-//! active mark (an ink ring, the same ring as a pill around a word, or an outline; never a
-//! filled block), the divider in a bar, ink lines with round joins, and the soft shadow a sheet
-//! of paper casts on the desk. Components draw with these; nothing else
+//! How the chrome is drawn, once: the frame of every island and panel, the hand's press (in the
+//! control's own outline), the active mark (an ink ring, the same ring as a pill around a word,
+//! or an outline; never a filled block), the divider in a bar, ink lines with round joins, and
+//! the soft shadow a sheet of paper casts on the desk. Components draw with these; nothing else
 //! picks a fill or a line.
 
 use std::f32::consts::PI;
@@ -37,44 +37,70 @@ pub fn surface_frame(margin: Margin) -> Frame {
         .inner_margin(margin)
 }
 
-/// Under the hand while it presses the control in `rect`.
-pub fn paint_pressed(painter: &egui::Painter, rect: Rect) {
-    painter.rect_filled(rect, CORNER, PRESSED);
+/// The shape a control draws its active mark in: the ring of an icon, the pill round a word,
+/// the outline of a row. Its press wash fills the very same shape, so the grey under the hand
+/// never reaches past the line (the touch target around it stays invisible).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Outline {
+    pub rect: Rect,
+    pub corner: f32,
 }
 
-/// The active mark of an icon button or swatch whose touch target is `rect`: an ink ring,
-/// `shown` from 0 (none) to 1 (whole). Coming and going it draws in from a little wider and
-/// fades, so the change is seen where it happens (acknowledge, D44).
-pub fn paint_icon_mark(painter: &egui::Painter, rect: Rect, shown: f32) {
+impl Outline {
+    /// The ring of an icon button or swatch whose touch target is `target`: a circle 0.8 of
+    /// its side across.
+    #[must_use]
+    pub fn ring(target: Rect) -> Self {
+        let across = 0.8 * target.width().min(target.height());
+        Self::round(Rect::from_center_size(target.center(), Vec2::splat(across)))
+    }
+
+    /// The pill round a word whose place (the word and its margins, one touch target high) is
+    /// `word`: the ring's height, the place's width less its outer margins, fully rounded.
+    #[must_use]
+    pub fn pill(word: Rect) -> Self {
+        let side = word.width().min(word.height());
+        let size = Vec2::new(word.width() - 1.5 * SPACE, 0.8 * side);
+        Self::round(Rect::from_center_size(word.center(), size))
+    }
+
+    /// The outline of a row across a panel whose touch target is `row`.
+    #[must_use]
+    pub fn row(row: Rect) -> Self {
+        Self {
+            rect: row.shrink2(Vec2::new(MARK_LINE, SPACE / 4.0 + MARK_LINE)),
+            corner: CORNER,
+        }
+    }
+
+    /// `rect` with its ends fully rounded (a ring when square, a pill when wider).
+    #[must_use]
+    pub fn round(rect: Rect) -> Self {
+        Self {
+            rect,
+            corner: rect.width().min(rect.height()) / 2.0,
+        }
+    }
+}
+
+/// Under the hand while it presses a control: a faint wash filling the control's `outline`.
+pub fn paint_pressed(painter: &egui::Painter, outline: Outline) {
+    painter.rect_filled(outline.rect, outline.corner, PRESSED);
+}
+
+/// The active mark in `outline` (an ink line of the ring's weight), `shown` from 0 (none) to 1
+/// (whole). Coming and going it draws in from a little wider and fades, so the change is seen
+/// where it happens (acknowledge, D44).
+pub fn paint_mark(painter: &egui::Painter, outline: Outline, shown: f32) {
     if shown <= 0.0 {
         return;
     }
-    let side = rect.width().min(rect.height());
     let shown = shown.min(1.0);
-    painter.circle_stroke(
-        rect.center(),
-        (0.48 - 0.08 * shown) * side,
-        Stroke::new(MARK_LINE, INK_ACTIVE.gamma_multiply(shown)),
-    );
-}
-
-/// The active mark of a chosen word whose touch target is `rect`: the icon's ink ring drawn
-/// as a pill (fully rounded, the ring's weight and ink), as high as the ring is across. It
-/// comes and goes as the ring does (acknowledge, D44).
-pub fn paint_choice_mark(painter: &egui::Painter, rect: Rect, shown: f32) {
-    if shown <= 0.0 {
-        return;
-    }
-    let side = rect.width().min(rect.height());
-    let shown = shown.min(1.0);
-    let wider = 0.08 * side * (1.0 - shown);
-    let pill = Rect::from_center_size(
-        rect.center(),
-        Vec2::new(rect.width() - 1.5 * SPACE, 0.8 * side) + Vec2::splat(2.0 * wider),
-    );
+    let short = outline.rect.width().min(outline.rect.height());
+    let wider = 0.1 * short * (1.0 - shown);
     painter.rect_stroke(
-        pill,
-        pill.height() / 2.0,
+        outline.rect.expand(wider),
+        outline.corner + wider,
         Stroke::new(MARK_LINE, INK_ACTIVE.gamma_multiply(shown)),
         egui::StrokeKind::Middle,
     );
@@ -88,16 +114,6 @@ pub fn paint_divider(painter: &egui::Painter, x: f32, middle_y: f32, height: f32
         x,
         (middle_y - half)..=(middle_y + half),
         Stroke::new(PANEL_RULE_WIDTH, DIVIDER),
-    );
-}
-
-/// The active mark of a row across a panel: an ink outline around it.
-pub fn paint_row_mark(painter: &egui::Painter, rect: Rect) {
-    painter.rect_stroke(
-        rect.shrink2(Vec2::new(MARK_LINE, SPACE / 4.0 + MARK_LINE)),
-        CORNER,
-        Stroke::new(MARK_LINE, INK_ACTIVE),
-        egui::StrokeKind::Middle,
     );
 }
 

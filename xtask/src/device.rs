@@ -98,8 +98,19 @@ pub fn restore(args: &[String]) -> Result<()> {
     // The app must not write while its library is put back.
     stop_app(&adb)?;
     adb.feed(&["exec-in", "run-as", PACKAGE, "tar", "xf", "-"], &archive)?;
-    let now = tar::entries(&pull_library(&adb)?)?;
-    let differences = tar::differences(&backup, &now);
+    // `exec-in` returns once adb has sent the archive, not once the device's tar has written
+    // it: reading back at once can catch the last member (the journal) half written.
+    wait_for_extraction(&adb)?;
+    let mut differences = tar::differences(&backup, &tar::entries(&pull_library(&adb)?)?);
+    if !differences.is_empty() {
+        println!(
+            "read back differs ({}); verifying again after {} s",
+            differences.join("; "),
+            SETTLE_WAIT.as_secs()
+        );
+        std::thread::sleep(SETTLE_WAIT);
+        differences = tar::differences(&backup, &tar::entries(&pull_library(&adb)?)?);
+    }
     if !differences.is_empty() {
         return Err(DeviceError::Differs(differences));
     }
@@ -131,6 +142,26 @@ fn stop_app(adb: &Adb) -> Result<()> {
         }
         std::thread::sleep(Duration::from_millis(100));
     }
+}
+
+/// How long a restore waits before it reads the library back a second time.
+const SETTLE_WAIT: Duration = Duration::from_secs(2);
+
+/// Waits (at most `STOP_WAIT`) until no `tar` runs on the device, so the extraction `exec-in`
+/// started has written every member; still running then, the read-back's retry covers it.
+fn wait_for_extraction(adb: &Adb) -> Result<()> {
+    let started = Instant::now();
+    while started.elapsed() < STOP_WAIT {
+        if adb.shell(&["pidof tar; true"])?.trim().is_empty() {
+            return Ok(());
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    println!(
+        "a tar still runs on the device after {} s",
+        STOP_WAIT.as_secs()
+    );
+    Ok(())
 }
 
 /// A backup's name (`artifacts/device/backups/<name>.tar`) or an archive's path.

@@ -1,14 +1,14 @@
 //! The layer panel's footer, for the highlighted layer (Procreate keeps these in the layer's
 //! options): its opacity, its blend mode (Normal, Multiply, Screen, Overlay), Alpha Lock,
-//! Clipping Mask, Mask (adds a white mask), move up, move down, Group (Ungroup in a group) and
-//! delete; under them, for a layer in a group, the group's name and opacity. While the layer's
+//! Clipping Mask, Add Mask (a plus and the words: adds a white mask), move up, move down,
+//! Group (Ungroup in a group) and delete; under them, for a layer in a group, the group's name and opacity. While the layer's
 //! mask is highlighted instead: Invert, Clear and delete the mask.
 
 use openpaint_app::{EditorAction, Intent, LayerIntent, LayerList, LayerRow, SessionProjection};
 use openpaint_core::BlendMode;
 
 use crate::components::{
-    hint, icon_button, menu_row, slider, switch_row, text_button, text_choice_wide,
+    choices, command_row, hint, icon_button, slider, switch_row, text_button, text_choice_wide,
 };
 use crate::design::{Icon, SPACE, TOUCH_TARGET};
 use crate::layer_rows::percent;
@@ -94,8 +94,7 @@ pub(crate) fn footer(
         }));
     }
     let can_mask = offered(projection, EditorAction::AddMask);
-    let note = if can_mask { "White: shows all" } else { "" };
-    if menu_row(ui, "Mask", note, can_mask).clicked() {
+    if command_row(ui, Icon::Add, "Add Mask", can_mask).clicked() {
         taps.push(Intent::Layer(LayerIntent::AddMask(active.id)));
     }
     moves(ui, active, projection, taps);
@@ -129,23 +128,27 @@ fn mask_options(
     });
 }
 
-/// The four modes in two even columns, the layer's own carrying the ink pill.
+/// The four modes in two even columns, the layer's own carrying the ink pill (one group: the
+/// pill slides across the grid to the mode chosen).
 fn blends(ui: &mut egui::Ui, active: &LayerRow, enabled: bool, taps: &mut Vec<Intent>) {
     let half = (ui.available_width() / 2.0).floor();
-    for pair in BlendMode::ALL.chunks(2) {
-        ui.horizontal(|ui| {
-            for blend in pair {
-                let chosen = active.blend == *blend;
-                let tapped = text_choice_wide(ui, name(*blend), (enabled, chosen), half);
-                if tapped.clicked() && !chosen {
-                    taps.push(Intent::Layer(LayerIntent::SetBlend {
-                        layer: active.id,
-                        blend: *blend,
-                    }));
+    choices(ui, "blend modes", |ui, group| {
+        for pair in BlendMode::ALL.chunks(2) {
+            ui.horizontal(|ui| {
+                for blend in pair {
+                    let chosen = active.blend == *blend;
+                    let word = (enabled, chosen);
+                    let tapped = text_choice_wide(ui, group, name(*blend), word, half);
+                    if tapped.clicked() && !chosen {
+                        taps.push(Intent::Layer(LayerIntent::SetBlend {
+                            layer: active.id,
+                            blend: *blend,
+                        }));
+                    }
                 }
-            }
-        });
-    }
+            });
+        }
+    });
 }
 
 fn moves(

@@ -49,7 +49,7 @@
     { "checkpoint": { "name": "redone", "canvas": "2336f7aecbb81776" } },
     { "tap": { "at": "Layers" } },
     { "screenshot": { "name": "layers-panel" } },
-    { "tap": { "at": "Mask" } },
+    { "tap": { "at": "Add Mask" } },
     { "stroke": { "points": [[1300, 800, 1.0], [2150, 800, 1.0]] } },
     { "checkpoint": { "name": "masked", "canvas": "b5fbebda5141f00f" } },
     { "screenshot": { "name": "masked-screen" } },

@@ -1,11 +1,14 @@
 //! The menu row: one touch target high across a panel, an action's name at its left and an
-//! optional note at its right end, dimmer. Tapping it does the action; pressed, it shows a
-//! highlight under the hand; unavailable, it dims and taps go nowhere.
+//! optional note at its right end, dimmer. Tapping it does the action; pressed, a faint wash
+//! fills the row's outline under the hand; unavailable, it dims and taps go nowhere.
 
-use egui::{Align2, Sense, TextStyle, Vec2, WidgetInfo, WidgetType};
+use egui::{Align2, Rect, Sense, TextStyle, Vec2, WidgetInfo, WidgetType};
 
 use crate::components::controls;
-use crate::design::{INK, INK_DISABLED, INK_SECONDARY, SPACE, TOUCH_TARGET, paint_pressed};
+use crate::design::{
+    ICON_SIZE, INK, INK_DISABLED, INK_SECONDARY, Icon, Outline, SPACE, TOUCH_TARGET, paint_icon,
+    paint_pressed,
+};
 
 /// Shows a row reading `label`, with `note` (empty for none) at its right end.
 pub fn menu_row(ui: &mut egui::Ui, label: &str, note: &str, enabled: bool) -> egui::Response {
@@ -23,7 +26,7 @@ pub fn menu_row(ui: &mut egui::Ui, label: &str, note: &str, enabled: bool) -> eg
     }
     let painter = ui.painter();
     if enabled && response.is_pointer_button_down_on() {
-        paint_pressed(painter, rect.shrink2(Vec2::new(0.0, SPACE / 4.0)));
+        paint_pressed(painter, Outline::row(rect));
     }
     let (text, quiet) = if enabled {
         (INK, INK_SECONDARY)
@@ -36,6 +39,39 @@ pub fn menu_row(ui: &mut egui::Ui, label: &str, note: &str, enabled: bool) -> eg
     let small = TextStyle::Small.resolve(ui.style());
     let right = rect.right_center() - Vec2::new(2.0 * SPACE, 0.0);
     painter.text(right, Align2::RIGHT_CENTER, note, small, quiet);
+    response
+}
+
+/// A command row that adds something (Add Mask): `icon` (a plus) leading the words `label`,
+/// both in ink, nothing else on the row, so it reads as a thing to tap among the switches and
+/// labels around it. Pressed and unavailable as `menu_row`.
+pub fn command_row(ui: &mut egui::Ui, icon: Icon, label: &str, enabled: bool) -> egui::Response {
+    let sense = if enabled {
+        Sense::click()
+    } else {
+        Sense::hover()
+    };
+    let size = Vec2::new(ui.available_width(), TOUCH_TARGET);
+    let (rect, response) = ui.allocate_exact_size(size, sense);
+    response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, enabled, label));
+    controls::register(ui, label, rect);
+    if !ui.is_rect_visible(rect) {
+        return response;
+    }
+    let painter = ui.painter();
+    if enabled && response.is_pointer_button_down_on() {
+        paint_pressed(painter, Outline::row(rect));
+    }
+    let color = if enabled { INK } else { INK_DISABLED };
+    let lead = rect.left_center() + Vec2::new(2.0 * SPACE, 0.0);
+    let square = Rect::from_min_size(
+        lead - Vec2::new(0.0, ICON_SIZE / 2.0),
+        Vec2::splat(ICON_SIZE),
+    );
+    paint_icon(painter, icon, square, color);
+    let font = TextStyle::Body.resolve(ui.style());
+    let at = lead + Vec2::new(ICON_SIZE + SPACE, 0.0);
+    painter.text(at, Align2::LEFT_CENTER, label, font, color);
     response
 }
 

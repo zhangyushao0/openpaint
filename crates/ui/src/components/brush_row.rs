@@ -4,7 +4,7 @@
 use egui::{Align2, Color32, Rect, Sense, TextStyle, Vec2, WidgetInfo, WidgetType};
 
 use crate::components::controls;
-use crate::design::{BRUSH_PREVIEW, INK, INK_ACTIVE, SPACE, paint_pressed, paint_row_mark};
+use crate::design::{BRUSH_PREVIEW, INK, INK_ACTIVE, Outline, SPACE, paint_mark, paint_pressed};
 
 /// Shows one row: `name`, and `preview` (a texture of `BRUSH_PREVIEW` points) when it is loaded.
 pub fn brush_row(
@@ -22,10 +22,10 @@ pub fn brush_row(
     }
     let painter = ui.painter();
     if response.is_pointer_button_down_on() {
-        paint_pressed(painter, rect.shrink2(Vec2::new(0.0, SPACE / 4.0)));
+        paint_pressed(painter, Outline::row(rect));
     }
     if selected {
-        paint_row_mark(painter, rect);
+        paint_mark(painter, Outline::row(rect), 1.0);
     }
     let font = TextStyle::Body.resolve(ui.style());
     let left = rect.left_center() + Vec2::new(2.0 * SPACE, 0.0);

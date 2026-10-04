@@ -8,8 +8,8 @@ use crate::components::animate::{animate_from, settle};
 use crate::components::controls;
 use crate::design::motion::{ACKNOWLEDGE, SETTLE};
 use crate::design::{
-    ICON_SIZE, INK, INK_ACTIVE, INK_DISABLED, INK_SECONDARY, Icon, SPACE, TOUCH_TARGET, paint_icon,
-    paint_pressed, paint_row_mark,
+    ICON_SIZE, INK, INK_ACTIVE, INK_DISABLED, INK_SECONDARY, Icon, Outline, SPACE, TOUCH_TARGET,
+    paint_icon, paint_mark, paint_pressed,
 };
 
 /// What one row shows.
@@ -86,10 +86,10 @@ fn paint(
     (body, icon): (&egui::Response, &egui::Response),
 ) {
     if row.enabled && body.is_pointer_button_down_on() {
-        paint_pressed(painter, rect.shrink2(Vec2::new(0.0, SPACE / 4.0)));
+        paint_pressed(painter, Outline::row(rect));
     }
     if row.selected {
-        paint_row_mark(painter, rect);
+        paint_mark(painter, Outline::row(rect), 1.0);
     }
     let color = match (row.enabled, row.selected) {
         (false, _) => INK_DISABLED,
@@ -126,7 +126,7 @@ fn paint(
         Vec2::splat(TOUCH_TARGET),
     );
     if row.enabled && icon.is_pointer_button_down_on() {
-        paint_pressed(painter, button.shrink(SPACE / 2.0));
+        paint_pressed(painter, Outline::ring(button));
     }
     let color = if row.enabled { INK } else { INK_DISABLED };
     let square = Rect::from_center_size(button.center(), Vec2::splat(ICON_SIZE));

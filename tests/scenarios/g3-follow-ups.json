@@ -1,0 +1,42 @@
+{
+  "walkthrough": [
+    "Goal: after the G3 exit, see a changed choice as the mark moving to it, see the press as the control's own shape, and find the layer mask's entry as something to tap.",
+    "Entry: on an empty library (2880 x 1800, landscape) draw a closed triangle with the pen. The right island shows Brush in its ink ring.",
+    "Selection shape: tap Selection: the bar reads Freehand (in the ink pill), Rectangle, a faint line, Invert, Deselect. Tap Rectangle: the pill slides right and widens to Rectangle (no fade, no second frame); a new tap mid-slide would turn it back from where it is. Hold a finger on Freehand: the grey wash fills exactly the pill's shape round the word, not the 48-point box around it; lift: the pill slides back to Freehand. Tap Selection to put the tool away: the Brush ring draws in where it is (it was gone while the Selection tool was on; it never slides across islands).",
+    "Tools: tap Eraser: the ring slides from Brush over Smudge to Eraser. Tap Brushes: it slides back. Hold a finger on Layers: the wash fills the ring's circle, no wider; lift: the layer panel grows from its button, its ring drawn in place (Layers is not one of the tools).",
+    "Blend modes: in the layer options Normal is in the pill (in place as the panel opens, no slide). Tap Overlay: the pill moves diagonally down and right across the grid and narrows to Overlay. Under Clipping Mask the row reads a plus and Add Mask in ink, nothing else on the row.",
+    "Add Mask: tap it: the Layer Mask row appears under Layer 1 and the footer shows the mask's hint and commands. Tap Layer 1's row: the layer's options come back with Add Mask grey (the layer has one).",
+    "Undo and failure: nothing here changes the drawing but the mask (one undo step, as in S24); a grey Add Mask takes no tap. Reopen: no motion state is kept; marks show in place."
+  ],
+  "screen": [2880, 1800],
+  "density": 1.75,
+  "steps": [
+    { "stroke": { "points": [[700, 600, 1.0], [1300, 600, 1.0], [1000, 1100, 1.0], [700, 600, 1.0]] } },
+    { "checkpoint": { "name": "triangle", "canvas": "262731c6281d4025" } },
+    { "tap": { "at": "Selection" } },
+    { "screenshot": { "name": "selection-bar" } },
+    { "tap": { "at": "Rectangle" } },
+    { "screenshot": { "name": "rectangle-060", "after_ms": 60 } },
+    { "screenshot": { "name": "rectangle-150", "after_ms": 150 } },
+    { "screenshot": { "name": "rectangle" } },
+    { "press": { "path": [{ "at": "Freehand", "ms": 0 }, { "at": "Freehand", "ms": 200 }], "before_lift": "freehand-pressed" } },
+    { "screenshot": { "name": "freehand-again" } },
+    { "tap": { "at": "Selection" } },
+    { "screenshot": { "name": "brush-ring-back" } },
+    { "tap": { "at": "Eraser" } },
+    { "screenshot": { "name": "eraser-060", "after_ms": 60 } },
+    { "screenshot": { "name": "eraser" } },
+    { "tap": { "at": "Brushes" } },
+    { "press": { "path": [{ "at": "Layers", "ms": 0 }, { "at": "Layers", "ms": 200 }], "before_lift": "layers-pressed" } },
+    { "screenshot": { "name": "layer-options" } },
+    { "tap": { "at": "Overlay" } },
+    { "screenshot": { "name": "overlay-060", "after_ms": 60 } },
+    { "screenshot": { "name": "overlay-150", "after_ms": 150 } },
+    { "screenshot": { "name": "overlay" } },
+    { "tap": { "at": "Add Mask" } },
+    { "screenshot": { "name": "mask-added" } },
+    { "tap": { "at": "Layer 1" } },
+    { "screenshot": { "name": "add-mask-grey" } },
+    { "checkpoint": { "name": "triangle-overlay-masked", "canvas": "327e6c7f9b7a74ea" } }
+  ]
+}

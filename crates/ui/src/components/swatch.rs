@@ -1,5 +1,5 @@
 //! The swatch: a round patch of one colour inside a square touch target, ringed with a fine ink
-//! line so white shows on the paper too. Pressed, a faint wash shows under the hand; `on`, it
+//! line so white shows on the paper too. Pressed, a faint wash fills its ring; `on`, it
 //! carries the active mark (the colour panel is open, or this is the current colour).
 
 use egui::{Color32, Sense, Stroke, Vec2, WidgetInfo, WidgetType};
@@ -7,7 +7,7 @@ use openpaint_core::Color;
 
 use crate::components::{animate, controls};
 use crate::design::motion::ACKNOWLEDGE;
-use crate::design::{INK, SPACE, paint_icon_mark, paint_pressed};
+use crate::design::{INK, Outline, paint_mark, paint_pressed};
 
 /// The colour as egui paints it: 8-bit sRGB, opaque.
 #[must_use]
@@ -26,9 +26,9 @@ pub fn swatch(ui: &mut egui::Ui, color: Color, label: &str, side: f32, on: bool)
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
         if response.is_pointer_button_down_on() {
-            paint_pressed(painter, rect.shrink(SPACE / 4.0));
+            paint_pressed(painter, Outline::ring(rect));
         }
-        paint_icon_mark(painter, rect, mark);
+        paint_mark(painter, Outline::ring(rect), mark);
         let radius = 0.3 * side;
         painter.circle(rect.center(), radius, color32(color), Stroke::new(1.0, INK));
     }

@@ -7,7 +7,7 @@ use egui::{Align2, Pos2, Rect, Sense, Stroke, TextStyle, Vec2, WidgetInfo, Widge
 use crate::components::{animate, controls};
 use crate::design::motion::{ACKNOWLEDGE, lerp};
 use crate::design::{
-    INK, INK_ACTIVE, INK_DISABLED, INK_SECONDARY, SPACE, TOUCH_TARGET, paint_pressed,
+    INK, INK_ACTIVE, INK_DISABLED, INK_SECONDARY, Outline, SPACE, TOUCH_TARGET, paint_pressed,
 };
 
 /// The switch's track, in points.
@@ -28,7 +28,7 @@ pub fn switch_row(ui: &mut egui::Ui, label: &str, on: bool, enabled: bool) -> eg
     }
     let painter = ui.painter();
     if enabled && response.is_pointer_button_down_on() {
-        paint_pressed(painter, rect.shrink2(Vec2::new(0.0, SPACE / 4.0)));
+        paint_pressed(painter, Outline::row(rect));
     }
     let text = if enabled { INK } else { INK_DISABLED };
     let font = TextStyle::Body.resolve(ui.style());

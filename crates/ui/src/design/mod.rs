@@ -18,8 +18,8 @@ use egui::{Color32, FontId, Stroke, TextStyle, Vec2};
 pub use fonts::{FontFile, TextFonts};
 pub use icons::{ICON_SIZE, Icon, paint as paint_icon};
 pub use paint::{
-    MARK_LINE, ink_line, paint_choice_mark, paint_divider, paint_icon_mark, paint_pressed,
-    paint_row_mark, paint_sheet_shadow, panel_frame, surface_frame,
+    MARK_LINE, Outline, ink_line, paint_divider, paint_mark, paint_pressed, paint_sheet_shadow,
+    panel_frame, surface_frame,
 };
 pub use palette::{
     BUTTON_RULE, DESK, DIVIDER, INK, INK_ACTIVE, INK_DISABLED, INK_SECONDARY, PANEL, PANEL_RULE,
