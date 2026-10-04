@@ -6,7 +6,7 @@ An Android-first, stylus-first 2D painting app that completes, on one tablet: sk
 
 Stage exits are judged on representative artworks made by the author on the tablet: W1 inking and flat colour, W2 painterly shading, W3 complex composition revision, W4 edit, restore and deliver.
 
-Non-goals (G0 to G5): network, accounts, cloud sync, community, animation, 3D, multi-platform, plugin systems, a desktop product or desktop window of any kind.
+Non-goals (G0 to G7): network, accounts, cloud sync, community, animation, 3D, multi-platform, plugin systems, a desktop product or desktop window of any kind.
 
 ## Rules
 
@@ -17,7 +17,7 @@ Non-goals (G0 to G5): network, accounts, cloud sync, community, animation, 3D, m
 - When a slice is done: rewrite STATUS, move the slice to "Done" at the end of this file (one line), add a DECISIONS entry only if a decision was made.
 - Stage-exit items that need the author on the tablet are recorded as `pass` / `fail` / `not_run`; a dev-machine result never substitutes.
 - Findings outside the slice go under "Candidates"; they are not fixed in passing.
-- Performance (D47): a slice is fluid at its feature's default sizes on the tablet; other numbers are measured and recorded, never done criteria; chasing them is G5.
+- Performance (D47): a slice is fluid at its feature's default sizes on the tablet; other numbers are measured and recorded, never done criteria; chasing them is G7 (named G5 in decisions before 2026-10-04).
 
 ## G0 Skeleton
 
@@ -39,18 +39,35 @@ Passed 2026-10-03: S9 to S17 and the G2 follow-ups done (see "Done"); the author
 
 Exit: the author finishes painterly shading (W2) and a complex composition revision (W3) on the tablet.
 
-Passed 2026-10-04: S18 to S26 and the G3 follow-ups done (see "Done"); the author tried every feature on the tablet: all work and drawing feels good (complex paintings not yet exercised in depth). S21's 60 Hz holds up to about 340 px and fails at the largest sizes (D47, kept until G5). S25 (one ring rule for text controls) and S26 (insert an image) came from the author's first try, the follow-ups (the chosen mark slides, press wash in the control's shape, Add Mask) from the exit.
+Passed 2026-10-04: S18 to S26 and the G3 follow-ups done (see "Done"); the author tried every feature on the tablet: all work and drawing feels good (complex paintings not yet exercised in depth). S21's 60 Hz holds up to about 340 px and fails at the largest sizes (D47, kept until G7). S25 (one ring rule for text controls) and S26 (insert an image) came from the author's first try, the follow-ups (the chosen mark slides, press wash in the control's shape, Add Mask) from the exit.
 
-## G4 Colour, adjustments, exchange
+## G4 Colour, adjustments, sharp rendering, library
 
-S27 Colour management and S28 Adjustments (hue/saturation/brightness and curves; blur and sharpen wait, see Candidates) are done (see "Done"). **S29 Project exchange**: the native format as the full original; OpenRaster import and export. **S30 Library management**: search, version restore, external backup. **S31 Ten-bit display**: the canvas cache and the surface at 10 bits per channel (Rgb10a2) so soft gradients show without banding; artworks stay sRGB (author, 2026-10-04: no P3 working space, work is made to be seen by others), exports stay 8-bit sRGB, the format is unchanged.
+S27 Colour management and S28 Adjustments (hue/saturation/brightness and curves; blur and sharpen wait for S33) are done (see "Done").
+
+Render architecture (author, 2026-10-04): the truth stays operation records, pixels are only derived, discardable caches; strokes stay sharp at any scale. Steps in order, each shippable alone; not built: per-layer pyramids, disk caches, vector fill contours, stroke editing, a filter graph, 8x export.
+- **S29 Scale-aware evaluation and export at 1x / 2x / 4x**: every op knows its footprint in output pixels (stroke edges, grain level, masks); export renders in bands at the chosen scale; 1x equals today's canvas bit for bit. Op binning that stays cheap at high scales (a per-version spatial index) is designed here.
+- **S30 Fill edges**: a distance field derived once per fill from its stored mask gives smooth edges at every scale; the 1x look changes slightly, the author judges with screenshots before it ships.
+- **S31 Transform as a record**: selection mask plus placement, evaluated by mapping back to the earlier records (scaled strokes stay sharp); the lifted patch is only the drag preview, settled equals committed; old patch records and inserted pictures stay raster sources.
+- **S32 Sharp zoom**: one view-tier cache (power-of-two tiers, the visible tiles and a ring), filled progressively after a pinch; first measured on the author's busiest artwork on the tablet.
+- **S33 Blur and sharpen**: canvas-resolution raster boundaries from a derived per-layer evaluation (as smudge's material), never baked patches.
+
+**S34 Library management**: search, version restore, backing an artwork up as a native file and restoring it (PSD and OpenRaster dropped, author 2026-10-04). **S35 Ten-bit display**: the canvas cache and the surface at 10 bits per channel (Rgb10a2); artworks stay sRGB (author, 2026-10-04: no P3 working space, work is made to be seen by others), exports stay 8-bit sRGB, the format is unchanged.
 Exit: the author completes edit, restore and delivery (W4).
 
-## G5 Stability and release
+## G5 Daily painting
+
+Layer actions (duplicate, merge down, rename, thumbnails, drag to reorder); copy and paste (Procreate's three-finger swipe); the pen's side buttons (the mapping is the author's call, asked first); QuickShape and symmetry guides; palettes and hex colour entry. Exit: the author paints a real piece on the tablet.
+
+## G6 Brushes
+
+Discussed with the author before slicing (2026-10-04: clean illustration first, more media welcome; strokes stay the truth). Candidates: taper at stroke ends, pen tilt (stored per sample), stamp brushes evaluated per pixel from the path (as Ciallo, SIGGRAPH 2024) with seeded jitter, a simple brush editor with a live preview, brush sets; wet mixing later.
+
+## G7 Stability and release
 
 Device tiers, long sessions, background/foreground, low storage, failed upgrades; GPU device-loss recovery and a VRAM budget; a device smoke scenario of at most 20 s; signed releases and a version policy. Optimisation happens here, coarse-grained, driven by measurements on the tablet; earlier slices build the simplest design that meets their budgets (D33) and leave performance ideas under "Candidates". Exit: the declared device matrix passes with no known artwork corruption or silent loss.
 
-## G6 Independent extensions after stabilisation
+## G8 Independent extensions after stabilisation
 
 Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud sync, plugins: each is its own project and never enters the main line automatically.
 
@@ -71,11 +88,11 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - 2026-10-02 Reference and export follow-ups (S13): remembering the window's place, size and zoom, storing the reference with the artwork (asset store, format change), export with a transparent background, layers or PSD.
 - 2026-10-03 View follow-ups (S14): remember the view per artwork (draweave did, committed once at gesture end; a format change); rotation snapping (draweave had none); Procreate's four-finger tap to hide the interface (needs a visible control first, D32); a flip; mipmaps or a reduced copy for far zoomed-out views if shimmer shows on the tablet; ask for frames by deadline instead of continuously while fingers hold.
 - 2026-10-03 Fill follow-ups (S15): draweave's fill reference layer (flood one layer, fill another); gap closing; keeping the threshold across artworks and launches (toolbox state); the fill bar covers the canvas's top middle while offered; a pencil's grain stops low-threshold fills at its specks.
-- 2026-10-03 Fill cost (S15): each scene rebuild re-uploads every fill mask (618 KB for a full-canvas fill), and a full-canvas flood takes about 145 ms on the tablet; cache masks on the target and flood incrementally if long sessions or fast slides show it (G5).
+- 2026-10-03 Fill cost (S15): each scene rebuild re-uploads every fill mask (618 KB for a full-canvas fill), and a full-canvas flood takes about 145 ms on the tablet; cache masks on the target and flood incrementally if long sessions or fast slides show it (G7).
 - 2026-10-03 Pencil and StreamLine follow-ups (S16): grain filtering by view zoom (draweave's Gauss-Hermite at the screen's footprint, only if a re-evaluation at screen resolution ever comes; the screen samples the canvas bilinearly today); breaking the paper's repeat (every ~228 x 114 canvas pixels) with offsets; tilt widening the pencil (draweave's pencil ignored it); corner smoothing and Catmull-Rom curves if sparse input shows polyline corners; keeping the raw pen path to re-smooth strokes; pressure smoothing.
 - 2026-10-03 Visual design follow-ups (S17): the scenario walk-throughs before S17 still say "top bar" in their prose (their taps follow the islands); on windows under about 700 points the two top islands and a notice pill meet; egui's hover label fades in rather than appearing at once; Chinese typed into a title on the tablet itself (only the system font loading and the harness's Chinese title are checked); a left-handed mirror of the side bar and the islands.
 - 2026-10-03 Selection follow-ups (S18): Add and Remove modes, feather and antialiased edges (a coverage clip, a format change), Automatic and Ellipse, saving selections; one clip record per selection instead of its runs in every clipped stroke; counting clip masks in history bytes; the bar's buttons shift when Close appears (centred pill).
-- 2026-10-03 Motion follow-ups (S19): the chrome pass and egui's motion bookkeeping add about 1 ms of frame work while idle on the tablet (G5); rows crossing on a reorder overlap their text; a rotated canvas shrinks into its card upright; finger injection on the tablet was refused system-wide this session (pen worked), so the quick-pinch glide is checked in the harness only.
+- 2026-10-03 Motion follow-ups (S19): the chrome pass and egui's motion bookkeeping add about 1 ms of frame work while idle on the tablet (G7); rows crossing on a reorder overlap their text; a rotated canvas shrinks into its card upright; finger injection on the tablet was refused system-wide this session (pen worked), so the quick-pinch glide is checked in the harness only.
 - 2026-10-03 Transform follow-ups (S20): Freeform, Distort and Warp; angle snapping while turning (draweave had only the 45° button); Fit to screen; mipmapped or bicubic resampling for strong shrinking; the moved selection kept selected instead of deselecting; lifting on a worker instead of the main thread (a full-canvas lift waits for one GPU readback); a transform still open when the app is left is not saved (commit it on leave); a whole-layer patch per transform in history (64 MiB budget).
 - 2026-10-03 Smudge follow-ups (S21): large smudges are slow (600 px: frame work p50 21 to 28 ms; the contacts' kernels grow with the radius squared, and the footprint is evaluated again over everything beneath, as for a large paint brush); a coarser residual grid for large radii, fused stamp and commit, or a size cap are the levers (author's call, STATUS). Reopening evaluates every smudge cold; residual memory (20 bytes per pixel of its tiles) is never trimmed below the arena's live blocks; a smudge reads only its own layer (Procreate can sample all layers).
 - 2026-10-04 Mask follow-ups (S24): move a mask with its layer's whole-layer transform (Procreate links them) and transform a mask on its own; masks on groups; apply a mask into its layer (with merging); a mask thumbnail on its row; a grey-only colour panel while a mask is chosen (Procreate) instead of the colour's luma; swipe a mask row to delete.
