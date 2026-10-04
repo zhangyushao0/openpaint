@@ -14,6 +14,7 @@ use super::dabs::{Dab, DabWalker, dabs, read_tiles};
 use super::kernels::{Job, KernelBuffers, tile_job};
 use super::material::Material;
 use super::residual::{Working, words_buffer};
+use crate::affine::Affine;
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::geom::PixelRect;
@@ -117,7 +118,7 @@ impl Smudges {
                     let mut new = Vec::new();
                     let samples = item.stroke.samples();
                     active.walker.advance(&active.style, samples, &mut new);
-                    let range = item.before.clone();
+                    let range = (item.before.clone(), item.to_canvas);
                     self.tools.extend(
                         core,
                         (scene, ops, range),
@@ -130,7 +131,7 @@ impl Smudges {
                 None => {
                     let mut run = self.tools.run(core, size);
                     let all = dabs(item.stroke.style(), item.stroke.samples());
-                    let range = item.before.clone();
+                    let range = (item.before.clone(), item.to_canvas);
                     self.tools
                         .extend(core, (scene, ops, range), &self.arena, &mut run, &all)?;
                     run
@@ -203,9 +204,10 @@ impl Smudges {
         active.walker.advance(&active.style, samples, &mut new);
         let done = active.samples.len();
         active.samples.extend_from_slice(&samples[done..]);
+        // The in-progress stroke lies above every transform: on the canvas itself.
         self.tools.extend(
             core,
-            (scene, ops, range),
+            (scene, ops, (range, Affine::IDENTITY)),
             &self.arena,
             &mut active.run,
             &new,
@@ -274,11 +276,12 @@ impl Tools {
 
     /// Applies `dabs` to `run`: allocates the tiles they read, evaluates the material of the
     /// new ones (all of the run's, when the texture holds another run's), resets the new tiles,
-    /// then runs the contacts in order. `range` is the scene's items before the smudge.
+    /// then runs the contacts in order. `range` is the scene's items before the smudge and
+    /// where its pixels lie on the canvas.
     fn extend(
         &mut self,
         core: &Core,
-        (scene, ops, range): (&Scene, &SceneOps, Range<usize>),
+        (scene, ops, range): (&Scene, &SceneOps, (Range<usize>, Affine)),
         arena: &Arena,
         run: &mut Run,
         dabs: &[Dab],

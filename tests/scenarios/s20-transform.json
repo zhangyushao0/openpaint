@@ -7,7 +7,7 @@
     "Done: tap Transform again, or choose Brush, Eraser, the eyedropper, Selection or any other edit: the drawing stays where it shows, pixel for pixel what the frame showed, as one step of the drawing; one undo takes the whole transform back, redo brings it again. Nothing moved: nothing is recorded.",
     "Selection: with a selection, Transform lifts only what is painted inside it; the rest of the layer stays. Once committed nothing is selected any more, since what was selected moved.",
     "Failure: a hidden or locked layer, or nothing painted there, says so in a pill with OK, and the tool stays off. Reopen after the system closed the app: the moved drawing is where it was left.",
-    "Not here: Freeform, Distort, Warp, snapping, Fit to screen, interpolation choices; the content is resampled once per transform."
+    "Not here: Freeform, Distort, Warp, snapping, Fit to screen, interpolation choices. Since S31 the content is not resampled: it is drawn again where it moved (s31-transform-record)."
   ],
   "screen": [2880, 1800],
   "density": 1.75,
@@ -31,12 +31,12 @@
     { "tap": { "at": "Flip Horizontal" } },
     { "screenshot": { "name": "flipped" } },
     { "tap": { "at": "Transform" } },
-    { "checkpoint": { "name": "committed", "canvas": "4c162796688c9b1b" } },
+    { "checkpoint": { "name": "committed", "canvas": "d836e446a300aaba" } },
     { "screenshot": { "name": "committed-screen" } },
     { "tap": { "at": "Undo" } },
     { "checkpoint": { "name": "undone", "canvas": "1df6148e8891abbb" } },
     { "tap": { "at": "Redo" } },
-    { "checkpoint": { "name": "redone", "canvas": "4c162796688c9b1b" } },
+    { "checkpoint": { "name": "redone", "canvas": "d836e446a300aaba" } },
     { "stroke": { "points": [[300, 300, 1.0], [700, 450, 1.0]] } },
     { "tap": { "at": "Selection" } },
     { "tap": { "at": "Rectangle" } },
@@ -47,10 +47,10 @@
     { "touch": { "from": [[550, 1000], [650, 1000]], "to": [[515, 1000], [685, 1000]], "ms": 200 } },
     { "screenshot": { "name": "selection-pinched" } },
     { "tap": { "at": "Brushes" } },
-    { "checkpoint": { "name": "selection-moved", "canvas": "c7f63d9bbb61c056" } },
+    { "checkpoint": { "name": "selection-moved", "canvas": "f0ec56b8210958f1" } },
     { "screenshot": { "name": "selection-moved-screen" } },
     "restart",
-    { "checkpoint": { "name": "reopened", "canvas": "c7f63d9bbb61c056" } },
+    { "checkpoint": { "name": "reopened", "canvas": "f0ec56b8210958f1" } },
     { "screenshot": { "name": "reopened-screen" } }
   ]
 }

@@ -5,11 +5,14 @@
 //! choosing another tool, commits the content where it shows as one history step. An
 //! unchanged placement commits nothing.
 //!
-//! The pixels are lifted once when the tool turns on: the session hands the runtime a
+//! The layer is sampled once when the tool turns on: the session hands the runtime a
 //! `TransformJob`, the runtime samples the layer through the renderer and lifts its painted
-//! pixels (`openpaint-raster`), and hands the patch back. Every preview is the artwork with
-//! the transform added (`Artwork::transform_region`), so what shows while dragging is what is
-//! committed (DECISIONS D45).
+//! pixels (`openpaint-raster`), and hands the patch back; its rectangle is the frame, and an
+//! empty one refuses. While the hand drags, the preview places those lifted pixels
+//! (`Artwork::transform_region`, cheap to show every frame); once it lifts (and after every
+//! tap, undo and redo) the preview is the transform as a record (`Artwork::place_region`,
+//! S31: what moved and where, no pixels), which is what the commit records: settled equals
+//! committed (DECISIONS D57). An inserted picture is placed as its pixels throughout (D52).
 
 use std::f32::consts::FRAC_PI_4;
 use std::fmt;
@@ -132,8 +135,11 @@ struct Draft {
     /// The version the transform applies to.
     base: Artwork,
     lift: Option<RegionMask>,
-    /// The lifted pixels, once the runtime handed them back, and the preview with them.
+    /// The lifted pixels (their rectangle frames the content), once the runtime handed them
+    /// back, and the preview.
     lifted: Option<(Patch, Artwork)>,
+    /// An inserted picture places the patch itself; any other transform is a record.
+    picture: bool,
     handed: bool,
     /// Every settled placement; `at` is current; `preview` may be on its way to the next.
     steps: Vec<Placement>,
@@ -181,6 +187,7 @@ impl Transforms {
             base: artwork.clone(),
             lift: clip.cloned(),
             lifted: None,
+            picture: false,
             handed: false,
             steps: vec![Placement::IDENTITY],
             at: 0,
@@ -210,12 +217,8 @@ impl Transforms {
             Ok(None) => return self.refuse(TransformRefusal::Empty),
             Err(LiftFailed) => return self.refuse(TransformRefusal::Failed),
         };
-        let lift = draft.lift.clone();
-        match draft
-            .base
-            .transform_region(lift, patch.clone(), draft.preview)
-        {
-            Ok(applied) => draft.lifted = Some((patch, applied.artwork)),
+        match draft.placed(&patch, draft.preview, true) {
+            Ok(shown) => draft.lifted = Some((patch, shown)),
             Err(_) => self.refuse(TransformRefusal::Failed),
         }
     }
@@ -225,8 +228,9 @@ impl Transforms {
         self.draft = None;
     }
 
-    /// The content placed by `placement` from now on; ignored before it is lifted or when the
-    /// placement leaves what an artwork holds.
+    /// The content placed by `placement` from now on, shown as the lifted pixels while the hand
+    /// drags (a full layer's record is too slow to evaluate every frame on the tablet, S31);
+    /// ignored before it is lifted or when the placement leaves what an artwork holds.
     pub(crate) fn place(&mut self, placement: Placement) {
         let Some(draft) = self.draft.as_mut() else {
             return;
@@ -234,14 +238,14 @@ impl Transforms {
         let Some((patch, _)) = &draft.lifted else {
             return;
         };
-        let lift = draft.lift.clone();
-        if let Ok(applied) = draft.base.transform_region(lift, patch.clone(), placement) {
+        if let Ok(shown) = draft.placed(patch, placement, false) {
             draft.preview = placement;
-            draft.lifted = Some((patch.clone(), applied.artwork));
+            draft.lifted = Some((patch.clone(), shown));
         }
     }
 
-    /// The placement now becomes a step, unless it is the current one.
+    /// The placement now becomes a step, unless it is the current one, and shows as it will be
+    /// committed.
     pub(crate) fn settle(&mut self) {
         if let Some(draft) = self.draft.as_mut()
             && draft.preview != draft.steps[draft.at]
@@ -250,6 +254,7 @@ impl Transforms {
             draft.steps.push(draft.preview);
             draft.at += 1;
         }
+        self.show_settled();
     }
 
     /// One tap's change about the frame's centre (flip, 45 degrees) or back to the start, as a
@@ -324,6 +329,7 @@ impl Transforms {
         if let Some(draft) = self.draft.as_mut() {
             draft.at = at;
         }
+        self.show_settled();
     }
 
     /// Ends the transform: the content where it shows becomes one history step, unless it is
@@ -337,7 +343,11 @@ impl Transforms {
         if unchanged || !draft.version().same_version(history.current()) {
             return false;
         }
-        let Some((_, shown)) = draft.lifted else {
+        let Some((patch, _)) = &draft.lifted else {
+            return false;
+        };
+        // Committed mid-drag (the app left), the content is the record all the same.
+        let Ok(shown) = draft.placed(patch, draft.preview, true) else {
             return false;
         };
         history.record(shown);

@@ -4,6 +4,7 @@
 use openpaint_core::{Artwork, LayerId, RegionMask, StrokeTool};
 
 use crate::active::ActiveTrack;
+use crate::affine::Affine;
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::frame::FrameRequest;
@@ -277,6 +278,7 @@ impl<'a> RegionEvaluator<'a> {
                 background: if mask { [1.0; 4] } else { [0.0; 4] },
                 reset: false,
                 residuals: smudges.residuals(),
+                base: Affine::IDENTITY,
             },
         )
     }
@@ -339,6 +341,7 @@ impl<'a> RegionEvaluator<'a> {
                 background: [paper.r(), paper.g(), paper.b(), 1.0],
                 reset: step.reset,
                 residuals: target.smudges.residuals(),
+                base: Affine::IDENTITY,
             },
         )
     }

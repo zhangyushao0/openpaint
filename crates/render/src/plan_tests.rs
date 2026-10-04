@@ -3,6 +3,7 @@
 use super::*;
 use crate::geom::Bounds;
 use crate::protocol::{Blend, Op, Paint, SegmentOperands, Tip};
+use crate::scene::Item;
 
 fn segment(bounds: [f32; 4]) -> Item {
     let operands = SegmentOperands {

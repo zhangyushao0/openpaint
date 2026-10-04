@@ -45,9 +45,39 @@ impl Draft {
     pub(super) fn version(&self) -> &Artwork {
         self.from.as_ref().unwrap_or(&self.base)
     }
+
+    /// The base with the content placed by `placement`: an inserted picture, and anything while
+    /// the hand drags (not `settled`), as the pixels `patch`; anything else settled as a record.
+    pub(super) fn placed(
+        &self,
+        patch: &Patch,
+        placement: Placement,
+        settled: bool,
+    ) -> Result<Artwork, CoreError> {
+        let lift = self.lift.clone();
+        let applied = if self.picture || !settled {
+            self.base.transform_region(lift, patch.clone(), placement)
+        } else {
+            self.base.place_region(lift, placement)
+        };
+        applied.map(|applied| applied.artwork)
+    }
 }
 
 impl Transforms {
+    /// The preview as the commit records it: settled equals committed (DECISIONS D57).
+    pub(super) fn show_settled(&mut self) {
+        let Some(draft) = self.draft.as_mut() else {
+            return;
+        };
+        let Some((patch, _)) = &draft.lifted else {
+            return;
+        };
+        if let Ok(shown) = draft.placed(patch, draft.preview, true) {
+            draft.lifted = Some((patch.clone(), shown));
+        }
+    }
+
     /// Frames `picture` on a new layer above `artwork`'s active one; a transform in progress is
     /// committed by the caller first.
     pub(crate) fn insert(
@@ -82,6 +112,7 @@ impl Transforms {
             base,
             lift: None,
             lifted: Some((picture, shown)),
+            picture: true,
             handed: true,
             steps: vec![Placement::IDENTITY],
             at: 0,

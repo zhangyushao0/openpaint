@@ -49,7 +49,7 @@ pub use layer::{Layer, LayerProps};
 pub use mask::{LayerMask, grey_of};
 pub use parts::{
     AccumulationParts, ArtworkParts, EditParts, FillParts, GroupParts, LayerMaskParts, LayerParts,
-    MaskParts, PaperParts, RecipeParts, SampleParts, StrokeParts, TransformParts,
+    MaskParts, PaperParts, PatchParts, RecipeParts, SampleParts, StrokeParts, TransformParts,
 };
 pub use region::{FillEdit, RegionEdit, RegionMask};
 pub use session::{ActiveStroke, StrokeSession};

@@ -7,6 +7,7 @@
 
 mod active;
 mod adapter;
+mod affine;
 mod change;
 mod core;
 mod edits;
@@ -27,6 +28,8 @@ mod readback;
 mod sample;
 mod scene;
 mod scene_adjust;
+mod scene_cleared;
+mod scene_content;
 mod scene_layer;
 mod screen;
 mod smudge;

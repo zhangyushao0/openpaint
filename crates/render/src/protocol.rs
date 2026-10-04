@@ -136,10 +136,18 @@ pub(crate) enum Opcode {
     BeginMask = 9,
     /// An adjustment of the current layer's colours, inside its clip (`protocol_adjust.rs`).
     Adjust = 10,
+    /// From here the ops are evaluated at the pixel's centre mapped through the frame's rows:
+    /// content a transform record shows where it moved it (S31).
+    Frame = 11,
+    /// The layer so far is set aside and a moved selection's content starts from nothing.
+    BeginMove = 12,
+    /// The moved content is cut to its selection (or the canvas) where the centre maps back,
+    /// then, when set aside, laid over what was set aside.
+    EndMove = 13,
 }
 
 impl Opcode {
-    const ALL: [Self; 11] = [
+    const ALL: [Self; 14] = [
         Self::Segment,
         Self::EndStroke,
         Self::EndLayer,
@@ -151,6 +159,9 @@ impl Opcode {
         Self::EndGroup,
         Self::BeginMask,
         Self::Adjust,
+        Self::Frame,
+        Self::BeginMove,
+        Self::EndMove,
     ];
 
     const fn wgsl_name(self) -> &'static str {
@@ -166,6 +177,9 @@ impl Opcode {
             Self::EndGroup => "OP_END_GROUP",
             Self::BeginMask => "OP_BEGIN_MASK",
             Self::Adjust => "OP_ADJUST",
+            Self::Frame => "OP_FRAME",
+            Self::BeginMove => "OP_BEGIN_MOVE",
+            Self::EndMove => "OP_END_MOVE",
         }
     }
 }
@@ -198,6 +212,10 @@ impl Opcode {
 /// - `Smudge`: `[at / 2^16, at % 2^16, locked, active, ..., clip / 2^16, clip % 2^16]`.
 /// - `Adjust`: `[kind, hue, saturation, brightness, on, tables / 2^16, tables % 2^16, ...,
 ///   clip / 2^16, clip % 2^16]` (`protocol_adjust.rs`).
+/// - `Frame`: `[a, b, c, d, e, f, foot, level]`: ops from here are evaluated at `(a x + b y +
+///   c, d x + e y + f)` for the centre `(x, y)` on the canvas; `foot` canvas pixels per pixel
+///   there, `level` its base-2 log. `BeginMove`: none. `EndMove`: `[mask / 2^16, mask % 2^16,
+///   aside, width, height]`.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Op {
@@ -351,37 +369,9 @@ impl Op {
     }
 }
 
-/// One tile of a plan: its top-left pixel and its range in the plan's op index list.
-#[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct TileRecord {
-    pub(crate) origin: [u32; 2],
-    pub(crate) start: u32,
-    pub(crate) count: u32,
-}
-
-/// Per-dispatch values.
-#[repr(C)]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct Params {
-    /// Opaque premultiplied background, alpha 1.
-    pub(crate) background: [f32; 4],
-    /// Tiles in this dispatch.
-    pub(crate) tiles: u32,
-    /// Workgroups per dispatch row: tile index = `row * group.y + group.x`.
-    pub(crate) row: u32,
-    /// Target size in pixels.
-    pub(crate) size: [u32; 2],
-    /// The output pixel at the target's top-left, output pixels per canvas pixel (a power of
-    /// two) and its inverse: an output pixel's centre `(p + 0.5) x inverse` in canvas pixels.
-    pub(crate) origin: [u32; 2],
-    pub(crate) scale: f32,
-    pub(crate) inverse: f32,
-}
-
 #[path = "protocol_records.rs"]
 mod records;
-pub(crate) use records::{Record, encode};
+pub(crate) use records::{Params, Record, TileRecord, encode};
 
 #[path = "protocol_adjust.rs"]
 mod adjust;
@@ -390,6 +380,10 @@ pub(crate) use adjust::{AdjustOn, table_words};
 #[path = "protocol_layers.rs"]
 mod layers;
 pub(crate) use layers::{LayerInto, Masking};
+
+#[path = "protocol_moves.rs"]
+mod moves;
+pub(crate) use moves::MOVE_DEPTH;
 
 #[path = "protocol_wgsl.rs"]
 mod wgsl;

@@ -1,22 +1,29 @@
 //! Region edit records (schema 8, DECISIONS D36, D45): one per fill, transform or (schema 12)
 //! adjustment, keyed like strokes, `[project u64]['f'][layer u64][index u64]`, oldest at index
-//! 0. A value starts with its kind (u8: 0 fill, 1 transform, 2 adjustment, `adjusts.rs`).
+//! 0. A value starts with its kind (u8: 0 fill, 1 transform with pixels, 2 adjustment,
+//! `adjusts.rs`, 3 transform record).
 //!
 //! A fill: after (u32: the strokes under it), red, green, blue (f32), alpha locked (u8), its
 //! mask (`write_mask`: rectangle, run count, runs as LEB128 varints). A closed shape costs a
 //! few bytes per row.
 //!
-//! A transform: after (u32), what it lifted (u8: 0 the whole layer, 1 a mask as above), its
-//! placement (a, b, c, d, then the translation: f32), its patch's rectangle (x, y, width,
-//! height: u32), then the patch's premultiplied RGBA pixels as a PNG file to the record's end
-//! (lossless; transparent rows cost little).
+//! A transform with pixels (an older transform or an inserted picture): after (u32), what it
+//! lifted (u8: 0 the whole layer, 1 a mask as above), its placement (a, b, c, d, then the
+//! translation: f32), its patch's rectangle (x, y, width, height: u32), then the patch's
+//! premultiplied RGBA pixels as a PNG file to the record's end (lossless; transparent rows
+//! cost little).
+//!
+//! A transform record (schema 13, D57): after, what it moved and its placement as above, and
+//! nothing more: its content is the layer's own.
 
 use std::io::Cursor;
 
 use image::codecs::png::{CompressionType, FilterType, PngDecoder, PngEncoder};
 use image::{ExtendedColorType, ImageDecoder, ImageEncoder};
 use openpaint_app::{PortError, ProjectId};
-use openpaint_core::{EditParts, FillParts, MaskParts, RegionEdit, TransformEdit, TransformParts};
+use openpaint_core::{
+    EditParts, FillParts, MaskParts, PatchParts, RegionEdit, TransformEdit, TransformParts,
+};
 
 use crate::adjusts::{KIND_ADJUST, encode_adjust, read_adjust};
 use crate::codec::{Reader, Writer};
@@ -25,6 +32,7 @@ use crate::records::project_prefix;
 const FILL: u8 = b'f';
 const KIND_FILL: u8 = 0;
 const KIND_TRANSFORM: u8 = 1;
+const KIND_PLACE: u8 = 3;
 
 /// The prefix of every edit record of `project`.
 pub(crate) fn fills_prefix(project: ProjectId) -> Vec<u8> {
@@ -68,7 +76,12 @@ pub(crate) fn encode_edit(edit: &RegionEdit) -> Vec<u8> {
 
 fn encode_transform(transform: &TransformEdit) -> Vec<u8> {
     let mut writer = Writer::with_capacity(96);
-    writer.u8(KIND_TRANSFORM);
+    let patch = transform.patch();
+    writer.u8(if patch.is_some() {
+        KIND_TRANSFORM
+    } else {
+        KIND_PLACE
+    });
     writer.len(transform.after());
     match transform.lift() {
         Some(lift) => {
@@ -85,11 +98,12 @@ fn encode_transform(transform: &TransformEdit) -> Vec<u8> {
     {
         writer.f32(value);
     }
-    let patch = transform.patch();
-    for value in patch.origin().into_iter().chain(patch.size()) {
-        writer.u32(value);
+    if let Some(patch) = patch {
+        for value in patch.origin().into_iter().chain(patch.size()) {
+            writer.u32(value);
+        }
+        writer.bytes(&encode_pixels(patch.size(), patch.pixels()));
     }
-    writer.bytes(&encode_pixels(patch.size(), patch.pixels()));
     writer.finish()
 }
 
@@ -97,7 +111,8 @@ pub(crate) fn decode_edit(bytes: &[u8]) -> Result<EditParts, PortError> {
     let mut reader = Reader::new(bytes, "edit");
     let edit = match reader.u8()? {
         KIND_FILL => EditParts::Fill(read_fill(&mut reader)?),
-        KIND_TRANSFORM => EditParts::Transform(read_transform(&mut reader)?),
+        KIND_TRANSFORM => EditParts::Transform(read_transform(&mut reader, true)?),
+        KIND_PLACE => EditParts::Transform(read_transform(&mut reader, false)?),
         KIND_ADJUST => EditParts::Adjust(read_adjust(&mut reader)?),
         _ => return Err(reader.corrupt()),
     };
@@ -121,7 +136,8 @@ pub(crate) fn read_fill(reader: &mut Reader<'_>) -> Result<FillParts, PortError>
     })
 }
 
-fn read_transform(reader: &mut Reader<'_>) -> Result<TransformParts, PortError> {
+/// A transform after its kind; `pixels` for one with a patch (kind 1).
+fn read_transform(reader: &mut Reader<'_>, pixels: bool) -> Result<TransformParts, PortError> {
     let after = u64::from(reader.u32()?);
     let lift = match reader.u8()? {
         0 => None,
@@ -133,15 +149,22 @@ fn read_transform(reader: &mut Reader<'_>) -> Result<TransformParts, PortError> 
         *value = reader.f32()?;
     }
     let [a, b, c, d, x, y] = values;
-    let origin = [reader.u32()?, reader.u32()?];
-    let size = [reader.u32()?, reader.u32()?];
-    let pixels = decode_pixels(reader.rest(), size).ok_or(reader.corrupt())?;
+    let patch = if pixels {
+        let origin = [reader.u32()?, reader.u32()?];
+        let size = [reader.u32()?, reader.u32()?];
+        let pixels = decode_pixels(reader.rest(), size).ok_or(reader.corrupt())?;
+        Some(PatchParts {
+            origin,
+            size,
+            pixels,
+        })
+    } else {
+        None
+    };
     Ok(TransformParts {
         after,
         lift,
-        origin,
-        size,
-        pixels,
+        patch,
         matrix: [a, b, c, d],
         translation: [x, y],
     })
@@ -242,6 +265,31 @@ mod tests {
             assert!(
                 decode_edit(&bytes[..bytes.len() - 20]).is_err(),
                 "a cut file"
+            );
+        }
+    }
+
+    #[test]
+    fn a_transform_record_holds_what_moved_and_where_and_damage_is_corrupt() {
+        let canvas = CanvasSize::new(40, 30).expect("size");
+        let placement = Placement::around([9.0, 8.0], 3.0, 0.4, [true, false]).expect("map");
+        let lift = RegionMask::polygon(canvas, &[[3.0, 4.0], [15.0, 4.0], [9.0, 13.0]]);
+        for (lift, length) in [(None, 1 + 4 + 1 + 24), (lift, 0)] {
+            let artwork = Artwork::new(canvas)
+                .place_region(lift, placement)
+                .expect("transform")
+                .artwork;
+            let bytes = encode_edit(&artwork.layers()[0].edits()[0]);
+            assert_eq!(bytes[0], KIND_PLACE);
+            if length > 0 {
+                assert_eq!(bytes.len(), length, "no pixels");
+            }
+            let parts = decode_edit(&bytes).expect("decodes");
+            assert_eq!(parts, artwork.to_parts().layers[0].edits[0]);
+            assert!(decode_edit(&bytes[..bytes.len() - 1]).is_err(), "cut");
+            assert!(
+                decode_edit(&[bytes.clone(), vec![0]].concat()).is_err(),
+                "longer"
             );
         }
     }

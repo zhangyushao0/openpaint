@@ -2,9 +2,9 @@
 //! regions to evaluate again when the version changes other than by committing the stroke the
 //! target is drawing (undo and redo; later layer edits). DECISIONS D17: callers pass these.
 
-use openpaint_core::{Artwork, CanvasSize, RegionEdit, StrokeList};
+use openpaint_core::{Artwork, RegionEdit, StrokeList};
 
-use crate::edits::{edit_rect, placed_rect};
+use crate::edits::{edit_rect, moved_rect, placed_rect};
 use crate::geom::PixelRect;
 use crate::stroke::segment_regions;
 
@@ -34,7 +34,12 @@ pub fn changed_regions(before: &Artwork, after: &Artwork) -> Vec<PixelRect> {
             Some(tail) => regions.extend(tail),
             None => return full,
         }
-        regions.extend(edit_regions(canvas, old.edits(), new.edits()));
+        let size = [canvas.width(), canvas.height()];
+        regions.extend(edit_regions(
+            size,
+            old.edits(),
+            (new.strokes(), new.edits()),
+        ));
         match (old.mask(), new.mask()) {
             (None, None) => {}
             // Strokes and fills on a mask count as a layer's; a mask added, deleted, enabled,
@@ -44,7 +49,8 @@ pub fn changed_regions(before: &Artwork, after: &Artwork) -> Vec<PixelRect> {
                     Some(tail) => regions.extend(tail),
                     None => return full,
                 }
-                regions.extend(edit_regions(canvas, a.edits(), b.edits()));
+                let size = [canvas.width(), canvas.height()];
+                regions.extend(edit_regions(size, a.edits(), (b.strokes(), b.edits())));
             }
             _ => return full,
         }
@@ -55,25 +61,76 @@ pub fn changed_regions(before: &Artwork, after: &Artwork) -> Vec<PixelRect> {
 /// The rectangles of the edits either list has beyond their common start: an edit reaches only
 /// its own rectangle (`edit_rect`), wherever it lies among the strokes, so an edit added,
 /// undone or swapped for another (a preview changing) costs only those rectangles. A
-/// transform that only moved its patch (a transform being dragged) costs where the patch
-/// showed and where it shows.
-fn edit_regions(canvas: CanvasSize, a: &[RegionEdit], b: &[RegionEdit]) -> Vec<PixelRect> {
+/// transform that only moved (a transform being dragged) costs where its content showed and
+/// where it shows: for a record, the content `b` (strokes, edits) had before it.
+fn edit_regions(
+    canvas: [u32; 2],
+    a: &[RegionEdit],
+    (strokes, b): (&StrokeList, &[RegionEdit]),
+) -> Vec<PixelRect> {
     let common = a.iter().zip(b).take_while(|(x, y)| x.same(y)).count();
-    let (a, b) = (&a[common..], &b[common..]);
-    if let ([RegionEdit::Transform(x)], [RegionEdit::Transform(y)]) = (a, b) {
+    let (a, rest) = (&a[common..], &b[common..]);
+    if let ([RegionEdit::Transform(x)], [RegionEdit::Transform(y)]) = (a, rest) {
         let lift = match (x.lift(), y.lift()) {
             (Some(p), Some(q)) => p.shares(q),
             (None, None) => true,
             _ => false,
         };
-        if lift && x.patch().shares(y.patch()) && x.after() == y.after() {
-            return vec![placed_rect(x), placed_rect(y)];
+        let patch = match (x.patch(), y.patch()) {
+            (Some(p), Some(q)) => p.shares(q),
+            (None, None) => true,
+            _ => false,
+        };
+        if lift && patch && x.after() == y.after() {
+            let moved = moved_rect(canvas, y);
+            let moved = match y.patch() {
+                Some(_) => moved,
+                None => within(
+                    moved,
+                    content_rect(canvas, strokes, &b[..common], y.after()),
+                ),
+            };
+            return vec![
+                placed_rect(moved, x.placement()),
+                placed_rect(moved, y.placement()),
+            ];
         }
     }
     a.iter()
-        .chain(b)
+        .chain(rest)
         .map(|edit| edit_rect(canvas, edit))
         .collect()
+}
+
+/// Where the first `after` strokes and `edits` can have painted, as `[x0, y0, x1, y1]` (the
+/// canvas when nothing narrows it).
+fn content_rect(
+    canvas: [u32; 2],
+    strokes: &StrokeList,
+    edits: &[RegionEdit],
+    after: usize,
+) -> [f32; 4] {
+    let regions = strokes
+        .iter()
+        .take(after)
+        .flat_map(|stroke| segment_regions(stroke.style(), stroke.samples(), 0))
+        .chain(edits.iter().map(|edit| edit_rect(canvas, edit)));
+    let rect = regions.reduce(|all, next| all.union(&next));
+    rect.map_or([0.0, 0.0, canvas[0] as f32, canvas[1] as f32], |rect| {
+        let [x0, y0] = rect.min;
+        let [x1, y1] = rect.max;
+        [x0 as f32, y0 as f32, x1 as f32, y1 as f32]
+    })
+}
+
+/// The overlap of two rectangles `[x0, y0, x1, y1]` (empty ones stay empty).
+fn within(a: [f32; 4], b: [f32; 4]) -> [f32; 4] {
+    [
+        a[0].max(b[0]),
+        a[1].max(b[1]),
+        a[2].min(b[2]),
+        a[3].min(b[3]),
+    ]
 }
 
 /// The segments of the strokes the longer list has beyond the shorter, when the shorter is its
@@ -98,7 +155,8 @@ fn tail_regions(a: &StrokeList, b: &StrokeList) -> Option<Vec<PixelRect>> {
 mod tests {
     use super::*;
     use openpaint_core::{
-        ArtworkCommand, CanvasPoint, Color, LayerCommand, RegionMask, StrokeSample, StrokeStyle,
+        ArtworkCommand, CanvasPoint, CanvasSize, Color, LayerCommand, RegionMask, StrokeSample,
+        StrokeStyle,
     };
 
     fn sample(x: f32, time_ms: u32) -> StrokeSample {

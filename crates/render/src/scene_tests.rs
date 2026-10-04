@@ -33,6 +33,12 @@ fn codes(scene: &Scene) -> Vec<&'static str> {
         Item::Reach(_) => "reach",
         Item::Smudge(_) => "smudge",
         Item::BeginMask(_) => "mask",
+        Item::Frame { .. } => "frame",
+        Item::BeginMove(_) => "move",
+        Item::EndMove { whole: false, .. } => "moved",
+        Item::EndMove { whole: true, .. } => "cut",
+        Item::MovedOnly(_) => "moved only",
+        Item::Clear { .. } => "clear",
     };
     scene.items.iter().map(name).collect()
 }

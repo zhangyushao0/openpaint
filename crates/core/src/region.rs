@@ -1,6 +1,6 @@
 //! Region edits: a set of canvas pixels (`RegionMask`) and what was done to them, at their place
 //! between the layer's strokes. A fill (ColorDrop) paints one colour over every pixel of its
-//! mask, with a hard edge; a transform (`transform.rs`) moves pixels; an adjustment
+//! mask, with a hard edge; a transform (`transform.rs`) moves content; an adjustment
 //! (`adjust.rs`) changes their colours.
 
 use std::sync::Arc;
@@ -258,12 +258,15 @@ impl RegionEdit {
                     .lift
                     .as_ref()
                     .map_or(0, |lift| mask(lift, old.and_then(TransformEdit::lift)));
-                let shared = old.is_some_and(|old| old.patch.shares(&transform.patch));
-                lift + if shared {
-                    0
-                } else {
-                    transform.patch.pixels().len()
-                }
+                let pixels = transform.patch.as_ref().map_or(0, |patch| {
+                    let old = old.and_then(TransformEdit::patch);
+                    if old.is_some_and(|old| old.shares(patch)) {
+                        0
+                    } else {
+                        patch.pixels().len()
+                    }
+                });
+                lift + pixels
             }
             Self::Adjust(adjust) => {
                 let old = old.and_then(Self::adjust).and_then(AdjustEdit::clip);

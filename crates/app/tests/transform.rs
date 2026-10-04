@@ -76,7 +76,14 @@ fn placements_are_previews_walked_by_undo_and_turning_off_commits_one_step() {
         !available(&session, EditorAction::Undo),
         "nothing placed yet"
     );
-    drag(&mut session, moved(5.0));
+    let shown_patch = |s: &Session| {
+        let edit = s.shown().layers()[0].edits()[0].transform().cloned();
+        edit.expect("a transform").patch().is_some()
+    };
+    transform(&mut session, TransformIntent::Place(moved(5.0)));
+    assert!(shown_patch(&session), "dragging shows the lifted pixels");
+    transform(&mut session, TransformIntent::Settle);
+    assert!(!shown_patch(&session), "settled, the record that commits");
     drag(&mut session, moved(9.0));
     let placement = |s: &Session| s.projection().transform().frame.expect("frame").placement;
     assert_eq!(placement(&session), moved(9.0));
@@ -103,7 +110,9 @@ fn placements_are_previews_walked_by_undo_and_turning_off_commits_one_step() {
     let committed = session.artwork().layers()[0].edits()[0]
         .transform()
         .cloned();
-    assert_eq!(committed.expect("a transform").placement(), moved(9.0));
+    let committed = committed.expect("a transform");
+    assert_eq!(committed.placement(), moved(9.0));
+    assert!(committed.patch().is_none(), "a record, no pixels (S31)");
     session
         .dispatch(Intent::History(HistoryIntent::Undo))
         .expect("undo");

@@ -101,10 +101,10 @@ fn deposit_coverage(density: f32, contact: f32, centre: vec2<f32>, op: Op) -> f3
     if contact <= 0.0 {
         return 0.0;
     }
-    // An output pixel covers `scale / params.scale` texels: the paper's level by that footprint
-    // (one level finer per doubling, exactly the stroke's own level at scale 1).
-    let finer = f32(countTrailingZeros(u32(params.scale)));
-    let moments = paper_moments(centre * scale, op.data[PAINT_PAPER + 1u] - finer);
+    // An output pixel covers `scale / foot_scale` texels: the paper's level by that footprint
+    // (one level finer per doubling, exactly the stroke's own level at scale 1; inside a
+    // transform record's frame by its content's scale too).
+    let moments = paper_moments(centre * scale, op.data[PAINT_PAPER + 1u] - foot_level);
     let deviation = sqrt(moments.y);
     let level = 1.0 - contact;
     let dust_share = op.data[PAINT_PAPER + 3u];

@@ -5,8 +5,10 @@ use std::mem::{offset_of, size_of};
 
 use super::adjust::{ADJUST_KINDS, ADJUST_ONS, ADJUST_SLOTS};
 use super::layers::{INTOS, LAYER_SLOTS, MASKINGS, MODES};
+use super::moves::MOVE_SLOTS;
 use super::{
-    BLENDS, FRESH, GRAIN_ONE, MASK_HEADER, Op, Opcode, Params, SLOTS, TILE, TIPS, TileRecord,
+    BLENDS, FRESH, GRAIN_ONE, MASK_HEADER, MOVE_DEPTH, Op, Opcode, Params, SLOTS, TILE, TIPS,
+    TileRecord,
 };
 use crate::paper::{MOMENT_ONE, PAPER_SIZE, level_count};
 use crate::smudge::{NODE_WORDS, RESIDUAL_HEADER, RESIDUAL_TILE, TILE_NODES};
@@ -47,6 +49,8 @@ pub(super) const LAYOUTS: [Layout; 3] = [
             ("origin", "vec2<u32>", offset_of!(Params, origin)),
             ("scale", "f32", offset_of!(Params, scale)),
             ("inverse", "f32", offset_of!(Params, inverse)),
+            ("base_x", "vec4<f32>", offset_of!(Params, base_x)),
+            ("base_y", "vec4<f32>", offset_of!(Params, base_y)),
         ],
     },
 ];
@@ -59,6 +63,7 @@ pub(crate) fn prelude() -> String {
     wgsl.push_str(&format!("const FRESH: u32 = {FRESH}u;\n"));
     wgsl.push_str(&format!("const GRAIN_ONE: u32 = {GRAIN_ONE}u;\n"));
     wgsl.push_str(&format!("const MASK_HEADER: u32 = {MASK_HEADER}u;\n"));
+    wgsl.push_str(&format!("const MOVE_DEPTH: u32 = {MOVE_DEPTH}u;\n"));
     let [width, height] = PAPER_SIZE;
     wgsl.push_str(&format!("const PAPER_WIDTH: u32 = {width}u;\n"));
     wgsl.push_str(&format!("const PAPER_HEIGHT: u32 = {height}u;\n"));
@@ -110,7 +115,12 @@ pub(crate) fn prelude() -> String {
 
 /// The named operand slots, and the adjustments' kinds and targets.
 fn named_values(wgsl: &mut String) {
-    for (name, slot) in SLOTS.into_iter().chain(LAYER_SLOTS).chain(ADJUST_SLOTS) {
+    for (name, slot) in SLOTS
+        .into_iter()
+        .chain(LAYER_SLOTS)
+        .chain(ADJUST_SLOTS)
+        .chain(MOVE_SLOTS)
+    {
         wgsl.push_str(&format!("const {name}: u32 = {slot}u;\n"));
     }
     for (name, kind) in ADJUST_KINDS {

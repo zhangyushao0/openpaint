@@ -273,7 +273,11 @@ fn transform_parts_from(
         .as_ref()
         .map(|lift| RegionMask::from_runs(canvas, lift.origin, lift.size, &lift.runs))
         .transpose()?;
-    let patch = Patch::new(canvas, parts.origin, parts.size, parts.pixels.clone())?;
+    let patch = parts
+        .patch
+        .as_ref()
+        .map(|patch| Patch::new(canvas, patch.origin, patch.size, patch.pixels.clone()))
+        .transpose()?;
     let placement =
         Placement::new(parts.matrix, parts.translation).ok_or(invalid("transform placement"))?;
     transform_from(canvas, after, lift, patch, placement)

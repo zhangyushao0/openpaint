@@ -24,6 +24,12 @@
 @group(0) @binding(11) var<storage, read> arena: array<u32>;
 @group(0) @binding(12) var<storage, read> active_residual: array<u32>;
 
+// The footprint of one output pixel where the ops are evaluated now (S31: a frame changes it):
+// output pixels per content pixel, its inverse, and the base-2 log of the former.
+var<private> foot_scale: f32;
+var<private> foot_inverse: f32;
+var<private> foot_level: f32;
+
 @compute @workgroup_size(TILE, TILE)
 fn evaluate(
     @builtin(workgroup_id) group: vec3<u32>,
@@ -42,8 +48,21 @@ fn evaluate(
     if any(pixel >= params.size) {
         return;
     }
+    // A transform record's earlier content is evaluated where the centre maps back to (S31):
+    // a frame op moves `point` and `cell` there; `based` is the centre on the canvas.
     let centre = (vec2<f32>(params.origin + pixel) + vec2<f32>(0.5)) * params.inverse;
-    let cell = vec2<u32>(floor(centre));
+    let based = vec2<f32>(
+        params.base_x.x * centre.x + params.base_x.y * centre.y + params.base_x.z,
+        params.base_y.x * centre.x + params.base_y.y * centre.y + params.base_y.z,
+    );
+    var point = based;
+    var cell = vec2<u32>(floor(based));
+    foot_scale = params.scale * params.base_x.w;
+    foot_inverse = params.inverse / params.base_x.w;
+    foot_level = f32(countTrailingZeros(u32(params.scale))) + params.base_y.w;
+    // What moved selections set aside, innermost last (`OP_BEGIN_MOVE`).
+    var moves: array<vec4<f32>, MOVE_DEPTH>;
+    var depth = 0u;
     // Premultiplied colours throughout; blending happens on sRGB-encoded values.
     var canvas = params.background;
     var layer = vec4<f32>(0.0);
@@ -79,34 +98,58 @@ fn evaluate(
         switch op.code {
             case OP_SEGMENT: {
                 if u32(op.data[SEGMENT_TIP]) == TIP_COVER {
-                    coverage = max(coverage, segment_coverage(centre, op));
+                    coverage = max(coverage, segment_coverage(point, op));
                 } else {
-                    let laid = segment_density(centre, op);
+                    let laid = segment_density(point, op);
                     coverage += laid.x;
                     contact = max(contact, laid.y);
                 }
             }
             case OP_END_STROKE: {
-                layer = blend(stroke_paint(coverage, contact, centre, cell, op), layer, op);
+                layer = blend(stroke_paint(coverage, contact, point, cell, op), layer, op);
                 coverage = 0.0;
                 contact = 0.0;
             }
             case OP_END_ACTIVE: {
                 textureStore(kept, pixel, vec4<f32>(coverage, 0.0, 0.0, 0.0));
                 textureStore(kept_contact, pixel, vec4<f32>(contact, 0.0, 0.0, 0.0));
-                layer = blend(stroke_paint(coverage, contact, centre, cell, op), layer, op);
+                layer = blend(stroke_paint(coverage, contact, point, cell, op), layer, op);
                 coverage = 0.0;
                 contact = 0.0;
             }
             case OP_FILL: {
-                let covered = fill_coverage(centre, cell, op);
+                let covered = fill_coverage(point, cell, op);
                 layer = blend(paint_color(covered * op.data[PAINT_OPACITY], op), layer, op);
             }
             case OP_PATCH: {
-                layer = over(patch_sample(centre, op), layer);
+                layer = over(patch_sample(point, op), layer);
             }
             case OP_SMUDGE: {
-                layer = smudged(layer, centre, cell, op);
+                layer = smudged(layer, point, cell, op);
+            }
+            case OP_FRAME: {
+                point = vec2<f32>(
+                    op.data[0] * based.x + op.data[1] * based.y + op.data[2],
+                    op.data[3] * based.x + op.data[4] * based.y + op.data[5],
+                );
+                cell = vec2<u32>(max(floor(point), vec2<f32>(0.0)));
+                let foot = params.base_x.w * op.data[FRAME_FOOT];
+                foot_scale = params.scale * foot;
+                foot_inverse = params.inverse / foot;
+                foot_level = f32(countTrailingZeros(u32(params.scale))) + params.base_y.w
+                    + op.data[FRAME_LEVEL];
+            }
+            case OP_BEGIN_MOVE: {
+                moves[min(depth, MOVE_DEPTH - 1u)] = layer;
+                depth += 1u;
+                layer = vec4<f32>(0.0);
+            }
+            case OP_END_MOVE: {
+                layer = layer * moved_share(point, cell, op);
+                if op.data[MOVE_ASIDE] > 0.0 {
+                    depth -= 1u;
+                    layer = over(layer, moves[min(depth, MOVE_DEPTH - 1u)]);
+                }
             }
             case OP_ADJUST: {
                 layer = adjusted(layer, cell, op);
@@ -157,6 +200,21 @@ fn evaluate(
         }
     }
     textureStore(canvas_out, pixel, quantized(canvas));
+}
+
+// What of a transform record's moved content shows at `point` (where the centre maps back
+// to): 1 inside its selection's mask, or for the whole layer inside the canvas, else 0. What
+// was lifted came from the canvas only, as the layer's pixels did before S31.
+fn moved_share(point: vec2<f32>, cell: vec2<u32>, op: Op) -> f32 {
+    let canvas = vec2<f32>(op.data[MOVE_CANVAS], op.data[MOVE_CANVAS + 1u]);
+    if any(point < vec2<f32>(0.0)) || any(point >= canvas) {
+        return 0.0;
+    }
+    let at = u32(op.data[MOVE_MASK]) * 65536u + u32(op.data[MOVE_MASK + 1u]);
+    if at == 0u {
+        return 1.0;
+    }
+    return mask_bit(cell, at - 1u);
 }
 
 // A layer as its end shows it: without a mask `layer` itself; with one, its paint `held` times
@@ -316,7 +374,9 @@ fn blend(paint: vec4<f32>, layer: vec4<f32>, op: Op) -> vec4<f32> {
 // `1 / edge` canvas pixels for a soft one (smoothed; its look keeps its canvas width). It is
 // exactly zero from half an output pixel out, inside the scene's bounds. Then times the flow,
 // which changes evenly from `a` to `b`; equal flows give that flow exactly. At scale 1 both
-// factors are 1, so the canvas is as before scales.
+// factors are 1, so the canvas is as before scales. Inside a transform record's frame the
+// output pixel is measured in its content's pixels (`foot_scale`), so a scaled stroke's edge
+// stays one output pixel wide.
 fn segment_coverage(centre: vec2<f32>, op: Op) -> f32 {
     let a = vec2<f32>(op.data[0], op.data[1]);
     let b = vec2<f32>(op.data[2], op.data[3]);
@@ -324,9 +384,9 @@ fn segment_coverage(centre: vec2<f32>, op: Op) -> f32 {
     let edge = op.data[SEGMENT_EDGE];
     var ramp = edge;
     if edge < 1.0 {
-        ramp = edge * params.inverse;
+        ramp = edge * foot_inverse;
     }
-    var coverage = clamp((0.5 - distance * params.scale) * ramp, 0.0, 1.0);
+    var coverage = clamp((0.5 - distance * foot_scale) * ramp, 0.0, 1.0);
     if edge < 1.0 {
         coverage = coverage * coverage * (3.0 - 2.0 * coverage);
     }

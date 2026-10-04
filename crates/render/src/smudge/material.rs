@@ -5,6 +5,7 @@
 
 use std::ops::Range;
 
+use crate::affine::Affine;
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::geom::PixelRect;
@@ -36,20 +37,22 @@ impl Material {
     }
 
     /// Evaluates the scene's items in `range` (one layer's ops before a smudge) over `rects`,
-    /// on nothing and at full opacity: that layer's own pixels there. `residuals` are the arena
-    /// and an empty in-progress residual, for the layer's earlier smudges.
+    /// on nothing and at full opacity: that layer's own pixels there, where the smudge's pixels
+    /// lie on the canvas by `to_canvas` (under transform records, S31). `residuals` are the
+    /// arena and an empty in-progress residual, for the layer's earlier smudges.
     pub(crate) fn evaluate(
         &mut self,
         core: &Core,
         (scene, ops): (&Scene, &SceneOps),
-        range: Range<usize>,
+        (range, to_canvas): (Range<usize>, Affine),
         rects: &[PixelRect],
         residuals: [&wgpu::Buffer; 2],
     ) -> Result<(), RenderError> {
         if rects.is_empty() {
             return Ok(());
         }
-        let plan = Plan::material(scene, range, self.bindings.size(), rects);
+        let size = self.bindings.size();
+        let plan = Plan::material(scene, (range, to_canvas), size, rects);
         core.evaluate.dispatch(
             &core.gpu,
             &mut self.bindings,
@@ -61,6 +64,7 @@ impl Material {
                 background: [0.0; 4],
                 reset: false,
                 residuals,
+                base: to_canvas,
             },
         )
     }

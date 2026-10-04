@@ -136,7 +136,7 @@ fn the_picture_is_a_new_layer_framed_at_once_and_one_step_once_committed() {
     assert_eq!(session.artwork().active(), layer.id());
     let edit = layer.edits()[0].transform().expect("a placed patch");
     assert_eq!((edit.lift(), edit.placement()), (None, Placement::IDENTITY));
-    assert_eq!(edit.patch(), &picture());
+    assert_eq!(edit.patch(), Some(&picture()));
     history(&mut session, HistoryIntent::Undo);
     assert_eq!(
         names(session.artwork()),

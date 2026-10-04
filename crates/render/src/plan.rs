@@ -5,10 +5,11 @@
 
 use std::ops::Range;
 
+use crate::affine::Affine;
 use crate::geom::PixelRect;
 use crate::output::Output;
 use crate::protocol::{FRESH, TILE, TileRecord};
-use crate::scene::{Fresh, Item, Scene};
+use crate::scene::{Fresh, Scene};
 
 #[derive(Debug, Default)]
 pub(crate) struct Plan {
@@ -16,6 +17,8 @@ pub(crate) struct Plan {
     /// Scene item indices, or fresh op indices with the `FRESH` bit; each tile owns
     /// `start..start + count`.
     pub(crate) indices: Vec<u32>,
+    /// The most moved selections any tile sets aside at once (`MOVE_DEPTH` at most).
+    pub(crate) deepest: u32,
 }
 
 impl Plan {
@@ -31,96 +34,36 @@ impl Plan {
         regions: &[PixelRect],
     ) -> Self {
         let grid = Grid::new(size, output, regions);
-        let lists = Self::bin(&grid, &scene.items, 0, fresh);
-        Self::flatten(&grid.origins, lists)
-    }
-
-    /// Per evaluated tile, the indices (from `first` on) of `items` that reach it, in order.
-    /// A layer's end lists where its ops reached, a chain's end where its layers' ends did, a
-    /// group's end where its layers' and chains' ends did: each end resets what it closes, so
-    /// a tile nothing reached keeps no state from an earlier one.
-    fn bin(grid: &Grid, items: &[Item], first: u32, fresh: &Fresh) -> Vec<Vec<u32>> {
-        let mut lists = vec![Vec::new(); grid.origins.len()];
-        let mut stroke = Touched::new(lists.len());
-        let mut layer = Touched::new(lists.len());
-        let mut chain = Touched::new(lists.len());
-        let mut group = Touched::new(lists.len());
-        let mut fresh_lists = Some(grid.bin(fresh));
-        for (index, item) in items.iter().enumerate() {
-            let index = u32::try_from(index)
-                .unwrap_or(u32::MAX)
-                .saturating_add(first);
-            match item {
-                Item::Segment { bounds, .. } => {
-                    for slot in grid.slots(&bounds.pixels()) {
-                        lists[slot].push(index);
-                        stroke.touch(slot);
-                    }
-                }
-                Item::Reach(bounds) => {
-                    for slot in grid.slots(&bounds.pixels()) {
-                        stroke.touch(slot);
-                    }
-                }
-                Item::EndStroke(_) | Item::Smudge(_) => {
-                    close_into(&mut stroke, (&mut lists, index), Some(&mut layer));
-                }
-                Item::Fill { bounds, .. } => {
-                    for slot in grid.slots(&bounds.pixels()) {
-                        lists[slot].push(index);
-                        layer.touch(slot);
-                    }
-                }
-                Item::Active => {
-                    let binned = fresh_lists.take().unwrap_or_default();
-                    for (slot, mut list) in binned.into_iter().enumerate() {
-                        list.push(FRESH);
-                        lists[slot].append(&mut list);
-                        layer.touch(slot);
-                    }
-                }
-                Item::EndLayer {
-                    chain: chained,
-                    grouped,
-                    ..
-                } => {
-                    let into = if *chained {
-                        Some(&mut chain)
-                    } else {
-                        grouped.then_some(&mut group)
-                    };
-                    close_into(&mut layer, (&mut lists, index), into);
-                }
-                Item::EndChain { grouped, .. } => {
-                    let into = grouped.then_some(&mut group);
-                    close_into(&mut chain, (&mut lists, index), into);
-                }
-                Item::EndGroup(_) => close_into(&mut group, (&mut lists, index), None),
-                Item::BeginMask(_) => begin_mask(&mut layer, (&mut lists, index)),
-            }
-        }
-        lists
+        let (lists, deepest) = Binner::new(&grid, None).bin(&scene.items, 0, fresh);
+        Self::flatten(&grid.origins, lists, deepest)
     }
 
     /// One layer's pixels before a smudge: the scene's `items` (that layer's ops before it),
     /// then in every tile the evaluation's fresh op 0, which ends the layer at full opacity.
+    /// The smudge's pixels lie on the canvas by `to_canvas` (under transform records), so the
+    /// target's pixels are those and the items' bounds are mapped back to them.
     pub(crate) fn material(
         scene: &Scene,
-        items: Range<usize>,
+        (items, to_canvas): (Range<usize>, Affine),
         size: [u32; 2],
         regions: &[PixelRect],
     ) -> Self {
         let first = u32::try_from(items.start).unwrap_or(u32::MAX);
         let grid = Grid::new(size, Output::CANVAS, regions);
-        let mut lists = Self::bin(&grid, &scene.items[items], first, &Fresh::default());
+        let view = (!to_canvas.is_identity()).then(|| to_canvas.inverse());
+        let binner = Binner::new(&grid, view);
+        let (mut lists, deepest) = binner.bin(&scene.items[items], first, &Fresh::default());
         for list in &mut lists {
             list.push(FRESH);
         }
-        Self::flatten(&grid.origins, lists)
+        Self::flatten(&grid.origins, lists, deepest)
     }
 
-    fn flatten(origins: &[[u32; 2]], lists: Vec<Vec<u32>>) -> Self {
-        let mut plan = Self::default();
+    fn flatten(origins: &[[u32; 2]], lists: Vec<Vec<u32>>, deepest: u32) -> Self {
+        let mut plan = Self {
+            deepest,
+            ..Self::default()
+        };
         for (origin, list) in origins.iter().zip(lists) {
             let start = u32::try_from(plan.indices.len()).unwrap_or(u32::MAX);
             let count = u32::try_from(list.len()).unwrap_or(u32::MAX);
@@ -205,34 +148,7 @@ impl Grid {
     }
 }
 
-/// An end: listed in every slot `from` reached, which `into` (what the end composites into)
-/// has then reached too.
-fn close_into(
-    from: &mut Touched,
-    (lists, index): (&mut [Vec<u32>], u32),
-    into: Option<&mut Touched>,
-) {
-    let slots = from.close();
-    for slot in &slots {
-        lists[*slot].push(index);
-    }
-    if let Some(into) = into {
-        for slot in slots {
-            into.touch(slot);
-        }
-    }
-}
-
-/// A mask's start: listed where the layer's paint reached, which its end lists again, as it
-/// does wherever the mask's ops reach (with no paint there, it shows nothing).
-fn begin_mask(layer: &mut Touched, (lists, index): (&mut [Vec<u32>], u32)) {
-    for slot in layer.close() {
-        lists[slot].push(index);
-        layer.touch(slot);
-    }
-}
-
-/// The slots one stroke or layer has reached so far, each listed once.
+/// The slots one stroke, layer or move has reached so far, each listed once.
 struct Touched {
     /// Per slot, the epoch it was last touched in.
     marks: Vec<u32>,
@@ -256,12 +172,20 @@ impl Touched {
         }
     }
 
+    fn has(&self, slot: usize) -> bool {
+        self.marks[slot] == self.epoch
+    }
+
     /// The touched slots in first-touch order; starts a new epoch.
     fn close(&mut self) -> Vec<usize> {
         self.epoch += 1;
         std::mem::take(&mut self.slots)
     }
 }
+
+#[path = "plan_bin.rs"]
+mod bin;
+use bin::Binner;
 
 #[cfg(test)]
 #[path = "plan_tests.rs"]

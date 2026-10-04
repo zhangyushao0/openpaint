@@ -129,8 +129,10 @@ fn edge_lookup(rect: MaskRect, point: vec2<i32>) -> f32 {
 // the edge: each subsample's field over its width, from half outside to half inside.
 fn edge_share(values: array<f32, 9>, local: vec2<f32>) -> f32 {
     var field = values;
-    let half = 0.5 * params.inverse;
-    let ramp = f32(EDGE_SAMPLES) * params.scale;
+    // The output pixel in the fill's pixels; shrunk below one (a transform record shrinking
+    // it) the window holds one pixel's footprint, so the edge ramps over a fill pixel.
+    let half = 0.5 * min(foot_inverse, 1.0);
+    let ramp = f32(EDGE_SAMPLES) * max(foot_scale, 1.0);
     var sum = 0.0;
     for (var k = 0u; k < EDGE_SAMPLES * EDGE_SAMPLES; k++) {
         let step = vec2<f32>(f32(k % EDGE_SAMPLES), f32(k / EDGE_SAMPLES));

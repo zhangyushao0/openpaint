@@ -6,16 +6,18 @@ use std::path::PathBuf;
 use openpaint_app::{Thumbnail, Title};
 use openpaint_core::{
     AccumulationParts, ArtworkParts, BlendMode, BrushRecipe, EditParts, FillParts, GroupParts,
-    LayerMaskParts, LayerParts, MaskParts, PaperParts, PaperTexture, RecipeParts, SampleParts,
-    StrokeBlend, StrokeParts, Tip, TransformParts,
+    LayerMaskParts, LayerParts, MaskParts, PaperParts, PaperTexture, PatchParts, RecipeParts,
+    SampleParts, StrokeBlend, StrokeParts, Tip, TransformParts,
 };
 
 mod dump;
 mod editor;
 mod schema_12;
+mod schema_13;
 pub use dump::{decode, encode};
 pub use editor::{sample_editor, sample_editor_6, sample_editor_9, upgraded_editor};
-pub use schema_12::parts;
+pub use schema_12::schema_12_parts;
+pub use schema_13::parts;
 
 pub type Records = Vec<(String, Vec<u8>, Vec<u8>)>;
 
@@ -353,9 +355,11 @@ pub fn schema_8_parts() -> ArtworkParts {
                 size: [4, 3],
                 runs: vec![1, 10, 1],
             }),
-            origin: [4, 6],
-            size: [4, 3],
-            pixels: pixels(12),
+            patch: Some(PatchParts {
+                origin: [4, 6],
+                size: [4, 3],
+                pixels: pixels(12),
+            }),
             matrix: [0.0, -1.0, 1.0, 0.0],
             translation: [10.5, -2.25],
         }));
@@ -364,9 +368,11 @@ pub fn schema_8_parts() -> ArtworkParts {
         .push(EditParts::Transform(TransformParts {
             after: 0,
             lift: None,
-            origin: [40, 30],
-            size: [3, 2],
-            pixels: pixels(6),
+            patch: Some(PatchParts {
+                origin: [40, 30],
+                size: [3, 2],
+                pixels: pixels(6),
+            }),
             matrix: [-1.5, 0.0, 0.0, 1.5],
             translation: [100.0, -15.0],
         }));

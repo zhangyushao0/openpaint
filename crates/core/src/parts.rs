@@ -75,19 +75,26 @@ pub enum EditParts {
     Adjust(AdjustParts),
 }
 
-/// A transform as plain data: its place among the layer's strokes, what it lifted (`None`: the
-/// whole layer), the lifted pixels and where they went.
+/// A transform as plain data: its place among the layer's strokes, what it moved (`None`: the
+/// whole layer), where it went, and for an older transform or an inserted picture the pixels
+/// it placed.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TransformParts {
     pub after: u64,
     pub lift: Option<MaskParts>,
+    pub patch: Option<PatchParts>,
+    /// `[a, b, c, d]` and the translation, as `Placement::new` takes them.
+    pub matrix: [f32; 4],
+    pub translation: [f32; 2],
+}
+
+/// A transform's pixels as plain data (`Patch::new`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct PatchParts {
     pub origin: [u32; 2],
     pub size: [u32; 2],
     /// Premultiplied 8-bit RGBA, rows top first.
     pub pixels: Vec<u8>,
-    /// `[a, b, c, d]` and the translation, as `Placement::new` takes them.
-    pub matrix: [f32; 4],
-    pub translation: [f32; 2],
 }
 
 /// A fill as plain data: its place among the layer's strokes, its colour and its mask as runs
@@ -311,14 +318,15 @@ fn edit_parts(edit: &RegionEdit) -> EditParts {
             })
         }
         RegionEdit::Transform(transform) => {
-            let patch = transform.patch();
             let placement = transform.placement();
             EditParts::Transform(TransformParts {
                 after: transform.after() as u64,
                 lift: transform.lift().map(RegionMask::to_parts),
-                origin: patch.origin(),
-                size: patch.size(),
-                pixels: patch.pixels().to_vec(),
+                patch: transform.patch().map(|patch| PatchParts {
+                    origin: patch.origin(),
+                    size: patch.size(),
+                    pixels: patch.pixels().to_vec(),
+                }),
                 matrix: placement.matrix(),
                 translation: placement.translation(),
             })

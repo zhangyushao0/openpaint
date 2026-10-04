@@ -2,13 +2,14 @@
 
 use wgpu::util::DeviceExt;
 
+use crate::affine::Affine;
 use crate::edits::patch_bytes;
 use crate::error::RenderError;
 use crate::gpu::Gpu;
 use crate::output::Output;
 use crate::paper::paper_levels;
 use crate::plan::Plan;
-use crate::protocol::{Op, Params, Record, encode, prelude};
+use crate::protocol::{MOVE_DEPTH, Op, Params, Record, encode, prelude};
 use crate::readback::FORMAT;
 use crate::scene::Scene;
 
@@ -45,6 +46,9 @@ pub(crate) struct Dispatch<'a> {
     pub(crate) reset: bool,
     /// The smudge arena and the in-progress smudge's residual (`Smudges::residuals`).
     pub(crate) residuals: [&'a wgpu::Buffer; 2],
+    /// Where the target's pixel centres lie on the canvas: the identity, but for a smudge's
+    /// material seen from a transform record (S31).
+    pub(crate) base: Affine,
 }
 
 /// One canvas target's evaluation resources, kept between dispatches: buffers are rewritten
@@ -215,8 +219,20 @@ impl EvaluatePipeline {
         bindings: &mut Bindings,
         work: &Dispatch<'_>,
     ) -> Result<(), RenderError> {
+        if work.plan.deepest > MOVE_DEPTH {
+            return Err(RenderError::Invalid(
+                "moved selections lie over one another deeper than the evaluator holds",
+            ));
+        }
         let groups = workgroups(gpu, work.plan.tiles.len())?;
         let (origin, scale, inverse) = work.output.operands();
+        let [a, b, c, d, e, f] = work.base.rows();
+        let (foot, level) = if work.base.is_identity() {
+            (1.0, 0.0)
+        } else {
+            let canvas = work.base.scale();
+            ((1.0 / canvas) as f32, -canvas.log2() as f32)
+        };
         let params = Params {
             background: work.background,
             tiles: groups.tiles,
@@ -225,6 +241,8 @@ impl EvaluatePipeline {
             origin,
             scale,
             inverse,
+            base_x: [a, b, c, foot],
+            base_y: [d, e, f, level],
         };
         gpu.queue
             .write_buffer(&bindings.params, 0, &encode(&[params]));

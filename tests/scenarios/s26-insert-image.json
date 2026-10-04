@@ -65,7 +65,7 @@
     { "screenshot": { "name": "transformed-again" } },
     { "tap": { "at": "Flip Vertical" } },
     { "tap": { "at": "Transform" } },
-    { "checkpoint": { "name": "flipped", "canvas": "db7f0fc90b89f526" } },
+    { "checkpoint": { "name": "flipped", "canvas": "6b67fafc141245ff" } },
     { "screenshot": { "name": "flipped-screen" } },
     { "tap": { "at": "Actions" } },
     { "tap": { "at": "Save PNG…" } },
@@ -77,9 +77,9 @@
     { "system": "photo_jpeg" },
     { "screenshot": { "name": "photo-inserted" } },
     { "tap": { "at": "Transform" } },
-    { "checkpoint": { "name": "photo-committed", "canvas": "b08ce8eb4f42b000" } },
+    { "checkpoint": { "name": "photo-committed", "canvas": "ddcba6702e839528" } },
     "restart",
-    { "checkpoint": { "name": "reopened", "canvas": "b08ce8eb4f42b000" } },
+    { "checkpoint": { "name": "reopened", "canvas": "ddcba6702e839528" } },
     { "tap": { "at": "Layers" } },
     { "screenshot": { "name": "reopened-screen" } }
   ]

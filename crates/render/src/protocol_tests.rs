@@ -115,6 +115,8 @@ fn encoding_fills_exactly_the_record_size() {
         origin: [0, 0],
         scale: 1.0,
         inverse: 1.0,
+        base_x: [1.0, 0.0, 0.0, 1.0],
+        base_y: [0.0, 1.0, 0.0, 0.0],
     };
     assert_eq!(encode(&[params]).len(), size_of::<Params>());
 }

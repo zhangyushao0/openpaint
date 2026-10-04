@@ -125,8 +125,16 @@ fn transforms_round_trip_through_storage_and_bad_ones_are_rejected() {
         Artwork::from_storage(broken).is_err()
     };
     assert!(rejects(|edit| edit.after = 2), "past the strokes");
-    assert!(rejects(|edit| edit.origin = [38, 0]), "off the canvas");
-    assert!(rejects(|edit| edit.pixels.pop().map(drop).unwrap_or(())));
+    assert!(rejects(|edit| {
+        if let Some(patch) = &mut edit.patch {
+            patch.origin = [38, 0];
+        }
+    }));
+    assert!(rejects(|edit| {
+        if let Some(patch) = &mut edit.patch {
+            patch.pixels.pop();
+        }
+    }));
     assert!(rejects(|edit| edit.matrix = [0.0; 4]), "collapsed");
     assert!(rejects(|edit| {
         if let Some(lift) = &mut edit.lift {
@@ -148,5 +156,50 @@ fn a_transform_costs_its_pixels_in_history_and_later_versions_share_them() {
         drawn.bytes_since(&moved),
         draw(&base).bytes_since(&base),
         "the pixels are shared"
+    );
+}
+
+#[test]
+fn a_transform_record_holds_no_pixels_and_round_trips() {
+    let drawn = draw(&Artwork::new(canvas()));
+    let turned = Placement::around([5.0, 6.0], 3.0, 0.3, [false, true]).unwrap();
+    let whole = drawn.place_region(None, turned).unwrap().artwork;
+    let edit = whole.layer(drawn.active()).unwrap().edits()[0]
+        .transform()
+        .unwrap();
+    assert_eq!((edit.after(), edit.placement()), (1, turned));
+    assert!(edit.patch().is_none() && edit.lift().is_none(), "a record");
+    let mut inside = vec![false; 40 * 30];
+    inside[2 * 40 + 1..2 * 40 + 9].fill(true);
+    let lift = RegionMask::from_pixels(canvas(), &inside).unwrap();
+    let both = whole
+        .place_region(Some(lift.clone()), turned)
+        .unwrap()
+        .artwork;
+    println!(
+        "history bytes: whole {}, selection {} ({} mask bytes)",
+        whole.bytes_since(&drawn),
+        both.bytes_since(&whole),
+        size_of_val(lift.words())
+    );
+    // A version's own records (under a kilobyte) and, for the selection, its mask's words.
+    assert!(whole.bytes_since(&drawn) < 1024);
+    assert!(both.bytes_since(&whole) < 1024 + size_of_val(lift.words()));
+    let parts = both.to_parts();
+    let EditParts::Transform(stored) = &parts.layers[0].edits[1] else {
+        panic!("a transform");
+    };
+    assert!(stored.patch.is_none());
+    let loaded = Artwork::from_storage(parts.clone()).unwrap();
+    assert_eq!(loaded, both);
+    assert_eq!(loaded.to_parts(), parts);
+    let lock = LayerCommand::SetLocked {
+        layer: drawn.active(),
+        locked: true,
+    };
+    let locked = drawn.apply(ArtworkCommand::Layer(lock)).unwrap().artwork;
+    assert_eq!(
+        locked.place_region(None, turned),
+        Err(CoreError::LayerLocked(drawn.active()))
     );
 }

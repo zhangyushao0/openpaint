@@ -10,10 +10,11 @@ use openpaint_core::{
     StrokeTool,
 };
 
+use crate::affine::Affine;
 use crate::error::RenderError;
 use crate::geom::Bounds;
 use crate::protocol::{LayerInto, MASK_HEADER, Op};
-use crate::scene_layer::{LayerOps, smudge_count};
+use crate::scene_layer::LayerOps;
 use crate::stroke::{paint, segments};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -52,6 +53,32 @@ pub(crate) enum Item {
     Reach(Bounds),
     /// A smudge's residual applied to its layer, in every tile its reach touched.
     Smudge(Op),
+    /// The items after it, up to the next frame, lie in a transform record's earlier content
+    /// (S31): their bounds are its pixels, `to_canvas` maps them to the canvas, and only what
+    /// lies in `clip` (its pixels; `None`: all) can show. Its op moves where they are evaluated.
+    Frame {
+        op: Op,
+        to_canvas: Affine,
+        clip: Option<Bounds>,
+    },
+    /// A moved selection's content starts; the layer so far is set aside. Listed only where
+    /// the layer had something to set aside: elsewhere the moved content starts from nothing
+    /// on its own (`MovedOnly`).
+    BeginMove(Op),
+    /// A moved content's end: cut to its selection and laid over what was set aside, or
+    /// (`whole`) cut to the canvas, for a whole layer's.
+    EndMove {
+        op: Op,
+        whole: bool,
+    },
+    /// The same selection's end where nothing was set aside: only cut to the selection.
+    MovedOnly(Op),
+    /// What a transform lifted cleared from the layer: an erasing fill, which never adds
+    /// anything to set aside.
+    Clear {
+        op: Op,
+        bounds: Bounds,
+    },
 }
 
 impl Item {
@@ -65,7 +92,12 @@ impl Item {
             | Self::EndChain { op, .. }
             | Self::EndGroup(op)
             | Self::BeginMask(op)
-            | Self::Smudge(op) => *op,
+            | Self::Smudge(op)
+            | Self::Frame { op, .. }
+            | Self::BeginMove(op)
+            | Self::EndMove { op, .. }
+            | Self::MovedOnly(op)
+            | Self::Clear { op, .. } => *op,
             Self::Active | Self::Reach(_) => Op::unused(),
         }
     }
@@ -79,10 +111,16 @@ pub(crate) struct SmudgeItem {
     /// It smudges the layer's mask, not its paint.
     pub(crate) on_mask: bool,
     pub(crate) stroke: Stroke,
-    /// The items of its layer before it: the pixels it carries.
+    /// The items of its layer before it: the pixels it carries. A smudge a transform record
+    /// shows again, in the content it moved, takes the residual of its first place.
     pub(crate) before: Range<usize>,
     /// It is its layer's newest stroke.
     pub(crate) newest: bool,
+    /// Where its pixels lie on the canvas: the identity, but under transform records.
+    pub(crate) to_canvas: Affine,
+    /// Its item and its clip as its op names it.
+    pub(crate) item: usize,
+    pub(crate) clip: u32,
 }
 
 /// Bottom layer first; inside a layer, finished strokes oldest first with each fill after the
@@ -104,9 +142,12 @@ pub(crate) struct Scene {
     pub(crate) patches: Vec<Patch>,
     pub(crate) patch_words: usize,
     /// The finished smudges, and where in the mask words their residuals' bases are written
-    /// (one word each, in order, filled in after the scene is uploaded).
+    /// (one word each, in order, after every other word; filled in after the scene is
+    /// uploaded).
     pub(crate) smudges: Vec<SmudgeItem>,
     pub(crate) bases_at: u32,
+    /// While building: the frame the items pushed now lie in (`Item::Frame`).
+    pub(crate) frame: (Affine, Option<Bounds>),
     /// The items of the in-progress stroke's layer before its place.
     pub(crate) active_before: Option<Range<usize>>,
     /// The fills' edge values, in order; and while building, an earlier scene's, which a fill
@@ -175,8 +216,6 @@ impl Scene {
         let layers = artwork.layers();
         let drawn = drawn(artwork);
         let ops = shown_ops;
-        let shown = layers.iter().zip(&drawn).filter(|(_, drawn)| **drawn);
-        scene.reserve_bases(shown.map(|(layer, _)| smudge_count(&ops(layer))).sum());
         let mut base = 0;
         for (index, layer) in layers.iter().enumerate() {
             let (props, clipped) = (layer.props(), artwork.clips_at(index));
@@ -217,6 +256,7 @@ impl Scene {
             }
         }
         scene.known.clear();
+        scene.place_bases()?;
         Ok(scene)
     }
 
@@ -240,19 +280,15 @@ impl Scene {
         };
         match layer.mask().filter(|_| mask) {
             Some(mask) => {
-                scene.reserve_bases(smudge_count(&LayerOps::of(layer, Some(mask))));
                 let content = (mask.strokes(), mask.edits());
-                scene.push_content(layer.id(), content, 0, false, true)?;
+                scene.push_content(layer.id(), content, false, true)?;
                 if !scene.items.is_empty() {
                     scene.items.push(end);
                 }
             }
-            None => {
-                let ops = LayerOps::of(layer, None);
-                scene.reserve_bases(smudge_count(&ops));
-                scene.push_layer(&ops, None, end)?;
-            }
+            None => scene.push_layer(&LayerOps::of(layer, None), None, end)?,
         }
+        scene.place_bases()?;
         Ok(scene)
     }
 
@@ -263,12 +299,6 @@ impl Scene {
             canvas: [canvas.width(), canvas.height()],
             ..Self::default()
         }
-    }
-
-    /// The first mask words, one per smudge: where their residuals start in the arena.
-    fn reserve_bases(&mut self, count: usize) {
-        self.bases_at = 0;
-        self.masks.resize(count, 0);
     }
 
     /// Appends `mask` to the mask words; returns where it starts.

@@ -8,7 +8,7 @@ use super::schema_11_parts;
 /// after both its strokes, hue, saturation and brightness inside a selection; on its inverted
 /// mask, after both its strokes, curves; on the ink layer's mask, after its black stroke, hue,
 /// saturation and brightness over the whole mask.
-pub fn parts() -> ArtworkParts {
+pub fn schema_12_parts() -> ArtworkParts {
     let mut parts = schema_11_parts();
     let adjust = |after, clip, inverted, adjustment| {
         EditParts::Adjust(AdjustParts {

@@ -1,12 +1,13 @@
 //! A layer's region edits as scene ops. A fill paints its colour inside its mask's smoothed
-//! edge (`fill_edge.rs`). A transform clears what it lifted (an erasing fill over its
-//! selection, a hard edge; for the whole layer nothing before it is drawn at all, `restart`)
-//! and draws its patch through its placement (`Patch`). An adjustment changes the layer's
-//! colours so far, inside its clip (`scene_adjust.rs`).
+//! edge (`fill_edge.rs`). A transform with pixels clears what it lifted (an erasing fill over
+//! its selection, a hard edge; for the whole layer nothing before it is drawn at all,
+//! `restart`) and draws its patch through its placement (`Patch`); a transform record shows
+//! the layer's earlier content where it moved it (`scene_content.rs`). An adjustment changes
+//! the layer's colours so far, inside its clip (`scene_adjust.rs`).
 
 use std::sync::Arc;
 
-use openpaint_core::{CanvasSize, Layer, RegionEdit, RegionMask, TransformEdit};
+use openpaint_core::{Patch, Placement, RegionEdit, RegionMask, TransformEdit};
 
 use crate::error::RenderError;
 use crate::fill_edge::edge_words;
@@ -34,17 +35,27 @@ impl Scene {
                 self.push_fill(fill.mask(), &paint)
             }
             RegionEdit::Transform(transform) => {
+                // A record's ops come from the content it moves (`push_level`).
+                let Some(patch) = transform.patch() else {
+                    return Ok(());
+                };
                 if let Some(lift) = transform.lift() {
-                    // A hard edge: the patch holds exactly the lifted pixels.
-                    let at = self.push_mask(lift)?;
-                    self.items.push(Item::Fill {
-                        op: Op::fill(&Paint::solid([0.0; 3], Blend::Erase), at, None),
-                        bounds: mask_bounds(lift),
-                    });
+                    self.push_lift(lift)?;
                 }
-                self.push_patch(transform)
+                self.push_patch(patch, transform.placement())
             }
         }
+    }
+
+    /// Clears `lift` from the layer: an erasing fill with a hard edge, as what a transform
+    /// lifted holds exactly the mask's pixels.
+    pub(crate) fn push_lift(&mut self, lift: &RegionMask) -> Result<(), RenderError> {
+        let at = self.push_mask(lift)?;
+        self.items.push(Item::Clear {
+            op: Op::fill(&Paint::solid([0.0; 3], Blend::Erase), at, None),
+            bounds: mask_bounds(lift),
+        });
+        Ok(())
     }
 
     /// `paint` over the layer inside `mask`'s smoothed edge: the mask's words, then its edge
@@ -83,8 +94,7 @@ impl Scene {
         Ok(())
     }
 
-    fn push_patch(&mut self, transform: &TransformEdit) -> Result<(), RenderError> {
-        let patch = transform.patch();
+    fn push_patch(&mut self, patch: &Patch, placement: Placement) -> Result<(), RenderError> {
         // Below 2^32, so its two halves stay exact.
         let at = u32::try_from(self.patch_words)
             .ok()
@@ -93,25 +103,34 @@ impl Scene {
         let [width, height] = patch.size();
         self.patch_words += (MASK_HEADER + width * height) as usize;
         self.patches.push(patch.clone());
-        let rows = transform.placement().inverse_rows();
+        let rows = placement.inverse_rows();
         self.items.push(Item::Fill {
             op: Op::patch(rows, at),
-            bounds: placed_bounds(transform),
+            bounds: placed_bounds(patch_rect(patch), placement),
         });
         Ok(())
     }
 }
 
-/// Where a layer's ops start: past everything a transform of the whole layer cleared, as the
-/// index of the last such edit and the strokes under it; `(0, 0)` without one.
-pub(crate) fn restart(layer: &Layer) -> (usize, usize) {
-    layer
-        .edits()
+/// Where content's ops start: past everything a transform of the whole layer with pixels
+/// cleared, as the index of the last such edit among `edits` and the strokes under it; `(0, 0)`
+/// without one.
+pub(crate) fn restart(edits: &[RegionEdit]) -> (usize, usize) {
+    edits
         .iter()
         .enumerate()
         .rev()
-        .find(|(_, edit)| edit.transform().is_some_and(|t| t.lift().is_none()))
+        .find(|(_, edit)| {
+            edit.transform()
+                .is_some_and(|t| t.lift().is_none() && t.patch().is_some())
+        })
         .map_or((0, 0), |(index, edit)| (index, edit.after()))
+}
+
+/// A patch's rectangle as bounds: its pixels' area.
+fn patch_rect(patch: &Patch) -> [f32; 4] {
+    let ([x, y], [w, h]) = (patch.origin(), patch.size());
+    [x as f32, y as f32, (x + w) as f32, (y + h) as f32]
 }
 
 /// A mask's pixels, from their top-left corner to past their bottom-right one.
@@ -125,14 +144,11 @@ pub(crate) fn mask_bounds(mask: &RegionMask) -> Bounds {
     ])
 }
 
-/// Where a transform's patch can show: its rectangle widened by one pixel (what bilinear
-/// sampling reaches), through its placement.
-fn placed_bounds(transform: &TransformEdit) -> Bounds {
-    let patch = transform.patch();
-    let ([x, y], [w, h]) = (patch.origin(), patch.size());
-    let (x0, y0) = (x as f32 - 1.0, y as f32 - 1.0);
-    let (x1, y1) = ((x + w) as f32 + 1.0, (y + h) as f32 + 1.0);
-    let placement = transform.placement();
+/// Where the content of the rectangle `[x0, y0, x1, y1]` can show through `placement`: the
+/// rectangle widened by one pixel (what bilinear sampling and an antialiased edge reach),
+/// through the placement.
+fn placed_bounds([x0, y0, x1, y1]: [f32; 4], placement: Placement) -> Bounds {
+    let (x0, y0, x1, y1) = (x0 - 1.0, y0 - 1.0, x1 + 1.0, y1 + 1.0);
     let corners = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(|p| placement.apply(p));
     let mut bounds = [
         f32::INFINITY,
@@ -151,9 +167,10 @@ fn placed_bounds(transform: &TransformEdit) -> Bounds {
     Bounds(bounds)
 }
 
-/// The pixels an edit can change on `canvas`: a fill's mask rectangle; for a transform what it
-/// lifted (the whole canvas for the whole layer) and where its patch shows.
-pub(crate) fn edit_rect(canvas: CanvasSize, edit: &RegionEdit) -> PixelRect {
+/// The pixels an edit can change on a canvas of `canvas` pixels: a fill's mask rectangle; for
+/// a transform what it lifted (the whole canvas for the whole layer) and where its content
+/// shows.
+pub(crate) fn edit_rect(canvas: [u32; 2], edit: &RegionEdit) -> PixelRect {
     match edit {
         RegionEdit::Fill(fill) => {
             let rect = mask_bounds(fill.mask()).pixels();
@@ -165,21 +182,35 @@ pub(crate) fn edit_rect(canvas: CanvasSize, edit: &RegionEdit) -> PixelRect {
         }
         RegionEdit::Transform(transform) => {
             let lifted = transform.lift().map_or_else(
-                || PixelRect::full([canvas.width(), canvas.height()]),
+                || PixelRect::full(canvas),
                 |lift| mask_bounds(lift).pixels(),
             );
-            lifted.union(&placed_rect(transform))
+            let moved = moved_rect(canvas, transform);
+            lifted.union(&placed_rect(moved, transform.placement()))
         }
         RegionEdit::Adjust(adjust) => adjust.clip().map_or_else(
-            || PixelRect::full([canvas.width(), canvas.height()]),
+            || PixelRect::full(canvas),
             |clip| mask_bounds(clip).pixels(),
         ),
     }
 }
 
-/// Where a transform's patch shows.
-pub(crate) fn placed_rect(transform: &TransformEdit) -> PixelRect {
-    placed_bounds(transform).pixels()
+/// What a transform's content can cover before it moves, as `[x0, y0, x1, y1]`: its patch's
+/// rectangle, or for a record its selection's rectangle or the canvas.
+pub(crate) fn moved_rect([width, height]: [u32; 2], transform: &TransformEdit) -> [f32; 4] {
+    match (transform.patch(), transform.lift()) {
+        (Some(patch), _) => patch_rect(patch),
+        (None, Some(lift)) => {
+            let ([x, y], [w, h]) = (lift.origin(), lift.size());
+            [x as f32, y as f32, (x + w) as f32, (y + h) as f32]
+        }
+        (None, None) => [0.0, 0.0, width as f32, height as f32],
+    }
+}
+
+/// Where content within `rect` (`[x0, y0, x1, y1]`) shows through `placement`.
+pub(crate) fn placed_rect(rect: [f32; 4], placement: Placement) -> PixelRect {
+    placed_bounds(rect, placement).pixels()
 }
 
 /// The patch words of `scene`'s patches as GPU bytes: per patch its header, then its pixels.
