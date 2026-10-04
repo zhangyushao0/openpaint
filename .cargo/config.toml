@@ -4,6 +4,8 @@ xtask = "run --quiet --package xtask --"
 gate = "xtask gate"
 # Replay tests/scenarios/<name>.json through the frame loop offscreen (see apps/harness).
 scenario = "run --quiet --package openpaint-harness -- scenario"
+# Every tests/scenarios/*.json in one process: one line each, the full report of each failure.
+scenarios = "run --quiet --package openpaint-harness -- scenario --all"
 # Structural rules the compiler cannot enforce (see xtask/src/check/rules.rs).
 repo-check = "xtask check"
 # The tablet APK: Rust library through cargo-ndk, then Gradle (see xtask/src/android.rs).

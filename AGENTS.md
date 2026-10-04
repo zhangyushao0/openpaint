@@ -34,6 +34,7 @@ Do not rebuild the big picture from source; the module map is in ARCHITECTURE. D
 | 2 | `cargo test -p <crate> [filter]` | the tests this slice touches |
 | 3 | `cargo gate` | once before the commit: fmt, clippy, all tests, repo-check |
 
+- Scenarios: `cargo scenario <name>` replays one; `cargo scenarios` replays all in one process (about 2 min), one line each.
 - When tier 3 fails, go back to tier 1 to fix; do not rerun tier 3 repeatedly.
 - Read the exit code. Never judge a pass from gate output piped through `tail` or `grep`.
 - Fix clippy findings in code; no `#[allow]`. A justified exception is `#[expect(lint, reason = "...")]`.

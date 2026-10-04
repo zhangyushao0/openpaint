@@ -35,6 +35,11 @@ pub enum HarnessError {
     },
     /// Steps touched controls by window pixels instead of naming them.
     Unnamed(usize),
+    /// `scenario --all` ran every scenario and some failed.
+    Scenarios {
+        failed: usize,
+        total: usize,
+    },
 }
 
 impl fmt::Display for HarnessError {
@@ -58,6 +63,9 @@ impl fmt::Display for HarnessError {
             }
             Self::Unnamed(count) => {
                 write!(f, "{count} steps touch a control by pixels; name it")
+            }
+            Self::Scenarios { failed, total } => {
+                write!(f, "{failed} of {total} scenarios failed")
             }
         }
     }
