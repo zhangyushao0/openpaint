@@ -39,11 +39,17 @@ Passed 2026-10-03: S9 to S17 and the G2 follow-ups done (see "Done"); the author
 
 Exit: the author finishes painterly shading (W2) and a complex composition revision (W3) on the tablet.
 
-S18 to S24 are done (see "Done"); S21's 60 Hz holds up to about 340 px and fails at the largest sizes, an author decision (STATUS). The G3 exit (W2, W3) awaits the author on the tablet.
+S18 to S24 are done (see "Done"); S21's 60 Hz holds up to about 340 px and fails at the largest sizes, an author decision (STATUS). Before the exit, from the author's first try on the tablet (2026-10-04):
+
+**S25 One ring rule for text controls** (ui): the ink ring means "chosen" for words as it does for icons. A choice among words (Freehand / Rectangle, the blend modes, any `text_choice`) is bare text at rest and the chosen word carries an ink pill in the icon ring's weight; one-shot commands (Invert, Deselect, Clear, Group, the transform bar's buttons, dialog buttons) are bare text with the press wash and acknowledge, set after a thin divider when they share a bar with a choice; no frame-in-frame anywhere. Done: every screen's screenshots reviewed (selection bar, transform bar, layer options and mask footer, fill bar, dialogs, gallery), hit targets unchanged at 48 points, every scenario passes on names (hashes of canvas checkpoints unchanged).
+
+**S26 Insert an image** (store, core, app, render, ui, android): Actions gains "Insert image…" (the system picker, PNG and JPEG, Procreate's Insert a photo): the picture becomes a new layer above the active one, fitted inside the canvas, and the transform opens on it at once; one undo removes it; it reopens, exports, masks, clips and transforms like painted content. The picture's pixels are stored once in the library (format change, migration and frozen sample). Done: walk-through scenario with a fixture image, GPU test of the placed picture (incremental = cold), migration test, tablet walk-through with a picture from `openpaint-test`, the author's library upgraded pixel-identical.
+
+Then the G3 exit (W2, W3) by the author on the tablet.
 
 ## G4 Colour, adjustments, exchange
 
-**S25 Colour management**: P3 display, import interpretation and export conversion defined separately. **S26 Adjustments**: hue/saturation/brightness, curves, blur, sharpen, each with preview, cancel and history. **S27 Project exchange**: the native format as the full original; OpenRaster import and export. **S28 Library management**: search, version restore, external backup.
+**S27 Colour management**: P3 display, import interpretation and export conversion defined separately. **S28 Adjustments**: hue/saturation/brightness, curves, blur, sharpen, each with preview, cancel and history. **S29 Project exchange**: the native format as the full original; OpenRaster import and export. **S30 Library management**: search, version restore, external backup.
 Exit: the author completes edit, restore and delivery (W4).
 
 ## G5 Stability and release
