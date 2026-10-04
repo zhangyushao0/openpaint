@@ -43,7 +43,7 @@ Passed 2026-10-04: S18 to S26 and the G3 follow-ups done (see "Done"); the autho
 
 ## G4 Colour, adjustments, exchange
 
-S27 Colour management is done (see "Done"). **S28 Adjustments**: hue/saturation/brightness, curves, blur, sharpen, each with preview, cancel and history. **S29 Project exchange**: the native format as the full original; OpenRaster import and export. **S30 Library management**: search, version restore, external backup.
+S27 Colour management is done (see "Done"). **S28 Adjustments**: hue/saturation/brightness, curves, blur, sharpen, each with preview, cancel and history. **S29 Project exchange**: the native format as the full original; OpenRaster import and export. **S30 Library management**: search, version restore, external backup. **S31 Ten-bit display**: the canvas cache and the surface at 10 bits per channel (Rgb10a2) so soft gradients show without banding; artworks stay sRGB (author, 2026-10-04: no P3 working space, work is made to be seen by others), exports stay 8-bit sRGB, the format is unchanged.
 Exit: the author completes edit, restore and delivery (W4).
 
 ## G5 Stability and release
@@ -80,7 +80,7 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - 2026-10-03 Smudge follow-ups (S21): large smudges are slow (600 px: frame work p50 21 to 28 ms; the contacts' kernels grow with the radius squared, and the footprint is evaluated again over everything beneath, as for a large paint brush); a coarser residual grid for large radii, fused stamp and commit, or a size cap are the levers (author's call, STATUS). Reopening evaluates every smudge cold; residual memory (20 bytes per pixel of its tiles) is never trimmed below the arena's live blocks; a smudge reads only its own layer (Procreate can sample all layers).
 - 2026-10-04 Mask follow-ups (S24): move a mask with its layer's whole-layer transform (Procreate links them) and transform a mask on its own; masks on groups; apply a mask into its layer (with merging); a mask thumbnail on its row; a grey-only colour panel while a mask is chosen (Procreate) instead of the colour's luma; swipe a mask row to delete.
 - 2026-10-04 Insert follow-ups (S26): keep an inserted picture's own pixels (an asset, a format change) so later transforms resample from them, not from the layer; a turn handle that stays reachable when the frame meets the top band; Procreate's Insert a file and pasting; decoding large photos in tiles instead of whole.
-- 2026-10-04 Colour follow-ups (S27): PNG `gAMA`/`cHRM`/`cICP` without `iCCP`, grey ICC profiles and CMYK JPEGs' profiles (taken as sRGB today); converting 16-bit PNGs before reducing them to 8 bits; a P3 working space, a 10-bit or f16 surface and deeper stored pixels wait for the author (STATUS).
+- 2026-10-04 Colour follow-ups (S27): PNG `gAMA`/`cHRM`/`cICP` without `iCCP`, grey ICC profiles and CMYK JPEGs' profiles (taken as sRGB today); converting 16-bit PNGs before reducing them to 8 bits; deeper stored pixels (16-bit patches, fills and images) if S28's adjustments show banding; no P3 working space (author, 2026-10-04); the 10-bit surface is S31.
 - 2026-10-02 Pen stroke cancelled by a landing touch: with injected input the dispatcher cancels the pen's gesture when a touch lands mid-stroke and the stroke is dropped; if real hardware does the same, commit the stroke drawn so far on such a cancel.
 
 ## Done
