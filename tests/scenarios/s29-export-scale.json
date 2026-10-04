@@ -24,12 +24,12 @@
     { "tap": { "at": "Insert image…" } },
     { "system": "cutout_png" },
     { "tap": { "at": "Transform" } },
-    { "checkpoint": { "name": "drawn", "canvas": "50b91fd27d61c75e" } },
+    { "checkpoint": { "name": "drawn", "canvas": "dc2f2342c8bc4ad4" } },
     { "tap": { "at": "Actions" } },
     { "screenshot": { "name": "actions-1x" } },
     { "tap": { "at": "Save PNG…" } },
     { "system": "choose_file" },
-    { "exported": { "name": "png-1x", "pixels": "50b91fd27d61c75e" } },
+    { "exported": { "name": "png-1x", "pixels": "dc2f2342c8bc4ad4" } },
     { "tap": { "at": "Actions" } },
     { "screenshot": { "name": "actions-reopened" } },
     { "tap": { "at": "2×" } },
@@ -52,7 +52,7 @@
     { "tap": { "at": "Save JPEG…" } },
     { "system": "choose_file" },
     { "exported": { "name": "jpeg-2x", "scale": 2 } },
-    { "checkpoint": { "name": "delivered", "canvas": "50b91fd27d61c75e" } },
+    { "checkpoint": { "name": "delivered", "canvas": "dc2f2342c8bc4ad4" } },
     { "screenshot": { "name": "delivered-screen" } }
   ]
 }

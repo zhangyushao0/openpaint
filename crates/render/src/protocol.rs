@@ -33,6 +33,8 @@ const SEGMENT_TIP: usize = 11;
 /// Where a fill's mask starts in the mask words, split in two whole numbers below 2^16 (high
 /// part first) so each stays exact as a float.
 const FILL_MASK: usize = 7;
+/// A smoothed fill edge's canvas width and height (S30); 0 for a hard edge (a transform's lift).
+const FILL_EDGE: usize = 9;
 /// Where a patch starts in the patch words, split like `FILL_MASK`.
 const PATCH_AT: usize = 6;
 /// A smudge: the mask word holding where its residual starts in the arena, split like
@@ -41,7 +43,7 @@ const PATCH_AT: usize = 6;
 const SMUDGE_AT: usize = 0;
 const SMUDGE_LOCKED: usize = 2;
 const SMUDGE_ACTIVE: usize = 3;
-const SLOTS: [(&str, usize); 16] = [
+const SLOTS: [(&str, usize); 17] = [
     ("PAINT_OPACITY", PAINT_OPACITY),
     ("PAINT_GRAIN", PAINT_GRAIN),
     ("PAINT_GRAIN_SCALE", PAINT_GRAIN_SCALE),
@@ -54,6 +56,7 @@ const SLOTS: [(&str, usize); 16] = [
     ("SEGMENT_CONTACT", SEGMENT_CONTACT),
     ("SEGMENT_TIP", SEGMENT_TIP),
     ("FILL_MASK", FILL_MASK),
+    ("FILL_EDGE", FILL_EDGE),
     ("PATCH_AT", PATCH_AT),
     ("SMUDGE_AT", SMUDGE_AT),
     ("SMUDGE_LOCKED", SMUDGE_LOCKED),
@@ -116,8 +119,9 @@ pub(crate) enum Opcode {
     /// texel joins the current coverage (the new segments' maximum), the result is stored back
     /// for the next evaluation, then it is painted like `EndStroke`.
     EndActive = 3,
-    /// A fill: its colour painted over the current layer wherever its mask holds the pixel
-    /// (coverage exactly 1 or 0), like a stroke's paint op.
+    /// A fill: its colour painted over the current layer at the share of the output pixel its
+    /// mask's smoothed edge covers (`fill_edge.wgsl`), or, for a hard edge, exactly where its
+    /// mask holds the canvas pixel; like a stroke's paint op.
     Fill = 4,
     /// A transform's lifted pixels, sampled bilinearly where the pixel's centre maps back to,
     /// over the current layer (premultiplied source over).
@@ -184,8 +188,9 @@ impl Opcode {
 ///   `EndChain`: `[opacity, _, mode, grouped]`, the base's; `EndGroup`: `[opacity]`;
 ///   `BeginMask`: none.
 /// - `Fill`: a paint op's first seven operands, then where its mask starts in the mask words
-///   (`offset / 2^16`, `offset % 2^16`); the mask is `MASK_HEADER` words, then rows of
-///   `ceil(width / 32)` words, bit `x % 32` of word `x / 32`.
+///   (`offset / 2^16`, `offset % 2^16`), then the canvas size for a smoothed edge (`[0, 0]`:
+///   hard); the mask is `MASK_HEADER` words, then rows of `ceil(width / 32)` words, bit
+///   `x % 32` of word `x / 32`.
 /// - `Patch`: `[a, b, c, d, e, f, at / 2^16, at % 2^16]`: the pixel centre `(x, y)` samples
 ///   the patch at `(a x + b y + c, d x + e y + f)` in canvas pixels; the patch starts at word
 ///   `at` of the patch words: `MASK_HEADER` words, then one premultiplied RGBA8 word per
@@ -299,11 +304,15 @@ impl Op {
         Self::new(Opcode::EndActive, &paint.operands())
     }
 
-    /// A fill whose mask starts at word `mask` of the mask words.
-    pub(crate) fn fill(paint: &Paint, mask: u32) -> Self {
+    /// A fill whose mask starts at word `mask` of the mask words: with the canvas's size its
+    /// edge is smoothed, without (a transform's lift) hard.
+    pub(crate) fn fill(paint: &Paint, mask: u32, smoothed: Option<[u32; 2]>) -> Self {
         let mut data = [0.0; OP_DATA];
         data[..FILL_MASK].copy_from_slice(&paint.operands()[..FILL_MASK]);
         data[FILL_MASK..FILL_MASK + 2].copy_from_slice(&halves(mask));
+        // At most `MAX_CANVAS_SIDE`, exact as floats.
+        let [width, height] = smoothed.unwrap_or([0, 0]);
+        data[FILL_EDGE..FILL_EDGE + 2].copy_from_slice(&[width as f32, height as f32]);
         Self::new(Opcode::Fill, &data)
     }
 

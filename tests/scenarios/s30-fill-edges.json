@@ -1,0 +1,42 @@
+{
+  "walkthrough": [
+    "Goal: colour my line art flat and deliver it large; where the colour meets the ink there is no staircase and no light seam, on the canvas and in a 4× file.",
+    "Before: on the tablet's screen-size canvas I ink a closed circle and a flat, gently sloping quadrilateral with the Ink Pen in black, then choose red on the colour wheel and close the panel with a tap on the canvas.",
+    "Fill: drag the colour button into the circle and lift (ColorDrop, S15): the inside turns red up to the line and under its soft inner edge. Nothing new to learn: the same gesture, the same bar ('Continue filling'), the same one undo step.",
+    "Look: at 1× the fill's edge is antialiased instead of stepped: where the edge runs at a slant its pixels are partly red, as the ink's are; straight runs and corners stay as they were. Drop red into the quadrilateral too: its long gentle edges are straight lines, not stairs.",
+    "Deliver: Actions > Share, Save PNG… at 1× gives the canvas pixel for pixel. Choose 4× and Save PNG…: the ink is drawn anew at four times the size, and so is the fill's edge: a smooth line about one file pixel wide, lying under the ink, with no light rim between red and black; before (S29) it was the canvas's staircase blown up four times.",
+    "Undo: undo removes the last fill as before; redo brings it back with the same edge. Reopen: nothing is stored differently (the fill keeps its mask; its edge is derived again when drawn), so the artwork reopens as it was.",
+    "Not here: smoothing of very tight curves and corners (they keep the pixel edge cut at 45 degrees), selections' and clipped strokes' edges (still the selection's pixels), sharp zoom on the screen (S32)."
+  ],
+  "screen": [1600, 1000],
+  "density": 1.25,
+  "steps": [
+    { "stroke": { "points": [[789, 500, 1.0], [782, 546, 1.0], [765, 588, 1.0], [736, 625, 1.0], [700, 654, 1.0], [657, 671, 1.0], [611, 678, 1.0], [564, 671, 1.0], [522, 654, 1.0], [485, 625, 1.0], [456, 589, 1.0], [439, 546, 1.0], [433, 500, 1.0], [439, 453, 1.0], [456, 411, 1.0], [485, 374, 1.0], [521, 345, 1.0], [564, 328, 1.0], [610, 322, 1.0], [657, 328, 1.0], [699, 345, 1.0], [736, 374, 1.0], [765, 410, 1.0], [782, 453, 1.0], [789, 499, 1.0]] } },
+    { "stroke": { "points": [[944, 333, 1.0], [1389, 378, 1.0], [1361, 722, 1.0], [972, 689, 1.0], [944, 333, 1.0]] } },
+    { "checkpoint": { "name": "line-art", "canvas": "adcb464fd9e1bd36" } },
+    { "tap": { "at": "Colour" } },
+    { "tap": { "at": { "on": "Saturation and value", "offset": [75.25, -75.5] } } },
+    { "tap": { "at": [333, 833] } },
+    { "press": { "path": [{ "at": "Colour", "ms": 0 }, [1389, 167, 80], [611, 500, 240], [611, 500, 300]] } },
+    { "checkpoint": { "name": "circle-filled", "canvas": "7d0eaa7a841519cc" } },
+    { "screenshot": { "name": "circle-filled-screen" } },
+    { "press": { "path": [{ "at": "Colour", "ms": 0 }, [1389, 167, 80], [1167, 528, 240], [1167, 528, 300]] } },
+    { "checkpoint": { "name": "both-filled", "canvas": "0f80af2b6149ef76" } },
+    { "tap": { "at": "Actions" } },
+    { "tap": { "at": "Save PNG…" } },
+    { "system": "choose_file" },
+    { "exported": { "name": "png-1x", "pixels": "0f80af2b6149ef76" } },
+    { "tap": { "at": "Actions" } },
+    { "tap": { "at": "4×" } },
+    { "tap": { "at": "Save PNG…" } },
+    { "system": "choose_file" },
+    { "exported": { "name": "png-4x", "scale": 4, "pixels": "0fe4ff02704a6f57" } },
+    { "tap": { "at": "Undo" } },
+    { "checkpoint": { "name": "second-undone", "canvas": "7d0eaa7a841519cc" } },
+    { "tap": { "at": "Redo" } },
+    { "checkpoint": { "name": "second-redone", "canvas": "0f80af2b6149ef76" } },
+    "restart",
+    { "checkpoint": { "name": "reopened", "canvas": "0f80af2b6149ef76" } },
+    { "screenshot": { "name": "reopened-screen" } }
+  ]
+}

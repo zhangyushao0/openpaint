@@ -3,6 +3,7 @@
 //! stroke is in `stroke.rs`.
 
 use std::ops::Range;
+use std::sync::Arc;
 
 use openpaint_core::{
     ActiveStroke, Artwork, Layer, LayerGroup, LayerId, Patch, RegionMask, Stroke, StrokeBlend,
@@ -91,6 +92,8 @@ pub(crate) struct SmudgeItem {
 /// share its words.
 #[derive(Debug, Default)]
 pub(crate) struct Scene {
+    /// The canvas's width and height: a fill's smoothed edge continues past them (S30).
+    pub(crate) canvas: [u32; 2],
     pub(crate) items: Vec<Item>,
     pub(crate) masks: Vec<u32>,
     /// The in-progress stroke's clip as its paint op names it (0: none).
@@ -106,6 +109,18 @@ pub(crate) struct Scene {
     pub(crate) bases_at: u32,
     /// The items of the in-progress stroke's layer before its place.
     pub(crate) active_before: Option<Range<usize>>,
+    /// The fills' edge values, in order; and while building, an earlier scene's, which a fill
+    /// of the same mask takes instead of deriving them again.
+    pub(crate) edges: Vec<EdgeValues>,
+    pub(crate) known: Vec<EdgeValues>,
+}
+
+/// A fill's smoothed edge values (`fill_edge::edge_words`), derived once for its mask and kept
+/// with the scenes that draw it.
+#[derive(Debug, Clone)]
+pub(crate) struct EdgeValues {
+    pub(crate) mask: RegionMask,
+    pub(crate) words: Arc<[u32]>,
 }
 
 /// Where the in-progress stroke draws: its layer (its paint or its mask), and the selection it
@@ -128,14 +143,25 @@ impl ActivePlace {
 }
 
 impl Scene {
+    /// `build_knowing` with no earlier scene.
+    #[cfg(test)]
+    pub(crate) fn build(
+        artwork: &Artwork,
+        active: Option<&ActivePlace>,
+    ) -> Result<Self, RenderError> {
+        Self::build_knowing(artwork, active, Vec::new())
+    }
+
     /// The finished content of `artwork`, with the place of an in-progress stroke `active`.
     /// Layers that do not show (hidden, in a hidden group, clipping to a hidden base), and
     /// layers with neither content nor that place, contribute no ops. A layer ends onto the
     /// canvas, or into its clipping chain, which ends onto the canvas by its base's opacity and
-    /// mode; a group's layers end onto the canvas too, and its own end fades them (D50).
-    pub(crate) fn build(
+    /// mode; a group's layers end onto the canvas too, and its own end fades them (D50). A fill
+    /// whose mask an earlier scene drew takes its edge values from `known`.
+    pub(crate) fn build_knowing(
         artwork: &Artwork,
         active: Option<&ActivePlace>,
+        known: Vec<EdgeValues>,
     ) -> Result<Self, RenderError> {
         if let Some(place) = active
             && artwork.layer(place.layer).is_none()
@@ -144,7 +170,8 @@ impl Scene {
                 "the active stroke's layer is not in the artwork",
             ));
         }
-        let mut scene = Self::default();
+        let mut scene = Self::on(artwork);
+        scene.known = known;
         let layers = artwork.layers();
         let drawn = drawn(artwork);
         let ops = shown_ops;
@@ -189,6 +216,7 @@ impl Scene {
                     .push(Item::EndGroup(Op::end_group(group.opacity())));
             }
         }
+        scene.known.clear();
         Ok(scene)
     }
 
@@ -204,7 +232,7 @@ impl Scene {
         let layer = artwork
             .layer(layer)
             .ok_or(RenderError::Invalid("the layer is not in the artwork"))?;
-        let mut scene = Self::default();
+        let mut scene = Self::on(artwork);
         let end = Item::EndLayer {
             op: Op::end_layer(1.0),
             chain: false,
@@ -226,6 +254,15 @@ impl Scene {
             }
         }
         Ok(scene)
+    }
+
+    /// An empty scene on `artwork`'s canvas.
+    fn on(artwork: &Artwork) -> Self {
+        let canvas = artwork.canvas();
+        Self {
+            canvas: [canvas.width(), canvas.height()],
+            ..Self::default()
+        }
     }
 
     /// The first mask words, one per smudge: where their residuals start in the arena.

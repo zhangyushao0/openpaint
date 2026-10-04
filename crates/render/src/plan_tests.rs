@@ -109,7 +109,7 @@ fn a_mask_begins_where_the_paint_reached_and_the_end_lists_where_either_did() {
 fn a_fill_reaches_the_tiles_of_its_rectangle_and_ends_their_layer() {
     let mut items = scene().items;
     let fill = Item::Fill {
-        op: Op::fill(&paint(), 0),
+        op: Op::fill(&paint(), 0, Some([64, 64])),
         bounds: Bounds([16.0, 16.0, 19.5, 19.5]),
     };
     items.insert(2, fill);

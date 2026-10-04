@@ -152,7 +152,8 @@ impl CanvasTarget {
             .as_ref()
             .is_some_and(|cache| cache.artwork.same_version(artwork) && cache.active == active);
         if !reuse {
-            let scene = Scene::build(artwork, active.as_ref())?;
+            let known = self.scene.as_ref().map(|cache| cache.scene.edges.clone());
+            let scene = Scene::build_knowing(artwork, active.as_ref(), known.unwrap_or_default())?;
             let patches = self.scene.as_ref().and_then(|cache| {
                 let (old, new) = (&cache.scene.patches, &scene.patches);
                 let same = old.len() == new.len() && old.iter().zip(new).all(|(a, b)| a.shares(b));

@@ -7,6 +7,7 @@ mod compositing;
 mod deposit;
 mod erase;
 mod fill;
+mod fill_edges;
 mod fixture;
 mod golden;
 mod groups;

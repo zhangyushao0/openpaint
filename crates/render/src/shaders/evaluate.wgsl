@@ -99,7 +99,8 @@ fn evaluate(
                 contact = 0.0;
             }
             case OP_FILL: {
-                layer = blend(paint_color(fill_coverage(cell, op) * op.data[PAINT_OPACITY], op), layer, op);
+                let covered = fill_coverage(centre, cell, op);
+                layer = blend(paint_color(covered * op.data[PAINT_OPACITY], op), layer, op);
             }
             case OP_PATCH: {
                 layer = over(patch_sample(centre, op), layer);
@@ -198,11 +199,6 @@ fn clip(pixel: vec2<u32>, op: Op) -> f32 {
 // The op's colour (`op.data[0..3]`) at `alpha`, premultiplied.
 fn paint_color(alpha: f32, op: Op) -> vec4<f32> {
     return vec4<f32>(vec3<f32>(op.data[0], op.data[1], op.data[2]) * alpha, alpha);
-}
-
-// 1 where the fill's mask holds `pixel`, else 0: a hard edge.
-fn fill_coverage(pixel: vec2<u32>, op: Op) -> f32 {
-    return mask_bit(pixel, u32(op.data[FILL_MASK]) * 65536u + u32(op.data[FILL_MASK + 1u]));
 }
 
 // 1 where the mask starting at word `at` of `masks` holds `pixel`, else 0. A mask is its

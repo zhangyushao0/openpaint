@@ -20,14 +20,15 @@ const SHADER: &str = include_str!("shaders/evaluate.wgsl");
 const DEPOSIT: &str = include_str!("shaders/deposit.wgsl");
 const SMUDGE: &str = include_str!("shaders/smudge_composite.wgsl");
 const ADJUST: &str = include_str!("shaders/adjust.wgsl");
+const FILL_EDGE: &str = include_str!("shaders/fill_edge.wgsl");
 /// The in-progress stroke's coverage (or density) and paper contact textures: one float per
 /// canvas pixel each.
 pub(crate) const COVERAGE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::R32Float;
 
-/// The protocol prelude followed by the evaluator, its accumulating deposits, its smudges and
-/// its adjustments.
+/// The protocol prelude followed by the evaluator, its accumulating deposits, its smudges, its
+/// adjustments and its fill edges.
 pub(crate) fn shader_source() -> String {
-    prelude() + SHADER + DEPOSIT + SMUDGE + ADJUST
+    prelude() + SHADER + DEPOSIT + SMUDGE + ADJUST + FILL_EDGE
 }
 
 /// What one dispatch evaluates.

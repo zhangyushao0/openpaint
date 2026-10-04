@@ -76,7 +76,7 @@ fn named_slots_hold_what_the_constructors_write() {
         "the clip, high part first"
     );
     assert_eq!(Op::end_active(&paint).data, op.data);
-    let fill = Op::fill(&paint, (3 << 16) | 9);
+    let fill = Op::fill(&paint, (3 << 16) | 9, Some([2732, 2048]));
     assert_eq!(
         fill.data[..FILL_MASK],
         op.data[..FILL_MASK],
@@ -86,6 +86,13 @@ fn named_slots_hold_what_the_constructors_write() {
         fill.data[FILL_MASK..FILL_MASK + 2],
         [3.0, 9.0],
         "the mask offset, high part first"
+    );
+    assert_eq!(fill.data[FILL_EDGE..FILL_EDGE + 2], [2732.0, 2048.0]);
+    let hard = Op::fill(&paint, 0, None);
+    assert_eq!(
+        hard.data[FILL_EDGE..FILL_EDGE + 2],
+        [0.0, 0.0],
+        "a hard edge"
     );
 }
 

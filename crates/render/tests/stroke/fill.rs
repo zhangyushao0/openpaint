@@ -1,4 +1,4 @@
-//! Fills on the GPU: exactly the mask with a hard edge, at their place among the strokes,
+//! Fills on the GPU: the mask with its edge within a pixel of it, at their place among the strokes,
 //! Alpha Lock, incremental = cold after a fill and its undo, and layer sampling.
 
 use openpaint_core::{Artwork, ArtworkCommand, CanvasSize, Color, LayerCommand, RegionMask};
@@ -40,14 +40,20 @@ fn bar(artwork: &Artwork) -> Artwork {
 }
 
 #[test]
-fn a_fill_paints_exactly_its_mask_with_a_hard_edge() {
+fn a_fill_paints_its_mask_with_an_edge_within_a_pixel_of_it() {
     let core = core();
     let filled = blank().fill_region(disc(), red()).expect("fill").artwork;
     let image = cold(&core, &filled);
     let mask = disc();
-    for y in 0..SIZE[1] {
-        for x in 0..SIZE[0] {
-            let expected = if mask.contains([x, y]) { RED } else { WHITE };
+    for y in 1..SIZE[1] - 1 {
+        for x in 1..SIZE[0] - 1 {
+            let near = (0..9).filter(|k| mask.contains([x + k % 3 - 1, y + k / 3 - 1]));
+            let expected = match near.count() {
+                9 => RED,
+                0 => WHITE,
+                // The smoothed edge (`fill_edges.rs`); the hole at the centre is one too.
+                _ => continue,
+            };
             assert_eq!(pixel(&image, [x, y]), expected, "at {x}, {y}");
         }
     }

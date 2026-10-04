@@ -154,9 +154,10 @@ mod tests {
             .fill_region(mask(3..9), Color::WHITE)
             .expect("fill")
             .artwork;
+        // The mask's rectangle and a pixel round it, which its smoothed edge reaches.
         let rect = |x: [i32; 2]| PixelRect {
-            min: [x[0], 5],
-            max: [x[1], 9],
+            min: [x[0] - 1, 4],
+            max: [x[1] + 1, 10],
         };
         assert_eq!(changed_regions(&base, &left), [rect([3, 9])]);
         assert_eq!(changed_regions(&left, &base), [rect([3, 9])]);

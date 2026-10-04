@@ -13,6 +13,7 @@ mod edits;
 mod error;
 mod evaluator;
 mod export;
+mod fill_edge;
 mod frame;
 mod geom;
 mod gpu;

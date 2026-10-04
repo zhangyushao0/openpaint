@@ -43,7 +43,7 @@
       { "at": { "on": "Brush opacity", "offset": [0, -20.179688] }, "ms": 0 },
       { "at": { "on": "Brush opacity", "offset": [0, -20.179688] }, "ms": 600 }], "before_lift": "opacity-preview" } },
     { "press": { "path": [{ "at": "Colour", "ms": 0 }, [2500, 300, 80], [1900, 500, 240], [1900, 500, 300]], "before_lift": "dropping" } },
-    { "checkpoint": { "name": "sun-filled", "canvas": "2ed43cfa9b94546f" } },
+    { "checkpoint": { "name": "sun-filled", "canvas": "68fcf9b3ff3b560d" } },
     { "screenshot": { "name": "fill-offered" } },
     { "tap": { "at": "Layers" } },
     { "tap": { "at": "Add layer" } },

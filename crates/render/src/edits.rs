@@ -1,14 +1,18 @@
-//! A layer's region edits as scene ops. A fill paints its colour inside its mask. A transform
-//! clears what it lifted (an erasing fill over its selection; for the whole layer nothing
-//! before it is drawn at all, `restart`) and draws its patch through its placement (`Patch`).
-//! An adjustment changes the layer's colours so far, inside its clip (`scene_adjust.rs`).
+//! A layer's region edits as scene ops. A fill paints its colour inside its mask's smoothed
+//! edge (`fill_edge.rs`). A transform clears what it lifted (an erasing fill over its
+//! selection, a hard edge; for the whole layer nothing before it is drawn at all, `restart`)
+//! and draws its patch through its placement (`Patch`). An adjustment changes the layer's
+//! colours so far, inside its clip (`scene_adjust.rs`).
+
+use std::sync::Arc;
 
 use openpaint_core::{CanvasSize, Layer, RegionEdit, RegionMask, TransformEdit};
 
 use crate::error::RenderError;
+use crate::fill_edge::edge_words;
 use crate::geom::{Bounds, PixelRect};
 use crate::protocol::{Blend, MASK_HEADER, Op, Paint};
-use crate::scene::{Item, Scene};
+use crate::scene::{EdgeValues, Item, Scene};
 
 impl Scene {
     /// `edit`'s ops; `on_mask` when it lies on a mask, which an adjustment needs to know.
@@ -27,23 +31,54 @@ impl Scene {
                     Blend::Over
                 };
                 let paint = Paint::solid([color.r(), color.g(), color.b()], blend);
-                self.push_mask_op(fill.mask(), &paint)
+                self.push_fill(fill.mask(), &paint)
             }
             RegionEdit::Transform(transform) => {
                 if let Some(lift) = transform.lift() {
-                    self.push_mask_op(lift, &Paint::solid([0.0; 3], Blend::Erase))?;
+                    // A hard edge: the patch holds exactly the lifted pixels.
+                    let at = self.push_mask(lift)?;
+                    self.items.push(Item::Fill {
+                        op: Op::fill(&Paint::solid([0.0; 3], Blend::Erase), at, None),
+                        bounds: mask_bounds(lift),
+                    });
                 }
                 self.push_patch(transform)
             }
         }
     }
 
-    /// `paint` over the layer wherever `mask` holds a pixel.
-    fn push_mask_op(&mut self, mask: &RegionMask, paint: &Paint) -> Result<(), RenderError> {
+    /// `paint` over the layer inside `mask`'s smoothed edge: the mask's words, then its edge
+    /// values, those of an earlier scene when it drew the same mask (`known`).
+    fn push_fill(&mut self, mask: &RegionMask, paint: &Paint) -> Result<(), RenderError> {
         let at = self.push_mask(mask)?;
+        let known = self.known.iter().chain(&self.edges);
+        let words = match known.into_iter().find(|edge| edge.mask.shares(mask)) {
+            Some(edge) => Arc::clone(&edge.words),
+            None => {
+                let started = std::time::Instant::now();
+                let words = edge_words(mask, self.canvas);
+                let taken = started.elapsed();
+                if taken.as_millis() >= 2 {
+                    log::info!(
+                        "fill edge derived in {} ms: {:?} px box, {} words",
+                        taken.as_millis(),
+                        mask.size(),
+                        words.len()
+                    );
+                }
+                Arc::from(words)
+            }
+        };
+        self.masks.extend_from_slice(&words);
+        self.edges.push(EdgeValues {
+            mask: mask.clone(),
+            words,
+        });
+        let [x0, y0, x1, y1] = mask_bounds(mask).0;
         self.items.push(Item::Fill {
-            op: Op::fill(paint, at),
-            bounds: mask_bounds(mask),
+            op: Op::fill(paint, at, Some(self.canvas)),
+            // The smoothed edge reaches a pixel past the mask's.
+            bounds: Bounds([x0 - 1.0, y0 - 1.0, x1 + 1.0, y1 + 1.0]),
         });
         Ok(())
     }
@@ -120,7 +155,14 @@ fn placed_bounds(transform: &TransformEdit) -> Bounds {
 /// lifted (the whole canvas for the whole layer) and where its patch shows.
 pub(crate) fn edit_rect(canvas: CanvasSize, edit: &RegionEdit) -> PixelRect {
     match edit {
-        RegionEdit::Fill(fill) => mask_bounds(fill.mask()).pixels(),
+        RegionEdit::Fill(fill) => {
+            let rect = mask_bounds(fill.mask()).pixels();
+            // Its smoothed edge reaches a pixel further.
+            PixelRect {
+                min: [rect.min[0] - 1, rect.min[1] - 1],
+                max: [rect.max[0] + 1, rect.max[1] + 1],
+            }
+        }
         RegionEdit::Transform(transform) => {
             let lifted = transform.lift().map_or_else(
                 || PixelRect::full([canvas.width(), canvas.height()]),

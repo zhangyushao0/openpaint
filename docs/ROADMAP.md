@@ -46,8 +46,7 @@ Passed 2026-10-04: S18 to S26 and the G3 follow-ups done (see "Done"); the autho
 S27 Colour management, S28 Adjustments (hue/saturation/brightness and curves; blur and sharpen wait for S33) and S29 are done (see "Done").
 
 Render architecture (author, 2026-10-04): the truth stays operation records, pixels are only derived, discardable caches; strokes stay sharp at any scale. Steps in order, each shippable alone; not built: per-layer pyramids, disk caches, vector fill contours, stroke editing, a filter graph, 8x export.
-- S29 Scale-aware evaluation and export at 1x / 2x / 4x is done (see "Done"); per-band binning measured cheap, so no spatial index (D55).
-- **S30 Fill edges**: a distance field derived once per fill from its stored mask gives smooth edges at every scale; the 1x look changes slightly, the author judges with screenshots before it ships.
+- S29 Scale-aware evaluation and export at 1x / 2x / 4x and S30 Fill edges are done (see "Done"); per-band binning measured cheap, so no spatial index (D55); fill edges are derived from the mask per scene (D56).
 - **S31 Transform as a record**: selection mask plus placement, evaluated by mapping back to the earlier records (scaled strokes stay sharp); the lifted patch is only the drag preview, settled equals committed; old patch records and inserted pictures stay raster sources.
 - **S32 Sharp zoom**: one view-tier cache (power-of-two tiers, the visible tiles and a ring), filled progressively after a pinch; first measured on the author's busiest artwork on the tablet.
 - **S33 Blur and sharpen**: canvas-resolution raster boundaries from a derived per-layer evaluation (as smudge's material), never baked patches.
@@ -122,3 +121,4 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - S27 2026-10-04 `feat(store): colour-managed import and sRGB-tagged export (S27)`; Display P3 PNG and JPEG come in as their sRGB colours (also on the tablet), exports embed sRGB, the surface declared sRGB; display facts in STATUS (D53)
 - S28 2026-10-04 `feat(render): adjustments with live preview: hue/saturation/brightness and curves (S28)`; parametric ops in the one evaluator, preview = commit and incremental = cold on the GPU, schema 12 (D54); confirmed on the tablet, the author's library upgraded pixel-identical and restored byte-identical; blur and sharpen moved to Candidates
 - S29 2026-10-04 `feat(render): scale-aware evaluation, export at 1x, 2x and 4x in bands (S29)`; every golden and older scenario hash unchanged at 1x, banded = one piece, sharp edges at 2x/4x on the GPU; PNG streamed, JPEG up to 2x (D55)
+- S30 2026-10-04 `feat(render): antialiased fill edges from a derived distance field at every scale (S30)`; no paper between fill and ink at 1x/2x/4x (measured), fills, selections and masks smooth at 4x, four scenarios' fill hashes moved once; the author judges the comparison sheet (D56)
