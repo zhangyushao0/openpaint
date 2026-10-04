@@ -141,12 +141,6 @@ Only decisions that constrain future code and are not self-evident. Each entry i
 - Reason: buttons are reliable with a finger on a list that also scrolls; drag-to-reorder needs press-and-hold and multi-pointer routing that does not exist yet. An undo that only moves the highlight would look like undo doing nothing; one undo per slider value would make a fade dozens of steps. Delete is undoable, so a modal would only slow it (ARCHITECTURE section 10).
 - Consequences: D20's "every change is a version" holds with these two amendments; the projection carries the layer list (`SessionProjection` is `Clone`, not `Copy`). Dragging rows, renaming and thumbnails are later changes to this panel, not new panels.
 
-## D24 2026-10-02 S9 keeps schema 1: layers needed no format change
-
-- Decision: S9 ships without a schema 2. Schema 1 (D21) already stores everything S9 edits: the layer order, each layer's name, visibility, opacity and lock, and the active layer in the head; strokes keyed by layer id. The first migration step 1 -> 2 and its frozen sample land with the first slice that changes the format (S11 stores recipe snapshots). Pending the author's confirmation (STATUS).
-- Reason: a schema 2 identical to schema 1 would add a migration that changes nothing; adding fields for later slices (alpha lock, blend, groups) would reserve format for features not yet accepted. Proven instead: the schema-1 sample still opens with its three layers, layer edits round-trip through the library, and the tablet's library written by the S8 build opened unchanged in the S9 build.
-- Consequences: supersedes D21's line "schema 2 (S9) adds a migration over these records"; ROADMAP's S9 criterion "the schema 1 sample upgrades" is met by the unchanged sample test. D25 settles the pending question: schema 2 came with S10, the first real format change.
-
 ## D25 2026-10-02 Schema 2: a catalogue for the gallery, thumbnails as derived records
 
 - Decision: keyspace `library` gains `schema` (the whole library's), `clock` (a change counter) and per project a catalogue entry `['a'][id]`: title and `touched` (the clock at create, duplicate or save; the gallery lists the highest first). `last` now names the artwork open when the app was left and is removed when the user leaves for the gallery, so the app reopens where it was left. Keyspace `projects` gains `[id]['t']`, the thumbnail: RGBA at most 448 x 336, each pixel the rounded mean of its canvas box, computed on the GPU and reproduced exactly by `render::thumbnail_reference`. Head and stroke layouts are unchanged; heads say 2.
@@ -290,3 +284,8 @@ Only decisions that constrain future code and are not self-evident. Each entry i
 - Toolbox: Smudge between Brush and Eraser, its own brush (Soft Brush at first), size, strength (70 % at first, draweave's) and StreamLine per brush; the side bar says "Smudge size" and "Strength"; pressed, the tip's outline shows as with the eraser.
 - Schema 9: stroke blends 3 and 4; the toolbox record gains the smudge's choice after the eraser's. Migration 8 -> 9 (`migrate_9.rs`, pure) marks heads 9 and inserts an empty smudge choice; strokes keep every byte. `schema-1..8.bin` open upgraded; `schema-9.bin` (two smudges, one locked) is byte-exact.
 - Consequences: smudge cost grows with radius squared: on the tablet 60 Hz holds up to about 340 px and fails at 600 px (STATUS). A residual costs 20 bytes per pixel of its tiles on the GPU, an arena of them per target up to the device's binding limit (`Admission` beyond); a reopened artwork evaluates every smudge once.
+
+## D47 2026-10-04 Performance in a slice: a usability floor at default sizes; everything else is measured, not chased
+- Decision: a slice must be fluid at its feature's default sizes on the tablet (a frame within one 60 Hz vsync); every other performance number is measured and recorded in STATUS, never a done criterion; chasing it belongs to G5 (D33). Large smudge brushes (about 25 to 35 Hz at 600 px, S21) stay as they are until then.
+- Reason: S21 spent a large share of its time on a 60 Hz criterion for sizes the author rarely uses; criteria written before D33 contradicted it.
+- Consequences: briefs state the floor and a stop rule (one contained attempt, then record and report); ROADMAP slices carry no other performance criteria.

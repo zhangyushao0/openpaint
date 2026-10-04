@@ -17,6 +17,7 @@ Non-goals (G0 to G5): network, accounts, cloud sync, community, animation, 3D, m
 - When a slice is done: rewrite STATUS, move the slice to "Done" at the end of this file (one line), add a DECISIONS entry only if a decision was made.
 - Stage-exit items that need the author on the tablet are recorded as `pass` / `fail` / `not_run`; a dev-machine result never substitutes.
 - Findings outside the slice go under "Candidates"; they are not fixed in passing.
+- Performance (D47): a slice is fluid at its feature's default sizes on the tablet; other numbers are measured and recorded, never done criteria; chasing them is G5.
 
 ## G0 Skeleton
 
@@ -40,12 +41,13 @@ Exit: the author finishes painterly shading (W2) and a complex composition revis
 
 S18 to S21 are done (see "Done"); S21's 60 Hz holds up to about 340 px and fails at the largest sizes, an author decision (STATUS). Next: S22.
 
-**S22 Groups, clipping masks, blend modes** (core, app, ui, render, store): single-level groups, clipping chains, Multiply/Screen/Overlay; schema upgrade. Done: GPU tests for the compositing formulas.
-**S23 Layer masks** (core, app, ui, render, store): add, disable, invert, clear and delete masks with undo; painting on masks. Done: GPU tests for masks combined with opacity, clipping and groups.
+**S22 Development loop** (devtools, harness, xtask, ui): scenario steps name their targets (`tap "undo"`, `drag "size slider"`) and the runner resolves them from the UI's laid-out controls, so a layout change never touches scenario files; existing scenarios move to names with unchanged hashes. Device chores become xtask commands with typed errors: `cargo device-backup` / `device-restore` (the author's library, verified byte for byte, never through a shell path), `cargo device-check` (wake, install, launch, screenshot, logcat errors), and a cleanup of the agent's own test files. Done: every scenario passes with its old hashes and no coordinates; one slice's device routine runs through the commands alone.
+**S23 Groups, clipping masks, blend modes** (core, app, ui, render, store): single-level groups, clipping chains, Multiply/Screen/Overlay; schema upgrade. Done: GPU tests for the compositing formulas.
+**S24 Layer masks** (core, app, ui, render, store): add, disable, invert, clear and delete masks with undo; painting on masks. Done: GPU tests for masks combined with opacity, clipping and groups.
 
 ## G4 Colour, adjustments, exchange
 
-**S24 Colour management**: P3 display, import interpretation and export conversion defined separately. **S25 Adjustments**: hue/saturation/brightness, curves, blur, sharpen, each with preview, cancel and history. **S26 Project exchange**: the native format as the full original; OpenRaster import and export. **S27 Library management**: search, version restore, external backup.
+**S25 Colour management**: P3 display, import interpretation and export conversion defined separately. **S26 Adjustments**: hue/saturation/brightness, curves, blur, sharpen, each with preview, cancel and history. **S27 Project exchange**: the native format as the full original; OpenRaster import and export. **S28 Library management**: search, version restore, external backup.
 Exit: the author completes edit, restore and delivery (W4).
 
 ## G5 Stability and release
