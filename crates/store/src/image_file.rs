@@ -1,6 +1,7 @@
 //! Picture files: an artwork's pixels written as PNG or JPEG for export, and PNG or JPEG files
 //! read as reference images or pictures to insert. The `image` crate does the coding (DECISIONS
-//! D14); colours are taken as sRGB both ways (colour management is a later slice).
+//! D14); colours are sRGB both ways: a file's embedded ICC profile is honoured on the way in and
+//! every export embeds the sRGB profile (`colour`, S27, D53).
 
 use std::io::Cursor;
 
@@ -13,11 +14,14 @@ use openpaint_app::{
 };
 use openpaint_core::{CanvasSize, Patch};
 
+use crate::colour::{Interpretation, SRGB_PROFILE, into_srgb};
+
 /// JPEG quality, 1 to 100: high, so ink edges stay clean.
 const JPEG_QUALITY: u8 = 92;
 
-/// `rgba` (8-bit RGBA, `size`, rows top first) as a file of `format`. PNG keeps every byte;
-/// JPEG drops the alpha channel (the canvas is opaque on its paper).
+/// `rgba` (8-bit sRGB RGBA, `size`, rows top first) as a file of `format` declaring sRGB by an
+/// embedded profile (PNG `iCCP`, JPEG APP2). PNG keeps every byte; JPEG drops the alpha channel
+/// (the canvas is opaque on its paper).
 ///
 /// # Errors
 /// `Encode` when `rgba` does not hold `size` or the encoder refuses it (JPEG sides above 65535).
@@ -33,11 +37,14 @@ pub fn encode_image(
     let mut out = Vec::new();
     let result = match format {
         ImageFormat::Png => {
-            let encoder = PngEncoder::new_with_quality(
+            let mut encoder = PngEncoder::new_with_quality(
                 &mut out,
                 CompressionType::Default,
                 FilterType::Adaptive,
             );
+            encoder
+                .set_icc_profile(SRGB_PROFILE.to_vec())
+                .map_err(|_| ExportError::Encode)?;
             encoder.write_image(rgba, width, height, ExtendedColorType::Rgba8)
         }
         ImageFormat::Jpeg => {
@@ -46,20 +53,21 @@ pub fn encode_image(
                 .iter()
                 .flat_map(|[r, g, b, _]| [*r, *g, *b])
                 .collect();
-            JpegEncoder::new_with_quality(&mut out, JPEG_QUALITY).write_image(
-                &rgb,
-                width,
-                height,
-                ExtendedColorType::Rgb8,
-            )
+            let mut encoder = JpegEncoder::new_with_quality(&mut out, JPEG_QUALITY);
+            encoder
+                .set_icc_profile(SRGB_PROFILE.to_vec())
+                .map_err(|_| ExportError::Encode)?;
+            encoder.write_image(&rgb, width, height, ExtendedColorType::Rgb8)
         }
     };
     result.map_err(|_| ExportError::Encode)?;
     Ok(out)
 }
 
-/// The picture in a PNG or JPEG file as 8-bit RGBA at its full size, turned upright as its
-/// EXIF orientation says (camera pictures).
+/// The picture in a PNG or JPEG file as 8-bit sRGB RGBA at its full size, turned upright as its
+/// EXIF orientation says (camera pictures). An embedded RGB ICC profile (a phone's Display P3)
+/// converts the colours into sRGB; an untagged file, or one whose profile is sRGB, unusable or
+/// not RGB, keeps its values (`colour::into_srgb`).
 ///
 /// # Errors
 /// `Unsupported` for any other file, `TooLarge` above `MAX_IMAGE_PIXELS`, `Damaged` when the
@@ -80,9 +88,17 @@ pub fn decode_image(bytes: &[u8]) -> Result<([u32; 2], Vec<u8>), ImageError> {
         return Err(ImageError::TooLarge);
     }
     let orientation = decoder.orientation().map_err(decoding)?;
+    let profile = decoder.icc_profile().map_err(decoding)?;
     let mut picture = DynamicImage::from_decoder(decoder).map_err(decoding)?;
     picture.apply_orientation(orientation);
-    let rgba = picture.into_rgba8();
+    let mut rgba = picture.into_rgba8();
+    match into_srgb(profile.as_deref(), &mut rgba) {
+        Interpretation::Converted => log::info!("picture converted from its ICC profile to sRGB"),
+        Interpretation::Ignored => {
+            log::warn!("picture's ICC profile unreadable or not RGB; its values taken as sRGB");
+        }
+        Interpretation::Untagged | Interpretation::Srgb => {}
+    }
     Ok(([rgba.width(), rgba.height()], rgba.into_raw()))
 }
 
@@ -99,7 +115,7 @@ pub fn open_reference(bytes: &[u8]) -> Result<ReferenceImage, ImageError> {
 /// A PNG or JPEG file as a picture to insert into a canvas of `canvas` (S26): decoded, turned
 /// upright, premultiplied, reduced once by a triangle filter when it is larger than the canvas
 /// (on premultiplied pixels, so a transparent pixel's colour never bleeds into its neighbours)
-/// and centred (`picture_place`). Colours are taken as sRGB; an ICC profile is ignored.
+/// and centred (`picture_place`). Colours come in as sRGB (`decode_image`).
 ///
 /// # Errors
 /// As `decode_image`.

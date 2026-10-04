@@ -12,6 +12,7 @@ openpaint-core.workspace = true
 fjall.workspace = true
 image.workspace = true
 log.workspace = true
+moxcms.workspace = true
 
 [lints]
 workspace = true

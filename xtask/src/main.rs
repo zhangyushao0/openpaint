@@ -9,7 +9,8 @@ mod gate;
 mod process;
 
 const USAGE: &str = "usage: cargo xtask <gate|check|android-build|android-install|device-backup|\
-                     device-restore|device-check|device-input|device-clean|device-push> [args]";
+                     device-restore|device-check|device-input|device-clean|device-push|\
+                     device-info> [args]";
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -26,6 +27,7 @@ fn main() {
         Some("device-input") => device(device::input(rest)),
         Some("device-clean") => device(device::clean(rest)),
         Some("device-push") => device(device::push(rest)),
+        Some("device-info") => device(device::info(rest)),
         _ => {
             eprintln!("{USAGE}");
             std::process::exit(2);

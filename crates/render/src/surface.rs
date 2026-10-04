@@ -15,6 +15,8 @@ impl<T: wgpu::DisplayAndWindowHandle + 'static> SurfaceWindow for T {}
 pub struct Surface {
     surface: wgpu::Surface<'static>,
     config: wgpu::SurfaceConfiguration,
+    /// Every format the window offered with its colour spaces, as the adapter reported them.
+    offered: Vec<wgpu::SurfaceFormatCapabilities>,
     /// False while either side is zero; such a surface skips frames.
     configured: bool,
 }
@@ -30,13 +32,15 @@ impl Core {
         let target = wgpu::SurfaceTarget::from(window);
         let surface = self.gpu.instance.create_surface(target).map_err(device)?;
         let caps = surface.get_capabilities(&self.gpu.adapter);
-        let format = preferred_format(&caps.formats).ok_or(RenderError::Invalid(
-            "the window cannot be presented by this GPU adapter",
+        let format = preferred_format(&caps.format_capabilities).ok_or(RenderError::Invalid(
+            "the window cannot be presented in sRGB by this GPU adapter",
         ))?;
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format,
-            color_space: wgpu::SurfaceColorSpace::Auto,
+            // The artwork and the UI are sRGB-encoded (D50, S27): declared as such, so a
+            // wide-gamut display's compositor maps them instead of stretching them to its gamut.
+            color_space: wgpu::SurfaceColorSpace::Srgb,
             width: size[0],
             height: size[1],
             desired_maximum_frame_latency: 2,
@@ -48,6 +52,7 @@ impl Core {
         let mut surface = Surface {
             surface,
             config,
+            offered: caps.format_capabilities,
             configured: false,
         };
         surface.resize(self, size);
@@ -63,6 +68,22 @@ impl Surface {
 
     pub(crate) fn format(&self) -> wgpu::TextureFormat {
         self.config.format
+    }
+
+    /// The format and colour space presented in, then what the window offered, for the log:
+    /// `Rgba8Unorm in SRGB; offered Rgba8Unorm: SRGB | DISPLAY_P3, ...`.
+    pub fn report(&self) -> String {
+        let offered: Vec<String> = self
+            .offered
+            .iter()
+            .map(|offer| format!("{:?}: {:?}", offer.format, offer.color_spaces))
+            .collect();
+        format!(
+            "{:?} in {:?}; offered {}",
+            self.config.format,
+            self.config.color_space,
+            offered.join(", ")
+        )
     }
 
     /// Reconfigures for a new window size, after rotation or a split-screen change.
@@ -110,11 +131,45 @@ fn acquired(
     }
 }
 
-/// The UI painter blends in gamma space, so a non-sRGB format shows its colours unchanged.
-fn preferred_format(formats: &[wgpu::TextureFormat]) -> Option<wgpu::TextureFormat> {
+/// The first format the window presents in the sRGB colour space, a non-sRGB one first: the
+/// UI painter blends in gamma space, so such a format shows its colours unchanged.
+fn preferred_format(offered: &[wgpu::SurfaceFormatCapabilities]) -> Option<wgpu::TextureFormat> {
+    let formats: Vec<wgpu::TextureFormat> = offered
+        .iter()
+        .filter(|offer| offer.color_spaces.contains(wgpu::SurfaceColorSpaces::SRGB))
+        .map(|offer| offer.format)
+        .collect();
     formats
         .iter()
         .find(|format| !format.is_srgb())
         .or(formats.first())
         .copied()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_formats_presented_in_srgb_are_chosen() {
+        use wgpu::{
+            SurfaceColorSpaces as Spaces, SurfaceFormatCapabilities as Offer, TextureFormat,
+        };
+        let offer = |format, color_spaces| Offer {
+            format,
+            color_spaces,
+        };
+        let offered = [
+            offer(TextureFormat::Rgba16Float, Spaces::EXTENDED_SRGB_LINEAR),
+            offer(TextureFormat::Rgba8UnormSrgb, Spaces::SRGB),
+            offer(TextureFormat::Rgb10a2Unorm, Spaces::DISPLAY_P3),
+            offer(TextureFormat::Rgba8Unorm, Spaces::SRGB | Spaces::DISPLAY_P3),
+        ];
+        assert_eq!(preferred_format(&offered), Some(TextureFormat::Rgba8Unorm));
+        assert_eq!(
+            preferred_format(&offered[..3]),
+            Some(TextureFormat::Rgba8UnormSrgb)
+        );
+        assert_eq!(preferred_format(&offered[..1]), None);
+    }
 }

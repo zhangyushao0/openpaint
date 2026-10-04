@@ -6,6 +6,7 @@
 
 mod catalogue;
 mod codec;
+mod colour;
 mod delta;
 mod editor;
 mod fills;

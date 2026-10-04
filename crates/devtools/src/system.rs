@@ -33,6 +33,11 @@ pub enum SystemAnswer {
     /// `tests/fixtures/s26-photo.jpg` is chosen in the image picker: a camera's 1800 x 1200
     /// JPEG whose EXIF says to turn it a quarter clockwise (upright 1200 x 1800, the sun on top).
     PhotoJpeg,
+    /// `tests/fixtures/s27-p3.png` is chosen in the image picker: 512 x 256, eight patches in
+    /// Display P3 values with the Display P3 profile embedded (S27).
+    P3Png,
+    /// `tests/fixtures/s27-p3.jpg`: the same patches as a Display P3 JPEG, as phones write them.
+    P3Jpeg,
     /// A text file is chosen in the image picker.
     TextFile,
     /// The share sheet shows the exported file; the user closes it with Back.
@@ -42,6 +47,8 @@ pub enum SystemAnswer {
 /// The fixture pictures, built into the runner (it never reads files).
 const CUTOUT_PNG: &[u8] = include_bytes!("../../../tests/fixtures/s26-cutout.png");
 const PHOTO_JPEG: &[u8] = include_bytes!("../../../tests/fixtures/s26-photo.jpg");
+const P3_PNG: &[u8] = include_bytes!("../../../tests/fixtures/s27-p3.png");
+const P3_JPEG: &[u8] = include_bytes!("../../../tests/fixtures/s27-p3.jpg");
 
 /// The test picture's size: wider than tall, like a photo.
 const TEST_IMAGE: [u32; 2] = [480, 320];
@@ -98,6 +105,8 @@ pub(crate) fn answer(
         SystemAnswer::TestImage
         | SystemAnswer::CutoutPng
         | SystemAnswer::PhotoJpeg
+        | SystemAnswer::P3Png
+        | SystemAnswer::P3Jpeg
         | SystemAnswer::TextFile => matches!(request, HostRequest::OpenImage),
         SystemAnswer::Cancel | SystemAnswer::PickerFails => {
             !matches!(request, HostRequest::Send { .. })
@@ -127,6 +136,8 @@ pub(crate) fn answer(
         SystemAnswer::PhotoJpeg => Some(HostAnswer::Image(Box::new(MemorySource(
             PHOTO_JPEG.to_vec(),
         )))),
+        SystemAnswer::P3Png => Some(HostAnswer::Image(Box::new(MemorySource(P3_PNG.to_vec())))),
+        SystemAnswer::P3Jpeg => Some(HostAnswer::Image(Box::new(MemorySource(P3_JPEG.to_vec())))),
         SystemAnswer::TextFile => Some(HostAnswer::Image(Box::new(MemorySource(
             b"Shopping list: ink, paper.\n".to_vec(),
         )))),

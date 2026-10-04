@@ -7,12 +7,14 @@
 //! - `cargo device-check [label] [--no-install]` and `cargo device-input ...` (`check.rs`);
 //! - `cargo device-clean`: removes the agent's own test files, and only those;
 //! - `cargo device-push <picture>`: a PNG or JPEG into `/sdcard/Download/openpaint-test` (a test
-//!   location `clean` removes) for the system picker.
+//!   location `clean` removes) for the system picker;
+//! - `cargo device-info [label]`: the display's colour facts, read-only (`info.rs`).
 //!
 //! Every adb call takes explicit arguments, never a host shell, so no path is rewritten.
 
 mod adb;
 mod check;
+mod info;
 mod tar;
 
 use std::path::{Path, PathBuf};
@@ -23,6 +25,7 @@ use adb::{Adb, PACKAGE, Result, read_file, write_file};
 
 pub use adb::DeviceError;
 pub use check::{check, input};
+pub use info::info;
 
 /// The library inside the app's private storage, relative to its data directory.
 const LIBRARY: &str = "files/library";

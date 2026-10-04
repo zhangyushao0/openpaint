@@ -10,3 +10,4 @@
 *.apk binary
 *.jar binary
 *.bin binary
+*.icc binary

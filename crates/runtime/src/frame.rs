@@ -150,6 +150,7 @@ impl Runtime {
     ) -> Result<(), RuntimeError> {
         self.surface = None;
         let surface = self.core.create_surface(window, size)?;
+        log::info!("surface presents {}", surface.report());
         if self.painter.is_none() {
             self.painter = Some(ScreenPainter::for_surface(&self.core, &surface));
         }

@@ -1,0 +1,42 @@
+{
+  "walkthrough": [
+    "Goal: bring in a photo my phone took (tagged Display P3, as phones write them) or a picture from another app, and see its colours as that app or a browser shows them; send my painting on and have other apps show what my canvas shows.",
+    "Entry: as in S26, Actions (the spanner) > Insert image…, or Actions > Choose reference image…; nothing new to find and nothing to set. Export stays Actions > Save or Share PNG/JPEG.",
+    "Success, in: choose the Display P3 picture. It appears centred on its new layer as before, in its right colours: the orange patch shows as sRGB orange (215, 93, 31), not the stronger P3 numbers (200, 100, 50) read as if they were sRGB; grey stays grey; P3's pure red and green, which sRGB cannot show, become sRGB's pure red and green (clipped). The JPEG photo comes in the same way. The eyedropper on the orange picks (215, 93, 31): what I see is what I paint with.",
+    "Untagged pictures and sRGB ones (my own exports) come in with every value as before; a picture whose profile cannot be read or is grey or CMYK comes in as its numbers (sRGB), as before.",
+    "Success, out: Save PNG… and Save JPEG… write the same pixels as before, now declaring sRGB inside the file (an embedded sRGB profile), so a viewer on a wide-gamut screen shows the canvas's colours, not stretched ones. The saved PNG equals the canvas pixel for pixel.",
+    "Failure and cancel: as in S26 (a file that is not a picture says so with OK; Back in the picker does nothing). Undo: one undo removes the inserted picture and its layer. Reopen: the picture's pixels are stored as they came in (sRGB), so it reopens the same.",
+    "On the tablet: the panel can show Display P3, and Android shows our canvas as sRGB (its colour mode stays sRGB for our sRGB surface): the white paper and the colours look as on any calibrated sRGB screen, not oversaturated. Artworks stay sRGB (the author decides about P3 artworks)."
+  ],
+  "screen": [2880, 1800],
+  "density": 1.75,
+  "steps": [
+    { "tap": { "at": "Actions" } },
+    { "tap": { "at": "Insert image…" } },
+    { "system": "p3_png" },
+    { "screenshot": { "name": "p3-png-inserted" } },
+    { "tap": { "at": "Transform" } },
+    { "checkpoint": { "name": "p3-png", "canvas": "7dcc40e2c307f4ea" } },
+    { "screenshot": { "name": "p3-png-screen" } },
+    { "tap": { "at": "Eyedropper" } },
+    { "press": { "path": [[1263, 883, 0], [1263, 883, 300]], "tool": "stylus", "before_lift": "loupe-orange" } },
+    { "tap": { "at": "Colour" } },
+    { "screenshot": { "name": "picked-orange" } },
+    { "tap": { "at": "Colour" } },
+    { "tap": { "at": "Actions" } },
+    { "tap": { "at": "Insert image…" } },
+    { "system": "p3_jpeg" },
+    { "tap": { "at": "Transform" } },
+    { "checkpoint": { "name": "p3-jpeg", "canvas": "ccbb5f01ca5574ea" } },
+    { "screenshot": { "name": "p3-jpeg-screen" } },
+    { "tap": { "at": "Undo" } },
+    { "checkpoint": { "name": "jpeg-undone", "canvas": "7dcc40e2c307f4ea" } },
+    { "tap": { "at": "Actions" } },
+    { "tap": { "at": "Save PNG…" } },
+    { "system": "choose_file" },
+    { "exported": { "name": "export-png" } },
+    { "tap": { "at": "OK" } },
+    "restart",
+    { "checkpoint": { "name": "reopened", "canvas": "7dcc40e2c307f4ea" } }
+  ]
+}

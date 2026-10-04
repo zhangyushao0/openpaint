@@ -42,6 +42,9 @@ fjall = "=3.1.11"
 image = { version = "=0.25.10", default-features = false, features = ["jpeg", "png"] }
 jni = "=0.22.4"
 log = "=0.4.34"
+# ICC colour management of picture files (DECISIONS D53); store only. Already in the tree
+# through image, whose CICP conversions use it.
+moxcms = "=0.8.1"
 png = "=0.18.1"
 pollster = "=1.0.1"
 raw-window-handle = "=0.6.2"
