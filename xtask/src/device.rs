@@ -2,8 +2,9 @@
 //!
 //! - `cargo device-backup [name]`: the app's library (`files/library`) streamed out of the app's
 //!   private storage into `artifacts/device/backups/<name>.tar`, listed and checked;
-//! - `cargo device-restore <name|file.tar>`: the app stopped (no process left), that archive
-//!   written back in place (nothing is deleted), read out again and compared with the backup file by file, byte for byte;
+//! - `cargo device-restore <name|file.tar>`: the app stopped (no process left), the library as found
+//!   saved first as `<name>-found-<time>.tar` (listed), then that archive written back in place
+//!   (nothing is deleted), read out again and compared with the backup file by file, byte for byte;
 //! - `cargo device-check [label] [--no-install]` and `cargo device-input ...` (`check.rs`);
 //! - `cargo device-clean`: removes the agent's own test files, and only those;
 //! - `cargo device-push <picture>`: a PNG or JPEG into `/sdcard/Download/openpaint-test` (a test
@@ -63,12 +64,17 @@ pub fn backup(args: &[String]) -> Result<()> {
         [name] => plain(name)?.to_owned(),
         _ => return Err(DeviceError::Usage("cargo device-backup [name]")),
     };
+    save_found(&Adb::connected()?, &name)
+}
+
+/// The library as the device holds it now into `artifacts/device/backups/<name>.tar`, listed;
+/// an archive of that name already there is never replaced.
+fn save_found(adb: &Adb, name: &str) -> Result<()> {
     let path = artifacts().join("backups").join(format!("{name}.tar"));
     if path.exists() {
         return Err(DeviceError::Exists(path));
     }
-    let adb = Adb::connected()?;
-    let archive = pull_library(&adb)?;
+    let archive = pull_library(adb)?;
     let entries = tar::entries(&archive)?;
     write_file(&path, &archive)?;
     for entry in &entries {
@@ -100,6 +106,11 @@ pub fn restore(args: &[String]) -> Result<()> {
     let adb = Adb::connected()?;
     // The app must not write while its library is put back.
     stop_app(&adb)?;
+    // Whatever the library holds now (strokes made during a test window) is kept first.
+    let stem = path
+        .file_stem()
+        .map_or_else(String::new, |stem| stem.to_string_lossy().into_owned());
+    save_found(&adb, &format!("{stem}-found-{}", timestamp()))?;
     adb.feed(&["exec-in", "run-as", PACKAGE, "tar", "xf", "-"], &archive)?;
     // `exec-in` returns once adb has sent the archive, not once the device's tar has written
     // it: reading back at once can catch the last member (the journal) half written.

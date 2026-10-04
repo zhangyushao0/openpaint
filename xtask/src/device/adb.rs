@@ -4,7 +4,9 @@
 use std::fmt;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
+use std::thread::JoinHandle;
+use std::time::{Duration, Instant};
 
 use crate::android::sdk_dir;
 
@@ -34,6 +36,8 @@ pub enum DeviceError {
     Panic(Vec<String>),
     /// The gesture instrumentation did not inject the gesture.
     Injection(String),
+    /// A device query did not end within its time.
+    Timeout { command: String, seconds: u64 },
     /// The app's process (these pids) was still running after a force-stop.
     StillRunning(String),
     /// The command line asks for something else.
@@ -63,6 +67,9 @@ impl fmt::Display for DeviceError {
             Self::Injection(output) => write!(f, "the gesture was not injected: {output}"),
             Self::StillRunning(pids) => {
                 write!(f, "{PACKAGE} still runs (pid {pids}) after am force-stop")
+            }
+            Self::Timeout { command, seconds } => {
+                write!(f, "{command} did not end within {seconds} s (stopped)")
             }
             Self::Usage(usage) => write!(f, "usage: {usage}"),
         }
@@ -116,22 +123,65 @@ impl Adb {
         self.text(&args)
     }
 
-    fn run(&self, args: &[&str], input: Option<&[u8]>) -> Result<Vec<u8>> {
+    /// One command in the device's shell, its words as given, ended after `limit`: a query that
+    /// must not wait for anything (`device-info`).
+    pub fn shell_within(&self, words: &[&str], limit: Duration) -> Result<String> {
+        let mut args = vec!["shell"];
+        args.extend_from_slice(words);
         let command = format!("adb {}", args.join(" "));
-        let mut child = Command::new(&self.program)
+        let mut child = self.spawn(&args, false, &command)?;
+        let readers = [
+            child.stdout.take().map(drain),
+            child.stderr.take().map(drain),
+        ];
+        let started = Instant::now();
+        let status = loop {
+            let waited = child.try_wait().map_err(|error| DeviceError::Start {
+                command: command.clone(),
+                error: error.to_string(),
+            })?;
+            if let Some(status) = waited {
+                break status;
+            }
+            if started.elapsed() >= limit {
+                // Killing adb ends its reader threads too (their pipes close).
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(DeviceError::Timeout {
+                    command,
+                    seconds: limit.as_secs(),
+                });
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        };
+        let [stdout, stderr] =
+            readers.map(|reader| reader.and_then(|r| r.join().ok()).unwrap_or_default());
+        if status.success() {
+            return Ok(String::from_utf8_lossy(&stdout).into_owned());
+        }
+        let said = if stderr.is_empty() { stdout } else { stderr };
+        Err(DeviceError::Failed {
+            command,
+            output: String::from_utf8_lossy(&said).trim().to_owned(),
+        })
+    }
+
+    fn spawn(&self, args: &[&str], input: bool, command: &str) -> Result<Child> {
+        Command::new(&self.program)
             .args(args)
-            .stdin(if input.is_some() {
-                Stdio::piped()
-            } else {
-                Stdio::null()
-            })
+            .stdin(if input { Stdio::piped() } else { Stdio::null() })
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
             .map_err(|error| DeviceError::Start {
-                command: command.clone(),
+                command: command.to_owned(),
                 error: error.to_string(),
-            })?;
+            })
+    }
+
+    fn run(&self, args: &[&str], input: Option<&[u8]>) -> Result<Vec<u8>> {
+        let command = format!("adb {}", args.join(" "));
+        let mut child = self.spawn(args, input.is_some(), &command)?;
         if let (Some(input), Some(mut stdin)) = (input, child.stdin.take()) {
             stdin
                 .write_all(input)
@@ -177,5 +227,14 @@ pub fn read_file(path: &Path) -> Result<Vec<u8>> {
     std::fs::read(path).map_err(|error| DeviceError::File {
         path: path.to_path_buf(),
         error: error.to_string(),
+    })
+}
+
+/// Reads a child's pipe to its end on a thread of its own, so a full pipe never blocks it.
+fn drain(mut pipe: impl std::io::Read + Send + 'static) -> JoinHandle<Vec<u8>> {
+    std::thread::spawn(move || {
+        let mut bytes = Vec::new();
+        let _ = pipe.read_to_end(&mut bytes);
+        bytes
     })
 }

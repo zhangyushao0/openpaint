@@ -1,17 +1,24 @@
 //! `cargo device-info [label]`: what the tablet's display does with colour, read and never
 //! changed, and how often the app's canvas reached the glass lately. Read-only queries only
-//! (`getprop`, `dumpsys`, the app's own log); each answer goes whole to
+//! (`getprop`, `dumpsys`, the app's own log), each bounded in time (`QUERY_LIMIT`); each answer goes whole to
 //! `artifacts/device/<label>-<query>.txt` and the lines about colour are printed.
+
+use std::time::Duration;
 
 use super::adb::{Adb, DeviceError, Result, write_file};
 use super::{artifacts, plain};
 
+/// How long one query may take before it is stopped. On 2026-10-04 (S30) `dumpsys SurfaceFlinger
+/// --list` once never returned and the command waited until the caller gave up after 5 min;
+/// every query is now bounded here, and `dumpsys` gives each service 10 s (`-t 10`).
+const QUERY_LIMIT: Duration = Duration::from_secs(30);
+
 /// The queries: a file name and the device command, each one read-only.
 const QUERIES: [(&str, &[&str]); 5] = [
     ("props", &["getprop"]),
-    ("surfaceflinger", &["dumpsys", "SurfaceFlinger"]),
-    ("display", &["dumpsys", "display"]),
-    ("color-display", &["dumpsys", "color_display"]),
+    ("surfaceflinger", &["dumpsys", "-t", "10", "SurfaceFlinger"]),
+    ("display", &["dumpsys", "-t", "10", "display"]),
+    ("color-display", &["dumpsys", "-t", "10", "color_display"]),
     // The app's own lines: the surface's format and colour space as wgpu reported them.
     ("app-log", &["logcat", "-d", "-s", "openpaint:I"]),
 ];
@@ -37,7 +44,7 @@ pub fn info(args: &[String]) -> Result<()> {
     };
     let adb = Adb::connected()?;
     for (name, words) in QUERIES {
-        let output = adb.shell(words)?;
+        let output = adb.shell_within(words, QUERY_LIMIT)?;
         let path = artifacts().join(format!("{label}-{name}.txt"));
         write_file(&path, output.as_bytes())?;
         let lines: Vec<&str> = output.lines().filter(|line| about_colour(line)).collect();
@@ -60,7 +67,10 @@ const CANVAS_LAYER: &str = "SurfaceView[dev.openpaint/dev.openpaint.MainActivity
 /// How often the app's canvas reached the glass lately: SurfaceFlinger's present times of the
 /// canvas layer's last frames (`--latency`, at most 128), as the median interval and its rate.
 fn presents(adb: &Adb, label: &str) -> Result<()> {
-    let layers = adb.shell(&["dumpsys", "SurfaceFlinger", "--list"])?;
+    let layers = adb.shell_within(
+        &["dumpsys", "-t", "10", "SurfaceFlinger", "--list"],
+        QUERY_LIMIT,
+    )?;
     write_file(
         &artifacts().join(format!("{label}-layers.txt")),
         layers.as_bytes(),
@@ -70,12 +80,17 @@ fn presents(adb: &Adb, label: &str) -> Result<()> {
         return Ok(());
     };
     // The device's shell reads the line: the name in single quotes (it holds brackets).
-    let output = adb.shell(&[
-        "dumpsys",
-        "SurfaceFlinger",
-        "--latency",
-        &format!("'{layer}'"),
-    ])?;
+    let output = adb.shell_within(
+        &[
+            "dumpsys",
+            "-t",
+            "10",
+            "SurfaceFlinger",
+            "--latency",
+            &format!("'{layer}'"),
+        ],
+        QUERY_LIMIT,
+    )?;
     let path = artifacts().join(format!("{label}-presents.txt"));
     write_file(&path, output.as_bytes())?;
     let mut lines = output.lines();

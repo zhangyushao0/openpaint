@@ -47,7 +47,7 @@ Do not rebuild the big picture from source; the module map is in ARCHITECTURE. D
 - `cargo device-backup [name]`: the author's library to `artifacts/device/backups/<name>.tar`, listed. Always first.
 - `cargo device-check [label] [--no-install]`: wake, build and install, launch, screenshot to `artifacts/device/<label>.png`, the app's logcat errors; fails on a panic.
 - `cargo device-input pen x,y,... [pressure]` | `finger x,y[,x,y] [x,y[,x,y] [ms]]` | `hover x,y [ms]`: one injected gesture (debug build), screen woken first.
-- `cargo device-restore <name>`: the backup put back in place and compared byte for byte. Always last, after removing test artworks in the gallery.
+- `cargo device-restore <name>`: the library as found saved first to `backups/<name>-found-<time>.tar` (listed), then the backup put back in place and compared byte for byte. Always last, after removing test artworks in the gallery.
 - `cargo device-clean`: the agent's test files (`/sdcard/{Pictures,Download}/openpaint-test`, `/sdcard/openpaint-*.mp4`), nothing else.
 
 ## Commits
