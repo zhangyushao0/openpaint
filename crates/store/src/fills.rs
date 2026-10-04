@@ -1,6 +1,6 @@
-//! Region edit records (schema 8, DECISIONS D36, D45): one per fill or transform, keyed like
-//! strokes, `[project u64]['f'][layer u64][index u64]`, oldest at index 0. A value starts with
-//! its kind (u8: 0 fill, 1 transform).
+//! Region edit records (schema 8, DECISIONS D36, D45): one per fill, transform or (schema 12)
+//! adjustment, keyed like strokes, `[project u64]['f'][layer u64][index u64]`, oldest at index
+//! 0. A value starts with its kind (u8: 0 fill, 1 transform, 2 adjustment, `adjusts.rs`).
 //!
 //! A fill: after (u32: the strokes under it), red, green, blue (f32), alpha locked (u8), its
 //! mask (`write_mask`: rectangle, run count, runs as LEB128 varints). A closed shape costs a
@@ -18,6 +18,7 @@ use image::{ExtendedColorType, ImageDecoder, ImageEncoder};
 use openpaint_app::{PortError, ProjectId};
 use openpaint_core::{EditParts, FillParts, MaskParts, RegionEdit, TransformEdit, TransformParts};
 
+use crate::adjusts::{KIND_ADJUST, encode_adjust, read_adjust};
 use crate::codec::{Reader, Writer};
 use crate::records::project_prefix;
 
@@ -61,6 +62,7 @@ pub(crate) fn encode_edit(edit: &RegionEdit) -> Vec<u8> {
             writer.finish()
         }
         RegionEdit::Transform(transform) => encode_transform(transform),
+        RegionEdit::Adjust(adjust) => encode_adjust(adjust),
     }
 }
 
@@ -96,6 +98,7 @@ pub(crate) fn decode_edit(bytes: &[u8]) -> Result<EditParts, PortError> {
     let edit = match reader.u8()? {
         KIND_FILL => EditParts::Fill(read_fill(&mut reader)?),
         KIND_TRANSFORM => EditParts::Transform(read_transform(&mut reader)?),
+        KIND_ADJUST => EditParts::Adjust(read_adjust(&mut reader)?),
         _ => return Err(reader.corrupt()),
     };
     reader.end()?;

@@ -4,6 +4,7 @@
 //! Depends on `openpaint-core` only. No GPU, no UI, no file system (`cargo repo-check`).
 #![forbid(unsafe_code)]
 
+mod adjust;
 mod brushes;
 mod editor_state;
 mod error;
@@ -34,6 +35,7 @@ mod transfer;
 mod transform;
 mod view;
 
+pub use crate::adjust::{AdjustIntent, AdjustProjection, AdjustRefusal};
 pub use crate::brushes::{Brush, BrushKey, BrushLibrary, SizeRange};
 pub use crate::editor_state::{BrushChoice, BrushSetting, EditorState};
 pub use crate::error::AppError;

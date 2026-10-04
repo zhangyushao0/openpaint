@@ -12,8 +12,10 @@ use openpaint_core::{
 
 mod dump;
 mod editor;
+mod schema_12;
 pub use dump::{decode, encode};
 pub use editor::{sample_editor, sample_editor_6, sample_editor_9, upgraded_editor};
+pub use schema_12::parts;
 
 pub type Records = Vec<(String, Vec<u8>, Vec<u8>)>;
 
@@ -249,7 +251,7 @@ pub fn schema_5_parts() -> ArtworkParts {
 /// stroke inside a selection, a smudge and a grey fill between them; the ink layer's mask
 /// white with one black stroke, and the target (the ink layer is active); the clipping top
 /// layer's mask disabled and empty.
-pub fn parts() -> ArtworkParts {
+pub fn schema_11_parts() -> ArtworkParts {
     let mut parts = schema_10_parts();
     let model = parts.layers[0].strokes[1].clone();
     let grey = |id, color: f32, blend| StrokeParts {

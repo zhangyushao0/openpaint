@@ -116,7 +116,8 @@ mod tests {
         assert_eq!(upgrade.projects.len(), 1, "a foreign head stays");
         let (key, head) = &upgrade.projects[0];
         assert_eq!(key, &head_key(ProjectId::new(1)));
-        let head = decode_head(head).expect("a schema-11 head");
+        let head = crate::migrate::remarked(head, 11, 12).expect("marked 11");
+        let head = decode_head(&head).expect("a schema-11 head");
         assert!(!head.on_mask);
         assert_eq!((head.width, head.active, head.next_stroke_id), (64, 2, 9));
         assert_eq!(head.groups.len(), 1);

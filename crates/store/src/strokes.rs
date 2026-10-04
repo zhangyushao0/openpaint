@@ -140,7 +140,7 @@ fn write_whole_recipe(writer: &mut Writer, recipe: &RecipeParts) {
     }
 }
 
-fn write_curve(writer: &mut Writer, curve: &[[f32; 2]]) {
+pub(crate) fn write_curve(writer: &mut Writer, curve: &[[f32; 2]]) {
     writer.len(curve.len());
     for [x, y] in curve {
         writer.f32(*x);

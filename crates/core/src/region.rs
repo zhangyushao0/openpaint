@@ -1,9 +1,11 @@
 //! Region edits: a set of canvas pixels (`RegionMask`) and what was done to them, at their place
 //! between the layer's strokes. A fill (ColorDrop) paints one colour over every pixel of its
-//! mask, with a hard edge; a transform (`transform.rs`) moves pixels.
+//! mask, with a hard edge; a transform (`transform.rs`) moves pixels; an adjustment
+//! (`adjust.rs`) changes their colours.
 
 use std::sync::Arc;
 
+use crate::adjust::AdjustEdit;
 use crate::artwork::Artwork;
 use crate::command::{Applied, Change};
 use crate::error::CoreError;
@@ -177,12 +179,13 @@ impl PartialEq for RegionMask {
     }
 }
 
-/// What was done to a layer's pixels, at its place among the layer's strokes: a fill or a
-/// transform.
+/// What was done to a layer's pixels, at its place among the layer's strokes: a fill, a
+/// transform or an adjustment.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RegionEdit {
     Fill(FillEdit),
     Transform(TransformEdit),
+    Adjust(AdjustEdit),
 }
 
 impl RegionEdit {
@@ -192,6 +195,7 @@ impl RegionEdit {
         match self {
             Self::Fill(fill) => fill.after,
             Self::Transform(transform) => transform.after,
+            Self::Adjust(adjust) => adjust.after,
         }
     }
 
@@ -199,7 +203,7 @@ impl RegionEdit {
     pub const fn fill(&self) -> Option<&FillEdit> {
         match self {
             Self::Fill(fill) => Some(fill),
-            Self::Transform(_) => None,
+            _ => None,
         }
     }
 
@@ -207,7 +211,15 @@ impl RegionEdit {
     pub const fn transform(&self) -> Option<&TransformEdit> {
         match self {
             Self::Transform(transform) => Some(transform),
-            Self::Fill(_) => None,
+            _ => None,
+        }
+    }
+
+    #[must_use]
+    pub const fn adjust(&self) -> Option<&AdjustEdit> {
+        match self {
+            Self::Adjust(adjust) => Some(adjust),
+            _ => None,
         }
     }
 
@@ -223,6 +235,7 @@ impl RegionEdit {
                     && a.alpha_locked == b.alpha_locked
             }
             (Self::Transform(a), Self::Transform(b)) => a.same(b),
+            (Self::Adjust(a), Self::Adjust(b)) => a.same(b),
             _ => false,
         }
     }
@@ -251,6 +264,10 @@ impl RegionEdit {
                 } else {
                     transform.patch.pixels().len()
                 }
+            }
+            Self::Adjust(adjust) => {
+                let old = old.and_then(Self::adjust).and_then(AdjustEdit::clip);
+                adjust.clip.as_ref().map_or(0, |clip| mask(clip, old))
             }
         }
     }

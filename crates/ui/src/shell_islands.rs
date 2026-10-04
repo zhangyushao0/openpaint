@@ -1,4 +1,5 @@
-//! The canvas screen's top islands: Gallery, Actions, Selection and Transform at the left;
+//! The canvas screen's top islands: Gallery, Actions, Adjustments, Selection and Transform at
+//! the left (Procreate's order);
 //! Brush, Smudge, Eraser, Layers and the colour at the right; the notice pill left of the right
 //! one.
 
@@ -23,23 +24,32 @@ impl Shell {
             }
             if panels.actions.button(ui) {
                 panels.close_but(Panel::Actions);
+                self.adjust.close_menu();
+            }
+            if self.adjust.button(ui, projection, &mut self.taps) {
+                panels.close();
             }
             if self.selection.button(ui, projection, &mut self.taps) {
                 panels.close();
+                self.adjust.close_menu();
             }
             if self.transform.button(ui, projection, &mut self.taps) {
                 panels.close();
+                self.adjust.close_menu();
             }
         });
         let ((), right) = island(ctx, "right island", Place::top_right(0.0), |ui| {
             if panels.brushes.buttons(ui, projection, &mut self.taps) {
                 panels.close_but(Panel::Brushes);
+                self.adjust.close_menu();
             }
             if panels.layers.button(ui) {
                 panels.close_but(Panel::Layers);
+                self.adjust.close_menu();
             }
             if panels.colors.button(ui, projection) {
                 panels.close_but(Panel::Colors);
+                self.adjust.close_menu();
             }
         });
         let place = Place::top_right(right.width() + SPACE);

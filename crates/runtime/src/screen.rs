@@ -29,11 +29,11 @@ impl Screen {
             Self::Opening(_) => ScreenProjection::Starting,
             Self::Canvas(canvas) => {
                 let session = canvas.session().projection();
-                ScreenProjection::Canvas(
+                ScreenProjection::Canvas(Box::new(
                     session
                         .with_brush(toolbox.projection())
                         .with_transfers(transfers.projection()),
-                )
+                ))
             }
             Self::Gallery(gallery) => ScreenProjection::Gallery(gallery.projection()),
         }

@@ -47,6 +47,7 @@ pub(super) fn tools(icon: Icon) -> Vec<Line> {
             },
         ],
         Icon::Selection => lasso(),
+        Icon::Adjustments => wand(),
         // A pointer: the tip, down its left side, a notch, the tail and back up its right side.
         Icon::Transform => vec![vec![
             [0.3, 0.16],
@@ -83,6 +84,28 @@ fn smudge() -> Vec<Line> {
         outline,
         vec![along(crease, 0.6), along(crease, -0.6)],
         curve([0.14, 0.82], [0.3, 0.9], [0.5, 0.84]),
+    ]
+}
+
+/// A wand held at a slant, its tip up to the right with a band below it, and a four-pointed
+/// spark round the tip: two long rays along the axes, two short ones between them.
+fn wand() -> Vec<Line> {
+    let spark = [0.7, 0.3];
+    let ray = |dx: f32, dy: f32, from: f32, to: f32| {
+        vec![
+            [spark[0] + dx * from, spark[1] + dy * from],
+            [spark[0] + dx * to, spark[1] + dy * to],
+        ]
+    };
+    vec![
+        vec![[0.16, 0.84], [0.6, 0.4]],
+        vec![[0.47, 0.47], [0.53, 0.53]],
+        ray(0.0, -1.0, 0.08, 0.2),
+        ray(1.0, 0.0, 0.08, 0.2),
+        ray(0.0, 1.0, 0.08, 0.16),
+        ray(-1.0, 0.0, 0.08, 0.16),
+        ray(0.7, -0.7, 0.07, 0.13),
+        ray(-0.7, -0.7, 0.07, 0.13),
     ]
 }
 

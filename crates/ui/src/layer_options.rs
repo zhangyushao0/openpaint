@@ -9,8 +9,9 @@ use openpaint_core::BlendMode;
 
 use crate::components::{
     choices, command_row, hint, icon_button, slider, switch_row, text_button, text_choice_wide,
+    value_row,
 };
-use crate::design::{Icon, SPACE, TOUCH_TARGET};
+use crate::design::Icon;
 use crate::layer_rows::percent;
 
 /// Rows of touch targets the footer takes, with the group's two when the layer is in one; the
@@ -34,19 +35,6 @@ fn name(blend: BlendMode) -> &'static str {
         BlendMode::Screen => "Screen",
         BlendMode::Overlay => "Overlay",
     }
-}
-
-/// A label at the left and a value at the right, one touch target high.
-fn value_row(ui: &mut egui::Ui, label: &str, value: &str) {
-    ui.horizontal(|ui| {
-        ui.set_height(TOUCH_TARGET);
-        ui.add_space(2.0 * SPACE);
-        ui.label(label);
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.add_space(2.0 * SPACE);
-            ui.label(value);
-        });
-    });
 }
 
 /// One value of a slider touch, sent once (egui may run a pass twice).

@@ -102,6 +102,7 @@ mod tests {
         let (key, head) = &upgrade.projects[0];
         assert_eq!(key, &head_key(ProjectId::new(1)));
         let head = crate::migrate_11::head_10_to_11(head).expect("a schema-10 head");
+        let head = crate::migrate::remarked(&head, 11, 12).expect("a schema-11 head");
         let head = decode_head(&head).expect("a schema-10 head, upgraded");
         assert_eq!((head.width, head.active, head.next_stroke_id), (64, 2, 9));
         assert!(head.groups.is_empty());

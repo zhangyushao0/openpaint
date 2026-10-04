@@ -21,6 +21,7 @@ use crate::migrate_8::upgrade_7_to_8;
 use crate::migrate_9::upgrade_8_to_9;
 use crate::migrate_10::upgrade_9_to_10;
 use crate::migrate_11::upgrade_10_to_11;
+use crate::migrate_12::upgrade_11_to_12;
 use crate::records::{
     LIBRARY, NEXT, PROJECTS, SCHEMA, SCHEMA_KEY, decode_id, decode_schema, encode_schema, head_key,
     strokes_prefix,
@@ -116,7 +117,7 @@ fn prepare(open: &Open) -> Result<(), PortError> {
             found,
             newest: SCHEMA,
         }),
-        1..=10 => upgrade(open, schema),
+        1..=11 => upgrade(open, schema),
         _ => Err(PortError::Corrupt {
             what: "library schema",
         }),
@@ -147,7 +148,8 @@ fn upgrade(open: &Open, from: u32) -> Result<(), PortError> {
             7 => upgrade_7_to_8(&heads, &fills),
             8 => upgrade_8_to_9(&heads, editor.as_deref()),
             9 => upgrade_9_to_10(&heads),
-            _ => upgrade_10_to_11(&heads),
+            10 => upgrade_10_to_11(&heads),
+            _ => upgrade_11_to_12(&heads),
         };
         if let Some((_, value)) = upgrade.library.iter().find(|(key, _)| key == EDITOR) {
             editor = Some(value.clone());

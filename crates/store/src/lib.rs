@@ -4,6 +4,7 @@
 //! No GPU, no UI (`cargo repo-check`).
 #![forbid(unsafe_code)]
 
+mod adjusts;
 mod catalogue;
 mod codec;
 mod colour;
@@ -15,6 +16,7 @@ mod library;
 mod migrate;
 mod migrate_10;
 mod migrate_11;
+mod migrate_12;
 mod migrate_6;
 mod migrate_7;
 mod migrate_8;

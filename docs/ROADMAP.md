@@ -43,7 +43,7 @@ Passed 2026-10-04: S18 to S26 and the G3 follow-ups done (see "Done"); the autho
 
 ## G4 Colour, adjustments, exchange
 
-S27 Colour management is done (see "Done"). **S28 Adjustments**: hue/saturation/brightness, curves, blur, sharpen, each with preview, cancel and history. **S29 Project exchange**: the native format as the full original; OpenRaster import and export. **S30 Library management**: search, version restore, external backup. **S31 Ten-bit display**: the canvas cache and the surface at 10 bits per channel (Rgb10a2) so soft gradients show without banding; artworks stay sRGB (author, 2026-10-04: no P3 working space, work is made to be seen by others), exports stay 8-bit sRGB, the format is unchanged.
+S27 Colour management and S28 Adjustments (hue/saturation/brightness and curves; blur and sharpen wait, see Candidates) are done (see "Done"). **S29 Project exchange**: the native format as the full original; OpenRaster import and export. **S30 Library management**: search, version restore, external backup. **S31 Ten-bit display**: the canvas cache and the surface at 10 bits per channel (Rgb10a2) so soft gradients show without banding; artworks stay sRGB (author, 2026-10-04: no P3 working space, work is made to be seen by others), exports stay 8-bit sRGB, the format is unchanged.
 Exit: the author completes edit, restore and delivery (W4).
 
 ## G5 Stability and release
@@ -81,6 +81,8 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - 2026-10-04 Mask follow-ups (S24): move a mask with its layer's whole-layer transform (Procreate links them) and transform a mask on its own; masks on groups; apply a mask into its layer (with merging); a mask thumbnail on its row; a grey-only colour panel while a mask is chosen (Procreate) instead of the colour's luma; swipe a mask row to delete.
 - 2026-10-04 Insert follow-ups (S26): keep an inserted picture's own pixels (an asset, a format change) so later transforms resample from them, not from the layer; a turn handle that stays reachable when the frame meets the top band; Procreate's Insert a file and pasting; decoding large photos in tiles instead of whole.
 - 2026-10-04 Colour follow-ups (S27): PNG `gAMA`/`cHRM`/`cICP` without `iCCP`, grey ICC profiles and CMYK JPEGs' profiles (taken as sRGB today); converting 16-bit PNGs before reducing them to 8 bits; deeper stored pixels (16-bit patches, fills and images) if S28's adjustments show banding; no P3 working space (author, 2026-10-04); the 10-bit surface is S31.
+- 2026-10-04 Blur and sharpen (S28): wait for derived per-layer pixel caches (render architecture), never as baked patches.
+- 2026-10-04 Adjustment follow-ups (S28): Procreate's other adjustments (colour balance, gradient map, noise, liquify and the rest) and its Pencil mode (adjusting by painting); removing a curve point (Reset clears the curve shown); curves through 8-bit tables band a strong curve on a smooth gradient (STATUS): interpolate between table entries or evaluate the curve per pixel if the author sees it; a cheaper preview than re-evaluating the whole canvas per value if large artworks lag.
 - 2026-10-02 Pen stroke cancelled by a landing touch: with injected input the dispatcher cancels the pen's gesture when a touch lands mid-stroke and the stroke is dropped; if real hardware does the same, commit the stroke drawn so far on such a cancel.
 
 ## Done
@@ -100,3 +102,4 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - G3 exit 2026-10-04: the author tried every feature on the tablet, `pass` (complex paintings not exercised in depth)
 - G3 follow-ups 2026-10-04 `feat(ui): the chosen mark slides, press wash in the control's shape, a clear Add Mask (G3 follow-ups)`; mid-slide screenshots reviewed, scenario hashes unchanged; checked on the tablet, library byte-identical on the first restore
 - S27 2026-10-04 `feat(store): colour-managed import and sRGB-tagged export (S27)`; Display P3 PNG and JPEG come in as their sRGB colours (also on the tablet), exports embed sRGB, the surface declared sRGB; display facts in STATUS (D53)
+- S28 2026-10-04 `feat(render): adjustments with live preview: hue/saturation/brightness and curves (S28)`; parametric ops in the one evaluator, preview = commit and incremental = cold on the GPU, schema 12 (D54); confirmed on the tablet, the author's library upgraded pixel-identical and restored byte-identical; blur and sharpen moved to Candidates

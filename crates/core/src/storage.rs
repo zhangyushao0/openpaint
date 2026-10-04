@@ -4,6 +4,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use crate::adjust::AdjustEdit;
 use crate::artwork::{Artwork, ArtworkState, MAX_LAYERS};
 use crate::brush::BrushRecipe;
 use crate::error::CoreError;
@@ -191,7 +192,7 @@ fn layer_from(
 }
 
 /// A mask's strokes paint neutral grey over it or smudge it, never under Alpha Lock; its edits
-/// are neutral fills.
+/// are neutral fills or adjustments of its grey (S28).
 fn mask_from(
     parts: &LayerMaskParts,
     canvas: CanvasSize,
@@ -203,9 +204,10 @@ fn mask_from(
         StrokeBlend::Smudge => true,
         _ => false,
     };
-    let edit_ok = |edit: &RegionEdit| {
-        edit.fill()
-            .is_some_and(|fill| !fill.alpha_locked && is_neutral(fill.color))
+    let edit_ok = |edit: &RegionEdit| match edit {
+        RegionEdit::Fill(fill) => !fill.alpha_locked && is_neutral(fill.color),
+        RegionEdit::Transform(_) => false,
+        RegionEdit::Adjust(_) => true,
     };
     if !strokes.iter().all(stroke_ok) || !edits.iter().all(edit_ok) {
         return Err(invalid("mask content"));
@@ -236,6 +238,9 @@ fn content_from(
             EditParts::Fill(fill) => RegionEdit::Fill(fill_from(fill, canvas)?),
             EditParts::Transform(transform) => {
                 RegionEdit::Transform(transform_parts_from(transform, canvas)?)
+            }
+            EditParts::Adjust(adjust) => {
+                RegionEdit::Adjust(AdjustEdit::from_parts(adjust, canvas)?)
             }
         };
         if edit.after() < after || edit.after() > strokes.len() {

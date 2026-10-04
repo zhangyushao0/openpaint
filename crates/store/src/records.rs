@@ -40,7 +40,8 @@
 //! recipes and no StreamLine in its toolbox; schema 6 (S16) had no clip in its strokes; schema
 //! 7 (S18) had fills only, without a kind; schema 8 (S20) had no smudge in its strokes or its
 //! toolbox; schema 9 (S21) had no clipping, blend or group in its heads; schema 10 (S23) had
-//! no masks; `migrate.rs` and `migrate_6.rs` to `migrate_11.rs` upgrade them.
+//! no masks; schema 11 (S24) had no adjustment records (edit kind 2);
+//! `migrate.rs` and `migrate_6.rs` to `migrate_12.rs` upgrade them.
 
 use openpaint_app::{PortError, ProjectId};
 use openpaint_core::{Artwork, BlendMode, GroupParts, LayerMaskParts, LayerParts};
@@ -51,7 +52,7 @@ pub(crate) use crate::strokes::{
 };
 
 /// The schema this build writes and the newest it reads.
-pub const SCHEMA: u32 = 11;
+pub const SCHEMA: u32 = 12;
 
 pub(crate) const LIBRARY: &str = "library";
 pub(crate) const PROJECTS: &str = "projects";

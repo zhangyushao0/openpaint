@@ -5,6 +5,8 @@
 #![forbid(unsafe_code)]
 
 mod actions_panel;
+mod adjust_controls;
+mod adjust_panel;
 mod brush_panel;
 mod canvas_input;
 mod color_drop;

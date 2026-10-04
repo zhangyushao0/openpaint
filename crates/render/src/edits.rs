@@ -1,6 +1,7 @@
 //! A layer's region edits as scene ops. A fill paints its colour inside its mask. A transform
 //! clears what it lifted (an erasing fill over its selection; for the whole layer nothing
 //! before it is drawn at all, `restart`) and draws its patch through its placement (`Patch`).
+//! An adjustment changes the layer's colours so far, inside its clip (`scene_adjust.rs`).
 
 use openpaint_core::{CanvasSize, Layer, RegionEdit, RegionMask, TransformEdit};
 
@@ -10,8 +11,14 @@ use crate::protocol::{Blend, MASK_HEADER, Op, Paint};
 use crate::scene::{Item, Scene};
 
 impl Scene {
-    pub(crate) fn push_edit(&mut self, edit: &RegionEdit) -> Result<(), RenderError> {
+    /// `edit`'s ops; `on_mask` when it lies on a mask, which an adjustment needs to know.
+    pub(crate) fn push_edit(
+        &mut self,
+        edit: &RegionEdit,
+        on_mask: bool,
+    ) -> Result<(), RenderError> {
         match edit {
+            RegionEdit::Adjust(adjust) => self.push_adjust(adjust, on_mask),
             RegionEdit::Fill(fill) => {
                 let color = fill.color();
                 let blend = if fill.alpha_locked() {
@@ -73,7 +80,7 @@ pub(crate) fn restart(layer: &Layer) -> (usize, usize) {
 }
 
 /// A mask's pixels, from their top-left corner to past their bottom-right one.
-fn mask_bounds(mask: &RegionMask) -> Bounds {
+pub(crate) fn mask_bounds(mask: &RegionMask) -> Bounds {
     let ([x, y], [width, height]) = (mask.origin(), mask.size());
     Bounds([
         x as f32,
@@ -121,6 +128,10 @@ pub(crate) fn edit_rect(canvas: CanvasSize, edit: &RegionEdit) -> PixelRect {
             );
             lifted.union(&placed_rect(transform))
         }
+        RegionEdit::Adjust(adjust) => adjust.clip().map_or_else(
+            || PixelRect::full([canvas.width(), canvas.height()]),
+            |clip| mask_bounds(clip).pixels(),
+        ),
     }
 }
 

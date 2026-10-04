@@ -50,6 +50,19 @@ pub fn slider(ui: &mut egui::Ui, label: &str, value: f32, enabled: bool) -> Opti
     change
 }
 
+/// The row over a slider: what it sets at the left, its value now at the right.
+pub fn value_row(ui: &mut egui::Ui, label: &str, value: &str) {
+    ui.horizontal(|ui| {
+        ui.set_height(TOUCH_TARGET);
+        ui.add_space(2.0 * SPACE);
+        ui.label(label);
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.add_space(2.0 * SPACE);
+            ui.label(value);
+        });
+    });
+}
+
 fn paint(ui: &egui::Ui, track: Rect, value: f32, enabled: bool) {
     let y = track.center().y;
     let knob = Pos2::new(track.left() + value * track.width(), y);

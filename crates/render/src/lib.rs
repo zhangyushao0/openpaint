@@ -24,6 +24,7 @@ mod protocol;
 mod readback;
 mod sample;
 mod scene;
+mod scene_adjust;
 mod scene_layer;
 mod screen;
 mod smudge;

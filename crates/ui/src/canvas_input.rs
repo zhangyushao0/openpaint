@@ -38,6 +38,8 @@ pub(crate) struct CanvasFrame<'a> {
     pub(crate) selecting: bool,
     /// The Transform tool's frame: the pen and the fingers move what it holds, never draw.
     pub(crate) transform: Option<TransformFrame>,
+    /// An adjustment is under way: the pen draws nothing; fingers still move the view.
+    pub(crate) adjusting: bool,
     pub(crate) drawing: bool,
     /// A control took a contact this frame.
     pub(crate) control: bool,
@@ -103,7 +105,9 @@ impl CanvasInput {
             }
             pen |= matches!(contact.device, Device::Pen | Device::Eraser);
             let anywhere = frame.picking || frame.selecting;
-            let on_canvas = first.is_some_and(|at| anywhere || inside(&mapping, frame.canvas, at));
+            // While an adjustment shows, the pen takes no canvas contact.
+            let on_canvas = !frame.adjusting
+                && first.is_some_and(|at| anywhere || inside(&mapping, frame.canvas, at));
             if open && on_canvas && !self.owned.contains(&contact.id) {
                 self.owned.push(contact.id);
                 // The view status gives way to the pen at once.

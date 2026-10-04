@@ -5,6 +5,7 @@ use std::fmt;
 
 use openpaint_core::CoreError;
 
+use crate::adjust::AdjustRefusal;
 use crate::fill::FillRefusal;
 use crate::projection::{Availability, EditorAction};
 use crate::transform::TransformRefusal;
@@ -21,6 +22,8 @@ pub enum AppError {
     FillRefused(FillRefusal),
     /// The active layer cannot be transformed.
     TransformRefused(TransformRefusal),
+    /// The active layer cannot be adjusted.
+    AdjustRefused(AdjustRefusal),
 }
 
 impl fmt::Display for AppError {
@@ -29,6 +32,7 @@ impl fmt::Display for AppError {
             Self::Core(error) => write!(f, "{error}"),
             Self::FillRefused(refusal) => write!(f, "no fill: {refusal}"),
             Self::TransformRefused(refusal) => write!(f, "no transform: {refusal}"),
+            Self::AdjustRefused(refusal) => write!(f, "no adjustment: {refusal}"),
             Self::Unavailable {
                 action,
                 availability,

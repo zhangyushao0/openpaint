@@ -5,6 +5,7 @@ use std::fmt;
 
 use openpaint_core::CanvasSize;
 
+use crate::adjust::AdjustProjection;
 use crate::fill::{DEFAULT_THRESHOLD, FillProjection};
 use crate::gallery::GalleryProjection;
 use crate::layers::LayerList;
@@ -49,6 +50,8 @@ pub enum EditorAction {
     Fill,
     /// Move, scale or turn the layer's content or the selection's.
     Transform,
+    /// Adjust the layer's colours, blur or sharpen it.
+    Adjust,
 }
 
 /// Whether an action can run now, and why not.
@@ -103,6 +106,8 @@ pub struct SessionProjection {
     pub(crate) selection: Box<SelectionProjection>,
     /// Boxed: a frame, most frames nothing.
     pub(crate) transform: Box<TransformProjection>,
+    /// Boxed: curves, most frames nothing.
+    pub(crate) adjust: Box<AdjustProjection>,
     pub(crate) brush: Option<BrushProjection>,
     /// Boxed: rarely more than a notice, but its errors are large.
     pub(crate) transfers: Option<Box<TransferProjection>>,
@@ -114,7 +119,8 @@ pub enum ScreenProjection {
     /// The library is opening; nothing can be done yet.
     #[default]
     Starting,
-    Canvas(SessionProjection),
+    /// Boxed: far larger than the others.
+    Canvas(Box<SessionProjection>),
     Gallery(GalleryProjection),
 }
 
@@ -159,7 +165,7 @@ impl SessionProjection {
             EditorAction::EditMask => self.layer_actions[7],
             EditorAction::ChangeMask => self.layer_actions[8],
             EditorAction::Gallery => self.gallery,
-            EditorAction::Fill | EditorAction::Transform => {
+            EditorAction::Fill | EditorAction::Transform | EditorAction::Adjust => {
                 if self.canvas.is_none() {
                     Availability::NothingLeft
                 } else if self.drawing {
@@ -187,6 +193,12 @@ impl SessionProjection {
     #[must_use]
     pub fn transform(&self) -> TransformProjection {
         *self.transform
+    }
+
+    /// The adjustment under way, its values and its notice.
+    #[must_use]
+    pub fn adjust(&self) -> &AdjustProjection {
+        &self.adjust
     }
 
     /// What to tell the user about saving and opening.
@@ -273,6 +285,7 @@ impl Default for SessionProjection {
             },
             selection: Box::default(),
             transform: Box::default(),
+            adjust: Box::default(),
             brush: None,
             transfers: None,
         }
@@ -301,6 +314,7 @@ impl fmt::Display for EditorAction {
             Self::InsertImage => "insert an image",
             Self::Fill => "fill",
             Self::Transform => "transform",
+            Self::Adjust => "adjust",
         })
     }
 }

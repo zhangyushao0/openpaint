@@ -51,6 +51,8 @@ pub enum Icon {
     Eyedropper,
     /// A spanner at a slant, its open ring up to the right: the Actions menu.
     Actions,
+    /// A wand at a slant, a spark at its tip up to the right: the Adjustments menu.
+    Adjustments,
     /// A lasso, its loop in dashes: the Selection tool.
     Selection,
     /// A pointer arrow, its tip up to the left: the Transform tool.
@@ -153,6 +155,7 @@ fn polylines(icon: Icon) -> Vec<Line> {
         | Icon::Eraser
         | Icon::Eyedropper
         | Icon::Selection
+        | Icon::Adjustments
         | Icon::Transform => tools(icon),
         Icon::Actions => spanner(),
         Icon::Close => vec![
@@ -354,6 +357,7 @@ mod tests {
             Icon::Eraser,
             Icon::Eyedropper,
             Icon::Actions,
+            Icon::Adjustments,
             Icon::Selection,
             Icon::Transform,
             Icon::Close,

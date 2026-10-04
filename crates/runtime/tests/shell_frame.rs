@@ -33,8 +33,9 @@ fn frame_shows_the_islands_over_the_desk_and_the_canvas_under_them() {
     let (pixels, _) = image.pixels().as_chunks::<4>();
     let islands = row(pixels, ISLAND_ROW);
     let width = SIZE[0] as usize;
+    // The left island ends near x = 630 since S28 added the Adjustments wand.
     assert!(
-        islands[540..720].iter().all(|pixel| *pixel == SURROUND),
+        islands[640..720].iter().all(|pixel| *pixel == SURROUND),
         "the desk shows between the islands"
     );
     for (end, columns) in [("left", 20..120), ("right", width - 120..width - 20)] {

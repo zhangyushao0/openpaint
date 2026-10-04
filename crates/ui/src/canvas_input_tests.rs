@@ -21,6 +21,7 @@ fn frame(covers: &[ScreenArea]) -> CanvasFrame<'_> {
         picking: false,
         selecting: false,
         transform: None,
+        adjusting: false,
         drawing: false,
         control: false,
     }

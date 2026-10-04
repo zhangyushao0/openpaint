@@ -6,6 +6,7 @@
 
 use openpaint_core::{ActiveStroke, Artwork, CanvasSize, RegionMask, StrokeStyle};
 
+use crate::adjust::Adjusts;
 use crate::error::AppError;
 use crate::fill::{FillFailed, FillJob, Fills};
 use crate::history::{HISTORY_BUDGET, History, HistoryIntent};
@@ -20,6 +21,8 @@ use crate::streamline::StreamLine;
 use crate::stroke::Strokes;
 use crate::transform::Transforms;
 
+#[path = "session_adjust.rs"]
+mod session_adjust;
 #[path = "session_transform.rs"]
 mod session_transform;
 use crate::view::{CanvasView, ViewIntent};
@@ -34,6 +37,8 @@ pub struct Session {
     selection: Selection,
     /// The Transform tool and the content it holds until it is committed (D45).
     transforms: Transforms,
+    /// The adjustment under way until it is applied or cancelled (D54).
+    adjusts: Adjusts,
     autosave: Autosave,
     /// How the artwork shows; it lives as long as the session (every artwork opens at fit).
     view: CanvasView,
@@ -58,6 +63,7 @@ impl Session {
             fills: Fills::default(),
             selection: Selection::default(),
             transforms: Transforms::default(),
+            adjusts: Adjusts::default(),
             view: CanvasView::FIT,
         }
     }
@@ -89,14 +95,9 @@ impl Session {
     /// `Core` when the artwork refuses the edit (a locked layer, an invalid sample);
     /// `Unavailable` when the projection does not offer the action.
     pub fn dispatch(&mut self, intent: Intent) -> Result<(), AppError> {
-        let keeps = matches!(
-            intent,
-            Intent::Transform(_) | Intent::View(_) | Intent::History(_) | Intent::Storage(_)
-        );
-        if !keeps {
-            // Any other edit or tool ends the transform where it shows (Procreate).
-            self.commit_transform();
-            self.transforms.forget_refusal();
+        self.end_drafts(&intent);
+        if let Intent::Adjust(adjust) = intent {
+            return self.adjust(adjust);
         }
         if let Intent::Transform(transform) = intent {
             return self.transform(transform);
@@ -144,6 +145,7 @@ impl Session {
             | Intent::View(_)
             | Intent::Fill(_)
             | Intent::Transform(_)
+            | Intent::Adjust(_)
             | Intent::Brush(_)
             | Intent::Tool(_)
             | Intent::Export(_)
@@ -167,13 +169,14 @@ impl Session {
         self.strokes.active()
     }
 
-    /// What the canvas shows: the current version, or the preview of the transform or the fill
-    /// being placed on it (which is not in history).
+    /// What the canvas shows: the current version, or the preview of the transform, the
+    /// adjustment or the fill being placed on it (which is not in history).
     #[must_use]
     pub fn shown(&self) -> &Artwork {
         let current = self.history.current();
         self.transforms
             .shown(current)
+            .or_else(|| self.adjusts.shown(current))
             .or_else(|| self.fills.shown(current))
             .unwrap_or(current)
     }
@@ -221,7 +224,10 @@ impl Session {
         };
         let artwork = self.history.current();
         let drawing = self.strokes.active().is_some();
-        let (can_undo, can_redo) = if self.transforms.active() {
+        let (can_undo, can_redo) = if self.adjusts.active() {
+            // Undo cancels the adjustment under way.
+            (true, false)
+        } else if self.transforms.active() {
             (self.transforms.can_undo(), self.transforms.can_redo())
         } else if self.selection.tool() {
             (self.selection.can_undo(), self.selection.can_redo())
@@ -245,6 +251,7 @@ impl Session {
             fill: self.fills.projection(),
             selection: Box::new(self.selection.projection()),
             transform: Box::new(self.transforms.projection()),
+            adjust: Box::new(self.adjusts.projection()),
             brush: None,
             transfers: None,
         }
@@ -285,6 +292,7 @@ impl Session {
     /// transform in progress (an inserted picture too) is committed first, so it is not lost.
     pub fn leave_request(&mut self) -> Option<Artwork> {
         self.commit_transform();
+        self.apply_adjustment();
         if self.autosave.can_retry() {
             self.autosave.retry();
         }
@@ -311,6 +319,10 @@ impl Session {
             HistoryIntent::Redo => EditorAction::Redo,
         };
         self.check(action)?;
+        if self.adjusts.active() {
+            self.adjusts.cancel();
+            return Ok(());
+        }
         if self.transforms.active() {
             match step {
                 HistoryIntent::Undo => self.transforms.undo(),

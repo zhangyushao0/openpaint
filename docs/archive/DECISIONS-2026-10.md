@@ -40,3 +40,17 @@ Superseded decisions moved here whole from `docs/DECISIONS.md`. Written, never r
 - Reason: the blend must be stored per stroke (D30); one byte keeps stroke records paying per stroke; the editor state stays apart from artworks (D09).
 - Consequences: verified on the tablet: the author's schema-3 drawing reopened pixel-identical after the upgrade, its toolbox kept.
 - Archived 2026-10-04 (S23): summarised by D49 "Schema history".
+
+## D32 2026-10-02 The UI is paper-white line art, intuitive and restrained
+
+- Decision: the chrome is light, near-neutral warm paper with ink-line outlines and self-drawn ink-line icons (no icon library); the white canvas sits on the paper; one deep ink colour marks the active state; no dark theme. Two rules: intuitive (a first-day tablet user needs no instructions; every control explains itself) and restrained (UI appears when needed and recedes; cues over controls, e.g. a cut-off last row and an edge fade instead of a scrollbar, an indicator only while scrolling). Hidden shortcuts such as gestures only duplicate a visible control. Supersedes "neutral dark greys for chrome" in ARCHITECTURE section 10.
+- Reason: the author's direction; the dark, engineering look of Photoshop, Procreate and Clip Studio is not wanted. Near-neutral paper keeps colour judgement honest.
+- Consequences: S17 applies it to every component through `ui/src/design/`; style screenshots go to the author before the full pass.
+- Archived 2026-10-04 (S28): carried by D40 (the chosen style set) and ARCHITECTURE section 10 (the two rules).
+
+## D34 2026-10-02 Gestures follow Procreate's defaults as draweave tuned them
+
+- Decision: pinch zoom and rotate, two-finger pan, quick pinch to fit, two-finger tap undo, three-finger tap redo; dead zones, thresholds and snapping take draweave's tested values. Touch never paints (D18); the pen never navigates.
+- Reason: the author's direction; feel lives in the dead zones and thresholds, which draweave already tuned on this kind of tablet.
+- Consequences: S14 adds multi-pointer routing and scenario steps; touch-and-hold eyedropper and pen-button mapping remain separate decisions.
+- Archived 2026-10-04 (S28): carried by D35 (which narrowed it: no rotation snapping) and D18.

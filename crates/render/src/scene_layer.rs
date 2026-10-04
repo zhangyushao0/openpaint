@@ -86,7 +86,7 @@ impl Scene {
         let newest = strokes.len().checked_sub(1);
         for (index, stroke) in strokes.iter().enumerate().skip(after) {
             while let Some(edit) = edits.next_if(|edit| edit.after() == index) {
-                self.push_edit(edit)?;
+                self.push_edit(edit, on_mask)?;
             }
             let clip = stroke.clip().map(|clip| self.clip(clip)).transpose()?;
             if stroke.style().tool() == StrokeTool::Smudge {
@@ -105,7 +105,7 @@ impl Scene {
             self.push_stroke(stroke.style(), &paint, stroke.samples());
         }
         for edit in edits {
-            self.push_edit(edit)?;
+            self.push_edit(edit, on_mask)?;
         }
         if active {
             self.active_before = Some(start..self.items.len());

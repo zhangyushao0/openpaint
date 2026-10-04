@@ -3,6 +3,7 @@
 
 use std::mem::{offset_of, size_of};
 
+use super::adjust::{ADJUST_KINDS, ADJUST_ONS, ADJUST_SLOTS};
 use super::layers::{INTOS, LAYER_SLOTS, MASKINGS, MODES};
 use super::{
     BLENDS, FRESH, GRAIN_ONE, MASK_HEADER, Op, Opcode, Params, SLOTS, TILE, TIPS, TileRecord,
@@ -68,12 +69,7 @@ pub(crate) fn prelude() -> String {
     ] {
         wgsl.push_str(&format!("const {name}: u32 = {value}u;\n"));
     }
-    for (name, slot) in SLOTS {
-        wgsl.push_str(&format!("const {name}: u32 = {slot}u;\n"));
-    }
-    for (name, slot) in LAYER_SLOTS {
-        wgsl.push_str(&format!("const {name}: u32 = {slot}u;\n"));
-    }
+    named_values(&mut wgsl);
     for (name, blend) in BLENDS {
         wgsl.push_str(&format!("const {name}: u32 = {}u;\n", blend as u32));
     }
@@ -107,4 +103,17 @@ pub(crate) fn prelude() -> String {
         wgsl.push_str("}\n");
     }
     wgsl
+}
+
+/// The named operand slots, and the adjustments' kinds and targets.
+fn named_values(wgsl: &mut String) {
+    for (name, slot) in SLOTS.into_iter().chain(LAYER_SLOTS).chain(ADJUST_SLOTS) {
+        wgsl.push_str(&format!("const {name}: u32 = {slot}u;\n"));
+    }
+    for (name, kind) in ADJUST_KINDS {
+        wgsl.push_str(&format!("const {name}: u32 = {}u;\n", kind as u32));
+    }
+    for (name, on) in ADJUST_ONS {
+        wgsl.push_str(&format!("const {name}: u32 = {}u;\n", on as u32));
+    }
 }

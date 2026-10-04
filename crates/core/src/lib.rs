@@ -4,6 +4,7 @@
 //! `lib.rs` only declares modules and re-exports; concepts live in their own files.
 #![forbid(unsafe_code)]
 
+mod adjust;
 mod artwork;
 mod blend;
 mod brush;
@@ -25,9 +26,13 @@ mod session;
 mod storage;
 mod stroke;
 mod stroke_list;
+mod tone;
 mod transform;
 mod value;
 
+pub use adjust::{
+    AdjustEdit, AdjustParts, Adjustment, AdjustmentKind, AdjustmentParts, Curves, Hsb, ToneChannel,
+};
 pub use artwork::{Artwork, MAX_LAYERS};
 pub use blend::BlendMode;
 pub use brush::{
@@ -52,6 +57,7 @@ pub use stroke::{
     MAX_BRUSH_SIZE, MAX_STROKE_SAMPLES, Stroke, StrokeBlend, StrokeSample, StrokeStyle, StrokeTool,
 };
 pub use stroke_list::StrokeList;
+pub use tone::{MAX_TONE_POINTS, TONE_GAP, ToneCurve};
 pub use transform::{MAX_SCALE, Patch, Placement, TransformEdit};
 pub use value::{
     COORD_LIMIT, CanvasPoint, CanvasSize, Color, LayerName, MAX_CANVAS_SIDE, MAX_NAME_CHARS,

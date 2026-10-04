@@ -102,6 +102,9 @@ fn evaluate(
             case OP_SMUDGE: {
                 layer = smudged(layer, pixel, op);
             }
+            case OP_ADJUST: {
+                layer = adjusted(layer, pixel, op);
+            }
             case OP_BEGIN_MASK: {
                 held = layer;
                 layer = vec4<f32>(0.0);

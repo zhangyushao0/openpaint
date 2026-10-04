@@ -6,9 +6,9 @@
 //! app's typed errors. At fit the pill lies on the desk above the canvas.
 
 use openpaint_app::{
-    Delivery, EditorAction, ExportError, ExportIntent, ExportNotice, FillIntent, FillRefusal,
-    ImageError, InsertIntent, Intent, ReferenceIntent, ReferenceNotice, SessionProjection,
-    StorageIntent, StorageNotice, TransformIntent, TransformRefusal,
+    AdjustIntent, AdjustRefusal, Delivery, EditorAction, ExportError, ExportIntent, ExportNotice,
+    FillIntent, FillRefusal, ImageError, InsertIntent, Intent, ReferenceIntent, ReferenceNotice,
+    SessionProjection, StorageIntent, StorageNotice, TransformIntent, TransformRefusal,
 };
 
 use crate::components::{Place, Source, confirmation, notice, pill, status};
@@ -35,6 +35,7 @@ pub(crate) fn notice_pill(
     let told = storage(projection)
         .or_else(|| fill(projection))
         .or_else(|| transform(projection))
+        .or_else(|| adjust(projection))
         .or_else(|| transfers(projection))?;
     // It comes out of its right end, beside the right island.
     let source = Source::Within(egui::Align::Max);
@@ -114,6 +115,16 @@ fn transform(projection: &SessionProjection) -> Option<Told> {
         TransformRefusal::Full => "Can't insert: no room for another layer.",
     };
     let dismiss = Intent::Transform(TransformIntent::Tool(false));
+    Some(Told::Failed(message.to_owned(), "OK", true, dismiss))
+}
+
+/// Why an adjustment did not start, with OK.
+fn adjust(projection: &SessionProjection) -> Option<Told> {
+    let message = match projection.adjust().refused? {
+        AdjustRefusal::Hidden => "Can't adjust: the layer is hidden.",
+        AdjustRefusal::Locked => "Can't adjust: the layer is locked.",
+    };
+    let dismiss = Intent::Adjust(AdjustIntent::Dismiss);
     Some(Told::Failed(message.to_owned(), "OK", true, dismiss))
 }
 

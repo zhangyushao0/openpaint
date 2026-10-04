@@ -1,6 +1,7 @@
 //! `Intent`: everything the UI can ask of the session. Each family lives in its own module with
 //! its handler and tests.
 
+use crate::adjust::AdjustIntent;
 use crate::export::ExportIntent;
 use crate::fill::FillIntent;
 use crate::gallery::GalleryIntent;
@@ -25,6 +26,7 @@ pub enum Intent {
     Fill(FillIntent),
     Selection(SelectionIntent),
     Transform(TransformIntent),
+    Adjust(AdjustIntent),
     Gallery(GalleryIntent),
     Brush(BrushIntent),
     Tool(ToolIntent),

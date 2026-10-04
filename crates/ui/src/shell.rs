@@ -18,6 +18,7 @@ use openpaint_app::{
 use openpaint_core::{CanvasSize, Color};
 use openpaint_render::{BrushCursor, RgbaImage};
 
+use crate::adjust_panel::AdjustPanel;
 use crate::canvas_input::{CanvasFrame, CanvasInput, touched_outside};
 use crate::color_drop::{ColorDrop, DropFrame};
 use crate::components::carry::{Opening, sheet_at};
@@ -49,6 +50,8 @@ pub(crate) struct Shown {
     pub(crate) selecting: bool,
     /// The Transform tool is on, and its frame once the content is lifted.
     pub(crate) transforming: bool,
+    /// An adjustment is under way: the pen draws nothing.
+    pub(crate) adjusting: bool,
     pub(crate) transform: Option<TransformFrame>,
     pub(crate) drawing: bool,
     /// The colour a drop carries and the threshold it starts with.
@@ -73,6 +76,7 @@ pub struct Shell {
     side: SideBar,
     selection: SelectionBar,
     transform: TransformBar,
+    adjust: AdjustPanel,
     reference: ReferenceWindow,
     pub(crate) drop: ColorDrop,
     /// Where the fill bar lies, from the last pass.
@@ -184,6 +188,7 @@ impl Shell {
             picking: brush.is_some_and(|brush| brush.picking),
             selecting: projection.selection().tool,
             transforming: projection.transform().tool,
+            adjusting: projection.adjust().adjustment.is_some(),
             transform: projection.transform().frame,
             drawing: projection.drawing(),
             color: brush.map(|brush| brush.color),
@@ -213,6 +218,7 @@ impl Shell {
         self.reference
             .show(&ctx, projection, (self.now_ms, opener), &mut self.taps);
         self.panels.show(&ctx, projection, &mut self.taps);
+        self.adjust.show(&ctx, projection, &mut self.taps);
         self.drop_bar = drop_bar::show(&mut self.drop, &ctx, projection, self.pixels_per_point);
         let picking_at = self.reference.picking_at().or(self.input.picking_at());
         pen_marks::show_loupe(&ctx, picking_at, brush, self.pixels_per_point);
@@ -269,8 +275,9 @@ impl Shell {
     /// picking, while the brush draws and off the canvas screen.
     #[must_use]
     pub fn cursor(&self, erasing: Option<([f32; 2], f32)>) -> Option<BrushCursor> {
-        // While the Selection or the Transform tool is on the pen draws no paint: no outline.
-        let painting = |shown: &Shown| !shown.selecting && !shown.transforming;
+        // While the Selection or the Transform tool is on, or an adjustment, the pen draws no
+        // paint: no outline.
+        let painting = |s: &Shown| !s.selecting && !s.transforming && !s.adjusting;
         let (shown, area) = (self.shown.filter(painting)?, self.canvas?);
         let ppp = self.pixels_per_point;
         let mapping = shown.view.mapping(shown.canvas, &area.viewport(ppp));
@@ -328,6 +335,7 @@ impl Shell {
         let covers: Vec<ScreenArea> = [self.side.area(), self.reference.area(), panel]
             .into_iter()
             .chain([self.drop_bar, self.selection.area(), self.transform.area()])
+            .chain([self.adjust.area()])
             .flatten()
             .chain(self.islands.iter().copied())
             .collect();
@@ -340,6 +348,7 @@ impl Shell {
             now_ms,
             picking: shown.picking,
             selecting: shown.selecting,
+            adjusting: shown.adjusting,
             transform: shown.transform,
             drawing: shown.drawing,
             control: !self.taps.is_empty(),
@@ -357,8 +366,9 @@ impl Shell {
             self.panels.close();
         }
         intents.extend(self.input.route(&frame, &rest));
-        if panel.is_some() && touched_outside(&area.screen, &covers, batches) {
+        if touched_outside(&area.screen, &covers, batches) {
             self.panels.close();
+            self.adjust.close_menu();
         }
         self.settle_view(&intents, frame.mapping());
         // Choosing a tool ends continuing to fill.

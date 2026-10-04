@@ -14,13 +14,15 @@ use crate::scene::Scene;
 const SHADER: &str = include_str!("shaders/evaluate.wgsl");
 const DEPOSIT: &str = include_str!("shaders/deposit.wgsl");
 const SMUDGE: &str = include_str!("shaders/smudge_composite.wgsl");
+const ADJUST: &str = include_str!("shaders/adjust.wgsl");
 /// The in-progress stroke's coverage (or density) and paper contact textures: one float per
 /// canvas pixel each.
 pub(crate) const COVERAGE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::R32Float;
 
-/// The protocol prelude followed by the evaluator, its accumulating deposits and its smudges.
+/// The protocol prelude followed by the evaluator, its accumulating deposits, its smudges and
+/// its adjustments.
 pub(crate) fn shader_source() -> String {
-    prelude() + SHADER + DEPOSIT + SMUDGE
+    prelude() + SHADER + DEPOSIT + SMUDGE + ADJUST
 }
 
 /// What one dispatch evaluates.

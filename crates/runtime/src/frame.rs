@@ -283,7 +283,7 @@ impl Runtime {
     #[must_use]
     pub fn projection(&self) -> SessionProjection {
         match self.screen() {
-            ScreenProjection::Canvas(projection) => projection,
+            ScreenProjection::Canvas(projection) => *projection,
             _ => SessionProjection::default(),
         }
     }

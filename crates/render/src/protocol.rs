@@ -130,10 +130,12 @@ pub(crate) enum Opcode {
     EndGroup = 8,
     /// The current layer's paint is set aside and its mask starts (`Masking`).
     BeginMask = 9,
+    /// An adjustment of the current layer's colours, inside its clip (`protocol_adjust.rs`).
+    Adjust = 10,
 }
 
 impl Opcode {
-    const ALL: [Self; 10] = [
+    const ALL: [Self; 11] = [
         Self::Segment,
         Self::EndStroke,
         Self::EndLayer,
@@ -144,6 +146,7 @@ impl Opcode {
         Self::EndChain,
         Self::EndGroup,
         Self::BeginMask,
+        Self::Adjust,
     ];
 
     const fn wgsl_name(self) -> &'static str {
@@ -158,6 +161,7 @@ impl Opcode {
             Self::EndChain => "OP_END_CHAIN",
             Self::EndGroup => "OP_END_GROUP",
             Self::BeginMask => "OP_BEGIN_MASK",
+            Self::Adjust => "OP_ADJUST",
         }
     }
 }
@@ -186,6 +190,8 @@ impl Opcode {
 ///   `at` of the patch words: `MASK_HEADER` words, then one premultiplied RGBA8 word per
 ///   pixel, rows top first.
 /// - `Smudge`: `[at / 2^16, at % 2^16, locked, active, ..., clip / 2^16, clip % 2^16]`.
+/// - `Adjust`: `[kind, hue, saturation, brightness, on, tables / 2^16, tables % 2^16, ...,
+///   clip / 2^16, clip % 2^16]` (`protocol_adjust.rs`).
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Op {
@@ -361,6 +367,10 @@ pub(crate) struct Params {
 #[path = "protocol_records.rs"]
 mod records;
 pub(crate) use records::{Record, encode};
+
+#[path = "protocol_adjust.rs"]
+mod adjust;
+pub(crate) use adjust::{AdjustOn, table_words};
 
 #[path = "protocol_layers.rs"]
 mod layers;

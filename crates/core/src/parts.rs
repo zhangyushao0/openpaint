@@ -1,6 +1,7 @@
 //! Plain, unvalidated artwork data for the store. `Artwork::to_parts` produces it;
 //! `Artwork::from_storage` is the only way back and validates everything.
 
+use crate::adjust::AdjustParts;
 use crate::artwork::Artwork;
 use crate::blend::BlendMode;
 use crate::brush::{BrushRecipe, Curve, Dynamics, Grain};
@@ -71,6 +72,7 @@ pub struct LayerParts {
 pub enum EditParts {
     Fill(FillParts),
     Transform(TransformParts),
+    Adjust(AdjustParts),
 }
 
 /// A transform as plain data: its place among the layer's strokes, what it lifted (`None`: the
@@ -321,6 +323,7 @@ fn edit_parts(edit: &RegionEdit) -> EditParts {
                 translation: placement.translation(),
             })
         }
+        RegionEdit::Adjust(adjust) => EditParts::Adjust(adjust.to_parts()),
     }
 }
 

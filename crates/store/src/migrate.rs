@@ -193,7 +193,7 @@ fn head_4_to_5(head: &[u8]) -> Option<Vec<u8>> {
 }
 
 /// `head` marked with schema `to` instead of `from`; `None` when it is not marked `from`.
-fn remarked(head: &[u8], from: u32, to: u32) -> Option<Vec<u8>> {
+pub(crate) fn remarked(head: &[u8], from: u32, to: u32) -> Option<Vec<u8>> {
     let layout = head.strip_prefix(&from.to_le_bytes()[..])?;
     let mut marked = encode_schema(to);
     marked.extend_from_slice(layout);
@@ -347,7 +347,8 @@ mod tests {
         let nine = upgrade_8_to_9(&[(id, eight.projects[0].1.clone())], None);
         let ten = crate::migrate_10::upgrade_9_to_10(&[(id, nine.projects[0].1.clone())]);
         let eleven = crate::migrate_11::upgrade_10_to_11(&[(id, ten.projects[0].1.clone())]);
-        let head = decode_head(&eleven.projects[0].1).expect("a schema-5 head, upgraded");
+        let twelve = crate::migrate_12::upgrade_11_to_12(&[(id, eleven.projects[0].1.clone())]);
+        let head = decode_head(&twelve.projects[0].1).expect("a schema-5 head, upgraded");
         let layers: Vec<_> = head
             .layers
             .iter()
