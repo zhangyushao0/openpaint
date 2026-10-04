@@ -1,5 +1,5 @@
-//! Schema 8: the keys and values the library stores (DECISIONS D21, D25, D28, D29, D36, D38,
-//! D43, D45).
+//! Schema 9: the keys and values the library stores (DECISIONS D21, D25, D28, D29, D36, D38,
+//! D43, D45, D46).
 //!
 //! Keyspace `library`: `schema` -> the schema of every record (u32 LE); `next` -> the next
 //! unused project id (u64 LE); `clock` -> the last value of the change counter (u64 LE); `last`
@@ -14,7 +14,7 @@
 //!   (u8), its stroke count (u32) and its edit count (u32);
 //! - `[project u64]['s'][layer u64][index u64]` -> one stroke, oldest at index 0 (`strokes.rs`):
 //!   id (u64), size, opacity, red, green, blue (f32), blend (u8: 0 paint over, 1 paint atop
-//!   under Alpha Lock, 2 erase), its brush recipe (softness (f32); the curves size over
+//!   under Alpha Lock, 2 erase, 3 smudge, 4 smudge under Alpha Lock), its brush recipe (softness (f32); the curves size over
 //!   pressure, size over speed, opacity over pressure, opacity over speed, each a point count
 //!   (u32) and per point x, y (f32); grain strength (f32) and scale (u32); the deposit (u8: 0
 //!   cover, 1 accumulate), when accumulating its tip (u8: 0 flat, 1 bell), flow and maximum
@@ -33,8 +33,9 @@
 //! in its strokes and no `editor`; schema 3 (S11) had no alpha lock, no blend and a toolbox of
 //! one tool without colours; schema 4 (S12) had no fills; schema 5 (S15) had no deposit in its
 //! recipes and no StreamLine in its toolbox; schema 6 (S16) had no clip in its strokes; schema
-//! 7 (S18) had fills only, without a kind; `migrate.rs`, `migrate_6.rs`, `migrate_7.rs` and
-//! `migrate_8.rs` upgrade them.
+//! 7 (S18) had fills only, without a kind; schema 8 (S20) had no smudge in its strokes or its
+//! toolbox; `migrate.rs`, `migrate_6.rs`, `migrate_7.rs`, `migrate_8.rs` and `migrate_9.rs`
+//! upgrade them.
 
 use openpaint_app::{PortError, ProjectId};
 use openpaint_core::{Artwork, LayerParts};
@@ -45,7 +46,7 @@ pub(crate) use crate::strokes::{
 };
 
 /// The schema this build writes and the newest it reads.
-pub const SCHEMA: u32 = 8;
+pub const SCHEMA: u32 = 9;
 
 pub(crate) const LIBRARY: &str = "library";
 pub(crate) const PROJECTS: &str = "projects";

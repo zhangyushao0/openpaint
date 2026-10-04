@@ -43,7 +43,7 @@
     { "tap": { "at": [2712, 42] } },
     { "tap": { "at": [2600, 502] } },
     { "screenshot": { "name": "alpha-locked" } },
-    { "tap": { "at": [2516, 42] } },
+    { "tap": { "at": [2425, 42] } },
     { "tap": { "at": [2810, 42] } },
     { "screenshot": { "name": "recent-colours" } },
     { "tap": { "at": [2418.5625, 733.4375] } },

@@ -65,7 +65,7 @@
     { "press": { "path": [[2810, 42, 0], [2500, 300, 80], [600, 400, 240], [600, 400, 300]] } },
     { "checkpoint": { "name": "hidden-refuses", "canvas": "327e6c7f9b7a74ea" } },
     { "screenshot": { "name": "refused-hidden" } },
-    { "tap": { "at": [2398, 59] } },
+    { "tap": { "at": [2307, 59] } },
     { "tap": { "at": [2712, 42] } },
     { "tap": { "at": [2810, 238] } },
     { "tap": { "at": [600, 1500] } },

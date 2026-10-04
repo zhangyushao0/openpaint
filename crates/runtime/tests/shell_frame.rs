@@ -33,7 +33,7 @@ fn frame_shows_the_islands_over_the_desk_and_the_canvas_under_them() {
     let islands = row(pixels, ISLAND_ROW);
     let width = SIZE[0] as usize;
     assert!(
-        islands[560..780].iter().all(|pixel| *pixel == SURROUND),
+        islands[540..720].iter().all(|pixel| *pixel == SURROUND),
         "the desk shows between the islands"
     );
     for (end, columns) in [("left", 20..120), ("right", width - 120..width - 20)] {

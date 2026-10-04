@@ -1,5 +1,6 @@
-//! Stroke records (schema 7; the layout is in `records.rs`): style, blend, recipe, samples and,
-//! since schema 7, the selection the stroke was drawn inside (DECISIONS D43).
+//! Stroke records (schema 9; the layout is in `records.rs`): style, blend, recipe, samples and,
+//! since schema 7, the selection the stroke was drawn inside (DECISIONS D43). Since schema 9
+//! the blend may be a smudge (3) or a smudge under Alpha Lock (4) (D46).
 
 use openpaint_app::PortError;
 use openpaint_core::{
@@ -32,6 +33,8 @@ pub(crate) fn encode_stroke(stroke: &Stroke) -> Vec<u8> {
         StrokeBlend::Over => 0,
         StrokeBlend::Atop => 1,
         StrokeBlend::Erase => 2,
+        StrokeBlend::Smudge => 3,
+        StrokeBlend::SmudgeLocked => 4,
     });
     write_whole_recipe(&mut writer, &style.recipe().to_parts());
     writer.len(samples.len());
@@ -79,6 +82,9 @@ pub(crate) fn read_stroke_6(reader: &mut Reader<'_>) -> Result<StrokeParts, Port
         0 => StrokeBlend::Over,
         1 => StrokeBlend::Atop,
         2 => StrokeBlend::Erase,
+        // Since schema 9 (D46): a smudge, then one under Alpha Lock.
+        3 => StrokeBlend::Smudge,
+        4 => StrokeBlend::SmudgeLocked,
         _ => return Err(reader.corrupt()),
     };
     let recipe = read_recipe(reader)?;

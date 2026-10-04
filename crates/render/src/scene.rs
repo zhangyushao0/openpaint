@@ -2,14 +2,18 @@
 //! reach, and `Fresh`: the in-progress stroke's part of one evaluation. The geometry of one
 //! stroke is in `stroke.rs`.
 
+use std::ops::Range;
+
 use openpaint_core::{
-    ActiveStroke, Artwork, Layer, LayerId, Patch, RegionMask, StrokeSample, StrokeStyle,
+    ActiveStroke, Artwork, Layer, LayerId, Patch, RegionMask, Stroke, StrokeBlend, StrokeSample,
+    StrokeStyle, StrokeTool,
 };
 
 use crate::edits::restart;
 use crate::error::RenderError;
 use crate::geom::Bounds;
 use crate::protocol::{MASK_HEADER, Op, Paint};
+use crate::smudge::smudge_reach;
 use crate::stroke::{paint, segments};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -29,19 +33,36 @@ pub(crate) enum Item {
     /// Where the in-progress stroke draws: above its layer's finished strokes. Its ops are the
     /// evaluation's `Fresh` ops, which change every frame while the scene stays.
     Active,
+    /// Pixels a smudge can change, one box per pair of samples; listed nowhere itself.
+    Reach(Bounds),
+    /// A smudge's residual applied to its layer, in every tile its reach touched.
+    Smudge(Op),
 }
 
 impl Item {
-    /// For `Active`, an op no plan refers to, so item and op indices stay equal.
+    /// For `Active` and `Reach`, an op no plan refers to, so item and op indices stay equal.
     pub(crate) fn op(&self) -> Op {
         match self {
             Self::Segment { op, .. }
             | Self::Fill { op, .. }
             | Self::EndStroke(op)
-            | Self::EndLayer(op) => *op,
-            Self::Active => Op::unused(),
+            | Self::EndLayer(op)
+            | Self::Smudge(op) => *op,
+            Self::Active | Self::Reach(_) => Op::unused(),
         }
     }
+}
+
+/// A finished smudge the scene draws, in scene order: its residual must be in the target's
+/// arena before the scene is evaluated.
+#[derive(Debug, Clone)]
+pub(crate) struct SmudgeItem {
+    pub(crate) layer: LayerId,
+    pub(crate) stroke: Stroke,
+    /// The items of its layer before it: the pixels it carries.
+    pub(crate) before: Range<usize>,
+    /// It is its layer's newest stroke.
+    pub(crate) newest: bool,
 }
 
 /// Bottom layer first; inside a layer, finished strokes oldest first with each fill after the
@@ -60,6 +81,12 @@ pub(crate) struct Scene {
     /// The transforms' patches in the patch words, in order, and how many words they take.
     pub(crate) patches: Vec<Patch>,
     pub(crate) patch_words: usize,
+    /// The finished smudges, and where in the mask words their residuals' bases are written
+    /// (one word each, in order, filled in after the scene is uploaded).
+    pub(crate) smudges: Vec<SmudgeItem>,
+    pub(crate) bases_at: u32,
+    /// The items of the in-progress stroke's layer before its place.
+    pub(crate) active_before: Option<Range<usize>>,
 }
 
 /// Where the in-progress stroke draws: its layer, and the selection it is drawn inside.
@@ -93,6 +120,11 @@ impl Scene {
             ));
         }
         let mut scene = Self::default();
+        let shown = artwork
+            .layers()
+            .iter()
+            .filter(|layer| layer.props().visible());
+        scene.reserve_bases(shown.map(smudge_count).sum());
         for layer in artwork.layers() {
             if layer.props().visible() {
                 let place = active.filter(|place| place.layer == layer.id());
@@ -112,8 +144,15 @@ impl Scene {
             .layer(layer)
             .ok_or(RenderError::Invalid("the layer is not in the artwork"))?;
         let mut scene = Self::default();
+        scene.reserve_bases(smudge_count(layer));
         scene.push_layer(layer, false, 1.0)?;
         Ok(scene)
+    }
+
+    /// The first mask words, one per smudge: where their residuals start in the arena.
+    fn reserve_bases(&mut self, count: usize) {
+        self.bases_at = 0;
+        self.masks.resize(count, 0);
     }
 
     /// A transform of the whole layer clears everything before it, so the layer's ops start at
@@ -122,11 +161,22 @@ impl Scene {
         let start = self.items.len();
         let (first, after) = restart(layer);
         let mut edits = layer.edits()[first..].iter().peekable();
+        let newest = layer.strokes().len().checked_sub(1);
         for (index, stroke) in layer.strokes().iter().enumerate().skip(after) {
             while let Some(edit) = edits.next_if(|edit| edit.after() == index) {
                 self.push_edit(edit)?;
             }
             let clip = stroke.clip().map(|clip| self.clip(clip)).transpose()?;
+            if stroke.style().tool() == StrokeTool::Smudge {
+                let item = SmudgeItem {
+                    layer: layer.id(),
+                    stroke: stroke.clone(),
+                    before: start..self.items.len(),
+                    newest: newest == Some(index),
+                };
+                self.push_smudge(item, clip.unwrap_or(0));
+                continue;
+            }
             let mut paint = paint(stroke.style(), stroke.blend());
             paint.clip = clip.unwrap_or(0);
             self.push_stroke(stroke.style(), &paint, stroke.samples());
@@ -135,6 +185,7 @@ impl Scene {
             self.push_edit(edit)?;
         }
         if active {
+            self.active_before = Some(start..self.items.len());
             self.items.push(Item::Active);
         }
         if self.items.len() > start {
@@ -184,6 +235,30 @@ impl Scene {
         }
         self.items.push(Item::EndStroke(Op::end_stroke(paint)));
     }
+
+    /// A finished smudge: its reach, then its op, which finds its residual's base in the mask
+    /// word of its place among the scene's smudges.
+    fn push_smudge(&mut self, item: SmudgeItem, clip: u32) {
+        let stroke = &item.stroke;
+        for bounds in smudge_reach(stroke.style(), stroke.samples(), 0) {
+            self.items.push(Item::Reach(bounds));
+        }
+        let locked = stroke.blend() == StrokeBlend::SmudgeLocked;
+        let at = self.bases_at + self.smudges.len() as u32;
+        self.items
+            .push(Item::Smudge(Op::smudge(Some(at), clip, locked)));
+        self.smudges.push(item);
+    }
+}
+
+/// How many smudges of `layer` a scene draws: those after a transform of the whole layer.
+fn smudge_count(layer: &Layer) -> usize {
+    let (_, after) = restart(layer);
+    layer
+        .strokes()
+        .since(after)
+        .filter(|stroke| stroke.style().tool() == StrokeTool::Smudge)
+        .count()
 }
 
 /// The in-progress stroke's ops for one evaluation: `ops[0]` paints it (`EndActive`), the rest
@@ -200,6 +275,14 @@ impl Fresh {
     /// `clip` is the stroke's clip as the scene placed it (`Scene::active_clip`).
     pub(crate) fn new(active: &ActiveStroke, from: usize, clip: u32) -> Self {
         let (style, samples) = (active.style(), active.samples());
+        if style.tool() == StrokeTool::Smudge {
+            // Its residual so far, applied in every tile (`Smudges::advance` extends it).
+            let locked = active.blend() == StrokeBlend::SmudgeLocked;
+            return Self {
+                ops: vec![Op::smudge(None, clip, locked)],
+                bounds: Vec::new(),
+            };
+        }
         let mut paint = paint(style, active.blend());
         paint.clip = clip;
         let mut fresh = Self {
@@ -215,126 +298,5 @@ impl Fresh {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::sync::Arc;
-
-    use super::*;
-    use crate::stroke::stroke_region;
-    use openpaint_core::{
-        ArtworkCommand, BrushRecipe, CanvasPoint, CanvasSize, Color, LayerCommand,
-    };
-
-    fn sample(x: f32, y: f32, pressure: f32, time_ms: u32) -> StrokeSample {
-        let position = CanvasPoint::new(x, y).expect("point");
-        StrokeSample::new(position, pressure, 0.0, 0.0, time_ms).expect("sample")
-    }
-
-    fn style() -> StrokeStyle {
-        let recipe = Arc::new(BrushRecipe::plain());
-        StrokeStyle::new(recipe, 10.0, 1.0, Color::BLACK).expect("style")
-    }
-
-    fn codes(scene: &Scene) -> Vec<&'static str> {
-        let name = |item: &Item| match item {
-            Item::Segment { .. } => "segment",
-            Item::EndStroke(_) => "stroke",
-            Item::Fill { .. } => "fill",
-            Item::EndLayer(_) => "layer",
-            Item::Active => "active",
-        };
-        scene.items.iter().map(name).collect()
-    }
-
-    #[test]
-    fn active_place_follows_its_layers_finished_strokes() {
-        let blank = Artwork::new(CanvasSize::new(64, 64).expect("size"));
-        let mut session = blank
-            .begin_stroke(style(), sample(1.0, 1.0, 1.0, 0))
-            .expect("begin");
-        session.extend(&[sample(9.0, 9.0, 1.0, 5)]).expect("extend");
-        let one = session.finish().artwork;
-        let scene = Scene::build(&one, Some(&place(one.active(), None))).expect("scene");
-        assert_eq!(codes(&scene), ["segment", "stroke", "active", "layer"]);
-        assert!(scene.has_active());
-        let empty = Scene::build(&blank, Some(&place(blank.active(), None))).expect("scene");
-        assert_eq!(codes(&empty), ["active", "layer"]);
-    }
-
-    fn place(layer: LayerId, clip: Option<RegionMask>) -> ActivePlace {
-        ActivePlace { layer, clip }
-    }
-
-    #[test]
-    fn strokes_inside_one_selection_share_its_mask_with_the_stroke_being_drawn() {
-        let canvas = CanvasSize::new(64, 64).expect("size");
-        let clip = RegionMask::polygon(canvas, &[[4.0, 4.0], [40.0, 4.0], [40.0, 40.0]])
-            .expect("a triangle");
-        let mut artwork = Artwork::new(canvas);
-        for x in [5.0, 9.0] {
-            let session = artwork
-                .begin_stroke(style(), sample(x, 10.0, 1.0, 0))
-                .expect("begin");
-            artwork = session
-                .clipped(clip.clone())
-                .expect("clip")
-                .finish()
-                .artwork;
-        }
-        let words = MASK_HEADER as usize + clip.words().len();
-        let place = place(artwork.active(), Some(clip.clone()));
-        let scene = Scene::build(&artwork, Some(&place)).expect("scene");
-        assert_eq!(scene.masks.len(), words, "one copy");
-        assert_eq!(scene.active_clip, 1);
-        let alone = Scene::build(&artwork, None).expect("scene");
-        assert_eq!((alone.masks.len(), alone.active_clip), (words, 0));
-    }
-
-    #[test]
-    fn hidden_and_empty_layers_add_nothing() {
-        let blank = Artwork::new(CanvasSize::new(64, 64).expect("size"));
-        let session = blank
-            .begin_stroke(style(), sample(1.0, 1.0, 1.0, 0))
-            .expect("begin");
-        let drawn = session.finish().artwork;
-        let layer = drawn.active();
-        let hide = LayerCommand::SetVisible {
-            layer,
-            visible: false,
-        };
-        let hidden = drawn
-            .apply(ArtworkCommand::Layer(hide))
-            .expect("hide")
-            .artwork;
-        let build = |artwork: &Artwork, active| Scene::build(artwork, active).expect("scene");
-        assert_eq!(codes(&build(&blank, None)), [""; 0]);
-        assert_eq!(codes(&build(&hidden, None)), [""; 0]);
-        let place = place(layer, None);
-        let hidden_place = Scene::build(&hidden, Some(&place)).expect("scene");
-        assert!(!hidden_place.has_active());
-        let shown = codes(&build(&drawn, None));
-        assert_eq!(shown, ["segment", "stroke", "layer"]);
-    }
-
-    #[test]
-    fn fresh_ops_start_with_the_paint_op() {
-        let samples = [sample(10.0, 20.0, 1.0, 0), sample(30.0, 20.0, 0.2, 4)];
-        let blank = Artwork::new(CanvasSize::new(64, 64).expect("size"));
-        let mut session = blank.begin_stroke(style(), samples[0]).expect("begin");
-        let dot = Fresh::new(session.active(), 0, 0);
-        assert_eq!(dot.bounds.len(), 1);
-        session.extend(&samples[1..]).expect("extend");
-        let fresh = Fresh::new(session.active(), 0, 7);
-        assert_eq!(fresh.ops.len(), 2);
-        let clipped = Paint {
-            clip: 7,
-            ..paint(&style(), openpaint_core::StrokeBlend::Over)
-        };
-        assert_eq!(fresh.ops[0], Op::end_active(&clipped), "with the clip");
-        assert_eq!(fresh.bounds.len(), 1);
-        assert_eq!(
-            Some(fresh.bounds[0].pixels()),
-            stroke_region(&style(), &samples, 0)
-        );
-        assert_eq!(Fresh::new(session.active(), 1, 0).bounds.len(), 0);
-    }
-}
+#[path = "scene_tests.rs"]
+mod tests;

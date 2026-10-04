@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 
 mod brushes;
+mod editor_state;
 mod error;
 mod export;
 mod fill;
@@ -32,6 +33,7 @@ mod transform;
 mod view;
 
 pub use crate::brushes::{Brush, BrushKey, BrushLibrary, SizeRange};
+pub use crate::editor_state::{BrushChoice, BrushSetting, EditorState};
 pub use crate::error::AppError;
 pub use crate::export::{ExportIntent, ExportJob, ExportNotice, file_name};
 pub use crate::fill::{
@@ -64,8 +66,7 @@ pub use crate::streamline::StreamLine;
 pub use crate::stroke::StrokeIntent;
 pub use crate::title::{MAX_TITLE_CHARS, Title, TitleError, UNTITLED};
 pub use crate::toolbox::{
-    BrushChoice, BrushIntent, BrushProjection, BrushRow, BrushSetting, EditorState, MIN_OPACITY,
-    Tool, ToolIntent, Toolbox,
+    BrushIntent, BrushProjection, BrushRow, MIN_OPACITY, SMUDGE_STRENGTH, Tool, ToolIntent, Toolbox,
 };
 pub use crate::transfer::{
     Delivery, ExportError, HostAnswer, HostRequest, ImageError, ImageFormat, ImageSink,

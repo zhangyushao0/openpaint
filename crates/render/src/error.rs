@@ -10,6 +10,9 @@ pub enum RenderError {
     Device(String),
     /// The caller asked for something the renderer never accepts, such as an empty target.
     Invalid(&'static str),
+    /// Derived data would exceed what the device holds in one binding (`limit` bytes): a smudge
+    /// residual or the arena of them.
+    Admission { what: &'static str, limit: u64 },
 }
 
 impl fmt::Display for RenderError {
@@ -17,6 +20,7 @@ impl fmt::Display for RenderError {
         match self {
             Self::Device(message) => write!(f, "GPU device error: {message}"),
             Self::Invalid(what) => write!(f, "invalid render request: {what}"),
+            Self::Admission { what, limit } => write!(f, "{what} exceeds {limit} bytes"),
         }
     }
 }

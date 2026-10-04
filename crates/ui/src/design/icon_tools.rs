@@ -1,5 +1,5 @@
-//! The tools' icons: what the pen does, each held at a slant with its tip down to the left, the
-//! Selection tool's lasso and the Transform tool's pointer.
+//! The tools' icons: what the pen does, each held at a slant with its tip down to the left (the
+//! smudge's fingertip too), the Selection tool's lasso and the Transform tool's pointer.
 
 use std::f32::consts::PI;
 
@@ -16,6 +16,7 @@ pub(super) fn tools(icon: Icon) -> Vec<Line> {
             bristles.extend(curve(tip, [0.22, 0.44], a).into_iter().skip(1));
             vec![vec![[0.86, 0.14], [0.6, 0.4]], vec![a, b], bristles]
         }
+        Icon::Smudge => smudge(),
         Icon::Eraser => vec![
             vec![
                 [0.2, 0.58],
@@ -59,6 +60,30 @@ pub(super) fn tools(icon: Icon) -> Vec<Line> {
         ]],
         _ => Vec::new(),
     }
+}
+
+/// A finger from the upper right, its round tip down to the left: up one side, round the tip,
+/// back the other side; a crease across it; under the tip, the wave of colour it smeared.
+fn smudge() -> Vec<Line> {
+    let (base, tip, half) = ([0.8, 0.2], [0.38, 0.62], 0.11);
+    let side = half * std::f32::consts::FRAC_1_SQRT_2;
+    let along = |p: [f32; 2], k: f32| [p[0] + side * k, p[1] + side * k];
+    let mut outline = vec![along(base, 1.0), along(tip, 1.0)];
+    outline.extend(
+        arc(tip, half, 0.25 * PI, 1.25 * PI, ARC_STEPS)
+            .into_iter()
+            .skip(1),
+    );
+    outline.push(along(base, -1.0));
+    let crease = [
+        base[0] + 0.3 * (tip[0] - base[0]),
+        base[1] + 0.3 * (tip[1] - base[1]),
+    ];
+    vec![
+        outline,
+        vec![along(crease, 0.6), along(crease, -0.6)],
+        curve([0.14, 0.82], [0.3, 0.9], [0.5, 0.84]),
+    ]
 }
 
 /// A loop drawn in dashes, the way a selection's path is drawn before it closes, with the

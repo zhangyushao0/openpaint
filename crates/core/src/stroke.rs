@@ -81,17 +81,22 @@ impl StrokeSample {
     }
 }
 
-/// What a stroke does to its layer: lay paint on it or take paint away. Both use any recipe.
+/// What a stroke does to its layer: lay paint on it, take paint away, or carry the paint
+/// already there along its path. All use any recipe.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum StrokeTool {
     #[default]
     Paint,
     /// Removes coverage times opacity from the layer (destination-out); the colour is unused.
     Erase,
+    /// Picks up the layer's own colour (transparency too) under the tip and drags it along the
+    /// path, by the opacity as strength; the colour is unused. What it does depends on the
+    /// layer's pixels under it when it was drawn.
+    Smudge,
 }
 
 /// How a stroke combines with the layer under it, fixed when the stroke begins: the tool, and
-/// for paint whether the layer's Alpha Lock was on then.
+/// for paint and smudge whether the layer's Alpha Lock was on then.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StrokeBlend {
     /// Paint over the layer (source over).
@@ -100,6 +105,10 @@ pub enum StrokeBlend {
     Atop,
     /// Take paint away (destination out).
     Erase,
+    /// Carry the layer's colour and transparency along the path.
+    Smudge,
+    /// Carry the layer's colour along the path, keeping its alpha (Alpha Lock).
+    SmudgeLocked,
 }
 
 /// How a stroke is drawn: its tool, its brush recipe (a snapshot, shared between strokes drawn
@@ -244,6 +253,8 @@ pub(crate) const fn blend(tool: StrokeTool, alpha_locked: bool) -> StrokeBlend {
         (StrokeTool::Erase, _) => StrokeBlend::Erase,
         (StrokeTool::Paint, true) => StrokeBlend::Atop,
         (StrokeTool::Paint, false) => StrokeBlend::Over,
+        (StrokeTool::Smudge, true) => StrokeBlend::SmudgeLocked,
+        (StrokeTool::Smudge, false) => StrokeBlend::Smudge,
     }
 }
 

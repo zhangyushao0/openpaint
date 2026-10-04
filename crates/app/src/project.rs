@@ -7,8 +7,8 @@ use std::sync::Arc;
 
 use openpaint_core::{Artwork, CoreError};
 
+use crate::editor_state::EditorState;
 use crate::title::Title;
-use crate::toolbox::EditorState;
 
 /// Identifies a project in the library for its whole life; never reused.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]

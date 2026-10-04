@@ -3,6 +3,8 @@
 //! exactly unchanged (zero coverage, or compositing nothing), so a pixel's value never depends
 //! on which regions are evaluated together: incremental evaluation equals cold evaluation.
 
+use std::ops::Range;
+
 use crate::geom::PixelRect;
 use crate::protocol::{FRESH, TILE, TileRecord};
 use crate::scene::{Fresh, Item, Scene};
@@ -26,12 +28,20 @@ impl Plan {
         regions: &[PixelRect],
     ) -> Self {
         let grid = Grid::new(size, regions);
+        let lists = Self::bin(&grid, &scene.items, 0, fresh);
+        Self::flatten(&grid.origins, lists)
+    }
+
+    /// Per evaluated tile, the indices (from `first` on) of `items` that reach it, in order.
+    fn bin(grid: &Grid, items: &[Item], first: u32, fresh: &Fresh) -> Vec<Vec<u32>> {
         let mut lists = vec![Vec::new(); grid.origins.len()];
         let mut stroke = Touched::new(lists.len());
         let mut layer = Touched::new(lists.len());
         let mut fresh_lists = Some(grid.bin(fresh));
-        for (index, item) in scene.items.iter().enumerate() {
-            let index = u32::try_from(index).unwrap_or(u32::MAX);
+        for (index, item) in items.iter().enumerate() {
+            let index = u32::try_from(index)
+                .unwrap_or(u32::MAX)
+                .saturating_add(first);
             match item {
                 Item::Segment { bounds, .. } => {
                     for slot in grid.slots(&bounds.pixels()) {
@@ -39,7 +49,12 @@ impl Plan {
                         stroke.touch(slot);
                     }
                 }
-                Item::EndStroke(_) => {
+                Item::Reach(bounds) => {
+                    for slot in grid.slots(&bounds.pixels()) {
+                        stroke.touch(slot);
+                    }
+                }
+                Item::EndStroke(_) | Item::Smudge(_) => {
                     for slot in stroke.close() {
                         lists[slot].push(index);
                         layer.touch(slot);
@@ -65,6 +80,23 @@ impl Plan {
                     }
                 }
             }
+        }
+        lists
+    }
+
+    /// One layer's pixels before a smudge: the scene's `items` (that layer's ops before it),
+    /// then in every tile the evaluation's fresh op 0, which ends the layer at full opacity.
+    pub(crate) fn material(
+        scene: &Scene,
+        items: Range<usize>,
+        size: [u32; 2],
+        regions: &[PixelRect],
+    ) -> Self {
+        let first = u32::try_from(items.start).unwrap_or(u32::MAX);
+        let grid = Grid::new(size, regions);
+        let mut lists = Self::bin(&grid, &scene.items[items], first, &Fresh::default());
+        for list in &mut lists {
+            list.push(FRESH);
         }
         Self::flatten(&grid.origins, lists)
     }

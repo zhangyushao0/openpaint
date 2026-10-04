@@ -1,8 +1,9 @@
-//! The brush picker and the tool buttons: Brush and Eraser sit in the right island before Layers
-//! (Procreate's order). The current tool's button opens the picker as a popover over the canvas
-//! (Procreate's brush library, reduced to one set): header "Brushes" or "Eraser", then one row
-//! per brush with its name and a stroke it painted, the tool's brush outlined in ink. The eraser
-//! chooses from the same brushes. A tap chooses the brush; the panel stays until a contact lands
+//! The brush picker and the tool buttons: Brush, Smudge and Eraser sit in the right island before
+//! Layers (Procreate's order). The current tool's button opens the picker as a popover over the
+//! canvas (Procreate's brush library, reduced to one set): header "Brushes", "Smudge" or
+//! "Eraser", then one row per brush with its name and a stroke it painted, the tool's brush
+//! outlined in ink. The smudge and the eraser choose from the same brushes. A tap chooses the
+//! brush; the panel stays until a contact lands
 //! on the canvas outside it, and a pen stroke there draws with the brush just chosen. Under the
 //! rows, the chosen brush's StreamLine slider (0 to 100 %).
 
@@ -43,8 +44,8 @@ impl BrushPanel {
         self.textures.clear();
     }
 
-    /// The Brush and, right of it, the Eraser button, in the right island; the one of the pen's
-    /// tool carries the ink ring (Procreate's model), none while the Selection tool is on.
+    /// The Brush, Smudge and Eraser buttons, left to right, in the right island; the one of the
+    /// pen's tool carries the ink ring (Procreate's model), none while the Selection tool is on.
     /// Tapping the other tool's button makes the pen use it (and leaves the Selection tool);
     /// tapping the current tool's button opens or closes its brushes. Returns whether a tap
     /// opened the panel.
@@ -60,6 +61,7 @@ impl BrushPanel {
         let mut opened = false;
         for (tool, icon, label) in [
             (Tool::Brush, Icon::Brush, "Brushes"),
+            (Tool::Smudge, Icon::Smudge, "Smudge"),
             (Tool::Eraser, Icon::Eraser, "Eraser"),
         ] {
             // While the Selection or the Transform tool is on, the pen does not paint.
@@ -106,6 +108,7 @@ impl BrushPanel {
                 ui.add_space(2.0 * SPACE);
                 ui.heading(match brush.tool {
                     Tool::Brush => "Brushes",
+                    Tool::Smudge => "Smudge",
                     Tool::Eraser => "Eraser",
                 });
             });

@@ -7,10 +7,13 @@
 //! Everything here depends only on the samples up to the one it describes, so a stroke drawn a
 //! few samples at a time gets exactly the segments it gets when drawn at once.
 
-use openpaint_core::{Deposit, StrokeBlend, StrokeSample, StrokeStyle, Tip as RecipeTip};
+use openpaint_core::{
+    Deposit, StrokeBlend, StrokeSample, StrokeStyle, StrokeTool, Tip as RecipeTip,
+};
 
 use crate::geom::{Bounds, PixelRect};
 use crate::protocol::{Blend, GRAIN_ONE, Op, Paint, SegmentOperands, Tip};
+use crate::smudge::smudge_reach;
 
 /// Antialiasing reaches half a pixel beyond the shape; one pixel keeps the bounds conservative
 /// against float error.
@@ -100,7 +103,9 @@ pub(crate) fn paint(style: &StrokeStyle, blend: StrokeBlend) -> Paint {
         grain: (grain.strength() * GRAIN_ONE as f32).round() as u32,
         grain_scale: grain.scale(),
         blend: match blend {
-            StrokeBlend::Over => Blend::Over,
+            // A smudge paints nothing: it is drawn by its residual (`smudge`), never by a paint
+            // op.
+            StrokeBlend::Over | StrokeBlend::Smudge | StrokeBlend::SmudgeLocked => Blend::Over,
             StrokeBlend::Atop => Blend::Atop,
             StrokeBlend::Erase => Blend::Erase,
         },
@@ -131,13 +136,22 @@ pub fn tip_radius(style: &StrokeStyle, samples: &[StrokeSample]) -> Option<f32> 
 }
 
 /// The pixels each segment can change, one rectangle per segment: tighter than their union for
-/// a long curved stroke.
+/// a long curved stroke. A smudge's segments reach as far as its contacts can (`smudge`).
 pub(crate) fn segment_regions<'a>(
     style: &'a StrokeStyle,
     samples: &'a [StrokeSample],
     from: usize,
-) -> impl Iterator<Item = PixelRect> + 'a {
-    segments(style, samples, from).map(|segment| segment.bounds().pixels())
+) -> Box<dyn Iterator<Item = PixelRect> + 'a> {
+    if style.tool() == StrokeTool::Smudge {
+        return Box::new(smudge_reach(style, samples, from).map(|bounds| bounds.pixels()));
+    }
+    Box::new(segments(style, samples, from).map(|segment| segment.bounds().pixels()))
+}
+
+/// The radius in canvas pixels a stroke of `style` has at sample `i` (size dynamics at its
+/// pressure and pen speed).
+pub(crate) fn sample_radius(style: &StrokeStyle, samples: &[StrokeSample], i: usize) -> f32 {
+    dab(style, samples, i, style.recipe().uses_speed()).radius
 }
 
 /// What a stroke is at one sample.

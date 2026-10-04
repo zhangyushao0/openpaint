@@ -17,7 +17,7 @@
   "steps": [
     { "stroke": { "points": [[600, 1300, 0.8], [1200, 1100, 0.8], [1800, 1300, 0.8]] } },
     { "screenshot": { "name": "start" } },
-    { "tap": { "at": [2542, 59] } },
+    { "tap": { "at": [2451, 59] } },
     { "screenshot": { "name": "open-030", "after_ms": 30 } },
     { "screenshot": { "name": "open-060", "after_ms": 60 } },
     { "screenshot": { "name": "open-120", "after_ms": 120 } },
@@ -44,7 +44,7 @@
     { "screenshot": { "name": "close-060", "after_ms": 60 } },
     { "stroke": { "points": [[2350, 500, 0.8], [2650, 700, 0.8]] } },
     { "checkpoint": { "name": "drawn-under-closing-panel", "canvas": "17d9ca53c6bdecdb" } },
-    { "tap": { "at": [2542, 59] } },
+    { "tap": { "at": [2451, 59] } },
     { "tap": { "at": [2450, 268] } },
     { "stroke": { "points": [[600, 500, 0.6], [1400, 400, 0.6]] } },
     { "checkpoint": { "name": "pencil-chosen-while-growing", "canvas": "dde9bfa941f707bb" } },

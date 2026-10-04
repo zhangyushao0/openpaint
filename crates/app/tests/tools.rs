@@ -5,7 +5,7 @@
 
 use openpaint_app::{
     BrushIntent, BrushLibrary, Contact, ContactPhase, Device, HistoryIntent, InputSample, Intent,
-    LayerIntent, RECENT_COLORS, Session, StrokeIntent, Tool, ToolIntent, Toolbox,
+    LayerIntent, RECENT_COLORS, SMUDGE_STRENGTH, Session, StrokeIntent, Tool, ToolIntent, Toolbox,
 };
 use openpaint_core::{CanvasSize, Color, StrokeBlend, StrokeTool};
 
@@ -134,6 +134,66 @@ fn picking_commits_the_last_preview_and_keeps_the_colour_until_then() {
         green,
         "turned off: nothing picked"
     );
+}
+
+#[test]
+fn the_smudge_has_its_own_brush_and_strength_and_is_stored() {
+    let mut toolbox = toolbox();
+    let library = toolbox.library().clone();
+    let [_, ink, soft] = library.brushes() else {
+        panic!("three brushes");
+    };
+    toolbox.dispatch_tool(&ToolIntent::Use(Tool::Smudge));
+    let smudge = toolbox.projection();
+    assert_eq!((smudge.tool, smudge.current), (Tool::Smudge, soft.key()));
+    assert_eq!(smudge.opacity, SMUDGE_STRENGTH, "draweave's 70 %");
+    let style = toolbox.style().expect("style");
+    assert_eq!(
+        (style.tool(), style.opacity()),
+        (StrokeTool::Smudge, SMUDGE_STRENGTH)
+    );
+    toolbox.dispatch(&BrushIntent::Choose(ink.key()));
+    toolbox.dispatch(&BrushIntent::Opacity {
+        opacity: 0.4,
+        settled: true,
+    });
+    toolbox.dispatch_tool(&ToolIntent::Use(Tool::Brush));
+    let brush = toolbox.projection();
+    assert_eq!(
+        (brush.current, brush.opacity),
+        (ink.key(), 1.0),
+        "the brush keeps its own"
+    );
+    let state = toolbox.save_request().expect("changed");
+    assert_eq!(state.smudge.brush, ink.key().as_str());
+    let mut reopened = self::toolbox();
+    assert!(reopened.restore(&state));
+    reopened.dispatch_tool(&ToolIntent::Use(Tool::Smudge));
+    let back = reopened.projection();
+    assert_eq!((back.current, back.opacity), (ink.key(), 0.4));
+}
+
+#[test]
+fn a_smudge_ends_where_its_line_got_to_and_moves_colour_on_a_locked_layer() {
+    let mut toolbox = toolbox();
+    let canvas = CanvasSize::new(200, 100).expect("size");
+    let mut session = Session::new(canvas, toolbox.style().expect("style"));
+    draw(&mut session).expect("paint");
+    let layer = session.artwork().active();
+    let lock = Intent::Layer(LayerIntent::SetAlphaLock {
+        layer,
+        locked: true,
+    });
+    session.dispatch(lock).expect("lock");
+    toolbox.dispatch_tool(&ToolIntent::Use(Tool::Smudge));
+    session.set_brush(toolbox.style().expect("style"));
+    session.set_streamline(openpaint_app::StreamLine::new(1.0).expect("amount"));
+    draw(&mut session).expect("smudge an alpha-locked layer");
+    let strokes = session.artwork().layers()[0].strokes();
+    let smudge = strokes.last().expect("the smudge");
+    assert_eq!(smudge.blend(), StrokeBlend::SmudgeLocked);
+    let end = smudge.samples().last().expect("samples").position();
+    assert!(end.x() < 50.0, "the line stays behind the pen: {}", end.x());
 }
 
 fn pen(phase: ContactPhase, x: f32, time_ms: i64) -> Intent {

@@ -13,13 +13,14 @@ use crate::scene::Scene;
 
 const SHADER: &str = include_str!("shaders/evaluate.wgsl");
 const DEPOSIT: &str = include_str!("shaders/deposit.wgsl");
+const SMUDGE: &str = include_str!("shaders/smudge_composite.wgsl");
 /// The in-progress stroke's coverage (or density) and paper contact textures: one float per
 /// canvas pixel each.
 pub(crate) const COVERAGE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::R32Float;
 
-/// The protocol prelude followed by the evaluator and its accumulating deposits.
+/// The protocol prelude followed by the evaluator, its accumulating deposits and its smudges.
 pub(crate) fn shader_source() -> String {
-    prelude() + SHADER + DEPOSIT
+    prelude() + SHADER + DEPOSIT + SMUDGE
 }
 
 /// What one dispatch evaluates.
@@ -32,6 +33,8 @@ pub(crate) struct Dispatch<'a> {
     pub(crate) background: [f32; 4],
     /// Clears the coverage texture first: the in-progress stroke starts over.
     pub(crate) reset: bool,
+    /// The smudge arena and the in-progress smudge's residual (`Smudges::residuals`).
+    pub(crate) residuals: [&'a wgpu::Buffer; 2],
 }
 
 /// One canvas target's evaluation resources, kept between dispatches: buffers are rewritten
@@ -46,8 +49,8 @@ pub(crate) struct Bindings {
     params: wgpu::Buffer,
     /// Tiles, indices and fresh ops, in binding order 2, 3, 5.
     lists: [wgpu::Buffer; 3],
-    /// Built for the scene ops buffer it names.
-    group: Option<(wgpu::Buffer, wgpu::BindGroup)>,
+    /// Built for the scene ops buffer and the two residual buffers it names.
+    group: Option<([wgpu::Buffer; 3], wgpu::BindGroup)>,
 }
 
 /// One scene on the GPU: its ops (item index = op index), its fill masks and its transforms'
@@ -61,6 +64,16 @@ pub(crate) struct SceneOps {
 impl Bindings {
     /// Bindings for `canvas`, with the in-progress stroke's two kept textures of its size.
     pub(crate) fn new(gpu: &Gpu, canvas: &wgpu::Texture) -> Self {
+        Self::with_kept(gpu, canvas, [canvas.width(), canvas.height()])
+    }
+
+    /// Bindings for a target that never draws an in-progress stroke: its kept textures are a
+    /// pixel each.
+    pub(crate) fn without_kept(gpu: &Gpu, canvas: &wgpu::Texture) -> Self {
+        Self::with_kept(gpu, canvas, [1, 1])
+    }
+
+    fn with_kept(gpu: &Gpu, canvas: &wgpu::Texture, kept: [u32; 2]) -> Self {
         let storage = wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST;
         let uniform = wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST;
         let size = [canvas.width(), canvas.height()];
@@ -68,7 +81,7 @@ impl Bindings {
             size,
             canvas: canvas.create_view(&Default::default()),
             kept: ["active coverage", "active contact"].map(|label| {
-                let texture = kept_texture(gpu, size, label);
+                let texture = kept_texture(gpu, kept, label);
                 let view = texture.create_view(&Default::default());
                 (texture, view)
             }),
@@ -76,6 +89,11 @@ impl Bindings {
             lists: [0; 3].map(|_| empty_buffer(gpu, storage, MIN_LIST_BYTES)),
             group: None,
         }
+    }
+
+    /// The target's size in pixels.
+    pub(crate) const fn size(&self) -> [u32; 2] {
+        self.size
     }
 
     /// Writes `records` into list `slot`, growing it (and dropping the bind group) if needed.
@@ -156,6 +174,8 @@ impl EvaluatePipeline {
                 texture_entry(8, wgpu::StorageTextureAccess::ReadWrite, COVERAGE_FORMAT),
                 buffer_entry(9, read_only),
                 buffer_entry(10, read_only),
+                buffer_entry(11, read_only),
+                buffer_entry(12, read_only),
             ],
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -197,13 +217,15 @@ impl EvaluatePipeline {
         bindings.write(gpu, 0, &work.plan.tiles);
         bindings.write(gpu, 1, &work.plan.indices);
         bindings.write(gpu, 2, work.fresh);
+        let [arena, active] = work.residuals;
+        let named = [&work.ops.ops, arena, active];
         if bindings
             .group
             .as_ref()
-            .is_none_or(|(ops, _)| *ops != work.ops.ops)
+            .is_none_or(|(built, _)| built.iter().zip(named).any(|(a, b)| a != b))
         {
-            let group = self.bind_group(gpu, bindings, work.ops);
-            bindings.group = Some((work.ops.ops.clone(), group));
+            let group = self.bind_group(gpu, bindings, work.ops, work.residuals);
+            bindings.group = Some((named.map(Clone::clone), group));
         }
         let mut encoder = gpu.device.create_command_encoder(&Default::default());
         if work.reset {
@@ -221,7 +243,13 @@ impl EvaluatePipeline {
         Ok(())
     }
 
-    fn bind_group(&self, gpu: &Gpu, bindings: &Bindings, scene: &SceneOps) -> wgpu::BindGroup {
+    fn bind_group(
+        &self,
+        gpu: &Gpu,
+        bindings: &Bindings,
+        scene: &SceneOps,
+        [arena, active]: [&wgpu::Buffer; 2],
+    ) -> wgpu::BindGroup {
         let [tiles, indices, fresh] = &bindings.lists;
         let buffers = [
             (0, &bindings.params),
@@ -232,6 +260,8 @@ impl EvaluatePipeline {
             (7, &scene.masks),
             (9, &self.paper),
             (10, &scene.patches),
+            (11, arena),
+            (12, active),
         ];
         let mut entries: Vec<_> = buffers
             .into_iter()
@@ -272,9 +302,11 @@ pub(crate) fn scene_ops(gpu: &Gpu, scene: &Scene, patches: Option<wgpu::Buffer>)
                 usage: wgpu::BufferUsages::STORAGE,
             })
     });
+    // The smudges' base words are written after their residuals are placed.
+    let masks = wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST;
     SceneOps {
         ops: buffer(gpu, wgpu::BufferUsages::STORAGE, &ops),
-        masks: buffer(gpu, wgpu::BufferUsages::STORAGE, &scene.masks),
+        masks: buffer(gpu, masks, &scene.masks),
         patches,
     }
 }

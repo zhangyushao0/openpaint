@@ -1,15 +1,17 @@
-//! The toolbox: what the pen does (paint with a brush or erase with one), which brush each tool
-//! uses at what size, opacity and StreamLine, the colour, and the eyedropper. It belongs to the
-//! app, not to one artwork (Procreate's model: the brush stays when another artwork opens). Like
-//! Procreate, the eraser chooses its own brush from the same library, and every brush remembers
-//! its own size, opacity and StreamLine per tool. Stored apart from artworks (ARCHITECTURE section 5, DECISIONS
-//! D09): a state that cannot be used falls back to the defaults.
+//! The toolbox: what the pen does (paint, smudge or erase with a brush), which brush each tool
+//! uses at what size, opacity (the smudge's strength) and StreamLine, the colour, and the
+//! eyedropper. It belongs to the app, not to one artwork (Procreate's model: the brush stays
+//! when another artwork opens). Like Procreate, the smudge and the eraser choose their own
+//! brushes from the same library, and every brush remembers its own size, opacity and
+//! StreamLine per tool. Stored apart from artworks (ARCHITECTURE section 5, DECISIONS D09): a
+//! state that cannot be used falls back to the defaults.
 
 use std::sync::Arc;
 
 use openpaint_core::{Color, CoreError, StrokeStyle, StrokeTool};
 
 use crate::brushes::{BrushKey, BrushLibrary};
+use crate::editor_state::{BrushChoice, BrushSetting, EditorState};
 use crate::palette::Palette;
 use crate::streamline::StreamLine;
 
@@ -24,6 +26,8 @@ pub enum Tool {
     Brush,
     /// Takes paint away from the active layer.
     Eraser,
+    /// Drags the active layer's colour along the pen's path; its opacity is the strength.
+    Smudge,
 }
 
 impl Tool {
@@ -31,9 +35,15 @@ impl Tool {
         match self {
             Self::Brush => 0,
             Self::Eraser => 1,
+            Self::Smudge => 2,
         }
     }
 }
+
+/// The smudge's brush at first (draweave's Soft Airbrush), when the library holds it.
+const SMUDGE_BRUSH: &str = "soft-brush";
+/// The smudge's strength for every brush at first (draweave's 70 %).
+pub const SMUDGE_STRENGTH: f32 = 0.7;
 
 /// Changes of the current tool's brush; they apply to the tool the pen uses now.
 #[derive(Debug, Clone, PartialEq)]
@@ -99,35 +109,6 @@ pub struct BrushProjection {
     pub preview: Option<Color>,
 }
 
-/// The toolbox as plain data for the store.
-#[derive(Debug, Clone, PartialEq)]
-pub struct EditorState {
-    pub tool: Tool,
-    pub paint: BrushChoice,
-    pub erase: BrushChoice,
-    /// sRGB red, green, blue.
-    pub color: [f32; 3],
-    /// Newest first.
-    pub recent: Vec<[f32; 3]>,
-}
-
-/// One tool's brush and each brush's size, opacity and StreamLine for it, by key. An empty
-/// `brush` means the library's default brush.
-#[derive(Debug, Clone, PartialEq)]
-pub struct BrushChoice {
-    pub brush: String,
-    pub brushes: Vec<BrushSetting>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct BrushSetting {
-    pub key: String,
-    pub size: f32,
-    pub opacity: f32,
-    /// The StreamLine amount, `0..=1`.
-    pub streamline: f32,
-}
-
 /// Slots of a brush's settings: size, opacity, StreamLine.
 const SIZE: usize = 0;
 const OPACITY: usize = 1;
@@ -145,8 +126,8 @@ pub struct Toolbox {
     library: BrushLibrary,
     rows: Arc<[BrushRow]>,
     tool: Tool,
-    /// Brush, then eraser.
-    sets: [ToolSet; 2],
+    /// Brush, eraser, smudge.
+    sets: [ToolSet; 3],
     palette: Palette,
     picking: bool,
     /// While picking, the last colour under the contact.
@@ -158,8 +139,9 @@ pub struct Toolbox {
 }
 
 impl Toolbox {
-    /// The brush tool in black; both tools on the library's default brush, every brush at its
-    /// defaults; no recent colours.
+    /// The brush tool in black; the brush and the eraser on the library's default brush, the
+    /// smudge on the soft brush at `SMUDGE_STRENGTH`, every brush at its defaults; no recent
+    /// colours.
     #[must_use]
     pub fn new(library: BrushLibrary) -> Self {
         let rows = library
@@ -178,11 +160,19 @@ impl Toolbox {
                 .map(|brush| [brush.size().default, brush.opacity(), 0.0])
                 .collect(),
         };
+        let smudge = ToolSet {
+            current: library.find(SMUDGE_BRUSH).unwrap_or(set.current),
+            settings: library
+                .brushes()
+                .iter()
+                .map(|brush| [brush.size().default, SMUDGE_STRENGTH, 0.0])
+                .collect(),
+        };
         Self {
             library,
             rows,
             tool: Tool::Brush,
-            sets: [set.clone(), set],
+            sets: [set.clone(), set, smudge],
             palette: Palette::default(),
             picking: false,
             preview: None,
@@ -209,8 +199,9 @@ impl Toolbox {
         self.tool = state.tool;
         let paint = self.restore_set(Tool::Brush, &state.paint);
         let erase = self.restore_set(Tool::Eraser, &state.erase);
+        let smudge = self.restore_set(Tool::Smudge, &state.smudge);
         let colors = self.palette.restore(state.color, &state.recent);
-        paint && erase && colors
+        paint && erase && smudge && colors
     }
 
     fn restore_set(&mut self, tool: Tool, choice: &BrushChoice) -> bool {
@@ -262,6 +253,7 @@ impl Toolbox {
             tool: self.tool,
             paint: choice(&self.sets[0]),
             erase: choice(&self.sets[1]),
+            smudge: choice(&self.sets[2]),
             color: rgb(&self.palette.color()),
             recent: self.palette.recent().iter().map(rgb).collect(),
         }
@@ -356,6 +348,7 @@ impl Toolbox {
         Ok(style.with_tool(match self.tool {
             Tool::Brush => StrokeTool::Paint,
             Tool::Eraser => StrokeTool::Erase,
+            Tool::Smudge => StrokeTool::Smudge,
         }))
     }
 

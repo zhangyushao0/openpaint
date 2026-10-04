@@ -38,9 +38,8 @@ Passed 2026-10-03: S9 to S17 and the G2 follow-ups done (see "Done"); the author
 
 Exit: the author finishes painterly shading (W2) and a complex composition revision (W3) on the tablet.
 
-S18 to S20 are done (see "Done"). Next: S21.
+S18 to S21 are done (see "Done"); S21's 60 Hz holds up to about 340 px and fails at the largest sizes, an author decision (STATUS). Next: S22.
 
-**S21 Smudge** (core, render, ui): a smudge brush drags the current layer's colour; incremental residual tiles; incremental = cold evaluation bit for bit. Done: GPU consistency test; at least 60 Hz smudging on the tablet.
 **S22 Groups, clipping masks, blend modes** (core, app, ui, render, store): single-level groups, clipping chains, Multiply/Screen/Overlay; schema upgrade. Done: GPU tests for the compositing formulas.
 **S23 Layer masks** (core, app, ui, render, store): add, disable, invert, clear and delete masks with undo; painting on masks. Done: GPU tests for masks combined with opacity, clipping and groups.
 
@@ -80,6 +79,7 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - 2026-10-03 Selection follow-ups (S18): Add and Remove modes, feather and antialiased edges (a coverage clip, a format change), Automatic and Ellipse, saving selections; one clip record per selection instead of its runs in every clipped stroke; counting clip masks in history bytes; the bar's buttons shift when Close appears (centred pill).
 - 2026-10-03 Motion follow-ups (S19): the chrome pass and egui's motion bookkeeping add about 1 ms of frame work while idle on the tablet (G5); rows crossing on a reorder overlap their text; a rotated canvas shrinks into its card upright; finger injection on the tablet was refused system-wide this session (pen worked), so the quick-pinch glide is checked in the harness only.
 - 2026-10-03 Transform follow-ups (S20): Freeform, Distort and Warp; angle snapping while turning (draweave had only the 45° button); Fit to screen; mipmapped or bicubic resampling for strong shrinking; the moved selection kept selected instead of deselecting; lifting on a worker instead of the main thread (a full-canvas lift waits for one GPU readback); a transform still open when the app is left is not saved (commit it on leave); a whole-layer patch per transform in history (64 MiB budget).
+- 2026-10-03 Smudge follow-ups (S21): large smudges are slow (600 px: frame work p50 21 to 28 ms; the contacts' kernels grow with the radius squared, and the footprint is evaluated again over everything beneath, as for a large paint brush); a coarser residual grid for large radii, fused stamp and commit, or a size cap are the levers (author's call, STATUS). Reopening evaluates every smudge cold; residual memory (20 bytes per pixel of its tiles) is never trimmed below the arena's live blocks; a smudge reads only its own layer (Procreate can sample all layers).
 - 2026-10-02 Pen stroke cancelled by a landing touch: with injected input the dispatcher cancels the pen's gesture when a touch lands mid-stroke and the stroke is dropped; if real hardware does the same, commit the stroke drawn so far on such a cancel.
 
 ## Done
@@ -108,4 +108,5 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - G2 follow-ups 2026-10-03 `feat(ui): eyedropper loupe, eraser outline while pressed, gesture-driven reference window (G2 follow-ups)`; walk-through confirmed on the tablet with injected pen and finger input; the author's library byte-identical
 - S18 2026-10-03 `feat(app): freehand and rectangle selection, painting and filling inside, schema 7 (S18)`; walk-through confirmed on the tablet with injected pen and finger input; the author's schema-6 library upgraded pixel-identical
 - S19 2026-10-03 `feat(ui): motion foundation: one spring, four patterns, chrome grown from its islands (S19)`; SDF chrome landed; walk-through recorded on the tablet with injected pen input; the author judges the feel
-- S20 2026-10-03 `feat(app): transform a layer or a selection as a placed patch, preview equal to commit, schema 8 (S20)`
+- S20 2026-10-03 `feat(app): transform a layer or a selection as a placed patch, preview equal to commit, schema 8 (S20)`; walk-through confirmed on the tablet with injected pen and fingers
+- S21 2026-10-03 `feat(render): smudge as a residual evaluated in layer order, in progress equal to cold, schema 9 (S21)`; walk-through confirmed on the tablet; 60 Hz `pass` up to about 340 px, `fail` at 600 px

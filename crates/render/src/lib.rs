@@ -25,6 +25,7 @@ mod readback;
 mod sample;
 mod scene;
 mod screen;
+mod smudge;
 mod stroke;
 mod surface;
 mod thumbnail;

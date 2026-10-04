@@ -2,16 +2,17 @@
 //! stroke when it touches down, extends it while it moves and commits it as one new artwork
 //! version when it lifts; a cancelled contact leaves the artwork as it was.
 //!
-//! Only the pen draws, with the style the toolbox gives (painting or erasing). Fingers and the
-//! pen's eraser end do nothing: what they do on the canvas is the author's decision (gesture
-//! and pen-button mapping, ARCHITECTURE section 10).
+//! Only the pen draws, with the style the toolbox gives (painting, smudging or erasing). Fingers
+//! and the pen's eraser end do nothing: what they do on the canvas is the author's decision
+//! (gesture and pen-button mapping, ARCHITECTURE section 10).
 //!
 //! The stroke follows the pen through its StreamLine (`streamline.rs`), frozen when the stroke
 //! begins: the samples stored are the smoothed line, and the lift moves the line's end onto the
-//! pen before the stroke is committed.
+//! pen before the stroke is committed (not a smudge's: its line follows strictly, D46).
 
 use openpaint_core::{
     ActiveStroke, Artwork, CanvasPoint, RegionMask, StrokeSample, StrokeSession, StrokeStyle,
+    StrokeTool,
 };
 
 use crate::error::AppError;
@@ -184,9 +185,16 @@ impl Strokes {
 
 /// Commits `drawing` with its line's end moved onto the pen's last position on the glass. If
 /// the moved end is refused (it cannot be: it lies between the line and the pen), the stroke is
-/// committed as drawn and the refusal returned.
+/// committed as drawn and the refusal returned. A smudge keeps its end where the line got to,
+/// as draweave's: the colour it already carried cannot be carried again along a moved end, and
+/// it commits exactly what was shown.
 fn commit(mut drawing: Drawing) -> (Artwork, Result<(), AppError>) {
-    let result = catch_up_with_pen(&mut drawing);
+    let smudge = drawing.session.active().style().tool() == StrokeTool::Smudge;
+    let result = if smudge {
+        Ok(())
+    } else {
+        catch_up_with_pen(&mut drawing)
+    };
     (drawing.session.finish().artwork, result)
 }
 

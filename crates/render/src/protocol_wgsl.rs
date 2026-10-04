@@ -7,6 +7,7 @@ use super::{
     BLENDS, FRESH, GRAIN_ONE, MASK_HEADER, Op, Opcode, Params, SLOTS, TILE, TIPS, TileRecord,
 };
 use crate::paper::{MOMENT_ONE, PAPER_SIZE, level_count};
+use crate::smudge::{NODE_WORDS, RESIDUAL_HEADER, RESIDUAL_TILE, TILE_NODES};
 
 /// A WGSL struct generated from a Rust record: name, size and `(field, WGSL type, offset)`.
 pub(super) struct Layout {
@@ -58,6 +59,14 @@ pub(crate) fn prelude() -> String {
     wgsl.push_str(&format!("const PAPER_HEIGHT: u32 = {height}u;\n"));
     wgsl.push_str(&format!("const PAPER_LEVELS: u32 = {}u;\n", level_count()));
     wgsl.push_str(&format!("const MOMENT_ONE: u32 = {MOMENT_ONE}u;\n"));
+    for (name, value) in [
+        ("RESIDUAL_TILE", RESIDUAL_TILE),
+        ("TILE_NODES", TILE_NODES),
+        ("NODE_WORDS", NODE_WORDS),
+        ("RESIDUAL_HEADER", RESIDUAL_HEADER),
+    ] {
+        wgsl.push_str(&format!("const {name}: u32 = {value}u;\n"));
+    }
     for (name, slot) in SLOTS {
         wgsl.push_str(&format!("const {name}: u32 = {slot}u;\n"));
     }

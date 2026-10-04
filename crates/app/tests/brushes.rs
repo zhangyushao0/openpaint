@@ -241,6 +241,7 @@ fn a_stored_state_that_does_not_fit_falls_back_to_defaults() {
     let state = EditorState {
         tool: Tool::Brush,
         erase: paint.clone(),
+        smudge: paint.clone(),
         paint,
         color: [0.0, 2.0, 0.0],
         recent: vec![[0.5, 0.5, f32::NAN]],

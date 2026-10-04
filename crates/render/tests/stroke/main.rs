@@ -11,5 +11,6 @@ mod golden;
 mod incremental;
 mod screen;
 mod selection;
+mod smudge;
 mod thumbnail;
 mod transform;

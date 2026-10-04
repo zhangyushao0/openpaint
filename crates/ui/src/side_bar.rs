@@ -7,7 +7,7 @@
 //! the value for the current tool's brush. A contact starting on the bar never paints.
 
 use openpaint_app::{
-    BrushIntent, BrushProjection, EditorAction, HistoryIntent, Intent, SessionProjection,
+    BrushIntent, BrushProjection, EditorAction, HistoryIntent, Intent, SessionProjection, Tool,
     ToolIntent,
 };
 
@@ -92,8 +92,15 @@ fn sliders(
     taps: &mut Vec<Intent>,
 ) {
     let color = color32(brush.color);
+    // The smudge's opacity is how strongly it carries colour (draweave's "Strength").
+    let smudge = brush.tool == Tool::Smudge;
+    let (size_label, opacity_label) = if smudge {
+        ("Smudge size", "Strength")
+    } else {
+        ("Brush size", "Brush opacity")
+    };
     let size = SideSlider {
-        label: "Brush size",
+        label: size_label,
         value: brush.size_position,
         shown: &pixels(brush.size),
         ends: [Icon::SizeSmall, Icon::SizeLarge],
@@ -123,7 +130,7 @@ fn sliders(
         }
     }
     let opacity = SideSlider {
-        label: "Brush opacity",
+        label: opacity_label,
         value: brush.opacity,
         shown: &format!("{} %", (brush.opacity * 100.0).round()),
         ends: [Icon::OpacityLight, Icon::OpacityDark],

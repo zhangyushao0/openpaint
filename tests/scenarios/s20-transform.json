@@ -46,7 +46,7 @@
     { "press": { "path": [[500, 375, 0], [550, 690, 120], [600, 1000, 240]], "tool": "stylus" } },
     { "touch": { "from": [[550, 1000], [650, 1000]], "to": [[515, 1000], [685, 1000]], "ms": 200 } },
     { "screenshot": { "name": "selection-pinched" } },
-    { "tap": { "at": [2542, 59] } },
+    { "tap": { "at": [2451, 59] } },
     { "checkpoint": { "name": "selection-moved", "canvas": "c7f63d9bbb61c056" } },
     { "screenshot": { "name": "selection-moved-screen" } },
     "restart",

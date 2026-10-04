@@ -1,0 +1,325 @@
+//! `Smudges`: a canvas target's smudge residuals. Finished ones live in its arena, keyed by
+//! stroke; the in-progress one in a residual of its own that grows by the contacts of each
+//! evaluation's new samples and, once committed, moves into the arena as it is. A residual
+//! that is missing is evaluated cold from its stroke and the scene, in layer order, so the
+//! layer pixels it carries already include the smudges before it.
+
+use std::collections::HashSet;
+use std::ops::Range;
+
+use openpaint_core::{ActiveStroke, Artwork, LayerId, StrokeSample, StrokeStyle};
+
+use super::arena::{Arena, Key, key};
+use super::dabs::{Dab, DabWalker, dabs, read_tiles};
+use super::kernels::{Job, KernelBuffers, tile_job};
+use super::material::Material;
+use super::residual::{Working, words_buffer};
+use crate::core::Core;
+use crate::error::RenderError;
+use crate::geom::PixelRect;
+use crate::program::SceneOps;
+use crate::protocol::encode;
+use crate::scene::{Scene, SmudgeItem};
+use crate::stroke::stroke_region;
+
+/// A residual being evaluated and which evaluation of the material it needs.
+struct Run {
+    /// Names the material its tiles were evaluated for.
+    owner: u64,
+    working: Working,
+    /// The kernels' bindings, for the working buffer they were built with.
+    group: Option<(wgpu::Buffer, wgpu::BindGroup)>,
+}
+
+/// The in-progress smudge: its stroke as far as it was walked, over the version it was drawn on.
+struct Active {
+    layer: LayerId,
+    base: Artwork,
+    style: StrokeStyle,
+    samples: Vec<StrokeSample>,
+    walker: DabWalker,
+    run: Run,
+}
+
+/// The material texture, the kernels' buffers and an empty residual, made on first use.
+struct Tools {
+    material: Option<Material>,
+    kernels: Option<KernelBuffers>,
+    empty: wgpu::Buffer,
+    /// The run whose material the texture holds, and the next run's name.
+    owner: u64,
+    next: u64,
+}
+
+pub(crate) struct Smudges {
+    arena: Arena,
+    active: Option<Active>,
+    tools: Tools,
+}
+
+impl Smudges {
+    pub(crate) fn new(core: &Core) -> Self {
+        Self {
+            arena: Arena::new(&core.gpu),
+            active: None,
+            tools: Tools {
+                material: None,
+                kernels: None,
+                empty: words_buffer(&core.gpu, 4),
+                owner: 0,
+                next: 1,
+            },
+        }
+    }
+
+    /// The arena and the in-progress residual (an empty one without), for the evaluator.
+    pub(crate) fn residuals(&self) -> [&wgpu::Buffer; 2] {
+        let active = self.active.as_ref();
+        let working = active.map_or(&self.tools.empty, |active| active.run.working.buffer());
+        [self.arena.buffer(), working]
+    }
+
+    /// Forgets the in-progress smudge: none is drawn now.
+    pub(crate) fn end_active(&mut self) {
+        self.active = None;
+    }
+
+    /// Makes every smudge of `scene` (built from `artwork`, uploaded as `ops`) present in the
+    /// arena, in scene order, and writes where each block starts into the scene's base words. A
+    /// just committed smudge takes over the in-progress residual when it is that stroke on the
+    /// same layer content.
+    ///
+    /// # Errors
+    /// `Admission` when the residuals exceed what the device binds; `Invalid` for a canvas the
+    /// device cannot hold.
+    pub(crate) fn prepare(
+        &mut self,
+        core: &Core,
+        (scene, ops): (&Scene, &SceneOps),
+        artwork: &Artwork,
+    ) -> Result<(), RenderError> {
+        let live: HashSet<Key> = scene
+            .smudges
+            .iter()
+            .map(|item| key(item.layer, &item.stroke))
+            .collect();
+        let size = [artwork.canvas().width(), artwork.canvas().height()];
+        for (index, item) in scene.smudges.iter().enumerate() {
+            let key = key(item.layer, &item.stroke);
+            if self.arena.base(&key).is_some() {
+                continue;
+            }
+            let adopted = self.active.take_if(|active| active.adopts(item, artwork));
+            let run = match adopted {
+                Some(mut active) => {
+                    let mut new = Vec::new();
+                    let samples = item.stroke.samples();
+                    active.walker.advance(&active.style, samples, &mut new);
+                    let range = item.before.clone();
+                    self.tools.extend(
+                        core,
+                        (scene, ops, range),
+                        &self.arena,
+                        &mut active.run,
+                        &new,
+                    )?;
+                    active.run
+                }
+                None => {
+                    let mut run = self.tools.run(core, size);
+                    let all = dabs(item.stroke.style(), item.stroke.samples());
+                    let range = item.before.clone();
+                    self.tools
+                        .extend(core, (scene, ops, range), &self.arena, &mut run, &all)?;
+                    run
+                }
+            };
+            let limit = binding_limit(core);
+            self.arena
+                .place(&core.gpu, (key, &item.stroke), &run.working, (&live, limit))?;
+            self.write_bases(core, scene, ops, index + 1);
+        }
+        self.write_bases(core, scene, ops, scene.smudges.len());
+        Ok(())
+    }
+
+    /// Where the first `count` smudges' blocks start, into the scene's base words.
+    fn write_bases(&self, core: &Core, scene: &Scene, ops: &SceneOps, count: usize) {
+        let bases: Vec<u32> = scene.smudges[..count]
+            .iter()
+            .map(|item| {
+                let base = self.arena.base(&key(item.layer, &item.stroke));
+                u32::try_from(base.unwrap_or(0)).unwrap_or(0)
+            })
+            .collect();
+        if !bases.is_empty() {
+            let at = u64::from(scene.bases_at) * 4;
+            core.gpu.queue.write_buffer(&ops.masks, at, &encode(&bases));
+        }
+    }
+
+    /// Extends the in-progress smudge `stroke` drawn over `artwork` by its new samples' contacts.
+    /// Returns the pixels to evaluate again when its residual started over (a new stroke, or
+    /// the version under it changed).
+    ///
+    /// # Errors
+    /// As `prepare`.
+    pub(crate) fn advance(
+        &mut self,
+        core: &Core,
+        (scene, ops): (&Scene, &SceneOps),
+        artwork: &Artwork,
+        stroke: &ActiveStroke,
+    ) -> Result<Option<PixelRect>, RenderError> {
+        let Some(range) = scene.active_before.clone() else {
+            self.active = None;
+            return Ok(None);
+        };
+        let continuing = self
+            .active
+            .as_ref()
+            .is_some_and(|active| active.continues(artwork, stroke));
+        let mut restarted = None;
+        if !continuing {
+            let size = [artwork.canvas().width(), artwork.canvas().height()];
+            self.active = Some(Active {
+                layer: stroke.layer(),
+                base: artwork.clone(),
+                style: stroke.style().clone(),
+                samples: Vec::new(),
+                walker: DabWalker::default(),
+                run: self.tools.run(core, size),
+            });
+            restarted = stroke_region(stroke.style(), stroke.samples(), 0);
+        }
+        let Some(active) = self.active.as_mut() else {
+            return Ok(None);
+        };
+        let samples = stroke.samples();
+        let mut new = Vec::new();
+        active.walker.advance(&active.style, samples, &mut new);
+        let done = active.samples.len();
+        active.samples.extend_from_slice(&samples[done..]);
+        self.tools.extend(
+            core,
+            (scene, ops, range),
+            &self.arena,
+            &mut active.run,
+            &new,
+        )?;
+        Ok(restarted)
+    }
+}
+
+impl Active {
+    /// True when `stroke` is this one with samples added, over the same version.
+    fn continues(&self, artwork: &Artwork, stroke: &ActiveStroke) -> bool {
+        self.layer == stroke.layer()
+            && self.style == *stroke.style()
+            && stroke.samples().starts_with(&self.samples)
+            && self.base.same_version(artwork)
+    }
+
+    /// True when `item` of `artwork` is this stroke committed onto the layer it was drawn on:
+    /// the layer's newest stroke, with everything before it as it was under the residual.
+    fn adopts(&self, item: &SmudgeItem, artwork: &Artwork) -> bool {
+        let stroke = &item.stroke;
+        if item.layer != self.layer
+            || !item.newest
+            || *stroke.style() != self.style
+            || !stroke.samples().starts_with(&self.samples)
+        {
+            return false;
+        }
+        let (Some(old), Some(new)) = (self.base.layer(self.layer), artwork.layer(self.layer))
+        else {
+            return false;
+        };
+        let count = old.strokes().len();
+        let strokes = new.strokes().len() == count + 1
+            && old.strokes().last().is_none_or(|last| {
+                new.strokes()
+                    .get(count - 1)
+                    .is_some_and(|same| same.shares_samples(last))
+            });
+        let edits = old.edits().len() == new.edits().len()
+            && old.edits().iter().zip(new.edits()).all(|(a, b)| a.same(b));
+        strokes && edits
+    }
+}
+
+impl Tools {
+    /// An empty residual under a new name.
+    fn run(&mut self, core: &Core, size: [u32; 2]) -> Run {
+        self.next += 1;
+        Run {
+            owner: self.next,
+            working: Working::new(&core.gpu, size),
+            group: None,
+        }
+    }
+
+    /// Applies `dabs` to `run`: allocates the tiles they read, evaluates the material of the
+    /// new ones (all of the run's, when the texture holds another run's), resets the new tiles,
+    /// then runs the contacts in order. `range` is the scene's items before the smudge.
+    fn extend(
+        &mut self,
+        core: &Core,
+        (scene, ops, range): (&Scene, &SceneOps, Range<usize>),
+        arena: &Arena,
+        run: &mut Run,
+        dabs: &[Dab],
+    ) -> Result<(), RenderError> {
+        if dabs.is_empty() {
+            return Ok(());
+        }
+        let size = run.working.size();
+        let new = run
+            .working
+            .allocate(&core.gpu, &read_tiles(dabs, size), binding_limit(core))?;
+        if self.material.is_none() {
+            self.material = Some(Material::new(core, size)?);
+        }
+        let Some(material) = self.material.as_mut() else {
+            return Ok(());
+        };
+        let stale = self.owner != run.owner;
+        let tiles = if stale { run.working.tiles() } else { &new[..] };
+        let rects: Vec<PixelRect> = tiles.iter().map(|t| run.working.tile_rect(*t)).collect();
+        material.evaluate(
+            core,
+            (scene, ops),
+            range,
+            &rects,
+            [arena.buffer(), &self.empty],
+        )?;
+        self.owner = run.owner;
+        let kernels = self
+            .kernels
+            .get_or_insert_with(|| KernelBuffers::new(&core.gpu));
+        let buffer = run.working.buffer();
+        if run.group.as_ref().is_none_or(|(built, _)| built != buffer) {
+            let group = core
+                .smudge
+                .group(&core.gpu, kernels, buffer, material.view());
+            run.group = Some((buffer.clone(), group));
+        }
+        let mut jobs: Vec<Job> = new.iter().map(|tile| tile_job(*tile, size)).collect();
+        jobs.extend(
+            dabs.iter()
+                .filter_map(|dab| dab.rect(size).map(|rect| Job::Contact(*dab, rect))),
+        );
+        if let Some((_, group)) = &run.group {
+            core.smudge.run(&core.gpu, (kernels, group), &jobs, size);
+        }
+        Ok(())
+    }
+}
+
+/// The largest buffer the device binds, in bytes.
+fn binding_limit(core: &Core) -> u64 {
+    let limits = core.gpu.device.limits();
+    limits
+        .max_storage_buffer_binding_size
+        .min(limits.max_buffer_size)
+}

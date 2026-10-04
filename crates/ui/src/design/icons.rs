@@ -42,6 +42,8 @@ pub enum Icon {
     Duplicate,
     /// A round brush held at a slant, its tip down to the left: the brushes.
     Brush,
+    /// A fingertip at a slant, down to the left, over the trail it smeared: the smudge.
+    Smudge,
     /// A block at a slant, its rubber end down to the left, on a line: the eraser.
     Eraser,
     /// A pipette at a slant, its tip down to the left: pick a colour from the canvas.
@@ -135,9 +137,12 @@ fn polylines(icon: Icon) -> Vec<Line> {
         Icon::Visible => vec![eye_outline()],
         Icon::Hidden => vec![eye_outline(), vec![[0.2, 0.8], [0.8, 0.2]]],
         Icon::Duplicate => vec![rounded_rect([0.38, 0.38], [0.82, 0.82], 0.08), back_sheet()],
-        Icon::Brush | Icon::Eraser | Icon::Eyedropper | Icon::Selection | Icon::Transform => {
-            tools(icon)
-        }
+        Icon::Brush
+        | Icon::Smudge
+        | Icon::Eraser
+        | Icon::Eyedropper
+        | Icon::Selection
+        | Icon::Transform => tools(icon),
         Icon::Actions => spanner(),
         Icon::Close => vec![
             vec![[0.27, 0.27], [0.73, 0.73]],
@@ -331,6 +336,7 @@ mod tests {
             Icon::Hidden,
             Icon::Duplicate,
             Icon::Brush,
+            Icon::Smudge,
             Icon::Eraser,
             Icon::Eyedropper,
             Icon::Actions,

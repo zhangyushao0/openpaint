@@ -1,11 +1,12 @@
-//! The toolbox record, `library` / `editor` (schema 6, DECISIONS D28, D29, D39): the tool (u8:
-//! 0 brush, 1 eraser); the brush tool's choice, then the eraser's, each its brush's key (u32
-//! length + UTF-8, empty for the default brush), the brush count (u32) and per brush its key,
-//! size, opacity and StreamLine (f32); the colour, red, green, blue (f32); the recent colours, a
-//! count (u32) and per colour red, green, blue (f32), newest first. It is not artwork: the app
-//! falls back to the defaults when it cannot be read, and nothing else depends on it. Schema 3
-//! held only the brush tool's choice, schemas 4 and 5 no StreamLine; `migrate.rs` and
-//! `migrate_6.rs` upgrade them.
+//! The toolbox record, `library` / `editor` (schema 9, DECISIONS D28, D29, D39, D46): the tool
+//! (u8: 0 brush, 1 eraser, 2 smudge); the brush tool's choice, then the eraser's, then the
+//! smudge's, each its brush's key (u32 length + UTF-8, empty for the tool's default brush), the
+//! brush count (u32) and per brush its key, size, opacity and StreamLine (f32); the colour,
+//! red, green, blue (f32); the recent colours, a count (u32) and per colour red, green, blue
+//! (f32), newest first. It is not artwork: the app falls back to the defaults when it cannot be
+//! read, and nothing else depends on it. Schema 3 held only the brush tool's choice, schemas 4
+//! and 5 no StreamLine, schemas 6 to 8 no smudge; `migrate.rs`, `migrate_6.rs` and
+//! `migrate_9.rs` upgrade them.
 
 use openpaint_app::{BrushChoice, BrushSetting, EditorState, PortError, Tool};
 
@@ -22,8 +23,9 @@ pub(crate) fn encode_editor(state: &EditorState) -> Vec<u8> {
     writer.u8(match state.tool {
         Tool::Brush => 0,
         Tool::Eraser => 1,
+        Tool::Smudge => 2,
     });
-    for choice in [&state.paint, &state.erase] {
+    for choice in [&state.paint, &state.erase, &state.smudge] {
         write_choice(&mut writer, choice);
     }
     write_color(&mut writer, state.color);
@@ -58,10 +60,12 @@ pub(crate) fn decode_editor(bytes: &[u8]) -> Result<EditorState, PortError> {
     let tool = match reader.u8()? {
         0 => Tool::Brush,
         1 => Tool::Eraser,
+        2 => Tool::Smudge,
         _ => return Err(reader.corrupt()),
     };
     let paint = read_choice(&mut reader)?;
     let erase = read_choice(&mut reader)?;
+    let smudge = read_choice(&mut reader)?;
     let color = read_color(&mut reader)?;
     let count = reader.count(COLOR_BYTES)?;
     let recent = (0..count)
@@ -72,12 +76,13 @@ pub(crate) fn decode_editor(bytes: &[u8]) -> Result<EditorState, PortError> {
         tool,
         paint,
         erase,
+        smudge,
         color,
         recent,
     })
 }
 
-fn read_choice(reader: &mut Reader<'_>) -> Result<BrushChoice, PortError> {
+pub(crate) fn read_choice(reader: &mut Reader<'_>) -> Result<BrushChoice, PortError> {
     let brush = reader.str()?;
     let count = reader.count(SETTING_BYTES)?;
     let mut brushes = Vec::with_capacity(count);
@@ -109,7 +114,7 @@ mod tests {
             streamline: 0.75,
         };
         let state = EditorState {
-            tool: Tool::Eraser,
+            tool: Tool::Smudge,
             paint: BrushChoice {
                 brush: "pencil".into(),
                 brushes: vec![setting("pencil", 6.5, 0.25), setting("ink-pen", 12.0, 1.0)],
@@ -117,6 +122,10 @@ mod tests {
             erase: BrushChoice {
                 brush: String::new(),
                 brushes: Vec::new(),
+            },
+            smudge: BrushChoice {
+                brush: "soft-brush".into(),
+                brushes: vec![setting("soft-brush", 90.0, 0.7)],
             },
             color: [0.25, 0.5, 1.0],
             recent: vec![[0.25, 0.5, 1.0], [0.0, 0.0, 0.0]],
@@ -131,7 +140,7 @@ mod tests {
             Err(corrupt.clone())
         );
         let mut unknown_tool = bytes;
-        unknown_tool[0] = 2;
+        unknown_tool[0] = 3;
         assert_eq!(decode_editor(&unknown_tool), Err(corrupt));
     }
 }

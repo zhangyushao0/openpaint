@@ -174,7 +174,8 @@ mod tests {
         let upgrade = upgrade_5_to_6(&[], &[], Some(&old));
         let (key, editor) = &upgrade.library[0];
         assert_eq!(key, EDITOR);
-        let editor = decode_editor(editor).expect("a schema-6 toolbox");
+        let nine = crate::migrate_9::upgrade_8_to_9(&[], Some(editor));
+        let editor = decode_editor(&nine.library[0].1).expect("a schema-6 toolbox");
         let pencil = BrushSetting {
             key: "pencil".into(),
             size: 4.0,

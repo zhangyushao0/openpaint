@@ -3,7 +3,7 @@
 
 use std::path::PathBuf;
 
-use openpaint_app::{BrushChoice, BrushSetting, EditorState, Thumbnail, Title, Tool};
+use openpaint_app::{Thumbnail, Title};
 use openpaint_core::{
     AccumulationParts, ArtworkParts, BrushRecipe, EditParts, FillParts, LayerParts, MaskParts,
     PaperParts, PaperTexture, RecipeParts, SampleParts, StrokeBlend, StrokeParts, Tip,
@@ -11,6 +11,9 @@ use openpaint_core::{
 };
 
 use crate::common::KEYSPACES;
+
+mod editor;
+pub use editor::{sample_editor, sample_editor_6, sample_editor_9, upgraded_editor};
 
 pub type Records = Vec<(String, Vec<u8>, Vec<u8>)>;
 
@@ -236,10 +239,28 @@ pub fn schema_5_parts() -> ArtworkParts {
     parts
 }
 
+/// The schema-8 sample with what schema 9 adds: a smudge on the alpha-locked sketch layer after
+/// its transform, and a smudge on the top layer over its transformed fill.
+pub fn parts() -> ArtworkParts {
+    let mut parts = schema_8_parts();
+    let mut locked = parts.layers[0].strokes[0].clone();
+    locked.id = 6;
+    locked.blend = StrokeBlend::SmudgeLocked;
+    locked.clip = None;
+    parts.layers[0].strokes.push(locked);
+    let mut smudge = parts.layers[0].strokes[1].clone();
+    smudge.id = 7;
+    smudge.blend = StrokeBlend::Smudge;
+    smudge.clip = None;
+    parts.layers[2].strokes.push(smudge);
+    parts.next_stroke_id = 8;
+    parts
+}
+
 /// The schema-7 sample with what schema 8 adds: on the sketch layer, after both strokes, the
 /// pixels of a selection turned a quarter and moved; on the top layer, after its fill, the
 /// whole layer scaled and mirrored.
-pub fn parts() -> ArtworkParts {
+pub fn schema_8_parts() -> ArtworkParts {
     let mut parts = schema_7_parts();
     let pixels = |count: u8| -> Vec<u8> {
         (0..count)
@@ -319,60 +340,4 @@ pub fn sample_title() -> Title {
 /// Two pixels: opaque red, half-transparent grey.
 pub fn sample_thumbnail() -> Thumbnail {
     Thumbnail::new([2, 1], vec![255, 0, 0, 255, 128, 128, 128, 128]).expect("thumbnail")
-}
-
-fn setting(key: &str, size: f32, opacity: f32) -> BrushSetting {
-    BrushSetting {
-        key: key.to_owned(),
-        size,
-        opacity,
-        streamline: 0.0,
-    }
-}
-
-/// The brush tool's choice of the schema-3 sample: the pencil current, small and light, the
-/// ink pen at its default; StreamLine off, as every brush had it before schema 6.
-fn pencil_choice() -> BrushChoice {
-    BrushChoice {
-        brush: "pencil".into(),
-        brushes: vec![setting("pencil", 3.5, 0.25), setting("ink-pen", 12.0, 1.0)],
-    }
-}
-
-/// The schema-3 sample's toolbox as schema 4 reads it after the upgrade.
-pub fn upgraded_editor() -> EditorState {
-    EditorState {
-        tool: Tool::Brush,
-        paint: pencil_choice(),
-        erase: BrushChoice {
-            brush: String::new(),
-            brushes: Vec::new(),
-        },
-        color: [0.0; 3],
-        recent: Vec::new(),
-    }
-}
-
-/// The toolbox of the schema-6 sample: the schema-5 one with StreamLine on the ink pen and on
-/// the eraser's soft brush.
-pub fn sample_editor_6() -> EditorState {
-    let mut editor = sample_editor();
-    editor.paint.brushes[1].streamline = 0.625;
-    editor.erase.brushes[0].streamline = 1.0;
-    editor
-}
-
-/// The eraser current on the soft brush at half opacity; an orange colour, two recent ones.
-/// The toolbox of the schema-4 and schema-5 samples.
-pub fn sample_editor() -> EditorState {
-    EditorState {
-        tool: Tool::Eraser,
-        paint: pencil_choice(),
-        erase: BrushChoice {
-            brush: "soft-brush".into(),
-            brushes: vec![setting("soft-brush", 64.0, 0.5)],
-        },
-        color: [1.0, 0.5, 0.125],
-        recent: vec![[1.0, 0.5, 0.125], [0.0, 0.25, 0.75]],
-    }
 }

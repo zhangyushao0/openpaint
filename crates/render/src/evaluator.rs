@@ -1,7 +1,7 @@
 //! `RegionEvaluator`: the single entry that evaluates a frame request into regions of a target.
 //! Every consumer (screen, export, picking) goes through it.
 
-use openpaint_core::{Artwork, LayerId, RegionMask};
+use openpaint_core::{Artwork, LayerId, RegionMask, StrokeTool};
 
 use crate::active::ActiveTrack;
 use crate::core::Core;
@@ -14,6 +14,7 @@ use crate::program::{Bindings, Dispatch, SceneOps, scene_ops};
 use crate::readback::{read_rgba, read_texel, target_texture};
 use crate::scene::{ActivePlace, Fresh, Scene};
 use crate::screen::{VIEW_BYTES, blit_bind_group, selection_texture};
+use crate::smudge::Smudges;
 
 /// An 8-bit RGBA texture holding the canvas at one target pixel per canvas pixel. It keeps its
 /// pixels between evaluations, so later evaluations update only the regions that changed. It
@@ -29,6 +30,8 @@ pub struct CanvasTarget {
     scene: Option<SceneCache>,
     /// The selection the screen shows over the canvas (`show_selection`).
     selection: Option<RegionMask>,
+    /// The smudges' residuals the scene draws (D46).
+    smudges: Smudges,
 }
 
 /// One artwork version's scene and its ops on the GPU, reused while the version stays.
@@ -60,6 +63,7 @@ impl CanvasTarget {
             track: ActiveTrack::default(),
             scene: None,
             selection: None,
+            smudges: Smudges::new(core),
         })
     }
 
@@ -121,7 +125,7 @@ impl CanvasTarget {
     }
 
     /// The scene of `artwork` with the in-progress stroke's place `active`, built and uploaded
-    /// only when either differs from the last call.
+    /// only when either differs from the last call, with every smudge it draws evaluated.
     fn scene(
         &mut self,
         core: &Core,
@@ -140,6 +144,7 @@ impl CanvasTarget {
                 same.then(|| cache.ops.patches.clone())
             });
             let ops = scene_ops(&core.gpu, &scene, patches);
+            self.smudges.prepare(core, (&scene, &ops), artwork)?;
             self.scene = Some(SceneCache {
                 artwork: artwork.clone(),
                 active,
@@ -217,6 +222,9 @@ impl<'a> RegionEvaluator<'a> {
         let plan = Plan::build(&scene, &Fresh::default(), size, &[PixelRect::full(size)]);
         self.target.scene = None;
         self.target.track.forget();
+        let smudges = &mut self.target.smudges;
+        smudges.end_active();
+        smudges.prepare(self.core, (&scene, &ops), artwork)?;
         self.core.evaluate.dispatch(
             &self.core.gpu,
             &mut self.target.bindings,
@@ -226,6 +234,7 @@ impl<'a> RegionEvaluator<'a> {
                 plan: &plan,
                 background: [0.0; 4],
                 reset: false,
+                residuals: smudges.residuals(),
             },
         )
     }
@@ -249,15 +258,28 @@ impl<'a> RegionEvaluator<'a> {
         };
         let mut all = regions.to_vec();
         all.extend(step.redraw.into_iter().chain(step.fresh_region));
-        if all.is_empty() && !step.reset {
-            return Ok(());
-        }
         let size = self.target.size();
         let target = &mut *self.target;
         let cache = target
             .scene
             .as_ref()
             .ok_or(RenderError::Invalid("no scene was built"))?;
+        let smudging = request
+            .active
+            .filter(|active| drawn && active.style().tool() == StrokeTool::Smudge);
+        match smudging {
+            Some(active) => {
+                let scene = (&cache.scene, &cache.ops);
+                let restarted = target
+                    .smudges
+                    .advance(core, scene, request.artwork, active)?;
+                all.extend(restarted);
+            }
+            None => target.smudges.end_active(),
+        }
+        if all.is_empty() && !step.reset {
+            return Ok(());
+        }
         let plan = Plan::build(&cache.scene, &fresh, size, &all);
         if plan.tiles.is_empty() && !step.reset {
             return Ok(());
@@ -272,6 +294,7 @@ impl<'a> RegionEvaluator<'a> {
                 plan: &plan,
                 background: [paper.r(), paper.g(), paper.b(), 1.0],
                 reset: step.reset,
+                residuals: target.smudges.residuals(),
             },
         )
     }

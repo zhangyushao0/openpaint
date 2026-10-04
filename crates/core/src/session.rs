@@ -68,7 +68,8 @@ pub struct StrokeSession {
 
 impl Artwork {
     /// Starts a stroke on the active layer with its first sample. A paint stroke on a layer
-    /// with Alpha Lock on paints only over the layer's paint, for its whole life.
+    /// with Alpha Lock on paints only over the layer's paint, for its whole life; a smudge
+    /// there moves colour and keeps the layer's alpha.
     ///
     /// # Errors
     /// `LayerLocked` when the active layer is locked; `AlphaLocked` for the eraser on a layer

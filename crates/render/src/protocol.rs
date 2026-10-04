@@ -35,7 +35,13 @@ const SEGMENT_TIP: usize = 11;
 const FILL_MASK: usize = 7;
 /// Where a patch starts in the patch words, split like `FILL_MASK`.
 const PATCH_AT: usize = 6;
-const SLOTS: [(&str, usize); 13] = [
+/// A smudge: the mask word holding where its residual starts in the arena, split like
+/// `FILL_MASK`; whether Alpha Lock keeps the layer's alpha; whether it is the in-progress one
+/// (its residual is the evaluation's own). Its clip sits where a paint op's does.
+const SMUDGE_AT: usize = 0;
+const SMUDGE_LOCKED: usize = 2;
+const SMUDGE_ACTIVE: usize = 3;
+const SLOTS: [(&str, usize); 16] = [
     ("PAINT_OPACITY", PAINT_OPACITY),
     ("PAINT_GRAIN", PAINT_GRAIN),
     ("PAINT_GRAIN_SCALE", PAINT_GRAIN_SCALE),
@@ -49,6 +55,9 @@ const SLOTS: [(&str, usize); 13] = [
     ("SEGMENT_TIP", SEGMENT_TIP),
     ("FILL_MASK", FILL_MASK),
     ("PATCH_AT", PATCH_AT),
+    ("SMUDGE_AT", SMUDGE_AT),
+    ("SMUDGE_LOCKED", SMUDGE_LOCKED),
+    ("SMUDGE_ACTIVE", SMUDGE_ACTIVE),
 ];
 
 /// How a segment adds to its stroke at a pixel, declared to WGSL as constants by `prelude`.
@@ -113,16 +122,19 @@ pub(crate) enum Opcode {
     /// A transform's lifted pixels, sampled bilinearly where the pixel's centre maps back to,
     /// over the current layer (premultiplied source over).
     Patch = 5,
+    /// A smudge: the current layer becomes `A x layer + R` from its residual at the pixel.
+    Smudge = 6,
 }
 
 impl Opcode {
-    const ALL: [Self; 6] = [
+    const ALL: [Self; 7] = [
         Self::Segment,
         Self::EndStroke,
         Self::EndLayer,
         Self::EndActive,
         Self::Fill,
         Self::Patch,
+        Self::Smudge,
     ];
 
     const fn wgsl_name(self) -> &'static str {
@@ -133,6 +145,7 @@ impl Opcode {
             Self::EndActive => "OP_END_ACTIVE",
             Self::Fill => "OP_FILL",
             Self::Patch => "OP_PATCH",
+            Self::Smudge => "OP_SMUDGE",
         }
     }
 }
@@ -157,6 +170,7 @@ impl Opcode {
 ///   the patch at `(a x + b y + c, d x + e y + f)` in canvas pixels; the patch starts at word
 ///   `at` of the patch words: `MASK_HEADER` words, then one premultiplied RGBA8 word per
 ///   pixel, rows top first.
+/// - `Smudge`: `[at / 2^16, at % 2^16, locked, active, ..., clip / 2^16, clip % 2^16]`.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Op {
@@ -278,6 +292,17 @@ impl Op {
         data[..PATCH_AT].copy_from_slice(&rows);
         data[PATCH_AT..PATCH_AT + 2].copy_from_slice(&halves(at));
         Self::new(Opcode::Patch, &data)
+    }
+
+    /// A finished smudge whose residual's base is in mask word `at`, or (`None`) the one in
+    /// progress; `clip` as a paint op's.
+    pub(crate) fn smudge(at: Option<u32>, clip: u32, locked: bool) -> Self {
+        let mut data = [0.0; OP_DATA];
+        data[SMUDGE_AT..SMUDGE_AT + 2].copy_from_slice(&halves(at.unwrap_or(0)));
+        data[SMUDGE_LOCKED] = f32::from(u8::from(locked));
+        data[SMUDGE_ACTIVE] = f32::from(u8::from(at.is_none()));
+        data[PAINT_CLIP..].copy_from_slice(&halves(clip));
+        Self::new(Opcode::Smudge, &data)
     }
 
     /// An op no plan refers to; it keeps a scene's item and op indices equal.

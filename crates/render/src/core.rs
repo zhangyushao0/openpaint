@@ -7,6 +7,7 @@ use crate::image::RgbaImage;
 use crate::program::EvaluatePipeline;
 use crate::readback::{offscreen_texture, read_rgba};
 use crate::screen::{blit_layout, blit_sampler};
+use crate::smudge::SmudgePipeline;
 use crate::thumbnail::ThumbnailPipeline;
 
 pub struct Core {
@@ -19,6 +20,8 @@ pub struct Core {
     pub(crate) blit_sampler: wgpu::Sampler,
     /// Reduces a canvas target to a gallery thumbnail (`Core::thumbnail`).
     pub(crate) thumbnail: ThumbnailPipeline,
+    /// Applies smudge contacts to residuals (`smudge`).
+    pub(crate) smudge: SmudgePipeline,
 }
 
 impl Core {
@@ -30,12 +33,14 @@ impl Core {
         let blit_layout = blit_layout(&gpu.device);
         let blit_sampler = blit_sampler(&gpu.device);
         let thumbnail = ThumbnailPipeline::new(&gpu.device);
+        let smudge = SmudgePipeline::new(&gpu.device);
         Ok(Self {
             gpu,
             evaluate,
             blit_layout,
             blit_sampler,
             thumbnail,
+            smudge,
         })
     }
 

@@ -259,15 +259,19 @@ impl Canvas {
         }
     }
 
-    /// While the pen erases: the eraser's tip in canvas pixels, where the stroke is now and its
-    /// radius at the pen's pressure there, so the hand sees what it takes away.
+    /// While the pen erases or smudges: the tip in canvas pixels, where the stroke is now and
+    /// its radius at the pen's pressure there, so the hand sees what it takes away or drags
+    /// (neither lays colour of its own to show where it is).
     pub(crate) fn erasing_tip(&self) -> Option<([f32; 2], f32)> {
         let active = self.session.active()?;
         let samples = active.samples();
         let position = samples.last()?.position();
         let radius = tip_radius(active.style(), samples)?;
-        (active.style().tool() == StrokeTool::Erase)
-            .then_some(([position.x(), position.y()], radius))
+        matches!(
+            active.style().tool(),
+            StrokeTool::Erase | StrokeTool::Smudge
+        )
+        .then_some(([position.x(), position.y()], radius))
     }
 
     pub(crate) fn session(&self) -> &Session {

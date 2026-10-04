@@ -229,6 +229,7 @@ mod tests {
     use crate::migrate_6::upgrade_5_to_6;
     use crate::migrate_7::upgrade_6_to_7;
     use crate::migrate_8::upgrade_7_to_8;
+    use crate::migrate_9::upgrade_8_to_9;
     use crate::records::{decode_head, decode_stroke};
     use openpaint_app::Tool;
     use openpaint_core::{BrushRecipe, StrokeBlend};
@@ -343,7 +344,8 @@ mod tests {
         let six = upgrade_5_to_6(&[(id, then.projects[0].1.clone())], &[], None);
         let seven = upgrade_6_to_7(&[(id, six.projects[0].1.clone())], &[]);
         let eight = upgrade_7_to_8(&[(id, seven.projects[0].1.clone())], &[]);
-        let head = decode_head(&eight.projects[0].1).expect("a schema-5 head, upgraded");
+        let nine = upgrade_8_to_9(&[(id, eight.projects[0].1.clone())], None);
+        let head = decode_head(&nine.projects[0].1).expect("a schema-5 head, upgraded");
         let layers: Vec<_> = head
             .layers
             .iter()
@@ -365,7 +367,8 @@ mod tests {
         let (key, editor) = &upgrade.library[0];
         assert_eq!(key, EDITOR);
         let six = upgrade_5_to_6(&[], &[], Some(editor));
-        let editor = decode_editor(&six.library[0].1).expect("a schema-4 toolbox, upgraded");
+        let nine = upgrade_8_to_9(&[], Some(&six.library[0].1));
+        let editor = decode_editor(&nine.library[0].1).expect("a schema-4 toolbox, upgraded");
         assert_eq!((editor.tool, &editor.paint), (Tool::Brush, &pencil));
         assert_eq!(editor.erase.brush, "", "the default brush");
         assert_eq!((editor.color, editor.recent.len()), ([0.0; 3], 0));

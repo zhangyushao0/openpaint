@@ -39,7 +39,7 @@
     { "hover": { "at": [1000, 1525] } },
     { "screenshot": { "name": "eraser-hover" } },
     { "press": { "path": [[900, 1520, 0], [1100, 1530, 200], [1100, 1530, 400]], "tool": "stylus", "pressure": 0.4, "before_lift": "eraser-pressed" } },
-    { "tap": { "at": [2542, 59] } },
+    { "tap": { "at": [2451, 59] } },
     { "press": { "path": [[600, 1200, 0], [900, 1200, 200]], "tool": "stylus", "before_lift": "brush-pressed" } },
     { "checkpoint": { "name": "drawn", "canvas": "a0b93b5bddc06b16" } },
     { "tap": { "at": [1500, 900] } },

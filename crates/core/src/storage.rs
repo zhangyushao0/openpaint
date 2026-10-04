@@ -214,6 +214,8 @@ fn stroke_from(
         StrokeBlend::Over => (StrokeTool::Paint, false),
         StrokeBlend::Atop => (StrokeTool::Paint, true),
         StrokeBlend::Erase => (StrokeTool::Erase, false),
+        StrokeBlend::Smudge => (StrokeTool::Smudge, false),
+        StrokeBlend::SmudgeLocked => (StrokeTool::Smudge, true),
     };
     if parts.samples.is_empty() {
         return Err(CoreError::EmptyStroke);

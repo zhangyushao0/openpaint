@@ -20,6 +20,9 @@
 @group(0) @binding(8) var kept_contact: texture_storage_2d<r32float, read_write>;
 @group(0) @binding(9) var<storage, read> paper: array<u32>;
 @group(0) @binding(10) var<storage, read> patches: array<u32>;
+// The target's finished smudge residuals, and the in-progress smudge's (smudge_composite.wgsl).
+@group(0) @binding(11) var<storage, read> arena: array<u32>;
+@group(0) @binding(12) var<storage, read> active_residual: array<u32>;
 
 @compute @workgroup_size(TILE, TILE)
 fn evaluate(
@@ -87,6 +90,9 @@ fn evaluate(
             }
             case OP_PATCH: {
                 layer = over(patch_sample(centre, op), layer);
+            }
+            case OP_SMUDGE: {
+                layer = smudged(layer, pixel, op);
             }
             case OP_END_LAYER: {
                 canvas = over(layer * op.data[0], canvas);

@@ -1,5 +1,6 @@
 //! The canvas screen's top islands: Gallery, Actions, Selection and Transform at the left;
-//! Brush, Eraser, Layers and the colour at the right; the notice pill left of the right one.
+//! Brush, Smudge, Eraser, Layers and the colour at the right; the notice pill left of the right
+//! one.
 
 use openpaint_app::{EditorAction, GalleryIntent, Intent, SessionProjection};
 
@@ -10,9 +11,9 @@ use crate::notices::notice_pill;
 use crate::panels::Panel;
 
 impl Shell {
-    /// The left island (Gallery, Actions, Selection, Transform), the right one (Brush, Eraser,
-    /// Layers, the colour) and, left of it, the notice pill. Opening one panel closes the
-    /// others.
+    /// The left island (Gallery, Actions, Selection, Transform), the right one (Brush, Smudge,
+    /// Eraser, Layers, the colour) and, left of it, the notice pill. Opening one panel closes
+    /// the others.
     pub(super) fn top_islands(&mut self, ctx: &egui::Context, projection: &SessionProjection) {
         let panels = &mut self.panels;
         let ((), left) = island(ctx, "left island", Place::top_left(), |ui| {
