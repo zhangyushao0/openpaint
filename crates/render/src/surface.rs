@@ -131,19 +131,20 @@ fn acquired(
     }
 }
 
-/// The first format the window presents in the sRGB colour space, a non-sRGB one first: the
-/// UI painter blends in gamma space, so such a format shows its colours unchanged.
+/// The format the window presents in the sRGB colour space: ten bits per channel where it
+/// offers them (S37: the canvas's ten bits reach the display), else the first non-sRGB one (the
+/// UI painter blends in gamma space, so such a format shows its colours unchanged), else the
+/// first. On the tablet the compositor keeps a ten-bit layer as it is (STATUS).
 fn preferred_format(offered: &[wgpu::SurfaceFormatCapabilities]) -> Option<wgpu::TextureFormat> {
     let formats: Vec<wgpu::TextureFormat> = offered
         .iter()
         .filter(|offer| offer.color_spaces.contains(wgpu::SurfaceColorSpaces::SRGB))
         .map(|offer| offer.format)
         .collect();
-    formats
-        .iter()
-        .find(|format| !format.is_srgb())
-        .or(formats.first())
-        .copied()
+    let first = |wanted: fn(&wgpu::TextureFormat) -> bool| formats.iter().copied().find(wanted);
+    first(|format| *format == crate::gpu::TEN_BITS)
+        .or(first(|format| !format.is_srgb()))
+        .or(formats.first().copied())
 }
 
 #[cfg(test)]
@@ -171,5 +172,13 @@ mod tests {
             Some(TextureFormat::Rgba8UnormSrgb)
         );
         assert_eq!(preferred_format(&offered[..1]), None);
+        let ten = [
+            offered[3],
+            offer(
+                TextureFormat::Rgb10a2Unorm,
+                Spaces::SRGB | Spaces::BT2100_PQ,
+            ),
+        ];
+        assert_eq!(preferred_format(&ten), Some(TextureFormat::Rgb10a2Unorm));
     }
 }

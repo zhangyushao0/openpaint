@@ -79,7 +79,7 @@ impl Core {
             scale,
             size,
             banding,
-            target: CanvasTarget::piece(self, piece)?,
+            target: CanvasTarget::exact(self, piece)?,
             next: 0,
             planned: Duration::ZERO,
             waited: Duration::ZERO,

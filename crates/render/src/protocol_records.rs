@@ -45,6 +45,9 @@ pub(crate) struct Params {
     /// pixel and width, then 1 when this evaluation writes it (the layer's pixels before the
     /// adjustment, instead of the target), else 0 (`OP_RESUME` reads it).
     pub(crate) snapshot: [u32; 4],
+    /// 1 first when the target is a display texture (S37: ten bits, `display_out`), else 0
+    /// (eight bits, `canvas_out`); three words of padding.
+    pub(crate) display: [u32; 4],
 }
 
 /// A record that crosses to the GPU. Every field is a 4-byte scalar or an array of them, so
@@ -80,7 +83,8 @@ impl Record for Params {
         out.extend(self.inverse.to_le_bytes());
         let base = self.base_x.iter().chain(&self.base_y);
         out.extend(base.flat_map(|value| value.to_le_bytes()));
-        out.extend(self.snapshot.iter().flat_map(|word| word.to_le_bytes()));
+        let words = self.snapshot.iter().chain(&self.display);
+        out.extend(words.flat_map(|word| word.to_le_bytes()));
     }
 }
 

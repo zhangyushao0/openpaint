@@ -1,11 +1,12 @@
 //! `cargo device-info [label]`: what the tablet's display does with colour, read and never
-//! changed, and how often the app's canvas reached the glass lately. Read-only queries only
-//! (`getprop`, `dumpsys`, the app's own log), each bounded in time (`QUERY_LIMIT`); each answer goes whole to
-//! `artifacts/device/<label>-<query>.txt` and the lines about colour are printed.
+//! changed, how much memory the app holds and how often its canvas reached the glass lately.
+//! Read-only queries only (`getprop`, `dumpsys`, the app's own log), each bounded in time
+//! (`QUERY_LIMIT`); each answer goes whole to `artifacts/device/<label>-<query>.txt` and the
+//! lines about colour are printed.
 
 use std::time::Duration;
 
-use super::adb::{Adb, DeviceError, Result, write_file};
+use super::adb::{Adb, DeviceError, PACKAGE, Result, write_file};
 use super::{artifacts, plain};
 
 /// How long one query may take before it is stopped. On 2026-10-04 (S30) `dumpsys SurfaceFlinger
@@ -14,13 +15,15 @@ use super::{artifacts, plain};
 const QUERY_LIMIT: Duration = Duration::from_secs(30);
 
 /// The queries: a file name and the device command, each one read-only.
-const QUERIES: [(&str, &[&str]); 5] = [
+const QUERIES: [(&str, &[&str]); 6] = [
     ("props", &["getprop"]),
     ("surfaceflinger", &["dumpsys", "-t", "10", "SurfaceFlinger"]),
     ("display", &["dumpsys", "-t", "10", "display"]),
     ("color-display", &["dumpsys", "-t", "10", "color_display"]),
     // The app's own lines: the surface's format and colour space as wgpu reported them.
     ("app-log", &["logcat", "-d", "-s", "openpaint:I"]),
+    // The app's memory now (S37): its graphics (GPU textures and buffers) and the rest.
+    ("meminfo", &["dumpsys", "-t", "10", "meminfo", PACKAGE]),
 ];
 
 /// Words that mark a line about colour, matched without regard to case.

@@ -7,7 +7,7 @@ use crate::core::Core;
 use crate::error::RenderError;
 use crate::evaluator::CanvasTarget;
 use crate::image::RgbaImage;
-use crate::readback::{offscreen_texture, read_rgba};
+use crate::readback::{read_rgba, target_texture};
 use crate::view_tier::ViewCache;
 
 const SHADER: &str = include_str!("shaders/blit.wgsl");
@@ -269,8 +269,8 @@ impl CanvasBlit {
     }
 }
 
-/// An offscreen frame in place of a window: drawn by `Core::render_screen`, read back on
-/// demand.
+/// An offscreen frame in place of a window, in the canvas's display format as the window is
+/// (S37): drawn by `Core::render_screen`, read back on demand as the nearest 8-bit values.
 pub struct ScreenTarget {
     texture: wgpu::Texture,
 }
@@ -278,7 +278,11 @@ pub struct ScreenTarget {
 impl ScreenTarget {
     pub fn new(core: &Core, size: [u32; 2]) -> Result<Self, RenderError> {
         Ok(Self {
-            texture: offscreen_texture(&core.gpu, size)?,
+            texture: target_texture(
+                &core.gpu,
+                (size, core.gpu.display),
+                wgpu::TextureUsages::RENDER_ATTACHMENT,
+            )?,
         })
     }
 

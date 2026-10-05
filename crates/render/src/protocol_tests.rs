@@ -7,7 +7,7 @@ use crate::paper::{MOMENT_ONE, PAPER_SIZE, level_count};
 use wgpu::naga;
 
 fn parsed() -> naga::Module {
-    let source = crate::program::shader_source();
+    let source = crate::program::shader_source(crate::gpu::TEN_BITS);
     naga::front::wgsl::parse_str(&source).expect("the evaluator shader parses")
 }
 
@@ -125,6 +125,7 @@ fn encoding_fills_exactly_the_record_size() {
         base_x: [1.0, 0.0, 0.0, 1.0],
         base_y: [0.0, 1.0, 0.0, 0.0],
         snapshot: [16, 32, 48, 1],
+        display: [1, 0, 0, 0],
     };
     assert_eq!(encode(&[params]).len(), size_of::<Params>());
 }

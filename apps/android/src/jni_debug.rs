@@ -1,15 +1,16 @@
 //! For debug builds: finds a control on screen by its name for the dev machine's
-//! `cargo device-input tap <name>` (D48's names, as scenarios use them). Only Kotlin's debug
-//! source set declares it (`DebugControls`, called from `GestureInstrumentation` on the main
-//! thread); the library is built with the release profile for every APK, so a release APK
-//! carries this symbol with nothing that can call it.
+//! `cargo device-input tap <name>` (D48's names, as scenarios use them), and turns the screen's
+//! precision check on and off (`gradient on|off`, S37). Only Kotlin's debug source set declares
+//! them (`DebugControls`, called from `GestureInstrumentation` on the main thread); the library
+//! is built with the release profile for every APK, so a release APK carries these symbols with
+//! nothing that can call them.
 
 use std::sync::atomic::{AtomicI64, Ordering};
 
 use jni::EnvUnowned;
 use jni::errors::LogErrorAndDefault;
 use jni::objects::{JClass, JObject, JString};
-use jni::sys::jlong;
+use jni::sys::{jboolean, jlong};
 
 use crate::error::HostError;
 use crate::jni_entry::runtime;
@@ -48,4 +49,22 @@ pub extern "system" fn Java_dev_openpaint_DebugControls_find<'local>(
         Ok(env.new_string(line)?.into())
     })
     .resolve::<LogErrorAndDefault>()
+}
+
+/// For `cargo device-input gradient on|off` (S37): the screen's precision check on or off, and
+/// one frame drawn at once so it shows without a touch.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_openpaint_DebugControls_gradient<'local>(
+    mut env: EnvUnowned<'local>,
+    _class: JClass<'local>,
+    on: jboolean,
+) {
+    env.with_env(|_| -> Result<(), HostError> {
+        if let Some(runtime) = runtime(HANDLE.load(Ordering::SeqCst)) {
+            runtime.show_gradient(on);
+            runtime.frame()?;
+        }
+        Ok(())
+    })
+    .resolve::<LogErrorAndDefault>();
 }

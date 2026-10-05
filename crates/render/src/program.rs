@@ -4,11 +4,12 @@ use wgpu::util::DeviceExt;
 
 use crate::affine::Affine;
 use crate::error::RenderError;
-use crate::gpu::Gpu;
+use crate::gpu::{Gpu, TEN_BITS};
 use crate::output::Output;
 use crate::paper::paper_levels;
 use crate::plan::Plan;
 use crate::protocol::{MOVE_DEPTH, Op, Params, Record, TileRecord, encode, prelude};
+use crate::readback::FORMAT;
 
 #[path = "program_scene.rs"]
 mod scene_ops;
@@ -16,7 +17,7 @@ pub(crate) use scene_ops::{SceneOps, scene_ops};
 
 #[path = "program_layout.rs"]
 mod layout;
-use layout::{evaluate_layout, workgroups};
+use layout::{evaluate_layout, unwritten, workgroups};
 
 const SHADER: &str = include_str!("shaders/evaluate.wgsl");
 const SEGMENT: &str = include_str!("shaders/segment.wgsl");
@@ -30,9 +31,15 @@ const FILTER: &str = include_str!("shaders/filter_composite.wgsl");
 pub(crate) const COVERAGE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::R32Float;
 
 /// The protocol prelude followed by the evaluator, its curve spans, its accumulating deposits,
-/// its smudges, its adjustments, its fill edges and its filters.
-pub(crate) fn shader_source() -> String {
-    prelude() + SHADER + SEGMENT + DEPOSIT + SMUDGE + ADJUST + FILL_EDGE + FILTER
+/// its smudges, its adjustments, its fill edges and its filters; its display texture in
+/// `display` (written as declared for ten bits, else declared as `FORMAT` and never written).
+pub(crate) fn shader_source(display: wgpu::TextureFormat) -> String {
+    let source = prelude() + SHADER + SEGMENT + DEPOSIT + SMUDGE + ADJUST + FILL_EDGE + FILTER;
+    if display == TEN_BITS {
+        source
+    } else {
+        source.replace("<rgb10a2unorm, write>", "<rgba8unorm, write>")
+    }
 }
 
 /// What one dispatch evaluates.
@@ -77,6 +84,8 @@ pub(crate) struct Bindings {
     /// It keeps the in-progress stroke's coverage, in kept textures of its size.
     pub(crate) keeps: bool,
     canvas: wgpu::TextureView,
+    /// The target is a ten-bit display texture (S37), written at binding 14 instead of 4.
+    display: bool,
     /// The in-progress stroke's coverage or density, then its paper contact.
     kept: [(wgpu::Texture, wgpu::TextureView); 2],
     params: wgpu::Buffer,
@@ -107,6 +116,7 @@ impl Bindings {
             size,
             keeps,
             canvas: canvas.create_view(&Default::default()),
+            display: canvas.format() == TEN_BITS,
             kept: ["active coverage", "active contact"].map(|label| {
                 let texture = kept_texture(gpu, if keeps { size } else { [1, 1] }, label);
                 let view = texture.create_view(&Default::default());
@@ -178,10 +188,13 @@ pub(crate) struct EvaluatePipeline {
     paper: wgpu::Buffer,
     /// Bound as the snapshot when a dispatch has none.
     no_snapshot: wgpu::Buffer,
+    /// One-texel stand-ins bound where a target does not write: at binding 4 (8 bits) and 14
+    /// (the display format).
+    unwritten: [wgpu::TextureView; 2],
 }
 
 impl EvaluatePipeline {
-    pub(crate) fn new(device: &wgpu::Device) -> Self {
+    pub(crate) fn new(device: &wgpu::Device, display: wgpu::TextureFormat) -> Self {
         let paper = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("paper"),
             contents: &encode(&paper_levels()),
@@ -189,9 +202,9 @@ impl EvaluatePipeline {
         });
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("evaluate"),
-            source: wgpu::ShaderSource::Wgsl(shader_source().into()),
+            source: wgpu::ShaderSource::Wgsl(shader_source(display).into()),
         });
-        let layout = evaluate_layout(device);
+        let layout = evaluate_layout(device, display);
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("evaluate"),
             bind_group_layouts: &[Some(&layout)],
@@ -225,6 +238,7 @@ impl EvaluatePipeline {
             layout,
             paper,
             no_snapshot,
+            unwritten: [FORMAT, display].map(|format| unwritten(device, format)),
         }
     }
 
@@ -313,7 +327,14 @@ impl EvaluatePipeline {
             })
             .collect();
         let [(_, coverage), (_, contact)] = &bindings.kept;
-        for (binding, view) in [(4, &bindings.canvas), (6, coverage), (8, contact)] {
+        let [eight, display] = &self.unwritten;
+        let (eight, display) = if bindings.display {
+            (eight, &bindings.canvas)
+        } else {
+            (&bindings.canvas, display)
+        };
+        let views = [(4, eight), (6, coverage), (8, contact), (14, display)];
+        for (binding, view) in views {
             entries.push(wgpu::BindGroupEntry {
                 binding,
                 resource: wgpu::BindingResource::TextureView(view),
@@ -353,6 +374,7 @@ fn params(work: &Dispatch<'_>, bindings: &Bindings, groups: &layout::Workgroups)
             let [x, y, width] = snapshot.rect;
             [x, y, width, u32::from(snapshot.writes)]
         }),
+        display: [u32::from(bindings.display), 0, 0, 0],
     }
 }
 

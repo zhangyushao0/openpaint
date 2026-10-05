@@ -145,3 +145,37 @@ fn the_hover_outline_is_white_over_dark_and_black_over_light_and_leaves_the_rest
         "inside the ring off the canvas"
     );
 }
+
+#[test]
+fn the_precision_check_covers_the_screen_with_a_ramp_from_100_to_120() {
+    let core = core();
+    let target = banded(&core);
+    let screen = ScreenTarget::new(&core, SCREEN).expect("screen");
+    let mut painter = ScreenPainter::offscreen(&core);
+    painter.show_gradient(&core, true);
+    let frame = ScreenFrame {
+        surround: SURROUND,
+        canvas: Some(turned(&target, None)),
+        ui: UiFrame {
+            primitives: Vec::new(),
+            textures: Default::default(),
+            pixels_per_point: 1.0,
+        },
+    };
+    core.render_screen(&mut painter, &screen, frame)
+        .expect("screen");
+    let image = screen.read(&core).expect("readback");
+    for y in [0, 100, 200, 299] {
+        assert_eq!(pixel(&image, [0, y]), [100, 100, 100, 255], "left, row {y}");
+        assert_eq!(
+            pixel(&image, [399, y]),
+            [120, 120, 120, 255],
+            "right, row {y}"
+        );
+        assert_eq!(
+            pixel(&image, [200, y]),
+            [110, 110, 110, 255],
+            "middle, row {y}"
+        );
+    }
+}

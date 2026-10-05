@@ -42,7 +42,7 @@ impl Core {
         mask: bool,
     ) -> Result<RgbaImage, RenderError> {
         let canvas = artwork.canvas();
-        let mut target = CanvasTarget::new(self, [canvas.width(), canvas.height()])?;
+        let mut target = CanvasTarget::exact(self, [canvas.width(), canvas.height()])?;
         RegionEvaluator::new(self, &mut target).evaluate_layer(artwork, layer, mask)?;
         target.read(self)
     }

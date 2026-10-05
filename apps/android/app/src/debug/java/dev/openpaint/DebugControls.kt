@@ -14,4 +14,10 @@ internal object DebugControls {
      * pixels; otherwise why not, a tab and every name on screen, one per line.
      */
     @JvmStatic external fun find(name: String): String?
+
+    /**
+     * The screen's precision check (a soft grey ramp, its upper half at 8 bits, its lower at the
+     * window's own) over everything when [on], or off; one frame is drawn at once.
+     */
+    @JvmStatic external fun gradient(on: Boolean)
 }

@@ -37,6 +37,27 @@ fn texture_entry(
     }
 }
 
+/// A one-texel storage texture in `format`, bound where a target does not write (S37).
+pub(super) fn unwritten(device: &wgpu::Device, format: wgpu::TextureFormat) -> wgpu::TextureView {
+    let one = wgpu::Extent3d {
+        width: 1,
+        height: 1,
+        depth_or_array_layers: 1,
+    };
+    device
+        .create_texture(&wgpu::TextureDescriptor {
+            label: Some("unwritten"),
+            size: one,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage: wgpu::TextureUsages::STORAGE_BINDING,
+            view_formats: &[],
+        })
+        .create_view(&Default::default())
+}
+
 /// Tiles laid out as rows of workgroups, each row at most the device's per-dimension limit.
 pub(super) struct Workgroups {
     pub(super) tiles: u32,
@@ -57,7 +78,10 @@ pub(super) fn workgroups(gpu: &Gpu, tiles: usize) -> Result<Workgroups, RenderEr
 }
 
 /// The evaluator's bindings, in the order `evaluate.wgsl` declares them.
-pub(super) fn evaluate_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+pub(super) fn evaluate_layout(
+    device: &wgpu::Device,
+    display: wgpu::TextureFormat,
+) -> wgpu::BindGroupLayout {
     let read_only = wgpu::BufferBindingType::Storage { read_only: true };
     let kept = |binding| {
         texture_entry(
@@ -84,6 +108,8 @@ pub(super) fn evaluate_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
             buffer_entry(12, read_only),
             // The preview snapshot: written by one evaluation, read by later ones (S35).
             buffer_entry(13, wgpu::BufferBindingType::Storage { read_only: false }),
+            // The display texture (S37), ten bits where the device has them.
+            texture_entry(14, wgpu::StorageTextureAccess::WriteOnly, display),
         ],
     })
 }

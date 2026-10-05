@@ -1,5 +1,6 @@
 // The gallery thumbnail: each thumbnail pixel is the rounded mean of the canvas pixels in its
-// box, in 8-bit integers, so the CPU can reproduce it exactly (`thumbnail.rs`).
+// box, in 8-bit integers, so the CPU can reproduce it exactly (`thumbnail.rs`). A ten-bit
+// canvas's texel rounds to the 8-bit value its code stands for (S37, `readback::eight_bits`).
 //
 // Box of thumbnail pixel (x, y): canvas columns floor(x * W / w) .. floor((x + 1) * W / w),
 // rows likewise; never empty because w <= W and h <= H.

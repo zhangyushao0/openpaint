@@ -1,8 +1,9 @@
 // Shows the canvas on screen through the view: the pass clips to the canvas area; one triangle
 // covers the screen; each pixel maps its centre to canvas pixels with the view's affine map and
-// samples the canvas there, bilinearly filtered. Outside the canvas the surround the pass was
-// cleared to shows. At one screen pixel per canvas pixel, upright and on whole pixels, every
-// sample lands on a texel centre, so the screen shows the evaluated bytes unchanged.
+// samples the canvas there (10 bits per channel where the device has them, S37), bilinearly
+// filtered. Outside the canvas the surround the pass was cleared to shows. At one screen pixel
+// per canvas pixel, upright and on whole pixels, every sample lands on a texel centre, so the
+// screen shows the evaluated values unchanged.
 // The pen's hover outline is one thin circle drawn here, where what lies under it is known: each
 // of its pixels is black over light and white over dark (draweave's adaptive cursor). So is the
 // selection's outline, just outside its pixels, and outside it the canvas carries light diagonal

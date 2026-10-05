@@ -43,7 +43,7 @@ impl Core {
     /// readback work at once; platform windows attach later through `Core::create_surface`.
     pub fn headless() -> Result<Self, RenderError> {
         let gpu = Gpu::new()?;
-        let evaluate = EvaluatePipeline::new(&gpu.device);
+        let evaluate = EvaluatePipeline::new(&gpu.device, gpu.display);
         let blit_layout = blit_layout(&gpu.device);
         let blit_sampler = blit_sampler(&gpu.device);
         let thumbnail = ThumbnailPipeline::new(&gpu.device);

@@ -18,7 +18,8 @@ import android.view.MotionEvent
  * presses with `-e pressure P` (default 0.6). `-e hover x,y` holds the pen just above the glass
  * there instead for `-e ms` (default 1500), then takes it away (hover enter, move, exit).
  * `-e tap <name>` is a finger tap on the middle of the control the app last drew under that
- * name ([DebugControls]); the result's `tapped` says where.
+ * name ([DebugControls]); the result's `tapped` says where. `-e gradient on|off` injects
+ * nothing: it turns the screen's precision check on or off ([DebugControls.gradient]).
  */
 class GestureInstrumentation : Instrumentation() {
     private var arguments = Bundle()
@@ -32,6 +33,12 @@ class GestureInstrumentation : Instrumentation() {
     override fun onStart() {
         val result = Bundle()
         try {
+            arguments.getString("gradient")?.let { state ->
+                runOnMainSync { DebugControls.gradient(state == "on") }
+                result.putString("gesture", "injected")
+                finish(Activity.RESULT_OK, result)
+                return
+            }
             arguments.getString("tap")?.let { name ->
                 val at = control(name)
                 arguments.putString("from", "${at[0]},${at[1]}")

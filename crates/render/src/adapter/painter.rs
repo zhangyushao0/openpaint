@@ -2,7 +2,7 @@
 
 use crate::core::{Core, clear_attachment};
 use crate::error::RenderError;
-use crate::readback::FORMAT;
+use crate::gradient::Gradient;
 use crate::screen::{CanvasBlit, CanvasPlacement, ScreenTarget};
 use crate::surface::Surface;
 
@@ -27,6 +27,8 @@ pub struct ScreenPainter {
     renderer: egui_wgpu::Renderer,
     blit: CanvasBlit,
     format: wgpu::TextureFormat,
+    /// The precision check drawn over everything while it is on (`show_gradient`).
+    gradient: Option<Gradient>,
 }
 
 impl ScreenPainter {
@@ -37,7 +39,7 @@ impl ScreenPainter {
 
     /// A painter for `ScreenTarget`s.
     pub fn offscreen(core: &Core) -> Self {
-        Self::new(core, FORMAT)
+        Self::new(core, core.gpu.display)
     }
 
     fn new(core: &Core, format: wgpu::TextureFormat) -> Self {
@@ -48,7 +50,15 @@ impl ScreenPainter {
             renderer,
             blit: CanvasBlit::new(core, format),
             format,
+            gradient: None,
         }
+    }
+
+    /// Shows the precision check over the whole screen from the next frame on, or stops (S37,
+    /// for debug builds: a soft grey ramp, its upper half at 8 bits, its lower at the window's
+    /// own precision, `gradient.rs`).
+    pub fn show_gradient(&mut self, core: &Core, on: bool) {
+        self.gradient = on.then(|| Gradient::new(&core.gpu.device, self.format));
     }
 
     fn check_format(&self, format: wgpu::TextureFormat) -> Result<(), RenderError> {
@@ -108,6 +118,10 @@ impl ScreenPainter {
                 .draw(core, &mut pass, canvas, (size, frame.surround));
         }
         self.renderer.render(&mut pass, &ui.primitives, &screen);
+        if let Some(gradient) = &self.gradient {
+            pass.set_scissor_rect(0, 0, size[0], size[1]);
+            gradient.draw(&mut pass);
+        }
         drop(pass);
         commands.push(encoder.finish());
         queue.submit(commands);
@@ -135,7 +149,7 @@ impl Core {
         target: &ScreenTarget,
         mut frame: ScreenFrame<'_>,
     ) -> Result<(), RenderError> {
-        let drawn = painter.check_format(FORMAT).map(|()| {
+        let drawn = painter.check_format(target.texture().format()).map(|()| {
             painter.upload(self, &frame.ui.textures);
             let view = target.texture().create_view(&Default::default());
             painter.paint(self, &view, target.size(), &frame);

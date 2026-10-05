@@ -51,7 +51,7 @@ Render architecture (author, 2026-10-04): the truth stays operation records, pix
 
 From the investigation of 2026-10-05 (fast strokes showed corners when zoomed in; adjustment previews at 36-40 values a second): S34 Smooth stroke paths and S35 Preview speed are done (see "Done").
 
-S36 Library management is done: OpenPaint files, kept versions restored as copies, search (PSD and OpenRaster dropped, author 2026-10-04). **S37 Ten-bit display**: the canvas cache and the surface at 10 bits per channel (Rgb10a2); artworks stay sRGB (author, 2026-10-04: no P3 working space, work is made to be seen by others), exports stay 8-bit sRGB, the format is unchanged.
+S36 Library management (OpenPaint files, kept versions restored as copies, search; PSD and OpenRaster dropped, author 2026-10-04) and S37 Ten-bit display (the canvas and view tiers at 10 bits on a 10-bit surface the display processor composites itself; artworks stay sRGB, author 2026-10-04; exports 8-bit) are done (see "Done"). G4's slices are complete.
 Exit: the author completes edit, restore and delivery (W4).
 
 ## G5 Daily painting
@@ -133,3 +133,4 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - S34 2026-10-05 `feat(render): strokes as centripetal curves through their samples, flattened per output scale (S34)`; Android's made-up samples are no knots, 1/16 output px at every scale, in progress = cold with a never-kept tail, no format change; 169 scenario hashes moved once, straight strokes unchanged; smooth on the tablet at fit and 8x within 60 Hz, library restored byte-identical (D60)
 - S35 2026-10-05 `perf(render): adjustment previews keep their plan and resume the layer from a snapshot, large blurs on cells (S35)`; hue and curves previews within one 60 Hz frame on the tablet (CPU about 1 ms, GPU about 10 ms a value), blur and sharpen 3.5-7.5 to about 30 values a second; preview = commit and incremental = cold on the GPU; s33's hashes moved once (blurs from 4 px, at most 3 levels) (D61)
 - S36 2026-10-05 `feat(store): OpenPaint files, kept versions and gallery search (S36)`; files of the records with a CRC-32, older schemas through the library's steps, foreign, damaged and newer files refused; 10 versions per artwork kept on leaving after a change, restored as copies; lossless round trip on the GPU and on the tablet, library restored byte-identical (D62, D63)
+- S37 2026-10-05 `feat(render): ten-bit display of the canvas and view tiers (S37)`; probe: the tablet composites a Rgb10a2 layer in its display processor (DEVICE); ten-bit codes that read back as their 8-bit values, every golden and scenario hash unchanged, no memory cost; library restored byte-identical (D64)

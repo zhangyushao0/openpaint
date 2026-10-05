@@ -13,7 +13,7 @@ use crate::output::Output;
 use crate::plan::Plan;
 use crate::program::{Bindings, Dispatch, SceneOps};
 use crate::protocol::Op;
-use crate::readback::target_texture;
+use crate::readback::{FORMAT, target_texture};
 use crate::scene::Scene;
 
 pub(crate) struct Material {
@@ -25,7 +25,7 @@ impl Material {
     /// A texture of the canvas's `size`; its pixels are undefined until evaluated.
     pub(crate) fn new(core: &Core, size: [u32; 2]) -> Result<Self, RenderError> {
         let usage = wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING;
-        let texture = target_texture(&core.gpu, size, usage)?;
+        let texture = target_texture(&core.gpu, (size, FORMAT), usage)?;
         Ok(Self {
             view: texture.create_view(&Default::default()),
             bindings: Bindings::without_kept(&core.gpu, &texture),

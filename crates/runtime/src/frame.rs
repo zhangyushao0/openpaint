@@ -270,6 +270,15 @@ impl Runtime {
         self.shell.set_utc_offset(minutes);
     }
 
+    /// For debug builds only (`cargo device-input gradient on|off`, S37): the screen's precision
+    /// check over everything from the next frame on (a soft grey ramp, its upper half at 8 bits,
+    /// its lower half at the window's), or off again.
+    pub fn show_gradient(&mut self, on: bool) {
+        if let Some(painter) = &mut self.painter {
+            painter.show_gradient(&self.core, on);
+        }
+    }
+
     /// Runs one frame into the window. Returns whether another frame is wanted at once.
     pub fn frame(&mut self) -> Result<bool, RuntimeError> {
         let Some(size) = self.surface.as_ref().map(Surface::size) else {

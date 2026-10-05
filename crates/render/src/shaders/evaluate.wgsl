@@ -27,6 +27,9 @@
 // A previewed layer's pixels before its adjustment, at float precision, over the rectangle
 // `params.snapshot` names (S35): written by one evaluation, read by `OP_RESUME` in later ones.
 @group(0) @binding(13) var<storage, read_write> snapshot: array<vec4<f32>>;
+// The screen's canvas and its view tiers at ten bits (S37, `params.display.x` 1), written
+// instead of `canvas_out`; the format is the device's display format (`gpu.rs`).
+@group(0) @binding(14) var display_out: texture_storage_2d<rgb10a2unorm, write>;
 // False for plans in which no tile sets a moved selection's layer aside (`Plan::deepest` 0):
 // the evaluator then holds no stack of what moves set aside (S35, a pipeline of its own).
 override STACKED: bool = true;
@@ -246,6 +249,10 @@ fn evaluate(
     if params.snapshot.w == 1u {
         // The layer ended at full opacity onto nothing: its own pixels, unrounded.
         snapshot[snapshot_at(pixel)] = canvas;
+        return;
+    }
+    if params.display.x == 1u {
+        textureStore(display_out, pixel, coded(canvas));
         return;
     }
     textureStore(canvas_out, pixel, quantized(canvas));
@@ -472,4 +479,18 @@ fn pcg(value: u32) -> u32 {
 fn quantized(color: vec4<f32>) -> vec4<f32> {
     let k = floor(clamp(color, vec4<f32>(0.0), vec4<f32>(1.0)) * 255.0 + 0.5);
     return min((k + 0.25) / 255.0, vec4<f32>(1.0));
+}
+
+// The ten-bit code nearest `color` among those whose nearest 8-bit value is the one `quantized`
+// stores (`readback::eight_bits`): an 8-bit value `k` holds the codes from
+// `ceil((2k - 1) 1023 / 510)` to `floor((2k + 1) 1023 / 510)`, so the code is off the nearest
+// by at most one, and reading it back as 8 bits gives exactly what an 8-bit target holds. As
+// there, `(j + 0.25) / 1023` turns back into `j` under either rounding.
+fn coded(color: vec4<f32>) -> vec4<f32> {
+    let c = clamp(color, vec4<f32>(0.0), vec4<f32>(1.0));
+    let k = vec4<i32>(floor(c * 255.0 + 0.5));
+    let low = max((2 * k - 1) * 1023 + 509, vec4<i32>(0)) / 510;
+    let high = min((2 * k + 1) * 1023 / 510, vec4<i32>(1023));
+    let j = clamp(vec4<i32>(floor(c * 1023.0 + 0.5)), low, high);
+    return min((vec4<f32>(j) + 0.25) / 1023.0, vec4<f32>(1.0));
 }

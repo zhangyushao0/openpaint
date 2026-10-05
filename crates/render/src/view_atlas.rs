@@ -309,5 +309,6 @@ fn atlas_texture(core: &Core, (across, rows): (u32, u32)) -> Result<wgpu::Textur
     let usage = wgpu::TextureUsages::STORAGE_BINDING
         | wgpu::TextureUsages::TEXTURE_BINDING
         | wgpu::TextureUsages::COPY_DST;
-    target_texture(&core.gpu, [across * TIER_TILE, rows * TIER_TILE], usage)
+    let size = [across * TIER_TILE, rows * TIER_TILE];
+    target_texture(&core.gpu, (size, core.gpu.display), usage)
 }

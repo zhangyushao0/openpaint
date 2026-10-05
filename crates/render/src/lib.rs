@@ -20,6 +20,7 @@ mod filter;
 mod frame;
 mod geom;
 mod gpu;
+mod gradient;
 mod image;
 mod output;
 mod paper;

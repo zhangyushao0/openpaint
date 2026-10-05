@@ -4,7 +4,7 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 use crate::error::{RenderError, device};
-use crate::gpu::Gpu;
+use crate::gpu::{Gpu, TEN_BITS};
 use crate::image::RgbaImage;
 
 /// The offscreen colour format: 8 bits per channel, no sRGB conversion on write or read.
@@ -12,13 +12,14 @@ pub(crate) const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 
 /// A texture that can be rendered into and then read back.
 pub(crate) fn offscreen_texture(gpu: &Gpu, size: [u32; 2]) -> Result<wgpu::Texture, RenderError> {
-    target_texture(gpu, size, wgpu::TextureUsages::RENDER_ATTACHMENT)
+    target_texture(gpu, (size, FORMAT), wgpu::TextureUsages::RENDER_ATTACHMENT)
 }
 
-/// A `FORMAT` texture of `size` pixels with `usage`, readable back.
+/// A texture of `size` pixels in `format` (`FORMAT` or the display's, `Gpu::display`) with
+/// `usage`, readable back.
 pub(crate) fn target_texture(
     gpu: &Gpu,
-    size: [u32; 2],
+    (size, format): ([u32; 2], wgpu::TextureFormat),
     usage: wgpu::TextureUsages,
 ) -> Result<wgpu::Texture, RenderError> {
     let max = gpu.device.limits().max_texture_dimension_2d;
@@ -40,7 +41,7 @@ pub(crate) fn target_texture(
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
-        format: FORMAT,
+        format,
         usage: usage | wgpu::TextureUsages::COPY_SRC,
         view_formats: &[],
     }))
@@ -98,6 +99,11 @@ pub(crate) fn read_rect(
     }
     drop(view);
     buffer.unmap();
+    if texture.format() == TEN_BITS {
+        for texel in pixels.as_chunks_mut::<4>().0 {
+            *texel = eight_bits(u32::from_le_bytes(*texel));
+        }
+    }
     Ok(RgbaImage::new([width, height], pixels))
 }
 
@@ -147,7 +153,25 @@ pub(crate) fn read_texel(
     texel.copy_from_slice(&view[..4]);
     drop(view);
     buffer.unmap();
+    if texture.format() == TEN_BITS {
+        texel = eight_bits(u32::from_le_bytes(texel));
+    }
     Ok(Some(texel))
+}
+
+/// The 8-bit RGBA a ten-bit display texel (`Rgb10a2Unorm`: red in the low ten bits) stands for.
+/// The evaluator writes each channel as a ten-bit code `j` chosen among those whose nearest
+/// 8-bit value, `floor(j 255 / 1023 + 1/2)`, is the one it stores in an 8-bit target (S37,
+/// `coded` in `evaluate.wgsl`), so this is that value exactly; never halfway, as `510 j` is even
+/// and `1023` odd. Alpha has two bits: display targets are opaque, 3 is 255.
+pub(crate) fn eight_bits(word: u32) -> [u8; 4] {
+    let channel = |shift: u32| ((((word >> shift) & 1023) * 510 + 1023) / 2046) as u8;
+    [
+        channel(0),
+        channel(10),
+        channel(20),
+        ((word >> 30) * 85) as u8,
+    ]
 }
 
 /// Copies the first `bytes` of a `COPY_SRC` buffer into memory, waiting for the GPU.
@@ -213,5 +237,44 @@ fn map_and_wait(gpu: &Gpu, buffer: &wgpu::Buffer) -> Result<(), RenderError> {
         Err(mpsc::RecvTimeoutError::Disconnected) => Err(RenderError::Device(
             "buffer map callback never ran".to_string(),
         )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `coded`'s range of ten-bit codes for the 8-bit value `k` (`evaluate.wgsl`).
+    fn codes(k: u32) -> std::ops::RangeInclusive<u32> {
+        let low = if k == 0 {
+            0
+        } else {
+            ((2 * k - 1) * 1023).div_ceil(510)
+        };
+        low..=(((2 * k + 1) * 1023) / 510).min(1023)
+    }
+
+    #[test]
+    fn ten_bit_codes_read_back_as_their_eight_bit_value() {
+        let mut next = 0;
+        for k in 0..=255 {
+            let codes = codes(k);
+            // Every code belongs to exactly one value, in order, four or five each (three at
+            // the ends, which hold half a step).
+            assert_eq!(*codes.start(), next);
+            assert!((3..=5).contains(&codes.clone().count()), "{k}: {codes:?}");
+            next = codes.end() + 1;
+            for j in codes {
+                let word = j | (j << 10) | (j << 20) | (3 << 30);
+                let expected = u8::try_from(k).expect("8 bits");
+                assert_eq!(eight_bits(word), [expected, expected, expected, 255]);
+            }
+        }
+        assert_eq!(next, 1024);
+        // Each code's value is the nearest 8-bit value to it.
+        for j in 0..1024u32 {
+            let nearest = (f64::from(j) * 255.0 / 1023.0).round() as u8;
+            assert_eq!(eight_bits(j)[0], nearest);
+        }
     }
 }

@@ -14,13 +14,14 @@ use crate::image::RgbaImage;
 use crate::output::Output;
 use crate::plan::Plan;
 use crate::program::{Bindings, Dispatch, SceneOps, scene_ops};
-use crate::readback::{read_rgba, read_texel, target_texture};
+use crate::readback::{FORMAT, read_rgba, read_texel, target_texture};
 use crate::scene::{ActivePlace, Fresh, Scene};
 use crate::screen::{VIEW_BYTES, blit_bind_group, selection_texture};
 use crate::smudge::Smudges;
 
-/// An 8-bit RGBA texture holding the canvas at one target pixel per canvas pixel, kept between
-/// evaluations so later ones update only what changed, with the in-progress stroke's coverage.
+/// A texture holding the canvas at one target pixel per canvas pixel (8 bits per channel, or
+/// for the screen 10), kept between evaluations so later ones update only what changed, with
+/// the in-progress stroke's coverage.
 pub struct CanvasTarget {
     texture: wgpu::Texture,
     /// Binds the texture and the view for showing it on screen (`CanvasBlit`).
@@ -43,18 +44,25 @@ pub struct CanvasTarget {
 const CHANGED_KEPT: usize = 256;
 
 impl CanvasTarget {
-    /// A target of `size` pixels. Its content is undefined until a region is evaluated.
+    /// A target of `size` pixels for the screen, in the device's display format (S37: ten bits
+    /// per channel where it has them, opaque); `read` and `pick` give the 8-bit values an
+    /// 8-bit target would hold, exactly. Its content is undefined until a region is evaluated.
     pub fn new(core: &Core, size: [u32; 2]) -> Result<Self, RenderError> {
-        Self::with_kept(core, size, true)
+        Self::with_kept(core, (size, core.gpu.display), true)
     }
 
-    /// A target of `size` pixels for a piece of a scaled output (export): it never draws an
-    /// in-progress stroke, so it keeps no coverage of one.
-    pub(crate) fn piece(core: &Core, size: [u32; 2]) -> Result<Self, RenderError> {
-        Self::with_kept(core, size, false)
+    /// An 8-bit target of `size` pixels for a piece of a scaled output (export) or one layer's
+    /// pixels (their alpha too): it never draws an in-progress stroke, so it keeps no coverage
+    /// of one.
+    pub(crate) fn exact(core: &Core, size: [u32; 2]) -> Result<Self, RenderError> {
+        Self::with_kept(core, (size, FORMAT), false)
     }
 
-    fn with_kept(core: &Core, size: [u32; 2], kept: bool) -> Result<Self, RenderError> {
+    fn with_kept(
+        core: &Core,
+        size: ([u32; 2], wgpu::TextureFormat),
+        kept: bool,
+    ) -> Result<Self, RenderError> {
         let usage = wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING;
         // First: it rejects sizes the device cannot hold.
         let texture = target_texture(&core.gpu, size, usage)?;
@@ -365,3 +373,7 @@ impl<'a> RegionEvaluator<'a> {
 #[path = "evaluator_scene.rs"]
 mod scene_cache;
 use scene_cache::SceneCache;
+
+#[cfg(test)]
+#[path = "evaluator_display_tests.rs"]
+mod display_tests;
