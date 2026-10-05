@@ -56,7 +56,12 @@ Exit: the author completes edit, restore and delivery (W4). Passed 2026-10-05: t
 
 ## G5 Daily painting
 
-S38 Layer actions (thumbnails, duplicate, rename, drag to reorder) is done (see "Done"); merge down waits for the author's choice of how it is recorded (STATUS). Next: copy and paste (Procreate's three-finger swipe); the pen's side buttons (the mapping is the author's call, asked first); QuickShape and symmetry guides; palettes and hex colour entry. Exit: the author paints a real piece on the tablet.
+S38 Layer actions (thumbnails, duplicate, rename, drag to reorder) is done (see "Done"). Next, in order:
+- **S39 Merge Down**: the upper layer becomes a nested record inside the lower one, evaluated like a one-layer group, so the merged picture stays pixel-identical and strokes stay the truth (option (a), chosen 2026-10-05); a format change; one undo step.
+- **S40 Copy and paste**: Procreate's three-finger swipe menu (Cut, Copy, Paste, Copy All, Duplicate) over the selection or layer; pasted content as records, not pixels, where it can be.
+- **S41 Pen buttons**: each button the pen reports (side buttons, an eraser end) is assignable by the author from a short list (nothing, eraser while held, eyedropper while held, undo, redo, switch brush and eraser); defaults eraser while held and eyedropper while held (author, 2026-10-05: configurable, not fixed); stored with the toolbox.
+- **S42 QuickShape and symmetry guides**; **S43 Palettes and hex colour entry**.
+Exit: the author paints a real piece on the tablet.
 
 ## G6 Brushes
 
