@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::blend::BlendMode;
 use crate::error::CoreError;
-use crate::id::{GroupId, LayerId};
+use crate::id::{GroupId, IdCounters, LayerId};
 use crate::mask::LayerMask;
 use crate::region::RegionEdit;
 use crate::stroke_list::StrokeList;
@@ -158,6 +158,24 @@ impl Layer {
     #[must_use]
     pub fn edits(&self) -> &[RegionEdit] {
         &self.edits
+    }
+
+    /// Whether `other` holds this very paint, shared (O(1)): what the layer shows alone, without
+    /// its mask and properties, is then the same. A layer drawn on, edited or reloaded is not.
+    #[must_use]
+    pub fn same_paint(&self, other: &Self) -> bool {
+        self.strokes.same(&other.strokes) && Arc::ptr_eq(&self.edits, &other.edits)
+    }
+
+    /// A copy of the layer under `id`, its strokes and its mask's renumbered from `ids`.
+    pub(crate) fn duplicate(&self, id: LayerId, ids: &mut IdCounters) -> Self {
+        let mut copy = self.clone();
+        copy.id = id;
+        copy.strokes = self.strokes.renumbered(ids);
+        if let Some(mask) = &mut copy.mask {
+            mask.strokes = mask.strokes.renumbered(ids);
+        }
+        copy
     }
 
     /// Heap bytes of the strokes and edits, its mask's included, that `base` (the same layer in

@@ -26,6 +26,7 @@ use crate::error::RuntimeError;
 use crate::fill::FillWorker;
 use crate::input::MotionBatch;
 use crate::normalise::Normaliser;
+use crate::pictures::PictureWorker;
 use crate::pointer::pointer_events;
 use crate::preview::brush_previews;
 use crate::screen::{Screen, dispatch_gallery, leave_job};
@@ -70,6 +71,7 @@ pub struct Runtime {
     transfers: Transfers,
     transfer: TransferWorker,
     fill: FillWorker,
+    pictures: PictureWorker,
     /// Declared last: dropping it writes what it was handed before the process goes.
     storage: Storage,
 }
@@ -119,6 +121,7 @@ impl Runtime {
             transfers: Transfers::default(),
             transfer: TransferWorker::start(Arc::clone(&core))?,
             fill: FillWorker::start(Arc::clone(&core))?,
+            pictures: PictureWorker::start(Arc::clone(&core))?,
             core,
             ui,
             shell,
@@ -317,12 +320,12 @@ impl Runtime {
         self.screen.projection(&self.toolbox, &self.transfers)
     }
 
-    /// True while the frame loop waits for something without input: the storage, transfer or
-    /// fill worker, or a canvas about to open. Frames keep coming meanwhile, so the result shows.
+    /// True while the frame loop waits for something without input: the storage, transfer,
+    /// fill or picture worker, or a canvas about to open. Frames keep coming meanwhile.
     #[must_use]
     pub fn storing(&self) -> bool {
         let working = self.storage.busy() || self.transfer.busy() || self.fill.busy();
-        working || matches!(self.screen, Screen::Opening(_))
+        working || self.pictures.busy() || matches!(self.screen, Screen::Opening(_))
     }
 
     /// Applies everything the workers finished, then opens a canvas that is ready.
@@ -370,6 +373,7 @@ impl Runtime {
             Screen::Canvas(canvas) => {
                 canvas.dispatch(&self.core, intents, &mut self.toolbox);
                 self.fill.step(canvas);
+                self.pictures.step(canvas, &mut self.shell);
             }
             Screen::Gallery(gallery) => dispatch_gallery(gallery, intents),
             Screen::Opening(_) => {}

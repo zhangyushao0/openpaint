@@ -29,10 +29,6 @@ pub enum Icon {
     Layers,
     /// A plus: add one.
     Add,
-    /// An arrow pointing up: one place higher.
-    Raise,
-    /// An arrow pointing down: one place lower.
-    Lower,
     /// A bin with a lid: throw away.
     Delete,
     /// An open eye: shown.
@@ -135,13 +131,6 @@ pub fn paint(painter: &egui::Painter, icon: Icon, rect: Rect, color: Color32) {
 /// The open lines of `icon` in a unit square, y down.
 fn polylines(icon: Icon) -> Vec<Line> {
     let mirror_x = |line: Line| line.into_iter().map(|[x, y]| [1.0 - x, y]).collect();
-    let mirror_y = |line: Line| line.into_iter().map(|[x, y]| [x, 1.0 - y]).collect();
-    let up = || {
-        vec![
-            vec![[0.5, 0.2], [0.5, 0.8]],
-            vec![[0.28, 0.42], [0.5, 0.2], [0.72, 0.42]],
-        ]
-    };
     match icon {
         Icon::Undo => turn_back_arrow(),
         Icon::Redo => polylines(Icon::Undo).into_iter().map(mirror_x).collect(),
@@ -151,8 +140,6 @@ fn polylines(icon: Icon) -> Vec<Line> {
             vec![[0.5, 0.22], [0.5, 0.78]],
             vec![[0.22, 0.5], [0.78, 0.5]],
         ],
-        Icon::Raise => up(),
-        Icon::Lower => up().into_iter().map(mirror_y).collect(),
         Icon::Delete => bin(),
         Icon::Visible => vec![eye_outline()],
         Icon::Hidden => vec![eye_outline(), vec![[0.2, 0.8], [0.8, 0.2]]],
@@ -356,8 +343,6 @@ mod tests {
             Icon::Alert,
             Icon::Layers,
             Icon::Add,
-            Icon::Raise,
-            Icon::Lower,
             Icon::Delete,
             Icon::Visible,
             Icon::Hidden,

@@ -339,22 +339,25 @@ impl Runner<'_> {
         let screen = self.scenario.screen;
         let start = Instant::now();
         runtime.fix_clock(self.clock_ms);
+        // The follow-ups count once no worker is busy: the frame that takes a worker's result
+        // may ask for more (a canvas just opened lays itself out), however late it comes.
+        let mut follow_ups = 0;
         loop {
-            // The frame that takes a worker's result may ask for more (a window laid out).
-            for _ in 0..=FOLLOW_UPS {
-                let again = runtime.frame_offscreen(screen)?;
-                self.frames += 1;
-                if !again {
-                    break;
+            let again = runtime.frame_offscreen(screen)?;
+            self.frames += 1;
+            if runtime.storing() {
+                if start.elapsed() > STORAGE_LIMIT {
+                    return Err(ScenarioError::Missing("the storage worker did not finish"));
                 }
+                if !again {
+                    std::thread::sleep(Duration::from_millis(1));
+                }
+                continue;
             }
-            if !runtime.storing() {
+            follow_ups += 1;
+            if !again || follow_ups > FOLLOW_UPS {
                 break;
             }
-            if start.elapsed() > STORAGE_LIMIT {
-                return Err(ScenarioError::Missing("the storage worker did not finish"));
-            }
-            std::thread::sleep(Duration::from_millis(1));
         }
         // The host takes what the app asks of the system after each frame.
         self.requests

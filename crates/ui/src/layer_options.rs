@@ -1,7 +1,8 @@
 //! The layer panel's footer, for the highlighted layer (Procreate keeps these in the layer's
 //! options): its opacity, its blend mode (Normal, Multiply, Screen, Overlay), Alpha Lock,
-//! Clipping Mask, Add Mask (a plus and the words: adds a white mask), move up, move down,
-//! Group (Ungroup in a group) and delete; under them, for a layer in a group, the group's name and opacity. While the layer's
+//! Clipping Mask, Add Mask (a plus and the words: adds a white mask), Rename, Group (Ungroup in
+//! a group), duplicate and delete (S38: moving is dragging a row, `layer_drag.rs`); under them,
+//! for a layer in a group, the group's name and opacity. While the layer's
 //! mask is highlighted instead: Invert, Clear and delete the mask.
 
 use openpaint_app::{EditorAction, Intent, LayerIntent, LayerList, LayerRow, SessionProjection};
@@ -49,13 +50,11 @@ pub(crate) fn footer(
     list: &LayerList,
     projection: &SessionProjection,
     taps: &mut Vec<Intent>,
-) {
-    let Some(active) = list.active_row() else {
-        return;
-    };
+) -> Option<egui::Rect> {
+    let active = list.active_row()?;
     if list.on_mask {
         mask_options(ui, active, projection, taps);
-        return;
+        return None;
     }
     let enabled = offered(projection, EditorAction::EditLayer);
     ui.separator();
@@ -85,8 +84,9 @@ pub(crate) fn footer(
     if command_row(ui, Icon::Add, "Add Mask", can_mask).clicked() {
         taps.push(Intent::Layer(LayerIntent::AddMask(active.id)));
     }
-    moves(ui, active, projection, taps);
+    let rename = commands(ui, active, projection, taps);
     group(ui, list, active, enabled, taps);
+    rename
 }
 
 /// While the active layer's mask is the target: what painting there does (a quieter hint),
@@ -139,25 +139,17 @@ fn blends(ui: &mut egui::Ui, active: &LayerRow, enabled: bool, taps: &mut Vec<In
     });
 }
 
-fn moves(
+/// Rename and Group (Ungroup in a group) as words, then the copy and delete icons at the end.
+/// Returns where Rename lies when it was tapped: its dialog grows from there.
+fn commands(
     ui: &mut egui::Ui,
     active: &LayerRow,
     projection: &SessionProjection,
     taps: &mut Vec<Intent>,
-) {
+) -> Option<egui::Rect> {
     ui.horizontal(|ui| {
-        let moves = [
-            (Icon::Raise, "Move layer up", EditorAction::RaiseLayer),
-            (Icon::Lower, "Move layer down", EditorAction::LowerLayer),
-        ];
-        for (icon, label, action) in moves {
-            if icon_button(ui, icon, label, offered(projection, action)).clicked() {
-                taps.push(Intent::Layer(match action {
-                    EditorAction::RaiseLayer => LayerIntent::Raise(active.id),
-                    _ => LayerIntent::Lower(active.id),
-                }));
-            }
-        }
+        let edit = offered(projection, EditorAction::EditLayer);
+        let rename = text_button(ui, "Rename", edit);
         let (label, intent, action) = match active.group {
             Some(group) => (
                 "Ungroup",
@@ -178,8 +170,14 @@ fn moves(
             if icon_button(ui, Icon::Delete, "Delete layer", enabled).clicked() {
                 taps.push(Intent::Layer(LayerIntent::Delete(active.id)));
             }
+            let room = offered(projection, EditorAction::AddLayer);
+            if icon_button(ui, Icon::Duplicate, "Duplicate layer", room).clicked() {
+                taps.push(Intent::Layer(LayerIntent::Duplicate(active.id)));
+            }
         });
-    });
+        rename.clicked().then_some(rename.rect)
+    })
+    .inner
 }
 
 /// The active layer's group: its name and opacity, the whole group fading with one slider.

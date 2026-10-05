@@ -216,6 +216,11 @@ impl Stroke {
         }
     }
 
+    /// The same stroke under another id (a duplicated layer's copy); samples and clip shared.
+    pub(crate) fn renumbered(&self, id: StrokeId) -> Self {
+        Self { id, ..self.clone() }
+    }
+
     /// The selection the stroke was drawn inside, if any: it paints (or erases) only there.
     #[must_use]
     pub const fn clip(&self) -> Option<&RegionMask> {

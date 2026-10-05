@@ -1,15 +1,16 @@
 //! The list row: one touch target high across a panel, a name at its left, an optional detail
 //! before an icon button at its right end. Tapping the row chooses it; the chosen row carries
-//! the active mark. The icon button acts on the row without choosing it.
+//! the active mark. The icon button acts on the row without choosing it. A row may show a small
+//! picture before its name (a layer's, S38) and may be carried by the hand (`lifted`).
 
-use egui::{Align2, Rect, Sense, TextStyle, Vec2, WidgetInfo, WidgetType};
+use egui::{Align2, Color32, Order, Rect, Sense, Stroke, StrokeKind, TextStyle, Vec2, WidgetInfo};
 
-use crate::components::animate::{animate_from, settle};
+use crate::components::animate::{animate_from, hold_at, settle};
 use crate::components::controls;
 use crate::design::motion::{ACKNOWLEDGE, SETTLE};
 use crate::design::{
-    ICON_SIZE, INK, INK_ACTIVE, INK_DISABLED, INK_SECONDARY, Icon, Outline, SPACE, TOUCH_TARGET,
-    paint_icon, paint_mark, paint_pressed,
+    CHECKER, DIVIDER, ICON_SIZE, INK, INK_ACTIVE, INK_DISABLED, INK_SECONDARY, Icon, Outline,
+    PANEL, SPACE, TOUCH_TARGET, paint_icon, paint_mark, paint_pressed,
 };
 
 /// What one row shows.
@@ -25,11 +26,24 @@ pub struct ListRow<'a> {
     pub indent: f32,
     /// A small icon before the label (a group's chevron, a Clipping Mask's arrow).
     pub lead: Option<Icon>,
+    /// A picture before the label, after the lead.
+    pub picture: Option<RowPicture>,
     pub selected: bool,
     pub icon: Icon,
     /// Names the icon button for accessibility.
     pub icon_label: &'a str,
     pub enabled: bool,
+    /// Carried by the hand: drawn this far below its place (points), on paper over the other
+    /// rows, following the hand 1:1; let go, it slides from there to its place (settle).
+    pub lifted: Option<f32>,
+}
+
+/// A row's picture: `size` points (inside `design::LAYER_PICTURE`) on a light checker, the
+/// texture over it once there is one.
+#[derive(Debug, Clone, Copy)]
+pub struct RowPicture {
+    pub texture: Option<egui::TextureId>,
+    pub size: Vec2,
 }
 
 /// The row's two touch targets.
@@ -49,7 +63,13 @@ pub fn list_row(ui: &mut egui::Ui, row: &ListRow<'_>) -> RowResponse {
     // Rows that moved (a reorder, a row added or deleted above) slide to their new place; the
     // place itself takes the contact at once. Measured in the list, so scrolling never lags.
     let place = rect.top() - ui.max_rect().top();
-    let offset = settle(ui.ctx(), row.key, place, SETTLE);
+    let offset = match row.lifted {
+        Some(lift) => {
+            hold_at(ui.ctx(), row.key, place + lift);
+            lift
+        }
+        None => settle(ui.ctx(), row.key, place, SETTLE),
+    };
     let indent = row.indent + settle(ui.ctx(), row.key.with("indent"), row.indent, SETTLE);
     let button = Rect::from_min_size(
         rect.right_top() - Vec2::new(TOUCH_TARGET, 0.0),
@@ -58,17 +78,28 @@ pub fn list_row(ui: &mut egui::Ui, row: &ListRow<'_>) -> RowResponse {
     // Added after the row, so it takes the contacts that land on it.
     let icon = ui.interact(button, response.id.with("icon"), sense);
     response.widget_info(|| {
-        WidgetInfo::selected(WidgetType::Button, row.enabled, row.selected, row.label)
+        WidgetInfo::selected(
+            egui::WidgetType::Button,
+            row.enabled,
+            row.selected,
+            row.label,
+        )
     });
-    icon.widget_info(|| WidgetInfo::labeled(WidgetType::Button, row.enabled, row.icon_label));
+    icon.widget_info(|| WidgetInfo::labeled(egui::WidgetType::Button, row.enabled, row.icon_label));
     // The icon after the row: it lies on top.
     controls::register(ui, row.label, rect);
     controls::register(ui, row.icon_label, button);
     // A row seen for the first time (a layer just added) fades in where it lands.
     let appear = animate_from(ui.ctx(), row.key.with("appear"), 0.0, 1.0, ACKNOWLEDGE);
     let shown = rect.translate(Vec2::new(0.0, offset));
-    if ui.is_rect_visible(shown) {
+    if ui.is_rect_visible(shown) || row.lifted.is_some() {
         let mut painter = ui.painter().clone();
+        if row.lifted.is_some() {
+            // Over every other row; still cut to the list.
+            painter = painter.with_layer_id(egui::LayerId::new(Order::Tooltip, row.key));
+            painter.rect_filled(Outline::row(shown).rect, Outline::row(shown).corner, PANEL);
+            paint_mark(&painter, Outline::row(shown), 1.0);
+        }
         painter.multiply_opacity(appear);
         paint(ui, &painter, (row, indent), shown, (&response, &icon));
     }
@@ -111,6 +142,11 @@ fn paint(
         paint_icon(painter, lead, square, lead_color);
         left += Vec2::new(ICON_SIZE + SPACE / 2.0, 0.0);
     }
+    if let Some(picture) = row.picture {
+        let frame = Rect::from_min_size(left - Vec2::new(0.0, picture.size.y / 2.0), picture.size);
+        paint_picture(painter, picture.texture, frame);
+        left += Vec2::new(picture.size.x + SPACE, 0.0);
+    }
     painter.text(left, Align2::LEFT_CENTER, row.label, font.clone(), color);
     let right = rect.right_center() - Vec2::new(TOUCH_TARGET, 0.0);
     let small = TextStyle::Small.resolve(ui.style());
@@ -131,4 +167,26 @@ fn paint(
     let color = if row.enabled { INK } else { INK_DISABLED };
     let square = Rect::from_center_size(button.center(), Vec2::splat(ICON_SIZE));
     paint_icon(painter, row.icon, square, color);
+}
+
+/// Side of a checker cell under a picture, in points.
+const CHECKER_CELL: f32 = 5.5;
+
+/// A picture in `frame`: white and light checker cells (what shows where it is empty), the
+/// texture over them, a faint line round it.
+fn paint_picture(painter: &egui::Painter, texture: Option<egui::TextureId>, frame: Rect) {
+    painter.rect_filled(frame, 0.0, Color32::WHITE);
+    let cells = (frame.size() / CHECKER_CELL).ceil();
+    for row in 0..cells.y as u32 {
+        for column in (row % 2..cells.x as u32).step_by(2) {
+            let at = frame.min + Vec2::new(column as f32, row as f32) * CHECKER_CELL;
+            let cell = Rect::from_min_size(at, Vec2::splat(CHECKER_CELL)).intersect(frame);
+            painter.rect_filled(cell, 0.0, CHECKER);
+        }
+    }
+    if let Some(texture) = texture {
+        let whole = Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0));
+        painter.image(texture, frame, whole, Color32::WHITE);
+    }
+    painter.rect_stroke(frame, 0.0, Stroke::new(1.0, DIVIDER), StrokeKind::Outside);
 }

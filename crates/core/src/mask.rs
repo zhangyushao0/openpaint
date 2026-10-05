@@ -60,6 +60,15 @@ impl LayerMask {
         &self.edits
     }
 
+    /// Whether `other` holds this very grey, shared (O(1)), inverted alike: the mask then shows
+    /// the same, whether on or off.
+    #[must_use]
+    pub fn same_grey(&self, other: &Self) -> bool {
+        self.inverted == other.inverted
+            && self.strokes.same(&other.strokes)
+            && Arc::ptr_eq(&self.edits, &other.edits)
+    }
+
     /// Nothing painted and not inverted: it shows the whole layer.
     #[must_use]
     pub fn is_white(&self) -> bool {

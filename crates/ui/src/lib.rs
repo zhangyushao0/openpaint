@@ -15,6 +15,7 @@ pub mod components;
 pub mod design;
 mod drop_bar;
 mod gallery;
+mod layer_drag;
 mod layer_options;
 mod layer_panel;
 mod layer_rows;

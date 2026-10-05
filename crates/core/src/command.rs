@@ -60,6 +60,15 @@ pub enum LayerCommand {
     /// `Raise` downwards: a group's bottom layer leaves it under it, a layer in no group right
     /// above a group joins it as its top layer, any other swaps with the one below.
     Lower(LayerId),
+    /// `by` steps of `Raise` (above 0) or `Lower` (below 0) as one change: where a layer dragged
+    /// through the panel lands (`layer_places`). `IndexOutOfRange` when a step finds no place.
+    Move {
+        layer: LayerId,
+        by: i32,
+    },
+    /// A copy of the layer right above it, in its group: its strokes (under new ids), edits,
+    /// mask, name and properties. The copy becomes active, its paint the target.
+    Duplicate(LayerId),
     /// Makes a layer the target of new strokes.
     Select(LayerId),
     Rename {

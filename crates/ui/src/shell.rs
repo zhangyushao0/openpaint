@@ -12,11 +12,11 @@
 //! quick pinch settles the view at fit.
 
 use openpaint_app::{
-    BrushKey, CanvasView, GalleryIntent, InputBatch, Intent, ScreenProjection, SessionProjection,
+    CanvasView, GalleryIntent, InputBatch, Intent, ScreenProjection, SessionProjection,
     TransformFrame, ViewIntent, ViewMapping,
 };
 use openpaint_core::{CanvasSize, Color};
-use openpaint_render::{BrushCursor, RgbaImage};
+use openpaint_render::BrushCursor;
 
 use crate::adjust_panel::AdjustPanel;
 use crate::canvas_input::{CanvasFrame, CanvasInput, touched_outside};
@@ -99,12 +99,6 @@ pub struct Shell {
 }
 
 impl Shell {
-    /// The brush picker's preview of each brush, drawn by the renderer at the screen's density
-    /// (`design::BRUSH_PREVIEW` points); loaded as textures by the next pass.
-    pub fn set_brush_previews(&mut self, previews: Vec<(BrushKey, RgbaImage)>) {
-        self.panels.brushes.set_previews(previews);
-    }
-
     /// Builds one frame inside the root `ui` from `projection`, remembers where the canvas is
     /// and collects the buttons tapped. egui hands input to the first pass of a frame only, so
     /// a tap is collected once however many passes run.
@@ -157,6 +151,7 @@ impl Shell {
     fn switch(&mut self, ctx: &egui::Context, showing: Showing) {
         chrome::forget(ctx);
         self.panels.close();
+        self.panels.layers.forget_pictures();
         self.side.hide();
         self.input = CanvasInput::default();
         self.drop.reset();
@@ -310,6 +305,7 @@ impl Shell {
     /// closes an open dialog. Returns whether it was used; otherwise the system's back applies.
     pub fn back(&mut self, projection: &ScreenProjection) -> bool {
         match projection {
+            ScreenProjection::Canvas(_) if self.panels.layers.cancel_rename() => true,
             ScreenProjection::Canvas(_) => {
                 self.taps.push(Intent::Gallery(GalleryIntent::Show));
                 true

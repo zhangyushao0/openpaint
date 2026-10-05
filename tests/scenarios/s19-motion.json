@@ -31,7 +31,7 @@
     { "tap": { "at": "Add layer" } },
     { "screenshot": { "name": "row-added-060", "after_ms": 60 } },
     { "screenshot": { "name": "row-added" } },
-    { "tap": { "at": "Move layer down" } },
+    { "press": { "path": [{ "at": "Layer 2", "ms": 0 }, { "at": "Layer 2", "ms": 500 }, { "at": { "on": "Layer 1", "fraction": [0.5, 0.7] }, "ms": 800 }] } },
     { "screenshot": { "name": "row-lowered-060", "after_ms": 60 } },
     { "tap": { "at": "Alpha Lock" } },
     { "screenshot": { "name": "alpha-lock-060", "after_ms": 60 } },

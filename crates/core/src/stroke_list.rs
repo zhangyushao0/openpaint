@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use crate::id::IdCounters;
 use crate::stroke::Stroke;
 
 /// Strokes per chunk. Appending a stroke copies only the last chunk and the chunk table.
@@ -37,6 +38,21 @@ impl StrokeList {
             chunks: Arc::from(chunks),
             len: self.len + 1,
         }
+    }
+
+    /// The same strokes under new ids from `ids`, in order (a duplicated layer's).
+    pub(crate) fn renumbered(&self, ids: &mut IdCounters) -> Self {
+        let strokes: Vec<Stroke> = self
+            .iter()
+            .map(|stroke| stroke.renumbered(ids.take_stroke()))
+            .collect();
+        Self::from_strokes(&strokes)
+    }
+
+    /// The very same list, shared (O(1)); equal lists built apart are not the same.
+    #[must_use]
+    pub fn same(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.chunks, &other.chunks)
     }
 
     #[must_use]

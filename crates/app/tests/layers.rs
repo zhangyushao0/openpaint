@@ -6,7 +6,7 @@ use openpaint_app::{
     InputSample, Intent, LayerIntent, Session, StrokeIntent,
 };
 use openpaint_app::{BrushLibrary, Toolbox};
-use openpaint_core::{CanvasSize, LayerId};
+use openpaint_core::{CanvasSize, CoreError, LayerId, LayerName};
 
 fn session() -> Session {
     let library = BrushLibrary::built_in().expect("built-in brushes");
@@ -79,8 +79,13 @@ fn every_panel_action_is_one_step_that_undo_takes_back() {
             opacity: 0.25,
             settled: true,
         },
-        LayerIntent::Lower(top),
-        LayerIntent::Raise(top),
+        LayerIntent::Move { layer: top, by: -1 },
+        LayerIntent::Move { layer: top, by: 1 },
+        LayerIntent::Rename {
+            layer: top,
+            name: LayerName::new("Sky").expect("name"),
+        },
+        LayerIntent::Duplicate(top),
         LayerIntent::Delete(bottom),
     ];
     for intent in actions {
@@ -93,11 +98,19 @@ fn every_panel_action_is_one_step_that_undo_takes_back() {
         redo(&mut session);
         assert!(session.artwork().same_version(&after), "{intent:?} redo");
     }
-    assert_eq!(ids(&session), [top]);
+    let copy = session.artwork().active();
+    assert_eq!(ids(&session), [top, copy]);
+    let names: Vec<_> = session
+        .artwork()
+        .layers()
+        .iter()
+        .map(|l| l.name().as_str().to_owned())
+        .collect();
+    assert_eq!(names, ["Sky", "Sky"], "the copy keeps the name");
     assert_eq!(
         session.history().undo_steps(),
-        7,
-        "stroke, add and five actions"
+        9,
+        "stroke, add and seven actions"
     );
 }
 
@@ -105,37 +118,36 @@ fn every_panel_action_is_one_step_that_undo_takes_back() {
 fn the_projection_offers_only_what_can_act_on_the_active_layer() {
     let mut session = session();
     use Availability::{Available, NothingLeft};
+    // Add and delete, and how far the active layer's row can be dragged down and up.
     let lone = |s: &Session| {
-        [
-            EditorAction::AddLayer,
-            EditorAction::DeleteLayer,
-            EditorAction::RaiseLayer,
-            EditorAction::LowerLayer,
-        ]
-        .map(|action| offered(s, action))
+        let list = s.projection().layers().cloned().expect("layers");
+        let places = list.places(list.active);
+        let reach = places.first().map(|p| p.by)..=places.last().map(|p| p.by);
+        let offers = [EditorAction::AddLayer, EditorAction::DeleteLayer].map(|a| offered(s, a));
+        (offers, reach)
     };
     assert_eq!(
         lone(&session),
-        [Available, NothingLeft, NothingLeft, NothingLeft]
+        ([Available, NothingLeft], Some(0)..=Some(0))
     );
     let first = session.artwork().active();
     layer(&mut session, LayerIntent::Add).expect("add");
-    assert_eq!(
-        lone(&session),
-        [Available, Available, NothingLeft, Available]
-    );
+    assert_eq!(lone(&session), ([Available, Available], Some(-1)..=Some(0)));
     layer(&mut session, LayerIntent::Select(first)).expect("select");
-    assert_eq!(
-        lone(&session),
-        [Available, Available, Available, NothingLeft]
+    assert_eq!(lone(&session), ([Available, Available], Some(0)..=Some(1)));
+    let refused = layer(
+        &mut session,
+        LayerIntent::Move {
+            layer: first,
+            by: -1,
+        },
     );
-    let refused = layer(&mut session, LayerIntent::Lower(first)).expect_err("bottom");
-    assert_eq!(
-        refused,
-        AppError::Unavailable {
-            action: EditorAction::LowerLayer,
-            availability: NothingLeft
-        }
+    assert!(
+        matches!(
+            refused,
+            Err(AppError::Core(CoreError::IndexOutOfRange { .. }))
+        ),
+        "the bottom layer has no place below: {refused:?}"
     );
     let list = session.projection().layers().cloned().expect("layers");
     assert_eq!(list.rows.len(), 2);

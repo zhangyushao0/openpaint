@@ -48,6 +48,7 @@ pub use filter::{Blur, Sharpen};
 pub use group::LayerGroup;
 pub use id::{GroupId, LayerId, MAX_ID, StrokeId};
 pub use layer::{Layer, LayerProps};
+pub use layer_moves::{LayerPlace, layer_places};
 pub use mask::{LayerMask, grey_of};
 pub use parts::{
     AccumulationParts, ArtworkParts, EditParts, FillParts, GroupParts, LayerMaskParts, LayerParts,

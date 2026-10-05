@@ -15,6 +15,7 @@ use openpaint_render::{
 use openpaint_ui::{CanvasArea, ScreenArea};
 
 use crate::error::RuntimeError;
+use crate::pictures::Drawn;
 
 /// The paper under the layers until artworks carry their own background; exports show it too.
 pub(crate) const PAPER: Color = Color::WHITE;
@@ -58,6 +59,8 @@ pub(crate) struct Canvas {
     /// layer edit), until it is evaluated.
     changed_from: Option<Artwork>,
     pub(crate) leaving: Leaving,
+    /// What the layer panel's pictures were made of (S38).
+    pub(crate) pictures: Drawn,
 }
 
 impl Canvas {
@@ -98,6 +101,7 @@ impl Canvas {
             evaluated: false,
             changed_from: None,
             leaving: Leaving::Staying,
+            pictures: Drawn::default(),
         }))
     }
 

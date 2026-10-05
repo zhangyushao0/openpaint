@@ -22,8 +22,8 @@ pub use paint::{
     panel_frame, surface_frame,
 };
 pub use palette::{
-    BUTTON_RULE, DESK, DIVIDER, INK, INK_ACTIVE, INK_DISABLED, INK_SECONDARY, PANEL, PANEL_RULE,
-    PANEL_RULE_WIDTH, PRESSED,
+    BUTTON_RULE, CHECKER, DESK, DIVIDER, INK, INK_ACTIVE, INK_DISABLED, INK_SECONDARY, PANEL,
+    PANEL_RULE, PANEL_RULE_WIDTH, PRESSED,
 };
 
 /// The spacing unit in points; every gap and margin is a multiple of it.
@@ -47,6 +47,8 @@ pub const CARD_GAP: f32 = 4.0 * SPACE;
 pub const SURROUND: [u8; 4] = [DESK.r(), DESK.g(), DESK.b(), 255];
 /// A brush's stroke preview in the brush picker, in points.
 pub const BRUSH_PREVIEW: Vec2 = Vec2::new(160.0, 48.0);
+/// Room for a layer row's picture of its layer (S38), in points: the canvas fits inside it.
+pub const LAYER_PICTURE: Vec2 = Vec2::new(52.0, 39.0);
 /// Length of a side bar slider, in points.
 pub const SIDE_SLIDER: f32 = 160.0;
 /// Side of the colour wheel, in points: the hue ring around the saturation and value square.

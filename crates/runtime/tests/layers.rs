@@ -8,7 +8,9 @@ mod hand;
 mod support;
 
 use hand::{Hand, assert_cold, on};
-use openpaint_runtime::{Runtime, ToolKind};
+use openpaint_runtime::{
+    Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime, TextInput, ToolKind,
+};
 use support::Nowhere;
 
 /// 800 x 700 points at density 2: the whole panel fits.
@@ -26,6 +28,48 @@ fn layers(runtime: &Runtime) -> Vec<(u64, bool, f32)> {
 fn strokes(runtime: &Runtime) -> usize {
     let artwork = runtime.artwork().expect("artwork");
     artwork.layers().iter().map(|l| l.strokes().len()).sum()
+}
+
+/// A finger pressed on `from` and held still for half a second (a layer row lifts), then
+/// moved straight to `to` and lifted, on the runtime's clock fixed to the gesture's (S38).
+fn hold_and_drag(hand: &mut Hand, runtime: &mut Runtime, from: [f32; 2], to: [f32; 2]) {
+    let held = std::iter::repeat_n(from, 32);
+    let moved = (1..=10u8).map(|step| {
+        let t = f32::from(step) / 10.0;
+        [
+            from[0] + (to[0] - from[0]) * t,
+            from[1] + (to[1] - from[1]) * t,
+        ]
+    });
+    let points: Vec<[f32; 2]> = held.chain(moved).chain([to]).collect();
+    let last = points.len() - 1;
+    for (index, position) in points.into_iter().enumerate() {
+        let phase = match index {
+            0 => MotionPhase::Down,
+            i if i == last => MotionPhase::Up,
+            _ => MotionPhase::Move,
+        };
+        hand.clock += 16;
+        runtime.fix_clock(hand.clock);
+        let sample = PointerSample {
+            position,
+            pressure: 1.0,
+            tilt: 0.0,
+            orientation: 0.0,
+            time_ms: hand.clock,
+        };
+        runtime.motion(&MotionBatch {
+            phase,
+            buttons: Buttons::default(),
+            pointers: vec![Pointer {
+                id: 0,
+                tool: ToolKind::Finger,
+                samples: vec![sample],
+            }],
+        });
+        runtime.frame_offscreen(hand.size).expect("frame");
+    }
+    runtime.frame_offscreen(hand.size).expect("frame");
 }
 
 /// Right of the side bar.
@@ -59,13 +103,32 @@ fn panel_actions_change_the_layers_and_undo_takes_each_back() {
         "the switch locks"
     );
     hand.tap(&mut runtime, "Layer 1");
-    hand.tap(&mut runtime, "Move layer up");
+    // Held still, Layer 1's row lifts; let go over Layer 2's row, it lands there: on top.
+    let (from, to) = (
+        on(&runtime, "Layer 1", [0.5, 0.5]),
+        on(&runtime, "Layer 2", [0.5, 0.3]),
+    );
+    hold_and_drag(&mut hand, &mut runtime, from, to);
     assert_eq!(layers(&runtime)[1].0, 1, "layer 1 is on top");
+    assert_cold(&core, &runtime, "after the move");
+    hand.tap(&mut runtime, "Duplicate layer");
+    assert_eq!(layers(&runtime).len(), 3);
+    assert_cold(&core, &runtime, "after duplicating");
+    hand.tap(&mut runtime, "Rename");
+    runtime.text(TextInput::Commit("Sky".into()));
+    runtime.frame_offscreen(SIZE).expect("frame");
+    hand.tap(&mut runtime, "Done");
+    let artwork = runtime.artwork().expect("artwork");
+    assert_eq!(
+        artwork.layers()[2].name().as_str(),
+        "Sky",
+        "the copy is renamed"
+    );
     hand.tap(&mut runtime, "Delete layer");
-    assert_eq!(layers(&runtime).len(), 1);
+    assert_eq!(layers(&runtime).len(), 2);
     assert_cold(&core, &runtime, "after the panel actions");
-    // Delete, raise, Alpha Lock, the whole slide, show, hide, add: seven steps back.
-    for step in 0..7 {
+    // Delete, rename, duplicate, move, Alpha Lock, the slide, show, hide, add: nine back.
+    for step in 0..9 {
         hand.tap(&mut runtime, "Undo");
         assert_cold(&core, &runtime, &format!("after undo {step}"));
     }

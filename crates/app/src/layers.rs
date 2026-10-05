@@ -1,7 +1,7 @@
 //! The layer intents: what the layer panel asks of the session, and the layer list it shows.
 //!
 //! Every change of the layers, groups and masks is one history step that undo takes back, with
-//! two exceptions (DECISIONS D23): choosing the layer to draw on (its paint or its mask) is not
+//! two exceptions (DECISIONS D65): choosing the layer to draw on (its paint or its mask) is not
 //! an edit and changes the current step in place, and an opacity slider (a layer's or a
 //! group's) moved in one touch is one step however many values it passed. Collapsing a group is
 //! the panel's own state.
@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use openpaint_core::{
     Artwork, ArtworkCommand, BlendMode, Change, GroupCommand, GroupId, LayerCommand, LayerId,
-    LayerName, MaskCommand,
+    LayerName, LayerPlace, MaskCommand, layer_places,
 };
 
 use crate::error::AppError;
@@ -26,11 +26,18 @@ pub enum LayerIntent {
     Select(LayerId),
     /// Remove the layer and its strokes; undo brings both back.
     Delete(LayerId),
-    /// One place up, towards the top of the stack; out of its group at the group's top, into
-    /// a group right above it (`LayerCommand::Raise`).
-    Raise(LayerId),
-    /// One place down, towards the paper (`LayerCommand::Lower`).
-    Lower(LayerId),
+    /// A copy right above the layer, which becomes active (`LayerCommand::Duplicate`).
+    Duplicate(LayerId),
+    /// Where a dragged row was let go: `by` steps up (above 0) or down, one history step
+    /// (`LayerList::places` lists them; `LayerCommand::Move`).
+    Move {
+        layer: LayerId,
+        by: i32,
+    },
+    Rename {
+        layer: LayerId,
+        name: LayerName,
+    },
     SetVisible {
         layer: LayerId,
         visible: bool,
@@ -181,6 +188,17 @@ impl LayerList {
         self.rows.iter().find(|row| row.id == self.active)
     }
 
+    /// Every place a `Move` of `layer` reaches, the farthest down first, its own (`by` 0)
+    /// among them (`layer_places`): where its row can be dragged. Empty for a layer not listed.
+    #[must_use]
+    pub fn places(&self, layer: LayerId) -> Vec<LayerPlace> {
+        let groups: Vec<_> = self.rows.iter().map(|row| row.group).collect();
+        self.rows
+            .iter()
+            .position(|row| row.id == layer)
+            .map_or_else(Vec::new, |index| layer_places(&groups, index))
+    }
+
     #[must_use]
     pub fn group(&self, id: GroupId) -> Option<&GroupRow> {
         self.groups.iter().find(|group| group.id == id)
@@ -192,11 +210,12 @@ impl LayerIntent {
     fn action(&self, active: LayerId) -> (EditorAction, LayerId) {
         match *self {
             Self::Add | Self::NewGroup => (EditorAction::AddLayer, active),
+            Self::Duplicate(layer) => (EditorAction::AddLayer, layer),
             Self::Delete(layer) => (EditorAction::DeleteLayer, layer),
-            Self::Raise(layer) => (EditorAction::RaiseLayer, layer),
-            Self::Lower(layer) => (EditorAction::LowerLayer, layer),
             Self::Group(layer) => (EditorAction::GroupLayer, layer),
             Self::Select(layer)
+            | Self::Move { layer, .. }
+            | Self::Rename { layer, .. }
             | Self::SetVisible { layer, .. }
             | Self::SetOpacity { layer, .. }
             | Self::SetAlphaLock { layer, .. }
@@ -223,8 +242,15 @@ impl LayerIntent {
             Self::Add => layer(LayerCommand::Create),
             Self::Select(id) => layer(LayerCommand::Select(id)),
             Self::Delete(id) => layer(LayerCommand::Delete(id)),
-            Self::Raise(id) => layer(LayerCommand::Raise(id)),
-            Self::Lower(id) => layer(LayerCommand::Lower(id)),
+            Self::Duplicate(id) => layer(LayerCommand::Duplicate(id)),
+            Self::Move { layer: id, by } => layer(LayerCommand::Move { layer: id, by }),
+            Self::Rename {
+                layer: id,
+                ref name,
+            } => layer(LayerCommand::Rename {
+                layer: id,
+                name: name.clone(),
+            }),
             Self::SetVisible { layer: id, visible } => {
                 layer(LayerCommand::SetVisible { layer: id, visible })
             }

@@ -26,8 +26,6 @@ pub enum EditorAction {
     DismissNotice,
     AddLayer,
     DeleteLayer,
-    RaiseLayer,
-    LowerLayer,
     /// Choose, show, hide, fade, clip or blend a layer; show, hide, fade or undo its group.
     EditLayer,
     /// Group the layer with the one under it.
@@ -93,8 +91,8 @@ pub struct SessionProjection {
     pub(crate) redo: Availability,
     pub(crate) retry_save: Availability,
     pub(crate) dismiss_notice: Availability,
-    /// Add, delete, raise, lower, edit, group and the mask's three, for the active layer.
-    pub(crate) layer_actions: [Availability; 9],
+    /// Add, delete, edit, group and the mask's three, for the active layer.
+    pub(crate) layer_actions: [Availability; 7],
     pub(crate) gallery: Availability,
     pub(crate) storage: StorageNotice,
     pub(crate) layers: Option<LayerList>,
@@ -125,11 +123,9 @@ pub enum ScreenProjection {
 }
 
 /// The layer actions in the order of `SessionProjection::layer_actions`.
-pub(crate) const LAYER_ACTIONS: [EditorAction; 9] = [
+pub(crate) const LAYER_ACTIONS: [EditorAction; 7] = [
     EditorAction::AddLayer,
     EditorAction::DeleteLayer,
-    EditorAction::RaiseLayer,
-    EditorAction::LowerLayer,
     EditorAction::EditLayer,
     EditorAction::GroupLayer,
     EditorAction::AddMask,
@@ -157,13 +153,11 @@ impl SessionProjection {
             EditorAction::DismissNotice => self.dismiss_notice,
             EditorAction::AddLayer => self.layer_actions[0],
             EditorAction::DeleteLayer => self.layer_actions[1],
-            EditorAction::RaiseLayer => self.layer_actions[2],
-            EditorAction::LowerLayer => self.layer_actions[3],
-            EditorAction::EditLayer => self.layer_actions[4],
-            EditorAction::GroupLayer => self.layer_actions[5],
-            EditorAction::AddMask => self.layer_actions[6],
-            EditorAction::EditMask => self.layer_actions[7],
-            EditorAction::ChangeMask => self.layer_actions[8],
+            EditorAction::EditLayer => self.layer_actions[2],
+            EditorAction::GroupLayer => self.layer_actions[3],
+            EditorAction::AddMask => self.layer_actions[4],
+            EditorAction::EditMask => self.layer_actions[5],
+            EditorAction::ChangeMask => self.layer_actions[6],
             EditorAction::Gallery => self.gallery,
             EditorAction::Fill | EditorAction::Transform | EditorAction::Adjust => {
                 if self.canvas.is_none() {
@@ -269,7 +263,7 @@ impl Default for SessionProjection {
             redo: Availability::NothingLeft,
             retry_save: Availability::NothingLeft,
             dismiss_notice: Availability::NothingLeft,
-            layer_actions: [Availability::NothingLeft; 9],
+            layer_actions: [Availability::NothingLeft; 7],
             gallery: Availability::NothingLeft,
             storage: StorageNotice::None,
             layers: None,
@@ -301,8 +295,6 @@ impl fmt::Display for EditorAction {
             Self::DismissNotice => "close the notice",
             Self::AddLayer => "add a layer",
             Self::DeleteLayer => "delete the layer",
-            Self::RaiseLayer => "move the layer up",
-            Self::LowerLayer => "move the layer down",
             Self::EditLayer => "change the layer",
             Self::GroupLayer => "group the layer",
             Self::AddMask => "add a mask",

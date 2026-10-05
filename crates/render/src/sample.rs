@@ -35,6 +35,24 @@ impl Core {
         self.sample(artwork, layer, true)
     }
 
+    /// A small picture of `layer` alone (S38): what `layer_pixels`, or with `mask`
+    /// `mask_pixels`, gives, reduced on the GPU to at most `max` pixels (`thumbnail_size`, box
+    /// means as `thumbnail`); only the small picture is read back. Waits for the GPU.
+    ///
+    /// # Errors
+    /// As `layer_pixels`.
+    pub fn layer_thumbnail(
+        &self,
+        artwork: &Artwork,
+        (layer, mask): (LayerId, bool),
+        max: [u32; 2],
+    ) -> Result<RgbaImage, RenderError> {
+        let canvas = artwork.canvas();
+        let mut target = CanvasTarget::exact(self, [canvas.width(), canvas.height()])?;
+        RegionEvaluator::new(self, &mut target).evaluate_layer(artwork, layer, mask)?;
+        self.thumbnail(&target, max)
+    }
+
     fn sample(
         &self,
         artwork: &Artwork,

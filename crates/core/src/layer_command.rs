@@ -6,15 +6,17 @@ use crate::error::CoreError;
 use crate::group::prune;
 use crate::id::LayerId;
 use crate::layer::{Layer, check_opacity};
-use crate::layer_moves::{lower, raise, reorder};
+use crate::layer_moves::{move_by, reorder};
 
 pub(crate) fn apply(artwork: &Artwork, command: LayerCommand) -> Result<Applied, CoreError> {
     match command {
         LayerCommand::Create => create(artwork),
         LayerCommand::Delete(id) => delete(artwork, id),
         LayerCommand::Reorder { layer, index } => reorder(artwork, layer, index),
-        LayerCommand::Raise(id) => raise(artwork, id),
-        LayerCommand::Lower(id) => lower(artwork, id),
+        LayerCommand::Raise(id) => move_by(artwork, id, 1),
+        LayerCommand::Lower(id) => move_by(artwork, id, -1),
+        LayerCommand::Move { layer, by } => move_by(artwork, layer, by),
+        LayerCommand::Duplicate(id) => duplicate(artwork, id),
         LayerCommand::Select(id) => select(artwork, id),
         LayerCommand::Rename { layer, name } => edit(artwork, layer, |l| l.name = name),
         LayerCommand::SetVisible { layer, visible } => {
@@ -49,6 +51,20 @@ fn create(artwork: &Artwork) -> Result<Applied, CoreError> {
     layer.props.group = state.layers[below].props.group;
     next.layers.insert(below + 1, layer);
     next.activate(id);
+    Ok(content(next))
+}
+
+fn duplicate(artwork: &Artwork, id: LayerId) -> Result<Applied, CoreError> {
+    let index = artwork.position(id)?;
+    let state = artwork.state();
+    if state.layers.len() >= MAX_LAYERS {
+        return Err(CoreError::LayerLimit { max: MAX_LAYERS });
+    }
+    let mut next = state.clone();
+    let copy = next.ids.take_layer();
+    let layer = state.layers[index].duplicate(copy, &mut next.ids);
+    next.layers.insert(index + 1, layer);
+    next.activate(copy);
     Ok(content(next))
 }
 

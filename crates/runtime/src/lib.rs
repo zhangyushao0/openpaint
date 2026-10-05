@@ -10,6 +10,7 @@ mod frame;
 mod input;
 mod normalise;
 mod offscreen;
+mod pictures;
 mod pointer;
 mod preview;
 mod screen;

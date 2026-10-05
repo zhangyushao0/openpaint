@@ -85,6 +85,22 @@ pub fn settle(ctx: &egui::Context, id: Id, place: f32, feel: Feel) -> f32 {
     offset
 }
 
+/// Settle's memory without motion: `id` shows exactly at `place` now (a row the hand carries),
+/// so a later `settle` slides from there.
+pub fn hold_at(ctx: &egui::Context, id: Id, place: f32) {
+    let now = ctx.input(|input| input.time);
+    ctx.data_mut(|data| {
+        data.insert_temp(
+            id,
+            Placed {
+                place,
+                offset: Spring::at(0.0),
+                time: now,
+            },
+        );
+    });
+}
+
 /// Something moves this frame: the next frame is wanted at once.
 pub(crate) fn keep_moving(ctx: &egui::Context) {
     let pass = ctx.cumulative_pass_nr();

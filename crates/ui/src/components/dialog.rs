@@ -3,10 +3,10 @@
 //! out of what was tapped as the veil darkens, and goes back into it once answered (D44). A tap
 //! on the dimmed screen around it cancels.
 
-use egui::{Align2, Id, Margin, Order, Rect, Shape, Vec2};
+use egui::{Align, Align2, Id, Layout, Margin, Order, Rect, Shape, Vec2};
 
-use crate::components::UNDER_ISLANDS;
 use crate::components::chrome::{self, Source};
+use crate::components::{UNDER_ISLANDS, text_button};
 use crate::design::{BACKDROP, CORNER, DIALOG_WIDTH, PANEL_RULE_WIDTH, SPACE, surface_frame};
 
 /// Where a dialog sits.
@@ -66,4 +66,16 @@ pub fn dialog<T>(
     chrome::laid_out(ctx, key, rect, layer, Some(paper));
     let outside = response.backdrop_response.clicked();
     (inner, outside)
+}
+
+/// Two words at the right of a dialog's last row: the cancelling one, then the answering one
+/// (grey unless `enabled`). Returns whether each was tapped.
+pub fn answer_row(ui: &mut egui::Ui, cancel: &str, answer: &str, enabled: bool) -> (bool, bool) {
+    ui.add_space(SPACE);
+    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        let answered = text_button(ui, answer, enabled).clicked();
+        let cancelled = text_button(ui, cancel, true).clicked();
+        (cancelled, answered)
+    })
+    .inner
 }

@@ -14,10 +14,6 @@ pub(crate) fn availability(
 ) -> Availability {
     let count = artwork.layers().len();
     let position = artwork.layers().iter().position(|l| l.id() == layer);
-    // A grouped layer at the stack's end can still step out of its group.
-    let grouped = artwork
-        .layer(layer)
-        .is_some_and(|layer| layer.props().group().is_some());
     let unlocked = artwork.layer(layer).filter(|layer| !layer.props().locked());
     let mask = unlocked.and_then(|layer| layer.mask());
     let possible = match action {
@@ -26,8 +22,6 @@ pub(crate) fn availability(
         EditorAction::ChangeMask => mask.is_some_and(|mask| mask.enabled()),
         EditorAction::AddLayer => count < MAX_LAYERS,
         EditorAction::DeleteLayer => count > 1 && position.is_some(),
-        EditorAction::RaiseLayer => position.is_some_and(|at| at + 1 < count || grouped),
-        EditorAction::LowerLayer => position.is_some_and(|at| at > 0 || grouped),
         EditorAction::EditLayer => position.is_some(),
         EditorAction::GroupLayer => {
             let group = ArtworkCommand::Group(GroupCommand::Create { layer });

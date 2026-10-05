@@ -2,6 +2,7 @@
 //! byte for byte, the mean of the canvas pixels in each box computed on the CPU, for an even and
 //! an uneven scale.
 
+use openpaint_core::{ArtworkCommand, MaskCommand};
 use openpaint_render::{
     CanvasTarget, PixelRect, RegionEvaluator, thumbnail_reference, thumbnail_size,
 };
@@ -36,5 +37,47 @@ fn the_thumbnail_is_the_box_mean_of_the_canvas() {
         thumbnail_reference(&canvas, [80, 50]),
         vec![255; 80 * 50 * 4],
         "the strokes show"
+    );
+}
+
+/// A layer row's picture (S38) is the layer alone, or its mask's grey, reduced by box means:
+/// faded, hidden and masked layers show their own paint whole.
+#[test]
+fn a_layer_thumbnail_is_the_box_mean_of_the_layer_alone() {
+    let core = core();
+    let under = with_stroke(&blank(), wave());
+    let faded = with_stroke(&with_layer(&under, 0.3), diagonal());
+    let top = faded.active();
+    let masked = faded
+        .apply(ArtworkCommand::Mask(MaskCommand::Add(top)))
+        .expect("mask")
+        .artwork;
+    let artwork = with_stroke(&masked, wave());
+    for (layer, mask) in [(artwork.layers()[0].id(), false), (top, false), (top, true)] {
+        let alone = if mask {
+            core.mask_pixels(&artwork, layer)
+        } else {
+            core.layer_pixels(&artwork, layer)
+        }
+        .expect("layer pixels");
+        for max in [[77, 58], [448, 336]] {
+            let picture = core
+                .layer_thumbnail(&artwork, (layer, mask), max)
+                .expect("thumbnail");
+            let size = thumbnail_size(SIZE, max);
+            assert_eq!(picture.size(), size);
+            assert!(
+                picture.pixels() == thumbnail_reference(&alone, size).as_slice(),
+                "{layer:?} (mask {mask}) at {size:?} differs from its pixels' box means"
+            );
+        }
+    }
+    let empty = with_layer(&artwork, 1.0);
+    let clear = core
+        .layer_thumbnail(&empty, (empty.active(), false), [40, 30])
+        .expect("empty");
+    assert!(
+        clear.pixels().iter().all(|&byte| byte == 0),
+        "nothing painted: transparent"
     );
 }

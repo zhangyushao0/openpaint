@@ -105,16 +105,19 @@ fn grouping_and_moves_follow_the_group_rules() {
         Availability::NothingLeft,
         "already in a group"
     );
-    assert_eq!(
-        offered(&session, EditorAction::RaiseLayer),
-        Availability::Available,
-        "the top layer can still leave its group"
-    );
-    layer(&mut session, LayerIntent::Raise(LayerId::new(2))).expect("leave");
-    assert_eq!(
-        offered(&session, EditorAction::RaiseLayer),
-        Availability::NothingLeft
-    );
+    let up = |s: &Session| {
+        let list = s.projection().layers().cloned().expect("layers");
+        list.places(LayerId::new(2))
+            .last()
+            .map_or(0, |place| place.by)
+    };
+    assert_eq!(up(&session), 1, "the top layer can still leave its group");
+    let leave = LayerIntent::Move {
+        layer: LayerId::new(2),
+        by: 1,
+    };
+    layer(&mut session, leave).expect("leave");
+    assert_eq!(up(&session), 0);
     assert_eq!(
         offered(&session, EditorAction::GroupLayer),
         Availability::NothingLeft,

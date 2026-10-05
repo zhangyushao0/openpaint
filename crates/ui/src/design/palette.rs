@@ -27,5 +27,8 @@ pub const BUTTON_RULE: Color32 = Color32::from_rgb(70, 67, 62);
 pub const DIVIDER: Color32 = Color32::from_rgb(186, 182, 174);
 /// Under the hand while it presses a control.
 pub const PRESSED: Color32 = Color32::from_black_alpha(18);
+/// The light cells of the checker under a layer's picture, where the layer is empty (the others
+/// are white).
+pub const CHECKER: Color32 = Color32::from_rgb(228, 226, 222);
 /// The canvas's and the gallery pictures' shadow on the desk: strength at the sheet's edge.
 pub const SHEET_SHADOW: u8 = 34;

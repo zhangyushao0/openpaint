@@ -7,7 +7,9 @@ use openpaint_app::{GalleryIntent, Intent, MAX_TITLE_CHARS, ProjectSummary, Titl
 
 use super::GalleryScreen;
 use super::dates::kept_labels;
-use crate::components::{Placement, dialog, hint, menu_row, section, text_button, text_field};
+use crate::components::{
+    Placement, answer_row, dialog, hint, menu_row, section, text_button, text_field,
+};
 use crate::design::SPACE;
 
 impl GalleryScreen {
@@ -117,15 +119,4 @@ impl GalleryScreen {
             self.options = None;
         }
     }
-}
-
-/// Two buttons at the right of a dialog's last row: the cancelling one, then the answering one.
-fn answer_row(ui: &mut egui::Ui, cancel: &str, answer: &str, enabled: bool) -> (bool, bool) {
-    ui.add_space(SPACE);
-    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-        let answered = text_button(ui, answer, enabled).clicked();
-        let cancelled = text_button(ui, cancel, true).clicked();
-        (cancelled, answered)
-    })
-    .inner
 }

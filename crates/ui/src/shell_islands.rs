@@ -1,13 +1,16 @@
 //! The canvas screen's top islands: Gallery, Actions, Adjustments, Selection and Transform at
 //! the left (Procreate's order);
 //! Brush, Smudge, Eraser, Layers and the colour at the right; the notice pill left of the right
-//! one.
+//! one. The calls that hand the panels what the renderer drew (brush previews, layer pictures).
 
-use openpaint_app::{EditorAction, GalleryIntent, Intent, SessionProjection};
+use openpaint_app::{BrushKey, EditorAction, GalleryIntent, Intent, SessionProjection};
+use openpaint_core::LayerId;
+use openpaint_render::RgbaImage;
 
 use super::Shell;
 use crate::components::{Place, ScreenArea, island, text_button};
 use crate::design::SPACE;
+use crate::layer_panel::picture_pixels;
 use crate::notices::notice_pill;
 use crate::panels::Panel;
 
@@ -60,5 +63,30 @@ impl Shell {
             .flatten()
             .map(|rect| ScreenArea::from_points(rect, ppp))
             .collect();
+    }
+
+    /// The brush picker's preview of each brush, drawn by the renderer at the screen's density
+    /// (`design::BRUSH_PREVIEW` points); loaded as textures by the next pass.
+    pub fn set_brush_previews(&mut self, previews: Vec<(BrushKey, RgbaImage)>) {
+        self.panels.brushes.set_previews(previews);
+    }
+
+    /// Whether the layer panel is open: only then does it want pictures of its layers (S38).
+    #[must_use]
+    pub const fn layers_open(&self) -> bool {
+        self.panels.layers.is_open()
+    }
+
+    /// The largest layer picture the panel shows, in pixels at the last pass's density: the
+    /// canvas fits inside it.
+    #[must_use]
+    pub fn layer_picture_pixels(&self) -> [u32; 2] {
+        picture_pixels(self.pixels_per_point)
+    }
+
+    /// The picture of `layer`'s paint, or with `mask` its mask's grey, as premultiplied RGBA:
+    /// its row shows it from the next pass on, until a newer one comes.
+    pub fn set_layer_picture(&mut self, (layer, mask): (LayerId, bool), image: RgbaImage) {
+        self.panels.layers.set_picture((layer, mask), image);
     }
 }
