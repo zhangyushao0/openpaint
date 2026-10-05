@@ -49,7 +49,11 @@ Render architecture (author, 2026-10-04): the truth stays operation records, pix
 - S29 Scale-aware evaluation and export at 1x / 2x / 4x, S30 Fill edges, S31 Transform as a record and S32 Sharp zoom are done (see "Done"); per-band binning measured cheap, so no spatial index (D55); fill edges are derived from the mask per scene (D56); a transform is a record evaluated by mapping back, the lifted patch only the drag's preview (D57); the screen shows one view tier of canvas-aligned tiles above √2 screen pixels per canvas pixel (D58).
 - S33 Blur and sharpen is done: adjustment records over a derived canvas-resolution boundary (the smudge's material and arena), never baked patches (D59). The render-architecture steps are complete.
 
-**S34 Library management**: search, version restore, backing an artwork up as a native file and restoring it (PSD and OpenRaster dropped, author 2026-10-04). **S35 Ten-bit display**: the canvas cache and the surface at 10 bits per channel (Rgb10a2); artworks stay sRGB (author, 2026-10-04: no P3 working space, work is made to be seen by others), exports stay 8-bit sRGB, the format is unchanged.
+From the investigation of 2026-10-05 (fast strokes show corners when zoomed in: about 300 Hz pen samples up to 97 px apart, none lost; adjustment previews at 36-40 values a second, CPU binning plus GPU evaluation in series):
+- **S34 Smooth stroke paths**: strokes evaluated as curves through their samples (centripetal Catmull-Rom or cubic, subdivided to an error bound in output pixels, per scale), skipping the per-frame samples Android synthesises on the chord; stored samples unchanged, old strokes smooth too; hashes of curved strokes move once.
+- **S35 Preview speed**: an adjustment's preview keeps its plan and re-uploads only the op's values; an unclipped adjustment limited to its layer's content bounds; a blur preview reuses the layer's material between values and blurs large radii at reduced resolution; fluid at 60 Hz at default sizes on the tablet (D47).
+
+**S36 Library management**: search, version restore, backing an artwork up as a native file and restoring it (PSD and OpenRaster dropped, author 2026-10-04). **S37 Ten-bit display**: the canvas cache and the surface at 10 bits per channel (Rgb10a2); artworks stay sRGB (author, 2026-10-04: no P3 working space, work is made to be seen by others), exports stay 8-bit sRGB, the format is unchanged.
 Exit: the author completes edit, restore and delivery (W4).
 
 ## G5 Daily painting
