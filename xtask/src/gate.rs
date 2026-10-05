@@ -16,7 +16,12 @@ const STEPS: &[(&str, Step)] = &[
     ("repo-check", check::run),
 ];
 
+/// Locally the gate formats the workspace first, so a formatting slip never fails it; under CI
+/// (the `CI` variable every CI service sets) it only checks, so unformatted code fails there.
 fn fmt() -> Result<(), String> {
+    if std::env::var_os("CI").is_none() {
+        cargo(&["fmt", "--all"])?;
+    }
     cargo(&["fmt", "--all", "--check"])
 }
 
