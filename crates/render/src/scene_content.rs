@@ -13,12 +13,15 @@
 //! laying them over what stayed). Pencil grain, fill edges, clips and smudge residuals are read
 //! at the mapped point, so they move with the content as its pixels would, and the footprint of
 //! an output pixel follows the placement's scale, so scaled strokes stay sharp.
+//! Filters (S33) read neighbouring pixels: the scene lists where their results apply
+//! (`push_filter`).
 
 use openpaint_core::{LayerId, RegionEdit, StrokeBlend, StrokeList, StrokeTool, TransformEdit};
 
 use crate::affine::Affine;
 use crate::edits::{edit_rect, mask_bounds, restart};
 use crate::error::RenderError;
+use crate::filter::{FilterKey, kernel_of};
 use crate::geom::{Bounds, PixelRect};
 use crate::protocol::{Op, Paint};
 use crate::scene::{Item, Scene, SmudgeItem};
@@ -181,7 +184,18 @@ impl Scene {
                 self.push_moved(content, (at, hidden), transform, view)
             }
             None if !hidden[0] && view.meets(edit_rect(self.canvas, edit)) => {
-                self.push_edit(edit, content.on_mask)
+                match edit
+                    .adjust()
+                    .and_then(|adjust| kernel_of(adjust.adjustment()))
+                {
+                    Some(_) => {
+                        let place = (content.layer, content.on_mask);
+                        let edits = (content.strokes, &content.edits[..=at]);
+                        let key = FilterKey::new(place, edits, view.to_canvas);
+                        self.push_filter(key, content.start)
+                    }
+                    None => self.push_edit(edit, content.on_mask),
+                }
             }
             None => Ok(()),
         }

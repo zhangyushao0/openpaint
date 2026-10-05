@@ -14,12 +14,14 @@ use crate::components::{Opener, ScreenArea, icon_toggle, menu_row, popover_left}
 use crate::design::Icon;
 
 /// The menu's rows, top to bottom (Procreate's names).
-const MENU: [(&str, AdjustmentKind); 2] = [
+const MENU: [(&str, AdjustmentKind); 4] = [
     (
         "Hue, Saturation, Brightness",
         AdjustmentKind::HueSaturationBrightness,
     ),
     ("Curves", AdjustmentKind::Curves),
+    ("Gaussian Blur", AdjustmentKind::GaussianBlur),
+    ("Sharpen", AdjustmentKind::Sharpen),
 ];
 
 #[derive(Debug)]

@@ -3,15 +3,16 @@
 //! a mask (inverted too), only inside its selection and never on what was painted after it;
 //! preview frames evaluated incrementally on one target end equal to the committed artwork
 //! reloaded and evaluated cold; after an adjustment, a stroke and their undo, incremental
-//! equals cold.
+//! equals cold. Gaussian Blur and Sharpen (S33) take the same preview path.
 
 mod gpu;
 
 use std::sync::Arc;
 
 use openpaint_core::{
-    Adjustment, Artwork, ArtworkCommand, BrushRecipe, CanvasPoint, CanvasSize, Color, Curves, Hsb,
-    LayerId, MaskCommand, RegionMask, StrokeSample, StrokeStyle, ToneChannel, ToneCurve,
+    Adjustment, Artwork, ArtworkCommand, Blur, BrushRecipe, CanvasPoint, CanvasSize, Color, Curves,
+    Hsb, LayerId, MaskCommand, RegionMask, Sharpen, StrokeSample, StrokeStyle, ToneChannel,
+    ToneCurve,
 };
 use openpaint_render::{
     CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, RgbaImage, changed_regions,
@@ -204,6 +205,9 @@ fn steps() -> Vec<Adjustment> {
         red_curve_halved(),
         Adjustment::Curves(Curves::default().with(ToneChannel::Composite, lifted)),
         hsb(0.55, 0.9, 0.35),
+        Adjustment::Blur(Blur::new(2.5)),
+        Adjustment::Sharpen(Sharpen::new(0.6)),
+        Adjustment::Blur(Blur::new(7.0)),
     ]
 }
 

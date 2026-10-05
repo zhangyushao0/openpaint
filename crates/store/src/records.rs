@@ -41,8 +41,9 @@
 //! 7 (S18) had fills only, without a kind; schema 8 (S20) had no smudge in its strokes or its
 //! toolbox; schema 9 (S21) had no clipping, blend or group in its heads; schema 10 (S23) had
 //! no masks; schema 11 (S24) had no adjustment records (edit kind 2); schema 12 (S28) had no
-//! transform records without pixels (edit kind 3); `migrate.rs` and `migrate_6.rs` to
-//! `migrate_13.rs` upgrade them.
+//! transform records without pixels (edit kind 3); schema 13 (S31) had no blur or sharpening
+//! in its adjustments; `migrate.rs` and `migrate_6.rs` to
+//! `migrate_14.rs` upgrade them.
 
 use openpaint_app::{PortError, ProjectId};
 use openpaint_core::{Artwork, BlendMode, GroupParts, LayerMaskParts, LayerParts};
@@ -53,7 +54,7 @@ pub(crate) use crate::strokes::{
 };
 
 /// The schema this build writes and the newest it reads.
-pub const SCHEMA: u32 = 13;
+pub const SCHEMA: u32 = 14;
 
 pub(crate) const LIBRARY: &str = "library";
 pub(crate) const PROJECTS: &str = "projects";

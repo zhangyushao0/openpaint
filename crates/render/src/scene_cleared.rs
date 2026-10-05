@@ -3,15 +3,16 @@
 //! again would list that content twice per record, nested: 2^n times for n records (measured:
 //! 13 items, then 30, 64, ... 4,348 after eight nudges). But a selection's record first clears
 //! its selection, so an item of one level that lies wholly inside a later selection of the same
-//! level shows nowhere, unless a smudge between reads it or a record of the whole layer
-//! between moves that selection's frame: such items are left out, an earlier record's moved
-//! content too, judged by where that content can lie (`extents`). Nudging the same selection
-//! n times then lists its content about n times.
+//! level shows nowhere, unless a smudge or a filter between reads it or a record of the whole
+//! layer between moves that selection's frame: such items are left out, an earlier record's
+//! moved content too, judged by where that content can lie (`extents`). Nudging the same
+//! selection n times then lists its content about n times.
 
 use openpaint_core::{RegionEdit, RegionMask, Stroke, StrokeList, StrokeTool};
 
 use crate::affine::Affine;
 use crate::edits::{edit_rect, mask_bounds, moved_rect, placed_rect};
+use crate::filter::{self, kernel_of};
 use crate::geom::Bounds;
 use crate::smudge::smudge_reach;
 use crate::stroke::segments;
@@ -70,6 +71,13 @@ fn follow(alive: &mut Vec<Alive>, edit: &RegionEdit, canvas: [u32; 2]) -> Option
     let Some(transform) = edit.transform() else {
         if let Some(fill) = edit.fill() {
             alive.push(Alive::at(widened(mask_bounds(fill.mask()))));
+        }
+        if let Some(reach) = filter_reach(edit) {
+            // A filter spreads what is there by its kernel's reach.
+            for item in alive.iter_mut() {
+                let Bounds([x0, y0, x1, y1]) = item.now();
+                *item = Alive::at(Bounds([x0 - reach, y0 - reach, x1 + reach, y1 + reach]));
+            }
         }
         return None;
     };
@@ -165,6 +173,10 @@ impl Cleared {
                         let [x0, y0] = rect.min.map(|v| v as f32);
                         let [x1, y1] = rect.max.map(|v| v as f32 - 1.0);
                         cleared.edits[next][0] = hidden(&lifts, Bounds([x0, y0, x1, y1]));
+                        if filter_reach(edit).is_some() {
+                            // A filter reads its neighbours, as a smudge does.
+                            lifts.clear();
+                        }
                     }
                 }
             }
@@ -234,6 +246,12 @@ fn full(words: &[u32], from: u32, to: u32) -> bool {
         x += span;
     }
     true
+}
+
+/// How far a filter edit spreads content, in pixels; `None` for other edits.
+fn filter_reach(edit: &RegionEdit) -> Option<f32> {
+    let adjust = edit.adjust()?;
+    kernel_of(adjust.adjustment()).map(|(sigma, _)| filter::reach(sigma) as f32)
 }
 
 fn widened(Bounds([x0, y0, x1, y1]): Bounds) -> Bounds {

@@ -8,6 +8,8 @@ mod deposit;
 mod erase;
 mod fill;
 mod fill_edges;
+mod filter_reference;
+mod filters;
 mod fixture;
 mod golden;
 mod groups;

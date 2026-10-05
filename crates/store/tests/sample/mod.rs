@@ -14,10 +14,12 @@ mod dump;
 mod editor;
 mod schema_12;
 mod schema_13;
+mod schema_14;
 pub use dump::{decode, encode};
 pub use editor::{sample_editor, sample_editor_6, sample_editor_9, upgraded_editor};
 pub use schema_12::schema_12_parts;
-pub use schema_13::parts;
+pub use schema_13::schema_13_parts;
+pub use schema_14::parts;
 
 pub type Records = Vec<(String, Vec<u8>, Vec<u8>)>;
 

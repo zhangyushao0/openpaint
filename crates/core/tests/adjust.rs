@@ -105,3 +105,37 @@ fn every_adjustment_starts_as_none() {
             .all(|lut| lut.iter().enumerate().all(|(i, v)| usize::from(*v) == i))
     );
 }
+
+#[test]
+fn blur_and_sharpen_are_adjustment_records_whose_values_are_checked() {
+    use openpaint_core::{Blur, Sharpen};
+    for kind in [AdjustmentKind::GaussianBlur, AdjustmentKind::Sharpen] {
+        let none = Adjustment::none(kind);
+        assert!(none.is_none());
+        assert_eq!(none.kind(), kind);
+    }
+    assert_eq!(Blur::new(f32::NAN), Blur::NONE);
+    assert_eq!(Blur::new(99.0).radius, Blur::MAX_RADIUS);
+    assert_eq!(Sharpen::new(-1.0), Sharpen::NONE);
+    let artwork = Artwork::new(canvas())
+        .adjust_region(None, Adjustment::Blur(Blur::new(4.5)))
+        .expect("blurred")
+        .artwork
+        .adjust_region(None, Adjustment::Sharpen(Sharpen::new(0.25)))
+        .expect("sharpened")
+        .artwork;
+    let parts = artwork.to_parts();
+    let loaded = Artwork::from_storage(parts.clone()).expect("loads");
+    assert_eq!(loaded.to_parts(), parts);
+    for (at, value) in [
+        (0, AdjustmentParts::Blur(40.0)),
+        (1, AdjustmentParts::Sharpen(1.5)),
+    ] {
+        let mut bad = parts.clone();
+        let EditParts::Adjust(adjust) = &mut bad.layers[0].edits[at] else {
+            panic!("an adjustment record");
+        };
+        adjust.adjustment = value;
+        assert!(Artwork::from_storage(bad).is_err(), "out of range");
+    }
+}

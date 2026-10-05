@@ -144,10 +144,12 @@ pub(crate) enum Opcode {
     /// The moved content is cut to its selection (or the canvas) where the centre maps back,
     /// then, when set aside, laid over what was set aside.
     EndMove = 13,
+    /// The current layer becomes a filter's result, inside its clip (`protocol_adjust.rs`).
+    Filter = 14,
 }
 
 impl Opcode {
-    const ALL: [Self; 14] = [
+    const ALL: [Self; 15] = [
         Self::Segment,
         Self::EndStroke,
         Self::EndLayer,
@@ -162,6 +164,7 @@ impl Opcode {
         Self::Frame,
         Self::BeginMove,
         Self::EndMove,
+        Self::Filter,
     ];
 
     const fn wgsl_name(self) -> &'static str {
@@ -180,6 +183,7 @@ impl Opcode {
             Self::Frame => "OP_FRAME",
             Self::BeginMove => "OP_BEGIN_MOVE",
             Self::EndMove => "OP_END_MOVE",
+            Self::Filter => "OP_FILTER",
         }
     }
 }
@@ -211,7 +215,7 @@ impl Opcode {
 ///   pixel, rows top first.
 /// - `Smudge`: `[at / 2^16, at % 2^16, locked, active, ..., clip / 2^16, clip % 2^16]`.
 /// - `Adjust`: `[kind, hue, saturation, brightness, on, tables / 2^16, tables % 2^16, ...,
-///   clip / 2^16, clip % 2^16]` (`protocol_adjust.rs`).
+///   clip / 2^16, clip % 2^16]`; `Filter`: `[at / 2^16, at % 2^16, width, height, ..., clip]`.
 /// - `Frame`: `[a, b, c, d, e, f, foot, level]`: ops from here are evaluated at `(a x + b y +
 ///   c, d x + e y + f)` for the centre `(x, y)` on the canvas; `foot` canvas pixels per pixel
 ///   there, `level` its base-2 log. `BeginMove`: none. `EndMove`: `[mask / 2^16, mask % 2^16,

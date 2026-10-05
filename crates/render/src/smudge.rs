@@ -12,6 +12,9 @@
 //! bit equal; on commit the residual moves into the target's arena (`arena.rs`) unchanged. A
 //! residual is derived and owned by its canvas target (D17); it is rebuilt from the artwork
 //! whenever it is missing (another target, a reopened artwork, a redo after it was dropped).
+//!
+//! The residuals share their arena with the filters' results (S33, `filter.rs`), prepared with
+//! them in scene order, as each may read the other's pixels.
 
 mod arena;
 mod dabs;
@@ -20,9 +23,11 @@ mod kernels;
 mod material;
 mod residual;
 
+pub(crate) use arena::{Arena, Key};
 pub(crate) use dabs::smudge_reach;
 pub(crate) use engine::Smudges;
 pub(crate) use kernels::SmudgePipeline;
+pub(crate) use material::Material;
 
 /// Side of a residual tile in nodes (one node per canvas pixel).
 pub(crate) const RESIDUAL_TILE: u32 = 32;

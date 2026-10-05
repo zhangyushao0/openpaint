@@ -12,6 +12,7 @@ use openpaint_core::{
 
 use crate::affine::Affine;
 use crate::error::RenderError;
+use crate::filter::FilterItem;
 use crate::geom::Bounds;
 use crate::protocol::{LayerInto, MASK_HEADER, Op};
 use crate::scene_layer::LayerOps;
@@ -141,10 +142,11 @@ pub(crate) struct Scene {
     /// The transforms' patches in the patch words, in order, and how many words they take.
     pub(crate) patches: Vec<Patch>,
     pub(crate) patch_words: usize,
-    /// The finished smudges, and where in the mask words their residuals' bases are written
-    /// (one word each, in order, after every other word; filled in after the scene is
-    /// uploaded).
+    /// The finished smudges and the filters, and where in the mask words their arena blocks'
+    /// bases are written (one word each, smudges then filters, in order, after every other
+    /// word; filled in after the scene is uploaded).
     pub(crate) smudges: Vec<SmudgeItem>,
+    pub(crate) filters: Vec<FilterItem>,
     pub(crate) bases_at: u32,
     /// While building: the frame the items pushed now lie in (`Item::Frame`).
     pub(crate) frame: (Affine, Option<Bounds>),

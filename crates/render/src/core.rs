@@ -2,6 +2,7 @@
 //! UI framework.
 
 use crate::error::RenderError;
+use crate::filter::FilterPipeline;
 use crate::gpu::Gpu;
 use crate::image::RgbaImage;
 use crate::program::EvaluatePipeline;
@@ -21,6 +22,8 @@ pub struct Core {
     pub(crate) blit_sampler: wgpu::Sampler,
     /// Reduces a canvas target to a gallery thumbnail (`Core::thumbnail`).
     pub(crate) thumbnail: ThumbnailPipeline,
+    /// Filters a layer's pixels into a block of an arena (`filter`).
+    pub(crate) filter: FilterPipeline,
     /// Applies smudge contacts to residuals (`smudge`).
     pub(crate) smudge: SmudgePipeline,
     /// How the blit binds the view tiers (S32), and its group without any.
@@ -37,6 +40,7 @@ impl Core {
         let blit_sampler = blit_sampler(&gpu.device);
         let thumbnail = ThumbnailPipeline::new(&gpu.device);
         let smudge = SmudgePipeline::new(&gpu.device);
+        let filter = FilterPipeline::new(&gpu.device);
         let tiers = TierBindings::new(&gpu.device);
         Ok(Self {
             gpu,
@@ -45,6 +49,7 @@ impl Core {
             blit_sampler,
             thumbnail,
             smudge,
+            filter,
             tiers,
         })
     }

@@ -153,6 +153,9 @@ fn evaluate(
                     layer = over(layer, moves[min(depth, MOVE_DEPTH - 1u)]);
                 }
             }
+            case OP_FILTER: {
+                layer = filtered(layer, point, cell, op);
+            }
             case OP_ADJUST: {
                 layer = adjusted(layer, cell, op);
             }

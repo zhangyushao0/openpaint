@@ -15,6 +15,7 @@ mod error;
 mod evaluator;
 mod export;
 mod fill_edge;
+mod filter;
 mod frame;
 mod geom;
 mod gpu;

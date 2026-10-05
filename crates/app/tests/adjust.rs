@@ -1,7 +1,7 @@
 //! Adjustment intents (S28): each value shows at once as a preview that is no history step,
 //! Apply keeps it as one undoable step, Cancel and undo leave the artwork, another edit keeps
 //! what shows, the selection limits it and the mask takes it when it is the target, and hidden
-//! or locked layers refuse with a notice.
+//! or locked layers refuse with a notice. Gaussian Blur and Sharpen (S33) behave alike.
 
 use openpaint_app::{
     AdjustIntent, AdjustRefusal, AppError, Availability, BrushLibrary, Contact, ContactPhase,
@@ -209,4 +209,39 @@ fn hidden_and_locked_layers_refuse_with_a_notice() {
     assert!(!session.adjusting());
     adjust(&mut session, AdjustIntent::Dismiss);
     assert_eq!(session.projection().adjust().refused, None);
+}
+
+#[test]
+fn blur_and_sharpen_preview_and_apply_as_the_others() {
+    use openpaint_core::{Blur, Sharpen};
+    let mut session = session();
+    let kinds = [
+        (
+            AdjustmentKind::GaussianBlur,
+            Adjustment::Blur(Blur::new(5.0)),
+        ),
+        (
+            AdjustmentKind::Sharpen,
+            Adjustment::Sharpen(Sharpen::new(0.4)),
+        ),
+    ];
+    for (count, (kind, value)) in (1..).zip(kinds) {
+        adjust(&mut session, AdjustIntent::Begin(kind));
+        assert_eq!(edits(session.shown()), count - 1, "nothing changes yet");
+        adjust(&mut session, AdjustIntent::Set(value.clone()));
+        assert_eq!(edits(session.shown()), count, "the preview shows");
+        adjust(&mut session, AdjustIntent::Set(Adjustment::none(kind)));
+        assert_eq!(edits(session.shown()), count - 1, "no change shows nothing");
+        adjust(&mut session, AdjustIntent::Set(value.clone()));
+        adjust(&mut session, AdjustIntent::Apply);
+        let artwork = session.artwork().clone();
+        let edit = artwork.layer(LAYER).expect("layer").edits()[count - 1]
+            .adjust()
+            .cloned();
+        assert_eq!(edit.map(|e| e.adjustment().clone()), Some(value));
+    }
+    session
+        .dispatch(Intent::History(HistoryIntent::Undo))
+        .expect("undo");
+    assert_eq!(edits(session.artwork()), 1, "one step each");
 }

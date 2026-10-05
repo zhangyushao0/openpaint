@@ -3,11 +3,13 @@
 //! like a stroke or a fill: its values, the selection it was made inside and its place among
 //! the layer's strokes (`AdjustEdit`). The evaluator applies it to the layer's content so far
 //! at every evaluation, so incremental equals cold and reopening shows what was applied
-//! (DECISIONS D54). On a mask it acts on the grey the mask shows.
+//! (DECISIONS D54). On a mask it acts on the grey the mask shows. Gaussian Blur and Sharpen
+//! (S33, `filter.rs`) are adjustments too, which read neighbouring pixels.
 
 use crate::artwork::Artwork;
 use crate::command::{Applied, Change};
 use crate::error::CoreError;
+use crate::filter::{Blur, Sharpen};
 use crate::parts::MaskParts;
 use crate::region::{RegionEdit, RegionMask, check_mask, push_edit};
 use crate::tone::ToneCurve;
@@ -18,6 +20,8 @@ use crate::value::{CanvasSize, invalid};
 pub enum AdjustmentKind {
     HueSaturationBrightness,
     Curves,
+    GaussianBlur,
+    Sharpen,
 }
 
 /// An adjustment and its values.
@@ -25,6 +29,8 @@ pub enum AdjustmentKind {
 pub enum Adjustment {
     Hsb(Hsb),
     Curves(Curves),
+    Blur(Blur),
+    Sharpen(Sharpen),
 }
 
 impl Adjustment {
@@ -34,6 +40,8 @@ impl Adjustment {
         match kind {
             AdjustmentKind::HueSaturationBrightness => Self::Hsb(Hsb::NONE),
             AdjustmentKind::Curves => Self::Curves(Curves::default()),
+            AdjustmentKind::GaussianBlur => Self::Blur(Blur::NONE),
+            AdjustmentKind::Sharpen => Self::Sharpen(Sharpen::NONE),
         }
     }
 
@@ -42,6 +50,8 @@ impl Adjustment {
         match self {
             Self::Hsb(_) => AdjustmentKind::HueSaturationBrightness,
             Self::Curves(_) => AdjustmentKind::Curves,
+            Self::Blur(_) => AdjustmentKind::GaussianBlur,
+            Self::Sharpen(_) => AdjustmentKind::Sharpen,
         }
     }
 
@@ -51,6 +61,8 @@ impl Adjustment {
         match self {
             Self::Hsb(hsb) => *hsb == Hsb::NONE,
             Self::Curves(curves) => curves.is_identity(),
+            Self::Blur(blur) => blur.radius == 0.0,
+            Self::Sharpen(sharpen) => sharpen.amount == 0.0,
         }
     }
 }
@@ -207,6 +219,8 @@ impl AdjustEdit {
             Adjustment::Curves(curves) => {
                 AdjustmentParts::Curves(curves.all().map(|curve| curve.points().to_vec()))
             }
+            Adjustment::Blur(blur) => AdjustmentParts::Blur(blur.radius),
+            Adjustment::Sharpen(sharpen) => AdjustmentParts::Sharpen(sharpen.amount),
         };
         AdjustParts {
             after: self.after as u64,
@@ -240,6 +254,15 @@ impl AdjustEdit {
                     blue: curve(&points[3])?,
                 })
             }
+            AdjustmentParts::Blur(radius) if (0.0..=Blur::MAX_RADIUS).contains(radius) => {
+                Adjustment::Blur(Blur::new(*radius))
+            }
+            AdjustmentParts::Sharpen(amount) if (0.0..=1.0).contains(amount) => {
+                Adjustment::Sharpen(Sharpen::new(*amount))
+            }
+            AdjustmentParts::Blur(_) | AdjustmentParts::Sharpen(_) => {
+                return Err(invalid("adjustment"));
+            }
         };
         Ok(Self {
             after: usize::try_from(parts.after).map_err(|_| invalid("adjustment place"))?,
@@ -266,6 +289,10 @@ pub enum AdjustmentParts {
     Hsb([f32; 3]),
     /// The points of the composite, red, green and blue curves.
     Curves([Vec<[f32; 2]>; 4]),
+    /// A Gaussian blur's radius in canvas pixels.
+    Blur(f32),
+    /// Sharpening's amount.
+    Sharpen(f32),
 }
 
 impl Artwork {

@@ -144,18 +144,28 @@ fn reached(changed: &[PixelRect], scale: u32) -> BTreeSet<[u32; 2]> {
     tiles
 }
 
+/// At 2x, 4x and 8x every tile of `artwork`'s tier equals the export at that scale.
+fn tiles_are_the_export(core: &Core, artwork: &Artwork) {
+    for (zoom, scale) in [(2.2, 2), (3.7, 4), (7.0, 8)] {
+        let mut screen = Screen::new(core, artwork);
+        let view = frame(zoom, [150.0, 110.0]);
+        screen.settle(core, artwork, &view);
+        assert_eq!(screen.view.tier(), Some(scale));
+        let compared = screen.assert_tiles(core, &whole(core, artwork, scale), scale);
+        assert!(compared >= 4, "{compared} tiles at {scale}x");
+    }
+}
+
+#[test]
+fn a_filtered_tier_tile_is_the_export_at_its_scale_bit_for_bit() {
+    tiles_are_the_export(&core(), &crate::filters::filtered());
+}
+
 #[test]
 fn a_tier_tile_is_the_export_at_its_scale_bit_for_bit() {
     let core = core();
     let artwork = every_source();
-    for (zoom, scale) in [(2.2, 2), (3.7, 4), (7.0, 8)] {
-        let mut screen = Screen::new(&core, &artwork);
-        let view = frame(zoom, [150.0, 110.0]);
-        screen.settle(&core, &artwork, &view);
-        assert_eq!(screen.view.tier(), Some(scale));
-        let compared = screen.assert_tiles(&core, &whole(&core, &artwork, scale), scale);
-        assert!(compared >= 4, "{compared} tiles at {scale}x");
-    }
+    tiles_are_the_export(&core, &artwork);
     // At or below about one screen pixel per canvas pixel the canvas itself shows.
     let mut screen = Screen::new(&core, &artwork);
     let fit = frame(1.3, [160.0, 100.0]);

@@ -15,21 +15,22 @@ use crate::scene::Scene;
 
 #[path = "program_layout.rs"]
 mod layout;
-use layout::{buffer_entry, texture_entry};
+use layout::{buffer_entry, texture_entry, workgroups};
 
 const SHADER: &str = include_str!("shaders/evaluate.wgsl");
 const DEPOSIT: &str = include_str!("shaders/deposit.wgsl");
 const SMUDGE: &str = include_str!("shaders/smudge_composite.wgsl");
 const ADJUST: &str = include_str!("shaders/adjust.wgsl");
 const FILL_EDGE: &str = include_str!("shaders/fill_edge.wgsl");
+const FILTER: &str = include_str!("shaders/filter_composite.wgsl");
 /// The in-progress stroke's coverage (or density) and paper contact textures: one float per
 /// canvas pixel each.
 pub(crate) const COVERAGE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::R32Float;
 
 /// The protocol prelude followed by the evaluator, its accumulating deposits, its smudges, its
-/// adjustments and its fill edges.
+/// adjustments, its fill edges and its filters.
 pub(crate) fn shader_source() -> String {
-    prelude() + SHADER + DEPOSIT + SMUDGE + ADJUST + FILL_EDGE
+    prelude() + SHADER + DEPOSIT + SMUDGE + ADJUST + FILL_EDGE + FILTER
 }
 
 /// What one dispatch evaluates.
@@ -378,23 +379,4 @@ fn buffer<R: Record>(gpu: &Gpu, usage: wgpu::BufferUsages, records: &[R]) -> wgp
             contents: &contents,
             usage,
         })
-}
-
-/// Tiles laid out as rows of workgroups, each row at most the device's per-dimension limit.
-struct Workgroups {
-    tiles: u32,
-    row: u32,
-    rows: u32,
-}
-
-fn workgroups(gpu: &Gpu, tiles: usize) -> Result<Workgroups, RenderError> {
-    let limit = gpu.device.limits().max_compute_workgroups_per_dimension;
-    let too_many = RenderError::Invalid("too many tiles for one evaluation");
-    let tiles = u32::try_from(tiles).map_err(|_| too_many.clone())?;
-    let row = tiles.clamp(1, limit);
-    let rows = tiles.div_ceil(row);
-    if rows > limit {
-        return Err(too_many);
-    }
-    Ok(Workgroups { tiles, row, rows })
 }

@@ -7,7 +7,7 @@ use super::schema_12_parts;
 /// The schema-12 sample with what schema 13 adds, transform records without pixels: on the ink
 /// layer's paint, after its dot and eraser stroke, a selection scaled up three times and
 /// turned, then the whole layer moved and mirrored.
-pub fn parts() -> ArtworkParts {
+pub fn schema_13_parts() -> ArtworkParts {
     let mut parts = schema_12_parts();
     let ink = &mut parts.layers[1].edits;
     ink.push(EditParts::Transform(TransformParts {

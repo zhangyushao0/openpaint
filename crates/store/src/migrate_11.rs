@@ -118,6 +118,7 @@ mod tests {
         assert_eq!(key, &head_key(ProjectId::new(1)));
         let head = crate::migrate::remarked(head, 11, 12).expect("marked 11");
         let head = crate::migrate::remarked(&head, 12, 13).expect("marked 12");
+        let head = crate::migrate::remarked(&head, 13, 14).expect("marked 13");
         let head = decode_head(&head).expect("a schema-11 head");
         assert!(!head.on_mask);
         assert_eq!((head.width, head.active, head.next_stroke_id), (64, 2, 9));

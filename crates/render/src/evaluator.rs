@@ -7,6 +7,7 @@ use crate::active::ActiveTrack;
 use crate::affine::Affine;
 use crate::core::Core;
 use crate::error::RenderError;
+use crate::filter::Filters;
 use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
 use crate::image::RgbaImage;
@@ -18,9 +19,8 @@ use crate::scene::{ActivePlace, Fresh, Scene};
 use crate::screen::{VIEW_BYTES, blit_bind_group, selection_texture};
 use crate::smudge::Smudges;
 
-/// An 8-bit RGBA texture holding the canvas at one target pixel per canvas pixel. It keeps its
-/// pixels between evaluations, so later evaluations update only the regions that changed. It
-/// also keeps the in-progress stroke's coverage so far and the last scene's ops on the GPU.
+/// An 8-bit RGBA texture holding the canvas at one target pixel per canvas pixel, kept between
+/// evaluations so later ones update only what changed, with the in-progress stroke's coverage.
 pub struct CanvasTarget {
     texture: wgpu::Texture,
     /// Binds the texture and the view for showing it on screen (`CanvasBlit`).
@@ -32,8 +32,9 @@ pub struct CanvasTarget {
     scene: Option<SceneCache>,
     /// The selection the screen shows over the canvas (`show_selection`).
     selection: Option<RegionMask>,
-    /// The smudges' residuals the scene draws (D46).
+    /// The smudges' residuals and the filters' results the scene draws (D46, D59).
     smudges: Smudges,
+    filters: Filters,
     /// The canvas pixels evaluations changed since a view cache last took them (S32).
     changed: Vec<PixelRect>,
 }
@@ -85,6 +86,7 @@ impl CanvasTarget {
             scene: None,
             selection: None,
             smudges: Smudges::new(core),
+            filters: Filters::default(),
             changed: Vec::new(),
         })
     }
@@ -195,7 +197,8 @@ impl CanvasTarget {
                 same.then(|| cache.ops.patches.clone())
             });
             let ops = scene_ops(&core.gpu, &scene, patches);
-            self.smudges.prepare(core, (&scene, &ops), artwork)?;
+            let (smudges, filters) = (&mut self.smudges, &mut self.filters);
+            smudges.prepare(core, (&scene, &ops), artwork, filters)?;
             self.scene = Some(SceneCache {
                 artwork: artwork.clone(),
                 active,
@@ -311,7 +314,8 @@ impl<'a> RegionEvaluator<'a> {
         self.target.track.forget();
         let smudges = &mut self.target.smudges;
         smudges.end_active();
-        smudges.prepare(self.core, (&scene, &ops), artwork)?;
+        let filters = &mut self.target.filters;
+        smudges.prepare(self.core, (&scene, &ops), artwork, filters)?;
         self.core.evaluate.dispatch(
             &self.core.gpu,
             &mut self.target.bindings,

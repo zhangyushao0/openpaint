@@ -17,6 +17,7 @@ use super::residual::{Working, words_buffer};
 use crate::affine::Affine;
 use crate::core::Core;
 use crate::error::RenderError;
+use crate::filter::Filters;
 use crate::geom::PixelRect;
 use crate::program::SceneOps;
 use crate::protocol::encode;
@@ -87,76 +88,108 @@ impl Smudges {
         self.active = None;
     }
 
-    /// Makes every smudge of `scene` (built from `artwork`, uploaded as `ops`) present in the
-    /// arena, in scene order, and writes where each block starts into the scene's base words. A
-    /// just committed smudge takes over the in-progress residual when it is that stroke on the
-    /// same layer content.
+    /// Makes every smudge and filter of `scene` (built from `artwork`, uploaded as `ops`)
+    /// present in the arena, in scene order, and writes where each block starts into the
+    /// scene's base words. A just committed smudge takes over the in-progress residual when it
+    /// is that stroke on the same layer content.
     ///
     /// # Errors
-    /// `Admission` when the residuals exceed what the device binds; `Invalid` for a canvas the
+    /// `Admission` when the blocks exceed what the device binds; `Invalid` for a canvas the
     /// device cannot hold.
     pub(crate) fn prepare(
         &mut self,
         core: &Core,
         (scene, ops): (&Scene, &SceneOps),
         artwork: &Artwork,
+        filters: &mut Filters,
     ) -> Result<(), RenderError> {
-        let live: HashSet<Key> = scene
+        let mut keys: Vec<Key> = scene
             .smudges
             .iter()
             .map(|item| key(item.layer, &item.stroke))
             .collect();
+        keys.extend(filters.keys(&scene.filters));
+        let live: HashSet<Key> = keys.iter().copied().collect();
+        let limit = binding_limit(core);
         let size = [artwork.canvas().width(), artwork.canvas().height()];
-        for (index, item) in scene.smudges.iter().enumerate() {
-            let key = key(item.layer, &item.stroke);
-            if self.arena.base(&key).is_some() {
+        let smudges = scene.smudges.iter().map(|item| item.item);
+        let mut order: Vec<(usize, usize)> = smudges
+            .chain(scene.filters.iter().map(|item| item.item))
+            .enumerate()
+            .map(|(index, item)| (item, index))
+            .collect();
+        order.sort_unstable();
+        // The blocks already present, for the materials evaluated below to read.
+        self.write_bases(core, ops, scene.bases_at, &keys);
+        for (_, index) in order {
+            if self.arena.base(&keys[index]).is_some() {
                 continue;
             }
-            let adopted = self.active.take_if(|active| active.adopts(item, artwork));
-            let run = match adopted {
-                Some(mut active) => {
-                    let mut new = Vec::new();
-                    let samples = item.stroke.samples();
-                    active.walker.advance(&active.style, samples, &mut new);
-                    let range = (item.before.clone(), item.to_canvas);
-                    self.tools.extend(
-                        core,
-                        (scene, ops, range),
-                        &self.arena,
-                        &mut active.run,
-                        &new,
-                    )?;
-                    active.run
-                }
+            match scene.smudges.get(index) {
+                Some(item) => self.prepare_smudge(core, (scene, ops), artwork, item, &live)?,
                 None => {
-                    let mut run = self.tools.run(core, size);
-                    let all = dabs(item.stroke.style(), item.stroke.samples());
-                    let range = (item.before.clone(), item.to_canvas);
-                    self.tools
-                        .extend(core, (scene, ops, range), &self.arena, &mut run, &all)?;
-                    run
+                    let item = &scene.filters[index - scene.smudges.len()];
+                    let material = material(&mut self.tools.material, core, size)?;
+                    let tools = (&mut self.arena, material, &self.tools.empty);
+                    let place = (item, keys[index]);
+                    filters.prepare(core, (scene, ops), place, tools, (&live, limit))?;
+                    // The material holds the filter's pixels now.
+                    self.tools.owner = 0;
                 }
-            };
-            let limit = binding_limit(core);
-            self.arena
-                .place(&core.gpu, (key, &item.stroke), &run.working, (&live, limit))?;
-            self.write_bases(core, scene, ops, index + 1);
+            }
+            self.write_bases(core, ops, scene.bases_at, &keys);
         }
-        self.write_bases(core, scene, ops, scene.smudges.len());
+        self.write_bases(core, ops, scene.bases_at, &keys);
+        filters.retain(&self.arena);
         Ok(())
     }
 
-    /// Where the first `count` smudges' blocks start, into the scene's base words.
-    fn write_bases(&self, core: &Core, scene: &Scene, ops: &SceneOps, count: usize) {
-        let bases: Vec<u32> = scene.smudges[..count]
+    /// A finished smudge's residual, from the in-progress one when it adopts it, else cold.
+    fn prepare_smudge(
+        &mut self,
+        core: &Core,
+        (scene, ops): (&Scene, &SceneOps),
+        artwork: &Artwork,
+        item: &SmudgeItem,
+        live: &HashSet<Key>,
+    ) -> Result<(), RenderError> {
+        let size = [artwork.canvas().width(), artwork.canvas().height()];
+        let range = (item.before.clone(), item.to_canvas);
+        let adopted = self.active.take_if(|active| active.adopts(item, artwork));
+        let run = match adopted {
+            Some(mut active) => {
+                let mut new = Vec::new();
+                let samples = item.stroke.samples();
+                active.walker.advance(&active.style, samples, &mut new);
+                let scene = (scene, ops, range);
+                self.tools
+                    .extend(core, scene, &self.arena, &mut active.run, &new)?;
+                active.run
+            }
+            None => {
+                let mut run = self.tools.run(core, size);
+                let all = dabs(item.stroke.style(), item.stroke.samples());
+                let scene = (scene, ops, range);
+                self.tools
+                    .extend(core, scene, &self.arena, &mut run, &all)?;
+                run
+            }
+        };
+        let limit = binding_limit(core);
+        let key = key(item.layer, &item.stroke);
+        self.arena
+            .place(&core.gpu, (key, &item.stroke), &run.working, (live, limit))
+    }
+
+    /// Where each block of `keys` starts (0 while missing), into the scene's base words from
+    /// `at`.
+    fn write_bases(&self, core: &Core, ops: &SceneOps, at: u32, keys: &[Key]) {
+        let bases: Vec<u32> = keys
             .iter()
-            .map(|item| {
-                let base = self.arena.base(&key(item.layer, &item.stroke));
-                u32::try_from(base.unwrap_or(0)).unwrap_or(0)
-            })
+            .map(|key| u32::try_from(self.arena.base(key).unwrap_or(0)).unwrap_or(0))
             .collect();
         if !bases.is_empty() {
-            let at = u64::from(scene.bases_at) * 4;
+            let at = u64::from(at) * 4;
             core.gpu.queue.write_buffer(&ops.masks, at, &encode(&bases));
         }
     }
@@ -338,4 +371,17 @@ fn binding_limit(core: &Core) -> u64 {
     limits
         .max_storage_buffer_binding_size
         .min(limits.max_buffer_size)
+}
+
+/// The material texture in `slot`, for a canvas of `size` pixels, made on first use.
+fn material<'a>(
+    slot: &'a mut Option<Material>,
+    core: &Core,
+    size: [u32; 2],
+) -> Result<&'a mut Material, RenderError> {
+    if slot.is_none() {
+        *slot = Some(Material::new(core, size)?);
+    }
+    slot.as_mut()
+        .ok_or(RenderError::Invalid("no material texture"))
 }
