@@ -14,6 +14,7 @@ use crate::error::RenderError;
 use crate::filter::FilterItem;
 use crate::geom::Bounds;
 use crate::protocol::{LayerInto, MASK_HEADER, Op};
+use crate::scene_adjust::AdjustItem;
 use crate::scene_layer::LayerOps;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -100,6 +101,17 @@ impl Item {
             Self::Active | Self::Reach(_) => Op::unused(),
         }
     }
+
+    /// Where it can reach, for the items that carry bounds.
+    pub(crate) const fn bounds(&self) -> Option<Bounds> {
+        match self {
+            Self::Segment { bounds, .. }
+            | Self::Fill { bounds, .. }
+            | Self::Clear { bounds, .. }
+            | Self::Reach(bounds) => Some(*bounds),
+            _ => None,
+        }
+    }
 }
 
 /// A finished smudge the scene draws, in scene order: its residual must be in the target's
@@ -145,6 +157,8 @@ pub(crate) struct Scene {
     /// word; filled in after the scene is uploaded).
     pub(crate) smudges: Vec<SmudgeItem>,
     pub(crate) filters: Vec<FilterItem>,
+    /// The point adjustments, in scene order (S35: a preview changes their values in place).
+    pub(crate) adjusts: Vec<AdjustItem>,
     pub(crate) bases_at: u32,
     /// While building: the frame the items pushed now lie in (`Item::Frame`).
     pub(crate) frame: (Affine, Option<Bounds>),

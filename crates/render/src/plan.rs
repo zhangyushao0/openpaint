@@ -4,6 +4,7 @@
 //! on which regions are evaluated together: incremental evaluation equals cold evaluation.
 
 use std::ops::Range;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::affine::Affine;
 use crate::geom::PixelRect;
@@ -20,7 +21,14 @@ pub(crate) struct Plan {
     pub(crate) indices: Vec<u32>,
     /// The most moved selections any tile sets aside at once (`MOVE_DEPTH` at most).
     pub(crate) deepest: u32,
+    /// Names this plan among every plan built, so a dispatch uploads a kept one once (0: none).
+    pub(crate) serial: u64,
+    /// Per tile of a resuming plan, whether it resumes the previewed layer (`resuming`).
+    pub(crate) resumed: Vec<bool>,
 }
+
+/// The last `Plan::serial` given.
+static SERIAL: AtomicU64 = AtomicU64::new(0);
 
 impl Plan {
     /// Regions (target pixels) are clipped to the target of `size` pixels, which lies at
@@ -35,6 +43,69 @@ impl Plan {
         regions: &[PixelRect],
     ) -> Self {
         Self::laid_out(scene, fresh, (size, Layout::Linear(output)), regions)
+    }
+
+    /// As `build` with no in-progress stroke, the items `prefix` (one layer's ops before a
+    /// previewed adjustment, with no transform record among them, S35) given in every tile
+    /// they reach by the evaluation's fresh op 0 instead (`OP_RESUME`: their pixels from the
+    /// snapshot one evaluation of them kept). Where they reach nothing the layer held nothing
+    /// there, in either plan, so both give every pixel the same value.
+    pub(crate) fn resuming(
+        scene: &Scene,
+        (size, output): ([u32; 2], Output),
+        regions: &[PixelRect],
+        prefix: Range<usize>,
+    ) -> Self {
+        let grid = Grid::new(size, Layout::Linear(output), regions);
+        let mut binner = Binner::new(&grid, None);
+        binner.resume =
+            Some([prefix.start, prefix.end].map(|i| u32::try_from(i).unwrap_or(u32::MAX)));
+        let (lists, deepest) = binner.bin(&scene.items, 0, &Fresh::default());
+        let resumed = lists.iter().map(|list| list.contains(&FRESH)).collect();
+        let mut plan = Self::flatten(&grid, lists, deepest);
+        plan.resumed = resumed;
+        plan
+    }
+
+    /// The tiles of a resuming plan within `by` tiles (each way) of one that resumes the
+    /// previewed layer: where its adjustment can change a pixel when it spreads up to `by`
+    /// tiles (a filter's reach); elsewhere the layer held nothing before it and holds nothing
+    /// after, at either value.
+    pub(crate) fn near_resumed(&self, by: u32) -> Vec<TileRecord> {
+        let at = |tile: &TileRecord| tile.origin.map(|v| (v / TILE) as usize);
+        let [columns, rows] = self
+            .tiles
+            .iter()
+            .map(|tile| at(tile).map(|v| v + 1))
+            .fold([0, 0], |a, b| [a[0].max(b[0]), a[1].max(b[1])]);
+        // Resumed tiles counted over every rectangle from the grid's corner.
+        let width = columns + 1;
+        let mut sums = vec![0u32; width * (rows + 1)];
+        for (tile, _) in self.tiles.iter().zip(&self.resumed).filter(|(_, r)| **r) {
+            let [x, y] = at(tile);
+            sums[(y + 1) * width + x + 1] = 1;
+        }
+        for y in 1..=rows {
+            for x in 1..=columns {
+                let cell = y * width + x;
+                sums[cell] += sums[cell - 1] + sums[cell - width] - sums[cell - width - 1];
+            }
+        }
+        let by = by as usize;
+        let count = |[x0, y0]: [usize; 2], [x1, y1]: [usize; 2]| {
+            sums[y1 * width + x1] + sums[y0 * width + x0]
+                - sums[y0 * width + x1]
+                - sums[y1 * width + x0]
+        };
+        self.tiles
+            .iter()
+            .filter(|tile| {
+                let [x, y] = at(tile);
+                let from = [x.saturating_sub(by), y.saturating_sub(by)];
+                count(from, [(x + by + 1).min(columns), (y + by + 1).min(rows)]) > 0
+            })
+            .copied()
+            .collect()
     }
 
     /// As `build`, for a target laid out as `layout` (a view tier's tiles, S32).
@@ -74,6 +145,7 @@ impl Plan {
     fn flatten(grid: &Grid, lists: Vec<Vec<u32>>, deepest: u32) -> Self {
         let mut plan = Self {
             deepest,
+            serial: SERIAL.fetch_add(1, Ordering::Relaxed) + 1,
             ..Self::default()
         };
         for ((origin, output), list) in grid.origins.iter().zip(&grid.outputs).zip(lists) {

@@ -130,7 +130,8 @@ impl Smudges {
                 None => {
                     let item = &scene.filters[index - scene.smudges.len()];
                     let material = material(&mut self.tools.material, core, size)?;
-                    let tools = (&mut self.arena, material, &self.tools.empty);
+                    let held = self.tools.owner == 0;
+                    let tools = (&mut self.arena, material, &self.tools.empty, held);
                     let place = (item, keys[index]);
                     filters.prepare(core, (scene, ops), place, tools, (&live, limit))?;
                     // The material holds the filter's pixels now.

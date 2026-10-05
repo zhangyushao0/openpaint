@@ -57,6 +57,7 @@ pub(super) const LAYOUTS: [Layout; 3] = [
             ("inverse", "f32", offset_of!(Params, inverse)),
             ("base_x", "vec4<f32>", offset_of!(Params, base_x)),
             ("base_y", "vec4<f32>", offset_of!(Params, base_y)),
+            ("snapshot", "vec4<u32>", offset_of!(Params, snapshot)),
         ],
     },
 ];

@@ -24,6 +24,12 @@
 // The target's finished smudge residuals, and the in-progress smudge's (smudge_composite.wgsl).
 @group(0) @binding(11) var<storage, read> arena: array<u32>;
 @group(0) @binding(12) var<storage, read> active_residual: array<u32>;
+// A previewed layer's pixels before its adjustment, at float precision, over the rectangle
+// `params.snapshot` names (S35): written by one evaluation, read by `OP_RESUME` in later ones.
+@group(0) @binding(13) var<storage, read_write> snapshot: array<vec4<f32>>;
+// False for plans in which no tile sets a moved selection's layer aside (`Plan::deepest` 0):
+// the evaluator then holds no stack of what moves set aside (S35, a pipeline of its own).
+override STACKED: bool = true;
 
 // The footprint of one output pixel where the ops are evaluated now (S31: a frame changes it):
 // output pixels per content pixel, its inverse, and the base-2 log of the former.
@@ -165,7 +171,9 @@ fn evaluate(
                 foot_level = params.level + params.base_y.w + op.data[FRAME_LEVEL];
             }
             case OP_BEGIN_MOVE: {
-                moves[min(depth, MOVE_DEPTH - 1u)] = layer;
+                if STACKED {
+                    moves[min(depth, MOVE_DEPTH - 1u)] = layer;
+                }
                 depth += 1u;
                 layer = vec4<f32>(0.0);
             }
@@ -173,7 +181,9 @@ fn evaluate(
                 layer = layer * moved_share(point, cell, op);
                 if op.data[MOVE_ASIDE] > 0.0 {
                     depth -= 1u;
-                    layer = over(layer, moves[min(depth, MOVE_DEPTH - 1u)]);
+                    if STACKED {
+                        layer = over(layer, moves[min(depth, MOVE_DEPTH - 1u)]);
+                    }
                 }
             }
             case OP_FILTER: {
@@ -181,6 +191,12 @@ fn evaluate(
             }
             case OP_ADJUST: {
                 layer = adjusted(layer, cell, op);
+            }
+            case OP_RESUME: {
+                // Exactly what the layer's ops before it left: nothing is held mid-stroke.
+                layer = snapshot[snapshot_at(pixel)];
+                coverage = 0.0;
+                contact = 0.0;
             }
             case OP_BEGIN_MASK: {
                 held = layer;
@@ -227,7 +243,18 @@ fn evaluate(
             default: {}
         }
     }
+    if params.snapshot.w == 1u {
+        // The layer ended at full opacity onto nothing: its own pixels, unrounded.
+        snapshot[snapshot_at(pixel)] = canvas;
+        return;
+    }
     textureStore(canvas_out, pixel, quantized(canvas));
+}
+
+// Where canvas pixel `pixel` lies in the snapshot (inside its rectangle, a whole tile's).
+fn snapshot_at(pixel: vec2<u32>) -> u32 {
+    let local = pixel - params.snapshot.xy;
+    return local.y * params.snapshot.z + local.x;
 }
 
 // What of a transform record's moved content shows at `point` (where the centre maps back

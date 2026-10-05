@@ -267,7 +267,7 @@ mod tests {
 
     /// The chrome pass alone over a surround of `SURROUND`, on a 200 x 160 offscreen screen.
     fn drawn(shapes: ChromeShapes) -> crate::RgbaImage {
-        let core = crate::Core::headless().expect("a GPU adapter is required for render tests");
+        let core = crate::core::test_core();
         let screen = Rect::from_min_size(Pos2::ZERO, egui::vec2(200.0, 160.0));
         let ctx = egui::Context::default();
         // One pass loads the fonts tessellation needs.
@@ -287,11 +287,11 @@ mod tests {
                 pixels_per_point: 1.0,
             },
         };
-        let target = crate::ScreenTarget::new(&core, [200, 160]).expect("screen");
-        let mut painter = crate::ScreenPainter::offscreen(&core);
+        let target = crate::ScreenTarget::new(core, [200, 160]).expect("screen");
+        let mut painter = crate::ScreenPainter::offscreen(core);
         core.render_screen(&mut painter, &target, frame)
             .expect("draw");
-        target.read(&core).expect("readback")
+        target.read(core).expect("readback")
     }
 
     const SURROUND: [u8; 4] = [233, 230, 224, 255];

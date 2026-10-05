@@ -175,21 +175,27 @@ fn a_mask_is_adjusted_in_the_grey_it_shows() {
 }
 
 /// Preview frames of `steps` evaluated incrementally on one target from `base`, as the canvas
-/// shows them; the last one equals the committed artwork reloaded and evaluated cold.
+/// shows them: each equals its version evaluated cold (S35: a run of one adjustment's values
+/// changes the kept scene in place and resumes the layer from its snapshot), and the last one
+/// equals the committed artwork reloaded and evaluated cold.
 fn previews_equal_the_commit(base: &Artwork, clip: Option<&RegionMask>, steps: &[Adjustment]) {
     let core = gpu::core();
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-    let mut evaluator = RegionEvaluator::new(&core, &mut target);
-    evaluator
+    RegionEvaluator::new(&core, &mut target)
         .evaluate(&request(base), &[PixelRect::full(SIZE)])
         .expect("base");
     let mut shown = base.clone();
-    for adjustment in steps {
+    for (index, adjustment) in steps.iter().enumerate() {
         let preview = adjusted(base, clip, adjustment.clone());
         let regions = changed_regions(&shown, &preview);
-        evaluator
+        RegionEvaluator::new(&core, &mut target)
             .evaluate(&request(&preview), &regions)
             .expect("frame");
+        let frame = target.read(&core).expect("frame");
+        assert!(
+            frame == cold(&core, &preview),
+            "frame {index} ({adjustment:?}) = cold"
+        );
         shown = preview;
     }
     let last = target.read(&core).expect("the last preview frame");
@@ -197,17 +203,27 @@ fn previews_equal_the_commit(base: &Artwork, clip: Option<&RegionMask>, steps: &
     assert_eq!(last, cold(&core, &committed), "preview and committed match");
 }
 
+/// Runs of one adjustment's values (a slider moving) between changes of adjustment: blurs at
+/// every reduction (cells of 1, 2 and 4 pixels).
 fn steps() -> Vec<Adjustment> {
     let lifted = ToneCurve::new(&[[0.0, 0.1], [0.4, 0.7], [1.0, 0.9]]).expect("curve");
+    let lowered = ToneCurve::new(&[[0.0, 0.0], [0.5, 0.3], [1.0, 1.0]]).expect("curve");
+    let blur = |radius| Adjustment::Blur(Blur::new(radius));
     vec![
         hsb(0.2, 0.8, 0.6),
         hsb(0.7, 0.3, 0.45),
+        hsb(0.55, 0.9, 0.35),
         red_curve_halved(),
         Adjustment::Curves(Curves::default().with(ToneChannel::Composite, lifted)),
-        hsb(0.55, 0.9, 0.35),
-        Adjustment::Blur(Blur::new(2.5)),
+        Adjustment::Curves(Curves::default().with(ToneChannel::Composite, lowered)),
+        blur(2.5),
+        blur(7.0),
+        blur(20.0),
+        blur(0.0),
+        blur(32.0),
         Adjustment::Sharpen(Sharpen::new(0.6)),
-        Adjustment::Blur(Blur::new(7.0)),
+        Adjustment::Sharpen(Sharpen::new(0.2)),
+        hsb(0.3, 0.5, 0.5),
     ]
 }
 

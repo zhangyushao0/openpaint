@@ -13,7 +13,7 @@ use openpaint_core::{
 use openpaint_render::changed_regions;
 use openpaint_render::{Banding, CanvasTarget, PixelRect, RegionEvaluator};
 
-use crate::filter_reference::{largest, reference};
+use crate::filter_reference::{largest, mean, reference};
 use crate::fixture::{
     SIZE, airbrush, blank, cold, core, diagonal, pixel, plain, request, sample, wave, with_layer,
     with_stroke,
@@ -69,11 +69,30 @@ fn a_blur_is_the_cpu_gaussian_of_the_layer_before_it() {
     let core = core();
     let before = painted();
     let source = core.layer_pixels(&before, LAYER).expect("before");
-    for radius in [0.4, 2.5, 9.0] {
+    // From a deviation of 4 pixels on cells of 2 x 2, from 8 on cells of 4 x 4 (S35).
+    let radii = [
+        (0.4, 1),
+        (2.5, 1),
+        (3.9, 1),
+        (4.0, 2),
+        (6.0, 2),
+        (9.0, 3),
+        (16.0, 3),
+        (32.0, 3),
+    ];
+    for (radius, most) in radii {
         let after = adjusted(&before, None, blur(radius));
         let shown = core.layer_pixels(&after, LAYER).expect("after");
-        let worst = largest(shown.pixels(), &reference(&source, radius, 0.0));
-        assert!(worst <= 1, "radius {radius}: {worst}");
+        let exact = reference(&source, radius, 0.0);
+        let (worst, mean) = (
+            largest(shown.pixels(), &exact),
+            mean(shown.pixels(), &exact),
+        );
+        println!("radius {radius}: largest {worst}, mean {mean:.4}");
+        assert!(
+            worst <= most && mean < 0.1,
+            "radius {radius}: {worst}, {mean}"
+        );
     }
 }
 
@@ -177,7 +196,7 @@ fn a_blur_on_a_mask_blurs_the_grey_it_shows() {
         let after = adjusted(&before, None, blur(4.0));
         let shown = core.mask_pixels(&after, LAYER).expect("after");
         let worst = largest(shown.pixels(), &reference(&source, 4.0, 0.0));
-        assert!(worst <= 1, "inverted {inverted}: {worst}");
+        assert!(worst <= 2, "inverted {inverted}: {worst}");
     }
 }
 
@@ -242,10 +261,11 @@ fn smudge() -> (StrokeStyle, Vec<openpaint_core::StrokeSample>) {
     (style, path)
 }
 
-/// Every filter at work: a blur, a smudge after it, sharpening inside a selection after that,
-/// a stroke on top; a second layer with a whole-layer record over a blur.
+/// Every filter at work: a blur (on cells of 4 x 4 pixels, S35), a smudge after it, sharpening
+/// inside a selection after that, a stroke on top; a second layer with a whole-layer record over
+/// a blur on cells of 2 x 2.
 pub fn filtered() -> Artwork {
-    let blurred = adjusted(&painted(), None, blur(3.0));
+    let blurred = adjusted(&painted(), None, blur(9.0));
     let smudged = with_stroke(&blurred, smudge());
     let selection = region(|x, y| x > 100 && y < 120);
     let sharpened = adjusted(&smudged, Some(selection), sharpen(0.8));
@@ -257,7 +277,7 @@ pub fn filtered() -> Artwork {
             vec![sample(200.0, 40.0, 1.0, 0), sample(300.0, 160.0, 1.0, 8)],
         ),
     );
-    let soft = adjusted(&second, None, blur(2.0));
+    let soft = adjusted(&second, None, blur(5.0));
     let moved = Placement::around([250.0, 100.0], 1.4, 0.3, [false, false]).expect("placement");
     soft.place_region(None, moved).expect("record").artwork
 }

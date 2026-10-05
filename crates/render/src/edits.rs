@@ -16,14 +16,11 @@ use crate::protocol::{Blend, MASK_HEADER, Op, Paint};
 use crate::scene::{EdgeValues, Item, Scene};
 
 impl Scene {
-    /// `edit`'s ops; `on_mask` when it lies on a mask, which an adjustment needs to know.
-    pub(crate) fn push_edit(
-        &mut self,
-        edit: &RegionEdit,
-        on_mask: bool,
-    ) -> Result<(), RenderError> {
+    /// A fill's or a transform's ops.
+    pub(crate) fn push_edit(&mut self, edit: &RegionEdit) -> Result<(), RenderError> {
         match edit {
-            RegionEdit::Adjust(adjust) => self.push_adjust(adjust, on_mask),
+            // Adjustments know their place among the content (`push_adjust`, `push_filter`).
+            RegionEdit::Adjust(_) => Err(RenderError::Invalid("an adjustment has its own place")),
             RegionEdit::Fill(fill) => {
                 let color = fill.color();
                 let blend = if fill.alpha_locked() {

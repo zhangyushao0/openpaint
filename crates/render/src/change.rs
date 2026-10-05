@@ -5,6 +5,7 @@
 use openpaint_core::{Artwork, RegionEdit, StrokeList};
 
 use crate::edits::{edit_rect, moved_rect, placed_rect};
+use crate::filter::{MAX_EXTENT, kernel_of};
 use crate::geom::PixelRect;
 use crate::stroke::segment_regions;
 
@@ -35,11 +36,8 @@ pub fn changed_regions(before: &Artwork, after: &Artwork) -> Vec<PixelRect> {
             None => return full,
         }
         let size = [canvas.width(), canvas.height()];
-        regions.extend(edit_regions(
-            size,
-            old.edits(),
-            (new.strokes(), new.edits()),
-        ));
+        let paint = ((old.strokes(), old.edits()), (new.strokes(), new.edits()));
+        regions.extend(edit_regions((size, false), paint.0, paint.1));
         match (old.mask(), new.mask()) {
             (None, None) => {}
             // Strokes and fills on a mask count as a layer's; a mask added, deleted, enabled,
@@ -50,7 +48,8 @@ pub fn changed_regions(before: &Artwork, after: &Artwork) -> Vec<PixelRect> {
                     None => return full,
                 }
                 let size = [canvas.width(), canvas.height()];
-                regions.extend(edit_regions(size, a.edits(), (b.strokes(), b.edits())));
+                let mask = ((a.strokes(), a.edits()), (b.strokes(), b.edits()));
+                regions.extend(edit_regions((size, true), mask.0, mask.1));
             }
             _ => return full,
         }
@@ -62,14 +61,15 @@ pub fn changed_regions(before: &Artwork, after: &Artwork) -> Vec<PixelRect> {
 /// its own rectangle (`edit_rect`), wherever it lies among the strokes, so an edit added,
 /// undone or swapped for another (a preview changing) costs only those rectangles. A
 /// transform that only moved (a transform being dragged) costs where its content showed and
-/// where it shows: for a record, the content `b` (strokes, edits) had before it.
+/// where it shows: for a record, the content `b` (strokes, edits) had before it. On a mask
+/// (`on_mask`) an adjustment reaches its clip or the canvas; on paint see `edit_reach`.
 fn edit_regions(
-    canvas: [u32; 2],
-    a: &[RegionEdit],
+    (canvas, on_mask): ([u32; 2], bool),
+    (old_strokes, all_a): (&StrokeList, &[RegionEdit]),
     (strokes, b): (&StrokeList, &[RegionEdit]),
 ) -> Vec<PixelRect> {
-    let common = a.iter().zip(b).take_while(|(x, y)| x.same(y)).count();
-    let (a, rest) = (&a[common..], &b[common..]);
+    let common = all_a.iter().zip(b).take_while(|(x, y)| x.same(y)).count();
+    let (a, rest) = (&all_a[common..], &b[common..]);
     if let ([RegionEdit::Transform(x)], [RegionEdit::Transform(y)]) = (a, rest) {
         let lift = match (x.lift(), y.lift()) {
             (Some(p), Some(q)) => p.shares(q),
@@ -96,10 +96,55 @@ fn edit_regions(
             ];
         }
     }
-    a.iter()
-        .chain(rest)
-        .map(|edit| edit_rect(canvas, edit))
-        .collect()
+    let reach = |(strokes, edits): (&StrokeList, &[RegionEdit]), index| {
+        edit_reach((canvas, on_mask), (strokes, edits), index)
+    };
+    let old = (common..all_a.len()).map(|index| reach((old_strokes, all_a), index));
+    let new = (common..b.len()).map(|index| reach((strokes, b), index));
+    old.chain(new).collect()
+}
+
+/// What the edit at `index` of `edits` can change: its `edit_rect`; but an adjustment without a
+/// clip, on paint, over content no transform record moves, only where the content before it
+/// lies (S35: transparent paint stays so), widened by a filter's longest reach. The scene
+/// bounds its op alike (`scene_adjust.rs`), within this.
+fn edit_reach(
+    (canvas, on_mask): ([u32; 2], bool),
+    (strokes, edits): (&StrokeList, &[RegionEdit]),
+    index: usize,
+) -> PixelRect {
+    let edit = &edits[index];
+    let rect = edit_rect(canvas, edit);
+    let Some(adjust) = edit.adjust().filter(|adjust| adjust.clip().is_none()) else {
+        return rect;
+    };
+    if on_mask || edits.iter().any(|edit| edit.transform().is_some()) {
+        return rect;
+    }
+    let content = strokes
+        .iter()
+        .take(adjust.after())
+        .flat_map(|stroke| segment_regions(stroke.style(), stroke.samples()))
+        .chain(edits[..index].iter().map(|edit| edit_rect(canvas, edit)))
+        .filter(|rect| !rect.is_empty())
+        .reduce(|all, next| all.union(&next));
+    // Over nothing it changes nothing.
+    let Some(content) = content else {
+        return PixelRect {
+            min: [0, 0],
+            max: [0, 0],
+        };
+    };
+    let reach = if kernel_of(adjust.adjustment()).is_some() {
+        MAX_EXTENT as i32
+    } else {
+        0
+    };
+    let widened = PixelRect {
+        min: content.min.map(|v| v - reach),
+        max: content.max.map(|v| v + reach),
+    };
+    widened.intersect(&PixelRect::full(canvas))
 }
 
 /// Where the first `after` strokes and `edits` can have painted, as `[x0, y0, x1, y1]` (the

@@ -122,10 +122,13 @@ pub(crate) enum Opcode {
     /// A span of the in-progress stroke's end that later samples may still change: added to a
     /// copy of the coverage, which `EndActive` paints but never keeps.
     Tail = 15,
+    /// The current layer becomes its pixels before a previewed adjustment, as one evaluation
+    /// kept them at float precision (S35, `preview.rs`): exactly what the ops before it give.
+    Resume = 16,
 }
 
 impl Opcode {
-    const ALL: [Self; 16] = [
+    const ALL: [Self; 17] = [
         Self::Segment,
         Self::EndStroke,
         Self::EndLayer,
@@ -142,6 +145,7 @@ impl Opcode {
         Self::EndMove,
         Self::Filter,
         Self::Tail,
+        Self::Resume,
     ];
 
     const fn wgsl_name(self) -> &'static str {
@@ -162,6 +166,7 @@ impl Opcode {
             Self::EndMove => "OP_END_MOVE",
             Self::Filter => "OP_FILTER",
             Self::Tail => "OP_TAIL",
+            Self::Resume => "OP_RESUME",
         }
     }
 }
@@ -312,6 +317,11 @@ impl Op {
         data[SMUDGE_ACTIVE] = f32::from(u8::from(at.is_none()));
         data[PAINT_CLIP..PAINT_CLIP + 2].copy_from_slice(&halves(clip));
         Self::new(Opcode::Smudge, &data)
+    }
+
+    /// The layer so far from the evaluation's kept snapshot (`Params::snapshot`).
+    pub(crate) fn resume() -> Self {
+        Self::new(Opcode::Resume, &[])
     }
 
     /// An op no plan refers to; it keeps a scene's item and op indices equal.

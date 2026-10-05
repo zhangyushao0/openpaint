@@ -42,14 +42,6 @@ pub struct CanvasTarget {
 /// More changed rectangles than this are kept as the one rectangle holding them.
 const CHANGED_KEPT: usize = 256;
 
-/// One artwork version's scene and its ops on the GPU, reused while the version stays.
-struct SceneCache {
-    artwork: Artwork,
-    active: Option<ActivePlace>,
-    scene: Scene,
-    ops: SceneOps,
-}
-
 impl CanvasTarget {
     /// A target of `size` pixels. Its content is undefined until a region is evaluated.
     pub fn new(core: &Core, size: [u32; 2]) -> Result<Self, RenderError> {
@@ -175,41 +167,6 @@ impl CanvasTarget {
     pub(crate) fn texture(&self) -> &wgpu::Texture {
         &self.texture
     }
-
-    /// The scene of `artwork` with the in-progress stroke's place `active`, built and uploaded
-    /// only when either differs from the last call, with every smudge it draws evaluated.
-    fn scene(
-        &mut self,
-        core: &Core,
-        artwork: &Artwork,
-        active: Option<ActivePlace>,
-    ) -> Result<&SceneCache, RenderError> {
-        let reuse = self
-            .scene
-            .as_ref()
-            .is_some_and(|cache| cache.artwork.same_version(artwork) && cache.active == active);
-        if !reuse {
-            let known = self.scene.as_ref().map(|cache| cache.scene.edges.clone());
-            let scene = Scene::build_knowing(artwork, active.as_ref(), known.unwrap_or_default())?;
-            let patches = self.scene.as_ref().and_then(|cache| {
-                let (old, new) = (&cache.scene.patches, &scene.patches);
-                let same = old.len() == new.len() && old.iter().zip(new).all(|(a, b)| a.shares(b));
-                same.then(|| cache.ops.patches.clone())
-            });
-            let ops = scene_ops(&core.gpu, &scene, patches);
-            let (smudges, filters) = (&mut self.smudges, &mut self.filters);
-            smudges.prepare(core, (&scene, &ops), artwork, filters)?;
-            self.scene = Some(SceneCache {
-                artwork: artwork.clone(),
-                active,
-                scene,
-                ops,
-            });
-        }
-        self.scene
-            .as_ref()
-            .ok_or(RenderError::Invalid("no scene was built"))
-    }
 }
 
 /// Evaluates frame requests into one target.
@@ -323,11 +280,13 @@ impl<'a> RegionEvaluator<'a> {
                 ops: &ops,
                 fresh: &[],
                 plan: &plan,
+                only: None,
                 output: Output::CANVAS,
                 background: if mask { [1.0; 4] } else { [0.0; 4] },
                 reset: false,
                 residuals: smudges.residuals(),
                 base: Affine::IDENTITY,
+                snapshot: None,
             },
         )
     }
@@ -358,7 +317,7 @@ impl<'a> RegionEvaluator<'a> {
         let target = &mut *self.target;
         let cache = target
             .scene
-            .as_ref()
+            .as_mut()
             .ok_or(RenderError::Invalid("no scene was built"))?;
         let smudging = request
             .active
@@ -376,8 +335,10 @@ impl<'a> RegionEvaluator<'a> {
         if all.is_empty() && !step.reset {
             return Ok(all);
         }
-        let plan = Plan::build(&cache.scene, &fresh, (size, output), &all);
-        if plan.tiles.is_empty() && !step.reset {
+        let residuals = target.smudges.residuals();
+        let shown = (size, output, all.as_slice());
+        let reading = cache.reading(core, (&mut target.bindings, residuals), fresh, shown)?;
+        if reading.only.map_or(reading.plan.tiles.len(), <[_]>::len) == 0 && !step.reset {
             return Ok(all);
         }
         let paper = request.background;
@@ -385,16 +346,22 @@ impl<'a> RegionEvaluator<'a> {
             &core.gpu,
             &mut target.bindings,
             &Dispatch {
-                ops: &cache.ops,
-                fresh: &fresh.ops,
-                plan: &plan,
+                ops: reading.ops,
+                fresh: &reading.fresh,
+                plan: reading.plan,
+                only: reading.only,
                 output,
                 background: [paper.r(), paper.g(), paper.b(), 1.0],
                 reset: step.reset,
-                residuals: target.smudges.residuals(),
+                residuals,
                 base: Affine::IDENTITY,
+                snapshot: reading.snapshot.map(|snapshot| snapshot.reading(false)),
             },
         )?;
         Ok(all)
     }
 }
+
+#[path = "evaluator_scene.rs"]
+mod scene_cache;
+use scene_cache::SceneCache;

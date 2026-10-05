@@ -113,6 +113,16 @@ impl Arena {
         words: u64,
         (live, limit): (&HashSet<Key>, u64),
     ) -> Result<u64, RenderError> {
+        // The last blocks no scene shows give their room back: a preview's earlier value (S35).
+        while let Some((key, base)) = self
+            .blocks
+            .iter()
+            .find(|(key, block)| block.base + block.words == self.used && !live.contains(key))
+            .map(|(key, block)| (*key, block.base))
+        {
+            self.blocks.remove(&key);
+            self.used = base;
+        }
         if self.used + words > self.capacity {
             self.compact(gpu, live, words, limit)?;
         }

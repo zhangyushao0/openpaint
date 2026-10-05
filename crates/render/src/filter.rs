@@ -24,7 +24,7 @@ use std::sync::Arc;
 use openpaint_core::{AdjustEdit, Adjustment, LayerId, RegionEdit, Sharpen, StrokeList};
 
 pub(crate) use kernels::FilterPipeline;
-use kernels::{FilterBuffers, FilterJob};
+use kernels::{Cells, FilterBuffers, FilterJob};
 
 use crate::affine::Affine;
 use crate::core::Core;
@@ -75,21 +75,45 @@ impl FilterKey {
 
     /// The same filter in the same place: layer, mask and its index among the edits.
     pub(crate) fn place(&self) -> (LayerId, bool, usize) {
-        (self.layer, self.on_mask, self.edits.len())
+        (self.layer, self.on_mask, self.edits.len().saturating_sub(1))
+    }
+
+    /// The same filter with the values of `edit` (a preview's next value, S35).
+    pub(crate) fn retuned(&self, edit: &AdjustEdit) -> Self {
+        let mut key = self.clone();
+        if let Some(last) = key.edits.last_mut() {
+            *last = RegionEdit::Adjust(edit.clone());
+        }
+        key
     }
 
     /// Whether `other` names the same result: the same place over the same content.
     fn same(&self, other: &Self) -> bool {
+        self.same_before(other)
+            && self
+                .edits
+                .last()
+                .zip(other.edits.last())
+                .is_none_or(|(a, b)| a.same(b))
+    }
+
+    /// Whether `other` filters the same pixels: the same place over the same content before
+    /// it, whatever its own values.
+    fn same_before(&self, other: &Self) -> bool {
         let after = self.edits.last().map_or(0, RegionEdit::after);
         let strokes = after == 0
             || matches!(
                 (self.strokes.get(after - 1), other.strokes.get(after - 1)),
                 (Some(a), Some(b)) if a.shares_samples(b)
             );
+        let before = self.edits.len().saturating_sub(1);
         self.place() == other.place()
             && self.to_canvas == other.to_canvas
             && strokes
-            && self.edits.iter().zip(&other.edits).all(|(a, b)| a.same(b))
+            && self.edits[..before]
+                .iter()
+                .zip(&other.edits)
+                .all(|(a, b)| a.same(b))
     }
 }
 
@@ -125,6 +149,22 @@ pub(crate) fn reach(sigma: f32) -> u32 {
     }
 }
 
+/// How far `adjustment` changes pixels beyond the content it filters, in whole tiles (0 for a
+/// point adjustment).
+pub(crate) fn spread(adjustment: &Adjustment) -> u32 {
+    kernel_of(adjustment).map_or(0, |(sigma, _)| extent(sigma).div_ceil(TILE))
+}
+
+/// How far a filter of deviation `sigma` reaches each way, in canvas pixels: its kernel's
+/// reach, and past a reduced kernel's (S35) its cells' and their enlarging's pixels.
+pub(crate) fn extent(sigma: f32) -> u32 {
+    let factor = kernels::factor(sigma);
+    reach(sigma) + if factor > 1 { 2 * factor } else { 0 }
+}
+
+/// The longest `extent`: a radius of `Blur::MAX_RADIUS`.
+pub(crate) const MAX_EXTENT: u32 = MAX_REACH + 8;
+
 /// The Gaussian's weights from `-reach` to `reach`, summing to 1.
 pub(crate) fn weights(sigma: f32) -> Vec<f32> {
     let reach = reach(sigma);
@@ -145,6 +185,8 @@ pub(crate) struct Filters {
     known: Vec<(u64, Arc<FilterKey>)>,
     next: u64,
     buffers: Option<FilterBuffers>,
+    /// The filter whose layer's pixels before it the material holds, and over which pixels.
+    held: Option<(Arc<FilterKey>, PixelRect)>,
 }
 
 impl Filters {
@@ -174,8 +216,9 @@ impl Filters {
     }
 
     /// Makes `item`'s result present in `arena` as the block of `key`: the layer's pixels before
-    /// it into `material` (the scene's other blocks and `empty`, an empty residual, bound), then
-    /// filtered into a new block.
+    /// it into `material` (the scene's other blocks and `empty`, an empty residual, bound;
+    /// `held` while nothing but filters wrote the material since the last call), then filtered
+    /// into a new block.
     ///
     /// # Errors
     /// `Admission` when the arena would exceed `limit` bytes; `Invalid` for an item that is no
@@ -185,7 +228,7 @@ impl Filters {
         core: &Core,
         (scene, ops): (&Scene, &SceneOps),
         (item, key): (&FilterItem, Key),
-        (arena, material, empty): (&mut Arena, &mut Material, &wgpu::Buffer),
+        (arena, material, empty, held): (&mut Arena, &mut Material, &wgpu::Buffer, bool),
         (live, limit): (&HashSet<Key>, u64),
     ) -> Result<(), RenderError> {
         if arena.base(&key).is_some() {
@@ -195,14 +238,10 @@ impl Filters {
         let (sigma, strength) = edit
             .and_then(|edit| kernel_of(edit.adjustment()))
             .ok_or(RenderError::Invalid("a filter item holds no filter"))?;
-        let reach = reach(sigma);
-        let clip = edit.and_then(AdjustEdit::clip);
-        let block = block_rect(
-            scene,
-            item,
-            reach,
-            clip.map(|clip| mask_bounds(clip).pixels()),
-        );
+        let clip = edit
+            .and_then(AdjustEdit::clip)
+            .map(|clip| mask_bounds(clip).pixels());
+        let block = block_rect(scene, item, extent(sigma), clip);
         let size = [block.max[0] - block.min[0], block.max[1] - block.min[1]].map(|v| v as u32);
         let header = [block.min[0] as u32, block.min[1] as u32, size[0], size[1]];
         let words = u64::from(MASK_HEADER) + u64::from(size[0]) * u64::from(size[1]);
@@ -213,19 +252,20 @@ impl Filters {
                 .write_buffer(arena.buffer(), base * 4, &encode(&[0u32; 4]));
             return Ok(());
         }
-        let read = widened(block, reach).intersect(&PixelRect::full(scene.canvas));
-        let range = (item.before.clone(), item.key.to_canvas);
-        material.evaluate(core, (scene, ops), range, &[read], [arena.buffer(), empty])?;
+        let cells = Cells::of(block, scene.canvas, sigma);
+        let tools = (&mut *material, [arena.buffer(), empty]);
+        self.hold(core, (scene, ops), (item, clip, cells.read), tools, held)?;
         let base = arena.reserve(&core.gpu, (key, None), words, (live, limit))?;
         core.gpu
             .queue
             .write_buffer(arena.buffer(), base * 4, &encode(&header));
         let job = FilterJob {
             block: header,
+            cells,
             canvas: scene.canvas,
             base: u32::try_from(base + u64::from(MASK_HEADER))
                 .map_err(|_| RenderError::Invalid("the arena exceeds 2^32 words"))?,
-            weights: weights(sigma),
+            weights: weights(cells.sigma),
             strength,
         };
         let buffers = self
@@ -233,6 +273,44 @@ impl Filters {
             .get_or_insert_with(|| FilterBuffers::new(&core.gpu));
         core.filter
             .run(&core.gpu, buffers, &job, (material.view(), arena.buffer()));
+        Ok(())
+    }
+
+    /// Makes `material` hold the layer's pixels before `item` over `read`: evaluated now, unless
+    /// it still holds them (`held`: nothing but filters wrote it since) from the same content
+    /// before a filter in the same place, a preview's earlier value (S35). Evaluated for such a
+    /// preview, it holds what any radius reads.
+    fn hold(
+        &mut self,
+        core: &Core,
+        (scene, ops): (&Scene, &SceneOps),
+        (item, clip, read): (&FilterItem, Option<PixelRect>, PixelRect),
+        (material, residuals): (&mut Material, [&wgpu::Buffer; 2]),
+        held: bool,
+    ) -> Result<(), RenderError> {
+        let again = held
+            && self
+                .held
+                .as_ref()
+                .is_some_and(|(key, _)| key.same_before(&item.key));
+        let kept = self.held.as_ref().filter(|_| again).map(|(_, rect)| *rect);
+        if kept.is_some_and(|rect| rect.intersect(&read) == read) {
+            return Ok(());
+        }
+        let rect = if again {
+            let canvas = PixelRect::full(scene.canvas);
+            widened(block_rect(scene, item, MAX_EXTENT, clip), MAX_EXTENT).intersect(&canvas)
+        } else {
+            read
+        };
+        let rect = if rect.intersect(&read) == read {
+            rect
+        } else {
+            read
+        };
+        let range = (item.before.clone(), item.key.to_canvas);
+        material.evaluate(core, (scene, ops), range, &[rect], residuals)?;
+        self.held = Some((Arc::clone(&item.key), rect));
         Ok(())
     }
 }
@@ -265,7 +343,11 @@ fn content_rect(scene: &Scene, item: &FilterItem) -> Option<PixelRect> {
                 Item::Segment { bounds, .. }
                 | Item::Fill { bounds, .. }
                 | Item::Clear { bounds, .. }
-                | Item::Reach(bounds) => Some(bounds.pixels()),
+                | Item::Reach(bounds)
+                    if !bounds.is_empty() =>
+                {
+                    Some(bounds.pixels())
+                }
                 _ => None,
             })
             .reduce(|a, b| a.union(&b));
@@ -304,20 +386,4 @@ fn widened(rect: PixelRect, by: u32) -> PixelRect {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn weights_sum_to_one_and_reach_three_deviations() {
-        assert_eq!(weights(0.0), [1.0]);
-        for sigma in [0.3, 1.0, 4.5, 32.0] {
-            let weights = weights(sigma);
-            assert_eq!(weights.len(), 2 * reach(sigma) as usize + 1);
-            let total: f32 = weights.iter().sum();
-            assert!((total - 1.0).abs() < 1e-5, "{sigma}: {total}");
-            assert_eq!(weights.first(), weights.last());
-        }
-        assert_eq!(reach(32.0), MAX_REACH);
-        assert_eq!(reach(1.0), 3);
-    }
-}
+mod tests;

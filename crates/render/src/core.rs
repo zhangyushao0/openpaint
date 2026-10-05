@@ -30,6 +30,14 @@ pub struct Core {
     pub(crate) tiers: TierBindings,
 }
 
+/// The one device the crate's own tests share (one per test binary: drivers deadlock when
+/// several open at once, STATUS).
+#[cfg(test)]
+pub(crate) fn test_core() -> &'static Core {
+    static CORE: std::sync::OnceLock<Core> = std::sync::OnceLock::new();
+    CORE.get_or_init(|| Core::headless().expect("a GPU adapter is required for render tests"))
+}
+
 impl Core {
     /// Opens the GPU device without a window and builds the pipelines. Offscreen rendering and
     /// readback work at once; platform windows attach later through `Core::create_surface`.

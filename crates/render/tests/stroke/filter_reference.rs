@@ -75,3 +75,14 @@ pub fn largest(a: &[u8], b: &[u8]) -> u8 {
         .max()
         .unwrap_or(0)
 }
+
+/// Mean channel difference.
+pub fn mean(a: &[u8], b: &[u8]) -> f64 {
+    assert_eq!(a.len(), b.len());
+    let total: u64 = a
+        .iter()
+        .zip(b)
+        .map(|(x, y)| u64::from(x.abs_diff(*y)))
+        .sum();
+    total as f64 / a.len().max(1) as f64
+}

@@ -60,11 +60,13 @@ impl Material {
                 ops,
                 fresh: &[Op::end_layer(1.0)],
                 plan: &plan,
+                only: None,
                 output: Output::CANVAS,
                 background: [0.0; 4],
                 reset: false,
                 residuals,
                 base: to_canvas,
+                snapshot: None,
             },
         )
     }

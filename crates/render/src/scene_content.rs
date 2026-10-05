@@ -183,20 +183,19 @@ impl Scene {
                 let hidden = [hidden[0] || empty, hidden[1]];
                 self.push_moved(content, (at, hidden), transform, view)
             }
-            None if !hidden[0] && view.meets(edit_rect(self.canvas, edit)) => {
-                match edit
-                    .adjust()
-                    .and_then(|adjust| kernel_of(adjust.adjustment()))
-                {
-                    Some(_) => {
-                        let place = (content.layer, content.on_mask);
-                        let edits = (content.strokes, &content.edits[..=at]);
-                        let key = FilterKey::new(place, edits, view.to_canvas);
-                        self.push_filter(key, content.start)
-                    }
-                    None => self.push_edit(edit, content.on_mask),
+            None if !hidden[0] && view.meets(edit_rect(self.canvas, edit)) => match edit.adjust() {
+                Some(adjust) if kernel_of(adjust.adjustment()).is_some() => {
+                    let place = (content.layer, content.on_mask);
+                    let edits = (content.strokes, &content.edits[..=at]);
+                    let key = FilterKey::new(place, edits, view.to_canvas);
+                    self.push_filter(key, content.start)
                 }
-            }
+                Some(adjust) => {
+                    let place = (content.layer, content.on_mask, at);
+                    self.push_adjust(adjust, place, content.start)
+                }
+                None => self.push_edit(edit),
+            },
             None => Ok(()),
         }
     }

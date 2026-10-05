@@ -252,11 +252,13 @@ impl Tier {
                 ops,
                 fresh: &fresh.ops,
                 plan: &plan,
+                only: None,
                 output,
                 background: [paper.r(), paper.g(), paper.b(), 1.0],
                 reset: false,
                 residuals: canvas.residuals(),
                 base: Affine::IDENTITY,
+                snapshot: None,
             },
         )
     }

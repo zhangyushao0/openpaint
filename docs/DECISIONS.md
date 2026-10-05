@@ -3,170 +3,142 @@
 Only decisions that constrain future code and are not self-evident. Each entry is at most 15 lines: date, decision, reason, consequences. A superseded decision moves to `docs/archive/` as a whole; it is never rewritten in place. "The previous project" is Draweave (2026-07 to 2026-10), the predecessor this repository replaces.
 
 ## D01 2026-10-02 Stack: Rust 2024, wgpu, egui, one workspace
-
 - Decision: core, rendering, application, storage and UI are all Rust; GPU through wgpu; UI through egui; Android is the only product host; the development machine runs a headless harness (D12).
 - Reason: the previous project proved this stack on the target tablet (pressure, palm rejection, multi-layer compositing, smudge). Switching stacks would discard verified experience.
 - Consequences: renderer state never lives in egui's type map; egui appears only under `render/src/adapter/`. The previous project paid heavily for ignoring this.
 
 ## D02 2026-10-02 Crate layering and purity are tool-enforced
-
 - Decision: `core <- app <- {store, ui} <- runtime <- {harness, android}` and `core <- render <- ui`. core never mentions GPU, UI, file system, threads or clocks. The tables live in `xtask/src/check/rules.rs`.
 - Reason: the previous project had the right dependency direction but grew huge files and duplicated structures inside each layer. The direction is guarded by tooling; the inside is guarded by file length.
 - Consequences: a new crate is registered in `LAYERS` first; an upward dependency fails the gate.
 
 ## D03 2026-10-02 Files at most 400 lines, functions at most 60 lines, from the first commit
-
 - Decision: `cargo repo-check` rejects .rs files over 400 lines; clippy `too_many_lines` at 60 is an error.
 - Reason: the previous project had eight files over 1,900 lines before its big refactor; splitting them took a full day and rewrote 30,000 lines. Agents read big files in sed slices and re-read the same file over a hundred times. Small files make a whole-file Read cheap and edit anchors short.
 - Consequences: tests are split by topic too; long functions become named step functions.
 
 ## D04 2026-10-02 Four documents with hard limits; overflow is archived
-
 - Decision: STATUS 150, ROADMAP 250, ARCHITECTURE 300, DECISIONS 300 lines; no other markdown (README and AGENTS excepted); overflow moves to `docs/archive/`, which is written and never read.
 - Reason: the previous project wrote 55 ADRs, 53 research notes and one record per milestone, plus 2,089 local notes outside the repo. Documents produced more characters than Rust, and most were never read again.
 - Consequences: research and audit conclusions exist only as a decision of at most 15 lines or as a commit message.
 
 ## D05 2026-10-02 Tooling is Rust only; no scripts in the repository
-
 - Decision: tooling lives in `xtask`; .py / .sh / .ps1 are never tracked; agents do not edit code through scripts.
 - Reason: in the previous project agents wrote 391 Python replacement scripts (2.1 million characters) of which only a third was new code, the rest anchors and boilerplate; the local directory accumulated 9,818 .py files.
 - Consequences: code changes go through Edit / Write only; mechanical bulk changes are made file by file after splitting.
 
 ## D06 2026-10-02 Three verification tiers; harness regression first, device smoke second
-
 - Decision: `check -p` -> `test -p` -> `cargo gate` (once before the commit). Automated regression runs as headless harness scenarios on the dev machine (seconds); the device runs one smoke scenario of at most 20 seconds; full device scenarios and manual feel checks happen only at stage exits.
 - Reason: the previous project ran its 50-second full gate 207 times as a routine check with a 48% build failure rate; a quarter of machine time was spent waiting for cargo. Its 180-step device scenario took 199 seconds and passed 2 of its first 11 runs.
 - Consequences: GPU tests run once per gate; without device evidence STATUS says `not_run`.
 
 ## D07 2026-10-02 Brushes are continuous recipes, not stamps and not node graphs
-
 - Decision: a brush is a declarative recipe (TOML: shape, pressure and speed curves, grain, dynamics) evaluated continuously per pixel along the stroke. No dab/stamp engine, no node graph, no shader plugins.
 - Reason: the author tried a node graph in ZPaint's Brush Graph; it ended chaotic and non-uniform: the graph carried no brush identity, parameters meant different things per render path, several accumulation laws, mixed coordinate spaces, CPU/GPU double evaluation. Stamp engines make quality depend on spacing tricks.
 - Consequences: the recipe format has fixed stages with typed fields; a stroke stores a recipe snapshot, so reopening never silently applies a renamed brush's new behaviour.
 
 ## D08 2026-10-02 The artwork is an immutable value; undo is a version switch
-
 - Decision: `Artwork(Arc<State>)`; an edit returns a new version plus the kind of change; history stores versions trimmed by a byte budget; `from_storage` is the single full-validation entry; no public mutable setters.
 - Reason: the previous project kept mutable layers next to three snapshot structures, which copied the active stroke every frame, built whole snapshots to read one field and deep-compared structural edits. The value form made undo faster and cut per-frame allocation from 239 KB to 12.5 KB.
 - Consequences: the renderer detects change by identity; the in-progress stroke travels to the renderer as a separate item and never enters the artwork.
 
 ## D09 2026-10-02 Persistence: embedded KV (fjall), integer schema, pure-data migrations, frozen samples
-
 - Decision: the store uses fjall for the artwork library; the `Project` DTO carries an integer schema version; every version has one pure-data migration step and one frozen sample, and the gate round-trips every sample; editor state is stored separately and falls back to defaults when corrupt.
 - Reason: fjall was verified on the previous project's Android device (it needs Rust 1.98 file locking); editor state drove 3 of its 7 migrations, so separating it keeps the artwork format stable.
 - Consequences: a slice that changes the format ships the migration step and sample; an old APK installing is not the same as an old build opening a new project, and releases say so.
 
 ## D10 2026-10-02 Errors are types; product crates have no cargo features
-
 - Decision: `CoreError`, `AppError`, `PortError`, `RenderError`, `RuntimeError`; `Result<_, String>` only in JNI, system APIs and xtask. Product crates have no `cfg(feature)`; diagnostics, experiments and automation probes live in separate crates assembled only by composition roots.
 - Reason: in the previous project `String` errors ran through renderer, runtime and xtask, 379 `cfg` sites stitched diagnostics into product code, 47% of the runtime crate was diagnostics, and `--all-features` produced four build combinations.
 - Consequences: `cargo repo-check` rejects `[features]` and `cfg(feature`; the platform layer translates typed errors into user-facing messages.
 
 ## D11 2026-10-02 Android host: a hand-written Activity, JNI and SurfaceView; no winit
-
 - Decision: `apps/android` is a small Kotlin Activity that owns the lifecycle, a `SurfaceView` and the system pickers. Rust receives the Surface through JNI and renders with wgpu. `MotionEvent` fields (tool type, pressure, tilt, orientation, buttons, hover, historical samples) are forwarded as typed batches. winit and `android-activity` are not used anywhere.
 - Reason: winit's Android touch abstraction drops stylus detail (tool type, tilt, buttons, hover, batched history). The previous project needed all of it and ran on exactly this host shape.
 - Consequences: egui gets its `RawInput` from our own normaliser on every platform; Kotlin code stays limited to lifecycle, Surface, pickers and share; product rules never live in the host.
 
 ## D12 2026-10-02 The development machine runs a headless harness, never a desktop window
-
 - Decision: `apps/harness` is a dev-only binary: offscreen wgpu rendering with readback, recorded-input replay through the full frame loop, JSON scenarios with pixel checkpoints, PNG and hash output. No window, no mouse handling, no desktop product.
 - Reason: agents need a seconds-long loop on the dev machine (the previous project's headless lane ran 180 steps in 4 s against 199 s on the tablet), but a windowed desktop app would pull output into windowing and mouse code that proves nothing about a stylus product.
 - Consequences: "seeing" a result means reading the PNG the harness wrote; pen feel and real input are judged only on the tablet.
 
 ## D13 2026-10-02 The UI is designed from the user inward, with Procreate as the default model
-
 - Decision: every slice that changes what the user sees or does starts with a walk-through written as the user and ends with that walk-through as a passing harness scenario plus a screenshot review against the checklist in ARCHITECTURE section 10. Procreate's interaction model is the default; the theme and the components are defined once.
 - Reason: in the previous project features were built function-first with the UI attached afterwards. The result resembled Procreate but felt unpolished in small aesthetic and usability details, because nobody had walked through it as a user. An agent cannot feel the tablet, but it can look at screenshots, count taps and verify hit sizes, so those are made explicit and checkable.
 - Consequences: the walk-through lives in the scenario file and the commit message, never in a document; the author's on-device judgement at stage exits is the only authority on feel and beauty.
 
 ## D14 2026-10-02 External crates are pinned exactly in the workspace manifest
-
 - Decision: every external crate is declared once in `[workspace.dependencies]` with an exact `=` version; crates use `.workspace = true`. Current pins: wgpu 30.0.1, egui 0.36.2, egui-wgpu 0.36.2 (requires wgpu 30.0), pollster 1.0.1 (blocks on wgpu's adapter/device futures), png 0.18.1 (harness only), serde 1.0.229 and serde_json 1.0.151 (scenario files; devtools only, never core), fjall 3.1.11 (store only; MSRV 1.90, locks its directory with std file locking), toml 1.1.6 (brush files; app only, read as a table without serde derive), image 0.25.10 (store only, default features off, `png` and `jpeg`: export encoding and reference decoding), log 0.4.34, and for the Android host only jni 0.22.4, android_logger 0.15.1, raw-window-handle 0.6.2 (the version wgpu 30 uses). Gradle side, pinned in `apps/android`: Gradle 8.13 (wrapper with checksum), Android Gradle plugin 8.13.2, Kotlin 2.2.21.
 - Reason: wgpu and egui break APIs every release and egui-wgpu ties them together; a silent minor bump would change GPU behaviour and golden hashes without a reviewed change.
 - Consequences: wgpu, egui and egui-wgpu are upgraded together in one commit that reruns the GPU tests; golden hashes that move are re-recorded in that commit with the reason. egui and egui-wgpu are pinned before any crate uses them, so the first user inherits a known-compatible pair.
 
 ## D15 2026-10-02 Android host: main-thread frames, array-packed input, xtask-driven build
-
 - Decision: the Kotlin activity calls Rust only from the main thread: `Choreographer` paces frames on demand (Rust answers whether it wants the next one) and `MotionEvent`s cross JNI as primitive arrays (ids, tool types, x/y/pressure/tilt/orientation per step and pointer, times), decoded into typed batches in plain Rust. The UI painter lives for the process because egui sends its font atlas once. `cargo android-build` launches the Gradle wrapper jar from xtask; no gradlew scripts are tracked. The gate clippy-checks the JNI crate for `aarch64-linux-android`.
 - Reason: one thread needs no locks between lifecycle, surface and input calls; arrays keep Kotlin free of product types and make decoding testable on the dev machine; gradlew and gradlew.bat are scripts (D05); without the Android clippy step the JNI code would be compiled by nobody but the APK build.
 - Consequences: a slow frame delays input; S8's latency number kept frames on the main thread (D22); surfaces must be detached in `surfaceDestroyed` before it returns; changing the sample layout means changing `SAMPLE_FIELDS` in both `motion.rs` and `MainActivity.kt`.
 
 ## D16 2026-10-02 Evaluation is a per-pixel op interpreter over tile-binned lists; strokes are coverage unions
-
 - Decision: every pixel is computed from scratch by a compute shader that walks, in scene order, the ops whose bounds reach its 16 px tile: `Segment` takes the maximum coverage of a tapered capsule (pressure sets the radius), `EndStroke` paints colour x coverage x opacity over the layer once, `EndLayer` composites with layer opacity. Premultiplied, sRGB-encoded blending; the shader rounds to 8 bits itself and stores a value that every unorm rounding mode writes back unchanged.
 - Reason: a pixel's value then depends only on the ops that reach it, never on which regions are evaluated together, so incremental equals cold by construction rather than by care. Union coverage gives a continuous stroke with one opacity and no seams or density bumps at sample joints (D07). Explicit rounding gave the same golden hash on Vulkan and DX12.
 - Consequences: an op must leave a pixel bit-exactly unchanged outside its bounds (zero coverage, empty layer), and every later op (image, fill, smudge) must keep that property; per-pixel cost grows with the ops per tile, so caches and bounded batching come before long strokes get slow (S4's 8 ms budget).
 
 ## D17 2026-10-02 The canvas target tracks the in-progress stroke; callers pass only other changes
-
 - Decision: a `CanvasTarget` keeps the in-progress stroke's coverage so far in an `R32Float` texture. Each evaluation adds only the segments of its new samples (`EndActive`: maximum with the kept texel, stored back, then painted like `EndStroke`) and evaluates only the tiles they reach. The target remembers which stroke it holds (layer, style, samples) and the artwork version it was drawn over: a stroke that disappears while that version stays was dropped and is erased; one committed into a new version only gets the samples it gained since its last evaluation drawn. A lone dot that grows starts its coverage over, because later segments replace a dot rather than join it.
 - Reason: rebuilding every segment of a 10,000-sample stroke each frame made frame cost grow with stroke length. A maximum is exact in floats, so the kept coverage equals the coverage over all segments: incremental equals cold by construction (D16), proven by GPU tests and by the 10,000-sample replay.
 - Consequences: callers pass regions only for artwork changes other than committing the drawn stroke (S6 undo, layer edits). A brush whose stroke coverage is not a maximum (smudge, wet media) needs its own kept state and its own exactness proof. Per-frame GPU resources (bind groups, buffers) are kept on the target and rewritten in place.
 
 ## D18 2026-10-02 Only the stylus paints; touch is reserved for gestures
-
 - Decision: a finger never draws. Pen contacts paint; touch contacts are reserved for gestures (two-finger tap undo, pinch zoom and the like). Decided by the author.
 - Reason: the author's choice; it follows Procreate-style gesture use on a stylus tablet, where touch drives the canvas and the pen draws.
 - Consequences: gesture slices map touch to gestures; palm rejection (S8) can treat touch as non-painting. A "finger paints" option, if ever wanted, is a separate later decision. S4 already behaves this way.
 
 ## D19 2026-10-02 Scenario checkpoints compare canvas hashes; references stay untracked
-
 - Decision: a scenario checkpoint passes when the canvas readback (artwork pixels, no UI) hashes to the value in the scenario file. Screenshots of the whole screen are written for looking at and never compared. The diff reference is the canvas of the checkpoint's last pass on this machine (`artifacts/scenarios/<name>/<checkpoint>.canvas.png`, untracked); no reference images are committed.
 - Reason: the evaluator's pixels are identical on Vulkan and DX12 (D16), egui's text edges are not (S4), so screen hashes would fail by backend. A hash is one reviewable line in the scenario; PNGs in the repository would duplicate it and grow with every slice.
 - Consequences: a checkpoint that fails on a fresh clone has no diff, only the actual canvas; a slice that changes pixels on purpose updates the hash in the same commit after looking at the PNG. UI changes are verified by looking at screenshots and by GPU tests on specific pixels, not by scenario hashes.
 
 ## D20 2026-10-02 History: versions costed by unshared bytes; no history step during a stroke
-
 - Decision: every artwork change that reaches the session is recorded in `app::History` as a version; a step costs `Artwork::bytes_since(previous)` (memory not shared with the version before); recording drops the redo side and trims the oldest steps while they exceed 64 MiB, always keeping the newest step. Undo and redo are unavailable (projection `StrokeInProgress`, intent refused) while a stroke is being drawn. After a history switch the runtime passes `render::changed_regions(shown, current)` to the evaluator.
 - Reason: versions share almost everything (D08), so counting whole versions would trim far too early, and counting only samples would ignore the per-version chunk copies. Allowing undo mid-stroke would either drop the stroke or land it on a version the user no longer sees; refusing it cannot lose data.
 - Consequences: new edit kinds (layers in S9, region edits) go through `History::record` and are costed by `bytes_since` without new code; `changed_regions` must learn a cheaper answer than "whole canvas" for any change kind that becomes frequent. A UI that offers history must read availability from the projection.
 
 ## D22 2026-10-02 Rendering stays on the Android main thread; latency work targets presentation
-
 - Decision: D15's open question is closed for G1: no render thread. The pen latency probe stays in the Android host and logs one summary per stroke.
 - Reason: measured on the MovinkPad 14 at 120 Hz (S8, injected strokes): event to present call p50 9.2 ms, p95 10.4 ms, of which the frame's own work is p50 2.5 ms, p95 3.3 ms of an 8.3 ms vsync; the rest is waiting for the next Choreographer frame. Queue to on-screen present (SurfaceFlinger) is p50 28 ms, unchanged with `desired_maximum_frame_latency` 1 instead of 2. A render thread would remove at most the 2.5 ms of frame work from input delivery and buys nothing against the 28 ms.
 - Consequences: latency work goes to presentation (front-buffered or low-latency presentation, frame timing) as its own candidate, not to threads. Revisit when frame work passes half a vsync (4 ms p95) or input handling is seen to stall.
 
 ## D23 2026-10-02 Layer panel: a popover acting on the active layer; choosing a layer and one slider touch are no steps of their own
-
 - Decision: the Layers button at the right end of the top bar opens a popover (Procreate's entry): rows top of the stack first, the active one highlighted, an eye per row; below them the active layer's opacity slider, move up, move down and delete. Reorder is by the two buttons, not by dragging rows; delete asks nothing, undo restores the layer. A contact starting on the panel never reaches the canvas; a contact landing on the canvas outside it closes the panel, and a pen stroke there also draws. Every layer change is a history step, except: choosing the layer to draw on amends the current step (`History::amend`, redo kept), and the values of one slider touch amend the step its first change recorded (`settled` ends it).
 - Reason: buttons are reliable with a finger on a list that also scrolls; drag-to-reorder needs press-and-hold and multi-pointer routing that does not exist yet. An undo that only moves the highlight would look like undo doing nothing; one undo per slider value would make a fade dozens of steps. Delete is undoable, so a modal would only slow it (ARCHITECTURE section 10).
 - Consequences: D20's "every change is a version" holds with these two amendments; the projection carries the layer list (`SessionProjection` is `Clone`, not `Copy`). Dragging rows, renaming and thumbnails are later changes to this panel, not new panels.
 
 ## D26 2026-10-02 Text input: the host is the editor, egui's IME events carry the text
-
 - Decision: text fields are egui `TextEdit`s. When one has the focus, egui's IME output makes the runtime report `keyboard_wanted`; the Kotlin `CanvasView` then becomes the text editor (`onCheckIsTextEditor`, an input connection with an empty buffer, no extract UI) and shows the soft keyboard. Composing text arrives as `ImeEvent::Preedit`, committed text as `Commit`, deletions as `DeleteSurrounding`, editing keys and hardware or injected keys as key events, the keyboard's Done as Enter. The back button goes to `Runtime::back` first.
 - Reason: no Android `EditText` over the surface (a second UI toolkit, D11); egui's IME events already handle composition, so input methods for any script compose in place.
 - Consequences: a new text field needs nothing in the host. Characters show only as far as egui's fonts have glyphs (no CJK yet, a ROADMAP candidate). Dialogs that type sit under the top bar, above the keyboard.
 
 ## D27 2026-10-02 Brush recipes: four fixed stages, data in core, TOML in app, an app-wide toolbox
-
 - Decision: `core::BrushRecipe` is plain data: softness (0 hard, 1 fades from the centre line), size and opacity `Dynamics` (a pressure curve times a speed curve, up to 8 points, factors 0..1), and `Grain` (strength, coarse cell size). Per sample the renderer turns them into a radius and a flow (`render/src/stroke.rs`, speed = path of the last 40 ms / 40 ms); a segment's coverage is its soft-edged capsule times the flow interpolated along it, still a maximum (D16, D17); the paint op multiplies by a canvas-fixed grain computed in integers. Brush files are TOML read by `app/src/recipe.rs` into typed `RecipeError`s (no serde derive; unknown keys are errors); the built-ins live in `crates/app/brushes/`.
 - The toolbox (brush, and each brush's own size and opacity) belongs to the app, not to an artwork (Procreate's model): the runtime owns `app::Toolbox` across artworks, hands its style to the open session and stores it apart (D28). Brush changes are no history steps. The side bar sits at the left edge (Procreate's default) with size, opacity, undo and redo; the brush panel is a popover like the layer panel.
 - Reason: D07's fixed typed stages; recipes as core data keep core dependency-free and make the snapshot validated by `from_storage`. Ink Pen equals `BrushRecipe::plain()`, the brush before S11, so the author's approved pen feel and every older golden stayed bit for bit. Integer grain and per-segment values computed on the CPU kept Vulkan and DX12 identical.
 - Consequences: a new stage is a new field, a core change and a schema change, never a plugin. Flow cannot build up within a stroke (union coverage); that needs kept state of its own. Brush editing and import go through a later `BrushStore`.
 
 ## D30 2026-10-02 Eraser, Alpha Lock, colour and eyedropper follow Procreate; a stroke keeps the blend it began with
-
 - Decision: the eraser is a tool beside the brush using the same recipes, with its own brush and per-brush size and opacity; it takes coverage x opacity away from the active layer (destination out). Alpha Lock is a layer property, an undoable layer change in the layer panel's footer; a stroke records the lock when it begins and paints atop (colour changes only where the layer has alpha, the alpha stays). The eraser on an alpha-locked layer is refused (Procreate erases nothing there) and leaves no history step. Colours are rounded to 8 bits per channel; a colour joins the 8 recent ones when it settles (finger lifted from the wheel, a recent tapped, an eyedropper pick). The eyedropper is the side bar's button between the sliders: a contact on the canvas (pen or finger) picks the composited pixel through `CanvasTarget::pick` while it moves, the lift settles it and the tool before returns. Colour and tool changes are no history steps.
 - Reason: re-evaluating strokes from scratch (D16) would let a later lock toggle change how old strokes look; capturing the blend keeps a version's pixels fixed. 8-bit colours make a wheel colour and the same colour picked from the canvas one recent colour, and a picked colour paints exactly the pixel it came from.
 - Consequences: touch-and-hold eyedropper, the pen's eraser end and pen buttons are not mapped (the author's call). Picking reads back on the main thread (one texel, waits for the GPU).
 
 ## D33 2026-10-02 Simplest design first; optimisation is coarse-grained and comes in G5; draweave is the behaviour reference
-
 - Decision: each slice builds the simplest direct design that meets its done criteria and budgets; caches, incremental schemes and tuning beyond that are written under ROADMAP "Candidates" and done in G5, coarse-grained and measured on the tablet. Before building a feature, the slice reads draweave's implementation of the same feature (behaviour, constants, tests, fix commits) and carries its lessons over; its architecture is not copied.
 - Reason: the author's direction; the predecessor spent heavily on structure and tuning, and agents here re-hit pitfalls it had already solved (undo/redo greying out on every stroke).
 - Consequences: subagent briefs name the draweave files for the feature; lessons that apply to all UI live in ARCHITECTURE section 10.
 
 ## D37 2026-10-03 ColorDrop: draweave's flood and gestures; previews off the UI thread; the threshold is session state
-
 - Decision: `openpaint-raster::connected_region` floods four neighbours from the seed against the seed's colour only, distance = max channel difference of premultiplied RGBA8 (alpha included), limit = threshold x 255 (default 0.6), then adds one 8-neighbour edge ring where the distance keeps rising (draweave 674c59b); no gap closing. The source is the active layer alone at full opacity (`render::Core::layer_pixels`, its own target, the single evaluator), sampled once per fill gesture on the `openpaint-fill` worker and kept until the fill ends. The session hands out only its newest request, one at a time; the last finished preview stays shown (`Session::shown`) and is never a history step; a commit records the newest request's fill as one step. A hidden or locked active layer refuses with a top-bar notice; Alpha Lock paints atop (Procreate). UI (`color_drop.rs`): from the colour button, active after 8 pt, anchored after 0.4 s still (< 3 pt), threshold += sign x (|dx| - 4) / 600 per point in 0.5 % steps, lift over a control or off the canvas cancels; after a drop a bar offers Continue filling (pen taps fill until Done or a tool change). The threshold lives in the session (not stored).
 - Reason: draweave's tested behaviour; the fill reference layer is left out (simplest first, D33).
 - Consequences: a flood of a full 2880 x 1716 canvas takes about 145 ms on the tablet, so a fast slide shows previews a few per second; a pencil's grain stops a low-threshold fill at its specks.
 
 ## D38 2026-10-03 Accumulating deposits on a canvas-fixed paper, after draweave's tuned pencil; schema 6
-
 - Decision: a recipe deposits by `Cover` (the maximum coverage of its segments: crossings never darken; the Ink Pen and every stroke before S16) or `Accumulate` (tip flat `1 - d^8` or bell `(1 - d^2)^2`, flow, max density, optional paper). An accumulating segment adds optical density: its tip's cross-section integrated in closed form over the radii travelled, times opacity dynamics x flow (draweave's ADR-0050), so joints never count twice and more events never darken; coverage = max density x (1 - exp(-density)) x grain x opacity, so crossings darken up to the stroke's opacity. The active stroke keeps density (or coverage) and paper contact in two `R32Float` textures; an evaluation resumes from them at its first fresh op, so the float sum continues bit for bit (incremental = cold, tested).
 - Paper (flat tips): ranks fixed to canvas coordinates; contact (over pressure, the maximum along the path) touches ridges with rank > 1 - contact; deposit dust + (1 - dust) reach^depth there, dust in valleys (fading below contact 0.3). One canvas pixel covers `scale` texels, so coverage is draweave's five-point Gauss-Hermite expectation over the mean and variance of the ranks under the pixel (a mip chain of moments in a storage buffer): one texel per pixel read as per-pixel noise and averaged heights fade the grain (both prototyped). No zoom-dependent filtering: the canvas is always one sample per canvas pixel, so the deferred zoomed-out filtering stays deferred.
 - Texture: `render/assets/paper-sketch.bin`, 1024 x 512 ranks: draweave's `sketch.png` (ambientCG Paper001, CC0 1.0; SHA-256 3e96592f...) halved by 2 x 2 sums and ranked again to 8 bits, ties by index (SHA-256 49c1bfd5...); scale 4.5 there is draweave's 9. A released texture never changes; another look is another texture id.
@@ -174,13 +146,11 @@ Only decisions that constrain future code and are not self-evident. Each entry i
 - Schema 6: after each recipe's grain its deposit (u8 tag; tip, flow, max density, paper id; contact curve, scale, depth, dust). Migration 5 -> 6 (pure, `migrate_6.rs`) inserts "cover" into every stroke and marks heads; `schema-6.bin` byte-exact; schemas 1 to 5 open upgraded. The S11 pencil and soft brush keep their golden hashes; the author's artwork reopened AE 0.
 
 ## D40 2026-10-03 Floating ink-outlined islands instead of a top bar; the system's sans, read by the host (amends D32)
-
 - Decision: the author chose option A of three style sets (pure line art): warm paper (250, 248, 244) islands and panels in a 1.25 pt ink outline (70, 67, 62), no shadows, the white canvas with a soft shadow on a greyer desk (233, 230, 224), ink (38, 37, 35) text and icons, the active state an ink ring or row outline in a deeper ink (22, 28, 44), never a filled block. Nothing spans the width: Gallery and Actions float in a left island, Brush, Eraser, Layers and the colour in a right one, notices, the fill bar and the view's zoom are pills in the top band between them; the canvas shows on the whole screen and fits under that 48-point band, so at fit the islands lie on the desk (fit and "Screen size" stay as before). Text is the system's sans (Roboto on Android, Noto Sans CJK for Chinese, both at weight 400) at 18-point body, which the Kotlin host finds in `/system/etc/fonts.xml` and Rust reads (at most 40 MiB each); the UI only orders the families.
 - Reason: the author's direction: a calm sketchbook page, no dark engineering chrome, no long empty bar; Ubuntu Light was too thin to read at arm's length; draweave's fix 434ddbe for Chinese titles.
 - Consequences: one theme in `ui/src/design/palette.rs`. The pen's hover outline is drawn in the screen blit, black or white per pixel against what lies under it (draweave beb3865), so `CanvasPlacement` carries it. The harness stands in Segoe UI and Noto Sans SC; hashes only moved where slider values moved by layout (one level, from rounding). The outline while pressing: D41.
 
 ## D41 2026-10-03 The eyedropper previews in a loupe and commits on lift; outlines while pressing; a gesture-driven reference window (G2 follow-ups)
-
 - Decision: while a contact picks (canvas or reference picture, pen or finger), the colour under it is a preview (`ToolIntent::Preview`, `BrushProjection::preview`) shown in draweave's loupe (76 pt, offset +22, -98 pt, below the contact near the top; top half the preview, bottom half the current colour, paper ring in an ink outline); the current colour does not change until the lift (`ToolIntent::Pick`), which commits the last preview, never a colour where the contact drifted (over a control or off the picture nothing is previewed; the loupe follows). A lift with no preview keeps the eyedropper on. This replaces D30's live colour while picking.
 - Outlines: hover keeps the full-size brush outline (D40). Pressed with the brush: none, the ink is the feedback (Procreate). Pressed with the eraser: the outline at the radius the stroke has at its last sample (`render::tip_radius`, pressure and speed), centred on the stroke's last sample. Both hide over controls and with a finger down.
 - Reference window: no title bar; a tap (finger or pen, 8 pt slop, nothing else down) toggles a slim bar (move grip, ×) and a corner resize mark, which hide after 3 s without a touch on the window or on a touch outside. Its contacts are routed from the raw batches before the canvas (`reference_touch.rs`, release positions included); in the picture one finger pans past 8 pt and two pinch-zoom (1x to 8x) about their middle through the canvas's pair tracker and navigation filter (`app::PictureGestures`, rotation dropped); the pen never pans or paints there. The +/- buttons are gone. Window place, size and zoom stay UI-local session state.
@@ -188,13 +158,11 @@ Only decisions that constrain future code and are not self-evident. Each entry i
 - Consequences: picking from the canvas does not sample the reference when the contact crosses into the window (and the reverse); a candidate if wanted.
 
 ## D42 2026-10-03 The selection is session tool state with its own steps; never artwork, history or stored
-
 - Decision: `app::Selection` (in the session) holds the Selection tool flag, the shape (Freehand, Rectangle) and a list of selections (`Option<RegionMask>`) with a cursor. Closing a shape adds it to the selection (union, draweave's default operation); Invert and Deselect are steps too. While the tool is on, undo and redo (side bar and finger taps) walk these steps, an open freehand path going first (draweave's draft cursor); off the tool they walk the artwork's history and the selection stays. Creating, changing or clearing a selection is never an artwork history step, and the selection is never stored: it is gone when the artwork is left or the app restarts. Choosing Brush, Eraser or the eyedropper leaves the tool (Procreate) and closes an open path.
 - Reason: ROADMAP's "tool state, not artwork"; draweave kept selection drafts out of the document with their own cursor and painting with a selection used the document's history, which matches Procreate inside the tool. A history step per selection would make undoing a stroke land on a selection change.
 - Consequences: Add and Remove modes, feather, saving selections are later steps in this one list. Transform (S19) moves pixels through `RegionEdit`, not through this state.
 
 ## D43 2026-10-03 A stroke drawn inside a selection stores its clip mask; fills are cut to it; schema 7
-
 - Decision: a selection is a `core::RegionMask` (pixel centres inside the closed polygon, even-odd, `RegionMask::polygon`; `union`, `intersect`, `inverted`, `whole` in `mask_ops.rs`). A stroke begun while a selection exists takes it as its clip (`StrokeSession::clipped`, `Stroke::clip`): the paint op names the clip's mask in the scene's mask words (`PAINT_CLIP`, slots 12 and 13; `Op` has 14 operands) and its coverage is multiplied by the mask bit, a hard edge, so it changes nothing outside, incremental and cold alike. Consecutive strokes share one mask in memory, in the scene and after loading (`from_storage` reuses an equal last clip). A fill inside a selection stores no clip: its mask is the flood intersected with the selection at commit; a drop outside the selection is refused (`FillRefusal::OutsideSelection`).
 - Schema 7: each stroke record ends with its clip (u8 0 none, 1 a mask as fills store it: rectangle, run count, LEB128 runs). Migration 6 -> 7 (`migrate_7.rs`, pure) appends "no clip" to every whole schema-6 stroke and marks heads 7. `schema-1..6.bin` open upgraded; `schema-7.bin` (two strokes sharing a clip with a hole, one eraser stroke clipped) is byte-exact.
 - Reason: the simplest honest form: the clip must survive deselect and reopen, and the bit mask is already the fill's GPU and storage form (D36); vector contours would need a polygon crate and per-pixel tests on the GPU.
@@ -298,3 +266,9 @@ Only decisions that constrain future code and are not self-evident. Each entry i
 - In progress (amends D17): the coverage texture keeps only settled spans (all but the last two, which depend on the last sample); the last two are drawn every evaluation as `OP_TAIL` on a copy of the coverage continued in span order and never kept, and the tail drawn before is evaluated again, so every frame equals the stroke so far evaluated cold and the committed stroke equals the last frame. A smudge's residual (order-dependent) trails its last two spans and takes them at the commit.
 - StreamLine (D39, unchanged): draweave's leash (ADR-0014) in the app's stroke intent: the drawn line moves only when the pen is farther than the leash, full leash clamp(3 x size, 24, 96) canvas pixels times amount^2, positions only, the amount frozen at pen-down; at the lift the remaining offset spreads over the last 2 leashes with smoothstep weights (`StrokeSession::revise`) and the renderer redraws the old and the new end; per brush and tool in the toolbox (an f32 after opacity in the editor record), "StreamLine 0-100 %" under the brush panel's rows. The stored stroke is the smoothed path; the raw pen path is not kept.
 - Reason / consequences: strokes are the truth and sharp at every scale (D55); the author's fast strokes put samples up to 97 px apart and their straight segments up to a canvas pixel off the curve; flattening in the shader per footprint keeps one code path for every target and no per-scale scene or cache, at the price of per-pixel work on strongly turning spans (a random-walk artwork's 4x export GPU 86 to 242 ms; the author's strokes 1.05 to 2.70 pieces a segment from 1x to 8x). Sharp corners between dense samples round over about one sample spacing; float contraction makes DX12 differ from Vulkan in single pixels.
+
+## D61 2026-10-05 A preview keeps its scene and resumes its layer from a float snapshot; large blurs run on cells (amends D59)
+- Decision: a version that differs from the one shown only in one adjustment's values (`preview::retuned`: same kind, clip, place) changes the kept scene in place (its ops, a curve's tables, a filter's key); plan, buffers and bindings stay. At 1x without an in-progress stroke the canvas then evaluates that layer's ops before the adjustment once into a float snapshot (binding 13, written instead of the target) and the plan gives them as `OP_RESUME` in the tiles they reach; an evaluation covers only the tiles within the adjustment's spread of them. An unclipped adjustment on paint over content no transform record moves reaches only that content's bounds (a filter's widened by its longest extent, 104 px), in the scene and in `changed_regions` alike; over nothing, nothing. A filter's material is kept between values of the same filter, evaluated once for every radius.
+- Blur kernels: from a deviation of 4 canvas pixels the Gaussian runs on means of 2 x 2 pixels, from 8 on 4 x 4, its deviation in cells lowered by what the means and the bilinear enlarging add (`filter/kernels.rs`: `Cells`), and is enlarged bilinearly onto the block; every kernel reads its neighbours through workgroup memory (compiled for reaches up to 8 and 24 cells). Plans that set no moved selection aside run an evaluator compiled without that stack (`STACKED`).
+- Reason: on the tablet a preview value re-binned every tile (12 ms CPU) and re-evaluated the layer's content (61 ms GPU for a soft-brush area; 254 ms at 100 % blur); the snapshot holds exactly the floats those ops leave, so preview = commit and incremental = cold stay by construction (tests); cells keep within 3 levels of the exact Gaussian (2 below 8 px; tested).
+- Consequences: committed blurs from 4 px moved by up to 3 levels (s33's hashes); layers under and over the previewed one are evaluated again where its content lies, and view tiers above 1x evaluate a preview in full; a snapshot costs 16 bytes per pixel of the content's tiles (79 MB at most at screen size) until the next structural change; filter previews stay below 60 Hz (STATUS).

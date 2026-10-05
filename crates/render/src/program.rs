@@ -3,19 +3,20 @@
 use wgpu::util::DeviceExt;
 
 use crate::affine::Affine;
-use crate::edits::patch_bytes;
 use crate::error::RenderError;
 use crate::gpu::Gpu;
 use crate::output::Output;
 use crate::paper::paper_levels;
 use crate::plan::Plan;
-use crate::protocol::{MOVE_DEPTH, Op, Params, Record, encode, prelude};
-use crate::readback::FORMAT;
-use crate::scene::Scene;
+use crate::protocol::{MOVE_DEPTH, Op, Params, Record, TileRecord, encode, prelude};
+
+#[path = "program_scene.rs"]
+mod scene_ops;
+pub(crate) use scene_ops::{SceneOps, scene_ops};
 
 #[path = "program_layout.rs"]
 mod layout;
-use layout::{buffer_entry, texture_entry, workgroups};
+use layout::{evaluate_layout, workgroups};
 
 const SHADER: &str = include_str!("shaders/evaluate.wgsl");
 const SEGMENT: &str = include_str!("shaders/segment.wgsl");
@@ -41,6 +42,8 @@ pub(crate) struct Dispatch<'a> {
     /// The in-progress stroke's ops for this evaluation.
     pub(crate) fresh: &'a [Op],
     pub(crate) plan: &'a Plan,
+    /// Only these of its tiles (a preview's, near the layer's content, S35); `None`: all.
+    pub(crate) only: Option<&'a [TileRecord]>,
     /// Where the target lies in the output (`Output::CANVAS` for the canvas itself).
     pub(crate) output: Output,
     pub(crate) background: [f32; 4],
@@ -51,6 +54,18 @@ pub(crate) struct Dispatch<'a> {
     /// Where the target's pixel centres lie on the canvas: the identity, but for a smudge's
     /// material seen from a transform record (S31).
     pub(crate) base: Affine,
+    /// A previewed layer's snapshot (S35): read by `OP_RESUME`, or written instead of the
+    /// target.
+    pub(crate) snapshot: Option<SnapshotUse<'a>>,
+}
+
+/// A snapshot's buffer, its rectangle's top-left pixel and width, and whether the dispatch
+/// writes it.
+#[derive(Clone, Copy)]
+pub(crate) struct SnapshotUse<'a> {
+    pub(crate) buffer: &'a wgpu::Buffer,
+    pub(crate) rect: [u32; 3],
+    pub(crate) writes: bool,
 }
 
 /// One canvas target's evaluation resources, kept between dispatches: buffers are rewritten
@@ -67,16 +82,10 @@ pub(crate) struct Bindings {
     params: wgpu::Buffer,
     /// Tiles, indices and fresh ops, in binding order 2, 3, 5.
     lists: [wgpu::Buffer; 3],
-    /// Built for the scene ops buffer and the two residual buffers it names.
-    group: Option<([wgpu::Buffer; 3], wgpu::BindGroup)>,
-}
-
-/// One scene on the GPU: its ops (item index = op index), its fill masks and its transforms'
-/// patches.
-pub(crate) struct SceneOps {
-    pub(crate) ops: wgpu::Buffer,
-    pub(crate) masks: wgpu::Buffer,
-    pub(crate) patches: wgpu::Buffer,
+    /// The plan whose tiles and indices the lists hold (`Plan::serial`; 0: none).
+    written: u64,
+    /// Built for the scene ops buffer, the two residual buffers and the snapshot it names.
+    group: Option<([wgpu::Buffer; 4], wgpu::BindGroup)>,
 }
 
 impl Bindings {
@@ -105,6 +114,7 @@ impl Bindings {
             }),
             params: empty_buffer(gpu, uniform, size_of::<Params>() as u64),
             lists: [0; 3].map(|_| empty_buffer(gpu, storage, MIN_LIST_BYTES)),
+            written: 0,
             group: None,
         }
     }
@@ -161,9 +171,13 @@ fn empty_buffer(gpu: &Gpu, usage: wgpu::BufferUsages, size: u64) -> wgpu::Buffer
 
 pub(crate) struct EvaluatePipeline {
     pipeline: wgpu::ComputePipeline,
+    /// Without the moved selections' stack (`Plan::deepest` 0).
+    flat: wgpu::ComputePipeline,
     layout: wgpu::BindGroupLayout,
     /// The paper's mip chain (`paper.rs`), uploaded once.
     paper: wgpu::Buffer,
+    /// Bound as the snapshot when a dispatch has none.
+    no_snapshot: wgpu::Buffer,
 }
 
 impl EvaluatePipeline {
@@ -177,42 +191,40 @@ impl EvaluatePipeline {
             label: Some("evaluate"),
             source: wgpu::ShaderSource::Wgsl(shader_source().into()),
         });
-        let read_only = wgpu::BufferBindingType::Storage { read_only: true };
-        let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("evaluate"),
-            entries: &[
-                buffer_entry(0, wgpu::BufferBindingType::Uniform),
-                buffer_entry(1, read_only),
-                buffer_entry(2, read_only),
-                buffer_entry(3, read_only),
-                texture_entry(4, wgpu::StorageTextureAccess::WriteOnly, FORMAT),
-                buffer_entry(5, read_only),
-                texture_entry(6, wgpu::StorageTextureAccess::ReadWrite, COVERAGE_FORMAT),
-                buffer_entry(7, read_only),
-                texture_entry(8, wgpu::StorageTextureAccess::ReadWrite, COVERAGE_FORMAT),
-                buffer_entry(9, read_only),
-                buffer_entry(10, read_only),
-                buffer_entry(11, read_only),
-                buffer_entry(12, read_only),
-            ],
-        });
+        let layout = evaluate_layout(device);
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("evaluate"),
             bind_group_layouts: &[Some(&layout)],
             immediate_size: 0,
         });
-        let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-            label: Some("evaluate"),
-            layout: Some(&pipeline_layout),
-            module: &module,
-            entry_point: Some("evaluate"),
-            compilation_options: Default::default(),
-            cache: None,
+        // The same evaluator twice: with the stack of what moved selections set aside, and
+        // (for plans that set nothing aside) without it, which keeps more pixels in flight.
+        let [pipeline, flat] = [1.0, 0.0].map(|stacked| {
+            let constants = [("STACKED", stacked)];
+            device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("evaluate"),
+                layout: Some(&pipeline_layout),
+                module: &module,
+                entry_point: Some("evaluate"),
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &constants,
+                    ..Default::default()
+                },
+                cache: None,
+            })
+        });
+        let no_snapshot = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("no snapshot"),
+            size: 16,
+            usage: wgpu::BufferUsages::STORAGE,
+            mapped_at_creation: false,
         });
         Self {
             pipeline,
+            flat,
             layout,
             paper,
+            no_snapshot,
         }
     }
 
@@ -228,40 +240,27 @@ impl EvaluatePipeline {
                 "moved selections lie over one another deeper than the evaluator holds",
             ));
         }
-        let groups = workgroups(gpu, work.plan.tiles.len())?;
-        let (scale, inverse) = work.output.operands();
-        let [a, b, c, d, e, f] = work.base.rows();
-        let (foot, level) = if work.base.is_identity() {
-            (1.0, 0.0)
-        } else {
-            let canvas = work.base.scale();
-            ((1.0 / canvas) as f32, -canvas.log2() as f32)
-        };
-        let params = Params {
-            background: work.background,
-            tiles: groups.tiles,
-            row: groups.row,
-            size: bindings.size,
-            kept: u32::from(bindings.keeps),
-            level: scale.log2(),
-            scale,
-            inverse,
-            base_x: [a, b, c, foot],
-            base_y: [d, e, f, level],
-        };
+        let tiles = work.only.unwrap_or(&work.plan.tiles);
+        let groups = workgroups(gpu, tiles.len())?;
+        let params = params(work, bindings, &groups);
         gpu.queue
             .write_buffer(&bindings.params, 0, &encode(&[params]));
-        bindings.write(gpu, 0, &work.plan.tiles);
-        bindings.write(gpu, 1, &work.plan.indices);
+        // A plan kept between evaluations (a preview's, S35) uploads its op lists once.
+        bindings.write(gpu, 0, tiles);
+        if work.plan.serial == 0 || work.plan.serial != bindings.written {
+            bindings.write(gpu, 1, &work.plan.indices);
+            bindings.written = work.plan.serial;
+        }
         bindings.write(gpu, 2, work.fresh);
         let [arena, active] = work.residuals;
-        let named = [&work.ops.ops, arena, active];
+        let snapshot = work.snapshot.map_or(&self.no_snapshot, |s| s.buffer);
+        let named = [&work.ops.ops, arena, active, snapshot];
         if bindings
             .group
             .as_ref()
             .is_none_or(|(built, _)| built.iter().zip(named).any(|(a, b)| a != b))
         {
-            let group = self.bind_group(gpu, bindings, work.ops, work.residuals);
+            let group = self.bind_group(gpu, bindings, work.ops, [arena, active, snapshot]);
             bindings.group = Some((named.map(Clone::clone), group));
         }
         let mut encoder = gpu.device.create_command_encoder(&Default::default());
@@ -272,7 +271,12 @@ impl EvaluatePipeline {
         }
         if let Some((_, group)) = &bindings.group {
             let mut pass = encoder.begin_compute_pass(&Default::default());
-            pass.set_pipeline(&self.pipeline);
+            let pipeline = if work.plan.deepest > 0 {
+                &self.pipeline
+            } else {
+                &self.flat
+            };
+            pass.set_pipeline(pipeline);
             pass.set_bind_group(0, group, &[]);
             pass.dispatch_workgroups(groups.row, groups.rows, 1);
         }
@@ -285,7 +289,7 @@ impl EvaluatePipeline {
         gpu: &Gpu,
         bindings: &Bindings,
         scene: &SceneOps,
-        [arena, active]: [&wgpu::Buffer; 2],
+        [arena, active, snapshot]: [&wgpu::Buffer; 3],
     ) -> wgpu::BindGroup {
         let [tiles, indices, fresh] = &bindings.lists;
         let buffers = [
@@ -299,6 +303,7 @@ impl EvaluatePipeline {
             (10, &scene.patches),
             (11, arena),
             (12, active),
+            (13, snapshot),
         ];
         let mut entries: Vec<_> = buffers
             .into_iter()
@@ -322,29 +327,32 @@ impl EvaluatePipeline {
     }
 }
 
-/// The scene's ops (item index = op index), fill masks and patches as GPU buffers; `patches`
-/// is a buffer that already holds this scene's patch words (the scene before had the same
-/// patches), so a transform being dragged uploads its pixels once.
-pub(crate) fn scene_ops(gpu: &Gpu, scene: &Scene, patches: Option<wgpu::Buffer>) -> SceneOps {
-    let ops: Vec<Op> = scene.items.iter().map(|item| item.op()).collect();
-    let patches = patches.unwrap_or_else(|| {
-        let mut bytes = patch_bytes(scene);
-        if bytes.is_empty() {
-            bytes.resize(4, 0);
-        }
-        gpu.device
-            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: Some("patches"),
-                contents: &bytes,
-                usage: wgpu::BufferUsages::STORAGE,
-            })
-    });
-    // The smudges' base words are written after their residuals are placed.
-    let masks = wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST;
-    SceneOps {
-        ops: buffer(gpu, wgpu::BufferUsages::STORAGE, &ops),
-        masks: buffer(gpu, masks, &scene.masks),
-        patches,
+/// The dispatch's values: where the target lies in the output and on the canvas, its tiles'
+/// layout, the snapshot it uses.
+fn params(work: &Dispatch<'_>, bindings: &Bindings, groups: &layout::Workgroups) -> Params {
+    let (scale, inverse) = work.output.operands();
+    let [a, b, c, d, e, f] = work.base.rows();
+    let (foot, level) = if work.base.is_identity() {
+        (1.0, 0.0)
+    } else {
+        let canvas = work.base.scale();
+        ((1.0 / canvas) as f32, -canvas.log2() as f32)
+    };
+    Params {
+        background: work.background,
+        tiles: groups.tiles,
+        row: groups.row,
+        size: bindings.size,
+        kept: u32::from(bindings.keeps),
+        level: scale.log2(),
+        scale,
+        inverse,
+        base_x: [a, b, c, foot],
+        base_y: [d, e, f, level],
+        snapshot: work.snapshot.map_or([0; 4], |snapshot| {
+            let [x, y, width] = snapshot.rect;
+            [x, y, width, u32::from(snapshot.writes)]
+        }),
     }
 }
 
@@ -365,19 +373,4 @@ fn clear_kept(encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
         ..Default::default()
     });
     drop(pass);
-}
-
-/// A buffer holding `records`. An empty list still gets one zeroed record, because a binding
-/// must hold at least one element; no tile refers to it.
-fn buffer<R: Record>(gpu: &Gpu, usage: wgpu::BufferUsages, records: &[R]) -> wgpu::Buffer {
-    let mut contents = encode(records);
-    if contents.is_empty() {
-        contents.resize(size_of::<R>(), 0);
-    }
-    gpu.device
-        .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("evaluate"),
-            contents: &contents,
-            usage,
-        })
 }

@@ -24,6 +24,7 @@ mod image;
 mod output;
 mod paper;
 mod plan;
+mod preview;
 mod program;
 mod protocol;
 mod readback;

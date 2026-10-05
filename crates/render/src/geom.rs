@@ -49,6 +49,15 @@ impl PixelRect {
 pub(crate) struct Bounds(pub(crate) [f32; 4]);
 
 impl Bounds {
+    /// Bounds that reach no pixel: an adjustment over nothing (S35).
+    pub(crate) const NOTHING: Self = Self([1.0, 1.0, -1.0, -1.0]);
+
+    /// Whether they reach no pixel.
+    pub(crate) fn is_empty(&self) -> bool {
+        let [x0, y0, x1, y1] = self.0;
+        x1 < x0 || y1 < y0
+    }
+
     /// The pixels whose area meets the bounds.
     pub(crate) fn pixels(&self) -> PixelRect {
         // `as` saturates, and the coordinates stay far inside `i32` (core's `COORD_LIMIT`).

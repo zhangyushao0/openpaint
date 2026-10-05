@@ -49,6 +49,8 @@ pub(super) struct Binner<'a> {
     tile_frames: Vec<Option<u32>>,
     /// Canvas pixels to the target's (a smudge's material under a record); `None`: the same.
     view: Option<Affine>,
+    /// Items `[start, end)` whose entries give way to fresh op 0 at `end` (`Plan::resuming`).
+    pub(super) resume: Option<[u32; 2]>,
 }
 
 impl<'a> Binner<'a> {
@@ -71,6 +73,27 @@ impl<'a> Binner<'a> {
             clip: None,
             tile_frames: vec![None; slots],
             view,
+            resume: None,
+        }
+    }
+
+    /// At the end of the items `resume` names: where they listed anything, their entries
+    /// become fresh op 0.
+    fn resume_at(&mut self, index: u32) {
+        if let Some([start, end]) = self.resume
+            && index == end
+        {
+            self.resume_from(start);
+        }
+    }
+
+    /// Where the items from `start` on listed anything, their entries become fresh op 0.
+    fn resume_from(&mut self, start: u32) {
+        for list in &mut self.lists {
+            if let Some(cut) = list.iter().position(|&i| i >= start && i < FRESH) {
+                list.truncate(cut);
+                list.push(FRESH);
+            }
         }
     }
 
@@ -82,6 +105,7 @@ impl<'a> Binner<'a> {
             let index = u32::try_from(index)
                 .unwrap_or(u32::MAX)
                 .saturating_add(first);
+            self.resume_at(index);
             match item {
                 Item::Segment { bounds, .. } => {
                     for slot in self.slots(*bounds) {
