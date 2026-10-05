@@ -1130,6 +1130,7 @@ dependencies = [
 name = "openpaint-harness"
 version = "0.1.0"
 dependencies = [
+ "openpaint-app",
  "openpaint-core",
  "openpaint-devtools",
  "openpaint-render",

@@ -6,7 +6,7 @@ use std::{fmt, io};
 use openpaint_core::CoreError;
 use openpaint_devtools::ScenarioError;
 use openpaint_render::RenderError;
-use openpaint_runtime::RuntimeError;
+use openpaint_runtime::{PortError, RuntimeError};
 
 #[derive(Debug)]
 pub enum HarnessError {
@@ -28,6 +28,8 @@ pub enum HarnessError {
         budget: Duration,
     },
     Scenario(ScenarioError),
+    /// The library refused a call.
+    Port(PortError),
     /// A scenario ran to the end but some checkpoints did not match.
     Checkpoints {
         failed: usize,
@@ -58,6 +60,7 @@ impl fmt::Display for HarnessError {
                 write!(f, "slowest frame {slowest:?} is over the {budget:?} budget")
             }
             Self::Scenario(error) => write!(f, "{error}"),
+            Self::Port(error) => write!(f, "library: {error}"),
             Self::Checkpoints { failed, total } => {
                 write!(f, "{failed} of {total} checkpoints failed")
             }
