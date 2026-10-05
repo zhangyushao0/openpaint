@@ -37,8 +37,9 @@ fn display_format(adapter: &wgpu::Adapter) -> wgpu::TextureFormat {
 impl Gpu {
     /// Opens a device before any window exists: offscreen targets work at once, surfaces attach
     /// later and bring their own display handle (`SurfaceWindow`). `WGPU_BACKEND` and the other
-    /// wgpu environment variables select the adapter.
-    pub(crate) fn new() -> Result<Self, RenderError> {
+    /// wgpu environment variables select the adapter. Without `ten_bits` the display format is
+    /// `readback::FORMAT` whatever the adapter offers.
+    pub(crate) fn new(ten_bits: bool) -> Result<Self, RenderError> {
         let instance =
             wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
         let adapter =
@@ -55,9 +56,10 @@ impl Gpu {
         };
         let (device, queue) =
             pollster::block_on(adapter.request_device(&descriptor)).map_err(device)?;
-        let display = if device
-            .features()
-            .contains(wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES)
+        let display = if ten_bits
+            && device
+                .features()
+                .contains(wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES)
         {
             display_format(&adapter)
         } else {

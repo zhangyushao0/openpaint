@@ -1,5 +1,6 @@
 //! `cargo device-info [label]`: what the tablet's display does with colour, read and never
-//! changed, how much memory the app holds and how often its canvas reached the glass lately.
+//! changed, how much memory the app holds, its input devices and the dispatcher's state (S38),
+//! and how often its canvas reached the glass lately.
 //! Read-only queries only (`getprop`, `dumpsys`, the app's own log), each bounded in time
 //! (`QUERY_LIMIT`); each answer goes whole to `artifacts/device/<label>-<query>.txt` and the
 //! lines about colour are printed.
@@ -15,7 +16,7 @@ use super::{artifacts, plain};
 const QUERY_LIMIT: Duration = Duration::from_secs(30);
 
 /// The queries: a file name and the device command, each one read-only.
-const QUERIES: [(&str, &[&str]); 6] = [
+const QUERIES: [(&str, &[&str]); 8] = [
     ("props", &["getprop"]),
     ("surfaceflinger", &["dumpsys", "-t", "10", "SurfaceFlinger"]),
     ("display", &["dumpsys", "-t", "10", "display"]),
@@ -24,6 +25,19 @@ const QUERIES: [(&str, &[&str]); 6] = [
     ("app-log", &["logcat", "-d", "-s", "openpaint:I"]),
     // The app's memory now (S37): its graphics (GPU textures and buffers) and the rest.
     ("meminfo", &["dumpsys", "-t", "10", "meminfo", PACKAGE]),
+    // Input devices and the dispatcher's state (S38): why injected fingers were refused.
+    ("input", &["dumpsys", "-t", "10", "input"]),
+    (
+        "input-log",
+        &[
+            "logcat",
+            "-d",
+            "-s",
+            "InputDispatcher:*",
+            "InputManager:*",
+            "UiAutomation:*",
+        ],
+    ),
 ];
 
 /// Words that mark a line about colour, matched without regard to case.

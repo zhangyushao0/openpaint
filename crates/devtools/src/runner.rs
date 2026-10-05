@@ -17,7 +17,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use openpaint_runtime::{HostRequest, MotionBatch, Runtime, TextFonts, TextInput};
+use openpaint_render::Core;
+use openpaint_runtime::{HostRequest, MotionBatch, Runtime, RuntimeError, TextFonts, TextInput};
 
 use crate::error::ScenarioError;
 use crate::gesture;
@@ -44,7 +45,11 @@ pub fn run(
     fonts: &TextFonts,
 ) -> Result<Report, ScenarioError> {
     let started = Instant::now();
+    // One device for the run, restarts included; its screen in 8 bits: every check reads 8-bit
+    // values, which a ten-bit screen gives only after decoding each texel on the CPU.
+    let core = Core::headless_eight_bits().map_err(RuntimeError::Render)?;
     let mut runner = Runner {
+        core: Arc::new(core),
         scenario,
         library,
         fonts,
@@ -82,6 +87,7 @@ pub fn run(
 }
 
 struct Runner<'a> {
+    core: Arc<Core>,
     scenario: &'a Scenario,
     library: &'a Path,
     /// The text faces a host would hand over, given to every start.
@@ -109,7 +115,8 @@ impl Runner<'_> {
     /// included; what survives is what the library stores. Runs frames until it has opened.
     fn start(&mut self) -> Result<Runtime, ScenarioError> {
         let store = Switched::new(self.library, Arc::clone(&self.storage_off));
-        let mut runtime = Runtime::start(self.scenario.density, Box::new(store))?;
+        let core = Arc::clone(&self.core);
+        let mut runtime = Runtime::start_on(core, self.scenario.density, Box::new(store))?;
         runtime.set_text_fonts(self.fonts.clone());
         self.frame(&mut runtime)?;
         Ok(runtime)

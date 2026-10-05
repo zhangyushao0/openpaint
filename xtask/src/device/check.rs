@@ -138,6 +138,7 @@ pub fn input(args: &[String]) -> Result<()> {
     words.push(INSTRUMENTATION);
     let output = adb.shell(&words)?;
     if !output.contains("gesture=injected") {
+        held_pointers(&adb);
         return Err(DeviceError::Injection(output.trim().to_owned()));
     }
     match output.lines().find_map(|line| line.split_once("tapped=")) {
@@ -145,6 +146,23 @@ pub fn input(args: &[String]) -> Result<()> {
         None => println!("injected {}", args.join(" ")),
     }
     Ok(())
+}
+
+/// After a refused gesture: the pointers the input dispatcher still holds per window (its
+/// `TouchStates`), read-only. Injected events all come from device -1, and a gesture cut off
+/// (an instrumentation ended by another) leaves its pointers there (S38).
+fn held_pointers(adb: &Adb) {
+    let Ok(dump) = adb.shell(&["dumpsys", "-t", "10", "input"]) else {
+        return;
+    };
+    let held = dump
+        .lines()
+        .skip_while(|line| !line.trim_start().starts_with("TouchStates"))
+        .take_while(|line| !line.trim_start().starts_with("Display:"));
+    println!("the input dispatcher holds:");
+    for line in held {
+        println!("  {}", line.trim());
+    }
 }
 
 const INPUT_USAGE: &str = "cargo device-input pen x,y,... [pressure] | finger x,y[,...] \

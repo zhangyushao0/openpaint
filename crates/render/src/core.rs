@@ -42,7 +42,17 @@ impl Core {
     /// Opens the GPU device without a window and builds the pipelines. Offscreen rendering and
     /// readback work at once; platform windows attach later through `Core::create_surface`.
     pub fn headless() -> Result<Self, RenderError> {
-        let gpu = Gpu::new()?;
+        Self::with_gpu(Gpu::new(true)?)
+    }
+
+    /// As `headless`, the screen's canvas and view tiers in 8 bits per channel even where the
+    /// device has ten (S37's fallback): what the scenario runner uses, whose checks read 8-bit
+    /// values and whose ten-bit reads decoded every texel on the CPU (S38).
+    pub fn headless_eight_bits() -> Result<Self, RenderError> {
+        Self::with_gpu(Gpu::new(false)?)
+    }
+
+    fn with_gpu(gpu: Gpu) -> Result<Self, RenderError> {
         let evaluate = EvaluatePipeline::new(&gpu.device, gpu.display);
         let blit_layout = blit_layout(&gpu.device);
         let blit_sampler = blit_sampler(&gpu.device);
