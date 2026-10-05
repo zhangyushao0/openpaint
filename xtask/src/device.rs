@@ -6,7 +6,8 @@
 //!   saved first as `<name>-found-<time>.tar` (listed), then that archive written back in place
 //!   (nothing is deleted), read out again and compared with the backup file by file, byte for byte;
 //! - `cargo device-check [label] [--no-install]` and `cargo device-input ...` (`check.rs`);
-//! - `cargo device-clean`: removes the agent's own test files, and only those;
+//! - `cargo device-clean`: removes the agent's own test files, and only those (the test folders,
+//!   recordings, and test libraries an investigation left in the app's cache);
 //! - `cargo device-push <picture>`: a PNG or JPEG into `/sdcard/Download/openpaint-test` (a test
 //!   location `clean` removes) for the system picker;
 //! - `cargo device-info [label]`: the display's colour facts, read-only (`info.rs`).
@@ -207,16 +208,48 @@ pub fn clean(args: &[String]) -> Result<()> {
         .map(str::trim)
         .filter(|line| !line.is_empty())
         .collect();
-    if found.is_empty() {
-        println!("clean: no test files on the device");
-        return Ok(());
+    if !found.is_empty() {
+        adb.shell(&[&format!("rm -rf {targets}")])?;
     }
-    adb.shell(&[&format!("rm -rf {targets}")])?;
     for path in &found {
         println!("  removed {path}");
     }
-    println!("clean: {} test locations removed", found.len());
+    let cached = clean_cache(&adb)?;
+    if found.is_empty() && cached == 0 {
+        println!("clean: no test files on the device");
+        return Ok(());
+    }
+    println!("clean: {} test locations removed", found.len() + cached);
     Ok(())
+}
+
+/// Test libraries an investigation left in the app's cache: `cache/inv1-library` and names
+/// that continue it with letters, digits, '-' or '_', each listed, then removed by its name.
+const TEST_CACHE: &str = "cache/inv1-library";
+
+fn clean_cache(adb: &Adb) -> Result<usize> {
+    // adb joins the words into one line for the device's shell: the inner command is quoted.
+    let listed = adb.shell(&[&format!(
+        "run-as {PACKAGE} sh -c 'ls -d {TEST_CACHE}* 2>/dev/null; true'"
+    )])?;
+    let names: Vec<&str> = listed
+        .lines()
+        .map(str::trim)
+        .filter(|name| test_cache(name))
+        .collect();
+    for name in &names {
+        adb.shell(&["run-as", PACKAGE, "rm", "-rf", name])?;
+        println!("  removed {PACKAGE}/{name}");
+    }
+    Ok(names.len())
+}
+
+/// Whether `name` is one of the investigation's cached test libraries.
+fn test_cache(name: &str) -> bool {
+    name.strip_prefix(TEST_CACHE).is_some_and(|rest| {
+        rest.chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    })
 }
 
 /// Where `push` puts a picture: one of the test locations `clean` removes.
@@ -326,5 +359,14 @@ mod tests {
             assert!(dir.starts_with("/sdcard/") && dir.ends_with("/openpaint-test"));
         }
         assert_eq!(TEST_RECORDINGS, "'/sdcard/openpaint-'*'.mp4'");
+        assert!(test_cache("cache/inv1-library") && test_cache("cache/inv1-library-2"));
+        for other in [
+            "cache/inv1",
+            "files/library",
+            "cache/inv1-library/../x",
+            "cache/inv1-library x",
+        ] {
+            assert!(!test_cache(other), "{other}");
+        }
     }
 }
