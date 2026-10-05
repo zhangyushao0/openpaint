@@ -1,5 +1,6 @@
 //! GPU hashes of the three built-in brushes: each draws one fixed wave, which must evaluate to
-//! fixed pixels (the same on Vulkan and DX12), and drawn a few samples per frame it must equal
+//! fixed pixels (recorded on Vulkan; since S34 DX12 draws the pencil one pixel one level apart,
+//! float contraction in the curve's flattening), and drawn a few samples per frame it must equal
 //! the finished stroke evaluated cold. Here because the brushes are the app's files and the
 //! evaluator is the renderer's.
 
@@ -14,12 +15,13 @@ use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RegionEvalua
 
 const SIZE: [u32; 2] = [320, 200];
 /// Per brush key: the wave's golden hash. Re-recorded in S16 for the pencil (draweave's tuned
-/// graphite on the sketch paper) and the soft brush (density building up under a bell tip);
-/// the brushes before keep their hashes below.
+/// graphite on the sketch paper) and the soft brush (density building up under a bell tip),
+/// and in S34 for all three (the wave is a curve now, not chords: at most 17 levels, mean 0.007);
+/// the brushes before keep their own hashes below.
 const GOLDEN: [(&str, u64); 3] = [
-    ("pencil", 0x0b09_3229_5b55_3b12),
-    ("ink-pen", 0xa8c1_7ea8_d659_a519),
-    ("soft-brush", 0x91ac_be03_f571_da3e),
+    ("pencil", 0xb194_0d31_1dfa_5cae),
+    ("ink-pen", 0x23c3_d74a_8ac0_d9c3),
+    ("soft-brush", 0x8b6f_4148_679e_bd02),
 ];
 
 /// An S-curve whose pressure rises from 0.1 to 1 and falls back, drawn faster in its middle,
@@ -99,7 +101,7 @@ fn every_built_in_brush_draws_its_golden_wave_and_incremental_equals_cold() {
 }
 
 /// The pencil and the soft brush as S11 to S15 shipped them, whose recipes the strokes drawn
-/// then keep (D07): they draw exactly the pixels they drew then.
+/// then keep (D07): they draw what they drew then, along the curve since S34.
 const BEFORE_S16: [(&str, &str); 2] = [
     (
         "pencil",
@@ -115,14 +117,15 @@ const BEFORE_S16: [(&str, &str); 2] = [
          pressure = [[0.0, 0.05], [1.0, 1.0]]\n",
     ),
 ];
-/// Their golden hashes before S16, unchanged.
+/// Their golden hashes before S16, moved once in S34 by the curve through the samples (at most 8
+/// levels, mean 0.014).
 const GOLDEN_BEFORE_S16: [(&str, u64); 2] = [
-    ("pencil", 0xc7db_069e_23a2_2e48),
-    ("soft-brush", 0x9e52_723c_6f49_00f9),
+    ("pencil", 0x8f4c_0b57_68d2_8370),
+    ("soft-brush", 0xcb6d_3517_5561_828d),
 ];
 
 #[test]
-fn strokes_of_the_brushes_before_s16_draw_exactly_as_they_did() {
+fn strokes_of_the_brushes_before_s16_keep_their_recipes() {
     let library = BrushLibrary::from_files(&BEFORE_S16, "pencil").expect("the old brushes");
     draws_the_goldens(&library, &GOLDEN_BEFORE_S16);
 }

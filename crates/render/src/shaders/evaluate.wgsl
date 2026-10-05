@@ -5,9 +5,10 @@
 // A pixel's value depends only on the ops that can reach it, never on which tiles are evaluated
 // together; that is what makes incremental evaluation equal cold evaluation. The in-progress
 // stroke keeps its coverage (or density) and its paper contact so far in `kept` and
-// `kept_contact`, and each evaluation starts from them before adding the new segments in
+// `kept_contact`, and each evaluation starts from them before adding the newly settled spans in
 // order: a maximum is exact, and a sum continued from its stored float adds the same floats in
-// the same order as one pass over every segment, so either equals the finished stroke.
+// the same order as one pass over every span, so either equals the finished stroke. Its last
+// spans, which later samples may still change (`OP_TAIL`), continue a copy and are never kept.
 
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var<storage, read> ops: array<Op>;
@@ -80,6 +81,9 @@ fn evaluate(
     var contact = 0.0;
     // The in-progress stroke's kept values have been taken up.
     var resumed = false;
+    // Its tail's coverage and contact, once a tail span reached the pixel (`OP_TAIL`).
+    var tail = vec2<f32>(0.0);
+    var tailed = false;
     for (var i = tile.start; i < tile.start + tile.count; i++) {
         let entry = indices[i];
         var op: Op;
@@ -98,12 +102,26 @@ fn evaluate(
         }
         switch op.code {
             case OP_SEGMENT: {
+                let laid = span_laid(point, op);
                 if u32(op.data[SEGMENT_TIP]) == TIP_COVER {
-                    coverage = max(coverage, segment_coverage(point, op));
+                    coverage = max(coverage, laid.x);
                 } else {
-                    let laid = segment_density(point, op);
                     coverage += laid.x;
                     contact = max(contact, laid.y);
+                }
+            }
+            case OP_TAIL: {
+                // The in-progress stroke's end continues a copy of what its settled spans
+                // left, in the same order a finished stroke's spans add up in.
+                if !tailed {
+                    tail = vec2<f32>(coverage, contact);
+                    tailed = true;
+                }
+                let laid = span_laid(point, op);
+                if u32(op.data[SEGMENT_TIP]) == TIP_COVER {
+                    tail.x = max(tail.x, laid.x);
+                } else {
+                    tail = vec2<f32>(tail.x + laid.x, max(tail.y, laid.y));
                 }
             }
             case OP_END_STROKE: {
@@ -116,9 +134,14 @@ fn evaluate(
                     textureStore(kept, pixel, vec4<f32>(coverage, 0.0, 0.0, 0.0));
                     textureStore(kept_contact, pixel, vec4<f32>(contact, 0.0, 0.0, 0.0));
                 }
-                layer = blend(stroke_paint(coverage, contact, point, cell, op), layer, op);
+                var held = vec2<f32>(coverage, contact);
+                if tailed {
+                    held = tail;
+                }
+                layer = blend(stroke_paint(held.x, held.y, point, cell, op), layer, op);
                 coverage = 0.0;
                 contact = 0.0;
+                tailed = false;
             }
             case OP_FILL: {
                 let covered = fill_coverage(point, cell, op);
@@ -373,38 +396,6 @@ fn blend(paint: vec4<f32>, layer: vec4<f32>, op: Op) -> vec4<f32> {
     }
 }
 
-// Coverage of a pixel whose centre lies `distance` canvas pixels outside the capsule, measured
-// in output pixels: it fades in from half an output pixel outside the outline, over one output
-// pixel for a hard edge (`edge` 1: box-filtered antialiasing, as sharp at 4x as at 1x) or over
-// `1 / edge` canvas pixels for a soft one (smoothed; its look keeps its canvas width). It is
-// exactly zero from half an output pixel out, inside the scene's bounds. Then times the flow,
-// which changes evenly from `a` to `b`; equal flows give that flow exactly. At scale 1 both
-// factors are 1, so the canvas is as before scales. Inside a transform record's frame the
-// output pixel is measured in its content's pixels (`foot_scale`), so a scaled stroke's edge
-// stays one output pixel wide.
-fn segment_coverage(centre: vec2<f32>, op: Op) -> f32 {
-    let a = vec2<f32>(op.data[0], op.data[1]);
-    let b = vec2<f32>(op.data[2], op.data[3]);
-    let distance = capsule_distance(centre, a, b, op.data[4], op.data[5]);
-    let edge = op.data[SEGMENT_EDGE];
-    var ramp = edge;
-    if edge < 1.0 {
-        ramp = edge * foot_inverse;
-    }
-    var coverage = clamp((0.5 - distance * foot_scale) * ramp, 0.0, 1.0);
-    if edge < 1.0 {
-        coverage = coverage * coverage * (3.0 - 2.0 * coverage);
-    }
-    let ab = b - a;
-    let h = dot(ab, ab);
-    var t = 0.0;
-    if h > 0.0 {
-        t = clamp(dot(centre - a, ab) / h, 0.0, 1.0);
-    }
-    let flow_a = op.data[SEGMENT_FLOW];
-    let flow_b = op.data[SEGMENT_FLOW + 1u];
-    return coverage * (flow_a + (flow_b - flow_a) * t);
-}
 
 // The share of paint that lands at `pixel` through the paper's grain, fixed to the canvas: one
 // minus the grain strength times the grain's height there. The height is the mean of a fine
@@ -448,30 +439,6 @@ fn pcg(value: u32) -> u32 {
     return (word >> 22u) ^ word;
 }
 
-// Signed distance to the convex hull of the disc at `a` (radius `ra`) and the disc at `b`
-// (radius `rb`): a capsule whose radius changes along its length. After Inigo Quilez's uneven
-// capsule, rotated into the segment's frame.
-fn capsule_distance(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>, ra: f32, rb: f32) -> f32 {
-    let ab = b - a;
-    let h = dot(ab, ab);
-    let dr = ra - rb;
-    if h <= dr * dr {
-        // One disc holds the other (or both sit on one point): the hull is the larger disc.
-        return min(length(p - a) - ra, length(p - b) - rb);
-    }
-    let ap = p - a;
-    // `ap` in units of the segment length: across (mirrored) and along.
-    let q = vec2<f32>(abs(dot(ap, vec2<f32>(ab.y, -ab.x))), dot(ap, ab)) / h;
-    let c = vec2<f32>(sqrt(h - dr * dr), dr);
-    let k = c.x * q.y - c.y * q.x;
-    if k < 0.0 {
-        return sqrt(h * dot(q, q)) - ra;
-    }
-    if k > c.x {
-        return sqrt(h * (dot(q, q) + 1.0 - 2.0 * q.y)) - rb;
-    }
-    return dot(c, q) - ra;
-}
 
 // Rounds to the 8-bit value `k` here, then stores `(k + 0.25) / 255`, which the unorm write
 // turns back into `k` whether the device rounds to nearest or toward zero.

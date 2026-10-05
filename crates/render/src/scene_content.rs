@@ -26,7 +26,7 @@ use crate::geom::{Bounds, PixelRect};
 use crate::protocol::{Op, Paint};
 use crate::scene::{Item, Scene, SmudgeItem};
 use crate::scene_cleared::{Cleared, extents, intersect};
-use crate::smudge::smudge_reach;
+use crate::smudge::whole_reach;
 use crate::stroke::{paint, segments};
 
 /// The content of one layer's paint or mask, and where its first item lies in the scene.
@@ -252,7 +252,7 @@ impl Scene {
         };
         let (style, samples) = (stroke.style(), stroke.samples());
         if style.tool() == StrokeTool::Smudge {
-            let reach: Vec<Bounds> = smudge_reach(style, samples, 0).collect();
+            let reach: Vec<Bounds> = whole_reach(style, samples);
             if !reach.iter().any(|bounds| view.meets(bounds.pixels())) {
                 return Ok(());
             }
@@ -270,7 +270,7 @@ impl Scene {
             self.push_smudge(item, reach);
             return Ok(());
         }
-        let parts: Vec<(Op, Bounds)> = segments(style, samples, 0)
+        let parts: Vec<(Op, Bounds)> = segments(style, samples)
             .map(|segment| (segment.op(), segment.bounds()))
             .collect();
         if !parts.iter().any(|(_, bounds)| view.meets(bounds.pixels())) {

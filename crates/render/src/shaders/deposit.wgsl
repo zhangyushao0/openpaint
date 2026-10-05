@@ -28,15 +28,15 @@ fn bell_antiderivative(z: f32, p2: f32) -> f32 {
     return falloff * falloff * z - 2.0 * falloff * z * z2 / 3.0 + z * z2 * z2 / 5.0;
 }
 
-// What one accumulating segment lays at `centre`: x, its tip's cross-section integrated over
-// the stretch of the segment inside the tip, in radii (the radius the segment's mean), times
-// the flow at the closest point; y, the paper contact there, which fades only at the rim.
-// Path-length based: more samples along the same path lay the same density.
-fn segment_density(centre: vec2<f32>, op: Op) -> vec2<f32> {
-    let a = vec2<f32>(op.data[0], op.data[1]);
-    let b = vec2<f32>(op.data[2], op.data[3]);
-    let radii = vec2<f32>(op.data[4], op.data[5]);
-    let bell = u32(op.data[SEGMENT_TIP]) == TIP_BELL;
+// What one accumulating piece (`segment.wgsl`) lays at `centre`: x, its tip's cross-section
+// integrated over the stretch of the piece inside the tip, in radii (the radius the piece's
+// mean), times the flow at the closest point; y, the paper contact there, which fades only at
+// the rim. Path-length based: more samples or pieces along the same path lay the same density.
+// A whole span whose ends meet is a dot (`dot`); a piece of a span never is.
+fn piece_density(centre: vec2<f32>, piece: Piece, bell: bool, dot_allowed: bool) -> vec2<f32> {
+    let a = piece.a;
+    let b = piece.b;
+    let radii = piece.radii;
     let radius = max((radii.x + radii.y) * 0.5, 0.001);
     let y = (centre - a) / radius;
     let v = (b - a) / radius;
@@ -44,6 +44,9 @@ fn segment_density(centre: vec2<f32>, op: Op) -> vec2<f32> {
     var work = 0.0;
     var amount = 0.0;
     if distance(a, b) <= 0.001 {
+        if !dot_allowed {
+            return vec2<f32>(0.0);
+        }
         let d2 = dot(y, y);
         let falloff = max(1.0 - d2, 0.0);
         if bell {
@@ -71,16 +74,16 @@ fn segment_density(centre: vec2<f32>, op: Op) -> vec2<f32> {
             }
         }
     }
-    let flow_a = op.data[SEGMENT_FLOW];
-    let flow = flow_a + (op.data[SEGMENT_FLOW + 1u] - flow_a) * amount;
+    let flow_a = piece.flows.x;
+    let flow = flow_a + (piece.flows.y - flow_a) * amount;
     let local = max(radii.x + (radii.y - radii.x) * amount, 0.001);
     let d = distance(centre, a + (b - a) * amount) / local;
     var touched = 0.0;
     if d < 1.0 {
-        let contact_a = op.data[SEGMENT_CONTACT];
+        let contact_a = piece.contacts.x;
         let d2 = d * d;
         let reach = 1.0 - d2 * d2 * d2 * d2;
-        touched = (contact_a + (op.data[SEGMENT_CONTACT + 1u] - contact_a) * amount) * reach;
+        touched = (contact_a + (piece.contacts.y - contact_a) * amount) * reach;
     }
     return vec2<f32>(max(work, 0.0) * max(flow, 0.0), touched);
 }

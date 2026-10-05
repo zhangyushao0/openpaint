@@ -14,6 +14,9 @@ fn segment(bounds: [f32; 4]) -> Item {
         edge: 1.0,
         contacts: [0.0; 2],
         tip: Tip::Cover,
+        controls: [[0.0; 2]; 2],
+        flat: 0.0,
+        bend: 0.0,
     };
     Item::Segment {
         op: Op::segment(&operands),

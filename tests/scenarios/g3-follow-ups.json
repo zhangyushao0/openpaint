@@ -12,7 +12,7 @@
   "density": 1.75,
   "steps": [
     { "stroke": { "points": [[700, 600, 1.0], [1300, 600, 1.0], [1000, 1100, 1.0], [700, 600, 1.0]] } },
-    { "checkpoint": { "name": "triangle", "canvas": "262731c6281d4025" } },
+    { "checkpoint": { "name": "triangle", "canvas": "1982219921454df5" } },
     { "tap": { "at": "Selection" } },
     { "screenshot": { "name": "selection-bar" } },
     { "tap": { "at": "Rectangle" } },

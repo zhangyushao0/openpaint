@@ -43,19 +43,20 @@ pub(crate) fn hover(at: [f32; 2], start_ms: i64) -> Vec<MotionBatch> {
 /// A path through `points` (`[x, y, pressure]`), resampled so no two samples are more than
 /// `SPACING` apart, pressure interpolated linearly, starting at `start_ms`.
 pub(crate) fn path(tool: Tool, points: &[[f32; 3]], start_ms: i64) -> Vec<MotionBatch> {
-    batches(tool, &resampled(points, start_ms))
+    batches(tool, &resampled(points, start_ms, SPACING))
 }
 
-/// A pen stroke along `points` as `path` draws it. With `lift`, the pen leaves the glass
-/// there as Android reports it: the lift is one more sample, with pressure 0. A `palm` touches
-/// down beside it as a pointer of its own.
+/// A pen stroke along `points` as `path` draws it, or (`sparse`) a sample at each point only, as
+/// a fast pen reports it. With `lift` the pen leaves the glass there as Android reports it (one
+/// more sample, pressure 0). A `palm` touches down beside it as a pointer of its own.
 pub(crate) fn stroke(
-    points: &[[f32; 3]],
+    (points, sparse): (&[[f32; 3]], bool),
     lift: Option<[f32; 2]>,
     palm: Option<Palm>,
     start_ms: i64,
 ) -> Vec<MotionBatch> {
-    let mut samples = resampled(points, start_ms);
+    let spacing = if sparse { f32::INFINITY } else { SPACING };
+    let mut samples = resampled(points, start_ms, spacing);
     if let (Some(at), Some(last)) = (lift, samples.last()) {
         samples.push(sample(at, 0.0, last.time_ms + SAMPLE_MS));
     }
@@ -117,12 +118,13 @@ pub(crate) fn press(tool: Tool, keys: &[[f32; 3]], pressure: f32, start: i64) ->
     batches(tool, &samples)
 }
 
-/// `points` resampled as `path` describes, one sample every `SAMPLE_MS` from `start_ms`.
-fn resampled(points: &[[f32; 3]], start_ms: i64) -> Vec<PointerSample> {
+/// `points` resampled at most `spacing` apart as `path` describes, one sample every `SAMPLE_MS`
+/// from `start_ms`.
+fn resampled(points: &[[f32; 3]], start_ms: i64, spacing: f32) -> Vec<PointerSample> {
     let mut vertices = Vec::new();
     for pair in points.windows(2) {
         let ([ax, ay, ap], [bx, by, bp]) = (pair[0], pair[1]);
-        let steps = ((bx - ax).hypot(by - ay) / SPACING).ceil().max(1.0) as u32;
+        let steps = ((bx - ax).hypot(by - ay) / spacing).ceil().max(1.0) as u32;
         vertices.extend((0..steps).map(|k| {
             let t = k as f32 / steps as f32;
             [ax + (bx - ax) * t, ay + (by - ay) * t, ap + (bp - ap) * t]
@@ -294,7 +296,7 @@ mod tests {
     #[test]
     fn a_lift_ends_the_stroke_with_one_zero_pressure_sample() {
         let batches = stroke(
-            &[[0.0, 0.0, 0.5], [8.0, 0.0, 0.5]],
+            (&[[0.0, 0.0, 0.5], [8.0, 0.0, 0.5]], false),
             Some([12.0, 3.0]),
             None,
             0,
@@ -320,11 +322,11 @@ mod tests {
                 .map(|b| (b.pointers[0].id, b.phase))
                 .collect()
         };
-        let before = who(&stroke(&line, None, Some(hand(Lands::Before)), 0));
+        let before = who(&stroke((&line, false), None, Some(hand(Lands::Before)), 0));
         assert_eq!(before.first(), Some(&(PALM_ID, MotionPhase::Down)));
         assert_eq!(before[1], (0, MotionPhase::Down));
         assert_eq!(before.last(), Some(&(PALM_ID, MotionPhase::Up)));
-        let during = who(&stroke(&line, None, Some(hand(Lands::During)), 0));
+        let during = who(&stroke((&line, false), None, Some(hand(Lands::During)), 0));
         assert_eq!(
             during[..2],
             [(0, MotionPhase::Down), (PALM_ID, MotionPhase::Down)]

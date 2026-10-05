@@ -14,7 +14,7 @@ use crate::affine::Affine;
 use crate::edits::{edit_rect, mask_bounds, moved_rect, placed_rect};
 use crate::filter::{self, kernel_of};
 use crate::geom::Bounds;
-use crate::smudge::smudge_reach;
+use crate::smudge::whole_reach;
 use crate::stroke::segments;
 
 /// Per edit of a layer's content: for a selection's record, where its moved content can lie
@@ -201,8 +201,8 @@ fn reach(stroke: &Stroke) -> Option<Bounds> {
     let (style, samples) = (stroke.style(), stroke.samples());
     match style.tool() {
         StrokeTool::Erase => None,
-        StrokeTool::Smudge => smudge_reach(style, samples, 0).reduce(union),
-        StrokeTool::Paint => segments(style, samples, 0)
+        StrokeTool::Smudge => whole_reach(style, samples).into_iter().reduce(union),
+        StrokeTool::Paint => segments(style, samples)
             .map(|segment| segment.bounds())
             .reduce(union),
     }

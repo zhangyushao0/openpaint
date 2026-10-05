@@ -1,0 +1,42 @@
+{
+  "walkthrough": [
+    "Goal: draw quick, sweeping lines and see them as smooth curves however close I zoom in, never as straight pieces with corners between the pen's samples.",
+    "Entry: a screen-size canvas at fit with the Ink Pen (the default brush, black). Flick a fast loop and a fast S-curve: the pen reports a sample only every 30 to 50 canvas pixels at that speed, and Android adds one of its own on the straight line between two of them every frame.",
+    "What appears: each line follows one smooth curve through the pen's samples, its width changing evenly with the pressure; the frame samples Android adds on the straight chord are no corners. While the pen moves, the last bit of the line behind the tip may bend a little as the next samples arrive; once the pen lifts the line stays exactly as it was last drawn.",
+    "Zoomed in with two fingers to 8x on a turn, the edges stay round: no straight pieces, no corners, no thinner spots where pieces meet. The Pencil's graphite lays as evenly along a fast curve as along a slow one.",
+    "Drawing a fast curve while zoomed in at 8x is smooth under the tip and when lifted. Undo takes it back at once; redo returns it.",
+    "Nothing changes in the files: old strokes, drawn before, now show as curves too, and the artwork reopens exactly as it was drawn. A quick inward pinch fits the canvas again."
+  ],
+  "screen": [2880, 1800],
+  "density": 1.75,
+  "steps": [
+    { "stroke": { "points": [[1195.68, 811.07, 0.4], [1214.83, 770.0, 0.422], [1227.83, 751.44, 0.422], [1240.83, 732.88, 0.444], [1272.88, 700.83, 0.467], [1291.44, 687.83, 0.467], [1310.0, 674.83, 0.489], [1351.07, 655.68, 0.511], [1372.96, 649.815, 0.511], [1394.85, 643.95, 0.533], [1440.0, 640.0, 0.556], [1462.575, 641.975, 0.556], [1485.15, 643.95, 0.578], [1528.93, 655.68, 0.6], [1549.465, 665.255, 0.6], [1570.0, 674.83, 0.622], [1607.12, 700.83, 0.644], [1623.145, 716.855, 0.644], [1639.17, 732.88, 0.667], [1665.17, 770.0, 0.689], [1674.745, 790.535, 0.689], [1684.32, 811.07, 0.711], [1696.05, 854.85, 0.733], [1698.025, 877.425, 0.733], [1700.0, 900.0, 0.756], [1696.05, 945.15, 0.778], [1690.185, 967.04, 0.778], [1684.32, 988.93, 0.8], [1665.17, 1030.0, 0.822], [1652.17, 1048.56, 0.822], [1639.17, 1067.12, 0.844], [1607.12, 1099.17, 0.867], [1588.56, 1112.17, 0.867], [1570.0, 1125.17, 0.889], [1528.93, 1144.32, 0.911], [1507.04, 1150.185, 0.911], [1485.15, 1156.05, 0.933], [1440.0, 1160.0, 0.956], [1417.425, 1158.025, 0.956], [1394.85, 1156.05, 0.978], [1351.07, 1144.32, 1.0]], "sparse": true } },
+    { "stroke": { "points": [[500, 1250.0, 0.5], [545, 1206.0, 0.565], [567.5, 1185.5, 0.565], [590, 1165.0, 0.629], [635, 1129.79, 0.691], [657.5, 1116.285, 0.691], [680, 1102.78, 0.75], [725, 1085.79, 0.804], [747.5, 1082.895, 0.804], [770, 1080.0, 0.854], [815, 1085.79, 0.897], [837.5, 1094.285, 0.897], [860, 1102.78, 0.933], [905, 1129.79, 0.962], [927.5, 1147.395, 0.962], [950, 1165.0, 0.983], [995, 1206.0, 0.996], [1017.5, 1228.0, 0.996], [1040, 1250.0, 1.0], [1085, 1294.0, 0.996], [1107.5, 1314.5, 0.996], [1130, 1335.0, 0.983], [1175, 1370.21, 0.962], [1197.5, 1383.715, 0.962], [1220, 1397.22, 0.933], [1265, 1414.21, 0.897], [1287.5, 1417.105, 0.897], [1310, 1420.0, 0.854], [1355, 1414.21, 0.804], [1377.5, 1405.715, 0.804], [1400, 1397.22, 0.75], [1445, 1370.21, 0.691], [1467.5, 1352.605, 0.691], [1490, 1335.0, 0.629], [1535, 1294.0, 0.565], [1557.5, 1272.0, 0.565], [1580, 1250.0, 0.5]], "sparse": true } },
+    { "checkpoint": { "name": "inked", "canvas": "a6c7ee7fef383b7d" } },
+    { "screenshot": { "name": "fit" } },
+    { "tap": { "at": "Brushes" } },
+    { "tap": { "at": "Pencil" } },
+    { "stroke": { "points": [[1861.8, 916.66, 0.5], [1816.49, 903.53, 0.538], [1795.76, 892.295, 0.538], [1775.03, 881.06, 0.577], [1739.3, 850.26, 0.615], [1725.135, 831.405, 0.615], [1710.97, 812.55, 0.654], [1691.32, 769.67, 0.692], [1686.295, 746.625, 0.692], [1681.27, 723.58, 0.731], [1681.27, 676.42, 0.769], [1686.295, 653.375, 0.769], [1691.32, 630.33, 0.808], [1710.97, 587.45, 0.846], [1725.135, 568.595, 0.846], [1739.3, 549.74, 0.885], [1775.03, 518.94, 0.923], [1795.76, 507.705, 0.923], [1816.49, 496.47, 0.962], [1861.8, 483.34, 1.0]], "sparse": true } },
+    { "checkpoint": { "name": "pencilled", "canvas": "ce05dcf5bab84c84" } },
+    { "touch": { "from": [[1600, 900], [1800, 900]], "to": [[1300, 900], [2100, 900]], "ms": 320 } },
+    { "touch": { "from": [[1600, 900], [1800, 900]], "to": [[1500, 900], [1900, 900]], "ms": 320 } },
+    { "view": { "name": "spread-8x", "zoom": 7.385, "rotation": 0.0, "pan": [-948.6, 153.2] } },
+    { "screenshot": { "name": "loop-at-8x" } },
+    { "touch": { "from": [[1300, 900], [1500, 900]], "to": [[1300, 600], [1500, 600]], "ms": 320 } },
+    { "screenshot": { "name": "loop-panned-at-8x" } },
+    { "tap": { "at": "Brushes" } },
+    { "tap": { "at": "Ink Pen" } },
+    { "stroke": { "points": [[900, 700, 0.5], [1100, 640, 0.7], [1210, 655, 0.7], [1320, 670, 0.9], [1500, 820, 1.0], [1560, 1000, 0.8], [1530, 1090, 0.8], [1500, 1180, 0.6]], "sparse": true } },
+    { "checkpoint": { "name": "drawn-at-8x", "canvas": "e878ef298fb50810" } },
+    { "screenshot": { "name": "stroke-at-8x" } },
+    { "tap": { "at": "Undo" } },
+    { "checkpoint": { "name": "undone", "canvas": "ce05dcf5bab84c84" } },
+    { "tap": { "at": "Redo" } },
+    { "checkpoint": { "name": "redone", "canvas": "e878ef298fb50810" } },
+    "restart",
+    { "checkpoint": { "name": "reopened", "canvas": "e878ef298fb50810" } },
+    { "touch": { "from": [[900, 900], [2000, 900]], "to": [[1400, 900], [1500, 900]], "ms": 160 } },
+    { "view": { "name": "fits-again", "zoom": 1.0, "rotation": 0.0, "pan": [0.0, 0.0] } },
+    { "screenshot": { "name": "fitted" } }
+  ]
+}

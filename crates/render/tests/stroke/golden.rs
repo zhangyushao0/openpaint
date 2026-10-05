@@ -6,7 +6,7 @@ use crate::fixture::{SIZE, blank, cold, core, pixel, rich, wave, wave_with, with
 
 /// `cargo run -p openpaint-harness -- render-stroke` renders the same wave and prints this hash.
 /// Same on Vulkan and DX12.
-const GOLDEN: u64 = 0xba85_2310_2ad3_8e3a;
+const GOLDEN: u64 = 0xecd7_fdc1_3320_2509;
 const WHITE: [u8; 4] = [255; 4];
 /// 80 % of (0.12, 0.25, 0.65) over white, rounded to 8 bits.
 const FULL: [u8; 4] = [75, 102, 184, 255];
@@ -26,7 +26,7 @@ fn wave_matches_the_golden_hash() {
 }
 
 /// The wave drawn with every recipe stage at work (`fixture::rich`); same on Vulkan and DX12.
-const RICH_GOLDEN: u64 = 0xcfc0_2779_7b0b_9f75;
+const RICH_GOLDEN: u64 = 0x420e_f5b6_3fc6_c3b5;
 
 #[test]
 fn a_rich_recipe_matches_its_golden_hash() {

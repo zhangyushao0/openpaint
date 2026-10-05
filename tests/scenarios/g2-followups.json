@@ -47,7 +47,7 @@
     { "press": { "path": [[900, 1520, 0], [1100, 1530, 200], [1100, 1530, 400]], "tool": "stylus", "pressure": 0.4, "before_lift": "eraser-pressed" } },
     { "tap": { "at": "Brushes" } },
     { "press": { "path": [[600, 1200, 0], [900, 1200, 200]], "tool": "stylus", "before_lift": "brush-pressed" } },
-    { "checkpoint": { "name": "drawn", "canvas": "a0b93b5bddc06b16" } },
+    { "checkpoint": { "name": "drawn", "canvas": "36115670b1332db8" } },
     { "tap": { "at": { "on": "Reference picture", "offset": [-144.01563, 120.97656] } } },
     { "tap": { "at": "Close reference" } },
     { "screenshot": { "name": "closed" } }

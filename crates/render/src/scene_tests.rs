@@ -4,10 +4,10 @@ use std::sync::Arc;
 
 use super::*;
 use crate::protocol::Paint;
-use crate::stroke::stroke_region;
+use crate::stroke::{paint, stroke_region};
 use openpaint_core::{
     ArtworkCommand, BrushRecipe, CanvasPoint, CanvasSize, Color, GroupCommand, LayerCommand,
-    MaskCommand, StrokeSample, StrokeStyle,
+    MaskCommand, StrokeSample, StrokeStyle, StrokeTool,
 };
 
 fn sample(x: f32, y: f32, pressure: f32, time_ms: u32) -> StrokeSample {
@@ -296,7 +296,12 @@ fn fresh_ops_start_with_the_paint_op() {
         Some(fresh.bounds[0].pixels()),
         stroke_region(&style(), &samples, 0)
     );
-    assert_eq!(Fresh::new(session.active(), 1, 0).bounds.len(), 0);
+    // Both its spans are the tail until samples settle them: drawn every time, never kept.
+    assert_eq!(Fresh::new(session.active(), 1, 0).bounds.len(), 1);
+    let tail = crate::stroke::segments(&style(), &samples)
+        .next()
+        .expect("span");
+    assert_eq!(fresh.ops[1], tail.tail_op());
     let smudging = blank
         .begin_stroke(style().with_tool(StrokeTool::Smudge), samples[0])
         .expect("begin");

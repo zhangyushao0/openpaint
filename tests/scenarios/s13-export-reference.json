@@ -18,7 +18,7 @@
   "steps": [
     { "stroke": { "points": [[500, 400, 0.6], [1500, 900, 1.0], [2100, 600, 0.4]] } },
     { "stroke": { "points": [[600, 1300, 1.0], [1800, 1200, 0.7]] } },
-    { "checkpoint": { "name": "inked", "canvas": "97b7285f3df6aced" } },
+    { "checkpoint": { "name": "inked", "canvas": "7f570f822c95eec6" } },
     { "tap": { "at": "Actions" } },
     { "screenshot": { "name": "actions" } },
     { "tap": { "at": "Reference" } },
@@ -46,7 +46,7 @@
     { "tap": { "at": { "on": "Reference picture", "offset": [210.98438, -114.02344] } } },
     { "screenshot": { "name": "picked-blue" } },
     { "stroke": { "points": [[700, 1500, 1.0], [1300, 1550, 1.0]] } },
-    { "checkpoint": { "name": "blue-line", "canvas": "8976ee2ec2d24caf" } },
+    { "checkpoint": { "name": "blue-line", "canvas": "1056899094835836" } },
     { "tap": { "at": { "on": "Reference picture", "offset": [-144.01563, 120.97656] } } },
     { "tap": { "at": "Close reference" } },
     { "screenshot": { "name": "window-closed" } },
@@ -76,9 +76,9 @@
     { "system": "choose_file" },
     { "system": "share_sheet" },
     { "exported": { "name": "share-png" } },
-    { "checkpoint": { "name": "delivered", "canvas": "8976ee2ec2d24caf" } },
+    { "checkpoint": { "name": "delivered", "canvas": "1056899094835836" } },
     "restart",
-    { "checkpoint": { "name": "reopened", "canvas": "8976ee2ec2d24caf" } },
+    { "checkpoint": { "name": "reopened", "canvas": "1056899094835836" } },
     { "screenshot": { "name": "reopened-screen" } }
   ]
 }

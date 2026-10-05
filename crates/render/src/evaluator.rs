@@ -349,7 +349,7 @@ impl<'a> RegionEvaluator<'a> {
             .track
             .advance(request.artwork, request.active, drawn);
         let fresh = match request.active.filter(|_| drawn) {
-            Some(active) => Fresh::new(active, step.fresh.start, clip),
+            Some(active) => Fresh::new(active, step.kept.start, clip),
             None => Fresh::default(),
         };
         let mut all = regions.to_vec();

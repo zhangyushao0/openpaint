@@ -1,16 +1,22 @@
-//! Stroke geometry: a stroke is a chain of tapered capsules between consecutive samples
-//! (DECISIONS D07: no dabs). At every sample the stroke's recipe turns pressure and pen speed
-//! into a radius (size dynamics), a flow (opacity dynamics, times the recipe's flow when it
-//! accumulates) and a paper contact; the paint op carries the colour, the stroke's opacity, the
-//! recipe's grain and how its density becomes coverage (D38).
+//! Stroke geometry: a stroke follows the centripetal Catmull-Rom curve through its knots
+//! (`curve.rs`, S34), one `Segment` op per span between two knots, which the evaluator flattens
+//! into tapered capsules fine enough for the scale it evaluates at (DECISIONS D07: no dabs). At
+//! every knot the stroke's recipe turns pressure and pen speed into a radius (size dynamics), a
+//! flow (opacity dynamics, times the recipe's flow when it accumulates) and a paper contact,
+//! which change evenly along the span; the paint op carries the colour, the stroke's opacity,
+//! the recipe's grain and how its density becomes coverage (D38).
 //!
-//! Everything here depends only on the samples up to the one it describes, so a stroke drawn a
-//! few samples at a time gets exactly the segments it gets when drawn at once.
+//! A span depends on the knots before and after it and a knot on the sample after it, so an
+//! in-progress stroke's last two spans may still change (`Path::settled`); every earlier span
+//! is exactly the span the finished stroke has.
+
+use std::ops::Range;
 
 use openpaint_core::{
     Deposit, StrokeBlend, StrokeSample, StrokeStyle, StrokeTool, Tip as RecipeTip,
 };
 
+use crate::curve::{self, Cubic, knots, point};
 use crate::geom::{Bounds, PixelRect};
 use crate::protocol::{Blend, GRAIN_ONE, Op, Paint, SegmentOperands, Tip};
 use crate::smudge::smudge_reach;
@@ -24,9 +30,21 @@ const SPEED_WINDOW_MS: u32 = 40;
 /// Most segments looked back over for the speed, since samples can share a millisecond.
 const SPEED_LOOKBACK: usize = 64;
 
-/// A tapered capsule between two samples, in target pixels.
+/// One span of a stroke's curve between two knots, in canvas pixels.
+#[derive(Debug, Clone)]
 pub(crate) struct Segment {
     operands: SegmentOperands,
+    /// The pen's pressure at both knots (a smudge's strength follows it).
+    pressures: [f32; 2],
+}
+
+/// One straight piece of a flattened span: what the evaluator draws as a capsule.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) struct Piece {
+    pub(crate) a: [f32; 2],
+    pub(crate) b: [f32; 2],
+    pub(crate) radii: [f32; 2],
+    pub(crate) pressures: [f32; 2],
 }
 
 impl Segment {
@@ -34,30 +52,129 @@ impl Segment {
         Op::segment(&self.operands)
     }
 
-    /// Coverage and density are zero from half a pixel outside the capsule, whatever its edge
-    /// or tip.
+    /// As the in-progress stroke's end, which later samples may still change.
+    pub(crate) fn tail_op(&self) -> Op {
+        Op::tail(&self.operands)
+    }
+
+    /// Coverage and density are zero from half a pixel outside every capsule it is flattened
+    /// into, whatever its edge or tip: the curve lies in the hull of its four points.
     pub(crate) fn bounds(&self) -> Bounds {
-        let SegmentOperands { a, b, radii, .. } = self.operands;
-        let reach = radii[0].max(radii[1]) + REACH;
+        let [ra, rb] = self.operands.radii;
+        self.hull(ra.max(rb) + REACH)
+    }
+
+    /// The box of the curve's four points widened by `reach` on every side.
+    pub(crate) fn hull(&self, reach: f32) -> Bounds {
+        let SegmentOperands { a, b, controls, .. } = self.operands;
+        let points = [a, controls[0], controls[1], b];
+        let low = |axis: usize| points.iter().map(|p| p[axis]).fold(f32::INFINITY, f32::min);
+        let high = |axis: usize| {
+            points
+                .iter()
+                .map(|p| p[axis])
+                .fold(f32::NEG_INFINITY, f32::max)
+        };
         Bounds([
-            a[0].min(b[0]) - reach,
-            a[1].min(b[1]) - reach,
-            a[0].max(b[0]) + reach,
-            a[1].max(b[1]) + reach,
+            low(0) - reach,
+            low(1) - reach,
+            high(0) + reach,
+            high(1) + reach,
         ])
+    }
+
+    /// The radii at both knots.
+    pub(crate) fn radii(&self) -> [f32; 2] {
+        self.operands.radii
+    }
+
+    /// The straight pieces the evaluator draws at `scale` output pixels per canvas pixel
+    /// (`segment.wgsl`): the chord while it is close enough, else pieces of equal parameter.
+    pub(crate) fn pieces(&self, scale: f32) -> Vec<Piece> {
+        let s = &self.operands;
+        let n = curve::pieces(s.flat, s.bend, scale);
+        let cubic = Cubic([s.a, s.controls[0], s.controls[1], s.b]);
+        let lerp = |[x, y]: [f32; 2], t: f32| x + (y - x) * t;
+        let at = |k: u32| {
+            let t = k as f32 / n as f32;
+            let place = match k {
+                0 => s.a,
+                k if k == n => s.b,
+                _ => cubic.at(t),
+            };
+            (place, lerp(s.radii, t), lerp(self.pressures, t))
+        };
+        (0..n)
+            .map(|k| {
+                let (a, ra, pa) = at(k);
+                let (b, rb, pb) = at(k + 1);
+                Piece {
+                    a,
+                    b,
+                    radii: [ra, rb],
+                    pressures: [pa, pb],
+                }
+            })
+            .collect()
     }
 }
 
-/// The segments ending at samples after `from`: one per consecutive pair from `(from, from +
-/// 1)` on; a stroke of one sample is a round dot. Samples before `from` only feed the speed.
+/// A stroke's knots (`curve::knots`) and what follows from them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct Path {
+    knots: Vec<usize>,
+}
+
+impl Path {
+    pub(crate) fn of(samples: &[StrokeSample]) -> Self {
+        Self {
+            knots: knots(samples),
+        }
+    }
+
+    /// Its spans: one between each two consecutive knots; a lone knot is one, a dot.
+    pub(crate) fn spans(&self) -> usize {
+        self.knots
+            .len()
+            .saturating_sub(1)
+            .max(usize::from(!self.knots.is_empty()))
+    }
+
+    /// The spans no later sample can change while the stroke is drawn: all but the last two,
+    /// which depend on the last sample (a knot until the next one shows whether it is one).
+    pub(crate) fn settled(&self) -> usize {
+        self.knots.len().saturating_sub(3)
+    }
+
+    /// The first span that samples from `from` on can change: a sample decides whether the
+    /// one before it is a knot, and a span depends on the knot before and after it.
+    pub(crate) fn changed_from(&self, from: usize) -> usize {
+        let before = self.knots.iter().take_while(|k| **k + 1 < from).count();
+        before.saturating_sub(2).min(self.spans())
+    }
+}
+
+/// The spans `range` of a stroke of `style` through `samples`, whose knots are `path`.
+pub(crate) fn spans<'a>(
+    style: &'a StrokeStyle,
+    samples: &'a [StrokeSample],
+    path: &'a Path,
+    range: Range<usize>,
+) -> impl Iterator<Item = Segment> + 'a {
+    range.map(move |j| span(style, samples, path, j))
+}
+
+/// Every span of a finished stroke; a stroke of one sample is a round dot.
 pub(crate) fn segments<'a>(
     style: &'a StrokeStyle,
     samples: &'a [StrokeSample],
-    from: usize,
 ) -> impl Iterator<Item = Segment> + 'a {
-    let speed = style.recipe().uses_speed();
-    let pairs = (from + 1..samples.len()).map(|i| (i - 1, i));
-    let dot = (samples.len() == 1 && from == 0).then_some((0, 0));
+    let path = Path::of(samples);
+    (0..path.spans()).map(move |j| span(style, samples, &path, j))
+}
+
+/// Span `j` of the stroke.
+fn span(style: &StrokeStyle, samples: &[StrokeSample], path: &Path, j: usize) -> Segment {
     let tip = match style.recipe().deposit() {
         Deposit::Cover => Tip::Cover,
         Deposit::Accumulate(accumulation) => match accumulation.tip() {
@@ -65,22 +182,36 @@ pub(crate) fn segments<'a>(
             RecipeTip::Bell => Tip::Bell,
         },
     };
-    pairs.chain(dot).map(move |(i, j)| {
-        let a = dab(style, samples, i, speed);
-        let b = dab(style, samples, j, speed);
-        let width = style.recipe().softness() * a.radius.max(b.radius);
-        Segment {
-            operands: SegmentOperands {
-                a: point(&samples[i]),
-                b: point(&samples[j]),
-                radii: [a.radius, b.radius],
-                flows: [a.flow, b.flow],
-                edge: 1.0 / width.max(1.0),
-                contacts: [a.contact, b.contact],
-                tip,
-            },
-        }
-    })
+    let speed = style.recipe().uses_speed();
+    let knots = &path.knots;
+    let last = knots.len() - 1;
+    let (i, k) = (knots[j], knots[(j + 1).min(last)]);
+    // The knots the span depends on, as `Cubic::span` takes them.
+    let first = j.saturating_sub(1);
+    let mut local = [[0.0; 2]; 4];
+    let count = (first..=(j + 2).min(last)).count();
+    for (slot, knot) in local.iter_mut().zip(&knots[first..first + count]) {
+        *slot = point(&samples[*knot]);
+    }
+    let cubic = Cubic::span(&local[..count], j - first);
+    let (a, b) = (dab(style, samples, i, speed), dab(style, samples, k, speed));
+    let width = style.recipe().softness() * a.radius.max(b.radius);
+    let [start, c1, c2, end] = cubic.0;
+    Segment {
+        operands: SegmentOperands {
+            a: start,
+            b: end,
+            radii: [a.radius, b.radius],
+            flows: [a.flow, b.flow],
+            edge: 1.0 / width.max(1.0),
+            contacts: [a.contact, b.contact],
+            tip,
+            controls: [c1, c2],
+            flat: cubic.flatness(),
+            bend: cubic.bend(),
+        },
+        pressures: [samples[i].pressure(), samples[k].pressure()],
+    }
 }
 
 /// The paint op's operands for a stroke of `style` combining with its layer by `blend`.
@@ -115,16 +246,27 @@ pub(crate) fn paint(style: &StrokeStyle, blend: StrokeBlend) -> Paint {
     }
 }
 
-/// The pixels a stroke of `style` through `samples` can change with its segments after `from`
-/// (see `segments`). For an in-progress stroke, pass every sample so far and the index of the
-/// last one evaluated before: the result is the region to evaluate again.
+/// The pixels a stroke of `style` through `samples` can change with the spans that samples
+/// from `from` on can change (`Path::changed_from`): every span for `from` 0. For two versions
+/// of a stroke sharing their samples before `from`, everything else they draw is the same.
 #[must_use]
 pub fn stroke_region(
     style: &StrokeStyle,
     samples: &[StrokeSample],
     from: usize,
 ) -> Option<PixelRect> {
-    segment_regions(style, samples, from).reduce(|all, next| all.union(&next))
+    let path = Path::of(samples);
+    let range = path.changed_from(from)..path.spans();
+    span_regions(style, samples, &path, range).reduce(|all, next| all.union(&next))
+}
+
+/// How many spans a finished stroke of `style` through `samples` has, and how many straight
+/// pieces the evaluator draws them as at `scale` output pixels per canvas pixel (statistics).
+#[must_use]
+pub fn curve_pieces(style: &StrokeStyle, samples: &[StrokeSample], scale: f32) -> [usize; 2] {
+    let spans: Vec<Segment> = segments(style, samples).collect();
+    let pieces = spans.iter().map(|span| span.pieces(scale).len()).sum();
+    [spans.len(), pieces]
 }
 
 /// The radius in canvas pixels at the last of `samples`, exactly as a stroke of `style` draws
@@ -135,23 +277,30 @@ pub fn tip_radius(style: &StrokeStyle, samples: &[StrokeSample]) -> Option<f32> 
     Some(dab(style, samples, last, style.recipe().uses_speed()).radius)
 }
 
-/// The pixels each segment can change, one rectangle per segment: tighter than their union for
-/// a long curved stroke. A smudge's segments reach as far as its contacts can (`smudge`).
+/// The pixels each span of a finished stroke can change, one rectangle per span: tighter than
+/// their union for a long curved stroke. A smudge's spans reach as far as its contacts can.
 pub(crate) fn segment_regions<'a>(
     style: &'a StrokeStyle,
     samples: &'a [StrokeSample],
-    from: usize,
-) -> Box<dyn Iterator<Item = PixelRect> + 'a> {
-    if style.tool() == StrokeTool::Smudge {
-        return Box::new(smudge_reach(style, samples, from).map(|bounds| bounds.pixels()));
-    }
-    Box::new(segments(style, samples, from).map(|segment| segment.bounds().pixels()))
+) -> impl Iterator<Item = PixelRect> + 'a {
+    let path = Path::of(samples);
+    let count = path.spans();
+    let regions: Vec<PixelRect> = span_regions(style, samples, &path, 0..count).collect();
+    regions.into_iter()
 }
 
-/// The radius in canvas pixels a stroke of `style` has at sample `i` (size dynamics at its
-/// pressure and pen speed).
-pub(crate) fn sample_radius(style: &StrokeStyle, samples: &[StrokeSample], i: usize) -> f32 {
-    dab(style, samples, i, style.recipe().uses_speed()).radius
+/// `segment_regions` of the spans `range`.
+pub(crate) fn span_regions<'a>(
+    style: &'a StrokeStyle,
+    samples: &'a [StrokeSample],
+    path: &'a Path,
+    range: Range<usize>,
+) -> Box<dyn Iterator<Item = PixelRect> + 'a> {
+    if style.tool() == StrokeTool::Smudge {
+        let reach = smudge_reach(style, samples, path, range);
+        return Box::new(reach.map(|bounds| bounds.pixels()));
+    }
+    Box::new(spans(style, samples, path, range).map(|segment| segment.bounds().pixels()))
 }
 
 /// What a stroke is at one sample.
@@ -188,14 +337,14 @@ fn dab(style: &StrokeStyle, samples: &[StrokeSample], i: usize, speed: bool) -> 
 
 /// Canvas pixels per millisecond at sample `i`: the path of the last `SPEED_WINDOW_MS` before
 /// it (a segment reaching back further counts with the part inside the window), divided by
-/// the window.
+/// the window. Measured along the samples themselves, resamples included.
 fn pen_speed(samples: &[StrokeSample], i: usize) -> f32 {
     let end = samples[i].time_ms();
     let mut path = 0.0;
     let mut k = i;
     while k > 0 && i - k < SPEED_LOOKBACK {
         let (before, after) = (&samples[k - 1], &samples[k]);
-        let length = distance(before, after);
+        let length = curve::len(curve::sub(point(after), point(before)));
         if end - before.time_ms() <= SPEED_WINDOW_MS {
             path += length;
             k -= 1;
@@ -209,114 +358,6 @@ fn pen_speed(samples: &[StrokeSample], i: usize) -> f32 {
     path / SPEED_WINDOW_MS as f32
 }
 
-fn distance(a: &StrokeSample, b: &StrokeSample) -> f32 {
-    let [ax, ay] = point(a);
-    let [bx, by] = point(b);
-    (bx - ax).hypot(by - ay)
-}
-
-fn point(sample: &StrokeSample) -> [f32; 2] {
-    let position = sample.position();
-    [position.x(), position.y()]
-}
-
 #[cfg(test)]
-mod tests {
-    use std::sync::Arc;
-
-    use super::*;
-    use openpaint_core::{BrushRecipe, CanvasPoint, Color, Curve, Dynamics, Grain};
-
-    fn sample(x: f32, pressure: f32, time_ms: u32) -> StrokeSample {
-        let position = CanvasPoint::new(x, 20.0).expect("point");
-        StrokeSample::new(position, pressure, 0.0, 0.0, time_ms).expect("sample")
-    }
-
-    fn style(recipe: BrushRecipe) -> StrokeStyle {
-        StrokeStyle::new(Arc::new(recipe), 10.0, 1.0, Color::BLACK).expect("style")
-    }
-
-    /// Thinner when faster: half the size from 2 px/ms on.
-    fn speedy() -> BrushRecipe {
-        let curve = |points: &[[f32; 2]]| Curve::new(points).expect("curve");
-        let size = Dynamics::new(curve(&[[0.0, 1.0]]), curve(&[[0.0, 1.0], [2.0, 0.5]]));
-        let opacity = Dynamics::new(curve(&[[0.0, 1.0]]), curve(&[[0.0, 1.0]]));
-        BrushRecipe::new(
-            0.5,
-            size.expect("size"),
-            opacity.expect("opacity"),
-            Grain::NONE,
-        )
-        .expect("recipe")
-    }
-
-    #[test]
-    fn the_plain_brush_keeps_the_round_brush_before_recipes() {
-        let samples = [sample(10.0, 1.0, 0), sample(30.0, 0.2, 4)];
-        let segment = segments(&style(BrushRecipe::plain()), &samples, 0)
-            .next()
-            .expect("one segment")
-            .operands;
-        assert_eq!(segment.radii, [0.5 * 10.0 * 1.0, 0.5 * 10.0 * 0.2]);
-        assert_eq!((segment.flows, segment.edge), ([1.0, 1.0], 1.0));
-        assert_eq!((segment.contacts, segment.tip), ([0.0; 2], Tip::Cover));
-        let drawn = segment.radii[1];
-        assert_eq!(
-            tip_radius(&style(BrushRecipe::plain()), &samples),
-            Some(drawn)
-        );
-        assert_eq!(tip_radius(&style(BrushRecipe::plain()), &[]), None);
-    }
-
-    #[test]
-    fn speed_is_the_path_of_the_last_window_and_rises_from_zero() {
-        // 1 px per ms, a sample every 4 ms.
-        let samples: Vec<_> = (0..30u16)
-            .map(|i| sample(4.0 * f32::from(i), 1.0, 4 * u32::from(i)))
-            .collect();
-        assert_eq!(pen_speed(&samples, 0), 0.0);
-        assert!(
-            (pen_speed(&samples, 5) - 0.5).abs() < 1e-6,
-            "20 px in 40 ms"
-        );
-        for i in 10..30 {
-            assert!((pen_speed(&samples, i) - 1.0).abs() < 1e-5, "at {i}");
-        }
-        // A sample straddling the window counts with the part inside it.
-        let uneven = [
-            sample(0.0, 1.0, 0),
-            sample(30.0, 1.0, 30),
-            sample(40.0, 1.0, 50),
-        ];
-        assert!((pen_speed(&uneven, 2) - 30.0 / 40.0).abs() < 1e-6);
-    }
-
-    #[test]
-    fn segments_after_from_equal_the_same_segments_of_the_whole_stroke() {
-        let style = style(speedy());
-        let samples: Vec<_> = (0..40u16)
-            .map(|i| sample(3.0 * f32::from(i), 0.8, 2 * u32::from(i)))
-            .collect();
-        let whole: Vec<Op> = segments(&style, &samples, 0).map(|s| s.op()).collect();
-        let tail: Vec<Op> = segments(&style, &samples, 25).map(|s| s.op()).collect();
-        assert_eq!(tail, whole[25..]);
-        let thin = segments(&style, &samples, 30)
-            .next()
-            .expect("segment")
-            .operands;
-        assert!(thin.radii[0] < 5.0, "faster is thinner: {:?}", thin.radii);
-        assert!((thin.edge - 1.0 / (0.5 * thin.radii[0].max(thin.radii[1]))).abs() < 1e-6);
-    }
-
-    #[test]
-    fn region_covers_the_widest_radius_plus_antialiasing() {
-        let style = style(BrushRecipe::plain());
-        let samples = [sample(10.0, 1.0, 0), sample(30.0, 0.2, 4)];
-        let region = stroke_region(&style, &samples, 0).expect("region");
-        assert_eq!(region.min, [4, 14]);
-        assert_eq!(region.max, [37, 27]);
-        assert_eq!(stroke_region(&style, &[], 0), None);
-        assert_eq!(stroke_region(&style, &samples, 1), None);
-        assert!(stroke_region(&style, &samples[..1], 0).is_some(), "a dot");
-    }
-}
+#[path = "stroke_tests.rs"]
+mod tests;

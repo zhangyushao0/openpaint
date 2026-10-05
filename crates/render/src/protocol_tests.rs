@@ -42,6 +42,9 @@ fn operands(tip: Tip) -> SegmentOperands {
         edge: 0.5,
         contacts: [0.375, 0.625],
         tip,
+        controls: [[1.5, 2.5], [2.5, 3.5]],
+        flat: 0.125,
+        bend: 0.25,
     }
 }
 
@@ -49,9 +52,11 @@ fn operands(tip: Tip) -> SegmentOperands {
 fn named_slots_hold_what_the_constructors_write() {
     let op = Op::segment(&operands(Tip::Bell));
     assert_eq!(
-        op.data[SEGMENT_FLOW..=SEGMENT_TIP],
-        [0.25, 0.75, 0.5, 0.375, 0.625, 2.0],
-        "flows, the edge, the contacts, the tip"
+        op.data[segment::SEGMENT_FLOW..],
+        [
+            0.25, 0.75, 0.5, 0.375, 0.625, 2.0, 1.5, 2.5, 2.5, 3.5, 0.125, 0.25
+        ],
+        "flows, the edge, the contacts, the tip, the controls, flatness and bend"
     );
     let paint = Paint {
         color: [0.1, 0.2, 0.3],
@@ -71,7 +76,7 @@ fn named_slots_hold_what_the_constructors_write() {
     assert_eq!(op.data[PAINT_DENSITY], 0.875);
     assert_eq!(op.data[PAINT_PAPER..PAINT_CLIP], [4.5, 2.25, 0.3, 0.25]);
     assert_eq!(
-        op.data[PAINT_CLIP..],
+        op.data[PAINT_CLIP..PAINT_CLIP + 2],
         [5.0, 11.0],
         "the clip, high part first"
     );
@@ -144,7 +149,7 @@ fn opcode_constants_match_the_enum() {
     assert_eq!(value("FRESH"), FRESH);
     assert_eq!(value("GRAIN_ONE"), GRAIN_ONE);
     assert_eq!(value("MASK_HEADER"), MASK_HEADER);
-    for (name, slot) in SLOTS {
+    for (name, slot) in SLOTS.into_iter().chain(SEGMENT_SLOTS) {
         assert_eq!(value(name) as usize, slot, "{name}");
     }
     for (name, blend) in BLENDS {
@@ -182,4 +187,18 @@ fn opcode_constants_match_the_enum() {
     assert_eq!(value("PAPER_HEIGHT"), PAPER_SIZE[1]);
     assert_eq!(value("PAPER_LEVELS"), level_count());
     assert_eq!(value("MOMENT_ONE"), MOMENT_ONE);
+}
+
+#[test]
+fn a_tail_span_is_laid_out_as_a_segment_and_the_curve_constants_reach_wgsl() {
+    assert_eq!(
+        Op::tail(&operands(Tip::Flat)).data,
+        Op::segment(&operands(Tip::Flat)).data
+    );
+    let wgsl = prelude();
+    assert!(wgsl.contains(&format!(
+        "const MAX_PIECES: u32 = {}u;",
+        crate::curve::MAX_PIECES
+    )));
+    assert!(wgsl.contains("const TOLERANCE: f32 = 0.0625;"));
 }

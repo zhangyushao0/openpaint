@@ -23,7 +23,7 @@ const OFF_RED: [u32; 2] = [160, 40];
 
 /// The wave, the eraser through it with every recipe stage, and an alpha-locked blue stroke:
 /// same on Vulkan and DX12.
-const ERASE_GOLDEN: u64 = 0x82e4_c71c_9e45_a92a;
+const ERASE_GOLDEN: u64 = 0xf90a_9679_a5bf_8706;
 
 fn line(style: StrokeStyle, from: [f32; 2], to: [f32; 2]) -> (StrokeStyle, Vec<StrokeSample>) {
     let samples = (0..=8u16)

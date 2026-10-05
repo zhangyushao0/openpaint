@@ -93,3 +93,10 @@ Superseded decisions moved here whole from `docs/DECISIONS.md`. Written, never r
 - Schema 12: edit record kind 2 (`adjusts.rs`: after, clip, inverted, then the HSB values or the four curves' points); masks may hold adjustments. Step 11 -> 12 only marks heads (D49).
 - Consequences: an unclipped adjustment lists its op in every tile of the layer, and each preview value re-evaluates the whole canvas (as an opacity drag does); the curves' 8-bit tables band a strong curve on a smooth gradient (STATUS); adjustments follow the layer's content when it is transformed later (the transform lifts the adjusted pixels).
 - Archived 2026-10-05 (S33): Gaussian Blur and Sharpen came as adjustment records over a derived canvas-resolution boundary; D59 replaces this entry.
+
+## D39 2026-10-03 StreamLine smooths the stroke intent; the stroke stores the smoothed path
+
+- Decision: draweave's leash (ADR-0014, 406cfe9) in the app's stroke intent: the drawn line moves only when the pen is farther than the leash, full leash clamp(3 x size, 24, 96) canvas pixels times amount^2; positions only (pressure, tilt, time stay the pen's); the amount is frozen at pen-down. At the lift the remaining offset spreads over the last 2 leashes with smoothstep weights (`StrokeSession::revise`), so the stroke ends where the pen left; the renderer redraws the old and the new end. The amount is per brush and tool in the toolbox (an f32 after opacity in the editor record, 0 on upgrade), set by "StreamLine 0-100 %" under the brush panel's rows.
+- Reason: ROADMAP and ARCHITECTURE put stabilisation in the stroke intent; storing what was drawn keeps rendering, export, fill and picking unaware of it, and the format needs no per-stroke amount.
+- Consequences: the raw pen path is not kept (re-smoothing old strokes is no feature). No corner smoothing or Catmull-Rom curves yet (a candidate if corners show).
+- Archived 2026-10-05 (S34): replaced by D60, which carries the StreamLine decision over unchanged and adds the curve through the samples (the "no corner smoothing" consequence no longer holds).

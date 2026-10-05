@@ -41,17 +41,10 @@ fn every_step_kind_parses() {
     assert_eq!(scenario.steps[9], Step::StorageWorks);
     assert_eq!(scenario.steps[10], Step::Type("Harbour".into()));
     assert_eq!(scenario.steps[11], Step::Back);
-    assert_eq!(
+    assert!(matches!(
         scenario.steps[3],
-        Step::Stroke {
-            points: vec![[1.0, 2.0, 0.5]],
-            lift: Some([3.0, 4.0]),
-            palm: Some(Palm {
-                at: [5.0, 6.0],
-                lands: Lands::During
-            }),
-        }
-    );
+        Step::Stroke { sparse: false, .. }
+    ));
     assert_eq!(
         scenario.steps[0],
         Step::Tap {
@@ -140,4 +133,28 @@ fn names_are_plain_and_unique() {
     assert!(matches!(with_steps(twice), Err(ScenarioError::Invalid(_))));
     let empty = r#"{ "stroke": { "points": [] } }"#;
     assert!(matches!(with_steps(empty), Err(ScenarioError::Invalid(_))));
+}
+
+#[test]
+fn a_stroke_step_takes_its_lift_palm_and_sparse_samples() {
+    let text = r#"{
+        "walkthrough": ["Draw."],
+        "screen": [640, 400],
+        "density": 2,
+        "steps": [
+            { "stroke": { "points": [[1, 2, 0.5]], "lift": [3, 4],
+                          "palm": { "at": [5, 6], "lands": "during" }, "sparse": true } }
+        ]
+    }"#;
+    let scenario = Scenario::parse(text).expect("parses");
+    let stroke = Step::Stroke {
+        points: vec![[1.0, 2.0, 0.5]],
+        lift: Some([3.0, 4.0]),
+        palm: Some(Palm {
+            at: [5.0, 6.0],
+            lands: Lands::During,
+        }),
+        sparse: true,
+    };
+    assert_eq!(scenario.steps, [stroke]);
 }

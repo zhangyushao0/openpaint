@@ -4,6 +4,7 @@
 
 mod blending;
 mod compositing;
+mod curves;
 mod deposit;
 mod erase;
 mod fill;

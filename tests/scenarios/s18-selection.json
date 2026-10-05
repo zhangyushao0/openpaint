@@ -22,7 +22,7 @@
     { "screenshot": { "name": "rectangle" } },
     { "tap": { "at": "Brushes" } },
     { "stroke": { "points": [[600, 900, 1.0], [2200, 950, 1.0]] } },
-    { "checkpoint": { "name": "painted-inside", "canvas": "a4cc51341eeb7a6c" } },
+    { "checkpoint": { "name": "painted-inside", "canvas": "2050c1df461a0742" } },
     { "screenshot": { "name": "painted-inside-screen" } },
     { "tap": { "at": "Colour" } },
     { "tap": { "at": { "on": "Saturation and value", "offset": [105.359375, -105.75] } } },
@@ -52,13 +52,13 @@
     { "screenshot": { "name": "redone-shape" } },
     { "tap": { "at": "Brushes" } },
     { "stroke": { "points": [[500, 700, 1.0], [2600, 1400, 1.0]] } },
-    { "checkpoint": { "name": "painted-in-lasso", "canvas": "d810eee75a66801b" } },
+    { "checkpoint": { "name": "painted-in-lasso", "canvas": "8e10026502c21e5f" } },
     { "screenshot": { "name": "painted-in-lasso-screen" } },
     { "tap": { "at": "Undo" } },
     { "checkpoint": { "name": "stroke-undone", "canvas": "9efd1f6d2672a7f4" } },
     { "tap": { "at": "Redo" } },
     "restart",
-    { "checkpoint": { "name": "reopened", "canvas": "d810eee75a66801b" } },
+    { "checkpoint": { "name": "reopened", "canvas": "8e10026502c21e5f" } },
     { "screenshot": { "name": "reopened-screen" } }
   ]
 }

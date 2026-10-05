@@ -14,6 +14,7 @@ use openpaint_core::{Artwork, Stroke, StrokeSample};
 use openpaint_store::Library;
 
 use crate::error::HarnessError;
+use crate::quantiles::{median_f32, median_u32, pick, quantiles};
 
 /// Upper bounds of the time histogram in milliseconds; the last bin is open.
 const TIME_BINS: [u32; 13] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 33, 100];
@@ -43,7 +44,12 @@ struct Joint {
     sagitta: f32,
     size: f32,
     place: String,
+    /// The samples around it, `[x, y, pressure, ms]` (ms from the first of them).
+    window: Vec<[f32; 4]>,
 }
+
+/// Samples on each side of a joint shown with the largest sagittas, as a test fixture.
+const WINDOW: usize = 4;
 
 #[derive(Default)]
 struct Stats {
@@ -72,6 +78,7 @@ pub fn run(dir: &str) -> Result<(), HarnessError> {
     let mut library = Library::at(dir);
     let listed = library.list().map_err(HarnessError::Port)?;
     let mut stats = Stats::default();
+    let mut strokes: Vec<Stroke> = Vec::new();
     for summary in &listed {
         let project = library.load(summary.id).map_err(HarnessError::Port)?;
         let title = summary.title.as_str();
@@ -84,8 +91,18 @@ pub fn run(dir: &str) -> Result<(), HarnessError> {
             project.artwork.layers().len()
         );
         collect(&project.artwork, summary.id.get(), &mut stats);
+        for layer in project.artwork.layers() {
+            strokes.extend(layer.strokes().iter().cloned());
+            strokes.extend(
+                layer
+                    .mask()
+                    .into_iter()
+                    .flat_map(|mask| mask.strokes().iter().cloned()),
+            );
+        }
     }
     report(&mut stats);
+    crate::export_timing::pieces(strokes.iter());
     Ok(())
 }
 
@@ -137,6 +154,16 @@ fn stroke_stats(stroke: &Stroke, place: &str, stats: &mut Stats) {
         stats.synthetic += usize::from(synthetic(around));
         if let Some(mut joint) = joint(around, stroke.style().size()) {
             joint.place = format!("{place} sample {index}");
+            let around =
+                &samples[index.saturating_sub(WINDOW)..(index + WINDOW + 1).min(samples.len())];
+            let start = around[0].time_ms();
+            joint.window = around
+                .iter()
+                .map(|s| {
+                    let p = s.position();
+                    [p.x(), p.y(), s.pressure(), (s.time_ms() - start) as f32]
+                })
+                .collect();
             stats.joints.push(joint);
         }
     }
@@ -217,6 +244,7 @@ fn joint([a, b, c]: [&StrokeSample; 3], size: f32) -> Option<Joint> {
         sagitta,
         size,
         place: String::new(),
+        window: Vec::new(),
     })
 }
 
@@ -273,6 +301,15 @@ fn report(stats: &mut Stats) {
     largest(worst.iter());
     println!("largest sagittas faster than {FAST} px/ms:");
     largest(worst.iter().filter(|joint| joint.speed >= FAST));
+    println!("their samples, [x, y, pressure, ms]:");
+    for joint in worst.iter().filter(|joint| joint.speed >= FAST).take(10) {
+        let window: Vec<String> = joint
+            .window
+            .iter()
+            .map(|[x, y, p, ms]| format!("[{x}, {y}, {p}, {ms}]"))
+            .collect();
+        println!("  [{}],", window.join(", "));
+    }
 }
 
 /// Joints at least this fast (canvas pixels per millisecond) are listed on their own.
@@ -346,35 +383,4 @@ fn bands(joints: &[Joint]) {
         }
         low = high;
     }
-}
-
-/// The median, the 90th percentile and the largest.
-fn pick(mut values: Vec<f32>) -> [f32; 3] {
-    values.sort_by(f32::total_cmp);
-    let at = |share: f32| values[((values.len() - 1) as f32 * share) as usize];
-    [at(0.5), at(0.9), at(1.0)]
-}
-
-fn quantiles(values: Vec<f32>) -> String {
-    let mut values = values;
-    values.sort_by(f32::total_cmp);
-    let at = |share: f32| values[((values.len() - 1) as f32 * share) as usize];
-    format!(
-        "p10 {:.2}  p50 {:.2}  p90 {:.2}  p99 {:.2}  max {:.2}",
-        at(0.1),
-        at(0.5),
-        at(0.9),
-        at(0.99),
-        at(1.0)
-    )
-}
-
-fn median_u32(mut values: Vec<u32>) -> u32 {
-    values.sort_unstable();
-    values.get(values.len() / 2).copied().unwrap_or(1)
-}
-
-fn median_f32(mut values: Vec<f32>) -> f32 {
-    values.sort_by(f32::total_cmp);
-    values.get(values.len() / 2).copied().unwrap_or(0.0)
 }

@@ -113,7 +113,7 @@ fn content_rect(
     let regions = strokes
         .iter()
         .take(after)
-        .flat_map(|stroke| segment_regions(stroke.style(), stroke.samples(), 0))
+        .flat_map(|stroke| segment_regions(stroke.style(), stroke.samples()))
         .chain(edits.iter().map(|edit| edit_rect(canvas, edit)));
     let rect = regions.reduce(|all, next| all.union(&next));
     rect.map_or([0.0, 0.0, canvas[0] as f32, canvas[1] as f32], |rect| {
@@ -147,7 +147,7 @@ fn tail_regions(a: &StrokeList, b: &StrokeList) -> Option<Vec<PixelRect>> {
     }
     let tail = long
         .since(short.len())
-        .flat_map(|stroke| segment_regions(stroke.style(), stroke.samples(), 0));
+        .flat_map(|stroke| segment_regions(stroke.style(), stroke.samples()));
     Some(tail.collect())
 }
 
@@ -190,7 +190,11 @@ mod tests {
         let second = draw(&first, 100.0);
         let undo = changed_regions(&second, &first);
         assert_eq!(undo, changed_regions(&first, &second));
-        assert_eq!(undo.len(), 2, "two segments");
+        assert_eq!(
+            undo.len(),
+            1,
+            "one span: the middle sample is a resample on the chord"
+        );
         assert!(undo.iter().all(|region| region.min[0] >= 96));
         assert!(changed_regions(&first, &first).is_empty());
     }

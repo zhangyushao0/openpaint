@@ -7,6 +7,7 @@ mod error;
 mod export_timing;
 mod launch;
 mod output;
+mod quantiles;
 mod replay;
 mod scenario;
 mod shell;

@@ -65,6 +65,9 @@ pub enum Step {
         /// A hand resting on the glass around the stroke.
         #[serde(default)]
         palm: Option<Palm>,
+        /// A sample at each point and none between: a fast stroke's sparse samples (S34).
+        #[serde(default)]
+        sparse: bool,
     },
     /// One contact through keys (a place and `ms` from touching down) at `pressure` (default
     /// full): it moves straight between keys in their time and rests where two keys share a

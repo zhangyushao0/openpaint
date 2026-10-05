@@ -6,8 +6,7 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use openpaint_core::{
-    ActiveStroke, Artwork, Layer, LayerGroup, LayerId, Patch, RegionMask, Stroke, StrokeBlend,
-    StrokeTool,
+    ActiveStroke, Artwork, Layer, LayerGroup, LayerId, Patch, RegionMask, Stroke,
 };
 
 use crate::affine::Affine;
@@ -16,7 +15,6 @@ use crate::filter::FilterItem;
 use crate::geom::Bounds;
 use crate::protocol::{LayerInto, MASK_HEADER, Op};
 use crate::scene_layer::LayerOps;
-use crate::stroke::{paint, segments};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Item {
@@ -359,41 +357,9 @@ fn drawn(artwork: &Artwork) -> Vec<bool> {
     drawn
 }
 
-/// The in-progress stroke's ops for one evaluation: `ops[0]` paints it (`EndActive`), the rest
-/// are the segments not yet in its coverage texture, with their bounds in `bounds`.
-#[derive(Debug, Default)]
-pub(crate) struct Fresh {
-    pub(crate) ops: Vec<Op>,
-    pub(crate) bounds: Vec<Bounds>,
-}
-
-impl Fresh {
-    /// The segments of `samples` (every sample so far) after sample `from`: the new samples
-    /// with the one before them, or the whole stroke (`from` 0) when its coverage starts over.
-    /// `clip` is the stroke's clip as the scene placed it (`Scene::active_clip`).
-    pub(crate) fn new(active: &ActiveStroke, from: usize, clip: u32) -> Self {
-        let (style, samples) = (active.style(), active.samples());
-        if style.tool() == StrokeTool::Smudge {
-            // Its residual so far, applied in every tile (`Smudges::advance` extends it).
-            let locked = active.blend() == StrokeBlend::SmudgeLocked;
-            return Self {
-                ops: vec![Op::smudge(None, clip, locked)],
-                bounds: Vec::new(),
-            };
-        }
-        let mut paint = paint(style, active.blend());
-        paint.clip = clip;
-        let mut fresh = Self {
-            ops: vec![Op::end_active(&paint)],
-            bounds: Vec::new(),
-        };
-        for segment in segments(style, samples, from) {
-            fresh.ops.push(segment.op());
-            fresh.bounds.push(segment.bounds());
-        }
-        fresh
-    }
-}
+#[path = "scene_fresh.rs"]
+mod fresh;
+pub(crate) use fresh::Fresh;
 
 #[cfg(test)]
 #[path = "scene_tests.rs"]

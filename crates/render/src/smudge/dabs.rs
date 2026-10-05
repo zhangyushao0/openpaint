@@ -1,17 +1,19 @@
 //! A smudge's contacts (draweave's `DabWalker`, at one node per canvas pixel): walking the
-//! stroke's samples, a contact every `clamp(r / 4, 0.25, 1)` pixels along the path, `r` the
-//! radius at the sample being reached. Each moves the colour by its step `d` and weighs it by
-//! the tip's profile times strength. The samples already follow the StreamLine (the app's stroke
-//! intent, with no catch-up for a smudge), so the contacts trail the path strictly: feeding the
-//! samples at once or a few at a time gives the same contacts, bit for bit.
+//! stroke's curve (its spans flattened at canvas resolution, S34), a contact every `clamp(r / 4,
+//! 0.25, 1)` pixels along it, `r` the radius where the piece being walked ends. Each moves the
+//! colour by its step `d` and weighs it by the tip's profile times strength. The samples already
+//! follow the StreamLine (the app's stroke intent, with no catch-up for a smudge), so the contacts
+//! trail the path strictly: walking the spans at once or a few at a time gives the same contacts,
+//! bit for bit.
 
 use std::collections::BTreeSet;
+use std::ops::Range;
 
 use openpaint_core::{Deposit, StrokeSample, StrokeStyle, Tip};
 
 use super::RESIDUAL_TILE;
 use crate::geom::Bounds;
-use crate::stroke::sample_radius;
+use crate::stroke::{Path, spans};
 
 /// Smallest and largest contact radius in pixels: the stamp's scratch covers one contact.
 pub(crate) const MIN_RADIUS: f32 = 0.5;
@@ -89,61 +91,69 @@ impl Dab {
     }
 }
 
-/// Walks a smudge's samples into contacts, remembering where it got to.
+/// Walks a smudge's curve (S34: its spans flattened at canvas resolution, `Segment::pieces`)
+/// into contacts, remembering where it got to.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct DabWalker {
     last: Option<[f32; 2]>,
-    consumed: usize,
+    /// Spans walked.
+    walked: usize,
 }
 
 impl DabWalker {
-    /// Appends the contacts of the samples after those walked before.
+    /// Appends the contacts of the spans after those walked before: of every span when the
+    /// stroke is `finished`, else only of those no later sample changes (`Path::settled`), so
+    /// an in-progress smudge trails its last two spans and catches up when it is committed.
     pub(crate) fn advance(
         &mut self,
         style: &StrokeStyle,
-        samples: &[StrokeSample],
+        (samples, finished): (&[StrokeSample], bool),
         out: &mut Vec<Dab>,
     ) {
         let kernel = kernel(style);
-        for i in self.consumed..samples.len() {
-            self.consumed = i + 1;
-            let position = samples[i].position();
-            let point = [position.x(), position.y()];
-            let Some(mut last) = self.last else {
-                self.last = Some(point);
-                continue;
-            };
-            let radius = sample_radius(style, samples, i).clamp(MIN_RADIUS, MAX_RADIUS);
-            let spacing = (radius * 0.25).clamp(MIN_SPACING, MAX_SPACING);
-            let strength = (style.opacity() * samples[i].pressure()).clamp(0.0, 1.0);
-            loop {
-                let delta = [point[0] - last[0], point[1] - last[1]];
-                let distance = delta[0].hypot(delta[1]);
-                if distance < spacing {
-                    break;
+        let path = Path::of(samples);
+        let end = if finished {
+            path.spans()
+        } else {
+            path.settled()
+        };
+        for segment in spans(style, samples, &path, self.walked.min(end)..end) {
+            for piece in segment.pieces(1.0) {
+                let mut last = *self.last.get_or_insert(piece.a);
+                let point = piece.b;
+                let radius = piece.radii[1].clamp(MIN_RADIUS, MAX_RADIUS);
+                let spacing = (radius * 0.25).clamp(MIN_SPACING, MAX_SPACING);
+                let strength = (style.opacity() * piece.pressures[1]).clamp(0.0, 1.0);
+                loop {
+                    let delta = [point[0] - last[0], point[1] - last[1]];
+                    let distance = delta[0].hypot(delta[1]);
+                    if distance < spacing {
+                        break;
+                    }
+                    let next = [
+                        last[0] + delta[0] / distance * spacing,
+                        last[1] + delta[1] / distance * spacing,
+                    ];
+                    out.push(Dab {
+                        centre: next,
+                        step: [next[0] - last[0], next[1] - last[1]],
+                        radius,
+                        strength,
+                        kernel,
+                    });
+                    last = next;
                 }
-                let next = [
-                    last[0] + delta[0] / distance * spacing,
-                    last[1] + delta[1] / distance * spacing,
-                ];
-                out.push(Dab {
-                    centre: next,
-                    step: [next[0] - last[0], next[1] - last[1]],
-                    radius,
-                    strength,
-                    kernel,
-                });
-                last = next;
+                self.last = Some(last);
             }
-            self.last = Some(last);
         }
+        self.walked = self.walked.max(end);
     }
 }
 
 /// Every contact of a whole stroke.
 pub(crate) fn dabs(style: &StrokeStyle, samples: &[StrokeSample]) -> Vec<Dab> {
     let mut out = Vec::new();
-    DabWalker::default().advance(style, samples, &mut out);
+    DabWalker::default().advance(style, (samples, true), &mut out);
     out
 }
 
@@ -162,27 +172,25 @@ pub(crate) fn read_tiles(dabs: &[Dab], size: [u32; 2]) -> BTreeSet<u32> {
     tiles
 }
 
-/// Where a smudge's segments after sample `from` can change pixels: per consecutive pair, their
-/// box widened by the larger radius and `REACH`. A contact reached while walking to sample `i`
-/// lies within a spacing of the path from sample `i - 1` to `i` and has sample `i`'s radius.
+/// Where a smudge's spans `range` (of `path`) can change pixels: per span, the box of its
+/// curve's points widened by the larger radius and `REACH`. A contact reached while walking a
+/// piece lies within a spacing of it and has a radius between the span's ends.
 pub(crate) fn smudge_reach<'a>(
     style: &'a StrokeStyle,
     samples: &'a [StrokeSample],
-    from: usize,
+    path: &'a Path,
+    range: Range<usize>,
 ) -> impl Iterator<Item = Bounds> + 'a {
-    let radius = |i: usize| sample_radius(style, samples, i).clamp(MIN_RADIUS, MAX_RADIUS);
-    let pairs = (from + 1..samples.len()).map(|i| (i - 1, i));
-    let dot = (samples.len() == 1 && from == 0).then_some((0, 0));
-    pairs.chain(dot).map(move |(i, j)| {
-        let (a, b) = (samples[i].position(), samples[j].position());
-        let reach = radius(i).max(radius(j)) + REACH;
-        Bounds([
-            a.x().min(b.x()) - reach,
-            a.y().min(b.y()) - reach,
-            a.x().max(b.x()) + reach,
-            a.y().max(b.y()) + reach,
-        ])
+    spans(style, samples, path, range).map(|segment| {
+        let [ra, rb] = segment.radii().map(|r| r.clamp(MIN_RADIUS, MAX_RADIUS));
+        segment.hull(ra.max(rb) + REACH)
     })
+}
+
+/// `smudge_reach` of every span of a finished smudge.
+pub(crate) fn whole_reach(style: &StrokeStyle, samples: &[StrokeSample]) -> Vec<Bounds> {
+    let path = Path::of(samples);
+    smudge_reach(style, samples, &path, 0..path.spans()).collect()
 }
 
 #[cfg(test)]
@@ -223,7 +231,11 @@ mod tests {
         let mut walker = DabWalker::default();
         let mut stepwise = Vec::new();
         for end in 1..=samples.len() {
-            walker.advance(&style, &samples[..end], &mut stepwise);
+            walker.advance(
+                &style,
+                (&samples[..end], end == samples.len()),
+                &mut stepwise,
+            );
         }
         assert_eq!(whole, stepwise);
         assert!(whole.len() > 100, "{} contacts", whole.len());
@@ -237,7 +249,7 @@ mod tests {
     #[test]
     fn the_reach_holds_every_contact_and_the_tiles_every_read() {
         let (style, samples) = (style(), path());
-        let reach: Vec<Bounds> = smudge_reach(&style, &samples, 0).collect();
+        let reach = whole_reach(&style, &samples);
         let size = [200, 100];
         for dab in dabs(&style, &samples) {
             let [x, y, width, height] = dab.rect(size).expect("inside");

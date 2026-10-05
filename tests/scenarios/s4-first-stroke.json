@@ -13,11 +13,11 @@
     { "stroke": { "points": [
       [400, 900, 0.2], [900, 500, 0.6], [1500, 700, 1.0], [2000, 1200, 0.8], [2500, 800, 0.3]
     ] } },
-    { "checkpoint": { "name": "pen-line", "canvas": "b1c5dba8326a2f75" } },
+    { "checkpoint": { "name": "pen-line", "canvas": "158ec27a03031e05" } },
     { "drag": { "from": [400, 1500], "to": [2500, 1400] } },
     { "tap": { "at": [1440, 1100] } },
     { "wait": { "frames": 2 } },
-    { "checkpoint": { "name": "finger-drew-nothing", "canvas": "b1c5dba8326a2f75" } },
+    { "checkpoint": { "name": "finger-drew-nothing", "canvas": "158ec27a03031e05" } },
     { "screenshot": { "name": "first-stroke" } }
   ]
 }

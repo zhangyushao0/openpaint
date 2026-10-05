@@ -7,8 +7,8 @@ use super::adjust::{ADJUST_KINDS, ADJUST_ONS, ADJUST_SLOTS};
 use super::layers::{INTOS, LAYER_SLOTS, MASKINGS, MODES};
 use super::moves::MOVE_SLOTS;
 use super::{
-    BLENDS, FRESH, GRAIN_ONE, MASK_HEADER, MOVE_DEPTH, Op, Opcode, Params, SLOTS, TILE, TIPS,
-    TileRecord,
+    BLENDS, FRESH, GRAIN_ONE, MASK_HEADER, MOVE_DEPTH, OP_DATA, Op, Opcode, Params, SEGMENT_SLOTS,
+    SLOTS, TILE, TIPS, TileRecord, curve_constants,
 };
 use crate::paper::{MOMENT_ONE, PAPER_SIZE, level_count};
 use crate::smudge::{NODE_WORDS, RESIDUAL_HEADER, RESIDUAL_TILE, TILE_NODES};
@@ -20,13 +20,17 @@ pub(super) struct Layout {
     pub(super) fields: &'static [(&'static str, &'static str, usize)],
 }
 
+/// The op's operands as WGSL declares them.
+const DATA: &str = "array<f32, 18>";
+const _: () = assert!(OP_DATA == 18);
+
 pub(super) const LAYOUTS: [Layout; 3] = [
     Layout {
         name: "Op",
         size: size_of::<Op>(),
         fields: &[
             ("code", "u32", offset_of!(Op, code)),
-            ("data", "array<f32, 14>", offset_of!(Op, data)),
+            ("data", DATA, offset_of!(Op, data)),
         ],
     },
     Layout {
@@ -79,6 +83,7 @@ pub(crate) fn prelude() -> String {
     ] {
         wgsl.push_str(&format!("const {name}: u32 = {value}u;\n"));
     }
+    wgsl.push_str(&curve_constants());
     named_values(&mut wgsl);
     for (name, blend) in BLENDS {
         wgsl.push_str(&format!("const {name}: u32 = {}u;\n", blend as u32));
@@ -122,6 +127,7 @@ fn named_values(wgsl: &mut String) {
         .chain(LAYER_SLOTS)
         .chain(ADJUST_SLOTS)
         .chain(MOVE_SLOTS)
+        .chain(SEGMENT_SLOTS)
     {
         wgsl.push_str(&format!("const {name}: u32 = {slot}u;\n"));
     }

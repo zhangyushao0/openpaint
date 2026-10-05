@@ -7,7 +7,7 @@
 //! pixels just before it (`material.rs`, the single evaluator on the layer's earlier ops). The
 //! evaluator then applies that residual where the stroke lies (opcode `Smudge`).
 //!
-//! The in-progress smudge extends its residual by the contacts its new samples add, with the
+//! The in-progress smudge extends its residual by the contacts its settled spans add, with the
 //! very contacts and tiles a cold evaluation of the same samples applies, so both are bit for
 //! bit equal; on commit the residual moves into the target's arena (`arena.rs`) unchanged. A
 //! residual is derived and owned by its canvas target (D17); it is rebuilt from the artwork
@@ -24,7 +24,7 @@ mod material;
 mod residual;
 
 pub(crate) use arena::{Arena, Key};
-pub(crate) use dabs::smudge_reach;
+pub(crate) use dabs::{smudge_reach, whole_reach};
 pub(crate) use engine::Smudges;
 pub(crate) use kernels::SmudgePipeline;
 pub(crate) use material::Material;

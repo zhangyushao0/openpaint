@@ -43,11 +43,11 @@
     { "tap": { "at": [1200, 600] } },
     { "screenshot": { "name": "close-060", "after_ms": 60 } },
     { "stroke": { "points": [[2350, 500, 0.8], [2650, 700, 0.8]] } },
-    { "checkpoint": { "name": "drawn-under-closing-panel", "canvas": "17d9ca53c6bdecdb" } },
+    { "checkpoint": { "name": "drawn-under-closing-panel", "canvas": "7e1d1a94d22837c8" } },
     { "tap": { "at": "Brushes" } },
     { "tap": { "at": "Pencil" } },
     { "stroke": { "points": [[600, 500, 0.6], [1400, 400, 0.6]] } },
-    { "checkpoint": { "name": "pencil-chosen-while-growing", "canvas": "dde9bfa941f707bb" } },
+    { "checkpoint": { "name": "pencil-chosen-while-growing", "canvas": "7a2896036a6bc179" } },
     { "screenshot": { "name": "pencil-stroke" } },
     { "tap": { "at": "Selection" } },
     { "screenshot": { "name": "selection-bar-060", "after_ms": 60 } },
@@ -88,7 +88,7 @@
     { "screenshot": { "name": "to-canvas-090", "after_ms": 90 } },
     { "screenshot": { "name": "to-canvas-200", "after_ms": 200 } },
     { "screenshot": { "name": "canvas-again" } },
-    { "checkpoint": { "name": "reopened-from-card", "canvas": "dde9bfa941f707bb" } },
+    { "checkpoint": { "name": "reopened-from-card", "canvas": "7a2896036a6bc179" } },
     "restart",
     { "screenshot": { "name": "restarted" } }
   ]

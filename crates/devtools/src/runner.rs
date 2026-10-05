@@ -189,7 +189,12 @@ impl Runner<'_> {
                 let batches = gesture::press(*tool, &keys, *pressure, now);
                 return self.press(runtime, &batches, before_lift.as_ref());
             }
-            Step::Stroke { points, lift, palm } => gesture::stroke(points, *lift, *palm, now),
+            Step::Stroke {
+                points,
+                lift,
+                palm,
+                sparse,
+            } => gesture::stroke((points, *sparse), *lift, *palm, now),
             Step::Touch { from, to, ms } => {
                 let from = self.spots(runtime, from)?;
                 let to = match to {

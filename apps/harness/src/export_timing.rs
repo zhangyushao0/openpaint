@@ -9,10 +9,10 @@ use std::time::Instant;
 
 use openpaint_core::{
     Accumulation, Artwork, ArtworkCommand, BrushRecipe, CanvasPoint, CanvasSize, Color, CoreError,
-    Curve, Deposit, Dynamics, Grain, LayerCommand, Paper, PaperTexture, RegionMask, StrokeSample,
-    StrokeStyle, Tip,
+    Curve, Deposit, Dynamics, Grain, LayerCommand, Paper, PaperTexture, RegionMask, Stroke,
+    StrokeSample, StrokeStyle, Tip,
 };
-use openpaint_render::{Banding, Core};
+use openpaint_render::{Banding, Core, curve_pieces};
 use openpaint_runtime::ImageFormat;
 use openpaint_store::ImageEncoder;
 
@@ -24,6 +24,12 @@ pub fn run() -> Result<(), HarnessError> {
     let started = Instant::now();
     let artwork = busy()?;
     println!("built the artwork in {} ms", started.elapsed().as_millis());
+    pieces(
+        artwork
+            .layers()
+            .iter()
+            .flat_map(|layer| layer.strokes().iter()),
+    );
     let core = Core::headless()?;
     println!("adapter {}", core.adapter());
     for scale in [1, 2, 4, 1] {
@@ -150,4 +156,31 @@ fn pencil() -> Result<Arc<BrushRecipe>, CoreError> {
     let deposit = Accumulation::new(Tip::Flat, 3.1, 1.0, Some(paper))?;
     let recipe = BrushRecipe::new(0.0, size, opacity, Grain::NONE)?;
     Ok(Arc::new(recipe.with_deposit(Deposit::Accumulate(deposit))?))
+}
+
+/// The segments the strokes had between samples before S34, their curve spans, and the straight
+/// pieces the evaluator flattens the spans into at 1x, 2x, 4x and 8x.
+pub fn pieces<'a>(strokes: impl Iterator<Item = &'a Stroke>) {
+    let (mut segments, mut spans, mut pieces) = (0usize, 0usize, [0usize; 4]);
+    for stroke in strokes {
+        let samples = stroke.samples();
+        segments += samples.len().saturating_sub(1).max(1);
+        for (slot, scale) in [1.0, 2.0, 4.0, 8.0].into_iter().enumerate() {
+            let [count, flattened] = curve_pieces(stroke.style(), samples, scale);
+            pieces[slot] += flattened;
+            spans += if slot == 0 { count } else { 0 };
+        }
+    }
+    let shown: Vec<String> = pieces
+        .iter()
+        .zip([1, 2, 4, 8])
+        .map(|(count, scale)| {
+            let ratio = *count as f64 / segments.max(1) as f64;
+            format!("{scale}x {count} ({ratio:.2} per segment)")
+        })
+        .collect();
+    println!(
+        "segments between samples {segments}, curve spans {spans}; pieces {}",
+        shown.join(", ")
+    );
 }

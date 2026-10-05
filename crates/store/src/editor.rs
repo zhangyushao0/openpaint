@@ -1,4 +1,4 @@
-//! The toolbox record, `library` / `editor` (schema 9, DECISIONS D28, D29, D39, D46): the tool
+//! The toolbox record, `library` / `editor` (schema 9, DECISIONS D28, D29, D46, D60): the tool
 //! (u8: 0 brush, 1 eraser, 2 smudge); the brush tool's choice, then the eraser's, then the
 //! smudge's, each its brush's key (u32 length + UTF-8, empty for the tool's default brush), the
 //! brush count (u32) and per brush its key, size, opacity and StreamLine (f32); the colour,

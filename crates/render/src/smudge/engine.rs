@@ -1,8 +1,8 @@
 //! `Smudges`: a canvas target's smudge residuals. Finished ones live in its arena, keyed by
-//! stroke; the in-progress one in a residual of its own that grows by the contacts of each
-//! evaluation's new samples and, once committed, moves into the arena as it is. A residual
-//! that is missing is evaluated cold from its stroke and the scene, in layer order, so the
-//! layer pixels it carries already include the smudges before it.
+//! stroke; the in-progress one in a residual of its own that grows by the contacts of the spans
+//! each evaluation settles (S34: the last two follow at the commit) and, once committed, moves
+//! into the arena as it is. A residual that is missing is evaluated cold from its stroke and the
+//! scene, in layer order, so the layer pixels it carries already include the smudges before it.
 
 use std::collections::HashSet;
 use std::ops::Range;
@@ -160,7 +160,9 @@ impl Smudges {
             Some(mut active) => {
                 let mut new = Vec::new();
                 let samples = item.stroke.samples();
-                active.walker.advance(&active.style, samples, &mut new);
+                active
+                    .walker
+                    .advance(&active.style, (samples, true), &mut new);
                 let scene = (scene, ops, range);
                 self.tools
                     .extend(core, scene, &self.arena, &mut active.run, &new)?;
@@ -234,7 +236,9 @@ impl Smudges {
         };
         let samples = stroke.samples();
         let mut new = Vec::new();
-        active.walker.advance(&active.style, samples, &mut new);
+        active
+            .walker
+            .advance(&active.style, (samples, false), &mut new);
         let done = active.samples.len();
         active.samples.extend_from_slice(&samples[done..]);
         // The in-progress stroke lies above every transform: on the canvas itself.

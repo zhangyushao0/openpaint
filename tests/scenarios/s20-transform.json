@@ -14,7 +14,7 @@
   "steps": [
     { "stroke": { "points": [[700, 600, 1.0], [1300, 600, 1.0], [1000, 1000, 1.0]] } },
     { "stroke": { "points": [[2000, 1300, 1.0], [2400, 1450, 1.0]] } },
-    { "checkpoint": { "name": "drawn", "canvas": "1df6148e8891abbb" } },
+    { "checkpoint": { "name": "drawn", "canvas": "6a22572e7d33c063" } },
     { "tap": { "at": "Transform" } },
     { "screenshot": { "name": "framed-060", "after_ms": 60 } },
     { "screenshot": { "name": "framed" } },
@@ -31,12 +31,12 @@
     { "tap": { "at": "Flip Horizontal" } },
     { "screenshot": { "name": "flipped" } },
     { "tap": { "at": "Transform" } },
-    { "checkpoint": { "name": "committed", "canvas": "d836e446a300aaba" } },
+    { "checkpoint": { "name": "committed", "canvas": "6ad7b3ee8fbaf85c" } },
     { "screenshot": { "name": "committed-screen" } },
     { "tap": { "at": "Undo" } },
-    { "checkpoint": { "name": "undone", "canvas": "1df6148e8891abbb" } },
+    { "checkpoint": { "name": "undone", "canvas": "6a22572e7d33c063" } },
     { "tap": { "at": "Redo" } },
-    { "checkpoint": { "name": "redone", "canvas": "d836e446a300aaba" } },
+    { "checkpoint": { "name": "redone", "canvas": "6ad7b3ee8fbaf85c" } },
     { "stroke": { "points": [[300, 300, 1.0], [700, 450, 1.0]] } },
     { "tap": { "at": "Selection" } },
     { "tap": { "at": "Rectangle" } },
@@ -47,10 +47,10 @@
     { "touch": { "from": [[550, 1000], [650, 1000]], "to": [[515, 1000], [685, 1000]], "ms": 200 } },
     { "screenshot": { "name": "selection-pinched" } },
     { "tap": { "at": "Brushes" } },
-    { "checkpoint": { "name": "selection-moved", "canvas": "f0ec56b8210958f1" } },
+    { "checkpoint": { "name": "selection-moved", "canvas": "3bb4f989410b9595" } },
     { "screenshot": { "name": "selection-moved-screen" } },
     "restart",
-    { "checkpoint": { "name": "reopened", "canvas": "f0ec56b8210958f1" } },
+    { "checkpoint": { "name": "reopened", "canvas": "3bb4f989410b9595" } },
     { "screenshot": { "name": "reopened-screen" } }
   ]
 }

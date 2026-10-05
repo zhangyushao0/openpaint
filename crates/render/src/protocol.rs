@@ -5,7 +5,7 @@
 /// Side of a square evaluation tile in pixels; also the evaluator's workgroup size.
 pub(crate) const TILE: u32 = 16;
 /// Number of `f32` operands in one op record.
-const OP_DATA: usize = 14;
+const OP_DATA: usize = 18;
 /// A paint op's grain strength is a whole number in `0..=GRAIN_ONE`, so the shader's grain is
 /// exact integer arithmetic on every backend.
 pub(crate) const GRAIN_ONE: u32 = 256;
@@ -23,13 +23,6 @@ const PAINT_PAPER: usize = 8;
 /// The selection a stroke is drawn inside: one more than where its mask starts in the mask
 /// words (0: none), split like `FILL_MASK`.
 const PAINT_CLIP: usize = 12;
-/// The flow at `a`; the flow at `b` follows it.
-const SEGMENT_FLOW: usize = 6;
-const SEGMENT_EDGE: usize = 8;
-/// The paper contact at `a`; the contact at `b` follows it.
-const SEGMENT_CONTACT: usize = 9;
-/// How the segment deposits: one of `TIPS`, a whole number.
-const SEGMENT_TIP: usize = 11;
 /// Where a fill's mask starts in the mask words, split in two whole numbers below 2^16 (high
 /// part first) so each stays exact as a float.
 const FILL_MASK: usize = 7;
@@ -43,7 +36,7 @@ const PATCH_AT: usize = 6;
 const SMUDGE_AT: usize = 0;
 const SMUDGE_LOCKED: usize = 2;
 const SMUDGE_ACTIVE: usize = 3;
-const SLOTS: [(&str, usize); 17] = [
+const SLOTS: [(&str, usize); 13] = [
     ("PAINT_OPACITY", PAINT_OPACITY),
     ("PAINT_GRAIN", PAINT_GRAIN),
     ("PAINT_GRAIN_SCALE", PAINT_GRAIN_SCALE),
@@ -51,10 +44,6 @@ const SLOTS: [(&str, usize); 17] = [
     ("PAINT_DENSITY", PAINT_DENSITY),
     ("PAINT_PAPER", PAINT_PAPER),
     ("PAINT_CLIP", PAINT_CLIP),
-    ("SEGMENT_FLOW", SEGMENT_FLOW),
-    ("SEGMENT_EDGE", SEGMENT_EDGE),
-    ("SEGMENT_CONTACT", SEGMENT_CONTACT),
-    ("SEGMENT_TIP", SEGMENT_TIP),
     ("FILL_MASK", FILL_MASK),
     ("FILL_EDGE", FILL_EDGE),
     ("PATCH_AT", PATCH_AT),
@@ -63,23 +52,6 @@ const SLOTS: [(&str, usize); 17] = [
     ("SMUDGE_ACTIVE", SMUDGE_ACTIVE),
 ];
 
-/// How a segment adds to its stroke at a pixel, declared to WGSL as constants by `prelude`.
-#[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Tip {
-    /// Coverage of a soft-edged capsule; the stroke keeps the maximum (D16).
-    Cover = 0,
-    /// Optical density of a flat cross-section `1 - d^8` over the radii travelled, summed.
-    Flat = 1,
-    /// As `Flat` with the bell `(1 - d^2)^2`.
-    Bell = 2,
-}
-
-const TIPS: [(&str, Tip); 3] = [
-    ("TIP_COVER", Tip::Cover),
-    ("TIP_FLAT", Tip::Flat),
-    ("TIP_BELL", Tip::Bell),
-];
 /// Words before a mask's rows in the mask words, and before a patch's pixels in the patch
 /// words: origin x, origin y, width, height.
 pub(crate) const MASK_HEADER: u32 = 4;
@@ -109,7 +81,8 @@ pub(crate) const FRESH: u32 = 1 << 31;
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Opcode {
-    /// Coverage of one stroke segment joins the current stroke's coverage (their maximum).
+    /// One span of a stroke's curve (S34), flattened at the output's scale: its coverage joins the
+    /// current stroke's (their maximum), or its density adds to it.
     Segment = 0,
     /// The current stroke's coverage is painted over the current layer and reset.
     EndStroke = 1,
@@ -146,10 +119,13 @@ pub(crate) enum Opcode {
     EndMove = 13,
     /// The current layer becomes a filter's result, inside its clip (`protocol_adjust.rs`).
     Filter = 14,
+    /// A span of the in-progress stroke's end that later samples may still change: added to a
+    /// copy of the coverage, which `EndActive` paints but never keeps.
+    Tail = 15,
 }
 
 impl Opcode {
-    const ALL: [Self; 15] = [
+    const ALL: [Self; 16] = [
         Self::Segment,
         Self::EndStroke,
         Self::EndLayer,
@@ -165,6 +141,7 @@ impl Opcode {
         Self::BeginMove,
         Self::EndMove,
         Self::Filter,
+        Self::Tail,
     ];
 
     const fn wgsl_name(self) -> &'static str {
@@ -184,17 +161,20 @@ impl Opcode {
             Self::BeginMove => "OP_BEGIN_MOVE",
             Self::EndMove => "OP_END_MOVE",
             Self::Filter => "OP_FILTER",
+            Self::Tail => "OP_TAIL",
         }
     }
 }
 
 /// One op. Operands by opcode:
-/// - `Segment`: `[ax, ay, bx, by, ra, rb, fa, fb, edge, ca, cb, tip]`, a tapered capsule from
-///   `a` (radius `ra`) to `b` (radius `rb`) in canvas pixels; its coverage (`Tip::Cover`) or
-///   its density (the others) is multiplied by the flow, `fa` at `a` changing evenly to `fb` at
-///   `b`; `edge` is one over the width in canvas pixels over which a covering segment fades in
-///   from the outline (1: a hard edge, antialiased over one output pixel at any scale); `ca`
-///   to `cb` the paper contact along it.
+/// - `Segment` and `Tail`: `[ax, ay, bx, by, ra, rb, fa, fb, edge, ca, cb, tip, x1, y1, x2, y2,
+///   flat, bend]`, one span of a stroke's curve in canvas pixels: the cubic Bézier from `a` to
+///   `b` with controls `(x1, y1)` and `(x2, y2)`, evaluated as `curve::pieces(flat, bend, scale)`
+///   tapered capsules of equal parameter, the radius changing evenly from `ra` at `a` to `rb` at
+///   `b`; its coverage (`Tip::Cover`) or density (the others) is multiplied by the flow, `fa` to
+///   `fb` alike; `edge` is one over the width in canvas pixels over which a covering segment
+///   fades in from the outline (1: a hard edge, antialiased over one output pixel at any scale);
+///   `ca` to `cb` the paper contact along it (`protocol_segment.rs`).
 /// - `EndStroke` and `EndActive`: `[r, g, b, opacity, grain, grain_scale, blend, density,
 ///   paper scale, paper level, depth, dust, clip / 2^16, clip % 2^16]`, straight sRGB colour;
 ///   `grain` a whole number in `0..=GRAIN_ONE`, `grain_scale` whole pixels, `blend` a `Blend`;
@@ -260,7 +240,7 @@ impl Paint {
         }
     }
 
-    fn operands(&self) -> [f32; OP_DATA] {
+    fn operands(&self) -> [f32; 14] {
         // Small whole numbers, exact as floats.
         let [r, g, b] = self.color;
         let [scale, level, depth, dust] = self.paper;
@@ -289,31 +269,7 @@ fn halves(value: u32) -> [f32; 2] {
     [(value >> 16) as f32, (value & 0xffff) as f32]
 }
 
-/// One segment's geometry and strength, as `Op::segment` lays it out.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct SegmentOperands {
-    pub(crate) a: [f32; 2],
-    pub(crate) b: [f32; 2],
-    pub(crate) radii: [f32; 2],
-    pub(crate) flows: [f32; 2],
-    pub(crate) edge: f32,
-    pub(crate) contacts: [f32; 2],
-    pub(crate) tip: Tip,
-}
-
 impl Op {
-    pub(crate) fn segment(s: &SegmentOperands) -> Self {
-        let mut data = [0.0; OP_DATA];
-        data[..6].copy_from_slice(&[s.a[0], s.a[1], s.b[0], s.b[1], s.radii[0], s.radii[1]]);
-        data[SEGMENT_FLOW] = s.flows[0];
-        data[SEGMENT_FLOW + 1] = s.flows[1];
-        data[SEGMENT_EDGE] = s.edge;
-        data[SEGMENT_CONTACT] = s.contacts[0];
-        data[SEGMENT_CONTACT + 1] = s.contacts[1];
-        data[SEGMENT_TIP] = s.tip as u32 as f32;
-        Self::new(Opcode::Segment, &data)
-    }
-
     pub(crate) fn end_stroke(paint: &Paint) -> Self {
         Self::new(Opcode::EndStroke, &paint.operands())
     }
@@ -354,7 +310,7 @@ impl Op {
         data[SMUDGE_AT..SMUDGE_AT + 2].copy_from_slice(&halves(at.unwrap_or(0)));
         data[SMUDGE_LOCKED] = f32::from(u8::from(locked));
         data[SMUDGE_ACTIVE] = f32::from(u8::from(at.is_none()));
-        data[PAINT_CLIP..].copy_from_slice(&halves(clip));
+        data[PAINT_CLIP..PAINT_CLIP + 2].copy_from_slice(&halves(clip));
         Self::new(Opcode::Smudge, &data)
     }
 
@@ -388,6 +344,11 @@ pub(crate) use layers::{LayerInto, Masking};
 #[path = "protocol_moves.rs"]
 mod moves;
 pub(crate) use moves::MOVE_DEPTH;
+
+#[path = "protocol_segment.rs"]
+mod segment;
+use segment::{SEGMENT_SLOTS, TIPS, curve_constants};
+pub(crate) use segment::{SegmentOperands, Tip};
 
 #[path = "protocol_wgsl.rs"]
 mod wgsl;

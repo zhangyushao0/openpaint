@@ -18,6 +18,7 @@ mod layout;
 use layout::{buffer_entry, texture_entry, workgroups};
 
 const SHADER: &str = include_str!("shaders/evaluate.wgsl");
+const SEGMENT: &str = include_str!("shaders/segment.wgsl");
 const DEPOSIT: &str = include_str!("shaders/deposit.wgsl");
 const SMUDGE: &str = include_str!("shaders/smudge_composite.wgsl");
 const ADJUST: &str = include_str!("shaders/adjust.wgsl");
@@ -27,10 +28,10 @@ const FILTER: &str = include_str!("shaders/filter_composite.wgsl");
 /// canvas pixel each.
 pub(crate) const COVERAGE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::R32Float;
 
-/// The protocol prelude followed by the evaluator, its accumulating deposits, its smudges, its
-/// adjustments, its fill edges and its filters.
+/// The protocol prelude followed by the evaluator, its curve spans, its accumulating deposits,
+/// its smudges, its adjustments, its fill edges and its filters.
 pub(crate) fn shader_source() -> String {
-    prelude() + SHADER + DEPOSIT + SMUDGE + ADJUST + FILL_EDGE + FILTER
+    prelude() + SHADER + SEGMENT + DEPOSIT + SMUDGE + ADJUST + FILL_EDGE + FILTER
 }
 
 /// What one dispatch evaluates.
