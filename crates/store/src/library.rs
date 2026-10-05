@@ -3,32 +3,23 @@
 //! disk; a save rewrites the head and only the stroke records that changed since the version
 //! this library last stored. An older library is upgraded when it is opened.
 
-use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 
 use fjall::{Database, Keyspace, KeyspaceCreateOptions, PersistMode};
 use openpaint_app::{
     EditorState, PortError, Project, ProjectId, ProjectStore, ProjectSummary, Thumbnail, Title,
+    VersionId,
 };
 use openpaint_core::Artwork;
 
-use crate::editor::{EDITOR, decode_editor};
+use crate::editor::decode_editor;
 use crate::fills::fills_prefix;
-use crate::migrate::{upgrade_1_to_2, upgrade_2_to_3, upgrade_3_to_4, upgrade_4_to_5};
-use crate::migrate_6::upgrade_5_to_6;
-use crate::migrate_7::upgrade_6_to_7;
-use crate::migrate_8::upgrade_7_to_8;
-use crate::migrate_9::upgrade_8_to_9;
-use crate::migrate_10::upgrade_9_to_10;
-use crate::migrate_11::upgrade_10_to_11;
-use crate::migrate_12::upgrade_11_to_12;
-use crate::migrate_13::upgrade_12_to_13;
-use crate::migrate_14::upgrade_13_to_14;
 use crate::records::{
     LIBRARY, NEXT, PROJECTS, SCHEMA, SCHEMA_KEY, decode_id, decode_schema, encode_schema, head_key,
     strokes_prefix,
 };
-use crate::{read, write};
+use crate::steps::{Old, run_steps};
+use crate::{artwork_file, read, versions, write};
 
 /// The database and its two keyspaces.
 pub(crate) struct Open {
@@ -126,70 +117,25 @@ fn prepare(open: &Open) -> Result<(), PortError> {
     }
 }
 
-/// Runs every migration step from schema `from` on over the records as they are, each step
-/// seeing the heads and strokes the one before it wrote, and writes the result in one batch.
+/// Runs every migration step from schema `from` on over the records as they are and writes the
+/// result in one batch.
 fn upgrade(open: &Open, from: u32) -> Result<(), PortError> {
-    let (mut heads, mut strokes, fills) = old_records(open)?;
-    let mut editor = read::editor(open)?;
-    let index: HashMap<Vec<u8>, usize> = strokes
-        .iter()
-        .enumerate()
-        .map(|(at, (key, _))| (key.clone(), at))
-        .collect();
-    let mut library = BTreeMap::new();
-    let mut projects = BTreeMap::new();
-    for step in from..SCHEMA {
-        let upgrade = match step {
-            1 => upgrade_1_to_2(&heads),
-            2 => upgrade_2_to_3(&heads, &strokes),
-            3 => upgrade_3_to_4(&heads, &strokes, editor.as_deref()),
-            4 => upgrade_4_to_5(&heads),
-            5 => upgrade_5_to_6(&heads, &strokes, editor.as_deref()),
-            6 => upgrade_6_to_7(&heads, &strokes),
-            // Only this step reads the fill records, so they are never rewritten twice.
-            7 => upgrade_7_to_8(&heads, &fills),
-            8 => upgrade_8_to_9(&heads, editor.as_deref()),
-            9 => upgrade_9_to_10(&heads),
-            10 => upgrade_10_to_11(&heads),
-            11 => upgrade_11_to_12(&heads),
-            12 => upgrade_12_to_13(&heads),
-            _ => upgrade_13_to_14(&heads),
-        };
-        if let Some((_, value)) = upgrade.library.iter().find(|(key, _)| key == EDITOR) {
-            editor = Some(value.clone());
-        }
-        for (key, value) in &upgrade.projects {
-            if let Some(at) = index.get(key) {
-                strokes[*at].1.clone_from(value);
-            } else if let Some((_, head)) = heads.iter_mut().find(|(id, _)| head_key(*id) == *key) {
-                head.clone_from(value);
-            }
-        }
-        library.extend(upgrade.library);
-        projects.extend(upgrade.projects);
-    }
+    let old = old_records(open)?;
+    let (projects, strokes) = (old.heads.len(), old.strokes.len());
+    let stepped = run_steps(from, old);
     let mut batch = open.db.batch();
-    for (key, value) in library {
+    for (key, value) in stepped.library {
         batch.insert(&open.library, key, value);
     }
-    for (key, value) in projects {
+    for (key, value) in stepped.projects {
         batch.insert(&open.projects, key, value);
     }
     commit(batch)?;
-    log::info!(
-        "library upgraded from schema {from} ({} projects, {} strokes)",
-        heads.len(),
-        strokes.len()
-    );
+    log::info!("library upgraded from schema {from} ({projects} projects, {strokes} strokes)");
     Ok(())
 }
 
-/// Records by key.
-type Records = Vec<(Vec<u8>, Vec<u8>)>;
-/// Every project's head, every stroke record and every fill record.
-type OldRecords = (Vec<(ProjectId, Vec<u8>)>, Records, Records);
-
-fn old_records(open: &Open) -> Result<OldRecords, PortError> {
+fn old_records(open: &Open) -> Result<Old, PortError> {
     let next = match open.library.get(NEXT).map_err(device)? {
         Some(next) => decode_id(&next, "next project id")?,
         None => 1,
@@ -209,10 +155,16 @@ fn old_records(open: &Open) -> Result<OldRecords, PortError> {
             }
         }
     }
-    Ok((heads, strokes, fills))
+    let editor = read::editor(open)?;
+    Ok(Old {
+        heads,
+        strokes,
+        fills,
+        editor,
+    })
 }
 
-fn commit(batch: fjall::OwnedWriteBatch) -> Result<(), PortError> {
+pub(crate) fn commit(batch: fjall::OwnedWriteBatch) -> Result<(), PortError> {
     batch
         .durability(Some(PersistMode::SyncData))
         .commit()
@@ -295,5 +247,49 @@ impl ProjectStore for Library {
 
     fn save_editor(&mut self, state: &EditorState) -> Result<(), PortError> {
         self.with(|open| write::editor(open, state))
+    }
+
+    fn artwork_file(&mut self, id: ProjectId) -> Result<Vec<u8>, PortError> {
+        let bytes = self.with(|open| artwork_file::of_project(open, id))?;
+        log::info!(
+            "project {} as an OpenPaint file of {} bytes",
+            id.get(),
+            bytes.len()
+        );
+        Ok(bytes)
+    }
+
+    fn import_file(&mut self, bytes: &[u8]) -> Result<ProjectId, PortError> {
+        // Decoded and checked before the database is touched: a refused file changes nothing.
+        let opened = artwork_file::open(bytes)?;
+        let id = self.with(|open| write::add(open, &opened, None))?;
+        log::info!(
+            "an OpenPaint file of {} bytes is project {}",
+            bytes.len(),
+            id.get()
+        );
+        Ok(id)
+    }
+
+    fn keep_version(&mut self, id: ProjectId, kept_at: u64) -> Result<(), PortError> {
+        self.with(|open| versions::keep(open, id, kept_at))
+    }
+
+    fn restore_version(
+        &mut self,
+        id: ProjectId,
+        version: VersionId,
+        title: &Title,
+    ) -> Result<ProjectId, PortError> {
+        let bytes = self.with(|open| versions::file(open, id, version))?;
+        let opened = artwork_file::open(&bytes)?;
+        let copy = self.with(|open| write::add(open, &opened, Some(title)))?;
+        log::info!(
+            "version {} of project {} restored as {}",
+            version.get(),
+            id.get(),
+            copy.get()
+        );
+        Ok(copy)
     }
 }

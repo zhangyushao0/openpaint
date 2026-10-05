@@ -43,7 +43,7 @@ Passed 2026-10-04: S18 to S26 and the G3 follow-ups done (see "Done"); the autho
 
 ## G4 Colour, adjustments, sharp rendering, library
 
-S27 Colour management, S28 Adjustments, S29 to S35 are done (see "Done").
+S27 Colour management, S28 Adjustments, S29 to S36 are done (see "Done").
 
 Render architecture (author, 2026-10-04): the truth stays operation records, pixels are only derived, discardable caches; strokes stay sharp at any scale. Steps in order, each shippable alone; not built: per-layer pyramids, disk caches, vector fill contours, stroke editing, a filter graph, 8x export.
 - S29 Scale-aware evaluation and export at 1x / 2x / 4x, S30 Fill edges, S31 Transform as a record and S32 Sharp zoom are done (see "Done"); per-band binning measured cheap, so no spatial index (D55); fill edges are derived from the mask per scene (D56); a transform is a record evaluated by mapping back, the lifted patch only the drag's preview (D57); the screen shows one view tier of canvas-aligned tiles above √2 screen pixels per canvas pixel (D58).
@@ -51,7 +51,7 @@ Render architecture (author, 2026-10-04): the truth stays operation records, pix
 
 From the investigation of 2026-10-05 (fast strokes showed corners when zoomed in; adjustment previews at 36-40 values a second): S34 Smooth stroke paths and S35 Preview speed are done (see "Done").
 
-**S36 Library management**: search, version restore, backing an artwork up as a native file and restoring it (PSD and OpenRaster dropped, author 2026-10-04). **S37 Ten-bit display**: the canvas cache and the surface at 10 bits per channel (Rgb10a2); artworks stay sRGB (author, 2026-10-04: no P3 working space, work is made to be seen by others), exports stay 8-bit sRGB, the format is unchanged.
+S36 Library management is done: OpenPaint files, kept versions restored as copies, search (PSD and OpenRaster dropped, author 2026-10-04). **S37 Ten-bit display**: the canvas cache and the surface at 10 bits per channel (Rgb10a2); artworks stay sRGB (author, 2026-10-04: no P3 working space, work is made to be seen by others), exports stay 8-bit sRGB, the format is unchanged.
 Exit: the author completes edit, restore and delivery (W4).
 
 ## G5 Daily painting
@@ -104,6 +104,7 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - 2026-10-05 Blur and sharpen follow-ups (S33): Alpha Lock respected by filters; Motion and Perspective Blur, Procreate's Pencil mode; filtering content a transform brought in from beyond the canvas.
 - 2026-10-05 Curve follow-ups (S34): flatten spans per tile instead of per pixel (workgroup-shared pieces) if strokes turning at every sample show on the tablet (the GPU pays about 2.8x at 4x for a random walk); sharp corners kept where a slow pen turns hard (an angle rule); the harness `replay` taps undo and redo at pixels from before S17 and stops there (name the controls).
 - 2026-10-05 Preview follow-ups (S35): blur and sharpen previews reach about 30 values a second on the tablet (STATUS): the evaluator costs about 2.5 µs a tile even for three ops (load only the operands an op uses instead of the whole record, fewer registers), and the filter kernels run over the whole block rather than the tiles near content; layers under and over the previewed one are evaluated again where its content lies (a snapshot of the composite below and of the layers above); view tiers above 1x evaluate a preview in full; the snapshot stays allocated until the next structural change.
+- 2026-10-05 Library follow-ups (S36): open a `.openpaint` file from another app (an intent filter on the extension; Android matches it unreliably); a picture per kept version; compressing the thumbnail record (478 kB at screen size, in every file and version); room for longer titles on the cards.
 - 2026-10-02 Pen stroke cancelled by a landing touch: with injected input the dispatcher cancels the pen's gesture when a touch lands mid-stroke and the stroke is dropped; if real hardware does the same, commit the stroke drawn so far on such a cancel.
 
 ## Done
@@ -131,3 +132,4 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 - S33 2026-10-05 `feat(render): Gaussian blur and sharpen as parametric ops over a derived canvas-resolution boundary (S33)`; CPU-reference GPU tests, preview = commit, incremental = cold, tiles and bands = one piece, schema 14 (D59); the author's library upgraded pixel-identical on the tablet and restored byte-identical; the render-architecture steps are complete
 - S34 2026-10-05 `feat(render): strokes as centripetal curves through their samples, flattened per output scale (S34)`; Android's made-up samples are no knots, 1/16 output px at every scale, in progress = cold with a never-kept tail, no format change; 169 scenario hashes moved once, straight strokes unchanged; smooth on the tablet at fit and 8x within 60 Hz, library restored byte-identical (D60)
 - S35 2026-10-05 `perf(render): adjustment previews keep their plan and resume the layer from a snapshot, large blurs on cells (S35)`; hue and curves previews within one 60 Hz frame on the tablet (CPU about 1 ms, GPU about 10 ms a value), blur and sharpen 3.5-7.5 to about 30 values a second; preview = commit and incremental = cold on the GPU; s33's hashes moved once (blurs from 4 px, at most 3 levels) (D61)
+- S36 2026-10-05 `feat(store): OpenPaint files, kept versions and gallery search (S36)`; files of the records with a CRC-32, older schemas through the library's steps, foreign, damaged and newer files refused; 10 versions per artwork kept on leaving after a change, restored as copies; lossless round trip on the GPU and on the tablet, library restored byte-identical (D62, D63)

@@ -56,6 +56,24 @@ impl Title {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    /// Whether the gallery's search for `query` finds this title: it holds the query's text,
+    /// trimmed, in any case; an empty query finds every title.
+    #[must_use]
+    pub fn matches(&self, query: &str) -> bool {
+        let query = query.trim().to_lowercase();
+        query.is_empty() || self.0.to_lowercase().contains(&query)
+    }
+
+    /// This title followed by `note` in brackets ("Harbour (5 Oct 2026 14:32)"), the title cut
+    /// so the whole stays within `MAX_TITLE_CHARS`.
+    #[must_use]
+    pub fn noted(&self, note: &str) -> Self {
+        let note = format!(" ({note})");
+        let room = MAX_TITLE_CHARS.saturating_sub(note.chars().count());
+        let kept: String = self.0.chars().take(room).collect();
+        Self::new(&format!("{}{note}", kept.trim_end())).unwrap_or_else(|_| self.clone())
+    }
 }
 
 impl fmt::Display for Title {
@@ -94,5 +112,29 @@ mod tests {
             })
         );
         assert_eq!(Title::untitled().as_str(), UNTITLED);
+    }
+
+    #[test]
+    fn the_search_finds_titles_holding_the_text_in_any_case() {
+        let title = Title::new("Harbour at Dusk 墨").expect("title");
+        for found in ["", "  ", "harbour", "AT DUSK", " dusk ", "墨", "r a"] {
+            assert!(title.matches(found), "{found:?}");
+        }
+        for missed in ["harbor", "dusk!", "Hafen", "x"] {
+            assert!(!title.matches(missed), "{missed:?}");
+        }
+    }
+
+    #[test]
+    fn a_noted_title_keeps_its_note_within_the_limit() {
+        let title = Title::new("Harbour").expect("title");
+        assert_eq!(
+            title.noted("5 Oct 2026 14:32").as_str(),
+            "Harbour (5 Oct 2026 14:32)"
+        );
+        let long = Title::new(&"a".repeat(MAX_TITLE_CHARS)).expect("long");
+        let noted = long.noted("5 Oct 2026 14:32");
+        assert_eq!(noted.as_str().chars().count(), MAX_TITLE_CHARS);
+        assert!(noted.as_str().ends_with("a (5 Oct 2026 14:32)"));
     }
 }

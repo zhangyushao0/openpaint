@@ -73,6 +73,9 @@ pub fn share_file(dir: &Path, name: &str) -> Result<(PathBuf, File), PortError> 
     Ok((path, file))
 }
 
+/// The media type an OpenPaint file is saved under (DECISIONS D62).
+const ARTWORK_MIME: &str = "application/octet-stream";
+
 /// The line the Kotlin host reads for `request` (fields separated by tabs; names never hold
 /// one), and what its answer will be for; `None` for a request the Rust side serves itself.
 #[must_use]
@@ -82,6 +85,11 @@ pub fn request_line(request: &HostRequest, share_dir: &Path) -> Option<(String, 
             Some((format!("save\t{}\t{name}", format.mime()), Some(Pick::Save)))
         }
         HostRequest::OpenImage => Some(("open".to_owned(), Some(Pick::Open))),
+        // Android knows no type for `.openpaint`: as octet-stream the dialog keeps the name.
+        HostRequest::SaveArtwork { name } => {
+            Some((format!("save\t{ARTWORK_MIME}\t{name}"), Some(Pick::Save)))
+        }
+        HostRequest::OpenArtwork => Some(("open-file".to_owned(), Some(Pick::Open))),
         HostRequest::Send { name, format } => {
             let path = share_dir.join(name);
             Some((format!("send\t{}\t{}", format.mime(), path.display()), None))
@@ -116,6 +124,18 @@ mod tests {
         assert_eq!(pick, None);
         let open = request_line(&HostRequest::OpenImage, dir);
         assert_eq!(open, Some(("open".into(), Some(Pick::Open))));
+        let save = HostRequest::SaveArtwork {
+            name: "Harbour.openpaint".into(),
+        };
+        assert_eq!(
+            request_line(&save, dir),
+            Some((
+                "save\tapplication/octet-stream\tHarbour.openpaint".into(),
+                Some(Pick::Save)
+            ))
+        );
+        let open = request_line(&HostRequest::OpenArtwork, dir);
+        assert_eq!(open, Some(("open-file".into(), Some(Pick::Open))));
         let share = HostRequest::ShareFile {
             name: "a.png".into(),
             format: ImageFormat::Png,

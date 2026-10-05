@@ -1,37 +1,37 @@
-//! The gallery screen (Procreate's model): its name on the desk at the top left, an island at
-//! the top right with the "+" that makes a new artwork of a size chosen in a small popover, and
-//! below them every artwork as a card in a grid, the one changed last first. Tap a picture to
-//! open it, its title to rename it (a dialog under the islands, above the soft keyboard), the
-//! copy button to duplicate it and the bin to delete it, which asks first: it cannot be undone.
+//! The gallery screen (Procreate's model): its name on the desk at the top left, a search field
+//! in the top band's middle, an island at the top right with the "+" that makes a new artwork
+//! of a size chosen in a small popover or opens an OpenPaint file, and below them every artwork
+//! whose title holds the search's text as a card in a grid, the one changed last first. Tap a
+//! picture to open it, its title to rename it (a dialog under the islands, above the soft
+//! keyboard), the options to save it as an OpenPaint file or restore a kept version, the copy
+//! button to duplicate it and the bin to delete it, which asks first: it cannot be undone.
 
+#[path = "gallery_dates.rs"]
+mod dates;
 #[path = "gallery_dialogs.rs"]
 mod dialogs;
+#[path = "gallery_new.rs"]
+mod new;
 
 use std::collections::HashMap;
 
 use egui::{Align, Layout, Rect, Vec2};
 use openpaint_app::{
-    CanvasPreset, GalleryIntent, GalleryNotice, GalleryProjection, Intent, ProjectId,
-    ProjectSummary, Thumbnail, Title,
+    FileProblem, GalleryIntent, GalleryNotice, GalleryProjection, Intent, MAX_TITLE_CHARS,
+    ProjectId, ProjectSummary, Thumbnail,
 };
 
 use crate::components::carry::{Arrival, Opening, land};
 use crate::components::{
-    ArtworkCard, ISLAND_TOP, Opener, Place, ScreenArea, Source, TOP_BAND, artwork_card, card_size,
-    icon_button, icon_toggle, island, menu_row, notice, pill, popover,
+    ArtworkCard, ISLAND_TOP, Place, Source, TOP_BAND, artwork_card, card_size, icon_button,
+    icon_toggle, island, notice, pill, text_field,
 };
 use crate::design::{CARD_GAP, Icon, SPACE, TOUCH_TARGET};
 
 /// The island "+" sits on; the new-canvas popover grows out of it.
 const ISLAND: &str = "gallery island";
-
-/// The sizes "+" offers, top to bottom.
-const PRESETS: [(CanvasPreset, &str); 4] = [
-    (CanvasPreset::Screen, "Screen size"),
-    (CanvasPreset::Square, "Square"),
-    (CanvasPreset::A4Portrait, "A4 portrait"),
-    (CanvasPreset::A4Landscape, "A4 landscape"),
-];
+/// The search field's width in points.
+const SEARCH_WIDTH: f32 = 360.0;
 
 /// The new-canvas popover.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -51,7 +51,13 @@ pub(crate) struct GalleryScreen {
     pictures: HashMap<ProjectId, (Thumbnail, egui::TextureHandle)>,
     rename: Option<Rename>,
     /// The artwork whose deletion waits for the user's answer, and its card (points).
-    confirm: Option<(ProjectId, Title, Rect)>,
+    confirm: Option<(ProjectId, openpaint_app::Title, Rect)>,
+    /// The artwork whose options show, and its card (points).
+    options: Option<(ProjectId, Rect)>,
+    /// What the search field holds; not stored.
+    search: String,
+    /// The device's offset from UTC in minutes (`Shell::set_utc_offset`).
+    pub(crate) utc_offset: i32,
     /// Where "+" lies, in points, from this pass.
     plus: Option<Rect>,
     /// The artwork just opened or made, until the canvas takes it.
@@ -68,6 +74,8 @@ impl std::fmt::Debug for GalleryScreen {
             .field("pictures", &self.pictures.len())
             .field("rename", &self.rename)
             .field("confirm", &self.confirm)
+            .field("options", &self.options)
+            .field("search", &self.search)
             .finish()
     }
 }
@@ -99,9 +107,9 @@ impl GalleryScreen {
         });
     }
 
-    /// The top band: the screen's name on the desk at the left, and at the right an island with
-    /// "+" and, left of it, a pill with any notice. "+" opens the new-canvas popover (and closes
-    /// it again).
+    /// The top band: the screen's name on the desk at the left, the search field in the
+    /// middle, and at the right an island with "+" and, left of it, a pill with any notice.
+    /// "+" opens the new-canvas popover (and closes it again).
     pub(crate) fn islands(
         &mut self,
         ctx: &egui::Context,
@@ -118,6 +126,13 @@ impl GalleryScreen {
                 ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
                     ui.heading("Gallery");
                 });
+            });
+        egui::Area::new(egui::Id::new("gallery search"))
+            .fade_in(false)
+            .anchor(egui::Align2::CENTER_TOP, Vec2::new(0.0, ISLAND_TOP))
+            .show(ctx, |ui| {
+                ui.set_width(SEARCH_WIDTH);
+                text_field(ui, "Search", &mut self.search, MAX_TITLE_CHARS, false);
             });
         let enabled = projection.availability().is_available();
         let open = self.sizes != Sizes::Closed;
@@ -145,8 +160,8 @@ impl GalleryScreen {
         }
     }
 
-    /// The grid of cards inside `ui` (the whole screen, the cards under the top band), and an
-    /// open dialog.
+    /// The grid of the cards the search finds inside `ui` (the whole screen, the cards under
+    /// the top band), and an open dialog.
     pub(crate) fn body(
         &mut self,
         ui: &mut egui::Ui,
@@ -159,74 +174,32 @@ impl GalleryScreen {
         let mut under = ui.max_rect();
         under.min.y += TOP_BAND;
         let mut list = ui.new_child(egui::UiBuilder::new().max_rect(under));
+        let found: Vec<&ProjectSummary> = projection
+            .items()
+            .iter()
+            .filter(|item| item.title.matches(&self.search))
+            .collect();
         if projection.listed() && projection.items().is_empty() {
             self.arriving = None;
             list.centered_and_justified(|ui| ui.label("No artworks yet. Tap + to start one."));
+        } else if found.is_empty() && !projection.items().is_empty() {
+            let text = format!("No title holds “{}”.", self.search.trim());
+            list.centered_and_justified(|ui| ui.label(text));
         } else {
             egui::ScrollArea::vertical().show(&mut list, |ui| {
-                self.grid(ui, projection.items(), enabled, taps);
+                self.grid(ui, &found, enabled, taps);
             });
         }
         self.rename_dialog(ui.ctx(), taps);
         self.confirm_dialog(ui.ctx(), taps);
-        // "Screen size" is the area a canvas fits in.
-        let screen = ScreenArea::from_points(under, ui.ctx().pixels_per_point());
-        self.sizes_popover(ui.ctx(), screen.size, taps);
-    }
-
-    /// "New canvas": one row per size, its pixels at the right end. A row makes the artwork;
-    /// a tap outside closes the popover, and the tap that opened it does not.
-    fn sizes_popover(&mut self, ctx: &egui::Context, area: [u32; 2], taps: &mut Vec<Intent>) {
-        let mut chosen = None;
-        let opener = Opener {
-            island: ISLAND,
-            button: self.plus.unwrap_or(Rect::ZERO),
-        };
-        let open = self.sizes != Sizes::Closed;
-        let rect = popover(ctx, "new canvas", (opener, open), |ui| {
-            ui.horizontal(|ui| {
-                ui.set_height(TOUCH_TARGET);
-                ui.add_space(2.0 * SPACE);
-                ui.heading("New canvas");
-            });
-            for (preset, label) in PRESETS {
-                let [width, height] = preset.size(area);
-                let note = format!("{width} × {height}");
-                let row = menu_row(ui, label, &note, true);
-                if row.clicked() {
-                    chosen = Some((preset, row.rect));
-                }
-            }
-        });
-        let Some(rect) = rect else {
-            return;
-        };
-        let released_outside = ctx.input(|input| {
-            input.pointer.any_released()
-                && input
-                    .pointer
-                    .interact_pos()
-                    .is_some_and(|at| !rect.contains(at))
-        });
-        if let Some((preset, row)) = chosen {
-            taps.push(Intent::Gallery(GalleryIntent::Create(preset)));
-            self.opening = Some(Opening {
-                from: row,
-                id: None,
-                picture: None,
-            });
-            self.sizes = Sizes::Closed;
-        } else if self.sizes == Sizes::Opened {
-            self.sizes = Sizes::Shown;
-        } else if released_outside {
-            self.sizes = Sizes::Closed;
-        }
+        self.options_dialog(ui.ctx(), projection.items(), taps);
+        self.sizes_popover(ui.ctx(), under, taps);
     }
 
     fn grid(
         &mut self,
         ui: &mut egui::Ui,
-        items: &[ProjectSummary],
+        items: &[&ProjectSummary],
         enabled: bool,
         taps: &mut Vec<Intent>,
     ) {
@@ -296,6 +269,8 @@ impl GalleryScreen {
                 focus: true,
                 card,
             });
+        } else if tapped.options {
+            self.options = Some((item.id, card));
         } else if tapped.duplicate {
             taps.push(Intent::Gallery(GalleryIntent::Duplicate(item.id)));
         } else if tapped.delete {
@@ -307,9 +282,13 @@ impl GalleryScreen {
     /// Closes an open dialog as Cancel would, or the new-canvas popover. Returns whether one
     /// was open.
     pub(crate) fn back(&mut self) -> bool {
-        let open = self.rename.is_some() || self.confirm.is_some() || self.sizes != Sizes::Closed;
+        let open = self.rename.is_some()
+            || self.confirm.is_some()
+            || self.options.is_some()
+            || self.sizes != Sizes::Closed;
         self.rename = None;
         self.confirm = None;
+        self.options = None;
         self.sizes = Sizes::Closed;
         open
     }
@@ -340,12 +319,25 @@ impl GalleryScreen {
     }
 }
 
-fn message(notice: GalleryNotice) -> Option<&'static str> {
-    match notice {
-        GalleryNotice::None => None,
-        GalleryNotice::ListFailed => Some("Couldn't read the gallery."),
-        GalleryNotice::OpenFailed => Some("Couldn't open this artwork. It is kept as it was."),
-        GalleryNotice::CreateFailed => Some("Couldn't make a new artwork."),
-        GalleryNotice::ChangeFailed => Some("Couldn't change the gallery."),
-    }
+const fn message(notice: GalleryNotice) -> Option<&'static str> {
+    Some(match notice {
+        GalleryNotice::None => return None,
+        GalleryNotice::ListFailed => "Couldn't read the gallery.",
+        GalleryNotice::OpenFailed => "Couldn't open this artwork. It is kept as it was.",
+        GalleryNotice::CreateFailed => "Couldn't make a new artwork.",
+        GalleryNotice::ChangeFailed => "Couldn't change the gallery.",
+        GalleryNotice::FileSaved => "Saved as an OpenPaint file.",
+        GalleryNotice::FileSaveFailed => "Couldn't save the file.",
+        GalleryNotice::FileRefused(FileProblem::NotOpenPaint) => {
+            "Couldn't open the file: it is not an OpenPaint file."
+        }
+        GalleryNotice::FileRefused(FileProblem::Damaged) => {
+            "Couldn't open the file: it is damaged."
+        }
+        GalleryNotice::FileRefused(FileProblem::Newer) => {
+            "Couldn't open the file: it needs a newer OpenPaint."
+        }
+        GalleryNotice::FileRefused(FileProblem::Unreadable) => "Couldn't read the file.",
+        GalleryNotice::RestoreFailed => "Couldn't restore this version.",
+    })
 }

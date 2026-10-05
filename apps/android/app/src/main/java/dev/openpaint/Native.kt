@@ -24,6 +24,9 @@ internal object Native {
      */
     @JvmStatic external fun fonts(handle: Long, latin: String?, cjk: String?)
 
+    /** The device's offset from UTC now, in minutes, for the dates of kept versions. */
+    @JvmStatic external fun zone(handle: Long, minutes: Int)
+
     /** Stores what is left to store before the process may be killed. Waits at most 2 s. */
     @JvmStatic external fun leave(handle: Long)
 
@@ -78,7 +81,8 @@ internal object Native {
 
     /**
      * The next thing to show, as tab-separated fields: "save", mime, name (the save dialog);
-     * "open" (the image picker); "send", mime, path (the share sheet). Null when there is none.
+     * "open" (the image picker); "open-file" (any file); "send", mime, path (the share sheet).
+     * Null when there is none.
      */
     @JvmStatic external fun request(handle: Long): String?
 

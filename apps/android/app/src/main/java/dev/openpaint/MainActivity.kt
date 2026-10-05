@@ -48,6 +48,13 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
         hideSystemBars()
     }
 
+    /** Back in front: the time zone may have changed while away (onCreate's start included). */
+    override fun onResume() {
+        super.onResume()
+        val now = System.currentTimeMillis()
+        Native.zone(handle, java.util.TimeZone.getDefault().getOffset(now) / 60_000)
+    }
+
     /** Leaving (home, another app, the screen off): the artwork is stored before anything else. */
     override fun onPause() {
         Native.leave(handle)

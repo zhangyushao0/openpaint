@@ -7,6 +7,7 @@ use fjall::{OwnedWriteBatch, PersistMode};
 use openpaint_app::{EditorState, PortError, ProjectId, Thumbnail, Title};
 use openpaint_core::Artwork;
 
+use crate::artwork_file::Opened;
 use crate::catalogue::{Entry, encode_entry, encode_thumbnail};
 use crate::delta::{contents, delta};
 use crate::editor::{EDITOR, encode_editor};
@@ -17,6 +18,7 @@ use crate::records::{
     CLOCK, LAST, NEXT, decode_id, encode_head, encode_id, encode_stroke, entry_key, head_key,
     project_prefix, stroke_key, strokes_prefix, thumbnail_key,
 };
+use crate::versions::{entries_prefix, is_version};
 
 fn commit(batch: OwnedWriteBatch) -> Result<(), PortError> {
     batch
@@ -55,12 +57,40 @@ pub(crate) fn create(
     title: &Title,
 ) -> Result<ProjectId, PortError> {
     let mut batch = open.db.batch();
-    let id = next_id(open, &mut batch)?;
-    write_all(open, &mut batch, id, artwork)?;
-    batch.insert(&open.projects, head_key(id), encode_head(artwork));
-    touch(open, &mut batch, id, title.clone())?;
+    let id = new_project(open, &mut batch, artwork, title)?;
     batch.insert(&open.library, LAST, encode_id(id.get()));
     commit(batch)?;
+    Ok(id)
+}
+
+/// An opened OpenPaint file as a new project, listed first, titled `title` or as the file
+/// says, with the file's thumbnail; the open project stays open.
+pub(crate) fn add(
+    open: &Open,
+    opened: &Opened,
+    title: Option<&Title>,
+) -> Result<ProjectId, PortError> {
+    let mut batch = open.db.batch();
+    let title = title.unwrap_or(&opened.title);
+    let id = new_project(open, &mut batch, &opened.artwork, title)?;
+    if let Some(thumbnail) = &opened.thumbnail {
+        batch.insert(&open.projects, thumbnail_key(id), thumbnail.as_slice());
+    }
+    commit(batch)?;
+    Ok(id)
+}
+
+/// Every record of `artwork` under a new id, its entry titled `title`, touched now.
+fn new_project(
+    open: &Open,
+    batch: &mut OwnedWriteBatch,
+    artwork: &Artwork,
+    title: &Title,
+) -> Result<ProjectId, PortError> {
+    let id = next_id(open, batch)?;
+    write_all(open, batch, id, artwork)?;
+    batch.insert(&open.projects, head_key(id), encode_head(artwork));
+    touch(open, batch, id, title.clone())?;
     Ok(id)
 }
 
@@ -129,7 +159,8 @@ pub(crate) fn rename(open: &Open, id: ProjectId, title: &Title) -> Result<(), Po
     commit(batch)
 }
 
-/// Every record of `id` copied under a new id, with the same title, touched now.
+/// Every record of `id` but its versions copied under a new id, with the same title, touched
+/// now.
 pub(crate) fn duplicate(open: &Open, id: ProjectId) -> Result<ProjectId, PortError> {
     let title = read::entry(open, id)?.title;
     let mut batch = open.db.batch();
@@ -137,6 +168,9 @@ pub(crate) fn duplicate(open: &Open, id: ProjectId) -> Result<ProjectId, PortErr
     let prefix = project_prefix(id);
     for guard in open.projects.prefix(&prefix) {
         let (key, value) = guard.into_inner().map_err(device)?;
+        if is_version(&key) {
+            continue;
+        }
         let mut copied = project_prefix(copy);
         copied.extend_from_slice(&key[prefix.len()..]);
         batch.insert(&open.projects, copied, value);
@@ -152,6 +186,9 @@ pub(crate) fn delete(open: &Open, id: ProjectId) -> Result<(), PortError> {
         batch.remove(&open.projects, guard.key().map_err(device)?);
     }
     batch.remove(&open.library, entry_key(id));
+    for guard in open.library.prefix(entries_prefix(id)) {
+        batch.remove(&open.library, guard.key().map_err(device)?);
+    }
     let last = open.library.get(LAST).map_err(device)?;
     if last.is_some_and(|last| decode_id(&last, "last project").ok() == Some(id.get())) {
         batch.remove(&open.library, LAST);

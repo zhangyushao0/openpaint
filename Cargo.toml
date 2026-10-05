@@ -36,6 +36,8 @@ openpaint-ui = { path = "crates/ui" }
 android_logger = "=0.15.1"
 egui = "=0.36.2"
 egui-wgpu = "=0.36.2"
+# The OpenPaint file's check sum (DECISIONS D62); store only. Already in the tree through png.
+crc32fast = "=1.5.2"
 # The artwork library's key-value store (DECISIONS D09); store only.
 fjall = "=3.1.11"
 # PNG and JPEG files for export and reference images (DECISIONS D14); store only.

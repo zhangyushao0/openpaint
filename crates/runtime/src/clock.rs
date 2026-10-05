@@ -4,7 +4,7 @@
 //! frame clock motion runs on (D44): real elapsed time from the start, or a time the harness
 //! holds fixed so scenarios are deterministic.
 
-use std::time::Instant;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use openpaint_app::InputBatch;
 
@@ -79,4 +79,18 @@ impl FrameClock {
             None => self.started.elapsed().as_secs_f64(),
         }
     }
+
+    /// The wall clock in seconds since 1970 UTC, for dating kept versions; while the harness
+    /// holds the clock, `FIXED_WALL` plus the held time, so scenarios date them alike.
+    pub(crate) fn wall_seconds(&self) -> u64 {
+        match self.fixed {
+            Some(ms) => FIXED_WALL + u64::try_from(ms / 1000).unwrap_or(0),
+            None => SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_or(0, |since| since.as_secs()),
+        }
+    }
 }
+
+/// 2026-10-05 12:00 UTC: the wall clock's start while the harness holds the clock.
+const FIXED_WALL: u64 = 1_791_201_600;

@@ -58,6 +58,27 @@ impl ProjectStore for Nowhere {
     fn save_editor(&mut self, _state: &EditorState) -> Result<(), PortError> {
         Ok(())
     }
+
+    fn artwork_file(&mut self, id: ProjectId) -> Result<Vec<u8>, PortError> {
+        Err(PortError::Missing(id))
+    }
+
+    fn import_file(&mut self, _bytes: &[u8]) -> Result<ProjectId, PortError> {
+        Err(PortError::NotArtworkFile)
+    }
+
+    fn keep_version(&mut self, _id: ProjectId, _kept_at: u64) -> Result<(), PortError> {
+        Ok(())
+    }
+
+    fn restore_version(
+        &mut self,
+        id: ProjectId,
+        _version: openpaint_app::VersionId,
+        _title: &Title,
+    ) -> Result<ProjectId, PortError> {
+        Err(PortError::Missing(id))
+    }
 }
 
 /// Runs frames of `size` until the canvas is open and the runtime asks for no more (the

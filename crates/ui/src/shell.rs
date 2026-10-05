@@ -263,10 +263,14 @@ impl Shell {
         self.view.shown(mapping)
     }
 
-    /// The input clock now (the platform time input samples carry), for the frame about to be
-    /// shown and routed; call before `show`.
+    /// The input clock now (the time input samples carry) for the next frame; call before `show`.
     pub fn set_now(&mut self, now_ms: i64) {
         self.now_ms = now_ms;
+    }
+
+    /// The device's offset from UTC in minutes, for the dates the gallery shows.
+    pub fn set_utc_offset(&mut self, minutes: i32) {
+        self.gallery.utc_offset = minutes;
     }
 
     /// The pen's outline in screen pixels: the current brush at full size around where the pen

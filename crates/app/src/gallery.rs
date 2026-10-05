@@ -1,15 +1,19 @@
 //! The gallery (Procreate's model): every artwork as a thumbnail with its title, the one changed
 //! last first; "+" makes a new one, a tap opens one, and each can be renamed, duplicated or
-//! deleted. This module decides what to ask of the library and what the user is told; the
-//! store answers on the runtime's worker. Deleting cannot be undone: the UI asks first.
+//! deleted, saved as an OpenPaint file or brought back from a kept version as a copy; "+" also
+//! opens an OpenPaint file as a new artwork (`gallery_files.rs`). This module decides what to
+//! ask of the library and what the user is told; the store answers on the runtime's worker.
+//! Deleting cannot be undone: the UI asks first.
 
 use std::collections::VecDeque;
 use std::sync::Arc;
 
 use crate::error::AppError;
-use crate::project::{PortError, ProjectId, ProjectSummary};
+use crate::gallery_files::{FileJob, Files, problem};
+use crate::project::{PortError, ProjectId, ProjectSummary, VersionId};
 use crate::projection::{Availability, EditorAction};
 use crate::title::Title;
+use crate::transfer::{HostAnswer, HostRequest};
 
 /// What the user can ask of the gallery.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -28,6 +32,16 @@ pub enum GalleryIntent {
     Delete(ProjectId),
     /// Close the gallery's notice.
     Dismiss,
+    /// "Save as OpenPaint file…": the artwork into a file the user chooses.
+    SaveFile(ProjectId),
+    /// "Open OpenPaint file…": a file the user chooses as a new artwork.
+    OpenFile,
+    /// A kept version of an artwork as a new artwork titled `title`.
+    Restore {
+        id: ProjectId,
+        version: VersionId,
+        title: Title,
+    },
 }
 
 /// The canvas sizes "+" offers (Procreate's new-canvas menu, reduced to four).
@@ -73,6 +87,7 @@ pub enum LibraryRequest {
     Rename(ProjectId, Title),
     Duplicate(ProjectId),
     Delete(ProjectId),
+    Restore(ProjectId, VersionId, Title),
 }
 
 /// How a library call went, for the gallery. A successful open or create leaves the gallery.
@@ -83,6 +98,24 @@ pub enum LibraryAnswer {
     Changed(Result<(), PortError>),
     OpenFailed(PortError),
     CreateFailed(PortError),
+    Restored(Result<(), PortError>),
+    /// The artwork was written into the chosen file (`FileJob::Save`), or not.
+    FileSaved(Result<(), PortError>),
+    /// The chosen file was added as a new artwork (`FileJob::Open`), or refused.
+    FileOpened(Result<(), PortError>),
+}
+
+/// Why a chosen file did not open as an artwork.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FileProblem {
+    /// Not an OpenPaint file.
+    NotOpenPaint,
+    /// An OpenPaint file that breaks its format or check sum.
+    Damaged,
+    /// Written by a newer OpenPaint than this one.
+    Newer,
+    /// The file could not be read.
+    Unreadable,
 }
 
 /// What the gallery tells the user, with an OK to close it.
@@ -97,6 +130,13 @@ pub enum GalleryNotice {
     CreateFailed,
     /// A rename, duplicate or delete failed; the gallery shows the library as it is.
     ChangeFailed,
+    /// The artwork was saved as an OpenPaint file.
+    FileSaved,
+    FileSaveFailed,
+    /// The chosen file was not added; nothing changed.
+    FileRefused(FileProblem),
+    /// The version could not be restored; nothing changed.
+    RestoreFailed,
 }
 
 /// The gallery's flow while it is shown.
@@ -109,6 +149,7 @@ pub struct Gallery {
     /// An open or create is on its way; everything else waits for it.
     opening: bool,
     notice: GalleryNotice,
+    files: Files,
 }
 
 /// A snapshot of the gallery for one UI frame.
@@ -139,19 +180,26 @@ impl Gallery {
             requests: VecDeque::new(),
             opening: false,
             notice: GalleryNotice::None,
+            files: Files::default(),
         }
     }
 
     /// Applies one intent; `Show` is the canvas's and changes nothing here.
     ///
     /// # Errors
-    /// `Unavailable` while an artwork is being opened or created.
+    /// `Unavailable` while an artwork is being opened or created, and for a file while a
+    /// system dialog is open or a file is read or written.
     pub fn dispatch(&mut self, intent: GalleryIntent) -> Result<(), AppError> {
         if intent == GalleryIntent::Dismiss {
             self.notice = GalleryNotice::None;
             return Ok(());
         }
-        let availability = self.availability();
+        let file = matches!(intent, GalleryIntent::SaveFile(_) | GalleryIntent::OpenFile);
+        let availability = if file && self.files.busy() {
+            Availability::Running
+        } else {
+            self.availability()
+        };
         if !availability.is_available() {
             return Err(AppError::Unavailable {
                 action: EditorAction::Gallery,
@@ -160,11 +208,24 @@ impl Gallery {
         }
         let request = match intent {
             GalleryIntent::Show | GalleryIntent::Dismiss => return Ok(()),
+            GalleryIntent::SaveFile(id) => {
+                let item = self.items.iter().find(|item| item.id == id);
+                let title = item.map_or_else(Title::untitled, |item| item.title.clone());
+                self.files.save(id, &title);
+                return Ok(());
+            }
+            GalleryIntent::OpenFile => {
+                self.files.open();
+                return Ok(());
+            }
             GalleryIntent::Create(preset) => LibraryRequest::Create(Title::untitled(), preset),
             GalleryIntent::Open(id) => LibraryRequest::Open(id),
             GalleryIntent::Rename { id, title } => LibraryRequest::Rename(id, title),
             GalleryIntent::Duplicate(id) => LibraryRequest::Duplicate(id),
             GalleryIntent::Delete(id) => LibraryRequest::Delete(id),
+            GalleryIntent::Restore { id, version, title } => {
+                LibraryRequest::Restore(id, version, title)
+            }
         };
         self.opening = matches!(
             request,
@@ -202,6 +263,48 @@ impl Gallery {
             LibraryAnswer::CreateFailed(_) => {
                 self.opening = false;
                 self.notice = GalleryNotice::CreateFailed;
+            }
+            LibraryAnswer::Restored(result) => {
+                if result.is_err() {
+                    self.notice = GalleryNotice::RestoreFailed;
+                }
+            }
+            LibraryAnswer::FileSaved(result) => {
+                self.files.finished();
+                self.notice = match result {
+                    Ok(()) => GalleryNotice::FileSaved,
+                    Err(_) => GalleryNotice::FileSaveFailed,
+                };
+            }
+            LibraryAnswer::FileOpened(result) => {
+                self.files.finished();
+                match result {
+                    Ok(()) => self.requests.push_back(LibraryRequest::List),
+                    Err(error) => self.notice = GalleryNotice::FileRefused(problem(&error)),
+                }
+            }
+        }
+    }
+
+    /// The next thing to ask of the platform (a save dialog or a file picker), once.
+    pub fn host_request(&mut self) -> Option<HostRequest> {
+        self.files.request()
+    }
+
+    /// True while a file dialog asked for waits for the platform's answer.
+    #[must_use]
+    pub fn waiting(&self) -> bool {
+        self.files.waiting()
+    }
+
+    /// The platform's answer to the file dialog that is open: the job for the library's
+    /// worker, if any.
+    pub fn host_answer(&mut self, answer: HostAnswer) -> Option<FileJob> {
+        match self.files.answer(answer) {
+            Ok(job) => job,
+            Err(notice) => {
+                self.notice = notice;
+                None
             }
         }
     }

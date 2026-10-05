@@ -38,10 +38,14 @@ pub enum SystemAnswer {
     P3Png,
     /// `tests/fixtures/s27-p3.jpg`: the same patches as a Display P3 JPEG, as phones write them.
     P3Jpeg,
-    /// A text file is chosen in the image picker.
+    /// A text file is chosen in the image picker or the file picker.
     TextFile,
     /// The share sheet shows the exported file; the user closes it with Back.
     ShareSheet,
+    /// In the file picker, the file the last save wrote (an OpenPaint file, S36).
+    SavedFile,
+    /// As `saved_file`, with one byte in its middle changed, as a broken copy would.
+    DamagedFile,
 }
 
 /// The fixture pictures, built into the runner (it never reads files).
@@ -96,25 +100,9 @@ pub(crate) fn answer(
     answer: SystemAnswer,
     written: &Written,
 ) -> Result<Option<HostAnswer>, ScenarioError> {
-    let wanted = |request: &HostRequest| match answer {
-        SystemAnswer::ShareSheet => matches!(request, HostRequest::Send { .. }),
-        SystemAnswer::ChooseFile | SystemAnswer::FullStorage => matches!(
-            request,
-            HostRequest::SaveFile { .. } | HostRequest::ShareFile { .. }
-        ),
-        SystemAnswer::TestImage
-        | SystemAnswer::CutoutPng
-        | SystemAnswer::PhotoJpeg
-        | SystemAnswer::P3Png
-        | SystemAnswer::P3Jpeg
-        | SystemAnswer::TextFile => matches!(request, HostRequest::OpenImage),
-        SystemAnswer::Cancel | SystemAnswer::PickerFails => {
-            !matches!(request, HostRequest::Send { .. })
-        }
-    };
     let at = requests
         .iter()
-        .position(wanted)
+        .position(|request| answers(answer, request))
         .ok_or(ScenarioError::Missing(
             "the app asked the system for nothing this answers",
         ))?;
@@ -129,18 +117,59 @@ pub(crate) fn answer(
             Some(HostAnswer::File(Box::new(MemoryFile(Arc::clone(written)))))
         }
         SystemAnswer::FullStorage => Some(HostAnswer::File(Box::new(FullStorage))),
-        SystemAnswer::TestImage => Some(HostAnswer::Image(Box::new(MemorySource(test_image()?)))),
-        SystemAnswer::CutoutPng => Some(HostAnswer::Image(Box::new(MemorySource(
-            CUTOUT_PNG.to_vec(),
-        )))),
-        SystemAnswer::PhotoJpeg => Some(HostAnswer::Image(Box::new(MemorySource(
-            PHOTO_JPEG.to_vec(),
-        )))),
-        SystemAnswer::P3Png => Some(HostAnswer::Image(Box::new(MemorySource(P3_PNG.to_vec())))),
-        SystemAnswer::P3Jpeg => Some(HostAnswer::Image(Box::new(MemorySource(P3_JPEG.to_vec())))),
-        SystemAnswer::TextFile => Some(HostAnswer::Image(Box::new(MemorySource(
-            b"Shopping list: ink, paper.\n".to_vec(),
-        )))),
+        other => Some(HostAnswer::Image(Box::new(MemorySource(chosen(
+            other, written,
+        )?)))),
+    })
+}
+
+/// Whether `answer` answers `request`.
+fn answers(answer: SystemAnswer, request: &HostRequest) -> bool {
+    match answer {
+        SystemAnswer::ShareSheet => matches!(request, HostRequest::Send { .. }),
+        SystemAnswer::ChooseFile | SystemAnswer::FullStorage => matches!(
+            request,
+            HostRequest::SaveFile { .. }
+                | HostRequest::ShareFile { .. }
+                | HostRequest::SaveArtwork { .. }
+        ),
+        SystemAnswer::TestImage
+        | SystemAnswer::CutoutPng
+        | SystemAnswer::PhotoJpeg
+        | SystemAnswer::P3Png
+        | SystemAnswer::P3Jpeg => matches!(request, HostRequest::OpenImage),
+        SystemAnswer::TextFile => {
+            matches!(request, HostRequest::OpenImage | HostRequest::OpenArtwork)
+        }
+        SystemAnswer::SavedFile | SystemAnswer::DamagedFile => {
+            matches!(request, HostRequest::OpenArtwork)
+        }
+        SystemAnswer::Cancel | SystemAnswer::PickerFails => {
+            !matches!(request, HostRequest::Send { .. })
+        }
+    }
+}
+
+/// The bytes of the file `answer` chooses in a picker.
+fn chosen(answer: SystemAnswer, written: &Written) -> Result<Vec<u8>, ScenarioError> {
+    Ok(match answer {
+        SystemAnswer::CutoutPng => CUTOUT_PNG.to_vec(),
+        SystemAnswer::PhotoJpeg => PHOTO_JPEG.to_vec(),
+        SystemAnswer::P3Png => P3_PNG.to_vec(),
+        SystemAnswer::P3Jpeg => P3_JPEG.to_vec(),
+        SystemAnswer::TextFile => b"Shopping list: ink, paper.\n".to_vec(),
+        SystemAnswer::SavedFile | SystemAnswer::DamagedFile => {
+            let saved = written.lock().unwrap_or_else(PoisonError::into_inner);
+            let mut bytes = saved
+                .clone()
+                .ok_or(ScenarioError::Missing("no file was saved before"))?;
+            if answer == SystemAnswer::DamagedFile {
+                let middle = bytes.len() / 2;
+                bytes[middle] ^= 0x5a;
+            }
+            bytes
+        }
+        _ => test_image()?,
     })
 }
 

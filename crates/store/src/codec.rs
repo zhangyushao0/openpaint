@@ -57,6 +57,12 @@ impl Writer {
         self.bytes.extend_from_slice(text.as_bytes());
     }
 
+    /// Bytes after their length.
+    pub(crate) fn blob(&mut self, bytes: &[u8]) {
+        self.len(bytes.len());
+        self.bytes.extend_from_slice(bytes);
+    }
+
     /// Raw bytes without a length: only as the last field of a record.
     pub(crate) fn bytes(&mut self, bytes: &[u8]) {
         self.bytes.extend_from_slice(bytes);
@@ -145,6 +151,14 @@ impl<'a> Reader<'a> {
         let (text, rest) = self.bytes.split_at(len);
         self.bytes = rest;
         String::from_utf8(text.to_vec()).map_err(|_| self.corrupt())
+    }
+
+    /// Bytes `Writer::blob` wrote.
+    pub(crate) fn blob(&mut self) -> Result<&'a [u8], PortError> {
+        let len = self.count(1)?;
+        let (bytes, rest) = self.bytes.split_at(len);
+        self.bytes = rest;
+        Ok(bytes)
     }
 
     /// Every byte not read yet: the last field of a record.

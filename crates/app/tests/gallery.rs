@@ -12,6 +12,7 @@ fn summary(id: u64, title: &str) -> ProjectSummary {
         id: ProjectId::new(id),
         title: Title::new(title).expect("title"),
         thumbnail: None,
+        versions: Vec::new(),
     }
 }
 

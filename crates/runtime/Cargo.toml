@@ -18,3 +18,7 @@ log.workspace = true
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+# The OpenPaint file test writes the file layout by hand (tests/artwork_files.rs).
+crc32fast.workspace = true

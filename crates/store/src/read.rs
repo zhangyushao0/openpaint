@@ -1,6 +1,10 @@
-//! Reading the library: a project's artwork from its head, stroke and fill records, the catalogue for
-//! the gallery, and the small library values.
+//! Reading the library: a project's artwork from its head, stroke and fill records (in the
+//! library or in an OpenPaint file's records), the catalogue for the gallery, and the small
+//! library values.
 
+use std::collections::BTreeMap;
+
+use fjall::Keyspace;
 use openpaint_app::{PortError, Project, ProjectId, ProjectSummary, Title};
 use openpaint_core::{Artwork, ArtworkParts, EditParts, StrokeParts};
 
@@ -12,6 +16,48 @@ use crate::records::{
     CLOCK, ENTRY, LAST, decode_head, decode_id, decode_stroke, entry_key, entry_project, head_key,
     layer_prefix, mask_slot, stroke_index, thumbnail_key,
 };
+use crate::versions;
+
+/// What `Source::each` hands every record to: its key and value.
+pub(crate) type Visit<'a> = dyn FnMut(&[u8], &[u8]) -> Result<(), PortError> + 'a;
+
+/// Where a project's records are read from: the library's `projects` keyspace, or an OpenPaint
+/// file's records held in memory under the same keys.
+pub(crate) trait Source {
+    /// The value stored under `key`.
+    fn value(&self, key: &[u8]) -> Result<Option<Vec<u8>>, PortError>;
+
+    /// Hands `each` every record under `prefix`, in key order.
+    fn each(&self, prefix: &[u8], each: &mut Visit<'_>) -> Result<(), PortError>;
+}
+
+impl Source for Keyspace {
+    fn value(&self, key: &[u8]) -> Result<Option<Vec<u8>>, PortError> {
+        Ok(self.get(key).map_err(device)?.map(|value| value.to_vec()))
+    }
+
+    fn each(&self, prefix: &[u8], each: &mut Visit<'_>) -> Result<(), PortError> {
+        for guard in self.prefix(prefix) {
+            let (key, value) = guard.into_inner().map_err(device)?;
+            each(&key, &value)?;
+        }
+        Ok(())
+    }
+}
+
+impl Source for BTreeMap<Vec<u8>, Vec<u8>> {
+    fn value(&self, key: &[u8]) -> Result<Option<Vec<u8>>, PortError> {
+        Ok(self.get(key).cloned())
+    }
+
+    fn each(&self, prefix: &[u8], each: &mut Visit<'_>) -> Result<(), PortError> {
+        let under = self.range(prefix.to_vec()..);
+        for (key, value) in under.take_while(|(key, _)| key.starts_with(prefix)) {
+            each(key, value)?;
+        }
+        Ok(())
+    }
+}
 
 /// The project open when the app was left, if any.
 pub(crate) fn last(open: &Open) -> Result<Option<Project>, PortError> {
@@ -31,31 +77,7 @@ pub(crate) fn last(open: &Open) -> Result<Option<Project>, PortError> {
 
 /// Project `id` with every stroke.
 pub(crate) fn project(open: &Open, id: ProjectId) -> Result<Project, PortError> {
-    let head = open
-        .projects
-        .get(head_key(id))
-        .map_err(device)?
-        .ok_or(PortError::Missing(id))?;
-    let head = decode_head(&head)?;
-    let mut layers = Vec::with_capacity(head.layers.len());
-    for (mut layer, strokes, fills, [mask_strokes, mask_fills]) in head.layers {
-        (layer.strokes, layer.edits) = content(open, id, layer.id, [strokes, fills])?;
-        if let Some(mask) = layer.mask.as_mut() {
-            let slot = mask_slot(layer.id);
-            (mask.strokes, mask.edits) = content(open, id, slot, [mask_strokes, mask_fills])?;
-        }
-        layers.push(layer);
-    }
-    let artwork = Artwork::from_storage(ArtworkParts {
-        width: head.width,
-        height: head.height,
-        layers,
-        groups: head.groups,
-        active: head.active,
-        on_mask: head.on_mask,
-        next_layer_id: head.next_layer_id,
-        next_stroke_id: head.next_stroke_id,
-    })?;
+    let artwork = artwork(&open.projects, id)?;
     // The title is the catalogue's; a missing entry must not keep the artwork from opening.
     let title = entry(open, id).map_or_else(
         |error| {
@@ -68,43 +90,66 @@ pub(crate) fn project(open: &Open, id: ProjectId) -> Result<Project, PortError> 
     Ok(Project { id, title, artwork })
 }
 
+/// The artwork of project `id` as `source` holds it, checked whole.
+pub(crate) fn artwork(source: &dyn Source, id: ProjectId) -> Result<Artwork, PortError> {
+    let head = source.value(&head_key(id))?.ok_or(PortError::Missing(id))?;
+    let head = decode_head(&head)?;
+    let mut layers = Vec::with_capacity(head.layers.len());
+    for (mut layer, strokes, fills, [mask_strokes, mask_fills]) in head.layers {
+        (layer.strokes, layer.edits) = content(source, id, layer.id, [strokes, fills])?;
+        if let Some(mask) = layer.mask.as_mut() {
+            let slot = mask_slot(layer.id);
+            (mask.strokes, mask.edits) = content(source, id, slot, [mask_strokes, mask_fills])?;
+        }
+        layers.push(layer);
+    }
+    Ok(Artwork::from_storage(ArtworkParts {
+        width: head.width,
+        height: head.height,
+        layers,
+        groups: head.groups,
+        active: head.active,
+        on_mask: head.on_mask,
+        next_layer_id: head.next_layer_id,
+        next_stroke_id: head.next_stroke_id,
+    })?)
+}
+
 /// The `strokes` stroke records and `edits` edit records stored under `slot` (a layer's id or
 /// its mask's, `mask_slot`).
 fn content(
-    open: &Open,
+    source: &dyn Source,
     id: ProjectId,
     slot: u64,
     [strokes, edits]: [usize; 2],
 ) -> Result<(Vec<StrokeParts>, Vec<EditParts>), PortError> {
-    let strokes = read_records(open, layer_prefix(id, slot), strokes, "stroke records")?
-        .iter()
-        .map(|bytes| decode_stroke(bytes))
-        .collect::<Result<_, _>>()?;
-    let edits = read_records(open, fill_layer_prefix(id, slot), edits, "edit records")?
-        .iter()
-        .map(|bytes| decode_edit(bytes))
-        .collect::<Result<_, _>>()?;
+    let prefix = layer_prefix(id, slot);
+    let strokes = read_records(source, &prefix, strokes, "stroke records", decode_stroke)?;
+    let prefix = fill_layer_prefix(id, slot);
+    let edits = read_records(source, &prefix, edits, "edit records", decode_edit)?;
     Ok((strokes, edits))
 }
 
-/// The values of the `count` records under one layer's `prefix` (its strokes or its fills),
-/// which must sit at indices `0..count`.
-fn read_records(
-    open: &Open,
-    prefix: Vec<u8>,
+/// The `count` records under one layer's `prefix` (its strokes or its fills), decoded, which
+/// must sit at indices `0..count`.
+fn read_records<T>(
+    source: &dyn Source,
+    prefix: &[u8],
     count: usize,
     what: &'static str,
-) -> Result<Vec<fjall::Slice>, PortError> {
+    decode: fn(&[u8]) -> Result<T, PortError>,
+) -> Result<Vec<T>, PortError> {
     let corrupt = PortError::Corrupt { what };
-    let mut values = Vec::new();
-    for (expected, guard) in open.projects.prefix(&prefix).enumerate() {
-        let (key, value) = guard.into_inner().map_err(device)?;
-        let in_place = key.len() == prefix.len() + 8 && stroke_index(&key) == Some(expected as u64);
+    let mut values = Vec::with_capacity(count);
+    source.each(prefix, &mut |key, value| {
+        let expected = values.len();
+        let in_place = key.len() == prefix.len() + 8 && stroke_index(key) == Some(expected as u64);
         if expected >= count || !in_place {
-            return Err(corrupt);
+            return Err(corrupt.clone());
         }
-        values.push(value);
-    }
+        values.push(decode(value)?);
+        Ok(())
+    })?;
     if values.len() == count {
         Ok(values)
     } else {
@@ -136,6 +181,7 @@ pub(crate) fn list(open: &Open) -> Result<Vec<ProjectSummary>, PortError> {
             id,
             title: entry.title,
             thumbnail,
+            versions: versions::listed(open, id)?,
         });
     }
     Ok(summaries)

@@ -53,6 +53,13 @@ impl Screen {
         }
     }
 
+    pub(crate) fn gallery_mut(&mut self) -> Option<&mut Gallery> {
+        match self {
+            Self::Gallery(gallery) => Some(gallery),
+            _ => None,
+        }
+    }
+
     /// Shows `content` on a canvas once the area is known, drawing with the toolbox's brush.
     pub(crate) fn open(
         &mut self,
@@ -107,6 +114,9 @@ impl Screen {
             }
             Done::Listed(listed) => self.gallery_answer(LibraryAnswer::Listed(listed)),
             Done::Changed(result) => self.gallery_answer(LibraryAnswer::Changed(result)),
+            Done::Restored(result) => self.gallery_answer(LibraryAnswer::Restored(result)),
+            Done::FileSaved(result) => self.gallery_answer(LibraryAnswer::FileSaved(result)),
+            Done::FileOpened(result) => self.gallery_answer(LibraryAnswer::FileOpened(result)),
             Done::Loaded(Err(error)) => self.gallery_answer(LibraryAnswer::OpenFailed(error)),
             Done::Created(_, _, Err(error)) => {
                 self.gallery_answer(LibraryAnswer::CreateFailed(error));
@@ -145,11 +155,12 @@ impl Screen {
 
     /// Everything after the frame's intents: the canvas is evaluated and its unsaved version or
     /// its leaving handed to the store; the gallery's calls go to the store in order.
+    /// `now` is the wall clock's seconds since 1970 UTC, for a version kept on leaving.
     pub(crate) fn progress(
         &mut self,
         core: &Core,
         storage: &mut Storage,
-        area: Option<CanvasArea>,
+        (area, now): (Option<CanvasArea>, u64),
     ) -> Result<(), RuntimeError> {
         match self {
             Self::Canvas(canvas) => {
@@ -162,7 +173,7 @@ impl Screen {
                     }
                     Leaving::Waiting if !canvas.session().saving() => {
                         let version = canvas.session_mut().leave_request();
-                        storage.submit(leave_job(canvas, core, version, true));
+                        storage.submit(leave_job(canvas, core, version, (now, true)));
                         canvas.leaving = Leaving::Storing;
                     }
                     Leaving::Waiting | Leaving::Storing => {}
@@ -192,7 +203,7 @@ pub(crate) fn leave_job(
     canvas: &Canvas,
     core: &Core,
     version: Option<Artwork>,
-    close: bool,
+    (kept_at, close): (u64, bool),
 ) -> Job {
     let thumbnail = canvas
         .thumbnail(core)
@@ -201,6 +212,7 @@ pub(crate) fn leave_job(
     Job::Leave {
         version,
         thumbnail,
+        kept_at,
         close,
     }
 }
@@ -256,5 +268,6 @@ fn gallery_job(request: LibraryRequest, area: Option<CanvasArea>) -> Result<Job,
         LibraryRequest::Rename(id, title) => LibraryCall::Rename(id, title),
         LibraryRequest::Duplicate(id) => LibraryCall::Duplicate(id),
         LibraryRequest::Delete(id) => LibraryCall::Delete(id),
+        LibraryRequest::Restore(id, version, title) => LibraryCall::Restore(id, version, title),
     }))
 }

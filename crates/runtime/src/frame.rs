@@ -180,6 +180,7 @@ impl Runtime {
         // A save running when the user left may hold an older version: hand over the newest
         // once it is done.
         let mut handed = false;
+        let now = self.frame_clock.wall_seconds();
         for _ in 0..2 {
             if let Some(canvas) = self.screen.canvas_mut()
                 && canvas.leaving == Leaving::Staying
@@ -188,7 +189,7 @@ impl Runtime {
                 let version = canvas.session_mut().leave_request();
                 if version.is_some() || !handed {
                     self.storage
-                        .submit(leave_job(canvas, &self.core, version, false));
+                        .submit(leave_job(canvas, &self.core, version, (now, false)));
                     handed = true;
                 }
             }
@@ -239,21 +240,34 @@ impl Runtime {
     /// The next thing the app asks the host to show or make (a system picker, a file to share,
     /// the share sheet), once; call after each frame until `None`.
     pub fn host_request(&mut self) -> Option<HostRequest> {
-        self.transfers.request()
+        self.transfers
+            .request()
+            .or_else(|| self.screen.gallery_mut()?.host_request())
     }
 
     /// The host's answer to the last request that asks for one. The work it starts runs on the
     /// transfer worker at once, also while the app has no window; the host should ask for a
     /// frame.
     pub fn answer(&mut self, answer: HostAnswer) {
-        if !self.transfers.waiting() {
+        if self.transfers.waiting() {
+            log::info!("the host answered: {answer:?}");
+            if let Some(job) = self.transfers.answer(answer) {
+                self.transfer.submit(job);
+            }
+        } else if let Some(gallery) = self.screen.gallery_mut().filter(|g| g.waiting()) {
+            log::info!("the host answered the gallery: {answer:?}");
+            if let Some(job) = gallery.host_answer(answer) {
+                self.storage.submit(Job::File(job));
+            }
+        } else {
             log::warn!("an answer from the host nobody waits for: {answer:?}");
-            return;
         }
-        log::info!("the host answered: {answer:?}");
-        if let Some(job) = self.transfers.answer(answer) {
-            self.transfer.submit(job);
-        }
+    }
+
+    /// The device's offset from UTC in minutes now (the host's time zone), for the dates of kept
+    /// versions; 0 until the host says.
+    pub fn set_utc_offset(&mut self, minutes: i32) {
+        self.shell.set_utc_offset(minutes);
     }
 
     /// Runs one frame into the window. Returns whether another frame is wanted at once.
@@ -354,7 +368,9 @@ impl Runtime {
         if let Some(state) = self.toolbox.save_request() {
             self.storage.submit(Job::SaveEditor(state));
         }
-        self.screen.progress(&self.core, &mut self.storage, area)?;
+        let now = self.frame_clock.wall_seconds();
+        self.screen
+            .progress(&self.core, &mut self.storage, (area, now))?;
         if let (Some(canvas), Some(area)) = (self.screen.canvas_mut(), area) {
             let shell = &self.shell;
             let frame = canvas.view_frame((&area, self.pixels_per_point), |mapping| {

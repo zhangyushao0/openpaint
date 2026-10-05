@@ -32,6 +32,7 @@
 //! new sample is reviewed before it is committed.
 
 mod common;
+mod files;
 mod sample;
 
 use common::{fresh_dir, records, untitled, write_records};

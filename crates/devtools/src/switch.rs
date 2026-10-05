@@ -8,6 +8,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use openpaint_app::{
     EditorState, PortError, Project, ProjectId, ProjectStore, ProjectSummary, Thumbnail, Title,
+    VersionId,
 };
 use openpaint_core::Artwork;
 use openpaint_store::Library;
@@ -88,5 +89,26 @@ impl ProjectStore for Switched {
 
     fn save_editor(&mut self, state: &EditorState) -> Result<(), PortError> {
         self.on(|library| library.save_editor(state))
+    }
+
+    fn artwork_file(&mut self, id: ProjectId) -> Result<Vec<u8>, PortError> {
+        self.on(|library| library.artwork_file(id))
+    }
+
+    fn import_file(&mut self, bytes: &[u8]) -> Result<ProjectId, PortError> {
+        self.on(|library| library.import_file(bytes))
+    }
+
+    fn keep_version(&mut self, id: ProjectId, kept_at: u64) -> Result<(), PortError> {
+        self.on(|library| library.keep_version(id, kept_at))
+    }
+
+    fn restore_version(
+        &mut self,
+        id: ProjectId,
+        version: VersionId,
+        title: &Title,
+    ) -> Result<ProjectId, PortError> {
+        self.on(|library| library.restore_version(id, version, title))
     }
 }

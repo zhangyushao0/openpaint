@@ -255,6 +255,19 @@ impl Export {
 /// replaced by '_', then the extension.
 #[must_use]
 pub fn file_name(title: &Title, format: ImageFormat) -> String {
+    named(title, format.extension())
+}
+
+/// The extension of OpenPaint files, without the dot (DECISIONS D62).
+pub const ARTWORK_EXTENSION: &str = "openpaint";
+
+/// The OpenPaint file name for `title`, as `file_name` makes them.
+#[must_use]
+pub fn artwork_file_name(title: &Title) -> String {
+    named(title, ARTWORK_EXTENSION)
+}
+
+fn named(title: &Title, extension: &str) -> String {
     let stem: String = title
         .as_str()
         .chars()
@@ -268,7 +281,7 @@ pub fn file_name(title: &Title, format: ImageFormat) -> String {
         .collect();
     let stem = stem.trim_end_matches('.');
     let stem = if stem.is_empty() { "Artwork" } else { stem };
-    format!("{stem}.{}", format.extension())
+    format!("{stem}.{extension}")
 }
 
 #[cfg(test)]

@@ -96,6 +96,12 @@ pub enum HostRequest {
     /// The system's picker for one PNG or JPEG image; answered with `HostAnswer::Image`,
     /// `Cancelled` or `Failed`.
     OpenImage,
+    /// The system's dialog for saving a new OpenPaint file, suggesting `name`; answered as
+    /// `SaveFile`.
+    SaveArtwork { name: String },
+    /// The system's picker for one file of any kind, to open as an OpenPaint file; answered with
+    /// `HostAnswer::Image` (the file to read), `Cancelled` or `Failed`.
+    OpenArtwork,
 }
 
 /// How the platform answered the last request that asks for an answer.

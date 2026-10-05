@@ -11,6 +11,7 @@ mod error;
 mod export;
 mod fill;
 mod gallery;
+mod gallery_files;
 mod gestures;
 mod history;
 mod input;
@@ -39,14 +40,18 @@ pub use crate::adjust::{AdjustIntent, AdjustProjection, AdjustRefusal};
 pub use crate::brushes::{Brush, BrushKey, BrushLibrary, SizeRange};
 pub use crate::editor_state::{BrushChoice, BrushSetting, EditorState};
 pub use crate::error::AppError;
-pub use crate::export::{ExportIntent, ExportJob, ExportNotice, ExportScale, file_name};
+pub use crate::export::{
+    ARTWORK_EXTENSION, ExportIntent, ExportJob, ExportNotice, ExportScale, artwork_file_name,
+    file_name,
+};
 pub use crate::fill::{
     DEFAULT_THRESHOLD, FillFailed, FillIntent, FillJob, FillProjection, FillRefusal,
 };
 pub use crate::gallery::{
-    CanvasPreset, Gallery, GalleryIntent, GalleryNotice, GalleryProjection, LibraryAnswer,
-    LibraryRequest,
+    CanvasPreset, FileProblem, Gallery, GalleryIntent, GalleryNotice, GalleryProjection,
+    LibraryAnswer, LibraryRequest,
 };
+pub use crate::gallery_files::{FileJob, MAX_ARTWORK_FILE_BYTES};
 pub use crate::gestures::{
     GestureFrame, Gestured, Gestures, PictureGestured, PictureGestures, Touch, TouchAction,
 };
@@ -57,7 +62,10 @@ pub use crate::intent::Intent;
 pub use crate::layers::{GroupRow, LayerIntent, LayerList, LayerRow, MaskRow};
 pub use crate::palette::{Hsv, RECENT_COLORS};
 pub use crate::palm::PalmRejection;
-pub use crate::project::{PortError, Project, ProjectId, ProjectStore, ProjectSummary, Thumbnail};
+pub use crate::project::{
+    KEPT_VERSIONS, KeptVersion, PortError, Project, ProjectId, ProjectStore, ProjectSummary,
+    Thumbnail, VersionId,
+};
 pub use crate::projection::{Availability, EditorAction, ScreenProjection, SessionProjection};
 pub use crate::recipe::RecipeError;
 pub use crate::reference::{

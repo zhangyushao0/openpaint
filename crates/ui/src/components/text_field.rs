@@ -3,7 +3,8 @@
 
 use egui::{Color32, TextEdit, TextStyle, Vec2};
 
-use crate::design::{SPACE, TOUCH_TARGET};
+use crate::components::controls;
+use crate::design::{INK_SECONDARY, SPACE, TOUCH_TARGET};
 
 /// What the field did this frame.
 pub struct FieldResponse {
@@ -12,18 +13,20 @@ pub struct FieldResponse {
     pub submitted: bool,
 }
 
-/// Shows `text` for editing, at most `max_chars` characters. With `focus`, the field takes
-/// the focus with all its text selected, so typing replaces it.
+/// Shows `text` for editing, at most `max_chars` characters, named `name` (also shown in the
+/// quieter ink while it is empty). With `focus`, the field takes the focus with all its text
+/// selected, so typing replaces it.
 pub fn text_field(
     ui: &mut egui::Ui,
-    id: &str,
+    name: &str,
     text: &mut String,
     max_chars: usize,
     focus: bool,
 ) -> FieldResponse {
-    let id = egui::Id::new(id);
+    let id = egui::Id::new(("text field", name));
     let output = TextEdit::singleline(text)
         .id(id)
+        .hint_text(egui::RichText::new(name).color(INK_SECONDARY))
         .font(TextStyle::Body)
         .char_limit(max_chars)
         .desired_width(f32::INFINITY)
@@ -33,6 +36,7 @@ pub fn text_field(
         .vertical_align(egui::Align::Center)
         .show(ui);
     let response = output.response.response;
+    controls::register(ui, name, response.rect);
     if focus {
         response.request_focus();
         let mut state = output.state;

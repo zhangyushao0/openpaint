@@ -142,6 +142,20 @@ pub extern "system" fn Java_dev_openpaint_Native_leave<'local>(
     }
 }
 
+/// The device's offset from UTC in minutes (`onCreate`, `onResume`), for the dates of kept
+/// versions.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_openpaint_Native_zone<'local>(
+    _env: EnvUnowned<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+    minutes: jni::sys::jint,
+) {
+    if let Some(runtime) = runtime(handle) {
+        runtime.set_utc_offset(minutes);
+    }
+}
+
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_openpaint_Native_destroy<'local>(
     _env: EnvUnowned<'local>,

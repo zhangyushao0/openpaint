@@ -9,6 +9,7 @@ publish.workspace = true
 [dependencies]
 openpaint-app.workspace = true
 openpaint-core.workspace = true
+crc32fast.workspace = true
 fjall.workspace = true
 image.workspace = true
 log.workspace = true

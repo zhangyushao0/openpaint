@@ -13,10 +13,10 @@ private const val REQUEST_OPEN = 2
 
 /**
  * The system's pickers and share sheet for the Rust side's requests (DECISIONS D11): the
- * save dialog (Storage Access Framework, ACTION_CREATE_DOCUMENT), the image picker
- * (ACTION_OPEN_DOCUMENT, PNG and JPEG) and the share sheet (ACTION_SEND with a content URI from
- * ShareProvider). What the user chose goes back as a detached file descriptor; no product
- * rules here.
+ * save dialog (Storage Access Framework, ACTION_CREATE_DOCUMENT), the image and file pickers
+ * (ACTION_OPEN_DOCUMENT: PNG and JPEG, or any file) and the share sheet (ACTION_SEND with a
+ * content URI from ShareProvider). What the user chose goes back as a detached file
+ * descriptor; no product rules here.
  */
 internal class Pickers(private val activity: Activity, private val handle: () -> Long) {
     /** Serves every request the last frame left. */
@@ -34,6 +34,12 @@ internal class Pickers(private val activity: Activity, private val handle: () ->
                     addCategory(Intent.CATEGORY_OPENABLE)
                     type = "image/*"
                     putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("image/png", "image/jpeg"))
+                })
+                // An OpenPaint file: Android has no type for it, so every file is offered and
+                // the Rust side checks what was chosen.
+                "open-file" -> start(REQUEST_OPEN, Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "*/*"
                 })
                 "send" -> send(fields[1], File(fields[2]).name)
                 else -> Log.e("openpaint", "unknown request: $line")

@@ -85,6 +85,35 @@ pub struct ProjectSummary {
     pub title: Title,
     /// `None` until the artwork has been left once since it was created.
     pub thumbnail: Option<Thumbnail>,
+    /// Its kept versions, the newest first.
+    pub versions: Vec<KeptVersion>,
+}
+
+/// Most versions kept per artwork; keeping one more drops the oldest (DECISIONS D63).
+pub const KEPT_VERSIONS: usize = 10;
+
+/// Identifies a kept version within its artwork; never reused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct VersionId(u64);
+
+impl VersionId {
+    #[must_use]
+    pub const fn new(raw: u64) -> Self {
+        Self(raw)
+    }
+
+    #[must_use]
+    pub const fn get(self) -> u64 {
+        self.0
+    }
+}
+
+/// An artwork as it was stored when it was left after a change, kept to be restored as a copy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct KeptVersion {
+    pub id: VersionId,
+    /// When it was kept, in seconds since 1970-01-01 UTC.
+    pub kept_at: u64,
 }
 
 /// The local artwork library. Calls block and may be slow; the runtime makes them on a worker,
@@ -131,6 +160,27 @@ pub trait ProjectStore: Send {
 
     /// Replaces the stored toolbox.
     fn save_editor(&mut self, state: &EditorState) -> Result<(), PortError>;
+
+    /// Project `id` as it is stored, as the bytes of one OpenPaint file: the artwork and its
+    /// title, without the toolbox or its versions.
+    fn artwork_file(&mut self, id: ProjectId) -> Result<Vec<u8>, PortError>;
+
+    /// A new project from the bytes of an OpenPaint file (older schemas upgraded), listed first;
+    /// it never replaces one and does not become the open one. Returns its id.
+    fn import_file(&mut self, bytes: &[u8]) -> Result<ProjectId, PortError>;
+
+    /// Keeps project `id` as it is stored now as its newest version, kept at `kept_at` (seconds
+    /// since 1970 UTC); the oldest beyond `KEPT_VERSIONS` goes.
+    fn keep_version(&mut self, id: ProjectId, kept_at: u64) -> Result<(), PortError>;
+
+    /// A new project titled `title` from version `version` of project `id`, listed first; the
+    /// project and its versions stay as they are. Returns the new project's id.
+    fn restore_version(
+        &mut self,
+        id: ProjectId,
+        version: VersionId,
+        title: &Title,
+    ) -> Result<ProjectId, PortError>;
 }
 
 /// Why a port (storage now; pickers and assets later) could not serve a call.
@@ -147,6 +197,8 @@ pub enum PortError {
     Invalid(CoreError),
     /// The project asked for is not in the library.
     Missing(ProjectId),
+    /// A file opened as an OpenPaint file is something else.
+    NotArtworkFile,
     /// The worker serving the port stopped in the middle of the call (a bug, logged).
     Stopped,
 }
@@ -162,6 +214,7 @@ impl fmt::Display for PortError {
             ),
             Self::Invalid(error) => write!(f, "stored artwork is invalid: {error}"),
             Self::Missing(id) => write!(f, "project {} is not in the library", id.get()),
+            Self::NotArtworkFile => f.write_str("not an OpenPaint file"),
             Self::Stopped => f.write_str("the storage worker stopped"),
         }
     }

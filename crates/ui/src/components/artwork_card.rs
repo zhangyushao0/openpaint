@@ -1,6 +1,7 @@
 //! The artwork card of the gallery: the artwork's picture, and under it its title with the
-//! duplicate and delete buttons. Tapping the picture opens the artwork, tapping the title
-//! renames it. Pressed, the picture darkens under the hand.
+//! options (save as a file, kept versions), duplicate and delete buttons. Tapping the picture
+//! opens the artwork, tapping the title renames it. Pressed, the picture darkens under the
+//! hand.
 
 use egui::{Align, Color32, Layout, Rect, Sense, TextStyle, UiBuilder, Vec2};
 
@@ -27,6 +28,8 @@ pub struct CardTaps {
     pub open: bool,
     pub rename: bool,
     pub duplicate: bool,
+    /// The card's options: save as a file, kept versions.
+    pub options: bool,
     pub delete: bool,
     pub picture: Rect,
 }
@@ -56,6 +59,7 @@ pub fn artwork_card(ui: &mut egui::Ui, card: &ArtworkCard<'_>) -> CardTaps {
         open: open.clicked(),
         rename: false,
         duplicate: false,
+        options: false,
         delete: false,
         picture: shown,
     };
@@ -74,9 +78,11 @@ pub fn artwork_card(ui: &mut egui::Ui, card: &ArtworkCard<'_>) -> CardTaps {
         card.enabled,
     )
     .clicked();
+    let options = icon_button(&mut buttons, Icon::More, "Artwork options", card.enabled);
+    taps.options = options.clicked();
     let title = Rect::from_min_max(
         row.min,
-        egui::pos2(row.max.x - 2.0 * TOUCH_TARGET, row.max.y),
+        egui::pos2(row.max.x - 3.0 * TOUCH_TARGET, row.max.y),
     );
     let rename = ui.interact(title, open.id.with("title"), sense);
     controls::register(ui, "Rename artwork", title);

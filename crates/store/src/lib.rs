@@ -5,6 +5,7 @@
 #![forbid(unsafe_code)]
 
 mod adjusts;
+mod artwork_file;
 mod catalogue;
 mod codec;
 mod colour;
@@ -26,7 +27,9 @@ mod migrate_8;
 mod migrate_9;
 mod read;
 mod records;
+mod steps;
 mod strokes;
+mod versions;
 mod write;
 
 pub use crate::export_file::{ImageEncoder, encode_image};
