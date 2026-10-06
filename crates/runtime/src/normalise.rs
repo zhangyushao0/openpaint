@@ -5,19 +5,22 @@
 
 use std::f32::consts::{FRAC_PI_2, PI, TAU};
 
-use openpaint_app::{Contact, ContactPhase, Device, InputBatch, InputSample};
+use openpaint_app::{Contact, ContactPhase, Device, InputBatch, InputSample, PenButtons};
 
-use crate::input::{MotionBatch, MotionPhase, Pointer, PointerSample, ToolKind};
+use crate::input::{Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, ToolKind};
 
-/// Keeps, per pointer down or hovering, the time of its last sample.
+/// Keeps, per pointer down or hovering, the time of its last sample, and the pen's buttons as
+/// they were last reported.
 #[derive(Debug, Default)]
 pub struct Normaliser {
     last_ms: Vec<(i32, i64)>,
+    pen: Buttons,
 }
 
 impl Normaliser {
-    /// The normalised batch, or `None` when it holds nothing the product uses (button-only
-    /// events, pointers without a usable sample).
+    /// The normalised batch, or `None` when it holds nothing the product uses (pointers without
+    /// a usable sample). A pen's batch carries its side buttons; a pen's button press or release
+    /// with no other change is a batch of no contacts (S41).
     pub fn normalise(&mut self, batch: &MotionBatch) -> Option<InputBatch> {
         let mut contacts = Vec::with_capacity(batch.pointers.len());
         for (index, pointer) in batch.pointers.iter().enumerate() {
@@ -41,7 +44,17 @@ impl Normaliser {
                 samples,
             });
         }
-        (!contacts.is_empty()).then_some(InputBatch { contacts })
+        let pen = pen_buttons(batch);
+        if pen.is_some() && batch.buttons != self.pen {
+            // What the platform reports for the pen's buttons, for the author's pen to confirm.
+            log::info!("pen buttons {:?} ({:?})", batch.buttons, batch.phase);
+            self.pen = batch.buttons;
+        }
+        let button = matches!(
+            batch.phase,
+            MotionPhase::ButtonPress | MotionPhase::ButtonRelease
+        );
+        (!contacts.is_empty() || (button && pen.is_some())).then_some(InputBatch { contacts, pen })
     }
 
     fn samples(&mut self, pointer: &Pointer) -> Vec<InputSample> {
@@ -83,6 +96,17 @@ fn phase(batch: MotionPhase, index: usize) -> Option<ContactPhase> {
         MotionPhase::HoverEnter | MotionPhase::HoverMove => ContactPhase::Hover,
         MotionPhase::HoverExit => ContactPhase::Leave,
         MotionPhase::ButtonPress | MotionPhase::ButtonRelease => return None,
+    })
+}
+
+/// The side buttons of a batch the pen (tip or eraser end) is in: `BUTTON_STYLUS_PRIMARY` and
+/// `BUTTON_STYLUS_SECONDARY`, or the mouse-like `BUTTON_SECONDARY` and `BUTTON_TERTIARY` that
+/// older Android versions and some pens report for the same buttons. `None` without the pen.
+fn pen_buttons(batch: &MotionBatch) -> Option<PenButtons> {
+    let pen = |pointer: &Pointer| matches!(pointer.tool, ToolKind::Stylus | ToolKind::Eraser);
+    batch.pointers.iter().any(pen).then_some(PenButtons {
+        primary: batch.buttons.stylus_primary || batch.buttons.secondary,
+        secondary: batch.buttons.stylus_secondary || batch.buttons.tertiary,
     })
 }
 
@@ -201,6 +225,46 @@ mod tests {
     }
 
     #[test]
+    fn the_pens_batches_carry_its_side_buttons_and_touches_none() {
+        let mut normaliser = Normaliser::default();
+        let mut hover = batch(
+            MotionPhase::HoverMove,
+            vec![pointer(0, ToolKind::Stylus, vec![sample(1.0, 0.0, 0)])],
+        );
+        hover.buttons.stylus_primary = true;
+        let held = normaliser.normalise(&hover).expect("hover").pen;
+        assert_eq!(
+            held,
+            Some(PenButtons {
+                primary: true,
+                secondary: false
+            })
+        );
+        // The mouse-like bits some Android versions give a pen's buttons.
+        let mut legacy = batch(
+            MotionPhase::Down,
+            vec![pointer(0, ToolKind::Eraser, vec![sample(1.0, 0.5, 4)])],
+        );
+        legacy.buttons.secondary = true;
+        legacy.buttons.tertiary = true;
+        let both = normaliser.normalise(&legacy).expect("down");
+        assert_eq!(both.contacts[0].device, Device::Eraser);
+        assert_eq!(
+            both.pen,
+            Some(PenButtons {
+                primary: true,
+                secondary: true
+            })
+        );
+        let mut finger = batch(
+            MotionPhase::Down,
+            vec![pointer(3, ToolKind::Finger, vec![sample(1.0, 1.0, 5)])],
+        );
+        finger.buttons.stylus_primary = true;
+        assert_eq!(normaliser.normalise(&finger).expect("touch").pen, None);
+    }
+
+    #[test]
     fn values_are_clamped_into_their_ranges() {
         let mut normaliser = Normaliser::default();
         let mut wild = sample(1.0, 1.08, 0);
@@ -247,16 +311,30 @@ mod tests {
     }
 
     #[test]
-    fn unusable_samples_and_button_events_are_dropped() {
+    fn unusable_samples_are_dropped_and_a_button_press_carries_only_the_buttons() {
         let mut normaliser = Normaliser::default();
         let lost = vec![sample(f32::NAN, 1.0, 0), sample(f32::INFINITY, 1.0, 1)];
         let moved = batch(MotionPhase::Move, vec![pointer(0, ToolKind::Stylus, lost)]);
         assert_eq!(normaliser.normalise(&moved), None);
-        let press = batch(
+        let mut press = batch(
             MotionPhase::ButtonPress,
             vec![pointer(0, ToolKind::Stylus, vec![sample(1.0, 0.0, 2)])],
         );
-        assert_eq!(normaliser.normalise(&press), None);
+        press.buttons.stylus_secondary = true;
+        let buttons = PenButtons {
+            primary: false,
+            secondary: true,
+        };
+        let pressed = InputBatch {
+            contacts: Vec::new(),
+            pen: Some(buttons),
+        };
+        assert_eq!(normaliser.normalise(&press), Some(pressed));
+        let mouse = batch(
+            MotionPhase::ButtonPress,
+            vec![pointer(0, ToolKind::Mouse, vec![sample(1.0, 0.0, 2)])],
+        );
+        assert_eq!(normaliser.normalise(&mouse), None, "not the pen's");
         let mixed = vec![sample(f32::NAN, 1.0, 3), sample(4.0, 1.0, 4)];
         let moved = batch(MotionPhase::Move, vec![pointer(0, ToolKind::Stylus, mixed)]);
         let batch = normaliser.normalise(&moved).expect("batch");

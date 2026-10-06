@@ -13,7 +13,7 @@ use crate::reference::ReferenceIntent;
 use crate::selection::SelectionIntent;
 use crate::storage::StorageIntent;
 use crate::stroke::StrokeIntent;
-use crate::toolbox::{BrushIntent, ToolIntent};
+use crate::tool_intent::{BrushIntent, ToolIntent};
 use crate::transform::TransformIntent;
 use crate::view::ViewIntent;
 

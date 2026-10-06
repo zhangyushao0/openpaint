@@ -22,6 +22,7 @@ use std::collections::HashSet;
 use serde::{Deserialize, Deserializer};
 
 use crate::error::ScenarioError;
+pub use crate::pen::Pen;
 pub use crate::system::SystemAnswer;
 use crate::target::{Key, Spot};
 
@@ -68,6 +69,9 @@ pub enum Step {
         /// A sample at each point and none between: a fast stroke's sparse samples (S34).
         #[serde(default)]
         sparse: bool,
+        /// The tip with a side button held, or the eraser end (S41); the tip by default.
+        #[serde(default)]
+        pen: Pen,
     },
     /// One contact through keys (a place and `ms` from touching down) at `pressure` (default
     /// full): it moves straight between keys in their time and rests where two keys share a
@@ -84,7 +88,12 @@ pub enum Step {
     },
     /// The pen hovers just above the glass at `at`, touching nothing; it stays there until the
     /// next contact.
-    Hover { at: Spot },
+    /// With `pen`, a side button held or the eraser end (S41).
+    Hover {
+        at: Spot,
+        #[serde(default)]
+        pen: Pen,
+    },
     /// Fingers touch down at `from`, move together straight to `to` (default: stay) over `ms`
     /// (default 64), and lift: two fingers apart or together pinch, turned they rotate, moved
     /// alike they pan; fingers that stay tap.
@@ -104,7 +113,8 @@ pub enum Step {
         #[serde(default)]
         pan: Option<[f32; 2]>,
     },
-    /// Text committed by the keyboard into the field that has the focus.
+    /// Text committed by the keyboard into the field that has the focus; a last newline then
+    /// presses Enter, the keyboard's Done (S41).
     Type(String),
     /// The system's back button.
     Back,

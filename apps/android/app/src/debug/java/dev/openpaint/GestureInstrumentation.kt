@@ -17,9 +17,11 @@ import android.view.MotionEvent
  * One pointer can instead follow `-e path x,y,x,y...`, one point per 8 ms event, and the pen
  * presses with `-e pressure P` (default 0.6). `-e hover x,y` holds the pen just above the glass
  * there instead for `-e ms` (default 1500), then takes it away (hover enter, move, exit).
- * `-e tap <name>` is a finger tap on the middle of the control the app last drew under that
- * name ([DebugControls]); the result's `tapped` says where. `-e gradient on|off` injects
- * nothing: it turns the screen's precision check on or off ([DebugControls.gradient]).
+ * `-e tool eraser` is the pen's eraser end and `-e button primary|secondary` holds a side
+ * button through the pen's events (S41). `-e tap <name>` is a finger tap on the middle of the
+ * control the app last drew under that name ([DebugControls]); the result's `tapped` says
+ * where. `-e gradient on|off` injects nothing: it turns the screen's precision check on or off
+ * ([DebugControls.gradient]).
  */
 class GestureInstrumentation : Instrumentation() {
     private var arguments = Bundle()
@@ -72,6 +74,26 @@ class GestureInstrumentation : Instrumentation() {
     private val pressure: Float
         get() = arguments.getString("pressure")?.toFloat() ?: 0.6f
 
+    /** The pen (`-e tool stylus`) or its eraser end (`-e tool eraser`) rather than fingers. */
+    private val pen: Boolean
+        get() = arguments.getString("tool") in setOf("stylus", "eraser")
+
+    /** The pen's tool type: its eraser end with `-e tool eraser`, else its tip. */
+    private val penTool: Int
+        get() = if (arguments.getString("tool") == "eraser") {
+            MotionEvent.TOOL_TYPE_ERASER
+        } else {
+            MotionEvent.TOOL_TYPE_STYLUS
+        }
+
+    /** The pen's side button held through the gesture (`-e button primary|secondary`, S41). */
+    private val buttons: Int
+        get() = when (arguments.getString("button")) {
+            "primary" -> MotionEvent.BUTTON_STYLUS_PRIMARY
+            "secondary" -> MotionEvent.BUTTON_STYLUS_SECONDARY
+            else -> 0
+        }
+
     private fun inject() {
         points("hover")?.let { hover ->
             val time = SystemClock.uptimeMillis()
@@ -89,7 +111,7 @@ class GestureInstrumentation : Instrumentation() {
         val from = points("from") ?: error("no from")
         val to = points("to") ?: from
         require(to.size == from.size) { "from and to differ in fingers" }
-        val stylus = arguments.getString("tool") == "stylus"
+        val stylus = pen
         val frames = maxOf(1, (arguments.getString("ms")?.toInt() ?: 64) / 16)
         val at = { frame: Int ->
             val t = frame.toFloat() / frames
@@ -113,7 +135,7 @@ class GestureInstrumentation : Instrumentation() {
 
     /** One pointer down at the path's first point, a move per later point, up at its last. */
     private fun follow(path: List<FloatArray>) {
-        val stylus = arguments.getString("tool") == "stylus"
+        val stylus = pen
         val down = SystemClock.uptimeMillis()
         send(down, MotionEvent.ACTION_DOWN, path.take(1), stylus)
         for (point in path.drop(1)) {
@@ -140,7 +162,7 @@ class GestureInstrumentation : Instrumentation() {
         val properties = points.indices.map { index ->
             MotionEvent.PointerProperties().apply {
                 id = index
-                toolType = if (stylus) MotionEvent.TOOL_TYPE_STYLUS else MotionEvent.TOOL_TYPE_FINGER
+                toolType = if (stylus) penTool else MotionEvent.TOOL_TYPE_FINGER
             }
         }.toTypedArray()
         val coords = points.map { point ->
@@ -153,7 +175,7 @@ class GestureInstrumentation : Instrumentation() {
         }.toTypedArray()
         val event = MotionEvent.obtain(
             downTime, SystemClock.uptimeMillis(), action, points.size, properties, coords,
-            0, 0, 1f, 1f, device, 0, source, 0,
+            0, if (stylus) buttons else 0, 1f, 1f, device, 0, source, 0,
         )
         try {
             check(uiAutomation.injectInputEvent(event, true)) { "the input dispatcher refused the event" }

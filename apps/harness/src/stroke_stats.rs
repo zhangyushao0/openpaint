@@ -77,6 +77,18 @@ pub fn run(dir: &str) -> Result<(), HarnessError> {
     }
     let mut library = Library::at(dir);
     let listed = library.list().map_err(HarnessError::Port)?;
+    // The toolbox as this build reads it (S41: an upgraded one is checked on a copy).
+    match library.editor() {
+        Ok(Some(editor)) => println!(
+            "toolbox: {:?}, buttons {:?}, {} recent colours, {} swatches",
+            editor.tool,
+            editor.buttons,
+            editor.recent.len(),
+            editor.swatches.len()
+        ),
+        Ok(None) => println!("toolbox: none stored"),
+        Err(error) => println!("toolbox: unreadable, {error}"),
+    }
     let mut stats = Stats::default();
     let mut strokes: Vec<Stroke> = Vec::new();
     for summary in &listed {

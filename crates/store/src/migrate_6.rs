@@ -86,7 +86,6 @@ fn editor_5_to_6(editor: &[u8]) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::editor::decode_editor;
     use crate::records::{STROKE_STYLE_BYTES, write_recipe};
     use crate::strokes::read_stroke_6;
     use openpaint_app::{BrushChoice, BrushSetting, Tool};
@@ -175,7 +174,7 @@ mod tests {
         let (key, editor) = &upgrade.library[0];
         assert_eq!(key, EDITOR);
         let nine = crate::migrate_9::upgrade_8_to_9(&[], Some(editor));
-        let editor = decode_editor(&nine.library[0].1).expect("a schema-6 toolbox");
+        let editor = crate::migrate_17::upgraded_toolbox(&nine.library[0].1);
         let pencil = BrushSetting {
             key: "pencil".into(),
             size: 4.0,

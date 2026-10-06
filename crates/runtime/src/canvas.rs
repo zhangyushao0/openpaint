@@ -130,7 +130,11 @@ impl Canvas {
                     toolbox.dispatch_tool(tool);
                     // Choosing a tool or the eyedropper leaves the Selection tool and commits a
                     // transform (Procreate).
-                    if matches!(tool, ToolIntent::Use(_) | ToolIntent::Eyedropper(true)) {
+                    let chosen = matches!(
+                        tool,
+                        ToolIntent::Use(_) | ToolIntent::Switch | ToolIntent::Eyedropper(true)
+                    );
+                    if chosen {
                         let before = self.session.shown().clone();
                         let leave = Intent::Selection(SelectionIntent::Tool(false));
                         if let Err(error) = self.session.dispatch(leave) {

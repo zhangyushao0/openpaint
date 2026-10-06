@@ -42,6 +42,7 @@ impl Shell {
             adjusting: shown.adjusting,
             transform: shown.transform,
             drawing: shown.drawing,
+            buttons: shown.buttons,
             control: !self.taps.is_empty(),
         };
         let drop = DropFrame {

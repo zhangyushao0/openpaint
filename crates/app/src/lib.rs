@@ -22,6 +22,7 @@ mod layer_rules;
 mod layers;
 mod palette;
 mod palm;
+mod pen_buttons;
 mod project;
 mod projection;
 mod recipe;
@@ -32,6 +33,7 @@ mod storage;
 mod streamline;
 mod stroke;
 mod title;
+mod tool_intent;
 mod toolbox;
 mod transfer;
 mod transform;
@@ -58,12 +60,13 @@ pub use crate::gestures::{
     GestureFrame, Gestured, Gestures, PictureGestured, PictureGestures, Touch, TouchAction,
 };
 pub use crate::history::{HISTORY_BUDGET, History, HistoryIntent};
-pub use crate::input::{Contact, ContactPhase, Device, InputBatch, InputSample};
+pub use crate::input::{Contact, ContactPhase, Device, InputBatch, InputSample, PenButtons};
 pub use crate::insert::{InsertIntent, InsertJob};
 pub use crate::intent::Intent;
 pub use crate::layers::{GroupRow, LayerIntent, LayerList, LayerRow, MaskRow};
-pub use crate::palette::{Hsv, RECENT_COLORS};
+pub use crate::palette::{Hsv, MAX_SWATCHES, RECENT_COLORS, hex_of, parse_hex};
 pub use crate::palm::PalmRejection;
+pub use crate::pen_buttons::{ButtonAction, ButtonMap, ButtonTracker, HeldTool, PenButton};
 pub use crate::project::{
     KEPT_VERSIONS, KeptVersion, PortError, Project, ProjectId, ProjectStore, ProjectSummary,
     Thumbnail, VersionId,
@@ -80,9 +83,8 @@ pub use crate::storage::{StorageIntent, StorageNotice};
 pub use crate::streamline::StreamLine;
 pub use crate::stroke::StrokeIntent;
 pub use crate::title::{MAX_TITLE_CHARS, Title, TitleError, UNTITLED};
-pub use crate::toolbox::{
-    BrushIntent, BrushProjection, BrushRow, MIN_OPACITY, SMUDGE_STRENGTH, Tool, ToolIntent, Toolbox,
-};
+pub use crate::tool_intent::{BrushIntent, BrushProjection, BrushRow, ToolIntent};
+pub use crate::toolbox::{MIN_OPACITY, SMUDGE_STRENGTH, Tool, Toolbox};
 pub use crate::transfer::{
     Delivery, ExportError, HostAnswer, HostRequest, ImageError, ImageFormat, ImageSink,
     ImageSource, OpenJob, TransferJob, TransferProjection, Transfers,

@@ -66,6 +66,7 @@ fn batch(id: i32, device: Device, phase: ContactPhase, [x, y]: [f32; 2]) -> Inpu
             phase,
             samples: vec![sample],
         }],
+        pen: None,
     }
 }
 
@@ -127,6 +128,7 @@ fn a_pinch_zooms_the_picture_about_its_middle_and_one_finger_pans_it() {
             .into_iter()
             .flat_map(|(id, x)| batch(id, Device::Finger, phase, [x, 200.0]).contacts)
             .collect(),
+        pen: None,
     };
     window.route(&[pair(ContactPhase::Down, 40.0)], 0, false);
     window.route(&[pair(ContactPhase::Move, 80.0)], 10, false);

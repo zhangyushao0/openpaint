@@ -1,9 +1,11 @@
 //! The toolbox as plain data for the store (`Toolbox::state`, `Toolbox::restore`).
 
+use crate::pen_buttons::ButtonMap;
 use crate::toolbox::Tool;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct EditorState {
+    /// The tool chosen; never one a pen button only holds.
     pub tool: Tool,
     pub paint: BrushChoice,
     pub erase: BrushChoice,
@@ -12,6 +14,10 @@ pub struct EditorState {
     pub color: [f32; 3],
     /// Newest first.
     pub recent: Vec<[f32; 3]>,
+    /// What the pen's side buttons do (S41).
+    pub buttons: ButtonMap,
+    /// The palette's swatches, sRGB, in their order (S41).
+    pub swatches: Vec<[f32; 3]>,
 }
 
 /// One tool's brush and each brush's size, opacity and StreamLine for it, by key. An empty

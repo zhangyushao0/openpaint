@@ -67,6 +67,7 @@ mod tests {
                 phase,
                 samples: vec![sample],
             }],
+            pen: None,
         }
     }
 

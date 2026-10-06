@@ -12,8 +12,8 @@
 //! quick pinch settles the view at fit.
 
 use openpaint_app::{
-    CanvasView, GalleryIntent, Intent, ScreenProjection, SessionProjection, TransformFrame,
-    ViewMapping,
+    ButtonMap, CanvasView, GalleryIntent, Intent, ScreenProjection, SessionProjection,
+    TransformFrame, ViewMapping,
 };
 use openpaint_core::{CanvasSize, Color};
 use openpaint_render::BrushCursor;
@@ -62,6 +62,8 @@ pub(crate) struct Shown {
     pub(crate) threshold: f32,
     /// The current tool's brush diameter in canvas pixels.
     pub(crate) brush_size: Option<f32>,
+    /// What the pen's side buttons do.
+    pub(crate) buttons: ButtonMap,
 }
 
 /// The screen's UI-local state between frames.
@@ -194,6 +196,7 @@ impl Shell {
             color: brush.map(|brush| brush.color),
             threshold: projection.fill().threshold,
             brush_size: brush.map(|brush| brush.size),
+            buttons: brush.map(|brush| brush.buttons).unwrap_or_default(),
         });
         let rect = canvas_frame(ui);
         let ctx = ui.ctx().clone();

@@ -12,7 +12,7 @@ use crate::gallery::GalleryProjection;
 use crate::layers::LayerList;
 use crate::selection::SelectionProjection;
 use crate::storage::StorageNotice;
-use crate::toolbox::BrushProjection;
+use crate::tool_intent::BrushProjection;
 use crate::transfer::TransferProjection;
 use crate::transform::TransformProjection;
 use crate::view::CanvasView;

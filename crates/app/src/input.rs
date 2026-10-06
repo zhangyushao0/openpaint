@@ -55,8 +55,18 @@ pub struct Contact {
     pub samples: Vec<InputSample>,
 }
 
+/// The pen's side buttons held during a batch (S41): Android's stylus button state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct PenButtons {
+    pub primary: bool,
+    pub secondary: bool,
+}
+
 /// Everything one platform input event carried, normalised.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct InputBatch {
     pub contacts: Vec<Contact>,
+    /// For an event of the pen (tip or eraser end), its side buttons; `None` for touches and
+    /// mice. A button pressed or released with no other change comes as a batch of no contacts.
+    pub pen: Option<PenButtons>,
 }

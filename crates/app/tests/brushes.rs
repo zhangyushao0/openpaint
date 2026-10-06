@@ -3,7 +3,7 @@
 //! drawn with when a built-in brush changes later.
 
 use openpaint_app::{
-    BrushChoice, BrushIntent, BrushLibrary, BrushSetting, Contact, ContactPhase, Device,
+    BrushChoice, BrushIntent, BrushLibrary, BrushSetting, ButtonMap, Contact, ContactPhase, Device,
     EditorState, InputSample, Intent, MIN_OPACITY, RecipeError, Session, StreamLine, StrokeIntent,
     Tool, Toolbox,
 };
@@ -245,6 +245,8 @@ fn a_stored_state_that_does_not_fit_falls_back_to_defaults() {
         paint,
         color: [0.0, 2.0, 0.0],
         recent: vec![[0.5, 0.5, f32::NAN]],
+        buttons: ButtonMap::default(),
+        swatches: vec![[2.0, 0.0, 0.0]],
     };
     assert!(!toolbox.restore(&state));
     assert_eq!(toolbox.projection(), fresh);

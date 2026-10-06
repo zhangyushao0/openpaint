@@ -1,19 +1,25 @@
 //! The toolbox: what the pen does (paint, smudge or erase with a brush), which brush each tool
-//! uses at what size, opacity (the smudge's strength) and StreamLine, the colour, and the
-//! eyedropper. It belongs to the app, not to one artwork (Procreate's model: the brush stays
-//! when another artwork opens). Like Procreate, the smudge and the eraser choose their own
-//! brushes from the same library, and every brush remembers its own size, opacity and
-//! StreamLine per tool. Stored apart from artworks (ARCHITECTURE section 5, DECISIONS D09): a
-//! state that cannot be used falls back to the defaults.
+//! uses at what size, opacity (the smudge's strength) and StreamLine, the colour, the palette,
+//! the eyedropper and what the pen's buttons do. It belongs to the app, not to one artwork
+//! (Procreate's model: the brush stays when another artwork opens). Like Procreate, the smudge
+//! and the eraser choose their own brushes from the same library, and every brush remembers its
+//! own size, opacity and StreamLine per tool. Stored apart from artworks (ARCHITECTURE section
+//! 5, DECISIONS D09): a state that cannot be used falls back to the defaults.
+//!
+//! A pen button (or the eraser end) may hold the eraser or the eyedropper (S41, D68): while
+//! held the pen uses it, the projection shows it, and the tool chosen before is what is stored
+//! and what comes back.
 
 use std::sync::Arc;
 
 use openpaint_core::{Color, CoreError, StrokeStyle, StrokeTool};
 
-use crate::brushes::{BrushKey, BrushLibrary};
+use crate::brushes::BrushLibrary;
 use crate::editor_state::{BrushChoice, BrushSetting, EditorState};
 use crate::palette::Palette;
+use crate::pen_buttons::{ButtonMap, HeldTool};
 use crate::streamline::StreamLine;
+use crate::tool_intent::{BrushIntent, BrushProjection, BrushRow, ToolIntent};
 
 /// The lowest opacity the slider gives: a stroke always leaves some paint.
 pub const MIN_OPACITY: f32 = 0.01;
@@ -45,70 +51,6 @@ const SMUDGE_BRUSH: &str = "soft-brush";
 /// The smudge's strength for every brush at first (draweave's 70 %).
 pub const SMUDGE_STRENGTH: f32 = 0.7;
 
-/// Changes of the current tool's brush; they apply to the tool the pen uses now.
-#[derive(Debug, Clone, PartialEq)]
-pub enum BrushIntent {
-    /// Draw with this brush from the next stroke on, at the size and opacity it had last.
-    Choose(BrushKey),
-    /// `position` in `0..=1` along the size slider. `settled` when the hand lifts.
-    Size { position: f32, settled: bool },
-    /// `opacity` in `0..=1` from the slider; below `MIN_OPACITY` counts as it.
-    Opacity { opacity: f32, settled: bool },
-    /// The StreamLine `amount` in `0..=1` from the brush panel's slider, from the next stroke on.
-    StreamLine { amount: f32, settled: bool },
-}
-
-/// The tool, the colour and the eyedropper.
-#[derive(Debug, Clone, PartialEq)]
-pub enum ToolIntent {
-    /// The pen paints or erases from the next stroke on; ends the eyedropper.
-    Use(Tool),
-    /// The next contact on the canvas picks a colour instead of drawing (on), or draws again
-    /// (off).
-    Eyedropper(bool),
-    /// Paint with `color`. `settled` when the hand lifts from the wheel or a recent colour: the
-    /// colour joins the recent ones and the eyedropper ends.
-    Color { color: Color, settled: bool },
-    /// While the eyedropper is on: the colour under the picking contact now (the loupe's top
-    /// half). The current colour stays until the contact lifts.
-    Preview(Color),
-    /// The picking contact lifted: the last colour previewed, not one where the contact drifted
-    /// to, becomes the colour, joins the recent ones and ends the eyedropper. With none
-    /// previewed the eyedropper stays on.
-    Pick,
-}
-
-/// One brush as the picker lists it.
-#[derive(Debug, Clone, PartialEq)]
-pub struct BrushRow {
-    pub key: BrushKey,
-    pub name: String,
-}
-
-/// What the tool buttons, the brush picker, the side bar and the colour panel show.
-#[derive(Debug, Clone, PartialEq)]
-pub struct BrushProjection {
-    /// In picker order.
-    pub brushes: Arc<[BrushRow]>,
-    pub tool: Tool,
-    /// The current tool's brush.
-    pub current: BrushKey,
-    /// The current brush's diameter in canvas pixels, and where it sits on the size slider.
-    pub size: f32,
-    pub size_position: f32,
-    /// In `MIN_OPACITY..=1`.
-    pub opacity: f32,
-    /// The current brush's StreamLine for the current tool.
-    pub streamline: StreamLine,
-    pub color: Color,
-    /// Newest first.
-    pub recent: Arc<[Color]>,
-    /// The eyedropper is on: the next contact on the canvas picks a colour.
-    pub picking: bool,
-    /// While picking, the colour under the contact, which lifting makes the colour.
-    pub preview: Option<Color>,
-}
-
 /// Slots of a brush's settings: size, opacity, StreamLine.
 const SIZE: usize = 0;
 const OPACITY: usize = 1;
@@ -125,6 +67,7 @@ struct ToolSet {
 pub struct Toolbox {
     library: BrushLibrary,
     rows: Arc<[BrushRow]>,
+    /// The tool chosen.
     tool: Tool,
     /// Brush, eraser, smudge.
     sets: [ToolSet; 3],
@@ -132,6 +75,9 @@ pub struct Toolbox {
     picking: bool,
     /// While picking, the last colour under the contact.
     preview: Option<Color>,
+    buttons: ButtonMap,
+    /// The tool a pen button or the eraser end holds now; never stored.
+    held: Option<HeldTool>,
     /// Changed since the state was last handed to the store.
     unsaved: bool,
     /// A slider or the colour wheel is held; the store gets the value it settles on.
@@ -141,7 +87,7 @@ pub struct Toolbox {
 impl Toolbox {
     /// The brush tool in black; the brush and the eraser on the library's default brush, the
     /// smudge on the soft brush at `SMUDGE_STRENGTH`, every brush at its defaults; no recent
-    /// colours.
+    /// colours, no swatches; the pen's buttons as `ButtonMap::default`.
     #[must_use]
     pub fn new(library: BrushLibrary) -> Self {
         let rows = library
@@ -152,21 +98,26 @@ impl Toolbox {
                 name: brush.name().to_owned(),
             })
             .collect();
-        let set = ToolSet {
-            current: library.default_index(),
-            settings: library
+        let settings = |opacity: Option<f32>| {
+            library
                 .brushes()
                 .iter()
-                .map(|brush| [brush.size().default, brush.opacity(), 0.0])
-                .collect(),
+                .map(|brush| {
+                    [
+                        brush.size().default,
+                        opacity.unwrap_or(brush.opacity()),
+                        0.0,
+                    ]
+                })
+                .collect()
+        };
+        let set = ToolSet {
+            current: library.default_index(),
+            settings: settings(None),
         };
         let smudge = ToolSet {
             current: library.find(SMUDGE_BRUSH).unwrap_or(set.current),
-            settings: library
-                .brushes()
-                .iter()
-                .map(|brush| [brush.size().default, SMUDGE_STRENGTH, 0.0])
-                .collect(),
+            settings: settings(Some(SMUDGE_STRENGTH)),
         };
         Self {
             library,
@@ -176,6 +127,8 @@ impl Toolbox {
             palette: Palette::default(),
             picking: false,
             preview: None,
+            buttons: ButtonMap::default(),
+            held: None,
             unsaved: false,
             holding: false,
         }
@@ -186,10 +139,19 @@ impl Toolbox {
         &self.library
     }
 
-    /// True while the eyedropper is on.
+    /// True while the eyedropper is on, chosen or held by a pen button.
     #[must_use]
-    pub const fn picking(&self) -> bool {
-        self.picking
+    pub fn picking(&self) -> bool {
+        self.picking || self.held == Some(HeldTool::Eyedropper)
+    }
+
+    /// The tool the pen uses now: a held eraser, else the tool chosen.
+    fn current(&self) -> Tool {
+        if self.held == Some(HeldTool::Eraser) {
+            Tool::Eraser
+        } else {
+            self.tool
+        }
     }
 
     /// Takes over a stored state. Unknown brushes, values outside a brush's ranges and colours
@@ -197,10 +159,13 @@ impl Toolbox {
     /// taken over.
     pub fn restore(&mut self, state: &EditorState) -> bool {
         self.tool = state.tool;
+        self.buttons = state.buttons;
         let paint = self.restore_set(Tool::Brush, &state.paint);
         let erase = self.restore_set(Tool::Eraser, &state.erase);
         let smudge = self.restore_set(Tool::Smudge, &state.smudge);
-        let colors = self.palette.restore(state.color, &state.recent);
+        let colors = self
+            .palette
+            .restore(state.color, &state.recent, &state.swatches);
         paint && erase && smudge && colors
     }
 
@@ -230,7 +195,7 @@ impl Toolbox {
         whole
     }
 
-    /// The whole state, for the store.
+    /// The whole state, for the store: the tool chosen, never one only held.
     #[must_use]
     pub fn state(&self) -> EditorState {
         let choice = |set: &ToolSet| BrushChoice {
@@ -256,13 +221,15 @@ impl Toolbox {
             smudge: choice(&self.sets[2]),
             color: rgb(&self.palette.color()),
             recent: self.palette.recent().iter().map(rgb).collect(),
+            buttons: self.buttons,
+            swatches: self.palette.swatches().iter().map(rgb).collect(),
         }
     }
 
-    /// Applies `intent` to the current tool. Choosing a brush the library does not hold, or a
-    /// value that is not a number, changes nothing.
+    /// Applies `intent` to the tool the pen uses now. Choosing a brush the library does not
+    /// hold, or a value that is not a number, changes nothing.
     pub fn dispatch(&mut self, intent: &BrushIntent) {
-        let tool = self.tool.index();
+        let tool = self.current().index();
         match *intent {
             BrushIntent::Choose(key) => {
                 if let Some(index) = self.library.find(key.as_str()) {
@@ -289,14 +256,14 @@ impl Toolbox {
         }
     }
 
-    /// Applies a tool, colour or eyedropper intent.
+    /// Applies a tool, colour, eyedropper, pen button or palette intent.
     pub fn dispatch_tool(&mut self, intent: &ToolIntent) {
         match *intent {
-            ToolIntent::Use(tool) => {
-                self.unsaved |= tool != self.tool;
-                self.tool = tool;
-                self.set_picking(false);
-            }
+            ToolIntent::Use(tool) => self.choose(tool),
+            ToolIntent::Switch => self.choose(match self.tool {
+                Tool::Eraser => Tool::Brush,
+                Tool::Brush | Tool::Smudge => Tool::Eraser,
+            }),
             ToolIntent::Eyedropper(on) => self.set_picking(on),
             ToolIntent::Color { color, settled } => {
                 self.unsaved |= self.palette.set(color, settled);
@@ -305,15 +272,32 @@ impl Toolbox {
                     self.set_picking(false);
                 }
             }
-            ToolIntent::Preview(color) if self.picking => self.preview = Some(color),
+            ToolIntent::Preview(color) if self.picking() => self.preview = Some(color),
+            ToolIntent::Preview(_) => {}
             ToolIntent::Pick => {
-                if let Some(color) = self.preview.filter(|_| self.picking) {
+                if let Some(color) = self.preview.filter(|_| self.picking()) {
                     self.unsaved |= self.palette.set(color, true);
                     self.set_picking(false);
                 }
             }
-            ToolIntent::Preview(_) => {}
+            ToolIntent::Hold(held) => {
+                self.held = held;
+                self.preview = None;
+            }
+            ToolIntent::SetButton { button, action } => {
+                let buttons = self.buttons.with(button, action);
+                self.unsaved |= buttons != self.buttons;
+                self.buttons = buttons;
+            }
+            ToolIntent::AddSwatch => self.unsaved |= self.palette.add_swatch(),
+            ToolIntent::RemoveSwatch(color) => self.unsaved |= self.palette.remove_swatch(color),
         }
+    }
+
+    fn choose(&mut self, tool: Tool) {
+        self.unsaved |= tool != self.tool;
+        self.tool = tool;
+        self.set_picking(false);
     }
 
     /// The eyedropper on or off; either way it starts without a preview.
@@ -323,20 +307,21 @@ impl Toolbox {
     }
 
     fn set(&mut self, slot: usize, value: f32, settled: bool) {
-        let set = &mut self.sets[self.tool.index()];
+        let set = &mut self.sets[self.current().index()];
         let setting = &mut set.settings[set.current][slot];
         self.unsaved |= *setting != value;
         *setting = value;
         self.holding = !settled;
     }
 
-    /// The style the next stroke starts with: the current tool's brush, size and opacity, in
-    /// the current colour.
+    /// The style the next stroke starts with: the brush, size and opacity of the tool the pen
+    /// uses now, in the current colour.
     ///
     /// # Errors
     /// `InvalidValue` only if a stored size or opacity escaped the checks (a bug).
     pub fn style(&self) -> Result<StrokeStyle, CoreError> {
-        let set = &self.sets[self.tool.index()];
+        let tool = self.current();
+        let set = &self.sets[tool.index()];
         let brush = &self.library.brushes()[set.current];
         let [size, opacity, _] = set.settings[set.current];
         let style = StrokeStyle::new(
@@ -345,28 +330,29 @@ impl Toolbox {
             opacity,
             self.palette.color(),
         )?;
-        Ok(style.with_tool(match self.tool {
+        Ok(style.with_tool(match tool {
             Tool::Brush => StrokeTool::Paint,
             Tool::Eraser => StrokeTool::Erase,
             Tool::Smudge => StrokeTool::Smudge,
         }))
     }
 
-    /// How the next stroke follows the pen: the current tool's brush's StreamLine.
+    /// How the next stroke follows the pen: the brush's StreamLine of the tool used now.
     #[must_use]
     pub fn streamline(&self) -> StreamLine {
-        let set = &self.sets[self.tool.index()];
+        let set = &self.sets[self.current().index()];
         StreamLine::new(set.settings[set.current][STREAMLINE]).unwrap_or_default()
     }
 
     #[must_use]
     pub fn projection(&self) -> BrushProjection {
-        let set = &self.sets[self.tool.index()];
+        let tool = self.current();
+        let set = &self.sets[tool.index()];
         let brush = &self.library.brushes()[set.current];
         let [size, opacity, _] = set.settings[set.current];
         BrushProjection {
             brushes: Arc::clone(&self.rows),
-            tool: self.tool,
+            tool,
             current: brush.key(),
             size,
             size_position: brush.size().position(size),
@@ -374,8 +360,10 @@ impl Toolbox {
             streamline: self.streamline(),
             color: self.palette.color(),
             recent: self.palette.recent(),
-            picking: self.picking,
+            swatches: self.palette.swatches(),
+            picking: self.picking(),
             preview: self.preview,
+            buttons: self.buttons,
         }
     }
 

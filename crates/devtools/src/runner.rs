@@ -18,15 +18,17 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use openpaint_render::Core;
-use openpaint_runtime::{HostRequest, MotionBatch, Runtime, RuntimeError, TextFonts, TextInput};
+use openpaint_runtime::{
+    EditKey, HostRequest, MotionBatch, Runtime, RuntimeError, TextFonts, TextInput,
+};
 
 use crate::error::ScenarioError;
-use crate::gesture;
 use crate::report::{Record, Report, record, view_check};
 use crate::scenario::{Scenario, Step};
 use crate::switch::Switched;
 use crate::system::{self, Written};
 use crate::target::{self, Key, Spot};
+use crate::{gesture, pen};
 
 /// Milliseconds of one 60 Hz frame, for the input clock.
 const FRAME_MS: i64 = 16;
@@ -139,8 +141,16 @@ impl Runner<'_> {
             | Step::Screenshot { .. }
             | Step::Exported { .. } => return self.look(runtime, step),
             Step::Type(text) => {
-                runtime.text(TextInput::Commit(text.clone()));
+                let (text, enter) = match text.strip_suffix('\n') {
+                    Some(text) => (text, true),
+                    None => (text.as_str(), false),
+                };
+                runtime.text(TextInput::Commit(text.to_owned()));
                 self.frame(runtime)?;
+                if enter {
+                    runtime.text(TextInput::Key(EditKey::Enter));
+                    self.frame(runtime)?;
+                }
             }
             Step::Back => {
                 if !runtime.back() {
@@ -180,7 +190,9 @@ impl Runner<'_> {
         let now = self.clock_ms;
         let batches = match step {
             Step::Tap { at, tool } => gesture::tap(*tool, self.spot(runtime, at)?, now),
-            Step::Hover { at } => gesture::hover(self.spot(runtime, at)?, now),
+            Step::Hover { at, pen } => {
+                pen::held(gesture::hover(self.spot(runtime, at)?, now), *pen)
+            }
             Step::Drag { from, to, tool } => {
                 let (from, to) = (self.spot(runtime, from)?, self.spot(runtime, to)?);
                 let points = [[from[0], from[1], 1.0], [to[0], to[1], 1.0]];
@@ -201,7 +213,8 @@ impl Runner<'_> {
                 lift,
                 palm,
                 sparse,
-            } => gesture::stroke((points, *sparse), *lift, *palm, now),
+                pen,
+            } => pen::held(gesture::stroke((points, *sparse), *lift, *palm, now), *pen),
             Step::Touch { from, to, ms } => {
                 let from = self.spots(runtime, from)?;
                 let to = match to {

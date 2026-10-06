@@ -7,10 +7,12 @@
 //! `cargo device-input`: one gesture through the debug build's `GestureInstrumentation`, after
 //! waking the screen (an asleep screen has no window to touch):
 //!
-//! - `pen x,y,x,y,... [pressure]`: one pen path, a point per 8 ms (repeat a point to hold);
+//! - `pen x,y,x,y,... [pressure] [primary|secondary|eraser]`: one pen path, a point per 8 ms
+//!   (repeat a point to hold), with a side button held or the eraser end (S41);
 //! - `finger x,y[,x,y...] [x,y[,x,y...] [ms]]`: fingers down at the first points, moving to the
 //!   second over `ms` (default 64), then lifting;
-//! - `hover x,y [ms]`: the pen held above the glass for `ms` (default 1500);
+//! - `hover x,y [ms] [primary|secondary|eraser]`: the pen held above the glass for `ms`
+//!   (default 1500), as `pen` with a button or the eraser end;
 //! - `tap <name>`: a finger tap on the middle of the control the app last drew under that name
 //!   (D48's names; `name #n` for a shared one), looked up on the device by the debug build;
 //! - `gradient on|off`: no gesture; the screen's precision check (S37) over everything, or off:
@@ -165,9 +167,10 @@ fn held_pointers(adb: &Adb) {
     }
 }
 
-const INPUT_USAGE: &str = "cargo device-input pen x,y,... [pressure] | finger x,y[,...] \
-                           [x,y[,...] [ms]] | hover x,y [ms] | tap <control name> | \
-                           gradient on|off";
+const INPUT_USAGE: &str = "cargo device-input pen x,y,... [pressure] [primary|secondary|eraser] \
+                           | finger x,y[,...] [x,y[,...] [ms]] \
+                           | hover x,y [ms] [primary|secondary|eraser] \
+                           | tap <control name> | gradient on|off";
 
 /// The instrumentation's `-e` arguments for a `device-input` command line.
 fn extras(args: &[&str]) -> Result<Vec<(&'static str, String)>> {
@@ -182,6 +185,30 @@ fn extras(args: &[&str]) -> Result<Vec<(&'static str, String)>> {
     if let ["gradient", state @ ("on" | "off")] = args {
         return Ok(vec![("gradient", (*state).to_owned())]);
     }
+    // A pen or hover line may end with the pen end or side button it uses (S41).
+    let (words, end) = match args {
+        [
+            "pen" | "hover",
+            ..,
+            end @ ("primary" | "secondary" | "eraser"),
+        ] => (&args[..args.len() - 1], Some(*end)),
+        _ => (args, None),
+    };
+    let mut extras = gesture_extras(words)?;
+    match end {
+        Some("eraser") => {
+            extras.retain(|(key, _)| *key != "tool");
+            extras.insert(0, ("tool", "eraser".to_owned()));
+        }
+        Some(button) => extras.push(("button", button.to_owned())),
+        None => {}
+    }
+    Ok(extras)
+}
+
+/// The instrumentation's `-e` arguments for a pen, finger or hover line without its end.
+fn gesture_extras(args: &[&str]) -> Result<Vec<(&'static str, String)>> {
+    let usage = DeviceError::Usage(INPUT_USAGE);
     // Only digits, points, commas and a sign reach the device's shell.
     if !args[1.min(args.len())..].iter().all(|arg| {
         arg.bytes()
@@ -230,6 +257,15 @@ mod tests {
         assert!(extras(&["gradient", "maybe"]).is_err());
         assert!(extras(&["tap", "a\nb"]).is_err());
         assert!(extras(&["pen", "1,2;rm -rf /"]).is_err());
+        let primary = extras(&["pen", "1,2,3,4", "0.5", "primary"]).expect("button");
+        assert_eq!(primary.last(), Some(&("button", "primary".to_owned())));
+        assert_eq!(primary[0], ("tool", "stylus".to_owned()));
+        let eraser = extras(&["pen", "1,2,3,4", "eraser"]).expect("eraser");
+        assert_eq!(eraser[0], ("tool", "eraser".to_owned()));
+        assert_eq!(eraser.len(), 2, "{eraser:?}");
+        let hover = extras(&["hover", "5,6", "800", "secondary"]).expect("hover");
+        assert_eq!(hover[2], ("button", "secondary".to_owned()));
+        assert!(extras(&["finger", "1,2", "primary"]).is_err());
         assert!(extras(&["walk", "1,2"]).is_err());
         assert!(extras(&[]).is_err());
     }

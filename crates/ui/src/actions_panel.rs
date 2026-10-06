@@ -4,8 +4,10 @@
 //! opens the copy menu (S40, `copy_bar.rs`); under
 //! "Share", saving the artwork as a PNG or JPEG file where the user chooses and sending it to
 //! another app; under "Canvas", the Reference switch that shows the floating reference window
-//! and the row that chooses its image. A row that opens a system dialog closes the panel; the
-//! switch leaves it open. Any contact landing on the canvas outside closes it.
+//! and the row that chooses its image; under "Pen", Pen buttons, which shows its page in the
+//! panel's place (S41, `pen_buttons_page.rs`). A row that opens a system dialog closes the
+//! panel; the switch and the page leave it open. Any contact landing on the canvas outside
+//! closes it.
 
 use openpaint_app::{
     Delivery, EditorAction, ExportIntent, ExportScale, ImageFormat, InsertIntent, Intent,
@@ -17,6 +19,7 @@ use crate::components::{
     text_choice,
 };
 use crate::design::{Icon, SPACE, TOUCH_TARGET};
+use crate::pen_buttons_page::{pen_buttons_page, summary};
 
 /// The export rows, top to bottom.
 const EXPORTS: [(&str, &str, ImageFormat, Delivery); 4] = [
@@ -38,6 +41,8 @@ pub(crate) struct ActionsPanel {
     scale: ExportScale,
     /// Copy & Paste was tapped: the shell opens the copy menu (S40).
     copy_menu: bool,
+    /// The Pen buttons page shows in the panel's place (S41).
+    pen_page: bool,
 }
 
 impl ActionsPanel {
@@ -74,7 +79,16 @@ impl ActionsPanel {
             island: "left island",
             button: self.button_rect(),
         };
+        let buttons = projection.brush().map(|brush| brush.buttons);
+        let pen_page = self.pen_page;
+        let mut page = None;
         let rect = popover_left(ctx, "actions", (opener, self.open), |ui| {
+            if let Some(buttons) = buttons.filter(|_| pen_page) {
+                if pen_buttons_page(ui, buttons, taps) {
+                    page = Some(false);
+                }
+                return;
+            }
             ui.horizontal(|ui| {
                 ui.set_height(TOUCH_TARGET);
                 ui.add_space(2.0 * SPACE);
@@ -83,23 +97,7 @@ impl ActionsPanel {
             close |= self.add_rows(ui, offered(EditorAction::InsertImage), taps);
             section(ui, "Share");
             self.scale_row(ui, projection);
-            let scale = self.scale;
-            for (label, note, format, delivery) in EXPORTS {
-                let fits = scale.fits(format);
-                let note = if fits { note } else { "Up to 2×" };
-                let enabled = fits && offered(EditorAction::Export);
-                if menu_row(ui, label, note, enabled).clicked() {
-                    push(
-                        taps,
-                        Intent::Export(ExportIntent::Start {
-                            format,
-                            delivery,
-                            scale,
-                        }),
-                    );
-                    close = true;
-                }
-            }
+            close |= self.export_rows(ui, offered(EditorAction::Export), taps);
             section(ui, "Canvas");
             let shown = transfers.reference_shown;
             if switch_row(ui, "Reference", shown, true).clicked() {
@@ -110,12 +108,42 @@ impl ActionsPanel {
                 push(taps, Intent::Reference(ReferenceIntent::Choose));
                 close = true;
             }
+            if let Some(buttons) = buttons {
+                section(ui, "Pen");
+                if menu_row(ui, "Pen buttons", &summary(buttons), true).clicked() {
+                    page = Some(true);
+                }
+            }
         });
+        if let Some(pen_page) = page {
+            self.pen_page = pen_page;
+        }
         if close {
             self.close();
         } else if let Some(rect) = rect {
             self.area = Some(ScreenArea::from_points(rect, ctx.pixels_per_point()));
         }
+    }
+
+    /// The export rows at the scale chosen (offered with `export`). Returns whether one was
+    /// tapped, which closes the panel.
+    fn export_rows(&self, ui: &mut egui::Ui, export: bool, taps: &mut Vec<Intent>) -> bool {
+        let scale = self.scale;
+        let mut tapped = false;
+        for (label, note, format, delivery) in EXPORTS {
+            let fits = scale.fits(format);
+            let note = if fits { note } else { "Up to 2×" };
+            if menu_row(ui, label, note, fits && export).clicked() {
+                let start = ExportIntent::Start {
+                    format,
+                    delivery,
+                    scale,
+                };
+                push(taps, Intent::Export(start));
+                tapped = true;
+            }
+        }
+        tapped
     }
 
     /// The export scale's words, the one chosen in the ink pill (it slides), then the file's
@@ -168,6 +196,7 @@ impl ActionsPanel {
 
     pub(crate) fn close(&mut self) {
         self.open = false;
+        self.pen_page = false;
         self.area = None;
     }
 }

@@ -1,5 +1,5 @@
 use super::*;
-use openpaint_app::InputSample;
+use openpaint_app::{InputSample, PenButtons};
 
 const AREA: ScreenArea = ScreenArea {
     origin: [0, 84],
@@ -23,6 +23,7 @@ fn frame(covers: &[ScreenArea]) -> CanvasFrame<'_> {
         transform: None,
         adjusting: false,
         drawing: false,
+        buttons: openpaint_app::ButtonMap::default(),
         control: false,
     }
 }
@@ -46,6 +47,7 @@ fn contact(id: i32, device: Device, phase: ContactPhase, x: f32, y: f32) -> Cont
 fn pen(id: i32, phase: ContactPhase, x: f32, y: f32) -> InputBatch {
     InputBatch {
         contacts: vec![contact(id, Device::Pen, phase, x, y)],
+        pen: Some(PenButtons::default()),
     }
 }
 
@@ -54,7 +56,10 @@ fn fingers(phase: ContactPhase, points: &[[f32; 2]]) -> InputBatch {
         .zip(points)
         .map(|(id, [x, y])| contact(10 + id, Device::Finger, phase, *x, *y))
         .collect();
-    InputBatch { contacts }
+    InputBatch {
+        contacts,
+        pen: None,
+    }
 }
 
 fn positions(intents: &[Intent]) -> Vec<[f32; 2]> {

@@ -1,14 +1,16 @@
 //! The colour panel: the colour button at the end of the right island (a swatch of the current
-//! colour, Procreate's place) opens it as a popover over the canvas: header "Colour", the colour
-//! wheel (hue ring, saturation and value square), then the recent colours, newest first. The
-//! colour changes while the hand moves on the wheel and is shown at once in the button; lifting
-//! the hand makes it a recent colour. Tapping a recent colour paints with it. The panel stays
-//! until a contact lands on the canvas outside it; a pen stroke there paints in the new colour.
-//! Dragging the button onto the canvas instead drops the colour there (`color_drop.rs`).
+//! colour, Procreate's place) opens it as a popover over the canvas: header "Colour" with the
+//! hex field (`color_palette.rs`), the colour wheel (hue ring, saturation and value square),
+//! the recent colours, newest first, then the palette (S41). The colour changes while the hand
+//! moves on the wheel and is shown at once in the button; lifting the hand makes it a recent
+//! colour. Tapping a recent colour or a swatch paints with it. The panel stays until a contact
+//! lands on the canvas outside it; a pen stroke there paints in the new colour. Dragging the
+//! button onto the canvas instead drops the colour there (`color_drop.rs`).
 
-use egui::Align;
+use egui::{Align, Layout};
 use openpaint_app::{BrushProjection, Hsv, Intent, SessionProjection, ToolIntent};
 
+use crate::color_palette::PaletteState;
 use crate::components::{Opener, ScreenArea, color_wheel, color32, popover, swatch};
 use crate::design::{COLOR_WHEEL, INK_SECONDARY, RECENT_SWATCH, SPACE, TOUCH_TARGET};
 
@@ -24,6 +26,8 @@ pub(crate) struct ColorPanel {
     /// The hue, saturation and value last set here: a grey or black has no hue of its own, so
     /// the wheel keeps the one the hand left while the colour is still the one it set.
     shown: Option<Hsv>,
+    /// The palette and the hex field (S41).
+    palette: PaletteState,
 }
 
 impl ColorPanel {
@@ -71,12 +75,18 @@ impl ColorPanel {
             island: "right island",
             button,
         };
+        let palette = &mut self.palette;
         let rect = popover(ctx, "colours", (opener, self.open), |ui| {
             ui.horizontal(|ui| {
                 ui.set_height(TOUCH_TARGET);
                 ui.add_space(2.0 * SPACE);
                 ui.heading("Colour");
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    ui.add_space(SPACE);
+                    palette.hex_field(ui, brush.color, taps);
+                });
             });
+            palette.hex_hint(ui);
             ui.vertical_centered(|ui| {
                 if let Some(change) = color_wheel(ui, hsv, COLOR_WHEEL) {
                     set = Some(change.hsv);
@@ -85,6 +95,8 @@ impl ColorPanel {
             });
             ui.add_space(SPACE);
             recent(ui, brush, taps);
+            palette.palette(ui, brush, taps);
+            ui.add_space(SPACE);
         });
         if let Some(hsv) = set {
             self.shown = Some(hsv);
@@ -100,6 +112,7 @@ impl ColorPanel {
     pub(crate) fn close(&mut self) {
         self.open = false;
         self.area = None;
+        self.palette.close();
     }
 }
 

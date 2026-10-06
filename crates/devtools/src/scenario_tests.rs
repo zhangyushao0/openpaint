@@ -143,7 +143,9 @@ fn a_stroke_step_takes_its_lift_palm_and_sparse_samples() {
         "density": 2,
         "steps": [
             { "stroke": { "points": [[1, 2, 0.5]], "lift": [3, 4],
-                          "palm": { "at": [5, 6], "lands": "during" }, "sparse": true } }
+                          "palm": { "at": [5, 6], "lands": "during" }, "sparse": true,
+                          "pen": "secondary" } },
+            { "hover": { "at": [7, 8], "pen": "eraser" } }
         ]
     }"#;
     let scenario = Scenario::parse(text).expect("parses");
@@ -155,6 +157,11 @@ fn a_stroke_step_takes_its_lift_palm_and_sparse_samples() {
             lands: Lands::During,
         }),
         sparse: true,
+        pen: Pen::Secondary,
     };
-    assert_eq!(scenario.steps, [stroke]);
+    let hover = Step::Hover {
+        at: Spot::Point([7.0, 8.0]),
+        pen: Pen::Eraser,
+    };
+    assert_eq!(scenario.steps, [stroke, hover]);
 }

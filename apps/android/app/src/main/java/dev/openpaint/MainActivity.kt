@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.Choreographer
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -22,6 +23,9 @@ private val SAMPLE_AXES = intArrayOf(
     MotionEvent.AXIS_TILT,
     MotionEvent.AXIS_ORIENTATION,
 )
+
+/** `KeyEvent.KEYCODE_STYLUS_BUTTON_PRIMARY` to `..._TAIL` (API 34). */
+private val STYLUS_KEYS = 308..311
 
 /**
  * The only activity (DECISIONS D11): owns the lifecycle and a full-screen SurfaceView, paces
@@ -137,6 +141,11 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
             val used = backUsed
             if (event.action == KeyEvent.ACTION_UP) backUsed = false
             return used || super.dispatchKeyEvent(event)
+        }
+        // Android 14 can also report a stylus's buttons as keys; the app reads them from the
+        // pen's events (S41). Logged only, so the author's pen shows what it sends.
+        if (event.keyCode in STYLUS_KEYS) {
+            Log.i("openpaint", "stylus key ${event.keyCode} action ${event.action}")
         }
         if (view.editing && type(event)) {
             requestFrame()

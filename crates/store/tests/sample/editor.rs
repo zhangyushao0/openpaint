@@ -1,6 +1,6 @@
 //! The toolboxes of the frozen samples, as each schema holds them once opened now.
 
-use openpaint_app::{BrushChoice, BrushSetting, EditorState, Tool};
+use openpaint_app::{BrushChoice, BrushSetting, ButtonAction, ButtonMap, EditorState, Tool};
 
 fn setting(key: &str, size: f32, opacity: f32) -> BrushSetting {
     BrushSetting {
@@ -37,6 +37,8 @@ pub fn upgraded_editor() -> EditorState {
         smudge: default_choice(),
         color: [0.0; 3],
         recent: Vec::new(),
+        buttons: ButtonMap::default(),
+        swatches: Vec::new(),
     }
 }
 
@@ -53,6 +55,19 @@ pub fn sample_editor_9() -> EditorState {
         }],
     };
     editor
+}
+
+/// The toolbox of the schema-17 sample: the schema-9 one with the side buttons undoing and
+/// switching tools and three swatches.
+pub fn sample_editor_17() -> EditorState {
+    EditorState {
+        buttons: ButtonMap {
+            primary: ButtonAction::Undo,
+            secondary: ButtonAction::SwitchTool,
+        },
+        swatches: vec![[1.0, 0.5, 0.125], [0.0, 0.25, 0.75], [1.0, 1.0, 1.0]],
+        ..sample_editor_9()
+    }
 }
 
 /// The toolbox of the schema-6 sample: the schema-5 one with StreamLine on the ink pen and on
@@ -77,5 +92,7 @@ pub fn sample_editor() -> EditorState {
         smudge: default_choice(),
         color: [1.0, 0.5, 0.125],
         recent: vec![[1.0, 0.5, 0.125], [0.0, 0.25, 0.75]],
+        buttons: ButtonMap::default(),
+        swatches: Vec::new(),
     }
 }

@@ -128,19 +128,21 @@ fn the_stroke_stays_beside_the_artwork_until_the_pen_lifts() {
 }
 
 #[test]
-fn fingers_mice_and_the_eraser_do_not_draw() {
+fn fingers_and_mice_do_not_draw() {
     let mut session = session();
     let blank = session.artwork().clone();
-    for device in [
-        Device::Finger,
-        Device::Mouse,
-        Device::Eraser,
-        Device::Unknown,
-    ] {
+    for device in [Device::Finger, Device::Mouse, Device::Unknown] {
         swipe(&mut session, 0, device);
     }
     assert!(session.artwork().same_version(&blank));
     assert!(session.active().is_none());
+}
+
+#[test]
+fn the_eraser_end_draws_a_stroke_with_the_style_it_is_given() {
+    let mut session = session();
+    swipe(&mut session, 5, Device::Eraser);
+    assert_eq!(strokes(session.artwork()), 1);
 }
 
 #[test]

@@ -26,8 +26,9 @@ pub struct PalmRejection {
 
 impl PalmRejection {
     /// `batch` without its palms. A pen landing on resting touches first yields a batch that
-    /// cancels them. Empty when nothing is left.
+    /// cancels them. Empty when nothing is left; a pen's batch keeps its buttons.
     pub fn filter(&mut self, batch: InputBatch) -> Vec<InputBatch> {
+        let pen = batch.pen;
         let mut cancels = Vec::new();
         let mut kept = Vec::with_capacity(batch.contacts.len());
         for contact in batch.contacts {
@@ -41,11 +42,20 @@ impl PalmRejection {
                 kept.push(contact);
             }
         }
-        [cancels, kept]
-            .into_iter()
-            .filter(|contacts| !contacts.is_empty())
-            .map(|contacts| InputBatch { contacts })
-            .collect()
+        let mut out = Vec::with_capacity(2);
+        if !cancels.is_empty() {
+            out.push(InputBatch {
+                contacts: cancels,
+                pen: None,
+            });
+        }
+        if !kept.is_empty() || pen.is_some() {
+            out.push(InputBatch {
+                contacts: kept,
+                pen,
+            });
+        }
+        out
     }
 
     /// Every touch passed on so far becomes a palm, cancelled at its last sample.
@@ -125,6 +135,7 @@ mod tests {
                     samples: vec![sample],
                 })
                 .collect(),
+            pen: None,
         }
     }
 

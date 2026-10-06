@@ -11,9 +11,9 @@
 //! run a pass twice, and an intent must never be emitted twice.
 
 use openpaint_app::{
-    CanvasView, Contact, ContactPhase, Device, GestureFrame, Gestured, Gestures, HistoryIntent,
-    InputBatch, Intent, SelectionIntent, StrokeIntent, Touch, TouchAction, TransformFrame,
-    TransformIntent, ViewIntent, ViewMapping, Viewport,
+    ButtonMap, ButtonTracker, CanvasView, Contact, ContactPhase, Device, GestureFrame, Gestured,
+    Gestures, HistoryIntent, InputBatch, Intent, SelectionIntent, StrokeIntent, Touch, TouchAction,
+    TransformFrame, TransformIntent, ViewIntent, ViewMapping, Viewport,
 };
 use openpaint_core::CanvasSize;
 
@@ -42,6 +42,8 @@ pub(crate) struct CanvasFrame<'a> {
     /// An adjustment is under way: the pen draws nothing; fingers still move the view.
     pub(crate) adjusting: bool,
     pub(crate) drawing: bool,
+    /// What the pen's side buttons do (S41).
+    pub(crate) buttons: ButtonMap,
     /// A control took a contact this frame.
     pub(crate) control: bool,
 }
@@ -78,6 +80,8 @@ pub(crate) struct CanvasInput {
     picking_at: Option<[f32; 2]>,
     /// Three fingers swiped down since the shell last asked (S40).
     copy_menu: bool,
+    /// The pen's buttons and eraser end (S41).
+    buttons: ButtonTracker,
     /// Contacts on the Transform tool's frame.
     drag: TransformDrag,
 }
@@ -93,46 +97,14 @@ impl CanvasInput {
         if !frame.picking {
             self.picking_at = None;
         }
-        for contact in batches.iter().flat_map(|batch| &batch.contacts) {
-            self.follow(contact, frame);
-            let first = contact.samples.first().map(|sample| sample.position);
-            let open =
-                contact.phase == ContactPhase::Down && first.is_some_and(|at| frame.open(at));
-            if let Some(mut taken) = self.transform_contact(contact, frame, &mapping, open) {
-                intents.append(&mut taken);
-                continue;
+        for batch in batches {
+            // The pen's buttons hold a tool before the contacts that use it, and give it back
+            // after the lift (S41).
+            intents.extend(self.buttons.before(batch, frame.buttons));
+            for contact in &batch.contacts {
+                pen |= self.contact(contact, frame, &mapping, (&mut intents, &mut touches));
             }
-            if contact.device == Device::Finger && !frame.picking {
-                touches.extend(touch(contact, open));
-                continue;
-            }
-            pen |= matches!(contact.device, Device::Pen | Device::Eraser);
-            let anywhere = frame.picking || frame.selecting;
-            // While an adjustment shows, the pen takes no canvas contact.
-            let on_canvas = !frame.adjusting
-                && first.is_some_and(|at| anywhere || inside(&mapping, frame.canvas, at));
-            if open && on_canvas && !self.owned.contains(&contact.id) {
-                self.owned.push(contact.id);
-                // The view status gives way to the pen at once.
-                self.navigated_ms = None;
-            }
-            if !self.owned.contains(&contact.id) {
-                continue;
-            }
-            let ends = matches!(contact.phase, ContactPhase::Up | ContactPhase::Cancel);
-            if ends {
-                self.owned.retain(|id| *id != contact.id);
-            }
-            let at = contact.samples.last().map(|sample| sample.position);
-            self.track(at.filter(|_| !ends), frame);
-            let covered = !at.is_some_and(|at| frame.open(at));
-            if frame.picking && contact.phase == ContactPhase::Move && covered {
-                continue;
-            }
-            if matches!(contact.phase, ContactPhase::Hover | ContactPhase::Leave) {
-                continue;
-            }
-            intents.push(owned_intent(mapped(contact, &mapping), frame, &mapping));
+            intents.extend(self.buttons.after(batch, frame.buttons));
         }
         let gestured = if frame.picking || frame.control {
             self.gestures.reset();
@@ -148,6 +120,54 @@ impl CanvasInput {
         };
         self.apply(gestured, frame, &mut intents);
         intents
+    }
+
+    /// Routes one contact: its intents (a transform's, a stroke's, a pick's) or its touch for
+    /// the gesture trackers. Returns whether it is the pen's.
+    fn contact(
+        &mut self,
+        contact: &Contact,
+        frame: &CanvasFrame<'_>,
+        mapping: &ViewMapping,
+        (intents, touches): (&mut Vec<Intent>, &mut Vec<Touch>),
+    ) -> bool {
+        self.follow(contact, frame);
+        let first = contact.samples.first().map(|sample| sample.position);
+        let open = contact.phase == ContactPhase::Down && first.is_some_and(|at| frame.open(at));
+        if let Some(mut taken) = self.transform_contact(contact, frame, mapping, open) {
+            intents.append(&mut taken);
+            return false;
+        }
+        if contact.device == Device::Finger && !frame.picking {
+            touches.extend(touch(contact, open));
+            return false;
+        }
+        let pen = matches!(contact.device, Device::Pen | Device::Eraser);
+        let anywhere = frame.picking || frame.selecting;
+        // While an adjustment shows, the pen takes no canvas contact.
+        let on_canvas = !frame.adjusting
+            && first.is_some_and(|at| anywhere || inside(mapping, frame.canvas, at));
+        if open && on_canvas && !self.owned.contains(&contact.id) {
+            self.owned.push(contact.id);
+            // The view status gives way to the pen at once.
+            self.navigated_ms = None;
+        }
+        if !self.owned.contains(&contact.id) {
+            return pen;
+        }
+        let ends = matches!(contact.phase, ContactPhase::Up | ContactPhase::Cancel);
+        if ends {
+            self.owned.retain(|id| *id != contact.id);
+        }
+        let at = contact.samples.last().map(|sample| sample.position);
+        self.track(at.filter(|_| !ends), frame);
+        let covered = !at.is_some_and(|at| frame.open(at));
+        let hovering = matches!(contact.phase, ContactPhase::Hover | ContactPhase::Leave);
+        let covered_pick = frame.picking && contact.phase == ContactPhase::Move && covered;
+        if !hovering && !covered_pick {
+            intents.push(owned_intent(mapped(contact, mapping), frame, mapping));
+        }
+        pen
     }
 
     /// While the Transform tool is on: the intents of a contact on its frame, or none for the

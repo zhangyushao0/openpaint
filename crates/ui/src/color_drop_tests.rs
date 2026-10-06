@@ -31,6 +31,7 @@ fn frame(now_ms: i64) -> CanvasFrame<'static> {
         transform: None,
         adjusting: false,
         drawing: false,
+        buttons: openpaint_app::ButtonMap::default(),
         control: false,
     }
 }
@@ -59,6 +60,7 @@ fn batch(device: Device, phase: ContactPhase, at: [f32; 2], time_ms: i64) -> Inp
             phase,
             samples: vec![sample],
         }],
+        pen: None,
     }
 }
 

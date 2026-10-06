@@ -92,7 +92,10 @@ impl ColorDrop {
         let mut intents = Vec::new();
         let mut left = Vec::with_capacity(batches.len());
         for batch in batches {
-            let mut rest = InputBatch::default();
+            let mut rest = InputBatch {
+                contacts: Vec::new(),
+                pen: batch.pen,
+            };
             for contact in &batch.contacts {
                 let (Some(first), Some(last)) = (contact.samples.first(), contact.samples.last())
                 else {

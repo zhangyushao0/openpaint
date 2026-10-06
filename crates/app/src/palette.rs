@@ -2,6 +2,10 @@
 //! history). Editor state like the brushes: it belongs to the app, not to one artwork, and is
 //! stored apart from artworks. A colour joins the recent ones when it settles: the finger lifts
 //! from the colour wheel, a recent colour is tapped, the eyedropper picks.
+//!
+//! The swatches (S41) are one palette of colours kept by hand (Procreate keeps many palettes;
+//! one is enough here): the current colour joins its end, a tap paints with one, and one leaves
+//! when removed. A colour can also be typed as `#RRGGBB` (`parse_hex`).
 
 use std::sync::Arc;
 
@@ -9,20 +13,25 @@ use openpaint_core::Color;
 
 /// How many recent colours the palette keeps, newest first.
 pub const RECENT_COLORS: usize = 8;
+/// How many swatches the palette holds: three rows of the colour panel.
+pub const MAX_SWATCHES: usize = 24;
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Palette {
     color: Color,
     /// Newest first, no colour twice, at most `RECENT_COLORS`.
     recent: Vec<Color>,
+    /// In the order they were added, no colour twice, at most `MAX_SWATCHES`.
+    swatches: Vec<Color>,
 }
 
 impl Default for Palette {
-    /// Black, as every stroke before colours could be chosen; no recent colours.
+    /// Black, as every stroke before colours could be chosen; no recent colours, no swatches.
     fn default() -> Self {
         Self {
             color: Color::BLACK,
             recent: Vec::new(),
+            swatches: Vec::new(),
         }
     }
 }
@@ -34,6 +43,28 @@ impl Palette {
 
     pub(crate) fn recent(&self) -> Arc<[Color]> {
         self.recent.iter().copied().collect()
+    }
+
+    pub(crate) fn swatches(&self) -> Arc<[Color]> {
+        self.swatches.iter().copied().collect()
+    }
+
+    /// The current colour joins the swatches' end. Returns whether it did: not when it is one
+    /// already or the palette is full.
+    pub(crate) fn add_swatch(&mut self) -> bool {
+        let room = self.swatches.len() < MAX_SWATCHES;
+        let added = room && !self.swatches.contains(&self.color);
+        if added {
+            self.swatches.push(self.color);
+        }
+        added
+    }
+
+    /// `color` leaves the swatches. Returns whether it was one.
+    pub(crate) fn remove_swatch(&mut self, color: Color) -> bool {
+        let before = self.swatches.len();
+        self.swatches.retain(|swatch| *swatch != color);
+        self.swatches.len() != before
     }
 
     /// Paints with `color`, rounded to 8 bits per channel, from now on; a `settled` colour moves
@@ -52,24 +83,69 @@ impl Palette {
         changed
     }
 
-    /// Takes over stored colours, `[r, g, b]` each; one out of range is skipped. Returns
-    /// whether everything was taken over.
-    pub(crate) fn restore(&mut self, color: [f32; 3], recent: &[[f32; 3]]) -> bool {
-        let rgb = |[r, g, b]: [f32; 3]| Color::rgb(r, g, b).ok();
-        let mut whole = recent.len() <= RECENT_COLORS;
-        match rgb(color) {
-            Some(color) => self.color = color,
-            None => whole = false,
-        }
-        self.recent.clear();
-        for stored in recent.iter().take(RECENT_COLORS) {
-            match rgb(*stored) {
-                Some(color) if !self.recent.contains(&color) => self.recent.push(color),
-                _ => whole = false,
+    /// Takes over stored colours, `[r, g, b]` each: the colour, the recent ones and the
+    /// swatches; one out of range (or twice) is skipped. Returns whether everything was taken
+    /// over.
+    pub(crate) fn restore(
+        &mut self,
+        color: [f32; 3],
+        recent: &[[f32; 3]],
+        swatches: &[[f32; 3]],
+    ) -> bool {
+        let mut whole = match rgb(color) {
+            Some(color) => {
+                self.color = color;
+                true
             }
-        }
+            None => false,
+        };
+        whole &= restore_list(&mut self.recent, recent, RECENT_COLORS);
+        whole &= restore_list(&mut self.swatches, swatches, MAX_SWATCHES);
         whole
     }
+}
+
+fn rgb([r, g, b]: [f32; 3]) -> Option<Color> {
+    Color::rgb(r, g, b).ok()
+}
+
+/// `list` as `stored` holds it, at most `max` colours, each once. Returns whether every stored
+/// colour was taken.
+fn restore_list(list: &mut Vec<Color>, stored: &[[f32; 3]], max: usize) -> bool {
+    let mut whole = stored.len() <= max;
+    list.clear();
+    for stored in stored.iter().take(max) {
+        match rgb(*stored) {
+            Some(color) if !list.contains(&color) => list.push(color),
+            _ => whole = false,
+        }
+    }
+    whole
+}
+
+/// The colour `text` names as `#RRGGBB` (the `#` optional, either case, spaces around
+/// ignored); `None` for anything else.
+#[must_use]
+pub fn parse_hex(text: &str) -> Option<Color> {
+    let text = text.trim();
+    let digits = text.strip_prefix('#').unwrap_or(text);
+    if digits.len() != 6 || !digits.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return None;
+    }
+    let channel = |at: usize| {
+        u8::from_str_radix(&digits[at..at + 2], 16)
+            .ok()
+            .map(|byte| f32::from(byte) / 255.0)
+    };
+    Color::rgb(channel(0)?, channel(2)?, channel(4)?).ok()
+}
+
+/// `color` as `#RRGGBB`, in capitals, each channel rounded to 8 bits.
+#[must_use]
+pub fn hex_of(color: Color) -> String {
+    let byte = |channel: f32| (channel.clamp(0.0, 1.0) * 255.0).round() as u8;
+    let [r, g, b] = [color.r(), color.g(), color.b()].map(byte);
+    format!("#{r:02X}{g:02X}{b:02X}")
 }
 
 /// `color` with each channel at the nearest of the 256 steps `k / 255`.
@@ -189,11 +265,77 @@ mod tests {
     #[test]
     fn restore_skips_colours_out_of_range() {
         let mut palette = Palette::default();
-        assert!(palette.restore([0.1, 0.2, 0.3], &[[0.1, 0.2, 0.3], [1.0, 1.0, 1.0]]));
+        let swatches = [[1.0, 0.0, 0.0], [0.0, 0.0, 1.0]];
+        assert!(palette.restore(
+            [0.1, 0.2, 0.3],
+            &[[0.1, 0.2, 0.3], [1.0, 1.0, 1.0]],
+            &swatches
+        ));
         assert_eq!(palette.color(), rgb(0.1, 0.2, 0.3));
         assert_eq!(palette.recent().len(), 2);
-        assert!(!palette.restore([2.0, 0.0, 0.0], &[[f32::NAN, 0.0, 0.0]]));
+        assert_eq!(
+            *palette.swatches(),
+            [rgb(1.0, 0.0, 0.0), rgb(0.0, 0.0, 1.0)]
+        );
+        let twice = [[1.0, 0.0, 0.0], [1.0, 0.0, 0.0], [f32::NAN, 0.0, 0.0]];
+        assert!(!palette.restore([2.0, 0.0, 0.0], &[[f32::NAN, 0.0, 0.0]], &twice));
         assert_eq!(palette.color(), rgb(0.1, 0.2, 0.3), "kept");
         assert!(palette.recent().is_empty());
+        assert_eq!(
+            *palette.swatches(),
+            [rgb(1.0, 0.0, 0.0)],
+            "once, valid ones"
+        );
+        let many = vec![[0.5, 0.5, 0.5]; MAX_SWATCHES + 1];
+        assert!(!palette.restore([0.0; 3], &[], &many), "too many");
+    }
+
+    #[test]
+    fn swatches_add_the_current_colour_once_and_remove_by_colour() {
+        let mut palette = Palette::default();
+        assert!(palette.add_swatch(), "black joins");
+        assert!(!palette.add_swatch(), "already there");
+        palette.set(rgb(1.0, 0.0, 0.0), true);
+        assert!(palette.add_swatch());
+        assert_eq!(*palette.swatches(), [Color::BLACK, rgb(1.0, 0.0, 0.0)]);
+        assert!(palette.remove_swatch(Color::BLACK));
+        assert!(!palette.remove_swatch(Color::BLACK), "gone already");
+        assert_eq!(*palette.swatches(), [rgb(1.0, 0.0, 0.0)]);
+        for step in 0..40u8 {
+            palette.set(rgb(f32::from(step) / 255.0, 0.5, 0.5), false);
+            palette.add_swatch();
+        }
+        assert_eq!(palette.swatches().len(), MAX_SWATCHES, "full");
+        assert_eq!(
+            palette.swatches()[0],
+            rgb(1.0, 0.0, 0.0),
+            "the first stays first"
+        );
+    }
+
+    #[test]
+    fn hex_parses_six_digits_and_writes_capitals() {
+        let byte = |k: u8| f32::from(k) / 255.0;
+        let expected = rgb(byte(0x1a), byte(0x2b), byte(0xff));
+        for text in ["#1A2B3C", "1a2b3c", "  #1a2B3c "] {
+            let parsed = parse_hex(text).expect(text);
+            assert_eq!(hex_of(parsed), "#1A2B3C");
+        }
+        assert_eq!(parse_hex("#1a2bff"), Some(expected));
+        assert_eq!(parse_hex("#000000"), Some(Color::BLACK));
+        assert_eq!(parse_hex("#FFFFFF"), Some(Color::WHITE));
+        for wrong in [
+            "",
+            "#",
+            "#12345",
+            "#1234567",
+            "#12345G",
+            "##123456",
+            "12 345",
+            "#１２３４５６",
+        ] {
+            assert_eq!(parse_hex(wrong), None, "{wrong:?}");
+        }
+        assert_eq!(hex_of(rgb(0.5, 0.0, 1.0)), "#8000FF");
     }
 }

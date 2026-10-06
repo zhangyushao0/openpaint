@@ -52,7 +52,6 @@ fn editor_8_to_9(editor: &[u8]) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::editor::decode_editor;
     use openpaint_app::{BrushChoice, BrushSetting, Tool};
 
     /// A schema-8 toolbox: the eraser current, a pencil setting, the default eraser brush, a
@@ -93,7 +92,7 @@ mod tests {
         );
         let (key, editor) = &upgrade.library[0];
         assert_eq!(key, EDITOR);
-        let editor = decode_editor(editor).expect("a schema-9 toolbox");
+        let editor = crate::migrate_17::upgraded_toolbox(editor);
         let pencil = BrushSetting {
             key: "pencil".into(),
             size: 4.0,

@@ -1,4 +1,4 @@
-//! The sample artwork as schema 16 holds it.
+//! The sample artwork as schema 16 holds it, and schema 17, which changed only the toolbox.
 
 use openpaint_core::{ArtworkParts, ClearParts, EditParts, MaskParts};
 

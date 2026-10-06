@@ -2,9 +2,9 @@
 //! stroke when it touches down, extends it while it moves and commits it as one new artwork
 //! version when it lifts; a cancelled contact leaves the artwork as it was.
 //!
-//! Only the pen draws, with the style the toolbox gives (painting, smudging or erasing). Fingers
-//! and the pen's eraser end do nothing: what they do on the canvas is the author's decision
-//! (gesture and pen-button mapping, ARCHITECTURE section 10).
+//! Only the pen draws, with the style the toolbox gives (painting, smudging or erasing); its
+//! eraser end draws too, with the eraser the toolbox holds for it (S41). Fingers do nothing
+//! (D18).
 //!
 //! The stroke follows the pen through its StreamLine (`streamline.rs`), frozen when the stroke
 //! begins: the samples stored are the smoothed line, and the lift moves the line's end onto the
@@ -80,7 +80,7 @@ impl Strokes {
         clip: Option<&RegionMask>,
     ) -> Result<(), AppError> {
         let StrokeIntent::Contact(contact) = intent;
-        if contact.device != Device::Pen {
+        if !matches!(contact.device, Device::Pen | Device::Eraser) {
             return Ok(());
         }
         match contact.phase {

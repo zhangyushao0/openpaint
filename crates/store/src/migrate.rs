@@ -225,7 +225,6 @@ fn legacy_recipe() -> Vec<u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::editor::decode_editor;
     use crate::migrate_6::upgrade_5_to_6;
     use crate::migrate_7::upgrade_6_to_7;
     use crate::migrate_8::upgrade_7_to_8;
@@ -348,7 +347,7 @@ mod tests {
         let ten = crate::migrate_10::upgrade_9_to_10(&[(id, nine.projects[0].1.clone())]);
         let eleven = crate::migrate_11::upgrade_10_to_11(&[(id, ten.projects[0].1.clone())]);
         let mut head = eleven.projects[0].1.clone();
-        for (from, to) in [(11, 12), (12, 13), (13, 14), (14, 15), (15, 16)] {
+        for (from, to) in [(11, 12), (12, 13), (13, 14), (14, 15), (15, 16), (16, 17)] {
             head = remarked(&head, from, to).expect("marked");
         }
         let head = decode_head(&head).expect("a schema-5 head, upgraded");
@@ -374,7 +373,7 @@ mod tests {
         assert_eq!(key, EDITOR);
         let six = upgrade_5_to_6(&[], &[], Some(editor));
         let nine = upgrade_8_to_9(&[], Some(&six.library[0].1));
-        let editor = decode_editor(&nine.library[0].1).expect("a schema-4 toolbox, upgraded");
+        let editor = crate::migrate_17::upgraded_toolbox(&nine.library[0].1);
         assert_eq!((editor.tool, &editor.paint), (Tool::Brush, &pencil));
         assert_eq!(editor.erase.brush, "", "the default brush");
         assert_eq!((editor.color, editor.recent.len()), ([0.0; 3], 0));
