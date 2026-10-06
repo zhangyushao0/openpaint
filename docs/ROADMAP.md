@@ -57,8 +57,8 @@ Exit: the author completes edit, restore and delivery (W4). Passed 2026-10-05: t
 ## G5 Daily painting
 
 S38 Layer actions (thumbnails, duplicate, rename, drag to reorder), S39 Merge Down (a nested record, option (a), D66) and S40 Copy and paste (records, a three-finger swipe menu, D67) are done (see "Done"). Next, in order:
-- **S41 Pen buttons**: each button the pen reports (side buttons, an eraser end) is assignable by the author from a short list (nothing, eraser while held, eyedropper while held, undo, redo, switch brush and eraser); defaults eraser while held and eyedropper while held (author, 2026-10-05: configurable, not fixed); stored with the toolbox.
-- **S42 QuickShape and symmetry guides**; **S43 Palettes and hex colour entry**.
+- **S41 Pen buttons, palettes and hex entry** (personal settings, one slice): each button the pen reports (side buttons, an eraser end) is assignable by the author from a short list (nothing, eraser while held, eyedropper while held, undo, redo, switch brush and eraser); defaults eraser while held and eyedropper while held (author, 2026-10-05: configurable, not fixed); stored with the toolbox. Palettes: saved swatch sets in the colour panel and hex colour entry, also stored with the toolbox.
+- **S42 QuickShape and symmetry guides**. From S41 on (2026-10-05): small features share a slice, the tablet routine runs only for format, device-input or display changes and stage exits, UI-only work gets light tests.
 Exit: the author paints a real piece on the tablet.
 
 ## G6 Brushes
