@@ -25,6 +25,8 @@ fn frame(covers: &[ScreenArea]) -> CanvasFrame<'_> {
         drawing: false,
         buttons: openpaint_app::ButtonMap::default(),
         control: false,
+        handles: &[],
+        guide_centre: None,
     }
 }
 

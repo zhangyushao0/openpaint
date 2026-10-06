@@ -206,6 +206,38 @@ fn revise_replaces_the_end_and_keeps_the_first_sample() {
 }
 
 #[test]
+fn reshape_replaces_every_sample_the_first_too() {
+    let mut session = begin(&blank());
+    session.extend(&[sample(1.0, 4), sample(2.0, 8)]).unwrap();
+    let invalid = Err(CoreError::InvalidValue {
+        what: "reshaped samples",
+    });
+    assert_eq!(session.reshape(&[]), invalid);
+    let back = session.reshape(&[sample(5.0, 8), sample(6.0, 4)]);
+    assert!(
+        matches!(back, Err(CoreError::SampleOrder { .. })),
+        "{back:?}"
+    );
+    assert_eq!(
+        session.active().samples().len(),
+        3,
+        "a refusal changes nothing"
+    );
+    session
+        .reshape(&[
+            sample(5.0, 0),
+            sample(6.0, 4),
+            sample(7.0, 8),
+            sample(8.0, 12),
+        ])
+        .unwrap();
+    let finished = session.finish().artwork;
+    let stroke = finished.layers()[0].strokes().last().unwrap().clone();
+    let xs: Vec<f32> = stroke.samples().iter().map(|s| s.position().x()).collect();
+    assert_eq!(xs, [5.0, 6.0, 7.0, 8.0]);
+}
+
+#[test]
 fn extend_stops_at_the_sample_limit() {
     let mut session = begin(&blank());
     let batch = vec![sample(1.0, 1); MAX_STROKE_SAMPLES - 1];

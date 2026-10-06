@@ -26,7 +26,7 @@ impl Shell {
         let covers: Vec<ScreenArea> = [self.side.area(), self.reference.area(), panel]
             .into_iter()
             .chain([self.drop_bar, self.selection.area(), self.transform.area()])
-            .chain([self.adjust.area(), self.copy.area()])
+            .chain([self.adjust.area(), self.copy.area(), self.shape.area()])
             .flatten()
             .chain(self.islands.iter().copied())
             .collect();
@@ -44,6 +44,8 @@ impl Shell {
             drawing: shown.drawing,
             buttons: shown.buttons,
             control: !self.taps.is_empty(),
+            handles: &self.handles,
+            guide_centre: self.guide_centre,
         };
         let drop = DropFrame {
             swatch: self.panels.colors.button_area(),

@@ -176,6 +176,25 @@ impl StrokeSession {
         Ok(())
     }
 
+    /// Replaces every sample, the first too, with `samples`, oldest first: a stroke snapped to
+    /// the shape it resembles (QuickShape, S42). All or nothing.
+    ///
+    /// # Errors
+    /// `InvalidValue` when `samples` is empty; `SampleOrder` and `SampleLimit` as for `extend`.
+    pub fn reshape(&mut self, samples: &[StrokeSample]) -> Result<(), CoreError> {
+        if samples.is_empty() {
+            return Err(invalid("reshaped samples"));
+        }
+        if samples.len() > MAX_STROKE_SAMPLES {
+            return Err(CoreError::SampleLimit {
+                max: MAX_STROKE_SAMPLES,
+            });
+        }
+        check_order(None, samples)?;
+        self.active.samples = samples.to_vec();
+        Ok(())
+    }
+
     /// Commits the stroke to its layer as one new version of the base artwork.
     #[must_use]
     pub fn finish(self) -> Applied {

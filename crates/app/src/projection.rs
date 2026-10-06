@@ -12,6 +12,8 @@ use crate::gallery::GalleryProjection;
 use crate::layers::LayerList;
 use crate::selection::SelectionProjection;
 use crate::storage::StorageNotice;
+use crate::stroke::ShapeProjection;
+use crate::symmetry::Guide;
 use crate::tool_intent::BrushProjection;
 use crate::transfer::TransferProjection;
 use crate::transform::TransformProjection;
@@ -114,6 +116,9 @@ pub struct SessionProjection {
     pub(crate) adjust: Box<AdjustProjection>,
     /// The copy menu's commands in `ClipboardAction::ALL` order.
     pub(crate) clipboard: [Availability; 6],
+    /// The Drawing Guide, and the shape snapped last while it can be edited (S42).
+    pub(crate) guide: Guide,
+    pub(crate) shape: Option<Box<ShapeProjection>>,
     pub(crate) brush: Option<BrushProjection>,
     /// Boxed: rarely more than a notice, but its errors are large.
     pub(crate) transfers: Option<Box<TransferProjection>>,
@@ -204,6 +209,18 @@ impl SessionProjection {
     #[must_use]
     pub fn adjust(&self) -> &AdjustProjection {
         &self.adjust
+    }
+
+    /// The Drawing Guide: on or off, its symmetry and centre (S42).
+    #[must_use]
+    pub const fn guide(&self) -> Guide {
+        self.guide
+    }
+
+    /// The shape the last stroke snapped to, while it can be edited (S42).
+    #[must_use]
+    pub fn shape(&self) -> Option<&ShapeProjection> {
+        self.shape.as_deref()
     }
 
     /// What to tell the user about saving and opening.
@@ -301,6 +318,8 @@ impl Default for SessionProjection {
             transform: Box::default(),
             adjust: Box::default(),
             clipboard: [Availability::NothingLeft; 6],
+            guide: Guide::default(),
+            shape: None,
             brush: None,
             transfers: None,
         }

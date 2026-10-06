@@ -143,7 +143,7 @@ fn a_stroke_step_takes_its_lift_palm_and_sparse_samples() {
         "density": 2,
         "steps": [
             { "stroke": { "points": [[1, 2, 0.5]], "lift": [3, 4],
-                          "palm": { "at": [5, 6], "lands": "during" }, "sparse": true,
+                          "palm": { "at": [5, 6], "lands": "during" }, "sparse": true, "hold_ms": 600,
                           "pen": "secondary" } },
             { "hover": { "at": [7, 8], "pen": "eraser" } }
         ]
@@ -157,6 +157,7 @@ fn a_stroke_step_takes_its_lift_palm_and_sparse_samples() {
             lands: Lands::During,
         }),
         sparse: true,
+        hold_ms: 600,
         pen: Pen::Secondary,
     };
     let hover = Step::Hover {

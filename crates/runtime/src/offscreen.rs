@@ -2,6 +2,7 @@
 //! reading them and the canvas back, and the fixed clock that makes motion deterministic in
 //! scenarios (D44).
 
+use openpaint_core::{ActiveStroke, Artwork};
 use openpaint_render::{RenderError, RgbaImage, ScreenPainter, ScreenTarget};
 use openpaint_ui::ControlMap;
 
@@ -65,6 +66,14 @@ impl Runtime {
             Some(canvas) => Ok(Some(canvas.target().read(&self.core)?)),
             None => Ok(None),
         }
+    }
+
+    /// What the canvas evaluates now: the artwork shown (with a stroke's mirrored copies or a
+    /// preview) and the stroke being drawn, for tests to evaluate cold.
+    #[must_use]
+    pub fn drawn(&self) -> Option<(Artwork, Option<ActiveStroke>)> {
+        let session = self.screen.canvas()?.session();
+        Some((session.shown().clone(), session.active().cloned()))
     }
 
     /// One offscreen frame of `size` pixels, read back.

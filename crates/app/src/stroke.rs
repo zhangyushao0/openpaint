@@ -8,7 +8,10 @@
 //!
 //! The stroke follows the pen through its StreamLine (`streamline.rs`), frozen when the stroke
 //! begins: the samples stored are the smoothed line, and the lift moves the line's end onto the
-//! pen before the stroke is committed (not a smudge's: its line follows strictly, D46).
+//! pen before the stroke is committed (not a smudge's: its line follows strictly, D46). Held
+//! still at its end, it snaps to the shape it resembles (QuickShape, `stroke_shape.rs`); with
+//! the Drawing Guide on, it is drawn again mirrored, each copy a stroke of its own committed
+//! with it as one step (`stroke_copies.rs`).
 
 use openpaint_core::{
     ActiveStroke, Artwork, CanvasPoint, RegionMask, StrokeSample, StrokeSession, StrokeStyle,
@@ -16,13 +19,31 @@ use openpaint_core::{
 };
 
 use crate::error::AppError;
+use crate::history::History;
 use crate::input::{Contact, ContactPhase, Device, InputSample};
 use crate::streamline::{Follower, StreamLine, catch_up};
+use crate::symmetry::{Guide, GuideIntent, Mirror};
+
+#[path = "stroke_copies.rs"]
+mod copies;
+#[path = "stroke_shape.rs"]
+mod shape;
+
+pub use shape::ShapeProjection;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum StrokeIntent {
     /// A contact the canvas owns; positions in canvas pixels.
     Contact(Contact),
+    /// The pen is still drawing at `now_ms` (the input clock), sent every frame while it is on
+    /// the glass; it holds still while it stays within `still` canvas pixels (QuickShape).
+    Hold { now_ms: i64, still: f32 },
+    /// Shows the handles of the shape just snapped (true), or is done with it (false).
+    EditShape(bool),
+    /// Drags handle `handle` of the shape just snapped to `to` (canvas pixels).
+    MoveHandle { handle: usize, to: [f32; 2] },
+    /// The Drawing Guide's controls.
+    Guide(GuideIntent),
 }
 
 /// The stroke being drawn and the contact drawing it.
@@ -35,23 +56,41 @@ struct Drawing {
     /// The line's end on its leash, and the pen's last position on the glass.
     follower: Follower,
     pen: [f32; 2],
+    /// The style and selection it began with, for its mirrored copies (and a snapped shape
+    /// edited later).
+    style: StrokeStyle,
+    clip: Option<RegionMask>,
+    mirrors: Vec<Mirror>,
+    hold: shape::Hold,
 }
 
-/// The stroke intent's state: the style and StreamLine the next stroke starts with and the
-/// stroke in progress.
+/// The stroke intent's state: the style and StreamLine the next stroke starts with, the
+/// Drawing Guide, the stroke in progress and the shape snapped last.
 #[derive(Debug)]
 pub(crate) struct Strokes {
     style: StrokeStyle,
     streamline: StreamLine,
+    guide: Guide,
     drawing: Option<Drawing>,
+    /// The artwork with the mirrored copies of the stroke being drawn, which the canvas shows
+    /// under it.
+    preview: Option<Artwork>,
+    shaped: Option<shape::Shaped>,
+    /// The last intent changed what the canvas shows other than by drawing or committing the
+    /// stroke the renderer follows.
+    reshown: bool,
 }
 
 impl Strokes {
-    pub(crate) const fn new(style: StrokeStyle) -> Self {
+    pub(crate) fn new(style: StrokeStyle, guide: Guide) -> Self {
         Self {
             style,
             streamline: StreamLine::OFF,
+            guide,
             drawing: None,
+            preview: None,
+            shaped: None,
+            reshown: false,
         }
     }
 
@@ -71,15 +110,56 @@ impl Strokes {
             .map(|drawing| drawing.session.active())
     }
 
-    /// Applies `intent` to `artwork`, which changes only when a stroke is committed. A stroke
-    /// begun while `clip` is selected stays inside it.
+    /// The artwork with the stroke's mirrored copies, while one with copies is drawn.
+    pub(crate) const fn shown(&self) -> Option<&Artwork> {
+        self.preview.as_ref()
+    }
+
+    pub(crate) const fn guide(&self) -> Guide {
+        self.guide
+    }
+
+    /// Whether the last intent changed what shows other than by the stroke the renderer follows
+    /// (copies, a shape edited).
+    pub(crate) const fn reshown(&self) -> bool {
+        self.reshown
+    }
+
+    /// Applies `intent` to `history`, which changes only when a stroke is committed or a shape
+    /// just snapped is edited. A stroke begun while `clip` is selected stays inside it.
     pub(crate) fn handle(
         &mut self,
-        artwork: &mut Artwork,
+        history: &mut History,
         intent: StrokeIntent,
         clip: Option<&RegionMask>,
     ) -> Result<(), AppError> {
-        let StrokeIntent::Contact(contact) = intent;
+        self.reshown = false;
+        match intent {
+            StrokeIntent::Contact(contact) => {
+                let mut artwork = history.current().clone();
+                let result = self.contact(&mut artwork, contact, clip);
+                history.record(artwork);
+                result
+            }
+            StrokeIntent::Hold { now_ms, still } => self.hold(now_ms, still),
+            StrokeIntent::EditShape(on) => {
+                self.edit_shape(on);
+                Ok(())
+            }
+            StrokeIntent::MoveHandle { handle, to } => self.move_handle(history, handle, to),
+            StrokeIntent::Guide(guide) => {
+                self.guide.handle(guide, history.current().canvas());
+                Ok(())
+            }
+        }
+    }
+
+    fn contact(
+        &mut self,
+        artwork: &mut Artwork,
+        contact: Contact,
+        clip: Option<&RegionMask>,
+    ) -> Result<(), AppError> {
         if !matches!(contact.device, Device::Pen | Device::Eraser) {
             return Ok(());
         }
@@ -95,6 +175,7 @@ impl Strokes {
             ContactPhase::Cancel => {
                 if self.drawing_with(contact.id) {
                     self.drawing = None;
+                    self.reshown |= self.preview.take().is_some();
                 }
                 Ok(())
             }
@@ -117,9 +198,7 @@ impl Strokes {
         clip: Option<&RegionMask>,
     ) -> Result<(), AppError> {
         if let Some(open) = self.drawing.take() {
-            let (committed, result) = commit(open);
-            *artwork = committed;
-            result?;
+            self.commit(open, artwork)?;
         }
         let Some(first) = contact.samples.first() else {
             return Ok(());
@@ -138,6 +217,10 @@ impl Strokes {
             session,
             follower: Follower::new(leash, pen),
             pen,
+            style: self.style.clone(),
+            clip: clip.cloned(),
+            mirrors: self.guide.mirrors(),
+            hold: shape::Hold::default(),
         });
         let rest = Contact {
             samples: contact.samples[1..].to_vec(),
@@ -154,6 +237,12 @@ impl Strokes {
         if drawing.contact != contact.id {
             return Ok(());
         }
+        if let Some(last) = contact.samples.last()
+            && drawing.hold.snapped()
+        {
+            drawing.pen = last.position;
+            return self.follow_snapped();
+        }
         let mut follower = drawing.follower;
         let samples = contact
             .samples
@@ -168,6 +257,9 @@ impl Strokes {
         if let Some(last) = contact.samples.last() {
             drawing.pen = last.position;
         }
+        if !samples.is_empty() {
+            self.show_copies()?;
+        }
         Ok(())
     }
 
@@ -175,27 +267,29 @@ impl Strokes {
         if self.drawing_with(contact)
             && let Some(drawing) = self.drawing.take()
         {
-            let (committed, result) = commit(drawing);
-            *artwork = committed;
-            return result;
+            return self.commit(drawing, artwork);
         }
         Ok(())
     }
-}
 
-/// Commits `drawing` with its line's end moved onto the pen's last position on the glass. If
-/// the moved end is refused (it cannot be: it lies between the line and the pen), the stroke is
-/// committed as drawn and the refusal returned. A smudge keeps its end where the line got to,
-/// as draweave's: the colour it already carried cannot be carried again along a moved end, and
-/// it commits exactly what was shown.
-fn commit(mut drawing: Drawing) -> (Artwork, Result<(), AppError>) {
-    let smudge = drawing.session.active().style().tool() == StrokeTool::Smudge;
-    let result = if smudge {
-        Ok(())
-    } else {
-        catch_up_with_pen(&mut drawing)
-    };
-    (drawing.session.finish().artwork, result)
+    /// Commits `drawing` (with its copies) into `artwork`. Its line's end moves onto the pen's
+    /// last position on the glass first, unless it snapped to a shape or smudges: a smudge keeps
+    /// its end where the line got to, as draweave's: the colour it already carried cannot be
+    /// carried again along a moved end, and it commits exactly what was shown. If the moved end
+    /// is refused (it cannot be: it lies between the line and the pen), the stroke is committed
+    /// as drawn and the refusal returned.
+    fn commit(&mut self, mut drawing: Drawing, artwork: &mut Artwork) -> Result<(), AppError> {
+        let smudge = drawing.session.active().style().tool() == StrokeTool::Smudge;
+        let moved = if smudge || drawing.hold.snapped() {
+            Ok(())
+        } else {
+            catch_up_with_pen(&mut drawing)
+        };
+        self.reshown |= self.preview.take().is_some();
+        *artwork = drawing.copies().committed(&drawing.session)?;
+        self.shaped = shape::Shaped::of(drawing);
+        moved
+    }
 }
 
 fn catch_up_with_pen(drawing: &mut Drawing) -> Result<(), AppError> {

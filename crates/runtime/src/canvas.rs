@@ -160,7 +160,8 @@ impl Canvas {
                 self.session.set_streamline(toolbox.streamline());
                 continue;
             }
-            // Committing a stroke is followed by the evaluator itself (D17).
+            // Committing a stroke is followed by the evaluator itself (D17), but not its mirrored
+            // copies or a snapped shape edited (S42).
             let stroke = matches!(intent, Intent::Stroke(_));
             let gallery = matches!(intent, Intent::Gallery(_));
             let before = self.session.shown().clone();
@@ -170,7 +171,7 @@ impl Canvas {
             };
             match result {
                 Ok(()) if gallery => self.leaving = Leaving::Waiting,
-                Ok(()) if !stroke => {
+                Ok(()) if !stroke || self.session.stroke_reshown() => {
                     self.changed_from.get_or_insert(before);
                 }
                 Ok(()) => {}

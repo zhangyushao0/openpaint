@@ -178,23 +178,32 @@ fn within(a: [f32; 4], b: [f32; 4]) -> [f32; 4] {
     ]
 }
 
-/// The segments of the strokes the longer list has beyond the shorter, when the shorter is its
-/// prefix, as for a version and one it was built from (lists only grow at the end, so sharing
-/// the shorter list's last stroke means sharing all of it). `None` when the lists diverge, as
-/// two branches of a history do even where their stroke ids agree.
+/// The segments of the strokes either list has beyond their common start, when they share all
+/// but at most their last `DIVERGED` strokes: a version and one it was built from, two branches
+/// of a history, a stroke's mirrored copies redrawn as it grows, a snapped shape edited (S42).
+/// Lists only grow at the end, so sharing a stroke means sharing every one before it. `None`
+/// when they diverge earlier.
 fn tail_regions(a: &StrokeList, b: &StrokeList) -> Option<Vec<PixelRect>> {
-    let (short, long) = if a.len() <= b.len() { (a, b) } else { (b, a) };
-    if let Some(last) = short.last() {
-        let same = long.get(short.len() - 1)?;
-        if !same.shares_samples(last) {
-            return None;
-        }
-    }
-    let tail = long
-        .since(short.len())
+    let shortest = a.len().min(b.len());
+    let shares = |count: usize| {
+        count == 0
+            || a.get(count - 1)
+                .zip(b.get(count - 1))
+                .is_some_and(|(x, y)| x.shares_samples(y))
+    };
+    let common = (shortest.saturating_sub(DIVERGED)..=shortest)
+        .rev()
+        .find(|count| shares(*count))?;
+    let tail = a
+        .since(common)
+        .chain(b.since(common))
         .flat_map(|stroke| segment_regions(stroke.style(), stroke.samples()));
     Some(tail.collect())
 }
+
+/// How many last strokes two lists may differ in for `tail_regions` (the radial guide's seven
+/// copies and the stroke, twice over).
+const DIVERGED: usize = 16;
 
 #[cfg(test)]
 mod tests {
@@ -285,14 +294,22 @@ mod tests {
     }
 
     #[test]
-    fn layer_changes_and_diverging_strokes_are_the_whole_canvas() {
-        let base = blank();
+    fn layer_changes_are_the_whole_canvas_and_branches_only_their_strokes() {
+        let base = draw(&blank(), 150.0);
         let full = vec![PixelRect::full([200, 40])];
         let command = ArtworkCommand::Layer(LayerCommand::Create);
         let layered = base.apply(command).expect("create").artwork;
         assert_eq!(changed_regions(&base, &layered), full);
+        // Two branches from `base`, or a last stroke replaced (a copy redrawn, a shape edited):
+        // both strokes, never the one they share.
         let left = draw(&base, 0.0);
-        let right = draw(&base, 100.0);
-        assert_eq!(changed_regions(&left, &right), full);
+        let right = draw(&base, 60.0);
+        let both = changed_regions(&left, &right);
+        assert_eq!(both.len(), 2, "{both:?}");
+        assert!(both.iter().all(|r| r.max[0] <= 100), "{both:?}");
+        assert_eq!(
+            changed_regions(&draw(&left, 0.0), &draw(&right, 0.0)).len(),
+            4
+        );
     }
 }

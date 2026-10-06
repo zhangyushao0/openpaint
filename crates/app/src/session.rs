@@ -19,6 +19,7 @@ use crate::selection::Selection;
 use crate::storage::{Autosave, StorageIntent};
 use crate::streamline::StreamLine;
 use crate::stroke::Strokes;
+use crate::symmetry::Guide;
 use crate::transform::Transforms;
 
 #[path = "session_adjust.rs"]
@@ -57,10 +58,11 @@ impl Session {
     /// `artwork` as the store holds it, with an empty history (history is not stored).
     #[must_use]
     pub fn open(artwork: Artwork, brush: StrokeStyle) -> Self {
+        let guide = Guide::new(artwork.canvas());
         Self {
             autosave: Autosave::new(artwork.clone()),
             history: History::new(artwork, HISTORY_BUDGET),
-            strokes: Strokes::new(brush),
+            strokes: Strokes::new(brush, guide),
             layers: Layers::default(),
             fills: Fills::default(),
             selection: Selection::default(),
@@ -127,11 +129,8 @@ impl Session {
         }
         match intent {
             Intent::Stroke(stroke) => {
-                let mut artwork = self.history.current().clone();
                 let clip = self.selection.mask();
-                let result = self.strokes.handle(&mut artwork, stroke, clip);
-                self.history.record(artwork);
-                result
+                self.strokes.handle(&mut self.history, stroke, clip)
             }
             Intent::Selection(selection) => {
                 let canvas = self.artwork().canvas();
@@ -172,13 +171,14 @@ impl Session {
         self.strokes.active()
     }
 
-    /// What the canvas shows: the current version, or the preview of the transform, the
-    /// adjustment or the fill being placed on it (which is not in history).
+    /// What the canvas shows: the current version, or the preview of the stroke's mirrored
+    /// copies, the transform, the adjustment or the fill being placed on it (not in history).
     #[must_use]
     pub fn shown(&self) -> &Artwork {
         let current = self.history.current();
-        self.transforms
-            .shown(current)
+        let copies = self.strokes.shown();
+        copies
+            .or_else(|| self.transforms.shown(current))
             .or_else(|| self.adjusts.shown(current))
             .or_else(|| self.fills.shown(current))
             .unwrap_or(current)
@@ -256,6 +256,8 @@ impl Session {
             transform: Box::new(self.transforms.projection()),
             adjust: Box::new(self.adjusts.projection()),
             clipboard: crate::clipboard::offered(artwork, drawing),
+            guide: self.strokes.guide(),
+            shape: self.strokes.shape().map(Box::new),
             brush: None,
             transfers: None,
         }

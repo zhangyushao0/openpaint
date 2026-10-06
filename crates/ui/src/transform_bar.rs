@@ -180,10 +180,17 @@ impl TransformBar {
             ink_line(&painter, &stem, Stroke::new(width, color));
         }
         for corner in handles.corners {
-            painter.circle(at(corner), HANDLE, paper, Stroke::new(LINE, ink));
+            handle_mark(&painter, at(corner), shown);
         }
         painter.circle(at(handles.turn), HANDLE, ink, Stroke::new(LINE, paper));
     }
+}
+
+/// A handle's mark at `at` (points), faded to `shown`: a paper disc in an ink ring. The
+/// Transform tool's corners and a snapped shape's handles (S42) share it.
+pub(crate) fn handle_mark(painter: &egui::Painter, at: Pos2, shown: f32) {
+    let (ink, paper) = (INK.gamma_multiply(shown), PANEL.gamma_multiply(shown));
+    painter.circle(at, HANDLE, paper, Stroke::new(LINE, ink));
 }
 
 /// egui may run a pass twice; one tap is sent once.

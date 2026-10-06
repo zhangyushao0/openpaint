@@ -69,6 +69,9 @@ pub enum Step {
         /// A sample at each point and none between: a fast stroke's sparse samples (S34).
         #[serde(default)]
         sparse: bool,
+        /// Milliseconds the pen rests at the last point before it lifts (QuickShape, S42).
+        #[serde(default)]
+        hold_ms: u32,
         /// The tip with a side button held, or the eraser end (S41); the tip by default.
         #[serde(default)]
         pen: Pen,

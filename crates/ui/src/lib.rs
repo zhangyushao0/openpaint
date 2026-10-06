@@ -28,6 +28,8 @@ mod pen_marks;
 mod reference_touch;
 mod reference_window;
 mod selection_bar;
+mod shape_bar;
+mod shape_drag;
 mod sheet;
 mod shell;
 mod side_bar;

@@ -43,10 +43,9 @@ pub(crate) struct Step {
     pub(crate) kept: Range<usize>,
     /// The pixels to evaluate for the stroke: the new spans, the tail and the tail drawn last.
     pub(crate) fresh_region: Option<PixelRect>,
-    /// Pixels to evaluate again from the scene when the tracked stroke is gone. Dropped (the
-    /// artwork stayed the same version): everything it drew. Committed: what its spans gained
-    /// or changed after its last evaluation. Anything else: nothing, the caller names its own
-    /// changes.
+    /// Pixels to evaluate again from the scene when the tracked stroke is gone. Committed (the
+    /// last stroke of its layer): what its spans gained or changed after its last evaluation.
+    /// Dropped: everything it drew; the caller names its own changes besides.
     pub(crate) redraw: Option<PixelRect>,
 }
 
@@ -173,7 +172,8 @@ impl Tracked {
     /// it may have gained samples after its last evaluation, and its end may have moved as it
     /// lifted (StreamLine catching up with the pen): where it differs from what was drawn, both
     /// the old spans and the new are evaluated again; a smudge committed as drawn also shows its
-    /// tail now. Its first sample never changes.
+    /// tail now. A stroke whose samples were replaced whole (snapped to a shape, S42) was
+    /// tracked anew from then on.
     fn gone(&self, artwork: &Artwork) -> Option<PixelRect> {
         if artwork.same_version(&self.base) {
             return self.region;
@@ -192,7 +192,9 @@ impl Tracked {
             .count();
         let committed = *stroke.style() == self.style && shared > 0;
         if !committed {
-            return None;
+            // Dropped while the version under it changed (its mirrored copies went with it,
+            // S42): everything it drew.
+            return self.region;
         }
         let smudge = self.style.tool() == StrokeTool::Smudge;
         if shared == samples.len() && shared == self.samples.len() {

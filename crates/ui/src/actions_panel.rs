@@ -4,19 +4,20 @@
 //! opens the copy menu (S40, `copy_bar.rs`); under
 //! "Share", saving the artwork as a PNG or JPEG file where the user chooses and sending it to
 //! another app; under "Canvas", the Reference switch that shows the floating reference window
-//! and the row that chooses its image; under "Pen", Pen buttons, which shows its page in the
+//! and the row that chooses its image, and the Drawing Guide (its switch and symmetries, S42);
+//! under "Pen", Pen buttons, which shows its page in the
 //! panel's place (S41, `pen_buttons_page.rs`). A row that opens a system dialog closes the
 //! panel; the switch and the page leave it open. Any contact landing on the canvas outside
 //! closes it.
 
 use openpaint_app::{
-    Delivery, EditorAction, ExportIntent, ExportScale, ImageFormat, InsertIntent, Intent,
-    ReferenceIntent, SessionProjection,
+    Delivery, EditorAction, ExportIntent, ExportScale, Guide, GuideIntent, ImageFormat,
+    InsertIntent, Intent, ReferenceIntent, SessionProjection, StrokeIntent, Symmetry,
 };
 
 use crate::components::{
     Opener, ScreenArea, choices, hint, icon_toggle, menu_row, popover_left, section, switch_row,
-    text_choice,
+    text_choice, text_choice_wide,
 };
 use crate::design::{Icon, SPACE, TOUCH_TARGET};
 use crate::pen_buttons_page::{pen_buttons_page, summary};
@@ -108,6 +109,7 @@ impl ActionsPanel {
                 push(taps, Intent::Reference(ReferenceIntent::Choose));
                 close = true;
             }
+            guide_rows(ui, projection.guide(), taps);
             if let Some(buttons) = buttons {
                 section(ui, "Pen");
                 if menu_row(ui, "Pen buttons", &summary(buttons), true).clicked() {
@@ -198,6 +200,34 @@ impl ActionsPanel {
         self.open = false;
         self.pen_page = false;
         self.area = None;
+    }
+}
+
+/// The Drawing Guide (S42): its switch, then its symmetries as words in two columns, the one in
+/// use in the ink pill while it is on (a word tapped turns it on with that symmetry), and while
+/// it is on how to move its centre.
+fn guide_rows(ui: &mut egui::Ui, guide: Guide, taps: &mut Vec<Intent>) {
+    let intent = |guide| Intent::Stroke(StrokeIntent::Guide(guide));
+    if switch_row(ui, "Drawing Guide", guide.on, true).clicked() {
+        push(taps, intent(GuideIntent::Show(!guide.on)));
+    }
+    let half = ((ui.available_width() - 2.0 * SPACE) / 2.0).floor();
+    choices(ui, "symmetry", |ui, group| {
+        for pair in Symmetry::ALL.chunks(2) {
+            ui.horizontal(|ui| {
+                ui.add_space(2.0 * SPACE);
+                for symmetry in pair {
+                    let on = guide.on && guide.symmetry == *symmetry;
+                    let word = text_choice_wide(ui, group, symmetry.label(), (true, on), half);
+                    if word.clicked() && !on {
+                        push(taps, intent(GuideIntent::Symmetry(*symmetry)));
+                    }
+                }
+            });
+        }
+    });
+    if guide.on {
+        hint(ui, "A finger moves the centre.");
     }
 }
 

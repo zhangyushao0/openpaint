@@ -7,8 +7,17 @@ use crate::adjust::AdjustIntent;
 use crate::error::AppError;
 use crate::intent::Intent;
 use crate::selection::SelectionIntent;
+use crate::stroke::StrokeIntent;
 
 impl Session {
+    /// Whether the last stroke intent changed what the canvas shows beyond the stroke the
+    /// renderer follows (its mirrored copies, a shape edited, S42): the caller then evaluates
+    /// what changed between the two versions shown.
+    #[must_use]
+    pub const fn stroke_reshown(&self) -> bool {
+        self.strokes.reshown()
+    }
+
     /// True while an adjustment is under way.
     #[must_use]
     pub const fn adjusting(&self) -> bool {
@@ -52,6 +61,19 @@ impl Session {
     /// way as it shows, and anything but a transform's own steps commits a transform where it
     /// shows; navigation, history and storage end neither.
     pub(super) fn end_drafts(&mut self, intent: &Intent) {
+        // The shape snapped last stays editable through its own steps, navigation and saving.
+        let shaping = matches!(
+            intent,
+            Intent::Stroke(
+                StrokeIntent::EditShape(true)
+                    | StrokeIntent::MoveHandle { .. }
+                    | StrokeIntent::Hold { .. }
+            ) | Intent::View(_)
+                | Intent::Storage(_)
+        );
+        if !shaping {
+            self.strokes.end_shape();
+        }
         let neither = matches!(
             intent,
             Intent::View(_) | Intent::History(_) | Intent::Storage(_)

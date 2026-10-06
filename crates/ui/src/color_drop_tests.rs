@@ -33,6 +33,8 @@ fn frame(now_ms: i64) -> CanvasFrame<'static> {
         drawing: false,
         buttons: openpaint_app::ButtonMap::default(),
         control: false,
+        handles: &[],
+        guide_centre: None,
     }
 }
 

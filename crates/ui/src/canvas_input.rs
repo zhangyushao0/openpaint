@@ -19,6 +19,7 @@ use openpaint_core::CanvasSize;
 
 use crate::components::{CanvasArea, ScreenArea};
 use crate::selection_bar::CLOSE_POINTS;
+use crate::shape_drag::Grips;
 use crate::transform_bar::Handles;
 use crate::transform_drag::{TransformDrag, gesture_placement};
 
@@ -46,6 +47,10 @@ pub(crate) struct CanvasFrame<'a> {
     pub(crate) buttons: ButtonMap,
     /// A control took a contact this frame.
     pub(crate) control: bool,
+    /// The handles of the shape being edited and the Drawing Guide's centre while it is on, in
+    /// canvas pixels (S42).
+    pub(crate) handles: &'a [[f32; 2]],
+    pub(crate) guide_centre: Option<[f32; 2]>,
 }
 
 impl CanvasFrame<'_> {
@@ -84,7 +89,14 @@ pub(crate) struct CanvasInput {
     buttons: ButtonTracker,
     /// Contacts on the Transform tool's frame.
     drag: TransformDrag,
+    /// Contacts on a snapped shape's handles and the guide's centre (S42).
+    grips: Grips,
+    /// The pen contact drawing a stroke, which holds still for QuickShape.
+    stroking: Option<i32>,
 }
+
+/// How far the pen may wander, in points, and still hold still (QuickShape, S42).
+const STILL_POINTS: f32 = 5.0;
 
 impl CanvasInput {
     /// The intents of `batches`: stroke contacts first, in order, then what the fingers did.
@@ -105,6 +117,12 @@ impl CanvasInput {
                 pen |= self.contact(contact, frame, &mapping, (&mut intents, &mut touches));
             }
             intents.extend(self.buttons.after(batch, frame.buttons));
+        }
+        if self.stroking.is_some() {
+            // Every frame, so a pen resting without events still holds (QuickShape).
+            let still = STILL_POINTS * frame.pixels_per_point / mapping.scale();
+            let now_ms = frame.now_ms;
+            intents.push(Intent::Stroke(StrokeIntent::Hold { now_ms, still }));
         }
         let gestured = if frame.picking || frame.control {
             self.gestures.reset();
@@ -134,6 +152,10 @@ impl CanvasInput {
         self.follow(contact, frame);
         let first = contact.samples.first().map(|sample| sample.position);
         let open = contact.phase == ContactPhase::Down && first.is_some_and(|at| frame.open(at));
+        if let Some(mut taken) = self.grips.route(contact, frame, mapping, open) {
+            intents.append(&mut taken);
+            return false;
+        }
         if let Some(mut taken) = self.transform_contact(contact, frame, mapping, open) {
             intents.append(&mut taken);
             return false;
@@ -158,6 +180,9 @@ impl CanvasInput {
         let ends = matches!(contact.phase, ContactPhase::Up | ContactPhase::Cancel);
         if ends {
             self.owned.retain(|id| *id != contact.id);
+        }
+        if pen && !frame.picking && !frame.selecting {
+            self.stroking = (!ends).then_some(contact.id);
         }
         let at = contact.samples.last().map(|sample| sample.position);
         self.track(at.filter(|_| !ends), frame);
@@ -295,9 +320,10 @@ impl CanvasInput {
         std::mem::take(&mut self.copy_menu)
     }
 
-    /// True while fingers rest for a shortcut that repeats: frames must keep coming.
+    /// True while fingers rest for a shortcut that repeats, or the pen draws (it may hold still
+    /// for QuickShape without sending events): frames must keep coming.
     pub(crate) fn holding(&self) -> bool {
-        self.gestures.holding()
+        self.gestures.holding() || self.stroking.is_some()
     }
 }
 

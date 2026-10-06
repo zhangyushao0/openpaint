@@ -213,8 +213,12 @@ impl Runner<'_> {
                 lift,
                 palm,
                 sparse,
+                hold_ms,
                 pen,
-            } => pen::held(gesture::stroke((points, *sparse), *lift, *palm, now), *pen),
+            } => {
+                let path = (points.as_slice(), *sparse, *hold_ms);
+                pen::held(gesture::stroke(path, *lift, *palm, now), *pen)
+            }
             Step::Touch { from, to, ms } => {
                 let from = self.spots(runtime, from)?;
                 let to = match to {

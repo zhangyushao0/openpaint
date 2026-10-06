@@ -34,6 +34,7 @@ use crate::panels::Panels;
 use crate::pen_marks;
 use crate::reference_window::ReferenceWindow;
 use crate::selection_bar::{self, SelectionBar};
+use crate::shape_bar::{self, ShapeBar};
 use crate::sheet::{self, Showing};
 use crate::side_bar::SideBar;
 use crate::transform_bar::TransformBar;
@@ -83,6 +84,12 @@ pub struct Shell {
     transform: TransformBar,
     adjust: AdjustPanel,
     copy: CopyBar,
+    /// QuickShape's pill (S42).
+    shape: ShapeBar,
+    /// The shape's handles while it is edited and the guide's centre while it is on, in canvas
+    /// pixels, from the last pass (S42).
+    handles: Vec<[f32; 2]>,
+    guide_centre: Option<[f32; 2]>,
     reference: ReferenceWindow,
     pub(crate) drop: ColorDrop,
     /// Where the fill bar lies, from the last pass.
@@ -210,7 +217,15 @@ impl Shell {
             selection_bar::show_path(&ctx, projection, &shown, self.pixels_per_point);
             let ppp = self.pixels_per_point;
             self.transform.show_frame(&ctx, projection, &shown, ppp);
+            shape_bar::show_marks(&ctx, projection, &shown, ppp);
         }
+        let editing = projection.shape().filter(|shape| shape.editing);
+        self.handles = editing
+            .map(|shape| shape.handles.clone())
+            .unwrap_or_default();
+        let guide = projection.guide();
+        self.guide_centre = guide.on.then_some(guide.centre);
+        self.shape.show(&ctx, projection, &mut self.taps);
         sheet::show_view(self, &ctx, &area);
         self.top_islands(&ctx, projection);
         self.selection.show(&ctx, projection, &mut self.taps);
