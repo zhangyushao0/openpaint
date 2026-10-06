@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use crate::adjust::AdjustEdit;
 use crate::artwork::Artwork;
+use crate::clear::ClearEdit;
 use crate::command::{Applied, Change};
 use crate::error::CoreError;
 use crate::nested::NestedEdit;
@@ -181,13 +182,14 @@ impl PartialEq for RegionMask {
 }
 
 /// What was done to a layer's pixels, at its place among the layer's strokes: a fill, a
-/// transform, an adjustment or (S39) a layer merged into this one.
+/// transform, an adjustment, (S39) a layer merged into this one or (S40) pixels cleared.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RegionEdit {
     Fill(FillEdit),
     Transform(TransformEdit),
     Adjust(AdjustEdit),
     Nested(NestedEdit),
+    Clear(ClearEdit),
 }
 
 impl RegionEdit {
@@ -199,6 +201,15 @@ impl RegionEdit {
             Self::Transform(transform) => transform.after,
             Self::Adjust(adjust) => adjust.after,
             Self::Nested(nested) => nested.after,
+            Self::Clear(clear) => clear.after,
+        }
+    }
+
+    #[must_use]
+    pub const fn clear(&self) -> Option<&ClearEdit> {
+        match self {
+            Self::Clear(clear) => Some(clear),
+            _ => None,
         }
     }
 
@@ -248,6 +259,7 @@ impl RegionEdit {
             (Self::Transform(a), Self::Transform(b)) => a.same(b),
             (Self::Adjust(a), Self::Adjust(b)) => a.same(b),
             (Self::Nested(a), Self::Nested(b)) => a.same(b),
+            (Self::Clear(a), Self::Clear(b)) => a.after == b.after && a.mask.shares(&b.mask),
             _ => false,
         }
     }
@@ -285,6 +297,7 @@ impl RegionEdit {
                 adjust.clip.as_ref().map_or(0, |clip| mask(clip, old))
             }
             Self::Nested(nested) => nested.bytes_since(old.and_then(Self::nested)),
+            Self::Clear(clear) => mask(&clear.mask, old.and_then(Self::clear).map(|o| &o.mask)),
         }
     }
 }

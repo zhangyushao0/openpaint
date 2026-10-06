@@ -12,8 +12,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use openpaint_app::{
-    BrushLibrary, HostAnswer, HostRequest, InputBatch, Intent, PalmRejection, ProjectStore,
-    ScreenProjection, SessionProjection, Toolbox, Transfers, TransformIntent,
+    BrushLibrary, Clipboard, HostAnswer, HostRequest, InputBatch, Intent, PalmRejection,
+    ProjectStore, ScreenProjection, SessionProjection, Toolbox, Transfers, TransformIntent,
 };
 use openpaint_core::Artwork;
 use openpaint_render::{Core, ScreenPainter, ScreenTarget, Surface, SurfaceWindow, UiFrame};
@@ -67,6 +67,8 @@ pub struct Runtime {
     /// The brush, size and opacity: the app's, kept across artworks; the open session gets the
     /// style it makes.
     toolbox: Toolbox,
+    /// What was copied last (S40): the app's, kept across artworks, never stored.
+    clipboard: Clipboard,
     /// Export and the reference image: the app's, kept across artworks.
     transfers: Transfers,
     transfer: TransferWorker,
@@ -119,6 +121,7 @@ impl Runtime {
             screen: Screen::Opening(None),
             toolbox,
             transfers: Transfers::default(),
+            clipboard: Clipboard::default(),
             transfer: TransferWorker::start(Arc::clone(&core))?,
             fill: FillWorker::start(Arc::clone(&core))?,
             pictures: PictureWorker::start(Arc::clone(&core))?,
@@ -267,21 +270,6 @@ impl Runtime {
         }
     }
 
-    /// The device's offset from UTC in minutes now (the host's time zone), for the dates of kept
-    /// versions; 0 until the host says.
-    pub fn set_utc_offset(&mut self, minutes: i32) {
-        self.shell.set_utc_offset(minutes);
-    }
-
-    /// For debug builds only (`cargo device-input gradient on|off`, S37): the screen's precision
-    /// check over everything from the next frame on (a soft grey ramp, its upper half at 8 bits,
-    /// its lower half at the window's), or off again.
-    pub fn show_gradient(&mut self, on: bool) {
-        if let Some(painter) = &mut self.painter {
-            painter.show_gradient(&self.core, on);
-        }
-    }
-
     /// Runs one frame into the window. Returns whether another frame is wanted at once.
     pub fn frame(&mut self) -> Result<bool, RuntimeError> {
         let Some(size) = self.surface.as_ref().map(Surface::size) else {
@@ -317,7 +305,8 @@ impl Runtime {
     /// What the whole screen offers: the canvas, the gallery, or nothing yet.
     #[must_use]
     pub fn screen(&self) -> ScreenProjection {
-        self.screen.projection(&self.toolbox, &self.transfers)
+        let app = (&self.transfers, &self.clipboard);
+        self.screen.projection(&self.toolbox, app)
     }
 
     /// True while the frame loop waits for something without input: the storage, transfer,
@@ -371,7 +360,8 @@ impl Runtime {
         self.screen.open(&self.core, area, &self.toolbox)?;
         match &mut self.screen {
             Screen::Canvas(canvas) => {
-                canvas.dispatch(&self.core, intents, &mut self.toolbox);
+                let app = (&mut self.toolbox, &mut self.clipboard);
+                canvas.dispatch(&self.core, intents, app);
                 self.fill.step(canvas);
                 self.pictures.step(canvas, &mut self.shell);
             }

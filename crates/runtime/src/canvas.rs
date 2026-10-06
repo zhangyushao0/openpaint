@@ -4,8 +4,8 @@
 use std::time::Instant;
 
 use openpaint_app::{
-    Contact, ContactPhase, FillFailed, Intent, LiftFailed, SelectionIntent, Session, StrokeIntent,
-    Thumbnail, Title, ToolIntent, Toolbox, TransformJob, ViewMapping,
+    Clipboard, Contact, ContactPhase, FillFailed, Intent, LiftFailed, SelectionIntent, Session,
+    StrokeIntent, Thumbnail, Title, ToolIntent, Toolbox, TransformJob, ViewMapping,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, Patch, RegionMask, StrokeTool};
 use openpaint_render::{
@@ -109,8 +109,14 @@ impl Canvas {
     /// sample must not stop the frame. A gallery intent the session allows starts leaving;
     /// while leaving, nothing else is applied. Brush and tool intents go to `toolbox`, and the
     /// session draws its next stroke with the style that results. While the eyedropper is on,
-    /// canvas contacts pick colours instead of drawing (`pick`).
-    pub(crate) fn dispatch(&mut self, core: &Core, intents: Vec<Intent>, toolbox: &mut Toolbox) {
+    /// canvas contacts pick colours instead of drawing (`pick`). The copy menu's commands copy
+    /// into and paste from `clipboard`, the app's.
+    pub(crate) fn dispatch(
+        &mut self,
+        core: &Core,
+        intents: Vec<Intent>,
+        (toolbox, clipboard): (&mut Toolbox, &mut Clipboard),
+    ) {
         for intent in intents {
             if self.leaving != Leaving::Staying {
                 return;
@@ -154,7 +160,11 @@ impl Canvas {
             let stroke = matches!(intent, Intent::Stroke(_));
             let gallery = matches!(intent, Intent::Gallery(_));
             let before = self.session.shown().clone();
-            match self.session.dispatch(intent) {
+            let result = match intent {
+                Intent::Clipboard(action) => self.session.clipboard(action, clipboard),
+                intent => self.session.dispatch(intent),
+            };
+            match result {
                 Ok(()) if gallery => self.leaving = Leaving::Waiting,
                 Ok(()) if !stroke => {
                     self.changed_from.get_or_insert(before);

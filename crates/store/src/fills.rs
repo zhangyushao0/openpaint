@@ -1,7 +1,7 @@
 //! Region edit records (schema 8, DECISIONS D36, D45): one per fill, transform or (schema 12)
 //! adjustment, keyed like strokes, `[project u64]['f'][layer u64][index u64]`, oldest at index
 //! 0. A value starts with its kind (u8: 0 fill, 1 transform with pixels, 2 adjustment,
-//! `adjusts.rs`, 3 transform record, 4 a merged layer, `nested.rs`).
+//! `adjusts.rs`, 3 transform record, 4 a merged layer, `nested.rs`, 5 pixels cleared).
 //!
 //! A fill: after (u32: the strokes under it), red, green, blue (f32), alpha locked (u8), its
 //! mask (`write_mask`: rectangle, run count, runs as LEB128 varints). A closed shape costs a
@@ -15,6 +15,9 @@
 //!
 //! A transform record (schema 13, D57): after, what it moved and its placement as above, and
 //! nothing more: its content is the layer's own.
+//!
+//! Pixels cleared (schema 16, S40: a cut, or what a copy leaves outside its selection): after
+//! (u32) and the mask as a fill stores it.
 
 use std::io::Cursor;
 
@@ -22,7 +25,8 @@ use image::codecs::png::{CompressionType, FilterType, PngDecoder, PngEncoder};
 use image::{ExtendedColorType, ImageDecoder, ImageEncoder};
 use openpaint_app::{PortError, ProjectId};
 use openpaint_core::{
-    EditParts, FillParts, MaskParts, PatchParts, RegionEdit, TransformEdit, TransformParts,
+    ClearParts, EditParts, FillParts, MaskParts, PatchParts, RegionEdit, TransformEdit,
+    TransformParts,
 };
 
 use crate::adjusts::{KIND_ADJUST, encode_adjust, read_adjust};
@@ -34,6 +38,8 @@ const FILL: u8 = b'f';
 const KIND_FILL: u8 = 0;
 const KIND_TRANSFORM: u8 = 1;
 const KIND_PLACE: u8 = 3;
+/// Schema 16 (S40): pixels cleared, a cut or what a copy leaves outside its selection.
+const KIND_CLEAR: u8 = 5;
 
 /// The prefix of every edit record of `project`.
 pub(crate) fn fills_prefix(project: ProjectId) -> Vec<u8> {
@@ -73,6 +79,14 @@ pub(crate) fn encode_edit(edit: &RegionEdit) -> Vec<u8> {
         RegionEdit::Transform(transform) => encode_transform(transform),
         RegionEdit::Adjust(adjust) => encode_adjust(adjust),
         RegionEdit::Nested(nested) => encode_nested(nested),
+        RegionEdit::Clear(clear) => {
+            let mask = clear.mask().to_parts();
+            let mut writer = Writer::with_capacity(32 + mask.runs.len() * 2);
+            writer.u8(KIND_CLEAR);
+            writer.len(clear.after());
+            write_mask(&mut writer, &mask);
+            writer.finish()
+        }
     }
 }
 
@@ -124,6 +138,10 @@ pub(crate) fn decode_record(bytes: &[u8]) -> Result<(EditParts, Option<Counts>),
         KIND_TRANSFORM => EditParts::Transform(read_transform(&mut reader, true)?),
         KIND_PLACE => EditParts::Transform(read_transform(&mut reader, false)?),
         KIND_ADJUST => EditParts::Adjust(read_adjust(&mut reader)?),
+        KIND_CLEAR => EditParts::Clear(ClearParts {
+            after: u64::from(reader.u32()?),
+            mask: read_mask(&mut reader)?,
+        }),
         KIND_NESTED => {
             let (nested, counts) = read_nested(&mut reader)?;
             reader.end()?;

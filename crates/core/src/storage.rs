@@ -7,6 +7,7 @@ use std::sync::Arc;
 use crate::adjust::AdjustEdit;
 use crate::artwork::{Artwork, ArtworkState, MAX_LAYERS};
 use crate::brush::BrushRecipe;
+use crate::clear::ClearEdit;
 use crate::error::CoreError;
 use crate::group::{LayerGroup, check_groups};
 use crate::id::{GroupId, IdCounters, LayerId, MAX_ID, StrokeId};
@@ -207,7 +208,7 @@ fn mask_from(
     };
     let edit_ok = |edit: &RegionEdit| match edit {
         RegionEdit::Fill(fill) => !fill.alpha_locked && is_neutral(fill.color),
-        RegionEdit::Transform(_) | RegionEdit::Nested(_) => false,
+        RegionEdit::Transform(_) | RegionEdit::Nested(_) | RegionEdit::Clear(_) => false,
         RegionEdit::Adjust(_) => true,
     };
     if !strokes.iter().all(stroke_ok) || !edits.iter().all(edit_ok) {
@@ -245,6 +246,15 @@ fn content_from(
                 RegionEdit::Adjust(AdjustEdit::from_parts(adjust, canvas)?)
             }
             EditParts::Nested(nested) => nested_from(nested, canvas, ids, depth + 1)?,
+            EditParts::Clear(clear) => RegionEdit::Clear(ClearEdit {
+                after: usize::try_from(clear.after).map_err(|_| invalid("clear place"))?,
+                mask: RegionMask::from_runs(
+                    canvas,
+                    clear.mask.origin,
+                    clear.mask.size,
+                    &clear.mask.runs,
+                )?,
+            }),
         };
         if edit.after() < after || edit.after() > strokes.len() {
             return Err(invalid("edit place"));

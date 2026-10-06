@@ -10,7 +10,7 @@ use super::schema_14_parts;
 /// end of the sketch layer's content, layer 6, clipped by Screen at 0.625, with one stroke, a
 /// fill, a layer merged into it before (layer 7, one stroke at half opacity) and a mask with a
 /// grey stroke.
-pub fn parts() -> ArtworkParts {
+pub fn schema_15_parts() -> ArtworkParts {
     let mut parts = schema_14_parts();
     let model = parts.layers[0].strokes[1].clone();
     let stroke = |id, blend, color: [f32; 3]| {

@@ -3,7 +3,8 @@
 //! area and outside every control over it is owned until it lifts, wherever it moves, and goes
 //! to the session as stroke contacts in canvas pixels, mapped through the view. Fingers go to
 //! the gesture trackers (`app::Gestures`): navigation, quick pinch to fit, two- and three-finger
-//! taps for undo and redo. A control that takes a contact, or the eyedropper taking the canvas,
+//! taps for undo and redo, the three-finger swipe for the copy menu. A control that takes a
+//! contact, or the eyedropper taking the canvas,
 //! resets the trackers, so nothing lingers as a canvas gesture.
 //!
 //! Contacts are routed outside the egui pass, from the areas the last pass laid out: egui may
@@ -75,6 +76,8 @@ pub(crate) struct CanvasInput {
     pressing: Option<[f32; 2]>,
     /// Where the contact picking a colour is (screen pixels).
     picking_at: Option<[f32; 2]>,
+    /// Three fingers swiped down since the shell last asked (S40).
+    copy_menu: bool,
     /// Contacts on the Transform tool's frame.
     drag: TransformDrag,
 }
@@ -178,6 +181,7 @@ impl CanvasInput {
         match gestured.action {
             Some(TouchAction::Undo) => intents.push(Intent::History(HistoryIntent::Undo)),
             Some(TouchAction::Redo) => intents.push(Intent::History(HistoryIntent::Redo)),
+            Some(TouchAction::CopyPaste) => self.copy_menu = true,
             Some(TouchAction::Fit) if on_frame.is_some() => {}
             Some(TouchAction::Fit) => {
                 self.navigated_ms = Some(frame.now_ms);
@@ -264,6 +268,11 @@ impl CanvasInput {
         } else {
             self.navigated_ms
         }
+    }
+
+    /// Whether three fingers swiped down since the last call: the copy menu opens.
+    pub(crate) fn take_copy_menu(&mut self) -> bool {
+        std::mem::take(&mut self.copy_menu)
     }
 
     /// True while fingers rest for a shortcut that repeats: frames must keep coming.

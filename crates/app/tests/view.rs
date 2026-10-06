@@ -1,6 +1,6 @@
 //! The canvas view through the session and the finger gestures that drive it: navigation never
 //! touches the artwork or its history, a quick pinch fits, and two- and three-finger taps ask
-//! for undo and redo.
+//! for undo and redo; three fingers swiped down open the copy menu (S40).
 
 use openpaint_app::{
     BrushLibrary, CanvasView, ContactPhase, GestureFrame, Gestures, Intent, Session, Toolbox,
@@ -132,4 +132,53 @@ fn a_finger_never_pans_while_the_pen_is_in_the_frame() {
     gestures.update(&[one(ContactPhase::Down, 100.0)], FRAME);
     let moved = gestures.update(&[one(ContactPhase::Move, 200.0)], FRAME);
     assert_eq!(moved.view.map(|view| view.translation), Some([84.0, 0.0]));
+}
+
+/// Three fingers 120 px apart, `down` px below where they landed.
+fn three(phase: ContactPhase, down: f32, time_ms: i64) -> Vec<Touch> {
+    (1..=3)
+        .map(|id| Touch {
+            id,
+            phase,
+            position: [200.0 + id as f32 * 120.0, 200.0 + down],
+            time_ms,
+            open: true,
+        })
+        .collect()
+}
+
+#[test]
+fn three_fingers_swiped_down_open_the_copy_menu_and_a_three_finger_tap_still_redoes() {
+    let mut gestures = Gestures::default();
+    gestures.update(&three(ContactPhase::Down, 0.0, 0), at(0));
+    let mut actions = Vec::new();
+    for step in 1..=6 {
+        let moved = gestures.update(
+            &three(ContactPhase::Move, step as f32 * 20.0, step * 30),
+            at(step * 30),
+        );
+        assert_eq!(moved.view, None, "three fingers never navigate");
+        actions.extend(moved.action);
+    }
+    let lifted = gestures.update(&three(ContactPhase::Up, 120.0, 200), at(200));
+    actions.extend(lifted.action);
+    assert_eq!(
+        actions,
+        [TouchAction::CopyPaste],
+        "once, and no redo on the lift"
+    );
+    gestures.update(&three(ContactPhase::Down, 0.0, 400), at(400));
+    let tap = gestures.update(&three(ContactPhase::Up, 4.0, 480), at(480));
+    assert_eq!(tap.action, Some(TouchAction::Redo));
+    // Two fingers moved down together pan; they open no menu.
+    gestures.update(&fingers(ContactPhase::Down, 0.0, 600), at(600));
+    let pan = [1, 2].map(|id| Touch {
+        id,
+        phase: ContactPhase::Move,
+        position: [260.0 + id as f32 * 60.0, 400.0],
+        time_ms: 700,
+        open: true,
+    });
+    let panned = gestures.update(&pan, at(700));
+    assert!(panned.view.is_some() && panned.action.is_none());
 }

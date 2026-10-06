@@ -62,6 +62,8 @@ pub enum TransformRefusal {
     Failed,
     /// The layer's mask is the target; a mask does not move.
     Mask,
+    /// A pasted copy holds no paint (S40).
+    NothingPasted,
     /// No room for the inserted picture's layer (`MAX_LAYERS`).
     Full,
 }
@@ -74,6 +76,7 @@ impl fmt::Display for TransformRefusal {
             Self::Locked => "the layer is locked",
             Self::Mask => "a mask cannot be transformed",
             Self::Empty => "nothing to transform",
+            Self::NothingPasted => "the copy holds no paint",
             Self::Failed => "the layer could not be sampled",
         })
     }
@@ -214,6 +217,9 @@ impl Transforms {
         };
         let patch = match patch {
             Ok(Some(patch)) => patch,
+            Ok(None) if draft.from.is_some() => {
+                return self.refuse(TransformRefusal::NothingPasted);
+            }
             Ok(None) => return self.refuse(TransformRefusal::Empty),
             Err(LiftFailed) => return self.refuse(TransformRefusal::Failed),
         };
@@ -333,8 +339,8 @@ impl Transforms {
     }
 
     /// Ends the transform: the content where it shows becomes one history step, unless it is
-    /// where it was (an inserted picture always is a step) or was never lifted. Returns whether
-    /// a selection's content was committed.
+    /// where it was (an inserted picture and a paste always are a step) or was never lifted.
+    /// Returns whether a selection's content or a paste was committed.
     pub(crate) fn commit(&mut self, history: &mut History) -> bool {
         let Some(draft) = self.draft.take() else {
             return false;
@@ -351,7 +357,7 @@ impl Transforms {
             return false;
         };
         history.record(shown);
-        draft.lift.is_some()
+        draft.lift.is_some() || (draft.from.is_some() && !draft.picture)
     }
 
     /// The preview to show over `current`.

@@ -4,6 +4,7 @@
 
 mod blending;
 mod compositing;
+mod copy_paste;
 mod curves;
 mod deposit;
 mod erase;

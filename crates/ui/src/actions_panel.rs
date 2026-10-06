@@ -1,6 +1,7 @@
 //! The Actions panel (Procreate's Actions menu, reduced to what exists): the spanner right of
 //! Gallery in the left island opens it as a popover under it. Header "Actions"; under "Add",
-//! inserting a picture from the system's picker as a new layer (S26); under
+//! inserting a picture from the system's picker as a new layer (S26) and Copy & Paste, which
+//! opens the copy menu (S40, `copy_bar.rs`); under
 //! "Share", saving the artwork as a PNG or JPEG file where the user chooses and sending it to
 //! another app; under "Canvas", the Reference switch that shows the floating reference window
 //! and the row that chooses its image. A row that opens a system dialog closes the panel; the
@@ -35,6 +36,8 @@ pub(crate) struct ActionsPanel {
     button: Option<egui::Rect>,
     /// The scale the export rows write at; 1x until another is chosen, for the app's run.
     scale: ExportScale,
+    /// Copy & Paste was tapped: the shell opens the copy menu (S40).
+    copy_menu: bool,
 }
 
 impl ActionsPanel {
@@ -77,12 +80,7 @@ impl ActionsPanel {
                 ui.add_space(2.0 * SPACE);
                 ui.heading("Actions");
             });
-            section(ui, "Add");
-            let insert = offered(EditorAction::InsertImage);
-            if menu_row(ui, "Insert image…", "As a new layer", insert).clicked() {
-                push(taps, Intent::Insert(InsertIntent::Choose));
-                close = true;
-            }
+            close |= self.add_rows(ui, offered(EditorAction::InsertImage), taps);
             section(ui, "Share");
             self.scale_row(ui, projection);
             let scale = self.scale;
@@ -140,6 +138,27 @@ impl ActionsPanel {
                 hint(ui, &size);
             }
         });
+    }
+
+    /// The Add section: Insert image… (offered with `insert`) and Copy & Paste, whose note
+    /// teaches the gesture that opens the copy menu too. Returns whether a row closes the panel.
+    fn add_rows(&mut self, ui: &mut egui::Ui, insert: bool, taps: &mut Vec<Intent>) -> bool {
+        section(ui, "Add");
+        let mut close = false;
+        if menu_row(ui, "Insert image…", "As a new layer", insert).clicked() {
+            push(taps, Intent::Insert(InsertIntent::Choose));
+            close = true;
+        }
+        if menu_row(ui, "Copy & Paste", "Three fingers down", true).clicked() {
+            self.copy_menu = true;
+            close = true;
+        }
+        close
+    }
+
+    /// Whether Copy & Paste was tapped since the last call.
+    pub(crate) fn take_copy_menu(&mut self) -> bool {
+        std::mem::take(&mut self.copy_menu)
     }
 
     /// Where the open panel lies, which the canvas must not take contacts from.

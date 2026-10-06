@@ -12,6 +12,7 @@ mod canvas_input;
 mod color_drop;
 mod color_panel;
 pub mod components;
+mod copy_bar;
 pub mod design;
 mod drop_bar;
 mod gallery;

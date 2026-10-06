@@ -23,6 +23,8 @@ use crate::transform::Transforms;
 
 #[path = "session_adjust.rs"]
 mod session_adjust;
+#[path = "session_clipboard.rs"]
+mod session_clipboard;
 #[path = "session_transform.rs"]
 mod session_transform;
 use crate::view::{CanvasView, ViewIntent};
@@ -150,7 +152,8 @@ impl Session {
             | Intent::Tool(_)
             | Intent::Export(_)
             | Intent::Reference(_)
-            | Intent::Insert(_) => Ok(()),
+            | Intent::Insert(_)
+            | Intent::Clipboard(_) => Ok(()),
             // Leaving is the runtime's (it stores the artwork first); the session only says
             // whether it may happen now.
             Intent::Gallery(_) => self.check(EditorAction::Gallery),
@@ -252,6 +255,7 @@ impl Session {
             selection: Box::new(self.selection.projection()),
             transform: Box::new(self.transforms.projection()),
             adjust: Box::new(self.adjusts.projection()),
+            clipboard: crate::clipboard::offered(artwork, drawing),
             brush: None,
             transfers: None,
         }

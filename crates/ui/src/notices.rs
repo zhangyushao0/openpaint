@@ -110,6 +110,7 @@ fn transform(projection: &SessionProjection) -> Option<Told> {
         TransformRefusal::Hidden => "Can't transform: the layer is hidden.",
         TransformRefusal::Locked => "Can't transform: the layer is locked.",
         TransformRefusal::Empty => "Nothing to transform here.",
+        TransformRefusal::NothingPasted => "Nothing to paste: the copy holds no paint.",
         TransformRefusal::Failed => "Couldn't pick up the layer. Try again.",
         TransformRefusal::Mask => "A mask can't be transformed. Tap the layer to move its paint.",
         TransformRefusal::Full => "Can't insert: no room for another layer.",

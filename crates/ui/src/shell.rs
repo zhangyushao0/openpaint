@@ -12,21 +12,22 @@
 //! quick pinch settles the view at fit.
 
 use openpaint_app::{
-    CanvasView, GalleryIntent, InputBatch, Intent, ScreenProjection, SessionProjection,
-    TransformFrame, ViewIntent, ViewMapping,
+    CanvasView, GalleryIntent, Intent, ScreenProjection, SessionProjection, TransformFrame,
+    ViewMapping,
 };
 use openpaint_core::{CanvasSize, Color};
 use openpaint_render::BrushCursor;
 
 use crate::adjust_panel::AdjustPanel;
-use crate::canvas_input::{CanvasFrame, CanvasInput, touched_outside};
-use crate::color_drop::{ColorDrop, DropFrame};
+use crate::canvas_input::CanvasInput;
+use crate::color_drop::ColorDrop;
 use crate::components::carry::{Opening, sheet_at};
 use crate::components::{
     CanvasArea, ControlMap, ScreenArea, ViewSettle, canvas_frame, chrome, controls, moving,
 };
+use crate::copy_bar::CopyBar;
 use crate::design::DESK;
-use crate::design::motion::{OPEN, SETTLE};
+use crate::design::motion::OPEN;
 use crate::drop_bar;
 use crate::gallery::GalleryScreen;
 use crate::panels::Panels;
@@ -39,6 +40,8 @@ use crate::transform_bar::TransformBar;
 
 #[path = "shell_islands.rs"]
 mod islands;
+#[path = "shell_route.rs"]
+mod route;
 
 /// What the canvas showed in the last pass, for routing this frame's contacts.
 #[derive(Debug, Clone, Copy)]
@@ -77,6 +80,7 @@ pub struct Shell {
     selection: SelectionBar,
     transform: TransformBar,
     adjust: AdjustPanel,
+    copy: CopyBar,
     reference: ReferenceWindow,
     pub(crate) drop: ColorDrop,
     /// Where the fill bar lies, from the last pass.
@@ -153,6 +157,7 @@ impl Shell {
         self.panels.close();
         self.panels.layers.forget_pictures();
         self.side.hide();
+        self.copy.close();
         self.input = CanvasInput::default();
         self.drop.reset();
         self.drop_bar = None;
@@ -214,6 +219,10 @@ impl Shell {
             .show(&ctx, projection, (self.now_ms, opener), &mut self.taps);
         self.panels.show(&ctx, projection, &mut self.taps);
         self.adjust.show(&ctx, projection, &mut self.taps);
+        if self.panels.actions.take_copy_menu() {
+            self.copy.open();
+        }
+        self.copy.show(&ctx, projection, &mut self.taps);
         self.drop_bar = drop_bar::show(&mut self.drop, &ctx, projection, self.pixels_per_point);
         let picking_at = self.reference.picking_at().or(self.input.picking_at());
         pen_marks::show_loupe(&ctx, picking_at, brush, self.pixels_per_point);
@@ -320,77 +329,5 @@ impl Shell {
     #[must_use]
     pub fn canvas_area(&self) -> Option<CanvasArea> {
         self.canvas
-    }
-
-    /// The intents this frame asks for: on the canvas its contacts first, then the taps on the
-    /// chrome, so a stroke lifted just before undo is tapped is committed before it is undone.
-    /// Call after `show`.
-    pub fn route(&mut self, batches: &[InputBatch]) -> Vec<Intent> {
-        let now_ms = self.now_ms;
-        let area = self.canvas.filter(|_| self.showing == Showing::Canvas);
-        let (Some(area), Some(shown)) = (area, self.shown) else {
-            return std::mem::take(&mut self.taps);
-        };
-        let panel = self.panels.area();
-        let covers: Vec<ScreenArea> = [self.side.area(), self.reference.area(), panel]
-            .into_iter()
-            .chain([self.drop_bar, self.selection.area(), self.transform.area()])
-            .chain([self.adjust.area()])
-            .flatten()
-            .chain(self.islands.iter().copied())
-            .collect();
-        let frame = CanvasFrame {
-            area,
-            covers: &covers,
-            canvas: shown.canvas,
-            view: shown.view,
-            pixels_per_point: self.pixels_per_point,
-            now_ms,
-            picking: shown.picking,
-            selecting: shown.selecting,
-            adjusting: shown.adjusting,
-            transform: shown.transform,
-            drawing: shown.drawing,
-            control: !self.taps.is_empty(),
-        };
-        let drop = DropFrame {
-            swatch: self.panels.colors.button_area(),
-            color: shown.color,
-            threshold: shown.threshold,
-            bar: self.drop_bar,
-        };
-        let mut intents = self.reference.route(batches, now_ms, shown.picking);
-        let (dropped, rest) = self.drop.route(&frame, &drop, batches);
-        intents.extend(dropped);
-        if self.drop.carried().is_some() {
-            self.panels.close();
-        }
-        intents.extend(self.input.route(&frame, &rest));
-        if touched_outside(&area.screen, &covers, batches) {
-            self.panels.close();
-            self.adjust.close_menu();
-        }
-        self.settle_view(&intents, frame.mapping());
-        // Choosing a tool ends continuing to fill.
-        if self.taps.iter().any(|tap| matches!(tap, Intent::Tool(_))) {
-            self.drop.set_continuing(false);
-        }
-        intents.append(&mut self.taps);
-        intents
-    }
-
-    /// A quick pinch settles the view at fit from where it showed; a contact on the canvas or a
-    /// navigation ends any settling at once, so the hand always acts on what it sees.
-    fn settle_view(&mut self, intents: &[Intent], mapping: ViewMapping) {
-        for intent in intents {
-            match intent {
-                Intent::View(ViewIntent::Fit) => self.view.start(self.view.shown(mapping), SETTLE),
-                Intent::View(_)
-                | Intent::Stroke(_)
-                | Intent::Selection(_)
-                | Intent::Transform(_) => self.view.stop(),
-                _ => {}
-            }
-        }
     }
 }

@@ -1,6 +1,7 @@
 //! Finger gestures on the canvas (Procreate's defaults as draweave tuned them, D34): two fingers
 //! pan, pinch-zoom and rotate, each past its own dead zone; one finger pans; a quick pinch fits
-//! the canvas; a two-finger tap undoes and a three-finger tap redoes, held they repeat. The pen
+//! the canvas; a two-finger tap undoes and a three-finger tap redoes, held they repeat; three
+//! fingers swiped down open the copy menu (`swipe.rs`). The pen
 //! never navigates and touch never paints (D18).
 //!
 //! The UI's canvas input feeds every finger contact here with whether it touched down on open
@@ -11,6 +12,7 @@ mod filter;
 mod pair;
 mod pan;
 mod picture;
+mod swipe;
 mod taps;
 
 pub use picture::{PictureGestured, PictureGestures};
@@ -21,6 +23,7 @@ use crate::view::ViewGesture;
 use filter::NavigationFilter;
 use pair::PairTracker;
 use pan::OneFingerPan;
+use swipe::Swipe;
 use taps::Taps;
 
 /// One finger contact's news in a frame.
@@ -53,6 +56,8 @@ pub struct GestureFrame {
 pub enum TouchAction {
     Undo,
     Redo,
+    /// The copy menu (S40): three fingers swiped down.
+    CopyPaste,
     /// The whole canvas in view.
     Fit,
 }
@@ -71,6 +76,7 @@ pub struct Gestures {
     filter: NavigationFilter,
     pan: OneFingerPan,
     taps: Taps,
+    swipe: Swipe,
     /// The fingers on the glass moved the view.
     moved: bool,
 }
@@ -79,7 +85,8 @@ impl Gestures {
     /// The meaning of this frame's finger contacts, in order.
     pub fn update(&mut self, touches: &[Touch], frame: GestureFrame) -> Gestured {
         let ppp = frame.pixels_per_point;
-        let action = self.taps.update(touches, ppp, frame.now_ms);
+        let swiped = self.swipe.update(touches, ppp);
+        let action = self.taps.update(touches, ppp, frame.now_ms).or(swiped);
         let one = if frame.drawing || frame.pen {
             self.pan.reset();
             None

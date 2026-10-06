@@ -3,10 +3,13 @@
 //! once. Nothing is lifted: the patch is the picture itself, placed where `picture_place` puts
 //! it, so a picture inside the canvas shows pixel for pixel until the hand moves it, and moving
 //! it resamples the picture's pixels once. The layer, the picture and where it is placed are one
-//! history step when the transform commits; undo at its first step takes both away.
+//! history step when the transform commits; undo at its first step takes both away. A pasted
+//! copy (S40) comes the same way on a layer named "Pasted layer", as records: its pixels are
+//! lifted as any transform's, and it is placed as a record.
 
 use openpaint_core::{
-    Artwork, ArtworkCommand, CanvasSize, CoreError, LayerCommand, LayerName, Patch, Placement,
+    Artwork, ArtworkCommand, CanvasSize, Copied, CoreError, LayerCommand, LayerName, Patch,
+    Placement,
 };
 
 use super::{Draft, TransformRefusal, Transforms};
@@ -15,6 +18,8 @@ use crate::projection::{Availability, EditorAction};
 
 /// The inserted picture's layer, as the layer panel names it.
 const NAME: &str = "Inserted image";
+/// A pasted copy's layer (S40).
+const PASTED: &str = "Pasted layer";
 
 /// Where a picture of `size` pixels lies on `canvas`: its origin and its size there. A picture
 /// larger than the canvas on either side is fitted inside it with its aspect kept (each side at
@@ -55,6 +60,11 @@ impl Draft {
         settled: bool,
     ) -> Result<Artwork, CoreError> {
         let lift = self.lift.clone();
+        let pasted = self.from.is_some() && !self.picture;
+        if settled && pasted && placement == Placement::IDENTITY {
+            // A paste not moved is its layer as pasted: no record.
+            return Ok(self.base.clone());
+        }
         let applied = if self.picture || !settled {
             self.base.transform_region(lift, patch.clone(), placement)
         } else {
@@ -92,7 +102,7 @@ impl Transforms {
                 availability: Availability::StrokeInProgress,
             });
         }
-        let placed = layered(artwork).and_then(|base| {
+        let placed = layered(artwork, NAME).and_then(|base| {
             let lift = None;
             let shown = base
                 .transform_region(lift, picture.clone(), Placement::IDENTITY)
@@ -120,10 +130,47 @@ impl Transforms {
         });
         Ok(())
     }
+
+    /// Frames `copied` on a new layer above `onto`'s active one (S40, Paste); `from` is the
+    /// history version now, which undo at the first step goes back to (`onto` may hold a cut
+    /// of it). A transform in progress is committed by the caller first.
+    pub(crate) fn paste(
+        &mut self,
+        from: &Artwork,
+        onto: &Artwork,
+        copied: &Copied,
+    ) -> Result<(), AppError> {
+        let pasted = layered(onto, PASTED).and_then(|layered| {
+            let applied = layered.paste(copied);
+            applied
+                .map(|applied| applied.artwork)
+                .map_err(|_| TransformRefusal::Failed)
+        });
+        let base = match pasted {
+            Ok(base) => base,
+            Err(refusal) => {
+                self.refused = Some(refusal);
+                return Err(AppError::TransformRefused(refusal));
+            }
+        };
+        self.refused = None;
+        self.draft = Some(Draft {
+            from: Some(from.clone()),
+            base,
+            lift: None,
+            lifted: None,
+            picture: false,
+            handed: false,
+            steps: vec![Placement::IDENTITY],
+            at: 0,
+            preview: Placement::IDENTITY,
+        });
+        Ok(())
+    }
 }
 
-/// `artwork` with the picture's layer added above its active one, named and active.
-fn layered(artwork: &Artwork) -> Result<Artwork, TransformRefusal> {
+/// `artwork` with a layer added above its active one, named `name` and active.
+fn layered(artwork: &Artwork, name: &str) -> Result<Artwork, TransformRefusal> {
     let refusal = |error: CoreError| match error {
         CoreError::LayerLimit { .. } => TransformRefusal::Full,
         _ => TransformRefusal::Failed,
@@ -133,7 +180,7 @@ fn layered(artwork: &Artwork) -> Result<Artwork, TransformRefusal> {
         .map_err(refusal)?
         .artwork;
     let layer = created.active();
-    let name = LayerName::new(NAME).map_err(refusal)?;
+    let name = LayerName::new(name).map_err(refusal)?;
     let named = created
         .apply(ArtworkCommand::Layer(LayerCommand::Rename { layer, name }))
         .map_err(refusal)?

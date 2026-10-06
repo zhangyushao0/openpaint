@@ -6,6 +6,7 @@ use std::fmt;
 use openpaint_core::CanvasSize;
 
 use crate::adjust::AdjustProjection;
+use crate::clipboard::{ClipboardAction, paste};
 use crate::fill::{DEFAULT_THRESHOLD, FillProjection};
 use crate::gallery::GalleryProjection;
 use crate::layers::LayerList;
@@ -53,6 +54,8 @@ pub enum EditorAction {
     Transform,
     /// Adjust the layer's colours, blur or sharpen it.
     Adjust,
+    /// Cut, copy or paste (S40), as the copy menu offers.
+    Clipboard(ClipboardAction),
 }
 
 /// Whether an action can run now, and why not.
@@ -109,6 +112,8 @@ pub struct SessionProjection {
     pub(crate) transform: Box<TransformProjection>,
     /// Boxed: curves, most frames nothing.
     pub(crate) adjust: Box<AdjustProjection>,
+    /// The copy menu's commands in `ClipboardAction::ALL` order.
+    pub(crate) clipboard: [Availability; 6],
     pub(crate) brush: Option<BrushProjection>,
     /// Boxed: rarely more than a notice, but its errors are large.
     pub(crate) transfers: Option<Box<TransferProjection>>,
@@ -164,6 +169,7 @@ impl SessionProjection {
             EditorAction::ChangeMask => self.layer_actions[6],
             EditorAction::MergeDown => self.layer_actions[7],
             EditorAction::Gallery => self.gallery,
+            EditorAction::Clipboard(action) => self.clipboard[action.index()],
             EditorAction::Fill | EditorAction::Transform | EditorAction::Adjust => {
                 if self.canvas.is_none() {
                     Availability::NothingLeft
@@ -251,6 +257,15 @@ impl SessionProjection {
         self.transfers.as_deref()
     }
 
+    /// This projection with Paste offered when `held` (what the app's clipboard holds) was
+    /// copied from a canvas of this artwork's size and a layer can be added.
+    #[must_use]
+    pub fn with_clipboard(mut self, held: Option<CanvasSize>) -> Self {
+        let pasting = ClipboardAction::Paste.index();
+        self.clipboard[pasting] = paste(held, self.canvas, self.layer_actions[0]);
+        self
+    }
+
     /// This projection with the export and reference flows, which belong to the app.
     #[must_use]
     pub fn with_transfers(self, transfers: TransferProjection) -> Self {
@@ -285,6 +300,7 @@ impl Default for SessionProjection {
             selection: Box::default(),
             transform: Box::default(),
             adjust: Box::default(),
+            clipboard: [Availability::NothingLeft; 6],
             brush: None,
             transfers: None,
         }
@@ -313,6 +329,7 @@ impl fmt::Display for EditorAction {
             Self::Fill => "fill",
             Self::Transform => "transform",
             Self::Adjust => "adjust",
+            Self::Clipboard(_) => "cut, copy or paste",
         })
     }
 }

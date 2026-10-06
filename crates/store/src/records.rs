@@ -1,5 +1,5 @@
-//! Schema 15: the keys and values the library stores (DECISIONS D36, D38, D43, D45, D46, D49,
-//! D50, D51, D54, D57, D66; the archived D21, D25, D28, D29).
+//! Schema 16: the keys and values the library stores (DECISIONS D36, D38, D43, D45, D46, D49,
+//! D50, D51, D54, D57, D66, D67; the archived D21, D25, D28, D29).
 //!
 //! Keyspace `library`: `schema` -> the schema of every record (u32 LE); `next` -> the next
 //! unused project id (u64 LE); `clock` -> the last value of the change counter (u64 LE); `last`
@@ -26,8 +26,8 @@
 //!   and dust (f32)), sample count (u32), then per sample x, y, pressure, tilt, azimuth (f32)
 //!   and time (u32 ms), then its clip (u8: 0 none, 1 a mask as a fill stores it: rectangle,
 //!   run count and runs, `fills.rs`);
-//! - `[project u64]['f'][layer u64][index u64]` -> one fill, transform, adjustment or nested
-//!   record, oldest at index 0 (`fills.rs`);
+//! - `[project u64]['f'][layer u64][index u64]` -> one fill, transform, adjustment, nested
+//!   record or cleared pixels, oldest at index 0 (`fills.rs`);
 //! - a mask's strokes and edits as a layer's, under `mask_slot(layer)` (the id with bit 63 set);
 //! - a merged layer's (a nested record's, `nested.rs`) strokes, edits and mask as a layer's, under
 //!   its own id;
@@ -45,8 +45,9 @@
 //! no masks; schema 11 (S24) had no adjustment records (edit kind 2); schema 12 (S28) had no
 //! transform records without pixels (edit kind 3); schema 13 (S31) had no blur or sharpening
 //! in its adjustments; schema 14 (S33) had no nested records (edit kind 4, merged layers);
+//! schema 15 (S39) had no cleared pixels (edit kind 5, cut and copied selections);
 //! `migrate.rs` and `migrate_6.rs` to
-//! `migrate_15.rs` upgrade them.
+//! `migrate_16.rs` upgrade them.
 
 use openpaint_app::{PortError, ProjectId};
 use openpaint_core::{Artwork, BlendMode, GroupParts, LayerMask, LayerMaskParts, LayerParts};
@@ -57,7 +58,7 @@ pub(crate) use crate::strokes::{
 };
 
 /// The schema this build writes and the newest it reads.
-pub const SCHEMA: u32 = 15;
+pub const SCHEMA: u32 = 16;
 
 pub(crate) const LIBRARY: &str = "library";
 pub(crate) const PROJECTS: &str = "projects";

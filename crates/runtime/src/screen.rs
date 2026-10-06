@@ -3,7 +3,8 @@
 //! gallery's calls on the storage worker.
 
 use openpaint_app::{
-    Gallery, LibraryAnswer, LibraryRequest, PortError, ScreenProjection, Toolbox, Transfers,
+    Clipboard, Gallery, LibraryAnswer, LibraryRequest, PortError, ScreenProjection, Toolbox,
+    Transfers,
 };
 use openpaint_core::{Artwork, CanvasSize};
 use openpaint_render::Core;
@@ -22,9 +23,13 @@ pub(crate) enum Screen {
 }
 
 impl Screen {
-    /// What the screen offers; on the canvas with the toolbox's brush, size and opacity, and the
-    /// export and reference flows.
-    pub(crate) fn projection(&self, toolbox: &Toolbox, transfers: &Transfers) -> ScreenProjection {
+    /// What the screen offers; on the canvas with the toolbox's brush, size and opacity, the
+    /// export and reference flows and whether the clipboard can paste.
+    pub(crate) fn projection(
+        &self,
+        toolbox: &Toolbox,
+        (transfers, clipboard): (&Transfers, &Clipboard),
+    ) -> ScreenProjection {
         match self {
             Self::Opening(_) => ScreenProjection::Starting,
             Self::Canvas(canvas) => {
@@ -32,7 +37,8 @@ impl Screen {
                 ScreenProjection::Canvas(Box::new(
                     session
                         .with_brush(toolbox.projection())
-                        .with_transfers(transfers.projection()),
+                        .with_transfers(transfers.projection())
+                        .with_clipboard(clipboard.canvas()),
                 ))
             }
             Self::Gallery(gallery) => ScreenProjection::Gallery(gallery.projection()),

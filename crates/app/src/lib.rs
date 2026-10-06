@@ -6,6 +6,7 @@
 
 mod adjust;
 mod brushes;
+mod clipboard;
 mod editor_state;
 mod error;
 mod export;
@@ -38,6 +39,7 @@ mod view;
 
 pub use crate::adjust::{AdjustIntent, AdjustProjection, AdjustRefusal};
 pub use crate::brushes::{Brush, BrushKey, BrushLibrary, SizeRange};
+pub use crate::clipboard::{Clipboard, ClipboardAction};
 pub use crate::editor_state::{BrushChoice, BrushSetting, EditorState};
 pub use crate::error::AppError;
 pub use crate::export::{

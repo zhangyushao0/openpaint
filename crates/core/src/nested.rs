@@ -82,7 +82,7 @@ impl NestedLayer {
     }
 
     /// The same content under a new id and new stroke ids from `ids` (a duplicated layer's).
-    fn renumbered(&self, ids: &mut IdCounters) -> Self {
+    pub(crate) fn renumbered(&self, ids: &mut IdCounters) -> Self {
         let mut copy = self.clone();
         copy.id = ids.take_layer();
         copy.strokes = self.strokes.renumbered(ids);

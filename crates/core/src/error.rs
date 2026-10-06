@@ -46,6 +46,10 @@ pub enum CoreError {
     IdOutOfRange { what: &'static str, id: u64 },
     /// The layer cannot merge into the one below it (Merge Down) without changing what shows.
     Unmergeable { layer: LayerId, why: Unmergeable },
+    /// Copy or cut found nothing there (S40).
+    NothingToCopy,
+    /// A copy's records would nest more than `MAX_NESTING` deep.
+    TooDeep,
 }
 
 impl fmt::Display for CoreError {
@@ -74,6 +78,8 @@ impl fmt::Display for CoreError {
             Self::EmptyStroke => f.write_str("a stroke has no samples"),
             Self::DuplicateId { what, id } => write!(f, "{what} {id} appears twice"),
             Self::IdOutOfRange { what, id } => write!(f, "{what} {id} is out of range"),
+            Self::NothingToCopy => f.write_str("nothing to copy there"),
+            Self::TooDeep => f.write_str("the copy would nest too deep"),
             Self::Unmergeable { layer, why } => {
                 write!(f, "layer {} cannot merge down: {why:?}", layer.get())
             }

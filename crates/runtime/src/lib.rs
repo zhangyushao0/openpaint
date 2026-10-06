@@ -7,6 +7,7 @@ mod clock;
 mod error;
 mod fill;
 mod frame;
+mod host;
 mod input;
 mod normalise;
 mod offscreen;

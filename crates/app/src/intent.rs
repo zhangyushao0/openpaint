@@ -2,6 +2,7 @@
 //! its handler and tests.
 
 use crate::adjust::AdjustIntent;
+use crate::clipboard::ClipboardAction;
 use crate::export::ExportIntent;
 use crate::fill::FillIntent;
 use crate::gallery::GalleryIntent;
@@ -33,4 +34,6 @@ pub enum Intent {
     Export(ExportIntent),
     Reference(ReferenceIntent),
     Insert(InsertIntent),
+    /// The copy menu (S40); the runtime hands it to the session with the app's clipboard.
+    Clipboard(ClipboardAction),
 }
