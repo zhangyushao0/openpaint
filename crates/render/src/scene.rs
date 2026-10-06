@@ -61,9 +61,9 @@ pub(crate) enum Item {
         to_canvas: Affine,
         clip: Option<Bounds>,
     },
-    /// A moved selection's content starts; the layer so far is set aside. Listed only where
-    /// the layer had something to set aside: elsewhere the moved content starts from nothing
-    /// on its own (`MovedOnly`).
+    /// A moved selection's content (or a merged layer's) starts, the layer so far set aside.
+    /// Listed only where the layer had something to set aside: elsewhere that content starts
+    /// from nothing on its own (`MovedOnly`, `NestedOnly`).
     BeginMove(Op),
     /// A moved content's end: cut to its selection and laid over what was set aside, or
     /// (`whole`) cut to the canvas, for a whole layer's.
@@ -73,6 +73,10 @@ pub(crate) enum Item {
     },
     /// The same selection's end where nothing was set aside: only cut to the selection.
     MovedOnly(Op),
+    /// A merged layer's content ends (S39), laid onto what was set aside at its start (a
+    /// `BeginMove`); `NestedOnly`, right after it, where nothing was.
+    EndNested(Op),
+    NestedOnly(Op),
     /// What a transform lifted cleared from the layer: an erasing fill, which never adds
     /// anything to set aside.
     Clear {
@@ -97,6 +101,8 @@ impl Item {
             | Self::BeginMove(op)
             | Self::EndMove { op, .. }
             | Self::MovedOnly(op)
+            | Self::EndNested(op)
+            | Self::NestedOnly(op)
             | Self::Clear { op, .. } => *op,
             Self::Active | Self::Reach(_) => Op::unused(),
         }

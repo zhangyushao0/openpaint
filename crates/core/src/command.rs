@@ -69,6 +69,10 @@ pub enum LayerCommand {
     /// A copy of the layer right above it, in its group: its strokes (under new ids), edits,
     /// mask, name and properties. The copy becomes active, its paint the target.
     Duplicate(LayerId),
+    /// Merge Down (S39): the layer goes into the one below it as a nested record, which shows
+    /// exactly what the two showed; the layer below becomes active. `Unmergeable` where it would
+    /// not (`Artwork::mergeable`).
+    MergeDown(LayerId),
     /// Makes a layer the target of new strokes.
     Select(LayerId),
     Rename {

@@ -6,7 +6,7 @@ use openpaint_app::{
     InputSample, Intent, LayerIntent, Session, StrokeIntent,
 };
 use openpaint_app::{BrushLibrary, Toolbox};
-use openpaint_core::{CanvasSize, CoreError, LayerId, LayerName};
+use openpaint_core::{CanvasSize, CoreError, LayerId, LayerName, Unmergeable};
 
 fn session() -> Session {
     let library = BrushLibrary::built_in().expect("built-in brushes");
@@ -214,4 +214,37 @@ fn layers_wait_while_a_stroke_is_drawn() {
     session.dispatch(pen(ContactPhase::Up, 20.0)).expect("up");
     layer(&mut session, LayerIntent::Add).expect("add after the stroke");
     assert_eq!(ids(&session).len(), 2);
+}
+
+#[test]
+fn merge_down_is_one_step_and_says_why_it_cannot_act() {
+    let mut session = session();
+    draw(&mut session, 10.0);
+    let bottom = session.artwork().active();
+    let refused = |session: &Session| session.projection().layers().and_then(|l| l.merge_down);
+    assert_eq!(refused(&session), Some(Unmergeable::NothingBelow));
+    assert_eq!(
+        offered(&session, EditorAction::MergeDown),
+        Availability::NothingLeft
+    );
+    assert!(matches!(
+        layer(&mut session, LayerIntent::MergeDown(bottom)),
+        Err(AppError::Unavailable { .. })
+    ));
+    layer(&mut session, LayerIntent::Add).expect("add");
+    draw(&mut session, 60.0);
+    let top = session.artwork().active();
+    assert_eq!(refused(&session), None);
+    assert_eq!(
+        offered(&session, EditorAction::MergeDown),
+        Availability::Available
+    );
+    let before = session.artwork().clone();
+    layer(&mut session, LayerIntent::MergeDown(top)).expect("merge");
+    assert_eq!(ids(&session), [bottom]);
+    assert_eq!(session.artwork().active(), bottom);
+    undo(&mut session);
+    assert_eq!(session.artwork(), &before, "one step");
+    redo(&mut session);
+    assert_eq!(ids(&session), [bottom]);
 }

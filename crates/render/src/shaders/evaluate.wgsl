@@ -227,6 +227,26 @@ fn evaluate(
                 }
                 layer = vec4<f32>(0.0);
             }
+            case OP_END_NESTED: {
+                // A merged layer's content (S39) as it ended before the merge, onto what its
+                // layer held before it (set aside at its start, else nothing): the same
+                // expressions as a layer's end into the canvas or its chain.
+                let source = masked(layer, held, u32(op.data[LAYER_MASK])) * op.data[0];
+                held = vec4<f32>(0.0);
+                var under = vec4<f32>(0.0);
+                if op.data[NESTED_ASIDE] > 0.0 {
+                    depth -= 1u;
+                    if STACKED {
+                        under = moves[min(depth, MOVE_DEPTH - 1u)];
+                    }
+                }
+                let mode = u32(op.data[LAYER_MODE]);
+                if u32(op.data[LAYER_INTO]) == INTO_CLIPPED {
+                    layer = clipped(source, under, mode);
+                } else {
+                    layer = composite(source, under, mode);
+                }
+            }
             case OP_END_CHAIN: {
                 if op.data[LAYER_GROUPED] > 0.0 && !opened {
                     backdrop = canvas;

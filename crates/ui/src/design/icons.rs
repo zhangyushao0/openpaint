@@ -77,6 +77,8 @@ pub enum Icon {
     Collapsed,
     /// An arrow bending down: the layer clips to the one under it.
     Clipped,
+    /// An arrow down onto a line: merge the layer into the one below it.
+    MergeDown,
     /// A sheet with a round window in it: a layer mask.
     Mask,
     /// Three dots in a row: more for this item.
@@ -165,9 +167,12 @@ fn polylines(icon: Icon) -> Vec<Line> {
         Icon::More => [0.26, 0.5, 0.74]
             .map(|x| vec![[x - 0.01, 0.5], [x + 0.01, 0.5]])
             .to_vec(),
-        Icon::Group | Icon::Expanded | Icon::Collapsed | Icon::Clipped | Icon::Mask => {
-            layer_icons(icon)
-        }
+        Icon::Group
+        | Icon::Expanded
+        | Icon::Collapsed
+        | Icon::Clipped
+        | Icon::Mask
+        | Icon::MergeDown => layer_icons(icon),
         // Discs, painted whole.
         Icon::SizeSmall | Icon::SizeLarge | Icon::OpacityLight | Icon::OpacityDark => Vec::new(),
     }
@@ -364,6 +369,7 @@ mod tests {
             Icon::Collapsed,
             Icon::Clipped,
             Icon::Mask,
+            Icon::MergeDown,
             Icon::More,
         ];
         for icon in icons {

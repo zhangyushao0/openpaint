@@ -1,12 +1,13 @@
 //! The layer panel's footer, for the highlighted layer (Procreate keeps these in the layer's
 //! options): its opacity, its blend mode (Normal, Multiply, Screen, Overlay), Alpha Lock,
-//! Clipping Mask, Add Mask (a plus and the words: adds a white mask), Rename, Group (Ungroup in
-//! a group), duplicate and delete (S38: moving is dragging a row, `layer_drag.rs`); under them,
-//! for a layer in a group, the group's name and opacity. While the layer's
-//! mask is highlighted instead: Invert, Clear and delete the mask.
+//! Clipping Mask, Add Mask (a plus and the words: adds a white mask), Merge Down (S39: into the
+//! layer below; grey, with why at its row's end, where it would change what shows), Rename,
+//! Group (Ungroup in a group), duplicate and delete (S38: moving is dragging a row,
+//! `layer_drag.rs`); under them, for a layer in a group, the group's name and opacity. While
+//! the layer's mask is highlighted instead: Invert, Clear and delete the mask.
 
 use openpaint_app::{EditorAction, Intent, LayerIntent, LayerList, LayerRow, SessionProjection};
-use openpaint_core::BlendMode;
+use openpaint_core::{BlendMode, Unmergeable};
 
 use crate::components::{
     choices, command_row, hint, icon_button, slider, switch_row, text_button, text_choice_wide,
@@ -20,8 +21,8 @@ use crate::layer_rows::percent;
 pub(crate) const fn footer_rows(grouped: bool, on_mask: bool) -> f32 {
     match (on_mask, grouped) {
         (true, _) => 2.0,
-        (false, true) => 10.0,
-        (false, false) => 8.0,
+        (false, true) => 11.0,
+        (false, false) => 9.0,
     }
 }
 
@@ -35,6 +36,19 @@ fn name(blend: BlendMode) -> &'static str {
         BlendMode::Multiply => "Multiply",
         BlendMode::Screen => "Screen",
         BlendMode::Overlay => "Overlay",
+    }
+}
+
+/// Why Merge Down is grey, at the end of its row.
+const fn unmergeable(why: Unmergeable) -> &'static str {
+    match why {
+        Unmergeable::NothingBelow => "Nothing below",
+        Unmergeable::Hidden => "Hidden layer",
+        Unmergeable::Locked => "Locked layer",
+        Unmergeable::Modes => "Modes clash",
+        Unmergeable::BelowClips => "Below clips",
+        Unmergeable::ClippedTo => "Has clips",
+        Unmergeable::TooDeep => "Too deep",
     }
 }
 
@@ -81,8 +95,13 @@ pub(crate) fn footer(
         }));
     }
     let can_mask = offered(projection, EditorAction::AddMask);
-    if command_row(ui, Icon::Add, "Add Mask", can_mask).clicked() {
+    if command_row(ui, (Icon::Add, "Add Mask", ""), can_mask).clicked() {
         taps.push(Intent::Layer(LayerIntent::AddMask(active.id)));
+    }
+    let can_merge = offered(projection, EditorAction::MergeDown);
+    let why = list.merge_down.map_or("", unmergeable);
+    if command_row(ui, (Icon::MergeDown, "Merge Down", why), can_merge).clicked() {
+        taps.push(Intent::Layer(LayerIntent::MergeDown(active.id)));
     }
     let rename = commands(ui, active, projection, taps);
     group(ui, list, active, enabled, taps);

@@ -17,6 +17,8 @@ mod groups;
 mod incremental;
 mod insert;
 mod masks;
+mod merge;
+mod merge_after;
 mod records;
 mod records_scale;
 mod scale;

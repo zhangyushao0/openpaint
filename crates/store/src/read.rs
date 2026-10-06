@@ -6,12 +6,13 @@ use std::collections::BTreeMap;
 
 use fjall::Keyspace;
 use openpaint_app::{PortError, Project, ProjectId, ProjectSummary, Title};
-use openpaint_core::{Artwork, ArtworkParts, EditParts, StrokeParts};
+use openpaint_core::{Artwork, ArtworkParts, EditParts, MAX_NESTING, NestedParts, StrokeParts};
 
 use crate::catalogue::{Entry, decode_entry, decode_thumbnail};
 use crate::editor::EDITOR;
-use crate::fills::{decode_edit, fill_layer_prefix};
+use crate::fills::{decode_record, fill_layer_prefix};
 use crate::library::{Open, device};
+use crate::nested::Counts;
 use crate::records::{
     CLOCK, ENTRY, LAST, decode_head, decode_id, decode_stroke, entry_key, entry_project, head_key,
     layer_prefix, mask_slot, stroke_index, thumbnail_key,
@@ -96,10 +97,10 @@ pub(crate) fn artwork(source: &dyn Source, id: ProjectId) -> Result<Artwork, Por
     let head = decode_head(&head)?;
     let mut layers = Vec::with_capacity(head.layers.len());
     for (mut layer, strokes, fills, [mask_strokes, mask_fills]) in head.layers {
-        (layer.strokes, layer.edits) = content(source, id, layer.id, [strokes, fills])?;
+        (layer.strokes, layer.edits) = content(source, (id, layer.id), [strokes, fills], 0)?;
         if let Some(mask) = layer.mask.as_mut() {
-            let slot = mask_slot(layer.id);
-            (mask.strokes, mask.edits) = content(source, id, slot, [mask_strokes, mask_fills])?;
+            let slot = (id, mask_slot(layer.id));
+            (mask.strokes, mask.edits) = content(source, slot, [mask_strokes, mask_fills], 0)?;
         }
         layers.push(layer);
     }
@@ -115,19 +116,50 @@ pub(crate) fn artwork(source: &dyn Source, id: ProjectId) -> Result<Artwork, Por
     })?)
 }
 
-/// The `strokes` stroke records and `edits` edit records stored under `slot` (a layer's id or
-/// its mask's, `mask_slot`).
+/// The `strokes` stroke records and `edits` edit records stored under `slot` (a layer's id, a
+/// merged layer's or a mask's, `mask_slot`) of project `id`, `depth` nested records deep; each
+/// nested record with its own content.
 fn content(
     source: &dyn Source,
-    id: ProjectId,
-    slot: u64,
+    (id, slot): (ProjectId, u64),
     [strokes, edits]: [usize; 2],
+    depth: usize,
 ) -> Result<(Vec<StrokeParts>, Vec<EditParts>), PortError> {
     let prefix = layer_prefix(id, slot);
     let strokes = read_records(source, &prefix, strokes, "stroke records", decode_stroke)?;
     let prefix = fill_layer_prefix(id, slot);
-    let edits = read_records(source, &prefix, edits, "edit records", decode_edit)?;
+    let records = read_records(source, &prefix, edits, "edit records", decode_record)?;
+    let mut edits = Vec::with_capacity(records.len());
+    for record in records {
+        edits.push(match record {
+            (EditParts::Nested(nested), Some(counts)) => {
+                EditParts::Nested(nested_content(source, id, (nested, counts), depth + 1)?)
+            }
+            (edit, _) => edit,
+        });
+    }
     Ok((strokes, edits))
+}
+
+/// A nested record's content and its mask's, from the records under its id; a record nested
+/// deeper than core allows is damage (a corrupt record could name itself).
+fn nested_content(
+    source: &dyn Source,
+    id: ProjectId,
+    (mut nested, [strokes, edits, mask_strokes, mask_edits]): (NestedParts, Counts),
+    depth: usize,
+) -> Result<NestedParts, PortError> {
+    if depth > MAX_NESTING {
+        return Err(PortError::Corrupt {
+            what: "nested records",
+        });
+    }
+    (nested.strokes, nested.edits) = content(source, (id, nested.id), [strokes, edits], depth)?;
+    if let Some(mask) = nested.mask.as_mut() {
+        let slot = (id, mask_slot(nested.id));
+        (mask.strokes, mask.edits) = content(source, slot, [mask_strokes, mask_edits], depth)?;
+    }
+    Ok(nested)
 }
 
 /// The `count` records under one layer's `prefix` (its strokes or its fills), decoded, which

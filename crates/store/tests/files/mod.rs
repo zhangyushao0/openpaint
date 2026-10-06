@@ -11,7 +11,7 @@ use crate::common::{fresh_dir, records};
 use crate::sample::{
     decode, legacy_parts, parts, sample_path, sample_thumbnail, sample_title, schema_3_parts,
     schema_4_parts, schema_5_parts, schema_6_parts, schema_7_parts, schema_8_parts, schema_9_parts,
-    schema_10_parts, schema_11_parts, schema_12_parts, schema_13_parts,
+    schema_10_parts, schema_11_parts, schema_12_parts, schema_13_parts, schema_14_parts,
 };
 
 /// The file layout written out by hand, as `artwork_file.rs` documents it: the magic, the
@@ -34,7 +34,7 @@ fn file_of(schema: u32, title: &str, records: &[(Vec<u8>, Vec<u8>)]) -> Vec<u8> 
     bytes
 }
 
-/// A library holding the schema-14 sample artwork with its title and thumbnail.
+/// A library holding the schema-15 sample artwork with its title and thumbnail.
 fn sample_library(name: &str) -> (Library, ProjectId) {
     let mut library = Library::at(fresh_dir(name));
     let artwork = Artwork::from_storage(parts()).expect("the sample artwork");
@@ -95,7 +95,8 @@ fn files_of_older_schemas_open_upgraded() {
             10 => schema_10_parts(),
             11 => schema_11_parts(),
             12 => schema_12_parts(),
-            _ => schema_13_parts(),
+            13 => schema_13_parts(),
+            _ => schema_14_parts(),
         };
         let file = file_of(schema, "Hafen", &older_records(schema));
         let mut library = Library::at(fresh_dir(&format!("file-{schema}")));

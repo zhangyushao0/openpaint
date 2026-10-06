@@ -23,6 +23,7 @@ pub(crate) fn availability(
         EditorAction::AddLayer => count < MAX_LAYERS,
         EditorAction::DeleteLayer => count > 1 && position.is_some(),
         EditorAction::EditLayer => position.is_some(),
+        EditorAction::MergeDown => artwork.mergeable(layer).is_ok(),
         EditorAction::GroupLayer => {
             let group = ArtworkCommand::Group(GroupCommand::Create { layer });
             position.is_some() && artwork.apply(group).is_ok()

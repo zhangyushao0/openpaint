@@ -88,19 +88,13 @@ impl Scene {
         active: bool,
         on_mask: bool,
     ) -> Result<(), RenderError> {
-        // Selections moved more than once can nest; what later ones clear is left out then.
-        let records = edits.iter().filter(|edit| {
-            edit.transform()
-                .is_some_and(|t| t.patch().is_none() && t.lift().is_some())
-        });
-        let extents = (records.count() > 1).then(|| extents(strokes, edits, self.canvas));
         let content = Content {
             layer,
             strokes,
             edits,
             on_mask,
             start: self.items.len(),
-            extents,
+            extents: level_extents(strokes, edits, self.canvas),
         };
         self.push_level(&content, (strokes.len(), edits.len()), View::CANVAS)?;
         self.set_frame(View::CANVAS);
@@ -183,19 +177,22 @@ impl Scene {
                 let hidden = [hidden[0] || empty, hidden[1]];
                 self.push_moved(content, (at, hidden), transform, view)
             }
-            None if !hidden[0] && view.meets(edit_rect(self.canvas, edit)) => match edit.adjust() {
-                Some(adjust) if kernel_of(adjust.adjustment()).is_some() => {
-                    let place = (content.layer, content.on_mask);
-                    let edits = (content.strokes, &content.edits[..=at]);
-                    let key = FilterKey::new(place, edits, view.to_canvas);
-                    self.push_filter(key, content.start)
+            None if !hidden[0] && view.meets(edit_rect(self.canvas, edit)) => {
+                match (edit.adjust(), edit.nested()) {
+                    (Some(adjust), _) if kernel_of(adjust.adjustment()).is_some() => {
+                        let place = (content.layer, content.on_mask);
+                        let edits = (content.strokes, &content.edits[..=at]);
+                        let key = FilterKey::new(place, edits, view.to_canvas);
+                        self.push_filter(key, content.start)
+                    }
+                    (Some(adjust), _) => {
+                        let place = (content.layer, content.on_mask, at);
+                        self.push_adjust(adjust, place, content.start)
+                    }
+                    (None, Some(nested)) => self.push_nested(nested.layer(), view),
+                    (None, None) => self.push_edit(edit),
                 }
-                Some(adjust) => {
-                    let place = (content.layer, content.on_mask, at);
-                    self.push_adjust(adjust, place, content.start)
-                }
-                None => self.push_edit(edit),
-            },
+            }
             None => Ok(()),
         }
     }
@@ -322,6 +319,20 @@ impl Scene {
     }
 }
 
+/// Where each selection record's moved content can lie, when selections moved more than once
+/// can nest (what later ones clear is left out then).
+fn level_extents(
+    strokes: &StrokeList,
+    edits: &[RegionEdit],
+    canvas: [u32; 2],
+) -> Option<Vec<Option<Bounds>>> {
+    let records = edits.iter().filter(|edit| {
+        edit.transform()
+            .is_some_and(|t| t.patch().is_none() && t.lift().is_some())
+    });
+    (records.count() > 1).then(|| extents(strokes, edits, canvas))
+}
+
 /// Per segment of `edits` between the whole layer's records, the view its content lies in:
 /// the last one `view`, each before it under the record that ends it.
 fn segment_views(edits: &[RegionEdit], view: View) -> Vec<View> {
@@ -339,6 +350,9 @@ fn segment_views(edits: &[RegionEdit], view: View) -> Vec<View> {
     views.reverse();
     views
 }
+
+#[path = "scene_nested.rs"]
+mod nested;
 
 #[cfg(test)]
 #[path = "scene_content_tests.rs"]

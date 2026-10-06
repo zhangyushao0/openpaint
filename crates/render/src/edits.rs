@@ -21,6 +21,7 @@ impl Scene {
         match edit {
             // Adjustments know their place among the content (`push_adjust`, `push_filter`).
             RegionEdit::Adjust(_) => Err(RenderError::Invalid("an adjustment has its own place")),
+            RegionEdit::Nested(_) => Err(RenderError::Invalid("a merged layer has its own place")),
             RegionEdit::Fill(fill) => {
                 let color = fill.color();
                 let blend = if fill.alpha_locked() {
@@ -189,6 +190,8 @@ pub(crate) fn edit_rect(canvas: [u32; 2], edit: &RegionEdit) -> PixelRect {
             || PixelRect::full(canvas),
             |clip| mask_bounds(clip).pixels(),
         ),
+        // A merged layer's content may reach anywhere its records moved it.
+        RegionEdit::Nested(_) => PixelRect::full(canvas),
     }
 }
 

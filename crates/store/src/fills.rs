@@ -1,7 +1,7 @@
 //! Region edit records (schema 8, DECISIONS D36, D45): one per fill, transform or (schema 12)
 //! adjustment, keyed like strokes, `[project u64]['f'][layer u64][index u64]`, oldest at index
 //! 0. A value starts with its kind (u8: 0 fill, 1 transform with pixels, 2 adjustment,
-//! `adjusts.rs`, 3 transform record).
+//! `adjusts.rs`, 3 transform record, 4 a merged layer, `nested.rs`).
 //!
 //! A fill: after (u32: the strokes under it), red, green, blue (f32), alpha locked (u8), its
 //! mask (`write_mask`: rectangle, run count, runs as LEB128 varints). A closed shape costs a
@@ -27,6 +27,7 @@ use openpaint_core::{
 
 use crate::adjusts::{KIND_ADJUST, encode_adjust, read_adjust};
 use crate::codec::{Reader, Writer};
+use crate::nested::{Counts, KIND_NESTED, encode_nested, read_nested};
 use crate::records::project_prefix;
 
 const FILL: u8 = b'f';
@@ -71,6 +72,7 @@ pub(crate) fn encode_edit(edit: &RegionEdit) -> Vec<u8> {
         }
         RegionEdit::Transform(transform) => encode_transform(transform),
         RegionEdit::Adjust(adjust) => encode_adjust(adjust),
+        RegionEdit::Nested(nested) => encode_nested(nested),
     }
 }
 
@@ -107,17 +109,30 @@ fn encode_transform(transform: &TransformEdit) -> Vec<u8> {
     writer.finish()
 }
 
+/// An edit record as plain data (a nested record's content left empty).
+#[cfg(test)]
 pub(crate) fn decode_edit(bytes: &[u8]) -> Result<EditParts, PortError> {
+    decode_record(bytes).map(|(edit, _)| edit)
+}
+
+/// An edit record as plain data and, for a nested record, how many records its content holds
+/// (`read.rs` reads them).
+pub(crate) fn decode_record(bytes: &[u8]) -> Result<(EditParts, Option<Counts>), PortError> {
     let mut reader = Reader::new(bytes, "edit");
     let edit = match reader.u8()? {
         KIND_FILL => EditParts::Fill(read_fill(&mut reader)?),
         KIND_TRANSFORM => EditParts::Transform(read_transform(&mut reader, true)?),
         KIND_PLACE => EditParts::Transform(read_transform(&mut reader, false)?),
         KIND_ADJUST => EditParts::Adjust(read_adjust(&mut reader)?),
+        KIND_NESTED => {
+            let (nested, counts) = read_nested(&mut reader)?;
+            reader.end()?;
+            return Ok((EditParts::Nested(nested), Some(counts)));
+        }
         _ => return Err(reader.corrupt()),
     };
     reader.end()?;
-    Ok(edit)
+    Ok((edit, None))
 }
 
 /// A fill after its kind, as schema 5 to 7 stored the whole record.

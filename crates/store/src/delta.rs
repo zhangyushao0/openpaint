@@ -21,7 +21,8 @@ pub(crate) struct Delta<'a> {
 /// What one slot holds: a layer's paint under its id, or its mask under `mask_slot`.
 pub(crate) type Content<'a> = (u64, &'a StrokeList, &'a [RegionEdit]);
 
-/// Every slot of `artwork`: each layer's paint, then its mask's if it has one.
+/// Every slot of `artwork`: each layer's paint, then its mask's if it has one, then those of the
+/// layers merged into it (nested records, S39), each under its own id.
 pub(crate) fn contents(artwork: &Artwork) -> Vec<Content<'_>> {
     let mut contents = Vec::with_capacity(artwork.layers().len());
     for layer in artwork.layers() {
@@ -30,8 +31,22 @@ pub(crate) fn contents(artwork: &Artwork) -> Vec<Content<'_>> {
         if let Some(mask) = layer.mask() {
             contents.push((mask_slot(id), mask.strokes(), mask.edits()));
         }
+        nested_contents(layer.edits(), &mut contents);
     }
     contents
+}
+
+/// The slots of the nested records among `edits`, and of those nested in them.
+fn nested_contents<'a>(edits: &'a [RegionEdit], contents: &mut Vec<Content<'a>>) {
+    for nested in edits.iter().filter_map(RegionEdit::nested) {
+        let layer = nested.layer();
+        let id = layer.id().get();
+        contents.push((id, layer.strokes(), layer.edits()));
+        if let Some(mask) = layer.mask() {
+            contents.push((mask_slot(id), mask.strokes(), mask.edits()));
+        }
+        nested_contents(layer.edits(), contents);
+    }
 }
 
 /// The records that turn the stored `base` into `artwork`. Per slot (a layer's paint or its
@@ -164,6 +179,24 @@ mod tests {
         let later = draw(&filled, 9.0);
         assert_eq!(fills(&delta(&filled, &later)), (vec![], vec![]));
         assert_eq!(fills(&delta(&later, &one)), (vec![], vec![(1, 0)]));
+    }
+
+    #[test]
+    fn a_merge_writes_one_record_and_the_merged_layers_stay_where_they_were() {
+        let create = ArtworkCommand::Layer(LayerCommand::Create);
+        let two = draw(&blank().apply(create).expect("create").artwork, 5.0);
+        let merge = ArtworkCommand::Layer(LayerCommand::MergeDown(two.active()));
+        let merged = two.apply(merge).expect("merge").artwork;
+        let changes = delta(&two, &merged);
+        let fills: Vec<Slot> = changes.write_fills.iter().map(|(slot, _)| *slot).collect();
+        assert_eq!(fills, [(1, 0)], "the nested record on layer 1");
+        assert_eq!(
+            slots(&changes),
+            (vec![], vec![]),
+            "no stroke written or removed"
+        );
+        assert!(changes.remove_fills.is_empty());
+        assert_eq!(contents(&merged).len(), 2, "layer 1 and, nested, layer 2");
     }
 
     #[test]

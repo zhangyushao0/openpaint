@@ -9,6 +9,7 @@ use crate::adjust::AdjustEdit;
 use crate::artwork::Artwork;
 use crate::command::{Applied, Change};
 use crate::error::CoreError;
+use crate::nested::NestedEdit;
 use crate::transform::TransformEdit;
 use crate::value::{CanvasSize, Color, invalid};
 
@@ -180,12 +181,13 @@ impl PartialEq for RegionMask {
 }
 
 /// What was done to a layer's pixels, at its place among the layer's strokes: a fill, a
-/// transform or an adjustment.
+/// transform, an adjustment or (S39) a layer merged into this one.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RegionEdit {
     Fill(FillEdit),
     Transform(TransformEdit),
     Adjust(AdjustEdit),
+    Nested(NestedEdit),
 }
 
 impl RegionEdit {
@@ -196,6 +198,7 @@ impl RegionEdit {
             Self::Fill(fill) => fill.after,
             Self::Transform(transform) => transform.after,
             Self::Adjust(adjust) => adjust.after,
+            Self::Nested(nested) => nested.after,
         }
     }
 
@@ -223,6 +226,14 @@ impl RegionEdit {
         }
     }
 
+    #[must_use]
+    pub const fn nested(&self) -> Option<&NestedEdit> {
+        match self {
+            Self::Nested(nested) => Some(nested),
+            _ => None,
+        }
+    }
+
     /// The same edit seen from two versions: its pixels shared, its place and values equal.
     /// O(1): never compares pixels.
     #[must_use]
@@ -236,6 +247,7 @@ impl RegionEdit {
             }
             (Self::Transform(a), Self::Transform(b)) => a.same(b),
             (Self::Adjust(a), Self::Adjust(b)) => a.same(b),
+            (Self::Nested(a), Self::Nested(b)) => a.same(b),
             _ => false,
         }
     }
@@ -272,6 +284,7 @@ impl RegionEdit {
                 let old = old.and_then(Self::adjust).and_then(AdjustEdit::clip);
                 adjust.clip.as_ref().map_or(0, |clip| mask(clip, old))
             }
+            Self::Nested(nested) => nested.bytes_since(old.and_then(Self::nested)),
         }
     }
 }

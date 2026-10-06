@@ -3,6 +3,7 @@
 use std::fmt;
 
 use crate::id::{GroupId, LayerId};
+use crate::merge::Unmergeable;
 
 /// Why core refused a value, a command, a stroke step or a stored artwork.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,6 +44,8 @@ pub enum CoreError {
     DuplicateId { what: &'static str, id: u64 },
     /// A stored id is zero or not below its counter, so a later edit could reuse it.
     IdOutOfRange { what: &'static str, id: u64 },
+    /// The layer cannot merge into the one below it (Merge Down) without changing what shows.
+    Unmergeable { layer: LayerId, why: Unmergeable },
 }
 
 impl fmt::Display for CoreError {
@@ -71,6 +74,9 @@ impl fmt::Display for CoreError {
             Self::EmptyStroke => f.write_str("a stroke has no samples"),
             Self::DuplicateId { what, id } => write!(f, "{what} {id} appears twice"),
             Self::IdOutOfRange { what, id } => write!(f, "{what} {id} is out of range"),
+            Self::Unmergeable { layer, why } => {
+                write!(f, "layer {} cannot merge down: {why:?}", layer.get())
+            }
         }
     }
 }

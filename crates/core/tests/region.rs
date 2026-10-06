@@ -127,7 +127,7 @@ fn fills_round_trip_through_storage_and_bad_ones_are_rejected() {
     let parts = filled.to_parts();
     let fill = |parts: &mut openpaint_core::ArtworkParts| match &mut parts.layers[0].edits[0] {
         EditParts::Fill(fill) => fill.clone(),
-        EditParts::Transform(_) | EditParts::Adjust(_) => panic!("a fill"),
+        _ => panic!("a fill"),
     };
     assert_eq!(fill(&mut parts.clone()).after, 1);
     let loaded = Artwork::from_storage(parts.clone()).unwrap();

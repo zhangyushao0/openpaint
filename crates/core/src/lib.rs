@@ -21,6 +21,8 @@ mod layer_moves;
 mod mask;
 mod mask_command;
 mod mask_ops;
+mod merge;
+mod nested;
 mod parts;
 mod region;
 mod session;
@@ -50,9 +52,12 @@ pub use id::{GroupId, LayerId, MAX_ID, StrokeId};
 pub use layer::{Layer, LayerProps};
 pub use layer_moves::{LayerPlace, layer_places};
 pub use mask::{LayerMask, grey_of};
+pub use merge::Unmergeable;
+pub use nested::{MAX_NESTING, NestedEdit, NestedLayer};
 pub use parts::{
     AccumulationParts, ArtworkParts, EditParts, FillParts, GroupParts, LayerMaskParts, LayerParts,
-    MaskParts, PaperParts, PatchParts, RecipeParts, SampleParts, StrokeParts, TransformParts,
+    MaskParts, NestedParts, PaperParts, PatchParts, RecipeParts, SampleParts, StrokeParts,
+    TransformParts,
 };
 pub use region::{FillEdit, RegionEdit, RegionMask};
 pub use session::{ActiveStroke, StrokeSession};

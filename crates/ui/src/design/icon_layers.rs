@@ -1,6 +1,6 @@
 //! The layer panel's own icons: a folder for groups, the chevron that opens and closes one,
 //! the bent arrow of a Clipping Mask, pointing down to the base it clips to, and a layer mask's
-//! sheet with a round window.
+//! sheet with a round window, and Merge Down's arrow onto the layer below.
 
 use std::f32::consts::{FRAC_PI_2, PI};
 
@@ -18,6 +18,11 @@ pub(super) fn layer_icons(icon: Icon) -> Vec<Line> {
             shaft.push([0.34, 0.74]);
             vec![shaft, vec![[0.22, 0.6], [0.34, 0.74], [0.46, 0.6]]]
         }
+        Icon::MergeDown => vec![
+            vec![[0.5, 0.2], [0.5, 0.58]],
+            vec![[0.34, 0.44], [0.5, 0.6], [0.66, 0.44]],
+            vec![[0.22, 0.78], [0.78, 0.78]],
+        ],
         Icon::Mask => {
             let sheet = vec![
                 [0.2, 0.22],

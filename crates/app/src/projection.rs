@@ -36,6 +36,9 @@ pub enum EditorAction {
     EditMask,
     /// Paint on, invert or clear the layer's mask (it is on).
     ChangeMask,
+    /// Merge the layer into the one below it (`Artwork::mergeable`; `LayerList::merge_down`
+    /// says why not).
+    MergeDown,
     /// Leave the canvas for the gallery, or act in the gallery.
     Gallery,
     /// Export the artwork to a file or another app.
@@ -91,8 +94,8 @@ pub struct SessionProjection {
     pub(crate) redo: Availability,
     pub(crate) retry_save: Availability,
     pub(crate) dismiss_notice: Availability,
-    /// Add, delete, edit, group and the mask's three, for the active layer.
-    pub(crate) layer_actions: [Availability; 7],
+    /// Add, delete, edit, group, the mask's three and Merge Down, for the active layer.
+    pub(crate) layer_actions: [Availability; 8],
     pub(crate) gallery: Availability,
     pub(crate) storage: StorageNotice,
     pub(crate) layers: Option<LayerList>,
@@ -123,7 +126,7 @@ pub enum ScreenProjection {
 }
 
 /// The layer actions in the order of `SessionProjection::layer_actions`.
-pub(crate) const LAYER_ACTIONS: [EditorAction; 7] = [
+pub(crate) const LAYER_ACTIONS: [EditorAction; 8] = [
     EditorAction::AddLayer,
     EditorAction::DeleteLayer,
     EditorAction::EditLayer,
@@ -131,6 +134,7 @@ pub(crate) const LAYER_ACTIONS: [EditorAction; 7] = [
     EditorAction::AddMask,
     EditorAction::EditMask,
     EditorAction::ChangeMask,
+    EditorAction::MergeDown,
 ];
 
 impl SessionProjection {
@@ -158,6 +162,7 @@ impl SessionProjection {
             EditorAction::AddMask => self.layer_actions[4],
             EditorAction::EditMask => self.layer_actions[5],
             EditorAction::ChangeMask => self.layer_actions[6],
+            EditorAction::MergeDown => self.layer_actions[7],
             EditorAction::Gallery => self.gallery,
             EditorAction::Fill | EditorAction::Transform | EditorAction::Adjust => {
                 if self.canvas.is_none() {
@@ -263,7 +268,7 @@ impl Default for SessionProjection {
             redo: Availability::NothingLeft,
             retry_save: Availability::NothingLeft,
             dismiss_notice: Availability::NothingLeft,
-            layer_actions: [Availability::NothingLeft; 7],
+            layer_actions: [Availability::NothingLeft; 8],
             gallery: Availability::NothingLeft,
             storage: StorageNotice::None,
             layers: None,
@@ -300,6 +305,7 @@ impl fmt::Display for EditorAction {
             Self::AddMask => "add a mask",
             Self::EditMask => "change the mask",
             Self::ChangeMask => "paint on the mask",
+            Self::MergeDown => "merge the layer down",
             Self::Gallery => "use the gallery",
             Self::Export => "export the artwork",
             Self::ChooseReference => "choose a reference image",

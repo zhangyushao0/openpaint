@@ -125,10 +125,13 @@ pub(crate) enum Opcode {
     /// The current layer becomes its pixels before a previewed adjustment, as one evaluation
     /// kept them at float precision (S35, `preview.rs`): exactly what the ops before it give.
     Resume = 16,
+    /// A merged layer's content (S39, a nested record) ends: its mask, then its opacity, then by
+    /// its mode over (or atop) what its layer held before it, which was set aside at its start.
+    EndNested = 17,
 }
 
 impl Opcode {
-    const ALL: [Self; 17] = [
+    const ALL: [Self; 18] = [
         Self::Segment,
         Self::EndStroke,
         Self::EndLayer,
@@ -146,6 +149,7 @@ impl Opcode {
         Self::Filter,
         Self::Tail,
         Self::Resume,
+        Self::EndNested,
     ];
 
     const fn wgsl_name(self) -> &'static str {
@@ -167,6 +171,7 @@ impl Opcode {
             Self::Filter => "OP_FILTER",
             Self::Tail => "OP_TAIL",
             Self::Resume => "OP_RESUME",
+            Self::EndNested => "OP_END_NESTED",
         }
     }
 }
@@ -189,7 +194,8 @@ impl Opcode {
 /// - `EndLayer`: `[opacity, into, mode, grouped, mask]`: `into` a `LayerInto`, `mode` a
 ///   `Mode`, `grouped` 1 inside a group, `mask` a `Masking` (`protocol_layers.rs`);
 ///   `EndChain`: `[opacity, _, mode, grouped]`, the base's; `EndGroup`: `[opacity]`;
-///   `BeginMask`: none.
+///   `BeginMask`: none; `EndNested`: `[opacity, into, mode, _, mask, aside]`, `into`
+///   `INTO_CLIPPED` for atop, else over; `aside` 1 where its start set the layer aside.
 /// - `Fill`: a paint op's first seven operands, then where its mask starts in the mask words
 ///   (`offset / 2^16`, `offset % 2^16`), then the canvas size for a smoothed edge (`[0, 0]`:
 ///   hard); the mask is `MASK_HEADER` words, then rows of `ceil(width / 32)` words, bit

@@ -38,6 +38,8 @@ fn codes(scene: &Scene) -> Vec<&'static str> {
         Item::EndMove { whole: false, .. } => "moved",
         Item::EndMove { whole: true, .. } => "cut",
         Item::MovedOnly(_) => "moved only",
+        Item::EndNested(_) => "nested",
+        Item::NestedOnly(_) => "nested only",
         Item::Clear { .. } => "clear",
     };
     scene.items.iter().map(name).collect()

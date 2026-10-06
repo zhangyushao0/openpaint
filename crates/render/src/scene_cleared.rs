@@ -72,6 +72,15 @@ fn follow(alive: &mut Vec<Alive>, edit: &RegionEdit, canvas: [u32; 2]) -> Option
         if let Some(fill) = edit.fill() {
             alive.push(Alive::at(widened(mask_bounds(fill.mask()))));
         }
+        if edit.nested().is_some() {
+            // A merged layer's content: anywhere on the canvas, as its edit's rectangle says.
+            alive.push(Alive::at(Bounds([
+                0.0,
+                0.0,
+                canvas[0] as f32,
+                canvas[1] as f32,
+            ])));
+        }
         if let Some(reach) = filter_reach(edit) {
             // A filter spreads what is there by its kernel's reach.
             for item in alive.iter_mut() {

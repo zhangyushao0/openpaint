@@ -1,5 +1,5 @@
-//! Schema 13: the keys and values the library stores (DECISIONS D36, D38, D43, D45, D46, D49,
-//! D50, D51, D54, D57; the archived D21, D25, D28, D29).
+//! Schema 15: the keys and values the library stores (DECISIONS D36, D38, D43, D45, D46, D49,
+//! D50, D51, D54, D57, D66; the archived D21, D25, D28, D29).
 //!
 //! Keyspace `library`: `schema` -> the schema of every record (u32 LE); `next` -> the next
 //! unused project id (u64 LE); `clock` -> the last value of the change counter (u64 LE); `last`
@@ -12,7 +12,7 @@
 //!   layer, next layer id and next stroke id (u64), then the layers bottom to top, each id
 //!   (u64), name (u32 length + UTF-8), visible (u8), opacity (f32), locked (u8), alpha locked
 //!   (u8), clipping (u8), blend (u8: 0 normal, 1 multiply, 2 screen, 3 overlay), group (u64, 0
-//!   none), its stroke count (u32) and its edit count (u32), its mask (`read_mask`: flags u8,
+//!   none), its stroke count (u32) and its edit count (u32), its mask (`read_layer_mask`: flags u8,
 //!   with a mask its stroke and edit counts); then the groups oldest first, each id (u64),
 //!   name, visible (u8) and opacity (f32); then whether the active layer's mask is the target
 //!   (u8);
@@ -26,9 +26,11 @@
 //!   and dust (f32)), sample count (u32), then per sample x, y, pressure, tilt, azimuth (f32)
 //!   and time (u32 ms), then its clip (u8: 0 none, 1 a mask as a fill stores it: rectangle,
 //!   run count and runs, `fills.rs`);
-//! - `[project u64]['f'][layer u64][index u64]` -> one fill or transform, oldest at index 0
-//!   (`fills.rs`);
+//! - `[project u64]['f'][layer u64][index u64]` -> one fill, transform, adjustment or nested
+//!   record, oldest at index 0 (`fills.rs`);
 //! - a mask's strokes and edits as a layer's, under `mask_slot(layer)` (the id with bit 63 set);
+//! - a merged layer's (a nested record's, `nested.rs`) strokes, edits and mask as a layer's, under
+//!   its own id;
 //! - `[project u64]['t']` -> the gallery thumbnail (`catalogue.rs`), derived from the artwork
 //!   when it was last left; absent until then.
 //!
@@ -42,11 +44,12 @@
 //! toolbox; schema 9 (S21) had no clipping, blend or group in its heads; schema 10 (S23) had
 //! no masks; schema 11 (S24) had no adjustment records (edit kind 2); schema 12 (S28) had no
 //! transform records without pixels (edit kind 3); schema 13 (S31) had no blur or sharpening
-//! in its adjustments; `migrate.rs` and `migrate_6.rs` to
-//! `migrate_14.rs` upgrade them.
+//! in its adjustments; schema 14 (S33) had no nested records (edit kind 4, merged layers);
+//! `migrate.rs` and `migrate_6.rs` to
+//! `migrate_15.rs` upgrade them.
 
 use openpaint_app::{PortError, ProjectId};
-use openpaint_core::{Artwork, BlendMode, GroupParts, LayerMaskParts, LayerParts};
+use openpaint_core::{Artwork, BlendMode, GroupParts, LayerMask, LayerMaskParts, LayerParts};
 
 use crate::codec::{Reader, Writer};
 pub(crate) use crate::strokes::{
@@ -54,7 +57,7 @@ pub(crate) use crate::strokes::{
 };
 
 /// The schema this build writes and the newest it reads.
-pub const SCHEMA: u32 = 14;
+pub const SCHEMA: u32 = 15;
 
 pub(crate) const LIBRARY: &str = "library";
 pub(crate) const PROJECTS: &str = "projects";
@@ -175,7 +178,7 @@ pub(crate) struct Head {
 }
 
 /// A blend mode's byte.
-fn blend_byte(blend: BlendMode) -> u8 {
+pub(crate) fn blend_byte(blend: BlendMode) -> u8 {
     match blend {
         BlendMode::Normal => 0,
         BlendMode::Multiply => 1,
@@ -184,7 +187,7 @@ fn blend_byte(blend: BlendMode) -> u8 {
     }
 }
 
-fn read_blend(reader: &mut Reader<'_>) -> Result<BlendMode, PortError> {
+pub(crate) fn read_blend(reader: &mut Reader<'_>) -> Result<BlendMode, PortError> {
     match reader.u8()? {
         0 => Ok(BlendMode::Normal),
         1 => Ok(BlendMode::Multiply),
@@ -218,15 +221,7 @@ pub(crate) fn encode_head(artwork: &Artwork) -> Vec<u8> {
         writer.u64(layer.props().group().map_or(0, |group| group.get()));
         writer.len(layer.strokes().len());
         writer.len(layer.edits().len());
-        match layer.mask() {
-            Some(mask) => {
-                let flags = 1 | u8::from(mask.enabled()) << 1 | u8::from(mask.inverted()) << 2;
-                writer.u8(flags);
-                writer.len(mask.strokes().len());
-                writer.len(mask.edits().len());
-            }
-            None => writer.u8(0),
-        }
+        write_layer_mask(&mut writer, layer.mask());
     }
     writer.len(artwork.groups().len());
     for group in artwork.groups() {
@@ -239,9 +234,24 @@ pub(crate) fn encode_head(artwork: &Artwork) -> Vec<u8> {
     writer.finish()
 }
 
-/// A layer's mask in the head: flags (u8: bit 0 a mask, bit 1 enabled, bit 2 inverted), then
-/// with a mask its stroke and edit counts (u32).
-fn read_mask(reader: &mut Reader<'_>) -> Result<(Option<LayerMaskParts>, [usize; 2]), PortError> {
+/// A layer's mask as the head (and a nested record) stores it: flags (u8: bit 0 a mask, bit 1
+/// enabled, bit 2 inverted), then with a mask its stroke and edit counts (u32).
+pub(crate) fn write_layer_mask(writer: &mut Writer, mask: Option<&LayerMask>) {
+    match mask {
+        Some(mask) => {
+            let flags = 1 | u8::from(mask.enabled()) << 1 | u8::from(mask.inverted()) << 2;
+            writer.u8(flags);
+            writer.len(mask.strokes().len());
+            writer.len(mask.edits().len());
+        }
+        None => writer.u8(0),
+    }
+}
+
+/// A mask as `write_layer_mask` stores it.
+pub(crate) fn read_layer_mask(
+    reader: &mut Reader<'_>,
+) -> Result<(Option<LayerMaskParts>, [usize; 2]), PortError> {
     let flags = reader.u8()?;
     if flags == 0 {
         return Ok((None, [0; 2]));
@@ -282,7 +292,7 @@ pub(crate) fn decode_head(bytes: &[u8]) -> Result<Head, PortError> {
         let (alpha_locked, clipping) = (reader.bool()?, reader.bool()?);
         let (blend, group) = (read_blend(&mut reader)?, reader.u64()?);
         let (strokes, fills) = (reader.u32()? as usize, reader.u32()? as usize);
-        let (mask, masked) = read_mask(&mut reader)?;
+        let (mask, masked) = read_layer_mask(&mut reader)?;
         let layer = LayerParts {
             id,
             name,

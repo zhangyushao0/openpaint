@@ -9,6 +9,8 @@ use crate::deposit::{Accumulation, Deposit, Paper, PaperTexture, Tip};
 use crate::error::CoreError;
 use crate::id::GroupId;
 use crate::layer::Layer;
+use crate::mask::LayerMask;
+use crate::nested::NestedEdit;
 use crate::region::{RegionEdit, RegionMask};
 use crate::stroke::{Stroke, StrokeBlend, StrokeSample};
 
@@ -73,6 +75,22 @@ pub enum EditParts {
     Fill(FillParts),
     Transform(TransformParts),
     Adjust(AdjustParts),
+    Nested(NestedParts),
+}
+
+/// A layer merged into another (S39) as plain data: its place among that layer's strokes, the
+/// merged layer's id, how it composited (`clipped`: atop the content before it), its content.
+#[derive(Debug, Clone, PartialEq)]
+pub struct NestedParts {
+    pub after: u64,
+    pub id: u64,
+    pub opacity: f32,
+    pub blend: BlendMode,
+    pub clipped: bool,
+    pub strokes: Vec<StrokeParts>,
+    pub edits: Vec<EditParts>,
+    /// Enabled; its strokes and fills in neutral grey.
+    pub mask: Option<LayerMaskParts>,
 }
 
 /// A transform as plain data: its place among the layer's strokes, what it moved (`None`: the
@@ -295,12 +313,30 @@ fn layer_parts(layer: &Layer) -> LayerParts {
         group: layer.props.group.map(GroupId::get),
         strokes: layer.strokes.iter().map(stroke_parts).collect(),
         edits: layer.edits.iter().map(edit_parts).collect(),
-        mask: layer.mask.as_ref().map(|mask| LayerMaskParts {
-            enabled: mask.enabled,
-            inverted: mask.inverted,
-            strokes: mask.strokes.iter().map(stroke_parts).collect(),
-            edits: mask.edits.iter().map(edit_parts).collect(),
-        }),
+        mask: layer.mask.as_ref().map(mask_parts),
+    }
+}
+
+fn mask_parts(mask: &LayerMask) -> LayerMaskParts {
+    LayerMaskParts {
+        enabled: mask.enabled,
+        inverted: mask.inverted,
+        strokes: mask.strokes.iter().map(stroke_parts).collect(),
+        edits: mask.edits.iter().map(edit_parts).collect(),
+    }
+}
+
+fn nested_parts(nested: &NestedEdit) -> NestedParts {
+    let layer = nested.layer();
+    NestedParts {
+        after: nested.after() as u64,
+        id: layer.id.get(),
+        opacity: layer.opacity,
+        blend: layer.blend,
+        clipped: layer.clipped,
+        strokes: layer.strokes.iter().map(stroke_parts).collect(),
+        edits: layer.edits.iter().map(edit_parts).collect(),
+        mask: layer.mask.as_ref().map(mask_parts),
     }
 }
 
@@ -332,6 +368,7 @@ fn edit_parts(edit: &RegionEdit) -> EditParts {
             })
         }
         RegionEdit::Adjust(adjust) => EditParts::Adjust(adjust.to_parts()),
+        RegionEdit::Nested(nested) => EditParts::Nested(nested_parts(nested)),
     }
 }
 

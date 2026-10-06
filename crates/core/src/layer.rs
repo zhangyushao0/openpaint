@@ -167,11 +167,13 @@ impl Layer {
         self.strokes.same(&other.strokes) && Arc::ptr_eq(&self.edits, &other.edits)
     }
 
-    /// A copy of the layer under `id`, its strokes and its mask's renumbered from `ids`.
+    /// A copy of the layer under `id`, its strokes, its nested records and its mask's strokes
+    /// renumbered from `ids`.
     pub(crate) fn duplicate(&self, id: LayerId, ids: &mut IdCounters) -> Self {
         let mut copy = self.clone();
         copy.id = id;
         copy.strokes = self.strokes.renumbered(ids);
+        copy.edits = crate::nested::renumbered(&self.edits, ids);
         if let Some(mask) = &mut copy.mask {
             mask.strokes = mask.strokes.renumbered(ids);
         }

@@ -155,7 +155,9 @@ impl<'a> Binner<'a> {
                     filled: Touched::new(self.lists.len()),
                 }),
                 Item::EndMove { whole, .. } => self.end_move(index, *whole),
-                Item::MovedOnly(_) => {}
+                // A merged layer's end, as a moved selection's (S39).
+                Item::EndNested(_) => self.end_move(index, false),
+                Item::MovedOnly(_) | Item::NestedOnly(_) => {}
                 _ => self.end(index, item),
             }
         }
@@ -184,6 +186,15 @@ impl<'a> Binner<'a> {
                 close_into(&mut self.chain, (lists, index), into);
             }
             Item::EndGroup(_) => close_into(&mut self.group, (lists, index), None),
+            Item::BeginMask(_) if !self.moves.is_empty() => {
+                // A merged layer's mask (S39): where its own paint was listed.
+                if let Some(level) = self.moves.last_mut() {
+                    for &slot in &level.entered.slots {
+                        lists[slot].push(index);
+                    }
+                    level.filled.close();
+                }
+            }
             Item::BeginMask(_) => {
                 for slot in self.layer.close() {
                     lists[slot].push(index);

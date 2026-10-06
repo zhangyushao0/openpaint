@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use openpaint_core::{
     Artwork, ArtworkCommand, BlendMode, Change, GroupCommand, GroupId, LayerCommand, LayerId,
-    LayerName, LayerPlace, MaskCommand, layer_places,
+    LayerName, LayerPlace, MaskCommand, Unmergeable, layer_places,
 };
 
 use crate::error::AppError;
@@ -26,6 +26,8 @@ pub enum LayerIntent {
     Select(LayerId),
     /// Remove the layer and its strokes; undo brings both back.
     Delete(LayerId),
+    /// Merge Down (S39): the layer goes into the one below, which becomes active; one step.
+    MergeDown(LayerId),
     /// A copy right above the layer, which becomes active (`LayerCommand::Duplicate`).
     Duplicate(LayerId),
     /// Where a dragged row was let go: `by` steps up (above 0) or down, one history step
@@ -135,6 +137,8 @@ pub struct LayerList {
     pub rows: Arc<[LayerRow]>,
     pub groups: Arc<[GroupRow]>,
     pub active: LayerId,
+    /// Why the active layer cannot merge down now (`None`: it can).
+    pub merge_down: Option<Unmergeable>,
     /// Strokes and fills go to the active layer's mask.
     pub on_mask: bool,
 }
@@ -178,6 +182,7 @@ impl LayerList {
             rows,
             groups,
             active: artwork.active(),
+            merge_down: artwork.mergeable(artwork.active()).err(),
             on_mask: artwork.on_mask(),
         }
     }
@@ -211,6 +216,7 @@ impl LayerIntent {
         match *self {
             Self::Add | Self::NewGroup => (EditorAction::AddLayer, active),
             Self::Duplicate(layer) => (EditorAction::AddLayer, layer),
+            Self::MergeDown(layer) => (EditorAction::MergeDown, layer),
             Self::Delete(layer) => (EditorAction::DeleteLayer, layer),
             Self::Group(layer) => (EditorAction::GroupLayer, layer),
             Self::Select(layer)
@@ -243,6 +249,7 @@ impl LayerIntent {
             Self::Select(id) => layer(LayerCommand::Select(id)),
             Self::Delete(id) => layer(LayerCommand::Delete(id)),
             Self::Duplicate(id) => layer(LayerCommand::Duplicate(id)),
+            Self::MergeDown(id) => layer(LayerCommand::MergeDown(id)),
             Self::Move { layer: id, by } => layer(LayerCommand::Move { layer: id, by }),
             Self::Rename {
                 layer: id,

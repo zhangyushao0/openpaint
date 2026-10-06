@@ -13,11 +13,14 @@ const LAYER_MODE: usize = 2;
 const LAYER_GROUPED: usize = 3;
 /// How a layer's mask applies: one of `MASKINGS`, a whole number.
 const LAYER_MASK: usize = 4;
-pub(super) const LAYER_SLOTS: [(&str, usize); 4] = [
+/// A nested record's end (S39): 1 where its start set the layer so far aside.
+const NESTED_ASIDE: usize = 5;
+pub(super) const LAYER_SLOTS: [(&str, usize); 5] = [
     ("LAYER_INTO", LAYER_INTO),
     ("LAYER_MODE", LAYER_MODE),
     ("LAYER_GROUPED", LAYER_GROUPED),
     ("LAYER_MASK", LAYER_MASK),
+    ("NESTED_ASIDE", NESTED_ASIDE),
 ];
 
 /// How an `EndLayer` applies the layer's mask (S24), declared to WGSL as constants by
@@ -115,6 +118,28 @@ impl Op {
         data[LAYER_MODE] = mode as u32 as f32;
         data[LAYER_GROUPED] = f32::from(u8::from(grouped));
         Self::new(Opcode::EndChain, &data)
+    }
+
+    /// The end of a merged layer's content (S39): through `masking`, at `opacity`, by `mode`
+    /// atop (`clipped`) or over what its layer held before it, which its start set `aside`
+    /// (elsewhere the layer held nothing there).
+    pub(crate) fn end_nested(
+        (opacity, mode): (f32, Mode),
+        (clipped, masking): (bool, Masking),
+        aside: bool,
+    ) -> Self {
+        let into = if clipped {
+            LayerInto::Clipped
+        } else {
+            LayerInto::Canvas
+        };
+        let mut data = [0.0; OP_DATA];
+        data[0] = opacity;
+        data[LAYER_INTO] = into as u32 as f32;
+        data[LAYER_MODE] = mode as u32 as f32;
+        data[LAYER_MASK] = masking as u32 as f32;
+        data[NESTED_ASIDE] = f32::from(u8::from(aside));
+        Self::new(Opcode::EndNested, &data)
     }
 
     /// The end of a group of `opacity`.

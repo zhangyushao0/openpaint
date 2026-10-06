@@ -10,11 +10,12 @@ use crate::brush::BrushRecipe;
 use crate::error::CoreError;
 use crate::group::{LayerGroup, check_groups};
 use crate::id::{GroupId, IdCounters, LayerId, MAX_ID, StrokeId};
-use crate::layer::{Layer, LayerProps};
+use crate::layer::{Layer, LayerProps, check_opacity};
 use crate::mask::{LayerMask, is_neutral};
+use crate::nested::{MAX_NESTING, NestedEdit, NestedLayer};
 use crate::parts::{
     ArtworkParts, EditParts, FillParts, GroupParts, LayerMaskParts, LayerParts, MaskParts,
-    RecipeParts, SampleParts, StrokeParts, TransformParts,
+    NestedParts, RecipeParts, SampleParts, StrokeParts, TransformParts,
 };
 use crate::region::{FillEdit, RegionEdit, RegionMask};
 use crate::stroke::{
@@ -175,7 +176,7 @@ fn layer_from(
         (parts.clipping, parts.blend),
         parts.group.map(GroupId::new),
     )?;
-    let (strokes, edits) = content_from(&parts.strokes, &parts.edits, canvas, ids)?;
+    let (strokes, edits) = content_from((&parts.strokes, &parts.edits), canvas, ids, 0)?;
     let mask = parts
         .mask
         .as_ref()
@@ -198,7 +199,7 @@ fn mask_from(
     canvas: CanvasSize,
     ids: &mut IdCheck,
 ) -> Result<LayerMask, CoreError> {
-    let (strokes, edits) = content_from(&parts.strokes, &parts.edits, canvas, ids)?;
+    let (strokes, edits) = content_from((&parts.strokes, &parts.edits), canvas, ids, 0)?;
     let stroke_ok = |stroke: &Stroke| match stroke.blend() {
         StrokeBlend::Over => is_neutral(stroke.style().color()),
         StrokeBlend::Smudge => true,
@@ -206,7 +207,7 @@ fn mask_from(
     };
     let edit_ok = |edit: &RegionEdit| match edit {
         RegionEdit::Fill(fill) => !fill.alpha_locked && is_neutral(fill.color),
-        RegionEdit::Transform(_) => false,
+        RegionEdit::Transform(_) | RegionEdit::Nested(_) => false,
         RegionEdit::Adjust(_) => true,
     };
     if !strokes.iter().all(stroke_ok) || !edits.iter().all(edit_ok) {
@@ -220,12 +221,13 @@ fn mask_from(
     })
 }
 
-/// Strokes and edits, each edit at a place among the strokes that never goes back.
+/// Strokes and edits, each edit at a place among the strokes that never goes back; `depth`
+/// nested records lie around them.
 fn content_from(
-    strokes: &[StrokeParts],
-    edits: &[EditParts],
+    (strokes, edits): (&[StrokeParts], &[EditParts]),
     canvas: CanvasSize,
     ids: &mut IdCheck,
+    depth: usize,
 ) -> Result<(StrokeList, Arc<[RegionEdit]>), CoreError> {
     let strokes = strokes
         .iter()
@@ -242,6 +244,7 @@ fn content_from(
             EditParts::Adjust(adjust) => {
                 RegionEdit::Adjust(AdjustEdit::from_parts(adjust, canvas)?)
             }
+            EditParts::Nested(nested) => nested_from(nested, canvas, ids, depth + 1)?,
         };
         if edit.after() < after || edit.after() > strokes.len() {
             return Err(invalid("edit place"));
@@ -250,6 +253,43 @@ fn content_from(
         built.push(edit);
     }
     Ok((StrokeList::from_strokes(&strokes), Arc::from(built)))
+}
+
+/// A merged layer's record `depth` deep (at most `MAX_NESTING`): its id is a layer id, never
+/// any other's; its mask, enabled, holds what a mask may.
+fn nested_from(
+    parts: &NestedParts,
+    canvas: CanvasSize,
+    ids: &mut IdCheck,
+    depth: usize,
+) -> Result<RegionEdit, CoreError> {
+    if depth > MAX_NESTING {
+        return Err(invalid("nesting depth"));
+    }
+    let id = ids.layer(parts.id)?;
+    let opacity = check_opacity(parts.opacity)?;
+    let (strokes, edits) = content_from((&parts.strokes, &parts.edits), canvas, ids, depth)?;
+    let mask = parts
+        .mask
+        .as_ref()
+        .map(|mask| mask_from(mask, canvas, ids))
+        .transpose()?;
+    if mask.as_ref().is_some_and(|mask| !mask.enabled) {
+        return Err(invalid("nested mask"));
+    }
+    let layer = NestedLayer {
+        id,
+        opacity,
+        blend: parts.blend,
+        clipped: parts.clipped,
+        strokes,
+        edits,
+        mask,
+    };
+    Ok(RegionEdit::Nested(NestedEdit {
+        after: usize::try_from(parts.after).map_err(|_| invalid("nested place"))?,
+        layer: Arc::new(layer),
+    }))
 }
 
 fn fill_from(parts: &FillParts, canvas: CanvasSize) -> Result<FillEdit, CoreError> {

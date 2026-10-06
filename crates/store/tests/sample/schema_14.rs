@@ -7,7 +7,7 @@ use super::schema_13_parts;
 /// The schema-13 sample with what schema 14 adds, a Gaussian blur and sharpening: on the
 /// sketch layer's paint after its strokes, a blur inside a selection, then sharpening of the
 /// whole layer.
-pub fn parts() -> ArtworkParts {
+pub fn schema_14_parts() -> ArtworkParts {
     let mut parts = schema_13_parts();
     let sketch = &mut parts.layers[0];
     let after = sketch.strokes.len() as u64;

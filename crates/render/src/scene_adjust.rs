@@ -160,6 +160,8 @@ impl Scene {
                     | Item::BeginMove(_)
                     | Item::EndMove { .. }
                     | Item::MovedOnly(_)
+                    | Item::EndNested(_)
+                    | Item::NestedOnly(_)
                     | Item::Active
             )
         };

@@ -136,6 +136,35 @@ fn panel_actions_change_the_layers_and_undo_takes_each_back() {
 }
 
 #[test]
+fn merge_down_keeps_the_canvas_and_undo_takes_it_back() {
+    let core = gpu::core();
+    let mut runtime = support::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere));
+    let mut hand = Hand::new(SIZE);
+    hand.gesture(&mut runtime, ToolKind::Stylus, &line(500.0));
+    hand.tap(&mut runtime, "Layers");
+    hand.tap(&mut runtime, "Add layer");
+    hand.tap(&mut runtime, "Clipping Mask");
+    hand.tap(&mut runtime, "Multiply");
+    // A stroke on the canvas draws on the new layer and closes the panel.
+    let across = [[300.0, 480.0], [500.0, 520.0], [700.0, 480.0]];
+    hand.gesture(&mut runtime, ToolKind::Stylus, &across);
+    let shown = |runtime: &Runtime| {
+        let image = runtime.read_canvas().expect("readback").expect("canvas");
+        image.content_hash()
+    };
+    let before = shown(&runtime);
+    hand.tap(&mut runtime, "Layers");
+    hand.tap(&mut runtime, "Merge Down");
+    assert_eq!(layers(&runtime).len(), 1, "merged");
+    assert_eq!(shown(&runtime), before, "the canvas as it was");
+    assert_cold(&core, &runtime, "after the merge");
+    hand.tap(&mut runtime, "Undo");
+    assert_eq!(layers(&runtime).len(), 2, "undone");
+    assert_eq!(shown(&runtime), before);
+    assert_cold(&core, &runtime, "after undo");
+}
+
+#[test]
 fn the_pen_never_paints_through_the_panel_and_a_tap_outside_closes_it() {
     let mut runtime = support::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere));
     let mut hand = Hand::new(SIZE);
