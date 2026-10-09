@@ -354,8 +354,8 @@ mod tests {
         let ten = crate::migrate_10::upgrade_9_to_10(&[(id, nine.projects[0].1.clone())]);
         let eleven = crate::migrate_11::upgrade_10_to_11(&[(id, ten.projects[0].1.clone())]);
         let mut head = eleven.projects[0].1.clone();
-        // Steps 11 -> 12 to 19 -> 20 only mark heads.
-        for from in 11..20 {
+        // Steps 11 -> 12 to 20 -> 21 only mark heads.
+        for from in 11..21 {
             head = remarked(&head, from, from + 1).expect("marked");
         }
         let head = decode_head(&head).expect("a schema-5 head, upgraded");

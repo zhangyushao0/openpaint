@@ -1,5 +1,7 @@
 //! The toolbox as plain data for the store (`Toolbox::state`, `Toolbox::restore`).
 
+use openpaint_core::RecipeParts;
+
 use crate::pen_buttons::ButtonMap;
 use crate::toolbox::Tool;
 
@@ -18,6 +20,8 @@ pub struct EditorState {
     pub buttons: ButtonMap,
     /// The palette's swatches, sRGB, in their order (S41).
     pub swatches: Vec<[f32; 3]>,
+    /// The brush library in picker order (S46); empty: the built-ins as their files have them.
+    pub library: Vec<StoredBrush>,
 }
 
 /// One tool's brush and each brush's size, opacity and StreamLine for it, by key. An empty
@@ -36,4 +40,27 @@ pub struct BrushSetting {
     pub opacity: f32,
     /// The StreamLine amount, `0..=1`.
     pub streamline: f32,
+}
+
+/// One brush of the library: its key, and its values unless it is a built-in as its file has
+/// it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StoredBrush {
+    pub key: String,
+    pub brush: Option<BrushParts>,
+}
+
+/// A brush as plain data.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BrushParts {
+    pub name: String,
+    /// The key of the brush a copy was made from; empty for a built-in.
+    pub source: String,
+    /// The size slider's least, first and largest diameter, in canvas pixels.
+    pub size: [f32; 3],
+    /// The opacity the slider starts at.
+    pub opacity: f32,
+    /// The StreamLine every tool starts with.
+    pub streamline: f32,
+    pub recipe: RecipeParts,
 }

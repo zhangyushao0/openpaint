@@ -147,6 +147,12 @@ pub enum Step {
         #[serde(deserialize_with = "hex_hash")]
         canvas: u64,
     },
+    /// The brush editor's preview strip (its picture's pixels) must hash to `strip` (S46).
+    Preview {
+        name: String,
+        #[serde(deserialize_with = "hex_hash")]
+        strip: u64,
+    },
     /// The screen, kept for looking at; never compared. Taken once every motion has settled,
     /// or, with `after_ms`, that long after the last input step ended, while it may still move
     /// (the runner's clock is fixed, so it moves alike every run).
@@ -266,6 +272,7 @@ impl Scenario {
                     return Err(invalid("a touch needs 1 to 5 fingers, as many at the end"));
                 }
                 Step::Checkpoint { name, .. }
+                | Step::Preview { name, .. }
                 | Step::Press {
                     before_lift: Some(name),
                     ..

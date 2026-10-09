@@ -34,7 +34,7 @@ pub(crate) fn upgrade_17_to_18(heads: &[(ProjectId, Vec<u8>)], editor: Option<&[
 #[cfg(test)]
 pub(crate) fn upgraded_toolbox(editor: &[u8]) -> openpaint_app::EditorState {
     let upgraded = editor_17_to_18(editor).expect("a whole schema-17 toolbox");
-    crate::editor::decode_editor(&upgraded).expect("a schema-18 toolbox")
+    crate::migrate_21::upgraded_toolbox(&upgraded)
 }
 
 /// A whole schema-17 toolbox with the third button's default after its second button.
@@ -66,7 +66,7 @@ fn editor_17_to_18(editor: &[u8]) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::editor::{decode_editor, write_choice, write_color};
+    use crate::editor::{write_choice, write_color};
     use openpaint_app::{BrushChoice, ButtonAction, Tool};
 
     /// A schema-17 toolbox: the eraser current, default brushes, a colour, no recent colours,
@@ -113,7 +113,7 @@ mod tests {
         assert_eq!(editor[..at], old[..at], "every byte before the swatches");
         assert_eq!(editor[at], action_code(ButtonAction::Undo), "the third");
         assert_eq!(editor[at + 1..], old[at..], "the swatches as they were");
-        let editor = decode_editor(editor).expect("a schema-18 toolbox");
+        let editor = crate::migrate_21::upgraded_toolbox(editor);
         assert_eq!(editor.tool, Tool::Eraser);
         assert_eq!(editor.color, [0.5, 0.25, 0.0]);
         let buttons = ButtonMap {

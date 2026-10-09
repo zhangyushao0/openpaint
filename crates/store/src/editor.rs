@@ -1,22 +1,24 @@
-//! The toolbox record, `library` / `editor` (schema 18, DECISIONS D28, D29, D46, D70, D71): the
-//! tool (u8: 0 brush, 1 eraser, 2 smudge); the brush tool's choice, then the eraser's, then the
-//! smudge's, each its brush's key (u32 length + UTF-8, empty for the tool's default brush), the
-//! brush count (u32) and per brush its key, size, opacity and StreamLine (f32); the colour,
-//! red, green, blue (f32); the recent colours, a count (u32) and per colour red, green, blue
-//! (f32), newest first; what the first, the second and the third side button of the pen do (u8
-//! each: 0 nothing, 1 eraser while held, 2 eyedropper while held, 3 undo, 4 redo, 5 switch
-//! tool); the palette's swatches, a count (u32) and per swatch red, green, blue (f32), in their
-//! order. It is not artwork: the app falls back to the defaults when it cannot be read, and
-//! nothing else depends on it. Schema 3 held only the brush tool's choice, schemas 4 and 5 no
-//! StreamLine, schemas 6 to 8 no smudge, schemas 9 to 16 no buttons and swatches, schema 17 two
-//! buttons; `migrate.rs`, `migrate_6.rs`, `migrate_9.rs`, `migrate_17.rs` and `migrate_18.rs`
-//! upgrade them.
+//! The toolbox record, `library` / `editor` (schema 21, DECISIONS D28, D29, D46, D70, D71,
+//! D73): the tool (u8: 0 brush, 1 eraser, 2 smudge); the brush tool's choice, then the
+//! eraser's, then the smudge's, each its brush's key (u32 length + UTF-8, empty for the tool's
+//! default brush), the brush count (u32) and per brush its key, size, opacity and StreamLine
+//! (f32); the colour, red, green, blue (f32); the recent colours, a count (u32) and per colour
+//! red, green, blue (f32), newest first; what the first, the second and the third side button
+//! of the pen do (u8 each: 0 nothing, 1 eraser while held, 2 eyedropper while held, 3 undo, 4
+//! redo, 5 switch tool); the palette's swatches, a count (u32) and per swatch red, green, blue
+//! (f32), in their order; the brush library (`editor_library.rs`). It is not artwork: the app
+//! falls back to the defaults when it cannot be read, and nothing else depends on it. Schema 3
+//! held only the brush tool's choice, schemas 4 and 5 no StreamLine, schemas 6 to 8 no smudge,
+//! schemas 9 to 16 no buttons and swatches, schema 17 two buttons, schemas 18 to 20 no library;
+//! `migrate.rs`, `migrate_6.rs`, `migrate_9.rs`, `migrate_17.rs`, `migrate_18.rs` and
+//! `migrate_21.rs` upgrade them.
 
 use openpaint_app::{
     BrushChoice, BrushSetting, ButtonAction, ButtonMap, EditorState, PortError, Tool,
 };
 
 use crate::codec::{Reader, Writer};
+use crate::editor_library::{read_library, write_library};
 
 pub(crate) const EDITOR: &[u8] = b"editor";
 /// Bytes of one brush entry with an empty key.
@@ -41,6 +43,7 @@ pub(crate) fn encode_editor(state: &EditorState) -> Vec<u8> {
         writer.u8(action_code(action));
     }
     write_colors(&mut writer, &state.swatches);
+    write_library(&mut writer, &state.library);
     writer.finish()
 }
 
@@ -109,6 +112,7 @@ pub(crate) fn decode_editor(bytes: &[u8]) -> Result<EditorState, PortError> {
         tertiary: read_action(&mut reader)?,
     };
     let swatches = read_colors(&mut reader)?;
+    let library = read_library(&mut reader)?;
     reader.end()?;
     Ok(EditorState {
         tool,
@@ -119,6 +123,7 @@ pub(crate) fn decode_editor(bytes: &[u8]) -> Result<EditorState, PortError> {
         recent,
         buttons,
         swatches,
+        library,
     })
 }
 
@@ -180,6 +185,7 @@ mod tests {
                 tertiary: ButtonAction::Eyedropper,
             },
             swatches: vec![[1.0, 0.0, 0.0], [0.0, 0.5, 0.25]],
+            library: Vec::new(),
         };
         let bytes = encode_editor(&state);
         assert_eq!(decode_editor(&bytes), Ok(state.clone()));
@@ -193,8 +199,10 @@ mod tests {
         let mut unknown_tool = bytes.clone();
         unknown_tool[0] = 3;
         assert_eq!(decode_editor(&unknown_tool), Err(corrupt.clone()));
-        // The buttons sit right before the swatches' count and their two colours.
-        let at = bytes.len() - 4 - 2 * COLOR_BYTES - 3;
+        // The buttons sit right before the swatches' count and their two colours, and the
+        // library's count (none: the built-ins).
+        assert_eq!(bytes[bytes.len() - 4..], [0; 4]);
+        let at = bytes.len() - 4 - 4 - 2 * COLOR_BYTES - 3;
         assert_eq!(bytes[at..at + 3], [5, 4, 2]);
         let mut unknown_action = bytes;
         unknown_action[at + 2] = 6;

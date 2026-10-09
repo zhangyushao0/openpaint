@@ -74,6 +74,12 @@ impl Runtime {
         }
     }
 
+    /// The brush editor's preview strip as the worker made it last, while the editor shows (S46).
+    #[must_use]
+    pub fn read_strip(&self) -> Option<RgbaImage> {
+        self.brushes.strip().cloned()
+    }
+
     /// What the canvas evaluates now: the artwork shown (with a stroke's mirrored copies or a
     /// preview) and the stroke being drawn, for tests to evaluate cold.
     #[must_use]

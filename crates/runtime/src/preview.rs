@@ -30,16 +30,26 @@ pub(crate) fn brush_previews(
     library: &BrushLibrary,
     pixels_per_point: f32,
 ) -> Result<Vec<(BrushKey, RgbaImage)>, RuntimeError> {
-    let points = design::BRUSH_PREVIEW;
-    let size = [points.x, points.y].map(|side| (side * pixels_per_point).round().max(8.0) as u32);
+    let size = preview_size(pixels_per_point);
     library
         .brushes()
         .iter()
-        .map(|brush| Ok((brush.key(), preview(core, brush, size)?)))
+        .map(|brush| Ok((brush.key().clone(), brush_picture(core, brush, size)?)))
         .collect()
 }
 
-fn preview(core: &Core, brush: &Brush, size: [u32; 2]) -> Result<RgbaImage, RuntimeError> {
+/// A preview's size in pixels at `pixels_per_point`.
+pub(crate) fn preview_size(pixels_per_point: f32) -> [u32; 2] {
+    let points = design::BRUSH_PREVIEW;
+    [points.x, points.y].map(|side| (side * pixels_per_point).round().max(8.0) as u32)
+}
+
+/// `brush`'s preview of `size` pixels.
+pub(crate) fn brush_picture(
+    core: &Core,
+    brush: &Brush,
+    size: [u32; 2],
+) -> Result<RgbaImage, RuntimeError> {
     let artwork = stroke(brush, size)?;
     let mut target = CanvasTarget::new(core, size)?;
     let request = FrameRequest {

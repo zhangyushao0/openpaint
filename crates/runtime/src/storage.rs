@@ -69,7 +69,7 @@ pub(crate) enum LibraryCall {
 pub(crate) enum Done {
     /// What opening found, and the stored toolbox; `None` when there is none or it could not
     /// be read (logged here): the brushes keep their defaults.
-    Started(Opened, Option<EditorState>),
+    Started(Opened, Option<Box<EditorState>>),
     EditorSaved(Result<(), PortError>),
     Saved(Artwork, Result<(), PortError>),
     Left {
@@ -173,7 +173,7 @@ fn run(store: &mut dyn ProjectStore, kept: &mut Kept, job: Job) -> Done {
                 .inspect_err(|error| log::warn!("the stored toolbox is unreadable: {error}"))
                 .ok()
                 .flatten();
-            Done::Started(opened, editor)
+            Done::Started(opened, editor.map(Box::new))
         }
         Job::SaveEditor(state) => Done::EditorSaved(store.save_editor(&state)),
         Job::Save(artwork) => {

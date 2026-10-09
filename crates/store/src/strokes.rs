@@ -173,6 +173,11 @@ fn read_stroke(reader: &mut Reader<'_>, layout: Layout) -> Result<StrokeParts, P
     })
 }
 
+/// A whole recipe as `write_whole_recipe` writes it (schema 20 on); the toolbox's brushes too.
+pub(crate) fn read_brush_recipe(reader: &mut Reader<'_>) -> Result<RecipeParts, PortError> {
+    read_whole_recipe(reader, Layout::Shape)
+}
+
 /// A recipe as a stroke record of `layout` holds it, after the blend.
 fn read_whole_recipe(reader: &mut Reader<'_>, layout: Layout) -> Result<RecipeParts, PortError> {
     let mut recipe = read_recipe(reader)?;
@@ -190,7 +195,7 @@ fn read_whole_recipe(reader: &mut Reader<'_>, layout: Layout) -> Result<RecipePa
 /// A recipe as a stroke record holds it, after the blend: its stages up to the grain (schema
 /// 3's recipe), then its deposit (schema 6), then its tilt curves and taper (schema 19), then
 /// its shape (schema 20).
-fn write_whole_recipe(writer: &mut Writer, recipe: &RecipeParts) {
+pub(crate) fn write_whole_recipe(writer: &mut Writer, recipe: &RecipeParts) {
     write_recipe(writer, recipe);
     write_deposit(writer, recipe);
     write_tilt_and_taper(writer, recipe);

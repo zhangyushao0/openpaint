@@ -262,23 +262,23 @@ fn head(records: &mut [(String, Vec<u8>, Vec<u8>)]) -> &mut Vec<u8> {
 
 #[test]
 fn unreadable_records_are_refused_with_a_reason() {
-    let newer = corrupted("newer", |records| head(records)[0] = 21);
+    let newer = corrupted("newer", |records| head(records)[0] = 22);
     assert_eq!(
         newer,
         PortError::NewerSchema {
-            found: 21,
-            newest: 20
+            found: 22,
+            newest: 21
         }
     );
     let newer_library = corrupted("newer-library", |records| {
         let schema = records.iter_mut().find(|(_, key, _)| key == b"schema");
-        schema.expect("schema record").2 = 21u32.to_le_bytes().to_vec();
+        schema.expect("schema record").2 = 22u32.to_le_bytes().to_vec();
     });
     assert_eq!(
         newer_library,
         PortError::NewerSchema {
-            found: 21,
-            newest: 20
+            found: 22,
+            newest: 21
         }
     );
     let short = corrupted("short", |records| {
@@ -331,6 +331,7 @@ fn the_toolbox_is_stored_apart_and_an_unreadable_one_never_blocks_an_artwork() {
             tertiary: openpaint_app::ButtonAction::Eyedropper,
         },
         swatches: vec![[0.0, 0.0, 0.0]],
+        library: Vec::new(),
     };
     library.save_editor(&state).expect("toolbox");
     assert_eq!(library.editor(), Ok(Some(state)));

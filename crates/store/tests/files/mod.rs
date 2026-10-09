@@ -35,7 +35,7 @@ fn file_of(schema: u32, title: &str, records: &[(Vec<u8>, Vec<u8>)]) -> Vec<u8> 
     bytes
 }
 
-/// A library holding the sample artwork (schema 20's) with its title and thumbnail.
+/// A library holding the sample artwork (schema 20's and 21's) with its title and thumbnail.
 fn sample_library(name: &str) -> (Library, ProjectId) {
     let mut library = Library::at(fresh_dir(name));
     let artwork = Artwork::from_storage(parts()).expect("the sample artwork");
@@ -100,6 +100,7 @@ fn files_of_older_schemas_open_upgraded() {
             14 => schema_14_parts(),
             15 => schema_15_parts(),
             19 => schema_19_parts(),
+            20 => parts(),
             _ => schema_16_parts(),
         };
         let file = file_of(schema, "Hafen", &older_records(schema));

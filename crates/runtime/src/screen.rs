@@ -90,6 +90,9 @@ impl Screen {
                 {
                     log::warn!("part of the stored toolbox did not fit the brushes");
                 }
+                for name in toolbox.fell_back() {
+                    log::warn!("the stored brush {name} is refused; its built-in is back");
+                }
                 *self = started(opened);
             }
             Done::EditorSaved(result) => {

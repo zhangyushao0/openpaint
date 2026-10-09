@@ -7,7 +7,11 @@
 mod actions_panel;
 mod adjust_controls;
 mod adjust_panel;
+mod brush_dynamics;
+mod brush_editor;
 mod brush_panel;
+mod brush_settings;
+mod brush_strip;
 mod canvas_input;
 mod color_drop;
 mod color_palette;
@@ -36,5 +40,6 @@ mod side_bar;
 mod transform_bar;
 mod transform_drag;
 
+pub use crate::brush_strip::StripStrokes;
 pub use crate::components::{CanvasArea, Control, ControlMap, ScreenArea, TOP_BAND, Unresolved};
 pub use crate::shell::Shell;

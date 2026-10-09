@@ -23,7 +23,7 @@ mod schema_20;
 pub use dump::{decode, encode};
 pub use editor::{
     sample_editor, sample_editor_6, sample_editor_9, sample_editor_17, sample_editor_18,
-    upgraded_editor,
+    sample_editor_21, upgraded_editor,
 };
 pub use schema_11::schema_11_parts;
 pub use schema_12::schema_12_parts;

@@ -152,6 +152,13 @@ pub(crate) fn record(
             expected: *hash,
             canvas: canvas()?,
         }),
+        Step::Preview { name, strip } => Record::Checkpoint(Checkpoint {
+            name: name.clone(),
+            expected: *strip,
+            canvas: runtime
+                .read_strip()
+                .ok_or(ScenarioError::Missing("no brush editor strip shows"))?,
+        }),
         Step::Exported {
             name,
             scale,

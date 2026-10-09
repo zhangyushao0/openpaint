@@ -136,6 +136,7 @@ impl Runner<'_> {
             | Step::Touch { .. } => return self.contact(runtime, step),
             Step::View { .. }
             | Step::Checkpoint { .. }
+            | Step::Preview { .. }
             | Step::Screenshot { .. }
             | Step::Exported { .. } => {
                 return self

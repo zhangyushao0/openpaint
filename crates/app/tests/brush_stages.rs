@@ -58,7 +58,7 @@ fn the_pencil_tilts_the_inker_tapers_the_monoline_keeps_one_width() {
     );
     // The Monoline's StreamLine is every tool's at first.
     let mut toolbox = Toolbox::new(library.clone());
-    toolbox.dispatch(&BrushIntent::Choose(monoline.key()));
+    toolbox.dispatch(&BrushIntent::Choose(monoline.key().clone()));
     assert_eq!(toolbox.streamline().amount(), 0.6);
 }
 

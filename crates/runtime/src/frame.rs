@@ -9,18 +9,18 @@
 //! -> draw the canvas and the UI over it.
 
 use std::sync::Arc;
-use std::time::Duration;
 
 use openpaint_app::{
-    BrushLibrary, Clipboard, HostAnswer, HostRequest, InputBatch, Intent, PalmRejection,
-    ProjectStore, ScreenProjection, SessionProjection, Toolbox, Transfers, TransformIntent,
+    BrushLibrary, Clipboard, InputBatch, Intent, PalmRejection, ProjectStore, ScreenProjection,
+    SessionProjection, Toolbox, Transfers, TransformIntent,
 };
 use openpaint_core::Artwork;
 use openpaint_render::{Core, ScreenPainter, ScreenTarget, Surface, SurfaceWindow, UiFrame};
 use openpaint_ui::Shell;
 use openpaint_ui::design::{self, TextFonts};
 
-use crate::canvas::{Canvas, Leaving};
+use crate::brush_pictures::BrushPictures;
+use crate::canvas::Canvas;
 use crate::clock::{FrameClock, InputClock};
 use crate::error::RuntimeError;
 use crate::fill::FillWorker;
@@ -28,17 +28,13 @@ use crate::input::MotionBatch;
 use crate::normalise::Normaliser;
 use crate::pictures::PictureWorker;
 use crate::pointer::pointer_events;
-use crate::preview::brush_previews;
-use crate::screen::{Screen, dispatch_gallery, leave_job};
+use crate::screen::{Screen, dispatch_gallery};
 use crate::seeds::Seeds;
 use crate::storage::{Job, Storage};
 use crate::text::{TextInput, text_events};
 use crate::transfer::{TransferWorker, route};
 pub(crate) use crate::ui_pass::screen_frame;
 use crate::ui_pass::{UiPass, run_ui};
-
-/// Longest `leave` waits for the store; a longer save goes on in the background.
-const LEAVE_WAIT: Duration = Duration::from_secs(2);
 
 pub struct Runtime {
     /// Shared with the transfer worker, which renders exports.
@@ -73,12 +69,14 @@ pub struct Runtime {
     /// Where every new stroke's seed comes from (S45).
     pub(crate) seeds: Seeds,
     /// Export and the reference image: the app's, kept across artworks.
-    transfers: Transfers,
-    transfer: TransferWorker,
+    pub(crate) transfers: Transfers,
+    pub(crate) transfer: TransferWorker,
     fill: FillWorker,
     pictures: PictureWorker,
+    /// The brush panel's pictures and the editor's preview strip (S46).
+    pub(crate) brushes: BrushPictures,
     /// Declared last: dropping it writes what it was handed before the process goes.
-    storage: Storage,
+    pub(crate) storage: Storage,
 }
 
 impl Runtime {
@@ -118,8 +116,11 @@ impl Runtime {
         let ui = egui::Context::default();
         design::install(&ui);
         let mut shell = Shell::default();
-        shell.set_brush_previews(brush_previews(&core, toolbox.library(), pixels_per_point)?);
+        let library = toolbox.library();
+        let brushes =
+            BrushPictures::start(Arc::clone(&core), library, (&mut shell, pixels_per_point))?;
         Ok(Self {
+            brushes,
             storage,
             screen: Screen::Opening(None),
             toolbox,
@@ -181,37 +182,6 @@ impl Runtime {
         self.surface = None;
     }
 
-    /// The user is leaving the app (Android `onPause`): the open artwork's current version (a
-    /// failed one included) and its thumbnail are handed to the store, and this waits until
-    /// they are written, at most `LEAVE_WAIT`; a longer save goes on in the background. A
-    /// stroke still being drawn is not part of it. In the gallery, the calls handed over are
-    /// waited for.
-    pub fn leave(&mut self) {
-        // A save running when the user left may hold an older version: hand over the newest
-        // once it is done.
-        let mut handed = false;
-        let now = self.frame_clock.wall_seconds();
-        for _ in 0..2 {
-            if let Some(canvas) = self.screen.canvas_mut()
-                && canvas.leaving == Leaving::Staying
-                && !canvas.session().saving()
-            {
-                let version = canvas.session_mut().leave_request();
-                if version.is_some() || !handed {
-                    self.storage
-                        .submit(leave_job(canvas, &self.core, version, (now, false)));
-                    handed = true;
-                }
-            }
-            if !self.storage.drain(LEAVE_WAIT) {
-                log::warn!("leaving while the store is still writing");
-            }
-            if let Err(error) = self.receive() {
-                log::error!("after leaving: {error}");
-            }
-        }
-    }
-
     /// Takes one platform input batch for the next frame. Returns whether it holds anything,
     /// in which case the host should ask for a frame.
     pub fn motion(&mut self, batch: &MotionBatch) -> bool {
@@ -245,33 +215,6 @@ impl Runtime {
     /// Otherwise the system's own back applies.
     pub fn back(&mut self) -> bool {
         self.shell.back(&self.screen())
-    }
-
-    /// The next thing the app asks the host to show or make (a system picker, a file to share,
-    /// the share sheet), once; call after each frame until `None`.
-    pub fn host_request(&mut self) -> Option<HostRequest> {
-        self.transfers
-            .request()
-            .or_else(|| self.screen.gallery_mut()?.host_request())
-    }
-
-    /// The host's answer to the last request that asks for one. The work it starts runs on the
-    /// transfer worker at once, also while the app has no window; the host should ask for a
-    /// frame.
-    pub fn answer(&mut self, answer: HostAnswer) {
-        if self.transfers.waiting() {
-            log::info!("the host answered: {answer:?}");
-            if let Some(job) = self.transfers.answer(answer) {
-                self.transfer.submit(job);
-            }
-        } else if let Some(gallery) = self.screen.gallery_mut().filter(|g| g.waiting()) {
-            log::info!("the host answered the gallery: {answer:?}");
-            if let Some(job) = gallery.host_answer(answer) {
-                self.storage.submit(Job::File(job));
-            }
-        } else {
-            log::warn!("an answer from the host nobody waits for: {answer:?}");
-        }
     }
 
     /// Runs one frame into the window. Returns whether another frame is wanted at once.
@@ -318,11 +261,12 @@ impl Runtime {
     #[must_use]
     pub fn storing(&self) -> bool {
         let working = self.storage.busy() || self.transfer.busy() || self.fill.busy();
-        working || self.pictures.busy() || matches!(self.screen, Screen::Opening(_))
+        let drawing = self.pictures.busy() || self.brushes.busy();
+        working || drawing || matches!(self.screen, Screen::Opening(_))
     }
 
     /// Applies everything the workers finished, then opens a canvas that is ready.
-    fn receive(&mut self) -> Result<(), RuntimeError> {
+    pub(crate) fn receive(&mut self) -> Result<(), RuntimeError> {
         self.transfer.receive(&mut self.transfers);
         while let Some(done) = self.storage.take() {
             self.screen.answer(done, &mut self.toolbox);
@@ -362,12 +306,14 @@ impl Runtime {
         }
         let area = self.shell.canvas_area();
         self.screen.open(&self.core, area, &self.toolbox)?;
+        let mut arrived = false;
         match &mut self.screen {
             Screen::Canvas(canvas) => {
                 let app = (&mut self.toolbox, &mut self.clipboard, &mut self.seeds);
                 canvas.dispatch(&self.core, intents, app);
                 self.fill.step(canvas);
                 self.pictures.step(canvas, &mut self.shell);
+                arrived = self.brushes.step(&self.toolbox, &mut self.shell);
             }
             Screen::Gallery(gallery) => dispatch_gallery(gallery, intents),
             Screen::Opening(_) => {}
@@ -387,7 +333,8 @@ impl Runtime {
         }
         let changed = self.screen() != shown;
         let viewing = self.screen.canvas().is_some_and(Canvas::view_pending);
-        let again = pass.repaint || changed || self.storing() || self.shell.animating() || viewing;
+        let shows = changed || arrived || viewing;
+        let again = pass.repaint || shows || self.storing() || self.shell.animating();
         Ok((pass.frame, again))
     }
 }

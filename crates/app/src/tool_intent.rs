@@ -5,12 +5,16 @@ use std::sync::Arc;
 
 use openpaint_core::Color;
 
+use crate::brush_edit::BrushChange;
 use crate::brushes::BrushKey;
+use crate::edited_brush::EditedBrush;
 use crate::pen_buttons::{ButtonAction, ButtonMap, HeldTool, PenButton};
 use crate::streamline::StreamLine;
 use crate::toolbox::Tool;
 
-/// Changes of the current tool's brush; they apply to the tool the pen uses now.
+/// Changes of the current tool's brush; they apply to the tool the pen uses now. The brush
+/// editor's (S46) change the brush itself, for every tool, from the next stroke on; strokes
+/// drawn keep their recipes, and none is a history step.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BrushIntent {
     /// Draw with this brush from the next stroke on, at the size and opacity it had last.
@@ -21,6 +25,16 @@ pub enum BrushIntent {
     Opacity { opacity: f32, settled: bool },
     /// The StreamLine `amount` in `0..=1` from the brush panel's slider, from the next stroke on.
     StreamLine { amount: f32, settled: bool },
+    /// One of the brush's settings; `settled` when the hand lifts.
+    Edit { change: BrushChange, settled: bool },
+    /// The brush's name (trimmed, 1 to `MAX_BRUSH_NAME` characters; anything else is ignored).
+    Rename(String),
+    /// A copy "<name> copy" right after the brush, chosen, with the same values.
+    Duplicate,
+    /// A built-in as its file has it again, the tool's StreamLine on it too.
+    Reset,
+    /// A copy goes; its source is chosen where it was.
+    Delete,
 }
 
 /// The tool, the colour, the eyedropper, the pen's buttons and the palette.
@@ -93,4 +107,6 @@ pub struct BrushProjection {
     pub preview: Option<Color>,
     /// What each pen button does.
     pub buttons: ButtonMap,
+    /// The current tool's brush as its editor shows it (S46).
+    pub edited: Arc<EditedBrush>,
 }

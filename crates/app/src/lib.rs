@@ -5,8 +5,13 @@
 #![forbid(unsafe_code)]
 
 mod adjust;
+mod brush_edit;
+mod brush_fit;
+mod brush_knobs;
+mod brush_library;
 mod brushes;
 mod clipboard;
+mod edited_brush;
 mod editor_state;
 mod error;
 mod export;
@@ -45,9 +50,13 @@ mod transform;
 mod view;
 
 pub use crate::adjust::{AdjustIntent, AdjustProjection, AdjustRefusal};
+pub use crate::brush_edit::BrushChange;
+pub use crate::brush_fit::{EDITOR_TAPER, MIN_DENSITY, MIN_FLOW, MIN_SIZE};
+pub use crate::brush_knobs::{Axis, Dynamic, Knob, KnobRange, curve_top};
 pub use crate::brushes::{Brush, BrushKey, BrushLibrary, SizeRange};
 pub use crate::clipboard::{Clipboard, ClipboardAction};
-pub use crate::editor_state::{BrushChoice, BrushSetting, EditorState};
+pub use crate::edited_brush::EditedBrush;
+pub use crate::editor_state::{BrushChoice, BrushParts, BrushSetting, EditorState, StoredBrush};
 pub use crate::error::AppError;
 pub use crate::export::{
     ARTWORK_EXTENSION, ExportIntent, ExportJob, ExportNotice, ExportScale, artwork_file_name,
@@ -77,7 +86,7 @@ pub use crate::project::{
     Thumbnail, VersionId,
 };
 pub use crate::projection::{Availability, EditorAction, ScreenProjection, SessionProjection};
-pub use crate::recipe::RecipeError;
+pub use crate::recipe::{MAX_BRUSH_NAME, RecipeError, brush_name};
 pub use crate::reference::{
     MAX_IMAGE_BYTES, MAX_IMAGE_PIXELS, MAX_REFERENCE_SIDE, ReferenceImage, ReferenceIntent,
     ReferenceNotice,

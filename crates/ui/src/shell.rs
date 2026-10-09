@@ -333,6 +333,7 @@ impl Shell {
     pub fn back(&mut self, projection: &ScreenProjection) -> bool {
         match projection {
             ScreenProjection::Canvas(_) if self.panels.layers.cancel_rename() => true,
+            ScreenProjection::Canvas(_) if self.panels.brushes.back() => true,
             ScreenProjection::Canvas(_) => {
                 self.taps.push(Intent::Gallery(GalleryIntent::Show));
                 true

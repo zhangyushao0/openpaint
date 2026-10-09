@@ -18,6 +18,20 @@ pub fn text_button(ui: &mut egui::Ui, label: &str, enabled: bool) -> egui::Respo
     button(ui, label, (enabled, None), TOUCH_TARGET)
 }
 
+/// A page's heading that is also a command (S46: a brush's name, which renames it): the words
+/// in the heading's size, bare in ink, the press wash round them.
+pub fn heading_button(ui: &mut egui::Ui, label: &str) -> egui::Response {
+    ui.scope(|ui| {
+        let style = ui.style_mut();
+        let heading = style.text_styles.get(&TextStyle::Heading).cloned();
+        if let Some(font) = heading {
+            style.text_styles.insert(TextStyle::Button, font);
+        }
+        button(ui, label, (true, None), TOUCH_TARGET)
+    })
+    .inner
+}
+
 /// A word reading `label` in the group `group`, showing whether it is the one `chosen`.
 pub fn text_choice(
     ui: &mut egui::Ui,

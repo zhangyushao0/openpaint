@@ -80,7 +80,11 @@ fn the_built_in_brushes_are_listed_by_job() {
         "ink never darkens itself"
     );
     let toolbox = Toolbox::new(library.clone());
-    assert_eq!(toolbox.projection().current, ink.key(), "the default brush");
+    assert_eq!(
+        toolbox.projection().current,
+        ink.key().clone(),
+        "the default brush"
+    );
     assert_eq!(toolbox.style().expect("style").size(), 12.0);
 }
 
@@ -194,7 +198,7 @@ fn every_brush_keeps_its_own_size_and_opacity() {
     assert_eq!(toolbox.projection().size, ink.size().max);
     assert!(toolbox.save_request().is_some());
     assert_eq!(toolbox.save_request(), None, "handed out once");
-    toolbox.dispatch(&BrushIntent::Choose(pencil.key()));
+    toolbox.dispatch(&BrushIntent::Choose(pencil.key().clone()));
     let shown = toolbox.projection();
     assert_eq!((shown.size, shown.opacity), (pencil.size().default, 1.0));
     toolbox.dispatch(&BrushIntent::Opacity {
@@ -207,16 +211,16 @@ fn every_brush_keeps_its_own_size_and_opacity() {
         settled: true,
     });
     assert_eq!(toolbox.streamline().amount(), 1.0, "clamped");
-    toolbox.dispatch(&BrushIntent::Choose(ink.key()));
+    toolbox.dispatch(&BrushIntent::Choose(ink.key().clone()));
     assert_eq!(toolbox.projection().size, ink.size().max, "kept while away");
     assert_eq!(
         toolbox.streamline(),
         StreamLine::OFF,
         "every brush starts off"
     );
-    toolbox.dispatch(&BrushIntent::Choose(pencil.key()));
+    toolbox.dispatch(&BrushIntent::Choose(pencil.key().clone()));
     assert_eq!(toolbox.projection().streamline.amount(), 1.0, "its own");
-    toolbox.dispatch(&BrushIntent::Choose(ink.key()));
+    toolbox.dispatch(&BrushIntent::Choose(ink.key().clone()));
     let state = toolbox.state();
     let mut reopened = Toolbox::new(library);
     assert!(reopened.restore(&state));
@@ -261,6 +265,7 @@ fn a_stored_state_that_does_not_fit_falls_back_to_defaults() {
         recent: vec![[0.5, 0.5, f32::NAN]],
         buttons: ButtonMap::default(),
         swatches: vec![[2.0, 0.0, 0.0]],
+        library: Vec::new(),
     };
     assert!(!toolbox.restore(&state));
     assert_eq!(toolbox.projection(), fresh);

@@ -4,9 +4,10 @@
 //!
 //! - Schema 1 (written by S7 to S9), 2 (S10), 3 (S11), 4 (S12 to S14), 5 (S15), 6 (S16 and
 //!   S17), 7 (S18 and S19), 8 (S20), 9 (S21 and S22), 10 (S23), 11 (S24 to S27), 12 (S28 to
-//!   S30), 13 (S31, S32), 14 (S33 to S38), 15 (S39), 16 (S40), 17 (S41, S42), 18 (S43) and 19
-//!   (S44): opening any of them upgrades it to schema 20 and gives the sample artwork as that
-//!   schema held it; no old recipe lays stamps; before schema 19 no recipe responds to tilt or
+//!   S30), 13 (S31, S32), 14 (S33 to S38), 15 (S39), 16 (S40), 17 (S41, S42), 18 (S43), 19
+//!   (S44) and 20 (S45): opening any of them upgrades it to schema 21 and gives the sample
+//!   artwork as that schema held it, its toolbox with the built-in brushes as their files have
+//!   them (no library); no old recipe lays stamps; before schema 19 no recipe responds to tilt or
 //!   tapers; no old layer holds cleared pixels; no layer before 15 holds a nested record; no old
 //!   adjustment blurs or sharpens before 14; before schema 13 no
 //!   transform is a record without pixels; before schema 12 no mask holds an adjustment;
@@ -18,7 +19,8 @@
 //!   over and no layer is alpha-locked; schemas 1 and 2 give every stroke the plain round brush,
 //!   the only brush there was. Every old record is kept: heads marked 20 and given (before 4)
 //!   Alpha Lock off, (before 5) a fill count of 0 per layer, (before 10) no clipping, Normal and
-//!   no group per layer and no groups, (before 11) no mask per layer and paint as the target;
+//!   no group per layer and no groups, (before 11) no mask per layer and paint as the target,
+//!   marked 21;
 //!   strokes given (before 4) their blend, (before 3) the
 //!   plain recipe after their colour, (before 6) the deposit "cover" after their recipe,
 //!   (before 7) "no clip" after their samples, (before 19) size and opacity over tilt flat at
@@ -26,19 +28,21 @@
 //!   their taper; fills given (before 8) the kind "fill" in front;
 //!   the toolbox given (before 4) the eraser and black, (before 6) StreamLine off for every
 //!   brush, (before 9) the smudge at its defaults, (before 17) the pen buttons at
-//!   theirs and no swatches and (before 18) the third pen button at its default, Undo.
-//! - Schema 20: storing the sample artwork (schema 19's, with a stroke of scattered, turned and
+//!   theirs and no swatches, (before 18) the third pen button at its default, Undo, and (before
+//!   21) an empty brush library.
+//! - Schema 21: storing the sample artwork (schema 20's, with a stroke of scattered, turned and
 //!   jittered rough squares with its own seed) with its title, thumbnail and toolbox (pen
-//!   buttons undoing, switching tools and picking, three swatches) gives exactly these bytes, so
-//!   schema 20 can never change by accident, and opening it gives them back. Schemas 17 and 18
-//!   changed no artwork record, only the toolbox: its pen buttons and swatches, then the third
-//!   button; schema 19 only recipes (tilt and taper), schema 20 only strokes (shape and seed).
+//!   buttons undoing, switching tools and picking, three swatches, a library of an edited
+//!   built-in, a copy and built-ins by key) gives exactly these bytes, so schema 21 can never
+//!   change by accident, and opening it gives them back. Schemas 17, 18 and 21 changed no
+//!   artwork record, only the toolbox: its pen buttons and swatches, the third button, the
+//!   library; schema 19 only recipes (tilt and taper), schema 20 only strokes (shape and seed).
 //!   Schema 15 added a layer merged down: a nested record holding a stroke, a fill, a record
 //!   nested in it and a mask.
 //!
 //! A file is a record dump: per record the keyspace index (u8: 0 `library`, 1 `projects`),
 //! then key and value, each as a u32 little-endian length and the bytes, sorted by keyspace and
-//! key. A missing schema-20 file is written from the current encoding and the test fails, so a
+//! key. A missing schema-21 file is written from the current encoding and the test fails, so a
 //! new sample is reviewed before it is committed.
 
 mod common;
@@ -51,10 +55,11 @@ use openpaint_core::Artwork;
 use openpaint_store::{Library, SCHEMA};
 use sample::{
     decode, encode, legacy_parts, parts, sample_editor, sample_editor_6, sample_editor_9,
-    sample_editor_17, sample_editor_18, sample_path, sample_thumbnail, sample_title,
-    schema_3_parts, schema_4_parts, schema_5_parts, schema_6_parts, schema_7_parts, schema_8_parts,
-    schema_9_parts, schema_10_parts, schema_11_parts, schema_12_parts, schema_13_parts,
-    schema_14_parts, schema_15_parts, schema_16_parts, schema_19_parts, upgraded_editor,
+    sample_editor_17, sample_editor_18, sample_editor_21, sample_path, sample_thumbnail,
+    sample_title, schema_3_parts, schema_4_parts, schema_5_parts, schema_6_parts, schema_7_parts,
+    schema_8_parts, schema_9_parts, schema_10_parts, schema_11_parts, schema_12_parts,
+    schema_13_parts, schema_14_parts, schema_15_parts, schema_16_parts, schema_19_parts,
+    upgraded_editor,
 };
 
 /// Bytes of a stroke record before the place schema 3 puts the recipe and schema 4 the blend.
@@ -64,7 +69,7 @@ const STYLE_BYTES: usize = 28;
 /// "no mask" (one byte).
 const LAYERS: usize = 3;
 
-/// Opens the older sample `schema`: it upgrades to schema 20 and holds the sample artwork as
+/// Opens the older sample `schema`: it upgrades to schema 21 and holds the sample artwork as
 /// that schema held it. Every old record is kept, as the module documentation lists. Returns
 /// the library (still open) and the keys the upgrade added.
 fn open_older(schema: u32) -> (Library, Vec<Vec<u8>>) {
@@ -93,6 +98,7 @@ fn open_older(schema: u32) -> (Library, Vec<Vec<u8>>) {
         14 => schema_14_parts(),
         15 => schema_15_parts(),
         19 => schema_19_parts(),
+        20 => parts(),
         _ => schema_16_parts(),
     };
     assert_eq!(project.artwork.to_parts(), expected);
@@ -124,8 +130,8 @@ fn kept(schema: u32, keyspace: &str, key: &[u8], value: &[u8], now: &[u8]) {
         ("projects", Some(b'h')) => {
             assert_eq!(
                 now[..4],
-                20u32.to_le_bytes(),
-                "the head is marked schema 20"
+                21u32.to_le_bytes(),
+                "the head is marked schema 21"
             );
             let grown = alpha_lock + fill_counts + groups + masks;
             assert_eq!(now.len(), value.len() + grown);
@@ -154,7 +160,7 @@ fn kept(schema: u32, keyspace: &str, key: &[u8], value: &[u8], now: &[u8]) {
         ("projects", Some(b'f')) if schema < 8 => {
             assert_eq!((now[0], &now[1..]), (0, value), "the kind, then the fill");
         }
-        ("library", _) if key == b"schema" => assert_eq!(now, &20u32.to_le_bytes()),
+        ("library", _) if key == b"schema" => assert_eq!(now, &21u32.to_le_bytes()),
         ("library", _) if key == b"editor" => {}
         _ => assert_eq!(now, value),
     }
@@ -234,6 +240,9 @@ fn continuous_bytes() -> Vec<u8> {
 /// the upgrade put in, which must be there: (before 19) flat tilt and no taper after its
 /// deposit, and (before 20) the continuous shape and seed 0 after its taper.
 fn unshaped(schema: u32, now: &[u8]) -> Vec<u8> {
+    if schema >= 20 {
+        return now.to_vec();
+    }
     let deposit = deposit_end(now, STYLE_BYTES + 1);
     let (at, added) = if schema < 19 {
         (deposit, [untilted_bytes(), continuous_bytes()].concat())
@@ -309,8 +318,8 @@ fn the_schema_3_sample_opens_upgraded_and_keeps_its_records() {
 }
 
 #[test]
-fn the_schema_4_to_19_samples_open_upgraded_and_keep_their_records() {
-    for schema in 4..=19 {
+fn the_schema_4_to_20_samples_open_upgraded_and_keep_their_records() {
+    for schema in 4..=20 {
         let (mut library, added) = open_older(schema);
         let listed = library.list().expect("list");
         assert_eq!(listed[0].title, sample_title());
@@ -328,9 +337,9 @@ fn the_schema_4_to_19_samples_open_upgraded_and_keep_their_records() {
 }
 
 #[test]
-fn the_schema_20_sample_round_trips() {
+fn the_schema_21_sample_round_trips() {
     assert_eq!(
-        SCHEMA, 20,
+        SCHEMA, 21,
         "a new schema ships its own sample and migration"
     );
     let artwork = Artwork::from_storage(parts()).expect("valid sample artwork");
@@ -340,10 +349,10 @@ fn the_schema_20_sample_round_trips() {
     library
         .save_thumbnail(id, &sample_thumbnail())
         .expect("thumbnail");
-    library.save_editor(&sample_editor_18()).expect("toolbox");
+    library.save_editor(&sample_editor_21()).expect("toolbox");
     drop(library);
     let written = encode(&records(&dir));
-    let path = sample_path(20);
+    let path = sample_path(21);
     let Ok(frozen) = std::fs::read(&path) else {
         std::fs::write(&path, &written).expect("write sample");
         panic!(
@@ -353,7 +362,7 @@ fn the_schema_20_sample_round_trips() {
     };
     assert!(
         written == frozen,
-        "storing the sample artwork no longer gives the schema-20 bytes"
+        "storing the sample artwork no longer gives the schema-21 bytes"
     );
 
     let dir = fresh_dir("sample-read");
@@ -368,5 +377,5 @@ fn the_schema_20_sample_round_trips() {
     let listed = library.list().expect("list");
     assert_eq!(listed[0].title, sample_title());
     assert_eq!(listed[0].thumbnail, Some(sample_thumbnail()));
-    assert_eq!(library.editor(), Ok(Some(sample_editor_18())));
+    assert_eq!(library.editor(), Ok(Some(sample_editor_21())));
 }

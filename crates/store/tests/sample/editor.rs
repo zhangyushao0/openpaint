@@ -1,6 +1,9 @@
 //! The toolboxes of the frozen samples, as each schema holds them once opened now.
 
-use openpaint_app::{BrushChoice, BrushSetting, ButtonAction, ButtonMap, EditorState, Tool};
+use openpaint_app::{
+    BrushChoice, BrushParts, BrushSetting, ButtonAction, ButtonMap, EditorState, StoredBrush, Tool,
+};
+use openpaint_core::{BrushRecipe, ShapeParts, ShapeTexture, Stamp};
 
 fn setting(key: &str, size: f32, opacity: f32) -> BrushSetting {
     BrushSetting {
@@ -39,6 +42,7 @@ pub fn upgraded_editor() -> EditorState {
         recent: Vec::new(),
         buttons: ButtonMap::default(),
         swatches: Vec::new(),
+        library: Vec::new(),
     }
 }
 
@@ -103,5 +107,48 @@ pub fn sample_editor() -> EditorState {
         recent: vec![[1.0, 0.5, 0.125], [0.0, 0.25, 0.75]],
         buttons: ButtonMap::default(),
         swatches: Vec::new(),
+        library: Vec::new(),
     }
+}
+
+/// The toolbox of the schema-21 sample: the schema-18 one with a brush library: the Pencil by
+/// key, the Inker edited (a longer taper), a copy of it laying chalk stamps 0.4 diameters apart
+/// with its own name, the Ink Pen by key after it, and the brush tool drawing with the copy.
+pub fn sample_editor_21() -> EditorState {
+    let mut editor = sample_editor_18();
+    let by_key = |key: &str| StoredBrush {
+        key: key.to_owned(),
+        brush: None,
+    };
+    let mut inker = BrushRecipe::plain().to_parts();
+    inker.taper = [5.0, 3.0, 0.1];
+    let mut chalk = inker.clone();
+    chalk.shape = ShapeParts {
+        stamp: Stamp::Texture(ShapeTexture::Chalk),
+        spacing: 0.4,
+        ..ShapeParts::CONTINUOUS
+    };
+    let whole = |name: &str, source: &str, recipe| BrushParts {
+        name: name.to_owned(),
+        source: source.to_owned(),
+        size: [1.0, 12.0, 80.0],
+        opacity: 1.0,
+        streamline: 0.25,
+        recipe,
+    };
+    editor.library = vec![
+        by_key("pencil"),
+        StoredBrush {
+            key: "inker".to_owned(),
+            brush: Some(whole("Inker", "", inker)),
+        },
+        StoredBrush {
+            key: "copy-1".to_owned(),
+            brush: Some(whole("Kreide ✒ 粉笔", "inker", chalk)),
+        },
+        by_key("ink-pen"),
+    ];
+    editor.paint.brush = "copy-1".to_owned();
+    editor.paint.brushes.push(setting("copy-1", 20.0, 0.75));
+    editor
 }

@@ -8,6 +8,7 @@ use openpaint_core::LayerId;
 use openpaint_render::RgbaImage;
 
 use super::Shell;
+use crate::brush_strip::StripStrokes;
 use crate::components::{Place, ScreenArea, island, text_button};
 use crate::design::SPACE;
 use crate::layer_panel::picture_pixels;
@@ -69,6 +70,30 @@ impl Shell {
     /// (`design::BRUSH_PREVIEW` points); loaded as textures by the next pass.
     pub fn set_brush_previews(&mut self, previews: Vec<(BrushKey, RgbaImage)>) {
         self.panels.brushes.set_previews(previews);
+    }
+
+    /// One brush's preview, made again since the brush changed or was copied (S46).
+    pub fn set_brush_picture(&mut self, key: BrushKey, image: RgbaImage) {
+        self.panels.brushes.set_picture(key, image);
+    }
+
+    /// Whether the brush list shows: only then does it want pictures of changed brushes.
+    #[must_use]
+    pub const fn brushes_listed(&self) -> bool {
+        self.panels.brushes.listed()
+    }
+
+    /// While the brush editor shows: its preview strip's size in pixels and the pen's strokes
+    /// on it, for the renderer to draw with the brush as set now (S46).
+    #[must_use]
+    pub fn strip(&self) -> Option<StripStrokes> {
+        self.panels.brushes.strip()
+    }
+
+    /// The renderer's picture of the strip (opaque RGBA, its size in pixels), shown from the
+    /// next pass on.
+    pub fn set_strip_picture(&mut self, image: RgbaImage) {
+        self.panels.brushes.set_strip_picture(image);
     }
 
     /// Whether the layer panel is open: only then does it want pictures of its layers (S38).

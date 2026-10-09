@@ -2,6 +2,7 @@
 //! draining and startup. Platform hosts plug in through traits; no JNI here.
 #![forbid(unsafe_code)]
 
+mod brush_pictures;
 mod canvas;
 mod clock;
 mod error;
@@ -17,6 +18,7 @@ mod preview;
 mod screen;
 mod seeds;
 mod storage;
+mod strip;
 mod text;
 mod transfer;
 mod ui_pass;

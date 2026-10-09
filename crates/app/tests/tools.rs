@@ -28,23 +28,26 @@ fn the_eraser_keeps_its_own_brush_size_and_opacity() {
     let [pencil, ink, _, _, _, soft, ..] = library.brushes() else {
         panic!("the built-in brushes");
     };
-    toolbox.dispatch(&BrushIntent::Choose(pencil.key()));
+    toolbox.dispatch(&BrushIntent::Choose(pencil.key().clone()));
     toolbox.dispatch_tool(&ToolIntent::Use(Tool::Eraser));
     let eraser = toolbox.projection();
-    assert_eq!((eraser.tool, eraser.current), (Tool::Eraser, ink.key()));
+    assert_eq!(
+        (eraser.tool, eraser.current),
+        (Tool::Eraser, ink.key().clone())
+    );
     assert_eq!(toolbox.style().expect("style").tool(), StrokeTool::Erase);
-    toolbox.dispatch(&BrushIntent::Choose(soft.key()));
+    toolbox.dispatch(&BrushIntent::Choose(soft.key().clone()));
     toolbox.dispatch(&BrushIntent::Opacity {
         opacity: 0.5,
         settled: true,
     });
     toolbox.dispatch_tool(&ToolIntent::Use(Tool::Brush));
     let brush = toolbox.projection();
-    assert_eq!((brush.current, brush.opacity), (pencil.key(), 1.0));
+    assert_eq!((brush.current, brush.opacity), (pencil.key().clone(), 1.0));
     assert_eq!(toolbox.style().expect("style").tool(), StrokeTool::Paint);
     toolbox.dispatch_tool(&ToolIntent::Use(Tool::Eraser));
     let back = toolbox.projection();
-    assert_eq!((back.current, back.opacity), (soft.key(), 0.5));
+    assert_eq!((back.current, back.opacity), (soft.key().clone(), 0.5));
     let mut reopened = self::toolbox();
     assert!(reopened.restore(&toolbox.state()));
     assert_eq!(reopened.projection(), toolbox.projection());
@@ -145,14 +148,17 @@ fn the_smudge_has_its_own_brush_and_strength_and_is_stored() {
     };
     toolbox.dispatch_tool(&ToolIntent::Use(Tool::Smudge));
     let smudge = toolbox.projection();
-    assert_eq!((smudge.tool, smudge.current), (Tool::Smudge, soft.key()));
+    assert_eq!(
+        (smudge.tool, smudge.current),
+        (Tool::Smudge, soft.key().clone())
+    );
     assert_eq!(smudge.opacity, SMUDGE_STRENGTH, "draweave's 70 %");
     let style = toolbox.style().expect("style");
     assert_eq!(
         (style.tool(), style.opacity()),
         (StrokeTool::Smudge, SMUDGE_STRENGTH)
     );
-    toolbox.dispatch(&BrushIntent::Choose(ink.key()));
+    toolbox.dispatch(&BrushIntent::Choose(ink.key().clone()));
     toolbox.dispatch(&BrushIntent::Opacity {
         opacity: 0.4,
         settled: true,
@@ -161,7 +167,7 @@ fn the_smudge_has_its_own_brush_and_strength_and_is_stored() {
     let brush = toolbox.projection();
     assert_eq!(
         (brush.current, brush.opacity),
-        (ink.key(), 1.0),
+        (ink.key().clone(), 1.0),
         "the brush keeps its own"
     );
     let state = toolbox.save_request().expect("changed");
@@ -170,7 +176,7 @@ fn the_smudge_has_its_own_brush_and_strength_and_is_stored() {
     assert!(reopened.restore(&state));
     reopened.dispatch_tool(&ToolIntent::Use(Tool::Smudge));
     let back = reopened.projection();
-    assert_eq!((back.current, back.opacity), (ink.key(), 0.4));
+    assert_eq!((back.current, back.opacity), (ink.key().clone(), 0.4));
 }
 
 #[test]

@@ -73,7 +73,7 @@ use crate::recipe_section::{Section, missing, out_of_range};
 use crate::recipe_shape::{shape, softness};
 
 /// Longest brush name, in characters.
-const MAX_BRUSH_NAME: usize = 40;
+pub const MAX_BRUSH_NAME: usize = 40;
 
 /// Why a brush file was refused. `field` is the dotted path of the value, such as `size.max`.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -128,10 +128,7 @@ pub(crate) fn parse(key: BrushKey, text: &str) -> Result<Brush, RecipeError> {
         "taper",
     ])?;
     let name = root.string("name")?.ok_or_else(|| missing(&root, "name"))?;
-    let name = name.trim();
-    if name.is_empty() || name.chars().count() > MAX_BRUSH_NAME {
-        return Err(out_of_range(&root, "name"));
-    }
+    let name = brush_name(name).ok_or_else(|| out_of_range(&root, "name"))?;
     let streamline = root.number("streamline")?.unwrap_or(0.0);
     if !(0.0..=1.0).contains(&streamline) {
         return Err(out_of_range(&root, "streamline"));
@@ -152,12 +149,21 @@ pub(crate) fn parse(key: BrushKey, text: &str) -> Result<Brush, RecipeError> {
     }
     Ok(Brush {
         key,
-        name: name.to_owned(),
+        name,
         recipe: Arc::new(recipe(&root, &size, &opacity)?),
         size: range,
         opacity: start,
         streamline,
+        source: None,
     })
+}
+
+/// `text` as a brush's name: trimmed, 1 to `MAX_BRUSH_NAME` characters; `None` otherwise.
+#[must_use]
+pub fn brush_name(text: &str) -> Option<String> {
+    let name = text.trim();
+    let fits = !name.is_empty() && name.chars().count() <= MAX_BRUSH_NAME;
+    fits.then(|| name.to_owned())
 }
 
 /// The recipe of a brush file: its stages from its sections.

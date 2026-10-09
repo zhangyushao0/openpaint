@@ -53,6 +53,8 @@ impl Shell {
             threshold: shown.threshold,
             bar: self.drop_bar,
         };
+        // The pen on the brush editor's strip draws there (S46).
+        self.panels.brushes.route_strip(batches);
         let mut intents = self.reference.route(batches, now_ms, shown.picking);
         let (dropped, rest) = self.drop.route(&frame, &drop, batches);
         intents.extend(dropped);
