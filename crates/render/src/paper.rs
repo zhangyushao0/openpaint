@@ -21,6 +21,13 @@ pub(crate) fn level_count() -> u32 {
     PAPER_SIZE[0].min(PAPER_SIZE[1]).ilog2() + 1
 }
 
+/// Words the chain takes: every level's texels (the shape textures follow them, `shapes.rs`).
+pub(crate) fn paper_words() -> u32 {
+    (0..level_count())
+        .map(|k| (PAPER_SIZE[0] >> k).max(1) * (PAPER_SIZE[1] >> k).max(1))
+        .sum()
+}
+
 /// Every level of the chain, finest first, each row major: per texel the mean of the ranks it
 /// covers in the low 16 bits and their mean square in the high 16 bits.
 pub(crate) fn paper_levels() -> Vec<u32> {

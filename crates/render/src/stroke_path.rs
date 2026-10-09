@@ -56,6 +56,11 @@ impl Path {
             .max(usize::from(!self.knots.is_empty()))
     }
 
+    /// Canvas pixels from the first knot to knot `k` (an index into `knots`).
+    pub(crate) fn along(&self, k: usize) -> f32 {
+        self.along[k]
+    }
+
     /// The spans no later sample can change while the stroke is drawn: all but the last two,
     /// which depend on the last sample (a knot until the next one shows whether it is one).
     pub(crate) fn settled(&self) -> usize {

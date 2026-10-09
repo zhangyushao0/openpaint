@@ -126,7 +126,8 @@ mod tests {
         );
         assert_eq!(new[..at], old[..at], "every byte up to the deposit");
         assert_eq!(new[at + 36..], old[at..], "the samples and the clip");
-        let stroke = decode_stroke(new).expect("a schema-19 stroke");
+        let twenty = crate::migrate_20::upgrade_19_to_20(&[], &upgrade.projects[1..]);
+        let stroke = decode_stroke(&twenty.projects[0].1).expect("a schema-19 stroke");
         let recipe = BrushRecipe::from_parts(&stroke.recipe).expect("valid");
         assert_eq!(recipe.taper(), Taper::NONE);
         assert_eq!(

@@ -3,6 +3,7 @@
 //! `artifacts/` (untracked). Never shipped; no window, no mouse input (DECISIONS D12).
 #![forbid(unsafe_code)]
 
+mod brush_sheet;
 mod error;
 mod export_timing;
 mod launch;
@@ -25,6 +26,7 @@ fn main() -> ExitCode {
     let result = match args.iter().map(String::as_str).collect::<Vec<_>>()[..] {
         ["render-smoke"] => smoke::run(),
         ["render-stroke"] => stroke::run(),
+        ["brush-sheet"] => brush_sheet::run(),
         ["shell-smoke"] => shell::run(),
         ["replay"] => replay::run(),
         ["export-timing"] => export_timing::run(),

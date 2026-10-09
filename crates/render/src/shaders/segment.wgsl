@@ -47,8 +47,12 @@ fn span_point(op: Op, t: f32) -> vec2<f32> {
 
 // What the span lays at `centre`: x, its coverage (covering) or density (accumulating); y, the
 // paper contact there. A piece whose box widened by its reach misses `centre` lays nothing and
-// is skipped.
-fn span_laid(centre: vec2<f32>, op: Op) -> vec2<f32> {
+// is skipped. A stamped span (S45) is its stamps instead (stamp.wgsl), which read its stroke's
+// paint op from the op `entry` names.
+fn span_laid(centre: vec2<f32>, op: Op, entry: u32) -> vec2<f32> {
+    if op.data[STAMP_PAINT] != 0.0 {
+        return stamps_laid(centre, op, entry);
+    }
     let cover = u32(op.data[SEGMENT_TIP]) == TIP_COVER;
     let whole = chord_piece(op);
     let count = span_pieces(op);

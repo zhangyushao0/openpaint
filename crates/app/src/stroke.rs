@@ -69,6 +69,8 @@ struct Drawing {
 #[derive(Debug)]
 pub(crate) struct Strokes {
     style: StrokeStyle,
+    /// The seed the next stroke's stamps jitter by (S45).
+    seed: u32,
     streamline: StreamLine,
     guide: Guide,
     drawing: Option<Drawing>,
@@ -85,6 +87,7 @@ impl Strokes {
     pub(crate) fn new(style: StrokeStyle, guide: Guide) -> Self {
         Self {
             style,
+            seed: 0,
             streamline: StreamLine::OFF,
             guide,
             drawing: None,
@@ -102,6 +105,11 @@ impl Strokes {
     /// The next stroke follows the pen through `streamline`; a stroke in progress keeps its own.
     pub(crate) const fn set_streamline(&mut self, streamline: StreamLine) {
         self.streamline = streamline;
+    }
+
+    /// The next stroke's stamps jitter by `seed`; a stroke in progress keeps its own.
+    pub(crate) const fn set_seed(&mut self, seed: u32) {
+        self.seed = seed;
     }
 
     pub(crate) fn active(&self) -> Option<&ActiveStroke> {
@@ -207,7 +215,9 @@ impl Strokes {
         let pen = first.position;
         let first = stroke_sample(first, pen, start_ms)?;
         let leash = self.streamline.leash(self.style.size());
-        let mut session = artwork.begin_stroke(self.style.clone(), first)?;
+        // Its stamps' seed, which its mirrored copies and a shape it snaps to keep.
+        let style = self.style.clone().with_seed(self.seed);
+        let mut session = artwork.begin_stroke(style.clone(), first)?;
         if let Some(clip) = clip {
             session = session.clipped(clip.clone())?;
         }
@@ -217,7 +227,7 @@ impl Strokes {
             session,
             follower: Follower::new(leash, pen),
             pen,
-            style: self.style.clone(),
+            style,
             clip: clip.cloned(),
             mirrors: self.guide.mirrors(),
             hold: shape::Hold::default(),

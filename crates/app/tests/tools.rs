@@ -25,7 +25,7 @@ fn color(color: Color, settled: bool) -> ToolIntent {
 fn the_eraser_keeps_its_own_brush_size_and_opacity() {
     let mut toolbox = toolbox();
     let library = toolbox.library().clone();
-    let [pencil, ink, .., soft] = library.brushes() else {
+    let [pencil, ink, _, _, _, soft, ..] = library.brushes() else {
         panic!("the built-in brushes");
     };
     toolbox.dispatch(&BrushIntent::Choose(pencil.key()));
@@ -140,7 +140,7 @@ fn picking_commits_the_last_preview_and_keeps_the_colour_until_then() {
 fn the_smudge_has_its_own_brush_and_strength_and_is_stored() {
     let mut toolbox = toolbox();
     let library = toolbox.library().clone();
-    let [_, ink, .., soft] = library.brushes() else {
+    let [_, ink, _, _, _, soft, ..] = library.brushes() else {
         panic!("the built-in brushes");
     };
     toolbox.dispatch_tool(&ToolIntent::Use(Tool::Smudge));

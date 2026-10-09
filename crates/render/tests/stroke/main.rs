@@ -26,6 +26,8 @@ mod scale;
 mod screen;
 mod selection;
 mod smudge;
+mod stamps;
+mod stamps_scale;
 mod taper_tilt;
 mod thumbnail;
 mod transform;

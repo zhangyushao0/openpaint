@@ -92,7 +92,8 @@ mod tests {
         assert_eq!(key, b"key");
         assert_eq!(new[..old.len()], old[..]);
         let nineteen = crate::migrate_19::upgrade_18_to_19(&[], &upgrade.projects[1..]);
-        let stroke = decode_stroke(&nineteen.projects[0].1).expect("a schema-7 stroke");
+        let twenty = crate::migrate_20::upgrade_19_to_20(&[], &nineteen.projects);
+        let stroke = decode_stroke(&twenty.projects[0].1).expect("a schema-7 stroke");
         assert_eq!((stroke.id, stroke.samples.len(), stroke.clip), (9, 2, None));
         assert_eq!(upgrade.library, [(SCHEMA_KEY.to_vec(), encode_schema(7))]);
     }

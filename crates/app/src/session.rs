@@ -92,6 +92,12 @@ impl Session {
         self.strokes.set_streamline(streamline);
     }
 
+    /// The next stroke's stamps jitter by `seed` (the runtime draws one per stroke; 0 until
+    /// then); a stroke being drawn keeps its own.
+    pub const fn set_seed(&mut self, seed: u32) {
+        self.strokes.set_seed(seed);
+    }
+
     /// Applies one intent. On error the session is as it was before, except that a stroke
     /// whose lift failed to extend is still committed with the samples it had.
     ///

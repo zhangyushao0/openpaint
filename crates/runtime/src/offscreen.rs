@@ -38,6 +38,12 @@ impl Runtime {
         self.frame_clock.fix(ms);
     }
 
+    /// Every stroke from now on takes `seed` for its stamps (S45), instead of one of its own:
+    /// the harness fixes it, so a scenario's hashes hold.
+    pub fn fix_seed(&mut self, seed: u32) {
+        self.seeds.fix(seed);
+    }
+
     /// True while something on screen moves (D44) or the view tiers fill in (S32); frames are
     /// wanted until it rests.
     #[must_use]

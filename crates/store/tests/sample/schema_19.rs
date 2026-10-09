@@ -7,7 +7,7 @@ use super::schema_16_parts;
 /// The schema-16 sample (schemas 17 and 18 changed only the toolbox) with what schema 19 adds,
 /// tilt and taper in recipes: at the end of the ink layer's paint a stroke whose size widens and
 /// whose opacity fades with tilt, tapered at both ends.
-pub fn parts() -> ArtworkParts {
+pub fn schema_19_parts() -> ArtworkParts {
     let mut parts = schema_16_parts();
     let mut tilted = parts.layers[0].strokes[0].clone();
     tilted.id = parts.next_stroke_id;

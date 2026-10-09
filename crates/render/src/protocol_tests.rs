@@ -45,18 +45,21 @@ fn operands(tip: Tip) -> SegmentOperands {
         controls: [[1.5, 2.5], [2.5, 3.5]],
         flat: 0.125,
         bend: 0.25,
+        stamps: None,
+        azimuths: [-1.5, 2.5],
     }
 }
 
 #[test]
 fn named_slots_hold_what_the_constructors_write() {
-    let op = Op::segment(&operands(Tip::Bell));
+    let op = Op::segment(&operands(Tip::Bell), 3);
     assert_eq!(
         op.data[segment::SEGMENT_FLOW..],
         [
-            0.25, 0.75, 0.5, 0.375, 0.625, 2.0, 1.5, 2.5, 2.5, 3.5, 0.125, 0.25
+            0.25, 0.75, 0.5, 0.375, 0.625, 2.0, 1.5, 2.5, 2.5, 3.5, 0.125, 0.25, 0.0, 0.0, 0.0,
+            0.0, 0.0
         ],
-        "flows, the edge, the contacts, the tip, the controls, flatness and bend"
+        "flows, the edge, the contacts, the tip, the controls, flatness and bend; not stamped"
     );
     let paint = Paint {
         color: [0.1, 0.2, 0.3],
@@ -67,6 +70,7 @@ fn named_slots_hold_what_the_constructors_write() {
         density: 0.875,
         paper: [4.5, 2.25, 0.3, 0.25],
         clip: (5 << 16) | 11,
+        stamp: [3.0, 12.0, 0.5, 2.0, 0.25, 0.5, 0.125, 5.0, 7.0],
     };
     let op = Op::end_stroke(&paint);
     assert_eq!(op.data[PAINT_OPACITY], 0.4);
@@ -80,6 +84,7 @@ fn named_slots_hold_what_the_constructors_write() {
         [5.0, 11.0],
         "the clip, high part first"
     );
+    assert_eq!(op.data[PAINT_STAMP..], paint.stamp, "the stamps last");
     assert_eq!(Op::end_active(&paint).data, op.data);
     let fill = Op::fill(&paint, (3 << 16) | 9, Some([2732, 2048]));
     assert_eq!(
@@ -102,8 +107,59 @@ fn named_slots_hold_what_the_constructors_write() {
 }
 
 #[test]
+fn a_stamped_span_carries_its_stamps_and_where_its_paint_op_lies() {
+    let stamps = SpanStamps {
+        arc: 40.5,
+        first: 7.0,
+        last: 12.0,
+    };
+    let stamped = Op::tail(
+        &SegmentOperands {
+            stamps: Some(stamps),
+            ..operands(Tip::Cover)
+        },
+        -4,
+    );
+    assert_eq!(
+        stamped.data[stamp::STAMP_ARC..],
+        [40.5, 7.0, 12.0, -4.0, 0.0],
+        "the arc, the stamps, the paint op"
+    );
+    assert_eq!(
+        stamped.data[segment::SEGMENT_CONTACT..segment::SEGMENT_CONTACT + 2],
+        [-1.5, 2.5],
+        "the azimuths in the contacts' place"
+    );
+    let module = parsed();
+    for (name, value) in STAMP_SLOTS
+        .map(|(name, slot)| (name, slot as u32))
+        .into_iter()
+        .chain(STAMP_CODES)
+        .chain([
+            ("SHAPES_AT", crate::paper::paper_words()),
+            ("SHAPE_WORDS", crate::shapes::shape_words()),
+        ])
+    {
+        assert_eq!(constant(&module, name), value, "{name}");
+    }
+}
+
+/// The value of the WGSL constant `name`, a `u32`.
+fn constant(module: &naga::Module, name: &str) -> u32 {
+    let (_, constant) = module
+        .constants
+        .iter()
+        .find(|(_, constant)| constant.name.as_deref() == Some(name))
+        .unwrap_or_else(|| panic!("{name} declared in WGSL"));
+    match module.global_expressions[constant.init] {
+        naga::Expression::Literal(naga::Literal::U32(value)) => value,
+        ref other => panic!("{name} is {other:?}"),
+    }
+}
+
+#[test]
 fn encoding_fills_exactly_the_record_size() {
-    let op = Op::segment(&operands(Tip::Cover));
+    let op = Op::segment(&operands(Tip::Cover), 1);
     assert_eq!(encode(&[op, op]).len(), 2 * size_of::<Op>());
     let tile = TileRecord {
         origin: [16, 32],
@@ -133,17 +189,7 @@ fn encoding_fills_exactly_the_record_size() {
 #[test]
 fn opcode_constants_match_the_enum() {
     let module = parsed();
-    let value = |name: &str| {
-        let (_, constant) = module
-            .constants
-            .iter()
-            .find(|(_, constant)| constant.name.as_deref() == Some(name))
-            .unwrap_or_else(|| panic!("{name} declared in WGSL"));
-        match module.global_expressions[constant.init] {
-            naga::Expression::Literal(naga::Literal::U32(value)) => value,
-            ref other => panic!("{name} is {other:?}"),
-        }
-    };
+    let value = |name: &str| constant(&module, name);
     for opcode in Opcode::ALL {
         assert_eq!(value(opcode.wgsl_name()), opcode as u32);
     }
@@ -194,8 +240,8 @@ fn opcode_constants_match_the_enum() {
 #[test]
 fn a_tail_span_is_laid_out_as_a_segment_and_the_curve_constants_reach_wgsl() {
     assert_eq!(
-        Op::tail(&operands(Tip::Flat)).data,
-        Op::segment(&operands(Tip::Flat)).data
+        Op::tail(&operands(Tip::Flat), 1).data,
+        Op::segment(&operands(Tip::Flat), 1).data
     );
     let wgsl = prelude();
     assert!(wgsl.contains(&format!(

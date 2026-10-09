@@ -1,0 +1,23 @@
+# Speckle: small dots of different sizes sprayed around the path, up to three radii away from it
+# (DECISIONS D72), for texture and noise. Where dots overlap they build up, up to the opacity.
+# Each stroke scatters its own way.
+name = "Speckle"
+
+[size]
+default = 12
+min = 2
+max = 120
+
+[opacity]
+default = 1.0
+pressure = [[0.0, 0.3], [1.0, 1.0]]
+
+[shape]
+spacing = 0.5
+scatter = 3.0
+size_jitter = 0.5
+
+[accumulate]
+tip = "flat"
+# Density per radius of path: a dot (one radius of path) alone lays 1 - exp(-2) = 0.86.
+flow = 2.0

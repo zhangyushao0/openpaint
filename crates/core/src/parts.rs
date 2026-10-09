@@ -8,7 +8,7 @@ use crate::id::GroupId;
 use crate::layer::Layer;
 use crate::mask::LayerMask;
 use crate::nested::NestedEdit;
-pub use crate::parts_recipe::{AccumulationParts, PaperParts, RecipeParts};
+pub use crate::parts_recipe::{AccumulationParts, PaperParts, RecipeParts, ShapeParts};
 use crate::region::{RegionEdit, RegionMask};
 use crate::stroke::{Stroke, StrokeBlend, StrokeSample};
 
@@ -151,6 +151,8 @@ pub struct StrokeParts {
     pub samples: Vec<SampleParts>,
     /// The selection the stroke was drawn inside.
     pub clip: Option<MaskParts>,
+    /// Since S45: the seed its stamps' jitter follows.
+    pub seed: u32,
 }
 
 /// A region mask as plain data: runs over a rectangle (`RegionMask::from_runs`).
@@ -299,6 +301,7 @@ fn stroke_parts(stroke: &Stroke) -> StrokeParts {
         color: [color.r(), color.g(), color.b()],
         samples: stroke.samples().iter().map(sample_parts).collect(),
         clip: stroke.clip().map(RegionMask::to_parts),
+        seed: style.seed(),
     }
 }
 

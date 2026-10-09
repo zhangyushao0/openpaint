@@ -16,6 +16,7 @@ use openpaint_ui::{CanvasArea, ScreenArea};
 
 use crate::error::RuntimeError;
 use crate::pictures::Drawn;
+use crate::seeds::Seeds;
 
 /// The paper under the layers until artworks carry their own background; exports show it too.
 pub(crate) const PAPER: Color = Color::WHITE;
@@ -110,12 +111,13 @@ impl Canvas {
     /// while leaving, nothing else is applied. Brush and tool intents go to `toolbox`, and the
     /// session draws its next stroke with the style that results. While the eyedropper is on,
     /// canvas contacts pick colours instead of drawing (`pick`). The copy menu's commands copy
-    /// into and paste from `clipboard`, the app's.
+    /// into and paste from `clipboard`, the app's. Every contact touching down takes the next of
+    /// `seeds` for the stroke it may begin (S45).
     pub(crate) fn dispatch(
         &mut self,
         core: &Core,
         intents: Vec<Intent>,
-        (toolbox, clipboard): (&mut Toolbox, &mut Clipboard),
+        (toolbox, clipboard, seeds): (&mut Toolbox, &mut Clipboard, &mut Seeds),
     ) {
         for intent in intents {
             if self.leaving != Leaving::Staying {
@@ -135,14 +137,7 @@ impl Canvas {
                         ToolIntent::Use(_) | ToolIntent::Switch | ToolIntent::Eyedropper(true)
                     );
                     if chosen {
-                        let before = self.session.shown().clone();
-                        let leave = Intent::Selection(SelectionIntent::Tool(false));
-                        if let Err(error) = self.session.dispatch(leave) {
-                            log::warn!("intent refused: {error}");
-                        }
-                        if !before.same_version(self.session.shown()) {
-                            self.changed_from.get_or_insert(before);
-                        }
+                        self.leave_selection();
                     }
                     true
                 }
@@ -159,6 +154,11 @@ impl Canvas {
                 }
                 self.session.set_streamline(toolbox.streamline());
                 continue;
+            }
+            if let Intent::Stroke(StrokeIntent::Contact(contact)) = &intent
+                && contact.phase == ContactPhase::Down
+            {
+                self.session.set_seed(seeds.next());
             }
             // Committing a stroke is followed by the evaluator itself (D17), but not its mirrored
             // copies or a snapped shape edited (S42).
@@ -181,6 +181,18 @@ impl Canvas {
             if let Some(job) = self.session.transform_request() {
                 self.session.transform_lifted(lift(core, &job));
             }
+        }
+    }
+
+    /// Leaves the Selection tool (a transform under way is committed), noting what changed.
+    fn leave_selection(&mut self) {
+        let before = self.session.shown().clone();
+        let leave = Intent::Selection(SelectionIntent::Tool(false));
+        if let Err(error) = self.session.dispatch(leave) {
+            log::warn!("intent refused: {error}");
+        }
+        if !before.same_version(self.session.shown()) {
+            self.changed_from.get_or_insert(before);
         }
     }
 

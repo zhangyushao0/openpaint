@@ -19,7 +19,8 @@
 @group(0) @binding(6) var kept: texture_storage_2d<r32float, read_write>;
 @group(0) @binding(7) var<storage, read> masks: array<u32>;
 @group(0) @binding(8) var kept_contact: texture_storage_2d<r32float, read_write>;
-@group(0) @binding(9) var<storage, read> paper: array<u32>;
+// The paper's mip chain, then the shape textures' (`paper.rs`, `shapes.rs`).
+@group(0) @binding(9) var<storage, read> textures: array<u32>;
 @group(0) @binding(10) var<storage, read> patches: array<u32>;
 // The target's finished smudge residuals, and the in-progress smudge's (smudge_composite.wgsl).
 @group(0) @binding(11) var<storage, read> arena: array<u32>;
@@ -111,7 +112,7 @@ fn evaluate(
         }
         switch op.code {
             case OP_SEGMENT: {
-                let laid = span_laid(point, op);
+                let laid = span_laid(point, op, entry);
                 if u32(op.data[SEGMENT_TIP]) == TIP_COVER {
                     coverage = max(coverage, laid.x);
                 } else {
@@ -126,7 +127,7 @@ fn evaluate(
                     tail = vec2<f32>(coverage, contact);
                     tailed = true;
                 }
-                let laid = span_laid(point, op);
+                let laid = span_laid(point, op, entry);
                 if u32(op.data[SEGMENT_TIP]) == TIP_COVER {
                     tail.x = max(tail.x, laid.x);
                 } else {

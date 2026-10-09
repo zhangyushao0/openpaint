@@ -266,8 +266,12 @@ impl Scene {
             self.push_smudge(item, reach);
             return Ok(());
         }
-        let parts: Vec<(Op, Bounds)> = segments(style, samples)
-            .map(|segment| (segment.op(), segment.bounds()))
+        // Each span's paint op is the stroke's end, right after its last span.
+        let spans: Vec<_> = segments(style, samples).collect();
+        let parts: Vec<(Op, Bounds)> = (1..=spans.len() as i32)
+            .rev()
+            .zip(&spans)
+            .map(|(paint, segment)| (segment.op(paint), segment.bounds()))
             .collect();
         if !parts.iter().any(|(_, bounds)| view.meets(bounds.pixels())) {
             return Ok(());

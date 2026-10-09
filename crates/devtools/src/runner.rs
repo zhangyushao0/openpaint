@@ -38,6 +38,8 @@ const FOLLOW_UPS: usize = 4;
 const STORAGE_LIMIT: Duration = Duration::from_secs(10);
 /// Most frames motion may take to settle before a step looks.
 const SETTLE_FRAMES: usize = 240;
+/// The seed every stroke's stamps take (S45): fixed, so hashes hold.
+const SEED: u32 = 0x5EED_0045;
 
 /// Starts the app on the library in `library` (created when missing), with the text faces a
 /// host would hand over, opens it and runs every step.
@@ -367,6 +369,7 @@ impl Runner<'_> {
         let screen = self.scenario.screen;
         let start = Instant::now();
         runtime.fix_clock(self.clock_ms);
+        runtime.fix_seed(SEED);
         // The follow-ups count once no worker is busy: the frame that takes a worker's result
         // may ask for more (a canvas just opened lays itself out), however late it comes.
         let mut follow_ups = 0;

@@ -30,6 +30,7 @@ use crate::pictures::PictureWorker;
 use crate::pointer::pointer_events;
 use crate::preview::brush_previews;
 use crate::screen::{Screen, dispatch_gallery, leave_job};
+use crate::seeds::Seeds;
 use crate::storage::{Job, Storage};
 use crate::text::{TextInput, text_events};
 use crate::transfer::{TransferWorker, route};
@@ -69,6 +70,8 @@ pub struct Runtime {
     toolbox: Toolbox,
     /// What was copied last (S40): the app's, kept across artworks, never stored.
     clipboard: Clipboard,
+    /// Where every new stroke's seed comes from (S45).
+    pub(crate) seeds: Seeds,
     /// Export and the reference image: the app's, kept across artworks.
     transfers: Transfers,
     transfer: TransferWorker,
@@ -122,6 +125,7 @@ impl Runtime {
             toolbox,
             transfers: Transfers::default(),
             clipboard: Clipboard::default(),
+            seeds: Seeds::from_clock(),
             transfer: TransferWorker::start(Arc::clone(&core))?,
             fill: FillWorker::start(Arc::clone(&core))?,
             pictures: PictureWorker::start(Arc::clone(&core))?,
@@ -360,7 +364,7 @@ impl Runtime {
         self.screen.open(&self.core, area, &self.toolbox)?;
         match &mut self.screen {
             Screen::Canvas(canvas) => {
-                let app = (&mut self.toolbox, &mut self.clipboard);
+                let app = (&mut self.toolbox, &mut self.clipboard, &mut self.seeds);
                 canvas.dispatch(&self.core, intents, app);
                 self.fill.step(canvas);
                 self.pictures.step(canvas, &mut self.shell);

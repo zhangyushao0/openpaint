@@ -22,3 +22,6 @@ device-input = "xtask device-input"
 device-clean = "xtask device-clean"
 device-push = "xtask device-push"
 device-info = "xtask device-info"
+# The brush shape textures (crates/render/assets/shape-*.bin) from seeded noise (see
+# xtask/src/shapes.rs); deterministic, committed, their hashes in DECISIONS.
+shape-assets = "xtask shape-assets"

@@ -8,9 +8,10 @@ use super::layers::{INTOS, LAYER_SLOTS, MASKINGS, MODES};
 use super::moves::MOVE_SLOTS;
 use super::{
     BLENDS, FRESH, GRAIN_ONE, MASK_HEADER, MOVE_DEPTH, OP_DATA, Op, Opcode, Params, SEGMENT_SLOTS,
-    SLOTS, TILE, TIPS, TileRecord, curve_constants,
+    SLOTS, STAMP_CODES, STAMP_SLOTS, TILE, TIPS, TileRecord, curve_constants,
 };
-use crate::paper::{MOMENT_ONE, PAPER_SIZE, level_count};
+use crate::paper::{MOMENT_ONE, PAPER_SIZE, level_count, paper_words};
+use crate::shapes::{SHAPE_LEVELS, SHAPE_SIZE, shape_words};
 use crate::smudge::{NODE_WORDS, RESIDUAL_HEADER, RESIDUAL_TILE, TILE_NODES};
 
 /// A WGSL struct generated from a Rust record: name, size and `(field, WGSL type, offset)`.
@@ -21,8 +22,8 @@ pub(super) struct Layout {
 }
 
 /// The op's operands as WGSL declares them.
-const DATA: &str = "array<f32, 18>";
-const _: () = assert!(OP_DATA == 18);
+const DATA: &str = "array<f32, 23>";
+const _: () = assert!(OP_DATA == 23);
 
 pub(super) const LAYOUTS: [Layout; 3] = [
     Layout {
@@ -77,14 +78,7 @@ pub(crate) fn prelude() -> String {
     wgsl.push_str(&format!("const PAPER_HEIGHT: u32 = {height}u;\n"));
     wgsl.push_str(&format!("const PAPER_LEVELS: u32 = {}u;\n", level_count()));
     wgsl.push_str(&format!("const MOMENT_ONE: u32 = {MOMENT_ONE}u;\n"));
-    for (name, value) in [
-        ("RESIDUAL_TILE", RESIDUAL_TILE),
-        ("TILE_NODES", TILE_NODES),
-        ("NODE_WORDS", NODE_WORDS),
-        ("RESIDUAL_HEADER", RESIDUAL_HEADER),
-    ] {
-        wgsl.push_str(&format!("const {name}: u32 = {value}u;\n"));
-    }
+    whole_numbers(&mut wgsl);
     wgsl.push_str(&curve_constants());
     named_values(&mut wgsl);
     for (name, blend) in BLENDS {
@@ -122,6 +116,26 @@ pub(crate) fn prelude() -> String {
     wgsl
 }
 
+/// The smudge residuals' layout, the shape textures' (after the paper in the textures' words,
+/// `shapes.rs`) and the stamps' codes.
+fn whole_numbers(wgsl: &mut String) {
+    for (name, value) in [
+        ("RESIDUAL_TILE", RESIDUAL_TILE),
+        ("TILE_NODES", TILE_NODES),
+        ("NODE_WORDS", NODE_WORDS),
+        ("RESIDUAL_HEADER", RESIDUAL_HEADER),
+        ("SHAPES_AT", paper_words()),
+        ("SHAPE_WORDS", shape_words()),
+        ("SHAPE_SIZE", SHAPE_SIZE),
+        ("SHAPE_LEVELS", SHAPE_LEVELS),
+    ]
+    .into_iter()
+    .chain(STAMP_CODES)
+    {
+        wgsl.push_str(&format!("const {name}: u32 = {value}u;\n"));
+    }
+}
+
 /// The named operand slots, and the adjustments' kinds and targets.
 fn named_values(wgsl: &mut String) {
     for (name, slot) in SLOTS
@@ -130,6 +144,7 @@ fn named_values(wgsl: &mut String) {
         .chain(ADJUST_SLOTS)
         .chain(MOVE_SLOTS)
         .chain(SEGMENT_SLOTS)
+        .chain(STAMP_SLOTS)
     {
         wgsl.push_str(&format!("const {name}: u32 = {slot}u;\n"));
     }

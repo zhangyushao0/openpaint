@@ -1,12 +1,13 @@
-//! `BrushRecipe`: how a brush turns pen samples into paint (DECISIONS D07). A recipe has fixed
+//! `BrushRecipe`: how a brush turns pen samples into paint (DECISIONS D72). A recipe has fixed
 //! stages with typed values: the edge of its round shape, size and opacity dynamics over pressure,
-//! speed and tilt, grain, how its segments deposit paint (`deposit.rs`) and how it tapers at its
-//! ends (`taper.rs`). The renderer evaluates it continuously per pixel; there are no dabs. Every
-//! stroke keeps the recipe it was drawn with, so a brush that changes later never changes strokes
-//! already drawn.
+//! speed and tilt, grain, how its segments deposit paint (`deposit.rs`), how it tapers at its
+//! ends (`taper.rs`) and its tip's shape along the path (`shape.rs`). The renderer evaluates it
+//! per pixel from the path; there is no stamp engine. Every stroke keeps the recipe it was drawn
+//! with, so a brush that changes later never changes strokes already drawn.
 
 use crate::deposit::Deposit;
 use crate::error::CoreError;
+use crate::shape::Shape;
 use crate::taper::Taper;
 use crate::value::{invalid, is_unit};
 
@@ -170,6 +171,11 @@ impl Dynamics {
     pub fn at(&self, pressure: f32, speed: f32, tilt: f32) -> f32 {
         self.pressure.at(pressure) * self.speed.at(speed) * self.tilt.at(tilt.to_degrees())
     }
+
+    /// The largest factor it can give.
+    fn peak(&self) -> f32 {
+        self.pressure.highest() * self.speed.highest() * self.tilt.highest()
+    }
 }
 
 /// Paper grain fixed to the canvas: where it is strong, less paint lands. `strength` in `0..=1`
@@ -212,7 +218,7 @@ impl Grain {
 /// dynamics times the grain; an accumulating one lays the opacity dynamics times its flow as
 /// density and is capped by the stroke's opacity. `softness` in `0..=1` shapes a covering
 /// brush's edge: 0 is a hard edge (one pixel of antialiasing), 1 fades from the centre line to
-/// the edge.
+/// the edge. The shape (`shape.rs`) is the continuous round capsule, or stamps along the path.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BrushRecipe {
     softness: f32,
@@ -221,6 +227,7 @@ pub struct BrushRecipe {
     grain: Grain,
     deposit: Deposit,
     taper: Taper,
+    shape: Shape,
 }
 
 impl BrushRecipe {
@@ -247,6 +254,7 @@ impl BrushRecipe {
                 grain,
                 deposit: Deposit::Cover,
                 taper: Taper::NONE,
+                shape: Shape::CONTINUOUS,
             })
         } else {
             Err(invalid("brush softness"))
@@ -260,15 +268,32 @@ impl BrushRecipe {
     }
 
     /// This recipe depositing by `deposit`. An accumulating tip has its own cross-section, so
-    /// it takes no softness.
+    /// it takes no softness; stamps take no paper.
     ///
     /// # Errors
-    /// `InvalidValue` for an accumulating deposit on a recipe with softness.
+    /// `InvalidValue` for an accumulating deposit on a recipe with softness, or a paper under
+    /// stamps.
     pub fn with_deposit(self, deposit: Deposit) -> Result<Self, CoreError> {
         if matches!(deposit, Deposit::Accumulate(_)) && self.softness != 0.0 {
             return Err(invalid("brush deposit"));
         }
+        if self.shape.is_stamped() && papered(&deposit) {
+            return Err(invalid("brush deposit"));
+        }
         Ok(Self { deposit, ..self })
+    }
+
+    /// This recipe laid as `shape`. Stamps take no paper (the paper's contact is a property of
+    /// the continuous tip), and every stamp that can reach a pixel must fit `MAX_STAMPS` at the
+    /// largest size the dynamics give.
+    ///
+    /// # Errors
+    /// `InvalidValue` for stamps on paper or more than `MAX_STAMPS` within reach.
+    pub fn with_shape(self, shape: Shape) -> Result<Self, CoreError> {
+        if shape.is_stamped() && papered(&self.deposit) || !shape.fits(self.size.peak()) {
+            return Err(invalid("brush shape"));
+        }
+        Ok(Self { shape, ..self })
     }
 
     /// The plain round brush: a hard edge, the diameter in proportion to pressure, full
@@ -292,6 +317,7 @@ impl BrushRecipe {
             grain: Grain::NONE,
             deposit: Deposit::Cover,
             taper: Taper::NONE,
+            shape: Shape::CONTINUOUS,
         }
     }
 
@@ -325,9 +351,19 @@ impl BrushRecipe {
         self.taper
     }
 
+    #[must_use]
+    pub const fn shape(&self) -> &Shape {
+        &self.shape
+    }
+
     /// True when speed changes anything, so evaluating a stroke needs its pen speed.
     #[must_use]
     pub fn uses_speed(&self) -> bool {
         !self.size.speed.is_flat() || !self.opacity.speed.is_flat()
     }
+}
+
+/// Whether `deposit` lays its density through a paper.
+fn papered(deposit: &Deposit) -> bool {
+    matches!(deposit, Deposit::Accumulate(accumulation) if accumulation.paper().is_some())
 }

@@ -363,7 +363,7 @@ fn stroke_from(
         .map(sample_from)
         .collect::<Result<Vec<_>, _>>()?;
     check_order(None, &samples)?;
-    let style = style.with_tool(tool);
+    let style = style.with_tool(tool).with_seed(parts.seed);
     let clip = parts
         .clip
         .as_ref()

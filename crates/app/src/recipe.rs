@@ -1,4 +1,4 @@
-//! Brush files: one brush as TOML, read into a `Brush` with typed errors (DECISIONS D07: fixed
+//! Brush files: one brush as TOML, read into a `Brush` with typed errors (DECISIONS D72: fixed
 //! stages with typed fields, no graph). Every key is checked; an unknown one is an error, so a
 //! typo never passes silently.
 //!
@@ -23,8 +23,20 @@
 //! end = 3.0                            # the end tapers once the pen lifts
 //! tip = 0.1                            # share of the radius at the very ends, default 0
 //!
-//! [shape]                              # optional
+//! [shape]                              # optional (`recipe_shape.rs`)
 //! softness = 0.0                       # 0 hard edge .. 1 fades from the centre line
+//! spacing = 0.1                        # stamps a share of the size apart, MIN_SPACING..=
+//!                                      # MAX_SPACING; 0 or missing: the continuous capsule,
+//!                                      # and then no key below may be set
+//! stamp = "chalk"                      # "disc" (default), "square", "ellipse", or a texture:
+//!                                      # "chalk", "grainy", "splatter", "rough-square"
+//! aspect = 0.5                         # length along the stamp's frame per width, 1 for a
+//!                                      # disc, else MIN_ASPECT..=1, default 1
+//! scatter = 3.0                        # radii across and along, 0..=MAX_SCATTER, default 0
+//! rotation = "direction"               # "fixed" (default), "direction" or "azimuth"
+//! angle = 0                            # degrees added, -180..=180, default 0
+//! rotation_jitter = 15                 # degrees either way, 0..=180, default 0
+//! size_jitter = 0.5                    # 1 +- this, 0..=1, default 0
 //!
 //! [grain]                              # optional
 //! strength = 0.65                      # 0 none .. 1
@@ -43,9 +55,9 @@
 //! dust = 0.3                           # the share the valleys take, 0..=1
 //! ```
 //!
-//! A missing curve is flat at 1; a missing `[shape]` is a hard edge; a missing `[grain]` none;
-//! without `[accumulate]` the brush covers (crossings never darken); without `[taper]` it does
-//! not narrow.
+//! A missing curve is flat at 1; a missing `[shape]` is a hard edge laid continuously; a
+//! missing `[grain]` none; without `[accumulate]` the brush covers (crossings never darken);
+//! without `[taper]` it does not narrow. Stamps take no `[paper]`.
 
 use std::fmt;
 use std::sync::Arc;
@@ -54,9 +66,11 @@ use openpaint_core::{
     Accumulation, BrushRecipe, CoreError, Curve, Deposit, Dynamics, Grain, MAX_TAPER, Paper,
     PaperTexture, Taper, Tip,
 };
-use toml::{Table, Value};
+use toml::Table;
 
 use crate::brushes::{Brush, BrushKey, SizeRange};
+use crate::recipe_section::{Section, missing, out_of_range};
+use crate::recipe_shape::{shape, softness};
 
 /// Longest brush name, in characters.
 const MAX_BRUSH_NAME: usize = 40;
@@ -165,6 +179,16 @@ fn recipe(
             .map_err(|_| out_of_range(root, "shape.softness"))?,
         None => recipe,
     };
+    let shape = shape(root)?;
+    // Stamps on paper, or more stamps within reach than the evaluator takes.
+    let culprit = if root.table.contains_key("paper") {
+        "paper"
+    } else {
+        "shape.spacing"
+    };
+    let recipe = recipe
+        .with_shape(shape)
+        .map_err(|_| out_of_range(root, culprit))?;
     Ok(recipe.with_taper(taper(root)?))
 }
 
@@ -205,14 +229,6 @@ fn taper(root: &Section<'_>) -> Result<Taper, RecipeError> {
         "start"
     };
     Taper::new(start, end, tip).map_err(|_| out_of_range(&taper, culprit))
-}
-
-fn softness(root: &Section<'_>) -> Result<f32, RecipeError> {
-    let Some(shape) = root.section("shape")? else {
-        return Ok(0.0);
-    };
-    shape.only(&["softness"])?;
-    Ok(shape.number("softness")?.unwrap_or(0.0))
 }
 
 fn grain(root: &Section<'_>) -> Result<Grain, RecipeError> {
@@ -278,123 +294,4 @@ fn syntax(text: &str, span: Option<std::ops::Range<usize>>) -> RecipeError {
     let line = before.matches('\n').count() + 1;
     let column = before.rsplit('\n').next().unwrap_or("").chars().count() + 1;
     RecipeError::Syntax { line, column }
-}
-
-fn missing(section: &Section<'_>, key: &str) -> RecipeError {
-    RecipeError::Missing {
-        field: section.field(key),
-    }
-}
-
-fn out_of_range(section: &Section<'_>, key: &str) -> RecipeError {
-    RecipeError::OutOfRange {
-        field: section.field(key),
-    }
-}
-
-/// One table of the file and its dotted path.
-struct Section<'a> {
-    table: &'a Table,
-    path: &'static str,
-}
-
-impl<'a> Section<'a> {
-    fn field(&self, key: &str) -> String {
-        if self.path.is_empty() {
-            key.to_owned()
-        } else {
-            format!("{}.{key}", self.path)
-        }
-    }
-
-    fn wrong(&self, key: &str, expected: &'static str) -> RecipeError {
-        RecipeError::WrongType {
-            field: self.field(key),
-            expected,
-        }
-    }
-
-    /// Refuses any key not in `known`.
-    fn only(&self, known: &[&str]) -> Result<(), RecipeError> {
-        match self.table.keys().find(|key| !known.contains(&key.as_str())) {
-            Some(key) => Err(RecipeError::Unknown {
-                field: self.field(key),
-            }),
-            None => Ok(()),
-        }
-    }
-
-    fn section(&self, key: &'static str) -> Result<Option<Section<'a>>, RecipeError> {
-        match self.table.get(key) {
-            None => Ok(None),
-            Some(Value::Table(table)) => Ok(Some(Section { table, path: key })),
-            Some(_) => Err(self.wrong(key, "a table")),
-        }
-    }
-
-    fn required_section(&self, key: &'static str) -> Result<Section<'a>, RecipeError> {
-        self.section(key)?.ok_or_else(|| missing(self, key))
-    }
-
-    fn string(&self, key: &str) -> Result<Option<&'a str>, RecipeError> {
-        match self.table.get(key) {
-            None => Ok(None),
-            Some(Value::String(text)) => Ok(Some(text)),
-            Some(_) => Err(self.wrong(key, "text")),
-        }
-    }
-
-    fn number(&self, key: &str) -> Result<Option<f32>, RecipeError> {
-        match self.table.get(key) {
-            None => Ok(None),
-            Some(value) => as_number(value)
-                .map(Some)
-                .ok_or_else(|| self.wrong(key, "a number")),
-        }
-    }
-
-    fn required_number(&self, key: &str) -> Result<f32, RecipeError> {
-        self.number(key)?.ok_or_else(|| missing(self, key))
-    }
-
-    fn integer(&self, key: &str) -> Result<Option<i64>, RecipeError> {
-        match self.table.get(key) {
-            None => Ok(None),
-            Some(Value::Integer(value)) => Ok(Some(*value)),
-            Some(_) => Err(self.wrong(key, "a whole number")),
-        }
-    }
-
-    /// A list of `[x, y]` number pairs.
-    fn curve(&self, key: &str) -> Result<Option<Vec<[f32; 2]>>, RecipeError> {
-        let Some(value) = self.table.get(key) else {
-            return Ok(None);
-        };
-        let wrong = || self.wrong(key, "a list of [x, y] number pairs");
-        let Value::Array(points) = value else {
-            return Err(wrong());
-        };
-        let pair = |point: &Value| match point {
-            Value::Array(pair) => match pair.as_slice() {
-                [x, y] => Some([as_number(x)?, as_number(y)?]),
-                _ => None,
-            },
-            _ => None,
-        };
-        points
-            .iter()
-            .map(pair)
-            .collect::<Option<Vec<_>>>()
-            .map(Some)
-            .ok_or_else(wrong)
-    }
-}
-
-/// An integer or a float as `f32`; brush values are small, so nothing is lost that matters.
-fn as_number(value: &Value) -> Option<f32> {
-    match value {
-        Value::Integer(value) => Some(*value as f32),
-        Value::Float(value) => Some(*value as f32),
-        _ => None,
-    }
 }

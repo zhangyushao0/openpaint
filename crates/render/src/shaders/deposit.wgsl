@@ -1,6 +1,6 @@
 // Accumulating strokes (DECISIONS D38, after draweave's ADR-0050): density laid per radius
 // travelled, and coverage from density, through the paper when there is one. Appended to
-// evaluate.wgsl, which binds `paper`.
+// evaluate.wgsl, which binds the paper in `textures`.
 
 // Density a single-sample dot lays at its centre, matching the share a full pass keeps.
 const FLAT_DOT: f32 = 1.1;
@@ -163,6 +163,6 @@ fn paper_texel(level: u32, c: vec2<i32>) -> vec2<f32> {
     for (var k = 0u; k < level; k++) {
         offset += max(PAPER_WIDTH >> k, 1u) * max(PAPER_HEIGHT >> k, 1u);
     }
-    let word = paper[offset + at.y * size.x + at.x];
+    let word = textures[offset + at.y * size.x + at.x];
     return vec2<f32>(f32(word & 0xffffu), f32(word >> 16u)) * MOMENT_STEP;
 }

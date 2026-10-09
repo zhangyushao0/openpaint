@@ -1,6 +1,7 @@
 //! Stroke geometry: a stroke follows the centripetal Catmull-Rom curve through its knots
 //! (`curve.rs`, S34), one `Segment` op per span between two knots, which the evaluator flattens
-//! into tapered capsules fine enough for the scale it evaluates at (DECISIONS D07: no dabs). At
+//! into tapered capsules fine enough for the scale it evaluates at, or (a stamped recipe, S45)
+//! evaluates as the stamps lying along it (`stroke_stamp.rs`; DECISIONS D72: no stamp engine). At
 //! every knot the stroke's recipe turns pressure, pen speed and tilt into a radius (size
 //! dynamics times the taper, S44), a flow (opacity dynamics, times the recipe's flow when it
 //! accumulates) and a paper contact, which change evenly along the span; the paint op carries
@@ -23,6 +24,7 @@ use crate::geom::{Bounds, PixelRect};
 use crate::protocol::{Blend, GRAIN_ONE, Op, Paint, SegmentOperands, Tip};
 use crate::smudge::smudge_reach;
 pub(crate) use crate::stroke_path::Path;
+use crate::stroke_stamp::{paint_stamp, reach, span_stamps, stamp_flow};
 
 /// Antialiasing reaches half a pixel beyond the shape; one pixel keeps the bounds conservative
 /// against float error.
@@ -39,6 +41,9 @@ pub(crate) struct Segment {
     operands: SegmentOperands,
     /// The pen's pressure at both knots (a smudge's strength follows it).
     pressures: [f32; 2],
+    /// How far its paint reaches from the curve: in radii, and in canvas pixels beyond
+    /// (`stroke_stamp::reach`).
+    reach: [f32; 2],
 }
 
 /// One straight piece of a flattened span: what the evaluator draws as a capsule.
@@ -51,20 +56,23 @@ pub(crate) struct Piece {
 }
 
 impl Segment {
-    pub(crate) fn op(&self) -> Op {
-        Op::segment(&self.operands)
+    /// Its op, its stroke's paint op `paint` ops from it (a stamped span reads it).
+    pub(crate) fn op(&self, paint: i32) -> Op {
+        Op::segment(&self.operands, paint)
     }
 
     /// As the in-progress stroke's end, which later samples may still change.
-    pub(crate) fn tail_op(&self) -> Op {
-        Op::tail(&self.operands)
+    pub(crate) fn tail_op(&self, paint: i32) -> Op {
+        Op::tail(&self.operands, paint)
     }
 
     /// Coverage and density are zero from half a pixel outside every capsule it is flattened
-    /// into, whatever its edge or tip: the curve lies in the hull of its four points.
+    /// into, whatever its edge or tip: the curve lies in the hull of its four points. A stamp
+    /// lies on the curve, and its shape and scatter reach no farther than its `reach`.
     pub(crate) fn bounds(&self) -> Bounds {
         let [ra, rb] = self.operands.radii;
-        self.hull(ra.max(rb) + REACH)
+        let [radii, beyond] = self.reach;
+        self.hull(ra.max(rb) * radii + REACH + beyond)
     }
 
     /// The box of the curve's four points widened by `reach` on every side.
@@ -169,20 +177,24 @@ fn span(style: &StrokeStyle, samples: &[StrokeSample], path: &Path, j: usize) ->
     ];
     let width = style.recipe().softness() * radii[0].max(radii[1]);
     let [start, c1, c2, end] = cubic.0;
+    let per_stamp = stamp_flow(style);
     Segment {
         operands: SegmentOperands {
             a: start,
             b: end,
             radii,
-            flows: [a.flow, b.flow],
+            flows: [a.flow * per_stamp, b.flow * per_stamp],
             edge: 1.0 / width.max(1.0),
             contacts: [a.contact, b.contact],
             tip,
             controls: [c1, c2],
             flat: cubic.flatness(),
             bend: cubic.bend(),
+            stamps: span_stamps(style, path, j),
+            azimuths: [samples[i].azimuth(), samples[k].azimuth()],
         },
         pressures: [samples[i].pressure(), samples[k].pressure()],
+        reach: reach(style),
     }
 }
 
@@ -215,6 +227,7 @@ pub(crate) fn paint(style: &StrokeStyle, blend: StrokeBlend) -> Paint {
         density,
         paper,
         clip: 0,
+        stamp: paint_stamp(style),
     }
 }
 

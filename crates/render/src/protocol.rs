@@ -5,7 +5,7 @@
 /// Side of a square evaluation tile in pixels; also the evaluator's workgroup size.
 pub(crate) const TILE: u32 = 16;
 /// Number of `f32` operands in one op record.
-const OP_DATA: usize = 18;
+const OP_DATA: usize = 23;
 /// A paint op's grain strength is a whole number in `0..=GRAIN_ONE`, so the shader's grain is
 /// exact integer arithmetic on every backend.
 pub(crate) const GRAIN_ONE: u32 = 256;
@@ -178,15 +178,18 @@ impl Opcode {
 
 /// One op. Operands by opcode:
 /// - `Segment` and `Tail`: `[ax, ay, bx, by, ra, rb, fa, fb, edge, ca, cb, tip, x1, y1, x2, y2,
-///   flat, bend]`, one span of a stroke's curve in canvas pixels: the cubic Bézier from `a` to
-///   `b` with controls `(x1, y1)` and `(x2, y2)`, evaluated as `curve::pieces(flat, bend, scale)`
-///   tapered capsules of equal parameter, the radius changing evenly from `ra` at `a` to `rb` at
-///   `b`; its coverage (`Tip::Cover`) or density (the others) is multiplied by the flow, `fa` to
-///   `fb` alike; `edge` is one over the width in canvas pixels over which a covering segment
-///   fades in from the outline (1: a hard edge, antialiased over one output pixel at any scale);
-///   `ca` to `cb` the paper contact along it (`protocol_segment.rs`).
+///   flat, bend, arc, first, last, paint]`, one span of a stroke's curve in canvas pixels: the
+///   cubic Bézier from `a` to `b` with controls `(x1, y1)` and `(x2, y2)`, evaluated as
+///   `curve::pieces(flat, bend, scale)` tapered capsules of equal parameter, the radius changing
+///   evenly from `ra` at `a` to `rb` at `b`; its coverage (`Tip::Cover`) or density (the others)
+///   is multiplied by the flow, `fa` to `fb` alike; `edge` is one over the width in canvas pixels
+///   over which a covering segment fades in from the outline (1: a hard edge, antialiased over
+///   one output pixel at any scale); `ca` to `cb` the paper contact along it
+///   (`protocol_segment.rs`). A stamped span (`paint` not 0) is its stamps instead, `ca` to
+///   `cb` the pen's azimuth (`protocol_stamp.rs`).
 /// - `EndStroke` and `EndActive`: `[r, g, b, opacity, grain, grain_scale, blend, density,
-///   paper scale, paper level, depth, dust, clip / 2^16, clip % 2^16]`, straight sRGB colour;
+///   paper scale, paper level, depth, dust, clip / 2^16, clip % 2^16, stamp...]`, straight sRGB
+///   colour;
 ///   `grain` a whole number in `0..=GRAIN_ONE`, `grain_scale` whole pixels, `blend` a `Blend`;
 ///   `density` 0 for a covering stroke, else its maximum density; `paper scale` 0 without
 ///   paper; `clip` 0, or one more than where the mask of the selection the stroke is drawn
@@ -234,6 +237,8 @@ pub(crate) struct Paint {
     pub(crate) paper: [f32; 4],
     /// 0, or one more than where the clip's mask starts in the mask words.
     pub(crate) clip: u32,
+    /// A stamped stroke's stamps (`protocol_stamp.rs`); all 0 for the continuous capsule.
+    pub(crate) stamp: [f32; STAMP_OPERANDS],
 }
 
 impl Paint {
@@ -248,15 +253,17 @@ impl Paint {
             density: 0.0,
             paper: [0.0; 4],
             clip: 0,
+            stamp: [0.0; STAMP_OPERANDS],
         }
     }
 
-    fn operands(&self) -> [f32; 14] {
+    fn operands(&self) -> [f32; OP_DATA] {
         // Small whole numbers, exact as floats.
         let [r, g, b] = self.color;
         let [scale, level, depth, dust] = self.paper;
         let [clip_high, clip_low] = halves(self.clip);
-        [
+        let mut operands = [0.0; OP_DATA];
+        operands[..PAINT_STAMP].copy_from_slice(&[
             r,
             g,
             b,
@@ -271,12 +278,14 @@ impl Paint {
             dust,
             clip_high,
             clip_low,
-        ]
+        ]);
+        operands[PAINT_STAMP..PAINT_STAMP + STAMP_OPERANDS].copy_from_slice(&self.stamp);
+        operands
     }
 }
 
 /// A word index as two whole numbers below 2^16, high part first, each exact as a float.
-fn halves(value: u32) -> [f32; 2] {
+pub(crate) fn halves(value: u32) -> [f32; 2] {
     [(value >> 16) as f32, (value & 0xffff) as f32]
 }
 
@@ -365,6 +374,14 @@ pub(crate) use moves::MOVE_DEPTH;
 mod segment;
 use segment::{SEGMENT_SLOTS, TIPS, curve_constants};
 pub(crate) use segment::{SegmentOperands, Tip};
+
+#[path = "protocol_stamp.rs"]
+mod stamp;
+use stamp::{PAINT_STAMP, STAMP_CODES, STAMP_SLOTS};
+pub(crate) use stamp::{
+    ROTATE_AZIMUTH, ROTATE_DIRECTION, ROTATE_FIXED, ROTATIONS, STAMP_DISC, STAMP_ELLIPSE,
+    STAMP_OPERANDS, STAMP_SQUARE, STAMP_TEXTURE, SpanStamps,
+};
 
 #[path = "protocol_wgsl.rs"]
 mod wgsl;

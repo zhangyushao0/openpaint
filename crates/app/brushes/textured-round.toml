@@ -1,0 +1,24 @@
+# Textured Round: a round brush with a chalky, hand-painted edge (DECISIONS D72). Its tip is the
+# chalk texture, laid every tenth of its size and turned a little at random, so the edge breaks
+# up like dry paint on a rough surface; the grain inside is fixed to the canvas. Pressure widens
+# it and lays more paint; where it crosses itself it never darkens.
+name = "Textured Round"
+
+[size]
+default = 40
+min = 2
+max = 400
+pressure = [[0.0, 0.35], [1.0, 1.0]]
+
+[opacity]
+default = 1.0
+pressure = [[0.0, 0.25], [1.0, 1.0]]
+
+[shape]
+stamp = "chalk"
+spacing = 0.1
+rotation_jitter = 15
+
+[grain]
+strength = 0.3
+scale = 5

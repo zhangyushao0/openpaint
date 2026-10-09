@@ -3,7 +3,7 @@
 //! in one atomic batch when it opens an older library, before anything else reads it.
 
 use openpaint_app::{BrushChoice, ProjectId, Title};
-use openpaint_core::RecipeParts;
+use openpaint_core::{RecipeParts, ShapeParts};
 
 use crate::catalogue::{Entry, encode_entry};
 use crate::codec::{Reader, Writer};
@@ -216,11 +216,12 @@ fn legacy_recipe() -> Vec<u8> {
             grain_strength: 0.0,
             grain_scale: 1,
             // Not written: schema 3 had no deposit; the 5 -> 6 step adds "cover", the 18 -> 19
-            // step the tilt and the taper.
+            // step the tilt and the taper, the 19 -> 20 step the shape.
             deposit: None,
             size_tilt: Vec::new(),
             opacity_tilt: Vec::new(),
             taper: [0.0; 3],
+            shape: ShapeParts::CONTINUOUS,
         },
     );
     writer.finish()
@@ -290,7 +291,8 @@ mod tests {
         let six = upgrade_5_to_6(&[], &then.projects, None);
         let seven = upgrade_6_to_7(&[], &six.projects);
         let nineteen = crate::migrate_19::upgrade_18_to_19(&[], &seven.projects);
-        let stroke = decode_stroke(&nineteen.projects[0].1).expect("a schema-4 stroke, upgraded");
+        let twenty = crate::migrate_20::upgrade_19_to_20(&[], &nineteen.projects);
+        let stroke = decode_stroke(&twenty.projects[0].1).expect("a schema-4 stroke, upgraded");
         assert_eq!((stroke.id, stroke.size, stroke.opacity), (9, 12.0, 0.5));
         assert_eq!(stroke.blend, StrokeBlend::Over);
         assert_eq!(stroke.samples.len(), 1);
@@ -352,8 +354,8 @@ mod tests {
         let ten = crate::migrate_10::upgrade_9_to_10(&[(id, nine.projects[0].1.clone())]);
         let eleven = crate::migrate_11::upgrade_10_to_11(&[(id, ten.projects[0].1.clone())]);
         let mut head = eleven.projects[0].1.clone();
-        // Steps 11 -> 12 to 18 -> 19 only mark heads.
-        for from in 11..19 {
+        // Steps 11 -> 12 to 19 -> 20 only mark heads.
+        for from in 11..20 {
             head = remarked(&head, from, from + 1).expect("marked");
         }
         let head = decode_head(&head).expect("a schema-5 head, upgraded");

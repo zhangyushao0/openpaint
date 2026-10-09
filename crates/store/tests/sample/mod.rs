@@ -19,6 +19,7 @@ mod schema_14;
 mod schema_15;
 mod schema_16;
 mod schema_19;
+mod schema_20;
 pub use dump::{decode, encode};
 pub use editor::{
     sample_editor, sample_editor_6, sample_editor_9, sample_editor_17, sample_editor_18,
@@ -30,7 +31,8 @@ pub use schema_13::schema_13_parts;
 pub use schema_14::schema_14_parts;
 pub use schema_15::schema_15_parts;
 pub use schema_16::schema_16_parts;
-pub use schema_19::parts;
+pub use schema_19::schema_19_parts;
+pub use schema_20::parts;
 
 pub type Records = Vec<(String, Vec<u8>, Vec<u8>)>;
 
@@ -60,7 +62,7 @@ fn grainy() -> RecipeParts {
         grain_strength: 0.625,
         grain_scale: 3,
         deposit: None,
-        // No tilt and no taper: as every recipe before schema 19.
+        // No tilt and no taper (as every recipe before schema 19), continuous (before 20).
         ..BrushRecipe::plain().to_parts()
     }
 }
@@ -153,6 +155,7 @@ pub fn schema_3_parts() -> ArtworkParts {
         color,
         samples,
         clip: None,
+        seed: 0,
     };
     let sketch = vec![
         stroke(

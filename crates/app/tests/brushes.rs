@@ -35,11 +35,15 @@ fn the_built_in_brushes_are_listed_by_job() {
             "Inker",
             "Monoline",
             "Hard Round",
-            "Soft Brush"
+            "Soft Brush",
+            "Textured Round",
+            "Flat",
+            "Opaque Paint",
+            "Speckle"
         ]
     );
-    let [pencil, ink, .., soft] = library.brushes() else {
-        panic!("six brushes");
+    let [pencil, ink, _, _, _, soft, ..] = library.brushes() else {
+        panic!("ten brushes");
     };
     assert_eq!(
         **ink.recipe(),

@@ -28,6 +28,8 @@ mod projection;
 mod quickshape;
 mod quickshape_fit;
 mod recipe;
+mod recipe_section;
+mod recipe_shape;
 mod reference;
 mod selection;
 mod session;

@@ -17,9 +17,11 @@ fn segment(bounds: [f32; 4]) -> Item {
         controls: [[0.0; 2]; 2],
         flat: 0.0,
         bend: 0.0,
+        stamps: None,
+        azimuths: [0.0; 2],
     };
     Item::Segment {
-        op: Op::segment(&operands),
+        op: Op::segment(&operands, 1),
         bounds: Bounds(bounds),
     }
 }

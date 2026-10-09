@@ -145,7 +145,7 @@ fn reached(changed: &[PixelRect], scale: u32) -> BTreeSet<[u32; 2]> {
 }
 
 /// At 2x, 4x and 8x every tile of `artwork`'s tier equals the export at that scale.
-fn tiles_are_the_export(core: &Core, artwork: &Artwork) {
+pub fn tiles_are_the_export(core: &Core, artwork: &Artwork) {
     for (zoom, scale) in [(2.2, 2), (3.7, 4), (7.0, 8)] {
         let mut screen = Screen::new(core, artwork);
         let view = frame(zoom, [150.0, 110.0]);
@@ -249,7 +249,7 @@ fn a_tapered_stroke_drawn_while_zoomed_narrows_its_end_at_the_tier_at_the_lift()
 
 /// `style` drawn sample by sample at 8x: each frame's tiles are the export of the stroke so far
 /// drawn with `blunt` (`style` without its end taper), and once committed the export of it.
-fn drawn_while_zoomed(style: &StrokeStyle, blunt: &StrokeStyle) {
+pub fn drawn_while_zoomed(style: &StrokeStyle, blunt: &StrokeStyle) {
     let core = core();
     let base = every_source();
     let scale = 8;

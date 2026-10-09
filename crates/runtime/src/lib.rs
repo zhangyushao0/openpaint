@@ -15,6 +15,7 @@ mod pictures;
 mod pointer;
 mod preview;
 mod screen;
+mod seeds;
 mod storage;
 mod text;
 mod transfer;

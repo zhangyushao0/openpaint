@@ -1,11 +1,36 @@
-//! The evaluator's bind group layout entries (storage and uniform buffers, storage textures,
-//! all for the compute stage) and how a plan's tiles lay out as workgroups.
+//! The evaluator's source, its bind group layout entries (storage and uniform buffers, storage
+//! textures, all for the compute stage) and how a plan's tiles lay out as workgroups.
 
 use crate::error::RenderError;
-use crate::gpu::Gpu;
+use crate::gpu::{Gpu, TEN_BITS};
+use crate::protocol::prelude;
 use crate::readback::FORMAT;
 
 use super::COVERAGE_FORMAT;
+
+const SHADER: &str = include_str!("shaders/evaluate.wgsl");
+const SEGMENT: &str = include_str!("shaders/segment.wgsl");
+const STAMP: &str = include_str!("shaders/stamp.wgsl");
+const STAMP_TEXTURE: &str = include_str!("shaders/stamp_texture.wgsl");
+const DEPOSIT: &str = include_str!("shaders/deposit.wgsl");
+const SMUDGE: &str = include_str!("shaders/smudge_composite.wgsl");
+const ADJUST: &str = include_str!("shaders/adjust.wgsl");
+const FILL_EDGE: &str = include_str!("shaders/fill_edge.wgsl");
+const FILTER: &str = include_str!("shaders/filter_composite.wgsl");
+
+/// The protocol prelude followed by the evaluator, its curve spans, their stamps, its
+/// accumulating deposits, its smudges, its adjustments, its fill edges and its filters; its
+/// display texture in `display` (written as declared for ten bits, else declared as `FORMAT` and
+/// never written).
+pub(crate) fn shader_source(display: wgpu::TextureFormat) -> String {
+    let source = prelude() + SHADER + SEGMENT + STAMP + STAMP_TEXTURE + DEPOSIT + SMUDGE;
+    let source = source + ADJUST + FILL_EDGE + FILTER;
+    if display == TEN_BITS {
+        source
+    } else {
+        source.replace("<rgb10a2unorm, write>", "<rgba8unorm, write>")
+    }
+}
 
 fn buffer_entry(binding: u32, ty: wgpu::BufferBindingType) -> wgpu::BindGroupLayoutEntry {
     wgpu::BindGroupLayoutEntry {

@@ -303,7 +303,7 @@ fn fresh_ops_start_with_the_paint_op() {
     let tail = crate::stroke::segments(&style(), &samples)
         .next()
         .expect("span");
-    assert_eq!(fresh.ops[1], tail.tail_op());
+    assert_eq!(fresh.ops[1], tail.tail_op(-1));
     let smudging = blank
         .begin_stroke(style().with_tool(StrokeTool::Smudge), samples[0])
         .expect("begin");

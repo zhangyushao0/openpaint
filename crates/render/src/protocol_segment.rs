@@ -1,7 +1,7 @@
 //! A stroke's curve spans on the GPU (S34): the `Segment` op's layout, its tips, and the
 //! flattening constants the evaluator shares with `curve.rs`.
 
-use super::{OP_DATA, Op, Opcode};
+use super::{OP_DATA, Op, Opcode, SpanStamps};
 use crate::curve::{MAX_PIECES, TOLERANCE};
 
 /// The flow at `a`; the flow at `b` follows it.
@@ -65,32 +65,45 @@ pub(crate) struct SegmentOperands {
     pub(crate) controls: [[f32; 2]; 2],
     pub(crate) flat: f32,
     pub(crate) bend: f32,
+    /// A stamped span's stamps (S45), and the pen's azimuth at both knots, which its op carries
+    /// in the contacts' place (stamps take no paper).
+    pub(crate) stamps: Option<SpanStamps>,
+    pub(crate) azimuths: [f32; 2],
 }
 
 impl Op {
-    pub(crate) fn segment(s: &SegmentOperands) -> Self {
-        Self::span(Opcode::Segment, s)
+    /// A span whose stroke's paint op lies `paint` ops from it (read only when stamped).
+    pub(crate) fn segment(s: &SegmentOperands, paint: i32) -> Self {
+        Self::span(Opcode::Segment, s, paint)
     }
 
     /// A span of the in-progress stroke's end that later samples may still change: evaluated
     /// as a segment but never kept (`OP_TAIL`).
-    pub(crate) fn tail(s: &SegmentOperands) -> Self {
-        Self::span(Opcode::Tail, s)
+    pub(crate) fn tail(s: &SegmentOperands, paint: i32) -> Self {
+        Self::span(Opcode::Tail, s, paint)
     }
 
-    fn span(code: Opcode, s: &SegmentOperands) -> Self {
+    fn span(code: Opcode, s: &SegmentOperands, paint: i32) -> Self {
         let mut data = [0.0; OP_DATA];
         data[..6].copy_from_slice(&[s.a[0], s.a[1], s.b[0], s.b[1], s.radii[0], s.radii[1]]);
         data[SEGMENT_FLOW] = s.flows[0];
         data[SEGMENT_FLOW + 1] = s.flows[1];
         data[SEGMENT_EDGE] = s.edge;
-        data[SEGMENT_CONTACT] = s.contacts[0];
-        data[SEGMENT_CONTACT + 1] = s.contacts[1];
+        let contacts = if s.stamps.is_some() {
+            s.azimuths
+        } else {
+            s.contacts
+        };
+        data[SEGMENT_CONTACT..SEGMENT_CONTACT + 2].copy_from_slice(&contacts);
         data[SEGMENT_TIP] = s.tip as u32 as f32;
         let [[x1, y1], [x2, y2]] = s.controls;
         data[SEGMENT_CONTROLS..SEGMENT_FLAT].copy_from_slice(&[x1, y1, x2, y2]);
         data[SEGMENT_FLAT] = s.flat;
         data[SEGMENT_BEND] = s.bend;
-        Self::new(code, &data)
+        let op = Self::new(code, &data);
+        match s.stamps {
+            Some(stamps) => op.stamped(stamps, paint),
+            None => op,
+        }
     }
 }

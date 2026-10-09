@@ -1,0 +1,23 @@
+# Opaque Paint: a rough square tip turning with the stroke, overlapping densely (DECISIONS D72):
+# a solid band of paint with a bristly edge and blocky ends. Pressure lays more paint; where it
+# crosses itself it never darkens.
+name = "Opaque Paint"
+
+[size]
+default = 40
+min = 2
+max = 400
+
+[opacity]
+default = 1.0
+pressure = [[0.0, 0.3], [1.0, 1.0]]
+
+[shape]
+stamp = "rough-square"
+aspect = 0.5
+spacing = 0.08
+rotation = "direction"
+# Each stamp a little larger or smaller and turned a few degrees, so the bristle streaks and the
+# ragged ends vary along the stroke.
+rotation_jitter = 4
+size_jitter = 0.1

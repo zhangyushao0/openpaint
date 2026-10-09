@@ -81,11 +81,11 @@ fn the_settled_spans_of_a_stroke_being_drawn_are_the_finished_strokes() {
         .map(|(i, s)| StrokeSample::new(s.position(), s.pressure(), 0.0, 0.0, 3 * i as u32))
         .collect::<Result<_, _>>()
         .expect("samples");
-    let whole: Vec<Op> = segments(&style, &samples).map(|s| s.op()).collect();
+    let whole: Vec<Op> = segments(&style, &samples).map(|s| s.op(1)).collect();
     for end in 1..=samples.len() {
         let path = Path::of(&samples[..end]);
         let settled: Vec<Op> = spans(&style, &samples[..end], &path, 0..path.settled())
-            .map(|s| s.op())
+            .map(|s| s.op(1))
             .collect();
         assert_eq!(settled, whole[..settled.len()], "after {end} samples");
         assert!(path.spans() - path.settled() <= 2);
@@ -186,7 +186,7 @@ fn the_taper_narrows_the_knots_near_both_ends_of_a_finished_stroke_only() {
     );
     for (j, (now, before)) in finished.iter().zip(&drawn).enumerate() {
         if j < first_changed {
-            assert_eq!(now.op(), before.op(), "span {j}");
+            assert_eq!(now.op(1), before.op(1), "span {j}");
         } else {
             assert!(
                 now.radii()[1] < before.radii()[1],

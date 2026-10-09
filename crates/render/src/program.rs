@@ -8,8 +8,9 @@ use crate::gpu::{Gpu, TEN_BITS};
 use crate::output::Output;
 use crate::paper::paper_levels;
 use crate::plan::Plan;
-use crate::protocol::{MOVE_DEPTH, Op, Params, Record, TileRecord, encode, prelude};
+use crate::protocol::{MOVE_DEPTH, Op, Params, Record, TileRecord, encode};
 use crate::readback::FORMAT;
+use crate::shapes::shapes;
 
 #[path = "program_scene.rs"]
 mod scene_ops;
@@ -17,30 +18,12 @@ pub(crate) use scene_ops::{SceneOps, scene_ops};
 
 #[path = "program_layout.rs"]
 mod layout;
+pub(crate) use layout::shader_source;
 use layout::{evaluate_layout, unwritten, workgroups};
 
-const SHADER: &str = include_str!("shaders/evaluate.wgsl");
-const SEGMENT: &str = include_str!("shaders/segment.wgsl");
-const DEPOSIT: &str = include_str!("shaders/deposit.wgsl");
-const SMUDGE: &str = include_str!("shaders/smudge_composite.wgsl");
-const ADJUST: &str = include_str!("shaders/adjust.wgsl");
-const FILL_EDGE: &str = include_str!("shaders/fill_edge.wgsl");
-const FILTER: &str = include_str!("shaders/filter_composite.wgsl");
 /// The in-progress stroke's coverage (or density) and paper contact textures: one float per
 /// canvas pixel each.
 pub(crate) const COVERAGE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::R32Float;
-
-/// The protocol prelude followed by the evaluator, its curve spans, its accumulating deposits,
-/// its smudges, its adjustments, its fill edges and its filters; its display texture in
-/// `display` (written as declared for ten bits, else declared as `FORMAT` and never written).
-pub(crate) fn shader_source(display: wgpu::TextureFormat) -> String {
-    let source = prelude() + SHADER + SEGMENT + DEPOSIT + SMUDGE + ADJUST + FILL_EDGE + FILTER;
-    if display == TEN_BITS {
-        source
-    } else {
-        source.replace("<rgb10a2unorm, write>", "<rgba8unorm, write>")
-    }
-}
 
 /// What one dispatch evaluates.
 pub(crate) struct Dispatch<'a> {
@@ -184,8 +167,8 @@ pub(crate) struct EvaluatePipeline {
     /// Without the moved selections' stack (`Plan::deepest` 0).
     flat: wgpu::ComputePipeline,
     layout: wgpu::BindGroupLayout,
-    /// The paper's mip chain (`paper.rs`), uploaded once.
-    paper: wgpu::Buffer,
+    /// The paper's mip chain (`paper.rs`), then the shape textures' (`shapes.rs`), uploaded once.
+    textures: wgpu::Buffer,
     /// Bound as the snapshot when a dispatch has none.
     no_snapshot: wgpu::Buffer,
     /// One-texel stand-ins bound where a target does not write: at binding 4 (8 bits) and 14
@@ -195,9 +178,9 @@ pub(crate) struct EvaluatePipeline {
 
 impl EvaluatePipeline {
     pub(crate) fn new(device: &wgpu::Device, display: wgpu::TextureFormat) -> Self {
-        let paper = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("paper"),
-            contents: &encode(&paper_levels()),
+        let textures = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("textures"),
+            contents: &encode(&[paper_levels(), shapes()].concat()),
             usage: wgpu::BufferUsages::STORAGE,
         });
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -236,7 +219,7 @@ impl EvaluatePipeline {
             pipeline,
             flat,
             layout,
-            paper,
+            textures,
             no_snapshot,
             unwritten: [FORMAT, display].map(|format| unwritten(device, format)),
         }
@@ -313,7 +296,7 @@ impl EvaluatePipeline {
             (3, indices),
             (5, fresh),
             (7, &scene.masks),
-            (9, &self.paper),
+            (9, &self.textures),
             (10, &scene.patches),
             (11, arena),
             (12, active),

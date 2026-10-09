@@ -8,14 +8,21 @@ use openpaint_core::{BrushRecipe, MAX_BRUSH_SIZE};
 
 use crate::recipe::{RecipeError, parse};
 
-/// The built-in brushes in picker order, by job (sketch, ink, line, paint, blend): key, file.
-const BUILT_IN: [(&str, &str); 6] = [
+/// The built-in brushes in picker order, by job (sketch, ink, line, paint, texture): key, file.
+const BUILT_IN: [(&str, &str); 10] = [
     ("pencil", include_str!("../brushes/pencil.toml")),
     ("ink-pen", include_str!("../brushes/ink-pen.toml")),
     ("inker", include_str!("../brushes/inker.toml")),
     ("monoline", include_str!("../brushes/monoline.toml")),
     ("hard-round", include_str!("../brushes/hard-round.toml")),
     ("soft-brush", include_str!("../brushes/soft-brush.toml")),
+    (
+        "textured-round",
+        include_str!("../brushes/textured-round.toml"),
+    ),
+    ("flat", include_str!("../brushes/flat.toml")),
+    ("opaque-paint", include_str!("../brushes/opaque-paint.toml")),
+    ("speckle", include_str!("../brushes/speckle.toml")),
 ];
 /// The brush a first start draws with: the round brush of every stroke before recipes.
 const DEFAULT_BRUSH: &str = "ink-pen";

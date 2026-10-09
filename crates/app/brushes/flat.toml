@@ -1,0 +1,20 @@
+# Flat: a thin square tip held across the stroke and turning with it, like a flat brush (DECISIONS
+# D72): a band of one width with clean, chiselled square ends, the blocky strokes of concept art.
+# Pressure lays more paint; where it crosses itself it never darkens.
+name = "Flat"
+
+[size]
+default = 30
+min = 2
+max = 300
+
+[opacity]
+default = 1.0
+pressure = [[0.0, 0.2], [1.0, 1.0]]
+
+[shape]
+stamp = "square"
+# Along the stroke a quarter of its width.
+aspect = 0.25
+spacing = 0.05
+rotation = "direction"

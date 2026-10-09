@@ -71,8 +71,8 @@ pub fn sample_editor_17() -> EditorState {
     }
 }
 
-/// The toolbox of the schema-18 sample: the schema-17 one with the third side button holding
-/// the eyedropper.
+/// The toolbox of the schema-18 to 20 samples (schemas 19 and 20 changed no toolbox): the
+/// schema-17 one with the third side button holding the eyedropper.
 pub fn sample_editor_18() -> EditorState {
     let mut editor = sample_editor_17();
     editor.buttons.tertiary = ButtonAction::Eyedropper;

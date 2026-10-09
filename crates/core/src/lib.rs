@@ -29,6 +29,7 @@ mod parts;
 mod parts_recipe;
 mod region;
 mod session;
+mod shape;
 mod storage;
 mod stroke;
 mod stroke_list;
@@ -64,10 +65,14 @@ pub use nested::{MAX_NESTING, NestedEdit, NestedLayer};
 pub use parts::{
     AccumulationParts, ArtworkParts, ClearParts, EditParts, FillParts, GroupParts, LayerMaskParts,
     LayerParts, MaskParts, NestedParts, PaperParts, PatchParts, RecipeParts, SampleParts,
-    StrokeParts, TransformParts,
+    ShapeParts, StrokeParts, TransformParts,
 };
 pub use region::{FillEdit, RegionEdit, RegionMask};
 pub use session::{ActiveStroke, StrokeSession};
+pub use shape::{
+    MAX_SCATTER, MAX_SPACING, MAX_STAMPS, MIN_ASPECT, MIN_SPACING, Rotation, Shape, ShapeTexture,
+    Stamp, jitter,
+};
 pub use stroke::{
     MAX_BRUSH_SIZE, MAX_STROKE_SAMPLES, Stroke, StrokeBlend, StrokeSample, StrokeStyle, StrokeTool,
 };

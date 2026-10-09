@@ -23,8 +23,8 @@ fn out_of_range(at: &str) -> RecipeError {
 #[test]
 fn the_pencil_tilts_the_inker_tapers_the_monoline_keeps_one_width() {
     let library = built_in();
-    let [pencil, _, inker, monoline, hard, _] = library.brushes() else {
-        panic!("six brushes");
+    let [pencil, _, inker, monoline, hard, ..] = library.brushes() else {
+        panic!("ten brushes");
     };
     // Laid on its side the pencil draws wider and lighter; held as for writing, as before.
     let tilt = |degrees: f32| {

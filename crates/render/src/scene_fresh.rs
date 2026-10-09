@@ -41,10 +41,12 @@ impl Fresh {
             spans(style, samples, &path, from.min(settled)..path.spans()).enumerate()
         {
             let tail = from.min(settled) + index >= settled;
+            // Its paint op is `ops[0]`: as many ops back as it lies on.
+            let paint = -(fresh.ops.len() as i32);
             fresh.ops.push(if tail {
-                segment.tail_op()
+                segment.tail_op(paint)
             } else {
-                segment.op()
+                segment.op(paint)
             });
             fresh.bounds.push(segment.bounds());
         }

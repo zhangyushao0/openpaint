@@ -1,4 +1,4 @@
-//! How a stroke lays its paint (DECISIONS D07, D38). `Cover`: a pixel takes the largest coverage
+//! How a stroke lays its paint (DECISIONS D38, D72). `Cover`: a pixel takes the largest coverage
 //! any segment of the stroke gives it, so a stroke crossing itself stays one even coverage (the
 //! Ink Pen). `Accumulate`: the stroke builds up optical density along its path, so where it
 //! crosses itself it darkens, up to its opacity, like graphite or an airbrush with a flow below

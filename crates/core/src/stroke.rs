@@ -112,8 +112,9 @@ pub enum StrokeBlend {
 }
 
 /// How a stroke is drawn: its tool, its brush recipe (a snapshot, shared between strokes drawn
-/// with the same brush), its largest diameter `size`, its `opacity` and `color`. Cloning is
-/// cheap.
+/// with the same brush), its largest diameter `size`, its `opacity` and `color`, and the `seed`
+/// its stamps' jitter follows (S45: `shape::jitter`; a mirrored copy and a reshaped stroke keep
+/// it). Cloning is cheap.
 #[derive(Debug, Clone, PartialEq)]
 pub struct StrokeStyle {
     tool: StrokeTool,
@@ -121,6 +122,7 @@ pub struct StrokeStyle {
     size: f32,
     opacity: f32,
     color: Color,
+    seed: u32,
 }
 
 impl StrokeStyle {
@@ -146,6 +148,7 @@ impl StrokeStyle {
             size,
             opacity,
             color,
+            seed: 0,
         })
     }
 
@@ -153,6 +156,12 @@ impl StrokeStyle {
     #[must_use]
     pub fn with_tool(self, tool: StrokeTool) -> Self {
         Self { tool, ..self }
+    }
+
+    /// This style jittering its stamps by `seed`; `new` takes 0.
+    #[must_use]
+    pub fn with_seed(self, seed: u32) -> Self {
+        Self { seed, ..self }
     }
 
     /// This style painting `color`.
@@ -183,6 +192,11 @@ impl StrokeStyle {
     #[must_use]
     pub const fn color(&self) -> Color {
         self.color
+    }
+
+    #[must_use]
+    pub const fn seed(&self) -> u32 {
+        self.seed
     }
 }
 

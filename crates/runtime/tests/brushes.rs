@@ -101,7 +101,7 @@ fn every_built_in_brush_draws_its_golden_wave_and_incremental_equals_cold() {
 }
 
 /// The pencil and the soft brush as S11 to S15 shipped them, whose recipes the strokes drawn
-/// then keep (D07): they draw what they drew then, along the curve since S34.
+/// then keep (D72): they draw what they drew then, along the curve since S34.
 const BEFORE_S16: [(&str, &str); 2] = [
     (
         "pencil",

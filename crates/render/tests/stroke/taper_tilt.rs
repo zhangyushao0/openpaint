@@ -104,7 +104,7 @@ fn an_inker_lines_width_follows_its_taper_at_five_fifty_and_ninety_five_percent(
 /// `style` drawn through `samples` one sample at a time on one canvas target: after every fifth
 /// sample the frame equals the stroke so far evaluated cold as a finished stroke of `drawn` (the
 /// same brush without its end taper); at the lift the target equals the committed stroke cold.
-fn drawn_with_a_blunt_end(style: &StrokeStyle, drawn: &StrokeStyle, samples: &[StrokeSample]) {
+pub fn drawn_with_a_blunt_end(style: &StrokeStyle, drawn: &StrokeStyle, samples: &[StrokeSample]) {
     let core = core();
     let base = blank();
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
@@ -140,7 +140,9 @@ fn drawn_with_a_blunt_end(style: &StrokeStyle, drawn: &StrokeStyle, samples: &[S
         lifted == cold(&core, &finished),
         "the lift's frame = the commit, cold"
     );
-    assert!(Some(lifted) != last, "the lift narrows the end");
+    if style != drawn {
+        assert!(Some(lifted) != last, "the lift narrows the end");
+    }
 }
 
 #[test]
