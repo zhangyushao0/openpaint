@@ -123,31 +123,7 @@ impl Canvas {
             if self.leaving != Leaving::Staying {
                 return;
             }
-            let tool = match &intent {
-                Intent::Brush(brush) => {
-                    toolbox.dispatch(brush);
-                    true
-                }
-                Intent::Tool(tool) => {
-                    toolbox.dispatch_tool(tool);
-                    // Choosing a tool or the eyedropper leaves the Selection tool and commits a
-                    // transform (Procreate).
-                    let chosen = matches!(
-                        tool,
-                        ToolIntent::Use(_) | ToolIntent::Switch | ToolIntent::Eyedropper(true)
-                    );
-                    if chosen {
-                        self.leave_selection();
-                    }
-                    true
-                }
-                Intent::Stroke(StrokeIntent::Contact(contact)) if toolbox.picking() => {
-                    self.pick(core, contact, toolbox);
-                    true
-                }
-                _ => false,
-            };
-            if tool {
+            if self.toolbox_intent(core, &intent, toolbox) {
                 match toolbox.style() {
                     Ok(style) => self.session.set_brush(style),
                     Err(error) => log::error!("no brush style: {error}"),
@@ -177,11 +153,40 @@ impl Canvas {
                 Ok(()) => {}
                 Err(error) => log::warn!("intent refused: {error}"),
             }
+            // A committed stroke's brush is Recent's newest (S47).
+            if let Some(drawn) = self.session.stroke_committed().filter(|_| stroke) {
+                toolbox.drew(drawn);
+            }
             // A transform just begun lifts its pixels now, so the frame shows it at once.
             if let Some(job) = self.session.transform_request() {
                 self.session.transform_lifted(lift(core, &job));
             }
         }
+    }
+
+    /// Hands a brush or tool intent to `toolbox`, and a canvas contact to the eyedropper while it
+    /// is on. Returns whether `intent` was the toolbox's.
+    fn toolbox_intent(&mut self, core: &Core, intent: &Intent, toolbox: &mut Toolbox) -> bool {
+        match intent {
+            Intent::Brush(brush) => toolbox.dispatch(brush),
+            Intent::Tool(tool) => {
+                toolbox.dispatch_tool(tool);
+                // Choosing a tool or the eyedropper leaves the Selection tool and commits a
+                // transform (Procreate).
+                let chosen = matches!(
+                    tool,
+                    ToolIntent::Use(_) | ToolIntent::Switch | ToolIntent::Eyedropper(true)
+                );
+                if chosen {
+                    self.leave_selection();
+                }
+            }
+            Intent::Stroke(StrokeIntent::Contact(contact)) if toolbox.picking() => {
+                self.pick(core, contact, toolbox);
+            }
+            _ => return false,
+        }
+        true
     }
 
     /// Leaves the Selection tool (a transform under way is committed), noting what changed.

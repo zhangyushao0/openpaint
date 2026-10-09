@@ -4,6 +4,10 @@
 //! built-in; strings as the key), its size range's least, first and largest diameter, its first
 //! opacity and StreamLine (f32 each) and its recipe as a stroke record holds it (`strokes.rs`).
 //! A count of 0 is the built-ins as their files have them, which schemas 3 to 20 held.
+//!
+//! Then the brush sets (schema 22, S47): Sketching, Inking, Painting and Texture, each a count
+//! (u32) and its brushes' keys in order, then Recent, a count and its keys, newest first. Four
+//! empty sets are every brush where a first start puts it, which schemas 3 to 21 held.
 
 use openpaint_app::{BrushParts, PortError, StoredBrush};
 
@@ -12,6 +16,28 @@ use crate::strokes::{read_brush_recipe, write_whole_recipe};
 
 /// Bytes of a brush entry with an empty key, by key alone.
 const ENTRY_BYTES: usize = 4 + 1;
+/// Bytes of an empty key in a set or Recent.
+const KEY_BYTES: usize = 4;
+
+pub(crate) fn write_sets(writer: &mut Writer, (sets, recent): (&[Vec<String>; 4], &[String])) {
+    for keys in sets.iter().map(Vec::as_slice).chain([recent]) {
+        writer.len(keys.len());
+        for key in keys {
+            writer.str(key);
+        }
+    }
+}
+
+pub(crate) fn read_sets(
+    reader: &mut Reader<'_>,
+) -> Result<([Vec<String>; 4], Vec<String>), PortError> {
+    let mut keys = || -> Result<Vec<String>, PortError> {
+        let count = reader.count(KEY_BYTES)?;
+        (0..count).map(|_| reader.str()).collect()
+    };
+    let sets = [keys()?, keys()?, keys()?, keys()?];
+    Ok((sets, keys()?))
+}
 
 pub(crate) fn write_library(writer: &mut Writer, library: &[StoredBrush]) {
     writer.len(library.len());
@@ -121,5 +147,32 @@ mod tests {
         let mut empty = Writer::default();
         write_library(&mut empty, &[]);
         assert_eq!(empty.finish(), [0; 4], "the built-ins: a count of 0");
+    }
+
+    #[test]
+    fn the_sets_and_recent_round_trip_and_a_cut_one_is_corrupt() {
+        let keys = |keys: &[&str]| keys.iter().map(|key| (*key).to_owned()).collect();
+        let sets: [Vec<String>; 4] = [
+            keys(&["pencil", "monoline"]),
+            Vec::new(),
+            keys(&["copy-1", "flat"]),
+            keys(&["speckle"]),
+        ];
+        let recent: Vec<String> = keys(&["speckle", "ink-pen"]);
+        let mut writer = Writer::default();
+        write_sets(&mut writer, (&sets, &recent));
+        let bytes = writer.finish();
+        let mut reader = Reader::new(&bytes, "editor state");
+        assert_eq!(read_sets(&mut reader), Ok((sets, recent)));
+        assert_eq!(reader.end(), Ok(()));
+        let cut = &bytes[..bytes.len() - 1];
+        assert!(read_sets(&mut Reader::new(cut, "editor state")).is_err());
+        let mut empty = Writer::default();
+        write_sets(&mut empty, (&Default::default(), &[]));
+        assert_eq!(
+            empty.finish(),
+            [0; 20],
+            "four empty sets: where a first start puts them"
+        );
     }
 }

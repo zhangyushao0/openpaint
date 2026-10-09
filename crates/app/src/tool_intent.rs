@@ -6,6 +6,7 @@ use std::sync::Arc;
 use openpaint_core::Color;
 
 use crate::brush_edit::BrushChange;
+use crate::brush_sets::BrushSet;
 use crate::brushes::BrushKey;
 use crate::edited_brush::EditedBrush;
 use crate::pen_buttons::{ButtonAction, ButtonMap, HeldTool, PenButton};
@@ -35,6 +36,11 @@ pub enum BrushIntent {
     Reset,
     /// A copy goes; its source is chosen where it was.
     Delete,
+    /// The brush `key` lands at place `to` of its set (0 first), the others keeping their
+    /// order (S47); where it was: nothing.
+    Reorder { key: BrushKey, to: usize },
+    /// The current tool's brush goes to the end of `set` (one of `BrushSet::EDITABLE`).
+    MoveToSet(BrushSet),
 }
 
 /// The tool, the colour, the eyedropper, the pen's buttons and the palette.
@@ -83,8 +89,13 @@ pub struct BrushRow {
 /// page show.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BrushProjection {
-    /// In picker order.
+    /// Every brush, in the library's order.
     pub brushes: Arc<[BrushRow]>,
+    /// Each set's rows as `BrushSet::ALL` lists them (S47): Recent newest first, the others in
+    /// their order; `rows` reads one.
+    pub sets: Arc<[Vec<BrushRow>; 5]>,
+    /// The set holding the current tool's brush, which its picker opens on.
+    pub set: BrushSet,
     /// The tool the pen uses now: a held eraser shows as the eraser.
     pub tool: Tool,
     /// The current tool's brush.
@@ -109,4 +120,12 @@ pub struct BrushProjection {
     pub buttons: ButtonMap,
     /// The current tool's brush as its editor shows it (S46).
     pub edited: Arc<EditedBrush>,
+}
+
+impl BrushProjection {
+    /// The rows `set` lists.
+    #[must_use]
+    pub fn rows(&self, set: BrushSet) -> &[BrushRow] {
+        &self.sets[set.index()]
+    }
 }

@@ -1,6 +1,7 @@
-//! Taking over the stored toolbox: the brush library first (S46), then each tool's brush and its
-//! settings per brush, the tool, the pen's buttons and the colours.
+//! Taking over the stored toolbox: the brush library first (S46), its sets and Recent (S47), then
+//! each tool's brush and its settings per brush, the tool, the pen's buttons and the colours.
 
+use crate::brush_sets::BrushSets;
 use crate::brushes::BrushKey;
 use crate::editor_state::{BrushChoice, EditorState};
 use crate::streamline::StreamLine;
@@ -9,14 +10,26 @@ use super::{MIN_OPACITY, Tool, Toolbox, rows_of};
 
 impl Toolbox {
     /// Takes over a stored state: its library first (a stored brush the engine refuses falls
-    /// back to its built-in, `fell_back`), then each tool's brush and settings. Unknown
-    /// brushes, values outside a brush's ranges and colours out of range are skipped (those keep
-    /// their defaults). Returns whether everything was taken over.
+    /// back to its built-in, `fell_back`), its sets and Recent (an unknown key is dropped,
+    /// `dropped`; a brush in no set goes where a first start puts it), then each tool's brush
+    /// and settings. Unknown brushes, values outside a brush's ranges and colours out of range
+    /// are skipped (those keep their defaults). Returns whether everything was taken over.
     pub fn restore(&mut self, state: &EditorState) -> bool {
-        let mut fell_back = Vec::new();
-        let library = self.library.restore(&state.library, &mut fell_back);
+        let (mut fell_back, mut orphans, mut dropped) = (Vec::new(), Vec::new(), Vec::new());
+        let library = self
+            .library
+            .restore(&state.library, (&mut fell_back, &mut orphans));
         self.fell_back = fell_back;
+        let stored = (
+            &state.sets,
+            state.recent_brushes.as_slice(),
+            orphans.as_slice(),
+        );
+        self.brush_sets = BrushSets::restore(&self.library, stored, &mut dropped);
+        let sets = dropped.is_empty();
+        self.dropped = dropped;
         self.rows = rows_of(&self.library);
+        self.set_rows = self.brush_sets.rows(&self.library);
         self.kept = None;
         let brushes = &self.library;
         for set in &mut self.sets {
@@ -32,7 +45,7 @@ impl Toolbox {
         let colors = self
             .palette
             .restore(state.color, &state.recent, &state.swatches);
-        library && paint && erase && smudge && colors
+        library && sets && paint && erase && smudge && colors
     }
 
     /// The names of the stored brushes the engine refused at the last restore, which fell back

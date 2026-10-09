@@ -93,6 +93,9 @@ impl Screen {
                 for name in toolbox.fell_back() {
                     log::warn!("the stored brush {name} is refused; its built-in is back");
                 }
+                for key in toolbox.dropped() {
+                    log::warn!("the stored brush sets list {key} for no brush or again; dropped");
+                }
                 *self = started(opened);
             }
             Done::EditorSaved(result) => {

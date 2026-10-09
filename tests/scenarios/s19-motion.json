@@ -45,6 +45,7 @@
     { "stroke": { "points": [[2350, 500, 0.8], [2650, 700, 0.8]] } },
     { "checkpoint": { "name": "drawn-under-closing-panel", "canvas": "7e1d1a94d22837c8" } },
     { "tap": { "at": "Brushes" } },
+    { "tap": { "at": "Sketching" } },
     { "tap": { "at": "Pencil" } },
     { "stroke": { "points": [[600, 500, 0.6], [1400, 400, 0.6]] } },
     { "checkpoint": { "name": "pencil-chosen-while-growing", "canvas": "7a2896036a6bc179" } },

@@ -60,16 +60,7 @@ pub fn list_row(ui: &mut egui::Ui, row: &ListRow<'_>) -> RowResponse {
     };
     let size = Vec2::new(ui.available_width(), TOUCH_TARGET);
     let (rect, response) = ui.allocate_exact_size(size, sense);
-    // Rows that moved (a reorder, a row added or deleted above) slide to their new place; the
-    // place itself takes the contact at once. Measured in the list, so scrolling never lags.
-    let place = rect.top() - ui.max_rect().top();
-    let offset = match row.lifted {
-        Some(lift) => {
-            hold_at(ui.ctx(), row.key, place + lift);
-            lift
-        }
-        None => settle(ui.ctx(), row.key, place, SETTLE),
-    };
+    let offset = row_offset(ui, row.key, rect, row.lifted);
     let indent = row.indent + settle(ui.ctx(), row.key.with("indent"), row.indent, SETTLE);
     let button = Rect::from_min_size(
         rect.right_top() - Vec2::new(TOUCH_TARGET, 0.0),
@@ -93,13 +84,7 @@ pub fn list_row(ui: &mut egui::Ui, row: &ListRow<'_>) -> RowResponse {
     let appear = animate_from(ui.ctx(), row.key.with("appear"), 0.0, 1.0, ACKNOWLEDGE);
     let shown = rect.translate(Vec2::new(0.0, offset));
     if ui.is_rect_visible(shown) || row.lifted.is_some() {
-        let mut painter = ui.painter().clone();
-        if row.lifted.is_some() {
-            // Over every other row; still cut to the list.
-            painter = painter.with_layer_id(egui::LayerId::new(Order::Tooltip, row.key));
-            painter.rect_filled(Outline::row(shown).rect, Outline::row(shown).corner, PANEL);
-            paint_mark(&painter, Outline::row(shown), 1.0);
-        }
+        let mut painter = row_painter(ui, row.key, shown, row.lifted.is_some());
         painter.multiply_opacity(appear);
         paint(ui, &painter, (row, indent), shown, (&response, &icon));
     }
@@ -107,6 +92,39 @@ pub fn list_row(ui: &mut egui::Ui, row: &ListRow<'_>) -> RowResponse {
         row: response,
         icon: icon.on_hover_text(row.icon_label),
     }
+}
+
+/// How far below its place (`rect`, as laid out) the row `key` shows: carried by the hand,
+/// `lifted` points, exactly; else sliding from where it showed to its new place (a reorder, a
+/// row added or deleted above), whose place takes the contact at once. Measured in the list, so
+/// scrolling never lags. Shared by every list whose rows the hand carries.
+pub(crate) fn row_offset(ui: &egui::Ui, key: egui::Id, rect: Rect, lifted: Option<f32>) -> f32 {
+    let place = rect.top() - ui.max_rect().top();
+    match lifted {
+        Some(lift) => {
+            hold_at(ui.ctx(), key, place + lift);
+            lift
+        }
+        None => settle(ui.ctx(), key, place, SETTLE),
+    }
+}
+
+/// The painter a row draws with at `shown`: while the hand carries it, over every other row (still
+/// cut to the list) on paper in an ink outline.
+pub(crate) fn row_painter(
+    ui: &egui::Ui,
+    key: egui::Id,
+    shown: Rect,
+    lifted: bool,
+) -> egui::Painter {
+    let painter = ui.painter().clone();
+    if !lifted {
+        return painter;
+    }
+    let painter = painter.with_layer_id(egui::LayerId::new(Order::Tooltip, key));
+    painter.rect_filled(Outline::row(shown).rect, Outline::row(shown).corner, PANEL);
+    paint_mark(&painter, Outline::row(shown), 1.0);
+    painter
 }
 
 fn paint(

@@ -76,6 +76,37 @@ pub(crate) fn resolve(map: &ControlMap, spot: &Spot) -> Result<[f32; 2], Scenari
     Ok([x + offset[0], y + offset[1]])
 }
 
+/// Every name of `shown` on screen, in reading order (by the top of its rectangle, then its
+/// left), and none of `absent`; else what is wrong, with every name on screen.
+pub(crate) fn expect(
+    map: &ControlMap,
+    (shown, absent): (&[String], &[String]),
+) -> Result<(), ScenarioError> {
+    let unexpected = |what: String| ScenarioError::Unexpected {
+        what,
+        available: map.names(),
+    };
+    let mut last: Option<(&String, [f32; 2])> = None;
+    for name in shown {
+        let control = map.find(name).map_err(|reason| ScenarioError::Control {
+            name: name.clone(),
+            reason,
+            available: map.names(),
+        })?;
+        let [left, top, ..] = control.rect;
+        if let Some((before, [above, after])) = last
+            && (top, left) <= (above, after)
+        {
+            return Err(unexpected(format!("{name:?} shows before {before:?}")));
+        }
+        last = Some((name, [top, left]));
+    }
+    match absent.iter().find(|name| map.find(name).is_ok()) {
+        Some(name) => Err(unexpected(format!("{name:?} shows"))),
+        None => Ok(()),
+    }
+}
+
 /// For the window point `at` in a step: the control under it, as the place the step should
 /// name instead.
 pub(crate) fn named_instead(map: &ControlMap, at: [f32; 2]) -> Option<String> {

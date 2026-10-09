@@ -14,7 +14,8 @@ use openpaint_core::{BlendMode, GroupId, LayerId};
 
 use crate::components::{ListRow, RowPicture, list_row};
 use crate::design::{Icon, SPACE, TOUCH_TARGET};
-use crate::layer_drag::{Drag, held, placed, slot};
+use crate::layer_drag::{self, Drag, placed, slot};
+use crate::row_drag::held;
 
 /// How far a group's layers, and a Clipping Mask within its chain, sit right of the row above.
 const INDENT: f32 = 3.0 * SPACE;
@@ -70,10 +71,7 @@ pub(crate) fn rows(
         .show(ui, |ui| {
             let top = ui.max_rect().top();
             let pitch = TOUCH_TARGET + ui.spacing().item_spacing.y;
-            let (hand, down) = ui.input(|input| {
-                let at = input.pointer.interact_pos().or(input.pointer.latest_pos());
-                (at.map(|at| at.y - top), input.pointer.any_down())
-            });
+            let (hand, down) = crate::row_drag::hand(ui, top);
             let RowState {
                 collapsed,
                 drag,
@@ -83,11 +81,11 @@ pub(crate) fn rows(
             carry(list, (hand, down, pitch), (drag, collapsed), taps);
             let shown = drag
                 .as_ref()
-                .map_or_else(|| list.clone(), |d| placed(list, d.layer, d.place));
+                .map_or_else(|| list.clone(), |d| placed(list, d.key, d.place));
             let lifted = drag.as_ref().zip(hand).map(|(d, hand)| {
-                let row = slot(&shown, d.layer, collapsed) as f32 * pitch;
+                let row = slot(&shown, d.key, collapsed) as f32 * pitch;
                 // Never above the list's top, where it would be cut.
-                (d.layer, d.top(hand).max(0.0) - row)
+                (d.key, d.top(hand).max(0.0) - row)
             });
             let mut above = None;
             for row in shown.rows.iter().rev() {
@@ -112,7 +110,7 @@ pub(crate) fn rows(
                 let pressed = layer_row(ui, (row, &shown), (enabled, lift, shot(false)), taps);
                 if drag.is_none() && enabled && held(ui, &pressed) {
                     let grab = hand.map_or(0.0, |hand| hand - (pressed.rect.top() - top));
-                    *drag = Drag::lift(list, row.id, grab);
+                    *drag = layer_drag::lift(list, row.id, grab);
                 }
                 if let Some(mask) = row.mask {
                     mask_row(ui, (row, mask, &shown), (enabled, lift, shot(true)), taps);
@@ -130,10 +128,10 @@ fn carry(
     taps: &mut Vec<Intent>,
 ) {
     if let (Some(carried), Some(hand), true) = (drag.as_mut(), hand, down) {
-        carried.follow(list, (hand, pitch), collapsed);
+        layer_drag::follow(carried, list, (hand, pitch), collapsed);
     }
     if !down && let Some(dropped) = drag.take() {
-        taps.extend(dropped.drop());
+        taps.extend(layer_drag::drop(&dropped));
         // Dropped into a closed group: it opens, so the layer is seen where it went.
         if let Some(group) = dropped.place.group {
             collapsed.remove(&group);

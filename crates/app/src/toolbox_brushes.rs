@@ -46,6 +46,8 @@ impl Toolbox {
             BrushIntent::Duplicate => self.duplicate(tool),
             BrushIntent::Reset => self.reset(tool),
             BrushIntent::Delete => self.delete(tool),
+            BrushIntent::Reorder { key, to } => self.reorder(key, *to),
+            BrushIntent::MoveToSet(set) => self.move_to_set(tool, *set),
         }
     }
 
@@ -63,9 +65,10 @@ impl Toolbox {
         self.holding = !settled;
     }
 
-    /// The library changed: the picker's rows follow, the store gets it.
-    fn changed(&mut self) {
+    /// The library or the sets changed: the picker's rows follow, the store gets it.
+    pub(super) fn changed(&mut self) {
         self.rows = rows_of(&self.library);
+        self.set_rows = self.brush_sets.rows(&self.library);
         self.unsaved = true;
     }
 
@@ -100,13 +103,14 @@ impl Toolbox {
         }
     }
 
-    /// A copy of the tool's brush right after it, chosen; every tool keeps for it what it set
-    /// for the brush copied.
+    /// A copy of the tool's brush right after it (in the library and in its set), chosen; every
+    /// tool keeps for it what it set for the brush copied.
     fn duplicate(&mut self, tool: Tool) {
         let key = self.brush(tool).key().clone();
         let Some(copy) = self.library.duplicate(&key) else {
             return;
         };
+        self.brush_sets.copied(&key, &copy);
         for set in &mut self.sets {
             if let Some(setting) = set.settings.get(&key).copied() {
                 set.settings.insert(copy.clone(), setting);
@@ -144,6 +148,7 @@ impl Toolbox {
         let Some(gone) = self.library.delete(&key) else {
             return;
         };
+        self.brush_sets.deleted(&key);
         let instead = gone
             .source()
             .filter(|source| self.library.brush(source).is_some())

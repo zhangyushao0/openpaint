@@ -81,6 +81,8 @@ pub(crate) struct Strokes {
     /// The last intent changed what the canvas shows other than by drawing or committing the
     /// stroke the renderer follows.
     reshown: bool,
+    /// The last intent committed a stroke of this tool (S47: its brush becomes Recent's newest).
+    committed: Option<StrokeTool>,
 }
 
 impl Strokes {
@@ -94,6 +96,7 @@ impl Strokes {
             preview: None,
             shaped: None,
             reshown: false,
+            committed: None,
         }
     }
 
@@ -133,6 +136,11 @@ impl Strokes {
         self.reshown
     }
 
+    /// The tool of the stroke the last intent committed, if it committed one.
+    pub(crate) const fn committed(&self) -> Option<StrokeTool> {
+        self.committed
+    }
+
     /// Applies `intent` to `history`, which changes only when a stroke is committed or a shape
     /// just snapped is edited. A stroke begun while `clip` is selected stays inside it.
     pub(crate) fn handle(
@@ -142,6 +150,7 @@ impl Strokes {
         clip: Option<&RegionMask>,
     ) -> Result<(), AppError> {
         self.reshown = false;
+        self.committed = None;
         match intent {
             StrokeIntent::Contact(contact) => {
                 let mut artwork = history.current().clone();
@@ -289,14 +298,15 @@ impl Strokes {
     /// is refused (it cannot be: it lies between the line and the pen), the stroke is committed
     /// as drawn and the refusal returned.
     fn commit(&mut self, mut drawing: Drawing, artwork: &mut Artwork) -> Result<(), AppError> {
-        let smudge = drawing.session.active().style().tool() == StrokeTool::Smudge;
-        let moved = if smudge || drawing.hold.snapped() {
+        let tool = drawing.session.active().style().tool();
+        let moved = if tool == StrokeTool::Smudge || drawing.hold.snapped() {
             Ok(())
         } else {
             catch_up_with_pen(&mut drawing)
         };
         self.reshown |= self.preview.take().is_some();
         *artwork = drawing.copies().committed(&drawing.session)?;
+        self.committed = Some(tool);
         self.shaped = shape::Shaped::of(drawing);
         moved
     }

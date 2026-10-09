@@ -1,23 +1,30 @@
 //! The brush editor (S46, Procreate's Brush Studio reduced to the engine's settings): tapping the
 //! chosen brush's row again turns the brush panel into it in place, as Actions turns into the
 //! Pen buttons page. At the top the brush's name (tapped: the Rename dialog) and Back; under it
-//! the preview strip (`brush_strip.rs`); then the settings in one scrolling column
-//! (`brush_settings.rs`), or a dynamics page's curves (`brush_dynamics.rs`, Back to the
-//! settings); at the bottom Duplicate, and Reset for a built-in (grey while it is as its file
-//! has it) or Delete for a copy (asked first: it cannot be undone). Every change applies to the
-//! next stroke of every tool that draws with the brush; strokes drawn keep their look; none is
-//! an undo step, as colours are not.
+//! the brush's set (S47: Sketching, Inking, Painting, Texture as words, its own in the ink pill;
+//! another tapped moves it to that set's end); then the preview strip (`brush_strip.rs`); then
+//! the settings in one scrolling column (`brush_settings.rs`), or a dynamics page's curves
+//! (`brush_dynamics.rs`, Back to the settings); at the bottom Duplicate, and Reset for a
+//! built-in (grey while it is as its file has it) or Delete for a copy (asked first: it cannot
+//! be undone). Every change applies to the next stroke of every tool that draws with the brush;
+//! strokes drawn keep their look; none is an undo step, as colours are not.
 
-use egui::{Align, Layout, Rect};
-use openpaint_app::{BrushIntent, BrushProjection, Dynamic, Intent, MAX_BRUSH_NAME, brush_name};
+use egui::{Align, Align2, Layout, Rect, Sense, TextStyle, vec2};
+use openpaint_app::{
+    BrushIntent, BrushProjection, BrushSet, Dynamic, Intent, MAX_BRUSH_NAME, brush_name,
+};
 
 use crate::brush_dynamics::{curves, heading};
 use crate::brush_settings::settings;
 use crate::brush_strip::Strip;
 use crate::components::{
-    Placement, answer_row, dialog, heading_button, hint, text_button, text_field,
+    Placement, answer_row, choices, dialog, heading_button, hint, text_button, text_choice_wide,
+    text_field,
 };
-use crate::design::{SPACE, TOUCH_TARGET};
+use crate::design::{INK, SPACE, TOUCH_TARGET};
+
+/// The width of the Set row's word "Set", left of its choices, in points.
+const SET_LABEL: f32 = 6.0 * SPACE;
 
 /// Renaming the brush: its name as typed so far.
 #[derive(Debug)]
@@ -37,6 +44,8 @@ pub(crate) struct BrushEditor {
     rename: Option<Rename>,
     /// Asking before the copy is deleted: where Delete was tapped.
     deleting: Option<Rect>,
+    /// The set the Set row moved the brush to this pass, for the list to show (S47).
+    pub(crate) moved: Option<BrushSet>,
 }
 
 impl BrushEditor {
@@ -76,24 +85,16 @@ impl BrushEditor {
                 from: named.rect,
             });
         }
+        if self.dynamics.is_none()
+            && let Some(set) = set_row(ui, brush.set)
+        {
+            push(taps, BrushIntent::MoveToSet(set));
+            self.moved = Some(set);
+        }
         self.strip.show(ui);
         ui.add_space(SPACE);
-        let room = (ui.ctx().content_rect().bottom() - ui.cursor().top() - 2.0 * TOUCH_TARGET)
-            .max(2.0 * TOUCH_TARGET);
         let page = self.dynamics;
-        let opened = egui::ScrollArea::vertical()
-            .id_salt(page.map_or("brush settings", heading))
-            .max_height(room)
-            // A finger drags the column (egui asks for a touch screen otherwise).
-            .scroll_source(egui::scroll_area::ScrollSource::ALL)
-            .show(ui, |ui| match page {
-                Some(dynamic) => {
-                    curves(ui, dynamic, edited, taps);
-                    None
-                }
-                None => settings(ui, brush, taps),
-            })
-            .inner;
+        let opened = column(ui, brush, page, taps);
         if page.is_none() {
             self.footer(ui, brush, taps);
         }
@@ -187,6 +188,67 @@ impl BrushEditor {
         }
         self.dynamics.take().is_some()
     }
+}
+
+/// The settings, or `page`'s curves, in one column a finger scrolls, down to two rows above the
+/// screen's bottom. Returns the dynamics page a row opened.
+fn column(
+    ui: &mut egui::Ui,
+    brush: &BrushProjection,
+    page: Option<Dynamic>,
+    taps: &mut Vec<Intent>,
+) -> Option<Dynamic> {
+    let room = (ui.ctx().content_rect().bottom() - ui.cursor().top() - 2.0 * TOUCH_TARGET)
+        .max(2.0 * TOUCH_TARGET);
+    // A room of its own: the panel's area lays out within the size it had last, so a short
+    // list shown before (a set's, S47) would keep the column short.
+    let size = vec2(ui.available_width(), room);
+    ui.allocate_ui(size, |ui| {
+        egui::ScrollArea::vertical()
+            .id_salt(page.map_or("brush settings", heading))
+            .max_height(room)
+            // A finger drags the column (egui asks for a touch screen otherwise).
+            .scroll_source(egui::scroll_area::ScrollSource::ALL)
+            .show(ui, |ui| match page {
+                Some(dynamic) => {
+                    curves(ui, dynamic, &brush.edited, taps);
+                    None
+                }
+                None => settings(ui, brush, taps),
+            })
+            .inner
+    })
+    .inner
+}
+
+/// The brush's set (S47): "Set", then the four sets as words in two columns, `set` in the ink
+/// pill. Returns another set tapped, which the brush moves to the end of.
+pub(crate) fn set_row(ui: &mut egui::Ui, set: BrushSet) -> Option<BrushSet> {
+    let half = ((ui.available_width() - 3.0 * SPACE - SET_LABEL) / 2.0).floor();
+    let mut tapped = None;
+    choices(ui, "brush set", |ui, group| {
+        for (line, pair) in BrushSet::EDITABLE.chunks(2).enumerate() {
+            ui.horizontal(|ui| {
+                ui.set_height(TOUCH_TARGET);
+                ui.add_space(2.0 * SPACE);
+                let size = vec2(SET_LABEL, TOUCH_TARGET);
+                let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+                if line == 0 {
+                    let font = TextStyle::Body.resolve(ui.style());
+                    let at = rect.left_center();
+                    ui.painter().text(at, Align2::LEFT_CENTER, "Set", font, INK);
+                }
+                for &word in pair {
+                    let on = word == set;
+                    let choice = text_choice_wide(ui, group, word.label(), (true, on), half);
+                    if choice.clicked() && !on {
+                        tapped = Some(word);
+                    }
+                }
+            });
+        }
+    });
+    tapped
 }
 
 /// egui may run a pass twice; one tap is sent once.

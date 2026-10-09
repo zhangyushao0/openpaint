@@ -147,6 +147,15 @@ pub enum Step {
         #[serde(deserialize_with = "hex_hash")]
         canvas: u64,
     },
+    /// The controls on screen once motion settled (S47): every name of `shown` in reading order
+    /// (top to bottom, then left to right; not necessarily next to each other), none of
+    /// `absent`. Otherwise the run fails with every name on screen.
+    Expect {
+        #[serde(default)]
+        shown: Vec<String>,
+        #[serde(default)]
+        absent: Vec<String>,
+    },
     /// The brush editor's preview strip (its picture's pixels) must hash to `strip` (S46).
     Preview {
         name: String,
@@ -242,35 +251,10 @@ impl Scenario {
         let mut names = HashSet::new();
         for (index, step) in self.steps.iter().enumerate() {
             let invalid = |reason: &str| ScenarioError::Invalid(format!("step {index}: {reason}"));
+            if let Some(reason) = misshapen(step) {
+                return Err(invalid(reason));
+            }
             match step {
-                Step::Stroke { points, .. } if points.is_empty() => {
-                    return Err(invalid("a stroke needs at least one point"));
-                }
-                Step::Stroke { tilt, azimuth, .. }
-                    if !(0.0..=90.0).contains(tilt) || !(-180.0..=180.0).contains(azimuth) =>
-                {
-                    return Err(invalid(
-                        "a stroke tilts 0 to 90 degrees, azimuth -180 to 180",
-                    ));
-                }
-                Step::Press {
-                    before_lift: None,
-                    canvas_before_lift: Some(_),
-                    ..
-                } => return Err(invalid("a canvas before the lift needs its name")),
-                Step::Press { path, .. }
-                    if path.is_empty()
-                        || path.windows(2).any(|keys| keys[1].ms() < keys[0].ms()) =>
-                {
-                    return Err(invalid("a press needs keys whose times never go back"));
-                }
-                Step::Touch { from, to, .. }
-                    if from.is_empty()
-                        || from.len() > 5
-                        || to.as_ref().is_some_and(|to| to.len() != from.len()) =>
-                {
-                    return Err(invalid("a touch needs 1 to 5 fingers, as many at the end"));
-                }
                 Step::Checkpoint { name, .. }
                 | Step::Preview { name, .. }
                 | Step::Press {
@@ -291,6 +275,41 @@ impl Scenario {
             }
         }
         Ok(())
+    }
+}
+
+/// What makes `step` impossible, if anything does (its names apart).
+fn misshapen(step: &Step) -> Option<&'static str> {
+    match step {
+        Step::Stroke { points, .. } if points.is_empty() => {
+            Some("a stroke needs at least one point")
+        }
+        Step::Stroke { tilt, azimuth, .. }
+            if !(0.0..=90.0).contains(tilt) || !(-180.0..=180.0).contains(azimuth) =>
+        {
+            Some("a stroke tilts 0 to 90 degrees, azimuth -180 to 180")
+        }
+        Step::Press {
+            before_lift: None,
+            canvas_before_lift: Some(_),
+            ..
+        } => Some("a canvas before the lift needs its name"),
+        Step::Press { path, .. }
+            if path.is_empty() || path.windows(2).any(|keys| keys[1].ms() < keys[0].ms()) =>
+        {
+            Some("a press needs keys whose times never go back")
+        }
+        Step::Touch { from, to, .. }
+            if from.is_empty()
+                || from.len() > 5
+                || to.as_ref().is_some_and(|to| to.len() != from.len()) =>
+        {
+            Some("a touch needs 1 to 5 fingers, as many at the end")
+        }
+        Step::Expect { shown, absent } if shown.is_empty() && absent.is_empty() => {
+            Some("an expect step names what is shown or absent")
+        }
+        _ => None,
     }
 }
 

@@ -1,24 +1,25 @@
-//! The toolbox record, `library` / `editor` (schema 21, DECISIONS D28, D29, D46, D70, D71,
-//! D73): the tool (u8: 0 brush, 1 eraser, 2 smudge); the brush tool's choice, then the
+//! The toolbox record, `library` / `editor` (schema 22, DECISIONS D28, D29, D46, D70, D71,
+//! D74): the tool (u8: 0 brush, 1 eraser, 2 smudge); the brush tool's choice, then the
 //! eraser's, then the smudge's, each its brush's key (u32 length + UTF-8, empty for the tool's
 //! default brush), the brush count (u32) and per brush its key, size, opacity and StreamLine
 //! (f32); the colour, red, green, blue (f32); the recent colours, a count (u32) and per colour
 //! red, green, blue (f32), newest first; what the first, the second and the third side button
 //! of the pen do (u8 each: 0 nothing, 1 eraser while held, 2 eyedropper while held, 3 undo, 4
 //! redo, 5 switch tool); the palette's swatches, a count (u32) and per swatch red, green, blue
-//! (f32), in their order; the brush library (`editor_library.rs`). It is not artwork: the app
-//! falls back to the defaults when it cannot be read, and nothing else depends on it. Schema 3
-//! held only the brush tool's choice, schemas 4 and 5 no StreamLine, schemas 6 to 8 no smudge,
-//! schemas 9 to 16 no buttons and swatches, schema 17 two buttons, schemas 18 to 20 no library;
-//! `migrate.rs`, `migrate_6.rs`, `migrate_9.rs`, `migrate_17.rs`, `migrate_18.rs` and
-//! `migrate_21.rs` upgrade them.
+//! (f32), in their order; the brush library, then the brush sets and Recent
+//! (`editor_library.rs`). It is not artwork: the app falls back to the defaults when it cannot
+//! be read, and nothing else depends on it. Schema 3 held only the brush tool's choice, schemas
+//! 4 and 5 no StreamLine, schemas 6 to 8 no smudge, schemas 9 to 16 no buttons and swatches,
+//! schema 17 two buttons, schemas 18 to 20 no library, schema 21 no sets; `migrate.rs`,
+//! `migrate_6.rs`, `migrate_9.rs`, `migrate_17.rs`, `migrate_18.rs`, `migrate_21.rs` and
+//! `migrate_22.rs` upgrade them.
 
 use openpaint_app::{
     BrushChoice, BrushSetting, ButtonAction, ButtonMap, EditorState, PortError, Tool,
 };
 
 use crate::codec::{Reader, Writer};
-use crate::editor_library::{read_library, write_library};
+use crate::editor_library::{read_library, read_sets, write_library, write_sets};
 
 pub(crate) const EDITOR: &[u8] = b"editor";
 /// Bytes of one brush entry with an empty key.
@@ -44,6 +45,7 @@ pub(crate) fn encode_editor(state: &EditorState) -> Vec<u8> {
     }
     write_colors(&mut writer, &state.swatches);
     write_library(&mut writer, &state.library);
+    write_sets(&mut writer, (&state.sets, &state.recent_brushes));
     writer.finish()
 }
 
@@ -113,6 +115,7 @@ pub(crate) fn decode_editor(bytes: &[u8]) -> Result<EditorState, PortError> {
     };
     let swatches = read_colors(&mut reader)?;
     let library = read_library(&mut reader)?;
+    let (sets, recent_brushes) = read_sets(&mut reader)?;
     reader.end()?;
     Ok(EditorState {
         tool,
@@ -124,6 +127,8 @@ pub(crate) fn decode_editor(bytes: &[u8]) -> Result<EditorState, PortError> {
         buttons,
         swatches,
         library,
+        sets,
+        recent_brushes,
     })
 }
 
@@ -155,15 +160,16 @@ pub(crate) fn read_colors(reader: &mut Reader<'_>) -> Result<Vec<[f32; 3]>, Port
 mod tests {
     use super::*;
 
-    #[test]
-    fn the_state_round_trips_and_a_cut_record_is_corrupt() {
+    /// The smudge current on its soft brush, the pencil the brush's, two recent colours, every
+    /// button doing something, two swatches; the built-ins where a first start puts them.
+    fn state() -> EditorState {
         let setting = |key: &str, size, opacity| BrushSetting {
             key: key.into(),
             size,
             opacity,
             streamline: 0.75,
         };
-        let state = EditorState {
+        EditorState {
             tool: Tool::Smudge,
             paint: BrushChoice {
                 brush: "pencil".into(),
@@ -186,7 +192,14 @@ mod tests {
             },
             swatches: vec![[1.0, 0.0, 0.0], [0.0, 0.5, 0.25]],
             library: Vec::new(),
-        };
+            sets: Default::default(),
+            recent_brushes: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn the_state_round_trips_and_a_cut_record_is_corrupt() {
+        let state = state();
         let bytes = encode_editor(&state);
         assert_eq!(decode_editor(&bytes), Ok(state.clone()));
         let corrupt = PortError::Corrupt {
@@ -199,10 +212,10 @@ mod tests {
         let mut unknown_tool = bytes.clone();
         unknown_tool[0] = 3;
         assert_eq!(decode_editor(&unknown_tool), Err(corrupt.clone()));
-        // The buttons sit right before the swatches' count and their two colours, and the
-        // library's count (none: the built-ins).
-        assert_eq!(bytes[bytes.len() - 4..], [0; 4]);
-        let at = bytes.len() - 4 - 4 - 2 * COLOR_BYTES - 3;
+        // The buttons sit right before the swatches' count and their two colours, the
+        // library's count (none: the built-ins) and the counts of four sets and Recent.
+        assert_eq!(bytes[bytes.len() - 24..], [0; 24]);
+        let at = bytes.len() - 24 - 4 - 2 * COLOR_BYTES - 3;
         assert_eq!(bytes[at..at + 3], [5, 4, 2]);
         let mut unknown_action = bytes;
         unknown_action[at + 2] = 6;

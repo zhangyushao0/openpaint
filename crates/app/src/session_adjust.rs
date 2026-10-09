@@ -18,6 +18,13 @@ impl Session {
         self.strokes.reshown()
     }
 
+    /// The tool of the stroke the last stroke intent committed, if it committed one (S47: the
+    /// caller hands it to `Toolbox::drew`, so its brush is Recent's newest).
+    #[must_use]
+    pub const fn stroke_committed(&self) -> Option<openpaint_core::StrokeTool> {
+        self.strokes.committed()
+    }
+
     /// True while an adjustment is under way.
     #[must_use]
     pub const fn adjusting(&self) -> bool {

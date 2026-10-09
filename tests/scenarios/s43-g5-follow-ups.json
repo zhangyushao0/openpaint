@@ -47,6 +47,7 @@
     { "type": "#FFFFFF\n" },
     { "tap": { "at": [2600, 1600] } },
     { "tap": { "at": "Brushes" } },
+    { "tap": { "at": "Painting" } },
     { "tap": { "at": "Soft Brush" } },
     { "tap": { "at": [2600, 1600] } },
     { "drag": { "from": { "on": "Brush size", "offset": [0, 31.820313] }, "to": { "on": "Brush size", "offset": [0, -88.17969] } } },

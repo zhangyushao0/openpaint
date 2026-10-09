@@ -109,8 +109,13 @@ impl BrushLibrary {
     /// Takes over a stored library (empty: the built-ins). A built-in missing from it comes
     /// back where its file's order puts it; a stored brush the engine refuses falls back to the
     /// built-in it comes from (its name goes to `fell_back`), an unknown or repeated key is
-    /// skipped. Returns whether everything was taken over.
-    pub(crate) fn restore(&mut self, stored: &[StoredBrush], fell_back: &mut Vec<String>) -> bool {
+    /// skipped; a copy whose source is gone comes from the default brush (its key goes to
+    /// `orphans`). Returns whether everything was taken over.
+    pub(crate) fn restore(
+        &mut self,
+        stored: &[StoredBrush],
+        (fell_back, orphans): (&mut Vec<String>, &mut Vec<BrushKey>),
+    ) -> bool {
         self.brushes = self.files.to_vec();
         if stored.is_empty() {
             return true;
@@ -137,7 +142,7 @@ impl BrushLibrary {
             }
         }
         self.brushes = self.with_files(brushes);
-        self.mend_sources();
+        orphans.extend(self.mend_sources());
         whole
     }
 
@@ -172,10 +177,12 @@ impl BrushLibrary {
         brushes
     }
 
-    /// A copy whose source is not in the library comes from the default brush.
-    fn mend_sources(&mut self) {
+    /// A copy whose source is not in the library comes from the default brush. Returns their
+    /// keys.
+    fn mend_sources(&mut self) -> Vec<BrushKey> {
         let keys: Vec<BrushKey> = self.brushes.iter().map(|b| b.key.clone()).collect();
         let default = self.default.clone();
+        let mut mended = Vec::new();
         for brush in &mut self.brushes {
             if brush
                 .source
@@ -183,8 +190,10 @@ impl BrushLibrary {
                 .is_some_and(|source| !keys.contains(source))
             {
                 brush.source = Some(default.clone());
+                mended.push(brush.key.clone());
             }
         }
+        mended
     }
 }
 

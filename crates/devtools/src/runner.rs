@@ -9,8 +9,8 @@
 //! Motion (D44) runs on a clock the runner holds: the time of the input being handed over, then
 //! one 60 Hz frame further per frame without input. Input steps never wait for motion (the hand
 //! acts on the final state at once); a step that looks (a checkpoint, a screenshot, a view, an
-//! export) first lets every motion settle, unless a screenshot asks for a moment `after_ms` the
-//! last input.
+//! export, an expect) first lets every motion settle, unless a screenshot asks for a moment
+//! `after_ms` the last input. A last newline of a `type` step is Enter, the keyboard's Done.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -144,16 +144,17 @@ impl Runner<'_> {
                     .map(|seen| seen.into_iter().collect());
             }
             Step::Type(text) => {
-                let (text, enter) = match text.strip_suffix('\n') {
-                    Some(text) => (text, true),
-                    None => (text.as_str(), false),
-                };
-                runtime.text(TextInput::Commit(text.to_owned()));
+                let typed = text.strip_suffix('\n');
+                runtime.text(TextInput::Commit(typed.unwrap_or(text).to_owned()));
                 self.frame(runtime)?;
-                if enter {
+                if typed.is_some() {
                     runtime.text(TextInput::Key(EditKey::Enter));
                     self.frame(runtime)?;
                 }
+            }
+            Step::Expect { shown, absent } => {
+                self.settle(runtime)?;
+                target::expect(runtime.controls(), (shown, absent))?;
             }
             Step::Back => {
                 if !runtime.back() {

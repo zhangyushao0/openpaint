@@ -1,26 +1,26 @@
 //! The brush picker and the tool buttons: Brush, Smudge and Eraser sit in the right island before
 //! Layers (Procreate's order). The current tool's button opens the picker as a popover over the
-//! canvas (Procreate's brush library, reduced to one set): header "Brushes", "Smudge" or
-//! "Eraser", then one row per brush with its name and a stroke it painted, the tool's brush
-//! outlined in ink. The smudge and the eraser choose from the same brushes. A tap chooses the
-//! brush; the panel stays until a contact lands on the canvas outside it, and a pen stroke there
-//! draws with the brush just chosen. Under the rows, the chosen brush's StreamLine slider (0 to
-//! 100 %). Tapping the chosen brush's row again turns the panel into its editor
-//! (`brush_editor.rs`, S46) from any of the three tools, as all three draw with the same
-//! brushes; Back, or the panel closing, returns to the list.
+//! canvas (Procreate's brush library, cut to five fixed sets, S47): header "Brushes", "Smudge"
+//! or "Eraser", the sets as words, then one row per brush of the set shown with its name and a
+//! stroke it painted, the tool's brush outlined in ink (`brush_list.rs`). The smudge and the
+//! eraser choose from the same brushes and sets. A tap chooses the brush; the panel stays until a
+//! contact lands on the canvas outside it, and a pen stroke there draws with the brush just
+//! chosen. Under the rows, the chosen brush's StreamLine slider (0 to 100 %). Tapping the chosen
+//! brush's row again turns the panel into its editor (`brush_editor.rs`, S46) from any of the
+//! three tools, as all three draw with the same brushes; Back, or the panel closing, returns to
+//! the list, on the set the editor's Set row moved the brush to, if it did.
 
 use std::collections::HashMap;
 use std::fmt;
 
-use openpaint_app::{
-    BrushIntent, BrushKey, BrushProjection, Intent, SessionProjection, Tool, ToolIntent,
-};
+use openpaint_app::{BrushKey, BrushProjection, Intent, SessionProjection, Tool, ToolIntent};
 use openpaint_render::RgbaImage;
 
 use crate::brush_editor::BrushEditor;
+use crate::brush_list::{ListState, list};
 use crate::brush_strip::StripStrokes;
-use crate::components::{Opener, ScreenArea, brush_row, choices, icon_choice, popover, slider};
-use crate::design::{INK, Icon, SPACE, TOUCH_TARGET};
+use crate::components::{Opener, ScreenArea, choices, icon_choice, popover};
+use crate::design::{INK, Icon};
 
 /// The panel's UI-local state and the brushes' preview pictures.
 #[derive(Default)]
@@ -35,6 +35,8 @@ pub(crate) struct BrushPanel {
     textures: HashMap<BrushKey, egui::TextureHandle>,
     /// The editor shows in the panel's place.
     editor: Option<BrushEditor>,
+    /// The set the list shows and a row the hand carries; anew each time the panel opens.
+    list: ListState,
 }
 
 impl fmt::Debug for BrushPanel {
@@ -44,6 +46,7 @@ impl fmt::Debug for BrushPanel {
             .field("area", &self.area)
             .field("previews", &(self.pending.len() + self.textures.len()))
             .field("editor", &self.editor)
+            .field("list", &self.list)
             .finish()
     }
 }
@@ -117,6 +120,7 @@ impl BrushPanel {
                 if current {
                     self.open = !self.open;
                     self.editor = None;
+                    self.list = ListState::default();
                     opened = self.open;
                 } else {
                     self.close();
@@ -146,18 +150,23 @@ impl BrushPanel {
         let (open, textures) = (self.open, &self.textures);
         let mut back = false;
         let mut edit = false;
-        let editor = &mut self.editor;
+        let (editor, state) = (&mut self.editor, &mut self.list);
         if let Some(editor) = editor.as_mut() {
             editor.strip.hide();
         }
         let rect = popover(ctx, "brushes", (opener, open), |ui| match editor.as_mut() {
             Some(editor) if open => back = editor.page(ui, brush, taps),
             Some(_) => {}
-            None => edit = list(ui, brush, textures, taps),
+            None => edit = list(ui, brush, (state, textures), taps),
         });
+        // The editor's Set row moved the brush: the list shows that set when it is back.
+        if let Some(set) = self.editor.as_mut().and_then(|editor| editor.moved.take()) {
+            self.list.shown = Some(set);
+        }
         if back {
             self.editor = None;
         } else if edit {
+            self.list.drag = None;
             self.editor = Some(BrushEditor::default());
         }
         self.area = rect.map(|rect| ScreenArea::from_points(rect, ctx.pixels_per_point()));
@@ -200,6 +209,7 @@ impl BrushPanel {
         self.open = false;
         self.area = None;
         self.editor = None;
+        self.list = ListState::default();
     }
 
     fn load(&mut self, ctx: &egui::Context) {
@@ -215,68 +225,6 @@ impl BrushPanel {
                     self.textures.insert(key, texture);
                 }
             }
-        }
-    }
-}
-
-/// The list: the heading, a row per brush, StreamLine. Returns whether the chosen brush's row
-/// was tapped again, which opens its editor.
-fn list(
-    ui: &mut egui::Ui,
-    brush: &BrushProjection,
-    textures: &HashMap<BrushKey, egui::TextureHandle>,
-    taps: &mut Vec<Intent>,
-) -> bool {
-    ui.horizontal(|ui| {
-        ui.set_height(TOUCH_TARGET);
-        ui.add_space(2.0 * SPACE);
-        ui.heading(match brush.tool {
-            Tool::Brush => "Brushes",
-            Tool::Smudge => "Smudge",
-            Tool::Eraser => "Eraser",
-        });
-    });
-    let mut edit = false;
-    for row in brush.brushes.iter() {
-        let preview = textures.get(&row.key).map(egui::TextureHandle::id);
-        let selected = row.key == brush.current;
-        if brush_row(ui, &row.name, preview, selected).clicked() {
-            if selected {
-                edit = true;
-                continue;
-            }
-            let intent = Intent::Brush(BrushIntent::Choose(row.key.clone()));
-            if taps.last() != Some(&intent) {
-                taps.push(intent);
-            }
-        }
-    }
-    streamline(ui, brush.streamline.amount(), taps);
-    edit
-}
-
-/// The chosen brush's StreamLine under the rows (Procreate keeps it in the brush's settings):
-/// its name and value, then a slider from off to the strongest. It applies from the next
-/// stroke on and is the brush's own, per tool.
-fn streamline(ui: &mut egui::Ui, amount: f32, taps: &mut Vec<Intent>) {
-    ui.separator();
-    ui.horizontal(|ui| {
-        ui.set_height(TOUCH_TARGET);
-        ui.add_space(2.0 * SPACE);
-        ui.label("StreamLine");
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            ui.add_space(2.0 * SPACE);
-            ui.label(format!("{} %", (amount * 100.0).round()));
-        });
-    });
-    if let Some(change) = slider(ui, "StreamLine", amount, true) {
-        let intent = Intent::Brush(BrushIntent::StreamLine {
-            amount: change.value,
-            settled: change.settled,
-        });
-        // egui may run a pass twice; one value is sent once.
-        if taps.last() != Some(&intent) {
-            taps.push(intent);
         }
     }
 }

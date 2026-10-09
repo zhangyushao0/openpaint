@@ -32,6 +32,7 @@
     { "tap": { "at": "Eraser" } },
     { "tap": { "at": "Eraser" } },
     { "screenshot": { "name": "eraser-panel" } },
+    { "tap": { "at": "Painting" } },
     { "tap": { "at": "Soft Brush" } },
     { "stroke": { "points": [[1800, 300, 1.0], [1800, 1500, 1.0]] } },
     { "checkpoint": { "name": "erased", "canvas": "54fea0f50b7ccd37" } },

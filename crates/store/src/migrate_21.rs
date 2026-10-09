@@ -34,7 +34,7 @@ pub(crate) fn upgrade_20_to_21(heads: &[(ProjectId, Vec<u8>)], editor: Option<&[
 #[cfg(test)]
 pub(crate) fn upgraded_toolbox(editor: &[u8]) -> openpaint_app::EditorState {
     let upgraded = editor_20_to_21(editor).expect("a whole schema-20 toolbox");
-    crate::editor::decode_editor(&upgraded).expect("a schema-21 toolbox")
+    crate::migrate_22::upgraded_toolbox(&upgraded)
 }
 
 /// A whole schema-20 toolbox with an empty library after its swatches.
@@ -111,7 +111,7 @@ mod tests {
         assert_eq!(key, EDITOR);
         assert_eq!(editor[..old.len()], old[..], "every old byte");
         assert_eq!(editor[old.len()..], [0; 4], "no brush: the built-ins");
-        let editor = crate::editor::decode_editor(editor).expect("a schema-21 toolbox");
+        let editor = crate::migrate_22::upgraded_toolbox(editor);
         assert_eq!((editor.tool, editor.library.len()), (Tool::Smudge, 0));
         assert_eq!(editor.swatches, [[1.0, 0.0, 0.0]]);
         assert_eq!(upgrade.library[1], (SCHEMA_KEY.to_vec(), encode_schema(21)));

@@ -43,6 +43,8 @@ pub fn upgraded_editor() -> EditorState {
         buttons: ButtonMap::default(),
         swatches: Vec::new(),
         library: Vec::new(),
+        sets: Default::default(),
+        recent_brushes: Vec::new(),
     }
 }
 
@@ -108,6 +110,8 @@ pub fn sample_editor() -> EditorState {
         buttons: ButtonMap::default(),
         swatches: Vec::new(),
         library: Vec::new(),
+        sets: Default::default(),
+        recent_brushes: Vec::new(),
     }
 }
 
@@ -151,4 +155,27 @@ pub fn sample_editor_21() -> EditorState {
     editor.paint.brush = "copy-1".to_owned();
     editor.paint.brushes.push(setting("copy-1", 20.0, 0.75));
     editor
+}
+
+/// The toolbox of the schema-22 sample: the schema-21 one with its brushes arranged in sets (the
+/// copy moved to Sketching, the Inker before the Ink Pen, Speckle first in Painting) and three
+/// brushes drawn with, the copy last.
+pub fn sample_editor_22() -> EditorState {
+    let keys = |keys: &[&str]| keys.iter().map(|key| (*key).to_owned()).collect();
+    EditorState {
+        sets: [
+            keys(&["pencil", "copy-1"]),
+            keys(&["inker", "ink-pen", "monoline"]),
+            keys(&[
+                "speckle",
+                "hard-round",
+                "soft-brush",
+                "flat",
+                "opaque-paint",
+            ]),
+            keys(&["textured-round"]),
+        ],
+        recent_brushes: keys(&["copy-1", "speckle", "ink-pen"]),
+        ..sample_editor_21()
+    }
 }

@@ -22,6 +22,11 @@ pub struct EditorState {
     pub swatches: Vec<[f32; 3]>,
     /// The brush library in picker order (S46); empty: the built-ins as their files have them.
     pub library: Vec<StoredBrush>,
+    /// The keys of Sketching, Inking, Painting and Texture in their order (S47); all four empty
+    /// while every brush lies where a first start puts it. A brush in no list goes there.
+    pub sets: [Vec<String>; 4],
+    /// The keys of the brushes drawn with last, newest first (S47).
+    pub recent_brushes: Vec<String>,
 }
 
 /// One tool's brush and each brush's size, opacity and StreamLine for it, by key. An empty

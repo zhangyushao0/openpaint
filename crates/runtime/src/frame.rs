@@ -319,7 +319,7 @@ impl Runtime {
             Screen::Opening(_) => {}
         }
         if let Some(state) = self.toolbox.save_request() {
-            self.storage.submit(Job::SaveEditor(state));
+            self.storage.submit(Job::SaveEditor(Box::new(state)));
         }
         let now = self.frame_clock.wall_seconds();
         self.screen

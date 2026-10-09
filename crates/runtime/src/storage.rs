@@ -35,7 +35,7 @@ pub(crate) enum Job {
     /// Opens the library and reads the stored toolbox.
     Start,
     /// The toolbox changed (`Toolbox::save_request`).
-    SaveEditor(EditorState),
+    SaveEditor(Box<EditorState>),
     /// A version of the open artwork; the first save of an artwork not in the library yet
     /// creates its project.
     Save(Artwork),

@@ -9,13 +9,16 @@
 //! A pen button (or the eraser end) may hold the eraser or the eyedropper (S41, D68): while
 //! held the pen uses it, the projection shows it, and the tool chosen before is what is stored
 //! and what comes back. Since S46 the library is the user's too: the brush editor changes,
-//! copies, resets and deletes brushes (`toolbox_brushes.rs`), stored with the toolbox.
+//! copies, resets and deletes brushes (`toolbox_brushes.rs`), stored with the toolbox; since S47
+//! the brushes lie in sets the hand orders, and Recent lists those drawn with last
+//! (`toolbox_sets.rs`).
 
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use openpaint_core::{Color, CoreError, ShapeParts, StrokeStyle, StrokeTool};
 
+use crate::brush_sets::{BrushSet, BrushSets};
 use crate::brushes::{Brush, BrushKey, BrushLibrary};
 use crate::edited_brush::EditedBrush;
 use crate::editor_state::{BrushChoice, BrushSetting, EditorState};
@@ -28,6 +31,8 @@ use crate::tool_intent::{BrushProjection, BrushRow, ToolIntent};
 mod brushes;
 #[path = "toolbox_restore.rs"]
 mod restore;
+#[path = "toolbox_sets.rs"]
+mod sets;
 
 /// The lowest opacity the slider gives: a stroke always leaves some paint.
 pub const MIN_OPACITY: f32 = 0.01;
@@ -85,6 +90,9 @@ impl ToolSet {
 pub struct Toolbox {
     library: BrushLibrary,
     rows: Arc<[BrushRow]>,
+    /// Where each brush lies, and Recent (S47); `set_rows` lists them.
+    brush_sets: BrushSets,
+    set_rows: Arc<[Vec<BrushRow>; 5]>,
     /// The tool chosen.
     tool: Tool,
     /// Brush, eraser, smudge.
@@ -105,6 +113,8 @@ pub struct Toolbox {
     kept: Option<(BrushKey, ShapeParts)>,
     /// The names of stored brushes the engine refused at the last restore.
     fell_back: Vec<String>,
+    /// The keys a stored set or Recent listed that the last restore dropped.
+    dropped: Vec<String>,
 }
 
 impl Toolbox {
@@ -118,8 +128,11 @@ impl Toolbox {
             Some(at) => library.brushes()[at].key().clone(),
             None => brush.clone(),
         };
+        let brush_sets = BrushSets::new(&library);
         Self {
             rows: rows_of(&library),
+            set_rows: brush_sets.rows(&library),
+            brush_sets,
             library,
             tool: Tool::Brush,
             sets: [
@@ -136,6 +149,7 @@ impl Toolbox {
             holding: false,
             kept: None,
             fell_back: Vec::new(),
+            dropped: Vec::new(),
         }
     }
 
@@ -200,6 +214,7 @@ impl Toolbox {
                 .collect(),
         };
         let rgb = |color: &Color| [color.r(), color.g(), color.b()];
+        let (sets, recent_brushes) = self.brush_sets.stored(&self.library);
         EditorState {
             tool: self.tool,
             paint: choice(Tool::Brush),
@@ -210,6 +225,8 @@ impl Toolbox {
             buttons: self.buttons,
             swatches: self.palette.swatches().iter().map(rgb).collect(),
             library: self.library.stored(),
+            sets,
+            recent_brushes,
         }
     }
 
@@ -300,6 +317,11 @@ impl Toolbox {
         let [size, opacity, streamline] = self.setting(tool, brush);
         BrushProjection {
             brushes: Arc::clone(&self.rows),
+            sets: Arc::clone(&self.set_rows),
+            set: self
+                .brush_sets
+                .set_of(brush.key())
+                .unwrap_or(BrushSet::Painting),
             tool,
             current: brush.key().clone(),
             size,
