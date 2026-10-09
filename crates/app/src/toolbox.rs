@@ -106,7 +106,7 @@ impl Toolbox {
                     [
                         brush.size().default,
                         opacity.unwrap_or(brush.opacity()),
-                        0.0,
+                        brush.streamline(),
                     ]
                 })
                 .collect()

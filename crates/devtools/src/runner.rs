@@ -124,11 +124,7 @@ impl Runner<'_> {
         Ok(runtime)
     }
 
-    fn step(
-        &mut self,
-        runtime: &mut Runtime,
-        step: &Step,
-    ) -> Result<Option<Record>, ScenarioError> {
+    fn step(&mut self, runtime: &mut Runtime, step: &Step) -> Result<Vec<Record>, ScenarioError> {
         match step {
             Step::Tap { .. }
             | Step::Hover { .. }
@@ -139,7 +135,11 @@ impl Runner<'_> {
             Step::View { .. }
             | Step::Checkpoint { .. }
             | Step::Screenshot { .. }
-            | Step::Exported { .. } => return self.look(runtime, step),
+            | Step::Exported { .. } => {
+                return self
+                    .look(runtime, step)
+                    .map(|seen| seen.into_iter().collect());
+            }
             Step::Type(text) => {
                 let (text, enter) = match text.strip_suffix('\n') {
                     Some(text) => (text, true),
@@ -177,7 +177,7 @@ impl Runner<'_> {
                 }
             }
         }
-        Ok(None)
+        Ok(Vec::new())
     }
 
     /// A step that touches the screen, its spots resolved on the screen the last frame laid
@@ -186,7 +186,7 @@ impl Runner<'_> {
         &mut self,
         runtime: &mut Runtime,
         step: &Step,
-    ) -> Result<Option<Record>, ScenarioError> {
+    ) -> Result<Vec<Record>, ScenarioError> {
         let now = self.clock_ms;
         let batches = match step {
             Step::Tap { at, tool } => gesture::tap(*tool, self.spot(runtime, at)?, now),
@@ -203,10 +203,12 @@ impl Runner<'_> {
                 tool,
                 pressure,
                 before_lift,
+                canvas_before_lift,
             } => {
                 let keys = self.keys(runtime, path)?;
                 let batches = gesture::press(*tool, &keys, *pressure, now);
-                return self.press(runtime, &batches, before_lift.as_ref());
+                let before = before_lift.as_ref().map(|name| (name, *canvas_before_lift));
+                return self.press(runtime, &batches, before);
             }
             Step::Stroke {
                 points,
@@ -215,9 +217,12 @@ impl Runner<'_> {
                 sparse,
                 hold_ms,
                 pen,
+                tilt,
+                azimuth,
             } => {
                 let path = (points.as_slice(), *sparse, *hold_ms);
-                pen::held(gesture::stroke(path, *lift, *palm, now), *pen)
+                let lean = [*tilt, *azimuth];
+                pen::held(gesture::stroke(path, *lift, *palm, lean, now), *pen)
             }
             Step::Touch { from, to, ms } => {
                 let from = self.spots(runtime, from)?;
@@ -230,7 +235,7 @@ impl Runner<'_> {
             _ => return Err(ScenarioError::Missing("not a step that touches")),
         };
         self.gesture(runtime, &batches)?;
-        Ok(None)
+        Ok(Vec::new())
     }
 
     /// `spot` in window pixels on the screen the last frame laid out. Window pixels on a
@@ -282,28 +287,34 @@ impl Runner<'_> {
         record(runtime, step, &self.written).map(Some)
     }
 
-    /// A press's batches; with `before_lift`, a screenshot of that name before the lift.
+    /// A press's batches; with `before_lift`, a screenshot of that name before the lift and,
+    /// given its hash, a checkpoint of the canvas there too (S44).
     fn press(
         &mut self,
         runtime: &mut Runtime,
         batches: &[MotionBatch],
-        before_lift: Option<&String>,
-    ) -> Result<Option<Record>, ScenarioError> {
-        let Some(name) = before_lift else {
+        before_lift: Option<(&String, Option<u64>)>,
+    ) -> Result<Vec<Record>, ScenarioError> {
+        let Some((name, canvas)) = before_lift else {
             self.gesture(runtime, batches)?;
-            return Ok(None);
+            return Ok(Vec::new());
         };
         let (lift, held) = batches
             .split_last()
             .ok_or(ScenarioError::Missing("a press has no samples"))?;
         self.gesture(runtime, held)?;
-        let step = Step::Screenshot {
+        let shot = Step::Screenshot {
             name: name.clone(),
             after_ms: None,
         };
-        let shot = record(runtime, &step, &self.written)?;
+        let mut records = vec![record(runtime, &shot, &self.written)?];
+        if let Some(canvas) = canvas {
+            let name = name.clone();
+            let check = Step::Checkpoint { name, canvas };
+            records.push(record(runtime, &check, &self.written)?);
+        }
         self.gesture(runtime, std::slice::from_ref(lift))?;
-        Ok(Some(shot))
+        Ok(records)
     }
 
     /// Each batch is one platform event followed by one frame at the batch's time.

@@ -40,6 +40,7 @@ fn a_lift_ends_the_stroke_with_one_zero_pressure_sample() {
         (&[[0.0, 0.0, 0.5], [8.0, 0.0, 0.5]], false, 0),
         Some([12.0, 3.0]),
         None,
+        [0.0; 2],
         0,
     );
     let up = batches.last().expect("up");
@@ -56,6 +57,7 @@ fn a_held_stroke_rests_at_its_end_before_the_lift() {
         (&[[0.0, 0.0, 0.5], [8.0, 0.0, 0.5]], false, 600),
         None,
         None,
+        [0.0; 2],
         0,
     );
     let samples: Vec<PointerSample> = batches
@@ -70,6 +72,26 @@ fn a_held_stroke_rests_at_its_end_before_the_lift() {
     assert!(samples[2..].iter().all(|s| s.position == [8.0, 0.0]));
     assert_eq!(samples.last().map(|s| s.time_ms), Some(8 + 600));
     assert_eq!(batches.last().map(|b| b.phase), Some(MotionPhase::Up));
+}
+
+#[test]
+fn a_tilted_stroke_leans_all_along_in_radians() {
+    let batches = stroke(
+        (&[[0.0, 0.0, 0.5], [20.0, 0.0, 0.5]], false, 40),
+        Some([24.0, 0.0]),
+        None,
+        [60.0, -90.0],
+        0,
+    );
+    let samples: Vec<PointerSample> = batches
+        .iter()
+        .flat_map(|batch| batch.pointers[0].samples.clone())
+        .collect();
+    assert_eq!(samples.len(), 6 + 10 + 1, "the path, the rest, the lift");
+    for sample in samples {
+        assert_eq!(sample.tilt, 60f32.to_radians());
+        assert_eq!(sample.orientation, (-90f32).to_radians());
+    }
 }
 
 #[test]
@@ -89,6 +111,7 @@ fn a_palm_lands_before_the_pen_or_during_the_stroke() {
         (&line, false, 0),
         None,
         Some(hand(Lands::Before)),
+        [0.0; 2],
         0,
     ));
     assert_eq!(before.first(), Some(&(PALM_ID, MotionPhase::Down)));
@@ -98,6 +121,7 @@ fn a_palm_lands_before_the_pen_or_during_the_stroke() {
         (&line, false, 0),
         None,
         Some(hand(Lands::During)),
+        [0.0; 2],
         0,
     ));
     assert_eq!(

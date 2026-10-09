@@ -1,22 +1,29 @@
 //! `BrushRecipe`: how a brush turns pen samples into paint (DECISIONS D07). A recipe has fixed
-//! stages with typed values: the edge of its round shape, size and opacity dynamics over pressure
-//! and speed, grain, and how its segments deposit paint (`deposit.rs`). The renderer evaluates it
-//! continuously per pixel; there are no dabs. Every stroke keeps the recipe it was drawn with, so
-//! a brush that changes later never changes strokes already drawn.
+//! stages with typed values: the edge of its round shape, size and opacity dynamics over pressure,
+//! speed and tilt, grain, how its segments deposit paint (`deposit.rs`) and how it tapers at its
+//! ends (`taper.rs`). The renderer evaluates it continuously per pixel; there are no dabs. Every
+//! stroke keeps the recipe it was drawn with, so a brush that changes later never changes strokes
+//! already drawn.
 
 use crate::deposit::Deposit;
 use crate::error::CoreError;
+use crate::taper::Taper;
 use crate::value::{invalid, is_unit};
 
 /// Most points one curve may hold.
 pub const MAX_CURVE_POINTS: usize = 8;
 /// Fastest pen speed a speed curve can name, in canvas pixels per millisecond.
 pub const MAX_SPEED: f32 = 50.0;
+/// Largest tilt a tilt curve can name, in degrees from upright (the pen lying flat).
+pub const MAX_TILT: f32 = 90.0;
+/// Largest factor of a size over tilt: a pencil laid on its side draws up to this much wider.
+pub const MAX_GAIN: f32 = 4.0;
 /// Largest grain cell, in canvas pixels.
 pub const MAX_GRAIN_SCALE: u32 = 64;
 
 /// A response curve: points `[x, y]` joined by straight lines, flat before the first point and
-/// after the last. `x` grows strictly from point to point; `y` is a factor in `0..=1`.
+/// after the last. `x` grows strictly from point to point; `y` is a factor in `0..=1` (up to
+/// `MAX_GAIN` for a curve that may widen, `gain`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Curve {
     points: Vec<[f32; 2]>,
@@ -27,10 +34,22 @@ impl Curve {
     /// `InvalidValue` unless there are 1 to `MAX_CURVE_POINTS` points, every `x` is finite, at
     /// least 0 and above the one before, and every `y` lies in `0..=1`.
     pub fn new(points: &[[f32; 2]]) -> Result<Self, CoreError> {
+        Self::up_to(points, 1.0)
+    }
+
+    /// A curve whose factors may rise above 1, up to `MAX_GAIN` (a size over tilt).
+    ///
+    /// # Errors
+    /// `InvalidValue` as `new`, with every `y` in `0..=MAX_GAIN`.
+    pub fn gain(points: &[[f32; 2]]) -> Result<Self, CoreError> {
+        Self::up_to(points, MAX_GAIN)
+    }
+
+    fn up_to(points: &[[f32; 2]], top: f32) -> Result<Self, CoreError> {
         let count = (1..=MAX_CURVE_POINTS).contains(&points.len());
         let xs = points.iter().all(|[x, _]| x.is_finite() && *x >= 0.0)
             && points.windows(2).all(|pair| pair[0][0] < pair[1][0]);
-        let ys = points.iter().all(|[_, y]| is_unit(*y));
+        let ys = points.iter().all(|[_, y]| (0.0..=top).contains(y));
         if count && xs && ys {
             Ok(Self {
                 points: points.to_vec(),
@@ -82,23 +101,47 @@ impl Curve {
     pub(crate) fn last_x(&self) -> f32 {
         self.points.last().map_or(0.0, |[x, _]| *x)
     }
+
+    fn highest(&self) -> f32 {
+        self.points.iter().map(|[_, y]| *y).fold(0.0, f32::max)
+    }
 }
 
-/// A factor that follows pressure and speed: the product of one curve over pressure (`0..=1`)
-/// and one over speed (canvas pixels per millisecond, up to `MAX_SPEED`).
+/// A factor that follows pressure, speed and tilt: the product of one curve over pressure
+/// (`0..=1`), one over speed (canvas pixels per millisecond, up to `MAX_SPEED`) and one over the
+/// pen's tilt (degrees from upright, up to `MAX_TILT`; flat at 1 unless `with_tilt`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct Dynamics {
     pressure: Curve,
     speed: Curve,
+    tilt: Curve,
 }
 
 impl Dynamics {
+    /// Dynamics that ignore tilt.
+    ///
     /// # Errors
     /// `InvalidValue` when the pressure curve reaches beyond 1 or the speed curve beyond
     /// `MAX_SPEED`.
     pub fn new(pressure: Curve, speed: Curve) -> Result<Self, CoreError> {
         if pressure.last_x() <= 1.0 && speed.last_x() <= MAX_SPEED {
-            Ok(Self { pressure, speed })
+            Ok(Self {
+                pressure,
+                speed,
+                tilt: Curve::flat(1.0),
+            })
+        } else {
+            Err(invalid("brush dynamics"))
+        }
+    }
+
+    /// These dynamics following `tilt` too, a curve over degrees from upright.
+    ///
+    /// # Errors
+    /// `InvalidValue` when the tilt curve reaches beyond `MAX_TILT`.
+    pub fn with_tilt(self, tilt: Curve) -> Result<Self, CoreError> {
+        if tilt.last_x() <= MAX_TILT {
+            Ok(Self { tilt, ..self })
         } else {
             Err(invalid("brush dynamics"))
         }
@@ -114,10 +157,18 @@ impl Dynamics {
         &self.speed
     }
 
-    /// The factor at `pressure` and `speed`.
+    /// Over degrees from upright.
     #[must_use]
-    pub fn at(&self, pressure: f32, speed: f32) -> f32 {
-        self.pressure.at(pressure) * self.speed.at(speed)
+    pub const fn tilt(&self) -> &Curve {
+        &self.tilt
+    }
+
+    /// The factor at `pressure`, `speed` and `tilt` (radians from upright, as samples hold it):
+    /// pressure times speed times tilt, so a flat tilt curve at 1 leaves the product of the
+    /// first two exactly as it was.
+    #[must_use]
+    pub fn at(&self, pressure: f32, speed: f32, tilt: f32) -> f32 {
+        self.pressure.at(pressure) * self.speed.at(speed) * self.tilt.at(tilt.to_degrees())
     }
 }
 
@@ -156,11 +207,12 @@ impl Grain {
     }
 }
 
-/// A brush as data. The diameter at a sample is the stroke's size times the size dynamics. A
-/// covering brush's strength there is the stroke's opacity times the opacity dynamics times the
-/// grain; an accumulating one lays the opacity dynamics times its flow as density and is capped
-/// by the stroke's opacity. `softness` in `0..=1` shapes a covering brush's edge: 0 is a hard
-/// edge (one pixel of antialiasing), 1 fades from the centre line to the edge.
+/// A brush as data. The diameter at a sample is the stroke's size times the size dynamics times
+/// the taper. A covering brush's strength there is the stroke's opacity times the opacity
+/// dynamics times the grain; an accumulating one lays the opacity dynamics times its flow as
+/// density and is capped by the stroke's opacity. `softness` in `0..=1` shapes a covering
+/// brush's edge: 0 is a hard edge (one pixel of antialiasing), 1 fades from the centre line to
+/// the edge.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BrushRecipe {
     softness: f32,
@@ -168,19 +220,25 @@ pub struct BrushRecipe {
     opacity: Dynamics,
     grain: Grain,
     deposit: Deposit,
+    taper: Taper,
 }
 
 impl BrushRecipe {
-    /// A covering brush (`Deposit::Cover`); `with_deposit` makes it accumulate.
+    /// A covering brush (`Deposit::Cover`) without a taper; `with_deposit` makes it accumulate,
+    /// `with_taper` narrows its ends. The size may grow with tilt (`Curve::gain`); the opacity
+    /// never rises above the stroke's.
     ///
     /// # Errors
-    /// `InvalidValue` when `softness` is outside `0..=1`.
+    /// `InvalidValue` when `softness` is outside `0..=1` or the opacity over tilt rises above 1.
     pub fn new(
         softness: f32,
         size: Dynamics,
         opacity: Dynamics,
         grain: Grain,
     ) -> Result<Self, CoreError> {
+        if opacity.tilt.highest() > 1.0 {
+            return Err(invalid("brush dynamics"));
+        }
         if is_unit(softness) {
             Ok(Self {
                 softness,
@@ -188,10 +246,17 @@ impl BrushRecipe {
                 opacity,
                 grain,
                 deposit: Deposit::Cover,
+                taper: Taper::NONE,
             })
         } else {
             Err(invalid("brush softness"))
         }
+    }
+
+    /// This recipe narrowing towards its ends by `taper`.
+    #[must_use]
+    pub fn with_taper(self, taper: Taper) -> Self {
+        Self { taper, ..self }
     }
 
     /// This recipe depositing by `deposit`. An accumulating tip has its own cross-section, so
@@ -217,13 +282,16 @@ impl BrushRecipe {
                     points: vec![[0.0, 0.0], [1.0, 1.0]],
                 },
                 speed: Curve::flat(1.0),
+                tilt: Curve::flat(1.0),
             },
             opacity: Dynamics {
                 pressure: Curve::flat(1.0),
                 speed: Curve::flat(1.0),
+                tilt: Curve::flat(1.0),
             },
             grain: Grain::NONE,
             deposit: Deposit::Cover,
+            taper: Taper::NONE,
         }
     }
 
@@ -250,6 +318,11 @@ impl BrushRecipe {
     #[must_use]
     pub const fn deposit(&self) -> &Deposit {
         &self.deposit
+    }
+
+    #[must_use]
+    pub const fn taper(&self) -> Taper {
+        self.taper
     }
 
     /// True when speed changes anything, so evaluating a stroke needs its pen speed.

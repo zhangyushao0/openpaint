@@ -15,7 +15,8 @@ import android.view.MotionEvent
  * dev.openpaint/.GestureInstrumentation`: the fingers (or the pen) touch down one after another
  * at `from`, move straight to `to` over `ms` in 16 ms frames, and lift one after another.
  * One pointer can instead follow `-e path x,y,x,y...`, one point per 8 ms event, and the pen
- * presses with `-e pressure P` (default 0.6). `-e hover x,y` holds the pen just above the glass
+ * presses with `-e pressure P` (default 0.6), leaning `-e tilt D` degrees from upright (default
+ * 0, S44). `-e hover x,y` holds the pen just above the glass
  * there instead for `-e ms` (default 1500), then takes it away (hover enter, move, exit).
  * `-e tool eraser` is the pen's eraser end and `-e button primary|secondary|tertiary` holds a
  * side button through the pen's events (S41, S43). `-e tap <name>` is a finger tap on the
@@ -73,6 +74,10 @@ class GestureInstrumentation : Instrumentation() {
 
     private val pressure: Float
         get() = arguments.getString("pressure")?.toFloat() ?: 0.6f
+
+    /** The pen's lean from upright in radians, as Android's `AXIS_TILT` (`-e tilt` degrees). */
+    private val tilt: Float
+        get() = Math.toRadians(arguments.getString("tilt")?.toDouble() ?: 0.0).toFloat()
 
     /** The pen (`-e tool stylus`) or its eraser end (`-e tool eraser`) rather than fingers. */
     private val pen: Boolean
@@ -175,6 +180,7 @@ class GestureInstrumentation : Instrumentation() {
                 y = point[1]
                 pressure = if (stylus) penPressure else 1.0f
                 size = 0.08f
+                if (stylus) setAxisValue(MotionEvent.AXIS_TILT, tilt)
             }
         }.toTypedArray()
         val event = MotionEvent.obtain(

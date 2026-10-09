@@ -1,5 +1,5 @@
-//! Schema 18: the keys and values the library stores (DECISIONS D36, D38, D43, D45, D46, D49,
-//! D50, D51, D54, D57, D66, D67, D70; the archived D21, D25, D28, D29, D68).
+//! Schema 19: the keys and values the library stores (DECISIONS D36, D38, D43, D45, D46, D49,
+//! D50, D51, D54, D57, D66, D67, D70, D71; the archived D21, D25, D28, D29, D68).
 //!
 //! Keyspace `library`: `schema` -> the schema of every record (u32 LE); `next` -> the next
 //! unused project id (u64 LE); `clock` -> the last value of the change counter (u64 LE); `last`
@@ -23,9 +23,10 @@
 //!   (u32) and per point x, y (f32); grain strength (f32) and scale (u32); the deposit (u8: 0
 //!   cover, 1 accumulate), when accumulating its tip (u8: 0 flat, 1 bell), flow and maximum
 //!   density (f32) and paper (u8: 0 none, 1 sketch), on paper its contact curve, scale, depth
-//!   and dust (f32)), sample count (u32), then per sample x, y, pressure, tilt, azimuth (f32)
-//!   and time (u32 ms), then its clip (u8: 0 none, 1 a mask as a fill stores it: rectangle,
-//!   run count and runs, `fills.rs`);
+//!   and dust (f32); the curves size over tilt and opacity over tilt (x in degrees); the
+//!   taper's start, end and tip (f32)), sample count (u32), then per sample x, y, pressure,
+//!   tilt, azimuth (f32) and time (u32 ms), then its clip (u8: 0 none, 1 a mask as a fill
+//!   stores it: rectangle, run count and runs, `fills.rs`);
 //! - `[project u64]['f'][layer u64][index u64]` -> one fill, transform, adjustment, nested
 //!   record or cleared pixels, oldest at index 0 (`fills.rs`);
 //! - a mask's strokes and edits as a layer's, under `mask_slot(layer)` (the id with bit 63 set);
@@ -47,7 +48,8 @@
 //! in its adjustments; schema 14 (S33) had no nested records (edit kind 4, merged layers);
 //! schema 15 (S39) had no cleared pixels (edit kind 5, cut and copied selections); schema 16
 //! (S40) had no pen buttons or swatches in its toolbox; schema 17 (S41) had two pen buttons;
-//! `migrate.rs` and `migrate_6.rs` to `migrate_18.rs` upgrade them.
+//! schema 18 (S43) had no tilt curves or taper in its recipes; `migrate.rs` and `migrate_6.rs`
+//! to `migrate_19.rs` upgrade them.
 
 use openpaint_app::{PortError, ProjectId};
 use openpaint_core::{Artwork, BlendMode, GroupParts, LayerMask, LayerMaskParts, LayerParts};
@@ -58,7 +60,7 @@ pub(crate) use crate::strokes::{
 };
 
 /// The schema this build writes and the newest it reads.
-pub const SCHEMA: u32 = 18;
+pub const SCHEMA: u32 = 19;
 
 pub(crate) const LIBRARY: &str = "library";
 pub(crate) const PROJECTS: &str = "projects";

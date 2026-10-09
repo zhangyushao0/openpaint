@@ -1,6 +1,6 @@
-//! Brushes: the built-in files parse into the three brushes, broken files are refused with typed
-//! errors, the toolbox keeps each brush's size and opacity, and a stroke keeps the recipe it was
-//! drawn with when a built-in brush changes later.
+//! Brushes: the built-in files parse into the six brushes by job, broken files are refused with
+//! typed errors, the toolbox keeps each brush's size and opacity, and a stroke keeps the recipe
+//! it was drawn with when a built-in brush changes later.
 
 use openpaint_app::{
     BrushChoice, BrushIntent, BrushLibrary, BrushSetting, ButtonMap, Contact, ContactPhase, Device,
@@ -24,12 +24,22 @@ fn field(name: &str) -> String {
 }
 
 #[test]
-fn the_built_in_brushes_are_pencil_ink_pen_and_soft_brush() {
+fn the_built_in_brushes_are_listed_by_job() {
     let library = built_in();
     let names: Vec<_> = library.brushes().iter().map(|brush| brush.name()).collect();
-    assert_eq!(names, ["Pencil", "Ink Pen", "Soft Brush"]);
-    let [pencil, ink, soft] = library.brushes() else {
-        panic!("three brushes");
+    assert_eq!(
+        names,
+        [
+            "Pencil",
+            "Ink Pen",
+            "Inker",
+            "Monoline",
+            "Hard Round",
+            "Soft Brush"
+        ]
+    );
+    let [pencil, ink, .., soft] = library.brushes() else {
+        panic!("six brushes");
     };
     assert_eq!(
         **ink.recipe(),
@@ -53,9 +63,9 @@ fn the_built_in_brushes_are_pencil_ink_pen_and_soft_brush() {
         [4.5, 0.3, 0.3]
     );
     assert_eq!(pencil.recipe().size().pressure().at(0.0), 0.3);
-    let flow = |p: f32| graphite.flow() * pencil.recipe().opacity().at(p, 0.0);
+    let flow = |p: f32| graphite.flow() * pencil.recipe().opacity().at(p, 0.0, 0.0);
     assert!((flow(0.0) - 0.9).abs() < 1e-6 && (flow(1.0) - 3.1).abs() < 1e-6);
-    assert!(!pencil.recipe().uses_speed(), "neither speed nor tilt");
+    assert!(!pencil.recipe().uses_speed(), "no speed");
     let Deposit::Accumulate(airbrush) = soft.recipe().deposit() else {
         panic!("the soft brush accumulates");
     };
@@ -164,8 +174,8 @@ fn broken_deposits_and_papers_are_refused_with_typed_errors() {
 #[test]
 fn every_brush_keeps_its_own_size_and_opacity() {
     let library = built_in();
-    let [pencil, ink, _] = library.brushes() else {
-        panic!("three brushes");
+    let [pencil, ink, ..] = library.brushes() else {
+        panic!("the built-in brushes");
     };
     let mut toolbox = Toolbox::new(library.clone());
     toolbox.dispatch(&BrushIntent::Size {

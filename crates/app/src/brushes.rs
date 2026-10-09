@@ -8,10 +8,13 @@ use openpaint_core::{BrushRecipe, MAX_BRUSH_SIZE};
 
 use crate::recipe::{RecipeError, parse};
 
-/// The built-in brushes in picker order: key, file.
-const BUILT_IN: [(&str, &str); 3] = [
+/// The built-in brushes in picker order, by job (sketch, ink, line, paint, blend): key, file.
+const BUILT_IN: [(&str, &str); 6] = [
     ("pencil", include_str!("../brushes/pencil.toml")),
     ("ink-pen", include_str!("../brushes/ink-pen.toml")),
+    ("inker", include_str!("../brushes/inker.toml")),
+    ("monoline", include_str!("../brushes/monoline.toml")),
+    ("hard-round", include_str!("../brushes/hard-round.toml")),
     ("soft-brush", include_str!("../brushes/soft-brush.toml")),
 ];
 /// The brush a first start draws with: the round brush of every stroke before recipes.
@@ -76,6 +79,8 @@ pub struct Brush {
     pub(crate) size: SizeRange,
     /// The opacity the slider starts at, in `(0, 1]`.
     pub(crate) opacity: f32,
+    /// The StreamLine every tool starts with on this brush, in `0..=1`.
+    pub(crate) streamline: f32,
 }
 
 impl Brush {
@@ -103,6 +108,11 @@ impl Brush {
     #[must_use]
     pub const fn opacity(&self) -> f32 {
         self.opacity
+    }
+
+    #[must_use]
+    pub const fn streamline(&self) -> f32 {
+        self.streamline
     }
 }
 

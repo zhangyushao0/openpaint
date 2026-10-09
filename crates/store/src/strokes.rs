@@ -1,11 +1,12 @@
-//! Stroke records (schema 9; the layout is in `records.rs`): style, blend, recipe, samples and,
+//! Stroke records (schema 19; the layout is in `records.rs`): style, blend, recipe, samples and,
 //! since schema 7, the selection the stroke was drawn inside (DECISIONS D43). Since schema 9
-//! the blend may be a smudge (3) or a smudge under Alpha Lock (4) (D46).
+//! the blend may be a smudge (3) or a smudge under Alpha Lock (4) (D46). Since schema 19 the
+//! recipe ends with its size and opacity over tilt and its taper (D71).
 
 use openpaint_app::PortError;
 use openpaint_core::{
-    AccumulationParts, PaperParts, PaperTexture, RecipeParts, SampleParts, Stroke, StrokeBlend,
-    StrokeParts, Tip,
+    AccumulationParts, MaskParts, PaperParts, PaperTexture, RecipeParts, SampleParts, Stroke,
+    StrokeBlend, StrokeParts, Tip,
 };
 
 use crate::codec::{Reader, Writer};
@@ -63,18 +64,43 @@ pub(crate) fn encode_stroke(stroke: &Stroke) -> Vec<u8> {
 
 pub(crate) fn decode_stroke(bytes: &[u8]) -> Result<StrokeParts, PortError> {
     let mut reader = Reader::new(bytes, "stroke");
-    let mut stroke = read_stroke_6(&mut reader)?;
-    stroke.clip = match reader.u8()? {
-        0 => None,
-        1 => Some(read_mask(&mut reader)?),
-        _ => return Err(reader.corrupt()),
-    };
+    let mut stroke = read_stroke(&mut reader, true)?;
+    stroke.clip = read_clip(&mut reader)?;
     reader.end()?;
     Ok(stroke)
 }
 
-/// A stroke as schema 6 stored all of it, which schema 7 follows with the clip.
+/// A stroke as schemas 6 to 18 stored all of it but the clip, which schema 7 follows it with;
+/// its recipe without tilt or taper.
 pub(crate) fn read_stroke_6(reader: &mut Reader<'_>) -> Result<StrokeParts, PortError> {
+    read_stroke(reader, false)
+}
+
+/// Its clip, as schema 7 on stores it after the samples.
+pub(crate) fn read_clip(reader: &mut Reader<'_>) -> Result<Option<MaskParts>, PortError> {
+    match reader.u8()? {
+        0 => Ok(None),
+        1 => Ok(Some(read_mask(reader)?)),
+        _ => Err(reader.corrupt()),
+    }
+}
+
+/// Where the recipe of a stroke record ends before schema 19 (after its deposit): the place
+/// schema 19 puts the tilt curves and the taper. `None` when the record holds no whole style and
+/// recipe there.
+pub(crate) fn deposit_end(stroke: &[u8]) -> Option<usize> {
+    let mut reader = Reader::new(stroke, "stroke");
+    reader.u64().ok()?;
+    for _ in 0..5 {
+        reader.f32().ok()?;
+    }
+    reader.u8().ok()?;
+    read_recipe(&mut reader).ok()?;
+    Some(stroke.len() - reader.rest().len())
+}
+
+/// A stroke up to its samples: with `tilted` (schema 19) its recipe's tilt curves and taper.
+fn read_stroke(reader: &mut Reader<'_>, tilted: bool) -> Result<StrokeParts, PortError> {
     let id = reader.u64()?;
     let (size, opacity) = (reader.f32()?, reader.f32()?);
     let color = [reader.f32()?, reader.f32()?, reader.f32()?];
@@ -87,7 +113,12 @@ pub(crate) fn read_stroke_6(reader: &mut Reader<'_>) -> Result<StrokeParts, Port
         4 => StrokeBlend::SmudgeLocked,
         _ => return Err(reader.corrupt()),
     };
-    let recipe = read_recipe(reader)?;
+    let mut recipe = read_recipe(reader)?;
+    if tilted {
+        recipe.size_tilt = read_curve(reader)?;
+        recipe.opacity_tilt = read_curve(reader)?;
+        recipe.taper = [reader.f32()?, reader.f32()?, reader.f32()?];
+    }
     let count = reader.count(SAMPLE_BYTES)?;
     let mut samples = Vec::with_capacity(count);
     for _ in 0..count {
@@ -113,9 +144,24 @@ pub(crate) fn read_stroke_6(reader: &mut Reader<'_>) -> Result<StrokeParts, Port
 }
 
 /// A recipe as a stroke record holds it, after the blend: its stages up to the grain (schema
-/// 3's recipe), then its deposit.
+/// 3's recipe), then its deposit (schema 6), then its tilt curves and taper (schema 19).
 fn write_whole_recipe(writer: &mut Writer, recipe: &RecipeParts) {
     write_recipe(writer, recipe);
+    write_deposit(writer, recipe);
+    write_tilt_and_taper(writer, recipe);
+}
+
+/// What schema 19 adds after the deposit: size and opacity over tilt, then the taper's start,
+/// end and tip.
+fn write_tilt_and_taper(writer: &mut Writer, recipe: &RecipeParts) {
+    write_curve(writer, &recipe.size_tilt);
+    write_curve(writer, &recipe.opacity_tilt);
+    for value in recipe.taper {
+        writer.f32(value);
+    }
+}
+
+fn write_deposit(writer: &mut Writer, recipe: &RecipeParts) {
     let Some(deposit) = &recipe.deposit else {
         writer.u8(0);
         return;
@@ -170,6 +216,8 @@ pub(crate) fn read_curve(reader: &mut Reader<'_>) -> Result<Vec<[f32; 2]>, PortE
         .collect()
 }
 
+/// A recipe up to its deposit, as schemas 6 to 18 stored all of it: no tilt (flat at 1), no
+/// taper.
 fn read_recipe(reader: &mut Reader<'_>) -> Result<RecipeParts, PortError> {
     let softness = reader.f32()?;
     let (size_pressure, size_speed) = (read_curve(reader)?, read_curve(reader)?);
@@ -184,8 +232,14 @@ fn read_recipe(reader: &mut Reader<'_>) -> Result<RecipeParts, PortError> {
         grain_strength,
         grain_scale,
         deposit: read_deposit(reader)?,
+        size_tilt: UNTILTED.to_vec(),
+        opacity_tilt: UNTILTED.to_vec(),
+        taper: [0.0; 3],
     })
 }
+
+/// A curve over tilt that changes nothing: flat at 1.
+pub(crate) const UNTILTED: [[f32; 2]; 1] = [[0.0, 1.0]];
 
 fn read_deposit(reader: &mut Reader<'_>) -> Result<Option<AccumulationParts>, PortError> {
     match reader.u8()? {

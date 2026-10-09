@@ -25,6 +25,7 @@ mod migrate_15;
 mod migrate_16;
 mod migrate_17;
 mod migrate_18;
+mod migrate_19;
 mod migrate_6;
 mod migrate_7;
 mod migrate_8;

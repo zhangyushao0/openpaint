@@ -75,6 +75,12 @@ pub enum Step {
         /// The tip with a side button held, or the eraser end (S41); the tip by default.
         #[serde(default)]
         pen: Pen,
+        /// Degrees the pen leans from upright all along the stroke, 0 to 90 (S44); 0 upright.
+        #[serde(default)]
+        tilt: f32,
+        /// Degrees of the direction it leans in, as Android's orientation, -180 to 180 (S44).
+        #[serde(default)]
+        azimuth: f32,
     },
     /// One contact through keys (a place and `ms` from touching down) at `pressure` (default
     /// full): it moves straight between keys in their time and rests where two keys share a
@@ -88,6 +94,10 @@ pub enum Step {
         /// A screenshot of this name just before the contact lifts.
         #[serde(default)]
         before_lift: Option<String>,
+        /// The canvas just before the contact lifts must hash to this (a checkpoint named as
+        /// `before_lift`, which it needs; S44).
+        #[serde(default, deserialize_with = "optional_hash")]
+        canvas_before_lift: Option<u64>,
     },
     /// The pen hovers just above the glass at `at`, touching nothing; it stays there until the
     /// next contact.
@@ -230,6 +240,18 @@ impl Scenario {
                 Step::Stroke { points, .. } if points.is_empty() => {
                     return Err(invalid("a stroke needs at least one point"));
                 }
+                Step::Stroke { tilt, azimuth, .. }
+                    if !(0.0..=90.0).contains(tilt) || !(-180.0..=180.0).contains(azimuth) =>
+                {
+                    return Err(invalid(
+                        "a stroke tilts 0 to 90 degrees, azimuth -180 to 180",
+                    ));
+                }
+                Step::Press {
+                    before_lift: None,
+                    canvas_before_lift: Some(_),
+                    ..
+                } => return Err(invalid("a canvas before the lift needs its name")),
                 Step::Press { path, .. }
                     if path.is_empty()
                         || path.windows(2).any(|keys| keys[1].ms() < keys[0].ms()) =>

@@ -35,9 +35,9 @@ fn the_plain_round_brush_gives_back_pressure_exactly() {
     let plain = BrushRecipe::plain();
     for step in 0..=1000u16 {
         let pressure = f32::from(step) / 1000.0;
-        let size = plain.size().at(pressure, 3.0);
+        let size = plain.size().at(pressure, 3.0, 0.7);
         assert_eq!(size.to_bits(), pressure.to_bits(), "at {pressure}");
-        assert_eq!(plain.opacity().at(pressure, 3.0), 1.0);
+        assert_eq!(plain.opacity().at(pressure, 3.0, 0.7), 1.0);
     }
     assert_eq!(plain.softness(), 0.0);
     assert_eq!(plain.grain(), Grain::NONE);

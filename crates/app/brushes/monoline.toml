@@ -1,0 +1,12 @@
+# Monoline: one width at any pressure, full strength, a hard edge, smoothed by StreamLine from
+# the start: lettering, diagrams, clean technical lines.
+name = "Monoline"
+streamline = 0.6
+
+[size]
+default = 8
+min = 1
+max = 80
+
+[opacity]
+default = 1.0

@@ -1,12 +1,12 @@
 //! Sharp zoom (S32): a view tier's tiles equal the banded export at the tier's scale for their
 //! region, bit for bit; after a stroke, a fill, a transform record and undo exactly the tiles
 //! the change reaches are evaluated again and every tile still equals the export (incremental
-//! = cold per tile); a stroke drawn while zoomed shows at the tier as it will be committed; the
-//! canvas target stays the cold canvas.
+//! = cold per tile); a stroke drawn while zoomed shows at the tier as it will be committed (its
+//! end taper from the lift on, S44); the canvas target stays the cold canvas.
 
 use std::collections::BTreeSet;
 
-use openpaint_core::{ActiveStroke, Artwork, Color, Placement, RegionMask};
+use openpaint_core::{ActiveStroke, Artwork, Color, Placement, RegionMask, StrokeStyle};
 use openpaint_render::{
     CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, RgbaImage, ViewCache, ViewFrame,
     ViewWork, changed_regions,
@@ -230,16 +230,35 @@ fn changes_evaluate_again_exactly_the_tiles_they_reach() {
 
 #[test]
 fn a_stroke_drawn_while_zoomed_shows_at_the_tier_as_committed() {
+    let style = plain(5.0, 1.0, Color::rgb(0.8, 0.1, 0.4).expect("colour"));
+    drawn_while_zoomed(&style, &style);
+}
+
+/// The same with a taper at both ends (S44): while drawn, the tiles are the export of the
+/// stroke so far without its end taper; from the lift on, of the committed stroke.
+#[test]
+fn a_tapered_stroke_drawn_while_zoomed_narrows_its_end_at_the_tier_at_the_lift() {
+    let color = Color::rgb(0.8, 0.1, 0.4).expect("colour");
+    let tapered = |end: f32| {
+        let taper = openpaint_core::Taper::new(1.0, end, 0.1).expect("taper");
+        let recipe = openpaint_core::BrushRecipe::plain().with_taper(taper);
+        StrokeStyle::new(std::sync::Arc::new(recipe), 5.0, 1.0, color).expect("style")
+    };
+    drawn_while_zoomed(&tapered(2.0), &tapered(0.0));
+}
+
+/// `style` drawn sample by sample at 8x: each frame's tiles are the export of the stroke so far
+/// drawn with `blunt` (`style` without its end taper), and once committed the export of it.
+fn drawn_while_zoomed(style: &StrokeStyle, blunt: &StrokeStyle) {
     let core = core();
     let base = every_source();
     let scale = 8;
     let view = frame(7.0, [150.0, 110.0]);
     let mut screen = Screen::new(&core, &base);
     screen.settle(&core, &base, &view);
-    let style = plain(5.0, 1.0, Color::rgb(0.8, 0.1, 0.4).expect("colour"));
-    let mut session = base
-        .begin_stroke(style, sample(130.0, 95.0, 0.6, 0))
-        .expect("begin");
+    let first = sample(130.0, 95.0, 0.6, 0);
+    let mut session = base.begin_stroke(style.clone(), first).expect("begin");
+    let mut drawn = vec![first];
     for step in 1..12u16 {
         let at = f32::from(step);
         let next = sample(
@@ -249,13 +268,14 @@ fn a_stroke_drawn_while_zoomed_shows_at_the_tier_as_committed() {
             u32::from(step) * 8,
         );
         session.extend(&[next]).expect("extend");
+        drawn.push(next);
         let work = screen.frame(&core, (&base, Some(session.active())), &[], &view);
         assert!(
             work.dropped.is_empty(),
             "a stroke's few pixels are evaluated in place"
         );
-        let drawn = session.clone().finish().artwork;
-        screen.assert_tiles(&core, &whole(&core, &drawn, scale), scale);
+        let so_far = with_stroke(&base, (blunt.clone(), drawn.clone()));
+        screen.assert_tiles(&core, &whole(&core, &so_far, scale), scale);
     }
     let committed = session.finish().artwork;
     screen.frame(&core, (&committed, None), &[], &view);

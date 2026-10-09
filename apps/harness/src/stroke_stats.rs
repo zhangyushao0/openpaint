@@ -114,6 +114,7 @@ pub fn run(dir: &str) -> Result<(), HarnessError> {
         }
     }
     report(&mut stats);
+    println!("\n{}", crate::tilt_stats::tilt_line(strokes.iter()));
     crate::export_timing::pieces(strokes.iter());
     Ok(())
 }

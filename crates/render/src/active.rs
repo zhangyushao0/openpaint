@@ -11,7 +11,7 @@ use openpaint_core::{
 };
 
 use crate::geom::PixelRect;
-use crate::stroke::{Path, span_regions, stroke_region};
+use crate::stroke::{Path, lift_region, span_regions, stroke_region};
 
 /// The stroke whose coverage the texture holds, as far as it was evaluated, and the artwork
 /// version it was last drawn over.
@@ -172,8 +172,9 @@ impl Tracked {
     /// it may have gained samples after its last evaluation, and its end may have moved as it
     /// lifted (StreamLine catching up with the pen): where it differs from what was drawn, both
     /// the old spans and the new are evaluated again; a smudge committed as drawn also shows its
-    /// tail now. A stroke whose samples were replaced whole (snapped to a shape, S42) was
-    /// tracked anew from then on.
+    /// tail now; a stroke with an end taper narrows its last stretch now (S44, `lift_region`).
+    /// A stroke whose samples were replaced whole (snapped to a shape, S42) was tracked anew
+    /// from then on.
     fn gone(&self, artwork: &Artwork) -> Option<PixelRect> {
         if artwork.same_version(&self.base) {
             return self.region;
@@ -197,12 +198,13 @@ impl Tracked {
             return self.region;
         }
         let smudge = self.style.tool() == StrokeTool::Smudge;
+        let tapered = lift_region(&self.style, samples);
         if shared == samples.len() && shared == self.samples.len() {
-            return self.tail.filter(|_| smudge);
+            return union(self.tail.filter(|_| smudge), tapered);
         }
         let drawn = stroke_region(&self.style, &self.samples, shared);
         let now = stroke_region(&self.style, samples, shared);
-        union(drawn, now)
+        union(union(drawn, now), tapered)
     }
 }
 

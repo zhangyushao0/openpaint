@@ -1,0 +1,14 @@
+# Hard Round: the universal digital brush. Pressure sets both its size and how much paint it
+# lays: a light stroke thin and faint, a heavy one wide and solid. A hard edge; where a stroke
+# crosses itself it never darkens (it covers, as the Ink Pen does).
+name = "Hard Round"
+
+[size]
+default = 24
+min = 1
+max = 300
+pressure = [[0.0, 0.25], [1.0, 1.0]]
+
+[opacity]
+default = 1.0
+pressure = [[0.0, 0.1], [1.0, 1.0]]

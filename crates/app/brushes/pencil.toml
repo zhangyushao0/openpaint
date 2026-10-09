@@ -1,6 +1,8 @@
 # Pencil: graphite on the paper's tooth, as draweave tuned it (DECISIONS D38). Pressure widens the
 # line, presses the tip into more of the paper and lays more graphite; where the stroke crosses
-# itself it darkens. The paper is fixed to the canvas, never to the stroke.
+# itself it darkens. The paper is fixed to the canvas, never to the stroke. Laid on its side
+# (S44, D71) it draws wider and lighter, as a pencil lead does; held as for writing it draws as
+# before.
 name = "Pencil"
 
 [size]
@@ -9,11 +11,16 @@ min = 1
 max = 40
 # Radius 0.3 + 0.7 p of the size.
 pressure = [[0.0, 0.3], [1.0, 1.0]]
+# Degrees from upright: unchanged up to 60 (the author's pen leans 45 degrees at the median and
+# 61 at the 90th percentile while drawing), three times as wide at 75 (the most it reported).
+tilt = [[0.0, 1.0], [60.0, 1.0], [75.0, 3.0]]
 
 [opacity]
 default = 1.0
 # Flow 0.9 + 2.2 p per radius travelled: 3.1 times this curve.
 pressure = [[0.0, 0.29032258], [1.0, 1.0]]
+# Unchanged up to 60 degrees, a quarter of the graphite at 75.
+tilt = [[0.0, 1.0], [60.0, 1.0], [75.0, 0.25]]
 
 [accumulate]
 tip = "flat"

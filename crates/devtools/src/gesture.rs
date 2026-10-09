@@ -50,10 +50,12 @@ pub(crate) fn path(tool: Tool, points: &[[f32; 3]], start_ms: i64) -> Vec<Motion
 /// a fast pen reports it, then resting at the last point for `hold_ms` (a sample every
 /// `SAMPLE_MS` there, QuickShape). With `lift` the pen leaves the glass there as Android reports
 /// it (one more sample, pressure 0). A `palm` touches down beside it as a pointer of its own.
+/// The pen leans `lean` degrees (tilt from upright, then its direction) all along (S44).
 pub(crate) fn stroke(
     (points, sparse, hold_ms): (&[[f32; 3]], bool, u32),
     lift: Option<[f32; 2]>,
     palm: Option<Palm>,
+    lean: [f32; 2],
     start_ms: i64,
 ) -> Vec<MotionBatch> {
     let spacing = if sparse { f32::INFINITY } else { SPACING };
@@ -67,6 +69,9 @@ pub(crate) fn stroke(
     }
     if let (Some(at), Some(last)) = (lift, samples.last()) {
         samples.push(sample(at, 0.0, last.time_ms + SAMPLE_MS));
+    }
+    for sample in &mut samples {
+        (sample.tilt, sample.orientation) = (lean[0].to_radians(), lean[1].to_radians());
     }
     let mut pen = batches(Tool::Stylus, &samples);
     let Some(palm) = palm.filter(|_| !pen.is_empty()) else {

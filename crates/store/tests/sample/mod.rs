@@ -6,27 +6,31 @@ use std::path::PathBuf;
 use openpaint_app::{Thumbnail, Title};
 use openpaint_core::{
     AccumulationParts, ArtworkParts, BlendMode, BrushRecipe, EditParts, FillParts, GroupParts,
-    LayerMaskParts, LayerParts, MaskParts, PaperParts, PaperTexture, PatchParts, RecipeParts,
-    SampleParts, StrokeBlend, StrokeParts, Tip, TransformParts,
+    LayerParts, MaskParts, PaperParts, PaperTexture, PatchParts, RecipeParts, SampleParts,
+    StrokeBlend, StrokeParts, Tip, TransformParts,
 };
 
 mod dump;
 mod editor;
+mod schema_11;
 mod schema_12;
 mod schema_13;
 mod schema_14;
 mod schema_15;
 mod schema_16;
+mod schema_19;
 pub use dump::{decode, encode};
 pub use editor::{
     sample_editor, sample_editor_6, sample_editor_9, sample_editor_17, sample_editor_18,
     upgraded_editor,
 };
+pub use schema_11::schema_11_parts;
 pub use schema_12::schema_12_parts;
 pub use schema_13::schema_13_parts;
 pub use schema_14::schema_14_parts;
 pub use schema_15::schema_15_parts;
-pub use schema_16::parts;
+pub use schema_16::schema_16_parts;
+pub use schema_19::parts;
 
 pub type Records = Vec<(String, Vec<u8>, Vec<u8>)>;
 
@@ -56,6 +60,8 @@ fn grainy() -> RecipeParts {
         grain_strength: 0.625,
         grain_scale: 3,
         deposit: None,
+        // No tilt and no taper: as every recipe before schema 19.
+        ..BrushRecipe::plain().to_parts()
     }
 }
 
@@ -81,6 +87,7 @@ fn graphite() -> RecipeParts {
                 dust: 0.375,
             }),
         }),
+        ..BrushRecipe::plain().to_parts()
     }
 }
 
@@ -255,55 +262,6 @@ pub fn schema_5_parts() -> ArtworkParts {
         size: [3, 2],
         runs: vec![1, 5],
     }));
-    parts
-}
-
-/// The schema-10 sample with what schema 11 adds: the sketch layer's mask inverted, with a grey
-/// stroke inside a selection, a smudge and a grey fill between them; the ink layer's mask
-/// white with one black stroke, and the target (the ink layer is active); the clipping top
-/// layer's mask disabled and empty.
-pub fn schema_11_parts() -> ArtworkParts {
-    let mut parts = schema_10_parts();
-    let model = parts.layers[0].strokes[1].clone();
-    let grey = |id, color: f32, blend| StrokeParts {
-        id,
-        blend,
-        color: [color; 3],
-        ..model.clone()
-    };
-    let mut clipped = grey(8, 0.25, StrokeBlend::Over);
-    clipped.clip = Some(MaskParts {
-        origin: [1, 2],
-        size: [9, 3],
-        runs: vec![2, 20, 5],
-    });
-    parts.layers[0].mask = Some(LayerMaskParts {
-        enabled: true,
-        inverted: true,
-        strokes: vec![clipped, grey(9, 1.0, StrokeBlend::Smudge)],
-        edits: vec![EditParts::Fill(FillParts {
-            after: 1,
-            color: [0.5; 3],
-            alpha_locked: false,
-            origin: [20, 10],
-            size: [4, 4],
-            runs: vec![0, 16],
-        })],
-    });
-    parts.layers[1].mask = Some(LayerMaskParts {
-        enabled: true,
-        inverted: false,
-        strokes: vec![grey(10, 0.0, StrokeBlend::Over)],
-        edits: Vec::new(),
-    });
-    parts.layers[2].mask = Some(LayerMaskParts {
-        enabled: false,
-        inverted: false,
-        strokes: Vec::new(),
-        edits: Vec::new(),
-    });
-    parts.on_mask = true;
-    parts.next_stroke_id = 11;
     parts
 }
 

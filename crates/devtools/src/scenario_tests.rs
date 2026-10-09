@@ -136,6 +136,28 @@ fn names_are_plain_and_unique() {
 }
 
 #[test]
+fn a_stroke_tilts_within_range_and_a_press_names_its_canvas_before_the_lift() {
+    let flat = r#"{ "stroke": { "points": [[1, 2, 0.5]], "tilt": 95 } }"#;
+    assert!(matches!(with_steps(flat), Err(ScenarioError::Invalid(_))));
+    let turned = r#"{ "stroke": { "points": [[1, 2, 0.5]], "azimuth": 200 } }"#;
+    assert!(matches!(with_steps(turned), Err(ScenarioError::Invalid(_))));
+    let hash = r#""canvas_before_lift": "00000000000000ff""#;
+    let unnamed = format!(r#"{{ "press": {{ "path": [[1, 2, 0]], {hash} }} }}"#);
+    assert!(matches!(
+        with_steps(&unnamed),
+        Err(ScenarioError::Invalid(_))
+    ));
+    let named = format!(r#"{{ "press": {{ "path": [[1, 2, 0]], "before_lift": "a", {hash} }} }}"#);
+    let Step::Press {
+        canvas_before_lift, ..
+    } = &with_steps(&named).expect("parses").steps[0]
+    else {
+        panic!("a press");
+    };
+    assert_eq!(*canvas_before_lift, Some(0xff));
+}
+
+#[test]
 fn a_stroke_step_takes_its_lift_palm_and_sparse_samples() {
     let text = r#"{
         "walkthrough": ["Draw."],
@@ -144,7 +166,7 @@ fn a_stroke_step_takes_its_lift_palm_and_sparse_samples() {
         "steps": [
             { "stroke": { "points": [[1, 2, 0.5]], "lift": [3, 4],
                           "palm": { "at": [5, 6], "lands": "during" }, "sparse": true, "hold_ms": 600,
-                          "pen": "secondary" } },
+                          "pen": "secondary", "tilt": 60, "azimuth": -45 } },
             { "hover": { "at": [7, 8], "pen": "eraser" } },
             { "hover": { "at": [9, 10], "pen": "tertiary" } }
         ]
@@ -160,6 +182,8 @@ fn a_stroke_step_takes_its_lift_palm_and_sparse_samples() {
         sparse: true,
         hold_ms: 600,
         pen: Pen::Secondary,
+        tilt: 60.0,
+        azimuth: -45.0,
     };
     let hover = Step::Hover {
         at: Spot::Point([7.0, 8.0]),

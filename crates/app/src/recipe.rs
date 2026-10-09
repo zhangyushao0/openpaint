@@ -4,6 +4,7 @@
 //!
 //! ```toml
 //! name = "Pencil"                      # required, 1 to 40 characters
+//! streamline = 0.6                     # optional, the StreamLine at first, 0..=1, default 0
 //!
 //! [size]                               # required; diameters in canvas pixels
 //! default = 5                          # 0 < min <= default <= max <= MAX_BRUSH_SIZE
@@ -11,10 +12,16 @@
 //! max = 40
 //! pressure = [[0.0, 0.45], [1.0, 1.0]] # optional curves of [x, y] points, y in 0..=1;
 //! speed = [[0.0, 1.0], [6.0, 0.7]]     # x is pressure 0..=1 or pixels per millisecond
+//! tilt = [[40.0, 1.0], [80.0, 3.0]]    # x in degrees from upright 0..=90, y up to MAX_GAIN
 //!
 //! [opacity]                            # required
 //! default = 1.0                        # in (0, 1]
-//! pressure = [[0.0, 0.15], [1.0, 1.0]] # optional, as for size
+//! pressure = [[0.0, 0.15], [1.0, 1.0]] # optional, as for size; tilt with y in 0..=1
+//!
+//! [taper]                              # optional: the stroke narrows towards its ends
+//! start = 2.0                          # diameters, 0..=MAX_TAPER, default 0 (none)
+//! end = 3.0                            # the end tapers once the pen lifts
+//! tip = 0.1                            # share of the radius at the very ends, default 0
 //!
 //! [shape]                              # optional
 //! softness = 0.0                       # 0 hard edge .. 1 fades from the centre line
@@ -37,13 +44,15 @@
 //! ```
 //!
 //! A missing curve is flat at 1; a missing `[shape]` is a hard edge; a missing `[grain]` none;
-//! without `[accumulate]` the brush covers (crossings never darken).
+//! without `[accumulate]` the brush covers (crossings never darken); without `[taper]` it does
+//! not narrow.
 
 use std::fmt;
 use std::sync::Arc;
 
 use openpaint_core::{
-    Accumulation, BrushRecipe, CoreError, Curve, Deposit, Dynamics, Grain, Paper, PaperTexture, Tip,
+    Accumulation, BrushRecipe, CoreError, Curve, Deposit, Dynamics, Grain, MAX_TAPER, Paper,
+    PaperTexture, Taper, Tip,
 };
 use toml::{Table, Value};
 
@@ -95,20 +104,26 @@ pub(crate) fn parse(key: BrushKey, text: &str) -> Result<Brush, RecipeError> {
     };
     root.only(&[
         "name",
+        "streamline",
         "size",
         "opacity",
         "shape",
         "grain",
         "accumulate",
         "paper",
+        "taper",
     ])?;
     let name = root.string("name")?.ok_or_else(|| missing(&root, "name"))?;
     let name = name.trim();
     if name.is_empty() || name.chars().count() > MAX_BRUSH_NAME {
         return Err(out_of_range(&root, "name"));
     }
+    let streamline = root.number("streamline")?.unwrap_or(0.0);
+    if !(0.0..=1.0).contains(&streamline) {
+        return Err(out_of_range(&root, "streamline"));
+    }
     let size = root.required_section("size")?;
-    size.only(&["default", "min", "max", "pressure", "speed"])?;
+    size.only(&["default", "min", "max", "pressure", "speed", "tilt"])?;
     let range = SizeRange::new(
         size.required_number("min")?,
         size.required_number("default")?,
@@ -116,42 +131,80 @@ pub(crate) fn parse(key: BrushKey, text: &str) -> Result<Brush, RecipeError> {
     )
     .ok_or_else(|| out_of_range(&root, "size"))?;
     let opacity = root.required_section("opacity")?;
-    opacity.only(&["default", "pressure", "speed"])?;
+    opacity.only(&["default", "pressure", "speed", "tilt"])?;
     let start = opacity.required_number("default")?;
     if !(start > 0.0 && start <= 1.0) {
         return Err(out_of_range(&opacity, "default"));
     }
-    let recipe = BrushRecipe::new(
-        softness(&root)?,
-        dynamics(&size)?,
-        dynamics(&opacity)?,
-        grain(&root)?,
-    )
-    .map_err(|_| out_of_range(&root, "shape.softness"))?;
-    let recipe = match deposit(&root)? {
-        Some(deposit) => recipe
-            .with_deposit(deposit)
-            .map_err(|_| out_of_range(&root, "shape.softness"))?,
-        None => recipe,
-    };
     Ok(Brush {
         key,
         name: name.to_owned(),
-        recipe: Arc::new(recipe),
+        recipe: Arc::new(recipe(&root, &size, &opacity)?),
         size: range,
         opacity: start,
+        streamline,
     })
 }
 
-fn dynamics(section: &Section<'_>) -> Result<Dynamics, RecipeError> {
-    let curve = |key: &str| -> Result<Curve, RecipeError> {
-        let points = section.curve(key)?.unwrap_or_else(|| vec![[0.0, 1.0]]);
-        Curve::new(&points).map_err(|_: CoreError| out_of_range(section, key))
+/// The recipe of a brush file: its stages from its sections.
+fn recipe(
+    root: &Section<'_>,
+    size: &Section<'_>,
+    opacity: &Section<'_>,
+) -> Result<BrushRecipe, RecipeError> {
+    let recipe = BrushRecipe::new(
+        softness(root)?,
+        dynamics(size, Curve::gain)?,
+        dynamics(opacity, Curve::new)?,
+        grain(root)?,
+    )
+    .map_err(|_| out_of_range(root, "shape.softness"))?;
+    let recipe = match deposit(root)? {
+        Some(deposit) => recipe
+            .with_deposit(deposit)
+            .map_err(|_| out_of_range(root, "shape.softness"))?,
+        None => recipe,
     };
-    let (pressure, speed) = (curve("pressure")?, curve("speed")?);
+    Ok(recipe.with_taper(taper(root)?))
+}
+
+/// A section's dynamics: pressure and speed curves with factors up to 1, and a tilt curve over
+/// degrees whose factors `tilt` checks (a size may grow with tilt, an opacity not).
+fn dynamics(
+    section: &Section<'_>,
+    tilt: fn(&[[f32; 2]]) -> Result<Curve, CoreError>,
+) -> Result<Dynamics, RecipeError> {
+    let points = |key: &str| -> Result<Vec<[f32; 2]>, RecipeError> {
+        Ok(section.curve(key)?.unwrap_or_else(|| vec![[0.0, 1.0]]))
+    };
+    let curve = |key: &str, make: fn(&[[f32; 2]]) -> Result<Curve, CoreError>| {
+        make(&points(key)?).map_err(|_: CoreError| out_of_range(section, key))
+    };
+    let (pressure, speed) = (curve("pressure", Curve::new)?, curve("speed", Curve::new)?);
     let within = pressure.points().iter().all(|[x, _]| *x <= 1.0);
     let culprit = if within { "speed" } else { "pressure" };
-    Dynamics::new(pressure, speed).map_err(|_| out_of_range(section, culprit))
+    let dynamics = Dynamics::new(pressure, speed).map_err(|_| out_of_range(section, culprit))?;
+    dynamics
+        .with_tilt(curve("tilt", tilt)?)
+        .map_err(|_| out_of_range(section, "tilt"))
+}
+
+/// The `[taper]`, if the brush narrows towards its ends.
+fn taper(root: &Section<'_>) -> Result<Taper, RecipeError> {
+    let Some(taper) = root.section("taper")? else {
+        return Ok(Taper::NONE);
+    };
+    taper.only(&["start", "end", "tip"])?;
+    let value = |key: &str| Ok::<_, RecipeError>(taper.number(key)?.unwrap_or(0.0));
+    let (start, end, tip) = (value("start")?, value("end")?, value("tip")?);
+    let culprit = if !(0.0..=1.0).contains(&tip) {
+        "tip"
+    } else if (0.0..=MAX_TAPER).contains(&start) {
+        "end"
+    } else {
+        "start"
+    };
+    Taper::new(start, end, tip).map_err(|_| out_of_range(&taper, culprit))
 }
 
 fn softness(root: &Section<'_>) -> Result<f32, RecipeError> {

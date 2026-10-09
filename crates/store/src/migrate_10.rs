@@ -109,6 +109,7 @@ mod tests {
         let head = crate::migrate::remarked(&head, 15, 16).expect("a schema-15 head");
         let head = crate::migrate::remarked(&head, 16, 17).expect("a schema-16 head");
         let head = crate::migrate::remarked(&head, 17, 18).expect("a schema-17 head");
+        let head = crate::migrate::remarked(&head, 18, 19).expect("a schema-18 head");
         let head = decode_head(&head).expect("a schema-10 head, upgraded");
         assert_eq!((head.width, head.active, head.next_stroke_id), (64, 2, 9));
         assert!(head.groups.is_empty());

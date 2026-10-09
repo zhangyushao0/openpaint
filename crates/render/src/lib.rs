@@ -38,6 +38,7 @@ mod scene_layer;
 mod screen;
 mod smudge;
 mod stroke;
+mod stroke_path;
 mod surface;
 mod thumbnail;
 mod view_atlas;

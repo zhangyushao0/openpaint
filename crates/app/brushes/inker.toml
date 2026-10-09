@@ -1,0 +1,20 @@
+# Inker: the Ink Pen's line, swelling with pressure, narrowing to a fine point at both ends: a
+# liner for inking (DECISIONS D71). The end narrows once the pen lifts, so it lands where the
+# line ends.
+name = "Inker"
+
+[size]
+default = 12
+min = 1
+max = 80
+pressure = [[0.0, 0.0], [1.0, 1.0]]
+
+[opacity]
+default = 1.0
+
+[taper]
+# Diameters of the brush's size over which the line widens from its start and narrows to its
+# end, and the share of the full width left at the very tips.
+start = 2.0
+end = 3.0
+tip = 0.1

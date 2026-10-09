@@ -110,7 +110,7 @@ fn prepare(open: &Open) -> Result<(), PortError> {
             found,
             newest: SCHEMA,
         }),
-        1..=17 => upgrade(open, schema),
+        older if (1..SCHEMA).contains(&older) => upgrade(open, older),
         _ => Err(PortError::Corrupt {
             what: "library schema",
         }),

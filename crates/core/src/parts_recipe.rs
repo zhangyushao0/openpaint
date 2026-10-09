@@ -3,8 +3,9 @@
 use crate::brush::{BrushRecipe, Curve, Dynamics, Grain};
 use crate::deposit::{Accumulation, Deposit, Paper, PaperTexture, Tip};
 use crate::error::CoreError;
+use crate::taper::Taper;
 
-/// A brush recipe as plain data: curves as `[x, y]` points.
+/// A brush recipe as plain data: curves as `[x, y]` points, tilt curves over degrees.
 #[derive(Debug, Clone, PartialEq)]
 pub struct RecipeParts {
     pub softness: f32,
@@ -16,6 +17,11 @@ pub struct RecipeParts {
     pub grain_scale: u32,
     /// `None` for a covering brush.
     pub deposit: Option<AccumulationParts>,
+    /// Since S44: size and opacity over tilt (`[[0, 1]]`: no tilt response).
+    pub size_tilt: Vec<[f32; 2]>,
+    pub opacity_tilt: Vec<[f32; 2]>,
+    /// Since S44: the taper's start and end lengths in diameters and its tip share (all 0: none).
+    pub taper: [f32; 3],
 }
 
 /// An accumulating deposit as plain data.
@@ -41,17 +47,23 @@ impl BrushRecipe {
     /// Builds a recipe from plain data, checking every value.
     ///
     /// # Errors
-    /// `InvalidValue` for any curve, softness, grain or deposit value out of its range.
+    /// `InvalidValue` for any curve, softness, grain, deposit or taper value out of its range.
     pub fn from_parts(parts: &RecipeParts) -> Result<Self, CoreError> {
-        let dynamics = |pressure: &[[f32; 2]], speed: &[[f32; 2]]| {
-            Dynamics::new(Curve::new(pressure)?, Curve::new(speed)?)
+        let dynamics = |pressure: &[[f32; 2]], speed: &[[f32; 2]], tilt: &[[f32; 2]]| {
+            Dynamics::new(Curve::new(pressure)?, Curve::new(speed)?)?.with_tilt(Curve::gain(tilt)?)
         };
+        let [start, end, tip] = parts.taper;
         let recipe = Self::new(
             parts.softness,
-            dynamics(&parts.size_pressure, &parts.size_speed)?,
-            dynamics(&parts.opacity_pressure, &parts.opacity_speed)?,
+            dynamics(&parts.size_pressure, &parts.size_speed, &parts.size_tilt)?,
+            dynamics(
+                &parts.opacity_pressure,
+                &parts.opacity_speed,
+                &parts.opacity_tilt,
+            )?,
             Grain::new(parts.grain_strength, parts.grain_scale)?,
-        )?;
+        )?
+        .with_taper(Taper::new(start, end, tip)?);
         let Some(deposit) = &parts.deposit else {
             return Ok(recipe);
         };
@@ -87,6 +99,7 @@ impl BrushRecipe {
                 }),
             }),
         };
+        let taper = self.taper();
         RecipeParts {
             softness: self.softness(),
             size_pressure: points(self.size().pressure()),
@@ -96,6 +109,9 @@ impl BrushRecipe {
             grain_strength: self.grain().strength(),
             grain_scale: self.grain().scale(),
             deposit,
+            size_tilt: points(self.size().tilt()),
+            opacity_tilt: points(self.opacity().tilt()),
+            taper: [taper.start(), taper.end(), taper.tip()],
         }
     }
 }

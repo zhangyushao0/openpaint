@@ -91,7 +91,8 @@ mod tests {
         let (key, new) = &upgrade.projects[1];
         assert_eq!(key, b"key");
         assert_eq!(new[..old.len()], old[..]);
-        let stroke = decode_stroke(new).expect("a schema-7 stroke");
+        let nineteen = crate::migrate_19::upgrade_18_to_19(&[], &upgrade.projects[1..]);
+        let stroke = decode_stroke(&nineteen.projects[0].1).expect("a schema-7 stroke");
         assert_eq!((stroke.id, stroke.samples.len(), stroke.clip), (9, 2, None));
         assert_eq!(upgrade.library, [(SCHEMA_KEY.to_vec(), encode_schema(7))]);
     }

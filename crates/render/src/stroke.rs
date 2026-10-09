@@ -1,14 +1,16 @@
 //! Stroke geometry: a stroke follows the centripetal Catmull-Rom curve through its knots
 //! (`curve.rs`, S34), one `Segment` op per span between two knots, which the evaluator flattens
 //! into tapered capsules fine enough for the scale it evaluates at (DECISIONS D07: no dabs). At
-//! every knot the stroke's recipe turns pressure and pen speed into a radius (size dynamics), a
-//! flow (opacity dynamics, times the recipe's flow when it accumulates) and a paper contact,
-//! which change evenly along the span; the paint op carries the colour, the stroke's opacity,
-//! the recipe's grain and how its density becomes coverage (D38).
+//! every knot the stroke's recipe turns pressure, pen speed and tilt into a radius (size
+//! dynamics times the taper, S44), a flow (opacity dynamics, times the recipe's flow when it
+//! accumulates) and a paper contact, which change evenly along the span; the paint op carries
+//! the colour, the stroke's opacity, the recipe's grain and how its density becomes coverage
+//! (D38).
 //!
 //! A span depends on the knots before and after it and a knot on the sample after it, so an
 //! in-progress stroke's last two spans may still change (`Path::settled`); every earlier span
-//! is exactly the span the finished stroke has.
+//! is exactly the span the finished stroke has, but for its end taper, which only a finished
+//! stroke has (`segments`, `lift_region`).
 
 use std::ops::Range;
 
@@ -16,10 +18,11 @@ use openpaint_core::{
     Deposit, StrokeBlend, StrokeSample, StrokeStyle, StrokeTool, Tip as RecipeTip,
 };
 
-use crate::curve::{self, Cubic, knots, point};
+use crate::curve::{self, Cubic, point};
 use crate::geom::{Bounds, PixelRect};
 use crate::protocol::{Blend, GRAIN_ONE, Op, Paint, SegmentOperands, Tip};
 use crate::smudge::smudge_reach;
+pub(crate) use crate::stroke_path::Path;
 
 /// Antialiasing reaches half a pixel beyond the shape; one pixel keeps the bounds conservative
 /// against float error.
@@ -119,41 +122,6 @@ impl Segment {
     }
 }
 
-/// A stroke's knots (`curve::knots`) and what follows from them.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct Path {
-    knots: Vec<usize>,
-}
-
-impl Path {
-    pub(crate) fn of(samples: &[StrokeSample]) -> Self {
-        Self {
-            knots: knots(samples),
-        }
-    }
-
-    /// Its spans: one between each two consecutive knots; a lone knot is one, a dot.
-    pub(crate) fn spans(&self) -> usize {
-        self.knots
-            .len()
-            .saturating_sub(1)
-            .max(usize::from(!self.knots.is_empty()))
-    }
-
-    /// The spans no later sample can change while the stroke is drawn: all but the last two,
-    /// which depend on the last sample (a knot until the next one shows whether it is one).
-    pub(crate) fn settled(&self) -> usize {
-        self.knots.len().saturating_sub(3)
-    }
-
-    /// The first span that samples from `from` on can change: a sample decides whether the
-    /// one before it is a knot, and a span depends on the knot before and after it.
-    pub(crate) fn changed_from(&self, from: usize) -> usize {
-        let before = self.knots.iter().take_while(|k| **k + 1 < from).count();
-        before.saturating_sub(2).min(self.spans())
-    }
-}
-
 /// The spans `range` of a stroke of `style` through `samples`, whose knots are `path`.
 pub(crate) fn spans<'a>(
     style: &'a StrokeStyle,
@@ -164,12 +132,12 @@ pub(crate) fn spans<'a>(
     range.map(move |j| span(style, samples, path, j))
 }
 
-/// Every span of a finished stroke; a stroke of one sample is a round dot.
+/// Every span of a finished stroke, its end tapered; a stroke of one sample is a round dot.
 pub(crate) fn segments<'a>(
     style: &'a StrokeStyle,
     samples: &'a [StrokeSample],
 ) -> impl Iterator<Item = Segment> + 'a {
-    let path = Path::of(samples);
+    let path = Path::lifted(samples);
     (0..path.spans()).map(move |j| span(style, samples, &path, j))
 }
 
@@ -195,13 +163,17 @@ fn span(style: &StrokeStyle, samples: &[StrokeSample], path: &Path, j: usize) ->
     }
     let cubic = Cubic::span(&local[..count], j - first);
     let (a, b) = (dab(style, samples, i, speed), dab(style, samples, k, speed));
-    let width = style.recipe().softness() * a.radius.max(b.radius);
+    let radii = [
+        a.radius * path.taper(style, j),
+        b.radius * path.taper(style, (j + 1).min(last)),
+    ];
+    let width = style.recipe().softness() * radii[0].max(radii[1]);
     let [start, c1, c2, end] = cubic.0;
     Segment {
         operands: SegmentOperands {
             a: start,
             b: end,
-            radii: [a.radius, b.radius],
+            radii,
             flows: [a.flow, b.flow],
             edge: 1.0 / width.max(1.0),
             contacts: [a.contact, b.contact],
@@ -269,12 +241,27 @@ pub fn curve_pieces(style: &StrokeStyle, samples: &[StrokeSample], scale: f32) -
     [spans.len(), pieces]
 }
 
-/// The radius in canvas pixels at the last of `samples`, exactly as a stroke of `style` draws
-/// it there: the size dynamics at that sample's pressure and pen speed. `None` without samples.
+/// The radius in canvas pixels at the last of `samples`, as a stroke of `style` draws it there
+/// before its taper: the size dynamics at that sample's pressure, pen speed and tilt (the pen's
+/// outline shows the brush, never its taper). `None` without samples.
 #[must_use]
 pub fn tip_radius(style: &StrokeStyle, samples: &[StrokeSample]) -> Option<f32> {
     let last = samples.len().checked_sub(1)?;
     Some(dab(style, samples, last, style.recipe().uses_speed()).radius)
+}
+
+/// The pixels the end taper changes when a stroke of `style` through `samples` lifts: the spans
+/// reaching into its length before the end, as the in-progress stroke drew them (the taper only
+/// narrows). `None` without an end taper, and for a smudge, whose end is never tapered: its
+/// contacts are laid as it is drawn.
+pub(crate) fn lift_region(style: &StrokeStyle, samples: &[StrokeSample]) -> Option<PixelRect> {
+    let length = style.recipe().taper().end() * style.size();
+    if length <= 0.0 || style.tool() == StrokeTool::Smudge {
+        return None;
+    }
+    let path = Path::of(samples);
+    let range = path.ending_within(length)..path.spans();
+    span_regions(style, samples, &path, range).reduce(|all, next| all.union(&next))
 }
 
 /// The pixels each span of a finished stroke can change, one rectangle per span: tighter than
@@ -312,13 +299,13 @@ struct Dab {
     contact: f32,
 }
 
-/// The stroke at sample `i`.
+/// The stroke at sample `i`, before its taper.
 fn dab(style: &StrokeStyle, samples: &[StrokeSample], i: usize, speed: bool) -> Dab {
-    let pressure = samples[i].pressure();
+    let (pressure, tilt) = (samples[i].pressure(), samples[i].tilt());
     let speed = if speed { pen_speed(samples, i) } else { 0.0 };
     let recipe = style.recipe();
-    let radius = 0.5 * style.size() * recipe.size().at(pressure, speed);
-    let opacity = recipe.opacity().at(pressure, speed);
+    let radius = 0.5 * style.size() * recipe.size().at(pressure, speed, tilt);
+    let opacity = recipe.opacity().at(pressure, speed, tilt);
     match recipe.deposit() {
         Deposit::Cover => Dab {
             radius,

@@ -7,9 +7,9 @@
 //! `cargo device-input`: one gesture through the debug build's `GestureInstrumentation`, after
 //! waking the screen (an asleep screen has no window to touch):
 //!
-//! - `pen x,y,x,y,... [pressure] [primary|secondary|tertiary|eraser]`: one pen path, a point
-//!   per 8 ms (repeat a point to hold), with a side button held (from the tip outwards) or the
-//!   eraser end (S41, S43);
+//! - `pen x,y,x,y,... [pressure [tilt]] [primary|secondary|tertiary|eraser]`: one pen path, a
+//!   point per 8 ms (repeat a point to hold), leaning `tilt` degrees from upright (S44), with a
+//!   side button held (from the tip outwards) or the eraser end (S41, S43);
 //! - `finger x,y[,x,y...] [x,y[,x,y...] [ms]]`: fingers down at the first points, moving to the
 //!   second over `ms` (default 64), then lifting;
 //! - `hover x,y [ms] [primary|secondary|tertiary|eraser]`: the pen held above the glass for
@@ -169,7 +169,7 @@ fn held_pointers(adb: &Adb) {
 }
 
 const INPUT_USAGE: &str = "cargo device-input \
-                           pen x,y,... [pressure] [primary|secondary|tertiary|eraser] \
+                           pen x,y,... [pressure [tilt degrees]] [primary|secondary|tertiary|eraser] \
                            | finger x,y[,...] [x,y[,...] [ms]] \
                            | hover x,y [ms] [primary|secondary|tertiary|eraser] \
                            | tap <control name> | gradient on|off";
@@ -221,6 +221,13 @@ fn gesture_extras(args: &[&str]) -> Result<Vec<(&'static str, String)>> {
     let extras: Vec<(&'static str, &str)> = match *args {
         ["pen", path] => vec![("tool", "stylus"), ("path", path)],
         ["pen", path, pressure] => vec![("tool", "stylus"), ("pressure", pressure), ("path", path)],
+        // S44: the pen leaning that many degrees from upright.
+        ["pen", path, pressure, tilt] => vec![
+            ("tool", "stylus"),
+            ("pressure", pressure),
+            ("tilt", tilt),
+            ("path", path),
+        ],
         ["finger", from] => vec![("from", from)],
         ["finger", from, to] => vec![("from", from), ("to", to)],
         ["finger", from, to, ms] => vec![("from", from), ("to", to), ("ms", ms)],
@@ -262,6 +269,9 @@ mod tests {
         let primary = extras(&["pen", "1,2,3,4", "0.5", "primary"]).expect("button");
         assert_eq!(primary.last(), Some(&("button", "primary".to_owned())));
         assert_eq!(primary[0], ("tool", "stylus".to_owned()));
+        let tilted = extras(&["pen", "1,2,3,4", "0.5", "70", "primary"]).expect("tilted");
+        assert_eq!(tilted[2], ("tilt", "70".to_owned()));
+        assert_eq!(tilted.len(), 5, "{tilted:?}");
         let eraser = extras(&["pen", "1,2,3,4", "eraser"]).expect("eraser");
         assert_eq!(eraser[0], ("tool", "eraser".to_owned()));
         assert_eq!(eraser.len(), 2, "{eraser:?}");

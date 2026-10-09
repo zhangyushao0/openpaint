@@ -26,6 +26,7 @@ mod scale;
 mod screen;
 mod selection;
 mod smudge;
+mod taper_tilt;
 mod thumbnail;
 mod transform;
 mod view;

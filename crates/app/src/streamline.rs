@@ -1,5 +1,5 @@
 //! StreamLine: the drawn line follows the pen on a leash, smoothing its wobble (Procreate's
-//! StreamLine, draweave's stabilisation, DECISIONS D60). The line moves only when the pen is
+//! StreamLine, draweave's stabilisation, DECISIONS D71). The line moves only when the pen is
 //! farther from it than the leash, so the smoothing depends on the distance travelled, never on
 //! how many events the pen sends. Only positions are smoothed: pressure, tilt and time stay the
 //! pen's. While drawing, the line visibly trails the pen; when the pen lifts, the rest of the way
