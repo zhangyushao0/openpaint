@@ -51,10 +51,18 @@ fn describe(command: &Command) -> String {
     format!("{program} {}", args.join(" "))
 }
 
-/// Every file git tracks, as workspace-relative paths with forward slashes.
+/// Every file git tracks and every new file it would track (untracked and not ignored), as
+/// workspace-relative paths with forward slashes, each once. A new file counts before it is
+/// staged, so a gate run before `git add` sees it (S43: a 490-line test file got through).
 pub fn tracked_files() -> Result<Vec<String>, String> {
     let output = Command::new("git")
-        .args(["ls-files", "-z"])
+        .args([
+            "ls-files",
+            "-z",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+        ])
         .current_dir(root())
         .output()
         .map_err(|error| format!("cannot run git ls-files: {error}"))?;
@@ -62,9 +70,12 @@ pub fn tracked_files() -> Result<Vec<String>, String> {
         return Err("git ls-files failed; repo-check needs a git repository".to_string());
     }
     let listing = String::from_utf8_lossy(&output.stdout);
-    Ok(listing
+    let mut files: Vec<String> = listing
         .split('\0')
         .filter(|path| !path.is_empty())
         .map(|path| path.replace('\\', "/"))
-        .collect())
+        .collect();
+    files.sort_unstable();
+    files.dedup();
+    Ok(files)
 }

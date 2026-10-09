@@ -21,6 +21,7 @@ use crate::migrate_14::upgrade_13_to_14;
 use crate::migrate_15::upgrade_14_to_15;
 use crate::migrate_16::upgrade_15_to_16;
 use crate::migrate_17::upgrade_16_to_17;
+use crate::migrate_18::upgrade_17_to_18;
 use crate::records::{SCHEMA, head_key};
 
 /// Records by key.
@@ -74,7 +75,8 @@ pub(crate) fn run_steps(from: u32, old: Old) -> Stepped {
             13 => upgrade_13_to_14(&heads),
             14 => upgrade_14_to_15(&heads),
             15 => upgrade_15_to_16(&heads),
-            _ => upgrade_16_to_17(&heads, editor.as_deref()),
+            16 => upgrade_16_to_17(&heads, editor.as_deref()),
+            _ => upgrade_17_to_18(&heads, editor.as_deref()),
         };
         if let Some((_, value)) = upgrade.library.iter().find(|(key, _)| key == EDITOR) {
             editor = Some(value.clone());

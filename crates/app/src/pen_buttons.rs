@@ -1,7 +1,8 @@
-//! The pen's buttons (S41, D68): what each side button does is the author's choice from a short
-//! list, stored with the toolbox; the eraser end always erases. Android reports the side buttons
-//! as the button state of every pen event, hovering or touching; `ButtonTracker` turns their
-//! changes into intents placed around the contacts of the same batch:
+//! The pen's buttons (S41, S43, D70): what each of three side buttons does is the author's
+//! choice from a short list, stored with the toolbox; the eraser end always erases. Android
+//! reports the side buttons as the button state of every pen event, hovering or touching;
+//! `ButtonTracker` turns their changes into intents placed around the contacts of the same
+//! batch:
 //!
 //! - Eraser and Eyedropper act while held: the pen's contacts made while the button is down use
 //!   that tool, and the tool chosen before comes back once it is up. A press or a release while
@@ -17,16 +18,17 @@ use crate::input::{ContactPhase, Device, InputBatch, PenButtons};
 use crate::intent::Intent;
 use crate::tool_intent::ToolIntent;
 
-/// A side button of the pen. Android calls them primary and secondary; which one lies nearer
-/// the tip depends on the pen.
+/// A side button of the pen, as Android names their bits: on the author's Wacom pen from the
+/// tip outwards primary, secondary and tertiary (measured 2026-10-09).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PenButton {
     Primary,
     Secondary,
+    Tertiary,
 }
 
 impl PenButton {
-    pub const ALL: [Self; 2] = [Self::Primary, Self::Secondary];
+    pub const ALL: [Self; 3] = [Self::Primary, Self::Secondary, Self::Tertiary];
 
     /// The button's name on the pen buttons' page.
     #[must_use]
@@ -34,6 +36,16 @@ impl PenButton {
         match self {
             Self::Primary => "Side button 1",
             Self::Secondary => "Side button 2",
+            Self::Tertiary => "Side button 3",
+        }
+    }
+
+    /// Whether `buttons` holds this one down.
+    const fn down(self, buttons: PenButtons) -> bool {
+        match self {
+            Self::Primary => buttons.primary,
+            Self::Secondary => buttons.secondary,
+            Self::Tertiary => buttons.tertiary,
         }
     }
 }
@@ -104,11 +116,13 @@ pub enum HeldTool {
 }
 
 /// What each side button does. At first the first erases and the second picks colours while
-/// held, the buttons most painting apps give a Wacom pen (author, 2026-10-05).
+/// held, the buttons most painting apps give a Wacom pen (author, 2026-10-05); the third
+/// undoes (S43, an agent's choice).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ButtonMap {
     pub primary: ButtonAction,
     pub secondary: ButtonAction,
+    pub tertiary: ButtonAction,
 }
 
 impl Default for ButtonMap {
@@ -116,6 +130,7 @@ impl Default for ButtonMap {
         Self {
             primary: ButtonAction::Eraser,
             secondary: ButtonAction::Eyedropper,
+            tertiary: ButtonAction::Undo,
         }
     }
 }
@@ -126,6 +141,7 @@ impl ButtonMap {
         match button {
             PenButton::Primary => self.primary,
             PenButton::Secondary => self.secondary,
+            PenButton::Tertiary => self.tertiary,
         }
     }
 
@@ -135,6 +151,7 @@ impl ButtonMap {
         match button {
             PenButton::Primary => self.primary = action,
             PenButton::Secondary => self.secondary = action,
+            PenButton::Tertiary => self.tertiary = action,
         }
         self
     }
@@ -165,15 +182,11 @@ impl ButtonTracker {
             return Vec::new();
         };
         let mut intents = Vec::new();
-        let pressed = [
-            (PenButton::Primary, buttons.primary && !self.buttons.primary),
-            (
-                PenButton::Secondary,
-                buttons.secondary && !self.buttons.secondary,
-            ),
-        ];
-        for (button, _) in pressed.iter().filter(|(_, pressed)| *pressed) {
-            if let Some(intent) = map.action(*button).fired() {
+        let pressed = PenButton::ALL
+            .into_iter()
+            .filter(|button| button.down(buttons) && !button.down(self.buttons));
+        for button in pressed {
+            if let Some(intent) = map.action(button).fired() {
                 if self.touching {
                     self.waiting.push(intent);
                 } else {
@@ -218,14 +231,15 @@ impl ButtonTracker {
     }
 
     /// Holds the tool the eraser end or the buttons ask for (the first side button before the
-    /// second), if it is not held already.
+    /// second, the second before the third), if it is not held already.
     fn hold(&mut self, map: ButtonMap, intents: &mut Vec<Intent>) {
-        let pressed = |button: PenButton, down: bool| map.action(button).held().filter(|_| down);
         let wanted = if self.eraser_end {
             Some(HeldTool::Eraser)
         } else {
-            pressed(PenButton::Primary, self.buttons.primary)
-                .or_else(|| pressed(PenButton::Secondary, self.buttons.secondary))
+            PenButton::ALL
+                .into_iter()
+                .filter(|button| button.down(self.buttons))
+                .find_map(|button| map.action(button).held())
         };
         if wanted != self.holding {
             self.holding = wanted;

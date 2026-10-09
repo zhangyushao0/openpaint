@@ -7,12 +7,13 @@
 //! `cargo device-input`: one gesture through the debug build's `GestureInstrumentation`, after
 //! waking the screen (an asleep screen has no window to touch):
 //!
-//! - `pen x,y,x,y,... [pressure] [primary|secondary|eraser]`: one pen path, a point per 8 ms
-//!   (repeat a point to hold), with a side button held or the eraser end (S41);
+//! - `pen x,y,x,y,... [pressure] [primary|secondary|tertiary|eraser]`: one pen path, a point
+//!   per 8 ms (repeat a point to hold), with a side button held (from the tip outwards) or the
+//!   eraser end (S41, S43);
 //! - `finger x,y[,x,y...] [x,y[,x,y...] [ms]]`: fingers down at the first points, moving to the
 //!   second over `ms` (default 64), then lifting;
-//! - `hover x,y [ms] [primary|secondary|eraser]`: the pen held above the glass for `ms`
-//!   (default 1500), as `pen` with a button or the eraser end;
+//! - `hover x,y [ms] [primary|secondary|tertiary|eraser]`: the pen held above the glass for
+//!   `ms` (default 1500), as `pen` with a button or the eraser end;
 //! - `tap <name>`: a finger tap on the middle of the control the app last drew under that name
 //!   (D48's names; `name #n` for a shared one), looked up on the device by the debug build;
 //! - `gradient on|off`: no gesture; the screen's precision check (S37) over everything, or off:
@@ -167,9 +168,10 @@ fn held_pointers(adb: &Adb) {
     }
 }
 
-const INPUT_USAGE: &str = "cargo device-input pen x,y,... [pressure] [primary|secondary|eraser] \
+const INPUT_USAGE: &str = "cargo device-input \
+                           pen x,y,... [pressure] [primary|secondary|tertiary|eraser] \
                            | finger x,y[,...] [x,y[,...] [ms]] \
-                           | hover x,y [ms] [primary|secondary|eraser] \
+                           | hover x,y [ms] [primary|secondary|tertiary|eraser] \
                            | tap <control name> | gradient on|off";
 
 /// The instrumentation's `-e` arguments for a `device-input` command line.
@@ -190,7 +192,7 @@ fn extras(args: &[&str]) -> Result<Vec<(&'static str, String)>> {
         [
             "pen" | "hover",
             ..,
-            end @ ("primary" | "secondary" | "eraser"),
+            end @ ("primary" | "secondary" | "tertiary" | "eraser"),
         ] => (&args[..args.len() - 1], Some(*end)),
         _ => (args, None),
     };
@@ -265,6 +267,14 @@ mod tests {
         assert_eq!(eraser.len(), 2, "{eraser:?}");
         let hover = extras(&["hover", "5,6", "800", "secondary"]).expect("hover");
         assert_eq!(hover[2], ("button", "secondary".to_owned()));
+        let third = extras(&["hover", "5,6", "tertiary"]).expect("third");
+        assert_eq!(
+            third,
+            [
+                ("hover", "5,6".to_owned()),
+                ("button", "tertiary".to_owned())
+            ]
+        );
         assert!(extras(&["finger", "1,2", "primary"]).is_err());
         assert!(extras(&["walk", "1,2"]).is_err());
         assert!(extras(&[]).is_err());

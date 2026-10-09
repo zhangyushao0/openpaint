@@ -57,17 +57,26 @@ pub fn sample_editor_9() -> EditorState {
     editor
 }
 
-/// The toolbox of the schema-17 sample: the schema-9 one with the side buttons undoing and
-/// switching tools and three swatches.
+/// The toolbox of the schema-17 sample as this build opens it: the schema-9 one with the side
+/// buttons undoing and switching tools, the third at its default (Undo), and three swatches.
 pub fn sample_editor_17() -> EditorState {
     EditorState {
         buttons: ButtonMap {
             primary: ButtonAction::Undo,
             secondary: ButtonAction::SwitchTool,
+            tertiary: ButtonAction::Undo,
         },
         swatches: vec![[1.0, 0.5, 0.125], [0.0, 0.25, 0.75], [1.0, 1.0, 1.0]],
         ..sample_editor_9()
     }
+}
+
+/// The toolbox of the schema-18 sample: the schema-17 one with the third side button holding
+/// the eyedropper.
+pub fn sample_editor_18() -> EditorState {
+    let mut editor = sample_editor_17();
+    editor.buttons.tertiary = ButtonAction::Eyedropper;
+    editor
 }
 
 /// The toolbox of the schema-6 sample: the schema-5 one with StreamLine on the ink pen and on

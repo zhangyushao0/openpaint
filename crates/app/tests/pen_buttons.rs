@@ -1,26 +1,34 @@
-//! The pen's buttons (S41): held tools come back on release (after the lift when released on
-//! the glass), Undo, Redo and Switch tool act once per press, the eraser end erases, and the
-//! toolbox stores the tool chosen and the map, never a held tool.
+//! The pen's buttons (S41, S43): held tools come back on release (after the lift when released
+//! on the glass), Undo, Redo and Switch tool act once per press, the eraser end erases, three
+//! side buttons in order from the tip, and the toolbox stores the tool chosen, never a held
+//! tool (the map and the palette: `pen_settings.rs`).
 
 use openpaint_app::{
     BrushLibrary, ButtonAction, ButtonMap, ButtonTracker, Contact, ContactPhase, Device, HeldTool,
-    HistoryIntent, InputBatch, InputSample, Intent, PenButton, PenButtons, Tool, ToolIntent,
-    Toolbox,
+    HistoryIntent, InputBatch, InputSample, Intent, PenButtons, Tool, ToolIntent, Toolbox,
 };
 use openpaint_core::{Color, StrokeTool};
 
-const NONE: PenButtons = PenButtons {
-    primary: false,
-    secondary: false,
-};
-const FIRST: PenButtons = PenButtons {
-    primary: true,
-    secondary: false,
-};
-const SECOND: PenButtons = PenButtons {
-    primary: false,
-    secondary: true,
-};
+const fn buttons(primary: bool, secondary: bool, tertiary: bool) -> PenButtons {
+    PenButtons {
+        primary,
+        secondary,
+        tertiary,
+    }
+}
+
+const NONE: PenButtons = buttons(false, false, false);
+const FIRST: PenButtons = buttons(true, false, false);
+const SECOND: PenButtons = buttons(false, true, false);
+const THIRD: PenButtons = buttons(false, false, true);
+
+const fn map(primary: ButtonAction, secondary: ButtonAction, tertiary: ButtonAction) -> ButtonMap {
+    ButtonMap {
+        primary,
+        secondary,
+        tertiary,
+    }
+}
 
 fn batch(device: Device, phase: ContactPhase, buttons: PenButtons) -> InputBatch {
     let sample = InputSample {
@@ -187,11 +195,11 @@ fn the_second_button_picks_colours_while_held_and_every_contact_picks() {
 
 #[test]
 fn undo_and_redo_fire_once_per_press_hovering_or_touching() {
-    let map = ButtonMap {
-        primary: ButtonAction::Undo,
-        secondary: ButtonAction::Redo,
-    };
-    let mut run = Run::new(map);
+    let mut run = Run::new(map(
+        ButtonAction::Undo,
+        ButtonAction::Redo,
+        ButtonAction::Nothing,
+    ));
     let undo = Some(Intent::History(HistoryIntent::Undo));
     let redo = Some(Intent::History(HistoryIntent::Redo));
     assert_eq!(
@@ -204,11 +212,7 @@ fn undo_and_redo_fire_once_per_press_hovering_or_touching() {
         "held: once"
     );
     assert_eq!(run.step(&pen(ContactPhase::Hover, NONE)), [None]);
-    let both = PenButtons {
-        primary: true,
-        secondary: true,
-    };
-    let pressed = run.step(&pen(ContactPhase::Hover, both));
+    let pressed = run.step(&pen(ContactPhase::Hover, buttons(true, true, false)));
     assert_eq!(pressed, [undo.clone(), redo, None]);
     run.step(&pen(ContactPhase::Hover, NONE));
     // Pressed while drawing: after the lift, never during the stroke (D20).
@@ -224,11 +228,11 @@ fn undo_and_redo_fire_once_per_press_hovering_or_touching() {
 
 #[test]
 fn switch_tool_swaps_brush_and_eraser_once_per_press() {
-    let map = ButtonMap {
-        primary: ButtonAction::SwitchTool,
-        secondary: ButtonAction::Nothing,
-    };
-    let mut run = Run::new(map);
+    let mut run = Run::new(map(
+        ButtonAction::SwitchTool,
+        ButtonAction::Nothing,
+        ButtonAction::Nothing,
+    ));
     run.step(&pen(ContactPhase::Hover, FIRST));
     assert_eq!(run.tool(), StrokeTool::Erase);
     run.step(&pen(ContactPhase::Hover, FIRST));
@@ -263,10 +267,8 @@ fn the_eraser_end_erases_while_in_range_and_the_tip_does_not() {
     run.step(&eraser(ContactPhase::Hover));
     assert_eq!(run.step(&eraser(ContactPhase::Leave)), [hold(None), None]);
     // Turned round: the tip paints even with an eraser button mapped to Nothing.
-    let mut run = Run::new(ButtonMap {
-        primary: ButtonAction::Nothing,
-        secondary: ButtonAction::Nothing,
-    });
+    let nothing = ButtonAction::Nothing;
+    let mut run = Run::new(map(nothing, nothing, nothing));
     run.step(&eraser(ContactPhase::Down));
     assert_eq!(
         run.tool(),
@@ -298,55 +300,55 @@ fn touches_and_button_only_batches_are_handled_alike() {
 }
 
 #[test]
-fn the_map_is_the_authors_and_is_stored() {
-    let library = BrushLibrary::built_in().expect("built-in brushes");
-    let mut toolbox = Toolbox::new(library);
-    assert_eq!(toolbox.projection().buttons, ButtonMap::default());
+fn the_third_button_undoes_once_per_press_at_first() {
+    let mut run = Run::new(ButtonMap::default());
+    let undo = Some(Intent::History(HistoryIntent::Undo));
+    let pressed = run.step(&pen(ContactPhase::Hover, THIRD));
+    assert_eq!(pressed, [undo.clone(), None], "from a hover");
     assert_eq!(
-        ButtonMap::default().action(PenButton::Primary),
-        ButtonAction::Eraser
+        run.step(&pen(ContactPhase::Hover, THIRD)),
+        [None],
+        "held: once"
     );
-    assert_eq!(
-        ButtonMap::default().action(PenButton::Secondary),
-        ButtonAction::Eyedropper
-    );
-    assert_eq!(toolbox.save_request(), None);
-    let undo = ToolIntent::SetButton {
-        button: PenButton::Secondary,
-        action: ButtonAction::Undo,
-    };
-    toolbox.dispatch_tool(&undo);
-    let saved = toolbox.save_request().expect("changed");
-    assert_eq!(saved.buttons.secondary, ButtonAction::Undo);
-    toolbox.dispatch_tool(&undo);
-    assert_eq!(
-        toolbox.save_request(),
-        None,
-        "the same again changes nothing"
-    );
-    let mut other = Toolbox::new(BrushLibrary::built_in().expect("built-in brushes"));
-    assert!(other.restore(&saved));
-    assert_eq!(other.projection().buttons.secondary, ButtonAction::Undo);
+    assert_eq!(run.tool(), StrokeTool::Paint, "no tool held");
+    run.step(&pen(ContactPhase::Hover, NONE));
+    assert_eq!(run.step(&pen(ContactPhase::Hover, THIRD)), [undo, None]);
 }
 
 #[test]
-fn swatches_are_added_used_removed_and_stored() {
-    let library = BrushLibrary::built_in().expect("built-in brushes");
-    let mut toolbox = Toolbox::new(library);
-    let red = Color::rgb(1.0, 0.0, 0.0).expect("red");
-    toolbox.dispatch_tool(&ToolIntent::Color {
-        color: red,
-        settled: true,
-    });
-    toolbox.dispatch_tool(&ToolIntent::AddSwatch);
-    toolbox.dispatch_tool(&ToolIntent::AddSwatch);
-    assert_eq!(*toolbox.projection().swatches, [red]);
-    let saved = toolbox.save_request().expect("changed");
-    assert_eq!(saved.swatches, [[1.0, 0.0, 0.0]]);
-    toolbox.dispatch_tool(&ToolIntent::RemoveSwatch(red));
-    assert!(toolbox.projection().swatches.is_empty());
-    assert!(toolbox.save_request().is_some(), "removing is a change");
-    let mut other = Toolbox::new(BrushLibrary::built_in().expect("built-in brushes"));
-    assert!(other.restore(&saved));
-    assert_eq!(*other.projection().swatches, [red]);
+fn the_third_button_holds_a_tool_after_the_first_and_the_second() {
+    let mut run = Run::new(map(
+        ButtonAction::Nothing,
+        ButtonAction::Eyedropper,
+        ButtonAction::Eraser,
+    ));
+    let eraser = hold(Some(HeldTool::Eraser));
+    assert_eq!(
+        run.step(&pen(ContactPhase::Hover, THIRD)),
+        [eraser.clone(), None]
+    );
+    assert_eq!(run.tool(), StrokeTool::Erase);
+    let picks = hold(Some(HeldTool::Eyedropper));
+    let both = run.step(&pen(ContactPhase::Hover, buttons(true, true, true)));
+    assert_eq!(both, [picks, None], "the second before the third");
+    assert_eq!(run.step(&pen(ContactPhase::Hover, THIRD)), [eraser, None]);
+    assert_eq!(
+        run.step(&pen(ContactPhase::Hover, NONE)),
+        [hold(None), None]
+    );
+    assert_eq!(run.tool(), StrokeTool::Paint);
+    // Pressed together, once-per-press actions fire from the tip outwards.
+    let mut run = Run::new(map(
+        ButtonAction::Undo,
+        ButtonAction::Redo,
+        ButtonAction::SwitchTool,
+    ));
+    let all = run.step(&pen(ContactPhase::Hover, buttons(true, true, true)));
+    let fired = [
+        Some(Intent::History(HistoryIntent::Undo)),
+        Some(Intent::History(HistoryIntent::Redo)),
+        Some(Intent::Tool(ToolIntent::Switch)),
+        None,
+    ];
+    assert_eq!(all, fired);
 }

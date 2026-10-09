@@ -1,8 +1,9 @@
-//! The Actions panel's Pen buttons page (S41): Actions > Pen buttons opens it in the panel's
-//! place. Per side button, its name and the six things it can do as words in two columns, the
-//! one it does in the ink pill (one group per button: the pill slides); the eraser end is
-//! named too, as it always erases. Android cannot tell which buttons a pen has until one is
-//! pressed, so the page lists both side buttons and says so. Back returns to Actions.
+//! The Actions panel's Pen buttons page (S41, S43): Actions > Pen buttons opens it in the
+//! panel's place. Per side button, its name and the six things it can do as words in two
+//! columns, the one it does in the ink pill (one group per button: the pill slides); the eraser
+//! end is named too, as it always erases. Android cannot tell which buttons a pen has until one
+//! is pressed, so the page lists all three side buttons (from the tip outwards) and says so.
+//! Back returns to Actions.
 
 use egui::{Align, Layout};
 use openpaint_app::{ButtonAction, ButtonMap, Intent, PenButton, ToolIntent};
@@ -10,13 +11,12 @@ use openpaint_app::{ButtonAction, ButtonMap, Intent, PenButton, ToolIntent};
 use crate::components::{choices, hint, text_button, text_choice_wide};
 use crate::design::{INK, SPACE, TOUCH_TARGET};
 
-/// The Pen buttons row's note on the Actions page: what the two side buttons do.
+/// The Pen buttons row's note on the Actions page: what the side buttons do, from the tip
+/// outwards ("Eraser · Eyedropper · Undo" at first).
 pub(crate) fn summary(buttons: ButtonMap) -> String {
-    format!(
-        "{} · {}",
-        buttons.primary.label(),
-        buttons.secondary.label()
-    )
+    PenButton::ALL
+        .map(|button| buttons.action(button).label())
+        .join(" · ")
 }
 
 /// The page; its choices pushed to `taps`. Returns whether Back was tapped.

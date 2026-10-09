@@ -30,11 +30,12 @@ pub(crate) fn upgrade_16_to_17(heads: &[(ProjectId, Vec<u8>)], editor: Option<&[
     upgrade
 }
 
-/// A schema-9 to schema-16 toolbox as schema 17 reads it, for the older steps' tests.
+/// A schema-9 to schema-16 toolbox as this build reads it (through schema 17), for the older
+/// steps' tests.
 #[cfg(test)]
 pub(crate) fn upgraded_toolbox(editor: &[u8]) -> openpaint_app::EditorState {
     let upgraded = editor_16_to_17(editor).expect("a whole schema-16 toolbox");
-    crate::editor::decode_editor(&upgraded).expect("a schema-17 toolbox")
+    crate::migrate_18::upgraded_toolbox(&upgraded)
 }
 
 /// A whole schema-16 toolbox with the buttons' defaults and no swatches after it.
@@ -61,7 +62,8 @@ fn editor_16_to_17(editor: &[u8]) -> Option<Vec<u8>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::editor::{decode_editor, write_choice, write_color};
+    use crate::editor::{write_choice, write_color};
+    use crate::migrate_18::upgraded_toolbox;
     use openpaint_app::{BrushChoice, BrushSetting, ButtonAction, Tool};
 
     /// A schema-16 toolbox: the smudge current, a pencil setting, default eraser and smudge
@@ -109,7 +111,7 @@ mod tests {
         let (key, editor) = &upgrade.library[0];
         assert_eq!(key, EDITOR);
         assert_eq!(editor[..old.len()], old[..], "every old byte is kept");
-        let editor = decode_editor(editor).expect("a schema-17 toolbox");
+        let editor = upgraded_toolbox(editor);
         assert_eq!(editor.tool, Tool::Smudge);
         assert_eq!(editor.paint.brushes[0].streamline, 0.25);
         assert_eq!((editor.color, editor.recent.len()), ([0.25, 0.5, 1.0], 1));

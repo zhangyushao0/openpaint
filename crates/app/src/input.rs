@@ -55,11 +55,14 @@ pub struct Contact {
     pub samples: Vec<InputSample>,
 }
 
-/// The pen's side buttons held during a batch (S41): Android's stylus button state.
+/// The pen's side buttons held during a batch (S41, S43): Android's button state, from the tip
+/// outwards `BUTTON_STYLUS_PRIMARY`, `BUTTON_STYLUS_SECONDARY` and `BUTTON_TERTIARY` (the
+/// author's Wacom pen has all three).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct PenButtons {
     pub primary: bool,
     pub secondary: bool,
+    pub tertiary: bool,
 }
 
 /// Everything one platform input event carried, normalised.

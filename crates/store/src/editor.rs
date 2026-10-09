@@ -1,15 +1,16 @@
-//! The toolbox record, `library` / `editor` (schema 17, DECISIONS D28, D29, D46, D60, D68): the
+//! The toolbox record, `library` / `editor` (schema 18, DECISIONS D28, D29, D46, D60, D70): the
 //! tool (u8: 0 brush, 1 eraser, 2 smudge); the brush tool's choice, then the eraser's, then the
 //! smudge's, each its brush's key (u32 length + UTF-8, empty for the tool's default brush), the
 //! brush count (u32) and per brush its key, size, opacity and StreamLine (f32); the colour,
 //! red, green, blue (f32); the recent colours, a count (u32) and per colour red, green, blue
-//! (f32), newest first; what the first and the second side button of the pen do (u8 each: 0
-//! nothing, 1 eraser while held, 2 eyedropper while held, 3 undo, 4 redo, 5 switch tool); the
-//! palette's swatches, a count (u32) and per swatch red, green, blue (f32), in their order. It
-//! is not artwork: the app falls back to the defaults when it cannot be read, and nothing else
-//! depends on it. Schema 3 held only the brush tool's choice, schemas 4 and 5 no StreamLine,
-//! schemas 6 to 8 no smudge, schemas 9 to 16 no buttons and swatches; `migrate.rs`,
-//! `migrate_6.rs`, `migrate_9.rs` and `migrate_17.rs` upgrade them.
+//! (f32), newest first; what the first, the second and the third side button of the pen do (u8
+//! each: 0 nothing, 1 eraser while held, 2 eyedropper while held, 3 undo, 4 redo, 5 switch
+//! tool); the palette's swatches, a count (u32) and per swatch red, green, blue (f32), in their
+//! order. It is not artwork: the app falls back to the defaults when it cannot be read, and
+//! nothing else depends on it. Schema 3 held only the brush tool's choice, schemas 4 and 5 no
+//! StreamLine, schemas 6 to 8 no smudge, schemas 9 to 16 no buttons and swatches, schema 17 two
+//! buttons; `migrate.rs`, `migrate_6.rs`, `migrate_9.rs`, `migrate_17.rs` and `migrate_18.rs`
+//! upgrade them.
 
 use openpaint_app::{
     BrushChoice, BrushSetting, ButtonAction, ButtonMap, EditorState, PortError, Tool,
@@ -35,7 +36,8 @@ pub(crate) fn encode_editor(state: &EditorState) -> Vec<u8> {
     }
     write_color(&mut writer, state.color);
     write_colors(&mut writer, &state.recent);
-    for action in [state.buttons.primary, state.buttons.secondary] {
+    let buttons = state.buttons;
+    for action in [buttons.primary, buttons.secondary, buttons.tertiary] {
         writer.u8(action_code(action));
     }
     write_colors(&mut writer, &state.swatches);
@@ -80,7 +82,7 @@ pub(crate) const fn action_code(action: ButtonAction) -> u8 {
     }
 }
 
-fn read_action(reader: &mut Reader<'_>) -> Result<ButtonAction, PortError> {
+pub(crate) fn read_action(reader: &mut Reader<'_>) -> Result<ButtonAction, PortError> {
     let code = reader.u8()?;
     ButtonAction::ALL
         .into_iter()
@@ -104,6 +106,7 @@ pub(crate) fn decode_editor(bytes: &[u8]) -> Result<EditorState, PortError> {
     let buttons = ButtonMap {
         primary: read_action(&mut reader)?,
         secondary: read_action(&mut reader)?,
+        tertiary: read_action(&mut reader)?,
     };
     let swatches = read_colors(&mut reader)?;
     reader.end()?;
@@ -174,6 +177,7 @@ mod tests {
             buttons: ButtonMap {
                 primary: ButtonAction::SwitchTool,
                 secondary: ButtonAction::Redo,
+                tertiary: ButtonAction::Eyedropper,
             },
             swatches: vec![[1.0, 0.0, 0.0], [0.0, 0.5, 0.25]],
         };
@@ -190,16 +194,17 @@ mod tests {
         unknown_tool[0] = 3;
         assert_eq!(decode_editor(&unknown_tool), Err(corrupt.clone()));
         // The buttons sit right before the swatches' count and their two colours.
-        let at = bytes.len() - 4 - 2 * COLOR_BYTES - 2;
-        assert_eq!(bytes[at..at + 2], [5, 4]);
+        let at = bytes.len() - 4 - 2 * COLOR_BYTES - 3;
+        assert_eq!(bytes[at..at + 3], [5, 4, 2]);
         let mut unknown_action = bytes;
-        unknown_action[at] = 6;
+        unknown_action[at + 2] = 6;
         assert_eq!(decode_editor(&unknown_action), Err(corrupt));
         for action in ButtonAction::ALL {
             let state = EditorState {
                 buttons: ButtonMap {
                     primary: action,
                     secondary: action,
+                    tertiary: action,
                 },
                 ..state.clone()
             };

@@ -1,5 +1,5 @@
-//! Schema 17: the keys and values the library stores (DECISIONS D36, D38, D43, D45, D46, D49,
-//! D50, D51, D54, D57, D66, D67, D68; the archived D21, D25, D28, D29).
+//! Schema 18: the keys and values the library stores (DECISIONS D36, D38, D43, D45, D46, D49,
+//! D50, D51, D54, D57, D66, D67, D70; the archived D21, D25, D28, D29, D68).
 //!
 //! Keyspace `library`: `schema` -> the schema of every record (u32 LE); `next` -> the next
 //! unused project id (u64 LE); `clock` -> the last value of the change counter (u64 LE); `last`
@@ -46,8 +46,8 @@
 //! transform records without pixels (edit kind 3); schema 13 (S31) had no blur or sharpening
 //! in its adjustments; schema 14 (S33) had no nested records (edit kind 4, merged layers);
 //! schema 15 (S39) had no cleared pixels (edit kind 5, cut and copied selections); schema 16
-//! (S40) had no pen buttons or swatches in its toolbox; `migrate.rs` and `migrate_6.rs` to
-//! `migrate_17.rs` upgrade them.
+//! (S40) had no pen buttons or swatches in its toolbox; schema 17 (S41) had two pen buttons;
+//! `migrate.rs` and `migrate_6.rs` to `migrate_18.rs` upgrade them.
 
 use openpaint_app::{PortError, ProjectId};
 use openpaint_core::{Artwork, BlendMode, GroupParts, LayerMask, LayerMaskParts, LayerParts};
@@ -58,7 +58,7 @@ pub(crate) use crate::strokes::{
 };
 
 /// The schema this build writes and the newest it reads.
-pub const SCHEMA: u32 = 17;
+pub const SCHEMA: u32 = 18;
 
 pub(crate) const LIBRARY: &str = "library";
 pub(crate) const PROJECTS: &str = "projects";

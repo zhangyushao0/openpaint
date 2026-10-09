@@ -99,14 +99,15 @@ fn phase(batch: MotionPhase, index: usize) -> Option<ContactPhase> {
     })
 }
 
-/// The side buttons of a batch the pen (tip or eraser end) is in: `BUTTON_STYLUS_PRIMARY` and
-/// `BUTTON_STYLUS_SECONDARY`, or the mouse-like `BUTTON_SECONDARY` and `BUTTON_TERTIARY` that
-/// older Android versions and some pens report for the same buttons. `None` without the pen.
+/// The side buttons of a batch the pen (tip or eraser end) is in: `BUTTON_STYLUS_PRIMARY`,
+/// `BUTTON_STYLUS_SECONDARY` and `BUTTON_TERTIARY`, the author's Wacom pen's three side buttons
+/// from the tip outwards (its log, 2026-10-09; no key events). `None` without the pen.
 fn pen_buttons(batch: &MotionBatch) -> Option<PenButtons> {
     let pen = |pointer: &Pointer| matches!(pointer.tool, ToolKind::Stylus | ToolKind::Eraser);
     batch.pointers.iter().any(pen).then_some(PenButtons {
-        primary: batch.buttons.stylus_primary || batch.buttons.secondary,
-        secondary: batch.buttons.stylus_secondary || batch.buttons.tertiary,
+        primary: batch.buttons.stylus_primary,
+        secondary: batch.buttons.stylus_secondary,
+        tertiary: batch.buttons.tertiary,
     })
 }
 
@@ -237,23 +238,26 @@ mod tests {
             held,
             Some(PenButtons {
                 primary: true,
-                secondary: false
+                ..PenButtons::default()
             })
         );
-        // The mouse-like bits some Android versions give a pen's buttons.
-        let mut legacy = batch(
+        // The third side button is the tertiary bit, its own button; the mouse's secondary bit
+        // is none of the pen's.
+        let mut third = batch(
             MotionPhase::Down,
             vec![pointer(0, ToolKind::Eraser, vec![sample(1.0, 0.5, 4)])],
         );
-        legacy.buttons.secondary = true;
-        legacy.buttons.tertiary = true;
-        let both = normaliser.normalise(&legacy).expect("down");
-        assert_eq!(both.contacts[0].device, Device::Eraser);
+        third.buttons.secondary = true;
+        third.buttons.tertiary = true;
+        third.buttons.stylus_secondary = true;
+        let two = normaliser.normalise(&third).expect("down");
+        assert_eq!(two.contacts[0].device, Device::Eraser);
         assert_eq!(
-            both.pen,
+            two.pen,
             Some(PenButtons {
-                primary: true,
-                secondary: true
+                primary: false,
+                secondary: true,
+                tertiary: true
             })
         );
         let mut finger = batch(
@@ -322,8 +326,8 @@ mod tests {
         );
         press.buttons.stylus_secondary = true;
         let buttons = PenButtons {
-            primary: false,
             secondary: true,
+            ..PenButtons::default()
         };
         let pressed = InputBatch {
             contacts: Vec::new(),

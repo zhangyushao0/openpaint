@@ -108,15 +108,25 @@ fn sixths(value: f32) -> f32 {
     return value - 6.0 * floor(value / 6.0);
 }
 
-// Each channel through its table: the 8-bit value nearest the colour, looked up.
+// Each channel through its table (S43, D70): linearly between the two entries around the
+// colour's place among the 256, by its fraction, so a smooth gradient through a steep curve
+// stays smooth (rounding to the nearest entry first stepped by the curve's slope).
 fn curved(rgb: vec3<f32>, op: Op) -> vec3<f32> {
     let at = u32(op.data[ADJUST_TABLES]) * 65536u + u32(op.data[ADJUST_TABLES + 1u]);
-    let index = vec3<u32>(floor(rgb * 255.0 + vec3<f32>(0.5)));
+    let scaled = clamp(rgb, vec3<f32>(0.0), vec3<f32>(1.0)) * 255.0;
+    let below = min(floor(scaled), vec3<f32>(254.0));
+    let index = vec3<u32>(below);
+    let share = scaled - below;
     return vec3<f32>(
-        table(at, index.r),
-        table(at + 64u, index.g),
-        table(at + 128u, index.b),
+        between(at, index.r, share.r),
+        between(at + 64u, index.g, share.g),
+        between(at + 128u, index.b, share.b),
     );
+}
+
+// The table at `at` between entries `index` and `index + 1`, `share` of the way.
+fn between(at: u32, index: u32, share: f32) -> f32 {
+    return mix(table(at, index), table(at, index + 1u), share);
 }
 
 fn table(at: u32, index: u32) -> f32 {

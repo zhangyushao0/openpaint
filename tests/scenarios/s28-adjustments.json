@@ -62,7 +62,7 @@
     { "drag": { "from": { "on": "Curve", "offset": [0, 0] }, "to": { "on": "Curve", "offset": [0, 140] } } },
     { "screenshot": { "name": "gamma-curve" } },
     { "tap": { "at": "Apply" } },
-    { "checkpoint": { "name": "curves-applied", "canvas": "a9a01dcab05a8e06" } },
+    { "checkpoint": { "name": "curves-applied", "canvas": "d49bb7d81b834c9f" } },
     { "tap": { "at": "Selection" } },
     { "tap": { "at": "Rectangle" } },
     { "press": { "path": [[950, 650, 0], [1100, 900, 120], [1250, 1150, 240]], "tool": "stylus" } },
@@ -71,7 +71,7 @@
     { "drag": { "from": { "on": "Saturation", "offset": [0, 0] }, "to": { "on": "Saturation", "offset": [-260, 0] } } },
     { "screenshot": { "name": "selection-grey" } },
     { "tap": { "at": "Apply" } },
-    { "checkpoint": { "name": "selection-applied", "canvas": "85fc305633ba4189" } },
+    { "checkpoint": { "name": "selection-applied", "canvas": "5b72433815f6ba52" } },
     { "screenshot": { "name": "selection-applied-screen" } },
     { "tap": { "at": "Selection" } },
     { "tap": { "at": "Deselect" } },
@@ -83,7 +83,7 @@
     { "drag": { "from": { "on": "Brightness", "offset": [0, 0] }, "to": { "on": "Brightness", "offset": [-124, 0] } } },
     { "screenshot": { "name": "mask-darkened" } },
     { "tap": { "at": "Apply" } },
-    { "checkpoint": { "name": "mask-applied", "canvas": "096f806d90e8fcd6" } },
+    { "checkpoint": { "name": "mask-applied", "canvas": "107dcedfbbd83878" } },
     { "tap": { "at": "Layers" } },
     { "screenshot": { "name": "mask-panel" } },
     { "tap": { "at": "Hide layer" } },
@@ -94,9 +94,9 @@
     { "tap": { "at": "Layers" } },
     { "tap": { "at": "Show layer" } },
     { "tap": { "at": [2600, 1600] } },
-    { "checkpoint": { "name": "shown-again", "canvas": "096f806d90e8fcd6" } },
+    { "checkpoint": { "name": "shown-again", "canvas": "107dcedfbbd83878" } },
     "restart",
-    { "checkpoint": { "name": "reopened", "canvas": "096f806d90e8fcd6" } },
+    { "checkpoint": { "name": "reopened", "canvas": "107dcedfbbd83878" } },
     { "screenshot": { "name": "reopened-screen" } }
   ]
 }

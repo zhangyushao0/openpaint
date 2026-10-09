@@ -19,7 +19,8 @@ mod schema_15;
 mod schema_16;
 pub use dump::{decode, encode};
 pub use editor::{
-    sample_editor, sample_editor_6, sample_editor_9, sample_editor_17, upgraded_editor,
+    sample_editor, sample_editor_6, sample_editor_9, sample_editor_17, sample_editor_18,
+    upgraded_editor,
 };
 pub use schema_12::schema_12_parts;
 pub use schema_13::schema_13_parts;

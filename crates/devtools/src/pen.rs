@@ -1,7 +1,7 @@
-//! Which end of the pen a scenario's pen step uses and which side button it holds (S41): the
-//! runner gives the step's batches that button state or the eraser end, as Android reports a
-//! pen whose button is down (`BUTTON_STYLUS_PRIMARY`, `BUTTON_STYLUS_SECONDARY`) or turned
-//! round (`TOOL_TYPE_ERASER`).
+//! Which end of the pen a scenario's pen step uses and which side button it holds (S41, S43):
+//! the runner gives the step's batches that button state or the eraser end, as Android reports
+//! a pen whose button is down (`BUTTON_STYLUS_PRIMARY`, `BUTTON_STYLUS_SECONDARY`,
+//! `BUTTON_TERTIARY`) or turned round (`TOOL_TYPE_ERASER`).
 
 use openpaint_runtime::{MotionBatch, ToolKind};
 use serde::Deserialize;
@@ -16,6 +16,8 @@ pub enum Pen {
     Primary,
     /// The tip with the second side button held.
     Secondary,
+    /// The tip with the third side button held.
+    Tertiary,
     /// The eraser end.
     Eraser,
 }
@@ -31,6 +33,7 @@ pub(crate) fn held(mut batches: Vec<MotionBatch>, pen: Pen) -> Vec<MotionBatch> 
             Pen::Tip => {}
             Pen::Primary => batch.buttons.stylus_primary = true,
             Pen::Secondary => batch.buttons.stylus_secondary = true,
+            Pen::Tertiary => batch.buttons.tertiary = true,
             Pen::Eraser => {
                 for pointer in &mut batch.pointers {
                     if pointer.tool == ToolKind::Stylus {
@@ -68,6 +71,9 @@ mod tests {
         assert_eq!(primary[1].buttons, Buttons::default(), "a palm has none");
         let secondary = held(both(), Pen::Secondary);
         assert!(secondary[0].buttons.stylus_secondary);
+        let tertiary = held(both(), Pen::Tertiary);
+        assert!(tertiary[0].buttons.tertiary && !tertiary[0].buttons.stylus_secondary);
+        assert_eq!(tertiary[1].buttons, Buttons::default());
         let eraser = held(both(), Pen::Eraser);
         assert_eq!(eraser[0].pointers[0].tool, ToolKind::Eraser);
         assert_eq!(eraser[1].pointers[0].tool, ToolKind::Finger);

@@ -37,7 +37,10 @@ pub fn run() -> Result<(), String> {
     findings.extend(purity::check(&root, &files));
     findings.extend(hygiene::check(&root, &files));
     if findings.is_empty() {
-        println!("repo-check: {} tracked files, all rules hold", files.len());
+        println!(
+            "repo-check: {} tracked and new files, all rules hold",
+            files.len()
+        );
         return Ok(());
     }
     for finding in &findings {

@@ -17,11 +17,11 @@ import android.view.MotionEvent
  * One pointer can instead follow `-e path x,y,x,y...`, one point per 8 ms event, and the pen
  * presses with `-e pressure P` (default 0.6). `-e hover x,y` holds the pen just above the glass
  * there instead for `-e ms` (default 1500), then takes it away (hover enter, move, exit).
- * `-e tool eraser` is the pen's eraser end and `-e button primary|secondary` holds a side
- * button through the pen's events (S41). `-e tap <name>` is a finger tap on the middle of the
- * control the app last drew under that name ([DebugControls]); the result's `tapped` says
- * where. `-e gradient on|off` injects nothing: it turns the screen's precision check on or off
- * ([DebugControls.gradient]).
+ * `-e tool eraser` is the pen's eraser end and `-e button primary|secondary|tertiary` holds a
+ * side button through the pen's events (S41, S43). `-e tap <name>` is a finger tap on the
+ * middle of the control the app last drew under that name ([DebugControls]); the result's
+ * `tapped` says where. `-e gradient on|off` injects nothing: it turns the screen's precision
+ * check on or off ([DebugControls.gradient]).
  */
 class GestureInstrumentation : Instrumentation() {
     private var arguments = Bundle()
@@ -86,11 +86,15 @@ class GestureInstrumentation : Instrumentation() {
             MotionEvent.TOOL_TYPE_STYLUS
         }
 
-    /** The pen's side button held through the gesture (`-e button primary|secondary`, S41). */
+    /**
+     * The pen's side button held through the gesture (`-e button primary|secondary|tertiary`,
+     * S41, S43): from the tip outwards, as the author's Wacom pen reports its three buttons.
+     */
     private val buttons: Int
         get() = when (arguments.getString("button")) {
             "primary" -> MotionEvent.BUTTON_STYLUS_PRIMARY
             "secondary" -> MotionEvent.BUTTON_STYLUS_SECONDARY
+            "tertiary" -> MotionEvent.BUTTON_TERTIARY
             else -> 0
         }
 
