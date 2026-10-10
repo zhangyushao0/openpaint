@@ -18,6 +18,7 @@ use crate::program::{Bindings, Dispatch, SceneOps, SnapshotUse};
 use crate::protocol::{Op, TILE};
 use crate::scene::{Item, Scene};
 use crate::scene_adjust::EditPlace;
+use crate::snapshot::Snapshot;
 
 /// A preview's next value: the adjustment at `place` now has `edit`'s values.
 #[derive(Debug, Clone)]
@@ -114,16 +115,15 @@ fn differing<'a>(
 }
 
 /// A previewed layer's pixels before its adjustment at `place`: the scene's items `prefix`
-/// evaluated once over `rect` (whole tiles inside the canvas) into `buffer`, one float colour
-/// per pixel, premultiplied, unrounded.
-pub(crate) struct Snapshot {
+/// evaluated once over the whole tiles they reach into a snapshot (`snapshot.rs`), one float
+/// colour per pixel, premultiplied, unrounded.
+pub(crate) struct PreviewSnapshot {
     pub(crate) place: EditPlace,
     pub(crate) prefix: std::ops::Range<usize>,
-    rect: PixelRect,
-    buffer: wgpu::Buffer,
+    tiles: Snapshot,
 }
 
-impl Snapshot {
+impl PreviewSnapshot {
     /// The snapshot of the adjustment at `place` in `scene`, evaluated now through the
     /// canvas's `bindings` (the target keeps its pixels: the evaluation writes the snapshot
     /// instead); `None` when the scene draws it in a way a snapshot cannot stand for, the layer
@@ -143,28 +143,20 @@ impl Snapshot {
         let Some(rect) = tiles_reached(scene, prefix.clone()) else {
             return Ok(None);
         };
-        let [width, height] = [rect.max[0] - rect.min[0], rect.max[1] - rect.min[1]];
-        let bytes = u64::from(width.unsigned_abs()) * u64::from(height.unsigned_abs()) * 16;
-        let limits = core.gpu.device.limits();
-        if bytes
-            > limits
-                .max_storage_buffer_binding_size
-                .min(limits.max_buffer_size)
-        {
-            log::info!("no preview snapshot: {bytes} bytes exceed the device's limits");
+        let mut tiles = Snapshot::new(core, scene.canvas);
+        let [min, max] = [rect.min, rect.max].map(|corner| corner.map(i32::unsigned_abs));
+        let wanted: Vec<usize> = (min[1]..max[1])
+            .step_by(TILE as usize)
+            .flat_map(|y| (min[0]..max[0]).step_by(TILE as usize).map(move |x| [x, y]))
+            .map(|pixel| tiles.tile_of(pixel))
+            .collect();
+        if !tiles.take(core, &wanted) {
             return Ok(None);
         }
-        let buffer = core.gpu.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("preview snapshot"),
-            size: bytes,
-            usage: wgpu::BufferUsages::STORAGE,
-            mapped_at_creation: false,
-        });
         let snapshot = Self {
             place,
             prefix,
-            rect,
-            buffer,
+            tiles,
         };
         let plan = Plan::material(
             scene,
@@ -193,16 +185,7 @@ impl Snapshot {
 
     /// The snapshot as a dispatch binds it, written (`writes`) or read.
     pub(crate) fn reading(&self, writes: bool) -> SnapshotUse<'_> {
-        let at = |v: i32| v.unsigned_abs();
-        SnapshotUse {
-            buffer: &self.buffer,
-            rect: [
-                at(self.rect.min[0]),
-                at(self.rect.min[1]),
-                at(self.rect.max[0] - self.rect.min[0]),
-            ],
-            writes,
-        }
+        self.tiles.reading(writes)
     }
 }
 

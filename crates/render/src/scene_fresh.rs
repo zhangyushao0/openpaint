@@ -52,4 +52,12 @@ impl Fresh {
         }
         fresh
     }
+
+    /// These ops and then `OP_RESUME` (S48), whose index it returns: the stroke's layer before
+    /// it from a snapshot. It reaches every tile, so it has no bounds.
+    pub(crate) fn resuming(mut self) -> (Self, u32) {
+        let index = u32::try_from(self.ops.len()).unwrap_or(u32::MAX);
+        self.ops.push(Op::resume());
+        (self, index)
+    }
 }

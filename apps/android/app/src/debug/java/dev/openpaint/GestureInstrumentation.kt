@@ -16,7 +16,8 @@ import android.view.MotionEvent
  * at `from`, move straight to `to` over `ms` in 16 ms frames, and lift one after another.
  * One pointer can instead follow `-e path x,y,x,y...`, one point per 8 ms event, and the pen
  * presses with `-e pressure P` (default 0.6), leaning `-e tilt D` degrees from upright (default
- * 0, S44). `-e hover x,y` holds the pen just above the glass
+ * 0, S44); `-e repeat N` draws the path N times, each turned and moved ([turned], S48).
+ * `-e hover x,y` holds the pen just above the glass
  * there instead for `-e ms` (default 1500), then takes it away (hover enter, move, exit).
  * `-e tool eraser` is the pen's eraser end and `-e button primary|secondary|tertiary` holds a
  * side button through the pen's events (S41, S43). `-e tap <name>` is a finger tap on the
@@ -26,6 +27,8 @@ import android.view.MotionEvent
  */
 class GestureInstrumentation : Instrumentation() {
     private var arguments = Bundle()
+    /** The input device injecting each source's events. */
+    private val devices = mutableMapOf<Int, Int>()
 
     override fun onCreate(arguments: Bundle?) {
         super.onCreate(arguments)
@@ -114,7 +117,11 @@ class GestureInstrumentation : Instrumentation() {
             return
         }
         points("path")?.let { path ->
-            follow(path)
+            val repeat = arguments.getString("repeat")?.toInt() ?: 1
+            for (k in 0 until repeat) {
+                follow(turned(path, k))
+                SystemClock.sleep(24)
+            }
             return
         }
         val from = points("from") ?: error("no from")
@@ -155,6 +162,29 @@ class GestureInstrumentation : Instrumentation() {
         send(down, MotionEvent.ACTION_UP, path.takeLast(1), stylus)
     }
 
+    /**
+     * Stroke [k] of a repeated path (`-e repeat N`, S48): the path turned about the middle of
+     * its box by k golden angles and moved up to 140 px from there, so N strokes cross one area
+     * at every angle, as many strokes painted over one place do.
+     */
+    private fun turned(path: List<FloatArray>, k: Int): List<FloatArray> {
+        if (k == 0) return path
+        val middle = floatArrayOf(
+            (path.minOf { it[0] } + path.maxOf { it[0] }) / 2f,
+            (path.minOf { it[1] } + path.maxOf { it[1] }) / 2f,
+        )
+        val angle = k * 2.3999632
+        val (cos, sin) = Pair(Math.cos(angle).toFloat(), Math.sin(angle).toFloat())
+        val shift = floatArrayOf(((k * 37) % 281 - 140).toFloat(), ((k * 59) % 281 - 140).toFloat())
+        return path.map { point ->
+            val (x, y) = Pair(point[0] - middle[0], point[1] - middle[1])
+            floatArrayOf(
+                middle[0] + shift[0] + x * cos - y * sin,
+                middle[1] + shift[1] + x * sin + y * cos,
+            )
+        }
+    }
+
     private fun pointer(action: Int, index: Int) = action or (index shl MotionEvent.ACTION_POINTER_INDEX_SHIFT)
 
     private fun send(
@@ -165,9 +195,13 @@ class GestureInstrumentation : Instrumentation() {
         penPressure: Float = pressure,
     ) {
         val source = if (stylus) InputDevice.SOURCE_STYLUS else InputDevice.SOURCE_TOUCHSCREEN
-        val device = InputDevice.getDeviceIds().firstOrNull { id ->
-            InputDevice.getDevice(id)?.supportsSource(source) == true
-        } ?: error("no input device for source $source")
+        // Looked up once: the lookup's binder calls took about 25 ms an event (S48), so a path
+        // came at 33 ms a point instead of 8.
+        val device = devices.getOrPut(source) {
+            InputDevice.getDeviceIds().firstOrNull { id ->
+                InputDevice.getDevice(id)?.supportsSource(source) == true
+            } ?: error("no input device for source $source")
+        }
         val properties = points.indices.map { index ->
             MotionEvent.PointerProperties().apply {
                 id = index

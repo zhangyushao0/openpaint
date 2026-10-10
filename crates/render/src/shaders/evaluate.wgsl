@@ -99,14 +99,18 @@ fn evaluate(
         var op: Op;
         if entry >= FRESH {
             op = fresh[entry - FRESH];
-            if !resumed && params.kept == 1u {
-                // Every fresh op is the in-progress stroke's, after its layer's finished
-                // strokes, so nothing is held here yet. A target that keeps nothing lists
-                // every segment and starts from none.
-                coverage = textureLoad(kept, pixel).r;
-                contact = textureLoad(kept_contact, pixel).r;
+            // `OP_RESUME`, the layer before the stroke from its snapshot (S48), comes before the
+            // stroke's own ops and holds no stroke.
+            if !resumed && op.code != OP_RESUME {
+                if params.kept == 1u {
+                    // Every other fresh op is the in-progress stroke's, after its layer's
+                    // finished strokes, so nothing is held here yet. A target that keeps
+                    // nothing lists every segment and starts from none.
+                    coverage = textureLoad(kept, pixel).r;
+                    contact = textureLoad(kept_contact, pixel).r;
+                }
+                resumed = true;
             }
-            resumed = true;
         } else {
             op = ops[entry];
         }
@@ -197,10 +201,8 @@ fn evaluate(
                 layer = adjusted(layer, cell, op);
             }
             case OP_RESUME: {
-                // Exactly what the layer's ops before it left: nothing is held mid-stroke.
+                // Exactly what the layer's ops before it left, every stroke among them ended.
                 layer = snapshot[snapshot_at(pixel)];
-                coverage = 0.0;
-                contact = 0.0;
             }
             case OP_BEGIN_MASK: {
                 held = layer;
@@ -279,10 +281,14 @@ fn evaluate(
     textureStore(canvas_out, pixel, quantized(canvas));
 }
 
-// Where canvas pixel `pixel` lies in the snapshot (inside its rectangle, a whole tile's).
+// Where canvas pixel `pixel` lies in the snapshot (`snapshot.rs`): its tile's slot, from the
+// table of slots per tile ahead of them (one element each, the slot in `x`: a vector indexed by a
+// variable made NVIDIA's evaluator unstable in single pixels, S48), then its place in the tile.
 fn snapshot_at(pixel: vec2<u32>) -> u32 {
-    let local = pixel - params.snapshot.xy;
-    return local.y * params.snapshot.z + local.x;
+    let tile = pixel / TILE;
+    let slot = u32(snapshot[tile.y * params.snapshot.x + tile.x].x);
+    let local = pixel % TILE;
+    return params.snapshot.y + slot * TILE * TILE + local.y * TILE + local.x;
 }
 
 // What of a transform record's moved content shows at `point` (where the centre maps back

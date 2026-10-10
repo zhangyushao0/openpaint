@@ -49,12 +49,12 @@ pub(crate) struct Dispatch<'a> {
     pub(crate) snapshot: Option<SnapshotUse<'a>>,
 }
 
-/// A snapshot's buffer, its rectangle's top-left pixel and width, and whether the dispatch
-/// writes it.
+/// A snapshot's buffer (`snapshot.rs`), the canvas's tiles per row and the four-float units its
+/// table takes, and whether the dispatch writes it.
 #[derive(Clone, Copy)]
 pub(crate) struct SnapshotUse<'a> {
     pub(crate) buffer: &'a wgpu::Buffer,
-    pub(crate) rect: [u32; 3],
+    pub(crate) layout: [u32; 2],
     pub(crate) writes: bool,
 }
 
@@ -354,8 +354,8 @@ fn params(work: &Dispatch<'_>, bindings: &Bindings, groups: &layout::Workgroups)
         base_x: [a, b, c, foot],
         base_y: [d, e, f, level],
         snapshot: work.snapshot.map_or([0; 4], |snapshot| {
-            let [x, y, width] = snapshot.rect;
-            [x, y, width, u32::from(snapshot.writes)]
+            let [columns, head] = snapshot.layout;
+            [columns, head, 0, u32::from(snapshot.writes)]
         }),
         display: [u32::from(bindings.display), 0, 0, 0],
     }

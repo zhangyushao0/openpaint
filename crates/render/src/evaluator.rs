@@ -1,10 +1,10 @@
 //! `RegionEvaluator`: the single entry that evaluates a frame request into regions of a target.
 //! Every consumer (screen, export, picking) goes through it.
 
-use openpaint_core::{ActiveStroke, Artwork, LayerId, RegionMask, StrokeTool};
+use openpaint_core::{ActiveStroke, Artwork, RegionMask, StrokeTool};
 
 use crate::active::ActiveTrack;
-use crate::affine::Affine;
+use crate::active_snapshot::ActiveSnapshot;
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::filter::Filters;
@@ -12,8 +12,7 @@ use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
 use crate::image::RgbaImage;
 use crate::output::Output;
-use crate::plan::Plan;
-use crate::program::{Bindings, Dispatch, SceneOps, scene_ops};
+use crate::program::{Bindings, SceneOps};
 use crate::readback::{FORMAT, read_rgba, read_texel, target_texture};
 use crate::scene::{ActivePlace, Fresh, Scene};
 use crate::screen::{VIEW_BYTES, blit_bind_group, selection_texture};
@@ -38,6 +37,10 @@ pub struct CanvasTarget {
     filters: Filters,
     /// The canvas pixels evaluations changed since a view cache last took them (S32).
     changed: Vec<PixelRect>,
+    /// What the last evaluation cost (S48).
+    work: EvaluationWork,
+    /// The in-progress stroke's layer before it, per tile (S48, `active_snapshot.rs`).
+    held: Option<ActiveSnapshot>,
 }
 
 /// More changed rectangles than this are kept as the one rectangle holding them.
@@ -88,6 +91,8 @@ impl CanvasTarget {
             smudges: Smudges::new(core),
             filters: Filters::default(),
             changed: Vec::new(),
+            work: EvaluationWork::default(),
+            held: None,
         })
     }
 
@@ -175,6 +180,36 @@ impl CanvasTarget {
     pub(crate) fn texture(&self) -> &wgpu::Texture {
         &self.texture
     }
+
+    /// What the last evaluation into this target cost (`paint-timing`, S48).
+    #[must_use]
+    pub const fn work(&self) -> EvaluationWork {
+        self.work
+    }
+
+    /// Extends the in-progress smudge `request` draws (`drawn`: its layer shows) by its new
+    /// contacts, or ends the one there was; returns the pixels to evaluate again when its
+    /// residual started over.
+    fn smudged(
+        &mut self,
+        core: &Core,
+        request: &FrameRequest<'_>,
+        drawn: bool,
+    ) -> Result<Option<PixelRect>, RenderError> {
+        let smudging = request
+            .active
+            .filter(|active| drawn && active.style().tool() == StrokeTool::Smudge);
+        let Some(active) = smudging else {
+            self.smudges.end_active();
+            return Ok(None);
+        };
+        let cache = self
+            .scene
+            .as_ref()
+            .ok_or(RenderError::Invalid("no scene was built"))?;
+        let scene = (&cache.scene, &cache.ops);
+        self.smudges.advance(core, scene, request.artwork, active)
+    }
 }
 
 /// Evaluates frame requests into one target.
@@ -254,51 +289,6 @@ impl<'a> RegionEvaluator<'a> {
         self.dispatch(request, output, &[region]).map(drop)
     }
 
-    /// Evaluates `layer` of `artwork` alone over the whole target, at full opacity, on nothing
-    /// (transparent black), whether the layer is shown or not: premultiplied layer pixels for a
-    /// fill to sample. With `mask`, its mask alone on white: the mask's grey, opaque. The
-    /// target then holds no frame of the artwork.
-    pub(crate) fn evaluate_layer(
-        &mut self,
-        artwork: &Artwork,
-        layer: LayerId,
-        mask: bool,
-    ) -> Result<(), RenderError> {
-        let size = self.target.size();
-        let canvas = artwork.canvas();
-        if size != [canvas.width(), canvas.height()] {
-            return Err(RenderError::Invalid(
-                "the target's size differs from the canvas size",
-            ));
-        }
-        let scene = Scene::layer(artwork, layer, mask)?;
-        let ops = scene_ops(&self.core.gpu, &scene, None);
-        let target = (size, Output::CANVAS);
-        let plan = Plan::build(&scene, &Fresh::default(), target, &[PixelRect::full(size)]);
-        self.target.scene = None;
-        self.target.track.forget();
-        let smudges = &mut self.target.smudges;
-        smudges.end_active();
-        let filters = &mut self.target.filters;
-        smudges.prepare(self.core, (&scene, &ops), artwork, filters)?;
-        self.core.evaluate.dispatch(
-            &self.core.gpu,
-            &mut self.target.bindings,
-            &Dispatch {
-                ops: &ops,
-                fresh: &[],
-                plan: &plan,
-                only: None,
-                output: Output::CANVAS,
-                background: if mask { [1.0; 4] } else { [0.0; 4] },
-                reset: false,
-                residuals: smudges.residuals(),
-                base: Affine::IDENTITY,
-                snapshot: None,
-            },
-        )
-    }
-
     /// Evaluates `regions` and what the in-progress stroke needs; returns every region it
     /// evaluated, in target pixels.
     fn dispatch(
@@ -309,70 +299,44 @@ impl<'a> RegionEvaluator<'a> {
     ) -> Result<Vec<PixelRect>, RenderError> {
         let core = self.core;
         let place = request.active.map(ActivePlace::of);
-        let scene = &self.target.scene(core, request.artwork, place)?.scene;
+        self.target.work = EvaluationWork::default();
+        let scene = &self
+            .target
+            .scene(core, request.artwork, place.clone())?
+            .scene;
         let (drawn, clip) = (scene.has_active(), scene.active_clip);
         let step = self
             .target
             .track
             .advance(request.artwork, request.active, drawn);
-        let fresh = match request.active.filter(|_| drawn) {
-            Some(active) => Fresh::new(active, step.kept.start, clip),
-            None => Fresh::default(),
-        };
+        let fresh = request
+            .active
+            .filter(|_| drawn)
+            .map_or_else(Fresh::default, |active| {
+                Fresh::new(active, step.kept.start, clip)
+            });
         let mut all = regions.to_vec();
         all.extend(step.redraw.into_iter().chain(step.fresh_region));
-        let size = self.target.size();
-        let target = &mut *self.target;
-        let cache = target
-            .scene
-            .as_mut()
-            .ok_or(RenderError::Invalid("no scene was built"))?;
-        let smudging = request
-            .active
-            .filter(|active| drawn && active.style().tool() == StrokeTool::Smudge);
-        match smudging {
-            Some(active) => {
-                let scene = (&cache.scene, &cache.ops);
-                let restarted = target
-                    .smudges
-                    .advance(core, scene, request.artwork, active)?;
-                all.extend(restarted);
-            }
-            None => target.smudges.end_active(),
-        }
+        all.extend(self.target.smudged(core, request, drawn)?);
         if all.is_empty() && !step.reset {
             return Ok(all);
         }
-        let residuals = target.smudges.residuals();
-        let shown = (size, output, all.as_slice());
-        let reading = cache.reading(core, (&mut target.bindings, residuals), fresh, shown)?;
-        if reading.only.map_or(reading.plan.tiles.len(), <[_]>::len) == 0 && !step.reset {
-            return Ok(all);
-        }
-        let paper = request.background;
-        core.evaluate.dispatch(
-            &core.gpu,
-            &mut target.bindings,
-            &Dispatch {
-                ops: reading.ops,
-                fresh: &reading.fresh,
-                plan: reading.plan,
-                only: reading.only,
-                output,
-                background: [paper.r(), paper.g(), paper.b(), 1.0],
-                reset: step.reset,
-                residuals,
-                base: Affine::IDENTITY,
-                snapshot: reading.snapshot.map(|snapshot| snapshot.reading(false)),
-            },
-        )?;
+        // The in-progress stroke on the canvas resumes its layer from a snapshot (S48).
+        let canvas = drawn && output == Output::CANVAS && self.target.bindings.keeps;
+        let held = place.filter(|_| canvas);
+        let drawing = (request, (output, step.reset));
+        self.target.draw(core, drawing, (fresh, held), &all)?;
         Ok(all)
     }
 }
 
 #[path = "evaluator_scene.rs"]
 mod scene_cache;
+pub use scene_cache::EvaluationWork;
 use scene_cache::SceneCache;
+
+#[path = "evaluator_layer.rs"]
+mod layer;
 
 #[cfg(test)]
 #[path = "evaluator_display_tests.rs"]

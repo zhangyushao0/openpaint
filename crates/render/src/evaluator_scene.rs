@@ -3,17 +3,21 @@
 //! was last evaluated by and the previewed layer's snapshot kept as long as both stay valid.
 
 use std::ops::Range;
+use std::time::{Duration, Instant};
 
 use openpaint_core::Artwork;
 
 use super::CanvasTarget;
+use crate::active_snapshot::{self, Kept};
+use crate::affine::Affine;
 use crate::core::Core;
 use crate::error::RenderError;
+use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
 use crate::output::Output;
 use crate::plan::Plan;
-use crate::preview::{Retune, Snapshot, retuned};
-use crate::program::{Bindings, SceneOps, scene_ops};
+use crate::preview::{PreviewSnapshot, Retune, retuned};
+use crate::program::{Bindings, Dispatch, SceneOps, SnapshotUse, scene_ops};
 use crate::protocol::{Op, TileRecord, encode};
 use crate::scene::{ActivePlace, Fresh, Scene};
 use crate::scene_adjust::EditPlace;
@@ -30,10 +34,14 @@ pub(super) struct SceneCache {
     spread: u32,
     /// The kept plan's tiles near the layer's content at a spread, and that plan's serial.
     near: Option<(u32, u64, Vec<TileRecord>)>,
-    snapshot: Option<Snapshot>,
+    snapshot: Option<PreviewSnapshot>,
     /// The plan of the last evaluation without an in-progress stroke, and what it binned.
     plan: Option<(PlanKey, Plan)>,
 }
+
+/// The in-progress stroke's layer items a plan leaves unbinned, and the fresh op that resumes
+/// them from its snapshot (`Plan::over_snapshot`).
+type Skipped = (Range<usize>, u32);
 
 /// What a kept plan was binned for.
 #[derive(PartialEq)]
@@ -43,13 +51,44 @@ struct PlanKey {
     resume: Option<Range<usize>>,
 }
 
+/// What one evaluation into a target cost (S48): the time taken to bin the plan on the CPU (and
+/// to bring a snapshot it resumes from up to date), the tiles it evaluated and the op entries
+/// their lists held, which the GPU walks per pixel; and for the in-progress stroke the tiles of
+/// its layer's snapshot it took (evaluating the layer's ops into them) and those it laid
+/// strokes committed since into (`active_snapshot.rs`).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct EvaluationWork {
+    pub planned: Duration,
+    pub tiles: usize,
+    pub entries: usize,
+    pub taken: usize,
+    pub carried: usize,
+}
+
+impl EvaluationWork {
+    pub(super) fn of(reading: &Reading<'_>, planned: Duration, [taken, carried]: Kept) -> Self {
+        let plan = reading.plan;
+        let (tiles, entries) = match reading.only {
+            Some(only) => (only.len(), only.iter().map(|t| t.count as usize).sum()),
+            None => (plan.tiles.len(), plan.indices.len()),
+        };
+        Self {
+            planned,
+            tiles,
+            entries,
+            taken,
+            carried,
+        }
+    }
+}
+
 /// How one evaluation reads the scene: its plan, its fresh ops, and the snapshot it resumes
 /// the previewed layer from.
 pub(super) struct Reading<'a> {
     pub(super) ops: &'a SceneOps,
     pub(super) plan: &'a Plan,
     pub(super) fresh: Vec<Op>,
-    pub(super) snapshot: Option<&'a Snapshot>,
+    pub(super) snapshot: Option<SnapshotUse<'a>>,
     /// The plan's tiles near the previewed layer's content, when it resumes from a snapshot.
     pub(super) only: Option<&'a [TileRecord]>,
 }
@@ -111,6 +150,56 @@ impl CanvasTarget {
             .ok_or(RenderError::Invalid("no scene was built"))
     }
 
+    /// Evaluates `all` (target pixels) of the scene built last for `request` at `output`, with
+    /// the in-progress stroke's `fresh` ops (`reset`: its coverage starts over), its layer
+    /// resumed from the snapshot of the place `held` when given (S48).
+    pub(super) fn draw(
+        &mut self,
+        core: &Core,
+        (request, (output, reset)): (&FrameRequest<'_>, (Output, bool)),
+        (fresh, held): (Fresh, Option<ActivePlace>),
+        all: &[PixelRect],
+    ) -> Result<(), RenderError> {
+        let size = self.size();
+        let cache = self
+            .scene
+            .as_mut()
+            .ok_or(RenderError::Invalid("no scene was built"))?;
+        let residuals = self.smudges.residuals();
+        let started = Instant::now();
+        let (held, kept) = match held {
+            Some(place) => {
+                let evaluating = ((&cache.scene, &cache.ops), (&mut self.bindings, residuals));
+                let drawing = (request.artwork, &place);
+                active_snapshot::prepare(&mut self.held, core, evaluating, drawing, all)?
+            }
+            None => (None, [0; 2]),
+        };
+        let bindings = (&mut self.bindings, residuals);
+        let reading = cache.reading(core, bindings, fresh, (size, output, all), held)?;
+        self.work = EvaluationWork::of(&reading, started.elapsed(), kept);
+        if self.work.tiles == 0 && !reset {
+            return Ok(());
+        }
+        let paper = request.background;
+        core.evaluate.dispatch(
+            &core.gpu,
+            &mut self.bindings,
+            &Dispatch {
+                ops: reading.ops,
+                fresh: &reading.fresh,
+                plan: reading.plan,
+                only: reading.only,
+                output,
+                background: [paper.r(), paper.g(), paper.b(), 1.0],
+                reset,
+                residuals,
+                base: Affine::IDENTITY,
+                snapshot: reading.snapshot,
+            },
+        )
+    }
+
     /// Gives the kept scene `retune`'s values: the ops and tables that changed rewritten on the
     /// GPU, a filter's result prepared anew.
     fn retune(
@@ -151,40 +240,39 @@ impl CanvasTarget {
 
 impl SceneCache {
     /// How the evaluation of `regions` at `output` with `fresh` reads this scene: the
-    /// in-progress stroke's evaluations bin their own plan each time; others keep it, and a
+    /// in-progress stroke's evaluations bin their own plan each time, over its layer's snapshot
+    /// `held` (S48: those items and the snapshot) when there is one; others keep it, and a
     /// previewed adjustment's layer resumes from its snapshot (taken first through the target's
     /// `bindings`, with the arena and in-progress residual `residuals`).
-    pub(super) fn reading(
-        &mut self,
+    pub(super) fn reading<'a>(
+        &'a mut self,
         core: &Core,
         (bindings, residuals): (&mut Bindings, [&wgpu::Buffer; 2]),
         fresh: Fresh,
         (size, output, regions): ([u32; 2], Output, &[PixelRect]),
-    ) -> Result<Reading<'_>, RenderError> {
+        held: Option<(Range<usize>, SnapshotUse<'a>)>,
+    ) -> Result<Reading<'a>, RenderError> {
         let previewing = fresh.ops.is_empty() && output == Output::CANVAS;
         if let Some(place) = self.previewed.filter(|_| previewing)
             && self.snapshot.as_ref().is_none_or(|s| s.place != place)
         {
             let scene = (&self.scene, &self.ops);
-            self.snapshot = Snapshot::take(core, scene, (bindings, residuals), place)?;
+            self.snapshot = PreviewSnapshot::take(core, scene, (bindings, residuals), place)?;
         }
         let resume = self
             .snapshot
             .as_ref()
             .filter(|s| previewing && self.previewed == Some(s.place))
             .map(|s| s.prefix.clone());
-        let key = PlanKey {
-            regions: regions.to_vec(),
-            output,
-            resume: resume.clone(),
+        let (fresh, over) = match held.filter(|_| !fresh.ops.is_empty()) {
+            Some((prefix, snapshot)) => {
+                let (fresh, at) = fresh.resuming();
+                (fresh, Some((prefix, at, snapshot)))
+            }
+            None => (fresh, None),
         };
-        if !fresh.ops.is_empty() || self.plan.as_ref().is_none_or(|(kept, _)| *kept != key) {
-            let plan = match resume.clone() {
-                Some(prefix) => Plan::resuming(&self.scene, (size, output), regions, prefix),
-                None => Plan::build(&self.scene, &fresh, (size, output), regions),
-            };
-            self.plan = Some((key, plan));
-        }
+        let skipped = over.as_ref().map(|(prefix, at, _)| (prefix.clone(), *at));
+        self.plan_for(&fresh, (size, output, regions), (resume.clone(), skipped));
         let plan = self
             .plan
             .as_ref()
@@ -204,11 +292,43 @@ impl SceneCache {
             } else {
                 fresh.ops
             },
-            snapshot: resume.as_ref().and(self.snapshot.as_ref()),
+            snapshot: match over {
+                Some((_, _, snapshot)) => Some(snapshot),
+                None => resume
+                    .as_ref()
+                    .and(self.snapshot.as_ref())
+                    .map(|snapshot| snapshot.reading(false)),
+            },
             only: resume
                 .and(self.near.as_ref())
                 .map(|(_, _, tiles)| tiles.as_slice()),
         })
+    }
+
+    /// Bins the plan for `regions` at `output`, unless the plan kept was binned for them and
+    /// nothing is fresh: resuming a previewed layer (`resume`), over the in-progress stroke's
+    /// layer snapshot (`over`: its items and the fresh op resuming them), or every item.
+    fn plan_for(
+        &mut self,
+        fresh: &Fresh,
+        (size, output, regions): ([u32; 2], Output, &[PixelRect]),
+        (resume, over): (Option<Range<usize>>, Option<Skipped>),
+    ) {
+        let key = PlanKey {
+            regions: regions.to_vec(),
+            output,
+            resume: resume.clone(),
+        };
+        if fresh.ops.is_empty() && self.plan.as_ref().is_some_and(|(kept, _)| *kept == key) {
+            return;
+        }
+        let target = (size, output);
+        let plan = match (resume, over) {
+            (Some(prefix), _) => Plan::resuming(&self.scene, target, regions, prefix),
+            (None, Some(over)) => Plan::over_snapshot(&self.scene, fresh, target, regions, over),
+            (None, None) => Plan::build(&self.scene, fresh, target, regions),
+        };
+        self.plan = Some((key, plan));
     }
 
     /// The serial of the plan kept (`Plan::serial`; 0: none), for tests.

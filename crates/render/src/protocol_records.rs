@@ -41,9 +41,10 @@ pub(crate) struct Params {
     /// `[d, e, f, level]`; `foot` one over canvas pixels per centre pixel, `level` its log.
     pub(crate) base_x: [f32; 4],
     pub(crate) base_y: [f32; 4],
-    /// The kept snapshot of a previewed layer (S35, `preview.rs`): its rectangle's top-left
-    /// pixel and width, then 1 when this evaluation writes it (the layer's pixels before the
-    /// adjustment, instead of the target), else 0 (`OP_RESUME` reads it).
+    /// The kept snapshot of a layer (S35's previews, S48's in-progress stroke; `snapshot.rs`):
+    /// the canvas's tiles per row, where its first tile's pixels start after its table of
+    /// tiles (in four-float units), 0, then 1 when this evaluation writes it (the layer's
+    /// pixels, instead of the target), else 0 (`OP_RESUME` reads it).
     pub(crate) snapshot: [u32; 4],
     /// 1 first when the target is a display texture (S37: ten bits, `display_out`), else 0
     /// (eight bits, `canvas_out`); three words of padding.

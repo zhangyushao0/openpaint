@@ -6,6 +6,7 @@
 #![forbid(unsafe_code)]
 
 mod active;
+mod active_snapshot;
 mod adapter;
 mod affine;
 mod change;
@@ -38,6 +39,7 @@ mod scene_layer;
 mod screen;
 mod shapes;
 mod smudge;
+mod snapshot;
 mod stroke;
 mod stroke_path;
 mod stroke_stamp;
@@ -57,7 +59,7 @@ pub use crate::adapter::{
 pub use crate::change::changed_regions;
 pub use crate::core::Core;
 pub use crate::error::RenderError;
-pub use crate::evaluator::{CanvasTarget, RegionEvaluator};
+pub use crate::evaluator::{CanvasTarget, EvaluationWork, RegionEvaluator};
 pub use crate::export::{Banding, Bands};
 pub use crate::frame::FrameRequest;
 pub use crate::geom::PixelRect;

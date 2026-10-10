@@ -67,6 +67,51 @@ impl Plan {
         plan
     }
 
+    /// As `build`, the scene's items `prefix` (the in-progress stroke's layer before its place,
+    /// S48) left unbinned: every tile lists the evaluation's fresh op `resume` (`OP_RESUME`) in
+    /// their place, which gives that layer's pixels from a snapshot holding every tile of the
+    /// regions. The stroke's place lists its paint op in every tile anyway, so the ends that
+    /// follow are listed where they would be.
+    pub(crate) fn over_snapshot(
+        scene: &Scene,
+        fresh: &Fresh,
+        (size, output): ([u32; 2], Output),
+        regions: &[PixelRect],
+        (prefix, resume): (Range<usize>, u32),
+    ) -> Self {
+        let grid = Grid::new(size, Layout::Linear(output), regions);
+        let mut binner = Binner::new(&grid, None);
+        let at = |i: usize| u32::try_from(i).unwrap_or(u32::MAX);
+        binner.skip = Some(([at(prefix.start), at(prefix.end)], FRESH | resume));
+        let (lists, deepest) = binner.bin(&scene.items, 0, fresh);
+        Self::flatten(&grid, lists, deepest)
+    }
+
+    /// The scene's `items` (strokes a layer gained after its snapshot was taken, S48) over that
+    /// snapshot: each tile of `regions` they reach lists fresh op 1 (`OP_RESUME`), them, then
+    /// fresh op 0, which ends the layer at full opacity; tiles they miss are left out.
+    pub(crate) fn appended(
+        scene: &Scene,
+        items: Range<usize>,
+        size: [u32; 2],
+        regions: &[PixelRect],
+    ) -> Self {
+        let grid = Grid::new(size, Layout::Linear(Output::CANVAS), regions);
+        let first = u32::try_from(items.start).unwrap_or(u32::MAX);
+        let binner = Binner::new(&grid, None);
+        let (lists, deepest) = binner.bin(&scene.items[items], first, &Fresh::default());
+        let lists = lists
+            .into_iter()
+            .map(|list| (!list.is_empty()).then(|| [vec![FRESH | 1], list, vec![FRESH]].concat()));
+        let mut plan = Self::flatten(
+            &grid,
+            lists.map(Option::unwrap_or_default).collect(),
+            deepest,
+        );
+        plan.tiles.retain(|tile| tile.count > 0);
+        plan
+    }
+
     /// The tiles of a resuming plan within `by` tiles (each way) of one that resumes the
     /// previewed layer: where its adjustment can change a pixel when it spreads up to `by`
     /// tiles (a filter's reach); elsewhere the layer held nothing before it and holds nothing
