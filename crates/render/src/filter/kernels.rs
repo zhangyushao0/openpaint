@@ -137,6 +137,14 @@ impl FilterBuffers {
         }
     }
 
+    /// Bytes of its buffers.
+    pub(crate) fn bytes(&self) -> u64 {
+        [&self.params, &self.weights, &self.band, &self.cells]
+            .iter()
+            .map(|buffer| buffer.size())
+            .sum()
+    }
+
     /// Grows `slot` (the band or the cells) to `bytes`.
     fn hold(gpu: &Gpu, slot: &mut wgpu::Buffer, bytes: u64, label: &str) {
         if bytes > slot.size() {

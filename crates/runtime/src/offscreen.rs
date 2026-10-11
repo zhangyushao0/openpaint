@@ -12,8 +12,15 @@ use crate::frame::{Runtime, screen_frame};
 
 impl Runtime {
     /// Runs one frame into an offscreen target of `size` pixels, for the harness, which never
-    /// attaches a window. Returns whether another frame is wanted at once.
+    /// attaches a window. Returns whether another frame is wanted at once. A lost GPU device is
+    /// made again as for the window (S49).
     pub fn frame_offscreen(&mut self, size: [u32; 2]) -> Result<bool, RuntimeError> {
+        self.recover_if_lost()?;
+        let result = self.offscreen_once(size);
+        self.after_frame(result)
+    }
+
+    fn offscreen_once(&mut self, size: [u32; 2]) -> Result<bool, RuntimeError> {
         if self
             .offscreen
             .as_ref()
@@ -44,11 +51,41 @@ impl Runtime {
         self.seeds.fix(seed);
     }
 
-    /// True while something on screen moves (D44) or the view tiers fill in (S32); frames are
-    /// wanted until it rests.
+    /// True while something on screen moves (D44), the view tiers fill in (S32) or the canvas
+    /// does (S49); frames are wanted until it rests.
     #[must_use]
     pub fn moving(&self) -> bool {
-        self.shell.moving() || self.screen.canvas().is_some_and(Canvas::view_pending)
+        let filling = |canvas: &Canvas| canvas.view_pending() || canvas.filling();
+        self.shell.moving() || self.screen.canvas().is_some_and(filling)
+    }
+
+    /// Destroys the GPU device under the running app, as a driver reset loses it, for tests and
+    /// the scenario runner (S49); the next frame makes the renderer again. Returns whether wgpu's
+    /// lost callback reported the loss (else it was marked by hand, `Core::destroy_device`).
+    pub fn lose_device(&self) -> bool {
+        self.core.destroy_device()
+    }
+
+    /// What the open canvas's derived caches hold on the GPU now (S49), pictures included.
+    #[must_use]
+    pub fn cache_bytes(&self) -> Option<openpaint_render::CacheBytes> {
+        let canvas = self.screen.canvas()?;
+        Some(openpaint_render::CacheBytes {
+            pictures: self.shell.picture_bytes(),
+            ..canvas.bytes()
+        })
+    }
+
+    /// The GPU memory budget from the next frame on, in place of the device class's (S49), for
+    /// tests.
+    pub fn set_memory_budget(&mut self, bytes: u64) {
+        self.budget.bytes = bytes;
+    }
+
+    /// The renderer's GPU state now (a new one after a loss, S49).
+    #[must_use]
+    pub fn core(&self) -> std::sync::Arc<openpaint_render::Core> {
+        std::sync::Arc::clone(&self.core)
     }
 
     /// Every control the last frame laid out, by name, in screen pixels: what scenario steps

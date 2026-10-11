@@ -1,5 +1,8 @@
 //! The wgpu instance, adapter, device and queue. They belong to the renderer's `Core`, never to
-//! the UI framework (DECISIONS D01).
+//! the UI framework (DECISIONS D01). The device reports its loss to `Health` (S49): the driver's
+//! lost callback, a reset, a test destroying it.
+
+use std::sync::{Arc, Mutex, PoisonError};
 
 use crate::error::{RenderError, device};
 
@@ -12,6 +15,35 @@ pub(crate) struct Gpu {
     /// What the screen's canvas and its view tiers hold (S37): `Rgb10a2Unorm` where the device
     /// writes it from compute shaders, else `readback::FORMAT`.
     pub(crate) display: wgpu::TextureFormat,
+    /// Whether ten bits were asked for, so a device opened again after a loss is alike.
+    pub(crate) ten_bits: bool,
+    pub(crate) health: Arc<Health>,
+}
+
+/// Whether the device is lost, and why: set once, by wgpu's lost callback or by whoever finds it
+/// lost first.
+#[derive(Debug, Default)]
+pub(crate) struct Health {
+    lost: Mutex<Option<String>>,
+}
+
+impl Health {
+    /// The device is lost for `why`; the first reason stays.
+    pub(crate) fn lose(&self, why: String) {
+        let mut lost = self.lost.lock().unwrap_or_else(PoisonError::into_inner);
+        if lost.is_none() {
+            log::error!("the GPU device was lost: {why}");
+            *lost = Some(why);
+        }
+    }
+
+    /// Why the device was lost, once it was.
+    pub(crate) fn lost(&self) -> Option<String> {
+        self.lost
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
 }
 
 /// The ten-bit display format.
@@ -65,12 +97,19 @@ impl Gpu {
         } else {
             crate::readback::FORMAT
         };
+        let health = Arc::new(Health::default());
+        let reported = Arc::clone(&health);
+        device.set_device_lost_callback(move |reason, message| {
+            reported.lose(format!("{reason:?} {message}").trim_end().to_owned());
+        });
         Ok(Self {
             instance,
             adapter,
             device,
             queue,
             display,
+            ten_bits,
+            health,
         })
     }
 

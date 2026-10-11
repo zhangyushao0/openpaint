@@ -143,14 +143,16 @@ impl PreviewSnapshot {
         let Some(rect) = tiles_reached(scene, prefix.clone()) else {
             return Ok(None);
         };
-        let mut tiles = Snapshot::new(core, scene.canvas);
+        let Some(mut tiles) = Snapshot::new(core, scene.canvas, bindings.snapshot_room) else {
+            return Ok(None);
+        };
         let [min, max] = [rect.min, rect.max].map(|corner| corner.map(i32::unsigned_abs));
         let wanted: Vec<usize> = (min[1]..max[1])
             .step_by(TILE as usize)
             .flat_map(|y| (min[0]..max[0]).step_by(TILE as usize).map(move |x| [x, y]))
             .map(|pixel| tiles.tile_of(pixel))
             .collect();
-        if !tiles.take(core, &wanted) {
+        if !tiles.take(core, &wanted, bindings.snapshot_room) {
             return Ok(None);
         }
         let snapshot = Self {
@@ -186,6 +188,11 @@ impl PreviewSnapshot {
     /// The snapshot as a dispatch binds it, written (`writes`) or read.
     pub(crate) fn reading(&self, writes: bool) -> SnapshotUse<'_> {
         self.tiles.reading(writes)
+    }
+
+    /// Bytes its buffer holds.
+    pub(crate) fn bytes(&self) -> u64 {
+        self.tiles.bytes()
     }
 }
 

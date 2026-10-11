@@ -5,12 +5,11 @@ use std::time::Instant;
 
 use openpaint_app::{
     Clipboard, Contact, ContactPhase, FillFailed, Intent, LiftFailed, SelectionIntent, Session,
-    StrokeIntent, Thumbnail, Title, ToolIntent, Toolbox, TransformJob, ViewMapping,
+    StrokeIntent, Title, ToolIntent, Toolbox, TransformJob, ViewMapping,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, Patch, RegionMask, StrokeTool};
 use openpaint_render::{
-    BrushCursor, CanvasPlacement, CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator,
-    ViewCache, ViewFrame, changed_regions, tip_radius,
+    BrushCursor, CanvasPlacement, CanvasTarget, Core, ViewCache, ViewFrame, tip_radius,
 };
 use openpaint_ui::{CanvasArea, ScreenArea};
 
@@ -62,6 +61,9 @@ pub(crate) struct Canvas {
     pub(crate) leaving: Leaving,
     /// What the layer panel's pictures were made of (S38).
     pub(crate) pictures: Drawn,
+    /// When it opened (or its device was made again), until the whole canvas was evaluated:
+    /// the time to the full canvas is logged then (S49).
+    opened: Option<Opening>,
 }
 
 impl Canvas {
@@ -103,6 +105,7 @@ impl Canvas {
             changed_from: None,
             leaving: Leaving::Staying,
             pictures: Drawn::default(),
+            opened: Some(Opening::start(core)),
         }))
     }
 
@@ -206,7 +209,7 @@ impl Canvas {
     /// moves; the loupe shows it. Lifting picks the last colour previewed, never one at the
     /// release point: it joins the recent colours and the tool used before comes back. A
     /// cancelled contact ends the eyedropper and keeps the colour.
-    fn pick(&self, core: &Core, contact: &Contact, toolbox: &mut Toolbox) {
+    fn pick(&mut self, core: &Core, contact: &Contact, toolbox: &mut Toolbox) {
         match contact.phase {
             ContactPhase::Down | ContactPhase::Move => {}
             ContactPhase::Up => return toolbox.dispatch_tool(&ToolIntent::Pick),
@@ -216,6 +219,10 @@ impl Canvas {
         let Some(sample) = contact.samples.last() else {
             return;
         };
+        // Tiles still waiting would read as they were (S49).
+        if let Err(error) = self.settle(core) {
+            log::error!("evaluating the canvas before picking failed: {error}");
+        }
         let [x, y] = sample.position.map(f32::floor);
         let picked = if x >= 0.0 && y >= 0.0 {
             self.target.pick(core, [x as u32, y as u32])
@@ -244,39 +251,6 @@ impl Canvas {
         if !before.same_version(self.session.shown()) {
             self.changed_from.get_or_insert(before);
         }
-    }
-
-    /// Brings the target up to date with what the session shows (the current version, or a
-    /// fill's preview over it). Committing the stroke being drawn is followed by the evaluator
-    /// itself (D17); any other change passes the pixels that differ between the version shown
-    /// before it and the one shown now; the first evaluation covers the whole canvas.
-    pub(crate) fn evaluate(&mut self, core: &Core) -> Result<(), RuntimeError> {
-        let mut regions = if self.evaluated {
-            Vec::new()
-        } else {
-            vec![PixelRect::full(self.target.size())]
-        };
-        if let Some(before) = self.changed_from.take() {
-            regions.extend(changed_regions(&before, self.session.shown()));
-        }
-        let request = FrameRequest {
-            artwork: self.session.shown(),
-            active: self.session.active(),
-            background: PAPER,
-        };
-        RegionEvaluator::new(core, &mut self.target).evaluate(&request, &regions)?;
-        self.target.show_selection(core, self.session.selection());
-        self.evaluated = true;
-        Ok(())
-    }
-
-    /// The gallery picture of what the canvas shows now; call after `evaluate`.
-    pub(crate) fn thumbnail(&self, core: &Core) -> Result<Thumbnail, RuntimeError> {
-        let image = core.thumbnail(&self.target, THUMBNAIL_MAX)?;
-        let size = image.size();
-        Thumbnail::new(size, image.into_pixels()).ok_or(RuntimeError::Render(
-            openpaint_render::RenderError::Invalid("a thumbnail of the wrong length"),
-        ))
     }
 
     /// The target shown in the canvas area through the session's view as `shown` shows it (the
@@ -317,30 +291,6 @@ impl Canvas {
         }
     }
 
-    /// Brings the view tiers up to date with the target, just evaluated, for showing it
-    /// through `frame` at `now` (seconds on the frame clock, S32); call after `evaluate`.
-    pub(crate) fn update_view(
-        &mut self,
-        core: &Core,
-        (frame, now): (&ViewFrame, f64),
-    ) -> Result<(), RuntimeError> {
-        let request = FrameRequest {
-            artwork: self.session.shown(),
-            active: self.session.active(),
-            background: PAPER,
-        };
-        self.view_pending = self
-            .view
-            .update(core, &mut self.target, &request, (frame, now))?
-            .pending();
-        Ok(())
-    }
-
-    /// The view tiers still change what shows: tiles missing, or a tier about to start.
-    pub(crate) fn view_pending(&self) -> bool {
-        self.view_pending
-    }
-
     /// While the pen erases or smudges: the tip in canvas pixels, where the stroke is now and
     /// its radius at the pen's pressure there, so the hand sees what it takes away or drags
     /// (neither lays colour of its own to show where it is).
@@ -372,6 +322,11 @@ impl Canvas {
         &self.target
     }
 }
+
+#[path = "canvas_gpu.rs"]
+mod gpu;
+use gpu::Opening;
+pub(crate) use gpu::{Freed, Rooms};
 
 /// A transform's pixels: the job's layer sampled through the renderer (the single evaluator, a
 /// target of its own), then its painted pixels inside the job's selection, if any. Waits for

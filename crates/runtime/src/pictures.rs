@@ -7,7 +7,6 @@
 //! being drawn is not in the version).
 
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::time::Instant;
 
 use openpaint_core::{Artwork, Layer, LayerId};
@@ -16,6 +15,7 @@ use openpaint_ui::Shell;
 
 use crate::canvas::Canvas;
 use crate::error::RuntimeError;
+use crate::shared::SharedCore;
 use crate::worker::Queue;
 
 /// A row's picture: a layer's paint (`false`) or its mask (`true`).
@@ -76,12 +76,17 @@ fn same((_, mask): PictureKey, a: &Layer, b: &Layer) -> bool {
 
 pub(crate) struct PictureWorker {
     worker: Queue<Job, Done>,
+    /// No picture is asked for: the GPU memory budget dropped them (S49).
+    pub(crate) paused: bool,
 }
 
 impl PictureWorker {
-    pub(crate) fn start(core: Arc<Core>) -> Result<Self, RuntimeError> {
-        let worker = Queue::spawn("openpaint-pictures", move |job| picture(&core, job))?;
-        Ok(Self { worker })
+    pub(crate) fn start(core: SharedCore) -> Result<Self, RuntimeError> {
+        let worker = Queue::spawn("openpaint-pictures", move |job| picture(&core.get(), job))?;
+        Ok(Self {
+            worker,
+            paused: false,
+        })
     }
 
     /// True while a picture is being made or waits to be taken.
@@ -106,7 +111,7 @@ impl PictureWorker {
             }
             canvas.pictures.made_of.insert(done.key, layer);
         }
-        if !shell.layers_open() || self.worker.busy() {
+        if !shell.layers_open() || self.worker.busy() || self.paused {
             return;
         }
         let artwork = canvas.session().artwork().clone();

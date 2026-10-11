@@ -172,6 +172,12 @@ impl Runner<'_> {
             Step::Restart => return Err(ScenarioError::Missing("restart is run by `run`")),
             Step::StorageFails => self.storage_off.store(true, Ordering::Relaxed),
             Step::StorageWorks => self.storage_off.store(false, Ordering::Relaxed),
+            Step::LoseDevice => {
+                runtime.lose_device();
+                self.frame(runtime)?;
+                // A restart opens the app on the device made again.
+                self.core = runtime.core();
+            }
             Step::System(answer) => {
                 if let Some(answer) = system::answer(&mut self.requests, *answer, &self.written)? {
                     runtime.answer(answer);
@@ -338,31 +344,6 @@ impl Runner<'_> {
         Ok(())
     }
 
-    /// Frames one 60 Hz frame apart until nothing moves on screen, at most `SETTLE_FRAMES`.
-    fn settle(&mut self, runtime: &mut Runtime) -> Result<(), ScenarioError> {
-        for _ in 0..SETTLE_FRAMES {
-            if !runtime.moving() {
-                return Ok(());
-            }
-            self.frame(runtime)?;
-            self.clock_ms += FRAME_MS;
-        }
-        Err(ScenarioError::Missing("motion did not settle"))
-    }
-
-    /// Frames one 60 Hz frame apart up to `target`, then one at `target`.
-    fn advance_to(&mut self, runtime: &mut Runtime, target: i64) -> Result<(), ScenarioError> {
-        while self.clock_ms < target {
-            self.frame(runtime)?;
-            self.clock_ms += FRAME_MS;
-        }
-        let next = self.clock_ms;
-        self.clock_ms = target;
-        self.frame(runtime)?;
-        self.clock_ms = next;
-        Ok(())
-    }
-
     /// One frame and the frames the runtime then asks for at once (a button that changed what
     /// the UI offers, egui's own layout), as the host's frame pacing gives them, up to
     /// `FOLLOW_UPS` more, all at the runner's clock now; again while a worker (storage,
@@ -398,3 +379,6 @@ impl Runner<'_> {
         Ok(())
     }
 }
+
+#[path = "runner_clock.rs"]
+mod clock;

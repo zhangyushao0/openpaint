@@ -5,7 +5,6 @@
 //! request, so a moving hand never queues work.
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::sync::Arc;
 use std::time::Instant;
 
 use openpaint_app::{FillFailed, FillJob};
@@ -15,6 +14,7 @@ use openpaint_render::{Core, RgbaImage};
 
 use crate::canvas::Canvas;
 use crate::error::RuntimeError;
+use crate::shared::SharedCore;
 use crate::worker::Queue;
 
 enum Task {
@@ -42,10 +42,10 @@ pub(crate) struct FillWorker {
 }
 
 impl FillWorker {
-    pub(crate) fn start(core: Arc<Core>) -> Result<Self, RuntimeError> {
+    pub(crate) fn start(core: SharedCore) -> Result<Self, RuntimeError> {
         let mut source = None;
         let worker = Queue::spawn("openpaint-fill", move |task| {
-            serve(&core, &mut source, task)
+            serve(&core.get(), &mut source, task)
         })?;
         Ok(Self {
             worker,

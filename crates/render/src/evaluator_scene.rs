@@ -10,6 +10,7 @@ use openpaint_core::Artwork;
 use super::CanvasTarget;
 use crate::active_snapshot::{self, Kept};
 use crate::affine::Affine;
+use crate::bounded::{frame_share, paper_only, tile_rects};
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::frame::FrameRequest;
@@ -66,16 +67,12 @@ pub struct EvaluationWork {
 }
 
 impl EvaluationWork {
-    pub(super) fn of(reading: &Reading<'_>, planned: Duration, [taken, carried]: Kept) -> Self {
-        let plan = reading.plan;
-        let (tiles, entries) = match reading.only {
-            Some(only) => (only.len(), only.iter().map(|t| t.count as usize).sum()),
-            None => (plan.tiles.len(), plan.indices.len()),
-        };
+    /// What evaluating `tiles` costs, planned in `planned`, with what the snapshot `kept`.
+    pub(super) fn of(tiles: &[TileRecord], planned: Duration, [taken, carried]: Kept) -> Self {
         Self {
             planned,
-            tiles,
-            entries,
+            tiles: tiles.len(),
+            entries: tiles.iter().map(|t| t.count as usize).sum(),
             taken,
             carried,
         }
@@ -152,14 +149,16 @@ impl CanvasTarget {
 
     /// Evaluates `all` (target pixels) of the scene built last for `request` at `output`, with
     /// the in-progress stroke's `fresh` ops (`reset`: its coverage starts over), its layer
-    /// resumed from the snapshot of the place `held` when given (S48).
+    /// resumed from the snapshot of the place `held` when given (S48). Given `now` (one frame of
+    /// the screen, S49), the tiles meeting it and then what one frame's work allows: the others
+    /// wait (`pending`), and the regions evaluated are returned.
     pub(super) fn draw(
         &mut self,
         core: &Core,
         (request, (output, reset)): (&FrameRequest<'_>, (Output, bool)),
         (fresh, held): (Fresh, Option<ActivePlace>),
-        all: &[PixelRect],
-    ) -> Result<(), RenderError> {
+        (all, now): (&[PixelRect], Option<&[PixelRect]>),
+    ) -> Result<Option<Vec<PixelRect>>, RenderError> {
         let size = self.size();
         let cache = self
             .scene
@@ -177,9 +176,27 @@ impl CanvasTarget {
         };
         let bindings = (&mut self.bindings, residuals);
         let reading = cache.reading(core, bindings, fresh, (size, output, all), held)?;
-        self.work = EvaluationWork::of(&reading, started.elapsed(), kept);
+        let tiles = reading.only.unwrap_or(&reading.plan.tiles);
+        let share = now.and_then(|now| frame_share(tiles, now, core.evaluate.frame_work()));
+        let (only, evaluated) = match share {
+            Some((mut chosen, left)) => {
+                self.pending = tile_rects(&left);
+                let mut evaluated = now.unwrap_or_default().to_vec();
+                evaluated.extend(tile_rects(&chosen));
+                // A new target's waiting tiles show the paper meanwhile, not undefined pixels.
+                if self.blank {
+                    chosen.extend(paper_only(&left));
+                }
+                (Some(chosen), Some(evaluated))
+            }
+            None => (None, None),
+        };
+        self.blank = false;
+        let only = only.as_deref().or(reading.only);
+        let tiles = only.unwrap_or(&reading.plan.tiles);
+        self.work = EvaluationWork::of(tiles, started.elapsed(), kept);
         if self.work.tiles == 0 && !reset {
-            return Ok(());
+            return Ok(evaluated);
         }
         let paper = request.background;
         core.evaluate.dispatch(
@@ -189,7 +206,7 @@ impl CanvasTarget {
                 ops: reading.ops,
                 fresh: &reading.fresh,
                 plan: reading.plan,
-                only: reading.only,
+                only,
                 output,
                 background: [paper.r(), paper.g(), paper.b(), 1.0],
                 reset,
@@ -197,7 +214,8 @@ impl CanvasTarget {
                 base: Affine::IDENTITY,
                 snapshot: reading.snapshot,
             },
-        )
+        )?;
+        Ok(evaluated)
     }
 
     /// Gives the kept scene `retune`'s values: the ops and tables that changed rewritten on the
@@ -329,6 +347,21 @@ impl SceneCache {
             (None, None) => Plan::build(&self.scene, fresh, target, regions),
         };
         self.plan = Some((key, plan));
+    }
+
+    /// Bytes of the scene's ops on the GPU, and of the previewed layer's snapshot (S49).
+    pub(super) fn bytes(&self) -> [u64; 2] {
+        let ops = &self.ops;
+        let scene = ops.ops.size() + ops.masks.size() + ops.patches.size();
+        [
+            scene,
+            self.snapshot.as_ref().map_or(0, PreviewSnapshot::bytes),
+        ]
+    }
+
+    /// Lets the previewed layer's snapshot go; the next value takes it again, within the room.
+    pub(super) fn drop_snapshot(&mut self) {
+        self.snapshot = None;
     }
 
     /// The serial of the plan kept (`Plan::serial`; 0: none), for tests.

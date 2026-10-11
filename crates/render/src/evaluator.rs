@@ -41,6 +41,10 @@ pub struct CanvasTarget {
     work: EvaluationWork,
     /// The in-progress stroke's layer before it, per tile (S48, `active_snapshot.rs`).
     held: Option<ActiveSnapshot>,
+    /// Whole tiles a frame's evaluation left for the next ones (S49, `evaluate_frame`).
+    pending: Vec<PixelRect>,
+    /// Nothing was evaluated into it yet: its pixels are undefined.
+    blank: bool,
 }
 
 /// More changed rectangles than this are kept as the one rectangle holding them.
@@ -93,7 +97,16 @@ impl CanvasTarget {
             changed: Vec::new(),
             work: EvaluationWork::default(),
             held: None,
+            pending: Vec::new(),
+            blank: true,
         })
+    }
+
+    /// Tiles wait to be evaluated: a frame's evaluation left them for the next (S49). The
+    /// target shows them as they were until then; `read` and `pick` read them so.
+    #[must_use]
+    pub fn pending(&self) -> bool {
+        !self.pending.is_empty()
     }
 
     /// The canvas pixels evaluations changed since the last call (the in-progress stroke's new
@@ -234,6 +247,9 @@ impl<'a> RegionEvaluator<'a> {
     /// the rest of a committed stroke already shows exactly as the new version would. Every
     /// other artwork change is the caller's to pass as regions.
     ///
+    /// Tiles an earlier `evaluate_frame` left are evaluated too. The work goes to the GPU in
+    /// bounded dispatches (S49, `bounded.rs`).
+    ///
     /// # Errors
     /// `Invalid` when the target's size is not the canvas size or the active stroke's layer is
     /// not in the artwork.
@@ -242,6 +258,30 @@ impl<'a> RegionEvaluator<'a> {
         request: &FrameRequest<'_>,
         regions: &[PixelRect],
     ) -> Result<(), RenderError> {
+        self.canvas(request, regions, false)
+    }
+
+    /// As `evaluate`, for one frame of the screen (S49): when the regions' work passes what one
+    /// frame takes, the tiles beyond wait for the next calls (`CanvasTarget::pending`), whole
+    /// tiles in order, so a large change fills in over frames and the frame stays short. The
+    /// in-progress stroke's pixels never wait, and while a stroke is drawn nothing does.
+    ///
+    /// # Errors
+    /// As `evaluate`.
+    pub fn evaluate_frame(
+        &mut self,
+        request: &FrameRequest<'_>,
+        regions: &[PixelRect],
+    ) -> Result<(), RenderError> {
+        self.canvas(request, regions, true)
+    }
+
+    fn canvas(
+        &mut self,
+        request: &FrameRequest<'_>,
+        regions: &[PixelRect],
+        frame: bool,
+    ) -> Result<(), RenderError> {
         let canvas = request.artwork.canvas();
         let size = self.target.size();
         if size != [canvas.width(), canvas.height()] {
@@ -249,7 +289,7 @@ impl<'a> RegionEvaluator<'a> {
                 "the target's size differs from the canvas size",
             ));
         }
-        match self.dispatch(request, Output::CANVAS, regions) {
+        match self.dispatch(request, Output::CANVAS, (regions, frame)) {
             Ok(evaluated) => {
                 let changed = &mut self.target.changed;
                 changed.extend(evaluated);
@@ -286,16 +326,17 @@ impl<'a> RegionEvaluator<'a> {
                 "an output piece never draws an in-progress stroke",
             ));
         }
-        self.dispatch(request, output, &[region]).map(drop)
+        self.dispatch(request, output, (&[region], false)).map(drop)
     }
 
-    /// Evaluates `regions` and what the in-progress stroke needs; returns every region it
+    /// Evaluates `regions` (with the tiles left waiting), and what the in-progress stroke
+    /// needs; within one `frame`'s work only, the rest left waiting. Returns every region it
     /// evaluated, in target pixels.
     fn dispatch(
         &mut self,
         request: &FrameRequest<'_>,
         output: Output,
-        regions: &[PixelRect],
+        (regions, frame): (&[PixelRect], bool),
     ) -> Result<Vec<PixelRect>, RenderError> {
         let core = self.core;
         let place = request.active.map(ActivePlace::of);
@@ -316,6 +357,8 @@ impl<'a> RegionEvaluator<'a> {
                 Fresh::new(active, step.kept.start, clip)
             });
         let mut all = regions.to_vec();
+        all.append(&mut self.target.pending);
+        let later = all.len();
         all.extend(step.redraw.into_iter().chain(step.fresh_region));
         all.extend(self.target.smudged(core, request, drawn)?);
         if all.is_empty() && !step.reset {
@@ -324,9 +367,14 @@ impl<'a> RegionEvaluator<'a> {
         // The in-progress stroke on the canvas resumes its layer from a snapshot (S48).
         let canvas = drawn && output == Output::CANVAS && self.target.bindings.keeps;
         let held = place.filter(|_| canvas);
+        // Only the screen's canvas waits, and never while a stroke is drawn (S49).
+        let now =
+            (frame && output == Output::CANVAS && fresh.ops.is_empty()).then(|| &all[later..]);
         let drawing = (request, (output, step.reset));
-        self.target.draw(core, drawing, (fresh, held), &all)?;
-        Ok(all)
+        let evaluated = self
+            .target
+            .draw(core, drawing, (fresh, held), (&all, now))?;
+        Ok(evaluated.unwrap_or(all))
     }
 }
 
@@ -337,6 +385,9 @@ use scene_cache::SceneCache;
 
 #[path = "evaluator_layer.rs"]
 mod layer;
+
+#[path = "evaluator_budget.rs"]
+mod budget;
 
 #[cfg(test)]
 #[path = "evaluator_display_tests.rs"]

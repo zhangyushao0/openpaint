@@ -1,0 +1,151 @@
+//! One evaluation of a plan into a target, in bounded runs of its tiles (S49, `bounded.rs`): the
+//! plan's op lists are written once, then each run writes its tiles and the dispatch's values,
+//! is dispatched and submitted on its own, so no submission runs past the GPU's time limit. The
+//! runs follow one another on the queue, each reading what the one before left.
+
+use std::sync::atomic::Ordering;
+
+use super::layout::{Workgroups, workgroups};
+use super::{Bindings, Dispatch, EvaluatePipeline};
+use crate::bounded::{FRAME_DISPATCHES, runs};
+use crate::error::RenderError;
+use crate::gpu::Gpu;
+use crate::protocol::{MOVE_DEPTH, Params, encode};
+
+impl EvaluatePipeline {
+    /// Writes the fresh ops and the plan, then evaluates every plan tile into the target, in
+    /// runs of at most the bound's work, each submitted on its own.
+    pub(crate) fn dispatch(
+        &self,
+        gpu: &Gpu,
+        bindings: &mut Bindings,
+        work: &Dispatch<'_>,
+    ) -> Result<(), RenderError> {
+        if work.plan.deepest > MOVE_DEPTH {
+            return Err(RenderError::Invalid(
+                "moved selections lie over one another deeper than the evaluator holds",
+            ));
+        }
+        let tiles = work.only.unwrap_or(&work.plan.tiles);
+        // A plan kept between evaluations (a preview's, S35) uploads its op lists once.
+        if work.plan.serial == 0 || work.plan.serial != bindings.written {
+            bindings.write(gpu, 1, &work.plan.indices);
+            bindings.written = work.plan.serial;
+        }
+        bindings.write(gpu, 2, work.fresh);
+        for (index, run) in runs(tiles, self.work()).into_iter().enumerate() {
+            let groups = workgroups(gpu, run.len())?;
+            let params = params(work, bindings, &groups);
+            gpu.queue
+                .write_buffer(&bindings.params, 0, &encode(&[params]));
+            bindings.write(gpu, 0, run);
+            self.bind(gpu, bindings, work);
+            let mut encoder = gpu.device.create_command_encoder(&Default::default());
+            // The in-progress stroke starts over before its first run only.
+            if work.reset && index == 0 {
+                for (_, view) in &bindings.kept {
+                    clear_kept(&mut encoder, view);
+                }
+            }
+            if let Some((_, group)) = bindings.group.as_ref().filter(|_| !run.is_empty()) {
+                let mut pass = encoder.begin_compute_pass(&Default::default());
+                let pipeline = if work.plan.deepest > 0 {
+                    &self.pipeline
+                } else {
+                    &self.flat
+                };
+                pass.set_pipeline(pipeline);
+                pass.set_bind_group(0, group, &[]);
+                pass.dispatch_workgroups(groups.row, groups.rows, 1);
+            }
+            gpu.queue.submit([encoder.finish()]);
+            self.runs.fetch_add(1, Ordering::Relaxed);
+        }
+        Ok(())
+    }
+
+    /// Dispatches submitted so far.
+    pub(crate) fn runs(&self) -> u64 {
+        self.runs.load(Ordering::Relaxed)
+    }
+
+    /// Builds the bind group again when a list grew or another scene, arena, residual or
+    /// snapshot is bound.
+    fn bind(&self, gpu: &Gpu, bindings: &mut Bindings, work: &Dispatch<'_>) {
+        let [arena, active] = work.residuals;
+        let snapshot = work.snapshot.map_or(&self.no_snapshot, |s| s.buffer);
+        let named = [&work.ops.ops, arena, active, snapshot];
+        if bindings
+            .group
+            .as_ref()
+            .is_none_or(|(built, _)| built.iter().zip(named).any(|(a, b)| a != b))
+        {
+            let group = self.bind_group(gpu, bindings, work.ops, [arena, active, snapshot]);
+            bindings.group = Some((named.map(Clone::clone), group));
+        }
+    }
+
+    /// The most work one dispatch takes (`bounded::DISPATCH_WORK` at first).
+    pub(crate) fn work(&self) -> u64 {
+        self.bound.load(Ordering::Relaxed)
+    }
+
+    /// The most work the screen's canvas takes in one frame.
+    pub(crate) fn frame_work(&self) -> u64 {
+        self.work().saturating_mul(FRAME_DISPATCHES)
+    }
+
+    /// Sets the most work one dispatch takes.
+    pub(crate) fn bound_to(&self, work: u64) {
+        self.bound.store(work.max(1), Ordering::Relaxed);
+    }
+}
+
+/// The dispatch's values: where the target lies in the output and on the canvas, its tiles'
+/// layout, the snapshot it uses.
+fn params(work: &Dispatch<'_>, bindings: &Bindings, groups: &Workgroups) -> Params {
+    let (scale, inverse) = work.output.operands();
+    let [a, b, c, d, e, f] = work.base.rows();
+    let (foot, level) = if work.base.is_identity() {
+        (1.0, 0.0)
+    } else {
+        let canvas = work.base.scale();
+        ((1.0 / canvas) as f32, -canvas.log2() as f32)
+    };
+    Params {
+        background: work.background,
+        tiles: groups.tiles,
+        row: groups.row,
+        size: bindings.size,
+        kept: u32::from(bindings.keeps),
+        level: scale.log2(),
+        scale,
+        inverse,
+        base_x: [a, b, c, foot],
+        base_y: [d, e, f, level],
+        snapshot: work.snapshot.map_or([0; 4], |snapshot| {
+            let [columns, head] = snapshot.layout;
+            [columns, head, 0, u32::from(snapshot.writes)]
+        }),
+        display: [u32::from(bindings.display), 0, 0, 0],
+    }
+}
+
+/// Zero everywhere, through a render pass: clearing a texture directly needs an optional
+/// device feature.
+fn clear_kept(encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
+    let pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        label: Some("clear kept"),
+        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+            view,
+            depth_slice: None,
+            resolve_target: None,
+            ops: wgpu::Operations {
+                load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                store: wgpu::StoreOp::Store,
+            },
+        })],
+        ..Default::default()
+    });
+    drop(pass);
+}

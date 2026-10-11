@@ -1,14 +1,17 @@
-//! The evaluator's compute pipeline and one dispatch of a plan into a target.
+//! The evaluator's compute pipeline and the bindings a plan is dispatched through
+//! (`program_dispatch.rs`: one evaluation in bounded runs of tiles, S49).
+
+use std::sync::atomic::AtomicU64;
 
 use wgpu::util::DeviceExt;
 
 use crate::affine::Affine;
-use crate::error::RenderError;
+use crate::bounded::DISPATCH_WORK;
 use crate::gpu::{Gpu, TEN_BITS};
 use crate::output::Output;
 use crate::paper::paper_levels;
 use crate::plan::Plan;
-use crate::protocol::{MOVE_DEPTH, Op, Params, Record, TileRecord, encode};
+use crate::protocol::{Op, Params, Record, TileRecord, encode};
 use crate::readback::FORMAT;
 use crate::shapes::shapes;
 
@@ -19,7 +22,10 @@ pub(crate) use scene_ops::{SceneOps, scene_ops};
 #[path = "program_layout.rs"]
 mod layout;
 pub(crate) use layout::shader_source;
-use layout::{evaluate_layout, unwritten, workgroups};
+use layout::{evaluate_layout, unwritten};
+
+#[path = "program_dispatch.rs"]
+mod dispatch;
 
 /// The in-progress stroke's coverage (or density) and paper contact textures: one float per
 /// canvas pixel each.
@@ -78,6 +84,8 @@ pub(crate) struct Bindings {
     written: u64,
     /// Built for the scene ops buffer, the two residual buffers and the snapshot it names.
     group: Option<([wgpu::Buffer; 4], wgpu::BindGroup)>,
+    /// Bytes a snapshot of this target may grow to (S49: what the GPU memory budget leaves).
+    pub(crate) snapshot_room: u64,
 }
 
 impl Bindings {
@@ -109,7 +117,19 @@ impl Bindings {
             lists: [0; 3].map(|_| empty_buffer(gpu, storage, MIN_LIST_BYTES)),
             written: 0,
             group: None,
+            snapshot_room: u64::MAX,
         }
+    }
+
+    /// Bytes of its own buffers and kept textures (S49).
+    pub(crate) fn bytes(&self) -> u64 {
+        let kept: u64 = self
+            .kept
+            .iter()
+            .map(|(texture, _)| u64::from(texture.width()) * u64::from(texture.height()) * 4)
+            .sum();
+        let lists: u64 = self.lists.iter().map(wgpu::Buffer::size).sum();
+        kept + lists + self.params.size()
     }
 
     /// The target's size in pixels.
@@ -174,6 +194,10 @@ pub(crate) struct EvaluatePipeline {
     /// One-texel stand-ins bound where a target does not write: at binding 4 (8 bits) and 14
     /// (the display format).
     unwritten: [wgpu::TextureView; 2],
+    /// The most work one dispatch takes (`bounded.rs`; tests change it).
+    bound: AtomicU64,
+    /// Dispatches submitted so far.
+    runs: AtomicU64,
 }
 
 impl EvaluatePipeline {
@@ -222,63 +246,9 @@ impl EvaluatePipeline {
             textures,
             no_snapshot,
             unwritten: [FORMAT, display].map(|format| unwritten(device, format)),
+            bound: AtomicU64::new(DISPATCH_WORK),
+            runs: AtomicU64::new(0),
         }
-    }
-
-    /// Writes the fresh ops and the plan, then evaluates every plan tile into the canvas.
-    pub(crate) fn dispatch(
-        &self,
-        gpu: &Gpu,
-        bindings: &mut Bindings,
-        work: &Dispatch<'_>,
-    ) -> Result<(), RenderError> {
-        if work.plan.deepest > MOVE_DEPTH {
-            return Err(RenderError::Invalid(
-                "moved selections lie over one another deeper than the evaluator holds",
-            ));
-        }
-        let tiles = work.only.unwrap_or(&work.plan.tiles);
-        let groups = workgroups(gpu, tiles.len())?;
-        let params = params(work, bindings, &groups);
-        gpu.queue
-            .write_buffer(&bindings.params, 0, &encode(&[params]));
-        // A plan kept between evaluations (a preview's, S35) uploads its op lists once.
-        bindings.write(gpu, 0, tiles);
-        if work.plan.serial == 0 || work.plan.serial != bindings.written {
-            bindings.write(gpu, 1, &work.plan.indices);
-            bindings.written = work.plan.serial;
-        }
-        bindings.write(gpu, 2, work.fresh);
-        let [arena, active] = work.residuals;
-        let snapshot = work.snapshot.map_or(&self.no_snapshot, |s| s.buffer);
-        let named = [&work.ops.ops, arena, active, snapshot];
-        if bindings
-            .group
-            .as_ref()
-            .is_none_or(|(built, _)| built.iter().zip(named).any(|(a, b)| a != b))
-        {
-            let group = self.bind_group(gpu, bindings, work.ops, [arena, active, snapshot]);
-            bindings.group = Some((named.map(Clone::clone), group));
-        }
-        let mut encoder = gpu.device.create_command_encoder(&Default::default());
-        if work.reset {
-            for (_, view) in &bindings.kept {
-                clear_kept(&mut encoder, view);
-            }
-        }
-        if let Some((_, group)) = &bindings.group {
-            let mut pass = encoder.begin_compute_pass(&Default::default());
-            let pipeline = if work.plan.deepest > 0 {
-                &self.pipeline
-            } else {
-                &self.flat
-            };
-            pass.set_pipeline(pipeline);
-            pass.set_bind_group(0, group, &[]);
-            pass.dispatch_workgroups(groups.row, groups.rows, 1);
-        }
-        gpu.queue.submit([encoder.finish()]);
-        Ok(())
     }
 
     fn bind_group(
@@ -329,53 +299,4 @@ impl EvaluatePipeline {
             entries: &entries,
         })
     }
-}
-
-/// The dispatch's values: where the target lies in the output and on the canvas, its tiles'
-/// layout, the snapshot it uses.
-fn params(work: &Dispatch<'_>, bindings: &Bindings, groups: &layout::Workgroups) -> Params {
-    let (scale, inverse) = work.output.operands();
-    let [a, b, c, d, e, f] = work.base.rows();
-    let (foot, level) = if work.base.is_identity() {
-        (1.0, 0.0)
-    } else {
-        let canvas = work.base.scale();
-        ((1.0 / canvas) as f32, -canvas.log2() as f32)
-    };
-    Params {
-        background: work.background,
-        tiles: groups.tiles,
-        row: groups.row,
-        size: bindings.size,
-        kept: u32::from(bindings.keeps),
-        level: scale.log2(),
-        scale,
-        inverse,
-        base_x: [a, b, c, foot],
-        base_y: [d, e, f, level],
-        snapshot: work.snapshot.map_or([0; 4], |snapshot| {
-            let [columns, head] = snapshot.layout;
-            [columns, head, 0, u32::from(snapshot.writes)]
-        }),
-        display: [u32::from(bindings.display), 0, 0, 0],
-    }
-}
-
-/// Zero everywhere, through a render pass: clearing a texture directly needs an optional
-/// device feature.
-fn clear_kept(encoder: &mut wgpu::CommandEncoder, view: &wgpu::TextureView) {
-    let pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some("clear kept"),
-        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-            view,
-            depth_slice: None,
-            resolve_target: None,
-            ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
-                store: wgpu::StoreOp::Store,
-            },
-        })],
-        ..Default::default()
-    });
-    drop(pass);
 }

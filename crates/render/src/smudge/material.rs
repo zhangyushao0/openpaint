@@ -36,6 +36,12 @@ impl Material {
         &self.view
     }
 
+    /// Bytes of its texture and bindings.
+    pub(crate) fn bytes(&self) -> u64 {
+        let [width, height] = self.bindings.size();
+        u64::from(width) * u64::from(height) * 4 + self.bindings.bytes()
+    }
+
     /// Evaluates the scene's items in `range` (one layer's ops before a smudge) over `rects`,
     /// on nothing and at full opacity: that layer's own pixels there, where the smudge's pixels
     /// lie on the canvas by `to_canvas` (under transform records, S31). `residuals` are the

@@ -1,9 +1,10 @@
 //! What the canvas tells in a pill in the top band, one thing at a time, most urgent first: a
-//! failed save or open (with Retry or OK), a refused or failed fill (with OK), then exporting
-//! (working, saved, failed), then the reference image and a picture to insert (opening,
-//! failed). Running work shows a
-//! spinner and asks nothing; a result waits for OK. The messages are the user-facing form of the
-//! app's typed errors. At fit the pill lies on the desk above the canvas.
+//! failed save or open (with Retry or OK), that the display was reset (S49: the GPU device was
+//! lost and made again; with OK, and a new stroke lets it go), a refused or failed fill (with
+//! OK), then exporting (working, saved, failed), then the reference image and a picture to
+//! insert (opening, failed). Running work shows a spinner and asks nothing; a result waits for
+//! OK. The messages are the user-facing form of the app's typed errors. At fit the pill lies on
+//! the desk above the canvas.
 
 use openpaint_app::{
     AdjustIntent, AdjustRefusal, Delivery, EditorAction, ExportError, ExportIntent, ExportNotice,
@@ -22,17 +23,24 @@ enum Told {
     Failed(String, &'static str, bool, Intent),
     /// Work that succeeded, dismissed with OK.
     Done(String, Intent),
+    /// The display was reset (S49), dismissed with OK; nothing is asked of the app.
+    Reset,
 }
 
-/// The pill for `projection`, if there is something to tell, at `place`; its taps go to
-/// `taps`. Returns its rectangle in points.
+/// What the notice tells when the GPU device was made again.
+pub(crate) const DISPLAY_RESET: &str = "The display was reset.";
+
+/// The pill for `projection`, if there is something to tell, at `place`, with the notice that the
+/// display was reset while `reset` holds (OK clears it); its taps go to `taps`. Returns its
+/// rectangle in points.
 pub(crate) fn notice_pill(
     ctx: &egui::Context,
     projection: &SessionProjection,
-    place: Place,
+    (place, reset): (Place, &mut bool),
     taps: &mut Vec<Intent>,
 ) -> Option<egui::Rect> {
     let told = storage(projection)
+        .or_else(|| (*reset).then_some(Told::Reset))
         .or_else(|| fill(projection))
         .or_else(|| transform(projection))
         .or_else(|| adjust(projection))
@@ -46,14 +54,17 @@ pub(crate) fn notice_pill(
         }
         Told::Failed(message, action, enabled, intent) => notice(ui, &message, action, enabled)
             .clicked()
-            .then_some(intent),
-        Told::Done(message, intent) => confirmation(ui, &message).clicked().then_some(intent),
+            .then_some(Some(intent)),
+        Told::Done(message, intent) => confirmation(ui, &message).clicked().then_some(Some(intent)),
+        Told::Reset => notice(ui, DISPLAY_RESET, "OK", true)
+            .clicked()
+            .then_some(None),
     });
-    // egui may run a pass twice; one tap is sent once.
-    if let Some(intent) = tapped
-        && taps.last() != Some(&intent)
-    {
-        taps.push(intent);
+    match tapped {
+        // egui may run a pass twice; one tap is sent once.
+        Some(Some(intent)) if taps.last() != Some(&intent) => taps.push(intent),
+        Some(None) => *reset = false,
+        _ => {}
     }
     Some(rect)
 }

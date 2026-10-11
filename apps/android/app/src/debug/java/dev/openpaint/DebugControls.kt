@@ -20,4 +20,10 @@ internal object DebugControls {
      * window's own) over everything when [on], or off; one frame is drawn at once.
      */
     @JvmStatic external fun gradient(on: Boolean)
+
+    /**
+     * The GPU device destroyed as a driver reset loses it (S49); one frame is drawn at once, which
+     * makes the renderer again.
+     */
+    @JvmStatic external fun loseDevice()
 }

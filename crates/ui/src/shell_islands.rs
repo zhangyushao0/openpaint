@@ -57,7 +57,8 @@ impl Shell {
             }
         });
         let place = Place::top_right(right.width() + SPACE);
-        let notice = notice_pill(ctx, projection, place, &mut self.taps);
+        let shown = (place, &mut self.reset_notice);
+        let notice = notice_pill(ctx, projection, shown, &mut self.taps);
         let ppp = self.pixels_per_point;
         self.islands = [Some(left), Some(right), notice]
             .into_iter()
@@ -113,5 +114,23 @@ impl Shell {
     /// its row shows it from the next pass on, until a newer one comes.
     pub fn set_layer_picture(&mut self, (layer, mask): (LayerId, bool), image: RgbaImage) {
         self.panels.layers.set_picture((layer, mask), image);
+    }
+
+    /// Lets every layer picture go (S49: the GPU memory budget's last step); rows show none
+    /// until new ones come.
+    pub fn forget_layer_pictures(&mut self) {
+        self.panels.layers.drop_pictures();
+    }
+
+    /// Bytes of the layer pictures' textures (S49).
+    #[must_use]
+    pub fn picture_bytes(&self) -> u64 {
+        self.panels.layers.picture_bytes()
+    }
+
+    /// The GPU device was lost and made again (S49): the notice pill says "The display was
+    /// reset." until OK is tapped or the pen starts a stroke.
+    pub fn display_reset(&mut self) {
+        self.reset_notice = true;
     }
 }

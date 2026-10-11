@@ -109,6 +109,8 @@ pub struct Shell {
     moving: bool,
     /// The controls of the last pass.
     controls: ControlMap,
+    /// The GPU device was made again (S49): the notice says so until OK or the next stroke.
+    reset_notice: bool,
 }
 
 impl Shell {

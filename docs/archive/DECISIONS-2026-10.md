@@ -195,3 +195,21 @@ Superseded decisions moved here whole from `docs/DECISIONS.md`. Written, never r
 - Reason: on the tablet a preview value re-binned every tile (12 ms CPU) and re-evaluated the layer's content (61 ms GPU for a soft-brush area; 254 ms at 100 % blur); the snapshot holds exactly the floats those ops leave, so preview = commit and incremental = cold stay by construction (tests); cells keep within 3 levels of the exact Gaussian (2 below 8 px; tested).
 - Consequences: committed blurs from 4 px moved by up to 3 levels (s33's hashes); layers under and over the previewed one are evaluated again where its content lies, and view tiers above 1x evaluate a preview in full; a snapshot costs 16 bytes per pixel of the content's tiles (79 MB at most at screen size) until the next structural change; filter previews stay below 60 Hz (STATUS).
 - Archived 2026-10-10 (S48): replaced by D75 (every part kept; the snapshot kept per tile, shared with the in-progress stroke).
+
+## D03 2026-10-02 Files at most 400 lines, functions at most 60 lines, from the first commit
+- Decision: `cargo repo-check` rejects .rs files over 400 lines; clippy `too_many_lines` at 60 is an error.
+- Reason: the previous project had eight files over 1,900 lines before its big refactor; splitting them took a full day and rewrote 30,000 lines. Agents read big files in sed slices and re-read the same file over a hundred times. Small files make a whole-file Read cheap and edit anchors short.
+- Consequences: tests are split by topic too; long functions become named step functions.
+- Archived 2026-10-12 (S49): AGENTS.md states it as a rule (Code rules) and repo-check and clippy enforce it.
+
+## D04 2026-10-02 Four documents with hard limits; overflow is archived
+- Decision: STATUS 150, ROADMAP 250, ARCHITECTURE 300, DECISIONS 300 lines; no other markdown (README and AGENTS excepted); overflow moves to `docs/archive/`, which is written and never read.
+- Reason: the previous project wrote 55 ADRs, 53 research notes and one record per milestone, plus 2,089 local notes outside the repo. Documents produced more characters than Rust, and most were never read again.
+- Consequences: research and audit conclusions exist only as a decision of at most 15 lines or as a commit message.
+- Archived 2026-10-12 (S49): AGENTS.md states it as a rule (Documents) and repo-check enforces the limits.
+
+## D05 2026-10-02 Tooling is Rust only; no scripts in the repository
+- Decision: tooling lives in `xtask`; .py / .sh / .ps1 are never tracked; agents do not edit code through scripts.
+- Reason: in the previous project agents wrote 391 Python replacement scripts (2.1 million characters) of which only a third was new code, the rest anchors and boilerplate; the local directory accumulated 9,818 .py files.
+- Consequences: code changes go through Edit / Write only; mechanical bulk changes are made file by file after splitting.
+- Archived 2026-10-12 (S49): AGENTS.md states it as a rule (Reading and editing) and repo-check rejects scripts.

@@ -20,7 +20,7 @@ use openpaint_ui::Shell;
 use openpaint_ui::design::{self, TextFonts};
 
 use crate::brush_pictures::BrushPictures;
-use crate::canvas::Canvas;
+use crate::budget::Budget;
 use crate::clock::{FrameClock, InputClock};
 use crate::error::RuntimeError;
 use crate::fill::FillWorker;
@@ -28,8 +28,10 @@ use crate::input::MotionBatch;
 use crate::normalise::Normaliser;
 use crate::pictures::PictureWorker;
 use crate::pointer::pointer_events;
+use crate::recover::{Reattach, Recoveries};
 use crate::screen::{Screen, dispatch_gallery};
 use crate::seeds::Seeds;
+use crate::shared::SharedCore;
 use crate::storage::{Job, Storage};
 use crate::text::{TextInput, text_events};
 use crate::transfer::{TransferWorker, route};
@@ -37,13 +39,20 @@ pub(crate) use crate::ui_pass::screen_frame;
 use crate::ui_pass::{UiPass, run_ui};
 
 pub struct Runtime {
-    /// Shared with the transfer worker, which renders exports.
+    /// The renderer's GPU state now; replaced whole when its device is lost (S49, `recover.rs`).
     pub(crate) core: Arc<Core>,
+    /// The same, as the workers take it for each job.
+    pub(crate) shared: SharedCore,
     ui: egui::Context,
     pub(crate) shell: Shell,
     /// Created with the first target and kept for the process: it holds the UI's textures.
     pub(crate) painter: Option<ScreenPainter>,
-    surface: Option<Surface>,
+    pub(crate) surface: Option<Surface>,
+    /// Makes the window's surface again on a new device, from `attach` until `detach`.
+    pub(crate) window: Option<Reattach>,
+    pub(crate) recoveries: Recoveries,
+    /// The GPU memory budget of the device's class (S49, `budget.rs`).
+    pub(crate) budget: Budget,
     /// The harness's frame, in place of a window.
     pub(crate) offscreen: Option<ScreenTarget>,
     pixels_per_point: f32,
@@ -72,7 +81,7 @@ pub struct Runtime {
     pub(crate) transfers: Transfers,
     pub(crate) transfer: TransferWorker,
     fill: FillWorker,
-    pictures: PictureWorker,
+    pub(crate) pictures: PictureWorker,
     /// The brush panel's pictures and the editor's preview strip (S46).
     pub(crate) brushes: BrushPictures,
     /// Declared last: dropping it writes what it was handed before the process goes.
@@ -113,12 +122,14 @@ impl Runtime {
         pixels_per_point: f32,
     ) -> Result<Self, RuntimeError> {
         log::info!("GPU adapter: {}", core.adapter());
+        core.catch_errors();
         let ui = egui::Context::default();
         design::install(&ui);
         let mut shell = Shell::default();
         let library = toolbox.library();
+        let shared = SharedCore::new(Arc::clone(&core));
         let brushes =
-            BrushPictures::start(Arc::clone(&core), library, (&mut shell, pixels_per_point))?;
+            BrushPictures::start(shared.clone(), library, (&mut shell, pixels_per_point))?;
         Ok(Self {
             brushes,
             storage,
@@ -127,14 +138,18 @@ impl Runtime {
             transfers: Transfers::default(),
             clipboard: Clipboard::default(),
             seeds: Seeds::from_clock(),
-            transfer: TransferWorker::start(Arc::clone(&core))?,
-            fill: FillWorker::start(Arc::clone(&core))?,
-            pictures: PictureWorker::start(Arc::clone(&core))?,
+            transfer: TransferWorker::start(shared.clone())?,
+            fill: FillWorker::start(shared.clone())?,
+            pictures: PictureWorker::start(shared.clone())?,
+            budget: Budget::of(&core),
             core,
+            shared,
             ui,
             shell,
             painter: None,
             surface: None,
+            window: None,
+            recoveries: Recoveries::default(),
             offscreen: None,
             pixels_per_point,
             normaliser: Normaliser::default(),
@@ -153,14 +168,19 @@ impl Runtime {
         design::install_text_fonts(&self.ui, fonts);
     }
 
-    /// The host's window exists, `size` pixels large. Replaces any previous window.
+    /// The host's window exists, `size` pixels large. Replaces any previous window. The window is
+    /// kept until `detach`, so a new device can present into it again (S49).
     pub fn attach(
         &mut self,
-        window: impl SurfaceWindow,
+        window: impl SurfaceWindow + Send + Sync,
         size: [u32; 2],
     ) -> Result<(), RuntimeError> {
         self.surface = None;
-        let surface = self.core.create_surface(window, size)?;
+        let window = Arc::new(window);
+        let surface = self.core.create_surface(Arc::clone(&window), size)?;
+        self.window = Some(Box::new(move |core: &Core, size| {
+            core.create_surface(Arc::clone(&window), size)
+        }));
         log::info!("surface presents {}", surface.report());
         if self.painter.is_none() {
             self.painter = Some(ScreenPainter::for_surface(&self.core, &surface));
@@ -180,6 +200,7 @@ impl Runtime {
     /// The window is about to be destroyed; call before the host lets it go.
     pub fn detach(&mut self) {
         self.surface = None;
+        self.window = None;
     }
 
     /// Takes one platform input batch for the next frame. Returns whether it holds anything,
@@ -217,8 +238,15 @@ impl Runtime {
         self.shell.back(&self.screen())
     }
 
-    /// Runs one frame into the window. Returns whether another frame is wanted at once.
+    /// Runs one frame into the window. Returns whether another frame is wanted at once. A lost
+    /// GPU device is made again first, or after a frame that failed for it (S49).
     pub fn frame(&mut self) -> Result<bool, RuntimeError> {
+        self.recover_if_lost()?;
+        let result = self.frame_once();
+        self.after_frame(result)
+    }
+
+    fn frame_once(&mut self) -> Result<bool, RuntimeError> {
         let Some(size) = self.surface.as_ref().map(Surface::size) else {
             return Ok(false);
         };
@@ -322,6 +350,7 @@ impl Runtime {
             self.storage.submit(Job::SaveEditor(Box::new(state)));
         }
         let now = self.frame_clock.wall_seconds();
+        self.keep_within_budget()?;
         self.screen
             .progress(&self.core, &mut self.storage, (area, now))?;
         if let (Some(canvas), Some(area)) = (self.screen.canvas_mut(), area) {
@@ -332,7 +361,11 @@ impl Runtime {
             canvas.update_view(&self.core, (&frame, self.frame_clock.seconds()))?;
         }
         let changed = self.screen() != shown;
-        let viewing = self.screen.canvas().is_some_and(Canvas::view_pending);
+        // The view tiers or the canvas itself still fill in (S32, S49).
+        let viewing = self
+            .screen
+            .canvas()
+            .is_some_and(|canvas| canvas.view_pending() || canvas.filling());
         let shows = changed || arrived || viewing;
         let again = pass.repaint || shows || self.storing() || self.shell.animating();
         Ok((pass.frame, again))

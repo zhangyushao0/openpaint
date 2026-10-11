@@ -115,7 +115,9 @@ fn bring_up(
             _ => snapshot.emptied(),
         },
         None => {
-            let tiles = Snapshot::new(core, scene.canvas);
+            let Some(tiles) = Snapshot::new(core, scene.canvas, bindings.snapshot_room) else {
+                return Ok(None);
+            };
             ActiveSnapshot {
                 layer: place.layer,
                 on_mask: place.on_mask,
@@ -137,6 +139,11 @@ fn bring_up(
 }
 
 impl ActiveSnapshot {
+    /// Bytes its buffer holds.
+    pub(crate) fn bytes(&self) -> u64 {
+        self.tiles.bytes()
+    }
+
     /// How the layer's content in `artwork` relates to the content held; the same only when its
     /// items in `scene`, `prefix`, are as many as before and end alike.
     fn since(&self, artwork: &Artwork, scene: &Scene, prefix: &Range<usize>) -> Since {
@@ -231,7 +238,7 @@ impl ActiveSnapshot {
         let wanted = self.tiles_of(regions, |tile| !self.tiles.holds(tile));
         let numbers: Vec<usize> = wanted.iter().map(|(tile, _)| *tile).collect();
         if !wanted.is_empty() {
-            if !self.tiles.take(core, &numbers) {
+            if !self.tiles.take(core, &numbers, bindings.snapshot_room) {
                 return Ok(None);
             }
             let rects: Vec<PixelRect> = wanted.iter().map(|(_, rect)| *rect).collect();

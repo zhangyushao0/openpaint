@@ -1,5 +1,8 @@
 //! `ScreenPainter`: draws one screen frame, the placed canvas with egui output over it.
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use crate::core::{Core, clear_attachment};
 use crate::error::RenderError;
 use crate::gradient::Gradient;
@@ -22,13 +25,16 @@ pub struct ScreenFrame<'a> {
 }
 
 /// Paints screen frames. It holds the UI's textures (the font atlas among them), which egui
-/// sends only once, so one painter lives as long as the UI context that feeds it.
+/// sends only once, so one painter lives as long as the UI context that feeds it; it keeps each
+/// texture's image as egui last left it, so a painter on a new device gets them all again (S49).
 pub struct ScreenPainter {
     renderer: egui_wgpu::Renderer,
     blit: CanvasBlit,
     format: wgpu::TextureFormat,
     /// The precision check drawn over everything while it is on (`show_gradient`).
     gradient: Option<Gradient>,
+    /// Every texture egui sent and has not freed, whole.
+    kept: HashMap<egui::TextureId, egui::epaint::ImageDelta>,
 }
 
 impl ScreenPainter {
@@ -51,7 +57,22 @@ impl ScreenPainter {
             blit: CanvasBlit::new(core, format),
             format,
             gradient: None,
+            kept: HashMap::new(),
         }
+    }
+
+    /// This painter on `core`, a device made after the one it painted on was lost (S49), for
+    /// `surface` (else the format it had): every texture egui sent is uploaded there again.
+    #[must_use]
+    pub fn moved(self, core: &Core, surface: Option<&Surface>) -> Self {
+        let format = surface.map_or(self.format, Surface::format);
+        let mut painter = Self::new(core, format);
+        for (id, image) in &self.kept {
+            let (device, queue) = (&core.gpu.device, &core.gpu.queue);
+            painter.renderer.update_texture(device, queue, *id, image);
+        }
+        painter.kept = self.kept;
+        painter
     }
 
     /// Shows the precision check over the whole screen from the next frame on, or stops (S37,
@@ -76,6 +97,30 @@ impl ScreenPainter {
             for delta in deltas {
                 self.renderer
                     .update_texture(&core.gpu.device, &core.gpu.queue, *id, delta);
+                self.keep(*id, delta);
+            }
+        }
+    }
+
+    /// Applies `delta` to the image kept of texture `id`: a whole one replaces it, a part is
+    /// copied into it.
+    fn keep(&mut self, id: egui::TextureId, delta: &egui::epaint::ImageDelta) {
+        let Some([x, y]) = delta.pos else {
+            self.kept.insert(id, delta.clone());
+            return;
+        };
+        let Some(egui::ImageData::Color(whole)) =
+            self.kept.get_mut(&id).map(|kept| &mut kept.image)
+        else {
+            return;
+        };
+        let egui::ImageData::Color(part) = &delta.image;
+        let whole = Arc::make_mut(whole);
+        let width = whole.size[0];
+        for (row, pixels) in part.pixels.chunks_exact(part.size[0].max(1)).enumerate() {
+            let at = (y + row) * width + x;
+            if let Some(target) = whole.pixels.get_mut(at..at + pixels.len()) {
+                target.copy_from_slice(pixels);
             }
         }
     }
@@ -84,6 +129,7 @@ impl ScreenPainter {
     fn release(&mut self, textures: &mut egui::TexturesDelta) {
         for id in &textures.free {
             self.renderer.free_texture(id);
+            self.kept.remove(id);
         }
         textures.clear();
     }

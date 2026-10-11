@@ -4,7 +4,6 @@
 //! time, the strip first, so the frame never waits; derived, never stored.
 
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use openpaint_app::{Brush, BrushKey, BrushLibrary, Toolbox};
 use openpaint_core::StrokeTool;
@@ -13,6 +12,7 @@ use openpaint_ui::Shell;
 
 use crate::error::RuntimeError;
 use crate::preview::{brush_picture, brush_previews, preview_size};
+use crate::shared::SharedCore;
 use crate::strip::{StripJob, evaluate_strip};
 use crate::worker::Queue;
 
@@ -40,17 +40,17 @@ pub(crate) struct BrushPictures {
 impl BrushPictures {
     /// Makes the pictures of `library`'s brushes at once, at `pixels_per_point`, for `shell`.
     pub(crate) fn start(
-        core: Arc<Core>,
+        core: SharedCore,
         library: &BrushLibrary,
         (shell, pixels_per_point): (&mut Shell, f32),
     ) -> Result<Self, RuntimeError> {
-        shell.set_brush_previews(brush_previews(&core, library, pixels_per_point)?);
+        shell.set_brush_previews(brush_previews(&core.get(), library, pixels_per_point)?);
         let rows = library
             .brushes()
             .iter()
             .map(|brush| (brush.key().clone(), brush.clone()))
             .collect();
-        let worker = Queue::spawn("openpaint-brushes", move |job| make(&core, job))?;
+        let worker = Queue::spawn("openpaint-brushes", move |job| make(&core.get(), job))?;
         Ok(Self {
             worker,
             rows,
@@ -63,6 +63,13 @@ impl BrushPictures {
     /// True while a picture is being made or waits to be taken.
     pub(crate) fn busy(&self) -> bool {
         self.worker.busy()
+    }
+
+    /// Every row's picture and the strip are made again (S49: those made while the device was
+    /// lost failed); the pictures shown stay until then.
+    pub(crate) fn redo(&mut self) {
+        self.rows.clear();
+        self.strip = None;
     }
 
     /// The strip's last picture, while the editor shows.

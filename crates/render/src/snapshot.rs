@@ -7,7 +7,8 @@
 //! `OP_RESUME` reads them back exactly, so resuming a layer from it equals evaluating its ops.
 //!
 //! The buffer grows by doubling (its slots copied over) up to the device's storage binding and
-//! buffer limits; a tile beyond them is refused and its evaluations take every op again.
+//! buffer limits and the room the GPU memory budget leaves it (S49); a tile beyond them is
+//! refused and its evaluations take every op again.
 
 use crate::core::Core;
 use crate::program::SnapshotUse;
@@ -32,30 +33,42 @@ pub(crate) struct Snapshot {
 }
 
 impl Snapshot {
-    /// An empty snapshot of a canvas of `size` pixels.
-    pub(crate) fn new(core: &Core, size: [u32; 2]) -> Self {
+    /// An empty snapshot of a canvas of `size` pixels within `room` bytes; `None` when the room
+    /// cannot hold its table and one tile (S49).
+    pub(crate) fn new(core: &Core, size: [u32; 2], room: u64) -> Option<Self> {
         let [columns, rows] = size.map(|side| side.div_ceil(TILE));
         let tiles = columns as usize * rows as usize;
         let head = u32::try_from(tiles).unwrap_or(u32::MAX);
-        let capacity = FIRST_SLOTS.min(Self::most(core, head));
-        Self {
+        let most = Self::most(core, head, room);
+        if most == 0 {
+            return None;
+        }
+        let capacity = FIRST_SLOTS.min(most);
+        Some(Self {
             buffer: buffer(core, head, capacity),
             columns,
             slots: vec![0; tiles],
             used: 0,
             capacity,
             head,
-        }
+        })
     }
 
-    /// The most slots a buffer after a table of `head` units can hold on this device.
-    fn most(core: &Core, head: u32) -> u32 {
+    /// The most slots a buffer after a table of `head` units can hold on this device within
+    /// `room` bytes.
+    fn most(core: &Core, head: u32, room: u64) -> u32 {
         let limits = core.gpu.device.limits();
         let bytes = limits
             .max_storage_buffer_binding_size
-            .min(limits.max_buffer_size);
+            .min(limits.max_buffer_size)
+            .min(room);
         let room = bytes.saturating_sub(u64::from(head) * PIXEL_BYTES) / SLOT_BYTES;
         u32::try_from(room).unwrap_or(u32::MAX)
+    }
+
+    /// Bytes its buffer holds.
+    pub(crate) fn bytes(&self) -> u64 {
+        self.buffer.size()
     }
 
     /// The canvas's tiles.
@@ -73,10 +86,10 @@ impl Snapshot {
         self.slots.get(tile).is_some_and(|slot| *slot > 0)
     }
 
-    /// Slots for the canvas tiles `tiles` (row major, none held yet), the buffer grown as needed;
-    /// their pixels are undefined until an evaluation writes them. False, taking none, when
-    /// they would pass the device's limits.
-    pub(crate) fn take(&mut self, core: &Core, tiles: &[usize]) -> bool {
+    /// Slots for the canvas tiles `tiles` (row major, none held yet), the buffer grown as needed
+    /// within `room` bytes; their pixels are undefined until an evaluation writes them. False,
+    /// taking none, when they would pass the device's limits or the room.
+    pub(crate) fn take(&mut self, core: &Core, tiles: &[usize], room: u64) -> bool {
         let Some(needed) = u32::try_from(tiles.len())
             .ok()
             .and_then(|count| self.used.checked_add(count))
@@ -84,9 +97,11 @@ impl Snapshot {
             return false;
         };
         if needed > self.capacity {
-            let most = Self::most(core, self.head);
+            let most = Self::most(core, self.head, room);
             if needed > most {
-                log::info!("snapshot full: {needed} tiles exceed the device's {most}");
+                log::info!(
+                    "snapshot full: {needed} tiles exceed the {most} the device and budget hold"
+                );
                 return false;
             }
             self.grow(core, needed.max(self.capacity.saturating_mul(2)).min(most));

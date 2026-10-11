@@ -1,0 +1,36 @@
+{
+  "walkthrough": [
+    "Goal: keep painting when the tablet's GPU resets, and open a dense painting without the app freezing or losing its display; nothing drawn is ever lost.",
+    "Entry: open OpenPaint on the tablet (2880 x 1800, landscape); draw two lines with the Ink Pen.",
+    "A dense painting: a piece holding hundreds of textured strokes over one place opens from its card. The canvas fills in over a moment, whole tiles at a time from the top, never a tile half drawn; meanwhile taps, panels and two-finger navigation answer. Undo or redo of a large change, a layer or mask change and a merge fill in the same way. No frame asks the GPU for more than about a tenth of a second of work, so the system never resets it for running too long.",
+    "A GPU reset (the driver lost the device): within a moment the screen comes back, the canvas exactly as it was, the panels and tools as they were. A quiet pill in the top band says \"The display was reset.\" with OK; tapping OK, or starting the next stroke, lets it go. A stroke the pen was drawing at that moment goes on under the pen and is committed whole at the lift, as if nothing happened; nothing the hand did is lost.",
+    "History survives: undo and redo step through the strokes drawn before and after the reset; leaving the app and coming back shows the same canvas.",
+    "Memory: when the GPU's memory runs short (zoomed in on a large busy artwork with many smudges and blurs), the app first lets the sharp zoom tiles go (the canvas shows magnified, softer, until there is room), then its quick-drawing copies of layers (strokes over a busy place draw a little slower), then smudge and blur results the canvas no longer shows, then the layer pictures; the canvas itself always stays exact.",
+    "Failure: if the GPU keeps resetting (more than three times a minute), the app stops making its display again and shows what it last could; the artwork is saved as always."
+  ],
+  "screen": [2880, 1800],
+  "density": 1.75,
+  "steps": [
+    { "stroke": { "points": [[500, 600, 0.8], [1500, 700, 0.8], [2300, 650, 0.8]] } },
+    { "stroke": { "points": [[500, 1000, 0.8], [1500, 1100, 0.8], [2300, 1050, 0.8]] } },
+    { "checkpoint": { "name": "two-lines", "canvas": "f50865a681391df3" } },
+    "lose_device",
+    { "screenshot": { "name": "display-reset" } },
+    { "checkpoint": { "name": "after-the-reset", "canvas": "f50865a681391df3" } },
+    { "expect": { "shown": ["OK"] } },
+    { "tap": { "at": "OK" } },
+    { "expect": { "absent": ["OK"] } },
+    { "stroke": { "points": [[500, 1300, 0.8], [1500, 1400, 0.8], [2300, 1350, 0.8]] } },
+    { "checkpoint": { "name": "a-line-after-the-reset", "canvas": "955a9b5e1a4263a3" } },
+    { "screenshot": { "name": "three-lines" } },
+    { "tap": { "at": "Undo" } },
+    { "checkpoint": { "name": "undone", "canvas": "f50865a681391df3" } },
+    { "tap": { "at": "Redo" } },
+    "lose_device",
+    { "stroke": { "points": [[500, 400, 0.8], [1500, 300, 0.8]] } },
+    { "expect": { "absent": ["OK"] } },
+    { "checkpoint": { "name": "a-stroke-lets-the-notice-go", "canvas": "aad65b898706db8d" } },
+    "restart",
+    { "checkpoint": { "name": "reopened", "canvas": "aad65b898706db8d" } }
+  ]
+}

@@ -23,7 +23,8 @@ import android.view.MotionEvent
  * side button through the pen's events (S41, S43). `-e tap <name>` is a finger tap on the
  * middle of the control the app last drew under that name ([DebugControls]); the result's
  * `tapped` says where. `-e gradient on|off` injects nothing: it turns the screen's precision
- * check on or off ([DebugControls.gradient]).
+ * check on or off ([DebugControls.gradient]); `-e lose device` loses the GPU device on purpose
+ * ([DebugControls.loseDevice], S49).
  */
 class GestureInstrumentation : Instrumentation() {
     private var arguments = Bundle()
@@ -41,6 +42,12 @@ class GestureInstrumentation : Instrumentation() {
         try {
             arguments.getString("gradient")?.let { state ->
                 runOnMainSync { DebugControls.gradient(state == "on") }
+                result.putString("gesture", "injected")
+                finish(Activity.RESULT_OK, result)
+                return
+            }
+            arguments.getString("lose")?.let {
+                runOnMainSync { DebugControls.loseDevice() }
                 result.putString("gesture", "injected")
                 finish(Activity.RESULT_OK, result)
                 return

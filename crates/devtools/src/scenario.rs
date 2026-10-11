@@ -140,6 +140,9 @@ pub enum Step {
     StorageFails,
     /// Storage works again.
     StorageWorks,
+    /// The GPU device is lost as a driver reset loses it (S49): the next frame makes the
+    /// renderer again.
+    LoseDevice,
     /// The canvas pixels (the artwork without the UI) must hash to `canvas`. The canvas, not
     /// the screen, because only the evaluator's pixels are the same on every GPU backend.
     Checkpoint {

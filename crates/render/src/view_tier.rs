@@ -72,6 +72,11 @@ pub struct ViewCache {
     filling: Option<Filling>,
     /// The most bytes the tiers held at once.
     peak: u64,
+    /// The most bytes the tiers may hold: `BUDGET_BYTES`, or less when the GPU memory budget
+    /// leaves less (S49); a tier that would not fit is not made and the canvas shows.
+    room: u64,
+    /// The tier the view wants did not fit the room.
+    refused: bool,
 }
 
 impl ViewWork {
@@ -92,7 +97,24 @@ impl ViewCache {
             shown: Shown::new(core),
             peak: 0,
             filling: None,
+            room: BUDGET_BYTES,
+            refused: false,
         }
+    }
+
+    /// The tiers hold at most `bytes` from now on (never more than 90 MB): when they hold more,
+    /// the tier before goes, then the tier shown (the canvas shows instead). Returns the bytes
+    /// given back.
+    pub fn set_room(&mut self, bytes: u64) -> u64 {
+        self.room = bytes.min(BUDGET_BYTES);
+        let before = self.bytes();
+        if self.bytes() > self.room {
+            self.previous = None;
+        }
+        if self.bytes() > self.room {
+            self.current = None;
+        }
+        before - self.bytes()
     }
 
     /// Brings the tiers up to date with `canvas`, just evaluated for `request`, shown through
@@ -117,6 +139,7 @@ impl ViewCache {
         };
         self.last = Some((*frame, since));
         let settled = now - since >= SETTLE_SECONDS;
+        self.refused = false;
         if settled && self.current.as_ref().map(Tier::scale) != wanted {
             self.switch(core, request, wanted, frame)?;
         }
@@ -130,7 +153,10 @@ impl ViewCache {
             let mut regions = in_place(current, &changed, &mut work);
             if Some(current.scale()) == wanted {
                 let needed = Needed::of(&current.map, frame);
-                regions.extend(fill(core, current, &needed, &mut work)?);
+                // The canvas fills in first (S49): no missing tile is filled meanwhile.
+                if !canvas.pending() {
+                    regions.extend(fill(core, current, &needed, &mut work)?);
+                }
                 work.waiting = needed.waiting(current);
                 if needed.shows(current) {
                     self.previous = None;
@@ -147,7 +173,7 @@ impl ViewCache {
         self.shown
             .refresh(core, [self.current.as_ref(), self.previous.as_ref()]);
         work.tier = self.current.as_ref().map(Tier::scale);
-        work.changing = work.tier != wanted;
+        work.changing = work.tier != wanted && !self.refused;
         work.bytes = self.bytes();
         self.filling = Filling::step(self.filling.take(), &work);
         if work.bytes > self.peak {
@@ -172,6 +198,11 @@ impl ViewCache {
             let output = Output::at(scale, [0, 0])?;
             let map = TileMap::new([canvas.width(), canvas.height()], output, (1, 1));
             let slots = Needed::of(&map, frame).count();
+            // A tier the GPU memory budget leaves no room for is not made (S49).
+            if Tier::bytes_for(&map, slots as u32) > self.room {
+                self.refused = true;
+                return Ok(());
+            }
             let tier = Tier::new(core, request.artwork, scale, slots as u32)?;
             // The tier shown so far stays under the new one where the view shows it, in an
             // atlas of just those tiles, while both fit the budget.
@@ -183,7 +214,7 @@ impl ViewCache {
                 None => None,
             };
             self.previous =
-                previous.filter(|previous| previous.bytes() + tier.bytes() <= BUDGET_BYTES);
+                previous.filter(|previous| previous.bytes() + tier.bytes() <= self.room);
             log::info!(
                 "view tier {scale}x for zoom {:.2}: {slots} tiles wanted, {:.1} MB, the tier before kept: {:.1} MB",
                 zoom(&frame.to_canvas),

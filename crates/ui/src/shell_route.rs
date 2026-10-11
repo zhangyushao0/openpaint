@@ -3,7 +3,7 @@
 //! the canvas outside closes the panels and the copy menu, and three fingers swiped down open
 //! the copy menu (S40).
 
-use openpaint_app::{InputBatch, Intent, ViewIntent, ViewMapping};
+use openpaint_app::{ContactPhase, InputBatch, Intent, StrokeIntent, ViewIntent, ViewMapping};
 
 use super::Shell;
 use crate::canvas_input::{CanvasFrame, touched_outside};
@@ -72,14 +72,30 @@ impl Shell {
             self.copy.open();
         }
         self.settle_view(&intents, frame.mapping());
-        // Choosing a tool ends continuing to fill.
-        if self.taps.iter().any(|tap| matches!(tap, Intent::Tool(_))) {
-            self.drop.set_continuing(false);
-        }
+        self.ended_by(&intents);
         intents.append(&mut self.taps);
         intents
     }
 
+    /// What this frame's contacts and taps end: a new stroke lets the notice that the display
+    /// was reset go (S49); choosing a tool ends continuing to fill.
+    fn ended_by(&mut self, intents: &[Intent]) {
+        if intents.iter().any(starts_stroke) {
+            self.reset_notice = false;
+        }
+        if self.taps.iter().any(|tap| matches!(tap, Intent::Tool(_))) {
+            self.drop.set_continuing(false);
+        }
+    }
+}
+
+/// A contact touching down to draw.
+fn starts_stroke(intent: &Intent) -> bool {
+    matches!(intent, Intent::Stroke(StrokeIntent::Contact(contact))
+        if contact.phase == ContactPhase::Down)
+}
+
+impl Shell {
     /// A quick pinch settles the view at fit from where it showed; a contact on the canvas or a
     /// navigation ends any settling at once, so the hand always acts on what it sees.
     fn settle_view(&mut self, intents: &[Intent], mapping: ViewMapping) {

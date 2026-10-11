@@ -16,6 +16,9 @@ const STRIDE: u64 = 256;
 const CONTACT_BYTES: u64 = 64;
 /// Jobs per submission.
 const JOBS_PER_SUBMIT: usize = 512;
+/// Nodes one submission's jobs cover at most (S49): about 70 ms on the tablet, where a contact of
+/// radius 300 (about 363,000 nodes, stamped and committed) took about 1.5 ms (S21).
+const NODES_PER_SUBMIT: u64 = 1 << 24;
 /// Nodes one contact can change at most: its rectangle's side is under `2 r + 3`.
 const SCRATCH_NODES: u64 = (2 * MAX_RADIUS as u64 + 3) * (2 * MAX_RADIUS as u64 + 3);
 
@@ -57,6 +60,11 @@ impl KernelBuffers {
                 mapped_at_creation: false,
             }),
         }
+    }
+
+    /// Bytes of its buffers.
+    pub(crate) fn bytes(&self) -> u64 {
+        self.params.size() + self.scratch.size()
     }
 }
 
@@ -136,7 +144,7 @@ impl SmudgePipeline {
         jobs: &[Job],
         canvas: [u32; 2],
     ) {
-        for chunk in jobs.chunks(JOBS_PER_SUBMIT) {
+        for chunk in submissions(jobs) {
             let mut bytes = vec![0; chunk.len() * STRIDE as usize];
             let (slots, _) = bytes.as_chunks_mut::<{ STRIDE as usize }>();
             for (slot, job) in slots.iter_mut().zip(chunk) {
@@ -165,6 +173,30 @@ impl SmudgePipeline {
             gpu.queue.submit([encoder.finish()]);
         }
     }
+}
+
+/// `jobs` cut in order into submissions of at most `JOBS_PER_SUBMIT` jobs over at most
+/// `NODES_PER_SUBMIT` nodes (a job above it alone), so no submission runs past the GPU's time
+/// limit (S49).
+fn submissions(jobs: &[Job]) -> Vec<&[Job]> {
+    let nodes = |job: &Job| {
+        let (Job::Reset(rect) | Job::Contact(_, rect)) = job;
+        u64::from(rect[2]) * u64::from(rect[3])
+    };
+    let mut out = Vec::new();
+    let (mut start, mut covered) = (0, 0);
+    for (index, job) in jobs.iter().enumerate() {
+        let full = index - start == JOBS_PER_SUBMIT || covered + nodes(job) > NODES_PER_SUBMIT;
+        if index > start && full {
+            out.push(&jobs[start..index]);
+            (start, covered) = (index, 0);
+        }
+        covered += nodes(job);
+    }
+    if start < jobs.len() {
+        out.push(&jobs[start..]);
+    }
+    out
 }
 
 /// The kernels' bindings: the job's values (one `Contact` at a dynamic offset), the residual's

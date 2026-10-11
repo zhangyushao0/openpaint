@@ -9,6 +9,8 @@ mod active;
 mod active_snapshot;
 mod adapter;
 mod affine;
+mod bounded;
+mod budget;
 mod change;
 mod core;
 mod curve;
@@ -56,6 +58,8 @@ pub use crate::adapter::{
     CHROME_ISLANDS, CHROME_PANELS, ChromePanel, ChromeShapes, ScreenFrame, ScreenPainter, UiFrame,
     chrome_shape,
 };
+pub use crate::bounded::DISPATCH_WORK;
+pub use crate::budget::{CacheBytes, DeviceClass, OWN_BUDGET, SHARED_BUDGET};
 pub use crate::change::changed_regions;
 pub use crate::core::Core;
 pub use crate::error::RenderError;

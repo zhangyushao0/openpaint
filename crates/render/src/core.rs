@@ -1,5 +1,7 @@
 //! `Core`: the renderer's GPU state. Created once per process and shared; never stored in the
-//! UI framework.
+//! UI framework. When its device is lost, the runtime replaces it whole (`reopened`, S49).
+
+use std::sync::Arc;
 
 use crate::error::RenderError;
 use crate::filter::FilterPipeline;
@@ -75,6 +77,73 @@ impl Core {
     /// Adapter name and backend, for logs and harness output.
     pub fn adapter(&self) -> String {
         self.gpu.describe()
+    }
+
+    /// A new device on the same kind of adapter, with every pipeline built anew: what replaces
+    /// this one once it is lost (S49). Nothing made on this one can be used with it.
+    ///
+    /// # Errors
+    /// As `headless`: no adapter or device now (the driver may still be resetting).
+    pub fn reopened(&self) -> Result<Self, RenderError> {
+        Self::with_gpu(Gpu::new(self.gpu.ten_bits)?)
+    }
+
+    /// Why the device was lost (the driver's lost callback, an error once it was lost, out of
+    /// memory), once it was; `None` while it works.
+    #[must_use]
+    pub fn lost(&self) -> Option<String> {
+        self.gpu.health.lost()
+    }
+
+    /// From now on wgpu's errors on this device no longer end the process while it is lost:
+    /// once the driver reported the loss, every call on the device fails and each failure is
+    /// only logged; running out of GPU memory or an internal driver failure counts as a loss. A
+    /// validation error on a working device is a bug and panics, as wgpu's own handler does.
+    /// The runtime calls this; tests keep wgpu's handler.
+    pub fn catch_errors(&self) {
+        let health = Arc::clone(&self.gpu.health);
+        let handler = move |error: wgpu::Error| match error {
+            wgpu::Error::OutOfMemory { .. } | wgpu::Error::Internal { .. } => {
+                health.lose(error.to_string());
+            }
+            wgpu::Error::Validation { .. } if health.lost().is_some() => {
+                log::debug!("the lost device refused a call: {error}");
+            }
+            wgpu::Error::Validation { .. } => panic!("wgpu error: {error}"),
+        };
+        self.gpu.device.on_uncaptured_error(Arc::new(handler));
+    }
+
+    /// Destroys the device as a driver reset would lose it, for tests and the scenario runner,
+    /// then waits (at most `GPU_WAIT`) until wgpu reports the loss through its callback. Returns
+    /// whether the callback reported it; if not, the loss is marked here.
+    pub fn destroy_device(&self) -> bool {
+        self.gpu.device.destroy();
+        let poll = wgpu::PollType::Wait {
+            submission_index: None,
+            timeout: Some(crate::readback::GPU_WAIT),
+        };
+        if let Err(error) = self.gpu.device.poll(poll) {
+            log::info!("polling the destroyed device: {error}");
+        }
+        let reported = self.lost().is_some();
+        if !reported {
+            self.gpu.health.lose("destroyed".to_owned());
+        }
+        reported
+    }
+
+    /// Sets the most work one evaluation dispatch takes (`bounded.rs`: op entries listed in its
+    /// tiles, one more a tile; 12,000 at first, about 100 ms on the tablet), so tests can compare
+    /// a bounded evaluation with one dispatch.
+    pub fn set_dispatch_work(&self, entries: u64) {
+        self.evaluate.bound_to(entries);
+    }
+
+    /// Evaluation dispatches submitted on this device so far (S49).
+    #[must_use]
+    pub fn dispatches(&self) -> u64 {
+        self.evaluate.runs()
     }
 
     /// Blocks until the GPU has finished all submitted work, for timing a whole frame; at most

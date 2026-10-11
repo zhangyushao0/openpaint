@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 mod brush_pictures;
+mod budget;
 mod canvas;
 mod clock;
 mod error;
@@ -15,8 +16,10 @@ mod offscreen;
 mod pictures;
 mod pointer;
 mod preview;
+mod recover;
 mod screen;
 mod seeds;
+mod shared;
 mod storage;
 mod strip;
 mod text;

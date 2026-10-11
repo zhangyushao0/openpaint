@@ -90,10 +90,25 @@ impl LayerPanel {
 
     /// Another artwork shows: no picture of the last one stays.
     pub(crate) fn forget_pictures(&mut self) {
-        self.arrived.clear();
-        self.pictures.clear();
+        self.drop_pictures();
         self.drag = None;
         self.rename = None;
+    }
+
+    /// Lets every picture go (S49: the GPU memory budget's last step); rows show none until
+    /// new ones come.
+    pub(crate) fn drop_pictures(&mut self) {
+        self.arrived.clear();
+        self.pictures.clear();
+    }
+
+    /// Bytes of the pictures' textures.
+    pub(crate) fn picture_bytes(&self) -> u64 {
+        let side = |texture: &egui::TextureHandle| {
+            let [width, height] = texture.size();
+            (width * height * 4) as u64
+        };
+        self.pictures.values().map(side).sum()
     }
 
     /// The panel while it is open or closing, its taps pushed to `taps`.

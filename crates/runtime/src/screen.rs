@@ -209,10 +209,10 @@ impl Screen {
 }
 
 /// The store's job for leaving `canvas`: `version` (from `Session::leave_request`) and the
-/// thumbnail of what the canvas shows; `close` for the gallery. A thumbnail that cannot be made
-/// is left out (it is derived data).
+/// thumbnail of what the canvas shows (every tile waiting evaluated first, S49); `close` for the
+/// gallery. A thumbnail that cannot be made is left out (it is derived data).
 pub(crate) fn leave_job(
-    canvas: &Canvas,
+    canvas: &mut Canvas,
     core: &Core,
     version: Option<Artwork>,
     (kept_at, close): (u64, bool),

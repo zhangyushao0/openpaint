@@ -62,6 +62,25 @@ impl Arena {
         &self.buffer
     }
 
+    /// Bytes its buffer holds.
+    pub(crate) fn bytes(&self) -> u64 {
+        self.buffer.size()
+    }
+
+    /// Keeps only the blocks of `live` in a buffer just large enough for them (S49: the GPU
+    /// memory budget's third step); the bases of those blocks change.
+    ///
+    /// # Errors
+    /// As `reserve`.
+    pub(crate) fn shrink(
+        &mut self,
+        gpu: &Gpu,
+        live: &HashSet<Key>,
+        limit: u64,
+    ) -> Result<(), RenderError> {
+        self.compact(gpu, live, 0, limit)
+    }
+
     /// Where the block of `key` starts, in words.
     pub(crate) fn base(&self, key: &Key) -> Option<u64> {
         self.blocks.get(key).map(|block| block.base)

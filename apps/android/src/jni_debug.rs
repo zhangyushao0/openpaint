@@ -1,6 +1,7 @@
 //! For debug builds: finds a control on screen by its name for the dev machine's
-//! `cargo device-input tap <name>` (D48's names, as scenarios use them), and turns the screen's
-//! precision check on and off (`gradient on|off`, S37). Only Kotlin's debug source set declares
+//! `cargo device-input tap <name>` (D48's names, as scenarios use them), turns the screen's
+//! precision check on and off (`gradient on|off`, S37) and loses the GPU device on purpose
+//! (`lose-device`, S49). Only Kotlin's debug source set declares
 //! them (`DebugControls`, called from `GestureInstrumentation` on the main thread); the library
 //! is built with the release profile for every APK, so a release APK carries these symbols with
 //! nothing that can call them.
@@ -49,6 +50,24 @@ pub extern "system" fn Java_dev_openpaint_DebugControls_find<'local>(
         Ok(env.new_string(line)?.into())
     })
     .resolve::<LogErrorAndDefault>()
+}
+
+/// For `cargo device-input lose-device` (S49): the GPU device destroyed under the app as a driver
+/// reset loses it, then one frame, which makes the renderer again.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_openpaint_DebugControls_loseDevice<'local>(
+    mut env: EnvUnowned<'local>,
+    _class: JClass<'local>,
+) {
+    env.with_env(|_| -> Result<(), HostError> {
+        if let Some(runtime) = runtime(HANDLE.load(Ordering::SeqCst)) {
+            let reported = runtime.lose_device();
+            log::info!("device lost on purpose; wgpu's lost callback reported it: {reported}");
+            runtime.frame()?;
+        }
+        Ok(())
+    })
+    .resolve::<LogErrorAndDefault>();
 }
 
 /// For `cargo device-input gradient on|off` (S37): the screen's precision check on or off, and

@@ -21,7 +21,9 @@
 //!   (D48's names; `name #n` for a shared one), looked up on the device by the debug build;
 //! - `gradient on|off`: no gesture; the screen's precision check (S37) over everything, or off:
 //!   a soft grey ramp from sRGB 100 to 120, its upper half at 8 bits, its lower at the window's
-//!   ten.
+//!   ten;
+//! - `lose-device`: no gesture; the GPU device destroyed under the app as a driver reset loses it
+//!   (S49), so the app makes its renderer again.
 
 use std::time::Duration;
 
@@ -176,7 +178,7 @@ const INPUT_USAGE: &str = "cargo device-input \
                            | pen-many count x,y,... [pressure] \
                            | finger x,y[,...] [x,y[,...] [ms]] \
                            | hover x,y [ms] [primary|secondary|tertiary|eraser] \
-                           | tap <control name> | gradient on|off";
+                           | tap <control name> | gradient on|off | lose-device";
 
 /// The instrumentation's `-e` arguments for a `device-input` command line.
 fn extras(args: &[&str]) -> Result<Vec<(&'static str, String)>> {
@@ -190,6 +192,9 @@ fn extras(args: &[&str]) -> Result<Vec<(&'static str, String)>> {
     }
     if let ["gradient", state @ ("on" | "off")] = args {
         return Ok(vec![("gradient", (*state).to_owned())]);
+    }
+    if let ["lose-device"] = args {
+        return Ok(vec![("lose", "device".to_owned())]);
     }
     // A pen or hover line may end with the pen end or side button it uses (S41).
     let (words, end) = match args {
@@ -272,6 +277,8 @@ mod tests {
         assert_eq!(fingers[2], ("ms", "200".to_owned()));
         let tap = extras(&["tap", "Move layer up"]).expect("tap");
         assert_eq!(tap, [("tap", "'Move layer up'".to_owned())]);
+        let lose = extras(&["lose-device"]).expect("lose");
+        assert_eq!(lose, [("lose", "device".to_owned())]);
         assert!(extras(&["tap", "it's"]).is_err());
         let gradient = extras(&["gradient", "on"]).expect("gradient");
         assert_eq!(gradient, [("gradient", "on".to_owned())]);

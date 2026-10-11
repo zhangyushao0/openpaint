@@ -103,12 +103,7 @@ impl Smudges {
         artwork: &Artwork,
         filters: &mut Filters,
     ) -> Result<(), RenderError> {
-        let mut keys: Vec<Key> = scene
-            .smudges
-            .iter()
-            .map(|item| key(item.layer, &item.stroke))
-            .collect();
-        keys.extend(filters.keys(&scene.filters));
+        let keys = budget::keys_of(scene, filters);
         let live: HashSet<Key> = keys.iter().copied().collect();
         let limit = binding_limit(core);
         let size = [artwork.canvas().width(), artwork.canvas().height()];
@@ -369,6 +364,9 @@ impl Tools {
         Ok(())
     }
 }
+
+#[path = "engine_budget.rs"]
+mod budget;
 
 /// The largest buffer the device binds, in bytes.
 fn binding_limit(core: &Core) -> u64 {

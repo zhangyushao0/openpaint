@@ -93,6 +93,16 @@ impl Tier {
         atlas + u64::from(columns) * u64::from(rows) * 4
     }
 
+    /// Bytes a new tier with room for `slots` tiles of `map`'s tiling would hold (S49).
+    pub(crate) fn bytes_for(map: &TileMap, slots: u32) -> u64 {
+        let across = slots.clamp(1, ACROSS);
+        let rows = slots.div_ceil(across).max(1);
+        let side = u64::from(TIER_TILE);
+        let atlas = u64::from(across) * u64::from(rows) * side * side * 4;
+        let [columns, down] = map.tiles();
+        atlas + u64::from(columns) * u64::from(down) * 4
+    }
+
     fn at(&self, [column, row]: [u32; 2]) -> usize {
         (row * self.map.tiles()[0] + column) as usize
     }

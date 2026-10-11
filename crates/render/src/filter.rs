@@ -209,6 +209,11 @@ impl Filters {
             .collect()
     }
 
+    /// Bytes of its kernels' buffers (its results lie in the arena).
+    pub(crate) fn bytes(&self) -> u64 {
+        self.buffers.as_ref().map_or(0, FilterBuffers::bytes)
+    }
+
     /// Forgets the results the arena no longer holds.
     pub(crate) fn retain(&mut self, arena: &Arena) {
         self.known

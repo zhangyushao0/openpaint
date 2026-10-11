@@ -5,7 +5,6 @@
 //! frame loop takes its results into the app's `Transfers`.
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use openpaint_app::{
@@ -18,6 +17,7 @@ use openpaint_store::{ImageEncoder, open_picture, open_reference};
 
 use crate::canvas::{Canvas, PAPER};
 use crate::error::RuntimeError;
+use crate::shared::SharedCore;
 use crate::worker::Queue;
 
 pub(crate) enum TransferDone {
@@ -31,8 +31,8 @@ pub(crate) struct TransferWorker {
 }
 
 impl TransferWorker {
-    pub(crate) fn start(core: Arc<Core>) -> Result<Self, RuntimeError> {
-        let worker = Queue::spawn("openpaint-transfer", move |job| serve(&core, job))?;
+    pub(crate) fn start(core: SharedCore) -> Result<Self, RuntimeError> {
+        let worker = Queue::spawn("openpaint-transfer", move |job| serve(&core.get(), job))?;
         Ok(Self { worker })
     }
 
