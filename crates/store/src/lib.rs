@@ -6,6 +6,7 @@
 
 mod adjusts;
 mod artwork_file;
+mod batch;
 mod catalogue;
 mod codec;
 mod colour;
@@ -40,8 +41,12 @@ mod records;
 mod shapes;
 mod steps;
 mod strokes;
+mod upgrade;
 mod versions;
 mod write;
+
+#[cfg(test)]
+mod robustness_tests;
 
 pub use crate::export_file::{ImageEncoder, encode_image};
 pub use crate::image_file::{decode_image, open_picture, open_reference};

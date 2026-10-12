@@ -163,6 +163,12 @@ pub(crate) fn decode_schema(bytes: &[u8]) -> Result<u32, PortError> {
     Ok(schema)
 }
 
+/// The schema a head is marked with (its first four bytes), whatever the rest holds.
+pub(crate) fn head_schema(head: &[u8]) -> Option<u32> {
+    let (schema, _) = head.split_first_chunk::<4>()?;
+    Some(u32::from_le_bytes(*schema))
+}
+
 pub(crate) fn decode_id(bytes: &[u8], what: &'static str) -> Result<u64, PortError> {
     let mut reader = Reader::new(bytes, what);
     let id = reader.u64()?;
@@ -285,6 +291,10 @@ pub(crate) fn decode_head(bytes: &[u8]) -> Result<Head, PortError> {
             found: schema,
             newest: SCHEMA,
         });
+    }
+    if (1..SCHEMA).contains(&schema) {
+        // Left as it was when its upgrade failed (S50, `upgrade.rs`).
+        return Err(PortError::NotUpgraded { schema });
     }
     if schema != SCHEMA {
         return Err(reader.corrupt());

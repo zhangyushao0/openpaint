@@ -29,6 +29,7 @@ fn harbour() -> Gallery {
         title: Title::new("Harbour: dusk").expect("title"),
         thumbnail: None,
         versions: Vec::new(),
+        needs_repair: false,
     }])
 }
 

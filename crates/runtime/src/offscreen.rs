@@ -76,6 +76,14 @@ impl Runtime {
         })
     }
 
+    /// What the open canvas's history holds beyond its oldest version, in bytes (S50, the
+    /// harness's long session; bounded by `HISTORY_BUDGET`).
+    #[must_use]
+    pub fn history_bytes(&self) -> Option<usize> {
+        let canvas = self.screen.canvas()?;
+        Some(canvas.session().history().total_bytes())
+    }
+
     /// The GPU memory budget from the next frame on, in place of the device class's (S49), for
     /// tests.
     pub fn set_memory_budget(&mut self, bytes: u64) {

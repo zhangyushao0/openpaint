@@ -252,6 +252,7 @@ impl GalleryScreen {
                 picture,
                 enabled,
                 away,
+                repair: item.needs_repair,
             },
         );
         let card = ui.max_rect();
@@ -324,6 +325,7 @@ const fn message(notice: GalleryNotice) -> Option<&'static str> {
         GalleryNotice::None => return None,
         GalleryNotice::ListFailed => "Couldn't read the gallery.",
         GalleryNotice::OpenFailed => "Couldn't open this artwork. It is kept as it was.",
+        GalleryNotice::NeedsRepair => "Needs repair: its records could not be upgraded.",
         GalleryNotice::CreateFailed => "Couldn't make a new artwork.",
         GalleryNotice::ChangeFailed => "Couldn't change the gallery.",
         GalleryNotice::FileSaved => "Saved as an OpenPaint file.",

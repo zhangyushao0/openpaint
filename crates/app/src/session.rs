@@ -13,10 +13,9 @@ use crate::history::{HISTORY_BUDGET, History, HistoryIntent};
 use crate::intent::Intent;
 use crate::layer_rules;
 use crate::layers::{LayerList, Layers};
-use crate::project::PortError;
 use crate::projection::{Availability, EditorAction, LAYER_ACTIONS, SessionProjection};
 use crate::selection::Selection;
-use crate::storage::{Autosave, StorageIntent};
+use crate::storage::Autosave;
 use crate::streamline::StreamLine;
 use crate::stroke::Strokes;
 use crate::symmetry::Guide;
@@ -26,6 +25,8 @@ use crate::transform::Transforms;
 mod session_adjust;
 #[path = "session_clipboard.rs"]
 mod session_clipboard;
+#[path = "session_storage.rs"]
+mod session_storage;
 #[path = "session_transform.rs"]
 mod session_transform;
 use crate::view::{CanvasView, ViewIntent};
@@ -292,37 +293,6 @@ impl Session {
         &self.history
     }
 
-    /// The version the store should write now, if any: the current one when it is not stored
-    /// yet, no save is running and its save did not just fail. The session then counts that
-    /// save as running until `save_finished`.
-    pub fn save_request(&mut self) -> Option<Artwork> {
-        self.autosave.request(self.history.current())
-    }
-
-    /// The version the store should write as the user leaves the app: as `save_request`, but a
-    /// version whose save failed is tried once more, since the process may not come back. A
-    /// transform in progress (an inserted picture too) is committed first, so it is not lost.
-    pub fn leave_request(&mut self) -> Option<Artwork> {
-        self.commit_transform();
-        self.apply_adjustment();
-        if self.autosave.can_retry() {
-            self.autosave.retry();
-        }
-        self.save_request()
-    }
-
-    /// The store finished writing `version` with `result`. A failure shows in the projection
-    /// with a retry; the next change or a retry tries again.
-    pub fn save_finished(&mut self, version: &Artwork, result: &Result<(), PortError>) {
-        self.autosave.finished(version, result);
-    }
-
-    /// True while a save handed out by `save_request` has not finished.
-    #[must_use]
-    pub fn saving(&self) -> bool {
-        self.autosave.saving()
-    }
-
     /// Undo and redo: while the Selection tool is on they walk the selection's steps, otherwise
     /// the artwork's history (D42).
     fn step(&mut self, step: HistoryIntent) -> Result<(), AppError> {
@@ -360,20 +330,6 @@ impl Session {
     #[must_use]
     pub fn selection(&self) -> Option<&RegionMask> {
         self.selection.mask().filter(|_| !self.transforms.active())
-    }
-
-    fn storage(&mut self, intent: StorageIntent) -> Result<(), AppError> {
-        match intent {
-            StorageIntent::RetrySave => {
-                self.check(EditorAction::RetrySave)?;
-                self.autosave.retry();
-            }
-            StorageIntent::Dismiss => {
-                self.check(EditorAction::DismissNotice)?;
-                self.autosave.dismiss();
-            }
-        }
-        Ok(())
     }
 
     /// `Unavailable` unless the projection offers `action` now.

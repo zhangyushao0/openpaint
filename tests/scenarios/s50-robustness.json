@@ -1,0 +1,32 @@
+{
+  "walkthrough": [
+    "Goal: whatever interrupts me, nothing my hand drew is lost and the library is never half written.",
+    "Entry: open OpenPaint on the tablet (2880 x 1800, landscape); draw a line with the Ink Pen; pinch the canvas larger and turn it a little.",
+    "Interrupted mid-stroke: I am drawing a second line when the screen turns off (or I press home, or a call comes). Back in the app: the line is there as far as I had drawn it, its end tapered as if I had lifted the pen there, and the canvas is at the zoom, place and angle I left it. Lifting or moving the pen afterwards changes nothing; one undo takes the line back.",
+    "Leaving mid-stroke: I am drawing a third line when I leave the app; the system closes it later. Opening OpenPaint again shows all three lines.",
+    "Killed mid-save: if the app is killed while it saves (a crash, the system ending it, an update installed), the artwork reopens exactly as it was saved last, never half of a save; a version kept when leaving is kept whole or not at all.",
+    "Low storage: when a save cannot be written (the storage full), the canvas keeps everything, a quiet pill says the artwork could not be saved, with Retry; the library on disk stays as it was saved last.",
+    "A failed upgrade: after an update, an artwork whose records the new version cannot upgrade (damaged by a bug or a broken write) stays in the gallery as it was, its picture marked Needs repair; tapping it says it needs repair, with OK; its options still save it as an OpenPaint file, so I can keep it until a fixed version opens it. Every other artwork opens and works."
+  ],
+  "screen": [2880, 1800],
+  "density": 1.75,
+  "steps": [
+    { "stroke": { "points": [[500, 600, 0.8], [1500, 700, 0.8], [2300, 650, 0.8]] } },
+    { "checkpoint": { "name": "one-line", "canvas": "e653a2457e99d8ee" } },
+    { "touch": { "from": [[1300, 900], [1500, 900]], "to": [[1150, 800], [1700, 1000]], "ms": 320 } },
+    { "view": { "name": "zoomed", "zoom": 2.811, "rotation": 6.2, "pan": [23.9, 48.0] } },
+    { "press": { "path": [[600, 1000, 0], [1200, 1100, 300], [1700, 1050, 500]], "tool": "stylus", "pressure": 0.8, "interrupted": "detach" } },
+    { "view": { "name": "after-the-screen-came-back", "zoom": 2.811, "rotation": 6.2, "pan": [23.9, 48.0] } },
+    { "checkpoint": { "name": "kept-as-drawn", "canvas": "966fbd3705852cf1" } },
+    { "screenshot": { "name": "the-line-kept" } },
+    { "tap": { "at": "Undo" } },
+    { "checkpoint": { "name": "undone", "canvas": "e653a2457e99d8ee" } },
+    { "tap": { "at": "Redo" } },
+    { "checkpoint": { "name": "redone", "canvas": "966fbd3705852cf1" } },
+    { "press": { "path": [[600, 1300, 0], [1300, 1400, 300], [1800, 1350, 500]], "tool": "stylus", "pressure": 0.8, "interrupted": "leave" } },
+    { "checkpoint": { "name": "left-mid-stroke", "canvas": "5fe471207a524b65" } },
+    "restart",
+    { "checkpoint": { "name": "reopened", "canvas": "5fe471207a524b65" } },
+    { "screenshot": { "name": "three-lines" } }
+  ]
+}

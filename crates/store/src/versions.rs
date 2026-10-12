@@ -13,8 +13,9 @@
 use openpaint_app::{KEPT_VERSIONS, KeptVersion, PortError, ProjectId, VersionId};
 
 use crate::artwork_file;
+use crate::batch::Batch;
 use crate::codec::Reader;
-use crate::library::{Open, commit, device};
+use crate::library::{Open, device};
 use crate::records::project_prefix;
 
 /// The first byte of a version's keys.
@@ -76,7 +77,7 @@ pub(crate) fn keep(open: &Open, id: ProjectId, kept_at: u64) -> Result<(), PortE
     let kept = listed(open, id)?;
     let next = kept.first().map_or(1, |newest| newest.id.get() + 1);
     let version = VersionId::new(next);
-    let mut batch = open.db.batch();
+    let mut batch = Batch::new(open);
     batch.insert(
         &open.library,
         entry_key(id, version),
@@ -87,7 +88,7 @@ pub(crate) fn keep(open: &Open, id: ProjectId, kept_at: u64) -> Result<(), PortE
         batch.remove(&open.library, entry_key(id, old.id));
         batch.remove(&open.projects, file_key(id, old.id));
     }
-    commit(batch)?;
+    batch.commit()?;
     log::info!(
         "project {} kept as version {next} ({} bytes)",
         id.get(),

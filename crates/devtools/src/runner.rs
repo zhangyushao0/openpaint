@@ -214,11 +214,12 @@ impl Runner<'_> {
                 pressure,
                 before_lift,
                 canvas_before_lift,
+                interrupted,
             } => {
                 let keys = self.keys(runtime, path)?;
                 let batches = gesture::press(*tool, &keys, *pressure, now);
                 let before = before_lift.as_ref().map(|name| (name, *canvas_before_lift));
-                return self.press(runtime, &batches, before);
+                return self.press(runtime, &batches, (before, *interrupted));
             }
             Step::Stroke {
                 points,
@@ -297,36 +298,6 @@ impl Runner<'_> {
         record(runtime, step, &self.written).map(Some)
     }
 
-    /// A press's batches; with `before_lift`, a screenshot of that name before the lift and,
-    /// given its hash, a checkpoint of the canvas there too (S44).
-    fn press(
-        &mut self,
-        runtime: &mut Runtime,
-        batches: &[MotionBatch],
-        before_lift: Option<(&String, Option<u64>)>,
-    ) -> Result<Vec<Record>, ScenarioError> {
-        let Some((name, canvas)) = before_lift else {
-            self.gesture(runtime, batches)?;
-            return Ok(Vec::new());
-        };
-        let (lift, held) = batches
-            .split_last()
-            .ok_or(ScenarioError::Missing("a press has no samples"))?;
-        self.gesture(runtime, held)?;
-        let shot = Step::Screenshot {
-            name: name.clone(),
-            after_ms: None,
-        };
-        let mut records = vec![record(runtime, &shot, &self.written)?];
-        if let Some(canvas) = canvas {
-            let name = name.clone();
-            let check = Step::Checkpoint { name, canvas };
-            records.push(record(runtime, &check, &self.written)?);
-        }
-        self.gesture(runtime, std::slice::from_ref(lift))?;
-        Ok(records)
-    }
-
     /// Each batch is one platform event followed by one frame at the batch's time.
     fn gesture(
         &mut self,
@@ -382,3 +353,5 @@ impl Runner<'_> {
 
 #[path = "runner_clock.rs"]
 mod clock;
+#[path = "runner_press.rs"]
+mod press;

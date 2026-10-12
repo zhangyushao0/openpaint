@@ -42,6 +42,12 @@ pub enum HarnessError {
         failed: usize,
         total: usize,
     },
+    /// A measure of `long-session` went past its bound.
+    Bound {
+        what: &'static str,
+        value: u64,
+        bound: u64,
+    },
 }
 
 impl fmt::Display for HarnessError {
@@ -69,6 +75,9 @@ impl fmt::Display for HarnessError {
             }
             Self::Scenarios { failed, total } => {
                 write!(f, "{failed} of {total} scenarios failed")
+            }
+            Self::Bound { what, value, bound } => {
+                write!(f, "{what}: {value} bytes or items, past its bound {bound}")
             }
         }
     }

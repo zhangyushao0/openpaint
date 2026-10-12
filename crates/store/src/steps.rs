@@ -1,9 +1,11 @@
 //! Running the schema steps (DECISIONS D49): every step from a stored schema on, each seeing
-//! the heads and strokes the step before it wrote. Pure data: the library writes the result
-//! when it opens an older library, an OpenPaint file's records are upgraded in memory when it
-//! is opened (D62).
+//! the heads and strokes the step before it wrote. Pure data on a copy of the records: the
+//! library writes what an artwork's steps give when it opens an older library (`upgrade.rs`, one
+//! artwork at a time, S50), an OpenPaint file's records are upgraded in memory when it is opened
+//! (D62).
 
 use std::collections::{BTreeMap, HashMap};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use openpaint_app::ProjectId;
 
@@ -45,6 +47,17 @@ pub(crate) struct Old {
 pub(crate) struct Stepped {
     pub(crate) library: BTreeMap<Vec<u8>, Vec<u8>>,
     pub(crate) projects: BTreeMap<Vec<u8>, Vec<u8>>,
+}
+
+/// `run_steps`, a step that panics caught (S50): `None` then; `old` was the steps' own copy, so
+/// the records it came from stay as they were. The panic hook has logged the panic.
+pub(crate) fn run_guarded(from: u32, old: Old) -> Option<Stepped> {
+    let project = old.heads.first().map(|(id, _)| *id);
+    catch_unwind(AssertUnwindSafe(|| {
+        hook::step(project);
+        run_steps(from, old)
+    }))
+    .ok()
 }
 
 /// Runs every step from schema `from` (1 to `SCHEMA - 1`) to `SCHEMA` over `old`.
@@ -100,4 +113,33 @@ pub(crate) fn run_steps(from: u32, old: Old) -> Stepped {
         stepped.projects.extend(upgrade.projects);
     }
     stepped
+}
+
+/// The store's tests' failing step. Outside them no step fails here.
+#[cfg(not(test))]
+mod hook {
+    pub(super) const fn step(_project: Option<openpaint_app::ProjectId>) {}
+}
+
+/// The store's tests' failing step: a step panics on the records of one project.
+#[cfg(test)]
+pub(crate) mod hook {
+    use std::cell::Cell;
+
+    use openpaint_app::ProjectId;
+
+    thread_local! {
+        static FAILING: Cell<Option<ProjectId>> = const { Cell::new(None) };
+    }
+
+    /// From now on on this thread a step panics on the records of `project`.
+    pub(crate) fn fail_step(project: Option<ProjectId>) {
+        FAILING.with(|failing| failing.set(project));
+    }
+
+    pub(super) fn step(project: Option<ProjectId>) {
+        if project.is_some() && FAILING.with(Cell::get) == project {
+            panic!("a schema step failed on these records (the store's test)");
+        }
+    }
 }

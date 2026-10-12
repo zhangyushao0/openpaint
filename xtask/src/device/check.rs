@@ -13,6 +13,9 @@
 //! - `pen-many count x,y,x,y,... [pressure]`: that pen path `count` times, each turned by a
 //!   golden angle more about its box's middle and moved up to 140 px, so the strokes cross one
 //!   area (S48: a layer holding many strokes);
+//! - `pen-away x,y,x,y,... sleep|home`: that pen path, the pen still down at its end when the
+//!   screen is turned off or home is pressed (S50: the stroke kept as drawn so far); the lift
+//!   after it may be refused;
 //! - `finger x,y[,x,y...] [x,y[,x,y...] [ms]]`: fingers down at the first points, moving to the
 //!   second over `ms` (default 64), then lifting;
 //! - `hover x,y [ms] [primary|secondary|tertiary|eraser]`: the pen held above the glass for
@@ -176,6 +179,7 @@ fn held_pointers(adb: &Adb) {
 const INPUT_USAGE: &str = "cargo device-input \
                            pen x,y,... [pressure [tilt degrees]] [primary|secondary|tertiary|eraser] \
                            | pen-many count x,y,... [pressure] \
+                           | pen-away x,y,... sleep|home \
                            | finger x,y[,...] [x,y[,...] [ms]] \
                            | hover x,y [ms] [primary|secondary|tertiary|eraser] \
                            | tap <control name> | gradient on|off | lose-device";
@@ -195,6 +199,12 @@ fn extras(args: &[&str]) -> Result<Vec<(&'static str, String)>> {
     }
     if let ["lose-device"] = args {
         return Ok(vec![("lose", "device".to_owned())]);
+    }
+    // S50: the pen still down at the path's end when the screen goes off or home is pressed.
+    if let ["pen-away", path, away @ ("sleep" | "home")] = args {
+        let mut extras = gesture_extras(&["pen", path])?;
+        extras.push(("away", (*away).to_owned()));
+        return Ok(extras);
     }
     // A pen or hover line may end with the pen end or side button it uses (S41).
     let (words, end) = match args {
@@ -308,6 +318,10 @@ mod tests {
         assert_eq!(many[1], ("repeat", "300".to_owned()));
         assert_eq!(many.len(), 4, "{many:?}");
         assert!(extras(&["pen-many", "1,2,3,4"]).is_err());
+        let away = extras(&["pen-away", "1,2,3,4", "sleep"]).expect("away");
+        assert_eq!(away[2], ("away", "sleep".to_owned()));
+        assert!(extras(&["pen-away", "1,2;3", "home"]).is_err());
+        assert!(extras(&["pen-away", "1,2,3,4", "power"]).is_err());
         assert!(extras(&["finger", "1,2", "primary"]).is_err());
         assert!(extras(&["walk", "1,2"]).is_err());
         assert!(extras(&[]).is_err());

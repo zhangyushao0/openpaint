@@ -127,6 +127,8 @@ pub enum GalleryNotice {
     ListFailed,
     /// The artwork could not be opened; it stays in the library as it was.
     OpenFailed,
+    /// The artwork's records could not be upgraded; they stay as they were (S50).
+    NeedsRepair,
     CreateFailed,
     /// A rename, duplicate or delete failed; the gallery shows the library as it is.
     ChangeFailed,
@@ -256,9 +258,12 @@ impl Gallery {
             }
             LibraryAnswer::Changed(Ok(())) => {}
             LibraryAnswer::Changed(Err(_)) => self.notice = GalleryNotice::ChangeFailed,
-            LibraryAnswer::OpenFailed(_) => {
+            LibraryAnswer::OpenFailed(error) => {
                 self.opening = false;
-                self.notice = GalleryNotice::OpenFailed;
+                self.notice = match error {
+                    PortError::NotUpgraded { .. } => GalleryNotice::NeedsRepair,
+                    _ => GalleryNotice::OpenFailed,
+                };
             }
             LibraryAnswer::CreateFailed(_) => {
                 self.opening = false;

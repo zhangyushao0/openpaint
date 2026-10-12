@@ -14,8 +14,8 @@ use crate::fills::{decode_record, fill_layer_prefix};
 use crate::library::{Open, device};
 use crate::nested::Counts;
 use crate::records::{
-    CLOCK, ENTRY, LAST, decode_head, decode_id, decode_stroke, entry_key, entry_project, head_key,
-    layer_prefix, mask_slot, stroke_index, thumbnail_key,
+    CLOCK, ENTRY, LAST, SCHEMA, decode_head, decode_id, decode_stroke, entry_key, entry_project,
+    head_key, head_schema, layer_prefix, mask_slot, stroke_index, thumbnail_key,
 };
 use crate::versions;
 
@@ -189,8 +189,9 @@ fn read_records<T>(
     }
 }
 
-/// Every project in the catalogue, touched last first, with its thumbnail. A thumbnail that
-/// cannot be read is left out (it is derived and rewritten when the artwork is next left).
+/// Every project in the catalogue, touched last first, with its thumbnail and whether it needs
+/// repair. A thumbnail that cannot be read is left out (it is derived and rewritten when the
+/// artwork is next left).
 pub(crate) fn list(open: &Open) -> Result<Vec<ProjectSummary>, PortError> {
     let mut entries = Vec::new();
     for guard in open.library.prefix(ENTRY) {
@@ -209,11 +210,15 @@ pub(crate) fn list(open: &Open) -> Result<Vec<ProjectSummary>, PortError> {
                 .ok(),
             None => None,
         };
+        // A head still marked with an older schema was kept as it was by a failed upgrade.
+        let head = open.projects.get(head_key(id)).map_err(device)?;
+        let schema = head.as_deref().and_then(head_schema);
         summaries.push(ProjectSummary {
             id,
             title: entry.title,
             thumbnail,
             versions: versions::listed(open, id)?,
+            needs_repair: schema.is_some_and(|schema| schema < SCHEMA),
         });
     }
     Ok(summaries)

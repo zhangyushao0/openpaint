@@ -5,6 +5,7 @@ import android.app.Instrumentation
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.InputDevice
+import android.view.KeyEvent
 import android.view.MotionEvent
 
 /**
@@ -16,7 +17,9 @@ import android.view.MotionEvent
  * at `from`, move straight to `to` over `ms` in 16 ms frames, and lift one after another.
  * One pointer can instead follow `-e path x,y,x,y...`, one point per 8 ms event, and the pen
  * presses with `-e pressure P` (default 0.6), leaning `-e tilt D` degrees from upright (default
- * 0, S44); `-e repeat N` draws the path N times, each turned and moved ([turned], S48).
+ * 0, S44); `-e repeat N` draws the path N times, each turned and moved ([turned], S48);
+ * `-e away sleep|home` turns the screen off or presses home while the pen is still down at the
+ * path's end ([followAway], S50).
  * `-e hover x,y` holds the pen just above the glass
  * there instead for `-e ms` (default 1500), then takes it away (hover enter, move, exit).
  * `-e tool eraser` is the pen's eraser end and `-e button primary|secondary|tertiary` holds a
@@ -124,6 +127,10 @@ class GestureInstrumentation : Instrumentation() {
             return
         }
         points("path")?.let { path ->
+            arguments.getString("away")?.let { away ->
+                followAway(path, away)
+                return
+            }
             val repeat = arguments.getString("repeat")?.toInt() ?: 1
             for (k in 0 until repeat) {
                 follow(turned(path, k))
@@ -167,6 +174,34 @@ class GestureInstrumentation : Instrumentation() {
         }
         SystemClock.sleep(8)
         send(down, MotionEvent.ACTION_UP, path.takeLast(1), stylus)
+    }
+
+    /**
+     * The pen down along [path] and still on the glass at its end when the app is sent away
+     * (`-e away sleep|home`, S50): the screen turned off (`KEYCODE_SLEEP`) or the home key
+     * pressed, as a key the system takes; then, 1.5 s later, the pen's lift, which the system
+     * may refuse once the window is gone.
+     */
+    private fun followAway(path: List<FloatArray>, away: String) {
+        val stylus = pen
+        val down = SystemClock.uptimeMillis()
+        send(down, MotionEvent.ACTION_DOWN, path.take(1), stylus)
+        for (point in path.drop(1)) {
+            SystemClock.sleep(8)
+            send(down, MotionEvent.ACTION_MOVE, listOf(point), stylus)
+        }
+        val code = if (away == "home") KeyEvent.KEYCODE_HOME else KeyEvent.KEYCODE_SLEEP
+        val pressed = SystemClock.uptimeMillis()
+        for (action in listOf(KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP)) {
+            val key = KeyEvent(pressed, SystemClock.uptimeMillis(), action, code, 0)
+            check(uiAutomation.injectInputEvent(key, true)) { "the system refused the key $away" }
+        }
+        SystemClock.sleep(1500)
+        try {
+            send(down, MotionEvent.ACTION_UP, path.takeLast(1), stylus)
+        } catch (refused: IllegalStateException) {
+            // The window went with the screen or home: no lift reaches it.
+        }
     }
 
     /**

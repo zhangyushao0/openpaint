@@ -15,12 +15,19 @@ use crate::storage::Job;
 const LEAVE_WAIT: Duration = Duration::from_secs(2);
 
 impl Runtime {
-    /// The user is leaving the app (Android `onPause`): the open artwork's current version (a
-    /// failed one included) and its thumbnail are handed to the store, and this waits until
-    /// they are written, at most `LEAVE_WAIT`; a longer save goes on in the background. A
-    /// stroke still being drawn is not part of it. In the gallery, the calls handed over are
-    /// waited for.
+    /// The user is leaving the app (Android `onPause`): a stroke still being drawn is committed
+    /// as drawn so far (S50), then the open artwork's current version (a failed one included) and
+    /// its thumbnail are handed to the store, and this waits until they are written, at most
+    /// `LEAVE_WAIT`; a longer save goes on in the background (it is one batch: it lands whole or
+    /// not at all, also if the process is killed meanwhile). In the gallery, the calls handed over
+    /// are waited for.
     pub fn leave(&mut self) {
+        if let Some(canvas) = self.screen.canvas_mut() {
+            canvas.end_stroke(&mut self.toolbox);
+        }
+        if let Some(state) = self.toolbox.save_request() {
+            self.storage.submit(Job::SaveEditor(Box::new(state)));
+        }
         // A save running when the user left may hold an older version: hand over the newest
         // once it is done.
         let mut handed = false;

@@ -143,11 +143,16 @@ impl Canvas {
             // copies or a snapped shape edited (S42).
             let stroke = matches!(intent, Intent::Stroke(_));
             let gallery = matches!(intent, Intent::Gallery(_));
+            let cancel = matches!(&intent, Intent::Stroke(StrokeIntent::Contact(contact))
+                if contact.phase == ContactPhase::Cancel && self.session.active().is_some());
             let before = self.session.shown().clone();
             let result = match intent {
                 Intent::Clipboard(action) => self.session.clipboard(action, clipboard),
                 intent => self.session.dispatch(intent),
             };
+            if cancel && self.session.active().is_none() {
+                log::info!("the platform cancelled the stroke being drawn; it is dropped");
+            }
             match result {
                 Ok(()) if gallery => self.leaving = Leaving::Waiting,
                 Ok(()) if !stroke || self.session.stroke_reshown() => {
@@ -165,6 +170,22 @@ impl Canvas {
                 self.session.transform_lifted(lift(core, &job));
             }
         }
+    }
+
+    /// Commits the stroke being drawn as its lift would, when the pen can no longer lift it: the
+    /// app is left or its window goes mid-stroke (S50). Its brush becomes Recent's newest; the
+    /// next evaluation shows it committed (its end tapered) and so does the gallery picture.
+    pub(crate) fn end_stroke(&mut self, toolbox: &mut Toolbox) {
+        let before = self.session.shown().clone();
+        match self.session.end_stroke() {
+            Ok(false) => return,
+            Ok(true) => log::info!("the stroke being drawn was committed as drawn so far"),
+            Err(error) => log::warn!("the stroke being drawn was committed with: {error}"),
+        }
+        if let Some(drawn) = self.session.stroke_committed() {
+            toolbox.drew(drawn);
+        }
+        self.changed_from.get_or_insert(before);
     }
 
     /// Hands a brush or tool intent to `toolbox`, and a canvas contact to the eyedropper while it

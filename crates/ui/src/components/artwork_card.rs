@@ -20,6 +20,8 @@ pub struct ArtworkCard<'a> {
     pub enabled: bool,
     /// The picture is on its way into or out of the canvas: its place stays empty.
     pub away: bool,
+    /// Its records could not be upgraded (S50): the picture says "Needs repair".
+    pub repair: bool,
 }
 
 /// What was tapped on a card this frame, and where its picture lies (points).
@@ -104,7 +106,8 @@ fn shown_picture(picture: Option<&egui::TextureHandle>, rect: Rect) -> Rect {
 }
 
 /// The thumbnail at `shown`, lying on the desk with the canvas's shadow; a blank sheet with
-/// "No preview" when there is none.
+/// "No preview" when there is none; "Needs repair" on paper at its foot when its records could
+/// not be upgraded.
 fn paint_picture(ui: &egui::Ui, card: &ArtworkCard<'_>, shown: Rect, pressed: bool) {
     let tint = if pressed {
         Color32::from_gray(200)
@@ -112,15 +115,27 @@ fn paint_picture(ui: &egui::Ui, card: &ArtworkCard<'_>, shown: Rect, pressed: bo
         Color32::WHITE
     };
     paint_sheet(ui.painter(), card.picture, shown, tint);
+    let font = TextStyle::Small.resolve(ui.style());
     if card.picture.is_none() {
-        let font = TextStyle::Small.resolve(ui.style());
         ui.painter().text(
             shown.center(),
             egui::Align2::CENTER_CENTER,
             "No preview",
-            font,
+            font.clone(),
             INK_SECONDARY,
         );
+    }
+    if card.repair {
+        let galley = ui
+            .painter()
+            .layout_no_wrap("Needs repair".into(), font, INK_SECONDARY);
+        let label = Rect::from_center_size(
+            shown.center_bottom() - Vec2::new(0.0, galley.size().y / 2.0 + SPACE),
+            galley.size() + Vec2::splat(SPACE),
+        );
+        ui.painter().rect_filled(label, 0.0, Color32::WHITE);
+        let at = label.center() - galley.size() / 2.0;
+        ui.painter().galley(at, galley, INK_SECONDARY);
     }
 }
 

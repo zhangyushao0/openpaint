@@ -171,6 +171,20 @@ impl Strokes {
         }
     }
 
+    /// Commits the stroke being drawn into `history` as its lift would, without a lift (S50: the
+    /// app is left or its window goes mid-stroke). Returns whether there was one.
+    pub(crate) fn end(&mut self, history: &mut History) -> Result<bool, AppError> {
+        self.reshown = false;
+        self.committed = None;
+        let Some(drawing) = self.drawing.take() else {
+            return Ok(false);
+        };
+        let mut artwork = history.current().clone();
+        let result = self.commit(drawing, &mut artwork);
+        history.record(artwork);
+        result.map(|()| true)
+    }
+
     fn contact(
         &mut self,
         artwork: &mut Artwork,

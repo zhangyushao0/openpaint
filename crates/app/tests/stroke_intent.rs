@@ -161,6 +161,42 @@ fn a_cancelled_stroke_leaves_the_artwork_unchanged() {
 }
 
 #[test]
+fn a_stroke_ended_without_a_lift_commits_what_was_drawn_as_a_lift_would() {
+    // S50: the app is left or its window goes while the pen is still down.
+    let mut session = session();
+    session.set_streamline(StreamLine::new(1.0).expect("amount"));
+    let samples: Vec<InputSample> = (0..30u8)
+        .map(|i| sample(10.0 + 5.0 * f32::from(i), 1000 + 4 * i64::from(i)))
+        .collect();
+    let down = contact(1, Device::Pen, ContactPhase::Down, &samples[..1]);
+    session.dispatch(down).expect("down");
+    let moving = contact(1, Device::Pen, ContactPhase::Move, &samples[1..]);
+    session.dispatch(moving).expect("move");
+    let before = session.artwork().clone();
+    assert_eq!(session.end_stroke(), Ok(true));
+    assert!(session.active().is_none());
+    assert_eq!(strokes(session.artwork()), 1);
+    let stroke = session.artwork().layers()[0]
+        .strokes()
+        .last()
+        .expect("stroke");
+    assert_eq!(stroke.samples().len(), 30, "every sample so far");
+    let end = stroke.samples().last().expect("end").position();
+    assert_eq!(end.x(), 155.0, "the line's end caught up with the pen");
+    // One step: undo goes back to before the stroke.
+    assert!(session.history().can_undo());
+    assert_eq!(session.end_stroke(), Ok(false), "nothing left to end");
+    // The pen's later events for it change nothing.
+    let after = session.artwork().clone();
+    let cancel = contact(1, Device::Pen, ContactPhase::Cancel, &samples[29..]);
+    session.dispatch(cancel).expect("cancel");
+    let up = contact(1, Device::Pen, ContactPhase::Up, &samples[29..]);
+    session.dispatch(up).expect("up");
+    assert!(session.artwork().same_version(&after));
+    assert!(!after.same_version(&before));
+}
+
+#[test]
 fn another_contact_neither_extends_nor_ends_the_stroke() {
     let mut session = session();
     let down = [sample(10.0, 0)];

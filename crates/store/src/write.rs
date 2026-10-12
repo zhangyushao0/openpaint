@@ -1,13 +1,13 @@
 //! Writing the library: each function builds one batch and commits it atomically, synced to
-//! disk, so a call either happens whole or not at all.
+//! disk (`batch.rs`), so a call either happens whole or not at all.
 
 use std::collections::HashSet;
 
-use fjall::{OwnedWriteBatch, PersistMode};
 use openpaint_app::{EditorState, PortError, ProjectId, Thumbnail, Title};
 use openpaint_core::Artwork;
 
 use crate::artwork_file::Opened;
+use crate::batch::Batch;
 use crate::catalogue::{Entry, encode_entry, encode_thumbnail};
 use crate::delta::{contents, delta};
 use crate::editor::{EDITOR, encode_editor};
@@ -20,15 +20,8 @@ use crate::records::{
 };
 use crate::versions::{entries_prefix, is_version};
 
-fn commit(batch: OwnedWriteBatch) -> Result<(), PortError> {
-    batch
-        .durability(Some(PersistMode::SyncData))
-        .commit()
-        .map_err(device)
-}
-
 /// The next unused project id, and the batch entry that uses it up.
-fn next_id(open: &Open, batch: &mut OwnedWriteBatch) -> Result<ProjectId, PortError> {
+fn next_id(open: &Open, batch: &mut Batch) -> Result<ProjectId, PortError> {
     let next = match open.library.get(NEXT).map_err(device)? {
         Some(bytes) => decode_id(&bytes, "next project id")?,
         None => 1,
@@ -38,12 +31,7 @@ fn next_id(open: &Open, batch: &mut OwnedWriteBatch) -> Result<ProjectId, PortEr
 }
 
 /// Writes `id`'s catalogue entry with `title`, touched now: the change counter moves on.
-fn touch(
-    open: &Open,
-    batch: &mut OwnedWriteBatch,
-    id: ProjectId,
-    title: Title,
-) -> Result<(), PortError> {
+fn touch(open: &Open, batch: &mut Batch, id: ProjectId, title: Title) -> Result<(), PortError> {
     let touched = read::clock(open)? + 1;
     batch.insert(&open.library, CLOCK, encode_id(touched));
     let entry = Entry { title, touched };
@@ -56,10 +44,10 @@ pub(crate) fn create(
     artwork: &Artwork,
     title: &Title,
 ) -> Result<ProjectId, PortError> {
-    let mut batch = open.db.batch();
+    let mut batch = Batch::new(open);
     let id = new_project(open, &mut batch, artwork, title)?;
     batch.insert(&open.library, LAST, encode_id(id.get()));
-    commit(batch)?;
+    batch.commit()?;
     Ok(id)
 }
 
@@ -70,20 +58,20 @@ pub(crate) fn add(
     opened: &Opened,
     title: Option<&Title>,
 ) -> Result<ProjectId, PortError> {
-    let mut batch = open.db.batch();
+    let mut batch = Batch::new(open);
     let title = title.unwrap_or(&opened.title);
     let id = new_project(open, &mut batch, &opened.artwork, title)?;
     if let Some(thumbnail) = &opened.thumbnail {
         batch.insert(&open.projects, thumbnail_key(id), thumbnail.as_slice());
     }
-    commit(batch)?;
+    batch.commit()?;
     Ok(id)
 }
 
 /// Every record of `artwork` under a new id, its entry titled `title`, touched now.
 fn new_project(
     open: &Open,
-    batch: &mut OwnedWriteBatch,
+    batch: &mut Batch,
     artwork: &Artwork,
     title: &Title,
 ) -> Result<ProjectId, PortError> {
@@ -96,9 +84,9 @@ fn new_project(
 
 /// Project `id` becomes the open one.
 pub(crate) fn open(open: &Open, id: ProjectId) -> Result<(), PortError> {
-    let mut batch = open.db.batch();
+    let mut batch = Batch::new(open);
     batch.insert(&open.library, LAST, encode_id(id.get()));
-    commit(batch)
+    batch.commit()
 }
 
 /// The head and the stroke and fill records that turn `base` (what the disk holds, when known)
@@ -110,7 +98,7 @@ pub(crate) fn save(
     artwork: &Artwork,
 ) -> Result<(), PortError> {
     let title = read::entry(open, id)?.title;
-    let mut batch = open.db.batch();
+    let mut batch = Batch::new(open);
     match base {
         Some(base) => write_delta(open, &mut batch, id, base, artwork),
         None => write_all(open, &mut batch, id, artwork)?,
@@ -118,7 +106,7 @@ pub(crate) fn save(
     batch.insert(&open.projects, head_key(id), encode_head(artwork));
     touch(open, &mut batch, id, title)?;
     batch.insert(&open.library, LAST, encode_id(id.get()));
-    commit(batch)
+    batch.commit()
 }
 
 pub(crate) fn thumbnail(
@@ -127,25 +115,25 @@ pub(crate) fn thumbnail(
     thumbnail: &Thumbnail,
 ) -> Result<(), PortError> {
     read::entry(open, id)?;
-    let mut batch = open.db.batch();
+    let mut batch = Batch::new(open);
     batch.insert(
         &open.projects,
         thumbnail_key(id),
         encode_thumbnail(thumbnail),
     );
-    commit(batch)
+    batch.commit()
 }
 
 pub(crate) fn editor(open: &Open, state: &EditorState) -> Result<(), PortError> {
-    let mut batch = open.db.batch();
+    let mut batch = Batch::new(open);
     batch.insert(&open.library, EDITOR, encode_editor(state));
-    commit(batch)
+    batch.commit()
 }
 
 pub(crate) fn close(open: &Open) -> Result<(), PortError> {
-    let mut batch = open.db.batch();
+    let mut batch = Batch::new(open);
     batch.remove(&open.library, LAST);
-    commit(batch)
+    batch.commit()
 }
 
 /// A new title; the project keeps its place in the gallery.
@@ -154,16 +142,16 @@ pub(crate) fn rename(open: &Open, id: ProjectId, title: &Title) -> Result<(), Po
         title: title.clone(),
         ..read::entry(open, id)?
     };
-    let mut batch = open.db.batch();
+    let mut batch = Batch::new(open);
     batch.insert(&open.library, entry_key(id), encode_entry(&entry));
-    commit(batch)
+    batch.commit()
 }
 
 /// Every record of `id` but its versions copied under a new id, with the same title, touched
 /// now.
 pub(crate) fn duplicate(open: &Open, id: ProjectId) -> Result<ProjectId, PortError> {
     let title = read::entry(open, id)?.title;
-    let mut batch = open.db.batch();
+    let mut batch = Batch::new(open);
     let copy = next_id(open, &mut batch)?;
     let prefix = project_prefix(id);
     for guard in open.projects.prefix(&prefix) {
@@ -176,12 +164,12 @@ pub(crate) fn duplicate(open: &Open, id: ProjectId) -> Result<ProjectId, PortErr
         batch.insert(&open.projects, copied, value);
     }
     touch(open, &mut batch, copy, title)?;
-    commit(batch)?;
+    batch.commit()?;
     Ok(copy)
 }
 
 pub(crate) fn delete(open: &Open, id: ProjectId) -> Result<(), PortError> {
-    let mut batch = open.db.batch();
+    let mut batch = Batch::new(open);
     for guard in open.projects.prefix(project_prefix(id)) {
         batch.remove(&open.projects, guard.key().map_err(device)?);
     }
@@ -193,16 +181,10 @@ pub(crate) fn delete(open: &Open, id: ProjectId) -> Result<(), PortError> {
     if last.is_some_and(|last| decode_id(&last, "last project").ok() == Some(id.get())) {
         batch.remove(&open.library, LAST);
     }
-    commit(batch)
+    batch.commit()
 }
 
-fn write_delta(
-    open: &Open,
-    batch: &mut OwnedWriteBatch,
-    id: ProjectId,
-    base: &Artwork,
-    artwork: &Artwork,
-) {
+fn write_delta(open: &Open, batch: &mut Batch, id: ProjectId, base: &Artwork, artwork: &Artwork) {
     let changes = delta(base, artwork);
     for ((layer, index), stroke) in changes.write {
         batch.insert(
@@ -231,7 +213,7 @@ fn write_delta(
 /// after a failure.
 fn write_all(
     open: &Open,
-    batch: &mut OwnedWriteBatch,
+    batch: &mut Batch,
     id: ProjectId,
     artwork: &Artwork,
 ) -> Result<(), PortError> {

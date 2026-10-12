@@ -87,6 +87,9 @@ pub struct ProjectSummary {
     pub thumbnail: Option<Thumbnail>,
     /// Its kept versions, the newest first.
     pub versions: Vec<KeptVersion>,
+    /// Its records could not be upgraded to this build's schema and are kept as they were: it
+    /// does not open, but can be saved as an OpenPaint file (S50).
+    pub needs_repair: bool,
 }
 
 /// Most versions kept per artwork; keeping one more drops the oldest (DECISIONS D63).
@@ -193,6 +196,9 @@ pub enum PortError {
     Corrupt { what: &'static str },
     /// Stored by a newer version of the app, which this one cannot read.
     NewerSchema { found: u32, newest: u32 },
+    /// Stored with an older schema whose upgrade failed on this artwork (a step met a record it
+    /// could not read, or failed); its records are kept as they were (S50).
+    NotUpgraded { schema: u32 },
     /// Stored data decodes but breaks an artwork rule.
     Invalid(CoreError),
     /// The project asked for is not in the library.
@@ -211,6 +217,10 @@ impl fmt::Display for PortError {
             Self::NewerSchema { found, newest } => write!(
                 f,
                 "stored with schema {found}; this version reads up to {newest}"
+            ),
+            Self::NotUpgraded { schema } => write!(
+                f,
+                "stored with schema {schema}; its records could not be upgraded"
             ),
             Self::Invalid(error) => write!(f, "stored artwork is invalid: {error}"),
             Self::Missing(id) => write!(f, "project {} is not in the library", id.get()),

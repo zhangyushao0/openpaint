@@ -98,6 +98,11 @@ pub enum Step {
         /// `before_lift`, which it needs; S44).
         #[serde(default, deserialize_with = "optional_hash")]
         canvas_before_lift: Option<u64>,
+        /// Instead of lifting, the app is interrupted while the contact is down (S50): its window
+        /// goes and comes back, or the user leaves the app and comes back; then the platform
+        /// cancels the contact, as Android does.
+        #[serde(default)]
+        interrupted: Option<Interruption>,
     },
     /// The pen hovers just above the glass at `at`, touching nothing; it stays there until the
     /// next contact.
@@ -216,6 +221,16 @@ fn default_touch_ms() -> u32 {
 
 fn full_pressure() -> f32 {
     1.0
+}
+
+/// What interrupts a press (S50).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Interruption {
+    /// The window goes and comes back (the screen turned off and on): `Runtime::detach`.
+    Detach,
+    /// The user leaves the app and comes back (home): `Runtime::leave`, Android's `onPause`.
+    Leave,
 }
 
 /// A hand on the glass at `at` (window pixels), a touch of its own beside the pen.

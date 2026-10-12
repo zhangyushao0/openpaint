@@ -1,25 +1,23 @@
 //! `Library`: the artwork library on disk, a fjall database (DECISIONS D09, D21, D25),
 //! implementing the app's `ProjectStore`. Every call that writes is one atomic batch synced to
-//! disk; a save rewrites the head and only the stroke records that changed since the version
-//! this library last stored. An older library is upgraded when it is opened.
+//! disk (`batch.rs`): it lands whole or not at all, also when the process is killed mid-write; a
+//! save rewrites the head and only the stroke records that changed since the version this
+//! library last stored. An older library is upgraded when it is opened, one artwork at a time
+//! (`upgrade.rs`).
 
 use std::path::PathBuf;
 
-use fjall::{Database, Keyspace, KeyspaceCreateOptions, PersistMode};
+use fjall::{Database, Keyspace, KeyspaceCreateOptions};
 use openpaint_app::{
     EditorState, PortError, Project, ProjectId, ProjectStore, ProjectSummary, Thumbnail, Title,
     VersionId,
 };
 use openpaint_core::Artwork;
 
+use crate::batch::Batch;
 use crate::editor::decode_editor;
-use crate::fills::fills_prefix;
-use crate::records::{
-    LIBRARY, NEXT, PROJECTS, SCHEMA, SCHEMA_KEY, decode_id, decode_schema, encode_schema, head_key,
-    strokes_prefix,
-};
-use crate::steps::{Old, run_steps};
-use crate::{artwork_file, read, versions, write};
+use crate::records::{LIBRARY, NEXT, PROJECTS, SCHEMA, SCHEMA_KEY, decode_schema, encode_schema};
+use crate::{artwork_file, read, upgrade, versions, write};
 
 /// The database and its two keyspaces.
 pub(crate) struct Open {
@@ -92,16 +90,16 @@ impl Library {
 }
 
 /// Checks the schema of an opened database: a new one is marked with this build's schema, an
-/// older one is upgraded step by step in one batch, a newer one is refused.
+/// older one is upgraded one artwork at a time (`upgrade.rs`), a newer one is refused.
 fn prepare(open: &Open) -> Result<(), PortError> {
     let schema = match open.library.get(SCHEMA_KEY).map_err(device)? {
         Some(bytes) => decode_schema(&bytes)?,
         // Schema 1 had no schema record; an empty database has no project counter either.
         None if open.library.get(NEXT).map_err(device)?.is_some() => 1,
         None => {
-            let mut batch = open.db.batch();
+            let mut batch = Batch::new(open);
             batch.insert(&open.library, SCHEMA_KEY, encode_schema(SCHEMA));
-            return commit(batch);
+            return batch.commit();
         }
     };
     match schema {
@@ -110,65 +108,11 @@ fn prepare(open: &Open) -> Result<(), PortError> {
             found,
             newest: SCHEMA,
         }),
-        older if (1..SCHEMA).contains(&older) => upgrade(open, older),
+        older if (1..SCHEMA).contains(&older) => upgrade::upgrade(open, older),
         _ => Err(PortError::Corrupt {
             what: "library schema",
         }),
     }
-}
-
-/// Runs every migration step from schema `from` on over the records as they are and writes the
-/// result in one batch.
-fn upgrade(open: &Open, from: u32) -> Result<(), PortError> {
-    let old = old_records(open)?;
-    let (projects, strokes) = (old.heads.len(), old.strokes.len());
-    let stepped = run_steps(from, old);
-    let mut batch = open.db.batch();
-    for (key, value) in stepped.library {
-        batch.insert(&open.library, key, value);
-    }
-    for (key, value) in stepped.projects {
-        batch.insert(&open.projects, key, value);
-    }
-    commit(batch)?;
-    log::info!("library upgraded from schema {from} ({projects} projects, {strokes} strokes)");
-    Ok(())
-}
-
-fn old_records(open: &Open) -> Result<Old, PortError> {
-    let next = match open.library.get(NEXT).map_err(device)? {
-        Some(next) => decode_id(&next, "next project id")?,
-        None => 1,
-    };
-    let (mut heads, mut strokes, mut fills) = (Vec::new(), Vec::new(), Vec::new());
-    for id in (1..next).map(ProjectId::new) {
-        if let Some(head) = open.projects.get(head_key(id)).map_err(device)? {
-            heads.push((id, head.to_vec()));
-        }
-        for (prefix, records) in [
-            (strokes_prefix(id), &mut strokes),
-            (fills_prefix(id), &mut fills),
-        ] {
-            for guard in open.projects.prefix(prefix) {
-                let (key, value) = guard.into_inner().map_err(device)?;
-                records.push((key.to_vec(), value.to_vec()));
-            }
-        }
-    }
-    let editor = read::editor(open)?;
-    Ok(Old {
-        heads,
-        strokes,
-        fills,
-        editor,
-    })
-}
-
-pub(crate) fn commit(batch: fjall::OwnedWriteBatch) -> Result<(), PortError> {
-    batch
-        .durability(Some(PersistMode::SyncData))
-        .commit()
-        .map_err(device)
 }
 
 impl ProjectStore for Library {

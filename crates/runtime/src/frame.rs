@@ -72,7 +72,7 @@ pub struct Runtime {
     pub(crate) screen: Screen,
     /// The brush, size and opacity: the app's, kept across artworks; the open session gets the
     /// style it makes.
-    toolbox: Toolbox,
+    pub(crate) toolbox: Toolbox,
     /// What was copied last (S40): the app's, kept across artworks, never stored.
     clipboard: Clipboard,
     /// Where every new stroke's seed comes from (S45).
@@ -197,10 +197,18 @@ impl Runtime {
         }
     }
 
-    /// The window is about to be destroyed; call before the host lets it go.
+    /// The window is about to be destroyed; call before the host lets it go. A stroke still being
+    /// drawn is committed as drawn so far and handed to the store (S50): the pen cannot lift it
+    /// any more. The artwork, its history and the view stay for the next `attach`.
     pub fn detach(&mut self) {
         self.surface = None;
         self.window = None;
+        if let Some(canvas) = self.screen.canvas_mut() {
+            canvas.end_stroke(&mut self.toolbox);
+            if let Some(version) = canvas.session_mut().save_request() {
+                self.storage.submit(Job::Save(version));
+            }
+        }
     }
 
     /// Takes one platform input batch for the next frame. Returns whether it holds anything,

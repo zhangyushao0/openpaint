@@ -20,8 +20,10 @@ use crate::codec::{Reader, Writer};
 use crate::fills::fills_prefix;
 use crate::library::{Open, device};
 use crate::read::{self, Source};
-use crate::records::{SCHEMA, head_key, project_prefix, strokes_prefix, thumbnail_key};
-use crate::steps::{Old, Records, run_steps};
+use crate::records::{
+    SCHEMA, head_key, head_schema, project_prefix, strokes_prefix, thumbnail_key,
+};
+use crate::steps::{Old, Records, run_guarded};
 
 const MAGIC: &[u8; 10] = b"OpenPaint\0";
 /// The kinds of record a file holds, by the first byte of their key.
@@ -37,12 +39,15 @@ pub(crate) struct Opened {
     pub(crate) thumbnail: Option<Vec<u8>>,
 }
 
-/// Project `id` as an OpenPaint file: its title and every record but its versions.
+/// Project `id` as an OpenPaint file: its title and every record but its versions, of the schema
+/// its head is marked with (an artwork whose upgrade failed keeps its own, S50, so a build whose
+/// steps read it can open the file).
 pub(crate) fn of_project(open: &Open, id: ProjectId) -> Result<Vec<u8>, PortError> {
     let title = read::entry(open, id)?.title;
     let prefix = project_prefix(id).len();
     let head = open.projects.get(head_key(id)).map_err(device)?;
     let head = head.ok_or(PortError::Missing(id))?;
+    let schema = head_schema(&head).filter(|schema| (1..=SCHEMA).contains(schema));
     let mut records = vec![(head_key(id), head.to_vec())];
     for kind in [strokes_prefix(id), fills_prefix(id)] {
         open.projects.each(&kind, &mut |key, value| {
@@ -58,7 +63,7 @@ pub(crate) fn of_project(open: &Open, id: ProjectId) -> Result<Vec<u8>, PortErro
         .into_iter()
         .map(|(key, value)| (key[prefix..].to_vec(), value))
         .collect();
-    Ok(encode(SCHEMA, &title, &relative))
+    Ok(encode(schema.unwrap_or(SCHEMA), &title, &relative))
 }
 
 /// The file of `records` (keys without the project id) of `schema`, titled `title`.
@@ -102,7 +107,7 @@ pub(crate) fn open(bytes: &[u8]) -> Result<Opened, PortError> {
         upgrade(schema, &mut held)?;
     }
     let artwork = read::artwork(&held, HELD).map_err(|error| match error {
-        PortError::Missing(_) => damaged(),
+        PortError::Missing(_) | PortError::NotUpgraded { .. } => damaged(),
         other => other,
     })?;
     let thumbnail = held
@@ -153,7 +158,8 @@ fn decode(bytes: &[u8]) -> Result<(u32, Title, Records), PortError> {
     Ok((schema, title, records))
 }
 
-/// Runs the schema steps from `schema` over the held records, as a library's upgrade does.
+/// Runs the schema steps from `schema` over the held records, as a library's upgrade does; a step
+/// that fails on them makes the file damaged.
 fn upgrade(schema: u32, held: &mut BTreeMap<Vec<u8>, Vec<u8>>) -> Result<(), PortError> {
     let head = held.get(&head_key(HELD)).ok_or(damaged())?.clone();
     let under = |prefix: Vec<u8>| -> Records {
@@ -168,6 +174,6 @@ fn upgrade(schema: u32, held: &mut BTreeMap<Vec<u8>, Vec<u8>>) -> Result<(), Por
         fills: under(fills_prefix(HELD)),
         editor: None,
     };
-    held.extend(run_steps(schema, old).projects);
+    held.extend(run_guarded(schema, old).ok_or_else(damaged)?.projects);
     Ok(())
 }

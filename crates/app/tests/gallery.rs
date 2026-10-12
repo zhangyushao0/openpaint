@@ -13,6 +13,7 @@ fn summary(id: u64, title: &str) -> ProjectSummary {
         title: Title::new(title).expect("title"),
         thumbnail: None,
         versions: Vec::new(),
+        needs_repair: false,
     }
 }
 
@@ -91,6 +92,15 @@ fn opening_waits_for_the_library_and_a_failure_is_told_and_dismissed() {
     assert_eq!(projection.availability(), Availability::Available);
     gallery.dispatch(GalleryIntent::Dismiss).expect("dismiss");
     assert_eq!(gallery.projection().notice(), GalleryNotice::None);
+    // An artwork whose records could not be upgraded says so (S50).
+    gallery
+        .dispatch(GalleryIntent::Open(ProjectId::new(1)))
+        .expect("open");
+    requests(&mut gallery);
+    let not_upgraded = PortError::NotUpgraded { schema: 21 };
+    gallery.answer(LibraryAnswer::OpenFailed(not_upgraded));
+    assert_eq!(gallery.projection().notice(), GalleryNotice::NeedsRepair);
+    gallery.dispatch(GalleryIntent::Dismiss).expect("dismiss");
     let square = GalleryIntent::Create(CanvasPreset::Square);
     gallery.dispatch(square).expect("create");
     assert_eq!(
