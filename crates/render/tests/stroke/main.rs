@@ -26,6 +26,7 @@ mod scale;
 mod screen;
 mod selection;
 mod smudge;
+mod smudge_room;
 mod snapshot;
 mod stamps;
 mod stamps_scale;

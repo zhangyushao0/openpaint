@@ -253,6 +253,14 @@ impl Scene {
                 return Ok(());
             }
             let clip = stroke.clip().map(|clip| self.clip(clip)).transpose()?;
+            let canvas = reach
+                .iter()
+                .map(|bounds| view.to_canvas.bounds(*bounds).pixels())
+                .reduce(|a, b| a.union(&b))
+                .unwrap_or(PixelRect {
+                    min: [0, 0],
+                    max: [0, 0],
+                });
             let item = SmudgeItem {
                 layer: content.layer,
                 on_mask: content.on_mask,
@@ -262,6 +270,7 @@ impl Scene {
                 to_canvas: view.to_canvas,
                 item: 0,
                 clip: clip.unwrap_or(0),
+                canvas,
             };
             self.push_smudge(item, reach);
             return Ok(());

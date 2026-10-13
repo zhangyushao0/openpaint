@@ -21,10 +21,13 @@ pub(crate) struct Rooms {
     pub(crate) tiers: u64,
     pub(crate) snapshots: u64,
     pub(crate) shrink_arena: bool,
+    /// The smudge residuals' room in the arena (S51).
+    pub(crate) arena: u64,
 }
 
-/// What the budget's steps gave back, in bytes: the tiers, the snapshots, the arena.
-pub(crate) type Freed = [u64; 3];
+/// What the budget's steps gave back, in bytes: the tiers, the snapshots, the arena's blocks not
+/// shown, the residuals beyond their room.
+pub(crate) type Freed = [u64; 4];
 
 impl Canvas {
     /// Brings the target up to date with what the session shows (the current version, or a
@@ -37,12 +40,15 @@ impl Canvas {
     }
 
     /// Evaluates everything still to show now, every waiting tile too, before the target is
-    /// read (a pick, the gallery picture).
+    /// read (a pick, the gallery picture); the smudge residuals that took at once go back within
+    /// their room after it (S51).
     pub(crate) fn settle(&mut self, core: &Core) -> Result<(), RuntimeError> {
         if self.evaluated && self.changed_from.is_none() && !self.target.pending() {
             return Ok(());
         }
-        self.evaluated_now(core, false)
+        self.evaluated_now(core, false)?;
+        self.target.settle_arena(core)?;
+        Ok(())
     }
 
     /// `evaluate`, within one `frame`'s work or whole.
@@ -131,7 +137,8 @@ impl Canvas {
     }
 
     /// The budget's steps on its caches, in order: the tiers kept within their room, then the
-    /// snapshots within theirs, then the arena cut down to what the scene shows.
+    /// snapshots within theirs, then the arena cut down to what the scene shows, then its
+    /// residuals within their room (S51).
     pub(crate) fn hold_within(&mut self, core: &Core, rooms: Rooms) -> Result<Freed, RuntimeError> {
         let tiers = self.view.set_room(rooms.tiers);
         let snapshots = self.target.set_snapshot_room(rooms.snapshots);
@@ -140,7 +147,8 @@ impl Canvas {
         } else {
             0
         };
-        Ok([tiers, snapshots, arena])
+        let residuals = self.target.set_arena_room(core, rooms.arena)?;
+        Ok([tiers, snapshots, arena, residuals])
     }
 
     /// Makes the target and the view tiers again on `core`, a new device after the last was lost

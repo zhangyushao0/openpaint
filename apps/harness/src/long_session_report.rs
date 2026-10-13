@@ -4,7 +4,7 @@
 use std::f32::consts::{PI, TAU};
 
 use openpaint_core::Color;
-use openpaint_render::{CanvasTarget, FrameRequest, PixelRect, RegionEvaluator};
+use openpaint_render::{CanvasTarget, FrameRequest, GpuMemory, PixelRect, RegionEvaluator};
 use openpaint_runtime::PointerSample;
 
 use super::{BOUNDS, Painter, SAMPLES, SPACING};
@@ -61,43 +61,103 @@ pub(super) fn path(k: usize, start_ms: i64) -> Vec<PointerSample> {
 
 const MB: f64 = 1024.0 * 1024.0;
 
+/// The columns of `report`'s rows, in MB but for the minute, the strokes and the versions:
+/// the process's private memory, the Rust heap live and at its most (`heap.rs`), the device
+/// allocator's live allocations and the blocks it holds them in (`Core::gpu_memory`), the
+/// process beside the heap and those blocks (the driver's own), the GPU caches the app counts
+/// (canvas, tiers, snapshots, arena, pictures and their total), the history, the strokes'
+/// samples, the library on disk. Under each row the allocations by label, largest first.
+pub(super) fn header() {
+    let names = [
+        "min", "strokes", "process", "heap", "peak", "gpu", "blocks", "other", "canvas", "tiers",
+        "snaps", "arena", "pics", "caches", "history", "samples", "library", "vers", "wall s",
+    ];
+    let row: Vec<String> = names.iter().map(|name| format!("{name:>8}")).collect();
+    println!("{}", row.join(""));
+}
+
 impl Painter {
     /// One row: the simulated minute, the strokes, then each measure, checked against its bound.
     pub(super) fn report(&mut self) -> Result<(), HarnessError> {
         let memory = process_memory().unwrap_or(0);
+        let [heap, peak] = crate::heap::bytes();
+        let gpu = self.runtime.core().gpu_memory().unwrap_or_default();
         let caches = self.runtime.cache_bytes().unwrap_or_default();
         let history = self.runtime.history_bytes().unwrap_or(0) as u64;
         let library = size_on_disk(&self.library)?;
         let versions = self.versions.lock().map_or(0, |versions| *versions);
-        let strokes: usize = self.runtime.artwork().map_or(0, |artwork| {
-            let layers = artwork.layers().iter();
-            layers.map(|layer| layer.strokes().len()).sum()
+        let (strokes, samples) = self.runtime.artwork().map_or((0, 0), |artwork| {
+            let strokes = artwork
+                .layers()
+                .iter()
+                .flat_map(|layer| layer.strokes().iter());
+            strokes.fold((0, 0), |(count, bytes), stroke| {
+                (count + 1, bytes + size_of_val(stroke.samples()) as u64)
+            })
         });
-        let mb = |bytes: u64| bytes as f64 / MB;
-        println!(
-            "{:>4} {strokes:>7} {:>10.1} {:>9.1} {:>10.1} {:>11.1} {:>11.1} {versions:>8} {:>7.0}",
-            self.clock / 60_000,
-            mb(memory),
-            mb(caches.arena),
-            mb(caches.total()),
-            mb(history),
-            mb(library),
-            self.started.elapsed().as_secs_f64(),
-        );
+        let mb = |bytes: u64| format!("{:>8.1}", bytes as f64 / MB);
+        let sizes = [
+            memory,
+            heap,
+            peak,
+            gpu.allocated,
+            gpu.reserved,
+            memory.saturating_sub(heap + gpu.reserved),
+            caches.canvas,
+            caches.tiers,
+            caches.snapshots,
+            caches.arena,
+            caches.pictures,
+            caches.total(),
+            history,
+            samples,
+            library,
+        ];
+        let sizes: String = sizes.into_iter().map(mb).collect();
+        let minute = self.clock / 60_000;
+        let wall = self.started.elapsed().as_secs_f64();
+        println!("{minute:>8}{strokes:>8}{sizes}{versions:>8}{wall:>8.0}");
+        self.labels(&gpu);
+        if minute >= 10 && self.settled.is_none() {
+            self.settled = Some(memory);
+        }
+        let growth = memory.saturating_sub(self.settled.unwrap_or(memory));
         let checks = [
-            ("process memory", memory, BOUNDS.memory),
+            ("process memory since minute 10", growth, BOUNDS.growth),
+            ("live Rust heap", heap, BOUNDS.heap),
             ("arena", caches.arena, BOUNDS.arena),
             ("GPU caches", caches.total(), BOUNDS.caches),
             ("history", history, BOUNDS.history),
             ("library on disk", library, BOUNDS.library),
             ("versions kept", versions as u64, BOUNDS.versions as u64),
         ];
-        for (what, value, bound) in checks {
-            if value > bound {
-                return Err(HarnessError::Bound { what, value, bound });
-            }
+        match checks.into_iter().find(|(_, value, bound)| value > bound) {
+            Some((what, value, bound)) => Err(HarnessError::Bound { what, value, bound }),
+            None => Ok(()),
         }
-        Ok(())
+    }
+
+    /// Under a row: the scene and plan the canvas keeps, fjall's cache and memtables, and the
+    /// device allocator's allocations by label, largest first.
+    fn labels(&self, gpu: &GpuMemory) {
+        let [cache, memtables] = self.fjall.lock().map_or([0; 2], |fjall| *fjall);
+        let [scene, plan] = self.runtime.scene_bytes().unwrap_or_default();
+        let named = [
+            ("scene", scene),
+            ("plan", plan),
+            ("fjall cache", cache),
+            ("memtables", memtables),
+        ];
+        let labels: Vec<String> = (named.into_iter())
+            .chain(
+                gpu.by_label
+                    .iter()
+                    .take(8)
+                    .map(|(label, bytes)| (label.as_str(), *bytes)),
+            )
+            .map(|(label, bytes)| format!("{label} {:.1}", bytes as f64 / MB))
+            .collect();
+        println!("{:>16}{}", "", labels.join(", "));
     }
 
     /// The end: everything settled, the canvas against the artwork evaluated cold on the same

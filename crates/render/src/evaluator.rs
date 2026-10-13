@@ -1,7 +1,7 @@
 //! `RegionEvaluator`: the single entry that evaluates a frame request into regions of a target.
 //! Every consumer (screen, export, picking) goes through it.
 
-use openpaint_core::{ActiveStroke, Artwork, RegionMask, StrokeTool};
+use openpaint_core::{ActiveStroke, Artwork, RegionMask};
 
 use crate::active::ActiveTrack;
 use crate::active_snapshot::ActiveSnapshot;
@@ -198,30 +198,6 @@ impl CanvasTarget {
     #[must_use]
     pub const fn work(&self) -> EvaluationWork {
         self.work
-    }
-
-    /// Extends the in-progress smudge `request` draws (`drawn`: its layer shows) by its new
-    /// contacts, or ends the one there was; returns the pixels to evaluate again when its
-    /// residual started over.
-    fn smudged(
-        &mut self,
-        core: &Core,
-        request: &FrameRequest<'_>,
-        drawn: bool,
-    ) -> Result<Option<PixelRect>, RenderError> {
-        let smudging = request
-            .active
-            .filter(|active| drawn && active.style().tool() == StrokeTool::Smudge);
-        let Some(active) = smudging else {
-            self.smudges.end_active();
-            return Ok(None);
-        };
-        let cache = self
-            .scene
-            .as_ref()
-            .ok_or(RenderError::Invalid("no scene was built"))?;
-        let scene = (&cache.scene, &cache.ops);
-        self.smudges.advance(core, scene, request.artwork, active)
     }
 }
 

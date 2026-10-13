@@ -76,6 +76,12 @@ impl Runtime {
         })
     }
 
+    /// Heap bytes of the open canvas's scene and kept plan (S51, the harness's long session).
+    #[must_use]
+    pub fn scene_bytes(&self) -> Option<[u64; 2]> {
+        Some(self.screen.canvas()?.target().heap_bytes())
+    }
+
     /// What the open canvas's history holds beyond its oldest version, in bytes (S50, the
     /// harness's long session; bounded by `HISTORY_BUDGET`).
     #[must_use]

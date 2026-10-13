@@ -1,11 +1,13 @@
 //! Development harness: offscreen rendering with readback, recorded-input replay through the
 //! full frame loop, and JSON scenarios with pixel checkpoints. Writes PNGs and hashes under
 //! `artifacts/` (untracked). Never shipped; no window, no mouse input (DECISIONS D12).
-#![forbid(unsafe_code)]
+//! Unsafe code is denied, as everywhere; only the counting allocator (`heap.rs`, S51) expects it.
+#![deny(unsafe_code)]
 
 mod brush_sheet;
 mod error;
 mod export_timing;
+mod heap;
 mod launch;
 mod long_session;
 mod long_session_store;

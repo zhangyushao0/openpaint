@@ -4,20 +4,18 @@
 //! into the arena as it is. A residual that is missing is evaluated cold from its stroke and the
 //! scene, in layer order, so the layer pixels it carries already include the smudges before it.
 
-use std::collections::HashSet;
 use std::ops::Range;
 
 use openpaint_core::{ActiveStroke, Artwork, LayerId, StrokeSample, StrokeStyle};
 
-use super::arena::{Arena, Key, key};
+use super::arena::{Arena, Keep, Key, TileSet, key};
 use super::dabs::{Dab, DabWalker, dabs, read_tiles};
 use super::kernels::{Job, KernelBuffers, tile_job};
 use super::material::Material;
-use super::residual::{Working, words_buffer};
+use super::residual::{Working, node_words, words_buffer};
 use crate::affine::Affine;
 use crate::core::Core;
 use crate::error::RenderError;
-use crate::filter::Filters;
 use crate::geom::PixelRect;
 use crate::program::SceneOps;
 use crate::protocol::encode;
@@ -53,18 +51,32 @@ struct Tools {
     /// The run whose material the texture holds, and the next run's name.
     owner: u64,
     next: u64,
+    /// The last cold evaluation's residual, emptied for the next (S51): its buffers are made
+    /// once, not per residual.
+    scratch: Option<Run>,
 }
 
 pub(crate) struct Smudges {
     arena: Arena,
     active: Option<Active>,
     tools: Tools,
+    /// Bytes the arena keeps within when it can (S51): the GPU memory budget's share for the
+    /// screen's canvas, else no more than the device binds.
+    room: u64,
+    /// The most the arena binds, below the device's limit (tests: a small device's limit).
+    limit: u64,
+    /// A budget sets the room each frame (`set_room`), so what a frame's evaluations needed is
+    /// kept together; without one, each evaluation counts as a frame of its own.
+    framed: bool,
 }
 
 impl Smudges {
     pub(crate) fn new(core: &Core) -> Self {
         Self {
             arena: Arena::new(&core.gpu),
+            room: u64::MAX,
+            limit: u64::MAX,
+            framed: false,
             active: None,
             tools: Tools {
                 material: None,
@@ -72,6 +84,7 @@ impl Smudges {
                 empty: words_buffer(&core.gpu, 4),
                 owner: 0,
                 next: 1,
+                scratch: None,
             },
         }
     }
@@ -86,97 +99,6 @@ impl Smudges {
     /// Forgets the in-progress smudge: none is drawn now.
     pub(crate) fn end_active(&mut self) {
         self.active = None;
-    }
-
-    /// Makes every smudge and filter of `scene` (built from `artwork`, uploaded as `ops`)
-    /// present in the arena, in scene order, and writes where each block starts into the
-    /// scene's base words. A just committed smudge takes over the in-progress residual when it
-    /// is that stroke on the same layer content.
-    ///
-    /// # Errors
-    /// `Admission` when the blocks exceed what the device binds; `Invalid` for a canvas the
-    /// device cannot hold.
-    pub(crate) fn prepare(
-        &mut self,
-        core: &Core,
-        (scene, ops): (&Scene, &SceneOps),
-        artwork: &Artwork,
-        filters: &mut Filters,
-    ) -> Result<(), RenderError> {
-        let keys = budget::keys_of(scene, filters);
-        let live: HashSet<Key> = keys.iter().copied().collect();
-        let limit = binding_limit(core);
-        let size = [artwork.canvas().width(), artwork.canvas().height()];
-        let smudges = scene.smudges.iter().map(|item| item.item);
-        let mut order: Vec<(usize, usize)> = smudges
-            .chain(scene.filters.iter().map(|item| item.item))
-            .enumerate()
-            .map(|(index, item)| (item, index))
-            .collect();
-        order.sort_unstable();
-        // The blocks already present, for the materials evaluated below to read.
-        self.write_bases(core, ops, scene.bases_at, &keys);
-        for (_, index) in order {
-            if self.arena.base(&keys[index]).is_some() {
-                continue;
-            }
-            match scene.smudges.get(index) {
-                Some(item) => self.prepare_smudge(core, (scene, ops), artwork, item, &live)?,
-                None => {
-                    let item = &scene.filters[index - scene.smudges.len()];
-                    let material = material(&mut self.tools.material, core, size)?;
-                    let held = self.tools.owner == 0;
-                    let tools = (&mut self.arena, material, &self.tools.empty, held);
-                    let place = (item, keys[index]);
-                    filters.prepare(core, (scene, ops), place, tools, (&live, limit))?;
-                    // The material holds the filter's pixels now.
-                    self.tools.owner = 0;
-                }
-            }
-            self.write_bases(core, ops, scene.bases_at, &keys);
-        }
-        self.write_bases(core, ops, scene.bases_at, &keys);
-        filters.retain(&self.arena);
-        Ok(())
-    }
-
-    /// A finished smudge's residual, from the in-progress one when it adopts it, else cold.
-    fn prepare_smudge(
-        &mut self,
-        core: &Core,
-        (scene, ops): (&Scene, &SceneOps),
-        artwork: &Artwork,
-        item: &SmudgeItem,
-        live: &HashSet<Key>,
-    ) -> Result<(), RenderError> {
-        let size = [artwork.canvas().width(), artwork.canvas().height()];
-        let range = (item.before.clone(), item.to_canvas);
-        let adopted = self.active.take_if(|active| active.adopts(item, artwork));
-        let run = match adopted {
-            Some(mut active) => {
-                let mut new = Vec::new();
-                let samples = item.stroke.samples();
-                active
-                    .walker
-                    .advance(&active.style, (samples, true), &mut new);
-                let scene = (scene, ops, range);
-                self.tools
-                    .extend(core, scene, &self.arena, &mut active.run, &new)?;
-                active.run
-            }
-            None => {
-                let mut run = self.tools.run(core, size);
-                let all = dabs(item.stroke.style(), item.stroke.samples());
-                let scene = (scene, ops, range);
-                self.tools
-                    .extend(core, scene, &self.arena, &mut run, &all)?;
-                run
-            }
-        };
-        let limit = binding_limit(core);
-        let key = key(item.layer, &item.stroke);
-        self.arena
-            .place(&core.gpu, (key, &item.stroke), &run.working, (live, limit))
     }
 
     /// Where each block of `keys` starts (0 while missing), into the scene's base words from
@@ -307,6 +229,22 @@ impl Tools {
         }
     }
 
+    /// An empty residual under a new name for a cold evaluation: the scratch one emptied, when
+    /// there is one of `size`.
+    fn cold_run(&mut self, core: &Core, size: [u32; 2]) -> Run {
+        match self.scratch.take().filter(|run| run.working.size() == size) {
+            Some(mut run) => {
+                self.next += 1;
+                run.owner = self.next;
+                run.working.reset(&core.gpu);
+                // Its kernels bind the material made now, which may be another texture.
+                run.group = None;
+                run
+            }
+            None => self.run(core, size),
+        }
+    }
+
     /// Applies `dabs` to `run`: allocates the tiles they read, evaluates the material of the
     /// new ones (all of the run's, when the texture holds another run's), resets the new tiles,
     /// then runs the contacts in order. `range` is the scene's items before the smudge and
@@ -367,6 +305,13 @@ impl Tools {
 
 #[path = "engine_budget.rs"]
 mod budget;
+
+#[path = "engine_needs.rs"]
+mod needs;
+pub(crate) use needs::{Wanted, reached};
+
+#[path = "engine_prepare.rs"]
+mod prepare;
 
 /// The largest buffer the device binds, in bytes.
 fn binding_limit(core: &Core) -> u64 {

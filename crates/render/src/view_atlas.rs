@@ -231,19 +231,17 @@ impl Tier {
     pub(crate) fn evaluate(
         &mut self,
         core: &Core,
-        canvas: &CanvasTarget,
+        canvas: &mut CanvasTarget,
         request: &FrameRequest<'_>,
         regions: &[PixelRect],
     ) -> Result<(), RenderError> {
         if regions.is_empty() {
             return Ok(());
         }
-        let (scene, ops) =
-            canvas
-                .scene_of(request.artwork, request.active)
-                .ok_or(RenderError::Invalid(
-                    "the canvas was not evaluated for this frame",
-                ))?;
+        let missing = || RenderError::Invalid("the canvas was not evaluated for this frame");
+        let (scene, _) = canvas
+            .scene_of(request.artwork, request.active)
+            .ok_or_else(missing)?;
         let fresh = match request.active.filter(|_| scene.has_active()) {
             Some(active) => Fresh::new(active, 0, scene.active_clip),
             None => Fresh::default(),
@@ -253,6 +251,11 @@ impl Tier {
         if plan.tiles.is_empty() {
             return Ok(());
         }
+        // The residuals near the tiles evaluated (S51).
+        canvas.reach(core, request.artwork, &plan.tiles, self.scale())?;
+        let (_, ops) = canvas
+            .scene_of(request.artwork, request.active)
+            .ok_or_else(missing)?;
         let paper = request.background;
         let output = Output::at(self.scale(), [0, 0])?;
         core.evaluate.dispatch(

@@ -6,10 +6,18 @@
 //! then the arena's blocks the scene does not show, then the layer pictures. Each keeps within
 //! the room left to it from then on, so nothing grows back past the budget; nothing fails, and
 //! every drop is logged. No pixel changes: each cache is evaluated again from the artwork.
+//!
+//! S51: the smudge residuals the scene shows keep within a share of the budget whatever else
+//! holds memory (`ARENA_SHARE`): beyond it the least recently needed go, never one the last
+//! evaluation needed, and an evaluation needing one evaluates it again near what it evaluates.
+//! Once a minute while a canvas is open, what holds memory is logged, so a session on the
+//! device tells its owners apart.
+
+use std::time::{Duration, Instant};
 
 use openpaint_render::{CacheBytes, Core};
 
-use crate::canvas::{Freed, Rooms};
+use crate::canvas::{Canvas, Freed, Rooms};
 use crate::error::RuntimeError;
 use crate::frame::Runtime;
 use crate::screen::Screen;
@@ -22,10 +30,20 @@ pub(crate) struct Budget {
     logged: u64,
     /// The arena's bytes after it was last cut down: it is cut again only once it grew.
     shrunk: Option<u64>,
+    /// When what holds memory was last logged (`note`).
+    noted: Option<Instant>,
 }
 
 /// The peak is logged again once it grew by this much.
 const PEAK_STEP: u64 = 4 << 20;
+
+/// What holds memory is logged this often while a canvas is open (S51).
+const NOTE_EVERY: Duration = Duration::from_secs(60);
+
+/// The smudge residuals keep within this share of the budget (S51): 96 MiB on the tablet, 512
+/// MiB on a GPU with its own memory. On the tablet the arena binds at most 128 MiB anyway, and
+/// a share leaves the snapshots and tiers their room however much is smudged.
+pub const ARENA_SHARE: u64 = 4;
 
 impl Budget {
     pub(crate) fn of(core: &Core) -> Self {
@@ -40,32 +58,41 @@ impl Budget {
             peak: 0,
             logged: 0,
             shrunk: None,
+            noted: None,
         }
     }
 
-    /// Notes what the caches hold now, logging a new peak.
-    fn saw(&mut self, held: &CacheBytes) {
+    /// Notes what the caches hold now, logging a new peak with what the device's allocator holds
+    /// (S51: its live allocations and the memory blocks it took for them).
+    fn saw(&mut self, held: &CacheBytes, core: &Core) {
         let total = held.total();
         self.peak = self.peak.max(total);
         if self.peak >= self.logged + PEAK_STEP {
             self.logged = self.peak;
+            let gpu = core.gpu_memory().unwrap_or_default();
+            let largest: Vec<String> = (gpu.by_label.iter().take(4))
+                .map(|(label, bytes)| format!("{label} {:.1}", mb(*bytes)))
+                .collect();
             log::info!(
                 "GPU caches hold {:.1} MB (most so far): canvas {:.1}, tiers {:.1}, snapshots {:.1}, \
-                 arena {:.1}, pictures {:.1}",
+                 arena {:.1}, pictures {:.1}; the allocator holds {:.1} MB in blocks of {:.1} ({})",
                 mb(total),
                 mb(held.canvas),
                 mb(held.tiers),
                 mb(held.snapshots),
                 mb(held.arena),
-                mb(held.pictures)
+                mb(held.pictures),
+                mb(gpu.allocated),
+                mb(gpu.reserved),
+                largest.join(", ")
             );
         }
     }
 }
 
 /// What `budget` leaves each cache when they held `held`, and whether the layer pictures go: the
-/// canvas and pictures first, then the arena (cut down when they pass the budget together), the
-/// snapshots, the tiers last.
+/// canvas and pictures first, then the arena (cut down when they pass the budget together; its
+/// residuals within their share), the snapshots, the tiers last.
 pub(crate) fn rooms_for(held: CacheBytes, budget: u64) -> (Rooms, bool) {
     let kept = held.canvas + held.pictures;
     let snapshots = budget.saturating_sub(kept + held.arena);
@@ -73,6 +100,7 @@ pub(crate) fn rooms_for(held: CacheBytes, budget: u64) -> (Rooms, bool) {
         tiers: snapshots.saturating_sub(held.snapshots),
         snapshots,
         shrink_arena: kept + held.arena > budget,
+        arena: budget / ARENA_SHARE,
     };
     (rooms, kept > budget)
 }
@@ -90,7 +118,8 @@ impl Runtime {
             pictures: making + self.shell.picture_bytes(),
             ..canvas.bytes()
         };
-        self.budget.saw(&held);
+        self.budget.saw(&held, &self.core);
+        note(&mut self.budget, &self.core, canvas, &held);
         let (mut rooms, drop_pictures) = rooms_for(held, self.budget.bytes);
         rooms.shrink_arena &= self.budget.shrunk.is_none_or(|after| held.arena > after);
         let freed = canvas.hold_within(&self.core, rooms)?;
@@ -114,6 +143,38 @@ impl Runtime {
     }
 }
 
+/// Once every `NOTE_EVERY` (S51): the strokes, the GPU caches, the device allocator's allocations
+/// and blocks with its largest labels, and the heap's scene, plan and history, logged.
+fn note(budget: &mut Budget, core: &Core, canvas: &Canvas, held: &CacheBytes) {
+    if budget.noted.is_some_and(|at| at.elapsed() < NOTE_EVERY) {
+        return;
+    }
+    budget.noted = Some(Instant::now());
+    let artwork = canvas.session().artwork();
+    let strokes: usize = (artwork.layers().iter())
+        .map(|layer| layer.strokes().len())
+        .sum();
+    let [scene, plan] = canvas.target().heap_bytes();
+    let history = canvas.session().history().total_bytes() as u64;
+    let gpu = core.gpu_memory().unwrap_or_default();
+    let largest: Vec<String> = (gpu.by_label.iter().take(6))
+        .map(|(label, bytes)| format!("{label} {:.1}", mb(*bytes)))
+        .collect();
+    log::info!(
+        "memory at {strokes} strokes: GPU caches {:.1} MB (arena {:.1}); the allocator holds \
+         {:.1} MB in blocks of {:.1} ({}); the heap holds the scene's {:.1} MB, the plan's {:.1}, \
+         the history's {:.1}",
+        mb(held.total()),
+        mb(held.arena),
+        mb(gpu.allocated),
+        mb(gpu.reserved),
+        largest.join(", "),
+        mb(scene),
+        mb(plan),
+        mb(history)
+    );
+}
+
 /// Logs each cache the budget let go.
 fn report(freed: Freed, held: &CacheBytes, budget: u64) {
     let names = [
@@ -130,6 +191,13 @@ fn report(freed: Freed, held: &CacheBytes, budget: u64) {
                 mb(bytes)
             );
         }
+    }
+    if freed[3] > 0 {
+        log::info!(
+            "smudge residuals past their {:.0} MB: the least recently needed let go, {:.1} MB",
+            mb(budget / ARENA_SHARE),
+            mb(freed[3])
+        );
     }
 }
 

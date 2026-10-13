@@ -59,7 +59,7 @@ pub use crate::adapter::{
     chrome_shape,
 };
 pub use crate::bounded::DISPATCH_WORK;
-pub use crate::budget::{CacheBytes, DeviceClass, OWN_BUDGET, SHARED_BUDGET};
+pub use crate::budget::{CacheBytes, DeviceClass, GpuMemory, OWN_BUDGET, SHARED_BUDGET};
 pub use crate::change::changed_regions;
 pub use crate::core::Core;
 pub use crate::error::RenderError;

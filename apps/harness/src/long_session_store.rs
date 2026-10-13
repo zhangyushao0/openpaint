@@ -11,10 +11,20 @@ use openpaint_app::{
 use openpaint_core::Artwork;
 use openpaint_store::Library;
 
-/// The library, every call passed on; after each version kept, how many the artwork holds.
+/// The library, every call passed on; after each version kept, how many the artwork holds, and
+/// after each save or version what fjall holds in memory (its cache and memtables).
 pub struct Watched {
     pub inner: Library,
     pub versions: Arc<Mutex<usize>>,
+    pub fjall: Arc<Mutex<[u64; 2]>>,
+}
+
+impl Watched {
+    fn saw_memory(&self) {
+        if let (Some(memory), Ok(mut seen)) = (self.inner.memory(), self.fjall.lock()) {
+            *seen = memory;
+        }
+    }
 }
 
 impl ProjectStore for Watched {
@@ -35,7 +45,9 @@ impl ProjectStore for Watched {
     }
 
     fn save(&mut self, id: ProjectId, artwork: &Artwork) -> Result<(), PortError> {
-        self.inner.save(id, artwork)
+        self.inner.save(id, artwork)?;
+        self.saw_memory();
+        Ok(())
     }
 
     fn save_thumbnail(&mut self, id: ProjectId, thumbnail: &Thumbnail) -> Result<(), PortError> {
@@ -81,6 +93,7 @@ impl ProjectStore for Watched {
         if let (Some(item), Ok(mut versions)) = (kept, self.versions.lock()) {
             *versions = item.versions.len();
         }
+        self.saw_memory();
         Ok(())
     }
 

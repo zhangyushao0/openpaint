@@ -6,17 +6,21 @@
 //! stroke a smudge; one stroke in twenty undone, every other one of those redone; the layer
 //! panel opened every 50 strokes until its pictures are made, a layer added every 500; the app
 //! left (`onPause`) every 5 minutes, which keeps a version. Every 5 simulated minutes a row: the
-//! process's private memory, the arena (smudge residuals), the canvas's GPU caches, the history,
-//! the library on disk and the versions kept, each checked against its bound (`BOUNDS`). At the
-//! end the canvas must equal a cold evaluation of the artwork. Run it with `--release`.
+//! process's private memory, the live Rust heap (S51: the harness counts its allocator,
+//! `heap.rs`), wgpu's allocations and blocks, the rest of the process (the driver's), the
+//! canvas's GPU caches, the history, the samples, the library on disk and the versions kept,
+//! and under it the scene, plan, fjall and allocations by label; each checked against its bound
+//! (`BOUNDS`). At the end the canvas must equal a cold evaluation of the artwork. Run it with
+//! `--release`.
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use openpaint_app::{HISTORY_BUDGET, KEPT_VERSIONS};
+use openpaint_render::OWN_BUDGET;
 use openpaint_runtime::{
-    Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime, ToolKind,
+    ARENA_SHARE, Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime, ToolKind,
 };
 use openpaint_store::Library;
 
@@ -52,21 +56,25 @@ const BRUSHES: [(&str, &str); 10] = [
     ("Speckle", "Texture"),
 ];
 
-/// What each row is checked against, in bytes: the history's budget and the versions kept, the
-/// GPU's budget on a device with memory of its own for the arena and the caches, the others
-/// stated from the first run (2026-10-12, STATUS: the process 4.2 GB, the library 277 MB at the
-/// end) with room.
+/// What each row is checked against, in bytes (S51, STATUS): the process's growth since minute
+/// 10 (4.7 and 5.2 GB in two hours on the S51 build, nearly all the driver's beside the heap and
+/// wgpu's allocator) and the live Rust heap (at most 0.5 GB) with room; the arena within the
+/// residuals' share of the GPU budget on a device with memory of its own, with its material and
+/// kernels; the caches within that budget; the history's budget, the versions kept, and the
+/// library from S50's run with room.
 const BOUNDS: Bounds = Bounds {
-    memory: 5 << 30,
-    arena: 2 << 30,
-    caches: 2 << 30,
+    growth: 6 << 30,
+    heap: 1 << 30,
+    arena: OWN_BUDGET / ARENA_SHARE + (128 << 20),
+    caches: OWN_BUDGET,
     history: HISTORY_BUDGET as u64,
     library: 512 << 20,
     versions: KEPT_VERSIONS,
 };
 
 struct Bounds {
-    memory: u64,
+    growth: u64,
+    heap: u64,
     arena: u64,
     caches: u64,
     history: u64,
@@ -77,18 +85,7 @@ struct Bounds {
 pub fn run(strokes: usize) -> Result<(), HarnessError> {
     let mut painter = Painter::start()?;
     println!("adapter {}", painter.runtime.adapter());
-    println!(
-        "{:>4} {:>7} {:>10} {:>9} {:>10} {:>11} {:>11} {:>8} {:>7}",
-        "min",
-        "strokes",
-        "memory MB",
-        "arena MB",
-        "caches MB",
-        "history MB",
-        "library MB",
-        "versions",
-        "wall s"
-    );
+    report::header();
     painter.report()?;
     for k in 0..strokes {
         painter.step(k)?;
@@ -107,6 +104,10 @@ struct Painter {
     /// The simulated time in milliseconds: the input's and the frames'.
     clock: i64,
     versions: Arc<Mutex<usize>>,
+    /// fjall's cache and memtables after the last save or version, in bytes.
+    fjall: Arc<Mutex<[u64; 2]>>,
+    /// The process's memory at the first row from minute 10 on: what its growth counts from.
+    settled: Option<u64>,
     library: PathBuf,
     started: Instant,
 }
@@ -119,14 +120,18 @@ impl Painter {
             .join("long-session-library");
         let library = fresh_library(dir)?;
         let versions = Arc::new(Mutex::new(0));
+        let fjall = Arc::new(Mutex::new([0; 2]));
         let store = Watched {
             inner: Library::at(&library),
             versions: Arc::clone(&versions),
+            fjall: Arc::clone(&fjall),
         };
         let mut painter = Self {
             runtime: Runtime::start(PIXELS_PER_POINT, Box::new(store))?,
             clock: 0,
             versions,
+            fjall,
+            settled: None,
             library,
             started: Instant::now(),
         };

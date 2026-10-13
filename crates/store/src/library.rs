@@ -35,6 +35,8 @@ pub struct Library {
     /// The version the disk holds for one project, known exactly; the base for the next save
     /// of that project. Forgotten whenever a call fails, so that save rewrites the project.
     stored: Option<(ProjectId, Artwork)>,
+    /// The most fjall held in memory when it was last logged (`note_memory`).
+    noted: u64,
 }
 
 pub(crate) fn device(error: fjall::Error) -> PortError {
@@ -51,6 +53,33 @@ impl Library {
             dir: dir.into(),
             open: None,
             stored: None,
+            noted: 0,
+        }
+    }
+
+    /// What fjall holds in memory now: its block cache and its memtables (written, not flushed
+    /// yet), in bytes; `None` while the database is closed (S51, the harness's long session).
+    #[must_use]
+    pub fn memory(&self) -> Option<[u64; 2]> {
+        let open = self.open.as_ref()?;
+        Some([open.db.cache_size(), open.db.write_buffer_size()])
+    }
+
+    /// Logs what fjall holds in memory once it passed the most logged by 4 MiB (S51), so a
+    /// session on the device tells how much of the heap is the library's.
+    fn note_memory(&mut self) {
+        let Some([cache, memtables]) = self.memory() else {
+            return;
+        };
+        if cache + memtables >= self.noted + (4 << 20) {
+            self.noted = cache + memtables;
+            let mb = |bytes: u64| bytes as f64 / (1024.0 * 1024.0);
+            log::info!(
+                "the library holds {:.1} MB in memory (most so far): cache {:.1}, memtables {:.1}",
+                mb(cache + memtables),
+                mb(cache),
+                mb(memtables)
+            );
         }
     }
 
@@ -149,6 +178,7 @@ impl ProjectStore for Library {
         let base = self.stored.take().filter(|(stored, _)| *stored == id);
         self.with(|open| write::save(open, id, base.as_ref().map(|(_, base)| base), artwork))?;
         self.stored = Some((id, artwork.clone()));
+        self.note_memory();
         Ok(())
     }
 

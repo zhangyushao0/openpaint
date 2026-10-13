@@ -27,6 +27,7 @@ mod transfer;
 mod ui_pass;
 mod worker;
 
+pub use crate::budget::ARENA_SHARE;
 pub use crate::error::RuntimeError;
 pub use crate::frame::Runtime;
 pub use crate::input::{Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, ToolKind};

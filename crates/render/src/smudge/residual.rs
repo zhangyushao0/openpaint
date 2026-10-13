@@ -6,6 +6,7 @@
 
 use std::collections::BTreeSet;
 
+use super::arena::TileSet;
 use super::{NODE_WORDS, RESIDUAL_HEADER, RESIDUAL_TILE, TILE_NODES};
 use crate::error::RenderError;
 use crate::geom::PixelRect;
@@ -24,12 +25,14 @@ pub(crate) struct Working {
     buffer: wgpu::Buffer,
 }
 
-/// A residual as an arena block: its header and table cut to the tiles it holds, and where its
-/// nodes lie in the working buffer.
+/// A residual as an arena block: its header and table cut to the tiles it holds, where its nodes
+/// lie in the working buffer, and the runs of node words to copy: from (past `nodes_at`), to
+/// (past the block's head) and how many.
 pub(crate) struct Block {
     pub(crate) head: Vec<u32>,
     pub(crate) nodes_at: u64,
     pub(crate) node_words: u64,
+    pub(crate) runs: Vec<(u64, u64, u64)>,
 }
 
 impl Working {
@@ -53,6 +56,14 @@ impl Working {
 
     pub(crate) const fn buffer(&self) -> &wgpu::Buffer {
         &self.buffer
+    }
+
+    /// Empty again, its buffer kept for the next residual (S51): no tile held, the table cleared.
+    /// The nodes stay as they were; a tile allocated later is reset before it is read.
+    pub(crate) fn reset(&mut self, gpu: &Gpu) {
+        self.table.fill(0);
+        self.tiles.clear();
+        self.write_head(gpu);
     }
 
     /// The canvas's size in pixels (one node each).
@@ -150,29 +161,48 @@ impl Working {
             .write_buffer(&self.buffer, 0, &crate::protocol::encode(&words));
     }
 
-    /// The residual as an arena block: the table cut to the box of its tiles.
-    pub(crate) fn block(&self) -> Block {
+    /// The residual as an arena block: its tiles in `part` (`None`: all), renumbered in slot
+    /// order, the table cut to their box. A tile left out reads as the identity, so a block of
+    /// some tiles gives exactly the residual's values there (S51).
+    pub(crate) fn block(&self, part: Option<&TileSet>) -> Block {
+        let column_row = |tile: u32| [tile % self.columns, tile / self.columns];
+        let kept: Vec<u32> = (self.tiles.iter().copied())
+            .filter(|tile| part.is_none_or(|part| part.has(*tile)))
+            .collect();
         let (mut min, mut max) = ([u32::MAX; 2], [0; 2]);
-        for tile in &self.tiles {
-            let at = [tile % self.columns, tile / self.columns];
+        for tile in &kept {
+            let at = column_row(*tile);
             for axis in 0..2 {
                 min[axis] = min[axis].min(at[axis]);
                 max[axis] = max[axis].max(at[axis]);
             }
         }
         let mut head = vec![0; RESIDUAL_HEADER as usize];
-        if !self.tiles.is_empty() {
+        let tile_words = node_words(1);
+        let mut runs: Vec<(u64, u64, u64)> = Vec::new();
+        if !kept.is_empty() {
             let size = [max[0] - min[0] + 1, max[1] - min[1] + 1];
-            head = vec![min[0], min[1], size[0], size[1]];
-            for row in min[1]..=max[1] {
-                let start = (row * self.columns + min[0]) as usize;
-                head.extend_from_slice(&self.table[start..start + size[0] as usize]);
+            let mut table = vec![0; (size[0] * size[1]) as usize];
+            for (slot, tile) in (1..).zip(&kept) {
+                let [column, row] = column_row(*tile);
+                table[((row - min[1]) * size[0] + column - min[0]) as usize] = slot;
+                let from = u64::from(self.table[*tile as usize] - 1) * tile_words;
+                let to = u64::from(slot - 1) * tile_words;
+                match runs.last_mut() {
+                    Some(run) if run.0 + run.2 == from && run.1 + run.2 == to => {
+                        run.2 += tile_words
+                    }
+                    _ => runs.push((from, to, tile_words)),
+                }
             }
+            head = vec![min[0], min[1], size[0], size[1]];
+            head.extend_from_slice(&table);
         }
         Block {
             head,
             nodes_at: self.nodes_at(),
-            node_words: node_words(self.tiles.len() as u32),
+            node_words: node_words(kept.len() as u32),
+            runs,
         }
     }
 }

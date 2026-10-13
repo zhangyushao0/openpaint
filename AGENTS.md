@@ -76,7 +76,7 @@ Agent output belongs in `crates/` product code and tests. The following count as
 
 - Reasoning effort is set by the author at session start: high for design and trade-offs, low for splitting files, updating call sites and fixing compile errors.
 - At most 2 subagents, no nesting, no reviewer swarms. Do in the main session what can be done there.
-- Code rules (enforced by repo-check and clippy): .rs files at most 400 lines; functions at most 60 lines; dependencies only point down (see ARCHITECTURE); core never mentions GPU, UI, file system or threads; `Result<_, String>` only at platform boundaries and in xtask; no `cfg(feature)` in product crates; every crate root has `#![forbid(unsafe_code)]` (JNI in `apps/android` excepted).
+- Code rules (enforced by repo-check and clippy): .rs files at most 400 lines; functions at most 60 lines; dependencies only point down (see ARCHITECTURE); core never mentions GPU, UI, file system or threads; `Result<_, String>` only at platform boundaries and in xtask; no `cfg(feature)` in product crates; every crate root has `#![forbid(unsafe_code)]` (JNI in `apps/android` excepted, and the harness, which denies it but for its counting allocator, S51).
 
 ## Design from the user inward
 

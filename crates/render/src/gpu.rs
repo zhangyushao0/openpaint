@@ -79,11 +79,19 @@ impl Gpu {
                 .map_err(device)?;
         // Canvas textures need the adapter's real maximum sizes, not the portable minimums; the
         // ten-bit display format needs the adapter's own format features (S37).
+        // S51: on a GPU sharing the system's memory (the tablet) the allocator takes blocks of 8
+        // to 64 MiB instead of 128 to 256, so what it holds stays near what is allocated.
+        let shared = adapter.get_info().device_type != wgpu::DeviceType::DiscreteGpu;
         let descriptor = wgpu::DeviceDescriptor {
             label: Some("openpaint"),
             required_features: adapter.features()
                 & wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
             required_limits: adapter.limits(),
+            memory_hints: if shared {
+                wgpu::MemoryHints::MemoryUsage
+            } else {
+                wgpu::MemoryHints::Performance
+            },
             ..Default::default()
         };
         let (device, queue) =

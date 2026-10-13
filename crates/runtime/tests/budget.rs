@@ -1,8 +1,9 @@
 //! The GPU memory budget (S49) through the whole frame loop: with every derived cache holding
 //! something (a view tier zoomed in, the stroke's snapshot, a smudge in the arena, the layer
 //! pictures), a budget lowered step by step drops them in the stated order, the view tiers
-//! first, then the snapshots, then the arena's blocks and material, then the layer pictures; the
-//! canvas itself is never dropped and stays equal to a cold evaluation throughout.
+//! first, then the snapshots, then the arena's blocks and material, then the layer pictures, and
+//! past their share the residuals (S51); the canvas itself is never dropped and stays equal to a
+//! cold evaluation throughout, also for a smudge drawn over a residual let go.
 
 mod gpu;
 mod hand;
@@ -149,4 +150,13 @@ fn a_lower_budget_drops_tiers_then_snapshots_then_the_arena_then_pictures() {
     assert_eq!(after.pictures, 0, "{after:?}");
     assert_eq!(after.canvas, all.canvas);
     assert_cold(&core, &runtime, "without the pictures");
+    // S51: past their share of the budget the residuals go (not one the last frame needed); a
+    // smudge drawn across the place evaluates again the one it reads.
+    let after = budget(&mut runtime, &mut hand, 1 << 20);
+    assert!(after.arena < all.arena, "{after:?}");
+    assert_cold(&core, &runtime, "the residuals let go");
+    hand.tap(&mut runtime, "Layers");
+    hand.gesture(&mut runtime, ToolKind::Stylus, &line(605.0));
+    settle(&mut runtime, &mut hand);
+    assert_cold(&core, &runtime, "a smudge over a residual let go");
 }

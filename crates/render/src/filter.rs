@@ -17,7 +17,6 @@
 
 mod kernels;
 
-use std::collections::HashSet;
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -35,7 +34,7 @@ use crate::plan::Plan;
 use crate::program::SceneOps;
 use crate::protocol::{MASK_HEADER, TILE, encode};
 use crate::scene::{Item, Scene};
-use crate::smudge::{Arena, Key, Material};
+use crate::smudge::{Arena, Keep, Key, Material};
 
 /// The kernel reaches three standard deviations each way, at most this many pixels.
 pub(crate) const MAX_REACH: u32 = 96;
@@ -234,7 +233,7 @@ impl Filters {
         (scene, ops): (&Scene, &SceneOps),
         (item, key): (&FilterItem, Key),
         (arena, material, empty, held): (&mut Arena, &mut Material, &wgpu::Buffer, bool),
-        (live, limit): (&HashSet<Key>, u64),
+        keep: &Keep<'_>,
     ) -> Result<(), RenderError> {
         if arena.base(&key).is_some() {
             return Ok(());
@@ -251,7 +250,7 @@ impl Filters {
         let header = [block.min[0] as u32, block.min[1] as u32, size[0], size[1]];
         let words = u64::from(MASK_HEADER) + u64::from(size[0]) * u64::from(size[1]);
         if size.contains(&0) {
-            let base = arena.reserve(&core.gpu, (key, None), words, (live, limit))?;
+            let base = arena.reserve(&core.gpu, (key, None), words, keep)?;
             core.gpu
                 .queue
                 .write_buffer(arena.buffer(), base * 4, &encode(&[0u32; 4]));
@@ -260,7 +259,7 @@ impl Filters {
         let cells = Cells::of(block, scene.canvas, sigma);
         let tools = (&mut *material, [arena.buffer(), empty]);
         self.hold(core, (scene, ops), (item, clip, cells.read), tools, held)?;
-        let base = arena.reserve(&core.gpu, (key, None), words, (live, limit))?;
+        let base = arena.reserve(&core.gpu, (key, None), words, keep)?;
         core.gpu
             .queue
             .write_buffer(arena.buffer(), base * 4, &encode(&header));

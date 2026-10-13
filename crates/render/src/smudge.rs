@@ -23,9 +23,9 @@ mod kernels;
 mod material;
 mod residual;
 
-pub(crate) use arena::{Arena, Key};
+pub(crate) use arena::{Arena, Keep, Key};
 pub(crate) use dabs::{smudge_reach, whole_reach};
-pub(crate) use engine::Smudges;
+pub(crate) use engine::{Smudges, Wanted, reached};
 pub(crate) use kernels::SmudgePipeline;
 pub(crate) use material::Material;
 

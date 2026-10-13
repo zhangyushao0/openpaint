@@ -108,8 +108,10 @@ pub const FORBIDDEN_TOKENS: &[(&str, &[&str])] = &[
 pub const RENDER_DIR: &str = "crates/render/";
 pub const RENDER_EGUI_DIR: &str = "crates/render/src/adapter/";
 
-/// Crate roots that may skip `#![forbid(unsafe_code)]` (JNI needs unsafe).
-pub const UNSAFE_EXEMPT: &[&str] = &["apps/android/"];
+/// Crate roots that may skip `#![forbid(unsafe_code)]`: JNI needs unsafe, and so does the
+/// harness's counting global allocator (S51, never shipped; the harness denies unsafe code and
+/// only `heap.rs` expects it).
+pub const UNSAFE_EXEMPT: &[&str] = &["apps/android/", "apps/harness/"];
 
 /// Paths that are never tracked: notes, measurements, captures, scratch work, extra doc trees.
 pub const FORBIDDEN_PREFIXES: &[&str] = &[

@@ -48,7 +48,34 @@ pub enum DeviceClass {
     Own,
 }
 
+/// What the device's memory allocator holds (S51, the harness's long session): the bytes its
+/// live allocations take, the bytes of the memory blocks it took from the driver to hold them,
+/// and the allocations' bytes per label (`"smudge residual"`, `"snapshot"`), largest first.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct GpuMemory {
+    pub allocated: u64,
+    pub reserved: u64,
+    pub by_label: Vec<(String, u64)>,
+}
+
 impl Core {
+    /// What the device's allocator holds now; `None` on a backend that does not report it.
+    #[must_use]
+    pub fn gpu_memory(&self) -> Option<GpuMemory> {
+        let report = self.gpu.device.generate_allocator_report()?;
+        let mut by_label: std::collections::HashMap<String, u64> = Default::default();
+        for allocation in report.allocations {
+            *by_label.entry(allocation.name).or_default() += allocation.size;
+        }
+        let mut by_label: Vec<(String, u64)> = by_label.into_iter().collect();
+        by_label.sort_unstable_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        Some(GpuMemory {
+            allocated: report.total_allocated_bytes,
+            reserved: report.total_reserved_bytes,
+            by_label,
+        })
+    }
+
     /// The class of this device: its own memory for a discrete GPU, else shared.
     #[must_use]
     pub fn device_class(&self) -> DeviceClass {

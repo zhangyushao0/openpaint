@@ -12,7 +12,7 @@ use openpaint_core::{
 use crate::affine::Affine;
 use crate::error::RenderError;
 use crate::filter::FilterItem;
-use crate::geom::Bounds;
+use crate::geom::{Bounds, PixelRect};
 use crate::protocol::{LayerInto, MASK_HEADER, Op};
 use crate::scene_adjust::AdjustItem;
 use crate::scene_layer::LayerOps;
@@ -138,6 +138,9 @@ pub(crate) struct SmudgeItem {
     /// Its item and its clip as its op names it.
     pub(crate) item: usize,
     pub(crate) clip: u32,
+    /// The canvas pixels it can change (its reach placed by `to_canvas`): where an evaluation
+    /// needs its residual (S51).
+    pub(crate) canvas: PixelRect,
 }
 
 /// Bottom layer first; inside a layer, finished strokes oldest first with each fill after the
