@@ -19,6 +19,7 @@ use crate::error::HostError;
 use crate::fonts::read_face;
 use crate::latency::PenLatency;
 use crate::motion::{RawMotion, decode};
+use crate::navigation::{Frame, NavigationLog};
 use crate::transfer::Pick;
 use crate::window::NativeWindow;
 
@@ -26,6 +27,8 @@ use crate::window::NativeWindow;
 pub(crate) struct Host {
     pub(crate) runtime: Runtime,
     latency: PenLatency,
+    /// Frames while fingers navigate or work waits (S53).
+    navigation: NavigationLog,
     /// Where files to share are made (`Context.getCacheDir()/share`, served by `ShareProvider`).
     pub(crate) share_dir: PathBuf,
     /// What the Kotlin host was last asked to show; its answer is for that.
@@ -83,6 +86,7 @@ pub extern "system" fn Java_dev_openpaint_Native_create<'local>(
         let host = Host {
             runtime,
             latency: PenLatency::default(),
+            navigation: NavigationLog::default(),
             share_dir,
             pending: None,
         };
@@ -237,6 +241,17 @@ pub extern "system" fn Java_dev_openpaint_Native_frame<'local>(
         if let Some(summary) = host.latency.frame(start_ns, start_ns.saturating_add(work)) {
             log::info!("{summary}");
         }
+        let core = host.runtime.core();
+        let frame = Frame {
+            start_ns,
+            work_ns: work,
+            waiting: host.runtime.moving(),
+            counts: core.counts(),
+            background: core.background(),
+        };
+        if let Some(summary) = host.navigation.frame(frame) {
+            log::info!("{summary}");
+        }
         Ok(again)
     })
     .resolve::<LogErrorAndDefault>()
@@ -277,6 +292,7 @@ pub extern "system" fn Java_dev_openpaint_Native_motion<'local>(
             return Ok(false);
         };
         host.latency.input(&batch, event_ns);
+        host.navigation.input(&batch);
         Ok(host.runtime.motion(&batch))
     })
     .resolve::<LogErrorAndDefault>()

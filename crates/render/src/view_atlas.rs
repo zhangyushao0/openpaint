@@ -11,12 +11,14 @@ use crate::error::RenderError;
 use crate::evaluator::CanvasTarget;
 use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
+use crate::gpu_clock::{GpuClock, Timing};
 use crate::image::RgbaImage;
 use crate::output::Output;
 use crate::plan::{Layout, Plan};
 use crate::program::{Bindings, Dispatch};
+use crate::protocol::TileRecord;
 use crate::readback::{read_rect, target_texture};
-use crate::scene::Fresh;
+use crate::scene::{Fresh, Scene};
 use crate::view_tiles::{TIER_TILE, TileMap};
 
 /// Slots in an atlas row at most: 4096 pixels.
@@ -27,11 +29,24 @@ pub(crate) struct Tier {
     /// Per view tile, row-major: its slot holds the shown version's pixels.
     ready: Vec<bool>,
     atlas: wgpu::Texture,
-    bindings: Bindings,
+    pub(crate) bindings: Bindings,
     /// Per view tile, `R32Uint`: its slot plus one while ready, else 0 (`blit.wgsl`).
     index: wgpu::Texture,
     /// The index differs from `ready` and the slots.
     stale: bool,
+    /// The view tile being filled in over frames (S53, `view_fill.rs`).
+    pub(crate) fill: Option<TileFill>,
+}
+
+/// A view tile filled in over frames (S53), a block of it binned at a time so no frame bins the
+/// whole tile: the canvas scene it is binned from (its serial), the blocks not binned yet (target
+/// pixels), the block's plan, and its plan tiles not evaluated yet with their estimates, in order.
+pub(crate) struct TileFill {
+    pub(crate) tile: [u32; 2],
+    pub(crate) scene: u64,
+    pub(crate) blocks: Vec<PixelRect>,
+    pub(crate) plan: Plan,
+    pub(crate) left: std::collections::VecDeque<(TileRecord, f64)>,
 }
 
 impl Tier {
@@ -71,6 +86,7 @@ impl Tier {
             atlas,
             index,
             stale: true,
+            fill: None,
         })
     }
 
@@ -117,10 +133,13 @@ impl Tier {
         self.ready[at] = ready;
     }
 
-    /// Frees `tile`'s slot.
+    /// Frees `tile`'s slot (a fill of it ends).
     pub(crate) fn release(&mut self, tile: [u32; 2]) {
         self.set_ready(tile, false);
         self.map.release(tile);
+        if self.fill.as_ref().is_some_and(|fill| fill.tile == tile) {
+            self.fill = None;
+        }
     }
 
     /// A free slot for `tile`, the atlas grown by rows if none is left (up to the device's
@@ -226,33 +245,25 @@ impl Tier {
         Ok(Some(kept))
     }
 
-    /// Evaluates the target pixels `regions` (inside held slots) from `canvas`'s scene of
-    /// `request`, the in-progress stroke from its first sample on: every pixel cold.
-    pub(crate) fn evaluate(
+    /// `scene` (and `fresh`: the in-progress stroke from its first sample on, so every pixel is
+    /// cold) binned into this tier's target pixels `regions` (inside held slots).
+    pub(crate) fn plan(&self, scene: &Scene, fresh: &Fresh, regions: &[PixelRect]) -> Plan {
+        let size = [self.atlas.width(), self.atlas.height()];
+        Plan::laid_out(scene, fresh, (size, Layout::Tiles(&self.map)), regions)
+    }
+
+    /// Evaluates `tiles` of `plan` (binned from `canvas`'s scene of `request`), the residuals
+    /// near them made present first (S51); background work timed by `timing` (S53).
+    pub(crate) fn dispatch(
         &mut self,
         core: &Core,
-        canvas: &mut CanvasTarget,
-        request: &FrameRequest<'_>,
-        regions: &[PixelRect],
+        (canvas, request): (&mut CanvasTarget, &FrameRequest<'_>),
+        (plan, tiles): (&Plan, &[TileRecord]),
+        fresh: &Fresh,
+        timing: Option<(&GpuClock, Timing)>,
     ) -> Result<(), RenderError> {
-        if regions.is_empty() {
-            return Ok(());
-        }
+        canvas.reach(core, request.artwork, tiles, self.scale())?;
         let missing = || RenderError::Invalid("the canvas was not evaluated for this frame");
-        let (scene, _) = canvas
-            .scene_of(request.artwork, request.active)
-            .ok_or_else(missing)?;
-        let fresh = match request.active.filter(|_| scene.has_active()) {
-            Some(active) => Fresh::new(active, 0, scene.active_clip),
-            None => Fresh::default(),
-        };
-        let size = [self.atlas.width(), self.atlas.height()];
-        let plan = Plan::laid_out(scene, &fresh, (size, Layout::Tiles(&self.map)), regions);
-        if plan.tiles.is_empty() {
-            return Ok(());
-        }
-        // The residuals near the tiles evaluated (S51).
-        canvas.reach(core, request.artwork, &plan.tiles, self.scale())?;
         let (_, ops) = canvas
             .scene_of(request.artwork, request.active)
             .ok_or_else(missing)?;
@@ -264,14 +275,15 @@ impl Tier {
             &Dispatch {
                 ops,
                 fresh: &fresh.ops,
-                plan: &plan,
-                only: None,
+                plan,
+                only: Some(tiles),
                 output,
                 background: [paper.r(), paper.g(), paper.b(), 1.0],
                 reset: false,
                 residuals: canvas.residuals(),
                 base: Affine::IDENTITY,
                 snapshot: None,
+                timing,
             },
         )
     }

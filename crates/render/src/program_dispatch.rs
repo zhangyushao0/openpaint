@@ -7,10 +7,15 @@ use std::sync::atomic::Ordering;
 
 use super::layout::{Workgroups, workgroups};
 use super::{Bindings, Dispatch, EvaluatePipeline};
-use crate::bounded::{FRAME_DISPATCHES, runs};
+use crate::bounded::{FRAME_DISPATCHES, runs, tile_work};
 use crate::error::RenderError;
 use crate::gpu::Gpu;
 use crate::protocol::{MOVE_DEPTH, Params, encode};
+use crate::readback::GPU_WAIT;
+
+/// The most work one run of a worker's evaluation takes (`pace_dispatches`, S53): op entries
+/// about what the screen's frame gives background work on the tablet.
+const PACED_WORK: u64 = 500;
 
 impl EvaluatePipeline {
     /// Writes the fresh ops and the plan, then evaluates every plan tile into the target, in
@@ -33,7 +38,12 @@ impl EvaluatePipeline {
             bindings.written = work.plan.serial;
         }
         bindings.write(gpu, 2, work.fresh);
-        for (index, run) in runs(tiles, self.work()).into_iter().enumerate() {
+        let most = if bindings.paced {
+            PACED_WORK.min(self.work())
+        } else {
+            self.work()
+        };
+        for (index, run) in runs(tiles, most).into_iter().enumerate() {
             let groups = workgroups(gpu, run.len())?;
             let params = params(work, bindings, &groups);
             gpu.queue
@@ -48,7 +58,14 @@ impl EvaluatePipeline {
                 }
             }
             if let Some((_, group)) = bindings.group.as_ref().filter(|_| !run.is_empty()) {
-                let mut pass = encoder.begin_compute_pass(&Default::default());
+                // S53: background work's runs are timed, from the first's start to the last's end.
+                let timestamp_writes = work
+                    .timing
+                    .map(|(clock, timing)| clock.writes(timing, index == 0));
+                let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: None,
+                    timestamp_writes,
+                });
                 let pipeline = if work.plan.deepest > 0 {
                     &self.pipeline
                 } else {
@@ -58,8 +75,12 @@ impl EvaluatePipeline {
                 pass.set_bind_group(0, group, &[]);
                 pass.dispatch_workgroups(groups.row, groups.rows, 1);
             }
-            gpu.queue.submit([encoder.finish()]);
+            let submitted = gpu.queue.submit([encoder.finish()]);
             self.runs.fetch_add(1, Ordering::Relaxed);
+            self.tally.dispatched(run.iter().map(tile_work).sum());
+            if bindings.paced {
+                wait_for(gpu, submitted)?;
+            }
         }
         Ok(())
     }
@@ -129,6 +150,23 @@ fn params(work: &Dispatch<'_>, bindings: &Bindings, groups: &Workgroups) -> Para
         }),
         display: [u32::from(bindings.display), 0, 0, 0],
     }
+}
+
+/// Waits until the GPU finished `submitted`: a worker's run, so the next waits for the screen's
+/// frames between them (`pace_dispatches`, S53).
+fn wait_for(gpu: &Gpu, submitted: wgpu::SubmissionIndex) -> Result<(), RenderError> {
+    let poll = wgpu::PollType::Wait {
+        submission_index: Some(submitted),
+        timeout: Some(GPU_WAIT),
+    };
+    gpu.device.poll(poll).map_err(|error| match error {
+        wgpu::PollError::Timeout => RenderError::Timeout {
+            what: "a worker's evaluation",
+            seconds: GPU_WAIT.as_secs(),
+        },
+        error => RenderError::Device(error.to_string()),
+    })?;
+    Ok(())
 }
 
 /// Zero everywhere, through a render pass: clearing a texture directly needs an optional

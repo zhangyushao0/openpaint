@@ -383,6 +383,10 @@ pub(crate) use stamp::{
     STAMP_OPERANDS, STAMP_SQUARE, STAMP_TEXTURE, SpanStamps,
 };
 
+#[path = "protocol_cost.rs"]
+mod cost;
+pub(crate) use cost::OpKind;
+
 #[path = "protocol_wgsl.rs"]
 mod wgsl;
 pub(crate) use wgsl::prelude;

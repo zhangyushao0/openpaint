@@ -68,6 +68,10 @@ pub(crate) struct Smudges {
     /// A budget sets the room each frame (`set_room`), so what a frame's evaluations needed is
     /// kept together; without one, each evaluation counts as a frame of its own.
     framed: bool,
+    /// A residual evaluated over frames as background work (S53, `engine_derive.rs`).
+    deriving: Option<derive::Deriving>,
+    /// The residual tiles each smudge's contacts read (S53).
+    reads: needs::Reads,
 }
 
 impl Smudges {
@@ -77,6 +81,8 @@ impl Smudges {
             room: u64::MAX,
             limit: u64::MAX,
             framed: false,
+            deriving: None,
+            reads: needs::Reads::default(),
             active: None,
             tools: Tools {
                 material: None,
@@ -312,6 +318,9 @@ pub(crate) use needs::{Wanted, reached};
 
 #[path = "engine_prepare.rs"]
 mod prepare;
+
+#[path = "engine_derive.rs"]
+mod derive;
 
 /// The largest buffer the device binds, in bytes.
 fn binding_limit(core: &Core) -> u64 {

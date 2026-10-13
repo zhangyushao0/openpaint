@@ -82,10 +82,12 @@ impl Gpu {
         // S51: on a GPU sharing the system's memory (the tablet) the allocator takes blocks of 8
         // to 64 MiB instead of 128 to 256, so what it holds stays near what is allocated.
         let shared = adapter.get_info().device_type != wgpu::DeviceType::DiscreteGpu;
+        // S53: GPU timestamps measure background work where the adapter has them.
         let descriptor = wgpu::DeviceDescriptor {
             label: Some("openpaint"),
             required_features: adapter.features()
-                & wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES,
+                & (wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES
+                    | wgpu::Features::TIMESTAMP_QUERY),
             required_limits: adapter.limits(),
             memory_hints: if shared {
                 wgpu::MemoryHints::MemoryUsage
@@ -124,9 +126,16 @@ impl Gpu {
     /// Adapter name and backend, for logs and harness output.
     pub(crate) fn describe(&self) -> String {
         let info = self.adapter.get_info();
+        let timestamps = self
+            .device
+            .features()
+            .contains(wgpu::Features::TIMESTAMP_QUERY);
         format!(
-            "{} ({}), canvas shown in {:?}",
-            info.name, info.backend, self.display
+            "{} ({}), canvas shown in {:?}, GPU timestamps {}",
+            info.name,
+            info.backend,
+            self.display,
+            if timestamps { "measured" } else { "absent" }
         )
     }
 }

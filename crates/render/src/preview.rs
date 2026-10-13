@@ -180,6 +180,7 @@ impl PreviewSnapshot {
                 residuals,
                 base: Affine::IDENTITY,
                 snapshot: Some(snapshot.reading(true)),
+                timing: None,
             },
         )?;
         Ok(Some(snapshot))

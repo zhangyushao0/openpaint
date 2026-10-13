@@ -74,6 +74,8 @@ pub(crate) fn strip_artwork(job: &StripJob) -> Result<Artwork, CoreError> {
 pub(crate) fn evaluate_strip(core: &Core, job: &StripJob) -> Result<RgbaImage, RuntimeError> {
     let artwork = strip_artwork(job)?;
     let mut target = CanvasTarget::new(core, job.size)?;
+    // Made on the brushes worker while the screen draws on (S53).
+    target.pace_dispatches();
     let request = FrameRequest {
         artwork: &artwork,
         active: None,

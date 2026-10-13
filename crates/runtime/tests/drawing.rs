@@ -97,7 +97,7 @@ fn strokes(runtime: &Runtime) -> usize {
     artwork.layers().iter().map(|l| l.strokes().len()).sum()
 }
 
-fn canvas(runtime: &Runtime) -> RgbaImage {
+fn canvas(runtime: &mut Runtime) -> RgbaImage {
     runtime.read_canvas().expect("readback").expect("canvas")
 }
 

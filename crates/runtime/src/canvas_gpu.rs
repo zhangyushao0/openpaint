@@ -7,7 +7,7 @@ use std::time::Instant;
 
 use openpaint_app::{Session, Thumbnail};
 use openpaint_render::{
-    CacheBytes, CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, RenderError,
+    CacheBytes, CanvasTarget, Core, Focus, FrameRequest, PixelRect, RegionEvaluator, RenderError,
     ViewCache, ViewFrame, changed_regions,
 };
 
@@ -121,6 +121,29 @@ impl Canvas {
             .update(core, &mut self.target, &request, (frame, now))?
             .pending();
         Ok(())
+    }
+
+    /// Where the screen shows the canvas through `frame`: its waiting tiles there go first, the
+    /// screen's middle first (S53).
+    pub(crate) fn look_at(&mut self, frame: &ViewFrame) {
+        let [a, b, c, d, e, f] = frame.to_canvas;
+        let map = |[x, y]: [f32; 2]| [a * x + b * y + c, d * x + e * y + f];
+        let [x0, y0] = frame.origin.map(|at| at as f32);
+        let [x1, y1] = [x0 + frame.size[0] as f32, y0 + frame.size[1] as f32];
+        let corners = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]].map(map);
+        let low = corners
+            .iter()
+            .fold([f32::MAX; 2], |m, p| [m[0].min(p[0]), m[1].min(p[1])]);
+        let high = corners
+            .iter()
+            .fold([f32::MIN; 2], |m, p| [m[0].max(p[0]), m[1].max(p[1])]);
+        // `as` saturates: a view far off the canvas stays a rectangle.
+        let shown = PixelRect {
+            min: low.map(|at| at.floor() as i32),
+            max: high.map(|at| at.ceil() as i32),
+        };
+        let middle = map([(x0 + x1) / 2.0, (y0 + y1) / 2.0]);
+        self.target.look_at(Some(Focus { middle, shown }));
     }
 
     /// The view tiers still change what shows: tiles missing, or a tier about to start.

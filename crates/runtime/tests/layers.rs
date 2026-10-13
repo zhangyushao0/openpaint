@@ -110,10 +110,10 @@ fn panel_actions_change_the_layers_and_undo_takes_each_back() {
     );
     hold_and_drag(&mut hand, &mut runtime, from, to);
     assert_eq!(layers(&runtime)[1].0, 1, "layer 1 is on top");
-    assert_cold(&core, &runtime, "after the move");
+    assert_cold(&core, &mut runtime, "after the move");
     hand.tap(&mut runtime, "Duplicate layer");
     assert_eq!(layers(&runtime).len(), 3);
-    assert_cold(&core, &runtime, "after duplicating");
+    assert_cold(&core, &mut runtime, "after duplicating");
     hand.tap(&mut runtime, "Rename");
     runtime.text(TextInput::Commit("Sky".into()));
     runtime.frame_offscreen(SIZE).expect("frame");
@@ -126,11 +126,11 @@ fn panel_actions_change_the_layers_and_undo_takes_each_back() {
     );
     hand.tap(&mut runtime, "Delete layer");
     assert_eq!(layers(&runtime).len(), 2);
-    assert_cold(&core, &runtime, "after the panel actions");
+    assert_cold(&core, &mut runtime, "after the panel actions");
     // Delete, rename, duplicate, move, Alpha Lock, the slide, show, hide, add: nine back.
     for step in 0..9 {
         hand.tap(&mut runtime, "Undo");
-        assert_cold(&core, &runtime, &format!("after undo {step}"));
+        assert_cold(&core, &mut runtime, &format!("after undo {step}"));
     }
     assert!(runtime.artwork().expect("artwork").same_version(&start));
 }
@@ -148,20 +148,20 @@ fn merge_down_keeps_the_canvas_and_undo_takes_it_back() {
     // A stroke on the canvas draws on the new layer and closes the panel.
     let across = [[300.0, 480.0], [500.0, 520.0], [700.0, 480.0]];
     hand.gesture(&mut runtime, ToolKind::Stylus, &across);
-    let shown = |runtime: &Runtime| {
+    let shown = |runtime: &mut Runtime| {
         let image = runtime.read_canvas().expect("readback").expect("canvas");
         image.content_hash()
     };
-    let before = shown(&runtime);
+    let before = shown(&mut runtime);
     hand.tap(&mut runtime, "Layers");
     hand.tap(&mut runtime, "Merge Down");
     assert_eq!(layers(&runtime).len(), 1, "merged");
-    assert_eq!(shown(&runtime), before, "the canvas as it was");
-    assert_cold(&core, &runtime, "after the merge");
+    assert_eq!(shown(&mut runtime), before, "the canvas as it was");
+    assert_cold(&core, &mut runtime, "after the merge");
     hand.tap(&mut runtime, "Undo");
     assert_eq!(layers(&runtime).len(), 2, "undone");
-    assert_eq!(shown(&runtime), before);
-    assert_cold(&core, &runtime, "after undo");
+    assert_eq!(shown(&mut runtime), before);
+    assert_cold(&core, &mut runtime, "after undo");
 }
 
 #[test]

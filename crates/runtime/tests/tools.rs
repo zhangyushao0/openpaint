@@ -93,7 +93,7 @@ fn the_eraser_button_makes_the_pen_take_paint_away() {
         [255; 4],
         "erased to the paper"
     );
-    assert_cold(&core, &runtime, "after erasing");
+    assert_cold(&core, &mut runtime, "after erasing");
     hand.tap(&mut runtime, "Undo");
     let canvas = runtime.read_canvas().expect("readback").expect("canvas");
     assert_eq!(
@@ -101,5 +101,5 @@ fn the_eraser_button_makes_the_pen_take_paint_away() {
         [0, 0, 0, 255],
         "undo brings the paint back"
     );
-    assert_cold(&core, &runtime, "after undo");
+    assert_cold(&core, &mut runtime, "after undo");
 }

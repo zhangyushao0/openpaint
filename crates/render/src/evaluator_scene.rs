@@ -12,6 +12,7 @@ use crate::active_snapshot::{self, Kept};
 use crate::affine::Affine;
 use crate::bounded::{frame_share, paper_only, tile_rects};
 use crate::core::Core;
+use crate::cost::item_costs;
 use crate::error::RenderError;
 use crate::filter::Filters;
 use crate::frame::FrameRequest;
@@ -24,6 +25,7 @@ use crate::protocol::{Op, TileRecord, encode};
 use crate::scene::{ActivePlace, Fresh, Scene};
 use crate::scene_adjust::EditPlace;
 use crate::smudge::{Smudges, Wanted, reached};
+use crate::waiting::Waiting;
 
 /// One artwork version's scene and its ops on the GPU, reused while the version stays.
 pub(super) struct SceneCache {
@@ -40,6 +42,20 @@ pub(super) struct SceneCache {
     snapshot: Option<PreviewSnapshot>,
     /// The plan of the last evaluation without an in-progress stroke, and what it binned.
     plan: Option<(PlanKey, Plan)>,
+    /// What each item costs at an output pixel (S53, `cost.rs`).
+    pub(super) costs: Vec<f32>,
+    /// Names this scene among every scene built or changed in place: what a view tile's fill
+    /// was binned from (S53).
+    pub(super) serial: u64,
+    /// Waiting tiles binned for the frames' background work, not all evaluated yet (S53).
+    pub(super) batch: Option<Batch>,
+}
+
+/// Waiting tiles binned together (S53): their plan, and those not evaluated yet with what each
+/// is estimated to cost, in the order they are taken.
+pub(super) struct Batch {
+    pub(super) plan: Plan,
+    pub(super) left: std::collections::VecDeque<(TileRecord, f64)>,
 }
 
 /// The in-progress stroke's layer items a plan leaves unbinned, and the fresh op that resumes
@@ -133,6 +149,8 @@ impl CanvasTarget {
         self.scene = Some(SceneCache {
             artwork: artwork.clone(),
             active,
+            costs: item_costs(&scene),
+            serial: next_serial(),
             scene,
             ops,
             previewed: None,
@@ -140,6 +158,7 @@ impl CanvasTarget {
             near: None,
             snapshot: None,
             plan: None,
+            batch: None,
         });
         self.cached()
     }
@@ -188,7 +207,7 @@ impl CanvasTarget {
         let reading = cache.reading(readied, held.map(|(_, snapshot)| snapshot))?;
         let tiles = reading.only.unwrap_or(&reading.plan.tiles);
         let work = core.evaluate.frame_work();
-        let waiting = (&mut self.pending, &mut self.blank);
+        let waiting = (&mut self.waiting, &mut self.blank);
         let (only, evaluated) = frame_tiles(tiles, (now, work), waiting);
         let only = only.as_deref().or(reading.only);
         let tiles = only.unwrap_or(&reading.plan.tiles);
@@ -218,6 +237,7 @@ impl CanvasTarget {
                 residuals,
                 base: Affine::IDENTITY,
                 snapshot: reading.snapshot,
+                timing: None,
             },
         )?;
         Ok(evaluated)
@@ -254,12 +274,20 @@ impl CanvasTarget {
         smudges.prepare(core, scene, artwork, (filters, &Wanted::Near(&[])))?;
         cache.artwork = artwork.clone();
         cache.spread = retune.spread;
+        cache.batch = None;
+        cache.serial = next_serial();
         if cache.previewed != Some(retune.place) {
             cache.previewed = Some(retune.place);
             cache.snapshot = None;
         }
         Ok(())
     }
+}
+
+/// The next `SceneCache::serial`.
+fn next_serial() -> u64 {
+    static SERIAL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    SERIAL.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1
 }
 
 /// S51: the residuals the snapshots' evaluations read before the frame's own: near the stroke's
@@ -280,18 +308,18 @@ fn prepare_early(
     smudges.prepare(core, scene, artwork, (filters, &wanted))
 }
 
-/// The tiles of `tiles` this evaluation takes: given `now` (one frame of the screen, S49), those
-/// meeting it and then what `work` allows, the others left `pending` (a `blank` target's shown as
-/// paper meanwhile), with the regions evaluated; else all of them.
+/// The tiles of `tiles` this evaluation takes: given `now` (one frame of a preview, S35, S49),
+/// those meeting it and then what `work` allows, the others left `waiting` (a `blank` target's
+/// shown as paper meanwhile), with the regions evaluated; else all of them.
 fn frame_tiles(
     tiles: &[TileRecord],
     (now, work): (Option<&[PixelRect]>, u64),
-    (pending, blank): (&mut Vec<PixelRect>, &mut bool),
+    (waiting, blank): (&mut Waiting, &mut bool),
 ) -> (Option<Vec<TileRecord>>, Option<Vec<PixelRect>>) {
     let share = now.and_then(|now| frame_share(tiles, now, work));
     let taken = match share {
         Some((mut chosen, left)) => {
-            *pending = tile_rects(&left);
+            waiting.add(&tile_rects(&left));
             let mut evaluated = now.unwrap_or_default().to_vec();
             evaluated.extend(tile_rects(&chosen));
             // A new target's waiting tiles show the paper meanwhile, not undefined pixels.
@@ -310,6 +338,12 @@ fn frame_tiles(
 mod reading;
 
 impl SceneCache {
+    /// Its version only gives an adjustment new values (S35): its frames evaluate the preview's
+    /// tiles as S49 did, not as background work.
+    pub(super) const fn previewing(&self) -> bool {
+        self.previewed.is_some()
+    }
+
     /// Bytes of the scene's ops on the GPU, and of the previewed layer's snapshot (S49).
     pub(super) fn bytes(&self) -> [u64; 2] {
         let ops = &self.ops;

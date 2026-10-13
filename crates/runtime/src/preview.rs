@@ -52,6 +52,8 @@ pub(crate) fn brush_picture(
 ) -> Result<RgbaImage, RuntimeError> {
     let artwork = stroke(brush, size)?;
     let mut target = CanvasTarget::new(core, size)?;
+    // Made on the brushes worker while the screen draws on (S53).
+    target.pace_dispatches();
     let request = FrameRequest {
         artwork: &artwork,
         active: None,

@@ -95,7 +95,7 @@ fn the_gallery_shows_a_matching_thumbnail_and_renames_by_keyboard() {
 
     hand.tap(&mut runtime, "Open artwork");
     until(&mut runtime, |runtime| runtime.artwork().is_some());
-    assert_cold(&core, &runtime, "reopened from the gallery");
+    assert_cold(&core, &mut runtime, "reopened from the gallery");
     let reopened = runtime.read_canvas().expect("readback").expect("canvas");
     assert_eq!(reopened.content_hash(), canvas.content_hash());
 }

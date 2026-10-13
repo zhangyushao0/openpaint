@@ -137,11 +137,11 @@ pub(crate) fn view_check(runtime: &Runtime, step: &Step) -> Option<Record> {
 
 /// What a checkpoint, screenshot or export step looks at.
 pub(crate) fn record(
-    runtime: &Runtime,
+    runtime: &mut Runtime,
     step: &Step,
     written: &Written,
 ) -> Result<Record, ScenarioError> {
-    let canvas = || {
+    let mut canvas = || {
         runtime
             .read_canvas()?
             .ok_or(ScenarioError::Missing("no canvas is open"))

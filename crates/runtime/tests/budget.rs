@@ -118,7 +118,7 @@ fn a_lower_budget_drops_tiers_then_snapshots_then_the_arena_then_pictures() {
         all.tiers > 0 && all.snapshots > 0 && all.arena > 0 && all.pictures > 0,
         "{all:?}"
     );
-    assert_cold(&core, &runtime, "every cache held");
+    assert_cold(&core, &mut runtime, "every cache held");
     // Just below what they hold: the tiers go, nothing else.
     let after = budget(&mut runtime, &mut hand, all.total() - 1);
     assert_eq!(after.tiers, 0, "{after:?}");
@@ -126,7 +126,7 @@ fn a_lower_budget_drops_tiers_then_snapshots_then_the_arena_then_pictures() {
         (after.snapshots, after.arena, after.pictures),
         (all.snapshots, all.arena, all.pictures)
     );
-    assert_cold(&core, &runtime, "without the tiers");
+    assert_cold(&core, &mut runtime, "without the tiers");
     // Below what the snapshots need too: they go.
     let after = budget(
         &mut runtime,
@@ -135,7 +135,7 @@ fn a_lower_budget_drops_tiers_then_snapshots_then_the_arena_then_pictures() {
     );
     assert_eq!((after.tiers, after.snapshots), (0, 0), "{after:?}");
     assert_eq!((after.arena, after.pictures), (all.arena, all.pictures));
-    assert_cold(&core, &runtime, "without the snapshots");
+    assert_cold(&core, &mut runtime, "without the snapshots");
     // Below the arena: it is cut down to the blocks the scene shows.
     let after = budget(
         &mut runtime,
@@ -144,19 +144,19 @@ fn a_lower_budget_drops_tiers_then_snapshots_then_the_arena_then_pictures() {
     );
     assert!(after.arena < all.arena, "{after:?}");
     assert_eq!(after.pictures, all.pictures);
-    assert_cold(&core, &runtime, "the arena cut down");
+    assert_cold(&core, &mut runtime, "the arena cut down");
     // Below the pictures: they go; the canvas never does.
     let after = budget(&mut runtime, &mut hand, all.canvas);
     assert_eq!(after.pictures, 0, "{after:?}");
     assert_eq!(after.canvas, all.canvas);
-    assert_cold(&core, &runtime, "without the pictures");
+    assert_cold(&core, &mut runtime, "without the pictures");
     // S51: past their share of the budget the residuals go (not one the last frame needed); a
     // smudge drawn across the place evaluates again the one it reads.
     let after = budget(&mut runtime, &mut hand, 1 << 20);
     assert!(after.arena < all.arena, "{after:?}");
-    assert_cold(&core, &runtime, "the residuals let go");
+    assert_cold(&core, &mut runtime, "the residuals let go");
     hand.tap(&mut runtime, "Layers");
     hand.gesture(&mut runtime, ToolKind::Stylus, &line(605.0));
     settle(&mut runtime, &mut hand);
-    assert_cold(&core, &runtime, "a smudge over a residual let go");
+    assert_cold(&core, &mut runtime, "a smudge over a residual let go");
 }

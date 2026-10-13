@@ -38,7 +38,7 @@ fn taps_move_through_history_and_the_canvas_stays_exact() {
     let drawn = runtime.artwork().expect("artwork").clone();
     hand.tap(&mut runtime, "Undo");
     assert_eq!(strokes(&runtime), 2);
-    assert_cold(&core, &runtime, "after one undo");
+    assert_cold(&core, &mut runtime, "after one undo");
     for _ in 0..20 {
         for _ in 0..3 {
             hand.tap(&mut runtime, "Undo");
@@ -54,7 +54,7 @@ fn taps_move_through_history_and_the_canvas_stays_exact() {
         artwork.same_version(&drawn),
         "20 round trips end where they began"
     );
-    assert_cold(&core, &runtime, "after 20 round trips");
+    assert_cold(&core, &mut runtime, "after 20 round trips");
 }
 
 #[test]

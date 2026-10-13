@@ -1,16 +1,18 @@
 //! `Core`: the renderer's GPU state. Created once per process and shared; never stored in the
 //! UI framework. When its device is lost, the runtime replaces it whole (`reopened`, S49).
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use crate::error::RenderError;
 use crate::filter::FilterPipeline;
 use crate::gpu::Gpu;
 use crate::image::RgbaImage;
+use crate::pace::{Background, Pace};
 use crate::program::EvaluatePipeline;
 use crate::readback::{offscreen_texture, read_rgba, wait};
 use crate::screen::{blit_layout, blit_sampler};
 use crate::smudge::SmudgePipeline;
+use crate::tally::Counts;
 use crate::thumbnail::ThumbnailPipeline;
 use crate::view_shown::TierBindings;
 
@@ -30,6 +32,8 @@ pub struct Core {
     pub(crate) smudge: SmudgePipeline,
     /// How the blit binds the view tiers (S32), and its group without any.
     pub(crate) tiers: TierBindings,
+    /// The screen's frame budget for background work (S53).
+    pub(crate) pace: Mutex<Pace>,
 }
 
 /// The one device the crate's own tests share (one per test binary: drivers deadlock when
@@ -62,7 +66,9 @@ impl Core {
         let smudge = SmudgePipeline::new(&gpu.device);
         let filter = FilterPipeline::new(&gpu.device);
         let tiers = TierBindings::new(&gpu.device);
+        let pace = Mutex::new(Pace::new(&gpu));
         Ok(Self {
+            pace,
             gpu,
             evaluate,
             blit_layout,
@@ -144,6 +150,34 @@ impl Core {
     #[must_use]
     pub fn dispatches(&self) -> u64 {
         self.evaluate.runs()
+    }
+
+    /// What evaluations on this device did so far, counted (S53).
+    #[must_use]
+    pub fn counts(&self) -> Counts {
+        self.evaluate.tally.counts(self.dispatches())
+    }
+
+    /// A frame of the screen begins (S53): the background work's budget is whole again, and the
+    /// GPU's measured times since correct its estimates. The runtime calls this once a frame.
+    pub fn begin_frame(&self) {
+        self.pace().begin(&self.gpu);
+    }
+
+    /// What the frame before took for background work (S53).
+    #[must_use]
+    pub fn background(&self) -> Background {
+        self.pace().last()
+    }
+
+    /// The GPU time a frame gives background work from now on, in ns (`BACKGROUND_NS` at
+    /// first), so tests can make a frame's share small.
+    pub fn set_frame_budget(&self, ns: f64) {
+        self.pace().set_budget(ns);
+    }
+
+    pub(crate) fn pace(&self) -> MutexGuard<'_, Pace> {
+        self.pace.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     /// Blocks until the GPU has finished all submitted work, for timing a whole frame; at most

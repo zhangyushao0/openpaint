@@ -117,10 +117,14 @@ impl Runtime {
         }
     }
 
-    /// The canvas as evaluated so far, read back: the artwork's pixels without the UI.
-    pub fn read_canvas(&self) -> Result<Option<RgbaImage>, RuntimeError> {
-        match self.screen.canvas() {
-            Some(canvas) => Ok(Some(canvas.target().read(&self.core)?)),
+    /// The canvas read back, the artwork's pixels without the UI, every tile still waiting
+    /// evaluated first (as a pick reads it, S49): the frames fill tiles in over time (S53).
+    pub fn read_canvas(&mut self) -> Result<Option<RgbaImage>, RuntimeError> {
+        match self.screen.canvas_mut() {
+            Some(canvas) => {
+                canvas.settle(&self.core)?;
+                Ok(Some(canvas.target().read(&self.core)?))
+            }
             None => Ok(None),
         }
     }

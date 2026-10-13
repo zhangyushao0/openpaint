@@ -311,6 +311,7 @@ impl ActiveSnapshot {
                 residuals,
                 base: Affine::IDENTITY,
                 snapshot: Some(self.tiles.reading(true)),
+                timing: None,
             },
         )
     }

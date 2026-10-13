@@ -234,6 +234,10 @@ impl<'a> Binner<'a> {
 
     /// The slots of the evaluated tiles an item with `bounds` (in the frame's pixels) reaches.
     fn slots(&self, bounds: Bounds) -> Vec<usize> {
+        // On the canvas itself (no transform record's frame), far items are passed over at once.
+        if self.map.is_none() && !self.grid.may_reach(&bounds.0) {
+            return Vec::new();
+        }
         let Some(rect) = self.place(bounds) else {
             return Vec::new();
         };

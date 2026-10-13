@@ -171,5 +171,5 @@ fn a_dense_artwork_fills_in_over_frames_while_taps_work_and_ends_exact() {
     core.set_dispatch_work(DISPATCH_WORK);
     eprintln!("the dense artwork filled in over {filling} frames");
     assert!(filling > 4, "{filling} frames");
-    assert_cold(&core, &runtime, "the canvas filled in");
+    assert_cold(&core, &mut runtime, "the canvas filled in");
 }

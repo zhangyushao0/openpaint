@@ -61,7 +61,7 @@ fn pen(runtime: &mut Runtime, hand: &mut Hand, phase: MotionPhase, at: [f32; 2])
 
 /// Whether the canvas shows what the artwork and the stroke being drawn give evaluated cold on
 /// the runtime's device.
-fn shows_cold(runtime: &Runtime) -> bool {
+fn shows_cold(runtime: &mut Runtime) -> bool {
     let core = runtime.core();
     let (artwork, active) = runtime.drawn().expect("a canvas");
     let canvas = artwork.canvas();
@@ -117,7 +117,7 @@ fn a_lost_device_comes_back_with_the_canvas_history_and_the_stroke_being_drawn()
         hand.gesture(&mut runtime, ToolKind::Stylus, &line(y));
     }
     let first = runtime.core();
-    assert_cold(&first, &runtime, "before the loss");
+    assert_cold(&first, &mut runtime, "before the loss");
     let before = runtime.read_canvas().expect("read").expect("canvas");
     // The pen is down and drawing when the device goes.
     let points = line(580.0);
@@ -150,7 +150,7 @@ fn a_lost_device_comes_back_with_the_canvas_history_and_the_stroke_being_drawn()
         "every sample before and after the loss: {}",
         last.samples().len()
     );
-    assert_cold(&second, &runtime, "the stroke committed");
+    assert_cold(&second, &mut runtime, "the stroke committed");
     // Undo takes it back: the canvas as before the loss.
     hand.tap(&mut runtime, "Undo");
     assert_eq!(strokes(&runtime), 2);
@@ -160,5 +160,5 @@ fn a_lost_device_comes_back_with_the_canvas_history_and_the_stroke_being_drawn()
         before.content_hash(),
         "undo after the loss"
     );
-    assert_cold(&second, &runtime, "after undo");
+    assert_cold(&second, &mut runtime, "after undo");
 }

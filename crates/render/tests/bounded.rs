@@ -1,7 +1,6 @@
 //! Bounded dispatches (S49): an evaluation cut into many small dispatches equals one dispatch bit
 //! for bit, on a dense place of 300 crossing strokes, in the canvas and in exports at 1x, 2x and
-//! 4x; a screen frame takes one frame's work and the tiles left fill in over the next frames to
-//! the cold canvas, while a stroke being drawn never waits.
+//! 4x. A screen frame's share of the waiting tiles is `frame_budget.rs`'s (S53).
 //!
 //! A test binary of its own: the tests change the device's dispatch bound, which every
 //! evaluation on the device follows, so they run one at a time on a device no other test uses.
@@ -171,60 +170,4 @@ fn bounded_textured_rounds_equal_one_dispatch_within_the_gpus_level() {
             "output {index}: {differ} channels differ"
         );
     }
-}
-
-#[test]
-fn a_frame_takes_one_frames_work_and_the_rest_fills_in_over_the_next_frames() {
-    let _one = alone();
-    let core = core();
-    let artwork = dense(300, round);
-    core.set_dispatch_work(DISPATCH_WORK);
-    let cold = outputs(core, &artwork).swap_remove(0);
-    core.set_dispatch_work(400);
-    let mut target = CanvasTarget::new(core, SIZE).expect("target");
-    let full = [PixelRect::full(SIZE)];
-    let mut frames = 1;
-    RegionEvaluator::new(core, &mut target)
-        .evaluate_frame(&request(&artwork), &full)
-        .expect("frame");
-    assert!(target.pending(), "a dense canvas takes more than a frame");
-    while target.pending() {
-        RegionEvaluator::new(core, &mut target)
-            .evaluate_frame(&request(&artwork), &[])
-            .expect("frame");
-        frames += 1;
-        assert!(frames < 10_000, "the canvas never filled in");
-    }
-    eprintln!("the dense canvas filled in over {frames} frames");
-    assert!(frames > 2, "{frames} frames");
-    assert!(target.read(core).expect("read") == cold, "filled in = cold");
-    // A stroke begun while tiles wait: nothing waits while it is drawn.
-    let mut target = CanvasTarget::new(core, SIZE).expect("target");
-    RegionEvaluator::new(core, &mut target)
-        .evaluate_frame(&request(&artwork), &full)
-        .expect("frame");
-    assert!(target.pending());
-    let samples = crossing(1000);
-    let mut stroke = artwork
-        .begin_stroke(round(1000), samples[0])
-        .expect("begin");
-    stroke.extend(&samples[1..8]).expect("extend");
-    let drawing = FrameRequest {
-        active: Some(stroke.active()),
-        ..request(&artwork)
-    };
-    RegionEvaluator::new(core, &mut target)
-        .evaluate_frame(&drawing, &[])
-        .expect("frame");
-    assert!(
-        !target.pending(),
-        "the stroke's frame evaluated every waiting tile"
-    );
-    let so_far = stroke.finish().artwork;
-    core.set_dispatch_work(DISPATCH_WORK);
-    let wanted = outputs(core, &so_far).swap_remove(0);
-    assert!(
-        target.read(core).expect("read") == wanted,
-        "the frame = the stroke so far cold"
-    );
 }

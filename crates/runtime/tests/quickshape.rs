@@ -23,7 +23,7 @@ const PIXELS_PER_POINT: f32 = 2.0;
 
 /// Panics unless the canvas equals a cold evaluation of what it shows now, the stroke being
 /// drawn included.
-fn assert_drawn_cold(core: &Core, runtime: &Runtime, when: &str) {
+fn assert_drawn_cold(core: &Core, runtime: &mut Runtime, when: &str) {
     let canvas = runtime.read_canvas().expect("readback").expect("canvas");
     let (artwork, active) = runtime.drawn().expect("a canvas");
     let size = canvas.size();
@@ -46,7 +46,7 @@ fn pen(
     hand: &mut Hand,
     runtime: &mut Runtime,
     points: &[[f32; 2]],
-    mut each: impl FnMut(&Runtime, usize),
+    mut each: impl FnMut(&mut Runtime, usize),
 ) {
     for (index, at) in points.iter().enumerate() {
         let phase = match index {
@@ -109,10 +109,10 @@ fn radial_copies_show_as_cold_while_drawn_and_commit_as_one_step() {
         }
     });
     assert_eq!(strokes(&runtime), 8, "the stroke and seven copies");
-    assert_cold(&core, &runtime, "committed");
+    assert_cold(&core, &mut runtime, "committed");
     hand.tap(&mut runtime, "Undo");
     assert_eq!(strokes(&runtime), 0, "one undo takes all eight");
-    assert_cold(&core, &runtime, "undone");
+    assert_cold(&core, &mut runtime, "undone");
 }
 
 #[test]
@@ -139,7 +139,7 @@ fn a_held_circle_snaps_and_its_edited_shape_stays_cold() {
         }
     });
     assert_eq!(strokes(&runtime), 1);
-    assert_cold(&core, &runtime, "committed");
+    assert_cold(&core, &mut runtime, "committed");
     hand.tap(&mut runtime, "Edit shape");
     let shape = runtime.projection().shape().cloned().expect("offered");
     assert!(shape.editing);
@@ -155,7 +155,7 @@ fn a_held_circle_snaps_and_its_edited_shape_stays_cold() {
         1,
         "the handle moved the shape, it drew nothing"
     );
-    assert_cold(&core, &runtime, "edited");
+    assert_cold(&core, &mut runtime, "edited");
     // The ellipse now passes where the handle was let go.
     let canvas = runtime.read_canvas().expect("readback").expect("canvas");
     let end = mapping(&runtime, SIZE, PIXELS_PER_POINT).to_canvas(to);

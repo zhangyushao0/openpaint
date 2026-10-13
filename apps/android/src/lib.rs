@@ -10,6 +10,7 @@ pub mod fonts;
 pub mod keys;
 pub mod latency;
 pub mod motion;
+pub mod navigation;
 pub mod transfer;
 
 #[cfg(target_os = "android")]

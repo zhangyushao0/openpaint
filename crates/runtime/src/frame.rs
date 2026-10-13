@@ -16,8 +16,8 @@ use openpaint_app::{
 };
 use openpaint_core::Artwork;
 use openpaint_render::{Core, ScreenPainter, ScreenTarget, Surface, SurfaceWindow, UiFrame};
-use openpaint_ui::Shell;
 use openpaint_ui::design::{self, TextFonts};
+use openpaint_ui::{CanvasArea, Shell};
 
 use crate::brush_pictures::BrushPictures;
 use crate::budget::Budget;
@@ -318,6 +318,8 @@ impl Runtime {
     /// shows a stale state while idle, while waiting for the storage worker and while
     /// something moves (D44).
     pub(crate) fn update(&mut self, size: [u32; 2]) -> Result<(UiFrame, bool), RuntimeError> {
+        // S53: this frame's budget for background work, corrected by the GPU's measured times.
+        self.core.begin_frame();
         self.receive()?;
         let batches = std::mem::take(&mut self.pending);
         let mut events = pointer_events(&batches, self.pixels_per_point);
@@ -359,17 +361,8 @@ impl Runtime {
         if let Some(state) = self.toolbox.save_request() {
             self.storage.submit(Job::SaveEditor(Box::new(state)));
         }
-        let now = self.frame_clock.wall_seconds();
         self.keep_within_budget()?;
-        self.screen
-            .progress(&self.core, &mut self.storage, (area, now))?;
-        if let (Some(canvas), Some(area)) = (self.screen.canvas_mut(), area) {
-            let shell = &self.shell;
-            let frame = canvas.view_frame((&area, self.pixels_per_point), |mapping| {
-                shell.displayed(mapping)
-            });
-            canvas.update_view(&self.core, (&frame, self.frame_clock.seconds()))?;
-        }
+        self.evaluate_screen(area)?;
         let changed = self.screen() != shown;
         // The view tiers or the canvas itself still fill in (S32, S49).
         let viewing = self
@@ -379,5 +372,28 @@ impl Runtime {
         let shows = changed || arrived || viewing;
         let again = pass.repaint || shows || self.storing() || self.shell.animating();
         Ok((pass.frame, again))
+    }
+
+    /// The screen's evaluations this frame: where it looks on the canvas (its waiting tiles there
+    /// go first, S53), what changed and storage's steps, then the view tiers through the view.
+    fn evaluate_screen(&mut self, area: Option<CanvasArea>) -> Result<(), RuntimeError> {
+        let now = self.frame_clock.wall_seconds();
+        let shell = &self.shell;
+        let frame = match (self.screen.canvas_mut(), area) {
+            (Some(canvas), Some(area)) => {
+                let frame = canvas.view_frame((&area, self.pixels_per_point), |mapping| {
+                    shell.displayed(mapping)
+                });
+                canvas.look_at(&frame);
+                Some(frame)
+            }
+            _ => None,
+        };
+        self.screen
+            .progress(&self.core, &mut self.storage, (area, now))?;
+        if let (Some(canvas), Some(frame)) = (self.screen.canvas_mut(), frame) {
+            canvas.update_view(&self.core, (&frame, self.frame_clock.seconds()))?;
+        }
+        Ok(())
     }
 }

@@ -172,7 +172,7 @@ fn a_stroke_being_drawn_when_the_window_goes_is_committed_and_the_view_kept() {
     settle(&mut runtime, &mut hand);
     assert_eq!(runtime.projection().view(), view, "the view as it was");
     let core = runtime.core();
-    assert_cold(&core, &runtime, "after the window came back");
+    assert_cold(&core, &mut runtime, "after the window came back");
     let shown = runtime.read_canvas().expect("read").expect("canvas");
     // Android cancels the pen's gesture once the window went: nothing changes.
     pen(&mut runtime, &mut hand, MotionPhase::Cancel, points[9]);
@@ -185,7 +185,7 @@ fn a_stroke_being_drawn_when_the_window_goes_is_committed_and_the_view_kept() {
     hand.tap(&mut runtime, "Redo");
     assert_eq!(strokes(&runtime), [21, 10]);
     settle(&mut runtime, &mut hand);
-    assert_cold(&core, &runtime, "after undo and redo");
+    assert_cold(&core, &mut runtime, "after undo and redo");
     let parts = runtime.artwork().expect("artwork").to_parts();
     drop(runtime);
     let reopened = start(&dir);
@@ -212,7 +212,7 @@ fn leaving_the_app_mid_stroke_stores_the_stroke_drawn_so_far() {
     let parts = runtime.artwork().expect("artwork").to_parts();
     assert_eq!(strokes(&runtime), [21, 15]);
     drop(runtime);
-    let reopened = start(&dir);
+    let mut reopened = start(&dir);
     assert_eq!(reopened.artwork().expect("artwork").to_parts(), parts);
-    assert_cold(&reopened.core(), &reopened, "reopened");
+    assert_cold(&reopened.core(), &mut reopened, "reopened");
 }

@@ -8,12 +8,14 @@ use wgpu::util::DeviceExt;
 use crate::affine::Affine;
 use crate::bounded::DISPATCH_WORK;
 use crate::gpu::{Gpu, TEN_BITS};
+use crate::gpu_clock::{GpuClock, Timing};
 use crate::output::Output;
 use crate::paper::paper_levels;
 use crate::plan::Plan;
 use crate::protocol::{Op, Params, Record, TileRecord, encode};
 use crate::readback::FORMAT;
 use crate::shapes::shapes;
+use crate::tally::Tally;
 
 #[path = "program_scene.rs"]
 mod scene_ops;
@@ -53,6 +55,8 @@ pub(crate) struct Dispatch<'a> {
     /// A previewed layer's snapshot (S35): read by `OP_RESUME`, or written instead of the
     /// target.
     pub(crate) snapshot: Option<SnapshotUse<'a>>,
+    /// Background work's GPU time measured by these timestamps (S53, `gpu_clock.rs`).
+    pub(crate) timing: Option<(&'a GpuClock, Timing)>,
 }
 
 /// A snapshot's buffer (`snapshot.rs`), the canvas's tiles per row and the four-float units its
@@ -86,6 +90,8 @@ pub(crate) struct Bindings {
     group: Option<([wgpu::Buffer; 4], wgpu::BindGroup)>,
     /// Bytes a snapshot of this target may grow to (S49: what the GPU memory budget leaves).
     pub(crate) snapshot_room: u64,
+    /// Its dispatches are a worker's: small runs, each waited for (S53, `pace_dispatches`).
+    pub(crate) paced: bool,
 }
 
 impl Bindings {
@@ -118,6 +124,7 @@ impl Bindings {
             written: 0,
             group: None,
             snapshot_room: u64::MAX,
+            paced: false,
         }
     }
 
@@ -198,6 +205,8 @@ pub(crate) struct EvaluatePipeline {
     bound: AtomicU64,
     /// Dispatches submitted so far.
     runs: AtomicU64,
+    /// What evaluations did, counted (S53).
+    pub(crate) tally: Tally,
 }
 
 impl EvaluatePipeline {
@@ -248,6 +257,7 @@ impl EvaluatePipeline {
             unwritten: [FORMAT, display].map(|format| unwritten(device, format)),
             bound: AtomicU64::new(DISPATCH_WORK),
             runs: AtomicU64::new(0),
+            tally: Tally::default(),
         }
     }
 

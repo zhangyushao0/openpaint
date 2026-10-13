@@ -1,17 +1,20 @@
 //! A view tier's work in one frame (S32): evaluating the canvas's changes in place or making
-//! the tiles they reach wait, filling missing tiles, and logging how long a fill took.
+//! the tiles they reach wait, filling missing tiles within the frame budget (S53), and logging
+//! how long a fill took.
 
 use std::time::Instant;
 
 use crate::core::Core;
+use crate::cost::tile_cost;
 use crate::error::RenderError;
+use crate::evaluator::CanvasTarget;
+use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
+use crate::plan::Plan;
+use crate::scene::Fresh;
 use crate::view_atlas::Tier;
 use crate::view_needed::Needed;
 use crate::view_tier::ViewWork;
-
-/// View tiles evaluated whole in one frame at most.
-const FILL_TILES: usize = 4;
 /// Output pixels of changes to ready tiles evaluated in place in one frame at most; a larger
 /// change makes the tiles it touches wait to be evaluated whole.
 const EDIT_PIXELS: i64 = 4 * 256 * 256;
@@ -31,14 +34,21 @@ pub(crate) fn touched(tier: &Tier, changed: &[PixelRect]) -> Vec<([u32; 2], Pixe
     parts
 }
 
-/// The target pixels to evaluate again for `changed`, when they are few; else the tiles they
-/// touch wait to be evaluated whole.
+/// Evaluates the pixels of ready tiles that `changed` (canvas pixels) reach again, the
+/// in-progress stroke from its first sample on, when they are few and their estimate fits what
+/// is left of the frame budget (S53); else the tiles they touch wait to be filled whole as
+/// background work, the canvas shown there meanwhile: so a stroke drawn over a dense place at a
+/// tier shows on the enlarged canvas instead of holding its frames up.
 pub(crate) fn in_place(
+    core: &Core,
     tier: &mut Tier,
-    changed: &[PixelRect],
-    work: &mut ViewWork,
-) -> Vec<PixelRect> {
+    (canvas, request): (&mut CanvasTarget, &FrameRequest<'_>),
+    (changed, work): (&[PixelRect], &mut ViewWork),
+) -> Result<(), RenderError> {
     let parts = touched(tier, changed);
+    if parts.is_empty() {
+        return Ok(());
+    }
     let area: i64 = parts
         .iter()
         .map(|(_, part)| {
@@ -48,70 +58,50 @@ pub(crate) fn in_place(
     let mut tiles: Vec<[u32; 2]> = parts.iter().map(|(tile, _)| *tile).collect();
     tiles.sort_unstable();
     tiles.dedup();
-    if area > EDIT_PIXELS {
-        for tile in &tiles {
-            tier.set_ready(*tile, false);
-        }
-        work.dropped = tiles;
-        return Vec::new();
-    }
-    work.updated = tiles;
-    parts
-        .iter()
+    let regions: Vec<PixelRect> = (parts.iter())
         .filter_map(|(tile, part)| {
             let slot = tier.map.slot(*tile)?;
             Some(tier.map.to_target(*tile, slot, part))
         })
-        .collect()
+        .collect();
+    let missing = || RenderError::Invalid("the canvas was not evaluated for this frame");
+    let (scene, _) = canvas
+        .scene_of(request.artwork, request.active)
+        .ok_or_else(missing)?;
+    let (_, costs) = canvas
+        .scene_costs(request.artwork, request.active)
+        .ok_or_else(missing)?;
+    let fresh = match request.active.filter(|_| scene.has_active()) {
+        Some(active) => Fresh::new(active, 0, scene.active_clip),
+        None => Fresh::default(),
+    };
+    let plan = (area <= EDIT_PIXELS).then(|| tier.plan(scene, &fresh, &regions));
+    let fits = |plan: &Plan| {
+        let each = plan.tiles.iter().map(|tile| tile_cost(plan, tile, costs));
+        let (sum, most) = each.fold((0.0, 0.0), |(sum, most), cost| (sum + cost, cost.max(most)));
+        core.pace().fits(sum, most)
+    };
+    if let Some(plan) = plan.filter(fits) {
+        core.evaluate.tally.binned(plan.indices.len());
+        tier.dispatch(core, (canvas, request), (&plan, &plan.tiles), &fresh, None)?;
+        work.updated = tiles;
+        return Ok(());
+    }
+    for tile in &tiles {
+        tier.set_ready(*tile, false);
+    }
+    work.dropped = tiles;
+    Ok(())
 }
 
-/// Drops tiles beyond the keep ring, then gives missing needed tiles slots and returns their
-/// target pixels, at most `FILL_TILES` of them, marked ready.
-pub(crate) fn fill(
-    core: &Core,
-    tier: &mut Tier,
-    needed: &Needed,
-    work: &mut ViewWork,
-) -> Result<Vec<PixelRect>, RenderError> {
+/// Drops tiles beyond the keep ring.
+pub(crate) fn release_far(tier: &mut Tier, needed: &Needed) {
     let held: Vec<[u32; 2]> = tier.map.held().map(|(tile, _)| tile).collect();
     for tile in &held {
         if !needed.keeps(*tile) {
             tier.release(*tile);
         }
     }
-    let missing = needed
-        .ordered()
-        .filter(|tile| tier.map.slot(*tile).is_none())
-        .count() as u32;
-    let mut regions = Vec::new();
-    for tile in needed.ordered() {
-        if work.filled.len() >= FILL_TILES {
-            break;
-        }
-        if tier.is_ready(tile) {
-            continue;
-        }
-        if tier.map.slot(tile).is_none() {
-            let spare = tier
-                .map
-                .held()
-                .map(|(held, _)| held)
-                .find(|held| !needed.needs(*held));
-            if let (None, Some(spare)) = (tier.map.free(), spare) {
-                tier.release(spare);
-            }
-            if !tier.hold(core, tile, missing)? {
-                continue;
-            }
-        }
-        let Some(slot) = tier.map.slot(tile) else {
-            continue;
-        };
-        regions.push(tier.map.to_target(tile, slot, &tier.map.tile_rect(tile)));
-        tier.set_ready(tile, true);
-        work.filled.push(tile);
-    }
-    Ok(regions)
 }
 
 /// Needed tiles being evaluated whole, from the first frame that missed one until none is

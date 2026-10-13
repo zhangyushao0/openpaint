@@ -20,7 +20,8 @@ use crate::frame::FrameRequest;
 use crate::image::RgbaImage;
 use crate::output::{MAX_SCALE, Output};
 use crate::view_atlas::Tier;
-use crate::view_fill::{Filling, fill, in_place, touched};
+use crate::view_background::fill;
+use crate::view_fill::{Filling, in_place, release_far, touched};
 use crate::view_needed::Needed;
 use crate::view_shown::Shown;
 use crate::view_tiles::TileMap;
@@ -150,19 +151,20 @@ impl ViewCache {
             }
         }
         if let Some(current) = &mut self.current {
-            let mut regions = in_place(current, &changed, &mut work);
+            // What changed shows at once when it fits; missing tiles are background work (S53).
+            in_place(core, current, (canvas, request), (&changed, &mut work))?;
             if Some(current.scale()) == wanted {
                 let needed = Needed::of(&current.map, frame);
+                release_far(current, &needed);
                 // The canvas fills in first (S49): no missing tile is filled meanwhile.
                 if !canvas.pending() {
-                    regions.extend(fill(core, current, &needed, &mut work)?);
+                    fill(core, (current, &needed), (canvas, request), &mut work)?;
                 }
                 work.waiting = needed.waiting(current);
                 if needed.shows(current) {
                     self.previous = None;
                 }
             }
-            current.evaluate(core, canvas, request, &regions)?;
         }
         for tier in [&mut self.current, &mut self.previous]
             .into_iter()

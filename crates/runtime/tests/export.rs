@@ -88,7 +88,7 @@ fn the_exported_png_holds_exactly_what_the_screen_shows() {
         pixels == canvas.pixels(),
         "the file is the canvas, pixel for pixel"
     );
-    assert_cold(&core, &runtime, "after exporting");
+    assert_cold(&core, &mut runtime, "after exporting");
     // On screen, right of the side bar and under the top band, nothing covers the canvas: at
     // fit, every screen pixel whose canvas neighbourhood is one colour shows that colour.
     let screen = runtime.screenshot(SIZE).expect("screen");

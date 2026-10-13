@@ -10,7 +10,6 @@ use openpaint_core::Artwork;
 use super::needs::{self, Need, Wanted};
 use super::{
     Active, Keep, Key, Smudges, TileSet, binding_limit, budget, dabs, key, material, node_words,
-    read_tiles,
 };
 use crate::core::Core;
 use crate::error::RenderError;
@@ -98,7 +97,7 @@ impl Smudges {
     /// residuals evaluated anew go whole (`fits`); when even their parts do not fit beside the
     /// residuals held whole of which only a part is needed, those go too, to be made again in
     /// part with what they read.
-    fn needs(
+    pub(super) fn needs(
         &mut self,
         scene: &Scene,
         artwork: &Artwork,
@@ -113,7 +112,8 @@ impl Smudges {
                 *need = Need::All;
             }
         }
-        needs::close(scene, keys, &self.arena, &mut needs);
+        self.reads.keep(scene);
+        needs::close(scene, (keys, &self.arena, &mut self.reads), &mut needs);
         let [whole, parts] = self.fits(scene, (keys, &needs), limit);
         if !parts {
             let cut: Vec<&Key> = (keys.iter().zip(&needs))
@@ -124,7 +124,7 @@ impl Smudges {
                 self.arena.forget(key);
             }
             if !cut.is_empty() {
-                needs::close(scene, keys, &self.arena, &mut needs);
+                needs::close(scene, (keys, &self.arena, &mut self.reads), &mut needs);
             }
         }
         (needs, whole)
@@ -195,6 +195,7 @@ impl Smudges {
                 active.run
             }
             None => {
+                core.evaluate.tally.derived();
                 let mut run = self.tools.cold_run(core, size);
                 let all = dabs(item.stroke.style(), item.stroke.samples());
                 let scene = (scene, ops, range);
@@ -216,14 +217,13 @@ impl Smudges {
     /// beside the needed blocks it holds: whole, and in their needed parts. Whole when they do,
     /// so a later evaluation near the rest of one finds it; the room is kept by dropping what is
     /// not needed.
-    fn fits(&self, scene: &Scene, (keys, needs): (&[Key], &[Need]), limit: u64) -> [bool; 2] {
+    fn fits(&mut self, scene: &Scene, (keys, needs): (&[Key], &[Need]), limit: u64) -> [bool; 2] {
         let tile_words = node_words(1);
         let [mut whole, mut parts] = [0, 0];
         for ((item, key), need) in scene.smudges.iter().zip(keys).zip(needs) {
             match need.tiles() {
                 Some(tiles) if !self.arena.holds(key, tiles) => {
-                    let all = dabs(item.stroke.style(), item.stroke.samples());
-                    let all = read_tiles(&all, scene.canvas).len() as u64 * tile_words;
+                    let all = self.reads.of(item, scene.canvas).len() as u64 * tile_words;
                     whole += all;
                     parts += tiles.map_or(all, |tiles| tiles.0.len() as u64 * tile_words);
                 }

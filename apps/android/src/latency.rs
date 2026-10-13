@@ -104,7 +104,7 @@ pub struct Spread {
 }
 
 impl Spread {
-    fn of(mut values: Vec<i64>) -> Self {
+    pub(crate) fn of(mut values: Vec<i64>) -> Self {
         values.sort_unstable();
         let rank = |percent: usize| {
             let index = (values.len() * percent).div_ceil(100).max(1) - 1;

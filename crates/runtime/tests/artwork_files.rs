@@ -161,7 +161,7 @@ fn a_saved_file_opens_as_the_same_artwork_and_a_version_restores_what_was_left()
     until(&mut runtime, |runtime| items(runtime) == 1);
     hand.tap(&mut runtime, "Open artwork");
     until(&mut runtime, |runtime| runtime.artwork().is_some());
-    assert_cold(&core, &runtime, "the sample opened");
+    assert_cold(&core, &mut runtime, "the sample opened");
     let original = runtime.artwork().expect("artwork").to_parts();
     let canvas = runtime.read_canvas().expect("readback").expect("canvas");
     assert!(runtime.back(), "to the gallery");

@@ -16,11 +16,15 @@ pub const SIZE: [u32; 2] = [320, 200];
 /// The one GPU device of this test binary, opened by the first test that asks. A device per
 /// test once deadlocked NVIDIA's Windows driver: opening one loads a library under the driver's
 /// lock while an exiting thread holds the loader lock and waits for the driver's (2026-10-04).
+/// Its frames take every waiting tile (S53: a frame budget without end), as these tests compare
+/// pixels, not pace; `tests/bounded.rs` tests the budget on a device of its own.
 pub fn core() -> Shared {
     static CORE: OnceLock<Core> = OnceLock::new();
-    Shared(
-        CORE.get_or_init(|| Core::headless().expect("a GPU adapter is required for render tests")),
-    )
+    Shared(CORE.get_or_init(|| {
+        let core = Core::headless().expect("a GPU adapter is required for render tests");
+        core.set_frame_budget(f64::INFINITY);
+        core
+    }))
 }
 
 /// A test's hold on the shared device; `&core` lends the `Core` as an owned one did.

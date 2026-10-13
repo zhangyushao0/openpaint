@@ -35,6 +35,6 @@ pub use crate::text::{EditKey, TextInput};
 pub use openpaint_app::{
     HostAnswer, HostRequest, ImageFormat, ImageSink, ImageSource, PortError, ScreenProjection,
 };
-pub use openpaint_render::SurfaceWindow;
+pub use openpaint_render::{Background, Counts, SurfaceWindow};
 pub use openpaint_ui::design::{FontFile, TextFonts};
 pub use openpaint_ui::{CanvasArea, Control, ControlMap, Unresolved};

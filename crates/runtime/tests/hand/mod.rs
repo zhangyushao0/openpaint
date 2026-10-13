@@ -126,8 +126,9 @@ pub fn cold(core: &Core, artwork: &Artwork) -> RgbaImage {
     target.read(core).expect("readback")
 }
 
-/// Panics unless the canvas on screen equals a cold evaluation of the artwork shown.
-pub fn assert_cold(core: &Core, runtime: &Runtime, when: &str) {
+/// Panics unless the canvas on screen (every waiting tile evaluated) equals a cold evaluation of
+/// the artwork shown.
+pub fn assert_cold(core: &Core, runtime: &mut Runtime, when: &str) {
     let shown = runtime.read_canvas().expect("readback").expect("canvas");
     let artwork = runtime.artwork().expect("artwork");
     assert_eq!(

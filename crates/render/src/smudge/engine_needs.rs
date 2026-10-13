@@ -5,14 +5,46 @@
 //! residual before it whole, and under a transform record a residual's tiles lie in its
 //! content's pixels, so it is needed whole too.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::ops::Range;
+use std::sync::Arc;
+
+use openpaint_core::Stroke;
 
 use super::{Arena, Key, TileSet};
-use super::{dabs, read_tiles};
+use super::{dabs, key, read_tiles};
 use crate::geom::PixelRect;
 use crate::protocol::{TILE, TileRecord};
 use crate::scene::{Scene, SmudgeItem};
+
+/// The residual tiles each smudge's contacts read, kept per stroke (S53): walking a stroke's
+/// contacts again for every evaluation that asks what it needs cost the screen's frames their CPU
+/// time. Each entry keeps its stroke alive, so its key names it alone.
+#[derive(Default)]
+pub(crate) struct Reads(HashMap<Key, (Stroke, Arc<BTreeSet<u32>>)>);
+
+impl Reads {
+    /// The residual tiles `item`'s contacts read on a canvas of `size` pixels.
+    pub(crate) fn of(&mut self, item: &SmudgeItem, size: [u32; 2]) -> Arc<BTreeSet<u32>> {
+        let stroke = &item.stroke;
+        let (_, read) = (self.0).entry(key(item.layer, stroke)).or_insert_with(|| {
+            let all = dabs(stroke.style(), stroke.samples());
+            (stroke.clone(), Arc::new(read_tiles(&all, size)))
+        });
+        Arc::clone(read)
+    }
+
+    /// Forgets the strokes `scene` no longer shows, once there are many.
+    pub(crate) fn keep(&mut self, scene: &Scene) {
+        if self.0.len() <= 2 * scene.smudges.len() + 64 {
+            return;
+        }
+        let shown: std::collections::HashSet<Key> = (scene.smudges.iter())
+            .map(|item| key(item.layer, &item.stroke))
+            .collect();
+        self.0.retain(|key, _| shown.contains(key));
+    }
+}
 
 /// What an evaluation needs present in the arena.
 #[derive(Debug, Clone)]
@@ -58,6 +90,11 @@ impl Need {
 /// tiles and a bilinear read at an output scale above 1 reach this far.
 const NEAR: i32 = TILE as i32 + 1;
 
+/// The canvas pixels whose evaluation needs a residual reaching `rect` (S53).
+pub(crate) fn around(rect: &PixelRect) -> PixelRect {
+    widened(rect, NEAR)
+}
+
 /// `rect` widened by `by` pixels each way.
 fn widened(rect: &PixelRect, by: i32) -> PixelRect {
     PixelRect {
@@ -79,12 +116,13 @@ fn near(item: &SmudgeItem, near: &PixelRect, size: [u32; 2]) -> Need {
 }
 
 /// The canvas pixels the plan tiles `tiles` of an output at `scale` evaluate (16 output pixels a
-/// side, widened by a canvas pixel), one rectangle per run of neighbouring tiles in a row.
+/// side, widened by a canvas pixel), one rectangle per run of neighbouring tiles in a row. A tile
+/// listing no op (the paper a new target shows where its tiles wait, S53) reads no residual.
 pub(crate) fn reached(tiles: &[TileRecord], scale: u32) -> Vec<PixelRect> {
     let scale = i32::try_from(scale.max(1)).unwrap_or(1);
     let side = TILE as i32;
     let mut rows: BTreeMap<i32, Vec<i32>> = BTreeMap::new();
-    for tile in tiles {
+    for tile in tiles.iter().filter(|tile| tile.count > 0) {
         let [x, y] = tile
             .output
             .map(|value| i32::try_from(value).unwrap_or(i32::MAX));
@@ -131,7 +169,11 @@ pub(crate) fn needs(scene: &Scene, wanted: &Wanted<'_>) -> Vec<Need> {
 /// Adds to `needs` what the residuals and filter results `arena` lacks read when evaluated anew
 /// (keys in `keys`, smudges then filters, as `keys_of` gives them): later ones first, so what an
 /// earlier residual is needed for is known before it is looked at.
-pub(crate) fn close(scene: &Scene, keys: &[Key], arena: &Arena, needs: &mut [Need]) {
+pub(crate) fn close(
+    scene: &Scene,
+    (keys, arena, reads): (&[Key], &Arena, &mut Reads),
+    needs: &mut [Need],
+) {
     let smudges = &scene.smudges;
     for (filter, key) in scene.filters.iter().zip(&keys[smudges.len()..]) {
         if arena.base(key).is_none() {
@@ -152,11 +194,7 @@ pub(crate) fn close(scene: &Scene, keys: &[Key], arena: &Arena, needs: &mut [Nee
         let item = &smudges[index];
         let moved = !item.to_canvas.is_identity();
         // Its material is evaluated over the tiles its contacts read.
-        let style = item.stroke.style();
-        let read = TileSet(read_tiles(
-            &dabs(style, item.stroke.samples()),
-            scene.canvas,
-        ));
+        let read = reads.of(item, scene.canvas);
         for (need, earlier) in needs[..index].iter_mut().zip(smudges) {
             if !item.before.contains(&earlier.item) {
                 continue;
@@ -166,7 +204,7 @@ pub(crate) fn close(scene: &Scene, keys: &[Key], arena: &Arena, needs: &mut [Nee
                 continue;
             }
             let around = TileSet::of(&widened(&earlier.canvas, NEAR), scene.canvas);
-            let shared: TileSet = TileSet(read.0.intersection(&around.0).copied().collect());
+            let shared: TileSet = TileSet(read.intersection(&around.0).copied().collect());
             if !shared.0.is_empty() {
                 need.and(Need::Part(shared));
             }

@@ -15,8 +15,8 @@ pub(super) const SEGMENT_TIP: usize = 11;
 const SEGMENT_CONTROLS: usize = 12;
 /// At most how far the curve lies from its chord, and three quarters of its larger second
 /// difference, in canvas pixels (`curve::pieces`).
-const SEGMENT_FLAT: usize = 16;
-const SEGMENT_BEND: usize = 17;
+pub(super) const SEGMENT_FLAT: usize = 16;
+pub(super) const SEGMENT_BEND: usize = 17;
 
 pub(super) const SEGMENT_SLOTS: [(&str, usize); 7] = [
     ("SEGMENT_FLOW", SEGMENT_FLOW),

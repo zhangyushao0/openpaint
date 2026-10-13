@@ -21,8 +21,11 @@ const PIXELS_PER_POINT: f32 = 2.0;
 /// The broken artwork's bytes as its file.
 const FILE: &[u8] = b"OpenPaint\0 the records as they were";
 
-/// A library of one artwork that needs repair: listed, refusing to open, its file written.
-struct Broken;
+/// A library of one artwork that needs repair: listed, refusing to open, its file written; with
+/// `last`, the app was left on it.
+struct Broken {
+    last: bool,
+}
 
 fn refused() -> PortError {
     PortError::NotUpgraded { schema: 21 }
@@ -30,6 +33,9 @@ fn refused() -> PortError {
 
 impl ProjectStore for Broken {
     fn open_last(&mut self) -> Result<Option<Project>, PortError> {
+        if self.last {
+            return Err(refused());
+        }
         Ok(None)
     }
 
@@ -157,10 +163,25 @@ fn notice(runtime: &Runtime) -> GalleryNotice {
     }
 }
 
+/// S53 (author, 2026-10-13): left on an artwork that needs repair, the app starts in the gallery,
+/// its card there marked, not on a blank canvas.
+#[test]
+fn a_last_artwork_needing_repair_starts_the_app_in_the_gallery() {
+    let store = Box::new(Broken { last: true });
+    let mut runtime = Runtime::start_on(gpu::core(), PIXELS_PER_POINT, store).expect("starts");
+    settle(&mut runtime);
+    let ScreenProjection::Gallery(gallery) = runtime.screen() else {
+        panic!("not the gallery: {:?}", runtime.screen());
+    };
+    assert!(gallery.items().iter().any(|item| item.needs_repair));
+    assert_eq!(gallery.notice(), GalleryNotice::None);
+    assert!(runtime.artwork().is_none(), "no canvas opened");
+}
+
 #[test]
 fn an_artwork_needing_repair_says_so_and_still_saves_as_a_file() {
-    let mut runtime =
-        Runtime::start_on(gpu::core(), PIXELS_PER_POINT, Box::new(Broken)).expect("starts");
+    let store = Box::new(Broken { last: false });
+    let mut runtime = Runtime::start_on(gpu::core(), PIXELS_PER_POINT, store).expect("starts");
     settle(&mut runtime);
     tap(&mut runtime, "Open artwork");
     assert_eq!(notice(&runtime), GalleryNotice::NeedsRepair);

@@ -40,7 +40,7 @@ fn settle(runtime: &mut Runtime) {
     }
 }
 
-fn canvas(runtime: &Runtime) -> RgbaImage {
+fn canvas(runtime: &mut Runtime) -> RgbaImage {
     runtime.read_canvas().expect("readback").expect("canvas")
 }
 
@@ -70,7 +70,7 @@ fn a_colour_dropped_into_a_closed_curve_fills_it_without_a_seam() {
         .map(|a| a.layers().iter().map(|l| l.strokes().len()).sum())
         .unwrap_or(0);
     assert_eq!(strokes, 1, "the drop drew nothing");
-    let image = canvas(&runtime);
+    let image = canvas(&mut runtime);
     let map = mapping(&runtime, SIZE, PIXELS_PER_POINT);
     let centre = map.to_canvas(CENTRE);
     let black = [0, 0, 0, 255];
@@ -86,14 +86,14 @@ fn a_colour_dropped_into_a_closed_curve_fills_it_without_a_seam() {
         );
     }
     assert_eq!(at(line + 30.0), [255; 4], "outside stays paper");
-    assert_cold(&core, &runtime, "after the fill");
+    assert_cold(&core, &mut runtime, "after the fill");
     hand.tap(&mut runtime, "Undo");
     settle(&mut runtime);
     assert_eq!(fills(&runtime), 0);
     assert_eq!(
-        pixel_at(&canvas(&runtime), centre),
+        pixel_at(&canvas(&mut runtime), centre),
         [255; 4],
         "undo takes it back"
     );
-    assert_cold(&core, &runtime, "after undo");
+    assert_cold(&core, &mut runtime, "after undo");
 }

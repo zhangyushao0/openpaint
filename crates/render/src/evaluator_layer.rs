@@ -68,6 +68,7 @@ impl RegionEvaluator<'_> {
                     residuals: smudges.residuals(),
                     base: Affine::IDENTITY,
                     snapshot: None,
+                    timing: None,
                 },
             )?;
         }

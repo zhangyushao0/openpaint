@@ -96,7 +96,9 @@ fn strokes_survive_a_restart_with_identical_pixels() {
     let before = runtime.read_canvas().expect("readback").expect("canvas");
     let parts = runtime.artwork().expect("artwork").to_parts();
     drop(runtime);
-    let reopened = start(Box::new(Library::at(&dir)));
+    let mut reopened = start(Box::new(Library::at(&dir)));
+    // The canvas fills in over frames (S53).
+    settle(&mut reopened);
     let after = reopened.read_canvas().expect("readback").expect("canvas");
     assert_eq!(reopened.artwork().expect("artwork").to_parts(), parts);
     assert_eq!(after.content_hash(), before.content_hash());

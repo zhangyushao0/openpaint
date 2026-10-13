@@ -65,7 +65,12 @@ impl SceneCache {
             None => (fresh, None),
         };
         let over = skipped.is_some();
-        self.plan_for(&fresh, (size, output, regions), (resume.clone(), skipped));
+        self.plan_for(
+            core,
+            &fresh,
+            (size, output, regions),
+            (resume.clone(), skipped),
+        );
         let plan = self
             .plan
             .as_ref()
@@ -118,6 +123,7 @@ impl SceneCache {
     /// layer snapshot (`over`: its items and the fresh op resuming them), or every item.
     fn plan_for(
         &mut self,
+        core: &Core,
         fresh: &Fresh,
         (size, output, regions): ([u32; 2], Output, &[PixelRect]),
         (resume, over): (Option<Range<usize>>, Option<Skipped>),
@@ -136,6 +142,7 @@ impl SceneCache {
             (None, Some(over)) => Plan::over_snapshot(&self.scene, fresh, target, regions, over),
             (None, None) => Plan::build(&self.scene, fresh, target, regions),
         };
+        core.evaluate.tally.binned(plan.indices.len());
         self.plan = Some((key, plan));
     }
 }

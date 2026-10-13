@@ -49,6 +49,8 @@ impl Core {
     ) -> Result<RgbaImage, RenderError> {
         let canvas = artwork.canvas();
         let mut target = CanvasTarget::exact(self, [canvas.width(), canvas.height()])?;
+        // Made on a worker while the screen draws on (S53).
+        target.pace_dispatches();
         RegionEvaluator::new(self, &mut target).evaluate_layer(artwork, layer, mask)?;
         self.thumbnail(&target, max)
     }
