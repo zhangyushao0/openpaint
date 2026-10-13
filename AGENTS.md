@@ -49,6 +49,7 @@ Do not rebuild the big picture from source; the module map is in ARCHITECTURE. D
 - `cargo device-input pen x,y,... [pressure]` | `finger x,y[,x,y] [x,y[,x,y] [ms]]` | `hover x,y [ms]`: one injected gesture (debug build), screen woken first.
 - `cargo device-restore <name>`: the library as found saved first to `backups/<name>-found-<time>.tar` (listed), then the backup put back in place and compared byte for byte. Always last, after removing test artworks in the gallery.
 - `cargo device-clean`: the agent's test files (`/sdcard/{Pictures,Download}/openpaint-test`, `/sdcard/openpaint-*.mp4`), nothing else.
+- `cargo device-smoke`: the installed debug build in about 20 s, one line per step: a test artwork it makes, a stroke of each tool, undo, a layer, a fill, Share PNG, reopen, its deletion, the app's log; never another artwork. Between backup and restore (it changes the toolbox).
 
 ## Commits
 

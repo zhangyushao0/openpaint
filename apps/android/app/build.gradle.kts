@@ -1,5 +1,12 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
+/**
+ * The version comes from one place (DECISIONS D79): `cargo android-build` passes it from the
+ * workspace manifest and the store's schema (xtask/src/version.rs); there is no default here.
+ */
+fun passed(name: String): String = providers.gradleProperty(name).orNull
+    ?: error("$name is not set: build with `cargo android-build`, which passes the version")
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -14,8 +21,8 @@ android {
         // Must equal MIN_SDK in xtask/src/android.rs.
         minSdk = 28
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = passed("openpaint.versionCode").toInt()
+        versionName = passed("openpaint.versionName")
         ndk {
             abiFilters += "arm64-v8a"
         }

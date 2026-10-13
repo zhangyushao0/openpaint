@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launcher icon (S52): paper with the brush drawn in one ink line, as the app's own Brush
+     icon; the line alone is the monochrome layer a themed launcher tints. minSdk 28 means every
+     device takes this adaptive icon, so no bitmaps exist. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>

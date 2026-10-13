@@ -14,7 +14,8 @@ android-build = "xtask android-build"
 android-install = "xtask android-install"
 # Device chores over adb (see xtask/src/device.rs): the app's library out and back in, byte
 # for byte; wake, install, launch, screenshot and logcat; one injected gesture; test files away;
-# a picture into the test folder for the system picker; the display's colour facts, read-only.
+# a picture into the test folder for the system picker; the display's colour facts, read-only;
+# the installed build walked through its main features on a test artwork (about 20 s).
 device-backup = "xtask device-backup"
 device-restore = "xtask device-restore"
 device-check = "xtask device-check"
@@ -22,6 +23,7 @@ device-input = "xtask device-input"
 device-clean = "xtask device-clean"
 device-push = "xtask device-push"
 device-info = "xtask device-info"
+device-smoke = "xtask device-smoke"
 # The brush shape textures (crates/render/assets/shape-*.bin) from seeded noise (see
 # xtask/src/shapes.rs); deterministic, committed, their hashes in DECISIONS.
 shape-assets = "xtask shape-assets"

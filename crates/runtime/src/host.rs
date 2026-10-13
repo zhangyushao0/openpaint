@@ -5,6 +5,7 @@
 use std::time::Duration;
 
 use openpaint_app::{HostAnswer, HostRequest};
+use openpaint_ui::CanvasArea;
 
 use crate::canvas::Leaving;
 use crate::frame::Runtime;
@@ -13,6 +14,14 @@ use crate::storage::Job;
 
 /// Longest `leave` waits for the store; a longer save goes on in the background.
 const LEAVE_WAIT: Duration = Duration::from_secs(2);
+
+/// Actions' last line (S52, D79): the workspace's version, which xtask also hands to Android as
+/// `versionName` with the same schema as build metadata, and the library schema this build
+/// writes.
+pub(crate) fn version_line() -> String {
+    let version = env!("CARGO_PKG_VERSION");
+    format!("OpenPaint {version} · schema {}", openpaint_store::SCHEMA)
+}
 
 impl Runtime {
     /// The user is leaving the app (Android `onPause`): a stroke still being drawn is committed
@@ -84,6 +93,13 @@ impl Runtime {
     /// versions; 0 until the host says.
     pub fn set_utc_offset(&mut self, minutes: i32) {
         self.shell.set_utc_offset(minutes);
+    }
+
+    /// Where the canvas shows and fits on the screen, in pixels, once a frame was laid out (the
+    /// device smoke places its strokes in the fit, S52).
+    #[must_use]
+    pub fn canvas_area(&self) -> Option<CanvasArea> {
+        self.shell.canvas_area()
     }
 
     /// For debug builds only (`cargo device-input gradient on|off`, S37): the screen's precision

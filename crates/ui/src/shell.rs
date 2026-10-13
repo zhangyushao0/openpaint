@@ -297,6 +297,11 @@ impl Shell {
         self.gallery.utc_offset = minutes;
     }
 
+    /// The app's version and library schema as Actions' last line shows them (S52).
+    pub fn set_version(&mut self, line: &str) {
+        line.clone_into(&mut self.panels.actions.version);
+    }
+
     /// The pen's outline in screen pixels: the current brush at full size around where the pen
     /// hovers over open canvas, or, while the pen erases there, `erasing` (the eraser's tip:
     /// centre and radius in canvas pixels); `None` over controls, during multi-touch, while

@@ -25,9 +25,12 @@ import android.view.MotionEvent
  * `-e tool eraser` is the pen's eraser end and `-e button primary|secondary|tertiary` holds a
  * side button through the pen's events (S41, S43). `-e tap <name>` is a finger tap on the
  * middle of the control the app last drew under that name ([DebugControls]); the result's
- * `tapped` says where. `-e gradient on|off` injects nothing: it turns the screen's precision
- * check on or off ([DebugControls.gradient]); `-e lose device` loses the GPU device on purpose
- * ([DebugControls.loseDevice], S49).
+ * `tapped` says where. `-e drag <name> -e to x,y` is a finger from that control's middle to
+ * `to` (S52). `-e within N` waits up to N ms for the control to show. `-e find <name>` injects
+ * nothing: the result's `found` says where it lies; `-e state 1` answers what the app shows
+ * ([DebugControls.state], S52). `-e gradient on|off` injects nothing: it turns the screen's
+ * precision check on or off ([DebugControls.gradient]); `-e lose device` loses the GPU device on
+ * purpose ([DebugControls.loseDevice], S49). A question is answered with `gesture=answered`.
  */
 class GestureInstrumentation : Instrumentation() {
     private var arguments = Bundle()
@@ -55,10 +58,20 @@ class GestureInstrumentation : Instrumentation() {
                 finish(Activity.RESULT_OK, result)
                 return
             }
+            if (answer(result)) {
+                result.putString("gesture", "answered")
+                finish(Activity.RESULT_OK, result)
+                return
+            }
             arguments.getString("tap")?.let { name ->
                 val at = control(name)
                 arguments.putString("from", "${at[0]},${at[1]}")
                 result.putString("tapped", "$name at ${at[0]},${at[1]}")
+            }
+            arguments.getString("drag")?.let { name ->
+                val at = control(name)
+                arguments.putString("from", "${at[0]},${at[1]}")
+                result.putString("dragged", "$name from ${at[0]},${at[1]}")
             }
             inject()
             result.putString("gesture", "injected")
@@ -75,14 +88,38 @@ class GestureInstrumentation : Instrumentation() {
         ?.chunked(2)
         ?.map { floatArrayOf(it[0], it[1]) }
 
-    /** The middle of the control called [name], asked on the main thread as every JNI call is. */
+    /**
+     * A question instead of a gesture (S52), its answer put in [result]: `-e find <name>` (where
+     * the control lies) or `-e state 1` (what the app shows). False when there is none.
+     */
+    private fun answer(result: Bundle): Boolean {
+        arguments.getString("find")?.let { name ->
+            val at = control(name)
+            result.putString("found", "$name at ${at[0]},${at[1]}")
+            return true
+        }
+        if (arguments.getString("state") == null) return false
+        var state: String? = null
+        runOnMainSync { state = DebugControls.state() }
+        result.putString("state", state ?: error("no answer for the state"))
+        return true
+    }
+
+    /**
+     * The middle of the control called [name], asked on the main thread as every JNI call is;
+     * with `-e within N`, asked again every 50 ms until it shows, at most N ms.
+     */
     private fun control(name: String): FloatArray {
-        var found: String? = null
-        runOnMainSync { found = DebugControls.find(name) }
-        val answer = found ?: error("no answer for $name")
-        val point = answer.split(',').mapNotNull { it.toFloatOrNull() }
-        require(point.size == 2) { "$name: $answer" }
-        return floatArrayOf(point[0], point[1])
+        val until = SystemClock.uptimeMillis() + (arguments.getString("within")?.toLong() ?: 0L)
+        while (true) {
+            var found: String? = null
+            runOnMainSync { found = DebugControls.find(name) }
+            val answer = found ?: error("no answer for $name")
+            val point = answer.split(',').mapNotNull { it.toFloatOrNull() }
+            if (point.size == 2) return floatArrayOf(point[0], point[1])
+            require(SystemClock.uptimeMillis() < until) { "$name: $answer" }
+            SystemClock.sleep(50)
+        }
     }
 
     private val pressure: Float

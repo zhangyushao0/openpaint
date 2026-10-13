@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launcher icon's line: the app's Brush icon (ui/src/design/icon_tools.rs: the handle, the
+     ferrule, the bristles swelling and closing to a point) mapped from its unit square onto 62 of
+     the 108 units, inside the 66-unit circle every mask keeps. Ink (palette.rs INK), round caps
+     and joins, 2 units: 1.5 points where the tablet's launcher shows the 72-unit viewport 54
+     points wide (measured on its home screen, S52). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:pathData="M76.32,31.68 L60.2,47.8 M51.52,47.8 L60.2,56.48 Q57.72,71.36 31.68,76.32 Q36.64,50.28 51.52,47.8 Z"
+        android:strokeColor="#262523"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:strokeWidth="2" />
+</vector>

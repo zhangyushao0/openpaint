@@ -6,6 +6,7 @@
 
     <application
         android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
         android:label="OpenPaint"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
         <!-- Rotation, resizing and display changes reach the activity as surface size changes

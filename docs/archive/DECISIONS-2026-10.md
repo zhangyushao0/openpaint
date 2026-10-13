@@ -222,3 +222,9 @@ Superseded decisions moved here whole from `docs/DECISIONS.md`. Written, never r
 - Reason: per-record saves pay per change (ARCHITECTURE principle 5); owned bytes cannot change with a dependency; one step per schema keeps each upgrade small and testable.
 - Consequences: a format change is a new step file, a new sample and a line here; an upgrade reads every head (and, for stroke steps, every stroke) once.
 - Archived 2026-10-12 (S50): replaced by D77 (the records, saves per change and one step per schema kept; every write one batch, upgrades one artwork at a time).
+
+## D15 2026-10-02 Android host: main-thread frames, array-packed input, xtask-driven build
+- Decision: the Kotlin activity calls Rust only from the main thread: `Choreographer` paces frames on demand (Rust answers whether it wants the next one) and `MotionEvent`s cross JNI as primitive arrays (ids, tool types, x/y/pressure/tilt/orientation per step and pointer, times), decoded into typed batches in plain Rust. The UI painter lives for the process because egui sends its font atlas once. `cargo android-build` launches the Gradle wrapper jar from xtask; no gradlew scripts are tracked. The gate clippy-checks the JNI crate for `aarch64-linux-android`.
+- Reason: one thread needs no locks between lifecycle, surface and input calls; arrays keep Kotlin free of product types and make decoding testable on the dev machine; gradlew and gradlew.bat are scripts (D05); without the Android clippy step the JNI code would be compiled by nobody but the APK build.
+- Consequences: a slow frame delays input; S8's latency number kept frames on the main thread (D22); surfaces must be detached in `surfaceDestroyed` before it returns; changing the sample layout means changing `SAMPLE_FIELDS` in both `motion.rs` and `MainActivity.kt`.
+- Archived 2026-10-13 (S52): replaced by D79 (every part kept; the build also carries the version).

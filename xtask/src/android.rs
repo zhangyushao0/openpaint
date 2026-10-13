@@ -1,12 +1,14 @@
 //! `cargo android-build` and `cargo android-install`: the tablet APK. cargo-ndk builds the Rust
 //! library into `target/android-jni/` (which `apps/android/app/build.gradle.kts` packages),
-//! the Gradle wrapper assembles the APK, adb installs and launches it.
+//! the Gradle wrapper assembles the APK with the version (`version.rs`) as Gradle properties,
+//! adb installs and launches it.
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::process::{cargo_command, root, run};
+use crate::version::{Version, schema};
 
 /// The tablet's ABI.
 const ABI: &str = "arm64-v8a";
@@ -19,10 +21,13 @@ const WRAPPER_JAR: &str = "apps/android/gradle/wrapper/gradle-wrapper.jar";
 pub fn build() -> Result<(), String> {
     let sdk = sdk_dir()?;
     let ndk = ndk_dir(&sdk)?;
+    let version = Version::current()?;
+    let name = version.name(schema(&root())?);
     println!(
-        "Android SDK {}\nAndroid NDK {}",
+        "Android SDK {}\nAndroid NDK {}\nOpenPaint {name} (version code {})",
         sdk.display(),
-        ndk.display()
+        ndk.display(),
+        version.code()
     );
     let jni_libs = root().join("target").join("android-jni");
     run(cargo_command()
@@ -34,7 +39,9 @@ pub fn build() -> Result<(), String> {
     run(Command::new(java())
         .env("ANDROID_HOME", &sdk)
         .args(["-cp", WRAPPER_JAR, "org.gradle.wrapper.GradleWrapperMain"])
-        .args(["-p", "apps/android", "assembleDebug"]))?;
+        .args(["-p", "apps/android", "assembleDebug"])
+        .arg(format!("-Popenpaint.versionName={name}"))
+        .arg(format!("-Popenpaint.versionCode={}", version.code())))?;
     println!("APK {APK}");
     Ok(())
 }

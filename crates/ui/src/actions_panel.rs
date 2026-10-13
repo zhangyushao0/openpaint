@@ -6,7 +6,8 @@
 //! another app; under "Canvas", the Reference switch that shows the floating reference window
 //! and the row that chooses its image, and the Drawing Guide (its switch and symmetries, S42);
 //! under "Pen", Pen buttons, which shows its page in the
-//! panel's place (S41, `pen_buttons_page.rs`). A row that opens a system dialog closes the
+//! panel's place (S41, `pen_buttons_page.rs`); last, quietly, the app's version and library
+//! schema ("OpenPaint 0.7.0 · schema 22", S52). A row that opens a system dialog closes the
 //! panel; the switch and the page leave it open. Any contact landing on the canvas outside
 //! closes it.
 
@@ -44,6 +45,8 @@ pub(crate) struct ActionsPanel {
     copy_menu: bool,
     /// The Pen buttons page shows in the panel's place (S41).
     pen_page: bool,
+    /// The app's version and library schema, the panel's quiet last line (S52).
+    pub(crate) version: String,
 }
 
 impl ActionsPanel {
@@ -115,6 +118,9 @@ impl ActionsPanel {
                 if menu_row(ui, "Pen buttons", &summary(buttons), true).clicked() {
                     page = Some(true);
                 }
+            }
+            if !self.version.is_empty() {
+                hint(ui, &self.version);
             }
         });
         if let Some(pen_page) = page {
@@ -237,3 +243,7 @@ fn push(taps: &mut Vec<Intent>, intent: Intent) {
         taps.push(intent);
     }
 }
+
+#[cfg(test)]
+#[path = "actions_panel_tests.rs"]
+mod tests;

@@ -16,6 +16,14 @@ internal object DebugControls {
     @JvmStatic external fun find(name: String): String?
 
     /**
+     * What the app shows (S52), fields separated by tabs, each "key value": `screen` starting,
+     * canvas or gallery; in the gallery `listed` 0 or 1 and `cards` (the artworks' ids, the one
+     * changed last first); `fit` (where a canvas fits: left, top, width, height in pixels); a
+     * `name` per control in the last frame.
+     */
+    @JvmStatic external fun state(): String?
+
+    /**
      * The screen's precision check (a soft grey ramp, its upper half at 8 bits, its lower at the
      * window's own) over everything when [on], or off; one frame is drawn at once.
      */

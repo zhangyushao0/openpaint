@@ -1,5 +1,6 @@
 //! For debug builds: finds a control on screen by its name for the dev machine's
-//! `cargo device-input tap <name>` (D48's names, as scenarios use them), turns the screen's
+//! `cargo device-input tap <name>` (D48's names, as scenarios use them), says what the app shows
+//! (`device-input state`, the device smoke, S52), turns the screen's
 //! precision check on and off (`gradient on|off`, S37) and loses the GPU device on purpose
 //! (`lose-device`, S49). Only Kotlin's debug source set declares
 //! them (`DebugControls`, called from `GestureInstrumentation` on the main thread); the library
@@ -12,6 +13,8 @@ use jni::EnvUnowned;
 use jni::errors::LogErrorAndDefault;
 use jni::objects::{JClass, JObject, JString};
 use jni::sys::{jboolean, jlong};
+
+use openpaint_runtime::{Runtime, ScreenProjection};
 
 use crate::error::HostError;
 use crate::jni_entry::runtime;
@@ -50,6 +53,48 @@ pub extern "system" fn Java_dev_openpaint_DebugControls_find<'local>(
         Ok(env.new_string(line)?.into())
     })
     .resolve::<LogErrorAndDefault>()
+}
+
+/// For `cargo device-input state` and the device smoke (S52): what the app shows, fields separated
+/// by tabs, each "key value": `screen` (starting, canvas, gallery); in the gallery `listed` (0
+/// or 1) and `cards` (the artworks' ids, the one changed last first); `fit` (where a canvas
+/// fits: left, top, width, height in pixels); a `name` per control in the last frame.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_openpaint_DebugControls_state<'local>(
+    mut env: EnvUnowned<'local>,
+    _class: JClass<'local>,
+) -> JObject<'local> {
+    env.with_env(|env| -> Result<JObject<'local>, HostError> {
+        let line = runtime(HANDLE.load(Ordering::SeqCst))
+            .map_or_else(|| "screen starting".to_owned(), |runtime| state(runtime));
+        Ok(env.new_string(line)?.into())
+    })
+    .resolve::<LogErrorAndDefault>()
+}
+
+fn state(runtime: &Runtime) -> String {
+    let mut fields = Vec::new();
+    match runtime.screen() {
+        ScreenProjection::Starting => fields.push("screen starting".to_owned()),
+        ScreenProjection::Canvas(_) => fields.push("screen canvas".to_owned()),
+        ScreenProjection::Gallery(gallery) => {
+            fields.push("screen gallery".to_owned());
+            fields.push(format!("listed {}", u8::from(gallery.listed())));
+            let ids: Vec<String> = gallery
+                .items()
+                .iter()
+                .map(|item| item.id.get().to_string())
+                .collect();
+            fields.push(format!("cards {}", ids.join(" ")));
+        }
+    }
+    if let Some(area) = runtime.canvas_area() {
+        let ([x, y], [w, h]) = (area.fit.origin, area.fit.size);
+        fields.push(format!("fit {x} {y} {w} {h}"));
+    }
+    let names = runtime.controls().names().into_iter();
+    fields.extend(names.map(|name| format!("name {name}")));
+    fields.join("\t")
 }
 
 /// For `cargo device-input lose-device` (S49): the GPU device destroyed under the app as a driver

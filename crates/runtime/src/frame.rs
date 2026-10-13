@@ -24,6 +24,7 @@ use crate::budget::Budget;
 use crate::clock::{FrameClock, InputClock};
 use crate::error::RuntimeError;
 use crate::fill::FillWorker;
+use crate::host::version_line;
 use crate::input::MotionBatch;
 use crate::normalise::Normaliser;
 use crate::pictures::PictureWorker;
@@ -126,6 +127,7 @@ impl Runtime {
         let ui = egui::Context::default();
         design::install(&ui);
         let mut shell = Shell::default();
+        shell.set_version(&version_line());
         let library = toolbox.library();
         let shared = SharedCore::new(Arc::clone(&core));
         let brushes =

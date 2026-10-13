@@ -5,18 +5,24 @@
 //! - `cargo device-restore <name|file.tar>`: the app stopped (no process left), the library as found
 //!   saved first as `<name>-found-<time>.tar` (listed), then that archive written back in place
 //!   (nothing is deleted), read out again and compared with the backup file by file, byte for byte;
-//! - `cargo device-check [label] [--no-install]` and `cargo device-input ...` (`check.rs`);
+//! - `cargo device-check [label] [--no-install]` (`check.rs`) and `cargo device-input ...`
+//!   (`input.rs`);
 //! - `cargo device-clean`: removes the agent's own test files, and only those (the test folders,
 //!   recordings, and test libraries an investigation left in the app's cache);
 //! - `cargo device-push <picture>`: a PNG or JPEG into `/sdcard/Download/openpaint-test` (a test
 //!   location `clean` removes) for the system picker;
-//! - `cargo device-info [label]`: the display's colour facts, read-only (`info.rs`).
+//! - `cargo device-info [label]`: the display's colour facts, read-only (`info.rs`);
+//! - `cargo device-smoke`: the installed debug build walked through every main feature on a
+//!   test artwork it creates and deletes, about 20 s (`smoke.rs`).
 //!
 //! Every adb call takes explicit arguments, never a host shell, so no path is rewritten.
 
 mod adb;
 mod check;
 mod info;
+mod input;
+mod smoke;
+mod smoke_state;
 mod tar;
 
 use std::path::{Path, PathBuf};
@@ -26,8 +32,10 @@ use crate::process::root;
 use adb::{Adb, PACKAGE, Result, read_file, write_file};
 
 pub use adb::DeviceError;
-pub use check::{check, input};
+pub use check::check;
 pub use info::info;
+pub use input::input;
+pub use smoke::smoke;
 
 /// The library inside the app's private storage, relative to its data directory.
 const LIBRARY: &str = "files/library";
@@ -198,7 +206,11 @@ pub fn clean(args: &[String]) -> Result<()> {
     if !args.is_empty() {
         return Err(DeviceError::Usage("cargo device-clean"));
     }
-    let adb = Adb::connected()?;
+    clean_on(&Adb::connected()?).map(drop)
+}
+
+/// The agent's test files away, each listed; how many test locations went.
+fn clean_on(adb: &Adb) -> Result<usize> {
     let quoted: Vec<String> = TEST_DIRS.iter().map(|dir| format!("'{dir}'")).collect();
     let targets = format!("{} {TEST_RECORDINGS}", quoted.join(" "));
     // `ls` names what exists; a missing test location is no error.
@@ -214,13 +226,13 @@ pub fn clean(args: &[String]) -> Result<()> {
     for path in &found {
         println!("  removed {path}");
     }
-    let cached = clean_cache(&adb)?;
+    let cached = clean_cache(adb)?;
     if found.is_empty() && cached == 0 {
         println!("clean: no test files on the device");
-        return Ok(());
+        return Ok(0);
     }
     println!("clean: {} test locations removed", found.len() + cached);
-    Ok(())
+    Ok(found.len() + cached)
 }
 
 /// Test libraries an investigation left in the app's cache: `cache/inv1-library` and names
