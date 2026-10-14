@@ -116,8 +116,16 @@ pub(crate) fn prelude() -> String {
     wgsl
 }
 
+// The paper's and the shapes' mip chains: square powers of two whose every level (down to one
+// texel on the shorter side) is a quarter of the one before, so the words before a level have a
+// closed form (`mip_offset` in deposit.wgsl, S55) from the finest level's texels, 2^bits.
+const _: () = assert!(PAPER_SIZE[0].is_power_of_two() && PAPER_SIZE[1].is_power_of_two());
+const _: () = assert!(SHAPE_SIZE.is_power_of_two() && SHAPE_LEVELS == SHAPE_SIZE.ilog2() + 1);
+const PAPER_BITS: u32 = (PAPER_SIZE[0] * PAPER_SIZE[1]).ilog2();
+const SHAPE_BITS: u32 = (SHAPE_SIZE * SHAPE_SIZE).ilog2();
+
 /// The smudge residuals' layout, the shape textures' (after the paper in the textures' words,
-/// `shapes.rs`) and the stamps' codes.
+/// `shapes.rs`), the mip chains' bits and the stamps' codes.
 fn whole_numbers(wgsl: &mut String) {
     for (name, value) in [
         ("RESIDUAL_TILE", RESIDUAL_TILE),
@@ -128,6 +136,8 @@ fn whole_numbers(wgsl: &mut String) {
         ("SHAPE_WORDS", shape_words()),
         ("SHAPE_SIZE", SHAPE_SIZE),
         ("SHAPE_LEVELS", SHAPE_LEVELS),
+        ("PAPER_BITS", PAPER_BITS),
+        ("SHAPE_BITS", SHAPE_BITS),
     ]
     .into_iter()
     .chain(STAMP_CODES)

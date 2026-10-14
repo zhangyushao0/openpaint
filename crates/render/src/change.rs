@@ -1,6 +1,6 @@
 //! What switching the canvas from one artwork version to another means for its pixels: the
 //! regions to evaluate again when the version changes other than by committing the stroke the
-//! target is drawing (undo and redo; later layer edits). DECISIONS D17: callers pass these.
+//! target is drawing (undo and redo; later layer edits). DECISIONS D82: callers pass these.
 
 use openpaint_core::{Artwork, RegionEdit, StrokeList};
 

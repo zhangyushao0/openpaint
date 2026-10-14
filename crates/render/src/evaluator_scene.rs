@@ -260,7 +260,7 @@ impl CanvasTarget {
         for item in changed.items {
             let op = [cache.scene.items[item].op()];
             queue.write_buffer(
-                &cache.ops.ops,
+                &cache.ops.ops(),
                 (item * size_of::<Op>()) as u64,
                 &encode(&op),
             );
@@ -347,11 +347,16 @@ impl SceneCache {
     /// Bytes of the scene's ops on the GPU, and of the previewed layer's snapshot (S49).
     pub(super) fn bytes(&self) -> [u64; 2] {
         let ops = &self.ops;
-        let scene = ops.ops.size() + ops.masks.size() + ops.patches.size();
+        let scene = ops.ops().size() + ops.masks.size() + ops.patches.size();
         [
             scene,
             self.snapshot.as_ref().map_or(0, PreviewSnapshot::bytes),
         ]
+    }
+
+    /// The plan of the last evaluation without an in-progress stroke (S55's benchmark).
+    pub(super) fn kept_plan(&self) -> Option<&Plan> {
+        self.plan.as_ref().map(|(_, plan)| plan)
     }
 
     /// Lets the previewed layer's snapshot go; the next value takes it again, within the room.

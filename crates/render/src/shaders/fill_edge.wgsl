@@ -29,9 +29,9 @@ struct MaskRect {
 
 // A fill's coverage at the output pixel whose centre is `centre` (canvas pixels): its smoothed
 // edge, or with `FILL_EDGE` 0 (a transform's lift) its mask bit at `cell`.
-fn fill_coverage(centre: vec2<f32>, cell: vec2<u32>, op: Op) -> f32 {
-    let at = u32(op.data[FILL_MASK]) * 65536u + u32(op.data[FILL_MASK + 1u]);
-    let canvas = vec2<i32>(i32(op.data[FILL_EDGE]), i32(op.data[FILL_EDGE + 1u]));
+fn fill_coverage(centre: vec2<f32>, cell: vec2<u32>, op: u32) -> f32 {
+    let at = u32(word(op, FILL_MASK)) * 65536u + u32(word(op, FILL_MASK + 1u));
+    let canvas = vec2<i32>(i32(word(op, FILL_EDGE)), i32(word(op, FILL_EDGE + 1u)));
     if canvas.x == 0 {
         return mask_bit(cell, at);
     }

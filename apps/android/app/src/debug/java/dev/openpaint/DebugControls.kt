@@ -34,4 +34,10 @@ internal object DebugControls {
      * makes the renderer again.
      */
     @JvmStatic external fun loseDevice()
+
+    /**
+     * The evaluator's micro-benchmark (S55) on this device's GPU: the scene [scene] names, or
+     * every one for "all"; its lines, written to the log too, separated by tabs.
+     */
+    @JvmStatic external fun bench(scene: String): String?
 }

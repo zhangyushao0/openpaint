@@ -3,7 +3,7 @@
 //! time, each band in pieces at most `Banding::columns` wide, read back and handed on, so a 4x
 //! export never holds the whole picture on the GPU. The target shares nothing with the screen's, so a worker
 //! holding an `Arc<Core>` runs it while the screen draws on. Since a pixel never depends on
-//! which regions are evaluated with it (D16), bands equal one piece, and at 1x the result is
+//! which regions are evaluated with it (D82), bands equal one piece, and at 1x the result is
 //! the screen's canvas pixel for pixel.
 
 use std::time::{Duration, Instant};

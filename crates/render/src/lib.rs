@@ -70,7 +70,9 @@ pub use crate::budget::{CacheBytes, DeviceClass, GpuMemory, OWN_BUDGET, SHARED_B
 pub use crate::change::changed_regions;
 pub use crate::core::Core;
 pub use crate::error::RenderError;
-pub use crate::evaluator::{CanvasCopy, CanvasTarget, EvaluationWork, RegionEvaluator};
+pub use crate::evaluator::{
+    CanvasCopy, CanvasTarget, EvaluationWork, Listed, RegionEvaluator, Timed,
+};
 pub use crate::export::{Banding, Bands};
 pub use crate::frame::FrameRequest;
 pub use crate::geom::PixelRect;

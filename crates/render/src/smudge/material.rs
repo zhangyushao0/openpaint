@@ -1,7 +1,7 @@
 //! What a smudge carries: its layer's pixels just before it, evaluated by the single evaluator
 //! from the layer's earlier ops in the target's own scene, into tiles of a texture of their own
 //! (premultiplied, transparent elsewhere, 8 bits like the canvas). A pixel never depends on
-//! which regions are evaluated with it (D16), so a tile evaluated now or later holds the same.
+//! which regions are evaluated with it (D82), so a tile evaluated now or later holds the same.
 
 use std::ops::Range;
 

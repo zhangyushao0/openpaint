@@ -92,12 +92,12 @@ fn piece_density(centre: vec2<f32>, piece: Piece, bell: bool, dot_allowed: bool)
 // (1 - exp(-d)), or through the paper its expectation over the ranks under the output pixel
 // (its footprint picks the mip level of the paper's moments). Exactly 0 without
 // density, as the scene's bounds require.
-fn deposit_coverage(density: f32, contact: f32, centre: vec2<f32>, op: Op) -> f32 {
+fn deposit_coverage(density: f32, contact: f32, centre: vec2<f32>, op: u32) -> f32 {
     if density <= 0.0 {
         return 0.0;
     }
-    let max_density = op.data[PAINT_DENSITY];
-    let scale = op.data[PAINT_PAPER];
+    let max_density = word(op, PAINT_DENSITY);
+    let scale = word(op, PAINT_PAPER);
     if scale <= 0.0 {
         return max_density * (1.0 - exp(-density));
     }
@@ -107,12 +107,12 @@ fn deposit_coverage(density: f32, contact: f32, centre: vec2<f32>, op: Op) -> f3
     // An output pixel covers `scale / foot_scale` texels: the paper's level by that footprint
     // (one level finer per doubling, exactly the stroke's own level at scale 1; inside a
     // transform record's frame by its content's scale too).
-    let moments = paper_moments(centre * scale, op.data[PAINT_PAPER + 1u] - foot_level);
+    let moments = paper_moments(centre * scale, word(op, PAINT_PAPER + 1u) - foot_level);
     let deviation = sqrt(moments.y);
     let level = 1.0 - contact;
-    let dust_share = op.data[PAINT_PAPER + 3u];
+    let dust_share = word(op, PAINT_PAPER + 3u);
     let dust = dust_share * min(contact / DUST_CONTACT, 1.0);
-    let depth = op.data[PAINT_PAPER + 2u];
+    let depth = word(op, PAINT_PAPER + 2u);
     var expected = 0.0;
     for (var i = 0u; i < 5u; i++) {
         let rank = clamp(moments.x + deviation * NODES[i], 0.0, 1.0);
@@ -159,10 +159,14 @@ fn mix_moments(a: vec2<f32>, b: vec2<f32>, t: f32) -> vec2<f32> {
 fn paper_texel(level: u32, c: vec2<i32>) -> vec2<f32> {
     let size = vec2<u32>(max(PAPER_WIDTH >> level, 1u), max(PAPER_HEIGHT >> level, 1u));
     let at = bitcast<vec2<u32>>(c) & (size - vec2<u32>(1u));
-    var offset = 0u;
-    for (var k = 0u; k < level; k++) {
-        offset += max(PAPER_WIDTH >> k, 1u) * max(PAPER_HEIGHT >> k, 1u);
-    }
-    let word = textures[offset + at.y * size.x + at.x];
+    let word = textures[mip_offset(PAPER_BITS, level) + at.y * size.x + at.x];
     return vec2<f32>(f32(word & 0xffffu), f32(word >> 16u)) * MOMENT_STEP;
+}
+
+// Words of a mip chain's levels before `level` when its finest holds 2^`bits` texels and each
+// level a quarter of the one before (`protocol_wgsl.rs` checks both chains are so): their sum
+// in closed form, `4/3 (2^bits - 2^(bits - 2 level))`, exactly. Summed in a loop, it pushed
+// the evaluator past a register limit on the Adreno that halved its speed (S55).
+fn mip_offset(bits: u32, level: u32) -> u32 {
+    return ((1u << bits) - (1u << (bits - 2u * level))) / 3u * 4u;
 }

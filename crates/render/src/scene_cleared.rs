@@ -213,6 +213,7 @@ fn reach(stroke: &Stroke) -> Option<Bounds> {
         StrokeTool::Smudge => whole_reach(style, samples).into_iter().reduce(union),
         StrokeTool::Paint => segments(style, samples)
             .map(|segment| segment.bounds())
+            .filter(|bounds| !bounds.is_empty())
             .reduce(union),
     }
 }

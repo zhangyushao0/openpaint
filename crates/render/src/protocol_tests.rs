@@ -250,3 +250,27 @@ fn a_tail_span_is_laid_out_as_a_segment_and_the_curve_constants_reach_wgsl() {
     )));
     assert!(wgsl.contains("const TOLERANCE: f32 = 0.0625;"));
 }
+
+/// `mip_offset` in deposit.wgsl, as the shader computes it.
+fn mip_offset(bits: u32, level: u32) -> u32 {
+    ((1 << bits) - (1 << (bits - 2 * level))) / 3 * 4
+}
+
+#[test]
+fn the_closed_form_mip_offsets_are_the_levels_summed() {
+    let module = parsed();
+    let [paper, shape] = ["PAPER_BITS", "SHAPE_BITS"].map(|name| constant(&module, name));
+    let mut words = 0;
+    for level in 0..level_count() {
+        assert_eq!(mip_offset(paper, level), words, "paper level {level}");
+        words += (PAPER_SIZE[0] >> level).max(1) * (PAPER_SIZE[1] >> level).max(1);
+    }
+    assert_eq!(words, crate::paper::paper_words());
+    let size = crate::shapes::SHAPE_SIZE;
+    let mut words = 0;
+    for level in 0..crate::shapes::SHAPE_LEVELS {
+        assert_eq!(mip_offset(shape, level), words, "shape level {level}");
+        words += (size >> level) * (size >> level);
+    }
+    assert_eq!(words, crate::shapes::shape_words());
+}

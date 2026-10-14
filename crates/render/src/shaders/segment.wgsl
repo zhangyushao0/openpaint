@@ -16,44 +16,44 @@ struct Piece {
 }
 
 // The span's chord with the knots' values.
-fn chord_piece(op: Op) -> Piece {
+fn chord_piece(op: u32) -> Piece {
     return Piece(
-        vec2<f32>(op.data[0], op.data[1]),
-        vec2<f32>(op.data[2], op.data[3]),
-        vec2<f32>(op.data[4], op.data[5]),
-        vec2<f32>(op.data[SEGMENT_FLOW], op.data[SEGMENT_FLOW + 1u]),
-        vec2<f32>(op.data[SEGMENT_CONTACT], op.data[SEGMENT_CONTACT + 1u]),
+        vec2<f32>(word(op, 0), word(op, 1)),
+        vec2<f32>(word(op, 2), word(op, 3)),
+        vec2<f32>(word(op, 4), word(op, 5)),
+        vec2<f32>(word(op, SEGMENT_FLOW), word(op, SEGMENT_FLOW + 1u)),
+        vec2<f32>(word(op, SEGMENT_CONTACT), word(op, SEGMENT_CONTACT + 1u)),
     );
 }
 
 // How many pieces the span is evaluated as here (`curve::pieces`).
-fn span_pieces(op: Op) -> u32 {
-    if op.data[SEGMENT_FLAT] * foot_scale <= TOLERANCE {
+fn span_pieces(op: u32) -> u32 {
+    if word(op, SEGMENT_FLAT) * foot_scale <= TOLERANCE {
         return 1u;
     }
-    let count = ceil(sqrt(op.data[SEGMENT_BEND] * foot_scale / TOLERANCE));
+    let count = ceil(sqrt(word(op, SEGMENT_BEND) * foot_scale / TOLERANCE));
     return clamp(u32(min(count, f32(MAX_PIECES))), 1u, MAX_PIECES);
 }
 
 // The span's point at parameter `t` (Bernstein form, as `Cubic::at`).
-fn span_point(op: Op, t: f32) -> vec2<f32> {
+fn span_point(op: u32, t: f32) -> vec2<f32> {
     let s = 1.0 - t;
-    let p0 = vec2<f32>(op.data[0], op.data[1]);
-    let p1 = vec2<f32>(op.data[SEGMENT_CONTROLS], op.data[SEGMENT_CONTROLS + 1u]);
-    let p2 = vec2<f32>(op.data[SEGMENT_CONTROLS + 2u], op.data[SEGMENT_CONTROLS + 3u]);
-    let p3 = vec2<f32>(op.data[2], op.data[3]);
+    let p0 = vec2<f32>(word(op, 0), word(op, 1));
+    let p1 = vec2<f32>(word(op, SEGMENT_CONTROLS), word(op, SEGMENT_CONTROLS + 1u));
+    let p2 = vec2<f32>(word(op, SEGMENT_CONTROLS + 2u), word(op, SEGMENT_CONTROLS + 3u));
+    let p3 = vec2<f32>(word(op, 2), word(op, 3));
     return s * s * s * p0 + 3.0 * s * s * t * p1 + 3.0 * s * t * t * p2 + t * t * t * p3;
 }
 
 // What the span lays at `centre`: x, its coverage (covering) or density (accumulating); y, the
 // paper contact there. A piece whose box widened by its reach misses `centre` lays nothing and
 // is skipped. A stamped span (S45) is its stamps instead (stamp.wgsl), which read its stroke's
-// paint op from the op `entry` names.
-fn span_laid(centre: vec2<f32>, op: Op, entry: u32) -> vec2<f32> {
-    if op.data[STAMP_PAINT] != 0.0 {
-        return stamps_laid(centre, op, entry);
+// paint op `STAMP_PAINT` ops from it.
+fn span_laid(centre: vec2<f32>, op: u32) -> vec2<f32> {
+    if word(op, STAMP_PAINT) != 0.0 {
+        return stamps_laid(centre, op);
     }
-    let cover = u32(op.data[SEGMENT_TIP]) == TIP_COVER;
+    let cover = u32(word(op, SEGMENT_TIP)) == TIP_COVER;
     let whole = chord_piece(op);
     let count = span_pieces(op);
     if count == 1u {
@@ -94,11 +94,11 @@ fn span_laid(centre: vec2<f32>, op: Op, entry: u32) -> vec2<f32> {
 
 // One piece's coverage, or its density and contact (a lone point is a dot only when `dot`: a
 // whole span, never a piece of one).
-fn piece_laid(centre: vec2<f32>, piece: Piece, op: Op, cover: bool, dot: bool) -> vec2<f32> {
+fn piece_laid(centre: vec2<f32>, piece: Piece, op: u32, cover: bool, dot: bool) -> vec2<f32> {
     if cover {
-        return vec2<f32>(piece_coverage(centre, piece, op.data[SEGMENT_EDGE]), 0.0);
+        return vec2<f32>(piece_coverage(centre, piece, word(op, SEGMENT_EDGE)), 0.0);
     }
-    return piece_density(centre, piece, u32(op.data[SEGMENT_TIP]) == TIP_BELL, dot);
+    return piece_density(centre, piece, u32(word(op, SEGMENT_TIP)) == TIP_BELL, dot);
 }
 
 // Coverage of a pixel whose centre lies `distance` canvas pixels outside the capsule, measured

@@ -7,11 +7,11 @@
 
 // `cell`: the canvas pixel holding the evaluated centre, for the clip. A point operation, so
 // the same at every output scale.
-fn adjusted(layer: vec4<f32>, cell: vec2<u32>, op: Op) -> vec4<f32> {
+fn adjusted(layer: vec4<f32>, cell: vec2<u32>, op: u32) -> vec4<f32> {
     if clip(cell, op) == 0.0 {
         return layer;
     }
-    let on = u32(op.data[ADJUST_ON]);
+    let on = u32(word(op, ADJUST_ON));
     if on == ADJUST_ON_PAINT {
         if layer.a <= 0.0 {
             return layer;
@@ -30,15 +30,15 @@ fn adjusted(layer: vec4<f32>, cell: vec2<u32>, op: Op) -> vec4<f32> {
     return vec4<f32>(0.0, 0.0, 0.0, 1.0 - grey);
 }
 
-fn adjust_colour(rgb: vec3<f32>, op: Op) -> vec3<f32> {
-    if u32(op.data[ADJUST_KIND]) == ADJUST_KIND_CURVES {
+fn adjust_colour(rgb: vec3<f32>, op: u32) -> vec3<f32> {
+    if u32(word(op, ADJUST_KIND)) == ADJUST_KIND_CURVES {
         return curved(rgb, op);
     }
     return hue_saturation_brightness(
         rgb,
-        op.data[ADJUST_HSB],
-        op.data[ADJUST_HSB + 1u],
-        op.data[ADJUST_HSB + 2u],
+        word(op, ADJUST_HSB),
+        word(op, ADJUST_HSB + 1u),
+        word(op, ADJUST_HSB + 2u),
     );
 }
 
@@ -111,8 +111,8 @@ fn sixths(value: f32) -> f32 {
 // Each channel through its table (S43, D70): linearly between the two entries around the
 // colour's place among the 256, by its fraction, so a smooth gradient through a steep curve
 // stays smooth (rounding to the nearest entry first stepped by the curve's slope).
-fn curved(rgb: vec3<f32>, op: Op) -> vec3<f32> {
-    let at = u32(op.data[ADJUST_TABLES]) * 65536u + u32(op.data[ADJUST_TABLES + 1u]);
+fn curved(rgb: vec3<f32>, op: u32) -> vec3<f32> {
+    let at = u32(word(op, ADJUST_TABLES)) * 65536u + u32(word(op, ADJUST_TABLES + 1u));
     let scaled = clamp(rgb, vec3<f32>(0.0), vec3<f32>(1.0)) * 255.0;
     let below = min(floor(scaled), vec3<f32>(254.0));
     let index = vec3<u32>(below);

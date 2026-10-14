@@ -52,15 +52,15 @@ fn residual_node(drawing: bool, base: u32, at: vec2<i32>) -> Node {
 }
 
 // `centre` in canvas pixels; `cell` the canvas pixel holding it, for the clip.
-fn smudged(before: vec4<f32>, centre: vec2<f32>, cell: vec2<u32>, op: Op) -> vec4<f32> {
+fn smudged(before: vec4<f32>, centre: vec2<f32>, cell: vec2<u32>, op: u32) -> vec4<f32> {
     if clip(cell, op) == 0.0 {
         return before;
     }
     // The in-progress smudge reads its own residual from word 0.
-    let drawing = op.data[SMUDGE_ACTIVE] != 0.0;
+    let drawing = word(op, SMUDGE_ACTIVE) != 0.0;
     var base = 0u;
     if !drawing {
-        base = masks[u32(op.data[SMUDGE_AT]) * 65536u + u32(op.data[SMUDGE_AT + 1u])];
+        base = masks[u32(word(op, SMUDGE_AT)) * 65536u + u32(word(op, SMUDGE_AT + 1u))];
     }
     // The four nodes around the centre, each by its bilinear weight; a zero weight reads none.
     let local = centre - vec2<f32>(0.5);
@@ -84,7 +84,7 @@ fn smudged(before: vec4<f32>, centre: vec2<f32>, cell: vec2<u32>, op: Op) -> vec
         return before;
     }
     var after = a * before + r;
-    if op.data[SMUDGE_LOCKED] != 0.0 {
+    if word(op, SMUDGE_LOCKED) != 0.0 {
         // Alpha Lock keeps the layer's alpha and moves only its colour.
         var rgb = before.rgb;
         if after.a > 1e-6 {

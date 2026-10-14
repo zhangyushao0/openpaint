@@ -18,7 +18,7 @@ use crate::readback::GPU_WAIT;
 const PACED_WORK: u64 = 500;
 
 impl EvaluatePipeline {
-    /// Writes the fresh ops and the plan, then evaluates every plan tile into the target, in
+    /// Writes the plan and the fresh ops (behind the scene's), then evaluates every plan tile into the target, in
     /// runs of at most the bound's work, each submitted on its own.
     pub(crate) fn dispatch(
         &self,
@@ -33,11 +33,13 @@ impl EvaluatePipeline {
         }
         let tiles = work.only.unwrap_or(&work.plan.tiles);
         // A plan kept between evaluations (a preview's, S35) uploads its op lists once.
-        if work.plan.serial == 0 || work.plan.serial != bindings.written {
-            bindings.write(gpu, 1, &work.plan.indices);
-            bindings.written = work.plan.serial;
+        let written = (work.plan.serial, work.ops.count());
+        if work.plan.serial == 0 || written != bindings.written {
+            bindings.write(gpu, 1, &work.ops.entries(&work.plan.indices));
+            bindings.written = written;
         }
-        bindings.write(gpu, 2, work.fresh);
+        // The fresh ops behind the scene's, in the buffer every run binds (S55).
+        let ops = work.ops.with_fresh(gpu, work.fresh);
         let most = if bindings.paced {
             PACED_WORK.min(self.work())
         } else {
@@ -49,7 +51,7 @@ impl EvaluatePipeline {
             gpu.queue
                 .write_buffer(&bindings.params, 0, &encode(&[params]));
             bindings.write(gpu, 0, run);
-            self.bind(gpu, bindings, work);
+            self.bind(gpu, bindings, work, &ops);
             let mut encoder = gpu.device.create_command_encoder(&Default::default());
             // The in-progress stroke starts over before its first run only.
             if work.reset && index == 0 {
@@ -92,16 +94,16 @@ impl EvaluatePipeline {
 
     /// Builds the bind group again when a list grew or another scene, arena, residual or
     /// snapshot is bound.
-    fn bind(&self, gpu: &Gpu, bindings: &mut Bindings, work: &Dispatch<'_>) {
+    fn bind(&self, gpu: &Gpu, bindings: &mut Bindings, work: &Dispatch<'_>, ops: &wgpu::Buffer) {
         let [arena, active] = work.residuals;
         let snapshot = work.snapshot.map_or(&self.no_snapshot, |s| s.buffer);
-        let named = [&work.ops.ops, arena, active, snapshot];
+        let named = [ops, arena, active, snapshot];
         if bindings
             .group
             .as_ref()
             .is_none_or(|(built, _)| built.iter().zip(named).any(|(a, b)| a != b))
         {
-            let group = self.bind_group(gpu, bindings, work.ops, [arena, active, snapshot]);
+            let group = self.bind_group(gpu, bindings, work.ops, named);
             bindings.group = Some((named.map(Clone::clone), group));
         }
     }

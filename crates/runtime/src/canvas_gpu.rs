@@ -33,7 +33,7 @@ impl Canvas {
     /// Brings the target up to date with what the session shows (the current version, or a
     /// fill's preview over it), within one frame's work: what does not fit waits for the next
     /// frames (S49). Committing the stroke being drawn is followed by the evaluator itself
-    /// (D17); any other change passes the pixels that differ between the version shown before it
+    /// (D82); any other change passes the pixels that differ between the version shown before it
     /// and the one shown now; the first evaluation covers the whole canvas.
     pub(crate) fn evaluate(&mut self, core: &Core) -> Result<(), RuntimeError> {
         self.evaluated_now(core, true)

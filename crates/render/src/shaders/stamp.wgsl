@@ -26,34 +26,26 @@ struct Stamping {
     reach: f32,
 }
 
-// The op `entry` names: a scene op, or with `FRESH` one of this evaluation's.
-fn op_at(entry: u32) -> Op {
-    if entry >= FRESH {
-        return fresh[entry - FRESH];
-    }
-    return ops[entry];
-}
-
-fn stamping(paint: Op) -> Stamping {
-    let code = u32(paint.data[PAINT_STAMP + 1u]);
+fn stamping(paint: u32) -> Stamping {
+    let code = u32(word(paint, PAINT_STAMP + 1u));
     let shape = code % ROTATIONS;
-    let aspect = paint.data[PAINT_STAMP + 2u];
-    let scatter = paint.data[PAINT_STAMP + 3u];
-    let size_jitter = paint.data[PAINT_STAMP + 4u];
+    let aspect = word(paint, PAINT_STAMP + 2u);
+    let scatter = word(paint, PAINT_STAMP + 3u);
+    let size_jitter = word(paint, PAINT_STAMP + 4u);
     var extent = 1.0;
     if shape == STAMP_SQUARE || shape >= STAMP_TEXTURE {
         extent = sqrt(aspect * aspect + 1.0);
     }
-    let seed = u32(paint.data[PAINT_STAMP + 7u]) * 65536u + u32(paint.data[PAINT_STAMP + 8u]);
+    let seed = u32(word(paint, PAINT_STAMP + 7u)) * 65536u + u32(word(paint, PAINT_STAMP + 8u));
     return Stamping(
-        paint.data[PAINT_STAMP],
+        word(paint, PAINT_STAMP),
         shape,
         code / ROTATIONS,
         aspect,
         scatter,
         size_jitter,
-        paint.data[PAINT_STAMP + 5u],
-        paint.data[PAINT_STAMP + 6u],
+        word(paint, PAINT_STAMP + 5u),
+        word(paint, PAINT_STAMP + 6u),
         seed,
         (1.0 + size_jitter) * extent + 1.4142135 * scatter,
     );
@@ -61,38 +53,38 @@ fn stamping(paint: Op) -> Stamping {
 
 // How many chords a span's stamps lie along: the span's pieces at the canvas's own scale, at
 // most STAMP_CHORDS.
-fn stamp_chords(op: Op) -> u32 {
-    if op.data[SEGMENT_FLAT] <= TOLERANCE {
+fn stamp_chords(op: u32) -> u32 {
+    if word(op, SEGMENT_FLAT) <= TOLERANCE {
         return 1u;
     }
-    let count = ceil(sqrt(op.data[SEGMENT_BEND] / TOLERANCE));
+    let count = ceil(sqrt(word(op, SEGMENT_BEND) / TOLERANCE));
     return clamp(u32(min(count, f32(STAMP_CHORDS))), 1u, STAMP_CHORDS);
 }
 
 // Chord k's start among `chords` of the span.
-fn chord_point(op: Op, k: u32, chords: u32) -> vec2<f32> {
+fn chord_point(op: u32, k: u32, chords: u32) -> vec2<f32> {
     if k == 0u {
-        return vec2<f32>(op.data[0], op.data[1]);
+        return vec2<f32>(word(op, 0), word(op, 1));
     }
     if k == chords {
-        return vec2<f32>(op.data[2], op.data[3]);
+        return vec2<f32>(word(op, 2), word(op, 3));
     }
     return span_point(op, f32(k) / f32(chords));
 }
 
 // What a stamped span lays at `centre`: x its coverage (covering) or density (accumulating).
-fn stamps_laid(centre: vec2<f32>, op: Op, entry: u32) -> vec2<f32> {
-    let first = op.data[STAMP_FIRST];
-    let last = op.data[STAMP_LAST];
+fn stamps_laid(centre: vec2<f32>, op: u32) -> vec2<f32> {
+    let first = word(op, STAMP_FIRST);
+    let last = word(op, STAMP_LAST);
     if last < first {
         return vec2<f32>(0.0);
     }
-    let s = stamping(op_at(entry + bitcast<u32>(i32(op.data[STAMP_PAINT]))));
+    let s = stamping(op + bitcast<u32>(i32(word(op, STAMP_PAINT))));
     var margin = 0.5 * foot_inverse + 0.01;
     if s.shape >= STAMP_TEXTURE {
         margin += 2.0 * foot_inverse;
     }
-    let reach = max(op.data[4], op.data[5]) * s.reach + margin;
+    let reach = max(word(op, 4), word(op, 5)) * s.reach + margin;
     let chords = stamp_chords(op);
     // The chords' lengths and the share of the stroke's length per length along them.
     var total = 0.0;
@@ -103,7 +95,7 @@ fn stamps_laid(centre: vec2<f32>, op: Op, entry: u32) -> vec2<f32> {
         head = to;
     }
     var ratio = 1.0;
-    let chord = distance(vec2<f32>(op.data[0], op.data[1]), vec2<f32>(op.data[2], op.data[3]));
+    let chord = distance(vec2<f32>(word(op, 0), word(op, 1)), vec2<f32>(word(op, 2), word(op, 3)));
     if chords > 1u && chord > 0.0 {
         ratio = total / chord;
     }
@@ -120,7 +112,7 @@ fn stamps_laid(centre: vec2<f32>, op: Op, entry: u32) -> vec2<f32> {
             let chord_of = Chord(head, to, start, extent, k, chords, ratio);
             let one = chord_stamps(centre, op, s, chord_of, vec3<f32>(first, last, reach));
             taken += u32(one.y);
-            if u32(op.data[SEGMENT_TIP]) == TIP_COVER {
+            if u32(word(op, SEGMENT_TIP)) == TIP_COVER {
                 laid = max(laid, one.x);
             } else {
                 laid += one.x;
@@ -147,13 +139,13 @@ struct Chord {
 // The stamps of chord `c` near `centre`: x what they lay (their largest coverage, or their
 // summed density), y how many were taken. `window` holds the span's first and last stamps and
 // the reach.
-fn chord_stamps(centre: vec2<f32>, op: Op, s: Stamping, c: Chord, window: vec3<f32>) -> vec2<f32> {
+fn chord_stamps(centre: vec2<f32>, op: u32, s: Stamping, c: Chord, window: vec3<f32>) -> vec2<f32> {
     var u = 0.0;
     if c.length > 0.0 {
         u = clamp(dot(centre - c.head, c.to - c.head) / (c.length * c.length), 0.0, 1.0);
     }
     let near = c.start + u * c.length;
-    let arc = op.data[STAMP_ARC];
+    let arc = word(op, STAMP_ARC);
     // The stamps placed within the reach of `near`, along the chords.
     var low = max(window.x, floor((arc + (near - window.z) / c.ratio) / s.step));
     var high = min(window.y, ceil((arc + (near + window.z) / c.ratio) / s.step));
@@ -162,7 +154,7 @@ fn chord_stamps(centre: vec2<f32>, op: Op, s: Stamping, c: Chord, window: vec3<f
         low = max(low, middle - f32(MAX_STAMPS / 2u));
         high = min(high, low + f32(MAX_STAMPS - 1u));
     }
-    let cover = u32(op.data[SEGMENT_TIP]) == TIP_COVER;
+    let cover = u32(word(op, SEGMENT_TIP)) == TIP_COVER;
     var laid = 0.0;
     var taken = 0.0;
     for (var n = low; n <= high; n += 1.0) {
@@ -192,9 +184,9 @@ fn chord_stamps(centre: vec2<f32>, op: Op, s: Stamping, c: Chord, window: vec3<f
 
 // What stamp `n`, placed on the path at `at.xy`, `at.z` of the way through its span, lays at
 // `centre`: its shape's coverage times the flow there.
-fn stamp_laid(centre: vec2<f32>, op: Op, s: Stamping, at: vec3<f32>, n: u32) -> f32 {
+fn stamp_laid(centre: vec2<f32>, op: u32, s: Stamping, at: vec3<f32>, n: u32) -> f32 {
     let t = at.z;
-    let radius = op.data[4] + (op.data[5] - op.data[4]) * t;
+    let radius = word(op, 4) + (word(op, 5) - word(op, 4)) * t;
     // Beyond its reach (and a texture's mip spread) it lays nothing.
     if distance(centre, at.xy) > radius * s.reach + 3.0 * foot_inverse {
         return 0.0;
@@ -217,28 +209,27 @@ fn stamp_laid(centre: vec2<f32>, op: Op, s: Stamping, at: vec3<f32>, n: u32) -> 
     let offset = centre - place;
     let x = vec2<f32>(cos(turn), sin(turn));
     let q = vec2<f32>(dot(offset, x), dot(offset, vec2<f32>(-x.y, x.x)));
-    let flow = op.data[SEGMENT_FLOW] + (op.data[SEGMENT_FLOW + 1u] - op.data[SEGMENT_FLOW]) * t;
-    return stamp_alpha(q, size, s, op.data[SEGMENT_EDGE]) * flow;
+    let flow = word(op, SEGMENT_FLOW) + (word(op, SEGMENT_FLOW + 1u) - word(op, SEGMENT_FLOW)) * t;
+    return stamp_alpha(q, size, s, word(op, SEGMENT_EDGE)) * flow;
 }
 
 // Four numbers in 0..1 for stamp `index` of seed `seed`: `openpaint_core::jitter`, exactly.
+// Straight-line (S55): filled through a loop index it cost the Adreno 6 to 14 % more.
 fn stamp_jitter(seed: u32, index: u32) -> vec4<f32> {
-    var hash = pcg(index ^ pcg(seed));
-    var units = vec4<f32>(0.0);
-    for (var k = 0u; k < 4u; k++) {
-        units[k] = f32(hash >> 8u) * (1.0 / 16777216.0);
-        hash = pcg(hash);
-    }
-    return units;
+    let h0 = pcg(index ^ pcg(seed));
+    let h1 = pcg(h0);
+    let h2 = pcg(h1);
+    let h3 = pcg(h2);
+    return vec4<f32>(vec4<u32>(h0, h1, h2, h3) >> vec4<u32>(8u)) * (1.0 / 16777216.0);
 }
 
 // The span's direction at parameter `t` as an angle: the curve's tangent, or its chord where
 // the tangent vanishes (a span whose end knots coincide points along the canvas's x axis).
-fn path_angle(op: Op, t: f32) -> f32 {
-    let a = vec2<f32>(op.data[0], op.data[1]);
-    let b = vec2<f32>(op.data[2], op.data[3]);
-    let c1 = vec2<f32>(op.data[SEGMENT_CONTROLS], op.data[SEGMENT_CONTROLS + 1u]);
-    let c2 = vec2<f32>(op.data[SEGMENT_CONTROLS + 2u], op.data[SEGMENT_CONTROLS + 3u]);
+fn path_angle(op: u32, t: f32) -> f32 {
+    let a = vec2<f32>(word(op, 0), word(op, 1));
+    let b = vec2<f32>(word(op, 2), word(op, 3));
+    let c1 = vec2<f32>(word(op, SEGMENT_CONTROLS), word(op, SEGMENT_CONTROLS + 1u));
+    let c2 = vec2<f32>(word(op, SEGMENT_CONTROLS + 2u), word(op, SEGMENT_CONTROLS + 3u));
     let s = 1.0 - t;
     var tangent = (c1 - a) * s * s + 2.0 * (c2 - c1) * s * t + (b - c2) * t * t;
     if dot(tangent, tangent) <= 1e-12 {
@@ -251,9 +242,9 @@ fn path_angle(op: Op, t: f32) -> f32 {
 }
 
 // The pen's azimuth `t` of the way through the span, turning the short way between its knots'.
-fn stamp_azimuth(op: Op, t: f32) -> f32 {
-    let head = op.data[SEGMENT_CONTACT];
-    var turn = op.data[SEGMENT_CONTACT + 1u] - head;
+fn stamp_azimuth(op: u32, t: f32) -> f32 {
+    let head = word(op, SEGMENT_CONTACT);
+    var turn = word(op, SEGMENT_CONTACT + 1u) - head;
     turn -= 6.2831855 * round(turn / 6.2831855);
     return head + turn * t;
 }

@@ -10,7 +10,7 @@
 //! The in-progress smudge extends its residual by the contacts its settled spans add, with the
 //! very contacts and tiles a cold evaluation of the same samples applies, so both are bit for
 //! bit equal; on commit the residual moves into the target's arena (`arena.rs`) unchanged. A
-//! residual is derived and owned by its canvas target (D17); it is rebuilt from the artwork
+//! residual is derived and owned by its canvas target (D82); it is rebuilt from the artwork
 //! whenever it is missing (another target, a reopened artwork, a redo after it was dropped).
 //!
 //! The residuals share their arena with the filters' results (S33, `filter.rs`), prepared with

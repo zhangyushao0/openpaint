@@ -92,6 +92,13 @@ pub fn brushes() -> Vec<(&'static str, BrushRecipe, f32)> {
             40.0,
         ),
         ("speckle", speckle, 12.0),
+        // S55: stamps 6.4 px apart, wider than most spans, so many hold none and are listed
+        // in no tile.
+        (
+            "opaque paint at 80",
+            stamped(opaque, &flat, &[[0.0, 0.3], [1.0, 1.0]]),
+            80.0,
+        ),
     ]
 }
 

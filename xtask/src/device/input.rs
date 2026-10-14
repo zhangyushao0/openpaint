@@ -25,7 +25,9 @@
 //!   a soft grey ramp from sRGB 100 to 120, its upper half at 8 bits, its lower at the window's
 //!   ten;
 //! - `lose-device`: no gesture; the GPU device destroyed under the app as a driver reset loses it
-//!   (S49), so the app makes its renderer again.
+//!   (S49), so the app makes its renderer again;
+//! - `bench [scene]`: no gesture; the evaluator's micro-benchmark on the device's GPU (S55), every
+//!   scene or the one named, a line per scene and scale (also in the app's log).
 
 use super::adb::{Adb, DeviceError, Result};
 use super::check::wake;
@@ -40,6 +42,8 @@ pub fn input(args: &[String]) -> Result<()> {
     let output = instrument(&adb, &extras)?;
     if let Some(state) = answer(&output, "state") {
         state.split('\t').for_each(|field| println!("  {field}"));
+    } else if let Some(lines) = answer(&output, "bench") {
+        lines.split('\t').for_each(|line| println!("{line}"));
     } else if let Some(found) = answer(&output, "found") {
         println!("found {found}");
     } else if let Some(tapped) = answer(&output, "tapped") {
@@ -100,7 +104,8 @@ const INPUT_USAGE: &str = "cargo device-input \
                            | finger x,y[,...] [x,y[,...] [ms]] \
                            | hover x,y [ms] [primary|secondary|tertiary|eraser] \
                            | tap <control name> | drag <control name> x,y [ms] \
-                           | find <control name> | state | gradient on|off | lose-device";
+                           | find <control name> | state | gradient on|off | lose-device \
+                           | bench [scene]";
 
 /// A control's name for the device's shell, which reads the line: in single quotes, so none
 /// inside.
@@ -126,6 +131,8 @@ pub(super) fn extras(args: &[&str]) -> Result<Vec<(&'static str, String)>> {
         ["state"] => return one("state", "1".to_owned()),
         ["gradient", state @ ("on" | "off")] => return one("gradient", (*state).to_owned()),
         ["lose-device"] => return one("lose", "device".to_owned()),
+        ["bench"] => return one("bench", "all".to_owned()),
+        ["bench", scene] => return one("bench", quoted(scene)?),
         ["drag", name, to, rest @ ..]
             if rest.len() <= 1 && args[2..].iter().all(|a| numbers(a)) =>
         {
@@ -220,6 +227,10 @@ mod tests {
         assert_eq!(tap, [("tap", "'Move layer up'".to_owned())]);
         let lose = extras(&["lose-device"]).expect("lose");
         assert_eq!(lose, [("lose", "device".to_owned())]);
+        let bench = extras(&["bench"]).expect("bench");
+        assert_eq!(bench, [("bench", "all".to_owned())]);
+        let speckle = extras(&["bench", "speckle"]).expect("one scene");
+        assert_eq!(speckle, [("bench", "'speckle'".to_owned())]);
         assert!(extras(&["tap", "it's"]).is_err());
         let gradient = extras(&["gradient", "on"]).expect("gradient");
         assert_eq!(gradient, [("gradient", "on".to_owned())]);

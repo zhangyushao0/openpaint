@@ -1,8 +1,9 @@
 //! For debug builds: finds a control on screen by its name for the dev machine's
 //! `cargo device-input tap <name>` (D48's names, as scenarios use them), says what the app shows
 //! (`device-input state`, the device smoke, S52), turns the screen's
-//! precision check on and off (`gradient on|off`, S37) and loses the GPU device on purpose
-//! (`lose-device`, S49). Only Kotlin's debug source set declares
+//! precision check on and off (`gradient on|off`, S37), loses the GPU device on purpose
+//! (`lose-device`, S49) and runs the evaluator's micro-benchmark (`bench`, S55). Only Kotlin's
+//! debug source set declares
 //! them (`DebugControls`, called from `GestureInstrumentation` on the main thread); the library
 //! is built with the release profile for every APK, so a release APK carries these symbols with
 //! nothing that can call them.
@@ -113,6 +114,34 @@ pub extern "system" fn Java_dev_openpaint_DebugControls_loseDevice<'local>(
         Ok(())
     })
     .resolve::<LogErrorAndDefault>();
+}
+
+/// For `cargo device-input bench [scene]` (S55): the evaluator's micro-benchmark on this
+/// device's GPU (`openpaint_runtime::bench`), every scene or the one named (`all`: every one),
+/// run here on the main thread so no frame shares the GPU with it; each line written to the
+/// log, and all of them returned separated by tabs.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_openpaint_DebugControls_bench<'local>(
+    mut env: EnvUnowned<'local>,
+    _class: JClass<'local>,
+    scene: JString<'local>,
+) -> JObject<'local> {
+    env.with_env(|env| -> Result<JObject<'local>, HostError> {
+        let scene = scene.try_to_string(env)?;
+        let only = (scene != "all").then_some(scene.as_str());
+        let lines = match runtime(HANDLE.load(Ordering::SeqCst)) {
+            None => vec!["no runtime".to_owned()],
+            Some(runtime) => match openpaint_runtime::bench(&runtime.core(), only) {
+                Ok(lines) => lines,
+                Err(error) => vec![format!("bench failed: {error}")],
+            },
+        };
+        for line in &lines {
+            log::info!("bench: {line}");
+        }
+        Ok(env.new_string(lines.join("\t"))?.into())
+    })
+    .resolve::<LogErrorAndDefault>()
 }
 
 /// For `cargo device-input gradient on|off` (S37): the screen's precision check on or off, and

@@ -3,7 +3,7 @@
 //! Textured Round strokes over one place opened: the whole canvas went to the GPU at once and ran
 //! for seconds. So every evaluation's tiles are cut into runs whose estimated work stays within a
 //! bound, each run dispatched and submitted on its own, in order. A pixel's value never depends on
-//! which tiles are evaluated with it (D16), so a bounded evaluation equals one dispatch bit for bit.
+//! which tiles are evaluated with it (D82), so a bounded evaluation equals one dispatch bit for bit.
 //!
 //! The estimate counts what the evaluator walks: every op a tile lists, and the tile itself, each
 //! costed as the costliest op measured on the tablet, a Textured Round span: 33 ns a pixel on the

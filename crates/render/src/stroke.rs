@@ -68,8 +68,13 @@ impl Segment {
 
     /// Coverage and density are zero from half a pixel outside every capsule it is flattened
     /// into, whatever its edge or tip: the curve lies in the hull of its four points. A stamp
-    /// lies on the curve, and its shape and scatter reach no farther than its `reach`.
+    /// lies on the curve, and its shape and scatter reach no farther than its `reach`. A stamped
+    /// span holding no stamp (spacing wider than the span, S55) lays nothing anywhere: empty
+    /// bounds, so no tile lists it (`stamps_laid` returns zero for it at once).
     pub(crate) fn bounds(&self) -> Bounds {
+        if (self.operands.stamps).is_some_and(|stamps| stamps.last < stamps.first) {
+            return Bounds::NOTHING;
+        }
         let [ra, rb] = self.operands.radii;
         let [radii, beyond] = self.reach;
         self.hull(ra.max(rb) * radii + REACH + beyond)
@@ -300,7 +305,12 @@ pub(crate) fn span_regions<'a>(
         let reach = smudge_reach(style, samples, path, range);
         return Box::new(reach.map(|bounds| bounds.pixels()));
     }
-    Box::new(spans(style, samples, path, range).map(|segment| segment.bounds().pixels()))
+    let bounds = spans(style, samples, path, range).map(|segment| segment.bounds());
+    Box::new(
+        bounds
+            .filter(|bounds| !bounds.is_empty())
+            .map(|bounds| bounds.pixels()),
+    )
 }
 
 /// What a stroke is at one sample.

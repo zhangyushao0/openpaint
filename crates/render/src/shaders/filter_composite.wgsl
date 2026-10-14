@@ -5,18 +5,18 @@
 // result at canvas resolution, enlarged). Pixels past the canvas take its edge pixel, as the
 // filter read them. Outside its block the layer was transparent before the filter and stays.
 
-fn filtered(layer: vec4<f32>, point: vec2<f32>, cell: vec2<u32>, op: Op) -> vec4<f32> {
+fn filtered(layer: vec4<f32>, point: vec2<f32>, cell: vec2<u32>, op: u32) -> vec4<f32> {
     if clip(cell, op) == 0.0 {
         return layer;
     }
-    let base = masks[u32(op.data[FILTER_AT]) * 65536u + u32(op.data[FILTER_AT + 1u])];
+    let base = masks[u32(word(op, FILTER_AT)) * 65536u + u32(word(op, FILTER_AT + 1u))];
     let origin = vec2<i32>(i32(arena[base]), i32(arena[base + 1u]));
     let size = vec2<i32>(i32(arena[base + 2u]), i32(arena[base + 3u]));
     let at = vec2<i32>(cell);
     if any(at < origin) || any(at >= origin + size) {
         return layer;
     }
-    let last = vec2<i32>(i32(op.data[FILTER_CANVAS]), i32(op.data[FILTER_CANVAS + 1u])) - 1;
+    let last = vec2<i32>(i32(word(op, FILTER_CANVAS)), i32(word(op, FILTER_CANVAS + 1u))) - 1;
     let local = point - vec2<f32>(0.5);
     let corner = floor(local);
     let t = local - corner;

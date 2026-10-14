@@ -123,7 +123,6 @@ pub(super) fn evaluate_layout(
             buffer_entry(2, read_only),
             buffer_entry(3, read_only),
             texture_entry(4, wgpu::StorageTextureAccess::WriteOnly, FORMAT),
-            buffer_entry(5, read_only),
             kept(6),
             buffer_entry(7, read_only),
             kept(8),

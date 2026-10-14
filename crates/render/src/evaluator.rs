@@ -376,21 +376,22 @@ mod scene_cache;
 pub use scene_cache::EvaluationWork;
 use scene_cache::SceneCache;
 
-#[path = "evaluator_layer.rs"]
-mod layer;
-
 #[path = "evaluator_background.rs"]
 mod background;
-
-#[path = "evaluator_residuals.rs"]
-mod residuals;
-
 #[path = "evaluator_budget.rs"]
 mod budget;
+#[path = "evaluator_layer.rs"]
+mod layer;
+#[path = "evaluator_residuals.rs"]
+mod residuals;
 
 #[path = "evaluator_cache.rs"]
 mod cache;
 pub use cache::CanvasCopy;
+
+#[path = "evaluator_bench.rs"]
+mod bench;
+pub use bench::{Listed, Timed};
 
 #[cfg(test)]
 #[path = "evaluator_display_tests.rs"]

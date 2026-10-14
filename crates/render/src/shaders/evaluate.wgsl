@@ -11,11 +11,12 @@
 // spans, which later samples may still change (`OP_TAIL`), continue a copy and are never kept.
 
 @group(0) @binding(0) var<uniform> params: Params;
+// The scene's ops, then the evaluation's fresh ops (the in-progress stroke's, an `OP_RESUME`,
+// a material's end): read one operand at a time where it is used (`word`), never a whole op.
 @group(0) @binding(1) var<storage, read> ops: array<Op>;
 @group(0) @binding(2) var<storage, read> tiles: array<Tile>;
 @group(0) @binding(3) var<storage, read> indices: array<u32>;
 @group(0) @binding(4) var canvas_out: texture_storage_2d<rgba8unorm, write>;
-@group(0) @binding(5) var<storage, read> fresh: array<Op>;
 @group(0) @binding(6) var kept: texture_storage_2d<r32float, read_write>;
 @group(0) @binding(7) var<storage, read> masks: array<u32>;
 @group(0) @binding(8) var kept_contact: texture_storage_2d<r32float, read_write>;
@@ -95,13 +96,14 @@ fn evaluate(
     var tail = vec2<f32>(0.0);
     var tailed = false;
     for (var i = tile.start; i < tile.start + tile.count; i++) {
+        // A fresh op's entry carries the `FRESH` bit and its place behind the scene's ops.
         let entry = indices[i];
-        var op: Op;
+        let op = entry & ~FRESH;
+        let code = ops[op].code;
         if entry >= FRESH {
-            op = fresh[entry - FRESH];
             // `OP_RESUME`, the layer before the stroke from its snapshot (S48), comes before the
             // stroke's own ops and holds no stroke.
-            if !resumed && op.code != OP_RESUME {
+            if !resumed && code != OP_RESUME {
                 if params.kept == 1u {
                     // Every other fresh op is the in-progress stroke's, after its layer's
                     // finished strokes, so nothing is held here yet. A target that keeps
@@ -111,13 +113,11 @@ fn evaluate(
                 }
                 resumed = true;
             }
-        } else {
-            op = ops[entry];
         }
-        switch op.code {
+        switch code {
             case OP_SEGMENT: {
-                let laid = span_laid(point, op, entry);
-                if u32(op.data[SEGMENT_TIP]) == TIP_COVER {
+                let laid = span_laid(point, op);
+                if u32(word(op, SEGMENT_TIP)) == TIP_COVER {
                     coverage = max(coverage, laid.x);
                 } else {
                     coverage += laid.x;
@@ -131,8 +131,8 @@ fn evaluate(
                     tail = vec2<f32>(coverage, contact);
                     tailed = true;
                 }
-                let laid = span_laid(point, op, entry);
-                if u32(op.data[SEGMENT_TIP]) == TIP_COVER {
+                let laid = span_laid(point, op);
+                if u32(word(op, SEGMENT_TIP)) == TIP_COVER {
                     tail.x = max(tail.x, laid.x);
                 } else {
                     tail = vec2<f32>(tail.x + laid.x, max(tail.y, laid.y));
@@ -159,7 +159,7 @@ fn evaluate(
             }
             case OP_FILL: {
                 let covered = fill_coverage(point, cell, op);
-                layer = blend(paint_color(covered * op.data[PAINT_OPACITY], op), layer, op);
+                layer = blend(paint_color(covered * word(op, PAINT_OPACITY), op), layer, op);
             }
             case OP_PATCH: {
                 layer = over(patch_sample(point, op), layer);
@@ -169,14 +169,14 @@ fn evaluate(
             }
             case OP_FRAME: {
                 point = vec2<f32>(
-                    op.data[0] * based.x + op.data[1] * based.y + op.data[2],
-                    op.data[3] * based.x + op.data[4] * based.y + op.data[5],
+                    word(op, 0) * based.x + word(op, 1) * based.y + word(op, 2),
+                    word(op, 3) * based.x + word(op, 4) * based.y + word(op, 5),
                 );
                 cell = vec2<u32>(max(floor(point), vec2<f32>(0.0)));
-                let foot = params.base_x.w * op.data[FRAME_FOOT];
+                let foot = params.base_x.w * word(op, FRAME_FOOT);
                 foot_scale = params.scale * foot;
                 foot_inverse = params.inverse / foot;
-                foot_level = params.level + params.base_y.w + op.data[FRAME_LEVEL];
+                foot_level = params.level + params.base_y.w + word(op, FRAME_LEVEL);
             }
             case OP_BEGIN_MOVE: {
                 if STACKED {
@@ -187,7 +187,7 @@ fn evaluate(
             }
             case OP_END_MOVE: {
                 layer = layer * moved_share(point, cell, op);
-                if op.data[MOVE_ASIDE] > 0.0 {
+                if word(op, MOVE_ASIDE) > 0.0 {
                     depth -= 1u;
                     if STACKED {
                         layer = over(layer, moves[min(depth, MOVE_DEPTH - 1u)]);
@@ -209,11 +209,11 @@ fn evaluate(
                 layer = vec4<f32>(0.0);
             }
             case OP_END_LAYER: {
-                let shown = masked(layer, held, u32(op.data[LAYER_MASK]));
+                let shown = masked(layer, held, u32(word(op, LAYER_MASK)));
                 held = vec4<f32>(0.0);
-                let source = shown * op.data[0];
-                let mode = u32(op.data[LAYER_MODE]);
-                switch u32(op.data[LAYER_INTO]) {
+                let source = shown * word(op, 0);
+                let mode = u32(word(op, LAYER_MODE));
+                switch u32(word(op, LAYER_INTO)) {
                     case INTO_BASE: {
                         chain = shown;
                     }
@@ -221,7 +221,7 @@ fn evaluate(
                         chain = clipped(source, chain, mode);
                     }
                     default: {
-                        if op.data[LAYER_GROUPED] > 0.0 && !opened {
+                        if word(op, LAYER_GROUPED) > 0.0 && !opened {
                             backdrop = canvas;
                             opened = true;
                         }
@@ -234,35 +234,35 @@ fn evaluate(
                 // A merged layer's content (S39) as it ended before the merge, onto what its
                 // layer held before it (set aside at its start, else nothing): the same
                 // expressions as a layer's end into the canvas or its chain.
-                let source = masked(layer, held, u32(op.data[LAYER_MASK])) * op.data[0];
+                let source = masked(layer, held, u32(word(op, LAYER_MASK))) * word(op, 0);
                 held = vec4<f32>(0.0);
                 var under = vec4<f32>(0.0);
-                if op.data[NESTED_ASIDE] > 0.0 {
+                if word(op, NESTED_ASIDE) > 0.0 {
                     depth -= 1u;
                     if STACKED {
                         under = moves[min(depth, MOVE_DEPTH - 1u)];
                     }
                 }
-                let mode = u32(op.data[LAYER_MODE]);
-                if u32(op.data[LAYER_INTO]) == INTO_CLIPPED {
+                let mode = u32(word(op, LAYER_MODE));
+                if u32(word(op, LAYER_INTO)) == INTO_CLIPPED {
                     layer = clipped(source, under, mode);
                 } else {
                     layer = composite(source, under, mode);
                 }
             }
             case OP_END_CHAIN: {
-                if op.data[LAYER_GROUPED] > 0.0 && !opened {
+                if word(op, LAYER_GROUPED) > 0.0 && !opened {
                     backdrop = canvas;
                     opened = true;
                 }
-                canvas = composite(chain * op.data[0], canvas, u32(op.data[LAYER_MODE]));
+                canvas = composite(chain * word(op, 0), canvas, u32(word(op, LAYER_MODE)));
                 chain = vec4<f32>(0.0);
             }
             case OP_END_GROUP: {
                 // Pass-through: the layers composited onto what lay under the group, then the
                 // group's opacity between that and what lay under it (1: exactly the former).
                 if opened {
-                    canvas = canvas * op.data[0] + backdrop * (1.0 - op.data[0]);
+                    canvas = canvas * word(op, 0) + backdrop * (1.0 - word(op, 0));
                     opened = false;
                 }
             }
@@ -281,6 +281,12 @@ fn evaluate(
     textureStore(canvas_out, pixel, quantized(canvas));
 }
 
+// Operand `k` of op `op` (S55): read where it is used. Copying each listed op whole (24 words)
+// held it in registers and made stamped spans and smudges up to twice as slow on the Adreno.
+fn word(op: u32, k: u32) -> f32 {
+    return ops[op].data[k];
+}
+
 // Where canvas pixel `pixel` lies in the snapshot (`snapshot.rs`): its tile's slot, from the
 // table of slots per tile ahead of them (one element each, the slot in `x`: a vector indexed by a
 // variable made NVIDIA's evaluator unstable in single pixels, S48), then its place in the tile.
@@ -294,12 +300,12 @@ fn snapshot_at(pixel: vec2<u32>) -> u32 {
 // What of a transform record's moved content shows at `point` (where the centre maps back
 // to): 1 inside its selection's mask, or for the whole layer inside the canvas, else 0. What
 // was lifted came from the canvas only, as the layer's pixels did before S31.
-fn moved_share(point: vec2<f32>, cell: vec2<u32>, op: Op) -> f32 {
-    let canvas = vec2<f32>(op.data[MOVE_CANVAS], op.data[MOVE_CANVAS + 1u]);
+fn moved_share(point: vec2<f32>, cell: vec2<u32>, op: u32) -> f32 {
+    let canvas = vec2<f32>(word(op, MOVE_CANVAS), word(op, MOVE_CANVAS + 1u));
     if any(point < vec2<f32>(0.0)) || any(point >= canvas) {
         return 0.0;
     }
-    let at = u32(op.data[MOVE_MASK]) * 65536u + u32(op.data[MOVE_MASK + 1u]);
+    let at = u32(word(op, MOVE_MASK)) * 65536u + u32(word(op, MOVE_MASK + 1u));
     if at == 0u {
         return 1.0;
     }
@@ -325,27 +331,27 @@ fn masked(layer: vec4<f32>, held: vec4<f32>, masking: u32) -> vec4<f32> {
 // (the grain and the clip are canvas pixels: nearest at a scale above 1). A covering
 // stroke's coverage is `held` itself; an accumulating one's comes from its density
 // (`deposit_coverage`). Without grain the factor is exactly 1.
-fn stroke_paint(held: f32, contact: f32, centre: vec2<f32>, pixel: vec2<u32>, op: Op) -> vec4<f32> {
+fn stroke_paint(held: f32, contact: f32, centre: vec2<f32>, pixel: vec2<u32>, op: u32) -> vec4<f32> {
     var coverage = held;
-    if op.data[PAINT_DENSITY] > 0.0 {
+    if word(op, PAINT_DENSITY) > 0.0 {
         coverage = deposit_coverage(held, contact, centre, op);
     }
-    return paint_color(coverage * grain(pixel, op) * clip(pixel, op) * op.data[PAINT_OPACITY], op);
+    return paint_color(coverage * grain(pixel, op) * clip(pixel, op) * word(op, PAINT_OPACITY), op);
 }
 
 // 1 where a stroke drawn inside a selection may paint (the selection's mask holds `pixel`) or
 // where it has no selection, else 0: zero paint, which leaves the layer exactly as it was.
-fn clip(pixel: vec2<u32>, op: Op) -> f32 {
-    let at = u32(op.data[PAINT_CLIP]) * 65536u + u32(op.data[PAINT_CLIP + 1u]);
+fn clip(pixel: vec2<u32>, op: u32) -> f32 {
+    let at = u32(word(op, PAINT_CLIP)) * 65536u + u32(word(op, PAINT_CLIP + 1u));
     if at == 0u {
         return 1.0;
     }
     return mask_bit(pixel, at - 1u);
 }
 
-// The op's colour (`op.data[0..3]`) at `alpha`, premultiplied.
-fn paint_color(alpha: f32, op: Op) -> vec4<f32> {
-    return vec4<f32>(vec3<f32>(op.data[0], op.data[1], op.data[2]) * alpha, alpha);
+// The op's colour (`word(op, 0..3)`) at `alpha`, premultiplied.
+fn paint_color(alpha: f32, op: u32) -> vec4<f32> {
+    return vec4<f32>(vec3<f32>(word(op, 0), word(op, 1), word(op, 2)) * alpha, alpha);
 }
 
 // 1 where the mask starting at word `at` of `masks` holds `pixel`, else 0. A mask is its
@@ -365,11 +371,11 @@ fn mask_bit(pixel: vec2<u32>, at: u32) -> f32 {
 // A transform's patch where the pixel centre maps back to: bilinear between the four nearest
 // patch pixels (premultiplied), transparent beyond the patch's edge. A centre that maps onto a
 // pixel's centre gets that pixel exactly, so in place nothing changes.
-fn patch_sample(centre: vec2<f32>, op: Op) -> vec4<f32> {
-    let at = u32(op.data[PATCH_AT]) * 65536u + u32(op.data[PATCH_AT + 1u]);
+fn patch_sample(centre: vec2<f32>, op: u32) -> vec4<f32> {
+    let at = u32(word(op, PATCH_AT)) * 65536u + u32(word(op, PATCH_AT + 1u));
     let source = vec2<f32>(
-        op.data[0] * centre.x + op.data[1] * centre.y + op.data[2],
-        op.data[3] * centre.x + op.data[4] * centre.y + op.data[5],
+        word(op, 0) * centre.x + word(op, 1) * centre.y + word(op, 2),
+        word(op, 3) * centre.x + word(op, 4) * centre.y + word(op, 5),
     );
     let origin = vec2<f32>(f32(patches[at]), f32(patches[at + 1u]));
     let local = source - origin - vec2<f32>(0.5);
@@ -443,8 +449,8 @@ fn clipped(source: vec4<f32>, chain: vec4<f32>, mode: u32) -> vec4<f32> {
 // atop it (Alpha Lock: the colour changes only where the layer has alpha, and the alpha stays);
 // or erasing (the layer keeps `1 - alpha` of itself). Zero paint leaves the layer exactly as
 // it was in every case, as the scene's bounds require.
-fn blend(paint: vec4<f32>, layer: vec4<f32>, op: Op) -> vec4<f32> {
-    switch u32(op.data[PAINT_BLEND]) {
+fn blend(paint: vec4<f32>, layer: vec4<f32>, op: u32) -> vec4<f32> {
+    switch u32(word(op, PAINT_BLEND)) {
         case BLEND_ATOP: {
             return paint * layer.a + layer * (1.0 - paint.a);
         }
@@ -462,12 +468,12 @@ fn blend(paint: vec4<f32>, layer: vec4<f32>, op: Op) -> vec4<f32> {
 // minus the grain strength times the grain's height there. The height is the mean of a fine
 // value per pixel and a coarse one, smoothly interpolated between cells of `grain_scale`
 // pixels. Integers throughout and a power-of-two divisor at the end: exact on every backend.
-fn grain(pixel: vec2<u32>, op: Op) -> f32 {
-    let strength = u32(op.data[PAINT_GRAIN]);
+fn grain(pixel: vec2<u32>, op: u32) -> f32 {
+    let strength = u32(word(op, PAINT_GRAIN));
     if strength == 0u {
         return 1.0;
     }
-    let scale = max(u32(op.data[PAINT_GRAIN_SCALE]), 1u);
+    let scale = max(u32(word(op, PAINT_GRAIN_SCALE)), 1u);
     let fine = hash(pixel) >> 24u;
     let cell = pixel / scale;
     let f = pixel % scale;

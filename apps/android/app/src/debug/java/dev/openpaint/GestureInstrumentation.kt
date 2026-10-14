@@ -30,7 +30,8 @@ import android.view.MotionEvent
  * nothing: the result's `found` says where it lies; `-e state 1` answers what the app shows
  * ([DebugControls.state], S52). `-e gradient on|off` injects nothing: it turns the screen's
  * precision check on or off ([DebugControls.gradient]); `-e lose device` loses the GPU device on
- * purpose ([DebugControls.loseDevice], S49). A question is answered with `gesture=answered`.
+ * purpose ([DebugControls.loseDevice], S49); `-e bench <scene|all>` answers the evaluator's
+ * micro-benchmark ([DebugControls.bench], S55). A question is answered with `gesture=answered`.
  */
 class GestureInstrumentation : Instrumentation() {
     private var arguments = Bundle()
@@ -90,12 +91,19 @@ class GestureInstrumentation : Instrumentation() {
 
     /**
      * A question instead of a gesture (S52), its answer put in [result]: `-e find <name>` (where
-     * the control lies) or `-e state 1` (what the app shows). False when there is none.
+     * the control lies), `-e bench <scene|all>` (the evaluator's micro-benchmark, S55) or
+     * `-e state 1` (what the app shows). False when there is none.
      */
     private fun answer(result: Bundle): Boolean {
         arguments.getString("find")?.let { name ->
             val at = control(name)
             result.putString("found", "$name at ${at[0]},${at[1]}")
+            return true
+        }
+        arguments.getString("bench")?.let { scene ->
+            var lines: String? = null
+            runOnMainSync { lines = DebugControls.bench(scene) }
+            result.putString("bench", lines ?: error("no answer for the benchmark"))
             return true
         }
         if (arguments.getString("state") == null) return false

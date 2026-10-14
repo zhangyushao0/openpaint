@@ -77,9 +77,22 @@ impl PenLatency {
             frames: stroke.frame_work.len(),
             to_frame: Spread::of(stroke.to_frame),
             to_present: Spread::of(stroke.to_present),
+            slowest: slowest(&stroke.frame_work),
             frame_work: Spread::of(stroke.frame_work),
         })
     }
+}
+
+/// The stroke's three slowest frames, slowest first: which they were (0: the pen touching down)
+/// and their work (S55: which frames hold a stroke's 95th percentile).
+fn slowest(work: &[i64]) -> [(usize, i64); 3] {
+    let mut ranked: Vec<(usize, i64)> = work.iter().copied().enumerate().collect();
+    ranked.sort_by_key(|&(at, ns)| (std::cmp::Reverse(ns), at));
+    let mut top = [(0, 0); 3];
+    for (slot, frame) in top.iter_mut().zip(ranked) {
+        *slot = frame;
+    }
+    top
 }
 
 /// One stroke's latencies.
@@ -93,6 +106,8 @@ pub struct Summary {
     pub to_present: Spread,
     /// Frame start to present return, per frame that consumed pen events.
     pub frame_work: Spread,
+    /// The three slowest of those frames: their place in the stroke (0 first) and work.
+    pub slowest: [(usize, i64); 3],
 }
 
 /// Median, 95th percentile (nearest rank) and maximum, in nanoseconds.
@@ -136,9 +151,13 @@ impl fmt::Display for Summary {
         write!(
             f,
             "pen latency, {} events in {} frames: event to frame start {}; \
-             event to present call {}; frame work {}",
+             event to present call {}; frame work {}; slowest",
             self.events, self.frames, self.to_frame, self.to_present, self.frame_work
-        )
+        )?;
+        for (at, ns) in self.slowest {
+            write!(f, " #{at} {:.1}", ns as f64 / 1e6)?;
+        }
+        write!(f, " ms")
     }
 }
 
@@ -187,6 +206,12 @@ mod tests {
         assert_eq!(summary.to_frame, spread(6, 10, 10));
         assert_eq!(summary.to_present, spread(8, 13, 13));
         assert_eq!(summary.frame_work, spread(2, 3, 3));
+        assert_eq!(summary.slowest, [(1, 3 * MS), (0, 2 * MS), (2, 2 * MS)]);
+        assert!(
+            summary
+                .to_string()
+                .ends_with("slowest #1 3.0 #0 2.0 #2 2.0 ms")
+        );
         assert_eq!(
             latency.frame(50 * MS, 52 * MS),
             None,

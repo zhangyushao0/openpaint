@@ -2,6 +2,8 @@
 //! draining and startup. Platform hosts plug in through traits; no JNI here.
 #![forbid(unsafe_code)]
 
+mod bench;
+mod bench_scenes;
 mod brush_pictures;
 mod budget;
 mod canvas;
@@ -29,6 +31,7 @@ mod transfer;
 mod ui_pass;
 mod worker;
 
+pub use crate::bench::bench;
 pub use crate::budget::ARENA_SHARE;
 pub use crate::error::RuntimeError;
 pub use crate::frame::Runtime;

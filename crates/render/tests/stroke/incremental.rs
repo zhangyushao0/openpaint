@@ -6,8 +6,8 @@ use openpaint_render::{
 };
 
 use crate::fixture::{
-    SIZE, airbrush, blank, cold, core, diagonal, diagonal_with, graphite, request, rich, wave,
-    with_layer, with_stroke,
+    SIZE, airbrush, blank, cold, core, diagonal, diagonal_with, graphite, request, rich, sample,
+    wave, with_layer, with_stroke,
 };
 
 /// Chunk sizes cycle through these, so chunk boundaries fall at varied places.
@@ -124,6 +124,44 @@ fn samples_that_arrive_with_the_lift_are_drawn_when_the_stroke_is_committed() {
         read(&core, &target) == cold(&core, &finished),
         "the tail is missing"
     );
+}
+
+#[test]
+fn a_stroke_with_more_fresh_spans_than_the_op_buffer_holds_beside_its_scene_is_cold() {
+    let core = core();
+    let under = under();
+    // 600 knots drawn in one evaluation: every span fresh at once, past the room the scene's op
+    // buffer keeps for fresh ops, which then grows (S55).
+    let (style, _) = diagonal();
+    let samples: Vec<StrokeSample> = (0..600u16)
+        .map(|i| {
+            let t = f32::from(i) / 599.0;
+            let [x, y] = [30.0 + 260.0 * t, 100.0 + 60.0 * (40.0 * t).sin()];
+            sample(x, y, 0.5 + 0.4 * (7.0 * t).cos(), 4 * u32::from(i))
+        })
+        .collect();
+    let mut target = evaluated(&core, &under);
+    let mut session = under
+        .begin_stroke(style.clone(), samples[0])
+        .expect("begin");
+    session.extend(&samples[1..]).expect("extend");
+    let frame = FrameRequest {
+        active: Some(session.active()),
+        ..request(&under)
+    };
+    RegionEvaluator::new(&core, &mut target)
+        .evaluate(&frame, &[])
+        .expect("evaluate");
+    let finished = session.finish().artwork;
+    let cold = cold(&core, &finished);
+    assert!(
+        read(&core, &target) == cold,
+        "drawn at once differs from cold"
+    );
+    RegionEvaluator::new(&core, &mut target)
+        .evaluate(&request(&finished), &[])
+        .expect("evaluate");
+    assert!(read(&core, &target) == cold, "committing changed pixels");
 }
 
 #[test]

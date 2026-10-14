@@ -88,11 +88,7 @@ fn shape_coverage(texture: u32, level: u32, c: vec2<i32>) -> f32 {
     if any(c < vec2<i32>(0)) || any(c >= vec2<i32>(i32(side))) {
         return 0.0;
     }
-    var offset = 0u;
-    for (var k = 0u; k < level; k++) {
-        let finer = SHAPE_SIZE >> k;
-        offset += finer * finer;
-    }
+    let offset = mip_offset(SHAPE_BITS, level);
     let at = SHAPES_AT + texture * SHAPE_WORDS + offset + u32(c.y) * side + u32(c.x);
     return f32(textures[at] & 0xffffu) * (1.0 / 65535.0);
 }

@@ -82,10 +82,11 @@ pub(crate) struct Bindings {
     /// The in-progress stroke's coverage or density, then its paper contact.
     kept: [(wgpu::Texture, wgpu::TextureView); 2],
     params: wgpu::Buffer,
-    /// Tiles, indices and fresh ops, in binding order 2, 3, 5.
-    lists: [wgpu::Buffer; 3],
-    /// The plan whose tiles and indices the lists hold (`Plan::serial`; 0: none).
-    written: u64,
+    /// Tiles and op entries, in binding order 2, 3 (fresh ops follow the scene's, S55).
+    lists: [wgpu::Buffer; 2],
+    /// The plan whose entries the list holds (`Plan::serial`; 0: none), placed behind a scene
+    /// of this many ops.
+    written: (u64, u32),
     /// Built for the scene ops buffer, the two residual buffers and the snapshot it names.
     group: Option<([wgpu::Buffer; 4], wgpu::BindGroup)>,
     /// Bytes a snapshot of this target may grow to (S49: what the GPU memory budget leaves).
@@ -120,8 +121,8 @@ impl Bindings {
                 (texture, view)
             }),
             params: empty_buffer(gpu, uniform, size_of::<Params>() as u64),
-            lists: [0; 3].map(|_| empty_buffer(gpu, storage, MIN_LIST_BYTES)),
-            written: 0,
+            lists: [0; 2].map(|_| empty_buffer(gpu, storage, MIN_LIST_BYTES)),
+            written: (0, 0),
             group: None,
             snapshot_room: u64::MAX,
             paced: false,
@@ -266,15 +267,14 @@ impl EvaluatePipeline {
         gpu: &Gpu,
         bindings: &Bindings,
         scene: &SceneOps,
-        [arena, active, snapshot]: [&wgpu::Buffer; 3],
+        [ops, arena, active, snapshot]: [&wgpu::Buffer; 4],
     ) -> wgpu::BindGroup {
-        let [tiles, indices, fresh] = &bindings.lists;
+        let [tiles, indices] = &bindings.lists;
         let buffers = [
             (0, &bindings.params),
-            (1, &scene.ops),
+            (1, ops),
             (2, tiles),
             (3, indices),
-            (5, fresh),
             (7, &scene.masks),
             (9, &self.textures),
             (10, &scene.patches),

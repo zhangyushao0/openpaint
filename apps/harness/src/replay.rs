@@ -4,7 +4,7 @@
 //! timed until the GPU is done. Writes the last screen and the canvas,
 //! checks the canvas's hash against the golden value and the slowest frame against the
 //! budget. The golden is the canvas, not the screen: the evaluator's pixels are the same on
-//! every backend (DECISIONS D16), egui's text antialiasing is not.
+//! every backend (DECISIONS D82), egui's text antialiasing is not.
 
 use std::f32::consts::TAU;
 use std::time::{Duration, Instant};

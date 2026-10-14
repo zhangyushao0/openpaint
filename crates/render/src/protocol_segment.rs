@@ -32,7 +32,7 @@ pub(super) const SEGMENT_SLOTS: [(&str, usize); 7] = [
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Tip {
-    /// Coverage of a soft-edged capsule; the stroke keeps the maximum (D16).
+    /// Coverage of a soft-edged capsule; the stroke keeps the maximum (D82).
     Cover = 0,
     /// Optical density of a flat cross-section `1 - d^8` over the radii travelled, summed.
     Flat = 1,
