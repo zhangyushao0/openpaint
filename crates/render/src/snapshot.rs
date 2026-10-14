@@ -81,6 +81,12 @@ impl Snapshot {
         (y / TILE) as usize * self.columns as usize + (x / TILE) as usize
     }
 
+    /// The top-left pixel of canvas tile `tile` (row major).
+    pub(crate) fn origin_of(&self, tile: usize) -> [u32; 2] {
+        let columns = self.columns as usize;
+        [tile % columns, tile / columns].map(|at| at as u32 * TILE)
+    }
+
     /// Whether canvas tile `tile` (row major) is held.
     pub(crate) fn holds(&self, tile: usize) -> bool {
         self.slots.get(tile).is_some_and(|slot| *slot > 0)
@@ -137,9 +143,15 @@ impl Snapshot {
         let grown = buffer(core, self.head, capacity);
         let mut encoder = core.gpu.device.create_command_encoder(&Default::default());
         encoder.copy_buffer_to_buffer(&self.buffer, 0, &grown, 0, self.buffer.size());
-        core.gpu.queue.submit([encoder.finish()]);
+        core.gpu.submit([encoder.finish()]);
         self.buffer = grown;
         self.capacity = capacity;
+    }
+
+    /// Its table and slots as bytes, waiting for the GPU (tests).
+    #[cfg(test)]
+    pub(crate) fn read(&self, core: &Core) -> Vec<u8> {
+        crate::readback::read_buffer(&core.gpu, &self.buffer, self.buffer.size()).expect("read")
     }
 
     /// The snapshot as a dispatch binds it, written (`writes`) or read.

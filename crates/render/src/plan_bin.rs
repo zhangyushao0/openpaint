@@ -159,7 +159,11 @@ impl<'a> Binner<'a> {
                         self.list(slot, index);
                     }
                 }
-                Item::Active => self.active(fresh_lists.take().unwrap_or_default()),
+                Item::Active if fresh.stroke => {
+                    self.active(fresh_lists.take().unwrap_or_default());
+                }
+                // S56: a scene keeps the next stroke's place while none is drawn.
+                Item::Active => {}
                 Item::Frame {
                     to_canvas, clip, ..
                 } => self.set_frame(index, *to_canvas, *clip),

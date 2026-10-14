@@ -83,7 +83,7 @@ impl CanvasTarget {
             },
             self.texture.size(),
         );
-        core.gpu.queue.submit([encoder.finish()]);
+        core.gpu.submit([encoder.finish()]);
         CanvasCopy {
             buffer,
             size: [width, height],

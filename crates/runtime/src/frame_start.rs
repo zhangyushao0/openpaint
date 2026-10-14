@@ -18,6 +18,7 @@ use crate::error::RuntimeError;
 use crate::fill::FillWorker;
 use crate::host::version_line;
 use crate::normalise::Normaliser;
+use crate::pacing::Pacing;
 use crate::pictures::PictureWorker;
 use crate::recover::Recoveries;
 use crate::screen::Screen;
@@ -116,6 +117,7 @@ impl Runtime {
             clock: InputClock::default(),
             frame_clock: FrameClock::default(),
             touches: Touches::default(),
+            pacing: Pacing::default(),
             pending: Vec::new(),
             typed: Vec::new(),
             keyboard: false,

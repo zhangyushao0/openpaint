@@ -174,7 +174,7 @@ impl Core {
             pass.set_bind_group(0, &group, &[]);
             pass.dispatch_workgroups(size[0].div_ceil(GROUP), size[1].div_ceil(GROUP), 1);
         }
-        self.gpu.queue.submit([encoder.finish()]);
+        self.gpu.submit([encoder.finish()]);
         let data = read_buffer(&self.gpu, &pixels, bytes)?;
         Ok(RgbaImage::new(size, data))
     }

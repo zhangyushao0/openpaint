@@ -14,7 +14,7 @@ use crate::image::RgbaImage;
 use crate::output::Output;
 use crate::program::{Bindings, SceneOps};
 use crate::readback::{FORMAT, read_rgba, read_texel, target_texture};
-use crate::scene::{ActivePlace, Fresh, Scene};
+use crate::scene::{ActivePlace, Scene};
 use crate::screen::{VIEW_BYTES, blit_bind_group, selection_texture};
 use crate::smudge::Smudges;
 use crate::waiting::{Focus, Waiting};
@@ -42,6 +42,8 @@ pub struct CanvasTarget {
     work: EvaluationWork,
     /// The in-progress stroke's layer before it, per tile (S48, `active_snapshot.rs`).
     held: Option<ActiveSnapshot>,
+    /// Its tiles lack strokes committed since: frames lay them (S56, `catch_up`).
+    catching: bool,
     /// Whole tiles the screen's frames left for the next ones (S49, S53: `evaluate_frame`).
     waiting: Waiting,
     /// Where the screen looks: the waiting tiles it shows go first (S53).
@@ -105,6 +107,7 @@ impl CanvasTarget {
             changed: Vec::new(),
             work: EvaluationWork::default(),
             held: None,
+            catching: false,
             waiting: Waiting::new(size.0),
             focus: None,
             blank: true,
@@ -127,7 +130,7 @@ impl CanvasTarget {
         artwork: &Artwork,
         active: Option<&ActiveStroke>,
     ) -> Option<(&Scene, &SceneOps)> {
-        let place = active.map(ActivePlace::of);
+        let place = ActivePlace::of_request(artwork, active);
         self.scene
             .as_ref()
             .filter(|cache| cache.artwork.same_version(artwork) && cache.active == place)
@@ -202,6 +205,13 @@ impl CanvasTarget {
     pub const fn work(&self) -> EvaluationWork {
         self.work
     }
+
+    /// The snapshot of the in-progress stroke's layer lacks strokes committed since, which the
+    /// screen's next frames lay within their budget (S56): frames are wanted until it does not.
+    #[must_use]
+    pub const fn catching_up(&self) -> bool {
+        self.catching
+    }
 }
 
 /// Evaluates frame requests into one target.
@@ -268,7 +278,10 @@ impl<'a> RegionEvaluator<'a> {
                 "the target's size differs from the canvas size",
             ));
         }
-        match self.dispatch(request, Output::CANVAS, (regions, frame)) {
+        let started = std::time::Instant::now();
+        let dispatched = self.dispatch(request, Output::CANVAS, (regions, frame));
+        crate::profile::evaluated(started.elapsed());
+        match dispatched {
             Ok(evaluated) => {
                 let changed = &mut self.target.changed;
                 changed.extend(evaluated);
@@ -307,69 +320,10 @@ impl<'a> RegionEvaluator<'a> {
         }
         self.dispatch(request, output, (&[region], false)).map(drop)
     }
-
-    /// Evaluates `regions` (with the tiles left waiting), and what the in-progress stroke
-    /// needs. For one `frame` of the screen (S53): what the stroke needs at once; the regions
-    /// join the waiting tiles, of which the frame takes what its background budget allows
-    /// (`evaluator_background.rs`), and while a stroke is drawn the waiting tiles wait. Returns
-    /// every region it evaluated, in target pixels.
-    fn dispatch(
-        &mut self,
-        request: &FrameRequest<'_>,
-        output: Output,
-        (regions, frame): (&[PixelRect], bool),
-    ) -> Result<Vec<PixelRect>, RenderError> {
-        let core = self.core;
-        let place = request.active.map(ActivePlace::of);
-        self.target.work = EvaluationWork::default();
-        let cache = self.target.scene(core, request.artwork, place.clone())?;
-        let (drawn, clip) = (cache.scene.has_active(), cache.scene.active_clip);
-        let previewing = cache.previewing();
-        let step = self
-            .target
-            .track
-            .advance(request.artwork, request.active, drawn);
-        let fresh = request
-            .active
-            .filter(|_| drawn)
-            .map_or_else(Fresh::default, |active| {
-                Fresh::new(active, step.kept.start, clip)
-            });
-        let screen = frame && output == Output::CANVAS;
-        let background = screen && fresh.ops.is_empty() && !previewing;
-        let mut all = regions.to_vec();
-        if background {
-            self.target.waiting.add(regions);
-            all.clear();
-        } else if !screen || fresh.ops.is_empty() {
-            // Taken whole, or (a preview's frames, S35) shared as S49 shared every frame.
-            all.extend(self.target.waiting.take_all());
-        }
-        let later = all.len();
-        all.extend(step.redraw.into_iter().chain(step.fresh_region));
-        all.extend(self.target.smudged(core, request, drawn)?);
-        let mut evaluated = if background {
-            self.target.background(core, request)?
-        } else {
-            Vec::new()
-        };
-        if all.is_empty() && !step.reset {
-            return Ok(evaluated);
-        }
-        // The in-progress stroke on the canvas resumes its layer from a snapshot (S48).
-        let canvas = drawn && output == Output::CANVAS && self.target.bindings.keeps;
-        let held = place.filter(|_| canvas);
-        let now = (screen && previewing && fresh.ops.is_empty()).then(|| &all[later..]);
-        let drawing = (request, (output, step.reset));
-        let drawn = self
-            .target
-            .draw(core, drawing, (fresh, held), (&all, now))?
-            .unwrap_or(all);
-        self.target.waiting.remove(&drawn);
-        evaluated.extend(drawn);
-        Ok(evaluated)
-    }
 }
+
+#[path = "evaluator_dispatch.rs"]
+mod dispatching;
 
 #[path = "evaluator_scene.rs"]
 mod scene_cache;
@@ -396,3 +350,7 @@ pub use bench::{Listed, Timed};
 #[cfg(test)]
 #[path = "evaluator_display_tests.rs"]
 mod display_tests;
+
+#[cfg(test)]
+#[path = "evaluator_snapshot_tests.rs"]
+mod snapshot_tests;

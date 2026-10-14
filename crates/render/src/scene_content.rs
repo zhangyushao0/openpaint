@@ -23,11 +23,11 @@ use crate::edits::{edit_rect, mask_bounds, restart};
 use crate::error::RenderError;
 use crate::filter::{FilterKey, kernel_of};
 use crate::geom::{Bounds, PixelRect};
-use crate::protocol::{Op, Paint};
+use crate::protocol::Op;
 use crate::scene::{Item, Scene, SmudgeItem};
 use crate::scene_cleared::{Cleared, extents, intersect};
 use crate::smudge::whole_reach;
-use crate::stroke::{paint, segments};
+use crate::stroke::paint;
 
 /// The content of one layer's paint or mask, and where its first item lies in the scene.
 struct Content<'a> {
@@ -98,8 +98,10 @@ impl Scene {
         };
         self.push_level(&content, (strokes.len(), edits.len()), View::CANVAS)?;
         self.set_frame(View::CANVAS);
+        let items = content.start..self.items.len();
+        self.contents.push((layer, on_mask, items.clone()));
         if active {
-            self.active_before = Some(content.start..self.items.len());
+            self.active_before = Some(items);
             self.items.push(Item::Active);
         }
         Ok(())
@@ -275,31 +277,24 @@ impl Scene {
             self.push_smudge(item, reach);
             return Ok(());
         }
-        // Each span's paint op is the stroke's end, right after its last span.
-        let spans: Vec<_> = segments(style, samples).collect();
-        let parts: Vec<(Op, Bounds)> = (1..=spans.len() as i32)
-            .rev()
-            .zip(&spans)
-            .map(|(paint, segment)| (segment.op(paint), segment.bounds()))
-            .collect();
-        if !parts.iter().any(|(_, bounds)| view.meets(bounds.pixels())) {
+        // Its spans as the scene before had them, or computed (S56, `scene_reuse.rs`).
+        let spans = self.push_spans(stroke);
+        let shows = self.items[spans.clone()]
+            .iter()
+            .any(|item| item.bounds().is_some_and(|b| view.meets(b.pixels())));
+        if !shows {
+            self.items.truncate(spans.start);
             return Ok(());
         }
+        self.note_spans(stroke, spans);
         let mut paint = paint(style, stroke.blend());
         paint.clip = stroke
             .clip()
             .map(|clip| self.clip(clip))
             .transpose()?
             .unwrap_or(0);
-        self.push_stroke(&paint, parts);
+        self.items.push(Item::EndStroke(Op::end_stroke(&paint)));
         Ok(())
-    }
-
-    fn push_stroke(&mut self, paint: &Paint, parts: Vec<(Op, Bounds)>) {
-        for (op, bounds) in parts {
-            self.items.push(Item::Segment { op, bounds });
-        }
-        self.items.push(Item::EndStroke(Op::end_stroke(paint)));
     }
 
     /// A finished smudge: its reach, then its op, which `place_bases` points at its residual's

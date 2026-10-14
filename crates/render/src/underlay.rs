@@ -132,7 +132,7 @@ impl Core {
             let [x, y] = [texture.width(), texture.height()].map(|side| side.div_ceil(GROUP));
             pass.dispatch_workgroups(x, y, 1);
         }
-        self.gpu.queue.submit([encoder.finish()]);
+        self.gpu.submit([encoder.finish()]);
         Ok(())
     }
 }

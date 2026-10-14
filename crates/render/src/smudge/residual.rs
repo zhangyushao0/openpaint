@@ -146,7 +146,7 @@ impl Working {
             let at = 4 * self.nodes_at();
             let mut encoder = gpu.device.create_command_encoder(&Default::default());
             encoder.copy_buffer_to_buffer(&self.buffer, at, &grown, at, used);
-            gpu.queue.submit([encoder.finish()]);
+            gpu.submit([encoder.finish()]);
         }
         self.buffer = grown;
         self.capacity = capacity;

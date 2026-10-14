@@ -12,14 +12,15 @@ use jni::objects::{
 };
 use jni::sys::{jboolean, jfloat, jint, jlong};
 use jni::{Env, EnvUnowned};
-use openpaint_runtime::{DisplayCache, Runtime, TextFonts};
+use openpaint_runtime::{DisplayCache, Runtime, TextFonts, take_spent};
 use openpaint_store::Library;
 
 use crate::error::HostError;
 use crate::fonts::read_face;
-use crate::latency::PenLatency;
+use crate::latency::{FrameCost, PenLatency};
 use crate::motion::{RawMotion, decode};
 use crate::navigation::{Frame, NavigationLog};
+use crate::pacing::{Called, PacingLog};
 use crate::transfer::Pick;
 use crate::window::NativeWindow;
 
@@ -29,6 +30,8 @@ pub(crate) struct Host {
     latency: PenLatency,
     /// Frames while fingers navigate or work waits (S53).
     navigation: NavigationLog,
+    /// Slow frames and frames skipped while the GPU is behind (S56).
+    pacing: PacingLog,
     /// Where files to share are made (`Context.getCacheDir()/share`, served by `ShareProvider`).
     pub(crate) share_dir: PathBuf,
     /// What the Kotlin host was last asked to show; its answer is for that.
@@ -90,6 +93,7 @@ pub extern "system" fn Java_dev_openpaint_Native_create<'local>(
             runtime,
             latency: PenLatency::default(),
             navigation: NavigationLog::default(),
+            pacing: PacingLog::default(),
             share_dir,
             pending: None,
         };
@@ -241,7 +245,31 @@ pub extern "system" fn Java_dev_openpaint_Native_frame<'local>(
         let started = Instant::now();
         let again = host.runtime.frame()?;
         let work = i64::try_from(started.elapsed().as_nanos()).unwrap_or(i64::MAX);
-        if let Some(summary) = host.latency.frame(start_ns, start_ns.saturating_add(work)) {
+        let (paced, spent) = (host.runtime.paced(), take_spent());
+        let called = Called {
+            start_ns,
+            work_ns: work,
+            paced,
+            spent,
+        };
+        for line in host.pacing.frame(&called) {
+            log::warn!("{line}");
+        }
+        // S56: a frame skipped while the GPU is behind consumes nothing.
+        if paced.skipped {
+            host.latency.skipped();
+            return Ok(again);
+        }
+        let ns = |ns: u64| i64::try_from(ns).unwrap_or(i64::MAX);
+        let cost = FrameCost {
+            evaluated_ns: ns(spent.evaluated_ns),
+            scene_ns: ns(spent.scene_ns),
+            waited_ns: ns(spent.waited_ns),
+            longest: spent.longest,
+            in_flight: paced.in_flight,
+        };
+        let end_ns = start_ns.saturating_add(work);
+        if let Some(summary) = host.latency.frame((start_ns, end_ns), cost) {
             log::info!("{summary}");
         }
         let core = host.runtime.core();
@@ -296,6 +324,7 @@ pub extern "system" fn Java_dev_openpaint_Native_motion<'local>(
         };
         host.latency.input(&batch, event_ns);
         host.navigation.input(&batch);
+        host.pacing.input();
         Ok(host.runtime.motion(&batch))
     })
     .resolve::<LogErrorAndDefault>()

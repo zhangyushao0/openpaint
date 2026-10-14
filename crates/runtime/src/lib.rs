@@ -16,6 +16,7 @@ mod host;
 mod input;
 mod normalise;
 mod offscreen;
+mod pacing;
 mod pictures;
 mod pointer;
 mod preview;
@@ -36,11 +37,12 @@ pub use crate::budget::ARENA_SHARE;
 pub use crate::error::RuntimeError;
 pub use crate::frame::Runtime;
 pub use crate::input::{Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, ToolKind};
+pub use crate::pacing::Paced;
 pub use crate::text::{EditKey, TextInput};
 pub use openpaint_app::{
     HostAnswer, HostRequest, ImageFormat, ImageSink, ImageSource, PortError, ScreenProjection,
 };
-pub use openpaint_render::{Background, Counts, SurfaceWindow};
+pub use openpaint_render::{Background, Counts, Spent, SurfaceWindow, take_spent};
 pub use openpaint_store::DisplayCache;
 pub use openpaint_ui::design::{FontFile, TextFonts};
 pub use openpaint_ui::{CanvasArea, Control, ControlMap, Unresolved};

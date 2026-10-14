@@ -62,7 +62,7 @@ impl CanvasTarget {
         artwork: &Artwork,
         active: Option<&ActiveStroke>,
     ) -> Option<(u64, &[f32])> {
-        let place = active.map(ActivePlace::of);
+        let place = ActivePlace::of_request(artwork, active);
         self.scene
             .as_ref()
             .filter(|cache| cache.artwork.same_version(artwork) && cache.active == place)
@@ -71,7 +71,8 @@ impl CanvasTarget {
 
     /// One frame's share of the waiting tiles: binned in batches, taken while the frame budget
     /// holds their estimates, each batch's share dispatched (and its GPU time measured). A new
-    /// target first shows the paper where its tiles wait. Returns the pixels evaluated.
+    /// target first shows the paper where its tiles wait. A `quiet` frame (it evaluates nothing
+    /// else) also lays strokes onto the snapshot (S56). Returns the pixels evaluated.
     ///
     /// # Errors
     /// As the evaluator's dispatch.
@@ -79,6 +80,7 @@ impl CanvasTarget {
         &mut self,
         core: &Core,
         request: &FrameRequest<'_>,
+        quiet: bool,
     ) -> Result<Vec<PixelRect>, RenderError> {
         if self.blank {
             self.paper(core, request)?;
@@ -105,6 +107,11 @@ impl CanvasTarget {
             let rects = tile_rects(&taken);
             self.waiting.remove(&rects);
             evaluated.extend(rects);
+        }
+        // Then, in a frame evaluating nothing else (not a lift's), to the strokes the in-progress
+        // stroke's snapshot lacks (S56).
+        if quiet {
+            self.catching = self.catch_up(core, request)?;
         }
         // What the frame has left goes to a residual tiles put aside wait for, or once nothing
         // waits to one a canvas shown from its display cache lacks (S54).
@@ -217,6 +224,54 @@ impl CanvasTarget {
             pace.finish(&core.gpu, timing);
         }
         dispatched
+    }
+
+    /// Lays strokes committed since onto the snapshot of the in-progress stroke's layer (S56,
+    /// `active_snapshot_idle.rs`), the tiles lacking the most first, while the frame budget takes
+    /// them; returns whether tiles still lack strokes the layer's content has.
+    fn catch_up(&mut self, core: &Core, request: &FrameRequest<'_>) -> Result<bool, RenderError> {
+        let size = self.size();
+        let (Some(cache), Some(snapshot)) = (self.scene.as_ref(), self.held.as_mut()) else {
+            return Ok(false);
+        };
+        let (layer, on_mask) = snapshot.place();
+        let content = cache.scene.content_of(layer, on_mask);
+        let Some(prefix) = content.filter(|_| !cache.previewing()) else {
+            return Ok(false);
+        };
+        if !snapshot.follows(request.artwork, &cache.scene, &prefix) {
+            return Ok(false);
+        }
+        snapshot.hold(request.artwork, &cache.scene, &prefix);
+        while !core.pace().spent() {
+            let Some(plan) = snapshot.behind(&cache.scene, &prefix, size) else {
+                break;
+            };
+            let mut pace = core.pace();
+            let taken: Vec<TileRecord> = (plan.tiles.iter())
+                .take_while(|tile| pace.take(tile_cost(&plan, tile, &cache.costs)))
+                .copied()
+                .collect();
+            drop(pace);
+            if taken.is_empty() {
+                break;
+            }
+            let near = reached(&taken, 1);
+            let filters = (&mut self.filters, &Wanted::Near(&near));
+            let scene = (&cache.scene, &cache.ops);
+            self.smudges
+                .prepare(core, scene, request.artwork, filters)?;
+            let mut pace = core.pace();
+            let estimate = pace.close();
+            let timing = pace.time(estimate);
+            let using = (&cache.ops, &mut self.bindings, self.smudges.residuals());
+            let clock = timing.and_then(|timing| Some((pace.clock()?, timing)));
+            snapshot.lay(core, using, (&plan, &taken), clock)?;
+            if let Some(timing) = timing {
+                pace.finish(&core.gpu, timing);
+            }
+        }
+        Ok(snapshot.lacking())
     }
 
     /// Every waiting tile of a new target shows the paper until it is evaluated (S49).

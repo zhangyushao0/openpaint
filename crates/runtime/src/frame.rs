@@ -28,6 +28,7 @@ use crate::error::RuntimeError;
 use crate::fill::FillWorker;
 use crate::input::MotionBatch;
 use crate::normalise::Normaliser;
+use crate::pacing::{Paced, Pacing};
 use crate::pictures::PictureWorker;
 use crate::pointer::pointer_events;
 use crate::recover::{Reattach, Recoveries};
@@ -68,6 +69,8 @@ pub struct Runtime {
     pub(crate) frame_clock: FrameClock,
     /// When a finger or the pen last touched: background work's budget follows (S54).
     touches: Touches,
+    /// Frames wait while the GPU is behind (S56).
+    pub(crate) pacing: Pacing,
     /// Input normalised since the last frame, palms removed, oldest first.
     pending: Vec<InputBatch>,
     /// Keyboard text for the focused text field since the last frame.
@@ -184,11 +187,23 @@ impl Runtime {
     }
 
     /// Runs one frame into the window. Returns whether another frame is wanted at once. A lost
-    /// GPU device is made again first, or after a frame that failed for it (S49).
+    /// GPU device is made again first, or after a frame that failed for it (S49). While the GPU
+    /// is behind, the call does nothing and wants the next (S56, `pacing.rs`).
     pub fn frame(&mut self) -> Result<bool, RuntimeError> {
         self.recover_if_lost()?;
+        if self.pacing.skips(&self.core, true) {
+            return Ok(true);
+        }
         let result = self.frame_once();
+        self.core.frame_submitted();
         self.after_frame(result)
+    }
+
+    /// What the last frame call did: skipped for the GPU, or drawn, and the frames in flight as
+    /// it began (S56, for the host's log).
+    #[must_use]
+    pub const fn paced(&self) -> Paced {
+        self.pacing.last()
     }
 
     fn frame_once(&mut self) -> Result<bool, RuntimeError> {

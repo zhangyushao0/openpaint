@@ -207,13 +207,23 @@ fn every_tile_paints_the_active_stroke_after_the_fresh_segments_that_reach_it() 
     let fresh = Fresh {
         ops: vec![black(); 2],
         bounds: vec![Bounds([20.0, 2.0, 22.0, 3.0])],
+        stroke: true,
     };
     let target = ([48, 16], Output::CANVAS);
-    let plan = Plan::build(&scene, &fresh, target, &[PixelRect::full([48, 16])]);
+    let all = [PixelRect::full([48, 16])];
+    let plan = Plan::build(&scene, &fresh, target, &all);
     let expected = [
         ([0, 0], vec![0, 1, FRESH, 3]),
         ([16, 0], vec![FRESH | 1, FRESH, 3]),
         ([32, 0], vec![FRESH, 3]),
     ];
     assert_eq!(lists(&plan), expected);
+    // S56: without a stroke the place lists nothing, as if it were not there.
+    let idle = Plan::build(&scene, &Fresh::default(), target, &all);
+    let expected = [
+        ([0, 0], vec![0, 1, 3]),
+        ([16, 0], vec![]),
+        ([32, 0], vec![]),
+    ];
+    assert_eq!(lists(&idle), expected);
 }

@@ -170,7 +170,7 @@ impl SmudgePipeline {
                     }
                 }
             }
-            gpu.queue.submit([encoder.finish()]);
+            gpu.submit([encoder.finish()]);
         }
     }
 }

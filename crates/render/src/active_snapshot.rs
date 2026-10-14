@@ -7,9 +7,13 @@
 //! adds only the stroke: the same floats, so every frame equals the stroke evaluated cold.
 //!
 //! The snapshot outlives the stroke: strokes committed to the layer are laid over a tile it holds
-//! (`Plan::appended`) when a later frame needs that tile, so painting on keeps every tile taken
-//! and no frame lays a whole stroke at once. Any other change to the layer's content (undo, an
-//! edit, another layer or the mask) starts it over, empty.
+//! (`Plan::appended`) when a frame needs that tile, so painting on keeps every tile taken and no
+//! frame lays a whole stroke at once. Since S56 (DECISIONS D83) the lift's frame needs them too:
+//! the committed stroke's last spans are evaluated over the snapshot, not over every op of the
+//! layer; and frames without a stroke lay what is left within the frame budget
+//! (`active_snapshot_idle.rs`), so the next stroke's first frames find the tiles up to date. Any
+//! other change to the layer's content (undo, an edit, another layer or the mask) starts it over,
+//! empty, at the next stroke.
 
 use std::ops::Range;
 
@@ -23,7 +27,7 @@ use crate::output::Output;
 use crate::plan::Plan;
 use crate::program::{Bindings, Dispatch, SceneOps, SnapshotUse};
 use crate::protocol::{Op, TILE};
-use crate::scene::{ActivePlace, Item, Scene};
+use crate::scene::{Item, Scene};
 use crate::snapshot::Snapshot;
 
 /// The snapshot of one layer's paint or mask before the in-progress stroke.
@@ -62,10 +66,26 @@ pub(crate) type Kept = [usize; 2];
 /// What a frame resumes from: the layer's items the snapshot stands for, and the snapshot.
 pub(crate) type Resumed<'h> = Option<(Range<usize>, SnapshotUse<'h>)>;
 
-/// Brings `held` up to date with `artwork` and the in-progress stroke's `place` in `scene`, and
-/// makes it hold every tile of `regions`; returns the items the frame resumes from it and the
-/// snapshot, or `None` when the frame evaluates every op (the layer holds nothing before the
-/// stroke, or the device's limits refuse more tiles), and what it did.
+/// How a frame uses the snapshot of a layer (`Use::place`: its id and whether its mask).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Use {
+    pub(crate) place: (LayerId, bool),
+    /// A stroke is drawn on it: any other change of its content empties the snapshot. Else
+    /// (S56: the lift, a stroke committed) the snapshot serves only while the content is what it
+    /// holds with strokes appended, and takes at most `FEW` tiles more.
+    pub(crate) drawing: bool,
+}
+
+/// Tiles a frame without a stroke takes into the snapshot at most (S56): the few a lift's last
+/// span reaches beyond those its stroke took; a larger evaluation (a canvas read whole) does
+/// without it.
+const FEW: usize = 64;
+
+/// Brings `held` up to date with `artwork` and the layer's content in `scene` (before the
+/// in-progress stroke's place), and makes it hold every tile of `regions`; returns the items the
+/// frame resumes from it and the snapshot, or `None` when the frame evaluates every op (the
+/// layer holds nothing there, the device's limits refuse more tiles, or `using` a snapshot that
+/// does not serve), and what it did.
 ///
 /// # Errors
 /// As the evaluator's dispatch; `held` is emptied then, as its tiles may be half written.
@@ -73,14 +93,15 @@ pub(crate) fn prepare<'h>(
     held: &'h mut Option<ActiveSnapshot>,
     core: &Core,
     evaluating: Evaluating<'_, '_>,
-    (artwork, place): (&Artwork, &ActivePlace),
+    (artwork, using): (&Artwork, Use),
     regions: &[PixelRect],
 ) -> Result<(Resumed<'h>, Kept), RenderError> {
-    let prefix = match evaluating.0.0.active_before.clone() {
+    let (layer, on_mask) = using.place;
+    let prefix = match evaluating.0.0.content_of(layer, on_mask) {
         Some(prefix) if !prefix.is_empty() => prefix,
         _ => return Ok((None, [0; 2])),
     };
-    let result = bring_up(held, core, evaluating, (artwork, place), (&prefix, regions));
+    let result = bring_up(held, core, evaluating, (artwork, using), (&prefix, regions));
     match result {
         Ok(Some(kept)) => {
             let resumed = held
@@ -96,31 +117,33 @@ pub(crate) fn prepare<'h>(
     }
 }
 
-/// `prepare`'s work; `None` when the tiles cannot all be held.
+/// `prepare`'s work; `None` when the tiles cannot all be held, or the snapshot does not serve
+/// a frame without a stroke (it is left as it is then).
 fn bring_up(
     held: &mut Option<ActiveSnapshot>,
     core: &Core,
     ((scene, ops), (bindings, residuals)): Evaluating<'_, '_>,
-    (artwork, place): (&Artwork, &ActivePlace),
+    (artwork, using): (&Artwork, Use),
     (prefix, regions): (&Range<usize>, &[PixelRect]),
 ) -> Result<Option<Kept>, RenderError> {
-    let kept = held
-        .take()
-        .filter(|s| s.layer == place.layer && s.on_mask == place.on_mask);
-    let mut snapshot = match kept {
-        Some(snapshot) => match snapshot.since(artwork, scene, prefix) {
-            Since::Same => snapshot,
-            // Its tiles take the strokes committed since when a frame needs them.
-            Since::Appended(strokes) if snapshot.appended(scene, prefix, strokes) => snapshot,
-            _ => snapshot.emptied(),
-        },
-        None => {
+    let mine = held
+        .as_ref()
+        .filter(|s| (s.layer, s.on_mask) == using.place);
+    // Its tiles take the strokes committed since when a frame needs them.
+    let serves = mine.is_some_and(|snapshot| snapshot.follows(artwork, scene, prefix));
+    if !using.drawing && !serves {
+        return Ok(None);
+    }
+    let mut snapshot = match held.take() {
+        Some(snapshot) if serves => snapshot,
+        Some(snapshot) if (snapshot.layer, snapshot.on_mask) == using.place => snapshot.emptied(),
+        _ => {
             let Some(tiles) = Snapshot::new(core, scene.canvas, bindings.snapshot_room) else {
                 return Ok(None);
             };
             ActiveSnapshot {
-                layer: place.layer,
-                on_mask: place.on_mask,
+                layer: using.place.0,
+                on_mask: using.place.1,
                 artwork: artwork.clone(),
                 items: 0,
                 last: None,
@@ -129,9 +152,16 @@ fn bring_up(
             }
         }
     };
-    snapshot.artwork = artwork.clone();
-    snapshot.items = prefix.len();
-    snapshot.last = scene.items.get(prefix.end.wrapping_sub(1)).cloned();
+    if !using.drawing
+        && snapshot
+            .tiles_of(regions, |t| !snapshot.tiles.holds(t))
+            .len()
+            > FEW
+    {
+        *held = Some(snapshot);
+        return Ok(None);
+    }
+    snapshot.hold(artwork, scene, prefix);
     let evaluating = ((scene, ops), (bindings, residuals));
     let kept = snapshot.take(core, evaluating, (prefix, regions));
     *held = Some(snapshot);
@@ -142,6 +172,24 @@ impl ActiveSnapshot {
     /// Bytes its buffer holds.
     pub(crate) fn bytes(&self) -> u64 {
         self.tiles.bytes()
+    }
+
+    /// Whether the layer's content in `artwork` (its items `prefix` in `scene`) is the content
+    /// held, or that with whole strokes appended, which its tiles take when a frame needs them.
+    pub(crate) fn follows(&self, artwork: &Artwork, scene: &Scene, prefix: &Range<usize>) -> bool {
+        match self.since(artwork, scene, prefix) {
+            Since::Same => true,
+            Since::Appended(strokes) => self.appended(scene, prefix, strokes),
+            Since::Other => false,
+        }
+    }
+
+    /// From now on it stands for the layer's content in `artwork`, its items `prefix` in
+    /// `scene`: the tiles that lack strokes appended since get them when a frame needs them.
+    pub(crate) fn hold(&mut self, artwork: &Artwork, scene: &Scene, prefix: &Range<usize>) {
+        self.artwork = artwork.clone();
+        self.items = prefix.len();
+        self.last = scene.items.get(prefix.end.wrapping_sub(1)).cloned();
     }
 
     /// How the layer's content in `artwork` relates to the content held; the same only when its
@@ -316,6 +364,9 @@ impl ActiveSnapshot {
         )
     }
 }
+
+#[path = "active_snapshot_idle.rs"]
+mod idle;
 
 /// The strokes and edits of `layer`'s paint, or (`on_mask`) its mask, in `artwork`.
 fn content(

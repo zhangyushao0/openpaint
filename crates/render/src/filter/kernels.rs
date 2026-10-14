@@ -272,7 +272,7 @@ impl FilterPipeline {
                 pass.dispatch_workgroups(width.div_ceil(16), height.div_ceil(16), 1);
             }
         }
-        gpu.queue.submit([encoder.finish()]);
+        gpu.submit([encoder.finish()]);
     }
 
     /// The kernels' bindings, built again only when a buffer or the material changed.

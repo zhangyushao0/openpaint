@@ -180,7 +180,7 @@ impl Tier {
             atlas.as_image_copy(),
             self.atlas.size(),
         );
-        core.gpu.queue.submit([encoder.finish()]);
+        core.gpu.submit([encoder.finish()]);
         self.bindings = Bindings::without_kept(&core.gpu, &atlas);
         self.atlas = atlas;
         self.map.grow(rows);
@@ -241,7 +241,7 @@ impl Tier {
                 side,
             );
         }
-        core.gpu.queue.submit([encoder.finish()]);
+        core.gpu.submit([encoder.finish()]);
         Ok(Some(kept))
     }
 

@@ -57,7 +57,8 @@ impl SceneCache {
             .as_ref()
             .filter(|s| previewing && self.previewed == Some(s.place))
             .map(|s| s.prefix.clone());
-        let (fresh, skipped) = match over.filter(|_| !fresh.ops.is_empty()) {
+        // Without a stroke (S56: a lift), the snapshot's resume is the only fresh op.
+        let (fresh, skipped) = match over {
             Some(prefix) => {
                 let (fresh, at) = fresh.resuming();
                 (fresh, Some((prefix, at)))
@@ -132,6 +133,7 @@ impl SceneCache {
             regions: regions.to_vec(),
             output,
             resume: resume.clone(),
+            over: over.as_ref().map(|(prefix, _)| prefix.clone()),
         };
         if fresh.ops.is_empty() && self.plan.as_ref().is_some_and(|(kept, _)| *kept == key) {
             return;

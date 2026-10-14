@@ -47,7 +47,7 @@ impl SceneOps {
             let larger = empty(gpu, needed.next_power_of_two());
             let mut encoder = gpu.device.create_command_encoder(&Default::default());
             encoder.copy_buffer_to_buffer(&held, 0, &larger, 0, at);
-            gpu.queue.submit([encoder.finish()]);
+            gpu.submit([encoder.finish()]);
             *held = larger;
         }
         if !fresh.is_empty() {

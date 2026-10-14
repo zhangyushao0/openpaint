@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 use crate::error::RenderError;
 use crate::filter::{FILTER_SHADER, FilterPipeline};
 use crate::gpu::Gpu;
+use crate::gpu_frames::GpuFrames;
 use crate::image::RgbaImage;
 use crate::pace::{Background, Pace};
 use crate::program::{EvaluatePipeline, shader_source};
@@ -40,6 +41,8 @@ pub struct Core {
     pub(crate) underlay: OnceLock<UnderlayPipeline>,
     /// What the pixels it evaluates depend on, hashed (`renderer_identity`).
     identity: u64,
+    /// The screen's frames the GPU has not finished (S56).
+    pub(crate) frames: GpuFrames,
 }
 
 /// The one device the crate's own tests share (one per test binary: drivers deadlock when
@@ -77,6 +80,7 @@ impl Core {
             pace,
             underlay: OnceLock::new(),
             identity: identity(gpu.display),
+            frames: GpuFrames::default(),
             gpu,
             evaluate,
             blit_layout,
@@ -224,7 +228,7 @@ impl Core {
             ..Default::default()
         });
         drop(pass);
-        self.gpu.queue.submit([encoder.finish()]);
+        self.gpu.submit([encoder.finish()]);
         read_rgba(&self.gpu, &texture)
     }
 }

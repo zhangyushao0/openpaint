@@ -1,11 +1,12 @@
 //! Offscreen targets and GPU-to-memory readback.
 
 use std::sync::mpsc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::error::{RenderError, device};
 use crate::gpu::{Gpu, TEN_BITS};
 use crate::image::RgbaImage;
+use crate::profile::waited;
 
 /// The offscreen colour format: 8 bits per channel, no sRGB conversion on write or read.
 pub(crate) const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
@@ -90,7 +91,7 @@ pub(crate) fn read_rect(
             depth_or_array_layers: 1,
         },
     );
-    gpu.queue.submit([encoder.finish()]);
+    gpu.submit([encoder.finish()]);
     map_and_wait(gpu, &buffer)?;
     let view = buffer.get_mapped_range(..).map_err(device)?;
     let mut pixels = Vec::with_capacity(row as usize * height as usize);
@@ -146,7 +147,7 @@ pub(crate) fn read_texel(
             depth_or_array_layers: 1,
         },
     );
-    gpu.queue.submit([encoder.finish()]);
+    gpu.submit([encoder.finish()]);
     map_and_wait(gpu, &buffer)?;
     let view = buffer.get_mapped_range(..).map_err(device)?;
     let mut texel = [0; 4];
@@ -188,7 +189,7 @@ pub(crate) fn read_buffer(
     });
     let mut encoder = gpu.device.create_command_encoder(&Default::default());
     encoder.copy_buffer_to_buffer(source, 0, &buffer, 0, bytes);
-    gpu.queue.submit([encoder.finish()]);
+    gpu.submit([encoder.finish()]);
     map_and_wait(gpu, &buffer)?;
     let view = buffer.get_mapped_range(..).map_err(device)?;
     let data = view.to_vec();
@@ -202,18 +203,42 @@ pub(crate) fn read_buffer(
 /// the caller (a test, a worker) forever.
 pub(crate) const GPU_WAIT: Duration = Duration::from_secs(30);
 
+/// How long one wait for the GPU holds wgpu's device lock at most (S56). wgpu waits for a
+/// submission holding the lock its present needs, so a worker waiting a whole backlog out held
+/// the main thread's present for seconds (S55's input timeout); waiting in steps lets a present
+/// waiting for the lock in between.
+const WAIT_STEP: Duration = Duration::from_millis(2);
+
 /// Blocks until the GPU has finished every submitted command, at most `GPU_WAIT`; `what` names
 /// the wait in the error.
 pub(crate) fn wait(gpu: &Gpu, what: &'static str) -> Result<(), RenderError> {
-    let poll = wgpu::PollType::Wait {
-        submission_index: None,
-        timeout: Some(GPU_WAIT),
-    };
-    match gpu.device.poll(poll) {
-        Ok(_) => Ok(()),
-        Err(wgpu::PollError::Timeout) => Err(timeout(what)),
-        Err(error) => Err(device(error)),
-    }
+    // An empty submission names everything submitted before it.
+    let last = gpu.submit([]);
+    wait_for(gpu, last, what)
+}
+
+/// Blocks until the GPU has finished `submitted`, at most `GPU_WAIT`, in steps of `WAIT_STEP`;
+/// the time counts as the thread's wait (`profile.rs`).
+pub(crate) fn wait_for(
+    gpu: &Gpu,
+    submitted: wgpu::SubmissionIndex,
+    what: &'static str,
+) -> Result<(), RenderError> {
+    let started = Instant::now();
+    waited(what, || {
+        loop {
+            let poll = wgpu::PollType::Wait {
+                submission_index: Some(submitted.clone()),
+                timeout: Some(WAIT_STEP),
+            };
+            match gpu.device.poll(poll) {
+                Ok(_) => return Ok(()),
+                Err(wgpu::PollError::Timeout) if started.elapsed() < GPU_WAIT => {}
+                Err(wgpu::PollError::Timeout) => return Err(timeout(what)),
+                Err(error) => return Err(device(error)),
+            }
+        }
+    })
 }
 
 fn timeout(what: &'static str) -> RenderError {

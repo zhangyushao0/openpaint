@@ -6,6 +6,7 @@ use std::sync::Arc;
 use crate::core::{Core, clear_attachment};
 use crate::error::RenderError;
 use crate::gradient::Gradient;
+use crate::profile::waited;
 use crate::screen::{CanvasBlit, CanvasPlacement, ScreenTarget};
 use crate::surface::Surface;
 
@@ -170,7 +171,7 @@ impl ScreenPainter {
         }
         drop(pass);
         commands.push(encoder.finish());
-        queue.submit(commands);
+        core.gpu.submit(commands);
     }
 }
 
@@ -212,12 +213,14 @@ impl Core {
     ) -> Result<bool, RenderError> {
         painter.check_format(surface.format())?;
         painter.upload(self, &frame.ui.textures);
-        let Some(texture) = surface.acquire(self)? else {
+        // S56: both may wait for the GPU (the window's next image, the device's lock).
+        let acquired = waited("acquire", || surface.acquire(self))?;
+        let Some(texture) = acquired else {
             return Ok(false);
         };
         let view = texture.texture.create_view(&Default::default());
         painter.paint(self, &view, surface.size(), frame);
-        self.gpu.queue.present(texture);
+        waited("present", || self.gpu.queue.present(texture));
         Ok(true)
     }
 }

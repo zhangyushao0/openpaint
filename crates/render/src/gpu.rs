@@ -123,6 +123,15 @@ impl Gpu {
         })
     }
 
+    /// Submits `commands`; the time the call takes counts as a wait of the calling thread (S56,
+    /// `profile.rs`): wgpu's submit blocks while another thread holds the device's lock.
+    pub(crate) fn submit<I: IntoIterator<Item = wgpu::CommandBuffer>>(
+        &self,
+        commands: I,
+    ) -> wgpu::SubmissionIndex {
+        crate::profile::waited("submit", || self.queue.submit(commands))
+    }
+
     /// Adapter name and backend, for logs and harness output.
     pub(crate) fn describe(&self) -> String {
         let info = self.adapter.get_info();

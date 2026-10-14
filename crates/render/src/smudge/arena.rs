@@ -232,7 +232,7 @@ impl Arena {
                     words * 4,
                 );
             }
-            gpu.queue.submit([encoder.finish()]);
+            gpu.submit([encoder.finish()]);
         }
         Ok(())
     }
@@ -354,7 +354,7 @@ impl Arena {
             block.base = used;
             used += block.words;
         }
-        gpu.queue.submit([encoder.finish()]);
+        gpu.submit([encoder.finish()]);
         self.buffer = buffer;
         self.capacity = words;
         self.used = used;

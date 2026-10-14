@@ -16,8 +16,17 @@ impl Runtime {
     /// made again as for the window (S49).
     pub fn frame_offscreen(&mut self, size: [u32; 2]) -> Result<bool, RuntimeError> {
         self.recover_if_lost()?;
+        if self.pacing.skips(&self.core, false) {
+            return Ok(true);
+        }
         let result = self.offscreen_once(size);
         self.after_frame(result)
+    }
+
+    /// Tests: the next `frames` frame calls find the GPU behind and skip, as on a GPU that lags
+    /// (S56); input meanwhile waits for the next frame drawn.
+    pub fn hold_gpu(&mut self, frames: u32) {
+        self.pacing.lag(frames);
     }
 
     fn offscreen_once(&mut self, size: [u32; 2]) -> Result<bool, RuntimeError> {

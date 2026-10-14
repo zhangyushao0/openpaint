@@ -2,6 +2,8 @@
 //! stroke's place; `scene_content.rs`), then with an enabled mask `BeginMask` and the mask's own
 //! ops, then its end, which applies the mask (S24).
 
+use std::ops::Range;
+
 use openpaint_core::{LayerId, LayerMask, RegionEdit, StrokeBlend, StrokeList};
 
 use crate::error::RenderError;
@@ -59,6 +61,14 @@ impl Scene {
         }
         self.items.push(end);
         Ok(())
+    }
+
+    /// The items of `layer`'s paint, or (`on_mask`) its mask's, while it shows: before the
+    /// in-progress stroke's place on it (S56: what a snapshot of it stands for).
+    pub(crate) fn content_of(&self, layer: LayerId, on_mask: bool) -> Option<Range<usize>> {
+        (self.contents.iter())
+            .find(|(id, mask, _)| *id == layer && *mask == on_mask)
+            .map(|(_, _, items)| items.clone())
     }
 
     /// The last mask words, one per smudge, then one per filter: where their blocks start in the

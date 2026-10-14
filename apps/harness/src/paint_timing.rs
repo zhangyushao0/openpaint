@@ -20,7 +20,7 @@ use openpaint_core::{
     ActiveStroke, Artwork, CanvasPoint, CanvasSize, Color, StrokeSample, StrokeStyle,
 };
 use openpaint_render::{
-    CanvasTarget, Core, EvaluationWork, FrameRequest, PixelRect, RegionEvaluator,
+    CanvasTarget, Core, EvaluationWork, FrameRequest, PixelRect, RegionEvaluator, take_spent,
 };
 
 use crate::error::HarnessError;
@@ -60,17 +60,17 @@ pub fn run() -> Result<(), HarnessError> {
     // Shaders, pipelines and buffers settle on a first stroke nobody counts.
     measure(&core, &blank()?, (style("ink-pen", 1)?, calm()))?;
     println!(
-        "{:<15} {:>4} {:<7} | {:>15} | {:>22} {:>15} {:>5} {:>6} {:>5} | {:>15}",
+        "{:<15} {:>4} {:<7} | {:>23} | {:>22} {:>15} {:>5} {:>6} {:>5} | {:>23}",
         "brush",
         "N",
         "stroke",
-        "first cpu/gpu",
+        "first cpu (scene)/gpu",
         "cpu p50/p95 (plan)",
         "gpu p50/p95",
         "tiles",
         "entries",
         "taken",
-        "lift cpu/gpu"
+        "lift cpu (scene)/gpu"
     );
     for key in BRUSHES {
         for count in COUNTS {
@@ -90,10 +90,12 @@ fn blank() -> Result<Artwork, HarnessError> {
     Ok(Artwork::new(CanvasSize::new(SIZE[0], SIZE[1])?))
 }
 
-/// One frame's cost: CPU, GPU, and what the evaluation listed.
+/// One frame's cost: CPU (and of it building the scene, S56), GPU, and what the evaluation
+/// listed.
 #[derive(Clone, Copy)]
 struct Frame {
     cpu: Duration,
+    scene: Duration,
     gpu: Duration,
     work: EvaluationWork,
 }
@@ -165,13 +167,16 @@ fn timed(
     target: &mut CanvasTarget,
     request: &FrameRequest<'_>,
 ) -> Result<Frame, HarnessError> {
+    let _ = take_spent();
     let started = Instant::now();
     RegionEvaluator::new(core, target).evaluate(request, &[])?;
     let cpu = started.elapsed();
+    let scene = Duration::from_nanos(take_spent().scene_ns);
     let waited = Instant::now();
     core.wait_idle()?;
     Ok(Frame {
         cpu,
+        scene,
         gpu: waited.elapsed(),
         work: target.work(),
     })
@@ -194,9 +199,10 @@ impl Frames {
         let [entries, _] = spread(&|f| f.work.entries as f64);
         let [taken, _] = spread(&|f| f.work.taken as f64);
         format!(
-            "{:>6.2} / {:>6.2} | {:>5.2} / {:>5.2} ({:>5.2}) {:>6.2} / {:>6.2} {:>5} {:>7} {:>5} \
-             | {:>6.2} / {:>6.2}",
+            "{:>6.2} ({:>5.2}) / {:>6.2} | {:>5.2} / {:>5.2} ({:>5.2}) {:>6.2} / {:>6.2} {:>5} \
+             {:>7} {:>5} | {:>6.2} ({:>5.2}) / {:>6.2}",
             ms(self.first.cpu),
+            ms(self.first.scene),
             ms(self.first.gpu),
             cpu50,
             cpu95,
@@ -207,6 +213,7 @@ impl Frames {
             entries,
             taken,
             ms(self.lift.cpu),
+            ms(self.lift.scene),
             ms(self.lift.gpu),
         )
     }

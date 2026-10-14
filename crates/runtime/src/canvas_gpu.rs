@@ -80,9 +80,10 @@ impl Canvas {
     }
 
     /// Shown complete from its display cache, its smudge residuals are still being evaluated
-    /// (S54): frames are wanted until they are.
+    /// (S54), or the snapshot under the pen still lacks strokes committed since (S56): frames
+    /// are wanted until neither is so.
     pub(crate) fn warming(&self) -> bool {
-        self.target.warming()
+        self.target.warming() || self.target.catching_up()
     }
 
     /// A stroke is being drawn (the pen is on the glass).

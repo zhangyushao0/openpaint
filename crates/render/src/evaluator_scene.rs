@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use openpaint_core::Artwork;
 
 use super::CanvasTarget;
-use crate::active_snapshot::{self, Kept};
+use crate::active_snapshot::{self, Kept, Use};
 use crate::affine::Affine;
 use crate::bounded::{frame_share, paper_only, tile_rects};
 use crate::core::Core;
@@ -19,9 +19,9 @@ use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
 use crate::output::Output;
 use crate::plan::Plan;
-use crate::preview::{PreviewSnapshot, Retune, retuned};
+use crate::preview::{PreviewSnapshot, retuned};
 use crate::program::{Dispatch, SceneOps, SnapshotUse, scene_ops};
-use crate::protocol::{Op, TileRecord, encode};
+use crate::protocol::{Op, TileRecord};
 use crate::scene::{ActivePlace, Fresh, Scene};
 use crate::scene_adjust::EditPlace;
 use crate::smudge::{Smudges, Wanted, reached};
@@ -30,7 +30,8 @@ use crate::waiting::Waiting;
 /// One artwork version's scene and its ops on the GPU, reused while the version stays.
 pub(super) struct SceneCache {
     pub(super) artwork: Artwork,
-    pub(super) active: Option<ActivePlace>,
+    /// The in-progress stroke's place, or while none is drawn the next one's (S56).
+    pub(super) active: ActivePlace,
     pub(super) scene: Scene,
     pub(super) ops: SceneOps,
     /// The adjustment whose values the last version changed, and its layer's snapshot.
@@ -68,6 +69,8 @@ struct PlanKey {
     regions: Vec<PixelRect>,
     output: Output,
     resume: Option<Range<usize>>,
+    /// The layer's items resumed from the in-progress stroke's snapshot (S56: a lift's too).
+    over: Option<Range<usize>>,
 }
 
 /// What one evaluation into a target cost (S48): the time taken to bin the plan on the CPU (and
@@ -116,17 +119,18 @@ impl CanvasTarget {
         &mut self,
         core: &Core,
         artwork: &Artwork,
-        active: Option<ActivePlace>,
+        active: ActivePlace,
     ) -> Result<&SceneCache, RenderError> {
         let same =
             |cache: &SceneCache| cache.artwork.same_version(artwork) && cache.active == active;
         if self.scene.as_ref().is_some_and(same) {
             return self.cached();
         }
+        // A preview's values change between versions while no stroke is drawn.
         let retune = self
             .scene
             .as_ref()
-            .filter(|cache| active.is_none() && cache.active.is_none())
+            .filter(|cache| cache.active == active)
             .and_then(|cache| retuned(&cache.artwork, artwork));
         if let Some(retune) = retune {
             if let Err(error) = self.retune(core, artwork, &retune) {
@@ -135,17 +139,13 @@ impl CanvasTarget {
             }
             return self.cached();
         }
-        let known = self.scene.as_ref().map(|cache| cache.scene.edges.clone());
-        let scene = Scene::build_knowing(artwork, active.as_ref(), known.unwrap_or_default())?;
-        let patches = self.scene.as_ref().and_then(|cache| {
-            let (old, new) = (&cache.scene.patches, &scene.patches);
-            let same = old.len() == new.len() && old.iter().zip(new).all(|(a, b)| a.shares(b));
-            same.then(|| cache.ops.patches.clone())
-        });
-        let ops = scene_ops(&core.gpu, &scene, patches);
-        // Its filters' results now; the residuals near what each evaluation evaluates (S51).
-        let (smudges, filters) = (&mut self.smudges, &mut self.filters);
-        smudges.prepare(core, (&scene, &ops), artwork, (filters, &Wanted::Near(&[])))?;
+        let (scene, ops) = match self.built(core, artwork, &active) {
+            Ok(built) => built,
+            Err(error) => {
+                self.scene = None;
+                return Err(error);
+            }
+        };
         self.scene = Some(SceneCache {
             artwork: artwork.clone(),
             active,
@@ -163,6 +163,33 @@ impl CanvasTarget {
         self.cached()
     }
 
+    /// A new scene of `artwork` with the place `active` on the GPU, its smudges and filters
+    /// prepared. The strokes' spans the scene before drew are copied from it (S56), which leaves
+    /// that scene without its items: on an error the caller keeps no scene.
+    fn built(
+        &mut self,
+        core: &Core,
+        artwork: &Artwork,
+        active: &ActivePlace,
+    ) -> Result<(Scene, SceneOps), RenderError> {
+        let started = Instant::now();
+        let known = self.scene.as_ref().map(|cache| cache.scene.edges.clone());
+        let earlier = (self.scene.as_mut()).map(|cache| cache.scene.take_earlier());
+        let known = (known.unwrap_or_default(), earlier.unwrap_or_default());
+        let scene = Scene::build_knowing(artwork, Some(active), known)?;
+        let patches = self.scene.as_ref().and_then(|cache| {
+            let (old, new) = (&cache.scene.patches, &scene.patches);
+            let same = old.len() == new.len() && old.iter().zip(new).all(|(a, b)| a.shares(b));
+            same.then(|| cache.ops.patches.clone())
+        });
+        let ops = scene_ops(&core.gpu, &scene, patches);
+        crate::profile::scene_built(started.elapsed());
+        // Its filters' results now; the residuals near what each evaluation evaluates (S51).
+        let (smudges, filters) = (&mut self.smudges, &mut self.filters);
+        smudges.prepare(core, (&scene, &ops), artwork, (filters, &Wanted::Near(&[])))?;
+        Ok((scene, ops))
+    }
+
     fn cached(&self) -> Result<&SceneCache, RenderError> {
         self.scene
             .as_ref()
@@ -178,7 +205,7 @@ impl CanvasTarget {
         &mut self,
         core: &Core,
         (request, (output, reset)): (&FrameRequest<'_>, (Output, bool)),
-        (fresh, held): (Fresh, Option<ActivePlace>),
+        (fresh, held): (Fresh, Option<Use>),
         (all, now): (&[PixelRect], Option<&[PixelRect]>),
     ) -> Result<Option<Vec<PixelRect>>, RenderError> {
         let size = self.size();
@@ -193,10 +220,10 @@ impl CanvasTarget {
         prepare_early(core, tools, (cache, request.artwork), snapshots)?;
         let residuals = self.smudges.residuals();
         let (held, kept) = match held {
-            Some(place) => {
+            Some(using) => {
                 let evaluating = ((&cache.scene, &cache.ops), (&mut self.bindings, residuals));
-                let drawing = (request.artwork, &place);
-                active_snapshot::prepare(&mut self.held, core, evaluating, drawing, all)?
+                let using = (request.artwork, using);
+                active_snapshot::prepare(&mut self.held, core, evaluating, using, all)?
             }
             None => (None, [0; 2]),
         };
@@ -242,53 +269,11 @@ impl CanvasTarget {
         )?;
         Ok(evaluated)
     }
-
-    /// Gives the kept scene `retune`'s values: the ops and tables that changed rewritten on the
-    /// GPU, a filter's result prepared anew.
-    fn retune(
-        &mut self,
-        core: &Core,
-        artwork: &Artwork,
-        retune: &Retune,
-    ) -> Result<(), RenderError> {
-        let cache = self
-            .scene
-            .as_mut()
-            .ok_or(RenderError::Invalid("no scene was built"))?;
-        let changed = cache.scene.retune(retune)?;
-        let queue = &core.gpu.queue;
-        for item in changed.items {
-            let op = [cache.scene.items[item].op()];
-            queue.write_buffer(
-                &cache.ops.ops(),
-                (item * size_of::<Op>()) as u64,
-                &encode(&op),
-            );
-        }
-        for words in changed.words {
-            let at = (words.start * 4) as u64;
-            queue.write_buffer(&cache.ops.masks, at, &encode(&cache.scene.masks[words]));
-        }
-        let (smudges, filters) = (&mut self.smudges, &mut self.filters);
-        let scene = (&cache.scene, &cache.ops);
-        smudges.prepare(core, scene, artwork, (filters, &Wanted::Near(&[])))?;
-        cache.artwork = artwork.clone();
-        cache.spread = retune.spread;
-        cache.batch = None;
-        cache.serial = next_serial();
-        if cache.previewed != Some(retune.place) {
-            cache.previewed = Some(retune.place);
-            cache.snapshot = None;
-        }
-        Ok(())
-    }
 }
 
-/// The next `SceneCache::serial`.
-fn next_serial() -> u64 {
-    static SERIAL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-    SERIAL.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1
-}
+#[path = "evaluator_retune.rs"]
+mod retune;
+use retune::next_serial;
 
 /// S51: the residuals the snapshots' evaluations read before the frame's own: near the stroke's
 /// pixels `all` while one is drawn (`stroke`), or a preview's layer whole while it takes its

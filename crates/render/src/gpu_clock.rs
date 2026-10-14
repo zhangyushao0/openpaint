@@ -112,7 +112,7 @@ impl GpuClock {
         let offset = STRIDE * u64::from(at);
         encoder.resolve_query_set(&self.set, 2 * at..2 * at + 2, &self.resolve, offset);
         encoder.copy_buffer_to_buffer(&self.resolve, offset, &slot.read, 0, 16);
-        gpu.queue.submit([encoder.finish()]);
+        gpu.submit([encoder.finish()]);
         slot.state.store(FLYING, Ordering::Release);
         let state = Arc::clone(&slot.state);
         slot.read

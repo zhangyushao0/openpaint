@@ -5,9 +5,7 @@
 use std::ops::Range;
 use std::sync::Arc;
 
-use openpaint_core::{
-    ActiveStroke, Artwork, Layer, LayerGroup, LayerId, Patch, RegionMask, Stroke,
-};
+use openpaint_core::{Artwork, Layer, LayerGroup, LayerId, Patch, RegionMask, Stroke};
 
 use crate::affine::Affine;
 use crate::error::RenderError;
@@ -16,6 +14,7 @@ use crate::geom::{Bounds, PixelRect};
 use crate::protocol::{LayerInto, MASK_HEADER, Op};
 use crate::scene_adjust::AdjustItem;
 use crate::scene_layer::LayerOps;
+use crate::scene_reuse::{Earlier, Spans};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Item {
@@ -173,6 +172,13 @@ pub(crate) struct Scene {
     pub(crate) frame: (Affine, Option<Bounds>),
     /// The items of the in-progress stroke's layer before its place.
     pub(crate) active_before: Option<Range<usize>>,
+    /// Each shown layer's paint or (`true`) mask content and the in-progress stroke's layer
+    /// before its place: their items (S56, `content_of`).
+    pub(crate) contents: Vec<(LayerId, bool, Range<usize>)>,
+    /// Where its strokes' spans lie, and while it is built the scene before's (S56,
+    /// `scene_reuse.rs`).
+    pub(crate) spans: Spans,
+    pub(crate) earlier: Earlier,
     /// The fills' edge values, in order; and while building, an earlier scene's, which a fill
     /// of the same mask takes instead of deriving them again.
     pub(crate) edges: Vec<EdgeValues>,
@@ -187,25 +193,6 @@ pub(crate) struct EdgeValues {
     pub(crate) words: Arc<[u32]>,
 }
 
-/// Where the in-progress stroke draws: its layer (its paint or its mask), and the selection it
-/// is drawn inside.
-#[derive(Debug, Clone, PartialEq)]
-pub(crate) struct ActivePlace {
-    pub(crate) layer: LayerId,
-    pub(crate) on_mask: bool,
-    pub(crate) clip: Option<RegionMask>,
-}
-
-impl ActivePlace {
-    pub(crate) fn of(active: &ActiveStroke) -> Self {
-        Self {
-            layer: active.layer(),
-            on_mask: active.on_mask(),
-            clip: active.clip().cloned(),
-        }
-    }
-}
-
 impl Scene {
     /// `build_knowing` with no earlier scene.
     #[cfg(test)]
@@ -213,7 +200,7 @@ impl Scene {
         artwork: &Artwork,
         active: Option<&ActivePlace>,
     ) -> Result<Self, RenderError> {
-        Self::build_knowing(artwork, active, Vec::new())
+        Self::build_knowing(artwork, active, (Vec::new(), Earlier::default()))
     }
 
     /// The finished content of `artwork`, with the place of an in-progress stroke `active`.
@@ -221,11 +208,12 @@ impl Scene {
     /// layers with neither content nor that place, contribute no ops. A layer ends onto the
     /// canvas, or into its clipping chain, which ends onto the canvas by its base's opacity and
     /// mode; a group's layers end onto the canvas too, and its own end fades them (D50). A fill
-    /// whose mask an earlier scene drew takes its edge values from `known`.
+    /// whose mask an earlier scene drew takes its edge values from `known`, a stroke it drew its
+    /// spans from `earlier` (S56).
     pub(crate) fn build_knowing(
         artwork: &Artwork,
         active: Option<&ActivePlace>,
-        known: Vec<EdgeValues>,
+        (known, earlier): (Vec<EdgeValues>, Earlier),
     ) -> Result<Self, RenderError> {
         if let Some(place) = active
             && artwork.layer(place.layer).is_none()
@@ -236,6 +224,7 @@ impl Scene {
         }
         let mut scene = Self::on(artwork);
         scene.known = known;
+        scene.earlier = earlier;
         let layers = artwork.layers();
         let drawn = drawn(artwork);
         let ops = shown_ops;
@@ -279,6 +268,7 @@ impl Scene {
             }
         }
         scene.known.clear();
+        scene.forget_earlier();
         scene.place_bases()?;
         Ok(scene)
     }
@@ -382,7 +372,7 @@ fn drawn(artwork: &Artwork) -> Vec<bool> {
 
 #[path = "scene_fresh.rs"]
 mod fresh;
-pub(crate) use fresh::Fresh;
+pub(crate) use fresh::{ActivePlace, Fresh};
 
 #[cfg(test)]
 #[path = "scene_tests.rs"]
