@@ -345,6 +345,7 @@ pub use cache::CanvasCopy;
 
 #[path = "evaluator_bench.rs"]
 mod bench;
+pub(crate) use bench::WARM_ENOUGH;
 pub use bench::{Listed, Timed};
 
 #[cfg(test)]

@@ -16,6 +16,7 @@ use std::collections::HashMap;
 use openpaint_app::BrushLibrary;
 use openpaint_render::{Core, Listed, RenderError, Timed};
 
+use crate::bench_raster::bench_raster;
 use crate::bench_scenes::{CANVAS, SCENES, Scene};
 use crate::error::RuntimeError;
 
@@ -31,11 +32,15 @@ const REPEATS: usize = 9;
 const TILE_PIXELS: f64 = 256.0;
 
 /// Runs the scene called `only` (after its base and the empty scene), or every scene: a header
-/// line, then a line per scene and scale.
+/// line, then a line per scene and scale. A name starting with `raster` runs the raster core
+/// probe's benchmark instead (S57, `bench_raster.rs`).
 ///
 /// # Errors
 /// An unknown scene; as the evaluator otherwise.
 pub fn bench(core: &Core, only: Option<&str>) -> Result<Vec<String>, RuntimeError> {
+    if let Some(rest) = only.and_then(|name| name.strip_prefix("raster")) {
+        return bench_raster(core, rest);
+    }
     let library = BrushLibrary::built_in()?;
     let chosen = match only {
         None => SCENES.iter().collect(),
@@ -51,7 +56,7 @@ pub fn bench(core: &Core, only: Option<&str>) -> Result<Vec<String>, RuntimeErro
     for scene in chosen {
         let artwork = scene.artwork(&library)?;
         for (scale, at) in PLACES {
-            let timed = core.time_evaluation(&artwork, (scale, at), SIDE, REPEATS)?;
+            let (timed, _) = core.time_evaluation(&artwork, (scale, at), [SIDE; 2], REPEATS)?;
             let base = scene.base.and_then(|name| times.get(&(name, scale)));
             lines.push(row(scene, scale, &timed, base));
             times.insert((scene.name, scale), timed);

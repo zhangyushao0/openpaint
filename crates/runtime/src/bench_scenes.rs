@@ -134,7 +134,7 @@ fn sample(point: [f32; 2], pressure: f32, i: u32) -> Result<StrokeSample, Runtim
 }
 
 /// `artwork` with a stroke of `style` along `points`, pressed `pressure(i)`, committed.
-fn drawn(
+pub(crate) fn drawn(
     artwork: &Artwork,
     style: StrokeStyle,
     points: &[[f32; 2]],
@@ -149,20 +149,39 @@ fn drawn(
     Ok(session.finish().artwork)
 }
 
-/// The wave `pen-many` lays, through the canvas's middle, turned by `k` golden angles about it.
-fn wave(k: u32) -> Vec<[f32; 2]> {
+/// The wave `pen-many` lays, through `middle`, turned by `k` golden angles about it.
+pub(crate) fn wave(k: u32, middle: [f32; 2]) -> Vec<[f32; 2]> {
     let (sin, cos) = (k as f32 * GOLDEN).sin_cos();
     (0..52u16)
         .map(|i| {
             let t = f32::from(i) / 51.0;
             let [x, y] = [500.0f32.mul_add(t, -250.0), 43.0 * (PI * t).sin()];
-            [MIDDLE[0] + x * cos - y * sin, MIDDLE[1] + x * sin + y * cos]
+            [middle[0] + x * cos - y * sin, middle[1] + x * sin + y * cos]
         })
         .collect()
 }
 
 fn color() -> Result<Color, RuntimeError> {
     Ok(Color::rgb(0.2, 0.3, 0.6)?)
+}
+
+/// A stroke of built-in brush `key` at `size` (its first size without one), seed 0, painting.
+pub(crate) fn style_of(
+    library: &BrushLibrary,
+    key: &str,
+    size: Option<f32>,
+) -> Result<StrokeStyle, RuntimeError> {
+    let index = library
+        .find(key)
+        .ok_or(missing("the benchmark's brush is not built in"))?;
+    let brush = &library.brushes()[index];
+    let size = size.unwrap_or(brush.size().default);
+    Ok(StrokeStyle::new(
+        Arc::clone(brush.recipe()),
+        size,
+        brush.opacity(),
+        color()?,
+    )?)
 }
 
 /// `count` strokes of built-in brush `key` at `size` (its first size without one) over `artwork`.
@@ -172,16 +191,11 @@ fn brushed_over(
     (key, size, tool): (&str, Option<f32>, StrokeTool),
     count: u32,
 ) -> Result<Artwork, RuntimeError> {
-    let index = library
-        .find(key)
-        .ok_or(missing("the benchmark's brush is not built in"))?;
-    let brush = &library.brushes()[index];
-    let size = size.unwrap_or(brush.size().default);
+    let style = style_of(library, key, size)?;
     let mut artwork = artwork.clone();
     for k in 0..count {
-        let style = StrokeStyle::new(Arc::clone(brush.recipe()), size, brush.opacity(), color()?)?;
-        let style = style.with_seed(k).with_tool(tool);
-        artwork = drawn(&artwork, style, &wave(k), |_| 0.8)?;
+        let style = style.clone().with_seed(k).with_tool(tool);
+        artwork = drawn(&artwork, style, &wave(k, MIDDLE), |_| 0.8)?;
     }
     Ok(artwork)
 }

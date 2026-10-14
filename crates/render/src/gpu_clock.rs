@@ -104,6 +104,20 @@ impl GpuClock {
         }
     }
 
+    /// As `writes`, for a render pass (S57's raster probe): the start for the `first` pass, the
+    /// end for the `last`.
+    pub(crate) fn render_writes(
+        &self,
+        timing: Timing,
+        (first, last): (bool, bool),
+    ) -> Option<wgpu::RenderPassTimestampWrites<'_>> {
+        (first || last).then_some(wgpu::RenderPassTimestampWrites {
+            query_set: &self.set,
+            beginning_of_pass_write_index: first.then_some(2 * timing.0),
+            end_of_pass_write_index: last.then_some(2 * timing.0 + 1),
+        })
+    }
+
     /// After the evaluation's last run: its two timestamps resolved and copied out, to be read
     /// back once the GPU is there.
     pub(crate) fn finish(&mut self, gpu: &Gpu, Timing(at): Timing) {

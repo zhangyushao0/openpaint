@@ -17,6 +17,7 @@ use crate::error::RenderError;
 use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
 use crate::gpu_clock::{GpuClock, Timing};
+use crate::image::RgbaImage;
 use crate::output::Output;
 use crate::pace::Group;
 use crate::program::Dispatch;
@@ -27,6 +28,9 @@ use crate::protocol::{FRESH, OpKind};
 /// sustained work gets (the tablet's ran short scenes several times slower without).
 const WARMUP: usize = 3;
 const WARM_TIME: std::time::Duration = std::time::Duration::from_millis(250);
+/// A warm-up this long has settled the clock whatever its count (S57: one evaluation of a full
+/// screen over the pile at 8x takes seconds on the tablet).
+pub(crate) const WARM_ENOUGH: std::time::Duration = std::time::Duration::from_secs(1);
 /// Timed evaluations at most (the GPU clock's slots).
 const MOST: usize = 16;
 
@@ -93,10 +97,11 @@ impl Listed {
 }
 
 impl Core {
-    /// Evaluates `artwork` on white paper over the square of `side` output pixels whose top-left
-    /// lies at canvas pixel `at`, at `scale` output pixels per canvas pixel, once to build its
-    /// scene, smudge residuals and filter results and bin its plan; then that plan `repeats`
-    /// times (at most 16) after a few untimed ones, each timed on the GPU.
+    /// Evaluates `artwork` on white paper over the `size` output pixels whose top-left lies at
+    /// canvas pixel `at`, at `scale` output pixels per canvas pixel, once to build its scene,
+    /// smudge residuals and filter results and bin its plan; then that plan `repeats` times (at
+    /// most 16) after a few untimed ones, each timed on the GPU. With the times, what the
+    /// target then holds (S57 compares the raster probe's image with it).
     ///
     /// # Errors
     /// `Invalid` for a scale other than 1, 2, 4 or 8; as the evaluator otherwise.
@@ -104,11 +109,11 @@ impl Core {
         &self,
         artwork: &Artwork,
         (scale, at): (u32, [u32; 2]),
-        side: u32,
+        size: [u32; 2],
         repeats: usize,
-    ) -> Result<Timed, RenderError> {
+    ) -> Result<(Timed, RgbaImage), RenderError> {
         let output = Output::at(scale, at.map(|v| v * scale))?;
-        let mut target = CanvasTarget::exact(self, [side, side])?;
+        let mut target = CanvasTarget::exact(self, size)?;
         let request = FrameRequest {
             artwork,
             active: None,
@@ -117,12 +122,13 @@ impl Core {
         RegionEvaluator::new(self, &mut target).evaluate_piece(
             &request,
             output,
-            PixelRect::full([side, side]),
+            PixelRect::full(size),
         )?;
         let mut timed = target.listing()?;
         let warming = Instant::now();
         let mut warmed = 0;
-        while warmed < WARMUP || warming.elapsed() < WARM_TIME {
+        while (warmed < WARMUP || warming.elapsed() < WARM_TIME) && warming.elapsed() < WARM_ENOUGH
+        {
             target.redispatch(self, output, None)?;
             self.wait_idle()?;
             warmed += 1;
@@ -143,7 +149,7 @@ impl Core {
             }
         }
         timed.times.sort_by(f64::total_cmp);
-        Ok(timed)
+        Ok((timed, target.read(self)?))
     }
 }
 

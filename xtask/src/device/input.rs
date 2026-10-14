@@ -27,7 +27,9 @@
 //! - `lose-device`: no gesture; the GPU device destroyed under the app as a driver reset loses it
 //!   (S49), so the app makes its renderer again;
 //! - `bench [scene]`: no gesture; the evaluator's micro-benchmark on the device's GPU (S55), every
-//!   scene or the one named, a line per scene and scale (also in the app's log).
+//!   scene or the one named, a line per scene and scale (also in the app's log); a scene named
+//!   `raster[-scene][@scale][@atlas][@alone]` or `raster-passes` runs the raster core probe's
+//!   benchmark instead (S57).
 
 use super::adb::{Adb, DeviceError, Result};
 use super::check::wake;

@@ -196,7 +196,7 @@ pub(crate) struct EvaluatePipeline {
     flat: wgpu::ComputePipeline,
     layout: wgpu::BindGroupLayout,
     /// The paper's mip chain (`paper.rs`), then the shape textures' (`shapes.rs`), uploaded once.
-    textures: wgpu::Buffer,
+    pub(crate) textures: wgpu::Buffer,
     /// Bound as the snapshot when a dispatch has none.
     no_snapshot: wgpu::Buffer,
     /// One-texel stand-ins bound where a target does not write: at binding 4 (8 bits) and 14

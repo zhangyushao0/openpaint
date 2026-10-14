@@ -6,13 +6,13 @@ use openpaint_core::BlendMode;
 use super::{OP_DATA, Op, Opcode};
 
 /// Where an `EndLayer` puts the layer: one of `INTOS`, a whole number.
-const LAYER_INTO: usize = 1;
+pub(super) const LAYER_INTO: usize = 1;
 /// A layer's or chain's blend mode: one of `MODES`, a whole number.
-const LAYER_MODE: usize = 2;
+pub(super) const LAYER_MODE: usize = 2;
 /// 1 when the layer or chain lies in a group, whose `EndGroup` follows.
 const LAYER_GROUPED: usize = 3;
 /// How a layer's mask applies: one of `MASKINGS`, a whole number.
-const LAYER_MASK: usize = 4;
+pub(super) const LAYER_MASK: usize = 4;
 /// A nested record's end (S39): 1 where its start set the layer so far aside.
 const NESTED_ASIDE: usize = 5;
 pub(super) const LAYER_SLOTS: [(&str, usize); 5] = [

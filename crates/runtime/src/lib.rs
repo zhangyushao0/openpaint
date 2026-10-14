@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 mod bench;
+mod bench_raster;
 mod bench_scenes;
 mod brush_pictures;
 mod budget;

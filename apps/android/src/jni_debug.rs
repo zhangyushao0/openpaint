@@ -117,7 +117,8 @@ pub extern "system" fn Java_dev_openpaint_DebugControls_loseDevice<'local>(
 }
 
 /// For `cargo device-input bench [scene]` (S55): the evaluator's micro-benchmark on this
-/// device's GPU (`openpaint_runtime::bench`), every scene or the one named (`all`: every one),
+/// device's GPU (`openpaint_runtime::bench`; a scene named `raster…` the raster core probe's,
+/// S57), every scene or the one named (`all`: every one),
 /// run here on the main thread so no frame shares the GPU with it; each line written to the
 /// log, and all of them returned separated by tabs.
 #[unsafe(no_mangle)]

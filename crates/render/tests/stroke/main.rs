@@ -20,6 +20,7 @@ mod insert;
 mod masks;
 mod merge;
 mod merge_after;
+mod raster;
 mod records;
 mod records_scale;
 mod scale;

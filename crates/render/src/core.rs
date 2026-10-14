@@ -10,6 +10,7 @@ use crate::gpu_frames::GpuFrames;
 use crate::image::RgbaImage;
 use crate::pace::{Background, Pace};
 use crate::program::{EvaluatePipeline, shader_source};
+use crate::raster_gpu::RasterPipelines;
 use crate::readback::{offscreen_texture, read_rgba, wait};
 use crate::screen::{blit_layout, blit_sampler};
 use crate::smudge::{SMUDGE_SHADER, SmudgePipeline};
@@ -39,6 +40,8 @@ pub struct Core {
     /// Enlarges the gallery picture into a canvas target opening without a display cache
     /// (S54), made on first use.
     pub(crate) underlay: OnceLock<UnderlayPipeline>,
+    /// The raster core probe's pipelines (S57, the benchmark only), made on first use.
+    pub(crate) raster: OnceLock<RasterPipelines>,
     /// What the pixels it evaluates depend on, hashed (`renderer_identity`).
     identity: u64,
     /// The screen's frames the GPU has not finished (S56).
@@ -79,6 +82,7 @@ impl Core {
         Ok(Self {
             pace,
             underlay: OnceLock::new(),
+            raster: OnceLock::new(),
             identity: identity(gpu.display),
             frames: GpuFrames::default(),
             gpu,

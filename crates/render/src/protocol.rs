@@ -387,6 +387,9 @@ pub(crate) use stamp::{
 mod cost;
 pub(crate) use cost::OpKind;
 
+#[path = "protocol_raster.rs"]
+mod raster;
+
 #[path = "protocol_wgsl.rs"]
 mod wgsl;
 pub(crate) use wgsl::prelude;
