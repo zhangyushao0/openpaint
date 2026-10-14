@@ -48,6 +48,8 @@ pub struct CanvasTarget {
     focus: Option<Focus>,
     /// Nothing was evaluated into it yet: its pixels are undefined.
     blank: bool,
+    /// Shown complete from a display cache (S54): residuals evaluated so far while it warms.
+    warming: Option<usize>,
 }
 
 /// More changed rectangles than this are kept as the one rectangle holding them.
@@ -73,7 +75,10 @@ impl CanvasTarget {
         size: ([u32; 2], wgpu::TextureFormat),
         kept: bool,
     ) -> Result<Self, RenderError> {
-        let usage = wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING;
+        // Copied into for a display cache's pixels (S54).
+        let usage = wgpu::TextureUsages::STORAGE_BINDING
+            | wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::COPY_DST;
         // First: it rejects sizes the device cannot hold.
         let texture = target_texture(&core.gpu, size, usage)?;
         let view = core.gpu.device.create_buffer(&wgpu::BufferDescriptor {
@@ -103,6 +108,7 @@ impl CanvasTarget {
             waiting: Waiting::new(size.0),
             focus: None,
             blank: true,
+            warming: None,
         })
     }
 
@@ -381,6 +387,10 @@ mod residuals;
 
 #[path = "evaluator_budget.rs"]
 mod budget;
+
+#[path = "evaluator_cache.rs"]
+mod cache;
+pub use cache::CanvasCopy;
 
 #[cfg(test)]
 #[path = "evaluator_display_tests.rs"]

@@ -79,6 +79,17 @@ impl Canvas {
         self.target.pending()
     }
 
+    /// Shown complete from its display cache, its smudge residuals are still being evaluated
+    /// (S54): frames are wanted until they are.
+    pub(crate) fn warming(&self) -> bool {
+        self.target.warming()
+    }
+
+    /// A stroke is being drawn (the pen is on the glass).
+    pub(crate) fn drawing(&self) -> bool {
+        self.session.active().is_some()
+    }
+
     /// Counts a frame of the canvas filling in after it opened, and logs the time, the frames
     /// and the dispatches it took once it is full.
     fn filled(&mut self, core: &Core) {

@@ -1,6 +1,7 @@
-//! `cargo device-check [label] [--no-install] [--no-launch]`: wakes the tablet, builds and
-//! installs the debug APK (unless `--no-install`), launches the app (unless `--no-launch`, which
-//! keeps a system picker over it open), waits, writes a screenshot to
+//! `cargo device-check [label] [--no-install] [--no-launch] [--fresh] [--after=<ms>]`: wakes the
+//! tablet, builds and installs the debug APK (unless `--no-install`), launches the app (unless
+//! `--no-launch`, which keeps a system picker over it open; with `--fresh` force-stopped first, so
+//! it starts anew, S54), waits (`--after`, 3000 ms at first), writes a screenshot to
 //! `artifacts/device/<label>.png` and prints the app's error, panic and crash lines logged since;
 //! a panic or crash fails it. `cargo device-input` is `input.rs`.
 
@@ -15,19 +16,22 @@ use crate::process::root;
 const SETTLE: Duration = Duration::from_secs(3);
 const PNG: &[u8] = b"\x89PNG\r\n\x1a\n";
 
+const USAGE: &str =
+    "cargo device-check [label] [--no-install] [--no-launch] [--fresh] [--after=<ms>]";
+
 pub fn check(args: &[String]) -> Result<()> {
     let flag = |name: &str| args.iter().any(|arg| arg == name);
     // `--no-launch`: the screen as it is (a system picker over the app stays open).
     let (install, launch) = (!flag("--no-install"), !flag("--no-launch"));
+    let after = match args.iter().find_map(|arg| arg.strip_prefix("--after=")) {
+        Some(ms) => Duration::from_millis(ms.parse().map_err(|_| DeviceError::Usage(USAGE))?),
+        None => SETTLE,
+    };
     let labels: Vec<&String> = args.iter().filter(|arg| !arg.starts_with("--")).collect();
     let label = match labels[..] {
         [] => "check",
         [label] => plain(label)?,
-        _ => {
-            return Err(DeviceError::Usage(
-                "cargo device-check [label] [--no-install] [--no-launch]",
-            ));
-        }
+        _ => return Err(DeviceError::Usage(USAGE)),
     };
     let adb = Adb::connected()?;
     wake(&adb)?;
@@ -43,10 +47,12 @@ pub fn check(args: &[String]) -> Result<()> {
         })?;
         let apk = root().join(APK);
         adb.text(&["install", "-r", &apk.to_string_lossy()])?;
+    } else if flag("--fresh") {
+        super::stop_app(&adb)?;
     }
     let since = adb.shell(&["date", "+%s"])?;
     adb.shell(&["am", "start", "-W", "-n", ACTIVITY])?;
-    std::thread::sleep(SETTLE);
+    std::thread::sleep(after);
     screenshot(&adb, label)?;
     report_log(&adb, since.trim())
 }

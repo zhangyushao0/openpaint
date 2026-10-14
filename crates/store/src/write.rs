@@ -2,8 +2,10 @@
 //! disk (`batch.rs`), so a call either happens whole or not at all.
 
 use std::collections::HashSet;
+use std::hash::{BuildHasher, RandomState};
+use std::sync::atomic::{AtomicU64, Ordering};
 
-use openpaint_app::{EditorState, PortError, ProjectId, Thumbnail, Title};
+use openpaint_app::{EditorState, PortError, ProjectId, SaveId, Thumbnail, Title};
 use openpaint_core::Artwork;
 
 use crate::artwork_file::Opened;
@@ -77,7 +79,8 @@ fn new_project(
 ) -> Result<ProjectId, PortError> {
     let id = next_id(open, batch)?;
     write_all(open, batch, id, artwork)?;
-    batch.insert(&open.projects, head_key(id), encode_head(artwork));
+    // No save id until it is opened or saved.
+    batch.insert(&open.projects, head_key(id), encode_head(artwork, None));
     touch(open, batch, id, title.clone())?;
     Ok(id)
 }
@@ -89,24 +92,58 @@ pub(crate) fn open(open: &Open, id: ProjectId) -> Result<(), PortError> {
     batch.commit()
 }
 
+/// Project `id`'s head, which holds `artwork` and no save id, written again with a new one
+/// (S54), which is returned; nothing else changes.
+pub(crate) fn name(open: &Open, id: ProjectId, artwork: &Artwork) -> Result<SaveId, PortError> {
+    let saved = new_save_id();
+    let mut batch = Batch::new(open);
+    batch.insert(
+        &open.projects,
+        head_key(id),
+        encode_head(artwork, Some(saved)),
+    );
+    batch.commit()?;
+    Ok(saved)
+}
+
 /// The head and the stroke and fill records that turn `base` (what the disk holds, when known)
-/// into `artwork`; without a base, every record. The project is touched and stays open.
+/// into `artwork`; without a base, every record. The head holds a new save id, returned. The
+/// project is touched and stays open.
 pub(crate) fn save(
     open: &Open,
     id: ProjectId,
     base: Option<&Artwork>,
     artwork: &Artwork,
-) -> Result<(), PortError> {
+) -> Result<SaveId, PortError> {
     let title = read::entry(open, id)?.title;
     let mut batch = Batch::new(open);
     match base {
         Some(base) => write_delta(open, &mut batch, id, base, artwork),
         None => write_all(open, &mut batch, id, artwork)?,
     }
-    batch.insert(&open.projects, head_key(id), encode_head(artwork));
+    let saved = new_save_id();
+    batch.insert(
+        &open.projects,
+        head_key(id),
+        encode_head(artwork, Some(saved)),
+    );
     touch(open, &mut batch, id, title)?;
     batch.insert(&open.library, LAST, encode_id(id.get()));
-    batch.commit()
+    batch.commit()?;
+    Ok(saved)
+}
+
+/// A new random save id (S54): SipHash of a count under keys `RandomState` takes from the
+/// system's randomness once a thread, so two saves, in this process or any other, share one
+/// only by a chance of about 2^-64.
+fn new_save_id() -> SaveId {
+    static SAVES: AtomicU64 = AtomicU64::new(0);
+    loop {
+        let count = SAVES.fetch_add(1, Ordering::Relaxed);
+        if let Some(saved) = SaveId::new(RandomState::new().hash_one(count)) {
+            return saved;
+        }
+    }
 }
 
 pub(crate) fn thumbnail(

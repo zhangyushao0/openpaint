@@ -85,7 +85,7 @@ pub use crate::palm::PalmRejection;
 pub use crate::pen_buttons::{ButtonAction, ButtonMap, ButtonTracker, HeldTool, PenButton};
 pub use crate::project::{
     KEPT_VERSIONS, KeptVersion, PortError, Project, ProjectId, ProjectStore, ProjectSummary,
-    Thumbnail, VersionId,
+    SaveId, Thumbnail, VersionId,
 };
 pub use crate::projection::{Availability, EditorAction, ScreenProjection, SessionProjection};
 pub use crate::recipe::{MAX_BRUSH_NAME, RecipeError, brush_name};

@@ -17,7 +17,7 @@ resolver = "3"
 [workspace.package]
 # The app's version (DECISIONS D79): a minor per stage, a patch per later slice, 1.0.0 at G7's
 # exit; xtask hands it to Gradle with the store's schema as build metadata (xtask/src/version.rs).
-version = "0.7.1"
+version = "0.7.2"
 edition = "2024"
 rust-version = "1.98"
 license = "MIT"
@@ -46,6 +46,9 @@ fjall = "=3.1.11"
 image = { version = "=0.25.10", default-features = false, features = ["jpeg", "png"] }
 jni = "=0.22.4"
 log = "=0.4.34"
+# The display cache's compression (DECISIONS D81); store only. Already in the tree through fjall,
+# with the features fjall builds it with.
+lz4_flex = "=0.13.1"
 # ICC colour management of picture files (DECISIONS D53); store only. Already in the tree
 # through image, whose CICP conversions use it.
 moxcms = "=0.8.1"

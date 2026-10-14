@@ -2,6 +2,8 @@
 //! onto the canvas, leaving the canvas for the gallery once the artwork is stored, and the
 //! gallery's calls on the storage worker.
 
+use std::sync::Arc;
+
 use openpaint_app::{
     Clipboard, Gallery, LibraryAnswer, LibraryRequest, PortError, ScreenProjection, Toolbox,
     Transfers,
@@ -10,9 +12,13 @@ use openpaint_core::{Artwork, CanvasSize};
 use openpaint_render::Core;
 use openpaint_ui::CanvasArea;
 
-use crate::canvas::{Canvas, Content, Leaving};
+use crate::canvas::{Canvas, Content, Held, Leaving};
+use crate::display::{CacheJob, CacheWorker};
 use crate::error::RuntimeError;
-use crate::storage::{Done, Job, LibraryCall, Opened, Storage};
+use crate::storage::{Done, Job, LibraryCall, Loaded, Opened, Storage, Stored};
+
+/// The workers a frame hands calls to: the store and the display cache (S54).
+pub(crate) type Workers<'a> = (&'a mut Storage, &'a mut CacheWorker);
 
 pub(crate) enum Screen {
     /// An artwork is about to show: waiting for the library (`None`) or the canvas area.
@@ -81,8 +87,13 @@ impl Screen {
         Ok(())
     }
 
-    /// Applies what the storage worker finished; the stored toolbox goes to `toolbox`.
-    pub(crate) fn answer(&mut self, done: Done, toolbox: &mut Toolbox) {
+    /// Applies what the storage worker finished; the stored toolbox goes to `toolbox`. After a
+    /// save the canvas's pixels may go to the display cache (`cache`, from `core`).
+    pub(crate) fn answer(
+        &mut self,
+        done: Done,
+        (toolbox, core, cache): (&mut Toolbox, &Arc<Core>, &mut CacheWorker),
+    ) {
         match done {
             Done::Started(opened, editor) => {
                 if let Some(state) = editor
@@ -103,26 +114,22 @@ impl Screen {
                     log::warn!("storing the toolbox failed: {error}");
                 }
             }
-            Done::Saved(version, result) => {
-                match &result {
-                    Ok(()) => log::debug!("saved"),
-                    Err(error) => log::error!("saving failed: {error}"),
-                }
-                if let Some(canvas) = self.canvas_mut() {
-                    canvas.session_mut().save_finished(&version, &result);
-                }
-            }
+            Done::Saved(version, result) => self.saved(&version, result, (core, cache)),
             Done::Left {
                 version,
                 result,
                 closed,
-            } => self.left(version.as_ref(), &result, closed),
-            Done::Loaded(Ok(project)) => {
-                *self = Self::Opening(Some(Content::Stored(project.artwork, project.title)));
-            }
+            } => self.left(version.as_ref(), (&result, closed), (core, cache)),
+            Done::Loaded(Ok(loaded)) => *self = opening(*loaded),
             Done::Created(artwork, title, Ok(id)) => {
                 log::info!("new artwork {}", id.get());
-                *self = Self::Opening(Some(Content::Stored(artwork, title)));
+                let held = Held {
+                    project: id,
+                    saved: None,
+                    cached: None,
+                    picture: None,
+                };
+                *self = Self::Opening(Some(Content::Stored(artwork, title, Box::new(held))));
             }
             Done::Listed(listed) => self.gallery_answer(LibraryAnswer::Listed(listed)),
             Done::Changed(result) => self.gallery_answer(LibraryAnswer::Changed(result)),
@@ -136,10 +143,39 @@ impl Screen {
         }
     }
 
-    /// The canvas's last version and thumbnail were handed to the store: on success the
-    /// gallery replaces the canvas (its history goes with it); on failure the canvas stays and
-    /// shows that saving failed.
-    fn left(&mut self, version: Option<&Artwork>, result: &Result<(), PortError>, closed: bool) {
+    /// An autosave finished: the session learns how, and once it stored the canvas's version
+    /// its pixels may go to the display cache.
+    fn saved(
+        &mut self,
+        version: &Artwork,
+        result: Result<Option<Stored>, PortError>,
+        (core, cache): (&Arc<Core>, &mut CacheWorker),
+    ) {
+        match &result {
+            Ok(_) => log::debug!("saved"),
+            Err(error) => log::error!("saving failed: {error}"),
+        }
+        if let Some(canvas) = self.canvas_mut() {
+            canvas
+                .session_mut()
+                .save_finished(version, &result.clone().map(drop));
+            if let Ok(Some(stored)) = result {
+                canvas.stored(version, stored);
+                canvas.keep_cache(core, cache);
+            }
+        }
+    }
+
+    /// The canvas's last version and thumbnail were handed to the store: its pixels may go to
+    /// the display cache (complete, as the thumbnail evaluated it); on success the gallery
+    /// replaces the canvas (its history goes with it); on failure the canvas stays and shows
+    /// that saving failed.
+    fn left(
+        &mut self,
+        version: Option<&Artwork>,
+        (result, closed): (&Result<Option<Stored>, PortError>, bool),
+        (core, cache): (&Arc<Core>, &mut CacheWorker),
+    ) {
         if let Err(error) = result {
             log::error!("saving before leaving failed: {error}");
         }
@@ -147,8 +183,14 @@ impl Screen {
             return;
         };
         if let Some(version) = version {
-            canvas.session_mut().save_finished(version, result);
+            canvas
+                .session_mut()
+                .save_finished(version, &result.clone().map(drop));
+            if let Ok(Some(stored)) = result {
+                canvas.stored(version, *stored);
+            }
         }
+        canvas.keep_cache(core, cache);
         if closed {
             log::info!("left the artwork for the gallery");
             *self = Self::Gallery(Gallery::new());
@@ -170,13 +212,14 @@ impl Screen {
     /// `now` is the wall clock's seconds since 1970 UTC, for a version kept on leaving.
     pub(crate) fn progress(
         &mut self,
-        core: &Core,
-        storage: &mut Storage,
+        core: &Arc<Core>,
+        (storage, cache): Workers<'_>,
         (area, now): (Option<CanvasArea>, u64),
     ) -> Result<(), RuntimeError> {
         match self {
             Self::Canvas(canvas) => {
                 canvas.evaluate(core)?;
+                canvas.keep_cache(core, cache);
                 match canvas.leaving {
                     Leaving::Staying => {
                         if let Some(version) = canvas.session_mut().save_request() {
@@ -193,6 +236,10 @@ impl Screen {
             }
             Self::Gallery(gallery) => {
                 while let Some(request) = gallery.request() {
+                    // A deleted artwork's cached canvas goes after any write still queued.
+                    if let LibraryRequest::Delete(id) = &request {
+                        cache.submit(CacheJob::Delete(*id));
+                    }
                     match gallery_job(request, area) {
                         Ok(job) => storage.submit(job),
                         Err(error) => {
@@ -245,11 +292,25 @@ pub(crate) fn dispatch_gallery(gallery: &mut Gallery, intents: Vec<openpaint_app
     }
 }
 
+/// The canvas about to show what the library opened, with its cached canvas or gallery picture.
+fn opening(loaded: Loaded) -> Screen {
+    let Loaded { project, cached } = loaded;
+    let held = Held {
+        project: project.id,
+        saved: Some(project.saved),
+        cached,
+        picture: project.thumbnail,
+    };
+    Screen::Opening(Some(Content::Stored(
+        project.artwork,
+        project.title,
+        Box::new(held),
+    )))
+}
+
 fn started(opened: Opened) -> Screen {
     match opened {
-        Opened::Last(project) => {
-            Screen::Opening(Some(Content::Stored(project.artwork, project.title)))
-        }
+        Opened::Last(loaded) => opening(*loaded),
         Opened::Empty => Screen::Opening(Some(Content::Blank)),
         Opened::Failed(error) => {
             log::error!("opening the last artwork failed: {error}");

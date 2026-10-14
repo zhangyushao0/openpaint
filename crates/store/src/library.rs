@@ -9,8 +9,8 @@ use std::path::PathBuf;
 
 use fjall::{Database, Keyspace, KeyspaceCreateOptions};
 use openpaint_app::{
-    EditorState, PortError, Project, ProjectId, ProjectStore, ProjectSummary, Thumbnail, Title,
-    VersionId,
+    EditorState, PortError, Project, ProjectId, ProjectStore, ProjectSummary, SaveId, Thumbnail,
+    Title, VersionId,
 };
 use openpaint_core::Artwork;
 
@@ -144,9 +144,26 @@ fn prepare(open: &Open) -> Result<(), PortError> {
     }
 }
 
+/// Project `id` as `held`, its head given a save id now if it had none (S54).
+fn opened(open: &Open, id: ProjectId, held: read::Held) -> Result<Project, PortError> {
+    let saved = match held.saved {
+        Some(saved) => saved,
+        None => {
+            let saved = write::name(open, id, &held.artwork)?;
+            log::info!("project {} given save id {:016x}", id.get(), saved.get());
+            saved
+        }
+    };
+    Ok(held.project(id, saved))
+}
+
 impl ProjectStore for Library {
     fn open_last(&mut self) -> Result<Option<Project>, PortError> {
-        let project = self.with(read::last)?;
+        let project = self.with(|open| {
+            read::last(open)?
+                .map(|(id, held)| opened(open, id, held))
+                .transpose()
+        })?;
         self.stored = project
             .as_ref()
             .map(|project| (project.id, project.artwork.clone()));
@@ -166,20 +183,21 @@ impl ProjectStore for Library {
 
     fn load(&mut self, id: ProjectId) -> Result<Project, PortError> {
         let project = self.with(|open| {
-            let project = read::project(open, id)?;
+            let held = read::project(open, id)?;
             write::open(open, id)?;
-            Ok(project)
+            opened(open, id, held)
         })?;
         self.stored = Some((id, project.artwork.clone()));
         Ok(project)
     }
 
-    fn save(&mut self, id: ProjectId, artwork: &Artwork) -> Result<(), PortError> {
+    fn save(&mut self, id: ProjectId, artwork: &Artwork) -> Result<SaveId, PortError> {
         let base = self.stored.take().filter(|(stored, _)| *stored == id);
-        self.with(|open| write::save(open, id, base.as_ref().map(|(_, base)| base), artwork))?;
+        let saved =
+            self.with(|open| write::save(open, id, base.as_ref().map(|(_, base)| base), artwork))?;
         self.stored = Some((id, artwork.clone()));
         self.note_memory();
-        Ok(())
+        Ok(saved)
     }
 
     fn save_thumbnail(&mut self, id: ProjectId, thumbnail: &Thumbnail) -> Result<(), PortError> {

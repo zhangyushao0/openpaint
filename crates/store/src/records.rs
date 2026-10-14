@@ -1,5 +1,6 @@
-//! Schema 22: the keys and values the library stores (DECISIONS D36, D38, D43, D45, D46, D49,
-//! D50, D51, D54, D57, D66, D67, D70, D71, D74; the archived D21, D25, D28, D29, D68, D72, D73).
+//! Schema 23: the keys and values the library stores (DECISIONS D36, D38, D43, D45, D46, D49,
+//! D50, D51, D54, D57, D66, D67, D70, D71, D74, D81; the archived D21, D25, D28, D29, D68, D72,
+//! D73).
 //!
 //! Keyspace `library`: `schema` -> the schema of every record (u32 LE); `next` -> the next
 //! unused project id (u64 LE); `clock` -> the last value of the change counter (u64 LE); `last`
@@ -15,7 +16,7 @@
 //!   none), its stroke count (u32) and its edit count (u32), its mask (`read_layer_mask`: flags u8,
 //!   with a mask its stroke and edit counts); then the groups oldest first, each id (u64),
 //!   name, visible (u8) and opacity (f32); then whether the active layer's mask is the target
-//!   (u8);
+//!   (u8); then the save id (u64: a new random one with every save, 0 none, `SaveId`);
 //! - `[project u64]['s'][layer u64][index u64]` -> one stroke, oldest at index 0 (`strokes.rs`):
 //!   id (u64), size, opacity, red, green, blue (f32), blend (u8: 0 paint over, 1 paint atop
 //!   under Alpha Lock, 2 erase, 3 smudge, 4 smudge under Alpha Lock), its brush recipe (softness (f32); the curves size over
@@ -53,10 +54,10 @@
 //! (S40) had no pen buttons or swatches in its toolbox; schema 17 (S41) had two pen buttons;
 //! schema 18 (S43) had no tilt curves or taper in its recipes; schema 19 (S44) had no shape
 //! stage or seed in its strokes; schema 20 (S45) had no brush library in its toolbox; schema 21
-//! (S46) had no brush sets or Recent in its toolbox;
-//! `migrate.rs` and `migrate_6.rs` to `migrate_22.rs` upgrade them.
+//! (S46) had no brush sets or Recent in its toolbox; schema 22 (S47) had no save id in its heads;
+//! `migrate.rs` and `migrate_6.rs` to `migrate_23.rs` upgrade them.
 
-use openpaint_app::{PortError, ProjectId};
+use openpaint_app::{PortError, ProjectId, SaveId};
 use openpaint_core::{Artwork, BlendMode, GroupParts, LayerMask, LayerMaskParts, LayerParts};
 
 use crate::codec::{Reader, Writer};
@@ -65,7 +66,7 @@ pub(crate) use crate::strokes::{
 };
 
 /// The schema this build writes and the newest it reads.
-pub const SCHEMA: u32 = 22;
+pub const SCHEMA: u32 = 23;
 
 pub(crate) const LIBRARY: &str = "library";
 pub(crate) const PROJECTS: &str = "projects";
@@ -189,6 +190,8 @@ pub(crate) struct Head {
     /// fills each has and its mask has (0 without one).
     pub(crate) layers: Vec<(LayerParts, usize, usize, [usize; 2])>,
     pub(crate) groups: Vec<GroupParts>,
+    /// The save that wrote it; `None` for a head written without one (S54).
+    pub(crate) saved: Option<SaveId>,
 }
 
 /// A blend mode's byte.
@@ -211,10 +214,11 @@ pub(crate) fn read_blend(reader: &mut Reader<'_>) -> Result<BlendMode, PortError
     }
 }
 
-pub(crate) fn encode_head(artwork: &Artwork) -> Vec<u8> {
+/// The head of `artwork` written by the save `saved` (`None`: by no save, 0).
+pub(crate) fn encode_head(artwork: &Artwork, saved: Option<SaveId>) -> Vec<u8> {
     let groups = artwork.groups().len() * (GROUP_BYTES + 16);
     let mut writer =
-        Writer::with_capacity(52 + artwork.layers().len() * (LAYER_BYTES + 16) + groups);
+        Writer::with_capacity(60 + artwork.layers().len() * (LAYER_BYTES + 16) + groups);
     writer.u32(SCHEMA);
     let canvas = artwork.canvas();
     writer.u32(canvas.width());
@@ -245,6 +249,7 @@ pub(crate) fn encode_head(artwork: &Artwork) -> Vec<u8> {
         writer.f32(group.opacity());
     }
     writer.bool(artwork.on_mask());
+    writer.u64(saved.map_or(0, SaveId::get));
     writer.finish()
 }
 
@@ -329,6 +334,7 @@ pub(crate) fn decode_head(bytes: &[u8]) -> Result<Head, PortError> {
     }
     let groups = read_groups(&mut reader)?;
     let on_mask = reader.bool()?;
+    let saved = SaveId::new(reader.u64()?);
     reader.end()?;
     Ok(Head {
         width,
@@ -339,6 +345,7 @@ pub(crate) fn decode_head(bytes: &[u8]) -> Result<Head, PortError> {
         next_stroke_id,
         layers,
         groups,
+        saved,
     })
 }
 

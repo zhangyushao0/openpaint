@@ -67,6 +67,12 @@ pub(crate) fn fill(
             }
             bin_block(core, tier, &mut fill, (canvas, request))?;
         }
+        // S54: a block reading a residual the arena lacks waits while it is evaluated.
+        let block: Vec<TileRecord> = fill.left.iter().map(|(tile, _)| *tile).collect();
+        if !canvas.residuals_ready(core, request, (&block, tier.scale()))? {
+            tier.fill = Some(fill);
+            break;
+        }
         let taken = take(core, &mut fill);
         if !taken.is_empty() {
             dispatch(core, (tier, &fill), (canvas, request), &taken)?;

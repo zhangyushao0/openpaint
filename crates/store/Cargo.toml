@@ -13,6 +13,7 @@ crc32fast.workspace = true
 fjall.workspace = true
 image.workspace = true
 log.workspace = true
+lz4_flex.workspace = true
 moxcms.workspace = true
 png.workspace = true
 

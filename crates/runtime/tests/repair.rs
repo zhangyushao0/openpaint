@@ -9,7 +9,7 @@ use std::time::Instant;
 
 use openpaint_app::{
     EditorState, GalleryNotice, HostAnswer, HostRequest, ImageSink, PortError, Project, ProjectId,
-    ProjectStore, ProjectSummary, ScreenProjection, Thumbnail, Title, VersionId,
+    ProjectStore, ProjectSummary, SaveId, ScreenProjection, Thumbnail, Title, VersionId,
 };
 use openpaint_core::Artwork;
 use openpaint_runtime::{
@@ -57,7 +57,7 @@ impl ProjectStore for Broken {
         Err(refused())
     }
 
-    fn save(&mut self, _id: ProjectId, _artwork: &Artwork) -> Result<(), PortError> {
+    fn save(&mut self, _id: ProjectId, _artwork: &Artwork) -> Result<SaveId, PortError> {
         Err(refused())
     }
 

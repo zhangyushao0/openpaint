@@ -106,9 +106,12 @@ impl CanvasTarget {
             self.waiting.remove(&rects);
             evaluated.extend(rects);
         }
-        // What the frame has left goes to a residual tiles put aside wait for.
+        // What the frame has left goes to a residual tiles put aside wait for, or once nothing
+        // waits to one a canvas shown from its display cache lacks (S54).
         if self.waiting.has_deferred() && !core.pace().spent() {
             self.derive_deferred(core, request)?;
+        } else if self.waiting.is_empty() && !core.pace().spent() {
+            self.warm(core, request)?;
         }
         Ok(evaluated)
     }

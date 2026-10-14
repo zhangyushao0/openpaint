@@ -26,13 +26,35 @@ impl ProjectId {
     }
 }
 
-/// A stored artwork and its title. History is not stored; the editor state (`EditorState`) is
-/// stored apart.
+/// Names what one save of an artwork wrote (S54, DECISIONS D81): the store writes a new random
+/// one in the artwork's head with every save (and one into a head without any when it is
+/// opened), so it never repeats, not even after a library is put back from an older backup. The
+/// display cache of the artwork's canvas is keyed by it. Never zero.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SaveId(u64);
+
+impl SaveId {
+    /// `None` for 0, which a head without a save id holds.
+    #[must_use]
+    pub const fn new(raw: u64) -> Option<Self> {
+        if raw == 0 { None } else { Some(Self(raw)) }
+    }
+
+    #[must_use]
+    pub const fn get(self) -> u64 {
+        self.0
+    }
+}
+
+/// A stored artwork and its title, with its save id and its gallery picture (`None` until it was
+/// left once). History is not stored; the editor state (`EditorState`) is stored apart.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Project {
     pub id: ProjectId,
     pub title: Title,
     pub artwork: Artwork,
+    pub saved: SaveId,
+    pub thumbnail: Option<Thumbnail>,
 }
 
 /// A small picture of an artwork for the gallery: 8-bit RGBA, rows top first, tightly packed.
@@ -127,7 +149,7 @@ pub struct KeptVersion {
 /// Every call returns a `PortError` when it cannot be served.
 pub trait ProjectStore: Send {
     /// The artwork open when the app was left; `None` when none was (an empty library, or the
-    /// user was in the gallery).
+    /// user was in the gallery). Its head gains a save id if it has none.
     fn open_last(&mut self) -> Result<Option<Project>, PortError>;
 
     /// Every artwork, the one changed last first.
@@ -136,11 +158,12 @@ pub trait ProjectStore: Send {
     /// Stores `artwork` as a new project titled `title`, which becomes the open one.
     fn create(&mut self, artwork: &Artwork, title: &Title) -> Result<ProjectId, PortError>;
 
-    /// Project `id`, which becomes the open one.
+    /// Project `id`, which becomes the open one; its head gains a save id if it has none.
     fn load(&mut self, id: ProjectId) -> Result<Project, PortError>;
 
-    /// Makes `artwork` the stored content of project `id`, all or nothing.
-    fn save(&mut self, id: ProjectId, artwork: &Artwork) -> Result<(), PortError>;
+    /// Makes `artwork` the stored content of project `id`, all or nothing, under a new save id,
+    /// which it returns.
+    fn save(&mut self, id: ProjectId, artwork: &Artwork) -> Result<SaveId, PortError>;
 
     /// Replaces the gallery picture of project `id`.
     fn save_thumbnail(&mut self, id: ProjectId, thumbnail: &Thumbnail) -> Result<(), PortError>;

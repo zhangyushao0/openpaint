@@ -13,8 +13,8 @@ use std::sync::Arc;
 
 use hand::{Hand, assert_cold};
 use openpaint_app::{
-    EditorState, PortError, Project, ProjectId, ProjectStore, ProjectSummary, Thumbnail, Title,
-    VersionId,
+    EditorState, PortError, Project, ProjectId, ProjectStore, ProjectSummary, SaveId, Thumbnail,
+    Title, VersionId,
 };
 use openpaint_core::{
     Artwork, BrushRecipe, CanvasPoint, CanvasSize, Color, StrokeSample, StrokeStyle,
@@ -35,6 +35,8 @@ impl ProjectStore for Holding {
             id: ProjectId::new(1),
             title: Title::untitled(),
             artwork: self.0.clone(),
+            saved: SaveId::new(1).expect("a save id"),
+            thumbnail: None,
         }))
     }
 
@@ -50,8 +52,8 @@ impl ProjectStore for Holding {
         Err(PortError::Missing(id))
     }
 
-    fn save(&mut self, _id: ProjectId, _artwork: &Artwork) -> Result<(), PortError> {
-        Ok(())
+    fn save(&mut self, _id: ProjectId, _artwork: &Artwork) -> Result<SaveId, PortError> {
+        Ok(SaveId::new(2).expect("a save id"))
     }
 
     fn save_thumbnail(&mut self, _id: ProjectId, _thumbnail: &Thumbnail) -> Result<(), PortError> {

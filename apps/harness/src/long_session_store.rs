@@ -5,8 +5,8 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use openpaint_app::{
-    EditorState, PortError, Project, ProjectId, ProjectStore, ProjectSummary, Thumbnail, Title,
-    VersionId,
+    EditorState, PortError, Project, ProjectId, ProjectStore, ProjectSummary, SaveId, Thumbnail,
+    Title, VersionId,
 };
 use openpaint_core::Artwork;
 use openpaint_store::Library;
@@ -44,10 +44,10 @@ impl ProjectStore for Watched {
         self.inner.load(id)
     }
 
-    fn save(&mut self, id: ProjectId, artwork: &Artwork) -> Result<(), PortError> {
-        self.inner.save(id, artwork)?;
+    fn save(&mut self, id: ProjectId, artwork: &Artwork) -> Result<SaveId, PortError> {
+        let saved = self.inner.save(id, artwork)?;
         self.saw_memory();
-        Ok(())
+        Ok(saved)
     }
 
     fn save_thumbnail(&mut self, id: ProjectId, thumbnail: &Thumbnail) -> Result<(), PortError> {

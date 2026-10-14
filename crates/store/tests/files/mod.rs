@@ -35,7 +35,7 @@ fn file_of(schema: u32, title: &str, records: &[(Vec<u8>, Vec<u8>)]) -> Vec<u8> 
     bytes
 }
 
-/// A library holding the sample artwork (schema 20 to 22's) with its title and thumbnail.
+/// A library holding the sample artwork (schema 20 to 23's) with its title and thumbnail.
 fn sample_library(name: &str) -> (Library, ProjectId) {
     let mut library = Library::at(fresh_dir(name));
     let artwork = Artwork::from_storage(parts()).expect("the sample artwork");
@@ -53,17 +53,21 @@ fn a_file_holds_the_artwork_exactly_and_opens_as_a_new_one() {
     assert!(file.starts_with(b"OpenPaint\0"));
     let mut other = Library::at(fresh_dir("file-target"));
     let copy = other.import_file(&file).expect("opens");
+    assert_eq!(
+        other.artwork_file(copy).expect("again"),
+        file,
+        "every record as it was"
+    );
     let opened = other.load(copy).expect("load");
     assert_eq!(opened.artwork.to_parts(), parts());
     assert_eq!(opened.title, sample_title());
     let listed = other.list().expect("list");
     assert_eq!(listed[0].thumbnail, Some(sample_thumbnail()));
     assert!(listed[0].versions.is_empty());
-    assert_eq!(
-        other.artwork_file(copy).expect("again"),
-        file,
-        "every record as it was"
-    );
+    // Opened, its head holds a save id (S54), which a file of it carries; nothing else changed.
+    let again = other.artwork_file(copy).expect("once opened");
+    assert_eq!((again.len(), &again[..14]), (file.len(), &file[..14]));
+    assert_ne!(again, file, "the head's save id");
     // In the library it came from it is a second artwork; the first stays as it was.
     let second = library.import_file(&file).expect("opens beside");
     assert_ne!(second, id);
@@ -100,7 +104,7 @@ fn files_of_older_schemas_open_upgraded() {
             14 => schema_14_parts(),
             15 => schema_15_parts(),
             19 => schema_19_parts(),
-            20 | 21 => parts(),
+            20..=22 => parts(),
             _ => schema_16_parts(),
         };
         let file = file_of(schema, "Hafen", &older_records(schema));

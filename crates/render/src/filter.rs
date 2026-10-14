@@ -22,8 +22,8 @@ use std::sync::Arc;
 
 use openpaint_core::{AdjustEdit, Adjustment, LayerId, RegionEdit, Sharpen, StrokeList};
 
-pub(crate) use kernels::FilterPipeline;
 use kernels::{Cells, FilterBuffers, FilterJob};
+pub(crate) use kernels::{FilterPipeline, SHADER as FILTER_SHADER};
 
 use crate::affine::Affine;
 use crate::core::Core;

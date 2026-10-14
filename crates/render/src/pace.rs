@@ -19,6 +19,11 @@ use crate::gpu_clock::{GpuClock, Timing};
 /// for what the frame shows (the canvas or tier drawn to the screen, the interface, a stroke).
 pub const BACKGROUND_NS: f64 = 4_000_000.0;
 
+/// The GPU time a frame gives background work while nothing touches the screen (S54, the
+/// runtime's choice each frame): fills about twice as fast at about 70 Hz, and the first frame
+/// of a touch waits for at most one such frame's work.
+pub const IDLE_BACKGROUND_NS: f64 = 10_000_000.0;
+
 /// Plan tiles the tablet's GPU (an Adreno 735) evaluates side by side, measured S53 with GPU
 /// timestamps on the author's A4 artwork: one tile about 3.5 ms, two to six about 3.3 to 4.7,
 /// nine 8.7 to 9.1, twelve about 10: the sum over 3.6 or the largest, whichever is more.
@@ -60,6 +65,8 @@ impl Group {
 }
 
 pub(crate) struct Pace {
+    /// The budget a frame gives while the screen is touched and while it is not (S54).
+    budgets: [f64; 2],
     budget: f64,
     /// What this frame may still give, in measured ns (below 0: owed by the next frames), whether
     /// it had any at its start, and whether it gave anything yet.
@@ -106,6 +113,7 @@ impl Background {
 impl Pace {
     pub(crate) fn new(gpu: &Gpu) -> Self {
         Self {
+            budgets: [BACKGROUND_NS, IDLE_BACKGROUND_NS],
             budget: BACKGROUND_NS,
             left: BACKGROUND_NS,
             opened: true,
@@ -212,8 +220,15 @@ impl Pace {
         !(self.untouched && self.opened) && self.left <= 0.0
     }
 
-    /// The budget is `ns` from this frame on, whole again.
+    /// Frames from the next one on give the budget for an `idle` screen or a touched one, less
+    /// what earlier frames spent beyond theirs.
+    pub(crate) fn aim(&mut self, idle: bool) {
+        self.budget = self.budgets[usize::from(idle)];
+    }
+
+    /// The budget is `ns` from this frame on, whole again, touched or not.
     pub(crate) fn set_budget(&mut self, ns: f64) {
+        self.budgets = [ns; 2];
         self.budget = ns;
         self.left = ns;
         self.opened = true;

@@ -2,7 +2,8 @@
 //! its canvas is open (the library opens on a worker).
 
 use openpaint_app::{
-    EditorState, PortError, Project, ProjectId, ProjectStore, ProjectSummary, Thumbnail, Title,
+    EditorState, PortError, Project, ProjectId, ProjectStore, ProjectSummary, SaveId, Thumbnail,
+    Title,
 };
 use openpaint_core::Artwork;
 use openpaint_runtime::Runtime;
@@ -27,8 +28,8 @@ impl ProjectStore for Nowhere {
         Err(PortError::Missing(id))
     }
 
-    fn save(&mut self, _id: ProjectId, _artwork: &Artwork) -> Result<(), PortError> {
-        Ok(())
+    fn save(&mut self, _id: ProjectId, _artwork: &Artwork) -> Result<SaveId, PortError> {
+        Ok(SaveId::new(1).expect("a save id"))
     }
 
     fn save_thumbnail(&mut self, _id: ProjectId, _thumbnail: &Thumbnail) -> Result<(), PortError> {

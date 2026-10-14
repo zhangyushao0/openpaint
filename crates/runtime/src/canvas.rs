@@ -23,10 +23,11 @@ pub(crate) const PAPER: Color = Color::WHITE;
 pub(crate) const THUMBNAIL_MAX: [u32; 2] = [448, 336];
 
 /// What a canvas opens with.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) enum Content {
-    /// An artwork as the library holds it, and its title.
-    Stored(Artwork, Title),
+    /// An artwork as the library holds it, its title, and what shows it before it is evaluated
+    /// (its cached canvas or gallery picture, S54).
+    Stored(Artwork, Title, Box<Held>),
     /// A blank artwork the size of the canvas area, not in the library yet.
     Blank,
     /// As `Blank`, after the last artwork could not be opened.
@@ -64,6 +65,8 @@ pub(crate) struct Canvas {
     /// When it opened (or its device was made again), until the whole canvas was evaluated:
     /// the time to the full canvas is logged then (S49).
     opened: Option<Opening>,
+    /// What the display cache holds for it and must match (S54).
+    cache: CacheState,
 }
 
 impl Canvas {
@@ -82,7 +85,7 @@ impl Canvas {
         }
         let brush = toolbox.style()?;
         let (mut session, title) = match content {
-            Content::Stored(artwork, title) => {
+            Content::Stored(artwork, title, _) => {
                 (Session::open(artwork.clone(), brush), title.clone())
             }
             Content::Blank => (Session::new(blank_size(area)?, brush), Title::untitled()),
@@ -95,7 +98,7 @@ impl Canvas {
         let canvas = session.artwork().canvas();
         let size = [canvas.width(), canvas.height()];
         log::info!("canvas opened at {} x {}", size[0], size[1]);
-        Ok(Some(Self {
+        let mut canvas = Self {
             session,
             title,
             target: CanvasTarget::new(core, size)?,
@@ -106,7 +109,12 @@ impl Canvas {
             leaving: Leaving::Staying,
             pictures: Drawn::default(),
             opened: Some(Opening::start(core)),
-        }))
+            cache: CacheState::default(),
+        };
+        if let Content::Stored(_, _, held) = content {
+            canvas.show_opened(core, held);
+        }
+        Ok(Some(canvas))
     }
 
     /// Applies the frame's intents in order. A refused intent is logged and skipped: one bad
@@ -348,6 +356,11 @@ impl Canvas {
 mod gpu;
 use gpu::Opening;
 pub(crate) use gpu::{Freed, Rooms};
+
+#[path = "canvas_cache.rs"]
+mod cache;
+use cache::CacheState;
+pub(crate) use cache::Held;
 
 /// A transform's pixels: the job's layer sampled through the renderer (the single evaluator, a
 /// target of its own), then its painted pixels inside the job's selection, if any. Waits for

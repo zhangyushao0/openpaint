@@ -26,7 +26,7 @@ mod residual;
 pub(crate) use arena::{Arena, Keep, Key};
 pub(crate) use dabs::{smudge_reach, whole_reach};
 pub(crate) use engine::{Smudges, Wanted, reached};
-pub(crate) use kernels::SmudgePipeline;
+pub(crate) use kernels::{SHADER as SMUDGE_SHADER, SmudgePipeline};
 pub(crate) use material::Material;
 
 /// Side of a residual tile in nodes (one node per canvas pixel).

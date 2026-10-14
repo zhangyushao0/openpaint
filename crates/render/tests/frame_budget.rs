@@ -319,6 +319,40 @@ fn each_residual_is_evaluated_once_by_the_canvas_and_never_again_by_the_tiers() 
     core().set_frame_budget(BACKGROUND_NS);
 }
 
+/// A canvas shown complete from its display cache (S54) holds no residual yet: they are evaluated
+/// over frames as background work, each once (none at once, outside the budget), while a 4x
+/// tier waits for those its tiles read; the canvas = cold and nothing waits on it meanwhile.
+#[test]
+fn a_cached_canvas_evaluates_its_residuals_over_frames_and_its_tier_waits_for_them() {
+    let _one = alone();
+    let artwork = smudged(9);
+    let mut source = CanvasTarget::new(core(), SIZE).expect("target");
+    let all = [PixelRect::full(SIZE)];
+    (RegionEvaluator::new(core(), &mut source))
+        .evaluate(&request(&artwork, None), &all)
+        .expect("cold");
+    let pixels = source.copy_out(core()).bytes(core()).expect("read back");
+    let mut target = CanvasTarget::new(core(), SIZE).expect("target");
+    target.show_cached(core(), &pixels, true).expect("shown");
+    let mut cache = ViewCache::new(core());
+    let shown = view(4.0, [100.0, 80.0]);
+    let before = core().counts();
+    let mut frames = 0;
+    while frames < 2000 || target.warming() {
+        let now = f64::from(frames) / 120.0;
+        let view = Some((&mut cache, &shown, now));
+        frame(&mut target, (&artwork, None), &[], view);
+        assert!(!target.pending(), "nothing waits on the canvas");
+        frames += 1;
+        assert!(frames < 40_000, "the residuals were never all evaluated");
+    }
+    let counts = core().counts().since(before);
+    assert_eq!(counts.derived, 9, "each residual once, over frames");
+    assert!(counts.filled > 0, "the tier filled in");
+    assert!(target.read(core()).expect("read") == cold(&artwork));
+    core().set_frame_budget(BACKGROUND_NS);
+}
+
 /// The residuals needed together pass the arena's room (the tablet's 96 MiB at its scale): each
 /// placed beside the others the waiting tiles need, none let go while tiles that read it wait,
 /// so the canvas fills in evaluating each once, to the cold canvas.

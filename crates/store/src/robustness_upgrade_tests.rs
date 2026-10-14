@@ -108,5 +108,5 @@ fn an_upgrade_failing_on_one_artwork_keeps_it_as_it_was_and_upgrades_the_others(
         );
     }
     let schema = now.iter().find(|(_, key, _)| key == SCHEMA_KEY);
-    assert_eq!(schema.expect("schema").2, 22u32.to_le_bytes());
+    assert_eq!(schema.expect("schema").2, 23u32.to_le_bytes());
 }

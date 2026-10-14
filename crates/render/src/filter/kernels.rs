@@ -10,7 +10,7 @@ use crate::geom::PixelRect;
 use crate::gpu::Gpu;
 use crate::protocol::encode;
 
-const SHADER: &str = include_str!("../shaders/filter.wgsl");
+pub(crate) const SHADER: &str = include_str!("../shaders/filter.wgsl");
 /// Output rows per band.
 const BAND_ROWS: u32 = 128;
 /// Bytes between two bands' values: the uniform offset alignment every device accepts.

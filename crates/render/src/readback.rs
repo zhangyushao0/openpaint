@@ -223,7 +223,7 @@ fn timeout(what: &'static str) -> RenderError {
     }
 }
 
-fn map_and_wait(gpu: &Gpu, buffer: &wgpu::Buffer) -> Result<(), RenderError> {
+pub(crate) fn map_and_wait(gpu: &Gpu, buffer: &wgpu::Buffer) -> Result<(), RenderError> {
     let (sender, receiver) = mpsc::channel();
     buffer.map_async(wgpu::MapMode::Read, .., move |result| {
         // The receiver outlives the wait below; a failed send cannot happen.

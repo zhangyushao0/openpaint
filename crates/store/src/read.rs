@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 
 use fjall::Keyspace;
-use openpaint_app::{PortError, Project, ProjectId, ProjectSummary, Title};
+use openpaint_app::{PortError, Project, ProjectId, ProjectSummary, SaveId, Thumbnail, Title};
 use openpaint_core::{Artwork, ArtworkParts, EditParts, MAX_NESTING, NestedParts, StrokeParts};
 
 use crate::catalogue::{Entry, decode_entry, decode_thumbnail};
@@ -61,24 +61,46 @@ impl Source for BTreeMap<Vec<u8>, Vec<u8>> {
 }
 
 /// The project open when the app was left, if any.
-pub(crate) fn last(open: &Open) -> Result<Option<Project>, PortError> {
+pub(crate) fn last(open: &Open) -> Result<Option<(ProjectId, Held)>, PortError> {
     let Some(last) = open.library.get(LAST).map_err(device)? else {
         return Ok(None);
     };
     let id = ProjectId::new(decode_id(&last, "last project")?);
-    let project = project(open, id).map_err(|error| match error {
+    let held = project(open, id).map_err(|error| match error {
         // `last` names a project the library does not hold.
         PortError::Missing(_) => PortError::Corrupt {
             what: "artwork head",
         },
         other => other,
     })?;
-    Ok(Some(project))
+    Ok(Some((id, held)))
 }
 
-/// Project `id` with every stroke.
-pub(crate) fn project(open: &Open, id: ProjectId) -> Result<Project, PortError> {
-    let artwork = artwork(&open.projects, id)?;
+/// A project as the library holds it: its artwork, title and gallery picture, and its head's
+/// save id (`None`: its head has none yet).
+pub(crate) struct Held {
+    pub(crate) title: Title,
+    pub(crate) artwork: Artwork,
+    pub(crate) saved: Option<SaveId>,
+    pub(crate) thumbnail: Option<Thumbnail>,
+}
+
+impl Held {
+    /// Project `id` holding this, written by the save `saved`.
+    pub(crate) fn project(self, id: ProjectId, saved: SaveId) -> Project {
+        Project {
+            id,
+            title: self.title,
+            artwork: self.artwork,
+            saved,
+            thumbnail: self.thumbnail,
+        }
+    }
+}
+
+/// Project `id` with every stroke and its gallery picture.
+pub(crate) fn project(open: &Open, id: ProjectId) -> Result<Held, PortError> {
+    let (artwork, saved) = stored(&open.projects, id)?;
     // The title is the catalogue's; a missing entry must not keep the artwork from opening.
     let title = entry(open, id).map_or_else(
         |error| {
@@ -87,12 +109,27 @@ pub(crate) fn project(open: &Open, id: ProjectId) -> Result<Project, PortError> 
         },
         |entry| entry.title,
     );
+    // Derived data: an unreadable picture is left out.
+    let thumbnail = match open.projects.get(thumbnail_key(id)).map_err(device)? {
+        Some(bytes) => decode_thumbnail(&bytes).ok(),
+        None => None,
+    };
     log::info!("project {} opened", id.get());
-    Ok(Project { id, title, artwork })
+    Ok(Held {
+        title,
+        artwork,
+        saved,
+        thumbnail,
+    })
 }
 
 /// The artwork of project `id` as `source` holds it, checked whole.
 pub(crate) fn artwork(source: &dyn Source, id: ProjectId) -> Result<Artwork, PortError> {
+    stored(source, id).map(|(artwork, _)| artwork)
+}
+
+/// As `artwork`, with the save id its head holds.
+fn stored(source: &dyn Source, id: ProjectId) -> Result<(Artwork, Option<SaveId>), PortError> {
     let head = source.value(&head_key(id))?.ok_or(PortError::Missing(id))?;
     let head = decode_head(&head)?;
     let mut layers = Vec::with_capacity(head.layers.len());
@@ -104,7 +141,7 @@ pub(crate) fn artwork(source: &dyn Source, id: ProjectId) -> Result<Artwork, Por
         }
         layers.push(layer);
     }
-    Ok(Artwork::from_storage(ArtworkParts {
+    let artwork = Artwork::from_storage(ArtworkParts {
         width: head.width,
         height: head.height,
         layers,
@@ -113,7 +150,8 @@ pub(crate) fn artwork(source: &dyn Source, id: ProjectId) -> Result<Artwork, Por
         on_mask: head.on_mask,
         next_layer_id: head.next_layer_id,
         next_stroke_id: head.next_stroke_id,
-    })?)
+    })?;
+    Ok((artwork, head.saved))
 }
 
 /// The `strokes` stroke records and `edits` edit records stored under `slot` (a layer's id, a

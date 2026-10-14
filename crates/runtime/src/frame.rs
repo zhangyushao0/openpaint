@@ -11,8 +11,8 @@
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Clipboard, InputBatch, Intent, PalmRejection, ProjectStore, ScreenProjection,
-    SessionProjection, Toolbox, Transfers, TransformIntent,
+    Clipboard, InputBatch, Intent, PalmRejection, ScreenProjection, SessionProjection, Toolbox,
+    Transfers, TransformIntent,
 };
 use openpaint_core::Artwork;
 use openpaint_render::{Core, ScreenPainter, ScreenTarget, Surface, SurfaceWindow, UiFrame};
@@ -21,10 +21,11 @@ use openpaint_ui::{CanvasArea, Shell};
 
 use crate::brush_pictures::BrushPictures;
 use crate::budget::Budget;
+use crate::canvas::Canvas;
 use crate::clock::{FrameClock, InputClock};
+use crate::display::CacheWorker;
 use crate::error::RuntimeError;
 use crate::fill::FillWorker;
-use crate::host::version_line;
 use crate::input::MotionBatch;
 use crate::normalise::Normaliser;
 use crate::pictures::PictureWorker;
@@ -35,6 +36,7 @@ use crate::seeds::Seeds;
 use crate::shared::SharedCore;
 use crate::storage::{Job, Storage};
 use crate::text::{TextInput, text_events};
+use crate::touches::Touches;
 use crate::transfer::{TransferWorker, route};
 pub(crate) use crate::ui_pass::screen_frame;
 use crate::ui_pass::{UiPass, run_ui};
@@ -64,6 +66,8 @@ pub struct Runtime {
     clock: InputClock,
     /// The clock motion runs on.
     pub(crate) frame_clock: FrameClock,
+    /// When a finger or the pen last touched: background work's budget follows (S54).
+    touches: Touches,
     /// Input normalised since the last frame, palms removed, oldest first.
     pending: Vec<InputBatch>,
     /// Keyboard text for the focused text field since the last frame.
@@ -85,85 +89,16 @@ pub struct Runtime {
     pub(crate) pictures: PictureWorker,
     /// The brush panel's pictures and the editor's preview strip (S46).
     pub(crate) brushes: BrushPictures,
+    /// Writes the display cache (S54); dropping it writes what it was handed.
+    pub(crate) cache: CacheWorker,
     /// Declared last: dropping it writes what it was handed before the process goes.
     pub(crate) storage: Storage,
 }
 
+#[path = "frame_start.rs"]
+mod start;
+
 impl Runtime {
-    /// Opens the GPU device, installs the theme, draws the brush picker's previews and starts
-    /// opening the library (and the stored toolbox) from `store` on the storage worker.
-    /// `pixels_per_point` is the display density (Android's `DisplayMetrics.density`):
-    /// physical pixels per UI point.
-    pub fn start(
-        pixels_per_point: f32,
-        store: Box<dyn ProjectStore>,
-    ) -> Result<Self, RuntimeError> {
-        let toolbox = Toolbox::new(BrushLibrary::built_in()?);
-        let storage = Storage::start(store)?;
-        let core = Arc::new(Core::headless()?);
-        Self::assemble(core, toolbox, storage, pixels_per_point)
-    }
-
-    /// As `start`, on a GPU device already open: the GPU tests open one per process, as a device
-    /// per test once deadlocked a desktop driver while another test's threads exited.
-    pub fn start_on(
-        core: Arc<Core>,
-        pixels_per_point: f32,
-        store: Box<dyn ProjectStore>,
-    ) -> Result<Self, RuntimeError> {
-        let toolbox = Toolbox::new(BrushLibrary::built_in()?);
-        let storage = Storage::start(store)?;
-        Self::assemble(core, toolbox, storage, pixels_per_point)
-    }
-
-    fn assemble(
-        core: Arc<Core>,
-        toolbox: Toolbox,
-        storage: Storage,
-        pixels_per_point: f32,
-    ) -> Result<Self, RuntimeError> {
-        log::info!("GPU adapter: {}", core.adapter());
-        core.catch_errors();
-        let ui = egui::Context::default();
-        design::install(&ui);
-        let mut shell = Shell::default();
-        shell.set_version(&version_line());
-        let library = toolbox.library();
-        let shared = SharedCore::new(Arc::clone(&core));
-        let brushes =
-            BrushPictures::start(shared.clone(), library, (&mut shell, pixels_per_point))?;
-        Ok(Self {
-            brushes,
-            storage,
-            screen: Screen::Opening(None),
-            toolbox,
-            transfers: Transfers::default(),
-            clipboard: Clipboard::default(),
-            seeds: Seeds::from_clock(),
-            transfer: TransferWorker::start(shared.clone())?,
-            fill: FillWorker::start(shared.clone())?,
-            pictures: PictureWorker::start(shared.clone())?,
-            budget: Budget::of(&core),
-            core,
-            shared,
-            ui,
-            shell,
-            painter: None,
-            surface: None,
-            window: None,
-            recoveries: Recoveries::default(),
-            offscreen: None,
-            pixels_per_point,
-            normaliser: Normaliser::default(),
-            palms: PalmRejection::default(),
-            clock: InputClock::default(),
-            frame_clock: FrameClock::default(),
-            pending: Vec::new(),
-            typed: Vec::new(),
-            keyboard: false,
-        })
-    }
-
     /// The host's text faces: its system's sans and a face with the Chinese characters, read
     /// from the system's font files. Call before the first frame.
     pub fn set_text_fonts(&mut self, fonts: TextFonts) {
@@ -299,15 +234,17 @@ impl Runtime {
     #[must_use]
     pub fn storing(&self) -> bool {
         let working = self.storage.busy() || self.transfer.busy() || self.fill.busy();
-        let drawing = self.pictures.busy() || self.brushes.busy();
+        let drawing = self.pictures.busy() || self.brushes.busy() || self.cache.busy();
         working || drawing || matches!(self.screen, Screen::Opening(_))
     }
 
     /// Applies everything the workers finished, then opens a canvas that is ready.
     pub(crate) fn receive(&mut self) -> Result<(), RuntimeError> {
         self.transfer.receive(&mut self.transfers);
+        self.cache.collect();
         while let Some(done) = self.storage.take() {
-            self.screen.answer(done, &mut self.toolbox);
+            let after = (&mut self.toolbox, &self.core, &mut self.cache);
+            self.screen.answer(done, after);
         }
         let area = self.shell.canvas_area();
         self.screen.open(&self.core, area, &self.toolbox)
@@ -318,8 +255,11 @@ impl Runtime {
     /// shows a stale state while idle, while waiting for the storage worker and while
     /// something moves (D44).
     pub(crate) fn update(&mut self, size: [u32; 2]) -> Result<(UiFrame, bool), RuntimeError> {
-        // S53: this frame's budget for background work, corrected by the GPU's measured times.
-        self.core.begin_frame();
+        // S53: this frame's budget for background work, corrected by the GPU's measured times;
+        // larger while nothing touches the screen (S54).
+        let drawing = self.screen.canvas().is_some_and(Canvas::drawing);
+        let idle = self.touches.idle(&self.pending, drawing);
+        self.core.begin_frame_idle(idle);
         self.receive()?;
         let batches = std::mem::take(&mut self.pending);
         let mut events = pointer_events(&batches, self.pixels_per_point);
@@ -364,11 +304,9 @@ impl Runtime {
         self.keep_within_budget()?;
         self.evaluate_screen(area)?;
         let changed = self.screen() != shown;
-        // The view tiers or the canvas itself still fill in (S32, S49).
-        let viewing = self
-            .screen
-            .canvas()
-            .is_some_and(|canvas| canvas.view_pending() || canvas.filling());
+        // The view tiers or the canvas itself still fill in (S32, S49), or its residuals (S54).
+        let viewing = (self.screen.canvas())
+            .is_some_and(|canvas| canvas.view_pending() || canvas.filling() || canvas.warming());
         let shows = changed || arrived || viewing;
         let again = pass.repaint || shows || self.storing() || self.shell.animating();
         Ok((pass.frame, again))
@@ -389,8 +327,8 @@ impl Runtime {
             }
             _ => None,
         };
-        self.screen
-            .progress(&self.core, &mut self.storage, (area, now))?;
+        let workers = (&mut self.storage, &mut self.cache);
+        self.screen.progress(&self.core, workers, (area, now))?;
         if let (Some(canvas), Some(frame)) = (self.screen.canvas_mut(), frame) {
             canvas.update_view(&self.core, (&frame, self.frame_clock.seconds()))?;
         }

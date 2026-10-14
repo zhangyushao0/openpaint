@@ -10,7 +10,8 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use openpaint_app::{
-    PortError, Project, ProjectId, ProjectStore, ProjectSummary, StorageNotice, Thumbnail, Title,
+    PortError, Project, ProjectId, ProjectStore, ProjectSummary, SaveId, StorageNotice, Thumbnail,
+    Title,
 };
 use openpaint_core::Artwork;
 use openpaint_runtime::{
@@ -139,8 +140,9 @@ impl ProjectStore for Flaky {
         Err(PortError::Missing(id))
     }
 
-    fn save(&mut self, _id: ProjectId, artwork: &Artwork) -> Result<(), PortError> {
+    fn save(&mut self, _id: ProjectId, artwork: &Artwork) -> Result<SaveId, PortError> {
         self.call(artwork)
+            .map(|()| SaveId::new(1).expect("a save id"))
     }
 
     fn save_thumbnail(&mut self, _id: ProjectId, _thumbnail: &Thumbnail) -> Result<(), PortError> {

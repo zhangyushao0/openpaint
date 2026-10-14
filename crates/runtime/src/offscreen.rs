@@ -59,6 +59,13 @@ impl Runtime {
         self.shell.moving() || self.screen.canvas().is_some_and(filling)
     }
 
+    /// True while tiles of the open canvas wait to be evaluated (S49): false from the frame it
+    /// opened when its display cache was complete (S54).
+    #[must_use]
+    pub fn canvas_filling(&self) -> bool {
+        self.screen.canvas().is_some_and(Canvas::filling)
+    }
+
     /// Destroys the GPU device under the running app, as a driver reset loses it, for tests and
     /// the scenario runner (S49); the next frame makes the renderer again. Returns whether wgpu's
     /// lost callback reported the loss (else it was marked by hand, `Core::destroy_device`).

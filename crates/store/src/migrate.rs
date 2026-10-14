@@ -353,11 +353,11 @@ mod tests {
         let nine = upgrade_8_to_9(&[(id, eight.projects[0].1.clone())], None);
         let ten = crate::migrate_10::upgrade_9_to_10(&[(id, nine.projects[0].1.clone())]);
         let eleven = crate::migrate_11::upgrade_10_to_11(&[(id, ten.projects[0].1.clone())]);
-        let mut head = eleven.projects[0].1.clone();
-        // Steps 11 -> 12 to 21 -> 22 only mark heads.
-        for from in 11..22 {
-            head = remarked(&head, from, from + 1).expect("marked");
-        }
+        // Steps 11 -> 12 to 21 -> 22 only mark heads; 22 -> 23 adds no save id.
+        let marked = (11..22).fold(eleven.projects[0].1.clone(), |head, from| {
+            remarked(&head, from, from + 1).expect("marked")
+        });
+        let head = crate::migrate_23::head_22_to_23(&marked).expect("marked 22");
         let head = decode_head(&head).expect("a schema-5 head, upgraded");
         let layers: Vec<_> = head
             .layers

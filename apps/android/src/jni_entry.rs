@@ -12,7 +12,7 @@ use jni::objects::{
 };
 use jni::sys::{jboolean, jfloat, jint, jlong};
 use jni::{Env, EnvUnowned};
-use openpaint_runtime::{Runtime, TextFonts};
+use openpaint_runtime::{DisplayCache, Runtime, TextFonts};
 use openpaint_store::Library;
 
 use crate::error::HostError;
@@ -81,8 +81,11 @@ pub extern "system" fn Java_dev_openpaint_Native_create<'local>(
     env.with_env(|env| -> Result<jlong, HostError> {
         // The app's private storage (`Context.getFilesDir()`); the library opens on a worker.
         let library = PathBuf::from(files_dir.try_to_string(env)?).join("library");
-        let share_dir = PathBuf::from(cache_dir.try_to_string(env)?).join("share");
-        let runtime = Runtime::start(density, Box::new(Library::at(library)))?;
+        let cache_dir = PathBuf::from(cache_dir.try_to_string(env)?);
+        let share_dir = cache_dir.join("share");
+        // Each artwork's canvas as last shown complete (S54), derived: the system may clear it.
+        let display = DisplayCache::at(cache_dir.join("canvas"));
+        let runtime = Runtime::start_cached(density, Box::new(Library::at(library)), display)?;
         let host = Host {
             runtime,
             latency: PenLatency::default(),

@@ -9,7 +9,7 @@ use crate::gpu::Gpu;
 use crate::protocol::{encode, prelude};
 use crate::smudge::NODE_WORDS;
 
-const SHADER: &str = include_str!("../shaders/smudge.wgsl");
+pub(crate) const SHADER: &str = include_str!("../shaders/smudge.wgsl");
 /// Bytes between two jobs' values: the uniform offset alignment every device accepts.
 const STRIDE: u64 = 256;
 /// Bytes of one job's values (`Contact` in the shader).

@@ -1,19 +1,20 @@
 //! `Core`: the renderer's GPU state. Created once per process and shared; never stored in the
 //! UI framework. When its device is lost, the runtime replaces it whole (`reopened`, S49).
 
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 
 use crate::error::RenderError;
-use crate::filter::FilterPipeline;
+use crate::filter::{FILTER_SHADER, FilterPipeline};
 use crate::gpu::Gpu;
 use crate::image::RgbaImage;
 use crate::pace::{Background, Pace};
-use crate::program::EvaluatePipeline;
+use crate::program::{EvaluatePipeline, shader_source};
 use crate::readback::{offscreen_texture, read_rgba, wait};
 use crate::screen::{blit_layout, blit_sampler};
-use crate::smudge::SmudgePipeline;
+use crate::smudge::{SMUDGE_SHADER, SmudgePipeline};
 use crate::tally::Counts;
 use crate::thumbnail::ThumbnailPipeline;
+use crate::underlay::UnderlayPipeline;
 use crate::view_shown::TierBindings;
 
 pub struct Core {
@@ -34,6 +35,11 @@ pub struct Core {
     pub(crate) tiers: TierBindings,
     /// The screen's frame budget for background work (S53).
     pub(crate) pace: Mutex<Pace>,
+    /// Enlarges the gallery picture into a canvas target opening without a display cache
+    /// (S54), made on first use.
+    pub(crate) underlay: OnceLock<UnderlayPipeline>,
+    /// What the pixels it evaluates depend on, hashed (`renderer_identity`).
+    identity: u64,
 }
 
 /// The one device the crate's own tests share (one per test binary: drivers deadlock when
@@ -69,6 +75,8 @@ impl Core {
         let pace = Mutex::new(Pace::new(&gpu));
         Ok(Self {
             pace,
+            underlay: OnceLock::new(),
+            identity: identity(gpu.display),
             gpu,
             evaluate,
             blit_layout,
@@ -83,6 +91,15 @@ impl Core {
     /// Adapter name and backend, for logs and harness output.
     pub fn adapter(&self) -> String {
         self.gpu.describe()
+    }
+
+    /// The renderer's identity (S54): a hash of the build's version (a patch per slice) and of
+    /// the evaluator's, the smudge kernels' and the filters' WGSL as this device compiles them,
+    /// so a build whose evaluated pixels may differ never takes a display cache another wrote
+    /// as complete.
+    #[must_use]
+    pub const fn renderer_identity(&self) -> u64 {
+        self.identity
     }
 
     /// A new device on the same kind of adapter, with every pipeline built anew: what replaces
@@ -164,14 +181,24 @@ impl Core {
         self.pace().begin(&self.gpu);
     }
 
+    /// As `begin_frame`, giving background work `IDLE_BACKGROUND_NS` of GPU time a frame from
+    /// this one on while nothing touches the screen (`idle`), else `BACKGROUND_NS` (S54), less
+    /// what earlier frames spent beyond theirs; both are the one `set_frame_budget` gave.
+    pub fn begin_frame_idle(&self, idle: bool) {
+        let mut pace = self.pace();
+        pace.aim(idle);
+        pace.begin(&self.gpu);
+    }
+
     /// What the frame before took for background work (S53).
     #[must_use]
     pub fn background(&self) -> Background {
         self.pace().last()
     }
 
-    /// The GPU time a frame gives background work from now on, in ns (`BACKGROUND_NS` at
-    /// first), so tests can make a frame's share small.
+    /// The GPU time a frame gives background work from now on, in ns, touched or idle
+    /// (`BACKGROUND_NS` and `IDLE_BACKGROUND_NS` at first), so tests can make a frame's share
+    /// small.
     pub fn set_frame_budget(&self, ns: f64) {
         self.pace().set_budget(ns);
     }
@@ -200,6 +227,22 @@ impl Core {
         self.gpu.queue.submit([encoder.finish()]);
         read_rgba(&self.gpu, &texture)
     }
+}
+
+/// FNV-1a over the build's version and the shaders evaluated pixels come from (S54): stable
+/// from run to run of one build, unlike `std`'s hashers, which may change between releases.
+fn identity(display: wgpu::TextureFormat) -> u64 {
+    let sources = [
+        env!("CARGO_PKG_VERSION"),
+        &shader_source(display),
+        SMUDGE_SHADER,
+        FILTER_SHADER,
+    ];
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in sources.iter().flat_map(|source| source.bytes()) {
+        hash = (hash ^ u64::from(byte)).wrapping_mul(0x0100_0000_01b3);
+    }
+    hash
 }
 
 /// A colour attachment over `view` that starts by clearing it to the 8-bit RGBA `color`.

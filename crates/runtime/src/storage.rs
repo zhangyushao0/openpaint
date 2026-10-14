@@ -6,22 +6,37 @@
 //! (DECISIONS D63).
 
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use openpaint_app::{
     EditorState, FileJob, MAX_ARTWORK_FILE_BYTES, PortError, Project, ProjectId, ProjectStore,
-    ProjectSummary, Thumbnail, Title, VersionId,
+    ProjectSummary, SaveId, Thumbnail, Title, VersionId,
 };
 use openpaint_core::Artwork;
+use openpaint_store::{Cached, DisplayCache};
 
 use crate::error::RuntimeError;
 use crate::worker::Queue;
 
+/// An artwork the library opened, with its cached canvas if the display cache holds one (S54).
+#[derive(Debug)]
+pub(crate) struct Loaded {
+    pub(crate) project: Project,
+    pub(crate) cached: Option<Cached>,
+}
+
+/// What a save stored: the project it went to and the save id its head holds now (S54).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Stored {
+    pub(crate) project: ProjectId,
+    pub(crate) saved: SaveId,
+}
+
 /// What opening the library found.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) enum Opened {
     /// The artwork open when the app was left.
-    Last(Project),
+    Last(Box<Loaded>),
     /// No artwork was open: the user was in the gallery, which lists these.
     Gallery(Result<Vec<ProjectSummary>, PortError>),
     /// An empty library: start blank.
@@ -71,14 +86,16 @@ pub(crate) enum Done {
     /// be read (logged here): the brushes keep their defaults.
     Started(Opened, Option<Box<EditorState>>),
     EditorSaved(Result<(), PortError>),
-    Saved(Artwork, Result<(), PortError>),
+    /// A version saved, and where to: `None` for the first save of an artwork started blank,
+    /// which created its project (its head holds no save id yet).
+    Saved(Artwork, Result<Option<Stored>, PortError>),
     Left {
         version: Option<Artwork>,
-        result: Result<(), PortError>,
+        result: Result<Option<Stored>, PortError>,
         closed: bool,
     },
     Listed(Result<Vec<ProjectSummary>, PortError>),
-    Loaded(Result<Project, PortError>),
+    Loaded(Result<Box<Loaded>, PortError>),
     Created(Artwork, Title, Result<ProjectId, PortError>),
     Changed(Result<(), PortError>),
     Restored(Result<(), PortError>),
@@ -99,11 +116,15 @@ pub(crate) struct Storage {
 }
 
 impl Storage {
-    /// Starts the worker with `store` and asks it to open the library.
-    pub(crate) fn start(mut store: Box<dyn ProjectStore>) -> Result<Self, RuntimeError> {
+    /// Starts the worker with `store` and asks it to open the library. An artwork it opens comes
+    /// with its canvas from `cache` (S54), if one is kept there.
+    pub(crate) fn start(
+        mut store: Box<dyn ProjectStore>,
+        cache: Option<DisplayCache>,
+    ) -> Result<Self, RuntimeError> {
         let mut kept = Kept::default();
         let mut worker = Queue::spawn("openpaint-store", move |job| {
-            serve(store.as_mut(), &mut kept, job)
+            serve((store.as_mut(), cache.as_ref()), &mut kept, job)
         })?;
         worker.submit(Job::Start);
         Ok(Self { worker })
@@ -129,11 +150,14 @@ impl Storage {
     }
 }
 
+/// The store and the display cache the worker serves from.
+type Served<'a> = (&'a mut dyn ProjectStore, Option<&'a DisplayCache>);
+
 /// One call on the worker. A panic in the store is a bug: it is logged and reported as
 /// `PortError::Stopped`, and the worker serves the next call.
-fn serve(store: &mut dyn ProjectStore, kept: &mut Kept, job: Job) -> Done {
+fn serve(served: Served<'_>, kept: &mut Kept, job: Job) -> Done {
     let stopped = stopped(&job);
-    match catch_unwind(AssertUnwindSafe(|| run(store, kept, job))) {
+    match catch_unwind(AssertUnwindSafe(|| run(served, kept, job))) {
         Ok(done) => done,
         Err(_) => {
             log::error!("the store panicked");
@@ -164,10 +188,10 @@ fn stopped(job: &Job) -> Done {
     }
 }
 
-fn run(store: &mut dyn ProjectStore, kept: &mut Kept, job: Job) -> Done {
+fn run((store, cache): Served<'_>, kept: &mut Kept, job: Job) -> Done {
     match job {
         Job::Start => {
-            let opened = start(store, kept);
+            let opened = start(store, kept, cache);
             let editor = store
                 .editor()
                 .inspect_err(|error| log::warn!("the stored toolbox is unreadable: {error}"))
@@ -196,16 +220,38 @@ fn run(store: &mut dyn ProjectStore, kept: &mut Kept, job: Job) -> Done {
             }
             Done::Created(artwork, title, result)
         }
-        Job::Library(request) => library(store, kept, request),
+        Job::Library(request) => library((store, cache), kept, request),
         Job::File(job) => file(store, job),
     }
 }
 
-fn start(store: &mut dyn ProjectStore, kept: &mut Kept) -> Opened {
+/// `project` with its cached canvas, if `cache` holds one; a cache that cannot be read is
+/// logged and left out (derived data: the canvas is evaluated).
+fn loaded(cache: Option<&DisplayCache>, project: Project) -> Box<Loaded> {
+    let started = Instant::now();
+    let cached = cache.and_then(|cache| {
+        cache
+            .read(project.id)
+            .inspect_err(|error| log::warn!("the display cache is not read: {error}"))
+            .ok()
+            .flatten()
+    });
+    if let Some(cached) = &cached {
+        log::info!(
+            "display cache of project {} read in {} ms",
+            project.id.get(),
+            started.elapsed().as_millis()
+        );
+        log::debug!("{cached:?}");
+    }
+    Box::new(Loaded { project, cached })
+}
+
+fn start(store: &mut dyn ProjectStore, kept: &mut Kept, cache: Option<&DisplayCache>) -> Opened {
     match store.open_last() {
         Ok(Some(last)) => {
             kept.open = Some(last.id);
-            Opened::Last(last)
+            Opened::Last(loaded(cache, last))
         }
         Ok(None) => match store.list() {
             Ok(items) if items.is_empty() => Opened::Empty,
@@ -220,15 +266,22 @@ fn start(store: &mut dyn ProjectStore, kept: &mut Kept) -> Opened {
     }
 }
 
-fn save(store: &mut dyn ProjectStore, kept: &mut Kept, artwork: &Artwork) -> Result<(), PortError> {
-    match kept.open {
-        Some(id) => store.save(id, artwork),
-        None => store
-            .create(artwork, &Title::untitled())
-            .map(|id| kept.open = Some(id)),
+fn save(
+    store: &mut dyn ProjectStore,
+    kept: &mut Kept,
+    artwork: &Artwork,
+) -> Result<Option<Stored>, PortError> {
+    let stored = match kept.open {
+        Some(project) => store
+            .save(project, artwork)
+            .map(|saved| Some(Stored { project, saved })),
+        None => store.create(artwork, &Title::untitled()).map(|id| {
+            kept.open = Some(id);
+            None
+        }),
     }?;
     kept.changed = true;
-    Ok(())
+    Ok(stored)
 }
 
 fn leave(
@@ -240,7 +293,7 @@ fn leave(
 ) -> Done {
     let result = match &version {
         Some(artwork) => save(store, kept, artwork),
-        None => Ok(()),
+        None => Ok(None),
     };
     if result.is_ok() {
         if let (Some(id), Some(thumbnail)) = (kept.open, thumbnail)
@@ -269,18 +322,18 @@ fn leave(
     }
 }
 
-fn library(store: &mut dyn ProjectStore, kept: &mut Kept, call: LibraryCall) -> Done {
+fn library((store, cache): Served<'_>, kept: &mut Kept, call: LibraryCall) -> Done {
     match call {
         LibraryCall::List => Done::Listed(store.list()),
         LibraryCall::Load(id) => {
-            let loaded = store.load(id);
-            if loaded.is_ok() {
+            let project = store.load(id);
+            if project.is_ok() {
                 *kept = Kept {
                     open: Some(id),
                     changed: false,
                 };
             }
-            Done::Loaded(loaded)
+            Done::Loaded(project.map(|project| loaded(cache, project)))
         }
         LibraryCall::Rename(id, title) => Done::Changed(store.rename(id, &title)),
         LibraryCall::Duplicate(id) => Done::Changed(store.duplicate(id).map(|_| ())),

@@ -6,6 +6,7 @@ mod brush_pictures;
 mod budget;
 mod canvas;
 mod clock;
+mod display;
 mod error;
 mod fill;
 mod frame;
@@ -23,6 +24,7 @@ mod shared;
 mod storage;
 mod strip;
 mod text;
+mod touches;
 mod transfer;
 mod ui_pass;
 mod worker;
@@ -36,5 +38,6 @@ pub use openpaint_app::{
     HostAnswer, HostRequest, ImageFormat, ImageSink, ImageSource, PortError, ScreenProjection,
 };
 pub use openpaint_render::{Background, Counts, SurfaceWindow};
+pub use openpaint_store::DisplayCache;
 pub use openpaint_ui::design::{FontFile, TextFonts};
 pub use openpaint_ui::{CanvasArea, Control, ControlMap, Unresolved};
