@@ -7,9 +7,15 @@
 //!
 //! Each frame: a change to a ready tile is evaluated in place when it is small, else the tile
 //! waits to be evaluated whole (the canvas shows meanwhile); missing tiles are evaluated whole,
-//! at most `FILL_TILES` a frame, visible ones nearest the screen's centre first; tiles beyond
-//! two rings are dropped. A new tier starts only once the view stands still (a pinch ends);
-//! until it has every visible tile the one before shows under it, resampled.
+//! at most `FILL_TILES` a frame, visible ones nearest the screen's centre first. A new tier
+//! starts only once the view stands still (a pinch ends); until it has every visible tile the
+//! one before shows under it, resampled.
+//!
+//! S58: tiles the view no longer needs stay ready until a needed tile wants their slot, and a
+//! tier the view leaves is kept whole (`view_kept.rs`), its tiles kept up to date by dropping
+//! those a change reaches, so a return to a place or a scale shows at once what was there; tiers
+//! are let go only when the GPU memory budget says (the least recently shown first), never the
+//! tier shown.
 
 use std::f32::consts::SQRT_2;
 
@@ -21,16 +27,13 @@ use crate::image::RgbaImage;
 use crate::output::{MAX_SCALE, Output};
 use crate::view_atlas::Tier;
 use crate::view_background::fill;
-use crate::view_fill::{Filling, in_place, release_far, touched};
+use crate::view_fill::{Filling, in_place, touched};
 use crate::view_needed::Needed;
 use crate::view_shown::Shown;
 use crate::view_tiles::TileMap;
 
 /// How long the view stands still before a new tier starts: a pause in a pinch is no end.
 const SETTLE_SECONDS: f64 = 0.12;
-/// The most bytes the current and the previous tier hold together: past it, the previous one
-/// goes when a tier starts (the canvas shows under the new one meanwhile).
-const BUDGET_BYTES: u64 = 90 << 20;
 
 /// Where the canvas shows on screen: the view's map from screen pixels to canvas pixels (as
 /// `CanvasPlacement::to_canvas`) and the canvas area, top-left and size in screen pixels.
@@ -62,9 +65,11 @@ pub struct ViewWork {
 
 /// The view tiers of one canvas target.
 pub struct ViewCache {
-    current: Option<Tier>,
-    /// The tier shown before the current one, until the current has every visible tile.
-    previous: Option<Tier>,
+    pub(crate) current: Option<Tier>,
+    /// The tier shown before the current one, under it until the current has every visible tile.
+    pub(crate) previous: Option<Tier>,
+    /// Tiers the view left, whole (S58), for a return to their scale.
+    pub(crate) kept: Vec<Tier>,
     /// The view of the last update and when (seconds) it became that view: one unchanged for
     /// `SETTLE_SECONDS` has settled.
     last: Option<(ViewFrame, f64)>,
@@ -73,9 +78,9 @@ pub struct ViewCache {
     filling: Option<Filling>,
     /// The most bytes the tiers held at once.
     peak: u64,
-    /// The most bytes the tiers may hold: `BUDGET_BYTES`, or less when the GPU memory budget
-    /// leaves less (S49); a tier that would not fit is not made and the canvas shows.
-    room: u64,
+    /// The most bytes the tiers may hold, as the GPU memory budget leaves them (S49, S58): a
+    /// tier that would not fit, the others let go, is not made and the canvas shows.
+    pub(crate) room: u64,
     /// The tier the view wants did not fit the room.
     refused: bool,
 }
@@ -94,28 +99,14 @@ impl ViewCache {
         Self {
             current: None,
             previous: None,
+            kept: Vec::new(),
             last: None,
             shown: Shown::new(core),
             peak: 0,
             filling: None,
-            room: BUDGET_BYTES,
+            room: u64::MAX,
             refused: false,
         }
-    }
-
-    /// The tiers hold at most `bytes` from now on (never more than 90 MB): when they hold more,
-    /// the tier before goes, then the tier shown (the canvas shows instead). Returns the bytes
-    /// given back.
-    pub fn set_room(&mut self, bytes: u64) -> u64 {
-        self.room = bytes.min(BUDGET_BYTES);
-        let before = self.bytes();
-        if self.bytes() > self.room {
-            self.previous = None;
-        }
-        if self.bytes() > self.room {
-            self.current = None;
-        }
-        before - self.bytes()
     }
 
     /// Brings the tiers up to date with `canvas`, just evaluated for `request`, shown through
@@ -145,24 +136,31 @@ impl ViewCache {
             self.switch(core, request, wanted, frame)?;
         }
         let mut work = ViewWork::default();
-        if let Some(previous) = &mut self.previous {
-            for (tile, _) in touched(previous, &changed) {
-                previous.set_ready(tile, false);
+        // Tiers not shown in full keep only tiles no change reached.
+        for tier in self.previous.iter_mut().chain(self.kept.iter_mut()) {
+            for (tile, _) in touched(tier, &changed) {
+                tier.set_ready(tile, false);
             }
+        }
+        for tier in [&mut self.current, &mut self.previous]
+            .into_iter()
+            .flatten()
+        {
+            tier.shown_at = now;
         }
         if let Some(current) = &mut self.current {
             // What changed shows at once when it fits; missing tiles are background work (S53).
             in_place(core, current, (canvas, request), (&changed, &mut work))?;
             if Some(current.scale()) == wanted {
+                // Tiles the view left stay ready until a needed tile wants their slot (S58).
                 let needed = Needed::of(&current.map, frame);
-                release_far(current, &needed);
                 // The canvas fills in first (S49): no missing tile is filled meanwhile.
                 if !canvas.pending() {
                     fill(core, (current, &needed), (canvas, request), &mut work)?;
                 }
                 work.waiting = needed.waiting(current);
                 if needed.shows(current) {
-                    self.previous = None;
+                    self.keep_previous();
                 }
             }
         }
@@ -185,7 +183,10 @@ impl ViewCache {
         Ok(work)
     }
 
-    /// Starts tier `wanted` (or none); the tier shown so far becomes the previous one.
+    /// Starts tier `wanted` (or none): the tier shown so far becomes the previous one, shown
+    /// under it while it fills; a tier of that scale kept from before is taken up again with
+    /// what it holds (S58), else a new one is made where the room holds it, kept tiers let go
+    /// for it, the least recently shown first.
     fn switch(
         &mut self,
         core: &Core,
@@ -193,38 +194,45 @@ impl ViewCache {
         wanted: Option<u32>,
         frame: &ViewFrame,
     ) -> Result<(), RenderError> {
-        self.previous = None;
-        let old = self.current.take();
-        if let Some(scale) = wanted {
-            let canvas = request.artwork.canvas();
-            let output = Output::at(scale, [0, 0])?;
-            let map = TileMap::new([canvas.width(), canvas.height()], output, (1, 1));
-            let slots = Needed::of(&map, frame).count();
-            // A tier the GPU memory budget leaves no room for is not made (S49).
-            if Tier::bytes_for(&map, slots as u32) > self.room {
-                self.refused = true;
-                return Ok(());
-            }
-            let tier = Tier::new(core, request.artwork, scale, slots as u32)?;
-            // The tier shown so far stays under the new one where the view shows it, in an
-            // atlas of just those tiles, while both fit the budget.
-            let previous = match old {
-                Some(old) => {
-                    let shows = Needed::of(&old.map, frame);
-                    old.kept(core, request.artwork, |tile| shows.shown(tile))?
-                }
-                None => None,
-            };
-            self.previous =
-                previous.filter(|previous| previous.bytes() + tier.bytes() <= self.room);
+        self.keep_previous();
+        self.previous = self.current.take();
+        let Some(scale) = wanted else {
+            // The canvas shows: the tier left is kept whole.
+            self.keep_previous();
+            return Ok(());
+        };
+        let zoom = zoom(&frame.to_canvas);
+        if let Some(at) = self.kept.iter().position(|tier| tier.scale() == scale) {
+            let tier = self.kept.swap_remove(at);
             log::info!(
-                "view tier {scale}x for zoom {:.2}: {slots} tiles wanted, {:.1} MB, the tier before kept: {:.1} MB",
-                zoom(&frame.to_canvas),
+                "view tier {scale}x for zoom {zoom:.2}: kept, {} tiles ready, {:.1} MB; the \
+                 tiers hold {:.1} MB",
+                tier.ready_tiles(),
                 mb(tier.bytes()),
-                mb(self.previous.as_ref().map_or(0, Tier::bytes))
+                mb(self.bytes() + tier.bytes())
             );
             self.current = Some(tier);
+            return Ok(());
         }
+        let canvas = request.artwork.canvas();
+        let output = Output::at(scale, [0, 0])?;
+        let map = TileMap::new([canvas.width(), canvas.height()], output, (1, 1));
+        let slots = Needed::of(&map, frame).count();
+        let bytes = Tier::bytes_for(&map, slots as u32);
+        while self.bytes() + bytes > self.room && self.let_go_oldest() > 0 {}
+        // A tier the GPU memory budget leaves no room for is not made (S49).
+        if self.bytes() + bytes > self.room {
+            self.refused = true;
+            return Ok(());
+        }
+        let tier = Tier::new(core, request.artwork, scale, slots as u32)?;
+        log::info!(
+            "view tier {scale}x for zoom {zoom:.2}: {slots} tiles wanted, {:.1} MB; the tiers \
+             hold {:.1} MB",
+            mb(tier.bytes()),
+            mb(self.bytes() + tier.bytes())
+        );
+        self.current = Some(tier);
         Ok(())
     }
 
@@ -234,12 +242,13 @@ impl ViewCache {
         self.current.as_ref().map(Tier::scale)
     }
 
-    /// Bytes the tiers' textures hold now.
+    /// Bytes the tiers' textures hold now, kept tiers included.
     #[must_use]
     pub fn bytes(&self) -> u64 {
         [&self.current, &self.previous]
             .into_iter()
             .flatten()
+            .chain(&self.kept)
             .map(Tier::bytes)
             .sum()
     }
@@ -290,7 +299,7 @@ pub(crate) fn tier_for(zoom: f32) -> Option<u32> {
     Some(1 << power as u32)
 }
 
-fn mb(bytes: u64) -> f64 {
+pub(crate) fn mb(bytes: u64) -> f64 {
     bytes as f64 / (1024.0 * 1024.0)
 }
 

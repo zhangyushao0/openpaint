@@ -13,7 +13,6 @@ use crate::geom::PixelRect;
 use crate::plan::Plan;
 use crate::scene::Fresh;
 use crate::view_atlas::Tier;
-use crate::view_needed::Needed;
 use crate::view_tier::ViewWork;
 /// Output pixels of changes to ready tiles evaluated in place in one frame at most; a larger
 /// change makes the tiles it touches wait to be evaluated whole.
@@ -92,16 +91,6 @@ pub(crate) fn in_place(
     }
     work.dropped = tiles;
     Ok(())
-}
-
-/// Drops tiles beyond the keep ring.
-pub(crate) fn release_far(tier: &mut Tier, needed: &Needed) {
-    let held: Vec<[u32; 2]> = tier.map.held().map(|(tile, _)| tile).collect();
-    for tile in &held {
-        if !needed.keeps(*tile) {
-            tier.release(*tile);
-        }
-    }
 }
 
 /// Needed tiles being evaluated whole, from the first frame that missed one until none is

@@ -79,6 +79,7 @@ pub extern "system" fn Java_dev_openpaint_Native_create<'local>(
     density: jfloat,
     files_dir: JString<'local>,
     cache_dir: JString<'local>,
+    memory: jlong,
 ) -> jlong {
     init_logging();
     env.with_env(|env| -> Result<jlong, HostError> {
@@ -88,7 +89,10 @@ pub extern "system" fn Java_dev_openpaint_Native_create<'local>(
         let share_dir = cache_dir.join("share");
         // Each artwork's canvas as last shown complete (S54), derived: the system may clear it.
         let display = DisplayCache::at(cache_dir.join("canvas"));
-        let runtime = Runtime::start_cached(density, Box::new(Library::at(library)), display)?;
+        // The device's memory (`ActivityManager.MemoryInfo.totalMem`): the GPU budget's (S58).
+        let memory = u64::try_from(memory).unwrap_or(0);
+        let runtime =
+            Runtime::start_cached(density, (Box::new(Library::at(library)), display), memory)?;
         let host = Host {
             runtime,
             latency: PenLatency::default(),
@@ -150,6 +154,20 @@ pub extern "system" fn Java_dev_openpaint_Native_leave<'local>(
     if let Some(runtime) = runtime(handle) {
         runtime.leave();
         log::info!("left the app");
+    }
+}
+
+/// The system asks for memory back (`onTrimMemory` at `level`, S58): from the app's interface
+/// hidden on, the runtime lets its derived GPU caches go (logged).
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_openpaint_Native_trim<'local>(
+    _env: EnvUnowned<'local>,
+    _class: JClass<'local>,
+    handle: jlong,
+    level: jint,
+) {
+    if let Some(runtime) = runtime(handle) {
+        runtime.release(level);
     }
 }
 

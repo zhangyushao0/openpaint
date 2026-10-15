@@ -6,21 +6,22 @@
 use std::time::Instant;
 
 use openpaint_app::{Session, Thumbnail};
+use openpaint_core::StrokeTool;
 use openpaint_render::{
     CacheBytes, CanvasTarget, Core, Focus, FrameRequest, PixelRect, RegionEvaluator, RenderError,
     ViewCache, ViewFrame, changed_regions,
 };
 
 use super::{Canvas, PAPER, THUMBNAIL_MAX};
+use crate::budget::Unit;
 use crate::error::RuntimeError;
 use crate::pictures::Drawn;
 
-/// What the GPU memory budget leaves the canvas's caches this frame (`budget.rs`).
+/// What the GPU memory budget leaves the canvas's caches to grow into this frame (`budget.rs`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Rooms {
     pub(crate) tiers: u64,
     pub(crate) snapshots: u64,
-    pub(crate) shrink_arena: bool,
     /// The smudge residuals' room in the arena (S51).
     pub(crate) arena: u64,
 }
@@ -171,19 +172,55 @@ impl Canvas {
         }
     }
 
-    /// The budget's steps on its caches, in order: the tiers kept within their room, then the
-    /// snapshots within theirs, then the arena cut down to what the scene shows, then its
-    /// residuals within their room (S51).
-    pub(crate) fn hold_within(&mut self, core: &Core, rooms: Rooms) -> Result<Freed, RuntimeError> {
-        let tiers = self.view.set_room(rooms.tiers);
-        let snapshots = self.target.set_snapshot_room(rooms.snapshots);
-        let arena = if rooms.shrink_arena {
-            self.target.shrink_arena(core)?
-        } else {
-            0
-        };
-        let residuals = self.target.set_arena_room(core, rooms.arena)?;
-        Ok([tiers, snapshots, arena, residuals])
+    /// The budget's steps on its caches (S58): the units `gone` let go (the pictures are the
+    /// runtime's), then each cache held within its room to grow, the residuals within theirs
+    /// (S51).
+    pub(crate) fn hold_within(
+        &mut self,
+        core: &Core,
+        rooms: Rooms,
+        gone: &[Unit],
+    ) -> Result<Freed, RuntimeError> {
+        let mut freed = [0; 4];
+        for unit in gone {
+            match unit {
+                Unit::Tier(scale) => freed[0] += self.view.let_go(*scale),
+                Unit::Snapshots => freed[1] += self.target.set_snapshot_room(0),
+                Unit::Arena => freed[2] += self.target.shrink_arena(core)?,
+                Unit::Pictures => {}
+            }
+        }
+        freed[0] += self.view.set_room(rooms.tiers);
+        freed[1] += self.target.set_snapshot_room(rooms.snapshots);
+        freed[3] = self.target.set_arena_room(core, rooms.arena)?;
+        Ok(freed)
+    }
+
+    /// Lets the view tiers, the snapshots and the arena's blocks no scene shows go at once (the
+    /// app no longer shows, S58); each is made again when needed.
+    pub(crate) fn release(&mut self, core: &Core) -> Result<Freed, RuntimeError> {
+        let tiers = self.view.release();
+        let snapshots = self.target.set_snapshot_room(0);
+        let arena = self.target.shrink_arena(core)?;
+        Ok([tiers, snapshots, arena, 0])
+    }
+
+    /// The view tiers (the budget weighs them, S58).
+    pub(crate) fn view(&self) -> &ViewCache {
+        &self.view
+    }
+
+    /// The canvas shows a preview over the current version (a stroke's mirrored copies, a
+    /// transform, an adjustment, a fill being placed): it evaluates from its snapshot.
+    pub(crate) fn previewing(&self) -> bool {
+        !self.session.shown().same_version(self.session.artwork())
+    }
+
+    /// A smudge is being drawn: it works in the arena's material.
+    pub(crate) fn smudging(&self) -> bool {
+        self.session
+            .active()
+            .is_some_and(|active| active.style().tool() == StrokeTool::Smudge)
     }
 
     /// Makes the target and the view tiers again on `core`, a new device after the last was lost

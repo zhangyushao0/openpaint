@@ -36,6 +36,9 @@ pub(crate) struct Tier {
     stale: bool,
     /// The view tile being filled in over frames (S53, `view_fill.rs`).
     pub(crate) fill: Option<TileFill>,
+    /// When the screen last showed it, in the frame clock's seconds (S58: tiers are let go by
+    /// recency).
+    pub(crate) shown_at: f64,
 }
 
 /// A view tile filled in over frames (S53), a block of it binned at a time so no frame bins the
@@ -87,7 +90,13 @@ impl Tier {
             index,
             stale: true,
             fill: None,
+            shown_at: 0.0,
         })
+    }
+
+    /// Ready tiles it holds.
+    pub(crate) fn ready_tiles(&self) -> usize {
+        self.ready.iter().filter(|ready| **ready).count()
     }
 
     pub(crate) fn scale(&self) -> u32 {
@@ -185,64 +194,6 @@ impl Tier {
         self.atlas = atlas;
         self.map.grow(rows);
         Ok(())
-    }
-
-    /// The tier with only its ready tiles `keep` takes, in an atlas just large enough (each
-    /// copied on the GPU); `None` when it keeps none.
-    pub(crate) fn kept(
-        &self,
-        core: &Core,
-        artwork: &Artwork,
-        keep: impl Fn([u32; 2]) -> bool,
-    ) -> Result<Option<Self>, RenderError> {
-        let tiles: Vec<([u32; 2], u32)> = self
-            .map
-            .held()
-            .filter(|(tile, _)| self.is_ready(*tile) && keep(*tile))
-            .collect();
-        if tiles.is_empty() {
-            return Ok(None);
-        }
-        let mut kept = Self::new(core, artwork, self.scale(), tiles.len() as u32)?;
-        let mut encoder = core.gpu.device.create_command_encoder(&Default::default());
-        let side = wgpu::Extent3d {
-            width: TIER_TILE,
-            height: TIER_TILE,
-            depth_or_array_layers: 1,
-        };
-        for (tile, from) in tiles {
-            let Some(to) = kept.map.free() else {
-                break;
-            };
-            kept.map.hold(tile, to);
-            kept.set_ready(tile, true);
-            let at = |texture, slot| {
-                let [x, y] = self.map.slot_origin(slot);
-                wgpu::TexelCopyTextureInfo {
-                    texture,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d { x, y, z: 0 },
-                    aspect: wgpu::TextureAspect::All,
-                }
-            };
-            let target = kept.map.slot_origin(to);
-            encoder.copy_texture_to_texture(
-                at(&self.atlas, from),
-                wgpu::TexelCopyTextureInfo {
-                    texture: &kept.atlas,
-                    mip_level: 0,
-                    origin: wgpu::Origin3d {
-                        x: target[0],
-                        y: target[1],
-                        z: 0,
-                    },
-                    aspect: wgpu::TextureAspect::All,
-                },
-                side,
-            );
-        }
-        core.gpu.submit([encoder.finish()]);
-        Ok(Some(kept))
     }
 
     /// `scene` (and `fresh`: the in-progress stroke from its first sample on, so every pixel is

@@ -4,10 +4,11 @@
 
 use std::time::Duration;
 
-use openpaint_app::{HostAnswer, HostRequest};
+use openpaint_app::{GalleryIntent, HostAnswer, HostRequest, ImageSource};
 use openpaint_ui::CanvasArea;
 
 use crate::canvas::Leaving;
+use crate::error::RuntimeError;
 use crate::frame::Runtime;
 use crate::screen::leave_job;
 use crate::storage::Job;
@@ -100,6 +101,26 @@ impl Runtime {
     #[must_use]
     pub fn canvas_area(&self) -> Option<CanvasArea> {
         self.shell.canvas_area()
+    }
+
+    /// For debug builds only (`cargo device-input open-file`, S58): the gallery's Open OpenPaint
+    /// file… with `source` as the picker's answer at once, no picker shown: the file goes the
+    /// import's way (S36) and its new card comes first.
+    ///
+    /// # Errors
+    /// `NotNow` when the gallery does not show; `App` while it opens an artwork or a file is
+    /// being read or written.
+    pub fn open_file_now(&mut self, source: Box<dyn ImageSource>) -> Result<(), RuntimeError> {
+        let gallery = (self.screen.gallery_mut()).ok_or(RuntimeError::NotNow("the gallery"))?;
+        gallery.dispatch(GalleryIntent::OpenFile)?;
+        while let Some(request) = gallery.host_request() {
+            log::info!("not shown, the file given at once: {request:?}");
+        }
+        let job = gallery
+            .host_answer(HostAnswer::Image(source))
+            .ok_or(RuntimeError::NotNow("a gallery taking the file"))?;
+        self.storage.submit(Job::File(job));
+        Ok(())
     }
 
     /// For debug builds only (`cargo device-input gradient on|off`, S37): the screen's precision

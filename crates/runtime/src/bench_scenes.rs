@@ -133,8 +133,12 @@ fn sample(point: [f32; 2], pressure: f32, i: u32) -> Result<StrokeSample, Runtim
     Ok(StrokeSample::new(position, pressure, 0.0, 0.0, 8 * i)?)
 }
 
-/// `artwork` with a stroke of `style` along `points`, pressed `pressure(i)`, committed.
-pub(crate) fn drawn(
+/// `artwork` with a stroke of `style` along `points`, pressed `pressure(i)`, samples 8 ms apart,
+/// committed.
+///
+/// # Errors
+/// As the artwork refuses the stroke.
+pub fn drawn(
     artwork: &Artwork,
     style: StrokeStyle,
     points: &[[f32; 2]],
@@ -147,6 +151,41 @@ pub(crate) fn drawn(
     let mut session = artwork.begin_stroke(style, samples[0])?;
     session.extend(&samples[1..])?;
     Ok(session.finish().artwork)
+}
+
+/// `pen-many`'s stroke `k` about `middle` (`GestureInstrumentation.turned`, S48's pile; S58's
+/// `test-art pile`): a 500 px path gently bent through `middle`, turned about its box's middle by
+/// `k` golden angles and moved by `(37 k mod 281 - 140, 59 k mod 281 - 140)` screen pixels at
+/// fit (0.92 screen pixels a canvas pixel).
+#[must_use]
+pub fn pile_path(k: u32, middle: [f32; 2]) -> Vec<[f32; 2]> {
+    let path: Vec<[f32; 2]> = (0..52u16)
+        .map(|i| {
+            let t = f32::from(i) / 51.0;
+            let x = 500.0f32.mul_add(t, middle[0] - 250.0);
+            [x, 43.0f32.mul_add((PI * t).sin(), middle[1])]
+        })
+        .collect();
+    if k == 0 {
+        return path;
+    }
+    let centre = [0, 1].map(|axis| {
+        let values = path.iter().map(|p| p[axis]);
+        let (low, high) = values.fold((f32::MAX, f32::MIN), |(l, h), v| (l.min(v), h.max(v)));
+        (low + high) / 2.0
+    });
+    let angle = f64::from(k) * 2.399_963_2;
+    let (cos, sin) = (angle.cos() as f32, angle.sin() as f32);
+    let shift = [37, 59].map(|step| ((k * step) % 281) as f32 - 140.0);
+    path.iter()
+        .map(|point| {
+            let [x, y] = [point[0] - centre[0], point[1] - centre[1]];
+            [
+                centre[0] + shift[0] / 0.92 + x * cos - y * sin,
+                centre[1] + shift[1] / 0.92 + x * sin + y * cos,
+            ]
+        })
+        .collect()
 }
 
 /// The wave `pen-many` lays, through `middle`, turned by `k` golden angles about it.
@@ -166,7 +205,10 @@ fn color() -> Result<Color, RuntimeError> {
 }
 
 /// A stroke of built-in brush `key` at `size` (its first size without one), seed 0, painting.
-pub(crate) fn style_of(
+///
+/// # Errors
+/// `Invalid` for a brush not built in.
+pub fn style_of(
     library: &BrushLibrary,
     key: &str,
     size: Option<f32>,

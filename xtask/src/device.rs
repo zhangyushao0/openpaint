@@ -9,8 +9,9 @@
 //!   (`input.rs`);
 //! - `cargo device-clean`: removes the agent's own test files, and only those (the test folders,
 //!   recordings, and test libraries an investigation left in the app's cache);
-//! - `cargo device-push <picture>`: a PNG or JPEG into `/sdcard/Download/openpaint-test` (a test
-//!   location `clean` removes) for the system picker;
+//! - `cargo device-push <file>`: a PNG or JPEG for the system picker, or an OpenPaint file for
+//!   `device-input open-file` (S58), into `/sdcard/Download/openpaint-test` (a test location
+//!   `clean` removes; `push.rs`);
 //! - `cargo device-info [label]`: the display's colour facts, read-only (`info.rs`);
 //! - `cargo device-smoke`: the installed debug build walked through every main feature on a
 //!   test artwork it creates and deletes, about 20 s (`smoke.rs`).
@@ -21,6 +22,8 @@ mod adb;
 mod check;
 mod info;
 mod input;
+mod open_file;
+mod push;
 mod smoke;
 mod smoke_state;
 mod tar;
@@ -35,12 +38,13 @@ pub use adb::DeviceError;
 pub use check::check;
 pub use info::info;
 pub use input::input;
+pub use push::push;
 pub use smoke::smoke;
 
 /// The library inside the app's private storage, relative to its data directory.
 const LIBRARY: &str = "files/library";
 /// The agent's test locations: never anything else (`clean`).
-const TEST_DIRS: [&str; 2] = [
+pub(crate) const TEST_DIRS: [&str; 2] = [
     "/sdcard/Pictures/openpaint-test",
     "/sdcard/Download/openpaint-test",
 ];
@@ -264,58 +268,6 @@ fn test_cache(name: &str) -> bool {
     })
 }
 
-/// Where `push` puts a picture: one of the test locations `clean` removes.
-const PUSHED: &str = "/sdcard/Download/openpaint-test";
-
-/// The file name a pushed picture keeps: a-z, 0-9 and '-', then `.png`, `.jpg` or `.jpeg`.
-fn picture_name(path: &Path) -> Result<String> {
-    let name = path
-        .file_name()
-        .and_then(|name| name.to_str())
-        .unwrap_or("");
-    let (stem, extension) = name.rsplit_once('.').unwrap_or((name, ""));
-    let picture = matches!(extension, "png" | "jpg" | "jpeg");
-    if picture && plain(stem).is_ok() {
-        Ok(name.to_owned())
-    } else {
-        Err(DeviceError::Usage(
-            "cargo device-push <picture.png|.jpg>, named with a-z, 0-9 and '-'",
-        ))
-    }
-}
-
-/// `cargo device-push <file>`: a picture into `PUSHED` for the system picker, made known to
-/// the device's media index so the picker lists it.
-pub fn push(args: &[String]) -> Result<()> {
-    let [file] = args else {
-        return Err(DeviceError::Usage("cargo device-push <picture.png|.jpg>"));
-    };
-    let local = Path::new(file);
-    let local = if local.exists() {
-        local.to_path_buf()
-    } else {
-        root().join(local)
-    };
-    let name = picture_name(&local)?;
-    let bytes = read_file(&local)?.len();
-    let adb = Adb::connected()?;
-    adb.shell(&["mkdir", "-p", PUSHED])?;
-    let target = format!("{PUSHED}/{name}");
-    let local_text = local.to_string_lossy().into_owned();
-    adb.text(&["push", &local_text, &target])?;
-    let uri = format!("file://{target}");
-    adb.shell(&[
-        "am",
-        "broadcast",
-        "-a",
-        "android.intent.action.MEDIA_SCANNER_SCAN_FILE",
-        "-d",
-        &uri,
-    ])?;
-    println!("pushed {} ({bytes} bytes) to {target}", local.display());
-    Ok(())
-}
-
 /// The time now (UTC) as `YYYYMMDD-HHMMSS`.
 fn timestamp() -> String {
     let seconds = std::time::SystemTime::now()
@@ -356,13 +308,6 @@ mod tests {
         assert_eq!(civil(11_016), (2000, 2, 29));
         assert!(plain("s22-before").is_ok());
         assert!(plain("../x").is_err() && plain("").is_err() && plain("A").is_err());
-        let name = |path: &str| picture_name(Path::new(path)).ok();
-        assert_eq!(
-            name("tests/fixtures/s26-photo.jpg").as_deref(),
-            Some("s26-photo.jpg")
-        );
-        assert!(name("a b.png").is_none() && name("x.txt").is_none() && name("png").is_none());
-        assert!(PUSHED.starts_with("/sdcard/") && TEST_DIRS.contains(&PUSHED));
     }
 
     #[test]

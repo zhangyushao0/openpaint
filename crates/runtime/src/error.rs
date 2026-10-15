@@ -16,6 +16,8 @@ pub enum RuntimeError {
     Brush(RecipeError),
     /// The system refused to start the named worker thread.
     Worker(&'static str),
+    /// A debug build's command found the app elsewhere than it needs (S58): what it needs.
+    NotNow(&'static str),
 }
 
 impl fmt::Display for RuntimeError {
@@ -26,6 +28,7 @@ impl fmt::Display for RuntimeError {
             Self::Core(error) => write!(f, "{error}"),
             Self::Brush(error) => write!(f, "built-in brush: {error}"),
             Self::Worker(name) => write!(f, "could not start the {name} thread"),
+            Self::NotNow(needed) => write!(f, "not now: {needed}"),
         }
     }
 }

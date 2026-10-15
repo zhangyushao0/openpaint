@@ -2,8 +2,9 @@
 //! `cargo device-input tap <name>` (D48's names, as scenarios use them), says what the app shows
 //! (`device-input state`, the device smoke, S52), turns the screen's
 //! precision check on and off (`gradient on|off`, S37), loses the GPU device on purpose
-//! (`lose-device`, S49) and runs the evaluator's micro-benchmark (`bench`, S55). Only Kotlin's
-//! debug source set declares
+//! (`lose-device`, S49), runs the evaluator's micro-benchmark (`bench`, S55) and the app's
+//! scenario benchmarks, and opens a pushed OpenPaint file without the picker (`open-file`, S58).
+//! Only Kotlin's debug source set declares
 //! them (`DebugControls`, called from `GestureInstrumentation` on the main thread); the library
 //! is built with the release profile for every APK, so a release APK carries these symbols with
 //! nothing that can call them.
@@ -12,13 +13,14 @@ use std::sync::atomic::{AtomicI64, Ordering};
 
 use jni::EnvUnowned;
 use jni::errors::LogErrorAndDefault;
-use jni::objects::{JClass, JObject, JString};
+use jni::objects::{JByteArray, JClass, JObject, JString};
 use jni::sys::{jboolean, jlong};
 
-use openpaint_runtime::{Runtime, ScreenProjection};
+use openpaint_runtime::{Runtime, SCENARIOS, ScreenProjection};
 
 use crate::error::HostError;
 use crate::jni_entry::runtime;
+use crate::transfer::BytesSource;
 
 /// The handle of the running activity's runtime; 0 while there is none.
 static HANDLE: AtomicI64 = AtomicI64::new(0);
@@ -132,6 +134,13 @@ pub extern "system" fn Java_dev_openpaint_DebugControls_bench<'local>(
         let only = (scene != "all").then_some(scene.as_str());
         let lines = match runtime(HANDLE.load(Ordering::SeqCst)) {
             None => vec!["no runtime".to_owned()],
+            // S58: the scenario benchmarks drive the app's own frame loop.
+            Some(runtime) if SCENARIOS.contains(&scene.split('@').next().unwrap_or("")) => {
+                match runtime.bench_scenario(&scene) {
+                    Ok(lines) => lines,
+                    Err(error) => vec![format!("bench {scene} failed: {error}")],
+                }
+            }
             Some(runtime) => match openpaint_runtime::bench(&runtime.core(), only) {
                 Ok(lines) => lines,
                 Err(error) => vec![format!("bench failed: {error}")],
@@ -143,6 +152,50 @@ pub extern "system" fn Java_dev_openpaint_DebugControls_bench<'local>(
         Ok(env.new_string(lines.join("\t"))?.into())
     })
     .resolve::<LogErrorAndDefault>()
+}
+
+/// For `cargo device-input open-file <name>` (S58): a pushed OpenPaint file's `bytes` (read by
+/// the instrumentation's shell, as the app may not read the test folder) opened as the gallery's
+/// Open OpenPaint file… opens a chosen one, no picker shown. Returns "opening", or why not.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_openpaint_DebugControls_openFile<'local>(
+    mut env: EnvUnowned<'local>,
+    _class: JClass<'local>,
+    bytes: JByteArray<'local>,
+) -> JObject<'local> {
+    env.with_env(|env| -> Result<JObject<'local>, HostError> {
+        let bytes = env.convert_byte_array(&bytes)?;
+        let line = match runtime(HANDLE.load(Ordering::SeqCst)) {
+            None => "no runtime".to_owned(),
+            Some(runtime) => match runtime.open_file_now(Box::new(BytesSource(bytes))) {
+                Ok(()) => imported(runtime)?,
+                Err(error) => format!("not opened: {error}"),
+            },
+        };
+        log::info!("open-file: {line}");
+        Ok(env.new_string(line)?.into())
+    })
+    .resolve::<LogErrorAndDefault>()
+}
+
+/// Frames until the library imported the file and the gallery listed it (nothing asks for
+/// Choreographer's frames meanwhile: no hand touched the screen), at most a minute: "opening"
+/// then, or why not.
+fn imported(runtime: &mut Runtime) -> Result<String, HostError> {
+    let started = std::time::Instant::now();
+    loop {
+        runtime.frame()?;
+        if !runtime.storing() {
+            return Ok(format!(
+                "opening, imported in {} ms",
+                started.elapsed().as_millis()
+            ));
+        }
+        if started.elapsed().as_secs() > 60 {
+            return Ok("opening, still importing after 60 s".to_owned());
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
 }
 
 /// For `cargo device-input gradient on|off` (S37): the screen's precision check on or off, and

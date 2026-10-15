@@ -1,18 +1,17 @@
-//! The GPU memory budget (S49, DECISIONS D76): the bytes the open canvas's derived caches may
-//! hold on a device, declared per device class. On a GPU that shares the system's memory (the
-//! tablet's Adreno) what the app holds there counts against everything the system keeps, so the
-//! budget is measured there; on a GPU with memory of its own (the development machine) it is
-//! generous. Above the budget the runtime drops caches in a fixed order, cheapest to make again
-//! first: the view tiers, then the snapshots, then the arena's blocks the scene does not show,
-//! then the layer pictures; it never fails for it.
+//! The GPU memory budget (S49, S58, DECISIONS D85): the bytes the open canvas's derived caches
+//! may hold on a device. On a GPU that shares the system's memory (the tablet's Adreno) it is a
+//! quarter of the device's memory (about 3 GB of the tablet's 12: the app is the one the author
+//! paints in, in front, and a cache made again costs seconds); on a GPU with memory of its own
+//! (the development machine) a fixed 2 GiB. Above the budget the runtime lets caches go by
+//! recency, never what the frame shows or the stroke being drawn uses (`runtime/src/budget.rs`);
+//! it never fails for it.
 
 use crate::core::Core;
 
-/// The budget on a GPU sharing the system's memory, from the tablet (2026-10-12, STATUS): with
-/// an artwork open its Graphics memory was 109 to 153 MB and the app's PSS 350 to 365 MB; the
-/// author's A4 artwork's caches held 179 MB at opening. This leaves that, a full view tier (90
-/// MB) and the snapshot of a large painted area, and stops pathological growth well below the
-/// system's memory.
+/// The share of the device's memory the derived caches may hold on a GPU sharing it.
+pub const SHARED_PART: u64 = 4;
+/// The budget on a GPU sharing the system's memory when the host did not say how much the device
+/// has (the harness and tests on such a GPU): S49's, measured on the tablet.
 pub const SHARED_BUDGET: u64 = 384 << 20;
 /// The budget on a GPU with memory of its own.
 pub const OWN_BUDGET: u64 = 2 << 30;
@@ -85,12 +84,15 @@ impl Core {
         }
     }
 
-    /// The GPU memory budget of this device's class.
+    /// The GPU memory budget of this device: a quarter of `memory` (the device's, in bytes, as
+    /// its host says) on a GPU sharing it, `SHARED_BUDGET` there without it; `OWN_BUDGET` on a
+    /// GPU with memory of its own.
     #[must_use]
-    pub fn memory_budget(&self) -> u64 {
-        match self.device_class() {
-            DeviceClass::Shared => SHARED_BUDGET,
-            DeviceClass::Own => OWN_BUDGET,
+    pub fn memory_budget(&self, memory: Option<u64>) -> u64 {
+        match (self.device_class(), memory) {
+            (DeviceClass::Shared, Some(memory)) => memory / SHARED_PART,
+            (DeviceClass::Shared, None) => SHARED_BUDGET,
+            (DeviceClass::Own, _) => OWN_BUDGET,
         }
     }
 }

@@ -1,16 +1,17 @@
 //! Which view tiles a view needs (S32): the tiles the screen's canvas area shows, turned with
-//! the view, then a ring of one tile round them, and a second ring kept but not filled.
+//! the view, then a ring of one tile round them. Since S58 the tiles beyond stay ready until a
+//! needed one wants their slot.
 
 use crate::view_atlas::Tier;
 use crate::view_tier::ViewFrame;
 use crate::view_tiles::{TIER_TILE, TileMap};
 
-/// Tiles at most this many rings out are kept once evaluated; beyond, dropped.
-const KEPT_RINGS: u8 = 2;
+/// The rings of tiles round the shown ones that are needed (filled).
+const RINGS: u8 = 1;
 
 pub(crate) struct Needed {
     tiles: [u32; 2],
-    /// Per view tile, row-major: 0 shown, 1 or 2 its ring, `u8::MAX` beyond.
+    /// Per view tile, row-major: 0 shown, 1 its ring, `u8::MAX` beyond.
     rings: Vec<u8>,
     /// The shown tiles, nearest the screen's centre first, then the first ring's.
     ordered: Vec<[u32; 2]>,
@@ -72,7 +73,7 @@ impl Needed {
 
     /// Marks `tile` shown and its rings.
     fn mark(&mut self, tile: [u32; 2]) {
-        let reach = i64::from(KEPT_RINGS);
+        let reach = i64::from(RINGS);
         for dy in -reach..=reach {
             for dx in -reach..=reach {
                 let [x, y] = [i64::from(tile[0]) + dx, i64::from(tile[1]) + dy];
@@ -104,19 +105,9 @@ impl Needed {
         self.ordered.iter().copied()
     }
 
-    /// `tile` is shown.
-    pub(crate) fn shown(&self, tile: [u32; 2]) -> bool {
-        self.ring(tile) == 0
-    }
-
-    /// `tile` is shown or in the first ring.
+    /// `tile` is shown or in the ring.
     pub(crate) fn needs(&self, tile: [u32; 2]) -> bool {
-        self.ring(tile) <= 1
-    }
-
-    /// `tile` is kept once evaluated.
-    pub(crate) fn keeps(&self, tile: [u32; 2]) -> bool {
-        self.ring(tile) <= KEPT_RINGS
+        self.ring(tile) <= RINGS
     }
 
     /// Needed tiles `tier` does not have ready.
@@ -191,7 +182,6 @@ mod tests {
         assert_eq!(needed.shown, 5 * 4);
         assert_eq!(needed.ordered().next(), Some([3, 1]), "the middle first");
         assert!(needed.needs([0, 0]) && needed.needs([6, 4]) && !needed.needs([7, 4]));
-        assert!(needed.keeps([7, 5]) && !needed.keeps([8, 0]));
         assert_eq!(needed.count(), 7 * 5);
     }
 

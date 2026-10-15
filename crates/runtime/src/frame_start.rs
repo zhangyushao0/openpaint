@@ -39,18 +39,20 @@ impl Runtime {
         store: Box<dyn ProjectStore>,
     ) -> Result<Self, RuntimeError> {
         let core = Arc::new(Core::headless()?);
-        Self::assemble(core, (store, None), pixels_per_point)
+        Self::assemble(core, (store, None), (pixels_per_point, None))
     }
 
     /// As `start`, keeping the display cache of each artwork's canvas in `cache` (S54): an
-    /// artwork opens showing it, complete when it is what the artwork's records evaluate to.
+    /// artwork opens showing it, complete when it is what the artwork's records evaluate to. The
+    /// device has `memory` bytes (Android's `ActivityManager.MemoryInfo.totalMem`): the GPU
+    /// memory budget follows from it (S58).
     pub fn start_cached(
         pixels_per_point: f32,
-        store: Box<dyn ProjectStore>,
-        cache: DisplayCache,
+        (store, cache): (Box<dyn ProjectStore>, DisplayCache),
+        memory: u64,
     ) -> Result<Self, RuntimeError> {
         let core = Arc::new(Core::headless()?);
-        Self::assemble(core, (store, Some(cache)), pixels_per_point)
+        Self::assemble(core, (store, Some(cache)), (pixels_per_point, Some(memory)))
     }
 
     /// As `start`, on a GPU device already open: the GPU tests open one per process, as a device
@@ -60,22 +62,23 @@ impl Runtime {
         pixels_per_point: f32,
         store: Box<dyn ProjectStore>,
     ) -> Result<Self, RuntimeError> {
-        Self::assemble(core, (store, None), pixels_per_point)
+        Self::assemble(core, (store, None), (pixels_per_point, None))
     }
 
-    /// As `start_cached`, on a GPU device already open (the GPU tests').
+    /// As `start_cached`, on a GPU device already open (the GPU tests'), the device's memory not
+    /// given.
     pub fn start_on_cached(
         core: Arc<Core>,
         pixels_per_point: f32,
         (store, cache): (Box<dyn ProjectStore>, DisplayCache),
     ) -> Result<Self, RuntimeError> {
-        Self::assemble(core, (store, Some(cache)), pixels_per_point)
+        Self::assemble(core, (store, Some(cache)), (pixels_per_point, None))
     }
 
     fn assemble(
         core: Arc<Core>,
         (store, cache): (Box<dyn ProjectStore>, Option<DisplayCache>),
-        pixels_per_point: f32,
+        (pixels_per_point, memory): (f32, Option<u64>),
     ) -> Result<Self, RuntimeError> {
         let toolbox = Toolbox::new(BrushLibrary::built_in()?);
         let storage = Storage::start(store, cache.clone())?;
@@ -98,10 +101,11 @@ impl Runtime {
             transfers: Transfers::default(),
             clipboard: Clipboard::default(),
             seeds: Seeds::from_clock(),
+            bench_fast: false,
             transfer: TransferWorker::start(shared.clone())?,
             fill: FillWorker::start(shared.clone())?,
             pictures: PictureWorker::start(shared.clone())?,
-            budget: Budget::of(&core),
+            budget: Budget::of(&core, memory),
             core,
             shared,
             ui,

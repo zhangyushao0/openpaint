@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 
 use openpaint_core::{Artwork, StrokeTool};
 use openpaint_runtime::{
-    Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime, ToolKind,
+    Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime, ToolKind, busiest,
 };
 use openpaint_store::Library;
 
@@ -299,44 +299,6 @@ fn count(artwork: &Artwork, keep: impl Fn(StrokeTool) -> bool) -> usize {
         .flat_map(|layer| layer.strokes().iter())
         .filter(|stroke| keep(stroke.style().tool()))
         .count()
-}
-
-/// The middle of the 64-px cell the most strokes' boxes (their samples widened by their size)
-/// cover.
-fn busiest(artwork: &Artwork) -> [f32; 2] {
-    const CELL: f32 = 64.0;
-    let canvas = artwork.canvas();
-    let columns = (canvas.width() as f32 / CELL).ceil() as usize;
-    let rows = (canvas.height() as f32 / CELL).ceil() as usize;
-    let mut cover = vec![0u32; columns * rows];
-    for stroke in artwork
-        .layers()
-        .iter()
-        .flat_map(|layer| layer.strokes().iter())
-    {
-        let size = stroke.style().size();
-        let (mut low, mut high) = ([f32::MAX; 2], [f32::MIN; 2]);
-        for sample in stroke.samples() {
-            let p = sample.position();
-            low = [low[0].min(p.x() - size), low[1].min(p.y() - size)];
-            high = [high[0].max(p.x() + size), high[1].max(p.y() + size)];
-        }
-        let span = |axis: usize, cells: usize| {
-            let first = (low[axis] / CELL).floor().max(0.0) as usize;
-            let last = ((high[axis] / CELL).floor().max(0.0) as usize).min(cells - 1);
-            first..=last
-        };
-        for row in span(1, rows) {
-            for column in span(0, columns) {
-                cover[row * columns + column] += 1;
-            }
-        }
-    }
-    let best = (0..cover.len()).max_by_key(|at| cover[*at]).unwrap_or(0);
-    [
-        (best % columns) as f32 * CELL + CELL / 2.0,
-        (best / columns) as f32 * CELL + CELL / 2.0,
-    ]
 }
 
 #[path = "nav_timing_report.rs"]

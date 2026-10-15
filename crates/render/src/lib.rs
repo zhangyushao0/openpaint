@@ -61,6 +61,7 @@ mod underlay;
 mod view_atlas;
 mod view_background;
 mod view_fill;
+mod view_kept;
 mod view_needed;
 mod view_shown;
 mod view_tier;
@@ -72,7 +73,9 @@ pub use crate::adapter::{
     chrome_shape,
 };
 pub use crate::bounded::DISPATCH_WORK;
-pub use crate::budget::{CacheBytes, DeviceClass, GpuMemory, OWN_BUDGET, SHARED_BUDGET};
+pub use crate::budget::{
+    CacheBytes, DeviceClass, GpuMemory, OWN_BUDGET, SHARED_BUDGET, SHARED_PART,
+};
 pub use crate::change::changed_regions;
 pub use crate::core::Core;
 pub use crate::error::RenderError;
@@ -93,5 +96,6 @@ pub use crate::stroke::{curve_pieces, stroke_region, tip_radius};
 pub use crate::surface::{Surface, SurfaceWindow};
 pub use crate::tally::Counts;
 pub use crate::thumbnail::{thumbnail_reference, thumbnail_size};
+pub use crate::view_kept::HeldTier;
 pub use crate::view_tier::{ViewCache, ViewFrame, ViewWork};
 pub use crate::waiting::Focus;

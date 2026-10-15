@@ -3,6 +3,7 @@
 #![forbid(unsafe_code)]
 
 mod bench;
+mod bench_app;
 mod bench_raster;
 mod bench_scenes;
 mod brush_pictures;
@@ -34,7 +35,9 @@ mod ui_pass;
 mod worker;
 
 pub use crate::bench::bench;
-pub use crate::budget::ARENA_SHARE;
+pub use crate::bench_app::{SCENARIOS, busiest};
+pub use crate::bench_scenes::{drawn, pile_path, style_of};
+pub use crate::budget::{ARENA_SHARE, TRIM_UI_HIDDEN};
 pub use crate::error::RuntimeError;
 pub use crate::frame::Runtime;
 pub use crate::input::{Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, ToolKind};

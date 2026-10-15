@@ -13,10 +13,14 @@ internal object Native {
 
     /**
      * Opens the GPU device and starts opening the artwork library in `filesDir` on a worker;
-     * files to share are made in `cacheDir/share`. Returns 0 when that failed; the reason is in
-     * the log.
+     * files to share are made in `cacheDir/share`; the GPU memory budget is a quarter of
+     * `memory`, the device's bytes (`ActivityManager.MemoryInfo.totalMem`). Returns 0 when that
+     * failed; the reason is in the log.
      */
-    @JvmStatic external fun create(density: Float, filesDir: String, cacheDir: String): Long
+    @JvmStatic external fun create(density: Float, filesDir: String, cacheDir: String, memory: Long): Long
+
+    /** The system asks the app to use less memory (`onTrimMemory`'s level). */
+    @JvmStatic external fun trim(handle: Long, level: Int)
 
     /**
      * The system's text faces, each "<face index>\n<path>" or null: the regular sans and the

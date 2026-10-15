@@ -46,6 +46,18 @@ impl ImageSource for FileSource {
     }
 }
 
+/// A file's bytes already read (debug builds' `open-file`, S58: the instrumentation's shell read
+/// it, as the app may not).
+pub struct BytesSource(pub Vec<u8>);
+
+impl ImageSource for BytesSource {
+    fn read(self: Box<Self>, limit: u64) -> Result<Vec<u8>, PortError> {
+        let mut bytes = self.0;
+        bytes.truncate(usize::try_from(limit.saturating_add(1)).unwrap_or(usize::MAX));
+        Ok(bytes)
+    }
+}
+
 fn device(error: std::io::Error) -> PortError {
     PortError::Device {
         detail: error.to_string(),

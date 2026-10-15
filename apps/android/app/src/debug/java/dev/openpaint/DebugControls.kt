@@ -37,7 +37,15 @@ internal object DebugControls {
 
     /**
      * The evaluator's micro-benchmark (S55) on this device's GPU: the scene [scene] names, or
-     * every one for "all"; its lines, written to the log too, separated by tabs.
+     * every one for "all"; or (S58) one of the app's scenario benchmarks (open-cold, open, zoom,
+     * pan, strokes, session) on the artwork open. Its lines, written to the log too, separated
+     * by tabs.
      */
     @JvmStatic external fun bench(scene: String): String?
+
+    /**
+     * An OpenPaint file's [bytes] opened as the gallery's Open OpenPaint file… opens a chosen
+     * one, no picker shown (S58): "opening", or why not.
+     */
+    @JvmStatic external fun openFile(bytes: ByteArray): String?
 }

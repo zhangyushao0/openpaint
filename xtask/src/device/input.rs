@@ -29,19 +29,47 @@
 //! - `bench [scene]`: no gesture; the evaluator's micro-benchmark on the device's GPU (S55), every
 //!   scene or the one named, a line per scene and scale (also in the app's log); a scene named
 //!   `raster[-scene][@scale][@atlas][@alone]` or `raster-passes` runs the raster core probe's
-//!   benchmark instead (S57).
+//!   benchmark instead (S57); `open-cold`, `open`, `zoom`, `pan`, `strokes` or `session` runs
+//!   that scenario benchmark on the artwork open (S58, `runtime/src/bench_app.rs`), `session`
+//!   with the app's `meminfo` before and after;
+//! - `open-file <name>`: the OpenPaint file `cargo device-push` put into the test folder opened
+//!   as a new artwork without the picker, its id printed (S58, `open_file.rs`);
+//! - `home`: the system's home key, no instrumentation (S58: the app's memory released when its
+//!   UI is hidden).
 
 use super::adb::{Adb, DeviceError, Result};
 use super::check::wake;
+use super::open_file::{meminfo, open_file};
 
 const INSTRUMENTATION: &str = "dev.openpaint/.GestureInstrumentation";
 
 pub fn input(args: &[String]) -> Result<()> {
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    if let ["open-file", name] = args[..] {
+        let adb = Adb::connected()?;
+        wake(&adb)?;
+        return open_file(&adb, name);
+    }
+    // S58: home as the system's key, outside the instrumentation (whose process keeps its
+    // importance while it runs, so the system would not tell the app its UI is hidden).
+    if args == ["home"] {
+        let adb = Adb::connected()?;
+        adb.shell(&["input", "keyevent", "KEYCODE_HOME"])?;
+        println!("pressed home");
+        return Ok(());
+    }
     let extras = extras(&args)?;
     let adb = Adb::connected()?;
     wake(&adb)?;
+    // S58: the session's memory before and after, as the system counts it.
+    let session = args == ["bench", "session"];
+    if session {
+        println!("before: {}", meminfo(&adb)?);
+    }
     let output = instrument(&adb, &extras)?;
+    if session {
+        println!("after: {}", meminfo(&adb)?);
+    }
     if let Some(state) = answer(&output, "state") {
         state.split('\t').for_each(|field| println!("  {field}"));
     } else if let Some(lines) = answer(&output, "bench") {
@@ -107,7 +135,8 @@ const INPUT_USAGE: &str = "cargo device-input \
                            | hover x,y [ms] [primary|secondary|tertiary|eraser] \
                            | tap <control name> | drag <control name> x,y [ms] \
                            | find <control name> | state | gradient on|off | lose-device \
-                           | bench [scene]";
+                           | bench [scene|open-cold|open|zoom|pan|strokes|session] \
+                           | open-file <name> | home";
 
 /// A control's name for the device's shell, which reads the line: in single quotes, so none
 /// inside.

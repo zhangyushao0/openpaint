@@ -3,6 +3,7 @@ package dev.openpaint
 import android.app.Activity
 import android.app.Instrumentation
 import android.os.Bundle
+import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import android.view.InputDevice
 import android.view.KeyEvent
@@ -31,7 +32,9 @@ import android.view.MotionEvent
  * ([DebugControls.state], S52). `-e gradient on|off` injects nothing: it turns the screen's
  * precision check on or off ([DebugControls.gradient]); `-e lose device` loses the GPU device on
  * purpose ([DebugControls.loseDevice], S49); `-e bench <scene|all>` answers the evaluator's
- * micro-benchmark ([DebugControls.bench], S55). A question is answered with `gesture=answered`.
+ * micro-benchmark or a scenario benchmark ([DebugControls.bench], S55, S58); `-e open-file <path>`
+ * opens a pushed OpenPaint file as a new artwork without the picker ([DebugControls.openFile],
+ * S58). A question is answered with `gesture=answered`.
  */
 class GestureInstrumentation : Instrumentation() {
     private var arguments = Bundle()
@@ -104,6 +107,16 @@ class GestureInstrumentation : Instrumentation() {
             var lines: String? = null
             runOnMainSync { lines = DebugControls.bench(scene) }
             result.putString("bench", lines ?: error("no answer for the benchmark"))
+            return true
+        }
+        arguments.getString("open-file")?.let { path ->
+            // The shell reads the pushed file (the app may not), whole before the
+            // instrumentation ends (its shell commands end with it).
+            val pipe = uiAutomation.executeShellCommand("cat $path")
+            val bytes = ParcelFileDescriptor.AutoCloseInputStream(pipe).use { it.readBytes() }
+            var opening: String? = null
+            runOnMainSync { opening = DebugControls.openFile(bytes) }
+            result.putString("opening", "${opening ?: error("no answer for the file")} (${bytes.size} bytes)")
             return true
         }
         if (arguments.getString("state") == null) return false

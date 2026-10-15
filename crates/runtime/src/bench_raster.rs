@@ -13,7 +13,7 @@ use openpaint_app::BrushLibrary;
 use openpaint_core::{Artwork, CanvasSize};
 use openpaint_render::{Core, ImageDifference, RasterTimed, RenderError, Timed, image_difference};
 
-use crate::bench_scenes::{drawn, style_of, wave};
+use crate::bench_scenes::{drawn, pile_path, style_of, wave};
 use crate::error::RuntimeError;
 
 const CANVAS: [u32; 2] = [2880, 1800];
@@ -233,43 +233,7 @@ fn pile(library: &BrushLibrary) -> Result<Artwork, RuntimeError> {
     let mut artwork = blank()?;
     for k in 0..300u32 {
         let style = styles[k as usize % PILE.len()].clone().with_seed(k);
-        artwork = drawn(&artwork, style, &turned(k), |_| 0.8)?;
+        artwork = drawn(&artwork, style, &pile_path(k, MIDDLE), |_| 0.8)?;
     }
     Ok(artwork)
-}
-
-/// `pen-many`'s stroke `k` (`GestureInstrumentation.turned`, the harness's `paint-timing`): a
-/// 500 px path gently bent through the middle, turned about its box's middle by `k` golden
-/// angles and moved by `(37 k mod 281 - 140, 59 k mod 281 - 140)` screen pixels at fit.
-fn turned(k: u32) -> Vec<[f32; 2]> {
-    let path: Vec<[f32; 2]> = (0..52u16)
-        .map(|i| {
-            let t = f32::from(i) / 51.0;
-            let x = 500.0f32.mul_add(t, MIDDLE[0] - 250.0);
-            [
-                x,
-                43.0f32.mul_add((std::f32::consts::PI * t).sin(), MIDDLE[1]),
-            ]
-        })
-        .collect();
-    if k == 0 {
-        return path;
-    }
-    let middle = [0, 1].map(|axis| {
-        let values = path.iter().map(|p| p[axis]);
-        let (low, high) = values.fold((f32::MAX, f32::MIN), |(l, h), v| (l.min(v), h.max(v)));
-        (low + high) / 2.0
-    });
-    let angle = f64::from(k) * 2.399_963_2;
-    let (cos, sin) = (angle.cos() as f32, angle.sin() as f32);
-    let shift = [37, 59].map(|step| ((k * step) % 281) as f32 - 140.0);
-    path.iter()
-        .map(|point| {
-            let [x, y] = [point[0] - middle[0], point[1] - middle[1]];
-            [
-                middle[0] + shift[0] / 0.92 + x * cos - y * sin,
-                middle[1] + shift[1] / 0.92 + x * sin + y * cos,
-            ]
-        })
-        .collect()
 }

@@ -1,6 +1,7 @@
 package dev.openpaint
 
 import android.app.Activity
+import android.app.ActivityManager
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -42,7 +43,9 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        handle = Native.create(density(), filesDir.absolutePath, cacheDir.absolutePath)
+        val memory = ActivityManager.MemoryInfo()
+        getSystemService(ActivityManager::class.java)?.getMemoryInfo(memory)
+        handle = Native.create(density(), filesDir.absolutePath, cacheDir.absolutePath, memory.totalMem)
         Native.fonts(handle, SystemFonts.latin(), SystemFonts.chinese())
         view = CanvasView(this)
         view.handle = handle
@@ -63,6 +66,15 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
     override fun onPause() {
         Native.leave(handle)
         super.onPause()
+    }
+
+    /**
+     * The system asks for memory back: from `TRIM_MEMORY_UI_HIDDEN` on (the app went to the
+     * background) the runtime lets its derived GPU caches go; the display cache on disk stays.
+     */
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        Native.trim(handle, level)
     }
 
     override fun onDestroy() {

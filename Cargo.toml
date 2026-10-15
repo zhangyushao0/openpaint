@@ -17,7 +17,7 @@ resolver = "3"
 [workspace.package]
 # The app's version (DECISIONS D79): a minor per stage, a patch per later slice, 1.0.0 at G7's
 # exit; xtask hands it to Gradle with the store's schema as build metadata (xtask/src/version.rs).
-version = "0.7.5"
+version = "0.7.6"
 edition = "2024"
 rust-version = "1.98"
 license = "MIT"

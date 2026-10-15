@@ -59,12 +59,12 @@ pub struct Runtime {
     pub(crate) budget: Budget,
     /// The harness's frame, in place of a window.
     pub(crate) offscreen: Option<ScreenTarget>,
-    pixels_per_point: f32,
+    pub(crate) pixels_per_point: f32,
     normaliser: Normaliser,
     /// Drops the hand resting on the glass before the UI or the session sees it.
     palms: PalmRejection,
     /// The input samples' clock, carried on between batches for gestures.
-    clock: InputClock,
+    pub(crate) clock: InputClock,
     /// The clock motion runs on.
     pub(crate) frame_clock: FrameClock,
     /// When a finger or the pen last touched: background work's budget follows (S54).
@@ -82,9 +82,11 @@ pub struct Runtime {
     /// style it makes.
     pub(crate) toolbox: Toolbox,
     /// What was copied last (S40): the app's, kept across artworks, never stored.
-    clipboard: Clipboard,
+    pub(crate) clipboard: Clipboard,
     /// Where every new stroke's seed comes from (S45).
     pub(crate) seeds: Seeds,
+    /// Debug builds' scenario benchmark runs its frames as fast as the GPU takes them (S58).
+    pub(crate) bench_fast: bool,
     /// Export and the reference image: the app's, kept across artworks.
     pub(crate) transfers: Transfers,
     pub(crate) transfer: TransferWorker,

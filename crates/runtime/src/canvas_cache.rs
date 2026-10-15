@@ -130,6 +130,11 @@ impl Canvas {
         }
     }
 
+    /// The artwork's project, once it is in the library.
+    pub(crate) const fn project(&self) -> Option<ProjectId> {
+        self.cache.project
+    }
+
     /// The library holds `version` now, as `stored` says (a save completed).
     pub(crate) fn stored(&mut self, version: &Artwork, stored: Stored) {
         self.cache.project = Some(stored.project);
