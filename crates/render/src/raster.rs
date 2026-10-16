@@ -1,196 +1,297 @@
-//! The raster core probe (S57, measurement only; DECISIONS D84): one layer's strokes drawn by the
-//! GPU's rasterizer rather than evaluated per pixel over binned ops, timed against the evaluator
-//! on the same output region and compared with its image. Each stroke's coverage (or density, and
-//! a paper stroke's contact) lies in a region of a scratch atlas, combined by the blend unit (max
-//! or add); then each region is composited onto a float layer by the evaluator's paint, and the
-//! layer onto the paper (`raster_plan.rs` the CPU's part, `raster_gpu.rs` the pipelines,
-//! `raster.wgsl` the stages). Reached only through the benchmark (`cargo device-input bench`,
-//! harness `bench`) and its test; nothing the app shows goes through it.
+//! The raster core (S57's probe, product code since S59; DECISIONS D86): a region of a
+//! scene's output drawn by the GPU's rasterizer rather than evaluated per pixel over binned ops.
+//! Each stroke's coverage (or density, and a paper stroke's contact) lies in a region of a scratch
+//! atlas, combined by the blend unit (max or add); each region is composited onto a float layer by
+//! the evaluator's paint, fills and patches drawn there too, a mask onto a float target of its
+//! own; each layer ends onto a float canvas (or into its clipping chain) by its mode, and the
+//! canvas is rounded into the destination as the evaluator rounds it (`raster_plan.rs` the CPU's
+//! part, `raster_gpu.rs` the pipelines, `raster_frame.rs` the passes, raster*.wgsl the stages).
+//! It draws the view tiers above 1x and exports for every scene `raster_route.rs` routes to it;
+//! the 1x canvas, the stroke being drawn, picks and pictures stay on the evaluator (S61).
 
-use std::time::{Duration, Instant};
-
-use openpaint_core::Artwork;
+use std::time::Instant;
 
 use crate::core::Core;
 use crate::error::RenderError;
-use crate::evaluator::WARM_ENOUGH;
-use crate::gpu_clock::GpuClock;
-use crate::image::RgbaImage;
+use crate::gpu_clock::{GpuClock, Timing};
 use crate::output::Output;
-use crate::pace::Group;
-use crate::program::scene_ops;
+use crate::program::SceneOps;
 use crate::raster_gpu::RasterPipelines;
-use crate::raster_plan::{RasterCounts, RasterPlan};
-use crate::readback::read_rgba;
-use crate::scene::Scene;
-use crate::scene_reuse::Earlier;
+use crate::raster_plan::{Pass, RasterPlan, Scratch};
+use crate::readback::target_texture;
 
 #[path = "raster_frame.rs"]
 mod frame;
-use frame::Frame;
+use frame::{Reads, instance_bytes, values};
 
-/// Evaluations before the timed ones: at least this many and this long (as the evaluator's
-/// benchmark warms, `evaluator_bench.rs`).
-const WARMUP: usize = 3;
-const WARM_TIME: Duration = Duration::from_millis(250);
-/// Timed evaluations at most (the GPU clock's slots).
-const MOST: usize = 16;
+/// The atlas of a view tier's and an export's raster targets, pixels a side: 64 regions of a
+/// whole 256-pixel tile, 8 of an export's 1024 x 512 piece.
+pub(crate) const ATLAS: u32 = 2048;
 
-/// What drawing an output region through the probe took, and what it drew.
-#[derive(Debug, Clone)]
-pub struct RasterTimed {
-    /// GPU time of each evaluation, from the first pass's start to the last's end, ns, fastest
-    /// first.
-    pub times: Vec<f64>,
-    /// Measured by GPU timestamps; else by the wall time of each submission waited for.
-    pub stamped: bool,
-    pub counts: RasterCounts,
-    /// Render passes an evaluation takes: two a batch, one more for the paper.
-    pub passes: usize,
-    pub atlas: [u32; 2],
-    /// The atlas's and the layer's texel formats, and their bytes.
-    pub formats: [String; 2],
-    pub bytes: [u64; 2],
-    /// CPU time: the plan (instances, tiles, batches), its instances' upload (the scene's ops are
-    /// the evaluator's upload too), and encoding one evaluation's passes (median), ns.
-    pub plan_ns: f64,
-    pub upload_ns: f64,
-    pub encode_ns: f64,
-    /// CPU time the probe's 9 pipelines took to make (shader module and compilation), once
-    /// per device, ns.
-    pub compile_ns: f64,
-    /// The region drawn, 8 bits per channel, and whether it was bit for bit what the warm-up's
-    /// evaluations drew (the blend unit combines in the order the draws are given).
-    pub image: RgbaImage,
-    pub repeatable: bool,
+/// A region's float targets, the atlas and the bindings the raster core draws through, kept
+/// between regions (a view tier's tiles, an export's pieces).
+pub(crate) struct RasterTargets {
+    /// The largest region it draws, and the atlas.
+    capacity: [u32; 2],
+    atlas: Target,
+    /// By `Scratch`: the canvas, the chain, the layer, the mask, the backdrop; the chain, the
+    /// mask and the backdrop made when a region first needs them.
+    scratch: [Option<Target>; 5],
+    /// Bound where a draw reads nothing.
+    unread: Target,
+    values: wgpu::Buffer,
+    instances: wgpu::Buffer,
+    /// Group 0 for the scene of that serial.
+    scene: Option<(u64, wgpu::BindGroup)>,
+    /// Group 1, made again when a scratch target is made.
+    reads: Option<Reads>,
 }
 
-impl RasterTimed {
-    /// The middle time, ns.
-    #[must_use]
-    pub fn median(&self) -> f64 {
-        self.times.get(self.times.len() / 2).copied().unwrap_or(0.0)
+/// A texture with the one view every pass draws into or reads it through (a view made per pass
+/// had the driver make a framebuffer per pass).
+pub(crate) struct Target {
+    texture: wgpu::Texture,
+    view: wgpu::TextureView,
+}
+
+impl Target {
+    fn of(texture: wgpu::Texture) -> Self {
+        Self {
+            view: texture.create_view(&Default::default()),
+            texture,
+        }
+    }
+}
+
+/// Where a region's pixels go: a destination's view, its format, and the pixel holding the
+/// region's top-left.
+pub(crate) struct Finish<'a> {
+    pub(crate) view: &'a wgpu::TextureView,
+    pub(crate) format: wgpu::TextureFormat,
+    pub(crate) at: [u32; 2],
+}
+
+/// What one draw cost the CPU, ns: writing its values and instances, encoding and submitting.
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct Drawn {
+    pub(crate) upload_ns: f64,
+    pub(crate) encode_ns: f64,
+}
+
+impl RasterTargets {
+    /// Targets for regions of up to `capacity` pixels, with an atlas `atlas` pixels a side.
+    ///
+    /// # Errors
+    /// As the GPU: sizes the device cannot hold.
+    pub(crate) fn new(core: &Core, capacity: [u32; 2], atlas: u32) -> Result<Self, RenderError> {
+        let pipelines = core.raster_pipelines()?;
+        let drawn = wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING;
+        let gpu = &core.gpu;
+        let buffer = |label, size, usage| {
+            gpu.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some(label),
+                size,
+                usage: usage | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            })
+        };
+        let mut scratch: [Option<Target>; 5] = Default::default();
+        for at in [Scratch::Canvas, Scratch::Layer] {
+            scratch[at as usize] = Some(Target::of(target_texture(
+                gpu,
+                (capacity, pipelines.layer),
+                drawn,
+            )?));
+        }
+        Ok(Self {
+            capacity,
+            atlas: Target::of(target_texture(gpu, ([atlas; 2], pipelines.atlas), drawn)?),
+            scratch,
+            unread: Target::of(target_texture(gpu, ([1, 1], pipelines.layer), drawn)?),
+            values: buffer("raster values", 64, wgpu::BufferUsages::UNIFORM),
+            instances: buffer("raster instances", 1 << 16, wgpu::BufferUsages::VERTEX),
+            scene: None,
+            reads: None,
+        })
+    }
+
+    /// The largest region it draws.
+    pub(crate) const fn capacity(&self) -> [u32; 2] {
+        self.capacity
+    }
+
+    /// The atlas's side.
+    pub(crate) fn atlas(&self) -> [u32; 2] {
+        [self.atlas.texture.width(), self.atlas.texture.height()]
+    }
+
+    /// Bytes of its textures and buffers.
+    pub(crate) fn bytes(&self) -> u64 {
+        let texels = |texture: &wgpu::Texture| {
+            let texel = texture.format().block_copy_size(None).unwrap_or(16);
+            u64::from(texture.width()) * u64::from(texture.height()) * u64::from(texel)
+        };
+        let scratch: u64 = (self.scratch.iter().flatten())
+            .map(|at| texels(&at.texture))
+            .sum();
+        texels(&self.atlas.texture) + scratch + self.instances.size() + self.values.size()
+    }
+
+    /// The atlas's and the canvas's texel formats and bytes (the benchmark's line).
+    pub(crate) fn formats(&self) -> ([String; 2], [u64; 2]) {
+        let canvas = &self.scratch[0].as_ref().unwrap_or(&self.atlas).texture;
+        let formats =
+            [&self.atlas.texture, canvas].map(|texture| format!("{:?}", texture.format()));
+        let bytes = [&self.atlas.texture, canvas].map(|texture| {
+            let texel = texture.format().block_copy_size(None).unwrap_or(16);
+            u64::from(texture.width()) * u64::from(texture.height()) * u64::from(texel)
+        });
+        (formats, bytes)
+    }
+
+    /// Draws `plan` (of the scene whose ops are `ops`, named `serial`) at `output` on paper
+    /// `background`, rounds it into `finish`, and submits it; its passes timed by `timing`.
+    ///
+    /// # Errors
+    /// `Invalid` for a region larger than its capacity or a destination format the raster core
+    /// does not finish into; as the GPU.
+    pub(crate) fn draw(
+        &mut self,
+        core: &Core,
+        ((ops, serial), plan): ((&SceneOps, u64), &RasterPlan),
+        (output, background): (Output, [f32; 4]),
+        finish: &Finish<'_>,
+        timing: Option<(&GpuClock, Timing)>,
+    ) -> Result<Drawn, RenderError> {
+        let [width, height] = plan.size;
+        if width > self.capacity[0] || height > self.capacity[1] || width * height == 0 {
+            return Err(RenderError::Invalid("a raster region outside its targets"));
+        }
+        let pipelines = core.raster_pipelines()?;
+        let started = Instant::now();
+        self.make_scratch(core, pipelines, plan)?;
+        self.bind_scene(core, pipelines, (ops, serial));
+        let gpu = &core.gpu;
+        let atlas = self.atlas();
+        gpu.queue.write_buffer(
+            &self.values,
+            0,
+            &values(output, plan.size, atlas, background),
+        );
+        let bytes = instance_bytes(&plan.instances, finish.at);
+        if bytes.len() as u64 > self.instances.size() {
+            self.instances = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("raster instances"),
+                size: (bytes.len() as u64).next_power_of_two(),
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+        gpu.queue.write_buffer(&self.instances, 0, &bytes);
+        let uploaded = Instant::now();
+        let finished = plan.instances.len() as u32;
+        let buffer = self.encode(
+            core,
+            pipelines,
+            (plan, background),
+            (finish, finished),
+            timing,
+        )?;
+        gpu.submit([buffer]);
+        Ok(Drawn {
+            upload_ns: (uploaded - started).as_secs_f64() * 1e9,
+            encode_ns: uploaded.elapsed().as_secs_f64() * 1e9,
+        })
+    }
+
+    /// The chain, the mask and the backdrop, when `plan` uses one not made yet.
+    fn make_scratch(
+        &mut self,
+        core: &Core,
+        pipelines: &RasterPipelines,
+        plan: &RasterPlan,
+    ) -> Result<(), RenderError> {
+        for pass in &plan.passes {
+            let used = match pass {
+                Pass::Draw { target, .. } | Pass::Clear(target) => [Some(*target), None],
+                Pass::Copy(_) => [Some(Scratch::Backdrop), None],
+                Pass::End { target, reads, .. } => [Some(*target), Some(*reads)],
+                Pass::Coverage(_) => [None, None],
+            };
+            for at in used.into_iter().flatten() {
+                if self.scratch[at as usize].is_some() {
+                    continue;
+                }
+                let usage = wgpu::TextureUsages::RENDER_ATTACHMENT
+                    | wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::COPY_DST;
+                let format = (self.capacity, pipelines.layer);
+                self.scratch[at as usize] =
+                    Some(Target::of(target_texture(&core.gpu, format, usage)?));
+                self.reads = None;
+            }
+        }
+        Ok(())
+    }
+
+    /// Group 0 for the scene `ops` named `serial`, made when the scene is new.
+    fn bind_scene(
+        &mut self,
+        core: &Core,
+        pipelines: &RasterPipelines,
+        (ops, serial): (&SceneOps, u64),
+    ) {
+        if self.scene.as_ref().is_some_and(|(held, _)| *held == serial) {
+            return;
+        }
+        let buffers = [
+            &self.values,
+            &ops.ops(),
+            &ops.masks,
+            &core.evaluate.textures,
+            &ops.patches,
+        ];
+        let group = core
+            .gpu
+            .device
+            .create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("raster scene"),
+                layout: &pipelines.layouts[0],
+                entries: &(0..)
+                    .zip(buffers)
+                    .map(|(binding, buffer)| wgpu::BindGroupEntry {
+                        binding,
+                        resource: buffer.as_entire_binding(),
+                    })
+                    .collect::<Vec<_>>(),
+            });
+        self.scene = Some((serial, group));
     }
 }
 
 impl Core {
-    /// Draws `artwork` (one plain layer of finished strokes, else `Invalid`) on white paper over
-    /// a target of `size` output pixels whose top-left lies at canvas pixel `at`, at `scale`
-    /// output pixels per canvas pixel, through the raster probe with an atlas `atlas` pixels
-    /// square: planned once, then evaluated after a warm-up `repeats` times (at most 16), each
-    /// timed on the GPU.
-    ///
-    /// # Errors
-    /// `Invalid` for other content, a scale other than 1, 2, 4 or 8, or a stroke's region
-    /// larger than the atlas; as the GPU otherwise.
-    pub fn time_raster(
-        &self,
-        artwork: &Artwork,
-        (scale, at): (u32, [u32; 2]),
-        size: [u32; 2],
-        (repeats, atlas): (usize, u32),
-    ) -> Result<RasterTimed, RenderError> {
-        let pipelines = self.raster_pipelines()?;
-        let output = Output::at(scale, at.map(|v| v * scale))?;
-        let scene = Scene::build_knowing(artwork, None, (Vec::new(), Earlier::default()))?;
-        let started = Instant::now();
-        let plan = RasterPlan::build(&scene, output, size, [atlas; 2])?;
-        let plan_ns = nanoseconds(started.elapsed());
-        let ops = scene_ops(&self.gpu, &scene, None);
-        let frame = Frame::new(self, pipelines, (&plan, &ops), (output, size, [atlas; 2]))?;
-        let mut encoded = Vec::new();
-        let warming = Instant::now();
-        let mut warmed = 0;
-        while (warmed < WARMUP || warming.elapsed() < WARM_TIME) && warming.elapsed() < WARM_ENOUGH
-        {
-            let started = Instant::now();
-            let buffers = frame.encode(&self.gpu, pipelines, &plan, None);
-            encoded.push(nanoseconds(started.elapsed()));
-            self.gpu.submit(buffers);
-            self.wait_idle()?;
-            warmed += 1;
-        }
-        let warm = read_rgba(&self.gpu, &frame.out)?;
-        let (times, stamped) =
-            self.raster_runs(&frame, pipelines, &plan, repeats.clamp(1, MOST))?;
-        encoded.sort_by(f64::total_cmp);
-        let image = read_rgba(&self.gpu, &frame.out)?;
-        Ok(RasterTimed {
-            repeatable: warm == image,
-            times,
-            stamped,
-            counts: plan.counts,
-            passes: frame.passes(&plan),
-            atlas: [atlas; 2],
-            formats: [pipelines.atlas, pipelines.layer].map(|format| format!("{format:?}")),
-            bytes: frame.bytes(),
-            plan_ns,
-            upload_ns: frame.upload_ns,
-            encode_ns: encoded[encoded.len() / 2],
-            compile_ns: pipelines.compile_ns,
-            image,
-        })
-    }
-
-    /// The probe's pipelines, made on first use (how long that took is logged).
-    fn raster_pipelines(&self) -> Result<&RasterPipelines, RenderError> {
+    /// The raster core's pipelines, made on first use (how long that took is logged).
+    pub(crate) fn raster_pipelines(&self) -> Result<&RasterPipelines, RenderError> {
         if let Some(pipelines) = self.raster.get() {
             return Ok(pipelines);
         }
         let started = Instant::now();
         let mut made = RasterPipelines::new(&self.gpu)?;
-        made.compile_ns = nanoseconds(started.elapsed());
+        made.compile_ns = started.elapsed().as_secs_f64() * 1e9;
+        log::info!(
+            "raster core: {} pipelines made in {:.0} ms ({:?} atlas, {:?} targets)",
+            made.count,
+            made.compile_ns / 1e6,
+            made.atlas,
+            made.layer
+        );
         Ok(self.raster.get_or_init(|| made))
     }
-
-    /// `repeats` evaluations of the frame, each timed by GPU timestamps (or by waiting for it):
-    /// their times, ns, fastest first, and whether timestamps measured them.
-    fn raster_runs(
-        &self,
-        frame: &Frame,
-        pipelines: &RasterPipelines,
-        plan: &RasterPlan,
-        repeats: usize,
-    ) -> Result<(Vec<f64>, bool), RenderError> {
-        let mut times = Vec::new();
-        let stamped = match GpuClock::new(&self.gpu) {
-            Some(mut clock) => {
-                for _ in 0..repeats {
-                    let timing = (clock.start(Group::default()))
-                        .ok_or(RenderError::Invalid("no free timestamp slot"))?;
-                    let buffers = frame.encode(&self.gpu, pipelines, plan, Some((&clock, timing)));
-                    self.gpu.submit(buffers);
-                    clock.finish(&self.gpu, timing);
-                }
-                // Each reading comes back once the GPU is done and its buffer mapped.
-                for _ in 0..100 {
-                    self.wait_idle()?;
-                    times.extend(clock.readings(&self.gpu).into_iter().map(|(_, ns)| ns));
-                    if times.len() >= repeats {
-                        break;
-                    }
-                }
-                true
-            }
-            None => {
-                for _ in 0..repeats {
-                    let started = Instant::now();
-                    self.gpu
-                        .submit(frame.encode(&self.gpu, pipelines, plan, None));
-                    self.wait_idle()?;
-                    times.push(nanoseconds(started.elapsed()));
-                }
-                false
-            }
-        };
-        times.sort_by(f64::total_cmp);
-        Ok((times, stamped))
-    }
 }
 
-fn nanoseconds(duration: Duration) -> f64 {
-    duration.as_secs_f64() * 1e9
-}
+#[path = "raster_bench.rs"]
+mod bench;
+pub use bench::RasterTimed;
 
 #[path = "raster_difference.rs"]
 mod difference;

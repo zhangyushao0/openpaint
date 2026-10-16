@@ -31,12 +31,14 @@ pub struct CacheBytes {
     /// The layer pictures being made (a canvas-sized target on their worker) and the brush
     /// strip's.
     pub pictures: u64,
+    /// The raster core's targets for the view tiers (S59): its atlas and float targets.
+    pub raster: u64,
 }
 
 impl CacheBytes {
     #[must_use]
     pub const fn total(&self) -> u64 {
-        self.canvas + self.tiers + self.snapshots + self.arena + self.pictures
+        self.canvas + self.tiers + self.snapshots + self.arena + self.pictures + self.raster
     }
 }
 

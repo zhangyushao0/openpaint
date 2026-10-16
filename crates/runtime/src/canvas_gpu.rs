@@ -168,6 +168,7 @@ impl Canvas {
     pub(crate) fn bytes(&self) -> CacheBytes {
         CacheBytes {
             tiers: self.view.bytes(),
+            raster: self.view.raster_held().map_or(0, |(bytes, _)| bytes),
             ..self.target.bytes()
         }
     }
@@ -185,6 +186,7 @@ impl Canvas {
         for unit in gone {
             match unit {
                 Unit::Tier(scale) => freed[0] += self.view.let_go(*scale),
+                Unit::Raster => freed[0] += self.view.let_go_raster(),
                 Unit::Snapshots => freed[1] += self.target.set_snapshot_room(0),
                 Unit::Arena => freed[2] += self.target.shrink_arena(core)?,
                 Unit::Pictures => {}

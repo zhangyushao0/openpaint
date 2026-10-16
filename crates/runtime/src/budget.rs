@@ -43,11 +43,13 @@ pub(crate) struct Budget {
 /// The smudge residuals keep within this share of the budget (S51).
 pub const ARENA_SHARE: u64 = 4;
 
-/// What the budget lets go as one: a view tier (by its scale), the snapshots, the arena's blocks
-/// no scene shows with its material, the layer pictures.
+/// What the budget lets go as one: a view tier (by its scale), the raster core's targets for the
+/// tiers (S59), the snapshots, the arena's blocks no scene shows with its material, the layer
+/// pictures.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Unit {
     Tier(u32),
+    Raster,
     Snapshots,
     Arena,
     Pictures,
@@ -141,6 +143,13 @@ impl Budget {
             bytes: tier.bytes,
             used: tier.shown_at,
             needed: tier.shown,
+        }));
+        // Made again by the next tile drawn: never needed, gone by when it last drew.
+        units.extend(canvas.view().raster_held().map(|(bytes, used)| Held {
+            unit: Unit::Raster,
+            bytes,
+            used,
+            needed: false,
         }));
         units
     }
@@ -319,6 +328,7 @@ mod tests {
             snapshots: 40 * MB,
             arena: 20 * MB,
             pictures: 10 * MB,
+            raster: 0,
         };
         let units = [
             unit(Unit::Tier(4), 60, 9.0, true),

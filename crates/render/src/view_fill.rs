@@ -16,7 +16,7 @@ use crate::view_atlas::Tier;
 use crate::view_tier::ViewWork;
 /// Output pixels of changes to ready tiles evaluated in place in one frame at most; a larger
 /// change makes the tiles it touches wait to be evaluated whole.
-const EDIT_PIXELS: i64 = 4 * 256 * 256;
+pub(crate) const EDIT_PIXELS: i64 = 4 * 256 * 256;
 
 /// The ready tiles of `tier` the canvas pixels `changed` reach, each with the output pixels
 /// reached.

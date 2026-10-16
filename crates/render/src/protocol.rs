@@ -364,7 +364,7 @@ pub(crate) use adjust::{AdjustOn, table_words};
 
 #[path = "protocol_layers.rs"]
 mod layers;
-pub(crate) use layers::{LayerInto, Masking};
+pub(crate) use layers::{LayerInto, Masking, Mode};
 
 #[path = "protocol_moves.rs"]
 mod moves;
@@ -388,7 +388,7 @@ mod cost;
 pub(crate) use cost::OpKind;
 
 #[path = "protocol_raster.rs"]
-mod raster;
+pub(crate) mod raster;
 
 #[path = "protocol_wgsl.rs"]
 mod wgsl;

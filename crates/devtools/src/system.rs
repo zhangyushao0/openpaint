@@ -4,7 +4,7 @@
 
 use std::sync::{Arc, Mutex, PoisonError};
 
-use openpaint_render::RgbaImage;
+use openpaint_render::{RgbaImage, image_difference};
 use openpaint_runtime::{HostAnswer, HostRequest, ImageFormat, ImageSink, ImageSource, PortError};
 use openpaint_store::{decode_image, encode_image};
 
@@ -222,6 +222,10 @@ pub struct Export {
     /// mean of each block), and the canvas.
     pub largest_difference: u8,
     pub mean_difference: f64,
+    /// At 1x, the pixels more than one 8-bit level off the canvas away from its antialiased
+    /// edges (`image_difference`, D86's rule: the raster core draws the file since S59, the
+    /// evaluator the canvas); `usize::MAX` where the sizes differ.
+    pub off_inside: usize,
 }
 
 impl Export {
@@ -251,8 +255,13 @@ impl Export {
             }
         }
         let count = canvas.pixels().len().max(1) as f64;
-        let hash = RgbaImage::from_rgba(size, pixels).map_or(0, |image| image.content_hash());
+        let decoded = RgbaImage::from_rgba(size, pixels);
+        let hash = decoded.as_ref().map_or(0, RgbaImage::content_hash);
+        let off_inside = (decoded.as_ref())
+            .and_then(|image| image_difference(canvas, image))
+            .map_or(usize::MAX, |found| found.beyond_one_inside);
         Ok(Self {
+            off_inside,
             name: name.to_owned(),
             format,
             bytes,
@@ -266,12 +275,12 @@ impl Export {
     }
 
     /// The size is the canvas's times the scale and the pixels hash as expected (when given). At
-    /// 1x a PNG equals the canvas pixel for pixel; above, reduced by its scale it stays close; a
-    /// JPEG stays close.
+    /// 1x a PNG is the canvas within one 8-bit level away from its antialiased edges (pixel for
+    /// pixel before S59); above, reduced by its scale it stays close; a JPEG stays close.
     #[must_use]
     pub fn passed(&self) -> bool {
         let close = match (self.format, self.expected.scale) {
-            (ImageFormat::Png, 1) => self.largest_difference == 0,
+            (ImageFormat::Png, 1) => self.off_inside == 0,
             (ImageFormat::Png, _) => self.mean_difference <= SCALED_MEAN,
             (ImageFormat::Jpeg, _) => self.mean_difference <= JPEG_MEAN,
         };

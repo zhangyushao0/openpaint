@@ -14,6 +14,7 @@ pub(crate) struct Tally {
     binned: AtomicU64,
     derived: AtomicU64,
     filled: AtomicU64,
+    rastered: AtomicU64,
 }
 
 /// The counters at one moment; `since` gives what happened between two.
@@ -28,8 +29,11 @@ pub struct Counts {
     pub binned: u64,
     /// Smudge residuals evaluated from their strokes (not taken over from the stroke drawn).
     pub derived: u64,
-    /// View tier tiles filled whole.
+    /// View tier tiles filled whole (by the evaluator or the raster core).
     pub filled: u64,
+    /// Regions the raster core drew (S59): view tier tiles and their changed parts, export
+    /// pieces.
+    pub rastered: u64,
 }
 
 impl Counts {
@@ -43,6 +47,7 @@ impl Counts {
             binned: self.binned.saturating_sub(before.binned),
             derived: self.derived.saturating_sub(before.derived),
             filled: self.filled.saturating_sub(before.filled),
+            rastered: self.rastered.saturating_sub(before.rastered),
         }
     }
 }
@@ -65,6 +70,10 @@ impl Tally {
         self.filled.fetch_add(tiles as u64, Ordering::Relaxed);
     }
 
+    pub(crate) fn rastered(&self, regions: usize) {
+        self.rastered.fetch_add(regions as u64, Ordering::Relaxed);
+    }
+
     pub(crate) fn counts(&self, dispatches: u64) -> Counts {
         let load = |counter: &AtomicU64| counter.load(Ordering::Relaxed);
         Counts {
@@ -74,6 +83,7 @@ impl Tally {
             binned: load(&self.binned),
             derived: load(&self.derived),
             filled: load(&self.filled),
+            rastered: load(&self.rastered),
         }
     }
 }

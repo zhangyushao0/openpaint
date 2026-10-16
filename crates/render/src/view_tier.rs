@@ -23,12 +23,14 @@ use crate::core::Core;
 use crate::error::RenderError;
 use crate::evaluator::CanvasTarget;
 use crate::frame::FrameRequest;
+use crate::geom::PixelRect;
 use crate::image::RgbaImage;
 use crate::output::{MAX_SCALE, Output};
 use crate::view_atlas::Tier;
 use crate::view_background::fill;
 use crate::view_fill::{Filling, in_place, touched};
 use crate::view_needed::Needed;
+use crate::view_raster::{RasterTier, fill_raster, in_place_raster};
 use crate::view_shown::Shown;
 use crate::view_tiles::TileMap;
 
@@ -83,6 +85,8 @@ pub struct ViewCache {
     pub(crate) room: u64,
     /// The tier the view wants did not fit the room.
     refused: bool,
+    /// The raster core's targets and the routing of the canvas's scene (S59).
+    pub(crate) raster: RasterTier,
 }
 
 impl ViewWork {
@@ -106,6 +110,7 @@ impl ViewCache {
             filling: None,
             room: u64::MAX,
             refused: false,
+            raster: RasterTier::default(),
         }
     }
 
@@ -148,22 +153,8 @@ impl ViewCache {
         {
             tier.shown_at = now;
         }
-        if let Some(current) = &mut self.current {
-            // What changed shows at once when it fits; missing tiles are background work (S53).
-            in_place(core, current, (canvas, request), (&changed, &mut work))?;
-            if Some(current.scale()) == wanted {
-                // Tiles the view left stay ready until a needed tile wants their slot (S58).
-                let needed = Needed::of(&current.map, frame);
-                // The canvas fills in first (S49): no missing tile is filled meanwhile.
-                if !canvas.pending() {
-                    fill(core, (current, &needed), (canvas, request), &mut work)?;
-                }
-                work.waiting = needed.waiting(current);
-                if needed.shows(current) {
-                    self.keep_previous();
-                }
-            }
-        }
+        let view = (frame, now, wanted);
+        self.work_on_current(core, (canvas, request), view, (&changed, &mut work))?;
         for tier in [&mut self.current, &mut self.previous]
             .into_iter()
             .flatten()
@@ -181,6 +172,63 @@ impl ViewCache {
             log::info!("view tiers hold {:.1} MB (most so far)", mb(self.peak));
         }
         Ok(work)
+    }
+
+    /// The shown tier's work this frame: what changed in place, then a share of the missing tiles
+    /// when it is the tier `wanted`. S59: a scene the raster core draws has its tiles drawn by
+    /// it, but while a stroke is drawn, and the tiles the evaluator drew are drawn again.
+    fn work_on_current(
+        &mut self,
+        core: &Core,
+        (canvas, request): (&mut CanvasTarget, &FrameRequest<'_>),
+        (frame, now, wanted): (&ViewFrame, f64, Option<u32>),
+        (changed, work): (&[PixelRect], &mut ViewWork),
+    ) -> Result<(), RenderError> {
+        let rastered = self.raster.routes(canvas, request);
+        let raster = &mut self.raster;
+        let Some(current) = &mut self.current else {
+            return Ok(());
+        };
+        // What changed shows at once when it fits; missing tiles are background work (S53).
+        if rastered && request.active.is_none() {
+            in_place_raster(
+                core,
+                current,
+                (canvas, request),
+                raster,
+                (changed, work, now),
+            )?;
+        } else {
+            in_place(core, current, (canvas, request), (changed, work))?;
+            for tile in &work.updated {
+                current.set_evaluated(*tile, true);
+            }
+        }
+        if Some(current.scale()) != wanted {
+            return Ok(());
+        }
+        // Tiles the view left stay ready until a needed tile wants their slot (S58).
+        let needed = Needed::of(&current.map, frame);
+        // The canvas fills in first (S49): no missing tile is filled meanwhile.
+        if !canvas.pending() && rastered {
+            fill_raster(
+                core,
+                (current, &needed),
+                (canvas, request),
+                raster,
+                (work, now),
+            )?;
+        } else if !canvas.pending() {
+            fill(core, (current, &needed), (canvas, request), work)?;
+        }
+        work.waiting = needed.waiting(current);
+        if rastered {
+            work.waiting += needed.evaluated(current);
+        }
+        if needed.shows(current) {
+            self.keep_previous();
+        }
+        Ok(())
     }
 
     /// Starts tier `wanted` (or none): the tier shown so far becomes the previous one, shown

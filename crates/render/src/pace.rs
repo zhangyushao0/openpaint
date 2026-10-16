@@ -41,20 +41,33 @@ const DECAY: f64 = 0.97;
 /// GPU runs the table's tablet estimates about thirty times faster).
 const RATIO: [f64; 2] = [0.01, 20.0];
 
-/// The tiles of the dispatch being gathered: how many, their estimates' sum and largest.
+/// The tiles of the dispatch being gathered: how many, their estimates' sum and largest; or
+/// (`raster`, S59) one region the raster core draws, estimated by its own table.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub(crate) struct Group {
     pub(crate) tiles: usize,
     pub(crate) sum: f64,
     pub(crate) most: f64,
+    pub(crate) raster: bool,
 }
 
 impl Group {
+    /// A region of the raster core estimated at `cost` ns.
+    pub(crate) const fn raster(cost: f64) -> Self {
+        Self {
+            tiles: 1,
+            sum: cost,
+            most: cost,
+            raster: true,
+        }
+    }
+
     fn with(self, cost: f64) -> Self {
         Self {
             tiles: self.tiles + 1,
             sum: self.sum + cost,
             most: self.most.max(cost),
+            raster: false,
         }
     }
 
@@ -73,9 +86,12 @@ pub(crate) struct Pace {
     left: f64,
     opened: bool,
     untouched: bool,
-    /// The measured time over the estimated, from earlier frames' readings.
+    /// The measured time over the estimated, from earlier frames' readings; the raster core's
+    /// apart (S59: its table is the tablet's measured time, the evaluator's ranks kinds only).
     ratio: f64,
     sums: [f64; 2],
+    raster_ratio: f64,
+    raster_sums: [f64; 2],
     clock: Option<GpuClock>,
     group: Group,
     /// This frame's spending so far (measured ns), its pieces, and its first piece's.
@@ -120,6 +136,8 @@ impl Pace {
             untouched: true,
             ratio: FIRST_RATIO,
             sums: [0.0; 2],
+            raster_ratio: 1.0,
+            raster_sums: [0.0; 2],
             clock: GpuClock::new(gpu),
             group: Group::default(),
             spent: 0.0,
@@ -141,13 +159,19 @@ impl Pace {
             first: self.first,
         };
         for (group, measured) in readings.iter().flatten() {
-            self.sums = [
-                self.sums[0] * DECAY + group.time(),
-                self.sums[1] * DECAY + measured,
-            ];
+            let sums = if group.raster {
+                &mut self.raster_sums
+            } else {
+                &mut self.sums
+            };
+            *sums = [sums[0] * DECAY + group.time(), sums[1] * DECAY + measured];
         }
         if self.sums[0] > 0.0 {
             self.ratio = (self.sums[1] / self.sums[0]).clamp(RATIO[0], RATIO[1]);
+        }
+        if self.raster_sums[0] > 0.0 {
+            let ratio = self.raster_sums[1] / self.raster_sums[0];
+            self.raster_ratio = ratio.clamp(RATIO[0], RATIO[1]);
         }
         self.left = self.budget + self.left.min(0.0);
         self.opened = self.left > 0.0;
@@ -179,6 +203,7 @@ impl Pace {
             tiles: 0,
             sum,
             most,
+            raster: false,
         }
         .time()
             * self.ratio;
@@ -196,6 +221,30 @@ impl Pace {
             return false;
         }
         self.charge(cost);
+        true
+    }
+
+    /// A region of the raster core estimated at `cost` ns by its own table (S59), corrected by
+    /// its own readings: taken as `take_serial` takes work, when it fits what is left of the
+    /// frame's budget or is the first piece of a frame opened with budget.
+    pub(crate) fn take_raster(&mut self, cost: f64) -> bool {
+        let time = cost * self.raster_ratio;
+        if !(self.untouched && self.opened) && time > self.left {
+            return false;
+        }
+        self.charge(time);
+        true
+    }
+
+    /// Raster regions of `cost` ns taken only when they fit what is left of the frame's budget,
+    /// given anything before or not: what a frame may show at once or let wait (as `fits`).
+    pub(crate) fn fits_raster(&mut self, cost: f64) -> bool {
+        self.close();
+        let time = cost * self.raster_ratio;
+        if time > self.left {
+            return false;
+        }
+        self.charge(time);
         true
     }
 

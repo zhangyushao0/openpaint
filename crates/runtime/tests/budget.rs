@@ -11,6 +11,8 @@ mod gpu;
 mod hand;
 mod support;
 
+use std::sync::{Mutex, MutexGuard, PoisonError};
+
 use hand::{Hand, assert_cold};
 use openpaint_render::CacheBytes;
 use openpaint_runtime::{
@@ -20,6 +22,12 @@ use support::Nowhere;
 
 /// 800 x 700 points at density 2: the layer panel fits.
 const SIZE: [u32; 2] = [1600, 1400];
+
+/// One test at a time: they share the device, whose counts (`Core::counts`) the zoom round reads.
+fn alone() -> MutexGuard<'static, ()> {
+    static ONE: Mutex<()> = Mutex::new(());
+    ONE.lock().unwrap_or_else(PoisonError::into_inner)
+}
 const PIXELS_PER_POINT: f32 = 2.0;
 
 /// Right of the side bar.
@@ -113,6 +121,7 @@ fn draw(runtime: &mut Runtime, hand: &mut Hand, points: &[[f32; 2]]) {
 
 #[test]
 fn a_lower_budget_lets_the_least_recently_used_go_and_never_what_the_frame_needs() {
+    let _one = alone();
     let core = gpu::core();
     let mut runtime = support::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere));
     let mut hand = Hand::new(SIZE);
@@ -177,6 +186,7 @@ fn a_lower_budget_lets_the_least_recently_used_go_and_never_what_the_frame_needs
 
 #[test]
 fn a_zoom_round_to_8x_and_back_evaluates_no_tier_tile_twice() {
+    let _one = alone();
     let core = gpu::core();
     let mut runtime = support::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere));
     let mut hand = Hand::new(SIZE);

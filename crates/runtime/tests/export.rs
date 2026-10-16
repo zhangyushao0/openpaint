@@ -1,6 +1,7 @@
 //! GPU tests of export and the reference image through the whole frame loop: the PNG the
-//! export writes holds exactly the canvas the screen shows through the view; the reference
-//! picture's colours are picked exactly.
+//! export writes holds the canvas the screen shows through the view (within one 8-bit level away
+//! from edges since S59: the raster core draws the file); the reference picture's colours are
+//! picked exactly.
 
 mod gpu;
 mod hand;
@@ -12,6 +13,7 @@ use std::time::{Duration, Instant};
 
 use hand::{Hand, assert_cold};
 use openpaint_core::Color;
+use openpaint_render::{RgbaImage, image_difference};
 use openpaint_runtime::{
     HostAnswer, HostRequest, ImageFormat, ImageSink, ImageSource, PortError, Runtime, ToolKind,
 };
@@ -84,9 +86,13 @@ fn the_exported_png_holds_exactly_what_the_screen_shows() {
     let (size, pixels) = decode_image(&bytes).expect("a PNG");
     let canvas = runtime.read_canvas().expect("readback").expect("canvas");
     assert_eq!(size, canvas.size(), "native size");
-    assert!(
-        pixels == canvas.pixels(),
-        "the file is the canvas, pixel for pixel"
+    // S59: the raster core draws the file, the evaluator the canvas: within one 8-bit level
+    // away from antialiased edges (D86's rule).
+    let file = RgbaImage::from_rgba(size, pixels).expect("whole");
+    let found = image_difference(&canvas, &file).expect("same size");
+    assert_eq!(
+        found.beyond_one_inside, 0,
+        "the file is the canvas: {found:?}"
     );
     assert_cold(&core, &mut runtime, "after exporting");
     // On screen, right of the side bar and under the top band, nothing covers the canvas: at

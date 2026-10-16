@@ -1,19 +1,34 @@
-//! What the raster core probe (S57, `raster.rs`) reads of an op on the CPU: how many pieces a
-//! continuous span is drawn as, which stamps a stamped span holds, how its stroke deposits, and a
-//! layer's end, the same operands the evaluator reads (`segment.wgsl`, `stamp.wgsl`).
+//! What the raster core (S57's probe made product code in S59, `raster.rs`) reads of an op on
+//! the CPU: how many pieces a continuous span is drawn as, which stamps a stamped span holds, how
+//! its stroke deposits, what a region edit draws and how a layer ends, the same operands the
+//! evaluator reads (`segment.wgsl`, `stamp.wgsl`, `evaluate.wgsl`).
 
+use super::layers::Mode;
 use super::layers::{LAYER_INTO, LAYER_MASK, LAYER_MODE};
 use super::segment::{SEGMENT_BEND, SEGMENT_FLAT, SEGMENT_TIP};
 use super::stamp::{STAMP_FIRST, STAMP_LAST, STAMP_PAINT};
-use super::{Blend, Op, PAINT_BLEND, PAINT_PAPER, Tip};
+use super::{Blend, LayerInto, Masking, Op, Opcode, PAINT_BLEND, PAINT_PAPER, Tip};
 use crate::curve::pieces;
 
-/// A layer's end as the probe draws it: its opacity, and whether it goes onto the canvas by
-/// Normal without a mask (the only layer end the probe draws).
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// What a region edit's op draws over its layer (`Item::Fill`, `Item::Clear`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Edit {
+    /// A fill (or a lift's erasing fill): its colour inside its mask's edge, by its blend.
+    Fill,
+    /// A transform's patch, over the layer.
+    Patch,
+    Adjust,
+    Filter,
+    /// Any other op (none is listed as an edit).
+    Other,
+}
+
+/// How a layer (or a chain) ends, as the raster core draws it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct LayerEnd {
-    pub(crate) opacity: f32,
-    pub(crate) plain: bool,
+    pub(crate) into: LayerInto,
+    pub(crate) mode: Mode,
+    pub(crate) masking: Masking,
 }
 
 impl Op {
@@ -39,7 +54,7 @@ impl Op {
         self.data[SEGMENT_TIP] as u32 == Tip::Cover as u32
     }
 
-    /// A paint op's blend with its layer.
+    /// A paint op's (or a fill's) blend with its layer.
     pub(crate) fn paint_blend(&self) -> Blend {
         match self.data[PAINT_BLEND] as u32 {
             1 => Blend::Atop,
@@ -53,13 +68,40 @@ impl Op {
         self.data[PAINT_PAPER] > 0.0
     }
 
-    /// A layer end's opacity and whether it is plain: onto the canvas, Normal, unmasked.
+    /// What a region edit's op draws.
+    pub(crate) fn edit(&self) -> Edit {
+        match self.code {
+            c if c == Opcode::Fill as u32 => Edit::Fill,
+            c if c == Opcode::Patch as u32 => Edit::Patch,
+            c if c == Opcode::Adjust as u32 => Edit::Adjust,
+            c if c == Opcode::Filter as u32 => Edit::Filter,
+            _ => Edit::Other,
+        }
+    }
+
+    /// A layer end's (or a chain end's) place, mode and masking. A chain's end goes onto the
+    /// canvas without a mask (its operands there are 0).
     pub(crate) fn layer_end(&self) -> LayerEnd {
+        let into = match self.data[LAYER_INTO] as u32 {
+            1 => LayerInto::Base,
+            2 => LayerInto::Clipped,
+            _ => LayerInto::Canvas,
+        };
+        let mode = match self.data[LAYER_MODE] as u32 {
+            1 => Mode::Multiply,
+            2 => Mode::Screen,
+            3 => Mode::Overlay,
+            _ => Mode::Normal,
+        };
+        let masking = match self.data[LAYER_MASK] as u32 {
+            1 => Masking::Shown,
+            2 => Masking::Inverted,
+            _ => Masking::None,
+        };
         LayerEnd {
-            opacity: self.data[0],
-            plain: self.data[LAYER_INTO] == 0.0
-                && self.data[LAYER_MODE] == 0.0
-                && self.data[LAYER_MASK] == 0.0,
+            into,
+            mode,
+            masking,
         }
     }
 }

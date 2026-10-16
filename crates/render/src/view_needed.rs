@@ -115,6 +115,14 @@ impl Needed {
         self.ordered().filter(|tile| !tier.is_ready(*tile)).count()
     }
 
+    /// Needed tiles `tier` has ready but in part as the evaluator drew them (S59): what the
+    /// raster core draws again for a scene it draws.
+    pub(crate) fn evaluated(&self, tier: &Tier) -> usize {
+        (self.ordered())
+            .filter(|tile| tier.is_ready(*tile) && tier.is_evaluated(*tile))
+            .count()
+    }
+
     /// `tier` has every shown tile ready.
     pub(crate) fn shows(&self, tier: &Tier) -> bool {
         self.ordered[..self.shown]

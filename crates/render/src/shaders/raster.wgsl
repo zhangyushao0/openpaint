@@ -1,45 +1,50 @@
-// The raster core probe (S57, measurement only; `raster.rs`): one layer's strokes drawn by the
-// GPU's rasterizer instead of the evaluator's walk, at every pixel, over the ops binned to its
+// The raster core (S57's probe, product code since S59; `raster.rs`): a scene's region drawn by
+// the GPU's rasterizer instead of the evaluator's walk, at every pixel, over the ops binned to its
 // tile. A continuous span is flattened as segment.wgsl flattens it at the output's scale and
 // each piece is one quad around its capsule; a stamped span is one quad per stamp, placed,
 // turned, sized and scattered by the same hashes (D72). Each piece's and stamp's coverage or
 // density comes from the evaluator's own functions (segment.wgsl, stamp.wgsl,
-// stamp_texture.wgsl, deposit.wgsl and helpers taken from evaluate.wgsl, appended after this
-// file), combined within a stroke by the blend unit (max for coverage and contact, add for
-// density) in the stroke's region of a scratch atlas; then each region is composited onto the
-// layer by the evaluator's paint (`stroke_paint`) and the paint op's blend, and the layer onto
-// the paper, rounded as the evaluator rounds. The protocol prelude is prepended.
+// stamp_texture.wgsl, deposit.wgsl, fill_edge.wgsl and helpers taken from evaluate.wgsl, appended
+// after these files), combined within a stroke by the blend unit (max for coverage and contact,
+// add for density) in the stroke's region of a scratch atlas; then each region is composited onto
+// the layer by the evaluator's paint (`stroke_paint`) and the paint op's blend, fills and patches
+// drawn there as quads, each layer's end composited onto the canvas by its mode, and the canvas
+// rounded as the evaluator rounds (raster_composite.wgsl). The protocol prelude is prepended.
 
 struct Raster {
-    // Output pixels per canvas pixel, its inverse, its base-2 log; the layer's opacity.
+    // Output pixels per canvas pixel, its inverse, its base-2 log.
     scale: f32,
     inverse: f32,
     level: f32,
-    opacity: f32,
+    unused: f32,
     // The paper, premultiplied and opaque.
     background: vec4<f32>,
-    // The output pixel of the target's top-left pixel.
+    // The output pixel of the region's top-left pixel.
     origin: vec2<i32>,
-    // The target's and the atlas's sizes in pixels.
+    // The region's and the atlas's sizes in pixels.
     size: vec2<f32>,
     atlas: vec2<f32>,
-    unused: vec2<f32>,
+    unused_too: vec2<f32>,
 }
 
 @group(0) @binding(0) var<uniform> raster: Raster;
-// The scene's ops, fill masks and the evaluator's textures (paper, then the shapes').
+// The scene's ops, fill masks, the evaluator's textures (paper, then the shapes') and patches.
 @group(0) @binding(1) var<storage, read> ops: array<Op>;
 @group(0) @binding(2) var<storage, read> masks: array<u32>;
 @group(0) @binding(3) var<storage, read> textures: array<u32>;
-// What a composite reads (the atlas) or the finish reads (the layer).
+@group(0) @binding(4) var<storage, read> patches: array<u32>;
+// What a draw reads: the atlas (a stroke's tiles); a layer's paint (or the chain), its mask and
+// a copy of what lies under it (an end); the canvas (the finish).
 @group(1) @binding(0) var source: texture_2d<f32>;
+@group(1) @binding(1) var second: texture_2d<f32>;
+@group(1) @binding(2) var backdrop: texture_2d<f32>;
 
 // The footprint of an output pixel in canvas pixels, as the evaluator holds it.
 var<private> foot_scale: f32;
 var<private> foot_inverse: f32;
 var<private> foot_level: f32;
 
-// Side of a composite tile, in target pixels (`raster_plan.rs`).
+// Side of a composite tile, in region pixels (`raster_lay.rs`).
 const RASTER_TILE: f32 = 32.0;
 
 fn footprint() {
@@ -54,18 +59,23 @@ fn corner_side(corner: u32) -> vec2<f32> {
 }
 
 // A point in canvas pixels as a position in an attachment of `size` pixels, whose pixel `p`
-// holds target pixel `p - place`.
+// holds region pixel `p - place`.
 fn placed(canvas: vec2<f32>, place: vec2<i32>, size: vec2<f32>) -> vec4<f32> {
     let p = canvas * raster.scale - vec2<f32>(raster.origin) + vec2<f32>(place);
     return vec4<f32>(p.x / size.x * 2.0 - 1.0, 1.0 - p.y / size.y * 2.0, 0.0, 1.0);
 }
 
-// The canvas point the evaluator evaluates a target pixel at: its output pixel's centre.
+// A point in region pixels as a position in the region's targets.
+fn in_region(p: vec2<f32>) -> vec4<f32> {
+    return vec4<f32>(p.x / raster.size.x * 2.0 - 1.0, 1.0 - p.y / raster.size.y * 2.0, 0.0, 1.0);
+}
+
+// The canvas point the evaluator evaluates a region pixel at: its output pixel's centre.
 fn centre_of(pixel: vec2<i32>) -> vec2<f32> {
     return (vec2<f32>(pixel + raster.origin) + vec2<f32>(0.5)) * raster.inverse;
 }
 
-// The target pixel an attachment's fragment holds.
+// The region pixel an attachment's fragment holds.
 fn pixel_of(position: vec4<f32>, place: vec2<i32>) -> vec2<i32> {
     return vec2<i32>(floor(position.xy)) - place;
 }

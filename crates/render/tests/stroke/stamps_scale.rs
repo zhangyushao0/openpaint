@@ -16,6 +16,7 @@ use openpaint_render::{
 };
 
 use crate::fixture::{SIZE, blank, cold, core, request, sample, with_stroke};
+use crate::raster::assert_near;
 use crate::scale::{export, whole};
 use crate::stamps::{brushes, stamped};
 use crate::taper_tilt::drawn_with_a_blunt_end;
@@ -163,10 +164,9 @@ fn every_stamped_brush_exports_in_bands_as_in_one_piece() {
     let core = core();
     for (name, recipe, size) in brushes() {
         let artwork = with_stroke(&blank(), (style(recipe, size), curve()));
-        assert!(
-            export(&core, &artwork, 1, Banding::DEFAULT) == cold(&core, &artwork),
-            "{name}"
-        );
+        // S59: the raster core exports it, the evaluator draws the canvas (D86's rule).
+        let exported = export(&core, &artwork, 1, Banding::DEFAULT);
+        assert_near(&cold(&core, &artwork), &exported, name);
         for scale in [2, 4] {
             let banding = Banding {
                 rows: 37 * scale,

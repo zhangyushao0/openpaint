@@ -69,6 +69,21 @@ impl CanvasTarget {
             .map(|cache| (cache.serial, cache.costs.as_slice()))
     }
 
+    /// The scene the last evaluation drew, its ops on the GPU and its serial, when it drew
+    /// `artwork` with the in-progress stroke `active`: what the raster core draws a view tier's
+    /// tiles from (S59).
+    pub(crate) fn scene_serial(
+        &self,
+        artwork: &Artwork,
+        active: Option<&ActiveStroke>,
+    ) -> Option<(&crate::scene::Scene, &crate::program::SceneOps, u64)> {
+        let place = ActivePlace::of_request(artwork, active);
+        self.scene
+            .as_ref()
+            .filter(|cache| cache.artwork.same_version(artwork) && cache.active == place)
+            .map(|cache| (&cache.scene, &cache.ops, cache.serial))
+    }
+
     /// One frame's share of the waiting tiles: binned in batches, taken while the frame budget
     /// holds their estimates, each batch's share dispatched (and its GPU time measured). A new
     /// target first shows the paper where its tiles wait. A `quiet` frame (it evaluates nothing

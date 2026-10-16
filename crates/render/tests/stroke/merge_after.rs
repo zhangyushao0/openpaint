@@ -1,7 +1,8 @@
 //! After Merge Down on the GPU (S39, D66): strokes, adjustments, filters, smudges and transform
 //! records on the merged layer act on the whole merged content (equal to one layer that held it
 //! all, its pixels alone too); incremental equals cold through the merge, drawing on the merged
-//! layer and undo; a merged layer exports at 2x and 4x as the two layers did.
+//! layer and undo; a merged layer exports at 2x and 4x as the two layers did (within one level
+//! away from edges since S59: the two layers export on the raster core).
 
 use openpaint_core::{Adjustment, Artwork, BlendMode, Blur, Color, Hsb, Placement, StrokeTool};
 use openpaint_render::{
@@ -12,6 +13,7 @@ use crate::fixture::{
     SIZE, blank, cold, core, diagonal, plain, request, sample, wave, with_layer, with_stroke,
 };
 use crate::merge::{Look, PLAIN, SOURCE, alone, color, merged};
+use crate::raster::assert_near;
 use crate::scale::export;
 
 /// An edit after the merge, by name.
@@ -170,7 +172,10 @@ fn a_merged_layer_exports_at_two_and_four_x_as_the_two_did() {
             rows: 96,
             columns: 4096,
         };
+        // S59: the two layers export on the raster core, the merged one is evaluated (D86's
+        // rule between them).
         let one = export(&core, &before, scale, banding);
-        assert!(one == export(&core, &after, scale, banding), "{scale}x");
+        let merged = export(&core, &after, scale, banding);
+        assert_near(&merged, &one, &format!("{scale}x"));
     }
 }

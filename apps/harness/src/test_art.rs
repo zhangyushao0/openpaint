@@ -7,7 +7,8 @@
 //!   and moved about the middle of a screen-size canvas: one dense place.
 //! - `a4 [n]` (180): an A4 page of `n` strokes of the author's brushes over the whole page, dense
 //!   around one place, on five layers: fills, a picture inserted, 9 smudges, a mask, a Multiply
-//!   layer (`test_art_kinds.rs`), like the author's busiest artwork.
+//!   layer (`test_art_kinds.rs`), like the author's busiest artwork; `a4-plain [n]` (S59) the same
+//!   page without the smudges, which the raster core draws whole.
 //! - `session [minutes]` (60): an hour's painting at the author's pace as records: a stroke every
 //!   1.2 s of 342 samples 3.3 ms apart, the built-ins in turn ten strokes each, every tenth a
 //!   smudge, a layer more every 500 strokes. Undo and redo are not records: the device's
@@ -47,13 +48,15 @@ pub const BRUSHES: [&str; 10] = [
     "speckle",
 ];
 
-const USAGE: &str = "test-art <pile|a4|session> [n] [out.openpaint]";
+const USAGE: &str = "test-art <pile|a4|a4-plain|session> [n] [out.openpaint]";
 
 /// What `test-art` makes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
     Pile(u32),
     A4(u32),
+    /// The A4 page without smudges (S59).
+    A4Plain(u32),
     /// Minutes of painting.
     Session(u32),
 }
@@ -67,6 +70,7 @@ impl Kind {
         match kind {
             "pile" => Ok(Self::Pile(count.unwrap_or(300))),
             "a4" => Ok(Self::A4(count.unwrap_or(180))),
+            "a4-plain" => Ok(Self::A4Plain(count.unwrap_or(180))),
             "session" => Ok(Self::Session(count.unwrap_or(60))),
             _ => Err(HarnessError::Missing(USAGE)),
         }
@@ -77,6 +81,7 @@ impl Kind {
         let (kind, n) = match self {
             Self::Pile(n) => ("pile", n),
             Self::A4(n) => ("a4", n),
+            Self::A4Plain(n) => ("a4-plain", n),
             Self::Session(n) => ("session", n),
         };
         (format!("{kind}-{n}"), format!("Test art {kind} {n}"))
@@ -128,7 +133,8 @@ pub fn make(kind: Kind) -> Result<Artwork, HarnessError> {
         .map_err(|_| HarnessError::Missing("the built-in brushes did not load"))?;
     match kind {
         Kind::Pile(n) => pile(&library, n),
-        Kind::A4(n) => crate::test_art_kinds::a4(&library, n),
+        Kind::A4(n) => crate::test_art_kinds::a4(&library, n, false),
+        Kind::A4Plain(n) => crate::test_art_kinds::a4(&library, n, true),
         Kind::Session(minutes) => crate::test_art_kinds::session(&library, minutes),
     }
 }
@@ -258,7 +264,12 @@ mod tests {
 
     #[test]
     fn the_same_command_makes_the_same_file_and_it_opens() {
-        for kind in [Kind::Pile(12), Kind::A4(20), Kind::Session(1)] {
+        for kind in [
+            Kind::Pile(12),
+            Kind::A4(20),
+            Kind::A4Plain(20),
+            Kind::Session(1),
+        ] {
             let artwork = make(kind).expect("made");
             let first = file_bytes(&artwork, "Test").expect("written");
             let again = file_bytes(&make(kind).expect("made again"), "Test").expect("again");

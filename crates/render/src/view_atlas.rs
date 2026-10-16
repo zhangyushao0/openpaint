@@ -28,7 +28,12 @@ pub(crate) struct Tier {
     pub(crate) map: TileMap,
     /// Per view tile, row-major: its slot holds the shown version's pixels.
     ready: Vec<bool>,
+    /// Per view tile: the evaluator drew some of its pixels (S59): a scene the raster core draws
+    /// draws it again (`view_raster.rs`), so every tile of such a scene is its own at last.
+    evaluated: Vec<bool>,
     atlas: wgpu::Texture,
+    /// The view the raster core draws tiles into it through (S59), made with the atlas.
+    view: wgpu::TextureView,
     pub(crate) bindings: Bindings,
     /// Per view tile, `R32Uint`: its slot plus one while ready, else 0 (`blit.wgsl`).
     index: wgpu::Texture,
@@ -84,7 +89,9 @@ impl Tier {
         });
         Ok(Self {
             ready: vec![false; (columns * tiles_down) as usize],
+            evaluated: vec![false; (columns * tiles_down) as usize],
             bindings: Bindings::without_kept(&core.gpu, &atlas),
+            view: atlas.create_view(&Default::default()),
             map,
             atlas,
             index,
@@ -105,6 +112,10 @@ impl Tier {
 
     pub(crate) fn atlas(&self) -> &wgpu::Texture {
         &self.atlas
+    }
+
+    pub(crate) fn atlas_view(&self) -> &wgpu::TextureView {
+        &self.view
     }
 
     pub(crate) fn index(&self) -> &wgpu::Texture {
@@ -140,6 +151,16 @@ impl Tier {
         let at = self.at(tile);
         self.stale |= self.ready[at] != ready;
         self.ready[at] = ready;
+    }
+
+    /// The evaluator drew some of `tile`'s pixels (S59).
+    pub(crate) fn is_evaluated(&self, tile: [u32; 2]) -> bool {
+        self.evaluated[self.at(tile)]
+    }
+
+    pub(crate) fn set_evaluated(&mut self, tile: [u32; 2], evaluated: bool) {
+        let at = self.at(tile);
+        self.evaluated[at] = evaluated;
     }
 
     /// Frees `tile`'s slot (a fill of it ends).
@@ -191,6 +212,7 @@ impl Tier {
         );
         core.gpu.submit([encoder.finish()]);
         self.bindings = Bindings::without_kept(&core.gpu, &atlas);
+        self.view = atlas.create_view(&Default::default());
         self.atlas = atlas;
         self.map.grow(rows);
         Ok(())
@@ -280,10 +302,12 @@ impl Tier {
     }
 }
 
-/// An atlas of `across` by `rows` slots.
+/// An atlas of `across` by `rows` slots: the evaluator writes it, the raster core draws into it
+/// (S59).
 fn atlas_texture(core: &Core, (across, rows): (u32, u32)) -> Result<wgpu::Texture, RenderError> {
     let usage = wgpu::TextureUsages::STORAGE_BINDING
         | wgpu::TextureUsages::TEXTURE_BINDING
+        | wgpu::TextureUsages::RENDER_ATTACHMENT
         | wgpu::TextureUsages::COPY_DST;
     let size = [across * TIER_TILE, rows * TIER_TILE];
     target_texture(&core.gpu, (size, core.gpu.display), usage)

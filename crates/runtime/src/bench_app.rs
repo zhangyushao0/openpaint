@@ -18,6 +18,8 @@
 //! - `session`: the artwork's strokes appended as records to a new screen-size artwork as fast as
 //!   frames take them, every twentieth undone and every other of those redone, a layer added
 //!   where the next stroke's layer is above the last (`test-art session`'s pace).
+//! - `export` (S59): the artwork exported as PNG at 1x, 2x and 4x, its bands and its encoding
+//!   timed apart.
 
 use std::time::{Duration, Instant};
 
@@ -28,13 +30,23 @@ use crate::frame::Runtime;
 
 #[path = "bench_app_cases.rs"]
 mod cases;
+#[path = "bench_app_export.rs"]
+mod export;
 #[path = "bench_app_paint.rs"]
 mod paint;
 
 pub use cases::busiest;
 
 /// The scenarios `bench_scenario` runs.
-pub const SCENARIOS: [&str; 6] = ["open-cold", "open", "zoom", "pan", "strokes", "session"];
+pub const SCENARIOS: [&str; 7] = [
+    "open-cold",
+    "open",
+    "zoom",
+    "pan",
+    "strokes",
+    "session",
+    "export",
+];
 
 /// The screen offscreen when no frame was drawn yet: the tablet's.
 const OFFSCREEN: [u32; 2] = [2880, 1800];
@@ -110,7 +122,8 @@ impl Watch {
         let wall = self.ms();
         format!(
             "{wall:.0} ms over {} frames ({} skipped), frame work p50/p95/max {}, background GPU \
-             {:.0} ms ({:.0} %); dispatches {}, plans {}, residuals derived {}, tier tiles filled {}",
+             {:.0} ms ({:.0} %); dispatches {}, plans {}, residuals derived {}, tier tiles filled \
+             {}, raster regions {}",
             self.frames.len(),
             self.skipped,
             spread(&self.frames),
@@ -119,7 +132,8 @@ impl Watch {
             c.dispatches,
             c.plans,
             c.derived,
-            c.filled
+            c.filled,
+            c.rastered
         )
     }
 }
@@ -156,6 +170,7 @@ impl Runtime {
             "pan" => self.bench_pan(&mut lines)?,
             "strokes" => self.bench_strokes(&mut lines)?,
             "session" => self.bench_session(&mut lines)?,
+            "export" => self.bench_export(&mut lines)?,
             _ => return Err(RuntimeError::NotNow("a scenario of SCENARIOS")),
         }
         Ok(lines)

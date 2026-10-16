@@ -83,13 +83,28 @@ impl ViewCache {
             .collect()
     }
 
-    /// Lets every tier go, the one shown too (the app left the screen, S58: Android's
-    /// `onTrimMemory`); the view makes them again when it shows. Returns their bytes.
+    /// Lets every tier go, the one shown too, and the raster core's targets (the app left the
+    /// screen, S58: Android's `onTrimMemory`); the view makes them again when it shows. Returns
+    /// their bytes.
     pub fn release(&mut self) -> u64 {
-        let bytes = self.bytes();
+        let bytes = self.bytes() + self.raster.let_go();
         self.current = None;
         self.previous = None;
         self.kept.clear();
         bytes
+    }
+
+    /// The raster core's targets for the tiers (S59: its atlas and float targets), their bytes
+    /// and when it last drew with them (the frame clock's seconds); `None` while none is held.
+    #[must_use]
+    pub fn raster_held(&self) -> Option<(u64, f64)> {
+        let bytes = self.raster.bytes();
+        (bytes > 0).then_some((bytes, self.raster.used_at))
+    }
+
+    /// Lets the raster core's targets go (the budget's step); the next tile drawn makes them
+    /// again. Returns their bytes.
+    pub fn let_go_raster(&mut self) -> u64 {
+        self.raster.let_go()
     }
 }

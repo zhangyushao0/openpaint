@@ -17,11 +17,13 @@ pub(super) fn peak(held: &CacheBytes, core: &Core) {
         .map(|(label, bytes)| format!("{label} {:.1}", mb(*bytes)))
         .collect();
     log::info!(
-        "GPU caches hold {:.1} MB (most so far): canvas {:.1}, tiers {:.1}, snapshots {:.1}, \
-         arena {:.1}, pictures {:.1}; the allocator holds {:.1} MB in blocks of {:.1} ({})",
+        "GPU caches hold {:.1} MB (most so far): canvas {:.1}, tiers {:.1}, raster {:.1}, \
+         snapshots {:.1}, arena {:.1}, pictures {:.1}; the allocator holds {:.1} MB in blocks of \
+         {:.1} ({})",
         mb(held.total()),
         mb(held.canvas),
         mb(held.tiers),
+        mb(held.raster),
         mb(held.snapshots),
         mb(held.arena),
         mb(held.pictures),
@@ -71,7 +73,7 @@ pub(super) fn note(
 /// Logs each cache the budget let go.
 pub(super) fn report(freed: Freed, held: &CacheBytes, budget: u64) {
     let names = [
-        "view tiers",
+        "view tiers (and the raster core's targets)",
         "the snapshots",
         "the arena's blocks not shown",
     ];

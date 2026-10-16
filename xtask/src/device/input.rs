@@ -28,10 +28,11 @@
 //!   (S49), so the app makes its renderer again;
 //! - `bench [scene]`: no gesture; the evaluator's micro-benchmark on the device's GPU (S55), every
 //!   scene or the one named, a line per scene and scale (also in the app's log); a scene named
-//!   `raster[-scene][@scale][@atlas][@alone]` or `raster-passes` runs the raster core probe's
-//!   benchmark instead (S57); `open-cold`, `open`, `zoom`, `pan`, `strokes` or `session` runs
-//!   that scenario benchmark on the artwork open (S58, `runtime/src/bench_app.rs`), `session`
-//!   with the app's `meminfo` before and after;
+//!   `raster[-scene][@scale][@atlas][@alone]` or `raster-passes` runs the raster core's
+//!   benchmark instead (S57's probe, the product's raster core since S59); `open-cold`, `open`,
+//!   `zoom`, `pan`, `strokes`, `session` or `export` (S59) runs that scenario benchmark on the
+//!   artwork open (S58, `runtime/src/bench_app.rs`), `session` with the app's `meminfo` before
+//!   and after;
 //! - `open-file <name>`: the OpenPaint file `cargo device-push` put into the test folder opened
 //!   as a new artwork without the picker, its id printed (S58, `open_file.rs`);
 //! - `home`: the system's home key, no instrumentation (S58: the app's memory released when its
@@ -135,7 +136,7 @@ const INPUT_USAGE: &str = "cargo device-input \
                            | hover x,y [ms] [primary|secondary|tertiary|eraser] \
                            | tap <control name> | drag <control name> x,y [ms] \
                            | find <control name> | state | gradient on|off | lose-device \
-                           | bench [scene|open-cold|open|zoom|pan|strokes|session] \
+                           | bench [scene|open-cold|open|zoom|pan|strokes|session|export] \
                            | open-file <name> | home";
 
 /// A control's name for the device's shell, which reads the line: in single quotes, so none

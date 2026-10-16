@@ -1,10 +1,12 @@
 //! Export (S29): an artwork at 1, 2, 4 or 8 output pixels per canvas pixel (the app offers up to
-//! 4), evaluated through the single evaluation entry into a target of its own, a band of rows at a
-//! time, each band in pieces at most `Banding::columns` wide, read back and handed on, so a 4x
-//! export never holds the whole picture on the GPU. The target shares nothing with the screen's, so a worker
-//! holding an `Arc<Core>` runs it while the screen draws on. Since a pixel never depends on
-//! which regions are evaluated with it (D82), bands equal one piece, and at 1x the result is
-//! the screen's canvas pixel for pixel.
+//! 4), a band of rows at a time, each band in pieces at most `Banding::columns` wide, read back
+//! and handed on, so a 4x export never holds the whole picture on the GPU. Since S59 (D86) the
+//! raster core draws it (`export_raster.rs`) unless its scene goes to the evaluator
+//! (`raster_route.rs`, logged with why), which evaluates it through the single evaluation entry
+//! into a target of its own. Neither shares anything with the screen's, so a worker holding an
+//! `Arc<Core>` runs it while the screen draws on. Since a pixel never depends on which regions are
+//! drawn with it, bands equal one piece; at 1x the evaluator's result is the screen's canvas pixel
+//! for pixel, the raster core's within one 8-bit level away from antialiased edges (D86).
 
 use std::time::{Duration, Instant};
 
@@ -13,10 +15,14 @@ use openpaint_core::{Artwork, Color};
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::evaluator::{CanvasTarget, RegionEvaluator};
+use crate::export_raster::RasterExport;
 use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
 use crate::image::RgbaImage;
 use crate::output::Output;
+use crate::raster_route::RasterScene;
+use crate::scene::Scene;
+use crate::scene_reuse::Earlier;
 
 /// How an export is cut: output rows per band (what the encoder takes at once) and the widest
 /// piece evaluated at once (the target's width).
@@ -42,13 +48,19 @@ pub struct Bands<'a> {
     scale: u32,
     size: [u32; 2],
     banding: Banding,
-    target: CanvasTarget,
+    source: Source,
     /// The first output row of the next band; the height once done or failed.
     next: u32,
     /// Time spent planning and submitting pieces (the scene, smudges and binning on the CPU),
     /// and waiting for them to come back (the GPU and the readback).
     planned: Duration,
     waited: Duration,
+}
+
+/// What draws an export's pieces.
+enum Source {
+    Rastered(Box<RasterExport>),
+    Evaluated(Box<CanvasTarget>),
 }
 
 impl Core {
@@ -72,6 +84,17 @@ impl Core {
             return Err(RenderError::Invalid("an export band holds no pixels"));
         }
         let piece = [banding.columns.min(size[0]), banding.rows.min(size[1])];
+        let scene = Scene::build_knowing(artwork, None, (Vec::new(), Earlier::default()))?;
+        let source = match RasterScene::of(&scene) {
+            Ok(raster) => {
+                log::info!("export at {scale}x drawn by the raster core");
+                Source::Rastered(Box::new(RasterExport::new(self, (scene, raster), piece)?))
+            }
+            Err(routed) => {
+                log::info!("export at {scale}x evaluated: the artwork holds {routed}");
+                Source::Evaluated(Box::new(CanvasTarget::exact(self, piece)?))
+            }
+        };
         Ok(Bands {
             core: self,
             artwork: artwork.clone(),
@@ -79,7 +102,7 @@ impl Core {
             scale,
             size,
             banding,
-            target: CanvasTarget::exact(self, piece)?,
+            source,
             next: 0,
             planned: Duration::ZERO,
             waited: Duration::ZERO,
@@ -125,15 +148,28 @@ impl Bands<'_> {
         let mut left = 0;
         while left < width {
             let columns = self.banding.columns.min(width - left);
-            let output = Output::at(self.scale, [left, top])?;
-            let started = Instant::now();
-            let region = PixelRect::full([columns, rows]);
-            RegionEvaluator::new(self.core, &mut self.target)
-                .evaluate_piece(&request, output, region)?;
-            let submitted = Instant::now();
-            let piece = self.target.read(self.core)?;
-            self.waited += submitted.elapsed();
-            self.planned += submitted - started;
+            let piece = match &mut self.source {
+                Source::Rastered(raster) => {
+                    let at = (self.scale, [left, top]);
+                    let (piece, [planned, waited]) =
+                        raster.piece(self.core, at, [columns, rows], self.background)?;
+                    self.planned += planned;
+                    self.waited += waited;
+                    piece
+                }
+                Source::Evaluated(target) => {
+                    let output = Output::at(self.scale, [left, top])?;
+                    let started = Instant::now();
+                    let region = PixelRect::full([columns, rows]);
+                    RegionEvaluator::new(self.core, target)
+                        .evaluate_piece(&request, output, region)?;
+                    let submitted = Instant::now();
+                    let piece = target.read(self.core)?;
+                    self.waited += submitted.elapsed();
+                    self.planned += submitted - started;
+                    piece
+                }
+            };
             let stride = piece.size()[0] as usize * 4;
             let (from, to) = (columns as usize * 4, width as usize * 4);
             for (row, source) in piece

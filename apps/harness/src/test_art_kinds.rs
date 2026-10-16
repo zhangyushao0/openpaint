@@ -30,9 +30,10 @@ struct Strokes<'a> {
 }
 
 /// An A4 page of `n` strokes over five layers: a page fill and the Pencil's sketch; two fills,
-/// the painting brushes and 9 smudges over the dense place; a picture inserted; the inking
-/// brushes with a mask hiding part of them; the texture brushes on a Multiply layer.
-pub fn a4(library: &BrushLibrary, n: u32) -> Result<Artwork, HarnessError> {
+/// the painting brushes and 9 smudges over the dense place (none for `plain`, S59: a page the
+/// raster core draws); a picture inserted; the inking brushes with a mask hiding part of them;
+/// the texture brushes on a Multiply layer.
+pub fn a4(library: &BrushLibrary, n: u32, plain: bool) -> Result<Artwork, HarnessError> {
     let canvas = CanvasSize::new(A4[0], A4[1])?;
     let mut artwork = Artwork::new(canvas);
     artwork = fill(&artwork, |_, _| true, [0.96, 0.93, 0.86])?;
@@ -54,7 +55,9 @@ pub fn a4(library: &BrushLibrary, n: u32) -> Result<Artwork, HarnessError> {
         salt: 2,
     };
     artwork = strokes(&artwork, library, &paint)?;
-    artwork = smudges(&artwork, library)?;
+    if !plain {
+        artwork = smudges(&artwork, library)?;
+    }
     artwork = picture(&artwork)?;
     artwork = layer(&artwork)?;
     let ink = Strokes {

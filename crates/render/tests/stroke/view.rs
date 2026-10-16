@@ -2,7 +2,8 @@
 //! region, bit for bit; after a stroke, a fill, a transform record and undo exactly the tiles
 //! the change reaches are evaluated again and every tile still equals the export (incremental
 //! = cold per tile); a stroke drawn while zoomed shows at the tier as it will be committed (its
-//! end taper from the lift on, S44); the canvas target stays the cold canvas.
+//! end taper from the lift on, S44); the canvas target stays the cold canvas. S59: the same for
+//! a scene the raster core draws, its tiles and its export the raster core's.
 
 use std::collections::BTreeSet;
 
@@ -13,6 +14,7 @@ use openpaint_render::{
 };
 
 use crate::fixture::{SIZE, cold, core, plain, sample, with_stroke};
+use crate::raster::{assert_near, every_raster_source};
 use crate::scale::{every_source, whole};
 
 /// The screen the tests show the canvas on, in pixels.
@@ -101,6 +103,21 @@ impl Screen {
         }
         compared
     }
+
+    /// Every ready tile of the tier against `export` by D86's rule (`assert_near`).
+    fn assert_tiles_near(&self, core: &Core, export: &RgbaImage) {
+        let [columns, rows] = export.size().map(|side| side.div_ceil(TILE));
+        for row in 0..rows {
+            for column in 0..columns {
+                let Some(tile) = self.view.tile_pixels(core, [column, row]).expect("read") else {
+                    continue;
+                };
+                let part = crop(export, [column * TILE, row * TILE], tile.size());
+                let part = RgbaImage::from_rgba(tile.size(), part).expect("cropped");
+                assert_near(&part, &tile, &format!("tile {column}, {row}"));
+            }
+        }
+    }
 }
 
 fn request<'a>(artwork: &'a Artwork, active: Option<&'a ActiveStroke>) -> FrameRequest<'a> {
@@ -175,16 +192,53 @@ fn a_tier_tile_is_the_export_at_its_scale_bit_for_bit() {
     }
 }
 
+/// S59: the raster core draws the tiers of a scene without the routed kinds, as it exports it.
 #[test]
-fn changes_evaluate_again_exactly_the_tiles_they_reach() {
+fn a_raster_tier_tile_is_the_raster_export_at_its_scale_bit_for_bit() {
+    tiles_are_the_export(&core(), &every_raster_source());
+}
+
+/// A stroke drawn at 8x over a scene the raster core draws: while drawn, the evaluator updates
+/// the tiles it reaches (within a level of the raster core's export of the stroke so far away
+/// from edges); once committed and filled in, every tile is the raster core's export bit for bit.
+#[test]
+fn a_stroke_drawn_while_zoomed_over_the_raster_core_ends_as_its_export() {
     let core = core();
-    let first = every_source();
-    let scale = 4;
-    let view = frame(3.7, [150.0, 110.0]);
-    let mut screen = Screen::new(&core, &first);
-    let ready = screen.settle(&core, &first, &view);
+    let base = every_raster_source();
+    let view = frame(7.0, [150.0, 110.0]);
+    let mut screen = Screen::new(&core, &base);
+    screen.settle(&core, &base, &view);
+    let style = plain(5.0, 1.0, Color::rgb(0.8, 0.1, 0.4).expect("colour"));
+    let first = sample(130.0, 95.0, 0.6, 0);
+    let mut session = base.begin_stroke(style.clone(), first).expect("begin");
+    let mut drawn = vec![first];
+    for step in 1..8u16 {
+        let at = f32::from(step);
+        let next = sample(130.0 + 3.0 * at, 95.0 + 2.0 * at, 0.7, u32::from(step) * 8);
+        session.extend(&[next]).expect("extend");
+        drawn.push(next);
+        screen.frame(&core, (&base, Some(session.active())), &[], &view);
+        let so_far = whole(
+            &core,
+            &with_stroke(&base, (style.clone(), drawn.clone())),
+            8,
+        );
+        screen.assert_tiles_near(&core, &so_far);
+    }
+    let committed = session.finish().artwork;
+    let mut redrawn = screen.frame(&core, (&committed, None), &[], &view).filled;
+    redrawn.extend(screen.settle(&core, &committed, &view));
+    assert!(
+        !redrawn.is_empty(),
+        "the tiles the evaluator drew are drawn again"
+    );
+    screen.assert_tiles(&core, &whole(&core, &committed, 8), 8);
+}
+
+/// A stroke, a fill, then its square moved by a record (`moved`) or cut, then back to `first`.
+fn edits(first: &Artwork, moved: bool) -> [Artwork; 4] {
     let stroke = with_stroke(
-        &first,
+        first,
         (
             plain(6.0, 1.0, Color::BLACK),
             vec![sample(120.0, 90.0, 1.0, 0), sample(150.0, 100.0, 1.0, 8)],
@@ -201,13 +255,39 @@ fn changes_evaluate_again_exactly_the_tiles_they_reach() {
         .expect("fill")
         .artwork;
     let turn = Placement::around([140.0, 109.0], 1.2, 0.3, [false, false]).expect("turn");
-    let moved = filled
-        .place_region(Some(mask), turn)
-        .expect("moved")
-        .artwork;
+    let last = if moved {
+        filled.place_region(Some(mask), turn).expect("moved")
+    } else {
+        filled.cut(Some(&mask)).expect("cut")
+    };
+    [stroke, filled, last.artwork, first.clone()]
+}
+
+#[test]
+fn changes_evaluate_again_exactly_the_tiles_they_reach() {
+    let first = every_source();
+    changes_reach_their_tiles(&first, edits(&first, true));
+}
+
+/// S59: a scene the raster core draws, its tiles drawn again where a change reaches them; each
+/// tier then equals the tier drawn cold (the export) bit for bit.
+#[test]
+fn changes_draw_again_exactly_the_tiles_they_reach_on_the_raster_core() {
+    let first = every_raster_source();
+    changes_reach_their_tiles(&first, edits(&first, false));
+}
+
+/// After each of `edits` from `first`, exactly the tiles the change reaches are evaluated or drawn
+/// again, and once filled in every tile equals the export at the tier's scale.
+fn changes_reach_their_tiles(first: &Artwork, edits: [Artwork; 4]) {
+    let core = core();
+    let scale = 4;
+    let view = frame(3.7, [150.0, 110.0]);
+    let mut screen = Screen::new(&core, first);
+    let ready = screen.settle(&core, first, &view);
     let mut shown = first.clone();
     // Each edit, then undo back to the start.
-    for next in [stroke, filled, moved, first.clone()] {
+    for next in edits {
         let changed = changed_regions(&shown, &next);
         let work = screen.frame(&core, (&next, None), &changed, &view);
         let again: BTreeSet<[u32; 2]> = work.updated.iter().chain(&work.dropped).copied().collect();

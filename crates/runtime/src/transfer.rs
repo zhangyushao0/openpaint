@@ -1,5 +1,6 @@
-//! The transfer worker: exports (render through the single evaluation entry, encode, write the
-//! file the user chose), reference images (read, decode, scale down) and pictures to insert
+//! The transfer worker: exports (render in bands, by the raster core or the evaluator as the
+//! artwork routes since S59, encode, write the file the user chose), reference images (read,
+//! decode, scale down) and pictures to insert
 //! (read, decode, fit inside the canvas), off the UI thread. It
 //! holds only an `Arc<Core>` and the jobs' own values, never anything the frame loop holds; the
 //! frame loop takes its results into the app's `Transfers`.
@@ -136,16 +137,61 @@ fn serve(core: &Core, job: TransferJob) -> TransferDone {
 /// 4x export is never held whole as pixels) and writes the chosen file.
 fn export(core: &Core, job: ExportJob) -> Result<(), ExportError> {
     let started = Instant::now();
+    let scale = job.scale.factor();
+    let encoded = encoded(core, &job.artwork, job.format, scale)?;
+    let written = Instant::now();
+    job.sink
+        .write(&encoded.bytes)
+        .inspect_err(|error| log::error!("writing the export failed: {error}"))
+        .map_err(ExportError::Write)?;
+    log::info!(
+        "exported {} at {scale}x in {} ms: {}, written {} ms",
+        job.format.name(),
+        started.elapsed().as_millis(),
+        encoded.line(),
+        written.elapsed().as_millis()
+    );
+    Ok(())
+}
+
+/// An export's file and what making it took.
+pub(crate) struct Encoded {
+    pub(crate) bytes: Vec<u8>,
+    pub(crate) size: [u32; 2],
+    /// Planned and submitted (the CPU), the GPU and the readback, encoding.
+    pub(crate) times: [Duration; 3],
+}
+
+impl Encoded {
+    /// "<w> x <h>, <n> bytes: planned and submitted p ms, GPU and readback g ms, encoded e ms".
+    pub(crate) fn line(&self) -> String {
+        let [width, height] = self.size;
+        let [planned, waited, encoding] = self.times.map(|time| time.as_millis());
+        format!(
+            "{width} x {height}, {} bytes: planned and submitted {planned} ms, GPU and readback \
+             {waited} ms, encoded {encoding} ms",
+            self.bytes.len()
+        )
+    }
+}
+
+/// `artwork` rendered at `scale` in bands, each streamed into the encoder for `format` (the
+/// export's path; the benchmark's `export` too).
+pub(crate) fn encoded(
+    core: &Core,
+    artwork: &openpaint_core::Artwork,
+    format: openpaint_app::ImageFormat,
+    scale: u32,
+) -> Result<Encoded, ExportError> {
     let rendering = |error: RenderError| {
         log::error!("export rendering failed: {error}");
         ExportError::Render
     };
-    let scale = job.scale.factor();
     let mut bands = core
-        .export_bands(&job.artwork, PAPER, scale, Banding::DEFAULT)
+        .export_bands(artwork, PAPER, scale, Banding::DEFAULT)
         .map_err(rendering)?;
     let size = bands.size();
-    let mut encoder = ImageEncoder::new(job.format, size)?;
+    let mut encoder = ImageEncoder::new(format, size)?;
     let mut encoding = Duration::ZERO;
     for band in &mut bands {
         let band = band.map_err(rendering)?;
@@ -157,24 +203,11 @@ fn export(core: &Core, job: ExportJob) -> Result<(), ExportError> {
     let at = Instant::now();
     let bytes = encoder.finish()?;
     encoding += at.elapsed();
-    let written = Instant::now();
-    job.sink
-        .write(&bytes)
-        .inspect_err(|error| log::error!("writing the export failed: {error}"))
-        .map_err(ExportError::Write)?;
-    let [width, height] = size;
-    log::info!(
-        "exported {} at {scale}x, {width} x {height}, {} bytes in {} ms: planned and submitted \
-         {} ms, GPU and readback {} ms, encoded {} ms, written {} ms",
-        job.format.name(),
-        bytes.len(),
-        started.elapsed().as_millis(),
-        planned.as_millis(),
-        waited.as_millis(),
-        encoding.as_millis(),
-        written.elapsed().as_millis()
-    );
-    Ok(())
+    Ok(Encoded {
+        bytes,
+        size,
+        times: [planned, waited, encoding],
+    })
 }
 
 /// Reads the chosen file (at most `MAX_IMAGE_BYTES`) and decodes it as a reference image.

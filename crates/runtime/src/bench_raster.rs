@@ -109,16 +109,18 @@ pub(crate) fn bench_raster(core: &Core, only: &str) -> Result<Vec<String>, Runti
     Ok(lines)
 }
 
-/// The probe's targets and how it was timed.
+/// The raster core's targets and how it was timed.
 fn setup(rastered: &RasterTimed) -> String {
     let mb = |bytes: u64| bytes as f64 / 1e6;
     format!(
-        "atlas {:?} {} ({:.0} MB), layer {} ({:.0} MB), 9 pipelines made in {:.0} ms, timed by {}",
+        "atlas {:?} {} ({:.0} MB), float targets {} ({:.0} MB each), {} pipelines made in {:.0} \
+         ms, timed by {}",
         rastered.atlas,
         rastered.formats[0],
         mb(rastered.bytes[0]),
         rastered.formats[1],
         mb(rastered.bytes[1]),
+        rastered.pipelines,
         rastered.compile_ns / 1e6,
         if rastered.stamped {
             "GPU timestamps"

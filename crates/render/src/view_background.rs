@@ -79,6 +79,7 @@ pub(crate) fn fill(
         }
         if fill.left.is_empty() && fill.blocks.is_empty() {
             tier.set_ready(fill.tile, true);
+            tier.set_evaluated(fill.tile, true);
             work.filled.push(fill.tile);
         } else {
             tier.fill = Some(fill);
@@ -93,7 +94,7 @@ pub(crate) fn fill(
 
 /// The first needed tile that is not ready, given a slot (a spare one let go, or the atlas
 /// grown); `None` when every needed tile is ready or no slot is left.
-fn next_missing(
+pub(crate) fn next_missing(
     core: &Core,
     tier: &mut Tier,
     needed: &Needed,
