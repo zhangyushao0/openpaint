@@ -224,6 +224,7 @@ impl Smudges {
             if let Some(timing) = timing {
                 pace.finish(&core.gpu, timing);
             }
+            core.background_submitted(pace.unmarked());
         }
         Ok(deriving.left.is_empty())
     }
@@ -265,6 +266,7 @@ impl Smudges {
                 let jobs = &deriving.jobs[start..deriving.next];
                 core.smudge.run(&core.gpu, (kernels, group), jobs, size);
             }
+            core.background_submitted(core.pace().unmarked());
         }
         deriving.next == deriving.jobs.len()
     }

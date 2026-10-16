@@ -12,7 +12,7 @@ use crate::error::RenderError;
 use crate::image::RgbaImage;
 use crate::output::Output;
 use crate::program::{SceneOps, scene_ops};
-use crate::raster::{ATLAS, Finish, RasterTargets};
+use crate::raster::{ATLAS, Finish, RasterTargets, SceneBuffers};
 use crate::raster_plan::RasterPlan;
 use crate::raster_route::RasterScene;
 use crate::readback::{FORMAT, read_rect, target_texture};
@@ -78,7 +78,8 @@ impl RasterExport {
                     format: FORMAT,
                     at: [x, y],
                 };
-                let drawn = ((&self.ops, 0), &plan);
+                let scene = SceneBuffers::of(&self.ops, 0);
+                let drawn = (&scene, &plan);
                 (self.targets).draw(core, drawn, (output, background), &finish, None)?;
                 core.evaluate.tally.rastered(1);
             }

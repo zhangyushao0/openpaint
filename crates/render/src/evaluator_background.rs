@@ -71,12 +71,16 @@ impl CanvasTarget {
 
     /// The scene the last evaluation drew, its ops on the GPU and its serial, when it drew
     /// `artwork` with the in-progress stroke `active`: what the raster core draws a view tier's
-    /// tiles from (S59).
+    /// tiles from (S59; shared with its worker, S60).
     pub(crate) fn scene_serial(
         &self,
         artwork: &Artwork,
         active: Option<&ActiveStroke>,
-    ) -> Option<(&crate::scene::Scene, &crate::program::SceneOps, u64)> {
+    ) -> Option<(
+        &std::sync::Arc<crate::scene::Scene>,
+        &crate::program::SceneOps,
+        u64,
+    )> {
         let place = ActivePlace::of_request(artwork, active);
         self.scene
             .as_ref()
@@ -211,7 +215,7 @@ impl CanvasTarget {
             .ok_or(RenderError::Invalid("no batch was binned"))?;
         let near = reached(taken, 1);
         let filters = (&mut self.filters, &Wanted::Near(&near));
-        let scene = (&cache.scene, &cache.ops);
+        let scene = (&*cache.scene, &cache.ops);
         self.smudges
             .prepare(core, scene, request.artwork, filters)?;
         let mut pace = core.pace();
@@ -238,6 +242,7 @@ impl CanvasTarget {
         if let Some(timing) = timing {
             pace.finish(&core.gpu, timing);
         }
+        core.background_submitted(pace.unmarked());
         dispatched
     }
 
@@ -273,7 +278,7 @@ impl CanvasTarget {
             }
             let near = reached(&taken, 1);
             let filters = (&mut self.filters, &Wanted::Near(&near));
-            let scene = (&cache.scene, &cache.ops);
+            let scene = (&*cache.scene, &cache.ops);
             self.smudges
                 .prepare(core, scene, request.artwork, filters)?;
             let mut pace = core.pace();
@@ -285,6 +290,7 @@ impl CanvasTarget {
             if let Some(timing) = timing {
                 pace.finish(&core.gpu, timing);
             }
+            core.background_submitted(pace.unmarked());
         }
         Ok(snapshot.lacking())
     }

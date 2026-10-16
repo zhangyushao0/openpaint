@@ -9,8 +9,8 @@ use std::collections::BTreeSet;
 
 use openpaint_core::{ActiveStroke, Artwork, Color, Placement, RegionMask, StrokeStyle};
 use openpaint_render::{
-    CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, RgbaImage, ViewCache, ViewFrame,
-    ViewWork, changed_regions,
+    CanvasTarget, Core, FrameRequest, PixelRect, RasterDrawer, RegionEvaluator, RgbaImage,
+    ViewCache, ViewFrame, ViewWork, changed_regions,
 };
 
 use crate::fixture::{SIZE, cold, core, plain, sample, with_stroke};
@@ -32,10 +32,12 @@ fn frame(zoom: f32, [cx, cy]: [f32; 2]) -> ViewFrame {
     }
 }
 
-/// The canvas target and its view tiers, as the runtime holds them.
+/// The canvas target and its view tiers, as the runtime holds them, and the raster worker's side
+/// (S60), served at once after each frame.
 struct Screen {
     target: CanvasTarget,
     view: ViewCache,
+    drawer: RasterDrawer,
     /// The frame clock, 60 frames a second.
     now: f64,
 }
@@ -49,11 +51,13 @@ impl Screen {
         Self {
             target,
             view: ViewCache::new(core),
+            drawer: RasterDrawer::default(),
             now: 0.0,
         }
     }
 
-    /// One frame: the canvas evaluated for `regions` (and the stroke), then the tiers.
+    /// One frame: the canvas evaluated for `regions` (and the stroke), then the tiers, then the
+    /// tiles they handed to the raster worker drawn (shown from the next frame on).
     fn frame(
         &mut self,
         core: &Core,
@@ -66,9 +70,12 @@ impl Screen {
             .evaluate(&request, regions)
             .expect("evaluate");
         self.now += 1.0 / 60.0;
-        self.view
+        let work = self
+            .view
             .update(core, &mut self.target, &request, (view, self.now))
-            .expect("view")
+            .expect("view");
+        self.drawer.serve(core, &mut self.view);
+        work
     }
 
     /// Frames until every needed tile is ready; the tiles evaluated whole meanwhile.

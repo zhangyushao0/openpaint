@@ -13,7 +13,7 @@ use std::time::Instant;
 
 use crate::core::Core;
 use crate::error::RenderError;
-use crate::gpu_clock::{GpuClock, Timing};
+use crate::gpu_clock::Stamps;
 use crate::output::Output;
 use crate::program::SceneOps;
 use crate::raster_gpu::RasterPipelines;
@@ -23,6 +23,28 @@ use crate::readback::target_texture;
 #[path = "raster_frame.rs"]
 mod frame;
 use frame::{Reads, instance_bytes, values};
+
+/// The buffers a scene's ops lie in on the GPU as the raster core binds them, and the scene's
+/// serial (S60: a worker draws from them while the canvas keeps its scene).
+#[derive(Debug, Clone)]
+pub(crate) struct SceneBuffers {
+    pub(crate) ops: wgpu::Buffer,
+    pub(crate) masks: wgpu::Buffer,
+    pub(crate) patches: wgpu::Buffer,
+    pub(crate) serial: u64,
+}
+
+impl SceneBuffers {
+    /// The buffers of `ops`, for the scene named `serial`.
+    pub(crate) fn of(ops: &SceneOps, serial: u64) -> Self {
+        Self {
+            ops: ops.ops(),
+            masks: ops.masks.clone(),
+            patches: ops.patches.clone(),
+            serial,
+        }
+    }
+}
 
 /// The atlas of a view tier's and an export's raster targets, pixels a side: 64 regions of a
 /// whole 256-pixel tile, 8 of an export's 1024 x 512 piece.
@@ -149,20 +171,39 @@ impl RasterTargets {
         (formats, bytes)
     }
 
-    /// Draws `plan` (of the scene whose ops are `ops`, named `serial`) at `output` on paper
-    /// `background`, rounds it into `finish`, and submits it; its passes timed by `timing`.
+    /// Draws `plan` (of the scene in `scene`) at `output` on paper `background`, rounds it into
+    /// `finish`, and submits it; its passes timed by `stamps`.
+    ///
+    /// # Errors
+    /// As `prepare`.
+    pub(crate) fn draw(
+        &mut self,
+        core: &Core,
+        (scene, plan): (&SceneBuffers, &RasterPlan),
+        (output, background): (Output, [f32; 4]),
+        finish: &Finish<'_>,
+        stamps: Option<&Stamps>,
+    ) -> Result<Drawn, RenderError> {
+        let place = (output, background);
+        let (buffer, drawn) = self.prepare(core, (scene, plan), place, finish, stamps)?;
+        core.gpu.submit([buffer]);
+        Ok(drawn)
+    }
+
+    /// As `draw`, the commands encoded but not submitted (S60: a worker submits them once the
+    /// GPU's queue has room); its values and instances land before the next submission.
     ///
     /// # Errors
     /// `Invalid` for a region larger than its capacity or a destination format the raster core
     /// does not finish into; as the GPU.
-    pub(crate) fn draw(
+    pub(crate) fn prepare(
         &mut self,
         core: &Core,
-        ((ops, serial), plan): ((&SceneOps, u64), &RasterPlan),
+        (scene, plan): (&SceneBuffers, &RasterPlan),
         (output, background): (Output, [f32; 4]),
         finish: &Finish<'_>,
-        timing: Option<(&GpuClock, Timing)>,
-    ) -> Result<Drawn, RenderError> {
+        stamps: Option<&Stamps>,
+    ) -> Result<(wgpu::CommandBuffer, Drawn), RenderError> {
         let [width, height] = plan.size;
         if width > self.capacity[0] || height > self.capacity[1] || width * height == 0 {
             return Err(RenderError::Invalid("a raster region outside its targets"));
@@ -170,7 +211,7 @@ impl RasterTargets {
         let pipelines = core.raster_pipelines()?;
         let started = Instant::now();
         self.make_scratch(core, pipelines, plan)?;
-        self.bind_scene(core, pipelines, (ops, serial));
+        self.bind_scene(core, pipelines, scene);
         let gpu = &core.gpu;
         let atlas = self.atlas();
         gpu.queue.write_buffer(
@@ -195,13 +236,13 @@ impl RasterTargets {
             pipelines,
             (plan, background),
             (finish, finished),
-            timing,
+            stamps,
         )?;
-        gpu.submit([buffer]);
-        Ok(Drawn {
+        let drawn = Drawn {
             upload_ns: (uploaded - started).as_secs_f64() * 1e9,
             encode_ns: uploaded.elapsed().as_secs_f64() * 1e9,
-        })
+        };
+        Ok((buffer, drawn))
     }
 
     /// The chain, the mask and the backdrop, when `plan` uses one not made yet.
@@ -234,22 +275,18 @@ impl RasterTargets {
         Ok(())
     }
 
-    /// Group 0 for the scene `ops` named `serial`, made when the scene is new.
-    fn bind_scene(
-        &mut self,
-        core: &Core,
-        pipelines: &RasterPipelines,
-        (ops, serial): (&SceneOps, u64),
-    ) {
+    /// Group 0 for `scene`, made when the scene is new.
+    fn bind_scene(&mut self, core: &Core, pipelines: &RasterPipelines, scene: &SceneBuffers) {
+        let serial = scene.serial;
         if self.scene.as_ref().is_some_and(|(held, _)| *held == serial) {
             return;
         }
         let buffers = [
             &self.values,
-            &ops.ops(),
-            &ops.masks,
+            &scene.ops,
+            &scene.masks,
             &core.evaluate.textures,
-            &ops.patches,
+            &scene.patches,
         ];
         let group = core
             .gpu
@@ -270,8 +307,17 @@ impl RasterTargets {
 }
 
 impl Core {
-    /// The raster core's pipelines, made on first use (how long that took is logged).
+    /// The raster core's pipelines, made by the first caller (how long that took is logged), any
+    /// other waiting until they are: the runtime makes them on its raster worker as the device is
+    /// made (S60), so the screen's frames never wait for them (`raster_made`).
     pub(crate) fn raster_pipelines(&self) -> Result<&RasterPipelines, RenderError> {
+        if let Some(pipelines) = self.raster.get() {
+            return Ok(pipelines);
+        }
+        let _one = self
+            .making
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         if let Some(pipelines) = self.raster.get() {
             return Ok(pipelines);
         }
@@ -286,6 +332,20 @@ impl Core {
             made.layer
         );
         Ok(self.raster.get_or_init(|| made))
+    }
+
+    /// The raster core's pipelines when they are made, without waiting (S60).
+    pub(crate) fn raster_made(&self) -> Option<&RasterPipelines> {
+        self.raster.get()
+    }
+
+    /// Makes the raster core's pipelines now unless they are made (S60: the runtime's raster
+    /// worker, as the device is made, so the first zoom finds them).
+    ///
+    /// # Errors
+    /// As the GPU: a shader the device refuses.
+    pub fn make_raster_pipelines(&self) -> Result<(), RenderError> {
+        self.raster_pipelines().map(drop)
     }
 }
 

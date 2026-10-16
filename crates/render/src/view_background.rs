@@ -52,7 +52,7 @@ pub(crate) fn fill(
             tier.fill = None;
         }
         if tier.fill.is_none() {
-            let Some(tile) = next_missing(core, tier, needed)? else {
+            let Some(tile) = next_missing(core, tier, needed, &[])? else {
                 break;
             };
             tier.fill = Some(begin(tier, tile, serial));
@@ -93,24 +93,26 @@ pub(crate) fn fill(
 }
 
 /// The first needed tile that is not ready, given a slot (a spare one let go, or the atlas
-/// grown); `None` when every needed tile is ready or no slot is left.
+/// grown); `None` when every needed tile is ready or no slot is left. Tiles `drawing` (the raster
+/// worker's, S60) are neither taken nor let go.
 pub(crate) fn next_missing(
     core: &Core,
     tier: &mut Tier,
     needed: &Needed,
+    drawing: &[[u32; 2]],
 ) -> Result<Option<[u32; 2]>, RenderError> {
     let missing = needed
         .ordered()
         .filter(|tile| tier.map.slot(*tile).is_none())
         .count() as u32;
     for tile in needed.ordered() {
-        if tier.is_ready(tile) {
+        if tier.is_ready(tile) || drawing.contains(&tile) {
             continue;
         }
         if tier.map.slot(tile).is_none() {
             let spare = (tier.map.held())
                 .map(|(held, _)| held)
-                .find(|held| !needed.needs(*held));
+                .find(|held| !needed.needs(*held) && !drawing.contains(held));
             if let (None, Some(spare)) = (tier.map.free(), spare) {
                 tier.release(spare);
             }
@@ -204,5 +206,6 @@ fn dispatch(
     if let Some(timing) = timing {
         pace.finish(&core.gpu, timing);
     }
+    core.background_submitted(pace.unmarked());
     dispatched
 }

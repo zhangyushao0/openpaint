@@ -44,6 +44,9 @@ pub(crate) struct Tier {
     /// When the screen last showed it, in the frame clock's seconds (S58: tiers are let go by
     /// recency).
     pub(crate) shown_at: f64,
+    /// Times the atlas was made larger (S60: a tile the raster worker drew into the atlas before
+    /// is not in the one after).
+    pub(crate) grown: u32,
 }
 
 /// A view tile filled in over frames (S53), a block of it binned at a time so no frame bins the
@@ -58,21 +61,30 @@ pub(crate) struct TileFill {
 }
 
 impl Tier {
-    /// A tier at `scale` over `artwork`'s canvas with room for `slots` tiles.
+    /// A tier at `scale` over `artwork`'s canvas with room for `slots` tiles, in the atlas
+    /// `spare` when it is one of `atlas_for(slots)`'s width and at least its height (S60: made
+    /// ahead on the raster worker, so making the tier allocates nothing on the frame loop's
+    /// thread), else in one made now.
     pub(crate) fn new(
         core: &Core,
-        artwork: &Artwork,
-        scale: u32,
+        (artwork, scale): (&Artwork, u32),
         slots: u32,
+        spare: &mut Option<wgpu::Texture>,
     ) -> Result<Self, RenderError> {
         let canvas = artwork.canvas();
         let canvas = [canvas.width(), canvas.height()];
         let output = Output::at(scale, [0, 0])?;
-        let across = slots.clamp(1, ACROSS);
-        let rows = slots.div_ceil(across).max(1);
+        let (across, rows) = atlas_for(slots);
+        let fits = |atlas: &wgpu::Texture| {
+            atlas.width() == across * TIER_TILE && atlas.height() >= rows * TIER_TILE
+        };
+        let atlas = match spare.take_if(|atlas| fits(atlas)) {
+            Some(atlas) => atlas,
+            None => atlas_texture(core, (across, rows))?,
+        };
+        let rows = atlas.height() / TIER_TILE;
         let map = TileMap::new(canvas, output, (across, rows));
         let [columns, tiles_down] = map.tiles();
-        let atlas = atlas_texture(core, (across, rows))?;
         let index = core.gpu.device.create_texture(&wgpu::TextureDescriptor {
             label: Some("view tier index"),
             size: wgpu::Extent3d {
@@ -98,6 +110,7 @@ impl Tier {
             stale: true,
             fill: None,
             shown_at: 0.0,
+            grown: 0,
         })
     }
 
@@ -215,6 +228,7 @@ impl Tier {
         self.view = atlas.create_view(&Default::default());
         self.atlas = atlas;
         self.map.grow(rows);
+        self.grown += 1;
         Ok(())
     }
 
@@ -302,9 +316,18 @@ impl Tier {
     }
 }
 
+/// The slots across and the rows of an atlas holding `slots` tiles.
+pub(crate) fn atlas_for(slots: u32) -> (u32, u32) {
+    let across = slots.clamp(1, ACROSS);
+    (across, slots.div_ceil(across).max(1))
+}
+
 /// An atlas of `across` by `rows` slots: the evaluator writes it, the raster core draws into it
 /// (S59).
-fn atlas_texture(core: &Core, (across, rows): (u32, u32)) -> Result<wgpu::Texture, RenderError> {
+pub(crate) fn atlas_texture(
+    core: &Core,
+    (across, rows): (u32, u32),
+) -> Result<wgpu::Texture, RenderError> {
     let usage = wgpu::TextureUsages::STORAGE_BINDING
         | wgpu::TextureUsages::TEXTURE_BINDING
         | wgpu::TextureUsages::RENDER_ATTACHMENT

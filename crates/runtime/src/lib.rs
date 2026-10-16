@@ -2,6 +2,7 @@
 //! draining and startup. Platform hosts plug in through traits; no JNI here.
 #![forbid(unsafe_code)]
 
+mod ahead;
 mod bench;
 mod bench_app;
 mod bench_raster;
@@ -22,6 +23,7 @@ mod pacing;
 mod pictures;
 mod pointer;
 mod preview;
+mod raster;
 mod recover;
 mod screen;
 mod seeds;

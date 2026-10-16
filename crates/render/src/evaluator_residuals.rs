@@ -29,7 +29,7 @@ impl CanvasTarget {
         let wanted = Wanted::Near(&near);
         let lacking = self.smudges.lacking(
             core,
-            (&cache.scene, request.artwork),
+            (&*cache.scene, request.artwork),
             (&mut self.filters, &wanted),
         );
         let Some(lacking) = lacking else {
@@ -74,7 +74,7 @@ impl CanvasTarget {
         let near = self.waiting.deferred_rects();
         let wanted = Wanted::Near(&near);
         let scene = (
-            &cache.scene,
+            &*cache.scene,
             &cache.ops,
             cache.serial,
             cache.costs.as_slice(),
@@ -83,7 +83,7 @@ impl CanvasTarget {
         for _ in 0..=cache.scene.smudges.len() {
             let lacking = self.smudges.lacking(
                 core,
-                (&cache.scene, request.artwork),
+                (&*cache.scene, request.artwork),
                 (&mut self.filters, &wanted),
             );
             let Some(lacking) = lacking else {
@@ -121,7 +121,7 @@ impl CanvasTarget {
             .as_ref()
             .ok_or(RenderError::Invalid("no scene was built"))?;
         let wanted = Wanted::Near(&near);
-        let scene = (&cache.scene, request.artwork);
+        let scene = (&*cache.scene, request.artwork);
         let filters = (&mut self.filters, &wanted);
         if self.smudges.lacking(core, scene, filters).is_none() {
             return Ok(true);
@@ -171,14 +171,14 @@ impl CanvasTarget {
         let wanted = Wanted::Near(near);
         let lacking = self.smudges.lacking(
             core,
-            (&cache.scene, request.artwork),
+            (&*cache.scene, request.artwork),
             (&mut self.filters, &wanted),
         );
         let Some(lacking) = lacking else {
             return Ok(None);
         };
         let scene = (
-            &cache.scene,
+            &*cache.scene,
             &cache.ops,
             cache.serial,
             cache.costs.as_slice(),

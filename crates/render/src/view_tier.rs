@@ -30,7 +30,8 @@ use crate::view_atlas::Tier;
 use crate::view_background::fill;
 use crate::view_fill::{Filling, in_place, touched};
 use crate::view_needed::Needed;
-use crate::view_raster::{RasterTier, fill_raster, in_place_raster};
+use crate::view_raster::{RasterTier, in_place_raster};
+use crate::view_raster_fill::fill_raster;
 use crate::view_shown::Shown;
 use crate::view_tiles::TileMap;
 
@@ -87,6 +88,10 @@ pub struct ViewCache {
     refused: bool,
     /// The raster core's targets and the routing of the canvas's scene (S59).
     pub(crate) raster: RasterTier,
+    /// The atlas of the next new tier, made ahead on the raster worker, and whether one is wanted
+    /// (S60).
+    pub(crate) spare: Option<wgpu::Texture>,
+    pub(crate) wanting: bool,
 }
 
 impl ViewWork {
@@ -111,6 +116,8 @@ impl ViewCache {
             room: u64::MAX,
             refused: false,
             raster: RasterTier::default(),
+            spare: None,
+            wanting: true,
         }
     }
 
@@ -129,6 +136,7 @@ impl ViewCache {
         (frame, now): (&ViewFrame, f64),
     ) -> Result<ViewWork, RenderError> {
         let changed = canvas.take_changed();
+        let rastered = self.raster.routes(canvas, request);
         let wanted = tier_for(zoom(&frame.to_canvas));
         let since = match self.last {
             Some((last, since)) if last == *frame => since,
@@ -141,9 +149,19 @@ impl ViewCache {
             self.switch(core, request, wanted, frame)?;
         }
         let mut work = ViewWork::default();
-        // Tiers not shown in full keep only tiles no change reached.
+        self.take_answers(core, rastered, &mut work);
+        // Tiers not shown in full keep only tiles no change reached; tiles the raster worker
+        // draws that a change reached are drawn again (S60).
         for tier in self.previous.iter_mut().chain(self.kept.iter_mut()) {
             for (tile, _) in touched(tier, &changed) {
+                tier.set_ready(tile, false);
+            }
+        }
+        let tiers = (self.current.iter_mut())
+            .chain(self.previous.iter_mut())
+            .chain(self.kept.iter_mut());
+        for tier in tiers {
+            for tile in self.raster.reached(&tier.map, &changed) {
                 tier.set_ready(tile, false);
             }
         }
@@ -154,7 +172,8 @@ impl ViewCache {
             tier.shown_at = now;
         }
         let view = (frame, now, wanted);
-        self.work_on_current(core, (canvas, request), view, (&changed, &mut work))?;
+        let changes = (&changed[..], &mut work, rastered);
+        self.work_on_current(core, (canvas, request), view, changes)?;
         for tier in [&mut self.current, &mut self.previous]
             .into_iter()
             .flatten()
@@ -165,6 +184,10 @@ impl ViewCache {
             .refresh(core, [self.current.as_ref(), self.previous.as_ref()]);
         work.tier = self.current.as_ref().map(Tier::scale);
         work.changing = work.tier != wanted && !self.refused;
+        // The first tier's atlas is made ahead, once nothing touches the screen (S60).
+        if self.current.is_none() && self.previous.is_none() && self.kept.is_empty() {
+            self.ask_spare(core, frame);
+        }
         work.bytes = self.bytes();
         self.filling = Filling::step(self.filling.take(), &work);
         if work.bytes > self.peak {
@@ -175,16 +198,16 @@ impl ViewCache {
     }
 
     /// The shown tier's work this frame: what changed in place, then a share of the missing tiles
-    /// when it is the tier `wanted`. S59: a scene the raster core draws has its tiles drawn by
-    /// it, but while a stroke is drawn, and the tiles the evaluator drew are drawn again.
+    /// when it is the tier `wanted`. S59: a scene the raster core draws (`rastered`) has its
+    /// tiles drawn by it, but while a stroke is drawn, and the tiles the evaluator drew are drawn
+    /// again (S60: handed to the raster worker).
     fn work_on_current(
         &mut self,
         core: &Core,
         (canvas, request): (&mut CanvasTarget, &FrameRequest<'_>),
         (frame, now, wanted): (&ViewFrame, f64, Option<u32>),
-        (changed, work): (&[PixelRect], &mut ViewWork),
+        (changed, work, rastered): (&[PixelRect], &mut ViewWork, bool),
     ) -> Result<(), RenderError> {
-        let rastered = self.raster.routes(canvas, request);
         let raster = &mut self.raster;
         let Some(current) = &mut self.current else {
             return Ok(());
@@ -211,13 +234,7 @@ impl ViewCache {
         let needed = Needed::of(&current.map, frame);
         // The canvas fills in first (S49): no missing tile is filled meanwhile.
         if !canvas.pending() && rastered {
-            fill_raster(
-                core,
-                (current, &needed),
-                (canvas, request),
-                raster,
-                (work, now),
-            )?;
+            fill_raster(core, (current, &needed), (canvas, request), raster, now)?;
         } else if !canvas.pending() {
             fill(core, (current, &needed), (canvas, request), work)?;
         }
@@ -273,11 +290,18 @@ impl ViewCache {
             self.refused = true;
             return Ok(());
         }
-        let tier = Tier::new(core, request.artwork, scale, slots as u32)?;
+        let making = std::time::Instant::now();
+        let tier = Tier::new(
+            core,
+            (request.artwork, scale),
+            slots as u32,
+            &mut self.spare,
+        )?;
         log::info!(
-            "view tier {scale}x for zoom {zoom:.2}: {slots} tiles wanted, {:.1} MB; the tiers \
-             hold {:.1} MB",
+            "view tier {scale}x for zoom {zoom:.2}: {slots} tiles wanted, {:.1} MB made in {} \
+             ms; the tiers hold {:.1} MB",
             mb(tier.bytes()),
+            making.elapsed().as_millis(),
             mb(self.bytes() + tier.bytes())
         );
         self.current = Some(tier);
@@ -298,7 +322,8 @@ impl ViewCache {
             .flatten()
             .chain(&self.kept)
             .map(Tier::bytes)
-            .sum()
+            .sum::<u64>()
+            + self.spare.as_ref().map_or(0, spare_bytes)
     }
 
     /// The most bytes the tiers held at once so far.
@@ -347,38 +372,15 @@ pub(crate) fn tier_for(zoom: f32) -> Option<u32> {
     Some(1 << power as u32)
 }
 
+/// Bytes of an atlas made ahead (S60).
+fn spare_bytes(atlas: &wgpu::Texture) -> u64 {
+    u64::from(atlas.width()) * u64::from(atlas.height()) * 4
+}
+
 pub(crate) fn mb(bytes: u64) -> f64 {
     bytes as f64 / (1024.0 * 1024.0)
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_tier_is_the_nearest_power_of_two_above_the_square_root_of_two() {
-        let tiers: Vec<Option<u32>> = [
-            0.5, 1.0, 1.41, 1.42, 2.0, 2.82, 2.84, 4.0, 5.6, 5.7, 8.0, 30.0,
-        ]
-        .map(tier_for)
-        .into();
-        let expected = [
-            None,
-            None,
-            None,
-            Some(2),
-            Some(2),
-            Some(2),
-            Some(4),
-            Some(4),
-            Some(4),
-        ]
-        .into_iter()
-        .chain([Some(8), Some(8), Some(8)]);
-        assert!(tiers.into_iter().eq(expected));
-        assert_eq!(zoom(&[0.25, 0.0, 3.0, 0.0, 0.25, 1.0]), 4.0);
-        let turned = std::f32::consts::FRAC_1_SQRT_2 / 2.0;
-        let rotated = zoom(&[turned, -turned, 0.0, turned, turned, 0.0]);
-        assert!((rotated - 2.0).abs() < 1e-5, "{rotated}");
-    }
-}
+#[path = "view_tier_tests.rs"]
+mod tests;

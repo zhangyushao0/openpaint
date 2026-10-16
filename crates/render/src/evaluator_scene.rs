@@ -3,6 +3,7 @@
 //! was last evaluated by and the previewed layer's snapshot kept as long as both stay valid.
 
 use std::ops::Range;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use openpaint_core::Artwork;
@@ -32,7 +33,8 @@ pub(super) struct SceneCache {
     pub(super) artwork: Artwork,
     /// The in-progress stroke's place, or while none is drawn the next one's (S56).
     pub(super) active: ActivePlace,
-    pub(super) scene: Scene,
+    /// Shared with the raster worker drawing a view tier's tiles from it (S60).
+    pub(super) scene: Arc<Scene>,
     pub(super) ops: SceneOps,
     /// The adjustment whose values the last version changed, and its layer's snapshot.
     previewed: Option<EditPlace>,
@@ -126,11 +128,12 @@ impl CanvasTarget {
         if self.scene.as_ref().is_some_and(same) {
             return self.cached();
         }
-        // A preview's values change between versions while no stroke is drawn.
+        // A preview's values change between versions while no stroke is drawn (in place: while
+        // no raster worker holds the scene).
         let retune = self
             .scene
             .as_ref()
-            .filter(|cache| cache.active == active)
+            .filter(|cache| cache.active == active && Arc::strong_count(&cache.scene) == 1)
             .and_then(|cache| retuned(&cache.artwork, artwork));
         if let Some(retune) = retune {
             if let Err(error) = self.retune(core, artwork, &retune) {
@@ -151,7 +154,7 @@ impl CanvasTarget {
             active,
             costs: item_costs(&scene),
             serial: next_serial(),
-            scene,
+            scene: Arc::new(scene),
             ops,
             previewed: None,
             spread: 0,
@@ -165,7 +168,8 @@ impl CanvasTarget {
 
     /// A new scene of `artwork` with the place `active` on the GPU, its smudges and filters
     /// prepared. The strokes' spans the scene before drew are copied from it (S56), which leaves
-    /// that scene without its items: on an error the caller keeps no scene.
+    /// that scene without its items: on an error the caller keeps no scene. A scene the raster
+    /// worker still holds (S60) gives none: they are made anew, the same.
     fn built(
         &mut self,
         core: &Core,
@@ -174,7 +178,9 @@ impl CanvasTarget {
     ) -> Result<(Scene, SceneOps), RenderError> {
         let started = Instant::now();
         let known = self.scene.as_ref().map(|cache| cache.scene.edges.clone());
-        let earlier = (self.scene.as_mut()).map(|cache| cache.scene.take_earlier());
+        let earlier = (self.scene.as_mut())
+            .and_then(|cache| Arc::get_mut(&mut cache.scene))
+            .map(Scene::take_earlier);
         let known = (known.unwrap_or_default(), earlier.unwrap_or_default());
         let scene = Scene::build_knowing(artwork, Some(active), known)?;
         let patches = self.scene.as_ref().and_then(|cache| {
@@ -221,7 +227,7 @@ impl CanvasTarget {
         let residuals = self.smudges.residuals();
         let (held, kept) = match held {
             Some(using) => {
-                let evaluating = ((&cache.scene, &cache.ops), (&mut self.bindings, residuals));
+                let evaluating = ((&*cache.scene, &cache.ops), (&mut self.bindings, residuals));
                 let using = (request.artwork, using);
                 active_snapshot::prepare(&mut self.held, core, evaluating, using, all)?
             }
@@ -245,7 +251,7 @@ impl CanvasTarget {
         // S51: the residuals near the tiles evaluated now.
         let near = reached(tiles, output.scale);
         let filters = (&mut self.filters, &Wanted::Near(&near));
-        let scene = (&cache.scene, &cache.ops);
+        let scene = (&*cache.scene, &cache.ops);
         self.smudges
             .prepare(core, scene, request.artwork, filters)?;
         let residuals = self.smudges.residuals();
@@ -289,7 +295,7 @@ fn prepare_early(
         None if stroke => Wanted::Near(all),
         None => return Ok(()),
     };
-    let scene = (&cache.scene, &cache.ops);
+    let scene = (&*cache.scene, &cache.ops);
     smudges.prepare(core, scene, artwork, (filters, &wanted))
 }
 

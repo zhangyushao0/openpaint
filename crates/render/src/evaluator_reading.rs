@@ -49,7 +49,7 @@ impl SceneCache {
         if let Some(place) = self.previewed.filter(|_| previewing)
             && self.snapshot.as_ref().is_none_or(|s| s.place != place)
         {
-            let scene = (&self.scene, &self.ops);
+            let scene = (&*self.scene, &self.ops);
             self.snapshot = PreviewSnapshot::take(core, scene, (bindings, residuals), place)?;
         }
         let resume = self

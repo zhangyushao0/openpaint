@@ -3,6 +3,13 @@
 //! canvas's tiles filling in, a view tier's tiles, a smudge residual being evaluated), only what
 //! its estimates say fits `BACKGROUND_NS` of GPU time; the rest waits for the next frames.
 //!
+//! S60 (DECISIONS D87): while nothing touches the screen, a step (a frame drawn, or a frame call
+//! skipped while the GPU is behind) gives background work what keeps the GPU's queue of it within
+//! `IDLE_BACKGROUND_NS` (`Core::background_queued`), a first piece whatever it costs only when
+//! the queue is empty: so work waiting runs at the GPU's pace, between the frames drawn, and a
+//! frame drawn when a hand arrives waits for at most that much. While the screen is touched each
+//! frame drawn gives `BACKGROUND_NS`, as before.
+//!
 //! A dispatch's estimate follows how the GPU runs it: each plan tile is one workgroup whose 256
 //! pixels each walk the tile's whole list, and the GPU runs about `PARALLEL` of them side by side,
 //! so up to that many cost about what the costliest does, more about their sum over it (`cost.rs`
@@ -13,15 +20,14 @@
 //! the next ones, so on average no frame spends more.
 
 use crate::gpu::Gpu;
-use crate::gpu_clock::{GpuClock, Timing};
+use crate::gpu_clock::{GpuClock, Stamps, Timing};
 
 /// The GPU time one frame gives background work: half a 120 Hz frame on the tablet, the rest
 /// for what the frame shows (the canvas or tier drawn to the screen, the interface, a stroke).
 pub const BACKGROUND_NS: f64 = 4_000_000.0;
 
-/// The GPU time a frame gives background work while nothing touches the screen (S54, the
-/// runtime's choice each frame): fills about twice as fast at about 70 Hz, and the first frame
-/// of a touch waits for at most one such frame's work.
+/// The background work the GPU's queue holds at most while nothing touches the screen (S60; S54
+/// gave a frame this much): the first frame of a touch waits for at most this much.
 pub const IDLE_BACKGROUND_NS: f64 = 10_000_000.0;
 
 /// Plan tiles the tablet's GPU (an Adreno 735) evaluates side by side, measured S53 with GPU
@@ -78,9 +84,11 @@ impl Group {
 }
 
 pub(crate) struct Pace {
-    /// The budget a frame gives while the screen is touched and while it is not (S54).
+    /// The budget a frame gives while the screen is touched, and the queue's most while it is
+    /// not (S54, S60).
     budgets: [f64; 2],
-    budget: f64,
+    /// This step is one while nothing touches the screen (S60).
+    idle: bool,
     /// What this frame may still give, in measured ns (below 0: owed by the next frames), whether
     /// it had any at its start, and whether it gave anything yet.
     left: f64,
@@ -94,8 +102,10 @@ pub(crate) struct Pace {
     raster_sums: [f64; 2],
     clock: Option<GpuClock>,
     group: Group,
-    /// This frame's spending so far (measured ns), its pieces, and its first piece's.
+    /// This step's spending so far (measured ns), its pieces, and its first piece's; how much of
+    /// it is marked as queued on the GPU (S60).
     spent: f64,
+    marked: f64,
     pieces: usize,
     first: f64,
     last: Background,
@@ -111,6 +121,9 @@ pub struct Background {
     /// GPU time measured for background work whose readings came back during the frame, ns;
     /// `None` without timestamp queries.
     pub measured: Option<f64>,
+    /// GPU time measured for background work since the device was opened, ns (S60: steps between
+    /// the frames drawn read some back too).
+    pub total: f64,
     /// Pieces of work it took (plan tiles, a residual's material tiles and contacts), and what
     /// its first took.
     pub pieces: usize,
@@ -130,7 +143,7 @@ impl Pace {
     pub(crate) fn new(gpu: &Gpu) -> Self {
         Self {
             budgets: [BACKGROUND_NS, IDLE_BACKGROUND_NS],
-            budget: BACKGROUND_NS,
+            idle: false,
             left: BACKGROUND_NS,
             opened: true,
             untouched: true,
@@ -141,20 +154,27 @@ impl Pace {
             clock: GpuClock::new(gpu),
             group: Group::default(),
             spent: 0.0,
+            marked: 0.0,
             pieces: 0,
             first: 0.0,
             last: Background::default(),
         }
     }
 
-    /// A new frame: the readings back since are learnt, the budget is whole again less what the
-    /// frames before spent beyond theirs.
-    pub(crate) fn begin(&mut self, gpu: &Gpu) {
+    /// A new step: the readings back since are learnt; touched (`queued` `None`), the budget is
+    /// whole again less what the frames before spent beyond theirs; idle, it is what keeps the
+    /// background work `queued` on the GPU (ns) within its most, a first piece taken whatever it
+    /// costs only when nothing is queued (S60).
+    pub(crate) fn begin(&mut self, gpu: &Gpu, queued: Option<f64>) {
         let readings = self.clock.as_mut().map(|clock| clock.readings(gpu));
         self.last = Background {
             spent: self.spent,
             ratio: self.ratio,
             measured: (readings.as_ref()).map(|all| all.iter().map(|(_, measured)| measured).sum()),
+            total: self.last.total
+                + (readings.iter().flatten())
+                    .map(|(_, measured)| measured)
+                    .sum::<f64>(),
             pieces: self.pieces,
             first: self.first,
         };
@@ -173,11 +193,52 @@ impl Pace {
             let ratio = self.raster_sums[1] / self.raster_sums[0];
             self.raster_ratio = ratio.clamp(RATIO[0], RATIO[1]);
         }
-        self.left = self.budget + self.left.min(0.0);
-        self.opened = self.left > 0.0;
+        self.open(queued);
+    }
+
+    /// The step's budget: see `begin`.
+    fn open(&mut self, queued: Option<f64>) {
+        match queued {
+            Some(queued) => {
+                self.left = self.budgets[1] - queued;
+                self.opened = queued <= 0.0;
+            }
+            None => {
+                // An idle step's first piece owes nothing to the touched frames after it.
+                let owed = if self.idle { 0.0 } else { self.left.min(0.0) };
+                self.left = self.budgets[0] + owed;
+                self.opened = self.left > 0.0;
+            }
+        }
+        self.idle = queued.is_some();
         self.untouched = true;
         self.group = Group::default();
-        (self.spent, self.pieces, self.first) = (0.0, 0, 0.0);
+        (self.spent, self.marked, self.pieces, self.first) = (0.0, 0.0, 0, 0.0);
+    }
+
+    /// Whether this step is one while nothing touches the screen (S60).
+    pub(crate) const fn idle(&self) -> bool {
+        self.idle
+    }
+
+    /// The GPU time of the background work this step gave since the last call, by its corrected
+    /// estimates: what was submitted since, to be marked as queued (each dispatch apart, so the
+    /// queue's measure falls as the GPU works through a step's pieces).
+    pub(crate) fn unmarked(&mut self) -> f64 {
+        let unmarked = self.spent - self.marked;
+        self.marked = self.spent;
+        unmarked
+    }
+
+    /// The most background work the GPU's queue holds while nothing touches the screen (S60).
+    pub(crate) const fn most_queued(&self) -> f64 {
+        self.budgets[1]
+    }
+
+    /// The background work a frame drawn while the screen is touched gives (S60: the most the
+    /// raster worker queues then).
+    pub(crate) const fn share(&self) -> f64 {
+        self.budgets[0]
     }
 
     /// Adds a tile estimated at `cost` ns to the dispatch being gathered when what it adds fits
@@ -224,16 +285,37 @@ impl Pace {
         true
     }
 
-    /// A region of the raster core estimated at `cost` ns by its own table (S59), corrected by
-    /// its own readings: taken as `take_serial` takes work, when it fits what is left of the
-    /// frame's budget or is the first piece of a frame opened with budget.
-    pub(crate) fn take_raster(&mut self, cost: f64) -> bool {
-        let time = cost * self.raster_ratio;
+    /// Work of `time` ns another thread submits and marks itself (S60: a tile the raster worker
+    /// draws while the screen is touched): taken from what is left of the frame's budget as
+    /// `take_serial` takes it, but not counted as this step's own.
+    pub(crate) fn promise(&mut self, time: f64) -> bool {
         if !(self.untouched && self.opened) && time > self.left {
             return false;
         }
-        self.charge(time);
+        self.left -= time;
+        self.untouched = false;
         true
+    }
+
+    /// A region of the raster core estimated at `cost` ns by its own table (S59), drawn on a
+    /// worker (S60): its GPU time by the raster core's own correction, and the timestamps that
+    /// measure it when a slot is free (`raster_finish` once submitted).
+    pub(crate) fn raster_start(&mut self, cost: f64) -> (f64, Option<Stamps>) {
+        let stamps = self.clock.as_mut().and_then(|clock| {
+            let timing = clock.start(Group::raster(cost))?;
+            Some(clock.stamps(timing))
+        });
+        (cost * self.raster_ratio, stamps)
+    }
+
+    /// The region `raster_start` measured was submitted (`drawn`): its timestamps go to be read
+    /// back; else its slot is free again.
+    pub(crate) fn raster_finish(&mut self, gpu: &Gpu, stamps: &Stamps, drawn: bool) {
+        match (drawn, self.clock.as_mut()) {
+            (true, _) => self.finish(gpu, stamps.timing),
+            (false, Some(clock)) => clock.abandon(stamps.timing),
+            (false, None) => {}
+        }
     }
 
     /// Raster regions of `cost` ns taken only when they fit what is left of the frame's budget,
@@ -269,16 +351,10 @@ impl Pace {
         !(self.untouched && self.opened) && self.left <= 0.0
     }
 
-    /// Frames from the next one on give the budget for an `idle` screen or a touched one, less
-    /// what earlier frames spent beyond theirs.
-    pub(crate) fn aim(&mut self, idle: bool) {
-        self.budget = self.budgets[usize::from(idle)];
-    }
-
-    /// The budget is `ns` from this frame on, whole again, touched or not.
+    /// The budget is `ns` from this frame on, whole again, touched or not (idle: the queue's
+    /// most).
     pub(crate) fn set_budget(&mut self, ns: f64) {
         self.budgets = [ns; 2];
-        self.budget = ns;
         self.left = ns;
         self.opened = true;
         self.untouched = true;
@@ -303,3 +379,7 @@ impl Pace {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "pace_tests.rs"]
+mod tests;

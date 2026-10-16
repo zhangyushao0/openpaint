@@ -69,7 +69,7 @@ impl CanvasTarget {
             return Ok(0);
         };
         let (smudges, filters) = (&mut self.smudges, &mut self.filters);
-        smudges.shrink(core, (&cache.scene, &cache.ops), (filters, true))
+        smudges.shrink(core, (&*cache.scene, &cache.ops), (filters, true))
     }
 
     /// Its arena binds at most `bytes` from now on, as on a device whose storage binding limit
@@ -95,7 +95,7 @@ impl CanvasTarget {
         let freed = match self.scene.as_ref().filter(|_| over) {
             Some(cache) => {
                 let (smudges, filters) = (&mut self.smudges, &mut self.filters);
-                smudges.shrink(core, (&cache.scene, &cache.ops), (filters, false))?
+                smudges.shrink(core, (&*cache.scene, &cache.ops), (filters, false))?
             }
             None => 0,
         };
@@ -133,7 +133,7 @@ impl CanvasTarget {
         };
         let near = reached(tiles, scale);
         let filters = (&mut self.filters, &Wanted::Near(&near));
-        let scene = (&cache.scene, &cache.ops);
+        let scene = (&*cache.scene, &cache.ops);
         self.smudges.prepare(core, scene, artwork, filters)
     }
 
@@ -157,7 +157,7 @@ impl CanvasTarget {
             .scene
             .as_ref()
             .ok_or(RenderError::Invalid("no scene was built"))?;
-        let scene = (&cache.scene, &cache.ops);
+        let scene = (&*cache.scene, &cache.ops);
         let near: Vec<PixelRect> = stroke_region(active.style(), active.samples(), 0)
             .into_iter()
             .collect();

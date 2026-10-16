@@ -35,22 +35,28 @@ pub(crate) struct Pacing {
     last: Paced,
     /// Frame calls skipped in a row.
     waited: u32,
+    /// The call before found the frame before it finished (S60).
+    done: bool,
     /// Tests: frame calls still to skip as if the GPU were behind.
     lag: u32,
 }
 
 impl Pacing {
     /// Whether this frame call waits for the GPU: more than `MOST_IN_FLIGHT` of the window's
-    /// frames are in flight, or that many and fewer than `PATIENCE` calls waited for them
-    /// (`window`; an offscreen frame is read back, so it never lags); or a test holds the GPU
-    /// behind.
-    pub(crate) fn skips(&mut self, core: &Core, window: bool) -> bool {
+    /// frames are in flight, or that many and fewer than `PATIENCE` calls waited for them; or,
+    /// `resting` (no contact on the glass or hovering, no stroke drawn, S60), any, or the frame
+    /// before was found finished only now (`window`; an offscreen frame is read back, so it never
+    /// lags); or a test holds the GPU behind. With no input to take a frame has no reason to go
+    /// before the one before is shown: the GPU runs background work queued ahead of the frames
+    /// then, and a frame drawn sooner waits for the one before in `present` (Android's buffer
+    /// queue takes a frame once the compositor took the one before, at a vsync after the GPU
+    /// finished it).
+    pub(crate) fn skips(&mut self, core: &Core, (window, resting): (bool, bool)) -> bool {
         let in_flight = if window { core.frames_in_flight() } else { 0 };
         let lagging = self.lag > 0;
         self.lag = self.lag.saturating_sub(1);
-        let behind =
-            in_flight > MOST_IN_FLIGHT || (in_flight == MOST_IN_FLIGHT && self.waited < PATIENCE);
-        let skipped = lagging || behind;
+        let settled = !window || std::mem::replace(&mut self.done, in_flight == 0);
+        let skipped = lagging || behind(in_flight, self.waited, (resting, settled));
         self.waited = if skipped { self.waited + 1 } else { 0 };
         self.last = Paced { skipped, in_flight };
         skipped
@@ -62,5 +68,39 @@ impl Pacing {
 
     pub(crate) fn lag(&mut self, frames: u32) {
         self.lag = frames;
+    }
+}
+
+/// Whether a frame call waits with `in_flight` of the screen's frames unfinished, `waited` calls
+/// in a row having waited already; `resting` when no hand is on or over the glass, `settled` when
+/// the call before already found the frame before finished (`skips`).
+pub(crate) const fn behind(in_flight: u64, waited: u32, (resting, settled): (bool, bool)) -> bool {
+    let patient = resting || waited < PATIENCE;
+    in_flight > MOST_IN_FLIGHT || (in_flight == MOST_IN_FLIGHT && patient) || (resting && !settled)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{PATIENCE, behind};
+
+    #[test]
+    fn a_frame_waits_for_the_one_before_patiently_while_a_hand_is_there_and_wholly_while_none() {
+        let (hand, rest) = ((false, true), (true, true));
+        assert!(
+            !behind(0, 0, hand) && !behind(0, 0, rest),
+            "nothing in flight"
+        );
+        assert!(behind(2, 99, hand), "two frames behind: always");
+        assert!(
+            behind(1, PATIENCE - 1, hand),
+            "the frame before, for a while"
+        );
+        assert!(!behind(1, PATIENCE, hand), "then a hand's input goes first");
+        assert!(behind(1, 99, rest), "with no hand there, until it is done");
+        assert!(
+            behind(0, 0, (true, false)),
+            "and a vsync after it was found done"
+        );
+        assert!(!behind(0, 0, (false, false)), "but not with a hand there");
     }
 }

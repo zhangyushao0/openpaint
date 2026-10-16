@@ -8,8 +8,8 @@ use std::time::Instant;
 use openpaint_app::{Session, Thumbnail};
 use openpaint_core::StrokeTool;
 use openpaint_render::{
-    CacheBytes, CanvasTarget, Core, Focus, FrameRequest, PixelRect, RegionEvaluator, RenderError,
-    ViewCache, ViewFrame, changed_regions,
+    CacheBytes, CanvasTarget, Core, Focus, FrameRequest, PixelRect, RasterAnswer, RasterOrder,
+    RegionEvaluator, RenderError, ViewCache, ViewFrame, changed_regions,
 };
 
 use super::{Canvas, PAPER, THUMBNAIL_MAX};
@@ -133,7 +133,27 @@ impl Canvas {
             .view
             .update(core, &mut self.target, &request, (frame, now))?
             .pending();
+        self.shown = Some(*frame);
         Ok(())
+    }
+
+    /// As `update_view`, through the view the last frame drawn showed (S60: a frame call between
+    /// the frames drawn).
+    pub(crate) fn update_view_again(&mut self, core: &Core, now: f64) -> Result<(), RuntimeError> {
+        match self.shown {
+            Some(frame) => self.update_view(core, (&frame, now)),
+            None => Ok(()),
+        }
+    }
+
+    /// What the view tiers ask of the raster worker since the last call (S60).
+    pub(crate) fn raster_orders(&mut self) -> Vec<RasterOrder> {
+        self.view.take_orders()
+    }
+
+    /// The raster worker answered (S60).
+    pub(crate) fn raster_answer(&mut self, answer: RasterAnswer) {
+        self.view.answer(answer);
     }
 
     /// Where the screen shows the canvas through `frame`: its waiting tiles there go first, the
@@ -233,6 +253,7 @@ impl Canvas {
         self.target = CanvasTarget::new(core, self.target.size())?;
         self.view = ViewCache::new(core);
         self.view_pending = false;
+        self.shown = None;
         self.evaluated = false;
         self.changed_from = None;
         self.pictures = Drawn::default();

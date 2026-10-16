@@ -31,6 +31,7 @@ use crate::normalise::Normaliser;
 use crate::pacing::{Paced, Pacing};
 use crate::pictures::PictureWorker;
 use crate::pointer::pointer_events;
+use crate::raster::RasterWorker;
 use crate::recover::{Reattach, Recoveries};
 use crate::screen::{Screen, dispatch_gallery};
 use crate::seeds::Seeds;
@@ -68,7 +69,7 @@ pub struct Runtime {
     /// The clock motion runs on.
     pub(crate) frame_clock: FrameClock,
     /// When a finger or the pen last touched: background work's budget follows (S54).
-    touches: Touches,
+    pub(crate) touches: Touches,
     /// Frames wait while the GPU is behind (S56).
     pub(crate) pacing: Pacing,
     /// Input normalised since the last frame, palms removed, oldest first.
@@ -92,6 +93,8 @@ pub struct Runtime {
     pub(crate) transfer: TransferWorker,
     fill: FillWorker,
     pub(crate) pictures: PictureWorker,
+    /// Makes the raster core's pipelines and draws the view tiers' tiles (S60).
+    pub(crate) raster: RasterWorker,
     /// The brush panel's pictures and the editor's preview strip (S46).
     pub(crate) brushes: BrushPictures,
     /// Writes the display cache (S54); dropping it writes what it was handed.
@@ -161,6 +164,10 @@ impl Runtime {
             return false;
         };
         let kept = self.palms.filter(input);
+        // S60: a hand arriving ends the work handed over while nothing touched, at once.
+        if self.touches.saw(&kept) {
+            self.raster.hand_arrived();
+        }
         let wanted = !kept.is_empty();
         for batch in &kept {
             self.clock.saw(batch);
@@ -190,11 +197,15 @@ impl Runtime {
 
     /// Runs one frame into the window. Returns whether another frame is wanted at once. A lost
     /// GPU device is made again first, or after a frame that failed for it (S49). While the GPU
-    /// is behind, the call does nothing and wants the next (S56, `pacing.rs`).
+    /// is behind, the call draws nothing and wants the next (S56, `pacing.rs`); while nothing
+    /// touches the screen it gives the work waiting what the GPU's queue has room for (S60).
     pub fn frame(&mut self) -> Result<bool, RuntimeError> {
         self.recover_if_lost()?;
-        if self.pacing.skips(&self.core, true) {
-            return Ok(true);
+        let drawing = self.screen.canvas().is_some_and(Canvas::drawing);
+        let resting = self.touches.resting(drawing);
+        if self.pacing.skips(&self.core, (true, resting)) {
+            let result = self.ahead().map(|()| true);
+            return self.after_frame(result);
         }
         let result = self.frame_once();
         self.core.frame_submitted();
@@ -273,9 +284,8 @@ impl Runtime {
     /// something moves (D44).
     pub(crate) fn update(&mut self, size: [u32; 2]) -> Result<(UiFrame, bool), RuntimeError> {
         // S53: this frame's budget for background work, corrected by the GPU's measured times;
-        // larger while nothing touches the screen (S54).
-        let drawing = self.screen.canvas().is_some_and(Canvas::drawing);
-        let idle = self.touches.idle(&self.pending, drawing);
+        // while nothing touches the screen, what the GPU's queue has room for (S60).
+        let idle = self.idle();
         self.core.begin_frame_idle(idle);
         self.receive()?;
         let batches = std::mem::take(&mut self.pending);
@@ -319,11 +329,17 @@ impl Runtime {
             self.storage.submit(Job::SaveEditor(Box::new(state)));
         }
         self.keep_within_budget()?;
+        self.answer_raster();
         self.evaluate_screen(area)?;
+        self.core.end_background();
+        self.send_raster(idle);
         let changed = self.screen() != shown;
         // The view tiers or the canvas itself still fill in (S32, S49), or its residuals (S54).
-        let viewing = (self.screen.canvas())
-            .is_some_and(|canvas| canvas.view_pending() || canvas.filling() || canvas.warming());
+        let viewing = (self.screen.canvas()).is_some_and(|canvas| {
+            let waits = canvas.view_pending() || canvas.filling() || canvas.warming();
+            // S60: until the atlas of the next tier is asked for, made ahead once nothing touches.
+            waits || canvas.view().wants_spare()
+        });
         let shows = changed || arrived || viewing;
         let again = pass.repaint || shows || self.storing() || self.shell.animating();
         Ok((pass.frame, again))

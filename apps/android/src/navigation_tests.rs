@@ -40,6 +40,7 @@ fn frame(start: i64, work: i64, waiting: bool, entries: u64) -> Frame {
             spent: 2e6,
             ratio: 0.5,
             measured: Some(1.5e6),
+            total: 0.0,
             pieces: 3,
             first: 1e6,
         },

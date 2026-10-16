@@ -23,7 +23,10 @@ impl CanvasTarget {
             .scene
             .as_mut()
             .ok_or(RenderError::Invalid("no scene was built"))?;
-        let changed = cache.scene.retune(retune)?;
+        let scene = std::sync::Arc::get_mut(&mut cache.scene).ok_or(RenderError::Invalid(
+            "a scene the raster worker holds is not retuned",
+        ))?;
+        let changed = scene.retune(retune)?;
         let queue = &core.gpu.queue;
         for item in changed.items {
             let op = [cache.scene.items[item].op()];
@@ -38,7 +41,7 @@ impl CanvasTarget {
             queue.write_buffer(&cache.ops.masks, at, &encode(&cache.scene.masks[words]));
         }
         let (smudges, filters) = (&mut self.smudges, &mut self.filters);
-        let scene = (&cache.scene, &cache.ops);
+        let scene = (&*cache.scene, &cache.ops);
         smudges.prepare(core, scene, artwork, (filters, &Wanted::Near(&[])))?;
         cache.artwork = artwork.clone();
         cache.spread = retune.spread;

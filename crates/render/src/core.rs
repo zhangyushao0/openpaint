@@ -40,8 +40,10 @@ pub struct Core {
     /// Enlarges the gallery picture into a canvas target opening without a display cache
     /// (S54), made on first use.
     pub(crate) underlay: OnceLock<UnderlayPipeline>,
-    /// The raster core probe's pipelines (S57, the benchmark only), made on first use.
+    /// The raster core's pipelines (S57, S59), made once by the first that needs them (S60: the
+    /// runtime's raster worker as the device is made), the others waiting for it.
     pub(crate) raster: OnceLock<RasterPipelines>,
+    pub(crate) making: Mutex<()>,
     /// What the pixels it evaluates depend on, hashed (`renderer_identity`).
     identity: u64,
     /// The screen's frames the GPU has not finished (S56).
@@ -83,6 +85,7 @@ impl Core {
             pace,
             underlay: OnceLock::new(),
             raster: OnceLock::new(),
+            making: Mutex::new(()),
             identity: identity(gpu.display),
             frames: GpuFrames::default(),
             gpu,
@@ -186,16 +189,32 @@ impl Core {
     /// A frame of the screen begins (S53): the background work's budget is whole again, and the
     /// GPU's measured times since correct its estimates. The runtime calls this once a frame.
     pub fn begin_frame(&self) {
-        self.pace().begin(&self.gpu);
+        self.pace().begin(&self.gpu, None);
     }
 
-    /// As `begin_frame`, giving background work `IDLE_BACKGROUND_NS` of GPU time a frame from
-    /// this one on while nothing touches the screen (`idle`), else `BACKGROUND_NS` (S54), less
-    /// what earlier frames spent beyond theirs; both are the one `set_frame_budget` gave.
+    /// As `begin_frame` for a step of the frame loop (S60): while the screen is touched (not
+    /// `idle`) a frame drawn gives background work `BACKGROUND_NS`, less what earlier frames spent
+    /// beyond theirs; while nothing touches it, a step (a frame drawn or a call skipped while the
+    /// GPU is behind) gives what keeps the background work queued on the GPU within
+    /// `IDLE_BACKGROUND_NS` besides the piece it runs (all of it while at most that one is
+    /// queued); both are the one `set_frame_budget` gave.
     pub fn begin_frame_idle(&self, idle: bool) {
-        let mut pace = self.pace();
-        pace.aim(idle);
-        pace.begin(&self.gpu);
+        let queued = idle.then(|| {
+            let queued = self.background_queued();
+            if self.background_pieces() <= 1 {
+                0.0
+            } else {
+                queued
+            }
+        });
+        self.pace().begin(&self.gpu, queued);
+    }
+
+    /// The step's background work is all submitted (S60): its estimated GPU time not marked yet
+    /// counts as queued until the GPU has finished it.
+    pub fn end_background(&self) {
+        let given = self.pace().unmarked();
+        self.background_submitted(given);
     }
 
     /// What the frame before took for background work (S53).

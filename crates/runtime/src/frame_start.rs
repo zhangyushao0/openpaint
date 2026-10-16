@@ -20,6 +20,7 @@ use crate::host::version_line;
 use crate::normalise::Normaliser;
 use crate::pacing::Pacing;
 use crate::pictures::PictureWorker;
+use crate::raster::RasterWorker;
 use crate::recover::Recoveries;
 use crate::screen::Screen;
 use crate::seeds::Seeds;
@@ -105,6 +106,7 @@ impl Runtime {
             transfer: TransferWorker::start(shared.clone())?,
             fill: FillWorker::start(shared.clone())?,
             pictures: PictureWorker::start(shared.clone())?,
+            raster: RasterWorker::start(shared.clone())?,
             budget: Budget::of(&core, memory),
             core,
             shared,

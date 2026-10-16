@@ -108,6 +108,8 @@ impl Core {
     ) -> Result<f64, RenderError> {
         let timing = (clock.start(Group::default()))
             .ok_or(RenderError::Invalid("no free timestamp slot"))?;
+        let stamps = clock.stamps(timing);
+
         let mut encoder = self.gpu.device.create_command_encoder(&Default::default());
         for index in 0..PASSES {
             let ends = (index == 0, index + 1 == PASSES);
@@ -119,7 +121,7 @@ impl Core {
                     resolve_target: None,
                     ops: wgpu::Operations { load, store },
                 })],
-                timestamp_writes: clock.render_writes(timing, ends),
+                timestamp_writes: stamps.render_writes(ends),
                 ..Default::default()
             });
             pass.set_pipeline(pipeline);

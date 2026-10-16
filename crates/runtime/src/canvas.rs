@@ -52,8 +52,9 @@ pub(crate) struct Canvas {
     target: CanvasTarget,
     /// The view tiers shown instead of the target while the view magnifies it (S32).
     view: ViewCache,
-    /// The last view update left tiles to fill or a tier to start.
+    /// The last view update left tiles to fill or a tier to start; the view it had (S60).
     view_pending: bool,
+    shown: Option<ViewFrame>,
     /// False until the whole canvas has been evaluated once.
     evaluated: bool,
     /// The version shown before this frame's first change other than a stroke (undo, redo, a
@@ -104,6 +105,7 @@ impl Canvas {
             target: CanvasTarget::new(core, size)?,
             view: ViewCache::new(core),
             view_pending: false,
+            shown: None,
             evaluated: false,
             changed_from: None,
             leaving: Leaving::Staying,

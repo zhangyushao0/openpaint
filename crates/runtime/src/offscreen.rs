@@ -13,13 +13,17 @@ use crate::frame::{Runtime, screen_frame};
 impl Runtime {
     /// Runs one frame into an offscreen target of `size` pixels, for the harness, which never
     /// attaches a window. Returns whether another frame is wanted at once. A lost GPU device is
-    /// made again as for the window (S49).
+    /// made again as for the window (S49). As an offscreen frame waits for the GPU (it is read
+    /// back), it waits for the raster worker to have drawn the tiles it handed over (S60), so
+    /// the next frame shows them and scenarios and tests take the same frames on any machine.
     pub fn frame_offscreen(&mut self, size: [u32; 2]) -> Result<bool, RuntimeError> {
         self.recover_if_lost()?;
-        if self.pacing.skips(&self.core, false) {
-            return Ok(true);
+        if self.pacing.skips(&self.core, (false, false)) {
+            let result = self.ahead().map(|()| true);
+            return self.after_frame(result);
         }
         let result = self.offscreen_once(size);
+        self.raster.drain();
         self.after_frame(result)
     }
 

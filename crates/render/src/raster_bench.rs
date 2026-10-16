@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use openpaint_core::Artwork;
 
-use super::{Finish, RasterTargets};
+use super::{Finish, RasterTargets, SceneBuffers};
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::evaluator::WARM_ENOUGH;
@@ -78,32 +78,28 @@ struct Bench<'a> {
 
 impl Bench<'_> {
     /// One draw, timed by `clock` when given; its CPU times.
-    fn draw(&mut self, clock: Option<&mut GpuClock>) -> Result<[f64; 2], RenderError> {
+    fn draw(&mut self, mut clock: Option<&mut GpuClock>) -> Result<[f64; 2], RenderError> {
         let view = self.out.create_view(&Default::default());
         let finish = Finish {
             view: &view,
             format: FORMAT,
             at: [0, 0],
         };
-        let timing = match clock {
+        let stamps = match clock.as_deref_mut() {
             Some(clock) => {
                 let timing = clock.start(Group::default());
-                Some((
-                    clock,
-                    timing.ok_or(RenderError::Invalid("no free timestamp slot"))?,
-                ))
+                let timing = timing.ok_or(RenderError::Invalid("no free timestamp slot"))?;
+                Some(clock.stamps(timing))
             }
             None => None,
         };
         let core = self.core;
-        let scene = (&self.ops, 1);
+        let scene = SceneBuffers::of(&self.ops, 1);
         let paper = (self.output, [1.0; 4]);
-        let timed = timing.as_ref().map(|(clock, timing)| (&**clock, *timing));
-        let drawn = self
-            .targets
-            .draw(core, (scene, &self.plan), paper, &finish, timed)?;
-        if let Some((clock, timing)) = timing {
-            clock.finish(&core.gpu, timing);
+        let drawn =
+            (self.targets).draw(core, (&scene, &self.plan), paper, &finish, stamps.as_ref())?;
+        if let (Some(clock), Some(stamps)) = (clock, stamps) {
+            clock.finish(&core.gpu, stamps.timing);
         }
         Ok([drawn.upload_ns, drawn.encode_ns])
     }

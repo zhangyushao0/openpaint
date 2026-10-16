@@ -16,8 +16,8 @@ use openpaint_core::{
     StrokeTool,
 };
 use openpaint_render::{
-    BACKGROUND_NS, CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, RgbaImage,
-    ViewCache, ViewFrame, stroke_region,
+    BACKGROUND_NS, CanvasTarget, Core, FrameRequest, PixelRect, RasterDrawer, RegionEvaluator,
+    RgbaImage, ViewCache, ViewFrame, stroke_region,
 };
 
 const SIZE: [u32; 2] = [320, 200];
@@ -133,6 +133,11 @@ fn frame(
         cache
             .update(core, target, &request, (frame, now))
             .expect("view");
+        // The tiles handed to the raster worker (S60), drawn at once.
+        static DRAWER: OnceLock<Mutex<RasterDrawer>> = OnceLock::new();
+        let drawer = DRAWER.get_or_init(Mutex::default);
+        let mut drawer = drawer.lock().unwrap_or_else(PoisonError::into_inner);
+        drawer.serve(core, cache);
     }
     // What this frame took shows as the frame before the next one's.
     core.begin_frame();

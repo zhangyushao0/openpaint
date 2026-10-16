@@ -100,6 +100,7 @@ impl Runtime {
             canvas.rebuild(&self.core)?;
         }
         self.brushes.redo();
+        self.raster.warm();
         self.shell.display_reset();
         self.recoveries.at.push(Instant::now());
         log::info!(

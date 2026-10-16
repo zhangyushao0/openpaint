@@ -134,7 +134,7 @@ impl CanvasTarget {
         self.scene
             .as_ref()
             .filter(|cache| cache.artwork.same_version(artwork) && cache.active == place)
-            .map(|cache| (&cache.scene, &cache.ops))
+            .map(|cache| (&*cache.scene, &cache.ops))
     }
 
     /// The smudge arena and the in-progress smudge's residual, as the last evaluation left

@@ -16,10 +16,13 @@ const SLOTS: u32 = 16;
 /// Where each slot's two timestamps are resolved: the alignment resolving needs.
 const STRIDE: u64 = 256;
 
-/// A slot's state: free, its timestamps on their way back, or read back and waiting to be taken.
+/// A slot's state: free, held by an evaluation being encoded (S60: the raster worker's, while the
+/// frame loop starts others), its timestamps on their way back, or read back and waiting to be
+/// taken.
 const FREE: u8 = 0;
 const FLYING: u8 = 1;
 const MAPPED: u8 = 2;
+const HELD: u8 = 3;
 
 struct Slot {
     read: wgpu::Buffer,
@@ -39,6 +42,27 @@ pub(crate) struct GpuClock {
 /// One evaluation being measured: the slot its passes write to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Timing(u32);
+
+/// A raster region's timestamps (S57's probe, S60): the clock's query set and the slot.
+#[derive(Debug, Clone)]
+pub(crate) struct Stamps {
+    set: wgpu::QuerySet,
+    pub(crate) timing: Timing,
+}
+
+impl Stamps {
+    /// What a render pass writes: the start for the `first` pass, the end for the `last`.
+    pub(crate) fn render_writes(
+        &self,
+        (first, last): (bool, bool),
+    ) -> Option<wgpu::RenderPassTimestampWrites<'_>> {
+        (first || last).then_some(wgpu::RenderPassTimestampWrites {
+            query_set: &self.set,
+            beginning_of_pass_write_index: first.then_some(2 * self.timing.0),
+            end_of_pass_write_index: last.then_some(2 * self.timing.0 + 1),
+        })
+    }
+}
 
 impl GpuClock {
     /// A clock on `gpu`; `None` when its device has no timestamp queries.
@@ -88,7 +112,13 @@ impl GpuClock {
             .iter()
             .position(|slot| slot.state.load(Ordering::Acquire) == FREE)?;
         self.slots[at].group = group;
+        self.slots[at].state.store(HELD, Ordering::Release);
         Some(Timing(at as u32))
+    }
+
+    /// An evaluation started is not submitted after all: its slot is free again.
+    pub(crate) fn abandon(&mut self, Timing(at): Timing) {
+        self.slots[at as usize].state.store(FREE, Ordering::Release);
     }
 
     /// What a run's pass of `timing` writes: its start for the `first` run, its end always.
@@ -104,18 +134,13 @@ impl GpuClock {
         }
     }
 
-    /// As `writes`, for a render pass (S57's raster probe): the start for the `first` pass, the
-    /// end for the `last`.
-    pub(crate) fn render_writes(
-        &self,
-        timing: Timing,
-        (first, last): (bool, bool),
-    ) -> Option<wgpu::RenderPassTimestampWrites<'_>> {
-        (first || last).then_some(wgpu::RenderPassTimestampWrites {
-            query_set: &self.set,
-            beginning_of_pass_write_index: first.then_some(2 * timing.0),
-            end_of_pass_write_index: last.then_some(2 * timing.0 + 1),
-        })
+    /// The timestamps of `timing` as a region of the raster core writes them, held apart from the
+    /// clock (S60: a worker encodes the region while the frame loop uses the clock).
+    pub(crate) fn stamps(&self, timing: Timing) -> Stamps {
+        Stamps {
+            set: self.set.clone(),
+            timing,
+        }
     }
 
     /// After the evaluation's last run: its two timestamps resolved and copied out, to be read

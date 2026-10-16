@@ -5,7 +5,7 @@
 use super::{Finish, RasterTargets};
 use crate::core::Core;
 use crate::error::RenderError;
-use crate::gpu_clock::{GpuClock, Timing};
+use crate::gpu_clock::Stamps;
 use crate::output::Output;
 use crate::raster_gpu::RasterPipelines;
 use crate::raster_plan::{Draw, Instance, Pass, RasterPlan, Scratch};
@@ -69,20 +69,20 @@ impl RasterTargets {
     }
 
     /// `plan`'s passes on paper `background`, then its finish into `finish` from instance
-    /// `finished`, timed from the first pass's start to the finish's end by `timing`.
+    /// `finished`, timed from the first pass's start to the finish's end by `stamps`.
     pub(super) fn encode(
         &mut self,
         core: &Core,
         pipelines: &RasterPipelines,
         (plan, background): (&RasterPlan, [f32; 4]),
         (finish, finished): (&Finish<'_>, u32),
-        timing: Option<(&GpuClock, Timing)>,
+        stamps: Option<&Stamps>,
     ) -> Result<wgpu::CommandBuffer, RenderError> {
         let finishing = pipelines.finish(finish.format).ok_or(RenderError::Invalid(
             "the raster core does not finish into this format",
         ))?;
         self.reads(core, pipelines);
-        let writes = |ends| timing.and_then(|(clock, timing)| clock.render_writes(timing, ends));
+        let writes = |ends| stamps.and_then(|stamps| stamps.render_writes(ends));
         let mut encoder = core.gpu.device.create_command_encoder(&Default::default());
         for (index, pass) in plan.passes.iter().enumerate() {
             let timestamps = writes((index == 0, false));

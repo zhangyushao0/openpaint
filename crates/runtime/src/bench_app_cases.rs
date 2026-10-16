@@ -150,13 +150,7 @@ impl Runtime {
     /// One pinch about the screen's middle to `zoom` screen pixels per canvas pixel, then frames
     /// until sharp; the pinch's and the settling's lines.
     fn bench_zoom_to(&mut self, zoom: f32) -> Result<(String, String), RuntimeError> {
-        let ratio = zoom / scale(&self.bench_view()?);
-        let at = self.bench_middle()?;
-        let half = if ratio >= 1.0 { 150.0 } else { 150.0 / ratio };
-        let around = |half: f32| [[at[0] - half, at[1]], [at[0] + half, at[1]]];
-        let mut watch = Watch::paced(self);
-        self.bench_fingers(&mut watch, around(half), around(half * ratio), PINCH_MS)?;
-        let pinch = watch.line(self);
+        let pinch = self.bench_pinch(zoom)?;
         let mut watch = Watch::paced(self);
         let sharp = self.bench_until(&mut watch, LIMIT, Self::bench_settled)?;
         let shown = scale(&self.bench_view()?);
@@ -171,8 +165,19 @@ impl Runtime {
         ))
     }
 
+    /// One pinch about the screen's middle to `zoom` screen pixels per canvas pixel; its line.
+    pub(super) fn bench_pinch(&mut self, zoom: f32) -> Result<String, RuntimeError> {
+        let ratio = zoom / scale(&self.bench_view()?);
+        let at = self.bench_middle()?;
+        let half = if ratio >= 1.0 { 150.0 } else { 150.0 / ratio };
+        let around = |half: f32| [[at[0] - half, at[1]], [at[0] + half, at[1]]];
+        let mut watch = Watch::paced(self);
+        self.bench_fingers(&mut watch, around(half), around(half * ratio), PINCH_MS)?;
+        Ok(watch.line(self))
+    }
+
     /// A two-finger pan bringing canvas pixel `place` to the screen's middle.
-    fn bench_centre(&mut self, place: [f32; 2]) -> Result<(), RuntimeError> {
+    pub(super) fn bench_centre(&mut self, place: [f32; 2]) -> Result<(), RuntimeError> {
         let frame = self.bench_view()?;
         let [x, y] = to_screen(&frame, place);
         let at = self.bench_middle()?;

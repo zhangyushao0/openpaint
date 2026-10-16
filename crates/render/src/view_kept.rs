@@ -23,9 +23,12 @@ impl ViewCache {
         }
     }
 
-    /// Lets the least recently shown tier go but the one shown: a kept one, else the previous.
-    /// Returns its bytes, 0 when only the tier shown is left.
+    /// Lets the atlas made ahead go (S60), else the least recently shown tier but the one shown: a
+    /// kept one, else the previous. Returns its bytes, 0 when only the tier shown is left.
     pub(crate) fn let_go_oldest(&mut self) -> u64 {
+        if let Some(spare) = self.spare.take() {
+            return u64::from(spare.width()) * u64::from(spare.height()) * 4;
+        }
         let oldest = (self.kept.iter().enumerate())
             .min_by(|a, b| a.1.shown_at.total_cmp(&b.1.shown_at))
             .map(|(at, _)| at);
@@ -91,6 +94,8 @@ impl ViewCache {
         self.current = None;
         self.previous = None;
         self.kept.clear();
+        self.spare = None;
+        self.wanting = true;
         bytes
     }
 
