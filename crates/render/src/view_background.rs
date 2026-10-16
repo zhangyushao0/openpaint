@@ -16,6 +16,7 @@ use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
 use crate::protocol::TileRecord;
 use crate::scene::Fresh;
+use crate::smudge::reached;
 use crate::view_atlas::{Tier, TileFill};
 use crate::view_needed::Needed;
 use crate::view_tier::ViewWork;
@@ -69,7 +70,7 @@ pub(crate) fn fill(
         }
         // S54: a block reading a residual the arena lacks waits while it is evaluated.
         let block: Vec<TileRecord> = fill.left.iter().map(|(tile, _)| *tile).collect();
-        if !canvas.residuals_ready(core, request, (&block, tier.scale()))? {
+        if !canvas.residuals_ready(core, request, &reached(&block, tier.scale()))? {
             tier.fill = Some(fill);
             break;
         }

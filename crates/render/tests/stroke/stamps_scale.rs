@@ -20,7 +20,8 @@ use crate::raster::assert_near;
 use crate::scale::{export, whole};
 use crate::stamps::{brushes, stamped};
 use crate::taper_tilt::drawn_with_a_blunt_end;
-use crate::view::{drawn_while_zoomed, tiles_are_the_export};
+use crate::tiers::tiles_are_the_export;
+use crate::view::drawn_while_zoomed;
 
 const GRAINY: &[u8] = include_bytes!("../../assets/shape-grainy.bin");
 

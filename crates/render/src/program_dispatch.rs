@@ -11,7 +11,7 @@ use crate::bounded::{FRAME_DISPATCHES, runs, tile_work};
 use crate::error::RenderError;
 use crate::gpu::Gpu;
 use crate::protocol::{MOVE_DEPTH, Params, encode};
-use crate::readback::wait_for;
+use crate::readback::wait;
 
 /// The most work one run of a worker's evaluation takes (`pace_dispatches`, S53): op entries
 /// about what the screen's frame gives background work on the tablet.
@@ -77,13 +77,13 @@ impl EvaluatePipeline {
                 pass.set_bind_group(0, group, &[]);
                 pass.dispatch_workgroups(groups.row, groups.rows, 1);
             }
-            let submitted = gpu.submit([encoder.finish()]);
+            gpu.submit([encoder.finish()]);
             self.runs.fetch_add(1, Ordering::Relaxed);
             self.tally.dispatched(run.iter().map(tile_work).sum());
             // A worker's run, so the next waits for the screen's frames between them
             // (`pace_dispatches`, S53).
             if bindings.paced {
-                wait_for(gpu, submitted, "a worker's evaluation")?;
+                wait(gpu, "a worker's evaluation")?;
             }
         }
         Ok(())

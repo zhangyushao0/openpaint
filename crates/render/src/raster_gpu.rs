@@ -1,10 +1,11 @@
 //! The raster core's pipelines (S57's probe, product code since S59; `raster.rs`): its shader
 //! (raster.wgsl, raster_stamp.wgsl, raster_composite.wgsl, then the evaluator's own helpers,
-//! spans, stamps, textures, deposits and fill edges), one pipeline per way a stroke lays into the
-//! atlas (the blend unit keeping the largest or summing), per paint blend for a stroke's tiles
-//! and a fill onto the layer, one for patches, one per way a layer ends (`EndBlend`), and the
-//! finish per destination format. Each pipeline's entry points reach only their own kind's code,
-//! so none pays for the others' registers (D82).
+//! spans, stamps, textures, deposits and fill edges, and the smudge engine's residual reading),
+//! one pipeline per way a stroke lays into the atlas (the blend unit keeping the largest or
+//! summing), per paint blend for a stroke's tiles and a fill onto the layer, one for patches, one
+//! for smudges (S61), one per way a layer ends (`EndBlend`), and the finish per destination
+//! format. Each pipeline's entry points reach only their own kind's code, so none pays for the
+//! others' registers (D82).
 
 use crate::error::RenderError;
 use crate::gpu::{Gpu, TEN_BITS};
@@ -24,6 +25,7 @@ const STAMP: &str = include_str!("shaders/stamp.wgsl");
 const STAMP_TEXTURE: &str = include_str!("shaders/stamp_texture.wgsl");
 const DEPOSIT: &str = include_str!("shaders/deposit.wgsl");
 const FILL_EDGE: &str = include_str!("shaders/fill_edge.wgsl");
+const SMUDGE: &str = include_str!("shaders/smudge_composite.wgsl");
 
 /// The helpers of evaluate.wgsl the raster core's stages call, taken from it whole, so they stay
 /// its.
@@ -48,7 +50,8 @@ const HELPERS: [&str; 18] = [
     "fn coded(",
 ];
 
-/// The raster core's WGSL: the protocol prelude, its own stages, then the evaluator's functions.
+/// The raster core's WGSL: the protocol prelude, its own stages, then the evaluator's functions
+/// and the smudge engine's.
 pub(crate) fn raster_source() -> Result<String, RenderError> {
     let mut source = prelude() + RASTER + RASTER_STAMP + RASTER_COMPOSITE;
     for head in HELPERS {
@@ -56,7 +59,7 @@ pub(crate) fn raster_source() -> Result<String, RenderError> {
             "evaluate.wgsl lacks a helper the raster core takes",
         ))?);
     }
-    Ok(source + SEGMENT + STAMP + STAMP_TEXTURE + DEPOSIT + FILL_EDGE)
+    Ok(source + SEGMENT + STAMP + STAMP_TEXTURE + DEPOSIT + FILL_EDGE + SMUDGE)
 }
 
 /// The declaration of `source` starting a line with `head`: a function through its closing
@@ -95,6 +98,8 @@ pub(crate) struct RasterPipelines {
     strokes: [wgpu::RenderPipeline; 3],
     fills: [wgpu::RenderPipeline; 3],
     patch: wgpu::RenderPipeline,
+    /// A smudge onto the layer or its mask from their copy, written whole.
+    smudge: wgpu::RenderPipeline,
     /// By `EndBlend`, in its order.
     ends: [wgpu::RenderPipeline; 7],
     /// The finish into 8 bits, and into the display's format where it is ten bits.
@@ -141,6 +146,11 @@ impl RasterPipelines {
             &both,
             blended(layer, Some(painted(Blend::Over))),
         );
+        let smudge = make(
+            ["smudge_vertex", "smudge_fragment"],
+            &both,
+            blended(layer, None),
+        );
         let ends = ENDS.map(|end| {
             let (fragment, blend) = ended(end);
             make(["rect_vertex", fragment], &both, blended(layer, blend))
@@ -154,8 +164,9 @@ impl RasterPipelines {
             strokes,
             fills,
             patch,
+            smudge,
             ends,
-            count: 5 + 3 + 3 + 1 + 7 + 1 + usize::from(finish_ten.is_some()),
+            count: 5 + 3 + 3 + 1 + 1 + 7 + 1 + usize::from(finish_ten.is_some()),
             finish,
             finish_ten,
             atlas,
@@ -173,6 +184,7 @@ impl RasterPipelines {
             DrawKind::Stroke(blend) => &self.strokes[blend as usize],
             DrawKind::Fill(blend) => &self.fills[blend as usize],
             DrawKind::Patch => &self.patch,
+            DrawKind::Smudge => &self.smudge,
             DrawKind::End(end) => &self.ends[end as usize],
         }
     }

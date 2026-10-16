@@ -16,10 +16,11 @@ use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
 use crate::output::Output;
 use crate::raster::SceneBuffers;
+use crate::smudge::around_output;
 use crate::view_atlas::Tier;
 use crate::view_background::next_missing;
 use crate::view_needed::Needed;
-use crate::view_raster::{Issued, RasterTier, paper};
+use crate::view_raster::{Issued, RasterTier, paper, residuals_near};
 use crate::view_raster_jobs::{RasterAnswer, RasterDone, RasterJob, RasterOrder};
 use crate::view_tier::{ViewCache, ViewFrame, ViewWork};
 use crate::view_tiles::{TIER_TILE, TileMap};
@@ -33,45 +34,43 @@ pub(crate) const AHEAD: usize = 8;
 const FIRST: f64 = 6_000_000.0;
 
 /// Hands the worker the tiles `needed` that `tier` lacks, or holds as the evaluator drew them, as
-/// many as may wait with it (`AHEAD`; while the screen is touched, within the frame's share).
-/// Nothing is handed over while a stroke is drawn.
+/// many as may wait with it (`AHEAD`; while the screen is touched, within the frame's share),
+/// each with the smudge residuals it reads present (S61: a tile reading one still being
+/// evaluated waits). Nothing is handed over while a stroke is drawn.
 ///
 /// # Errors
-/// As `Output::at`; a slot or the atlas that cannot be had.
+/// As `Output::at`; a slot or the atlas that cannot be had; as the residuals' evaluation.
 pub(crate) fn fill_raster(
     core: &Core,
     (tier, needed): (&mut Tier, &Needed),
-    (canvas, request): (&CanvasTarget, &FrameRequest<'_>),
+    (canvas, request): (&mut CanvasTarget, &FrameRequest<'_>),
     raster: &mut RasterTier,
     now: f64,
 ) -> Result<(), RenderError> {
-    let Some((scene, ops, serial)) = canvas.scene_serial(request.artwork, request.active) else {
-        return Ok(());
-    };
     let Some((_, Ok(routed))) = &raster.scene else {
         return Ok(());
     };
-    if request.active.is_some() {
+    let routed = Arc::clone(routed);
+    if request.active.is_some() || canvas.scene_serial(request.artwork, None).is_none() {
         return Ok(());
     }
-    let routed = Arc::clone(routed);
     // An evaluation of a tile begun before the scene came here is left.
     tier.fill = None;
-    let idle = core.pace().idle();
+    let taken = take_tiles(core, (tier, needed), (canvas, request), raster)?;
+    if taken.is_empty() {
+        return Ok(());
+    }
     let scale = tier.scale();
-    while raster.issued.len() < AHEAD {
-        let drawing = raster.drawing(scale);
-        let Some(tile) = next_tile(core, tier, needed, &drawing)? else {
-            break;
-        };
-        let Some(slot) = tier.map.slot(tile) else {
-            break;
-        };
-        // While the screen is touched, the frame's share: tiles estimated at what the last cost.
-        if !idle && !core.pace().promise(raster.expected()) {
-            break;
-        }
-        let rect = tier.map.tile_rect(tile);
+    let near: Vec<PixelRect> = (taken.iter())
+        .map(|(_, _, rect)| around_output(rect, scale))
+        .collect();
+    let Some(held) = residuals_near(core, (canvas, request), &near)? else {
+        return Ok(());
+    };
+    let Some((scene, ops, serial)) = canvas.scene_serial(request.artwork, None) else {
+        return Ok(());
+    };
+    for (tile, slot, rect) in taken {
         let size = [0, 1].map(|axis| (rect.max[axis] - rect.min[axis]).max(0) as u32);
         let id = raster.next;
         raster.next += 1;
@@ -79,7 +78,7 @@ pub(crate) fn fill_raster(
             id,
             scene: Arc::clone(scene),
             raster: Arc::clone(&routed),
-            buffers: SceneBuffers::of(ops, serial),
+            buffers: SceneBuffers::of(ops, serial, held.clone()),
             output: Output::at(scale, rect.min.map(|at| at.max(0) as u32))?,
             size,
             paper: paper(request),
@@ -100,6 +99,40 @@ pub(crate) fn fill_raster(
         raster.used_at = now;
     }
     Ok(())
+}
+
+/// The tiles to hand over now, with their slots and output pixels: the next ones while the worker
+/// has room for them and, while the screen is touched, the frame's share (each estimated at what
+/// the last cost), until one reads a residual still being evaluated (a share of it is, now).
+fn take_tiles(
+    core: &Core,
+    (tier, needed): (&mut Tier, &Needed),
+    (canvas, request): (&mut CanvasTarget, &FrameRequest<'_>),
+    raster: &RasterTier,
+) -> Result<Vec<([u32; 2], u32, PixelRect)>, RenderError> {
+    let idle = core.pace().idle();
+    let scale = tier.scale();
+    let mut taken: Vec<([u32; 2], u32, PixelRect)> = Vec::new();
+    while raster.issued.len() + taken.len() < AHEAD {
+        let mut drawing = raster.drawing(scale);
+        drawing.extend(taken.iter().map(|(tile, _, _)| *tile));
+        let Some(tile) = next_tile(core, tier, needed, &drawing)? else {
+            break;
+        };
+        let Some(slot) = tier.map.slot(tile) else {
+            break;
+        };
+        let rect = tier.map.tile_rect(tile);
+        let near = [around_output(&rect, scale)];
+        if !canvas.residuals_ready(core, request, &near)? {
+            break;
+        }
+        if !idle && !core.pace().promise(raster.expected()) {
+            break;
+        }
+        taken.push((tile, slot, rect));
+    }
+    Ok(taken)
 }
 
 /// The next tile to hand over: the first needed one not ready (given a slot), else the first

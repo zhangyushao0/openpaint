@@ -101,11 +101,12 @@ impl CanvasTarget {
         Ok(())
     }
 
-    /// Whether every residual `tiles` (of an output at `scale`) read is in the arena; when one is
-    /// lacking, goes on evaluating a residual within what is left of the frame budget instead
-    /// (while the canvas warms, the one warming takes, so the two never start each other's over),
-    /// and the tiles wait (S54: a view tier over a canvas shown from its display cache fills
-    /// without a frame evaluating every residual it reads at once).
+    /// Whether every residual read near the canvas pixels `near` (what a view tier's tiles read,
+    /// `reached`, `around_output`) is in the arena; when one is lacking, goes on evaluating a
+    /// residual within what is left of the frame budget instead (while the canvas warms, the one
+    /// warming takes, so the two never start each other's over), and the tiles wait (S54: a view
+    /// tier over a canvas shown from its display cache fills without a frame evaluating every
+    /// residual it reads at once).
     ///
     /// # Errors
     /// As the evaluation's.
@@ -113,14 +114,13 @@ impl CanvasTarget {
         &mut self,
         core: &Core,
         request: &FrameRequest<'_>,
-        (tiles, scale): (&[TileRecord], u32),
+        near: &[PixelRect],
     ) -> Result<bool, RenderError> {
-        let near = reached(tiles, scale);
         let cache = self
             .scene
             .as_ref()
             .ok_or(RenderError::Invalid("no scene was built"))?;
-        let wanted = Wanted::Near(&near);
+        let wanted = Wanted::Near(near);
         let scene = (&*cache.scene, request.artwork);
         let filters = (&mut self.filters, &wanted);
         if self.smudges.lacking(core, scene, filters).is_none() {
@@ -128,7 +128,7 @@ impl CanvasTarget {
         }
         let whole = [PixelRect::full(self.size())];
         if self.warming.is_none() || self.derive_lacking(core, request, &whole)?.is_none() {
-            self.derive_lacking(core, request, &near)?;
+            self.derive_lacking(core, request, near)?;
         }
         Ok(false)
     }

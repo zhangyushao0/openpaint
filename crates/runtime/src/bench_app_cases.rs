@@ -22,6 +22,9 @@ const PINCH_MS: i64 = 480;
 const STEP_MS: i64 = 8;
 /// The scales the zoom goes through, screen pixels per canvas pixel: in, then back.
 const ZOOMS: [f32; 5] = [2.0, 4.0, 8.0, 4.0, 2.0];
+/// Screen pixels the fingers of a centring pan or a pinch go up before they go where it takes
+/// them: far past the 8 points a finger may drift and still tap.
+const DETOUR: f32 = 200.0;
 
 impl Runtime {
     /// The open artwork's project and a copy of it; `NotNow` without one from the library.
@@ -40,14 +43,15 @@ impl Runtime {
     ) -> Result<(), RuntimeError> {
         let (project, artwork) = self.bench_artwork()?;
         let mut watch = Watch::paced(self);
-        // A cache being written lands first, so `open` finds it.
-        self.bench_until(&mut watch, LIMIT, |runtime| {
-            runtime.bench_settled() && !runtime.cache.busy()
-        })?;
+        self.bench_until(&mut watch, LIMIT, Self::bench_settled)?;
+        self.bench_leave(&mut watch)?;
+        // Leaving may hand the cache worker the canvas to write (S61: a delete asked for before
+        // the leave could run before that write, and `open-cold` then found a cache): the delete
+        // goes after it, and the artwork opens once the worker served both.
         if cold {
             self.cache.submit(CacheJob::Delete(project));
         }
-        self.bench_leave(&mut watch)?;
+        self.bench_until(&mut watch, LIMIT, |runtime| !runtime.cache.busy())?;
         lines.push(format!(
             "left for the gallery: {}; the display cache {}",
             watch.line(self),
@@ -137,7 +141,7 @@ impl Runtime {
             let at = self.bench_middle()?;
             let from = [[at[0] - 150.0, at[1]], [at[0] + 150.0, at[1]]];
             let to = from.map(|p| [p[0] + by[0], p[1] + by[1]]);
-            self.bench_fingers(&mut watch, from, to, 500)?;
+            self.bench_fingers(&mut watch, &[from, to], 500)?;
             k += 1;
         }
         lines.push(format!("{k} pans at 4x: {}", watch.line(self)));
@@ -172,7 +176,8 @@ impl Runtime {
         let half = if ratio >= 1.0 { 150.0 } else { 150.0 / ratio };
         let around = |half: f32| [[at[0] - half, at[1]], [at[0] + half, at[1]]];
         let mut watch = Watch::paced(self);
-        self.bench_fingers(&mut watch, around(half), around(half * ratio), PINCH_MS)?;
+        let path = untapped(around(half), around(half * ratio));
+        self.bench_fingers(&mut watch, &path, PINCH_MS)?;
         Ok(watch.line(self))
     }
 
@@ -185,7 +190,7 @@ impl Runtime {
         let from = [[at[0] - 150.0, at[1]], [at[0] + 150.0, at[1]]];
         let to = from.map(|p| [p[0] + by[0], p[1] + by[1]]);
         let mut watch = Watch::paced(self);
-        self.bench_fingers(&mut watch, from, to, 300)?;
+        self.bench_fingers(&mut watch, &untapped(from, to), 300)?;
         self.bench_until(&mut watch, LIMIT, Self::bench_settled)?;
         Ok(())
     }
@@ -205,19 +210,22 @@ impl Runtime {
         Ok([x as f32 + w as f32 / 2.0, y as f32 + h as f32 / 2.0])
     }
 
-    /// Two fingers down at `from`, moved straight to `to` over `ms` of the input clock, a batch
-    /// each drawn frame, then lifted.
+    /// Two fingers down at the first places of `path`, moved straight from each to the next over
+    /// `ms` of the input clock in all, a batch each drawn frame, then lifted.
     pub(crate) fn bench_fingers(
         &mut self,
         watch: &mut Watch,
-        from: [[f32; 2]; 2],
-        to: [[f32; 2]; 2],
+        path: &[[[f32; 2]; 2]],
         ms: i64,
     ) -> Result<(), RuntimeError> {
-        let steps = (ms / STEP_MS).max(1);
+        let legs = path.len().saturating_sub(1).max(1);
+        let steps = (ms / STEP_MS).max(legs as i64);
         let start = self.clock.now_ms() + 50;
         let at = |k: i64| -> Vec<[f32; 2]> {
-            let t = k as f32 / steps as f32;
+            let along = k as f32 / steps as f32 * legs as f32;
+            let leg = (along as usize).min(legs - 1);
+            let t = along - leg as f32;
+            let (from, to) = (path[leg], path[(leg + 1).min(path.len() - 1)]);
             (0..2)
                 .map(|f| [0, 1].map(|axis| from[f][axis] + (to[f][axis] - from[f][axis]) * t))
                 .collect()
@@ -285,6 +293,13 @@ pub(crate) fn batch(
         buttons: Buttons::default(),
         pointers,
     }
+}
+
+/// Two fingers from `from` to `to` by way of `DETOUR` up (S61): a pan or pinch whose fingers end
+/// near where they began (a place already in the middle, a zoom already reached) was a two-finger
+/// tap, which undoes.
+fn untapped(from: [[f32; 2]; 2], to: [[f32; 2]; 2]) -> [[[f32; 2]; 2]; 3] {
+    [from, from.map(|p| [p[0], p[1] - DETOUR]), to]
 }
 
 /// Screen pixels per canvas pixel of the view.

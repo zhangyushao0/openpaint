@@ -314,13 +314,17 @@ mod budget;
 
 #[path = "engine_needs.rs"]
 mod needs;
-pub(crate) use needs::{Wanted, reached};
+pub(crate) use needs::{Wanted, around_output, reached};
 
 #[path = "engine_prepare.rs"]
 mod prepare;
 
 #[path = "engine_derive.rs"]
 mod derive;
+
+#[path = "engine_held.rs"]
+mod held;
+pub(crate) use held::Held;
 
 /// The largest buffer the device binds, in bytes.
 fn binding_limit(core: &Core) -> u64 {

@@ -150,6 +150,18 @@ pub(crate) fn reached(tiles: &[TileRecord], scale: u32) -> Vec<PixelRect> {
     rects
 }
 
+/// The canvas pixels a raster region of an output at `scale` reads (its output pixels `rect`):
+/// those its pixels' centres lie in, widened by one for a bilinear read (S61).
+pub(crate) fn around_output(rect: &PixelRect, scale: u32) -> PixelRect {
+    let scale = i32::try_from(scale.max(1)).unwrap_or(1);
+    PixelRect {
+        min: rect.min.map(|at| at.div_euclid(scale) - 1),
+        max: rect
+            .max
+            .map(|at| at.saturating_add(scale - 1).div_euclid(scale) + 1),
+    }
+}
+
 /// What `wanted` needs of each of `scene`'s smudges, before what residuals evaluated anew read.
 pub(crate) fn needs(scene: &Scene, wanted: &Wanted<'_>) -> Vec<Need> {
     let item_need = |item: &SmudgeItem| match wanted {

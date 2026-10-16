@@ -3,7 +3,8 @@
 // the evaluator's paint (`stroke_paint`: colour, opacity, grain, clip, density to coverage
 // through the paper), one quad per tile its spans reach, combined by the paint op's blend in the
 // blend unit; a fill paints its colour by its edge (`fill_coverage`), a patch is sampled through
-// its placement (`patch_sample`), each over the pixels its bounds reach. A layer's end shows it
+// its placement (`patch_sample`), each over the pixels its bounds reach; a smudge writes the
+// layer's copy moved by its residual (`smudge_applied`, S61). A layer's end shows it
 // through its mask (`masked`) at its opacity and lays it onto the canvas or into its chain by its
 // mode: the blend unit's equations where they are the evaluator's (`composite`, `clipped`; the
 // canvas is opaque), else written whole from a copy of what lies under it (Overlay). The finish
@@ -51,18 +52,59 @@ struct RectOut {
     @location(0) @interpolate(flat) op: u32,
 }
 
-// The rectangle `b` (region pixels, its corners) drawn for op `a.x`.
+// Corner `corner` of the rectangle `b` (region pixels, its corners).
+fn rect_corner(corner: u32, b: vec4<i32>) -> vec4<f32> {
+    let side = corner_side(corner) * 0.5 + vec2<f32>(0.5);
+    return in_region(vec2<f32>(b.xy) + side * vec2<f32>(b.zw - b.xy));
+}
+
+// The rectangle `b` drawn for op `a.x`.
 @vertex
 fn rect_vertex(
     @builtin(vertex_index) corner: u32,
     @location(0) a: vec4<u32>,
     @location(1) b: vec4<i32>,
 ) -> RectOut {
-    let side = corner_side(corner) * 0.5 + vec2<f32>(0.5);
     var out: RectOut;
-    out.position = in_region(vec2<f32>(b.xy) + side * vec2<f32>(b.zw - b.xy));
+    out.position = rect_corner(corner, b);
     out.op = a.x;
     return out;
+}
+
+struct SmudgeOut {
+    @builtin(position) position: vec4<f32>,
+    @location(0) @interpolate(flat) op: u32,
+    @location(1) @interpolate(flat) base: u32,
+}
+
+// The rectangle `b` a smudge (op `a.x`, its residual's block from word `a.y` of the arena) may
+// change.
+@vertex
+fn smudge_vertex(
+    @builtin(vertex_index) corner: u32,
+    @location(0) a: vec4<u32>,
+    @location(1) b: vec4<i32>,
+) -> SmudgeOut {
+    var out: SmudgeOut;
+    out.position = rect_corner(corner, b);
+    out.op = a.x;
+    out.base = a.y;
+    return out;
+}
+
+// The layer (or mask) after the smudge: its copy (`source`) moved by the smudge's residual at
+// the output pixel's centre where the smudge's clip lets it change the canvas pixel there, else
+// the copy as it is; written whole.
+@fragment
+fn smudge_fragment(in: SmudgeOut) -> @location(0) vec4<f32> {
+    let pixel = vec2<i32>(floor(in.position.xy));
+    let before = textureLoad(source, pixel, 0);
+    let centre = centre_of(pixel);
+    if clip(vec2<u32>(floor(centre)), in.op) == 0.0 {
+        return before;
+    }
+    let locked = word(in.op, SMUDGE_LOCKED) != 0.0;
+    return smudge_applied(before, residual_at(false, in.base, centre), locked);
 }
 
 // A fill's colour at the share of the pixel its edge covers (or its mask bit, hard).

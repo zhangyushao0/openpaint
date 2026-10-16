@@ -1,7 +1,8 @@
 //! The raster core probe's benchmark (S57, `openpaint_render::RasterTimed`): S55's brush scenes
 //! (16 strokes of a built-in at its first size, two of Opaque Paint at 400 px) and S48's pile
 //! (300 strokes, 60 of each of Ink Pen, Textured Round, Opaque Paint, Speckle and Flat in turn,
-//! the path `cargo device-input pen-many` lays, turned and moved per stroke) in the middle of a
+//! the path `cargo device-input pen-many` lays, turned and moved per stroke; `pile-smudged` with
+//! 16 smudges over it, S61) in the middle of a
 //! 2880 x 1800 canvas, each over a full screen of 2880 x 1800 output pixels at 1x, 4x and 8x
 //! centred on that middle: the evaluator's GPU time and the probe's (medians of 9 after a warm-up),
 //! their ratio, what the probe drew (strokes, batches, passes, instances, its CPU's part) and how
@@ -10,7 +11,7 @@
 //! machine by `openpaint-harness bench raster...`.
 
 use openpaint_app::BrushLibrary;
-use openpaint_core::{Artwork, CanvasSize};
+use openpaint_core::{Artwork, CanvasSize, StrokeTool};
 use openpaint_render::{Core, ImageDifference, RasterTimed, RenderError, Timed, image_difference};
 
 use crate::bench_scenes::{drawn, pile_path, style_of, wave};
@@ -34,7 +35,7 @@ const PILE: [&str; 5] = [
 
 type Make = fn(&BrushLibrary) -> Result<Artwork, RuntimeError>;
 
-const SCENES: [(&str, Make); 9] = [
+const SCENES: [(&str, Make); 10] = [
     ("ink-pen", |l| brushed(l, "ink-pen", None, 16)),
     ("soft-brush", |l| brushed(l, "soft-brush", None, 16)),
     ("pencil", |l| brushed(l, "pencil", None, 16)),
@@ -46,6 +47,7 @@ const SCENES: [(&str, Make); 9] = [
     ("speckle", |l| brushed(l, "speckle", None, 16)),
     ("flat", |l| brushed(l, "flat", None, 16)),
     ("pile", pile),
+    ("pile-smudged", |l| smudged(&pile(l)?, l)),
 ];
 
 /// The probe's rows for `only` (after `raster`): every scene, `-name`, `-name@scale`,
@@ -223,6 +225,17 @@ fn brushed(
             &wave(k, MIDDLE),
             |_| 0.8,
         )?;
+    }
+    Ok(artwork)
+}
+
+/// `artwork` with 16 Soft Brush smudges of 120 px along the waves through the middle (S61: the
+/// raster core's smudge passes against the pile alone).
+fn smudged(artwork: &Artwork, library: &BrushLibrary) -> Result<Artwork, RuntimeError> {
+    let style = style_of(library, "soft-brush", Some(120.0))?.with_tool(StrokeTool::Smudge);
+    let mut artwork = artwork.clone();
+    for k in 0..16 {
+        artwork = drawn(&artwork, style.clone(), &wave(k, MIDDLE), |_| 0.8)?;
     }
     Ok(artwork)
 }

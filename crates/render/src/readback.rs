@@ -1,6 +1,7 @@
 //! Offscreen targets and GPU-to-memory readback.
 
-use std::sync::mpsc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, mpsc};
 use std::time::{Duration, Instant};
 
 use crate::error::{RenderError, device};
@@ -203,40 +204,37 @@ pub(crate) fn read_buffer(
 /// the caller (a test, a worker) forever.
 pub(crate) const GPU_WAIT: Duration = Duration::from_secs(30);
 
-/// How long one wait for the GPU holds wgpu's device lock at most (S56). wgpu waits for a
-/// submission holding the lock its present needs, so a worker waiting a whole backlog out held
-/// the main thread's present for seconds (S55's input timeout); waiting in steps lets a present
-/// waiting for the lock in between.
-const WAIT_STEP: Duration = Duration::from_millis(2);
+/// How long a wait for the GPU sleeps between its polls. A wait never blocks inside wgpu: wgpu
+/// waits for a submission holding the lock its present needs, so a worker waiting a whole
+/// backlog out held the main thread's present for seconds (S55's input timeout; S56 waited in
+/// 2 ms steps), and wgpu-core 30.0.1 asserts (a panic in the waiting thread) when another thread's
+/// poll or submit empties its queue between a waiting poll's fence read and its own upkeep, which
+/// a step ending unfinished meets (S61: the GPU tests hit it in 3 of 5 runs with the raster
+/// core's smudge tests; the tablet's frame loop and raster worker submit while workers wait).
+const POLL_STEP: Duration = Duration::from_micros(500);
 
-/// Blocks until the GPU has finished every submitted command, at most `GPU_WAIT`; `what` names
-/// the wait in the error.
+/// Blocks until the GPU has finished every command submitted so far, at most `GPU_WAIT`; `what`
+/// names the wait in the error, and the time counts as the thread's wait (`profile.rs`). The queue
+/// is marked (`on_submitted_work_done`: everything submitted before the mark) and polled without
+/// waiting, `POLL_STEP` apart, until the mark is done.
 pub(crate) fn wait(gpu: &Gpu, what: &'static str) -> Result<(), RenderError> {
-    // An empty submission names everything submitted before it.
-    let last = gpu.submit([]);
-    wait_for(gpu, last, what)
-}
-
-/// Blocks until the GPU has finished `submitted`, at most `GPU_WAIT`, in steps of `WAIT_STEP`;
-/// the time counts as the thread's wait (`profile.rs`).
-pub(crate) fn wait_for(
-    gpu: &Gpu,
-    submitted: wgpu::SubmissionIndex,
-    what: &'static str,
-) -> Result<(), RenderError> {
+    // An empty submission sends the writes waiting for one (`write_buffer`) too.
+    gpu.submit([]);
+    let done = Arc::new(AtomicBool::new(false));
+    let mark = Arc::clone(&done);
+    gpu.queue
+        .on_submitted_work_done(move || mark.store(true, Ordering::Release));
     let started = Instant::now();
     waited(what, || {
         loop {
-            let poll = wgpu::PollType::Wait {
-                submission_index: Some(submitted.clone()),
-                timeout: Some(WAIT_STEP),
-            };
-            match gpu.device.poll(poll) {
-                Ok(_) => return Ok(()),
-                Err(wgpu::PollError::Timeout) if started.elapsed() < GPU_WAIT => {}
-                Err(wgpu::PollError::Timeout) => return Err(timeout(what)),
-                Err(error) => return Err(device(error)),
+            gpu.device.poll(wgpu::PollType::Poll).map_err(device)?;
+            if done.load(Ordering::Acquire) {
+                return Ok(());
             }
+            if started.elapsed() >= GPU_WAIT {
+                return Err(timeout(what));
+            }
+            std::thread::sleep(POLL_STEP);
         }
     })
 }

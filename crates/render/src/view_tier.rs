@@ -217,7 +217,7 @@ impl ViewCache {
             in_place_raster(
                 core,
                 current,
-                (canvas, request),
+                (&mut *canvas, request),
                 raster,
                 (changed, work, now),
             )?;

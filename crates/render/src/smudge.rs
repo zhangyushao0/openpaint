@@ -4,8 +4,11 @@
 //! A pixel's result then depends on its neighbours, so a smudge is no per-pixel op of its own:
 //! each one is evaluated once, in order, into a residual on canvas-pixel nodes, `after = A x
 //! before + R` (`residual.rs`, tiles allocated as its contacts reach them), from the layer's
-//! pixels just before it (`material.rs`, the single evaluator on the layer's earlier ops). The
-//! evaluator then applies that residual where the stroke lies (opcode `Smudge`).
+//! pixels just before it (`material.rs`: the evaluator on the layer's earlier ops, the one place
+//! the raster core still needs it until S62 moves the 1x canvas). Both cores apply a residual
+//! (smudge_composite.wgsl): the evaluator where the stroke lies (opcode `Smudge`), the raster core
+//! as a pass over the layer from its copy, its block named with the buffers it lies in (S61,
+//! `engine_held.rs`, D88).
 //!
 //! The in-progress smudge extends its residual by the contacts its settled spans add, with the
 //! very contacts and tiles a cold evaluation of the same samples applies, so both are bit for
@@ -25,7 +28,7 @@ mod residual;
 
 pub(crate) use arena::{Arena, Keep, Key};
 pub(crate) use dabs::{smudge_reach, whole_reach};
-pub(crate) use engine::{Smudges, Wanted, reached};
+pub(crate) use engine::{Held, Smudges, Wanted, around_output, reached};
 pub(crate) use kernels::{SHADER as SMUDGE_SHADER, SmudgePipeline};
 pub(crate) use material::Material;
 

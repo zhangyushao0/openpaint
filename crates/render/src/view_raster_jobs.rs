@@ -28,7 +28,8 @@ use crate::view_tiles::TIER_TILE;
 const LOOK: Duration = Duration::from_millis(1);
 const PATIENCE: u32 = 16;
 
-/// One view tile for the raster worker: the region of the scene's output at a tier's scale and
+/// One view tile for the raster worker: the region of the scene's output at a tier's scale (its
+/// buffers with its smudges' residuals as the arena held them when it was handed over, S61) and
 /// where in the tier's atlas it goes.
 pub struct RasterJob {
     pub(crate) id: u64,
@@ -135,7 +136,7 @@ impl RasterDrawer {
         let Some(targets) = self.targets.as_mut() else {
             return Ok(self.answer(id, (false, 0.0)));
         };
-        let scene = (&*job.scene, &*job.raster);
+        let scene = (&*job.scene, &*job.raster, job.buffers.bases());
         let plan = RasterPlan::build(scene, (job.output, job.size), targets.atlas())?;
         // The scene is not needed past the plan: a new one can take this one's spans (S56).
         drop(job.scene);

@@ -19,6 +19,7 @@ use crate::program::{Bindings, Dispatch};
 use crate::protocol::TileRecord;
 use crate::readback::{read_rect, target_texture};
 use crate::scene::{Fresh, Scene};
+use crate::smudge::reached;
 use crate::view_tiles::{TIER_TILE, TileMap};
 
 /// Slots in an atlas row at most: 4096 pixels.
@@ -249,7 +250,8 @@ impl Tier {
         fresh: &Fresh,
         timing: Option<(&GpuClock, Timing)>,
     ) -> Result<(), RenderError> {
-        canvas.reach(core, request.artwork, tiles, self.scale())?;
+        let near = reached(tiles, self.scale());
+        canvas.reach(core, request.artwork, &near)?;
         let missing = || RenderError::Invalid("the canvas was not evaluated for this frame");
         let (_, ops) = canvas
             .scene_of(request.artwork, request.active)

@@ -6,8 +6,9 @@
 //! own; each layer ends onto a float canvas (or into its clipping chain) by its mode, and the
 //! canvas is rounded into the destination as the evaluator rounds it (`raster_plan.rs` the CPU's
 //! part, `raster_gpu.rs` the pipelines, `raster_frame.rs` the passes, raster*.wgsl the stages).
-//! It draws the view tiers above 1x and exports for every scene `raster_route.rs` routes to it;
-//! the 1x canvas, the stroke being drawn, picks and pictures stay on the evaluator (S61).
+//! A smudge is a pass applying its residual to the layer from a copy of it (S61, D88). It draws
+//! the view tiers above 1x and exports for every scene `raster_route.rs` routes to it; the 1x
+//! canvas, the stroke being drawn, picks and pictures stay on the evaluator until S62.
 
 use std::time::Instant;
 
@@ -19,30 +20,40 @@ use crate::program::SceneOps;
 use crate::raster_gpu::RasterPipelines;
 use crate::raster_plan::{Pass, RasterPlan, Scratch};
 use crate::readback::target_texture;
+use crate::smudge::Held;
 
 #[path = "raster_frame.rs"]
 mod frame;
 use frame::{Reads, instance_bytes, values};
 
-/// The buffers a scene's ops lie in on the GPU as the raster core binds them, and the scene's
-/// serial (S60: a worker draws from them while the canvas keeps its scene).
+/// The buffers a scene's ops lie in on the GPU as the raster core binds them, the scene's serial
+/// (S60: a worker draws from them while the canvas keeps its scene), and its smudges' residuals
+/// (S61).
 #[derive(Debug, Clone)]
 pub(crate) struct SceneBuffers {
     pub(crate) ops: wgpu::Buffer,
     pub(crate) masks: wgpu::Buffer,
     pub(crate) patches: wgpu::Buffer,
     pub(crate) serial: u64,
+    pub(crate) residuals: Held,
 }
 
 impl SceneBuffers {
-    /// The buffers of `ops`, for the scene named `serial`.
-    pub(crate) fn of(ops: &SceneOps, serial: u64) -> Self {
+    /// The buffers of `ops`, for the scene named `serial`, its smudges' residuals as `residuals`
+    /// holds them.
+    pub(crate) fn of(ops: &SceneOps, serial: u64, residuals: Held) -> Self {
         Self {
             ops: ops.ops(),
             masks: ops.masks.clone(),
             patches: ops.patches.clone(),
             serial,
+            residuals,
         }
+    }
+
+    /// Where each of the scene's smudges' residuals starts in the arena bound.
+    pub(crate) fn bases(&self) -> &[Option<u32>] {
+        &self.residuals.bases
     }
 }
 
@@ -63,8 +74,8 @@ pub(crate) struct RasterTargets {
     unread: Target,
     values: wgpu::Buffer,
     instances: wgpu::Buffer,
-    /// Group 0 for the scene of that serial.
-    scene: Option<(u64, wgpu::BindGroup)>,
+    /// Group 0 for the scene of that serial with those residuals.
+    scene: Option<(u64, [wgpu::Buffer; 2], wgpu::BindGroup)>,
     /// Group 1, made again when a scratch target is made.
     reads: Option<Reads>,
 }
@@ -256,6 +267,7 @@ impl RasterTargets {
             let used = match pass {
                 Pass::Draw { target, .. } | Pass::Clear(target) => [Some(*target), None],
                 Pass::Copy(_) => [Some(Scratch::Backdrop), None],
+                Pass::Smudge { target, .. } => [Some(*target), Some(Scratch::Backdrop)],
                 Pass::End { target, reads, .. } => [Some(*target), Some(*reads)],
                 Pass::Coverage(_) => [None, None],
             };
@@ -275,18 +287,23 @@ impl RasterTargets {
         Ok(())
     }
 
-    /// Group 0 for `scene`, made when the scene is new.
+    /// Group 0 for `scene`, made when the scene or its residuals' buffers are new.
     fn bind_scene(&mut self, core: &Core, pipelines: &RasterPipelines, scene: &SceneBuffers) {
-        let serial = scene.serial;
-        if self.scene.as_ref().is_some_and(|(held, _)| *held == serial) {
+        let (serial, residuals) = (scene.serial, &scene.residuals.buffers);
+        if (self.scene.as_ref())
+            .is_some_and(|(held, bound, _)| *held == serial && bound == residuals)
+        {
             return;
         }
+        let [arena, active] = residuals;
         let buffers = [
             &self.values,
             &scene.ops,
             &scene.masks,
             &core.evaluate.textures,
             &scene.patches,
+            arena,
+            active,
         ];
         let group = core
             .gpu
@@ -302,7 +319,7 @@ impl RasterTargets {
                     })
                     .collect::<Vec<_>>(),
             });
-        self.scene = Some((serial, group));
+        self.scene = Some((serial, residuals.clone(), group));
     }
 }
 

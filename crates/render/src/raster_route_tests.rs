@@ -1,5 +1,5 @@
-//! The routing's tests: everything the author's artworks hold but smudges goes to the raster core;
-//! each kind it does not draw yet sends the scene to the evaluator, named.
+//! The routing's tests: everything the author's artworks hold, smudges included (S61), goes to the
+//! raster core; each kind it does not draw yet sends the scene to the evaluator, named.
 
 use std::sync::Arc;
 
@@ -91,7 +91,7 @@ fn routed(artwork: &Artwork) -> Result<RasterScene, Routed> {
 }
 
 #[test]
-fn what_the_authors_artworks_hold_but_smudges_goes_to_the_raster_core() {
+fn what_the_authors_artworks_hold_goes_to_the_raster_core() {
     let scene = routed(&plain()).expect("rastered");
     let ends = (scene.units.iter())
         .filter(|unit| matches!(unit, Unit::End(_)))
@@ -106,6 +106,45 @@ fn what_the_authors_artworks_hold_but_smudges_goes_to_the_raster_core() {
     assert_eq!(edits, 3, "the fill, the cut, the picture");
 }
 
+/// S61: a smudge on the paint and one on the mask are units of their own, in scene order, each
+/// naming its op, its number among the scene's smudges and the canvas pixels it can change.
+#[test]
+fn smudges_on_paint_and_on_a_mask_are_units_in_scene_order() {
+    let base = plain();
+    let layer = base.active();
+    let on_paint = drawn(&base, StrokeTool::Smudge);
+    let on_mask = apply(&on_paint, ArtworkCommand::Mask(MaskCommand::Add(layer)));
+    let both = drawn(&on_mask, StrokeTool::Smudge);
+    let built = Scene::build(&both, None).expect("scene");
+    let routed = RasterScene::of(&built).expect("rastered");
+    let smudges: Vec<(usize, usize, PixelRect)> = (routed.units.iter())
+        .filter_map(|unit| match unit {
+            Unit::Smudge {
+                item,
+                smudge,
+                reach,
+            } => Some((*item, *smudge, *reach)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(smudges.len(), 2);
+    for (number, (item, smudge, reach)) in smudges.iter().enumerate() {
+        assert_eq!(*smudge, number);
+        assert_eq!(built.smudges[number].item, *item);
+        assert!(matches!(built.items[*item], Item::Smudge(_)));
+        assert_eq!(*reach, built.smudges[number].canvas);
+        assert!(!reach.is_empty() && reach.min[0] <= 4 && reach.max[0] >= 40);
+    }
+    assert!(!built.smudges[0].on_mask && built.smudges[1].on_mask);
+    let mask_at = (routed.units.iter())
+        .position(|unit| matches!(unit, Unit::BeginMask))
+        .expect("the mask");
+    let second = (routed.units.iter())
+        .position(|unit| matches!(unit, Unit::Smudge { smudge: 1, .. }))
+        .expect("the mask's smudge");
+    assert!(second > mask_at, "the mask's smudge after its start");
+}
+
 #[test]
 fn each_kind_the_raster_core_lacks_sends_the_scene_to_the_evaluator_named() {
     let base = plain();
@@ -116,15 +155,16 @@ fn each_kind_the_raster_core_lacks_sends_the_scene_to_the_evaluator_named() {
     let canvas = CanvasSize::new(SIZE, SIZE).expect("size");
     let one = drawn(&Artwork::new(canvas), StrokeTool::Paint);
     let below = apply(&one, ArtworkCommand::Layer(LayerCommand::Create));
-    let cases: [(Reason, Artwork); 7] = [
-        (Reason::Smudge, drawn(&base, StrokeTool::Smudge)),
+    let cases: [(Reason, Artwork); 6] = [
         (
             Reason::Adjustment,
             base.adjust_region(None, hsb).expect("adjust").artwork,
         ),
         (
             Reason::Filter,
-            base.adjust_region(None, blur).expect("blur").artwork,
+            base.adjust_region(None, blur.clone())
+                .expect("blur")
+                .artwork,
         ),
         (
             Reason::Group,
@@ -153,6 +193,11 @@ fn each_kind_the_raster_core_lacks_sends_the_scene_to_the_evaluator_named() {
         assert_eq!(routed.reasons(), [reason], "{routed}");
     }
     let grouped = apply(&base, ArtworkCommand::Group(GroupCommand::Create { layer }));
-    let routed = routed(&drawn(&grouped, StrokeTool::Smudge)).expect_err("evaluated");
-    assert_eq!(routed.to_string(), "smudges, groups");
+    let blurred = (grouped.adjust_region(None, blur)).expect("blur").artwork;
+    let routed = routed(&drawn(&blurred, StrokeTool::Smudge)).expect_err("evaluated");
+    assert_eq!(
+        routed.to_string(),
+        "filters, groups",
+        "a smudge is no reason"
+    );
 }

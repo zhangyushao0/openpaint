@@ -1,6 +1,7 @@
 //! One region's passes on the GPU (S57's probe, S59): the plan's passes in order, each a render
-//! pass over the atlas or a float target of the region (a copy for a backdrop), then the finish
-//! rounding the canvas into the destination, all in one command buffer.
+//! pass over the atlas or a float target of the region (a copy for a backdrop; a copy, then a
+//! pass, for a smudge, S61), then the finish rounding the canvas into the destination, all in one
+//! command buffer.
 
 use super::{Finish, RasterTargets};
 use crate::core::Core;
@@ -12,11 +13,13 @@ use crate::raster_plan::{Draw, Instance, Pass, RasterPlan, Scratch};
 use crate::raster_states::INSTANCE_BYTES;
 
 /// Group 1 for each way a draw reads: the atlas (a layer's draws), a layer's paint with its mask
-/// and the backdrop (its end), the chain with them (its end), the canvas (the finish).
+/// and the backdrop (its end), the chain with them (its end), the backdrop alone (a smudge, which
+/// draws onto the layer or its mask), the canvas (the finish).
 pub(super) struct Reads {
     atlas: wgpu::BindGroup,
     layer: wgpu::BindGroup,
     chain: wgpu::BindGroup,
+    copied: wgpu::BindGroup,
     canvas: wgpu::BindGroup,
 }
 
@@ -59,6 +62,7 @@ impl RasterTargets {
                 atlas: group([atlas, unread, unread]),
                 layer: group([layer, mask, backdrop]),
                 chain: group([chain, mask, backdrop]),
+                copied: group([backdrop, unread, unread]),
                 canvas: group([canvas, unread, unread]),
             };
             self.reads = Some(reads);
@@ -107,7 +111,14 @@ impl RasterTargets {
         timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
     ) {
         match pass {
-            Pass::Copy(from) => self.copy(encoder, *from, size),
+            Pass::Copy(from) => self.copy(encoder, *from, [0, 0, size[0], size[1]]),
+            Pass::Smudge { target, rect, draw } => {
+                self.copy(encoder, *target, *rect);
+                let group = self.reads.as_ref().map(|reads| &reads.copied);
+                let place = (*target, wgpu::LoadOp::Load, group);
+                let draws = std::slice::from_ref(draw);
+                self.draws(encoder, pipelines, place, (draws, size), timestamps);
+            }
             Pass::Coverage(draws) => {
                 let mut pass = begin(encoder, &self.atlas.view, clear(None), timestamps);
                 self.bind(&mut pass, None);
@@ -180,7 +191,7 @@ impl RasterTargets {
 
     /// The scene's group, the reads' `group` when given, the instances.
     fn bind(&self, pass: &mut wgpu::RenderPass<'_>, group: Option<&wgpu::BindGroup>) {
-        if let Some((_, scene)) = &self.scene {
+        if let Some((_, _, scene)) = &self.scene {
             pass.set_bind_group(0, scene, &[]);
         }
         if let Some(group) = group {
@@ -189,17 +200,26 @@ impl RasterTargets {
         pass.set_vertex_buffer(0, self.instances.slice(..));
     }
 
-    /// The region of `from` copied into the backdrop.
-    fn copy(&self, encoder: &mut wgpu::CommandEncoder, from: Scratch, [width, height]: [u32; 2]) {
+    /// The pixels `rect` (x, y, width, height) of `from` copied into the backdrop, in place.
+    fn copy(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        from: Scratch,
+        [x, y, width, height]: [u32; 4],
+    ) {
         let (Some(source), Some(backdrop)) = (
             self.scratch[from as usize].as_ref(),
             self.scratch[Scratch::Backdrop as usize].as_ref(),
         ) else {
             return;
         };
+        let at = |texture| wgpu::TexelCopyTextureInfo {
+            origin: wgpu::Origin3d { x, y, z: 0 },
+            ..wgpu::Texture::as_image_copy(texture)
+        };
         encoder.copy_texture_to_texture(
-            source.texture.as_image_copy(),
-            backdrop.texture.as_image_copy(),
+            at(&source.texture),
+            at(&backdrop.texture),
             wgpu::Extent3d {
                 width,
                 height,

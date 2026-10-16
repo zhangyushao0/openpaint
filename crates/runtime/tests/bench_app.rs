@@ -90,6 +90,17 @@ fn every_scenario_benchmark_runs_through_the_frame_loop() {
     // the one undone (the 20th).
     assert_eq!(appended, STROKES as usize + 4);
     assert_eq!(strokes(runtime.artwork().expect("artwork")), appended - 1);
+    // S61: the zoom twice more, the second with its densest place already in the screen's middle
+    // and its first zoom reached (the first ends there and so): neither its centring pan nor that
+    // pinch is a two-finger tap, so nothing is undone.
+    for _ in 0..2 {
+        runtime.bench_scenario("zoom").expect("zoom again");
+    }
+    assert_eq!(
+        strokes(runtime.artwork().expect("artwork")),
+        appended - 1,
+        "the zoom undid nothing"
+    );
     assert!(runtime.bench_scenario("dance").is_err());
 }
 

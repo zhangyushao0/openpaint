@@ -1,12 +1,13 @@
 //! Where a stroke lies in a raster region (S57's probe, product code since S59; `raster_plan.rs`):
 //! its spans reaching the region, the composite tiles they meet and their box in whole tiles,
-//! which becomes its region of the atlas, placed shelf by shelf.
+//! which becomes its region of the atlas, placed shelf by shelf, and each span's instances there.
 
 use std::ops::Range;
 
 use crate::geom::PixelRect;
 use crate::output::Output;
-use crate::raster_plan::Coverage;
+use crate::protocol::Op;
+use crate::raster_plan::{Coverage, Instance, RasterPlan};
 use crate::scene::Scene;
 
 /// Side of a composite tile in region pixels (`RASTER_TILE` in raster.wgsl).
@@ -114,6 +115,36 @@ impl Marks {
             max: [(high[0] + 1) * tile, (high[1] + 1) * tile],
         }
     }
+}
+
+/// The instances of span `op` (item `index`) laid at `place` in the atlas: a stamp each, or a
+/// piece each at `scale`.
+pub(crate) fn laid_span(
+    plan: &mut RasterPlan,
+    (op, index): (Op, usize),
+    place: [i32; 2],
+    scale: f32,
+) {
+    let [x, y] = place;
+    let b = [x, y, 0, 0];
+    let index = index as u32;
+    if op.is_stamped() {
+        if let Some((first, last)) = op.stamp_indices() {
+            (plan.instances).extend((first..=last).map(|n| Instance {
+                a: [index, n, 0, 0],
+                b,
+            }));
+            plan.counts.stamps += (last - first + 1) as usize;
+        }
+        return;
+    }
+    let count = op.span_pieces(scale);
+    let lone = u32::from(count == 1);
+    (plan.instances).extend((0..count).map(|k| Instance {
+        a: [index, k, count, lone],
+        b,
+    }));
+    plan.counts.pieces += count as usize;
 }
 
 /// Places regions in the atlas shelf by shelf, left to right, top to bottom.

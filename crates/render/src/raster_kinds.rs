@@ -57,6 +57,8 @@ pub(crate) enum DrawKind {
     Stroke(Blend),
     Fill(Blend),
     Patch,
+    /// A smudge from the copy of what it applies to (S61).
+    Smudge,
     End(EndBlend),
 }
 
@@ -91,6 +93,13 @@ pub(crate) enum Pass {
     Clear(Scratch),
     /// A target copied into the backdrop.
     Copy(Scratch),
+    /// A smudge on the layer or its mask (`target`): the pixels `rect` (x, y, width, height)
+    /// copied into the backdrop, then its draw over them from that copy (S61).
+    Smudge {
+        target: Scratch,
+        rect: [u32; 4],
+        draw: Draw,
+    },
     /// A layer's end onto `target`, reading `reads` (the layer's paint, or the chain), the mask
     /// and the backdrop.
     End {
@@ -120,13 +129,17 @@ pub struct RasterCounts {
     pub edits: usize,
     pub edit_pixels: u64,
     pub ends: usize,
+    /// Smudges, and the pixels each copies and draws, summed (S61).
+    pub smudges: usize,
+    pub smudge_pixels: u64,
 }
 
 impl RasterCounts {
     /// What drawing a plan of these counts over a region of `size` pixels costs the tablet's GPU,
     /// estimated in ns (S57's measurements on the Adreno 735: about 40 µs a pass, the pile's
-    /// composites about 1 ns an output pixel); the frame budget corrects it by the raster core's
-    /// measured times (`pace.rs`).
+    /// composites about 1 ns an output pixel; a smudge's copy and residual read as the
+    /// evaluator's smudge op costs, D82's table); the frame budget corrects it by the raster
+    /// core's measured times (`pace.rs`).
     pub(crate) fn estimate(&self, [width, height]: [u32; 2]) -> f64 {
         const PASS: f64 = 40_000.0;
         const COMPOSITE: f64 = 1.0;
@@ -134,6 +147,7 @@ impl RasterCounts {
         const INSTANCE: f64 = 20.0;
         const EDIT: f64 = 6.0;
         const END: f64 = 1.5;
+        const SMUDGE: f64 = 4.0;
         let region = f64::from(width) * f64::from(height);
         let tile = 32.0 * 32.0;
         self.passes as f64 * PASS
@@ -142,5 +156,6 @@ impl RasterCounts {
             + (self.pieces + self.stamps) as f64 * INSTANCE
             + self.edit_pixels as f64 * EDIT
             + (self.ends + 1) as f64 * region * END
+            + self.smudge_pixels as f64 * SMUDGE
     }
 }

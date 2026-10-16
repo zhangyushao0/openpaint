@@ -297,6 +297,22 @@ fn snapshot_at(pixel: vec2<u32>) -> u32 {
     return params.snapshot.y + slot * TILE * TILE + local.y * TILE + local.x;
 }
 
+// The layer `before` after smudge `op` (smudge_composite.wgsl) at `centre`, where its clip lets
+// it change canvas pixel `cell`: a finished smudge's block starts at the base its mask word
+// holds; the in-progress one reads its own residual from word 0.
+fn smudged(before: vec4<f32>, centre: vec2<f32>, cell: vec2<u32>, op: u32) -> vec4<f32> {
+    if clip(cell, op) == 0.0 {
+        return before;
+    }
+    let drawing = word(op, SMUDGE_ACTIVE) != 0.0;
+    var base = 0u;
+    if !drawing {
+        base = masks[u32(word(op, SMUDGE_AT)) * 65536u + u32(word(op, SMUDGE_AT + 1u))];
+    }
+    let locked = word(op, SMUDGE_LOCKED) != 0.0;
+    return smudge_applied(before, residual_at(drawing, base, centre), locked);
+}
+
 // What of a transform record's moved content shows at `point` (where the centre maps back
 // to): 1 inside its selection's mask, or for the whole layer inside the canvas, else 0. What
 // was lifted came from the canvas only, as the layer's pixels did before S31.

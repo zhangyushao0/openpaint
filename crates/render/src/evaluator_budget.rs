@@ -13,8 +13,7 @@ use crate::core::Core;
 use crate::error::RenderError;
 use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
-use crate::protocol::TileRecord;
-use crate::smudge::{Wanted, reached};
+use crate::smudge::{Held, Wanted};
 use crate::stroke::stroke_region;
 
 impl CanvasTarget {
@@ -116,8 +115,9 @@ impl CanvasTarget {
         self.set_arena_room(core, room)
     }
 
-    /// Makes the residuals near the plan tiles `tiles` of an output at `scale` (a view tier's)
-    /// present in the arena, for an evaluation of the scene the last evaluation drew (S51).
+    /// Makes the residuals read near the canvas pixels `near` (a view tier's tiles, `reached`,
+    /// `around_output`) present in the arena, for a draw of the scene the last evaluation drew
+    /// (S51).
     ///
     /// # Errors
     /// As `Smudges::prepare`.
@@ -125,16 +125,21 @@ impl CanvasTarget {
         &mut self,
         core: &Core,
         artwork: &Artwork,
-        tiles: &[TileRecord],
-        scale: u32,
+        near: &[PixelRect],
     ) -> Result<(), RenderError> {
         let Some(cache) = self.scene.as_ref() else {
             return Ok(());
         };
-        let near = reached(tiles, scale);
-        let filters = (&mut self.filters, &Wanted::Near(&near));
+        let filters = (&mut self.filters, &Wanted::Near(near));
         let scene = (&*cache.scene, &cache.ops);
         self.smudges.prepare(core, scene, artwork, filters)
+    }
+
+    /// The residuals of the scene the last evaluation drew as the arena holds them now, for the
+    /// raster core's draws of it (S61, D88).
+    pub(crate) fn held(&self) -> Option<Held> {
+        let cache = self.scene.as_ref()?;
+        Some(self.smudges.held(&cache.scene))
     }
 
     /// Extends the in-progress smudge `request` draws (`drawn`: its layer shows) by its new

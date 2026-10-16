@@ -9,7 +9,10 @@
 //! equals the export at its scale bit for bit. S60 (D87): the background tiles are planned,
 //! encoded and submitted by the runtime's raster worker (`view_raster_jobs.rs`); this side hands
 //! them over (`view_raster_fill.rs`) and draws the changes in place with targets of its own. The
-//! targets are the budget's (`Unit::Raster`): these and the worker's.
+//! targets are the budget's (`Unit::Raster`): these and the worker's. S61 (D88): the smudge
+//! residuals a tile reads are the canvas's, made present before it is drawn or handed over and
+//! named with the arena's buffer as it is then (`smudge::Held`); a tile reading one still being
+//! evaluated waits.
 
 use std::sync::Arc;
 
@@ -23,6 +26,7 @@ use crate::raster::{ATLAS, Finish, RasterTargets, SceneBuffers};
 use crate::raster_plan::RasterPlan;
 use crate::raster_route::{RasterScene, Routed};
 use crate::scene::Scene;
+use crate::smudge::{Held, around_output};
 use crate::view_atlas::Tier;
 use crate::view_fill::{EDIT_PIXELS, touched};
 use crate::view_raster_jobs::{RasterDone, RasterOrder};
@@ -101,10 +105,11 @@ impl RasterTier {
         bytes
     }
 
-    /// The plan of output pixels `rect` at `scale` of the routed scene `scene`.
+    /// The plan of output pixels `rect` at `scale` of the routed scene `scene`, its smudges'
+    /// residuals at `bases`.
     fn plan(
         &self,
-        scene: &Scene,
+        (scene, bases): (&Scene, &[Option<u32>]),
         (scale, rect): (u32, PixelRect),
     ) -> Result<(RasterPlan, Output), RenderError> {
         let Some((_, Ok(raster))) = &self.scene else {
@@ -116,7 +121,7 @@ impl RasterTier {
         let output = Output::at(scale, origin)?;
         let size = [0, 1].map(|axis| (rect.max[axis] - rect.min[axis]).max(0) as u32);
         Ok((
-            RasterPlan::build((scene, raster), (output, size), [ATLAS; 2])?,
+            RasterPlan::build((scene, raster, bases), (output, size), [ATLAS; 2])?,
             output,
         ))
     }
@@ -156,17 +161,17 @@ pub(crate) fn paper(request: &FrameRequest<'_>) -> [f32; 4] {
     [paper.r(), paper.g(), paper.b(), 1.0]
 }
 
-/// Draws the pixels of ready tiles that `changed` (canvas pixels) reach again, when they are few
-/// and their estimate fits what is left of the frame budget; else (or while the raster core's
-/// pipelines are still being made, S60) the tiles they touch wait to be drawn whole as
-/// background work.
+/// Draws the pixels of ready tiles that `changed` (canvas pixels) reach again, when they are few,
+/// the residuals they read are at hand and their estimate fits what is left of the frame budget;
+/// else (or while the raster core's pipelines are still being made, S60) the tiles they touch
+/// wait to be drawn whole as background work.
 ///
 /// # Errors
 /// `Invalid` when the canvas was not evaluated for `request` this frame; as the raster core.
 pub(crate) fn in_place_raster(
     core: &Core,
     tier: &mut Tier,
-    (canvas, request): (&CanvasTarget, &FrameRequest<'_>),
+    (canvas, request): (&mut CanvasTarget, &FrameRequest<'_>),
     raster: &mut RasterTier,
     (changed, work, now): (&[PixelRect], &mut ViewWork, f64),
 ) -> Result<(), RenderError> {
@@ -174,9 +179,6 @@ pub(crate) fn in_place_raster(
     if parts.is_empty() {
         return Ok(());
     }
-    let missing = || RenderError::Invalid("the canvas was not evaluated for this frame");
-    let (scene, ops, serial) =
-        (canvas.scene_serial(request.artwork, request.active)).ok_or_else(missing)?;
     let mut tiles: Vec<[u32; 2]> = parts.iter().map(|(tile, _)| *tile).collect();
     tiles.sort_unstable();
     tiles.dedup();
@@ -185,35 +187,76 @@ pub(crate) fn in_place_raster(
             i64::from(part.max[0] - part.min[0]) * i64::from(part.max[1] - part.min[1])
         })
         .sum();
-    if area <= EDIT_PIXELS && core.raster_made().is_some() {
-        let scale = tier.scale();
-        let mut plans = Vec::new();
-        for (tile, part) in &parts {
-            let slot = tier.map.slot(*tile).ok_or_else(missing)?;
-            let at = tier
-                .map
-                .to_target(*tile, slot, part)
-                .min
-                .map(|v| v.max(0) as u32);
-            plans.push((at, raster.plan(scene, (scale, *part))?));
-        }
-        let cost: f64 = (plans.iter())
-            .map(|(_, (plan, _))| plan.counts.estimate(plan.size))
-            .sum();
-        if core.pace().fits_raster(cost) {
-            let buffers = SceneBuffers::of(ops, serial);
-            for (at, (plan, output)) in &plans {
-                let drawn = (&buffers, paper(request));
-                raster.draw(core, (tier, *at), drawn, (plan, *output))?;
-            }
-            raster.used_at = now;
-            work.updated = tiles;
-            return Ok(());
-        }
+    let scale = tier.scale();
+    let near: Vec<PixelRect> = (parts.iter())
+        .map(|(_, part)| around_output(part, scale))
+        .collect();
+    let held = if area <= EDIT_PIXELS && core.raster_made().is_some() {
+        residuals_near(core, (canvas, request), &near)?
+    } else {
+        None
+    };
+    if let Some(held) = held
+        && draw_in_place(core, (tier, &parts), (canvas, request), raster, held)?
+    {
+        raster.used_at = now;
+        work.updated = tiles;
+        return Ok(());
     }
     for tile in &tiles {
         tier.set_ready(*tile, false);
     }
     work.dropped = tiles;
     Ok(())
+}
+
+/// Draws `parts` of `tier`'s ready tiles (output pixels) anew, their smudges' residuals as `held`
+/// holds them, when their estimate fits what is left of the frame budget; whether it did.
+fn draw_in_place(
+    core: &Core,
+    (tier, parts): (&Tier, &[([u32; 2], PixelRect)]),
+    (canvas, request): (&CanvasTarget, &FrameRequest<'_>),
+    raster: &mut RasterTier,
+    held: Held,
+) -> Result<bool, RenderError> {
+    let missing = || RenderError::Invalid("the canvas was not evaluated for this frame");
+    let (scene, ops, serial) =
+        (canvas.scene_serial(request.artwork, request.active)).ok_or_else(missing)?;
+    let mut plans = Vec::new();
+    for (tile, part) in parts {
+        let slot = tier.map.slot(*tile).ok_or_else(missing)?;
+        let at = tier.map.to_target(*tile, slot, part).min;
+        let planned = raster.plan((scene, &held.bases), (tier.scale(), *part))?;
+        plans.push((at.map(|v| v.max(0) as u32), planned));
+    }
+    let cost: f64 = (plans.iter())
+        .map(|(_, (plan, _))| plan.counts.estimate(plan.size))
+        .sum();
+    if !core.pace().fits_raster(cost) {
+        return Ok(false);
+    }
+    let buffers = SceneBuffers::of(ops, serial, held);
+    for (at, (plan, output)) in &plans {
+        let drawn = (&buffers, paper(request));
+        raster.draw(core, (tier, *at), drawn, (plan, *output))?;
+    }
+    Ok(true)
+}
+
+/// The residuals the raster core's draws near the canvas pixels `near` read, made present in the
+/// arena and named with the buffers they lie in (`smudge::Held`); `None` while one is still
+/// being evaluated (a share each frame): the tiles reading them wait (S61).
+///
+/// # Errors
+/// As the evaluation's.
+pub(crate) fn residuals_near(
+    core: &Core,
+    (canvas, request): (&mut CanvasTarget, &FrameRequest<'_>),
+    near: &[PixelRect],
+) -> Result<Option<Held>, RenderError> {
+    if !canvas.residuals_ready(core, request, near)? {
+        return Ok(None);
+    }
+    canvas.reach(core, request.artwork, near)?;
+    Ok(canvas.held())
 }

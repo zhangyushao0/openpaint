@@ -57,18 +57,18 @@ fn canvas() -> CanvasSize {
     CanvasSize::new(SIZE[0], SIZE[1]).expect("size")
 }
 
-fn region(inside: impl Fn(u32, u32) -> bool) -> RegionMask {
+pub fn region(inside: impl Fn(u32, u32) -> bool) -> RegionMask {
     let pixels: Vec<bool> = (0..SIZE[0] * SIZE[1])
         .map(|at| inside(at % SIZE[0], at / SIZE[0]))
         .collect();
     RegionMask::from_pixels(canvas(), &pixels).expect("mask")
 }
 
-fn color(r: f32, g: f32, b: f32) -> Color {
+pub fn color(r: f32, g: f32, b: f32) -> Color {
     Color::rgb(r, g, b).expect("colour")
 }
 
-fn layer(artwork: &Artwork, command: LayerCommand) -> Artwork {
+pub fn layer(artwork: &Artwork, command: LayerCommand) -> Artwork {
     artwork
         .apply(ArtworkCommand::Layer(command))
         .expect("layer")
@@ -126,7 +126,7 @@ fn first_layer() -> Artwork {
 }
 
 /// A 64 x 48 picture: an opaque gradient with a half transparent stripe.
-fn picture() -> Patch {
+pub fn picture() -> Patch {
     let mut pixels = Vec::new();
     for y in 0..48u32 {
         for x in 0..64u32 {
@@ -201,7 +201,7 @@ pub fn every_raster_source() -> Artwork {
 }
 
 /// The evaluator's whole output of `artwork` at `scale` (what exports were before S59).
-fn evaluated(core: &Core, artwork: &Artwork, scale: u32) -> RgbaImage {
+pub fn evaluated(core: &Core, artwork: &Artwork, scale: u32) -> RgbaImage {
     let size = SIZE.map(|side| side * scale);
     let (_, image) = core
         .time_evaluation(artwork, (scale, [0, 0]), size, 1)

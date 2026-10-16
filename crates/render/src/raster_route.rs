@@ -1,22 +1,22 @@
-//! Which scenes the raster core draws (S59, DECISIONS D86): a scene holding a smudge, an
-//! adjustment, a filter, a group, a transform record, a moved selection or a merged layer is
-//! evaluated by the evaluator whole, the routing decided per scene (a layer of the raster core's
-//! composited onto one of the evaluator's would need either to hand the other its float layer);
-//! every other scene is drawn by the raster core, as `RasterScene`: its items as the units the
-//! raster plan lays out, strokes with the box of all their spans. The reasons are named, so the
-//! routing is logged and tested, never silent.
+//! Which scenes the raster core draws (S59, DECISIONS D86, D88): a scene holding an adjustment, a
+//! filter, a group, a transform record, a moved selection or a merged layer is evaluated by the
+//! evaluator whole, the routing decided per scene (a layer of the raster core's composited onto
+//! one of the evaluator's would need either to hand the other its float layer); every other
+//! scene, smudges included since S61, is drawn by the raster core, as `RasterScene`: its items as
+//! the units the raster plan lays out, strokes with the box of all their spans, smudges with the
+//! canvas pixels they can change. The reasons are named, so the routing is logged and tested,
+//! never silent.
 
 use std::fmt;
 use std::ops::Range;
 
-use crate::geom::Bounds;
+use crate::geom::{Bounds, PixelRect};
 use crate::protocol::raster::Edit;
 use crate::scene::{Item, Scene};
 
 /// Why a scene goes to the evaluator: what it holds that the raster core does not draw yet.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Reason {
-    Smudge,
     Adjustment,
     Filter,
     Group,
@@ -26,8 +26,7 @@ pub enum Reason {
 }
 
 impl Reason {
-    pub const ALL: [Self; 7] = [
-        Self::Smudge,
+    pub const ALL: [Self; 6] = [
         Self::Adjustment,
         Self::Filter,
         Self::Group,
@@ -38,7 +37,6 @@ impl Reason {
 
     const fn name(self) -> &'static str {
         match self {
-            Self::Smudge => "smudges",
             Self::Adjustment => "adjustments",
             Self::Filter => "filters",
             Self::Group => "groups",
@@ -90,6 +88,13 @@ pub(crate) enum Unit {
     },
     /// A fill or a cleared selection (`Edit::Fill`), or a patch, over the layer.
     Edit { item: usize, bounds: Bounds },
+    /// The smudge whose op is item `item`, the scene's smudge number `smudge`, over the layer (or
+    /// its mask) in the canvas pixels `reach` it can change.
+    Smudge {
+        item: usize,
+        smudge: usize,
+        reach: PixelRect,
+    },
     /// The layer's paint is set aside, its mask's units follow.
     BeginMask,
     /// A layer's or a clipping chain's end.
@@ -109,6 +114,7 @@ impl RasterScene {
         let mut moved = false;
         let mut units = Vec::new();
         let mut first = None;
+        let mut smudges = 0;
         for (index, item) in scene.items.iter().enumerate() {
             let reason = match item {
                 Item::Segment { .. } => {
@@ -137,9 +143,14 @@ impl RasterScene {
                     units.push(Unit::End(index));
                     continue;
                 }
-                Item::Active => continue,
+                // A smudge's reach boxes bin the evaluator's tiles; its unit has their union.
+                Item::Active | Item::Reach(_) => continue,
+                Item::Smudge(_) => {
+                    units.push(smudge(scene, index, smudges));
+                    smudges += 1;
+                    continue;
+                }
                 Item::EndLayer { .. } | Item::EndChain { .. } | Item::EndGroup(_) => Reason::Group,
-                Item::Reach(_) | Item::Smudge(_) => Reason::Smudge,
                 Item::EndMove { whole: true, .. } => Reason::Transform,
                 Item::EndMove { .. } | Item::MovedOnly(_) => Reason::MovedSelection,
                 Item::EndNested(_) | Item::NestedOnly(_) => Reason::Nested,
@@ -159,6 +170,22 @@ impl RasterScene {
         } else {
             Err(routed)
         }
+    }
+}
+
+/// The smudge whose op is item `item`, the scene's smudge number `number` (its smudges are its
+/// smudge items in order), with the canvas pixels it can change.
+fn smudge(scene: &Scene, item: usize, number: usize) -> Unit {
+    let found = scene.smudges.get(number);
+    debug_assert_eq!(found.map(|found| found.item), Some(item));
+    let none = PixelRect {
+        min: [0, 0],
+        max: [0, 0],
+    };
+    Unit::Smudge {
+        item,
+        smudge: number,
+        reach: found.map_or(none, |found| found.canvas),
     }
 }
 

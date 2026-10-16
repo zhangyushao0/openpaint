@@ -8,8 +8,10 @@
 // after these files), combined within a stroke by the blend unit (max for coverage and contact,
 // add for density) in the stroke's region of a scratch atlas; then each region is composited onto
 // the layer by the evaluator's paint (`stroke_paint`) and the paint op's blend, fills and patches
-// drawn there as quads, each layer's end composited onto the canvas by its mode, and the canvas
-// rounded as the evaluator rounds (raster_composite.wgsl). The protocol prelude is prepended.
+// drawn there as quads, a smudge applied to the layer from a copy of it by its residual
+// (smudge_composite.wgsl, S61), each layer's end composited onto the canvas by its mode, and the
+// canvas rounded as the evaluator rounds (raster_composite.wgsl). The protocol prelude is
+// prepended.
 
 struct Raster {
     // Output pixels per canvas pixel, its inverse, its base-2 log.
@@ -33,8 +35,13 @@ struct Raster {
 @group(0) @binding(2) var<storage, read> masks: array<u32>;
 @group(0) @binding(3) var<storage, read> textures: array<u32>;
 @group(0) @binding(4) var<storage, read> patches: array<u32>;
+// The smudge residuals as the evaluator binds them (smudge_composite.wgsl, S61): the finished
+// ones' arena, which a smudge's instance names its block in, and the in-progress one's.
+@group(0) @binding(5) var<storage, read> arena: array<u32>;
+@group(0) @binding(6) var<storage, read> active_residual: array<u32>;
 // What a draw reads: the atlas (a stroke's tiles); a layer's paint (or the chain), its mask and
-// a copy of what lies under it (an end); the canvas (the finish).
+// a copy of what lies under it (an end); the copy of the layer or mask a smudge applies to; the
+// canvas (the finish).
 @group(1) @binding(0) var source: texture_2d<f32>;
 @group(1) @binding(1) var second: texture_2d<f32>;
 @group(1) @binding(2) var backdrop: texture_2d<f32>;

@@ -1,9 +1,9 @@
 //! Export (S29): an artwork at 1, 2, 4 or 8 output pixels per canvas pixel (the app offers up to
 //! 4), a band of rows at a time, each band in pieces at most `Banding::columns` wide, read back
 //! and handed on, so a 4x export never holds the whole picture on the GPU. Since S59 (D86) the
-//! raster core draws it (`export_raster.rs`) unless its scene goes to the evaluator
-//! (`raster_route.rs`, logged with why), which evaluates it through the single evaluation entry
-//! into a target of its own. Neither shares anything with the screen's, so a worker holding an
+//! raster core draws it (`export_raster.rs`; smudges too since S61, D88) unless its scene goes to
+//! the evaluator (`raster_route.rs`, logged with why), which evaluates it through the single
+//! evaluation entry into a target of its own. Neither shares anything with the screen's, so a worker holding an
 //! `Arc<Core>` runs it while the screen draws on. Since a pixel never depends on which regions are
 //! drawn with it, bands equal one piece; at 1x the evaluator's result is the screen's canvas pixel
 //! for pixel, the raster core's within one 8-bit level away from antialiased edges (D86).
@@ -150,7 +150,7 @@ impl Bands<'_> {
             let columns = self.banding.columns.min(width - left);
             let piece = match &mut self.source {
                 Source::Rastered(raster) => {
-                    let at = (self.scale, [left, top]);
+                    let at = (&self.artwork, self.scale, [left, top]);
                     let (piece, [planned, waited]) =
                         raster.piece(self.core, at, [columns, rows], self.background)?;
                     self.planned += planned;

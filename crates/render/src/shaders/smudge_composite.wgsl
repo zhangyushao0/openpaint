@@ -1,11 +1,12 @@
 // A smudge applied to its layer at one pixel (DECISIONS D46): the layer becomes A * layer + R
 // from the smudge's residual (smudge.wgsl evaluated it) at the pixel's centre. The residual's
 // nodes sit at canvas pixel centres; between them A and R are bilinear (S29: an output pixel
-// at 2x or 4x), and at a node, as on the canvas itself, that node alone, exactly. A finished
-// smudge's residual is a block of the arena, whose base its op finds in a mask word; the
+// at 2x to 8x), and at a node, as on the canvas itself, that node alone, exactly. A finished
+// smudge's residual is a block of the arena, starting at the base its core finds for it (the
+// evaluator in the scene's mask words, the raster core in the smudge's instance, S61); the
 // in-progress one's is the evaluation's own. Where the residual holds no node, or the node is
-// still the identity, the layer stays exactly as it was, as the scene's bounds require; so it
-// does outside the selection the smudge was drawn inside.
+// still the identity, the layer stays exactly as it was, as the scene's bounds require. Both
+// cores take this file whole.
 
 fn residual_word(drawing: bool, at: u32) -> u32 {
     if drawing {
@@ -51,18 +52,9 @@ fn residual_node(drawing: bool, base: u32, at: vec2<i32>) -> Node {
     );
 }
 
-// `centre` in canvas pixels; `cell` the canvas pixel holding it, for the clip.
-fn smudged(before: vec4<f32>, centre: vec2<f32>, cell: vec2<u32>, op: u32) -> vec4<f32> {
-    if clip(cell, op) == 0.0 {
-        return before;
-    }
-    // The in-progress smudge reads its own residual from word 0.
-    let drawing = word(op, SMUDGE_ACTIVE) != 0.0;
-    var base = 0u;
-    if !drawing {
-        base = masks[u32(word(op, SMUDGE_AT)) * 65536u + u32(word(op, SMUDGE_AT + 1u))];
-    }
-    // The four nodes around the centre, each by its bilinear weight; a zero weight reads none.
+// The residual starting at `base` at `centre` (canvas pixels): the four nodes around it, each by
+// its bilinear weight; a zero weight reads none.
+fn residual_at(drawing: bool, base: u32, centre: vec2<f32>) -> Node {
     let local = centre - vec2<f32>(0.5);
     let corner = floor(local);
     let t = local - corner;
@@ -80,12 +72,17 @@ fn smudged(before: vec4<f32>, centre: vec2<f32>, cell: vec2<u32>, op: u32) -> ve
             r += weight * node.r;
         }
     }
-    if a == 1.0 && all(r == vec4<f32>(0.0)) {
+    return Node(a, r);
+}
+
+// `before` after a smudge whose residual is `node` at the pixel; `locked` (Alpha Lock) keeps
+// the layer's alpha and moves only its colour.
+fn smudge_applied(before: vec4<f32>, node: Node, locked: bool) -> vec4<f32> {
+    if node.a == 1.0 && all(node.r == vec4<f32>(0.0)) {
         return before;
     }
-    var after = a * before + r;
-    if word(op, SMUDGE_LOCKED) != 0.0 {
-        // Alpha Lock keeps the layer's alpha and moves only its colour.
+    var after = node.a * before + node.r;
+    if locked {
         var rgb = before.rgb;
         if after.a > 1e-6 {
             rgb = after.rgb / after.a * before.a;

@@ -118,13 +118,13 @@ pub(crate) fn ended(end: EndBlend) -> (&'static str, Option<wgpu::BlendState>) {
     }
 }
 
-/// Group 0: the values, the ops, the masks, the textures, the patches; group 1: three float
-/// textures read (the atlas, or a layer, its mask and a backdrop, or the canvas).
+/// Group 0: the values, the ops, the masks, the textures, the patches, and (fragments only) the
+/// smudge residuals' arena and the in-progress one; group 1: three float textures read (the
+/// atlas, or a layer, its mask and a backdrop, or a smudge's copy, or the canvas).
 pub(crate) fn layouts(device: &wgpu::Device) -> [wgpu::BindGroupLayout; 2] {
-    let stages = wgpu::ShaderStages::VERTEX_FRAGMENT;
-    let buffer = |binding, ty| wgpu::BindGroupLayoutEntry {
+    let buffer = |binding, (visibility, ty)| wgpu::BindGroupLayoutEntry {
         binding,
-        visibility: stages,
+        visibility,
         ty: wgpu::BindingType::Buffer {
             ty,
             has_dynamic_offset: false,
@@ -132,15 +132,19 @@ pub(crate) fn layouts(device: &wgpu::Device) -> [wgpu::BindGroupLayout; 2] {
         },
         count: None,
     };
-    let read = wgpu::BufferBindingType::Storage { read_only: true };
+    let stages = wgpu::ShaderStages::VERTEX_FRAGMENT;
+    let read = (stages, wgpu::BufferBindingType::Storage { read_only: true });
+    let residuals = (wgpu::ShaderStages::FRAGMENT, read.1);
     let scene = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("raster scene"),
         entries: &[
-            buffer(0, wgpu::BufferBindingType::Uniform),
+            buffer(0, (stages, wgpu::BufferBindingType::Uniform)),
             buffer(1, read),
             buffer(2, read),
             buffer(3, read),
             buffer(4, read),
+            buffer(5, residuals),
+            buffer(6, residuals),
         ],
     });
     let texture = |binding| wgpu::BindGroupLayoutEntry {

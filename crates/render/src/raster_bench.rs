@@ -12,16 +12,19 @@ use super::{Finish, RasterTargets, SceneBuffers};
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::evaluator::WARM_ENOUGH;
+use crate::filter::Filters;
+use crate::geom::PixelRect;
 use crate::gpu_clock::GpuClock;
 use crate::image::RgbaImage;
 use crate::output::Output;
 use crate::pace::Group;
-use crate::program::{SceneOps, scene_ops};
+use crate::program::scene_ops;
 use crate::raster_plan::{RasterCounts, RasterPlan};
 use crate::raster_route::RasterScene;
 use crate::readback::{FORMAT, read_rgba, target_texture};
 use crate::scene::Scene;
 use crate::scene_reuse::Earlier;
+use crate::smudge::{Smudges, Wanted, around_output};
 
 /// Draws before the timed ones: at least this many and this long (as the evaluator's benchmark
 /// warms, `evaluator_bench.rs`).
@@ -69,7 +72,7 @@ impl RasterTimed {
 /// One region of a scene ready to draw again and again.
 struct Bench<'a> {
     core: &'a Core,
-    ops: SceneOps,
+    buffers: SceneBuffers,
     plan: RasterPlan,
     output: Output,
     targets: RasterTargets,
@@ -94,10 +97,9 @@ impl Bench<'_> {
             None => None,
         };
         let core = self.core;
-        let scene = SceneBuffers::of(&self.ops, 1);
         let paper = (self.output, [1.0; 4]);
-        let drawn =
-            (self.targets).draw(core, (&scene, &self.plan), paper, &finish, stamps.as_ref())?;
+        let scene = (&self.buffers, &self.plan);
+        let drawn = (self.targets).draw(core, scene, paper, &finish, stamps.as_ref())?;
         if let (Some(clock), Some(stamps)) = (clock, stamps) {
             clock.finish(&core.gpu, stamps.timing);
         }
@@ -125,13 +127,15 @@ impl Core {
         let scene = Scene::build_knowing(artwork, None, (Vec::new(), Earlier::default()))?;
         let raster = RasterScene::of(&scene)
             .map_err(|_| RenderError::Invalid("the scene goes to the evaluator"))?;
+        let buffers = self.residuals_for(artwork, &scene, (output, size))?;
         let started = Instant::now();
-        let plan = RasterPlan::build((&scene, &raster), (output, size), [atlas; 2])?;
+        let units = (&scene, &raster, buffers.bases());
+        let plan = RasterPlan::build(units, (output, size), [atlas; 2])?;
         let plan_ns = started.elapsed().as_secs_f64() * 1e9;
         let usage = wgpu::TextureUsages::RENDER_ATTACHMENT;
         let mut bench = Bench {
             core: self,
-            ops: scene_ops(&self.gpu, &scene, None),
+            buffers,
             plan,
             output,
             targets: RasterTargets::new(self, size, atlas)?,
@@ -171,6 +175,27 @@ impl Core {
             compile_ns: pipelines.compile_ns,
             image,
         })
+    }
+
+    /// `scene`'s buffers on the GPU with the residuals its smudges read over a region of `size`
+    /// pixels at `output`, made by a smudge engine of their own (S61).
+    fn residuals_for(
+        &self,
+        artwork: &Artwork,
+        scene: &Scene,
+        (output, size): (Output, [u32; 2]),
+    ) -> Result<SceneBuffers, RenderError> {
+        let ops = scene_ops(&self.gpu, scene, None);
+        let [x, y] = output.origin.map(|at| at as i32);
+        let rect = PixelRect {
+            min: [x, y],
+            max: [x + size[0] as i32, y + size[1] as i32],
+        };
+        let near = [around_output(&rect, output.scale)];
+        let mut smudges = Smudges::new(self);
+        let wanted = (&mut Filters::default(), &Wanted::Near(&near));
+        smudges.prepare(self, (scene, &ops), artwork, wanted)?;
+        Ok(SceneBuffers::of(&ops, 1, smudges.held(scene)))
     }
 
     /// `repeats` draws of the bench, each timed by GPU timestamps (or by waiting for it): their
