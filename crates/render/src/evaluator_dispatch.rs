@@ -80,7 +80,7 @@ impl CanvasTarget {
     /// stroke drawn on the canvas resumes its layer from it (S48); so does what an evaluation
     /// without one needs (a lift's last spans) while the snapshot holds that layer's content but
     /// for strokes appended (S56); a preview has its own.
-    fn snapshot_use(
+    pub(super) fn snapshot_use(
         &self,
         output: Output,
         stroke: Option<ActivePlace>,

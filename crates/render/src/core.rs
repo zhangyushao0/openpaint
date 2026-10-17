@@ -10,7 +10,7 @@ use crate::gpu_frames::GpuFrames;
 use crate::image::RgbaImage;
 use crate::pace::{Background, Pace};
 use crate::program::{EvaluatePipeline, shader_source};
-use crate::raster_gpu::RasterPipelines;
+use crate::raster_gpu::{RasterPipelines, raster_source};
 use crate::readback::{offscreen_texture, read_rgba, wait};
 use crate::screen::{blit_layout, blit_sampler};
 use crate::smudge::{SMUDGE_SHADER, SmudgePipeline};
@@ -105,9 +105,9 @@ impl Core {
     }
 
     /// The renderer's identity (S54): a hash of the build's version (a patch per slice) and of
-    /// the evaluator's, the smudge kernels' and the filters' WGSL as this device compiles them,
-    /// so a build whose evaluated pixels may differ never takes a display cache another wrote
-    /// as complete.
+    /// the evaluator's, the raster core's (S62: it draws the canvas), the smudge kernels' and the
+    /// filters' WGSL as this device compiles them, so a build whose pixels may differ never takes
+    /// a display cache another wrote as complete.
     #[must_use]
     pub const fn renderer_identity(&self) -> u64 {
         self.identity
@@ -256,12 +256,15 @@ impl Core {
     }
 }
 
-/// FNV-1a over the build's version and the shaders evaluated pixels come from (S54): stable
-/// from run to run of one build, unlike `std`'s hashers, which may change between releases.
+/// FNV-1a over the build's version and the shaders the canvas's pixels come from (S54, S62):
+/// stable from run to run of one build, unlike `std`'s hashers, which may change between
+/// releases.
 fn identity(display: wgpu::TextureFormat) -> u64 {
+    let raster = raster_source().unwrap_or_else(|error| error.to_string());
     let sources = [
         env!("CARGO_PKG_VERSION"),
         &shader_source(display),
+        &raster,
         SMUDGE_SHADER,
         FILTER_SHADER,
     ];

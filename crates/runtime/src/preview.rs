@@ -1,6 +1,6 @@
 //! The brush picker's previews: each brush draws one S-shaped stroke through the product
-//! evaluator, so a preview shows exactly what the brush paints: black on white, which the panel
-//! turns into its ink and alpha.
+//! renderer (the raster core since S62), so a preview shows exactly what the brush paints: black
+//! on white, which the panel turns into its ink and alpha.
 
 use std::f32::consts::{PI, TAU};
 use std::sync::Arc;

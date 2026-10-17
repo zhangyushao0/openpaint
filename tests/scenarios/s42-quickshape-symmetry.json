@@ -37,17 +37,17 @@
     { "tap": { "at": "Actions" } },
     { "screenshot": { "name": "guide-radial" } },
     { "stroke": { "points": [[1560, 500, 0.6], [1620, 528, 0.6], [1680, 547, 0.6], [1740, 549, 0.6], [1800, 534, 0.6], [1860, 507, 0.6], [1920, 478, 0.6], [1980, 456, 0.6], [2040, 450, 0.6], [2100, 461, 0.6], [2160, 486, 0.6], [2220, 516, 0.6], [2280, 540, 0.6]] } },
-    { "checkpoint": { "name": "radial", "canvas": "e1c586f8773152ed" } },
+    { "checkpoint": { "name": "radial", "canvas": "aa267eda325733c7" } },
     { "screenshot": { "name": "radial-screen" } },
     { "touch": { "from": [[1440, 942]], "to": [[1240, 742]], "ms": 200 } },
     { "screenshot": { "name": "centre-moved" } },
     { "stroke": { "points": [[1300, 1150, 0.5], [1400, 1250, 0.6], [1500, 1200, 0.6], [1600, 1300, 0.6]] } },
-    { "checkpoint": { "name": "moved-centre-stroke", "canvas": "157ff5b0bc3a283f" } },
+    { "checkpoint": { "name": "moved-centre-stroke", "canvas": "bd83339b7803aa15" } },
     { "screenshot": { "name": "moved-centre-stroke-screen" } },
     { "tap": { "at": "Undo" } },
-    { "checkpoint": { "name": "radial-again", "canvas": "e1c586f8773152ed" } },
+    { "checkpoint": { "name": "radial-again", "canvas": "aa267eda325733c7" } },
     "restart",
-    { "checkpoint": { "name": "reopened", "canvas": "e1c586f8773152ed" } },
+    { "checkpoint": { "name": "reopened", "canvas": "aa267eda325733c7" } },
     { "screenshot": { "name": "reopened-screen" } }
   ]
 }

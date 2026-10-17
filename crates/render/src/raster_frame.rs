@@ -6,6 +6,7 @@
 use super::{Finish, RasterTargets};
 use crate::core::Core;
 use crate::error::RenderError;
+use crate::geom::PixelRect;
 use crate::gpu_clock::Stamps;
 use crate::output::Output;
 use crate::raster_gpu::RasterPipelines;
@@ -191,7 +192,7 @@ impl RasterTargets {
 
     /// The scene's group, the reads' `group` when given, the instances.
     fn bind(&self, pass: &mut wgpu::RenderPass<'_>, group: Option<&wgpu::BindGroup>) {
-        if let Some((_, _, scene)) = &self.scene {
+        if let Some((_, scene)) = &self.scene {
             pass.set_bind_group(0, scene, &[]);
         }
         if let Some(group) = group {
@@ -228,8 +229,8 @@ impl RasterTargets {
         );
     }
 
-    /// The canvas rounded into the destination's pixels from `finish.at`, by `pipeline`, its
-    /// instance `finished` naming that place.
+    /// The canvas rounded into the destination's pixels from `finish.at` (only those of
+    /// `finish.only` when it names any), by `pipeline`, its instance `finished` naming that place.
     fn finish(
         &self,
         encoder: &mut wgpu::CommandEncoder,
@@ -241,7 +242,25 @@ impl RasterTargets {
         region(&mut pass, finish.at, size);
         self.bind(&mut pass, self.reads.as_ref().map(|reads| &reads.canvas));
         pass.set_pipeline(pipeline);
-        pass.draw(0..3, finished..finished + 1);
+        if finish.only.is_empty() {
+            pass.draw(0..3, finished..finished + 1);
+            return;
+        }
+        let [x, y] = finish.at.map(|at| i32::try_from(at).unwrap_or(i32::MAX));
+        let whole = PixelRect {
+            min: [x, y],
+            max: [x + size[0] as i32, y + size[1] as i32],
+        };
+        for rect in finish.only {
+            let part = rect.intersect(&whole);
+            if part.is_empty() {
+                continue;
+            }
+            let [x0, y0] = part.min.map(i32::unsigned_abs);
+            let [x1, y1] = part.max.map(i32::unsigned_abs);
+            pass.set_scissor_rect(x0, y0, x1 - x0, y1 - y0);
+            pass.draw(0..3, finished..finished + 1);
+        }
     }
 }
 

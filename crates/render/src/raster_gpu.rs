@@ -7,6 +7,7 @@
 //! format. Each pipeline's entry points reach only their own kind's code, so none pays for the
 //! others' registers (D82).
 
+use crate::core::Core;
 use crate::error::RenderError;
 use crate::gpu::{Gpu, TEN_BITS};
 use crate::protocol::{Blend, prelude};
@@ -196,6 +197,49 @@ impl RasterPipelines {
             TEN_BITS => self.finish_ten.as_ref(),
             _ => None,
         }
+    }
+}
+
+impl Core {
+    /// The raster core's pipelines, made by the first caller (how long that took is logged), any
+    /// other waiting until they are: the runtime makes them on its raster worker as the device is
+    /// made (S60), so the screen's frames never wait for them (`raster_made`).
+    pub(crate) fn raster_pipelines(&self) -> Result<&RasterPipelines, RenderError> {
+        if let Some(pipelines) = self.raster.get() {
+            return Ok(pipelines);
+        }
+        let _one = self
+            .making
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(pipelines) = self.raster.get() {
+            return Ok(pipelines);
+        }
+        let started = std::time::Instant::now();
+        let mut made = RasterPipelines::new(&self.gpu)?;
+        made.compile_ns = started.elapsed().as_secs_f64() * 1e9;
+        log::info!(
+            "raster core: {} pipelines made in {:.0} ms ({:?} atlas, {:?} targets)",
+            made.count,
+            made.compile_ns / 1e6,
+            made.atlas,
+            made.layer
+        );
+        Ok(self.raster.get_or_init(|| made))
+    }
+
+    /// The raster core's pipelines when they are made, without waiting (S60).
+    pub(crate) fn raster_made(&self) -> Option<&RasterPipelines> {
+        self.raster.get()
+    }
+
+    /// Makes the raster core's pipelines now unless they are made (S60: the runtime's raster
+    /// worker, as the device is made, so the first zoom finds them).
+    ///
+    /// # Errors
+    /// As the GPU: a shader the device refuses.
+    pub fn make_raster_pipelines(&self) -> Result<(), RenderError> {
+        self.raster_pipelines().map(drop)
     }
 }
 

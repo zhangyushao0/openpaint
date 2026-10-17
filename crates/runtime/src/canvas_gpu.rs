@@ -72,7 +72,24 @@ impl Canvas {
         self.target.show_selection(core, self.session.selection());
         self.evaluated = true;
         self.filled(core);
+        self.note_routing();
         Ok(())
+    }
+
+    /// Logs which core draws the canvas and its tiers when that changes (S59, S62).
+    fn note_routing(&mut self) {
+        let routing = self.target.routing(self.session.shown());
+        if routing.is_none() || routing == self.routing {
+            return;
+        }
+        match routing {
+            Some(Ok(())) => log::info!("the canvas and its view tiers drawn by the raster core"),
+            Some(Err(routed)) => {
+                log::info!("the canvas and its view tiers evaluated: the artwork holds {routed}");
+            }
+            None => {}
+        }
+        self.routing = routing;
     }
 
     /// Tiles of the target still wait to be evaluated: frames are wanted until none does.
@@ -146,14 +163,19 @@ impl Canvas {
         }
     }
 
-    /// What the view tiers ask of the raster worker since the last call (S60).
+    /// What the canvas and its view tiers ask of the raster worker since the last call (S60,
+    /// S62).
     pub(crate) fn raster_orders(&mut self) -> Vec<RasterOrder> {
-        self.view.take_orders()
+        self.target.take_orders()
     }
 
-    /// The raster worker answered (S60).
+    /// The raster worker answered (S60): a tile goes to the canvas (its own, or its tiers'), an
+    /// atlas made ahead to the tiers.
     pub(crate) fn raster_answer(&mut self, answer: RasterAnswer) {
-        self.view.answer(answer);
+        match answer {
+            RasterAnswer::Tile(done) => self.target.answer(done),
+            RasterAnswer::Atlas(atlas) => self.view.answer_atlas(atlas),
+        }
     }
 
     /// Where the screen shows the canvas through `frame`: its waiting tiles there go first, the
@@ -188,7 +210,7 @@ impl Canvas {
     pub(crate) fn bytes(&self) -> CacheBytes {
         CacheBytes {
             tiers: self.view.bytes(),
-            raster: self.view.raster_held().map_or(0, |(bytes, _)| bytes),
+            raster: self.target.raster_held().map_or(0, |(bytes, _)| bytes),
             ..self.target.bytes()
         }
     }
@@ -206,7 +228,7 @@ impl Canvas {
         for unit in gone {
             match unit {
                 Unit::Tier(scale) => freed[0] += self.view.let_go(*scale),
-                Unit::Raster => freed[0] += self.view.let_go_raster(),
+                Unit::Raster => freed[0] += self.target.let_go_raster(),
                 Unit::Snapshots => freed[1] += self.target.set_snapshot_room(0),
                 Unit::Arena => freed[2] += self.target.shrink_arena(core)?,
                 Unit::Pictures => {}
@@ -221,7 +243,7 @@ impl Canvas {
     /// Lets the view tiers, the snapshots and the arena's blocks no scene shows go at once (the
     /// app no longer shows, S58); each is made again when needed.
     pub(crate) fn release(&mut self, core: &Core) -> Result<Freed, RuntimeError> {
-        let tiers = self.view.release();
+        let tiers = self.view.release() + self.target.let_go_raster();
         let snapshots = self.target.set_snapshot_room(0);
         let arena = self.target.shrink_arena(core)?;
         Ok([tiers, snapshots, arena, 0])

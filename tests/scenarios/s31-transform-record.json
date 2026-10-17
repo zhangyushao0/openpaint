@@ -12,7 +12,7 @@
   "density": 1.25,
   "steps": [
     { "stroke": { "points": [[600, 380, 1.0], [720, 420, 1.0], [650, 470, 1.0]] } },
-    { "checkpoint": { "name": "drawn", "canvas": "de23fdf805543bf8" } },
+    { "checkpoint": { "name": "drawn", "canvas": "9266af97e4aa7b87" } },
     { "tap": { "at": "Transform" } },
     { "screenshot": { "name": "framed" } },
     { "press": { "path": [[726, 476, 0], [858, 579, 120], [990, 682, 240]], "tool": "stylus", "before_lift": "scaling" } },

@@ -21,6 +21,7 @@ mod masks;
 mod merge;
 mod merge_after;
 mod raster;
+mod raster_canvas;
 mod raster_smudge;
 mod records;
 mod records_scale;

@@ -23,6 +23,8 @@
 //! - `touch` (S60): a pinch to 8x over the densest place, then while the tier fills a pen
 //!   touching down and later two fingers starting a pan: from each event to its first frame's
 //!   start, to its present and to the GPU finishing it.
+//! - `undo` (S62): the layer holding the most strokes hidden, then undone, redone and undone
+//!   again: each fill's time to complete and its frames' work.
 
 use std::time::{Duration, Instant};
 
@@ -39,11 +41,13 @@ mod export;
 mod paint;
 #[path = "bench_app_touch.rs"]
 mod touch;
+#[path = "bench_app_undo.rs"]
+mod undo;
 
 pub use cases::busiest;
 
 /// The scenarios `bench_scenario` runs.
-pub const SCENARIOS: [&str; 8] = [
+pub const SCENARIOS: [&str; 9] = [
     "open-cold",
     "open",
     "zoom",
@@ -52,6 +56,7 @@ pub const SCENARIOS: [&str; 8] = [
     "session",
     "export",
     "touch",
+    "undo",
 ];
 
 /// The screen offscreen when no frame was drawn yet: the tablet's.
@@ -202,6 +207,7 @@ impl Runtime {
             "session" => self.bench_session(&mut lines)?,
             "export" => self.bench_export(&mut lines)?,
             "touch" => self.bench_touch(&mut lines)?,
+            "undo" => self.bench_undo(&mut lines)?,
             _ => return Err(RuntimeError::NotNow("a scenario of SCENARIOS")),
         }
         Ok(lines)

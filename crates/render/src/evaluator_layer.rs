@@ -1,7 +1,8 @@
 //! One layer evaluated alone into a target: what a fill samples, a transform lifts and the layer
-//! panel's pictures show.
+//! panel's pictures show, for a layer holding what goes to the evaluator (S62: else the raster
+//! core samples it, `sample.rs`).
 
-use openpaint_core::{Artwork, LayerId};
+use openpaint_core::Artwork;
 
 use super::RegionEvaluator;
 use crate::affine::Affine;
@@ -17,15 +18,16 @@ use crate::smudge::Wanted;
 const BAND_ROWS: i32 = 512;
 
 impl RegionEvaluator<'_> {
-    /// Evaluates `layer` of `artwork` alone over the whole target, at full opacity, on nothing
-    /// (transparent black), whether the layer is shown or not: premultiplied layer pixels for a
-    /// fill to sample. With `mask`, its mask alone on white: the mask's grey, opaque. The
-    /// target then holds no frame of the artwork. It goes in bands of rows, each with the
-    /// residuals near it (S51); a pixel never depends on which pixels are evaluated with it.
+    /// Evaluates `scene` (one layer of `artwork` alone, `Scene::layer`) over the whole target, at
+    /// full opacity, on nothing (transparent black), whether the layer is shown or not:
+    /// premultiplied layer pixels for a fill to sample. With `mask`, its mask alone on white: the
+    /// mask's grey, opaque. The target then holds no frame of the artwork. It goes in bands of
+    /// rows, each with the residuals near it (S51); a pixel never depends on which pixels are
+    /// evaluated with it.
     pub(crate) fn evaluate_layer(
         &mut self,
         artwork: &Artwork,
-        layer: LayerId,
+        scene: &Scene,
         mask: bool,
     ) -> Result<(), RenderError> {
         let size = self.target.size();
@@ -35,8 +37,7 @@ impl RegionEvaluator<'_> {
                 "the target's size differs from the canvas size",
             ));
         }
-        let scene = Scene::layer(artwork, layer, mask)?;
-        let ops = scene_ops(&self.core.gpu, &scene, None);
+        let ops = scene_ops(&self.core.gpu, scene, None);
         let target = (size, Output::CANVAS);
         self.target.scene = None;
         self.target.track.forget();
@@ -52,8 +53,8 @@ impl RegionEvaluator<'_> {
             };
             top = band.max[1];
             let wanted = Wanted::Near(std::slice::from_ref(&band));
-            smudges.prepare(self.core, (&scene, &ops), artwork, (&mut *filters, &wanted))?;
-            let plan = Plan::build(&scene, &Fresh::default(), target, &[band]);
+            smudges.prepare(self.core, (scene, &ops), artwork, (&mut *filters, &wanted))?;
+            let plan = Plan::build(scene, &Fresh::default(), target, &[band]);
             self.core.evaluate.dispatch(
                 &self.core.gpu,
                 &mut self.target.bindings,

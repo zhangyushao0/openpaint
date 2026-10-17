@@ -2,7 +2,7 @@
 //! screen's density, holding a sample stroke (an S-curve across it, its pressure rising to 1 at
 //! the middle and falling again, upright) and the strokes the pen drew on the strip, each drawn
 //! with the style the canvas's next stroke takes, painting. It is an artwork like any other,
-//! evaluated by the one evaluator, so the strip shows what the canvas would.
+//! drawn as the canvas is (the raster core since S62), so the strip shows what the canvas would.
 
 use std::f32::consts::{PI, TAU};
 use std::sync::Arc;

@@ -1,9 +1,10 @@
 //! The frame budget for background work (S53): a screen frame takes of the waiting tiles, a view
 //! tier's missing tiles and a residual being evaluated only what its budget's estimate holds (or a
-//! single piece), so the canvas fills in over frames to the cold canvas, a pinch's and a pan's
-//! frames stay within it, a stroke drawn while tiles wait is evaluated at once and leaves them
-//! waiting, and every smudge residual is evaluated once while nothing changes: by the canvas's
-//! fill, none again by the tiers' fills or a pan.
+//! single piece), so the canvas fills in over frames to the cold canvas (S62: its tiles drawn by
+//! the raster worker, served after each frame, none binned), a pinch's and a pan's frames stay
+//! within it, a stroke drawn while tiles wait is evaluated at once and leaves them waiting, and
+//! every smudge residual is evaluated once while nothing changes: by the canvas's fill, none again
+//! by the tiers' fills or a pan.
 //!
 //! A test binary of its own: the tests set the device's frame budget, which every frame on the
 //! device follows, so they run one at a time on a device no other test uses.
@@ -17,7 +18,7 @@ use openpaint_core::{
 };
 use openpaint_render::{
     BACKGROUND_NS, CanvasTarget, Core, FrameRequest, PixelRect, RasterDrawer, RegionEvaluator,
-    RgbaImage, ViewCache, ViewFrame, stroke_region,
+    RgbaImage, ViewCache, ViewFrame, image_difference, stroke_region,
 };
 
 const SIZE: [u32; 2] = [320, 200];
@@ -115,13 +116,14 @@ fn cold(artwork: &Artwork) -> RgbaImage {
     target.read(core()).expect("read")
 }
 
-/// One screen frame: the budget whole again, the canvas, then (with a view) its tiers; the
-/// frame's background work must have kept within the budget.
+/// One screen frame: the budget whole again, the canvas, then (with a view) its tiers, then the
+/// tiles they handed to the raster worker drawn (S60, S62); the frame's background work must have
+/// kept within the budget.
 fn frame(
-    target: &mut CanvasTarget,
+    (target, cache): (&mut CanvasTarget, &mut ViewCache),
     (artwork, active): (&Artwork, Option<&ActiveStroke>),
     regions: &[PixelRect],
-    view: Option<(&mut ViewCache, &ViewFrame, f64)>,
+    view: Option<(&ViewFrame, f64)>,
 ) {
     let core = core();
     core.begin_frame();
@@ -129,16 +131,15 @@ fn frame(
     RegionEvaluator::new(core, target)
         .evaluate_frame(&request, regions)
         .expect("frame");
-    if let Some((cache, frame, now)) = view {
+    if let Some((frame, now)) = view {
         cache
             .update(core, target, &request, (frame, now))
             .expect("view");
-        // The tiles handed to the raster worker (S60), drawn at once.
-        static DRAWER: OnceLock<Mutex<RasterDrawer>> = OnceLock::new();
-        let drawer = DRAWER.get_or_init(Mutex::default);
-        let mut drawer = drawer.lock().unwrap_or_else(PoisonError::into_inner);
-        drawer.serve(core, cache);
     }
+    static DRAWER: OnceLock<Mutex<RasterDrawer>> = OnceLock::new();
+    let drawer = DRAWER.get_or_init(Mutex::default);
+    let mut drawer = drawer.lock().unwrap_or_else(PoisonError::into_inner);
+    drawer.serve(core, (target, cache));
     // What this frame took shows as the frame before the next one's.
     core.begin_frame();
     let taken = core.background();
@@ -156,53 +157,61 @@ fn view(zoom: f32, [cx, cy]: [f32; 2]) -> ViewFrame {
     }
 }
 
+/// A canvas and its view tiers, as the runtime holds them.
+fn screen() -> (CanvasTarget, ViewCache) {
+    let target = CanvasTarget::new(core(), SIZE).expect("target");
+    (target, ViewCache::new(core()))
+}
+
 #[test]
 fn a_frame_takes_its_budget_and_the_rest_fills_in_over_the_next_frames() {
     let _one = alone();
     let artwork = dense(300);
-    let mut target = CanvasTarget::new(core(), SIZE).expect("target");
+    let (mut target, mut cache) = screen();
     let before = core().counts();
-    frame(
-        &mut target,
-        (&artwork, None),
-        &[PixelRect::full(SIZE)],
-        None,
-    );
+    let all = [PixelRect::full(SIZE)];
+    frame((&mut target, &mut cache), (&artwork, None), &all, None);
     assert!(target.pending(), "a dense canvas takes more than a frame");
     let mut frames = 1;
     while target.pending() {
-        frame(&mut target, (&artwork, None), &[], None);
+        frame((&mut target, &mut cache), (&artwork, None), &[], None);
         frames += 1;
         assert!(frames < 100_000, "the canvas never filled in");
     }
     let counts = core().counts().since(before);
     eprintln!(
-        "the dense canvas filled in over {frames} frames, {} plans",
-        counts.plans
+        "the dense canvas filled in over {frames} frames, {} regions",
+        counts.rastered
     );
     assert!(frames > 2, "{frames} frames");
-    assert!(
-        counts.plans * 8 < frames,
-        "batches binned once, not every frame: {} plans",
-        counts.plans
-    );
+    assert_eq!(counts.plans, 0, "S62: drawn by the raster core, not binned");
+    assert!(counts.rastered > 0);
     assert!(
         target.read(core()).expect("read") == cold(&artwork),
         "filled in = cold"
     );
 }
 
+/// The pixels of `image` inside `rect` (cut to the canvas).
+fn crop(image: &RgbaImage, rect: &PixelRect) -> RgbaImage {
+    let [x0, y0] = rect.min.map(|at| at.max(0) as usize);
+    let x1 = (rect.max[0].max(0) as usize).min(SIZE[0] as usize);
+    let y1 = (rect.max[1].max(0) as usize).min(SIZE[1] as usize);
+    let mut pixels = Vec::new();
+    for y in y0..y1 {
+        let at = (y * SIZE[0] as usize + x0) * 4;
+        pixels.extend_from_slice(&image.pixels()[at..at + (x1 - x0) * 4]);
+    }
+    RgbaImage::from_rgba([(x1 - x0) as u32, (y1 - y0) as u32], pixels).expect("cropped")
+}
+
 #[test]
 fn a_stroke_drawn_while_tiles_wait_shows_at_once_and_leaves_them_waiting() {
     let _one = alone();
     let artwork = dense(300);
-    let mut target = CanvasTarget::new(core(), SIZE).expect("target");
-    frame(
-        &mut target,
-        (&artwork, None),
-        &[PixelRect::full(SIZE)],
-        None,
-    );
+    let (mut target, mut cache) = screen();
+    let all = [PixelRect::full(SIZE)];
+    frame((&mut target, &mut cache), (&artwork, None), &all, None);
     let samples: Vec<StrokeSample> = (0..8u16)
         .map(|i| sample(40.0 + 12.0 * f32::from(i), 30.0, 0.9, u32::from(i) * 8))
         .collect();
@@ -211,24 +220,20 @@ fn a_stroke_drawn_while_tiles_wait_shows_at_once_and_leaves_them_waiting() {
         .begin_stroke(style.clone(), samples[0])
         .expect("begin");
     stroke.extend(&samples[1..]).expect("extend");
-    frame(&mut target, (&artwork, Some(stroke.active())), &[], None);
+    let drawing = (&artwork, Some(stroke.active()));
+    frame((&mut target, &mut cache), drawing, &[], None);
     assert!(target.pending(), "the waiting tiles wait for the stroke");
     let so_far = stroke.finish().artwork;
+    // The stroke in progress is the evaluator's (S63): within a level of the raster core's cold
+    // canvas away from antialiased edges (D88's rule).
     let reached = stroke_region(&style, &samples, 0).expect("region");
     let [shown, wanted] = [target.read(core()).expect("read"), cold(&so_far)];
-    for y in reached.min[1].max(0)..reached.max[1].min(SIZE[1] as i32) {
-        for x in reached.min[0].max(0)..reached.max[0].min(SIZE[0] as i32) {
-            let at = (y as usize * SIZE[0] as usize + x as usize) * 4;
-            assert_eq!(
-                shown.pixels()[at..at + 4],
-                wanted.pixels()[at..at + 4],
-                "{x}, {y}"
-            );
-        }
-    }
+    let found = image_difference(&crop(&wanted, &reached), &crop(&shown, &reached));
+    let found = found.expect("same size");
+    assert_eq!(found.beyond_one_inside, 0, "{found:?}");
     let mut frames = 0;
     while target.pending() {
-        frame(&mut target, (&so_far, None), &[], None);
+        frame((&mut target, &mut cache), (&so_far, None), &[], None);
         frames += 1;
         assert!(frames < 100_000, "the canvas never filled in");
     }
@@ -239,19 +244,14 @@ fn a_stroke_drawn_while_tiles_wait_shows_at_once_and_leaves_them_waiting() {
 fn a_pinch_and_a_pan_take_no_more_than_their_budget_and_the_tiers_fill_in() {
     let _one = alone();
     let artwork = dense(300);
-    let mut target = CanvasTarget::new(core(), SIZE).expect("target");
-    let mut cache = ViewCache::new(core());
+    let (mut target, mut cache) = screen();
     let mut now = 0.0;
     let mut step = |target: &mut CanvasTarget, cache: &mut ViewCache, shown: &ViewFrame| {
         now += 1.0 / 120.0;
-        frame(target, (&artwork, None), &[], Some((cache, shown, now)));
+        frame((target, cache), (&artwork, None), &[], Some((shown, now)));
     };
-    frame(
-        &mut target,
-        (&artwork, None),
-        &[PixelRect::full(SIZE)],
-        None,
-    );
+    let all = [PixelRect::full(SIZE)];
+    frame((&mut target, &mut cache), (&artwork, None), &all, None);
     // A pinch from 2.2 to 4 screen pixels a canvas pixel about the middle, then still, then a
     // pan; every frame within the budget (`frame`).
     for k in 0..240 {
@@ -259,11 +259,8 @@ fn a_pinch_and_a_pan_take_no_more_than_their_budget_and_the_tiers_fill_in() {
         step(&mut target, &mut cache, &view(zoom, [160.0, 100.0]));
     }
     for k in 0..240 {
-        step(
-            &mut target,
-            &mut cache,
-            &view(4.0, [160.0 - k as f32 * 0.3, 100.0]),
-        );
+        let pan = view(4.0, [160.0 - k as f32 * 0.3, 100.0]);
+        step(&mut target, &mut cache, &pan);
     }
     let mut frames = 0;
     let last = view(4.0, [88.0, 100.0]);
@@ -279,17 +276,12 @@ fn a_pinch_and_a_pan_take_no_more_than_their_budget_and_the_tiers_fill_in() {
 fn each_residual_is_evaluated_once_by_the_canvas_and_never_again_by_the_tiers() {
     let _one = alone();
     let artwork = smudged(9);
-    let mut target = CanvasTarget::new(core(), SIZE).expect("target");
-    let mut cache = ViewCache::new(core());
+    let (mut target, mut cache) = screen();
     let before = core().counts();
-    frame(
-        &mut target,
-        (&artwork, None),
-        &[PixelRect::full(SIZE)],
-        None,
-    );
+    let all = [PixelRect::full(SIZE)];
+    frame((&mut target, &mut cache), (&artwork, None), &all, None);
     while target.pending() {
-        frame(&mut target, (&artwork, None), &[], None);
+        frame((&mut target, &mut cache), (&artwork, None), &[], None);
     }
     let filled = core().counts().since(before);
     assert_eq!(filled.derived, 9, "each smudge's residual once");
@@ -307,12 +299,8 @@ fn each_residual_is_evaluated_once_by_the_canvas_and_never_again_by_the_tiers() 
         let shown = view(zoom, centre);
         for _ in 0..2000 {
             now += 1.0 / 120.0;
-            frame(
-                &mut target,
-                (&artwork, None),
-                &[],
-                Some((&mut cache, &shown, now)),
-            );
+            let screen = (&mut target, &mut cache);
+            frame(screen, (&artwork, None), &[], Some((&shown, now)));
         }
     }
     let tiers = core().counts().since(after);
@@ -337,16 +325,15 @@ fn a_cached_canvas_evaluates_its_residuals_over_frames_and_its_tier_waits_for_th
         .evaluate(&request(&artwork, None), &all)
         .expect("cold");
     let pixels = source.copy_out(core()).bytes(core()).expect("read back");
-    let mut target = CanvasTarget::new(core(), SIZE).expect("target");
+    let (mut target, mut cache) = screen();
     target.show_cached(core(), &pixels, true).expect("shown");
-    let mut cache = ViewCache::new(core());
     let shown = view(4.0, [100.0, 80.0]);
     let before = core().counts();
     let mut frames = 0;
     while frames < 2000 || target.warming() {
         let now = f64::from(frames) / 120.0;
-        let view = Some((&mut cache, &shown, now));
-        frame(&mut target, (&artwork, None), &[], view);
+        let screen = (&mut target, &mut cache);
+        frame(screen, (&artwork, None), &[], Some((&shown, now)));
         assert!(!target.pending(), "nothing waits on the canvas");
         frames += 1;
         assert!(frames < 40_000, "the residuals were never all evaluated");
@@ -365,13 +352,13 @@ fn a_cached_canvas_evaluates_its_residuals_over_frames_and_its_tier_waits_for_th
 fn a_canvas_fills_in_when_its_residuals_pass_the_arenas_room() {
     let _one = alone();
     let artwork = smudged(9);
-    let mut target = CanvasTarget::new(core(), SIZE).expect("target");
+    let (mut target, mut cache) = screen();
     let before = core().counts();
     let mut frames = 0;
     let mut regions = vec![PixelRect::full(SIZE)];
     while frames == 0 || target.pending() {
         target.set_arena_room(core(), 1 << 20).expect("room");
-        frame(&mut target, (&artwork, None), &regions, None);
+        frame((&mut target, &mut cache), (&artwork, None), &regions, None);
         regions.clear();
         frames += 1;
         assert!(frames < 20_000, "the canvas never filled in");

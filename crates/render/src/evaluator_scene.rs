@@ -23,6 +23,7 @@ use crate::plan::Plan;
 use crate::preview::{PreviewSnapshot, retuned};
 use crate::program::{Dispatch, SceneOps, SnapshotUse, scene_ops};
 use crate::protocol::{Op, TileRecord};
+use crate::raster_route::{Routed, Routing};
 use crate::scene::{ActivePlace, Fresh, Scene};
 use crate::scene_adjust::EditPlace;
 use crate::smudge::{Smudges, Wanted, reached};
@@ -182,7 +183,10 @@ impl CanvasTarget {
             .and_then(|cache| Arc::get_mut(&mut cache.scene))
             .map(Scene::take_earlier);
         let known = (known.unwrap_or_default(), earlier.unwrap_or_default());
-        let scene = Scene::build_knowing(artwork, Some(active), known)?;
+        let mut scene = Scene::build_knowing(artwork, Some(active), known)?;
+        if self.reference {
+            scene.routing = Routing::Evaluated(Routed::default());
+        }
         let patches = self.scene.as_ref().and_then(|cache| {
             let (old, new) = (&cache.scene.patches, &scene.patches);
             let same = old.len() == new.len() && old.iter().zip(new).all(|(a, b)| a.shares(b));

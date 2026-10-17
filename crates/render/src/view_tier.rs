@@ -86,7 +86,7 @@ pub struct ViewCache {
     pub(crate) room: u64,
     /// The tier the view wants did not fit the room.
     refused: bool,
-    /// The raster core's targets and the routing of the canvas's scene (S59).
+    /// The tiles handed to the raster worker (S59, S60; the targets are the canvas's since S62).
     pub(crate) raster: RasterTier,
     /// The atlas of the next new tier, made ahead on the raster worker, and whether one is wanted
     /// (S60).
@@ -136,7 +136,11 @@ impl ViewCache {
         (frame, now): (&ViewFrame, f64),
     ) -> Result<ViewWork, RenderError> {
         let changed = canvas.take_changed();
-        let rastered = self.raster.routes(canvas, request);
+        let rastered = canvas.rastered(request);
+        // The canvas's own raster draws count as a use of the targets it shares with the tiers.
+        if std::mem::take(&mut canvas.raster.drew) {
+            canvas.raster.used_at = now;
+        }
         let wanted = tier_for(zoom(&frame.to_canvas));
         let since = match self.last {
             Some((last, since)) if last == *frame => since,
@@ -149,7 +153,7 @@ impl ViewCache {
             self.switch(core, request, wanted, frame)?;
         }
         let mut work = ViewWork::default();
-        self.take_answers(core, rastered, &mut work);
+        self.take_answers(core, canvas, rastered, &mut work);
         // Tiers not shown in full keep only tiles no change reached; tiles the raster worker
         // draws that a change reached are drawn again (S60).
         for tier in self.previous.iter_mut().chain(self.kept.iter_mut()) {
@@ -185,9 +189,7 @@ impl ViewCache {
         work.tier = self.current.as_ref().map(Tier::scale);
         work.changing = work.tier != wanted && !self.refused;
         // The first tier's atlas is made ahead, once nothing touches the screen (S60).
-        if self.current.is_none() && self.previous.is_none() && self.kept.is_empty() {
-            self.ask_spare(core, frame);
-        }
+        self.ask_spare(core, canvas, frame);
         work.bytes = self.bytes();
         self.filling = Filling::step(self.filling.take(), &work);
         if work.bytes > self.peak {
@@ -214,13 +216,7 @@ impl ViewCache {
         };
         // What changed shows at once when it fits; missing tiles are background work (S53).
         if rastered && request.active.is_none() {
-            in_place_raster(
-                core,
-                current,
-                (&mut *canvas, request),
-                raster,
-                (changed, work, now),
-            )?;
+            in_place_raster(core, current, (&mut *canvas, request), (changed, work, now))?;
         } else {
             in_place(core, current, (canvas, request), (changed, work))?;
             for tile in &work.updated {

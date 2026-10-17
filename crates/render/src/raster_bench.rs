@@ -20,7 +20,6 @@ use crate::output::Output;
 use crate::pace::Group;
 use crate::program::scene_ops;
 use crate::raster_plan::{RasterCounts, RasterPlan};
-use crate::raster_route::RasterScene;
 use crate::readback::{FORMAT, read_rgba, target_texture};
 use crate::scene::Scene;
 use crate::scene_reuse::Earlier;
@@ -87,6 +86,7 @@ impl Bench<'_> {
             view: &view,
             format: FORMAT,
             at: [0, 0],
+            only: &[],
         };
         let stamps = match clock.as_deref_mut() {
             Some(clock) => {
@@ -125,11 +125,11 @@ impl Core {
     ) -> Result<RasterTimed, RenderError> {
         let output = Output::at(scale, at.map(|v| v * scale))?;
         let scene = Scene::build_knowing(artwork, None, (Vec::new(), Earlier::default()))?;
-        let raster = RasterScene::of(&scene)
-            .map_err(|_| RenderError::Invalid("the scene goes to the evaluator"))?;
+        let raster =
+            (scene.rastered()).ok_or(RenderError::Invalid("the scene goes to the evaluator"))?;
         let buffers = self.residuals_for(artwork, &scene, (output, size))?;
         let started = Instant::now();
-        let units = (&scene, &raster, buffers.bases());
+        let units = (&scene, raster, buffers.bases());
         let plan = RasterPlan::build(units, (output, size), [atlas; 2])?;
         let plan_ns = started.elapsed().as_secs_f64() * 1e9;
         let usage = wgpu::TextureUsages::RENDER_ATTACHMENT;
@@ -195,7 +195,7 @@ impl Core {
         let mut smudges = Smudges::new(self);
         let wanted = (&mut Filters::default(), &Wanted::Near(&near));
         smudges.prepare(self, (scene, &ops), artwork, wanted)?;
-        Ok(SceneBuffers::of(&ops, 1, smudges.held(scene)))
+        Ok(SceneBuffers::of(&ops, smudges.held(scene)))
     }
 
     /// `repeats` draws of the bench, each timed by GPU timestamps (or by waiting for it): their

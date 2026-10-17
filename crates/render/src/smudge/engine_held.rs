@@ -10,7 +10,7 @@
 
 use std::sync::Arc;
 
-use super::{Smudges, key};
+use super::{Arena, Smudges, key};
 use crate::scene::Scene;
 
 #[derive(Debug, Clone)]
@@ -25,16 +25,22 @@ pub(crate) struct Held {
 impl Smudges {
     /// The residuals of `scene`'s smudges as the arena holds them now.
     pub(crate) fn held(&self, scene: &Scene) -> Held {
-        let bases = (scene.smudges.iter())
-            .map(|item| {
-                let base = self.arena.base(&key(item.layer, &item.stroke))?;
-                u32::try_from(base).ok()
-            })
-            .collect();
-        let [arena, active] = self.residuals();
-        Held {
-            buffers: [arena.clone(), active.clone()],
-            bases,
-        }
+        let [_, active] = self.residuals();
+        held_in(&self.arena, active, scene)
+    }
+}
+
+/// The residuals of `scene`'s smudges as `arena` holds them now, `active` the in-progress one's
+/// (S62: an empty one for a smudge's material, which never reads it).
+pub(crate) fn held_in(arena: &Arena, active: &wgpu::Buffer, scene: &Scene) -> Held {
+    let bases = (scene.smudges.iter())
+        .map(|item| {
+            let base = arena.base(&key(item.layer, &item.stroke))?;
+            u32::try_from(base).ok()
+        })
+        .collect();
+    Held {
+        buffers: [arena.buffer().clone(), active.clone()],
+        bases,
     }
 }

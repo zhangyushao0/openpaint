@@ -48,6 +48,24 @@ pub fn run(
     library: &Path,
     fonts: &TextFonts,
 ) -> Result<Report, ScenarioError> {
+    run_with(scenario, (library, fonts), false)
+}
+
+/// As `run`, each canvas checkpoint with the evaluator's image of what the canvas shows beside it
+/// (S62, harness `canvas-check`: how far the raster core's canvas lies from it).
+pub fn run_compared(
+    scenario: &Scenario,
+    library: &Path,
+    fonts: &TextFonts,
+) -> Result<Report, ScenarioError> {
+    run_with(scenario, (library, fonts), true)
+}
+
+fn run_with(
+    scenario: &Scenario,
+    (library, fonts): (&Path, &TextFonts),
+    compare: bool,
+) -> Result<Report, ScenarioError> {
     let started = Instant::now();
     // One device for the run, restarts included; its screen in 8 bits: every check reads 8-bit
     // values, which a ten-bit screen gives only after decoding each texel on the CPU.
@@ -65,6 +83,7 @@ pub fn run(
         written: Written::default(),
         index: 0,
         unnamed: Vec::new(),
+        compare,
     };
     let mut runtime = runner.start()?;
     let mut records = Vec::new();
@@ -112,6 +131,8 @@ struct Runner<'a> {
     index: usize,
     /// Contacts given as window pixels that land on a control, which the step should name.
     unnamed: Vec<String>,
+    /// Canvas checkpoints carry the evaluator's image beside them (`run_compared`).
+    compare: bool,
 }
 
 impl Runner<'_> {
@@ -295,7 +316,7 @@ impl Runner<'_> {
         if matches!(step, Step::View { .. }) {
             return Ok(view_check(runtime, step));
         }
-        record(runtime, step, &self.written).map(Some)
+        record(runtime, step, (&self.written, self.compare)).map(Some)
     }
 
     /// Each batch is one platform event followed by one frame at the batch's time.

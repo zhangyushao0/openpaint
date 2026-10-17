@@ -9,7 +9,10 @@
 //! Every comparison is bit for bit with a cold evaluation, but for textured stamps on the
 //! development machine's GPU (an RTX 5070 on Vulkan, 2026-10-09), which evaluates them in one
 //! of two results a level apart in a few pixels, switching every second or so, at the code
-//! before S48 too (STATUS): the Textured Round test accepts that level.
+//! before S48 too (STATUS): the Textured Round test accepts that level. Since S62 the stroke in
+//! progress is the evaluator's on a canvas the raster core draws: its frames are compared with
+//! the evaluator's own image of the stroke so far, the lift and the changes with the canvas drawn
+//! cold (restated by D88's rule only where the two cores meet: nowhere here).
 
 use std::f32::consts::{PI, TAU};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -23,7 +26,9 @@ use openpaint_render::{
     changed_regions, stroke_region,
 };
 
-use crate::fixture::{SIZE, airbrush, blank, cold, core, request, sample, with_layer, with_stroke};
+use crate::fixture::{
+    SIZE, airbrush, blank, cold, core, evaluated_cold, request, sample, with_layer, with_stroke,
+};
 use crate::merge::merged;
 use crate::records::{busy, by_record, lasso, turned};
 use crate::stamps::brushes;
@@ -142,10 +147,11 @@ fn drawn_cold(
             densest = densest.max(work.entries as f32 / work.tiles as f32);
         }
         if style.tool() != StrokeTool::Smudge {
+            // The stroke in progress is the evaluator's (S62, until S63): its own image.
             let so_far = with_stroke(base, (style.clone(), samples[..end].to_vec()));
             let at = recent(end).expect("a region");
             assert!(
-                matches(core, (target, how), &so_far, at),
+                matches(core, (target, how), (&so_far, evaluated_cold), at),
                 "after {end} samples"
             );
         }
@@ -154,9 +160,10 @@ fn drawn_cold(
     RegionEvaluator::new(core, target)
         .evaluate(&request(&artwork), &[])
         .expect("evaluate");
+    // Committed and read whole, the raster core's again.
     let at = recent(samples.len()).expect("a region");
     assert!(
-        matches(core, (target, how), &artwork, at),
+        matches(core, (target, how), (&artwork, cold), at),
         "the lift = the commit"
     );
     Drawn {
@@ -167,13 +174,13 @@ fn drawn_cold(
     }
 }
 
-/// Whether `target` shows `artwork` inside `region` as a cold evaluation does: one of up to 16
-/// cold results, taken while the frame that drew those pixels has just run, bit for bit; or,
-/// for `Match::Stamped`, the last of them but one level apart in at most 2 % of the channels.
+/// Whether `target` shows `artwork` inside `region` as `cold` draws it: one of up to 16 cold
+/// results, taken while the frame that drew those pixels has just run, bit for bit; or, for
+/// `Match::Stamped`, the last of them but one level apart in at most 2 % of the channels.
 fn matches(
     core: &Core,
     (target, how): (&CanvasTarget, Match),
-    artwork: &Artwork,
+    (artwork, cold): (&Artwork, fn(&Core, &Artwork) -> RgbaImage),
     region: PixelRect,
 ) -> bool {
     let shown = target.read(core).expect("read");
@@ -216,7 +223,7 @@ fn switched(core: &Core, target: &mut CanvasTarget, before: &Artwork, next: &Art
         .expect("evaluate");
     let all = changed.into_iter().reduce(|a, b| a.union(&b));
     let all = all.unwrap_or(PixelRect::full(SIZE));
-    assert!(matches(core, (target, Match::Exact), next, all));
+    assert!(matches(core, (target, Match::Exact), (next, cold), all));
 }
 
 /// Fewer entries a tile than this: the 300 strokes beneath are not walked.

@@ -31,6 +31,22 @@ fn a_tier_tile_is_the_export_at_its_scale_bit_for_bit() {
     }
 }
 
+/// The first tier's atlas is asked for ahead only while no tier was made (S60): a tier made while
+/// the screen was touched, before any atlas was asked for, leaves none wanted, so frames rest.
+#[test]
+fn a_tier_made_before_the_screen_rested_wants_no_atlas_ahead() {
+    let core = core();
+    let artwork = every_raster_source();
+    let mut screen = Screen::new(&core, &artwork);
+    // A step while the screen is touched: no atlas is asked for.
+    core.begin_frame();
+    let zoomed = frame(2.0, [160.0, 100.0]);
+    screen.update(&core, (&artwork, None), &[], &zoomed);
+    assert!(screen.view.wants_spare(), "no tier yet, none asked for");
+    screen.settle(&core, &artwork, &zoomed);
+    assert!(!screen.view.wants_spare(), "the tier came first");
+}
+
 /// S59: the raster core draws the tiers of a scene without the routed kinds, as it exports it.
 #[test]
 fn a_raster_tier_tile_is_the_raster_export_at_its_scale_bit_for_bit() {

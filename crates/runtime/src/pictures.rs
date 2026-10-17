@@ -1,7 +1,8 @@
-//! The layer panel's pictures (S38): each layer alone, and each mask's grey, evaluated by the
-//! one evaluator at canvas size and reduced on the GPU (`Core::layer_thumbnail`) on a worker of
-//! their own, so the frame never waits for them. Derived, never stored. Only while the panel is
-//! open, one picture at a time, the topmost out of date first; a picture is out of date when
+//! The layer panel's pictures (S38): each layer alone, and each mask's grey, drawn by the
+//! renderer (the raster core since S62) at canvas size and reduced on the GPU
+//! (`Core::layer_thumbnail`) on a worker of their own, so the frame never waits for them.
+//! Derived, never stored. Only while the panel is open, one picture at a time, the topmost out
+//! of date first; a picture is out of date when
 //! the layer's paint (or mask) in the version shown is not the very one it was made of, so it
 //! changes after a stroke lifts or an edit is made, never while the pen moves (the stroke
 //! being drawn is not in the version).

@@ -5,13 +5,14 @@
 //! nearest the screen's middle go first, then the tiles the evaluator drew. A tile is shown once its
 //! answer says it was drawn, into the slot and the atlas it was handed over with, and no change
 //! reached it meanwhile: one that did waits to be drawn again (the canvas shows there), as a tile
-//! the worker dropped does.
+//! the worker dropped does. Since S62 the orders go out and the answers come in through the
+//! canvas (`canvas_raster.rs`), which hands the worker its own tiles too.
 
 use std::sync::Arc;
 
 use crate::core::Core;
 use crate::error::RenderError;
-use crate::evaluator::CanvasTarget;
+use crate::evaluator::{CanvasTarget, paper};
 use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
 use crate::output::Output;
@@ -20,8 +21,8 @@ use crate::smudge::around_output;
 use crate::view_atlas::Tier;
 use crate::view_background::next_missing;
 use crate::view_needed::Needed;
-use crate::view_raster::{Issued, RasterTier, paper, residuals_near};
-use crate::view_raster_jobs::{RasterAnswer, RasterDone, RasterJob, RasterOrder};
+use crate::view_raster::{Issued, RasterTier, residuals_near};
+use crate::view_raster_jobs::{RasterDone, RasterJob, RasterOrder};
 use crate::view_tier::{ViewCache, ViewFrame, ViewWork};
 use crate::view_tiles::{TIER_TILE, TileMap};
 
@@ -29,9 +30,6 @@ use crate::view_tiles::{TIER_TILE, TileMap};
 /// vsync apart, and the worker plans and encodes a sparse one in a millisecond or less (a dense
 /// one about 3.5 ms on the tablet), so it always has the next.
 pub(crate) const AHEAD: usize = 8;
-
-/// What a tile is expected to cost the GPU before any was drawn, ns: a dense one on the tablet.
-const FIRST: f64 = 6_000_000.0;
 
 /// Hands the worker the tiles `needed` that `tier` lacks, or holds as the evaluator drew them, as
 /// many as may wait with it (`AHEAD`; while the screen is touched, within the frame's share),
@@ -47,11 +45,7 @@ pub(crate) fn fill_raster(
     raster: &mut RasterTier,
     now: f64,
 ) -> Result<(), RenderError> {
-    let Some((_, Ok(routed))) = &raster.scene else {
-        return Ok(());
-    };
-    let routed = Arc::clone(routed);
-    if request.active.is_some() || canvas.scene_serial(request.artwork, None).is_none() {
+    if request.active.is_some() || !canvas.rastered(request) {
         return Ok(());
     }
     // An evaluation of a tile begun before the scene came here is left.
@@ -67,18 +61,17 @@ pub(crate) fn fill_raster(
     let Some(held) = residuals_near(core, (canvas, request), &near)? else {
         return Ok(());
     };
-    let Some((scene, ops, serial)) = canvas.scene_serial(request.artwork, None) else {
+    let Some((scene, ops, _)) = canvas.scene_serial(request.artwork, None) else {
         return Ok(());
     };
+    let (scene, buffers) = (Arc::clone(scene), SceneBuffers::of(ops, held));
     for (tile, slot, rect) in taken {
         let size = [0, 1].map(|axis| (rect.max[axis] - rect.min[axis]).max(0) as u32);
-        let id = raster.next;
-        raster.next += 1;
+        let id = canvas.raster.next_id();
         let job = RasterJob {
             id,
-            scene: Arc::clone(scene),
-            raster: Arc::clone(&routed),
-            buffers: SceneBuffers::of(ops, serial, held.clone()),
+            scene: Arc::clone(&scene),
+            buffers: buffers.clone(),
             output: Output::at(scale, rect.min.map(|at| at.max(0) as u32))?,
             size,
             paper: paper(request),
@@ -86,7 +79,7 @@ pub(crate) fn fill_raster(
             format: tier.atlas().format(),
             at: tier.map.slot_origin(slot),
         };
-        raster.orders.push(RasterOrder::Draw(Box::new(job)));
+        canvas.raster.orders.push(RasterOrder::Draw(Box::new(job)));
         let grown = tier.grown;
         raster.issued.push(Issued {
             id,
@@ -96,7 +89,7 @@ pub(crate) fn fill_raster(
             grown,
             stale: false,
         });
-        raster.used_at = now;
+        canvas.raster.used_at = now;
     }
     Ok(())
 }
@@ -127,7 +120,7 @@ fn take_tiles(
         if !canvas.residuals_ready(core, request, &near)? {
             break;
         }
-        if !idle && !core.pace().promise(raster.expected()) {
+        if !idle && !core.pace().promise(canvas.raster.expected()) {
             break;
         }
         taken.push((tile, slot, rect));
@@ -152,24 +145,12 @@ fn next_tile(
 }
 
 impl ViewCache {
-    /// What the raster worker is asked to do since the last call, in order (S60): the runtime
-    /// hands it over.
-    pub fn take_orders(&mut self) -> Vec<RasterOrder> {
-        self.raster.take_orders()
-    }
-
-    /// The raster worker's answer to an order: a tile's applied by the next `update`; an atlas
-    /// kept for the next new tier.
-    pub fn answer(&mut self, answer: RasterAnswer) {
-        match answer {
-            RasterAnswer::Tile(done) => self.raster.answer(done),
-            RasterAnswer::Atlas(atlas) => {
-                // Kept within the room the GPU memory budget leaves the tiers now.
-                let bytes = u64::from(atlas.width()) * u64::from(atlas.height()) * 4;
-                if self.bytes() + bytes <= self.room {
-                    self.spare = Some(atlas);
-                }
-            }
+    /// The raster worker made an atlas ahead: kept for the next new tier, within the room the GPU
+    /// memory budget leaves the tiers now.
+    pub fn answer_atlas(&mut self, atlas: wgpu::Texture) {
+        let bytes = u64::from(atlas.width()) * u64::from(atlas.height()) * 4;
+        if self.bytes() + bytes <= self.room {
+            self.spare = Some(atlas);
         }
     }
 
@@ -181,12 +162,17 @@ impl ViewCache {
     }
 
     /// While nothing touches the screen and an atlas is wanted ahead (before the first tier of the
-    /// canvas, or since the tiers were let go), the raster worker is asked to make one: as many
-    /// slots as a tier needs showing the screen `frame` upright (its tiles and a ring), when the
-    /// GPU memory budget leaves the tiers room for it. Only the first: making one holds the
-    /// device's allocator for tens of ms, which the frame loop would wait for at a random moment,
-    /// where a later tier's own atlas costs its first frame that once the view stands still.
-    pub(crate) fn ask_spare(&mut self, core: &Core, frame: &ViewFrame) {
+    /// canvas, or since the tiers were let go), the raster worker is asked (through `canvas`) to
+    /// make one: as many slots as a tier needs showing the screen `frame` upright (its tiles and a
+    /// ring), when the GPU memory budget leaves the tiers room for it. Only the first: making one
+    /// holds the device's allocator for tens of ms, which the frame loop would wait for at a
+    /// random moment, where a later tier's own atlas costs its first frame that once the view
+    /// stands still. A tier made before then wants none any more (frames were asked for until one
+    /// was, for ever).
+    pub(crate) fn ask_spare(&mut self, core: &Core, canvas: &mut CanvasTarget, frame: &ViewFrame) {
+        if self.current.is_some() || self.previous.is_some() || !self.kept.is_empty() {
+            self.wanting = false;
+        }
         if !self.wanting || !core.pace().idle() {
             return;
         }
@@ -196,17 +182,25 @@ impl ViewCache {
         let (across, rows) = crate::view_atlas::atlas_for(slots);
         let bytes = u64::from(across * rows) * u64::from(TIER_TILE * TIER_TILE) * 4;
         if self.bytes() + bytes <= self.room {
-            self.raster.orders.push(RasterOrder::Atlas(slots));
+            canvas.raster.orders.push(RasterOrder::Atlas(slots));
         }
     }
 
-    /// The worker's answers applied: a tile drawn into the slot and atlas it was handed over
-    /// with shows (when the scene still goes to the raster core and no change reached it, else
-    /// it waits to be drawn again); one dropped stays as it was.
-    pub(crate) fn take_answers(&mut self, core: &Core, rastered: bool, work: &mut ViewWork) {
+    /// The worker's answers to the tiers' tiles (`canvas` keeps them) applied: a tile drawn into
+    /// the slot and atlas it was handed over with shows (when the scene still goes to the raster
+    /// core and no change reached it, else it waits to be drawn again); one dropped stays as it
+    /// was.
+    pub(crate) fn take_answers(
+        &mut self,
+        core: &Core,
+        canvas: &mut CanvasTarget,
+        rastered: bool,
+        work: &mut ViewWork,
+    ) {
         let shown = self.current.as_ref().map(Tier::scale);
         let mut filled = 0;
-        for (issued, drawn) in self.raster.answered() {
+        let answers = std::mem::take(&mut canvas.raster.answers);
+        for (issued, drawn) in self.raster.answered(answers) {
             let mut tiers = (self.current.iter_mut())
                 .chain(self.previous.iter_mut())
                 .chain(self.kept.iter_mut());
@@ -233,34 +227,15 @@ impl ViewCache {
 }
 
 impl RasterTier {
-    /// The orders for the worker since the last call, in order.
-    pub(crate) fn take_orders(&mut self) -> Vec<RasterOrder> {
-        std::mem::take(&mut self.orders)
-    }
-
-    /// The worker answered.
-    pub(crate) fn answer(&mut self, done: RasterDone) {
-        self.answers.push(done);
-    }
-
-    /// The worker's answers since the last call: each tile it was handed with whether it drew it.
-    pub(crate) fn answered(&mut self) -> Vec<(Issued, bool)> {
+    /// The tiles `answers` answer, each with whether the worker drew it.
+    pub(crate) fn answered(&mut self, answers: Vec<RasterDone>) -> Vec<(Issued, bool)> {
         let mut answered = Vec::new();
-        for done in std::mem::take(&mut self.answers) {
-            self.drawer = done.bytes;
-            if done.drawn {
-                self.last = done.time;
-            }
+        for done in answers {
             if let Some(at) = self.issued.iter().position(|issued| issued.id == done.id) {
                 answered.push((self.issued.remove(at), done.drawn));
             }
         }
         answered
-    }
-
-    /// What the next tile is expected to cost the GPU, ns: what the last drawn did.
-    pub(crate) fn expected(&self) -> f64 {
-        if self.last > 0.0 { self.last } else { FIRST }
     }
 
     /// The tiles of the tier at `scale` handed over and not answered.
@@ -308,11 +283,11 @@ mod tests {
 
     #[test]
     fn answers_find_their_tiles_and_a_change_marks_the_tiles_it_reaches_stale() {
-        let mut raster = RasterTier::default();
-        raster.issued = vec![issued(1, [0, 0]), issued(2, [3, 1])];
+        let mut raster = RasterTier {
+            issued: vec![issued(1, [0, 0]), issued(2, [3, 1])],
+        };
         assert_eq!(raster.drawing(4), [[0, 0], [3, 1]]);
         assert!(raster.drawing(8).is_empty(), "another tier's");
-        assert_eq!(raster.expected(), FIRST, "before any tile was drawn");
         // Canvas pixels 200..210 at 4x lie in output 800..840: view tile 3 across, row 1 (256..).
         let map = TileMap::new([1000, 800], Output::at(4, [0, 0]).expect("4x"), (2, 1));
         let changed = [PixelRect {
@@ -326,10 +301,7 @@ mod tests {
             time: 2_000_000.0,
             bytes: 7,
         };
-        raster.answer(done(2, true));
-        raster.answer(done(1, false));
-        raster.answer(done(9, true));
-        let answered = raster.answered();
+        let answered = raster.answered(vec![done(2, true), done(1, false), done(9, true)]);
         assert_eq!(answered.len(), 2, "the unknown job's answer is passed over");
         assert_eq!(
             (answered[0].0.tile, answered[0].0.stale, answered[0].1),
@@ -339,11 +311,6 @@ mod tests {
             (answered[1].0.tile, answered[1].0.stale, answered[1].1),
             ([0, 0], false, false)
         );
-        assert!(raster.issued.is_empty() && raster.drawer == 7);
-        assert_eq!(
-            raster.expected(),
-            2_000_000.0,
-            "what the last drawn tile cost"
-        );
+        assert!(raster.issued.is_empty());
     }
 }

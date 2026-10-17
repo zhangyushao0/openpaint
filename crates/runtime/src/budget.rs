@@ -44,8 +44,8 @@ pub(crate) struct Budget {
 pub const ARENA_SHARE: u64 = 4;
 
 /// What the budget lets go as one: a view tier (by its scale), the raster core's targets for the
-/// tiers (S59), the snapshots, the arena's blocks no scene shows with its material, the layer
-/// pictures.
+/// canvas and its tiers (S59, S62), the snapshots, the arena's blocks no scene shows with its
+/// material, the layer pictures.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Unit {
     Tier(u32),
@@ -145,7 +145,7 @@ impl Budget {
             needed: tier.shown,
         }));
         // Made again by the next tile drawn: never needed, gone by when it last drew.
-        units.extend(canvas.view().raster_held().map(|(bytes, used)| Held {
+        units.extend(canvas.target().raster_held().map(|(bytes, used)| Held {
             unit: Unit::Raster,
             bytes,
             used,

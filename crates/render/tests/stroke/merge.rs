@@ -13,8 +13,9 @@ use openpaint_core::{
 use openpaint_render::RgbaImage;
 
 use crate::fixture::{
-    SIZE, blank, cold, core, diagonal, plain, sample, wave, with_layer, with_stroke,
+    SIZE, blank, cold, core, diagonal, evaluated_cold, plain, sample, wave, with_layer, with_stroke,
 };
+use crate::raster::assert_near;
 
 const BACK: [f32; 3] = [0.2, 0.7, 0.45];
 pub const SOURCE: [f32; 3] = [0.85, 0.3, 0.6];
@@ -123,18 +124,24 @@ fn difference(a: &RgbaImage, b: &RgbaImage) -> (u8, usize) {
     (largest, diffs.iter().filter(|d| **d > 0).count())
 }
 
-/// Merging the active layer of `artwork` shows exactly what it showed.
+/// Merging the active layer of `artwork` shows exactly what it showed: the evaluator's images bit
+/// for bit; the canvases within a level (S62: a merged layer's scene goes to the evaluator, the
+/// layers before the merge to the raster core; D88's rule).
 fn exact(artwork: &Artwork, what: &str) {
     let core = core();
     let after = merged(artwork);
     assert_eq!(after.layers().len(), artwork.layers().len() - 1, "{what}");
-    assert!(cold(&core, &after) == cold(&core, artwork), "{what}");
+    let evaluated = evaluated_cold(&core, artwork);
+    assert!(evaluated_cold(&core, &after) == evaluated, "{what}");
+    assert_near(&cold(&core, artwork), &cold(&core, &after), what);
 }
 
-/// Merging the active layer of `artwork` moves no channel by more than one level; the count.
+/// Merging the active layer of `artwork` moves no channel by more than one level (the evaluator's
+/// images, S62); the count.
 fn close(artwork: &Artwork, what: &str) -> usize {
     let core = core();
-    let (largest, count) = difference(&cold(&core, &merged(artwork)), &cold(&core, artwork));
+    let merged = evaluated_cold(&core, &merged(artwork));
+    let (largest, count) = difference(&merged, &evaluated_cold(&core, artwork));
     assert!(largest <= 1, "{what}: {largest} levels");
     // Rare: well under one channel in a thousand of the 320 x 200 x 4.
     assert!(count < 256, "{what}: {count} channels");

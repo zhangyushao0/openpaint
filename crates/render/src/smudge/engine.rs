@@ -95,6 +95,17 @@ impl Smudges {
         }
     }
 
+    /// None of its residuals, its room and limit kept (S62: the canvas's drawing core changed,
+    /// and with it their materials').
+    pub(crate) fn emptied(&self, core: &Core) -> Self {
+        Self {
+            room: self.room,
+            limit: self.limit,
+            framed: self.framed,
+            ..Self::new(core)
+        }
+    }
+
     /// The arena and the in-progress residual (an empty one without), for the evaluator.
     pub(crate) fn residuals(&self) -> [&wgpu::Buffer; 2] {
         let active = self.active.as_ref();
@@ -279,13 +290,7 @@ impl Tools {
         let stale = self.owner != run.owner;
         let tiles = if stale { run.working.tiles() } else { &new[..] };
         let rects: Vec<PixelRect> = tiles.iter().map(|t| run.working.tile_rect(*t)).collect();
-        material.evaluate(
-            core,
-            (scene, ops),
-            range,
-            &rects,
-            [arena.buffer(), &self.empty],
-        )?;
+        material.make(core, (scene, ops), range, &rects, (arena, &self.empty))?;
         self.owner = run.owner;
         let kernels = self
             .kernels
@@ -324,7 +329,7 @@ mod derive;
 
 #[path = "engine_held.rs"]
 mod held;
-pub(crate) use held::Held;
+pub(crate) use held::{Held, held_in};
 
 /// The largest buffer the device binds, in bytes.
 fn binding_limit(core: &Core) -> u64 {

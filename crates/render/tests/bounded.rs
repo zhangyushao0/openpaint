@@ -1,6 +1,7 @@
 //! Bounded dispatches (S49): an evaluation cut into many small dispatches equals one dispatch bit
-//! for bit, on a dense place of 300 crossing strokes, in the canvas and in exports at 1x, 2x and
-//! 4x. A screen frame's share of the waiting tiles is `frame_budget.rs`'s (S53).
+//! for bit, on a dense place of 300 crossing strokes, at 1x, 2x and 4x (S62: the evaluator's own
+//! images, as the raster core draws the canvas and exports of such scenes). A screen frame's
+//! share of the waiting tiles is `frame_budget.rs`'s (S53).
 //!
 //! A test binary of its own: the tests change the device's dispatch bound, which every
 //! evaluation on the device follows, so they run one at a time on a device no other test uses.
@@ -14,9 +15,7 @@ use openpaint_core::{
     Artwork, BrushRecipe, CanvasPoint, CanvasSize, Color, Curve, Dynamics, Grain, Rotation, Shape,
     ShapeTexture, Stamp, StrokeSample, StrokeStyle,
 };
-use openpaint_render::{
-    Banding, CanvasTarget, Core, DISPATCH_WORK, FrameRequest, PixelRect, RegionEvaluator, RgbaImage,
-};
+use openpaint_render::{Core, DISPATCH_WORK, RgbaImage};
 
 const SIZE: [u32; 2] = [320, 200];
 
@@ -94,30 +93,18 @@ fn dense(count: u32, style: impl Fn(u32) -> StrokeStyle) -> Artwork {
     })
 }
 
-fn request(artwork: &Artwork) -> FrameRequest<'_> {
-    FrameRequest {
-        artwork,
-        active: None,
-        background: Color::WHITE,
-    }
-}
-
-/// The canvas evaluated whole into a new target, then the output at 2x and 4x in one piece.
+/// The evaluator's output at 1x, 2x and 4x in one piece each (S62: what it still evaluates, a
+/// stroke being drawn and the scenes routed to it, goes in these dispatches; its reference,
+/// `Core::time_evaluation`, evaluates any scene).
 fn outputs(core: &Core, artwork: &Artwork) -> Vec<RgbaImage> {
-    let mut target = CanvasTarget::new(core, SIZE).expect("target");
-    RegionEvaluator::new(core, &mut target)
-        .evaluate(&request(artwork), &[PixelRect::full(SIZE)])
-        .expect("evaluate");
-    let mut images = vec![target.read(core).expect("read")];
-    for scale in [1, 2, 4] {
-        let banding = Banding {
-            rows: SIZE[1] * scale,
-            columns: SIZE[0] * scale,
-        };
-        let bands = core.export_bands(artwork, Color::WHITE, scale, banding);
-        images.push(bands.expect("bands").image().expect("export"));
-    }
-    images
+    [1, 2, 4]
+        .map(|scale| {
+            let size = SIZE.map(|side| side * scale);
+            let (_, image) =
+                (core.time_evaluation(artwork, (scale, [0, 0]), size, 1)).expect("evaluated");
+            image
+        })
+        .to_vec()
 }
 
 /// The outputs evaluated in one dispatch each, and bounded to `work` a dispatch, with how many

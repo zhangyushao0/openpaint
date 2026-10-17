@@ -7,8 +7,9 @@
 //! canvas is rounded into the destination as the evaluator rounds it (`raster_plan.rs` the CPU's
 //! part, `raster_gpu.rs` the pipelines, `raster_frame.rs` the passes, raster*.wgsl the stages).
 //! A smudge is a pass applying its residual to the layer from a copy of it (S61, D88). It draws
-//! the view tiers above 1x and exports for every scene `raster_route.rs` routes to it; the 1x
-//! canvas, the stroke being drawn, picks and pictures stay on the evaluator until S62.
+//! every scene `raster_route.rs` routes to it: the screen's canvas and its view tiers, exports,
+//! layer samples and pictures, brush pictures and a smudge's material (S62, D89); the stroke being
+//! drawn stays the evaluator's until S63 (`evaluator.rs` lists what else it still draws).
 
 use std::time::Instant;
 
@@ -21,34 +22,43 @@ use crate::raster_gpu::RasterPipelines;
 use crate::raster_plan::{Pass, RasterPlan, Scratch};
 use crate::readback::target_texture;
 use crate::smudge::Held;
+use crate::view_tiles::TIER_TILE;
 
 #[path = "raster_frame.rs"]
 mod frame;
 use frame::{Reads, instance_bytes, values};
 
-/// The buffers a scene's ops lie in on the GPU as the raster core binds them, the scene's serial
-/// (S60: a worker draws from them while the canvas keeps its scene), and its smudges' residuals
-/// (S61).
+/// The buffers a scene's ops lie in on the GPU as the raster core binds them (S60: a worker draws
+/// from them while the canvas keeps its scene), and its smudges' residuals (S61).
 #[derive(Debug, Clone)]
 pub(crate) struct SceneBuffers {
     pub(crate) ops: wgpu::Buffer,
     pub(crate) masks: wgpu::Buffer,
     pub(crate) patches: wgpu::Buffer,
-    pub(crate) serial: u64,
     pub(crate) residuals: Held,
 }
 
 impl SceneBuffers {
-    /// The buffers of `ops`, for the scene named `serial`, its smudges' residuals as `residuals`
-    /// holds them.
-    pub(crate) fn of(ops: &SceneOps, serial: u64, residuals: Held) -> Self {
+    /// The buffers of `ops`, its smudges' residuals as `residuals` holds them.
+    pub(crate) fn of(ops: &SceneOps, residuals: Held) -> Self {
         Self {
             ops: ops.ops(),
             masks: ops.masks.clone(),
             patches: ops.patches.clone(),
-            serial,
             residuals,
         }
+    }
+
+    /// The five buffers group 0 binds beside the values: what names a bind group of them.
+    fn bound(&self) -> [wgpu::Buffer; 5] {
+        let [arena, active] = self.residuals.buffers.clone();
+        [
+            self.ops.clone(),
+            self.masks.clone(),
+            self.patches.clone(),
+            arena,
+            active,
+        ]
     }
 
     /// Where each of the scene's smudges' residuals starts in the arena bound.
@@ -60,6 +70,9 @@ impl SceneBuffers {
 /// The atlas of a view tier's and an export's raster targets, pixels a side: 64 regions of a
 /// whole 256-pixel tile, 8 of an export's 1024 x 512 piece.
 pub(crate) const ATLAS: u32 = 2048;
+
+/// A target no side of which is longer is small (`RasterTargets::sized`).
+const SMALL: u32 = 4 * TIER_TILE;
 
 /// A region's float targets, the atlas and the bindings the raster core draws through, kept
 /// between regions (a view tier's tiles, an export's pieces).
@@ -74,8 +87,8 @@ pub(crate) struct RasterTargets {
     unread: Target,
     values: wgpu::Buffer,
     instances: wgpu::Buffer,
-    /// Group 0 for the scene of that serial with those residuals.
-    scene: Option<(u64, [wgpu::Buffer; 2], wgpu::BindGroup)>,
+    /// Group 0 for the scene's buffers and residuals it was made with.
+    scene: Option<([wgpu::Buffer; 5], wgpu::BindGroup)>,
     /// Group 1, made again when a scratch target is made.
     reads: Option<Reads>,
 }
@@ -96,12 +109,14 @@ impl Target {
     }
 }
 
-/// Where a region's pixels go: a destination's view, its format, and the pixel holding the
-/// region's top-left.
+/// Where a region's pixels go: a destination's view, its format, the pixel holding the region's
+/// top-left, and the destination's pixels it writes (S62: a smudge's material, only the tiles its
+/// residual reads); empty: the whole region.
 pub(crate) struct Finish<'a> {
     pub(crate) view: &'a wgpu::TextureView,
     pub(crate) format: wgpu::TextureFormat,
     pub(crate) at: [u32; 2],
+    pub(crate) only: &'a [crate::geom::PixelRect],
 }
 
 /// What one draw cost the CPU, ns: writing its values and instances, encoding and submitting.
@@ -146,6 +161,19 @@ impl RasterTargets {
             scene: None,
             reads: None,
         })
+    }
+
+    /// Targets for drawing a canvas of `size` pixels on the frame loop's thread (S62: the
+    /// canvas's changes, a whole canvas at once, its view tiers' changes): regions of a view tile,
+    /// and the atlas of a view tier's targets; a small canvas (a brush's picture, the editor's
+    /// strip) an atlas with room for a few of its strokes' regions.
+    ///
+    /// # Errors
+    /// As `new`.
+    pub(crate) fn sized(core: &Core, size: [u32; 2]) -> Result<Self, RenderError> {
+        let small = size.iter().all(|side| *side <= SMALL);
+        let atlas = if small { 2 * TIER_TILE } else { ATLAS };
+        Self::new(core, [TIER_TILE; 2], atlas)
     }
 
     /// The largest region it draws.
@@ -287,21 +315,19 @@ impl RasterTargets {
         Ok(())
     }
 
-    /// Group 0 for `scene`, made when the scene or its residuals' buffers are new.
+    /// Group 0 for `scene`, made when its buffers or its residuals' are new.
     fn bind_scene(&mut self, core: &Core, pipelines: &RasterPipelines, scene: &SceneBuffers) {
-        let (serial, residuals) = (scene.serial, &scene.residuals.buffers);
-        if (self.scene.as_ref())
-            .is_some_and(|(held, bound, _)| *held == serial && bound == residuals)
-        {
+        let bound = scene.bound();
+        if (self.scene.as_ref()).is_some_and(|(held, _)| *held == bound) {
             return;
         }
-        let [arena, active] = residuals;
+        let [ops, masks, patches, arena, active] = &bound;
         let buffers = [
             &self.values,
-            &scene.ops,
-            &scene.masks,
+            ops,
+            masks,
             &core.evaluate.textures,
-            &scene.patches,
+            patches,
             arena,
             active,
         ];
@@ -319,50 +345,7 @@ impl RasterTargets {
                     })
                     .collect::<Vec<_>>(),
             });
-        self.scene = Some((serial, residuals.clone(), group));
-    }
-}
-
-impl Core {
-    /// The raster core's pipelines, made by the first caller (how long that took is logged), any
-    /// other waiting until they are: the runtime makes them on its raster worker as the device is
-    /// made (S60), so the screen's frames never wait for them (`raster_made`).
-    pub(crate) fn raster_pipelines(&self) -> Result<&RasterPipelines, RenderError> {
-        if let Some(pipelines) = self.raster.get() {
-            return Ok(pipelines);
-        }
-        let _one = self
-            .making
-            .lock()
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
-        if let Some(pipelines) = self.raster.get() {
-            return Ok(pipelines);
-        }
-        let started = Instant::now();
-        let mut made = RasterPipelines::new(&self.gpu)?;
-        made.compile_ns = started.elapsed().as_secs_f64() * 1e9;
-        log::info!(
-            "raster core: {} pipelines made in {:.0} ms ({:?} atlas, {:?} targets)",
-            made.count,
-            made.compile_ns / 1e6,
-            made.atlas,
-            made.layer
-        );
-        Ok(self.raster.get_or_init(|| made))
-    }
-
-    /// The raster core's pipelines when they are made, without waiting (S60).
-    pub(crate) fn raster_made(&self) -> Option<&RasterPipelines> {
-        self.raster.get()
-    }
-
-    /// Makes the raster core's pipelines now unless they are made (S60: the runtime's raster
-    /// worker, as the device is made, so the first zoom finds them).
-    ///
-    /// # Errors
-    /// As the GPU: a shader the device refuses.
-    pub fn make_raster_pipelines(&self) -> Result<(), RenderError> {
-        self.raster_pipelines().map(drop)
+        self.scene = Some((bound, group));
     }
 }
 

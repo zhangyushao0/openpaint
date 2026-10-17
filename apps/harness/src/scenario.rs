@@ -73,7 +73,7 @@ pub fn run_all() -> Result<(), HarnessError> {
 }
 
 /// The names of `tests/scenarios/*.json`, sorted.
-fn scenario_names() -> Result<Vec<String>, HarnessError> {
+pub fn scenario_names() -> Result<Vec<String>, HarnessError> {
     let mut names = Vec::new();
     for entry in fs::read_dir(workspace_root().join("tests").join("scenarios"))? {
         let path = entry?.path();

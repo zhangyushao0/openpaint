@@ -11,6 +11,7 @@ mod adapter;
 mod affine;
 mod bounded;
 mod budget;
+mod canvas_raster;
 mod change;
 mod core;
 mod cost;

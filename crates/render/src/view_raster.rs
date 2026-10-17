@@ -1,58 +1,37 @@
 //! A view tier's tiles drawn by the raster core (S59, DECISIONS D86): when the canvas's scene goes
-//! to it (`raster_route.rs`, the routing logged when it changes), a missing tile is drawn whole
-//! in one region of 256 pixels a side into its slot, as background work, the screen's middle
-//! first; a change to ready tiles is drawn in place when it fits what is left of the frame, else
-//! the tiles wait to be drawn again. While a stroke is drawn the evaluator updates the tiles it
-//! reaches as before (the stroke in progress stays on the evaluator until S62); those tiles, and
-//! any the evaluator drew before the scene came to the raster core, are drawn again afterwards,
-//! shown meanwhile, so every tile of such a scene ends as the raster core draws it, and a tier
-//! equals the export at its scale bit for bit. S60 (D87): the background tiles are planned,
-//! encoded and submitted by the runtime's raster worker (`view_raster_jobs.rs`); this side hands
-//! them over (`view_raster_fill.rs`) and draws the changes in place with targets of its own. The
-//! targets are the budget's (`Unit::Raster`): these and the worker's. S61 (D88): the smudge
-//! residuals a tile reads are the canvas's, made present before it is drawn or handed over and
-//! named with the arena's buffer as it is then (`smudge::Held`); a tile reading one still being
-//! evaluated waits.
-
-use std::sync::Arc;
+//! to it (`raster_route.rs`), a missing tile is drawn whole in one region of 256 pixels a side
+//! into its slot, as background work, the screen's middle first; a change to ready tiles is drawn
+//! in place when it fits what is left of the frame, else the tiles wait to be drawn again. While a
+//! stroke is drawn the evaluator updates the tiles it reaches as before (the stroke in progress
+//! stays on the evaluator until S63); those tiles, and any the evaluator drew before the scene
+//! came to the raster core, are drawn again afterwards, shown meanwhile, so every tile of such a
+//! scene ends as the raster core draws it, and a tier equals the export at its scale bit for bit.
+//! S60 (D87): the background tiles are planned, encoded and submitted by the runtime's raster
+//! worker (`view_raster_jobs.rs`); this side hands them over (`view_raster_fill.rs`) and draws the
+//! changes in place with the frame loop's targets, which since S62 (D89) are the canvas's
+//! (`canvas_raster.rs`: the canvas draws its own changes with them, and holds the worker's orders
+//! and answers for both). S61 (D88): the smudge residuals a tile reads are the canvas's, made
+//! present before it is drawn or handed over and named with the arena's buffer as it is then
+//! (`smudge::Held`); a tile reading one still being evaluated waits.
 
 use crate::core::Core;
 use crate::error::RenderError;
-use crate::evaluator::CanvasTarget;
+use crate::evaluator::{CanvasTarget, Planned, paper};
 use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
 use crate::output::Output;
-use crate::raster::{ATLAS, Finish, RasterTargets, SceneBuffers};
 use crate::raster_plan::RasterPlan;
-use crate::raster_route::{RasterScene, Routed};
 use crate::scene::Scene;
 use crate::smudge::{Held, around_output};
 use crate::view_atlas::Tier;
 use crate::view_fill::{EDIT_PIXELS, touched};
-use crate::view_raster_jobs::{RasterDone, RasterOrder};
 use crate::view_tier::ViewWork;
 
-/// The raster core's side of the view tiers: its targets for changes drawn in place, the routing
-/// of the canvas's last scene, when it last drew (the budget lets the targets go by recency), and
-/// the tiles handed to the raster worker (S60).
+/// The view tiers' side of the raster worker: the tiles handed to it (S60).
 #[derive(Default)]
 pub(crate) struct RasterTier {
-    targets: Option<RasterTargets>,
-    /// The canvas scene's serial and its routing.
-    pub(crate) scene: Option<(u64, Result<Arc<RasterScene>, Routed>)>,
-    /// The routing logged last: `None` until one is.
-    logged: Option<Result<(), Routed>>,
-    pub(crate) used_at: f64,
     /// Tiles handed to the worker and not answered yet, oldest first.
     pub(crate) issued: Vec<Issued>,
-    /// Orders for the worker not taken yet, and its answers not applied yet.
-    pub(crate) orders: Vec<RasterOrder>,
-    pub(crate) answers: Vec<RasterDone>,
-    /// The worker's targets' bytes, and the last tile's GPU time (ns), as it said last.
-    pub(crate) drawer: u64,
-    pub(crate) last: f64,
-    /// The next job's id.
-    pub(crate) next: u64,
 }
 
 /// A tile handed to the raster worker (S60): its job, its tier's scale, the tile, the slot and the
@@ -67,98 +46,23 @@ pub(crate) struct Issued {
     pub(crate) stale: bool,
 }
 
-impl RasterTier {
-    /// The canvas's scene for `request` goes to the raster core (decided once per scene, the
-    /// routing logged when it changes).
-    pub(crate) fn routes(&mut self, canvas: &CanvasTarget, request: &FrameRequest<'_>) -> bool {
-        let Some((scene, _, serial)) = canvas.scene_serial(request.artwork, request.active) else {
-            return false;
-        };
-        if self.scene.as_ref().is_none_or(|(held, _)| *held != serial) {
-            let routed = RasterScene::of(scene).map(Arc::new);
-            let routing = routed.as_ref().map(drop).map_err(|routed| *routed);
-            if self.logged != Some(routing) {
-                match routing {
-                    Ok(()) => log::info!("view tiers drawn by the raster core"),
-                    Err(routed) => log::info!("view tiers evaluated: the artwork holds {routed}"),
-                }
-                self.logged = Some(routing);
-            }
-            self.scene = Some((serial, routed));
-        }
-        matches!(self.scene, Some((_, Ok(_))))
-    }
-
-    /// Bytes its targets and the worker's hold.
-    pub(crate) fn bytes(&self) -> u64 {
-        self.targets.as_ref().map_or(0, RasterTargets::bytes) + self.drawer
-    }
-
-    /// Lets its targets go, and the worker's (an order); returns their bytes.
-    pub(crate) fn let_go(&mut self) -> u64 {
-        let bytes = self.bytes();
-        self.targets = None;
-        if self.drawer > 0 {
-            self.orders.push(RasterOrder::LetGo);
-            self.drawer = 0;
-        }
-        bytes
-    }
-
-    /// The plan of output pixels `rect` at `scale` of the routed scene `scene`, its smudges'
-    /// residuals at `bases`.
-    fn plan(
-        &self,
-        (scene, bases): (&Scene, &[Option<u32>]),
-        (scale, rect): (u32, PixelRect),
-    ) -> Result<(RasterPlan, Output), RenderError> {
-        let Some((_, Ok(raster))) = &self.scene else {
-            return Err(RenderError::Invalid(
-                "the scene does not go to the raster core",
-            ));
-        };
-        let origin = rect.min.map(|at| at.max(0) as u32);
-        let output = Output::at(scale, origin)?;
-        let size = [0, 1].map(|axis| (rect.max[axis] - rect.min[axis]).max(0) as u32);
-        Ok((
-            RasterPlan::build((scene, raster, bases), (output, size), [ATLAS; 2])?,
-            output,
-        ))
-    }
-
-    /// Draws `plan` at `output` into `tier`'s target pixel `at`, on the frame loop's thread.
-    fn draw(
-        &mut self,
-        core: &Core,
-        (tier, at): (&Tier, [u32; 2]),
-        (scene, background): (&SceneBuffers, [f32; 4]),
-        (plan, output): (&RasterPlan, Output),
-    ) -> Result<(), RenderError> {
-        if self.targets.is_none() {
-            self.targets = Some(RasterTargets::new(
-                core,
-                [crate::view_tiles::TIER_TILE; 2],
-                ATLAS,
-            )?);
-        }
-        let Some(targets) = self.targets.as_mut() else {
-            return Ok(());
-        };
-        let finish = Finish {
-            view: tier.atlas_view(),
-            format: tier.atlas().format(),
-            at,
-        };
-        targets.draw(core, (scene, plan), (output, background), &finish, None)?;
-        core.evaluate.tally.rastered(1);
-        Ok(())
-    }
-}
-
-/// The paper of `request`, premultiplied and opaque.
-pub(crate) fn paper(request: &FrameRequest<'_>) -> [f32; 4] {
-    let paper = request.background;
-    [paper.r(), paper.g(), paper.b(), 1.0]
+/// The plan of output pixels `rect` at `scale` of `scene` (one the raster core draws), its
+/// smudges' residuals at `bases`, with an atlas of `atlas` pixels.
+fn plan(
+    (scene, bases): (&Scene, &[Option<u32>]),
+    (scale, rect): (u32, PixelRect),
+    atlas: [u32; 2],
+) -> Result<(RasterPlan, Output), RenderError> {
+    let raster = (scene.rastered()).ok_or(RenderError::Invalid(
+        "the scene does not go to the raster core",
+    ))?;
+    let origin = rect.min.map(|at| at.max(0) as u32);
+    let output = Output::at(scale, origin)?;
+    let size = [0, 1].map(|axis| (rect.max[axis] - rect.min[axis]).max(0) as u32);
+    Ok((
+        RasterPlan::build((scene, raster, bases), (output, size), atlas)?,
+        output,
+    ))
 }
 
 /// Draws the pixels of ready tiles that `changed` (canvas pixels) reach again, when they are few,
@@ -172,7 +76,6 @@ pub(crate) fn in_place_raster(
     core: &Core,
     tier: &mut Tier,
     (canvas, request): (&mut CanvasTarget, &FrameRequest<'_>),
-    raster: &mut RasterTier,
     (changed, work, now): (&[PixelRect], &mut ViewWork, f64),
 ) -> Result<(), RenderError> {
     let parts = touched(tier, changed);
@@ -197,9 +100,9 @@ pub(crate) fn in_place_raster(
         None
     };
     if let Some(held) = held
-        && draw_in_place(core, (tier, &parts), (canvas, request), raster, held)?
+        && draw_in_place(core, (tier, &parts), (canvas, request), held)?
     {
-        raster.used_at = now;
+        canvas.raster.used_at = now;
         work.updated = tiles;
         return Ok(());
     }
@@ -215,31 +118,28 @@ pub(crate) fn in_place_raster(
 fn draw_in_place(
     core: &Core,
     (tier, parts): (&Tier, &[([u32; 2], PixelRect)]),
-    (canvas, request): (&CanvasTarget, &FrameRequest<'_>),
-    raster: &mut RasterTier,
+    (canvas, request): (&mut CanvasTarget, &FrameRequest<'_>),
     held: Held,
 ) -> Result<bool, RenderError> {
     let missing = || RenderError::Invalid("the canvas was not evaluated for this frame");
-    let (scene, ops, serial) =
+    let atlas = canvas.raster_atlas(core)?;
+    let (scene, _, _) =
         (canvas.scene_serial(request.artwork, request.active)).ok_or_else(missing)?;
-    let mut plans = Vec::new();
+    let mut plans: Vec<Planned> = Vec::new();
     for (tile, part) in parts {
         let slot = tier.map.slot(*tile).ok_or_else(missing)?;
         let at = tier.map.to_target(*tile, slot, part).min;
-        let planned = raster.plan((scene, &held.bases), (tier.scale(), *part))?;
-        plans.push((at.map(|v| v.max(0) as u32), planned));
+        let (plan, output) = plan((scene, &held.bases), (tier.scale(), *part), atlas)?;
+        plans.push((plan, output, at.map(|v| v.max(0) as u32)));
     }
     let cost: f64 = (plans.iter())
-        .map(|(_, (plan, _))| plan.counts.estimate(plan.size))
+        .map(|(plan, _, _)| plan.counts.estimate(plan.size))
         .sum();
     if !core.pace().fits_raster(cost) {
         return Ok(false);
     }
-    let buffers = SceneBuffers::of(ops, serial, held);
-    for (at, (plan, output)) in &plans {
-        let drawn = (&buffers, paper(request));
-        raster.draw(core, (tier, *at), drawn, (plan, *output))?;
-    }
+    let into = (tier.atlas_view(), tier.atlas().format(), paper(request));
+    canvas.draw_planned(core, &plans, held, into)?;
     Ok(true)
 }
 

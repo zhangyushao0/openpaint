@@ -11,12 +11,14 @@ use crate::error::ScenarioError;
 use crate::scenario::Step;
 use crate::system::{Expected, Export, Written};
 
-/// The canvas at a checkpoint and the hash it should have.
+/// The canvas at a checkpoint and the hash it should have; asked for (`run_compared`, S62), the
+/// evaluator's image of what it shows.
 #[derive(Debug, Clone)]
 pub struct Checkpoint {
     pub name: String,
     pub expected: u64,
     pub canvas: RgbaImage,
+    pub evaluated: Option<RgbaImage>,
 }
 
 impl Checkpoint {
@@ -135,11 +137,12 @@ pub(crate) fn view_check(runtime: &Runtime, step: &Step) -> Option<Record> {
     }))
 }
 
-/// What a checkpoint, screenshot or export step looks at.
+/// What a checkpoint, screenshot or export step looks at; a canvas checkpoint with the
+/// evaluator's image beside it when `compare`.
 pub(crate) fn record(
     runtime: &mut Runtime,
     step: &Step,
-    written: &Written,
+    (written, compare): (&Written, bool),
 ) -> Result<Record, ScenarioError> {
     let mut canvas = || {
         runtime
@@ -151,6 +154,11 @@ pub(crate) fn record(
             name: name.clone(),
             expected: *hash,
             canvas: canvas()?,
+            evaluated: if compare {
+                runtime.evaluated_canvas()?
+            } else {
+                None
+            },
         }),
         Step::Preview { name, strip } => Record::Checkpoint(Checkpoint {
             name: name.clone(),
@@ -158,6 +166,7 @@ pub(crate) fn record(
             canvas: runtime
                 .read_strip()
                 .ok_or(ScenarioError::Missing("no brush editor strip shows"))?,
+            evaluated: None,
         }),
         Step::Exported {
             name,

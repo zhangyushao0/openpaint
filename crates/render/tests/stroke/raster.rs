@@ -203,10 +203,7 @@ pub fn every_raster_source() -> Artwork {
 /// The evaluator's whole output of `artwork` at `scale` (what exports were before S59).
 pub fn evaluated(core: &Core, artwork: &Artwork, scale: u32) -> RgbaImage {
     let size = SIZE.map(|side| side * scale);
-    let (_, image) = core
-        .time_evaluation(artwork, (scale, [0, 0]), size, 1)
-        .expect("evaluated");
-    image
+    (core.evaluated_image(artwork, (scale, [0, 0]), size)).expect("evaluated")
 }
 
 /// `rastered` against `reference` by D86's rule: no pixel away from antialiased edges more than

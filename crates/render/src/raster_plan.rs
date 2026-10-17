@@ -17,14 +17,13 @@ use crate::error::RenderError;
 use crate::geom::{Bounds, PixelRect};
 use crate::output::Output;
 use crate::protocol::raster::Edit;
-use crate::protocol::{LayerInto, Masking, Mode};
 pub use crate::raster_kinds::RasterCounts;
 pub(crate) use crate::raster_kinds::{
     Coverage, CoverageDraw, Draw, DrawKind, EndBlend, Instance, Pass, Scratch,
 };
 use crate::raster_lay::{Laid, Marks, Packer, laid_span, lay};
 use crate::raster_route::{RasterScene, Unit};
-use crate::scene::{Item, Scene};
+use crate::scene::Scene;
 
 #[derive(Debug, Default)]
 pub(crate) struct RasterPlan {
@@ -60,13 +59,18 @@ struct Builder<'a> {
     packer: Packer,
     marks: Marks,
     batch: Batch,
-    /// Where draws go now: the layer, or its mask after its `BeginMask`.
+    /// Where draws go now: the layer, or its mask after its `BeginMask` (a material: the canvas).
     target: Scratch,
     /// The layer and the mask were cleared, and drawn on where the region is.
     cleared: [bool; 2],
     touched: [bool; 2],
     chain: Chain,
+    /// A smudge whose residual the arena lacks is left out (a material, S62), not refused.
+    lacking: bool,
 }
+
+/// The scene a plan draws: its items, its raster units and its smudges' residuals' bases.
+type Drawn<'a> = (&'a Scene, &'a RasterScene, &'a [Option<u32>]);
 
 impl RasterPlan {
     /// The plan of `raster` (`scene`'s units, its smudges' residuals at `bases`) over a region of
@@ -76,50 +80,90 @@ impl RasterPlan {
     /// `Invalid` for a stroke's region larger than the atlas, or a smudge reaching the region
     /// whose residual is not in the arena.
     pub(crate) fn build(
-        (scene, raster, bases): (&Scene, &RasterScene, &[Option<u32>]),
+        (scene, raster, bases): Drawn<'_>,
         (output, size): (Output, [u32; 2]),
         atlas: [u32; 2],
     ) -> Result<Self, RenderError> {
-        let mut builder = Builder {
+        let builder = Builder::new((scene, bases), (output, size), atlas, Scratch::Layer);
+        builder.lay(&raster.units)
+    }
+
+    /// A smudge's material (S62): the units laying the scene's `items` (its layer's paint or mask
+    /// before it) drawn onto the canvas, which starts as nothing (the plan's paper): that layer's
+    /// own pixels, premultiplied, which the finish rounds to 8 bits. A smudge before it whose
+    /// residual the arena lacks reaches none of the pixels the material is wanted at (the
+    /// residuals it reads are made present first, `engine_needs.rs`) and is left out; the finish
+    /// writes only those pixels.
+    ///
+    /// # Errors
+    /// As `build`.
+    pub(crate) fn material(
+        (scene, raster, bases): Drawn<'_>,
+        items: &Range<usize>,
+        (output, size): (Output, [u32; 2]),
+        atlas: [u32; 2],
+    ) -> Result<Self, RenderError> {
+        let mut builder = Builder::new((scene, bases), (output, size), atlas, Scratch::Canvas);
+        builder.lacking = true;
+        builder.lay(raster.within(items))
+    }
+}
+
+impl<'a> Builder<'a> {
+    fn new(
+        (scene, bases): (&'a Scene, &'a [Option<u32>]),
+        (output, size): (Output, [u32; 2]),
+        atlas: [u32; 2],
+        target: Scratch,
+    ) -> Self {
+        Builder {
             scene,
             bases,
             output,
-            plan: Self {
+            plan: RasterPlan {
                 size,
-                ..Self::default()
+                ..RasterPlan::default()
             },
             atlas,
             packer: Packer::new(atlas),
             marks: Marks::new(size),
             batch: Batch::default(),
-            target: Scratch::Layer,
+            target,
             cleared: [false; 2],
             touched: [false; 2],
             chain: Chain::Empty,
-        };
-        builder.plan.passes.push(Pass::Clear(Scratch::Canvas));
-        for unit in &raster.units {
+            lacking: false,
+        }
+    }
+
+    /// The plan of `units`, in order.
+    fn lay<'u>(
+        mut self,
+        units: impl IntoIterator<Item = &'u Unit>,
+    ) -> Result<RasterPlan, RenderError> {
+        self.plan.passes.push(Pass::Clear(Scratch::Canvas));
+        for unit in units {
             match unit {
                 Unit::Stroke {
                     spans,
                     paint,
                     bounds,
-                } => builder.stroke(spans, *paint, *bounds)?,
-                Unit::Edit { item, bounds } => builder.edit(*item, *bounds),
+                } => self.stroke(spans, *paint, *bounds)?,
+                Unit::Edit { item, bounds } => self.edit(*item, *bounds),
                 Unit::Smudge {
                     item,
                     smudge,
                     reach,
-                } => builder.smudge((*item, *smudge), reach)?,
+                } => self.smudge((*item, *smudge), reach)?,
                 Unit::BeginMask => {
-                    builder.flush();
-                    builder.target = Scratch::Mask;
+                    self.flush();
+                    self.target = Scratch::Mask;
                 }
-                Unit::End(item) => builder.end(*item),
+                Unit::End(item) => self.end(*item),
             }
         }
-        builder.flush();
-        let mut plan = builder.plan;
+        self.flush();
+        let mut plan = self.plan;
         plan.counts.passes = plan.passes.len() + 1;
         Ok(plan)
     }
@@ -240,8 +284,14 @@ impl Builder<'_> {
         if rect.is_empty() {
             return Ok(());
         }
-        let missing = RenderError::Invalid("a smudge's residual is not in the arena");
-        let base = self.bases.get(smudge).copied().flatten().ok_or(missing)?;
+        let Some(base) = self.bases.get(smudge).copied().flatten() else {
+            if self.lacking {
+                return Ok(());
+            }
+            return Err(RenderError::Invalid(
+                "a smudge's residual is not in the arena",
+            ));
+        };
         self.flush();
         let slot = self.slot();
         if !self.cleared[slot] {
@@ -305,76 +355,7 @@ impl Builder<'_> {
             });
         }
     }
-
-    /// A layer's or a chain's end (item `item`): what it reached composited by its mode.
-    fn end(&mut self, item: usize) {
-        self.flush();
-        let end = self.scene.items[item].op().layer_end();
-        if matches!(self.scene.items[item], Item::EndChain { .. }) {
-            if self.chain == Chain::Held {
-                self.onto((Scratch::Canvas, Scratch::Chain), item, (end.mode, false));
-            }
-            self.chain = Chain::Empty;
-            return;
-        }
-        let touched = self.touched[0];
-        if touched && end.masking != Masking::None && !self.cleared[1] {
-            // A mask that drew nothing here is nothing: the layer shows through white.
-            self.plan.passes.push(Pass::Clear(Scratch::Mask));
-        }
-        match end.into {
-            LayerInto::Canvas if touched => {
-                self.onto((Scratch::Canvas, Scratch::Layer), item, (end.mode, false));
-            }
-            LayerInto::Base if touched => {
-                let draw = self.quad(item, self.whole(), DrawKind::End(EndBlend::Base));
-                self.push_end((Scratch::Chain, Scratch::Layer), draw);
-                self.chain = Chain::Held;
-            }
-            LayerInto::Base => self.chain = Chain::Empty,
-            LayerInto::Clipped if touched && self.chain == Chain::Held => {
-                self.onto((Scratch::Chain, Scratch::Layer), item, (end.mode, true));
-            }
-            _ => {}
-        }
-        self.target = Scratch::Layer;
-        (self.cleared, self.touched) = ([false; 2], [false; 2]);
-    }
-
-    /// The whole region, in its pixels.
-    fn whole(&self) -> PixelRect {
-        PixelRect::full(self.plan.size)
-    }
-
-    /// The end of op `item` onto `target` (the canvas, or `clipped` into the chain) by `mode`,
-    /// reading `reads`.
-    fn onto(
-        &mut self,
-        (target, reads): (Scratch, Scratch),
-        item: usize,
-        (mode, clipped): (Mode, bool),
-    ) {
-        let blend = match (mode, clipped) {
-            (Mode::Normal, false) => EndBlend::Over,
-            (Mode::Normal, true) => EndBlend::Atop,
-            (Mode::Multiply, _) => EndBlend::Multiply,
-            (Mode::Screen, false) => EndBlend::ScreenCanvas,
-            (Mode::Screen, true) => EndBlend::ScreenChain,
-            (Mode::Overlay, _) => {
-                self.plan.passes.push(Pass::Copy(target));
-                EndBlend::Overlay
-            }
-        };
-        let draw = self.quad(item, self.whole(), DrawKind::End(blend));
-        self.push_end((target, reads), draw);
-    }
-
-    fn push_end(&mut self, (target, reads): (Scratch, Scratch), draw: Draw) {
-        self.plan.counts.ends += 1;
-        self.plan.passes.push(Pass::End {
-            target,
-            reads,
-            draw,
-        });
-    }
 }
+
+#[path = "raster_plan_ends.rs"]
+mod ends;

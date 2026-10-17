@@ -35,11 +35,11 @@ impl Runner<'_> {
                 name: name.clone(),
                 after_ms: None,
             };
-            records.push(record(runtime, &shot, &self.written)?);
+            records.push(record(runtime, &shot, (&self.written, self.compare))?);
             if let Some(canvas) = canvas {
                 let name = name.clone();
                 let check = Step::Checkpoint { name, canvas };
-                records.push(record(runtime, &check, &self.written)?);
+                records.push(record(runtime, &check, (&self.written, self.compare))?);
             }
         }
         let Some(interruption) = interrupted else {

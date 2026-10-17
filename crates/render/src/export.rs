@@ -20,7 +20,6 @@ use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
 use crate::image::RgbaImage;
 use crate::output::Output;
-use crate::raster_route::RasterScene;
 use crate::scene::Scene;
 use crate::scene_reuse::Earlier;
 
@@ -85,10 +84,10 @@ impl Core {
         }
         let piece = [banding.columns.min(size[0]), banding.rows.min(size[1])];
         let scene = Scene::build_knowing(artwork, None, (Vec::new(), Earlier::default()))?;
-        let source = match RasterScene::of(&scene) {
-            Ok(raster) => {
+        let source = match scene.routing.kind() {
+            Ok(()) => {
                 log::info!("export at {scale}x drawn by the raster core");
-                Source::Rastered(Box::new(RasterExport::new(self, (scene, raster), piece)?))
+                Source::Rastered(Box::new(RasterExport::new(self, scene, piece)?))
             }
             Err(routed) => {
                 log::info!("export at {scale}x evaluated: the artwork holds {routed}");
@@ -151,8 +150,10 @@ impl Bands<'_> {
             let piece = match &mut self.source {
                 Source::Rastered(raster) => {
                     let at = (&self.artwork, self.scale, [left, top]);
+                    let paper = self.background;
+                    let paper = [paper.r(), paper.g(), paper.b(), 1.0];
                     let (piece, [planned, waited]) =
-                        raster.piece(self.core, at, [columns, rows], self.background)?;
+                        raster.piece(self.core, at, [columns, rows], paper)?;
                     self.planned += planned;
                     self.waited += waited;
                     piece

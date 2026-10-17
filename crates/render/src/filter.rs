@@ -312,8 +312,11 @@ impl Filters {
         } else {
             read
         };
-        let range = (item.before.clone(), item.key.to_canvas);
-        material.evaluate(core, (scene, ops), range, &[rect], residuals)?;
+        // A filter's scene is the evaluator's (S62: routed whole): its material too.
+        let to_canvas = item.key.to_canvas;
+        let plan = material.plan(scene, (item.before.clone(), to_canvas), &[rect]);
+        let tiles = (&plan, plan.tiles.as_slice());
+        material.evaluate_tiles(core, ops, tiles, to_canvas, (residuals, None))?;
         self.held = Some((Arc::clone(&item.key), rect));
         Ok(())
     }

@@ -1,11 +1,11 @@
-//! Which scenes the raster core draws (S59, DECISIONS D86, D88): a scene holding an adjustment, a
-//! filter, a group, a transform record, a moved selection or a merged layer is evaluated by the
-//! evaluator whole, the routing decided per scene (a layer of the raster core's composited onto
-//! one of the evaluator's would need either to hand the other its float layer); every other
-//! scene, smudges included since S61, is drawn by the raster core, as `RasterScene`: its items as
-//! the units the raster plan lays out, strokes with the box of all their spans, smudges with the
-//! canvas pixels they can change. The reasons are named, so the routing is logged and tested,
-//! never silent.
+//! Which scenes the raster core draws (S59, DECISIONS D86, D88, D89): a scene holding an
+//! adjustment, a filter, a group, a transform record, a moved selection or a merged layer is
+//! evaluated by the evaluator whole, the routing decided per scene as it is made (`Scene::routing`,
+//! S62; a layer of the raster core's composited onto one of the evaluator's would need either to
+//! hand the other its float layer); every other scene, smudges included since S61, is drawn by
+//! the raster core, as `RasterScene`: its items as the units the raster plan lays out, strokes
+//! with the box of all their spans, smudges with the canvas pixels they can change. The reasons
+//! are named, so the routing is logged and tested, never silent.
 
 use std::fmt;
 use std::ops::Range;
@@ -107,7 +107,54 @@ pub(crate) struct RasterScene {
     pub(crate) units: Vec<Unit>,
 }
 
+/// How a scene is drawn, decided once as it is made (S62).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum Routing {
+    /// By the raster core, as these units.
+    Raster(RasterScene),
+    /// By the evaluator, whole, for these reasons.
+    Evaluated(Routed),
+}
+
+impl Default for Routing {
+    /// An empty scene's: nothing the raster core does not draw.
+    fn default() -> Self {
+        Self::Raster(RasterScene::default())
+    }
+}
+
+impl Routing {
+    /// How `scene` is drawn.
+    pub(crate) fn of(scene: &Scene) -> Self {
+        match RasterScene::of(scene) {
+            Ok(raster) => Self::Raster(raster),
+            Err(routed) => Self::Evaluated(routed),
+        }
+    }
+
+    /// `Ok` for the raster core, else why the evaluator draws it.
+    pub(crate) const fn kind(&self) -> Result<(), Routed> {
+        match self {
+            Self::Raster(_) => Ok(()),
+            Self::Evaluated(routed) => Err(*routed),
+        }
+    }
+}
+
 impl RasterScene {
+    /// The units laying the scene's items `items` (one layer's paint or mask before a smudge: its
+    /// strokes, edits and smudges), in order: what a smudge's material draws (S62).
+    pub(crate) fn within<'a>(
+        &'a self,
+        items: &'a Range<usize>,
+    ) -> impl Iterator<Item = &'a Unit> + 'a {
+        self.units.iter().filter(move |unit| match unit {
+            Unit::Stroke { paint, .. } => items.contains(paint),
+            Unit::Edit { item, .. } | Unit::Smudge { item, .. } => items.contains(item),
+            Unit::BeginMask | Unit::End(_) => false,
+        })
+    }
+
     /// `scene`'s units; `Err` with every reason when it holds what goes to the evaluator.
     pub(crate) fn of(scene: &Scene) -> Result<Self, Routed> {
         let mut routed = Routed::default();

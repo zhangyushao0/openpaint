@@ -63,7 +63,7 @@ impl Screen {
         view: &ViewFrame,
     ) -> ViewWork {
         let work = self.update(core, (artwork, active), regions, view);
-        self.drawer.serve(core, &mut self.view);
+        self.drawer.serve(core, (&mut self.target, &mut self.view));
         work
     }
 
@@ -87,7 +87,7 @@ impl Screen {
 
     /// The raster worker draws the tiles handed over since it last did.
     pub fn serve(&mut self, core: &Core) {
-        self.drawer.serve(core, &mut self.view);
+        self.drawer.serve(core, (&mut self.target, &mut self.view));
     }
 
     /// Frames until every needed tile is ready; the tiles evaluated whole meanwhile.

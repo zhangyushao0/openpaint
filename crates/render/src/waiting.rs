@@ -1,7 +1,8 @@
 //! The screen canvas's tiles that wait to be evaluated (S53): whole 16-px tiles no frame's
-//! background budget reached yet, taken in the order the screen needs them: the tiles the view
-//! shows, nearest the screen's middle first, then the others by their distance from it; with no
-//! view known (tests, the harness's own targets), rows from the top.
+//! background budget reached yet (S62: the raster core's 256-px ones, `canvas_raster.rs`), taken
+//! in the order the screen needs them: the tiles the view shows, nearest the screen's middle
+//! first, then the others by their distance from it; with no view known (tests, the harness's
+//! own targets), rows from the top.
 
 use crate::geom::PixelRect;
 use crate::protocol::TILE;
@@ -18,6 +19,8 @@ const RESORT: f32 = 48.0;
 
 #[derive(Debug, Default)]
 pub(crate) struct Waiting {
+    /// A tile's side in pixels: the evaluator's 16, or the raster core's 256 (S62).
+    side: u32,
     columns: u32,
     rows: u32,
     /// Per tile, row-major: it waits.
@@ -34,9 +37,15 @@ pub(crate) struct Waiting {
 
 impl Waiting {
     /// No tile of a canvas of `size` pixels waits.
-    pub(crate) fn new([width, height]: [u32; 2]) -> Self {
-        let (columns, rows) = (width.div_ceil(TILE), height.div_ceil(TILE));
+    pub(crate) fn new(size: [u32; 2]) -> Self {
+        Self::of(size, TILE)
+    }
+
+    /// No tile of `side` pixels of a canvas of `size` pixels waits.
+    pub(crate) fn of([width, height]: [u32; 2], side: u32) -> Self {
+        let (columns, rows) = (width.div_ceil(side), height.div_ceil(side));
         Self {
+            side,
             columns,
             rows,
             marked: vec![false; (columns * rows) as usize],
@@ -141,6 +150,30 @@ impl Waiting {
     /// The first `most` waiting tiles in the order `focus` gives them, but those put aside, as
     /// rectangles; they keep waiting until `remove`d.
     pub(crate) fn next(&mut self, focus: Option<Focus>, most: usize) -> Vec<PixelRect> {
+        self.ordered(focus);
+        (self.order.iter())
+            .filter(|tile| !self.deferred[**tile as usize])
+            .take(most)
+            .map(|tile| self.rect(*tile))
+            .collect()
+    }
+
+    /// The first waiting tile in the order `focus` gives them that `skip` does not pass over (S62:
+    /// one the raster worker draws), but those put aside; it keeps waiting until `remove`d.
+    pub(crate) fn first(
+        &mut self,
+        focus: Option<Focus>,
+        skip: impl Fn(&PixelRect) -> bool,
+    ) -> Option<PixelRect> {
+        self.ordered(focus);
+        (self.order.iter())
+            .filter(|tile| !self.deferred[**tile as usize])
+            .map(|tile| self.rect(*tile))
+            .find(|rect| !skip(rect))
+    }
+
+    /// The order made again when the view moved far enough, taken tiles left out.
+    fn ordered(&mut self, focus: Option<Focus>) {
         let moved = match (self.sorted, focus) {
             (Some(Some(before)), Some(now)) => {
                 let [dx, dy] = [0, 1].map(|axis| now.middle[axis] - before.middle[axis]);
@@ -154,11 +187,6 @@ impl Waiting {
         }
         let marked = &self.marked;
         self.order.retain(|tile| marked[*tile as usize]);
-        (self.order.iter())
-            .filter(|tile| !self.deferred[**tile as usize])
-            .take(most)
-            .map(|tile| self.rect(*tile))
-            .collect()
     }
 
     /// The waiting tiles in the order `focus` gives them.
@@ -168,10 +196,10 @@ impl Waiting {
         self.order.sort_unstable();
         self.order.dedup();
         if let Some(focus) = focus {
-            let columns = self.columns;
+            let (columns, side) = (self.columns, self.side);
             let key = |tile: &u32| {
-                let [x, y] = [tile % columns, tile / columns].map(|at| (at * TILE) as i32);
-                let side = TILE as i32;
+                let [x, y] = [tile % columns, tile / columns].map(|at| (at * side) as i32);
+                let side = side as i32;
                 let rect = PixelRect {
                     min: [x, y],
                     max: [x + side, y + side],
@@ -188,8 +216,8 @@ impl Waiting {
 
     /// Tile `tile`'s pixels.
     fn rect(&self, tile: u32) -> PixelRect {
-        let [x, y] = [tile % self.columns, tile / self.columns].map(|at| (at * TILE) as i32);
-        let side = TILE as i32;
+        let [x, y] = [tile % self.columns, tile / self.columns].map(|at| (at * self.side) as i32);
+        let side = self.side as i32;
         PixelRect {
             min: [x, y],
             max: [x + side, y + side],
@@ -198,7 +226,7 @@ impl Waiting {
 
     /// The tiles (row-major numbers) meeting `rect`.
     fn tiles(&self, rect: &PixelRect) -> impl Iterator<Item = u32> + use<> {
-        let side = TILE as i32;
+        let side = self.side as i32;
         let span = |min: i32, max: i32, count: u32| {
             if max <= min {
                 return 0..0;

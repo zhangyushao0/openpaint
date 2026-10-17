@@ -318,6 +318,12 @@ impl Pace {
         }
     }
 
+    /// A raster region of `cost` ns drawn on this thread (S62: a smudge's material over frames),
+    /// by the raster core's correction: taken as `take_serial` takes work.
+    pub(crate) fn take_raster(&mut self, cost: f64) -> bool {
+        self.take_serial(cost * self.raster_ratio)
+    }
+
     /// Raster regions of `cost` ns taken only when they fit what is left of the frame's budget,
     /// given anything before or not: what a frame may show at once or let wait (as `fits`).
     pub(crate) fn fits_raster(&mut self, cost: f64) -> bool {

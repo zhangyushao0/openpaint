@@ -16,10 +16,10 @@ use std::time::Duration;
 
 use crate::core::Core;
 use crate::error::RenderError;
+use crate::evaluator::CanvasTarget;
 use crate::output::Output;
 use crate::raster::{ATLAS, Finish, RasterTargets, SceneBuffers};
 use crate::raster_plan::RasterPlan;
-use crate::raster_route::RasterScene;
 use crate::scene::Scene;
 use crate::view_tiles::TIER_TILE;
 
@@ -28,13 +28,12 @@ use crate::view_tiles::TIER_TILE;
 const LOOK: Duration = Duration::from_millis(1);
 const PATIENCE: u32 = 16;
 
-/// One view tile for the raster worker: the region of the scene's output at a tier's scale (its
-/// buffers with its smudges' residuals as the arena held them when it was handed over, S61) and
-/// where in the tier's atlas it goes.
+/// One tile for the raster worker: the region of the scene's output at a scale (its buffers with
+/// its smudges' residuals as the arena held them when it was handed over, S61) and where it goes:
+/// a view tier's atlas, or (S62) a slot of the canvas's staging texture.
 pub struct RasterJob {
     pub(crate) id: u64,
     pub(crate) scene: Arc<Scene>,
-    pub(crate) raster: Arc<RasterScene>,
     pub(crate) buffers: SceneBuffers,
     pub(crate) output: Output,
     pub(crate) size: [u32; 2],
@@ -136,7 +135,9 @@ impl RasterDrawer {
         let Some(targets) = self.targets.as_mut() else {
             return Ok(self.answer(id, (false, 0.0)));
         };
-        let scene = (&*job.scene, &*job.raster, job.buffers.bases());
+        let raster = (job.scene.rastered())
+            .ok_or(RenderError::Invalid("the scene goes to the evaluator"))?;
+        let scene = (&*job.scene, raster, job.buffers.bases());
         let plan = RasterPlan::build(scene, (job.output, job.size), targets.atlas())?;
         // The scene is not needed past the plan: a new one can take this one's spans (S56).
         drop(job.scene);
@@ -145,6 +146,7 @@ impl RasterDrawer {
             view: &job.into,
             format: job.format,
             at: job.at,
+            only: &[],
         };
         let drawn = (&job.buffers, &plan);
         let place = (job.output, job.paper);
@@ -176,20 +178,24 @@ impl RasterDrawer {
             .ok()
     }
 
-    /// Serves every order `view` has, at once, on this thread: what the runtime's worker does,
-    /// for tests that hold a view without one.
-    pub fn serve(&mut self, core: &Core, view: &mut crate::view_tier::ViewCache) {
-        for order in view.take_orders() {
+    /// Serves every order `canvas` has for itself and its tiers `view`, at once, on this thread:
+    /// what the runtime's worker does, for tests that hold a canvas without one.
+    pub fn serve(
+        &mut self,
+        core: &Core,
+        (canvas, view): (&mut CanvasTarget, &mut crate::view_tier::ViewCache),
+    ) {
+        for order in canvas.take_orders() {
             match order {
                 RasterOrder::Draw(job) => {
                     let ahead = core.pace().idle();
                     let done = self.draw(core, (*job, ahead), || true);
-                    view.answer(RasterAnswer::Tile(done));
+                    canvas.answer(done);
                 }
                 RasterOrder::LetGo => self.let_go(),
                 RasterOrder::Atlas(slots) => {
                     if let Some(atlas) = Self::atlas(core, slots) {
-                        view.answer(RasterAnswer::Atlas(atlas));
+                        view.answer_atlas(atlas);
                     }
                 }
             }

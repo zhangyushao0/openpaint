@@ -35,11 +35,12 @@ const BATCHES: usize = 64;
 const BINNING: Duration = Duration::from_millis(2);
 
 impl CanvasTarget {
-    /// Tiles wait to be evaluated: a frame's evaluation left them for the next (S49). The
-    /// target shows them as they were until then; `read` and `pick` read them so.
+    /// Tiles wait to be evaluated: a frame's evaluation left them for the next (S49), or (S62)
+    /// to be drawn by the raster core, the worker's included. The target shows them as they were
+    /// until then; `read` and `pick` read them so.
     #[must_use]
     pub fn pending(&self) -> bool {
-        !self.waiting.is_empty()
+        !self.waiting.is_empty() || self.raster.pending()
     }
 
     /// Where the screen looks on the canvas from now on: the waiting tiles it shows are
@@ -249,7 +250,11 @@ impl CanvasTarget {
     /// Lays strokes committed since onto the snapshot of the in-progress stroke's layer (S56,
     /// `active_snapshot_idle.rs`), the tiles lacking the most first, while the frame budget takes
     /// them; returns whether tiles still lack strokes the layer's content has.
-    fn catch_up(&mut self, core: &Core, request: &FrameRequest<'_>) -> Result<bool, RenderError> {
+    pub(super) fn catch_up(
+        &mut self,
+        core: &Core,
+        request: &FrameRequest<'_>,
+    ) -> Result<bool, RenderError> {
         let size = self.size();
         let (Some(cache), Some(snapshot)) = (self.scene.as_ref(), self.held.as_mut()) else {
             return Ok(false);

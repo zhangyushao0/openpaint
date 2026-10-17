@@ -184,7 +184,14 @@ pub fn request(artwork: &Artwork) -> FrameRequest<'_> {
     }
 }
 
-/// Evaluates the whole of `artwork` into a fresh target and reads it back.
+/// The evaluator's image of the whole of `artwork` (S62: the reference; what the canvas was
+/// before the raster core drew it, and what the evaluator draws of a stroke in progress).
+pub fn evaluated_cold(core: &Core, artwork: &Artwork) -> RgbaImage {
+    (core.evaluated_image(artwork, (1, [0, 0]), SIZE)).expect("evaluated")
+}
+
+/// Draws the whole of `artwork` into a fresh canvas target (since S62 by the raster core, but for
+/// a scene routed to the evaluator) and reads it back.
 pub fn cold(core: &Core, artwork: &Artwork) -> RgbaImage {
     let mut target = CanvasTarget::new(core, SIZE).expect("target");
     RegionEvaluator::new(core, &mut target)

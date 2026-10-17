@@ -112,11 +112,11 @@ impl ThumbnailPipeline {
     fn bind_group(
         &self,
         device: &wgpu::Device,
-        target: &CanvasTarget,
+        texture: &wgpu::Texture,
         sizes: &wgpu::Buffer,
         pixels: &wgpu::Buffer,
     ) -> wgpu::BindGroup {
-        let view = target.texture().create_view(&Default::default());
+        let view = texture.create_view(&Default::default());
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("thumbnail"),
             layout: &self.layout,
@@ -146,7 +146,16 @@ impl Core {
         target: &CanvasTarget,
         max: [u32; 2],
     ) -> Result<RgbaImage, RenderError> {
-        let canvas = target.size();
+        self.thumbnail_of(target.texture(), max)
+    }
+
+    /// As `thumbnail`, of what `texture` holds (S62: a layer sample's piece).
+    pub(crate) fn thumbnail_of(
+        &self,
+        texture: &wgpu::Texture,
+        max: [u32; 2],
+    ) -> Result<RgbaImage, RenderError> {
+        let canvas = [texture.width(), texture.height()];
         let size = thumbnail_size(canvas, max);
         let device = &self.gpu.device;
         let words: Vec<u8> = [canvas, size]
@@ -166,7 +175,7 @@ impl Core {
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
             mapped_at_creation: false,
         });
-        let group = self.thumbnail.bind_group(device, target, &sizes, &pixels);
+        let group = self.thumbnail.bind_group(device, texture, &sizes, &pixels);
         let mut encoder = device.create_command_encoder(&Default::default());
         {
             let mut pass = encoder.begin_compute_pass(&Default::default());

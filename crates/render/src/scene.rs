@@ -12,6 +12,7 @@ use crate::error::RenderError;
 use crate::filter::FilterItem;
 use crate::geom::{Bounds, PixelRect};
 use crate::protocol::{LayerInto, MASK_HEADER, Op};
+use crate::raster_route::{RasterScene, Routing};
 use crate::scene_adjust::AdjustItem;
 use crate::scene_layer::LayerOps;
 use crate::scene_reuse::{Earlier, Spans};
@@ -183,6 +184,8 @@ pub(crate) struct Scene {
     /// of the same mask takes instead of deriving them again.
     pub(crate) edges: Vec<EdgeValues>,
     pub(crate) known: Vec<EdgeValues>,
+    /// Which core draws it, decided as it is made (S62, `raster_route.rs`).
+    pub(crate) routing: Routing,
 }
 
 /// A fill's smoothed edge values (`fill_edge::edge_words`), derived once for its mask and kept
@@ -270,6 +273,7 @@ impl Scene {
         scene.known.clear();
         scene.forget_earlier();
         scene.place_bases()?;
+        scene.routing = Routing::of(&scene);
         Ok(scene)
     }
 
@@ -302,7 +306,16 @@ impl Scene {
             None => scene.push_layer(&LayerOps::of(layer, None), None, end)?,
         }
         scene.place_bases()?;
+        scene.routing = Routing::of(&scene);
         Ok(scene)
+    }
+
+    /// Its units when the raster core draws it (S62); `None`: the evaluator does.
+    pub(crate) const fn rastered(&self) -> Option<&RasterScene> {
+        match &self.routing {
+            Routing::Raster(raster) => Some(raster),
+            Routing::Evaluated(_) => None,
+        }
     }
 
     /// An empty scene on `artwork`'s canvas.

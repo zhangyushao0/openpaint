@@ -1,10 +1,21 @@
-//! `RegionEvaluator`: the single entry that evaluates a frame request into regions of a target.
-//! Every consumer (screen, export, picking) goes through it.
+//! `RegionEvaluator`: the single entry that draws a frame request into regions of a canvas
+//! target. Since S62 (DECISIONS D89) it routes by the scene (`raster_route.rs`): a scene the
+//! raster core draws is drawn by it (`canvas_raster_fill.rs`), every other by the evaluator, the
+//! per-pixel interpreter over binned op lists (D82) this module holds.
+//!
+//! What the evaluator still draws, all of it (S62): the stroke being drawn at 1x and its view
+//! tiers' tiles meanwhile, with its float snapshot, its lift's last spans and the in-progress
+//! smudge's residual applied (S63 takes them); every scene routed to it (adjustments, filters,
+//! groups, transform records, moved selections, merged layers: the canvas with its batches and
+//! binning, its tiers, exports, layer samples and smudge materials, their previews' snapshots;
+//! S64 takes them); and the references the tests and harness `canvas-check` and `export-check`
+//! compare the raster core with (`Core::time_evaluation`; S65 deletes the evaluator with them).
 
 use openpaint_core::{ActiveStroke, Artwork, RegionMask};
 
 use crate::active::ActiveTrack;
 use crate::active_snapshot::ActiveSnapshot;
+use crate::canvas_raster::CanvasRaster;
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::filter::Filters;
@@ -52,6 +63,14 @@ pub struct CanvasTarget {
     blank: bool,
     /// Shown complete from a display cache (S54): residuals evaluated so far while it warms.
     warming: Option<usize>,
+    /// The raster core's side (S62): what waits for it, its targets, the worker's tiles.
+    pub(crate) raster: CanvasRaster,
+    /// Which core drew the canvas last (true: the raster core): a scene of the other draws every
+    /// tile again (S62).
+    drawn_by: Option<bool>,
+    /// The evaluator's reference (`Core::time_evaluation`, S62): every scene it builds goes to the
+    /// evaluator whole, its smudges' materials too, as before the raster core drew any.
+    reference: bool,
 }
 
 /// More changed rectangles than this are kept as the one rectangle holding them.
@@ -77,10 +96,12 @@ impl CanvasTarget {
         size: ([u32; 2], wgpu::TextureFormat),
         kept: bool,
     ) -> Result<Self, RenderError> {
-        // Copied into for a display cache's pixels (S54).
+        // Copied into for a display cache's pixels (S54) and the raster worker's tiles, drawn into
+        // by the raster core (S62).
         let usage = wgpu::TextureUsages::STORAGE_BINDING
             | wgpu::TextureUsages::TEXTURE_BINDING
-            | wgpu::TextureUsages::COPY_DST;
+            | wgpu::TextureUsages::COPY_DST
+            | wgpu::TextureUsages::RENDER_ATTACHMENT;
         // First: it rejects sizes the device cannot hold.
         let texture = target_texture(&core.gpu, size, usage)?;
         let view = core.gpu.device.create_buffer(&wgpu::BufferDescriptor {
@@ -98,6 +119,9 @@ impl CanvasTarget {
             } else {
                 Bindings::without_kept(&core.gpu, &texture)
             },
+            raster: CanvasRaster::new(&texture),
+            drawn_by: None,
+            reference: false,
             texture,
             track: ActiveTrack::default(),
             scene: None,
@@ -279,7 +303,7 @@ impl<'a> RegionEvaluator<'a> {
             ));
         }
         let started = std::time::Instant::now();
-        let dispatched = self.dispatch(request, Output::CANVAS, (regions, frame));
+        let dispatched = self.drawn(request, regions, frame);
         crate::profile::evaluated(started.elapsed());
         match dispatched {
             Ok(evaluated) => {
@@ -342,6 +366,10 @@ mod residuals;
 #[path = "evaluator_cache.rs"]
 mod cache;
 pub use cache::CanvasCopy;
+
+#[path = "canvas_raster_fill.rs"]
+mod raster_fill;
+pub(crate) use raster_fill::{Planned, paper};
 
 #[path = "evaluator_bench.rs"]
 mod bench;

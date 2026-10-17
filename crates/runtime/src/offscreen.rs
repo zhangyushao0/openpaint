@@ -149,6 +149,26 @@ impl Runtime {
         }
     }
 
+    /// The evaluator's image of what the open canvas shows (the artwork shown on the paper, at
+    /// 1x), for harness `canvas-check` (S62: the raster core draws the canvas; S65 deletes the
+    /// evaluator); `None` without a canvas or while a stroke is drawn (its pixels the evaluator's
+    /// anyway, S63).
+    ///
+    /// # Errors
+    /// As the evaluator.
+    pub fn evaluated_canvas(&self) -> Result<Option<RgbaImage>, RuntimeError> {
+        let Some(canvas) = self.screen.canvas() else {
+            return Ok(None);
+        };
+        if canvas.drawing() {
+            return Ok(None);
+        }
+        let shown = canvas.session().shown();
+        let size = canvas.target().size();
+        let (_, image) = self.core.time_evaluation(shown, (1, [0, 0]), size, 1)?;
+        Ok(Some(image))
+    }
+
     /// The brush editor's preview strip as the worker made it last, while the editor shows (S46).
     #[must_use]
     pub fn read_strip(&self) -> Option<RgbaImage> {

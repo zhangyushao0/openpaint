@@ -101,7 +101,9 @@ impl Core {
     /// canvas pixel `at`, at `scale` output pixels per canvas pixel, once to build its scene,
     /// smudge residuals and filter results and bin its plan; then that plan `repeats` times (at
     /// most 16) after a few untimed ones, each timed on the GPU. With the times, what the
-    /// target then holds (S57 compares the raster probe's image with it).
+    /// target then holds: the evaluator's image, its smudges' materials its own too (S62), the
+    /// reference the raster core is compared with (S57; tests, harness `export-check` and
+    /// `canvas-check`).
     ///
     /// # Errors
     /// `Invalid` for a scale other than 1, 2, 4 or 8; as the evaluator otherwise.
@@ -112,18 +114,7 @@ impl Core {
         size: [u32; 2],
         repeats: usize,
     ) -> Result<(Timed, RgbaImage), RenderError> {
-        let output = Output::at(scale, at.map(|v| v * scale))?;
-        let mut target = CanvasTarget::exact(self, size)?;
-        let request = FrameRequest {
-            artwork,
-            active: None,
-            background: Color::WHITE,
-        };
-        RegionEvaluator::new(self, &mut target).evaluate_piece(
-            &request,
-            output,
-            PixelRect::full(size),
-        )?;
+        let (mut target, output) = self.reference(artwork, (scale, at), size)?;
         let mut timed = target.listing()?;
         let warming = Instant::now();
         let mut warmed = 0;
@@ -150,6 +141,44 @@ impl Core {
         }
         timed.times.sort_by(f64::total_cmp);
         Ok((timed, target.read(self)?))
+    }
+
+    /// The evaluator's image of `artwork` on white paper over the `size` output pixels whose
+    /// top-left lies at canvas pixel `at`, at `scale` (its smudges' materials its own too): what
+    /// `time_evaluation` evaluates, once, untimed. The reference the raster core is compared with
+    /// (S62: tests, harness `canvas-check`; S65 deletes the evaluator with it).
+    ///
+    /// # Errors
+    /// As `time_evaluation`.
+    pub fn evaluated_image(
+        &self,
+        artwork: &Artwork,
+        (scale, at): (u32, [u32; 2]),
+        size: [u32; 2],
+    ) -> Result<RgbaImage, RenderError> {
+        let (target, _) = self.reference(artwork, (scale, at), size)?;
+        target.read(self)
+    }
+
+    /// A target of `size` holding the evaluator's image of `artwork` there, and its output.
+    fn reference(
+        &self,
+        artwork: &Artwork,
+        (scale, at): (u32, [u32; 2]),
+        size: [u32; 2],
+    ) -> Result<(CanvasTarget, Output), RenderError> {
+        let output = Output::at(scale, at.map(|v| v * scale))?;
+        let mut target = CanvasTarget::exact(self, size)?;
+        // Every scene goes to the evaluator, smudges' materials too (S62).
+        target.reference = true;
+        let request = FrameRequest {
+            artwork,
+            active: None,
+            background: Color::WHITE,
+        };
+        let region = PixelRect::full(size);
+        RegionEvaluator::new(self, &mut target).evaluate_piece(&request, output, region)?;
+        Ok((target, output))
     }
 }
 
