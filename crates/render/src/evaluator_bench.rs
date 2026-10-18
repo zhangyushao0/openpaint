@@ -146,7 +146,7 @@ impl Core {
     /// The evaluator's image of `artwork` on white paper over the `size` output pixels whose
     /// top-left lies at canvas pixel `at`, at `scale` (its smudges' materials its own too): what
     /// `time_evaluation` evaluates, once, untimed. The reference the raster core is compared with
-    /// (S62: tests, harness `canvas-check`; S65 deletes the evaluator with it).
+    /// (S62: tests, harness `canvas-check`; S66 deletes the evaluator with it).
     ///
     /// # Errors
     /// As `time_evaluation`.

@@ -3,7 +3,7 @@
 //! it, drawn onto a canvas of nothing (`RasterPlan::material`) and rounded to 8 bits as the
 //! evaluator's material was, over one region per 256-px cell of the canvas (the box of the
 //! residual's tiles in it), only those tiles written. A scene routed to the evaluator keeps the
-//! evaluator's material (`material.rs`; S64 takes it), so routed scenes stay as they were.
+//! evaluator's material (`material.rs`; S65 takes it), so routed scenes stay as they were.
 
 use std::collections::BTreeMap;
 use std::ops::Range;

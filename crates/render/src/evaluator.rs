@@ -6,9 +6,9 @@
 //! What the evaluator still draws, all of it (S63): every scene routed to it (adjustments,
 //! filters, groups, transform records, moved selections, merged layers: the canvas with its
 //! batches and binning, the stroke being drawn over it, its tiers, exports, layer samples and
-//! smudge materials, their previews' snapshots read by `OP_RESUME`; S64 takes them); and the
+//! smudge materials, their previews' snapshots read by `OP_RESUME`; S65 takes them); and the
 //! references the tests and harness `canvas-check` and `export-check` compare the raster core
-//! with (`Core::time_evaluation`; S65 deletes the evaluator with them). The stroke being drawn
+//! with (`Core::time_evaluation`; S66 deletes the evaluator with them). The stroke being drawn
 //! over a scene the raster core draws is the raster core's since S63 (`drawing.rs`).
 
 use openpaint_core::{ActiveStroke, Artwork, RegionMask};
