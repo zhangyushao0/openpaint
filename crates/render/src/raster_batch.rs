@@ -39,7 +39,12 @@ pub(super) struct Bound {
 /// The first and the last render pass of `regions` (region, pass; a region's finish is the pass
 /// after its last): where a batch's timestamps go (a copy writes none).
 pub(super) fn timed(regions: &[Region<'_>]) -> ((usize, usize), (usize, usize)) {
-    let renders = |pass: &Pass| !matches!(pass, Pass::Restore(_) | Pass::Keep(_) | Pass::Copy(_));
+    let renders = |pass: &Pass| {
+        !matches!(
+            pass,
+            Pass::Restore(_) | Pass::Keep(_) | Pass::Copy(_) | Pass::Zero(_)
+        )
+    };
     let mut all = Vec::new();
     for (at, region) in regions.iter().enumerate() {
         let passes = &region.plan.passes;

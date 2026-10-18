@@ -21,7 +21,9 @@ use crate::geom::{Bounds, PixelRect};
 use crate::output::Output;
 use crate::protocol::Op;
 use crate::raster::{Finish, Region, SceneBuffers};
-use crate::raster_plan::{Coverage, InProgress, KeptTile, RasterPlan, Restored, StrokeDrawn};
+use crate::raster_plan::{
+    Coverage, InProgress, KeptTile, Pass, RasterPlan, Restored, SlotAt, StrokeDrawn,
+};
 use crate::scene::{ActivePlace, Fresh, Scene};
 use crate::stroke::stroke_region;
 use crate::view_tiles::TIER_TILE;
@@ -79,12 +81,14 @@ impl Pen {
                 Some(KeptTile {
                     slots: kept.slots,
                     origin: tile.map(|at| at * TIER_TILE),
-                    cells: kept.cells,
+                    held: kept.held,
+                    laid: kept.laid,
                 })
             })
             .collect();
         InProgress::Stroke(StrokeDrawn {
             paint: self.paint,
+            settled: self.settled.clone(),
             tail: self.tail.clone(),
             coverage: self.coverage,
             contact: self.contact,
@@ -192,7 +196,8 @@ impl CanvasTarget {
             drawing.end_stroke();
         }
         let pen = self.pen(core, (active, step.kept.clone()), &scene)?;
-        self.lay_kept(core, drawing, (&pen, onto), &mut batch)?;
+        self.note_kept(core, drawing, (&pen, onto))?;
+        batch.extend(zeroed(drawing.take_taken()));
         let changed: Vec<PixelRect> = (step.fresh_region.into_iter())
             .chain(step.redraw)
             .chain(moved.iter().copied())
@@ -290,6 +295,21 @@ impl CanvasTarget {
 mod kept;
 #[path = "drawing_parts.rs"]
 mod parts;
+
+/// The batch's first part when kept coverage slots were taken this frame (`taken`): they are set
+/// to nothing first.
+fn zeroed<'a>(taken: Vec<SlotAt>) -> Option<Part<'a>> {
+    (!taken.is_empty()).then(|| Part {
+        plan: RasterPlan {
+            size: [1, 1],
+            passes: vec![Pass::Zero(taken)],
+            ..RasterPlan::default()
+        },
+        output: Output::CANVAS,
+        paper: [0.0; 4],
+        finish: None,
+    })
+}
 
 /// The output tiles meeting output pixels `rect` inside an output of `size` pixels, each with that
 /// part of `rect`.

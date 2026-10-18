@@ -389,3 +389,6 @@ mod ends;
 #[path = "raster_plan_drawing.rs"]
 mod drawing;
 pub(crate) use drawing::{InProgress, KeptTile, Restored, Resume, StrokeDrawn};
+
+#[path = "raster_plan_kept.rs"]
+mod kept;

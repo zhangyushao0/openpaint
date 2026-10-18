@@ -50,6 +50,7 @@ mod readback;
 mod sample;
 mod scene;
 mod scene_adjust;
+mod scene_append;
 mod scene_cleared;
 mod scene_content;
 mod scene_layer;

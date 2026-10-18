@@ -1,16 +1,63 @@
-//! A kept scene given a previewed adjustment's new values in place (S35, `preview.rs`), and the
-//! serials naming each scene built or changed.
+//! A kept scene changed in place: given a previewed adjustment's new values (S35, `preview.rs`),
+//! or the strokes a version appends on its place (S64, `scene_append.rs`); and the serials naming
+//! each scene built or changed.
+
+use std::sync::Arc;
+use std::time::Instant;
 
 use openpaint_core::Artwork;
 
 use super::CanvasTarget;
 use crate::core::Core;
+use crate::cost::item_costs_in;
 use crate::error::RenderError;
 use crate::preview::Retune;
 use crate::protocol::{Op, encode};
+use crate::scene::ActivePlace;
+use crate::scene_append::{appended, appended_over};
 use crate::smudge::Wanted;
 
 impl CanvasTarget {
+    /// Gives the kept scene, of the place `active`, the strokes `artwork` appends on that place
+    /// to the version it was built for, in place (its ops in a buffer of their own, the scene's
+    /// before copied on the GPU); whether it did. It does not when the version changed otherwise,
+    /// the raster worker holds the scene, or the scene does not take them (`Scene::append`).
+    pub(super) fn append(
+        &mut self,
+        core: &Core,
+        artwork: &Artwork,
+        active: &ActivePlace,
+    ) -> Result<bool, RenderError> {
+        let place = (active.layer, active.on_mask);
+        let Some(cache) = (self.scene.as_mut()).filter(|cache| {
+            cache.active == *active && appended_over(&cache.artwork, artwork, place)
+        }) else {
+            return Ok(false);
+        };
+        let strokes = appended(&cache.artwork, artwork, place);
+        let Some(scene) = Arc::get_mut(&mut cache.scene).filter(|_| !strokes.is_empty()) else {
+            return Ok(false);
+        };
+        let started = Instant::now();
+        let Some(inserted) = scene.append(&strokes) else {
+            return Ok(false);
+        };
+        cache.ops = cache.ops.inserted(&core.gpu, scene, inserted.clone());
+        let costs = item_costs_in(scene, inserted.clone());
+        cache.costs.splice(inserted.start..inserted.start, costs);
+        crate::profile::scene_built(started.elapsed());
+        core.evaluate.tally.appended();
+        let (smudges, filters) = (&mut self.smudges, &mut self.filters);
+        let scene = (&*cache.scene, &cache.ops);
+        smudges.prepare(core, scene, artwork, (filters, &Wanted::Near(&[])))?;
+        cache.artwork = artwork.clone();
+        cache.batch = None;
+        cache.plan = None;
+        cache.near = None;
+        cache.serial = next_serial();
+        Ok(true)
+    }
+
     /// Gives the kept scene `retune`'s values: the ops and tables that changed rewritten on the
     /// GPU, a filter's result prepared anew.
     pub(super) fn retune(

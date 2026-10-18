@@ -108,20 +108,21 @@ pub(crate) enum Pass {
         draw: Draw,
     },
     /// S63, the stroke being drawn (`drawing.rs`): targets set from snapshots' slots, as the
-    /// units before the stroke left them; targets kept into slots; the atlas cleared, the
-    /// stroke's kept coverage copied into its regions there, then its tail laid over it; spans
-    /// laid into the kept coverage's slots on a page (loaded, or cleared first).
+    /// units before the stroke left them; targets kept into slots.
     Restore(Vec<SlotCopy>),
     Keep(Vec<SlotCopy>),
+    /// S64, the stroke being drawn in one pass of the atlas, cleared first: its kept coverage
+    /// read from each page's slots into its regions (`held`: per page, the instances), then
+    /// `draws` laying the spans settled since and its tail over it; then `keep`, the regions
+    /// holding the kept coverage and the settled spans (not the tail), copied into the slots.
     Kept {
-        copies: Vec<AtlasCopy>,
+        held: Vec<(usize, Range<u32>)>,
         draws: Vec<CoverageDraw>,
+        keep: Vec<AtlasCopy>,
     },
-    Cover {
-        page: usize,
-        clear: bool,
-        draws: Vec<CoverageDraw>,
-    },
+    /// S64: kept coverage slots taken anew set to nothing (each a copy of a tile of nothing), so
+    /// what a region copies into a part of one leaves nothing in the rest.
+    Zero(Vec<SlotAt>),
 }
 
 /// A slot of a stroke's drawing (S63): its page and the page pixel at its top-left.
@@ -142,13 +143,13 @@ pub(crate) struct SlotCopy {
     pub(crate) size: [u32; 2],
 }
 
-/// A copy of `size` pixels of a kept coverage's slot from `offset` in it into the atlas at `to`.
+/// A copy of `size` pixels of the atlas from `at` into a kept coverage's slot from `offset` in it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct AtlasCopy {
+    pub(crate) at: [u32; 2],
     pub(crate) slot: SlotAt,
     pub(crate) offset: [u32; 2],
     pub(crate) size: [u32; 2],
-    pub(crate) to: [u32; 2],
 }
 
 /// What a plan holds, counted.

@@ -6,11 +6,12 @@
 //! place's unit; a new place (another layer, its mask, a clipping chain begun or ended) lets every
 //! snapshot go.
 
-use openpaint_core::{Artwork, LayerId, StrokeList};
+use openpaint_core::{Artwork, LayerId};
 
 use super::{Base, Drawing};
 use crate::geom::PixelRect;
 use crate::raster_plan::Restored;
+use crate::scene_append::appended_over;
 use crate::view_tiles::TIER_TILE;
 
 impl Drawing {
@@ -86,47 +87,4 @@ fn meets(tile: [u32; 2], rects: &[PixelRect]) -> bool {
         max: [min[0] + side, min[1] + side],
     };
     rects.iter().any(|dirty| !dirty.intersect(&rect).is_empty())
-}
-
-/// Whether `now` is `base` with strokes appended on the paint or mask `place` names and nothing
-/// else changed: what lies under the place is what the snapshots taken over `base` hold, and the
-/// strokes appended.
-pub(crate) fn appended_over(
-    base: &Artwork,
-    now: &Artwork,
-    (layer, on_mask): (LayerId, bool),
-) -> bool {
-    let appended = |old: &StrokeList, new: &StrokeList| {
-        new.len() > old.len()
-            && old.last().is_none_or(|last| {
-                (new.get(old.len() - 1)).is_some_and(|same| same.shares_samples(last))
-            })
-    };
-    if base.canvas() != now.canvas()
-        || base.groups() != now.groups()
-        || base.layers().len() != now.layers().len()
-    {
-        return false;
-    }
-    base.layers().iter().zip(now.layers()).all(|(old, new)| {
-        let drawn = old.id() == layer;
-        let masks = match (old.mask(), new.mask()) {
-            (None, None) => true,
-            (Some(a), Some(b)) if drawn && on_mask => {
-                a.enabled() == b.enabled()
-                    && a.inverted() == b.inverted()
-                    && a.edits() == b.edits()
-                    && appended(a.strokes(), b.strokes())
-            }
-            (Some(a), Some(b)) => a.enabled() == b.enabled() && a.same_grey(b),
-            _ => false,
-        };
-        // Edits compare shared masks and patches first: a commit keeps them.
-        let paint = if drawn && !on_mask {
-            old.edits() == new.edits() && appended(old.strokes(), new.strokes())
-        } else {
-            old.same_paint(new)
-        };
-        old.id() == new.id() && old.props() == new.props() && masks && paint
-    })
 }

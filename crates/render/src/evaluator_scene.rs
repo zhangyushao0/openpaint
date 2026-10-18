@@ -130,6 +130,15 @@ impl CanvasTarget {
             }
             return self.cached();
         }
+        // S64: the strokes a lift commits on the place, taken in place.
+        match self.append(core, artwork, &active) {
+            Ok(true) => return self.cached(),
+            Ok(false) => {}
+            Err(error) => {
+                self.scene = None;
+                return Err(error);
+            }
+        }
         let (scene, ops) = match self.built(core, artwork, &active) {
             Ok(built) => built,
             Err(error) => {

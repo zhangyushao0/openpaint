@@ -1,24 +1,21 @@
 //! A raster plan with the stroke being drawn (S63, DECISIONS D90; `raster_plan.rs`). The stroke
 //! lays at its unit (`Unit::Active`) from what its drawing kept: its coverage so far in a slot per
-//! output tile, to which its tail (the spans later samples may still change) is added in the atlas,
-//! never kept, so its region of the atlas holds what the stroke's spans laid in one go would. A plan
-//! may start from snapshots of the units before a unit (`Resume`): their passes are not drawn, the
-//! targets hold what those units left over the whole region (nothing where they drew nothing), so
-//! the plan goes on as one drawn from the paper whose units drew everywhere in the region: a layer
-//! ending with nothing where it drew nothing, as a part of a region draws what the whole does.
+//! output tile, to which the spans settled since and its tail (the spans later samples may still
+//! change, never kept) are added in the atlas, so its region of the atlas holds what the stroke's
+//! spans laid in one go would (`raster_plan_kept.rs`). A plan may start from snapshots of the
+//! units before a unit (`Resume`): their passes are not drawn, the targets hold what those units
+//! left over the whole region (nothing where they drew nothing), so the plan goes on as one drawn
+//! from the paper whose units drew everywhere in the region: a layer ending with nothing where it
+//! drew nothing, as a part of a region draws what the whole does.
 
 use super::{Builder, Chain, Drawn, RasterPlan};
 use crate::error::RenderError;
 use crate::geom::{Bounds, PixelRect};
 use crate::output::Output;
 use crate::protocol::{LayerInto, Op};
-use crate::raster_kinds::{
-    AtlasCopy, Coverage, CoverageDraw, Draw, DrawKind, Instance, Pass, Scratch, SlotAt,
-};
-use crate::raster_lay::{Packer, laid_span};
+use crate::raster_kinds::{Coverage, Pass, Scratch, SlotAt};
 use crate::raster_route::{RasterScene, Unit};
 use crate::scene::{Item, Scene};
-use crate::view_tiles::TIER_TILE;
 
 /// The stroke being drawn as one region's plan lays it.
 #[derive(Debug, Clone, PartialEq)]
@@ -32,12 +29,13 @@ pub(crate) enum InProgress {
     },
 }
 
-/// A stroke being drawn: its paint op and its tail's spans (each its op's place in the op buffer,
-/// the op, its bounds in canvas pixels), how its spans lay, and its kept coverage in the output
-/// tiles the region meets.
+/// A stroke being drawn: its paint op, the spans settled since its last frame and its tail's
+/// (each its op's place in the op buffer, the op, its bounds in canvas pixels), how its spans
+/// lay, and its kept coverage in the output tiles the region meets.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct StrokeDrawn {
     pub(crate) paint: (u32, Op),
+    pub(crate) settled: Vec<(u32, Op, Bounds)>,
     pub(crate) tail: Vec<(u32, Op, Bounds)>,
     pub(crate) coverage: Coverage,
     pub(crate) contact: bool,
@@ -45,12 +43,14 @@ pub(crate) struct StrokeDrawn {
 }
 
 /// A stroke's kept coverage in one output tile: its slots (coverage or density, and contact), the
-/// tile's top-left output pixel, and which of its 32-px cells (8 a row) the kept spans reached.
+/// tile's top-left output pixel, which of its 32-px cells (8 a row) the slots hold the kept spans
+/// in, and which the spans settled since reach.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct KeptTile {
     pub(crate) slots: [SlotAt; 2],
     pub(crate) origin: [u32; 2],
-    pub(crate) cells: u64,
+    pub(crate) held: u64,
+    pub(crate) laid: u64,
 }
 
 /// What a snapshot's targets hold besides the canvas and the layer: the mask (the stroke's place
@@ -95,13 +95,6 @@ pub(crate) struct Resume {
     pub(crate) at: usize,
     pub(crate) restored: Option<Restored>,
 }
-
-/// A composite cell's side in output pixels (`raster_lay::TILE`).
-const CELL: i32 = 32;
-
-/// Where the stroke being drawn reaches a region: its pixels, its composite tiles, its tail's
-/// spans reaching them (each its op's place and the op).
-type Reached = (PixelRect, Vec<[u32; 2]>, Vec<(u32, Op)>);
 
 impl RasterPlan {
     /// The plan of a region of `size` pixels at `output` with the stroke being drawn `drawing`
@@ -203,146 +196,5 @@ impl Builder<'_> {
             }
             None => Ok(()),
         }
-    }
-
-    /// The stroke being drawn: its kept coverage copied into its atlas regions, its tail laid
-    /// there, its tiles composited onto the layer (or mask), each a batch of its own.
-    fn drawn_stroke(&mut self, stroke: &StrokeDrawn) -> Result<(), RenderError> {
-        self.flush();
-        let Some((rect, tiles, reaching)) = self.drawn_reach(stroke) else {
-            return Ok(());
-        };
-        let side = [0, 1].map(|axis| (rect.max[axis] - rect.min[axis]) as u32);
-        self.packer = Packer::new(self.atlas);
-        let kinds: &[Coverage] = if stroke.contact {
-            &[Coverage::Density, Coverage::Contact]
-        } else {
-            std::slice::from_ref(&stroke.coverage)
-        };
-        let at = (self.packer.places(side, kinds.len())).ok_or(RenderError::Invalid(
-            "a stroke's region is larger than the raster core's atlas",
-        ))?;
-        let mut copies = Vec::new();
-        let mut draws = Vec::new();
-        let scale = self.output.scale as f32;
-        for (kind, (coverage, at)) in kinds.iter().zip(&at).enumerate() {
-            copies.extend(self.kept_copies(stroke, (kind, *at), rect));
-            let place = [0, 1].map(|axis| at[axis] as i32 - rect.min[axis]);
-            let start = self.plan.instances.len() as u32;
-            for &(index, op) in &reaching {
-                laid_span(&mut self.plan, (op, index as usize), place, scale);
-            }
-            draws.push(CoverageDraw {
-                coverage: *coverage,
-                scissor: [at[0], at[1], side[0], side[1]],
-                instances: start..self.plan.instances.len() as u32,
-            });
-            self.plan.counts.region_pixels += u64::from(side[0]) * u64::from(side[1]);
-        }
-        self.plan.passes.push(Pass::Kept { copies, draws });
-        self.plan.counts.batches += 1;
-        self.drawn_tiles(stroke, (&at, rect), &tiles);
-        Ok(())
-    }
-
-    /// The kept coverage of kind `kind` (its slot) of each tile meeting the region's pixels
-    /// `rect`, copied to where they lie in the atlas region at `at` holding `rect`.
-    fn kept_copies(
-        &self,
-        stroke: &StrokeDrawn,
-        (kind, at): (usize, [u32; 2]),
-        rect: PixelRect,
-    ) -> Vec<AtlasCopy> {
-        let origin = self.output.origin.map(|at| at as i32);
-        let side = TIER_TILE as i32;
-        let mut copies = Vec::new();
-        for kept in &stroke.kept {
-            let min = [0, 1].map(|axis| kept.origin[axis] as i32 - origin[axis]);
-            let tile = PixelRect {
-                min,
-                max: [min[0] + side, min[1] + side],
-            };
-            let part = tile.intersect(&rect);
-            if part.is_empty() {
-                continue;
-            }
-            copies.push(AtlasCopy {
-                slot: kept.slots[kind],
-                offset: [0, 1].map(|axis| (part.min[axis] - min[axis]) as u32),
-                size: [0, 1].map(|axis| (part.max[axis] - part.min[axis]) as u32),
-                to: [0, 1].map(|axis| at[axis] + (part.min[axis] - rect.min[axis]) as u32),
-            });
-        }
-        copies
-    }
-
-    /// The region's pixels the stroke being drawn reaches (its kept cells' and its tail's, in
-    /// whole composite tiles), those tiles, and its tail's spans reaching them.
-    fn drawn_reach(&mut self, stroke: &StrokeDrawn) -> Option<Reached> {
-        let region = PixelRect::full(self.plan.size);
-        let origin = self.output.origin.map(|at| at as i32);
-        self.marks.next();
-        let mut tiles = Vec::new();
-        let mut rect: Option<PixelRect> = None;
-        let mut mark = |builder: &mut Self, reached: &PixelRect| {
-            let whole = builder.marks.mark(reached, &mut tiles);
-            rect = Some(rect.map_or(whole, |rect| rect.union(&whole)));
-        };
-        for kept in &stroke.kept {
-            for cell in (0..64).filter(|cell| kept.cells & (1 << cell) != 0) {
-                let [x, y] = [cell % 8, cell / 8].map(|at| at * CELL);
-                let min = [
-                    kept.origin[0] as i32 + x - origin[0],
-                    kept.origin[1] as i32 + y - origin[1],
-                ];
-                let cell = PixelRect {
-                    min,
-                    max: [min[0] + CELL, min[1] + CELL],
-                };
-                let reached = cell.intersect(&region);
-                if !reached.is_empty() {
-                    mark(self, &reached);
-                }
-            }
-        }
-        let mut reaching = Vec::new();
-        for &(index, op, bounds) in &stroke.tail {
-            let reached = self.output.place(&bounds.pixels()).intersect(&region);
-            if !bounds.is_empty() && !reached.is_empty() {
-                reaching.push((index, op));
-                mark(self, &reached);
-            }
-        }
-        Some((rect?.intersect(&region), tiles, reaching))
-    }
-
-    /// The stroke's composite tiles onto the layer (or mask) from its atlas regions `at` holding
-    /// the region's pixels `rect`.
-    fn drawn_tiles(
-        &mut self,
-        stroke: &StrokeDrawn,
-        (at, rect): (&[[u32; 2]], PixelRect),
-        tiles: &[[u32; 2]],
-    ) {
-        let place = |at: &[u32; 2]| [0, 1].map(|axis| at[axis] as i32 - rect.min[axis]);
-        let [x, y] = place(&at[0]);
-        let contact = at.get(1).map_or([0, 0], place);
-        let start = self.plan.instances.len() as u32;
-        let (paint, op) = stroke.paint;
-        for [tx, ty] in tiles {
-            self.plan.instances.push(Instance {
-                a: [paint, *tx, *ty, u32::from(stroke.contact)],
-                b: [x, y, contact[0], contact[1]],
-            });
-        }
-        self.plan.counts.tiles += tiles.len();
-        self.batch.draws.push(Draw {
-            kind: DrawKind::Stroke(op.paint_blend()),
-            instances: start..self.plan.instances.len() as u32,
-        });
-        self.plan.counts.strokes += 1;
-        self.flush();
-        let slot = self.slot();
-        self.touched[slot] = true;
     }
 }

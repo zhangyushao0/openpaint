@@ -45,14 +45,21 @@ pub(crate) struct Drawing {
     made: u64,
     snapshots: Pool,
     coverage: Pool,
+    /// A bind group reading each coverage page (S64: the kept coverage is read, not copied), a
+    /// tile of nothing in their format, and the slots taken this frame, to set to it.
+    reads: Vec<wgpu::BindGroup>,
+    nothing: Option<Target>,
+    taken: Vec<SlotAt>,
 }
 
-/// A stroke's kept coverage (or density) and contact in one tile, and which of its 32-px cells (8
-/// a row) the kept spans reached.
+/// A stroke's kept coverage (or density) and contact in one tile: which of its 32-px cells (8 a
+/// row) the slots hold kept spans in, and which the spans settled this frame reach (the frame
+/// copies them into the slots: `drawing_kept.rs`).
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Kept {
     pub(crate) slots: [SlotAt; 2],
-    pub(crate) cells: u64,
+    pub(crate) held: u64,
+    pub(crate) laid: u64,
 }
 
 /// A tile's snapshot: its targets each in a slot, the unit it stands before, and which it is.
@@ -93,8 +100,6 @@ struct Pool {
     pages: Vec<Target>,
     /// Per page, per slot (row-major): taken.
     taken: Vec<Vec<bool>>,
-    /// Coverage pages are cleared before a stroke lays into their slots again.
-    stale: Vec<bool>,
 }
 
 impl Drawing {
@@ -114,6 +119,8 @@ impl Drawing {
         Pages {
             snapshots: &self.snapshots.pages,
             coverage: &self.coverage.pages,
+            reads: &self.reads,
+            nothing: self.nothing.as_ref(),
         }
     }
 
@@ -138,6 +145,7 @@ impl Drawing {
     pub(crate) fn end_stroke(&mut self) {
         self.kept.clear();
         self.coverage.free_all();
+        self.taken.clear();
     }
 
     /// Every snapshot goes (a new place, a scene the evaluator draws); those being taken are let
@@ -164,6 +172,9 @@ impl Drawing {
         self.base = None;
         self.snapshots = Pool::default();
         self.coverage = Pool::default();
+        self.reads.clear();
+        self.nothing = None;
+        self.taken.clear();
         bytes
     }
 
@@ -195,48 +206,6 @@ impl Drawing {
                 self.snapshots.free(slot);
             }
         }
-    }
-
-    /// Tile `tile`'s kept coverage, two slots of `atlas`-sized pages of `format` taken when it has
-    /// none (a page whose slots were freed since it was laid into is cleared first: `stale`).
-    pub(crate) fn kept(
-        &mut self,
-        core: &Core,
-        tile: [u32; 2],
-        (format, atlas): (wgpu::TextureFormat, [u32; 2]),
-    ) -> Result<[SlotAt; 2], RenderError> {
-        if let Some(kept) = self.kept.get(&tile) {
-            return Ok(kept.slots);
-        }
-        let size = (atlas, format, wgpu::TextureUsages::RENDER_ATTACHMENT);
-        let slots = [
-            self.coverage.take(core, size)?,
-            self.coverage.take(core, size)?,
-        ];
-        self.kept.insert(tile, Kept { slots, cells: 0 });
-        Ok(slots)
-    }
-
-    /// A coverage page of `atlas` pixels and `format` made now when there is none (S63: ahead,
-    /// so a stroke's first frame allocates nothing: making one took up to 20 ms on the tablet).
-    pub(crate) fn coverage_ahead(
-        &mut self,
-        core: &Core,
-        (format, atlas): (wgpu::TextureFormat, [u32; 2]),
-    ) -> Result<(), RenderError> {
-        if self.coverage.pages.is_empty() {
-            let size = (atlas, format, wgpu::TextureUsages::RENDER_ATTACHMENT);
-            let slot = self.coverage.take(core, size)?;
-            self.coverage.free(slot);
-        }
-        Ok(())
-    }
-
-    /// The coverage pages to clear before laying into them, no longer stale.
-    pub(crate) fn take_stale(&mut self) -> Vec<usize> {
-        (self.coverage.stale.iter_mut().enumerate())
-            .filter_map(|(page, stale)| std::mem::take(stale).then_some(page))
-            .collect()
     }
 
     /// Slots for a snapshot of `targets`, in pages of `format`.
@@ -340,7 +309,6 @@ impl Pool {
         for taken in &mut self.taken {
             taken.fill(false);
         }
-        self.stale.fill(true);
     }
 
     fn free(&mut self, slot: SlotAt) {
@@ -371,7 +339,6 @@ impl Pool {
                 self.pages.push(Target::of(texture));
                 let slots = (size[0] / TIER_TILE) * (size[1] / TIER_TILE);
                 self.taken.push(vec![false; slots as usize]);
-                self.stale.push(true);
                 (self.pages.len() - 1, 0)
             }
         };
@@ -387,3 +354,6 @@ impl Pool {
 
 #[path = "drawing_follow.rs"]
 mod follow;
+
+#[path = "drawing_coverage.rs"]
+mod coverage;

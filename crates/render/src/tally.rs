@@ -16,6 +16,7 @@ pub(crate) struct Tally {
     filled: AtomicU64,
     rastered: AtomicU64,
     snapshots: AtomicU64,
+    appended: AtomicU64,
 }
 
 /// The counters at one moment; `since` gives what happened between two.
@@ -37,6 +38,8 @@ pub struct Counts {
     pub rastered: u64,
     /// Tiles of a stroke's drawing whose snapshot was taken (S63: the units under the stroke drawn).
     pub snapshots: u64,
+    /// Scenes that took the strokes a version appends on their place in place (S64), not built.
+    pub appended: u64,
 }
 
 impl Counts {
@@ -52,6 +55,7 @@ impl Counts {
             filled: self.filled.saturating_sub(before.filled),
             rastered: self.rastered.saturating_sub(before.rastered),
             snapshots: self.snapshots.saturating_sub(before.snapshots),
+            appended: self.appended.saturating_sub(before.appended),
         }
     }
 }
@@ -78,6 +82,10 @@ impl Tally {
         self.rastered.fetch_add(regions as u64, Ordering::Relaxed);
     }
 
+    pub(crate) fn appended(&self) {
+        self.appended.fetch_add(1, Ordering::Relaxed);
+    }
+
     pub(crate) fn snapshot(&self) {
         self.snapshots.fetch_add(1, Ordering::Relaxed);
     }
@@ -93,6 +101,7 @@ impl Tally {
             filled: load(&self.filled),
             rastered: load(&self.rastered),
             snapshots: load(&self.snapshots),
+            appended: load(&self.appended),
         }
     }
 }

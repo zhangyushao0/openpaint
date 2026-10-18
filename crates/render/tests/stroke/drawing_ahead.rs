@@ -193,6 +193,39 @@ fn snapshots_taken_ahead_carry_strokes_an_undo_and_a_layer_switch_and_every_fram
     stroke(&core, &mut screen, &switched, [160.0, 100.0]);
 }
 
+/// S64: the lift takes its stroke into the scene in place (no scene built), on a layer under
+/// others (a mask, a clipping chain, a smudge on the top layer): the lift's frame and every frame
+/// after it are the canvas drawn cold, at the canvas and at a tier; an undo builds the scene
+/// before, a redo takes the stroke in place again, a stroke after both is cold.
+#[test]
+fn a_lift_takes_its_stroke_into_the_scene_and_undo_and_redo_across_it_are_cold() {
+    let core = own_core();
+    let mut base = dense();
+    let top = base.layers().len() - 1;
+    base = layer(&base, LayerCommand::Select(base.layers()[top].id()));
+    let smudge = plain(30.0, 0.8, Color::BLACK).with_tool(openpaint_core::StrokeTool::Smudge);
+    base = with_stroke(&base, (smudge, path([170.0, 100.0], 60.0, 14)));
+    base = layer(&base, LayerCommand::Select(base.layers()[0].id()));
+    for shown in [None, Some((frame(3.7, [160.0, 100.0]), 4))] {
+        let mut screen = Loop::new(&core, &base, shown);
+        screen.settle(&core, &base);
+        let appended = || core.counts().appended;
+        let before = appended();
+        let first = stroke(&core, &mut screen, &base, [150.0, 90.0]);
+        assert_eq!(appended() - before, 1, "the lift appended its stroke");
+        screen.settle(&core, &first);
+        screen.frame(&core, (&base, None), &changed_regions(&first, &base));
+        screen.settle(&core, &base);
+        screen.shows(&core, &base, "undone");
+        let before = appended();
+        screen.frame(&core, (&first, None), &changed_regions(&base, &first));
+        assert_eq!(appended() - before, 1, "the redo appended its stroke");
+        screen.settle(&core, &first);
+        screen.shows(&core, &first, "redone");
+        stroke(&core, &mut screen, &first, [165.0, 105.0]);
+    }
+}
+
 #[test]
 fn a_tiers_snapshots_taken_ahead_carry_strokes_and_its_tiles_are_its_export() {
     let core = own_core();

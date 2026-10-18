@@ -194,7 +194,7 @@ impl RasterDrawer {
                 None,
                 Pages {
                     snapshots: &snapshot.pages,
-                    coverage: &[],
+                    ..Pages::NONE
                 },
             ),
         };

@@ -99,6 +99,9 @@ pub(crate) struct RasterPipelines {
     strokes: [wgpu::RenderPipeline; 3],
     fills: [wgpu::RenderPipeline; 3],
     patch: wgpu::RenderPipeline,
+    /// The kept coverage of the stroke being drawn read from its slots into the atlas, written
+    /// whole (S64).
+    pub(crate) kept: wgpu::RenderPipeline,
     /// A smudge onto the layer or its mask from their copy, written whole.
     smudge: wgpu::RenderPipeline,
     /// By `EndBlend`, in its order.
@@ -142,16 +145,15 @@ impl RasterPipelines {
         };
         let strokes = onto_layer(["composite_vertex", "composite_fragment"]);
         let fills = onto_layer(["rect_vertex", "fill_fragment"]);
-        let patch = make(
-            ["rect_vertex", "patch_fragment"],
-            &both,
-            blended(layer, Some(painted(Blend::Over))),
-        );
-        let smudge = make(
-            ["smudge_vertex", "smudge_fragment"],
-            &both,
-            blended(layer, None),
-        );
+        let [patch, smudge, kept] = [
+            (
+                ["rect_vertex", "patch_fragment"],
+                blended(layer, Some(painted(Blend::Over))),
+            ),
+            (["smudge_vertex", "smudge_fragment"], blended(layer, None)),
+            (["kept_vertex", "kept_fragment"], blended(atlas, None)),
+        ]
+        .map(|(entries, target)| make(entries, &both, target));
         let ends = ENDS.map(|end| {
             let (fragment, blend) = ended(end);
             make(["rect_vertex", fragment], &both, blended(layer, blend))
@@ -166,8 +168,9 @@ impl RasterPipelines {
             fills,
             patch,
             smudge,
+            kept,
             ends,
-            count: 5 + 3 + 3 + 1 + 1 + 7 + 1 + usize::from(finish_ten.is_some()),
+            count: 5 + 3 + 3 + 1 + 1 + 1 + 7 + 1 + usize::from(finish_ten.is_some()),
             finish,
             finish_ten,
             atlas,

@@ -185,3 +185,41 @@ fn contact_fragment(in: PieceOut) -> @location(0) vec4<f32> {
     let laid = piece_density(centre, piece_in(in), bell, in.dot_allowed == 1u);
     return vec4<f32>(laid.y, 0.0, 0.0, 0.0);
 }
+
+struct KeptOut {
+    @builtin(position) position: vec4<f32>,
+    // The page pixel of an atlas pixel, less the atlas pixel; the 32-px cells of its slot's tile
+    // holding kept coverage (8 a row, two words).
+    @location(0) @interpolate(flat) shift: vec2<i32>,
+    @location(1) @interpolate(flat) cells: vec2<u32>,
+}
+
+// S64: the atlas rectangle `b` (its corners) of a stroke's kept coverage in a tile, read from its
+// slot on the page bound (`a.zw`: the shift to it, `a.xy`: the cells it holds).
+@vertex
+fn kept_vertex(
+    @builtin(vertex_index) corner: u32,
+    @location(0) a: vec4<u32>,
+    @location(1) b: vec4<i32>,
+) -> KeptOut {
+    let side = corner_side(corner) * 0.5 + vec2<f32>(0.5);
+    let p = (vec2<f32>(b.xy) + side * vec2<f32>(b.zw - b.xy)) / raster.atlas;
+    var out: KeptOut;
+    out.position = vec4<f32>(p.x * 2.0 - 1.0, 1.0 - p.y * 2.0, 0.0, 1.0);
+    out.shift = bitcast<vec2<i32>>(a.zw);
+    out.cells = a.xy;
+    return out;
+}
+
+// The kept coverage, written whole: as the slot holds it in the cells it kept, else nothing.
+@fragment
+fn kept_fragment(in: KeptOut) -> @location(0) vec4<f32> {
+    let at = vec2<i32>(floor(in.position.xy)) + in.shift;
+    let cell = vec2<u32>(at % vec2<i32>(256)) / 32u;
+    let index = cell.y * 8u + cell.x;
+    let bits = select(in.cells.x, in.cells.y, index >= 32u);
+    if ((bits >> (index % 32u)) & 1u) == 0u {
+        return vec4<f32>(0.0);
+    }
+    return vec4<f32>(textureLoad(source, at, 0).r, 0.0, 0.0, 0.0);
+}

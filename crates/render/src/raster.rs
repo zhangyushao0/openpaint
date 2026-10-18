@@ -285,7 +285,7 @@ impl RasterTargets {
                 Pass::Restore(copies) | Pass::Keep(copies) => {
                     copies.iter().map(|copy| copy.target).collect()
                 }
-                Pass::Coverage(_) | Pass::Kept { .. } | Pass::Cover { .. } => Vec::new(),
+                Pass::Coverage(_) | Pass::Kept { .. } | Pass::Zero(_) => Vec::new(),
             };
             for at in used {
                 self.make(core, pipelines, at)?;

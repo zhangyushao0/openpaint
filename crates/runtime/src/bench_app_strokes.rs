@@ -6,9 +6,9 @@
 //! calls' work, each drawn frame's GPU time (timestamps from its first submission to its end, S63),
 //! from each sample's event to the return of the present of the frame taking it (at the display's
 //! cadence only: `@fast` feeds samples as frames take them), the pen-down's and the lift's frames
-//! (and the scene the lift's built for the version holding the stroke), the most the GPU caches
-//! held while it was drawn, and how long the snapshots under it took to be taken ahead before it
-//! began (it waits for them).
+//! (and the scene the lift's built for the version holding the stroke; S64: the scenes that took
+//! it in place instead), the most the GPU caches held while it was drawn, and how long the
+//! snapshots under it took to be taken ahead before it began (it waits for them).
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -77,7 +77,7 @@ impl Stroked {
             "{} frames ({} skipped), frame work {}, GPU a frame {}, event to present {}; pen-down \
              {:.1}, lift {:.1} (its scene built in {:.1}); GPU caches {:.1} MB at most (snapshots \
              {:.1}); evaluating {}, waiting {}; raster regions {}, snapshots taken {} (ahead {:.0} \
-             before it)",
+             before it), scenes taking strokes in place {}",
             self.work.len(),
             self.skipped,
             spread(&self.work),
@@ -92,7 +92,8 @@ impl Stroked {
             spread(&self.waiting),
             self.counts.rastered,
             self.counts.snapshots,
-            self.ahead
+            self.ahead,
+            self.counts.appended
         )
     }
 }

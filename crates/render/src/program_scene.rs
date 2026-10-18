@@ -1,5 +1,6 @@
 //! One scene's ops, fill masks and patches as the evaluator's GPU buffers.
 
+use std::ops::Range;
 use std::sync::{Mutex, PoisonError};
 
 use wgpu::util::DeviceExt;
@@ -7,7 +8,7 @@ use wgpu::util::DeviceExt;
 use crate::edits::patch_bytes;
 use crate::gpu::Gpu;
 use crate::protocol::{FRESH, Op, Record, encode};
-use crate::scene::Scene;
+use crate::scene::{Item, Scene};
 
 /// Room for fresh ops behind a new scene's: the in-progress stroke's new spans and paint op
 /// fit in it; a view tier listing a long stroke whole makes the buffer larger once.
@@ -74,6 +75,37 @@ impl SceneOps {
     /// The scene's op count: what a plan's fresh entries were placed behind.
     pub(crate) const fn count(&self) -> u32 {
         self.count
+    }
+
+    /// The ops of `scene`, whose items `inserted` were inserted into the scene these ops hold
+    /// (every later item moved by their count, S64), in a buffer of their own: the ops before and
+    /// after them copied over on the GPU, theirs written. A raster worker's job may still read
+    /// this buffer (it drops the scene before it submits), so it is never changed under one.
+    pub(crate) fn inserted(&self, gpu: &Gpu, scene: &Scene, inserted: Range<usize>) -> Self {
+        let held = self.ops();
+        let count = scene.items.len();
+        let ops = empty(gpu, ((count + FRESH_ROOM) as u64) * OP_BYTES);
+        let at = inserted.start as u64 * OP_BYTES;
+        let after = u64::from(self.count) * OP_BYTES - at;
+        let mut encoder = gpu.device.create_command_encoder(&Default::default());
+        if at > 0 {
+            encoder.copy_buffer_to_buffer(&held, 0, &ops, 0, at);
+        }
+        if after > 0 {
+            let to = inserted.end as u64 * OP_BYTES;
+            encoder.copy_buffer_to_buffer(&held, at, &ops, to, after);
+        }
+        let written: Vec<Op> = scene.items[inserted].iter().map(Item::op).collect();
+        if !written.is_empty() {
+            gpu.queue.write_buffer(&ops, at, &encode(&written));
+        }
+        gpu.submit([encoder.finish()]);
+        Self {
+            ops: Mutex::new(ops),
+            count: u32::try_from(count).unwrap_or(u32::MAX),
+            masks: self.masks.clone(),
+            patches: self.patches.clone(),
+        }
     }
 }
 

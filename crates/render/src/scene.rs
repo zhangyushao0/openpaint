@@ -351,9 +351,11 @@ impl Scene {
         Ok(value)
     }
 
-    /// Whether the in-progress stroke has a place, that is, its layer is visible.
-    pub(crate) fn has_active(&self) -> bool {
-        self.items.contains(&Item::Active)
+    /// Whether the in-progress stroke has a place, that is, its layer is visible: its `Active`
+    /// item lies right after the items of its layer before it (S64: asked every frame, never by
+    /// looking through the items).
+    pub(crate) const fn has_active(&self) -> bool {
+        self.active_before.is_some()
     }
 }
 

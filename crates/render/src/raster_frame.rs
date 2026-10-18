@@ -131,18 +131,10 @@ impl RasterTargets {
         match pass {
             Pass::Restore(copies) => self.restore(encoder, copies, pages),
             Pass::Keep(copies) => self.keep(encoder, copies, pages),
-            Pass::Kept { copies, draws } => {
-                self.kept(encoder, pipelines, (copies, draws), pages, timestamps);
+            Pass::Kept { held, draws, keep } => {
+                self.kept(encoder, pipelines, (held, draws, keep), pages, timestamps);
             }
-            Pass::Cover { page, clear, draws } => {
-                self.cover(
-                    encoder,
-                    pipelines,
-                    (*page, *clear, draws),
-                    pages,
-                    timestamps,
-                );
-            }
+            Pass::Zero(slots) => super::slots::zero(encoder, slots, pages),
             Pass::Copy(from) => self.copy(encoder, *from, [0, 0, size[0], size[1]]),
             Pass::Smudge { target, rect, draw } => {
                 self.copy(encoder, *target, *rect);

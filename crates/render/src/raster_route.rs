@@ -178,7 +178,7 @@ impl RasterScene {
                 }
                 Item::EndStroke(_) => {
                     let start = first.take().unwrap_or(index);
-                    units.push(stroke(scene, start..index, index));
+                    units.push(stroke_unit(scene, start..index, index));
                     continue;
                 }
                 Item::Fill { op, bounds } | Item::Clear { op, bounds } => match op.edit() {
@@ -257,7 +257,7 @@ fn smudge(scene: &Scene, item: usize, number: usize) -> Unit {
 }
 
 /// The stroke whose spans are `spans` and whose paint op is item `paint`, with their box.
-fn stroke(scene: &Scene, spans: Range<usize>, paint: usize) -> Unit {
+pub(crate) fn stroke_unit(scene: &Scene, spans: Range<usize>, paint: usize) -> Unit {
     let bounds = scene.items[spans.clone()]
         .iter()
         .filter_map(Item::bounds)

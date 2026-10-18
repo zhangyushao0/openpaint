@@ -285,13 +285,8 @@ impl Scene {
             return Ok(());
         }
         self.note_spans(stroke, spans);
-        let mut paint = paint(style, stroke.blend());
-        paint.clip = stroke
-            .clip()
-            .map(|clip| self.clip(clip))
-            .transpose()?
-            .unwrap_or(0);
-        self.items.push(Item::EndStroke(Op::end_stroke(&paint)));
+        let clip = stroke.clip().map(|clip| self.clip(clip)).transpose()?;
+        self.items.push(stroke_end(stroke, clip.unwrap_or(0)));
         Ok(())
     }
 
@@ -323,6 +318,14 @@ impl Scene {
             clip: view.clip,
         });
     }
+}
+
+/// The end of `stroke` (not a smudge), its paint op with its clip as the scene placed it (0:
+/// none).
+pub(crate) fn stroke_end(stroke: &openpaint_core::Stroke, clip: u32) -> Item {
+    let mut paint = paint(stroke.style(), stroke.blend());
+    paint.clip = clip;
+    Item::EndStroke(Op::end_stroke(&paint))
 }
 
 /// Where each selection record's moved content can lie, when selections moved more than once

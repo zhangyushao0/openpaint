@@ -6,6 +6,8 @@
 //! it holds). The budget corrects the whole table by the measured time of earlier frames'
 //! background work, so the table need only rank the kinds right.
 
+use std::ops::Range;
+
 use crate::plan::Plan;
 use crate::protocol::{FRESH, OpKind, TILE, TileRecord};
 use crate::scene::Scene;
@@ -71,13 +73,23 @@ impl Table {
 
 /// Per item of `scene`, what it costs at one output pixel of a tile that lists it, in ns.
 pub(crate) fn item_costs(scene: &Scene) -> Vec<f32> {
-    item_kinds(scene).map(|kind| TABLET.of(kind)).collect()
+    item_costs_in(scene, 0..scene.items.len())
+}
+
+/// Per item `items` of `scene`, the same (S64: those a lift inserts).
+pub(crate) fn item_costs_in(scene: &Scene, items: Range<usize>) -> Vec<f32> {
+    kinds_in(scene, items).map(|kind| TABLET.of(kind)).collect()
 }
 
 /// Per item of `scene`, its work at a pixel (a stamped span's from its stroke's paint op).
 pub(crate) fn item_kinds(scene: &Scene) -> impl Iterator<Item = OpKind> + '_ {
+    kinds_in(scene, 0..scene.items.len())
+}
+
+/// Per item `range` of `scene`, its work at a pixel.
+fn kinds_in(scene: &Scene, range: Range<usize>) -> impl Iterator<Item = OpKind> + '_ {
     let items = &scene.items;
-    (0..items.len()).map(|index| {
+    range.map(|index| {
         let op = items[index].op();
         let paint = op.stamp_paint().and_then(|offset| {
             let at = isize::try_from(index).ok()? + isize::try_from(offset).ok()?;

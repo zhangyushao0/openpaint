@@ -55,18 +55,7 @@ impl Scene {
             items.extend_from_slice(&earlier.items[range.clone()]);
             return start..items.len();
         }
-        let spans: Vec<_> = segments(stroke.style(), stroke.samples()).collect();
-        // Each span's paint op is the stroke's end, right after its last span.
-        let parts: Vec<(Op, Bounds)> = (1..=spans.len() as i32)
-            .rev()
-            .zip(&spans)
-            .map(|(paint, segment)| (segment.op(paint), segment.bounds()))
-            .collect();
-        items.extend(
-            parts
-                .into_iter()
-                .map(|(op, bounds)| Item::Segment { op, bounds }),
-        );
+        items.extend(span_items(stroke));
         start..items.len()
     }
 
@@ -82,6 +71,42 @@ impl Scene {
     /// The scene before is no longer needed once this one is built.
     pub(crate) fn forget_earlier(&mut self) {
         self.earlier = Earlier::default();
+    }
+}
+
+/// The span items of `stroke` (not a smudge), computed: each span's paint op is the stroke's end,
+/// right after its last span.
+pub(crate) fn span_items(stroke: &Stroke) -> Vec<Item> {
+    let spans: Vec<_> = segments(stroke.style(), stroke.samples()).collect();
+    let parts: Vec<(Op, Bounds)> = (1..=spans.len() as i32)
+        .rev()
+        .zip(&spans)
+        .map(|(paint, segment)| (segment.op(paint), segment.bounds()))
+        .collect();
+    (parts.into_iter())
+        .map(|(op, bounds)| Item::Segment { op, bounds })
+        .collect()
+}
+
+impl Spans {
+    /// Where each stroke's spans lie, by its samples' address, in order (tests).
+    #[cfg(test)]
+    pub(crate) fn ranges(&self) -> Vec<(usize, Range<usize>)> {
+        let mut ranges: Vec<_> = (self.at.iter())
+            .map(|(key, (_, range))| (*key, range.clone()))
+            .collect();
+        ranges.sort_by_key(|(key, _)| *key);
+        ranges
+    }
+
+    /// Every span range from item `at` on moved `by` items later (S64: strokes appended before
+    /// them, `scene_append.rs`).
+    pub(crate) fn moved(&mut self, at: usize, by: usize) {
+        for (_, range) in self.at.values_mut() {
+            if range.start >= at {
+                *range = range.start + by..range.end + by;
+            }
+        }
     }
 }
 
