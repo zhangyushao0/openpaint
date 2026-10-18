@@ -8,10 +8,8 @@
 //! part, `raster_gpu.rs` the pipelines, `raster_frame.rs` the passes, raster*.wgsl the stages).
 //! A smudge is a pass applying its residual to the layer from a copy of it (S61, D88). It draws
 //! every scene `raster_route.rs` routes to it: the screen's canvas and its view tiers, exports,
-//! layer samples and pictures, brush pictures and a smudge's material (S62, D89); the stroke being
-//! drawn stays the evaluator's until S63 (`evaluator.rs` lists what else it still draws).
-
-use std::time::Instant;
+//! layer samples and pictures, brush pictures and a smudge's material (S62, D89), and the stroke
+//! being drawn (S63, D90: `drawing.rs`, a frame's regions one batch, `raster_batch.rs`).
 
 use crate::core::Core;
 use crate::error::RenderError;
@@ -26,7 +24,7 @@ use crate::view_tiles::TIER_TILE;
 
 #[path = "raster_frame.rs"]
 mod frame;
-use frame::{Reads, instance_bytes, values};
+use frame::Reads;
 
 /// The buffers a scene's ops lie in on the GPU as the raster core binds them (S60: a worker draws
 /// from them while the canvas keeps its scene), and its smudges' residuals (S61).
@@ -85,8 +83,11 @@ pub(crate) struct RasterTargets {
     scratch: [Option<Target>; 5],
     /// Bound where a draw reads nothing.
     unread: Target,
+    /// Each region's values, `VALUES_STRIDE` bytes apart, and its instances, one after another
+    /// (S63: a batch's regions in one command buffer); where the region being encoded starts.
     values: wgpu::Buffer,
     instances: wgpu::Buffer,
+    bound: Bound,
     /// Group 0 for the scene's buffers and residuals it was made with.
     scene: Option<([wgpu::Buffer; 5], wgpu::BindGroup)>,
     /// Group 1, made again when a scratch target is made.
@@ -95,13 +96,14 @@ pub(crate) struct RasterTargets {
 
 /// A texture with the one view every pass draws into or reads it through (a view made per pass
 /// had the driver make a framebuffer per pass).
+#[derive(Clone)]
 pub(crate) struct Target {
-    texture: wgpu::Texture,
-    view: wgpu::TextureView,
+    pub(crate) texture: wgpu::Texture,
+    pub(crate) view: wgpu::TextureView,
 }
 
 impl Target {
-    fn of(texture: wgpu::Texture) -> Self {
+    pub(crate) fn of(texture: wgpu::Texture) -> Self {
         Self {
             view: texture.create_view(&Default::default()),
             texture,
@@ -133,7 +135,10 @@ impl RasterTargets {
     /// As the GPU: sizes the device cannot hold.
     pub(crate) fn new(core: &Core, capacity: [u32; 2], atlas: u32) -> Result<Self, RenderError> {
         let pipelines = core.raster_pipelines()?;
-        let drawn = wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING;
+        // S63: a stroke's drawing copies snapshots into the targets and coverage into the atlas.
+        let drawn = wgpu::TextureUsages::RENDER_ATTACHMENT
+            | wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::COPY_DST;
         let gpu = &core.gpu;
         let buffer = |label, size, usage| {
             gpu.device.create_buffer(&wgpu::BufferDescriptor {
@@ -156,24 +161,36 @@ impl RasterTargets {
             atlas: Target::of(target_texture(gpu, ([atlas; 2], pipelines.atlas), drawn)?),
             scratch,
             unread: Target::of(target_texture(gpu, ([1, 1], pipelines.layer), drawn)?),
-            values: buffer("raster values", 64, wgpu::BufferUsages::UNIFORM),
+            values: buffer(
+                "raster values",
+                4 * VALUES_STRIDE,
+                wgpu::BufferUsages::UNIFORM,
+            ),
             instances: buffer("raster instances", 1 << 16, wgpu::BufferUsages::VERTEX),
+            bound: Bound::default(),
             scene: None,
             reads: None,
         })
     }
 
     /// Targets for drawing a canvas of `size` pixels on the frame loop's thread (S62: the
-    /// canvas's changes, a whole canvas at once, its view tiers' changes): regions of a view tile,
-    /// and the atlas of a view tier's targets; a small canvas (a brush's picture, the editor's
-    /// strip) an atlas with room for a few of its strokes' regions.
+    /// canvas's changes, a whole canvas at once, its view tiers' changes): regions of up to four
+    /// view tiles a side (S63: a frame of a stroke's drawing is one region), two on a small canvas
+    /// (a brush's picture, the editor's strip), no larger than the canvas but for a view tile,
+    /// and an atlas holding two of them (a pencil's density and contact).
     ///
     /// # Errors
     /// As `new`.
     pub(crate) fn sized(core: &Core, size: [u32; 2]) -> Result<Self, RenderError> {
         let small = size.iter().all(|side| *side <= SMALL);
-        let atlas = if small { 2 * TIER_TILE } else { ATLAS };
-        Self::new(core, [TIER_TILE; 2], atlas)
+        let most = if small { 2 * TIER_TILE } else { 4 * TIER_TILE };
+        // A view tier's tile, drawn in place, at least.
+        let capacity = size.map(|side| side.clamp(TIER_TILE, most));
+        let longest = capacity[0].max(capacity[1]);
+        let atlas = (2 * longest)
+            .next_power_of_two()
+            .clamp(2 * TIER_TILE, ATLAS);
+        Self::new(core, capacity, atlas)
     }
 
     /// The largest region it draws.
@@ -239,49 +256,17 @@ impl RasterTargets {
         &mut self,
         core: &Core,
         (scene, plan): (&SceneBuffers, &RasterPlan),
-        (output, background): (Output, [f32; 4]),
+        (output, paper): (Output, [f32; 4]),
         finish: &Finish<'_>,
         stamps: Option<&Stamps>,
     ) -> Result<(wgpu::CommandBuffer, Drawn), RenderError> {
-        let [width, height] = plan.size;
-        if width > self.capacity[0] || height > self.capacity[1] || width * height == 0 {
-            return Err(RenderError::Invalid("a raster region outside its targets"));
-        }
-        let pipelines = core.raster_pipelines()?;
-        let started = Instant::now();
-        self.make_scratch(core, pipelines, plan)?;
-        self.bind_scene(core, pipelines, scene);
-        let gpu = &core.gpu;
-        let atlas = self.atlas();
-        gpu.queue.write_buffer(
-            &self.values,
-            0,
-            &values(output, plan.size, atlas, background),
-        );
-        let bytes = instance_bytes(&plan.instances, finish.at);
-        if bytes.len() as u64 > self.instances.size() {
-            self.instances = gpu.device.create_buffer(&wgpu::BufferDescriptor {
-                label: Some("raster instances"),
-                size: (bytes.len() as u64).next_power_of_two(),
-                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-                mapped_at_creation: false,
-            });
-        }
-        gpu.queue.write_buffer(&self.instances, 0, &bytes);
-        let uploaded = Instant::now();
-        let finished = plan.instances.len() as u32;
-        let buffer = self.encode(
-            core,
-            pipelines,
-            (plan, background),
-            (finish, finished),
-            stamps,
-        )?;
-        let drawn = Drawn {
-            upload_ns: (uploaded - started).as_secs_f64() * 1e9,
-            encode_ns: uploaded.elapsed().as_secs_f64() * 1e9,
+        let region = Region {
+            plan,
+            output,
+            paper,
+            finish: Some(finish),
         };
-        Ok((buffer, drawn))
+        self.prepare_all(core, scene, (&[region], Pages::NONE), stamps)
     }
 
     /// The chain, the mask and the backdrop, when `plan` uses one not made yet.
@@ -292,62 +277,98 @@ impl RasterTargets {
         plan: &RasterPlan,
     ) -> Result<(), RenderError> {
         for pass in &plan.passes {
-            let used = match pass {
-                Pass::Draw { target, .. } | Pass::Clear(target) => [Some(*target), None],
-                Pass::Copy(_) => [Some(Scratch::Backdrop), None],
-                Pass::Smudge { target, .. } => [Some(*target), Some(Scratch::Backdrop)],
-                Pass::End { target, reads, .. } => [Some(*target), Some(*reads)],
-                Pass::Coverage(_) => [None, None],
-            };
-            for at in used.into_iter().flatten() {
-                if self.scratch[at as usize].is_some() {
-                    continue;
+            let used: Vec<Scratch> = match pass {
+                Pass::Draw { target, .. } | Pass::Clear(target) => vec![*target],
+                Pass::Copy(_) => vec![Scratch::Backdrop],
+                Pass::Smudge { target, .. } => vec![*target, Scratch::Backdrop],
+                Pass::End { target, reads, .. } => vec![*target, *reads],
+                Pass::Restore(copies) | Pass::Keep(copies) => {
+                    copies.iter().map(|copy| copy.target).collect()
                 }
-                let usage = wgpu::TextureUsages::RENDER_ATTACHMENT
-                    | wgpu::TextureUsages::TEXTURE_BINDING
-                    | wgpu::TextureUsages::COPY_DST;
-                let format = (self.capacity, pipelines.layer);
-                self.scratch[at as usize] =
-                    Some(Target::of(target_texture(&core.gpu, format, usage)?));
-                self.reads = None;
+                Pass::Coverage(_) | Pass::Kept { .. } | Pass::Cover { .. } => Vec::new(),
+            };
+            for at in used {
+                self.make(core, pipelines, at)?;
             }
         }
         Ok(())
     }
 
-    /// Group 0 for `scene`, made when its buffers or its residuals' are new.
+    /// Every scratch target made now (S63: the screen canvas's ahead, while nothing touches the
+    /// screen, so no stroke's frame makes one: making one took up to 30 ms on the tablet).
+    ///
+    /// # Errors
+    /// As the GPU.
+    pub(crate) fn make_every(&mut self, core: &Core) -> Result<(), RenderError> {
+        let pipelines = core.raster_pipelines()?;
+        for at in [Scratch::Chain, Scratch::Mask, Scratch::Backdrop] {
+            self.make(core, pipelines, at)?;
+        }
+        Ok(())
+    }
+
+    /// Scratch target `at`, made when it is not.
+    fn make(
+        &mut self,
+        core: &Core,
+        pipelines: &RasterPipelines,
+        at: Scratch,
+    ) -> Result<(), RenderError> {
+        if self.scratch[at as usize].is_some() {
+            return Ok(());
+        }
+        let usage = wgpu::TextureUsages::RENDER_ATTACHMENT
+            | wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::COPY_DST;
+        let format = (self.capacity, pipelines.layer);
+        self.scratch[at as usize] = Some(Target::of(target_texture(&core.gpu, format, usage)?));
+        self.reads = None;
+        Ok(())
+    }
+
+    /// Group 0 for `scene`, made when its buffers or its residuals' are new (or the values'): the
+    /// values bound one region's worth at a time, at the offset of the region drawn.
     fn bind_scene(&mut self, core: &Core, pipelines: &RasterPipelines, scene: &SceneBuffers) {
         let bound = scene.bound();
         if (self.scene.as_ref()).is_some_and(|(held, _)| *held == bound) {
             return;
         }
         let [ops, masks, patches, arena, active] = &bound;
-        let buffers = [
-            &self.values,
-            ops,
-            masks,
-            &core.evaluate.textures,
-            patches,
-            arena,
-            active,
-        ];
+        let buffers = [ops, masks, &core.evaluate.textures, patches, arena, active];
+        let values = wgpu::BindGroupEntry {
+            binding: 0,
+            resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                buffer: &self.values,
+                offset: 0,
+                size: wgpu::BufferSize::new(VALUES_BYTES),
+            }),
+        };
+        let entries: Vec<wgpu::BindGroupEntry<'_>> = std::iter::once(values)
+            .chain(
+                (1..)
+                    .zip(buffers)
+                    .map(|(binding, buffer)| wgpu::BindGroupEntry {
+                        binding,
+                        resource: buffer.as_entire_binding(),
+                    }),
+            )
+            .collect();
         let group = core
             .gpu
             .device
             .create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("raster scene"),
                 layout: &pipelines.layouts[0],
-                entries: &(0..)
-                    .zip(buffers)
-                    .map(|(binding, buffer)| wgpu::BindGroupEntry {
-                        binding,
-                        resource: buffer.as_entire_binding(),
-                    })
-                    .collect::<Vec<_>>(),
+                entries: &entries,
             });
         self.scene = Some((bound, group));
     }
 }
+
+#[path = "raster_batch.rs"]
+mod batch;
+pub(crate) use batch::Region;
+use batch::{Bound, VALUES_BYTES, VALUES_STRIDE, timed};
 
 #[path = "raster_bench.rs"]
 mod bench;
@@ -360,3 +381,7 @@ pub use difference::{EDGE, ImageDifference, image_difference};
 #[path = "raster_passes.rs"]
 mod passes;
 pub use passes::PassCost;
+
+#[path = "raster_slots.rs"]
+mod slots;
+pub(crate) use slots::Pages;

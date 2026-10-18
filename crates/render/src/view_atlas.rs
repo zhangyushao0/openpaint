@@ -7,6 +7,7 @@ use openpaint_core::Artwork;
 
 use crate::affine::Affine;
 use crate::core::Core;
+use crate::drawing::Drawing;
 use crate::error::RenderError;
 use crate::evaluator::CanvasTarget;
 use crate::frame::FrameRequest;
@@ -45,6 +46,8 @@ pub(crate) struct Tier {
     /// When the screen last showed it, in the frame clock's seconds (S58: tiers are let go by
     /// recency).
     pub(crate) shown_at: f64,
+    /// The stroke being drawn as the raster core draws it on this tier's tiles shown (S63).
+    pub(crate) drawing: Drawing,
     /// Times the atlas was made larger (S60: a tile the raster worker drew into the atlas before
     /// is not in the one after).
     pub(crate) grown: u32,
@@ -112,6 +115,7 @@ impl Tier {
             fill: None,
             shown_at: 0.0,
             grown: 0,
+            drawing: Drawing::default(),
         })
     }
 

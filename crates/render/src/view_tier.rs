@@ -30,8 +30,8 @@ use crate::view_atlas::Tier;
 use crate::view_background::fill;
 use crate::view_fill::{Filling, in_place, touched};
 use crate::view_needed::Needed;
-use crate::view_raster::{RasterTier, in_place_raster};
-use crate::view_raster_fill::fill_raster;
+use crate::view_raster::{RasterTier, in_place_raster, snapshots_ahead, stroke_raster};
+use crate::view_raster_fill::{fill_raster, spare_bytes};
 use crate::view_shown::Shown;
 use crate::view_tiles::TileMap;
 
@@ -92,6 +92,9 @@ pub struct ViewCache {
     /// (S60).
     pub(crate) spare: Option<wgpu::Texture>,
     pub(crate) wanting: bool,
+    /// The snapshots under the next stroke of the tier shown are being taken ahead or wait to be
+    /// (S63, `view_raster.rs`).
+    pub(crate) taking: bool,
 }
 
 impl ViewWork {
@@ -118,6 +121,7 @@ impl ViewCache {
             raster: RasterTier::default(),
             spare: None,
             wanting: true,
+            taking: false,
         }
     }
 
@@ -136,6 +140,7 @@ impl ViewCache {
         (frame, now): (&ViewFrame, f64),
     ) -> Result<ViewWork, RenderError> {
         let changed = canvas.take_changed();
+        let dirtied = canvas.take_dirtied();
         let rastered = canvas.rastered(request);
         // The canvas's own raster draws count as a use of the targets it shares with the tiers.
         if std::mem::take(&mut canvas.raster.drew) {
@@ -176,7 +181,7 @@ impl ViewCache {
             tier.shown_at = now;
         }
         let view = (frame, now, wanted);
-        let changes = (&changed[..], &mut work, rastered);
+        let changes = ((&changed[..], &dirtied[..]), &mut work, rastered);
         self.work_on_current(core, (canvas, request), view, changes)?;
         for tier in [&mut self.current, &mut self.previous]
             .into_iter()
@@ -202,20 +207,29 @@ impl ViewCache {
     /// The shown tier's work this frame: what changed in place, then a share of the missing tiles
     /// when it is the tier `wanted`. S59: a scene the raster core draws (`rastered`) has its
     /// tiles drawn by it, but while a stroke is drawn, and the tiles the evaluator drew are drawn
-    /// again (S60: handed to the raster worker).
+    /// again (S60: handed to the raster worker). S63: its drawing follows the artwork first, the
+    /// canvas pixels `dirtied` naming what changes reached.
     fn work_on_current(
         &mut self,
         core: &Core,
         (canvas, request): (&mut CanvasTarget, &FrameRequest<'_>),
         (frame, now, wanted): (&ViewFrame, f64, Option<u32>),
-        (changed, work, rastered): (&[PixelRect], &mut ViewWork, bool),
+        ((changed, dirtied), work, rastered): ((&[PixelRect], &[PixelRect]), &mut ViewWork, bool),
     ) -> Result<(), RenderError> {
+        self.taking = false;
         let raster = &mut self.raster;
         let Some(current) = &mut self.current else {
             return Ok(());
         };
-        // What changed shows at once when it fits; missing tiles are background work (S53).
-        if rastered && request.active.is_none() {
+        let scale = current.scale();
+        canvas.follow(&mut current.drawing, request, (Some(dirtied), scale));
+        // What changed shows at once when it fits; missing tiles are background work (S53). The
+        // stroke being drawn, and its lift, at once where the view shows them (S63).
+        if rastered && (request.active.is_some() || current.drawing.tracking()) {
+            let needed = Needed::of(&current.map, frame);
+            let place = (&mut *canvas, request);
+            stroke_raster(core, (current, &needed), place, (work, now))?;
+        } else if rastered {
             in_place_raster(core, current, (&mut *canvas, request), (changed, work, now))?;
         } else {
             in_place(core, current, (canvas, request), (changed, work))?;
@@ -238,9 +252,12 @@ impl ViewCache {
         if rastered {
             work.waiting += needed.evaluated(current);
         }
+        let ready = rastered && work.waiting == 0;
+        let taking = snapshots_ahead(core, (current, &needed), (canvas, request), ready)?;
         if needed.shows(current) {
             self.keep_previous();
         }
+        self.taking = taking;
         Ok(())
     }
 
@@ -257,6 +274,10 @@ impl ViewCache {
     ) -> Result<(), RenderError> {
         self.keep_previous();
         self.previous = self.current.take();
+        // Only the tier shown draws a stroke (S63): another's drawing goes with its slots.
+        if let Some(previous) = self.previous.as_mut() {
+            previous.drawing = crate::drawing::Drawing::default();
+        }
         let Some(scale) = wanted else {
             // The canvas shows: the tier left is kept whole.
             self.keep_previous();
@@ -366,11 +387,6 @@ pub(crate) fn tier_for(zoom: f32) -> Option<u32> {
     }
     let power = zoom.log2().round().clamp(1.0, MAX_SCALE.ilog2() as f32);
     Some(1 << power as u32)
-}
-
-/// Bytes of an atlas made ahead (S60).
-fn spare_bytes(atlas: &wgpu::Texture) -> u64 {
-    u64::from(atlas.width()) * u64::from(atlas.height()) * 4
 }
 
 pub(crate) fn mb(bytes: u64) -> f64 {

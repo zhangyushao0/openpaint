@@ -1,76 +1,26 @@
-//! `bench strokes|session` (S58, `bench_app.rs`): painting driven as a hand does, timed.
+//! `bench session` (S58, `bench_app.rs`): painting driven as a hand does, timed; the session's
+//! brush and intents `bench strokes` (`bench_app_strokes.rs`) shares.
 
-use std::sync::Arc;
 use std::time::Duration;
 
 use openpaint_app::{
-    BrushLibrary, CanvasPreset, Contact, ContactPhase, Device, GalleryIntent, HistoryIntent,
-    InputSample, Intent, LayerIntent, StrokeIntent, ViewIntent,
+    CanvasPreset, Contact, ContactPhase, Device, GalleryIntent, HistoryIntent, InputSample, Intent,
+    LayerIntent, StrokeIntent,
 };
 use openpaint_core::{Stroke, StrokeStyle};
 
 use super::Watch;
-use super::cases::{batch, busiest, strokes, to_screen};
-use crate::bench_scenes::style_of;
+use super::cases::strokes;
 use crate::error::RuntimeError;
 use crate::frame::Runtime;
-use crate::input::{MotionPhase, ToolKind};
 use crate::screen::Screen;
 
 const LIMIT: Duration = Duration::from_secs(60);
-/// The texture brushes, a stroke each.
-const TEXTURES: [&str; 4] = ["textured-round", "flat", "opaque-paint", "speckle"];
-/// A bench stroke's samples, 10 screen pixels and 3.3 ms apart, and how many a batch carries
-/// (the author's pen reports about 300 a second; frames come at 120 Hz).
-const SAMPLES: usize = 90;
-const PER_BATCH: usize = 3;
 
 impl Runtime {
-    /// `strokes`: at fit, a stroke of each texture brush across the densest place at the size and
-    /// opacity the toolbox holds for it (what the hand paints with; its first size without one).
-    pub(crate) fn bench_strokes(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
-        let (_, artwork) = self.bench_artwork()?;
-        let place = busiest(&artwork);
-        let mut watch = Watch::start(self);
-        self.bench_intents(vec![Intent::View(ViewIntent::Fit)], &mut watch)?;
-        self.bench_until(&mut watch, LIMIT, Self::bench_settled)?;
-        let middle = to_screen(&self.bench_view()?, place);
-        lines.push(format!(
-            "across the densest place ({:.0}, {:.0}), at the screen's ({:.0}, {:.0}), each brush \
-             at the toolbox's size and opacity; ms",
-            place[0], place[1], middle[0], middle[1]
-        ));
-        let library = BrushLibrary::built_in()?;
-        let painting = self.toolbox.state().paint;
-        for (k, key) in TEXTURES.into_iter().enumerate() {
-            // The size and opacity the toolbox holds for the brush: what the hand paints with.
-            let held = painting.brushes.iter().find(|held| held.key == key);
-            let mut style = style_of(&library, key, held.map(|held| held.size))?;
-            if let Some(held) = held {
-                let recipe = Arc::clone(style.recipe());
-                style = StrokeStyle::new(recipe, held.size, held.opacity, style.color())?;
-            }
-            let (size, opacity) = (style.size(), style.opacity());
-            self.set_session_brush(Some(style.with_seed(k as u32)));
-            let path: Vec<[f32; 2]> = (0..SAMPLES)
-                .map(|i| {
-                    let t = i as f32 / (SAMPLES - 1) as f32;
-                    let y = 60.0 * (t * std::f32::consts::TAU).sin() + 40.0 * k as f32 - 60.0;
-                    [middle[0] - 450.0 + 900.0 * t, middle[1] + y]
-                })
-                .collect();
-            let line = self.bench_stroke(&path)?;
-            lines.push(format!(
-                "{key} at {size:.0} px, opacity {opacity:.2}: {line}"
-            ));
-        }
-        self.set_session_brush(None);
-        Ok(())
-    }
-
     /// The session's next strokes drawn with `style`, without StreamLine; `None`: the toolbox's
     /// again.
-    fn set_session_brush(&mut self, style: Option<StrokeStyle>) {
+    pub(super) fn set_session_brush(&mut self, style: Option<StrokeStyle>) {
         let (style, streamline) = match style {
             Some(style) => (Ok(style), openpaint_app::StreamLine::OFF),
             None => (self.toolbox.style(), self.toolbox.streamline()),
@@ -79,61 +29,6 @@ impl Runtime {
             canvas.session_mut().set_brush(style);
             canvas.session_mut().set_streamline(streamline);
         }
-    }
-
-    /// One pen stroke through `path` (screen pixels), a sample each 3.3 ms: at the display's
-    /// cadence the pen moves in real time and each frame takes what came since; `@fast`,
-    /// `PER_BATCH` samples a drawn frame. Its line: frames, frame work, the pen-down's and the
-    /// lift's frame, the time from the pen-down until the GPU is idle after the lift.
-    fn bench_stroke(&mut self, path: &[[f32; 2]]) -> Result<String, RuntimeError> {
-        let start = self.clock.now_ms() + 50;
-        let mut watch = Watch::paced(self);
-        let last = path.len() - 1;
-        let time = |at: usize| (at as i64 * 10) / 3;
-        let began = std::time::Instant::now();
-        let (mut next, mut down, mut lift) = (0, None, None);
-        while next <= last {
-            let due = i64::try_from(began.elapsed().as_millis()).unwrap_or(i64::MAX);
-            let upto = if watch.is_paced() {
-                (next..=last)
-                    .take_while(|at| time(*at) <= due)
-                    .last()
-                    .map_or(next, |at| at + 1)
-            } else {
-                (next + PER_BATCH).min(last + 1)
-            };
-            for (at, point) in path.iter().enumerate().take(upto).skip(next) {
-                let phase = match at {
-                    0 => MotionPhase::Down,
-                    at if at == last => MotionPhase::Up,
-                    _ => MotionPhase::Move,
-                };
-                let point = std::slice::from_ref(point);
-                self.motion(&batch(phase, ToolKind::Stylus, point, start + time(at)));
-            }
-            let drawn = watch.frames.len();
-            down = down.or((upto > 0).then_some(drawn));
-            lift = lift.or((upto > last).then_some(drawn));
-            next = upto;
-            if watch.is_paced() {
-                self.bench_frame(&mut watch)?;
-            } else {
-                self.bench_drawn(&mut watch)?;
-            }
-        }
-        self.bench_drawn(&mut watch)?;
-        self.core.wait_idle()?;
-        let frame = |at: Option<usize>| at.and_then(|at| watch.frames.get(at).copied());
-        Ok(format!(
-            "{} frames ({} skipped), frame work {}; pen-down {:.1}, lift {:.1}; the GPU idle {:.0} \
-             ms after the pen-down",
-            watch.frames.len(),
-            watch.skipped(),
-            super::spread(&watch.frames),
-            frame(down).unwrap_or(0.0),
-            frame(lift).unwrap_or(0.0),
-            watch.ms()
-        ))
     }
 
     /// `session`: the open artwork's strokes (layer by layer, masks left out) appended as records
@@ -250,7 +145,7 @@ impl Runtime {
     }
 
     /// `intents` applied to the canvas as the frame applies a hand's, then a frame drawn.
-    fn bench_intents(
+    pub(super) fn bench_intents(
         &mut self,
         intents: Vec<Intent>,
         watch: &mut Watch,

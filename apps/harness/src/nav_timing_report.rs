@@ -96,6 +96,7 @@ fn added(a: Counts, b: Counts) -> Counts {
         derived: a.derived + b.derived,
         filled: a.filled + b.filled,
         rastered: a.rastered + b.rastered,
+        snapshots: a.snapshots + b.snapshots,
     }
 }
 

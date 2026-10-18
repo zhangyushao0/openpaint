@@ -99,6 +99,9 @@ pub(crate) enum Unit {
     BeginMask,
     /// A layer's or a clipping chain's end.
     End(usize),
+    /// Where the stroke being drawn lays (S63): above its layer's finished content (or the next
+    /// stroke's place, where nothing is drawn).
+    Active,
 }
 
 /// A scene as the raster core draws it.
@@ -151,8 +154,13 @@ impl RasterScene {
         self.units.iter().filter(move |unit| match unit {
             Unit::Stroke { paint, .. } => items.contains(paint),
             Unit::Edit { item, .. } | Unit::Smudge { item, .. } => items.contains(item),
-            Unit::BeginMask | Unit::End(_) => false,
+            Unit::BeginMask | Unit::End(_) | Unit::Active => false,
         })
+    }
+
+    /// The unit the stroke being drawn lays at (S63), when its layer shows.
+    pub(crate) fn active(&self) -> Option<usize> {
+        self.units.iter().position(|unit| *unit == Unit::Active)
     }
 
     /// `scene`'s units; `Err` with every reason when it holds what goes to the evaluator.
@@ -182,8 +190,13 @@ impl RasterScene {
                     Edit::Adjust => Reason::Adjustment,
                     Edit::Filter | Edit::Other => Reason::Filter,
                 },
-                Item::BeginMask(_) => {
-                    units.push(Unit::BeginMask);
+                Item::BeginMask(_) | Item::Active => {
+                    let begins = matches!(item, Item::BeginMask(_));
+                    units.push(if begins {
+                        Unit::BeginMask
+                    } else {
+                        Unit::Active
+                    });
                     continue;
                 }
                 Item::EndLayer { grouped, .. } | Item::EndChain { grouped, .. } if !grouped => {
@@ -191,7 +204,7 @@ impl RasterScene {
                     continue;
                 }
                 // A smudge's reach boxes bin the evaluator's tiles; its unit has their union.
-                Item::Active | Item::Reach(_) => continue,
+                Item::Reach(_) => continue,
                 Item::Smudge(_) => {
                     units.push(smudge(scene, index, smudges));
                     smudges += 1;
@@ -208,15 +221,22 @@ impl RasterScene {
             };
             routed = routed.with(reason);
         }
-        // A frame or a move's start comes with its record's end; alone it still is a transform.
-        if moved && routed == Routed::default() {
-            routed = routed.with(Reason::Transform);
-        }
-        if routed == Routed::default() {
-            Ok(Self { units })
-        } else {
-            Err(routed)
-        }
+        routed_units(units, routed, moved)
+    }
+}
+
+/// `units`, or `Err` with `routed` when it names a reason; a frame or a move's start comes with
+/// its record's end, but `moved` alone still is a transform.
+fn routed_units(units: Vec<Unit>, routed: Routed, moved: bool) -> Result<RasterScene, Routed> {
+    let routed = if moved && routed == Routed::default() {
+        routed.with(Reason::Transform)
+    } else {
+        routed
+    };
+    if routed == Routed::default() {
+        Ok(RasterScene { units })
+    } else {
+        Err(routed)
     }
 }
 

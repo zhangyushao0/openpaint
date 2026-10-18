@@ -6,7 +6,6 @@
 #![forbid(unsafe_code)]
 
 mod active;
-mod active_snapshot;
 mod adapter;
 mod affine;
 mod bounded;
@@ -16,6 +15,7 @@ mod change;
 mod core;
 mod cost;
 mod curve;
+mod drawing;
 mod edits;
 mod error;
 mod evaluator;
@@ -24,6 +24,7 @@ mod export_raster;
 mod fill_edge;
 mod filter;
 mod frame;
+mod frame_clock;
 mod geom;
 mod gpu;
 mod gpu_clock;
@@ -88,9 +89,7 @@ pub use crate::budget::{
 pub use crate::change::changed_regions;
 pub use crate::core::Core;
 pub use crate::error::RenderError;
-pub use crate::evaluator::{
-    CanvasCopy, CanvasTarget, EvaluationWork, Listed, RegionEvaluator, Timed,
-};
+pub use crate::evaluator::{CanvasCopy, CanvasTarget, Listed, RegionEvaluator, Timed};
 pub use crate::export::{Banding, Bands};
 pub use crate::frame::FrameRequest;
 pub use crate::geom::PixelRect;

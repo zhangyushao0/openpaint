@@ -1,5 +1,5 @@
-//! Incremental evaluation equals cold evaluation bit for bit (S62: once committed; the stroke in
-//! progress, the evaluator's on the raster core's canvas, within a level by D88's rule).
+//! Incremental evaluation equals cold evaluation bit for bit (S63: the stroke in progress too, the
+//! raster core's as the canvas).
 
 use openpaint_core::{Artwork, StrokeSample, StrokeSession, StrokeStyle};
 use openpaint_render::{
@@ -10,7 +10,6 @@ use crate::fixture::{
     SIZE, airbrush, blank, cold, core, diagonal, diagonal_with, graphite, request, rich, sample,
     wave, with_layer, with_stroke,
 };
-use crate::raster::assert_near;
 
 /// Chunk sizes cycle through these, so chunk boundaries fall at varied places.
 const CHUNKS: [usize; 5] = [1, 2, 3, 5, 8];
@@ -97,16 +96,15 @@ fn a_stroke_drawn_in_chunks_equals_the_finished_artwork_evaluated_cold() {
         let session = draw_incrementally(&core, &mut target, &under, &stroke, dirty);
         let finished = session.finish().artwork;
         assert_eq!(finished, with_stroke(&under, stroke));
-        // The committed stroke already shows (S62: the evaluator's pixels where the stroke went,
-        // the raster core's elsewhere: within a level, D88's rule); committed, the canvas is the
-        // raster core's cold draw.
+        // The committed stroke already shows (S63: the raster core draws it as it is drawn, its
+        // end blunt, and these brushes taper nothing); committing changes no pixel.
         let incremental = read(&core, &target);
         RegionEvaluator::new(&core, &mut target)
             .evaluate(&request(&finished), &[])
             .expect("evaluate");
         let cold = cold(&core, &finished);
         assert_ne!(before, cold, "the diagonal changes pixels");
-        assert_near(&cold, &incremental, "incremental");
+        assert!(incremental == cold, "incremental");
         assert!(read(&core, &target) == cold, "committing changed pixels");
     }
 }

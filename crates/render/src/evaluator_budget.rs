@@ -7,7 +7,6 @@
 use openpaint_core::{Artwork, StrokeTool};
 
 use super::CanvasTarget;
-use crate::active_snapshot::ActiveSnapshot;
 use crate::budget::CacheBytes;
 use crate::core::Core;
 use crate::error::RenderError;
@@ -25,10 +24,9 @@ impl CanvasTarget {
         let [width, height] = self.size();
         let texture = u64::from(width) * u64::from(height) * 4;
         let [scene, preview] = self.scene.as_ref().map_or([0, 0], |cache| cache.bytes());
-        let held = self.held.as_ref().map_or(0, ActiveSnapshot::bytes);
         CacheBytes {
             canvas: texture + self.bindings.bytes() + self.view.size() + scene,
-            snapshots: held + preview,
+            snapshots: self.drawing.bytes() + preview,
             arena: self.smudges.bytes() + self.filters.bytes(),
             ..CacheBytes::default()
         }
@@ -44,18 +42,20 @@ impl CanvasTarget {
     }
 
     /// Its snapshots grow to `room` bytes at most from now on; when they hold more, they are let
-    /// go now. Returns the bytes given back.
+    /// go now (a stroke's drawing only once no stroke is drawn, S63). Returns the bytes given
+    /// back.
     pub fn set_snapshot_room(&mut self, room: u64) -> u64 {
         self.bindings.snapshot_room = room;
         let held = self.bytes().snapshots;
         if held <= room {
             return 0;
         }
-        self.held = None;
+        let mut freed = self.drawing.let_go();
         if let Some(cache) = self.scene.as_mut() {
+            freed += cache.bytes()[1];
             cache.drop_snapshot();
         }
-        held
+        freed
     }
 
     /// Keeps in its arena only the blocks the last scene shows, in a buffer just large enough,

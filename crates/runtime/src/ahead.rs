@@ -1,12 +1,13 @@
 //! Background work at the GPU's pace (S60, DECISIONS D87). While nothing touches the screen (no
 //! finger or pen on it or hovering over it for `IDLE_AFTER`, no stroke drawn), every frame call
 //! gives the work waiting (the canvas filling, a tier's tiles on either core, the residuals they
-//! wait for) what the GPU's queue of background work has room for: a frame drawn does, and so
-//! does a call skipped while the GPU is behind, which draws and presents nothing. So that work
-//! no longer waits for the frames drawn, and the GPU runs it flat out; the queue holds at most
-//! `IDLE_BACKGROUND_NS` of it, which is what the first frame of a touch waits for. The raster
-//! core's tiles go to its worker (`raster.rs`), which submits each as the queue has room, so the
-//! GPU has the next tile when one ends, between the frame calls too.
+//! wait for, S63's snapshots under the next stroke) what the GPU's queue of background work has
+//! room for: a frame drawn does, and so does a call skipped while the GPU is behind, which draws
+//! and presents nothing. So that work no longer waits for the frames drawn, and the GPU runs it
+//! flat out; the queue holds at most `IDLE_BACKGROUND_NS` of it, which is what the first frame of
+//! a touch waits for. The raster core's tiles go to its worker (`raster.rs`), which submits each
+//! as the queue has room, so the GPU has the next tile when one ends, between the frame calls
+//! too.
 
 use crate::canvas::Canvas;
 use crate::error::RuntimeError;
@@ -22,8 +23,9 @@ impl Runtime {
     /// A frame call skipped while the GPU is behind: while nothing touches the screen, the open
     /// canvas's waiting work gets what the GPU's queue has room for, nothing drawn or presented.
     pub(crate) fn ahead(&mut self) -> Result<(), RuntimeError> {
-        let waits = (self.screen.canvas())
-            .is_some_and(|canvas| canvas.filling() || canvas.warming() || canvas.view_pending());
+        let waits = (self.screen.canvas()).is_some_and(|canvas| {
+            canvas.filling() || canvas.warming() || canvas.view_pending() || canvas.taking_ahead()
+        });
         if !waits || !self.idle() {
             return Ok(());
         }

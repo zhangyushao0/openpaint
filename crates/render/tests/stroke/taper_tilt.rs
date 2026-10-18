@@ -13,9 +13,7 @@ use openpaint_render::{
     Banding, CanvasTarget, FrameRequest, PixelRect, RegionEvaluator, RgbaImage,
 };
 
-use crate::fixture::{
-    SIZE, blank, cold, core, evaluated_cold, graphite, pixel, request, with_stroke,
-};
+use crate::fixture::{SIZE, blank, cold, core, graphite, pixel, request, with_stroke};
 use crate::scale::{export, whole};
 
 /// The Inker's taper (`crates/app/brushes/inker.toml`): diameters at the start and the end, and
@@ -104,9 +102,9 @@ fn an_inker_lines_width_follows_its_taper_at_five_fifty_and_ninety_five_percent(
 }
 
 /// `style` drawn through `samples` one sample at a time on one canvas target: after every fifth
-/// sample the frame equals the stroke so far evaluated cold as a finished stroke of `drawn` (the
-/// same brush without its end taper; S62: the evaluator's image, which draws it); at the lift the
-/// target equals the committed stroke cold.
+/// sample the frame equals the stroke so far drawn cold as a finished stroke of `drawn` (the
+/// same brush without its end taper; S63: by the raster core); at the lift the target equals the
+/// committed stroke cold.
 pub fn drawn_with_a_blunt_end(style: &StrokeStyle, drawn: &StrokeStyle, samples: &[StrokeSample]) {
     let core = core();
     let base = blank();
@@ -128,11 +126,10 @@ pub fn drawn_with_a_blunt_end(style: &StrokeStyle, drawn: &StrokeStyle, samples:
             .evaluate(&frame, &[])
             .expect("evaluate");
         if end % 5 == 0 || end == samples.len() {
-            // The stroke in progress is the evaluator's (S62, until S63): its own image.
+            // S63: the raster core's, as it draws the stroke so far committed cold.
             let so_far = with_stroke(&base, (drawn.clone(), samples[..end].to_vec()));
             let shown = target.read(&core).expect("read");
-            let evaluated = evaluated_cold(&core, &so_far);
-            assert!(shown == evaluated, "after {end} samples: blunt");
+            assert!(shown == cold(&core, &so_far), "after {end} samples: blunt");
             last = Some(shown);
         }
     }

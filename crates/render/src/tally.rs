@@ -15,6 +15,7 @@ pub(crate) struct Tally {
     derived: AtomicU64,
     filled: AtomicU64,
     rastered: AtomicU64,
+    snapshots: AtomicU64,
 }
 
 /// The counters at one moment; `since` gives what happened between two.
@@ -34,6 +35,8 @@ pub struct Counts {
     /// Regions the raster core drew (S59): view tier tiles and their changed parts, export
     /// pieces.
     pub rastered: u64,
+    /// Tiles of a stroke's drawing whose snapshot was taken (S63: the units under the stroke drawn).
+    pub snapshots: u64,
 }
 
 impl Counts {
@@ -48,6 +51,7 @@ impl Counts {
             derived: self.derived.saturating_sub(before.derived),
             filled: self.filled.saturating_sub(before.filled),
             rastered: self.rastered.saturating_sub(before.rastered),
+            snapshots: self.snapshots.saturating_sub(before.snapshots),
         }
     }
 }
@@ -74,6 +78,10 @@ impl Tally {
         self.rastered.fetch_add(regions as u64, Ordering::Relaxed);
     }
 
+    pub(crate) fn snapshot(&self) {
+        self.snapshots.fetch_add(1, Ordering::Relaxed);
+    }
+
     pub(crate) fn counts(&self, dispatches: u64) -> Counts {
         let load = |counter: &AtomicU64| counter.load(Ordering::Relaxed);
         Counts {
@@ -84,6 +92,7 @@ impl Tally {
             derived: load(&self.derived),
             filled: load(&self.filled),
             rastered: load(&self.rastered),
+            snapshots: load(&self.snapshots),
         }
     }
 }

@@ -15,7 +15,9 @@ use std::path::PathBuf;
 use hand::assert_cold;
 use openpaint_app::{BrushLibrary, ProjectStore, Title};
 use openpaint_core::{Artwork, CanvasSize};
-use openpaint_runtime::{DisplayCache, Runtime, SCENARIOS, drawn, pile_path, style_of};
+use openpaint_runtime::{
+    DisplayCache, Runtime, SCENARIOS, STROKES_ADDED, drawn, pile_path, style_of,
+};
 use openpaint_store::Library;
 
 const SIZE: [u32; 2] = [1200, 900];
@@ -86,9 +88,9 @@ fn every_scenario_benchmark_runs_through_the_frame_loop() {
         );
         assert_cold(&core, &mut runtime, name);
     }
-    // The pile and a stroke of each texture brush; the session's new artwork holds them all but
-    // the one undone (the 20th).
-    assert_eq!(appended, STROKES as usize + 4);
+    // The pile and the strokes the strokes bench added; the session's new artwork holds them all
+    // but the one undone (the 20th).
+    assert_eq!(appended, STROKES as usize + STROKES_ADDED);
     assert_eq!(strokes(runtime.artwork().expect("artwork")), appended - 1);
     // S61: the zoom twice more, the second with its densest place already in the screen's middle
     // and its first zoom reached (the first ends there and so): neither its centring pan nor that

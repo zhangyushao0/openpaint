@@ -118,16 +118,17 @@ pub(crate) fn ended(end: EndBlend) -> (&'static str, Option<wgpu::BlendState>) {
     }
 }
 
-/// Group 0: the values, the ops, the masks, the textures, the patches, and (fragments only) the
-/// smudge residuals' arena and the in-progress one; group 1: three float textures read (the
-/// atlas, or a layer, its mask and a backdrop, or a smudge's copy, or the canvas).
+/// Group 0: the values (at a dynamic offset, S63: a batch's regions each have theirs), the ops,
+/// the masks, the textures, the patches, and (fragments only) the smudge residuals' arena and the
+/// in-progress one; group 1: three float textures read (the atlas, or a layer, its mask and a
+/// backdrop, or a smudge's copy, or the canvas).
 pub(crate) fn layouts(device: &wgpu::Device) -> [wgpu::BindGroupLayout; 2] {
     let buffer = |binding, (visibility, ty)| wgpu::BindGroupLayoutEntry {
         binding,
         visibility,
         ty: wgpu::BindingType::Buffer {
             ty,
-            has_dynamic_offset: false,
+            has_dynamic_offset: binding == 0,
             min_binding_size: None,
         },
         count: None,

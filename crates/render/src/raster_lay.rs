@@ -91,13 +91,13 @@ impl Marks {
         }
     }
 
-    fn next(&mut self) {
+    pub(crate) fn next(&mut self) {
         self.stroke += 1;
     }
 
     /// Marks the tiles `rect` (inside the region) meets, adding those new to `tiles`; returns
     /// their box in region pixels.
-    fn mark(&mut self, rect: &PixelRect, tiles: &mut Vec<[u32; 2]>) -> PixelRect {
+    pub(crate) fn mark(&mut self, rect: &PixelRect, tiles: &mut Vec<[u32; 2]>) -> PixelRect {
         let tile = TILE as i32;
         let low = [rect.min[0] / tile, rect.min[1] / tile];
         let high = [(rect.max[0] - 1) / tile, (rect.max[1] - 1) / tile];

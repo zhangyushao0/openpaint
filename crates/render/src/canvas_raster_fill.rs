@@ -1,10 +1,10 @@
 //! The screen canvas drawn by the raster core (S62, DECISIONS D89; `canvas_raster.rs` holds what
 //! waits). A canvas evaluation routes by its scene (`Scene::routing`): a scene the raster core
 //! draws has its changes drawn by it, at once when small (`draw_now`), else as the worker's tiles
-//! (`canvas_raster_hand.rs`); the stroke being drawn and its lift stay the evaluator's (S63), the
-//! pixels it draws drawn again once no stroke is. A scene of the other core than the last one
-//! draws every tile again, so the canvas is always wholly one core's (routed scenes' canvases are
-//! the evaluator's bit for bit, as before S62).
+//! (`canvas_raster_hand.rs`); the stroke being drawn and its lift by it too, at once where they
+//! change the canvas (S63, `drawing_frame.rs`). A scene of the other core than the last one draws
+//! every tile again, so the canvas is always wholly one core's (routed scenes' canvases are the
+//! evaluator's bit for bit, as before S62).
 
 use super::{CanvasTarget, EvaluationWork, RegionEvaluator};
 use crate::core::Core;
@@ -16,7 +16,7 @@ use crate::output::Output;
 use crate::raster::{Finish, RasterTargets, SceneBuffers};
 use crate::raster_plan::RasterPlan;
 use crate::readback::wait;
-use crate::scene::{ActivePlace, Fresh};
+use crate::scene::ActivePlace;
 use crate::smudge::{Held, around_output};
 use crate::view_fill::EDIT_PIXELS;
 use crate::view_tiles::TIER_TILE;
@@ -34,58 +34,57 @@ impl RegionEvaluator<'_> {
     ) -> Result<Vec<PixelRect>, RenderError> {
         let place = ActivePlace::of_request(request.artwork, request.active);
         let cache = self.target.scene(self.core, request.artwork, place)?;
-        let rastered = cache.scene.rastered().is_some();
+        let (rastered, drawn) = (cache.scene.rastered().is_some(), cache.scene.has_active());
         self.target.route(self.core, rastered);
         if rastered {
-            self.rastered(request, regions, frame)
+            self.rastered(request, (regions, drawn), frame)
         } else {
+            // The evaluator's scene: the snapshots under the next stroke go (S63).
+            let target = &mut *self.target;
+            let mut drawing = std::mem::take(&mut target.drawing);
+            target.follow(&mut drawing, request, (None, 1));
+            target.drawing = drawing;
             self.dispatch(request, Output::CANVAS, (regions, frame))
         }
     }
 
-    /// `request` into the canvas of a scene the raster core draws: the stroke being drawn (its
-    /// smudge, its lift's last spans, the regions passed meanwhile: its mirrored copies) by the
-    /// evaluator at once; with none drawn, the regions passed are the raster core's. Returns the
-    /// canvas pixels drawn now.
+    /// `request` into the canvas of a scene the raster core draws: the stroke being drawn (or
+    /// just lifted or dropped) drawn at once where it changed, by the raster core from its kept
+    /// coverage over its snapshots (S63, `drawing_frame.rs`), with the regions passed meanwhile
+    /// (its mirrored copies, a smudge started over); with none, the regions passed are drawn or
+    /// wait. Returns the canvas pixels drawn now.
     fn rastered(
         &mut self,
         request: &FrameRequest<'_>,
-        regions: &[PixelRect],
+        (regions, drawn): (&[PixelRect], bool),
         frame: bool,
     ) -> Result<Vec<PixelRect>, RenderError> {
         let core = self.core;
         let target = &mut *self.target;
-        let place = ActivePlace::of_request(request.artwork, request.active);
         target.work = EvaluationWork::default();
-        let cache = target.scene(core, request.artwork, place.clone())?;
-        let (drawn, clip) = (cache.scene.has_active(), cache.scene.active_clip);
-        let step = target.track.advance(request.artwork, request.active, drawn);
-        let fresh = (request.active.filter(|_| drawn)).map_or_else(Fresh::default, |active| {
-            Fresh::new(active, step.kept.start, clip)
-        });
-        let stroke = !fresh.ops.is_empty();
+        let stroke = request.active.is_some() && drawn;
         if target.blank {
             target.show_paper(core, request);
         }
-        let mut now: Vec<PixelRect> = step.redraw.into_iter().chain(step.fresh_region).collect();
-        now.extend(target.smudged(core, request, drawn)?);
-        if stroke {
-            now.extend_from_slice(regions);
+        let restarted = target.smudged(core, request, drawn)?;
+        // What a change reached: the snapshots under the next stroke there go (S63), its view
+        // tiers' too.
+        let dirty: Vec<PixelRect> = restarted.into_iter().chain(regions.to_vec()).collect();
+        let mut drawing = std::mem::take(&mut target.drawing);
+        target.follow(&mut drawing, request, (Some(&dirty), 1));
+        target.drawing = drawing;
+        target.dirtied(&dirty);
+        target.moved.clear();
+        let mut changed = Vec::new();
+        if stroke || target.drawing.tracking() {
+            target.moved.extend(dirty);
+            changed = target.stroke_frame(core, request)?;
         } else {
             target.raster.change(regions);
         }
-        let mut changed = Vec::new();
-        if !now.is_empty() || step.reset {
-            let held = target.snapshot_use(Output::CANVAS, stroke.then_some(place), false);
-            let drawing = (request, (Output::CANVAS, step.reset));
-            target.draw(core, drawing, (fresh, held), (&now, None))?;
-            target.raster.evaluated(&now);
-            changed.append(&mut now);
-        }
         if !stroke {
-            let quiet = changed.is_empty();
             changed.extend(if frame {
-                target.raster_frame(core, request, quiet)?
+                target.raster_frame(core, request)?
             } else {
                 target.raster_all(core, request)?
             });
@@ -116,21 +115,16 @@ impl CanvasTarget {
     }
 
     /// One frame of the screen with no stroke drawn: the worker's tiles applied, the changes
-    /// drawn at once when they fit what is left of the frame (what the evaluator drew too, in a
-    /// `quiet` frame: one drawing nothing else), else waiting; the waiting tiles handed to the
-    /// worker; a quiet frame lays committed strokes into the snapshot (S56); residuals warm while
-    /// nothing waits (S54). Returns the canvas pixels drawn now.
+    /// drawn at once when they fit what is left of the frame, else waiting; the waiting tiles
+    /// handed to the worker; residuals warm while nothing waits (S54). Returns the canvas pixels
+    /// drawn now.
     fn raster_frame(
         &mut self,
         core: &Core,
         request: &FrameRequest<'_>,
-        quiet: bool,
     ) -> Result<Vec<PixelRect>, RenderError> {
         let mut changed = self.apply_answers(core);
-        let mut fresh = std::mem::take(&mut self.raster.fresh);
-        if quiet {
-            fresh.append(&mut self.raster.evaluated);
-        }
+        let fresh = std::mem::take(&mut self.raster.fresh);
         if !fresh.is_empty() {
             match self.draw_now(core, request, &fresh, true)? {
                 Some(drawn) => changed.extend(drawn),
@@ -138,11 +132,9 @@ impl CanvasTarget {
             }
         }
         self.hand_over(core, request)?;
-        if quiet && changed.is_empty() {
-            self.catching = self.catch_up(core, request)?;
-        }
         if !self.raster.pending() && !core.pace().spent() {
             self.warm(core, request)?;
+            self.snapshots_ahead(core, request)?;
         }
         Ok(changed)
     }
@@ -156,7 +148,6 @@ impl CanvasTarget {
     ) -> Result<Vec<PixelRect>, RenderError> {
         let raster = &mut self.raster;
         let mut rects = std::mem::take(&mut raster.fresh);
-        rects.append(&mut raster.evaluated);
         rects.extend(raster.waiting.take_all());
         // A stale one's pixels are drawn already, or wait among the others.
         for handed in raster.handed.iter_mut().filter(|handed| !handed.stale) {

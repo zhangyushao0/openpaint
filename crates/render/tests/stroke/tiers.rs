@@ -11,7 +11,6 @@ use openpaint_render::{
 };
 
 use crate::fixture::{SIZE, cold, core};
-use crate::raster::assert_near;
 use crate::scale::whole;
 
 /// The screen the tests show the canvas on, in pixels.
@@ -110,38 +109,28 @@ impl Screen {
 
     /// Every ready tile of the tier compared with `export`; how many.
     pub fn assert_tiles(&self, core: &Core, export: &RgbaImage, scale: u32) -> usize {
-        let [columns, rows] = export.size().map(|side| side.div_ceil(TILE));
-        let mut compared = 0;
-        for row in 0..rows {
-            for column in 0..columns {
-                let Some(tile) = self.view.tile_pixels(core, [column, row]).expect("read") else {
-                    continue;
-                };
-                assert_eq!(
-                    tile.pixels(),
-                    crop(export, [column * TILE, row * TILE], tile.size()),
-                    "tile {column}, {row} at {scale}x"
-                );
-                compared += 1;
-            }
-        }
-        compared
+        assert_tiles(core, &self.view, (export, scale))
     }
+}
 
-    /// Every ready tile of the tier against `export` by D86's rule (`assert_near`).
-    pub fn assert_tiles_near(&self, core: &Core, export: &RgbaImage) {
-        let [columns, rows] = export.size().map(|side| side.div_ceil(TILE));
-        for row in 0..rows {
-            for column in 0..columns {
-                let Some(tile) = self.view.tile_pixels(core, [column, row]).expect("read") else {
-                    continue;
-                };
-                let part = crop(export, [column * TILE, row * TILE], tile.size());
-                let part = RgbaImage::from_rgba(tile.size(), part).expect("cropped");
-                assert_near(&part, &tile, &format!("tile {column}, {row}"));
-            }
+/// Every ready tile of `view`'s tier compared with `export`, its output at `scale`; how many.
+pub fn assert_tiles(core: &Core, view: &ViewCache, (export, scale): (&RgbaImage, u32)) -> usize {
+    let [columns, rows] = export.size().map(|side| side.div_ceil(TILE));
+    let mut compared = 0;
+    for row in 0..rows {
+        for column in 0..columns {
+            let Some(tile) = view.tile_pixels(core, [column, row]).expect("read") else {
+                continue;
+            };
+            assert_eq!(
+                tile.pixels(),
+                crop(export, [column * TILE, row * TILE], tile.size()),
+                "tile {column}, {row} at {scale}x"
+            );
+            compared += 1;
         }
     }
+    compared
 }
 
 pub fn request<'a>(artwork: &'a Artwork, active: Option<&'a ActiveStroke>) -> FrameRequest<'a> {

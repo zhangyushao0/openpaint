@@ -94,7 +94,7 @@ fn smudge_vertex(
 
 // The layer (or mask) after the smudge: its copy (`source`) moved by the smudge's residual at
 // the output pixel's centre where the smudge's clip lets it change the canvas pixel there, else
-// the copy as it is; written whole.
+// the copy as it is; written whole. The smudge being drawn reads its own residual (S63).
 @fragment
 fn smudge_fragment(in: SmudgeOut) -> @location(0) vec4<f32> {
     let pixel = vec2<i32>(floor(in.position.xy));
@@ -104,7 +104,8 @@ fn smudge_fragment(in: SmudgeOut) -> @location(0) vec4<f32> {
         return before;
     }
     let locked = word(in.op, SMUDGE_LOCKED) != 0.0;
-    return smudge_applied(before, residual_at(false, in.base, centre), locked);
+    let drawing = word(in.op, SMUDGE_ACTIVE) != 0.0;
+    return smudge_applied(before, residual_at(drawing, in.base, centre), locked);
 }
 
 // A fill's colour at the share of the pixel its edge covers (or its mask bit, hard).

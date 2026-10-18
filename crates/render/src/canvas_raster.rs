@@ -6,8 +6,8 @@
 //! middle first, at the GPU's pace (D87), each into a slot of a staging texture the frame loop
 //! then copies into the canvas, unless a change reached the tile meanwhile: so only the frame loop
 //! writes the canvas, and a tile drawn for an older version never covers a newer one (a stroke
-//! being drawn, a later change). The pixels the evaluator draws (the stroke being drawn and its
-//! lift, until S63) are drawn again once no stroke is, so the canvas ends as a cold raster draw.
+//! being drawn, a later change). Once nothing waits, the worker takes the snapshots under the
+//! next stroke ahead (S63, `drawing_ahead.rs`).
 
 use openpaint_core::Artwork;
 
@@ -16,7 +16,6 @@ use crate::error::RenderError;
 use crate::evaluator::CanvasTarget;
 use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
-use crate::protocol::TILE;
 use crate::raster::RasterTargets;
 use crate::raster_route::Routed;
 use crate::readback::target_texture;
@@ -29,9 +28,6 @@ pub(crate) const AHEAD: usize = crate::view_raster_fill::AHEAD;
 
 /// What a tile is expected to cost the GPU before any was drawn, ns: a dense one on the tablet.
 const FIRST: f64 = 6_000_000.0;
-
-/// More rectangles the evaluator drew than this wait as the canvas tiles they meet.
-const EVALUATED_KEPT: usize = 256;
 
 /// A canvas tile handed to the raster worker: its job, its pixels, the staging slot it is drawn
 /// into, and whether a change reached it since.
@@ -49,9 +45,6 @@ pub(crate) struct CanvasRaster {
     pub(crate) waiting: Waiting,
     /// Changes not drawn yet nor waiting: canvas pixels.
     pub(crate) fresh: Vec<PixelRect>,
-    /// Pixels the evaluator drew (the stroke being drawn, its lift): drawn again once no stroke
-    /// is.
-    pub(crate) evaluated: Vec<PixelRect>,
     pub(crate) handed: Vec<Handed>,
     /// Answers to tiles handed over, not applied yet, and whether each was drawn.
     pub(crate) done: Vec<(Handed, bool)>,
@@ -81,7 +74,6 @@ impl CanvasRaster {
         Self {
             waiting: Waiting::of([texture.width(), texture.height()], TIER_TILE),
             fresh: Vec::new(),
-            evaluated: Vec::new(),
             handed: Vec::new(),
             done: Vec::new(),
             staging: None,
@@ -101,7 +93,6 @@ impl CanvasRaster {
     pub(crate) fn pending(&self) -> bool {
         !(self.waiting.is_empty()
             && self.fresh.is_empty()
-            && self.evaluated.is_empty()
             && self.handed.is_empty()
             && self.done.is_empty())
     }
@@ -113,28 +104,11 @@ impl CanvasRaster {
         self.fresh.extend_from_slice(rects);
     }
 
-    /// The evaluator drew the canvas pixels `rects` (whole 16-px tiles): drawn again once no
-    /// stroke is; the handed tiles they reach too.
-    pub(crate) fn evaluated(&mut self, rects: &[PixelRect]) {
-        let side = TILE as i32;
-        let widened: Vec<PixelRect> = (rects.iter())
-            .map(|rect| PixelRect {
-                min: rect.min.map(|at| at.div_euclid(side) * side),
-                max: rect.max.map(|at| (at + side - 1).div_euclid(side) * side),
-            })
-            .collect();
-        self.stale(&widened);
-        if self.evaluated.len() + widened.len() > EVALUATED_KEPT {
-            self.waiting.add(&std::mem::take(&mut self.evaluated));
-            self.waiting.add(&widened);
-        } else {
-            self.evaluated.extend(widened);
-        }
-    }
-
-    /// Handed tiles `rects` reach are drawn again once answered.
-    fn stale(&mut self, rects: &[PixelRect]) {
-        for handed in &mut self.handed {
+    /// Handed tiles `rects` reach are drawn again once answered (S63: the stroke being drawn drew
+    /// there since they were handed over).
+    pub(crate) fn stale(&mut self, rects: &[PixelRect]) {
+        let answered = self.done.iter_mut().map(|(handed, _)| handed);
+        for handed in self.handed.iter_mut().chain(answered) {
             if rects
                 .iter()
                 .any(|rect| !rect.intersect(&handed.rect).is_empty())
@@ -149,7 +123,6 @@ impl CanvasRaster {
     pub(crate) fn forget(&mut self) {
         self.waiting.take_all();
         self.fresh.clear();
-        self.evaluated.clear();
         self.done.clear();
         for handed in &mut self.handed {
             handed.stale = true;
@@ -257,8 +230,12 @@ impl CanvasTarget {
     }
 
     /// The raster worker's answer to a tile: the canvas's applied by its next frame, a view
-    /// tier's by the view's next update.
+    /// tier's by the view's next update, a snapshot under the next stroke kept (S63).
     pub fn answer(&mut self, done: RasterDone) {
+        if self.drawing.answer(&done) {
+            self.raster.drawer = done.bytes;
+            return;
+        }
         self.raster.answer(done);
     }
 

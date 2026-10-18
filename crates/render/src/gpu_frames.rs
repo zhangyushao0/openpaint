@@ -86,6 +86,37 @@ impl Core {
         work.saturating_sub(self.frames.done.load(Ordering::Acquire)) as f64
     }
 
+    /// From now on (`on`) the screen's frames are timed on the GPU, or no longer (S63: the
+    /// scenario benchmarks; `frame_clock.rs`). A device without timestamps times nothing.
+    pub fn time_frames(&self, on: bool) {
+        self.gpu.timing.store(on, Ordering::Relaxed);
+    }
+
+    /// A frame of the screen begins on this thread (the runtime calls it each frame): while
+    /// frames are timed, its first submission writes its start.
+    pub fn frame_begun(&self) {
+        if let Some(clock) = self.timed() {
+            clock.begin();
+        }
+    }
+
+    /// The frame's work is all submitted (after its present): while frames are timed, its end.
+    pub fn frame_ended(&self) {
+        if let Some(clock) = self.timed() {
+            clock.end(&self.gpu.device, &self.gpu.queue);
+        }
+    }
+
+    /// The GPU time of each timed frame read back since the last call, ns, without waiting.
+    #[must_use]
+    pub fn frame_times(&self) -> Vec<f64> {
+        (self.gpu.frames.as_ref()).map_or_else(Vec::new, |clock| clock.readings(&self.gpu.device))
+    }
+
+    fn timed(&self) -> Option<&crate::frame_clock::FrameClock> {
+        (self.gpu.frames.as_ref()).filter(|_| self.gpu.timing.load(Ordering::Relaxed))
+    }
+
     /// Collects the GPU's finished-work callbacks without waiting.
     fn poll(&self) {
         if let Err(error) = self.gpu.device.poll(wgpu::PollType::Poll) {
@@ -107,6 +138,31 @@ mod tests {
         assert!(core.frames_in_flight() <= before + 2);
         core.wait_idle().expect("idle");
         assert_eq!(core.frames_in_flight(), 0, "every frame finished");
+    }
+
+    #[test]
+    fn a_timed_frame_reads_back_its_gpu_time_and_an_empty_one_none() {
+        let core = test_core();
+        let _ = core.frame_times();
+        core.time_frames(true);
+        core.frame_begun();
+        core.frame_ended();
+        core.frame_begun();
+        core.render_clear([64, 64], [1, 2, 3, 255])
+            .expect("a frame's work");
+        core.frame_ended();
+        core.time_frames(false);
+        core.wait_idle().expect("idle");
+        let times = core.frame_times();
+        if core.adapter().contains("timestamps measured") {
+            assert_eq!(times.len(), 1, "the frame that submitted: {times:?}");
+            assert!(times[0] > 0.0);
+        }
+        core.frame_begun();
+        core.render_clear([8, 8], [0; 4]).expect("untimed");
+        core.frame_ended();
+        core.wait_idle().expect("idle");
+        assert!(core.frame_times().is_empty(), "not timed");
     }
 
     #[test]

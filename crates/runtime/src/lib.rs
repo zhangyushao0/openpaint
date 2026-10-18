@@ -37,7 +37,7 @@ mod ui_pass;
 mod worker;
 
 pub use crate::bench::bench;
-pub use crate::bench_app::{SCENARIOS, busiest};
+pub use crate::bench_app::{SCENARIOS, STROKES_ADDED, busiest};
 pub use crate::bench_scenes::{drawn, pile_path, style_of};
 pub use crate::budget::{ARENA_SHARE, TRIM_UI_HIDDEN};
 pub use crate::error::RuntimeError;

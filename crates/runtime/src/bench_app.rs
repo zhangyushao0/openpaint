@@ -13,8 +13,10 @@
 //! - `zoom`: from fit, pinches to 2x, 4x and 8x over the artwork's densest place, each until
 //!   sharp, then back to 4x and 2x: time to sharp and tier tiles filled after each pinch.
 //! - `pan`: at 4x over that place, 3 s of two-finger pans, then until sharp.
-//! - `strokes`: at fit, a stroke of each texture brush across that place, the GPU waited for after
-//!   every frame: frame work, GPU and both, the pen-down's and the lift's frames.
+//! - `strokes` (S63): at fit, a stroke of each brush the author paints with and a smudge across
+//!   that place, then the first stroke after an opening, an undo and a layer switch beside a later
+//!   one: frame work, each frame's GPU time, event to present, the pen-down's and the lift's
+//!   frames, the GPU caches held (`bench_app_strokes.rs`).
 //! - `session`: the artwork's strokes appended as records to a new screen-size artwork as fast as
 //!   frames take them, every twentieth undone and every other of those redone, a layer added
 //!   where the next stroke's layer is above the last (`test-art session`'s pace).
@@ -39,12 +41,15 @@ mod cases;
 mod export;
 #[path = "bench_app_paint.rs"]
 mod paint;
+#[path = "bench_app_strokes.rs"]
+mod strokes;
 #[path = "bench_app_touch.rs"]
 mod touch;
 #[path = "bench_app_undo.rs"]
 mod undo;
 
 pub use cases::busiest;
+pub use strokes::STROKES_ADDED;
 
 /// The scenarios `bench_scenario` runs.
 pub const SCENARIOS: [&str; 9] = [
@@ -86,6 +91,8 @@ pub(crate) struct Watch {
     /// The slowest drawn frame, ms, and what it spent.
     slowest: (f64, Spent),
     counts: Counts,
+    /// What the last frame call spent (S63: the scene the lift's frame built).
+    pub(crate) last: Spent,
 }
 
 impl Watch {
@@ -102,6 +109,7 @@ impl Watch {
             waited: 0,
             slowest: (0.0, Spent::default()),
             counts: runtime.core.counts(),
+            last: Spent::default(),
         }
     }
 
@@ -238,6 +246,7 @@ impl Runtime {
             watch.frames.push(ms);
         }
         let spent = take_spent();
+        watch.last = spent;
         watch.evaluated += spent.evaluated_ns;
         watch.waited += spent.waited_ns;
         if !self.paced().skipped && ms > watch.slowest.0 {

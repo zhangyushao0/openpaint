@@ -173,9 +173,6 @@ pub(crate) struct Scene {
     pub(crate) frame: (Affine, Option<Bounds>),
     /// The items of the in-progress stroke's layer before its place.
     pub(crate) active_before: Option<Range<usize>>,
-    /// Each shown layer's paint or (`true`) mask content and the in-progress stroke's layer
-    /// before its place: their items (S56, `content_of`).
-    pub(crate) contents: Vec<(LayerId, bool, Range<usize>)>,
     /// Where its strokes' spans lie, and while it is built the scene before's (S56,
     /// `scene_reuse.rs`).
     pub(crate) spans: Spans,

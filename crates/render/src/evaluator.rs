@@ -3,20 +3,20 @@
 //! raster core draws is drawn by it (`canvas_raster_fill.rs`), every other by the evaluator, the
 //! per-pixel interpreter over binned op lists (D82) this module holds.
 //!
-//! What the evaluator still draws, all of it (S62): the stroke being drawn at 1x and its view
-//! tiers' tiles meanwhile, with its float snapshot, its lift's last spans and the in-progress
-//! smudge's residual applied (S63 takes them); every scene routed to it (adjustments, filters,
-//! groups, transform records, moved selections, merged layers: the canvas with its batches and
-//! binning, its tiers, exports, layer samples and smudge materials, their previews' snapshots;
-//! S64 takes them); and the references the tests and harness `canvas-check` and `export-check`
-//! compare the raster core with (`Core::time_evaluation`; S65 deletes the evaluator with them).
+//! What the evaluator still draws, all of it (S63): every scene routed to it (adjustments,
+//! filters, groups, transform records, moved selections, merged layers: the canvas with its
+//! batches and binning, the stroke being drawn over it, its tiers, exports, layer samples and
+//! smudge materials, their previews' snapshots read by `OP_RESUME`; S64 takes them); and the
+//! references the tests and harness `canvas-check` and `export-check` compare the raster core
+//! with (`Core::time_evaluation`; S65 deletes the evaluator with them). The stroke being drawn
+//! over a scene the raster core draws is the raster core's since S63 (`drawing.rs`).
 
 use openpaint_core::{ActiveStroke, Artwork, RegionMask};
 
 use crate::active::ActiveTrack;
-use crate::active_snapshot::ActiveSnapshot;
 use crate::canvas_raster::CanvasRaster;
 use crate::core::Core;
+use crate::drawing::Drawing;
 use crate::error::RenderError;
 use crate::filter::Filters;
 use crate::frame::FrameRequest;
@@ -51,10 +51,13 @@ pub struct CanvasTarget {
     changed: Vec<PixelRect>,
     /// What the last evaluation cost (S48).
     work: EvaluationWork,
-    /// The in-progress stroke's layer before it, per tile (S48, `active_snapshot.rs`).
-    held: Option<ActiveSnapshot>,
-    /// Its tiles lack strokes committed since: frames lay them (S56, `catch_up`).
-    catching: bool,
+    /// Drawing on the 1x canvas by the raster core (S63, `drawing.rs`); the canvas pixels the
+    /// version under the stroke changed this frame (its mirrored copies), which its view tiers
+    /// draw too; the canvas pixels changes reached since the view tiers last took them (their
+    /// drawings' snapshots there go).
+    pub(crate) drawing: Drawing,
+    pub(crate) moved: Vec<PixelRect>,
+    dirtied: Vec<PixelRect>,
     /// Whole tiles the screen's frames left for the next ones (S49, S53: `evaluate_frame`).
     waiting: Waiting,
     /// Where the screen looks: the waiting tiles it shows go first (S53).
@@ -130,8 +133,9 @@ impl CanvasTarget {
             filters: Filters::default(),
             changed: Vec::new(),
             work: EvaluationWork::default(),
-            held: None,
-            catching: false,
+            drawing: Drawing::default(),
+            moved: Vec::new(),
+            dirtied: Vec::new(),
             waiting: Waiting::new(size.0),
             focus: None,
             blank: true,
@@ -144,6 +148,21 @@ impl CanvasTarget {
     /// tier evaluates again.
     pub(crate) fn take_changed(&mut self) -> Vec<PixelRect> {
         std::mem::take(&mut self.changed)
+    }
+
+    /// Changes reached the canvas pixels `rects` (S63: kept for the view tiers' drawings).
+    pub(crate) fn dirtied(&mut self, rects: &[PixelRect]) {
+        self.dirtied.extend_from_slice(rects);
+        if self.dirtied.len() > CHANGED_KEPT
+            && let Some(all) = self.dirtied.iter().copied().reduce(|a, b| a.union(&b))
+        {
+            self.dirtied = vec![all];
+        }
+    }
+
+    /// The canvas pixels changes reached since the last call.
+    pub(crate) fn take_dirtied(&mut self) -> Vec<PixelRect> {
+        std::mem::take(&mut self.dirtied)
     }
 
     /// The scene and its ops on the GPU the last evaluation drew, when it drew `artwork` with
@@ -222,19 +241,6 @@ impl CanvasTarget {
 
     pub(crate) fn texture(&self) -> &wgpu::Texture {
         &self.texture
-    }
-
-    /// What the last evaluation into this target cost (`paint-timing`, S48).
-    #[must_use]
-    pub const fn work(&self) -> EvaluationWork {
-        self.work
-    }
-
-    /// The snapshot of the in-progress stroke's layer lacks strokes committed since, which the
-    /// screen's next frames lay within their budget (S56): frames are wanted until it does not.
-    #[must_use]
-    pub const fn catching_up(&self) -> bool {
-        self.catching
     }
 }
 
@@ -351,7 +357,7 @@ mod dispatching;
 
 #[path = "evaluator_scene.rs"]
 mod scene_cache;
-pub use scene_cache::EvaluationWork;
+use scene_cache::EvaluationWork;
 use scene_cache::SceneCache;
 
 #[path = "evaluator_background.rs"]
@@ -371,6 +377,13 @@ pub use cache::CanvasCopy;
 mod raster_fill;
 pub(crate) use raster_fill::{Planned, paper};
 
+#[path = "drawing_frame.rs"]
+mod drawing_frame;
+pub(crate) use drawing_frame::Onto;
+#[path = "drawing_ahead.rs"]
+mod drawing_ahead;
+pub(crate) use drawing_ahead::TAKING;
+
 #[path = "evaluator_bench.rs"]
 mod bench;
 pub(crate) use bench::WARM_ENOUGH;
@@ -379,7 +392,3 @@ pub use bench::{Listed, Timed};
 #[cfg(test)]
 #[path = "evaluator_display_tests.rs"]
 mod display_tests;
-
-#[cfg(test)]
-#[path = "evaluator_snapshot_tests.rs"]
-mod snapshot_tests;

@@ -1,9 +1,8 @@
 //! One evaluation of a request into a target (`RegionEvaluator::dispatch`): the scene made
-//! ready, the in-progress stroke's part, the screen's waiting tiles and background work, and the
-//! snapshot the evaluation resumes the stroke's layer from.
+//! ready, the in-progress stroke's part (S63: a scene routed to the evaluator only), and the
+//! screen's waiting tiles and background work.
 
-use super::{CanvasTarget, EvaluationWork, RegionEvaluator};
-use crate::active_snapshot::Use;
+use super::{EvaluationWork, RegionEvaluator};
 use crate::error::RenderError;
 use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
@@ -27,7 +26,7 @@ impl RegionEvaluator<'_> {
         // the pen touching down keeps it.
         let place = ActivePlace::of_request(request.artwork, request.active);
         self.target.work = EvaluationWork::default();
-        let cache = self.target.scene(core, request.artwork, place.clone())?;
+        let cache = self.target.scene(core, request.artwork, place)?;
         let (drawn, clip) = (cache.scene.has_active(), cache.scene.active_clip);
         let previewing = cache.previewing();
         let step = self
@@ -54,51 +53,21 @@ impl RegionEvaluator<'_> {
         all.extend(step.redraw.into_iter().chain(step.fresh_region));
         all.extend(self.target.smudged(core, request, drawn)?);
         let mut evaluated = if background {
-            self.target.background(core, request, all.is_empty())?
+            self.target.background(core, request)?
         } else {
             Vec::new()
         };
         if all.is_empty() && !step.reset {
             return Ok(evaluated);
         }
-        let stroke = (request.active.is_some() && drawn).then_some(place);
-        let held = self.target.snapshot_use(output, stroke, previewing);
         let now = (screen && previewing && fresh.ops.is_empty()).then(|| &all[later..]);
         let drawing = (request, (output, step.reset));
         let drawn = self
             .target
-            .draw(core, drawing, (fresh, held), (&all, now))?
+            .draw(core, drawing, fresh, (&all, now))?
             .unwrap_or(all);
         self.target.waiting.remove(&drawn);
         evaluated.extend(drawn);
         Ok(evaluated)
-    }
-}
-
-impl CanvasTarget {
-    /// How an evaluation at `output` uses the snapshot of the in-progress stroke's layer: the
-    /// stroke drawn on the canvas resumes its layer from it (S48); so does what an evaluation
-    /// without one needs (a lift's last spans) while the snapshot holds that layer's content but
-    /// for strokes appended (S56); a preview has its own.
-    pub(super) fn snapshot_use(
-        &self,
-        output: Output,
-        stroke: Option<ActivePlace>,
-        previewing: bool,
-    ) -> Option<Use> {
-        if output != Output::CANVAS || !self.bindings.keeps {
-            return None;
-        }
-        match stroke {
-            Some(place) => Some(Use {
-                place: (place.layer, place.on_mask),
-                drawing: true,
-            }),
-            None if !previewing => self.held.as_ref().map(|snapshot| Use {
-                place: snapshot.place(),
-                drawing: false,
-            }),
-            None => None,
-        }
     }
 }

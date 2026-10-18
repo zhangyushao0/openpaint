@@ -9,7 +9,6 @@ use std::time::{Duration, Instant};
 use openpaint_core::Artwork;
 
 use super::CanvasTarget;
-use crate::active_snapshot::{self, Kept, Use};
 use crate::affine::Affine;
 use crate::bounded::{frame_share, paper_only, tile_rects};
 use crate::core::Core;
@@ -62,43 +61,31 @@ pub(super) struct Batch {
     pub(super) left: std::collections::VecDeque<(TileRecord, f64)>,
 }
 
-/// The in-progress stroke's layer items a plan leaves unbinned, and the fresh op that resumes
-/// them from its snapshot (`Plan::over_snapshot`).
-type Skipped = (Range<usize>, u32);
-
 /// What a kept plan was binned for.
 #[derive(PartialEq)]
 struct PlanKey {
     regions: Vec<PixelRect>,
     output: Output,
     resume: Option<Range<usize>>,
-    /// The layer's items resumed from the in-progress stroke's snapshot (S56: a lift's too).
-    over: Option<Range<usize>>,
 }
 
-/// What one evaluation into a target cost (S48): the time taken to bin the plan on the CPU (and
-/// to bring a snapshot it resumes from up to date), the tiles it evaluated and the op entries
-/// their lists held, which the GPU walks per pixel; and for the in-progress stroke the tiles of
-/// its layer's snapshot it took (evaluating the layer's ops into them) and those it laid
-/// strokes committed since into (`active_snapshot.rs`).
+/// What one evaluation into a target cost (S48): the time taken to bin the plan on the CPU, the
+/// tiles it evaluated and the op entries their lists held, which the GPU walks per pixel (S63:
+/// only a scene routed to the evaluator is evaluated so).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct EvaluationWork {
-    pub planned: Duration,
-    pub tiles: usize,
-    pub entries: usize,
-    pub taken: usize,
-    pub carried: usize,
+pub(crate) struct EvaluationWork {
+    pub(crate) planned: Duration,
+    pub(crate) tiles: usize,
+    pub(crate) entries: usize,
 }
 
 impl EvaluationWork {
-    /// What evaluating `tiles` costs, planned in `planned`, with what the snapshot `kept`.
-    pub(super) fn of(tiles: &[TileRecord], planned: Duration, [taken, carried]: Kept) -> Self {
+    /// What evaluating `tiles` costs, planned in `planned`.
+    pub(super) fn of(tiles: &[TileRecord], planned: Duration) -> Self {
         Self {
             planned,
             tiles: tiles.len(),
             entries: tiles.iter().map(|t| t.count as usize).sum(),
-            taken,
-            carried,
         }
     }
 }
@@ -207,15 +194,15 @@ impl CanvasTarget {
     }
 
     /// Evaluates `all` (target pixels) of the scene built last for `request` at `output`, with
-    /// the in-progress stroke's `fresh` ops (`reset`: its coverage starts over), its layer
-    /// resumed from the snapshot of the place `held` when given (S48). Given `now` (one frame of
-    /// the screen, S49), the tiles meeting it and then what one frame's work allows: the others
-    /// wait (`pending`), and the regions evaluated are returned.
+    /// the in-progress stroke's `fresh` ops (`reset`: its coverage starts over; S63: only a scene
+    /// routed to the evaluator draws one here). Given `now` (one frame of the screen, S49), the
+    /// tiles meeting it and then what one frame's work allows: the others wait (`pending`), and the
+    /// regions evaluated are returned.
     pub(super) fn draw(
         &mut self,
         core: &Core,
         (request, (output, reset)): (&FrameRequest<'_>, (Output, bool)),
-        (fresh, held): (Fresh, Option<Use>),
+        fresh: Fresh,
         (all, now): (&[PixelRect], Option<&[PixelRect]>),
     ) -> Result<Option<Vec<PixelRect>>, RenderError> {
         let size = self.size();
@@ -226,29 +213,19 @@ impl CanvasTarget {
         let started = Instant::now();
         let previewing = fresh.ops.is_empty() && output == Output::CANVAS;
         let tools = (&mut self.smudges, &mut self.filters);
-        let snapshots = (previewing, held.is_some(), all);
-        prepare_early(core, tools, (cache, request.artwork), snapshots)?;
+        prepare_early(core, tools, (cache, request.artwork), previewing)?;
         let residuals = self.smudges.residuals();
-        let (held, kept) = match held {
-            Some(using) => {
-                let evaluating = ((&*cache.scene, &cache.ops), (&mut self.bindings, residuals));
-                let using = (request.artwork, using);
-                active_snapshot::prepare(&mut self.held, core, evaluating, using, all)?
-            }
-            None => (None, [0; 2]),
-        };
         let bindings = (&mut self.bindings, residuals);
-        let over = held.as_ref().map(|(prefix, _)| prefix.clone());
-        let readied = cache.ready(core, bindings, fresh, (size, output, all), over)?;
+        let readied = cache.ready(core, bindings, fresh, (size, output, all))?;
         let cache = &*cache;
-        let reading = cache.reading(readied, held.map(|(_, snapshot)| snapshot))?;
+        let reading = cache.reading(readied)?;
         let tiles = reading.only.unwrap_or(&reading.plan.tiles);
         let work = core.evaluate.frame_work();
         let waiting = (&mut self.waiting, &mut self.blank);
         let (only, evaluated) = frame_tiles(tiles, (now, work), waiting);
         let only = only.as_deref().or(reading.only);
         let tiles = only.unwrap_or(&reading.plan.tiles);
-        self.work = EvaluationWork::of(tiles, started.elapsed(), kept);
+        self.work = EvaluationWork::of(tiles, started.elapsed());
         if self.work.tiles == 0 && !reset {
             return Ok(evaluated);
         }
@@ -285,22 +262,19 @@ impl CanvasTarget {
 mod retune;
 use retune::next_serial;
 
-/// S51: the residuals the snapshots' evaluations read before the frame's own: near the stroke's
-/// pixels `all` while one is drawn (`stroke`), or a preview's layer whole while it takes its
-/// snapshot (`previewing`).
+/// S51: the residuals a preview's snapshot reads before the frame's own evaluation: its layer
+/// whole while it takes its snapshot (`previewing`).
 fn prepare_early(
     core: &Core,
     (smudges, filters): (&mut Smudges, &mut Filters),
     (cache, artwork): (&SceneCache, &Artwork),
-    (previewing, stroke, all): (bool, bool, &[PixelRect]),
+    previewing: bool,
 ) -> Result<(), RenderError> {
-    let wanted = match cache.preview_items(previewing) {
-        Some(items) => Wanted::Items(items),
-        None if stroke => Wanted::Near(all),
-        None => return Ok(()),
+    let Some(items) = cache.preview_items(previewing) else {
+        return Ok(());
     };
     let scene = (&*cache.scene, &cache.ops);
-    smudges.prepare(core, scene, artwork, (filters, &wanted))
+    smudges.prepare(core, scene, artwork, (filters, &Wanted::Items(items)))
 }
 
 /// The tiles of `tiles` this evaluation takes: given `now` (one frame of a preview, S35, S49),

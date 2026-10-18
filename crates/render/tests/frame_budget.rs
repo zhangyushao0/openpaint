@@ -18,7 +18,7 @@ use openpaint_core::{
 };
 use openpaint_render::{
     BACKGROUND_NS, CanvasTarget, Core, FrameRequest, PixelRect, RasterDrawer, RegionEvaluator,
-    RgbaImage, ViewCache, ViewFrame, image_difference, stroke_region,
+    RgbaImage, ViewCache, ViewFrame, stroke_region,
 };
 
 const SIZE: [u32; 2] = [320, 200];
@@ -224,13 +224,14 @@ fn a_stroke_drawn_while_tiles_wait_shows_at_once_and_leaves_them_waiting() {
     frame((&mut target, &mut cache), drawing, &[], None);
     assert!(target.pending(), "the waiting tiles wait for the stroke");
     let so_far = stroke.finish().artwork;
-    // The stroke in progress is the evaluator's (S63): within a level of the raster core's cold
-    // canvas away from antialiased edges (D88's rule).
+    // S63: the stroke in progress drawn by the raster core where it reaches, as the canvas drawn
+    // cold there.
     let reached = stroke_region(&style, &samples, 0).expect("region");
     let [shown, wanted] = [target.read(core()).expect("read"), cold(&so_far)];
-    let found = image_difference(&crop(&wanted, &reached), &crop(&shown, &reached));
-    let found = found.expect("same size");
-    assert_eq!(found.beyond_one_inside, 0, "{found:?}");
+    assert!(
+        crop(&wanted, &reached) == crop(&shown, &reached),
+        "the stroke = cold where it reaches"
+    );
     let mut frames = 0;
     while target.pending() {
         frame((&mut target, &mut cache), (&so_far, None), &[], None);

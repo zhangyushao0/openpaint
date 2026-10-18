@@ -6,10 +6,9 @@
 //! 800 x 800 px area; then one more stroke is drawn over that
 //! area a sample a frame through the in-progress path, as the runtime draws it: calm (52 samples
 //! about 12 px apart, a wave) and fast (52 samples 25 px apart, a loop). Per case and frame: the
-//! CPU's evaluation (scene, plan and binning, submission), the GPU's (waited for), the tiles
-//! evaluated and the op entries their lists held; printed as p50 / p95 over the frames after
-//! the first, with the first frame (the pen touching down) and the lift's frame apart. Run with
-//! `--release` for numbers that mean anything.
+//! CPU's part (scene, plan, encoding, submission) and the GPU's (waited for); printed as p50 /
+//! p95 over the frames after the first, with the first frame (the pen touching down) and the
+//! lift's frame apart. Run with `--release` for numbers that mean anything.
 
 use std::f32::consts::{PI, TAU};
 use std::sync::Arc;
@@ -19,9 +18,7 @@ use openpaint_app::BrushLibrary;
 use openpaint_core::{
     ActiveStroke, Artwork, CanvasPoint, CanvasSize, Color, StrokeSample, StrokeStyle,
 };
-use openpaint_render::{
-    CanvasTarget, Core, EvaluationWork, FrameRequest, PixelRect, RegionEvaluator, take_spent,
-};
+use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, take_spent};
 
 use crate::error::HarnessError;
 
@@ -60,16 +57,13 @@ pub fn run() -> Result<(), HarnessError> {
     // Shaders, pipelines and buffers settle on a first stroke nobody counts.
     measure(&core, &blank()?, (style("ink-pen", 1)?, calm()))?;
     println!(
-        "{:<15} {:>4} {:<7} | {:>23} | {:>22} {:>15} {:>5} {:>6} {:>5} | {:>23}",
+        "{:<15} {:>4} {:<7} | {:>23} | {:>13} {:>15} | {:>23}",
         "brush",
         "N",
         "stroke",
         "first cpu (scene)/gpu",
-        "cpu p50/p95 (plan)",
+        "cpu p50/p95",
         "gpu p50/p95",
-        "tiles",
-        "entries",
-        "taken",
         "lift cpu (scene)/gpu"
     );
     for key in BRUSHES {
@@ -90,14 +84,12 @@ fn blank() -> Result<Artwork, HarnessError> {
     Ok(Artwork::new(CanvasSize::new(SIZE[0], SIZE[1])?))
 }
 
-/// One frame's cost: CPU (and of it building the scene, S56), GPU, and what the evaluation
-/// listed.
+/// One frame's cost: CPU (and of it building the scene, S56) and GPU.
 #[derive(Clone, Copy)]
 struct Frame {
     cpu: Duration,
     scene: Duration,
     gpu: Duration,
-    work: EvaluationWork,
 }
 
 /// A stroke's frames: the first (the pen touching down), those after it, and the lift's.
@@ -178,7 +170,6 @@ fn timed(
         cpu,
         scene,
         gpu: waited.elapsed(),
-        work: target.work(),
     })
 }
 
@@ -193,25 +184,17 @@ impl Frames {
             [rank(0.5), rank(0.95)]
         };
         let [cpu50, cpu95] = spread(&|f| ms(f.cpu));
-        let [plan50, _] = spread(&|f| ms(f.work.planned));
         let [gpu50, gpu95] = spread(&|f| ms(f.gpu));
-        let [tiles, _] = spread(&|f| f.work.tiles as f64);
-        let [entries, _] = spread(&|f| f.work.entries as f64);
-        let [taken, _] = spread(&|f| f.work.taken as f64);
         format!(
-            "{:>6.2} ({:>5.2}) / {:>6.2} | {:>5.2} / {:>5.2} ({:>5.2}) {:>6.2} / {:>6.2} {:>5} \
-             {:>7} {:>5} | {:>6.2} ({:>5.2}) / {:>6.2}",
+            "{:>6.2} ({:>5.2}) / {:>6.2} | {:>5.2} / {:>5.2} {:>6.2} / {:>6.2} | {:>6.2} \
+             ({:>5.2}) / {:>6.2}",
             ms(self.first.cpu),
             ms(self.first.scene),
             ms(self.first.gpu),
             cpu50,
             cpu95,
-            plan50,
             gpu50,
             gpu95,
-            tiles,
-            entries,
-            taken,
             ms(self.lift.cpu),
             ms(self.lift.scene),
             ms(self.lift.gpu),

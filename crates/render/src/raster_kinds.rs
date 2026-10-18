@@ -107,6 +107,48 @@ pub(crate) enum Pass {
         reads: Scratch,
         draw: Draw,
     },
+    /// S63, the stroke being drawn (`drawing.rs`): targets set from snapshots' slots, as the
+    /// units before the stroke left them; targets kept into slots; the atlas cleared, the
+    /// stroke's kept coverage copied into its regions there, then its tail laid over it; spans
+    /// laid into the kept coverage's slots on a page (loaded, or cleared first).
+    Restore(Vec<SlotCopy>),
+    Keep(Vec<SlotCopy>),
+    Kept {
+        copies: Vec<AtlasCopy>,
+        draws: Vec<CoverageDraw>,
+    },
+    Cover {
+        page: usize,
+        clear: bool,
+        draws: Vec<CoverageDraw>,
+    },
+}
+
+/// A slot of a stroke's drawing (S63): its page and the page pixel at its top-left.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct SlotAt {
+    pub(crate) page: usize,
+    pub(crate) at: [u32; 2],
+}
+
+/// A copy of `size` pixels between a scratch target's region pixels from `at` and a snapshot's
+/// slot from `offset` in it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct SlotCopy {
+    pub(crate) target: Scratch,
+    pub(crate) slot: SlotAt,
+    pub(crate) offset: [u32; 2],
+    pub(crate) at: [u32; 2],
+    pub(crate) size: [u32; 2],
+}
+
+/// A copy of `size` pixels of a kept coverage's slot from `offset` in it into the atlas at `to`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct AtlasCopy {
+    pub(crate) slot: SlotAt,
+    pub(crate) offset: [u32; 2],
+    pub(crate) size: [u32; 2],
+    pub(crate) to: [u32; 2],
 }
 
 /// What a plan holds, counted.

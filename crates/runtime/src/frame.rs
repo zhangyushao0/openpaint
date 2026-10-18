@@ -229,6 +229,7 @@ impl Runtime {
         };
         let frame = screen_frame(self.screen.canvas(), &self.shell, ui);
         let presented = self.core.present(surface, painter, frame)?;
+        self.core.frame_ended();
         Ok(repaint || !presented)
     }
 
@@ -287,6 +288,8 @@ impl Runtime {
         // while nothing touches the screen, what the GPU's queue has room for (S60).
         let idle = self.idle();
         self.core.begin_frame_idle(idle);
+        // S63: a benchmark times the frame's GPU work from its first submission on.
+        self.core.frame_begun();
         self.receive()?;
         let batches = std::mem::take(&mut self.pending);
         let mut events = pointer_events(&batches, self.pixels_per_point);
@@ -334,9 +337,13 @@ impl Runtime {
         self.core.end_background();
         self.send_raster(idle);
         let changed = self.screen() != shown;
-        // The view tiers or the canvas itself still fill in (S32, S49), or its residuals (S54).
+        // The view tiers or the canvas itself still fill in (S32, S49), or its residuals (S54),
+        // or the snapshots under the next stroke (S63).
         let viewing = (self.screen.canvas()).is_some_and(|canvas| {
-            let waits = canvas.view_pending() || canvas.filling() || canvas.warming();
+            let waits = canvas.view_pending()
+                || canvas.filling()
+                || canvas.warming()
+                || canvas.taking_ahead();
             // S60: until the atlas of the next tier is asked for, made ahead once nothing touches.
             waits || canvas.view().wants_spare()
         });

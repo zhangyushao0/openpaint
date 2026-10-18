@@ -95,6 +95,16 @@ impl Needed {
             .unwrap_or(u8::MAX)
     }
 
+    /// The shown tiles, nearest the centre first (S63: whose snapshots are taken ahead).
+    pub(crate) fn shown(&self) -> impl Iterator<Item = [u32; 2]> + '_ {
+        self.ordered[..self.shown].iter().copied()
+    }
+
+    /// `tile` is shown (S63: what a stroke being drawn draws at the tier).
+    pub(crate) fn is_shown(&self, tile: [u32; 2]) -> bool {
+        self.ring(tile) == 0
+    }
+
     /// Shown and first-ring tiles: how many.
     pub(crate) fn count(&self) -> usize {
         self.ordered.len()

@@ -92,7 +92,7 @@ impl Runtime {
     }
 
     /// The canvas left for the gallery as Gallery does, frames until the gallery shows.
-    fn bench_leave(&mut self, watch: &mut Watch) -> Result<(), RuntimeError> {
+    pub(super) fn bench_leave(&mut self, watch: &mut Watch) -> Result<(), RuntimeError> {
         if let Screen::Canvas(canvas) = &mut self.screen {
             let app = (&mut self.toolbox, &mut self.clipboard, &mut self.seeds);
             canvas.dispatch(&self.core, vec![Intent::Gallery(GalleryIntent::Show)], app);

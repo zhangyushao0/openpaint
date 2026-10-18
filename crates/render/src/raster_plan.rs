@@ -9,7 +9,8 @@
 //! (Overlay). Strokes go into a batch in scene order while their regions fit the atlas; a batch
 //! is a coverage pass and a pass of the layer's draws, and a smudge ends one. The order of every
 //! draw is the scene's, so a pixel's value depends only on what reaches it: a part of a region
-//! draws what the whole does there.
+//! draws what the whole does there. S63: the stroke being drawn lays at its unit from its kept
+//! coverage, and a plan may start from snapshots of the units before it (`raster_plan_drawing.rs`).
 
 use std::ops::Range;
 
@@ -19,7 +20,8 @@ use crate::output::Output;
 use crate::protocol::raster::Edit;
 pub use crate::raster_kinds::RasterCounts;
 pub(crate) use crate::raster_kinds::{
-    Coverage, CoverageDraw, Draw, DrawKind, EndBlend, Instance, Pass, Scratch,
+    AtlasCopy, Coverage, CoverageDraw, Draw, DrawKind, EndBlend, Instance, Pass, Scratch, SlotAt,
+    SlotCopy,
 };
 use crate::raster_lay::{Laid, Marks, Packer, laid_span, lay};
 use crate::raster_route::{RasterScene, Unit};
@@ -67,6 +69,8 @@ struct Builder<'a> {
     chain: Chain,
     /// A smudge whose residual the arena lacks is left out (a material, S62), not refused.
     lacking: bool,
+    /// S63: the stroke being drawn, laid at its unit.
+    drawing: Option<&'a InProgress>,
 }
 
 /// The scene a plan draws: its items, its raster units and its smudges' residuals' bases.
@@ -133,6 +137,7 @@ impl<'a> Builder<'a> {
             touched: [false; 2],
             chain: Chain::Empty,
             lacking: false,
+            drawing: None,
         }
     }
 
@@ -143,29 +148,41 @@ impl<'a> Builder<'a> {
     ) -> Result<RasterPlan, RenderError> {
         self.plan.passes.push(Pass::Clear(Scratch::Canvas));
         for unit in units {
-            match unit {
-                Unit::Stroke {
-                    spans,
-                    paint,
-                    bounds,
-                } => self.stroke(spans, *paint, *bounds)?,
-                Unit::Edit { item, bounds } => self.edit(*item, *bounds),
-                Unit::Smudge {
-                    item,
-                    smudge,
-                    reach,
-                } => self.smudge((*item, *smudge), reach)?,
-                Unit::BeginMask => {
-                    self.flush();
-                    self.target = Scratch::Mask;
-                }
-                Unit::End(item) => self.end(*item),
-            }
+            self.unit(unit)?;
         }
+        Ok(self.done())
+    }
+
+    /// One unit laid out.
+    fn unit(&mut self, unit: &Unit) -> Result<(), RenderError> {
+        match unit {
+            Unit::Stroke {
+                spans,
+                paint,
+                bounds,
+            } => self.stroke(spans, *paint, *bounds)?,
+            Unit::Edit { item, bounds } => self.edit(*item, *bounds),
+            Unit::Smudge {
+                item,
+                smudge,
+                reach,
+            } => self.smudge((*item, *smudge), reach)?,
+            Unit::BeginMask => {
+                self.flush();
+                self.target = Scratch::Mask;
+            }
+            Unit::End(item) => self.end(*item),
+            Unit::Active => self.active()?,
+        }
+        Ok(())
+    }
+
+    /// The last batch's passes; the plan.
+    fn done(mut self) -> RasterPlan {
         self.flush();
         let mut plan = self.plan;
         plan.counts.passes = plan.passes.len() + 1;
-        Ok(plan)
+        plan
     }
 }
 
@@ -280,8 +297,7 @@ impl Builder<'_> {
         (item, smudge): (usize, usize),
         reach: &PixelRect,
     ) -> Result<(), RenderError> {
-        let rect = self.reach(reach);
-        if rect.is_empty() {
+        if self.reach(reach).is_empty() {
             return Ok(());
         }
         let Some(base) = self.bases.get(smudge).copied().flatten() else {
@@ -292,6 +308,17 @@ impl Builder<'_> {
                 "a smudge's residual is not in the arena",
             ));
         };
+        self.smudge_from((item, base), reach);
+        Ok(())
+    }
+
+    /// The smudge of op `item` whose residual starts at word `base` of the arena (or, an
+    /// in-progress smudge's op, of its own residual) over the canvas pixels `reach`.
+    fn smudge_from(&mut self, (item, base): (usize, u32), reach: &PixelRect) {
+        let rect = self.reach(reach);
+        if rect.is_empty() {
+            return;
+        }
         self.flush();
         let slot = self.slot();
         if !self.cleared[slot] {
@@ -315,7 +342,6 @@ impl Builder<'_> {
         self.plan.counts.smudges += 1;
         self.plan.counts.smudge_pixels += u64::from(width) * u64::from(height);
         self.touched[slot] = true;
-        Ok(())
     }
 
     /// One instance drawing `kind` for op `item` over `rect`.
@@ -359,3 +385,7 @@ impl Builder<'_> {
 
 #[path = "raster_plan_ends.rs"]
 mod ends;
+
+#[path = "raster_plan_drawing.rs"]
+mod drawing;
+pub(crate) use drawing::{InProgress, KeptTile, Restored, Resume, StrokeDrawn};

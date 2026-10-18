@@ -98,10 +98,8 @@ impl Scene {
         };
         self.push_level(&content, (strokes.len(), edits.len()), View::CANVAS)?;
         self.set_frame(View::CANVAS);
-        let items = content.start..self.items.len();
-        self.contents.push((layer, on_mask, items.clone()));
         if active {
-            self.active_before = Some(items);
+            self.active_before = Some(content.start..self.items.len());
             self.items.push(Item::Active);
         }
         Ok(())

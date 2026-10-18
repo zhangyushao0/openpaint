@@ -2,9 +2,11 @@
 //! the UI framework (DECISIONS D01). The device reports its loss to `Health` (S49): the driver's
 //! lost callback, a reset, a test destroying it.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 use crate::error::{RenderError, device};
+use crate::frame_clock::FrameClock;
 
 pub(crate) struct Gpu {
     /// Kept so platform windows can be attached as surfaces after the device exists.
@@ -18,6 +20,9 @@ pub(crate) struct Gpu {
     /// Whether ten bits were asked for, so a device opened again after a loss is alike.
     pub(crate) ten_bits: bool,
     pub(crate) health: Arc<Health>,
+    /// The screen's frames' GPU time while a benchmark measures it (S63, `frame_clock.rs`).
+    pub(crate) frames: Option<FrameClock>,
+    pub(crate) timing: AtomicBool,
 }
 
 /// Whether the device is lost, and why: set once, by wgpu's lost callback or by whoever finds it
@@ -113,6 +118,8 @@ impl Gpu {
             reported.lose(format!("{reason:?} {message}").trim_end().to_owned());
         });
         Ok(Self {
+            frames: FrameClock::new(&device, &queue),
+            timing: AtomicBool::new(false),
             instance,
             adapter,
             device,
@@ -124,12 +131,18 @@ impl Gpu {
     }
 
     /// Submits `commands`; the time the call takes counts as a wait of the calling thread (S56,
-    /// `profile.rs`): wgpu's submit blocks while another thread holds the device's lock.
+    /// `profile.rs`): wgpu's submit blocks while another thread holds the device's lock. While
+    /// frames are timed (S63), a frame's first submission on its thread writes its start first.
     pub(crate) fn submit<I: IntoIterator<Item = wgpu::CommandBuffer>>(
         &self,
         commands: I,
     ) -> wgpu::SubmissionIndex {
-        crate::profile::waited("submit", || self.queue.submit(commands))
+        let start = (self.frames.as_ref())
+            .filter(|_| self.timing.load(Ordering::Relaxed))
+            .and_then(|clock| clock.start(&self.device));
+        crate::profile::waited("submit", || {
+            self.queue.submit(start.into_iter().chain(commands))
+        })
     }
 
     /// Adapter name and backend, for logs and harness output.

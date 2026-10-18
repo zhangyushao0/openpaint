@@ -1,5 +1,5 @@
 //! `Snapshot`: a layer's pixels at float precision, kept per 16-pixel tile of the canvas (S35's
-//! adjustment previews, S48's in-progress stroke). One storage buffer holds a table with an
+//! adjustment previews; S48 to S62 the in-progress stroke's too). One storage buffer holds a table with an
 //! element per canvas tile (the slot holding it in its first float: exact below 2^24), then the
 //! slots,
 //! one tile's 256 premultiplied, unrounded colours each, in the order the tiles were taken. An
@@ -71,25 +71,9 @@ impl Snapshot {
         self.buffer.size()
     }
 
-    /// The canvas's tiles.
-    pub(crate) fn count(&self) -> usize {
-        self.slots.len()
-    }
-
     /// The canvas tile holding `pixel` (row major).
     pub(crate) fn tile_of(&self, [x, y]: [u32; 2]) -> usize {
         (y / TILE) as usize * self.columns as usize + (x / TILE) as usize
-    }
-
-    /// The top-left pixel of canvas tile `tile` (row major).
-    pub(crate) fn origin_of(&self, tile: usize) -> [u32; 2] {
-        let columns = self.columns as usize;
-        [tile % columns, tile / columns].map(|at| at as u32 * TILE)
-    }
-
-    /// Whether canvas tile `tile` (row major) is held.
-    pub(crate) fn holds(&self, tile: usize) -> bool {
-        self.slots.get(tile).is_some_and(|slot| *slot > 0)
     }
 
     /// Slots for the canvas tiles `tiles` (row major, none held yet), the buffer grown as needed
@@ -132,12 +116,6 @@ impl Snapshot {
         true
     }
 
-    /// Holds no tile any more; the buffer stays for the tiles taken next.
-    pub(crate) fn clear(&mut self) {
-        self.slots.fill(0);
-        self.used = 0;
-    }
-
     /// A buffer of `capacity` slots holding what this one held.
     fn grow(&mut self, core: &Core, capacity: u32) {
         let grown = buffer(core, self.head, capacity);
@@ -146,12 +124,6 @@ impl Snapshot {
         core.gpu.submit([encoder.finish()]);
         self.buffer = grown;
         self.capacity = capacity;
-    }
-
-    /// Its table and slots as bytes, waiting for the GPU (tests).
-    #[cfg(test)]
-    pub(crate) fn read(&self, core: &Core) -> Vec<u8> {
-        crate::readback::read_buffer(&core.gpu, &self.buffer, self.buffer.size()).expect("read")
     }
 
     /// The snapshot as a dispatch binds it, written (`writes`) or read.

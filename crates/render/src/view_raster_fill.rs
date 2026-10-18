@@ -22,7 +22,7 @@ use crate::view_atlas::Tier;
 use crate::view_background::next_missing;
 use crate::view_needed::Needed;
 use crate::view_raster::{Issued, RasterTier, residuals_near};
-use crate::view_raster_jobs::{RasterDone, RasterJob, RasterOrder};
+use crate::view_raster_jobs::{JobInto, RasterDone, RasterJob, RasterOrder};
 use crate::view_tier::{ViewCache, ViewFrame, ViewWork};
 use crate::view_tiles::{TIER_TILE, TileMap};
 
@@ -75,9 +75,11 @@ pub(crate) fn fill_raster(
             output: Output::at(scale, rect.min.map(|at| at.max(0) as u32))?,
             size,
             paper: paper(request),
-            into: tier.atlas_view().clone(),
-            format: tier.atlas().format(),
-            at: tier.map.slot_origin(slot),
+            into: JobInto::Tile {
+                view: tier.atlas_view().clone(),
+                format: tier.atlas().format(),
+                at: tier.map.slot_origin(slot),
+            },
         };
         canvas.raster.orders.push(RasterOrder::Draw(Box::new(job)));
         let grown = tier.grown;
@@ -144,11 +146,16 @@ fn next_tile(
         .find(|tile| tier.is_ready(*tile) && tier.is_evaluated(*tile) && !drawing.contains(tile)))
 }
 
+/// Bytes of an atlas made ahead (S60).
+pub(crate) fn spare_bytes(atlas: &wgpu::Texture) -> u64 {
+    u64::from(atlas.width()) * u64::from(atlas.height()) * 4
+}
+
 impl ViewCache {
     /// The raster worker made an atlas ahead: kept for the next new tier, within the room the GPU
     /// memory budget leaves the tiers now.
     pub fn answer_atlas(&mut self, atlas: wgpu::Texture) {
-        let bytes = u64::from(atlas.width()) * u64::from(atlas.height()) * 4;
+        let bytes = spare_bytes(&atlas);
         if self.bytes() + bytes <= self.room {
             self.spare = Some(atlas);
         }
@@ -199,7 +206,11 @@ impl ViewCache {
     ) {
         let shown = self.current.as_ref().map(Tier::scale);
         let mut filled = 0;
-        let answers = std::mem::take(&mut canvas.raster.answers);
+        let mut answers = std::mem::take(&mut canvas.raster.answers);
+        // S63: a snapshot of the tier shown's taken ahead.
+        if let Some(current) = self.current.as_mut() {
+            answers.retain(|done| !current.drawing.answer(done));
+        }
         for (issued, drawn) in self.raster.answered(answers) {
             let mut tiers = (self.current.iter_mut())
                 .chain(self.previous.iter_mut())

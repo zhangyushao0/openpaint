@@ -53,9 +53,9 @@ fn a_raster_tier_tile_is_the_raster_export_at_its_scale_bit_for_bit() {
     tiles_are_the_export(&core(), &every_raster_source());
 }
 
-/// A stroke drawn at 8x over a scene the raster core draws: while drawn, the evaluator updates
-/// the tiles it reaches (within a level of the raster core's export of the stroke so far away
-/// from edges); once committed and filled in, every tile is the raster core's export bit for bit.
+/// A stroke drawn at 8x over a scene the raster core draws: while drawn, the raster core draws the
+/// tiles it reaches (S63), each the export of the stroke so far bit for bit; the lift's frame
+/// leaves every tile the committed export, none drawn again.
 #[test]
 fn a_stroke_drawn_while_zoomed_over_the_raster_core_ends_as_its_export() {
     let core = core();
@@ -78,16 +78,15 @@ fn a_stroke_drawn_while_zoomed_over_the_raster_core_ends_as_its_export() {
             &with_stroke(&base, (style.clone(), drawn.clone())),
             8,
         );
-        screen.assert_tiles_near(&core, &so_far);
+        screen.assert_tiles(&core, &so_far, 8);
     }
     let committed = session.finish().artwork;
-    let mut redrawn = screen.frame(&core, (&committed, None), &[], &view).filled;
-    redrawn.extend(screen.settle(&core, &committed, &view));
-    assert!(
-        !redrawn.is_empty(),
-        "the tiles the evaluator drew are drawn again"
-    );
+    screen.frame(&core, (&committed, None), &[], &view);
     screen.assert_tiles(&core, &whole(&core, &committed, 8), 8);
+    assert!(
+        screen.settle(&core, &committed, &view).is_empty(),
+        "nothing is drawn again"
+    );
 }
 
 /// A stroke, a fill, then its square moved by a record (`moved`) or cut, then back to `first`.

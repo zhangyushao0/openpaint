@@ -18,7 +18,7 @@ use crate::geom::PixelRect;
 use crate::output::Output;
 use crate::raster::SceneBuffers;
 use crate::smudge::around_output;
-use crate::view_raster_jobs::{RasterJob, RasterOrder};
+use crate::view_raster_jobs::{JobInto, RasterJob, RasterOrder};
 use crate::view_tiles::TIER_TILE;
 
 impl CanvasTarget {
@@ -53,9 +53,11 @@ impl CanvasTarget {
                 output: Output::at(1, tile.min.map(i32::unsigned_abs))?,
                 size,
                 paper: paper(request),
-                into,
-                format,
-                at: [slot * TIER_TILE, 0],
+                into: JobInto::Tile {
+                    view: into,
+                    format,
+                    at: [slot * TIER_TILE, 0],
+                },
             };
             self.raster.orders.push(RasterOrder::Draw(Box::new(job)));
             self.raster.handed.push(Handed {

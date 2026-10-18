@@ -3,7 +3,7 @@
 //! a lasso, under Alpha Lock, on a grey mask) is drawn by the raster core with the smudge engine's
 //! residuals: its export within one 8-bit level of the evaluator's image away from edges at 1x to
 //! 8x, the same every time and in bands as in one piece; its view tiers its export bit for bit,
-//! after changes as drawn cold, after a smudge drawn at a tier (the evaluator's while drawn), and
+//! after changes as drawn cold, after a smudge drawn at a tier (S63: the raster core's while drawn), and
 //! when the canvas's arena moved before the worker drew the tiles handed to it.
 
 use openpaint_core::{
@@ -170,8 +170,8 @@ fn changes_over_smudges_draw_again_exactly_the_tiles_they_reach() {
     changes_reach_their_tiles(&first, &[smudged.clone(), over, smudged, first.clone()]);
 }
 
-/// A smudge drawn at 8x: the evaluator's while drawn, its tiles drawn again by the raster core
-/// after the lift, every tile then the committed export bit for bit.
+/// A smudge drawn at 8x (S63: by the raster core at the tier too): the tiles it reaches follow it,
+/// and the lift's frame leaves every tile the committed export bit for bit, none drawn again.
 #[test]
 fn a_smudge_drawn_while_zoomed_ends_as_its_export() {
     let core = core();
@@ -189,13 +189,13 @@ fn a_smudge_drawn_while_zoomed_ends_as_its_export() {
     }
     assert!(evaluated > 0, "the tiles it reaches follow it");
     let committed = session.finish().artwork;
-    let mut redrawn = screen.frame(&core, (&committed, None), &[], &view).filled;
-    redrawn.extend(screen.settle(&core, &committed, &view));
-    assert!(
-        !redrawn.is_empty(),
-        "the tiles the evaluator drew are drawn again"
-    );
+    let lift = screen.frame(&core, (&committed, None), &[], &view);
     screen.assert_tiles(&core, &whole(&core, &committed, 8), 8);
+    assert!(lift.dropped.is_empty(), "{lift:?}");
+    assert!(
+        screen.settle(&core, &committed, &view).is_empty(),
+        "nothing is drawn again"
+    );
 }
 
 /// D88: the tiles handed to the raster worker draw the residuals they were handed with, though the

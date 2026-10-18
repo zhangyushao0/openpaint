@@ -49,6 +49,7 @@ impl Runtime {
             let frame = screen_frame(self.screen.canvas(), &self.shell, ui);
             self.core.render_screen(painter, target, frame)?;
         }
+        self.core.frame_ended();
         Ok(repaint)
     }
 
@@ -151,8 +152,8 @@ impl Runtime {
 
     /// The evaluator's image of what the open canvas shows (the artwork shown on the paper, at
     /// 1x), for harness `canvas-check` (S62: the raster core draws the canvas; S65 deletes the
-    /// evaluator); `None` without a canvas or while a stroke is drawn (its pixels the evaluator's
-    /// anyway, S63).
+    /// evaluator); `None` without a canvas or while a stroke is drawn (the evaluator's image has
+    /// no stroke in progress).
     ///
     /// # Errors
     /// As the evaluator.

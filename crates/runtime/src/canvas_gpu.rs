@@ -98,10 +98,15 @@ impl Canvas {
     }
 
     /// Shown complete from its display cache, its smudge residuals are still being evaluated
-    /// (S54), or the snapshot under the pen still lacks strokes committed since (S56): frames
-    /// are wanted until neither is so.
+    /// (S54): frames are wanted until they are.
     pub(crate) fn warming(&self) -> bool {
-        self.target.warming() || self.target.catching_up()
+        self.target.warming()
+    }
+
+    /// The snapshots under the next stroke are being taken ahead (S63): frames are wanted until
+    /// they are.
+    pub(crate) fn taking_ahead(&self) -> bool {
+        self.target.taking_ahead() || self.view.taking_ahead()
     }
 
     /// A stroke is being drawn (the pen is on the glass).
@@ -208,10 +213,13 @@ impl Canvas {
 
     /// What its derived caches hold on the GPU (pictures are the runtime's: 0).
     pub(crate) fn bytes(&self) -> CacheBytes {
+        let held = self.target.bytes();
         CacheBytes {
             tiers: self.view.bytes(),
             raster: self.target.raster_held().map_or(0, |(bytes, _)| bytes),
-            ..self.target.bytes()
+            // S63: the stroke's drawings, the canvas's and the tier shown's.
+            snapshots: held.snapshots + self.view.drawing_bytes(),
+            ..held
         }
     }
 
@@ -229,7 +237,9 @@ impl Canvas {
             match unit {
                 Unit::Tier(scale) => freed[0] += self.view.let_go(*scale),
                 Unit::Raster => freed[0] += self.target.let_go_raster(),
-                Unit::Snapshots => freed[1] += self.target.set_snapshot_room(0),
+                Unit::Snapshots => {
+                    freed[1] += self.target.set_snapshot_room(0) + self.view.let_go_drawing();
+                }
                 Unit::Arena => freed[2] += self.target.shrink_arena(core)?,
                 Unit::Pictures => {}
             }
@@ -243,8 +253,8 @@ impl Canvas {
     /// Lets the view tiers, the snapshots and the arena's blocks no scene shows go at once (the
     /// app no longer shows, S58); each is made again when needed.
     pub(crate) fn release(&mut self, core: &Core) -> Result<Freed, RuntimeError> {
+        let snapshots = self.target.set_snapshot_room(0) + self.view.let_go_drawing();
         let tiers = self.view.release() + self.target.let_go_raster();
-        let snapshots = self.target.set_snapshot_room(0);
         let arena = self.target.shrink_arena(core)?;
         Ok([tiers, snapshots, arena, 0])
     }

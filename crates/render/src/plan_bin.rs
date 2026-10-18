@@ -51,9 +51,6 @@ pub(super) struct Binner<'a> {
     view: Option<Affine>,
     /// Items `[start, end)` whose entries give way to fresh op 0 at `end` (`Plan::resuming`).
     pub(super) resume: Option<[u32; 2]>,
-    /// Items `[start, end)` never binned, the entry given instead in every tile at `start`
-    /// (`Plan::over_snapshot`).
-    pub(super) skip: Option<([u32; 2], u32)>,
 }
 
 impl<'a> Binner<'a> {
@@ -77,24 +74,7 @@ impl<'a> Binner<'a> {
             tile_frames: vec![None; slots],
             view,
             resume: None,
-            skip: None,
         }
-    }
-
-    /// Whether item `index` is one `skip` names; at the first, every tile lists its entry.
-    fn skipped(&mut self, index: u32) -> bool {
-        let Some(([start, end], entry)) = self.skip else {
-            return false;
-        };
-        if index == start {
-            // What the items would have left: the layer reached the tile, with content.
-            for slot in 0..self.lists.len() {
-                self.enter(slot);
-                self.lists[slot].push(entry);
-                self.filled.touch(slot);
-            }
-        }
-        (start..end).contains(&index)
     }
 
     /// At the end of the items `resume` names: where they listed anything, their entries
@@ -126,9 +106,6 @@ impl<'a> Binner<'a> {
                 .unwrap_or(u32::MAX)
                 .saturating_add(first);
             self.resume_at(index);
-            if self.skipped(index) {
-                continue;
-            }
             match item {
                 Item::Segment { bounds, .. } => {
                     for slot in self.slots(*bounds) {

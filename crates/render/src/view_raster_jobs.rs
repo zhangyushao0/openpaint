@@ -18,8 +18,8 @@ use crate::core::Core;
 use crate::error::RenderError;
 use crate::evaluator::CanvasTarget;
 use crate::output::Output;
-use crate::raster::{ATLAS, Finish, RasterTargets, SceneBuffers};
-use crate::raster_plan::RasterPlan;
+use crate::raster::{ATLAS, Finish, Pages, RasterTargets, Region, SceneBuffers, Target};
+use crate::raster_plan::{Pass, RasterPlan, Restored, SlotCopy};
 use crate::scene::Scene;
 use crate::view_tiles::TIER_TILE;
 
@@ -29,8 +29,7 @@ const LOOK: Duration = Duration::from_millis(1);
 const PATIENCE: u32 = 16;
 
 /// One tile for the raster worker: the region of the scene's output at a scale (its buffers with
-/// its smudges' residuals as the arena held them when it was handed over, S61) and where it goes:
-/// a view tier's atlas, or (S62) a slot of the canvas's staging texture.
+/// its smudges' residuals as the arena held them when it was handed over, S61) and where it goes.
 pub struct RasterJob {
     pub(crate) id: u64,
     pub(crate) scene: Arc<Scene>,
@@ -38,9 +37,51 @@ pub struct RasterJob {
     pub(crate) output: Output,
     pub(crate) size: [u32; 2],
     pub(crate) paper: [f32; 4],
-    pub(crate) into: wgpu::TextureView,
-    pub(crate) format: wgpu::TextureFormat,
-    pub(crate) at: [u32; 2],
+    pub(crate) into: JobInto,
+}
+
+/// Where a job's region goes: a view tier's atlas, or (S62) a slot of the canvas's staging
+/// texture (a destination's view, its format, the pixel its top-left goes to); or (S63) a
+/// snapshot of what lies under the next stroke.
+pub(crate) enum JobInto {
+    Tile {
+        view: wgpu::TextureView,
+        format: wgpu::TextureFormat,
+        at: [u32; 2],
+    },
+    Snapshot(Box<SnapshotJob>),
+}
+
+/// A snapshot of the units before unit `to` (its targets as `restored` names them) kept into
+/// slots of `pages`: from the paper, or laying the units since `from`'s onto its snapshot (its
+/// slots restored first).
+pub(crate) struct SnapshotJob {
+    pub(crate) from: Option<(usize, Vec<SlotCopy>)>,
+    pub(crate) to: usize,
+    pub(crate) restored: Restored,
+    pub(crate) keep: Vec<SlotCopy>,
+    pub(crate) pages: Vec<Target>,
+}
+
+impl RasterJob {
+    /// The plan of its region with `atlas`.
+    fn plan(&self, atlas: [u32; 2]) -> Result<RasterPlan, RenderError> {
+        let raster = (self.scene.rastered())
+            .ok_or(RenderError::Invalid("the scene goes to the evaluator"))?;
+        let scene = (&*self.scene, raster, self.buffers.bases());
+        let region = (self.output, self.size);
+        let JobInto::Snapshot(snapshot) = &self.into else {
+            return RasterPlan::build(scene, region, atlas);
+        };
+        let from = snapshot.from.as_ref().map(|(at, _)| *at);
+        let range = (from, snapshot.to, snapshot.restored);
+        let mut plan = RasterPlan::snapshot(scene, region, atlas, range)?;
+        if let Some((_, restore)) = &snapshot.from {
+            plan.passes.insert(0, Pass::Restore(restore.clone()));
+        }
+        plan.passes.push(Pass::Keep(snapshot.keep.clone()));
+        Ok(plan)
+    }
 }
 
 /// What the worker did with a job: drew it (submitted, its GPU time estimated at `time` ns by the
@@ -135,22 +176,35 @@ impl RasterDrawer {
         let Some(targets) = self.targets.as_mut() else {
             return Ok(self.answer(id, (false, 0.0)));
         };
-        let raster = (job.scene.rastered())
-            .ok_or(RenderError::Invalid("the scene goes to the evaluator"))?;
-        let scene = (&*job.scene, raster, job.buffers.bases());
-        let plan = RasterPlan::build(scene, (job.output, job.size), targets.atlas())?;
+        let plan = job.plan(targets.atlas())?;
         // The scene is not needed past the plan: a new one can take this one's spans (S56).
         drop(job.scene);
         let (time, stamps) = core.pace().raster_start(plan.counts.estimate(plan.size));
-        let finish = Finish {
-            view: &job.into,
-            format: job.format,
-            at: job.at,
-            only: &[],
+        let (finish, pages) = match &job.into {
+            JobInto::Tile { view, format, at } => {
+                let finish = Finish {
+                    view,
+                    format: *format,
+                    at: *at,
+                    only: &[],
+                };
+                (Some(finish), Pages::NONE)
+            }
+            JobInto::Snapshot(snapshot) => (
+                None,
+                Pages {
+                    snapshots: &snapshot.pages,
+                    coverage: &[],
+                },
+            ),
         };
-        let drawn = (&job.buffers, &plan);
-        let place = (job.output, job.paper);
-        let prepared = targets.prepare(core, drawn, place, &finish, stamps.as_ref());
+        let region = Region {
+            plan: &plan,
+            output: job.output,
+            paper: job.paper,
+            finish: finish.as_ref(),
+        };
+        let prepared = targets.prepare_all(core, &job.buffers, (&[region], pages), stamps.as_ref());
         let submitted = prepared.map(|(buffer, _)| submit(core, (buffer, time), ahead, &wanted));
         if let Some(stamps) = &stamps {
             let drawn = submitted.as_ref().is_ok_and(|drawn| *drawn);

@@ -136,10 +136,10 @@ fn a_canvas_filled_by_the_worker_and_changed_over_frames_ends_as_drawn_cold() {
     }
 }
 
-/// A stroke the evaluator draws (S63's) and a smudge (its residual's material the raster core's,
-/// in progress as cold) over the canvas the raster core drew: once lifted, the canvas as drawn cold.
+/// A stroke and a smudge drawn by the raster core (S63) over the canvas its worker drew: nothing
+/// waits while they are drawn or after their lift, whose frame leaves the canvas as drawn cold.
 #[test]
-fn a_stroke_the_evaluator_draws_is_drawn_again_once_lifted_and_the_canvas_ends_cold() {
+fn a_stroke_drawn_and_lifted_leaves_nothing_to_draw_again_and_the_canvas_cold() {
     let core = core();
     let (smudge, _) = diagonal();
     let smudge = smudge.with_tool(StrokeTool::Smudge);
@@ -161,9 +161,12 @@ fn a_stroke_the_evaluator_draws_is_drawn_again_once_lifted_and_the_canvas_ends_c
                 .evaluate_frame(&frame, &[])
                 .expect("frame");
         }
-        assert!(screen.target.pending(), "its pixels wait to be drawn again");
+        assert!(!screen.target.pending(), "nothing waits for the stroke");
         let lifted = session.finish().artwork;
-        screen.fill(&core, &lifted, &[]);
+        RegionEvaluator::new(&core, &mut screen.target)
+            .evaluate_frame(&request(&lifted), &[])
+            .expect("the lift");
+        assert!(!screen.target.pending(), "nothing is drawn again");
         assert!(screen.read(&core) == cold(&core, &lifted), "drawn cold");
     }
 }

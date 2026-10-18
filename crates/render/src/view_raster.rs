@@ -2,10 +2,10 @@
 //! to it (`raster_route.rs`), a missing tile is drawn whole in one region of 256 pixels a side
 //! into its slot, as background work, the screen's middle first; a change to ready tiles is drawn
 //! in place when it fits what is left of the frame, else the tiles wait to be drawn again. While a
-//! stroke is drawn the evaluator updates the tiles it reaches as before (the stroke in progress
-//! stays on the evaluator until S63); those tiles, and any the evaluator drew before the scene
-//! came to the raster core, are drawn again afterwards, shown meanwhile, so every tile of such a
-//! scene ends as the raster core draws it, and a tier equals the export at its scale bit for bit.
+//! stroke is drawn the tier's own drawing of it updates the tiles it reaches that the view shows
+//! (S63, `stroke_raster`); the tiles the evaluator drew before the scene came to the raster core
+//! are drawn again afterwards, shown meanwhile, so every tile of such a scene ends as the raster
+//! core draws it, and a tier equals the export at its scale bit for bit.
 //! S60 (D87): the background tiles are planned, encoded and submitted by the runtime's raster
 //! worker (`view_raster_jobs.rs`); this side hands them over (`view_raster_fill.rs`) and draws the
 //! changes in place with the frame loop's targets, which since S62 (D89) are the canvas's
@@ -16,7 +16,7 @@
 
 use crate::core::Core;
 use crate::error::RenderError;
-use crate::evaluator::{CanvasTarget, Planned, paper};
+use crate::evaluator::{CanvasTarget, Onto, Planned, TAKING, paper};
 use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
 use crate::output::Output;
@@ -25,7 +25,8 @@ use crate::scene::Scene;
 use crate::smudge::{Held, around_output};
 use crate::view_atlas::Tier;
 use crate::view_fill::{EDIT_PIXELS, touched};
-use crate::view_tier::ViewWork;
+use crate::view_needed::Needed;
+use crate::view_tier::{ViewCache, ViewWork};
 
 /// The view tiers' side of the raster worker: the tiles handed to it (S60).
 #[derive(Default)]
@@ -111,6 +112,103 @@ pub(crate) fn in_place_raster(
     }
     work.dropped = tiles;
     Ok(())
+}
+
+/// The stroke being drawn (or just lifted or dropped) at `tier` (S63, `drawing_frame.rs`): drawn
+/// by the tier's drawing into the tiles the view shows that are ready, at once; the tiles it
+/// reaches that are not, or that the view does not show (its ring), are not ready any more (drawn
+/// whole once no stroke is).
+///
+/// # Errors
+/// As the raster core.
+pub(crate) fn stroke_raster(
+    core: &Core,
+    (tier, needed): (&mut Tier, &Needed),
+    (canvas, request): (&mut CanvasTarget, &FrameRequest<'_>),
+    (work, now): (&mut ViewWork, f64),
+) -> Result<(), RenderError> {
+    let mut drawing = std::mem::take(&mut tier.drawing);
+    let moved = std::mem::take(&mut canvas.moved);
+    let done = {
+        let held = &*tier;
+        let place = |tile: [u32; 2]| {
+            let shown = needed.is_shown(tile) && held.is_ready(tile);
+            let slot = held.map.slot(tile).filter(|_| shown)?;
+            Some(held.map.slot_origin(slot))
+        };
+        let onto = Onto {
+            scale: held.scale(),
+            view: held.atlas_view(),
+            format: held.atlas().format(),
+            place: &place,
+            joined: false,
+        };
+        canvas.draw_stroke(core, request, &mut drawing, (&onto, &moved))
+    };
+    tier.drawing = drawing;
+    canvas.moved = moved;
+    let done = done?;
+    for tile in &done.skipped {
+        tier.set_ready(*tile, false);
+    }
+    canvas.raster.used_at = now;
+    work.updated = done.drawn;
+    work.updated.dedup();
+    work.dropped = done.skipped;
+    Ok(())
+}
+
+/// S63: once its shown tiles are ready (`ready`) and the canvas waits for nothing, the snapshots
+/// under the next stroke of `tier`'s shown tiles (`needed`) handed to the raster worker while
+/// nothing touches the screen (`drawing_ahead.rs`); whether any is being taken or waits to be
+/// (within the snapshots' room).
+///
+/// # Errors
+/// As the raster core.
+pub(crate) fn snapshots_ahead(
+    core: &Core,
+    (tier, needed): (&mut Tier, &Needed),
+    (canvas, request): (&mut CanvasTarget, &FrameRequest<'_>),
+    ready: bool,
+) -> Result<bool, RenderError> {
+    let drawing = &tier.drawing;
+    if !ready || canvas.pending() || drawing.base.is_none() || drawing.tracking() {
+        return Ok(false);
+    }
+    let others = canvas.bytes().snapshots;
+    let room = TAKING.saturating_sub(drawing.taking.len());
+    let wanted = drawing.wanted(needed.shown(), room);
+    let pending =
+        !drawing.taking.is_empty() || (!wanted.is_empty() && canvas.room_for(drawing, others));
+    if !core.pace().idle() {
+        return Ok(pending);
+    }
+    let mut drawing = std::mem::take(&mut tier.drawing);
+    let handed = canvas.made_ahead(core, &mut drawing).and_then(|()| {
+        canvas.hand_snapshots(core, request, &mut drawing, (tier.scale(), &wanted, others))
+    });
+    tier.drawing = drawing;
+    handed.map(|()| pending)
+}
+
+impl ViewCache {
+    /// The snapshots under the next stroke of the tier shown are being taken ahead or wait to be
+    /// (S63): frames are wanted until none is.
+    #[must_use]
+    pub const fn taking_ahead(&self) -> bool {
+        self.taking
+    }
+
+    /// Bytes the tier shown keeps for strokes (S63: its snapshots and coverage).
+    #[must_use]
+    pub fn drawing_bytes(&self) -> u64 {
+        self.current.as_ref().map_or(0, |tier| tier.drawing.bytes())
+    }
+
+    /// Lets the tier shown's slots for strokes go unless a stroke is drawn; their bytes.
+    pub fn let_go_drawing(&mut self) -> u64 {
+        (self.current.as_mut()).map_or(0, |tier| tier.drawing.let_go())
+    }
 }
 
 /// Draws `parts` of `tier`'s ready tiles (output pixels) anew, their smudges' residuals as `held`

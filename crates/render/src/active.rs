@@ -124,6 +124,11 @@ impl ActiveTrack {
         self.tracked = None;
     }
 
+    /// A stroke is tracked: one is drawn, or was until the last evaluation (S63).
+    pub(crate) const fn tracking(&self) -> bool {
+        self.tracked.is_some()
+    }
+
     fn record(
         &mut self,
         artwork: &Artwork,
