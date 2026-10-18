@@ -311,7 +311,8 @@ impl Scene {
         }
         self.frame = frame;
         let foot = view.to_canvas.scale();
-        let op = Op::frame(view.to_content.rows(), foot as f32, foot.log2() as f32);
+        let at = (foot as f32, foot.log2() as f32);
+        let op = Op::frame(view.to_content.rows(), at, view.to_canvas.rows());
         self.items.push(Item::Frame {
             op,
             to_canvas: view.to_canvas,

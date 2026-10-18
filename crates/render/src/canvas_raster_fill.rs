@@ -1,15 +1,11 @@
-//! The screen canvas drawn by the raster core (S62, DECISIONS D89; `canvas_raster.rs` holds what
-//! waits). A canvas evaluation routes by its scene (`Scene::routing`): a scene the raster core
-//! draws has its changes drawn by it, at once when small (`draw_now`), else as the worker's tiles
-//! (`canvas_raster_hand.rs`); the stroke being drawn and its lift by it too, at once where they
-//! change the canvas (S63, `drawing_frame.rs`). A scene of the other core than the last one draws
-//! every tile again, so the canvas is always wholly one core's (routed scenes' canvases are the
-//! evaluator's bit for bit, as before S62).
+//! The screen canvas drawn by the raster core (S62, DECISIONS D89; every scene since S65, D92;
+//! `canvas_raster.rs` holds what waits): its changes drawn at once when small (`draw_now`), else
+//! as the worker's tiles (`canvas_raster_hand.rs`); the stroke being drawn and its lift at once
+//! where they change the canvas (S63, `drawing_frame.rs`).
 
-use super::{CanvasTarget, EvaluationWork, RegionEvaluator};
+use super::{CanvasTarget, RegionEvaluator};
 use crate::core::Core;
 use crate::error::RenderError;
-use crate::filter::Filters;
 use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
 use crate::output::Output;
@@ -25,43 +21,25 @@ use crate::view_tiles::TIER_TILE;
 pub(crate) type Planned = (RasterPlan, Output, [u32; 2]);
 
 impl RegionEvaluator<'_> {
-    /// `request` into the canvas (`evaluate`, `evaluate_frame`): by the core its scene goes to.
+    /// `request` into the canvas (`evaluate`, `evaluate_frame`): the stroke being drawn (or just
+    /// lifted or dropped) drawn at once where it changed, by the raster core from its kept
+    /// coverage over its snapshots (S63, `drawing_frame.rs`), with the regions passed meanwhile
+    /// (its mirrored copies, a smudge started over); with none, the regions passed are drawn or
+    /// wait (`frame`: one of the screen's). Returns the canvas pixels drawn now.
     pub(super) fn drawn(
         &mut self,
         request: &FrameRequest<'_>,
         regions: &[PixelRect],
         frame: bool,
     ) -> Result<Vec<PixelRect>, RenderError> {
-        let place = ActivePlace::of_request(request.artwork, request.active);
-        let cache = self.target.scene(self.core, request.artwork, place)?;
-        let (rastered, drawn) = (cache.scene.rastered().is_some(), cache.scene.has_active());
-        self.target.route(self.core, rastered);
-        if rastered {
-            self.rastered(request, (regions, drawn), frame)
-        } else {
-            // The evaluator's scene: the snapshots under the next stroke go (S63).
-            let target = &mut *self.target;
-            let mut drawing = std::mem::take(&mut target.drawing);
-            target.follow(&mut drawing, request, (None, 1));
-            target.drawing = drawing;
-            self.dispatch(request, Output::CANVAS, (regions, frame))
-        }
-    }
-
-    /// `request` into the canvas of a scene the raster core draws: the stroke being drawn (or
-    /// just lifted or dropped) drawn at once where it changed, by the raster core from its kept
-    /// coverage over its snapshots (S63, `drawing_frame.rs`), with the regions passed meanwhile
-    /// (its mirrored copies, a smudge started over); with none, the regions passed are drawn or
-    /// wait. Returns the canvas pixels drawn now.
-    fn rastered(
-        &mut self,
-        request: &FrameRequest<'_>,
-        (regions, drawn): (&[PixelRect], bool),
-        frame: bool,
-    ) -> Result<Vec<PixelRect>, RenderError> {
         let core = self.core;
+        let place = ActivePlace::of_request(request.artwork, request.active);
+        let drawn = self
+            .target
+            .scene(core, request.artwork, place)?
+            .scene
+            .has_active();
         let target = &mut *self.target;
-        target.work = EvaluationWork::default();
         let stroke = request.active.is_some() && drawn;
         if target.blank {
             target.show_paper(core, request);
@@ -94,26 +72,6 @@ impl RegionEvaluator<'_> {
 }
 
 impl CanvasTarget {
-    /// The canvas is drawn by the raster core (`rastered`) or the evaluator from now on: when
-    /// that changes, every tile waits for the new one (what the canvas holds shows meanwhile), and
-    /// the smudges' residuals and filters' results are made again, as their materials are the
-    /// drawing core's.
-    pub(super) fn route(&mut self, core: &Core, rastered: bool) {
-        if self.drawn_by.is_some_and(|was| was != rastered) {
-            let whole = [PixelRect::full(self.size())];
-            if rastered {
-                self.waiting.take_all();
-                self.raster.waiting.add(&whole);
-            } else {
-                self.raster.forget();
-                self.waiting.add(&whole);
-            }
-            self.smudges = self.smudges.emptied(core);
-            self.filters = Filters::default();
-        }
-        self.drawn_by = Some(rastered);
-    }
-
     /// One frame of the screen with no stroke drawn: the worker's tiles applied, the changes
     /// drawn at once when they fit what is left of the frame, else waiting; the waiting tiles
     /// handed to the worker; residuals warm while nothing waits (S54). Returns the canvas pixels
@@ -205,18 +163,17 @@ impl CanvasTarget {
         Ok(Some(parts))
     }
 
-    /// The plans of the canvas pixels `parts` of the scene the last evaluation drew, its smudges'
-    /// residuals as `held` holds them, with an atlas of `atlas` pixels.
+    /// The plans of the canvas pixels `parts` of the scene the last draw drew, its smudges'
+    /// residuals and filters' results as `held` holds them, with an atlas of `atlas` pixels.
     fn plans(
         &self,
         parts: &[PixelRect],
         held: &Held,
         atlas: [u32; 2],
     ) -> Result<Vec<Planned>, RenderError> {
-        let missing = || RenderError::Invalid("the scene does not go to the raster core");
+        let missing = || RenderError::Invalid("no scene was built");
         let cache = self.scene.as_ref().ok_or_else(missing)?;
-        let raster = cache.scene.rastered().ok_or_else(missing)?;
-        let units = (&*cache.scene, raster, &held.bases[..]);
+        let units = (&*cache.scene, &held.bases);
         (parts.iter())
             .map(|part| {
                 let at = part.min.map(i32::unsigned_abs);
@@ -262,7 +219,7 @@ impl CanvasTarget {
                 only: &[],
             };
             targets.draw(core, (&buffers, plan), (*output, paper), &finish, None)?;
-            if self.bindings.paced {
+            if self.paced {
                 wait(&core.gpu, "a worker's raster region")?;
             }
         }

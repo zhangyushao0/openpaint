@@ -119,19 +119,16 @@ pub(crate) enum Opcode {
     EndMove = 13,
     /// The current layer becomes a filter's result, inside its clip (`protocol_adjust.rs`).
     Filter = 14,
-    /// A span of the in-progress stroke's end that later samples may still change: added to a
-    /// copy of the coverage, which `EndActive` paints but never keeps.
+    /// A span of the in-progress stroke's end that later samples may still change (the raster
+    /// core's drawing lays it, never keeps it; `OP_RESUME`, 16, went in S65).
     Tail = 15,
-    /// The current layer becomes its pixels before a previewed adjustment, as one evaluation
-    /// kept them at float precision (S35, `preview.rs`): exactly what the ops before it give.
-    Resume = 16,
     /// A merged layer's content (S39, a nested record) ends: its mask, then its opacity, then by
     /// its mode over (or atop) what its layer held before it, which was set aside at its start.
     EndNested = 17,
 }
 
 impl Opcode {
-    const ALL: [Self; 18] = [
+    const ALL: [Self; 17] = [
         Self::Segment,
         Self::EndStroke,
         Self::EndLayer,
@@ -148,7 +145,6 @@ impl Opcode {
         Self::EndMove,
         Self::Filter,
         Self::Tail,
-        Self::Resume,
         Self::EndNested,
     ];
 
@@ -170,7 +166,6 @@ impl Opcode {
             Self::EndMove => "OP_END_MOVE",
             Self::Filter => "OP_FILTER",
             Self::Tail => "OP_TAIL",
-            Self::Resume => "OP_RESUME",
             Self::EndNested => "OP_END_NESTED",
         }
     }
@@ -332,11 +327,6 @@ impl Op {
         data[SMUDGE_ACTIVE] = f32::from(u8::from(at.is_none()));
         data[PAINT_CLIP..PAINT_CLIP + 2].copy_from_slice(&halves(clip));
         Self::new(Opcode::Smudge, &data)
-    }
-
-    /// The layer so far from the evaluation's kept snapshot (`Params::snapshot`).
-    pub(crate) fn resume() -> Self {
-        Self::new(Opcode::Resume, &[])
     }
 
     /// An op no plan refers to; it keeps a scene's item and op indices equal.

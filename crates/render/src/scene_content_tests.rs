@@ -15,7 +15,7 @@ use crate::geom::PixelRect;
 use crate::output::Output;
 use crate::plan::Plan;
 use crate::protocol::MOVE_DEPTH;
-use crate::scene::{Fresh, Item, Scene};
+use crate::scene::{Item, Scene};
 
 fn sample(x: f32, y: f32, time_ms: u32) -> StrokeSample {
     let position = CanvasPoint::new(x, y).expect("point");
@@ -67,12 +67,7 @@ fn rectangle(x: f32, y: f32, w: f32, h: f32) -> Option<RegionMask> {
 fn plan(artwork: &Artwork) -> Plan {
     let scene = Scene::build(artwork, None).expect("scene");
     let whole = [PixelRect::full([200, 160])];
-    Plan::build(
-        &scene,
-        &Fresh::default(),
-        ([200, 160], Output::CANVAS),
-        &whole,
-    )
+    Plan::build(&scene, ([200, 160], Output::CANVAS), &whole)
 }
 
 #[test]

@@ -1,17 +1,95 @@
 //! Where a stroke lies in a raster region (S57's probe, product code since S59; `raster_plan.rs`):
 //! its spans reaching the region, the composite tiles they meet and their box in whole tiles,
 //! which becomes its region of the atlas, placed shelf by shelf, and each span's instances there.
+//! S65: a unit inside a transform record's content lies in its frame's pixels (`Placing`).
 
 use std::ops::Range;
 
-use crate::geom::PixelRect;
+use crate::affine::Affine;
+use crate::geom::{Bounds, PixelRect};
 use crate::output::Output;
 use crate::protocol::Op;
 use crate::raster_plan::{Coverage, Instance, RasterPlan};
 use crate::scene::Scene;
+use crate::scene_cleared::intersect;
 
 /// Side of a composite tile in region pixels (`RASTER_TILE` in raster.wgsl).
 pub(crate) const TILE: u32 = 32;
+
+/// No pixels.
+const NONE: PixelRect = PixelRect {
+    min: [0, 0],
+    max: [0, 0],
+};
+
+/// Where the units laid now lie in a region (S65): bounds in the pixels of the frame they lie in,
+/// cut to its clip, mapped onto the canvas and, for a material seen from a transform record, into
+/// the material's pixels, placed at the region's output; the output pixels per content pixel a
+/// span is flattened at there; the frame a draw names (its item plus one, 0 on the canvas).
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Placing {
+    pub(crate) output: Output,
+    pub(crate) size: [u32; 2],
+    /// Canvas pixels into the plan's (a material's base map back; `None`: the same).
+    pub(crate) unbase: Option<Affine>,
+    /// Content pixels into the plan's (`None`: the same).
+    pub(crate) map: Option<Affine>,
+    pub(crate) clip: Option<Bounds>,
+    pub(crate) foot_scale: f32,
+    pub(crate) frame: u32,
+}
+
+impl Placing {
+    /// Units on the canvas of a region of `size` pixels at `output`.
+    pub(crate) fn new(output: Output, size: [u32; 2]) -> Self {
+        Self {
+            output,
+            size,
+            unbase: None,
+            map: None,
+            clip: None,
+            foot_scale: output.scale as f32,
+            frame: 0,
+        }
+    }
+
+    /// The region's pixels content `bounds` can reach.
+    pub(crate) fn reach(&self, bounds: &Bounds) -> PixelRect {
+        if bounds.is_empty() {
+            return NONE;
+        }
+        let bounds = match self.clip {
+            Some(clip) => match intersect(*bounds, clip) {
+                Some(cut) => cut,
+                None => return NONE,
+            },
+            None => *bounds,
+        };
+        let rect = self.map.map_or(bounds, |map| map.bounds(bounds)).pixels();
+        self.placed(&rect)
+    }
+
+    /// The region's pixels the canvas pixels `rect` reach.
+    pub(crate) fn reach_canvas(&self, rect: &PixelRect) -> PixelRect {
+        if rect.is_empty() {
+            return NONE;
+        }
+        let rect = match self.unbase {
+            Some(unbase) => {
+                let [x0, y0] = rect.min.map(|v| v as f32);
+                let [x1, y1] = rect.max.map(|v| v as f32);
+                unbase.bounds(Bounds([x0, y0, x1, y1])).pixels()
+            }
+            None => *rect,
+        };
+        self.placed(&rect)
+    }
+
+    fn placed(&self, rect: &PixelRect) -> PixelRect {
+        let region = PixelRect::full(self.size);
+        self.output.place(rect).intersect(&region)
+    }
+}
 
 /// A stroke as it reaches a region: its spans that do, its tiles, its box (whole tiles).
 pub(crate) struct Laid {
@@ -30,15 +108,15 @@ impl Laid {
     }
 }
 
-/// How the stroke of span items `spans` and paint op item `paint` reaches a region of `size` at
-/// `output`: `None` when it does not.
+/// How the stroke of span items `spans` and paint op item `paint` reaches a region `placing`
+/// places it in: `None` when it does not.
 pub(crate) fn lay(
     scene: &Scene,
     (spans, paint): (Range<usize>, usize),
-    (output, size): (Output, [u32; 2]),
+    placing: &Placing,
     marks: &mut Marks,
 ) -> Option<Laid> {
-    let region = PixelRect::full(size);
+    let region = PixelRect::full(placing.size);
     marks.next();
     let mut reaching = Vec::new();
     let mut tiles = Vec::new();
@@ -50,7 +128,7 @@ pub(crate) fn lay(
         else {
             continue;
         };
-        let reached = output.place(&bounds.pixels()).intersect(&region);
+        let reached = placing.reach(&bounds);
         if reached.is_empty() {
             continue;
         }
@@ -118,15 +196,17 @@ impl Marks {
 }
 
 /// The instances of span `op` (item `index`) laid at `place` in the atlas: a stamp each, or a
-/// piece each at `scale`.
+/// piece each at `foot_scale` output pixels per pixel of the span's, in frame `frame` (0: on the
+/// canvas).
 pub(crate) fn laid_span(
     plan: &mut RasterPlan,
     (op, index): (Op, usize),
     place: [i32; 2],
-    scale: f32,
+    (foot_scale, frame): (f32, u32),
 ) {
     let [x, y] = place;
-    let b = [x, y, 0, 0];
+    let b = [x, y, frame.cast_signed(), 0];
+    let scale = foot_scale;
     let index = index as u32;
     if op.is_stamped() {
         if let Some((first, last)) = op.stamp_indices() {

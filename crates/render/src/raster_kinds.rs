@@ -34,10 +34,11 @@ pub(crate) struct CoverageDraw {
     pub(crate) instances: Range<u32>,
 }
 
-/// How a layer's (or a chain's) end lays it onto what lies under it (`raster_states.rs`).
+/// How a layer's (or a chain's, or a merged layer's) end lays it onto what lies under it
+/// (`raster_states.rs`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum EndBlend {
-    /// Onto the opaque canvas: Normal (over), Multiply, Screen.
+    /// Onto the opaque canvas: Normal (over), Multiply, Screen; over is Normal onto a level too.
     Over,
     Multiply,
     ScreenCanvas,
@@ -46,8 +47,12 @@ pub(crate) enum EndBlend {
     ScreenChain,
     /// A chain's base: the chain becomes the layer as its mask shows it.
     Base,
-    /// Overlay, onto a copy of what lies under it (written whole, unblended).
-    Overlay,
+    /// By its mode onto a copy of what lies under it (written whole, unblended): Overlay, and
+    /// (S65) Multiply and Screen onto a level, which is not opaque.
+    Backdrop,
+    /// A group's end (S65): the canvas faded by its opacity over the copy of what lay under the
+    /// group, from a copy of the canvas (written whole).
+    Group,
 }
 
 /// What a draw onto a scratch target does (its pipeline).
@@ -59,6 +64,13 @@ pub(crate) enum DrawKind {
     Patch,
     /// A smudge from the copy of what it applies to (S61).
     Smudge,
+    /// S65: a point adjustment and a filter from the copy of what they apply to; a moved
+    /// content cut to its selection laid over the level under it; a whole layer's moved content
+    /// cut to the canvas, in place.
+    Adjust,
+    Filter,
+    Moved,
+    Cut,
     End(EndBlend),
 }
 
@@ -69,14 +81,37 @@ pub(crate) struct Draw {
 }
 
 /// The raster core's scratch targets (`raster.rs`), float pixels of the region.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Scratch {
-    Canvas = 0,
-    Chain = 1,
-    Layer = 2,
-    Mask = 3,
-    /// What lies under an Overlay end, copied.
-    Backdrop = 4,
+    Canvas,
+    Chain,
+    Layer,
+    Mask,
+    /// What an end written whole, a smudge, an adjustment or a filter reads, copied.
+    Backdrop,
+    /// What lay under the group being composited (S65), copied at its first layer's end.
+    Group,
+    /// A moved selection's or a merged layer's content `n` levels above the layer's paint (S65),
+    /// from 1 to `MOVE_DEPTH`.
+    Level(u8),
+}
+
+/// Scratch targets a region may use: the six, then a level per move the evaluator stacks.
+pub(crate) const SCRATCH: usize = 6 + crate::protocol::MOVE_DEPTH as usize;
+
+impl Scratch {
+    /// Where it lies among `SCRATCH`.
+    pub(crate) const fn index(self) -> usize {
+        match self {
+            Self::Canvas => 0,
+            Self::Chain => 1,
+            Self::Layer => 2,
+            Self::Mask => 3,
+            Self::Backdrop => 4,
+            Self::Group => 5,
+            Self::Level(n) => 5 + n as usize,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -91,17 +126,21 @@ pub(crate) enum Pass {
     },
     /// The canvas cleared to the paper, or a target to nothing.
     Clear(Scratch),
-    /// A target copied into the backdrop.
-    Copy(Scratch),
-    /// A smudge on the layer or its mask (`target`): the pixels `rect` (x, y, width, height)
-    /// copied into the backdrop, then its draw over them from that copy (S61).
-    Smudge {
+    /// A target copied whole into another (the backdrop, or S65 the group's).
+    Copy {
+        from: Scratch,
+        to: Scratch,
+    },
+    /// A smudge (S61), an adjustment or a filter (S65) on the layer, a level or the mask
+    /// (`target`): the pixels `rect` (x, y, width, height) copied into the backdrop, then its draw
+    /// over them from that copy.
+    Rewrite {
         target: Scratch,
         rect: [u32; 4],
         draw: Draw,
     },
-    /// A layer's end onto `target`, reading `reads` (the layer's paint, or the chain), the mask
-    /// and the backdrop.
+    /// A layer's end onto `target`, reading `reads` (the layer's paint, the chain, a level, the
+    /// group's backdrop), the mask and the backdrop.
     End {
         target: Scratch,
         reads: Scratch,
@@ -175,6 +214,10 @@ pub struct RasterCounts {
     /// Smudges, and the pixels each copies and draws, summed (S61).
     pub smudges: usize,
     pub smudge_pixels: u64,
+    /// Adjustments, filters, moves' and merged layers' ends and groups' ends (S65), and the
+    /// pixels they copy and draw, summed.
+    pub records: usize,
+    pub record_pixels: u64,
 }
 
 impl RasterCounts {
@@ -191,6 +234,9 @@ impl RasterCounts {
         const EDIT: f64 = 6.0;
         const END: f64 = 1.5;
         const SMUDGE: f64 = 4.0;
+        // A copy and a pass over each pixel, a point operation or a bilinear read (S65's guess,
+        // corrected by the readings like the rest).
+        const RECORD: f64 = 2.0;
         let region = f64::from(width) * f64::from(height);
         let tile = 32.0 * 32.0;
         self.passes as f64 * PASS
@@ -200,5 +246,6 @@ impl RasterCounts {
             + self.edit_pixels as f64 * EDIT
             + (self.ends + 1) as f64 * region * END
             + self.smudge_pixels as f64 * SMUDGE
+            + self.record_pixels as f64 * RECORD
     }
 }

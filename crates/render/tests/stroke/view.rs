@@ -47,7 +47,7 @@ fn a_tier_made_before_the_screen_rested_wants_no_atlas_ahead() {
     assert!(!screen.view.wants_spare(), "the tier came first");
 }
 
-/// S59: the raster core draws the tiers of a scene without the routed kinds, as it exports it.
+/// S59: the raster core draws the tiers of every raster source, as it exports it.
 #[test]
 fn a_raster_tier_tile_is_the_raster_export_at_its_scale_bit_for_bit() {
     tiles_are_the_export(&core(), &every_raster_source());

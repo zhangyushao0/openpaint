@@ -27,28 +27,19 @@ pub(crate) struct Params {
     pub(crate) row: u32,
     /// Target size in pixels.
     pub(crate) size: [u32; 2],
-    /// 1 when the target keeps the in-progress stroke's coverage between evaluations (the
-    /// canvas); 0 when every evaluation lists all of its segments (a view tier, S32).
-    pub(crate) kept: u32,
     /// The base-2 log of `scale`.
     pub(crate) level: f32,
     /// Output pixels per canvas pixel (a power of two) and its inverse: an output pixel's
     /// centre `(p + 0.5) x inverse` in canvas pixels.
     pub(crate) scale: f32,
     pub(crate) inverse: f32,
+    /// Padding: `base_x` starts a vector.
+    pub(crate) unused: f32,
     /// Where those centres lie on the canvas (S31; the identity but for a smudge's material
     /// seen from a transform record): `x = a cx + b cy + c` with `[a, b, c, foot]`, `y` from
     /// `[d, e, f, level]`; `foot` one over canvas pixels per centre pixel, `level` its log.
     pub(crate) base_x: [f32; 4],
     pub(crate) base_y: [f32; 4],
-    /// The kept snapshot of a layer (S35's previews, S48's in-progress stroke; `snapshot.rs`):
-    /// the canvas's tiles per row, where its first tile's pixels start after its table of
-    /// tiles (in four-float units), 0, then 1 when this evaluation writes it (the layer's
-    /// pixels, instead of the target), else 0 (`OP_RESUME` reads it).
-    pub(crate) snapshot: [u32; 4],
-    /// 1 first when the target is a display texture (S37: ten bits, `display_out`), else 0
-    /// (eight bits, `canvas_out`); three words of padding.
-    pub(crate) display: [u32; 4],
 }
 
 /// A record that crosses to the GPU. Every field is a 4-byte scalar or an array of them, so
@@ -78,14 +69,10 @@ impl Record for Params {
         out.extend(self.background.iter().flat_map(|value| value.to_le_bytes()));
         let words = [self.tiles, self.row, self.size[0], self.size[1]];
         out.extend(words.iter().flat_map(|word| word.to_le_bytes()));
-        out.extend(self.kept.to_le_bytes());
-        out.extend(self.level.to_le_bytes());
-        out.extend(self.scale.to_le_bytes());
-        out.extend(self.inverse.to_le_bytes());
+        let values = [self.level, self.scale, self.inverse, self.unused];
+        out.extend(values.iter().flat_map(|value| value.to_le_bytes()));
         let base = self.base_x.iter().chain(&self.base_y);
         out.extend(base.flat_map(|value| value.to_le_bytes()));
-        let words = self.snapshot.iter().chain(&self.display);
-        out.extend(words.flat_map(|word| word.to_le_bytes()));
     }
 }
 

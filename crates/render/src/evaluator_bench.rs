@@ -12,10 +12,10 @@ use openpaint_core::{Artwork, Color};
 use super::{CanvasTarget, RegionEvaluator};
 use crate::affine::Affine;
 use crate::core::Core;
-use crate::cost::{item_kinds, tile_cost};
+use crate::cost::{item_costs, item_kinds, tile_cost};
 use crate::error::RenderError;
 use crate::frame::FrameRequest;
-use crate::geom::PixelRect;
+
 use crate::gpu_clock::{GpuClock, Timing};
 use crate::image::RgbaImage;
 use crate::output::Output;
@@ -168,16 +168,13 @@ impl Core {
         size: [u32; 2],
     ) -> Result<(CanvasTarget, Output), RenderError> {
         let output = Output::at(scale, at.map(|v| v * scale))?;
-        let mut target = CanvasTarget::exact(self, size)?;
-        // Every scene goes to the evaluator, smudges' materials too (S62).
-        target.reference = true;
+        let mut target = CanvasTarget::reference(self, size)?;
         let request = FrameRequest {
             artwork,
             active: None,
             background: Color::WHITE,
         };
-        let region = PixelRect::full(size);
-        RegionEvaluator::new(self, &mut target).evaluate_piece(&request, output, region)?;
+        RegionEvaluator::new(self, &mut target).evaluate_piece(&request, output)?;
         Ok((target, output))
     }
 }
@@ -191,6 +188,7 @@ impl CanvasTarget {
             .ok_or(RenderError::Invalid("no scene was built"))?;
         let plan = (cache.kept_plan()).ok_or(RenderError::Invalid("no plan was kept"))?;
         let kinds: Vec<OpKind> = item_kinds(&cache.scene).collect();
+        let costs = item_costs(&cache.scene);
         let mut listed = Listed::default();
         for &entry in &plan.indices {
             match kinds.get(entry as usize) {
@@ -203,7 +201,7 @@ impl CanvasTarget {
             entries: plan.indices.len(),
             listed,
             estimate: (plan.tiles.iter())
-                .map(|tile| tile_cost(plan, tile, &cache.costs))
+                .map(|tile| tile_cost(plan, tile, &costs))
                 .sum(),
             ..Timed::default()
         })
@@ -248,20 +246,18 @@ impl CanvasTarget {
             .as_ref()
             .ok_or(RenderError::Invalid("no scene was built"))?;
         let plan = (cache.kept_plan()).ok_or(RenderError::Invalid("no plan was kept"))?;
+        let bindings = (self.bindings.as_mut()).ok_or(RenderError::Invalid("no reference"))?;
         core.evaluate.dispatch(
             &core.gpu,
-            &mut self.bindings,
+            bindings,
             &Dispatch {
                 ops: &cache.ops,
                 fresh: &[],
                 plan,
-                only: None,
                 output,
                 background: [1.0; 4],
-                reset: false,
                 residuals: self.smudges.residuals(),
                 base: Affine::IDENTITY,
-                snapshot: None,
                 timing,
             },
         )

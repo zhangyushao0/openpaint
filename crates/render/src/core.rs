@@ -9,7 +9,7 @@ use crate::gpu::Gpu;
 use crate::gpu_frames::GpuFrames;
 use crate::image::RgbaImage;
 use crate::pace::{Background, Pace};
-use crate::program::{EvaluatePipeline, shader_source};
+use crate::program::EvaluatePipeline;
 use crate::raster_gpu::{RasterPipelines, raster_source};
 use crate::readback::{offscreen_texture, read_rgba, wait};
 use crate::screen::{blit_layout, blit_sampler};
@@ -21,7 +21,7 @@ use crate::view_shown::TierBindings;
 
 pub struct Core {
     pub(crate) gpu: Gpu,
-    /// The region evaluator's compute pipeline (`RegionEvaluator`).
+    /// The evaluator's compute pipeline: reference images only since S65 (`evaluator.rs`).
     pub(crate) evaluate: EvaluatePipeline,
     /// How a canvas target binds for showing on screen, the same for every frame format.
     pub(crate) blit_layout: wgpu::BindGroupLayout,
@@ -73,7 +73,7 @@ impl Core {
     }
 
     fn with_gpu(gpu: Gpu) -> Result<Self, RenderError> {
-        let evaluate = EvaluatePipeline::new(&gpu.device, gpu.display);
+        let evaluate = EvaluatePipeline::new(&gpu.device);
         let blit_layout = blit_layout(&gpu.device);
         let blit_sampler = blit_sampler(&gpu.device);
         let thumbnail = ThumbnailPipeline::new(&gpu.device);
@@ -104,10 +104,10 @@ impl Core {
         self.gpu.describe()
     }
 
-    /// The renderer's identity (S54): a hash of the build's version (a patch per slice) and of
-    /// the evaluator's, the raster core's (S62: it draws the canvas), the smudge kernels' and the
-    /// filters' WGSL as this device compiles them, so a build whose pixels may differ never takes
-    /// a display cache another wrote as complete.
+    /// The renderer's identity (S54): a hash of the build's version (a patch per slice), the
+    /// display format and the raster core's (S62: it draws the canvas), the smudge kernels' and
+    /// the filters' WGSL, so a build whose pixels may differ never takes a display cache another
+    /// wrote as complete.
     #[must_use]
     pub const fn renderer_identity(&self) -> u64 {
         self.identity
@@ -256,14 +256,15 @@ impl Core {
     }
 }
 
-/// FNV-1a over the build's version and the shaders the canvas's pixels come from (S54, S62):
-/// stable from run to run of one build, unlike `std`'s hashers, which may change between
-/// releases.
+/// FNV-1a over the build's version, the display format and the shaders the canvas's pixels come
+/// from (S54, S62; S65: the raster core's alone, the evaluator draws none): stable from run to
+/// run of one build, unlike `std`'s hashers, which may change between releases.
 fn identity(display: wgpu::TextureFormat) -> u64 {
     let raster = raster_source().unwrap_or_else(|error| error.to_string());
+    let format = format!("{display:?}");
     let sources = [
         env!("CARGO_PKG_VERSION"),
-        &shader_source(display),
+        &format,
         &raster,
         SMUDGE_SHADER,
         FILTER_SHADER,

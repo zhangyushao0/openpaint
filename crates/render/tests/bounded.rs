@@ -1,6 +1,6 @@
 //! Bounded dispatches (S49): an evaluation cut into many small dispatches equals one dispatch bit
 //! for bit, on a dense place of 300 crossing strokes, at 1x, 2x and 4x (S62: the evaluator's own
-//! images, as the raster core draws the canvas and exports of such scenes). A screen frame's
+//! images, as the raster core draws the canvas and exports; S65: every scene). A screen frame's
 //! share of the waiting tiles is `frame_budget.rs`'s (S53).
 //!
 //! A test binary of its own: the tests change the device's dispatch bound, which every
@@ -93,9 +93,8 @@ fn dense(count: u32, style: impl Fn(u32) -> StrokeStyle) -> Artwork {
     })
 }
 
-/// The evaluator's output at 1x, 2x and 4x in one piece each (S62: what it still evaluates, a
-/// stroke being drawn and the scenes routed to it, goes in these dispatches; its reference,
-/// `Core::time_evaluation`, evaluates any scene).
+/// The evaluator's output at 1x, 2x and 4x in one piece each (S65: the reference images, all it
+/// still evaluates, `Core::time_evaluation`).
 fn outputs(core: &Core, artwork: &Artwork) -> Vec<RgbaImage> {
     [1, 2, 4]
         .map(|scale| {

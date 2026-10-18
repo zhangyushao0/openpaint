@@ -1,14 +1,14 @@
-//! A smudge's material drawn by the raster core (S62, DECISIONS D89): for a scene the raster core
-//! draws, its layer's pixels just before the smudge are the units laying that layer's items before
-//! it, drawn onto a canvas of nothing (`RasterPlan::material`) and rounded to 8 bits as the
-//! evaluator's material was, over one region per 256-px cell of the canvas (the box of the
-//! residual's tiles in it), only those tiles written. A scene routed to the evaluator keeps the
-//! evaluator's material (`material.rs`; S65 takes it), so routed scenes stay as they were.
+//! A smudge's or a filter's material drawn by the raster core (S62, DECISIONS D89; S65, D92): its
+//! layer's pixels just before it are the units laying that layer's items before it, drawn onto a
+//! canvas of nothing (`RasterPlan::material`, where a transform record's content maps them) and
+//! rounded to 8 bits as the evaluator's material is, over one region per 256-px cell of the
+//! canvas (the box of the rectangles wanted in it), only those rectangles written.
 
 use std::collections::BTreeMap;
 use std::ops::Range;
 
 use super::Material;
+use crate::affine::Affine;
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::geom::PixelRect;
@@ -18,7 +18,7 @@ use crate::raster::{Finish, RasterTargets, SceneBuffers};
 use crate::raster_plan::RasterPlan;
 use crate::readback::FORMAT;
 use crate::scene::Scene;
-use crate::smudge::Held;
+use crate::smudge::{Bases, Held};
 use crate::view_tiles::TIER_TILE;
 
 /// The atlas of a material's raster targets, pixels a side: room for several of a cell's
@@ -33,42 +33,49 @@ pub(crate) struct MaterialRegion {
     pub(crate) tiles: Vec<PixelRect>,
 }
 
-/// The regions of the residual's tiles `rects` (canvas pixels): one per 256-px cell of the
-/// canvas they lie in, rows from the top.
+/// The regions of the rectangles `rects` (a residual's tiles, a filter's read; material pixels):
+/// one per 256-px cell of the canvas, each rectangle cut at the cells' edges, rows from the top.
 pub(crate) fn regions(rects: &[PixelRect]) -> Vec<MaterialRegion> {
     let side = TIER_TILE as i32;
     let mut cells: BTreeMap<[i32; 2], MaterialRegion> = BTreeMap::new();
-    for rect in rects.iter().filter(|rect| !rect.is_empty()) {
-        let [x, y] = rect.min.map(|at| at.div_euclid(side));
-        cells
-            .entry([y, x])
-            .and_modify(|cell| {
-                cell.region = cell.region.union(rect);
-                cell.tiles.push(*rect);
-            })
-            .or_insert_with(|| MaterialRegion {
-                region: *rect,
-                tiles: vec![*rect],
-            });
+    for whole in rects.iter().filter(|rect| !rect.is_empty()) {
+        let [x0, y0] = whole.min.map(|at| at.div_euclid(side));
+        let [x1, y1] = whole.max.map(|at| (at - 1).div_euclid(side));
+        for (x, y) in (y0..=y1).flat_map(|y| (x0..=x1).map(move |x| (x, y))) {
+            let cell = PixelRect {
+                min: [x * side, y * side],
+                max: [(x + 1) * side, (y + 1) * side],
+            };
+            let rect = whole.intersect(&cell);
+            cells
+                .entry([y, x])
+                .and_modify(|cell| {
+                    cell.region = cell.region.union(&rect);
+                    cell.tiles.push(rect);
+                })
+                .or_insert_with(|| MaterialRegion {
+                    region: rect,
+                    tiles: vec![rect],
+                });
+        }
     }
     cells.into_values().collect()
 }
 
 impl Material {
-    /// The plan of `region` of the material of `scene`'s `items` (one layer's before a smudge),
-    /// its earlier smudges' residuals at `bases`, and the output it lies at; the raster targets
-    /// made on first use.
+    /// The plan of `region` of the material of `scene`'s `items` (one layer's before a smudge or
+    /// filter) whose pixels lie on the canvas by `base`, its earlier smudges' residuals and
+    /// filters' results at `bases`, and the output it lies at; the raster targets made on first
+    /// use.
     ///
     /// # Errors
-    /// `Invalid` for a scene the evaluator draws; as the raster core.
+    /// As the raster core.
     pub(crate) fn plan_region(
         &mut self,
         core: &Core,
-        (scene, items, bases): (&Scene, &Range<usize>, &[Option<u32>]),
+        ((scene, bases), items, base): ((&Scene, &Bases), &Range<usize>, Affine),
         region: &MaterialRegion,
     ) -> Result<(RasterPlan, Output), RenderError> {
-        let raster =
-            (scene.rastered()).ok_or(RenderError::Invalid("the scene goes to the evaluator"))?;
         if self.raster.is_none() {
             self.raster = Some(RasterTargets::new(core, [TIER_TILE; 2], ATLAS)?);
         }
@@ -76,8 +83,7 @@ impl Material {
         let rect = region.region;
         let output = Output::at(1, rect.min.map(i32::unsigned_abs))?;
         let size = [0, 1].map(|axis| (rect.max[axis] - rect.min[axis]).unsigned_abs());
-        let units = (scene, raster, bases);
-        let plan = RasterPlan::material(units, items, (output, size), atlas)?;
+        let plan = RasterPlan::material((scene, bases), (items, base), (output, size), atlas)?;
         Ok((plan, output))
     }
 
@@ -107,8 +113,8 @@ impl Material {
         Ok(())
     }
 
-    /// Draws the material of `scene`'s `items` over the residual's tiles `rects` now, the
-    /// earlier residuals as `held` holds them.
+    /// Draws the material of `scene`'s `items` (lying on the canvas by `base`) over `rects` now,
+    /// the earlier residuals and results as `held` holds them.
     ///
     /// # Errors
     /// As the raster core.
@@ -116,13 +122,13 @@ impl Material {
         &mut self,
         core: &Core,
         (scene, ops): (&Scene, &SceneOps),
-        items: &Range<usize>,
+        (items, base): (&Range<usize>, Affine),
         rects: &[PixelRect],
         held: Held,
     ) -> Result<(), RenderError> {
         let buffers = SceneBuffers::of(ops, held);
         for region in regions(rects) {
-            let units = (scene, items, buffers.bases());
+            let units = ((scene, buffers.bases()), items, base);
             let planned = self.plan_region(core, units, &region)?;
             self.draw_region(core, &planned, &region, &buffers)?;
         }

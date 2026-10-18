@@ -122,7 +122,7 @@ pub fn session(library: &BrushLibrary, minutes: u32) -> Result<Artwork, HarnessE
 
 /// A stroke of built-in `key` at `factor` times its first size (within its range) in `color`,
 /// jittered by `seed`.
-fn style(
+pub(crate) fn style(
     library: &BrushLibrary,
     key: &str,
     factor: f32,
@@ -140,7 +140,7 @@ fn style(
 }
 
 /// A colour drawn from `k` and `salt`, never too light to see.
-fn colour(k: u64, salt: u64) -> Result<Color, HarnessError> {
+pub(crate) fn colour(k: u64, salt: u64) -> Result<Color, HarnessError> {
     let channel = |at: u64| 0.1 + 0.75 * unit(k, salt * 8 + at);
     Ok(Color::rgb(channel(0), channel(1), channel(2))?)
 }
@@ -242,13 +242,13 @@ fn masked(artwork: &Artwork, library: &BrushLibrary) -> Result<Artwork, HarnessE
 }
 
 /// A new layer above the active one, active.
-fn layer(artwork: &Artwork) -> Result<Artwork, HarnessError> {
+pub(crate) fn layer(artwork: &Artwork) -> Result<Artwork, HarnessError> {
     let create = ArtworkCommand::Layer(LayerCommand::Create);
     Ok(artwork.apply(create)?.artwork)
 }
 
 /// The pixels `inside` holds filled with `rgb` on the target.
-fn fill(
+pub(crate) fn fill(
     artwork: &Artwork,
     inside: impl Fn(f32, f32) -> bool,
     [r, g, b]: [f32; 3],

@@ -1,5 +1,5 @@
-//! `Fresh`: the in-progress stroke's part of one evaluation, and `ActivePlace`: where in a scene
-//! it draws (`scene.rs`).
+//! `Fresh`: the in-progress stroke's ops for one frame (S63: the raster core's), and
+//! `ActivePlace`: where in a scene it draws (`scene.rs`).
 
 use openpaint_core::{ActiveStroke, Artwork, LayerId, RegionMask, StrokeBlend, StrokeTool};
 
@@ -27,7 +27,7 @@ impl ActivePlace {
 
     /// The place of `active`, else (S56) where the next stroke on `artwork`'s active layer draws
     /// without a selection: a scene keeps that place while no stroke is drawn, so the pen
-    /// touching down keeps the scene (the place lists nothing without a stroke, `plan_bin.rs`).
+    /// touching down keeps the scene (the place draws nothing without a stroke).
     pub(crate) fn of_request(artwork: &Artwork, active: Option<&ActiveStroke>) -> Self {
         active.map_or_else(
             || Self {
@@ -40,15 +40,12 @@ impl ActivePlace {
     }
 }
 
-/// The in-progress stroke's ops for one evaluation: `ops[0]` paints it (`EndActive`), the rest
+/// The in-progress stroke's ops for one frame: `ops[0]` paints it (`EndActive`), the rest
 /// are the spans not yet in its coverage texture, then its tail, with their bounds in `bounds`.
 #[derive(Debug, Default)]
 pub(crate) struct Fresh {
     pub(crate) ops: Vec<Op>,
     pub(crate) bounds: Vec<Bounds>,
-    /// They are a stroke's: the scene's place for it lists them (S56: without one it lists
-    /// nothing).
-    pub(crate) stroke: bool,
 }
 
 impl Fresh {
@@ -64,7 +61,6 @@ impl Fresh {
             return Self {
                 ops: vec![Op::smudge(None, clip, locked)],
                 bounds: Vec::new(),
-                stroke: true,
             };
         }
         let mut paint = paint(style, active.blend());
@@ -72,7 +68,6 @@ impl Fresh {
         let mut fresh = Self {
             ops: vec![Op::end_active(&paint)],
             bounds: Vec::new(),
-            stroke: true,
         };
         let path = Path::of(samples);
         let settled = path.settled();

@@ -1,9 +1,12 @@
 //! A region's passes on the GPU (S57's probe, S59): the plan's passes in order, each a render
-//! pass over the atlas or a float target of the region (a copy for a backdrop; a copy, then a
-//! pass, for a smudge, S61), then the finish rounding the canvas into the destination; a batch's
-//! regions one after another (S63, `raster_batch.rs`), all in one command buffer.
+//! pass over the atlas or a float target of the region (a copy for a backdrop or, S65, a group's;
+//! a copy, then a pass, for a smudge, S61, an adjustment or a filter, S65), then the finish
+//! rounding the canvas into the destination; a batch's regions one after another (S63,
+//! `raster_batch.rs`), all in one command buffer.
 
+use super::reads::{ATLAS, CANVAS, COPIED, ending};
 use super::{Bound, Finish, Pages, RasterTargets, Region, timed};
+use crate::affine::Affine;
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::geom::PixelRect;
@@ -13,66 +16,7 @@ use crate::raster_gpu::RasterPipelines;
 use crate::raster_plan::{CoverageDraw, Draw, Instance, Pass, Scratch};
 use crate::raster_states::INSTANCE_BYTES;
 
-/// Group 1 for each way a draw reads: the atlas (a layer's draws), a layer's paint with its mask
-/// and the backdrop (its end), the chain with them (its end), the backdrop alone (a smudge, which
-/// draws onto the layer or its mask), the canvas (the finish).
-pub(super) struct Reads {
-    atlas: wgpu::BindGroup,
-    layer: wgpu::BindGroup,
-    chain: wgpu::BindGroup,
-    copied: wgpu::BindGroup,
-    canvas: wgpu::BindGroup,
-}
-
 impl RasterTargets {
-    fn view(&self, at: Scratch) -> &wgpu::TextureView {
-        &self.scratch[at as usize]
-            .as_ref()
-            .unwrap_or(&self.unread)
-            .view
-    }
-
-    /// The reads' bind groups, made when a scratch target was made since.
-    fn reads(&mut self, core: &Core, pipelines: &RasterPipelines) -> &Reads {
-        if self.reads.is_none() {
-            let (atlas, unread) = (&self.atlas.view, &self.unread.view);
-            let [canvas, chain, layer, mask, backdrop] = [
-                Scratch::Canvas,
-                Scratch::Chain,
-                Scratch::Layer,
-                Scratch::Mask,
-                Scratch::Backdrop,
-            ]
-            .map(|at| self.view(at));
-            let group = |views: [&wgpu::TextureView; 3]| {
-                core.gpu
-                    .device
-                    .create_bind_group(&wgpu::BindGroupDescriptor {
-                        label: Some("raster reads"),
-                        layout: &pipelines.layouts[1],
-                        entries: &(0..)
-                            .zip(views)
-                            .map(|(binding, view)| wgpu::BindGroupEntry {
-                                binding,
-                                resource: wgpu::BindingResource::TextureView(view),
-                            })
-                            .collect::<Vec<_>>(),
-                    })
-            };
-            let reads = Reads {
-                atlas: group([atlas, unread, unread]),
-                layer: group([layer, mask, backdrop]),
-                chain: group([chain, mask, backdrop]),
-                copied: group([backdrop, unread, unread]),
-                canvas: group([canvas, unread, unread]),
-            };
-            self.reads = Some(reads);
-        }
-        self.reads
-            .as_ref()
-            .unwrap_or_else(|| unreachable!("made above"))
-    }
-
     /// Each region's passes on its paper (its slot passes on `pages`), then its finish when it
     /// has one, its values and instances where `bounds` says; timed from the first pass's start
     /// to the last's end by `stamps`.
@@ -92,7 +36,6 @@ impl RasterTargets {
                 None => None,
             });
         }
-        self.reads(core, pipelines);
         let writes = |ends| stamps.and_then(|stamps| stamps.render_writes(ends));
         let (first, last) = timed(regions);
         let mut encoder = core.gpu.device.create_command_encoder(&Default::default());
@@ -135,10 +78,10 @@ impl RasterTargets {
                 self.kept(encoder, pipelines, (held, draws, keep), pages, timestamps);
             }
             Pass::Zero(slots) => super::slots::zero(encoder, slots, pages),
-            Pass::Copy(from) => self.copy(encoder, *from, [0, 0, size[0], size[1]]),
-            Pass::Smudge { target, rect, draw } => {
-                self.copy(encoder, *target, *rect);
-                let group = self.reads.as_ref().map(|reads| &reads.copied);
+            Pass::Copy { from, to } => self.copy(encoder, (*from, *to), [0, 0, size[0], size[1]]),
+            Pass::Rewrite { target, rect, draw } => {
+                self.copy(encoder, (*target, Scratch::Backdrop), *rect);
+                let group = self.reads.get(COPIED);
                 let place = (*target, wgpu::LoadOp::Load, group);
                 let draws = std::slice::from_ref(draw);
                 self.draws(encoder, pipelines, place, (draws, size), timestamps);
@@ -162,8 +105,7 @@ impl RasterTargets {
                 } else {
                     wgpu::LoadOp::Load
                 };
-                let reads = self.reads.as_ref().map(|reads| &reads.atlas);
-                let place = (*target, load, reads);
+                let place = (*target, load, self.reads.get(ATLAS));
                 self.draws(encoder, pipelines, place, (draws, size), timestamps);
             }
             Pass::End {
@@ -171,10 +113,7 @@ impl RasterTargets {
                 reads,
                 draw,
             } => {
-                let group = self.reads.as_ref().map(|all| match reads {
-                    Scratch::Chain => &all.chain,
-                    _ => &all.layer,
-                });
+                let group = self.reads.get(ending(*reads));
                 let draws = std::slice::from_ref(draw);
                 let place = (*target, wgpu::LoadOp::Load, group);
                 self.draws(encoder, pipelines, place, (draws, size), timestamps);
@@ -216,16 +155,16 @@ impl RasterTargets {
         pass.set_vertex_buffer(0, self.instances.slice(self.bound.instances..));
     }
 
-    /// The pixels `rect` (x, y, width, height) of `from` copied into the backdrop, in place.
+    /// The pixels `rect` (x, y, width, height) of `from` copied into `to`, in place.
     fn copy(
         &self,
         encoder: &mut wgpu::CommandEncoder,
-        from: Scratch,
+        (from, to): (Scratch, Scratch),
         [x, y, width, height]: [u32; 4],
     ) {
-        let (Some(source), Some(backdrop)) = (
-            self.scratch[from as usize].as_ref(),
-            self.scratch[Scratch::Backdrop as usize].as_ref(),
+        let (Some(source), Some(target)) = (
+            self.scratch[from.index()].as_ref(),
+            self.scratch[to.index()].as_ref(),
         ) else {
             return;
         };
@@ -235,7 +174,7 @@ impl RasterTargets {
         };
         encoder.copy_texture_to_texture(
             at(&source.texture),
-            at(&backdrop.texture),
+            at(&target.texture),
             wgpu::Extent3d {
                 width,
                 height,
@@ -255,7 +194,7 @@ impl RasterTargets {
     ) {
         let mut pass = begin(encoder, finish.view, wgpu::LoadOp::Load, timestamps);
         region(&mut pass, finish.at, size);
-        self.bind(&mut pass, self.reads.as_ref().map(|reads| &reads.canvas));
+        self.bind(&mut pass, self.reads.get(CANVAS));
         pass.set_pipeline(pipeline);
         if finish.only.is_empty() {
             pass.draw(0..3, finished..finished + 1);
@@ -333,8 +272,14 @@ pub(super) fn begin<'a>(
     })
 }
 
-/// The values raster.wgsl's `Raster` holds, as GPU bytes.
-pub(super) fn values(output: Output, size: [u32; 2], atlas: [u32; 2], paper: [f32; 4]) -> Vec<u8> {
+/// The values raster.wgsl's `Raster` holds, as GPU bytes: for a region of `size` pixels at
+/// `output` whose centres lie on the canvas by `base` (S65), with an atlas of `atlas` pixels.
+pub(super) fn values(
+    output: Output,
+    (size, base): ([u32; 2], Affine),
+    atlas: [u32; 2],
+    paper: [f32; 4],
+) -> Vec<u8> {
     let (scale, inverse) = output.operands();
     let floats = [scale, inverse, scale.log2(), 0.0];
     let mut bytes: Vec<u8> = floats
@@ -352,6 +297,19 @@ pub(super) fn values(output: Output, size: [u32; 2], atlas: [u32; 2], paper: [f3
             .chain(&[0.0, 0.0])
             .flat_map(|v| v.to_le_bytes()),
     );
+    // As the evaluator's `Params::base_x` and `base_y` (`program_dispatch.rs`), and the map back.
+    let [a, b, c, d, e, f] = base.rows();
+    let (foot, level) = if base.is_identity() {
+        (1.0, 0.0)
+    } else {
+        let canvas = base.scale();
+        ((1.0 / canvas) as f32, -canvas.log2() as f32)
+    };
+    let [ia, ib, ic, id, ie, iff] = base.inverse().rows();
+    let rows = [
+        a, b, c, foot, d, e, f, level, ia, ib, ic, 0.0, id, ie, iff, 0.0,
+    ];
+    bytes.extend(rows.iter().flat_map(|v| v.to_le_bytes()));
     bytes
 }
 

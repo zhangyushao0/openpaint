@@ -2,11 +2,11 @@
 //! `view_raster.rs`, `view_raster_jobs.rs`). Up to `AHEAD` tiles wait with the worker, so it
 //! always has the next when the GPU's queue has room; while the screen is touched, a frame hands
 //! over only what its share takes (estimated at what the last tile cost). The missing tiles
-//! nearest the screen's middle go first, then the tiles the evaluator drew. A tile is shown once its
-//! answer says it was drawn, into the slot and the atlas it was handed over with, and no change
-//! reached it meanwhile: one that did waits to be drawn again (the canvas shows there), as a tile
-//! the worker dropped does. Since S62 the orders go out and the answers come in through the
-//! canvas (`canvas_raster.rs`), which hands the worker its own tiles too.
+//! nearest the screen's middle go first. A tile is shown once its answer says it was drawn, into
+//! the slot and the atlas it was handed over with, and no change reached it meanwhile: one that
+//! did waits to be drawn again (the canvas shows there), as a tile the worker dropped does. Since
+//! S62 the orders go out and the answers come in through the canvas (`canvas_raster.rs`), which
+//! hands the worker its own tiles too.
 
 use std::sync::Arc;
 
@@ -19,7 +19,6 @@ use crate::output::Output;
 use crate::raster::SceneBuffers;
 use crate::smudge::around_output;
 use crate::view_atlas::Tier;
-use crate::view_background::next_missing;
 use crate::view_needed::Needed;
 use crate::view_raster::{Issued, RasterTier, residuals_near};
 use crate::view_raster_jobs::{JobInto, RasterDone, RasterJob, RasterOrder};
@@ -31,10 +30,10 @@ use crate::view_tiles::{TIER_TILE, TileMap};
 /// one about 3.5 ms on the tablet), so it always has the next.
 pub(crate) const AHEAD: usize = 8;
 
-/// Hands the worker the tiles `needed` that `tier` lacks, or holds as the evaluator drew them, as
-/// many as may wait with it (`AHEAD`; while the screen is touched, within the frame's share),
-/// each with the smudge residuals it reads present (S61: a tile reading one still being
-/// evaluated waits). Nothing is handed over while a stroke is drawn.
+/// Hands the worker the tiles `needed` that `tier` lacks, as many as may wait with it (`AHEAD`;
+/// while the screen is touched, within the frame's share), each with the smudge residuals it
+/// reads present (S61: a tile reading one still being evaluated waits). Nothing is handed over
+/// while a stroke is drawn.
 ///
 /// # Errors
 /// As `Output::at`; a slot or the atlas that cannot be had; as the residuals' evaluation.
@@ -45,11 +44,9 @@ pub(crate) fn fill_raster(
     raster: &mut RasterTier,
     now: f64,
 ) -> Result<(), RenderError> {
-    if request.active.is_some() || !canvas.rastered(request) {
+    if request.active.is_some() || canvas.scene_of(request.artwork, None).is_none() {
         return Ok(());
     }
-    // An evaluation of a tile begun before the scene came here is left.
-    tier.fill = None;
     let taken = take_tiles(core, (tier, needed), (canvas, request), raster)?;
     if taken.is_empty() {
         return Ok(());
@@ -61,7 +58,7 @@ pub(crate) fn fill_raster(
     let Some(held) = residuals_near(core, (canvas, request), &near)? else {
         return Ok(());
     };
-    let Some((scene, ops, _)) = canvas.scene_serial(request.artwork, None) else {
+    let Some((scene, ops, _)) = canvas.scene_of(request.artwork, None) else {
         return Ok(());
     };
     let (scene, buffers) = (Arc::clone(scene), SceneBuffers::of(ops, held));
@@ -111,7 +108,7 @@ fn take_tiles(
     while raster.issued.len() + taken.len() < AHEAD {
         let mut drawing = raster.drawing(scale);
         drawing.extend(taken.iter().map(|(tile, _, _)| *tile));
-        let Some(tile) = next_tile(core, tier, needed, &drawing)? else {
+        let Some(tile) = next_missing(core, tier, needed, &drawing)? else {
             break;
         };
         let Some(slot) = tier.map.slot(tile) else {
@@ -130,20 +127,37 @@ fn take_tiles(
     Ok(taken)
 }
 
-/// The next tile to hand over: the first needed one not ready (given a slot), else the first
-/// needed one the evaluator drew; never one `drawing` already.
-fn next_tile(
+/// The first needed tile that is not ready, given a slot (a spare one let go, or the atlas
+/// grown); `None` when every needed tile is ready or no slot is left. Tiles `drawing` (the raster
+/// worker's, S60) are neither taken nor let go.
+fn next_missing(
     core: &Core,
     tier: &mut Tier,
     needed: &Needed,
     drawing: &[[u32; 2]],
 ) -> Result<Option<[u32; 2]>, RenderError> {
-    if let Some(tile) = next_missing(core, tier, needed, drawing)? {
+    let missing = needed
+        .ordered()
+        .filter(|tile| tier.map.slot(*tile).is_none())
+        .count() as u32;
+    for tile in needed.ordered() {
+        if tier.is_ready(tile) || drawing.contains(&tile) {
+            continue;
+        }
+        if tier.map.slot(tile).is_none() {
+            let spare = (tier.map.held())
+                .map(|(held, _)| held)
+                .find(|held| !needed.needs(*held) && !drawing.contains(held));
+            if let (None, Some(spare)) = (tier.map.free(), spare) {
+                tier.release(spare);
+            }
+            if !tier.hold(core, tile, missing)? {
+                continue;
+            }
+        }
         return Ok(Some(tile));
     }
-    Ok(needed
-        .ordered()
-        .find(|tile| tier.is_ready(*tile) && tier.is_evaluated(*tile) && !drawing.contains(tile)))
+    Ok(None)
 }
 
 /// Bytes of an atlas made ahead (S60).
@@ -194,14 +208,12 @@ impl ViewCache {
     }
 
     /// The worker's answers to the tiers' tiles (`canvas` keeps them) applied: a tile drawn into
-    /// the slot and atlas it was handed over with shows (when the scene still goes to the raster
-    /// core and no change reached it, else it waits to be drawn again); one dropped stays as it
-    /// was.
+    /// the slot and atlas it was handed over with shows (when no change reached it, else it waits
+    /// to be drawn again); one dropped stays as it was.
     pub(crate) fn take_answers(
         &mut self,
         core: &Core,
         canvas: &mut CanvasTarget,
-        rastered: bool,
         work: &mut ViewWork,
     ) {
         let shown = self.current.as_ref().map(Tier::scale);
@@ -222,12 +234,11 @@ impl ViewCache {
             if !drawn || !held || tier.grown != issued.grown {
                 continue;
             }
-            if issued.stale || !rastered {
+            if issued.stale {
                 tier.set_ready(issued.tile, false);
                 continue;
             }
             tier.set_ready(issued.tile, true);
-            tier.set_evaluated(issued.tile, false);
             filled += 1;
             if shown == Some(issued.scale) {
                 work.filled.push(issued.tile);

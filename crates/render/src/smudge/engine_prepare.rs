@@ -72,12 +72,14 @@ impl Smudges {
                     let Some(tiles) = self.missing(&keys[index], &needs[index], whole) else {
                         continue;
                     };
-                    self.prepare_smudge(core, (scene, ops), artwork, (item, tiles), &keep)?;
+                    let scene = (scene, ops, &*filters);
+                    self.prepare_smudge(core, scene, artwork, (item, tiles), &keep)?;
                 }
                 None if self.arena.base(&keys[index]).is_some() => continue,
                 None => {
                     let item = &scene.filters[index - scene.smudges.len()];
-                    let material = material(&mut self.tools.material, core, size)?;
+                    let evaluated = self.tools.evaluated;
+                    let material = material(&mut self.tools.material, core, (size, evaluated))?;
                     let held = self.tools.owner == 0;
                     let tools = (&mut self.arena, material, &self.tools.empty, held);
                     let place = (item, keys[index]);
@@ -174,7 +176,7 @@ impl Smudges {
     fn prepare_smudge(
         &mut self,
         core: &Core,
-        (scene, ops): (&Scene, &SceneOps),
+        (scene, ops, filters): (&Scene, &SceneOps, &Filters),
         artwork: &Artwork,
         (item, tiles): (&SmudgeItem, Option<TileSet>),
         keep: &Keep<'_>,
@@ -191,7 +193,7 @@ impl Smudges {
                     .advance(&active.style, (samples, true), &mut new);
                 let scene = (scene, ops, range);
                 self.tools
-                    .extend(core, scene, &self.arena, &mut active.run, &new)?;
+                    .extend(core, scene, (&self.arena, filters), &mut active.run, &new)?;
                 active.run
             }
             None => {
@@ -200,7 +202,7 @@ impl Smudges {
                 let all = dabs(item.stroke.style(), item.stroke.samples());
                 let scene = (scene, ops, range);
                 self.tools
-                    .extend(core, scene, &self.arena, &mut run, &all)?;
+                    .extend(core, scene, (&self.arena, filters), &mut run, &all)?;
                 run
             }
         };

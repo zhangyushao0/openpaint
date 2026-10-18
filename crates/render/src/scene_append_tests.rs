@@ -1,8 +1,7 @@
 //! A scene taking appended strokes in place equals the scene built anew (S64): its items, raster
-//! units, masks, the place, its smudges and where its strokes' spans lie, and their costs; for
-//! strokes on a layer under others (a mask, smudges and a clipping chain above, a fill and smudges
-//! under), several at once, on a mask; and it takes none of a smudge, a clipped stroke or a
-//! scene the evaluator draws.
+//! units, masks, the place, its smudges and where its strokes' spans lie; for strokes on a layer
+//! under others (a mask, smudges and a clipping chain above, a fill and smudges under), several
+//! at once, on a mask, inside a group (S65); and it takes none of a smudge or a clipped stroke.
 
 use std::sync::Arc;
 
@@ -12,7 +11,6 @@ use openpaint_core::{
 };
 
 use super::*;
-use crate::cost::{item_costs, item_costs_in};
 use crate::scene::ActivePlace;
 
 const SIZE: u32 = 96;
@@ -102,15 +100,12 @@ fn both(before: &Artwork, after: &Artwork) -> (Scene, Option<Range<usize>>, Scen
     (kept, took, built)
 }
 
-/// The scene taking strokes in place is the scene built, its costs too.
+/// The scene taking strokes in place is the scene built.
 fn same(before: &Artwork, after: &Artwork) {
-    let place = ActivePlace::of_request(before, None);
-    let earlier = Scene::build(before, Some(&place)).expect("scene");
     let (kept, took, built) = both(before, after);
-    let took = took.expect("taken in place");
+    assert!(took.is_some(), "taken in place");
     assert_eq!(kept.items, built.items);
-    assert_eq!(kept.routing, built.routing);
-    assert!(kept.rastered().is_some());
+    assert_eq!(kept.raster, built.raster);
     assert_eq!(kept.masks, built.masks);
     assert_eq!(kept.bases_at, built.bases_at);
     assert_eq!(
@@ -134,9 +129,6 @@ fn same(before: &Artwork, after: &Artwork) {
             .collect()
     };
     assert_eq!(smudge(&kept), smudge(&built));
-    let mut costs = item_costs(&earlier);
-    costs.splice(took.start..took.start, item_costs_in(&kept, took));
-    assert_eq!(costs, item_costs(&built));
 }
 
 #[test]
@@ -153,22 +145,28 @@ fn strokes_appended_under_others_are_the_scene_built() {
     same(&on_mask, &drawn(&on_mask, StrokeTool::Paint, 44.0, None));
 }
 
+/// S65: a place inside a group takes strokes as one on the canvas does.
 #[test]
-fn a_smudge_a_clipped_stroke_or_an_evaluated_scene_is_not_taken() {
+fn strokes_appended_inside_a_group_are_the_scene_built() {
     let before = busy();
-    let smudged = drawn(&before, StrokeTool::Smudge, 50.0, None);
-    assert_eq!(both(&before, &smudged).1, None);
-    let clipped = drawn(&before, StrokeTool::Paint, 50.0, Some(&square(40)));
-    assert_eq!(both(&before, &clipped).1, None);
     let grouped = applied(
         &before,
         ArtworkCommand::Group(GroupCommand::Create {
             layer: before.active(),
         }),
     );
-    let (kept, took, _) = both(&grouped, &drawn(&grouped, StrokeTool::Paint, 50.0, None));
+    same(&grouped, &drawn(&grouped, StrokeTool::Paint, 50.0, None));
+}
+
+#[test]
+fn a_smudge_or_a_clipped_stroke_is_not_taken() {
+    let before = busy();
+    let smudged = drawn(&before, StrokeTool::Smudge, 50.0, None);
+    assert_eq!(both(&before, &smudged).1, None);
+    let clipped = drawn(&before, StrokeTool::Paint, 50.0, Some(&square(40)));
+    let (kept, took, _) = both(&before, &clipped);
     assert_eq!(took, None);
-    let place = ActivePlace::of_request(&grouped, None);
-    let unchanged = Scene::build(&grouped, Some(&place)).expect("scene");
+    let place = ActivePlace::of_request(&before, None);
+    let unchanged = Scene::build(&before, Some(&place)).expect("scene");
     assert_eq!(kept.items, unchanged.items);
 }

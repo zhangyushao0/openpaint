@@ -10,7 +10,7 @@ use std::ops::Range;
 
 use openpaint_core::{Artwork, LayerId, Stroke, StrokeList, StrokeTool};
 
-use crate::raster_route::{Routing, Unit, stroke_unit};
+use crate::raster_scene::stroke_unit;
 use crate::scene::Scene;
 use crate::scene_content::stroke_end;
 use crate::scene_reuse::span_items;
@@ -76,18 +76,16 @@ pub(crate) fn appended(base: &Artwork, now: &Artwork, place: (LayerId, bool)) ->
 impl Scene {
     /// `strokes` appended on the scene's place (its layer's paint or mask, each stroke drawn
     /// without a clip and not a smudge) laid into the scene as a build lays them; the items
-    /// inserted. `None`, the scene unchanged, when it has no place, a stroke is not of that kind,
-    /// or the evaluator draws it.
+    /// inserted. `None`, the scene unchanged, when it has no place or a stroke is not of that
+    /// kind.
     pub(crate) fn append(&mut self, strokes: &[Stroke]) -> Option<Range<usize>> {
         let at = self.active_before.as_ref()?.end;
         let laid = |stroke: &Stroke| {
             stroke.clip().is_none() && stroke.style().tool() != StrokeTool::Smudge
         };
-        let units = match &self.routing {
-            Routing::Raster(raster) if strokes.iter().all(laid) => raster.units.len(),
-            _ => return None,
-        };
-        debug_assert!(self.filters.is_empty() && self.adjusts.is_empty() && units > 0);
+        if !strokes.iter().all(laid) {
+            return None;
+        }
         let mut items = Vec::new();
         let mut spans = Vec::new();
         for stroke in strokes {
@@ -116,7 +114,8 @@ impl Scene {
         Some(at..at + count)
     }
 
-    /// Every index of an item from `at` on moved `by` items later.
+    /// Every index of an item from `at` on moved `by` items later: the place's, the smudges', the
+    /// adjustments' and filters' (S65: they lie above the place), the spans', the units'.
     fn moved(&mut self, at: usize, by: usize) {
         let later = |index: &mut usize| {
             if *index >= at {
@@ -131,30 +130,26 @@ impl Scene {
             later(&mut smudge.before.start);
             later(&mut smudge.before.end);
         }
+        for adjust in &mut self.adjusts {
+            later(&mut adjust.item);
+            later(&mut adjust.before.start);
+            later(&mut adjust.before.end);
+        }
+        for filter in &mut self.filters {
+            later(&mut filter.item);
+            later(&mut filter.before.start);
+            later(&mut filter.before.end);
+        }
         self.spans.moved(at, by);
-        if let Routing::Raster(raster) = &mut self.routing {
-            for unit in &mut raster.units {
-                match unit {
-                    Unit::Stroke { spans, paint, .. } => {
-                        later(&mut spans.start);
-                        later(&mut spans.end);
-                        later(paint);
-                    }
-                    Unit::Edit { item, .. } | Unit::Smudge { item, .. } | Unit::End(item) => {
-                        later(item);
-                    }
-                    Unit::BeginMask | Unit::Active => {}
-                }
-            }
+        for unit in &mut self.raster.units {
+            unit.renumber(later);
         }
     }
 
     /// `unit` laid right before the place's.
-    fn unit_before_place(&mut self, unit: Unit) {
-        if let Routing::Raster(raster) = &mut self.routing
-            && let Some(place) = raster.active()
-        {
-            raster.units.insert(place, unit);
+    fn unit_before_place(&mut self, unit: crate::raster_scene::Unit) {
+        if let Some(place) = self.raster.active() {
+            self.raster.units.insert(place, unit);
         }
     }
 }

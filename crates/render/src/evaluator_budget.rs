@@ -1,8 +1,8 @@
 //! A canvas target's GPU memory (S49, DECISIONS D76): what its derived caches hold, and the
-//! budget's steps on it: its snapshots kept within a room (beyond it a frame evaluates every op,
-//! as past the device's limits), its arena cut down to the blocks the scene shows, and (S51) its
-//! residuals within a room, with the residuals an evaluation reads made present near what it
-//! evaluates. None changes a pixel: each is evaluated again from the artwork when needed.
+//! budget's steps on it: its snapshots kept within a room (beyond it a stroke draws from the
+//! layer's start), its arena cut down to the blocks the scene shows, and (S51) its residuals
+//! within a room, with the residuals a draw reads made present near what it draws. None changes a
+//! pixel: each is made again from the artwork when needed.
 
 use openpaint_core::{Artwork, StrokeTool};
 
@@ -12,6 +12,7 @@ use crate::core::Core;
 use crate::error::RenderError;
 use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
+use crate::program::Bindings;
 use crate::smudge::{Held, Wanted};
 use crate::stroke::stroke_region;
 
@@ -23,10 +24,11 @@ impl CanvasTarget {
     pub fn bytes(&self) -> CacheBytes {
         let [width, height] = self.size();
         let texture = u64::from(width) * u64::from(height) * 4;
-        let [scene, preview] = self.scene.as_ref().map_or([0, 0], |cache| cache.bytes());
+        let scene = self.scene.as_ref().map_or(0, |cache| cache.bytes());
+        let bindings = self.bindings.as_ref().map_or(0, Bindings::bytes);
         CacheBytes {
-            canvas: texture + self.bindings.bytes() + self.view.size() + scene,
-            snapshots: self.drawing.bytes() + preview,
+            canvas: texture + bindings + self.view.size() + scene,
+            snapshots: self.drawing.bytes(),
             arena: self.smudges.bytes() + self.filters.bytes(),
             ..CacheBytes::default()
         }
@@ -45,17 +47,11 @@ impl CanvasTarget {
     /// go now (a stroke's drawing only once no stroke is drawn, S63). Returns the bytes given
     /// back.
     pub fn set_snapshot_room(&mut self, room: u64) -> u64 {
-        self.bindings.snapshot_room = room;
-        let held = self.bytes().snapshots;
-        if held <= room {
+        self.snapshot_room = room;
+        if self.bytes().snapshots <= room {
             return 0;
         }
-        let mut freed = self.drawing.let_go();
-        if let Some(cache) = self.scene.as_mut() {
-            freed += cache.bytes()[1];
-            cache.drop_snapshot();
-        }
-        freed
+        self.drawing.let_go()
     }
 
     /// Keeps in its arena only the blocks the last scene shows, in a buffer just large enough,
@@ -139,7 +135,7 @@ impl CanvasTarget {
     /// raster core's draws of it (S61, D88).
     pub(crate) fn held(&self) -> Option<Held> {
         let cache = self.scene.as_ref()?;
-        Some(self.smudges.held(&cache.scene))
+        Some(self.smudges.held(&cache.scene, &self.filters))
     }
 
     /// Extends the in-progress smudge `request` draws (`drawn`: its layer shows) by its new
@@ -169,6 +165,7 @@ impl CanvasTarget {
         let filters = (&mut self.filters, &Wanted::Near(&near));
         self.smudges
             .prepare(core, scene, request.artwork, filters)?;
+        let scene = (scene.0, scene.1, &self.filters);
         self.smudges.advance(core, scene, request.artwork, active)
     }
 }

@@ -4,9 +4,8 @@
 //! tapered yet, D71), bit for bit; the lift's frame equals the committed artwork drawn cold; for
 //! paint, erasing, Alpha Lock, a selection's clip, a mask, a clipping chain's layer (a smudge, a
 //! stroke snapped to a shape and one drawn with mirrored copies: `drawing_kinds.rs`; strokes one
-//! after another and the snapshots under them: `drawing_ahead.rs`). A stroke over a scene routed
-//! to the evaluator is the evaluator's, cold every frame as before (restated from S48's snapshot
-//! tests, whose snapshot went: `snapshot.rs`).
+//! after another and the snapshots under them: `drawing_ahead.rs`), over a moved selection's
+//! record (S65: inside every other kind, `raster_kinds.rs`).
 
 use openpaint_core::{
     Artwork, BrushRecipe, Color, LayerCommand, RegionMask, StrokeSample, StrokeSession,
@@ -180,8 +179,8 @@ fn cases() -> Vec<Case> {
     all
 }
 
-/// The places a stroke lays: Alpha Lock, a lasso's clip, a mask, a clipping chain's layer, a
-/// scene routed to the evaluator.
+/// The places a stroke lays: Alpha Lock, a lasso's clip, a mask, a clipping chain's layer, over a
+/// moved selection's record.
 fn places(base: &Artwork, through: &[StrokeSample]) -> Vec<Case> {
     let first = layer(base, LayerCommand::Select(base.layers()[0].id()));
     let style = |size: f32, opacity: f32, rgb: [f32; 3]| {
@@ -215,9 +214,9 @@ fn places(base: &Artwork, through: &[StrokeSample]) -> Vec<Case> {
     let chained = layer(base, LayerCommand::Select(base.layers()[2].id()));
     let chain = style(26.0, 0.8, [0.6, 0.1, 0.6]);
     all.push(case("chain", chained, chain, through.clone()));
-    let routed = by_record(&busy(), Some(&lasso()), turned());
+    let moved = by_record(&busy(), Some(&lasso()), turned());
     let blue = style(24.0, 0.7, [0.2, 0.6, 0.9]);
-    all.push(case("routed", routed, blue, through));
+    all.push(case("record", moved, blue, through));
     all
 }
 
@@ -230,7 +229,7 @@ fn a_stroke_drawn_in_batches_is_the_stroke_so_far_drawn_cold_on_the_canvas() {
 
 #[test]
 fn a_stroke_drawn_in_batches_is_its_export_at_the_tiers() {
-    for case in cases().into_iter().filter(|case| case.name != "routed") {
+    for case in cases() {
         drawn(&case, 3.7, Some(4));
     }
     let mut zoomed = cases().swap_remove(1);

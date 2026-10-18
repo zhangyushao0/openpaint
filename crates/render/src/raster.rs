@@ -6,10 +6,11 @@
 //! own; each layer ends onto a float canvas (or into its clipping chain) by its mode, and the
 //! canvas is rounded into the destination as the evaluator rounds it (`raster_plan.rs` the CPU's
 //! part, `raster_gpu.rs` the pipelines, `raster_frame.rs` the passes, raster*.wgsl the stages).
-//! A smudge is a pass applying its residual to the layer from a copy of it (S61, D88). It draws
-//! every scene `raster_route.rs` routes to it: the screen's canvas and its view tiers, exports,
-//! layer samples and pictures, brush pictures and a smudge's material (S62, D89), and the stroke
-//! being drawn (S63, D90: `drawing.rs`, a frame's regions one batch, `raster_batch.rs`).
+//! A smudge is a pass applying its residual to the layer from a copy of it (S61, D88); so are an
+//! adjustment and a filter's result (S65, D92). It draws every scene: the screen's canvas and its
+//! view tiers, exports, layer samples and pictures, brush pictures, a smudge's and a filter's
+//! material (S62, D89), and the stroke being drawn (S63, D90: `drawing.rs`, a frame's regions one
+//! batch, `raster_batch.rs`).
 
 use crate::core::Core;
 use crate::error::RenderError;
@@ -17,14 +18,17 @@ use crate::gpu_clock::Stamps;
 use crate::output::Output;
 use crate::program::SceneOps;
 use crate::raster_gpu::RasterPipelines;
-use crate::raster_plan::{Pass, RasterPlan, Scratch};
+use crate::raster_plan::{Pass, RasterPlan, SCRATCH, Scratch};
 use crate::readback::target_texture;
-use crate::smudge::Held;
+use crate::smudge::{Bases, Held};
 use crate::view_tiles::TIER_TILE;
 
 #[path = "raster_frame.rs"]
 mod frame;
-use frame::Reads;
+
+#[path = "raster_reads.rs"]
+mod reads;
+use reads::Reads;
 
 /// The buffers a scene's ops lie in on the GPU as the raster core binds them (S60: a worker draws
 /// from them while the canvas keeps its scene), and its smudges' residuals (S61).
@@ -59,8 +63,9 @@ impl SceneBuffers {
         ]
     }
 
-    /// Where each of the scene's smudges' residuals starts in the arena bound.
-    pub(crate) fn bases(&self) -> &[Option<u32>] {
+    /// Where each of the scene's smudges' residuals and filters' results starts in the arena
+    /// bound.
+    pub(crate) fn bases(&self) -> &Bases {
         &self.residuals.bases
     }
 }
@@ -78,9 +83,10 @@ pub(crate) struct RasterTargets {
     /// The largest region it draws, and the atlas.
     capacity: [u32; 2],
     atlas: Target,
-    /// By `Scratch`: the canvas, the chain, the layer, the mask, the backdrop; the chain, the
-    /// mask and the backdrop made when a region first needs them.
-    scratch: [Option<Target>; 5],
+    /// By `Scratch::index`: the canvas, the chain, the layer, the mask, the backdrop, the group's
+    /// backdrop and the levels; all but the canvas and the layer made when a region first needs
+    /// them.
+    scratch: [Option<Target>; SCRATCH],
     /// Bound where a draw reads nothing.
     unread: Target,
     /// Each region's values, `VALUES_STRIDE` bytes apart, and its instances, one after another
@@ -90,8 +96,8 @@ pub(crate) struct RasterTargets {
     bound: Bound,
     /// Group 0 for the scene's buffers and residuals it was made with.
     scene: Option<([wgpu::Buffer; 5], wgpu::BindGroup)>,
-    /// Group 1, made again when a scratch target is made.
-    reads: Option<Reads>,
+    /// Group 1 by what it reads, made again when a scratch target is made.
+    reads: Reads,
 }
 
 /// A texture with the one view every pass draws into or reads it through (a view made per pass
@@ -148,9 +154,9 @@ impl RasterTargets {
                 mapped_at_creation: false,
             })
         };
-        let mut scratch: [Option<Target>; 5] = Default::default();
+        let mut scratch: [Option<Target>; SCRATCH] = Default::default();
         for at in [Scratch::Canvas, Scratch::Layer] {
-            scratch[at as usize] = Some(Target::of(target_texture(
+            scratch[at.index()] = Some(Target::of(target_texture(
                 gpu,
                 (capacity, pipelines.layer),
                 drawn,
@@ -169,7 +175,7 @@ impl RasterTargets {
             instances: buffer("raster instances", 1 << 16, wgpu::BufferUsages::VERTEX),
             bound: Bound::default(),
             scene: None,
-            reads: None,
+            reads: Reads::default(),
         })
     }
 
@@ -269,7 +275,7 @@ impl RasterTargets {
         self.prepare_all(core, scene, (&[region], Pages::NONE), stamps)
     }
 
-    /// The chain, the mask and the backdrop, when `plan` uses one not made yet.
+    /// The scratch targets `plan` uses that are not made yet.
     fn make_scratch(
         &mut self,
         core: &Core,
@@ -279,8 +285,8 @@ impl RasterTargets {
         for pass in &plan.passes {
             let used: Vec<Scratch> = match pass {
                 Pass::Draw { target, .. } | Pass::Clear(target) => vec![*target],
-                Pass::Copy(_) => vec![Scratch::Backdrop],
-                Pass::Smudge { target, .. } => vec![*target, Scratch::Backdrop],
+                Pass::Copy { from, to } => vec![*from, *to],
+                Pass::Rewrite { target, .. } => vec![*target, Scratch::Backdrop],
                 Pass::End { target, reads, .. } => vec![*target, *reads],
                 Pass::Restore(copies) | Pass::Keep(copies) => {
                     copies.iter().map(|copy| copy.target).collect()
@@ -294,14 +300,19 @@ impl RasterTargets {
         Ok(())
     }
 
-    /// Every scratch target made now (S63: the screen canvas's ahead, while nothing touches the
-    /// screen, so no stroke's frame makes one: making one took up to 30 ms on the tablet).
+    /// Every scratch target a stroke's frame may read made now, the group's backdrop when its
+    /// place lies in a group (S63: the screen canvas's ahead, while nothing touches the screen,
+    /// so no stroke's frame makes one: making one took up to 30 ms on the tablet).
     ///
     /// # Errors
     /// As the GPU.
-    pub(crate) fn make_every(&mut self, core: &Core) -> Result<(), RenderError> {
+    pub(crate) fn make_every(&mut self, core: &Core, group: bool) -> Result<(), RenderError> {
         let pipelines = core.raster_pipelines()?;
-        for at in [Scratch::Chain, Scratch::Mask, Scratch::Backdrop] {
+        let mut every = vec![Scratch::Chain, Scratch::Mask, Scratch::Backdrop];
+        if group {
+            every.push(Scratch::Group);
+        }
+        for at in every {
             self.make(core, pipelines, at)?;
         }
         Ok(())
@@ -314,15 +325,15 @@ impl RasterTargets {
         pipelines: &RasterPipelines,
         at: Scratch,
     ) -> Result<(), RenderError> {
-        if self.scratch[at as usize].is_some() {
+        if self.scratch[at.index()].is_some() {
             return Ok(());
         }
         let usage = wgpu::TextureUsages::RENDER_ATTACHMENT
             | wgpu::TextureUsages::TEXTURE_BINDING
             | wgpu::TextureUsages::COPY_DST;
         let format = (self.capacity, pipelines.layer);
-        self.scratch[at as usize] = Some(Target::of(target_texture(&core.gpu, format, usage)?));
-        self.reads = None;
+        self.scratch[at.index()] = Some(Target::of(target_texture(&core.gpu, format, usage)?));
+        self.reads = Reads::default();
         Ok(())
     }
 

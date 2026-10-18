@@ -9,15 +9,11 @@
 //! being drawn, a later change). Once nothing waits, the worker takes the snapshots under the
 //! next stroke ahead (S63, `drawing_ahead.rs`).
 
-use openpaint_core::Artwork;
-
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::evaluator::CanvasTarget;
-use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
 use crate::raster::RasterTargets;
-use crate::raster_route::Routed;
 use crate::readback::target_texture;
 use crate::view_raster_jobs::{RasterDone, RasterOrder};
 use crate::view_tiles::TIER_TILE;
@@ -118,17 +114,6 @@ impl CanvasRaster {
         }
     }
 
-    /// Everything waiting goes (the evaluator draws the canvas now, S62's routing): the tiles
-    /// handed over are not applied when answered, those answered not at all.
-    pub(crate) fn forget(&mut self) {
-        self.waiting.take_all();
-        self.fresh.clear();
-        self.done.clear();
-        for handed in &mut self.handed {
-            handed.stale = true;
-        }
-    }
-
     /// The worker's answer to a job: the canvas's applied by its next frame (one a change
     /// reached since, dropped: its tile waits still), the tiers' kept for them.
     pub(crate) fn answer(&mut self, done: RasterDone) {
@@ -210,19 +195,6 @@ impl CanvasRaster {
 }
 
 impl CanvasTarget {
-    /// The scene the last evaluation drew for `request` goes to the raster core (S62).
-    pub(crate) fn rastered(&self, request: &FrameRequest<'_>) -> bool {
-        (self.scene_serial(request.artwork, request.active))
-            .is_some_and(|(scene, _, _)| scene.rastered().is_some())
-    }
-
-    /// Which core draws the scene the last evaluation drew for `artwork` (`Ok`: the raster
-    /// core; else why the evaluator), for the log; `None` before one drew it.
-    #[must_use]
-    pub fn routing(&self, artwork: &Artwork) -> Option<Result<(), Routed>> {
-        (self.scene_serial(artwork, None)).map(|(scene, _, _)| scene.routing.kind())
-    }
-
     /// What the canvas and its view tiers ask of the raster worker since the last call, in
     /// order (S60): the runtime hands it over.
     pub fn take_orders(&mut self) -> Vec<RasterOrder> {

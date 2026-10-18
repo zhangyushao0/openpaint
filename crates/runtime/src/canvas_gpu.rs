@@ -72,24 +72,7 @@ impl Canvas {
         self.target.show_selection(core, self.session.selection());
         self.evaluated = true;
         self.filled(core);
-        self.note_routing();
         Ok(())
-    }
-
-    /// Logs which core draws the canvas and its tiers when that changes (S59, S62).
-    fn note_routing(&mut self) {
-        let routing = self.target.routing(self.session.shown());
-        if routing.is_none() || routing == self.routing {
-            return;
-        }
-        match routing {
-            Some(Ok(())) => log::info!("the canvas and its view tiers drawn by the raster core"),
-            Some(Err(routed)) => {
-                log::info!("the canvas and its view tiers evaluated: the artwork holds {routed}");
-            }
-            None => {}
-        }
-        self.routing = routing;
     }
 
     /// Tiles of the target still wait to be evaluated: frames are wanted until none does.

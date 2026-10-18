@@ -2,11 +2,9 @@
 //! textures, all for the compute stage) and how a plan's tiles lay out as workgroups.
 
 use crate::error::RenderError;
-use crate::gpu::{Gpu, TEN_BITS};
+use crate::gpu::Gpu;
 use crate::protocol::prelude;
 use crate::readback::FORMAT;
-
-use super::COVERAGE_FORMAT;
 
 const SHADER: &str = include_str!("shaders/evaluate.wgsl");
 const SEGMENT: &str = include_str!("shaders/segment.wgsl");
@@ -19,17 +17,10 @@ const FILL_EDGE: &str = include_str!("shaders/fill_edge.wgsl");
 const FILTER: &str = include_str!("shaders/filter_composite.wgsl");
 
 /// The protocol prelude followed by the evaluator, its curve spans, their stamps, its
-/// accumulating deposits, its smudges, its adjustments, its fill edges and its filters; its
-/// display texture in `display` (written as declared for ten bits, else declared as `FORMAT` and
-/// never written).
-pub(crate) fn shader_source(display: wgpu::TextureFormat) -> String {
+/// accumulating deposits, its smudges, its adjustments, its fill edges and its filters.
+pub(crate) fn shader_source() -> String {
     let source = prelude() + SHADER + SEGMENT + STAMP + STAMP_TEXTURE + DEPOSIT + SMUDGE;
-    let source = source + ADJUST + FILL_EDGE + FILTER;
-    if display == TEN_BITS {
-        source
-    } else {
-        source.replace("<rgb10a2unorm, write>", "<rgba8unorm, write>")
-    }
+    source + ADJUST + FILL_EDGE + FILTER
 }
 
 fn buffer_entry(binding: u32, ty: wgpu::BufferBindingType) -> wgpu::BindGroupLayoutEntry {
@@ -62,27 +53,6 @@ fn texture_entry(
     }
 }
 
-/// A one-texel storage texture in `format`, bound where a target does not write (S37).
-pub(super) fn unwritten(device: &wgpu::Device, format: wgpu::TextureFormat) -> wgpu::TextureView {
-    let one = wgpu::Extent3d {
-        width: 1,
-        height: 1,
-        depth_or_array_layers: 1,
-    };
-    device
-        .create_texture(&wgpu::TextureDescriptor {
-            label: Some("unwritten"),
-            size: one,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format,
-            usage: wgpu::TextureUsages::STORAGE_BINDING,
-            view_formats: &[],
-        })
-        .create_view(&Default::default())
-}
-
 /// Tiles laid out as rows of workgroups, each row at most the device's per-dimension limit.
 pub(super) struct Workgroups {
     pub(super) tiles: u32,
@@ -103,18 +73,8 @@ pub(super) fn workgroups(gpu: &Gpu, tiles: usize) -> Result<Workgroups, RenderEr
 }
 
 /// The evaluator's bindings, in the order `evaluate.wgsl` declares them.
-pub(super) fn evaluate_layout(
-    device: &wgpu::Device,
-    display: wgpu::TextureFormat,
-) -> wgpu::BindGroupLayout {
+pub(super) fn evaluate_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
     let read_only = wgpu::BufferBindingType::Storage { read_only: true };
-    let kept = |binding| {
-        texture_entry(
-            binding,
-            wgpu::StorageTextureAccess::ReadWrite,
-            COVERAGE_FORMAT,
-        )
-    };
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("evaluate"),
         entries: &[
@@ -123,17 +83,11 @@ pub(super) fn evaluate_layout(
             buffer_entry(2, read_only),
             buffer_entry(3, read_only),
             texture_entry(4, wgpu::StorageTextureAccess::WriteOnly, FORMAT),
-            kept(6),
             buffer_entry(7, read_only),
-            kept(8),
             buffer_entry(9, read_only),
             buffer_entry(10, read_only),
             buffer_entry(11, read_only),
             buffer_entry(12, read_only),
-            // The preview snapshot: written by one evaluation, read by later ones (S35).
-            buffer_entry(13, wgpu::BufferBindingType::Storage { read_only: false }),
-            // The display texture (S37), ten bits where the device has them.
-            texture_entry(14, wgpu::StorageTextureAccess::WriteOnly, display),
         ],
     })
 }

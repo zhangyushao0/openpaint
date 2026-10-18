@@ -2,10 +2,9 @@
 //! regions of at most `REGION` pixels, each rounded into the piece's 8-bit texture where it lies,
 //! then the piece read back. A pixel depends only on what reaches it, so the regions, the pieces
 //! and the bands make what one region over the whole output would. The export's smudges (S61,
-//! D88) read residuals of its own, made by the smudge engine near each region before it is drawn
-//! (as an export the evaluator drew made them), each once. S62 (D89): a layer sample (one layer
-//! on nothing, a mask's grey on white) is such an export at 1x of its layer's scene, one piece
-//! the canvas's size.
+//! D88) and filters (S65) read residuals and results of its own, made near each region before it
+//! is drawn, each once. S62 (D89): a layer sample (one layer on nothing, a mask's grey on white)
+//! is such an export at 1x of its layer's scene, one piece the canvas's size.
 
 use std::time::{Duration, Instant};
 
@@ -33,26 +32,24 @@ pub(crate) struct RasterExport {
     scene: Scene,
     ops: SceneOps,
     smudges: Smudges,
+    filters: Filters,
     targets: RasterTargets,
     piece: wgpu::Texture,
 }
 
 impl RasterExport {
-    /// The export of `scene` (one the raster core draws, else `Invalid`) in pieces of up to
-    /// `piece` pixels.
+    /// The export of `scene` in pieces of up to `piece` pixels.
     ///
     /// # Errors
-    /// `Invalid` for a scene routed to the evaluator; as the GPU: sizes the device cannot hold.
+    /// As the GPU: sizes the device cannot hold.
     pub(crate) fn new(core: &Core, scene: Scene, piece: [u32; 2]) -> Result<Self, RenderError> {
-        if scene.rastered().is_none() {
-            return Err(RenderError::Invalid("the scene goes to the evaluator"));
-        }
         let usage = wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING;
         let region = [0, 1].map(|axis| REGION[axis].min(piece[axis]));
         Ok(Self {
             ops: scene_ops(&core.gpu, &scene, None),
             scene,
             smudges: Smudges::new(core),
+            filters: Filters::default(),
             targets: RasterTargets::new(core, region, ATLAS)?,
             piece: target_texture(&core.gpu, (piece, FORMAT), usage)?,
         })
@@ -108,9 +105,7 @@ impl RasterExport {
                     at: [x, y],
                     only: &[],
                 };
-                let raster = (self.scene.rastered())
-                    .ok_or(RenderError::Invalid("the scene goes to the evaluator"))?;
-                let units = (&self.scene, raster, buffers.bases());
+                let units = (&self.scene, buffers.bases());
                 let plan = RasterPlan::build(units, (output, size), self.targets.atlas())?;
                 let drawn = (&buffers, &plan);
                 (self.targets).draw(core, drawn, (output, background), &finish, None)?;
@@ -137,11 +132,11 @@ impl RasterExport {
             max: [x + size[0] as i32, y + size[1] as i32],
         };
         let near = [around_output(&rect, output.scale)];
-        let mut filters = Filters::default();
+
         let scene = (&self.scene, &self.ops);
-        let wanted = (&mut filters, &Wanted::Near(&near));
+        let wanted = (&mut self.filters, &Wanted::Near(&near));
         self.smudges.prepare(core, scene, artwork, wanted)?;
-        let held = self.smudges.held(&self.scene);
+        let held = self.smudges.held(&self.scene, &self.filters);
         Ok(SceneBuffers::of(&self.ops, held))
     }
 }

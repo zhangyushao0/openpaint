@@ -1,10 +1,10 @@
 //! A residual evaluated over frames as background work (S53): on the tablet a smudge's residual
 //! over a busy place took most of a second, its material (the layer's earlier ops over every tile
 //! its contacts read) the most of it, and a fresh start evaluated them all in its first frame
-//! (5 s). Now the screen canvas's background work, before it takes waiting tiles that read a
+//! (5 s). Now the screen canvas's background work, before it draws waiting tiles that read a
 //! residual the arena lacks, evaluates that residual a share at a time within the frame budget:
-//! first its material's tiles, then its contacts in order; once whole it goes into the arena as
-//! `prepare` would put it, and the tiles that read it are taken. The same contacts and tiles as
+//! first its material's regions, then its contacts in order; once whole it goes into the arena as
+//! `prepare` would put it, and the tiles that read it are drawn. The same contacts and tiles as
 //! a residual evaluated at once, so the same nodes. Only one at a time; anything else using the
 //! material texture meanwhile (a stroke's residual, a filter) starts it over.
 
@@ -14,19 +14,16 @@ use std::ops::Range;
 use openpaint_core::Artwork;
 
 use super::budget::keys_of;
-use super::needs::{Wanted, around};
+use super::needs::Wanted;
 use super::{
     Job, Keep, KernelBuffers, Key, Run, Smudges, binding_limit, dabs, held_in, key, material,
     read_tiles, tile_job,
 };
+use crate::affine::Affine;
 use crate::core::Core;
-use crate::cost::tile_cost;
 use crate::error::RenderError;
 use crate::filter::Filters;
-use crate::geom::PixelRect;
-use crate::plan::Plan;
 use crate::program::SceneOps;
-use crate::protocol::TileRecord;
 use crate::raster::SceneBuffers;
 use crate::scene::Scene;
 use crate::smudge::{MaterialRegion, regions};
@@ -36,13 +33,11 @@ use crate::smudge::{MaterialRegion, regions};
 const CONTACT_NS: f64 = 4.1;
 const RESET_NS: f64 = 0.2;
 
-/// Residuals an evaluation needs that the arena lacks: the first in scene order (to evaluate
-/// first: later ones read it), every residual the evaluation needs, and the canvas pixels around
-/// which the lacking ones are read (tiles meeting them need them).
+/// Residuals a draw needs that the arena lacks: the first in scene order (to evaluate first:
+/// later ones read it), and every residual the draw needs.
 pub(crate) struct Lacking {
     pub(crate) first: usize,
     pub(crate) needed: HashSet<Key>,
-    pub(crate) reach: Vec<PixelRect>,
 }
 
 /// The residual being evaluated over frames.
@@ -57,18 +52,13 @@ pub(super) struct Deriving {
     next: usize,
 }
 
-/// A material made over frames: by the raster core (S62), its regions left, each planned as it
-/// is drawn (the arena may have moved its earlier residuals since); else by the evaluator (a
-/// routed scene), its plan and the tiles left with their estimates.
-enum Making {
-    Rastered {
-        items: Range<usize>,
-        left: VecDeque<MaterialRegion>,
-    },
-    Evaluated {
-        plan: Plan,
-        left: VecDeque<(TileRecord, f64)>,
-    },
+/// A material made over frames by the raster core (S62): the layer's items before the smudge,
+/// where its pixels lie on the canvas, its regions left, each planned as it is drawn (the arena
+/// may have moved its earlier residuals since).
+struct Making {
+    items: Range<usize>,
+    base: Affine,
+    left: VecDeque<MaterialRegion>,
 }
 
 impl Smudges {
@@ -100,18 +90,9 @@ impl Smudges {
         for key in &needed {
             self.arena.touch(key);
         }
-        let lacking: Vec<usize> = (keys.iter().zip(&needs).enumerate())
-            .filter(|(_, (key, need))| need.tiles().is_some() && !self.arena.whole(key))
-            .map(|(index, _)| index)
-            .collect();
-        let reach = (lacking.iter())
-            .map(|index| around(&scene.smudges[*index].canvas))
-            .collect();
-        Some(Lacking {
-            first: *lacking.first()?,
-            needed,
-            reach,
-        })
+        let first = (keys.iter().zip(&needs))
+            .position(|(key, need)| need.tiles().is_some() && !self.arena.whole(key))?;
+        Some(Lacking { first, needed })
     }
 
     /// Goes on evaluating smudge `index`'s residual within the frame budget (starting it when
@@ -123,10 +104,15 @@ impl Smudges {
     pub(crate) fn derive(
         &mut self,
         core: &Core,
-        (scene, ops, serial, costs): (&Scene, &SceneOps, u64, &[f32]),
+        (scene, ops, serial): (&Scene, &SceneOps, u64),
         artwork: &Artwork,
         (index, needed, filters): (usize, &HashSet<Key>, &mut Filters),
     ) -> Result<bool, RenderError> {
+        if self.tools.evaluated {
+            return Err(RenderError::Invalid(
+                "a reference's residuals are made at once",
+            ));
+        }
         let item = &scene.smudges[index];
         let wanted = key(item.layer, &item.stroke);
         let going = self.deriving.take().filter(|deriving| {
@@ -136,9 +122,9 @@ impl Smudges {
         });
         let mut deriving = match going {
             Some(deriving) => deriving,
-            None => self.start(core, (scene, serial, costs), artwork, index)?,
+            None => self.start(core, (scene, serial), artwork, index)?,
         };
-        if !self.materials(core, (scene, ops), &mut deriving)?
+        if !self.materials(core, (scene, ops, &*filters), &mut deriving)?
             || !self.contacts(core, &mut deriving)
         {
             self.deriving = Some(deriving);
@@ -168,7 +154,7 @@ impl Smudges {
     fn start(
         &mut self,
         core: &Core,
-        (scene, serial, costs): (&Scene, u64, &[f32]),
+        (scene, serial): (&Scene, u64),
         artwork: &Artwork,
         index: usize,
     ) -> Result<Deriving, RenderError> {
@@ -183,18 +169,10 @@ impl Smudges {
             .iter()
             .map(|tile| run.working.tile_rect(*tile))
             .collect();
-        let material = if scene.rastered().is_some() {
-            Making::Rastered {
-                items: item.before.clone(),
-                left: regions(&rects).into(),
-            }
-        } else {
-            let material = material(&mut self.tools.material, core, size)?;
-            let plan = material.plan(scene, (item.before.clone(), item.to_canvas), &rects);
-            let left = (plan.tiles.iter())
-                .map(|tile| (*tile, tile_cost(&plan, tile, costs)))
-                .collect();
-            Making::Evaluated { plan, left }
+        let material = Making {
+            items: item.before.clone(),
+            base: item.to_canvas,
+            left: regions(&rects).into(),
         };
         let mut jobs: Vec<Job> = new.iter().map(|tile| tile_job(*tile, size)).collect();
         jobs.extend(
@@ -217,74 +195,29 @@ impl Smudges {
     fn materials(
         &mut self,
         core: &Core,
-        (scene, ops): (&Scene, &SceneOps),
+        (scene, ops, filters): (&Scene, &SceneOps, &Filters),
         deriving: &mut Deriving,
     ) -> Result<bool, RenderError> {
         let size = deriving.run.working.size();
-        match &mut deriving.material {
-            Making::Rastered { items, left } => {
-                let held = held_in(&self.arena, &self.tools.empty, scene);
-                let buffers = SceneBuffers::of(ops, held);
-                let material = material(&mut self.tools.material, core, size)?;
-                while let Some(region) = left.front() {
-                    let units = (scene, &*items, buffers.bases());
-                    let planned = material.plan_region(core, units, region)?;
-                    if !core
-                        .pace()
-                        .take_raster(planned.0.counts.estimate(planned.0.size))
-                    {
-                        break;
-                    }
-                    material.draw_region(core, &planned, region, &buffers)?;
-                    left.pop_front();
-                }
-                core.background_submitted(core.pace().unmarked());
-                Ok(left.is_empty())
+        let Making { items, base, left } = &mut deriving.material;
+        let held = held_in(&self.arena, &self.tools.empty, (scene, filters));
+        let buffers = SceneBuffers::of(ops, held);
+        let material = material(&mut self.tools.material, core, (size, false))?;
+        while let Some(region) = left.front() {
+            let units = ((scene, buffers.bases()), &*items, *base);
+            let planned = material.plan_region(core, units, region)?;
+            if !core
+                .pace()
+                .take_raster(planned.0.counts.estimate(planned.0.size))
+            {
+                break;
             }
-            Making::Evaluated { plan, left } => {
-                let to_canvas = (scene.smudges.iter())
-                    .find(|item| key(item.layer, &item.stroke) == deriving.key)
-                    .map_or(crate::affine::Affine::IDENTITY, |item| item.to_canvas);
-                let tools = (&self.arena, &mut self.tools);
-                evaluated((core, size), ops, (&*plan, left), to_canvas, tools)
-            }
+            material.draw_region(core, &planned, region, &buffers)?;
+            left.pop_front();
         }
+        core.background_submitted(core.pace().unmarked());
+        Ok(left.is_empty())
     }
-}
-
-/// The evaluator's material (a routed scene's): its tiles `left` of `plan` the frame budget takes,
-/// evaluated where the smudge's pixels lie by `to_canvas`, with `arena`'s residuals; true once
-/// none is left.
-fn evaluated(
-    (core, size): (&Core, [u32; 2]),
-    ops: &SceneOps,
-    (plan, left): (&Plan, &mut VecDeque<(TileRecord, f64)>),
-    to_canvas: crate::affine::Affine,
-    (arena, tools): (&super::Arena, &mut super::Tools),
-) -> Result<bool, RenderError> {
-    let mut pace = core.pace();
-    let mut taken = Vec::new();
-    while let Some((tile, cost)) = left.front().copied() {
-        if !pace.take(cost) {
-            break;
-        }
-        left.pop_front();
-        taken.push(tile);
-    }
-    let estimate = pace.close();
-    if !taken.is_empty() {
-        let residuals = [arena.buffer(), &tools.empty];
-        let timing = pace.time(estimate);
-        let clocked = timing.and_then(|timing| Some((pace.clock()?, timing)));
-        let material = material(&mut tools.material, core, size)?;
-        let tiles = (plan, taken.as_slice());
-        material.evaluate_tiles(core, ops, tiles, to_canvas, (residuals, clocked))?;
-        if let Some(timing) = timing {
-            pace.finish(&core.gpu, timing);
-        }
-        core.background_submitted(pace.unmarked());
-    }
-    Ok(left.is_empty())
 }
 
 impl Smudges {

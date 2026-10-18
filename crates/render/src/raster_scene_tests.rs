@@ -1,5 +1,5 @@
-//! The routing's tests: everything the author's artworks hold, smudges included (S61), goes to the
-//! raster core; each kind it does not draw yet sends the scene to the evaluator, named.
+//! The raster scene's tests: what the author's artworks hold, smudges included (S61), and since
+//! S65 every kind of record, are the raster core's units, in scene order.
 
 use std::sync::Arc;
 
@@ -86,18 +86,18 @@ fn plain() -> Artwork {
     drawn(&artwork, StrokeTool::Paint)
 }
 
-fn routed(artwork: &Artwork) -> Result<RasterScene, Routed> {
+fn units(artwork: &Artwork) -> RasterScene {
     RasterScene::of(&Scene::build(artwork, None).expect("scene"))
 }
 
 #[test]
 fn what_the_authors_artworks_hold_goes_to_the_raster_core() {
-    let scene = routed(&plain()).expect("rastered");
+    let scene = units(&plain());
     let ends = (scene.units.iter())
         .filter(|unit| matches!(unit, Unit::End(_)))
         .count();
     let masks = (scene.units.iter())
-        .filter(|unit| matches!(unit, Unit::BeginMask))
+        .filter(|unit| matches!(unit, Unit::BeginMask(_)))
         .count();
     assert_eq!((ends, masks), (5, 1), "four layers and a chain, a mask");
     let edits = (scene.units.iter())
@@ -116,7 +116,7 @@ fn smudges_on_paint_and_on_a_mask_are_units_in_scene_order() {
     let on_mask = apply(&on_paint, ArtworkCommand::Mask(MaskCommand::Add(layer)));
     let both = drawn(&on_mask, StrokeTool::Smudge);
     let built = Scene::build(&both, None).expect("scene");
-    let routed = RasterScene::of(&built).expect("rastered");
+    let routed = RasterScene::of(&built);
     let smudges: Vec<(usize, usize, PixelRect)> = (routed.units.iter())
         .filter_map(|unit| match unit {
             Unit::Smudge {
@@ -137,7 +137,7 @@ fn smudges_on_paint_and_on_a_mask_are_units_in_scene_order() {
     }
     assert!(!built.smudges[0].on_mask && built.smudges[1].on_mask);
     let mask_at = (routed.units.iter())
-        .position(|unit| matches!(unit, Unit::BeginMask))
+        .position(|unit| matches!(unit, Unit::BeginMask(_)))
         .expect("the mask");
     let second = (routed.units.iter())
         .position(|unit| matches!(unit, Unit::Smudge { smudge: 1, .. }))
@@ -145,8 +145,24 @@ fn smudges_on_paint_and_on_a_mask_are_units_in_scene_order() {
     assert!(second > mask_at, "the mask's smudge after its start");
 }
 
+/// What each kind of record makes of the scene's units (S65): its own units, never a fallback.
+fn kinds(units: &RasterScene) -> Vec<&'static str> {
+    (units.units.iter())
+        .filter_map(|unit| match unit {
+            Unit::Adjust { .. } => Some("adjust"),
+            Unit::Filter { .. } => Some("filter"),
+            Unit::EndGroup(_) => Some("group"),
+            Unit::Frame(_) => Some("frame"),
+            Unit::BeginMove(_) => Some("begin"),
+            Unit::EndMove(_) => Some("move"),
+            Unit::EndNested(_) => Some("nested"),
+            _ => None,
+        })
+        .collect()
+}
+
 #[test]
-fn each_kind_the_raster_core_lacks_sends_the_scene_to_the_evaluator_named() {
+fn every_kind_of_record_is_units_of_its_own_in_scene_order() {
     let base = plain();
     let layer = base.active();
     let blur = Adjustment::Blur(Blur::new(3.0));
@@ -155,49 +171,50 @@ fn each_kind_the_raster_core_lacks_sends_the_scene_to_the_evaluator_named() {
     let canvas = CanvasSize::new(SIZE, SIZE).expect("size");
     let one = drawn(&Artwork::new(canvas), StrokeTool::Paint);
     let below = apply(&one, ArtworkCommand::Layer(LayerCommand::Create));
-    let cases: [(Reason, Artwork); 6] = [
+    let grouped = apply(&base, ArtworkCommand::Group(GroupCommand::Create { layer }));
+    let cases: [(&[&str], Artwork); 6] = [
         (
-            Reason::Adjustment,
+            &["adjust"],
             base.adjust_region(None, hsb).expect("adjust").artwork,
         ),
         (
-            Reason::Filter,
+            &["filter"],
             base.adjust_region(None, blur.clone())
                 .expect("blur")
                 .artwork,
         ),
+        (&["group"], grouped.clone()),
         (
-            Reason::Group,
-            apply(&base, ArtworkCommand::Group(GroupCommand::Create { layer })),
-        ),
-        (
-            Reason::Transform,
+            &["frame", "move", "frame"],
             base.place_region(None, moved).expect("record").artwork,
         ),
         (
-            Reason::MovedSelection,
+            &["begin", "frame", "move", "frame"],
             (base.place_region(Some(square()), moved))
                 .expect("moved")
                 .artwork,
         ),
         (
-            Reason::Nested,
+            &["begin", "frame", "nested"],
             apply(
                 &drawn(&below, StrokeTool::Paint),
                 ArtworkCommand::Layer(LayerCommand::MergeDown(below.active())),
             ),
         ),
     ];
-    for (reason, artwork) in cases {
-        let routed = routed(&artwork).expect_err("evaluated");
-        assert_eq!(routed.reasons(), [reason], "{routed}");
+    for (expected, artwork) in cases {
+        assert_eq!(kinds(&units(&artwork)), expected);
     }
-    let grouped = apply(&base, ArtworkCommand::Group(GroupCommand::Create { layer }));
-    let blurred = (grouped.adjust_region(None, blur)).expect("blur").artwork;
-    let routed = routed(&drawn(&blurred, StrokeTool::Smudge)).expect_err("evaluated");
-    assert_eq!(
-        routed.to_string(),
-        "filters, groups",
-        "a smudge is no reason"
-    );
+    let scene = Scene::build(&grouped, None).expect("scene");
+    let raster = &scene.raster;
+    let ended = (raster.units.iter())
+        .position(|unit| matches!(unit, Unit::EndGroup(_)))
+        .expect("the group's end");
+    let first = (raster.units.iter())
+        .position(|unit| matches!(unit, Unit::End(item) if opens_group(&scene.items[*item])))
+        .expect("its first layer's end");
+    assert!(!raster.group_open_at(&scene, first));
+    assert!(raster.group_open_at(&scene, first + 1));
+    assert!(raster.group_open_at(&scene, ended));
+    assert!(!raster.group_open_at(&scene, ended + 1));
 }

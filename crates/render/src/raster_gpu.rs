@@ -3,9 +3,10 @@
 //! spans, stamps, textures, deposits and fill edges, and the smudge engine's residual reading),
 //! one pipeline per way a stroke lays into the atlas (the blend unit keeping the largest or
 //! summing), per paint blend for a stroke's tiles and a fill onto the layer, one for patches, one
-//! for smudges (S61), one per way a layer ends (`EndBlend`), and the finish per destination
-//! format. Each pipeline's entry points reach only their own kind's code, so none pays for the
-//! others' registers (D82).
+//! for smudges (S61), one per way a layer ends (`EndBlend`), S65's for adjustments, filters,
+//! moves' ends and a whole layer's cut (the evaluator's adjust.wgsl and filter_composite.wgsl
+//! appended whole), and the finish per destination format. Each pipeline's entry points reach
+//! only their own kind's code, so none pays for the others' registers (D82).
 
 use crate::core::Core;
 use crate::error::RenderError;
@@ -13,7 +14,7 @@ use crate::gpu::{Gpu, TEN_BITS};
 use crate::protocol::{Blend, prelude};
 use crate::raster_plan::{Coverage, DrawKind, EndBlend};
 use crate::raster_states::{
-    Stage, blended, ended, floats, layouts, painted, pipeline_layout, summing,
+    Stage, blended, cut, ended, floats, layouts, painted, pipeline_layout, summing,
 };
 use crate::readback::FORMAT;
 
@@ -27,10 +28,12 @@ const STAMP_TEXTURE: &str = include_str!("shaders/stamp_texture.wgsl");
 const DEPOSIT: &str = include_str!("shaders/deposit.wgsl");
 const FILL_EDGE: &str = include_str!("shaders/fill_edge.wgsl");
 const SMUDGE: &str = include_str!("shaders/smudge_composite.wgsl");
+const ADJUST: &str = include_str!("shaders/adjust.wgsl");
+const FILTER: &str = include_str!("shaders/filter_composite.wgsl");
 
 /// The helpers of evaluate.wgsl the raster core's stages call, taken from it whole, so they stay
 /// its.
-const HELPERS: [&str; 18] = [
+const HELPERS: [&str; 19] = [
     "fn word(",
     "fn stroke_paint(",
     "fn clip(",
@@ -49,6 +52,7 @@ const HELPERS: [&str; 18] = [
     "fn pcg(",
     "fn quantized(",
     "fn coded(",
+    "fn moved_share(",
 ];
 
 /// The raster core's WGSL: the protocol prelude, its own stages, then the evaluator's functions
@@ -60,7 +64,7 @@ pub(crate) fn raster_source() -> Result<String, RenderError> {
             "evaluate.wgsl lacks a helper the raster core takes",
         ))?);
     }
-    Ok(source + SEGMENT + STAMP + STAMP_TEXTURE + DEPOSIT + FILL_EDGE + SMUDGE)
+    Ok(source + SEGMENT + STAMP + STAMP_TEXTURE + DEPOSIT + FILL_EDGE + SMUDGE + ADJUST + FILTER)
 }
 
 /// The declaration of `source` starting a line with `head`: a function through its closing
@@ -80,14 +84,15 @@ fn item<'a>(source: &'a str, head: &str) -> Option<&'a str> {
 const BLENDS: [Blend; 3] = [Blend::Over, Blend::Atop, Blend::Erase];
 
 /// The ways a layer ends, in `EndBlend`'s order.
-const ENDS: [EndBlend; 7] = [
+const ENDS: [EndBlend; 8] = [
     EndBlend::Over,
     EndBlend::Multiply,
     EndBlend::ScreenCanvas,
     EndBlend::Atop,
     EndBlend::ScreenChain,
     EndBlend::Base,
-    EndBlend::Overlay,
+    EndBlend::Backdrop,
+    EndBlend::Group,
 ];
 
 pub(crate) struct RasterPipelines {
@@ -102,10 +107,13 @@ pub(crate) struct RasterPipelines {
     /// The kept coverage of the stroke being drawn read from its slots into the atlas, written
     /// whole (S64).
     pub(crate) kept: wgpu::RenderPipeline,
-    /// A smudge onto the layer or its mask from their copy, written whole.
+    /// A smudge onto the layer or its mask from their copy, written whole; S65: an adjustment
+    /// and a filter likewise, a moved content laid over the level under it, a whole layer's cut
+    /// in place.
     smudge: wgpu::RenderPipeline,
+    records: [wgpu::RenderPipeline; 4],
     /// By `EndBlend`, in its order.
-    ends: [wgpu::RenderPipeline; 7],
+    ends: [wgpu::RenderPipeline; 8],
     /// The finish into 8 bits, and into the display's format where it is ten bits.
     finish: wgpu::RenderPipeline,
     finish_ten: Option<wgpu::RenderPipeline>,
@@ -150,14 +158,11 @@ impl RasterPipelines {
                 ["rect_vertex", "patch_fragment"],
                 blended(layer, Some(painted(Blend::Over))),
             ),
-            (["smudge_vertex", "smudge_fragment"], blended(layer, None)),
+            (["arena_vertex", "smudge_fragment"], blended(layer, None)),
             (["kept_vertex", "kept_fragment"], blended(atlas, None)),
         ]
         .map(|(entries, target)| make(entries, &both, target));
-        let ends = ENDS.map(|end| {
-            let (fragment, blend) = ended(end);
-            make(["rect_vertex", fragment], &both, blended(layer, blend))
-        });
+        let (records, ends) = records(&|entries, target| make(entries, &both, target), layer);
         let finish = make(["finish_vertex", "finish_eight"], &both, FORMAT.into());
         let finish_ten = (gpu.display == TEN_BITS)
             .then(|| make(["finish_vertex", "finish_ten"], &both, TEN_BITS.into()));
@@ -168,9 +173,10 @@ impl RasterPipelines {
             fills,
             patch,
             smudge,
+            records,
             kept,
             ends,
-            count: 5 + 3 + 3 + 1 + 1 + 1 + 7 + 1 + usize::from(finish_ten.is_some()),
+            count: 5 + 3 + 3 + 1 + 1 + 4 + 1 + 8 + 1 + usize::from(finish_ten.is_some()),
             finish,
             finish_ten,
             atlas,
@@ -189,6 +195,10 @@ impl RasterPipelines {
             DrawKind::Fill(blend) => &self.fills[blend as usize],
             DrawKind::Patch => &self.patch,
             DrawKind::Smudge => &self.smudge,
+            DrawKind::Adjust => &self.records[0],
+            DrawKind::Filter => &self.records[1],
+            DrawKind::Moved => &self.records[2],
+            DrawKind::Cut => &self.records[3],
             DrawKind::End(end) => &self.ends[end as usize],
         }
     }
@@ -201,6 +211,30 @@ impl RasterPipelines {
             _ => None,
         }
     }
+}
+
+/// The pipelines onto the layer's float targets (in `layer`) that `make` makes from their entries
+/// and target: S65's records (an adjustment and a filter from the copy, a moved content over the
+/// level under it, a whole layer's cut), then the layer ends by `EndBlend`.
+fn records(
+    make: &impl Fn([&'static str; 2], wgpu::ColorTargetState) -> wgpu::RenderPipeline,
+    layer: wgpu::TextureFormat,
+) -> ([wgpu::RenderPipeline; 4], [wgpu::RenderPipeline; 8]) {
+    let records = [
+        (["rect_vertex", "adjust_fragment"], None),
+        (["arena_vertex", "filter_fragment"], None),
+        (
+            ["rect_vertex", "moved_fragment"],
+            Some(painted(Blend::Over)),
+        ),
+        (["rect_vertex", "cut_fragment"], Some(cut())),
+    ]
+    .map(|(entries, blend)| make(entries, blended(layer, blend)));
+    let ends = ENDS.map(|end| {
+        let (fragment, blend) = ended(end);
+        make(["rect_vertex", fragment], blended(layer, blend))
+    });
+    (records, ends)
 }
 
 impl Core {

@@ -153,16 +153,6 @@ impl TileMap {
         })
     }
 
-    /// For each held view tile meeting the output pixels `rect`, that part of it in target
-    /// pixels.
-    pub(crate) fn targets(&self, rect: &PixelRect, found: &mut impl FnMut(&PixelRect)) {
-        for (tile, part) in self.meeting(rect) {
-            if let Some(slot) = self.slot(tile) {
-                found(&self.to_target(tile, slot, &part));
-            }
-        }
-    }
-
     /// Output pixels `part` of `tile` as the target pixels of its `slot`.
     pub(crate) fn to_target(&self, tile: [u32; 2], slot: u32, part: &PixelRect) -> PixelRect {
         let origin = self.slot_origin(slot);
@@ -172,19 +162,6 @@ impl TileMap {
             min: [part.min[0] + x, part.min[1] + y],
             max: [part.max[0] + x, part.max[1] + y],
         }
-    }
-
-    /// The output pixel the target pixel `at` holds, in a slot holding a view tile (else as if
-    /// its slot held tile 0, 0: no plan evaluates a free slot).
-    pub(crate) fn output_of(&self, at: [u32; 2]) -> [u32; 2] {
-        let slot = at[1] / TIER_TILE * self.across + at[0] / TIER_TILE;
-        let tile = self
-            .held
-            .get(slot as usize)
-            .copied()
-            .flatten()
-            .unwrap_or([0, 0]);
-        [0, 1].map(|axis| tile[axis] * TIER_TILE + at[axis] % TIER_TILE)
     }
 }
 
@@ -206,24 +183,17 @@ mod tests {
         let rect = map.tile_rect([1, 1]);
         assert_eq!((rect.min, rect.max), ([256, 256], [400, 280]));
         // Output pixel 300, 260 lies 44, 4 into tile 1, 1, held in slot 0.
-        let mut found = Vec::new();
         let part = PixelRect {
             min: [300, 260],
             max: [301, 261],
         };
-        map.targets(&part, &mut |target| found.push(*target));
+        let slot = map.slot([1, 1]).expect("held");
         assert_eq!(
-            found,
-            [PixelRect {
+            map.to_target([1, 1], slot, &part),
+            PixelRect {
                 min: [44, 4],
                 max: [45, 5]
-            }]
-        );
-        assert_eq!(map.output_of([44, 4]), [300, 260]);
-        assert_eq!(
-            map.output_of([256 + 3, 9]),
-            [3, 265],
-            "slot 1 holds tile 0, 1"
+            }
         );
         map.release([1, 1]);
         assert_eq!(map.free(), Some(0));

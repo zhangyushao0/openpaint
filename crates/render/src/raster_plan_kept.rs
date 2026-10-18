@@ -62,7 +62,8 @@ impl Builder<'_> {
                 held.extend(self.held_quads(stroke, (kind, at), rect));
                 let place = [0, 1].map(|axis| at[axis] as i32 - rect.min[axis]);
                 let start = self.plan.instances.len() as u32;
-                let scale = self.output.scale as f32;
+                // Its place lies on the canvas, in no frame.
+                let scale = (self.output.scale as f32, 0);
                 for &(index, op) in reached.settled.iter().chain(tail) {
                     laid_span(&mut self.plan, (op, index as usize), place, scale);
                 }
@@ -216,8 +217,7 @@ impl Builder<'_> {
         });
         self.plan.counts.strokes += 1;
         self.flush();
-        let slot = self.slot();
-        self.touched[slot] = true;
+        self.touched[self.target().index()] = true;
     }
 }
 

@@ -1,26 +1,16 @@
 //! One view tier (S32): its target, an atlas of `TIER_TILE`-pixel slots holding view tiles of
 //! the canvas's output at the tier's scale, which tiles hold the shown version (ready), and the
-//! index the blit finds them by. Evaluated through the canvas target's scene: one scene and
-//! one set of smudge residuals serve the canvas and its tier.
+//! index the blit finds them by. Drawn by the raster core from the canvas target's scene: one
+//! scene and one set of smudge residuals serve the canvas and its tier.
 
 use openpaint_core::Artwork;
 
-use crate::affine::Affine;
 use crate::core::Core;
 use crate::drawing::Drawing;
 use crate::error::RenderError;
-use crate::evaluator::CanvasTarget;
-use crate::frame::FrameRequest;
-use crate::geom::PixelRect;
-use crate::gpu_clock::{GpuClock, Timing};
 use crate::image::RgbaImage;
 use crate::output::Output;
-use crate::plan::{Layout, Plan};
-use crate::program::{Bindings, Dispatch};
-use crate::protocol::TileRecord;
 use crate::readback::{read_rect, target_texture};
-use crate::scene::{Fresh, Scene};
-use crate::smudge::reached;
 use crate::view_tiles::{TIER_TILE, TileMap};
 
 /// Slots in an atlas row at most: 4096 pixels.
@@ -30,19 +20,13 @@ pub(crate) struct Tier {
     pub(crate) map: TileMap,
     /// Per view tile, row-major: its slot holds the shown version's pixels.
     ready: Vec<bool>,
-    /// Per view tile: the evaluator drew some of its pixels (S59): a scene the raster core draws
-    /// draws it again (`view_raster.rs`), so every tile of such a scene is its own at last.
-    evaluated: Vec<bool>,
     atlas: wgpu::Texture,
     /// The view the raster core draws tiles into it through (S59), made with the atlas.
     view: wgpu::TextureView,
-    pub(crate) bindings: Bindings,
     /// Per view tile, `R32Uint`: its slot plus one while ready, else 0 (`blit.wgsl`).
     index: wgpu::Texture,
     /// The index differs from `ready` and the slots.
     stale: bool,
-    /// The view tile being filled in over frames (S53, `view_fill.rs`).
-    pub(crate) fill: Option<TileFill>,
     /// When the screen last showed it, in the frame clock's seconds (S58: tiers are let go by
     /// recency).
     pub(crate) shown_at: f64,
@@ -51,17 +35,6 @@ pub(crate) struct Tier {
     /// Times the atlas was made larger (S60: a tile the raster worker drew into the atlas before
     /// is not in the one after).
     pub(crate) grown: u32,
-}
-
-/// A view tile filled in over frames (S53), a block of it binned at a time so no frame bins the
-/// whole tile: the canvas scene it is binned from (its serial), the blocks not binned yet (target
-/// pixels), the block's plan, and its plan tiles not evaluated yet with their estimates, in order.
-pub(crate) struct TileFill {
-    pub(crate) tile: [u32; 2],
-    pub(crate) scene: u64,
-    pub(crate) blocks: Vec<PixelRect>,
-    pub(crate) plan: Plan,
-    pub(crate) left: std::collections::VecDeque<(TileRecord, f64)>,
 }
 
 impl Tier {
@@ -105,14 +78,11 @@ impl Tier {
         });
         Ok(Self {
             ready: vec![false; (columns * tiles_down) as usize],
-            evaluated: vec![false; (columns * tiles_down) as usize],
-            bindings: Bindings::without_kept(&core.gpu, &atlas),
             view: atlas.create_view(&Default::default()),
             map,
             atlas,
             index,
             stale: true,
-            fill: None,
             shown_at: 0.0,
             grown: 0,
             drawing: Drawing::default(),
@@ -171,23 +141,10 @@ impl Tier {
         self.ready[at] = ready;
     }
 
-    /// The evaluator drew some of `tile`'s pixels (S59).
-    pub(crate) fn is_evaluated(&self, tile: [u32; 2]) -> bool {
-        self.evaluated[self.at(tile)]
-    }
-
-    pub(crate) fn set_evaluated(&mut self, tile: [u32; 2], evaluated: bool) {
-        let at = self.at(tile);
-        self.evaluated[at] = evaluated;
-    }
-
-    /// Frees `tile`'s slot (a fill of it ends).
+    /// Frees `tile`'s slot.
     pub(crate) fn release(&mut self, tile: [u32; 2]) {
         self.set_ready(tile, false);
         self.map.release(tile);
-        if self.fill.as_ref().is_some_and(|fill| fill.tile == tile) {
-            self.fill = None;
-        }
     }
 
     /// A free slot for `tile`, the atlas grown by rows if none is left (up to the device's
@@ -229,56 +186,11 @@ impl Tier {
             self.atlas.size(),
         );
         core.gpu.submit([encoder.finish()]);
-        self.bindings = Bindings::without_kept(&core.gpu, &atlas);
         self.view = atlas.create_view(&Default::default());
         self.atlas = atlas;
         self.map.grow(rows);
         self.grown += 1;
         Ok(())
-    }
-
-    /// `scene` (and `fresh`: the in-progress stroke from its first sample on, so every pixel is
-    /// cold) binned into this tier's target pixels `regions` (inside held slots).
-    pub(crate) fn plan(&self, scene: &Scene, fresh: &Fresh, regions: &[PixelRect]) -> Plan {
-        let size = [self.atlas.width(), self.atlas.height()];
-        Plan::laid_out(scene, fresh, (size, Layout::Tiles(&self.map)), regions)
-    }
-
-    /// Evaluates `tiles` of `plan` (binned from `canvas`'s scene of `request`), the residuals
-    /// near them made present first (S51); background work timed by `timing` (S53).
-    pub(crate) fn dispatch(
-        &mut self,
-        core: &Core,
-        (canvas, request): (&mut CanvasTarget, &FrameRequest<'_>),
-        (plan, tiles): (&Plan, &[TileRecord]),
-        fresh: &Fresh,
-        timing: Option<(&GpuClock, Timing)>,
-    ) -> Result<(), RenderError> {
-        let near = reached(tiles, self.scale());
-        canvas.reach(core, request.artwork, &near)?;
-        let missing = || RenderError::Invalid("the canvas was not evaluated for this frame");
-        let (_, ops) = canvas
-            .scene_of(request.artwork, request.active)
-            .ok_or_else(missing)?;
-        let paper = request.background;
-        let output = Output::at(self.scale(), [0, 0])?;
-        core.evaluate.dispatch(
-            &core.gpu,
-            &mut self.bindings,
-            &Dispatch {
-                ops,
-                fresh: &fresh.ops,
-                plan,
-                only: Some(tiles),
-                output,
-                background: [paper.r(), paper.g(), paper.b(), 1.0],
-                reset: false,
-                residuals: canvas.residuals(),
-                base: Affine::IDENTITY,
-                snapshot: None,
-                timing,
-            },
-        )
     }
 
     /// Writes the index when it changed.
@@ -328,14 +240,12 @@ pub(crate) fn atlas_for(slots: u32) -> (u32, u32) {
     (across, slots.div_ceil(across).max(1))
 }
 
-/// An atlas of `across` by `rows` slots: the evaluator writes it, the raster core draws into it
-/// (S59).
+/// An atlas of `across` by `rows` slots: the raster core draws into it (S59).
 pub(crate) fn atlas_texture(
     core: &Core,
     (across, rows): (u32, u32),
 ) -> Result<wgpu::Texture, RenderError> {
-    let usage = wgpu::TextureUsages::STORAGE_BINDING
-        | wgpu::TextureUsages::TEXTURE_BINDING
+    let usage = wgpu::TextureUsages::TEXTURE_BINDING
         | wgpu::TextureUsages::RENDER_ATTACHMENT
         | wgpu::TextureUsages::COPY_DST;
     let size = [across * TIER_TILE, rows * TIER_TILE];

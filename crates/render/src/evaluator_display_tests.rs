@@ -96,7 +96,7 @@ fn the_ten_bit_canvas_reads_picks_and_reduces_as_eight_bits_with_more_levels() {
     );
     let exact = evaluated(
         core,
-        CanvasTarget::exact(core, SIZE).expect("target"),
+        CanvasTarget::eight_bits(core, SIZE).expect("target"),
         &artwork,
     );
     let eight = exact.read(core).expect("read");
@@ -203,7 +203,7 @@ fn a_steep_curve_over_a_soft_ramp_steps_by_one_level_and_one_code() {
     let artwork = ramp_through_a_steep_curve();
     let exact = evaluated(
         core,
-        CanvasTarget::exact(core, SIZE).expect("target"),
+        CanvasTarget::eight_bits(core, SIZE).expect("target"),
         &artwork,
     );
     let eight = exact.read(core).expect("read");

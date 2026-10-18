@@ -6,10 +6,16 @@
 // filter read them. Outside its block the layer was transparent before the filter and stays.
 
 fn filtered(layer: vec4<f32>, point: vec2<f32>, cell: vec2<u32>, op: u32) -> vec4<f32> {
+    let base = masks[u32(word(op, FILTER_AT)) * 65536u + u32(word(op, FILTER_AT + 1u))];
+    return filtered_from(layer, point, cell, op, base);
+}
+
+// As `filtered`, its block starting at word `base` of the arena (S65: the raster core names it in
+// the filter's instance, as a smudge's).
+fn filtered_from(layer: vec4<f32>, point: vec2<f32>, cell: vec2<u32>, op: u32, base: u32) -> vec4<f32> {
     if clip(cell, op) == 0.0 {
         return layer;
     }
-    let base = masks[u32(word(op, FILTER_AT)) * 65536u + u32(word(op, FILTER_AT + 1u))];
     let origin = vec2<i32>(i32(arena[base]), i32(arena[base + 1u]));
     let size = vec2<i32>(i32(arena[base + 2u]), i32(arena[base + 3u]));
     let at = vec2<i32>(cell);

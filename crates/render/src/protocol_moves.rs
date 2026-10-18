@@ -5,9 +5,11 @@
 
 use super::{OP_DATA, Op, Opcode, halves};
 
-/// A frame: after its six rows, canvas pixels per content pixel and its base-2 log.
+/// A frame: after its six rows, canvas pixels per content pixel and its base-2 log; then (S65)
+/// the six rows mapping content points back to the canvas, where the raster core places quads.
 const FRAME_FOOT: usize = 6;
 const FRAME_LEVEL: usize = 7;
+const FRAME_CANVAS: usize = 8;
 /// A move's end: its selection's mask (one more than where it starts, split like `FILL_MASK`;
 /// 0: the whole layer), whether it sets the content aside, the canvas's width and height.
 const MOVE_MASK: usize = 0;
@@ -16,22 +18,36 @@ const MOVE_CANVAS: usize = 3;
 /// How many moved selections a pixel can set aside at once (the evaluator's stack).
 pub(crate) const MOVE_DEPTH: u32 = 16;
 
-pub(super) const MOVE_SLOTS: [(&str, usize); 5] = [
+pub(super) const MOVE_SLOTS: [(&str, usize); 6] = [
     ("FRAME_FOOT", FRAME_FOOT),
     ("FRAME_LEVEL", FRAME_LEVEL),
+    ("FRAME_CANVAS", FRAME_CANVAS),
     ("MOVE_MASK", MOVE_MASK),
     ("MOVE_ASIDE", MOVE_ASIDE),
     ("MOVE_CANVAS", MOVE_CANVAS),
 ];
 
 impl Op {
-    /// A frame mapping canvas points by `rows` into content of `foot` canvas pixels per pixel.
-    pub(crate) fn frame(rows: [f32; 6], foot: f32, level: f32) -> Self {
+    /// A frame mapping canvas points by `rows` into content of `foot` canvas pixels per pixel,
+    /// and content points back by `back`.
+    pub(crate) fn frame(rows: [f32; 6], (foot, level): (f32, f32), back: [f32; 6]) -> Self {
         let mut data = [0.0; OP_DATA];
         data[..6].copy_from_slice(&rows);
         data[FRAME_FOOT] = foot;
         data[FRAME_LEVEL] = level;
+        data[FRAME_CANVAS..FRAME_CANVAS + 6].copy_from_slice(&back);
         Self::new(Opcode::Frame, &data)
+    }
+
+    /// A frame's canvas pixels per content pixel, as the raster core reads it on the CPU.
+    pub(crate) fn frame_foot(&self) -> f32 {
+        self.data[FRAME_FOOT]
+    }
+
+    /// A move's end lays its content over what its start set aside (a selection's), not only
+    /// cuts it to the canvas (a whole layer's).
+    pub(crate) fn sets_aside(&self) -> bool {
+        self.data[MOVE_ASIDE] > 0.0
     }
 
     pub(crate) fn begin_move() -> Self {

@@ -92,7 +92,9 @@ fn round_trip(core: &Core, made: impl Fn() -> CanvasTarget) -> (Vec<u8>, usize) 
 #[test]
 fn a_cached_canvas_is_the_cold_canvas_bit_for_bit_at_eight_and_ten_bits() {
     let core = test_core();
-    let (eight, levels) = round_trip(core, || CanvasTarget::exact(core, SIZE).expect("target"));
+    let (eight, levels) = round_trip(core, || {
+        CanvasTarget::eight_bits(core, SIZE).expect("target")
+    });
     let shown = CanvasTarget::new(core, SIZE).expect("target");
     assert_eq!(
         shown.format_code(),
@@ -105,7 +107,7 @@ fn a_cached_canvas_is_the_cold_canvas_bit_for_bit_at_eight_and_ten_bits() {
         return;
     }
     assert_eq!(
-        CanvasTarget::exact(core, SIZE)
+        CanvasTarget::eight_bits(core, SIZE)
             .expect("target")
             .format_code(),
         8

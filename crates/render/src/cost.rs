@@ -1,10 +1,9 @@
-//! What evaluating tiles costs the GPU (S53): the frame budget (`pace.rs`) takes background tiles
-//! by these estimates. Each op listed in a tile costs, at each of the tile's 256 output pixels,
-//! what its kind costs the evaluator on the tablet's GPU (an Adreno 735: measured S55 with the
-//! benchmark, `Core::time_evaluation`, at 1x), and the tile itself its loop and its write. A
-//! stamped span costs by the stamps a pixel tests (twice its reach over its spacing, at most what
-//! it holds). The budget corrects the whole table by the measured time of earlier frames'
-//! background work, so the table need only rank the kinds right.
+//! What evaluating tiles costs the evaluator (S53), as its benchmark lists it beside the times it
+//! measures (`evaluator_bench.rs`; since S65 the frame budget takes only the raster core's
+//! estimates). Each op listed in a tile costs, at each of the tile's 256 output pixels, what its
+//! kind costs the evaluator on the tablet's GPU (an Adreno 735: measured S55 with the benchmark,
+//! `Core::time_evaluation`, at 1x), and the tile itself its loop and its write. A stamped span
+//! costs by the stamps a pixel tests (twice its reach over its spacing, at most what it holds).
 
 use std::ops::Range;
 
@@ -73,12 +72,7 @@ impl Table {
 
 /// Per item of `scene`, what it costs at one output pixel of a tile that lists it, in ns.
 pub(crate) fn item_costs(scene: &Scene) -> Vec<f32> {
-    item_costs_in(scene, 0..scene.items.len())
-}
-
-/// Per item `items` of `scene`, the same (S64: those a lift inserts).
-pub(crate) fn item_costs_in(scene: &Scene, items: Range<usize>) -> Vec<f32> {
-    kinds_in(scene, items).map(|kind| TABLET.of(kind)).collect()
+    item_kinds(scene).map(|kind| TABLET.of(kind)).collect()
 }
 
 /// Per item of `scene`, its work at a pixel (a stamped span's from its stroke's paint op).

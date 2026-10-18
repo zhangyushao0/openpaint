@@ -6,7 +6,6 @@
 //! content's pixels, so it is needed whole too.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::ops::Range;
 use std::sync::Arc;
 
 use openpaint_core::Stroke;
@@ -51,8 +50,6 @@ impl Reads {
 pub(crate) enum Wanted<'a> {
     /// The residuals reaching these canvas pixels, near them.
     Near(&'a [PixelRect]),
-    /// The residuals among these scene items, whole: a preview's snapshot of a layer (S35).
-    Items(Range<usize>),
 }
 
 /// How much of one residual an evaluation needs.
@@ -89,11 +86,6 @@ impl Need {
 /// Canvas pixels around what is evaluated whose residual tiles are held too: a plan's 16-pixel
 /// tiles and a bilinear read at an output scale above 1 reach this far.
 const NEAR: i32 = TILE as i32 + 1;
-
-/// The canvas pixels whose evaluation needs a residual reaching `rect` (S53).
-pub(crate) fn around(rect: &PixelRect) -> PixelRect {
-    widened(rect, NEAR)
-}
 
 /// `rect` widened by `by` pixels each way.
 fn widened(rect: &PixelRect, by: i32) -> PixelRect {
@@ -164,16 +156,13 @@ pub(crate) fn around_output(rect: &PixelRect, scale: u32) -> PixelRect {
 
 /// What `wanted` needs of each of `scene`'s smudges, before what residuals evaluated anew read.
 pub(crate) fn needs(scene: &Scene, wanted: &Wanted<'_>) -> Vec<Need> {
-    let item_need = |item: &SmudgeItem| match wanted {
-        Wanted::Items(range) if range.contains(&item.item) => Need::All,
-        Wanted::Items(_) => Need::No,
-        Wanted::Near(regions) => {
-            let mut need = Need::No;
-            for region in *regions {
-                need.and(near(item, &widened(region, NEAR), scene.canvas));
-            }
-            need
+    let Wanted::Near(regions) = wanted;
+    let item_need = |item: &SmudgeItem| {
+        let mut need = Need::No;
+        for region in *regions {
+            need.and(near(item, &widened(region, NEAR), scene.canvas));
         }
+        need
     };
     scene.smudges.iter().map(item_need).collect()
 }

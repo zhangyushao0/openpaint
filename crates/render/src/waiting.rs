@@ -1,11 +1,9 @@
-//! The screen canvas's tiles that wait to be evaluated (S53): whole 16-px tiles no frame's
-//! background budget reached yet (S62: the raster core's 256-px ones, `canvas_raster.rs`), taken
-//! in the order the screen needs them: the tiles the view shows, nearest the screen's middle
-//! first, then the others by their distance from it; with no view known (tests, the harness's
-//! own targets), rows from the top.
+//! The screen canvas's tiles that wait to be drawn (S53; S62: the raster core's 256-px tiles,
+//! `canvas_raster.rs`), taken in the order the screen needs them: the tiles the view shows,
+//! nearest the screen's middle first, then the others by their distance from it; with no view
+//! known (tests, the harness's own targets), rows from the top.
 
 use crate::geom::PixelRect;
-use crate::protocol::TILE;
 
 /// Where the screen looks on the canvas, in canvas pixels: its middle and what it shows.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -19,7 +17,7 @@ const RESORT: f32 = 48.0;
 
 #[derive(Debug, Default)]
 pub(crate) struct Waiting {
-    /// A tile's side in pixels: the evaluator's 16, or the raster core's 256 (S62).
+    /// A tile's side in pixels.
     side: u32,
     columns: u32,
     rows: u32,
@@ -30,17 +28,9 @@ pub(crate) struct Waiting {
     order: Vec<u32>,
     /// The view the order was made for (`Some(None)`: none), `None` when tiles came since.
     sorted: Option<Option<Focus>>,
-    /// Per tile: it waits put aside, for a smudge residual being evaluated over frames (S53).
-    deferred: Vec<bool>,
-    put_aside: usize,
 }
 
 impl Waiting {
-    /// No tile of a canvas of `size` pixels waits.
-    pub(crate) fn new(size: [u32; 2]) -> Self {
-        Self::of(size, TILE)
-    }
-
     /// No tile of `side` pixels of a canvas of `size` pixels waits.
     pub(crate) fn of([width, height]: [u32; 2], side: u32) -> Self {
         let (columns, rows) = (width.div_ceil(side), height.div_ceil(side));
@@ -49,41 +39,12 @@ impl Waiting {
             columns,
             rows,
             marked: vec![false; (columns * rows) as usize],
-            deferred: vec![false; (columns * rows) as usize],
             ..Self::default()
         }
     }
 
     pub(crate) fn is_empty(&self) -> bool {
         self.count == 0
-    }
-
-    /// The waiting tiles meeting `rects` are put aside: `next` passes them over until `resume`.
-    pub(crate) fn defer(&mut self, rects: &[PixelRect]) {
-        for rect in rects {
-            for tile in self.tiles(rect) {
-                let at = tile as usize;
-                if self.marked[at] && !std::mem::replace(&mut self.deferred[at], true) {
-                    self.put_aside += 1;
-                }
-            }
-        }
-    }
-
-    /// Whether tiles wait put aside.
-    pub(crate) fn has_deferred(&self) -> bool {
-        self.put_aside > 0
-    }
-
-    /// The tiles put aside, as rectangles joined along rows.
-    pub(crate) fn deferred_rects(&self) -> Vec<PixelRect> {
-        self.rects_where(|at| self.deferred[at])
-    }
-
-    /// Every tile put aside is taken in order again.
-    pub(crate) fn resume(&mut self) {
-        self.deferred.fill(false);
-        self.put_aside = 0;
     }
 
     /// The tiles meeting `rects` wait too.
@@ -100,17 +61,12 @@ impl Waiting {
         }
     }
 
-    /// The tiles meeting `rects` no longer wait: they were evaluated (a plan evaluates whole
-    /// tiles).
+    /// The tiles meeting `rects` no longer wait: they were drawn.
     pub(crate) fn remove(&mut self, rects: &[PixelRect]) {
         for rect in rects {
             for tile in self.tiles(rect) {
-                let at = tile as usize;
-                if std::mem::replace(&mut self.marked[at], false) {
+                if std::mem::replace(&mut self.marked[tile as usize], false) {
                     self.count -= 1;
-                }
-                if std::mem::replace(&mut self.deferred[at], false) {
-                    self.put_aside -= 1;
                 }
             }
         }
@@ -121,19 +77,9 @@ impl Waiting {
 
     /// Every waiting tile as rectangles (joined along rows), none waiting any more.
     pub(crate) fn take_all(&mut self) -> Vec<PixelRect> {
-        let rects = self.rects_where(|at| self.marked[at]);
-        self.marked.fill(false);
-        self.count = 0;
-        self.order.clear();
-        self.resume();
-        rects
-    }
-
-    /// The tiles `keep` keeps (by row-major number), as rectangles joined along rows.
-    fn rects_where(&self, keep: impl Fn(usize) -> bool) -> Vec<PixelRect> {
         let mut rects: Vec<PixelRect> = Vec::new();
         for tile in 0..self.marked.len() as u32 {
-            if !keep(tile as usize) {
+            if !self.marked[tile as usize] {
                 continue;
             }
             let rect = self.rect(tile);
@@ -144,22 +90,14 @@ impl Waiting {
                 _ => rects.push(rect),
             }
         }
+        self.marked.fill(false);
+        self.count = 0;
+        self.order.clear();
         rects
     }
 
-    /// The first `most` waiting tiles in the order `focus` gives them, but those put aside, as
-    /// rectangles; they keep waiting until `remove`d.
-    pub(crate) fn next(&mut self, focus: Option<Focus>, most: usize) -> Vec<PixelRect> {
-        self.ordered(focus);
-        (self.order.iter())
-            .filter(|tile| !self.deferred[**tile as usize])
-            .take(most)
-            .map(|tile| self.rect(*tile))
-            .collect()
-    }
-
     /// The first waiting tile in the order `focus` gives them that `skip` does not pass over (S62:
-    /// one the raster worker draws), but those put aside; it keeps waiting until `remove`d.
+    /// one the raster worker draws); it keeps waiting until `remove`d.
     pub(crate) fn first(
         &mut self,
         focus: Option<Focus>,
@@ -167,7 +105,6 @@ impl Waiting {
     ) -> Option<PixelRect> {
         self.ordered(focus);
         (self.order.iter())
-            .filter(|tile| !self.deferred[**tile as usize])
             .map(|tile| self.rect(*tile))
             .find(|rect| !skip(rect))
     }
@@ -252,44 +189,34 @@ mod tests {
 
     #[test]
     fn tiles_wait_once_and_come_nearest_the_screens_middle_first() {
-        let mut waiting = Waiting::new([100, 50]);
+        let mut waiting = Waiting::of([100, 50], 16);
         waiting.add(&[rect([0, 0], [100, 50]), rect([10, 10], [20, 20])]);
         assert_eq!(waiting.count, 7 * 4, "each tile once");
-        // Without a view, rows from the top.
+        // Without a view, rows from the top; a tile skipped is passed over.
+        let first = rect([0, 0], [16, 16]);
+        assert_eq!(waiting.first(None, |_| false), Some(first));
         assert_eq!(
-            waiting.next(None, 2),
-            [rect([0, 0], [16, 16]), rect([16, 0], [32, 16])]
+            waiting.first(None, |tile| *tile == first),
+            Some(rect([16, 0], [32, 16]))
         );
         let focus = Focus {
             middle: [90.0, 40.0],
             shown: rect([64, 32], [100, 50]),
         };
-        let first = waiting.next(Some(focus), 3);
+        let near = rect([80, 32], [96, 48]);
         assert_eq!(
-            first[0],
-            rect([80, 32], [96, 48]),
+            waiting.first(Some(focus), |_| false),
+            Some(near),
             "the shown tile nearest the middle"
         );
-        assert!(first.iter().all(|r| !r.intersect(&focus.shown).is_empty()));
         waiting.remove(&[rect([80, 32], [81, 33])]);
-        assert_eq!(
-            waiting.next(Some(focus), 1)[0],
-            first[1],
+        let next = waiting.first(Some(focus), |_| false).expect("one waits");
+        assert!(
+            next != near && !next.intersect(&focus.shown).is_empty(),
             "taken tiles are skipped"
-        );
-        // Put aside for a residual: passed over until resumed, still waiting.
-        waiting.defer(&[first[1]]);
-        assert!(waiting.has_deferred() && !waiting.is_empty());
-        assert_eq!(waiting.deferred_rects(), [first[1]]);
-        assert_eq!(waiting.next(Some(focus), 1)[0], first[2]);
-        waiting.resume();
-        assert_eq!(
-            waiting.next(Some(focus), 1)[0],
-            first[1],
-            "taken in order again"
         );
         let all = waiting.take_all();
         assert_eq!(all.len(), 5, "joined along each row, but for the gap taken");
-        assert!(waiting.is_empty() && waiting.next(Some(focus), 5).is_empty());
+        assert!(waiting.is_empty() && waiting.first(Some(focus), |_| false).is_none());
     }
 }

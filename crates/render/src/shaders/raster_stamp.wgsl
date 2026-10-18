@@ -7,13 +7,15 @@
 struct StampOut {
     @builtin(position) position: vec4<f32>,
     // The stamp's place after its scatter, and its turn's cosine and sine.
-    @location(0) @interpolate(flat) frame: vec4<f32>,
+    @location(0) @interpolate(flat) turn: vec4<f32>,
     // Its size (a radius), the flow there, its aspect and the stroke's edge.
     @location(1) @interpolate(flat) stamp: vec4<f32>,
     // Its place on the path, and how far from it the evaluator takes it at all.
     @location(2) @interpolate(flat) near: vec3<f32>,
     @location(3) @interpolate(flat) shape: u32,
     @location(4) @interpolate(flat) place: vec2<i32>,
+    // The frame its span lies in (S65; 0: the canvas).
+    @location(5) @interpolate(flat) frame: u32,
 }
 
 // Where stamp `n` of span `op` lies on the span's chords, and how far through the span: the
@@ -62,7 +64,8 @@ fn stamp_vertex(
     @location(0) a: vec4<u32>,
     @location(1) b: vec4<i32>,
 ) -> StampOut {
-    footprint();
+    let frame = bitcast<u32>(b.z);
+    foot_of(frame);
     let op = a.x;
     let n = a.y;
     let s = stamping(op + bitcast<u32>(i32(word(op, STAMP_PAINT))));
@@ -96,25 +99,26 @@ fn stamp_vertex(
     }
     let side = corner_side(corner) * (half + vec2<f32>(margin));
     var out: StampOut;
-    out.position = placed(place + x * side.x + vec2<f32>(-x.y, x.x) * side.y, b.xy, raster.atlas);
-    out.frame = vec4<f32>(place, x);
+    let corner_at = place + x * side.x + vec2<f32>(-x.y, x.x) * side.y;
+    out.position = placed(unframed(corner_at, frame), b.xy, raster.atlas);
+    out.turn = vec4<f32>(place, x);
     out.stamp = vec4<f32>(size, flow, s.aspect, word(op, SEGMENT_EDGE));
     out.near = vec3<f32>(at.xy, radius * s.reach + 3.0 * foot_inverse);
     out.shape = s.shape;
     out.place = b.xy;
+    out.frame = frame;
     return out;
 }
 
 // What the stamp lays at the pixel: kept the largest (covering) or summed (accumulating).
 @fragment
 fn stamp_fragment(in: StampOut) -> @location(0) vec4<f32> {
-    footprint();
-    let centre = centre_of(pixel_of(in.position, in.place));
+    let centre = point_of(pixel_of(in.position, in.place), in.frame);
     if distance(centre, in.near.xy) > in.near.z {
         return vec4<f32>(0.0);
     }
-    let offset = centre - in.frame.xy;
-    let x = in.frame.zw;
+    let offset = centre - in.turn.xy;
+    let x = in.turn.zw;
     let q = vec2<f32>(dot(offset, x), dot(offset, vec2<f32>(-x.y, x.x)));
     let s = Stamping(0.0, in.shape, 0u, in.stamp.z, 0.0, 0.0, 0.0, 0.0, 0u, 0.0);
     let laid = stamp_alpha(q, in.stamp.x, s, in.stamp.w) * in.stamp.y;

@@ -83,14 +83,13 @@ impl CanvasTarget {
     ) -> Result<Part<'a>, RenderError> {
         let missing = || RenderError::Invalid("no scene was built");
         let held = self.held().ok_or_else(missing)?;
-        let raster = scene.rastered().ok_or_else(missing)?;
         let atlas = self.raster_atlas(core)?;
         let min = region.min.map(i32::unsigned_abs);
         let output = Output::at(onto.scale, min)?;
         let side = [0, 1].map(|axis| (region.max[axis] - region.min[axis]).unsigned_abs());
         let tiles: Vec<[u32; 2]> = meeting(region, size).map(|(tile, _)| tile).collect();
         let in_progress = pen.map(|pen| pen.in_progress(drawing, &tiles));
-        let units = (scene, raster, &held.bases[..]);
+        let units = (scene, &held.bases);
         let drawn = (resume, in_progress.as_ref());
         let mut plan = RasterPlan::drawing(units, (output, side), atlas, drawn)?;
         if resume.restored.is_some() {
@@ -129,9 +128,8 @@ impl CanvasTarget {
         let output = Output::at(scale, rect.min.map(i32::unsigned_abs))?;
         let side = [0, 1].map(|axis| (rect.max[axis] - rect.min[axis]).unsigned_abs());
         let held = self.held().ok_or_else(missing)?;
-        let raster = scene.rastered().ok_or_else(missing)?;
         let atlas = self.raster_atlas(core)?;
-        let units = (scene, raster, &held.bases[..]);
+        let units = (scene, &held.bases);
         let under = drawing.under.get(&tile).cloned();
         let from = under.as_ref().map(|under| under.at);
         let range = (from, base.at, base.restored);

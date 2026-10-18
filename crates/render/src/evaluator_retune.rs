@@ -1,4 +1,4 @@
-//! A kept scene changed in place: given a previewed adjustment's new values (S35, `preview.rs`),
+//! A kept scene changed in place: given an adjustment's new values (S35's previews, `preview.rs`),
 //! or the strokes a version appends on its place (S64, `scene_append.rs`); and the serials naming
 //! each scene built or changed.
 
@@ -9,7 +9,6 @@ use openpaint_core::Artwork;
 
 use super::CanvasTarget;
 use crate::core::Core;
-use crate::cost::item_costs_in;
 use crate::error::RenderError;
 use crate::preview::Retune;
 use crate::protocol::{Op, encode};
@@ -42,18 +41,13 @@ impl CanvasTarget {
         let Some(inserted) = scene.append(&strokes) else {
             return Ok(false);
         };
-        cache.ops = cache.ops.inserted(&core.gpu, scene, inserted.clone());
-        let costs = item_costs_in(scene, inserted.clone());
-        cache.costs.splice(inserted.start..inserted.start, costs);
+        cache.ops = cache.ops.inserted(&core.gpu, scene, inserted);
         crate::profile::scene_built(started.elapsed());
         core.evaluate.tally.appended();
         let (smudges, filters) = (&mut self.smudges, &mut self.filters);
         let scene = (&*cache.scene, &cache.ops);
         smudges.prepare(core, scene, artwork, (filters, &Wanted::Near(&[])))?;
         cache.artwork = artwork.clone();
-        cache.batch = None;
-        cache.plan = None;
-        cache.near = None;
         cache.serial = next_serial();
         Ok(true)
     }
@@ -70,7 +64,7 @@ impl CanvasTarget {
             .scene
             .as_mut()
             .ok_or(RenderError::Invalid("no scene was built"))?;
-        let scene = std::sync::Arc::get_mut(&mut cache.scene).ok_or(RenderError::Invalid(
+        let scene = Arc::get_mut(&mut cache.scene).ok_or(RenderError::Invalid(
             "a scene the raster worker holds is not retuned",
         ))?;
         let changed = scene.retune(retune)?;
@@ -91,13 +85,7 @@ impl CanvasTarget {
         let scene = (&*cache.scene, &cache.ops);
         smudges.prepare(core, scene, artwork, (filters, &Wanted::Near(&[])))?;
         cache.artwork = artwork.clone();
-        cache.spread = retune.spread;
-        cache.batch = None;
         cache.serial = next_serial();
-        if cache.previewed != Some(retune.place) {
-            cache.previewed = Some(retune.place);
-            cache.snapshot = None;
-        }
         Ok(())
     }
 }

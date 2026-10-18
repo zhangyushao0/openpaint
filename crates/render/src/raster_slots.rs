@@ -55,7 +55,7 @@ impl RasterTargets {
     ) {
         for copy in copies {
             let (Some(target), Some(page)) = (
-                self.scratch[copy.target as usize].as_ref(),
+                self.scratch[copy.target.index()].as_ref(),
                 pages.snapshots.get(copy.slot.page),
             ) else {
                 continue;
@@ -78,7 +78,7 @@ impl RasterTargets {
     ) {
         for copy in copies {
             let (Some(target), Some(page)) = (
-                self.scratch[copy.target as usize].as_ref(),
+                self.scratch[copy.target.index()].as_ref(),
                 pages.snapshots.get(copy.slot.page),
             ) else {
                 continue;

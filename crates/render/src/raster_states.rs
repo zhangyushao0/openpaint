@@ -88,11 +88,22 @@ pub(crate) fn painted(blend: Blend) -> wgpu::BlendState {
     }
 }
 
+/// A whole layer's moved content cut to the canvas (S65): what the layer holds times what the
+/// fragment gives (1 inside, 0 outside), every channel.
+pub(crate) fn cut() -> wgpu::BlendState {
+    use wgpu::BlendFactor::{Src, Zero};
+    wgpu::BlendState {
+        color: component(Zero, Src),
+        alpha: component(Zero, Src),
+    }
+}
+
 /// A layer end's fragment entry and blend (`composite` and `clipped` in evaluate.wgsl with
 /// `s` the layer as shown at its opacity, `d` what lies under it): onto the opaque canvas, over
 /// is `s + d (1 - sa)`, Multiply `d (1 - sa + s)`, Screen `s + d (1 - s)`; into a chain (its
 /// alpha kept), Normal is atop, `s da + d (1 - sa)`, Multiply the same `d (1 - sa + s)`, Screen
-/// `s da + d (1 - s)`; a base and Overlay (from a copy of what lies under it) are written whole.
+/// `s da + d (1 - s)`; a base, a mode from a copy of what lies under it (Overlay, S65's modes onto
+/// a level) and a group's end are written whole.
 pub(crate) fn ended(end: EndBlend) -> (&'static str, Option<wgpu::BlendState>) {
     use wgpu::BlendFactor::{DstAlpha, One, OneMinusSrc, OneMinusSrcAlpha, Src, Zero};
     match end {
@@ -114,7 +125,8 @@ pub(crate) fn ended(end: EndBlend) -> (&'static str, Option<wgpu::BlendState>) {
             Some(kept_alpha(component(DstAlpha, OneMinusSrc))),
         ),
         EndBlend::Base => ("base_fragment", None),
-        EndBlend::Overlay => ("overlay_fragment", None),
+        EndBlend::Backdrop => ("backdrop_fragment", None),
+        EndBlend::Group => ("group_fragment", None),
     }
 }
 

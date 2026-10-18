@@ -27,8 +27,7 @@ use crate::geom::PixelRect;
 use crate::image::RgbaImage;
 use crate::output::{MAX_SCALE, Output};
 use crate::view_atlas::Tier;
-use crate::view_background::fill;
-use crate::view_fill::{Filling, in_place, touched};
+use crate::view_fill::{Filling, touched};
 use crate::view_needed::Needed;
 use crate::view_raster::{RasterTier, in_place_raster, snapshots_ahead, stroke_raster};
 use crate::view_raster_fill::{fill_raster, spare_bytes};
@@ -141,7 +140,6 @@ impl ViewCache {
     ) -> Result<ViewWork, RenderError> {
         let changed = canvas.take_changed();
         let dirtied = canvas.take_dirtied();
-        let rastered = canvas.rastered(request);
         // The canvas's own raster draws count as a use of the targets it shares with the tiers.
         if std::mem::take(&mut canvas.raster.drew) {
             canvas.raster.used_at = now;
@@ -158,7 +156,7 @@ impl ViewCache {
             self.switch(core, request, wanted, frame)?;
         }
         let mut work = ViewWork::default();
-        self.take_answers(core, canvas, rastered, &mut work);
+        self.take_answers(core, canvas, &mut work);
         // Tiers not shown in full keep only tiles no change reached; tiles the raster worker
         // draws that a change reached are drawn again (S60).
         for tier in self.previous.iter_mut().chain(self.kept.iter_mut()) {
@@ -181,7 +179,7 @@ impl ViewCache {
             tier.shown_at = now;
         }
         let view = (frame, now, wanted);
-        let changes = ((&changed[..], &dirtied[..]), &mut work, rastered);
+        let changes = ((&changed[..], &dirtied[..]), &mut work);
         self.work_on_current(core, (canvas, request), view, changes)?;
         for tier in [&mut self.current, &mut self.previous]
             .into_iter()
@@ -205,16 +203,14 @@ impl ViewCache {
     }
 
     /// The shown tier's work this frame: what changed in place, then a share of the missing tiles
-    /// when it is the tier `wanted`. S59: a scene the raster core draws (`rastered`) has its
-    /// tiles drawn by it, but while a stroke is drawn, and the tiles the evaluator drew are drawn
-    /// again (S60: handed to the raster worker). S63: its drawing follows the artwork first, the
-    /// canvas pixels `dirtied` naming what changes reached.
+    /// when it is the tier `wanted`, handed to the raster worker (S60). S63: its drawing follows
+    /// the artwork first, the canvas pixels `dirtied` naming what changes reached.
     fn work_on_current(
         &mut self,
         core: &Core,
         (canvas, request): (&mut CanvasTarget, &FrameRequest<'_>),
         (frame, now, wanted): (&ViewFrame, f64, Option<u32>),
-        ((changed, dirtied), work, rastered): ((&[PixelRect], &[PixelRect]), &mut ViewWork, bool),
+        ((changed, dirtied), work): ((&[PixelRect], &[PixelRect]), &mut ViewWork),
     ) -> Result<(), RenderError> {
         self.taking = false;
         let raster = &mut self.raster;
@@ -225,17 +221,12 @@ impl ViewCache {
         canvas.follow(&mut current.drawing, request, (Some(dirtied), scale));
         // What changed shows at once when it fits; missing tiles are background work (S53). The
         // stroke being drawn, and its lift, at once where the view shows them (S63).
-        if rastered && (request.active.is_some() || current.drawing.tracking()) {
+        if request.active.is_some() || current.drawing.tracking() {
             let needed = Needed::of(&current.map, frame);
             let place = (&mut *canvas, request);
             stroke_raster(core, (current, &needed), place, (work, now))?;
-        } else if rastered {
-            in_place_raster(core, current, (&mut *canvas, request), (changed, work, now))?;
         } else {
-            in_place(core, current, (canvas, request), (changed, work))?;
-            for tile in &work.updated {
-                current.set_evaluated(*tile, true);
-            }
+            in_place_raster(core, current, (&mut *canvas, request), (changed, work, now))?;
         }
         if Some(current.scale()) != wanted {
             return Ok(());
@@ -243,16 +234,11 @@ impl ViewCache {
         // Tiles the view left stay ready until a needed tile wants their slot (S58).
         let needed = Needed::of(&current.map, frame);
         // The canvas fills in first (S49): no missing tile is filled meanwhile.
-        if !canvas.pending() && rastered {
+        if !canvas.pending() {
             fill_raster(core, (current, &needed), (canvas, request), raster, now)?;
-        } else if !canvas.pending() {
-            fill(core, (current, &needed), (canvas, request), work)?;
         }
         work.waiting = needed.waiting(current);
-        if rastered {
-            work.waiting += needed.evaluated(current);
-        }
-        let ready = rastered && work.waiting == 0;
+        let ready = work.waiting == 0;
         let taking = snapshots_ahead(core, (current, &needed), (canvas, request), ready)?;
         if needed.shows(current) {
             self.keep_previous();

@@ -119,11 +119,6 @@ impl ActiveTrack {
         }
     }
 
-    /// Forgets the stroke, so the next evaluation starts its coverage over.
-    pub(crate) fn forget(&mut self) {
-        self.tracked = None;
-    }
-
     /// A stroke is tracked: one is drawn, or was until the last evaluation (S63).
     pub(crate) const fn tracking(&self) -> bool {
         self.tracked.is_some()

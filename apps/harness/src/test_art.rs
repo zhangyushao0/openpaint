@@ -9,6 +9,9 @@
 //!   around one place, on five layers: fills, a picture inserted, 9 smudges, a mask, a Multiply
 //!   layer (`test_art_kinds.rs`), like the author's busiest artwork; `a4-plain [n]` (S59) the same
 //!   page without the smudges, which the raster core draws whole.
+//! - `kinds [n]` (300, S65): the pile's `n` strokes on a screen-size canvas with every kind of
+//!   record over them: adjustments, filters, a transform record and a moved selection, a merged
+//!   layer, a group holding the active layer (`test_art_records.rs`).
 //! - `session [minutes]` (60): an hour's painting at the author's pace as records: a stroke every
 //!   1.2 s of 342 samples 3.3 ms apart, the built-ins in turn ten strokes each, every tenth a
 //!   smudge, a layer more every 500 strokes. Undo and redo are not records: the device's
@@ -48,7 +51,7 @@ pub const BRUSHES: [&str; 10] = [
     "speckle",
 ];
 
-const USAGE: &str = "test-art <pile|a4|a4-plain|session> [n] [out.openpaint]";
+const USAGE: &str = "test-art <pile|a4|a4-plain|kinds|session> [n] [out.openpaint]";
 
 /// What `test-art` makes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -57,6 +60,8 @@ pub enum Kind {
     A4(u32),
     /// The A4 page without smudges (S59).
     A4Plain(u32),
+    /// The pile with every kind of record over it (S65).
+    Kinds(u32),
     /// Minutes of painting.
     Session(u32),
 }
@@ -71,6 +76,7 @@ impl Kind {
             "pile" => Ok(Self::Pile(count.unwrap_or(300))),
             "a4" => Ok(Self::A4(count.unwrap_or(180))),
             "a4-plain" => Ok(Self::A4Plain(count.unwrap_or(180))),
+            "kinds" => Ok(Self::Kinds(count.unwrap_or(300))),
             "session" => Ok(Self::Session(count.unwrap_or(60))),
             _ => Err(HarnessError::Missing(USAGE)),
         }
@@ -82,6 +88,7 @@ impl Kind {
             Self::Pile(n) => ("pile", n),
             Self::A4(n) => ("a4", n),
             Self::A4Plain(n) => ("a4-plain", n),
+            Self::Kinds(n) => ("kinds", n),
             Self::Session(n) => ("session", n),
         };
         (format!("{kind}-{n}"), format!("Test art {kind} {n}"))
@@ -135,6 +142,7 @@ pub fn make(kind: Kind) -> Result<Artwork, HarnessError> {
         Kind::Pile(n) => pile(&library, n),
         Kind::A4(n) => crate::test_art_kinds::a4(&library, n, false),
         Kind::A4Plain(n) => crate::test_art_kinds::a4(&library, n, true),
+        Kind::Kinds(n) => crate::test_art_records::kinds(&library, n),
         Kind::Session(minutes) => crate::test_art_kinds::session(&library, minutes),
     }
 }
@@ -268,6 +276,7 @@ mod tests {
             Kind::Pile(12),
             Kind::A4(20),
             Kind::A4Plain(20),
+            Kind::Kinds(12),
             Kind::Session(1),
         ] {
             let artwork = make(kind).expect("made");

@@ -136,7 +136,7 @@ const INPUT_USAGE: &str = "cargo device-input \
                            | hover x,y [ms] [primary|secondary|tertiary|eraser] \
                            | tap <control name> | drag <control name> x,y [ms] \
                            | find <control name> | state | gradient on|off | lose-device \
-                           | bench [scene|open-cold|open|zoom|pan|strokes|session|export|touch|undo] \
+                           | bench [scene|open-cold|open|zoom|pan|strokes|session|export|touch|undo|adjust] \
                            | open-file <name> | home";
 
 /// A control's name for the device's shell, which reads the line: in single quotes, so none

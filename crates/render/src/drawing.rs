@@ -148,8 +148,7 @@ impl Drawing {
         self.taken.clear();
     }
 
-    /// Every snapshot goes (a new place, a scene the evaluator draws); those being taken are let
-    /// go once answered.
+    /// Every snapshot goes (a new place); those being taken are let go once answered.
     pub(crate) fn forget_all(&mut self) {
         let tiles: Vec<[u32; 2]> = self.under.keys().copied().collect();
         for tile in tiles {

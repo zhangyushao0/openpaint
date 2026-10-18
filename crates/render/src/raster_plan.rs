@@ -3,29 +3,34 @@
 //! scratch atlas (`raster_lay.rs`), its pieces and stamps lay their coverage there, combined by
 //! the blend unit, and its tiles composite it onto the layer by the evaluator's paint; fills and
 //! patches draw onto the layer as quads; a smudge copies what it reaches of the layer (or mask)
-//! and lays it back moved by its residual (S61, D88); a mask's units draw onto a target of their
-//! own; each layer's end composites it onto the canvas (or into its clipping chain) by its mode,
-//! through its mask, a copy of what lies under it first where fixed-function blending cannot
-//! (Overlay). Strokes go into a batch in scene order while their regions fit the atlas; a batch
-//! is a coverage pass and a pass of the layer's draws, and a smudge ends one. The order of every
-//! draw is the scene's, so a pixel's value depends only on what reaches it: a part of a region
-//! draws what the whole does there. S63: the stroke being drawn lays at its unit from its kept
-//! coverage, and a plan may start from snapshots of the units before it (`raster_plan_drawing.rs`).
+//! and lays it back moved by its residual (S61, D88); a mask draws onto a target of its own; each
+//! layer's end composites it onto the canvas (or its clipping chain) by its mode, through its
+//! mask, from a copy of what lies under it where fixed-function blending cannot (Overlay). S65
+//! (D92): adjustments and filters rewrite the layer from a copy of it, a transform record's
+//! content lies in its frame, a moved selection's or a merged layer's content draws on a level of
+//! its own laid onto the one under it at its end, a group's end fades the canvas over a copy of
+//! what lay under the group (`raster_plan_records.rs`, `raster_plan_ends.rs`). Strokes go into a
+//! batch in scene order while their regions fit the atlas; a batch is a coverage pass and a pass
+//! of the layer's draws; a smudge or a record ends one. Draws keep the scene's order, so a part of
+//! a region draws what the whole does there. S63: the stroke being drawn lays from its kept
+//! coverage; a plan may start from snapshots of the units before it (`raster_plan_drawing.rs`).
 
 use std::ops::Range;
 
+use crate::affine::Affine;
 use crate::error::RenderError;
-use crate::geom::{Bounds, PixelRect};
+use crate::geom::Bounds;
 use crate::output::Output;
 use crate::protocol::raster::Edit;
 pub use crate::raster_kinds::RasterCounts;
 pub(crate) use crate::raster_kinds::{
-    AtlasCopy, Coverage, CoverageDraw, Draw, DrawKind, EndBlend, Instance, Pass, Scratch, SlotAt,
-    SlotCopy,
+    AtlasCopy, Coverage, CoverageDraw, Draw, DrawKind, EndBlend, Instance, Pass, SCRATCH, Scratch,
+    SlotAt, SlotCopy,
 };
-use crate::raster_lay::{Laid, Marks, Packer, laid_span, lay};
-use crate::raster_route::{RasterScene, Unit};
+use crate::raster_lay::{Laid, Marks, Packer, Placing, laid_span, lay};
+use crate::raster_scene::Unit;
 use crate::scene::Scene;
+use crate::smudge::Bases;
 
 #[derive(Debug, Default)]
 pub(crate) struct RasterPlan {
@@ -33,6 +38,9 @@ pub(crate) struct RasterPlan {
     pub(crate) passes: Vec<Pass>,
     /// The region's size in pixels.
     pub(crate) size: [u32; 2],
+    /// Where the region's pixels lie on the canvas beside its output (S65: a material seen from a
+    /// transform record, its content's map onto the canvas; else the identity).
+    pub(crate) base: Affine,
     pub(crate) counts: RasterCounts,
 }
 
@@ -53,72 +61,85 @@ struct Batch {
 
 struct Builder<'a> {
     scene: &'a Scene,
-    /// Where each of the scene's smudges' residuals starts in the arena bound (`smudge::Held`).
-    bases: &'a [Option<u32>],
+    /// Where each of the scene's smudges' residuals and filters' results starts in the arena
+    /// bound (`smudge::Held`).
+    bases: &'a Bases,
     output: Output,
     plan: RasterPlan,
     atlas: [u32; 2],
     packer: Packer,
     marks: Marks,
     batch: Batch,
-    /// Where draws go now: the layer, or its mask after its `BeginMask` (a material: the canvas).
-    target: Scratch,
-    /// The layer and the mask were cleared, and drawn on where the region is.
-    cleared: [bool; 2],
-    touched: [bool; 2],
+    /// Where the units laid now lie (S65: the frame they lie in).
+    placing: Placing,
+    /// The base's footprint: one over its canvas pixels per pixel (1 without a base).
+    base_foot: f32,
+    /// The paint draws go to at level 0: the layer's, or a material's (the canvas).
+    paint: Scratch,
+    /// The level the units lie on (S65: 0, or a moved selection's or merged layer's content), and
+    /// whether on its mask (after its `BeginMask`).
+    depth: u8,
+    on_mask: bool,
+    /// Per scratch target: cleared, and drawn on where the region is.
+    cleared: [bool; SCRATCH],
+    touched: [bool; SCRATCH],
     chain: Chain,
-    /// A smudge whose residual the arena lacks is left out (a material, S62), not refused.
+    /// The group whose layers end now (S65): what lay under it is copied (`Some`), and whether
+    /// one of its ends reached the region.
+    group: Option<bool>,
+    /// A smudge or filter whose result the arena lacks is left out (a material, S62), not refused.
     lacking: bool,
     /// S63: the stroke being drawn, laid at its unit.
     drawing: Option<&'a InProgress>,
 }
 
-/// The scene a plan draws: its items, its raster units and its smudges' residuals' bases.
-type Drawn<'a> = (&'a Scene, &'a RasterScene, &'a [Option<u32>]);
+/// The scene a plan draws and its smudges' residuals' and filters' results' bases.
+type Drawn<'a> = (&'a Scene, &'a Bases);
 
 impl RasterPlan {
-    /// The plan of `raster` (`scene`'s units, its smudges' residuals at `bases`) over a region of
-    /// `size` pixels at `output`, with an atlas of `atlas` pixels.
+    /// The plan of `scene` (its smudges' residuals and filters' results at `bases`) over a
+    /// region of `size` pixels at `output`, with an atlas of `atlas` pixels.
     ///
     /// # Errors
-    /// `Invalid` for a stroke's region larger than the atlas, or a smudge reaching the region
-    /// whose residual is not in the arena.
+    /// `Invalid` for a stroke's region larger than the atlas, a smudge or filter reaching the
+    /// region whose result is not in the arena, or moves stacked deeper than the evaluator's.
     pub(crate) fn build(
-        (scene, raster, bases): Drawn<'_>,
+        (scene, bases): Drawn<'_>,
         (output, size): (Output, [u32; 2]),
         atlas: [u32; 2],
     ) -> Result<Self, RenderError> {
         let builder = Builder::new((scene, bases), (output, size), atlas, Scratch::Layer);
-        builder.lay(&raster.units)
+        builder.lay(&scene.raster.units)
     }
 
-    /// A smudge's material (S62): the units laying the scene's `items` (its layer's paint or mask
-    /// before it) drawn onto the canvas, which starts as nothing (the plan's paper): that layer's
-    /// own pixels, premultiplied, which the finish rounds to 8 bits. A smudge before it whose
-    /// residual the arena lacks reaches none of the pixels the material is wanted at (the
-    /// residuals it reads are made present first, `engine_needs.rs`) and is left out; the finish
-    /// writes only those pixels.
+    /// A smudge's or a filter's material (S62): the units laying the scene's `items` (one
+    /// layer's paint or mask before it) drawn onto the canvas, which starts as nothing (the
+    /// plan's paper): that layer's own pixels, premultiplied, which the finish rounds to 8 bits;
+    /// their pixels lie on the canvas by `base` (S65: under a transform record). A smudge or
+    /// filter before it whose result the arena lacks reaches none of the pixels the material is
+    /// wanted at (what it reads is made present first) and is left out.
     ///
     /// # Errors
     /// As `build`.
     pub(crate) fn material(
-        (scene, raster, bases): Drawn<'_>,
-        items: &Range<usize>,
+        (scene, bases): Drawn<'_>,
+        (items, base): (&Range<usize>, Affine),
         (output, size): (Output, [u32; 2]),
         atlas: [u32; 2],
     ) -> Result<Self, RenderError> {
         let mut builder = Builder::new((scene, bases), (output, size), atlas, Scratch::Canvas);
         builder.lacking = true;
-        builder.lay(raster.within(items))
+        builder.based(base);
+        builder.lay(scene.raster.within(items))
     }
 }
 
 impl<'a> Builder<'a> {
     fn new(
-        (scene, bases): (&'a Scene, &'a [Option<u32>]),
+        (scene, bases): (&'a Scene, &'a Bases),
         (output, size): (Output, [u32; 2]),
         atlas: [u32; 2],
-        target: Scratch,
+        paint: Scratch,
     ) -> Self {
         Builder {
             scene,
@@ -132,10 +153,15 @@ impl<'a> Builder<'a> {
             packer: Packer::new(atlas),
             marks: Marks::new(size),
             batch: Batch::default(),
-            target,
-            cleared: [false; 2],
-            touched: [false; 2],
+            placing: Placing::new(output, size),
+            base_foot: 1.0,
+            paint,
+            depth: 0,
+            on_mask: false,
+            cleared: [false; SCRATCH],
+            touched: [false; SCRATCH],
             chain: Chain::Empty,
+            group: None,
             lacking: false,
             drawing: None,
         }
@@ -147,6 +173,7 @@ impl<'a> Builder<'a> {
         units: impl IntoIterator<Item = &'u Unit>,
     ) -> Result<RasterPlan, RenderError> {
         self.plan.passes.push(Pass::Clear(Scratch::Canvas));
+        self.cleared[Scratch::Canvas.index()] = true;
         for unit in units {
             self.unit(unit)?;
         }
@@ -167,12 +194,23 @@ impl<'a> Builder<'a> {
                 smudge,
                 reach,
             } => self.smudge((*item, *smudge), reach)?,
-            Unit::BeginMask => {
+            Unit::Adjust { item, bounds } => self.adjust(*item, *bounds),
+            Unit::Filter {
+                item,
+                filter,
+                bounds,
+            } => self.filter((*item, *filter), *bounds)?,
+            Unit::BeginMask(_) => {
                 self.flush();
-                self.target = Scratch::Mask;
+                self.on_mask = true;
             }
             Unit::End(item) => self.end(*item),
-            Unit::Active => self.active()?,
+            Unit::EndGroup(item) => self.end_group(*item),
+            Unit::Frame(item) => self.frame(*item),
+            Unit::BeginMove(_) => self.begin_move()?,
+            Unit::EndMove(item) => self.end_move(*item)?,
+            Unit::EndNested(item) => self.end_nested(*item)?,
+            Unit::Active(_) => self.active()?,
         }
         Ok(())
     }
@@ -180,17 +218,28 @@ impl<'a> Builder<'a> {
     /// The last batch's passes; the plan.
     fn done(mut self) -> RasterPlan {
         self.flush();
+        self.material_done();
         let mut plan = self.plan;
         plan.counts.passes = plan.passes.len() + 1;
         plan
     }
-}
 
-impl Builder<'_> {
-    /// The region's pixels the canvas pixels `rect` reach.
-    fn reach(&self, rect: &PixelRect) -> PixelRect {
-        let region = PixelRect::full(self.plan.size);
-        self.output.place(rect).intersect(&region)
+    /// The paint draws go to now: the level's.
+    fn paint(&self) -> Scratch {
+        if self.depth == 0 {
+            self.paint
+        } else {
+            Scratch::Level(self.depth)
+        }
+    }
+
+    /// Where draws go now: the level's paint, or its mask.
+    fn target(&self) -> Scratch {
+        if self.on_mask {
+            Scratch::Mask
+        } else {
+            self.paint()
+        }
     }
 
     fn stroke(
@@ -200,11 +249,15 @@ impl Builder<'_> {
         bounds: Option<Bounds>,
     ) -> Result<(), RenderError> {
         self.plan.counts.scene_strokes += 1;
-        if bounds.is_none_or(|bounds| self.reach(&bounds.pixels()).is_empty()) {
+        if bounds.is_none_or(|bounds| self.placing.reach(&bounds).is_empty()) {
             return Ok(());
         }
-        let place = (self.output, self.plan.size);
-        let Some(laid) = lay(self.scene, (spans.clone(), paint), place, &mut self.marks) else {
+        let Some(laid) = lay(
+            self.scene,
+            (spans.clone(), paint),
+            &self.placing,
+            &mut self.marks,
+        ) else {
             return Ok(());
         };
         let regions = 1 + usize::from(laid.contact);
@@ -236,12 +289,12 @@ impl Builder<'_> {
         } else {
             std::slice::from_ref(&laid.coverage)
         };
-        let scale = self.output.scale as f32;
+        let lay_at = (self.placing.foot_scale, self.placing.frame);
         for ((coverage, place), at) in kinds.iter().zip(&places).zip(at) {
             let start = self.plan.instances.len() as u32;
             for &span in &laid.spans {
                 let op = self.scene.items[span].op();
-                laid_span(&mut self.plan, (op, span), *place, scale);
+                laid_span(&mut self.plan, (op, span), *place, lay_at);
             }
             self.batch.coverage.push(CoverageDraw {
                 coverage: *coverage,
@@ -253,9 +306,11 @@ impl Builder<'_> {
         let start = self.plan.instances.len() as u32;
         let contact = places.get(1).copied().unwrap_or([0, 0]);
         let [x, y] = places[0];
+        // The contact flag, then the frame (S65).
+        let flags = u32::from(laid.contact) | self.placing.frame << 1;
         for [tx, ty] in &laid.tiles {
             self.plan.instances.push(Instance {
-                a: [paint as u32, *tx, *ty, u32::from(laid.contact)],
+                a: [paint as u32, *tx, *ty, flags],
                 b: [x, y, contact[0], contact[1]],
             });
         }
@@ -266,12 +321,12 @@ impl Builder<'_> {
             instances: start..self.plan.instances.len() as u32,
         });
         self.plan.counts.strokes += 1;
-        self.touched[self.slot()] = true;
+        self.touched[self.target().index()] = true;
     }
 
     /// A fill's or a patch's quad over the pixels it reaches.
     fn edit(&mut self, item: usize, bounds: Bounds) {
-        let rect = self.reach(&bounds.pixels());
+        let rect = self.placing.reach(&bounds);
         if rect.is_empty() {
             return;
         }
@@ -285,81 +340,20 @@ impl Builder<'_> {
         let [width, height] = [0, 1].map(|axis| (rect.max[axis] - rect.min[axis]) as u64);
         self.plan.counts.edits += 1;
         self.plan.counts.edit_pixels += width * height;
-        self.touched[self.slot()] = true;
+        self.touched[self.target().index()] = true;
     }
 
-    /// A smudge (op item `item`, the scene's smudge number `smudge`) over the region's pixels the
-    /// canvas pixels `reach` reach: what is laid there so far copied, then laid back moved by its
-    /// residual (D88). The layer or mask starts as nothing here when nothing was laid yet: the
-    /// smudge may carry paint in from outside.
-    fn smudge(
-        &mut self,
-        (item, smudge): (usize, usize),
-        reach: &PixelRect,
-    ) -> Result<(), RenderError> {
-        if self.reach(reach).is_empty() {
-            return Ok(());
-        }
-        let Some(base) = self.bases.get(smudge).copied().flatten() else {
-            if self.lacking {
-                return Ok(());
-            }
-            return Err(RenderError::Invalid(
-                "a smudge's residual is not in the arena",
-            ));
-        };
-        self.smudge_from((item, base), reach);
-        Ok(())
-    }
-
-    /// The smudge of op `item` whose residual starts at word `base` of the arena (or, an
-    /// in-progress smudge's op, of its own residual) over the canvas pixels `reach`.
-    fn smudge_from(&mut self, (item, base): (usize, u32), reach: &PixelRect) {
-        let rect = self.reach(reach);
-        if rect.is_empty() {
-            return;
-        }
-        self.flush();
-        let slot = self.slot();
-        if !self.cleared[slot] {
-            self.plan.passes.push(Pass::Clear(self.target));
-            self.cleared[slot] = true;
-        }
+    /// One instance drawing `kind` for op `item` over `rect`, in the frame the units lie in.
+    fn quad(&mut self, item: usize, rect: crate::geom::PixelRect, kind: DrawKind) -> Draw {
         let start = self.plan.instances.len() as u32;
         self.plan.instances.push(Instance {
-            a: [item as u32, base, 0, 0],
-            b: [rect.min[0], rect.min[1], rect.max[0], rect.max[1]],
-        });
-        let draw = Draw {
-            kind: DrawKind::Smudge,
-            instances: start..start + 1,
-        };
-        let [x, y] = rect.min.map(|at| at.max(0) as u32);
-        let [width, height] = [0, 1].map(|axis| (rect.max[axis] - rect.min[axis]) as u32);
-        let target = self.target;
-        let rect = [x, y, width, height];
-        self.plan.passes.push(Pass::Smudge { target, rect, draw });
-        self.plan.counts.smudges += 1;
-        self.plan.counts.smudge_pixels += u64::from(width) * u64::from(height);
-        self.touched[slot] = true;
-    }
-
-    /// One instance drawing `kind` for op `item` over `rect`.
-    fn quad(&mut self, item: usize, rect: PixelRect, kind: DrawKind) -> Draw {
-        let start = self.plan.instances.len() as u32;
-        self.plan.instances.push(Instance {
-            a: [item as u32, 0, 0, 0],
+            a: [item as u32, self.placing.frame, 0, 0],
             b: [rect.min[0], rect.min[1], rect.max[0], rect.max[1]],
         });
         Draw {
             kind,
             instances: start..start + 1,
         }
-    }
-
-    /// The layer or the mask: which `cleared` and `touched` slot draws go to.
-    fn slot(&self) -> usize {
-        usize::from(self.target == Scratch::Mask)
     }
 
     /// The batch's passes: its coverage, then its draws onto the target (cleared first once).
@@ -371,20 +365,32 @@ impl Builder<'_> {
             self.packer = Packer::new(self.atlas);
         }
         if !batch.draws.is_empty() {
-            let slot = self.slot();
-            let clear = !self.cleared[slot];
-            self.cleared[slot] = true;
+            let target = self.target();
+            let clear = !self.cleared[target.index()];
+            self.cleared[target.index()] = true;
             self.plan.passes.push(Pass::Draw {
-                target: self.target,
+                target,
                 clear,
                 draws: batch.draws,
             });
+        }
+    }
+
+    /// `target` cleared to nothing unless it was in the region (what lies under a level's end,
+    /// what an adjustment or filter rewrites).
+    fn ensure_cleared(&mut self, target: Scratch) {
+        if !self.cleared[target.index()] {
+            self.plan.passes.push(Pass::Clear(target));
+            self.cleared[target.index()] = true;
         }
     }
 }
 
 #[path = "raster_plan_ends.rs"]
 mod ends;
+
+#[path = "raster_plan_records.rs"]
+mod records;
 
 #[path = "raster_plan_drawing.rs"]
 mod drawing;

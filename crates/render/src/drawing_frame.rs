@@ -111,9 +111,8 @@ impl CanvasTarget {
         let at = (self.scene.as_ref())
             .filter(|cache| cache.artwork.same_version(request.artwork) && cache.active == place)
             .and_then(|cache| {
-                let raster = cache.scene.rastered()?;
-                let at = raster.active()?;
-                Some((at, Restored::at(&cache.scene, raster, (at, place.on_mask))))
+                let at = cache.scene.raster.active()?;
+                Some((at, Restored::at(&cache.scene, (at, place.on_mask))))
             });
         let dirty: Option<Vec<PixelRect>> = dirty.map(|rects| {
             let output = Output::at(scale, [0, 0]).unwrap_or(Output::CANVAS);

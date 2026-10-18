@@ -5,8 +5,8 @@
 //! image's hash, and how far the canvas lies from that image (`image_difference`: the largest and
 //! mean difference, the pixels off by more than one 8-bit level and of them those away from
 //! antialiased edges). A checkpoint whose expected hash is the evaluator's image's (what the canvas
-//! was before S62) and whose canvas moved is stated so; one taken while a stroke is drawn holds the
-//! evaluator's pixels anyway (S63) and is not compared.
+//! was before S62, or S65 for the kinds routed to it) and whose canvas moved is stated so; one
+//! taken while a stroke is drawn is not compared (the evaluator's image holds no stroke drawn).
 
 use std::fs;
 

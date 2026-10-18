@@ -14,7 +14,7 @@ use crate::geom::{Bounds, PixelRect};
 use crate::output::Output;
 use crate::protocol::{LayerInto, Op};
 use crate::raster_kinds::{Coverage, Pass, Scratch, SlotAt};
-use crate::raster_route::{RasterScene, Unit};
+use crate::raster_scene::Unit;
 use crate::scene::{Item, Scene};
 
 /// The stroke being drawn as one region's plan lays it.
@@ -54,11 +54,13 @@ pub(crate) struct KeptTile {
 }
 
 /// What a snapshot's targets hold besides the canvas and the layer: the mask (the stroke's place
-/// is a layer's mask), the clipping chain (its layer clips onto a base).
+/// is a layer's mask), the clipping chain (its layer clips onto a base), what lay under its group
+/// (S65: a layer of its group ended onto the canvas before it).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Restored {
     pub(crate) on_mask: bool,
     pub(crate) chain: bool,
+    pub(crate) group: bool,
 }
 
 impl Restored {
@@ -71,11 +73,15 @@ impl Restored {
         if self.chain {
             targets.push(Scratch::Chain);
         }
+        if self.group {
+            targets.push(Scratch::Group);
+        }
         targets
     }
 
-    /// Where a stroke lays in `raster` (its unit `at`, the stroke's place's), on the mask or not.
-    pub(crate) fn at(scene: &Scene, raster: &RasterScene, (at, on_mask): (usize, bool)) -> Self {
+    /// Where a stroke lays in `scene` (its unit `at`, the stroke's place's), on the mask or not.
+    pub(crate) fn at(scene: &Scene, (at, on_mask): (usize, bool)) -> Self {
+        let raster = &scene.raster;
         let end = (raster.units.iter().skip(at)).find_map(|unit| match unit {
             Unit::End(item) => Some(*item),
             _ => None,
@@ -84,7 +90,12 @@ impl Restored {
             matches!(scene.items[item], Item::EndLayer { .. })
                 && scene.items[item].op().layer_end().into == LayerInto::Clipped
         });
-        Self { on_mask, chain }
+        let group = raster.group_open_at(scene, at);
+        Self {
+            on_mask,
+            chain,
+            group,
+        }
     }
 }
 
@@ -104,11 +115,12 @@ impl RasterPlan {
     /// # Errors
     /// As `build`.
     pub(crate) fn drawing(
-        (scene, raster, bases): Drawn<'_>,
+        (scene, bases): Drawn<'_>,
         (output, size): (Output, [u32; 2]),
         atlas: [u32; 2],
         (resume, drawing): (Resume, Option<&InProgress>),
     ) -> Result<Self, RenderError> {
+        let raster = &scene.raster;
         let mut builder = Builder::new((scene, bases), (output, size), atlas, Scratch::Layer);
         builder.drawing = drawing;
         let Some(restored) = resume.restored else {
@@ -129,11 +141,12 @@ impl RasterPlan {
     /// # Errors
     /// As `build`.
     pub(crate) fn snapshot(
-        (scene, raster, bases): Drawn<'_>,
+        (scene, bases): Drawn<'_>,
         (output, size): (Output, [u32; 2]),
         atlas: [u32; 2],
         (from, to, restored): (Option<usize>, usize, Restored),
     ) -> Result<Self, RenderError> {
+        let raster = &scene.raster;
         let mut builder = Builder::new((scene, bases), (output, size), atlas, Scratch::Layer);
         let to = to.min(raster.units.len());
         let from = match from {
@@ -143,6 +156,7 @@ impl RasterPlan {
             }
             None => {
                 builder.plan.passes.push(Pass::Clear(Scratch::Canvas));
+                builder.cleared[Scratch::Canvas.index()] = true;
                 0
             }
         };
@@ -152,8 +166,11 @@ impl RasterPlan {
         builder.flush();
         // What a target holds where its units drew nothing is no unit's: nothing.
         let unset = [
-            (Scratch::Layer, !builder.cleared[0]),
-            (Scratch::Mask, restored.on_mask && !builder.cleared[1]),
+            (Scratch::Layer, !builder.cleared[Scratch::Layer.index()]),
+            (
+                Scratch::Mask,
+                restored.on_mask && !builder.cleared[Scratch::Mask.index()],
+            ),
             (
                 Scratch::Chain,
                 restored.chain && builder.chain != Chain::Held,
@@ -172,18 +189,19 @@ impl Builder<'_> {
     /// The targets as snapshots set them: every one holding what the units before drew over the
     /// whole region, draws going to the mask when the stroke's place is one, the chain held.
     fn restored(&mut self, restored: Restored) {
-        self.target = if restored.on_mask {
-            Scratch::Mask
-        } else {
-            Scratch::Layer
-        };
-        self.cleared = [true, restored.on_mask];
-        self.touched = [true, restored.on_mask];
+        self.on_mask = restored.on_mask;
+        for target in [Scratch::Canvas, Scratch::Layer] {
+            (self.cleared[target.index()], self.touched[target.index()]) = (true, true);
+        }
+        let mask = Scratch::Mask.index();
+        (self.cleared[mask], self.touched[mask]) = (restored.on_mask, restored.on_mask);
         self.chain = if restored.chain {
             Chain::Held
         } else {
             Chain::Empty
         };
+        // Its end then runs: where none of its layers reached, it leaves the canvas as it is.
+        self.group = restored.group.then_some(true);
     }
 
     /// The stroke being drawn, where its unit is.
@@ -191,7 +209,7 @@ impl Builder<'_> {
         match self.drawing {
             Some(InProgress::Stroke(stroke)) => self.drawn_stroke(stroke),
             Some(InProgress::Smudge { op, reach }) => {
-                self.smudge_from((*op as usize, 0), reach);
+                self.smudge_drawn(*op as usize, reach);
                 Ok(())
             }
             None => Ok(()),

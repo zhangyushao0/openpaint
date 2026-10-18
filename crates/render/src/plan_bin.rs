@@ -14,8 +14,8 @@
 use super::{Grid, Touched};
 use crate::affine::Affine;
 use crate::geom::{Bounds, PixelRect};
-use crate::protocol::FRESH;
-use crate::scene::{Fresh, Item};
+
+use crate::scene::Item;
 
 /// A moved selection being binned: its start's index, the tiles it entered, those where it set
 /// the layer aside, and those where its own content was listed.
@@ -27,7 +27,7 @@ struct Move {
 }
 
 pub(super) struct Binner<'a> {
-    grid: &'a Grid<'a>,
+    grid: &'a Grid,
     lists: Vec<Vec<u32>>,
     stroke: Touched,
     layer: Touched,
@@ -49,12 +49,10 @@ pub(super) struct Binner<'a> {
     tile_frames: Vec<Option<u32>>,
     /// Canvas pixels to the target's (a smudge's material under a record); `None`: the same.
     view: Option<Affine>,
-    /// Items `[start, end)` whose entries give way to fresh op 0 at `end` (`Plan::resuming`).
-    pub(super) resume: Option<[u32; 2]>,
 }
 
 impl<'a> Binner<'a> {
-    pub(super) fn new(grid: &'a Grid<'a>, view: Option<Affine>) -> Self {
+    pub(super) fn new(grid: &'a Grid, view: Option<Affine>) -> Self {
         let slots = grid.origins.len();
         Self {
             grid,
@@ -73,39 +71,16 @@ impl<'a> Binner<'a> {
             clip: None,
             tile_frames: vec![None; slots],
             view,
-            resume: None,
-        }
-    }
-
-    /// At the end of the items `resume` names: where they listed anything, their entries
-    /// become fresh op 0.
-    fn resume_at(&mut self, index: u32) {
-        if let Some([start, end]) = self.resume
-            && index == end
-        {
-            self.resume_from(start);
-        }
-    }
-
-    /// Where the items from `start` on listed anything, their entries become fresh op 0.
-    fn resume_from(&mut self, start: u32) {
-        for list in &mut self.lists {
-            if let Some(cut) = list.iter().position(|&i| i >= start && i < FRESH) {
-                list.truncate(cut);
-                list.push(FRESH);
-            }
         }
     }
 
     /// Per evaluated tile, the indices (from `first` on) of `items` that reach it, in order,
     /// and the most moves any tile set aside at once.
-    pub(super) fn bin(mut self, items: &[Item], first: u32, fresh: &Fresh) -> (Vec<Vec<u32>>, u32) {
-        let mut fresh_lists = Some(self.grid.bin(fresh));
+    pub(super) fn bin(mut self, items: &[Item], first: u32) -> (Vec<Vec<u32>>, u32) {
         for (index, item) in items.iter().enumerate() {
             let index = u32::try_from(index)
                 .unwrap_or(u32::MAX)
                 .saturating_add(first);
-            self.resume_at(index);
             match item {
                 Item::Segment { bounds, .. } => {
                     for slot in self.slots(*bounds) {
@@ -136,10 +111,7 @@ impl<'a> Binner<'a> {
                         self.list(slot, index);
                     }
                 }
-                Item::Active if fresh.stroke => {
-                    self.active(fresh_lists.take().unwrap_or_default());
-                }
-                // S56: a scene keeps the next stroke's place while none is drawn.
+                // S56: a scene keeps the next stroke's place; the evaluator draws no stroke (S65).
                 Item::Active => {}
                 Item::Frame {
                     to_canvas, clip, ..
@@ -158,17 +130,6 @@ impl<'a> Binner<'a> {
             }
         }
         (self.lists, self.deepest)
-    }
-
-    /// The in-progress stroke's place: in every slot its fresh segments `binned` there, then its
-    /// paint op (fresh op 0).
-    fn active(&mut self, binned: Vec<Vec<u32>>) {
-        for (slot, mut list) in binned.into_iter().enumerate() {
-            self.enter(slot);
-            list.push(FRESH);
-            self.lists[slot].append(&mut list);
-            self.filled.touch(slot);
-        }
     }
 
     /// Layer, chain and group ends and a mask's start, as before transform records.

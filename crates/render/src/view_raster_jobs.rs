@@ -66,9 +66,7 @@ pub(crate) struct SnapshotJob {
 impl RasterJob {
     /// The plan of its region with `atlas`.
     fn plan(&self, atlas: [u32; 2]) -> Result<RasterPlan, RenderError> {
-        let raster = (self.scene.rastered())
-            .ok_or(RenderError::Invalid("the scene goes to the evaluator"))?;
-        let scene = (&*self.scene, raster, self.buffers.bases());
+        let scene = (&*self.scene, self.buffers.bases());
         let region = (self.output, self.size);
         let JobInto::Snapshot(snapshot) = &self.into else {
             return RasterPlan::build(scene, region, atlas);

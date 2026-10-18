@@ -1,21 +1,14 @@
-//! A view tier's work in one frame (S32): evaluating the canvas's changes in place or making
-//! the tiles they reach wait, filling missing tiles within the frame budget (S53), and logging
-//! how long a fill took.
+//! A view tier's work in one frame (S32): which ready tiles the canvas's changes reach (drawn in
+//! place or made to wait, `view_raster.rs`), and logging how long a fill took.
 
 use std::time::Instant;
 
-use crate::core::Core;
-use crate::cost::tile_cost;
-use crate::error::RenderError;
-use crate::evaluator::CanvasTarget;
-use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
-use crate::plan::Plan;
-use crate::scene::Fresh;
 use crate::view_atlas::Tier;
 use crate::view_tier::ViewWork;
-/// Output pixels of changes to ready tiles evaluated in place in one frame at most; a larger
-/// change makes the tiles it touches wait to be evaluated whole.
+
+/// Output pixels of changes to ready tiles drawn in place in one frame at most; a larger change
+/// makes the tiles it touches wait to be drawn whole.
 pub(crate) const EDIT_PIXELS: i64 = 4 * 256 * 256;
 
 /// The ready tiles of `tier` the canvas pixels `changed` reach, each with the output pixels
@@ -33,67 +26,7 @@ pub(crate) fn touched(tier: &Tier, changed: &[PixelRect]) -> Vec<([u32; 2], Pixe
     parts
 }
 
-/// Evaluates the pixels of ready tiles that `changed` (canvas pixels) reach again, the
-/// in-progress stroke from its first sample on, when they are few and their estimate fits what
-/// is left of the frame budget (S53); else the tiles they touch wait to be filled whole as
-/// background work, the canvas shown there meanwhile: so a stroke drawn over a dense place at a
-/// tier shows on the enlarged canvas instead of holding its frames up.
-pub(crate) fn in_place(
-    core: &Core,
-    tier: &mut Tier,
-    (canvas, request): (&mut CanvasTarget, &FrameRequest<'_>),
-    (changed, work): (&[PixelRect], &mut ViewWork),
-) -> Result<(), RenderError> {
-    let parts = touched(tier, changed);
-    if parts.is_empty() {
-        return Ok(());
-    }
-    let area: i64 = parts
-        .iter()
-        .map(|(_, part)| {
-            i64::from(part.max[0] - part.min[0]) * i64::from(part.max[1] - part.min[1])
-        })
-        .sum();
-    let mut tiles: Vec<[u32; 2]> = parts.iter().map(|(tile, _)| *tile).collect();
-    tiles.sort_unstable();
-    tiles.dedup();
-    let regions: Vec<PixelRect> = (parts.iter())
-        .filter_map(|(tile, part)| {
-            let slot = tier.map.slot(*tile)?;
-            Some(tier.map.to_target(*tile, slot, part))
-        })
-        .collect();
-    let missing = || RenderError::Invalid("the canvas was not evaluated for this frame");
-    let (scene, _) = canvas
-        .scene_of(request.artwork, request.active)
-        .ok_or_else(missing)?;
-    let (_, costs) = canvas
-        .scene_costs(request.artwork, request.active)
-        .ok_or_else(missing)?;
-    let fresh = match request.active.filter(|_| scene.has_active()) {
-        Some(active) => Fresh::new(active, 0, scene.active_clip),
-        None => Fresh::default(),
-    };
-    let plan = (area <= EDIT_PIXELS).then(|| tier.plan(scene, &fresh, &regions));
-    let fits = |plan: &Plan| {
-        let each = plan.tiles.iter().map(|tile| tile_cost(plan, tile, costs));
-        let (sum, most) = each.fold((0.0, 0.0), |(sum, most), cost| (sum + cost, cost.max(most)));
-        core.pace().fits(sum, most)
-    };
-    if let Some(plan) = plan.filter(fits) {
-        core.evaluate.tally.binned(plan.indices.len());
-        tier.dispatch(core, (canvas, request), (&plan, &plan.tiles), &fresh, None)?;
-        work.updated = tiles;
-        return Ok(());
-    }
-    for tile in &tiles {
-        tier.set_ready(*tile, false);
-    }
-    work.dropped = tiles;
-    Ok(())
-}
-
-/// Needed tiles being evaluated whole, from the first frame that missed one until none is
+/// Needed tiles being drawn whole, from the first frame that missed one until none is
 /// missing: logged then, as the time a pan or a new tier took to fill in.
 pub(crate) struct Filling {
     started: Instant,

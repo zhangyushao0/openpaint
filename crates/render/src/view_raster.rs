@@ -1,11 +1,9 @@
-//! A view tier's tiles drawn by the raster core (S59, DECISIONS D86): when the canvas's scene goes
-//! to it (`raster_route.rs`), a missing tile is drawn whole in one region of 256 pixels a side
-//! into its slot, as background work, the screen's middle first; a change to ready tiles is drawn
-//! in place when it fits what is left of the frame, else the tiles wait to be drawn again. While a
-//! stroke is drawn the tier's own drawing of it updates the tiles it reaches that the view shows
-//! (S63, `stroke_raster`); the tiles the evaluator drew before the scene came to the raster core
-//! are drawn again afterwards, shown meanwhile, so every tile of such a scene ends as the raster
-//! core draws it, and a tier equals the export at its scale bit for bit.
+//! A view tier's tiles drawn by the raster core (S59, DECISIONS D86; every scene since S65, D92):
+//! a missing tile is drawn whole in one region of 256 pixels a side into its slot, as background
+//! work, the screen's middle first; a change to ready tiles is drawn in place when it fits what is
+//! left of the frame, else the tiles wait to be drawn again. While a stroke is drawn the tier's
+//! own drawing of it updates the tiles it reaches that the view shows (S63, `stroke_raster`), so a
+//! tier equals the export at its scale bit for bit.
 //! S60 (D87): the background tiles are planned, encoded and submitted by the runtime's raster
 //! worker (`view_raster_jobs.rs`); this side hands them over (`view_raster_fill.rs`) and draws the
 //! changes in place with the frame loop's targets, which since S62 (D89) are the canvas's
@@ -22,7 +20,7 @@ use crate::geom::PixelRect;
 use crate::output::Output;
 use crate::raster_plan::RasterPlan;
 use crate::scene::Scene;
-use crate::smudge::{Held, around_output};
+use crate::smudge::{Bases, Held, around_output};
 use crate::view_atlas::Tier;
 use crate::view_fill::{EDIT_PIXELS, touched};
 use crate::view_needed::Needed;
@@ -47,21 +45,18 @@ pub(crate) struct Issued {
     pub(crate) stale: bool,
 }
 
-/// The plan of output pixels `rect` at `scale` of `scene` (one the raster core draws), its
-/// smudges' residuals at `bases`, with an atlas of `atlas` pixels.
+/// The plan of output pixels `rect` at `scale` of `scene`, its smudges' residuals and filters'
+/// results at `bases`, with an atlas of `atlas` pixels.
 fn plan(
-    (scene, bases): (&Scene, &[Option<u32>]),
+    (scene, bases): (&Scene, &Bases),
     (scale, rect): (u32, PixelRect),
     atlas: [u32; 2],
 ) -> Result<(RasterPlan, Output), RenderError> {
-    let raster = (scene.rastered()).ok_or(RenderError::Invalid(
-        "the scene does not go to the raster core",
-    ))?;
     let origin = rect.min.map(|at| at.max(0) as u32);
     let output = Output::at(scale, origin)?;
     let size = [0, 1].map(|axis| (rect.max[axis] - rect.min[axis]).max(0) as u32);
     Ok((
-        RasterPlan::build((scene, raster, bases), (output, size), atlas)?,
+        RasterPlan::build((scene, bases), (output, size), atlas)?,
         output,
     ))
 }
@@ -221,8 +216,7 @@ fn draw_in_place(
 ) -> Result<bool, RenderError> {
     let missing = || RenderError::Invalid("the canvas was not evaluated for this frame");
     let atlas = canvas.raster_atlas(core)?;
-    let (scene, _, _) =
-        (canvas.scene_serial(request.artwork, request.active)).ok_or_else(missing)?;
+    let (scene, _, _) = (canvas.scene_of(request.artwork, request.active)).ok_or_else(missing)?;
     let mut plans: Vec<Planned> = Vec::new();
     for (tile, part) in parts {
         let slot = tier.map.slot(*tile).ok_or_else(missing)?;

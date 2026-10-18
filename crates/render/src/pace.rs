@@ -10,14 +10,12 @@
 //! frame drawn when a hand arrives waits for at most that much. While the screen is touched each
 //! frame drawn gives `BACKGROUND_NS`, as before.
 //!
-//! A dispatch's estimate follows how the GPU runs it: each plan tile is one workgroup whose 256
-//! pixels each walk the tile's whole list, and the GPU runs about `PARALLEL` of them side by side,
-//! so up to that many cost about what the costliest does, more about their sum over it (`cost.rs`
-//! gives each tile's sum). The estimates are scaled by how long the GPU really took for earlier
-//! frames' background work (`gpu_clock.rs`): the measured time over the estimated, decayed so the
-//! latest count most. A frame that starts with budget left takes one piece whatever its estimate,
-//! so a piece above the budget is still done; what a frame spends beyond its budget is owed by
-//! the next ones, so on average no frame spends more.
+//! A raster region's estimate is the raster core's table (`raster_kinds.rs`, the tablet's measured
+//! times), scaled by how long the GPU really took for earlier regions (`gpu_clock.rs`): the
+//! measured time over the estimated, decayed so the latest count most. A frame that starts with
+//! budget left takes one piece whatever its estimate, so a piece above the budget is still done;
+//! what a frame spends beyond its budget is owed by the next ones, so on average no frame spends
+//! more.
 
 use crate::gpu::Gpu;
 use crate::gpu_clock::{GpuClock, Stamps, Timing};
@@ -30,16 +28,6 @@ pub const BACKGROUND_NS: f64 = 4_000_000.0;
 /// gave a frame this much): the first frame of a touch waits for at most this much.
 pub const IDLE_BACKGROUND_NS: f64 = 10_000_000.0;
 
-/// Plan tiles the tablet's GPU (an Adreno 735) evaluates side by side, measured S53 with GPU
-/// timestamps on the author's A4 artwork: one tile about 3.5 ms, two to six about 3.3 to 4.7,
-/// nine 8.7 to 9.1, twelve about 10: the sum over 3.6 or the largest, whichever is more.
-pub(crate) const PARALLEL: f64 = 4.0;
-
-/// The correction before the first reading: what those readings gave on the tablet (a tile the
-/// table estimates at 0.2 ms took 3.5), so the first frames after a start take no more than
-/// their budget either.
-const FIRST_RATIO: f64 = 16.0;
-
 /// How much of the measured and estimated sums each reading keeps: about the last 30 readings
 /// count.
 const DECAY: f64 = 0.97;
@@ -47,39 +35,18 @@ const DECAY: f64 = 0.97;
 /// GPU runs the table's tablet estimates about thirty times faster).
 const RATIO: [f64; 2] = [0.01, 20.0];
 
-/// The tiles of the dispatch being gathered: how many, their estimates' sum and largest; or
-/// (`raster`, S59) one region the raster core draws, estimated by its own table.
+/// What a GPU time reading measured: a raster region estimated at `cost` ns by the raster core's
+/// table (background work), or (`raster` false) a benchmark's draw, which corrects nothing.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub(crate) struct Group {
-    pub(crate) tiles: usize,
-    pub(crate) sum: f64,
-    pub(crate) most: f64,
+    pub(crate) cost: f64,
     pub(crate) raster: bool,
 }
 
 impl Group {
     /// A region of the raster core estimated at `cost` ns.
     pub(crate) const fn raster(cost: f64) -> Self {
-        Self {
-            tiles: 1,
-            sum: cost,
-            most: cost,
-            raster: true,
-        }
-    }
-
-    fn with(self, cost: f64) -> Self {
-        Self {
-            tiles: self.tiles + 1,
-            sum: self.sum + cost,
-            most: self.most.max(cost),
-            raster: false,
-        }
-    }
-
-    /// What the GPU takes for them, estimated.
-    fn time(self) -> f64 {
-        (self.sum / PARALLEL).max(self.most)
+        Self { cost, raster: true }
     }
 }
 
@@ -94,14 +61,10 @@ pub(crate) struct Pace {
     left: f64,
     opened: bool,
     untouched: bool,
-    /// The measured time over the estimated, from earlier frames' readings; the raster core's
-    /// apart (S59: its table is the tablet's measured time, the evaluator's ranks kinds only).
-    ratio: f64,
-    sums: [f64; 2],
+    /// The raster core's measured time over its estimated, from earlier frames' readings.
     raster_ratio: f64,
     raster_sums: [f64; 2],
     clock: Option<GpuClock>,
-    group: Group,
     /// This step's spending so far (measured ns), its pieces, and its first piece's; how much of
     /// it is marked as queued on the GPU (S60).
     spent: f64,
@@ -116,7 +79,7 @@ pub(crate) struct Pace {
 pub struct Background {
     /// GPU time it took by the corrected estimates, ns.
     pub spent: f64,
-    /// The correction it was taken with: the measured time over the estimated.
+    /// The correction it was taken with: the raster core's measured time over its estimated.
     pub ratio: f64,
     /// GPU time measured for background work whose readings came back during the frame, ns;
     /// `None` without timestamp queries.
@@ -147,12 +110,9 @@ impl Pace {
             left: BACKGROUND_NS,
             opened: true,
             untouched: true,
-            ratio: FIRST_RATIO,
-            sums: [0.0; 2],
             raster_ratio: 1.0,
             raster_sums: [0.0; 2],
             clock: GpuClock::new(gpu),
-            group: Group::default(),
             spent: 0.0,
             marked: 0.0,
             pieces: 0,
@@ -169,7 +129,7 @@ impl Pace {
         let readings = self.clock.as_mut().map(|clock| clock.readings(gpu));
         self.last = Background {
             spent: self.spent,
-            ratio: self.ratio,
+            ratio: self.raster_ratio,
             measured: (readings.as_ref()).map(|all| all.iter().map(|(_, measured)| measured).sum()),
             total: self.last.total
                 + (readings.iter().flatten())
@@ -178,16 +138,9 @@ impl Pace {
             pieces: self.pieces,
             first: self.first,
         };
-        for (group, measured) in readings.iter().flatten() {
-            let sums = if group.raster {
-                &mut self.raster_sums
-            } else {
-                &mut self.sums
-            };
-            *sums = [sums[0] * DECAY + group.time(), sums[1] * DECAY + measured];
-        }
-        if self.sums[0] > 0.0 {
-            self.ratio = (self.sums[1] / self.sums[0]).clamp(RATIO[0], RATIO[1]);
+        for (group, measured) in readings.iter().flatten().filter(|(group, _)| group.raster) {
+            let sums = &mut self.raster_sums;
+            *sums = [sums[0] * DECAY + group.cost, sums[1] * DECAY + measured];
         }
         if self.raster_sums[0] > 0.0 {
             let ratio = self.raster_sums[1] / self.raster_sums[0];
@@ -212,7 +165,6 @@ impl Pace {
         }
         self.idle = queued.is_some();
         self.untouched = true;
-        self.group = Group::default();
         (self.spent, self.marked, self.pieces, self.first) = (0.0, 0.0, 0, 0.0);
     }
 
@@ -241,42 +193,9 @@ impl Pace {
         self.budgets[0]
     }
 
-    /// Adds a tile estimated at `cost` ns to the dispatch being gathered when what it adds fits
-    /// what is left of the frame's budget (or the frame, opened with budget, gave nothing yet);
-    /// false leaves it waiting.
-    pub(crate) fn take(&mut self, cost: f64) -> bool {
-        let group = self.group.with(cost);
-        let extra = (group.time() - self.group.time()) * self.ratio;
-        if !(self.untouched && self.opened) && extra > self.left {
-            return false;
-        }
-        self.group = group;
-        self.charge(extra);
-        true
-    }
-
-    /// Work of `sum` ns of tiles, the costliest `most`, taken only when it fits what is left of
-    /// the frame's budget, given anything before or not: what a frame may show at once or let
-    /// wait. It is a dispatch of its own.
-    pub(crate) fn fits(&mut self, sum: f64, most: f64) -> bool {
-        self.close();
-        let time = Group {
-            tiles: 0,
-            sum,
-            most,
-            raster: false,
-        }
-        .time()
-            * self.ratio;
-        if time > self.left {
-            return false;
-        }
-        self.charge(time);
-        true
-    }
-
     /// Work that runs alone, one dispatch after another (a smudge's contacts), estimated at
-    /// `cost` ns as measured: taken as `take` takes a tile.
+    /// `cost` ns as measured: taken when it fits what is left of the frame's budget (or the
+    /// frame, opened with budget, gave nothing yet); false leaves it waiting.
     pub(crate) fn take_serial(&mut self, cost: f64) -> bool {
         if !(self.untouched && self.opened) && cost > self.left {
             return false;
@@ -325,9 +244,8 @@ impl Pace {
     }
 
     /// Raster regions of `cost` ns taken only when they fit what is left of the frame's budget,
-    /// given anything before or not: what a frame may show at once or let wait (as `fits`).
+    /// given anything before or not: what a frame may show at once or let wait.
     pub(crate) fn fits_raster(&mut self, cost: f64) -> bool {
-        self.close();
         let time = cost * self.raster_ratio;
         if time > self.left {
             return false;
@@ -346,12 +264,6 @@ impl Pace {
         self.pieces += 1;
     }
 
-    /// The dispatch gathered is complete: its tiles, for its GPU time's reading; the next tiles
-    /// gather a new one.
-    pub(crate) fn close(&mut self) -> Group {
-        std::mem::take(&mut self.group)
-    }
-
     /// Whether what is left of the frame's budget is gone.
     pub(crate) fn spent(&self) -> bool {
         !(self.untouched && self.opened) && self.left <= 0.0
@@ -368,15 +280,6 @@ impl Pace {
 
     pub(crate) const fn last(&self) -> Background {
         self.last
-    }
-
-    /// Measures a background evaluation of `group`, when a slot is free.
-    pub(crate) fn time(&mut self, group: Group) -> Option<Timing> {
-        self.clock.as_mut()?.start(group)
-    }
-
-    pub(crate) fn clock(&self) -> Option<&GpuClock> {
-        self.clock.as_ref()
     }
 
     pub(crate) fn finish(&mut self, gpu: &Gpu, timing: Timing) {

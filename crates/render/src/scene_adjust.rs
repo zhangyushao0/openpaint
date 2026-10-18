@@ -135,21 +135,6 @@ impl Scene {
         Ok(retuned)
     }
 
-    /// The items of the layer before the adjustment at `place` and its own item, when the scene
-    /// draws it once with no transform record among them (what a snapshot can stand for).
-    pub(crate) fn prefix_of(&self, place: EditPlace) -> Option<Range<usize>> {
-        let points = self.adjusts.iter().filter(|a| a.place == place);
-        let filters = self.filters.iter().filter(|f| f.key.place() == place);
-        let mut found = points
-            .map(|a| a.before.start..a.item)
-            .chain(filters.map(|f| f.before.start..f.item));
-        let prefix = found.next()?;
-        if found.next().is_some() || !self.pure(prefix.clone()) {
-            return None;
-        }
-        Some(prefix)
-    }
-
     /// Whether `items` lie on the canvas itself: no transform record moves
     /// them and the scene places nothing in progress there.
     fn pure(&self, items: Range<usize>) -> bool {

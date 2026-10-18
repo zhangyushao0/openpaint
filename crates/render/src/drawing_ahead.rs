@@ -55,8 +55,9 @@ impl CanvasTarget {
         let atlas = self.raster_atlas(core)?;
         let format = core.raster_pipelines()?.atlas;
         drawing.coverage_ahead(core, (format, atlas))?;
+        let group = (drawing.base.as_ref()).is_some_and(|base| base.restored.group);
         match self.raster.targets.as_mut() {
-            Some(targets) => targets.make_every(core),
+            Some(targets) => targets.make_every(core, group),
             None => Ok(()),
         }
     }
@@ -157,7 +158,7 @@ impl CanvasTarget {
     pub(crate) fn room_for(&self, drawing: &Drawing, others: u64) -> bool {
         let targets = (drawing.base.as_ref()).map_or(0, |base| base.restored.targets().len());
         let more = drawing.bytes_for(targets);
-        others + drawing.bytes() + more <= self.bindings.snapshot_room
+        others + drawing.bytes() + more <= self.snapshot_room
     }
 }
 

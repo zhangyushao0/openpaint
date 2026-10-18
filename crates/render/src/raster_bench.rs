@@ -108,14 +108,14 @@ impl Bench<'_> {
 }
 
 impl Core {
-    /// Draws `artwork` (a scene the raster core draws, else `Invalid`) on white paper over a
-    /// region of `size` output pixels whose top-left lies at canvas pixel `at`, at `scale` output
-    /// pixels per canvas pixel, through the raster core with an atlas `atlas` pixels square:
-    /// planned once, then drawn after a warm-up `repeats` times (at most 16), each timed.
+    /// Draws `artwork` on white paper over a region of `size` output pixels whose top-left lies
+    /// at canvas pixel `at`, at `scale` output pixels per canvas pixel, through the raster core
+    /// with an atlas `atlas` pixels square: planned once, then drawn after a warm-up `repeats`
+    /// times (at most 16), each timed.
     ///
     /// # Errors
-    /// `Invalid` for a scene routed to the evaluator, a scale other than 1, 2, 4 or 8, or a
-    /// stroke's region larger than the atlas; as the GPU otherwise.
+    /// `Invalid` for a scale other than 1, 2, 4 or 8, or a stroke's region larger than the
+    /// atlas; as the GPU otherwise.
     pub fn time_raster(
         &self,
         artwork: &Artwork,
@@ -125,11 +125,9 @@ impl Core {
     ) -> Result<RasterTimed, RenderError> {
         let output = Output::at(scale, at.map(|v| v * scale))?;
         let scene = Scene::build_knowing(artwork, None, (Vec::new(), Earlier::default()))?;
-        let raster =
-            (scene.rastered()).ok_or(RenderError::Invalid("the scene goes to the evaluator"))?;
         let buffers = self.residuals_for(artwork, &scene, (output, size))?;
         let started = Instant::now();
-        let units = (&scene, raster, buffers.bases());
+        let units = (&scene, buffers.bases());
         let plan = RasterPlan::build(units, (output, size), [atlas; 2])?;
         let plan_ns = started.elapsed().as_secs_f64() * 1e9;
         let usage = wgpu::TextureUsages::RENDER_ATTACHMENT;
@@ -193,9 +191,10 @@ impl Core {
         };
         let near = [around_output(&rect, output.scale)];
         let mut smudges = Smudges::new(self);
-        let wanted = (&mut Filters::default(), &Wanted::Near(&near));
+        let mut filters = Filters::default();
+        let wanted = (&mut filters, &Wanted::Near(&near));
         smudges.prepare(self, (scene, &ops), artwork, wanted)?;
-        Ok(SceneBuffers::of(&ops, smudges.held(scene)))
+        Ok(SceneBuffers::of(&ops, smudges.held(scene, &filters)))
     }
 
     /// `repeats` draws of the bench, each timed by GPU timestamps (or by waiting for it): their

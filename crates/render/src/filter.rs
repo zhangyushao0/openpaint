@@ -1,12 +1,11 @@
 //! Gaussian Blur and Sharpen (S33, DECISIONS D59): adjustments that read neighbouring pixels, so
 //! no per-pixel op can make them. Each is a canvas-resolution raster boundary derived as a
-//! smudge's residual is (D46): the layer's pixels just before it are evaluated by the single
-//! evaluator from the layer's earlier ops in the target's own scene (`Material`), at canvas
-//! resolution, then filtered on the GPU (`kernels.rs`: a separable Gaussian, across then down,
-//! in bands of rows; sharpening adds `amount x STRENGTH` times the difference from it) into a
-//! block of the target's arena: its rectangle, then one premultiplied RGBA8 word per pixel. The
-//! evaluator's `Filter` op replaces the layer so far with that block, bilinear between pixel
-//! centres at 2x and up (`filter_composite.wgsl`), inside its clip.
+//! smudge's residual is (D46): the layer's pixels just before it (`Material`: the raster core's,
+//! a reference's the evaluator's, S65) filtered on the GPU (`kernels.rs`: a separable Gaussian,
+//! across then down, in bands of rows; sharpening adds `amount x STRENGTH` times the difference
+//! from it) into a block of the target's arena: its rectangle, then one premultiplied RGBA8 word
+//! per pixel. A filter's draw replaces the layer so far with that block inside its clip, bilinear
+//! between pixel centres at 2x and up (`filter_composite.wgsl`).
 //!
 //! A block covers only where the result can differ from nothing: the tiles the layer's earlier
 //! ops reach, widened by the kernel's reach, cut to the canvas and to the clip's rectangle (and
@@ -148,12 +147,6 @@ pub(crate) fn reach(sigma: f32) -> u32 {
     }
 }
 
-/// How far `adjustment` changes pixels beyond the content it filters, in whole tiles (0 for a
-/// point adjustment).
-pub(crate) fn spread(adjustment: &Adjustment) -> u32 {
-    kernel_of(adjustment).map_or(0, |(sigma, _)| extent(sigma).div_ceil(TILE))
-}
-
 /// How far a filter of deviation `sigma` reaches each way, in canvas pixels: its kernel's
 /// reach, and past a reduced kernel's (S35) its cells' and their enlarging's pixels.
 pub(crate) fn extent(sigma: f32) -> u32 {
@@ -208,6 +201,16 @@ impl Filters {
             .collect()
     }
 
+    /// The arena key of each of `items` known yet (S65: what a raster draw reads them by).
+    pub(crate) fn known(&self, items: &[FilterItem]) -> Vec<Option<Key>> {
+        (items.iter())
+            .map(|item| {
+                let known = self.known.iter().find(|(_, key)| key.same(&item.key));
+                known.map(|(id, _)| Key::Filter(*id))
+            })
+            .collect()
+    }
+
     /// Bytes of its kernels' buffers (its results lie in the arena).
     pub(crate) fn bytes(&self) -> u64 {
         self.buffers.as_ref().map_or(0, FilterBuffers::bytes)
@@ -257,7 +260,7 @@ impl Filters {
             return Ok(());
         }
         let cells = Cells::of(block, scene.canvas, sigma);
-        let tools = (&mut *material, [arena.buffer(), empty]);
+        let tools = (&mut *material, &*arena, empty);
         self.hold(core, (scene, ops), (item, clip, cells.read), tools, held)?;
         let base = arena.reserve(&core.gpu, (key, None), words, keep)?;
         core.gpu
@@ -289,7 +292,7 @@ impl Filters {
         core: &Core,
         (scene, ops): (&Scene, &SceneOps),
         (item, clip, read): (&FilterItem, Option<PixelRect>, PixelRect),
-        (material, residuals): (&mut Material, [&wgpu::Buffer; 2]),
+        (material, arena, empty): (&mut Material, &Arena, &wgpu::Buffer),
         held: bool,
     ) -> Result<(), RenderError> {
         let again = held
@@ -312,11 +315,8 @@ impl Filters {
         } else {
             read
         };
-        // A filter's scene is the evaluator's (S62: routed whole): its material too.
-        let to_canvas = item.key.to_canvas;
-        let plan = material.plan(scene, (item.before.clone(), to_canvas), &[rect]);
-        let tiles = (&plan, plan.tiles.as_slice());
-        material.evaluate_tiles(core, ops, tiles, to_canvas, (residuals, None))?;
+        let range = (item.before.clone(), item.key.to_canvas);
+        material.make(core, (scene, ops), range, &[rect], (arena, empty, &*self))?;
         self.held = Some((Arc::clone(&item.key), rect));
         Ok(())
     }

@@ -59,7 +59,7 @@
     { "drag": { "from": { "on": "Curve", "offset": [0, 0] }, "to": { "on": "Curve", "offset": [-120, -170] } } },
     { "screenshot": { "name": "steep-curve" } },
     { "tap": { "at": "Apply" } },
-    { "checkpoint": { "name": "curve-applied", "canvas": "d80e14e2430a79a8" } },
+    { "checkpoint": { "name": "curve-applied", "canvas": "4a55649dd2637c00" } },
     { "screenshot": { "name": "curve-applied-screen" } },
     { "tap": { "at": "Undo" } },
     { "checkpoint": { "name": "curve-undone", "canvas": "7ae10e26a85712fc" } }

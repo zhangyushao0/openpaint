@@ -17,7 +17,7 @@ use crate::raster_plan::{Pass, RasterPlan};
 
 /// The bytes of one region's values (raster.wgsl's `Raster`), and how far apart regions' values
 /// lie (the largest uniform offset alignment a device asks for).
-pub(super) const VALUES_BYTES: u64 = 64;
+pub(super) const VALUES_BYTES: u64 = 128;
 pub(super) const VALUES_STRIDE: u64 = 256;
 
 /// One region of a batch: its plan, the output it lies at on its paper, and its finish (none: a
@@ -42,7 +42,7 @@ pub(super) fn timed(regions: &[Region<'_>]) -> ((usize, usize), (usize, usize)) 
     let renders = |pass: &Pass| {
         !matches!(
             pass,
-            Pass::Restore(_) | Pass::Keep(_) | Pass::Copy(_) | Pass::Zero(_)
+            Pass::Restore(_) | Pass::Keep(_) | Pass::Copy { .. } | Pass::Zero(_)
         )
     };
     let mut all = Vec::new();
@@ -89,6 +89,7 @@ impl RasterTargets {
         for region in regions {
             self.make_scratch(core, pipelines, region.plan)?;
         }
+        self.make_reads(core, pipelines, regions);
         let bounds = self.upload(core, regions);
         self.bind_scene(core, pipelines, scene);
         let uploaded = Instant::now();
@@ -113,7 +114,8 @@ impl RasterTargets {
                 instances: instances.len() as u64,
             });
             let start = bytes.len();
-            bytes.extend(values(region.output, region.plan.size, atlas, region.paper));
+            let at = (region.plan.size, region.plan.base);
+            bytes.extend(values(region.output, at, atlas, region.paper));
             bytes.resize(start + VALUES_STRIDE as usize, 0);
             let at = region.finish.map_or([0, 0], |finish| finish.at);
             instances.extend(instance_bytes(&region.plan.instances, at));

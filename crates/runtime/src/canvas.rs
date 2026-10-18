@@ -9,7 +9,7 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, Patch, RegionMask, StrokeTool};
 use openpaint_render::{
-    BrushCursor, CanvasPlacement, CanvasTarget, Core, Routed, ViewCache, ViewFrame, tip_radius,
+    BrushCursor, CanvasPlacement, CanvasTarget, Core, ViewCache, ViewFrame, tip_radius,
 };
 use openpaint_ui::{CanvasArea, ScreenArea};
 
@@ -68,8 +68,6 @@ pub(crate) struct Canvas {
     opened: Option<Opening>,
     /// What the display cache holds for it and must match (S54).
     cache: CacheState,
-    /// Which core drew it last, as logged (S62).
-    routing: Option<Result<(), Routed>>,
 }
 
 impl Canvas {
@@ -114,7 +112,6 @@ impl Canvas {
             pictures: Drawn::default(),
             opened: Some(Opening::start(core)),
             cache: CacheState::default(),
-            routing: None,
         };
         if let Content::Stored(_, _, held) = content {
             canvas.show_opened(core, held);

@@ -1,6 +1,7 @@
-//! The raster core (S57's probe, S59's product path): every source an artwork without the routed
-//! kinds holds (strokes of every recipe stage, erasing, Alpha Lock, a selection's clip, a fill, a
-//! cut, a turned picture, a grey mask, clipping chains, the four blend modes, layer opacity)
+//! The raster core (S57's probe, S59's product path): every source of an artwork's layers
+//! (strokes of every recipe stage, erasing, Alpha Lock, a selection's clip, a fill, a cut, a
+//! turned picture, a grey mask, clipping chains, the four blend modes, layer opacity; S65's
+//! records and groups: `raster_kinds.rs`)
 //! exported by the raster core equals the evaluator's image within one 8-bit level away from
 //! antialiased edges (D86's rule) at 1x, 2x, 4x and 8x, draws alike bit for bit every time and
 //! in bands as in one piece; S57's probe scene against the evaluator likewise.

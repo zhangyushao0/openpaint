@@ -16,6 +16,7 @@ use super::residual::{Working, node_words, words_buffer};
 use crate::affine::Affine;
 use crate::core::Core;
 use crate::error::RenderError;
+use crate::filter::Filters;
 use crate::geom::PixelRect;
 use crate::program::SceneOps;
 use crate::protocol::encode;
@@ -46,6 +47,8 @@ struct Active {
 /// The material texture, the kernels' buffers and an empty residual, made on first use.
 struct Tools {
     material: Option<Material>,
+    /// The material is the evaluator's (a reference's, S65), else the raster core's.
+    evaluated: bool,
     kernels: Option<KernelBuffers>,
     empty: wgpu::Buffer,
     /// The run whose material the texture holds, and the next run's name.
@@ -75,7 +78,18 @@ pub(crate) struct Smudges {
 }
 
 impl Smudges {
+    /// Residuals whose materials the raster core draws.
     pub(crate) fn new(core: &Core) -> Self {
+        Self::of(core, false)
+    }
+
+    /// Residuals whose materials the evaluator evaluates: a reference's (S65), which only `prepare`
+    /// makes, never over frames.
+    pub(crate) fn evaluating(core: &Core) -> Self {
+        Self::of(core, true)
+    }
+
+    fn of(core: &Core, evaluated: bool) -> Self {
         Self {
             arena: Arena::new(&core.gpu),
             room: u64::MAX,
@@ -86,23 +100,13 @@ impl Smudges {
             active: None,
             tools: Tools {
                 material: None,
+                evaluated,
                 kernels: None,
                 empty: words_buffer(&core.gpu, 4),
                 owner: 0,
                 next: 1,
                 scratch: None,
             },
-        }
-    }
-
-    /// None of its residuals, its room and limit kept (S62: the canvas's drawing core changed,
-    /// and with it their materials').
-    pub(crate) fn emptied(&self, core: &Core) -> Self {
-        Self {
-            room: self.room,
-            limit: self.limit,
-            framed: self.framed,
-            ..Self::new(core)
         }
     }
 
@@ -140,7 +144,7 @@ impl Smudges {
     pub(crate) fn advance(
         &mut self,
         core: &Core,
-        (scene, ops): (&Scene, &SceneOps),
+        (scene, ops, filters): (&Scene, &SceneOps, &Filters),
         artwork: &Artwork,
         stroke: &ActiveStroke,
     ) -> Result<Option<PixelRect>, RenderError> {
@@ -180,7 +184,7 @@ impl Smudges {
         self.tools.extend(
             core,
             (scene, ops, (range, Affine::IDENTITY)),
-            &self.arena,
+            (&self.arena, filters),
             &mut active.run,
             &new,
         )?;
@@ -265,12 +269,12 @@ impl Tools {
     /// Applies `dabs` to `run`: allocates the tiles they read, evaluates the material of the
     /// new ones (all of the run's, when the texture holds another run's), resets the new tiles,
     /// then runs the contacts in order. `range` is the scene's items before the smudge and
-    /// where its pixels lie on the canvas.
+    /// where its pixels lie on the canvas; `filters` names the arena's filter results.
     fn extend(
         &mut self,
         core: &Core,
         (scene, ops, range): (&Scene, &SceneOps, (Range<usize>, Affine)),
-        arena: &Arena,
+        (arena, filters): (&Arena, &Filters),
         run: &mut Run,
         dabs: &[Dab],
     ) -> Result<(), RenderError> {
@@ -281,16 +285,17 @@ impl Tools {
         let new = run
             .working
             .allocate(&core.gpu, &read_tiles(dabs, size), binding_limit(core))?;
-        if self.material.is_none() {
-            self.material = Some(Material::new(core, size)?);
-        }
-        let Some(material) = self.material.as_mut() else {
-            return Ok(());
-        };
+        let material = material(&mut self.material, core, (size, self.evaluated))?;
         let stale = self.owner != run.owner;
         let tiles = if stale { run.working.tiles() } else { &new[..] };
         let rects: Vec<PixelRect> = tiles.iter().map(|t| run.working.tile_rect(*t)).collect();
-        material.make(core, (scene, ops), range, &rects, (arena, &self.empty))?;
+        material.make(
+            core,
+            (scene, ops),
+            range,
+            &rects,
+            (arena, &self.empty, filters),
+        )?;
         self.owner = run.owner;
         let kernels = self
             .kernels
@@ -329,7 +334,7 @@ mod derive;
 
 #[path = "engine_held.rs"]
 mod held;
-pub(crate) use held::{Held, held_in};
+pub(crate) use held::{Bases, Held, held_in};
 
 /// The largest buffer the device binds, in bytes.
 fn binding_limit(core: &Core) -> u64 {
@@ -339,14 +344,15 @@ fn binding_limit(core: &Core) -> u64 {
         .min(limits.max_buffer_size)
 }
 
-/// The material texture in `slot`, for a canvas of `size` pixels, made on first use.
+/// The material texture in `slot`, for a canvas of `size` pixels (`evaluated`: the evaluator's),
+/// made on first use.
 fn material<'a>(
     slot: &'a mut Option<Material>,
     core: &Core,
-    size: [u32; 2],
+    (size, evaluated): ([u32; 2], bool),
 ) -> Result<&'a mut Material, RenderError> {
     if slot.is_none() {
-        *slot = Some(Material::new(core, size)?);
+        *slot = Some(Material::new(core, size, evaluated)?);
     }
     slot.as_mut()
         .ok_or(RenderError::Invalid("no material texture"))

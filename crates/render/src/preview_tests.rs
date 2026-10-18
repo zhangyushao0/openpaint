@@ -1,4 +1,5 @@
 use super::*;
+use crate::scene::Scene;
 use openpaint_core::{
     Adjustment, BrushRecipe, CanvasPoint, CanvasSize, Color, Hsb, Sharpen, StrokeSample,
     StrokeStyle,
@@ -48,16 +49,14 @@ fn only_a_change_of_one_adjustments_values_is_a_retune() {
     let retune = retuned(&first, &second).expect("a retune");
     assert_eq!(retune.place.2, 0, "the layer's first edit");
     assert_eq!(retune.edit.adjustment(), &hsb(0.7));
-    assert_eq!(retune.spread, 0, "a point adjustment spreads nowhere");
     assert!(retuned(&first, &first).is_none(), "the same version");
     assert!(retuned(&base, &first).is_none(), "an edit added");
     let sharpened = adjusted(&base, Adjustment::Sharpen(Sharpen::new(0.4)));
     assert!(retuned(&first, &sharpened).is_none(), "another kind");
     let blurred = |radius| adjusted(&base, Adjustment::Blur(openpaint_core::Blur::new(radius)));
-    let wide = retuned(&blurred(2.0), &blurred(32.0)).expect("a blur's radius");
-    assert_eq!(
-        wide.spread, 7,
-        "a reach of 96 and cells of 4 pixels: 104 pixels"
+    assert!(
+        retuned(&blurred(2.0), &blurred(32.0)).is_some(),
+        "a blur's radius"
     );
 }
 

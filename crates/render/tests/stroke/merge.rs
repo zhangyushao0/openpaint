@@ -125,8 +125,8 @@ fn difference(a: &RgbaImage, b: &RgbaImage) -> (u8, usize) {
 }
 
 /// Merging the active layer of `artwork` shows exactly what it showed: the evaluator's images bit
-/// for bit; the canvases within a level (S62: a merged layer's scene goes to the evaluator, the
-/// layers before the merge to the raster core; D88's rule).
+/// for bit; the canvases within a level (S65: the raster core draws the merged layer's content on
+/// a level of its own, laid over the one under it at its end; D88's rule).
 fn exact(artwork: &Artwork, what: &str) {
     let core = core();
     let after = merged(artwork);

@@ -2,9 +2,9 @@
 //! drawn into the screen's canvas by the raster core is its 1x export bit for bit and within one
 //! 8-bit level of the evaluator's image away from antialiased edges (D88's rule), alike every
 //! time; filled over frames (at once where a change fits a frame, else by the raster worker's
-//! tiles) through changes, an undo, a hidden layer and a stroke the evaluator draws and lifts, it
-//! ends as the canvas drawn cold; picks read it; a scene routed to the evaluator is the evaluator's
-//! canvas bit for bit, after a change of core too; layer samples are the raster core's.
+//! tiles) through changes, an undo, a hidden layer, a stroke drawn and lifted and (S65) an
+//! adjustment applied and undone, it ends as the canvas drawn cold; picks read it; layer samples
+//! are the raster core's.
 
 use openpaint_core::{
     Adjustment, Artwork, CanvasSize, Color, Hsb, LayerCommand, StrokeSample, StrokeTool,
@@ -206,29 +206,24 @@ fn picks_read_the_raster_canvas_within_a_level_of_the_evaluator() {
     assert!(flat > 100, "{flat} picks away from edges");
 }
 
+/// S65: an adjustment over the smudges, applied and undone over frames, leaves the canvas as
+/// drawn cold each time, within a level of the evaluator's image away from edges.
 #[test]
-fn a_routed_scene_is_the_evaluators_canvas_bit_for_bit_after_a_change_of_core_too() {
+fn an_adjustment_applied_and_undone_over_frames_ends_as_drawn_cold() {
     let core = core();
     let raster = every_smudge();
     let adjust = Adjustment::Hsb(Hsb::new(0.6, 0.7, 0.5));
-    let routed = (raster.adjust_region(None, adjust))
+    let adjusted = (raster.adjust_region(None, adjust))
         .expect("adjusted")
         .artwork;
-    assert!(
-        cold(&core, &routed) == evaluated_cold(&core, &routed),
-        "cold"
-    );
+    let drawn = cold(&core, &adjusted);
+    assert_near(&evaluated_cold(&core, &adjusted), &drawn, "adjusted");
     let mut screen = Screen::new(&core, SIZE);
     screen.fill(&core, &raster, &[PixelRect::full(SIZE)]);
-    // The adjustment applied: the evaluator draws every tile, the smudges' residuals its own.
-    screen.fill(&core, &routed, &changed_regions(&raster, &routed));
-    assert!(
-        screen.read(&core) == evaluated_cold(&core, &routed),
-        "routed"
-    );
-    // Undone: the raster core's again.
-    screen.fill(&core, &raster, &changed_regions(&routed, &raster));
-    assert!(screen.read(&core) == cold(&core, &raster), "back");
+    screen.fill(&core, &adjusted, &changed_regions(&raster, &adjusted));
+    assert!(screen.read(&core) == drawn, "applied");
+    screen.fill(&core, &raster, &changed_regions(&adjusted, &raster));
+    assert!(screen.read(&core) == cold(&core, &raster), "undone");
 }
 
 #[test]
