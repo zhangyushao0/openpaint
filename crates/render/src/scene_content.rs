@@ -1,8 +1,8 @@
 //! A layer's content as scene ops: strokes oldest first, each region edit after the strokes it
 //! was made over, smudges as residuals, and transform records (S31, DECISIONS D57) as the
-//! content before them evaluated again where it moved.
+//! content before them drawn again where it moved.
 //!
-//! A record is evaluated by mapping back: a pixel after it takes the content before it at the
+//! A record is drawn by mapping back: a pixel after it takes the content before it at the
 //! point the placement's inverse maps the pixel to, inside what moved. For the whole layer the
 //! ops before it are simply listed under a frame that maps their points (`Item::Frame`), the
 //! frames of later records composed into one map, so nothing is listed twice; the moved
@@ -231,8 +231,6 @@ impl Scene {
         let mask = self.clip(lift)?;
         let op = Op::end_move(mask, true, self.canvas);
         self.items.push(Item::EndMove { op, whole: false });
-        let alone = Op::end_move(mask, false, self.canvas);
-        self.items.push(Item::MovedOnly(alone));
         self.set_frame(view);
         Ok(())
     }
@@ -261,6 +259,12 @@ impl Scene {
                     min: [0, 0],
                     max: [0, 0],
                 });
+            let reach = (reach.into_iter())
+                .filter(|bounds| !bounds.is_empty())
+                .reduce(|a, b| {
+                    let ([a0, a1, a2, a3], [b0, b1, b2, b3]) = (a.0, b.0);
+                    Bounds([a0.min(b0), a1.min(b1), a2.max(b2), a3.max(b3)])
+                });
             let item = SmudgeItem {
                 layer: content.layer,
                 on_mask: content.on_mask,
@@ -270,9 +274,10 @@ impl Scene {
                 to_canvas: view.to_canvas,
                 item: 0,
                 clip: clip.unwrap_or(0),
+                reach,
                 canvas,
             };
-            self.push_smudge(item, reach);
+            self.push_smudge(item);
             return Ok(());
         }
         // Its spans as the scene before had them, or computed (S56, `scene_reuse.rs`).
@@ -290,16 +295,13 @@ impl Scene {
         Ok(())
     }
 
-    /// A finished smudge: its reach, then its op, which `place_bases` points at its residual's
-    /// base among the scene's smudges.
-    fn push_smudge(&mut self, mut item: SmudgeItem, reach: Vec<Bounds>) {
-        for bounds in reach {
-            self.items.push(Item::Reach(bounds));
-        }
+    /// A finished smudge: its op, which `place_bases` points at its residual's base among the
+    /// scene's smudges.
+    fn push_smudge(&mut self, mut item: SmudgeItem) {
         let locked = item.stroke.blend() == StrokeBlend::SmudgeLocked;
         item.item = self.items.len();
         self.items
-            .push(Item::Smudge(Op::smudge(Some(0), item.clip, locked)));
+            .push(Item::Smudge(Op::smudge(false, item.clip, locked)));
         self.smudges.push(item);
     }
 

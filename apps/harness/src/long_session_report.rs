@@ -4,7 +4,7 @@
 use std::f32::consts::{PI, TAU};
 
 use openpaint_core::Color;
-use openpaint_render::{CanvasTarget, FrameRequest, GpuMemory, PixelRect, RegionEvaluator};
+use openpaint_render::{CanvasTarget, FrameRequest, GpuMemory, PixelRect};
 use openpaint_runtime::PointerSample;
 
 use super::{BOUNDS, Painter, SAMPLES, SPACING};
@@ -137,14 +137,13 @@ impl Painter {
         }
     }
 
-    /// Under a row: the scene and plan the canvas keeps, fjall's cache and memtables, and the
+    /// Under a row: the scene the canvas keeps, fjall's cache and memtables, and the
     /// device allocator's allocations by label, largest first.
     fn labels(&self, gpu: &GpuMemory) {
         let [cache, memtables] = self.fjall.lock().map_or([0; 2], |fjall| *fjall);
-        let [scene, plan] = self.runtime.scene_bytes().unwrap_or_default();
+        let scene = self.runtime.scene_bytes().unwrap_or_default();
         let named = [
             ("scene", scene),
-            ("plan", plan),
             ("fjall cache", cache),
             ("memtables", memtables),
         ];
@@ -178,7 +177,7 @@ impl Painter {
             active: None,
             background: Color::WHITE,
         };
-        RegionEvaluator::new(&core, &mut target).evaluate(&request, &[PixelRect::full(size)])?;
+        target.draw(&core, &request, &[PixelRect::full(size)])?;
         let cold = target.read(&core)?;
         let shown = self
             .runtime

@@ -280,7 +280,7 @@ pub extern "system" fn Java_dev_openpaint_Native_frame<'local>(
         }
         let ns = |ns: u64| i64::try_from(ns).unwrap_or(i64::MAX);
         let cost = FrameCost {
-            evaluated_ns: ns(spent.evaluated_ns),
+            drawn_ns: ns(spent.drawn_ns),
             scene_ns: ns(spent.scene_ns),
             waited_ns: ns(spent.waited_ns),
             longest: spent.longest,

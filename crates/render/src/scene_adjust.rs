@@ -92,7 +92,7 @@ impl Scene {
             clip: clip.unwrap_or(0),
         };
         self.items.push(Item::Fill {
-            op: Op::filter(0, item.clip, self.canvas),
+            op: Op::filter(item.clip, self.canvas),
             bounds,
         });
         self.filters.push(item);
@@ -144,9 +144,7 @@ impl Scene {
                 Item::Frame { .. }
                     | Item::BeginMove(_)
                     | Item::EndMove { .. }
-                    | Item::MovedOnly(_)
                     | Item::EndNested(_)
-                    | Item::NestedOnly(_)
                     | Item::Active
             )
         };
@@ -169,9 +167,11 @@ impl Scene {
         if on_mask || !self.pure(start..self.items.len()) {
             return ALL;
         }
-        let union = self.items[start..]
-            .iter()
-            .filter_map(Item::bounds)
+        let smudges = (self.smudges.iter())
+            .filter(|smudge| smudge.item >= start)
+            .filter_map(|smudge| smudge.reach);
+        let union = (self.items[start..].iter().filter_map(Item::bounds))
+            .chain(smudges)
             .filter(|bounds| !bounds.is_empty())
             .map(|bounds| bounds.0)
             .reduce(|a, b| {

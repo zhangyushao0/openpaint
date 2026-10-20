@@ -4,8 +4,8 @@
 
 use openpaint_core::Color;
 use openpaint_render::{
-    BrushCursor, CanvasPlacement, CanvasTarget, Core, PixelRect, RegionEvaluator, RgbaImage,
-    ScreenFrame, ScreenPainter, ScreenTarget, UiFrame,
+    BrushCursor, CanvasPlacement, CanvasTarget, Core, PixelRect, RgbaImage, ScreenFrame,
+    ScreenPainter, ScreenTarget, UiFrame,
 };
 
 use crate::fixture::{
@@ -17,8 +17,8 @@ const SURROUND: [u8; 4] = [40, 50, 60, 255];
 
 fn evaluated(core: &Core, artwork: &openpaint_core::Artwork) -> CanvasTarget {
     let mut target = CanvasTarget::new(core, SIZE).expect("target");
-    RegionEvaluator::new(core, &mut target)
-        .evaluate(&request(artwork), &[PixelRect::full(SIZE)])
+    target
+        .draw(core, &request(artwork), &[PixelRect::full(SIZE)])
         .expect("evaluate");
     target
 }

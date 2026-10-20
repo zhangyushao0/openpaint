@@ -86,14 +86,10 @@ fn the_exported_png_holds_exactly_what_the_screen_shows() {
     let (size, pixels) = decode_image(&bytes).expect("a PNG");
     let canvas = runtime.read_canvas().expect("readback").expect("canvas");
     assert_eq!(size, canvas.size(), "native size");
-    // S59: the raster core draws the file, the evaluator the canvas: within one 8-bit level
-    // away from antialiased edges (D86's rule).
+    // The raster core draws the file and the canvas: at 1x the same pixels (D86).
     let file = RgbaImage::from_rgba(size, pixels).expect("whole");
     let found = image_difference(&canvas, &file).expect("same size");
-    assert_eq!(
-        found.beyond_one_inside, 0,
-        "the file is the canvas: {found:?}"
-    );
+    assert_eq!(found.largest, [0; 4], "the file is the canvas: {found:?}");
     assert_cold(&core, &mut runtime, "after exporting");
     // On screen, right of the side bar and under the top band, nothing covers the canvas: at
     // fit, every screen pixel whose canvas neighbourhood is one colour shows that colour.

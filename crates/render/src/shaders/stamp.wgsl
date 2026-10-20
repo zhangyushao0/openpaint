@@ -4,10 +4,9 @@
 // span holds the stamps whose places lie in it (`STAMP_FIRST` to `STAMP_LAST`, from the CPU,
 // `stroke_stamp.rs`), laid along the span's chords: one straight chord, or up to STAMP_CHORDS
 // of equal parameter on a curved span, at the canvas's tolerance whatever the output's scale, so
-// every scale places them alike. A pixel takes only the stamps whose places lie within their
-// reach of its projection onto a chord, and each from that chord alone, so no stamp counts
-// twice. A covering stroke keeps the largest coverage of its stamps, an accumulating one sums
-// their densities. Appended to evaluate.wgsl after segment.wgsl.
+// every scale places them alike; each stamp belongs to the one chord holding its place along
+// them (raster_stamp.wgsl draws one quad a stamp). A covering stroke keeps the largest coverage
+// of its stamps, an accumulating one sums their densities.
 
 // A stroke's stamps, from its paint op (`protocol_stamp.rs`).
 struct Stamping {
@@ -70,147 +69,6 @@ fn chord_point(op: u32, k: u32, chords: u32) -> vec2<f32> {
         return vec2<f32>(word(op, 2), word(op, 3));
     }
     return span_point(op, f32(k) / f32(chords));
-}
-
-// What a stamped span lays at `centre`: x its coverage (covering) or density (accumulating).
-fn stamps_laid(centre: vec2<f32>, op: u32) -> vec2<f32> {
-    let first = word(op, STAMP_FIRST);
-    let last = word(op, STAMP_LAST);
-    if last < first {
-        return vec2<f32>(0.0);
-    }
-    let s = stamping(op + bitcast<u32>(i32(word(op, STAMP_PAINT))));
-    var margin = 0.5 * foot_inverse + 0.01;
-    if s.shape >= STAMP_TEXTURE {
-        margin += 2.0 * foot_inverse;
-    }
-    let reach = max(word(op, 4), word(op, 5)) * s.reach + margin;
-    let chords = stamp_chords(op);
-    // The chords' lengths and the share of the stroke's length per length along them.
-    var total = 0.0;
-    var head = chord_point(op, 0u, chords);
-    for (var k = 1u; k <= chords; k++) {
-        let to = chord_point(op, k, chords);
-        total += distance(head, to);
-        head = to;
-    }
-    var ratio = 1.0;
-    let chord = distance(vec2<f32>(word(op, 0), word(op, 1)), vec2<f32>(word(op, 2), word(op, 3)));
-    if chords > 1u && chord > 0.0 {
-        ratio = total / chord;
-    }
-    var laid = 0.0;
-    var taken = 0u;
-    var start = 0.0;
-    head = chord_point(op, 0u, chords);
-    for (var k = 0u; k < chords; k++) {
-        let to = chord_point(op, k + 1u, chords);
-        let extent = distance(head, to);
-        let low = min(head, to) - vec2<f32>(reach);
-        let high = max(head, to) + vec2<f32>(reach);
-        if all(centre >= low) && all(centre <= high) && taken < 2u * MAX_STAMPS {
-            let chord_of = Chord(head, to, start, extent, k, chords, ratio);
-            let one = chord_stamps(centre, op, s, chord_of, vec3<f32>(first, last, reach));
-            taken += u32(one.y);
-            if u32(word(op, SEGMENT_TIP)) == TIP_COVER {
-                laid = max(laid, one.x);
-            } else {
-                laid += one.x;
-            }
-        }
-        start += extent;
-        head = to;
-    }
-    return vec2<f32>(laid, 0.0);
-}
-
-// One chord of a span: its ends, how far along the chords it starts and how long it is, which
-// of how many it is, and the share of the stroke's length per length along the chords.
-struct Chord {
-    head: vec2<f32>,
-    to: vec2<f32>,
-    start: f32,
-    length: f32,
-    index: u32,
-    count: u32,
-    ratio: f32,
-}
-
-// The stamps of chord `c` near `centre`: x what they lay (their largest coverage, or their
-// summed density), y how many were taken. `window` holds the span's first and last stamps and
-// the reach.
-fn chord_stamps(centre: vec2<f32>, op: u32, s: Stamping, c: Chord, window: vec3<f32>) -> vec2<f32> {
-    var u = 0.0;
-    if c.length > 0.0 {
-        u = clamp(dot(centre - c.head, c.to - c.head) / (c.length * c.length), 0.0, 1.0);
-    }
-    let near = c.start + u * c.length;
-    let arc = word(op, STAMP_ARC);
-    // The stamps placed within the reach of `near`, along the chords.
-    var low = max(window.x, floor((arc + (near - window.z) / c.ratio) / s.step));
-    var high = min(window.y, ceil((arc + (near + window.z) / c.ratio) / s.step));
-    if high - low + 1.0 > f32(MAX_STAMPS) {
-        let middle = floor((arc + near / c.ratio) / s.step);
-        low = max(low, middle - f32(MAX_STAMPS / 2u));
-        high = min(high, low + f32(MAX_STAMPS - 1u));
-    }
-    let cover = u32(word(op, SEGMENT_TIP)) == TIP_COVER;
-    var laid = 0.0;
-    var taken = 0.0;
-    for (var n = low; n <= high; n += 1.0) {
-        // Where along the chords stamp n lies; it belongs to the chord holding that place.
-        let along = (n * s.step - arc) * c.ratio;
-        let before = c.index > 0u && along < c.start;
-        let after = c.index + 1u < c.count && along >= c.start + c.length;
-        if before || after {
-            continue;
-        }
-        var share = 0.0;
-        if c.length > 0.0 {
-            share = (along - c.start) / c.length;
-        }
-        let place = c.head + (c.to - c.head) * share;
-        let t = (f32(c.index) + share) / f32(c.count);
-        let one = stamp_laid(centre, op, s, vec3<f32>(place, t), u32(n));
-        taken += 1.0;
-        if cover {
-            laid = max(laid, one);
-        } else {
-            laid += one;
-        }
-    }
-    return vec2<f32>(laid, taken);
-}
-
-// What stamp `n`, placed on the path at `at.xy`, `at.z` of the way through its span, lays at
-// `centre`: its shape's coverage times the flow there.
-fn stamp_laid(centre: vec2<f32>, op: u32, s: Stamping, at: vec3<f32>, n: u32) -> f32 {
-    let t = at.z;
-    let radius = word(op, 4) + (word(op, 5) - word(op, 4)) * t;
-    // Beyond its reach (and a texture's mip spread) it lays nothing.
-    if distance(centre, at.xy) > radius * s.reach + 3.0 * foot_inverse {
-        return 0.0;
-    }
-    let units = 2.0 * stamp_jitter(s.seed, n) - vec4<f32>(1.0);
-    var path = 0.0;
-    if s.scatter > 0.0 || s.rotation == ROTATE_DIRECTION {
-        path = path_angle(op, t);
-    }
-    let along = vec2<f32>(cos(path), sin(path));
-    let across = vec2<f32>(-along.y, along.x);
-    let place = at.xy + radius * s.scatter * (units.x * along + units.y * across);
-    var turn = s.angle + units.z * s.turn_jitter;
-    if s.rotation == ROTATE_DIRECTION {
-        turn += path;
-    } else if s.rotation == ROTATE_AZIMUTH {
-        turn += stamp_azimuth(op, t);
-    }
-    let size = radius * (1.0 + units.w * s.size_jitter);
-    let offset = centre - place;
-    let x = vec2<f32>(cos(turn), sin(turn));
-    let q = vec2<f32>(dot(offset, x), dot(offset, vec2<f32>(-x.y, x.x)));
-    let flow = word(op, SEGMENT_FLOW) + (word(op, SEGMENT_FLOW + 1u) - word(op, SEGMENT_FLOW)) * t;
-    return stamp_alpha(q, size, s, word(op, SEGMENT_EDGE)) * flow;
 }
 
 // Four numbers in 0..1 for stamp `index` of seed `seed`: `openpaint_core::jitter`, exactly.

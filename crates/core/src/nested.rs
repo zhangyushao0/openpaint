@@ -17,8 +17,8 @@ use crate::mask::LayerMask;
 use crate::region::RegionEdit;
 use crate::stroke_list::StrokeList;
 
-/// How deep nested records may lie inside one another (the evaluator sets each aside on a stack
-/// it shares with moved selections).
+/// How deep nested records may lie inside one another (the renderer draws each on a level of its
+/// own, levels it shares with moved selections).
 pub const MAX_NESTING: usize = 8;
 
 /// A merged layer's content and how it composited (S39).

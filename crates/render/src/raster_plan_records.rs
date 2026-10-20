@@ -39,7 +39,7 @@ impl Builder<'_> {
         Ok(())
     }
 
-    /// The smudge being drawn (op `op`, whose residual is the evaluation's own) over the canvas
+    /// The smudge being drawn (op `op`, whose residual is the in-progress one) over the canvas
     /// pixels `reach`, on the canvas (its place lies in no frame).
     pub(super) fn smudge_drawn(&mut self, op: usize, reach: &PixelRect) {
         let rect = self.placing.reach_canvas(reach);
@@ -120,9 +120,8 @@ impl Builder<'_> {
     }
 
     /// The units from here lie in the frame of item `item` (S65): their bounds its pixels, mapped
-    /// onto the canvas; draws name it, so their fragments evaluate where the frame maps the
-    /// pixel's centre. A frame that maps nothing names none (the evaluator's identity rows give
-    /// the same point).
+    /// onto the canvas; draws name it, so their fragments are drawn where the frame maps the
+    /// pixel's centre. A frame that maps nothing names none (its rows give the same point).
     pub(super) fn frame(&mut self, item: usize) {
         let Item::Frame {
             op,
@@ -132,14 +131,8 @@ impl Builder<'_> {
         else {
             return;
         };
-        let unbase = self.placing.unbase;
+        self.placing.enter(item, (to_canvas, *clip));
         let identity = to_canvas.is_identity();
-        self.placing.map = match (identity, unbase) {
-            (true, unbase) => unbase,
-            (false, unbase) => Some(to_canvas.then(unbase.unwrap_or(Affine::IDENTITY))),
-        };
-        self.placing.clip = *clip;
-        self.placing.frame = if identity { 0 } else { item as u32 + 1 };
         let foot = if identity {
             self.base_foot
         } else {
@@ -155,9 +148,7 @@ impl Builder<'_> {
             return;
         }
         self.plan.base = base;
-        self.placing.unbase = Some(base.inverse());
-        self.placing.map = self.placing.unbase;
-        // As the evaluator's `Params::base_x.w`.
+        self.placing.based(base);
         self.base_foot = (1.0 / base.scale()) as f32;
         self.placing.foot_scale = self.output.scale as f32 * self.base_foot;
     }
@@ -166,9 +157,7 @@ impl Builder<'_> {
     pub(super) fn begin_move(&mut self) -> Result<(), RenderError> {
         self.flush();
         if u32::from(self.depth) >= MOVE_DEPTH {
-            return Err(RenderError::Invalid(
-                "moves stacked deeper than the evaluator's",
-            ));
+            return Err(RenderError::Invalid("moves nested deeper than MOVE_DEPTH"));
         }
         self.depth += 1;
         self.on_mask = false;
@@ -224,9 +213,8 @@ impl Builder<'_> {
         self.plan.counts.record_pixels += u64::from(width) * u64::from(height);
     }
 
-    /// A material's end (S62): it is what the level its units ended on holds (the evaluator's
-    /// fresh layer end over nothing), so a level a moved content left open is copied onto the
-    /// canvas.
+    /// A material's end (S62): it is what the level its units ended on holds (its layer at full
+    /// opacity over nothing), so a level a moved content left open is copied onto the canvas.
     pub(super) fn material_done(&mut self) {
         if self.depth == 0 || self.paint != Scratch::Canvas {
             return;

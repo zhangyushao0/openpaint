@@ -18,9 +18,8 @@ use crate::core::Core;
 use crate::error::RenderError;
 use crate::filter::Filters;
 use crate::geom::PixelRect;
-use crate::program::SceneOps;
-use crate::protocol::encode;
 use crate::scene::{Scene, SmudgeItem};
+use crate::scene_ops::SceneOps;
 use crate::stroke::stroke_region;
 
 /// A residual being evaluated and which evaluation of the material it needs.
@@ -47,8 +46,6 @@ struct Active {
 /// The material texture, the kernels' buffers and an empty residual, made on first use.
 struct Tools {
     material: Option<Material>,
-    /// The material is the evaluator's (a reference's, S65), else the raster core's.
-    evaluated: bool,
     kernels: Option<KernelBuffers>,
     empty: wgpu::Buffer,
     /// The run whose material the texture holds, and the next run's name.
@@ -78,18 +75,7 @@ pub(crate) struct Smudges {
 }
 
 impl Smudges {
-    /// Residuals whose materials the raster core draws.
     pub(crate) fn new(core: &Core) -> Self {
-        Self::of(core, false)
-    }
-
-    /// Residuals whose materials the evaluator evaluates: a reference's (S65), which only `prepare`
-    /// makes, never over frames.
-    pub(crate) fn evaluating(core: &Core) -> Self {
-        Self::of(core, true)
-    }
-
-    fn of(core: &Core, evaluated: bool) -> Self {
         Self {
             arena: Arena::new(&core.gpu),
             room: u64::MAX,
@@ -100,7 +86,6 @@ impl Smudges {
             active: None,
             tools: Tools {
                 material: None,
-                evaluated,
                 kernels: None,
                 empty: words_buffer(&core.gpu, 4),
                 owner: 0,
@@ -110,7 +95,8 @@ impl Smudges {
         }
     }
 
-    /// The arena and the in-progress residual (an empty one without), for the evaluator.
+    /// The arena and the in-progress residual (an empty one without), as the raster core binds
+    /// them.
     pub(crate) fn residuals(&self) -> [&wgpu::Buffer; 2] {
         let active = self.active.as_ref();
         let working = active.map_or(&self.tools.empty, |active| active.run.working.buffer());
@@ -120,19 +106,6 @@ impl Smudges {
     /// Forgets the in-progress smudge: none is drawn now.
     pub(crate) fn end_active(&mut self) {
         self.active = None;
-    }
-
-    /// Where each block of `keys` starts (0 while missing), into the scene's base words from
-    /// `at`.
-    fn write_bases(&self, core: &Core, ops: &SceneOps, at: u32, keys: &[Key]) {
-        let bases: Vec<u32> = keys
-            .iter()
-            .map(|key| u32::try_from(self.arena.base(key).unwrap_or(0)).unwrap_or(0))
-            .collect();
-        if !bases.is_empty() {
-            let at = u64::from(at) * 4;
-            core.gpu.queue.write_buffer(&ops.masks, at, &encode(&bases));
-        }
     }
 
     /// Extends the in-progress smudge `stroke` drawn over `artwork` by its new samples' contacts.
@@ -285,7 +258,7 @@ impl Tools {
         let new = run
             .working
             .allocate(&core.gpu, &read_tiles(dabs, size), binding_limit(core))?;
-        let material = material(&mut self.material, core, (size, self.evaluated))?;
+        let material = material(&mut self.material, core, size)?;
         let stale = self.owner != run.owner;
         let tiles = if stale { run.working.tiles() } else { &new[..] };
         let rects: Vec<PixelRect> = tiles.iter().map(|t| run.working.tile_rect(*t)).collect();
@@ -324,7 +297,7 @@ mod budget;
 
 #[path = "engine_needs.rs"]
 mod needs;
-pub(crate) use needs::{Wanted, around_output, reached};
+pub(crate) use needs::{Wanted, around_output};
 
 #[path = "engine_prepare.rs"]
 mod prepare;
@@ -344,15 +317,14 @@ fn binding_limit(core: &Core) -> u64 {
         .min(limits.max_buffer_size)
 }
 
-/// The material texture in `slot`, for a canvas of `size` pixels (`evaluated`: the evaluator's),
-/// made on first use.
+/// The material texture in `slot`, for a canvas of `size` pixels, made on first use.
 fn material<'a>(
     slot: &'a mut Option<Material>,
     core: &Core,
-    (size, evaluated): ([u32; 2], bool),
+    size: [u32; 2],
 ) -> Result<&'a mut Material, RenderError> {
     if slot.is_none() {
-        *slot = Some(Material::new(core, size, evaluated)?);
+        *slot = Some(Material::new(core, size)?);
     }
     slot.as_mut()
         .ok_or(RenderError::Invalid("no material texture"))

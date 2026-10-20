@@ -38,7 +38,7 @@ struct StrokeTimes {
 /// place, and the frames in flight as it began.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct FrameCost {
-    pub evaluated_ns: i64,
+    pub drawn_ns: i64,
     pub scene_ns: i64,
     pub waited_ns: i64,
     pub longest: &'static str,
@@ -217,7 +217,7 @@ impl fmt::Display for Summary {
                 f,
                 " #{at} {:.1} (evaluation {:.1}, scene {:.1}, waits {:.1}",
                 ms(ns),
-                ms(cost.evaluated_ns),
+                ms(cost.drawn_ns),
                 ms(cost.scene_ns),
                 ms(cost.waited_ns)
             )?;
@@ -257,7 +257,7 @@ mod tests {
 
     fn cost(waited_ms: i64, scene_ms: i64, in_flight: u64) -> FrameCost {
         FrameCost {
-            evaluated_ns: 2 * scene_ms * MS,
+            drawn_ns: 2 * scene_ms * MS,
             scene_ns: scene_ms * MS,
             waited_ns: waited_ms * MS,
             longest: if waited_ms > 0 { "present" } else { "" },

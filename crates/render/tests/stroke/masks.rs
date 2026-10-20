@@ -8,7 +8,7 @@ use openpaint_core::{
     Artwork, ArtworkCommand, CanvasSize, Color, GroupCommand, GroupId, LayerCommand, LayerId,
     MaskCommand, RegionMask, StrokeTool,
 };
-use openpaint_render::{CanvasTarget, FrameRequest, PixelRect, RegionEvaluator, changed_regions};
+use openpaint_render::{CanvasTarget, FrameRequest, PixelRect, changed_regions};
 
 use crate::fixture::{
     SIZE, blank, cold, core, diagonal, pixel, plain, request, sample, wave, with_layer, with_stroke,
@@ -286,15 +286,15 @@ fn mask_edits_through_changed_regions_equal_cold() {
     let versions = edits();
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
     let mut shown = versions[0].clone();
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(&shown), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(&shown), &[PixelRect::full(SIZE)])
         .expect("evaluate");
     let order = (1..versions.len()).chain((0..versions.len() - 1).rev());
     for index in order {
         let next = &versions[index];
         let regions = changed_regions(&shown, next);
-        RegionEvaluator::new(&core, &mut target)
-            .evaluate(&request(next), &regions)
+        target
+            .draw(&core, &request(next), &regions)
             .expect("evaluate");
         let image = target.read(&core).expect("readback");
         assert!(image == cold(&core, next), "version {index}");
@@ -310,8 +310,8 @@ fn painting_and_smudging_on_a_mask_equal_cold_every_frame_and_once_committed() {
         MaskCommand::Select(layer(1)),
     );
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(&artwork), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(&artwork), &[PixelRect::full(SIZE)])
         .expect("evaluate");
     let mut current = artwork;
     for tool in [StrokeTool::Paint, StrokeTool::Smudge, StrokeTool::Erase] {
@@ -325,12 +325,10 @@ fn painting_and_smudging_on_a_mask_equal_cold_every_frame_and_once_committed() {
                 active: Some(session.active()),
                 ..request(&current)
             };
-            RegionEvaluator::new(&core, &mut target)
-                .evaluate(&frame, &[])
-                .expect("evaluate");
+            target.draw(&core, &frame, &[]).expect("evaluate");
             let mut fresh = CanvasTarget::new(&core, SIZE).expect("target");
-            RegionEvaluator::new(&core, &mut fresh)
-                .evaluate(&frame, &[PixelRect::full(SIZE)])
+            fresh
+                .draw(&core, &frame, &[PixelRect::full(SIZE)])
                 .expect("evaluate");
             let shown = target.read(&core).expect("readback");
             assert!(
@@ -339,8 +337,8 @@ fn painting_and_smudging_on_a_mask_equal_cold_every_frame_and_once_committed() {
             );
         }
         current = session.finish().artwork;
-        RegionEvaluator::new(&core, &mut target)
-            .evaluate(&request(&current), &[])
+        target
+            .draw(&core, &request(&current), &[])
             .expect("evaluate");
         let shown = target.read(&core).expect("readback");
         assert!(shown == cold(&core, &current), "{tool:?} committed = cold");

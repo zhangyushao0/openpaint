@@ -1,7 +1,7 @@
 //! `bench export` (S59, `bench_app.rs`): the open artwork exported as Save PNG… exports it, at
 //! 1x, 2x and 4x, on the bench's thread: each export's wall time, its bands drawn (planned and
-//! submitted, then the GPU and the readback) and the encoding apart, and what drew it (the raster
-//! core's regions, or the evaluator's dispatches).
+//! submitted, then the GPU and the readback) and the encoding apart, and the raster core's regions
+//! it drew.
 
 use std::time::Instant;
 
@@ -23,10 +23,9 @@ impl Runtime {
             let wall = started.elapsed().as_secs_f64() * 1e3;
             let counts = self.core.counts().since(before);
             lines.push(format!(
-                "export at {scale}x in {wall:.0} ms: {}; raster regions {}, dispatches {}",
+                "export at {scale}x in {wall:.0} ms: {}; raster regions {}",
                 png.line(),
-                counts.rastered,
-                counts.dispatches
+                counts.rastered
             ));
         }
         Ok(())

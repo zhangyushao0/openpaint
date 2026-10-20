@@ -1,5 +1,6 @@
-//! Derived rendering on wgpu: stroke programs, region evaluation, export, picking, previews.
-//! Everything here can be dropped and rebuilt from the artwork.
+//! Derived rendering on wgpu: an artwork's scene drawn by the raster core into the screen's canvas
+//! and its view tiers, exports, picks, pictures and previews. Everything here can be dropped and
+//! rebuilt from the artwork.
 //!
 //! Depends on `openpaint-core` only. The UI framework may appear only under `src/adapter/`
 //! (`cargo repo-check`).
@@ -8,17 +9,16 @@
 mod active;
 mod adapter;
 mod affine;
-mod bounded;
 mod budget;
+mod canvas;
 mod canvas_raster;
 mod change;
 mod core;
-mod cost;
 mod curve;
+mod difference;
 mod drawing;
 mod edits;
 mod error;
-mod evaluator;
 mod export;
 mod export_raster;
 mod fill_edge;
@@ -34,10 +34,8 @@ mod image;
 mod output;
 mod pace;
 mod paper;
-mod plan;
 mod preview;
 mod profile;
-mod program;
 mod protocol;
 mod raster;
 mod raster_gpu;
@@ -54,6 +52,7 @@ mod scene_append;
 mod scene_cleared;
 mod scene_content;
 mod scene_layer;
+mod scene_ops;
 mod scene_reuse;
 mod screen;
 mod shapes;
@@ -81,14 +80,14 @@ pub use crate::adapter::{
     CHROME_ISLANDS, CHROME_PANELS, ChromePanel, ChromeShapes, ScreenFrame, ScreenPainter, UiFrame,
     chrome_shape,
 };
-pub use crate::bounded::DISPATCH_WORK;
 pub use crate::budget::{
     CacheBytes, DeviceClass, GpuMemory, OWN_BUDGET, SHARED_BUDGET, SHARED_PART,
 };
+pub use crate::canvas::{CanvasCopy, CanvasTarget};
 pub use crate::change::changed_regions;
 pub use crate::core::Core;
+pub use crate::difference::{EDGE, ImageDifference, image_difference};
 pub use crate::error::RenderError;
-pub use crate::evaluator::{CanvasCopy, CanvasTarget, Listed, RegionEvaluator, Timed};
 pub use crate::export::{Banding, Bands};
 pub use crate::frame::FrameRequest;
 pub use crate::geom::PixelRect;
@@ -96,8 +95,6 @@ pub use crate::image::RgbaImage;
 pub use crate::output::MAX_SCALE;
 pub use crate::pace::{BACKGROUND_NS, Background, IDLE_BACKGROUND_NS};
 pub use crate::profile::{Spent, take_spent};
-pub use crate::raster::{EDGE, ImageDifference, PassCost, RasterTimed, image_difference};
-pub use crate::raster_plan::RasterCounts;
 pub use crate::screen::{BrushCursor, CanvasPlacement, ScreenTarget};
 pub use crate::stroke::{curve_pieces, stroke_region, tip_radius};
 pub use crate::surface::{Surface, SurfaceWindow};

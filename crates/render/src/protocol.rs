@@ -1,16 +1,15 @@
-//! The GPU protocol: opcodes and record layouts shared by the Rust encoder and the WGSL
-//! evaluator. Defined here once; `prelude` generates the matching WGSL declarations, which are
-//! prepended to every shader, and the layout test below proves both sides agree.
+//! The GPU protocol: the op record a scene's items are on the GPU, shared by the Rust encoder and
+//! the raster core's WGSL, which reads its operands (`word`). Defined here once; `prelude`
+//! generates the matching WGSL declarations, which are prepended to the raster core's shader, and
+//! the layout test proves both sides agree.
 
-/// Side of a square evaluation tile in pixels; also the evaluator's workgroup size.
-pub(crate) const TILE: u32 = 16;
 /// Number of `f32` operands in one op record.
 const OP_DATA: usize = 23;
 /// A paint op's grain strength is a whole number in `0..=GRAIN_ONE`, so the shader's grain is
 /// exact integer arithmetic on every backend.
 pub(crate) const GRAIN_ONE: u32 = 256;
 
-/// Operand slots the evaluator reads by name, declared to WGSL as constants by `prelude`.
+/// Operand slots the shaders read by name, declared to WGSL as constants by `prelude`.
 const PAINT_OPACITY: usize = 3;
 const PAINT_GRAIN: usize = 4;
 const PAINT_GRAIN_SCALE: usize = 5;
@@ -30,13 +29,12 @@ const FILL_MASK: usize = 7;
 const FILL_EDGE: usize = 9;
 /// Where a patch starts in the patch words, split like `FILL_MASK`.
 const PATCH_AT: usize = 6;
-/// A smudge: the mask word holding where its residual starts in the arena, split like
-/// `FILL_MASK`; whether Alpha Lock keeps the layer's alpha; whether it is the in-progress one
-/// (its residual is the evaluation's own). Its clip sits where a paint op's does.
-const SMUDGE_AT: usize = 0;
-const SMUDGE_LOCKED: usize = 2;
-const SMUDGE_ACTIVE: usize = 3;
-const SLOTS: [(&str, usize); 13] = [
+/// A smudge (its residual's block in the arena is named by its draw): whether Alpha Lock keeps
+/// the layer's alpha; whether it is the one being drawn (its residual is the frame's own). Its
+/// clip sits where a paint op's does.
+const SMUDGE_LOCKED: usize = 0;
+const SMUDGE_ACTIVE: usize = 1;
+const SLOTS: [(&str, usize); 12] = [
     ("PAINT_OPACITY", PAINT_OPACITY),
     ("PAINT_GRAIN", PAINT_GRAIN),
     ("PAINT_GRAIN_SCALE", PAINT_GRAIN_SCALE),
@@ -47,7 +45,6 @@ const SLOTS: [(&str, usize); 13] = [
     ("FILL_MASK", FILL_MASK),
     ("FILL_EDGE", FILL_EDGE),
     ("PATCH_AT", PATCH_AT),
-    ("SMUDGE_AT", SMUDGE_AT),
     ("SMUDGE_LOCKED", SMUDGE_LOCKED),
     ("SMUDGE_ACTIVE", SMUDGE_ACTIVE),
 ];
@@ -73,108 +70,58 @@ const BLENDS: [(&str, Blend); 3] = [
     ("BLEND_ATOP", Blend::Atop),
     ("BLEND_ERASE", Blend::Erase),
 ];
-/// A plan index with this bit set refers to the evaluation's fresh ops (the in-progress
-/// stroke's new segments and its `EndActive`), not to the scene's ops.
-pub(crate) const FRESH: u32 = 1 << 31;
-
-/// What one op record tells the evaluator to do at a pixel.
+/// What an op record is: the kind of item it carries (the raster core's draws read operands by
+/// the slots its kind has, the CPU tells kinds apart by it).
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Opcode {
-    /// One span of a stroke's curve (S34), flattened at the output's scale: its coverage joins the
-    /// current stroke's (their maximum), or its density adds to it.
+    /// One settled span of a stroke's curve (S34), flattened at the output's scale.
     Segment = 0,
-    /// The current stroke's coverage is painted over the current layer and reset.
+    /// A finished stroke's paint: its coverage painted over its layer.
     EndStroke = 1,
-    /// The current layer is composited over the canvas and reset.
+    /// A layer's end onto the canvas or into its clipping chain.
     EndLayer = 2,
-    /// The in-progress stroke: the coverage its earlier segments left in the pixel's coverage
-    /// texel joins the current coverage (the new segments' maximum), the result is stored back
-    /// for the next evaluation, then it is painted like `EndStroke`.
+    /// The stroke being drawn's paint.
     EndActive = 3,
-    /// A fill: its colour painted over the current layer at the share of the output pixel its
-    /// mask's smoothed edge covers (`fill_edge.wgsl`), or, for a hard edge, exactly where its
-    /// mask holds the canvas pixel; like a stroke's paint op.
+    /// A fill: its colour painted over its layer at the share of the output pixel its mask's
+    /// smoothed edge covers (`fill_edge.wgsl`), or, for a hard edge, exactly where its mask holds
+    /// the canvas pixel; like a stroke's paint op.
     Fill = 4,
     /// A transform's lifted pixels, sampled bilinearly where the pixel's centre maps back to,
-    /// over the current layer (premultiplied source over).
+    /// over its layer (premultiplied source over).
     Patch = 5,
-    /// A smudge: the current layer becomes `A x layer + R` from its residual at the pixel.
+    /// A smudge: its layer becomes `A x layer + R` from its residual at the pixel.
     Smudge = 6,
-    /// A clipping chain is composited onto the canvas by its base's opacity and mode, and reset.
+    /// A clipping chain's end onto the canvas by its base's opacity and mode.
     EndChain = 7,
-    /// A group's result replaces what lay under it by the group's opacity (pass-through).
+    /// A group's end: its result replaces what lay under it by its opacity (pass-through).
     EndGroup = 8,
-    /// The current layer's paint is set aside and its mask starts (`Masking`).
+    /// A masked layer's paint is set aside and its mask starts (`Masking`).
     BeginMask = 9,
-    /// An adjustment of the current layer's colours, inside its clip (`protocol_adjust.rs`).
+    /// An adjustment of its layer's colours, inside its clip (`protocol_adjust.rs`).
     Adjust = 10,
-    /// From here the ops are evaluated at the pixel's centre mapped through the frame's rows:
-    /// content a transform record shows where it moved it (S31).
+    /// From here the items lie in a transform record's content, drawn at the pixel's centre
+    /// mapped through the frame's rows (S31).
     Frame = 11,
-    /// The layer so far is set aside and a moved selection's content starts from nothing.
+    /// A moved selection's or a merged layer's content starts, from nothing.
     BeginMove = 12,
     /// The moved content is cut to its selection (or the canvas) where the centre maps back,
-    /// then, when set aside, laid over what was set aside.
+    /// then, for a selection, laid over what lay under it.
     EndMove = 13,
-    /// The current layer becomes a filter's result, inside its clip (`protocol_adjust.rs`).
+    /// Its layer becomes a filter's result, inside its clip (`protocol_adjust.rs`).
     Filter = 14,
-    /// A span of the in-progress stroke's end that later samples may still change (the raster
-    /// core's drawing lays it, never keeps it; `OP_RESUME`, 16, went in S65).
+    /// A span of the stroke being drawn's end that later samples may still change: laid every
+    /// frame, never kept.
     Tail = 15,
     /// A merged layer's content (S39, a nested record) ends: its mask, then its opacity, then by
-    /// its mode over (or atop) what its layer held before it, which was set aside at its start.
-    EndNested = 17,
-}
-
-impl Opcode {
-    const ALL: [Self; 17] = [
-        Self::Segment,
-        Self::EndStroke,
-        Self::EndLayer,
-        Self::EndActive,
-        Self::Fill,
-        Self::Patch,
-        Self::Smudge,
-        Self::EndChain,
-        Self::EndGroup,
-        Self::BeginMask,
-        Self::Adjust,
-        Self::Frame,
-        Self::BeginMove,
-        Self::EndMove,
-        Self::Filter,
-        Self::Tail,
-        Self::EndNested,
-    ];
-
-    const fn wgsl_name(self) -> &'static str {
-        match self {
-            Self::Segment => "OP_SEGMENT",
-            Self::EndStroke => "OP_END_STROKE",
-            Self::EndLayer => "OP_END_LAYER",
-            Self::EndActive => "OP_END_ACTIVE",
-            Self::Fill => "OP_FILL",
-            Self::Patch => "OP_PATCH",
-            Self::Smudge => "OP_SMUDGE",
-            Self::EndChain => "OP_END_CHAIN",
-            Self::EndGroup => "OP_END_GROUP",
-            Self::BeginMask => "OP_BEGIN_MASK",
-            Self::Adjust => "OP_ADJUST",
-            Self::Frame => "OP_FRAME",
-            Self::BeginMove => "OP_BEGIN_MOVE",
-            Self::EndMove => "OP_END_MOVE",
-            Self::Filter => "OP_FILTER",
-            Self::Tail => "OP_TAIL",
-            Self::EndNested => "OP_END_NESTED",
-        }
-    }
+    /// its mode over (or atop) what its layer held before it.
+    EndNested = 16,
 }
 
 /// One op. Operands by opcode:
 /// - `Segment` and `Tail`: `[ax, ay, bx, by, ra, rb, fa, fb, edge, ca, cb, tip, x1, y1, x2, y2,
 ///   flat, bend, arc, first, last, paint]`, one span of a stroke's curve in canvas pixels: the
-///   cubic Bézier from `a` to `b` with controls `(x1, y1)` and `(x2, y2)`, evaluated as
+///   cubic Bézier from `a` to `b` with controls `(x1, y1)` and `(x2, y2)`, drawn as
 ///   `curve::pieces(flat, bend, scale)` tapered capsules of equal parameter, the radius changing
 ///   evenly from `ra` at `a` to `rb` at `b`; its coverage (`Tip::Cover`) or density (the others)
 ///   is multiplied by the flow, `fa` to `fb` alike; `edge` is one over the width in canvas pixels
@@ -192,8 +139,8 @@ impl Opcode {
 /// - `EndLayer`: `[opacity, into, mode, grouped, mask]`: `into` a `LayerInto`, `mode` a
 ///   `Mode`, `grouped` 1 inside a group, `mask` a `Masking` (`protocol_layers.rs`);
 ///   `EndChain`: `[opacity, _, mode, grouped]`, the base's; `EndGroup`: `[opacity]`;
-///   `BeginMask`: none; `EndNested`: `[opacity, into, mode, _, mask, aside]`, `into`
-///   `INTO_CLIPPED` for atop, else over; `aside` 1 where its start set the layer aside.
+///   `BeginMask`: none; `EndNested`: `[opacity, into, mode, _, mask]`, `into` `INTO_CLIPPED`
+///   for atop, else over.
 /// - `Fill`: a paint op's first seven operands, then where its mask starts in the mask words
 ///   (`offset / 2^16`, `offset % 2^16`), then the canvas size for a smoothed edge (`[0, 0]`:
 ///   hard); the mask is `MASK_HEADER` words, then rows of `ceil(width / 32)` words, bit
@@ -202,13 +149,13 @@ impl Opcode {
 ///   the patch at `(a x + b y + c, d x + e y + f)` in canvas pixels; the patch starts at word
 ///   `at` of the patch words: `MASK_HEADER` words, then one premultiplied RGBA8 word per
 ///   pixel, rows top first.
-/// - `Smudge`: `[at / 2^16, at % 2^16, locked, active, ..., clip / 2^16, clip % 2^16]`.
+/// - `Smudge`: `[locked, active, ..., clip / 2^16, clip % 2^16]`.
 /// - `Adjust`: `[kind, hue, saturation, brightness, on, tables / 2^16, tables % 2^16, ...,
-///   clip / 2^16, clip % 2^16]`; `Filter`: `[at / 2^16, at % 2^16, width, height, ..., clip]`.
-/// - `Frame`: `[a, b, c, d, e, f, foot, level]`: ops from here are evaluated at `(a x + b y +
-///   c, d x + e y + f)` for the centre `(x, y)` on the canvas; `foot` canvas pixels per pixel
-///   there, `level` its base-2 log. `BeginMove`: none. `EndMove`: `[mask / 2^16, mask % 2^16,
-///   aside, width, height]`.
+///   clip / 2^16, clip % 2^16]`; `Filter`: `[width, height, ..., clip]`.
+/// - `Frame`: `[a, b, c, d, e, f, foot, level, back...]`: ops from here are drawn at `(a x + b y
+///   + c, d x + e y + f)` for the centre `(x, y)` on the canvas; `foot` canvas pixels per pixel
+///   there, `level` its base-2 log, `back` the six rows mapping content points to the canvas.
+///   `BeginMove`: none. `EndMove`: `[mask / 2^16, mask % 2^16, aside, width, height]`.
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Op {
@@ -318,18 +265,16 @@ impl Op {
         Self::new(Opcode::Patch, &data)
     }
 
-    /// A finished smudge whose residual's base is in mask word `at`, or (`None`) the one in
-    /// progress; `clip` as a paint op's.
-    pub(crate) fn smudge(at: Option<u32>, clip: u32, locked: bool) -> Self {
+    /// A smudge, finished or (`active`) the one being drawn; `clip` as a paint op's.
+    pub(crate) fn smudge(active: bool, clip: u32, locked: bool) -> Self {
         let mut data = [0.0; OP_DATA];
-        data[SMUDGE_AT..SMUDGE_AT + 2].copy_from_slice(&halves(at.unwrap_or(0)));
         data[SMUDGE_LOCKED] = f32::from(u8::from(locked));
-        data[SMUDGE_ACTIVE] = f32::from(u8::from(at.is_none()));
+        data[SMUDGE_ACTIVE] = f32::from(u8::from(active));
         data[PAINT_CLIP..PAINT_CLIP + 2].copy_from_slice(&halves(clip));
         Self::new(Opcode::Smudge, &data)
     }
 
-    /// An op no plan refers to; it keeps a scene's item and op indices equal.
+    /// An op no draw refers to; it keeps a scene's item and op indices equal.
     pub(crate) fn unused() -> Self {
         Self::new(Opcode::EndLayer, &[])
     }
@@ -346,7 +291,7 @@ impl Op {
 
 #[path = "protocol_records.rs"]
 mod records;
-pub(crate) use records::{Params, Record, TileRecord, encode};
+pub(crate) use records::{Record, encode};
 
 #[path = "protocol_adjust.rs"]
 mod adjust;
@@ -372,10 +317,6 @@ pub(crate) use stamp::{
     ROTATE_AZIMUTH, ROTATE_DIRECTION, ROTATE_FIXED, ROTATIONS, STAMP_DISC, STAMP_ELLIPSE,
     STAMP_OPERANDS, STAMP_SQUARE, STAMP_TEXTURE, SpanStamps,
 };
-
-#[path = "protocol_cost.rs"]
-mod cost;
-pub(crate) use cost::OpKind;
 
 #[path = "protocol_raster.rs"]
 pub(crate) mod raster;

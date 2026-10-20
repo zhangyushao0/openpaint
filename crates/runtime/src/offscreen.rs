@@ -97,9 +97,9 @@ impl Runtime {
         })
     }
 
-    /// Heap bytes of the open canvas's scene and kept plan (S51, the harness's long session).
+    /// Heap bytes of the open canvas's scene (S51, the harness's long session).
     #[must_use]
-    pub fn scene_bytes(&self) -> Option<[u64; 2]> {
+    pub fn scene_bytes(&self) -> Option<u64> {
         Some(self.screen.canvas()?.target().heap_bytes())
     }
 
@@ -139,7 +139,7 @@ impl Runtime {
     }
 
     /// The canvas read back, the artwork's pixels without the UI, every tile still waiting
-    /// evaluated first (as a pick reads it, S49): the frames fill tiles in over time (S53).
+    /// drawn first (as a pick reads it, S49): the frames fill tiles in over time (S53).
     pub fn read_canvas(&mut self) -> Result<Option<RgbaImage>, RuntimeError> {
         match self.screen.canvas_mut() {
             Some(canvas) => {
@@ -148,26 +148,6 @@ impl Runtime {
             }
             None => Ok(None),
         }
-    }
-
-    /// The evaluator's image of what the open canvas shows (the artwork shown on the paper, at
-    /// 1x), for harness `canvas-check` (S62: the raster core draws the canvas; S66 deletes the
-    /// evaluator); `None` without a canvas or while a stroke is drawn (the evaluator's image has
-    /// no stroke in progress).
-    ///
-    /// # Errors
-    /// As the evaluator.
-    pub fn evaluated_canvas(&self) -> Result<Option<RgbaImage>, RuntimeError> {
-        let Some(canvas) = self.screen.canvas() else {
-            return Ok(None);
-        };
-        if canvas.drawing() {
-            return Ok(None);
-        }
-        let shown = canvas.session().shown();
-        let size = canvas.target().size();
-        let (_, image) = self.core.time_evaluation(shown, (1, [0, 0]), size, 1)?;
-        Ok(Some(image))
     }
 
     /// The brush editor's preview strip as the worker made it last, while the editor shows (S46).

@@ -12,9 +12,9 @@
 //! present before it is drawn or handed over and named with the arena's buffer as it is then
 //! (`smudge::Held`); a tile reading one still being evaluated waits.
 
+use crate::canvas::{CanvasTarget, Onto, Planned, TAKING, paper};
 use crate::core::Core;
 use crate::error::RenderError;
-use crate::evaluator::{CanvasTarget, Onto, Planned, TAKING, paper};
 use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
 use crate::output::Output;

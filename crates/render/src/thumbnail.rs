@@ -6,9 +6,9 @@
 
 use wgpu::util::DeviceExt;
 
+use crate::canvas::CanvasTarget;
 use crate::core::Core;
 use crate::error::RenderError;
-use crate::evaluator::CanvasTarget;
 use crate::image::RgbaImage;
 use crate::readback::read_buffer;
 

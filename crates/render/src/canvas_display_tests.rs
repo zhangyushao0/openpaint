@@ -12,7 +12,7 @@ use openpaint_core::{
 use crate::core::{Core, test_core};
 use crate::gpu::TEN_BITS;
 use crate::readback::read_buffer;
-use crate::{CanvasTarget, FrameRequest, PixelRect, RegionEvaluator};
+use crate::{CanvasTarget, FrameRequest, PixelRect};
 
 const SIZE: [u32; 2] = [160, 96];
 
@@ -47,8 +47,8 @@ fn evaluated(core: &Core, mut target: CanvasTarget, artwork: &Artwork) -> Canvas
         active: None,
         background: Color::WHITE,
     };
-    RegionEvaluator::new(core, &mut target)
-        .evaluate(&request, &[PixelRect::full(SIZE)])
+    target
+        .draw(core, &request, &[PixelRect::full(SIZE)])
         .expect("evaluated");
     target
 }
@@ -150,7 +150,7 @@ fn steep_curve() -> ToneCurve {
     .expect("curve")
 }
 
-/// The tables the evaluator gets for `curve` over every channel.
+/// The tables the shader gets for `curve` over every channel.
 fn tables(curve: ToneCurve) -> [[u8; 256]; 3] {
     Curves::default().with(ToneChannel::Composite, curve).luts()
 }

@@ -1,13 +1,11 @@
-//! The residuals as a draw on another thread reads them (S61, DECISIONS D88): the arena's buffer
-//! and the in-progress residual's, and where each of a scene's smudges' blocks starts in that
-//! arena, taken together; since S65 its filters' results' blocks too, which share the arena. The
-//! raster core's worker draws a view tier's tile a few frames after the frame loop handed it over,
-//! and meanwhile the frame loop may move the arena (into a new buffer, writing the new bases into
-//! the scene's mask words): a draw that read the bases from there would read the new buffer's
-//! bases in the old buffer. Bases taken with their buffer stay right: the arena writes a block
-//! over only in a buffer it has no more, or where no scene the canvas shows reads it any more
-//! (`Arena::reserve`), and a tile reading one of those was reached by the change that took the
-//! smudge or filter away, so it is drawn again.
+//! The residuals as a draw reads them (S61, DECISIONS D88): the arena's buffer and the
+//! in-progress residual's, and where each of a scene's smudges' and filters' blocks starts in that
+//! arena, taken together; each draw names its smudge's or filter's block by its base. The raster
+//! core's worker draws a view tier's tile a few frames after the frame loop handed it over, and
+//! meanwhile the frame loop may move the arena into a new buffer. Bases taken with their buffer
+//! stay right: the arena writes a block over only in a buffer it has no more, or where no scene
+//! the canvas shows reads it any more (`Arena::reserve`), and a tile reading one of those was
+//! reached by the change that took the smudge or filter away, so it is drawn again.
 
 use std::sync::Arc;
 

@@ -1,6 +1,6 @@
 //! `Scene`: an artwork flattened into ops in drawing order, with the bounds each segment can
-//! reach, and `Fresh`: the in-progress stroke's part of one evaluation. The geometry of one
-//! stroke is in `stroke.rs`.
+//! reach, and `Fresh`: the in-progress stroke's part of one frame. The geometry of one stroke is
+//! in `stroke.rs`.
 
 use std::ops::Range;
 use std::sync::Arc;
@@ -47,36 +47,28 @@ pub(crate) enum Item {
     /// A masked layer's paint is set aside; its mask's ops follow (S24).
     BeginMask(Op),
     /// Where the in-progress stroke draws: above its layer's finished strokes. Its ops are the
-    /// evaluation's `Fresh` ops, which change every frame while the scene stays.
+    /// frame's `Fresh` ops, which change every frame while the scene stays.
     Active,
-    /// Pixels a smudge can change, one box per pair of samples; listed nowhere itself.
-    Reach(Bounds),
-    /// A smudge's residual applied to its layer, in every tile its reach touched.
+    /// A smudge's residual applied to its layer where it can change it (`SmudgeItem::canvas`).
     Smudge(Op),
     /// The items after it, up to the next frame, lie in a transform record's earlier content
     /// (S31): their bounds are its pixels, `to_canvas` maps them to the canvas, and only what
-    /// lies in `clip` (its pixels; `None`: all) can show. Its op moves where they are evaluated.
+    /// lies in `clip` (its pixels; `None`: all) can show. Its op maps where they are drawn.
     Frame {
         op: Op,
         to_canvas: Affine,
         clip: Option<Bounds>,
     },
-    /// A moved selection's content (or a merged layer's) starts, the layer so far set aside.
-    /// Listed only where the layer had something to set aside: elsewhere that content starts
-    /// from nothing on its own (`MovedOnly`, `NestedOnly`).
+    /// A moved selection's content (or a merged layer's) starts on a level of its own.
     BeginMove(Op),
-    /// A moved content's end: cut to its selection and laid over what was set aside, or
+    /// A moved content's end: cut to its selection and laid over the level under it, or
     /// (`whole`) cut to the canvas, for a whole layer's.
     EndMove {
         op: Op,
         whole: bool,
     },
-    /// The same selection's end where nothing was set aside: only cut to the selection.
-    MovedOnly(Op),
-    /// A merged layer's content ends (S39), laid onto what was set aside at its start (a
-    /// `BeginMove`); `NestedOnly`, right after it, where nothing was.
+    /// A merged layer's content ends (S39), laid onto the level under it (its `BeginMove`).
     EndNested(Op),
-    NestedOnly(Op),
     /// What a transform lifted cleared from the layer: an erasing fill, which never adds
     /// anything to set aside.
     Clear {
@@ -86,7 +78,7 @@ pub(crate) enum Item {
 }
 
 impl Item {
-    /// For `Active` and `Reach`, an op no plan refers to, so item and op indices stay equal.
+    /// For `Active`, an op no draw refers to, so item and op indices stay equal.
     pub(crate) fn op(&self) -> Op {
         match self {
             Self::Segment { op, .. }
@@ -100,11 +92,9 @@ impl Item {
             | Self::Frame { op, .. }
             | Self::BeginMove(op)
             | Self::EndMove { op, .. }
-            | Self::MovedOnly(op)
             | Self::EndNested(op)
-            | Self::NestedOnly(op)
             | Self::Clear { op, .. } => *op,
-            Self::Active | Self::Reach(_) => Op::unused(),
+            Self::Active => Op::unused(),
         }
     }
 
@@ -113,15 +103,14 @@ impl Item {
         match self {
             Self::Segment { bounds, .. }
             | Self::Fill { bounds, .. }
-            | Self::Clear { bounds, .. }
-            | Self::Reach(bounds) => Some(*bounds),
+            | Self::Clear { bounds, .. } => Some(*bounds),
             _ => None,
         }
     }
 }
 
 /// A finished smudge the scene draws, in scene order: its residual must be in the target's
-/// arena before the scene is evaluated.
+/// arena before a draw reaching it.
 #[derive(Debug, Clone)]
 pub(crate) struct SmudgeItem {
     pub(crate) layer: LayerId,
@@ -138,8 +127,9 @@ pub(crate) struct SmudgeItem {
     /// Its item and its clip as its op names it.
     pub(crate) item: usize,
     pub(crate) clip: u32,
-    /// The canvas pixels it can change (its reach placed by `to_canvas`): where an evaluation
-    /// needs its residual (S51).
+    /// The box its contacts can change, in its pixels (`None`: nothing), and the canvas pixels
+    /// that box reaches placed by `to_canvas`: where a draw needs its residual (S51).
+    pub(crate) reach: Option<Bounds>,
     pub(crate) canvas: PixelRect,
 }
 
@@ -161,14 +151,11 @@ pub(crate) struct Scene {
     /// The transforms' patches in the patch words, in order, and how many words they take.
     pub(crate) patches: Vec<Patch>,
     pub(crate) patch_words: usize,
-    /// The finished smudges and the filters, and where in the mask words their arena blocks'
-    /// bases are written (one word each, smudges then filters, in order, after every other
-    /// word; filled in after the scene is uploaded).
+    /// The finished smudges and the filters, in scene order: a draw names their arena blocks.
     pub(crate) smudges: Vec<SmudgeItem>,
     pub(crate) filters: Vec<FilterItem>,
     /// The point adjustments, in scene order (S35: a preview changes their values in place).
     pub(crate) adjusts: Vec<AdjustItem>,
-    pub(crate) bases_at: u32,
     /// While building: the frame the items pushed now lie in (`Item::Frame`).
     pub(crate) frame: (Affine, Option<Bounds>),
     /// The items of the in-progress stroke's layer before its place.
@@ -181,8 +168,7 @@ pub(crate) struct Scene {
     /// of the same mask takes instead of deriving them again.
     pub(crate) edges: Vec<EdgeValues>,
     pub(crate) known: Vec<EdgeValues>,
-    /// Its units as the raster core draws them, made with it (S62; every scene since S65,
-    /// `raster_scene.rs`).
+    /// Its units as the raster core draws them, made with it (`raster_scene.rs`).
     pub(crate) raster: RasterScene,
 }
 
@@ -270,7 +256,6 @@ impl Scene {
         }
         scene.known.clear();
         scene.forget_earlier();
-        scene.place_bases()?;
         scene.raster = RasterScene::of(&scene);
         Ok(scene)
     }
@@ -303,7 +288,6 @@ impl Scene {
             }
             None => scene.push_layer(&LayerOps::of(layer, None), None, end)?,
         }
-        scene.place_bases()?;
         scene.raster = RasterScene::of(&scene);
         Ok(scene)
     }

@@ -6,7 +6,7 @@
 
 use openpaint_core::{Adjustment, Artwork, BlendMode, Blur, Color, Hsb, Placement, StrokeTool};
 use openpaint_render::{
-    Banding, CanvasTarget, FrameRequest, PixelRect, RegionEvaluator, RgbaImage, changed_regions,
+    Banding, CanvasTarget, FrameRequest, PixelRect, RgbaImage, changed_regions,
 };
 
 use crate::fixture::{
@@ -92,12 +92,10 @@ fn draw_frames(target: &mut CanvasTarget, artwork: &Artwork) -> Artwork {
             active: Some(session.active()),
             ..request(artwork)
         };
-        RegionEvaluator::new(&core, target)
-            .evaluate(&frame, &[])
-            .expect("evaluate");
+        target.draw(&core, &frame, &[]).expect("evaluate");
         let mut fresh = CanvasTarget::new(&core, SIZE).expect("target");
-        RegionEvaluator::new(&core, &mut fresh)
-            .evaluate(&frame, &[PixelRect::full(SIZE)])
+        fresh
+            .draw(&core, &frame, &[PixelRect::full(SIZE)])
             .expect("evaluate");
         let shown = target.read(&core).expect("readback");
         assert!(shown == fresh.read(&core).expect("readback"), "in progress");
@@ -121,27 +119,25 @@ fn the_merge_drawing_on_the_merged_layer_and_undo_through_changed_regions_equal_
     let before = alone(lower, upper);
     let after = merged(&before);
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(&before), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(&before), &[PixelRect::full(SIZE)])
         .expect("evaluate");
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(&after), &changed_regions(&before, &after))
+    target
+        .draw(&core, &request(&after), &changed_regions(&before, &after))
         .expect("evaluate");
     assert!(
         target.read(&core).expect("readback") == cold(&core, &after),
         "merged"
     );
     let drawn = draw_frames(&mut target, &after);
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(&drawn), &[])
-        .expect("evaluate");
+    target.draw(&core, &request(&drawn), &[]).expect("evaluate");
     assert!(
         target.read(&core).expect("readback") == cold(&core, &drawn),
         "committed"
     );
     for (from, to) in [(&drawn, &after), (&after, &before)] {
-        RegionEvaluator::new(&core, &mut target)
-            .evaluate(&request(to), &changed_regions(from, to))
+        target
+            .draw(&core, &request(to), &changed_regions(from, to))
             .expect("evaluate");
         assert!(
             target.read(&core).expect("readback") == cold(&core, to),

@@ -1,18 +1,18 @@
 //! Gaussian Blur and Sharpen (S33, DECISIONS D59): adjustments that read neighbouring pixels, so
 //! no per-pixel op can make them. Each is a canvas-resolution raster boundary derived as a
-//! smudge's residual is (D46): the layer's pixels just before it (`Material`: the raster core's,
-//! a reference's the evaluator's, S65) filtered on the GPU (`kernels.rs`: a separable Gaussian,
-//! across then down, in bands of rows; sharpening adds `amount x STRENGTH` times the difference
-//! from it) into a block of the target's arena: its rectangle, then one premultiplied RGBA8 word
-//! per pixel. A filter's draw replaces the layer so far with that block inside its clip, bilinear
-//! between pixel centres at 2x and up (`filter_composite.wgsl`).
+//! smudge's residual is (D46): the layer's pixels just before it (`Material`, drawn by the raster
+//! core) filtered on the GPU (`kernels.rs`: a separable Gaussian, across then down, in bands of
+//! rows; sharpening adds `amount x STRENGTH` times the difference from it) into a block of the
+//! target's arena: its rectangle, then one premultiplied RGBA8 word per pixel. A filter's draw
+//! replaces the layer so far with that block inside its clip, bilinear between pixel centres at
+//! 2x and up (`filter_composite.wgsl`).
 //!
-//! A block covers only where the result can differ from nothing: the tiles the layer's earlier
-//! ops reach, widened by the kernel's reach, cut to the canvas and to the clip's rectangle (and
-//! a pixel more, for bilinear reads). Elsewhere the layer was transparent and stays so. A result
-//! is keyed by what it depends on (`FilterKey`), kept while scenes show it, dropped with the
-//! arena's other blocks when that is full, and evaluated again from the artwork when a scene
-//! needs it; a pixel never depends on which regions are evaluated, so incremental equals cold.
+//! A block covers only where the result can differ from nothing: where the layer's earlier ops
+//! reach, widened by the kernel's reach, cut to the canvas and to the clip's rectangle (and a
+//! pixel more, for bilinear reads). Elsewhere the layer was transparent and stays so. A result is
+//! keyed by what it depends on (`FilterKey`), kept while scenes show it, dropped with the arena's
+//! other blocks when that is full, and made again from the artwork when a scene needs it; a pixel
+//! never depends on which regions are drawn, so incremental equals cold.
 
 mod kernels;
 
@@ -29,10 +29,10 @@ use crate::core::Core;
 use crate::edits::mask_bounds;
 use crate::error::RenderError;
 use crate::geom::PixelRect;
-use crate::plan::Plan;
-use crate::program::SceneOps;
-use crate::protocol::{MASK_HEADER, TILE, encode};
+use crate::protocol::{MASK_HEADER, encode};
+use crate::raster_lay::material_reach;
 use crate::scene::{Item, Scene};
+use crate::scene_ops::SceneOps;
 use crate::smudge::{Arena, Keep, Key, Material};
 
 /// The kernel reaches three standard deviations each way, at most this many pixels.
@@ -338,43 +338,30 @@ fn block_rect(scene: &Scene, item: &FilterItem, reach: u32, clip: Option<PixelRe
 }
 
 /// Where the layer's ops before `item` can have painted, in its pixels: the union of their
-/// bounds; under transform records (frames, moved selections) the tiles the material's plan
-/// lists anything in, as the binner maps bounds there. `None` when nothing was painted.
+/// bounds and its smudges' reach; under transform records (frames, moved selections) where the
+/// material's plan places each of them (`material_reach`). `None` when nothing was painted.
 fn content_rect(scene: &Scene, item: &FilterItem) -> Option<PixelRect> {
-    let items = &scene.items[item.before.clone()];
+    let range = &item.before;
+    let items = &scene.items[range.clone()];
     let moved = |each: &Item| matches!(each, Item::Frame { .. } | Item::BeginMove(_));
     if item.key.to_canvas.is_identity() && !items.iter().any(moved) {
+        let smudges = (scene.smudges.iter())
+            .filter(|smudge| range.contains(&smudge.item))
+            .filter_map(|smudge| smudge.reach);
         return items
             .iter()
             .filter_map(|each| match each {
                 Item::Segment { bounds, .. }
                 | Item::Fill { bounds, .. }
-                | Item::Clear { bounds, .. }
-                | Item::Reach(bounds)
-                    if !bounds.is_empty() =>
-                {
-                    Some(bounds.pixels())
-                }
+                | Item::Clear { bounds, .. } => Some(*bounds),
                 _ => None,
             })
+            .chain(smudges)
+            .filter(|bounds| !bounds.is_empty())
+            .map(|bounds| bounds.pixels())
             .reduce(|a, b| a.union(&b));
     }
-    let canvas = PixelRect::full(scene.canvas);
-    let range = (item.before.clone(), item.key.to_canvas);
-    let plan = Plan::material(scene, range, scene.canvas, &[canvas]);
-    // Every tile lists the layer's end; one that lists nothing else stays transparent.
-    plan.tiles
-        .iter()
-        .filter(|tile| tile.count > 1)
-        .map(|tile| {
-            let [x, y] = tile.origin.map(|v| v as i32);
-            let side = TILE as i32;
-            PixelRect {
-                min: [x, y],
-                max: [x + side, y + side],
-            }
-        })
-        .reduce(|a, b| a.union(&b))
+    material_reach(scene, (range, item.key.to_canvas), scene.canvas)
 }
 
 /// No pixels.

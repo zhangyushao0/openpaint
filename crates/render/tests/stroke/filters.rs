@@ -11,7 +11,7 @@ use openpaint_core::{
     MaskCommand, Placement, RegionMask, Sharpen, StrokeStyle, StrokeTool,
 };
 use openpaint_render::changed_regions;
-use openpaint_render::{Banding, CanvasTarget, PixelRect, RegionEvaluator};
+use openpaint_render::{Banding, CanvasTarget, PixelRect};
 
 use crate::filter_reference::{largest, mean, reference};
 use crate::fixture::{
@@ -287,8 +287,8 @@ fn incremental_equals_cold_through_filters_smudges_records_and_undo() {
     let core = core();
     let blank = blank();
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(&blank), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(&blank), &[PixelRect::full(SIZE)])
         .expect("first");
     let painted = painted();
     let blurred = adjusted(&painted, None, blur(3.0));
@@ -305,8 +305,8 @@ fn incremental_equals_cold_through_filters_smudges_records_and_undo() {
     let mut shown = blank.clone();
     for (index, artwork) in steps.into_iter().enumerate() {
         let regions = changed_regions(&shown, artwork);
-        RegionEvaluator::new(&core, &mut target)
-            .evaluate(&request(artwork), &regions)
+        target
+            .draw(&core, &request(artwork), &regions)
             .expect("step");
         let incremental = target.read(&core).expect("read");
         assert_eq!(incremental, cold(&core, artwork), "step {index}");
@@ -319,8 +319,8 @@ fn a_stroke_drawn_after_a_filter_equals_its_commit() {
     let core = core();
     let blurred = adjusted(&painted(), None, blur(4.0));
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(&blurred), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(&blurred), &[PixelRect::full(SIZE)])
         .expect("first");
     for (style, samples) in [diagonal(), smudge()] {
         let mut session = blurred.begin_stroke(style, samples[0]).expect("begin");
@@ -331,17 +331,19 @@ fn a_stroke_drawn_after_a_filter_equals_its_commit() {
                 active: Some(session.active()),
                 background: Color::WHITE,
             };
-            RegionEvaluator::new(&core, &mut target)
-                .evaluate(&frame, &[])
-                .expect("frame");
+            target.draw(&core, &frame, &[]).expect("frame");
         }
         let committed = session.finish().artwork;
-        RegionEvaluator::new(&core, &mut target)
-            .evaluate(&request(&committed), &[])
+        target
+            .draw(&core, &request(&committed), &[])
             .expect("commit");
         assert_eq!(target.read(&core).expect("read"), cold(&core, &committed));
-        RegionEvaluator::new(&core, &mut target)
-            .evaluate(&request(&blurred), &changed_regions(&committed, &blurred))
+        target
+            .draw(
+                &core,
+                &request(&blurred),
+                &changed_regions(&committed, &blurred),
+            )
             .expect("undo");
     }
 }

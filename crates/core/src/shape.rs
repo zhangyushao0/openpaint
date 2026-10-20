@@ -19,7 +19,7 @@ pub const MAX_SPACING: f32 = 4.0;
 pub const MIN_ASPECT: f32 = 0.05;
 /// Farthest a stamp may be scattered from the path, across and along, in radii.
 pub const MAX_SCATTER: f32 = 4.0;
-/// Most stamps of one span the evaluator takes at a pixel. A recipe whose stamps could exceed it
+/// Most stamps of one span that may reach a pixel. A recipe whose stamps could exceed it
 /// is refused (`Shape::fits`): at the spacing floor a disc (21 stamps) leaves room for a size
 /// gain of about 2.3, or a scatter of about 1.4 radii.
 pub const MAX_STAMPS: u32 = 48;
@@ -192,7 +192,7 @@ impl Shape {
         (1.0 + self.size_jitter) * extent + std::f32::consts::SQRT_2 * self.scatter
     }
 
-    /// Whether every stamp that can reach a pixel fits the evaluator's `MAX_STAMPS` when the
+    /// Whether every stamp that can reach a pixel fits `MAX_STAMPS` when the
     /// stroke's radius reaches `peak` times half its size: the stamps within the reach either
     /// way, one spacing apart, and one at each end.
     #[must_use]
@@ -203,7 +203,7 @@ impl Shape {
 
 /// Four numbers in `0..1` for stamp `index` of a stroke of `seed`: its shift along and across
 /// the path, its turn and its size, each `2 u - 1` of the shape's scatter, rotation jitter and
-/// size jitter. Integer hashing (PCG) and an exact conversion, so the evaluator's WGSL gives the
+/// size jitter. Integer hashing (PCG) and an exact conversion, so the renderer's WGSL gives the
 /// same values.
 #[must_use]
 pub fn jitter(seed: u32, index: u32) -> [f32; 4] {
@@ -216,7 +216,7 @@ pub fn jitter(seed: u32, index: u32) -> [f32; 4] {
     units
 }
 
-/// A well-mixed 32-bit value (PCG), as the evaluator's `pcg`.
+/// A well-mixed 32-bit value (PCG), as the renderer's `pcg`.
 fn pcg(value: u32) -> u32 {
     let state = value.wrapping_mul(747_796_405).wrapping_add(2_891_336_453);
     let word = ((state >> ((state >> 28) + 4)) ^ state).wrapping_mul(277_803_737);

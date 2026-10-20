@@ -1,4 +1,4 @@
-//! `Arena`: a target's derived raster boundaries in one word buffer, so the evaluator binds them
+//! `Arena`: a target's derived raster boundaries in one word buffer, so the raster core binds them
 //! all at once and each op names its block: finished smudge residuals (a residual's header, its
 //! table cut to the tiles it holds and their nodes, `Working::block`) and filter results (S33,
 //! its rectangle and its pixels, `filter.rs`). Blocks are appended; when the buffer is full, the

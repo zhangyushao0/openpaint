@@ -90,8 +90,8 @@ pub(crate) struct Watch {
     /// Frame calls skipped for the GPU: their work (S60: background work between the frames
     /// drawn), ms.
     between: Vec<f64>,
-    /// The frame loop's time evaluating the canvas and waiting for the GPU, ns.
-    evaluated: u64,
+    /// The frame loop's time drawing the canvas and waiting for the GPU, ns.
+    drawn: u64,
     waited: u64,
     /// The slowest drawn frame, ms, and what it spent.
     slowest: (f64, Spent),
@@ -110,7 +110,7 @@ impl Watch {
             skipped: 0,
             gpu: runtime.core.background().total,
             between: Vec::new(),
-            evaluated: 0,
+            drawn: 0,
             waited: 0,
             slowest: (0.0, Spent::default()),
             counts: runtime.core.counts(),
@@ -162,23 +162,21 @@ impl Watch {
         let (slowest, spent) = self.slowest;
         format!(
             "{wall:.0} ms over {} frames ({} skipped, their work p50/p95/max {}), frame work \
-             p50/p95/max {} (evaluating the canvas {:.0} ms, waiting for the GPU {:.0} ms; the \
-             slowest {slowest:.1} ms: evaluating {:.1}, scenes {:.1}, waits {:.1} most in {}), \
-             background GPU {gpu:.0} ms ({:.0} %); dispatches {}, plans {}, residuals derived {}, \
+             p50/p95/max {} (drawing the canvas {:.0} ms, waiting for the GPU {:.0} ms; the \
+             slowest {slowest:.1} ms: drawing {:.1}, scenes {:.1}, waits {:.1} most in {}), \
+             background GPU {gpu:.0} ms ({:.0} %); residuals derived {}, \
              tier tiles filled {}, raster regions {}",
             self.frames.len(),
             self.skipped,
             spread(&self.between),
             spread(&self.frames),
-            ms(self.evaluated),
+            ms(self.drawn),
             ms(self.waited),
-            ms(spent.evaluated_ns),
+            ms(spent.drawn_ns),
             ms(spent.scene_ns),
             ms(spent.waited_ns),
             spent.longest,
             100.0 * gpu / wall.max(1.0),
-            c.dispatches,
-            c.plans,
             c.derived,
             c.filled,
             c.rastered
@@ -253,7 +251,7 @@ impl Runtime {
         }
         let spent = take_spent();
         watch.last = spent;
-        watch.evaluated += spent.evaluated_ns;
+        watch.drawn += spent.drawn_ns;
         watch.waited += spent.waited_ns;
         if !self.paced().skipped && ms > watch.slowest.0 {
             watch.slowest = (ms, spent);

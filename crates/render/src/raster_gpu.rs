@@ -1,12 +1,12 @@
 //! The raster core's pipelines (S57's probe, product code since S59; `raster.rs`): its shader
-//! (raster.wgsl, raster_stamp.wgsl, raster_composite.wgsl, then the evaluator's own helpers,
-//! spans, stamps, textures, deposits and fill edges, and the smudge engine's residual reading),
-//! one pipeline per way a stroke lays into the atlas (the blend unit keeping the largest or
-//! summing), per paint blend for a stroke's tiles and a fill onto the layer, one for patches, one
-//! for smudges (S61), one per way a layer ends (`EndBlend`), S65's for adjustments, filters,
-//! moves' ends and a whole layer's cut (the evaluator's adjust.wgsl and filter_composite.wgsl
-//! appended whole), and the finish per destination format. Each pipeline's entry points reach
-//! only their own kind's code, so none pays for the others' registers (D82).
+//! (raster.wgsl, raster_stamp.wgsl, raster_composite.wgsl, raster_paint.wgsl, then spans,
+//! stamps, textures, deposits and fill edges, the smudge engine's residual reading, adjust.wgsl
+//! and filter_composite.wgsl), one pipeline per way a stroke lays into the atlas (the blend unit
+//! keeping the largest or summing), per paint blend for a stroke's tiles and a fill onto the
+//! layer, one for patches, one for smudges (S61), one per way a layer ends (`EndBlend`), S65's
+//! for adjustments, filters, moves' ends and a whole layer's cut, and the finish per destination
+//! format. Each pipeline's entry points reach only their own kind's code, so none pays for the
+//! others' registers.
 
 use crate::core::Core;
 use crate::error::RenderError;
@@ -21,7 +21,7 @@ use crate::readback::FORMAT;
 const RASTER: &str = include_str!("shaders/raster.wgsl");
 const RASTER_STAMP: &str = include_str!("shaders/raster_stamp.wgsl");
 const RASTER_COMPOSITE: &str = include_str!("shaders/raster_composite.wgsl");
-const EVALUATE: &str = include_str!("shaders/evaluate.wgsl");
+const RASTER_PAINT: &str = include_str!("shaders/raster_paint.wgsl");
 const SEGMENT: &str = include_str!("shaders/segment.wgsl");
 const STAMP: &str = include_str!("shaders/stamp.wgsl");
 const STAMP_TEXTURE: &str = include_str!("shaders/stamp_texture.wgsl");
@@ -31,53 +31,23 @@ const SMUDGE: &str = include_str!("shaders/smudge_composite.wgsl");
 const ADJUST: &str = include_str!("shaders/adjust.wgsl");
 const FILTER: &str = include_str!("shaders/filter_composite.wgsl");
 
-/// The helpers of evaluate.wgsl the raster core's stages call, taken from it whole, so they stay
-/// its.
-const HELPERS: [&str; 19] = [
-    "fn word(",
-    "fn stroke_paint(",
-    "fn clip(",
-    "fn paint_color(",
-    "fn mask_bit(",
-    "fn masked(",
-    "fn patch_sample(",
-    "fn patch_texel(",
-    "fn over(",
-    "fn mixed(",
-    "fn composite(",
-    "fn clipped(",
-    "fn grain(",
-    "const GRAIN_STEP",
-    "fn hash(",
-    "fn pcg(",
-    "fn quantized(",
-    "fn coded(",
-    "fn moved_share(",
-];
-
-/// The raster core's WGSL: the protocol prelude, its own stages, then the evaluator's functions
-/// and the smudge engine's.
-pub(crate) fn raster_source() -> Result<String, RenderError> {
-    let mut source = prelude() + RASTER + RASTER_STAMP + RASTER_COMPOSITE;
-    for head in HELPERS {
-        source.push_str(item(EVALUATE, head).ok_or(RenderError::Invalid(
-            "evaluate.wgsl lacks a helper the raster core takes",
-        ))?);
-    }
-    Ok(source + SEGMENT + STAMP + STAMP_TEXTURE + DEPOSIT + FILL_EDGE + SMUDGE + ADJUST + FILTER)
-}
-
-/// The declaration of `source` starting a line with `head`: a function through its closing
-/// brace at the start of a line, a constant through its line.
-fn item<'a>(source: &'a str, head: &str) -> Option<&'a str> {
-    let start = source.find(&format!("\n{head}"))? + 1;
-    let rest = &source[start..];
-    let end = if head.starts_with("fn ") {
-        rest.find("\n}\n")? + 3
-    } else {
-        rest.find('\n')? + 1
-    };
-    Some(&rest[..end])
+/// The raster core's WGSL: the protocol prelude, its stages, what they read of ops and words,
+/// then the geometry of spans, stamps, deposits and fill edges, the smudge residuals' reading and
+/// the adjustments' and filters' colour.
+pub(crate) fn raster_source() -> String {
+    prelude()
+        + RASTER
+        + RASTER_STAMP
+        + RASTER_COMPOSITE
+        + RASTER_PAINT
+        + SEGMENT
+        + STAMP
+        + STAMP_TEXTURE
+        + DEPOSIT
+        + FILL_EDGE
+        + SMUDGE
+        + ADJUST
+        + FILTER
 }
 
 /// The blends of a paint op, in `Blend`'s order.
@@ -130,7 +100,7 @@ impl RasterPipelines {
         let device = &gpu.device;
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("raster core"),
-            source: wgpu::ShaderSource::Wgsl(raster_source()?.into()),
+            source: wgpu::ShaderSource::Wgsl(raster_source().into()),
         });
         let layouts = layouts(device);
         let scene = pipeline_layout(device, &layouts[..1]);
@@ -307,21 +277,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_raster_cores_shader_validates_with_the_evaluators_helpers() {
-        let source = raster_source().expect("every helper is found");
+    fn the_raster_cores_shader_validates() {
+        let source = raster_source();
         let module = wgpu::naga::front::wgsl::parse_str(&source).expect("the WGSL parses");
         let mut validator = wgpu::naga::valid::Validator::new(
             wgpu::naga::valid::ValidationFlags::all(),
             wgpu::naga::valid::Capabilities::all(),
         );
         validator.validate(&module).expect("the WGSL validates");
-        assert_eq!(
-            item("\nfn a(x) {\n  y\n}\nfn b", "fn a("),
-            Some("fn a(x) {\n  y\n}\n")
-        );
-        assert_eq!(
-            item("x\nconst K: u32 = 1u;\ny", "const K"),
-            Some("const K: u32 = 1u;\n")
-        );
     }
 }

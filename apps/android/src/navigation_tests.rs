@@ -27,13 +27,13 @@ fn batch(phase: MotionPhase, tools: &[ToolKind]) -> MotionBatch {
 
 /// A frame starting at `start` ms for `work` ms, its background 2 ms by the corrected estimate,
 /// 1.5 measured.
-fn frame(start: i64, work: i64, waiting: bool, entries: u64) -> Frame {
+fn frame(start: i64, work: i64, waiting: bool, rastered: u64) -> Frame {
     Frame {
         start_ns: start * MS,
         work_ns: work * MS,
         waiting,
         counts: Counts {
-            entries,
+            rastered,
             ..Counts::default()
         },
         background: Background {
@@ -75,7 +75,7 @@ fn an_episode_runs_while_fingers_are_down_or_work_waits() {
     assert_eq!(summary.background.p50, 2 * MS, "the corrected estimate");
     assert!((summary.measured_ms - 4.5).abs() < 1e-9);
     assert_eq!(
-        summary.counts.entries, 12,
+        summary.counts.rastered, 12,
         "from before its first frame to its last"
     );
     assert_eq!(log.frame(frame(50, 1, false, 20)), None, "once");

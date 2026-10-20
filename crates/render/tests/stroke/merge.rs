@@ -1,10 +1,9 @@
 //! Merge Down on the GPU (S39, D66): the upper layer becomes a nested record in the lower one
-//! and the canvas shows what it showed. Where the upper layer clipped to the lower one (its
-//! base) the nested record is the chain's own composite, bit for bit, at every mode, opacity and
-//! mask; merged over by a shared mode that composes (Normal, Multiply, Screen) the order of
-//! float operations changes, so a pixel may move by one 8-bit level, rarely (counted). Nested
-//! merges (to the nesting limit), faded pass-through groups and clipping chains alike. What
-//! comes after a merge: `merge_after.rs`.
+//! and the canvas shows what it showed, within a level away from antialiased edges: where the
+//! upper layer clipped to the lower one (its base) at every mode, opacity and mask; merged over by
+//! a shared mode that composes (Normal, Multiply, Screen), where the order of float operations
+//! changes (the channels that move counted). Nested merges (to the nesting limit), faded
+//! pass-through groups and clipping chains alike. What comes after a merge: `merge_after.rs`.
 
 use openpaint_core::{
     Artwork, ArtworkCommand, BlendMode, CanvasSize, Color, GroupCommand, LayerCommand, LayerId,
@@ -13,7 +12,7 @@ use openpaint_core::{
 use openpaint_render::RgbaImage;
 
 use crate::fixture::{
-    SIZE, blank, cold, core, diagonal, evaluated_cold, plain, sample, wave, with_layer, with_stroke,
+    SIZE, blank, cold, core, diagonal, plain, sample, wave, with_layer, with_stroke,
 };
 use crate::raster::assert_near;
 
@@ -124,32 +123,26 @@ fn difference(a: &RgbaImage, b: &RgbaImage) -> (u8, usize) {
     (largest, diffs.iter().filter(|d| **d > 0).count())
 }
 
-/// Merging the active layer of `artwork` shows exactly what it showed: the evaluator's images bit
-/// for bit; the canvases within a level (S65: the raster core draws the merged layer's content on
-/// a level of its own, laid over the one under it at its end; D88's rule).
+/// Merging the active layer of `artwork` shows what it showed: the canvases within a level away
+/// from antialiased edges (the merged layer's content lies on a level of its own, laid over the
+/// one under it at its end; D88's rule).
 fn exact(artwork: &Artwork, what: &str) {
     let core = core();
     let after = merged(artwork);
     assert_eq!(after.layers().len(), artwork.layers().len() - 1, "{what}");
-    let evaluated = evaluated_cold(&core, artwork);
-    assert!(evaluated_cold(&core, &after) == evaluated, "{what}");
     assert_near(&cold(&core, artwork), &cold(&core, &after), what);
 }
 
-/// Merging the active layer of `artwork` moves no channel by more than one level (the evaluator's
-/// images, S62); the count.
+/// As `exact`, for merges that reorder float operations (over-merges); the channels that differ.
 fn close(artwork: &Artwork, what: &str) -> usize {
     let core = core();
-    let merged = evaluated_cold(&core, &merged(artwork));
-    let (largest, count) = difference(&merged, &evaluated_cold(&core, artwork));
-    assert!(largest <= 1, "{what}: {largest} levels");
-    // Rare: well under one channel in a thousand of the 320 x 200 x 4.
-    assert!(count < 256, "{what}: {count} channels");
-    count
+    let (before, after) = (cold(&core, artwork), cold(&core, &merged(artwork)));
+    assert_near(&before, &after, what);
+    difference(&before, &after).1
 }
 
 #[test]
-fn a_layer_clipped_to_the_one_below_merges_bit_for_bit_at_every_mode_opacity_and_mask() {
+fn a_layer_clipped_to_the_one_below_merges_within_a_level_at_every_mode_opacity_and_mask() {
     for blend in BlendMode::ALL {
         for lower_blend in [BlendMode::Normal, BlendMode::Multiply] {
             for (lower_mask, upper_mask) in
@@ -200,7 +193,7 @@ fn layers_of_one_composing_mode_merge_within_a_level() {
 }
 
 #[test]
-fn a_normal_pair_at_full_strength_without_masks_merges_bit_for_bit() {
+fn a_normal_pair_at_full_strength_without_masks_merges_within_a_level() {
     // The lower layer opaque where the upper paints: the same floats either way.
     let lower = fill(&with_layer(&blank(), 1.0), columns(0, SIZE[0]), BACK);
     let upper = with_stroke(&with_layer(&lower, 0.7), diagonal());
@@ -257,7 +250,7 @@ fn merges_in_a_faded_pass_through_group_and_merges_of_merges_show_the_same() {
 }
 
 #[test]
-fn records_nested_to_the_limit_evaluate_as_the_layers_did() {
+fn records_nested_to_the_limit_draw_as_the_layers_did() {
     let mut artwork = with_stroke(&blank(), wave());
     let bottom = artwork.active();
     for round in 0..openpaint_core::MAX_NESTING {

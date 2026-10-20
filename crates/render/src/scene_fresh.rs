@@ -59,7 +59,7 @@ impl Fresh {
             // Its residual so far, applied in every tile (`Smudges::advance` extends it).
             let locked = active.blend() == StrokeBlend::SmudgeLocked;
             return Self {
-                ops: vec![Op::smudge(None, clip, locked)],
+                ops: vec![Op::smudge(true, clip, locked)],
                 bounds: Vec::new(),
             };
         }

@@ -4,7 +4,7 @@
 //! holds it: after the span's start up to its end, the first span from its start. So a stamp is
 //! evaluated once however its stroke is cut into spans, and an in-progress stroke's settled
 //! spans hold exactly the stamps the finished stroke's do. Where in the span it lies, its jitter
-//! and its shape are the evaluator's (`stamp.wgsl`).
+//! and its shape are the shader's (`stamp.wgsl`).
 
 use openpaint_core::{Deposit, Rotation, Stamp, StrokeStyle};
 

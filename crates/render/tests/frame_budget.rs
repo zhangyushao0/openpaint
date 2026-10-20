@@ -1,7 +1,7 @@
 //! The frame budget for background work (S53): a screen frame takes of the waiting tiles, a view
 //! tier's missing tiles and a residual being evaluated only what its budget's estimate holds (or a
 //! single piece), so the canvas fills in over frames to the cold canvas (S62: its tiles drawn by
-//! the raster worker, served after each frame, none binned), a pinch's and a pan's frames stay
+//! the raster worker, served after each frame), a pinch's and a pan's frames stay
 //! within it, a stroke drawn while tiles wait is evaluated at once and leaves them waiting, and
 //! every smudge residual is evaluated once while nothing changes: by the canvas's fill, none again
 //! by the tiers' fills or a pan.
@@ -17,8 +17,8 @@ use openpaint_core::{
     StrokeTool,
 };
 use openpaint_render::{
-    BACKGROUND_NS, CanvasTarget, Core, FrameRequest, PixelRect, RasterDrawer, RegionEvaluator,
-    RgbaImage, ViewCache, ViewFrame, stroke_region,
+    BACKGROUND_NS, CanvasTarget, Core, FrameRequest, PixelRect, RasterDrawer, RgbaImage, ViewCache,
+    ViewFrame, stroke_region,
 };
 
 const SIZE: [u32; 2] = [320, 200];
@@ -110,8 +110,8 @@ fn request<'a>(artwork: &'a Artwork, active: Option<&'a ActiveStroke>) -> FrameR
 
 fn cold(artwork: &Artwork) -> RgbaImage {
     let mut target = CanvasTarget::new(core(), SIZE).expect("target");
-    RegionEvaluator::new(core(), &mut target)
-        .evaluate(&request(artwork, None), &[PixelRect::full(SIZE)])
+    target
+        .draw(core(), &request(artwork, None), &[PixelRect::full(SIZE)])
         .expect("cold");
     target.read(core()).expect("read")
 }
@@ -128,9 +128,7 @@ fn frame(
     let core = core();
     core.begin_frame();
     let request = request(artwork, active);
-    RegionEvaluator::new(core, target)
-        .evaluate_frame(&request, regions)
-        .expect("frame");
+    target.draw_frame(core, &request, regions).expect("frame");
     if let Some((frame, now)) = view {
         cache
             .update(core, target, &request, (frame, now))
@@ -184,7 +182,6 @@ fn a_frame_takes_its_budget_and_the_rest_fills_in_over_the_next_frames() {
         counts.rastered
     );
     assert!(frames > 2, "{frames} frames");
-    assert_eq!(counts.plans, 0, "S62: drawn by the raster core, not binned");
     assert!(counts.rastered > 0);
     assert!(
         target.read(core()).expect("read") == cold(&artwork),
@@ -322,8 +319,8 @@ fn a_cached_canvas_evaluates_its_residuals_over_frames_and_its_tier_waits_for_th
     let artwork = smudged(9);
     let mut source = CanvasTarget::new(core(), SIZE).expect("target");
     let all = [PixelRect::full(SIZE)];
-    (RegionEvaluator::new(core(), &mut source))
-        .evaluate(&request(&artwork, None), &all)
+    source
+        .draw(core(), &request(&artwork, None), &all)
         .expect("cold");
     let pixels = source.copy_out(core()).bytes(core()).expect("read back");
     let (mut target, mut cache) = screen();

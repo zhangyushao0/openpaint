@@ -149,7 +149,7 @@ impl Canvas {
             {
                 self.session.set_seed(seeds.next());
             }
-            // Committing a stroke is followed by the evaluator itself (D82), but not its mirrored
+            // Committing a stroke is followed by the canvas target itself, but not its mirrored
             // copies or a snapped shape edited (S42).
             let stroke = matches!(intent, Intent::Stroke(_));
             let gallery = matches!(intent, Intent::Gallery(_));

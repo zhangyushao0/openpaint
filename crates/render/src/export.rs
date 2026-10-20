@@ -4,8 +4,7 @@
 //! raster core draws it (`export_raster.rs`; smudges since S61, D88; every scene since S65, D92)
 //! with targets of its own, sharing nothing with the screen's, so a worker holding an
 //! `Arc<Core>` runs it while the screen draws on. Since a pixel never depends on which regions are
-//! drawn with it, bands equal one piece; at 1x it is the screen's canvas pixel for pixel, and
-//! within one 8-bit level of the evaluator's reference away from antialiased edges (D86).
+//! drawn with it, bands equal one piece; at 1x it is the screen's canvas pixel for pixel (D86).
 
 use std::time::Duration;
 

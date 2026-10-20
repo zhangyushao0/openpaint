@@ -96,7 +96,7 @@ pub(crate) enum Scratch {
     Level(u8),
 }
 
-/// Scratch targets a region may use: the six, then a level per move the evaluator stacks.
+/// Scratch targets a region may use: the six, then a level per move nested (`MOVE_DEPTH`).
 pub(crate) const SCRATCH: usize = 6 + crate::protocol::MOVE_DEPTH as usize;
 
 impl Scratch {
@@ -223,8 +223,8 @@ pub struct RasterCounts {
 impl RasterCounts {
     /// What drawing a plan of these counts over a region of `size` pixels costs the tablet's GPU,
     /// estimated in ns (S57's measurements on the Adreno 735: about 40 µs a pass, the pile's
-    /// composites about 1 ns an output pixel; a smudge's copy and residual read as the
-    /// evaluator's smudge op costs, D82's table); the frame budget corrects it by the raster
+    /// composites about 1 ns an output pixel; a smudge's copy and residual read about 4 ns an
+    /// output pixel); the frame budget corrects it by the raster
     /// core's measured times (`pace.rs`).
     pub(crate) fn estimate(&self, [width, height]: [u32; 2]) -> f64 {
         const PASS: f64 = 40_000.0;

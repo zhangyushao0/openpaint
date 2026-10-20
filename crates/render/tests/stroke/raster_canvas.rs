@@ -1,7 +1,5 @@
-//! The 1x canvas on the raster core (S62, DECISIONS D89): every raster source and every smudge
-//! drawn into the screen's canvas by the raster core is its 1x export bit for bit and within one
-//! 8-bit level of the evaluator's image away from antialiased edges (D88's rule), alike every
-//! time; filled over frames (at once where a change fits a frame, else by the raster worker's
+//! The 1x canvas (S62, DECISIONS D89): every raster source and every smudge drawn into the
+//! screen's canvas is its 1x export bit for bit, alike every time; filled over frames (at once where a change fits a frame, else by the raster worker's
 //! tiles) through changes, an undo, a hidden layer, a stroke drawn and lifted and (S65) an
 //! adjustment applied and undone, it ends as the canvas drawn cold; picks read it; layer samples
 //! are the raster core's.
@@ -10,19 +8,18 @@ use openpaint_core::{
     Adjustment, Artwork, CanvasSize, Color, Hsb, LayerCommand, StrokeSample, StrokeTool,
 };
 use openpaint_render::{
-    CanvasTarget, Core, PixelRect, RasterDrawer, RegionEvaluator, RgbaImage, ViewCache,
-    changed_regions,
+    CanvasTarget, Core, PixelRect, RasterDrawer, RgbaImage, ViewCache, changed_regions,
 };
 
 use crate::fixture::{
-    SIZE, cold, core, diagonal, evaluated_cold, pixel, plain, request, sample, wave, with_stroke,
+    SIZE, cold, core, diagonal, pixel, plain, request, sample, wave, with_stroke,
 };
-use crate::raster::{assert_near, every_raster_source, layer};
+use crate::raster::{every_raster_source, layer};
 use crate::raster_smudge::every_smudge;
 use crate::scale::whole;
 
 #[test]
-fn the_canvas_is_its_1x_export_and_within_a_level_of_the_evaluator() {
+fn the_canvas_is_its_1x_export_alike_every_time() {
     let core = core();
     for (name, artwork) in [
         ("every raster source", every_raster_source()),
@@ -31,7 +28,6 @@ fn the_canvas_is_its_1x_export_and_within_a_level_of_the_evaluator() {
         let canvas = cold(&core, &artwork);
         assert!(canvas == cold(&core, &artwork), "{name}: alike every time");
         assert!(canvas == whole(&core, &artwork, 1), "{name}: the 1x export");
-        assert_near(&evaluated_cold(&core, &artwork), &canvas, name);
     }
 }
 
@@ -58,8 +54,8 @@ impl Screen {
         let mut regions = regions.to_vec();
         for _ in 0..1000 {
             core.begin_frame();
-            RegionEvaluator::new(core, &mut self.target)
-                .evaluate_frame(&request(artwork), &regions)
+            self.target
+                .draw_frame(core, &request(artwork), &regions)
                 .expect("frame");
             regions.clear();
             self.drawer.serve(core, (&mut self.target, &mut self.view));
@@ -96,9 +92,7 @@ fn large() -> Artwork {
 fn large_cold(core: &Core, artwork: &Artwork) -> RgbaImage {
     let mut target = CanvasTarget::new(core, [900, 600]).expect("target");
     let all = [PixelRect::full([900, 600])];
-    RegionEvaluator::new(core, &mut target)
-        .evaluate(&request(artwork), &all)
-        .expect("cold");
+    target.draw(core, &request(artwork), &all).expect("cold");
     target.read(core).expect("read")
 }
 
@@ -157,14 +151,13 @@ fn a_stroke_drawn_and_lifted_leaves_nothing_to_draw_again_and_the_canvas_cold() 
                 active: Some(session.active()),
                 ..request(&under)
             };
-            RegionEvaluator::new(&core, &mut screen.target)
-                .evaluate_frame(&frame, &[])
-                .expect("frame");
+            screen.target.draw_frame(&core, &frame, &[]).expect("frame");
         }
         assert!(!screen.target.pending(), "nothing waits for the stroke");
         let lifted = session.finish().artwork;
-        RegionEvaluator::new(&core, &mut screen.target)
-            .evaluate_frame(&request(&lifted), &[])
+        screen
+            .target
+            .draw_frame(&core, &request(&lifted), &[])
             .expect("the lift");
         assert!(!screen.target.pending(), "nothing is drawn again");
         assert!(screen.read(&core) == cold(&core, &lifted), "drawn cold");
@@ -172,42 +165,28 @@ fn a_stroke_drawn_and_lifted_leaves_nothing_to_draw_again_and_the_canvas_cold() 
 }
 
 #[test]
-fn picks_read_the_raster_canvas_within_a_level_of_the_evaluator() {
+fn picks_read_the_canvas() {
     let core = core();
     let artwork = every_raster_source();
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(&artwork), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(&artwork), &[PixelRect::full(SIZE)])
         .expect("drawn");
-    let (canvas, evaluated) = (cold(&core, &artwork), evaluated_cold(&core, &artwork));
-    let mut flat = 0;
+    let canvas = cold(&core, &artwork);
+    let mut picks = 0;
     for y in (5..SIZE[1] - 5).step_by(9) {
         for x in (5..SIZE[0] - 5).step_by(13) {
             let picked = target.pick(&core, [x, y]).expect("pick").expect("inside");
             assert_eq!(picked, pixel(&canvas, [x, y]), "{x}, {y}");
-            // Away from antialiased edges: where the evaluator's 3 x 3 around is one colour.
-            let around = [
-                [x - 1, y - 1],
-                [x + 1, y - 1],
-                [x - 1, y + 1],
-                [x + 1, y + 1],
-            ];
-            if around
-                .iter()
-                .all(|at| pixel(&evaluated, *at) == pixel(&evaluated, [x, y]))
-            {
-                let wanted = pixel(&evaluated, [x, y]);
-                let apart = (0..4).map(|c| picked[c].abs_diff(wanted[c])).max();
-                assert!(apart <= Some(1), "{x}, {y}: {picked:?} for {wanted:?}");
-                flat += 1;
-            }
+            picks += 1;
         }
     }
-    assert!(flat > 100, "{flat} picks away from edges");
+    assert!(picks > 400, "{picks} picks");
+    assert_eq!(target.pick(&core, SIZE).expect("pick"), None, "outside");
 }
 
 /// S65: an adjustment over the smudges, applied and undone over frames, leaves the canvas as
-/// drawn cold each time, within a level of the evaluator's image away from edges.
+/// drawn cold each time.
 #[test]
 fn an_adjustment_applied_and_undone_over_frames_ends_as_drawn_cold() {
     let core = core();
@@ -217,7 +196,6 @@ fn an_adjustment_applied_and_undone_over_frames_ends_as_drawn_cold() {
         .expect("adjusted")
         .artwork;
     let drawn = cold(&core, &adjusted);
-    assert_near(&evaluated_cold(&core, &adjusted), &drawn, "adjusted");
     let mut screen = Screen::new(&core, SIZE);
     screen.fill(&core, &raster, &[PixelRect::full(SIZE)]);
     screen.fill(&core, &adjusted, &changed_regions(&raster, &adjusted));

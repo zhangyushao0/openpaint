@@ -186,7 +186,7 @@ fn recipe(
         None => recipe,
     };
     let shape = shape(root)?;
-    // Stamps on paper, or more stamps within reach than the evaluator takes.
+    // Stamps on paper, or more stamps within reach than `MAX_STAMPS`.
     let culprit = if root.table.contains_key("paper") {
         "paper"
     } else {

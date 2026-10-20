@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use hand::{Hand, assert_cold};
 use openpaint_core::Color;
-use openpaint_render::{CanvasTarget, FrameRequest, PixelRect, RegionEvaluator};
+use openpaint_render::{CanvasTarget, FrameRequest, PixelRect};
 use openpaint_runtime::{
     Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime, ToolKind,
 };
@@ -72,8 +72,8 @@ fn shows_cold(runtime: &mut Runtime) -> bool {
         active: active.as_ref(),
         background: Color::WHITE,
     };
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request, &[PixelRect::full(size)])
+    target
+        .draw(&core, &request, &[PixelRect::full(size)])
         .expect("evaluate");
     let cold = target.read(&core).expect("read");
     let shown = runtime.read_canvas().expect("read").expect("canvas");

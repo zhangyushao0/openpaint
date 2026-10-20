@@ -1,12 +1,10 @@
 // A smudge applied to its layer at one pixel (DECISIONS D46): the layer becomes A * layer + R
-// from the smudge's residual (smudge.wgsl evaluated it) at the pixel's centre. The residual's
+// from the smudge's residual (smudge.wgsl derived it) at the pixel's centre. The residual's
 // nodes sit at canvas pixel centres; between them A and R are bilinear (S29: an output pixel
 // at 2x to 8x), and at a node, as on the canvas itself, that node alone, exactly. A finished
-// smudge's residual is a block of the arena, starting at the base its core finds for it (the
-// evaluator in the scene's mask words, the raster core in the smudge's instance, S61); the
-// in-progress one's is the evaluation's own. Where the residual holds no node, or the node is
-// still the identity, the layer stays exactly as it was, as the scene's bounds require. Both
-// cores take this file whole.
+// smudge's residual is a block of the arena, starting at the base its draw names (S61); the one
+// being drawn reads its own residual. Where the residual holds no node, or the node is still the
+// identity, the layer stays exactly as it was, as the scene's bounds require.
 
 fn residual_word(drawing: bool, at: u32) -> u32 {
     if drawing {

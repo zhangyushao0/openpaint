@@ -18,7 +18,7 @@ use openpaint_app::BrushLibrary;
 use openpaint_core::{
     ActiveStroke, Artwork, CanvasPoint, CanvasSize, Color, StrokeSample, StrokeStyle,
 };
-use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, take_spent};
+use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, take_spent};
 
 use crate::error::HarnessError;
 
@@ -114,8 +114,7 @@ fn measure(
         .map(|(point, i)| sample(point, i))
         .collect::<Result<Vec<_>, _>>()?;
     let mut target = CanvasTarget::new(core, SIZE)?;
-    RegionEvaluator::new(core, &mut target)
-        .evaluate(&request(artwork, None), &[PixelRect::full(SIZE)])?;
+    target.draw(core, &request(artwork, None), &[PixelRect::full(SIZE)])?;
     core.wait_idle()?;
     let (one, after) = drawn(core, &mut target, artwork, (&style, &samples))?;
     let again = style.clone().with_seed(style.seed().wrapping_add(1));
@@ -161,7 +160,7 @@ fn timed(
 ) -> Result<Frame, HarnessError> {
     let _ = take_spent();
     let started = Instant::now();
-    RegionEvaluator::new(core, target).evaluate(request, &[])?;
+    target.draw(core, request, &[])?;
     let cpu = started.elapsed();
     let scene = Duration::from_nanos(take_spent().scene_ns);
     let waited = Instant::now();

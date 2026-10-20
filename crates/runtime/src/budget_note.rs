@@ -34,8 +34,8 @@ pub(super) fn peak(held: &CacheBytes, core: &Core) {
 }
 
 /// Once every `NOTE_EVERY` seconds of the frame clock, `now` (S51): the strokes, the GPU caches,
-/// the device allocator's allocations and blocks with its largest labels, and the heap's scene,
-/// plan and history, logged.
+/// the device allocator's allocations and blocks with its largest labels, and the heap's scene
+/// and history, logged.
 pub(super) fn note(
     noted: &mut Option<f64>,
     (core, canvas, held): (&Core, &Canvas, &CacheBytes),
@@ -49,7 +49,7 @@ pub(super) fn note(
     let strokes: usize = (artwork.layers().iter())
         .map(|layer| layer.strokes().len())
         .sum();
-    let [scene, plan] = canvas.target().heap_bytes();
+    let scene = canvas.target().heap_bytes();
     let history = canvas.session().history().total_bytes() as u64;
     let gpu = core.gpu_memory().unwrap_or_default();
     let largest: Vec<String> = (gpu.by_label.iter().take(6))
@@ -57,15 +57,14 @@ pub(super) fn note(
         .collect();
     log::info!(
         "memory at {strokes} strokes: GPU caches {:.1} MB (arena {:.1}); the allocator holds \
-         {:.1} MB in blocks of {:.1} ({}); the heap holds the scene's {:.1} MB, the plan's {:.1}, \
-         the history's {:.1}",
+         {:.1} MB in blocks of {:.1} ({}); the heap holds the scene's {:.1} MB, the history's \
+         {:.1}",
         mb(held.total()),
         mb(held.arena),
         mb(gpu.allocated),
         mb(gpu.reserved),
         largest.join(", "),
         mb(scene),
-        mb(plan),
         mb(history)
     );
 }

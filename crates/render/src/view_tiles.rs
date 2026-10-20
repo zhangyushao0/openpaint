@@ -1,12 +1,12 @@
 //! A view tier's tiles (S32): the canvas's output at the tier's scale cut into squares of
 //! `TIER_TILE` output pixels from the canvas's top-left, and the slots of the tier's target (an
-//! atlas of such squares, `across` to a row) holding some of them. The plan bins a tier's
-//! evaluation into the slots through it; the blit finds a tile's slot through its index.
+//! atlas of such squares, `across` to a row) holding some of them. A tier's tiles are drawn into
+//! their slots through it; the blit finds a tile's slot through its index.
 
 use crate::geom::PixelRect;
 use crate::output::Output;
 
-/// Output pixels along a view tile's side: 16 evaluation tiles.
+/// Output pixels along a view tile's side.
 pub(crate) const TIER_TILE: u32 = 256;
 
 /// Which slot holds which view tile.

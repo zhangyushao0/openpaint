@@ -30,16 +30,13 @@ fn codes(scene: &Scene) -> Vec<&'static str> {
         Item::EndChain { .. } => "chain",
         Item::EndGroup(_) => "group",
         Item::Active => "active",
-        Item::Reach(_) => "reach",
         Item::Smudge(_) => "smudge",
         Item::BeginMask(_) => "mask",
         Item::Frame { .. } => "frame",
         Item::BeginMove(_) => "move",
         Item::EndMove { whole: false, .. } => "moved",
         Item::EndMove { whole: true, .. } => "cut",
-        Item::MovedOnly(_) => "moved only",
         Item::EndNested(_) => "nested",
-        Item::NestedOnly(_) => "nested only",
         Item::Clear { .. } => "clear",
     };
     scene.items.iter().map(name).collect()
@@ -109,7 +106,7 @@ fn a_masked_layer_sets_its_paint_aside_then_draws_its_mask_before_its_end() {
     let both = drawn(&paint.expect("select").artwork, StrokeTool::Paint);
     let scene = Scene::build(&both, Some(&on_mask)).expect("scene");
     let expected = [
-        "segment", "stroke", "mask", "segment", "stroke", "reach", "smudge", "active", "layer",
+        "segment", "stroke", "mask", "segment", "stroke", "smudge", "active", "layer",
     ];
     assert_eq!(codes(&scene), expected);
     let Some(Item::EndLayer { op, .. }) = scene.items.last() else {
@@ -125,7 +122,7 @@ fn a_masked_layer_sets_its_paint_aside_then_draws_its_mask_before_its_end() {
         "the mask's own items before it"
     );
     assert!(scene.smudges[0].on_mask);
-    assert_eq!(scene.active_before, Some(3..7));
+    assert_eq!(scene.active_before, Some(3..6));
     let off = masked(
         &both,
         MaskCommand::SetEnabled {
@@ -136,14 +133,14 @@ fn a_masked_layer_sets_its_paint_aside_then_draws_its_mask_before_its_end() {
     let unmasked = codes(&Scene::build(&off, None).expect("scene"));
     assert_eq!(unmasked, ["segment", "stroke", "layer"], "a disabled mask");
     let alone = Scene::layer(&both, layer, true).expect("the mask alone");
-    let mask_codes = ["segment", "stroke", "reach", "smudge", "layer"];
+    let mask_codes = ["segment", "stroke", "smudge", "layer"];
     assert_eq!(codes(&alone), mask_codes);
     let paint_alone = Scene::layer(&both, layer, false).expect("the paint alone");
     assert_eq!(codes(&paint_alone), ["segment", "stroke", "layer"]);
 }
 
 #[test]
-fn a_smudge_is_its_reach_then_its_op_with_a_base_word_of_its_own() {
+fn a_smudge_is_one_op_knowing_the_items_before_it() {
     let blank = Artwork::new(CanvasSize::new(64, 64).expect("size"));
     let mut artwork = blank.clone();
     for tool in [StrokeTool::Paint, StrokeTool::Smudge, StrokeTool::Smudge] {
@@ -156,17 +153,15 @@ fn a_smudge_is_its_reach_then_its_op_with_a_base_word_of_its_own() {
         artwork = session.finish().artwork;
     }
     let scene = Scene::build(&artwork, None).expect("scene");
-    let expected = [
-        "segment", "stroke", "reach", "smudge", "reach", "smudge", "layer",
-    ];
+    let expected = ["segment", "stroke", "smudge", "smudge", "layer"];
     assert_eq!(codes(&scene), expected);
-    assert_eq!(
-        (scene.bases_at, scene.masks.len()),
-        (0, 2),
-        "two base words first"
+    assert!(
+        scene.masks.is_empty(),
+        "no mask words: a draw names the blocks"
     );
+    assert!(scene.smudges.iter().all(|smudge| smudge.reach.is_some()));
     let ranges: Vec<_> = scene.smudges.iter().map(|s| s.before.clone()).collect();
-    assert_eq!(ranges, [0..2, 0..4]);
+    assert_eq!(ranges, [0..2, 0..3]);
     let newest: Vec<_> = scene.smudges.iter().map(|s| s.newest).collect();
     assert_eq!(newest, [false, true]);
 }
@@ -310,7 +305,7 @@ fn fresh_ops_start_with_the_paint_op() {
     let smudge = Fresh::new(smudging.active(), 0, 3);
     assert_eq!(
         smudge.ops,
-        [Op::smudge(None, 3, false)],
+        [Op::smudge(true, 3, false)],
         "its residual, everywhere"
     );
 }

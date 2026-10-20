@@ -1,10 +1,9 @@
-//! The raster core (S57's probe, S59's product path): every source of an artwork's layers
-//! (strokes of every recipe stage, erasing, Alpha Lock, a selection's clip, a fill, a cut, a
-//! turned picture, a grey mask, clipping chains, the four blend modes, layer opacity; S65's
-//! records and groups: `raster_kinds.rs`)
-//! exported by the raster core equals the evaluator's image within one 8-bit level away from
-//! antialiased edges (D86's rule) at 1x, 2x, 4x and 8x, draws alike bit for bit every time and
-//! in bands as in one piece; S57's probe scene against the evaluator likewise.
+//! The raster core over every source of an artwork's layers (strokes of every recipe stage,
+//! erasing, Alpha Lock, a selection's clip, a fill, a cut, a turned picture, a grey mask,
+//! clipping chains, the four blend modes, layer opacity; records and groups: `raster_kinds.rs`):
+//! exported at 1x, 2x, 4x and 8x it is one picture, each scale reduced coming back to the 1x
+//! canvas; it draws alike bit for bit every time and in bands as in one piece. Exact pixels where
+//! a formula gives them: `exact.rs`.
 
 use std::sync::Arc;
 
@@ -15,10 +14,10 @@ use openpaint_core::{
 use openpaint_render::{Banding, Core, ImageDifference, RgbaImage, image_difference};
 
 use crate::fixture::{
-    SIZE, airbrush, blank, core, diagonal_with, graphite, plain, rich, sample, wave, wave_with,
-    with_layer, with_stroke,
+    SIZE, airbrush, blank, cold, core, diagonal_with, graphite, plain, rich, sample, wave,
+    wave_with, with_layer, with_stroke,
 };
-use crate::scale::{export, whole};
+use crate::scale::{difference, export, reduced, whole};
 use crate::stamps::brushes;
 
 /// A loop of 40 samples about `centre`, pressed from 0.4 to 1.
@@ -201,16 +200,10 @@ pub fn every_raster_source() -> Artwork {
     )
 }
 
-/// The evaluator's whole output of `artwork` at `scale` (what exports were before S59).
-pub fn evaluated(core: &Core, artwork: &Artwork, scale: u32) -> RgbaImage {
-    let size = SIZE.map(|side| side * scale);
-    (core.evaluated_image(artwork, (scale, [0, 0]), size)).expect("evaluated")
-}
-
-/// `rastered` against `reference` by D86's rule: no pixel away from antialiased edges more than
-/// one 8-bit level off.
-pub fn assert_near(reference: &RgbaImage, rastered: &RgbaImage, what: &str) -> ImageDifference {
-    let found = image_difference(reference, rastered).expect("same size");
+/// `image` against `reference` by D86's rule: no pixel away from antialiased edges more than one
+/// 8-bit level off.
+pub fn assert_near(reference: &RgbaImage, image: &RgbaImage, what: &str) -> ImageDifference {
+    let found = image_difference(reference, image).expect("same size");
     println!("{what}: {found:?}");
     assert_eq!(found.beyond_one_inside, 0, "{what}: {found:?}");
     assert!(
@@ -220,22 +213,37 @@ pub fn assert_near(reference: &RgbaImage, rastered: &RgbaImage, what: &str) -> I
     found
 }
 
-#[test]
-fn every_raster_source_exports_within_a_level_of_the_evaluator_away_from_edges() {
-    let core = core();
-    let artwork = every_raster_source();
-    for scale in [1, 2, 4, 8] {
-        let rastered = whole(&core, &artwork, scale);
-        let pixels = rastered.pixels().as_chunks::<4>().0;
-        let painted = pixels.iter().filter(|pixel| **pixel != [255; 4]).count();
-        let share = painted as f64 / pixels.len() as f64;
-        assert!(share > 0.2, "{scale}x paints {share}");
-        assert_near(
-            &evaluated(&core, &artwork, scale),
-            &rastered,
-            &format!("{scale}x"),
+/// `artwork` exported at 1x, 2x, 4x and 8x paints and, reduced by its scale, comes back to its 1x
+/// canvas within a level on average (as a file above 1x against the canvas, D86): what each scale
+/// draws is the same picture, sharper (finer grain and paper; measured 2026-10-21: means 0.28 to
+/// 0.57).
+pub fn assert_scales_agree(core: &Core, artwork: &Artwork, what: &str) {
+    let one = cold(core, artwork);
+    let pixels = one.pixels().as_chunks::<4>().0;
+    let painted = pixels.iter().filter(|pixel| **pixel != [255; 4]).count();
+    let share = painted as f64 / pixels.len() as f64;
+    assert!(share > 0.05, "{what} paints {share}");
+    assert!(
+        whole(core, artwork, 1) == one,
+        "{what}: the 1x export is the canvas"
+    );
+    for scale in [2, 4, 8] {
+        let (largest, mean) =
+            difference(&reduced(&whole(core, artwork, scale), scale), one.pixels());
+        println!("{what} at {scale}x reduced against 1x: largest {largest}, mean {mean:.4}");
+        assert!(
+            mean < 1.0,
+            "{what} at {scale}x: largest {largest}, mean {mean}"
         );
     }
+}
+
+#[test]
+fn every_raster_source_at_every_scale_comes_back_to_its_canvas() {
+    let core = core();
+    let artwork = every_raster_source();
+    assert_scales_agree(&core, &artwork, "every raster source");
+    assert_scales_agree(&core, &strokes(), "every stroke kind");
 }
 
 #[test]
@@ -252,44 +260,6 @@ fn the_raster_core_draws_alike_every_time_and_in_bands_as_in_one_piece() {
         assert!(
             export(&core, &artwork, scale, banding) == one,
             "{scale}x bands"
-        );
-    }
-}
-
-/// The probe's image against the evaluator's over the target of `SIZE` output pixels at
-/// `scale`, the canvas's middle in its middle; and the share of the probe's pixels painted.
-fn compared(artwork: &Artwork, scale: u32) -> (ImageDifference, f64) {
-    let core = core();
-    let at = SIZE.map(|side| side / 2 - side / (2 * scale));
-    let (_, evaluated) = core
-        .time_evaluation(artwork, (scale, at), SIZE, 1)
-        .expect("evaluate");
-    let raster = core
-        .time_raster(artwork, (scale, at), SIZE, (1, 1024))
-        .expect("raster");
-    assert!(raster.repeatable, "{scale}x: it draws alike every time");
-    let pixels = raster.image.pixels().as_chunks::<4>().0;
-    let painted = pixels.iter().filter(|p| **p != [255; 4]).count();
-    let share = painted as f64 / pixels.len() as f64;
-    let found = image_difference(&evaluated, &raster.image).expect("same size");
-    (found, share)
-}
-
-#[test]
-fn every_stroke_kind_rasters_within_a_level_of_the_evaluator_away_from_edges() {
-    let artwork = strokes();
-    for scale in [1, 4, 8] {
-        let (found, painted) = compared(&artwork, scale);
-        println!("{scale}x: {painted:.3} painted, {found:?}");
-        assert!(painted > 0.2, "{scale}x: the probe paints {painted}");
-        assert_eq!(found.beyond_one_inside, 0, "{scale}x: {found:?}");
-        assert!(
-            found.largest.iter().all(|off| *off <= 2),
-            "{scale}x: {found:?}"
-        );
-        assert!(
-            found.mean.iter().all(|mean| *mean < 0.01),
-            "{scale}x: {found:?}"
         );
     }
 }

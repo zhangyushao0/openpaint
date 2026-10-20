@@ -4,7 +4,7 @@
 //! the last one equals the committed artwork, reloaded and evaluated cold, bit for bit.
 
 use openpaint_core::{Artwork, CanvasSize, Color, Patch, Placement, RegionMask};
-use openpaint_render::{CanvasTarget, Core, PixelRect, RegionEvaluator, changed_regions};
+use openpaint_render::{CanvasTarget, Core, PixelRect, changed_regions};
 
 use crate::fixture::{
     SIZE, blank, cold, core, diagonal, pixel, plain, request, sample, wave, with_stroke,
@@ -144,9 +144,8 @@ fn preview_frames_equal_the_committed_artwork(clip: Option<&RegionMask>) {
     let base = with_stroke(&drawn(), diagonal());
     let patch = lift(&core, &base, clip);
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-    let mut evaluator = RegionEvaluator::new(&core, &mut target);
-    evaluator
-        .evaluate(&request(&base), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(&base), &[PixelRect::full(SIZE)])
         .expect("base");
     let mut shown = base.clone();
     for placement in drag() {
@@ -155,8 +154,8 @@ fn preview_frames_equal_the_committed_artwork(clip: Option<&RegionMask>) {
             .expect("preview")
             .artwork;
         let regions = changed_regions(&shown, &preview);
-        evaluator
-            .evaluate(&request(&preview), &regions)
+        target
+            .draw(&core, &request(&preview), &regions)
             .expect("frame");
         shown = preview;
     }
@@ -186,13 +185,12 @@ fn strokes_after_a_transform_and_its_undo_evaluate_incrementally_as_cold() {
     let moved = transformed(&core, &base, None, Placement::moved([-15.0, 9.0]).unwrap());
     let later = with_stroke(&moved, diagonal());
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-    let mut evaluator = RegionEvaluator::new(&core, &mut target);
-    evaluator
-        .evaluate(&request(&base), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(&base), &[PixelRect::full(SIZE)])
         .expect("base");
     for (from, to) in [(&base, &moved), (&moved, &later), (&later, &base)] {
-        evaluator
-            .evaluate(&request(to), &changed_regions(from, to))
+        target
+            .draw(&core, &request(to), &changed_regions(from, to))
             .expect("step");
     }
     assert_eq!(target.read(&core).expect("read"), cold(&core, &base));

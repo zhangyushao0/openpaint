@@ -4,7 +4,7 @@
 use openpaint_core::{
     Artwork, ArtworkCommand, Color, LayerCommand, LayerId, StrokeSample, StrokeStyle,
 };
-use openpaint_render::{CanvasTarget, FrameRequest, PixelRect, RegionEvaluator, changed_regions};
+use openpaint_render::{CanvasTarget, FrameRequest, PixelRect, changed_regions};
 
 use crate::fixture::{SIZE, blank, cold, core, pixel, plain, request, sample, with_stroke};
 
@@ -135,16 +135,16 @@ fn layer_edits_through_changed_regions_equal_cold() {
     }
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
     let mut shown = versions[0].clone();
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(&shown), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(&shown), &[PixelRect::full(SIZE)])
         .expect("evaluate");
     // Forward through every edit, then back as undo goes.
     let order = (1..versions.len()).chain((0..versions.len() - 1).rev());
     for index in order {
         let next = &versions[index];
         let regions = changed_regions(&shown, next);
-        RegionEvaluator::new(&core, &mut target)
-            .evaluate(&request(next), &regions)
+        target
+            .draw(&core, &request(next), &regions)
             .expect("evaluate");
         assert!(
             target.read(&core).expect("readback") == cold(&core, next),
@@ -160,8 +160,8 @@ fn a_stroke_drawn_under_another_layer_stays_under_it() {
     let (artwork, bottom, _) = stacked();
     let below = layer(&artwork, LayerCommand::Select(bottom));
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(&below), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(&below), &[PixelRect::full(SIZE)])
         .expect("evaluate");
     let (style, samples) = line(Color::BLACK, [160.0, 60.0], [160.0, 140.0]);
     let mut session = below.begin_stroke(style, samples[0]).expect("begin");
@@ -171,15 +171,13 @@ fn a_stroke_drawn_under_another_layer_stays_under_it() {
             active: Some(session.active()),
             ..request(&below)
         };
-        RegionEvaluator::new(&core, &mut target)
-            .evaluate(&frame, &[])
-            .expect("evaluate");
+        target.draw(&core, &frame, &[]).expect("evaluate");
         let shown = target.read(&core).expect("readback");
         assert_eq!(pixel(&shown, CROSSING), BLUE, "the blue layer stays on top");
     }
     let finished = session.finish().artwork;
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(&finished), &[])
+    target
+        .draw(&core, &request(&finished), &[])
         .expect("evaluate");
     assert!(target.read(&core).expect("readback") == cold(&core, &finished));
 }

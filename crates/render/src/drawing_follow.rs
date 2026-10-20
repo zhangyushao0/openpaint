@@ -16,7 +16,7 @@ use crate::view_tiles::TIER_TILE;
 
 impl Drawing {
     /// The drawing follows `now`, whose scene lays a stroke on `place` at unit `at` (`None`: no
-    /// such unit, the layer hidden or the scene the evaluator's: every snapshot goes); `dirty`,
+    /// such unit or the layer hidden: every snapshot goes); `dirty`,
     /// the output pixels a change reached (`None`: unknown, every snapshot goes on a change).
     pub(crate) fn follow(
         &mut self,

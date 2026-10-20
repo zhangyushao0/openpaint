@@ -4,17 +4,15 @@
 //! A pixel's result then depends on its neighbours, so a smudge is no per-pixel op of its own:
 //! each one is evaluated once, in order, into a residual on canvas-pixel nodes, `after = A x
 //! before + R` (`residual.rs`, tiles allocated as its contacts reach them), from the layer's
-//! pixels just before it (`material.rs`: drawn by the raster core since S62, every scene's since
-//! S65; a reference's evaluated by the evaluator). Both cores apply a residual
-//! (smudge_composite.wgsl): the evaluator where the stroke lies (opcode `Smudge`), the raster core
-//! as a pass over the layer from its copy, its block named with the buffers it lies in (S61,
-//! `engine_held.rs`, D88).
+//! pixels just before it (`material.rs`, drawn by the raster core). The raster core applies a
+//! residual as a pass over the layer from its copy (smudge_composite.wgsl), its block named with
+//! the buffers it lies in (`engine_held.rs`, D88).
 //!
 //! The in-progress smudge extends its residual by the contacts its settled spans add, with the
-//! very contacts and tiles a cold evaluation of the same samples applies, so both are bit for
+//! very contacts and tiles a cold derivation of the same samples applies, so both are bit for
 //! bit equal; on commit the residual moves into the target's arena (`arena.rs`) unchanged. A
-//! residual is derived and owned by its canvas target (D82); it is rebuilt from the artwork
-//! whenever it is missing (another target, a reopened artwork, a redo after it was dropped).
+//! residual is derived and owned by its canvas target; it is rebuilt from the artwork whenever it
+//! is missing (another target, a reopened artwork, a redo after it was dropped).
 //!
 //! The residuals share their arena with the filters' results (S33, `filter.rs`), prepared with
 //! them in scene order, as each may read the other's pixels.
@@ -28,7 +26,7 @@ mod residual;
 
 pub(crate) use arena::{Arena, Keep, Key};
 pub(crate) use dabs::{smudge_reach, whole_reach};
-pub(crate) use engine::{Bases, Held, Smudges, Wanted, around_output, held_in, reached};
+pub(crate) use engine::{Bases, Held, Smudges, Wanted, around_output, held_in};
 pub(crate) use kernels::{SHADER as SMUDGE_SHADER, SmudgePipeline};
 pub(crate) use material::{Material, MaterialRegion, regions};
 

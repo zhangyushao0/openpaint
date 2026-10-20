@@ -20,11 +20,11 @@ use openpaint_core::{StrokeStyle, StrokeTool};
 
 use super::cases::{batch, busiest, to_screen};
 use super::{Watch, spread};
-use crate::bench_scenes::style_of;
 use crate::canvas::Canvas;
 use crate::error::RuntimeError;
 use crate::frame::Runtime;
 use crate::input::{MotionPhase, ToolKind};
+use crate::painted::style_of;
 use openpaint_render::Counts;
 
 const LIMIT: Duration = Duration::from_secs(60);
@@ -64,8 +64,8 @@ struct Stroked {
     /// The most the GPU caches and their snapshots held meanwhile, bytes.
     caches: u64,
     snapshots: u64,
-    /// Drawn frames' time evaluating the canvas and waiting for the GPU, ms; what render counted.
-    evaluating: Vec<f64>,
+    /// Drawn frames' time drawing the canvas and waiting for the GPU, ms; what render counted.
+    drawing: Vec<f64>,
     waiting: Vec<f64>,
     counts: Counts,
 }
@@ -76,7 +76,7 @@ impl Stroked {
         format!(
             "{} frames ({} skipped), frame work {}, GPU a frame {}, event to present {}; pen-down \
              {:.1}, lift {:.1} (its scene built in {:.1}); GPU caches {:.1} MB at most (snapshots \
-             {:.1}); evaluating {}, waiting {}; raster regions {}, snapshots taken {} (ahead {:.0} \
+             {:.1}); drawing {}, waiting {}; raster regions {}, snapshots taken {} (ahead {:.0} \
              before it), scenes taking strokes in place {}",
             self.work.len(),
             self.skipped,
@@ -88,7 +88,7 @@ impl Stroked {
             self.lift_scene,
             mb(self.caches),
             mb(self.snapshots),
-            spread(&self.evaluating),
+            spread(&self.drawing),
             spread(&self.waiting),
             self.counts.rastered,
             self.counts.snapshots,
@@ -303,7 +303,7 @@ impl Runtime {
         waiting: &mut Vec<(usize, Instant)>,
     ) -> Result<(), RuntimeError> {
         let drawn = watch.frames.len();
-        let (evaluated, waited) = (watch.evaluated, watch.waited);
+        let (drawn_ns, waited) = (watch.drawn, watch.waited);
         self.bench_call(watch)?;
         let returned = Instant::now();
         let skipped = watch.frames.len() == drawn;
@@ -311,7 +311,7 @@ impl Runtime {
             let work = watch.frames[drawn];
             stroked.work.push(work);
             let ms = |ns: u64| ns as f64 / 1e6;
-            stroked.evaluating.push(ms(watch.evaluated - evaluated));
+            stroked.drawing.push(ms(watch.drawn - drawn_ns));
             stroked.waiting.push(ms(watch.waited - waited));
             let last = SAMPLES - 1;
             if waiting.iter().any(|(at, _)| *at == 0) {

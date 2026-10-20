@@ -1,17 +1,10 @@
 // A filter applied to its layer at one pixel (S33, D59): inside its clip the layer so far becomes
-// the filter's result (`filter.wgsl` wrote it into a block of the arena: its rectangle, then one
-// premultiplied RGBA8 word per canvas pixel) at `point`, which is a canvas pixel's centre on the
-// canvas itself (that pixel's word exactly) and between centres at 2x and up (bilinear: a
-// result at canvas resolution, enlarged). Pixels past the canvas take its edge pixel, as the
-// filter read them. Outside its block the layer was transparent before the filter and stays.
-
-fn filtered(layer: vec4<f32>, point: vec2<f32>, cell: vec2<u32>, op: u32) -> vec4<f32> {
-    let base = masks[u32(word(op, FILTER_AT)) * 65536u + u32(word(op, FILTER_AT + 1u))];
-    return filtered_from(layer, point, cell, op, base);
-}
-
-// As `filtered`, its block starting at word `base` of the arena (S65: the raster core names it in
-// the filter's instance, as a smudge's).
+// the filter's result (`filter.wgsl` wrote it into a block of the arena starting at word `base`,
+// which the filter's draw names: its rectangle, then one premultiplied RGBA8 word per canvas
+// pixel) at `point`, which is a canvas pixel's centre on the canvas itself (that pixel's word
+// exactly) and between centres at 2x and up (bilinear: a result at canvas resolution, enlarged).
+// Pixels past the canvas take its edge pixel, as the filter read them. Outside its block the
+// layer was transparent before the filter and stays.
 fn filtered_from(layer: vec4<f32>, point: vec2<f32>, cell: vec2<u32>, op: u32, base: u32) -> vec4<f32> {
     if clip(cell, op) == 0.0 {
         return layer;

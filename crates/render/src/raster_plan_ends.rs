@@ -109,7 +109,7 @@ impl Builder<'_> {
     }
 
     /// The end of op `item` onto `target` by `mode`, atop it when `clipped`, reading `reads`: by
-    /// the blend unit where its equation is the evaluator's (`opaque`: the target is the canvas),
+    /// the blend unit where its equation is one (`opaque`: the target is the canvas),
     /// else written whole from a copy of the target.
     fn lay_end(
         &mut self,

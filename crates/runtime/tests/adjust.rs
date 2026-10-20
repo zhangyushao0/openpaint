@@ -1,4 +1,4 @@
-//! Adjustments on the GPU (S28, D54): an applied adjustment is an operation the one evaluator
+//! Adjustments on the GPU (S28, D54): an applied adjustment is an operation the raster core
 //! runs on the layer's content so far. Each shows the values worked out by hand, on paint and on
 //! a mask (inverted too), only inside its selection and never on what was painted after it;
 //! preview frames evaluated incrementally on one target end equal to the committed artwork
@@ -14,9 +14,7 @@ use openpaint_core::{
     Hsb, LayerId, MaskCommand, RegionMask, Sharpen, StrokeSample, StrokeStyle, ToneChannel,
     ToneCurve,
 };
-use openpaint_render::{
-    CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, RgbaImage, changed_regions,
-};
+use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RgbaImage, changed_regions};
 
 const SIZE: [u32; 2] = [96, 64];
 /// The banding measurement's canvas: a soft ramp needs room.
@@ -86,8 +84,8 @@ fn request(artwork: &Artwork) -> FrameRequest<'_> {
 
 fn cold(core: &Core, artwork: &Artwork) -> RgbaImage {
     let mut target = CanvasTarget::new(core, SIZE).expect("target");
-    RegionEvaluator::new(core, &mut target)
-        .evaluate(&request(artwork), &[PixelRect::full(SIZE)])
+    target
+        .draw(core, &request(artwork), &[PixelRect::full(SIZE)])
         .expect("evaluate");
     target.read(core).expect("readback")
 }
@@ -181,15 +179,15 @@ fn a_mask_is_adjusted_in_the_grey_it_shows() {
 fn previews_equal_the_commit(base: &Artwork, clip: Option<&RegionMask>, steps: &[Adjustment]) {
     let core = gpu::core();
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(base), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(base), &[PixelRect::full(SIZE)])
         .expect("base");
     let mut shown = base.clone();
     for (index, adjustment) in steps.iter().enumerate() {
         let preview = adjusted(base, clip, adjustment.clone());
         let regions = changed_regions(&shown, &preview);
-        RegionEvaluator::new(&core, &mut target)
-            .evaluate(&request(&preview), &regions)
+        target
+            .draw(&core, &request(&preview), &regions)
             .expect("frame");
         let frame = target.read(&core).expect("frame");
         assert!(
@@ -246,8 +244,8 @@ fn the_last_preview_equals_the_committed_adjustment() {
 /// between neighbours down a column across the stroke, and the levels used, before and after.
 fn steps_across(core: &Core, artwork: &Artwork) -> (u8, usize) {
     let mut target = CanvasTarget::new(core, TALL).expect("target");
-    RegionEvaluator::new(core, &mut target)
-        .evaluate(&request(artwork), &[PixelRect::full(TALL)])
+    target
+        .draw(core, &request(artwork), &[PixelRect::full(TALL)])
         .expect("evaluate");
     let shown = target.read(core).expect("readback");
     let at = |y: u32| shown.pixels()[((y * TALL[0] + TALL[0] / 2) * 4) as usize];
@@ -317,19 +315,17 @@ fn after_an_adjustment_a_stroke_and_undo_incremental_equals_cold() {
     let reopened = Artwork::from_storage(turned.to_parts()).expect("reopened");
     let later = stroked(&reopened);
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-    let mut evaluator = RegionEvaluator::new(&core, &mut target);
-    evaluator
-        .evaluate(&request(&base), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(&base), &[PixelRect::full(SIZE)])
         .expect("base");
     for (from, to) in [(&base, &reopened), (&reopened, &later)] {
-        evaluator
-            .evaluate(&request(to), &changed_regions(from, to))
+        target
+            .draw(&core, &request(to), &changed_regions(from, to))
             .expect("step");
     }
     assert_eq!(target.read(&core).expect("read"), cold(&core, &later));
-    let mut evaluator = RegionEvaluator::new(&core, &mut target);
-    evaluator
-        .evaluate(&request(&base), &changed_regions(&later, &base))
+    target
+        .draw(&core, &request(&base), &changed_regions(&later, &base))
         .expect("undo both");
     assert_eq!(target.read(&core).expect("read"), cold(&core, &base));
 }

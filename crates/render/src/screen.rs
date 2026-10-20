@@ -3,9 +3,9 @@
 //! harness draws into instead of a window. The target itself stays at canvas resolution; the
 //! screen samples it bilinearly, without mipmaps, or a view tier where one is ready (S32, D58).
 
+use crate::canvas::CanvasTarget;
 use crate::core::Core;
 use crate::error::RenderError;
-use crate::evaluator::CanvasTarget;
 use crate::image::RgbaImage;
 use crate::readback::{read_rgba, target_texture};
 use crate::view_tier::ViewCache;

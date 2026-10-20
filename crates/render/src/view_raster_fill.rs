@@ -10,9 +10,9 @@
 
 use std::sync::Arc;
 
+use crate::canvas::{CanvasTarget, paper};
 use crate::core::Core;
 use crate::error::RenderError;
-use crate::evaluator::{CanvasTarget, paper};
 use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
 use crate::output::Output;
@@ -244,7 +244,7 @@ impl ViewCache {
                 work.filled.push(issued.tile);
             }
         }
-        core.evaluate.tally.filled(filled);
+        core.tally.filled(filled);
     }
 }
 

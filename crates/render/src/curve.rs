@@ -1,7 +1,7 @@
 //! The curve a stroke follows (S34): a centripetal Catmull-Rom spline through its knots, every
 //! sample but the ones Android makes up once a frame on the straight line between or past real
 //! ones (`knots`).
-//! Each span between two knots is a cubic Bézier; the evaluator flattens it into straight
+//! Each span between two knots is a cubic Bézier; the raster core flattens it into straight
 //! pieces, as many as keep it within `TOLERANCE` output pixels of its curve at the scale it is
 //! evaluated at (`pieces`), so the canvas pays little and an 8x view stays smooth.
 //!
@@ -155,7 +155,7 @@ impl Cubic {
         ])
     }
 
-    /// The point at parameter `t` (Bernstein form, as the evaluator computes it).
+    /// The point at parameter `t` (Bernstein form, as the shader computes it).
     pub(crate) fn at(&self, t: f32) -> [f32; 2] {
         let [p0, p1, p2, p3] = self.0;
         let s = 1.0 - t;
@@ -201,7 +201,7 @@ impl Cubic {
 /// How many straight pieces of equal parameter a span with `flatness` and `bend` (canvas pixels)
 /// is evaluated as at `scale` output pixels per canvas pixel: one while its chord stays within
 /// `TOLERANCE` output pixels, else enough that each piece does (at most `MAX_PIECES`). The
-/// evaluator computes the same (`segment.wgsl`).
+/// raster core computes the same (`segment.wgsl`, `raster.wgsl`).
 pub(crate) fn pieces(flatness: f32, bend: f32, scale: f32) -> u32 {
     if flatness * scale <= TOLERANCE {
         return 1;

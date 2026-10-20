@@ -1,6 +1,6 @@
-//! The protocol's adjustments (S28, D54): hue, saturation and brightness, or tone curves,
-//! applied to the current layer at the op's place, inside its clip; and (S33, D59) a filter's
-//! result, a block of the target's arena. The slots and values here are declared to WGSL by
+//! The protocol's adjustments (S28, D59): hue, saturation and brightness, or tone curves,
+//! applied to the layer so far at the op's place, inside its clip; and (S33) a filter's result,
+//! a block of the target's arena. The slots and values here are declared to WGSL by
 //! `prelude` like the rest of the protocol.
 
 use super::{OP_DATA, Op, Opcode, PAINT_CLIP, halves};
@@ -14,16 +14,14 @@ const ADJUST_ON: usize = 4;
 /// Where the curves' three tables start in the mask words, split like `FILL_MASK`: per colour
 /// channel 256 bytes, four to a word, low byte first.
 const ADJUST_TABLES: usize = 5;
-/// A filter: the mask word holding where its block starts in the arena, split like
-/// `FILL_MASK`, then the canvas's width and height. Its clip sits where a paint op's does.
-const FILTER_AT: usize = 0;
-const FILTER_CANVAS: usize = 2;
-pub(super) const ADJUST_SLOTS: [(&str, usize); 6] = [
+/// A filter: the canvas's width and height (its block in the arena is named by its draw). Its
+/// clip sits where a paint op's does.
+const FILTER_CANVAS: usize = 0;
+pub(super) const ADJUST_SLOTS: [(&str, usize); 5] = [
     ("ADJUST_KIND", ADJUST_KIND),
     ("ADJUST_HSB", ADJUST_HSB),
     ("ADJUST_ON", ADJUST_ON),
     ("ADJUST_TABLES", ADJUST_TABLES),
-    ("FILTER_AT", FILTER_AT),
     ("FILTER_CANVAS", FILTER_CANVAS),
 ];
 
@@ -74,11 +72,9 @@ impl Op {
         Self::adjusting(data, on, clip)
     }
 
-    /// A filter whose block's base is in mask word `at` on a canvas of `canvas` pixels; `clip`
-    /// as a paint op's.
-    pub(crate) fn filter(at: u32, clip: u32, [width, height]: [u32; 2]) -> Self {
+    /// A filter on a canvas of `canvas` pixels; `clip` as a paint op's.
+    pub(crate) fn filter(clip: u32, [width, height]: [u32; 2]) -> Self {
         let mut data = [0.0; OP_DATA];
-        data[FILTER_AT..FILTER_AT + 2].copy_from_slice(&halves(at));
         // At most `MAX_CANVAS_SIDE`, exact as floats.
         data[FILTER_CANVAS..FILTER_CANVAS + 2].copy_from_slice(&[width as f32, height as f32]);
         data[PAINT_CLIP..PAINT_CLIP + 2].copy_from_slice(&halves(clip));

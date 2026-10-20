@@ -8,7 +8,7 @@ use std::f32::consts::{PI, TAU};
 use std::sync::Arc;
 
 use openpaint_core::{Artwork, CanvasPoint, CanvasSize, CoreError, StrokeSample, StrokeStyle};
-use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, RgbaImage};
+use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RgbaImage};
 
 use crate::canvas::PAPER;
 use crate::error::RuntimeError;
@@ -75,13 +75,13 @@ pub(crate) fn evaluate_strip(core: &Core, job: &StripJob) -> Result<RgbaImage, R
     let artwork = strip_artwork(job)?;
     let mut target = CanvasTarget::new(core, job.size)?;
     // Made on the brushes worker while the screen draws on (S53).
-    target.pace_dispatches();
+    target.pace_draws();
     let request = FrameRequest {
         artwork: &artwork,
         active: None,
         background: PAPER,
     };
-    RegionEvaluator::new(core, &mut target).evaluate(&request, &[PixelRect::full(job.size)])?;
+    target.draw(core, &request, &[PixelRect::full(job.size)])?;
     Ok(target.read(core)?)
 }
 
@@ -119,9 +119,8 @@ mod tests {
         let finished = strip_artwork(job).expect("artwork");
         let mut artwork = Artwork::new(CanvasSize::new(SIZE[0], SIZE[1]).expect("size"));
         let mut target = CanvasTarget::new(core, SIZE).expect("target");
-        let mut evaluator = RegionEvaluator::new(core, &mut target);
-        evaluator
-            .evaluate(&request(&artwork), &[PixelRect::full(SIZE)])
+        target
+            .draw(core, &request(&artwork), &[PixelRect::full(SIZE)])
             .expect("evaluate");
         for stroke in finished.layers()[0].strokes().iter() {
             let samples = stroke.samples();
@@ -133,12 +132,12 @@ mod tests {
                     active: Some(session.active()),
                     ..request(&artwork)
                 };
-                evaluator.evaluate(&frame, &[]).expect("evaluate");
+                target.draw(core, &frame, &[]).expect("evaluate");
                 session.extend(chunk).expect("extend");
             }
             artwork = session.finish().artwork;
-            evaluator
-                .evaluate(&request(&artwork), &[])
+            target
+                .draw(core, &request(&artwork), &[])
                 .expect("evaluate");
         }
         target.read(core).expect("readback")

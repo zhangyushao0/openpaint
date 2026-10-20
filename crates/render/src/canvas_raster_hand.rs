@@ -23,7 +23,7 @@ use crate::view_tiles::TIER_TILE;
 
 impl CanvasTarget {
     /// Hands the worker the next waiting tiles, as many as may wait with it.
-    pub(in crate::evaluator) fn hand_over(
+    pub(in crate::canvas) fn hand_over(
         &mut self,
         core: &Core,
         request: &FrameRequest<'_>,
@@ -106,7 +106,7 @@ impl CanvasTarget {
     /// The worker's answers applied: each tile it drew that no change reached copied from its
     /// slot into the canvas, no longer waiting; one dropped or reached waits still. Returns the
     /// canvas pixels copied.
-    pub(in crate::evaluator) fn apply_answers(&mut self, core: &Core) -> Vec<PixelRect> {
+    pub(in crate::canvas) fn apply_answers(&mut self, core: &Core) -> Vec<PixelRect> {
         let done = std::mem::take(&mut self.raster.done);
         let Some(staging) = self.raster.staging().cloned() else {
             return Vec::new();

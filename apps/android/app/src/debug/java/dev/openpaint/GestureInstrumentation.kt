@@ -31,8 +31,8 @@ import android.view.MotionEvent
  * nothing: the result's `found` says where it lies; `-e state 1` answers what the app shows
  * ([DebugControls.state], S52). `-e gradient on|off` injects nothing: it turns the screen's
  * precision check on or off ([DebugControls.gradient]); `-e lose device` loses the GPU device on
- * purpose ([DebugControls.loseDevice], S49); `-e bench <scene|all>` answers the evaluator's
- * micro-benchmark or a scenario benchmark ([DebugControls.bench], S55, S58); `-e open-file <path>`
+ * purpose ([DebugControls.loseDevice], S49); `-e bench <scenario>` answers a scenario benchmark
+ * ([DebugControls.bench], S58); `-e open-file <path>`
  * opens a pushed OpenPaint file as a new artwork without the picker ([DebugControls.openFile],
  * S58). A question is answered with `gesture=answered`.
  */
@@ -94,7 +94,7 @@ class GestureInstrumentation : Instrumentation() {
 
     /**
      * A question instead of a gesture (S52), its answer put in [result]: `-e find <name>` (where
-     * the control lies), `-e bench <scene|all>` (the evaluator's micro-benchmark, S55) or
+     * the control lies), `-e bench <scenario>` (a scenario benchmark, S58) or
      * `-e state 1` (what the app shows). False when there is none.
      */
     private fun answer(result: Bundle): Boolean {

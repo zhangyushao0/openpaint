@@ -1,6 +1,6 @@
 //! `Affine`: a 2D affine map in doubles, for composing the placements a transform record sees
 //! its earlier content through (S31) and mapping op bounds through them. Placements stay in
-//! core; what the evaluator reads is these maps rounded to floats once.
+//! core; what the shaders read is these maps rounded to floats once.
 
 use openpaint_core::Placement;
 
@@ -64,7 +64,7 @@ impl Affine {
         self == Self::IDENTITY
     }
 
-    /// The rows as the evaluator reads them.
+    /// The rows as the shaders read them.
     pub(crate) fn rows(self) -> [f32; 6] {
         self.0.map(|value| value as f32)
     }

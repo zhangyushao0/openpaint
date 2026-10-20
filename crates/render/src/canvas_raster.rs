@@ -9,9 +9,9 @@
 //! being drawn, a later change). Once nothing waits, the worker takes the snapshots under the
 //! next stroke ahead (S63, `drawing_ahead.rs`).
 
+use crate::canvas::CanvasTarget;
 use crate::core::Core;
 use crate::error::RenderError;
-use crate::evaluator::CanvasTarget;
 use crate::geom::PixelRect;
 use crate::raster::RasterTargets;
 use crate::readback::target_texture;

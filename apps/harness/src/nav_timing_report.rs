@@ -16,16 +16,13 @@ pub(super) struct Frame {
 
 pub(super) fn header() {
     println!(
-        "{:<28} {:>6} {:>9} | {:>20} | {:>20} | {:>6} {:>10} {:>5} {:>10} {:>7} {:>6}",
+        "{:<28} {:>6} {:>9} | {:>20} | {:>20} | {:>7} {:>7} {:>6}",
         "phase",
         "frames",
         "total ms",
         "cpu p50/p95/max ms",
         "gpu p50/p95/max ms",
-        "disp",
-        "entries",
-        "plans",
-        "binned",
+        "regions",
         "derived",
         "filled"
     );
@@ -43,15 +40,12 @@ pub(super) fn phase(phase: &str, frames: &[Frame]) {
         .iter()
         .fold(Counts::default(), |a, f| added(a, f.counts));
     println!(
-        "{phase:<28} {:>6} {:>9.0} | {} | {} | {:>6} {:>10} {:>5} {:>10} {:>7} {:>6}",
+        "{phase:<28} {:>6} {:>9.0} | {} | {} | {:>7} {:>7} {:>6}",
         frames.len(),
         total,
         spread(frames.iter().map(|f| ms(f.cpu)).collect()),
         spread(frames.iter().map(|f| ms(f.gpu)).collect()),
-        sum.dispatches,
-        sum.entries,
-        sum.plans,
-        sum.binned,
+        sum.rastered,
         sum.derived,
         sum.filled
     );
@@ -72,15 +66,12 @@ pub(super) fn phase(phase: &str, frames: &[Frame]) {
     if let Some(frame) = heaviest {
         let c = frame.counts;
         println!(
-            "{:<28} heaviest frame cpu {:.1} gpu {:.1} ms: {} dispatches, {} entries, {} plans of {} \
-             entries, {} derived, {} tier tiles",
+            "{:<28} heaviest frame cpu {:.1} gpu {:.1} ms: {} raster regions, {} derived, {} tier \
+             tiles",
             "",
             ms(frame.cpu),
             ms(frame.gpu),
-            c.dispatches,
-            c.entries,
-            c.plans,
-            c.binned,
+            c.rastered,
             c.derived,
             c.filled
         );
@@ -89,10 +80,6 @@ pub(super) fn phase(phase: &str, frames: &[Frame]) {
 
 fn added(a: Counts, b: Counts) -> Counts {
     Counts {
-        dispatches: a.dispatches + b.dispatches,
-        entries: a.entries + b.entries,
-        plans: a.plans + b.plans,
-        binned: a.binned + b.binned,
         derived: a.derived + b.derived,
         filled: a.filled + b.filled,
         rastered: a.rastered + b.rastered,

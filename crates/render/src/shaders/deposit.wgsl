@@ -1,6 +1,6 @@
 // Accumulating strokes (DECISIONS D38, after draweave's ADR-0050): density laid per radius
-// travelled, and coverage from density, through the paper when there is one. Appended to
-// evaluate.wgsl, which binds the paper in `textures`.
+// travelled, and coverage from density, through the paper when there is one (bound in
+// `textures`).
 
 // Density a single-sample dot lays at its centre, matching the share a full pass keeps.
 const FLAT_DOT: f32 = 1.1;
@@ -165,8 +165,8 @@ fn paper_texel(level: u32, c: vec2<i32>) -> vec2<f32> {
 
 // Words of a mip chain's levels before `level` when its finest holds 2^`bits` texels and each
 // level a quarter of the one before (`protocol_wgsl.rs` checks both chains are so): their sum
-// in closed form, `4/3 (2^bits - 2^(bits - 2 level))`, exactly. Summed in a loop, it pushed
-// the evaluator past a register limit on the Adreno that halved its speed (S55).
+// in closed form, `4/3 (2^bits - 2^(bits - 2 level))`, exactly (a loop costs registers on the
+// Adreno, S55).
 fn mip_offset(bits: u32, level: u32) -> u32 {
     return ((1u << bits) - (1u << (bits - 2u * level))) / 3u * 4u;
 }

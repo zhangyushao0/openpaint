@@ -6,8 +6,7 @@
 //! 2x tier is complete; a pinch on to about 4 and its frames; 10 s of two-finger pans at 4x;
 //! a pinch back to 2 and pen strokes over the busiest place while that tier fills. Each frame's
 //! CPU time (the frame) and GPU time (waited for after it), and what render counted
-//! (`Counts`: dispatches, op entries, plans binned and their entries, smudge residuals
-//! derived, tier tiles filled); per phase p50 / p95 / max and the sums. On a desktop GPU the
+//! (`Counts`: raster regions, smudge residuals derived, tier tiles filled); per phase p50 / p95 / max and the sums. On a desktop GPU the
 //! times are small; the counts show what thrashes. Run with `--release`.
 
 use std::path::Path;

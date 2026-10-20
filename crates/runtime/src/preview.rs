@@ -9,7 +9,7 @@ use openpaint_app::{Brush, BrushKey, BrushLibrary};
 use openpaint_core::{
     Artwork, CanvasPoint, CanvasSize, Color, CoreError, StrokeSample, StrokeStyle,
 };
-use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, RgbaImage};
+use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RgbaImage};
 use openpaint_ui::design;
 
 use crate::error::RuntimeError;
@@ -53,13 +53,13 @@ pub(crate) fn brush_picture(
     let artwork = stroke(brush, size)?;
     let mut target = CanvasTarget::new(core, size)?;
     // Made on the brushes worker while the screen draws on (S53).
-    target.pace_dispatches();
+    target.pace_draws();
     let request = FrameRequest {
         artwork: &artwork,
         active: None,
         background: gray(255)?,
     };
-    RegionEvaluator::new(core, &mut target).evaluate(&request, &[PixelRect::full(size)])?;
+    target.draw(core, &request, &[PixelRect::full(size)])?;
     Ok(target.read(core)?)
 }
 
@@ -95,7 +95,7 @@ fn stroke(brush: &Brush, [width, height]: [u32; 2]) -> Result<Artwork, CoreError
     Ok(session.finish().artwork)
 }
 
-/// An sRGB grey from an 8-bit value; blending happens on encoded values, so the evaluator gives
+/// An sRGB grey from an 8-bit value; blending happens on encoded values, so the raster core gives
 /// back exactly that byte.
 fn gray(value: u8) -> Result<Color, CoreError> {
     let level = f32::from(value) / 255.0;

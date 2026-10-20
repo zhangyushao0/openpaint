@@ -3,10 +3,7 @@
 #![forbid(unsafe_code)]
 
 mod ahead;
-mod bench;
 mod bench_app;
-mod bench_raster;
-mod bench_scenes;
 mod brush_pictures;
 mod budget;
 mod canvas;
@@ -20,6 +17,7 @@ mod input;
 mod normalise;
 mod offscreen;
 mod pacing;
+mod painted;
 mod pictures;
 mod pointer;
 mod preview;
@@ -36,14 +34,14 @@ mod transfer;
 mod ui_pass;
 mod worker;
 
-pub use crate::bench::bench;
 pub use crate::bench_app::{SCENARIOS, STROKES_ADDED, busiest};
-pub use crate::bench_scenes::{drawn, pile_path, style_of};
+
 pub use crate::budget::{ARENA_SHARE, TRIM_UI_HIDDEN};
 pub use crate::error::RuntimeError;
 pub use crate::frame::Runtime;
 pub use crate::input::{Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, ToolKind};
 pub use crate::pacing::Paced;
+pub use crate::painted::{drawn, pile_path, style_of};
 pub use crate::text::{EditKey, TextInput};
 pub use openpaint_app::{
     HostAnswer, HostRequest, ImageFormat, ImageSink, ImageSource, PortError, ScreenProjection,

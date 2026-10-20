@@ -1,19 +1,20 @@
-//! The GPU memory budget (S49, S58, DECISIONS D85): each frame, before the canvas is evaluated,
-//! what its derived caches hold is weighed against the budget (`Core::memory_budget`: a quarter
-//! of the device's memory on a GPU sharing it, as the host says, 2 GiB on one with its own).
-//! Above it, caches go by recency (`to_let_go`), S49's kinds as the units: each view tier, the
-//! snapshots, the arena's blocks no scene shows with its material, the layer pictures, the least
-//! recently used first, never what the frame shows (the canvas, the tier shown, the pictures
-//! while the layer panel is open) or the stroke being drawn uses (the snapshots while a stroke or
-//! a preview is drawn, the arena while a smudge is). A cache grows only within the room what is
-//! needed now leaves it, so a new tier lets older ones go (`view_kept.rs`). Nothing fails, every
-//! drop is logged, no pixel changes: each cache is evaluated again from the artwork.
+//! The GPU memory budget (DECISIONS D85, D93): each frame, before the canvas is drawn, what its
+//! derived caches hold is weighed against the budget (`Core::memory_budget`: a quarter of the
+//! device's memory on a GPU sharing it, as the host says, 2 GiB on one with its own). Above it
+//! the units go by recency (`to_let_go`), the least recently used first: each view tier's atlas
+//! (by when it last showed), the raster core's targets for filling tiles (by when they last
+//! drew), the snapshots under the pen (by the last stroke or preview), the arena's blocks no
+//! scene shows with the smudges' and filters' materials (by the last smudge), the layer pictures
+//! (by the panel's last opening). Never the canvas, the tier shown, the snapshots while a stroke
+//! or a preview is drawn, the arena while a smudge is, the pictures while the panel shows. A cache
+//! grows only within the room what is needed now leaves it, so a new tier lets older ones go
+//! (`view_kept.rs`). Nothing fails, every drop is logged, no pixel changes: each cache is drawn
+//! again from the artwork.
 //!
-//! S51: the smudge residuals the scene shows keep within a share of the budget (`ARENA_SHARE`),
-//! the least recently needed going first, never one the last evaluation needed. Once a minute
-//! while a canvas is open, what holds memory is logged (`budget_note.rs`). S58: `release`, for
-//! Android's `onTrimMemory`, lets the tiers, the snapshots and the arena's blocks no scene shows
-//! go at once.
+//! The smudge residuals keep within a share of the budget (`ARENA_SHARE`), the least recently
+//! needed going first, never one the last frame needed. Once a minute while a canvas is open,
+//! what holds memory is logged (`budget_note.rs`). `release`, for Android's `onTrimMemory`, lets
+//! the tiers, the raster targets, the snapshots and the arena's blocks no scene shows go at once.
 
 use openpaint_render::{CacheBytes, Core};
 
@@ -43,9 +44,9 @@ pub(crate) struct Budget {
 /// The smudge residuals keep within this share of the budget (S51).
 pub const ARENA_SHARE: u64 = 4;
 
-/// What the budget lets go as one: a view tier (by its scale), the raster core's targets for the
-/// canvas and its tiers (S59, S62), the snapshots, the arena's blocks no scene shows with its
-/// material, the layer pictures.
+/// What the budget lets go as one (D93): a view tier's atlas (by its scale), the raster core's
+/// targets for the canvas's and the tiers' tiles, the snapshots, the arena's blocks no scene
+/// shows with the materials, the layer pictures.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Unit {
     Tier(u32),
@@ -221,9 +222,9 @@ impl Runtime {
     }
 
     /// The host's word that the app's memory should shrink (Android's `onTrimMemory` at `level`,
-    /// S58): from `TRIM_UI_HIDDEN` (the app no longer shows) on, the view tiers, the snapshots
-    /// and the arena's blocks no scene shows go at once; they are made again when needed. The
-    /// display cache on disk stays. Logged with what went.
+    /// D93): from `TRIM_UI_HIDDEN` (the app no longer shows) on, the view tiers with the raster
+    /// targets, the snapshots and the arena's blocks no scene shows go at once; they are made
+    /// again when needed. The display cache on disk stays. Logged with what went.
     pub fn release(&mut self, level: i32) {
         if level < TRIM_UI_HIDDEN {
             log::info!("trim memory level {level}: nothing let go");

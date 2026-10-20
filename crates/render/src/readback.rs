@@ -162,9 +162,9 @@ pub(crate) fn read_texel(
 }
 
 /// The 8-bit RGBA a ten-bit display texel (`Rgb10a2Unorm`: red in the low ten bits) stands for.
-/// The evaluator writes each channel as a ten-bit code `j` chosen among those whose nearest
+/// The raster core writes each channel as a ten-bit code `j` chosen among those whose nearest
 /// 8-bit value, `floor(j 255 / 1023 + 1/2)`, is the one it stores in an 8-bit target (S37,
-/// `coded` in `evaluate.wgsl`), so this is that value exactly; never halfway, as `510 j` is even
+/// `coded` in `raster_composite.wgsl`), so this is that value exactly; never halfway, as `510 j` is even
 /// and `1023` odd. Alpha has two bits: display targets are opaque, 3 is 255.
 pub(crate) fn eight_bits(word: u32) -> [u8; 4] {
     let channel = |shift: u32| ((((word >> shift) & 1023) * 510 + 1023) / 2046) as u8;
@@ -267,7 +267,7 @@ pub(crate) fn map_and_wait(gpu: &Gpu, buffer: &wgpu::Buffer) -> Result<(), Rende
 mod tests {
     use super::*;
 
-    /// `coded`'s range of ten-bit codes for the 8-bit value `k` (`evaluate.wgsl`).
+    /// `coded`'s range of ten-bit codes for the 8-bit value `k` (`raster_composite.wgsl`).
     fn codes(k: u32) -> std::ops::RangeInclusive<u32> {
         let low = if k == 0 {
             0

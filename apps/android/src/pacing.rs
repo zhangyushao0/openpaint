@@ -104,7 +104,7 @@ mod tests {
                 longest: "acquire",
                 scenes: 0,
                 scene_ns: 0,
-                evaluated_ns: 0,
+                drawn_ns: 0,
             },
         }
     }

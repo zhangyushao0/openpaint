@@ -1,20 +1,18 @@
-// The raster core (S57's probe, product code since S59; `raster.rs`): a scene's region drawn by
-// the GPU's rasterizer instead of the evaluator's walk, at every pixel, over the ops binned to its
-// tile. A continuous span is flattened as segment.wgsl flattens it at the output's scale and
-// each piece is one quad around its capsule; a stamped span is one quad per stamp, placed,
-// turned, sized and scattered by the same hashes (D72). Each piece's and stamp's coverage or
-// density comes from the evaluator's own functions (segment.wgsl, stamp.wgsl,
-// stamp_texture.wgsl, deposit.wgsl, fill_edge.wgsl and helpers taken from evaluate.wgsl, appended
-// after these files), combined within a stroke by the blend unit (max for coverage and contact,
-// add for density) in the stroke's region of a scratch atlas; then each region is composited onto
-// the layer by the evaluator's paint (`stroke_paint`) and the paint op's blend, fills and patches
-// drawn there as quads, a smudge applied to the layer from a copy of it by its residual
-// (smudge_composite.wgsl, S61), each layer's end composited onto the canvas by its mode, and the
-// canvas rounded as the evaluator rounds (raster_composite.wgsl). S65: a draw inside a transform
-// record's content names its frame (its op's index plus one; 0 on the canvas), whose rows map a
-// pixel's centre where the evaluator's `OP_FRAME` maps it, and whose map back places the quads;
-// adjustments, filters, moves' and merged layers' ends and groups' ends (raster_composite.wgsl).
-// The protocol prelude is prepended.
+// The raster core (`raster.rs`, DECISIONS D93): a scene's region drawn by the GPU's rasterizer.
+// A continuous span is flattened at the output's scale as `curve.rs` flattens it and each piece
+// is one quad around its capsule; a stamped span is one quad per stamp, placed, turned, sized and
+// scattered by the stroke's hashes (D72). Each piece's and stamp's coverage or density
+// (segment.wgsl, stamp.wgsl, stamp_texture.wgsl, deposit.wgsl, appended after these files) is
+// combined within a stroke by the blend unit (max for coverage and contact, add for density) in
+// the stroke's region of a scratch atlas; then each region is composited onto the layer by the
+// stroke's paint (`stroke_paint`, raster_paint.wgsl) and the paint op's blend, fills
+// (fill_edge.wgsl) and patches drawn there as quads, a smudge applied to the layer from a copy of
+// it by its residual (smudge_composite.wgsl), each layer's end composited onto the canvas by its
+// mode, and the canvas rounded into its destination (raster_composite.wgsl). A draw inside a
+// transform record's content names its frame (its op's index plus one; 0 on the canvas), whose
+// rows map a pixel's centre into the content and whose map back places the quads; adjustments,
+// filters, moves' and merged layers' ends and groups' ends rewrite targets from copies
+// (raster_composite.wgsl). The protocol prelude is prepended.
 
 struct Raster {
     // Output pixels per canvas pixel, its inverse, its base-2 log.
@@ -31,8 +29,8 @@ struct Raster {
     atlas: vec2<f32>,
     unused_too: vec2<f32>,
     // S65: where the centres lie on the canvas (a material seen from a transform record; else the
-    // identity), as the evaluator's `Params::base_x` and `base_y`: rows, one over its canvas
-    // pixels per pixel, that one's base-2 log; and the rows mapping canvas points back.
+    // identity): rows, one over its canvas pixels per pixel, that one's base-2 log; and the rows
+    // mapping canvas points back.
     base_x: vec4<f32>,
     base_y: vec4<f32>,
     unbase_x: vec4<f32>,
@@ -40,12 +38,12 @@ struct Raster {
 }
 
 @group(0) @binding(0) var<uniform> raster: Raster;
-// The scene's ops, fill masks, the evaluator's textures (paper, then the shapes') and patches.
+// The scene's ops, fill masks, the textures (paper, then the shapes') and patches.
 @group(0) @binding(1) var<storage, read> ops: array<Op>;
 @group(0) @binding(2) var<storage, read> masks: array<u32>;
 @group(0) @binding(3) var<storage, read> textures: array<u32>;
 @group(0) @binding(4) var<storage, read> patches: array<u32>;
-// The smudge residuals as the evaluator binds them (smudge_composite.wgsl, S61): the finished
+// The smudge residuals (smudge_composite.wgsl, S61): the finished
 // ones' arena, which a smudge's instance names its block in, and the in-progress one's.
 @group(0) @binding(5) var<storage, read> arena: array<u32>;
 @group(0) @binding(6) var<storage, read> active_residual: array<u32>;
@@ -56,7 +54,7 @@ struct Raster {
 @group(1) @binding(1) var second: texture_2d<f32>;
 @group(1) @binding(2) var backdrop: texture_2d<f32>;
 
-// The footprint of an output pixel in canvas pixels, as the evaluator holds it.
+// The footprint of an output pixel in canvas pixels (`footprint`, `foot_of`).
 var<private> foot_scale: f32;
 var<private> foot_inverse: f32;
 var<private> foot_level: f32;
@@ -70,7 +68,7 @@ fn footprint() {
     foot_level = raster.level + raster.base_y.w;
 }
 
-// The footprint in frame `frame` (0: on the canvas), as the evaluator's `OP_FRAME` sets it.
+// The footprint in frame `frame` (0: on the canvas).
 fn foot_of(frame: u32) {
     if frame == 0u {
         footprint();
@@ -83,7 +81,7 @@ fn foot_of(frame: u32) {
     foot_level = raster.level + raster.base_y.w + word(op, FRAME_LEVEL);
 }
 
-// Where frame `frame` (0: none) evaluates the canvas point `centre`: its content's point.
+// Where frame `frame` (0: none) takes the canvas point `centre`: its content's point.
 fn framed(centre: vec2<f32>, frame: u32) -> vec2<f32> {
     if frame == 0u {
         return centre;
@@ -138,7 +136,7 @@ fn in_region(p: vec2<f32>) -> vec4<f32> {
     return vec4<f32>(p.x / raster.size.x * 2.0 - 1.0, 1.0 - p.y / raster.size.y * 2.0, 0.0, 1.0);
 }
 
-// The canvas point the evaluator evaluates a region pixel at: its output pixel's centre, where
+// The canvas point a region pixel is drawn at: its output pixel's centre, where
 // the base puts it.
 fn centre_of(pixel: vec2<i32>) -> vec2<f32> {
     let centre = (vec2<f32>(pixel + raster.origin) + vec2<f32>(0.5)) * raster.inverse;
@@ -148,7 +146,7 @@ fn centre_of(pixel: vec2<i32>) -> vec2<f32> {
     );
 }
 
-// The point a draw in frame `frame` evaluates region pixel `pixel` at, its footprint set.
+// The point a draw in frame `frame` draws region pixel `pixel` at, its footprint set.
 fn point_of(pixel: vec2<i32>, frame: u32) -> vec2<f32> {
     foot_of(frame);
     return framed(centre_of(pixel), frame);

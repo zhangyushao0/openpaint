@@ -12,35 +12,30 @@ use crate::core::Core;
 use crate::error::RenderError;
 use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
-use crate::program::Bindings;
 use crate::smudge::{Held, Wanted};
 use crate::stroke::stroke_region;
 
 impl CanvasTarget {
-    /// What it holds on the GPU now: the canvas itself (its texture, the in-progress stroke's
-    /// textures, the evaluator's lists, the scene's ops), its snapshots and its arena. View tiers
-    /// and pictures are not its own.
+    /// What it holds on the GPU now: the canvas itself (its texture and view, the scene's ops),
+    /// its snapshots and its arena. Its raster targets, view tiers and pictures are not its own.
     #[must_use]
     pub fn bytes(&self) -> CacheBytes {
         let [width, height] = self.size();
         let texture = u64::from(width) * u64::from(height) * 4;
         let scene = self.scene.as_ref().map_or(0, |cache| cache.bytes());
-        let bindings = self.bindings.as_ref().map_or(0, Bindings::bytes);
         CacheBytes {
-            canvas: texture + bindings + self.view.size() + scene,
+            canvas: texture + self.view.size() + scene,
             snapshots: self.drawing.bytes(),
             arena: self.smudges.bytes() + self.filters.bytes(),
             ..CacheBytes::default()
         }
     }
 
-    /// Heap bytes of the scene it keeps between frames (items, mask words) and of the plan it
-    /// keeps (tiles, op lists): what the harness's long session reports (S51).
+    /// Heap bytes of the scene it keeps between frames (items, mask words): what the harness's
+    /// long session reports (S51).
     #[must_use]
-    pub fn heap_bytes(&self) -> [u64; 2] {
-        self.scene
-            .as_ref()
-            .map_or([0; 2], |cache| cache.heap_bytes())
+    pub fn heap_bytes(&self) -> u64 {
+        self.scene.as_ref().map_or(0, |cache| cache.heap_bytes())
     }
 
     /// Its snapshots grow to `room` bytes at most from now on; when they hold more, they are let
@@ -64,7 +59,7 @@ impl CanvasTarget {
             return Ok(0);
         };
         let (smudges, filters) = (&mut self.smudges, &mut self.filters);
-        smudges.shrink(core, (&*cache.scene, &cache.ops), (filters, true))
+        smudges.shrink(core, &cache.scene, (filters, true))
     }
 
     /// Its arena binds at most `bytes` from now on, as on a device whose storage binding limit
@@ -90,7 +85,7 @@ impl CanvasTarget {
         let freed = match self.scene.as_ref().filter(|_| over) {
             Some(cache) => {
                 let (smudges, filters) = (&mut self.smudges, &mut self.filters);
-                smudges.shrink(core, (&*cache.scene, &cache.ops), (filters, false))?
+                smudges.shrink(core, &cache.scene, (filters, false))?
             }
             None => 0,
         };

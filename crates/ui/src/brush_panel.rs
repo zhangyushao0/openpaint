@@ -230,7 +230,7 @@ impl BrushPanel {
 }
 
 /// A preview painted in black on white as `INK` with the paint's strength as alpha, so it sits
-/// on any panel. The evaluator blends on encoded values: a pixel's share of the way from white
+/// on any panel. The renderer blends on encoded values: a pixel's share of the way from white
 /// to black is that strength.
 fn ink(image: &RgbaImage) -> Vec<u8> {
     let (pixels, _) = image.pixels().as_chunks::<4>();

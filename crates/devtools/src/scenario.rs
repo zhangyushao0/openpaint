@@ -149,7 +149,7 @@ pub enum Step {
     /// renderer again.
     LoseDevice,
     /// The canvas pixels (the artwork without the UI) must hash to `canvas`. The canvas, not
-    /// the screen, because only the evaluator's pixels are the same on every GPU backend.
+    /// the screen, because only the artwork's pixels are the same on every GPU backend.
     Checkpoint {
         name: String,
         #[serde(deserialize_with = "hex_hash")]

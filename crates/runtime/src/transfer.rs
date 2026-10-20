@@ -1,7 +1,6 @@
-//! The transfer worker: exports (render in bands, by the raster core or the evaluator as the
-//! artwork routes since S59, encode, write the file the user chose), reference images (read,
-//! decode, scale down) and pictures to insert
-//! (read, decode, fit inside the canvas), off the UI thread. It
+//! The transfer worker: exports (render in bands by the raster core, encode, write the file the
+//! user chose), reference images (read, decode, scale down) and pictures to insert (read,
+//! decode, fit inside the canvas), off the UI thread. It
 //! holds only an `Arc<Core>` and the jobs' own values, never anything the frame loop holds; the
 //! frame loop takes its results into the app's `Transfers`.
 

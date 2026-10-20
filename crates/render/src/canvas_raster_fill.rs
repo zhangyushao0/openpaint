@@ -1,9 +1,9 @@
-//! The screen canvas drawn by the raster core (S62, DECISIONS D89; every scene since S65, D92;
-//! `canvas_raster.rs` holds what waits): its changes drawn at once when small (`draw_now`), else
-//! as the worker's tiles (`canvas_raster_hand.rs`); the stroke being drawn and its lift at once
-//! where they change the canvas (S63, `drawing_frame.rs`).
+//! The screen canvas drawn by the raster core (S62; `canvas_raster.rs` holds what waits): its
+//! changes drawn at once when small (`draw_now`), else as the worker's tiles
+//! (`canvas_raster_hand.rs`); the stroke being drawn and its lift at once where they change the
+//! canvas (S63, `drawing_frame.rs`).
 
-use super::{CanvasTarget, RegionEvaluator};
+use super::CanvasTarget;
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::frame::FrameRequest;
@@ -20,26 +20,22 @@ use crate::view_tiles::TIER_TILE;
 /// A region's plan, the output it lies at, and where it goes in the destination.
 pub(crate) type Planned = (RasterPlan, Output, [u32; 2]);
 
-impl RegionEvaluator<'_> {
-    /// `request` into the canvas (`evaluate`, `evaluate_frame`): the stroke being drawn (or just
-    /// lifted or dropped) drawn at once where it changed, by the raster core from its kept
-    /// coverage over its snapshots (S63, `drawing_frame.rs`), with the regions passed meanwhile
-    /// (its mirrored copies, a smudge started over); with none, the regions passed are drawn or
-    /// wait (`frame`: one of the screen's). Returns the canvas pixels drawn now.
+impl CanvasTarget {
+    /// `request` into the canvas (`draw`, `draw_frame`): the stroke being drawn (or just lifted or
+    /// dropped) drawn at once where it changed, from its kept coverage over its snapshots (S63,
+    /// `drawing_frame.rs`), with the regions passed meanwhile (its mirrored copies, a smudge
+    /// started over); with none, the regions passed are drawn or wait (`frame`: one of the
+    /// screen's). Returns the canvas pixels drawn now.
     pub(super) fn drawn(
         &mut self,
+        core: &Core,
         request: &FrameRequest<'_>,
         regions: &[PixelRect],
         frame: bool,
     ) -> Result<Vec<PixelRect>, RenderError> {
-        let core = self.core;
         let place = ActivePlace::of_request(request.artwork, request.active);
-        let drawn = self
-            .target
-            .scene(core, request.artwork, place)?
-            .scene
-            .has_active();
-        let target = &mut *self.target;
+        let drawn = self.scene(core, request.artwork, place)?.scene.has_active();
+        let target = self;
         let stroke = request.active.is_some() && drawn;
         if target.blank {
             target.show_paper(core, request);
@@ -69,9 +65,7 @@ impl RegionEvaluator<'_> {
         }
         Ok(changed)
     }
-}
 
-impl CanvasTarget {
     /// One frame of the screen with no stroke drawn: the worker's tiles applied, the changes
     /// drawn at once when they fit what is left of the frame, else waiting; the waiting tiles
     /// handed to the worker; residuals warm while nothing waits (S54). Returns the canvas pixels
@@ -192,10 +186,10 @@ impl CanvasTarget {
         Ok((self.raster.targets.as_ref()).map_or([0; 2], RasterTargets::atlas))
     }
 
-    /// Draws `plans` of the scene the last evaluation drew (S62: the canvas's own regions, or its
-    /// view tiers' changes, S59), its residuals as `held` holds them, with the frame loop's
+    /// Draws `plans` of the scene the last draw drew (S62: the canvas's own regions, or its view
+    /// tiers' changes, S59), its residuals as `held` holds them, with the frame loop's
     /// raster targets, into `into` (its format) on `paper`; each waited for when the target's
-    /// dispatches are a worker's (`pace_dispatches`).
+    /// draws are a worker's (`pace_draws`).
     ///
     /// # Errors
     /// `Invalid` without a scene; as the raster core.
@@ -218,12 +212,12 @@ impl CanvasTarget {
                 at: *at,
                 only: &[],
             };
-            targets.draw(core, (&buffers, plan), (*output, paper), &finish, None)?;
+            targets.draw(core, (&buffers, plan), (*output, paper), &finish)?;
             if self.paced {
                 wait(&core.gpu, "a worker's raster region")?;
             }
         }
-        core.evaluate.tally.rastered(plans.len());
+        core.tally.rastered(plans.len());
         self.raster.drew = true;
         Ok(())
     }

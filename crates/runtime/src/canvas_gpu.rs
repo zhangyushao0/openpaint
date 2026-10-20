@@ -9,7 +9,7 @@ use openpaint_app::{Session, Thumbnail};
 use openpaint_core::StrokeTool;
 use openpaint_render::{
     CacheBytes, CanvasTarget, Core, Focus, FrameRequest, PixelRect, RasterAnswer, RasterOrder,
-    RegionEvaluator, RenderError, ViewCache, ViewFrame, changed_regions,
+    RenderError, ViewCache, ViewFrame, changed_regions,
 };
 
 use super::{Canvas, PAPER, THUMBNAIL_MAX};
@@ -33,9 +33,9 @@ pub(crate) type Freed = [u64; 4];
 impl Canvas {
     /// Brings the target up to date with what the session shows (the current version, or a
     /// fill's preview over it), within one frame's work: what does not fit waits for the next
-    /// frames (S49). Committing the stroke being drawn is followed by the evaluator itself
-    /// (D82); any other change passes the pixels that differ between the version shown before it
-    /// and the one shown now; the first evaluation covers the whole canvas.
+    /// frames (S49). Committing the stroke being drawn is followed by the target itself (S63);
+    /// any other change passes the pixels that differ between the version shown before it and
+    /// the one shown now; the first draw covers the whole canvas.
     pub(crate) fn evaluate(&mut self, core: &Core) -> Result<(), RuntimeError> {
         self.evaluated_now(core, true)
     }
@@ -63,11 +63,10 @@ impl Canvas {
             regions.extend(changed_regions(&before, self.session.shown()));
         }
         let request = request(&self.session);
-        let mut evaluator = RegionEvaluator::new(core, &mut self.target);
         if frame {
-            evaluator.evaluate_frame(&request, &regions)?;
+            self.target.draw_frame(core, &request, &regions)?;
         } else {
-            evaluator.evaluate(&request, &regions)?;
+            self.target.draw(core, &request, &regions)?;
         }
         self.target.show_selection(core, self.session.selection());
         self.evaluated = true;
@@ -98,7 +97,7 @@ impl Canvas {
     }
 
     /// Counts a frame of the canvas filling in after it opened, and logs the time, the frames
-    /// and the dispatches it took once it is full.
+    /// and the raster regions it took once it is full.
     fn filled(&mut self, core: &Core) {
         let Some(opening) = self.opened.as_mut() else {
             return;
@@ -108,10 +107,10 @@ impl Canvas {
             return;
         }
         log::info!(
-            "canvas complete {} ms after it opened, over {} frames and {} dispatches",
+            "canvas complete {} ms after it opened, over {} frames and {} raster regions",
             opening.at.elapsed().as_millis(),
             opening.frames,
-            core.dispatches() - opening.dispatches
+            core.counts().rastered - opening.rastered
         );
         self.opened = None;
     }
@@ -277,12 +276,12 @@ impl Canvas {
     }
 }
 
-/// A canvas opening (or made again on a new device) until the whole of it was evaluated: when,
-/// how many frames so far, and the device's dispatches then (S49's log).
+/// A canvas opening (or made again on a new device) until the whole of it was drawn: when, how
+/// many frames so far, and the device's raster regions then (S49's log).
 pub(crate) struct Opening {
     at: Instant,
     frames: u32,
-    dispatches: u64,
+    rastered: u64,
 }
 
 impl Opening {
@@ -290,7 +289,7 @@ impl Opening {
         Self {
             at: Instant::now(),
             frames: 0,
-            dispatches: core.dispatches(),
+            rastered: core.counts().rastered,
         }
     }
 }

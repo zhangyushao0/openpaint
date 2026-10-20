@@ -3,26 +3,33 @@
 
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 
+use wgpu::util::DeviceExt;
+
 use crate::error::RenderError;
 use crate::filter::{FILTER_SHADER, FilterPipeline};
 use crate::gpu::Gpu;
 use crate::gpu_frames::GpuFrames;
 use crate::image::RgbaImage;
 use crate::pace::{Background, Pace};
-use crate::program::EvaluatePipeline;
+use crate::paper::paper_levels;
+use crate::protocol::encode;
 use crate::raster_gpu::{RasterPipelines, raster_source};
 use crate::readback::{offscreen_texture, read_rgba, wait};
 use crate::screen::{blit_layout, blit_sampler};
+use crate::shapes::shapes;
 use crate::smudge::{SMUDGE_SHADER, SmudgePipeline};
-use crate::tally::Counts;
+use crate::tally::{Counts, Tally};
 use crate::thumbnail::ThumbnailPipeline;
 use crate::underlay::UnderlayPipeline;
 use crate::view_shown::TierBindings;
 
 pub struct Core {
     pub(crate) gpu: Gpu,
-    /// The evaluator's compute pipeline: reference images only since S65 (`evaluator.rs`).
-    pub(crate) evaluate: EvaluatePipeline,
+    /// The paper's mip chain (`paper.rs`), then the shape textures' (`shapes.rs`), uploaded once
+    /// and bound by every raster draw.
+    pub(crate) textures: wgpu::Buffer,
+    /// What drawing on this device did, counted (S53).
+    pub(crate) tally: Tally,
     /// How a canvas target binds for showing on screen, the same for every frame format.
     pub(crate) blit_layout: wgpu::BindGroupLayout,
     /// How the screen samples a canvas target: bilinear.
@@ -73,7 +80,13 @@ impl Core {
     }
 
     fn with_gpu(gpu: Gpu) -> Result<Self, RenderError> {
-        let evaluate = EvaluatePipeline::new(&gpu.device);
+        let textures = gpu
+            .device
+            .create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("textures"),
+                contents: &encode(&[paper_levels(), shapes()].concat()),
+                usage: wgpu::BufferUsages::STORAGE,
+            });
         let blit_layout = blit_layout(&gpu.device);
         let blit_sampler = blit_sampler(&gpu.device);
         let thumbnail = ThumbnailPipeline::new(&gpu.device);
@@ -89,7 +102,8 @@ impl Core {
             identity: identity(gpu.display),
             frames: GpuFrames::default(),
             gpu,
-            evaluate,
+            textures,
+            tally: Tally::default(),
             blit_layout,
             blit_sampler,
             thumbnail,
@@ -105,9 +119,8 @@ impl Core {
     }
 
     /// The renderer's identity (S54): a hash of the build's version (a patch per slice), the
-    /// display format and the raster core's (S62: it draws the canvas), the smudge kernels' and
-    /// the filters' WGSL, so a build whose pixels may differ never takes a display cache another
-    /// wrote as complete.
+    /// display format and the WGSL of the raster core, the smudge kernels and the filters, so a
+    /// build whose pixels may differ never takes a display cache another wrote as complete.
     #[must_use]
     pub const fn renderer_identity(&self) -> u64 {
         self.identity
@@ -167,23 +180,10 @@ impl Core {
         reported
     }
 
-    /// Sets the most work one evaluation dispatch takes (`bounded.rs`: op entries listed in its
-    /// tiles, one more a tile; 12,000 at first, about 100 ms on the tablet), so tests can compare
-    /// a bounded evaluation with one dispatch.
-    pub fn set_dispatch_work(&self, entries: u64) {
-        self.evaluate.bound_to(entries);
-    }
-
-    /// Evaluation dispatches submitted on this device so far (S49).
-    #[must_use]
-    pub fn dispatches(&self) -> u64 {
-        self.evaluate.runs()
-    }
-
-    /// What evaluations on this device did so far, counted (S53).
+    /// What drawing on this device did so far, counted (S53).
     #[must_use]
     pub fn counts(&self) -> Counts {
-        self.evaluate.tally.counts(self.dispatches())
+        self.tally.counts()
     }
 
     /// A frame of the screen begins (S53): the background work's budget is whole again, and the
@@ -256,11 +256,12 @@ impl Core {
     }
 }
 
-/// FNV-1a over the build's version, the display format and the shaders the canvas's pixels come
-/// from (S54, S62; S65: the raster core's alone, the evaluator draws none): stable from run to
-/// run of one build, unlike `std`'s hashers, which may change between releases.
+/// FNV-1a over the build's version, the display format and every shader the canvas's pixels come
+/// from: the raster core's (its stages and what they read, `raster_source`), the smudge kernels'
+/// and the filters'. Stable from run to run of one build, unlike `std`'s hashers, which may
+/// change between releases.
 fn identity(display: wgpu::TextureFormat) -> u64 {
-    let raster = raster_source().unwrap_or_else(|error| error.to_string());
+    let raster = raster_source();
     let format = format!("{display:?}");
     let sources = [
         env!("CARGO_PKG_VERSION"),

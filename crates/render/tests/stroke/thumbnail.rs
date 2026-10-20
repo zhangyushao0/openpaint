@@ -3,9 +3,7 @@
 //! an uneven scale.
 
 use openpaint_core::{ArtworkCommand, MaskCommand};
-use openpaint_render::{
-    CanvasTarget, PixelRect, RegionEvaluator, thumbnail_reference, thumbnail_size,
-};
+use openpaint_render::{CanvasTarget, PixelRect, thumbnail_reference, thumbnail_size};
 
 use crate::fixture::{SIZE, blank, core, diagonal, pixel, request, wave, with_layer, with_stroke};
 
@@ -14,8 +12,8 @@ fn the_thumbnail_is_the_box_mean_of_the_canvas() {
     let core = core();
     let artwork = with_stroke(&with_layer(&with_stroke(&blank(), wave()), 0.6), diagonal());
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(&artwork), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(&artwork), &[PixelRect::full(SIZE)])
         .expect("evaluate");
     let canvas = target.read(&core).expect("readback");
     for max in [[80, 80], [97, 61], [448, 336]] {

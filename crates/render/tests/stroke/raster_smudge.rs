@@ -1,10 +1,10 @@
 //! Smudges on the raster core (S61, DECISIONS D88): an artwork holding smudges of every kind
 //! (across hard bands, over a fill, over an inserted picture, nine crossing over one place, inside
 //! a lasso, under Alpha Lock, on a grey mask) is drawn by the raster core with the smudge engine's
-//! residuals: its export within one 8-bit level of the evaluator's image away from edges at 1x to
-//! 8x, the same every time and in bands as in one piece; its view tiers its export bit for bit,
-//! after changes as drawn cold, after a smudge drawn at a tier (S63: the raster core's while drawn), and
-//! when the canvas's arena moved before the worker drew the tiles handed to it.
+//! residuals: one picture at 1x to 8x (each scale reduced comes back to the canvas), the same every
+//! time and in bands as in one piece; its view tiers its export bit for bit, after changes as
+//! drawn cold, after a smudge drawn at a tier, and when the canvas's arena moved before the worker
+//! drew the tiles handed to it.
 
 use openpaint_core::{
     Artwork, ArtworkCommand, Color, LayerCommand, LayerId, MaskCommand, Placement, StrokeSample,
@@ -12,8 +12,8 @@ use openpaint_core::{
 };
 use openpaint_render::Banding;
 
-use crate::fixture::{SIZE, airbrush, blank, core, plain, sample, with_layer, with_stroke};
-use crate::raster::{assert_near, color, evaluated, layer, picture, region};
+use crate::fixture::{airbrush, blank, core, plain, sample, with_layer, with_stroke};
+use crate::raster::{assert_scales_agree, color, layer, picture, region};
 use crate::scale::{export, whole};
 use crate::tiers::{Screen, changes_reach_their_tiles, frame, tiles_are_the_export};
 
@@ -119,21 +119,21 @@ fn on_the_first_layer() -> Artwork {
 }
 
 #[test]
-fn every_smudge_exports_on_the_raster_core_within_a_level_of_the_evaluator_away_from_edges() {
+fn every_smudge_at_every_scale_comes_back_to_its_canvas() {
     let core = core();
     let artwork = every_smudge();
-    let drawn = core.time_raster(&artwork, (1, [0, 0]), SIZE, (1, 1024));
-    let drawn = drawn.expect("the raster core draws every smudge");
-    assert!(drawn.repeatable, "it draws alike every time");
-    assert_eq!(drawn.counts.smudges, SMUDGES, "{:?}", drawn.counts);
-    for scale in [1, 2, 4, 8] {
-        let rastered = whole(&core, &artwork, scale);
-        assert_near(
-            &evaluated(&core, &artwork, scale),
-            &rastered,
-            &format!("{scale}x"),
-        );
-    }
+    let smudges = artwork.layers().iter().flat_map(|layer| {
+        let mask = layer
+            .mask()
+            .into_iter()
+            .flat_map(|mask| mask.strokes().iter());
+        layer.strokes().iter().chain(mask)
+    });
+    let count = smudges
+        .filter(|stroke| stroke.style().tool() == StrokeTool::Smudge)
+        .count();
+    assert_eq!(count, SMUDGES);
+    assert_scales_agree(&core, &artwork, "every smudge");
 }
 
 #[test]

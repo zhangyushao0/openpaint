@@ -1,9 +1,8 @@
 //! Opening a dense artwork (S49) through the whole frame loop: 300 strokes crossing one place, so
-//! the whole canvas's work passes what one frame takes (here with a small dispatch bound, as the
-//! tablet's slower GPU gives it at the real one). The canvas fills in over frames in bounded
-//! dispatches, the screen keeps answering (a tap opens the layer panel while it fills), and the
-//! canvas ends equal to a cold evaluation. A test binary of its own: it sets its device's
-//! dispatch bound.
+//! the whole canvas's work passes what one frame takes (here with a small frame budget, as the
+//! tablet's slower GPU gives it at the real one). The canvas fills in over frames, the screen
+//! keeps answering (a tap opens the layer panel while it fills), and the canvas ends equal to it
+//! drawn cold. A test binary of its own: it sets its device's frame budget.
 
 mod gpu;
 mod hand;
@@ -19,7 +18,6 @@ use openpaint_app::{
 use openpaint_core::{
     Artwork, BrushRecipe, CanvasPoint, CanvasSize, Color, StrokeSample, StrokeStyle,
 };
-use openpaint_render::DISPATCH_WORK;
 use openpaint_runtime::Runtime;
 
 const SIZE: [u32; 2] = [1600, 1400];
@@ -140,7 +138,7 @@ fn dense() -> Artwork {
 #[test]
 fn a_dense_artwork_fills_in_over_frames_while_taps_work_and_ends_exact() {
     let core = gpu::core();
-    core.set_dispatch_work(500);
+    core.set_frame_budget(10_000.0);
     let mut runtime = Runtime::start_on(
         Arc::clone(&core),
         PIXELS_PER_POINT,
@@ -170,7 +168,6 @@ fn a_dense_artwork_fills_in_over_frames_while_taps_work_and_ends_exact() {
         filling += 1;
         assert!(filling < 10_000, "the canvas never filled in");
     }
-    core.set_dispatch_work(DISPATCH_WORK);
     eprintln!("the dense artwork filled in over {filling} frames");
     assert!(filling > 4, "{filling} frames");
     assert_cold(&core, &mut runtime, "the canvas filled in");

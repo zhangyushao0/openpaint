@@ -159,7 +159,7 @@ fn pencil() -> Result<Arc<BrushRecipe>, CoreError> {
 }
 
 /// The segments the strokes had between samples before S34, their curve spans, and the straight
-/// pieces the evaluator flattens the spans into at 1x, 2x, 4x and 8x.
+/// pieces the raster core flattens the spans into at 1x, 2x, 4x and 8x.
 pub fn pieces<'a>(strokes: impl Iterator<Item = &'a Stroke>) {
     let (mut segments, mut spans, mut pieces) = (0usize, 0usize, [0usize; 4]);
     for stroke in strokes {

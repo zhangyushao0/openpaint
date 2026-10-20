@@ -43,7 +43,7 @@ impl CanvasTarget {
         };
         cache.ops = cache.ops.inserted(&core.gpu, scene, inserted);
         crate::profile::scene_built(started.elapsed());
-        core.evaluate.tally.appended();
+        core.tally.appended();
         let (smudges, filters) = (&mut self.smudges, &mut self.filters);
         let scene = (&*cache.scene, &cache.ops);
         smudges.prepare(core, scene, artwork, (filters, &Wanted::Near(&[])))?;

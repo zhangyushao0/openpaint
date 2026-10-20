@@ -8,7 +8,7 @@ use openpaint_core::{
     Artwork, ArtworkCommand, BlendMode, CanvasSize, Color, GroupCommand, GroupId, LayerCommand,
     LayerId, RegionMask,
 };
-use openpaint_render::{CanvasTarget, FrameRequest, PixelRect, RegionEvaluator, changed_regions};
+use openpaint_render::{CanvasTarget, FrameRequest, PixelRect, changed_regions};
 
 use crate::fixture::{
     SIZE, blank, cold, core, diagonal, pixel, request, wave, with_layer, with_stroke,
@@ -158,15 +158,15 @@ fn group_clipping_and_blend_edits_through_changed_regions_equal_cold() {
     let versions = edits();
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
     let mut shown = versions[0].clone();
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(&shown), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(&shown), &[PixelRect::full(SIZE)])
         .expect("evaluate");
     let order = (1..versions.len()).chain((0..versions.len() - 1).rev());
     for index in order {
         let next = &versions[index];
         let regions = changed_regions(&shown, next);
-        RegionEvaluator::new(&core, &mut target)
-            .evaluate(&request(next), &regions)
+        target
+            .draw(&core, &request(next), &regions)
             .expect("evaluate");
         let image = target.read(&core).expect("readback");
         assert!(image == cold(&core, next), "version {index}");
@@ -183,8 +183,8 @@ fn drawing_on_a_clipping_layer_in_a_faded_group_equals_cold_every_frame() {
     };
     let artwork = apply(&faded(&grouped(), 0.6), ArtworkCommand::Layer(clip));
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(&artwork), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(&artwork), &[PixelRect::full(SIZE)])
         .expect("evaluate");
     let (style, samples) = wave();
     let mut session = artwork.begin_stroke(style, samples[0]).expect("begin");
@@ -194,12 +194,10 @@ fn drawing_on_a_clipping_layer_in_a_faded_group_equals_cold_every_frame() {
             active: Some(session.active()),
             ..request(&artwork)
         };
-        RegionEvaluator::new(&core, &mut target)
-            .evaluate(&frame, &[])
-            .expect("evaluate");
+        target.draw(&core, &frame, &[]).expect("evaluate");
         let mut fresh = CanvasTarget::new(&core, SIZE).expect("target");
-        RegionEvaluator::new(&core, &mut fresh)
-            .evaluate(&frame, &[PixelRect::full(SIZE)])
+        fresh
+            .draw(&core, &frame, &[PixelRect::full(SIZE)])
             .expect("evaluate");
         let shown = target.read(&core).expect("readback");
         assert!(
@@ -208,8 +206,8 @@ fn drawing_on_a_clipping_layer_in_a_faded_group_equals_cold_every_frame() {
         );
     }
     let finished = session.finish().artwork;
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(&finished), &[])
+    target
+        .draw(&core, &request(&finished), &[])
         .expect("evaluate");
     assert!(target.read(&core).expect("readback") == cold(&core, &finished));
 }

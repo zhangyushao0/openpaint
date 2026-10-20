@@ -1,11 +1,11 @@
-//! Which smudge residuals an evaluation needs in the arena (S51), and which tiles of each: those
-//! reaching the pixels it evaluates, near them; and, for a residual that must be evaluated
-//! anew, the earlier residuals' tiles its material reads (its own tiles). Filter results are
-//! always needed (their material reads their whole layer); a filter evaluated anew needs every
-//! residual before it whole, and under a transform record a residual's tiles lie in its
-//! content's pixels, so it is needed whole too.
+//! Which smudge residuals a draw needs in the arena (S51), and which tiles of each: those
+//! reaching the pixels it draws, near them; and, for a residual that must be derived anew, the
+//! earlier residuals' tiles its material reads (its own tiles). Filter results are always needed
+//! (their material reads their whole layer); a filter made anew needs every residual before it
+//! whole, and under a transform record a residual's tiles lie in its content's pixels, so it is
+//! needed whole too.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
 use openpaint_core::Stroke;
@@ -13,7 +13,6 @@ use openpaint_core::Stroke;
 use super::{Arena, Key, TileSet};
 use super::{dabs, key, read_tiles};
 use crate::geom::PixelRect;
-use crate::protocol::{TILE, TileRecord};
 use crate::scene::{Scene, SmudgeItem};
 
 /// The residual tiles each smudge's contacts read, kept per stroke (S53): walking a stroke's
@@ -83,9 +82,10 @@ impl Need {
     }
 }
 
-/// Canvas pixels around what is evaluated whose residual tiles are held too: a plan's 16-pixel
-/// tiles and a bilinear read at an output scale above 1 reach this far.
-const NEAR: i32 = TILE as i32 + 1;
+/// Canvas pixels around what is drawn whose residual tiles are held too: a margin beyond the
+/// bilinear read's pixel (`around_output`), so what the next tiles of a view or a stroke nearby
+/// read is at hand.
+const NEAR: i32 = 17;
 
 /// `rect` widened by `by` pixels each way.
 fn widened(rect: &PixelRect, by: i32) -> PixelRect {
@@ -105,41 +105,6 @@ fn near(item: &SmudgeItem, near: &PixelRect, size: [u32; 2]) -> Need {
         return Need::All;
     }
     Need::Part(TileSet::of(&met, size))
-}
-
-/// The canvas pixels the plan tiles `tiles` of an output at `scale` evaluate (16 output pixels a
-/// side, widened by a canvas pixel), one rectangle per run of neighbouring tiles in a row. A tile
-/// listing no op (the paper a new target shows where its tiles wait, S53) reads no residual.
-pub(crate) fn reached(tiles: &[TileRecord], scale: u32) -> Vec<PixelRect> {
-    let scale = i32::try_from(scale.max(1)).unwrap_or(1);
-    let side = TILE as i32;
-    let mut rows: BTreeMap<i32, Vec<i32>> = BTreeMap::new();
-    for tile in tiles.iter().filter(|tile| tile.count > 0) {
-        let [x, y] = tile
-            .output
-            .map(|value| i32::try_from(value).unwrap_or(i32::MAX));
-        rows.entry(y).or_default().push(x);
-    }
-    let canvas = |value: i32| value.div_euclid(scale);
-    let mut rects = Vec::new();
-    for (y, mut xs) in rows {
-        xs.sort_unstable();
-        let mut runs: Vec<[i32; 2]> = Vec::new();
-        for x in xs {
-            match runs.last_mut() {
-                Some(run) if x <= run[1].saturating_add(side) => run[1] = x,
-                _ => runs.push([x, x]),
-            }
-        }
-        rects.extend(runs.into_iter().map(|[left, right]| PixelRect {
-            min: [canvas(left) - 1, canvas(y) - 1],
-            max: [
-                canvas(right.saturating_add(side)) + 2,
-                canvas(y.saturating_add(side)) + 2,
-            ],
-        }));
-    }
-    rects
 }
 
 /// The canvas pixels a raster region of an output at `scale` reads (its output pixels `rect`):

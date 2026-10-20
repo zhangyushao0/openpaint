@@ -5,7 +5,7 @@
 use openpaint_core::{
     Artwork, ArtworkCommand, Color, LayerCommand, StrokeSample, StrokeStyle, StrokeTool,
 };
-use openpaint_render::{CanvasTarget, FrameRequest, PixelRect, RegionEvaluator, changed_regions};
+use openpaint_render::{CanvasTarget, FrameRequest, PixelRect, changed_regions};
 
 use crate::fixture::{
     SIZE, blank, cold, core, diagonal_with, pixel, plain, request, rich, sample, wave, with_stroke,
@@ -152,9 +152,8 @@ fn alpha_lock_paints_only_over_the_layers_paint() {
 fn incremental_equals_cold(artwork: &Artwork, (style, samples): (StrokeStyle, Vec<StrokeSample>)) {
     let core = core();
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-    let mut evaluator = RegionEvaluator::new(&core, &mut target);
-    evaluator
-        .evaluate(&request(artwork), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(artwork), &[PixelRect::full(SIZE)])
         .expect("evaluate");
     let mut session = artwork.begin_stroke(style, samples[0]).expect("begin");
     for chunk in samples[1..].chunks(3) {
@@ -163,15 +162,19 @@ fn incremental_equals_cold(artwork: &Artwork, (style, samples): (StrokeStyle, Ve
             active: Some(session.active()),
             ..request(artwork)
         };
-        evaluator.evaluate(&frame, &[]).expect("evaluate");
+        target.draw(&core, &frame, &[]).expect("evaluate");
     }
     let finished = session.finish().artwork;
-    evaluator
-        .evaluate(&request(&finished), &[])
+    target
+        .draw(&core, &request(&finished), &[])
         .expect("evaluate");
     assert!(target.read(&core).expect("readback") == cold(&core, &finished));
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(artwork), &changed_regions(&finished, artwork))
+    target
+        .draw(
+            &core,
+            &request(artwork),
+            &changed_regions(&finished, artwork),
+        )
         .expect("evaluate");
     assert!(target.read(&core).expect("readback") == cold(&core, artwork));
 }
@@ -207,8 +210,8 @@ fn a_picked_colour_is_the_pixel_the_readback_gives() {
     let core = core();
     let artwork = with_stroke(&with_stroke(&blank(), wave()), red_line());
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(&artwork), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(&artwork), &[PixelRect::full(SIZE)])
         .expect("evaluate");
     let image = target.read(&core).expect("readback");
     for at in [[0, 0], CROSSING, ON_RED, [160, 117], [33, 101], [319, 199]] {

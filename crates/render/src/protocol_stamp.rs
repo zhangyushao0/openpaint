@@ -42,7 +42,7 @@ pub(crate) const ROTATE_AZIMUTH: u32 = 2;
 /// Most straight chords a span's stamps are laid along (`stamp.wgsl`).
 pub(super) const STAMP_CHORDS: u32 = 8;
 
-pub(super) const STAMP_CODES: [(&str, u32); 10] = [
+pub(super) const STAMP_CODES: [(&str, u32); 9] = [
     ("STAMP_DISC", STAMP_DISC),
     ("STAMP_SQUARE", STAMP_SQUARE),
     ("STAMP_ELLIPSE", STAMP_ELLIPSE),
@@ -52,7 +52,6 @@ pub(super) const STAMP_CODES: [(&str, u32); 10] = [
     ("ROTATE_DIRECTION", ROTATE_DIRECTION),
     ("ROTATE_AZIMUTH", ROTATE_AZIMUTH),
     ("STAMP_CHORDS", STAMP_CHORDS),
-    ("MAX_STAMPS", openpaint_core::MAX_STAMPS),
 ];
 
 /// Which stamps of its stroke a span holds, as `STAMP_ARC`, `STAMP_FIRST` and `STAMP_LAST`.

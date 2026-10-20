@@ -11,12 +11,9 @@ use openpaint_core::{
     Artwork, BrushRecipe, CanvasPoint, Color, Rotation, Shape, ShapeTexture, Stamp, StrokeSample,
     StrokeStyle,
 };
-use openpaint_render::{
-    Banding, CanvasTarget, PixelRect, RegionEvaluator, RgbaImage, changed_regions,
-};
+use openpaint_render::{Banding, CanvasTarget, PixelRect, RgbaImage, changed_regions};
 
-use crate::fixture::{SIZE, blank, cold, core, evaluated_cold, request, sample, with_stroke};
-use crate::raster::assert_near;
+use crate::fixture::{SIZE, blank, cold, core, request, sample, with_stroke};
 use crate::scale::{export, whole};
 use crate::stamps::{brushes, stamped};
 use crate::taper_tilt::drawn_with_a_blunt_end;
@@ -165,10 +162,9 @@ fn every_stamped_brush_exports_in_bands_as_in_one_piece() {
     let core = core();
     for (name, recipe, size) in brushes() {
         let artwork = with_stroke(&blank(), (style(recipe, size), curve()));
-        // S62: the 1x export is the canvas; both within a level of the evaluator (D86's rule).
+        // S62: the 1x export is the canvas.
         let exported = export(&core, &artwork, 1, Banding::DEFAULT);
         assert!(exported == cold(&core, &artwork), "{name}: the canvas");
-        assert_near(&evaluated_cold(&core, &artwork), &exported, name);
         for scale in [2, 4] {
             let banding = Banding {
                 rows: 37 * scale,
@@ -199,8 +195,8 @@ fn committing_and_undoing_stamped_strokes_through_the_changed_regions_is_cold() 
     let core = core();
     let base = blank();
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(&base), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(&base), &[PixelRect::full(SIZE)])
         .expect("evaluate");
     let mut shown: Artwork = base.clone();
     let mut versions = Vec::new();
@@ -214,8 +210,8 @@ fn committing_and_undoing_stamped_strokes_through_the_changed_regions_is_cold() 
     versions.push(base);
     for next in versions {
         let changed = changed_regions(&shown, &next);
-        RegionEvaluator::new(&core, &mut target)
-            .evaluate(&request(&next), &changed)
+        target
+            .draw(&core, &request(&next), &changed)
             .expect("evaluate");
         assert!(target.read(&core).expect("read") == cold(&core, &next));
         shown = next;

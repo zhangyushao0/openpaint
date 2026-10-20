@@ -297,7 +297,7 @@ pub(super) fn values(
             .chain(&[0.0, 0.0])
             .flat_map(|v| v.to_le_bytes()),
     );
-    // As the evaluator's `Params::base_x` and `base_y` (`program_dispatch.rs`), and the map back.
+    // The base's rows, footprint and level (raster.wgsl's `base_x`, `base_y`), and the map back.
     let [a, b, c, d, e, f] = base.rows();
     let (foot, level) = if base.is_identity() {
         (1.0, 0.0)

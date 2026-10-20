@@ -13,20 +13,17 @@ pub(super) const LAYER_MODE: usize = 2;
 const LAYER_GROUPED: usize = 3;
 /// How a layer's mask applies: one of `MASKINGS`, a whole number.
 pub(super) const LAYER_MASK: usize = 4;
-/// A nested record's end (S39): 1 where its start set the layer so far aside.
-const NESTED_ASIDE: usize = 5;
-pub(super) const LAYER_SLOTS: [(&str, usize); 5] = [
+pub(super) const LAYER_SLOTS: [(&str, usize); 4] = [
     ("LAYER_INTO", LAYER_INTO),
     ("LAYER_MODE", LAYER_MODE),
     ("LAYER_GROUPED", LAYER_GROUPED),
     ("LAYER_MASK", LAYER_MASK),
-    ("NESTED_ASIDE", NESTED_ASIDE),
 ];
 
 /// How an `EndLayer` applies the layer's mask (S24), declared to WGSL as constants by
-/// `prelude`. With a mask the layer's paint waits in `held` from its `BeginMask` on, the mask's
-/// strokes and fills paint over transparent in `layer`, read as grey over white
-/// (`m = r + 1 - a`), and the end shows `held x m` (or `x (1 - m)`).
+/// `prelude`. With a mask the layer's paint is set aside from its `BeginMask` on, the mask's
+/// strokes and fills paint over transparent on a target of their own, read as grey over white
+/// (`m = r + 1 - a`), and the end shows the paint times `m` (or `1 - m`).
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Masking {
@@ -121,12 +118,10 @@ impl Op {
     }
 
     /// The end of a merged layer's content (S39): through `masking`, at `opacity`, by `mode`
-    /// atop (`clipped`) or over what its layer held before it, which its start set `aside`
-    /// (elsewhere the layer held nothing there).
+    /// atop (`clipped`) or over what its layer held before it.
     pub(crate) fn end_nested(
         (opacity, mode): (f32, Mode),
         (clipped, masking): (bool, Masking),
-        aside: bool,
     ) -> Self {
         let into = if clipped {
             LayerInto::Clipped
@@ -138,7 +133,6 @@ impl Op {
         data[LAYER_INTO] = into as u32 as f32;
         data[LAYER_MODE] = mode as u32 as f32;
         data[LAYER_MASK] = masking as u32 as f32;
-        data[NESTED_ASIDE] = f32::from(u8::from(aside));
         Self::new(Opcode::EndNested, &data)
     }
 

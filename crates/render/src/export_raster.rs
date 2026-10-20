@@ -16,11 +16,11 @@ use crate::filter::Filters;
 use crate::geom::PixelRect;
 use crate::image::RgbaImage;
 use crate::output::Output;
-use crate::program::{SceneOps, scene_ops};
 use crate::raster::{ATLAS, Finish, RasterTargets, SceneBuffers};
 use crate::raster_plan::RasterPlan;
 use crate::readback::{FORMAT, read_rect, target_texture, wait};
 use crate::scene::Scene;
+use crate::scene_ops::{SceneOps, scene_ops};
 use crate::smudge::{Smudges, Wanted, around_output};
 
 /// The largest region drawn at once: 8 MB a float target.
@@ -108,8 +108,8 @@ impl RasterExport {
                 let units = (&self.scene, buffers.bases());
                 let plan = RasterPlan::build(units, (output, size), self.targets.atlas())?;
                 let drawn = (&buffers, &plan);
-                (self.targets).draw(core, drawn, (output, background), &finish, None)?;
-                core.evaluate.tally.rastered(1);
+                (self.targets).draw(core, drawn, (output, background), &finish)?;
+                core.tally.rastered(1);
                 if paced {
                     wait(&core.gpu, "a worker's raster region")?;
                 }

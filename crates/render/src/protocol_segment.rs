@@ -1,5 +1,5 @@
 //! A stroke's curve spans on the GPU (S34): the `Segment` op's layout, its tips, and the
-//! flattening constants the evaluator shares with `curve.rs`.
+//! flattening constants the shaders share with `curve.rs`.
 
 use super::{OP_DATA, Op, Opcode, SpanStamps};
 use crate::curve::{MAX_PIECES, TOLERANCE};

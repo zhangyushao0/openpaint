@@ -15,7 +15,7 @@ const FRAME_CANVAS: usize = 8;
 const MOVE_MASK: usize = 0;
 const MOVE_ASIDE: usize = 2;
 const MOVE_CANVAS: usize = 3;
-/// How many moved selections a pixel can set aside at once (the evaluator's stack).
+/// How many levels of moved content the raster core sets aside at once (`Scratch::Level`).
 pub(crate) const MOVE_DEPTH: u32 = 16;
 
 pub(super) const MOVE_SLOTS: [(&str, usize); 6] = [

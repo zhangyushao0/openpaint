@@ -11,7 +11,7 @@ use openpaint_core::{
     Artwork, BrushRecipe, CanvasPoint, CanvasSize, Color, Rotation, Shape, ShapeTexture, Stamp,
     StrokeSample, StrokeStyle,
 };
-use openpaint_render::{Banding, CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator};
+use openpaint_render::{Banding, CanvasTarget, Core, FrameRequest, PixelRect};
 
 use crate::error::HarnessError;
 use crate::output::{write_png, write_rgba};
@@ -38,7 +38,7 @@ pub fn run() -> Result<(), HarnessError> {
             active: None,
             background: Color::WHITE,
         };
-        RegionEvaluator::new(&core, &mut target).evaluate(&request, &[PixelRect::full(SIZE)])?;
+        target.draw(&core, &request, &[PixelRect::full(SIZE)])?;
         let key = brush.key().as_str();
         let path = write_png(&format!("brush-{key}.png"), &target.read(&core)?)?;
         let fine = core
@@ -89,7 +89,7 @@ fn shapes(core: &Core) -> Result<(), HarnessError> {
         active: None,
         background: Color::WHITE,
     };
-    RegionEvaluator::new(core, &mut target).evaluate(&request, &[PixelRect::full(size)])?;
+    target.draw(core, &request, &[PixelRect::full(size)])?;
     let path = write_png("shapes.png", &target.read(core)?)?;
     println!("shape textures: wrote {}", path.display());
     Ok(())

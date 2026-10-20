@@ -1,12 +1,12 @@
-//! `render-stroke`: evaluate a hard-coded stroke through the region evaluator, write the PNG
-//! and print its hash.
+//! `render-stroke`: draw a hard-coded stroke on a canvas target, write the PNG and print its
+//! hash.
 
 use std::f32::consts::{PI, TAU};
 
 use openpaint_core::{
     Artwork, BrushRecipe, CanvasPoint, CanvasSize, Color, CoreError, StrokeSample, StrokeStyle,
 };
-use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator};
+use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect};
 
 use crate::error::HarnessError;
 use crate::output::write_png;
@@ -24,7 +24,7 @@ pub fn run() -> Result<(), HarnessError> {
         active: None,
         background: Color::WHITE,
     };
-    RegionEvaluator::new(&core, &mut target).evaluate(&request, &[PixelRect::full(SIZE)])?;
+    target.draw(&core, &request, &[PixelRect::full(SIZE)])?;
     let image = target.read(&core)?;
     let path = write_png("stroke.png", &image)?;
     println!("adapter {}", core.adapter());

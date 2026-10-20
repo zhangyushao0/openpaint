@@ -1,11 +1,11 @@
-// Adjustments (S28, D54): hue, saturation and brightness, or tone curves, on the current layer
+// Adjustments (S28, D59): hue, saturation and brightness, or tone curves, on the layer so far
 // at the op's place, inside its clip; elsewhere the layer stays exactly as it was. Paint is
 // adjusted as straight sRGB-encoded colour and keeps its alpha; a transparent pixel stays. A
 // mask's grey over transparent shows `1 - (a - r)`; it is adjusted as the grey it shows (turned
 // over on an inverted mask), as a colour whose luma is kept, and stored again as black at the
 // hidden share, which shows that grey.
 
-// `cell`: the canvas pixel holding the evaluated centre, for the clip. A point operation, so
+// `cell`: the canvas pixel holding the drawn centre, for the clip. A point operation, so
 // the same at every output scale.
 fn adjusted(layer: vec4<f32>, cell: vec2<u32>, op: u32) -> vec4<f32> {
     if clip(cell, op) == 0.0 {

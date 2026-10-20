@@ -7,7 +7,7 @@
 use openpaint_core::{
     Artwork, ArtworkCommand, CanvasSize, Color, LayerCommand, MaskCommand, Patch, Placement,
 };
-use openpaint_render::{CanvasTarget, PixelRect, RegionEvaluator, changed_regions};
+use openpaint_render::{CanvasTarget, PixelRect, changed_regions};
 
 use crate::fixture::{SIZE, blank, cold, core, diagonal, pixel, plain, request, sample, wave};
 use crate::fixture::{with_layer, with_stroke};
@@ -97,15 +97,18 @@ fn every_placement_evaluated_incrementally_ends_equal_to_the_committed_picture()
         .then(Placement::around([160.0, 100.0], 1.0, 0.45, [true, false]).unwrap())
         .unwrap();
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-    let mut evaluator = RegionEvaluator::new(&core, &mut target);
-    evaluator
-        .evaluate(&request(&base), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(&base), &[PixelRect::full(SIZE)])
         .expect("base");
     let mut shown = base.clone();
     for placement in [Placement::IDENTITY, moved, scaled, turned] {
         let preview = inserted(&base, placement);
-        evaluator
-            .evaluate(&request(&preview), &changed_regions(&shown, &preview))
+        target
+            .draw(
+                &core,
+                &request(&preview),
+                &changed_regions(&shown, &preview),
+            )
             .expect("frame");
         shown = preview;
     }
@@ -113,8 +116,8 @@ fn every_placement_evaluated_incrementally_ends_equal_to_the_committed_picture()
     let committed = Artwork::from_storage(shown.to_parts()).expect("reloaded");
     assert_eq!(last, cold(&core, &committed), "shown = committed, cold");
     // Undone: the version before, as cold.
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(&base), &changed_regions(&committed, &base))
+    target
+        .draw(&core, &request(&base), &changed_regions(&committed, &base))
         .expect("undo");
     assert_eq!(target.read(&core).expect("read"), cold(&core, &base));
 }
@@ -145,14 +148,13 @@ fn a_mask_and_a_clipping_layer_on_the_picture_evaluate_incrementally_as_cold() {
         .artwork;
     let painted = with_stroke(&clipping, diagonal());
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-    let mut evaluator = RegionEvaluator::new(&core, &mut target);
-    evaluator
-        .evaluate(&request(&base), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(&base), &[PixelRect::full(SIZE)])
         .expect("base");
     let steps = [&base, &picture_layer, &masked, &clipping, &painted];
     for pair in steps.windows(2) {
-        evaluator
-            .evaluate(&request(pair[1]), &changed_regions(pair[0], pair[1]))
+        target
+            .draw(&core, &request(pair[1]), &changed_regions(pair[0], pair[1]))
             .expect("step");
     }
     let last = target.read(&core).expect("read");

@@ -8,8 +8,7 @@ use openpaint_core::{
     StrokeStyle, StrokeTool,
 };
 use openpaint_render::{
-    CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, RgbaImage, changed_regions,
-    stroke_region,
+    CanvasTarget, Core, FrameRequest, PixelRect, RgbaImage, changed_regions, stroke_region,
 };
 
 use crate::fixture::{SIZE, airbrush, blank, cold, core, plain, request, sample, with_stroke};
@@ -61,9 +60,7 @@ fn evaluate(core: &Core, target: &mut CanvasTarget, request: &FrameRequest<'_>, 
     } else {
         Vec::new()
     };
-    RegionEvaluator::new(core, target)
-        .evaluate(request, &regions)
-        .expect("evaluate");
+    target.draw(core, request, &regions).expect("evaluate");
 }
 
 fn read(core: &Core, target: &CanvasTarget) -> RgbaImage {
@@ -144,13 +141,11 @@ fn a_smudge_drawn_frame_by_frame_equals_its_cold_evaluation_finished_reloaded_an
     assert!(within, "nothing changes outside the smudge's reach");
     assert!(count > 1000, "the smudge carries colour: {count} pixels");
     let undo = changed_regions(&finished, &base);
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(&base), &undo)
-        .expect("undo");
+    target.draw(&core, &request(&base), &undo).expect("undo");
     assert_eq!(read(&core, &target), untouched, "undo restores every pixel");
     let redo = changed_regions(&base, &finished);
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(&finished), &redo)
+    target
+        .draw(&core, &request(&finished), &redo)
         .expect("redo");
     assert_eq!(
         read(&core, &target),

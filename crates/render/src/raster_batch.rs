@@ -5,10 +5,8 @@
 //! one submission; the regions share the targets, which every pass of a region sets before it
 //! reads them.
 
-use std::time::Instant;
-
 use super::frame::{instance_bytes, values};
-use super::{Drawn, Finish, Pages, RasterTargets, SceneBuffers};
+use super::{Finish, Pages, RasterTargets, SceneBuffers};
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::gpu_clock::Stamps;
@@ -77,7 +75,7 @@ impl RasterTargets {
         scene: &SceneBuffers,
         (regions, pages): (&[Region<'_>], Pages<'_>),
         stamps: Option<&Stamps>,
-    ) -> Result<(wgpu::CommandBuffer, Drawn), RenderError> {
+    ) -> Result<wgpu::CommandBuffer, RenderError> {
         for region in regions {
             let [width, height] = region.plan.size;
             if width > self.capacity[0] || height > self.capacity[1] || width * height == 0 {
@@ -85,20 +83,13 @@ impl RasterTargets {
             }
         }
         let pipelines = core.raster_pipelines()?;
-        let started = Instant::now();
         for region in regions {
             self.make_scratch(core, pipelines, region.plan)?;
         }
         self.make_reads(core, pipelines, regions);
         let bounds = self.upload(core, regions);
         self.bind_scene(core, pipelines, scene);
-        let uploaded = Instant::now();
-        let buffer = self.encode(core, (pipelines, pages), (regions, &bounds), stamps)?;
-        let drawn = Drawn {
-            upload_ns: (uploaded - started).as_secs_f64() * 1e9,
-            encode_ns: uploaded.elapsed().as_secs_f64() * 1e9,
-        };
-        Ok((buffer, drawn))
+        self.encode(core, (pipelines, pages), (regions, &bounds), stamps)
     }
 
     /// Every region's values and instances written, the buffers grown first when they do not

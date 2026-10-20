@@ -1,8 +1,8 @@
-//! Where an evaluation's target lies in the output (S29): output pixels per canvas pixel and the
-//! output pixel at the target's top-left. Every op is evaluated at the output pixel's centre
+//! Where a draw's target lies in the output (S29): output pixels per canvas pixel and the
+//! output pixel at the target's top-left. Every op is drawn at the output pixel's centre
 //! mapped back to canvas pixels, so the screen's canvas (scale 1, at the origin) and an export at
-//! 2x or 4x in bands are one evaluation over different grids. Ops keep their bounds in canvas
-//! pixels; the plan maps them here.
+//! 2x or 4x in bands are one picture over different grids. Ops keep their bounds in canvas
+//! pixels; a raster plan maps them here.
 
 use crate::error::RenderError;
 use crate::geom::PixelRect;
@@ -60,8 +60,7 @@ impl Output {
         }
     }
 
-    /// The operands the evaluator reads: the scale and its inverse (exact: a power of two). The
-    /// output pixel of each tile goes with the tile (`Plan`).
+    /// The scale and its inverse (exact: a power of two), as a raster region's values hold them.
     pub(crate) fn operands(&self) -> (f32, f32) {
         let scale = self.scale as f32;
         (scale, 1.0 / scale)

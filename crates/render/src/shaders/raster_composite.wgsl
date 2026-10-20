@@ -1,18 +1,18 @@
 // The raster core's draws onto the layer, its layer ends and its finish (S57's composites, S59),
 // appended after raster_stamp.wgsl. A stroke's region of the atlas goes onto the layer through
-// the evaluator's paint (`stroke_paint`: colour, opacity, grain, clip, density to coverage
-// through the paper), one quad per tile its spans reach, combined by the paint op's blend in the
-// blend unit; a fill paints its colour by its edge (`fill_coverage`), a patch is sampled through
-// its placement (`patch_sample`), each over the pixels its bounds reach; a smudge writes the
-// layer's copy moved by its residual (`smudge_applied`, S61). A layer's end shows it
-// through its mask (`masked`) at its opacity and lays it onto the canvas or into its chain by its
-// mode: the blend unit's equations where they are the evaluator's (`composite`, `clipped`; the
-// canvas is opaque), else written whole from a copy of what lies under it (Overlay). The finish
-// rounds the canvas as the evaluator rounds (`quantized`, or `coded` for ten bits). S65: every
-// draw evaluates at the point its frame maps the pixel's centre to (`point_of`); an adjustment
-// and a filter rewrite the layer from a copy of it, a moved content is cut and laid over the
-// level under it, a whole layer's cut in place, and a group's end fades the canvas over a copy of
-// what lay under the group.
+// its paint (`stroke_paint`: colour, opacity, grain, clip, density to coverage through the
+// paper), one quad per tile its spans reach, combined by the paint op's blend in the blend unit;
+// a fill paints its colour by its edge (`fill_coverage`), a patch is sampled through its
+// placement (`patch_sample`), each over the pixels its bounds reach; a smudge writes the layer's
+// copy moved by its residual (`smudge_applied`, S61). A layer's end shows it through its mask
+// (`masked`) at its opacity and lays it onto the canvas or into its chain by its mode: by the
+// blend unit where its equation is one (`composite`, `clipped`; the canvas is opaque), else
+// written whole from a copy of what lies under it (Overlay). The finish rounds the canvas into
+// 8 bits (`quantized`) or the screen's ten (`coded`). S65: every draw is made at the point its
+// frame maps the pixel's centre to (`point_of`); an adjustment and a filter rewrite the layer
+// from a copy of it, a moved content is cut and laid over the level under it, a whole layer's cut
+// in place, and a group's end fades the canvas over a copy of what lay under the group. The
+// compositing and rounding functions the stages share close the file.
 
 struct CompositeOut {
     @builtin(position) position: vec4<f32>,
@@ -169,7 +169,7 @@ fn cut_fragment(in: RectOut) -> @location(0) vec4<f32> {
     return vec4<f32>(moved_share(point, cell_of(point, in.frame), in.op));
 }
 
-// S65: a group's end, as the evaluator's `OP_END_GROUP`: the canvas (its copy, `backdrop`) at the
+// S65: a group's end (pass-through): the canvas (its copy, `backdrop`) at the
 // group's opacity over what lay under the group (`source`); where the two are alike (none of its
 // layers changed the pixel) the canvas as it is. Written whole.
 @fragment
@@ -212,7 +212,7 @@ fn base_fragment(in: RectOut) -> @location(0) vec4<f32> {
     return shown_at(vec2<i32>(floor(in.position.xy)), in.op);
 }
 
-// By its mode onto the copy of what lies under it, as the evaluator composites it: Overlay, and
+// By its mode onto the copy of what lies under it (`composite`, `clipped`): Overlay, and
 // (S65) a merged layer's Multiply or Screen onto a level, which is not opaque.
 @fragment
 fn backdrop_fragment(in: RectOut) -> @location(0) vec4<f32> {
@@ -246,14 +246,95 @@ fn finish_vertex(
     return out;
 }
 
-// The canvas rounded to 8 bits as the evaluator rounds it.
+// The canvas rounded to 8 bits.
 @fragment
 fn finish_eight(in: FinishOut) -> @location(0) vec4<f32> {
     return quantized(textureLoad(source, vec2<i32>(floor(in.position.xy)) - in.place, 0));
 }
 
-// The canvas as the ten-bit code the evaluator writes for the screen (S37).
+// The canvas as the ten-bit code the screen shows (S37).
 @fragment
 fn finish_ten(in: FinishOut) -> @location(0) vec4<f32> {
     return coded(textureLoad(source, vec2<i32>(floor(in.position.xy)) - in.place, 0));
+}
+
+// A layer as its end shows it: without a mask `layer` itself; with one, its paint `held` times
+// the mask, whose strokes painted grey over transparent in `layer`, read over white
+// (`1 - (a - r)`: nothing painted, or white, is exactly 1), inverted for `MASK_INVERTED`. A
+// white mask leaves the paint exactly as it was.
+fn masked(layer: vec4<f32>, held: vec4<f32>, masking: u32) -> vec4<f32> {
+    if masking == MASK_NONE {
+        return layer;
+    }
+    var value = clamp(1.0 - (layer.a - layer.r), 0.0, 1.0);
+    if masking == MASK_INVERTED {
+        value = 1.0 - value;
+    }
+    return held * value;
+}
+
+fn over(source: vec4<f32>, destination: vec4<f32>) -> vec4<f32> {
+    return source + destination * (1.0 - source.a);
+}
+
+// What source and backdrop (premultiplied) make together where both have paint: the blend
+// function times both alphas (W3C compositing, `Sa Da B(Cs, Cb)`), written without dividing by
+// an alpha, so it is exactly zero where either has none.
+fn mixed(s: vec4<f32>, d: vec4<f32>, mode: u32) -> vec3<f32> {
+    switch mode {
+        case MODE_MULTIPLY: {
+            return s.rgb * d.rgb;
+        }
+        case MODE_SCREEN: {
+            return s.rgb * d.a + d.rgb * s.a - s.rgb * d.rgb;
+        }
+        case MODE_OVERLAY: {
+            let low = 2.0 * s.rgb * d.rgb;
+            let high = s.a * d.a - 2.0 * (d.a - d.rgb) * (s.a - s.rgb);
+            return select(high, low, 2.0 * d.rgb <= vec3<f32>(d.a));
+        }
+        default: {
+            return s.rgb * d.a;
+        }
+    }
+}
+
+// `source` onto `backdrop` by `mode`: each keeps what the other does not cover, plus what both
+// make together; alpha is source over. Normal is `over` itself, so a Normal layer composites
+// exactly as before blend modes. Zero source leaves the backdrop exactly as it was.
+fn composite(source: vec4<f32>, backdrop: vec4<f32>, mode: u32) -> vec4<f32> {
+    if mode == MODE_NORMAL {
+        return over(source, backdrop);
+    }
+    let rgb = source.rgb * (1.0 - backdrop.a) + backdrop.rgb * (1.0 - source.a)
+        + mixed(source, backdrop, mode);
+    return vec4<f32>(rgb, source.a + backdrop.a * (1.0 - source.a));
+}
+
+// A clipping layer's `source` onto its chain: by `mode` against the chain so far, where only
+// the chain has paint, its alpha kept (Normal is source atop). Nothing shows where the chain
+// has no paint, and zero source leaves the chain exactly as it was.
+fn clipped(source: vec4<f32>, chain: vec4<f32>, mode: u32) -> vec4<f32> {
+    return vec4<f32>(chain.rgb * (1.0 - source.a) + mixed(source, chain, mode), chain.a);
+}
+
+// Rounds to the 8-bit value `k` here, then stores `(k + 0.25) / 255`, which the unorm write
+// turns back into `k` whether the device rounds to nearest or toward zero.
+fn quantized(color: vec4<f32>) -> vec4<f32> {
+    let k = floor(clamp(color, vec4<f32>(0.0), vec4<f32>(1.0)) * 255.0 + 0.5);
+    return min((k + 0.25) / 255.0, vec4<f32>(1.0));
+}
+
+// The ten-bit code nearest `color` among those whose nearest 8-bit value is the one `quantized`
+// stores (`readback::eight_bits`): an 8-bit value `k` holds the codes from
+// `ceil((2k - 1) 1023 / 510)` to `floor((2k + 1) 1023 / 510)`, so the code is off the nearest
+// by at most one, and reading it back as 8 bits gives exactly what an 8-bit target holds. As
+// there, `(j + 0.25) / 1023` turns back into `j` under either rounding.
+fn coded(color: vec4<f32>) -> vec4<f32> {
+    let c = clamp(color, vec4<f32>(0.0), vec4<f32>(1.0));
+    let k = vec4<i32>(floor(c * 255.0 + 0.5));
+    let low = max((2 * k - 1) * 1023 + 509, vec4<i32>(0)) / 510;
+    let high = min((2 * k + 1) * 1023 / 510, vec4<i32>(1023));
+    let j = clamp(vec4<i32>(floor(c * 1023.0 + 0.5)), low, high);
+    return min((vec4<f32>(j) + 0.25) / 1023.0, vec4<f32>(1.0));
 }

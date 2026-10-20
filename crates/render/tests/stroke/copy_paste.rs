@@ -9,7 +9,7 @@ use openpaint_core::{
     Artwork, ArtworkCommand, BlendMode, CanvasSize, GroupCommand, LayerCommand, LayerId, Placement,
     RegionMask,
 };
-use openpaint_render::{CanvasTarget, PixelRect, RegionEvaluator, RgbaImage, changed_regions};
+use openpaint_render::{CanvasTarget, PixelRect, RgbaImage, changed_regions};
 
 use crate::fixture::{SIZE, cold, core, request, with_layer};
 use crate::merge::{Look, PLAIN, alone};
@@ -219,12 +219,16 @@ fn paste_move_cut_and_undo_through_changed_regions_equal_cold() {
         base,
     ];
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(&steps[0]), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(&steps[0]), &[PixelRect::full(SIZE)])
         .expect("evaluate");
     for pair in steps.windows(2) {
-        RegionEvaluator::new(&core, &mut target)
-            .evaluate(&request(&pair[1]), &changed_regions(&pair[0], &pair[1]))
+        target
+            .draw(
+                &core,
+                &request(&pair[1]),
+                &changed_regions(&pair[0], &pair[1]),
+            )
             .expect("evaluate");
         assert!(
             target.read(&core).expect("readback") == cold(&core, &pair[1]),

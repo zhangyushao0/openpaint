@@ -15,9 +15,9 @@ pub struct Spent {
     /// Scenes built and uploaded (`Scene::build_knowing`, `scene_ops`).
     pub scenes: u32,
     pub scene_ns: u64,
-    /// Evaluating into the screen's canvas (`RegionEvaluator`), its scene builds and waits
+    /// Drawing into the screen's canvas (`CanvasTarget::draw_frame`), its scene builds and waits
     /// included.
-    pub evaluated_ns: u64,
+    pub drawn_ns: u64,
 }
 
 #[cfg_attr(
@@ -39,7 +39,7 @@ mod cell {
         longest: "",
         scenes: 0,
         scene_ns: 0,
-        evaluated_ns: 0,
+        drawn_ns: 0,
     };
 
     thread_local! {
@@ -76,11 +76,11 @@ pub(crate) fn scene_built(took: Duration) {
     });
 }
 
-/// This thread evaluated into a canvas for `took`.
-pub(crate) fn evaluated(took: Duration) {
+/// This thread drew into a canvas for `took`.
+pub(crate) fn drawn(took: Duration) {
     SPENT.with(|spent| {
         let mut now = spent.get();
-        now.evaluated_ns = now.evaluated_ns.saturating_add(nanos(took));
+        now.drawn_ns = now.drawn_ns.saturating_add(nanos(took));
         spent.set(now);
     });
 }
@@ -108,13 +108,13 @@ mod tests {
             7
         });
         scene_built(Duration::from_millis(3));
-        evaluated(Duration::from_millis(4));
+        drawn(Duration::from_millis(4));
         assert_eq!(value, 7);
         let spent = take_spent();
         assert_eq!(spent.longest, "long");
         assert!(spent.longest_ns >= 5_000_000 && spent.waited_ns >= 6_000_000);
         assert_eq!((spent.scenes, spent.scene_ns), (1, 3_000_000));
-        assert_eq!(spent.evaluated_ns, 4_000_000);
+        assert_eq!(spent.drawn_ns, 4_000_000);
         assert_eq!(take_spent(), Spent::default(), "taken once");
     }
 }

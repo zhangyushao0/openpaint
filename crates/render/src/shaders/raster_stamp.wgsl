@@ -1,8 +1,8 @@
-// The raster core probe's stamps (S57): one quad per stamp of a stamped span, appended after
-// raster.wgsl. The vertex stage places stamp `n` as `stamps_laid` and `stamp_laid` place it for
-// every pixel (stamp.wgsl): on the span's chord holding its place along them, scattered, turned
-// and sized by `stamp_jitter` of the stroke's seed and `n`; the fragment stage lays the shape
-// there (`stamp_alpha`, its texture at the output pixel's footprint) times the flow.
+// The raster core's stamps (S57): one quad per stamp of a stamped span, appended after
+// raster.wgsl. The vertex stage places stamp `n` (stamp.wgsl): on the span's chord holding its
+// place along them, scattered, turned and sized by `stamp_jitter` of the stroke's seed and `n`;
+// the fragment stage lays the shape there (`stamp_alpha`, its texture at the output pixel's
+// footprint) times the flow.
 
 struct StampOut {
     @builtin(position) position: vec4<f32>,
@@ -10,7 +10,7 @@ struct StampOut {
     @location(0) @interpolate(flat) turn: vec4<f32>,
     // Its size (a radius), the flow there, its aspect and the stroke's edge.
     @location(1) @interpolate(flat) stamp: vec4<f32>,
-    // Its place on the path, and how far from it the evaluator takes it at all.
+    // Its place on the path, and how far from it it lays anything at all.
     @location(2) @interpolate(flat) near: vec3<f32>,
     @location(3) @interpolate(flat) shape: u32,
     @location(4) @interpolate(flat) place: vec2<i32>,
@@ -18,8 +18,8 @@ struct StampOut {
     @location(5) @interpolate(flat) frame: u32,
 }
 
-// Where stamp `n` of span `op` lies on the span's chords, and how far through the span: the
-// one chord holding its place along them (`stamps_laid`, `chord_stamps`).
+// Where stamp `n` of span `op` lies on the span's chords, and how far through the span: on the
+// one chord holding its place along them.
 fn stamp_on_path(op: u32, s: Stamping, n: u32) -> vec3<f32> {
     let chords = stamp_chords(op);
     var total = 0.0;

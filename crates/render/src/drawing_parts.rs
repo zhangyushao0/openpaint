@@ -7,10 +7,10 @@
 use std::collections::BTreeSet;
 
 use super::{Onto, Part, Pen, StrokeWork, meeting};
+use crate::canvas::{CanvasTarget, paper};
 use crate::core::Core;
 use crate::drawing::{Drawing, slot_copies as copies, tile_rect};
 use crate::error::RenderError;
-use crate::evaluator::{CanvasTarget, paper};
 use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
 use crate::output::Output;
@@ -148,7 +148,7 @@ impl CanvasTarget {
         plan.passes
             .push(Pass::Keep(copies(&slots, ([0, 0], [0, 0], side))));
         drawing.set_under(tile, (slots, base.at));
-        core.evaluate.tally.snapshot();
+        core.tally.snapshot();
         Ok(Part {
             plan,
             output,

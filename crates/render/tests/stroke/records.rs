@@ -8,7 +8,7 @@ use openpaint_core::{
     Artwork, ArtworkCommand, CanvasSize, Color, LayerCommand, MaskCommand, Patch, Placement,
     RegionMask, StrokeStyle, StrokeTool,
 };
-use openpaint_render::{CanvasTarget, Core, PixelRect, RegionEvaluator, changed_regions};
+use openpaint_render::{CanvasTarget, Core, PixelRect, changed_regions};
 
 use crate::fixture::{
     SIZE, airbrush, blank, cold, core, diagonal, diagonal_with, graphite, plain, request, sample,
@@ -167,9 +167,8 @@ fn outside_what_a_selection_record_moved_nothing_changes() {
 fn drag_equals_commit(artwork: &Artwork, clip: Option<&RegionMask>) {
     let core = core();
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-    let mut evaluator = RegionEvaluator::new(&core, &mut target);
-    evaluator
-        .evaluate(&request(artwork), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(artwork), &[PixelRect::full(SIZE)])
         .expect("base");
     let steps = [
         Placement::moved([12.5, 7.25]).expect("move"),
@@ -181,14 +180,14 @@ fn drag_equals_commit(artwork: &Artwork, clip: Option<&RegionMask>) {
     for placement in steps {
         let preview = by_record(artwork, clip, placement);
         let regions = changed_regions(&shown, &preview);
-        evaluator
-            .evaluate(&request(&preview), &regions)
+        target
+            .draw(&core, &request(&preview), &regions)
             .expect("frame");
         shown = preview;
     }
     let later = with_stroke(&shown, diagonal());
-    evaluator
-        .evaluate(&request(&later), &changed_regions(&shown, &later))
+    target
+        .draw(&core, &request(&later), &changed_regions(&shown, &later))
         .expect("a stroke after");
     let last = target.read(&core).expect("the last frame");
     let committed = Artwork::from_storage(later.to_parts()).expect("reloaded");
@@ -204,23 +203,30 @@ fn settling_a_patch_drag_into_its_record_equals_the_commit() {
     for clip in [None, Some(lasso())] {
         let patch = lift(&core, &base, clip.as_ref());
         let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-        let mut evaluator = RegionEvaluator::new(&core, &mut target);
-        evaluator
-            .evaluate(&request(&base), &[PixelRect::full(SIZE)])
+        target
+            .draw(&core, &request(&base), &[PixelRect::full(SIZE)])
             .expect("base");
         let mut shown = base.clone();
         for step in 1..=3 {
             let placement = Placement::moved([7.5 * step as f32, 3.0]).expect("move");
             let applied = base.transform_region(clip.clone(), patch.clone(), placement);
             let preview = applied.expect("preview").artwork;
-            evaluator
-                .evaluate(&request(&preview), &changed_regions(&shown, &preview))
+            target
+                .draw(
+                    &core,
+                    &request(&preview),
+                    &changed_regions(&shown, &preview),
+                )
                 .expect("drag frame");
             shown = preview;
         }
         let settled = by_record(&base, clip.as_ref(), turned());
-        evaluator
-            .evaluate(&request(&settled), &changed_regions(&shown, &settled))
+        target
+            .draw(
+                &core,
+                &request(&settled),
+                &changed_regions(&shown, &settled),
+            )
             .expect("settled");
         let last = target.read(&core).expect("read");
         let committed = Artwork::from_storage(settled.to_parts()).expect("reloaded");

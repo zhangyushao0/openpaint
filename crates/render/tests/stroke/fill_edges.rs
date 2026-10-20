@@ -3,7 +3,7 @@
 //! lift stays hard; incremental evaluation reusing a fill's edge equals cold.
 
 use openpaint_core::{Artwork, CanvasSize, Color, Patch, RegionMask};
-use openpaint_render::{CanvasTarget, PixelRect, RegionEvaluator, RgbaImage, changed_regions};
+use openpaint_render::{CanvasTarget, PixelRect, RgbaImage, changed_regions};
 
 use crate::fixture::{SIZE, blank, cold, core, pixel, plain, request, sample, with_stroke};
 use crate::scale::whole;
@@ -195,13 +195,12 @@ fn incremental_evaluation_reusing_fill_edges_equals_cold() {
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
     let mut shown: Option<&Artwork> = None;
     for artwork in [&one, &two, &three, &two, &one, &three] {
-        let mut evaluator = RegionEvaluator::new(&core, &mut target);
         let regions = shown.map_or_else(
             || vec![PixelRect::full(SIZE)],
             |shown| changed_regions(shown, artwork),
         );
-        evaluator
-            .evaluate(&request(artwork), &regions)
+        target
+            .draw(&core, &request(artwork), &regions)
             .expect("evaluate");
         assert_eq!(target.read(&core).expect("read"), cold(&core, artwork));
         shown = Some(artwork);

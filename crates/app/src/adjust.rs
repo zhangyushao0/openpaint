@@ -1,7 +1,7 @@
 //! Adjustments (Procreate's Adjustments on a layer, S28): choosing one from the Adjustments
 //! menu starts it on the active layer (its mask when that is the target), inside the selection
 //! when there is one, changing nothing yet. Each value the hand sets makes the preview at once:
-//! the artwork with the adjustment recorded (`Artwork::adjust_region`), which the evaluator
+//! the artwork with the adjustment recorded (`Artwork::adjust_region`), which the renderer
 //! shows like any edit, so what shows is what Apply keeps. Apply records it as one history step
 //! (nothing when it changes nothing); Cancel and undo leave the artwork as it was; any other
 //! edit or tool applies it as it shows (D54).

@@ -1,8 +1,8 @@
 //! Adjustments (S28, Procreate's Adjustments on a layer): hue, saturation and brightness, and
 //! tone curves. Both are point operations, so an applied adjustment is an operation record
 //! like a stroke or a fill: its values, the selection it was made inside and its place among
-//! the layer's strokes (`AdjustEdit`). The evaluator applies it to the layer's content so far
-//! at every evaluation, so incremental equals cold and reopening shows what was applied
+//! the layer's strokes (`AdjustEdit`). The renderer applies it to the layer's content so far
+//! at every draw, so incremental equals cold and reopening shows what was applied
 //! (DECISIONS D54). On a mask it acts on the grey the mask shows. Gaussian Blur and Sharpen
 //! (S33, `filter.rs`) are adjustments too, which read neighbouring pixels.
 

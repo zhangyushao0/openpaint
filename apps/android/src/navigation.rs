@@ -4,8 +4,8 @@
 //! first frame with neither; its line gives the frames, how many had a finger down, each frame's
 //! work (frame start to present return, as the pen's line) as p50 / p95 / max, the background
 //! work's GPU time a frame by the frame budget's corrected estimate and in all as GPU timestamps
-//! measured it, and what render counted over it: dispatches and their op entries, plans binned
-//! and the entries they listed, smudge residuals derived, view tier tiles filled. An episode
+//! measured it, and what render counted over it: raster regions drawn, smudge residuals derived,
+//! view tier tiles filled. An episode
 //! longer than `LONGEST` is logged and starts over, so work that never ends still shows.
 
 use std::fmt;
@@ -142,18 +142,15 @@ impl fmt::Display for Summary {
         write!(
             f,
             "navigation, {} frames ({} with fingers) over {} ms: frame work {}; background a \
-             frame {}, measured {:.0} ms in all; {} dispatches of {} entries, {} plans binning \
-             {} entries, {} residuals derived, {} tier tiles filled",
+             frame {}, measured {:.0} ms in all; {} raster regions, {} residuals derived, {} \
+             tier tiles filled",
             self.frames,
             self.touched,
             self.span_ms,
             self.work,
             self.background,
             self.measured_ms,
-            c.dispatches,
-            c.entries,
-            c.plans,
-            c.binned,
+            c.rastered,
             c.derived,
             c.filled
         )

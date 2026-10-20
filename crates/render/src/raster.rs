@@ -1,25 +1,22 @@
-//! The raster core (S57's probe, product code since S59; DECISIONS D86): a region of a
-//! scene's output drawn by the GPU's rasterizer rather than evaluated per pixel over binned ops.
+//! The raster core (DECISIONS D93): a region of a scene's output drawn by the GPU's rasterizer.
 //! Each stroke's coverage (or density, and a paper stroke's contact) lies in a region of a scratch
 //! atlas, combined by the blend unit (max or add); each region is composited onto a float layer by
-//! the evaluator's paint, fills and patches drawn there too, a mask onto a float target of its
-//! own; each layer ends onto a float canvas (or into its clipping chain) by its mode, and the
-//! canvas is rounded into the destination as the evaluator rounds it (`raster_plan.rs` the CPU's
-//! part, `raster_gpu.rs` the pipelines, `raster_frame.rs` the passes, raster*.wgsl the stages).
-//! A smudge is a pass applying its residual to the layer from a copy of it (S61, D88); so are an
-//! adjustment and a filter's result (S65, D92). It draws every scene: the screen's canvas and its
-//! view tiers, exports, layer samples and pictures, brush pictures, a smudge's and a filter's
-//! material (S62, D89), and the stroke being drawn (S63, D90: `drawing.rs`, a frame's regions one
-//! batch, `raster_batch.rs`).
+//! the stroke's paint, fills and patches drawn there too, a mask onto a float target of its own;
+//! each layer ends onto a float canvas (or into its clipping chain) by its mode, and the canvas is
+//! rounded into the destination (`raster_plan.rs` the CPU's part, `raster_gpu.rs` the pipelines,
+//! `raster_frame.rs` the passes, raster*.wgsl the stages). A smudge is a pass applying its
+//! residual to the layer from a copy of it; so are an adjustment and a filter's result. It draws
+//! every scene: the screen's canvas and its view tiers, exports, layer samples and pictures, brush
+//! pictures, a smudge's and a filter's material, and the stroke being drawn (`drawing.rs`, a
+//! frame's regions one batch, `raster_batch.rs`).
 
 use crate::core::Core;
 use crate::error::RenderError;
-use crate::gpu_clock::Stamps;
 use crate::output::Output;
-use crate::program::SceneOps;
 use crate::raster_gpu::RasterPipelines;
 use crate::raster_plan::{Pass, RasterPlan, SCRATCH, Scratch};
 use crate::readback::target_texture;
+use crate::scene_ops::SceneOps;
 use crate::smudge::{Bases, Held};
 use crate::view_tiles::TIER_TILE;
 
@@ -127,13 +124,6 @@ pub(crate) struct Finish<'a> {
     pub(crate) only: &'a [crate::geom::PixelRect],
 }
 
-/// What one draw cost the CPU, ns: writing its values and instances, encoding and submitting.
-#[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct Drawn {
-    pub(crate) upload_ns: f64,
-    pub(crate) encode_ns: f64,
-}
-
 impl RasterTargets {
     /// Targets for regions of up to `capacity` pixels, with an atlas `atlas` pixels a side.
     ///
@@ -221,58 +211,28 @@ impl RasterTargets {
         texels(&self.atlas.texture) + scratch + self.instances.size() + self.values.size()
     }
 
-    /// The atlas's and the canvas's texel formats and bytes (the benchmark's line).
-    pub(crate) fn formats(&self) -> ([String; 2], [u64; 2]) {
-        let canvas = &self.scratch[0].as_ref().unwrap_or(&self.atlas).texture;
-        let formats =
-            [&self.atlas.texture, canvas].map(|texture| format!("{:?}", texture.format()));
-        let bytes = [&self.atlas.texture, canvas].map(|texture| {
-            let texel = texture.format().block_copy_size(None).unwrap_or(16);
-            u64::from(texture.width()) * u64::from(texture.height()) * u64::from(texel)
-        });
-        (formats, bytes)
-    }
-
-    /// Draws `plan` (of the scene in `scene`) at `output` on paper `background`, rounds it into
-    /// `finish`, and submits it; its passes timed by `stamps`.
-    ///
-    /// # Errors
-    /// As `prepare`.
-    pub(crate) fn draw(
-        &mut self,
-        core: &Core,
-        (scene, plan): (&SceneBuffers, &RasterPlan),
-        (output, background): (Output, [f32; 4]),
-        finish: &Finish<'_>,
-        stamps: Option<&Stamps>,
-    ) -> Result<Drawn, RenderError> {
-        let place = (output, background);
-        let (buffer, drawn) = self.prepare(core, (scene, plan), place, finish, stamps)?;
-        core.gpu.submit([buffer]);
-        Ok(drawn)
-    }
-
-    /// As `draw`, the commands encoded but not submitted (S60: a worker submits them once the
-    /// GPU's queue has room); its values and instances land before the next submission.
+    /// Draws `plan` (of the scene in `scene`) at `output` on `paper`, rounds it into `finish`,
+    /// and submits it.
     ///
     /// # Errors
     /// `Invalid` for a region larger than its capacity or a destination format the raster core
     /// does not finish into; as the GPU.
-    pub(crate) fn prepare(
+    pub(crate) fn draw(
         &mut self,
         core: &Core,
         (scene, plan): (&SceneBuffers, &RasterPlan),
         (output, paper): (Output, [f32; 4]),
         finish: &Finish<'_>,
-        stamps: Option<&Stamps>,
-    ) -> Result<(wgpu::CommandBuffer, Drawn), RenderError> {
+    ) -> Result<(), RenderError> {
         let region = Region {
             plan,
             output,
             paper,
             finish: Some(finish),
         };
-        self.prepare_all(core, scene, (&[region], Pages::NONE), stamps)
+        let buffer = self.prepare_all(core, scene, (&[region], Pages::NONE), None)?;
+        core.gpu.submit([buffer]);
+        Ok(())
     }
 
     /// The scratch targets `plan` uses that are not made yet.
@@ -345,7 +305,7 @@ impl RasterTargets {
             return;
         }
         let [ops, masks, patches, arena, active] = &bound;
-        let buffers = [ops, masks, &core.evaluate.textures, patches, arena, active];
+        let buffers = [ops, masks, &core.textures, patches, arena, active];
         let values = wgpu::BindGroupEntry {
             binding: 0,
             resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
@@ -380,18 +340,6 @@ impl RasterTargets {
 mod batch;
 pub(crate) use batch::Region;
 use batch::{Bound, VALUES_BYTES, VALUES_STRIDE, timed};
-
-#[path = "raster_bench.rs"]
-mod bench;
-pub use bench::RasterTimed;
-
-#[path = "raster_difference.rs"]
-mod difference;
-pub use difference::{EDGE, ImageDifference, image_difference};
-
-#[path = "raster_passes.rs"]
-mod passes;
-pub use passes::PassCost;
 
 #[path = "raster_slots.rs"]
 mod slots;

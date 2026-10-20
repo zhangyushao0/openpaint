@@ -19,9 +19,9 @@
 
 use std::f32::consts::SQRT_2;
 
+use crate::canvas::CanvasTarget;
 use crate::core::Core;
 use crate::error::RenderError;
-use crate::evaluator::CanvasTarget;
 use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
 use crate::image::RgbaImage;

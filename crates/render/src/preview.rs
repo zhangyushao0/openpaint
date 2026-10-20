@@ -2,8 +2,8 @@
 //! from the one shown only in that adjustment's values (`retuned`): the scene keeps its items
 //! and changes those ops in place, so no value builds a scene. Since S65 (DECISIONS D92) the
 //! raster core draws each value where the adjustment changes pixels, from the scene as the
-//! committed adjustment's (no snapshot of the layer before it: `OP_RESUME` went with the
-//! evaluator's canvas), so a value previewed shows the pixels the committed adjustment shows.
+//! committed adjustment's (no snapshot of the layer before it), so a value previewed shows the
+//! pixels the committed adjustment shows.
 
 use openpaint_core::{AdjustEdit, Artwork, RegionEdit, StrokeList};
 

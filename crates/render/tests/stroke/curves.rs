@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use openpaint_core::{Artwork, BrushRecipe, Color, StrokeSample, StrokeStyle};
-use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, RgbaImage};
+use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RgbaImage};
 
 use crate::fixture::{
     SIZE, airbrush, blank, cold, core, graphite, pixel, plain, request, sample, with_stroke,
@@ -101,8 +101,8 @@ fn drawn_sample_by_sample(
 ) -> (CanvasTarget, Artwork) {
     let base = blank();
     let mut target = CanvasTarget::new(core, SIZE).expect("target");
-    RegionEvaluator::new(core, &mut target)
-        .evaluate(&request(&base), &[PixelRect::full(SIZE)])
+    target
+        .draw(core, &request(&base), &[PixelRect::full(SIZE)])
         .expect("evaluate");
     let mut session = base.begin_stroke(style.clone(), samples[0]).expect("begin");
     for end in 1..=samples.len() {
@@ -113,13 +113,11 @@ fn drawn_sample_by_sample(
             active: Some(session.active()),
             ..request(&base)
         };
-        RegionEvaluator::new(core, &mut target)
-            .evaluate(&frame, &[])
-            .expect("evaluate");
+        target.draw(core, &frame, &[]).expect("evaluate");
         if end % 5 == 0 {
             let mut fresh = CanvasTarget::new(core, SIZE).expect("target");
-            RegionEvaluator::new(core, &mut fresh)
-                .evaluate(&frame, &[PixelRect::full(SIZE)])
+            fresh
+                .draw(core, &frame, &[PixelRect::full(SIZE)])
                 .expect("evaluate");
             let (kept, cold) = (target.read(core), fresh.read(core));
             let (kept, cold) = (kept.expect("read"), cold.expect("read"));
@@ -132,8 +130,8 @@ fn drawn_sample_by_sample(
         }
     }
     let finished = session.finish().artwork;
-    RegionEvaluator::new(core, &mut target)
-        .evaluate(&request(&finished), &[])
+    target
+        .draw(core, &request(&finished), &[])
         .expect("evaluate");
     (target, finished)
 }

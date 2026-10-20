@@ -107,7 +107,6 @@ fn same(before: &Artwork, after: &Artwork) {
     assert_eq!(kept.items, built.items);
     assert_eq!(kept.raster, built.raster);
     assert_eq!(kept.masks, built.masks);
-    assert_eq!(kept.bases_at, built.bases_at);
     assert_eq!(
         (kept.active_before.clone(), kept.active_clip),
         (built.active_before.clone(), built.active_clip)

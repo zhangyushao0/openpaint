@@ -1,6 +1,6 @@
 //! The display cache's side of the screen's canvas target (S54, DECISIONS D81): its texels copied
 //! out exactly as it holds them, and a cached canvas or the gallery picture put in before
-//! anything is evaluated into it, which the tiles still waiting then show instead of the paper.
+//! anything is drawn into it, which the tiles still waiting then show instead of the paper.
 
 use super::CanvasTarget;
 use crate::core::Core;
@@ -92,10 +92,10 @@ impl CanvasTarget {
     }
 
     /// Puts `pixels` (as `CanvasCopy::bytes` gave them from a target of this size and format)
-    /// into it before anything was evaluated: what it shows from the first frame. A cache of
-    /// exactly what is to be evaluated is the canvas `complete` (its caller then passes no
-    /// regions, and the smudge residuals are evaluated while nothing waits, `warming`); any
-    /// other shows under the tiles until they are evaluated, never the paper.
+    /// into it before anything was drawn: what it shows from the first frame. A cache of
+    /// exactly what is to be drawn is the canvas `complete` (its caller then passes no
+    /// regions, and the smudge residuals are derived while nothing waits, `warming`); any
+    /// other shows under the tiles until they are drawn, never the paper.
     ///
     /// # Errors
     /// `Invalid` when `pixels` do not fill the target.
@@ -124,7 +124,7 @@ impl CanvasTarget {
         Ok(())
     }
 
-    /// Smudge residuals are still being evaluated after a canvas shown complete from its cache:
+    /// Smudge residuals are still being derived after a canvas shown complete from its cache:
     /// frames are wanted until they are (S54).
     #[must_use]
     pub const fn warming(&self) -> bool {
@@ -132,7 +132,7 @@ impl CanvasTarget {
     }
 
     /// Puts `picture` (the gallery picture: its size and 8-bit RGBA pixels, rows top first)
-    /// enlarged over the whole target before anything was evaluated into it: the tiles still
+    /// enlarged over the whole target before anything was drawn into it: the tiles still
     /// waiting show it instead of the paper.
     ///
     /// # Errors
@@ -152,5 +152,5 @@ impl CanvasTarget {
 }
 
 #[cfg(test)]
-#[path = "evaluator_cache_tests.rs"]
+#[path = "canvas_cache_tests.rs"]
 mod tests;

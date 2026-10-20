@@ -153,7 +153,7 @@ fn count_stroke(uses: &mut Uses, stroke: &Stroke, known: &[(String, BrushRecipe)
     uses.samples += stroke.samples().len();
 }
 
-/// What the evaluator does for a recipe no built-in has (an edited brush, or a built-in as an
+/// What the renderer does for a recipe no built-in has (an edited brush, or a built-in as an
 /// older build drew it): stamps, or a continuous stroke covering, building up, or on paper.
 fn engine(recipe: &BrushRecipe) -> String {
     let shape = recipe.shape();

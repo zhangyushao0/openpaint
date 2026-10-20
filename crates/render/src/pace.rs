@@ -35,21 +35,6 @@ const DECAY: f64 = 0.97;
 /// GPU runs the table's tablet estimates about thirty times faster).
 const RATIO: [f64; 2] = [0.01, 20.0];
 
-/// What a GPU time reading measured: a raster region estimated at `cost` ns by the raster core's
-/// table (background work), or (`raster` false) a benchmark's draw, which corrects nothing.
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
-pub(crate) struct Group {
-    pub(crate) cost: f64,
-    pub(crate) raster: bool,
-}
-
-impl Group {
-    /// A region of the raster core estimated at `cost` ns.
-    pub(crate) const fn raster(cost: f64) -> Self {
-        Self { cost, raster: true }
-    }
-}
-
 pub(crate) struct Pace {
     /// The budget a frame gives while the screen is touched, and the queue's most while it is
     /// not (S54, S60).
@@ -138,9 +123,9 @@ impl Pace {
             pieces: self.pieces,
             first: self.first,
         };
-        for (group, measured) in readings.iter().flatten().filter(|(group, _)| group.raster) {
+        for (cost, measured) in readings.iter().flatten() {
             let sums = &mut self.raster_sums;
-            *sums = [sums[0] * DECAY + group.cost, sums[1] * DECAY + measured];
+            *sums = [sums[0] * DECAY + cost, sums[1] * DECAY + measured];
         }
         if self.raster_sums[0] > 0.0 {
             let ratio = self.raster_sums[1] / self.raster_sums[0];
@@ -221,7 +206,7 @@ impl Pace {
     /// measure it when a slot is free (`raster_finish` once submitted).
     pub(crate) fn raster_start(&mut self, cost: f64) -> (f64, Option<Stamps>) {
         let stamps = self.clock.as_mut().and_then(|clock| {
-            let timing = clock.start(Group::raster(cost))?;
+            let timing = clock.start(cost)?;
             Some(clock.stamps(timing))
         });
         (cost * self.raster_ratio, stamps)

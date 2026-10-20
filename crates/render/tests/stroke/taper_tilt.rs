@@ -9,9 +9,7 @@ use openpaint_core::{
     Accumulation, Artwork, BrushRecipe, Color, Curve, Deposit, Dynamics, Grain, StrokeSample,
     StrokeStyle, Taper,
 };
-use openpaint_render::{
-    Banding, CanvasTarget, FrameRequest, PixelRect, RegionEvaluator, RgbaImage,
-};
+use openpaint_render::{Banding, CanvasTarget, FrameRequest, PixelRect, RgbaImage};
 
 use crate::fixture::{SIZE, blank, cold, core, graphite, pixel, request, with_stroke};
 use crate::scale::{export, whole};
@@ -109,8 +107,8 @@ pub fn drawn_with_a_blunt_end(style: &StrokeStyle, drawn: &StrokeStyle, samples:
     let core = core();
     let base = blank();
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(&base), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(&base), &[PixelRect::full(SIZE)])
         .expect("evaluate");
     let mut session = base.begin_stroke(style.clone(), samples[0]).expect("begin");
     let mut last = None;
@@ -122,9 +120,7 @@ pub fn drawn_with_a_blunt_end(style: &StrokeStyle, drawn: &StrokeStyle, samples:
             active: Some(session.active()),
             ..request(&base)
         };
-        RegionEvaluator::new(&core, &mut target)
-            .evaluate(&frame, &[])
-            .expect("evaluate");
+        target.draw(&core, &frame, &[]).expect("evaluate");
         if end % 5 == 0 || end == samples.len() {
             // S63: the raster core's, as it draws the stroke so far committed cold.
             let so_far = with_stroke(&base, (drawn.clone(), samples[..end].to_vec()));
@@ -134,8 +130,8 @@ pub fn drawn_with_a_blunt_end(style: &StrokeStyle, drawn: &StrokeStyle, samples:
         }
     }
     let finished: Artwork = session.finish().artwork;
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(&finished), &[])
+    target
+        .draw(&core, &request(&finished), &[])
         .expect("evaluate");
     let lifted = target.read(&core).expect("read");
     assert!(

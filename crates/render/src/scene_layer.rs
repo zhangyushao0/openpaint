@@ -2,7 +2,7 @@
 //! stroke's place; `scene_content.rs`), then with an enabled mask `BeginMask` and the mask's own
 //! ops, then its end, which applies the mask (S24).
 
-use openpaint_core::{LayerId, LayerMask, RegionEdit, StrokeBlend, StrokeList};
+use openpaint_core::{LayerId, LayerMask, RegionEdit, StrokeList};
 
 use crate::error::RenderError;
 use crate::protocol::{Masking, Op};
@@ -58,29 +58,6 @@ impl Scene {
             }
         }
         self.items.push(end);
-        Ok(())
-    }
-
-    /// The last mask words, one per smudge, then one per filter: where their blocks start in the
-    /// arena, which each one's op names.
-    pub(crate) fn place_bases(&mut self) -> Result<(), RenderError> {
-        let count = self.smudges.len() + self.filters.len();
-        let fits = |at: &u32| u32::try_from(count).is_ok_and(|n| at.checked_add(n).is_some());
-        self.bases_at = u32::try_from(self.masks.len())
-            .ok()
-            .filter(fits)
-            .ok_or(RenderError::Invalid("the masks exceed 2^32 words"))?;
-        self.masks.resize(self.masks.len() + count, 0);
-        for (number, smudge) in (self.bases_at..).zip(&self.smudges) {
-            let locked = smudge.stroke.blend() == StrokeBlend::SmudgeLocked;
-            self.items[smudge.item] = Item::Smudge(Op::smudge(Some(number), smudge.clip, locked));
-        }
-        let filters = self.bases_at + self.smudges.len() as u32;
-        for (number, filter) in (filters..).zip(&self.filters) {
-            if let Item::Fill { op, .. } = &mut self.items[filter.item] {
-                *op = Op::filter(number, filter.clip, self.canvas);
-            }
-        }
         Ok(())
     }
 }

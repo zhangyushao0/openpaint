@@ -281,10 +281,10 @@ impl CanvasTarget {
                 finish: part.finish.as_ref(),
             })
             .collect();
-        let (buffer, _) = targets.prepare_all(core, &buffers, (&regions, drawing.pages()), None)?;
+        let buffer = targets.prepare_all(core, &buffers, (&regions, drawing.pages()), None)?;
         core.gpu.submit([buffer]);
         let drawn = batch.iter().filter(|part| part.finish.is_some()).count();
-        core.evaluate.tally.rastered(drawn);
+        core.tally.rastered(drawn);
         self.raster.drew = true;
         Ok(())
     }

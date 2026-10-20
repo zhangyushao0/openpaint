@@ -1,8 +1,7 @@
-//! A canvas target's smudge and filter memory under the GPU memory budget (S49, D76): what it
-//! holds, the third step of keeping within the budget, the arena cut down to the blocks the
-//! scene shows (the rest is evaluated again from the artwork if a later version shows it), and
-//! S51's last one: the residuals shown kept within a room, the least recently needed going
-//! first, never those the last evaluation needed.
+//! A canvas target's smudge and filter memory under the GPU memory budget (S49, D93): what it
+//! holds, the arena cut down to the blocks the scene shows (the rest is derived again from the
+//! artwork if a later version shows it), and S51's step: the residuals shown kept within a room,
+//! the least recently needed going first, never those the last draw needed.
 
 use std::collections::HashSet;
 
@@ -10,7 +9,6 @@ use super::{Keep, Key, Smudges, binding_limit, key};
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::filter::Filters;
-use crate::program::SceneOps;
 use crate::scene::Scene;
 use crate::smudge::Material;
 use crate::smudge::kernels::KernelBuffers;
@@ -45,22 +43,22 @@ impl Smudges {
         self.arena.bytes()
     }
 
-    /// Bytes of the arena's blocks the last evaluation did not need: what its room may cut.
+    /// Bytes of the arena's blocks the last draw did not need: what its room may cut.
     pub(crate) fn spare_bytes(&self) -> u64 {
         self.arena.spare_words(&self.arena.last_needed()) * 4
     }
 
-    /// Keeps in the arena only the blocks `scene` (uploaded as `ops`) shows, within the room (the
-    /// least recently needed residuals going first, never one the last evaluation needed), in a
-    /// buffer just large enough, writes their new bases and, with `material`, lets the material
-    /// texture go (made again when a smudge or filter needs it); returns the bytes given back.
+    /// Keeps in the arena only the blocks `scene` shows, within the room (the least recently
+    /// needed residuals going first, never one the last draw needed), in a buffer just large
+    /// enough and, with `material`, lets the material texture go (made again when a smudge or
+    /// filter needs it); returns the bytes given back.
     ///
     /// # Errors
     /// `Admission` as `prepare`.
     pub(crate) fn shrink(
         &mut self,
         core: &Core,
-        (scene, ops): (&Scene, &SceneOps),
+        scene: &Scene,
         (filters, material): (&mut Filters, bool),
     ) -> Result<u64, RenderError> {
         let before = self.bytes();
@@ -74,7 +72,6 @@ impl Smudges {
             limit: binding_limit(core).min(self.limit),
         };
         self.arena.shrink(&core.gpu, &keep)?;
-        self.write_bases(core, ops, scene.bases_at, &keys);
         filters.retain(&self.arena);
         if material {
             // The material holds no run's tiles and no filter's pixels any more.

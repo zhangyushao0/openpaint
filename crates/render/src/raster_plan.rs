@@ -1,7 +1,7 @@
 //! The raster core's plan on the CPU (S57's probe made product code, S59): one region of a scene's
 //! output as the render passes that draw it. Each stroke reaching the region gets a region of the
 //! scratch atlas (`raster_lay.rs`), its pieces and stamps lay their coverage there, combined by
-//! the blend unit, and its tiles composite it onto the layer by the evaluator's paint; fills and
+//! the blend unit, and its tiles composite it onto the layer by the stroke's paint; fills and
 //! patches draw onto the layer as quads; a smudge copies what it reaches of the layer (or mask)
 //! and lays it back moved by its residual (S61, D88); a mask draws onto a target of its own; each
 //! layer's end composites it onto the canvas (or its clipping chain) by its mode, through its
@@ -102,7 +102,7 @@ impl RasterPlan {
     ///
     /// # Errors
     /// `Invalid` for a stroke's region larger than the atlas, a smudge or filter reaching the
-    /// region whose result is not in the arena, or moves stacked deeper than the evaluator's.
+    /// region whose result is not in the arena, or moves nested deeper than `MOVE_DEPTH`.
     pub(crate) fn build(
         (scene, bases): Drawn<'_>,
         (output, size): (Output, [u32; 2]),

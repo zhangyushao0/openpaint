@@ -10,7 +10,8 @@ use crate::geom::{Bounds, PixelRect};
 use crate::output::Output;
 use crate::protocol::Op;
 use crate::raster_plan::{Coverage, Instance, RasterPlan};
-use crate::scene::Scene;
+use crate::raster_scene::Unit;
+use crate::scene::{Item, Scene};
 use crate::scene_cleared::intersect;
 
 /// Side of a composite tile in region pixels (`RASTER_TILE` in raster.wgsl).
@@ -53,6 +54,26 @@ impl Placing {
         }
     }
 
+    /// The region's pixels lie on the canvas by `base` (a material's seen from a transform
+    /// record): bounds on the canvas map back into them.
+    pub(crate) fn based(&mut self, base: Affine) {
+        self.unbase = Some(base.inverse());
+        self.map = self.unbase;
+    }
+
+    /// The units from here lie in the frame of item `item`, whose content `to_canvas` maps onto
+    /// the canvas and only whose `clip` shows (S65): their bounds its pixels. A frame that maps
+    /// nothing names none.
+    pub(crate) fn enter(&mut self, item: usize, (to_canvas, clip): (&Affine, Option<Bounds>)) {
+        let identity = to_canvas.is_identity();
+        self.map = match (identity, self.unbase) {
+            (true, unbase) => unbase,
+            (false, unbase) => Some(to_canvas.then(unbase.unwrap_or(Affine::IDENTITY))),
+        };
+        self.clip = clip;
+        self.frame = if identity { 0 } else { item as u32 + 1 };
+    }
+
     /// The region's pixels content `bounds` can reach.
     pub(crate) fn reach(&self, bounds: &Bounds) -> PixelRect {
         if bounds.is_empty() {
@@ -89,6 +110,47 @@ impl Placing {
         let region = PixelRect::full(self.size);
         self.output.place(rect).intersect(&region)
     }
+}
+
+/// Where the units laying `scene`'s items `items` (one layer's before a filter: its material) can
+/// draw, in the pixels of a material of `size` lying on the canvas by `base`: each unit's reach
+/// placed in the frame it lies in, as the material's plan places it, joined. `None`: nowhere.
+pub(crate) fn material_reach(
+    scene: &Scene,
+    (items, base): (&Range<usize>, Affine),
+    size: [u32; 2],
+) -> Option<PixelRect> {
+    let mut placing = Placing::new(Output::CANVAS, size);
+    if !base.is_identity() {
+        placing.based(base);
+    }
+    let mut reach: Option<PixelRect> = None;
+    for unit in scene.raster.within(items) {
+        let rect = match unit {
+            Unit::Frame(item) => {
+                if let Item::Frame {
+                    to_canvas, clip, ..
+                } = &scene.items[*item]
+                {
+                    placing.enter(*item, (to_canvas, *clip));
+                }
+                continue;
+            }
+            Unit::Stroke {
+                bounds: Some(bounds),
+                ..
+            }
+            | Unit::Edit { bounds, .. }
+            | Unit::Adjust { bounds, .. }
+            | Unit::Filter { bounds, .. } => placing.reach(bounds),
+            Unit::Smudge { reach, .. } => placing.reach_canvas(reach),
+            _ => continue,
+        };
+        if !rect.is_empty() {
+            reach = Some(reach.map_or(rect, |joined| joined.union(&rect)));
+        }
+    }
+    reach
 }
 
 /// A stroke as it reaches a region: its spans that do, its tiles, its box (whole tiles).

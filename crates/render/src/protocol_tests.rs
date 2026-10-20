@@ -1,5 +1,5 @@
-//! The protocol's layout test: the generated WGSL declares exactly the Rust records, opcodes,
-//! named slots and blends.
+//! The protocol's layout test: the generated WGSL declares exactly the Rust op record, named
+//! slots and blends.
 
 use super::wgsl::LAYOUTS;
 use super::*;
@@ -7,8 +7,8 @@ use crate::paper::{MOMENT_ONE, PAPER_SIZE, level_count};
 use wgpu::naga;
 
 fn parsed() -> naga::Module {
-    let source = crate::program::shader_source();
-    naga::front::wgsl::parse_str(&source).expect("the evaluator shader parses")
+    let source = crate::raster_gpu::raster_source();
+    naga::front::wgsl::parse_str(&source).expect("the raster core's shader parses")
 }
 
 #[test]
@@ -161,38 +161,14 @@ fn constant(module: &naga::Module, name: &str) -> u32 {
 fn encoding_fills_exactly_the_record_size() {
     let op = Op::segment(&operands(Tip::Cover), 1);
     assert_eq!(encode(&[op, op]).len(), 2 * size_of::<Op>());
-    let tile = TileRecord {
-        origin: [16, 32],
-        output: [48, 64],
-        start: 7,
-        count: 9,
-    };
-    assert_eq!(encode(&[tile]).len(), size_of::<TileRecord>());
-    assert_eq!(&encode(&[tile])[16..20], &7u32.to_le_bytes());
-    let params = Params {
-        background: [1.0; 4],
-        tiles: 1,
-        row: 1,
-        size: [1, 1],
-        level: 0.0,
-        scale: 1.0,
-        inverse: 1.0,
-        unused: 0.0,
-        base_x: [1.0, 0.0, 0.0, 1.0],
-        base_y: [0.0, 1.0, 0.0, 0.0],
-    };
-    assert_eq!(encode(&[params]).len(), size_of::<Params>());
+    assert_eq!(&encode(&[op])[..4], &(Opcode::Segment as u32).to_le_bytes());
+    assert_eq!(encode(&[7u32, 9]), [7, 0, 0, 0, 9, 0, 0, 0]);
 }
 
 #[test]
-fn opcode_constants_match_the_enum() {
+fn the_protocols_constants_match_the_rust_values() {
     let module = parsed();
     let value = |name: &str| constant(&module, name);
-    for opcode in Opcode::ALL {
-        assert_eq!(value(opcode.wgsl_name()), opcode as u32);
-    }
-    assert_eq!(value("TILE"), TILE);
-    assert_eq!(value("FRESH"), FRESH);
     assert_eq!(value("GRAIN_ONE"), GRAIN_ONE);
     assert_eq!(value("MASK_HEADER"), MASK_HEADER);
     for (name, slot) in SLOTS.into_iter().chain(SEGMENT_SLOTS) {

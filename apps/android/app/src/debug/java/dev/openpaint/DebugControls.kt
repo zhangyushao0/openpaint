@@ -36,10 +36,9 @@ internal object DebugControls {
     @JvmStatic external fun loseDevice()
 
     /**
-     * The evaluator's micro-benchmark (S55) on this device's GPU: the scene [scene] names, or
-     * every one for "all"; or (S58) one of the app's scenario benchmarks (open-cold, open, zoom,
-     * pan, strokes, session) on the artwork open. Its lines, written to the log too, separated
-     * by tabs.
+     * One of the app's scenario benchmarks (S58: open-cold, open, zoom, pan, strokes, session,
+     * export, touch, undo, adjust) on the artwork open, as [scene] names it. Its lines, written
+     * to the log too, separated by tabs.
      */
     @JvmStatic external fun bench(scene: String): String?
 

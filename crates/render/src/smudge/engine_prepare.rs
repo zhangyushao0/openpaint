@@ -1,7 +1,7 @@
-//! Making the residuals an evaluation needs present in the arena (S51): which of them, and which
-//! tiles of each, `engine_needs.rs` says; here they are evaluated in scene order, whole when the
-//! device binds them all, else only the tiles needed, and the arena keeps within its room by
-//! dropping the residuals needed least lately.
+//! Making the residuals a draw needs present in the arena (S51): which of them, and which tiles
+//! of each, `engine_needs.rs` says; here they are derived in scene order, whole when the device
+//! binds them all, else only the tiles needed, and the arena keeps within its room by dropping
+//! the residuals needed least lately.
 
 use std::collections::HashSet;
 
@@ -14,15 +14,14 @@ use super::{
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::filter::Filters;
-use crate::program::SceneOps;
 use crate::scene::{Scene, SmudgeItem};
+use crate::scene_ops::SceneOps;
 
 impl Smudges {
     /// Makes what `wanted` needs of `scene`'s smudges (built from `artwork`, uploaded as `ops`)
-    /// and every filter present in the arena, in scene order, with what those evaluated anew
-    /// read, and writes where each block starts into the scene's base words (0 for a residual
-    /// not held: no evaluation reads it). A just committed smudge takes over the in-progress
-    /// residual when it is that stroke on the same layer content.
+    /// and every filter present in the arena, in scene order, with what those derived anew read
+    /// (a draw names each block by where the arena holds it, `held`). A just committed smudge
+    /// takes over the in-progress residual when it is that stroke on the same layer content.
     ///
     /// # Errors
     /// `Admission` when the needed blocks exceed what the device binds; `Invalid` for a canvas
@@ -64,8 +63,6 @@ impl Smudges {
             .map(|(index, item)| (item, index))
             .collect();
         order.sort_unstable();
-        // The blocks already present, for the materials evaluated below to read.
-        self.write_bases(core, ops, scene.bases_at, &keys);
         for (_, index) in order {
             match scene.smudges.get(index) {
                 Some(item) => {
@@ -78,8 +75,7 @@ impl Smudges {
                 None if self.arena.base(&keys[index]).is_some() => continue,
                 None => {
                     let item = &scene.filters[index - scene.smudges.len()];
-                    let evaluated = self.tools.evaluated;
-                    let material = material(&mut self.tools.material, core, (size, evaluated))?;
+                    let material = material(&mut self.tools.material, core, size)?;
                     let held = self.tools.owner == 0;
                     let tools = (&mut self.arena, material, &self.tools.empty, held);
                     let place = (item, keys[index]);
@@ -88,9 +84,7 @@ impl Smudges {
                     self.tools.owner = 0;
                 }
             }
-            self.write_bases(core, ops, scene.bases_at, &keys);
         }
-        self.write_bases(core, ops, scene.bases_at, &keys);
         filters.retain(&self.arena);
         Ok(())
     }
@@ -197,7 +191,7 @@ impl Smudges {
                 active.run
             }
             None => {
-                core.evaluate.tally.derived();
+                core.tally.derived();
                 let mut run = self.tools.cold_run(core, size);
                 let all = dabs(item.stroke.style(), item.stroke.samples());
                 let scene = (scene, ops, range);

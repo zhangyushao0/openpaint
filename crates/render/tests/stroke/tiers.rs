@@ -6,8 +6,8 @@ use std::collections::BTreeSet;
 
 use openpaint_core::{ActiveStroke, Artwork, Color};
 use openpaint_render::{
-    CanvasTarget, Core, FrameRequest, PixelRect, RasterDrawer, RegionEvaluator, RgbaImage,
-    ViewCache, ViewFrame, ViewWork, changed_regions,
+    CanvasTarget, Core, FrameRequest, PixelRect, RasterDrawer, RgbaImage, ViewCache, ViewFrame,
+    ViewWork, changed_regions,
 };
 
 use crate::fixture::{SIZE, cold, core};
@@ -41,8 +41,8 @@ pub struct Screen {
 impl Screen {
     pub fn new(core: &Core, artwork: &Artwork) -> Self {
         let mut target = CanvasTarget::new(core, SIZE).expect("target");
-        RegionEvaluator::new(core, &mut target)
-            .evaluate(&request(artwork, None), &[PixelRect::full(SIZE)])
+        target
+            .draw(core, &request(artwork, None), &[PixelRect::full(SIZE)])
             .expect("evaluate");
         Self {
             target,
@@ -75,9 +75,7 @@ impl Screen {
         view: &ViewFrame,
     ) -> ViewWork {
         let request = request(artwork, active);
-        RegionEvaluator::new(core, &mut self.target)
-            .evaluate(&request, regions)
-            .expect("evaluate");
+        self.target.draw(core, &request, regions).expect("evaluate");
         self.now += 1.0 / 60.0;
         self.view
             .update(core, &mut self.target, &request, (view, self.now))

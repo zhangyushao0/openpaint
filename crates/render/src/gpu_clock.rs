@@ -1,22 +1,21 @@
-//! Background work's GPU time, measured (S53): each background evaluation's passes write GPU
-//! timestamps, the first run's at its start and every run's at its end, so the last end less the
-//! first start is the time the GPU took for it. They are resolved into a buffer and read back
-//! frames later without waiting; the frame budget (`pace.rs`) learns from them how far its
-//! estimates are off on this device. A device without timestamp queries measures nothing and the
-//! estimates stand.
+//! Background work's GPU time, measured (S53): each raster region drawn as background work writes
+//! GPU timestamps, its first pass's at its start and its last pass's at its end, so the end less
+//! the start is the time the GPU took for it. They are resolved into a buffer and read back frames
+//! later without waiting; the frame budget (`pace.rs`) learns from them how far its estimates are
+//! off on this device. A device without timestamp queries measures nothing and the estimates
+//! stand.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 
 use crate::gpu::Gpu;
-use crate::pace::Group;
 
-/// Evaluations measured at once, at most; one more waits until a reading came back.
+/// Regions measured at once, at most; one more waits until a reading came back.
 const SLOTS: u32 = 16;
 /// Where each slot's two timestamps are resolved: the alignment resolving needs.
 const STRIDE: u64 = 256;
 
-/// A slot's state: free, held by an evaluation being encoded (S60: the raster worker's, while the
+/// A slot's state: free, held by a region being encoded (S60: the raster worker's, while the
 /// frame loop starts others), its timestamps on their way back, or read back and waiting to be
 /// taken.
 const FREE: u8 = 0;
@@ -27,8 +26,8 @@ const HELD: u8 = 3;
 struct Slot {
     read: wgpu::Buffer,
     state: Arc<AtomicU8>,
-    /// The tiles of the evaluation and their estimates (`pace.rs`).
-    group: Group,
+    /// The region's estimate, ns (`pace.rs`).
+    cost: f64,
 }
 
 pub(crate) struct GpuClock {
@@ -39,11 +38,11 @@ pub(crate) struct GpuClock {
     period: f64,
 }
 
-/// One evaluation being measured: the slot its passes write to.
+/// One region being measured: the slot its passes write to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Timing(u32);
 
-/// A raster region's timestamps (S57's probe, S60): the clock's query set and the slot.
+/// A raster region's timestamps (S60): the clock's query set and the slot.
 #[derive(Debug, Clone)]
 pub(crate) struct Stamps {
     set: wgpu::QuerySet,
@@ -94,7 +93,7 @@ impl GpuClock {
                     mapped_at_creation: false,
                 }),
                 state: Arc::new(AtomicU8::new(FREE)),
-                group: Group::default(),
+                cost: 0.0,
             })
             .collect();
         Some(Self {
@@ -105,33 +104,20 @@ impl GpuClock {
         })
     }
 
-    /// A free slot for an evaluation of `group`; `None` while every slot waits.
-    pub(crate) fn start(&mut self, group: Group) -> Option<Timing> {
+    /// A free slot for a region estimated at `cost` ns; `None` while every slot waits.
+    pub(crate) fn start(&mut self, cost: f64) -> Option<Timing> {
         let at = self
             .slots
             .iter()
             .position(|slot| slot.state.load(Ordering::Acquire) == FREE)?;
-        self.slots[at].group = group;
+        self.slots[at].cost = cost;
         self.slots[at].state.store(HELD, Ordering::Release);
         Some(Timing(at as u32))
     }
 
-    /// An evaluation started is not submitted after all: its slot is free again.
+    /// A region started is not submitted after all: its slot is free again.
     pub(crate) fn abandon(&mut self, Timing(at): Timing) {
         self.slots[at as usize].state.store(FREE, Ordering::Release);
-    }
-
-    /// What a run's pass of `timing` writes: its start for the `first` run, its end always.
-    pub(crate) fn writes(
-        &self,
-        timing: Timing,
-        first: bool,
-    ) -> wgpu::ComputePassTimestampWrites<'_> {
-        wgpu::ComputePassTimestampWrites {
-            query_set: &self.set,
-            beginning_of_pass_write_index: first.then_some(2 * timing.0),
-            end_of_pass_write_index: Some(2 * timing.0 + 1),
-        }
     }
 
     /// The timestamps of `timing` as a region of the raster core writes them, held apart from the
@@ -143,8 +129,8 @@ impl GpuClock {
         }
     }
 
-    /// After the evaluation's last run: its two timestamps resolved and copied out, to be read
-    /// back once the GPU is there.
+    /// After the region's last pass: its two timestamps resolved and copied out, to be read back
+    /// once the GPU is there.
     pub(crate) fn finish(&mut self, gpu: &Gpu, Timing(at): Timing) {
         let slot = &self.slots[at as usize];
         let mut encoder = gpu.device.create_command_encoder(&Default::default());
@@ -164,8 +150,8 @@ impl GpuClock {
             });
     }
 
-    /// Every reading back since the last call: each evaluation's tiles and measured time, ns.
-    pub(crate) fn readings(&mut self, gpu: &Gpu) -> Vec<(Group, f64)> {
+    /// Every reading back since the last call: each region's estimate and measured time, ns.
+    pub(crate) fn readings(&mut self, gpu: &Gpu) -> Vec<(f64, f64)> {
         // Nothing waits: whatever the GPU finished calls back now.
         let _ = gpu.device.poll(wgpu::PollType::Poll);
         let mut readings = Vec::new();
@@ -184,7 +170,7 @@ impl GpuClock {
             if let [start, end] = ticks[..]
                 && end > start
             {
-                readings.push((slot.group, (end - start) as f64 * self.period));
+                readings.push((slot.cost, (end - start) as f64 * self.period));
             }
         }
         readings

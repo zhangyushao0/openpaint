@@ -26,13 +26,10 @@
 //!   ten;
 //! - `lose-device`: no gesture; the GPU device destroyed under the app as a driver reset loses it
 //!   (S49), so the app makes its renderer again;
-//! - `bench [scene]`: no gesture; the evaluator's micro-benchmark on the device's GPU (S55), every
-//!   scene or the one named, a line per scene and scale (also in the app's log); a scene named
-//!   `raster[-scene][@scale][@atlas][@alone]` or `raster-passes` runs the raster core's
-//!   benchmark instead (S57's probe, the product's raster core since S59); `open-cold`, `open`,
-//!   `zoom`, `pan`, `strokes`, `session`, `export` (S59), `touch` (S60) or `undo` (S62) runs
-//!   that scenario benchmark on the artwork open (S58, `runtime/src/bench_app.rs`), `session`
-//!   with the app's `meminfo` before and after;
+//! - `bench <scenario>[@fast]`: no gesture; `open-cold`, `open`, `zoom`, `pan`, `strokes`,
+//!   `session`, `export` (S59), `touch` (S60), `undo` (S62) or `adjust` (S65) runs that scenario
+//!   benchmark on the artwork open (S58, `runtime/src/bench_app.rs`), a line per stage (also in
+//!   the app's log), `session` with the app's `meminfo` before and after;
 //! - `open-file <name>`: the OpenPaint file `cargo device-push` put into the test folder opened
 //!   as a new artwork without the picker, its id printed (S58, `open_file.rs`);
 //! - `home`: the system's home key, no instrumentation (S58: the app's memory released when its
@@ -136,7 +133,7 @@ const INPUT_USAGE: &str = "cargo device-input \
                            | hover x,y [ms] [primary|secondary|tertiary|eraser] \
                            | tap <control name> | drag <control name> x,y [ms] \
                            | find <control name> | state | gradient on|off | lose-device \
-                           | bench [scene|open-cold|open|zoom|pan|strokes|session|export|touch|undo|adjust] \
+                           | bench open-cold|open|zoom|pan|strokes|session|export|touch|undo|adjust[@fast] \
                            | open-file <name> | home";
 
 /// A control's name for the device's shell, which reads the line: in single quotes, so none
@@ -163,7 +160,6 @@ pub(super) fn extras(args: &[&str]) -> Result<Vec<(&'static str, String)>> {
         ["state"] => return one("state", "1".to_owned()),
         ["gradient", state @ ("on" | "off")] => return one("gradient", (*state).to_owned()),
         ["lose-device"] => return one("lose", "device".to_owned()),
-        ["bench"] => return one("bench", "all".to_owned()),
         ["bench", scene] => return one("bench", quoted(scene)?),
         ["drag", name, to, rest @ ..]
             if rest.len() <= 1 && args[2..].iter().all(|a| numbers(a)) =>
@@ -259,10 +255,9 @@ mod tests {
         assert_eq!(tap, [("tap", "'Move layer up'".to_owned())]);
         let lose = extras(&["lose-device"]).expect("lose");
         assert_eq!(lose, [("lose", "device".to_owned())]);
-        let bench = extras(&["bench"]).expect("bench");
-        assert_eq!(bench, [("bench", "all".to_owned())]);
-        let speckle = extras(&["bench", "speckle"]).expect("one scene");
-        assert_eq!(speckle, [("bench", "'speckle'".to_owned())]);
+        assert!(extras(&["bench"]).is_err(), "a scenario is named");
+        let zoom = extras(&["bench", "zoom@fast"]).expect("one scenario");
+        assert_eq!(zoom, [("bench", "'zoom@fast'".to_owned())]);
         assert!(extras(&["tap", "it's"]).is_err());
         let gradient = extras(&["gradient", "on"]).expect("gradient");
         assert_eq!(gradient, [("gradient", "on".to_owned())]);

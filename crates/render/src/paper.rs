@@ -3,7 +3,7 @@
 //! The sketch paper is ambientCG's Paper001 (CC0) as draweave packed it, halved to 1024 x 512
 //! texels and ranked again (`assets/paper-sketch.bin`, one byte per texel, row major).
 //!
-//! A canvas pixel covers several texels, so the evaluator takes the mean and the variance of
+//! A canvas pixel covers several texels, so the shader takes the mean and the variance of
 //! the ranks under it from a mip chain (each level the means of 2 x 2 texels of the one below)
 //! and integrates the coverage over them (draweave's five-point Gauss-Hermite rule), rather
 //! than averaging heights first, which would fade the grain, or reading one texel, which would

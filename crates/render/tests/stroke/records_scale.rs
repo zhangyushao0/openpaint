@@ -4,9 +4,7 @@
 //! record antialiases by its footprint; nested records; banded export equals one piece.
 
 use openpaint_core::{Artwork, Color, Placement, RegionMask};
-use openpaint_render::{
-    Banding, CanvasTarget, PixelRect, RegionEvaluator, RgbaImage, changed_regions,
-};
+use openpaint_render::{Banding, CanvasTarget, PixelRect, RgbaImage, changed_regions};
 
 use crate::fixture::{SIZE, blank, cold, core, plain, request, sample, with_stroke};
 use crate::records::{busy, by_patch, by_record, canvas, lasso, turned};
@@ -124,14 +122,13 @@ fn moved_by_whole_pixels(lifts: &[Option<RegionMask>]) {
     let step = Placement::moved([3.0, 1.0]).expect("move");
     let (mut records, mut patches) = (busy(), busy());
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-    let mut evaluator = RegionEvaluator::new(&core, &mut target);
-    evaluator
-        .evaluate(&request(&records), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(&records), &[PixelRect::full(SIZE)])
         .expect("base");
     for lift in lifts {
         let next = by_record(&records, lift.as_ref(), step);
         let regions = changed_regions(&records, &next);
-        evaluator.evaluate(&request(&next), &regions).expect("step");
+        target.draw(&core, &request(&next), &regions).expect("step");
         records = next;
         patches = by_patch(&core, &patches, lift.as_ref(), step);
     }

@@ -162,10 +162,10 @@ impl Runtime {
         let mb = |bytes: u64| bytes as f64 / (1024.0 * 1024.0);
         let gpu = self.core.gpu_memory().unwrap_or_default();
         let caches = self.cache_bytes().unwrap_or_default();
-        let [scene, plan] = self.scene_bytes().unwrap_or_default();
+        let scene = self.scene_bytes().unwrap_or_default();
         format!(
             "GPU caches {:.1} MB (tiers {:.1}, snapshots {:.1}, arena {:.1}), the allocator {:.1} \
-             MB in blocks of {:.1}; the heap's scene {:.1} MB, plan {:.1}, history {:.1}",
+             MB in blocks of {:.1}; the heap's scene {:.1} MB, history {:.1}",
             mb(caches.total()),
             mb(caches.tiers),
             mb(caches.snapshots),
@@ -173,7 +173,6 @@ impl Runtime {
             mb(gpu.allocated),
             mb(gpu.reserved),
             mb(scene),
-            mb(plan),
             mb(self.history_bytes().unwrap_or(0) as u64)
         )
     }

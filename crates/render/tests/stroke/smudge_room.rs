@@ -7,9 +7,7 @@
 //! room holds it, and is cut back right after.
 
 use openpaint_core::{Artwork, Color, StrokeSample, StrokeStyle, StrokeTool};
-use openpaint_render::{
-    CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, changed_regions,
-};
+use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, changed_regions};
 
 use crate::fixture::{SIZE, airbrush, blank, cold, core, plain, request, sample, with_stroke};
 
@@ -70,9 +68,7 @@ fn frame(
     regions: &[PixelRect],
 ) {
     target.set_arena_room(core, 64).expect("room");
-    RegionEvaluator::new(core, target)
-        .evaluate(request, regions)
-        .expect("evaluate");
+    target.draw(core, request, regions).expect("evaluate");
 }
 
 /// The canvas evaluated a quarter a frame.
@@ -92,8 +88,7 @@ fn a_canvas_evaluated_a_quarter_at_a_time_in_a_tight_arena_equals_cold() {
     let core = core();
     let artwork = smudged();
     let mut open = CanvasTarget::new(&core, SIZE).expect("target");
-    RegionEvaluator::new(&core, &mut open)
-        .evaluate(&request(&artwork), &[PixelRect::full(SIZE)])
+    open.draw(&core, &request(&artwork), &[PixelRect::full(SIZE)])
         .expect("open");
     let mut target = tight(&core);
     by_quarters(&core, &mut target, &artwork);
@@ -115,8 +110,8 @@ fn an_evaluation_needing_more_than_the_room_is_cut_back_after_it_and_stays_cold(
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
     // About a ninth of what the residuals take whole.
     target.set_arena_room(&core, 1 << 20).expect("room");
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(&artwork), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(&artwork), &[PixelRect::full(SIZE)])
         .expect("whole");
     let grown = target.bytes().arena;
     let freed = target.settle_arena(&core).expect("settle");

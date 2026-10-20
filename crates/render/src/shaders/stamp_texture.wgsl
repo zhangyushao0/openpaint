@@ -4,8 +4,8 @@
 // antialiased over one output pixel at any size above that, however far the stamp is
 // enlarged; from one level more, the coverage's mip level at the output pixel's footprint
 // (trilinear, transparent beyond the texture's square), so a small stamp neither flickers nor
-// aliases; between the two they blend. Appended to evaluate.wgsl after stamp.wgsl; the
-// textures follow the paper in `textures` from SHAPES_AT.
+// aliases; between the two they blend. The textures follow the paper in `textures` from
+// SHAPES_AT.
 
 const SHARP_LEVEL: f32 = 3.0;
 

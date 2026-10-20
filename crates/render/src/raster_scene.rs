@@ -1,11 +1,9 @@
-//! A scene as the raster core draws it (S59; since S65, DECISIONS D92, every scene): its items as
-//! the units the raster plan lays out, in scene order. Strokes carry the box of all their spans,
-//! smudges the canvas pixels they can change; a point adjustment and a filter rewrite the layer
-//! (or its mask) so far within their bounds; a frame names the transform record's content the
-//! units after it lie in; a moved selection's or a merged layer's content starts a level of its
-//! own (`BeginMove`) which its end lays onto the one under it; a group's end fades what its layers
-//! did to the canvas. The items the evaluator lists only where nothing was set aside (`MovedOnly`,
-//! `NestedOnly`) and a smudge's reach boxes are no units: the raster core always sets aside.
+//! A scene as the raster core draws it (S59, DECISIONS D92): its items as the units the raster
+//! plan lays out, in scene order. Strokes carry the box of all their spans, smudges the canvas
+//! pixels they can change; a point adjustment and a filter rewrite the layer (or its mask) so far
+//! within their bounds; a frame names the transform record's content the units after it lie in; a
+//! moved selection's or a merged layer's content starts a level of its own (`BeginMove`) which its
+//! end lays onto the one under it; a group's end fades what its layers did to the canvas.
 
 use std::ops::Range;
 
@@ -191,9 +189,6 @@ impl RasterScene {
                 Item::BeginMove(_) => Unit::BeginMove(index),
                 Item::EndMove { .. } => Unit::EndMove(index),
                 Item::EndNested(_) => Unit::EndNested(index),
-                // A smudge's reach boxes bin the evaluator's tiles; its unit has their union. The
-                // raster core always sets aside, so an end where nothing was is the same end.
-                Item::Reach(_) | Item::MovedOnly(_) | Item::NestedOnly(_) => continue,
             };
             units.push(unit);
         }
@@ -202,7 +197,7 @@ impl RasterScene {
 }
 
 /// Whether `item`, a layer's or a chain's end, composites a group's layer onto the canvas: what
-/// opens the group (the evaluator's `opened`).
+/// opens the group.
 pub(crate) fn opens_group(item: &Item) -> bool {
     match item {
         Item::EndLayer { op, grouped, .. } => {

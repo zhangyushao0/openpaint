@@ -3,14 +3,14 @@
 //! size, followed by 20 undo and redo round trips tapped on the side bar (S6, S11); every frame is
 //! timed until the GPU is done. Writes the last screen and the canvas,
 //! checks the canvas's hash against the golden value and the slowest frame against the
-//! budget. The golden is the canvas, not the screen: the evaluator's pixels are the same on
-//! every backend (DECISIONS D82), egui's text antialiasing is not.
+//! budget. The golden is the canvas, not the screen: the raster core's pixels are its own,
+//! egui's text antialiasing is not.
 
 use std::f32::consts::TAU;
 use std::time::{Duration, Instant};
 
 use openpaint_core::{Artwork, Color};
-use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, RgbaImage};
+use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RgbaImage};
 use openpaint_runtime::{
     Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime, ToolKind,
 };
@@ -169,7 +169,7 @@ fn cold(artwork: &Artwork) -> Result<RgbaImage, HarnessError> {
         active: None,
         background: Color::WHITE,
     };
-    RegionEvaluator::new(&core, &mut target).evaluate(&request, &[PixelRect::full(size)])?;
+    target.draw(&core, &request, &[PixelRect::full(size)])?;
     Ok(target.read(&core)?)
 }
 

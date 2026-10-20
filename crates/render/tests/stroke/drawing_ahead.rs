@@ -8,8 +8,8 @@
 
 use openpaint_core::{ActiveStroke, Artwork, Color, LayerCommand};
 use openpaint_render::{
-    CanvasTarget, Core, FrameRequest, PixelRect, RasterDrawer, RegionEvaluator, ViewCache,
-    ViewFrame, changed_regions,
+    CanvasTarget, Core, FrameRequest, PixelRect, RasterDrawer, ViewCache, ViewFrame,
+    changed_regions,
 };
 
 use crate::drawing::{begun, committed, path, screen, shows};
@@ -34,8 +34,8 @@ impl Loop {
     /// `artwork` opened, shown through `shown` (its tier's scale) or at fit.
     fn new(core: &Core, artwork: &Artwork, shown: Option<(ViewFrame, u32)>) -> Self {
         let mut target = CanvasTarget::new(core, SIZE).expect("target");
-        RegionEvaluator::new(core, &mut target)
-            .evaluate(&request(artwork, None), &[PixelRect::full(SIZE)])
+        target
+            .draw(core, &request(artwork, None), &[PixelRect::full(SIZE)])
             .expect("opened");
         Self {
             target,
@@ -57,8 +57,8 @@ impl Loop {
     ) {
         core.begin_frame_idle(active.is_none());
         let request = request(artwork, active);
-        RegionEvaluator::new(core, &mut self.target)
-            .evaluate_frame(&request, regions)
+        self.target
+            .draw_frame(core, &request, regions)
             .expect("frame");
         if let Some((view, _)) = self.shown {
             self.now += 1.0 / 60.0;

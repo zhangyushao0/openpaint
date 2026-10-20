@@ -1,5 +1,5 @@
 //! A fill's smoothed edge (S30, D56): values derived from its mask when a scene first draws it,
-//! kept with the scene, never stored. The evaluator (`shaders/fill_edge.wgsl`) reads them with
+//! kept with the scene, never stored. The raster core (`shaders/fill_edge.wgsl`) reads them with
 //! the mask's bits and turns them into each output pixel's coverage at every scale.
 //!
 //! The mask's signed distance field holds at each pixel centre the distance to the nearest

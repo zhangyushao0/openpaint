@@ -9,7 +9,7 @@ use openpaint_core::{
     Curve, Deposit, Dynamics, Grain, LayerCommand, Paper, PaperTexture, StrokeSample, StrokeStyle,
     Tip,
 };
-use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, RgbaImage};
+use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RgbaImage};
 
 pub const SIZE: [u32; 2] = [320, 200];
 
@@ -17,7 +17,7 @@ pub const SIZE: [u32; 2] = [320, 200];
 /// test once deadlocked NVIDIA's Windows driver: opening one loads a library under the driver's
 /// lock while an exiting thread holds the loader lock and waits for the driver's (2026-10-04).
 /// Its frames take every waiting tile (S53: a frame budget without end), as these tests compare
-/// pixels, not pace; `tests/bounded.rs` tests the budget on a device of its own.
+/// pixels, not pace; `tests/frame_budget.rs` tests the budget on a device of its own.
 pub fn core() -> Shared {
     static CORE: OnceLock<Core> = OnceLock::new();
     Shared(CORE.get_or_init(|| {
@@ -184,19 +184,12 @@ pub fn request(artwork: &Artwork) -> FrameRequest<'_> {
     }
 }
 
-/// The evaluator's image of the whole of `artwork` (S62: the reference the raster core is
-/// compared with; S65: its one use).
-pub fn evaluated_cold(core: &Core, artwork: &Artwork) -> RgbaImage {
-    (core.evaluated_image(artwork, (1, [0, 0]), SIZE)).expect("evaluated")
-}
-
-/// Draws the whole of `artwork` into a fresh canvas target (since S62 by the raster core; every
-/// scene since S65) and reads it back.
+/// Draws the whole of `artwork` into a fresh canvas target and reads it back.
 pub fn cold(core: &Core, artwork: &Artwork) -> RgbaImage {
     let mut target = CanvasTarget::new(core, SIZE).expect("target");
-    RegionEvaluator::new(core, &mut target)
-        .evaluate(&request(artwork), &[PixelRect::full(SIZE)])
-        .expect("evaluate");
+    target
+        .draw(core, &request(artwork), &[PixelRect::full(SIZE)])
+        .expect("drawn");
     target.read(core).expect("readback")
 }
 

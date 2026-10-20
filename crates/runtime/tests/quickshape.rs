@@ -10,7 +10,7 @@ mod support;
 
 use hand::{Hand, assert_cold, cold};
 use openpaint_core::Color;
-use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator};
+use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect};
 use openpaint_runtime::{
     Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime, ToolKind,
 };
@@ -33,8 +33,8 @@ fn assert_drawn_cold(core: &Core, runtime: &mut Runtime, when: &str) {
         active: active.as_ref(),
         background: Color::WHITE,
     };
-    RegionEvaluator::new(core, &mut target)
-        .evaluate(&request, &[PixelRect::full(size)])
+    target
+        .draw(core, &request, &[PixelRect::full(size)])
         .expect("evaluate");
     let expected = target.read(core).expect("readback");
     assert_eq!(canvas.content_hash(), expected.content_hash(), "{when}");

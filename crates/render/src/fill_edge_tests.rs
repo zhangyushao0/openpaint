@@ -1,5 +1,5 @@
 //! The edge field against brute force, the smoothing on lines it was sampled from, thin lines,
-//! corners, and the words the evaluator reads.
+//! corners, and the words the shader reads.
 
 use openpaint_core::{CanvasSize, RegionMask};
 

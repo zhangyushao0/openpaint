@@ -1,7 +1,7 @@
 //! What the raster core (S57's probe made product code in S59, `raster.rs`) reads of an op on
 //! the CPU: how many pieces a continuous span is drawn as, which stamps a stamped span holds, how
-//! its stroke deposits, what a region edit draws and how a layer ends, the same operands the
-//! evaluator reads (`segment.wgsl`, `stamp.wgsl`, `evaluate.wgsl`).
+//! its stroke deposits, what a region edit draws and how a layer ends, the same operands its
+//! shaders read (`segment.wgsl`, `stamp.wgsl`, `raster_paint.wgsl`).
 
 use super::layers::Mode;
 use super::layers::{LAYER_INTO, LAYER_MASK, LAYER_MODE};

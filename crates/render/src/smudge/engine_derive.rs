@@ -23,9 +23,9 @@ use crate::affine::Affine;
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::filter::Filters;
-use crate::program::SceneOps;
 use crate::raster::SceneBuffers;
 use crate::scene::Scene;
+use crate::scene_ops::SceneOps;
 use crate::smudge::{MaterialRegion, regions};
 
 /// What a contact costs the smudge kernels on the tablet per node it covers, stamped and
@@ -108,11 +108,6 @@ impl Smudges {
         artwork: &Artwork,
         (index, needed, filters): (usize, &HashSet<Key>, &mut Filters),
     ) -> Result<bool, RenderError> {
-        if self.tools.evaluated {
-            return Err(RenderError::Invalid(
-                "a reference's residuals are made at once",
-            ));
-        }
         let item = &scene.smudges[index];
         let wanted = key(item.layer, &item.stroke);
         let going = self.deriving.take().filter(|deriving| {
@@ -143,8 +138,7 @@ impl Smudges {
         let place = (&deriving.run.working, None);
         self.arena
             .place(&core.gpu, (wanted, &item.stroke), place, &keep)?;
-        self.write_bases(core, ops, scene.bases_at, &keys);
-        core.evaluate.tally.derived();
+        core.tally.derived();
         self.tools.scratch = Some(deriving.run);
         Ok(true)
     }
@@ -202,7 +196,7 @@ impl Smudges {
         let Making { items, base, left } = &mut deriving.material;
         let held = held_in(&self.arena, &self.tools.empty, (scene, filters));
         let buffers = SceneBuffers::of(ops, held);
-        let material = material(&mut self.tools.material, core, (size, false))?;
+        let material = material(&mut self.tools.material, core, size)?;
         while let Some(region) = left.front() {
             let units = ((scene, buffers.bases()), &*items, *base);
             let planned = material.plan_region(core, units, region)?;

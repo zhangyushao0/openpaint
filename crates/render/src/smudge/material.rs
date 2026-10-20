@@ -1,10 +1,12 @@
-//! What a smudge or a filter reads: its layer's pixels just before it, into tiles of a texture of
-//! their own (premultiplied, transparent elsewhere, 8 bits like the canvas), drawn by the raster
-//! core (S62, `material_raster.rs`; every scene since S65, D92); a reference's (the evaluator's
-//! image the raster core is compared with) evaluated by the evaluator from the layer's earlier
-//! ops. A pixel never depends on which regions are drawn with it (D82, D86), so a tile made now
-//! or later holds the same.
+//! What a smudge or a filter reads: its layer's pixels just before it, in a texture of the
+//! canvas's size (premultiplied, transparent elsewhere, 8 bits like the canvas). They are the
+//! units laying that layer's items before it, drawn by the raster core onto a canvas of nothing
+//! (`RasterPlan::material`, where a transform record's content maps them) and rounded to 8 bits,
+//! over one region per 256-px cell of the canvas (the box of the rectangles wanted in it), only
+//! those rectangles written. A pixel never depends on which regions are drawn with it, so a tile
+//! made now or later holds the same.
 
+use std::collections::BTreeMap;
 use std::ops::Range;
 
 use super::{Arena, held_in};
@@ -14,41 +16,33 @@ use crate::error::RenderError;
 use crate::filter::Filters;
 use crate::geom::PixelRect;
 use crate::output::Output;
-use crate::plan::Plan;
-use crate::program::{Bindings, Dispatch, SceneOps};
-use crate::protocol::Op;
-use crate::raster::RasterTargets;
+use crate::raster::{Finish, RasterTargets, SceneBuffers};
+use crate::raster_plan::RasterPlan;
 use crate::readback::{FORMAT, target_texture};
 use crate::scene::Scene;
+use crate::scene_ops::SceneOps;
+use crate::smudge::{Bases, Held};
+use crate::view_tiles::TIER_TILE;
 
-#[path = "material_raster.rs"]
-mod raster;
-pub(crate) use raster::{MaterialRegion, regions};
+/// The atlas of a material's raster targets, pixels a side: room for several of a cell's
+/// strokes' regions.
+const ATLAS: u32 = 1024;
 
 pub(crate) struct Material {
     view: wgpu::TextureView,
     size: [u32; 2],
-    /// The evaluator's bindings: a reference's material (S65), which it evaluates.
-    bindings: Option<Bindings>,
-    /// The raster core's targets drawing it (S62), made on first use.
+    /// The raster core's targets drawing it, made on first use.
     raster: Option<RasterTargets>,
 }
 
 impl Material {
-    /// A texture of the canvas's `size`, `evaluated` by the evaluator (a reference's) or drawn by
-    /// the raster core; its pixels are undefined until made.
-    pub(crate) fn new(core: &Core, size: [u32; 2], evaluated: bool) -> Result<Self, RenderError> {
-        let written = if evaluated {
-            wgpu::TextureUsages::STORAGE_BINDING
-        } else {
-            wgpu::TextureUsages::RENDER_ATTACHMENT
-        };
-        let usage = written | wgpu::TextureUsages::TEXTURE_BINDING;
+    /// A texture of the canvas's `size`; its pixels are undefined until made.
+    pub(crate) fn new(core: &Core, size: [u32; 2]) -> Result<Self, RenderError> {
+        let usage = wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING;
         let texture = target_texture(&core.gpu, (size, FORMAT), usage)?;
         Ok(Self {
             view: texture.create_view(&Default::default()),
             size,
-            bindings: evaluated.then(|| Bindings::new(&core.gpu, &texture)),
             raster: None,
         })
     }
@@ -57,12 +51,11 @@ impl Material {
         &self.view
     }
 
-    /// Bytes of its texture, bindings and raster targets.
+    /// Bytes of its texture and raster targets.
     pub(crate) fn bytes(&self) -> u64 {
         let [width, height] = self.size;
-        let bindings = self.bindings.as_ref().map_or(0, Bindings::bytes);
         let raster = self.raster.as_ref().map_or(0, RasterTargets::bytes);
-        u64::from(width) * u64::from(height) * 4 + bindings + raster
+        u64::from(width) * u64::from(height) * 4 + raster
     }
 
     /// Makes the scene's items in `range` (one layer's before a smudge or filter) over `rects`,
@@ -81,24 +74,143 @@ impl Material {
         if rects.is_empty() {
             return Ok(());
         }
-        let Some(bindings) = self.bindings.as_mut() else {
-            let held = held_in(arena, empty, (scene, filters));
-            return self.draw(core, (scene, ops), (&range, to_canvas), rects, held);
+        let held = held_in(arena, empty, (scene, filters));
+        self.draw(core, (scene, ops), (&range, to_canvas), rects, held)
+    }
+}
+
+/// Where a material is drawn: a region (canvas pixels) and the residual's tiles in it that the
+/// finish writes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MaterialRegion {
+    pub(crate) region: PixelRect,
+    pub(crate) tiles: Vec<PixelRect>,
+}
+
+/// The regions of the rectangles `rects` (a residual's tiles, a filter's read; material pixels):
+/// one per 256-px cell of the canvas, each rectangle cut at the cells' edges, rows from the top.
+pub(crate) fn regions(rects: &[PixelRect]) -> Vec<MaterialRegion> {
+    let side = TIER_TILE as i32;
+    let mut cells: BTreeMap<[i32; 2], MaterialRegion> = BTreeMap::new();
+    for whole in rects.iter().filter(|rect| !rect.is_empty()) {
+        let [x0, y0] = whole.min.map(|at| at.div_euclid(side));
+        let [x1, y1] = whole.max.map(|at| (at - 1).div_euclid(side));
+        for (x, y) in (y0..=y1).flat_map(|y| (x0..=x1).map(move |x| (x, y))) {
+            let cell = PixelRect {
+                min: [x * side, y * side],
+                max: [(x + 1) * side, (y + 1) * side],
+            };
+            let rect = whole.intersect(&cell);
+            cells
+                .entry([y, x])
+                .and_modify(|cell| {
+                    cell.region = cell.region.union(&rect);
+                    cell.tiles.push(rect);
+                })
+                .or_insert_with(|| MaterialRegion {
+                    region: rect,
+                    tiles: vec![rect],
+                });
+        }
+    }
+    cells.into_values().collect()
+}
+
+impl Material {
+    /// The plan of `region` of the material of `scene`'s `items` (one layer's before a smudge or
+    /// filter) whose pixels lie on the canvas by `base`, its earlier smudges' residuals and
+    /// filters' results at `bases`, and the output it lies at; the raster targets made on first
+    /// use.
+    ///
+    /// # Errors
+    /// As the raster core.
+    pub(crate) fn plan_region(
+        &mut self,
+        core: &Core,
+        ((scene, bases), items, base): ((&Scene, &Bases), &Range<usize>, Affine),
+        region: &MaterialRegion,
+    ) -> Result<(RasterPlan, Output), RenderError> {
+        if self.raster.is_none() {
+            self.raster = Some(RasterTargets::new(core, [TIER_TILE; 2], ATLAS)?);
+        }
+        let atlas = self.raster.as_ref().map_or([0; 2], RasterTargets::atlas);
+        let rect = region.region;
+        let output = Output::at(1, rect.min.map(i32::unsigned_abs))?;
+        let size = [0, 1].map(|axis| (rect.max[axis] - rect.min[axis]).unsigned_abs());
+        let plan = RasterPlan::material((scene, bases), (items, base), (output, size), atlas)?;
+        Ok((plan, output))
+    }
+
+    /// Draws `planned` (`plan_region`'s, of `region`) of the scene in `buffers` into the
+    /// material's texture: only the region's tiles.
+    ///
+    /// # Errors
+    /// As the raster core.
+    pub(crate) fn draw_region(
+        &mut self,
+        core: &Core,
+        (plan, output): &(RasterPlan, Output),
+        region: &MaterialRegion,
+        buffers: &SceneBuffers,
+    ) -> Result<(), RenderError> {
+        let Some(targets) = self.raster.as_mut() else {
+            return Err(RenderError::Invalid("no raster targets for the material"));
         };
-        let plan = Plan::material(scene, (range, to_canvas), self.size, rects);
-        core.evaluate.dispatch(
-            &core.gpu,
-            bindings,
-            &Dispatch {
-                ops,
-                fresh: &[Op::end_layer(1.0)],
-                plan: &plan,
-                output: Output::CANVAS,
-                background: [0.0; 4],
-                residuals: [arena.buffer(), empty],
-                base: to_canvas,
-                timing: None,
-            },
-        )
+        let finish = Finish {
+            view: &self.view,
+            format: FORMAT,
+            at: region.region.min.map(i32::unsigned_abs),
+            only: &region.tiles,
+        };
+        targets.draw(core, (buffers, plan), (*output, [0.0; 4]), &finish)?;
+        core.tally.rastered(1);
+        Ok(())
+    }
+
+    /// Draws the material of `scene`'s `items` (lying on the canvas by `base`) over `rects` now,
+    /// the earlier residuals and results as `held` holds them.
+    ///
+    /// # Errors
+    /// As the raster core.
+    pub(crate) fn draw(
+        &mut self,
+        core: &Core,
+        (scene, ops): (&Scene, &SceneOps),
+        (items, base): (&Range<usize>, Affine),
+        rects: &[PixelRect],
+        held: Held,
+    ) -> Result<(), RenderError> {
+        let buffers = SceneBuffers::of(ops, held);
+        for region in regions(rects) {
+            let units = ((scene, buffers.bases()), items, base);
+            let planned = self.plan_region(core, units, &region)?;
+            self.draw_region(core, &planned, &region, &buffers)?;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn residual_tiles_are_drawn_a_region_per_canvas_cell() {
+        let tile = |x: i32, y: i32| PixelRect {
+            min: [x, y],
+            max: [x + 32, y + 32],
+        };
+        let found = regions(&[tile(224, 0), tile(256, 0), tile(192, 32), tile(256, 288)]);
+        assert_eq!(found.len(), 3, "{found:?}");
+        assert_eq!(
+            found[0].region,
+            PixelRect {
+                min: [192, 0],
+                max: [256, 64]
+            }
+        );
+        assert_eq!(found[0].tiles, [tile(224, 0), tile(192, 32)]);
+        assert_eq!(found[1].tiles, [tile(256, 0)]);
+        assert_eq!(found[2].tiles, [tile(256, 288)]);
     }
 }

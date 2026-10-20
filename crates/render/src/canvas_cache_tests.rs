@@ -12,7 +12,7 @@ use openpaint_core::{
 
 use crate::core::{Core, test_core};
 use crate::gpu::TEN_BITS;
-use crate::{CanvasTarget, FrameRequest, PixelRect, RegionEvaluator, changed_regions};
+use crate::{CanvasTarget, FrameRequest, PixelRect, changed_regions};
 
 const SIZE: [u32; 2] = [150, 90];
 
@@ -45,9 +45,7 @@ fn evaluated(core: &Core, target: &mut CanvasTarget, artwork: &Artwork, regions:
         active: None,
         background: Color::WHITE,
     };
-    RegionEvaluator::new(core, target)
-        .evaluate(&request, regions)
-        .expect("evaluated");
+    target.draw(core, &request, regions).expect("evaluated");
 }
 
 /// Its texels as it holds them.

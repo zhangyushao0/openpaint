@@ -19,8 +19,8 @@ pub const OWN_BUDGET: u64 = 2 << 30;
 /// What the open canvas's derived caches hold on the GPU, in bytes.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct CacheBytes {
-    /// The canvas target itself: its texture, the in-progress stroke's two textures, the
-    /// evaluator's lists and the scene's ops. Never dropped.
+    /// The canvas target itself: its texture, the in-progress stroke's two textures and the
+    /// scene's ops. Never dropped.
     pub canvas: u64,
     /// The view tiers (S32).
     pub tiers: u64,

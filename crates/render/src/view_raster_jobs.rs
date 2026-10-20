@@ -14,9 +14,9 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::canvas::CanvasTarget;
 use crate::core::Core;
 use crate::error::RenderError;
-use crate::evaluator::CanvasTarget;
 use crate::output::Output;
 use crate::raster::{ATLAS, Finish, Pages, RasterTargets, Region, SceneBuffers, Target};
 use crate::raster_plan::{Pass, RasterPlan, Restored, SlotCopy};
@@ -203,7 +203,7 @@ impl RasterDrawer {
             finish: finish.as_ref(),
         };
         let prepared = targets.prepare_all(core, &job.buffers, (&[region], pages), stamps.as_ref());
-        let submitted = prepared.map(|(buffer, _)| submit(core, (buffer, time), ahead, &wanted));
+        let submitted = prepared.map(|buffer| submit(core, (buffer, time), ahead, &wanted));
         if let Some(stamps) = &stamps {
             let drawn = submitted.as_ref().is_ok_and(|drawn| *drawn);
             core.pace().raster_finish(&core.gpu, stamps, drawn);
@@ -276,7 +276,7 @@ fn submit(
     }
     core.gpu.submit([buffer]);
     core.background_submitted(time);
-    core.evaluate.tally.rastered(1);
+    core.tally.rastered(1);
     true
 }
 

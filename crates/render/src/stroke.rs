@@ -1,5 +1,5 @@
 //! Stroke geometry: a stroke follows the centripetal Catmull-Rom curve through its knots
-//! (`curve.rs`, S34), one `Segment` op per span between two knots, which the evaluator flattens
+//! (`curve.rs`, S34), one `Segment` op per span between two knots, which the raster core flattens
 //! into tapered capsules fine enough for the scale it evaluates at, or (a stamped recipe, S45)
 //! evaluates as the stamps lying along it (`stroke_stamp.rs`; DECISIONS D72: no stamp engine). At
 //! every knot the stroke's recipe turns pressure, pen speed and tilt into a radius (size
@@ -46,7 +46,7 @@ pub(crate) struct Segment {
     reach: [f32; 2],
 }
 
-/// One straight piece of a flattened span: what the evaluator draws as a capsule.
+/// One straight piece of a flattened span: what the raster core draws as a capsule.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Piece {
     pub(crate) a: [f32; 2],
@@ -104,7 +104,7 @@ impl Segment {
         self.operands.radii
     }
 
-    /// The straight pieces the evaluator draws at `scale` output pixels per canvas pixel
+    /// The straight pieces the raster core draws at `scale` output pixels per canvas pixel
     /// (`segment.wgsl`): the chord while it is close enough, else pieces of equal parameter.
     pub(crate) fn pieces(&self, scale: f32) -> Vec<Piece> {
         let s = &self.operands;
@@ -251,7 +251,7 @@ pub fn stroke_region(
 }
 
 /// How many spans a finished stroke of `style` through `samples` has, and how many straight
-/// pieces the evaluator draws them as at `scale` output pixels per canvas pixel (statistics).
+/// pieces the raster core draws them as at `scale` output pixels per canvas pixel (statistics).
 #[must_use]
 pub fn curve_pieces(style: &StrokeStyle, samples: &[StrokeSample], scale: f32) -> [usize; 2] {
     let spans: Vec<Segment> = segments(style, samples).collect();

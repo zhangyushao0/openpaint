@@ -3,9 +3,9 @@
 //! mask), filters (a Gaussian Blur, a Sharpen inside a selection), a layer's transform record, a
 //! moved selection (over a smudge, whose material then lies under the record), a merged layer, a
 //! faded group by Multiply, a filter under a record, a record and a merge inside a faded group,
-//! an adjustment over a merged layer's moved selection. Each exports within one 8-bit level of
-//! the evaluator's image away from antialiased edges at 1x, 2x, 4x and 8x; draws alike every time,
-//! in bands as in one piece, in scattered regions as whole; its tier tiles are its export;
+//! an adjustment over a merged layer's moved selection. Each exports at 1x, 2x, 4x and 8x as one
+//! picture (each scale reduced comes back to the canvas); draws alike every time, in bands as in
+//! one piece, in scattered regions as whole; its tier tiles are its export;
 //! changes over it (a stroke, a fill, a hidden layer) and their undo end as drawn cold; a stroke,
 //! a smudge and a clipped stroke drawn inside it are cold every frame and at their lift.
 
@@ -14,13 +14,11 @@ use openpaint_core::{
     LayerCommand, MaskCommand, RegionMask, Sharpen, StrokeSample, StrokeStyle, StrokeTool,
     ToneChannel, ToneCurve,
 };
-use openpaint_render::{
-    Banding, CanvasTarget, PixelRect, RegionEvaluator, changed_regions, image_difference,
-};
+use openpaint_render::{Banding, CanvasTarget, PixelRect, changed_regions};
 
 use crate::drawing::{CHUNKS, begun, committed, path, screen, shows};
 use crate::fixture::{SIZE, cold, core, diagonal, plain, request, wave, with_layer, with_stroke};
-use crate::raster::{assert_near, color, evaluated, layer, region};
+use crate::raster::{assert_scales_agree, color, layer, region};
 use crate::records::{busy, by_record, lasso, turned};
 use crate::scale::{export, whole};
 use crate::tiers::tiles_are_the_export;
@@ -135,29 +133,11 @@ pub fn kinds() -> Vec<(&'static str, Artwork)> {
     ]
 }
 
-/// D86's rule; but a Sharpen multiplies the level its material (the layer before it, rounded to
-/// 8 bits by either core) may differ by near the material's edges by up to 1 + amount x STRENGTH
-/// less its centre weight, 1.84 at 0.7: there two levels, stated.
 #[test]
-fn every_kind_exports_within_a_level_of_the_evaluator_at_every_scale() {
+fn every_kind_at_every_scale_comes_back_to_its_canvas() {
     let core = core();
     for (name, artwork) in kinds() {
-        for scale in [1, 2, 4, 8] {
-            let rastered = whole(&core, &artwork, scale);
-            let reference = evaluated(&core, &artwork, scale);
-            let what = format!("{name} at {scale}x");
-            if !name.starts_with("sharpen") {
-                assert_near(&reference, &rastered, &what);
-                continue;
-            }
-            let found = image_difference(&reference, &rastered).expect("same size");
-            println!("{what}: {found:?}");
-            assert!(found.largest_inside <= 2, "{what}: {found:?}");
-            assert!(
-                found.mean.iter().all(|mean| *mean < 0.05),
-                "{what}: {found:?}"
-            );
-        }
+        assert_scales_agree(&core, &artwork, name);
     }
 }
 
@@ -183,8 +163,8 @@ fn every_kind_draws_alike_in_bands_as_in_one_piece_and_in_regions_as_whole() {
         assert!(canvas == cold(&core, &artwork), "{name}: alike every time");
         let mut target = CanvasTarget::new(&core, SIZE).expect("target");
         for part in parts {
-            RegionEvaluator::new(&core, &mut target)
-                .evaluate(&request(&artwork), &[part])
+            target
+                .draw(&core, &request(&artwork), &[part])
                 .expect("a part");
         }
         assert!(
@@ -239,13 +219,13 @@ fn changes_over_every_kind_and_their_undo_through_changed_regions_are_cold() {
             artwork.clone(),
         ];
         let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-        RegionEvaluator::new(&core, &mut target)
-            .evaluate(&request(&artwork), &[PixelRect::full(SIZE)])
+        target
+            .draw(&core, &request(&artwork), &[PixelRect::full(SIZE)])
             .expect("first");
         let mut shown = artwork.clone();
         for (index, next) in steps.iter().enumerate() {
-            RegionEvaluator::new(&core, &mut target)
-                .evaluate(&request(next), &changed_regions(&shown, next))
+            target
+                .draw(&core, &request(next), &changed_regions(&shown, next))
                 .expect("step");
             let incremental = target.read(&core).expect("read");
             assert!(incremental == cold(&core, next), "{name}: step {index}");

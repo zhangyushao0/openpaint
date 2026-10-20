@@ -2,7 +2,7 @@
 //! Alpha Lock, incremental = cold after a fill and its undo, and layer sampling.
 
 use openpaint_core::{Artwork, ArtworkCommand, CanvasSize, Color, LayerCommand, RegionMask};
-use openpaint_render::{CanvasTarget, PixelRect, RegionEvaluator, changed_regions};
+use openpaint_render::{CanvasTarget, PixelRect, changed_regions};
 
 use crate::fixture::{SIZE, blank, cold, core, pixel, plain, request, sample, with_stroke};
 
@@ -113,18 +113,16 @@ fn incremental_evaluation_after_a_fill_and_its_undo_equals_cold() {
     let base = bar(&blank());
     let filled = base.fill_region(disc(), red()).expect("fill").artwork;
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-    let mut evaluator = RegionEvaluator::new(&core, &mut target);
-    evaluator
-        .evaluate(&request(&base), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(&base), &[PixelRect::full(SIZE)])
         .expect("base");
     let regions = changed_regions(&base, &filled);
-    evaluator
-        .evaluate(&request(&filled), &regions)
+    target
+        .draw(&core, &request(&filled), &regions)
         .expect("fill");
     assert_eq!(target.read(&core).expect("read"), cold(&core, &filled));
-    let mut evaluator = RegionEvaluator::new(&core, &mut target);
     let regions = changed_regions(&filled, &base);
-    evaluator.evaluate(&request(&base), &regions).expect("undo");
+    target.draw(&core, &request(&base), &regions).expect("undo");
     assert_eq!(target.read(&core).expect("read"), cold(&core, &base));
 }
 

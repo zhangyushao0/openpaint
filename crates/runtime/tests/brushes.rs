@@ -1,9 +1,8 @@
-//! GPU hashes of the three built-in brushes: each draws one fixed wave, which must evaluate to
-//! fixed pixels (recorded on Vulkan; since S34 DX12 draws the pencil one pixel one level apart,
-//! float contraction in the curve's flattening; since S62 the raster core's canvas, within a level
-//! of the evaluator's image away from edges), and drawn a few samples per frame it must equal
-//! the finished stroke drawn cold. Here because the brushes are the app's files and the
-//! renderer is the renderer's.
+//! GPU hashes of the three built-in brushes: each draws one fixed wave, which must draw fixed
+//! pixels (recorded on Vulkan; since S34 DX12 draws the pencil one pixel one level apart, float
+//! contraction in the curve's flattening), and drawn a few samples per frame it must equal the
+//! finished stroke drawn cold. Here because the brushes are the app's files and the renderer is
+//! the renderer's.
 
 use std::f32::consts::{PI, TAU};
 use std::sync::Arc;
@@ -12,17 +11,14 @@ use openpaint_app::BrushLibrary;
 use openpaint_core::{
     Artwork, CanvasPoint, CanvasSize, Color, StrokeSample, StrokeSession, StrokeStyle,
 };
-use openpaint_render::{
-    CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, RgbaImage, image_difference,
-};
+use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RgbaImage};
 
 const SIZE: [u32; 2] = [320, 200];
 /// Per brush key: the wave's golden hash. Re-recorded in S16 for the pencil (draweave's tuned
 /// graphite on the sketch paper) and the soft brush (density building up under a bell tip),
 /// and in S34 for all three (the wave is a curve now, not chords: at most 17 levels, mean 0.007);
 /// in S62 for the pencil and the soft brush (the raster core draws the canvas: each one channel
-/// of one pixel a level from the evaluator's image, which hashed to the old values); the brushes
-/// before keep their own hashes below.
+/// of one pixel a level away); the brushes before keep their own hashes below.
 const GOLDEN: [(&str, u64); 3] = [
     ("pencil", 0x1f09_bc12_0bd9_68b3),
     ("ink-pen", 0x23c3_d74a_8ac0_d9c3),
@@ -69,8 +65,8 @@ fn request(artwork: &Artwork) -> FrameRequest<'_> {
 
 fn cold(core: &Core, artwork: &Artwork) -> RgbaImage {
     let mut target = CanvasTarget::new(core, SIZE).expect("target");
-    RegionEvaluator::new(core, &mut target)
-        .evaluate(&request(artwork), &[PixelRect::full(SIZE)])
+    target
+        .draw(core, &request(artwork), &[PixelRect::full(SIZE)])
         .expect("evaluate");
     target.read(core).expect("readback")
 }
@@ -79,9 +75,8 @@ fn cold(core: &Core, artwork: &Artwork) -> RgbaImage {
 fn incremental(core: &Core, stroke: &(StrokeStyle, Vec<StrokeSample>)) -> (Artwork, RgbaImage) {
     let base = blank();
     let mut target = CanvasTarget::new(core, SIZE).expect("target");
-    let mut evaluator = RegionEvaluator::new(core, &mut target);
-    evaluator
-        .evaluate(&request(&base), &[PixelRect::full(SIZE)])
+    target
+        .draw(core, &request(&base), &[PixelRect::full(SIZE)])
         .expect("evaluate");
     let mut session = begin(stroke);
     for chunk in stroke.1[1..].chunks(3) {
@@ -89,12 +84,12 @@ fn incremental(core: &Core, stroke: &(StrokeStyle, Vec<StrokeSample>)) -> (Artwo
             active: Some(session.active()),
             ..request(&base)
         };
-        evaluator.evaluate(&frame, &[]).expect("evaluate");
+        target.draw(core, &frame, &[]).expect("evaluate");
         session.extend(chunk).expect("extend");
     }
     let finished = session.finish().artwork;
-    evaluator
-        .evaluate(&request(&finished), &[])
+    target
+        .draw(core, &request(&finished), &[])
         .expect("evaluate");
     (finished, target.read(core).expect("readback"))
 }
@@ -124,7 +119,7 @@ const BEFORE_S16: [(&str, &str); 2] = [
 ];
 /// Their golden hashes before S16, moved once in S34 by the curve through the samples (at most 8
 /// levels, mean 0.014), the pencil's in S62 by the raster core (one channel of one pixel a level
-/// from the evaluator's image).
+/// away).
 const GOLDEN_BEFORE_S16: [(&str, u64); 2] = [
     ("pencil", 0x069b_0861_074e_1601),
     ("soft-brush", 0xcb6d_3517_5561_828d),
@@ -144,12 +139,6 @@ fn draws_the_goldens(library: &BrushLibrary, goldens: &[(&str, u64)]) {
         let (finished, drawn) = incremental(&core, &stroke);
         let image = cold(&core, &finished);
         assert!(drawn == image, "{key}: incremental differs from cold");
-        // S62: the raster core's canvas, within a level of the evaluator's away from edges.
-        let evaluated = core.evaluated_image(&finished, (1, [0, 0]), SIZE);
-        let found = image_difference(&evaluated.expect("evaluated"), &image);
-        let found = found.expect("same size");
-        eprintln!("{key}: against the evaluator's image {found:?}");
-        assert_eq!(found.beyond_one_inside, 0, "{key}: {found:?}");
         hashes.push((key, image.content_hash(), golden));
     }
     let all: Vec<String> = hashes

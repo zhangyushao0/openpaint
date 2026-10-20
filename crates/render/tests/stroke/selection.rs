@@ -5,8 +5,8 @@
 
 use openpaint_core::{Artwork, RegionMask, StrokeSample, StrokeStyle, StrokeTool};
 use openpaint_render::{
-    CanvasPlacement, CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, RgbaImage,
-    ScreenFrame, ScreenPainter, ScreenTarget, UiFrame,
+    CanvasPlacement, CanvasTarget, Core, FrameRequest, PixelRect, RgbaImage, ScreenFrame,
+    ScreenPainter, ScreenTarget, UiFrame,
 };
 
 use crate::fixture::{
@@ -35,7 +35,6 @@ fn draw_clipped(
     (style, samples): &(StrokeStyle, Vec<StrokeSample>),
     clip: &RegionMask,
 ) -> Artwork {
-    let mut evaluator = RegionEvaluator::new(core, target);
     let session = artwork
         .begin_stroke(style.clone(), samples[0])
         .expect("begin");
@@ -45,17 +44,17 @@ fn draw_clipped(
             active: Some(session.active()),
             ..request(artwork)
         };
-        evaluator.evaluate(&frame, &[]).expect("evaluate");
+        target.draw(core, &frame, &[]).expect("evaluate");
         session.extend(chunk).expect("extend");
     }
     let frame = FrameRequest {
         active: Some(session.active()),
         ..request(artwork)
     };
-    evaluator.evaluate(&frame, &[]).expect("evaluate");
+    target.draw(core, &frame, &[]).expect("evaluate");
     let committed = session.finish().artwork;
-    evaluator
-        .evaluate(&request(&committed), &[])
+    target
+        .draw(core, &request(&committed), &[])
         .expect("commit");
     committed
 }
@@ -90,8 +89,8 @@ fn pixels_outside_the_selection_stay_unchanged() {
     // Paint, a building-up pencil and the eraser, each crossing the selection's edge.
     for stroke in [(style, samples), pencil, eraser] {
         let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-        RegionEvaluator::new(&core, &mut target)
-            .evaluate(&request(&base), &[PixelRect::full(SIZE)])
+        target
+            .draw(&core, &request(&base), &[PixelRect::full(SIZE)])
             .expect("evaluate");
         let drawn = draw_clipped(&core, &mut target, &base, &stroke, &clip);
         let incremental = target.read(&core).expect("readback");
@@ -139,8 +138,8 @@ fn the_screen_outlines_the_selection_and_stripes_outside_it_only() {
     let core = core();
     let artwork = blank();
     let mut target = CanvasTarget::new(&core, SIZE).expect("target");
-    RegionEvaluator::new(&core, &mut target)
-        .evaluate(&request(&artwork), &[PixelRect::full(SIZE)])
+    target
+        .draw(&core, &request(&artwork), &[PixelRect::full(SIZE)])
         .expect("evaluate");
     let canvas = target.read(&core).expect("readback");
     let square = [[100.0, 50.0], [220.0, 50.0], [220.0, 150.0], [100.0, 150.0]];

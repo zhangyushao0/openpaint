@@ -1,5 +1,5 @@
 //! The raster core's fixed-function states (S59, `raster_gpu.rs`): the formats it draws in, how
-//! the blend unit combines what each draw lays (the evaluator's equations, premultiplied), its
+//! the blend unit combines what each draw lays (the compositing equations, premultiplied), its
 //! bind group layouts and how a pipeline is made from two entry points.
 
 use crate::gpu::Gpu;
@@ -74,7 +74,7 @@ fn kept_alpha(color: wgpu::BlendComponent) -> wgpu::BlendState {
     }
 }
 
-/// A paint op's blend with the layer (`blend` in evaluate.wgsl), premultiplied: over; atop
+/// A paint op's blend with the layer, premultiplied: over; atop
 /// (`paint x layer alpha + layer x (1 - paint alpha)`, the alpha kept); erase.
 pub(crate) fn painted(blend: Blend) -> wgpu::BlendState {
     use wgpu::BlendFactor::{DstAlpha, OneMinusSrcAlpha, Zero};
@@ -98,7 +98,7 @@ pub(crate) fn cut() -> wgpu::BlendState {
     }
 }
 
-/// A layer end's fragment entry and blend (`composite` and `clipped` in evaluate.wgsl with
+/// A layer end's fragment entry and blend (`composite` and `clipped` in raster_composite.wgsl,
 /// `s` the layer as shown at its opacity, `d` what lies under it): onto the opaque canvas, over
 /// is `s + d (1 - sa)`, Multiply `d (1 - sa + s)`, Screen `s + d (1 - s)`; into a chain (its
 /// alpha kept), Normal is atop, `s da + d (1 - sa)`, Multiply the same `d (1 - sa + s)`, Screen

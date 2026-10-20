@@ -1,10 +1,8 @@
 // A stroke's curve spans (S34): each `Segment` op is one cubic Bézier span between two knots,
-// evaluated as `span_pieces` tapered capsules of equal parameter, as `curve.rs` flattens it on
-// the CPU: one while the chord lies within `TOLERANCE` output pixels of the curve at the output
-// pixel's footprint (`foot_scale`), else enough that each piece does. Radius, flow and contact
-// change evenly from one knot to the next. A covering stroke keeps the largest coverage of the
-// pieces, an accumulating one sums their densities, so pieces join as segments always did.
-// Appended to evaluate.wgsl after its declarations; deposit.wgsl holds `piece_density`.
+// drawn as tapered capsules of equal parameter, as many as `curve.rs` flattens it into at the
+// output pixel's footprint (`raster.wgsl`'s `piece_of`). Radius, flow and contact change evenly
+// from one knot to the next. A covering stroke keeps the largest coverage of the pieces, an
+// accumulating one sums their densities (deposit.wgsl's `piece_density`).
 
 // One straight piece: ends, radii, flows and paper contacts at both ends.
 struct Piece {
@@ -26,15 +24,6 @@ fn chord_piece(op: u32) -> Piece {
     );
 }
 
-// How many pieces the span is evaluated as here (`curve::pieces`).
-fn span_pieces(op: u32) -> u32 {
-    if word(op, SEGMENT_FLAT) * foot_scale <= TOLERANCE {
-        return 1u;
-    }
-    let count = ceil(sqrt(word(op, SEGMENT_BEND) * foot_scale / TOLERANCE));
-    return clamp(u32(min(count, f32(MAX_PIECES))), 1u, MAX_PIECES);
-}
-
 // The span's point at parameter `t` (Bernstein form, as `Cubic::at`).
 fn span_point(op: u32, t: f32) -> vec2<f32> {
     let s = 1.0 - t;
@@ -43,62 +32,6 @@ fn span_point(op: u32, t: f32) -> vec2<f32> {
     let p2 = vec2<f32>(word(op, SEGMENT_CONTROLS + 2u), word(op, SEGMENT_CONTROLS + 3u));
     let p3 = vec2<f32>(word(op, 2), word(op, 3));
     return s * s * s * p0 + 3.0 * s * s * t * p1 + 3.0 * s * t * t * p2 + t * t * t * p3;
-}
-
-// What the span lays at `centre`: x, its coverage (covering) or density (accumulating); y, the
-// paper contact there. A piece whose box widened by its reach misses `centre` lays nothing and
-// is skipped. A stamped span (S45) is its stamps instead (stamp.wgsl), which read its stroke's
-// paint op `STAMP_PAINT` ops from it.
-fn span_laid(centre: vec2<f32>, op: u32) -> vec2<f32> {
-    if word(op, STAMP_PAINT) != 0.0 {
-        return stamps_laid(centre, op);
-    }
-    let cover = u32(word(op, SEGMENT_TIP)) == TIP_COVER;
-    let whole = chord_piece(op);
-    let count = span_pieces(op);
-    if count == 1u {
-        return piece_laid(centre, whole, op, cover, true);
-    }
-    let reach = max(whole.radii.x, whole.radii.y) + 0.5 * foot_inverse + 0.01;
-    var laid = vec2<f32>(0.0);
-    var start = whole.a;
-    var t0 = 0.0;
-    for (var k = 1u; k <= count; k++) {
-        let t1 = f32(k) / f32(count);
-        var end = whole.b;
-        if k < count {
-            end = span_point(op, t1);
-        }
-        let low = min(start, end) - vec2<f32>(reach);
-        let high = max(start, end) + vec2<f32>(reach);
-        if all(centre >= low) && all(centre <= high) {
-            let piece = Piece(
-                start,
-                end,
-                whole.radii.x + (whole.radii.y - whole.radii.x) * vec2<f32>(t0, t1),
-                whole.flows.x + (whole.flows.y - whole.flows.x) * vec2<f32>(t0, t1),
-                whole.contacts.x + (whole.contacts.y - whole.contacts.x) * vec2<f32>(t0, t1),
-            );
-            let one = piece_laid(centre, piece, op, cover, false);
-            if cover {
-                laid.x = max(laid.x, one.x);
-            } else {
-                laid = vec2<f32>(laid.x + one.x, max(laid.y, one.y));
-            }
-        }
-        start = end;
-        t0 = t1;
-    }
-    return laid;
-}
-
-// One piece's coverage, or its density and contact (a lone point is a dot only when `dot`: a
-// whole span, never a piece of one).
-fn piece_laid(centre: vec2<f32>, piece: Piece, op: u32, cover: bool, dot: bool) -> vec2<f32> {
-    if cover {
-        return vec2<f32>(piece_coverage(centre, piece, word(op, SEGMENT_EDGE)), 0.0);
-    }
-    return piece_density(centre, piece, u32(word(op, SEGMENT_TIP)) == TIP_BELL, dot);
 }
 
 // Coverage of a pixel whose centre lies `distance` canvas pixels outside the capsule, measured

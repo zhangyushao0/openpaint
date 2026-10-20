@@ -2,7 +2,7 @@
 //! cold evaluation the canvas must equal.
 
 use openpaint_core::{Artwork, Color};
-use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RegionEvaluator, RgbaImage};
+use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RgbaImage};
 use openpaint_runtime::{
     Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime, ToolKind,
 };
@@ -120,8 +120,8 @@ pub fn cold(core: &Core, artwork: &Artwork) -> RgbaImage {
         active: None,
         background: Color::WHITE,
     };
-    RegionEvaluator::new(core, &mut target)
-        .evaluate(&request, &[PixelRect::full(size)])
+    target
+        .draw(core, &request, &[PixelRect::full(size)])
         .expect("evaluate");
     target.read(core).expect("readback")
 }
