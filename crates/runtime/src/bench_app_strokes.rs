@@ -251,8 +251,8 @@ impl Runtime {
         let start = self.clock.now_ms() + 50;
         let mut watch = Watch::paced(self);
         self.core.wait_idle()?;
-        let _ = self.core.frame_times();
-        self.core.time_frames(true);
+        let _ = self.bench_frame_times();
+        self.bench_time_frames(true);
         let last = path.len() - 1;
         let time = |at: usize| (at as i64 * 10) / 3;
         let began = Instant::now();
@@ -284,10 +284,9 @@ impl Runtime {
         }
         self.bench_drawn(&mut watch)?;
         self.core.wait_idle()?;
-        self.core.time_frames(false);
-        stroked
-            .gpu
-            .extend(self.core.frame_times().iter().map(|ns| ns / 1e6));
+        let gpu = self.bench_frame_times();
+        stroked.gpu.extend(gpu);
+        self.bench_time_frames(false);
         stroked.skipped = watch.skipped();
         stroked.counts = self.core.counts().since(counted);
         Ok(stroked)
@@ -333,9 +332,8 @@ impl Runtime {
                 stroked.snapshots = stroked.snapshots.max(held.snapshots);
             }
         }
-        stroked
-            .gpu
-            .extend(self.core.frame_times().iter().map(|ns| ns / 1e6));
+        let gpu = self.bench_frame_times();
+        stroked.gpu.extend(gpu);
         watch.wait(skipped);
         Ok(())
     }

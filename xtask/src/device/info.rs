@@ -16,7 +16,7 @@ use super::{artifacts, plain};
 const QUERY_LIMIT: Duration = Duration::from_secs(30);
 
 /// The queries: a file name and the device command, each one read-only.
-const QUERIES: [(&str, &[&str]); 9] = [
+const QUERIES: [(&str, &[&str]); 10] = [
     ("props", &["getprop"]),
     ("surfaceflinger", &["dumpsys", "-t", "10", "SurfaceFlinger"]),
     ("display", &["dumpsys", "-t", "10", "display"]),
@@ -28,6 +28,9 @@ const QUERIES: [(&str, &[&str]); 9] = [
     // The GPU memory each process holds as the driver counts it (S51): meminfo's Graphics
     // leaves out GPU memory the CPU never maps.
     ("gpumem", &["dumpsys", "-t", "10", "gpu", "--gpumem"]),
+    // The performance hint sessions (S67): whether the power HAL takes them, each session's
+    // threads and target.
+    ("hints", &["dumpsys", "-t", "10", "performance_hint"]),
     // Input devices and the dispatcher's state (S38): why injected fingers were refused.
     ("input", &["dumpsys", "-t", "10", "input"]),
     (
@@ -57,6 +60,11 @@ const COLOUR_WORDS: [&str; 9] = [
 ];
 
 pub fn info(args: &[String]) -> Result<()> {
+    if let [flag, rest @ ..] = args
+        && flag == "--watch"
+    {
+        return super::watch::watch(rest);
+    }
     let label = match args {
         [] => "info",
         [label] => plain(label)?,

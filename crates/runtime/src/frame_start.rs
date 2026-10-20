@@ -16,6 +16,7 @@ use crate::clock::{FrameClock, InputClock};
 use crate::display::CacheWorker;
 use crate::error::RuntimeError;
 use crate::fill::FillWorker;
+use crate::hints::Hints;
 use crate::host::version_line;
 use crate::normalise::Normaliser;
 use crate::pacing::Pacing;
@@ -124,6 +125,9 @@ impl Runtime {
             frame_clock: FrameClock::default(),
             touches: Touches::default(),
             pacing: Pacing::default(),
+            hints: Hints::default(),
+            bench_timing: false,
+            timed: Vec::new(),
             pending: Vec::new(),
             typed: Vec::new(),
             keyboard: false,

@@ -12,7 +12,9 @@
 //! - `cargo device-push <file>`: a PNG or JPEG for the system picker, or an OpenPaint file for
 //!   `device-input open-file` (S58), into `/sdcard/Download/openpaint-test` (a test location
 //!   `clean` removes; `push.rs`);
-//! - `cargo device-info [label]`: the display's colour facts, read-only (`info.rs`);
+//! - `cargo device-info [label]`: the display's colour facts, read-only (`info.rs`); with
+//!   `--watch <seconds>` the clocks, the GPU's load, the battery's draw and the app's CPU time
+//!   over that time (`watch.rs`, S67);
 //! - `cargo device-smoke`: the installed debug build walked through every main feature on a
 //!   test artwork it creates and deletes, about 20 s (`smoke.rs`).
 //!
@@ -27,6 +29,7 @@ mod push;
 mod smoke;
 mod smoke_state;
 mod tar;
+mod watch;
 
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};

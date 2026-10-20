@@ -55,10 +55,16 @@ impl Touches {
     /// Whether the screen is idle now; `drawing` while a stroke is drawn (a pen held still on the
     /// glass sends nothing).
     pub(crate) fn idle(&mut self, drawing: bool) -> bool {
+        self.idle_at(drawing, Instant::now())
+    }
+
+    /// Whether the screen is idle at `now` (`idle`).
+    pub(crate) fn idle_at(&mut self, drawing: bool, now: Instant) -> bool {
         if drawing {
-            self.last = Some(Instant::now());
+            self.last = Some(now);
         }
-        self.last.is_none_or(|last| last.elapsed() >= IDLE_AFTER)
+        self.last
+            .is_none_or(|last| now.saturating_duration_since(last) >= IDLE_AFTER)
     }
 }
 

@@ -32,6 +32,8 @@ impl Runtime {
     /// not at all, also if the process is killed meanwhile). In the gallery, the calls handed over
     /// are waited for.
     pub fn leave(&mut self) {
+        // S67: the performance hints close; a hand after the return starts them again.
+        self.hints.leave();
         if let Some(canvas) = self.screen.canvas_mut() {
             canvas.end_stroke(&mut self.toolbox);
         }

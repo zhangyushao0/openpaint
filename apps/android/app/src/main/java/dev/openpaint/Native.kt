@@ -19,6 +19,9 @@ internal object Native {
      */
     @JvmStatic external fun create(density: Float, filesDir: String, cacheDir: String, memory: Long): Long
 
+    /** The display's vsync period: the performance hints' target (S67). */
+    @JvmStatic external fun vsync(handle: Long, periodNanos: Long)
+
     /** The system asks the app to use less memory (`onTrimMemory`'s level). */
     @JvmStatic external fun trim(handle: Long, level: Int)
 

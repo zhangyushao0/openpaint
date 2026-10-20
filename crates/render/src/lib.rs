@@ -90,6 +90,7 @@ pub use crate::difference::{EDGE, ImageDifference, image_difference};
 pub use crate::error::RenderError;
 pub use crate::export::{Banding, Bands};
 pub use crate::frame::FrameRequest;
+pub use crate::frame_clock::FrameTime;
 pub use crate::geom::PixelRect;
 pub use crate::image::RgbaImage;
 pub use crate::output::MAX_SCALE;

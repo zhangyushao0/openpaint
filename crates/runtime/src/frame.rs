@@ -9,13 +9,16 @@
 //! -> draw the canvas and the UI over it.
 
 use std::sync::Arc;
+use std::time::Instant;
 
 use openpaint_app::{
     Clipboard, InputBatch, Intent, PalmRejection, ScreenProjection, SessionProjection, Toolbox,
     Transfers, TransformIntent,
 };
 use openpaint_core::Artwork;
-use openpaint_render::{Core, ScreenPainter, ScreenTarget, Surface, SurfaceWindow, UiFrame};
+use openpaint_render::{
+    Core, FrameTime, ScreenPainter, ScreenTarget, Surface, SurfaceWindow, UiFrame,
+};
 use openpaint_ui::design::{self, TextFonts};
 use openpaint_ui::{CanvasArea, Shell};
 
@@ -26,6 +29,7 @@ use crate::clock::{FrameClock, InputClock};
 use crate::display::CacheWorker;
 use crate::error::RuntimeError;
 use crate::fill::FillWorker;
+use crate::hints::Hints;
 use crate::input::MotionBatch;
 use crate::normalise::Normaliser;
 use crate::pacing::{Paced, Pacing};
@@ -72,6 +76,11 @@ pub struct Runtime {
     pub(crate) touches: Touches,
     /// Frames wait while the GPU is behind (S56).
     pub(crate) pacing: Pacing,
+    /// The host's performance hints, told each frame's work while a hand is there (S67).
+    pub(crate) hints: Hints,
+    /// A benchmark times the frames on the GPU (S63); their times read back for it.
+    pub(crate) bench_timing: bool,
+    pub(crate) timed: Vec<FrameTime>,
     /// Input normalised since the last frame, palms removed, oldest first.
     pending: Vec<InputBatch>,
     /// Keyboard text for the focused text field since the last frame.
@@ -200,15 +209,21 @@ impl Runtime {
     /// is behind, the call draws nothing and wants the next (S56, `pacing.rs`); while nothing
     /// touches the screen it gives the work waiting what the GPU's queue has room for (S60).
     pub fn frame(&mut self) -> Result<bool, RuntimeError> {
+        let began = Instant::now();
         self.recover_if_lost()?;
         let drawing = self.screen.canvas().is_some_and(Canvas::drawing);
         let resting = self.touches.resting(drawing);
+        // S67: while a hand is there each frame drawn is reported to the host's hints.
+        let idle = self.idle();
+        self.time_frames(idle);
         if self.pacing.skips(&self.core, (true, resting)) {
             let result = self.ahead().map(|()| true);
+            self.hint(began, false);
             return self.after_frame(result);
         }
         let result = self.frame_once();
         self.core.frame_submitted();
+        self.hint(began, true);
         self.after_frame(result)
     }
 

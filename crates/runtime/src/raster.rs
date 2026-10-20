@@ -15,6 +15,7 @@ use std::time::{Duration, Instant};
 use openpaint_render::{Core, RasterAnswer, RasterDrawer, RasterOrder};
 
 use crate::error::RuntimeError;
+use crate::hints::WorkHints;
 use crate::shared::SharedCore;
 use crate::worker::Queue;
 
@@ -24,6 +25,8 @@ const DRAIN: Duration = Duration::from_secs(10);
 enum Request {
     /// Make the raster core's pipelines on the device now.
     Warm,
+    /// This thread does the frames' work for the host's performance hints (S67).
+    Join(Arc<dyn WorkHints>),
     /// An order of the view's; a tile handed over while nothing touched the screen carries the
     /// hands counted then (`ahead`).
     Order {
@@ -57,6 +60,10 @@ impl RasterWorker {
                     warm(&core, &mut drawer);
                     None
                 }
+                Request::Join(hints) => {
+                    hints.joined();
+                    None
+                }
                 Request::Order {
                     order: RasterOrder::LetGo,
                     ..
@@ -86,6 +93,11 @@ impl RasterWorker {
     /// The pipelines are made on the device now (at the start, and on a new device).
     pub(crate) fn warm(&mut self) {
         self.queue.submit(Request::Warm);
+    }
+
+    /// The worker's thread joins the host's performance hints (S67).
+    pub(crate) fn join(&mut self, hints: Arc<dyn WorkHints>) {
+        self.queue.submit(Request::Join(hints));
     }
 
     /// A hand arrived: tiles handed over while nothing touched go unsubmitted.
