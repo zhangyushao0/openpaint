@@ -1,4 +1,4 @@
-//! `cargo shape-assets`: the brush shape textures (S45, DECISIONS D72), generated from seeded
+//! `cargo shape-assets`: the brush shape textures (DECISIONS D74), generated from seeded
 //! value noise, never downloaded: `crates/render/assets/shape-<name>.bin`, 256 x 256 bytes, row
 //! major. Each byte is the signed distance from the texel's centre to the shape's rim in texels
 //! (positive inside), `128 + 16 d` rounded and clamped to `0..=255` (so -8 to +7.94 texels in

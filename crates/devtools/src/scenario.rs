@@ -66,19 +66,19 @@ pub enum Step {
         /// A hand resting on the glass around the stroke.
         #[serde(default)]
         palm: Option<Palm>,
-        /// A sample at each point and none between: a fast stroke's sparse samples (S34).
+        /// A sample at each point and none between: a fast stroke's sparse samples.
         #[serde(default)]
         sparse: bool,
-        /// Milliseconds the pen rests at the last point before it lifts (QuickShape, S42).
+        /// Milliseconds the pen rests at the last point before it lifts (QuickShape).
         #[serde(default)]
         hold_ms: u32,
-        /// The tip with a side button held, or the eraser end (S41); the tip by default.
+        /// The tip with a side button held, or the eraser end; the tip by default.
         #[serde(default)]
         pen: Pen,
-        /// Degrees the pen leans from upright all along the stroke, 0 to 90 (S44); 0 upright.
+        /// Degrees the pen leans from upright all along the stroke, 0 to 90; 0 upright.
         #[serde(default)]
         tilt: f32,
-        /// Degrees of the direction it leans in, as Android's orientation, -180 to 180 (S44).
+        /// Degrees of the direction it leans in, as Android's orientation, -180 to 180.
         #[serde(default)]
         azimuth: f32,
     },
@@ -95,10 +95,10 @@ pub enum Step {
         #[serde(default)]
         before_lift: Option<String>,
         /// The canvas just before the contact lifts must hash to this (a checkpoint named as
-        /// `before_lift`, which it needs; S44).
+        /// `before_lift`, which it needs).
         #[serde(default, deserialize_with = "optional_hash")]
         canvas_before_lift: Option<u64>,
-        /// Instead of lifting, the app is interrupted while the contact is down (S50): its window
+        /// Instead of lifting, the app is interrupted while the contact is down: its window
         /// goes and comes back, or the user leaves the app and comes back; then the platform
         /// cancels the contact, as Android does.
         #[serde(default)]
@@ -106,7 +106,7 @@ pub enum Step {
     },
     /// The pen hovers just above the glass at `at`, touching nothing; it stays there until the
     /// next contact.
-    /// With `pen`, a side button held or the eraser end (S41).
+    /// With `pen`, a side button held or the eraser end.
     Hover {
         at: Spot,
         #[serde(default)]
@@ -132,7 +132,7 @@ pub enum Step {
         pan: Option<[f32; 2]>,
     },
     /// Text committed by the keyboard into the field that has the focus; a last newline then
-    /// presses Enter, the keyboard's Done (S41).
+    /// presses Enter, the keyboard's Done.
     Type(String),
     /// The system's back button.
     Back,
@@ -145,7 +145,7 @@ pub enum Step {
     StorageFails,
     /// Storage works again.
     StorageWorks,
-    /// The GPU device is lost as a driver reset loses it (S49): the next frame makes the
+    /// The GPU device is lost as a driver reset loses it: the next frame makes the
     /// renderer again.
     LoseDevice,
     /// The canvas pixels (the artwork without the UI) must hash to `canvas`. The canvas, not
@@ -155,7 +155,7 @@ pub enum Step {
         #[serde(deserialize_with = "hex_hash")]
         canvas: u64,
     },
-    /// The controls on screen once motion settled (S47): every name of `shown` in reading order
+    /// The controls on screen once motion settled: every name of `shown` in reading order
     /// (top to bottom, then left to right; not necessarily next to each other), none of
     /// `absent`. Otherwise the run fails with every name on screen.
     Expect {
@@ -164,7 +164,7 @@ pub enum Step {
         #[serde(default)]
         absent: Vec<String>,
     },
-    /// The brush editor's preview strip (its picture's pixels) must hash to `strip` (S46).
+    /// The brush editor's preview strip (its picture's pixels) must hash to `strip`.
     Preview {
         name: String,
         #[serde(deserialize_with = "hex_hash")]
@@ -223,7 +223,7 @@ fn full_pressure() -> f32 {
     1.0
 }
 
-/// What interrupts a press (S50).
+/// What interrupts a press.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Interruption {

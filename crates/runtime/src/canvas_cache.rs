@@ -1,4 +1,4 @@
-//! The open canvas and the display cache (S54, DECISIONS D81). Opening an artwork, its cached
+//! The open canvas and the display cache (DECISIONS D96). Opening an artwork, its cached
 //! canvas is put into the new target: when its key matches (the save that wrote the artwork's
 //! head, this renderer, the target's format and size) the canvas is complete in its first frame
 //! and nothing fills; otherwise it, or the gallery picture enlarged, shows under the tiles while

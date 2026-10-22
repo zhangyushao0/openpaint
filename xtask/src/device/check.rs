@@ -1,7 +1,7 @@
 //! `cargo device-check [label] [--no-install] [--no-launch] [--fresh] [--after=<ms>]`: wakes the
 //! tablet, builds and installs the debug APK (unless `--no-install`), launches the app (unless
 //! `--no-launch`, which keeps a system picker over it open; with `--fresh` force-stopped first, so
-//! it starts anew, S54), waits (`--after`, 3000 ms at first), writes a screenshot to
+//! it starts anew), waits (`--after`, 3000 ms at first), writes a screenshot to
 //! `artifacts/device/<label>.png` and prints the app's error, panic and crash lines logged since;
 //! a panic or crash fails it. `cargo device-input` is `input.rs`.
 
@@ -48,7 +48,7 @@ pub fn check(args: &[String]) -> Result<()> {
         let apk = root().join(APK);
         adb.text(&["install", "-r", &apk.to_string_lossy()])?;
     } else if flag("--fresh") {
-        super::stop_app(&adb)?;
+        super::library::stop_app(&adb)?;
     }
     let since = adb.shell(&["date", "+%s"])?;
     adb.shell(&["am", "start", "-W", "-n", ACTIVITY])?;

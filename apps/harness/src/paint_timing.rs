@@ -1,17 +1,16 @@
-//! `paint-timing` (S48): what a frame of painting costs over a layer that already holds many
-//! strokes. Per brush at its default size (Textured Round, Opaque Paint, Speckle, Flat, and the
-//! Ink Pen as the baseline), a 2880 x 1716 canvas (the tablet's screen size) gets N earlier
-//! strokes of that brush (0, 100, 300, 600; 52 samples each, 8 ms apart, pressed 0.8, as
-//! `cargo device-input pen-many` lays them on the tablet, whose lines it prints) crossing one
-//! 800 x 800 px area; then one more stroke is drawn over that
-//! area a sample a frame through the in-progress path, as the runtime draws it: calm (52 samples
-//! about 12 px apart, a wave) and fast (52 samples 25 px apart, a loop). Per case and frame: the
-//! CPU's part (scene, plan, encoding, submission) and the GPU's (waited for); printed as p50 /
-//! p95 over the frames after the first, with the first frame (the pen touching down) and the
-//! lift's frame apart. Run with `--release` for numbers that mean anything.
+//! `paint-timing`: what a frame of painting costs over a layer that already holds many strokes.
+//! Per brush at its default size (Textured Round, Opaque Paint, Speckle, Flat, and the Ink Pen as
+//! the baseline), a 2880 x 1716 canvas (the tablet's screen size) gets N earlier strokes of that
+//! brush (0, 100, 300, 600; 52 samples each, 8 ms apart, pressed 0.8, as `cargo device-input
+//! pen-many` lays them on the tablet, whose lines it prints) crossing one 800 x 800 px area;
+//! then one more stroke is drawn over that area a sample a frame through the in-progress path,
+//! as the runtime draws it: calm (52 samples about 12 px apart, a wave) and fast (52 samples
+//! 25 px apart, a loop). Per case and frame: the CPU's part (scene, plan, encoding, submission)
+//! and the GPU's (waited for); printed as p50 / p95 over the frames after the first, with the
+//! first frame (the pen touching down) and the lift's frame apart. Run with `--release` for
+//! numbers that mean anything.
 
-use std::f32::consts::{PI, TAU};
-use std::sync::Arc;
+use std::f32::consts::TAU;
 use std::time::{Duration, Instant};
 
 use openpaint_app::BrushLibrary;
@@ -19,6 +18,7 @@ use openpaint_core::{
     ActiveStroke, Artwork, CanvasPoint, CanvasSize, Color, StrokeSample, StrokeStyle,
 };
 use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, take_spent};
+use openpaint_runtime::{pile_path, style_of};
 
 use crate::error::HarnessError;
 
@@ -27,7 +27,7 @@ const SIZE: [u32; 2] = [2880, 1716];
 const CENTRE: [f32; 2] = [1440.0, 858.0];
 const HALF: f32 = 400.0;
 const SAMPLES: u16 = 52;
-const COUNTS: [usize; 4] = [0, 100, 300, 600];
+const COUNTS: [u32; 4] = [0, 100, 300, 600];
 const BRUSHES: [&str; 5] = [
     "textured-round",
     "opaque-paint",
@@ -41,17 +41,7 @@ pub fn run() -> Result<(), HarnessError> {
     println!("adapter {}", core.adapter());
     let library = BrushLibrary::built_in().map_err(openpaint_runtime::RuntimeError::from)?;
     let style = |key: &str, seed: u32| -> Result<StrokeStyle, HarnessError> {
-        let index = library
-            .find(key)
-            .ok_or(HarnessError::Missing("a built-in brush is missing"))?;
-        let brush = &library.brushes()[index];
-        let style = StrokeStyle::new(
-            Arc::clone(brush.recipe()),
-            brush.size().default,
-            brush.opacity(),
-            Color::rgb(0.2, 0.3, 0.6)?,
-        )?;
-        Ok(style.with_seed(seed))
+        Ok(style_of(&library, key, None)?.with_seed(seed))
     };
     tablet_lines();
     // Shaders, pipelines and buffers settle on a first stroke nobody counts.
@@ -84,7 +74,7 @@ fn blank() -> Result<Artwork, HarnessError> {
     Ok(Artwork::new(CanvasSize::new(SIZE[0], SIZE[1])?))
 }
 
-/// One frame's cost: CPU (and of it building the scene, S56) and GPU.
+/// One frame's cost: CPU (and of it building the scene) and GPU.
 #[derive(Clone, Copy)]
 struct Frame {
     cpu: Duration,
@@ -101,8 +91,8 @@ struct Frames {
 
 /// Draws `stroke` over `artwork` a sample a frame into a target that showed `artwork` already,
 /// and commits it; then the same path again over the commit. The first is the first stroke over
-/// the place since the artwork opened or since an undo (S48: the layer's snapshot holds none of
-/// it yet), the second a stroke over a place painted on before.
+/// the place since the artwork opened or since an undo (the layer's snapshots hold none of it
+/// yet), the second a stroke over a place painted on before.
 fn measure(
     core: &Core,
     artwork: &Artwork,
@@ -201,59 +191,24 @@ impl Frames {
     }
 }
 
-/// `count` strokes of the style `style(seed)` makes: the earlier stroke's path turned and moved
-/// as `cargo device-input pen-many` lays it on the tablet (`turned`), crossing the area.
+/// `count` strokes of the style `style(seed)` makes: `pen-many`'s path through the area's
+/// centre, turned and moved as it lays it on the tablet (`pile_path`), crossing the area.
 fn layer(
-    count: usize,
+    count: u32,
     style: impl Fn(u32) -> Result<StrokeStyle, HarnessError>,
 ) -> Result<Artwork, HarnessError> {
     let mut artwork = blank()?;
     for k in 0..count {
-        let samples = turned(&earlier(), k)
+        let samples = pile_path(k, CENTRE)
             .into_iter()
             .zip(0..)
             .map(|(point, i)| sample(point, i))
             .collect::<Result<Vec<_>, _>>()?;
-        let seed = u32::try_from(k).unwrap_or(0);
-        let mut session = artwork.begin_stroke(style(seed)?, samples[0])?;
+        let mut session = artwork.begin_stroke(style(k)?, samples[0])?;
         session.extend(&samples[1..])?;
         artwork = session.finish().artwork;
     }
     Ok(artwork)
-}
-
-/// The earlier strokes' path before it is turned: 500 px through the area's centre, gently bent.
-fn earlier() -> Vec<[f32; 2]> {
-    points(|t| {
-        let x = CENTRE[0] - 250.0 + 500.0 * t;
-        [x, CENTRE[1] + 43.0 * (PI * t).sin()]
-    })
-}
-
-/// Stroke `k` of `pen-many` (`GestureInstrumentation.turned`): `path` turned about the middle
-/// of its box by `k` golden angles and moved by the same screen pixels, in canvas pixels here.
-fn turned(path: &[[f32; 2]], k: usize) -> Vec<[f32; 2]> {
-    if k == 0 {
-        return path.to_vec();
-    }
-    let middle = [0, 1].map(|axis| {
-        let (low, high) = path.iter().fold((f32::MAX, f32::MIN), |(low, high), p| {
-            (low.min(p[axis]), high.max(p[axis]))
-        });
-        (low + high) / 2.0
-    });
-    let angle = k as f64 * 2.399_963_2;
-    let (cos, sin) = (angle.cos() as f32, angle.sin() as f32);
-    let shift = [37, 59].map(|step| ((k * step) % 281) as f32 - 140.0);
-    path.iter()
-        .map(|point| {
-            let [x, y] = [point[0] - middle[0], point[1] - middle[1]];
-            [
-                middle[0] + shift[0] / SCREEN_SCALE + x * cos - y * sin,
-                middle[1] + shift[1] / SCREEN_SCALE + x * sin + y * cos,
-            ]
-        })
-        .collect()
 }
 
 /// The calm stroke: a wave across the area, samples about 12 px apart.
@@ -320,7 +275,7 @@ fn tablet_lines() {
     println!("on the tablet (a new screen-size artwork at fit):");
     println!(
         "  earlier: cargo device-input pen-many <N> {} 0.8",
-        screen(earlier())
+        screen(pile_path(0, CENTRE))
     );
     println!("  calm:    cargo device-input pen {} 0.8", screen(calm()));
     println!("  fast:    cargo device-input pen {} 0.8", screen(fast()));

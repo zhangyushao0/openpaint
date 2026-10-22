@@ -1,28 +1,23 @@
-//! `bench session` (S58, `bench_app.rs`): painting driven as a hand does, timed; the session's
-//! brush and intents `bench strokes` (`bench_app_strokes.rs`) shares.
-
-use std::time::Duration;
+//! `bench session`: an hour's painting driven as a hand does, timed; and the session's brush,
+//! which `bench strokes` sets too.
 
 use openpaint_app::{
     CanvasPreset, Contact, ContactPhase, Device, GalleryIntent, HistoryIntent, InputSample, Intent,
-    LayerIntent, StrokeIntent,
+    LayerIntent, StreamLine, StrokeIntent,
 };
 use openpaint_core::{Stroke, StrokeStyle};
 
-use super::Watch;
-use super::cases::strokes;
+use super::hand::strokes;
+use super::{Watch, mb};
 use crate::error::RuntimeError;
 use crate::frame::Runtime;
-use crate::screen::Screen;
-
-const LIMIT: Duration = Duration::from_secs(60);
 
 impl Runtime {
     /// The session's next strokes drawn with `style`, without StreamLine; `None`: the toolbox's
     /// again.
     pub(super) fn set_session_brush(&mut self, style: Option<StrokeStyle>) {
         let (style, streamline) = match style {
-            Some(style) => (Ok(style), openpaint_app::StreamLine::OFF),
+            Some(style) => (Ok(style), StreamLine::OFF),
             None => (self.toolbox.style(), self.toolbox.streamline()),
         };
         if let (Some(canvas), Ok(style)) = (self.screen.canvas_mut(), style) {
@@ -40,7 +35,7 @@ impl Runtime {
             .flat_map(|(at, layer)| layer.strokes().iter().map(move |s| (at, s.clone())))
             .collect();
         let mut watch = Watch::start(self);
-        self.bench_until(&mut watch, LIMIT, Self::bench_settled)?;
+        self.bench_until(&mut watch, Self::bench_settled)?;
         self.bench_new_artwork(&mut watch)?;
         lines.push(format!(
             "{} strokes of {} layers onto a new screen-size artwork, project {:?}",
@@ -72,7 +67,7 @@ impl Runtime {
                 lines.push(format!("{} strokes: {}", k + 1, watch.line(self)));
             }
         }
-        self.bench_until(&mut watch, LIMIT, Self::bench_settled)?;
+        self.bench_until(&mut watch, Self::bench_settled)?;
         self.set_session_brush(None);
         lines.push(format!(
             "all {} strokes: {}",
@@ -85,12 +80,7 @@ impl Runtime {
 
     /// The canvas left for the gallery, then New artwork, Screen size: frames until it shows.
     fn bench_new_artwork(&mut self, watch: &mut Watch) -> Result<(), RuntimeError> {
-        if let Screen::Canvas(canvas) = &mut self.screen {
-            let app = (&mut self.toolbox, &mut self.clipboard, &mut self.seeds);
-            canvas.dispatch(&self.core, vec![Intent::Gallery(GalleryIntent::Show)], app);
-        }
-        let gallery = |runtime: &Self| matches!(runtime.screen, Screen::Gallery(_));
-        self.bench_until(watch, LIMIT, gallery)?;
+        self.bench_leave(watch)?;
         let create = GalleryIntent::Create(CanvasPreset::Screen);
         (self.screen.gallery_mut())
             .ok_or(RuntimeError::NotNow("the gallery"))?
@@ -101,7 +91,7 @@ impl Runtime {
                 .canvas()
                 .is_some_and(|c| c.project().is_some())
         };
-        if self.bench_until(watch, LIMIT, shown)? {
+        if self.bench_until(watch, shown)? {
             Ok(())
         } else {
             Err(RuntimeError::NotNow("a new artwork"))
@@ -144,22 +134,8 @@ impl Runtime {
         )
     }
 
-    /// `intents` applied to the canvas as the frame applies a hand's, then a frame drawn.
-    pub(super) fn bench_intents(
-        &mut self,
-        intents: Vec<Intent>,
-        watch: &mut Watch,
-    ) -> Result<(), RuntimeError> {
-        if let Screen::Canvas(canvas) = &mut self.screen {
-            let app = (&mut self.toolbox, &mut self.clipboard, &mut self.seeds);
-            canvas.dispatch(&self.core, intents, app);
-        }
-        self.bench_drawn(watch)
-    }
-
     /// What holds memory now: the GPU caches, the device allocator, the history, the scene.
     fn bench_memory(&self) -> String {
-        let mb = |bytes: u64| bytes as f64 / (1024.0 * 1024.0);
         let gpu = self.core.gpu_memory().unwrap_or_default();
         let caches = self.cache_bytes().unwrap_or_default();
         let scene = self.scene_bytes().unwrap_or_default();

@@ -9,8 +9,8 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::time::{Duration, Instant};
 
 use openpaint_app::{
-    EditorState, FileJob, MAX_ARTWORK_FILE_BYTES, PortError, Project, ProjectId, ProjectStore,
-    ProjectSummary, SaveId, Thumbnail, Title, VersionId,
+    EditorState, FileJob, LibraryAnswer, MAX_ARTWORK_FILE_BYTES, PortError, Project, ProjectId,
+    ProjectStore, ProjectSummary, SaveId, Thumbnail, Title, VersionId,
 };
 use openpaint_core::Artwork;
 use openpaint_store::{Cached, DisplayCache};
@@ -18,14 +18,14 @@ use openpaint_store::{Cached, DisplayCache};
 use crate::error::RuntimeError;
 use crate::worker::Queue;
 
-/// An artwork the library opened, with its cached canvas if the display cache holds one (S54).
+/// An artwork the library opened, with its cached canvas if the display cache holds one.
 #[derive(Debug)]
 pub(crate) struct Loaded {
     pub(crate) project: Project,
     pub(crate) cached: Option<Cached>,
 }
 
-/// What a save stored: the project it went to and the save id its head holds now (S54).
+/// What a save stored: the project it went to and the save id its head holds now.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Stored {
     pub(crate) project: ProjectId,
@@ -94,13 +94,12 @@ pub(crate) enum Done {
         result: Result<Option<Stored>, PortError>,
         closed: bool,
     },
-    Listed(Result<Vec<ProjectSummary>, PortError>),
-    Loaded(Result<Box<Loaded>, PortError>),
-    Created(Artwork, Title, Result<ProjectId, PortError>),
-    Changed(Result<(), PortError>),
-    Restored(Result<(), PortError>),
-    FileSaved(Result<(), PortError>),
-    FileOpened(Result<(), PortError>),
+    /// An artwork the gallery opened.
+    Loaded(Box<Loaded>),
+    /// A new artwork the gallery made, now the open one.
+    Created(Artwork, Title, ProjectId),
+    /// Everything else the gallery asked for, and the failures of the two above.
+    Gallery(LibraryAnswer),
 }
 
 /// What the worker knows between calls.
@@ -117,7 +116,7 @@ pub(crate) struct Storage {
 
 impl Storage {
     /// Starts the worker with `store` and asks it to open the library. An artwork it opens comes
-    /// with its canvas from `cache` (S54), if one is kept there.
+    /// with its canvas from `cache`, if one is kept there.
     pub(crate) fn start(
         mut store: Box<dyn ProjectStore>,
         cache: Option<DisplayCache>,
@@ -178,13 +177,15 @@ fn stopped(job: &Job) -> Done {
             result: Err(error),
             closed: false,
         },
-        Job::Create { artwork, title } => Done::Created(artwork.clone(), title.clone(), Err(error)),
-        Job::Library(LibraryCall::List) => Done::Listed(Err(error)),
-        Job::Library(LibraryCall::Load(_)) => Done::Loaded(Err(error)),
-        Job::Library(LibraryCall::Restore(..)) => Done::Restored(Err(error)),
-        Job::Library(_) => Done::Changed(Err(error)),
-        Job::File(FileJob::Save { .. }) => Done::FileSaved(Err(error)),
-        Job::File(FileJob::Open { .. }) => Done::FileOpened(Err(error)),
+        Job::Create { .. } => Done::Gallery(LibraryAnswer::CreateFailed(error)),
+        Job::Library(LibraryCall::List) => Done::Gallery(LibraryAnswer::Listed(Err(error))),
+        Job::Library(LibraryCall::Load(_)) => Done::Gallery(LibraryAnswer::OpenFailed(error)),
+        Job::Library(LibraryCall::Restore(..)) => {
+            Done::Gallery(LibraryAnswer::Restored(Err(error)))
+        }
+        Job::Library(_) => Done::Gallery(LibraryAnswer::Changed(Err(error))),
+        Job::File(FileJob::Save { .. }) => Done::Gallery(LibraryAnswer::FileSaved(Err(error))),
+        Job::File(FileJob::Open { .. }) => Done::Gallery(LibraryAnswer::FileOpened(Err(error))),
     }
 }
 
@@ -210,16 +211,16 @@ fn run((store, cache): Served<'_>, kept: &mut Kept, job: Job) -> Done {
             kept_at,
             close,
         } => leave(store, kept, (version, thumbnail.as_ref()), kept_at, close),
-        Job::Create { artwork, title } => {
-            let result = store.create(&artwork, &title);
-            if let Ok(id) = result {
+        Job::Create { artwork, title } => match store.create(&artwork, &title) {
+            Ok(id) => {
                 *kept = Kept {
                     open: Some(id),
                     changed: false,
                 };
+                Done::Created(artwork, title, id)
             }
-            Done::Created(artwork, title, result)
-        }
+            Err(error) => Done::Gallery(LibraryAnswer::CreateFailed(error)),
+        },
         Job::Library(request) => library((store, cache), kept, request),
         Job::File(job) => file(store, job),
     }
@@ -320,25 +321,25 @@ fn leave(
 }
 
 fn library((store, cache): Served<'_>, kept: &mut Kept, call: LibraryCall) -> Done {
-    match call {
-        LibraryCall::List => Done::Listed(store.list()),
-        LibraryCall::Load(id) => {
-            let project = store.load(id);
-            if project.is_ok() {
+    Done::Gallery(match call {
+        LibraryCall::List => LibraryAnswer::Listed(store.list()),
+        LibraryCall::Load(id) => match store.load(id) {
+            Ok(project) => {
                 *kept = Kept {
                     open: Some(id),
                     changed: false,
                 };
+                return Done::Loaded(loaded(cache, project));
             }
-            Done::Loaded(project.map(|project| loaded(cache, project)))
-        }
-        LibraryCall::Rename(id, title) => Done::Changed(store.rename(id, &title)),
-        LibraryCall::Duplicate(id) => Done::Changed(store.duplicate(id).map(|_| ())),
-        LibraryCall::Delete(id) => Done::Changed(store.delete(id)),
+            Err(error) => LibraryAnswer::OpenFailed(error),
+        },
+        LibraryCall::Rename(id, title) => LibraryAnswer::Changed(store.rename(id, &title)),
+        LibraryCall::Duplicate(id) => LibraryAnswer::Changed(store.duplicate(id).map(drop)),
+        LibraryCall::Delete(id) => LibraryAnswer::Changed(store.delete(id)),
         LibraryCall::Restore(id, version, title) => {
-            Done::Restored(store.restore_version(id, version, &title).map(|_| ()))
+            LibraryAnswer::Restored(store.restore_version(id, version, &title).map(drop))
         }
-    }
+    })
 }
 
 /// Writes an artwork into the file the user chose, or adds the chosen file as a new artwork.
@@ -349,7 +350,7 @@ fn file(store: &mut dyn ProjectStore, job: FileJob) -> Done {
             if let Err(error) = &result {
                 log::error!("saving an OpenPaint file failed: {error}");
             }
-            Done::FileSaved(result)
+            Done::Gallery(LibraryAnswer::FileSaved(result))
         }
         FileJob::Open { source } => {
             let result = source.read(MAX_ARTWORK_FILE_BYTES).and_then(|bytes| {
@@ -358,12 +359,12 @@ fn file(store: &mut dyn ProjectStore, job: FileJob) -> Done {
                         detail: format!("larger than {MAX_ARTWORK_FILE_BYTES} bytes"),
                     });
                 }
-                store.import_file(&bytes).map(|_| ())
+                store.import_file(&bytes).map(drop)
             });
             if let Err(error) = &result {
                 log::warn!("the chosen file was not opened: {error}");
             }
-            Done::FileOpened(result)
+            Done::Gallery(LibraryAnswer::FileOpened(result))
         }
     }
 }

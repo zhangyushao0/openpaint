@@ -1,4 +1,4 @@
-//! `RasterWorker` (S60, DECISIONS D87): the raster core's thread, `openpaint-raster`. As the
+//! `RasterWorker` (DECISIONS D96): the raster core's thread, `openpaint-raster`. As the
 //! device is made it makes the raster core's pipelines (0.7 s on the tablet), so the first zoom
 //! finds them; then it plans, encodes and submits the view tiers' tiles the canvas hands it
 //! (`openpaint_render::RasterDrawer`), each once the GPU's queue of background work has room, so
@@ -6,7 +6,7 @@
 //! nothing touched the screen is dropped unsubmitted once a hand arrives (a touch, the pen
 //! coming into hover: `hand_arrived` from `Runtime::motion`), so the first frame of a touch
 //! waits for at most the background work already queued. Its targets live on this thread, made
-//! again on a new device (S49) and let go when the GPU memory budget says.
+//! again on a new device and let go when the GPU memory budget says.
 
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Weak};
@@ -102,7 +102,7 @@ impl RasterWorker {
     }
 
     /// Waits until every order handed over is served (at most `DRAIN`), its answers kept for
-    /// `answers` (S60: an offscreen frame, read back, waits for the worker as for the GPU).
+    /// `answers` (an offscreen frame, read back, waits for the worker as for the GPU).
     pub(crate) fn drain(&mut self) {
         if !self.queue.drain(DRAIN) {
             log::warn!("the raster worker still works after {} s", DRAIN.as_secs());

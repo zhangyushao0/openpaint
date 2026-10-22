@@ -1,8 +1,9 @@
 //! Starting the app in the harness: each command gets a fresh library under `artifacts/`, so
-//! no earlier run's artwork opens, and frames run until the library has opened the canvas.
+//! no earlier run's artwork opens (or a fresh copy of the library it reads), and frames run until
+//! the library has opened the canvas.
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use openpaint_runtime::{FontFile, Runtime, TextFonts};
@@ -54,14 +55,48 @@ pub fn fresh_library(dir: PathBuf) -> Result<PathBuf, HarnessError> {
     Ok(dir)
 }
 
+/// `artifacts/harness/<name>-library`, the library of the command `name`.
+pub fn library_dir(name: &str) -> PathBuf {
+    workspace_root()
+        .join("artifacts")
+        .join("harness")
+        .join(format!("{name}-library"))
+}
+
+/// A fresh copy of the library in `dir` as the command `name`'s library: opening a library
+/// writes to it (a head gains a save id, the last artwork is marked open), so a tool reading one
+/// (the author's, a backup's) opens a copy, never the library it was pointed at.
+pub fn library_copy(dir: &str, name: &str) -> Result<PathBuf, HarnessError> {
+    let from = Path::new(dir);
+    if !from.is_dir() {
+        return Err(HarnessError::Missing(
+            "the command needs a library directory",
+        ));
+    }
+    let copy = fresh_library(library_dir(name))?;
+    copy_dir(from, &copy)?;
+    Ok(copy)
+}
+
+/// Every file under `from` copied to the same place under `to`.
+fn copy_dir(from: &Path, to: &Path) -> Result<(), HarnessError> {
+    fs::create_dir_all(to)?;
+    for entry in fs::read_dir(from)? {
+        let entry = entry?;
+        let target = to.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_dir(&entry.path(), &target)?;
+        } else {
+            fs::copy(entry.path(), target)?;
+        }
+    }
+    Ok(())
+}
+
 /// The app at `pixels_per_point` on a fresh library `artifacts/harness/<name>-library`, with
 /// its canvas open on a screen of `size` pixels.
 pub fn launch(name: &str, pixels_per_point: f32, size: [u32; 2]) -> Result<Runtime, HarnessError> {
-    let dir = workspace_root()
-        .join("artifacts")
-        .join("harness")
-        .join(format!("{name}-library"));
-    let library = Library::at(fresh_library(dir)?);
+    let library = Library::at(fresh_library(library_dir(name))?);
     let mut runtime = Runtime::start(pixels_per_point, Box::new(library))?;
     open(&mut runtime, size)?;
     Ok(runtime)

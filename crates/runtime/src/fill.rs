@@ -1,5 +1,5 @@
-//! The fill worker: samples the active layer through the renderer (a target of its own, the
-//! raster core since S62) and floods it on the CPU (`openpaint-raster`), off the UI thread.
+//! The fill worker: samples the active layer through the renderer (a target of its own) and
+//! floods it on the CPU (`openpaint-raster`), off the UI thread.
 //! While one fill is adjusted it keeps that layer's pixels, so each new threshold costs only the
 //! flood; they go when the fill ends. One job runs at a time and the session hands out only its
 //! newest request, so a moving hand never queues work.

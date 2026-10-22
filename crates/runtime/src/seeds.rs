@@ -1,4 +1,4 @@
-//! The seeds strokes' stamps jitter by (S45, DECISIONS D72): every stroke drawn on the device
+//! The seeds strokes' stamps jitter by (DECISIONS D74): every stroke drawn on the device
 //! takes its own from a small generator started from the wall clock; the harness fixes one seed
 //! for every stroke, so a scenario's hashes hold and a stroke drawn twice lands twice alike.
 

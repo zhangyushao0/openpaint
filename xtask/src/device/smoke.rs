@@ -1,11 +1,11 @@
-//! `cargo device-smoke` (S52): the installed debug build walked through its main features in
-//! about 20 s, one line per step with pass or why it failed, on a test artwork it creates and
-//! deletes; nothing is built or installed (`device-check` installs).
+//! `cargo device-smoke`: the installed debug build walked through its main features in about
+//! 20 s, one line per step with pass or why it failed, on a test artwork it creates and deletes;
+//! nothing is built or installed (`device-check` installs).
 //!
 //! The steps go through the same instrumentation as `device-input` (taps by name, a pen path,
 //! a drag from a named control), each waiting up to `WITHIN` for its control, and ask the debug
-//! build what it shows between them (`device-input state`, `smoke_state.rs`). The device steps
-//! are this list, not a scenario file: xtask depends on nothing (ARCHITECTURE section 2), and a
+//! build what it shows between them (`device-input state`, `state.rs`). The device steps are
+//! this list, not a scenario file: xtask depends on nothing (ARCHITECTURE section 2), and a
 //! device step names screen pixels and checks the device, not canvas hashes.
 //!
 //! The author's artworks are never touched: the gallery's artwork ids are read before the test
@@ -20,14 +20,12 @@ use std::time::{Duration, Instant};
 use super::adb::{Adb, DeviceError, Result};
 use super::check::{app_errors, fatal, screenshot, wake};
 use super::clean_on;
-use super::input::{answer, extras, instrument};
-use super::smoke_state::{
-    DELETE_CARD, OPEN_CARD, Screen, State, WAIT, failed, first_is, focus_until, gralloc, identify,
-    installed, path, point, shared,
-};
+use super::input::{extras, instrument};
+use super::smoke_checks::{WAIT, failed, focus_until, gralloc, installed, path, point, shared};
+use super::state::{DELETE_CARD, OPEN_CARD, Screen, State, first_is, identify, state, tap, until};
 use crate::android::ACTIVITY;
 
-/// What the steps after the app is up should take at most (ROADMAP S52).
+/// What the steps after the app is up should take at most.
 const TARGET: Duration = Duration::from_secs(20);
 /// How long a step waits for a control to show before it fails, in milliseconds.
 const WITHIN: &str = "3000";
@@ -132,7 +130,7 @@ pub fn smoke(args: &[String]) -> Result<()> {
     {
         smoke.tap("Gallery")?;
     }
-    smoke.until(UP, |s| s.screen == Screen::Gallery && s.listed)?;
+    smoke.until(UP, State::listed)?;
     println!(
         "the app is up in the gallery after {:.1} s",
         launched.elapsed().as_secs_f64()
@@ -219,39 +217,19 @@ impl Smoke {
     }
 
     fn tap(&self, name: &str) -> Result<()> {
-        self.ask(&["tap", name], true).map(drop)
+        tap(&self.adb, name)
     }
 
     fn state(&self) -> Result<State> {
-        let output = self.ask(&["state"], false)?;
-        let state = answer(&output, "state").ok_or_else(|| failed("the app gave no state"))?;
-        State::parse(state).map_err(failed)
+        state(&self.adb)
     }
 
-    /// Asks what the app shows until `done` holds, at most `limit`.
     fn until(&self, limit: Duration, done: impl Fn(&State) -> bool) -> Result<State> {
-        let started = Instant::now();
-        loop {
-            let state = self.state()?;
-            if done(&state) {
-                return Ok(state);
-            }
-            if started.elapsed() >= limit {
-                return Err(failed(format!(
-                    "waited {} s; the app shows {:?} {:?}",
-                    limit.as_secs(),
-                    state.screen,
-                    state.names
-                )));
-            }
-            std::thread::sleep(Duration::from_millis(100));
-        }
+        until(&self.adb, limit, done)
     }
 
     fn listed(&self) -> Result<State> {
-        self.until(WAIT, |state| {
-            state.screen == Screen::Gallery && state.listed
-        })
+        self.until(WAIT, State::listed)
     }
 
     /// The gallery the app is up in: the author's artworks as found.
@@ -315,9 +293,7 @@ impl Smoke {
         first_is(ours, &self.listed()?).map_err(failed)?;
         self.tap(&format!("{DELETE_CARD} #1"))?;
         self.tap("Delete")?;
-        let gone = |state: &State| {
-            state.screen == Screen::Gallery && state.listed && !state.cards.contains(&ours)
-        };
+        let gone = |state: &State| state.listed() && !state.cards.contains(&ours);
         let mut cards = self.until(WAIT, gone)?.cards;
         self.made = false;
         let mut before = self.before.clone();

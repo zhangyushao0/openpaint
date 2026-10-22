@@ -16,7 +16,7 @@ pub enum RuntimeError {
     Brush(RecipeError),
     /// The system refused to start the named worker thread.
     Worker(&'static str),
-    /// A debug build's command found the app elsewhere than it needs (S58): what it needs.
+    /// A debug build's command found the app elsewhere than it needs: what it needs.
     NotNow(&'static str),
 }
 

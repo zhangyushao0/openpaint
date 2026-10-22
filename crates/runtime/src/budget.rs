@@ -7,9 +7,9 @@
 //! scene shows with the smudges' and filters' materials (by the last smudge), the layer pictures
 //! (by the panel's last opening). Never the canvas, the tier shown, the snapshots while a stroke
 //! or a preview is drawn, the arena while a smudge is, the pictures while the panel shows. A cache
-//! grows only within the room what is needed now leaves it, so a new tier lets older ones go
-//! (`view_kept.rs`). Nothing fails, every drop is logged, no pixel changes: each cache is drawn
-//! again from the artwork.
+//! grows only within the room what is needed now leaves it, so a new tier lets older ones go.
+//! Nothing fails, every drop is logged, no pixel changes: each cache is drawn again from the
+//! artwork.
 //!
 //! The smudge residuals keep within a share of the budget (`ARENA_SHARE`), the least recently
 //! needed going first, never one the last frame needed. Once a minute while a canvas is open,
@@ -27,6 +27,15 @@ use crate::screen::Screen;
 mod note;
 use note::{mb, note, report};
 
+/// The smudge residuals keep within this share of the budget.
+pub const ARENA_SHARE: u64 = 4;
+
+/// Android's `ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN`: the app's interface no longer shows.
+pub const TRIM_UI_HIDDEN: i32 = 20;
+
+/// The peak is logged again once it grew by this much.
+const PEAK_STEP: u64 = 4 << 20;
+
 /// The budget, and what the caches held at most.
 pub(crate) struct Budget {
     pub(crate) bytes: u64,
@@ -40,9 +49,6 @@ pub(crate) struct Budget {
     /// When the snapshots, the arena and the pictures were last used (the frame clock's seconds).
     used: [f64; 3],
 }
-
-/// The smudge residuals keep within this share of the budget (S51).
-pub const ARENA_SHARE: u64 = 4;
 
 /// What the budget lets go as one (D93): a view tier's atlas (by its scale), the raster core's
 /// targets for the canvas's and the tiers' tiles, the snapshots, the arena's blocks no scene
@@ -107,6 +113,17 @@ impl Budget {
         }
     }
 
+    /// Notes what the caches hold now, logging a new peak with what the device's allocator holds
+    /// (its live allocations and the memory blocks it took for them).
+    fn saw(&mut self, held: &CacheBytes, core: &Core) {
+        let total = held.total();
+        self.peak = self.peak.max(total);
+        if self.peak >= self.logged + PEAK_STEP {
+            self.logged = self.peak;
+            note::peak(held, core);
+        }
+    }
+
     /// The units `canvas` and the pictures hold, when each was last used and whether the frame
     /// needs it, the stamps moved on to `now` for what is used now: (drawing or previewing,
     /// smudging, the layer panel open).
@@ -157,7 +174,7 @@ impl Budget {
 }
 
 /// What `budget` leaves each cache to grow into, when `units` are held: what the frame needs of
-/// the others taken off; the residuals their share (S51).
+/// the others taken off; the residuals their share.
 fn rooms(held: &CacheBytes, units: &[Held], budget: u64) -> Rooms {
     let needed = |unit: Unit| -> u64 {
         (units.iter())
@@ -204,7 +221,7 @@ impl Runtime {
         let freed =
             canvas.hold_within(&self.core, rooms(&held, &units, self.budget.bytes), &gone)?;
         if gone.contains(&Unit::Arena) {
-            self.budget.shrunk = Some(held.arena.saturating_sub(freed[2]));
+            self.budget.shrunk = Some(held.arena.saturating_sub(freed.arena));
         }
         report(freed, &held, self.budget.bytes);
         if gone.contains(&Unit::Pictures) && !self.pictures.paused {
@@ -236,13 +253,13 @@ impl Runtime {
         };
         let held = canvas.bytes();
         match canvas.release(&self.core) {
-            Ok([tiers, snapshots, arena, _]) => log::info!(
+            Ok(freed) => log::info!(
                 "trim memory level {level}: let go the view tiers {:.1} MB, the snapshots {:.1} \
                  MB, the arena's blocks no scene shows {:.1} MB, of {:.1} MB held; the budget \
                  {:.0} MB",
-                mb(tiers),
-                mb(snapshots),
-                mb(arena),
+                mb(freed.tiers),
+                mb(freed.snapshots),
+                mb(freed.arena),
                 mb(held.total()),
                 mb(self.budget.bytes)
             ),
@@ -250,25 +267,6 @@ impl Runtime {
         }
     }
 }
-
-/// Android's `ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN`: the app's interface no longer shows.
-pub const TRIM_UI_HIDDEN: i32 = 20;
-
-impl Budget {
-    /// Notes what the caches hold now, logging a new peak with what the device's allocator holds
-    /// (S51: its live allocations and the memory blocks it took for them).
-    fn saw(&mut self, held: &CacheBytes, core: &Core) {
-        let total = held.total();
-        self.peak = self.peak.max(total);
-        if self.peak >= self.logged + PEAK_STEP {
-            self.logged = self.peak;
-            note::peak(held, core);
-        }
-    }
-}
-
-/// The peak is logged again once it grew by this much.
-const PEAK_STEP: u64 = 4 << 20;
 
 #[cfg(test)]
 mod tests {

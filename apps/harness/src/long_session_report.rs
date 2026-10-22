@@ -3,13 +3,13 @@
 
 use std::f32::consts::{PI, TAU};
 
-use openpaint_core::Color;
-use openpaint_render::{CanvasTarget, FrameRequest, GpuMemory, PixelRect};
+use openpaint_render::GpuMemory;
 use openpaint_runtime::PointerSample;
 
 use super::{BOUNDS, Painter, SAMPLES, SPACING};
 use crate::error::HarnessError;
 use crate::long_session_store::{process_memory, size_on_disk};
+use crate::output::cold;
 
 /// Where strokes start and stay, in window pixels: right of the side bar, under the islands.
 const LEFT: f32 = 300.0;
@@ -169,16 +169,7 @@ impl Painter {
             .artwork()
             .ok_or(HarnessError::Missing("no canvas at the end"))?
             .clone();
-        let canvas = artwork.canvas();
-        let size = [canvas.width(), canvas.height()];
-        let mut target = CanvasTarget::new(&core, size)?;
-        let request = FrameRequest {
-            artwork: &artwork,
-            active: None,
-            background: Color::WHITE,
-        };
-        target.draw(&core, &request, &[PixelRect::full(size)])?;
-        let cold = target.read(&core)?;
+        let cold = cold(&core, &artwork)?;
         let shown = self
             .runtime
             .read_canvas()?

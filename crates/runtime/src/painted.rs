@@ -1,6 +1,6 @@
 //! Strokes made as a pen makes them, for the benchmarks and the harness's test artworks: a path
 //! committed as one stroke (`drawn`), the path `cargo device-input pen-many` lays (`pile_path`,
-//! S48's pile, S58's `test-art pile`) and a built-in brush's style (`style_of`).
+//! `test-art pile`'s) and a built-in brush's style (`style_of`).
 
 use std::f32::consts::PI;
 use std::sync::Arc;

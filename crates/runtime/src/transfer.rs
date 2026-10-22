@@ -132,7 +132,7 @@ fn serve(core: &Core, job: TransferJob) -> TransferDone {
     }
 }
 
-/// Renders the job's artwork at its scale in bands, streams each band into the encoder (S29: a
+/// Renders the job's artwork at its scale in bands, streams each band into the encoder (a
 /// 4x export is never held whole as pixels) and writes the chosen file.
 fn export(core: &Core, job: ExportJob) -> Result<(), ExportError> {
     let started = Instant::now();
@@ -154,16 +154,17 @@ fn export(core: &Core, job: ExportJob) -> Result<(), ExportError> {
 }
 
 /// An export's file and what making it took.
-pub(crate) struct Encoded {
-    pub(crate) bytes: Vec<u8>,
-    pub(crate) size: [u32; 2],
+pub struct Encoded {
+    pub bytes: Vec<u8>,
+    pub size: [u32; 2],
     /// Planned and submitted (the CPU), the GPU and the readback, encoding.
-    pub(crate) times: [Duration; 3],
+    pub times: [Duration; 3],
 }
 
 impl Encoded {
     /// "<w> x <h>, <n> bytes: planned and submitted p ms, GPU and readback g ms, encoded e ms".
-    pub(crate) fn line(&self) -> String {
+    #[must_use]
+    pub fn line(&self) -> String {
         let [width, height] = self.size;
         let [planned, waited, encoding] = self.times.map(|time| time.as_millis());
         format!(
@@ -174,9 +175,12 @@ impl Encoded {
     }
 }
 
-/// `artwork` rendered at `scale` in bands, each streamed into the encoder for `format` (the
-/// export's path; the benchmark's `export` too).
-pub(crate) fn encoded(
+/// `artwork` rendered at `scale` in bands, each streamed into the encoder for `format`: the
+/// export's path, which the benchmark's `export` and the harness's `export-timing` time.
+///
+/// # Errors
+/// `Render` when the GPU fails, as the encoder refuses the size or a band.
+pub fn encoded(
     core: &Core,
     artwork: &openpaint_core::Artwork,
     format: openpaint_app::ImageFormat,

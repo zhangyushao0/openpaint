@@ -1,4 +1,4 @@
-//! `cargo device-push <file>` (S26, S58): a picture for the system picker, or an OpenPaint file
+//! `cargo device-push <file>`: a picture for the system picker, or an OpenPaint file
 //! for `device-input open-file`, into the test folder `device-clean` removes.
 
 use std::path::Path;
@@ -14,7 +14,7 @@ const USAGE: &str =
     "cargo device-push <picture.png|.jpg|artwork.openpaint>, named with a-z, 0-9 and '-'";
 
 /// The file name a pushed file keeps: a-z, 0-9 and '-', then `.png`, `.jpg`, `.jpeg` or
-/// `.openpaint` (S58: a test artwork from `cargo test-art`).
+/// `.openpaint` (a test artwork from `cargo test-art`).
 pub(super) fn pushed_name(path: &Path) -> Result<String> {
     let name = path
         .file_name()

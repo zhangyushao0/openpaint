@@ -1,4 +1,4 @@
-//! The harness's global allocator (S51): the system's, counting the bytes live and the most live
+//! The harness's global allocator: the system's, counting the bytes live and the most live
 //! at once, so `long-session` tells the Rust heap (the app's and its libraries': fjall, wgpu,
 //! egui) apart from what the GPU driver keeps in the process. The harness only: no product crate
 //! counts, and the app on the tablet allocates through the system as before.

@@ -1,5 +1,5 @@
 //! Platform input as typed batches: one batch per platform motion event, each pointer with its
-//! batched history. Hosts translate native events into these; the normaliser (S4) turns them
+//! batched history. Hosts translate native events into these; the normaliser turns them
 //! into stroke input and egui events.
 
 use std::fmt;

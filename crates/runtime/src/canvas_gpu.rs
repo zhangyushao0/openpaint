@@ -1,5 +1,5 @@
-//! The open canvas's GPU side: evaluating what changed into its target a frame at a time (S49:
-//! a large change fills in over frames), the view tiers, the gallery picture, what its derived
+//! The open canvas's GPU side: evaluating what changed into its target a frame at a time (a
+//! large change fills in over frames), the view tiers, the gallery picture, what its derived
 //! caches hold and the GPU memory budget's steps on them, and making all of it again on a new
 //! device after a loss. The session (artwork, history, the stroke being drawn) is never touched.
 
@@ -22,18 +22,26 @@ use crate::pictures::Drawn;
 pub(crate) struct Rooms {
     pub(crate) tiers: u64,
     pub(crate) snapshots: u64,
-    /// The smudge residuals' room in the arena (S51).
+    /// The smudge residuals' room in the arena.
     pub(crate) arena: u64,
 }
 
-/// What the budget's steps gave back, in bytes: the tiers, the snapshots, the arena's blocks not
-/// shown, the residuals beyond their room.
-pub(crate) type Freed = [u64; 4];
+/// What the budget's steps gave back, in bytes.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct Freed {
+    /// The view tiers and the raster core's targets for filling tiles.
+    pub(crate) tiers: u64,
+    pub(crate) snapshots: u64,
+    /// The arena's blocks no scene shows.
+    pub(crate) arena: u64,
+    /// The smudge residuals beyond their room.
+    pub(crate) residuals: u64,
+}
 
 impl Canvas {
     /// Brings the target up to date with what the session shows (the current version, or a
     /// fill's preview over it), within one frame's work: what does not fit waits for the next
-    /// frames (S49). Committing the stroke being drawn is followed by the target itself (S63);
+    /// frames. Committing the stroke being drawn is followed by the target itself;
     /// any other change passes the pixels that differ between the version shown before it and
     /// the one shown now; the first draw covers the whole canvas.
     pub(crate) fn evaluate(&mut self, core: &Core) -> Result<(), RuntimeError> {
@@ -42,7 +50,7 @@ impl Canvas {
 
     /// Evaluates everything still to show now, every waiting tile too, before the target is
     /// read (a pick, the gallery picture); the smudge residuals that took at once go back within
-    /// their room after it (S51).
+    /// their room after it.
     pub(crate) fn settle(&mut self, core: &Core) -> Result<(), RuntimeError> {
         if self.evaluated && self.changed_from.is_none() && !self.target.pending() {
             return Ok(());
@@ -79,16 +87,22 @@ impl Canvas {
         self.target.pending()
     }
 
-    /// Shown complete from its display cache, its smudge residuals are still being evaluated
-    /// (S54): frames are wanted until they are.
+    /// Shown complete from its display cache, its smudge residuals are still being evaluated:
+    /// frames are wanted until they are.
     pub(crate) fn warming(&self) -> bool {
         self.target.warming()
     }
 
-    /// The snapshots under the next stroke are being taken ahead (S63): frames are wanted until
+    /// The snapshots under the next stroke are being taken ahead: frames are wanted until
     /// they are.
     pub(crate) fn taking_ahead(&self) -> bool {
         self.target.taking_ahead() || self.view.taking_ahead()
+    }
+
+    /// Work changes what shows without input: tiles fill, the view tiers fill or start, the
+    /// residuals warm, the snapshots under the next stroke are taken.
+    pub(crate) fn waiting(&self) -> bool {
+        self.view_pending || self.filling() || self.warming() || self.taking_ahead()
     }
 
     /// A stroke is being drawn (the pen is on the glass).
@@ -126,7 +140,7 @@ impl Canvas {
     }
 
     /// Brings the view tiers up to date with the target, just evaluated, for showing it
-    /// through `frame` at `now` (seconds on the frame clock, S32); call after `evaluate`.
+    /// through `frame` at `now` (seconds on the frame clock); call after `evaluate`.
     pub(crate) fn update_view(
         &mut self,
         core: &Core,
@@ -141,7 +155,7 @@ impl Canvas {
         Ok(())
     }
 
-    /// As `update_view`, through the view the last frame drawn showed (S60: a frame call between
+    /// As `update_view`, through the view the last frame drawn showed (a frame call between
     /// the frames drawn).
     pub(crate) fn update_view_again(&mut self, core: &Core, now: f64) -> Result<(), RuntimeError> {
         match self.shown {
@@ -150,13 +164,12 @@ impl Canvas {
         }
     }
 
-    /// What the canvas and its view tiers ask of the raster worker since the last call (S60,
-    /// S62).
+    /// What the canvas and its view tiers ask of the raster worker since the last call.
     pub(crate) fn raster_orders(&mut self) -> Vec<RasterOrder> {
         self.target.take_orders()
     }
 
-    /// The raster worker answered (S60): a tile goes to the canvas (its own, or its tiers'), an
+    /// The raster worker answered: a tile goes to the canvas (its own, or its tiers'), an
     /// atlas made ahead to the tiers.
     pub(crate) fn raster_answer(&mut self, answer: RasterAnswer) {
         match answer {
@@ -166,7 +179,7 @@ impl Canvas {
     }
 
     /// Where the screen shows the canvas through `frame`: its waiting tiles there go first, the
-    /// screen's middle first (S53).
+    /// screen's middle first.
     pub(crate) fn look_at(&mut self, frame: &ViewFrame) {
         let [a, b, c, d, e, f] = frame.to_canvas;
         let map = |[x, y]: [f32; 2]| [a * x + b * y + c, d * x + e * y + f];
@@ -199,49 +212,54 @@ impl Canvas {
         CacheBytes {
             tiers: self.view.bytes(),
             raster: self.target.raster_held().map_or(0, |(bytes, _)| bytes),
-            // S63: the stroke's drawings, the canvas's and the tier shown's.
+            // The stroke's drawings, the canvas's and the tier shown's.
             snapshots: held.snapshots + self.view.drawing_bytes(),
             ..held
         }
     }
 
-    /// The budget's steps on its caches (S58): the units `gone` let go (the pictures are the
-    /// runtime's), then each cache held within its room to grow, the residuals within theirs
-    /// (S51).
+    /// The budget's steps on its caches: the units `gone` let go (the pictures are the
+    /// runtime's), then each cache held within its room to grow, the residuals within theirs.
     pub(crate) fn hold_within(
         &mut self,
         core: &Core,
         rooms: Rooms,
         gone: &[Unit],
     ) -> Result<Freed, RuntimeError> {
-        let mut freed = [0; 4];
+        let mut freed = Freed::default();
         for unit in gone {
             match unit {
-                Unit::Tier(scale) => freed[0] += self.view.let_go(*scale),
-                Unit::Raster => freed[0] += self.target.let_go_raster(),
+                Unit::Tier(scale) => freed.tiers += self.view.let_go(*scale),
+                Unit::Raster => freed.tiers += self.target.let_go_raster(),
                 Unit::Snapshots => {
-                    freed[1] += self.target.set_snapshot_room(0) + self.view.let_go_drawing();
+                    freed.snapshots +=
+                        self.target.set_snapshot_room(0) + self.view.let_go_drawing();
                 }
-                Unit::Arena => freed[2] += self.target.shrink_arena(core)?,
+                Unit::Arena => freed.arena += self.target.shrink_arena(core)?,
                 Unit::Pictures => {}
             }
         }
-        freed[0] += self.view.set_room(rooms.tiers);
-        freed[1] += self.target.set_snapshot_room(rooms.snapshots);
-        freed[3] = self.target.set_arena_room(core, rooms.arena)?;
+        freed.tiers += self.view.set_room(rooms.tiers);
+        freed.snapshots += self.target.set_snapshot_room(rooms.snapshots);
+        freed.residuals = self.target.set_arena_room(core, rooms.arena)?;
         Ok(freed)
     }
 
     /// Lets the view tiers, the snapshots and the arena's blocks no scene shows go at once (the
-    /// app no longer shows, S58); each is made again when needed.
+    /// app no longer shows); each is made again when needed.
     pub(crate) fn release(&mut self, core: &Core) -> Result<Freed, RuntimeError> {
         let snapshots = self.target.set_snapshot_room(0) + self.view.let_go_drawing();
         let tiers = self.view.release() + self.target.let_go_raster();
         let arena = self.target.shrink_arena(core)?;
-        Ok([tiers, snapshots, arena, 0])
+        Ok(Freed {
+            tiers,
+            snapshots,
+            arena,
+            residuals: 0,
+        })
     }
 
-    /// The view tiers (the budget weighs them, S58).
+    /// The view tiers (the budget weighs them).
     pub(crate) fn view(&self) -> &ViewCache {
         &self.view
     }
@@ -259,8 +277,8 @@ impl Canvas {
             .is_some_and(|active| active.style().tool() == StrokeTool::Smudge)
     }
 
-    /// Makes the target and the view tiers again on `core`, a new device after the last was lost
-    /// (S49): the whole canvas is evaluated anew from the next frame on, as on opening; the
+    /// Makes the target and the view tiers again on `core`, a new device after the last was lost:
+    /// the whole canvas is evaluated anew from the next frame on, as on opening; the
     /// session, its history and the stroke being drawn stay as they are (the stroke is taken up
     /// from its first sample), and the layer pictures are made again.
     pub(crate) fn rebuild(&mut self, core: &Core) -> Result<(), RuntimeError> {
@@ -277,7 +295,7 @@ impl Canvas {
 }
 
 /// A canvas opening (or made again on a new device) until the whole of it was drawn: when, how
-/// many frames so far, and the device's raster regions then (S49's log).
+/// many frames so far, and the device's raster regions then, for its log line.
 pub(crate) struct Opening {
     at: Instant,
     frames: u32,

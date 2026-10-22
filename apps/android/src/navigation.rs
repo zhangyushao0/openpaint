@@ -1,4 +1,4 @@
-//! Frames while fingers navigate or work waits (S53), logged once per episode as the pen's
+//! Frames while fingers navigate or work waits, logged once per episode as the pen's
 //! latency is per stroke (`latency.rs`). An episode runs from the first frame with a finger on
 //! the glass or work waiting (the canvas or a view tier filling in, something moving) to the
 //! first frame with neither; its line gives the frames, how many had a finger down, each frame's

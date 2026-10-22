@@ -3,7 +3,7 @@
      ferrule, the bristles swelling and closing to a point) mapped from its unit square onto 62 of
      the 108 units, inside the 66-unit circle every mask keeps. Ink (palette.rs INK), round caps
      and joins, 2 units: 1.5 points where the tablet's launcher shows the 72-unit viewport 54
-     points wide (measured on its home screen, S52). -->
+     points wide (measured on its home screen). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"

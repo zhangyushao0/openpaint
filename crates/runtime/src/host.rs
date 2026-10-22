@@ -26,7 +26,7 @@ pub(crate) fn version_line() -> String {
 
 impl Runtime {
     /// The user is leaving the app (Android `onPause`): a stroke still being drawn is committed
-    /// as drawn so far (S50), then the open artwork's current version (a failed one included) and
+    /// as drawn so far, then the open artwork's current version (a failed one included) and
     /// its thumbnail are handed to the store, and this waits until they are written, at most
     /// `LEAVE_WAIT`; a longer save goes on in the background (it is one batch: it lands whole or
     /// not at all, also if the process is killed meanwhile). In the gallery, the calls handed over
@@ -97,15 +97,15 @@ impl Runtime {
     }
 
     /// Where the canvas shows and fits on the screen, in pixels, once a frame was laid out (the
-    /// device smoke places its strokes in the fit, S52).
+    /// device smoke places its strokes in the fit).
     #[must_use]
     pub fn canvas_area(&self) -> Option<CanvasArea> {
         self.shell.canvas_area()
     }
 
-    /// For debug builds only (`cargo device-input open-file`, S58): the gallery's Open OpenPaint
+    /// For debug builds only (`cargo device-input open-file`): the gallery's Open OpenPaint
     /// file… with `source` as the picker's answer at once, no picker shown: the file goes the
-    /// import's way (S36) and its new card comes first.
+    /// import's way and its new card comes first.
     ///
     /// # Errors
     /// `NotNow` when the gallery does not show; `App` while it opens an artwork or a file is
@@ -123,7 +123,7 @@ impl Runtime {
         Ok(())
     }
 
-    /// For debug builds only (`cargo device-input gradient on|off`, S37): the screen's precision
+    /// For debug builds only (`cargo device-input gradient on|off`): the screen's precision
     /// check over everything from the next frame on (a soft grey ramp, its upper half at 8 bits,
     /// its lower half at the window's), or off again.
     pub fn show_gradient(&mut self, on: bool) {

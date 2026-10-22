@@ -1,4 +1,4 @@
-//! Frame pacing (S56, DECISIONS D83): no frame is submitted while the GPU is more than one of the
+//! Frame pacing (DECISIONS D96): no frame is submitted while the GPU is more than one of the
 //! screen's frames behind, and while it still works on the frame before, a frame call waits a
 //! little first. A frame call that waits is skipped at once: nothing is evaluated, drawn or
 //! presented, and the host asks for the next one. Input keeps arriving between frame calls
@@ -14,8 +14,8 @@ pub(crate) const MOST_IN_FLIGHT: u64 = 1;
 
 /// Frame calls skipped in a row while the GPU still works on the frame before, at most; the next
 /// is submitted then. On the tablet a frame presented while the GPU worked on the one before
-/// waited for it in `present` (Opaque Paint at 400 px: 10 to 21 ms in a stroke's first frames,
-/// S56), so a frame heavier than a vsync is waited out by skipping; but a frame drawn after many
+/// waited for it in `present` (Opaque Paint at 400 px: 10 to 21 ms in a stroke's first frames),
+/// so a frame heavier than a vsync is waited out by skipping; but a frame drawn after many
 /// skips takes all the input since, so its region (and its work) grows with the wait (with no
 /// bound, the first stroke over a dense place drew in one frame of 2.6 s): three vsyncs (25 ms
 /// at 120 Hz) keep that small.
@@ -35,7 +35,7 @@ pub(crate) struct Pacing {
     last: Paced,
     /// Frame calls skipped in a row.
     waited: u32,
-    /// The call before found the frame before it finished (S60).
+    /// The call before found the frame before it finished.
     done: bool,
     /// Tests: frame calls still to skip as if the GPU were behind.
     lag: u32,
@@ -44,7 +44,7 @@ pub(crate) struct Pacing {
 impl Pacing {
     /// Whether this frame call waits for the GPU: more than `MOST_IN_FLIGHT` of the window's
     /// frames are in flight, or that many and fewer than `PATIENCE` calls waited for them; or,
-    /// `resting` (no contact on the glass or hovering, no stroke drawn, S60), any, or the frame
+    /// `resting` (no contact on the glass or hovering, no stroke drawn), any, or the frame
     /// before was found finished only now (`window`; an offscreen frame is read back, so it never
     /// lags); or a test holds the GPU behind. With no input to take a frame has no reason to go
     /// before the one before is shown: the GPU runs background work queued ahead of the frames

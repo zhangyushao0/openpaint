@@ -13,8 +13,8 @@ use crate::frame::{Runtime, screen_frame};
 impl Runtime {
     /// Runs one frame into an offscreen target of `size` pixels, for the harness, which never
     /// attaches a window. Returns whether another frame is wanted at once. A lost GPU device is
-    /// made again as for the window (S49). As an offscreen frame waits for the GPU (it is read
-    /// back), it waits for the raster worker to have drawn the tiles it handed over (S60), so
+    /// made again as for the window. As an offscreen frame waits for the GPU (it is read
+    /// back), it waits for the raster worker to have drawn the tiles it handed over, so
     /// the next frame shows them and scenarios and tests take the same frames on any machine.
     pub fn frame_offscreen(&mut self, size: [u32; 2]) -> Result<bool, RuntimeError> {
         self.recover_if_lost()?;
@@ -27,8 +27,8 @@ impl Runtime {
         self.after_frame(result)
     }
 
-    /// Tests: the next `frames` frame calls find the GPU behind and skip, as on a GPU that lags
-    /// (S56); input meanwhile waits for the next frame drawn.
+    /// Tests: the next `frames` frame calls find the GPU behind and skip, as on a GPU that lags;
+    /// input meanwhile waits for the next frame drawn.
     pub fn hold_gpu(&mut self, frames: u32) {
         self.pacing.lag(frames);
     }
@@ -59,35 +59,35 @@ impl Runtime {
         self.frame_clock.fix(ms);
     }
 
-    /// Every stroke from now on takes `seed` for its stamps (S45), instead of one of its own:
+    /// Every stroke from now on takes `seed` for its stamps, instead of one of its own:
     /// the harness fixes it, so a scenario's hashes hold.
     pub fn fix_seed(&mut self, seed: u32) {
         self.seeds.fix(seed);
     }
 
-    /// True while something on screen moves (D44), the view tiers fill in (S32) or the canvas
-    /// does (S49); frames are wanted until it rests.
+    /// True while something on screen moves (D44), the view tiers fill in or the canvas
+    /// does; frames are wanted until it rests.
     #[must_use]
     pub fn moving(&self) -> bool {
         let filling = |canvas: &Canvas| canvas.view_pending() || canvas.filling();
         self.shell.moving() || self.screen.canvas().is_some_and(filling)
     }
 
-    /// True while tiles of the open canvas wait to be evaluated (S49): false from the frame it
-    /// opened when its display cache was complete (S54).
+    /// True while tiles of the open canvas wait to be evaluated: false from the frame it
+    /// opened when its display cache was complete.
     #[must_use]
     pub fn canvas_filling(&self) -> bool {
         self.screen.canvas().is_some_and(Canvas::filling)
     }
 
     /// Destroys the GPU device under the running app, as a driver reset loses it, for tests and
-    /// the scenario runner (S49); the next frame makes the renderer again. Returns whether wgpu's
+    /// the scenario runner; the next frame makes the renderer again. Returns whether wgpu's
     /// lost callback reported the loss (else it was marked by hand, `Core::destroy_device`).
     pub fn lose_device(&self) -> bool {
         self.core.destroy_device()
     }
 
-    /// What the open canvas's derived caches hold on the GPU now (S49), pictures included.
+    /// What the open canvas's derived caches hold on the GPU now, pictures included.
     #[must_use]
     pub fn cache_bytes(&self) -> Option<openpaint_render::CacheBytes> {
         let canvas = self.screen.canvas()?;
@@ -97,13 +97,13 @@ impl Runtime {
         })
     }
 
-    /// Heap bytes of the open canvas's scene (S51, the harness's long session).
+    /// Heap bytes of the open canvas's scene (the harness's long session).
     #[must_use]
     pub fn scene_bytes(&self) -> Option<u64> {
         Some(self.screen.canvas()?.target().heap_bytes())
     }
 
-    /// What the open canvas's history holds beyond its oldest version, in bytes (S50, the
+    /// What the open canvas's history holds beyond its oldest version, in bytes (the
     /// harness's long session; bounded by `HISTORY_BUDGET`).
     #[must_use]
     pub fn history_bytes(&self) -> Option<usize> {
@@ -111,13 +111,13 @@ impl Runtime {
         Some(canvas.session().history().total_bytes())
     }
 
-    /// The GPU memory budget from the next frame on, in place of the device class's (S49), for
+    /// The GPU memory budget from the next frame on, in place of the device class's, for
     /// tests.
     pub fn set_memory_budget(&mut self, bytes: u64) {
         self.budget.bytes = bytes;
     }
 
-    /// The renderer's GPU state now (a new one after a loss, S49).
+    /// The renderer's GPU state now (a new one after a loss).
     #[must_use]
     pub fn core(&self) -> std::sync::Arc<openpaint_render::Core> {
         std::sync::Arc::clone(&self.core)
@@ -139,7 +139,7 @@ impl Runtime {
     }
 
     /// The canvas read back, the artwork's pixels without the UI, every tile still waiting
-    /// drawn first (as a pick reads it, S49): the frames fill tiles in over time (S53).
+    /// drawn first (as a pick reads it): the frames fill tiles in over time.
     pub fn read_canvas(&mut self) -> Result<Option<RgbaImage>, RuntimeError> {
         match self.screen.canvas_mut() {
             Some(canvas) => {
@@ -150,7 +150,7 @@ impl Runtime {
         }
     }
 
-    /// The brush editor's preview strip as the worker made it last, while the editor shows (S46).
+    /// The brush editor's preview strip as the worker made it last, while the editor shows.
     #[must_use]
     pub fn read_strip(&self) -> Option<RgbaImage> {
         self.brushes.strip().cloned()

@@ -1,4 +1,4 @@
-//! The display cache's worker (S54, DECISIONS D81): writes the open canvas's pixels once the
+//! The display cache's worker (DECISIONS D96): writes the open canvas's pixels once the
 //! canvas shows a version the library holds complete, and deletes an artwork's cached canvas
 //! with the artwork, in the order they were asked for, off the screen's thread: one GPU wait for
 //! the copy of the canvas target, LZ4, a file written whole and renamed. A failure is logged and

@@ -16,7 +16,7 @@ internal object DebugControls {
     @JvmStatic external fun find(name: String): String?
 
     /**
-     * What the app shows (S52), fields separated by tabs, each "key value": `screen` starting,
+     * What the app shows, fields separated by tabs, each "key value": `screen` starting,
      * canvas or gallery; in the gallery `listed` 0 or 1 and `cards` (the artworks' ids, the one
      * changed last first); `fit` (where a canvas fits: left, top, width, height in pixels); a
      * `name` per control in the last frame.
@@ -30,13 +30,13 @@ internal object DebugControls {
     @JvmStatic external fun gradient(on: Boolean)
 
     /**
-     * The GPU device destroyed as a driver reset loses it (S49); one frame is drawn at once, which
+     * The GPU device destroyed as a driver reset loses it; one frame is drawn at once, which
      * makes the renderer again.
      */
     @JvmStatic external fun loseDevice()
 
     /**
-     * One of the app's scenario benchmarks (S58: open-cold, open, zoom, pan, strokes, session,
+     * One of the app's scenario benchmarks (open-cold, open, zoom, pan, strokes, session,
      * export, touch, undo, adjust) on the artwork open, as [scene] names it. Its lines, written
      * to the log too, separated by tabs.
      */
@@ -44,7 +44,7 @@ internal object DebugControls {
 
     /**
      * An OpenPaint file's [bytes] opened as the gallery's Open OpenPaint file… opens a chosen
-     * one, no picker shown (S58): "opening", or why not.
+     * one, no picker shown: "opening", or why not.
      */
     @JvmStatic external fun openFile(bytes: ByteArray): String?
 }

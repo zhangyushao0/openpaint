@@ -2,14 +2,14 @@
 //! `GestureInstrumentation`, after waking the screen (an asleep screen has no window to touch):
 //!
 //! - `pen x,y,x,y,... [pressure [tilt]] [primary|secondary|tertiary|eraser]`: one pen path, a
-//!   point per 8 ms (repeat a point to hold), leaning `tilt` degrees from upright (S44), with a
-//!   side button held (from the tip outwards) or the eraser end (S41, S43);
+//!   point per 8 ms (repeat a point to hold), leaning `tilt` degrees from upright, with a side
+//!   button held (from the tip outwards) or the eraser end;
 //! - `pen-many count x,y,x,y,... [pressure]`: that pen path `count` times, each turned by a
 //!   golden angle more about its box's middle and moved up to 140 px, so the strokes cross one
-//!   area (S48: a layer holding many strokes);
+//!   area (a layer holding many strokes);
 //! - `pen-away x,y,x,y,... sleep|home`: that pen path, the pen still down at its end when the
-//!   screen is turned off or home is pressed (S50: the stroke kept as drawn so far); the lift
-//!   after it may be refused;
+//!   screen is turned off or home is pressed (the stroke kept as drawn so far); the lift after
+//!   it may be refused;
 //! - `finger x,y[,x,y...] [x,y[,x,y...] [ms]]`: fingers down at the first points, moving to the
 //!   second over `ms` (default 64), then lifting;
 //! - `hover x,y [ms] [primary|secondary|tertiary|eraser]`: the pen held above the glass for
@@ -17,27 +17,28 @@
 //! - `tap <name>`: a finger tap on the middle of the control the app last drew under that name
 //!   (D48's names; `name #n` for a shared one), looked up on the device by the debug build;
 //! - `drag <name> x,y [ms]`: a finger from that control's middle to `x,y` over `ms` (default
-//!   64), then lifting (S52: a drop from the colour button);
-//! - `find <name>`: no gesture; where that control lies, or every name on screen (S52);
+//!   64), then lifting (a drop from the colour button);
+//! - `find <name>`: no gesture; where that control lies, or every name on screen;
 //! - `state`: no gesture; what the app shows (canvas or gallery, the cards' artwork ids
-//!   changed last first, where a canvas fits) and every control's name (S52, `smoke.rs`);
-//! - `gradient on|off`: no gesture; the screen's precision check (S37) over everything, or off:
-//!   a soft grey ramp from sRGB 100 to 120, its upper half at 8 bits, its lower at the window's
-//!   ten;
-//! - `lose-device`: no gesture; the GPU device destroyed under the app as a driver reset loses it
-//!   (S49), so the app makes its renderer again;
+//!   changed last first, where a canvas fits) and every control's name (`state.rs`);
+//! - `gradient on|off`: no gesture; the screen's precision check over everything, or off: a soft
+//!   grey ramp from sRGB 100 to 120, its upper half at 8 bits, its lower at the window's ten;
+//! - `lose-device`: no gesture; the GPU device destroyed under the app as a driver reset loses
+//!   it, so the app makes its renderer again;
 //! - `bench <scenario>[@fast]`: no gesture; `open-cold`, `open`, `zoom`, `pan`, `strokes`,
-//!   `session`, `export` (S59), `touch` (S60), `undo` (S62) or `adjust` (S65) runs that scenario
-//!   benchmark on the artwork open (S58, `runtime/src/bench_app.rs`), a line per stage (also in
-//!   the app's log), `session` with the app's `meminfo` before and after;
+//!   `session`, `export`, `touch`, `undo` or `adjust` runs that scenario benchmark on the artwork
+//!   open (`runtime/src/bench/`), a line per stage (also in the app's log), `session` with the
+//!   app's `meminfo` before and after;
 //! - `open-file <name>`: the OpenPaint file `cargo device-push` put into the test folder opened
-//!   as a new artwork without the picker, its id printed (S58, `open_file.rs`);
-//! - `home`: the system's home key, no instrumentation (S58: the app's memory released when its
-//!   UI is hidden).
+//!   as a new artwork without the picker, its id printed (`open_file.rs`);
+//! - `home`: the system's home key, no instrumentation (the app's memory released when its UI is
+//!   hidden).
 
-use super::adb::{Adb, DeviceError, Result};
+use std::time::Duration;
+
+use super::adb::{Adb, DeviceError, PACKAGE, Result};
 use super::check::wake;
-use super::open_file::{meminfo, open_file};
+use super::open_file::open_file;
 
 const INSTRUMENTATION: &str = "dev.openpaint/.GestureInstrumentation";
 
@@ -48,8 +49,8 @@ pub fn input(args: &[String]) -> Result<()> {
         wake(&adb)?;
         return open_file(&adb, name);
     }
-    // S58: home as the system's key, outside the instrumentation (whose process keeps its
-    // importance while it runs, so the system would not tell the app its UI is hidden).
+    // Home as the system's key, outside the instrumentation (whose process keeps its importance
+    // while it runs, so the system would not tell the app its UI is hidden).
     if args == ["home"] {
         let adb = Adb::connected()?;
         adb.shell(&["input", "keyevent", "KEYCODE_HOME"])?;
@@ -59,7 +60,7 @@ pub fn input(args: &[String]) -> Result<()> {
     let extras = extras(&args)?;
     let adb = Adb::connected()?;
     wake(&adb)?;
-    // S58: the session's memory before and after, as the system counts it.
+    // The session's memory before and after, as the system counts it.
     let session = args == ["bench", "session"];
     if session {
         println!("before: {}", meminfo(&adb)?);
@@ -108,9 +109,32 @@ pub(super) fn answer<'a>(output: &'a str, key: &str) -> Option<&'a str> {
     })
 }
 
+/// The app's memory as `dumpsys meminfo` sums it (its App Summary: Java and native heap,
+/// Graphics, total PSS), one line.
+fn meminfo(adb: &Adb) -> Result<String> {
+    let dump = adb.shell_within(
+        &["dumpsys", "-t", "10", "meminfo", PACKAGE],
+        Duration::from_secs(30),
+    )?;
+    let keys = ["Java Heap:", "Native Heap:", "Graphics:", "TOTAL PSS:"];
+    let lines: Vec<String> = dump
+        .lines()
+        .map(str::trim)
+        .filter(|line| keys.iter().any(|key| line.starts_with(key)))
+        .map(|line| line.split_whitespace().collect::<Vec<_>>().join(" "))
+        .collect();
+    if lines.is_empty() {
+        return Err(DeviceError::Failed {
+            command: "dumpsys meminfo".into(),
+            output: "no App Summary (is the app running?)".into(),
+        });
+    }
+    Ok(format!("meminfo (KB): {}", lines.join("; ")))
+}
+
 /// After a refused gesture: the pointers the input dispatcher still holds per window (its
 /// `TouchStates`), read-only. Injected events all come from device -1, and a gesture cut off
-/// (an instrumentation ended by another) leaves its pointers there (S38).
+/// (an instrumentation ended by another) leaves its pointers there.
 fn held_pointers(adb: &Adb) {
     let Ok(dump) = adb.shell(&["dumpsys", "-t", "10", "input"]) else {
         return;
@@ -170,13 +194,13 @@ pub(super) fn extras(args: &[&str]) -> Result<Vec<(&'static str, String)>> {
         }
         _ => {}
     }
-    // S50: the pen still down at the path's end when the screen goes off or home is pressed.
+    // The pen still down at the path's end when the screen goes off or home is pressed.
     if let ["pen-away", path, away @ ("sleep" | "home")] = args {
         let mut extras = gesture_extras(&["pen", path])?;
         extras.push(("away", (*away).to_owned()));
         return Ok(extras);
     }
-    // A pen or hover line may end with the pen end or side button it uses (S41).
+    // A pen or hover line may end with the pen end or side button it uses.
     let (words, end) = match args {
         [
             "pen" | "hover",
@@ -206,14 +230,14 @@ fn gesture_extras(args: &[&str]) -> Result<Vec<(&'static str, String)>> {
     let extras: Vec<(&'static str, &str)> = match *args {
         ["pen", path] => vec![("tool", "stylus"), ("path", path)],
         ["pen", path, pressure] => vec![("tool", "stylus"), ("pressure", pressure), ("path", path)],
-        // S44: the pen leaning that many degrees from upright.
+        // The pen leaning that many degrees from upright.
         ["pen", path, pressure, tilt] => vec![
             ("tool", "stylus"),
             ("pressure", pressure),
             ("tilt", tilt),
             ("path", path),
         ],
-        // S48: the path `count` times, each turned and moved (strokes crossing one area).
+        // The path `count` times, each turned and moved (strokes crossing one area).
         ["pen-many", count, path] => vec![("tool", "stylus"), ("repeat", count), ("path", path)],
         ["pen-many", count, path, pressure] => vec![
             ("tool", "stylus"),

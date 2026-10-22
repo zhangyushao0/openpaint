@@ -1,33 +1,30 @@
-//! `bench strokes` (S58, S63; `bench_app.rs`): at fit, a stroke of each brush the author paints
-//! with across the artwork's densest place at the size and opacity the toolbox holds for it (its
-//! first size without one): Textured Round, Opaque Paint, Soft Brush, Flat, Speckle, Ink Pen and
-//! the smudge's brush; then Opaque Paint's first stroke after an opening, after an undo and after a
-//! layer switch, beside a later one. Each stroke's line: its frames drawn and skipped, the frame
-//! calls' work, each drawn frame's GPU time (timestamps from its first submission to its end, S63),
-//! from each sample's event to the return of the present of the frame taking it (at the display's
-//! cadence only: `@fast` feeds samples as frames take them), the pen-down's and the lift's frames
-//! (and the scene the lift's built for the version holding the stroke; S64: the scenes that took
-//! it in place instead), the most the GPU caches held while it was drawn, and how long the
-//! snapshots under it took to be taken ahead before it began (it waits for them).
+//! `bench strokes`: at fit, a stroke of each brush the author paints with across the artwork's
+//! densest place at the size and opacity the toolbox holds for it (its first size without one):
+//! Textured Round, Opaque Paint, Soft Brush, Flat, Speckle, Ink Pen and the smudge's brush; then
+//! Opaque Paint's first stroke after an opening, after an undo and after a layer switch, beside a
+//! later one. Each stroke's line: its frames drawn and skipped, the frame calls' work, each drawn
+//! frame's GPU time (timestamps from its first submission to its end), from each sample's event to
+//! the return of the present of the frame taking it (at the display's cadence only: `@fast` feeds
+//! samples as frames take them), the pen-down's and the lift's frames (and the scene the lift's
+//! built, or the scenes that took the stroke in place), the most the GPU caches held while it was
+//! drawn, and how long the snapshots under it took to be taken ahead before it began (it waits
+//! for them).
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use openpaint_app::{
-    BrushChoice, BrushLibrary, GalleryIntent, HistoryIntent, Intent, LayerIntent, ViewIntent,
-};
+use openpaint_app::{BrushChoice, BrushLibrary, HistoryIntent, Intent, LayerIntent, ViewIntent};
 use openpaint_core::{StrokeStyle, StrokeTool};
+use openpaint_render::Counts;
 
-use super::cases::{batch, busiest, to_screen};
-use super::{Watch, spread};
+use super::hand::{batch, busiest, to_screen};
+use super::{Watch, mb, spread};
 use crate::canvas::Canvas;
 use crate::error::RuntimeError;
 use crate::frame::Runtime;
 use crate::input::{MotionPhase, ToolKind};
 use crate::painted::style_of;
-use openpaint_render::Counts;
 
-const LIMIT: Duration = Duration::from_secs(60);
 /// The brushes a stroke each, then the smudge's.
 const BRUSHES: [&str; 6] = [
     "textured-round",
@@ -72,7 +69,6 @@ struct Stroked {
 
 impl Stroked {
     fn line(&self) -> String {
-        let mb = |bytes: u64| bytes as f64 / (1024.0 * 1024.0);
         format!(
             "{} frames ({} skipped), frame work {}, GPU a frame {}, event to present {}; pen-down \
              {:.1}, lift {:.1} (its scene built in {:.1}); GPU caches {:.1} MB at most (snapshots \
@@ -130,7 +126,7 @@ impl Runtime {
     fn bench_fit(&mut self, place: [f32; 2]) -> Result<[f32; 2], RuntimeError> {
         let mut watch = Watch::start(self);
         self.bench_intents(vec![Intent::View(ViewIntent::Fit)], &mut watch)?;
-        self.bench_until(&mut watch, LIMIT, Self::bench_settled)?;
+        self.bench_until(&mut watch, Self::bench_settled)?;
         Ok(to_screen(&self.bench_view()?, place))
     }
 
@@ -168,12 +164,8 @@ impl Runtime {
     ) -> Result<(), RuntimeError> {
         let (project, _) = self.bench_artwork()?;
         let mut watch = Watch::paced(self);
-        self.bench_leave(&mut watch)?;
-        self.bench_until(&mut watch, LIMIT, |runtime| !runtime.cache.busy())?;
-        let gallery = (self.screen.gallery_mut()).ok_or(RuntimeError::NotNow("the gallery"))?;
-        gallery.dispatch(GalleryIntent::Open(project))?;
-        let shown = |runtime: &Self| runtime.screen.canvas().is_some();
-        self.bench_until(&mut watch, LIMIT, shown)?;
+        self.bench_left(&mut watch, project, false)?;
+        self.bench_reopen(&mut watch, project)?;
         let mut first = Vec::new();
         let middle = self.bench_fit(place)?;
         first.push(("after an opening", self.bench_line(style, middle)?));
@@ -198,8 +190,7 @@ impl Runtime {
         style: &StrokeStyle,
         middle: [f32; 2],
     ) -> Result<String, RuntimeError> {
-        let mut watch = Watch::paced(self);
-        self.bench_until(&mut watch, LIMIT, Self::bench_settled)?;
+        self.bench_settle()?;
         self.set_session_brush(Some(style.clone()));
         let path: Vec<[f32; 2]> = (0..SAMPLES)
             .map(|i| {
@@ -214,7 +205,7 @@ impl Runtime {
     fn bench_settle_after(&mut self, intents: Vec<Intent>) -> Result<(), RuntimeError> {
         let mut watch = Watch::paced(self);
         self.bench_intents(intents, &mut watch)?;
-        self.bench_until(&mut watch, LIMIT, Self::bench_settled)?;
+        self.bench_until(&mut watch, Self::bench_settled)?;
         Ok(())
     }
 
@@ -246,7 +237,7 @@ impl Runtime {
         let ahead = Instant::now();
         let mut watch = Watch::paced(self);
         let taken = |runtime: &Self| !(runtime.screen.canvas()).is_some_and(Canvas::taking_ahead);
-        self.bench_until(&mut watch, LIMIT, taken)?;
+        self.bench_until(&mut watch, taken)?;
         stroked.ahead = ahead.elapsed().as_secs_f64() * 1e3;
         let start = self.clock.now_ms() + 50;
         let mut watch = Watch::paced(self);

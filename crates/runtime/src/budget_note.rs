@@ -1,21 +1,17 @@
-//! The budget's log lines (S49, S51): each new peak of the caches with what the device's
-//! allocator holds, what holds memory once a minute while a canvas is open, and every cache the
-//! budget let go.
+//! The budget's log lines: each new peak of the caches with what the device's allocator holds,
+//! what holds memory once a minute while a canvas is open, and every cache the budget let go.
 
-use openpaint_render::{CacheBytes, Core};
+use openpaint_render::{CacheBytes, Core, GpuMemory};
 
 use super::ARENA_SHARE;
 use crate::canvas::{Canvas, Freed};
 
-/// What holds memory is logged this often while a canvas is open (S51), in seconds.
+/// What holds memory is logged this often while a canvas is open, in seconds.
 const NOTE_EVERY: f64 = 60.0;
 
 /// A new peak of the caches, with the allocator's allocations and blocks by label.
 pub(super) fn peak(held: &CacheBytes, core: &Core) {
     let gpu = core.gpu_memory().unwrap_or_default();
-    let largest: Vec<String> = (gpu.by_label.iter().take(4))
-        .map(|(label, bytes)| format!("{label} {:.1}", mb(*bytes)))
-        .collect();
     log::info!(
         "GPU caches hold {:.1} MB (most so far): canvas {:.1}, tiers {:.1}, raster {:.1}, \
          snapshots {:.1}, arena {:.1}, pictures {:.1}; the allocator holds {:.1} MB in blocks of \
@@ -29,11 +25,19 @@ pub(super) fn peak(held: &CacheBytes, core: &Core) {
         mb(held.pictures),
         mb(gpu.allocated),
         mb(gpu.reserved),
-        largest.join(", ")
+        largest(&gpu, 4)
     );
 }
 
-/// Once every `NOTE_EVERY` seconds of the frame clock, `now` (S51): the strokes, the GPU caches,
+/// The allocator's `count` largest labels with their MB.
+fn largest(gpu: &GpuMemory, count: usize) -> String {
+    let labels: Vec<String> = (gpu.by_label.iter().take(count))
+        .map(|(label, bytes)| format!("{label} {:.1}", mb(*bytes)))
+        .collect();
+    labels.join(", ")
+}
+
+/// Once every `NOTE_EVERY` seconds of the frame clock, `now`: the strokes, the GPU caches,
 /// the device allocator's allocations and blocks with its largest labels, and the heap's scene
 /// and history, logged.
 pub(super) fn note(
@@ -52,9 +56,6 @@ pub(super) fn note(
     let scene = canvas.target().heap_bytes();
     let history = canvas.session().history().total_bytes() as u64;
     let gpu = core.gpu_memory().unwrap_or_default();
-    let largest: Vec<String> = (gpu.by_label.iter().take(6))
-        .map(|(label, bytes)| format!("{label} {:.1}", mb(*bytes)))
-        .collect();
     log::info!(
         "memory at {strokes} strokes: GPU caches {:.1} MB (arena {:.1}); the allocator holds \
          {:.1} MB in blocks of {:.1} ({}); the heap holds the scene's {:.1} MB, the history's \
@@ -63,7 +64,7 @@ pub(super) fn note(
         mb(held.arena),
         mb(gpu.allocated),
         mb(gpu.reserved),
-        largest.join(", "),
+        largest(&gpu, 6),
         mb(scene),
         mb(history)
     );
@@ -71,12 +72,12 @@ pub(super) fn note(
 
 /// Logs each cache the budget let go.
 pub(super) fn report(freed: Freed, held: &CacheBytes, budget: u64) {
-    let names = [
-        "view tiers (and the raster core's targets)",
-        "the snapshots",
-        "the arena's blocks not shown",
+    let caches = [
+        (freed.tiers, "view tiers (and the raster core's targets)"),
+        (freed.snapshots, "the snapshots"),
+        (freed.arena, "the arena's blocks not shown"),
     ];
-    for (bytes, what) in freed.into_iter().zip(names) {
+    for (bytes, what) in caches {
         if bytes > 0 {
             log::warn!(
                 "GPU caches over the budget ({:.1} of {:.0} MB): {what} let go, {:.1} MB, the \
@@ -87,11 +88,11 @@ pub(super) fn report(freed: Freed, held: &CacheBytes, budget: u64) {
             );
         }
     }
-    if freed[3] > 0 {
+    if freed.residuals > 0 {
         log::info!(
             "smudge residuals past their {:.0} MB: the least recently needed let go, {:.1} MB",
             mb(budget / ARENA_SHARE),
-            mb(freed[3])
+            mb(freed.residuals)
         );
     }
 }

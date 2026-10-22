@@ -1,4 +1,4 @@
-//! The tilt line of `stroke-stats` (S44): how far the pen leaned from upright over every sample
+//! The tilt line of `stroke-stats`: how far the pen leaned from upright over every sample
 //! of a library's pen strokes, so we learn whether the author's pen reports tilt in practice and
 //! where a brush's tilt curve should start to respond. Strokes of one constant pressure (injected
 //! by device routines) are left out, as for the other statistics.

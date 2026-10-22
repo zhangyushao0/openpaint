@@ -1,24 +1,22 @@
 //! Device chores on the tablet over adb, one command each, so no slice hand-rolls them:
 //!
-//! - `cargo device-backup [name]`: the app's library (`files/library`) streamed out of the app's
-//!   private storage into `artifacts/device/backups/<name>.tar`, listed and checked;
-//! - `cargo device-restore <name|file.tar>`: the app stopped (no process left), the library as found
-//!   saved first as `<name>-found-<time>.tar` (listed), then that archive written back in place
-//!   (nothing is deleted), read out again and compared with the backup file by file, byte for byte;
+//! - `cargo device-backup [name]` and `cargo device-restore <name|file.tar>` (`library.rs`): the
+//!   app's library out of the app's private storage into `artifacts/device/backups/`, and back in
+//!   place, compared byte for byte;
 //! - `cargo device-check [label] [--no-install]` (`check.rs`) and `cargo device-input ...`
 //!   (`input.rs`);
-//! - `cargo device-clean`: removes the agent's own test files, and only those (the test folders,
-//!   recordings, and test libraries an investigation left in the app's cache);
+//! - `cargo device-clean`: removes the agent's own test files, and only those (the test folders
+//!   and screen recordings);
 //! - `cargo device-push <file>`: a PNG or JPEG for the system picker, or an OpenPaint file for
-//!   `device-input open-file` (S58), into `/sdcard/Download/openpaint-test` (a test location
-//!   `clean` removes; `push.rs`);
+//!   `device-input open-file`, into `/sdcard/Download/openpaint-test` (a test location `clean`
+//!   removes; `push.rs`);
 //! - `cargo device-info [label]`: the display's colour facts, read-only (`info.rs`); with
 //!   `--watch <seconds>` the clocks, the GPU's load, the battery's draw and the app's CPU time
-//!   over that time (`watch.rs`, S67);
+//!   over that time (`watch.rs`);
 //! - `cargo device-smoke`: the installed debug build walked through every main feature on a
 //!   test artwork it creates and deletes, about 20 s (`smoke.rs`);
 //! - `cargo device-reset`: the app's data cleared by `pm clear`, each file it held listed;
-//!   refused without a backup written today (`reset.rs`, S68).
+//!   refused without a backup written today (`reset.rs`).
 //!
 //! Every adb call takes explicit arguments, never a host shell, so no path is rewritten.
 
@@ -26,30 +24,30 @@ mod adb;
 mod check;
 mod info;
 mod input;
+mod library;
 mod open_file;
 mod push;
 mod reset;
 mod smoke;
-mod smoke_state;
+mod smoke_checks;
+mod state;
 mod tar;
 mod watch;
 
-use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
+use std::path::PathBuf;
 
 use crate::process::root;
-use adb::{Adb, PACKAGE, Result, read_file, write_file};
+use adb::{Adb, Result};
 
 pub use adb::DeviceError;
 pub use check::check;
 pub use info::info;
 pub use input::input;
+pub use library::{backup, restore};
 pub use push::push;
 pub use reset::reset;
 pub use smoke::smoke;
 
-/// The library inside the app's private storage, relative to its data directory.
-const LIBRARY: &str = "files/library";
 /// The agent's test locations: never anything else (`clean`).
 pub(crate) const TEST_DIRS: [&str; 2] = [
     "/sdcard/Pictures/openpaint-test",
@@ -73,146 +71,6 @@ fn plain(name: &str) -> Result<&str> {
         .ok_or(DeviceError::Usage("names use a-z, 0-9 and '-' only"))
 }
 
-/// The library as the device's `tar` writes it.
-fn pull_library(adb: &Adb) -> Result<Vec<u8>> {
-    adb.bytes(&["exec-out", "run-as", PACKAGE, "tar", "cf", "-", LIBRARY])
-}
-
-pub fn backup(args: &[String]) -> Result<()> {
-    let name = match args {
-        [] => format!("library-{}", timestamp()),
-        [name] => plain(name)?.to_owned(),
-        _ => return Err(DeviceError::Usage("cargo device-backup [name]")),
-    };
-    save_found(&Adb::connected()?, &name)
-}
-
-/// The library as the device holds it now into `artifacts/device/backups/<name>.tar`, listed;
-/// an archive of that name already there is never replaced.
-fn save_found(adb: &Adb, name: &str) -> Result<()> {
-    let path = artifacts().join("backups").join(format!("{name}.tar"));
-    if path.exists() {
-        return Err(DeviceError::Exists(path));
-    }
-    let archive = pull_library(adb)?;
-    let entries = tar::entries(&archive)?;
-    write_file(&path, &archive)?;
-    for entry in &entries {
-        println!("  {} {}", entry.path, entry.bytes.len());
-    }
-    let files = entries.iter().filter(|entry| entry.kind == b'0').count();
-    println!(
-        "backup {}: {} entries, {files} files, {} bytes",
-        path.display(),
-        entries.len(),
-        archive.len()
-    );
-    Ok(())
-}
-
-pub fn restore(args: &[String]) -> Result<()> {
-    let [which] = args else {
-        return Err(DeviceError::Usage("cargo device-restore <name|file.tar>"));
-    };
-    let path = backup_path(which)?;
-    let archive = read_file(&path)?;
-    let backup = tar::entries(&archive)?;
-    if let Some(stray) = backup.iter().find(|entry| !entry.path.starts_with(LIBRARY)) {
-        return Err(DeviceError::Tar(format!(
-            "{} is outside {LIBRARY}",
-            stray.path
-        )));
-    }
-    let adb = Adb::connected()?;
-    // The app must not write while its library is put back.
-    stop_app(&adb)?;
-    // Whatever the library holds now (strokes made during a test window) is kept first.
-    let stem = path
-        .file_stem()
-        .map_or_else(String::new, |stem| stem.to_string_lossy().into_owned());
-    save_found(&adb, &format!("{stem}-found-{}", timestamp()))?;
-    adb.feed(&["exec-in", "run-as", PACKAGE, "tar", "xf", "-"], &archive)?;
-    // `exec-in` returns once adb has sent the archive, not once the device's tar has written
-    // it: reading back at once can catch the last member (the journal) half written.
-    wait_for_extraction(&adb)?;
-    let mut differences = tar::differences(&backup, &tar::entries(&pull_library(&adb)?)?);
-    if !differences.is_empty() {
-        println!(
-            "read back differs ({}); verifying again after {} s",
-            differences.join("; "),
-            SETTLE_WAIT.as_secs()
-        );
-        std::thread::sleep(SETTLE_WAIT);
-        differences = tar::differences(&backup, &tar::entries(&pull_library(&adb)?)?);
-    }
-    if !differences.is_empty() {
-        return Err(DeviceError::Differs(differences));
-    }
-    println!(
-        "restored {}: {} entries, every one byte-identical to the backup",
-        path.display(),
-        backup.len()
-    );
-    Ok(())
-}
-
-/// How long `stop_app` waits for the app's process to end after `am force-stop`.
-const STOP_WAIT: Duration = Duration::from_secs(5);
-
-/// Force-stops the app and waits until no process of it is left (`pidof` prints nothing), so
-/// nothing writes the library afterwards; a process still there after `STOP_WAIT` fails.
-fn stop_app(adb: &Adb) -> Result<()> {
-    adb.shell(&["am", "force-stop", PACKAGE])?;
-    let started = Instant::now();
-    loop {
-        // `pidof` exits 1 when nothing runs; `; true` keeps that from being a failure.
-        let pids = adb.shell(&[&format!("pidof {PACKAGE}; true")])?;
-        let pids = pids.trim();
-        if pids.is_empty() {
-            return Ok(());
-        }
-        if started.elapsed() >= STOP_WAIT {
-            return Err(DeviceError::StillRunning(pids.to_owned()));
-        }
-        std::thread::sleep(Duration::from_millis(100));
-    }
-}
-
-/// How long a restore waits before it reads the library back a second time.
-const SETTLE_WAIT: Duration = Duration::from_secs(2);
-
-/// Waits (at most `STOP_WAIT`) until no `tar` runs on the device, so the extraction `exec-in`
-/// started has written every member; still running then, the read-back's retry covers it.
-fn wait_for_extraction(adb: &Adb) -> Result<()> {
-    let started = Instant::now();
-    while started.elapsed() < STOP_WAIT {
-        if adb.shell(&["pidof tar; true"])?.trim().is_empty() {
-            return Ok(());
-        }
-        std::thread::sleep(Duration::from_millis(100));
-    }
-    println!(
-        "a tar still runs on the device after {} s",
-        STOP_WAIT.as_secs()
-    );
-    Ok(())
-}
-
-/// A backup's name (`artifacts/device/backups/<name>.tar`) or an archive's path.
-fn backup_path(which: &str) -> Result<PathBuf> {
-    if which.ends_with(".tar") {
-        let path = Path::new(which);
-        return Ok(if path.exists() {
-            path.to_path_buf()
-        } else {
-            root().join(path)
-        });
-    }
-    Ok(artifacts()
-        .join("backups")
-        .join(format!("{}.tar", plain(which)?)))
-}
-
 pub fn clean(args: &[String]) -> Result<()> {
     if !args.is_empty() {
         return Err(DeviceError::Usage("cargo device-clean"));
@@ -231,48 +89,16 @@ fn clean_on(adb: &Adb) -> Result<usize> {
         .map(str::trim)
         .filter(|line| !line.is_empty())
         .collect();
-    if !found.is_empty() {
-        adb.shell(&[&format!("rm -rf {targets}")])?;
-    }
-    for path in &found {
-        println!("  removed {path}");
-    }
-    let cached = clean_cache(adb)?;
-    if found.is_empty() && cached == 0 {
+    if found.is_empty() {
         println!("clean: no test files on the device");
         return Ok(0);
     }
-    println!("clean: {} test locations removed", found.len() + cached);
-    Ok(found.len() + cached)
-}
-
-/// Test libraries an investigation left in the app's cache: `cache/inv1-library` and names
-/// that continue it with letters, digits, '-' or '_', each listed, then removed by its name.
-const TEST_CACHE: &str = "cache/inv1-library";
-
-fn clean_cache(adb: &Adb) -> Result<usize> {
-    // adb joins the words into one line for the device's shell: the inner command is quoted.
-    let listed = adb.shell(&[&format!(
-        "run-as {PACKAGE} sh -c 'ls -d {TEST_CACHE}* 2>/dev/null; true'"
-    )])?;
-    let names: Vec<&str> = listed
-        .lines()
-        .map(str::trim)
-        .filter(|name| test_cache(name))
-        .collect();
-    for name in &names {
-        adb.shell(&["run-as", PACKAGE, "rm", "-rf", name])?;
-        println!("  removed {PACKAGE}/{name}");
+    adb.shell(&[&format!("rm -rf {targets}")])?;
+    for path in &found {
+        println!("  removed {path}");
     }
-    Ok(names.len())
-}
-
-/// Whether `name` is one of the investigation's cached test libraries.
-fn test_cache(name: &str) -> bool {
-    name.strip_prefix(TEST_CACHE).is_some_and(|rest| {
-        rest.chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
-    })
+    println!("clean: {} test locations removed", found.len());
+    Ok(found.len())
 }
 
 /// The time now (UTC) as `YYYYMMDD-HHMMSS`.
@@ -323,14 +149,5 @@ mod tests {
             assert!(dir.starts_with("/sdcard/") && dir.ends_with("/openpaint-test"));
         }
         assert_eq!(TEST_RECORDINGS, "'/sdcard/openpaint-'*'.mp4'");
-        assert!(test_cache("cache/inv1-library") && test_cache("cache/inv1-library-2"));
-        for other in [
-            "cache/inv1",
-            "files/library",
-            "cache/inv1-library/../x",
-            "cache/inv1-library x",
-        ] {
-            assert!(!test_cache(other), "{other}");
-        }
     }
 }

@@ -1,5 +1,5 @@
-//! The layer panel's pictures (S38): each layer alone, and each mask's grey, drawn by the
-//! renderer (the raster core since S62) at canvas size and reduced on the GPU
+//! The layer panel's pictures: each layer alone, and each mask's grey, drawn by the
+//! renderer at canvas size and reduced on the GPU
 //! (`Core::layer_thumbnail`) on a worker of their own, so the frame never waits for them.
 //! Derived, never stored. Only while the panel is open, one picture at a time, the topmost out
 //! of date first; a picture is out of date when
@@ -77,7 +77,7 @@ fn same((_, mask): PictureKey, a: &Layer, b: &Layer) -> bool {
 
 pub(crate) struct PictureWorker {
     worker: Queue<Job, Done>,
-    /// No picture is asked for: the GPU memory budget dropped them (S49).
+    /// No picture is asked for: the GPU memory budget dropped them.
     pub(crate) paused: bool,
 }
 

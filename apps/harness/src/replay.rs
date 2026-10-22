@@ -1,23 +1,22 @@
-//! `replay`: the S4 walk-through on the dev machine. A recorded pen stroke of 10,000 samples,
-//! then a finger swipe, go batch by batch through the full frame loop at the author's tablet
-//! size, followed by 20 undo and redo round trips tapped on the side bar (S6, S11); every frame is
-//! timed until the GPU is done. Writes the last screen and the canvas,
-//! checks the canvas's hash against the golden value and the slowest frame against the
-//! budget. The golden is the canvas, not the screen: the raster core's pixels are its own,
-//! egui's text antialiasing is not.
+//! `replay`: a recorded pen stroke of 10,000 samples, then a finger swipe, go batch by batch
+//! through the full frame loop at the author's tablet size, followed by 20 undo and redo round
+//! trips tapped on the side bar; every frame is timed until the GPU is done. Writes the last
+//! screen and the canvas, checks the canvas's hash against the golden value and the slowest
+//! frame against the budget. The golden is the canvas, not the screen: the raster core's pixels
+//! are its own, egui's text antialiasing is not.
 
 use std::f32::consts::TAU;
 use std::time::{Duration, Instant};
 
-use openpaint_core::{Artwork, Color};
-use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RgbaImage};
+use openpaint_core::Artwork;
+use openpaint_render::{Core, RgbaImage};
 use openpaint_runtime::{
     Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime, ToolKind,
 };
 
 use crate::error::HarnessError;
 use crate::launch::launch;
-use crate::output::write_png;
+use crate::output::{cold, write_png};
 
 /// The MovinkPad 14: 2880 x 1800 pixels at density 1.75.
 const SIZE: [u32; 2] = [2880, 1800];
@@ -26,16 +25,16 @@ const PEN_SAMPLES: u16 = 10_000;
 /// A 240 Hz pen read once per frame at 60 frames per second.
 const PER_BATCH: usize = 4;
 const SAMPLE_MS: i64 = 4;
-/// Slowest frame allowed, input to GPU done (ROADMAP S4).
+/// Slowest frame allowed, input to GPU done.
 const BUDGET: Duration = Duration::from_millis(8);
-/// Hash of `artifacts/harness/replay-canvas.png`. Same on Vulkan and DX12. Re-recorded in S15:
-/// since S14 the pen lands through the fit view (0.92), so the scribble is the screen's
-/// scribble scaled by 1 / 0.92 about the centre; the finger swipe pans the view, no ink.
+/// Hash of `artifacts/harness/replay-canvas.png`. Same on Vulkan and DX12. The pen lands through
+/// the fit view (0.92), so the scribble is the screen's scribble scaled by 1 / 0.92 about the
+/// centre; the finger swipe pans the view, no ink.
 const GOLDEN: u64 = 0xc332_0cf5_0b57_27af;
 /// Undo and redo round trips after the strokes.
 const TRIPS: usize = 20;
-/// Centres of the undo and redo buttons at the bottom of the side bar (S11), in window pixels
-/// at `SIZE` and `PIXELS_PER_POINT`; the scenarios tap the same points.
+/// Centres of the undo and redo buttons at the bottom of the side bar, in window pixels at
+/// `SIZE` and `PIXELS_PER_POINT`.
 const UNDO: [f32; 2] = [70.0, 1271.0];
 const REDO: [f32; 2] = [70.0, 1369.0];
 
@@ -64,7 +63,7 @@ pub fn run() -> Result<(), HarnessError> {
         strokes(artwork)
     );
     println!("{TRIPS} undo/redo round trips tapped, each undo empties the artwork");
-    if cold(artwork)? != canvas {
+    if cold(&Core::headless()?, artwork)? != canvas {
         return Err(HarnessError::Missing(
             "the canvas drawn frame by frame differs from a cold evaluation",
         ));
@@ -156,21 +155,6 @@ fn round_trips(runtime: &mut Runtime) -> Result<Vec<Duration>, HarnessError> {
 
 fn strokes(artwork: &Artwork) -> usize {
     artwork.layers().iter().map(|l| l.strokes().len()).sum()
-}
-
-/// `artwork` evaluated whole into a fresh target.
-fn cold(artwork: &Artwork) -> Result<RgbaImage, HarnessError> {
-    let core = Core::headless()?;
-    let canvas = artwork.canvas();
-    let size = [canvas.width(), canvas.height()];
-    let mut target = CanvasTarget::new(&core, size)?;
-    let request = FrameRequest {
-        artwork,
-        active: None,
-        background: Color::WHITE,
-    };
-    target.draw(&core, &request, &[PixelRect::full(size)])?;
-    Ok(target.read(&core)?)
 }
 
 /// Frame count, mean, percentiles and the slowest frame, in milliseconds.

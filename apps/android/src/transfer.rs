@@ -46,7 +46,7 @@ impl ImageSource for FileSource {
     }
 }
 
-/// A file's bytes already read (debug builds' `open-file`, S58: the instrumentation's shell read
+/// A file's bytes already read (debug builds' `open-file`: the instrumentation's shell read
 /// it, as the app may not).
 pub struct BytesSource(pub Vec<u8>);
 

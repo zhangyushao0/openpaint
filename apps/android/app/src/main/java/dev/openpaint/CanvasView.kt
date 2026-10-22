@@ -9,7 +9,7 @@ import android.view.inputmethod.InputConnection
 
 /** `kind` of [Native.text]; must match `keys.rs`. */
 private const val COMPOSE = 0
-private const val COMMIT = 1
+internal const val COMMIT = 1
 
 /** Editing key codes of [Native.key]; must match `keys.rs`. */
 internal const val KEY_BACKSPACE = 0

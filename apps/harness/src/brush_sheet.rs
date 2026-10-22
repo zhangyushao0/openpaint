@@ -1,7 +1,7 @@
 //! `brush-sheet`: every built-in brush paints one stroke at its default size (pressure rising,
 //! then easing, along a gentle S with one sharp turn), written at 1x and, cropped to its turn,
 //! at 4x: `artifacts/harness/brush-<key>.png` and `brush-<key>-4x.png`, for judging how a brush
-//! looks while tuning its file (S45). A tap at full pressure comes first: one stamp.
+//! looks while tuning its file. A tap at full pressure comes first: one stamp.
 
 use std::f32::consts::PI;
 use std::sync::Arc;
@@ -11,10 +11,10 @@ use openpaint_core::{
     Artwork, BrushRecipe, CanvasPoint, CanvasSize, Color, Rotation, Shape, ShapeTexture, Stamp,
     StrokeSample, StrokeStyle,
 };
-use openpaint_render::{Banding, CanvasTarget, Core, FrameRequest, PixelRect};
+use openpaint_render::{Banding, Core};
 
 use crate::error::HarnessError;
-use crate::output::{write_png, write_rgba};
+use crate::output::{cold, write_png, write_rgba};
 
 const SIZE: [u32; 2] = [720, 200];
 /// The 4x crop: its top-left canvas pixel and its size in canvas pixels.
@@ -32,15 +32,8 @@ pub fn run() -> Result<(), HarnessError> {
         )?
         .with_seed(0x5EED_0000 + index as u32);
         let artwork = stroke(style)?;
-        let mut target = CanvasTarget::new(&core, SIZE)?;
-        let request = FrameRequest {
-            artwork: &artwork,
-            active: None,
-            background: Color::WHITE,
-        };
-        target.draw(&core, &request, &[PixelRect::full(SIZE)])?;
         let key = brush.key().as_str();
-        let path = write_png(&format!("brush-{key}.png"), &target.read(&core)?)?;
+        let path = write_png(&format!("brush-{key}.png"), &cold(&core, &artwork)?)?;
         let fine = core
             .export_bands(&artwork, Color::WHITE, 4, Banding::DEFAULT)?
             .image()?;
@@ -83,14 +76,7 @@ fn shapes(core: &Core) -> Result<(), HarnessError> {
         let tap = StrokeSample::new(at, 1.0, 0.0, 0.0, 0)?;
         artwork = artwork.begin_stroke(style, tap)?.finish().artwork;
     }
-    let mut target = CanvasTarget::new(core, size)?;
-    let request = FrameRequest {
-        artwork: &artwork,
-        active: None,
-        background: Color::WHITE,
-    };
-    target.draw(core, &request, &[PixelRect::full(size)])?;
-    let path = write_png("shapes.png", &target.read(core)?)?;
+    let path = write_png("shapes.png", &cold(core, &artwork)?)?;
     println!("shape textures: wrote {}", path.display());
     Ok(())
 }

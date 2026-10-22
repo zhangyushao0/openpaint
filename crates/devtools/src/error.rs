@@ -21,7 +21,7 @@ pub enum ScenarioError {
         reason: Unresolved,
         available: Vec<String>,
     },
-    /// An `expect` step found the screen otherwise (S47): `what` is wrong; `available` lists
+    /// An `expect` step found the screen otherwise: `what` is wrong; `available` lists
     /// every name on screen.
     Unexpected {
         what: String,

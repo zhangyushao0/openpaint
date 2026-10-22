@@ -1,22 +1,18 @@
-//! The brush editor's preview strip (S46): a small white canvas the strip's size in pixels at the
+//! The brush editor's preview strip: a small white canvas the strip's size in pixels at the
 //! screen's density, holding a sample stroke (an S-curve across it, its pressure rising to 1 at
 //! the middle and falling again, upright) and the strokes the pen drew on the strip, each drawn
 //! with the style the canvas's next stroke takes, painting. It is an artwork like any other,
-//! drawn as the canvas is (the raster core since S62), so the strip shows what the canvas would.
+//! drawn as the canvas is, so the strip shows what the canvas would.
 
-use std::f32::consts::{PI, TAU};
 use std::sync::Arc;
 
-use openpaint_core::{Artwork, CanvasPoint, CanvasSize, CoreError, StrokeSample, StrokeStyle};
-use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RgbaImage};
+use openpaint_core::{Artwork, CanvasSize, CoreError, StrokeSample, StrokeStyle};
+use openpaint_render::{Core, RgbaImage};
 
+use crate::brush_pictures::{drawn_alone, s_curve};
 use crate::canvas::PAPER;
 use crate::error::RuntimeError;
 
-/// Samples along the sample stroke.
-const SAMPLES: u16 = 64;
-/// Milliseconds between them: an unhurried stroke.
-const SAMPLE_MS: u32 = 6;
 /// Where the sample stroke starts and ends, as a share of the strip's width from either end.
 const MARGIN: f32 = 0.12;
 /// How far the S-curve swings up and down, as a share of the strip's height.
@@ -31,33 +27,13 @@ pub(crate) struct StripJob {
     pub(crate) strokes: Vec<Arc<[StrokeSample]>>,
 }
 
-/// The sample stroke across a strip of `size` pixels.
-pub(crate) fn sample_stroke([width, height]: [u32; 2]) -> Result<Vec<StrokeSample>, CoreError> {
-    let (width, height) = (width as f32, height as f32);
-    let margin = MARGIN * width;
-    (0..SAMPLES)
-        .map(|i| {
-            let t = f32::from(i) / f32::from(SAMPLES - 1);
-            let x = margin + (width - 2.0 * margin) * t;
-            let y = 0.5 * height - SWING * height * (TAU * t).sin();
-            let pressure = 0.2 + 0.8 * (PI * t).sin();
-            StrokeSample::new(
-                CanvasPoint::new(x, y)?,
-                pressure,
-                0.0,
-                0.0,
-                u32::from(i) * SAMPLE_MS,
-            )
-        })
-        .collect()
-}
-
 /// The strip's artwork: the sample stroke, then the pen's, each with the job's style; the n-th
 /// stroke's stamps take seed n, so the strip looks the same on every evaluation.
-pub(crate) fn strip_artwork(job: &StripJob) -> Result<Artwork, CoreError> {
+fn strip_artwork(job: &StripJob) -> Result<Artwork, CoreError> {
     let [width, height] = job.size;
     let mut artwork = Artwork::new(CanvasSize::new(width, height)?);
-    let sample: Arc<[StrokeSample]> = sample_stroke(job.size)?.into();
+    let side = job.size.map(|side| side as f32);
+    let sample: Arc<[StrokeSample]> = s_curve(side, MARGIN * side[0], SWING)?.into();
     for (seed, samples) in (0u32..).zip(std::iter::once(&sample).chain(&job.strokes)) {
         let Some((first, rest)) = samples.split_first() else {
             continue;
@@ -72,23 +48,14 @@ pub(crate) fn strip_artwork(job: &StripJob) -> Result<Artwork, CoreError> {
 
 /// The strip evaluated and read back.
 pub(crate) fn evaluate_strip(core: &Core, job: &StripJob) -> Result<RgbaImage, RuntimeError> {
-    let artwork = strip_artwork(job)?;
-    let mut target = CanvasTarget::new(core, job.size)?;
-    // Made on the brushes worker while the screen draws on (S53).
-    target.pace_draws();
-    let request = FrameRequest {
-        artwork: &artwork,
-        active: None,
-        background: PAPER,
-    };
-    target.draw(core, &request, &[PixelRect::full(job.size)])?;
-    Ok(target.read(core)?)
+    drawn_alone(core, &strip_artwork(job)?, PAPER)
 }
 
 #[cfg(test)]
 mod tests {
     use openpaint_app::{BrushIntent, BrushKey, BrushLibrary, Toolbox};
-    use openpaint_core::StrokeTool;
+    use openpaint_core::{CanvasPoint, StrokeTool};
+    use openpaint_render::{CanvasTarget, FrameRequest, PixelRect};
 
     use super::*;
 

@@ -11,30 +11,27 @@ import android.view.MotionEvent
 
 /**
  * Debug builds only: injects one touch gesture through the system's input pipeline, as the
- * dev machine's device checks need multi-finger gestures that `adb shell input` cannot make
- * (the approach of the previous project). Run with
- * `am instrument -w --no-restart -e from x,y[,x,y...] [-e to ...] [-e ms N] [-e tool stylus]
- * dev.openpaint/.GestureInstrumentation`: the fingers (or the pen) touch down one after another
- * at `from`, move straight to `to` over `ms` in 16 ms frames, and lift one after another.
- * One pointer can instead follow `-e path x,y,x,y...`, one point per 8 ms event, and the pen
- * presses with `-e pressure P` (default 0.6), leaning `-e tilt D` degrees from upright (default
- * 0, S44); `-e repeat N` draws the path N times, each turned and moved ([turned], S48);
+ * dev machine's device checks need multi-finger gestures that `adb shell input` cannot make.
+ * Run with `am instrument -w --no-restart -e from x,y[,x,y...] [-e to ...] [-e ms N]
+ * [-e tool stylus] dev.openpaint/.GestureInstrumentation`: the fingers (or the pen) touch down
+ * one after another at `from`, move straight to `to` over `ms` in 16 ms frames, and lift one
+ * after another. One pointer can instead follow `-e path x,y,x,y...`, one point per 8 ms event,
+ * and the pen presses with `-e pressure P` (default 0.6), leaning `-e tilt D` degrees from
+ * upright (default 0); `-e repeat N` draws the path N times, each turned and moved ([turned]);
  * `-e away sleep|home` turns the screen off or presses home while the pen is still down at the
- * path's end ([followAway], S50).
- * `-e hover x,y` holds the pen just above the glass
- * there instead for `-e ms` (default 1500), then takes it away (hover enter, move, exit).
- * `-e tool eraser` is the pen's eraser end and `-e button primary|secondary|tertiary` holds a
- * side button through the pen's events (S41, S43). `-e tap <name>` is a finger tap on the
- * middle of the control the app last drew under that name ([DebugControls]); the result's
- * `tapped` says where. `-e drag <name> -e to x,y` is a finger from that control's middle to
- * `to` (S52). `-e within N` waits up to N ms for the control to show. `-e find <name>` injects
- * nothing: the result's `found` says where it lies; `-e state 1` answers what the app shows
- * ([DebugControls.state], S52). `-e gradient on|off` injects nothing: it turns the screen's
- * precision check on or off ([DebugControls.gradient]); `-e lose device` loses the GPU device on
- * purpose ([DebugControls.loseDevice], S49); `-e bench <scenario>` answers a scenario benchmark
- * ([DebugControls.bench], S58); `-e open-file <path>`
- * opens a pushed OpenPaint file as a new artwork without the picker ([DebugControls.openFile],
- * S58). A question is answered with `gesture=answered`.
+ * path's end ([followAway]). `-e hover x,y` holds the pen just above the glass there instead
+ * for `-e ms` (default 1500), then takes it away (hover enter, move, exit). `-e tool eraser` is
+ * the pen's eraser end and `-e button primary|secondary|tertiary` holds a side button through
+ * the pen's events. `-e tap <name>` is a finger tap on the middle of the control the app last
+ * drew under that name ([DebugControls]); the result's `tapped` says where. `-e drag <name>
+ * -e to x,y` is a finger from that control's middle to `to`. `-e within N` waits up to N ms for
+ * the control to show. `-e find <name>` injects nothing: the result's `found` says where it
+ * lies; `-e state 1` answers what the app shows ([DebugControls.state]). `-e gradient on|off`
+ * injects nothing: it turns the screen's precision check on or off ([DebugControls.gradient]);
+ * `-e lose device` loses the GPU device on purpose ([DebugControls.loseDevice]); `-e bench
+ * <scenario>` answers a scenario benchmark ([DebugControls.bench]); `-e open-file <path>` opens
+ * a pushed OpenPaint file as a new artwork without the picker ([DebugControls.openFile]). A
+ * question is answered with `gesture=answered`.
  */
 class GestureInstrumentation : Instrumentation() {
     private var arguments = Bundle()
@@ -93,8 +90,8 @@ class GestureInstrumentation : Instrumentation() {
         ?.map { floatArrayOf(it[0], it[1]) }
 
     /**
-     * A question instead of a gesture (S52), its answer put in [result]: `-e find <name>` (where
-     * the control lies), `-e bench <scenario>` (a scenario benchmark, S58) or
+     * A question instead of a gesture, its answer put in [result]: `-e find <name>` (where
+     * the control lies), `-e bench <scenario>` (a scenario benchmark) or
      * `-e state 1` (what the app shows). False when there is none.
      */
     private fun answer(result: Bundle): Boolean {
@@ -163,8 +160,8 @@ class GestureInstrumentation : Instrumentation() {
         }
 
     /**
-     * The pen's side button held through the gesture (`-e button primary|secondary|tertiary`,
-     * S41, S43): from the tip outwards, as the author's Wacom pen reports its three buttons.
+     * The pen's side button held through the gesture (`-e button primary|secondary|tertiary`):
+     * from the tip outwards, as the author's Wacom pen reports its three buttons.
      */
     private val buttons: Int
         get() = when (arguments.getString("button")) {
@@ -221,33 +218,32 @@ class GestureInstrumentation : Instrumentation() {
         }
     }
 
-    /** One pointer down at the path's first point, a move per later point, up at its last. */
-    private fun follow(path: List<FloatArray>) {
-        val stylus = pen
+    /** One pointer down at the path's first point and a move per later point; its down time. */
+    private fun drawn(path: List<FloatArray>): Long {
         val down = SystemClock.uptimeMillis()
-        send(down, MotionEvent.ACTION_DOWN, path.take(1), stylus)
+        send(down, MotionEvent.ACTION_DOWN, path.take(1), pen)
         for (point in path.drop(1)) {
             SystemClock.sleep(8)
-            send(down, MotionEvent.ACTION_MOVE, listOf(point), stylus)
+            send(down, MotionEvent.ACTION_MOVE, listOf(point), pen)
         }
+        return down
+    }
+
+    /** One pointer down at the path's first point, a move per later point, up at its last. */
+    private fun follow(path: List<FloatArray>) {
+        val down = drawn(path)
         SystemClock.sleep(8)
-        send(down, MotionEvent.ACTION_UP, path.takeLast(1), stylus)
+        send(down, MotionEvent.ACTION_UP, path.takeLast(1), pen)
     }
 
     /**
      * The pen down along [path] and still on the glass at its end when the app is sent away
-     * (`-e away sleep|home`, S50): the screen turned off (`KEYCODE_SLEEP`) or the home key
-     * pressed, as a key the system takes; then, 1.5 s later, the pen's lift, which the system
-     * may refuse once the window is gone.
+     * (`-e away sleep|home`): the screen turned off (`KEYCODE_SLEEP`) or the home key pressed, as
+     * a key the system takes; then, 1.5 s later, the pen's lift, which the system may refuse once
+     * the window is gone.
      */
     private fun followAway(path: List<FloatArray>, away: String) {
-        val stylus = pen
-        val down = SystemClock.uptimeMillis()
-        send(down, MotionEvent.ACTION_DOWN, path.take(1), stylus)
-        for (point in path.drop(1)) {
-            SystemClock.sleep(8)
-            send(down, MotionEvent.ACTION_MOVE, listOf(point), stylus)
-        }
+        val down = drawn(path)
         val code = if (away == "home") KeyEvent.KEYCODE_HOME else KeyEvent.KEYCODE_SLEEP
         val pressed = SystemClock.uptimeMillis()
         for (action in listOf(KeyEvent.ACTION_DOWN, KeyEvent.ACTION_UP)) {
@@ -256,14 +252,14 @@ class GestureInstrumentation : Instrumentation() {
         }
         SystemClock.sleep(1500)
         try {
-            send(down, MotionEvent.ACTION_UP, path.takeLast(1), stylus)
+            send(down, MotionEvent.ACTION_UP, path.takeLast(1), pen)
         } catch (refused: IllegalStateException) {
             // The window went with the screen or home: no lift reaches it.
         }
     }
 
     /**
-     * Stroke [k] of a repeated path (`-e repeat N`, S48): the path turned about the middle of
+     * Stroke [k] of a repeated path (`-e repeat N`): the path turned about the middle of
      * its box by k golden angles and moved up to 140 px from there, so N strokes cross one area
      * at every angle, as many strokes painted over one place do.
      */
@@ -295,7 +291,7 @@ class GestureInstrumentation : Instrumentation() {
         penPressure: Float = pressure,
     ) {
         val source = if (stylus) InputDevice.SOURCE_STYLUS else InputDevice.SOURCE_TOUCHSCREEN
-        // Looked up once: the lookup's binder calls took about 25 ms an event (S48), so a path
+        // Looked up once: the lookup's binder calls took about 25 ms an event, so a path
         // came at 33 ms a point instead of 8.
         val device = devices.getOrPut(source) {
             InputDevice.getDeviceIds().firstOrNull { id ->

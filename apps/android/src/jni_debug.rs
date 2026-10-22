@@ -1,9 +1,9 @@
 //! For debug builds: finds a control on screen by its name for the dev machine's
 //! `cargo device-input tap <name>` (D48's names, as scenarios use them), says what the app shows
-//! (`device-input state`, the device smoke, S52), turns the screen's
-//! precision check on and off (`gradient on|off`, S37), loses the GPU device on purpose
-//! (`lose-device`, S49), runs the app's scenario benchmarks (`bench`, S58) and opens a pushed
-//! OpenPaint file without the picker (`open-file`, S58).
+//! (`device-input state`, the device smoke), turns the screen's
+//! precision check on and off (`gradient on|off`), loses the GPU device on purpose
+//! (`lose-device`), runs the app's scenario benchmarks (`bench`) and opens a pushed
+//! OpenPaint file without the picker (`open-file`).
 //! Only Kotlin's debug source set declares
 //! them (`DebugControls`, called from `GestureInstrumentation` on the main thread); the library
 //! is built with the release profile for every APK, so a release APK carries these symbols with
@@ -58,7 +58,7 @@ pub extern "system" fn Java_dev_openpaint_DebugControls_find<'local>(
     .resolve::<LogErrorAndDefault>()
 }
 
-/// For `cargo device-input state` and the device smoke (S52): what the app shows, fields separated
+/// For `cargo device-input state` and the device smoke: what the app shows, fields separated
 /// by tabs, each "key value": `screen` (starting, canvas, gallery); in the gallery `listed` (0
 /// or 1) and `cards` (the artworks' ids, the one changed last first); `fit` (where a canvas
 /// fits: left, top, width, height in pixels); a `name` per control in the last frame.
@@ -100,7 +100,7 @@ fn state(runtime: &Runtime) -> String {
     fields.join("\t")
 }
 
-/// For `cargo device-input lose-device` (S49): the GPU device destroyed under the app as a driver
+/// For `cargo device-input lose-device`: the GPU device destroyed under the app as a driver
 /// reset loses it, then one frame, which makes the renderer again.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_openpaint_DebugControls_loseDevice<'local>(
@@ -118,7 +118,7 @@ pub extern "system" fn Java_dev_openpaint_DebugControls_loseDevice<'local>(
     .resolve::<LogErrorAndDefault>();
 }
 
-/// For `cargo device-input bench <scenario>` (S58): that scenario benchmark on the artwork open,
+/// For `cargo device-input bench <scenario>`: that scenario benchmark on the artwork open,
 /// driving the app's own frame loop here on the main thread; each line written to the log, and
 /// all of them returned separated by tabs.
 #[unsafe(no_mangle)]
@@ -150,7 +150,7 @@ pub extern "system" fn Java_dev_openpaint_DebugControls_bench<'local>(
     .resolve::<LogErrorAndDefault>()
 }
 
-/// For `cargo device-input open-file <name>` (S58): a pushed OpenPaint file's `bytes` (read by
+/// For `cargo device-input open-file <name>`: a pushed OpenPaint file's `bytes` (read by
 /// the instrumentation's shell, as the app may not read the test folder) opened as the gallery's
 /// Open OpenPaint file… opens a chosen one, no picker shown. Returns "opening", or why not.
 #[unsafe(no_mangle)]
@@ -194,7 +194,7 @@ fn imported(runtime: &mut Runtime) -> Result<String, HostError> {
     }
 }
 
-/// For `cargo device-input gradient on|off` (S37): the screen's precision check on or off, and
+/// For `cargo device-input gradient on|off`: the screen's precision check on or off, and
 /// one frame drawn at once so it shows without a touch.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_openpaint_DebugControls_gradient<'local>(

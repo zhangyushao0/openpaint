@@ -1,6 +1,6 @@
 //! Keyboard input from the Kotlin host as the runtime's `TextInput`: the input connection's
 //! composing and committed text, and the editing keys. Plain Rust, tested on the dev machine;
-//! the codes must match `TextInput.kt`.
+//! the codes must match `CanvasView.kt`.
 
 use openpaint_runtime::{EditKey, TextInput};
 
