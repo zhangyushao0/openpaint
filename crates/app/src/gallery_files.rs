@@ -105,10 +105,8 @@ impl Files {
 pub(crate) const fn problem(error: &PortError) -> FileProblem {
     match error {
         PortError::NotArtworkFile => FileProblem::NotOpenPaint,
-        PortError::NewerSchema { .. } => FileProblem::Newer,
-        PortError::Corrupt { .. } | PortError::Invalid(_) | PortError::NotUpgraded { .. } => {
-            FileProblem::Damaged
-        }
+        PortError::OtherFormat { .. } => FileProblem::OtherFormat,
+        PortError::Corrupt { .. } | PortError::Invalid(_) => FileProblem::Damaged,
         PortError::Device { .. } | PortError::Missing(_) | PortError::Stopped => {
             FileProblem::Unreadable
         }

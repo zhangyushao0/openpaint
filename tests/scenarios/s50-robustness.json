@@ -6,7 +6,7 @@
     "Leaving mid-stroke: I am drawing a third line when I leave the app; the system closes it later. Opening OpenPaint again shows all three lines.",
     "Killed mid-save: if the app is killed while it saves (a crash, the system ending it, an update installed), the artwork reopens exactly as it was saved last, never half of a save; a version kept when leaving is kept whole or not at all.",
     "Low storage: when a save cannot be written (the storage full), the canvas keeps everything, a quiet pill says the artwork could not be saved, with Retry; the library on disk stays as it was saved last.",
-    "A failed upgrade: after an update, an artwork whose records the new version cannot upgrade (damaged by a bug or a broken write) stays in the gallery as it was, its picture marked Needs repair; tapping it says it needs repair, with OK; its options still save it as an OpenPaint file, so I can keep it until a fixed version opens it. Every other artwork opens and works."
+    "Another version's library: if the library on the tablet was made by an OpenPaint of another format, the app opens in the gallery and says these artworks are from another version and are left as they are; nothing in the library is written or removed."
   ],
   "screen": [2880, 1800],
   "density": 1.75,

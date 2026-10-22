@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::process::{cargo_command, root, run};
-use crate::version::{Version, schema};
+use crate::version::{Version, format};
 
 /// The tablet's ABI.
 const ABI: &str = "arm64-v8a";
@@ -22,7 +22,7 @@ pub fn build() -> Result<(), String> {
     let sdk = sdk_dir()?;
     let ndk = ndk_dir(&sdk)?;
     let version = Version::current()?;
-    let name = version.name(schema(&root())?);
+    let name = version.name(format(&root())?);
     println!(
         "Android SDK {}\nAndroid NDK {}\nOpenPaint {name} (version code {})",
         sdk.display(),

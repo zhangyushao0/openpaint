@@ -112,8 +112,8 @@ pub enum FileProblem {
     NotOpenPaint,
     /// An OpenPaint file that breaks its format or check sum.
     Damaged,
-    /// Written by a newer OpenPaint than this one.
-    Newer,
+    /// An OpenPaint file of another format, from another version of OpenPaint.
+    OtherFormat,
     /// The file could not be read.
     Unreadable,
 }
@@ -125,10 +125,11 @@ pub enum GalleryNotice {
     None,
     /// The library could not be listed.
     ListFailed,
+    /// The library is of another format, from another version of OpenPaint; it is left as it is
+    /// and nothing is written to it.
+    OtherLibrary,
     /// The artwork could not be opened; it stays in the library as it was.
     OpenFailed,
-    /// The artwork's records could not be upgraded; they stay as they were (S50).
-    NeedsRepair,
     CreateFailed,
     /// A rename, duplicate or delete failed; the gallery shows the library as it is.
     ChangeFailed,
@@ -252,18 +253,18 @@ impl Gallery {
                 self.items = items.into();
                 self.listed = true;
             }
-            LibraryAnswer::Listed(Err(_)) => {
+            LibraryAnswer::Listed(Err(error)) => {
                 self.listed = true;
-                self.notice = GalleryNotice::ListFailed;
+                self.notice = match error {
+                    PortError::OtherFormat { .. } => GalleryNotice::OtherLibrary,
+                    _ => GalleryNotice::ListFailed,
+                };
             }
             LibraryAnswer::Changed(Ok(())) => {}
             LibraryAnswer::Changed(Err(_)) => self.notice = GalleryNotice::ChangeFailed,
-            LibraryAnswer::OpenFailed(error) => {
+            LibraryAnswer::OpenFailed(_) => {
                 self.opening = false;
-                self.notice = match error {
-                    PortError::NotUpgraded { .. } => GalleryNotice::NeedsRepair,
-                    _ => GalleryNotice::OpenFailed,
-                };
+                self.notice = GalleryNotice::OpenFailed;
             }
             LibraryAnswer::CreateFailed(_) => {
                 self.opening = false;

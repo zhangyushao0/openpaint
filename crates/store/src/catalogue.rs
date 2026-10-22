@@ -1,4 +1,4 @@
-//! Schema 2's gallery records (`records.rs` has the keys): a catalogue entry per project in
+//! The gallery's records (format 1, `records.rs` has the keys): a catalogue entry per project in
 //! `library` and a thumbnail per project in `projects`.
 //!
 //! - Entry: title (u32 length + UTF-8), touched (u64): the value of the library's change

@@ -297,7 +297,7 @@ impl Shell {
         self.gallery.utc_offset = minutes;
     }
 
-    /// The app's version and library schema as Actions' last line shows them (S52).
+    /// The app's version and storage format as Actions' last line shows them (S52).
     pub fn set_version(&mut self, line: &str) {
         line.clone_into(&mut self.panels.actions.version);
     }

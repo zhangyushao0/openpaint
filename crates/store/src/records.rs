@@ -1,76 +1,44 @@
-//! Schema 23: the keys and values the library stores (DECISIONS D36, D38, D43, D45, D46, D49,
-//! D50, D51, D54, D57, D66, D67, D70, D71, D74, D81; the archived D21, D25, D28, D29, D68, D72,
-//! D73).
+//! Format 1 (DECISIONS D95): the keys and values the library stores. Integers and floats are
+//! little-endian inside values; keys are big-endian, so a project's records sort together and a
+//! layer's in drawing order. No serialization crate (`codec.rs`).
 //!
-//! Keyspace `library`: `schema` -> the schema of every record (u32 LE); `next` -> the next
-//! unused project id (u64 LE); `clock` -> the last value of the change counter (u64 LE); `last`
-//! -> the project open when the app was left (u64 LE), absent when none was; `['a'][project
-//! u64]` -> the project's catalogue entry (`catalogue.rs`): title and when it last changed;
-//! `editor` -> the toolbox (`editor.rs`), absent until the user first changed it.
+//! Keyspace `library`: `format` -> the format of every record (u32, 1); `next` -> the next unused
+//! project id (u64); `clock` -> the last value of the change counter (u64); `last` -> the project
+//! open when the app was left (u64), absent when none was; `editor` -> the toolbox
+//! (`editor.rs`), absent until it first changed; `['a'][project u64]` -> the project's catalogue
+//! entry (`catalogue.rs`); `['v'][project u64][version u64]` -> when a version was kept
+//! (`versions.rs`).
 //!
-//! Keyspace `projects`, keys big-endian so a project's records sort together:
-//! - `[project u64]['h']` -> the head: schema (u32), canvas width and height (u32), active
-//!   layer, next layer id and next stroke id (u64), then the layers bottom to top, each id
-//!   (u64), name (u32 length + UTF-8), visible (u8), opacity (f32), locked (u8), alpha locked
-//!   (u8), clipping (u8), blend (u8: 0 normal, 1 multiply, 2 screen, 3 overlay), group (u64, 0
-//!   none), its stroke count (u32) and its edit count (u32), its mask (`read_layer_mask`: flags u8,
-//!   with a mask its stroke and edit counts); then the groups oldest first, each id (u64),
-//!   name, visible (u8) and opacity (f32); then whether the active layer's mask is the target
-//!   (u8); then the save id (u64: a new random one with every save, 0 none, `SaveId`);
-//! - `[project u64]['s'][layer u64][index u64]` -> one stroke, oldest at index 0 (`strokes.rs`):
-//!   id (u64), size, opacity, red, green, blue (f32), blend (u8: 0 paint over, 1 paint atop
-//!   under Alpha Lock, 2 erase, 3 smudge, 4 smudge under Alpha Lock), its brush recipe (softness (f32); the curves size over
-//!   pressure, size over speed, opacity over pressure, opacity over speed, each a point count
-//!   (u32) and per point x, y (f32); grain strength (f32) and scale (u32); the deposit (u8: 0
-//!   cover, 1 accumulate), when accumulating its tip (u8: 0 flat, 1 bell), flow and maximum
-//!   density (f32) and paper (u8: 0 none, 1 sketch), on paper its contact curve, scale, depth
-//!   and dust (f32); the curves size over tilt and opacity over tilt (x in degrees); the
-//!   taper's start, end and tip (f32); the shape (`shapes.rs`): stamp (u8: 0 disc, 1 square, 2
-//!   ellipse, 3 chalk, 4 grainy, 5 splatter, 6 rough square), aspect, spacing, scatter (f32),
-//!   rotation (u8: 0 fixed, 1 direction, 2 azimuth), angle, rotation jitter (degrees) and size
-//!   jitter (f32)), the seed of its stamps' jitter (u32), sample count (u32), then per sample x,
-//!   y, pressure, tilt, azimuth (f32) and time (u32 ms), then its clip (u8: 0 none, 1 a mask as
-//!   a fill stores it: rectangle, run count and runs, `fills.rs`);
-//! - `[project u64]['f'][layer u64][index u64]` -> one fill, transform, adjustment, nested
-//!   record or cleared pixels, oldest at index 0 (`fills.rs`);
-//! - a mask's strokes and edits as a layer's, under `mask_slot(layer)` (the id with bit 63 set);
-//! - a merged layer's (a nested record's, `nested.rs`) strokes, edits and mask as a layer's, under
-//!   its own id;
-//! - `[project u64]['t']` -> the gallery thumbnail (`catalogue.rs`), derived from the artwork
-//!   when it was last left; absent until then.
+//! Keyspace `projects`:
+//! - `[project u64]['h']` -> the head: the canvas's width and height (u32), the next layer id and
+//!   the next stroke id (u64), the save id (u64: a new random one with every save, 0 none,
+//!   `SaveId`); the layers bottom to top, a count (u32) and per layer its id (u64), name (u32
+//!   length + UTF-8), group (u64, 0 none), visible, locked, alpha locked (u8 each), opacity (f32),
+//!   blend (u8: 0 normal, 1 multiply, 2 screen, 3 overlay), clipping (u8), its stroke and edit
+//!   counts (u32) and its mask (`write_layer_mask`); the groups oldest first, a count and per
+//!   group its id, name, visible and opacity; last the active layer (u64) and the target (u8: 0
+//!   its paint, 1 its mask);
+//! - `[project u64]['s'][slot u64][index u64]` -> a stroke (`strokes.rs`), oldest at index 0;
+//! - `[project u64]['e'][slot u64][index u64]` -> a region edit (`fills.rs`): a fill, cleared
+//!   pixels, a transform, an adjustment or a merged layer;
+//! - `[project u64]['t']` -> the gallery picture (`catalogue.rs`), absent until first left;
+//! - `[project u64]['v'][version u64]` -> a kept version, an OpenPaint file (`versions.rs`).
 //!
-//! Integers and floats are little-endian inside values. A save rewrites the head and only the
-//! stroke and fill records that changed. Schema 1 (S7) had no `schema`, `clock`, catalogue
-//! entries or thumbnails, and `last` named the project saved last; schema 2 (S10) had no recipe
-//! in its strokes and no `editor`; schema 3 (S11) had no alpha lock, no blend and a toolbox of
-//! one tool without colours; schema 4 (S12) had no fills; schema 5 (S15) had no deposit in its
-//! recipes and no StreamLine in its toolbox; schema 6 (S16) had no clip in its strokes; schema
-//! 7 (S18) had fills only, without a kind; schema 8 (S20) had no smudge in its strokes or its
-//! toolbox; schema 9 (S21) had no clipping, blend or group in its heads; schema 10 (S23) had
-//! no masks; schema 11 (S24) had no adjustment records (edit kind 2); schema 12 (S28) had no
-//! transform records without pixels (edit kind 3); schema 13 (S31) had no blur or sharpening
-//! in its adjustments; schema 14 (S33) had no nested records (edit kind 4, merged layers);
-//! schema 15 (S39) had no cleared pixels (edit kind 5, cut and copied selections); schema 16
-//! (S40) had no pen buttons or swatches in its toolbox; schema 17 (S41) had two pen buttons;
-//! schema 18 (S43) had no tilt curves or taper in its recipes; schema 19 (S44) had no shape
-//! stage or seed in its strokes; schema 20 (S45) had no brush library in its toolbox; schema 21
-//! (S46) had no brush sets or Recent in its toolbox; schema 22 (S47) had no save id in its heads;
-//! `migrate.rs` and `migrate_6.rs` to `migrate_23.rs` upgrade them.
+//! A slot is a layer's id for its paint, `mask_slot(id)` for its mask, and a merged layer's id
+//! (a nested record, `nested.rs`) for its content, so all of them are saved, read and removed
+//! alike. A save rewrites the head and only the stroke and edit records that changed.
 
 use openpaint_app::{PortError, ProjectId, SaveId};
 use openpaint_core::{Artwork, BlendMode, GroupParts, LayerMask, LayerMaskParts, LayerParts};
 
 use crate::codec::{Reader, Writer};
-pub(crate) use crate::strokes::{
-    STROKE_STYLE_BYTES, decode_stroke, encode_stroke, read_curve, write_recipe,
-};
 
-/// The schema this build writes and the newest it reads.
-pub const SCHEMA: u32 = 23;
+/// The format this build writes, and the only one it reads.
+pub const FORMAT: u32 = 1;
 
 pub(crate) const LIBRARY: &str = "library";
 pub(crate) const PROJECTS: &str = "projects";
-pub(crate) const SCHEMA_KEY: &[u8] = b"schema";
+pub(crate) const FORMAT_KEY: &[u8] = b"format";
 pub(crate) const LAST: &[u8] = b"last";
 pub(crate) const NEXT: &[u8] = b"next";
 pub(crate) const CLOCK: &[u8] = b"clock";
@@ -80,34 +48,37 @@ pub(crate) const ENTRY: &[u8] = b"a";
 const HEAD: u8 = b'h';
 const STROKE: u8 = b's';
 const THUMBNAIL: u8 = b't';
-/// Bytes of a layer entry in the head without its name and its mask's flags and counts.
-const LAYER_BYTES: usize = 8 + 4 + 1 + 4 + 1 + 1 + 1 + 1 + 8 + 4 + 4 + 1;
-/// A mask's stroke and edit records sit under its layer's id with this bit set (layer ids stay
-/// below 2^53), so they are keyed, read, saved and removed as a layer's are.
+/// Where the save id lies in a head: after the canvas's size and the two id counters.
+const SAVE_ID_AT: usize = 4 + 4 + 8 + 8;
+/// Bytes of a layer entry in the head without its name and its mask's counts.
+const LAYER_BYTES: usize = 8 + 4 + 8 + 1 + 1 + 1 + 4 + 1 + 1 + 4 + 4 + 1;
+/// Bytes of a group entry in the head without its name.
+const GROUP_BYTES: usize = 8 + 4 + 1 + 4;
+/// A mask's records sit under its layer's id with this bit set (layer ids stay below 2^53).
 const MASK_SLOT: u64 = 1 << 63;
 
-/// The id a layer's mask records are keyed by.
+/// The slot a layer's (or a merged layer's) mask records are keyed by.
 pub(crate) const fn mask_slot(layer: u64) -> u64 {
     layer | MASK_SLOT
 }
-/// Bytes of a group entry in the head without its name.
-const GROUP_BYTES: usize = 8 + 4 + 1 + 4;
 
 /// The prefix of every record of `project` in `projects`.
 pub(crate) fn project_prefix(project: ProjectId) -> Vec<u8> {
     project.get().to_be_bytes().to_vec()
 }
 
-pub(crate) fn head_key(project: ProjectId) -> Vec<u8> {
+fn project_key(project: ProjectId, kind: u8) -> Vec<u8> {
     let mut key = project_prefix(project);
-    key.push(HEAD);
+    key.push(kind);
     key
 }
 
+pub(crate) fn head_key(project: ProjectId) -> Vec<u8> {
+    project_key(project, HEAD)
+}
+
 pub(crate) fn thumbnail_key(project: ProjectId) -> Vec<u8> {
-    let mut key = project_prefix(project);
-    key.push(THUMBNAIL);
-    key
+    project_key(project, THUMBNAIL)
 }
 
 /// The key of `project`'s catalogue entry in `library`.
@@ -125,25 +96,23 @@ pub(crate) fn entry_project(key: &[u8]) -> Option<ProjectId> {
 
 /// The prefix of every stroke record of `project`.
 pub(crate) fn strokes_prefix(project: ProjectId) -> Vec<u8> {
-    let mut key = project_prefix(project);
-    key.push(STROKE);
-    key
+    project_key(project, STROKE)
 }
 
-/// The prefix of the stroke records of one layer, in drawing order.
-pub(crate) fn layer_prefix(project: ProjectId, layer: u64) -> Vec<u8> {
+/// The prefix of the stroke records of one slot, in drawing order.
+pub(crate) fn layer_prefix(project: ProjectId, slot: u64) -> Vec<u8> {
     let mut key = strokes_prefix(project);
-    key.extend_from_slice(&layer.to_be_bytes());
+    key.extend_from_slice(&slot.to_be_bytes());
     key
 }
 
-pub(crate) fn stroke_key(project: ProjectId, layer: u64, index: usize) -> Vec<u8> {
-    let mut key = layer_prefix(project, layer);
+pub(crate) fn stroke_key(project: ProjectId, slot: u64, index: usize) -> Vec<u8> {
+    let mut key = layer_prefix(project, slot);
     key.extend_from_slice(&(index as u64).to_be_bytes());
     key
 }
 
-/// The index at the end of a stroke key under a layer prefix.
+/// The index at the end of a stroke or edit key.
 pub(crate) fn stroke_index(key: &[u8]) -> Option<u64> {
     let (_, index) = key.split_last_chunk::<8>()?;
     Some(u64::from_be_bytes(*index))
@@ -153,23 +122,6 @@ pub(crate) fn encode_id(id: u64) -> Vec<u8> {
     id.to_le_bytes().to_vec()
 }
 
-pub(crate) fn encode_schema(schema: u32) -> Vec<u8> {
-    schema.to_le_bytes().to_vec()
-}
-
-pub(crate) fn decode_schema(bytes: &[u8]) -> Result<u32, PortError> {
-    let mut reader = Reader::new(bytes, "library schema");
-    let schema = reader.u32()?;
-    reader.end()?;
-    Ok(schema)
-}
-
-/// The schema a head is marked with (its first four bytes), whatever the rest holds.
-pub(crate) fn head_schema(head: &[u8]) -> Option<u32> {
-    let (schema, _) = head.split_first_chunk::<4>()?;
-    Some(u32::from_le_bytes(*schema))
-}
-
 pub(crate) fn decode_id(bytes: &[u8], what: &'static str) -> Result<u64, PortError> {
     let mut reader = Reader::new(bytes, what);
     let id = reader.u64()?;
@@ -177,21 +129,31 @@ pub(crate) fn decode_id(bytes: &[u8], what: &'static str) -> Result<u64, PortErr
     Ok(id)
 }
 
-/// The head of a stored artwork: everything but the strokes, plus each layer's stroke count.
+pub(crate) fn encode_format() -> Vec<u8> {
+    FORMAT.to_le_bytes().to_vec()
+}
+
+/// The format a library's `format` record names; a record of another length names none.
+pub(crate) fn decode_format(bytes: &[u8]) -> Option<u32> {
+    Some(u32::from_le_bytes(bytes.try_into().ok()?))
+}
+
+/// The head of a stored artwork: everything but its strokes and edits, plus how many each slot
+/// holds.
 #[derive(Debug)]
 pub(crate) struct Head {
     pub(crate) width: u32,
     pub(crate) height: u32,
-    pub(crate) active: u64,
-    pub(crate) on_mask: bool,
     pub(crate) next_layer_id: u64,
     pub(crate) next_stroke_id: u64,
-    /// Bottom to top, strokes and fills still empty (a mask's too), with how many strokes and
-    /// fills each has and its mask has (0 without one).
+    /// The save that wrote it; `None` for a head written by none (created, imported).
+    pub(crate) saved: Option<SaveId>,
+    /// Bottom to top, strokes and edits still empty (a mask's too), with how many strokes and
+    /// edits each has and its mask has (0 without one).
     pub(crate) layers: Vec<(LayerParts, usize, usize, [usize; 2])>,
     pub(crate) groups: Vec<GroupParts>,
-    /// The save that wrote it; `None` for a head written without one (S54).
-    pub(crate) saved: Option<SaveId>,
+    pub(crate) active: u64,
+    pub(crate) on_mask: bool,
 }
 
 /// A blend mode's byte.
@@ -216,27 +178,27 @@ pub(crate) fn read_blend(reader: &mut Reader<'_>) -> Result<BlendMode, PortError
 
 /// The head of `artwork` written by the save `saved` (`None`: by no save, 0).
 pub(crate) fn encode_head(artwork: &Artwork, saved: Option<SaveId>) -> Vec<u8> {
+    let layers = artwork.layers().len() * (LAYER_BYTES + 24);
     let groups = artwork.groups().len() * (GROUP_BYTES + 16);
-    let mut writer =
-        Writer::with_capacity(60 + artwork.layers().len() * (LAYER_BYTES + 16) + groups);
-    writer.u32(SCHEMA);
+    let mut writer = Writer::with_capacity(48 + layers + groups);
     let canvas = artwork.canvas();
     writer.u32(canvas.width());
     writer.u32(canvas.height());
-    writer.u64(artwork.active().get());
     writer.u64(artwork.next_layer_id());
     writer.u64(artwork.next_stroke_id());
+    writer.u64(saved.map_or(0, SaveId::get));
     writer.len(artwork.layers().len());
     for layer in artwork.layers() {
+        let props = layer.props();
         writer.u64(layer.id().get());
         writer.str(layer.name().as_str());
-        writer.bool(layer.props().visible());
-        writer.f32(layer.props().opacity());
-        writer.bool(layer.props().locked());
-        writer.bool(layer.props().alpha_locked());
-        writer.bool(layer.props().clipping());
-        writer.u8(blend_byte(layer.props().blend()));
-        writer.u64(layer.props().group().map_or(0, |group| group.get()));
+        writer.u64(props.group().map_or(0, |group| group.get()));
+        writer.bool(props.visible());
+        writer.bool(props.locked());
+        writer.bool(props.alpha_locked());
+        writer.f32(props.opacity());
+        writer.u8(blend_byte(props.blend()));
+        writer.bool(props.clipping());
         writer.len(layer.strokes().len());
         writer.len(layer.edits().len());
         write_layer_mask(&mut writer, layer.mask());
@@ -248,13 +210,22 @@ pub(crate) fn encode_head(artwork: &Artwork, saved: Option<SaveId>) -> Vec<u8> {
         writer.bool(group.visible());
         writer.f32(group.opacity());
     }
+    writer.u64(artwork.active().get());
     writer.bool(artwork.on_mask());
-    writer.u64(saved.map_or(0, SaveId::get));
     writer.finish()
 }
 
-/// A layer's mask as the head (and a nested record) stores it: flags (u8: bit 0 a mask, bit 1
-/// enabled, bit 2 inverted), then with a mask its stroke and edit counts (u32).
+/// `head` as an OpenPaint file holds it: its save id 0, every other byte as it was. A save id
+/// names a save of one library (the display cache's key), never a file's content.
+pub(crate) fn unsaved(mut head: Vec<u8>) -> Vec<u8> {
+    if let Some(saved) = head.get_mut(SAVE_ID_AT..SAVE_ID_AT + 8) {
+        saved.fill(0);
+    }
+    head
+}
+
+/// A mask as the head (and a nested record) stores it: none (u8 0), or flags (u8: 1, plus 2
+/// enabled, plus 4 inverted) followed by its stroke and edit counts (u32).
 pub(crate) fn write_layer_mask(writer: &mut Writer, mask: Option<&LayerMask>) {
     match mask {
         Some(mask) => {
@@ -267,7 +238,7 @@ pub(crate) fn write_layer_mask(writer: &mut Writer, mask: Option<&LayerMask>) {
     }
 }
 
-/// A mask as `write_layer_mask` stores it.
+/// A mask as `write_layer_mask` stores it, and its stroke and edit counts.
 pub(crate) fn read_layer_mask(
     reader: &mut Reader<'_>,
 ) -> Result<(Option<LayerMaskParts>, [usize; 2]), PortError> {
@@ -290,63 +261,53 @@ pub(crate) fn read_layer_mask(
 
 pub(crate) fn decode_head(bytes: &[u8]) -> Result<Head, PortError> {
     let mut reader = Reader::new(bytes, "artwork head");
-    let schema = reader.u32()?;
-    if schema > SCHEMA {
-        return Err(PortError::NewerSchema {
-            found: schema,
-            newest: SCHEMA,
-        });
-    }
-    if (1..SCHEMA).contains(&schema) {
-        // Left as it was when its upgrade failed (S50, `upgrade.rs`).
-        return Err(PortError::NotUpgraded { schema });
-    }
-    if schema != SCHEMA {
-        return Err(reader.corrupt());
-    }
     let (width, height) = (reader.u32()?, reader.u32()?);
-    let (active, next_layer_id, next_stroke_id) = (reader.u64()?, reader.u64()?, reader.u64()?);
+    let (next_layer_id, next_stroke_id) = (reader.u64()?, reader.u64()?);
+    let saved = SaveId::new(reader.u64()?);
     let count = reader.count(LAYER_BYTES)?;
     let mut layers = Vec::with_capacity(count);
     for _ in 0..count {
-        let id = reader.u64()?;
-        let name = reader.str()?;
-        let (visible, opacity, locked) = (reader.bool()?, reader.f32()?, reader.bool()?);
-        let (alpha_locked, clipping) = (reader.bool()?, reader.bool()?);
-        let (blend, group) = (read_blend(&mut reader)?, reader.u64()?);
-        let (strokes, fills) = (reader.u32()? as usize, reader.u32()? as usize);
-        let (mask, masked) = read_layer_mask(&mut reader)?;
-        let layer = LayerParts {
-            id,
-            name,
-            visible,
-            opacity,
-            locked,
-            alpha_locked,
-            clipping,
-            blend,
-            group: (group != 0).then_some(group),
-            strokes: Vec::new(),
-            edits: Vec::new(),
-            mask,
-        };
-        layers.push((layer, strokes, fills, masked));
+        layers.push(read_layer(&mut reader)?);
     }
     let groups = read_groups(&mut reader)?;
-    let on_mask = reader.bool()?;
-    let saved = SaveId::new(reader.u64()?);
+    let (active, on_mask) = (reader.u64()?, reader.bool()?);
     reader.end()?;
     Ok(Head {
         width,
         height,
-        active,
-        on_mask,
         next_layer_id,
         next_stroke_id,
+        saved,
         layers,
         groups,
-        saved,
+        active,
+        on_mask,
     })
+}
+
+fn read_layer(
+    reader: &mut Reader<'_>,
+) -> Result<(LayerParts, usize, usize, [usize; 2]), PortError> {
+    let (id, name, group) = (reader.u64()?, reader.str()?, reader.u64()?);
+    let (visible, locked, alpha_locked) = (reader.bool()?, reader.bool()?, reader.bool()?);
+    let (opacity, blend, clipping) = (reader.f32()?, read_blend(reader)?, reader.bool()?);
+    let (strokes, edits) = (reader.u32()? as usize, reader.u32()? as usize);
+    let (mask, masked) = read_layer_mask(reader)?;
+    let layer = LayerParts {
+        id,
+        name,
+        visible,
+        opacity,
+        locked,
+        alpha_locked,
+        clipping,
+        blend,
+        group: (group != 0).then_some(group),
+        strokes: Vec::new(),
+        edits: Vec::new(),
+        mask,
+    };
+    Ok((layer, strokes, edits, masked))
 }
 
 fn read_groups(reader: &mut Reader<'_>) -> Result<Vec<GroupParts>, PortError> {

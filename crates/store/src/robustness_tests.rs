@@ -1,6 +1,6 @@
-//! S50: a library that fails to write, a save cut off by a killed process, and an upgrade that
-//! fails on one artwork, over the frozen samples (`tests/samples/`). Unit tests: they make writes
-//! and steps fail through the test hooks in `batch.rs` and `steps.rs`.
+//! DECISIONS D77 in format 1: a library that fails to write and a save cut off by a killed
+//! process, over the frozen sample (`tests/samples/format-1.bin`). Unit tests: they make writes
+//! fail through the test hook in `batch.rs`.
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -17,16 +17,12 @@ use crate::Library;
 use crate::batch::faults;
 use crate::records::{LIBRARY, PROJECTS};
 
-#[path = "robustness_upgrade_tests.rs"]
-mod upgrade;
-
-/// Records as the frozen samples hold them: keyspace, key, value.
+/// Records as the frozen sample holds them: keyspace, key, value.
 type Dump = Vec<(&'static str, Vec<u8>, Vec<u8>)>;
 
-/// The frozen sample of `schema`.
-fn sample(schema: u32) -> Dump {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join(format!("tests/samples/schema-{schema}.bin"));
+/// The frozen sample.
+fn sample() -> Dump {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/samples/format-1.bin");
     let bytes = std::fs::read(path).expect("the frozen sample");
     let mut rest = &bytes[..];
     let mut records = Vec::new();
@@ -140,9 +136,9 @@ fn thumbnail() -> Thumbnail {
     Thumbnail::new([1, 1], vec![1, 2, 3, 255]).expect("thumbnail")
 }
 
-/// The schema-22 sample (project 1) with a second artwork and a kept version of each, closed.
+/// The sample (project 1) with a second artwork and a kept version of each, closed.
 fn two_artworks() -> (PathBuf, Artwork, Artwork) {
-    let dir = library_of("two", &sample(22));
+    let dir = library_of("two", &sample());
     let mut library = Library::at(&dir);
     let one = artwork_of(&mut library, 1);
     let two = drawn(&one, 20.0, 6);

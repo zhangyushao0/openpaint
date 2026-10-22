@@ -16,7 +16,9 @@
 //!   `--watch <seconds>` the clocks, the GPU's load, the battery's draw and the app's CPU time
 //!   over that time (`watch.rs`, S67);
 //! - `cargo device-smoke`: the installed debug build walked through every main feature on a
-//!   test artwork it creates and deletes, about 20 s (`smoke.rs`).
+//!   test artwork it creates and deletes, about 20 s (`smoke.rs`);
+//! - `cargo device-reset`: the app's data cleared by `pm clear`, each file it held listed;
+//!   refused without a backup written today (`reset.rs`, S68).
 //!
 //! Every adb call takes explicit arguments, never a host shell, so no path is rewritten.
 
@@ -26,6 +28,7 @@ mod info;
 mod input;
 mod open_file;
 mod push;
+mod reset;
 mod smoke;
 mod smoke_state;
 mod tar;
@@ -42,6 +45,7 @@ pub use check::check;
 pub use info::info;
 pub use input::input;
 pub use push::push;
+pub use reset::reset;
 pub use smoke::smoke;
 
 /// The library inside the app's private storage, relative to its data directory.

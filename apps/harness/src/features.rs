@@ -1,6 +1,6 @@
 //! `features <library dir>` (S58): what each artwork of a library uses, so the render core's
 //! rewrite covers what the author paints with first. Opens the library through the store as the
-//! app does (an older schema is upgraded in place), so point it at a copy. Per artwork and over
+//! app does (a head gains a save id when opened), so point it at a copy. Per artwork and over
 //! all: layers (hidden, locked, Alpha Lock, clipping), groups, blend modes, masks; strokes by
 //! brush (a recipe equal to a built-in's, else "edited or older") and by tool, smudges, strokes
 //! inside a selection; fills, transform records, pictures (pixel patches: inserted pictures and

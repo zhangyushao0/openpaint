@@ -1,29 +1,24 @@
-//! OpenPaint files and kept versions (DECISIONS D62, D63), on the sample artworks: a file holds
-//! the artwork exactly (every record), opens as a new artwork in any library, files of older
-//! schemas open upgraded, damaged, foreign and newer files are refused without a change; kept
-//! versions are capped, listed newest first and restored as copies.
+//! OpenPaint files and kept versions (DECISIONS D62, D63, D95), on the sample artwork: a file
+//! holds the artwork exactly (every record, the head without a save id), opens as a new artwork
+//! in any library; damaged and foreign files and files of another format are refused without a
+//! change; kept versions are capped, listed newest first and restored as copies.
 
 use openpaint_app::{KEPT_VERSIONS, PortError, ProjectId, ProjectStore, Title};
 use openpaint_core::{Artwork, ArtworkCommand, LayerCommand};
-use openpaint_store::{Library, SCHEMA};
+use openpaint_store::{FORMAT, Library};
 
 use crate::common::{fresh_dir, records};
-use crate::sample::{
-    decode, legacy_parts, parts, sample_path, sample_thumbnail, sample_title, schema_3_parts,
-    schema_4_parts, schema_5_parts, schema_6_parts, schema_7_parts, schema_8_parts, schema_9_parts,
-    schema_10_parts, schema_11_parts, schema_12_parts, schema_13_parts, schema_14_parts,
-    schema_15_parts, schema_16_parts, schema_19_parts,
-};
+use crate::sample::{parts, sample_thumbnail, sample_title};
 
 /// The file layout written out by hand, as `artwork_file.rs` documents it: the magic, the
-/// schema, the title, the records (keys without the project id) and the CRC-32.
-fn file_of(schema: u32, title: &str, records: &[(Vec<u8>, Vec<u8>)]) -> Vec<u8> {
+/// format, the title, the records (keys without the project id) and the CRC-32.
+fn file_of(format: u32, title: &str, records: &[(Vec<u8>, Vec<u8>)]) -> Vec<u8> {
     let mut bytes = b"OpenPaint\0".to_vec();
     let blob = |bytes: &mut Vec<u8>, part: &[u8]| {
         bytes.extend_from_slice(&u32::try_from(part.len()).expect("len").to_le_bytes());
         bytes.extend_from_slice(part);
     };
-    bytes.extend_from_slice(&schema.to_le_bytes());
+    bytes.extend_from_slice(&format.to_le_bytes());
     blob(&mut bytes, title.as_bytes());
     bytes.extend_from_slice(&u32::try_from(records.len()).expect("count").to_le_bytes());
     for (key, value) in records {
@@ -35,7 +30,7 @@ fn file_of(schema: u32, title: &str, records: &[(Vec<u8>, Vec<u8>)]) -> Vec<u8> 
     bytes
 }
 
-/// A library holding the sample artwork (schema 20 to 23's) with its title and thumbnail.
+/// A library holding the sample artwork with its title and thumbnail.
 fn sample_library(name: &str) -> (Library, ProjectId) {
     let mut library = Library::at(fresh_dir(name));
     let artwork = Artwork::from_storage(parts()).expect("the sample artwork");
@@ -64,10 +59,10 @@ fn a_file_holds_the_artwork_exactly_and_opens_as_a_new_one() {
     let listed = other.list().expect("list");
     assert_eq!(listed[0].thumbnail, Some(sample_thumbnail()));
     assert!(listed[0].versions.is_empty());
-    // Opened, its head holds a save id (S54), which a file of it carries; nothing else changed.
+    // Opened, its head holds a save id, which names a save of this library, not the file's
+    // content: the file stays the same.
     let again = other.artwork_file(copy).expect("once opened");
-    assert_eq!((again.len(), &again[..14]), (file.len(), &file[..14]));
-    assert_ne!(again, file, "the head's save id");
+    assert_eq!(again, file, "no save id in a file");
     // In the library it came from it is a second artwork; the first stays as it was.
     let second = library.import_file(&file).expect("opens beside");
     assert_ne!(second, id);
@@ -75,84 +70,42 @@ fn a_file_holds_the_artwork_exactly_and_opens_as_a_new_one() {
     assert_eq!(library.load(id).expect("first").artwork.to_parts(), parts());
 }
 
-/// The projects records of the frozen sample `schema`, keys without the project id.
-fn older_records(schema: u32) -> Vec<(Vec<u8>, Vec<u8>)> {
-    let frozen = decode(&std::fs::read(sample_path(schema)).expect("the older sample"));
-    frozen
-        .into_iter()
-        .filter(|(keyspace, key, _)| keyspace == "projects" && key[..8] == 1u64.to_be_bytes())
-        .map(|(_, key, value)| (key[8..].to_vec(), value))
-        .collect()
+/// `file` marked with `format`, its check sum made again.
+fn marked(file: &[u8], format: u32) -> Vec<u8> {
+    let mut body = file[..file.len() - 4].to_vec();
+    body[10..14].copy_from_slice(&format.to_le_bytes());
+    [&body[..], &crc32fast::hash(&body).to_le_bytes()].concat()
 }
 
 #[test]
-fn files_of_older_schemas_open_upgraded() {
-    for schema in 1..SCHEMA {
-        let expected = match schema {
-            1 | 2 => legacy_parts(),
-            3 => schema_3_parts(),
-            4 => schema_4_parts(),
-            5 => schema_5_parts(),
-            6 => schema_6_parts(),
-            7 => schema_7_parts(),
-            8 => schema_8_parts(),
-            9 => schema_9_parts(),
-            10 => schema_10_parts(),
-            11 => schema_11_parts(),
-            12 => schema_12_parts(),
-            13 => schema_13_parts(),
-            14 => schema_14_parts(),
-            15 => schema_15_parts(),
-            19 => schema_19_parts(),
-            20..=22 => parts(),
-            _ => schema_16_parts(),
-        };
-        let file = file_of(schema, "Hafen", &older_records(schema));
-        let mut library = Library::at(fresh_dir(&format!("file-{schema}")));
-        let id = library.import_file(&file).expect("opens");
-        let opened = library.load(id).expect("load");
-        assert_eq!(opened.artwork.to_parts(), expected, "schema {schema}");
-        assert_eq!(opened.title.as_str(), "Hafen");
-        let thumbnail = library.list().expect("list")[0].thumbnail.clone();
-        assert_eq!(thumbnail.is_some(), schema >= 2, "schema {schema}");
-    }
-}
-
-#[test]
-fn foreign_damaged_and_newer_files_are_refused_and_change_nothing() {
+fn foreign_damaged_and_other_format_files_are_refused_and_change_nothing() {
     let (mut library, id) = sample_library("file-refused");
     let file = library.artwork_file(id).expect("the file");
+    assert_eq!(file[10..14], FORMAT.to_le_bytes(), "the file's format");
     let before = library.list().expect("list");
     let mut flipped = file.clone();
     flipped[file.len() / 2] ^= 1;
-    let mut newer = file[..file.len() - 4].to_vec();
-    newer[10..14].copy_from_slice(&(SCHEMA + 1).to_le_bytes());
-    let newer = [&newer[..], &crc32fast::hash(&newer).to_le_bytes()].concat();
     // A whole file whose records break the artwork's rules: no head.
-    let headless = file_of(SCHEMA, "Hafen", &[]);
-    let cases: [(&[u8], &str); 7] = [
-        (b"Shopping list: ink, paper.\n", "foreign"),
-        (b"", "foreign"),
-        (&file[..9], "foreign"),
-        (&flipped, "damaged"),
-        (&file[..file.len() - 1], "damaged"),
-        (&headless, "damaged"),
-        (&newer, "newer"),
+    let headless = file_of(FORMAT, "Hafen", &[]);
+    let cases: [(&[u8], Option<u32>); 8] = [
+        (b"Shopping list: ink, paper.\n", None),
+        (b"", None),
+        (&file[..9], None),
+        (&flipped, None),
+        (&file[..file.len() - 1], None),
+        (&headless, None),
+        // A later format, and a file made before 1.0 (its schema where the format lies).
+        (&marked(&file, 2), Some(2)),
+        (&marked(&file, 23), Some(23)),
     ];
-    for (bytes, kind) in cases {
-        let refused = library.import_file(bytes).expect_err(kind);
-        let expected = match kind {
-            "foreign" => matches!(refused, PortError::NotArtworkFile),
-            "newer" => {
-                refused
-                    == PortError::NewerSchema {
-                        found: SCHEMA + 1,
-                        newest: SCHEMA,
-                    }
-            }
+    for (at, (bytes, format)) in cases.into_iter().enumerate() {
+        let refused = library.import_file(bytes).expect_err("refused");
+        let expected = match (at, format) {
+            (0..=2, _) => matches!(refused, PortError::NotArtworkFile),
+            (_, Some(found)) => refused == PortError::OtherFormat { found: Some(found) },
             _ => matches!(refused, PortError::Corrupt { .. }),
         };
-        assert!(expected, "{kind}: {refused:?}");
+        assert!(expected, "case {at}: {refused:?}");
     }
     assert_eq!(library.list().expect("list"), before);
 }

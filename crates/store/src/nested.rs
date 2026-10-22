@@ -1,14 +1,15 @@
-//! Nested records (schema 15, DECISIONS D66): a layer merged down into another, an edit record
-//! of kind 4 keyed like fills. After the kind: after (u32: the strokes under it), the merged
-//! layer's id (u64), opacity (f32), blend (u8, as the head's), clipped (u8), its stroke and edit
-//! counts (u32), then its mask as the head stores a layer's (`write_layer_mask`). Its strokes and
-//! edits are records under its id, its mask's under `mask_slot(id)`, as a layer's are, so a
-//! merge rewrites none of them: they stay where the layer kept them.
+//! Nested records (format 1, DECISIONS D66): a layer merged down into another, an edit record of
+//! kind 4 (`fills.rs`). After the kind and how many strokes lie under it: the merged layer's id
+//! (u64), opacity (f32), blend (u8, as the head's), clipped (u8), its stroke and edit counts
+//! (u32), then its mask as the head stores a layer's (`write_layer_mask`). Its strokes and edits
+//! are records under its id, its mask's under `mask_slot(id)`, as a layer's are, so a merge
+//! rewrites none of them: they stay where the layer kept them.
 
 use openpaint_app::PortError;
 use openpaint_core::{NestedEdit, NestedParts};
 
-use crate::codec::{Reader, Writer};
+use crate::codec::Reader;
+use crate::fills::edit_writer;
 use crate::records::{blend_byte, read_blend, read_layer_mask, write_layer_mask};
 
 pub(crate) const KIND_NESTED: u8 = 4;
@@ -18,9 +19,7 @@ pub(crate) type Counts = [usize; 4];
 
 pub(crate) fn encode_nested(nested: &NestedEdit) -> Vec<u8> {
     let layer = nested.layer();
-    let mut writer = Writer::with_capacity(40);
-    writer.u8(KIND_NESTED);
-    writer.len(nested.after());
+    let mut writer = edit_writer(KIND_NESTED, nested.after(), 40);
     writer.u64(layer.id().get());
     writer.f32(layer.opacity());
     writer.u8(blend_byte(layer.blend()));
@@ -31,9 +30,12 @@ pub(crate) fn encode_nested(nested: &NestedEdit) -> Vec<u8> {
     writer.finish()
 }
 
-/// A nested record after its kind, its content still empty, and how many records it holds.
-pub(crate) fn read_nested(reader: &mut Reader<'_>) -> Result<(NestedParts, Counts), PortError> {
-    let after = u64::from(reader.u32()?);
+/// A nested record after its kind and `after`, its content still empty, and how many records it
+/// holds.
+pub(crate) fn read_nested(
+    reader: &mut Reader<'_>,
+    after: u64,
+) -> Result<(NestedParts, Counts), PortError> {
     let id = reader.u64()?;
     let opacity = reader.f32()?;
     let blend = read_blend(reader)?;

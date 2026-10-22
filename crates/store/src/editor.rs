@@ -1,18 +1,13 @@
-//! The toolbox record, `library` / `editor` (schema 22, DECISIONS D28, D29, D46, D70, D71,
-//! D74): the tool (u8: 0 brush, 1 eraser, 2 smudge); the brush tool's choice, then the
-//! eraser's, then the smudge's, each its brush's key (u32 length + UTF-8, empty for the tool's
-//! default brush), the brush count (u32) and per brush its key, size, opacity and StreamLine
-//! (f32); the colour, red, green, blue (f32); the recent colours, a count (u32) and per colour
-//! red, green, blue (f32), newest first; what the first, the second and the third side button
-//! of the pen do (u8 each: 0 nothing, 1 eraser while held, 2 eyedropper while held, 3 undo, 4
-//! redo, 5 switch tool); the palette's swatches, a count (u32) and per swatch red, green, blue
-//! (f32), in their order; the brush library, then the brush sets and Recent
-//! (`editor_library.rs`). It is not artwork: the app falls back to the defaults when it cannot
-//! be read, and nothing else depends on it. Schema 3 held only the brush tool's choice, schemas
-//! 4 and 5 no StreamLine, schemas 6 to 8 no smudge, schemas 9 to 16 no buttons and swatches,
-//! schema 17 two buttons, schemas 18 to 20 no library, schema 21 no sets; `migrate.rs`,
-//! `migrate_6.rs`, `migrate_9.rs`, `migrate_17.rs`, `migrate_18.rs`, `migrate_21.rs` and
-//! `migrate_22.rs` upgrade them.
+//! The toolbox record, `library` / `editor` (format 1, DECISIONS D70, D74): the tool (u8: 0
+//! brush, 1 eraser, 2 smudge); the brush tool's choice, then the eraser's, then the smudge's, each
+//! its brush's key (u32 length + UTF-8, empty for the tool's default brush), the brush count (u32)
+//! and per brush its key, size, opacity and StreamLine (f32); the brush library, the brush sets
+//! and Recent (`editor_library.rs`); the colour, red, green, blue (f32); the recent colours, a
+//! count (u32) and per colour red, green, blue (f32), newest first; the palette's swatches alike,
+//! in their order; what the pen's first, second and third side button do (u8 each: 0 nothing, 1
+//! eraser while held, 2 eyedropper while held, 3 undo, 4 redo, 5 switch tool). It is not
+//! artwork: the app falls back to the defaults when it cannot be read, and nothing else depends
+//! on it.
 
 use openpaint_app::{
     BrushChoice, BrushSetting, ButtonAction, ButtonMap, EditorState, PortError, Tool,
@@ -37,21 +32,20 @@ pub(crate) fn encode_editor(state: &EditorState) -> Vec<u8> {
     for choice in [&state.paint, &state.erase, &state.smudge] {
         write_choice(&mut writer, choice);
     }
+    write_library(&mut writer, &state.library);
+    write_sets(&mut writer, (&state.sets, &state.recent_brushes));
     write_color(&mut writer, state.color);
     write_colors(&mut writer, &state.recent);
+    write_colors(&mut writer, &state.swatches);
     let buttons = state.buttons;
     for action in [buttons.primary, buttons.secondary, buttons.tertiary] {
         writer.u8(action_code(action));
     }
-    write_colors(&mut writer, &state.swatches);
-    write_library(&mut writer, &state.library);
-    write_sets(&mut writer, (&state.sets, &state.recent_brushes));
     writer.finish()
 }
 
-/// One tool's brush choice as the record holds it; schema 3's whole record was one of these,
-/// without the StreamLine.
-pub(crate) fn write_choice(writer: &mut Writer, choice: &BrushChoice) {
+/// One tool's brush choice as the record holds it.
+fn write_choice(writer: &mut Writer, choice: &BrushChoice) {
     writer.str(&choice.brush);
     writer.len(choice.brushes.len());
     for setting in &choice.brushes {
@@ -62,7 +56,7 @@ pub(crate) fn write_choice(writer: &mut Writer, choice: &BrushChoice) {
     }
 }
 
-pub(crate) fn write_color(writer: &mut Writer, [r, g, b]: [f32; 3]) {
+fn write_color(writer: &mut Writer, [r, g, b]: [f32; 3]) {
     for channel in [r, g, b] {
         writer.f32(channel);
     }
@@ -76,7 +70,7 @@ fn write_colors(writer: &mut Writer, colors: &[[f32; 3]]) {
 }
 
 /// A button's action as the record holds it.
-pub(crate) const fn action_code(action: ButtonAction) -> u8 {
+const fn action_code(action: ButtonAction) -> u8 {
     match action {
         ButtonAction::Nothing => 0,
         ButtonAction::Eraser => 1,
@@ -87,7 +81,7 @@ pub(crate) const fn action_code(action: ButtonAction) -> u8 {
     }
 }
 
-pub(crate) fn read_action(reader: &mut Reader<'_>) -> Result<ButtonAction, PortError> {
+fn read_action(reader: &mut Reader<'_>) -> Result<ButtonAction, PortError> {
     let code = reader.u8()?;
     ButtonAction::ALL
         .into_iter()
@@ -106,16 +100,16 @@ pub(crate) fn decode_editor(bytes: &[u8]) -> Result<EditorState, PortError> {
     let paint = read_choice(&mut reader)?;
     let erase = read_choice(&mut reader)?;
     let smudge = read_choice(&mut reader)?;
+    let library = read_library(&mut reader)?;
+    let (sets, recent_brushes) = read_sets(&mut reader)?;
     let color = read_color(&mut reader)?;
     let recent = read_colors(&mut reader)?;
+    let swatches = read_colors(&mut reader)?;
     let buttons = ButtonMap {
         primary: read_action(&mut reader)?,
         secondary: read_action(&mut reader)?,
         tertiary: read_action(&mut reader)?,
     };
-    let swatches = read_colors(&mut reader)?;
-    let library = read_library(&mut reader)?;
-    let (sets, recent_brushes) = read_sets(&mut reader)?;
     reader.end()?;
     Ok(EditorState {
         tool,
@@ -132,7 +126,7 @@ pub(crate) fn decode_editor(bytes: &[u8]) -> Result<EditorState, PortError> {
     })
 }
 
-pub(crate) fn read_choice(reader: &mut Reader<'_>) -> Result<BrushChoice, PortError> {
+fn read_choice(reader: &mut Reader<'_>) -> Result<BrushChoice, PortError> {
     let brush = reader.str()?;
     let count = reader.count(SETTING_BYTES)?;
     let mut brushes = Vec::with_capacity(count);
@@ -151,7 +145,7 @@ fn read_color(reader: &mut Reader<'_>) -> Result<[f32; 3], PortError> {
     Ok([reader.f32()?, reader.f32()?, reader.f32()?])
 }
 
-pub(crate) fn read_colors(reader: &mut Reader<'_>) -> Result<Vec<[f32; 3]>, PortError> {
+fn read_colors(reader: &mut Reader<'_>) -> Result<Vec<[f32; 3]>, PortError> {
     let count = reader.count(COLOR_BYTES)?;
     (0..count).map(|_| read_color(reader)).collect()
 }
@@ -212,11 +206,9 @@ mod tests {
         let mut unknown_tool = bytes.clone();
         unknown_tool[0] = 3;
         assert_eq!(decode_editor(&unknown_tool), Err(corrupt.clone()));
-        // The buttons sit right before the swatches' count and their two colours, the
-        // library's count (none: the built-ins) and the counts of four sets and Recent.
-        assert_eq!(bytes[bytes.len() - 24..], [0; 24]);
-        let at = bytes.len() - 24 - 4 - 2 * COLOR_BYTES - 3;
-        assert_eq!(bytes[at..at + 3], [5, 4, 2]);
+        // The buttons end the record.
+        let at = bytes.len() - 3;
+        assert_eq!(bytes[at..], [5, 4, 2]);
         let mut unknown_action = bytes;
         unknown_action[at + 2] = 6;
         assert_eq!(decode_editor(&unknown_action), Err(corrupt));

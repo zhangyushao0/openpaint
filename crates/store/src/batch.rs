@@ -1,4 +1,4 @@
-//! Every write to the library goes through one `Batch` (S50, DECISIONS D49): the inserts and
+//! Every write to the library goes through one `Batch` (DECISIONS D77): the inserts and
 //! removes of one call, across both keyspaces, committed at once and synced to disk. fjall writes
 //! a batch to its journal as one run framed by a start marker and an end marker with a check sum,
 //! and makes it visible under one sequence number: a reader never sees part of a batch, and a

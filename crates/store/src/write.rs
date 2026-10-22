@@ -17,9 +17,10 @@ use crate::fills::{encode_edit, fill_key, fills_prefix};
 use crate::library::{Open, device};
 use crate::read;
 use crate::records::{
-    CLOCK, LAST, NEXT, decode_id, encode_head, encode_id, encode_stroke, entry_key, head_key,
-    project_prefix, stroke_key, strokes_prefix, thumbnail_key,
+    CLOCK, LAST, NEXT, decode_id, encode_head, encode_id, entry_key, head_key, project_prefix,
+    stroke_key, strokes_prefix, thumbnail_key,
 };
+use crate::strokes::encode_stroke;
 use crate::versions::{entries_prefix, is_version};
 
 /// The next unused project id, and the batch entry that uses it up.

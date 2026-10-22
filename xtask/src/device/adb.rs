@@ -40,6 +40,8 @@ pub enum DeviceError {
     Timeout { command: String, seconds: u64 },
     /// The app's process (these pids) was still running after a force-stop.
     StillRunning(String),
+    /// No backup was written today in this directory (`device-reset` refuses).
+    NoBackup(PathBuf),
     /// The command line asks for something else.
     Usage(&'static str),
 }
@@ -71,6 +73,11 @@ impl fmt::Display for DeviceError {
             Self::Timeout { command, seconds } => {
                 write!(f, "{command} did not end within {seconds} s (stopped)")
             }
+            Self::NoBackup(dir) => write!(
+                f,
+                "no backup written today in {}: run cargo device-backup first",
+                dir.display()
+            ),
             Self::Usage(usage) => write!(f, "usage: {usage}"),
         }
     }

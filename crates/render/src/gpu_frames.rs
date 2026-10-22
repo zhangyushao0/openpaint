@@ -87,8 +87,7 @@ impl Core {
     }
 
     /// From now on (`on`) the screen's frames are timed on the GPU, or no longer (S63: the
-    /// scenario benchmarks; S67: the performance hints; `frame_clock.rs`). A device without
-    /// timestamps times nothing.
+    /// scenario benchmarks; `frame_clock.rs`). A device without timestamps times nothing.
     pub fn time_frames(&self, on: bool) {
         self.gpu.timing.store(on, Ordering::Relaxed);
     }
@@ -108,9 +107,9 @@ impl Core {
         }
     }
 
-    /// The times of each timed frame read back since the last call, without waiting.
+    /// The GPU time of each timed frame read back since the last call, ns, without waiting.
     #[must_use]
-    pub fn frame_times(&self) -> Vec<crate::FrameTime> {
+    pub fn frame_times(&self) -> Vec<f64> {
         (self.gpu.frames.as_ref()).map_or_else(Vec::new, |clock| clock.readings(&self.gpu.device))
     }
 
@@ -157,7 +156,7 @@ mod tests {
         let times = core.frame_times();
         if core.adapter().contains("timestamps measured") {
             assert_eq!(times.len(), 1, "the frame that submitted: {times:?}");
-            assert!(times[0].gpu_ns > 0.0 && times[0].done_ns > times[0].gpu_ns);
+            assert!(times[0] > 0.0);
         }
         core.frame_begun();
         core.render_clear([8, 8], [0; 4]).expect("untimed");

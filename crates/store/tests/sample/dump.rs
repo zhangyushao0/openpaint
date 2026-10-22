@@ -1,4 +1,4 @@
-//! The record dump format of the frozen samples (see `tests/schema.rs`).
+//! The record dump format of the frozen sample (see `tests/format.rs`).
 
 use super::Records;
 use crate::common::KEYSPACES;

@@ -1,9 +1,8 @@
-//! `Library`: the artwork library on disk, a fjall database (DECISIONS D09, D21, D25),
+//! `Library`: the artwork library on disk, a fjall database (DECISIONS D09, D77, D95),
 //! implementing the app's `ProjectStore`. Every call that writes is one atomic batch synced to
 //! disk (`batch.rs`): it lands whole or not at all, also when the process is killed mid-write; a
 //! save rewrites the head and only the stroke records that changed since the version this
-//! library last stored. An older library is upgraded when it is opened, one artwork at a time
-//! (`upgrade.rs`).
+//! library last stored. A library of any other format is refused and never written to.
 
 use std::path::PathBuf;
 
@@ -16,8 +15,8 @@ use openpaint_core::Artwork;
 
 use crate::batch::Batch;
 use crate::editor::decode_editor;
-use crate::records::{LIBRARY, NEXT, PROJECTS, SCHEMA, SCHEMA_KEY, decode_schema, encode_schema};
-use crate::{artwork_file, read, upgrade, versions, write};
+use crate::records::{FORMAT, FORMAT_KEY, LIBRARY, PROJECTS, decode_format, encode_format};
+use crate::{artwork_file, read, versions, write};
 
 /// The database and its two keyspaces.
 pub(crate) struct Open {
@@ -118,30 +117,24 @@ impl Library {
     }
 }
 
-/// Checks the schema of an opened database: a new one is marked with this build's schema, an
-/// older one is upgraded one artwork at a time (`upgrade.rs`), a newer one is refused.
+/// Checks the format of an opened database: an empty one is marked with this build's format;
+/// one of another format, or holding records without a format (every library before 1.0), is
+/// refused as it is, nothing written.
 fn prepare(open: &Open) -> Result<(), PortError> {
-    let schema = match open.library.get(SCHEMA_KEY).map_err(device)? {
-        Some(bytes) => decode_schema(&bytes)?,
-        // Schema 1 had no schema record; an empty database has no project counter either.
-        None if open.library.get(NEXT).map_err(device)?.is_some() => 1,
-        None => {
+    let found = match open.library.get(FORMAT_KEY).map_err(device)? {
+        Some(bytes) => decode_format(&bytes),
+        None if open.library.iter().next().is_none() && open.projects.iter().next().is_none() => {
             let mut batch = Batch::new(open);
-            batch.insert(&open.library, SCHEMA_KEY, encode_schema(SCHEMA));
+            batch.insert(&open.library, FORMAT_KEY, encode_format());
             return batch.commit();
         }
+        None => None,
     };
-    match schema {
-        SCHEMA => Ok(()),
-        found if found > SCHEMA => Err(PortError::NewerSchema {
-            found,
-            newest: SCHEMA,
-        }),
-        older if (1..SCHEMA).contains(&older) => upgrade::upgrade(open, older),
-        _ => Err(PortError::Corrupt {
-            what: "library schema",
-        }),
+    if found == Some(FORMAT) {
+        return Ok(());
     }
+    log::error!("the library is of another format ({found:?}); it is left as it is");
+    Err(PortError::OtherFormat { found })
 }
 
 /// Project `id` as `held`, its head given a save id now if it had none (S54).

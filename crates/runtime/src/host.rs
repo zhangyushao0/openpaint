@@ -16,12 +16,12 @@ use crate::storage::Job;
 /// Longest `leave` waits for the store; a longer save goes on in the background.
 const LEAVE_WAIT: Duration = Duration::from_secs(2);
 
-/// Actions' last line (S52, D79): the workspace's version, which xtask also hands to Android as
-/// `versionName` with the same schema as build metadata, and the library schema this build
-/// writes.
+/// Actions' last line (D79): the workspace's version, which xtask also hands to Android as
+/// `versionName` with the same format as build metadata, and the storage format this build
+/// reads and writes.
 pub(crate) fn version_line() -> String {
     let version = env!("CARGO_PKG_VERSION");
-    format!("OpenPaint {version} · schema {}", openpaint_store::SCHEMA)
+    format!("OpenPaint {version} · format {}", openpaint_store::FORMAT)
 }
 
 impl Runtime {
@@ -32,8 +32,6 @@ impl Runtime {
     /// not at all, also if the process is killed meanwhile). In the gallery, the calls handed over
     /// are waited for.
     pub fn leave(&mut self) {
-        // S67: the performance hints close; a hand after the return starts them again.
-        self.hints.leave();
         if let Some(canvas) = self.screen.canvas_mut() {
             canvas.end_stroke(&mut self.toolbox);
         }

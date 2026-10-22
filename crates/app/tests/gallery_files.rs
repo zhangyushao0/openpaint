@@ -29,7 +29,6 @@ fn harbour() -> Gallery {
         title: Title::new("Harbour: dusk").expect("title"),
         thumbnail: None,
         versions: Vec::new(),
-        needs_repair: false,
     }])
 }
 
@@ -85,11 +84,8 @@ fn opening_a_file_adds_an_artwork_or_says_why_not() {
         (PortError::NotArtworkFile, FileProblem::NotOpenPaint),
         (PortError::Corrupt { what: "file" }, FileProblem::Damaged),
         (
-            PortError::NewerSchema {
-                found: 15,
-                newest: 14,
-            },
-            FileProblem::Newer,
+            PortError::OtherFormat { found: Some(23) },
+            FileProblem::OtherFormat,
         ),
         (
             PortError::Device {

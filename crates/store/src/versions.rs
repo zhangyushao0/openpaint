@@ -1,7 +1,7 @@
 //! Kept versions (DECISIONS D63): an artwork as it was stored when it was left, kept as the
-//! bytes of an OpenPaint file (`artwork_file.rs`), at most `KEPT_VERSIONS` per artwork, the
-//! oldest dropped. A version carries its own schema, so library upgrades never touch it and a
-//! restore migrates it as a file is; restoring makes a new artwork and changes nothing kept.
+//! bytes of an OpenPaint file (`artwork_file.rs`, format 1), at most `KEPT_VERSIONS` per artwork,
+//! the oldest dropped; restoring opens it as a file is opened, as a new artwork, and changes
+//! nothing kept.
 //!
 //! - `library`: `['v'][project u64][version u64]` (big-endian) -> when it was kept (u64 LE,
 //!   seconds since 1970 UTC); small, so the gallery lists versions without reading them.

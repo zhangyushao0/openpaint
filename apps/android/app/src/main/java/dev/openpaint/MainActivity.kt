@@ -47,7 +47,6 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
         getSystemService(ActivityManager::class.java)?.getMemoryInfo(memory)
         handle = Native.create(density(), filesDir.absolutePath, cacheDir.absolutePath, memory.totalMem)
         Native.fonts(handle, SystemFonts.latin(), SystemFonts.chinese())
-        Native.vsync(handle, vsyncNanos())
         view = CanvasView(this)
         view.handle = handle
         view.onInput = { requestFrame() }
@@ -250,24 +249,6 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
         }
 
     private fun density(): Float = resources.displayMetrics.density
-
-    /**
-     * The vsync frames run at while a hand draws: the fastest mode the display offers at its
-     * size (the idle timer slows the panel only while nothing presents).
-     */
-    @Suppress("DEPRECATION")
-    private fun vsyncNanos(): Long {
-        val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            display
-        } else {
-            windowManager.defaultDisplay
-        } ?: return 8_333_333L
-        val mode = display.mode
-        val fastest = display.supportedModes
-            .filter { it.physicalWidth == mode.physicalWidth && it.physicalHeight == mode.physicalHeight }
-            .maxOfOrNull { it.refreshRate } ?: display.refreshRate
-        return (1e9 / fastest).toLong()
-    }
 
     /** Full screen for the canvas; a swipe from the edge shows the bars briefly. */
     private fun hideSystemBars() {

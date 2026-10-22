@@ -1,6 +1,5 @@
 //! Android composition root: activity lifecycle, Surface, system pickers, JNI. The only crate
-//! allowed to hold `unsafe`, and only in the JNI, native-window and performance hint modules. No
-//! product rules.
+//! allowed to hold `unsafe`, and only in the JNI and native-window modules. No product rules.
 //!
 //! The Kotlin host (`app/src/main/java/dev/openpaint/`) owns the lifecycle and the
 //! `SurfaceView` (DECISIONS D11); this crate turns its calls into `Runtime` calls. Everything
@@ -17,12 +16,6 @@ pub mod transfer;
 
 #[cfg(target_os = "android")]
 mod error;
-#[cfg(target_os = "android")]
-#[expect(
-    unsafe_code,
-    reason = "the performance hint session is reached through the NDK's C API, found at run time"
-)]
-mod hint;
 #[cfg(target_os = "android")]
 #[expect(unsafe_code, reason = "JNI entry points export unmangled symbols")]
 mod jni_debug;

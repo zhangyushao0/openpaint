@@ -257,11 +257,8 @@ fn start(store: &mut dyn ProjectStore, kept: &mut Kept, cache: Option<&DisplayCa
             Ok(items) if items.is_empty() => Opened::Empty,
             listed => Opened::Gallery(listed),
         },
-        // S53 (author, 2026-10-13): its card says so in the gallery.
-        Err(PortError::NotUpgraded { schema }) => {
-            log::warn!("the last artwork needs repair (schema {schema}): starting in the gallery");
-            Opened::Gallery(store.list())
-        }
+        // A library of another format: the gallery says so; nothing is written to it.
+        Err(error @ PortError::OtherFormat { .. }) => Opened::Gallery(Err(error)),
         Err(error) => Opened::Failed(error),
     }
 }

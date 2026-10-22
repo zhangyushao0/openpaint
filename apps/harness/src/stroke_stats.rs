@@ -1,5 +1,5 @@
 //! `stroke-stats <library dir>`: how the pen was sampled in a library's strokes. Opens the
-//! library through the store as the app does (an older schema is upgraded in place, the last
+//! library through the store as the app does (a head gains a save id when opened, the last
 //! project loaded is marked open), so point it at a copy, never at a backup. Prints, over every
 //! stroke of every artwork (layers and masks): the time between samples, their spacing in
 //! canvas pixels, the pen's speed, the turn between consecutive segments by speed, how far the
@@ -77,7 +77,7 @@ pub fn run(dir: &str) -> Result<(), HarnessError> {
     }
     let mut library = Library::at(dir);
     let listed = library.list().map_err(HarnessError::Port)?;
-    // The toolbox as this build reads it (S41: an upgraded one is checked on a copy).
+    // The toolbox as this build reads it.
     match library.editor() {
         Ok(Some(editor)) => println!(
             "toolbox: {:?}, buttons {:?}, {} recent colours, {} swatches",

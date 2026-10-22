@@ -1,26 +1,13 @@
-//! The screen's frames' GPU time, measured for the scenario benchmarks (S63) and the performance
-//! hints (S67): while it is on, a frame's first submission on the frame loop's thread carries a
-//! timestamp written once the GPU has finished everything submitted before it, and the frame's
-//! end another once the GPU has finished the frame's own work; their difference is what the frame
-//! cost the GPU (its gaps included, where the GPU waited for the frame loop to submit). With the
-//! CPU's time from the frame's beginning to that first submission it is the frame's time until
-//! the GPU finished it. Read back without waiting, a few frames later. Off unless the runtime
-//! turns it on (`Core::time_frames`).
+//! The screen's frames' GPU time, measured for the scenario benchmarks (S63): while it is on, a
+//! frame's first submission on the frame loop's thread carries a timestamp written once the GPU
+//! has finished everything submitted before it, and the frame's end another once the GPU has
+//! finished the frame's own work; their difference is what the frame cost the GPU (its gaps
+//! included, where the GPU waited for the frame loop to submit). Read back without waiting, a few
+//! frames later. Off unless a benchmark turns it on (`Core::time_frames`).
 
-use std::sync::atomic::{AtomicU8, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::ThreadId;
-use std::time::Instant;
-
-/// One timed frame, read back.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct FrameTime {
-    /// From its first submission's start on the GPU to its end, ns.
-    pub gpu_ns: f64,
-    /// From its beginning on the CPU until the GPU finished it, ns: the CPU's time to its first
-    /// submission and the GPU's time.
-    pub done_ns: f64,
-}
 
 /// Frames measured at once, at most; a frame finding none free is not measured.
 const SLOTS: u32 = 8;
@@ -36,16 +23,12 @@ const MAPPED: u8 = 3;
 struct Slot {
     read: wgpu::Buffer,
     state: Arc<AtomicU8>,
-    /// The CPU's time from the frame's beginning to its first submission, ns.
-    head: AtomicU64,
 }
 
-/// The frame being measured: its slot, the thread drawing it, when it began, and whether its
-/// start is written.
+/// The frame being measured: its slot, the thread drawing it, and whether its start is written.
 struct Frame {
     slot: u32,
     thread: ThreadId,
-    begun: Instant,
     started: bool,
 }
 
@@ -84,7 +67,6 @@ impl FrameClock {
                     mapped_at_creation: false,
                 }),
                 state: Arc::new(AtomicU8::new(FREE)),
-                head: AtomicU64::new(0),
             })
             .collect();
         Some(Self {
@@ -115,7 +97,6 @@ impl FrameClock {
             *frame = Some(Frame {
                 slot: at as u32,
                 thread: std::thread::current().id(),
-                begun: Instant::now(),
                 started: false,
             });
         }
@@ -129,10 +110,6 @@ impl FrameClock {
             return None;
         }
         held.started = true;
-        let head = u64::try_from(held.begun.elapsed().as_nanos()).unwrap_or(u64::MAX);
-        self.slots[held.slot as usize]
-            .head
-            .store(head, Ordering::Release);
         Some(self.stamp(device, 2 * held.slot))
     }
 
@@ -166,8 +143,8 @@ impl FrameClock {
             });
     }
 
-    /// Every frame's times read back since the last call, after a poll that never waits.
-    pub(crate) fn readings(&self, device: &wgpu::Device) -> Vec<FrameTime> {
+    /// Every frame's GPU time read back since the last call, ns, after a poll that never waits.
+    pub(crate) fn readings(&self, device: &wgpu::Device) -> Vec<f64> {
         let _ = device.poll(wgpu::PollType::Poll);
         let mut readings = Vec::new();
         for slot in &self.slots {
@@ -181,16 +158,11 @@ impl FrameClock {
                 Err(_) => Vec::new(),
             };
             slot.read.unmap();
-            let head = slot.head.load(Ordering::Acquire) as f64;
             slot.state.store(FREE, Ordering::Release);
             if let [start, end] = ticks[..]
                 && end > start
             {
-                let gpu_ns = (end - start) as f64 * self.period;
-                readings.push(FrameTime {
-                    gpu_ns,
-                    done_ns: head + gpu_ns,
-                });
+                readings.push((end - start) as f64 * self.period);
             }
         }
         readings

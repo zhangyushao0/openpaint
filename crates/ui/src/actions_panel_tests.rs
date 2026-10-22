@@ -1,4 +1,4 @@
-//! Actions' last line (S52): the app's version and library schema, quiet, under the Pen section,
+//! Actions' last line (S52): the app's version and storage format, quiet, under the Pen section,
 //! nothing to tap.
 
 use openpaint_app::{BrushLibrary, SessionProjection, Toolbox, Transfers};
@@ -7,7 +7,7 @@ use super::ActionsPanel;
 use crate::components::{ControlMap, chrome, controls};
 use crate::design;
 
-const LINE: &str = "OpenPaint 0.7.0 · schema 22";
+const LINE: &str = "OpenPaint 0.8.0 · format 1";
 
 /// The open panel after a second of frames: its controls and every text with its top.
 fn settled(panel: &mut ActionsPanel) -> (ControlMap, Vec<(String, f32)>) {

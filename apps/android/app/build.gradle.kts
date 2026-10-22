@@ -2,7 +2,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 /**
  * The version comes from one place (DECISIONS D79): `cargo android-build` passes it from the
- * workspace manifest and the store's schema (xtask/src/version.rs); there is no default here.
+ * workspace manifest and the store's format (xtask/src/version.rs); there is no default here.
  */
 fun passed(name: String): String = providers.gradleProperty(name).orNull
     ?: error("$name is not set: build with `cargo android-build`, which passes the version")

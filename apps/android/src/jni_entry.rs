@@ -3,7 +3,7 @@
 //! thrown into Java.
 
 use std::path::PathBuf;
-use std::sync::{Arc, Once};
+use std::sync::Once;
 use std::time::Instant;
 
 use jni::errors::LogErrorAndDefault;
@@ -12,12 +12,11 @@ use jni::objects::{
 };
 use jni::sys::{jboolean, jfloat, jint, jlong};
 use jni::{Env, EnvUnowned};
-use openpaint_runtime::{DisplayCache, Runtime, TextFonts, WorkHints, take_spent};
+use openpaint_runtime::{DisplayCache, Runtime, TextFonts, take_spent};
 use openpaint_store::Library;
 
 use crate::error::HostError;
 use crate::fonts::read_face;
-use crate::hint::HintSession;
 use crate::latency::{FrameCost, PenLatency};
 use crate::motion::{RawMotion, decode};
 use crate::navigation::{Frame, NavigationLog};
@@ -28,8 +27,6 @@ use crate::window::NativeWindow;
 /// What the handle Kotlin holds points to.
 pub(crate) struct Host {
     pub(crate) runtime: Runtime,
-    /// The performance hint session's calls (S67), when the device has them.
-    pub(crate) hints: Option<Arc<HintSession>>,
     latency: PenLatency,
     /// Frames while fingers navigate or work waits (S53).
     navigation: NavigationLog,
@@ -94,16 +91,10 @@ pub extern "system" fn Java_dev_openpaint_Native_create<'local>(
         let display = DisplayCache::at(cache_dir.join("canvas"));
         // The device's memory (`ActivityManager.MemoryInfo.totalMem`): the GPU budget's (S58).
         let memory = u64::try_from(memory).unwrap_or(0);
-        let mut runtime =
+        let runtime =
             Runtime::start_cached(density, (Box::new(Library::at(library)), display), memory)?;
-        // S67: the performance hint session, if the device has one (logged either way).
-        let hints = crate::hint::start();
-        if let Some(hints) = &hints {
-            runtime.set_work_hints(Arc::clone(hints) as Arc<dyn WorkHints>);
-        }
         let host = Host {
             runtime,
-            hints,
             latency: PenLatency::default(),
             navigation: NavigationLog::default(),
             pacing: PacingLog::default(),

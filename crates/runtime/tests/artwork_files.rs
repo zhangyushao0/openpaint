@@ -1,6 +1,7 @@
 //! GPU test of OpenPaint files and kept versions through the whole frame loop on a real
-//! library (DECISIONS D62, D63): the store's schema-14 sample artwork (strokes of every brush,
-//! fills, smudges, masks, groups, clipping, adjustments, blurs, transforms and a placed picture)
+//! library (DECISIONS D62, D63): the store's format-1 sample artwork (strokes of every recipe
+//! stage, fills, smudges, masks, groups, clipping, adjustments, blurs, transforms, a placed
+//! picture, a merged layer and cleared pixels)
 //! saved as a file from its card's options and opened again under "+" shows the same canvas
 //! and holds the same artwork; leaving it unchanged keeps no version, leaving it changed keeps
 //! one, and that version restores as a copy showing what was left.
@@ -29,12 +30,12 @@ fn library_dir(name: &str) -> PathBuf {
     dir
 }
 
-/// The store's frozen schema-14 sample as an OpenPaint file titled "Hafen": its project's
+/// The store's frozen format-1 sample as an OpenPaint file titled "Hafen": its project's
 /// records, the file layout written out by hand.
 fn sample_file() -> Vec<u8> {
     let path = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/../store/tests/samples/schema-14.bin"
+        "/../store/tests/samples/format-1.bin"
     );
     let dump = std::fs::read(path).expect("the store's sample");
     let (mut at, mut records) = (0, Vec::new());
@@ -59,7 +60,7 @@ fn sample_file() -> Vec<u8> {
         file.extend_from_slice(&u32::try_from(part.len()).expect("len").to_le_bytes());
         file.extend_from_slice(part);
     };
-    file.extend_from_slice(&14u32.to_le_bytes());
+    file.extend_from_slice(&1u32.to_le_bytes());
     blob(&mut file, b"Hafen");
     file.extend_from_slice(&u32::try_from(records.len()).expect("count").to_le_bytes());
     for (key, value) in &records {

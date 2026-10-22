@@ -109,9 +109,6 @@ pub struct ProjectSummary {
     pub thumbnail: Option<Thumbnail>,
     /// Its kept versions, the newest first.
     pub versions: Vec<KeptVersion>,
-    /// Its records could not be upgraded to this build's schema and are kept as they were: it
-    /// does not open, but can be saved as an OpenPaint file (S50).
-    pub needs_repair: bool,
 }
 
 /// Most versions kept per artwork; keeping one more drops the oldest (DECISIONS D63).
@@ -191,8 +188,8 @@ pub trait ProjectStore: Send {
     /// title, without the toolbox or its versions.
     fn artwork_file(&mut self, id: ProjectId) -> Result<Vec<u8>, PortError>;
 
-    /// A new project from the bytes of an OpenPaint file (older schemas upgraded), listed first;
-    /// it never replaces one and does not become the open one. Returns its id.
+    /// A new project from the bytes of an OpenPaint file, listed first; it never replaces one
+    /// and does not become the open one. Returns its id.
     fn import_file(&mut self, bytes: &[u8]) -> Result<ProjectId, PortError>;
 
     /// Keeps project `id` as it is stored now as its newest version, kept at `kept_at` (seconds
@@ -217,11 +214,9 @@ pub enum PortError {
     Device { detail: String },
     /// Stored data cannot be decoded; `what` names the record.
     Corrupt { what: &'static str },
-    /// Stored by a newer version of the app, which this one cannot read.
-    NewerSchema { found: u32, newest: u32 },
-    /// Stored with an older schema whose upgrade failed on this artwork (a step met a record it
-    /// could not read, or failed); its records are kept as they were (S50).
-    NotUpgraded { schema: u32 },
+    /// A library or an OpenPaint file of another format than the one this version reads (its
+    /// number when it names one); it is left as it is.
+    OtherFormat { found: Option<u32> },
     /// Stored data decodes but breaks an artwork rule.
     Invalid(CoreError),
     /// The project asked for is not in the library.
@@ -237,14 +232,15 @@ impl fmt::Display for PortError {
         match self {
             Self::Device { detail } => write!(f, "storage error: {detail}"),
             Self::Corrupt { what } => write!(f, "stored data is corrupt: {what}"),
-            Self::NewerSchema { found, newest } => write!(
-                f,
-                "stored with schema {found}; this version reads up to {newest}"
-            ),
-            Self::NotUpgraded { schema } => write!(
-                f,
-                "stored with schema {schema}; its records could not be upgraded"
-            ),
+            Self::OtherFormat { found: Some(found) } => {
+                write!(
+                    f,
+                    "stored in format {found}, which this version does not read"
+                )
+            }
+            Self::OtherFormat { found: None } => {
+                f.write_str("stored in a format this version does not read")
+            }
             Self::Invalid(error) => write!(f, "stored artwork is invalid: {error}"),
             Self::Missing(id) => write!(f, "project {} is not in the library", id.get()),
             Self::NotArtworkFile => f.write_str("not an OpenPaint file"),

@@ -252,7 +252,6 @@ impl GalleryScreen {
                 picture,
                 enabled,
                 away,
-                repair: item.needs_repair,
             },
         );
         let card = ui.max_rect();
@@ -324,8 +323,10 @@ const fn message(notice: GalleryNotice) -> Option<&'static str> {
     Some(match notice {
         GalleryNotice::None => return None,
         GalleryNotice::ListFailed => "Couldn't read the gallery.",
+        GalleryNotice::OtherLibrary => {
+            "These artworks are from another version of OpenPaint. They are left as they are."
+        }
         GalleryNotice::OpenFailed => "Couldn't open this artwork. It is kept as it was.",
-        GalleryNotice::NeedsRepair => "Needs repair: its records could not be upgraded.",
         GalleryNotice::CreateFailed => "Couldn't make a new artwork.",
         GalleryNotice::ChangeFailed => "Couldn't change the gallery.",
         GalleryNotice::FileSaved => "Saved as an OpenPaint file.",
@@ -336,8 +337,8 @@ const fn message(notice: GalleryNotice) -> Option<&'static str> {
         GalleryNotice::FileRefused(FileProblem::Damaged) => {
             "Couldn't open the file: it is damaged."
         }
-        GalleryNotice::FileRefused(FileProblem::Newer) => {
-            "Couldn't open the file: it needs a newer OpenPaint."
+        GalleryNotice::FileRefused(FileProblem::OtherFormat) => {
+            "Couldn't open the file: it is from another version of OpenPaint."
         }
         GalleryNotice::FileRefused(FileProblem::Unreadable) => "Couldn't read the file.",
         GalleryNotice::RestoreFailed => "Couldn't restore this version.",

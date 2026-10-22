@@ -1,8 +1,7 @@
-//! The shape stage of a stroke's recipe (schema 20, DECISIONS D72; the layout is in
-//! `records.rs`): stamp (u8: 0 disc, 1 square, 2 ellipse, then the shape textures 3 chalk, 4
-//! grainy, 5 splatter, 6 rough square), aspect, spacing, scatter (f32), rotation (u8: 0 fixed, 1
-//! the stroke's direction, 2 the pen's azimuth), angle, rotation jitter (f32, degrees) and size
-//! jitter (f32).
+//! The shape stage at a recipe's end (format 1, DECISIONS D74; `strokes.rs`): stamp (u8: 0 disc,
+//! 1 square, 2 ellipse, then the shape textures 3 chalk, 4 grainy, 5 splatter, 6 rough square),
+//! aspect, spacing, scatter (f32), rotation (u8: 0 fixed, 1 the stroke's direction, 2 the pen's
+//! azimuth), angle, rotation jitter (f32, degrees) and size jitter (f32).
 
 use openpaint_app::PortError;
 use openpaint_core::{Rotation, ShapeParts, ShapeTexture, Stamp};

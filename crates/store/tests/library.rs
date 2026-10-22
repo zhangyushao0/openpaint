@@ -46,7 +46,7 @@ fn reopened(dir: &std::path::Path) -> Artwork {
         .artwork
 }
 
-/// How many records of `kind` (`b's'` strokes, `b'f'` fills) the library holds.
+/// How many records of `kind` (`b's'` strokes, `b'e'` edits) the library holds.
 fn kind_records(dir: &std::path::Path, kind: u8) -> usize {
     records(dir)
         .iter()
@@ -76,7 +76,7 @@ fn fills_are_saved_by_their_own_records_and_open_again_exactly() {
         drop(library);
         assert_eq!(reopened(&dir).to_parts(), version.to_parts());
         assert_eq!(
-            (stroke_records(&dir), kind_records(&dir, b'f')),
+            (stroke_records(&dir), kind_records(&dir, b'e')),
             (strokes, fills)
         );
         library = Library::at(&dir);
@@ -262,25 +262,11 @@ fn head(records: &mut [(String, Vec<u8>, Vec<u8>)]) -> &mut Vec<u8> {
 
 #[test]
 fn unreadable_records_are_refused_with_a_reason() {
-    let newer = corrupted("newer", |records| head(records)[0] = 24);
-    assert_eq!(
-        newer,
-        PortError::NewerSchema {
-            found: 24,
-            newest: 23
-        }
-    );
-    let newer_library = corrupted("newer-library", |records| {
-        let schema = records.iter_mut().find(|(_, key, _)| key == b"schema");
-        schema.expect("schema record").2 = 24u32.to_le_bytes().to_vec();
+    let other = corrupted("other-format", |records| {
+        let format = records.iter_mut().find(|(_, key, _)| key == b"format");
+        format.expect("format record").2 = 2u32.to_le_bytes().to_vec();
     });
-    assert_eq!(
-        newer_library,
-        PortError::NewerSchema {
-            found: 24,
-            newest: 23
-        }
-    );
+    assert_eq!(other, PortError::OtherFormat { found: Some(2) });
     let short = corrupted("short", |records| {
         head(records).pop();
     });
@@ -302,7 +288,7 @@ fn unreadable_records_are_refused_with_a_reason() {
     );
     let invalid = corrupted("invalid", |records| {
         // The canvas width: zero breaks an artwork rule, not the encoding.
-        head(records)[4..8].copy_from_slice(&0u32.to_le_bytes());
+        head(records)[0..4].copy_from_slice(&0u32.to_le_bytes());
     });
     assert!(matches!(invalid, PortError::Invalid(_)), "{invalid}");
 }

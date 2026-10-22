@@ -1,18 +1,18 @@
-//! The brush library at the toolbox record's end (schema 21, S46): a count (u32), then per
-//! brush in picker order its key (u32 length + UTF-8) and a kind (u8: 0 a built-in as its file
-//! has it, 1 a whole brush); a whole brush then holds its name and its source's key (empty for a
-//! built-in; strings as the key), its size range's least, first and largest diameter, its first
-//! opacity and StreamLine (f32 each) and its recipe as a stroke record holds it (`strokes.rs`).
-//! A count of 0 is the built-ins as their files have them, which schemas 3 to 20 held.
+//! The toolbox's brushes (format 1, `editor.rs`). The library: a count (u32), then per brush in
+//! picker order its key (u32 length + UTF-8) and a kind (u8: 0 a built-in as its file has it, 1 a
+//! whole brush); a whole brush then holds its name and its source's key (empty for a built-in;
+//! strings as the key), its size range's least, first and largest diameter, its first opacity and
+//! StreamLine (f32 each) and its recipe as a stroke record holds it (`strokes.rs`). A count of 0
+//! is the built-ins as their files have them.
 //!
-//! Then the brush sets (schema 22, S47): Sketching, Inking, Painting and Texture, each a count
-//! (u32) and its brushes' keys in order, then Recent, a count and its keys, newest first. Four
-//! empty sets are every brush where a first start puts it, which schemas 3 to 21 held.
+//! Then the brush sets: Sketching, Inking, Painting and Texture, each a count (u32) and its
+//! brushes' keys in order, then Recent, a count and its keys, newest first. Four empty sets are
+//! every brush where a first start puts it.
 
 use openpaint_app::{BrushParts, PortError, StoredBrush};
 
 use crate::codec::{Reader, Writer};
-use crate::strokes::{read_brush_recipe, write_whole_recipe};
+use crate::strokes::{read_recipe, write_recipe};
 
 /// Bytes of a brush entry with an empty key, by key alone.
 const ENTRY_BYTES: usize = 4 + 1;
@@ -55,7 +55,7 @@ pub(crate) fn write_library(writer: &mut Writer, library: &[StoredBrush]) {
         }
         writer.f32(brush.opacity);
         writer.f32(brush.streamline);
-        write_whole_recipe(writer, &brush.recipe);
+        write_recipe(writer, &brush.recipe);
     }
 }
 
@@ -72,7 +72,7 @@ pub(crate) fn read_library(reader: &mut Reader<'_>) -> Result<Vec<StoredBrush>, 
                 size: [reader.f32()?, reader.f32()?, reader.f32()?],
                 opacity: reader.f32()?,
                 streamline: reader.f32()?,
-                recipe: read_brush_recipe(reader)?,
+                recipe: read_recipe(reader)?,
             }),
             _ => return Err(reader.corrupt()),
         };
