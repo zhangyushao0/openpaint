@@ -2,13 +2,14 @@
 //! its end: the canvas against a cold evaluation of the artwork.
 
 use std::f32::consts::{PI, TAU};
+use std::path::Path;
 
 use openpaint_render::GpuMemory;
 use openpaint_runtime::PointerSample;
 
 use super::{BOUNDS, Painter, SAMPLES, SPACING};
 use crate::error::HarnessError;
-use crate::long_session_store::{process_memory, size_on_disk};
+
 use crate::output::cold;
 
 /// Where strokes start and stay, in window pixels: right of the side bar, under the islands.
@@ -60,6 +61,41 @@ pub(super) fn path(k: usize, start_ms: i64) -> Vec<PointerSample> {
 }
 
 const MB: f64 = 1024.0 * 1024.0;
+
+/// Bytes of every file under `dir`.
+fn size_on_disk(dir: &Path) -> std::io::Result<u64> {
+    let mut total = 0;
+    for entry in std::fs::read_dir(dir)? {
+        let entry = entry?;
+        let kind = entry.file_type()?;
+        total += if kind.is_dir() {
+            size_on_disk(&entry.path())?
+        } else {
+            entry.metadata()?.len()
+        };
+    }
+    Ok(total)
+}
+
+/// This process's private memory in bytes (Windows: `Get-Process`'s `PrivateMemorySize64`;
+/// elsewhere the resident set from `/proc/self/status`); `None` when it cannot be read.
+fn process_memory() -> Option<u64> {
+    if cfg!(windows) {
+        let query = format!(
+            "(Get-Process -Id {}).PrivateMemorySize64",
+            std::process::id()
+        );
+        let output = std::process::Command::new("powershell")
+            .args(["-NoProfile", "-Command", &query])
+            .output()
+            .ok()?;
+        return String::from_utf8_lossy(&output.stdout).trim().parse().ok();
+    }
+    let status = std::fs::read_to_string("/proc/self/status").ok()?;
+    let line = status.lines().find(|line| line.starts_with("VmRSS:"))?;
+    let kib: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
+    Some(kib * 1024)
+}
 
 /// The columns of `report`'s rows, in MB but for the minute, the strokes and the versions:
 /// the process's private memory, the Rust heap live and at its most (`heap.rs`), the device

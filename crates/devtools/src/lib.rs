@@ -10,9 +10,9 @@ mod pen;
 mod report;
 mod runner;
 mod scenario;
-mod switch;
 mod system;
 mod target;
+mod watched;
 
 pub use crate::diff::{Diff, diff};
 pub use crate::error::ScenarioError;
@@ -24,3 +24,4 @@ pub use crate::scenario::{
 };
 pub use crate::system::{Export, TEST_BANDS};
 pub use crate::target::{Key, Place, Spot};
+pub use crate::watched::{Watched, Wrote};

@@ -25,7 +25,7 @@ const BUILT_IN: [(&str, &str); 10] = [
     ("opaque-paint", include_str!("../brushes/opaque-paint.toml")),
     ("speckle", include_str!("../brushes/speckle.toml")),
 ];
-/// The brush a first start draws with: the round brush of every stroke before recipes.
+/// The brush a first start draws with.
 const DEFAULT_BRUSH: &str = "ink-pen";
 
 /// Names a brush for its whole life: a built-in's file key, or the key a copy was given
@@ -201,14 +201,6 @@ impl BrushLibrary {
     #[must_use]
     pub const fn default_key(&self) -> &BrushKey {
         &self.default
-    }
-
-    /// The position of the brush named `key`.
-    #[must_use]
-    pub fn find(&self, key: &str) -> Option<usize> {
-        self.brushes
-            .iter()
-            .position(|brush| brush.key.as_str() == key)
     }
 
     /// The brush named `key`.

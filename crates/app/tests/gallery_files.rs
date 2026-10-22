@@ -2,8 +2,8 @@
 //! for, the jobs its answers start, one dialog at a time, and what the user is told.
 
 use openpaint_app::{
-    FileJob, FileProblem, Gallery, GalleryIntent, GalleryNotice, HostAnswer, HostRequest,
-    ImageSink, ImageSource, LibraryAnswer, LibraryRequest, PortError, ProjectId, ProjectSummary,
+    BytesSource, FileJob, FileProblem, Gallery, GalleryIntent, GalleryNotice, HostAnswer,
+    HostRequest, ImageSink, LibraryAnswer, LibraryRequest, PortError, ProjectId, ProjectSummary,
     Title, VersionId,
 };
 
@@ -12,14 +12,6 @@ struct Sink;
 impl ImageSink for Sink {
     fn write(self: Box<Self>, _bytes: &[u8]) -> Result<(), PortError> {
         Ok(())
-    }
-}
-
-struct Source;
-
-impl ImageSource for Source {
-    fn read(self: Box<Self>, _limit: u64) -> Result<Vec<u8>, PortError> {
-        Ok(Vec::new())
     }
 }
 
@@ -97,7 +89,7 @@ fn opening_a_file_adds_an_artwork_or_says_why_not() {
     for (error, problem) in refusals {
         gallery.dispatch(GalleryIntent::OpenFile).expect("open");
         assert_eq!(gallery.host_request(), Some(HostRequest::OpenArtwork));
-        let job = gallery.host_answer(HostAnswer::Image(Box::new(Source)));
+        let job = gallery.host_answer(HostAnswer::Image(Box::new(BytesSource(Vec::new()))));
         assert!(matches!(job, Some(FileJob::Open { .. })));
         gallery.answer(LibraryAnswer::FileOpened(Err(error)));
         assert_eq!(
@@ -108,7 +100,7 @@ fn opening_a_file_adds_an_artwork_or_says_why_not() {
     }
     gallery.dispatch(GalleryIntent::OpenFile).expect("open");
     gallery.host_request();
-    gallery.host_answer(HostAnswer::Image(Box::new(Source)));
+    gallery.host_answer(HostAnswer::Image(Box::new(BytesSource(Vec::new()))));
     gallery.answer(LibraryAnswer::FileOpened(Ok(())));
     assert_eq!(
         gallery.request(),

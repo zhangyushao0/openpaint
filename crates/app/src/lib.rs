@@ -103,8 +103,8 @@ pub use crate::title::{MAX_TITLE_CHARS, Title, TitleError, UNTITLED};
 pub use crate::tool_intent::{BrushIntent, BrushProjection, BrushRow, ToolIntent};
 pub use crate::toolbox::{MIN_OPACITY, SMUDGE_STRENGTH, Tool, Toolbox};
 pub use crate::transfer::{
-    Delivery, ExportError, HostAnswer, HostRequest, ImageError, ImageFormat, ImageSink,
-    ImageSource, OpenJob, TransferJob, TransferProjection, Transfers,
+    BytesSource, Delivery, ExportError, HostAnswer, HostRequest, ImageError, ImageFormat,
+    ImageSink, ImageSource, OpenJob, TransferJob, TransferProjection, Transfers,
 };
 pub use crate::transform::{
     LiftFailed, TransformFrame, TransformIntent, TransformJob, TransformProjection,

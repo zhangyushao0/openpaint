@@ -1,5 +1,5 @@
 //! Duplicate and Move (S38): a copy keeps everything but its ids; a move of `by` steps is that
-//! many `Raise` or `Lower` steps, and `layer_places` lists exactly where they land.
+//! many moves of one step, and `layer_places` lists exactly where they land.
 
 use std::sync::Arc;
 
@@ -133,7 +133,11 @@ fn grouped_stack() -> Artwork {
             layer: LayerId::new(5),
         }),
     );
-    layer(&both, LayerCommand::Lower(LayerId::new(4)))
+    let down = LayerCommand::Move {
+        layer: LayerId::new(4),
+        by: -1,
+    };
+    layer(&both, down)
 }
 
 #[test]
@@ -163,10 +167,9 @@ fn a_move_is_its_steps_and_the_places_are_where_they_land() {
                 .artwork;
             let mut stepped = stack.clone();
             for _ in 0..place.by.unsigned_abs() {
-                let step = if place.by > 0 {
-                    LayerCommand::Raise(id)
-                } else {
-                    LayerCommand::Lower(id)
+                let step = LayerCommand::Move {
+                    layer: id,
+                    by: place.by.signum(),
                 };
                 stepped = layer(&stepped, step);
             }
@@ -200,6 +203,10 @@ fn passing_a_lone_group_takes_it_away_and_brings_no_place_back() {
         .map(|p| (p.index, p.group))
         .collect();
     assert_eq!(up, [(4, None), (5, None)]);
-    let left = layer(&stack, LayerCommand::Raise(LayerId::new(5)));
+    let up = LayerCommand::Move {
+        layer: LayerId::new(5),
+        by: 1,
+    };
+    let left = layer(&stack, up);
     assert!(left.groups().iter().all(|g| g.id() != GroupId::new(8)));
 }

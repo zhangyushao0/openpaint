@@ -10,7 +10,7 @@ use openpaint_app::{Axis, BrushChange, BrushIntent, Dynamic, EditedBrush, Intent
 
 use crate::components::{DynamicsCurve, dynamics_editor, text_button};
 use crate::design::{INK, INK_SECONDARY, SPACE, TOUCH_TARGET};
-use crate::taps::push_once;
+use crate::taps::push_brush;
 
 /// A curve square's side, in points.
 const SQUARE: f32 = 28.0 * SPACE;
@@ -69,7 +69,7 @@ pub(crate) fn curves(
                 axis,
                 points,
             };
-            push_once(taps, Intent::Brush(BrushIntent::Edit { change, settled }));
+            push_brush(taps, BrushIntent::Edit { change, settled });
         }
         axis_ends(ui, axis, top);
     }
@@ -92,7 +92,7 @@ fn title(
             if text_button(ui, "Reset", changed).clicked() {
                 let change = BrushChange::ResetCurve { dynamic, axis };
                 let settled = true;
-                push_once(taps, Intent::Brush(BrushIntent::Edit { change, settled }));
+                push_brush(taps, BrushIntent::Edit { change, settled });
             }
         });
     });

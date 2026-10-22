@@ -24,8 +24,8 @@ fn set(knob: Knob, value: f32) -> BrushIntent {
 }
 
 fn names(toolbox: &Toolbox) -> Vec<String> {
-    let brush = toolbox.projection();
-    brush.brushes.iter().map(|row| row.name.clone()).collect()
+    let brushes = toolbox.library().brushes().iter();
+    brushes.map(|brush| brush.name().to_owned()).collect()
 }
 
 #[test]

@@ -105,6 +105,7 @@ pub struct Runtime {
 
 #[path = "frame_start.rs"]
 mod start;
+pub use start::StartOptions;
 
 impl Runtime {
     /// The host's text faces: its system's sans and a face with the Chinese characters, read

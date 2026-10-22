@@ -36,14 +36,15 @@ mod worker;
 pub use crate::bench::{SCENARIOS, STROKES_ADDED, busiest};
 pub use crate::budget::{ARENA_SHARE, TRIM_UI_HIDDEN};
 pub use crate::error::RuntimeError;
-pub use crate::frame::Runtime;
+pub use crate::frame::{Runtime, StartOptions};
 pub use crate::input::{Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, ToolKind};
 pub use crate::pacing::Paced;
 pub use crate::painted::{drawn, pile_path, style_of};
 pub use crate::text::{EditKey, TextInput};
 pub use crate::transfer::{Encoded, encoded};
 pub use openpaint_app::{
-    HostAnswer, HostRequest, ImageFormat, ImageSink, ImageSource, PortError, ScreenProjection,
+    BytesSource, HostAnswer, HostRequest, ImageFormat, ImageSink, ImageSource, PortError,
+    ScreenProjection,
 };
 pub use openpaint_render::{Background, Counts, Spent, SurfaceWindow, take_spent};
 pub use openpaint_store::DisplayCache;

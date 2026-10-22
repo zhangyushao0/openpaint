@@ -146,7 +146,7 @@ pub(crate) enum Pass {
         reads: Scratch,
         draw: Draw,
     },
-    /// For the stroke being drawn (`drawing.rs`): targets set from snapshots' slots, as the
+    /// For the stroke being drawn (`canvas/drawing.rs`): targets set from snapshots' slots, as the
     /// units before the stroke left them; targets kept into slots.
     Restore(Vec<SlotCopy>),
     Keep(Vec<SlotCopy>),

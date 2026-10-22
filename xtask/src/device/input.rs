@@ -4,9 +4,6 @@
 //! - `pen x,y,x,y,... [pressure [tilt]] [primary|secondary|tertiary|eraser]`: one pen path, a
 //!   point per 8 ms (repeat a point to hold), leaning `tilt` degrees from upright, with a side
 //!   button held (from the tip outwards) or the eraser end;
-//! - `pen-many count x,y,x,y,... [pressure]`: that pen path `count` times, each turned by a
-//!   golden angle more about its box's middle and moved up to 140 px, so the strokes cross one
-//!   area (a layer holding many strokes);
 //! - `pen-away x,y,x,y,... sleep|home`: that pen path, the pen still down at its end when the
 //!   screen is turned off or home is pressed (the stroke kept as drawn so far); the lift after
 //!   it may be refused;
@@ -151,7 +148,6 @@ fn held_pointers(adb: &Adb) {
 
 const INPUT_USAGE: &str = "cargo device-input \
                            pen x,y,... [pressure [tilt degrees]] [primary|secondary|tertiary|eraser] \
-                           | pen-many count x,y,... [pressure] \
                            | pen-away x,y,... sleep|home \
                            | finger x,y[,...] [x,y[,...] [ms]] \
                            | hover x,y [ms] [primary|secondary|tertiary|eraser] \
@@ -237,14 +233,6 @@ fn gesture_extras(args: &[&str]) -> Result<Vec<(&'static str, String)>> {
             ("tilt", tilt),
             ("path", path),
         ],
-        // The path `count` times, each turned and moved (strokes crossing one area).
-        ["pen-many", count, path] => vec![("tool", "stylus"), ("repeat", count), ("path", path)],
-        ["pen-many", count, path, pressure] => vec![
-            ("tool", "stylus"),
-            ("repeat", count),
-            ("pressure", pressure),
-            ("path", path),
-        ],
         ["finger", from] => vec![("from", from)],
         ["finger", from, to] => vec![("from", from), ("to", to)],
         ["finger", from, to, ms] => vec![("from", from), ("to", to), ("ms", ms)],
@@ -307,10 +295,7 @@ mod tests {
                 ("button", "tertiary".to_owned())
             ]
         );
-        let many = extras(&["pen-many", "300", "1,2,3,4", "0.8"]).expect("many");
-        assert_eq!(many[1], ("repeat", "300".to_owned()));
-        assert_eq!(many.len(), 4, "{many:?}");
-        assert!(extras(&["pen-many", "1,2,3,4"]).is_err());
+        assert!(extras(&["pen-many", "300", "1,2,3,4"]).is_err());
         let away = extras(&["pen-away", "1,2,3,4", "sleep"]).expect("away");
         assert_eq!(away[2], ("away", "sleep".to_owned()));
         assert!(extras(&["pen-away", "1,2;3", "home"]).is_err());

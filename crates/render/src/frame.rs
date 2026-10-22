@@ -9,6 +9,6 @@ pub struct FrameRequest<'a> {
     pub artwork: &'a Artwork,
     /// Drawn on its layer above that layer's finished strokes.
     pub active: Option<&'a ActiveStroke>,
-    /// Until the artwork carries its own background.
+    /// The paper under the layers.
     pub background: Color,
 }

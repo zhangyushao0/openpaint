@@ -5,7 +5,7 @@
 use std::sync::{Arc, Mutex, PoisonError};
 
 use openpaint_render::{RgbaImage, image_difference};
-use openpaint_runtime::{HostAnswer, HostRequest, ImageFormat, ImageSink, ImageSource, PortError};
+use openpaint_runtime::{BytesSource, HostAnswer, HostRequest, ImageFormat, ImageSink, PortError};
 use openpaint_store::{decode_image, encode_image};
 
 use serde::Deserialize;
@@ -83,16 +83,6 @@ impl ImageSink for FullStorage {
     }
 }
 
-struct MemorySource(Vec<u8>);
-
-impl ImageSource for MemorySource {
-    fn read(self: Box<Self>, limit: u64) -> Result<Vec<u8>, PortError> {
-        let mut bytes = self.0;
-        bytes.truncate(usize::try_from(limit.saturating_add(1)).unwrap_or(usize::MAX));
-        Ok(bytes)
-    }
-}
-
 /// Takes from `requests` the one `answer` answers and returns the platform's answer to hand to
 /// the runtime; `None` for the share sheet, which answers nothing.
 pub(crate) fn answer(
@@ -117,7 +107,7 @@ pub(crate) fn answer(
             Some(HostAnswer::File(Box::new(MemoryFile(Arc::clone(written)))))
         }
         SystemAnswer::FullStorage => Some(HostAnswer::File(Box::new(FullStorage))),
-        other => Some(HostAnswer::Image(Box::new(MemorySource(chosen(
+        other => Some(HostAnswer::Image(Box::new(BytesSource(chosen(
             other, written,
         )?)))),
     })

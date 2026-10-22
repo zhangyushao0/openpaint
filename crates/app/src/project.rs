@@ -206,7 +206,7 @@ pub trait ProjectStore: Send {
     ) -> Result<ProjectId, PortError>;
 }
 
-/// Why a port (storage now; pickers and assets later) could not serve a call.
+/// Why a port (the library, a file the system gave) could not serve a call.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PortError {
     /// The device refused: storage full, files locked or gone, an I/O error. `detail` is the

@@ -52,14 +52,6 @@ impl fmt::Display for FillRefusal {
     }
 }
 
-/// A fill request's values.
-#[derive(Debug, Clone, Copy)]
-struct Request {
-    point: [f32; 2],
-    threshold: f32,
-    color: Color,
-}
-
 /// Why a computed fill failed (sampling the layer on the GPU, or the region).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct FillFailed;
@@ -151,14 +143,7 @@ impl Fills {
                 point,
                 threshold,
                 color,
-            } => {
-                let request = Request {
-                    point,
-                    threshold,
-                    color,
-                };
-                self.request(history.current(), drawing, request, clip)
-            }
+            } => self.request(history.current(), drawing, (point, threshold, color), clip),
             FillIntent::Commit => {
                 if let Some(draft) = self.draft.as_mut() {
                     draft.commit = true;
@@ -173,22 +158,16 @@ impl Fills {
         }
     }
 
+    /// A fill of `color` around `point` at `threshold`.
     fn request(
         &mut self,
         artwork: &Artwork,
         drawing: bool,
-        Request {
-            point,
-            threshold,
-            color,
-        }: Request,
+        (point, threshold, color): ([f32; 2], f32, Color),
         clip: Option<&RegionMask>,
     ) -> Result<(), AppError> {
         if drawing {
-            return Err(AppError::Unavailable {
-                action: EditorAction::Fill,
-                availability: Availability::StrokeInProgress,
-            });
+            return Availability::StrokeInProgress.require(EditorAction::Fill);
         }
         let canvas = artwork.canvas();
         let inside = |value: f32, side: u32| (0.0..side as f32).contains(&value);
@@ -204,7 +183,7 @@ impl Fills {
         let props = artwork.layer(layer).map(|layer| *layer.props());
         let point = point.map(|value| value as u32);
         let refusal = match props {
-            // Hidden by its own eye or its group's (draweave cc51b74).
+            // Hidden by its own eye or its group's.
             Some(_) if !artwork.shown(layer) => Some(FillRefusal::Hidden),
             Some(props) if props.locked() => Some(FillRefusal::Locked),
             _ if clip.is_some_and(|clip| !clip.contains(point)) => {

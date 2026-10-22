@@ -11,7 +11,7 @@ use openpaint_app::{Contact, ContactPhase, Device, InputBatch, InputSample};
 use openpaint_core::{CanvasPoint, StrokeSample};
 use openpaint_render::RgbaImage;
 
-use crate::components::{ScreenArea, preview_strip};
+use crate::components::{Alpha, ScreenArea, picture_texture, preview_strip};
 
 /// The strip's height, in points.
 pub(crate) const STRIP_HEIGHT: f32 = 160.0;
@@ -58,13 +58,8 @@ impl Strip {
     /// The strip under its heading; Clear takes its strokes away.
     pub(crate) fn show(&mut self, ui: &mut egui::Ui) {
         if let Some(image) = self.arrived.take() {
-            let [width, height] = image.size().map(|side| side as usize);
-            let picture = egui::ColorImage::from_rgba_unmultiplied([width, height], image.pixels());
-            let options = egui::TextureOptions::LINEAR;
-            match &mut self.texture {
-                Some(texture) => texture.set(picture, options),
-                None => self.texture = Some(ui.ctx().load_texture("brush strip", picture, options)),
-            }
+            let picture = (image.size(), image.pixels(), Alpha::Straight);
+            self.texture = Some(picture_texture(ui.ctx(), "brush strip", picture));
         }
         let picture = self.texture.as_ref().map(egui::TextureHandle::id);
         let drawn = !self.strokes.is_empty() || self.drawing.is_some();

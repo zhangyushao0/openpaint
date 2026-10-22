@@ -3,7 +3,7 @@
 
 use openpaint_app::{ScreenProjection, ViewMapping};
 
-use crate::components::{CanvasArea, view_status, view_text};
+use crate::components::{CanvasArea, canvas_point, view_status, view_text};
 use crate::design::paint_sheet_shadow;
 use crate::shell::{Shell, Shown};
 
@@ -41,12 +41,9 @@ pub(crate) fn show_sheet(
     pixels_per_point: f32,
 ) -> Option<egui::Rect> {
     let shown = shown?;
-    let ppp = pixels_per_point;
     let [w, h] = [shown.canvas.width(), shown.canvas.height()].map(|side| side as f32);
-    let corners = [[0.0, 0.0], [w, 0.0], [w, h], [0.0, h]].map(|corner| {
-        let [x, y] = mapping.to_screen(corner);
-        egui::pos2(x / ppp, y / ppp)
-    });
+    let corners = [[0.0, 0.0], [w, 0.0], [w, h], [0.0, h]]
+        .map(|corner| canvas_point(mapping, pixels_per_point, corner));
     let layer = egui::LayerId::new(egui::Order::Background, egui::Id::new("canvas sheet"));
     let painter = ctx.layer_painter(layer).with_clip_rect(rect);
     paint_sheet_shadow(&painter, corners);

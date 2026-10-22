@@ -32,8 +32,7 @@ impl Session {
         match intent {
             TransformIntent::Tool(true) if !self.transforms.active() => {
                 self.fills.interrupt();
-                let canvas = self.artwork().canvas();
-                self.selection.handle(canvas, SelectionIntent::Tool(false));
+                self.select(SelectionIntent::Tool(false));
                 let drawing = self.strokes.active().is_some();
                 let clip = self.selection.mask().cloned();
                 let current = self.history.current();
@@ -45,8 +44,7 @@ impl Session {
                 self.commit_transform();
                 self.fills.interrupt();
                 self.layers.interrupt();
-                let canvas = self.artwork().canvas();
-                self.selection.handle(canvas, SelectionIntent::Tool(false));
+                self.select(SelectionIntent::Tool(false));
                 let drawing = self.strokes.active().is_some();
                 let current = self.history.current();
                 self.transforms.insert(current, drawing, picture)
@@ -75,8 +73,7 @@ impl Session {
     /// (draweave), since what was selected is no longer there.
     pub(super) fn commit_transform(&mut self) {
         if self.transforms.commit(&mut self.history) {
-            let canvas = self.artwork().canvas();
-            self.selection.handle(canvas, SelectionIntent::Deselect);
+            self.select(SelectionIntent::Deselect);
         }
     }
 }

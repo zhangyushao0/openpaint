@@ -7,7 +7,9 @@
 //! writes the cache anew. A test binary of its own: it makes its device's frames' share small, so
 //! a fill takes many frames.
 
+#[path = "runtime/support/gpu.rs"]
 mod gpu;
+#[path = "runtime/support/hand.rs"]
 mod hand;
 
 use std::path::{Path, PathBuf};
@@ -19,7 +21,7 @@ use openpaint_app::{ProjectId, ProjectStore, SaveId, Title};
 use openpaint_core::{
     Artwork, BrushRecipe, CanvasPoint, CanvasSize, Color, StrokeSample, StrokeStyle,
 };
-use openpaint_runtime::{DisplayCache, Runtime, ToolKind};
+use openpaint_runtime::{DisplayCache, Runtime, StartOptions, ToolKind};
 use openpaint_store::{CacheKey, Library};
 
 const SIZE: [u32; 2] = [1200, 900];
@@ -77,12 +79,13 @@ fn open(dirs: &Dirs) -> (Runtime, bool) {
     let core = gpu::core();
     // Each frame takes one piece: a fill takes many frames.
     core.set_frame_budget(10_000.0);
-    let stores = (
-        Box::new(Library::at(&dirs.library)) as Box<dyn ProjectStore>,
-        DisplayCache::at(&dirs.cache),
-    );
-    let mut runtime =
-        Runtime::start_on_cached(core, PIXELS_PER_POINT, stores).expect("the runtime starts");
+    let options = StartOptions {
+        core: Some(core),
+        cache: Some(DisplayCache::at(&dirs.cache)),
+        ..StartOptions::default()
+    };
+    let store = Box::new(Library::at(&dirs.library));
+    let mut runtime = Runtime::start(PIXELS_PER_POINT, store, options).expect("the runtime starts");
     let mut frames = 0;
     while runtime.artwork().is_none() {
         runtime.frame_offscreen(SIZE).expect("frame");

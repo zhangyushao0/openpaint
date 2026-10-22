@@ -5,7 +5,7 @@
 //! first. A tile is shown once its answer says it was drawn, into the slot and the atlas it was
 //! handed over with, and no change reached it meanwhile: one that did waits to be drawn again (the
 //! canvas shows there), as a tile the worker dropped does. The orders go out and the answers come
-//! in through the canvas (`canvas_raster.rs`), which hands the worker its own tiles too.
+//! in through the canvas (`canvas/raster.rs`), which hands the worker its own tiles too.
 
 use crate::canvas::CanvasTarget;
 use crate::core::Core;

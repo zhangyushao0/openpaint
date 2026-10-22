@@ -1,5 +1,5 @@
 //! The screen canvas's tiles that wait to be drawn (its 256-px tiles,
-//! `canvas_raster.rs`), taken in the order the screen needs them: the tiles the view shows,
+//! `canvas/raster.rs`), taken in the order the screen needs them: the tiles the view shows,
 //! nearest the screen's middle first, then the others by their distance from it; with no view
 //! known (tests, the harness's own targets), rows from the top.
 

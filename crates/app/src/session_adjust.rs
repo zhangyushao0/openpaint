@@ -23,8 +23,7 @@ impl Session {
                 self.adjusts.apply(&mut self.history);
                 self.fills.interrupt();
                 self.layers.interrupt();
-                let canvas = self.artwork().canvas();
-                self.selection.handle(canvas, SelectionIntent::Tool(false));
+                self.select(SelectionIntent::Tool(false));
                 let drawing = self.strokes.active().is_some();
                 let clip = self.selection.mask().cloned();
                 let current = self.history.current();

@@ -5,8 +5,8 @@
 
 use openpaint_core::Artwork;
 
+use crate::canvas::Drawing;
 use crate::core::Core;
-use crate::drawing::Drawing;
 use crate::error::RenderError;
 use crate::image::RgbaImage;
 use crate::output::Output;

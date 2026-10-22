@@ -17,7 +17,7 @@ import android.view.MotionEvent
  * one after another at `from`, move straight to `to` over `ms` in 16 ms frames, and lift one
  * after another. One pointer can instead follow `-e path x,y,x,y...`, one point per 8 ms event,
  * and the pen presses with `-e pressure P` (default 0.6), leaning `-e tilt D` degrees from
- * upright (default 0); `-e repeat N` draws the path N times, each turned and moved ([turned]);
+ * upright (default 0);
  * `-e away sleep|home` turns the screen off or presses home while the pen is still down at the
  * path's end ([followAway]). `-e hover x,y` holds the pen just above the glass there instead
  * for `-e ms` (default 1500), then takes it away (hover enter, move, exit). `-e tool eraser` is
@@ -186,11 +186,7 @@ class GestureInstrumentation : Instrumentation() {
                 followAway(path, away)
                 return
             }
-            val repeat = arguments.getString("repeat")?.toInt() ?: 1
-            for (k in 0 until repeat) {
-                follow(turned(path, k))
-                SystemClock.sleep(24)
-            }
+            follow(path)
             return
         }
         val from = points("from") ?: error("no from")
@@ -255,29 +251,6 @@ class GestureInstrumentation : Instrumentation() {
             send(down, MotionEvent.ACTION_UP, path.takeLast(1), pen)
         } catch (refused: IllegalStateException) {
             // The window went with the screen or home: no lift reaches it.
-        }
-    }
-
-    /**
-     * Stroke [k] of a repeated path (`-e repeat N`): the path turned about the middle of
-     * its box by k golden angles and moved up to 140 px from there, so N strokes cross one area
-     * at every angle, as many strokes painted over one place do.
-     */
-    private fun turned(path: List<FloatArray>, k: Int): List<FloatArray> {
-        if (k == 0) return path
-        val middle = floatArrayOf(
-            (path.minOf { it[0] } + path.maxOf { it[0] }) / 2f,
-            (path.minOf { it[1] } + path.maxOf { it[1] }) / 2f,
-        )
-        val angle = k * 2.3999632
-        val (cos, sin) = Pair(Math.cos(angle).toFloat(), Math.sin(angle).toFloat())
-        val shift = floatArrayOf(((k * 37) % 281 - 140).toFloat(), ((k * 59) % 281 - 140).toFloat())
-        return path.map { point ->
-            val (x, y) = Pair(point[0] - middle[0], point[1] - middle[1])
-            floatArrayOf(
-                middle[0] + shift[0] + x * cos - y * sin,
-                middle[1] + shift[1] + x * sin + y * cos,
-            )
         }
     }
 

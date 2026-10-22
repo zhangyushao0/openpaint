@@ -10,8 +10,7 @@ use openpaint_app::{EditorAction, Intent, LayerIntent, LayerList, LayerRow, Sess
 use openpaint_core::{BlendMode, Unmergeable};
 
 use crate::components::{
-    choices, command_row, hint, icon_button, slider, switch_row, text_button, text_choice_wide,
-    value_row,
+    Lead, command_row, hint, icon_button, slider, switch_row, text_button, value_row, word_columns,
 };
 use crate::design::Icon;
 use crate::layer_rows::percent;
@@ -132,24 +131,11 @@ fn mask_options(
 /// The four modes in two even columns, the layer's own carrying the ink pill (one group: the
 /// pill slides across the grid to the mode chosen).
 fn blends(ui: &mut egui::Ui, active: &LayerRow, enabled: bool, taps: &mut Vec<Intent>) {
-    let half = (ui.available_width() / 2.0).floor();
-    choices(ui, "blend modes", |ui, group| {
-        for pair in BlendMode::ALL.chunks(2) {
-            ui.horizontal(|ui| {
-                for blend in pair {
-                    let chosen = active.blend == *blend;
-                    let word = (enabled, chosen);
-                    let tapped = text_choice_wide(ui, group, name(*blend), word, half);
-                    if tapped.clicked() && !chosen {
-                        taps.push(Intent::Layer(LayerIntent::SetBlend {
-                            layer: active.id,
-                            blend: *blend,
-                        }));
-                    }
-                }
-            });
-        }
-    });
+    let words = BlendMode::ALL.map(|blend| (name(blend), active.blend == blend, enabled));
+    if let Some(at) = word_columns(ui, "blend modes", &words, Lead::None) {
+        let (layer, blend) = (active.id, BlendMode::ALL[at]);
+        taps.push(Intent::Layer(LayerIntent::SetBlend { layer, blend }));
+    }
 }
 
 /// Rename and Group (Ungroup in a group) as words, then the copy and delete icons at the end.

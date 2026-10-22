@@ -303,15 +303,9 @@ fn painting_and_smudging_on_a_mask_equal_cold_every_frame_and_once_committed() {
                 ..request(&current)
             };
             target.draw(&core, &frame, &[]).expect("evaluate");
-            let mut fresh = CanvasTarget::new(&core, SIZE).expect("target");
-            fresh
-                .draw(&core, &frame, &[PixelRect::full(SIZE)])
-                .expect("evaluate");
             let shown = target.read(&core).expect("readback");
-            assert!(
-                shown == fresh.read(&core).expect("readback"),
-                "{tool:?} in progress"
-            );
+            let cold = CanvasTarget::whole(&core, &frame, false).expect("cold");
+            assert!(shown == cold, "{tool:?} in progress");
         }
         current = session.finish().artwork;
         target

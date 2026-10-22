@@ -5,11 +5,17 @@
 //! pictures, the tier left), never the tier shown, and past their share the residuals (S51); the
 //! canvas itself is never let go and stays equal to a cold evaluation throughout, also for a
 //! smudge drawn over a residual let go. A zoom round from 2x to 8x and back evaluates no tier
-//! tile twice: the tiers left are kept (S58).
+//! tile twice: the tiers left are kept (S58). A test binary of its own: the zoom round reads its
+//! device's counts.
 
+#[path = "runtime/support/gpu.rs"]
 mod gpu;
+#[path = "runtime/support/hand.rs"]
 mod hand;
-mod support;
+#[path = "runtime/support/launch.rs"]
+mod launch;
+#[path = "runtime/support/store.rs"]
+mod store;
 
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
@@ -18,12 +24,12 @@ use openpaint_render::CacheBytes;
 use openpaint_runtime::{
     Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime, ToolKind,
 };
-use support::Nowhere;
+use store::Nowhere;
 
 /// 800 x 700 points at density 2: the layer panel fits.
 const SIZE: [u32; 2] = [1600, 1400];
 
-/// One test at a time: they share the device, whose counts (`Core::counts`) the zoom round reads.
+/// One test at a time: the zoom round reads the device's counts (`Core::counts`).
 fn alone() -> MutexGuard<'static, ()> {
     static ONE: Mutex<()> = Mutex::new(());
     ONE.lock().unwrap_or_else(PoisonError::into_inner)
@@ -123,7 +129,7 @@ fn draw(runtime: &mut Runtime, hand: &mut Hand, points: &[[f32; 2]]) {
 fn a_lower_budget_lets_the_least_recently_used_go_and_never_what_the_frame_needs() {
     let _one = alone();
     let core = gpu::core();
-    let mut runtime = support::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere));
+    let mut runtime = launch::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
     let mut hand = Hand::new(SIZE);
     draw(&mut runtime, &mut hand, &line(600.0));
     // A smudge across it: its residual in the arena, its material beside it (used last now).
@@ -188,7 +194,7 @@ fn a_lower_budget_lets_the_least_recently_used_go_and_never_what_the_frame_needs
 fn a_zoom_round_to_8x_and_back_evaluates_no_tier_tile_twice() {
     let _one = alone();
     let core = gpu::core();
-    let mut runtime = support::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere));
+    let mut runtime = launch::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
     let mut hand = Hand::new(SIZE);
     for y in [500.0, 700.0, 900.0, 1100.0] {
         draw(&mut runtime, &mut hand, &line(y));

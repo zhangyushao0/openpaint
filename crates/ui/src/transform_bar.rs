@@ -9,7 +9,9 @@
 use egui::{Order, Pos2, Stroke};
 use openpaint_app::{Intent, SessionProjection, TransformFrame, TransformIntent, ViewMapping};
 
-use crate::components::{Place, ScreenArea, animate_from, icon_toggle, pill, ring_of, text_button};
+use crate::components::{
+    Place, ScreenArea, animate_from, icon_toggle, pill, ring_of, screen_point, text_button,
+};
 use crate::design::motion::ACKNOWLEDGE;
 use crate::design::{INK, Icon, PANEL, ink_line};
 use crate::taps::push_once;
@@ -169,7 +171,7 @@ impl TransformBar {
         let id = egui::Id::new(("transform frame", self.appeared));
         let shown = animate_from(ctx, id, 0.0, 1.0, ACKNOWLEDGE);
         let handles = Handles::of(&frame, mapping, pixels_per_point);
-        let at = |[x, y]: [f32; 2]| Pos2::new(x / pixels_per_point, y / pixels_per_point);
+        let at = |pixel: [f32; 2]| screen_point(pixel, pixels_per_point);
         let layer = egui::LayerId::new(Order::Background, egui::Id::new("transform frame"));
         let painter = ctx.layer_painter(layer);
         let (ink, paper) = (INK.gamma_multiply(shown), PANEL.gamma_multiply(shown));

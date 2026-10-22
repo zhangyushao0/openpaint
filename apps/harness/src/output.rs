@@ -6,23 +6,19 @@ use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 
 use openpaint_core::{Artwork, Color};
-use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RgbaImage};
+use openpaint_render::{CanvasTarget, Core, FrameRequest, RgbaImage};
 
 use crate::error::HarnessError;
 
 /// `artwork` drawn whole on white into a target of its own on `core` and read back: what any
 /// canvas showing it must equal.
 pub fn cold(core: &Core, artwork: &Artwork) -> Result<RgbaImage, HarnessError> {
-    let canvas = artwork.canvas();
-    let size = [canvas.width(), canvas.height()];
-    let mut target = CanvasTarget::new(core, size)?;
     let request = FrameRequest {
         artwork,
         active: None,
         background: Color::WHITE,
     };
-    target.draw(core, &request, &[PixelRect::full(size)])?;
-    Ok(target.read(core)?)
+    Ok(CanvasTarget::whole(core, &request, false)?)
 }
 
 /// Writes `image` to `artifacts/harness/<name>`, creating the directory, and returns the path.

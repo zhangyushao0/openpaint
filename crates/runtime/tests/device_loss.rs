@@ -5,19 +5,24 @@
 //! the notice says the display was reset, the hand goes on and the stroke commits whole at the
 //! lift, and undo still works. A test binary of its own: it destroys its device.
 
+#[path = "runtime/support/gpu.rs"]
 mod gpu;
+#[path = "runtime/support/hand.rs"]
 mod hand;
-mod support;
+#[path = "runtime/support/launch.rs"]
+mod launch;
+#[path = "runtime/support/store.rs"]
+mod store;
 
 use std::sync::Arc;
 
 use hand::{Hand, assert_cold};
 use openpaint_core::Color;
-use openpaint_render::{CanvasTarget, FrameRequest, PixelRect};
+use openpaint_render::{CanvasTarget, FrameRequest};
 use openpaint_runtime::{
     Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime, ToolKind,
 };
-use support::Nowhere;
+use store::Nowhere;
 
 const SIZE: [u32; 2] = [1280, 1000];
 const PIXELS_PER_POINT: f32 = 2.0;
@@ -64,18 +69,12 @@ fn pen(runtime: &mut Runtime, hand: &mut Hand, phase: MotionPhase, at: [f32; 2])
 fn shows_cold(runtime: &mut Runtime) -> bool {
     let core = runtime.core();
     let (artwork, active) = runtime.drawn().expect("a canvas");
-    let canvas = artwork.canvas();
-    let size = [canvas.width(), canvas.height()];
-    let mut target = CanvasTarget::new(&core, size).expect("target");
     let request = FrameRequest {
         artwork: &artwork,
         active: active.as_ref(),
         background: Color::WHITE,
     };
-    target
-        .draw(&core, &request, &[PixelRect::full(size)])
-        .expect("evaluate");
-    let cold = target.read(&core).expect("read");
+    let cold = CanvasTarget::whole(&core, &request, false).expect("drawn whole");
     let shown = runtime.read_canvas().expect("read").expect("canvas");
     shown.content_hash() == cold.content_hash()
 }
@@ -111,7 +110,7 @@ fn lost_and_made_again(runtime: &mut Runtime) -> Arc<openpaint_render::Core> {
 
 #[test]
 fn a_lost_device_comes_back_with_the_canvas_history_and_the_stroke_being_drawn() {
-    let mut runtime = support::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere));
+    let mut runtime = launch::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
     let mut hand = Hand::new(SIZE);
     for y in [300.0, 440.0] {
         hand.gesture(&mut runtime, ToolKind::Stylus, &line(y));

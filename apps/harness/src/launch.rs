@@ -6,7 +6,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use openpaint_runtime::{FontFile, Runtime, TextFonts};
+use openpaint_runtime::{FontFile, Runtime, StartOptions, TextFonts};
 use openpaint_store::Library;
 
 use crate::error::HarnessError;
@@ -97,7 +97,7 @@ fn copy_dir(from: &Path, to: &Path) -> Result<(), HarnessError> {
 /// its canvas open on a screen of `size` pixels.
 pub fn launch(name: &str, pixels_per_point: f32, size: [u32; 2]) -> Result<Runtime, HarnessError> {
     let library = Library::at(fresh_library(library_dir(name))?);
-    let mut runtime = Runtime::start(pixels_per_point, Box::new(library))?;
+    let mut runtime = Runtime::start(pixels_per_point, Box::new(library), StartOptions::default())?;
     open(&mut runtime, size)?;
     Ok(runtime)
 }

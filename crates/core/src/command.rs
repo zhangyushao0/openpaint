@@ -45,23 +45,12 @@ pub enum LayerCommand {
     /// Removes a layer; if it was active, the layer below it (or the new bottom) becomes active.
     /// A group losing its last layer goes with it.
     Delete(LayerId),
-    /// Moves a layer to `index`, counted from the bottom after the move. It lands in the group
-    /// of the layers on both sides when they share one, stays in its own group when it lands
-    /// beside it, and is in no group otherwise; a group is never split.
-    Reorder {
-        layer: LayerId,
-        index: usize,
-    },
-    /// One step up: the top layer of a group leaves it (it stays where it is, above the group);
-    /// a layer in no group right under a group joins it as its bottom layer; any other layer
-    /// swaps places with the one above. `IndexOutOfRange` at the top of the stack outside a
-    /// group.
-    Raise(LayerId),
-    /// `Raise` downwards: a group's bottom layer leaves it under it, a layer in no group right
-    /// above a group joins it as its top layer, any other swaps with the one below.
-    Lower(LayerId),
-    /// `by` steps of `Raise` (above 0) or `Lower` (below 0) as one change: where a layer dragged
-    /// through the panel lands (`layer_places`). `IndexOutOfRange` when a step finds no place.
+    /// `by` steps up (above 0) or down (below 0) as one change: where a layer dragged through
+    /// the panel lands (`layer_places`). One step up: the top layer of a group leaves it (it
+    /// stays where it is, above the group); a layer in no group right under a group joins it as
+    /// its bottom layer; any other layer swaps places with the one above. Down alike. A group is
+    /// never split. `IndexOutOfRange` when a step finds no place (the stack's end outside a
+    /// group).
     Move {
         layer: LayerId,
         by: i32,

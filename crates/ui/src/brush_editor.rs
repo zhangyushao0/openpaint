@@ -9,7 +9,7 @@
 //! be undone). Every change applies to the next stroke of every tool that draws with the brush;
 //! strokes drawn keep their look; none is an undo step, as colours are not.
 
-use egui::{Align, Align2, Layout, Rect, Sense, TextStyle, vec2};
+use egui::{Align, Layout, Rect, vec2};
 use openpaint_app::{
     BrushIntent, BrushProjection, BrushSet, Dynamic, Intent, MAX_BRUSH_NAME, brush_name,
 };
@@ -18,10 +18,9 @@ use crate::brush_dynamics::{curves, heading};
 use crate::brush_settings::settings;
 use crate::brush_strip::Strip;
 use crate::components::{
-    Naming, Placement, answer_row, choices, dialog, heading_button, hint, naming_dialog,
-    text_button, text_choice_wide,
+    Lead, Naming, delete_dialog, heading_button, naming_dialog, text_button, word_columns,
 };
-use crate::design::{INK, SPACE, TOUCH_TARGET};
+use crate::design::{SPACE, TOUCH_TARGET};
 use crate::taps::push_brush;
 
 /// The width of the Set row's word "Set", left of its choices, in points.
@@ -131,17 +130,14 @@ impl BrushEditor {
         taps: &mut Vec<Intent>,
     ) -> (bool, bool) {
         if let Some(from) = self.deleting {
-            let name = &brush.edited.name;
-            let ((cancel, delete), outside) =
-                dialog(ctx, "delete brush", (Placement::Centre, from), |ui| {
-                    ui.heading(format!("Delete {name}?"));
-                    hint(ui, "Strokes drawn with it stay.");
-                    answer_row(ui, "Cancel", "Delete", true)
-                });
+            let question = format!("Delete {}?", brush.edited.name);
+            let note = "Strokes drawn with it stay.";
+            let answer = delete_dialog(ctx, "delete brush", from, (&question, note));
+            let delete = answer == Some(true);
             if delete {
                 push_brush(taps, BrushIntent::Delete);
             }
-            if delete || cancel || outside {
+            if answer.is_some() {
                 self.deleting = None;
             }
             return (true, delete);
@@ -204,29 +200,7 @@ fn column(
 /// The brush's set: "Set", then the four sets as words in two columns, `set` in the ink
 /// pill. Returns another set tapped, which the brush moves to the end of.
 pub(crate) fn set_row(ui: &mut egui::Ui, set: BrushSet) -> Option<BrushSet> {
-    let half = ((ui.available_width() - 3.0 * SPACE - SET_LABEL) / 2.0).floor();
-    let mut tapped = None;
-    choices(ui, "brush set", |ui, group| {
-        for (line, pair) in BrushSet::EDITABLE.chunks(2).enumerate() {
-            ui.horizontal(|ui| {
-                ui.set_height(TOUCH_TARGET);
-                ui.add_space(2.0 * SPACE);
-                let size = vec2(SET_LABEL, TOUCH_TARGET);
-                let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
-                if line == 0 {
-                    let font = TextStyle::Body.resolve(ui.style());
-                    let at = rect.left_center();
-                    ui.painter().text(at, Align2::LEFT_CENTER, "Set", font, INK);
-                }
-                for &word in pair {
-                    let on = word == set;
-                    let choice = text_choice_wide(ui, group, word.label(), (true, on), half);
-                    if choice.clicked() && !on {
-                        tapped = Some(word);
-                    }
-                }
-            });
-        }
-    });
-    tapped
+    let words = BrushSet::EDITABLE.map(|word| (word.label(), word == set, true));
+    let lead = Lead::Label("Set", SET_LABEL);
+    word_columns(ui, "brush set", &words, lead).map(|at| BrushSet::EDITABLE[at])
 }

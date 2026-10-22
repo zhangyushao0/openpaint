@@ -5,9 +5,9 @@
 //! even unmoved; undo at the first step takes both away; undo after the commit too.
 
 use openpaint_app::{
-    AppError, Availability, BrushLibrary, EditorAction, HistoryIntent, HostAnswer, HostRequest,
-    ImageError, ImageSource, InsertIntent, Intent, LayerIntent, PortError, ReferenceNotice,
-    Session, Toolbox, TransferJob, Transfers, TransformIntent, TransformRefusal,
+    AppError, Availability, BrushLibrary, BytesSource, EditorAction, HistoryIntent, HostAnswer,
+    HostRequest, ImageError, InsertIntent, Intent, LayerIntent, ReferenceNotice, Session, Toolbox,
+    TransferJob, Transfers, TransformIntent, TransformRefusal,
 };
 use openpaint_core::{
     Artwork, ArtworkCommand, CanvasSize, LayerCommand, MAX_LAYERS, Patch, Placement,
@@ -17,14 +17,6 @@ const SIZE: [u32; 2] = [40, 20];
 
 fn canvas() -> CanvasSize {
     CanvasSize::new(SIZE[0], SIZE[1]).expect("size")
-}
-
-struct Source;
-
-impl ImageSource for Source {
-    fn read(self: Box<Self>, _limit: u64) -> Result<Vec<u8>, PortError> {
-        Ok(Vec::new())
-    }
 }
 
 fn session() -> Session {
@@ -71,7 +63,7 @@ fn choosing_asks_for_an_image_and_hands_its_canvas_to_the_worker() {
         transfers.projection().insert_notice,
         ReferenceNotice::Opening
     );
-    let job = transfers.answer(HostAnswer::Image(Box::new(Source)));
+    let job = transfers.answer(HostAnswer::Image(Box::new(BytesSource(Vec::new()))));
     let Some(TransferJob::Insert(job)) = job else {
         panic!("an insert job: {job:?}");
     };
@@ -101,7 +93,7 @@ fn a_cancelled_picker_changes_nothing_and_a_failure_is_a_notice() {
         .expect("choose again");
     assert!(
         transfers
-            .answer(HostAnswer::Image(Box::new(Source)))
+            .answer(HostAnswer::Image(Box::new(BytesSource(Vec::new()))))
             .is_some()
     );
     transfers.inserted(Err(ImageError::Unsupported));

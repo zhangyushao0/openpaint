@@ -4,7 +4,7 @@
 use std::f32::consts::TAU;
 use std::sync::Arc;
 
-use openpaint_app::BrushLibrary;
+use openpaint_app::{BrushKey, BrushLibrary};
 use openpaint_core::{
     Artwork, ArtworkCommand, BlendMode, CanvasSize, Color, LayerCommand, MaskCommand, Patch,
     Placement, RegionMask, StrokeStyle, StrokeTool,
@@ -129,10 +129,9 @@ pub(super) fn style(
     color: Color,
     seed: u32,
 ) -> Result<StrokeStyle, HarnessError> {
-    let index = library
-        .find(key)
+    let brush = library
+        .brush(&BrushKey::new(key))
         .ok_or(HarnessError::Missing("a test-art brush is not built in"))?;
-    let brush = &library.brushes()[index];
     let range = brush.size();
     let size = (range.default * factor).clamp(range.min, range.max);
     let style = StrokeStyle::new(Arc::clone(brush.recipe()), size, brush.opacity(), color)?;

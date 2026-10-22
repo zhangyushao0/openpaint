@@ -106,7 +106,6 @@ impl ToolSet {
 #[derive(Debug, Clone)]
 pub struct Toolbox {
     library: BrushLibrary,
-    rows: Arc<[BrushRow]>,
     /// Where each brush lies, and Recent; `set_rows` lists them.
     brush_sets: BrushSets,
     set_rows: Arc<[Vec<BrushRow>; 5]>,
@@ -141,13 +140,11 @@ impl Toolbox {
     #[must_use]
     pub fn new(library: BrushLibrary) -> Self {
         let brush = library.default_key().clone();
-        let smudge = match library.find(SMUDGE_BRUSH) {
-            Some(at) => library.brushes()[at].key().clone(),
-            None => brush.clone(),
-        };
+        let smudge = library
+            .brush(&BrushKey::new(SMUDGE_BRUSH))
+            .map_or_else(|| brush.clone(), |smudge| smudge.key().clone());
         let brush_sets = BrushSets::new(&library);
         Self {
-            rows: rows_of(&library),
             set_rows: brush_sets.rows(&library),
             brush_sets,
             library,
@@ -175,9 +172,8 @@ impl Toolbox {
         &self.library
     }
 
-    /// The picker's rows of the library and the sets as they are now.
+    /// The picker's rows of the sets as they are now.
     fn relist(&mut self) {
-        self.rows = rows_of(&self.library);
         self.set_rows = self.brush_sets.rows(&self.library);
     }
 
@@ -335,7 +331,6 @@ impl Toolbox {
         let brush = self.brush(tool);
         let [size, opacity, streamline] = self.setting(tool, brush);
         BrushProjection {
-            brushes: Arc::clone(&self.rows),
             sets: Arc::clone(&self.set_rows),
             set: self
                 .brush_sets
@@ -385,16 +380,4 @@ impl Toolbox {
         self.unsaved = false;
         Some(self.state())
     }
-}
-
-/// The picker's rows of `library`, in its order.
-fn rows_of(library: &BrushLibrary) -> Arc<[BrushRow]> {
-    library
-        .brushes()
-        .iter()
-        .map(|brush| BrushRow {
-            key: brush.key().clone(),
-            name: brush.name().to_owned(),
-        })
-        .collect()
 }

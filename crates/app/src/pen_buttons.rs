@@ -19,7 +19,7 @@ use crate::intent::Intent;
 use crate::tool_intent::ToolIntent;
 
 /// A side button of the pen, as Android names their bits: on the author's Wacom pen from the
-/// tip outwards primary, secondary and tertiary (measured 2026-10-09).
+/// tip outwards primary, secondary and tertiary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PenButton {
     Primary,
@@ -116,8 +116,7 @@ pub enum HeldTool {
 }
 
 /// What each side button does. At first the first erases and the second picks colours while
-/// held, the buttons most painting apps give a Wacom pen (author, 2026-10-05); the third
-/// undoes (an agent's choice).
+/// held, the buttons most painting apps give a Wacom pen; the third undoes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ButtonMap {
     pub primary: ButtonAction,

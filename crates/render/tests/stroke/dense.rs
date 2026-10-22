@@ -15,7 +15,7 @@ use openpaint_render::{Banding, CanvasTarget, PixelRect};
 use crate::fixture::{SIZE, cold, core, request, sample};
 use crate::scale::{export, whole};
 
-/// Stroke `k` of many crossing the canvas's middle at every angle (as `pen-many` lays them).
+/// Stroke `k` of many crossing the canvas's middle at every angle.
 fn crossing(k: u32) -> Vec<StrokeSample> {
     let angle = k as f32 * 2.399_963_2;
     let shift = [((k * 37) % 61) as f32 - 30.0, ((k * 59) % 41) as f32 - 20.0];

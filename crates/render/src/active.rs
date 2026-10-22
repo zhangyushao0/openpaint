@@ -1,4 +1,4 @@
-//! `ActiveTrack`: which in-progress stroke a drawing's kept coverage holds (`drawing.rs`), so
+//! `ActiveTrack`: which in-progress stroke a drawing's kept coverage holds (`canvas/drawing.rs`), so
 //! each frame adds only the spans of its curve that settled since the last one. The coverage
 //! keeps only settled spans (`Path::settled`); the last two, which later samples may still
 //! change, are its tail, laid every frame and never kept, so a stroke drawn a few samples at a

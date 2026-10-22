@@ -17,8 +17,8 @@ use openpaint_app::{
 };
 
 use crate::components::{
-    Opener, ScreenArea, choices, hint, icon_toggle, menu_row, panel_heading, popover_left, section,
-    switch_row, text_choice, word_columns,
+    Lead, Opener, ScreenArea, choices, hint, icon_toggle, menu_row, panel_heading, popover_left,
+    section, switch_row, text_choice, word_columns,
 };
 use crate::design::{Icon, SPACE, TOUCH_TARGET};
 use crate::pen_buttons_page::{pen_buttons_page, summary};
@@ -218,7 +218,7 @@ fn guide_rows(ui: &mut egui::Ui, guide: Guide, taps: &mut Vec<Intent>) {
         let on = guide.on && guide.symmetry == symmetry;
         (symmetry.label(), on, true)
     });
-    if let Some(at) = word_columns(ui, "symmetry", &words) {
+    if let Some(at) = word_columns(ui, "symmetry", &words, Lead::Indent) {
         push_once(taps, intent(GuideIntent::Symmetry(Symmetry::ALL[at])));
     }
     if guide.on {

@@ -53,16 +53,43 @@ pub fn text_choice_wide(
     button(ui, label, (enabled, Some((group, chosen))), width)
 }
 
+/// What lies left of two columns of words.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Lead<'a> {
+    /// Nothing: the columns take the whole width.
+    None,
+    /// The panel's two spaces in.
+    Indent,
+    /// Two spaces in, then the word `label` in a column `width` points wide on the first row.
+    Label(&'a str, f32),
+}
+
 /// The group `salt` of `words` (each its label, whether it is chosen and whether it may be) in
-/// two even columns two spaces in, the chosen one in the ink pill. Returns the index of a word
-/// tapped that was not chosen.
-pub fn word_columns(ui: &mut egui::Ui, salt: &str, words: &[(&str, bool, bool)]) -> Option<usize> {
-    let half = ((ui.available_width() - 2.0 * SPACE) / 2.0).floor();
+/// two even columns after `lead`, the chosen one in the ink pill (one group: the pill slides
+/// across the columns). Returns the index of a word tapped that was not chosen.
+pub fn word_columns(
+    ui: &mut egui::Ui,
+    salt: &str,
+    words: &[(&str, bool, bool)],
+    lead: Lead<'_>,
+) -> Option<usize> {
+    let (indent, label) = match lead {
+        Lead::None => (0.0, None),
+        Lead::Indent => (2.0 * SPACE, None),
+        Lead::Label(text, width) => (2.0 * SPACE, Some((text, width))),
+    };
+    let used = indent + label.map_or(0.0, |(_, width)| width + SPACE);
+    let half = ((ui.available_width() - used) / 2.0).floor();
     let mut tapped = None;
     choices(ui, salt, |ui, group| {
         for (row, pair) in words.chunks(2).enumerate() {
             ui.horizontal(|ui| {
-                ui.add_space(2.0 * SPACE);
+                if indent > 0.0 {
+                    ui.add_space(indent);
+                }
+                if let Some((text, width)) = label {
+                    lead_label(ui, (row == 0).then_some(text), width);
+                }
                 for (column, &(label, on, enabled)) in pair.iter().enumerate() {
                     let word = text_choice_wide(ui, group, label, (enabled, on), half);
                     if word.clicked() && !on {
@@ -73,6 +100,18 @@ pub fn word_columns(ui: &mut egui::Ui, salt: &str, words: &[(&str, bool, bool)])
         }
     });
     tapped
+}
+
+/// A column `width` points wide and a touch target high left of a row of words, `text` in ink
+/// at its left.
+fn lead_label(ui: &mut egui::Ui, text: Option<&str>, width: f32) {
+    let (rect, _) = ui.allocate_exact_size(Vec2::new(width, TOUCH_TARGET), Sense::hover());
+    if let Some(text) = text {
+        let font = TextStyle::Body.resolve(ui.style());
+        let at = rect.left_center();
+        ui.painter()
+            .text(at, egui::Align2::LEFT_CENTER, text, font, INK);
+    }
 }
 
 /// A thin upright line between a bar's choice and its commands; it takes no width of its own,

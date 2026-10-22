@@ -26,7 +26,7 @@ pub(crate) struct Palette {
 }
 
 impl Default for Palette {
-    /// Black, as every stroke before colours could be chosen; no recent colours, no swatches.
+    /// Black; no recent colours, no swatches.
     fn default() -> Self {
         Self {
             color: Color::BLACK,

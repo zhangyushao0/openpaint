@@ -8,7 +8,7 @@ use openpaint_app::{GalleryIntent, Intent, MAX_TITLE_CHARS, ProjectSummary, Titl
 use super::GalleryScreen;
 use super::dates::kept_labels;
 use crate::components::{
-    Placement, answer_row, dialog, hint, menu_row, naming_dialog, section, text_button,
+    Placement, delete_dialog, dialog, hint, menu_row, naming_dialog, section, text_button,
 };
 use crate::design::SPACE;
 
@@ -35,18 +35,15 @@ impl GalleryScreen {
         let Some((id, title, card)) = &self.confirm else {
             return;
         };
-        let from = (Placement::Centre, *card);
-        let ((cancel, delete), outside) = dialog(ctx, "delete", from, |ui| {
-            ui.heading(format!("Delete “{title}”?"));
-            ui.label("This can't be undone. Its kept versions go with it.");
-            answer_row(ui, "Cancel", "Delete", true)
-        });
+        let question = format!("Delete “{title}”?");
+        let note = "This can't be undone. Its kept versions go with it.";
+        let Some(delete) = delete_dialog(ctx, "delete", *card, (&question, note)) else {
+            return;
+        };
         if delete {
             taps.push(Intent::Gallery(GalleryIntent::Delete(*id)));
-            self.confirm = None;
-        } else if cancel || outside {
-            self.confirm = None;
         }
+        self.confirm = None;
     }
 }
 

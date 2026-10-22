@@ -13,7 +13,7 @@ use openpaint_app::{Brush, BrushKey, BrushLibrary, Toolbox};
 use openpaint_core::{
     Artwork, CanvasPoint, CanvasSize, Color, CoreError, StrokeSample, StrokeStyle, StrokeTool,
 };
-use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RgbaImage};
+use openpaint_render::{CanvasTarget, Core, FrameRequest, RgbaImage};
 use openpaint_ui::{Shell, design};
 
 use crate::error::RuntimeError;
@@ -195,7 +195,13 @@ fn row_picture(core: &Core, brush: &Brush, size: [u32; 2]) -> Result<RgbaImage, 
     let blank = Artwork::new(CanvasSize::new(size[0], size[1])?);
     let mut stroke = blank.begin_stroke(style, samples[0])?;
     stroke.extend(&samples[1..])?;
-    drawn_alone(core, &stroke.finish().artwork, gray(255)?)
+    let artwork = stroke.finish().artwork;
+    let request = FrameRequest {
+        artwork: &artwork,
+        active: None,
+        background: gray(255)?,
+    };
+    Ok(CanvasTarget::whole(core, &request, true)?)
 }
 
 /// An S-curve across a picture of `width` x `height` pixels from `margin` pixels in on either
@@ -221,26 +227,6 @@ pub(crate) fn s_curve(
             )
         })
         .collect()
-}
-
-/// `artwork` drawn whole on `background` into a target of its own and read back, its draws paced
-/// beside the screen's (made on the brushes worker while the screen draws on).
-pub(crate) fn drawn_alone(
-    core: &Core,
-    artwork: &Artwork,
-    background: Color,
-) -> Result<RgbaImage, RuntimeError> {
-    let canvas = artwork.canvas();
-    let size = [canvas.width(), canvas.height()];
-    let mut target = CanvasTarget::new(core, size)?;
-    target.pace_draws();
-    let request = FrameRequest {
-        artwork,
-        active: None,
-        background,
-    };
-    target.draw(core, &request, &[PixelRect::full(size)])?;
-    Ok(target.read(core)?)
 }
 
 /// An sRGB grey from an 8-bit value; blending happens on encoded values, so the raster core gives

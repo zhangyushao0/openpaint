@@ -194,13 +194,7 @@ fn layer_edits_open_again_exactly_and_an_undone_delete_restores_the_strokes() {
             opacity: 0.35,
         },
     );
-    let lowered = layer(
-        &faded,
-        LayerCommand::Reorder {
-            layer: top,
-            index: 0,
-        },
-    );
+    let lowered = layer(&faded, LayerCommand::Move { layer: top, by: -1 });
     let chosen = layer(&lowered, LayerCommand::Select(bottom));
     let deleted = layer(&chosen, LayerCommand::Delete(bottom));
     let mut library = Library::at(&dir);

@@ -57,19 +57,13 @@ fn the_upper_layer_covers_the_lower_one_in_stack_order() {
     let core = core();
     let (artwork, bottom, top) = stacked();
     assert_eq!(pixel(&cold(&core, &artwork), CROSSING), BLUE);
-    let lowered = layer(
-        &artwork,
-        LayerCommand::Reorder {
-            layer: top,
-            index: 0,
-        },
-    );
+    let lowered = layer(&artwork, LayerCommand::Move { layer: top, by: -1 });
     assert_eq!(pixel(&cold(&core, &lowered), CROSSING), RED);
     let raised = layer(
         &lowered,
-        LayerCommand::Reorder {
+        LayerCommand::Move {
             layer: bottom,
-            index: 0,
+            by: -1,
         },
     );
     assert_eq!(cold(&core, &raised), cold(&core, &artwork));
@@ -108,10 +102,7 @@ fn layer_edits_through_changed_regions_equal_cold() {
             layer: top,
             opacity: 0.3,
         },
-        LayerCommand::Reorder {
-            layer: top,
-            index: 0,
-        },
+        LayerCommand::Move { layer: top, by: -1 },
         LayerCommand::SetVisible {
             layer: bottom,
             visible: false,

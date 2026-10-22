@@ -1,14 +1,12 @@
 //! `CanvasTarget`: a texture holding an artwork's canvas, and the one entry that draws a frame
 //! request into regions of it (`draw`, `draw_frame`). The raster core draws every scene: changes
-//! at once when they fit the frame, else as the raster worker's tiles (`canvas_raster_fill.rs`),
-//! the stroke being drawn where it changes the canvas (`drawing_frame.rs`). Its scene, smudge
-//! residuals and filter results are kept between draws (`canvas_scene.rs`, `canvas_budget.rs`).
+//! at once when they fit the frame, else as the raster worker's tiles (`canvas/raster_fill.rs`),
+//! the stroke being drawn where it changes the canvas (`canvas/drawing_frame.rs`). Its scene, smudge
+//! residuals and filter results are kept between draws (`canvas/scene_cache.rs`, `canvas/budget.rs`).
 
 use openpaint_core::{ActiveStroke, Artwork, RegionMask};
 
-use crate::canvas_raster::CanvasRaster;
 use crate::core::Core;
-use crate::drawing::Drawing;
 use crate::error::RenderError;
 use crate::filter::Filters;
 use crate::frame::FrameRequest;
@@ -37,7 +35,7 @@ pub struct CanvasTarget {
     filters: Filters,
     /// The canvas pixels draws changed since a view cache last took them.
     changed: Vec<PixelRect>,
-    /// Drawing on the 1x canvas (`drawing.rs`); the canvas pixels the version under the
+    /// Drawing on the 1x canvas (`canvas/drawing.rs`); the canvas pixels the version under the
     /// stroke changed this frame (its mirrored copies), which its view tiers draw too; the canvas
     /// pixels changes reached since the view tiers last took them (their drawings' snapshots
     /// there go).
@@ -55,7 +53,7 @@ pub struct CanvasTarget {
     /// Bytes its snapshots under the next stroke may grow to (what the GPU memory budget
     /// leaves them).
     snapshot_room: u64,
-    /// Its draws are a worker's: each region waited for (`pace_draws`).
+    /// Its draws are a worker's: each region waited for (`whole`).
     paced: bool,
 }
 
@@ -81,6 +79,27 @@ impl CanvasTarget {
     /// 8-bit target would hold, exactly. Its content is undefined until a region is drawn.
     pub fn new(core: &Core, size: [u32; 2]) -> Result<Self, RenderError> {
         Self::of(core, (size, core.gpu.display))
+    }
+
+    /// `request` drawn whole into a new target of its canvas's size and read back: what the
+    /// screen's canvas shows of it complete (brush pictures, checkpoints, the tests' cold draws).
+    /// `paced`: a worker's draw beside the screen's (brush pictures, the brush editor's strip),
+    /// each region waited for before the next so the screen's frames find the GPU free between
+    /// them.
+    ///
+    /// # Errors
+    /// As `new`, `draw` and `read`.
+    pub fn whole(
+        core: &Core,
+        request: &FrameRequest<'_>,
+        paced: bool,
+    ) -> Result<RgbaImage, RenderError> {
+        let canvas = request.artwork.canvas();
+        let size = [canvas.width(), canvas.height()];
+        let mut target = Self::new(core, size)?;
+        target.paced = paced;
+        target.draw(core, request, &[PixelRect::full(size)])?;
+        target.read(core)
     }
 
     /// As `new`, in 8 bits per channel whatever the device shows (tests: what a ten-bit canvas
@@ -281,38 +300,26 @@ impl CanvasTarget {
     pub fn look_at(&mut self, focus: Option<Focus>) {
         self.focus = focus;
     }
-
-    /// Its draws are a worker's: each region waited for before the next, so the screen's
-    /// frames find the GPU free between them (the brush editor's strip, brush pictures).
-    pub fn pace_draws(&mut self) {
-        self.paced = true;
-    }
 }
 
-#[path = "canvas_scene.rs"]
+mod budget;
+mod cache;
+mod drawing;
+mod drawing_ahead;
+mod drawing_frame;
+mod raster;
+mod raster_fill;
+mod residuals;
 mod scene_cache;
+
+pub use cache::CanvasCopy;
+pub(crate) use drawing::Drawing;
+pub(crate) use drawing_ahead::TAKING;
+pub(crate) use drawing_frame::Onto;
+use raster::CanvasRaster;
+pub(crate) use raster::EDIT_PIXELS;
+pub(crate) use raster_fill::{Planned, paper};
 use scene_cache::SceneCache;
 
-#[path = "canvas_budget.rs"]
-mod budget;
-#[path = "canvas_residuals.rs"]
-mod residuals;
-
-#[path = "canvas_cache.rs"]
-mod cache;
-pub use cache::CanvasCopy;
-
-#[path = "canvas_raster_fill.rs"]
-mod raster_fill;
-pub(crate) use raster_fill::{Planned, paper};
-
-#[path = "drawing_frame.rs"]
-mod drawing_frame;
-pub(crate) use drawing_frame::Onto;
-#[path = "drawing_ahead.rs"]
-mod drawing_ahead;
-pub(crate) use drawing_ahead::TAKING;
-
 #[cfg(test)]
-#[path = "canvas_display_tests.rs"]
 mod display_tests;

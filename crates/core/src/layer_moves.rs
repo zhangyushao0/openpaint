@@ -8,7 +8,7 @@ use crate::error::CoreError;
 use crate::group::prune;
 use crate::id::{GroupId, LayerId};
 
-/// Where a layer lies after `by` steps of `Raise` (above 0) or `Lower` (below 0): its index
+/// Where a layer lies after `by` steps up (above 0) or down (below 0): its index
 /// from the bottom of the stack and its group.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LayerPlace {
@@ -75,35 +75,6 @@ fn stepped(groups: &[Option<GroupId>], index: usize, up: bool) -> Option<(usize,
     } else {
         Some((at, own))
     }
-}
-
-pub(crate) fn reorder(artwork: &Artwork, id: LayerId, index: usize) -> Result<Applied, CoreError> {
-    let from = artwork.position(id)?;
-    let len = artwork.state().layers.len();
-    if index >= len {
-        return Err(CoreError::IndexOutOfRange { index, len });
-    }
-    if from == index {
-        return Ok(Applied::unchanged(artwork));
-    }
-    let mut next = artwork.state().clone();
-    let layer = next.layers.remove(from);
-    let own = layer.props.group;
-    next.layers.insert(index, layer);
-    let below = index
-        .checked_sub(1)
-        .and_then(|at| next.layers[at].props.group);
-    let above = next
-        .layers
-        .get(index + 1)
-        .and_then(|layer| layer.props.group);
-    next.layers[index].props.group = match (below, above) {
-        (Some(below), Some(above)) if below == above => Some(below),
-        _ if own.is_some() && (below == own || above == own) => own,
-        _ => None,
-    };
-    prune(&next.layers, &mut next.groups);
-    Ok(Applied::content(next))
 }
 
 /// `by` single steps (`stepped`) as one change; 0 changes nothing.

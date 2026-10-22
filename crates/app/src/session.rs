@@ -14,7 +14,7 @@ use crate::intent::Intent;
 use crate::layer_rules;
 use crate::layers::{LayerList, Layers};
 use crate::projection::{Availability, EditorAction, LAYER_ACTIONS, SessionProjection};
-use crate::selection::Selection;
+use crate::selection::{Selection, SelectionIntent};
 use crate::storage::Autosave;
 use crate::streamline::StreamLine;
 use crate::stroke::Strokes;
@@ -140,8 +140,7 @@ impl Session {
                 self.strokes.handle(&mut self.history, stroke, clip)
             }
             Intent::Selection(selection) => {
-                let canvas = self.artwork().canvas();
-                self.selection.handle(canvas, selection);
+                self.select(selection);
                 Ok(())
             }
             Intent::History(step) => self.step(step),
@@ -345,6 +344,12 @@ impl Session {
     #[must_use]
     pub fn selection(&self) -> Option<&RegionMask> {
         self.selection.mask().filter(|_| !self.transforms.active())
+    }
+
+    /// Applies `intent` to the selection on this artwork's canvas.
+    fn select(&mut self, intent: SelectionIntent) {
+        let canvas = self.artwork().canvas();
+        self.selection.handle(canvas, intent);
     }
 
     /// `Unavailable` unless the projection offers `action` now.

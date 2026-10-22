@@ -19,15 +19,15 @@ use std::time::{Duration, Instant};
 
 use openpaint_render::Core;
 use openpaint_runtime::{
-    EditKey, HostRequest, MotionBatch, Runtime, RuntimeError, TextFonts, TextInput,
+    EditKey, HostRequest, MotionBatch, Runtime, RuntimeError, StartOptions, TextFonts, TextInput,
 };
 
 use crate::error::ScenarioError;
 use crate::report::{Record, Report, record, view_check};
 use crate::scenario::{Scenario, Step};
-use crate::switch::Switched;
 use crate::system::{self, Written};
 use crate::target::{self, Key, Spot};
+use crate::watched::Watched;
 use crate::{gesture, pen};
 
 /// Milliseconds of one 60 Hz frame, for the input clock.
@@ -118,9 +118,12 @@ impl Runner<'_> {
     /// A new app process on the library: everything a runtime held before is gone, history
     /// included; what survives is what the library stores. Runs frames until it has opened.
     fn start(&mut self) -> Result<Runtime, ScenarioError> {
-        let store = Switched::new(self.library, Arc::clone(&self.storage_off));
-        let core = Arc::clone(&self.core);
-        let mut runtime = Runtime::start_on(core, self.scenario.density, Box::new(store))?;
+        let store = Watched::new(self.library, Arc::clone(&self.storage_off));
+        let options = StartOptions {
+            core: Some(Arc::clone(&self.core)),
+            ..StartOptions::default()
+        };
+        let mut runtime = Runtime::start(self.scenario.density, Box::new(store), options)?;
         runtime.set_text_fonts(self.fonts.clone());
         self.frame(&mut runtime)?;
         Ok(runtime)

@@ -89,8 +89,6 @@ pub struct BrushRow {
 /// page show.
 #[derive(Debug, Clone, PartialEq)]
 pub struct BrushProjection {
-    /// Every brush, in the library's order.
-    pub brushes: Arc<[BrushRow]>,
     /// Each set's rows as `BrushSet::ALL` lists them: Recent newest first, the others in
     /// their order; `rows` reads one.
     pub sets: Arc<[Vec<BrushRow>; 5]>,

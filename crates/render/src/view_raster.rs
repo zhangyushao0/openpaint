@@ -6,14 +6,14 @@
 //!
 //! The background tiles are planned, encoded and submitted by the runtime's raster worker
 //! (`raster_worker.rs`); this side hands them over (`view_raster_fill.rs`) and draws the changes
-//! in place with the frame loop's targets, which are the canvas's (`canvas_raster.rs`: the canvas
+//! in place with the frame loop's targets, which are the canvas's (`canvas/raster.rs`: the canvas
 //! draws its own changes with them, and holds the worker's orders and answers for both). The
 //! smudge residuals a tile reads are the canvas's, made present before it is drawn or handed over
 //! and named with the arena's buffer as it is then (`smudge::Held`); a tile reading one still
 //! being evaluated waits.
 
-use crate::canvas::{CanvasTarget, Onto, Planned, TAKING, paper};
-use crate::canvas_raster::EDIT_PIXELS;
+use crate::canvas::{CanvasTarget, EDIT_PIXELS, Onto, Planned, TAKING, paper};
+
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::frame::FrameRequest;
@@ -110,7 +110,7 @@ pub(crate) fn in_place_raster(
     Ok(())
 }
 
-/// The stroke being drawn (or just lifted or dropped) at `tier` (`drawing_frame.rs`): drawn
+/// The stroke being drawn (or just lifted or dropped) at `tier` (`canvas/drawing_frame.rs`): drawn
 /// by the tier's drawing into the tiles the view shows that are ready, at once; the tiles it
 /// reaches that are not, or that the view does not show (its ring), are not ready any more (drawn
 /// whole once no stroke is).
@@ -156,7 +156,7 @@ pub(crate) fn stroke_raster(
 
 /// Once its shown tiles are ready (`ready`) and the canvas waits for nothing, the snapshots
 /// under the next stroke of `tier`'s shown tiles (`needed`) handed to the raster worker while
-/// nothing touches the screen (`drawing_ahead.rs`); whether any is being taken or waits to be
+/// nothing touches the screen (`canvas/drawing_ahead.rs`); whether any is being taken or waits to be
 /// (within the snapshots' room).
 ///
 /// # Errors

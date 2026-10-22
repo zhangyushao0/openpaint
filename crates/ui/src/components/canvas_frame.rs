@@ -4,7 +4,7 @@
 //! possible. The canvas fits into the area under the top band, so at fit the top islands lie on
 //! the desk above it.
 
-use openpaint_app::Viewport;
+use openpaint_app::{ViewMapping, Viewport};
 
 use crate::components::TOP_BAND;
 
@@ -73,6 +73,19 @@ impl CanvasArea {
     pub fn viewport(&self, pixels_per_point: f32) -> Viewport {
         self.fit.viewport(pixels_per_point)
     }
+}
+
+/// The screen pixel `[x, y]` in points on a screen of `pixels_per_point`.
+#[must_use]
+pub fn screen_point([x, y]: [f32; 2], pixels_per_point: f32) -> egui::Pos2 {
+    egui::pos2(x / pixels_per_point, y / pixels_per_point)
+}
+
+/// Where the canvas pixel `point` shows through `mapping`, in points on a screen of
+/// `pixels_per_point`.
+#[must_use]
+pub fn canvas_point(mapping: &ViewMapping, pixels_per_point: f32, point: [f32; 2]) -> egui::Pos2 {
+    screen_point(mapping.to_screen(point), pixels_per_point)
 }
 
 /// Lays out the canvas frame in the space the other panels left and returns it, in points.

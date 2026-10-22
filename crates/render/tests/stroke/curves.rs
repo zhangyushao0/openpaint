@@ -115,12 +115,8 @@ fn drawn_sample_by_sample(
         };
         target.draw(core, &frame, &[]).expect("evaluate");
         if end % 5 == 0 {
-            let mut fresh = CanvasTarget::new(core, SIZE).expect("target");
-            fresh
-                .draw(core, &frame, &[PixelRect::full(SIZE)])
-                .expect("evaluate");
-            let (kept, cold) = (target.read(core), fresh.read(core));
-            let (kept, cold) = (kept.expect("read"), cold.expect("read"));
+            let kept = target.read(core).expect("read");
+            let cold = CanvasTarget::whole(core, &frame, false).expect("cold");
             let differing = kept
                 .pixels()
                 .iter()

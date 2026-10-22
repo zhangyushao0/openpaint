@@ -6,16 +6,13 @@ use crate::error::CoreError;
 use crate::group::prune;
 use crate::id::LayerId;
 use crate::layer::{Layer, check_opacity};
-use crate::layer_moves::{move_by, reorder};
+use crate::layer_moves::move_by;
 use crate::merge::merge_down;
 
 pub(crate) fn apply(artwork: &Artwork, command: LayerCommand) -> Result<Applied, CoreError> {
     match command {
         LayerCommand::Create => create(artwork),
         LayerCommand::Delete(id) => delete(artwork, id),
-        LayerCommand::Reorder { layer, index } => reorder(artwork, layer, index),
-        LayerCommand::Raise(id) => move_by(artwork, id, 1),
-        LayerCommand::Lower(id) => move_by(artwork, id, -1),
         LayerCommand::Move { layer, by } => move_by(artwork, layer, by),
         LayerCommand::Duplicate(id) => duplicate(artwork, id),
         LayerCommand::MergeDown(id) => merge_down(artwork, id),

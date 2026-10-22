@@ -23,8 +23,8 @@ use openpaint_app::{
 
 use crate::components::carry::{Arrival, Opening, land};
 use crate::components::{
-    ArtworkCard, ISLAND_TOP, Naming, Place, Source, TOP_BAND, artwork_card, card_size, icon_button,
-    icon_toggle, island, notice, pill, text_field,
+    Alpha, ArtworkCard, ISLAND_TOP, Naming, Place, Source, TOP_BAND, artwork_card, card_size,
+    icon_button, icon_toggle, island, notice, picture_texture, pill, text_field,
 };
 use crate::design::{CARD_GAP, Icon, SPACE, TOUCH_TARGET};
 
@@ -295,11 +295,9 @@ impl GalleryScreen {
             {
                 continue;
             }
-            let [width, height] = thumbnail.size().map(|side| side as usize);
-            let image =
-                egui::ColorImage::from_rgba_unmultiplied([width, height], thumbnail.pixels());
             let name = format!("thumbnail-{}", item.id.get());
-            let texture = ctx.load_texture(name, image, egui::TextureOptions::LINEAR);
+            let picture = (thumbnail.size(), thumbnail.pixels(), Alpha::Straight);
+            let texture = picture_texture(ctx, name, picture);
             self.pictures.insert(item.id, (thumbnail.clone(), texture));
         }
     }

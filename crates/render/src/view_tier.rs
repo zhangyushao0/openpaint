@@ -264,7 +264,7 @@ impl ViewCache {
         self.previous = self.current.take();
         // Only the tier shown draws a stroke: another's drawing goes with its slots.
         if let Some(previous) = self.previous.as_mut() {
-            previous.drawing = crate::drawing::Drawing::default();
+            previous.drawing = crate::canvas::Drawing::default();
         }
         let Some(scale) = wanted else {
             // The canvas shows: the tier left is kept whole.

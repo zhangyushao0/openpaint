@@ -46,6 +46,21 @@ pub fn picture_place(canvas: CanvasSize, size: [u32; 2]) -> Option<([u32; 2], [u
 }
 
 impl Draft {
+    /// A transform of `base`'s active layer, unmoved: nothing lifted yet, no step but the start.
+    pub(super) fn on(base: Artwork) -> Self {
+        Self {
+            from: None,
+            base,
+            lift: None,
+            lifted: None,
+            picture: false,
+            handed: false,
+            steps: vec![Placement::IDENTITY],
+            at: 0,
+            preview: Placement::IDENTITY,
+        }
+    }
+
     /// The history version the transform began on.
     pub(super) fn version(&self) -> &Artwork {
         self.from.as_ref().unwrap_or(&self.base)
@@ -97,10 +112,7 @@ impl Transforms {
         picture: Patch,
     ) -> Result<(), AppError> {
         if drawing {
-            return Err(AppError::Unavailable {
-                action: EditorAction::Transform,
-                availability: Availability::StrokeInProgress,
-            });
+            return Availability::StrokeInProgress.require(EditorAction::Transform);
         }
         let placed = layered(artwork, NAME).and_then(|base| {
             let lift = None;
@@ -119,14 +131,10 @@ impl Transforms {
         self.refused = None;
         self.draft = Some(Draft {
             from: Some(artwork.clone()),
-            base,
-            lift: None,
             lifted: Some((picture, shown)),
             picture: true,
             handed: true,
-            steps: vec![Placement::IDENTITY],
-            at: 0,
-            preview: Placement::IDENTITY,
+            ..Draft::on(base)
         });
         Ok(())
     }
@@ -156,14 +164,7 @@ impl Transforms {
         self.refused = None;
         self.draft = Some(Draft {
             from: Some(from.clone()),
-            base,
-            lift: None,
-            lifted: None,
-            picture: false,
-            handed: false,
-            steps: vec![Placement::IDENTITY],
-            at: 0,
-            preview: Placement::IDENTITY,
+            ..Draft::on(base)
         });
         Ok(())
     }

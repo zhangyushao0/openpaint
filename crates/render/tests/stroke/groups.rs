@@ -115,8 +115,14 @@ fn edits() -> Vec<Artwork> {
             layer: LayerId::new(3),
             blend: BlendMode::Overlay,
         }),
-        ArtworkCommand::Layer(LayerCommand::Lower(LayerId::new(2))),
-        ArtworkCommand::Layer(LayerCommand::Raise(LayerId::new(2))),
+        ArtworkCommand::Layer(LayerCommand::Move {
+            layer: LayerId::new(2),
+            by: -1,
+        }),
+        ArtworkCommand::Layer(LayerCommand::Move {
+            layer: LayerId::new(2),
+            by: 1,
+        }),
         ArtworkCommand::Group(GroupCommand::SetVisible {
             group: GROUP,
             visible: false,
@@ -175,15 +181,9 @@ fn drawing_on_a_clipping_layer_in_a_faded_group_equals_cold_every_frame() {
             ..request(&artwork)
         };
         target.draw(&core, &frame, &[]).expect("evaluate");
-        let mut fresh = CanvasTarget::new(&core, SIZE).expect("target");
-        fresh
-            .draw(&core, &frame, &[PixelRect::full(SIZE)])
-            .expect("evaluate");
         let shown = target.read(&core).expect("readback");
-        assert!(
-            shown == fresh.read(&core).expect("readback"),
-            "in progress = cold"
-        );
+        let cold = CanvasTarget::whole(&core, &frame, false).expect("cold");
+        assert!(shown == cold, "in progress = cold");
     }
     let finished = session.finish().artwork;
     target

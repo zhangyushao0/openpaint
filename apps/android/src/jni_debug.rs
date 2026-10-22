@@ -16,11 +16,10 @@ use jni::errors::LogErrorAndDefault;
 use jni::objects::{JByteArray, JClass, JObject, JString};
 use jni::sys::{jboolean, jlong};
 
-use openpaint_runtime::{Runtime, SCENARIOS, ScreenProjection};
+use openpaint_runtime::{BytesSource, Runtime, SCENARIOS, ScreenProjection};
 
 use crate::error::HostError;
 use crate::jni_entry::runtime;
-use crate::transfer::BytesSource;
 
 /// The handle of the running activity's runtime; 0 while there is none.
 static HANDLE: AtomicI64 = AtomicI64::new(0);

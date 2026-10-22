@@ -9,7 +9,7 @@ use openpaint_core::{
     Curve, Deposit, Dynamics, Grain, LayerCommand, Paper, PaperTexture, RegionMask, StrokeSample,
     StrokeStyle, Tip,
 };
-use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RgbaImage};
+use openpaint_render::{CanvasTarget, Core, FrameRequest, RgbaImage};
 
 pub const SIZE: [u32; 2] = [320, 200];
 
@@ -223,11 +223,7 @@ pub fn request(artwork: &Artwork) -> FrameRequest<'_> {
 
 /// Draws the whole of `artwork` into a fresh canvas target and reads it back.
 pub fn cold(core: &Core, artwork: &Artwork) -> RgbaImage {
-    let mut target = CanvasTarget::new(core, SIZE).expect("target");
-    target
-        .draw(core, &request(artwork), &[PixelRect::full(SIZE)])
-        .expect("drawn");
-    target.read(core).expect("readback")
+    CanvasTarget::whole(core, &request(artwork), false).expect("drawn")
 }
 
 /// The RGBA pixel at `[x, y]`.

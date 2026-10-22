@@ -5,7 +5,7 @@
 use openpaint_app::SessionProjection;
 
 use crate::color_drop::{ColorDrop, DropBar};
-use crate::components::{ScreenArea, carried_drop, fill_bar};
+use crate::components::{ScreenArea, carried_drop, fill_bar, screen_point};
 
 /// Shows the carried drop and the fill bar for `drop`; returns where the bar lies, in pixels of
 /// a screen of `pixels_per_point`.
@@ -16,8 +16,8 @@ pub(crate) fn show(
     pixels_per_point: f32,
 ) -> Option<ScreenArea> {
     let ppp = pixels_per_point;
-    if let (Some([x, y]), Some(brush)) = (drop.carried(), projection.brush()) {
-        carried_drop(ctx, egui::pos2(x / ppp, y / ppp), brush.color);
+    if let (Some(carried), Some(brush)) = (drop.carried(), projection.brush()) {
+        carried_drop(ctx, screen_point(carried, ppp), brush.color);
     }
     let bar = drop.bar()?;
     // A refused or failed drop filled nothing: no offer to keep filling.

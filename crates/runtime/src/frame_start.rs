@@ -29,58 +29,42 @@ use crate::storage::Storage;
 use crate::touches::Touches;
 use crate::transfer::TransferWorker;
 
+/// How the runtime starts beyond its store and density; `default()`: the harness's and most
+/// tests' start.
+#[derive(Default)]
+pub struct StartOptions {
+    /// A GPU device already open: the GPU tests open one per process, as a device per test
+    /// once deadlocked a desktop driver while another test's threads exited. `None`: one is
+    /// opened.
+    pub core: Option<Arc<Core>>,
+    /// Where each artwork's canvas is kept as last shown complete (the Android host's
+    /// `cacheDir/canvas`): an artwork opens showing it, complete when it is what the artwork's
+    /// records evaluate to. `None`: every artwork opens evaluated.
+    pub cache: Option<DisplayCache>,
+    /// The device's memory in bytes (Android's `ActivityManager.MemoryInfo.totalMem`): the GPU
+    /// memory budget follows from it (`Core::memory_budget`).
+    pub memory: Option<u64>,
+}
+
 impl Runtime {
-    /// Opens the GPU device, installs the theme, draws the brush picker's previews and starts
-    /// opening the library (and the stored toolbox) from `store` on the storage worker.
-    /// `pixels_per_point` is the display density (Android's `DisplayMetrics.density`):
-    /// physical pixels per UI point. No display cache: every artwork opens evaluated (the
-    /// harness, the tests).
+    /// Opens the GPU device (or takes `options.core`), installs the theme, draws the brush
+    /// picker's previews and starts opening the library (and the stored toolbox) from `store` on
+    /// the storage worker. `pixels_per_point` is the display density (Android's
+    /// `DisplayMetrics.density`): physical pixels per UI point.
     pub fn start(
         pixels_per_point: f32,
         store: Box<dyn ProjectStore>,
+        options: StartOptions,
     ) -> Result<Self, RuntimeError> {
-        let core = Arc::new(Core::headless()?);
-        Self::assemble(core, (store, None), (pixels_per_point, None))
-    }
-
-    /// As `start`, keeping the display cache of each artwork's canvas in `cache`: an
-    /// artwork opens showing it, complete when it is what the artwork's records evaluate to. The
-    /// device has `memory` bytes (Android's `ActivityManager.MemoryInfo.totalMem`): the GPU
-    /// memory budget follows from it.
-    pub fn start_cached(
-        pixels_per_point: f32,
-        (store, cache): (Box<dyn ProjectStore>, DisplayCache),
-        memory: u64,
-    ) -> Result<Self, RuntimeError> {
-        let core = Arc::new(Core::headless()?);
-        Self::assemble(core, (store, Some(cache)), (pixels_per_point, Some(memory)))
-    }
-
-    /// As `start`, on a GPU device already open: the GPU tests open one per process, as a device
-    /// per test once deadlocked a desktop driver while another test's threads exited.
-    pub fn start_on(
-        core: Arc<Core>,
-        pixels_per_point: f32,
-        store: Box<dyn ProjectStore>,
-    ) -> Result<Self, RuntimeError> {
-        Self::assemble(core, (store, None), (pixels_per_point, None))
-    }
-
-    /// As `start_cached`, on a GPU device already open (the GPU tests'), the device's memory not
-    /// given.
-    pub fn start_on_cached(
-        core: Arc<Core>,
-        pixels_per_point: f32,
-        (store, cache): (Box<dyn ProjectStore>, DisplayCache),
-    ) -> Result<Self, RuntimeError> {
-        Self::assemble(core, (store, Some(cache)), (pixels_per_point, None))
-    }
-
-    fn assemble(
-        core: Arc<Core>,
-        (store, cache): (Box<dyn ProjectStore>, Option<DisplayCache>),
-        (pixels_per_point, memory): (f32, Option<u64>),
-    ) -> Result<Self, RuntimeError> {
+        let StartOptions {
+            core,
+            cache,
+            memory,
+        } = options;
+        let core = match core {
+            Some(core) => core,
+            None => Arc::new(Core::headless()?),
+        };
         let toolbox = Toolbox::new(BrushLibrary::built_in()?);
         let storage = Storage::start(store, cache.clone())?;
         log::info!("GPU adapter: {}", core.adapter());

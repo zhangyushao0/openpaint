@@ -10,8 +10,8 @@ mod process;
 mod shapes;
 mod version;
 
-const USAGE: &str = "usage: cargo xtask <gate|check|android-build|android-install|device-backup|\
-                     device-restore|device-check|device-input|device-clean|device-push|\
+const USAGE: &str = "usage: cargo xtask <gate|check|android-build|device-backup|device-restore|\
+device-check|device-input|device-clean|device-push|\
                      device-info|device-smoke|device-reset|shape-assets> [args]";
 
 fn main() {
@@ -22,7 +22,6 @@ fn main() {
         Some("gate") => gate::run(),
         Some("check") => check::run(),
         Some("android-build") => android::build(),
-        Some("android-install") => android::install(),
         Some("device-backup") => device(device::backup(rest)),
         Some("device-restore") => device(device::restore(rest)),
         Some("device-check") => device(device::check(rest)),

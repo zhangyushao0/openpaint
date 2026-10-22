@@ -2,8 +2,8 @@
 //! worker's results move them on, what the screen is told, and that one picker runs at a time.
 
 use openpaint_app::{
-    AppError, Availability, Delivery, EditorAction, ExportError, ExportIntent, ExportNotice,
-    ExportScale, HostAnswer, HostRequest, ImageError, ImageFormat, ImageSink, ImageSource,
+    AppError, Availability, BytesSource, Delivery, EditorAction, ExportError, ExportIntent,
+    ExportNotice, ExportScale, HostAnswer, HostRequest, ImageError, ImageFormat, ImageSink,
     PortError, ReferenceImage, ReferenceIntent, ReferenceNotice, Title, TransferJob, Transfers,
 };
 use openpaint_core::{Artwork, CanvasSize};
@@ -13,14 +13,6 @@ struct Sink;
 impl ImageSink for Sink {
     fn write(self: Box<Self>, _bytes: &[u8]) -> Result<(), PortError> {
         Ok(())
-    }
-}
-
-struct Source;
-
-impl ImageSource for Source {
-    fn read(self: Box<Self>, _limit: u64) -> Result<Vec<u8>, PortError> {
-        Ok(Vec::new())
     }
 }
 
@@ -217,7 +209,7 @@ fn the_reference_opens_hides_and_shows_again_without_asking() {
         transfers.projection().reference_notice,
         ReferenceNotice::Opening
     );
-    let job = transfers.answer(HostAnswer::Image(Box::new(Source)));
+    let job = transfers.answer(HostAnswer::Image(Box::new(BytesSource(Vec::new()))));
     assert!(matches!(job, Some(TransferJob::Open(_))));
     transfers.opened(Ok(image()));
     let projection = transfers.projection();
@@ -241,7 +233,7 @@ fn a_failed_or_cancelled_choice_keeps_the_image_before() {
     transfers
         .reference(&ReferenceIntent::Choose)
         .expect("choose");
-    transfers.answer(HostAnswer::Image(Box::new(Source)));
+    transfers.answer(HostAnswer::Image(Box::new(BytesSource(Vec::new()))));
     transfers.opened(Ok(image()));
     let before = transfers.projection().reference;
     transfers
@@ -256,7 +248,7 @@ fn a_failed_or_cancelled_choice_keeps_the_image_before() {
     transfers
         .reference(&ReferenceIntent::Choose)
         .expect("choose");
-    transfers.answer(HostAnswer::Image(Box::new(Source)));
+    transfers.answer(HostAnswer::Image(Box::new(BytesSource(Vec::new()))));
     transfers.opened(Err(ImageError::Unsupported));
     let projection = transfers.projection();
     assert_eq!(projection.reference, before);
@@ -282,7 +274,7 @@ fn one_system_picker_at_a_time() {
     transfers
         .reference(&ReferenceIntent::Show(false))
         .expect("hiding is always possible");
-    let job = transfers.answer(HostAnswer::Image(Box::new(Source)));
+    let job = transfers.answer(HostAnswer::Image(Box::new(BytesSource(Vec::new()))));
     assert!(job.is_none(), "an image answers no save dialog");
     assert!(matches!(
         transfers.projection().export,

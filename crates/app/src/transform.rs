@@ -169,14 +169,11 @@ impl Transforms {
         clip: Option<&RegionMask>,
     ) -> Result<(), AppError> {
         if drawing {
-            return Err(AppError::Unavailable {
-                action: EditorAction::Transform,
-                availability: Availability::StrokeInProgress,
-            });
+            return Availability::StrokeInProgress.require(EditorAction::Transform);
         }
         let props = artwork.layer(artwork.active()).map(|layer| *layer.props());
         self.refused = match props {
-            // Hidden by its own eye or its group's (draweave cc51b74).
+            // Hidden by its own eye or its group's.
             Some(_) if !artwork.shown(artwork.active()) => Some(TransformRefusal::Hidden),
             Some(props) if props.locked() => Some(TransformRefusal::Locked),
             _ if artwork.on_mask() => Some(TransformRefusal::Mask),
@@ -186,15 +183,8 @@ impl Transforms {
             return Err(AppError::TransformRefused(refusal));
         }
         self.draft = Some(Draft {
-            from: None,
-            base: artwork.clone(),
             lift: clip.cloned(),
-            lifted: None,
-            picture: false,
-            handed: false,
-            steps: vec![Placement::IDENTITY],
-            at: 0,
-            preview: Placement::IDENTITY,
+            ..Draft::on(artwork.clone())
         });
         Ok(())
     }

@@ -58,7 +58,7 @@ fn blank() -> Artwork {
     Artwork::new(CanvasSize::new(SIZE[0], SIZE[1]).expect("size"))
 }
 
-/// `count` strokes crossing the canvas's middle at every angle (as `pen-many` lays them).
+/// `count` strokes crossing the canvas's middle at every angle.
 fn dense(count: u32) -> Artwork {
     (0..count).fold(blank(), |artwork, k| {
         let angle = k as f32 * 2.399_963_2;
@@ -109,11 +109,7 @@ fn request<'a>(artwork: &'a Artwork, active: Option<&'a ActiveStroke>) -> FrameR
 }
 
 fn cold(artwork: &Artwork) -> RgbaImage {
-    let mut target = CanvasTarget::new(core(), SIZE).expect("target");
-    target
-        .draw(core(), &request(artwork, None), &[PixelRect::full(SIZE)])
-        .expect("cold");
-    target.read(core()).expect("read")
+    CanvasTarget::whole(core(), &request(artwork, None), false).expect("cold")
 }
 
 /// One screen frame: the budget whole again, the canvas, then (with a view) its tiers, then the

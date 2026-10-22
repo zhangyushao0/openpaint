@@ -102,6 +102,18 @@ fn a_layer_groups_with_the_one_below_and_a_chain_groups_whole() {
     }
 }
 
+/// Layer `id` moved `by` steps.
+fn moved(artwork: &Artwork, id: u64, by: i32) -> Artwork {
+    let layer_id = LayerId::new(id);
+    layer(
+        artwork,
+        LayerCommand::Move {
+            layer: layer_id,
+            by,
+        },
+    )
+}
+
 #[test]
 fn moves_enter_and_leave_groups_at_their_edges_and_never_split_one() {
     let artwork = stack(4);
@@ -113,56 +125,48 @@ fn moves_enter_and_leave_groups_at_their_edges_and_never_split_one() {
     )
     .unwrap();
     assert_eq!(rows(&artwork), [(1, 0), (2, 5), (3, 5), (4, 0)]);
-    let raised = layer(&artwork, LayerCommand::Raise(LayerId::new(1)));
+    let raised = moved(&artwork, 1, 1);
     assert_eq!(
         rows(&raised),
         [(1, 5), (2, 5), (3, 5), (4, 0)],
         "joins from below"
     );
-    let raised = layer(&raised, LayerCommand::Raise(LayerId::new(1)));
+    let raised = moved(&raised, 1, 1);
     assert_eq!(
         rows(&raised),
         [(2, 5), (1, 5), (3, 5), (4, 0)],
         "moves inside"
     );
-    let lowered = layer(&artwork, LayerCommand::Lower(LayerId::new(4)));
+    let lowered = moved(&artwork, 4, -1);
     assert_eq!(
         rows(&lowered),
         [(1, 0), (2, 5), (3, 5), (4, 5)],
         "joins from above"
     );
-    let left = layer(&artwork, LayerCommand::Raise(LayerId::new(3)));
+    let left = moved(&artwork, 3, 1);
     assert_eq!(
         rows(&left),
         [(1, 0), (2, 5), (3, 0), (4, 0)],
         "the top leaves in place"
     );
-    let gone = layer(&left, LayerCommand::Lower(LayerId::new(2)));
+    let gone = moved(&left, 2, -1);
     assert_eq!(rows(&gone), [(1, 0), (2, 0), (3, 0), (4, 0)]);
     assert!(
         gone.groups().is_empty(),
         "the group went with its last layer"
     );
     assert_eq!(
-        artwork.apply(ArtworkCommand::Layer(LayerCommand::Raise(LayerId::new(4)))),
+        artwork.apply(ArtworkCommand::Layer(LayerCommand::Move {
+            layer: LayerId::new(4),
+            by: 1,
+        })),
         Err(CoreError::IndexOutOfRange { index: 4, len: 4 })
     );
-    // Reorder lands in the group only between two of its layers, and never splits it.
-    let into = layer(
-        &artwork,
-        LayerCommand::Reorder {
-            layer: LayerId::new(4),
-            index: 2,
-        },
-    );
+    // Several steps as one change: into the group and on inside it, or in, through and out of it
+    // again; it is never split.
+    let into = moved(&artwork, 4, -2);
     assert_eq!(rows(&into), [(1, 0), (2, 5), (4, 5), (3, 5)]);
-    let past = layer(
-        &artwork,
-        LayerCommand::Reorder {
-            layer: LayerId::new(1),
-            index: 3,
-        },
-    );
+    let past = moved(&artwork, 1, 5);
     assert_eq!(rows(&past), [(2, 5), (3, 5), (4, 0), (1, 0)]);
 }
 

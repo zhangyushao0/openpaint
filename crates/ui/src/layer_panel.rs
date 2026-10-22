@@ -15,8 +15,8 @@ use openpaint_core::{GroupId, LayerId, LayerName, MAX_NAME_CHARS};
 use openpaint_render::RgbaImage;
 
 use crate::components::{
-    Naming, Opener, ScreenArea, icon_button, icon_toggle, naming_dialog, panel_heading_with,
-    popover,
+    Alpha, Naming, Opener, ScreenArea, icon_button, icon_toggle, naming_dialog, panel_heading_with,
+    picture_texture, popover,
 };
 use crate::design::{Icon, LAYER_PICTURE, TOUCH_TARGET};
 use crate::layer_drag::Drag;
@@ -176,11 +176,9 @@ impl LayerPanel {
     /// Loads the pictures that arrived; drops those of layers no longer listed.
     fn load(&mut self, ctx: &egui::Context, list: &openpaint_app::LayerList) {
         for ((layer, mask), image) in self.arrived.drain(..) {
-            let [width, height] = image.size().map(|side| side as usize);
-            let picture =
-                egui::ColorImage::from_rgba_premultiplied([width, height], image.pixels());
             let name = format!("layer picture {} {mask}", layer.get());
-            let texture = ctx.load_texture(name, picture, egui::TextureOptions::LINEAR);
+            let picture = (image.size(), image.pixels(), Alpha::Premultiplied);
+            let texture = picture_texture(ctx, name, picture);
             self.pictures.insert((layer, mask), texture);
         }
         self.pictures.retain(|(layer, mask), _| {

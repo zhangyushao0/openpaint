@@ -82,6 +82,19 @@ pub trait ImageSource: Send {
     fn read(self: Box<Self>, limit: u64) -> Result<Vec<u8>, PortError>;
 }
 
+/// A file's bytes already read, as the file to read them from: what a debug build's `open-file`
+/// was handed (the instrumentation's shell read the file, as the app may not), a scenario's
+/// pictures, the tests'.
+pub struct BytesSource(pub Vec<u8>);
+
+impl ImageSource for BytesSource {
+    fn read(self: Box<Self>, limit: u64) -> Result<Vec<u8>, PortError> {
+        let mut bytes = self.0;
+        bytes.truncate(usize::try_from(limit.saturating_add(1)).unwrap_or(usize::MAX));
+        Ok(bytes)
+    }
+}
+
 /// What the app asks the platform to show or make. The runtime hands these to the host.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HostRequest {

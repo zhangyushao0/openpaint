@@ -10,8 +10,6 @@ scenarios = "run --quiet --package openpaint-harness -- scenario --all"
 repo-check = "xtask check"
 # The tablet APK: Rust library through cargo-ndk, then Gradle (see xtask/src/android.rs).
 android-build = "xtask android-build"
-# Build, install over adb and launch on the connected device.
-android-install = "xtask android-install"
 # Device chores over adb (see xtask/src/device.rs): the app's library out and back in, byte
 # for byte; wake, install, launch, screenshot and logcat; one injected gesture; test files away;
 # a picture into the test folder for the system picker; the display's colour facts, read-only;
@@ -26,7 +24,7 @@ device-push = "xtask device-push"
 device-info = "xtask device-info"
 device-smoke = "xtask device-smoke"
 device-reset = "xtask device-reset"
-# Test artworks as OpenPaint files, deterministic (S58, apps/harness/src/test_art.rs):
+# Test artworks as OpenPaint files, deterministic (apps/harness/src/test_art/):
 # `cargo test-art pile|a4|a4-plain|kinds|session [n] [out]` -> artifacts/test-art/<kind>-<n>.openpaint.
 test-art = "run --quiet --package openpaint-harness -- test-art"
 # The brush shape textures (crates/render/assets/shape-*.bin) from seeded noise (see

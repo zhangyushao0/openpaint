@@ -3,7 +3,7 @@
 //! and opens it (`cargo device-input open-file`) instead of drawing it by injection.
 //!
 //! - `pile [n]` (300): `n` strokes of the ten built-ins in turn at their first sizes, each along
-//!   the path `device-input pen-many` lays (`pile_path`: 52 samples 8 ms apart, pressed 0.8),
+//!   the pile's path (`pile_path`: 52 samples 8 ms apart, pressed 0.8),
 //!   turned and moved about the middle of a screen-size canvas: one dense place.
 //! - `a4 [n]` (180): an A4 page of `n` strokes of the author's brushes over the whole page, dense
 //!   around one place, on five layers: fills, a picture inserted, 9 smudges, a mask, a Multiply
@@ -151,7 +151,7 @@ pub fn make(kind: Kind) -> Result<Artwork, HarnessError> {
     }
 }
 
-/// `n` strokes of the built-ins in turn along `pen-many`'s paths about the canvas's middle.
+/// `n` strokes of the built-ins in turn along the pile's paths about the canvas's middle.
 fn pile(library: &BrushLibrary, n: u32) -> Result<Artwork, HarnessError> {
     let mut artwork = Artwork::new(CanvasSize::new(SCREEN[0], SCREEN[1])?);
     let middle = SCREEN.map(|side| side as f32 / 2.0);

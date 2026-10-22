@@ -7,9 +7,9 @@
 use std::sync::Arc;
 
 use openpaint_core::{Artwork, CanvasSize, CoreError, StrokeSample, StrokeStyle};
-use openpaint_render::{Core, RgbaImage};
+use openpaint_render::{CanvasTarget, Core, FrameRequest, RgbaImage};
 
-use crate::brush_pictures::{drawn_alone, s_curve};
+use crate::brush_pictures::s_curve;
 use crate::canvas::PAPER;
 use crate::error::RuntimeError;
 
@@ -48,14 +48,20 @@ fn strip_artwork(job: &StripJob) -> Result<Artwork, CoreError> {
 
 /// The strip evaluated and read back.
 pub(crate) fn evaluate_strip(core: &Core, job: &StripJob) -> Result<RgbaImage, RuntimeError> {
-    drawn_alone(core, &strip_artwork(job)?, PAPER)
+    let artwork = strip_artwork(job)?;
+    let request = FrameRequest {
+        artwork: &artwork,
+        active: None,
+        background: PAPER,
+    };
+    Ok(CanvasTarget::whole(core, &request, true)?)
 }
 
 #[cfg(test)]
 mod tests {
     use openpaint_app::{BrushIntent, BrushKey, BrushLibrary, Toolbox};
     use openpaint_core::{CanvasPoint, StrokeTool};
-    use openpaint_render::{CanvasTarget, FrameRequest, PixelRect};
+    use openpaint_render::PixelRect;
 
     use super::*;
 

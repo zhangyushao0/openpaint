@@ -19,7 +19,9 @@ use openpaint_render::RgbaImage;
 use crate::brush_editor::BrushEditor;
 use crate::brush_list::{ListState, list};
 use crate::brush_strip::StripStrokes;
-use crate::components::{Opener, ScreenArea, choices, icon_choice, popover};
+use crate::components::{
+    Alpha, Opener, ScreenArea, choices, icon_choice, picture_texture, popover,
+};
 use crate::design::{INK, Icon};
 
 /// The panel's UI-local state and the brushes' preview pictures.
@@ -214,17 +216,10 @@ impl BrushPanel {
 
     fn load(&mut self, ctx: &egui::Context) {
         for (key, image) in self.pending.drain(..) {
-            let [width, height] = image.size().map(|side| side as usize);
-            let picture = egui::ColorImage::from_rgba_unmultiplied([width, height], &ink(&image));
-            let options = egui::TextureOptions::LINEAR;
-            match self.textures.get_mut(&key) {
-                Some(texture) => texture.set(picture, options),
-                None => {
-                    let name = format!("brush preview {}", key.as_str());
-                    let texture = ctx.load_texture(name, picture, options);
-                    self.textures.insert(key, texture);
-                }
-            }
+            let name = format!("brush preview {}", key.as_str());
+            let inked = ink(&image);
+            let texture = picture_texture(ctx, name, (image.size(), &inked, Alpha::Straight));
+            self.textures.insert(key, texture);
         }
     }
 }

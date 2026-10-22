@@ -85,10 +85,7 @@ impl Adjusts {
         clip: Option<&RegionMask>,
     ) -> Result<(), AppError> {
         if drawing {
-            return Err(AppError::Unavailable {
-                action: EditorAction::Adjust,
-                availability: Availability::StrokeInProgress,
-            });
+            return Availability::StrokeInProgress.require(EditorAction::Adjust);
         }
         let layer = artwork.active();
         let props = artwork.layer(layer).map(|layer| *layer.props());

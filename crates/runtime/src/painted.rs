@@ -1,11 +1,11 @@
 //! Strokes made as a pen makes them, for the benchmarks and the harness's test artworks: a path
-//! committed as one stroke (`drawn`), the path `cargo device-input pen-many` lays (`pile_path`,
-//! `test-art pile`'s) and a built-in brush's style (`style_of`).
+//! committed as one stroke (`drawn`), the pile's strokes crossing one place at every angle
+//! (`pile_path`, `test-art pile`'s) and a built-in brush's style (`style_of`).
 
 use std::f32::consts::PI;
 use std::sync::Arc;
 
-use openpaint_app::BrushLibrary;
+use openpaint_app::{BrushKey, BrushLibrary};
 use openpaint_core::{Artwork, CanvasPoint, Color, StrokeSample, StrokeStyle};
 use openpaint_render::RenderError;
 
@@ -36,7 +36,7 @@ pub fn drawn(
     Ok(session.finish().artwork)
 }
 
-/// `pen-many`'s stroke `k` about `middle` (`GestureInstrumentation.turned`): a 500 px path gently
+/// The pile's stroke `k` about `middle`: a 500 px path gently
 /// bent through `middle`, turned about its box's middle by `k` golden angles and moved by
 /// `(37 k mod 281 - 140, 59 k mod 281 - 140)` screen pixels at fit (0.92 screen pixels a canvas
 /// pixel).
@@ -80,12 +80,11 @@ pub fn style_of(
     key: &str,
     size: Option<f32>,
 ) -> Result<StrokeStyle, RuntimeError> {
-    let index = library
-        .find(key)
+    let brush = library
+        .brush(&BrushKey::new(key))
         .ok_or(RuntimeError::Render(RenderError::Invalid(
             "the brush is not built in",
         )))?;
-    let brush = &library.brushes()[index];
     let size = size.unwrap_or(brush.size().default);
     let color = Color::rgb(0.2, 0.3, 0.6)?;
     Ok(StrokeStyle::new(

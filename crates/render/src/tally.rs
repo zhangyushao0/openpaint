@@ -1,6 +1,6 @@
 //! What drawing did, counted: the smudge residuals derived from their strokes, the view
 //! tier tiles filled, the regions the raster core drew, the snapshots taken under a stroke and the
-//! scenes that took a lift's strokes in place. Read by the harness's `nav-timing`, the app's
+//! scenes that took a lift's strokes in place. Read by the app's
 //! navigation log, its benchmarks and tests: a residual derived again while nothing changed, or a
 //! tile drawn again every frame, shows as a count.
 

@@ -7,7 +7,7 @@
 //! `raster_frame.rs` the passes, raster*.wgsl the stages). A smudge is a pass applying its
 //! residual to the layer from a copy of it; so are an adjustment and a filter's result. It draws
 //! every scene: the screen's canvas and its view tiers, exports, layer samples and pictures, brush
-//! pictures, a smudge's and a filter's material, and the stroke being drawn (`drawing.rs`, a
+//! pictures, a smudge's and a filter's material, and the stroke being drawn (`canvas/drawing.rs`, a
 //! frame's regions one batch, `raster_batch.rs`).
 
 use crate::core::Core;

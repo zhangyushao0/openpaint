@@ -15,7 +15,8 @@ use openpaint_app::{
 };
 
 use crate::components::{
-    FloatingLayout, MAT, ScreenArea, UNDER_ISLANDS, floating, icon_button, ring_of,
+    Alpha, FloatingLayout, MAT, ScreenArea, UNDER_ISLANDS, floating, icon_button, picture_texture,
+    ring_of,
 };
 use crate::design::{Icon, REFERENCE_HEIGHT, REFERENCE_WIDTH, SPACE};
 use crate::taps::push_once;
@@ -174,9 +175,8 @@ impl ReferenceWindow {
         {
             return texture.clone();
         }
-        let [width, height] = image.size().map(|side| side as usize);
-        let picture = egui::ColorImage::from_rgba_unmultiplied([width, height], image.pixels());
-        let texture = ctx.load_texture("reference", picture, egui::TextureOptions::LINEAR);
+        let picture = (image.size(), image.pixels(), Alpha::Straight);
+        let texture = picture_texture(ctx, "reference", picture);
         self.zoom = ZOOM[0];
         self.centre = image_pixels(image) / 2.0;
         let size = body_size(image.size()) + Vec2::splat(2.0 * MAT);

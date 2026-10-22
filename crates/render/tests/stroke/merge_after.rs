@@ -93,12 +93,9 @@ fn draw_frames(target: &mut CanvasTarget, artwork: &Artwork) -> Artwork {
             ..request(artwork)
         };
         target.draw(&core, &frame, &[]).expect("evaluate");
-        let mut fresh = CanvasTarget::new(&core, SIZE).expect("target");
-        fresh
-            .draw(&core, &frame, &[PixelRect::full(SIZE)])
-            .expect("evaluate");
         let shown = target.read(&core).expect("readback");
-        assert!(shown == fresh.read(&core).expect("readback"), "in progress");
+        let cold = CanvasTarget::whole(&core, &frame, false).expect("cold");
+        assert!(shown == cold, "in progress");
     }
     session.finish().artwork
 }

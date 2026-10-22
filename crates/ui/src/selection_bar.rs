@@ -11,7 +11,8 @@ use egui::{Color32, Order, Pos2, Stroke};
 use openpaint_app::{Intent, SelectionIntent, SelectionShape, SessionProjection, ViewMapping};
 
 use crate::components::{
-    Place, ScreenArea, choices, divider, icon_toggle, pill, ring_of, text_button, text_choice,
+    Place, ScreenArea, canvas_point, choices, divider, icon_toggle, pill, ring_of, text_button,
+    text_choice,
 };
 use crate::design::{INK, Icon, PANEL, ink_line};
 use crate::taps::push_once;
@@ -105,10 +106,7 @@ pub(crate) fn show_path(
     if !selection.tool || selection.path.is_empty() {
         return;
     }
-    let at = |point: [f32; 2]| {
-        let [x, y] = mapping.to_screen(point);
-        Pos2::new(x / pixels_per_point, y / pixels_per_point)
-    };
+    let at = |point: [f32; 2]| canvas_point(mapping, pixels_per_point, point);
     let points: Vec<Pos2> = match (selection.shape, &selection.path[..]) {
         (SelectionShape::Rectangle, [a, b]) => {
             [*a, [b[0], a[1]], *b, [a[0], b[1]], *a].map(at).to_vec()

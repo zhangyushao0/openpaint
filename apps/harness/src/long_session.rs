@@ -17,16 +17,17 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
-use openpaint_app::{HISTORY_BUDGET, KEPT_VERSIONS};
+use openpaint_app::{HISTORY_BUDGET, KEPT_VERSIONS, ProjectStore};
+use openpaint_devtools::{Watched, Wrote};
 use openpaint_render::OWN_BUDGET;
 use openpaint_runtime::{
-    ARENA_SHARE, Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime, ToolKind,
+    ARENA_SHARE, Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime, StartOptions,
+    ToolKind,
 };
 use openpaint_store::Library;
 
 use crate::error::HarnessError;
 use crate::launch::{fresh_library, library_dir};
-use crate::long_session_store::Watched;
 
 /// The MovinkPad 14.
 const SIZE: [u32; 2] = [2880, 1800];
@@ -97,6 +98,25 @@ pub fn run(strokes: usize) -> Result<(), HarnessError> {
     painter.finish()
 }
 
+/// After each save and each version kept, what fjall holds in memory (its cache and memtables);
+/// after a version, how many the artwork holds.
+fn watch(
+    library: &mut Library,
+    wrote: Wrote,
+    (versions, fjall): (&Mutex<usize>, &Mutex<[u64; 2]>),
+) {
+    if let Wrote::Kept(id) = wrote
+        && let Ok(listed) = library.list()
+        && let Some(item) = listed.iter().find(|item| item.id == id)
+        && let Ok(mut kept) = versions.lock()
+    {
+        *kept = item.versions.len();
+    }
+    if let (Some(memory), Ok(mut seen)) = (library.memory(), fjall.lock()) {
+        *seen = memory;
+    }
+}
+
 /// The app being painted in, and the hand's clock.
 struct Painter {
     runtime: Runtime,
@@ -116,13 +136,12 @@ impl Painter {
         let library = fresh_library(library_dir("long-session"))?;
         let versions = Arc::new(Mutex::new(0));
         let fjall = Arc::new(Mutex::new([0; 2]));
-        let store = Watched {
-            inner: Library::at(&library),
-            versions: Arc::clone(&versions),
-            fjall: Arc::clone(&fjall),
-        };
+        let store = Watched::new(&library, Arc::default()).after_writes({
+            let (versions, fjall) = (Arc::clone(&versions), Arc::clone(&fjall));
+            move |library, wrote| watch(library, wrote, (&versions, &fjall))
+        });
         let mut painter = Self {
-            runtime: Runtime::start(PIXELS_PER_POINT, Box::new(store))?,
+            runtime: Runtime::start(PIXELS_PER_POINT, Box::new(store), StartOptions::default())?,
             clock: 0,
             versions,
             fjall,

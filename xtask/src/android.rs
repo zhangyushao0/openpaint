@@ -1,7 +1,7 @@
-//! `cargo android-build` and `cargo android-install`: the tablet APK. cargo-ndk builds the Rust
-//! library into `target/android-jni/` (which `apps/android/app/build.gradle.kts` packages),
-//! the Gradle wrapper assembles the APK with the version (`version.rs`) as Gradle properties,
-//! adb installs and launches it.
+//! `cargo android-build`: the tablet APK. cargo-ndk builds the Rust library into
+//! `target/android-jni/` (which `apps/android/app/build.gradle.kts` packages), and the Gradle
+//! wrapper assembles the APK with the version (`version.rs`) as Gradle properties; `device-check`
+//! installs and launches it.
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -43,17 +43,6 @@ pub fn build() -> Result<(), String> {
         .arg(format!("-Popenpaint.versionName={name}"))
         .arg(format!("-Popenpaint.versionCode={}", version.code())))?;
     println!("APK {APK}");
-    Ok(())
-}
-
-pub fn install() -> Result<(), String> {
-    build()?;
-    let adb = sdk_dir()?
-        .join("platform-tools")
-        .join(format!("adb{}", std::env::consts::EXE_SUFFIX));
-    run(Command::new(&adb).args(["install", "-r", APK]))?;
-    run(Command::new(&adb).args(["shell", "am", "start", "-n", ACTIVITY]))?;
-    println!("logs: adb logcat -s openpaint");
     Ok(())
 }
 

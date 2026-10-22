@@ -118,29 +118,29 @@ fn deleted_ids_are_never_reused() {
 }
 
 #[test]
-fn reorder_moves_a_layer() {
+fn move_takes_a_layer_steps_up_or_down() {
     let base = three();
     let next = ok(
         &base,
-        LayerCommand::Reorder {
+        LayerCommand::Move {
             layer: LayerId::new(3),
-            index: 0,
+            by: -2,
         },
     );
     assert_eq!(ids(&next), [3, 1, 2]);
     let next = ok(
         &base,
-        LayerCommand::Reorder {
+        LayerCommand::Move {
             layer: LayerId::new(1),
-            index: 2,
+            by: 2,
         },
     );
     assert_eq!(ids(&next), [2, 3, 1]);
     let same = run(
         &base,
-        LayerCommand::Reorder {
+        LayerCommand::Move {
             layer: LayerId::new(2),
-            index: 1,
+            by: 0,
         },
     )
     .unwrap();
@@ -149,14 +149,14 @@ fn reorder_moves_a_layer() {
 }
 
 #[test]
-fn reorder_errors() {
+fn move_errors() {
     let base = three();
     assert_eq!(
         run(
             &base,
-            LayerCommand::Reorder {
+            LayerCommand::Move {
                 layer: MISSING,
-                index: 0
+                by: -2
             }
         ),
         Err(CoreError::UnknownLayer(MISSING))
@@ -164,9 +164,9 @@ fn reorder_errors() {
     assert_eq!(
         run(
             &base,
-            LayerCommand::Reorder {
+            LayerCommand::Move {
                 layer: LayerId::new(1),
-                index: 3
+                by: 3
             }
         ),
         Err(CoreError::IndexOutOfRange { index: 3, len: 3 })

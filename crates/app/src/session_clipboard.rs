@@ -68,8 +68,7 @@ impl Session {
         (from, onto): (&Artwork, &Artwork),
         copied: &Copied,
     ) -> Result<(), AppError> {
-        let canvas = from.canvas();
-        self.selection.handle(canvas, SelectionIntent::Tool(false));
+        self.select(SelectionIntent::Tool(false));
         self.transforms.paste(from, onto, copied)
     }
 }

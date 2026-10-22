@@ -11,7 +11,8 @@ use openpaint_app::{
 use openpaint_core::{Rotation, ShapeTexture, Stamp, Tip};
 
 use crate::components::{
-    SettingSlider, choices, hint, menu_row, section, setting_slider, text_choice_wide, word_columns,
+    Lead, SettingSlider, choices, hint, menu_row, section, setting_slider, text_choice_wide,
+    word_columns,
 };
 use crate::design::{INK, INK_DISABLED, SPACE, TOUCH_TARGET};
 use crate::taps::push_brush;
@@ -155,7 +156,7 @@ fn streamline(ui: &mut egui::Ui, amount: f32, taps: &mut Vec<Intent>) {
 fn stamps(ui: &mut egui::Ui, edited: &EditedBrush, taps: &mut Vec<Intent>) {
     let stamps = stamp_words(edited);
     let words = stamps.map(|(_, label, on, enabled)| (label, on, enabled));
-    if let Some(at) = word_columns(ui, "stamps", &words) {
+    if let Some(at) = word_columns(ui, "stamps", &words, Lead::Indent) {
         edit(taps, BrushChange::Stamp(stamps[at].0), true);
     }
     if !edited.offers_stamps() {

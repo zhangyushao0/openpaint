@@ -12,7 +12,7 @@ use jni::objects::{
 };
 use jni::sys::{jboolean, jfloat, jint, jlong};
 use jni::{Env, EnvUnowned};
-use openpaint_runtime::{DisplayCache, Runtime, TextFonts, take_spent};
+use openpaint_runtime::{DisplayCache, Runtime, StartOptions, TextFonts, take_spent};
 use openpaint_store::Library;
 
 use crate::error::HostError;
@@ -91,8 +91,12 @@ pub extern "system" fn Java_dev_openpaint_Native_create<'local>(
         let display = DisplayCache::at(cache_dir.join("canvas"));
         // The device's memory (`ActivityManager.MemoryInfo.totalMem`): the GPU budget's.
         let memory = u64::try_from(memory).unwrap_or(0);
-        let runtime =
-            Runtime::start_cached(density, (Box::new(Library::at(library)), display), memory)?;
+        let options = StartOptions {
+            cache: Some(display),
+            memory: Some(memory),
+            ..StartOptions::default()
+        };
+        let runtime = Runtime::start(density, Box::new(Library::at(library)), options)?;
         let host = Host {
             runtime,
             latency: PenLatency::default(),

@@ -1,4 +1,4 @@
-//! The raster core's slot passes (`drawing.rs`): a drawing keeps, per
+//! The raster core's slot passes (`canvas/drawing.rs`): a drawing keeps, per
 //! output tile, a snapshot of the region's float targets as the units before the next stroke
 //! leave them and, while a stroke is drawn, its coverage so far, in slots of pages of its own. A
 //! region's targets are set from the snapshots of the tiles it meets instead of drawing those

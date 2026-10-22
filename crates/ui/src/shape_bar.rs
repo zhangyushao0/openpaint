@@ -5,11 +5,11 @@
 //! through the guide's centre (upright, level, both, or four 45 degrees apart), with a faint
 //! handle at the centre that a finger moves. Lines and handles are chrome, never artwork.
 
-use egui::{Order, Pos2, Stroke};
+use egui::{Order, Stroke};
 use openpaint_app::{Guide, Intent, SessionProjection, StrokeIntent, Symmetry, ViewMapping};
 use openpaint_core::CanvasSize;
 
-use crate::components::{Place, ScreenArea, Source, pill, text_button};
+use crate::components::{Place, ScreenArea, Source, canvas_point, pill, text_button};
 use crate::design::{INK_SECONDARY, PANEL};
 use crate::taps::push_once;
 use crate::transform_bar::handle_mark;
@@ -69,10 +69,7 @@ pub(crate) fn show_marks(
 ) {
     let layer = egui::LayerId::new(Order::Background, egui::Id::new("shape marks"));
     let painter = ctx.layer_painter(layer);
-    let at = |point: [f32; 2]| {
-        let [x, y] = mapping.to_screen(point);
-        Pos2::new(x / pixels_per_point, y / pixels_per_point)
-    };
+    let at = |point: [f32; 2]| canvas_point(mapping, pixels_per_point, point);
     let guide = projection.guide();
     if let (true, Some(canvas)) = (guide.on, projection.canvas()) {
         let (ink, paper) = (

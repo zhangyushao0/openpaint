@@ -7,7 +7,7 @@
 
 use openpaint_app::{ButtonAction, ButtonMap, Intent, PenButton, ToolIntent};
 
-use crate::components::{hint, panel_heading_with, text_button, word_columns};
+use crate::components::{Lead, hint, panel_heading_with, text_button, word_columns};
 use crate::design::{INK, SPACE, TOUCH_TARGET};
 use crate::taps::push_once;
 
@@ -52,7 +52,7 @@ fn label(ui: &mut egui::Ui, text: &str) {
 /// The six actions for `button` in two even columns, `chosen` in the ink pill.
 fn actions(ui: &mut egui::Ui, button: PenButton, chosen: ButtonAction, taps: &mut Vec<Intent>) {
     let words = ButtonAction::ALL.map(|action| (action.label(), action == chosen, true));
-    if let Some(at) = word_columns(ui, button.label(), &words) {
+    if let Some(at) = word_columns(ui, button.label(), &words, Lead::Indent) {
         let action = ButtonAction::ALL[at];
         push_once(taps, Intent::Tool(ToolIntent::SetButton { button, action }));
     }

@@ -13,7 +13,7 @@ use std::collections::HashMap;
 use openpaint_app::{BrushIntent, BrushKey, BrushProjection, BrushRow, BrushSet, Intent, Tool};
 
 use crate::components::{
-    BRUSH_ROW, BrushRowView, brush_row, hint, panel_heading, slider, word_columns,
+    BRUSH_ROW, BrushRowView, Lead, brush_row, hint, panel_heading, slider, word_columns,
 };
 use crate::design::{SPACE, TOUCH_TARGET};
 use crate::row_drag::{self, RowDrag, held};
@@ -76,7 +76,7 @@ pub(crate) fn list(
 /// another was.
 pub(crate) fn set_words(ui: &mut egui::Ui, shown: BrushSet) -> Option<BrushSet> {
     let words = BrushSet::ALL.map(|set| (set.label(), set == shown, true));
-    word_columns(ui, "brush sets", &words).map(|at| BrushSet::ALL[at])
+    word_columns(ui, "brush sets", &words, Lead::Indent).map(|at| BrushSet::ALL[at])
 }
 
 /// The rows of `set`, the carried one where it would land. Returns whether the chosen brush's
