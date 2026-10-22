@@ -22,7 +22,9 @@ fn samples(runtime: &Runtime) -> Vec<usize> {
     layer.strokes().iter().map(|s| s.samples().len()).collect()
 }
 
-/// One pen event of `phase` at `at`, then the frames the runtime asks for.
+/// One pen event of `phase` at `at`, then one frame, as on the device. Frames until the runtime
+/// settles would hold the pen still on the clock for as long as background work runs, and a held
+/// pen becomes a QuickShape after `HOLD_MS`, which reshapes the stroke's samples.
 fn pen(runtime: &mut Runtime, hand: &mut Hand, phase: MotionPhase, at: [f32; 2]) {
     hand.clock += 8;
     runtime.fix_clock(hand.clock);
@@ -41,7 +43,9 @@ fn pen(runtime: &mut Runtime, hand: &mut Hand, phase: MotionPhase, at: [f32; 2])
             }],
         }],
     });
-    settle(runtime, hand);
+    hand.clock += 8;
+    runtime.fix_clock(hand.clock);
+    runtime.frame_offscreen(SIZE).expect("frame");
 }
 
 /// Frames on a held clock until nothing moves, fills in or waits for the store.
