@@ -17,7 +17,7 @@ use crate::display::{CacheJob, CacheWorker};
 use crate::error::RuntimeError;
 use crate::storage::{Done, Job, LibraryCall, Loaded, Opened, Storage, Stored};
 
-/// The workers a frame hands calls to: the store and the display cache (S54).
+/// The workers a frame hands calls to: the store and the display cache.
 pub(crate) type Workers<'a> = (&'a mut Storage, &'a mut CacheWorker);
 
 pub(crate) enum Screen {
@@ -120,8 +120,8 @@ impl Screen {
                 result,
                 closed,
             } => self.left(version.as_ref(), (&result, closed), (core, cache)),
-            Done::Loaded(Ok(loaded)) => *self = opening(*loaded),
-            Done::Created(artwork, title, Ok(id)) => {
+            Done::Loaded(loaded) => *self = opening(*loaded),
+            Done::Created(artwork, title, id) => {
                 log::info!("new artwork {}", id.get());
                 let held = Held {
                     project: id,
@@ -131,15 +131,10 @@ impl Screen {
                 };
                 *self = Self::Opening(Some(Content::Stored(artwork, title, Box::new(held))));
             }
-            Done::Listed(listed) => self.gallery_answer(LibraryAnswer::Listed(listed)),
-            Done::Changed(result) => self.gallery_answer(LibraryAnswer::Changed(result)),
-            Done::Restored(result) => self.gallery_answer(LibraryAnswer::Restored(result)),
-            Done::FileSaved(result) => self.gallery_answer(LibraryAnswer::FileSaved(result)),
-            Done::FileOpened(result) => self.gallery_answer(LibraryAnswer::FileOpened(result)),
-            Done::Loaded(Err(error)) => self.gallery_answer(LibraryAnswer::OpenFailed(error)),
-            Done::Created(_, _, Err(error)) => {
-                self.gallery_answer(LibraryAnswer::CreateFailed(error));
-            }
+            Done::Gallery(answer) => match self {
+                Self::Gallery(gallery) => gallery.answer(answer),
+                _ => log::warn!("a gallery answer arrived after the gallery closed"),
+            },
         }
     }
 
@@ -199,14 +194,6 @@ impl Screen {
         }
     }
 
-    fn gallery_answer(&mut self, answer: LibraryAnswer) {
-        if let Self::Gallery(gallery) = self {
-            gallery.answer(answer);
-        } else {
-            log::warn!("a gallery answer arrived after the gallery closed");
-        }
-    }
-
     /// Everything after the frame's intents: the canvas is evaluated and its unsaved version or
     /// its leaving handed to the store; the gallery's calls go to the store in order.
     /// `now` is the wall clock's seconds since 1970 UTC, for a version kept on leaving.
@@ -256,7 +243,7 @@ impl Screen {
 }
 
 /// The store's job for leaving `canvas`: `version` (from `Session::leave_request`) and the
-/// thumbnail of what the canvas shows (every tile waiting evaluated first, S49); `close` for the
+/// thumbnail of what the canvas shows (every tile waiting evaluated first); `close` for the
 /// gallery. A thumbnail that cannot be made is left out (it is derived data).
 pub(crate) fn leave_job(
     canvas: &mut Canvas,

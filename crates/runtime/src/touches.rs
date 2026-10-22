@@ -1,4 +1,4 @@
-//! Whether the screen is idle for background work (S54, S53's option (b); S60): a frame gives it
+//! Whether the screen is idle for background work (DECISIONS D96): a frame gives it
 //! `BACKGROUND_NS` (4 ms of GPU) while a finger or the pen touches the screen or the pen hovers
 //! over it (a stroke is coming), and for `IDLE_AFTER` after the last of these; once nothing has for
 //! that long, background work runs at the GPU's pace between the frames drawn, the GPU's queue of
@@ -47,7 +47,7 @@ impl Touches {
     }
 
     /// No contact is on the glass or hovering over it, and no stroke is drawn (`drawing`): a
-    /// frame has no input to take, so it may wait for the one before (S60, `pacing.rs`).
+    /// frame has no input to take, so it may wait for the one before (`pacing.rs`).
     pub(crate) fn resting(&self, drawing: bool) -> bool {
         self.on.is_empty() && !drawing
     }

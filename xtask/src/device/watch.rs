@@ -1,4 +1,4 @@
-//! `cargo device-info --watch <seconds> [label]` (S67): the tablet's clocks, the GPU's load, the
+//! `cargo device-info --watch <seconds> [label]`: the tablet's clocks, the GPU's load, the
 //! battery's draw and the app's CPU time over `seconds`, sampled every `EVERY` by one read-only
 //! loop in the device's shell, so it runs beside a benchmark (`device-input bench`) or while the
 //! app rests. Files it cannot read are left out. The samples go whole to

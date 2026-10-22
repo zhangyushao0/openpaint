@@ -1,91 +1,18 @@
-//! What the device smoke reads and where it draws (S52): what the debug build answers to
-//! `device-input state` (`DebugControls.state`, the fields separated by tabs, each "key value");
-//! how the smoke tells the test artwork it made from the author's (by the artwork ids the gallery
-//! lists, the one changed last first); its pen paths; the system's window in front; the shared
-//! PNG; the driver's lines.
+//! What the debug build answers to `device-input state` (`DebugControls.state`, the fields
+//! separated by tabs, each "key value"), asking it until the app gets somewhere, and how the
+//! smoke and `open-file` tell a test artwork they made from the author's: by the artwork ids the
+//! gallery lists, the one changed last first.
 
 use std::time::{Duration, Instant};
 
-use super::adb::{Adb, DeviceError, PACKAGE};
+use super::adb::{Adb, DeviceError, Result};
+use super::input::{answer, extras, instrument};
 
-/// Pen points along a stroke at most this far apart, in screen pixels (one every 8 ms).
-pub(super) const SPACING: f32 = 24.0;
-/// How long a step waits for the app or the system to get somewhere.
-pub(super) const WAIT: Duration = Duration::from_secs(8);
-
-/// "dev.openpaint <versionName> (version code <n>)" as the package manager has it installed.
-pub(super) fn installed(adb: &Adb) -> Result<String, DeviceError> {
-    let dump = adb.shell(&["dumpsys", "package", PACKAGE])?;
-    let field = |key: &str| {
-        dump.lines()
-            .find_map(|line| {
-                line.split_whitespace()
-                    .find_map(|word| word.strip_prefix(key))
-            })
-            .unwrap_or("?")
-            .to_owned()
-    };
-    let (name, code) = (field("versionName="), field("versionCode="));
-    Ok(format!("{PACKAGE} {name} (version code {code})"))
-}
-
-/// A smoke step's failure, saying why.
-pub(super) fn failed(why: impl Into<String>) -> DeviceError {
-    DeviceError::Failed {
-        command: "device-smoke".into(),
-        output: why.into(),
-    }
-}
-
-/// Waits until the window with the input focus is one `done` accepts, at most `WAIT`.
-pub(super) fn focus_until(adb: &Adb, done: impl Fn(&str) -> bool) -> Result<(), DeviceError> {
-    let started = Instant::now();
-    loop {
-        let dump = adb.shell_within(&["dumpsys", "window"], WAIT)?;
-        let focus = dump
-            .lines()
-            .find_map(|line| line.trim().strip_prefix("mCurrentFocus="))
-            .unwrap_or("none");
-        if done(focus) {
-            return Ok(());
-        }
-        if started.elapsed() >= WAIT {
-            return Err(failed(format!("the focus stayed on {focus}")));
-        }
-        std::thread::sleep(Duration::from_millis(100));
-    }
-}
-
-/// The app's share cache (`cache/share`, only the newest share kept) holds one PNG: the canvas
-/// at `fit` at 1x, 2x or 4x.
-pub(super) fn shared(adb: &Adb, fit: [f32; 4]) -> Result<(), DeviceError> {
-    let listed = adb.shell(&["run-as", PACKAGE, "ls", "cache/share"])?;
-    let names: Vec<&str> = listed.lines().map(str::trim).collect();
-    let [name] = names[..] else {
-        return Err(failed(format!("the share cache holds {names:?}")));
-    };
-    if !name.ends_with(".png") || name.contains('\'') {
-        return Err(failed(format!("the share cache holds {name}")));
-    }
-    // The file's first 24 bytes as decimal numbers: text, as every other answer.
-    let path = format!("'cache/share/{name}'");
-    let words = [
-        "run-as", PACKAGE, "od", "-A", "n", "-t", "u1", "-N", "24", &path,
-    ];
-    let dump = adb.shell(&words)?;
-    let head: Vec<u8> = dump
-        .split_whitespace()
-        .filter_map(|n| n.parse().ok())
-        .collect();
-    let canvas = [fit[2], fit[3]].map(|side| side.round() as u32);
-    match png_size(&head) {
-        Some(size) if [1, 2, 4].iter().any(|k| size == canvas.map(|s| s * k)) => Ok(()),
-        size => Err(failed(format!(
-            "{name}: {size:?}, the canvas {canvas:?}; od said {}",
-            dump.trim()
-        ))),
-    }
-}
+/// The names of a card's picture and bin (`components/artwork_card.rs`).
+pub(super) const OPEN_CARD: &str = "Open artwork";
+pub(super) const DELETE_CARD: &str = "Delete artwork";
+/// How long a tap waits for its control to show, in milliseconds.
+const WITHIN: &str = "3000";
 
 /// What the screen shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -110,12 +37,8 @@ pub(super) struct State {
     pub(super) names: Vec<String>,
 }
 
-/// The names of a card's picture and bin (`components/artwork_card.rs`).
-pub(super) const OPEN_CARD: &str = "Open artwork";
-pub(super) const DELETE_CARD: &str = "Delete artwork";
-
 impl State {
-    pub(super) fn parse(answer: &str) -> Result<Self, String> {
+    pub(super) fn parse(answer: &str) -> std::result::Result<Self, String> {
         let mut state = Self {
             screen: Screen::Starting,
             listed: false,
@@ -149,6 +72,11 @@ impl State {
         Ok(state)
     }
 
+    /// The gallery shows its list.
+    pub(super) fn listed(&self) -> bool {
+        self.screen == Screen::Gallery && self.listed
+    }
+
     /// How many controls are called `name`, alone or as `name #n`.
     pub(super) fn count(&self, name: &str) -> usize {
         self.names
@@ -170,10 +98,10 @@ impl State {
 
     /// The gallery shows every card once, in its order, so a card's `name #n` is `cards[n - 1]`
     /// (no search hides one, none lies off the screen); otherwise why not.
-    pub(super) fn every_card_shown(&self) -> Result<(), String> {
+    pub(super) fn every_card_shown(&self) -> std::result::Result<(), String> {
         let cards = self.cards.len();
         let (open, delete) = (self.count(OPEN_CARD), self.count(DELETE_CARD));
-        if self.screen != Screen::Gallery || !self.listed {
+        if !self.listed() {
             return Err("the gallery is not listed".into());
         }
         if open != cards || delete != cards {
@@ -186,16 +114,59 @@ impl State {
     }
 }
 
-fn numbers(text: &str) -> Result<Vec<u64>, String> {
+fn numbers(text: &str) -> std::result::Result<Vec<u64>, String> {
     text.split_whitespace()
         .map(|n| n.parse().map_err(|_| format!("not a number: {n}")))
         .collect()
 }
 
+/// A finger tap on the control `name`, waiting up to `WITHIN` for it to show.
+pub(super) fn tap(adb: &Adb, name: &str) -> Result<()> {
+    let mut words = extras(&["tap", name])?;
+    words.push(("within", WITHIN.to_owned()));
+    instrument(adb, &words).map(drop)
+}
+
+/// What the app shows now.
+pub(super) fn state(adb: &Adb) -> Result<State> {
+    let output = instrument(adb, &extras(&["state"])?)?;
+    let state = answer(&output, "state").ok_or_else(|| unanswered("the app gave no state"))?;
+    State::parse(state).map_err(unanswered)
+}
+
+/// Asks what the app shows until `done` holds, at most `limit`.
+pub(super) fn until(adb: &Adb, limit: Duration, done: impl Fn(&State) -> bool) -> Result<State> {
+    let started = Instant::now();
+    loop {
+        let state = state(adb)?;
+        if done(&state) {
+            return Ok(state);
+        }
+        if started.elapsed() >= limit {
+            return Err(unanswered(format!(
+                "waited {} s; the app shows {:?}, cards {:?}, controls {:?}",
+                limit.as_secs(),
+                state.screen,
+                state.cards,
+                state.names
+            )));
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+}
+
+/// Why asking the app what it shows failed.
+fn unanswered(why: impl Into<String>) -> DeviceError {
+    DeviceError::Failed {
+        command: "device-input state".into(),
+        output: why.into(),
+    }
+}
+
 /// The test artwork in `after`, the gallery once the canvas made after `before` was left: the
 /// first card (changed last), an id `before` did not hold, every card of `before` still there
 /// and nothing else new, every card shown. Otherwise why it cannot be told.
-pub(super) fn identify(before: &[u64], after: &State) -> Result<u64, String> {
+pub(super) fn identify(before: &[u64], after: &State) -> std::result::Result<u64, String> {
     after.every_card_shown()?;
     let new: Vec<u64> = after
         .cards
@@ -215,7 +186,7 @@ pub(super) fn identify(before: &[u64], after: &State) -> Result<u64, String> {
 
 /// `ours` is the first card and every card shows, so `Delete artwork #1` deletes it and nothing
 /// else; otherwise why not.
-pub(super) fn first_is(ours: u64, state: &State) -> Result<(), String> {
+pub(super) fn first_is(ours: u64, state: &State) -> std::result::Result<(), String> {
     state.every_card_shown()?;
     match state.cards.first() {
         Some(&first) if first == ours => Ok(()),
@@ -225,75 +196,9 @@ pub(super) fn first_is(ours: u64, state: &State) -> Result<(), String> {
     }
 }
 
-/// `at`, a fraction of the canvas's `fit` (left, top, width, height), in screen pixels.
-pub(super) fn point([left, top, width, height]: [f32; 4], [fx, fy]: [f32; 2]) -> [f32; 2] {
-    [left + fx * width, top + fy * height]
-}
-
-/// The pen path through `waypoints` (fractions of `fit`), points at most `SPACING` apart, as
-/// `device-input pen` takes it.
-pub(super) fn path(fit: [f32; 4], waypoints: &[[f32; 2]]) -> String {
-    let mut points = vec![point(fit, waypoints[0])];
-    for pair in waypoints.windows(2) {
-        let ([ax, ay], [bx, by]) = (point(fit, pair[0]), point(fit, pair[1]));
-        let steps = ((bx - ax).hypot(by - ay) / SPACING).ceil().max(1.0) as usize;
-        for k in 1..=steps {
-            let t = k as f32 / steps as f32;
-            points.push([ax + t * (bx - ax), ay + t * (by - ay)]);
-        }
-    }
-    let words: Vec<String> = points
-        .iter()
-        .map(|[x, y]| format!("{},{}", x.round(), y.round()))
-        .collect();
-    words.join(",")
-}
-
-/// The Adreno driver's harmless lines at each start: a 4 x 4 buffer of a format it lacks
-/// (`Gralloc4`, `GraphicBufferAllocator`, `AHardwareBuffer`; STATUS, device commands).
-pub(super) fn gralloc(line: &str) -> bool {
-    let tag = line.split_whitespace().nth(5).unwrap_or("");
-    matches!(
-        tag,
-        "Gralloc4:" | "GraphicBufferAllocator:" | "AHardwareBuffer:"
-    )
-}
-
-/// Width and height from a PNG's signature and header chunk.
-pub(super) fn png_size(head: &[u8]) -> Option<[u32; 2]> {
-    let signature = head.get(..8)? == b"\x89PNG\r\n\x1a\n" && head.get(12..16)? == b"IHDR";
-    let side = |at: usize| Some(u32::from_be_bytes(head.get(at..at + 4)?.try_into().ok()?));
-    signature.then_some([side(16)?, side(20)?])
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn paths_pngs_and_the_drivers_lines() {
-        let fit = [0.0, 84.0, 2880.0, 1716.0];
-        assert_eq!(point(fit, [0.5, 0.5]), [1440.0, 942.0]);
-        assert_eq!(path(fit, &[[0.0, 0.0], [0.01, 0.0]]), "0,84,14,84,29,84");
-        let numbers: Vec<f32> = path(fit, &[[0.25, 0.4], [0.33, 0.3], [0.41, 0.42]])
-            .split(',')
-            .map(|n| n.parse().expect("a number"))
-            .collect();
-        let points: Vec<&[f32]> = numbers.chunks(2).collect();
-        let apart = |p: &[&[f32]]| (p[1][0] - p[0][0]).hypot(p[1][1] - p[0][1]);
-        assert!(points.len() > 10 && points.windows(2).all(|p| apart(p) <= SPACING + 1.0));
-        let mut png = b"\x89PNG\r\n\x1a\n\0\0\0\x0dIHDR".to_vec();
-        png.extend(2880u32.to_be_bytes());
-        png.extend(1716u32.to_be_bytes());
-        assert_eq!(png_size(&png), Some([2880, 1716]));
-        assert_eq!(png_size(&png[..20]), None);
-        assert_eq!(png_size(b"GIF89a"), None);
-        let line = "10-12 04:02:30.341  5698  5698 E Gralloc4: isSupported(1, 59, ...) failed";
-        assert!(gralloc(line));
-        assert!(!gralloc(
-            "10-12 04:02:30.341  5698  5698 E openpaint: saving failed"
-        ));
-    }
 
     fn gallery(cards: &[u64], shown: usize) -> State {
         let ids: Vec<String> = cards.iter().map(u64::to_string).collect();

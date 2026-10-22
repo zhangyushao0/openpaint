@@ -1,4 +1,4 @@
-//! Which end of the pen a scenario's pen step uses and which side button it holds (S41, S43):
+//! Which end of the pen a scenario's pen step uses and which side button it holds:
 //! the runner gives the step's batches that button state or the eraser end, as Android reports
 //! a pen whose button is down (`BUTTON_STYLUS_PRIMARY`, `BUTTON_STYLUS_SECONDARY`,
 //! `BUTTON_TERTIARY`) or turned round (`TOOL_TYPE_ERASER`).

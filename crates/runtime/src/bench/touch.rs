@@ -1,25 +1,23 @@
-//! `bench touch` (S60, `bench_app.rs`): a hand arriving while the screen fills in. The view tiers
-//! let go (as leaving the app does), from fit over the densest place a pinch to 8x (the deepest
-//! tier the artwork reaches), then while the tier's
-//! tiles fill a pen touching down at the screen's middle (held, lifted; its dot undone at the
-//! end), and later two fingers landing and panning. For each: from the event to the start of the
-//! first frame drawn after it, to the return of that frame's present, and to the GPU finishing
-//! it (with every frame before it: what the GPU had queued ahead of it), and the frame calls
-//! skipped meanwhile. D81 bounds what a touch's first frame waits for.
+//! `bench touch`: a hand arriving while the screen fills in. The view tiers let go (as leaving
+//! the app does), from fit over the densest place a pinch to 8x (the deepest tier the artwork
+//! reaches), then while the tier's tiles fill a pen touching down at the screen's middle (held,
+//! lifted; its dot undone at the end), and later two fingers landing and panning. For each: from
+//! the event to the start of the first frame drawn after it, to the return of that frame's
+//! present, and to the GPU finishing it (with every frame before it: what the GPU had queued
+//! ahead of it), and the frame calls skipped meanwhile. D96 bounds what a touch's first frame
+//! waits for.
 
 use std::time::{Duration, Instant};
 
 use openpaint_app::{HistoryIntent, Intent};
 
-use super::Watch;
-use super::cases::{batch, busiest, strokes};
+use super::hand::{batch, busiest, strokes};
+use super::{Watch, reached};
 use crate::budget::TRIM_UI_HIDDEN;
 use crate::error::RuntimeError;
 use crate::frame::Runtime;
 use crate::input::{MotionPhase, ToolKind};
-use crate::screen::Screen;
 
-const LIMIT: Duration = Duration::from_secs(60);
 /// How far into the fill the hand arrives, and how long it stays.
 const INTO: Duration = Duration::from_millis(750);
 const HELD: Duration = Duration::from_millis(150);
@@ -39,8 +37,7 @@ impl Runtime {
     pub(crate) fn bench_touch(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
         let (_, artwork) = self.bench_artwork()?;
         let place = busiest(&artwork);
-        let mut watch = Watch::paced(self);
-        self.bench_until(&mut watch, LIMIT, Self::bench_settled)?;
+        self.bench_settle()?;
         self.bench_centre(place)?;
         // The tiers held go as leaving the app lets them go: the pinch fills its tier anew.
         self.release(TRIM_UI_HIDDEN);
@@ -65,26 +62,16 @@ impl Runtime {
             lines.push(format!("{who} {when} the fill: {first}"));
         }
         let mut watch = Watch::paced(self);
-        let sharp = self.bench_until(&mut watch, LIMIT, Self::bench_settled)?;
-        let state = if sharp {
-            "sharp after"
-        } else {
-            "NOT sharp within the limit:"
-        };
-        lines.push(format!("{state} {}", watch.line(self)));
+        let sharp = self.bench_until(&mut watch, Self::bench_settled)?;
+        lines.push(format!("{} {}", reached(sharp, "sharp"), watch.line(self)));
         // The pen's dot goes again: the artwork is left as it was found.
         let found = strokes(&artwork);
         for _ in 0..2 {
             if self.artwork().is_none_or(|now| strokes(now) <= found) {
                 break;
             }
-            if let Screen::Canvas(canvas) = &mut self.screen {
-                let app = (&mut self.toolbox, &mut self.clipboard, &mut self.seeds);
-                let undo = Intent::History(HistoryIntent::Undo);
-                canvas.dispatch(&self.core, vec![undo], app);
-            }
-            let mut watch = Watch::paced(self);
-            self.bench_until(&mut watch, LIMIT, Self::bench_settled)?;
+            self.bench_dispatch(vec![Intent::History(HistoryIntent::Undo)]);
+            self.bench_settle()?;
         }
         Ok(())
     }

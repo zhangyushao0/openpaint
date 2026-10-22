@@ -34,7 +34,7 @@ pub enum SystemAnswer {
     /// JPEG whose EXIF says to turn it a quarter clockwise (upright 1200 x 1800, the sun on top).
     PhotoJpeg,
     /// `tests/fixtures/s27-p3.png` is chosen in the image picker: 512 x 256, eight patches in
-    /// Display P3 values with the Display P3 profile embedded (S27).
+    /// Display P3 values with the Display P3 profile embedded.
     P3Png,
     /// `tests/fixtures/s27-p3.jpg`: the same patches as a Display P3 JPEG, as phones write them.
     P3Jpeg,
@@ -42,7 +42,7 @@ pub enum SystemAnswer {
     TextFile,
     /// The share sheet shows the exported file; the user closes it with Back.
     ShareSheet,
-    /// In the file picker, the file the last save wrote (an OpenPaint file, S36).
+    /// In the file picker, the file the last save wrote (an OpenPaint file).
     SavedFile,
     /// As `saved_file`, with one byte in its middle changed, as a broken copy would.
     DamagedFile,
@@ -194,7 +194,7 @@ fn test_image() -> Result<Vec<u8>, ScenarioError> {
 }
 
 /// Mean difference per channel a picture exported above 1x may have from the canvas once
-/// reduced by its scale (edges are sharper; S29 measured about 0.1).
+/// reduced by its scale (edges are sharper; about 0.1 measured).
 const SCALED_MEAN: f64 = 1.0;
 
 /// What an export step expects: the scale it was written at and, when given, the hash of its
@@ -274,8 +274,8 @@ impl Export {
     }
 
     /// The size is the canvas's times the scale and the pixels hash as expected (when given). At
-    /// 1x a PNG is the canvas within one 8-bit level away from its antialiased edges (pixel for
-    /// pixel before S59); above, reduced by its scale it stays close; a JPEG stays close.
+    /// 1x a PNG is the canvas within one 8-bit level away from its antialiased edges; above,
+    /// reduced by its scale it stays close; a JPEG stays close.
     #[must_use]
     pub fn passed(&self) -> bool {
         let close = match (self.format, self.expected.scale) {

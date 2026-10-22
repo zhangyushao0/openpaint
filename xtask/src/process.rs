@@ -53,7 +53,7 @@ fn describe(command: &Command) -> String {
 
 /// Every file git tracks and every new file it would track (untracked and not ignored), as
 /// workspace-relative paths with forward slashes, each once. A new file counts before it is
-/// staged, so a gate run before `git add` sees it (S43: a 490-line test file got through).
+/// staged, so a gate run before `git add` sees it.
 pub fn tracked_files() -> Result<Vec<String>, String> {
     let output = Command::new("git")
         .args([

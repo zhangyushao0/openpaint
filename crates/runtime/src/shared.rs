@@ -1,4 +1,4 @@
-//! `SharedCore`: the renderer's GPU state as the frame loop and the workers hold it (S49). When the
+//! `SharedCore`: the renderer's GPU state as the frame loop and the workers hold it. When the
 //! device is lost the frame loop puts a new `Core` here; each worker job takes the one current
 //! when it starts, so a job running at the loss fails as any GPU failure does and the next one
 //! runs on the new device. No worker is restarted.

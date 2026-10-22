@@ -20,7 +20,7 @@ pub struct Normaliser {
 impl Normaliser {
     /// The normalised batch, or `None` when it holds nothing the product uses (pointers without
     /// a usable sample). A pen's batch carries its side buttons; a pen's button press or release
-    /// with no other change is a batch of no contacts (S41).
+    /// with no other change is a batch of no contacts.
     pub fn normalise(&mut self, batch: &MotionBatch) -> Option<InputBatch> {
         let mut contacts = Vec::with_capacity(batch.pointers.len());
         for (index, pointer) in batch.pointers.iter().enumerate() {

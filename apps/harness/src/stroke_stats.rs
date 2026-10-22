@@ -1,19 +1,17 @@
-//! `stroke-stats <library dir>`: how the pen was sampled in a library's strokes. Opens the
-//! library through the store as the app does (a head gains a save id when opened, the last
-//! project loaded is marked open), so point it at a copy, never at a backup. Prints, over every
+//! `stroke-stats <library dir>`: how the pen was sampled in a library's strokes. Opens a copy of
+//! the library through the store as the app does (`launch::library_copy`). Prints, over every
 //! stroke of every artwork (layers and masks): the time between samples, their spacing in
 //! canvas pixels, the pen's speed, the turn between consecutive segments by speed, how far the
 //! straight segments lie from the circle through each three samples, and gaps (time steps much
 //! longer than the stroke's typical one, split into lost samples while moving and pauses).
 //! Strokes with one constant pressure (injected by device routines) are counted and left out.
 
-use std::path::Path;
-
 use openpaint_app::ProjectStore;
 use openpaint_core::{Artwork, Stroke, StrokeSample};
 use openpaint_store::Library;
 
 use crate::error::HarnessError;
+use crate::launch::library_copy;
 use crate::quantiles::{median_f32, median_u32, pick, quantiles};
 
 /// Upper bounds of the time histogram in milliseconds; the last bin is open.
@@ -70,12 +68,7 @@ struct Stats {
 }
 
 pub fn run(dir: &str) -> Result<(), HarnessError> {
-    if !Path::new(dir).is_dir() {
-        return Err(HarnessError::Missing(
-            "stroke-stats needs a library directory",
-        ));
-    }
-    let mut library = Library::at(dir);
+    let mut library = Library::at(library_copy(dir, "stroke-stats")?);
     let listed = library.list().map_err(HarnessError::Port)?;
     // The toolbox as this build reads it.
     match library.editor() {

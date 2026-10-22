@@ -1,21 +1,22 @@
-//! `test-art <pile|a4|session> [n] [out]` (S58): test artworks made on the development machine as
-//! OpenPaint files (DECISIONS D62), so a device slice pushes one (`cargo device-push`) and opens
-//! it (`cargo device-input open-file`) instead of drawing it by injection, which took minutes.
+//! `test-art <pile|a4|a4-plain|kinds|session> [n] [out]`: test artworks made on the development
+//! machine as OpenPaint files (DECISIONS D62), so a device slice pushes one (`cargo device-push`)
+//! and opens it (`cargo device-input open-file`) instead of drawing it by injection.
 //!
 //! - `pile [n]` (300): `n` strokes of the ten built-ins in turn at their first sizes, each along
-//!   the path S48's injected pile had (`pile_path`: 52 samples 8 ms apart, pressed 0.8), turned
-//!   and moved about the middle of a screen-size canvas: one dense place.
+//!   the path `device-input pen-many` lays (`pile_path`: 52 samples 8 ms apart, pressed 0.8),
+//!   turned and moved about the middle of a screen-size canvas: one dense place.
 //! - `a4 [n]` (180): an A4 page of `n` strokes of the author's brushes over the whole page, dense
 //!   around one place, on five layers: fills, a picture inserted, 9 smudges, a mask, a Multiply
-//!   layer (`test_art_kinds.rs`), like the author's busiest artwork; `a4-plain [n]` (S59) the same
-//!   page without the smudges, which the raster core draws whole.
-//! - `kinds [n]` (300, S65): the pile's `n` strokes on a screen-size canvas with every kind of
-//!   record over them: adjustments, filters, a transform record and a moved selection, a merged
-//!   layer, a group holding the active layer (`test_art_records.rs`).
+//!   layer (`page.rs`), like the author's busiest artwork; `a4-plain [n]` the same page without
+//!   the smudges.
+//! - `kinds [n]` (300): the pile's `n` strokes on a screen-size canvas with every kind of record
+//!   over them: adjustments, filters, a transform record and a moved selection, a merged layer, a
+//!   group holding the active layer (`kinds.rs`).
 //! - `session [minutes]` (60): an hour's painting at the author's pace as records: a stroke every
 //!   1.2 s of 342 samples 3.3 ms apart, the built-ins in turn ten strokes each, every tenth a
-//!   smudge, a layer more every 500 strokes. Undo and redo are not records: the device's
-//!   `bench session` undoes every twentieth stroke as it appends them and redoes every other one.
+//!   smudge, a layer more every 500 strokes (`page.rs`). Undo and redo are not records: the
+//!   device's `bench session` undoes every twentieth stroke as it appends them and redoes every
+//!   other one.
 //!
 //! Deterministic: every place, pressure, size, colour and seed comes from SplitMix64 of its index,
 //! and the file is written through a library of its own, whose new artwork's head holds no save id
@@ -32,6 +33,9 @@ use openpaint_store::Library;
 
 use crate::error::HarnessError;
 use crate::output::workspace_root;
+
+mod kinds;
+mod page;
 
 /// The tablet's screen-size canvas: the area under the top band at fit (STATUS, export sizes).
 pub const SCREEN: [u32; 2] = [2880, 1716];
@@ -58,9 +62,9 @@ const USAGE: &str = "test-art <pile|a4|a4-plain|kinds|session> [n] [out.openpain
 pub enum Kind {
     Pile(u32),
     A4(u32),
-    /// The A4 page without smudges (S59).
+    /// The A4 page without smudges.
     A4Plain(u32),
-    /// The pile with every kind of record over it (S65).
+    /// The pile with every kind of record over it.
     Kinds(u32),
     /// Minutes of painting.
     Session(u32),
@@ -140,14 +144,14 @@ pub fn make(kind: Kind) -> Result<Artwork, HarnessError> {
         .map_err(|_| HarnessError::Missing("the built-in brushes did not load"))?;
     match kind {
         Kind::Pile(n) => pile(&library, n),
-        Kind::A4(n) => crate::test_art_kinds::a4(&library, n, false),
-        Kind::A4Plain(n) => crate::test_art_kinds::a4(&library, n, true),
-        Kind::Kinds(n) => crate::test_art_records::kinds(&library, n),
-        Kind::Session(minutes) => crate::test_art_kinds::session(&library, minutes),
+        Kind::A4(n) => page::a4(&library, n, false),
+        Kind::A4Plain(n) => page::a4(&library, n, true),
+        Kind::Kinds(n) => kinds::kinds(&library, n),
+        Kind::Session(minutes) => page::session(&library, minutes),
     }
 }
 
-/// `n` strokes of the built-ins in turn along S48's injected paths about the canvas's middle.
+/// `n` strokes of the built-ins in turn along `pen-many`'s paths about the canvas's middle.
 fn pile(library: &BrushLibrary, n: u32) -> Result<Artwork, HarnessError> {
     let mut artwork = Artwork::new(CanvasSize::new(SCREEN[0], SCREEN[1])?);
     let middle = SCREEN.map(|side| side as f32 / 2.0);

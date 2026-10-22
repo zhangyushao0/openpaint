@@ -1,36 +1,30 @@
-//! `test-art kinds [n]` (S65, `test_art.rs`): a screen-size test artwork holding every kind of
-//! record the raster core draws besides strokes, fills and smudges, each over the place the pile's
-//! `n` strokes make dense: Curves (its composite and red channels) and Hue, Saturation,
-//! Brightness inside a lasso on the dense layer; a Gaussian Blur and a Sharpen inside a rectangle
-//! on a layer of its own; a whole layer turned and scaled (a transform record) and a selection of
-//! it moved; a merged layer (Merge Down: a nested record) with strokes after the merge; a group at
-//! 85 % holding a Multiply layer and the top layer, which holds a smudge and is active, so the
-//! device's `bench strokes` draws inside a group.
+//! `test-art kinds [n]`: a screen-size test artwork holding every kind of record the raster core
+//! draws besides strokes, fills and smudges, each over the place the pile's `n` strokes make
+//! dense: Curves (its composite and red channels) and Hue, Saturation, Brightness inside a lasso
+//! on the dense layer; a Gaussian Blur and a Sharpen inside a rectangle on a layer of its own; a
+//! whole layer turned and scaled (a transform record) and a selection of it moved; a merged layer
+//! (Merge Down: a nested record) with strokes after the merge; a group at 85 % holding a Multiply
+//! layer and the top layer, which holds a smudge and is active, so the device's `bench strokes`
+//! draws inside a group.
 
 use std::f32::consts::TAU;
 
 use openpaint_app::BrushLibrary;
 use openpaint_core::{
-    Adjustment, Artwork, ArtworkCommand, BlendMode, Blur, CanvasSize, Curves, GroupCommand, Hsb,
-    LayerCommand, Placement, RegionMask, Sharpen, StrokeTool, ToneCurve,
+    Adjustment, Artwork, ArtworkCommand, BlendMode, Blur, Curves, GroupCommand, Hsb, LayerCommand,
+    Placement, Sharpen, StrokeTool, ToneCurve,
 };
-use openpaint_runtime::{drawn, pile_path, style_of};
 
+use super::page::{colour, layer, mask, style};
+use super::{BRUSHES, Hand, SCREEN, pile, stroke, unit};
 use crate::error::HarnessError;
-use crate::test_art::{BRUSHES, Hand, SCREEN, stroke, unit};
-use crate::test_art_kinds::{colour, layer, style};
 
 /// The pile's middle, where every layer's strokes cross.
 const MIDDLE: [f32; 2] = [SCREEN[0] as f32 / 2.0, SCREEN[1] as f32 / 2.0];
 
 /// The dense layer of `n` pile strokes, then a layer for each kind of record about its middle.
-pub fn kinds(library: &BrushLibrary, n: u32) -> Result<Artwork, HarnessError> {
-    let mut artwork = Artwork::new(CanvasSize::new(SCREEN[0], SCREEN[1])?);
-    for k in 0..n {
-        let key = BRUSHES[k as usize % BRUSHES.len()];
-        let style = style_of(library, key, None)?.with_seed(k);
-        artwork = drawn(&artwork, style, &pile_path(k, MIDDLE), |_| 0.8)?;
-    }
+pub(super) fn kinds(library: &BrushLibrary, n: u32) -> Result<Artwork, HarnessError> {
+    let mut artwork = pile(library, n)?;
     artwork = adjusted(&artwork)?;
     artwork = layer(&artwork)?;
     artwork = strokes_about(&artwork, library, (40, 11), 520.0)?;
@@ -161,13 +155,4 @@ fn hand(key: u64, salt: u64, radius: f32) -> Hand {
         spacing: 3.0 + 2.0 * unit(key, salt + 6),
         bounds: [60.0, 60.0, width - 60.0, height - 60.0],
     }
-}
-
-/// The canvas pixels whose centres `inside` holds.
-fn mask(canvas: CanvasSize, inside: impl Fn(f32, f32) -> bool) -> Result<RegionMask, HarnessError> {
-    let width = canvas.width();
-    let pixels: Vec<bool> = (0..width * canvas.height())
-        .map(|at| inside((at % width) as f32 + 0.5, (at / width) as f32 + 0.5))
-        .collect();
-    Ok(RegionMask::from_pixels(canvas, &pixels)?)
 }

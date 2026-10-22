@@ -1,5 +1,5 @@
-//! A press's end: a look just before its lift (S44), or the app interrupted while the contact is
-//! still down and the contact cancelled instead of lifted, as Android does (S50).
+//! A press's end: a look just before its lift, or the app interrupted while the contact is
+//! still down and the contact cancelled instead of lifted, as Android does.
 
 use openpaint_runtime::{MotionBatch, MotionPhase, Runtime};
 
@@ -13,8 +13,8 @@ pub(super) type BeforeLift<'a> = (Option<(&'a String, Option<u64>)>, Option<Inte
 
 impl Runner<'_> {
     /// A press's batches; with `before_lift`, a screenshot of that name before the lift and,
-    /// given its hash, a checkpoint of the canvas there too (S44); `interrupted`, the app
-    /// interrupted before the lift and the contact cancelled instead (S50).
+    /// given its hash, a checkpoint of the canvas there too; `interrupted`, the app
+    /// interrupted before the lift and the contact cancelled instead.
     pub(super) fn press(
         &mut self,
         runtime: &mut Runtime,

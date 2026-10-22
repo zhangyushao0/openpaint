@@ -1,4 +1,4 @@
-//! `long-session` (S50): an hour of painting at the author's pace through the whole frame loop,
+//! `long-session`: an hour of painting at the author's pace through the whole frame loop,
 //! on a library of its own (`artifacts/harness/long-session-library`), to show that nothing
 //! grows without bound. 3,000 strokes over 60 simulated minutes, one every 1.2 s (the author's
 //! strokes hold about 342 samples at about 300 a second, STATUS) on a screen-size artwork at fit:
@@ -6,7 +6,7 @@
 //! stroke a smudge; one stroke in twenty undone, every other one of those redone; the layer
 //! panel opened every 50 strokes until its pictures are made, a layer added every 500; the app
 //! left (`onPause`) every 5 minutes, which keeps a version. Every 5 simulated minutes a row: the
-//! process's private memory, the live Rust heap (S51: the harness counts its allocator,
+//! process's private memory, the live Rust heap (the harness counts its allocator,
 //! `heap.rs`), wgpu's allocations and blocks, the rest of the process (the driver's), the
 //! canvas's GPU caches, the history, the samples, the library on disk and the versions kept,
 //! and under it the scene, plan, fjall and allocations by label; each checked against its bound
@@ -25,9 +25,8 @@ use openpaint_runtime::{
 use openpaint_store::Library;
 
 use crate::error::HarnessError;
-use crate::launch::fresh_library;
+use crate::launch::{fresh_library, library_dir};
 use crate::long_session_store::Watched;
-use crate::output::workspace_root;
 
 /// The MovinkPad 14.
 const SIZE: [u32; 2] = [2880, 1800];
@@ -56,12 +55,12 @@ const BRUSHES: [(&str, &str); 10] = [
     ("Speckle", "Texture"),
 ];
 
-/// What each row is checked against, in bytes (S51, STATUS): the process's growth since minute
-/// 10 (4.7 and 5.2 GB in two hours on the S51 build, nearly all the driver's beside the heap and
-/// wgpu's allocator) and the live Rust heap (at most 0.5 GB) with room; the arena within the
-/// residuals' share of the GPU budget on a device with memory of its own, with its material and
-/// kernels; the caches within that budget; the history's budget, the versions kept, and the
-/// library from S50's run with room.
+/// What each row is checked against, in bytes: the process's growth since minute 10 (4.7 and
+/// 5.2 GB measured in two hours, nearly all the driver's beside the heap and wgpu's allocator)
+/// and the live Rust heap (at most 0.5 GB measured) with room; the arena within the residuals'
+/// share of the GPU budget on a device with memory of its own, with its material and kernels;
+/// the caches within that budget; the history's budget, the versions kept, and the library as
+/// measured with room.
 const BOUNDS: Bounds = Bounds {
     growth: 6 << 30,
     heap: 1 << 30,
@@ -114,11 +113,7 @@ struct Painter {
 
 impl Painter {
     fn start() -> Result<Self, HarnessError> {
-        let dir = workspace_root()
-            .join("artifacts")
-            .join("harness")
-            .join("long-session-library");
-        let library = fresh_library(dir)?;
+        let library = fresh_library(library_dir("long-session"))?;
         let versions = Arc::new(Mutex::new(0));
         let fjall = Arc::new(Mutex::new([0; 2]));
         let store = Watched {

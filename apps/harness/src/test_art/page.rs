@@ -1,5 +1,5 @@
-//! `test-art`'s larger kinds (S58, `test_art.rs`): an A4 page like the author's busiest artwork
-//! and an hour's session of strokes at the author's pace.
+//! `test-art a4|a4-plain|session`: an A4 page like the author's busiest artwork and an hour's
+//! session of strokes at the author's pace; the pieces `kinds.rs` builds with too.
 
 use std::f32::consts::TAU;
 use std::sync::Arc;
@@ -10,8 +10,8 @@ use openpaint_core::{
     Placement, RegionMask, StrokeStyle, StrokeTool,
 };
 
+use super::{A4, BRUSHES, Hand, SCREEN, stroke, unit};
 use crate::error::HarnessError;
-use crate::test_art::{A4, BRUSHES, Hand, SCREEN, stroke, unit};
 
 /// The A4 page's dense place and its radius: most strokes cross it (the author's busiest artwork
 /// is dense in one place).
@@ -30,9 +30,9 @@ struct Strokes<'a> {
 }
 
 /// An A4 page of `n` strokes over five layers: a page fill and the Pencil's sketch; two fills,
-/// the painting brushes and 9 smudges over the dense place (none for `plain`, S59: a page the
-/// raster core draws); a picture inserted; the inking brushes with a mask hiding part of them;
-/// the texture brushes on a Multiply layer.
+/// the painting brushes and 9 smudges over the dense place (none for `plain`); a picture
+/// inserted; the inking brushes with a mask hiding part of them; the texture brushes on a
+/// Multiply layer.
 pub fn a4(library: &BrushLibrary, n: u32, plain: bool) -> Result<Artwork, HarnessError> {
     let canvas = CanvasSize::new(A4[0], A4[1])?;
     let mut artwork = Artwork::new(canvas);
@@ -122,7 +122,7 @@ pub fn session(library: &BrushLibrary, minutes: u32) -> Result<Artwork, HarnessE
 
 /// A stroke of built-in `key` at `factor` times its first size (within its range) in `color`,
 /// jittered by `seed`.
-pub(crate) fn style(
+pub(super) fn style(
     library: &BrushLibrary,
     key: &str,
     factor: f32,
@@ -140,7 +140,7 @@ pub(crate) fn style(
 }
 
 /// A colour drawn from `k` and `salt`, never too light to see.
-pub(crate) fn colour(k: u64, salt: u64) -> Result<Color, HarnessError> {
+pub(super) fn colour(k: u64, salt: u64) -> Result<Color, HarnessError> {
     let channel = |at: u64| 0.1 + 0.75 * unit(k, salt * 8 + at);
     Ok(Color::rgb(channel(0), channel(1), channel(2))?)
 }
@@ -242,28 +242,35 @@ fn masked(artwork: &Artwork, library: &BrushLibrary) -> Result<Artwork, HarnessE
 }
 
 /// A new layer above the active one, active.
-pub(crate) fn layer(artwork: &Artwork) -> Result<Artwork, HarnessError> {
+pub(super) fn layer(artwork: &Artwork) -> Result<Artwork, HarnessError> {
     let create = ArtworkCommand::Layer(LayerCommand::Create);
     Ok(artwork.apply(create)?.artwork)
 }
 
 /// The pixels `inside` holds filled with `rgb` on the target.
-pub(crate) fn fill(
+fn fill(
     artwork: &Artwork,
     inside: impl Fn(f32, f32) -> bool,
     [r, g, b]: [f32; 3],
 ) -> Result<Artwork, HarnessError> {
-    let canvas = artwork.canvas();
+    let mask = mask(artwork.canvas(), inside)?;
+    Ok(artwork.fill_region(mask, Color::rgb(r, g, b)?)?.artwork)
+}
+
+/// The canvas pixels whose centres `inside` holds.
+pub(super) fn mask(
+    canvas: CanvasSize,
+    inside: impl Fn(f32, f32) -> bool,
+) -> Result<RegionMask, HarnessError> {
     let width = canvas.width();
     let pixels: Vec<bool> = (0..width * canvas.height())
         .map(|at| inside((at % width) as f32 + 0.5, (at / width) as f32 + 0.5))
         .collect();
-    let mask = RegionMask::from_pixels(canvas, &pixels)?;
-    Ok(artwork.fill_region(mask, Color::rgb(r, g, b)?)?.artwork)
+    Ok(RegionMask::from_pixels(canvas, &pixels)?)
 }
 
 /// A 640 x 480 gradient inserted on a layer of its own near the page's lower left (an inserted
-/// picture is a transform record holding it, S26).
+/// picture is a transform record holding it).
 fn picture(artwork: &Artwork) -> Result<Artwork, HarnessError> {
     let side = [640u32, 480];
     let pixels: Vec<u8> = (0..side[0] * side[1])

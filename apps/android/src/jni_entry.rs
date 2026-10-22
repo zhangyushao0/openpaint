@@ -28,9 +28,9 @@ use crate::window::NativeWindow;
 pub(crate) struct Host {
     pub(crate) runtime: Runtime,
     latency: PenLatency,
-    /// Frames while fingers navigate or work waits (S53).
+    /// Frames while fingers navigate or work waits.
     navigation: NavigationLog,
-    /// Slow frames and frames skipped while the GPU is behind (S56).
+    /// Slow frames and frames skipped while the GPU is behind.
     pacing: PacingLog,
     /// Where files to share are made (`Context.getCacheDir()/share`, served by `ShareProvider`).
     pub(crate) share_dir: PathBuf,
@@ -87,9 +87,9 @@ pub extern "system" fn Java_dev_openpaint_Native_create<'local>(
         let library = PathBuf::from(files_dir.try_to_string(env)?).join("library");
         let cache_dir = PathBuf::from(cache_dir.try_to_string(env)?);
         let share_dir = cache_dir.join("share");
-        // Each artwork's canvas as last shown complete (S54), derived: the system may clear it.
+        // Each artwork's canvas as last shown complete, derived: the system may clear it.
         let display = DisplayCache::at(cache_dir.join("canvas"));
-        // The device's memory (`ActivityManager.MemoryInfo.totalMem`): the GPU budget's (S58).
+        // The device's memory (`ActivityManager.MemoryInfo.totalMem`): the GPU budget's.
         let memory = u64::try_from(memory).unwrap_or(0);
         let runtime =
             Runtime::start_cached(density, (Box::new(Library::at(library)), display), memory)?;
@@ -157,7 +157,7 @@ pub extern "system" fn Java_dev_openpaint_Native_leave<'local>(
     }
 }
 
-/// The system asks for memory back (`onTrimMemory` at `level`, S58): from the app's interface
+/// The system asks for memory back (`onTrimMemory` at `level`): from the app's interface
 /// hidden on, the runtime lets its derived GPU caches go (logged).
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_openpaint_Native_trim<'local>(
@@ -178,7 +178,7 @@ pub extern "system" fn Java_dev_openpaint_Native_zone<'local>(
     _env: EnvUnowned<'local>,
     _class: JClass<'local>,
     handle: jlong,
-    minutes: jni::sys::jint,
+    minutes: jint,
 ) {
     if let Some(runtime) = runtime(handle) {
         runtime.set_utc_offset(minutes);
@@ -273,20 +273,13 @@ pub extern "system" fn Java_dev_openpaint_Native_frame<'local>(
         for line in host.pacing.frame(&called) {
             log::warn!("{line}");
         }
-        // S56: a frame skipped while the GPU is behind consumes nothing.
+        // A frame skipped while the GPU is behind consumes nothing.
         if paced.skipped {
             host.latency.skipped();
             return Ok(again);
         }
-        let ns = |ns: u64| i64::try_from(ns).unwrap_or(i64::MAX);
-        let cost = FrameCost {
-            drawn_ns: ns(spent.drawn_ns),
-            scene_ns: ns(spent.scene_ns),
-            waited_ns: ns(spent.waited_ns),
-            longest: spent.longest,
-            in_flight: paced.in_flight,
-        };
         let end_ns = start_ns.saturating_add(work);
+        let cost = FrameCost::of(&spent, paced);
         if let Some(summary) = host.latency.frame((start_ns, end_ns), cost) {
             log::info!("{summary}");
         }

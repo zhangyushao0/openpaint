@@ -1,14 +1,12 @@
-//! `features <library dir>` (S58): what each artwork of a library uses, so the render core's
-//! rewrite covers what the author paints with first. Opens the library through the store as the
-//! app does (a head gains a save id when opened), so point it at a copy. Per artwork and over
-//! all: layers (hidden, locked, Alpha Lock, clipping), groups, blend modes, masks; strokes by
-//! brush (a recipe equal to a built-in's, else "edited or older") and by tool, smudges, strokes
-//! inside a selection; fills, transform records, pictures (pixel patches: inserted pictures and
-//! S20's transforms), adjustments, filters, cleared selections and nested records (Merge Down,
-//! pasted copies), counted inside nested records too. Counts only: no titles.
+//! `features <library dir>`: what each artwork of a library uses. Opens a copy of the library
+//! through the store as the app does (`launch::library_copy`). Per artwork and over all: layers
+//! (hidden, locked, Alpha Lock, clipping), groups, blend modes, masks; strokes by brush (a recipe
+//! equal to a built-in's, else "other" with how it draws) and by tool, smudges, strokes inside a
+//! selection; fills, transform records, pictures (pixel patches: inserted pictures),
+//! adjustments, filters, cleared selections and nested records (Merge Down, pasted copies),
+//! counted inside nested records too. Counts only: no titles.
 
 use std::collections::BTreeMap;
-use std::path::Path;
 
 use openpaint_app::{BrushLibrary, ProjectStore};
 use openpaint_core::{
@@ -18,6 +16,7 @@ use openpaint_core::{
 use openpaint_store::Library;
 
 use crate::error::HarnessError;
+use crate::launch::library_copy;
 
 /// What one artwork (or all of them) uses.
 #[derive(Debug, Default, Clone)]
@@ -45,15 +44,13 @@ struct Uses {
 }
 
 pub fn run(dir: &str) -> Result<(), HarnessError> {
-    if !Path::new(dir).is_dir() {
-        return Err(HarnessError::Missing("features needs a library directory"));
-    }
+    let copy = library_copy(dir, "features")?;
     let built_in = BrushLibrary::built_in()
         .map_err(|_| HarnessError::Missing("the built-in brushes did not load"))?;
     let known: Vec<(String, BrushRecipe)> = (built_in.brushes().iter())
         .map(|brush| (brush.name().to_owned(), (**brush.recipe()).clone()))
         .collect();
-    let mut library = Library::at(dir);
+    let mut library = Library::at(copy);
     let listed = library.list().map_err(HarnessError::Port)?;
     let mut all = Uses::default();
     for summary in &listed {
@@ -153,8 +150,8 @@ fn count_stroke(uses: &mut Uses, stroke: &Stroke, known: &[(String, BrushRecipe)
     uses.samples += stroke.samples().len();
 }
 
-/// What the renderer does for a recipe no built-in has (an edited brush, or a built-in as an
-/// older build drew it): stamps, or a continuous stroke covering, building up, or on paper.
+/// What the renderer does for a recipe no built-in has (an edited brush): stamps, or a
+/// continuous stroke covering, building up, or on paper.
 fn engine(recipe: &BrushRecipe) -> String {
     let shape = recipe.shape();
     if shape.is_stamped() {

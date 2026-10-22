@@ -1,5 +1,5 @@
 //! `cargo device-info [label]`: what the tablet's display does with colour, read and never
-//! changed, how much memory the app holds, its input devices and the dispatcher's state (S38),
+//! changed, how much memory the app holds, its input devices and the dispatcher's state,
 //! and how often its canvas reached the glass lately.
 //! Read-only queries only (`getprop`, `dumpsys`, the app's own log), each bounded in time
 //! (`QUERY_LIMIT`); each answer goes whole to `artifacts/device/<label>-<query>.txt` and the
@@ -10,7 +10,7 @@ use std::time::Duration;
 use super::adb::{Adb, DeviceError, PACKAGE, Result, write_file};
 use super::{artifacts, plain};
 
-/// How long one query may take before it is stopped. On 2026-10-04 (S30) `dumpsys SurfaceFlinger
+/// How long one query may take before it is stopped. On 2026-10-04 `dumpsys SurfaceFlinger
 /// --list` once never returned and the command waited until the caller gave up after 5 min;
 /// every query is now bounded here, and `dumpsys` gives each service 10 s (`-t 10`).
 const QUERY_LIMIT: Duration = Duration::from_secs(30);
@@ -23,12 +23,12 @@ const QUERIES: [(&str, &[&str]); 9] = [
     ("color-display", &["dumpsys", "-t", "10", "color_display"]),
     // The app's own lines: the surface's format and colour space as wgpu reported them.
     ("app-log", &["logcat", "-d", "-s", "openpaint:I"]),
-    // The app's memory now (S37): its graphics (GPU textures and buffers) and the rest.
+    // The app's memory now: its graphics (GPU textures and buffers) and the rest.
     ("meminfo", &["dumpsys", "-t", "10", "meminfo", PACKAGE]),
-    // The GPU memory each process holds as the driver counts it (S51): meminfo's Graphics
+    // The GPU memory each process holds as the driver counts it: meminfo's Graphics
     // leaves out GPU memory the CPU never maps.
     ("gpumem", &["dumpsys", "-t", "10", "gpu", "--gpumem"]),
-    // Input devices and the dispatcher's state (S38): why injected fingers were refused.
+    // Input devices and the dispatcher's state: why injected fingers were refused.
     ("input", &["dumpsys", "-t", "10", "input"]),
     (
         "input-log",

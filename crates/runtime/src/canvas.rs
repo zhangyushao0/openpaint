@@ -26,7 +26,7 @@ pub(crate) const THUMBNAIL_MAX: [u32; 2] = [448, 336];
 #[derive(Debug)]
 pub(crate) enum Content {
     /// An artwork as the library holds it, its title, and what shows it before it is evaluated
-    /// (its cached canvas or gallery picture, S54).
+    /// (its cached canvas or gallery picture).
     Stored(Artwork, Title, Box<Held>),
     /// A blank artwork the size of the canvas area, not in the library yet.
     Blank,
@@ -50,9 +50,9 @@ pub(crate) struct Canvas {
     /// The gallery's name for the artwork, which exported files carry.
     title: Title,
     target: CanvasTarget,
-    /// The view tiers shown instead of the target while the view magnifies it (S32).
+    /// The view tiers shown instead of the target while the view magnifies it.
     view: ViewCache,
-    /// The last view update left tiles to fill or a tier to start; the view it had (S60).
+    /// The last view update left tiles to fill or a tier to start; the view it had.
     view_pending: bool,
     shown: Option<ViewFrame>,
     /// False until the whole canvas has been evaluated once.
@@ -61,12 +61,12 @@ pub(crate) struct Canvas {
     /// layer edit), until it is evaluated.
     changed_from: Option<Artwork>,
     pub(crate) leaving: Leaving,
-    /// What the layer panel's pictures were made of (S38).
+    /// What the layer panel's pictures were made of.
     pub(crate) pictures: Drawn,
     /// When it opened (or its device was made again), until the whole canvas was evaluated:
-    /// the time to the full canvas is logged then (S49).
+    /// the time to the full canvas is logged then.
     opened: Option<Opening>,
-    /// What the display cache holds for it and must match (S54).
+    /// What the display cache holds for it and must match.
     cache: CacheState,
 }
 
@@ -125,7 +125,7 @@ impl Canvas {
     /// session draws its next stroke with the style that results. While the eyedropper is on,
     /// canvas contacts pick colours instead of drawing (`pick`). The copy menu's commands copy
     /// into and paste from `clipboard`, the app's. Every contact touching down takes the next of
-    /// `seeds` for the stroke it may begin (S45).
+    /// `seeds` for the stroke it may begin.
     pub(crate) fn dispatch(
         &mut self,
         core: &Core,
@@ -150,7 +150,7 @@ impl Canvas {
                 self.session.set_seed(seeds.next());
             }
             // Committing a stroke is followed by the canvas target itself, but not its mirrored
-            // copies or a snapped shape edited (S42).
+            // copies or a snapped shape edited.
             let stroke = matches!(intent, Intent::Stroke(_));
             let gallery = matches!(intent, Intent::Gallery(_));
             let cancel = matches!(&intent, Intent::Stroke(StrokeIntent::Contact(contact))
@@ -171,7 +171,7 @@ impl Canvas {
                 Ok(()) => {}
                 Err(error) => log::warn!("intent refused: {error}"),
             }
-            // A committed stroke's brush is Recent's newest (S47).
+            // A committed stroke's brush is Recent's newest.
             if let Some(drawn) = self.session.stroke_committed().filter(|_| stroke) {
                 toolbox.drew(drawn);
             }
@@ -183,7 +183,7 @@ impl Canvas {
     }
 
     /// Commits the stroke being drawn as its lift would, when the pen can no longer lift it: the
-    /// app is left or its window goes mid-stroke (S50). Its brush becomes Recent's newest; the
+    /// app is left or its window goes mid-stroke. Its brush becomes Recent's newest; the
     /// next evaluation shows it committed (its end tapered) and so does the gallery picture.
     pub(crate) fn end_stroke(&mut self, toolbox: &mut Toolbox) {
         let before = self.session.shown().clone();
@@ -250,7 +250,7 @@ impl Canvas {
         let Some(sample) = contact.samples.last() else {
             return;
         };
-        // Tiles still waiting would read as they were (S49).
+        // Tiles still waiting would read as they were.
         if let Err(error) = self.settle(core) {
             log::error!("evaluating the canvas before picking failed: {error}");
         }
@@ -364,9 +364,8 @@ mod cache;
 use cache::CacheState;
 pub(crate) use cache::Held;
 
-/// A transform's pixels: the job's layer sampled through the renderer (a target of its own, the
-/// raster core since S62), then its painted pixels inside the job's selection, if any. Waits for
-/// the GPU, once per transform.
+/// A transform's pixels: the job's layer sampled through the renderer (a target of its own), then
+/// its painted pixels inside the job's selection, if any. Waits for the GPU, once per transform.
 fn lift(core: &Core, job: &TransformJob) -> Result<Option<Patch>, LiftFailed> {
     let started = Instant::now();
     let pixels = core

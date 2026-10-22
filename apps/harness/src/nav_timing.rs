@@ -1,6 +1,6 @@
-//! `nav-timing <library dir>` (S53): what navigation costs on a real artwork. Opens the library
-//! in DIR through the app (point it at a copy: it opens as the app does) on the tablet's screen,
-//! the last artwork the library opened, then, a frame every 8 ms of the fixed clock (120 Hz):
+//! `nav-timing <library dir>`: what navigation costs on a real artwork. Opens a copy of the
+//! library in DIR through the app (`launch::library_copy`) on the tablet's screen, the last
+//! artwork the library opened, then, a frame every 8 ms of the fixed clock (120 Hz):
 //! the fresh start until the canvas is complete; a pinch to about 2 screen pixels per canvas
 //! pixel over the artwork's busiest place (where most strokes cross) and the frames until the
 //! 2x tier is complete; a pinch on to about 4 and its frames; 10 s of two-finger pans at 4x;
@@ -9,7 +9,6 @@
 //! (`Counts`: raster regions, smudge residuals derived, tier tiles filled); per phase p50 / p95 / max and the sums. On a desktop GPU the
 //! times are small; the counts show what thrashes. Run with `--release`.
 
-use std::path::Path;
 use std::time::{Duration, Instant};
 
 use openpaint_core::{Artwork, StrokeTool};
@@ -19,7 +18,7 @@ use openpaint_runtime::{
 use openpaint_store::Library;
 
 use crate::error::HarnessError;
-use crate::launch::text_fonts;
+use crate::launch::{library_copy, text_fonts};
 
 /// The MovinkPad 14.
 const SIZE: [u32; 2] = [2880, 1800];
@@ -30,12 +29,8 @@ const FRAME_MS: i64 = 8;
 const SETTLE_FRAMES: usize = 20_000;
 
 pub fn run(dir: &str) -> Result<(), HarnessError> {
-    if !Path::new(dir).is_dir() {
-        return Err(HarnessError::Missing(
-            "nav-timing needs a library directory",
-        ));
-    }
-    let mut runtime = Runtime::start(PIXELS_PER_POINT, Box::new(Library::at(dir)))?;
+    let library = Library::at(library_copy(dir, "nav-timing")?);
+    let mut runtime = Runtime::start(PIXELS_PER_POINT, Box::new(library))?;
     runtime.set_text_fonts(text_fonts());
     println!("adapter {}", runtime.adapter());
     let mut nav = Nav {

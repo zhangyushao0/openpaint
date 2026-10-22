@@ -6,13 +6,12 @@
 //! Not covered: the digitizer and its firmware before the kernel stamps the event, the GPU
 //! finishing the frame, the compositor's latch and composition, and the display's scan-out.
 //! All times are `CLOCK_MONOTONIC` nanoseconds (Android's `eventTimeNanos`, `System.nanoTime`).
-//!
-//! S56: each frame's waits for the GPU and scene building, the frames skipped while the GPU was
-//! behind (frame pacing) and the most frames in flight at a frame's start.
+//! Beside them: each frame's waits for the GPU and scene building, the frames skipped while the
+//! GPU was behind (frame pacing) and the most frames in flight at a frame's start.
 
 use std::fmt;
 
-use openpaint_runtime::{MotionBatch, MotionPhase, ToolKind};
+use openpaint_runtime::{MotionBatch, MotionPhase, Paced, Spent, ToolKind};
 
 /// Collects one stroke's latencies.
 #[derive(Debug, Default)]
@@ -33,9 +32,9 @@ struct StrokeTimes {
     lifted: bool,
 }
 
-/// What a drawn frame spent of its work (S56): evaluating the canvas and of that building scenes,
-/// its waits for the GPU (acquiring, submitting, presenting, readbacks) and the longest one's
-/// place, and the frames in flight as it began.
+/// What a drawn frame spent of its work: evaluating the canvas and of that building scenes, its
+/// waits for the GPU (acquiring, submitting, presenting, readbacks) and the longest one's place,
+/// and the frames in flight as it began.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct FrameCost {
     pub drawn_ns: i64,
@@ -43,6 +42,21 @@ pub struct FrameCost {
     pub waited_ns: i64,
     pub longest: &'static str,
     pub in_flight: u64,
+}
+
+impl FrameCost {
+    /// What the frame `paced` describes spent, as the frame loop counted it.
+    #[must_use]
+    pub fn of(spent: &Spent, paced: Paced) -> Self {
+        let ns = |ns: u64| i64::try_from(ns).unwrap_or(i64::MAX);
+        Self {
+            drawn_ns: ns(spent.drawn_ns),
+            scene_ns: ns(spent.scene_ns),
+            waited_ns: ns(spent.waited_ns),
+            longest: spent.longest,
+            in_flight: paced.in_flight,
+        }
+    }
 }
 
 impl PenLatency {
@@ -73,8 +87,8 @@ impl PenLatency {
         }
     }
 
-    /// A frame call was skipped while the GPU was behind (S56): the stroke's events wait for the
-    /// next frame drawn.
+    /// A frame call was skipped while the GPU was behind: the stroke's events wait for the next
+    /// frame drawn.
     pub fn skipped(&mut self) {
         if let Some(stroke) = &mut self.stroke {
             stroke.skipped += 1;
@@ -117,8 +131,8 @@ impl PenLatency {
 }
 
 /// The stroke's three slowest frames, slowest first: which they were (0: the pen touching down),
-/// their work and what they spent beside it (S55, S56: which frames hold a stroke's 95th
-/// percentile, and why).
+/// their work and what they spent beside it (which frames hold a stroke's 95th percentile, and
+/// why).
 fn slowest(work: &[i64], costs: &[FrameCost]) -> [Slow; 3] {
     let mut ranked: Vec<(usize, i64)> = work.iter().copied().enumerate().collect();
     ranked.sort_by_key(|&(at, ns)| (std::cmp::Reverse(ns), at));
@@ -144,7 +158,7 @@ pub struct Summary {
     pub events: usize,
     pub frames: usize,
     /// Frame calls skipped while the GPU was behind, and the most frames in flight at a drawn
-    /// frame's start (S56).
+    /// frame's start.
     pub skipped: usize,
     pub in_flight: u64,
     /// Event time to the start of the frame consuming it.
@@ -153,7 +167,7 @@ pub struct Summary {
     pub to_present: Spread,
     /// Frame start to present return, per frame that consumed pen events.
     pub frame_work: Spread,
-    /// Per such frame, its waits for the GPU (S56).
+    /// Per such frame, its waits for the GPU.
     pub waited: Spread,
     /// The three slowest of those frames: their place in the stroke (0 first), work and cost.
     pub slowest: [Slow; 3],

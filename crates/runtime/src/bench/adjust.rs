@@ -1,22 +1,21 @@
-//! `bench adjust` (S65, `bench_app.rs`): a slider dragged in each adjustment and filter panel on
-//! the layer holding the most strokes, at fit, as a hand drags it: Hue, Saturation, Brightness's
-//! hue, a point of the composite curve, Gaussian Blur's radius to 30 % and Sharpen's amount, 60
-//! values each, one a frame at the display's cadence (`@fast`: one a drawn frame), then Cancel.
-//! Each panel's line: the drawn frames' work while the slider moves, how many values the canvas
-//! showed complete in the frame that took them, each value's time to show (from the frame taking
-//! it to the end of the first frame after which the canvas is complete), and the last value's.
+//! `bench adjust`: a slider dragged in each adjustment and filter panel on the layer holding the
+//! most strokes, at fit, as a hand drags it: Hue, Saturation, Brightness's hue, a point of the
+//! composite curve, Gaussian Blur's radius to 30 % and Sharpen's amount, 60 values each, one a
+//! frame at the display's cadence (`@fast`: one a drawn frame), then Cancel. Each panel's line:
+//! the drawn frames' work while the slider moves, how many values the canvas showed complete in
+//! the frame that took them, each value's time to show (from the frame taking it to the end of
+//! the first frame after which the canvas is complete), and the last value's.
 
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use openpaint_app::{AdjustIntent, Intent, LayerIntent, ViewIntent};
 use openpaint_core::{Adjustment, AdjustmentKind, Blur, Curves, Hsb, Sharpen, ToneCurve};
 
-use super::cases::strokes;
+use super::hand::{busiest_layer, strokes};
 use super::{Watch, spread};
 use crate::error::RuntimeError;
 use crate::frame::Runtime;
 
-const LIMIT: Duration = Duration::from_secs(60);
 /// Values a drag gives, one a frame.
 const VALUES: usize = 60;
 /// The panels, in the wand's order.
@@ -32,9 +31,7 @@ impl Runtime {
     pub(crate) fn bench_adjust(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
         let (_, artwork) = self.bench_artwork()?;
         let active = artwork.active();
-        let layer = (artwork.layers().iter())
-            .max_by_key(|layer| layer.strokes().len())
-            .ok_or(RuntimeError::NotNow("a layer"))?;
+        let layer = busiest_layer(&artwork)?;
         lines.push(format!(
             "on the layer of {} strokes (of {}), {VALUES} values a panel; ms",
             layer.strokes().len(),
@@ -46,14 +43,14 @@ impl Runtime {
             Intent::Layer(LayerIntent::Select(layer.id())),
         ];
         self.bench_intents(chosen, &mut watch)?;
-        self.bench_until(&mut watch, LIMIT, Self::bench_settled)?;
+        self.bench_until(&mut watch, Self::bench_settled)?;
         for kind in PANELS {
             let line = self.bench_panel(kind)?;
             lines.push(format!("{kind:?}: {line}"));
         }
         let mut watch = Watch::paced(self);
         self.bench_intents(vec![Intent::Layer(LayerIntent::Select(active))], &mut watch)?;
-        self.bench_until(&mut watch, LIMIT, Self::bench_settled)?;
+        self.bench_until(&mut watch, Self::bench_settled)?;
         Ok(())
     }
 
@@ -61,7 +58,7 @@ impl Runtime {
     fn bench_panel(&mut self, kind: AdjustmentKind) -> Result<String, RuntimeError> {
         let mut watch = Watch::paced(self);
         self.bench_intents(vec![Intent::Adjust(AdjustIntent::Begin(kind))], &mut watch)?;
-        self.bench_until(&mut watch, LIMIT, Self::bench_settled)?;
+        self.bench_until(&mut watch, Self::bench_settled)?;
         let mut watch = Watch::paced(self);
         let (mut set, mut complete) = (Vec::with_capacity(VALUES), Vec::new());
         let mut in_frame = 0;
@@ -75,7 +72,7 @@ impl Runtime {
             }
         }
         let work = spread(&watch.frames);
-        self.bench_until(&mut watch, LIMIT, Self::bench_shown)?;
+        self.bench_until(&mut watch, Self::bench_shown)?;
         complete.push(Instant::now());
         let shown: Vec<f64> = (set.iter())
             .map(|value| {
@@ -92,7 +89,7 @@ impl Runtime {
         );
         let mut watch = Watch::paced(self);
         self.bench_intents(vec![Intent::Adjust(AdjustIntent::Cancel)], &mut watch)?;
-        self.bench_until(&mut watch, LIMIT, Self::bench_settled)?;
+        self.bench_until(&mut watch, Self::bench_settled)?;
         Ok(line)
     }
 

@@ -43,10 +43,10 @@ impl Runtime {
         Self::assemble(core, (store, None), (pixels_per_point, None))
     }
 
-    /// As `start`, keeping the display cache of each artwork's canvas in `cache` (S54): an
+    /// As `start`, keeping the display cache of each artwork's canvas in `cache`: an
     /// artwork opens showing it, complete when it is what the artwork's records evaluate to. The
     /// device has `memory` bytes (Android's `ActivityManager.MemoryInfo.totalMem`): the GPU
-    /// memory budget follows from it (S58).
+    /// memory budget follows from it.
     pub fn start_cached(
         pixels_per_point: f32,
         (store, cache): (Box<dyn ProjectStore>, DisplayCache),

@@ -44,7 +44,7 @@ pub(crate) use crate::ui_pass::screen_frame;
 use crate::ui_pass::{UiPass, run_ui};
 
 pub struct Runtime {
-    /// The renderer's GPU state now; replaced whole when its device is lost (S49, `recover.rs`).
+    /// The renderer's GPU state now; replaced whole when its device is lost (`recover.rs`).
     pub(crate) core: Arc<Core>,
     /// The same, as the workers take it for each job.
     pub(crate) shared: SharedCore,
@@ -56,7 +56,7 @@ pub struct Runtime {
     /// Makes the window's surface again on a new device, from `attach` until `detach`.
     pub(crate) window: Option<Reattach>,
     pub(crate) recoveries: Recoveries,
-    /// The GPU memory budget of the device's class (S49, `budget.rs`).
+    /// The GPU memory budget of the device's class (`budget.rs`).
     pub(crate) budget: Budget,
     /// The harness's frame, in place of a window.
     pub(crate) offscreen: Option<ScreenTarget>,
@@ -68,9 +68,9 @@ pub struct Runtime {
     pub(crate) clock: InputClock,
     /// The clock motion runs on.
     pub(crate) frame_clock: FrameClock,
-    /// When a finger or the pen last touched: background work's budget follows (S54).
+    /// When a finger or the pen last touched: background work's budget follows.
     pub(crate) touches: Touches,
-    /// Frames wait while the GPU is behind (S56).
+    /// Frames wait while the GPU is behind.
     pub(crate) pacing: Pacing,
     /// Input normalised since the last frame, palms removed, oldest first.
     pending: Vec<InputBatch>,
@@ -82,22 +82,22 @@ pub struct Runtime {
     /// The brush, size and opacity: the app's, kept across artworks; the open session gets the
     /// style it makes.
     pub(crate) toolbox: Toolbox,
-    /// What was copied last (S40): the app's, kept across artworks, never stored.
+    /// What was copied last: the app's, kept across artworks, never stored.
     pub(crate) clipboard: Clipboard,
-    /// Where every new stroke's seed comes from (S45).
+    /// Where every new stroke's seed comes from.
     pub(crate) seeds: Seeds,
-    /// Debug builds' scenario benchmark runs its frames as fast as the GPU takes them (S58).
+    /// Debug builds' scenario benchmark runs its frames as fast as the GPU takes them.
     pub(crate) bench_fast: bool,
     /// Export and the reference image: the app's, kept across artworks.
     pub(crate) transfers: Transfers,
     pub(crate) transfer: TransferWorker,
     fill: FillWorker,
     pub(crate) pictures: PictureWorker,
-    /// Makes the raster core's pipelines and draws the view tiers' tiles (S60).
+    /// Makes the raster core's pipelines and draws the view tiers' tiles.
     pub(crate) raster: RasterWorker,
-    /// The brush panel's pictures and the editor's preview strip (S46).
+    /// The brush panel's pictures and the editor's preview strip.
     pub(crate) brushes: BrushPictures,
-    /// Writes the display cache (S54); dropping it writes what it was handed.
+    /// Writes the display cache; dropping it writes what it was handed.
     pub(crate) cache: CacheWorker,
     /// Declared last: dropping it writes what it was handed before the process goes.
     pub(crate) storage: Storage,
@@ -114,7 +114,7 @@ impl Runtime {
     }
 
     /// The host's window exists, `size` pixels large. Replaces any previous window. The window is
-    /// kept until `detach`, so a new device can present into it again (S49).
+    /// kept until `detach`, so a new device can present into it again.
     pub fn attach(
         &mut self,
         window: impl SurfaceWindow + Send + Sync,
@@ -143,7 +143,7 @@ impl Runtime {
     }
 
     /// The window is about to be destroyed; call before the host lets it go. A stroke still being
-    /// drawn is committed as drawn so far and handed to the store (S50): the pen cannot lift it
+    /// drawn is committed as drawn so far and handed to the store: the pen cannot lift it
     /// any more. The artwork, its history and the view stay for the next `attach`.
     pub fn detach(&mut self) {
         self.surface = None;
@@ -164,7 +164,7 @@ impl Runtime {
             return false;
         };
         let kept = self.palms.filter(input);
-        // S60: a hand arriving ends the work handed over while nothing touched, at once.
+        // A hand arriving ends the work handed over while nothing touched, at once.
         if self.touches.saw(&kept) {
             self.raster.hand_arrived();
         }
@@ -196,9 +196,9 @@ impl Runtime {
     }
 
     /// Runs one frame into the window. Returns whether another frame is wanted at once. A lost
-    /// GPU device is made again first, or after a frame that failed for it (S49). While the GPU
-    /// is behind, the call draws nothing and wants the next (S56, `pacing.rs`); while nothing
-    /// touches the screen it gives the work waiting what the GPU's queue has room for (S60).
+    /// GPU device is made again first, or after a frame that failed for it. While the GPU
+    /// is behind, the call draws nothing and wants the next (`pacing.rs`); while nothing
+    /// touches the screen it gives the work waiting what the GPU's queue has room for.
     pub fn frame(&mut self) -> Result<bool, RuntimeError> {
         self.recover_if_lost()?;
         let drawing = self.screen.canvas().is_some_and(Canvas::drawing);
@@ -213,7 +213,7 @@ impl Runtime {
     }
 
     /// What the last frame call did: skipped for the GPU, or drawn, and the frames in flight as
-    /// it began (S56, for the host's log).
+    /// it began (for the host's log).
     #[must_use]
     pub const fn paced(&self) -> Paced {
         self.pacing.last()
@@ -284,11 +284,11 @@ impl Runtime {
     /// shows a stale state while idle, while waiting for the storage worker and while
     /// something moves (D44).
     pub(crate) fn update(&mut self, size: [u32; 2]) -> Result<(UiFrame, bool), RuntimeError> {
-        // S53: this frame's budget for background work, corrected by the GPU's measured times;
-        // while nothing touches the screen, what the GPU's queue has room for (S60).
+        // This frame's budget for background work, corrected by the GPU's measured times;
+        // while nothing touches the screen, what the GPU's queue has room for.
         let idle = self.idle();
         self.core.begin_frame_idle(idle);
-        // S63: a benchmark times the frame's GPU work from its first submission on.
+        // A benchmark times the frame's GPU work from its first submission on.
         self.core.frame_begun();
         self.receive()?;
         let batches = std::mem::take(&mut self.pending);
@@ -337,23 +337,16 @@ impl Runtime {
         self.core.end_background();
         self.send_raster(idle);
         let changed = self.screen() != shown;
-        // The view tiers or the canvas itself still fill in (S32, S49), or its residuals (S54),
-        // or the snapshots under the next stroke (S63).
-        let viewing = (self.screen.canvas()).is_some_and(|canvas| {
-            let waits = canvas.view_pending()
-                || canvas.filling()
-                || canvas.warming()
-                || canvas.taking_ahead();
-            // S60: until the atlas of the next tier is asked for, made ahead once nothing touches.
-            waits || canvas.view().wants_spare()
-        });
+        // Also until the next tier's atlas is asked for, made ahead once nothing touches.
+        let viewing = (self.screen.canvas())
+            .is_some_and(|canvas| canvas.waiting() || canvas.view().wants_spare());
         let shows = changed || arrived || viewing;
         let again = pass.repaint || shows || self.storing() || self.shell.animating();
         Ok((pass.frame, again))
     }
 
     /// The screen's evaluations this frame: where it looks on the canvas (its waiting tiles there
-    /// go first, S53), what changed and storage's steps, then the view tiers through the view.
+    /// go first), what changed and storage's steps, then the view tiers through the view.
     fn evaluate_screen(&mut self, area: Option<CanvasArea>) -> Result<(), RuntimeError> {
         let now = self.frame_clock.wall_seconds();
         let shell = &self.shell;

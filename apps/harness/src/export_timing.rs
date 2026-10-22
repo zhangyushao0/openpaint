@@ -1,8 +1,8 @@
 //! `export-timing`: a busy artwork at the tablet's 2732 x 2048 preset (three layers, 2,000 ink
-//! strokes, 300 pencil strokes, 40 fills), exported at 1x, 2x and 4x through the same bands and
-//! streaming PNG encoder the app uses; prints the planning (scene, smudges and binning on the
-//! CPU), GPU and readback, and encoding times. Run with `--release` for numbers that mean
-//! anything.
+//! strokes, 300 pencil strokes, 40 fills), exported at 1x, 2x and 4x by the app's own export
+//! (`openpaint_runtime::encoded`: bands into the streaming PNG encoder); prints the planning and
+//! submission on the CPU, the GPU and readback, and encoding times. Run with `--release` for
+//! numbers that mean anything.
 
 use std::sync::Arc;
 use std::time::Instant;
@@ -12,9 +12,8 @@ use openpaint_core::{
     Curve, Deposit, Dynamics, Grain, LayerCommand, Paper, PaperTexture, RegionMask, Stroke,
     StrokeSample, StrokeStyle, Tip,
 };
-use openpaint_render::{Banding, Core, curve_pieces};
-use openpaint_runtime::ImageFormat;
-use openpaint_store::ImageEncoder;
+use openpaint_render::{Core, curve_pieces};
+use openpaint_runtime::{ImageFormat, encoded};
 
 use crate::error::HarnessError;
 
@@ -34,33 +33,12 @@ pub fn run() -> Result<(), HarnessError> {
     println!("adapter {}", core.adapter());
     for scale in [1, 2, 4, 1] {
         let started = Instant::now();
-        let mut bands = core.export_bands(&artwork, Color::WHITE, scale, Banding::DEFAULT)?;
-        let [width, height] = bands.size();
-        let mut encoder = ImageEncoder::new(ImageFormat::Png, [width, height])
-            .map_err(|_| HarnessError::Missing("the PNG encoder refused the size"))?;
-        let mut encoding = std::time::Duration::ZERO;
-        for band in &mut bands {
-            let band = band?;
-            let at = Instant::now();
-            encoder
-                .rows(band.pixels())
-                .map_err(|_| HarnessError::Missing("the PNG encoder refused a band"))?;
-            encoding += at.elapsed();
-        }
-        let (planned, waited) = bands.timing();
-        let at = Instant::now();
-        let file = encoder
-            .finish()
-            .map_err(|_| HarnessError::Missing("the PNG encoder failed"))?;
-        encoding += at.elapsed();
+        let png = encoded(&core, &artwork, ImageFormat::Png, scale)
+            .map_err(|_| HarnessError::Missing("the export failed"))?;
         println!(
-            "{scale}x {width} x {height}: {} ms in all; planned and submitted {} ms, GPU and \
-             readback {} ms, encoded {} ms, {} bytes",
+            "{scale}x in {} ms in all: {}",
             started.elapsed().as_millis(),
-            planned.as_millis(),
-            waited.as_millis(),
-            encoding.as_millis(),
-            file.len()
+            png.line()
         );
     }
     Ok(())
@@ -144,7 +122,7 @@ fn fill(artwork: &Artwork, random: &mut Random) -> Result<Artwork, CoreError> {
     Ok(artwork.fill_region(mask, color)?.artwork)
 }
 
-/// The S16 pencil: graphite on the sketch paper under a flat tip.
+/// A pencil: graphite on the sketch paper under a flat tip.
 fn pencil() -> Result<Arc<BrushRecipe>, CoreError> {
     let size = Dynamics::new(
         Curve::new(&[[0.0, 0.3], [1.0, 1.0]])?,
@@ -158,7 +136,7 @@ fn pencil() -> Result<Arc<BrushRecipe>, CoreError> {
     Ok(Arc::new(recipe.with_deposit(Deposit::Accumulate(deposit))?))
 }
 
-/// The segments the strokes had between samples before S34, their curve spans, and the straight
+/// The straight segments between the strokes' samples, their curve spans, and the straight
 /// pieces the raster core flattens the spans into at 1x, 2x, 4x and 8x.
 pub fn pieces<'a>(strokes: impl Iterator<Item = &'a Stroke>) {
     let (mut segments, mut spans, mut pieces) = (0usize, 0usize, [0usize; 4]);

@@ -6,10 +6,10 @@ use std::f32::consts::{PI, TAU};
 use openpaint_core::{
     Artwork, BrushRecipe, CanvasPoint, CanvasSize, Color, CoreError, StrokeSample, StrokeStyle,
 };
-use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect};
+use openpaint_render::Core;
 
 use crate::error::HarnessError;
-use crate::output::write_png;
+use crate::output::{cold, write_png};
 
 /// The wave of `crates/render/tests/stroke/fixture.rs`, so the printed hash is the golden value
 /// of `crates/render/tests/stroke/golden.rs`.
@@ -18,14 +18,7 @@ const SIZE: [u32; 2] = [320, 200];
 pub fn run() -> Result<(), HarnessError> {
     let artwork = wave()?;
     let core = Core::headless()?;
-    let mut target = CanvasTarget::new(&core, SIZE)?;
-    let request = FrameRequest {
-        artwork: &artwork,
-        active: None,
-        background: Color::WHITE,
-    };
-    target.draw(&core, &request, &[PixelRect::full(SIZE)])?;
-    let image = target.read(&core)?;
+    let image = cold(&core, &artwork)?;
     let path = write_png("stroke.png", &image)?;
     println!("adapter {}", core.adapter());
     println!("wrote {}", path.display());

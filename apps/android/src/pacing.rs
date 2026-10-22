@@ -1,4 +1,4 @@
-//! The main thread's frames as frame pacing sees them (S56), logged as they happen: a frame
+//! The main thread's frames as frame pacing sees them, logged as they happen: a frame
 //! whose work or one of whose waits for the GPU passes `SLOW_NS` (what lets Android's input
 //! timeout come near when it repeats), and every run of frame calls skipped while the GPU was
 //! behind that lasted as long, with the input batches taken meanwhile (input is never starved).

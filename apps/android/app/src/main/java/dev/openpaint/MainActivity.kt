@@ -155,7 +155,7 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
             return used || super.dispatchKeyEvent(event)
         }
         // Android 14 can also report a stylus's buttons as keys; the app reads them from the
-        // pen's events (S41). Logged only, so the author's pen shows what it sends.
+        // pen's events. Logged only, so the author's pen shows what it sends.
         if (event.keyCode in STYLUS_KEYS) {
             Log.i("openpaint", "stylus key ${event.keyCode} action ${event.action}")
         }
@@ -169,7 +169,7 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
     /** Sends a key event to the focused text field; false when it is not a typing key. */
     private fun type(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_MULTIPLE && event.keyCode == KeyEvent.KEYCODE_UNKNOWN) {
-            event.characters?.let { Native.text(handle, 1, it) }
+            event.characters?.let { Native.text(handle, COMMIT, it) }
             return true
         }
         val code = when (event.keyCode) {
@@ -186,7 +186,7 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
             if (code != null) {
                 Native.key(handle, code)
             } else {
-                Native.text(handle, 1, String(Character.toChars(character)))
+                Native.text(handle, COMMIT, String(Character.toChars(character)))
             }
         }
         return true

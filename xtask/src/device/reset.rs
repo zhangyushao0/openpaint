@@ -1,4 +1,4 @@
-//! `cargo device-reset` (S68): the app's data on the tablet cleared by Android (`pm clear`), every
+//! `cargo device-reset`: the app's data on the tablet cleared by Android (`pm clear`), every
 //! file it held listed first. Refused unless a backup (`device-backup`) was written today (UTC,
 //! as the backups' own times are), so what it clears is never the only copy; the backups stay.
 
@@ -6,7 +6,8 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::adb::{Adb, DeviceError, PACKAGE, Result};
-use super::{artifacts, civil, stop_app};
+use super::library::stop_app;
+use super::{artifacts, civil};
 
 pub fn reset(args: &[String]) -> Result<()> {
     if !args.is_empty() {

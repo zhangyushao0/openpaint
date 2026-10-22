@@ -1,4 +1,4 @@
-//! Device-loss recovery (S49, DECISIONS D76). A GPU reset loses the device: wgpu's lost callback
+//! Device-loss recovery (DECISIONS D96). A GPU reset loses the device: wgpu's lost callback
 //! marks it (`Core::lost`), and the window's surface, a GPU wait or any call on the device fails.
 //! Before each frame, and after a frame that failed so, the runtime makes the renderer again: a
 //! new device and its pipelines (`Core::reopened`), handed to the workers (`SharedCore`); the
