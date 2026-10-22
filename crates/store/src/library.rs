@@ -1,7 +1,7 @@
-//! `Library`: the artwork library on disk, a fjall database (DECISIONS D09, D77, D95),
-//! implementing the app's `ProjectStore`. Every call that writes is one atomic batch synced to
-//! disk (`batch.rs`): it lands whole or not at all, also when the process is killed mid-write; a
-//! save rewrites the head and only the stroke records that changed since the version this
+//! `Library`: the artwork library on disk, a fjall database (DECISIONS D77, D95), implementing
+//! the app's `ProjectStore`. Every call that writes is one atomic batch synced to disk
+//! (`batch.rs`): it lands whole or not at all, also when the process is killed mid-write; a save
+//! rewrites the head and only the stroke and edit records that changed since the version this
 //! library last stored. A library of any other format is refused and never written to.
 
 use std::path::PathBuf;
@@ -57,14 +57,14 @@ impl Library {
     }
 
     /// What fjall holds in memory now: its block cache and its memtables (written, not flushed
-    /// yet), in bytes; `None` while the database is closed (S51, the harness's long session).
+    /// yet), in bytes; `None` while the database is closed (the harness's long session).
     #[must_use]
     pub fn memory(&self) -> Option<[u64; 2]> {
         let open = self.open.as_ref()?;
         Some([open.db.cache_size(), open.db.write_buffer_size()])
     }
 
-    /// Logs what fjall holds in memory once it passed the most logged by 4 MiB (S51), so a
+    /// Logs what fjall holds in memory once it passed the most logged by 4 MiB, so a
     /// session on the device tells how much of the heap is the library's.
     fn note_memory(&mut self) {
         let Some([cache, memtables]) = self.memory() else {
@@ -137,7 +137,7 @@ fn prepare(open: &Open) -> Result<(), PortError> {
     Err(PortError::OtherFormat { found })
 }
 
-/// Project `id` as `held`, its head given a save id now if it had none (S54).
+/// Project `id` as `held`, its head given a save id now if it had none.
 fn opened(open: &Open, id: ProjectId, held: read::Held) -> Result<Project, PortError> {
     let saved = match held.saved {
         Some(saved) => saved,

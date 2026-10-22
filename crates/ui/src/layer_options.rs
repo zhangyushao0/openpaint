@@ -1,8 +1,8 @@
 //! The layer panel's footer, for the highlighted layer (Procreate keeps these in the layer's
 //! options): its opacity, its blend mode (Normal, Multiply, Screen, Overlay), Alpha Lock,
-//! Clipping Mask, Add Mask (a plus and the words: adds a white mask), Merge Down (S39: into the
+//! Clipping Mask, Add Mask (a plus and the words: adds a white mask), Merge Down (into the
 //! layer below; grey, with why at its row's end, where it would change what shows), Rename,
-//! Group (Ungroup in a group), duplicate and delete (S38: moving is dragging a row,
+//! Group (Ungroup in a group), duplicate and delete (moving is dragging a row,
 //! `layer_drag.rs`); under them, for a layer in a group, the group's name and opacity. While
 //! the layer's mask is highlighted instead: Invert, Clear and delete the mask.
 
@@ -15,6 +15,7 @@ use crate::components::{
 };
 use crate::design::Icon;
 use crate::layer_rows::percent;
+use crate::taps::push_once;
 
 /// Rows of touch targets the footer takes, with the group's two when the layer is in one; the
 /// mask's options take two.
@@ -49,13 +50,6 @@ const fn unmergeable(why: Unmergeable) -> &'static str {
         Unmergeable::BelowClips => "Below clips",
         Unmergeable::ClippedTo => "Has clips",
         Unmergeable::TooDeep => "Too deep",
-    }
-}
-
-/// One value of a slider touch, sent once (egui may run a pass twice).
-fn push_once(taps: &mut Vec<Intent>, intent: Intent) {
-    if taps.last() != Some(&intent) {
-        taps.push(intent);
     }
 }
 

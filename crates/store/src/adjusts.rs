@@ -1,5 +1,5 @@
-//! Adjustment records (format 1, `fills.rs`): an edit record of kind 3. After the kind and how
-//! many strokes lie under it: its clip (u8: 0 none, 1 a mask as fills store it), inverted (u8:
+//! Adjustment records (format 1, `edits.rs`): an edit record of kind 3. After the kind and how
+//! many strokes lie under it: its clip (`write_optional_mask`), inverted (u8:
 //! made on an inverted mask), then what it does (u8: 0 hue, saturation and brightness as three
 //! f32; 1 curves: composite, red, green and blue, each a point count (u32) and its points as x, y
 //! f32 pairs; 2 a Gaussian blur: its radius, f32; 3 sharpening: its amount, f32).
@@ -8,7 +8,7 @@ use openpaint_app::PortError;
 use openpaint_core::{AdjustEdit, AdjustParts, AdjustmentParts};
 
 use crate::codec::Reader;
-use crate::fills::{edit_writer, read_mask, write_mask};
+use crate::edits::{edit_writer, read_optional_mask, write_optional_mask};
 use crate::strokes::{read_curve, write_curve};
 
 pub(crate) const KIND_ADJUST: u8 = 3;
@@ -20,13 +20,7 @@ const SHARPEN: u8 = 3;
 pub(crate) fn encode_adjust(adjust: &AdjustEdit) -> Vec<u8> {
     let parts = adjust.to_parts();
     let mut writer = edit_writer(KIND_ADJUST, adjust.after(), 64);
-    match &parts.clip {
-        Some(clip) => {
-            writer.u8(1);
-            write_mask(&mut writer, clip);
-        }
-        None => writer.u8(0),
-    }
+    write_optional_mask(&mut writer, parts.clip.as_ref());
     writer.bool(parts.inverted);
     match &parts.adjustment {
         AdjustmentParts::Hsb(values) => {
@@ -55,11 +49,7 @@ pub(crate) fn encode_adjust(adjust: &AdjustEdit) -> Vec<u8> {
 
 /// An adjustment after its kind and `after`.
 pub(crate) fn read_adjust(reader: &mut Reader<'_>, after: u64) -> Result<AdjustParts, PortError> {
-    let clip = match reader.u8()? {
-        0 => None,
-        1 => Some(read_mask(reader)?),
-        _ => return Err(reader.corrupt()),
-    };
+    let clip = read_optional_mask(reader)?;
     let inverted = reader.bool()?;
     let adjustment = match reader.u8()? {
         HSB => AdjustmentParts::Hsb([reader.f32()?, reader.f32()?, reader.f32()?]),
@@ -88,7 +78,7 @@ mod tests {
         ToneCurve,
     };
 
-    use crate::fills::{decode_edit, encode_edit};
+    use crate::edits::{decode_edit, encode_edit};
 
     #[test]
     fn adjustment_records_round_trip_and_damage_is_corrupt() {

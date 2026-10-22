@@ -1,13 +1,13 @@
-//! Adjustments (S28, Procreate's Adjustments on a layer): hue, saturation and brightness, and
+//! Adjustments (Procreate's Adjustments on a layer): hue, saturation and brightness, and
 //! tone curves. Both are point operations, so an applied adjustment is an operation record
 //! like a stroke or a fill: its values, the selection it was made inside and its place among
 //! the layer's strokes (`AdjustEdit`). The renderer applies it to the layer's content so far
 //! at every draw, so incremental equals cold and reopening shows what was applied
-//! (DECISIONS D54). On a mask it acts on the grey the mask shows. Gaussian Blur and Sharpen
-//! (S33, `filter.rs`) are adjustments too, which read neighbouring pixels.
+//! (DECISIONS D59). On a mask it acts on the grey the mask shows. Gaussian Blur and Sharpen
+//! (`filter.rs`) are adjustments too, which read neighbouring pixels.
 
 use crate::artwork::Artwork;
-use crate::command::{Applied, Change};
+use crate::command::Applied;
 use crate::error::CoreError;
 use crate::filter::{Blur, Sharpen};
 use crate::parts::MaskParts;
@@ -201,12 +201,8 @@ impl AdjustEdit {
 
     /// The same edit seen from two versions: its clip shared, its values equal.
     pub(crate) fn same(&self, other: &Self) -> bool {
-        let clip = match (&self.clip, &other.clip) {
-            (Some(a), Some(b)) => a.shares(b),
-            (None, None) => true,
-            _ => false,
-        };
-        clip && self.after == other.after
+        RegionMask::both_shared(self.clip.as_ref(), other.clip.as_ref())
+            && self.after == other.after
             && self.inverted == other.inverted
             && self.adjustment == other.adjustment
     }
@@ -234,7 +230,7 @@ impl AdjustEdit {
         let clip = parts
             .clip
             .as_ref()
-            .map(|clip| RegionMask::from_runs(canvas, clip.origin, clip.size, &clip.runs))
+            .map(|clip| clip.mask(canvas))
             .transpose()?;
         let adjustment = match &parts.adjustment {
             AdjustmentParts::Hsb([hue, saturation, brightness]) => {
@@ -321,9 +317,6 @@ impl Artwork {
             adjustment,
             inverted,
         };
-        Ok(Applied {
-            artwork: push_edit(self, index, RegionEdit::Adjust(edit)),
-            change: Change::Content,
-        })
+        Ok(push_edit(self, index, RegionEdit::Adjust(edit)))
     }
 }

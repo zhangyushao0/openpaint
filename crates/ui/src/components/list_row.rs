@@ -1,7 +1,7 @@
 //! The list row: one touch target high across a panel, a name at its left, an optional detail
 //! before an icon button at its right end. Tapping the row chooses it; the chosen row carries
 //! the active mark. The icon button acts on the row without choosing it. A row may show a small
-//! picture before its name (a layer's, S38) and may be carried by the hand (`lifted`).
+//! picture before its name (a layer's) and may be carried by the hand (`lifted`).
 
 use egui::{Align2, Color32, Order, Rect, Sense, Stroke, StrokeKind, TextStyle, Vec2, WidgetInfo};
 

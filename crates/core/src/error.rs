@@ -46,7 +46,7 @@ pub enum CoreError {
     IdOutOfRange { what: &'static str, id: u64 },
     /// The layer cannot merge into the one below it (Merge Down) without changing what shows.
     Unmergeable { layer: LayerId, why: Unmergeable },
-    /// Copy or cut found nothing there (S40).
+    /// Copy or cut found nothing there.
     NothingToCopy,
     /// A copy's records would nest more than `MAX_NESTING` deep.
     TooDeep,

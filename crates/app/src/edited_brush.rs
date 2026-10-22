@@ -1,4 +1,4 @@
-//! What the brush editor shows of the current tool's brush (S46): its name, whether Reset and
+//! What the brush editor shows of the current tool's brush: its name, whether Reset and
 //! Delete apply, every setting's value and the range its control gives, which choices are
 //! offered and the dynamics curves with how high their points may go.
 

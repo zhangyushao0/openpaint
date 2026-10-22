@@ -1,6 +1,6 @@
 //! Picture files read: PNG or JPEG files as reference images or pictures to insert. The `image`
 //! crate does the decoding (DECISIONS D14); a file's embedded ICC profile is honoured, so colours
-//! come in as sRGB (`colour`, S27, D53). Writing is `export_file.rs`.
+//! come in as sRGB (`colour`, D53). Writing is `export_file.rs`.
 
 use std::io::Cursor;
 
@@ -59,7 +59,7 @@ pub fn open_reference(bytes: &[u8]) -> Result<ReferenceImage, ImageError> {
     ReferenceImage::fitted(size, &pixels).ok_or(ImageError::Damaged)
 }
 
-/// A PNG or JPEG file as a picture to insert into a canvas of `canvas` (S26): decoded, turned
+/// A PNG or JPEG file as a picture to insert into a canvas of `canvas`: decoded, turned
 /// upright, premultiplied, reduced once by a triangle filter when it is larger than the canvas
 /// (on premultiplied pixels, so a transparent pixel's colour never bleeds into its neighbours)
 /// and centred (`picture_place`). Colours come in as sRGB (`decode_image`).

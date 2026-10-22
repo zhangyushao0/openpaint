@@ -1,4 +1,4 @@
-//! The display cache (S54, DECISIONS D81): for each artwork one file holding the pixels its
+//! The display cache (DECISIONS D81): for each artwork one file holding the pixels its
 //! canvas showed complete, exactly as the screen's canvas target held them (ten-bit codes on the
 //! tablet, 8-bit values elsewhere), so opening it shows the artwork at once. Derived data, never
 //! the truth: the records are, and nothing but the opening canvas reads it.

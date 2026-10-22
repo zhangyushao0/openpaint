@@ -1,4 +1,4 @@
-//! What a recipe may take and stay one the engine draws (S46): each number the brush editor
+//! What a recipe may take and stay one the engine draws: each number the brush editor
 //! sets has a range that depends on the others, because a pixel takes at most `MAX_STAMPS`
 //! stamps of one span (`core::Shape::fits`: the size's largest factor times the stamp's reach
 //! over the spacing, plus 2). The editor's controls stop at these ranges, so a change is never

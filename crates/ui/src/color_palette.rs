@@ -1,4 +1,4 @@
-//! The colour panel's palette and hex entry (S41). The palette is one row-wrapped set of saved
+//! The colour panel's palette and hex entry. The palette is one row-wrapped set of saved
 //! swatches under the recent colours (Procreate keeps many palettes; one is enough here): the
 //! plus keeps the current colour at its end, a tap on a swatch paints with it, and Edit turns
 //! taps into removing until Done. The hex field in the header shows the current colour as
@@ -11,6 +11,7 @@ use openpaint_core::Color;
 
 use crate::components::{hint, icon_button, swatch, text_button, text_field};
 use crate::design::{INK_SECONDARY, Icon, RECENT_SWATCH, SPACE, TOUCH_TARGET};
+use crate::taps::push_once;
 
 /// Swatches in one row of the panel.
 const PER_ROW: usize = 8;
@@ -52,7 +53,7 @@ impl PaletteState {
             if field.submitted {
                 match parse_hex(&self.hex) {
                     Some(color) => {
-                        push(
+                        push_once(
                             taps,
                             Intent::Tool(ToolIntent::Color {
                                 color,
@@ -97,7 +98,7 @@ impl PaletteState {
                 let room = swatches.len() < MAX_SWATCHES && !swatches.contains(&brush.color);
                 let add = icon_button(ui, Icon::Add, "Add to palette", room && !self.editing);
                 if add.clicked() {
-                    push(taps, Intent::Tool(ToolIntent::AddSwatch));
+                    push_once(taps, Intent::Tool(ToolIntent::AddSwatch));
                 }
             });
         });
@@ -122,17 +123,10 @@ impl PaletteState {
                                 settled: true,
                             }
                         };
-                        push(taps, Intent::Tool(intent));
+                        push_once(taps, Intent::Tool(intent));
                     }
                 }
             });
         }
-    }
-}
-
-/// egui may run a pass twice; one change is sent once.
-fn push(taps: &mut Vec<Intent>, intent: Intent) {
-    if taps.last() != Some(&intent) {
-        taps.push(intent);
     }
 }

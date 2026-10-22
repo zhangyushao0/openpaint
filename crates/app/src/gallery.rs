@@ -203,12 +203,7 @@ impl Gallery {
         } else {
             self.availability()
         };
-        if !availability.is_available() {
-            return Err(AppError::Unavailable {
-                action: EditorAction::Gallery,
-                availability,
-            });
-        }
+        availability.require(EditorAction::Gallery)?;
         let request = match intent {
             GalleryIntent::Show | GalleryIntent::Dismiss => return Ok(()),
             GalleryIntent::SaveFile(id) => {
@@ -317,12 +312,8 @@ impl Gallery {
 
     /// Every gallery action is offered unless an artwork is being opened.
     #[must_use]
-    pub fn availability(&self) -> Availability {
-        if self.opening {
-            Availability::Running
-        } else {
-            Availability::Available
-        }
+    pub const fn availability(&self) -> Availability {
+        offered_unless(self.opening)
     }
 
     #[must_use]
@@ -342,6 +333,15 @@ impl Default for Gallery {
     }
 }
 
+/// Every gallery action, unless an artwork is being `opening`.
+const fn offered_unless(opening: bool) -> Availability {
+    if opening {
+        Availability::Running
+    } else {
+        Availability::Available
+    }
+}
+
 impl GalleryProjection {
     /// The artworks, the one changed last first.
     #[must_use]
@@ -358,11 +358,7 @@ impl GalleryProjection {
     /// Whether the artworks can be opened, created, renamed, duplicated and deleted now.
     #[must_use]
     pub const fn availability(&self) -> Availability {
-        if self.opening {
-            Availability::Running
-        } else {
-            Availability::Available
-        }
+        offered_unless(self.opening)
     }
 
     #[must_use]

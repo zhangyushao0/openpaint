@@ -1,4 +1,4 @@
-//! Changing the brush library (S46): a brush edited in place, copied right after itself, reset
+//! Changing the brush library: a brush edited in place, copied right after itself, reset
 //! to its file, renamed or (a copy) deleted; and the library as the toolbox record stores it
 //! (`StoredBrush`), which a stored brush the engine refuses never blocks: it falls back to the
 //! built-in it comes from.

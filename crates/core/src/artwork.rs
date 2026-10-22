@@ -157,7 +157,7 @@ impl Artwork {
         bytes
     }
 
-    /// Whether new strokes and fills go to the active layer's mask rather than its paint (S24).
+    /// Whether new strokes and fills go to the active layer's mask rather than its paint.
     /// Only ever true while the active layer has a mask.
     #[must_use]
     pub fn on_mask(&self) -> bool {

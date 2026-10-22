@@ -84,10 +84,10 @@ pub struct Shell {
     transform: TransformBar,
     adjust: AdjustPanel,
     copy: CopyBar,
-    /// QuickShape's pill (S42).
+    /// QuickShape's pill.
     shape: ShapeBar,
     /// The shape's handles while it is edited and the guide's centre while it is on, in canvas
-    /// pixels, from the last pass (S42).
+    /// pixels, from the last pass.
     handles: Vec<[f32; 2]>,
     guide_centre: Option<[f32; 2]>,
     reference: ReferenceWindow,
@@ -109,7 +109,7 @@ pub struct Shell {
     moving: bool,
     /// The controls of the last pass.
     controls: ControlMap,
-    /// The GPU device was made again (S49): the notice says so until OK or the next stroke.
+    /// The GPU device was made again: the notice says so until OK or the next stroke.
     reset_notice: bool,
 }
 
@@ -297,7 +297,7 @@ impl Shell {
         self.gallery.utc_offset = minutes;
     }
 
-    /// The app's version and storage format as Actions' last line shows them (S52).
+    /// The app's version and storage format as Actions' last line shows them.
     pub fn set_version(&mut self, line: &str) {
         line.clone_into(&mut self.panels.actions.version);
     }

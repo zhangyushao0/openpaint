@@ -1,5 +1,5 @@
 //! The toolbox's brush intents: choosing a brush and setting its size, opacity and StreamLine
-//! for the tool the pen uses now, and since S46 the brush editor's: a setting of the brush,
+//! for the tool the pen uses now, and the brush editor's: a setting of the brush,
 //! its name, a copy, Reset and Delete. Editing a brush changes it for every tool from the next
 //! stroke on; strokes already drawn keep their recipes, and nothing is a history step.
 
@@ -7,7 +7,7 @@ use crate::brush_edit::{BrushChange, edited};
 use crate::brushes::{BrushKey, SizeRange};
 use crate::tool_intent::BrushIntent;
 
-use super::{MIN_OPACITY, OPACITY, SIZE, STREAMLINE, Tool, Toolbox, rows_of};
+use super::{MIN_OPACITY, OPACITY, SIZE, STREAMLINE, Tool, Toolbox};
 
 impl Toolbox {
     /// Applies `intent` to the tool the pen uses now (the editor's to its brush). Choosing a
@@ -67,8 +67,7 @@ impl Toolbox {
 
     /// The library or the sets changed: the picker's rows follow, the store gets it.
     pub(super) fn changed(&mut self) {
-        self.rows = rows_of(&self.library);
-        self.set_rows = self.brush_sets.rows(&self.library);
+        self.relist();
         self.unsaved = true;
     }
 

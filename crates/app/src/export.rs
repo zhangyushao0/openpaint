@@ -9,7 +9,7 @@ use crate::project::PortError;
 use crate::title::Title;
 use crate::transfer::{Delivery, ExportError, HostAnswer, HostRequest, ImageFormat, ImageSink};
 
-/// How many file pixels an export gives each canvas pixel along a side (S29): strokes are
+/// How many file pixels an export gives each canvas pixel along a side: strokes are
 /// evaluated sharp at that scale, raster content (fills, pictures, smudges) is resampled.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ExportScale {

@@ -1,4 +1,4 @@
-//! Tone curves (S28, Procreate's Curves): a curve maps a channel's 8-bit value to a new one
+//! Tone curves (Procreate's Curves): a curve maps a channel's 8-bit value to a new one
 //! through points the hand places, interpolated by a monotone cubic (Fritsch-Carlson), so the
 //! curve never overshoots between its points. It always runs from x = 0 to x = 1.
 

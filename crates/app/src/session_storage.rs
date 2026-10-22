@@ -1,6 +1,6 @@
 //! The session's side of storage (`storage.rs`): which version to hand to the store now and as
 //! the user leaves, how saving went, Retry and the notice; and ending the stroke being drawn
-//! when the pen can no longer lift it (S50).
+//! when the pen can no longer lift it.
 
 use openpaint_core::Artwork;
 
@@ -33,7 +33,7 @@ impl Session {
 
     /// Commits the stroke being drawn as its lift would (every sample so far, the line's end
     /// onto the pen, its mirrored copies; the renderer tapers its end as at a lift), when the pen
-    /// can no longer lift it: the app is left or its window goes mid-stroke (S50). Returns
+    /// can no longer lift it: the app is left or its window goes mid-stroke. Returns
     /// whether there was one; the pen's later events for it change nothing.
     ///
     /// # Errors

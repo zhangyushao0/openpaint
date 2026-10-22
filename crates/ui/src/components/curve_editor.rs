@@ -3,7 +3,7 @@
 //! the curve away from the points adds one there and takes it; the point taken follows the hand
 //! until it lifts, which settles the curve. A point's hit area is a 48-point circle. It edits a
 //! tone curve from black (bottom left) to white (top right), whose ends move only up and down,
-//! and since S46 a brush's dynamics curve (`DynamicsCurve`): points joined by straight lines,
+//! and a brush's dynamics curve (`DynamicsCurve`): points joined by straight lines,
 //! flat beyond the first and the last, the square spanning what the curve follows (pressure,
 //! speed or tilt) and its factors up to its top.
 

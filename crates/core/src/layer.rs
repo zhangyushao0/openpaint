@@ -147,7 +147,7 @@ impl Layer {
         }
     }
 
-    /// The layer's mask, if it has one (S24).
+    /// The layer's mask, if it has one.
     #[must_use]
     pub const fn mask(&self) -> Option<&LayerMask> {
         self.mask.as_ref()

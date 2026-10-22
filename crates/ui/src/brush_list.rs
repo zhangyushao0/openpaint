@@ -1,4 +1,4 @@
-//! The brush picker's list (S47, Procreate's brush library cut to five fixed sets): under the
+//! The brush picker's list (Procreate's brush library cut to five fixed sets): under the
 //! heading the sets as words in two columns (five do not fit one row of the panel at the body's
 //! 18 points), the one shown in the ink pill, the mark sliding when another is tapped; the
 //! picker opens on the set holding the chosen brush. Under them that set's brushes with their
@@ -13,10 +13,11 @@ use std::collections::HashMap;
 use openpaint_app::{BrushIntent, BrushKey, BrushProjection, BrushRow, BrushSet, Intent, Tool};
 
 use crate::components::{
-    BRUSH_ROW, BrushRowView, brush_row, choices, hint, slider, text_choice_wide,
+    BRUSH_ROW, BrushRowView, brush_row, hint, panel_heading, slider, word_columns,
 };
 use crate::design::{SPACE, TOUCH_TARGET};
 use crate::row_drag::{self, RowDrag, held};
+use crate::taps::push_brush;
 
 /// A brush row carried by the hand: its brush, landing at a place of its set (0 first).
 pub(crate) type BrushDrag = RowDrag<BrushKey, usize>;
@@ -47,15 +48,12 @@ pub(crate) fn list(
     (state, textures): (&mut ListState, &HashMap<BrushKey, egui::TextureHandle>),
     taps: &mut Vec<Intent>,
 ) -> bool {
-    ui.horizontal(|ui| {
-        ui.set_height(TOUCH_TARGET);
-        ui.add_space(2.0 * SPACE);
-        ui.heading(match brush.tool {
-            Tool::Brush => "Brushes",
-            Tool::Smudge => "Smudge",
-            Tool::Eraser => "Eraser",
-        });
-    });
+    let heading = match brush.tool {
+        Tool::Brush => "Brushes",
+        Tool::Smudge => "Smudge",
+        Tool::Eraser => "Eraser",
+    };
+    panel_heading(ui, heading);
     if let Some(set) = set_words(ui, state.set(brush)) {
         state.shown = Some(set);
         state.drag = None;
@@ -77,23 +75,8 @@ pub(crate) fn list(
 /// The five sets as words in two columns, `shown` in the ink pill. Returns the set tapped, if
 /// another was.
 pub(crate) fn set_words(ui: &mut egui::Ui, shown: BrushSet) -> Option<BrushSet> {
-    let half = ((ui.available_width() - 2.0 * SPACE) / 2.0).floor();
-    let mut tapped = None;
-    choices(ui, "brush sets", |ui, group| {
-        for pair in BrushSet::ALL.chunks(2) {
-            ui.horizontal(|ui| {
-                ui.add_space(2.0 * SPACE);
-                for &set in pair {
-                    let on = set == shown;
-                    let word = text_choice_wide(ui, group, set.label(), (true, on), half);
-                    if word.clicked() && !on {
-                        tapped = Some(set);
-                    }
-                }
-            });
-        }
-    });
-    tapped
+    let words = BrushSet::ALL.map(|set| (set.label(), set == shown, true));
+    word_columns(ui, "brush sets", &words).map(|at| BrushSet::ALL[at])
 }
 
 /// The rows of `set`, the carried one where it would land. Returns whether the chosen brush's
@@ -141,7 +124,7 @@ fn brush_rows(
         if selected {
             edit = true;
         } else {
-            push(taps, BrushIntent::Choose(row.key.clone()));
+            push_brush(taps, BrushIntent::Choose(row.key.clone()));
         }
     }
     edit
@@ -170,7 +153,7 @@ fn carry(
     let dropped = drag.take()?;
     if dropped.moved() {
         let key = dropped.key.clone();
-        push(
+        push_brush(
             taps,
             BrushIntent::Reorder {
                 key,
@@ -208,21 +191,13 @@ fn streamline(ui: &mut egui::Ui, amount: f32, taps: &mut Vec<Intent>) {
         });
     });
     if let Some(change) = slider(ui, "StreamLine", amount, true) {
-        push(
+        push_brush(
             taps,
             BrushIntent::StreamLine {
                 amount: change.value,
                 settled: change.settled,
             },
         );
-    }
-}
-
-/// egui may run a pass twice; one tap or value is sent once.
-fn push(taps: &mut Vec<Intent>, intent: BrushIntent) {
-    let intent = Intent::Brush(intent);
-    if taps.last() != Some(&intent) {
-        taps.push(intent);
     }
 }
 

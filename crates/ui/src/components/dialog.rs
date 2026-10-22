@@ -6,7 +6,7 @@
 use egui::{Align, Align2, Id, Layout, Margin, Order, Rect, Shape, Vec2};
 
 use crate::components::chrome::{self, Source};
-use crate::components::{UNDER_ISLANDS, text_button};
+use crate::components::{UNDER_ISLANDS, text_button, text_field};
 use crate::design::{BACKDROP, CORNER, DIALOG_WIDTH, PANEL_RULE_WIDTH, SPACE, surface_frame};
 
 /// Where a dialog sits.
@@ -66,6 +66,57 @@ pub fn dialog<T>(
     chrome::laid_out(ctx, key, rect, layer, Some(paper));
     let outside = response.backdrop_response.clicked();
     (inner, outside)
+}
+
+/// A name being typed in a naming dialog: the text so far, whether the field takes the focus in
+/// the next pass, and what was tapped (points): the dialog grows from there.
+#[derive(Debug)]
+pub struct Naming {
+    pub text: String,
+    focus: bool,
+    from: Rect,
+}
+
+impl Naming {
+    /// `text` to edit, all of it selected, for a dialog growing from `from`.
+    #[must_use]
+    pub fn new(text: &str, from: Rect) -> Self {
+        Self {
+            text: text.to_owned(),
+            focus: true,
+            from,
+        }
+    }
+}
+
+/// The dialog `id` under the islands naming something: `heading`, the text field `field` (at most
+/// `max_chars`) holding `naming.text`, then Cancel and Done, grey unless `valid` takes the text.
+/// Returns `Some(true)` once Done (or Enter on a valid text) answered, `Some(false)` once Cancel
+/// or a tap outside did, `None` while it waits.
+pub fn naming_dialog(
+    ctx: &egui::Context,
+    id: &str,
+    (heading, field, max_chars): (&str, &str, usize),
+    naming: &mut Naming,
+    valid: impl Fn(&str) -> bool,
+) -> Option<bool> {
+    let ((cancel, done), outside) = dialog(ctx, id, (Placement::Top, naming.from), |ui| {
+        ui.heading(heading);
+        let typed = text_field(ui, field, &mut naming.text, max_chars, naming.focus);
+        if typed.response.has_focus() {
+            naming.focus = false;
+        }
+        let valid = valid(&naming.text);
+        let (cancel, done) = answer_row(ui, "Cancel", "Done", valid);
+        (cancel, done || (typed.submitted && valid))
+    });
+    if done {
+        Some(true)
+    } else if cancel || outside {
+        Some(false)
+    } else {
+        None
+    }
 }
 
 /// Two words at the right of a dialog's last row: the cancelling one, then the answering one

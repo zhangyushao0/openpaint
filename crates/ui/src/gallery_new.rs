@@ -6,8 +6,7 @@ use openpaint_app::{CanvasPreset, GalleryIntent, Intent};
 
 use super::{GalleryScreen, ISLAND, Sizes};
 use crate::components::carry::Opening;
-use crate::components::{Opener, ScreenArea, menu_row, popover, section};
-use crate::design::{SPACE, TOUCH_TARGET};
+use crate::components::{Opener, ScreenArea, menu_row, panel_heading, popover, section};
 
 /// The sizes "+" offers, top to bottom.
 const PRESETS: [(CanvasPreset, &str); 4] = [
@@ -41,11 +40,7 @@ impl GalleryScreen {
         };
         let open = self.sizes != Sizes::Closed;
         let rect = popover(ctx, "new canvas", (opener, open), |ui| {
-            ui.horizontal(|ui| {
-                ui.set_height(TOUCH_TARGET);
-                ui.add_space(2.0 * SPACE);
-                ui.heading("New canvas");
-            });
+            panel_heading(ui, "New canvas");
             for (preset, label) in PRESETS {
                 let [width, height] = preset.size(area);
                 let note = format!("{width} × {height}");

@@ -1,4 +1,4 @@
-//! Actions' last line (S52): the app's version and storage format, quiet, under the Pen section,
+//! Actions' last line: the app's version and storage format, quiet, under the Pen section,
 //! nothing to tap.
 
 use openpaint_app::{BrushLibrary, SessionProjection, Toolbox, Transfers};

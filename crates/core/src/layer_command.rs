@@ -1,6 +1,6 @@
 //! How each `LayerCommand` turns one artwork version into the next.
 
-use crate::artwork::{Artwork, ArtworkState, MAX_LAYERS};
+use crate::artwork::{Artwork, MAX_LAYERS};
 use crate::command::{Applied, Change, LayerCommand};
 use crate::error::CoreError;
 use crate::group::prune;
@@ -53,7 +53,7 @@ fn create(artwork: &Artwork) -> Result<Applied, CoreError> {
     layer.props.group = state.layers[below].props.group;
     next.layers.insert(below + 1, layer);
     next.activate(id);
-    Ok(content(next))
+    Ok(Applied::content(next))
 }
 
 fn duplicate(artwork: &Artwork, id: LayerId) -> Result<Applied, CoreError> {
@@ -67,7 +67,7 @@ fn duplicate(artwork: &Artwork, id: LayerId) -> Result<Applied, CoreError> {
     let layer = state.layers[index].duplicate(copy, &mut next.ids);
     next.layers.insert(index + 1, layer);
     next.activate(copy);
-    Ok(content(next))
+    Ok(Applied::content(next))
 }
 
 fn delete(artwork: &Artwork, id: LayerId) -> Result<Applied, CoreError> {
@@ -82,7 +82,7 @@ fn delete(artwork: &Artwork, id: LayerId) -> Result<Applied, CoreError> {
     if next.active == id {
         next.activate(next.layers[index.saturating_sub(1)].id);
     }
-    Ok(content(next))
+    Ok(Applied::content(next))
 }
 
 /// The layer's paint becomes the target (not its mask).
@@ -113,12 +113,5 @@ fn edit(
     }
     let mut next = artwork.state().clone();
     next.layers[index] = layer;
-    Ok(content(next))
-}
-
-pub(crate) fn content(state: ArtworkState) -> Applied {
-    Applied {
-        artwork: Artwork::from_state(state),
-        change: Change::Content,
-    }
+    Ok(Applied::content(next))
 }

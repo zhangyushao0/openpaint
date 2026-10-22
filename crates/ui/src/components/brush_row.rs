@@ -1,6 +1,6 @@
 //! The brush row: a brush's name at the left and its stroke preview at the right, across a
 //! panel. Tapping the row chooses the brush; the chosen row carries the active mark. In a set
-//! the hand orders (S47) the row may be carried by the hand as a layer row is (`lifted`), and
+//! the hand orders the row may be carried by the hand as a layer row is (`lifted`), and
 //! rows that moved slide to their new place (settle).
 
 use egui::{Align2, Color32, Rect, Sense, TextStyle, Vec2, WidgetInfo, WidgetType};

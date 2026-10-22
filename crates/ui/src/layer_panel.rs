@@ -15,10 +15,10 @@ use openpaint_core::{GroupId, LayerId, LayerName, MAX_NAME_CHARS};
 use openpaint_render::RgbaImage;
 
 use crate::components::{
-    Opener, Placement, ScreenArea, answer_row, dialog, icon_button, icon_toggle, popover,
-    text_field,
+    Naming, Opener, ScreenArea, icon_button, icon_toggle, naming_dialog, panel_heading_with,
+    popover,
 };
-use crate::design::{Icon, LAYER_PICTURE, SPACE, TOUCH_TARGET};
+use crate::design::{Icon, LAYER_PICTURE, TOUCH_TARGET};
 use crate::layer_drag::Drag;
 use crate::layer_options::{footer, footer_rows};
 use crate::layer_rows::{Pictures, RowState, rows};
@@ -26,17 +26,6 @@ use crate::layer_rows::{Pictures, RowState, rows};
 /// Rows of touch targets the panel keeps free of layer rows besides its footer: the header and
 /// the room above and below the panel.
 const KEPT_ROWS: f32 = 3.0;
-
-/// Renaming a layer: its name as typed so far.
-#[derive(Debug)]
-struct Rename {
-    layer: LayerId,
-    text: String,
-    /// The field takes the focus in the next pass.
-    focus: bool,
-    /// Where Rename was tapped, in points: the dialog grows from there.
-    from: egui::Rect,
-}
 
 /// The panel's UI-local state.
 #[derive(Default)]
@@ -49,7 +38,8 @@ pub(crate) struct LayerPanel {
     /// The closed groups: the panel's own state, no artwork change and not stored.
     collapsed: HashSet<GroupId>,
     drag: Option<Drag>,
-    rename: Option<Rename>,
+    /// The layer being renamed and its name as typed so far.
+    rename: Option<(LayerId, Naming)>,
     /// Pictures from the runtime waiting for the next pass to load them, and those loaded.
     arrived: Vec<((LayerId, bool), RgbaImage)>,
     pictures: Pictures,
@@ -95,7 +85,7 @@ impl LayerPanel {
         self.rename = None;
     }
 
-    /// Lets every picture go (S49: the GPU memory budget's last step); rows show none until
+    /// Lets every picture go (the GPU memory budget's last step); rows show none until
     /// new ones come.
     pub(crate) fn drop_pictures(&mut self) {
         self.arrived.clear();
@@ -148,12 +138,7 @@ impl LayerPanel {
             asked = footer(ui, list, projection, taps);
         });
         if let (Some(from), Some(active)) = (asked, list.active_row()) {
-            self.rename = Some(Rename {
-                layer: active.id,
-                text: active.name.as_str().to_owned(),
-                focus: true,
-                from,
-            });
+            self.rename = Some((active.id, Naming::new(active.name.as_str(), from)));
         }
         self.area = rect.map(|rect| ScreenArea::from_points(rect, ctx.pixels_per_point()));
         if self.rename.is_some() {
@@ -167,29 +152,19 @@ impl LayerPanel {
     /// The name in a text field with Cancel and Done; Done (or Enter) renames when the text is
     /// a name; Cancel or a tap outside keeps the old one.
     fn rename_dialog(&mut self, ctx: &egui::Context, taps: &mut Vec<Intent>) {
-        let Some(rename) = &mut self.rename else {
+        let Some((layer, naming)) = &mut self.rename else {
             return;
         };
-        let from = (Placement::Top, rename.from);
-        let ((cancel, done), outside) = dialog(ctx, "rename layer", from, |ui| {
-            ui.heading("Rename layer");
-            let field = text_field(ui, "Name", &mut rename.text, MAX_NAME_CHARS, rename.focus);
-            if field.response.has_focus() {
-                rename.focus = false;
-            }
-            let valid = LayerName::new(&rename.text).is_ok();
-            let (cancel, done) = answer_row(ui, "Cancel", "Done", valid);
-            (cancel, done || (field.submitted && valid))
-        });
-        if done && let Ok(name) = LayerName::new(&rename.text) {
-            taps.push(Intent::Layer(LayerIntent::Rename {
-                layer: rename.layer,
-                name,
-            }));
-            self.rename = None;
-        } else if cancel || outside {
-            self.rename = None;
+        let words = ("Rename layer", "Name", MAX_NAME_CHARS);
+        let valid = |text: &str| LayerName::new(text).is_ok();
+        let Some(done) = naming_dialog(ctx, "rename layer", words, naming, valid) else {
+            return;
+        };
+        if done && let Ok(name) = LayerName::new(&naming.text) {
+            let layer = *layer;
+            taps.push(Intent::Layer(LayerIntent::Rename { layer, name }));
         }
+        self.rename = None;
     }
 
     /// The back button while renaming: the dialog closes, the name stays. Returns whether it
@@ -245,18 +220,13 @@ pub(crate) fn picture_pixels(pixels_per_point: f32) -> [u32; 2] {
 }
 
 fn header(ui: &mut egui::Ui, projection: &SessionProjection, taps: &mut Vec<Intent>) {
-    ui.horizontal(|ui| {
-        ui.set_height(TOUCH_TARGET);
-        ui.add_space(2.0 * SPACE);
-        ui.heading("Layers");
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let enabled = projection.availability(EditorAction::AddLayer).is_offered();
-            if icon_button(ui, Icon::Add, "Add layer", enabled).clicked() {
-                taps.push(Intent::Layer(LayerIntent::Add));
-            }
-            if icon_button(ui, Icon::Group, "New group", enabled).clicked() {
-                taps.push(Intent::Layer(LayerIntent::NewGroup));
-            }
-        });
+    panel_heading_with(ui, "Layers", |ui| {
+        let enabled = projection.availability(EditorAction::AddLayer).is_offered();
+        if icon_button(ui, Icon::Add, "Add layer", enabled).clicked() {
+            taps.push(Intent::Layer(LayerIntent::Add));
+        }
+        if icon_button(ui, Icon::Group, "New group", enabled).clicked() {
+            taps.push(Intent::Layer(LayerIntent::NewGroup));
+        }
     });
 }

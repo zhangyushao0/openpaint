@@ -1,6 +1,6 @@
 //! The brush library: the brushes the picker offers, each a recipe with its name and the
 //! ranges of its size and opacity sliders. The built-in brushes are TOML files compiled into
-//! the app (`crates/app/brushes/`, format in `recipe.rs`); since S46 the user edits them and
+//! the app (`crates/app/brushes/`, format in `recipe.rs`); the user edits them and
 //! makes copies (`brush_library.rs`), stored with the toolbox.
 
 use std::sync::Arc;
@@ -102,7 +102,7 @@ pub struct Brush {
     pub(crate) opacity: f32,
     /// The StreamLine every tool starts with on this brush, in `0..=1`.
     pub(crate) streamline: f32,
-    /// A copy's brush it was made from (S46); `None` for a built-in.
+    /// A copy's brush it was made from; `None` for a built-in.
     pub(crate) source: Option<BrushKey>,
 }
 

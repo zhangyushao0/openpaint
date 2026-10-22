@@ -3,7 +3,7 @@
 //! stored apart from artworks. A colour joins the recent ones when it settles: the finger lifts
 //! from the colour wheel, a recent colour is tapped, the eyedropper picks.
 //!
-//! The swatches (S41) are one palette of colours kept by hand (Procreate keeps many palettes;
+//! The swatches are one palette of colours kept by hand (Procreate keeps many palettes;
 //! one is enough here): the current colour joins its end, a tap paints with one, and one leaves
 //! when removed. A colour can also be typed as `#RRGGBB` (`parse_hex`).
 

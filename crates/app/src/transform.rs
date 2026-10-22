@@ -11,8 +11,8 @@
 //! empty one refuses. While the hand drags, the preview places those lifted pixels
 //! (`Artwork::transform_region`, cheap to show every frame); once it lifts (and after every
 //! tap, undo and redo) the preview is the transform as a record (`Artwork::place_region`,
-//! S31: what moved and where, no pixels), which is what the commit records: settled equals
-//! committed (DECISIONS D57). An inserted picture is placed as its pixels throughout (D52).
+//! what moved and where, no pixels), which is what the commit records: settled equals
+//! committed (DECISIONS D57). An inserted picture is placed as its pixels throughout (D67).
 
 use std::f32::consts::FRAC_PI_4;
 use std::fmt;
@@ -45,7 +45,7 @@ pub enum TransformIntent {
     Reset,
     /// A picture (premultiplied, fitted inside the canvas, `insert::picture_place`) becomes a
     /// new layer above the active one, framed at once: the layer, the picture and where it is
-    /// placed are one history step when the transform commits (S26).
+    /// placed are one history step when the transform commits.
     Insert(Patch),
 }
 
@@ -62,7 +62,7 @@ pub enum TransformRefusal {
     Failed,
     /// The layer's mask is the target; a mask does not move.
     Mask,
-    /// A pasted copy holds no paint (S40).
+    /// A pasted copy holds no paint.
     NothingPasted,
     /// No room for the inserted picture's layer (`MAX_LAYERS`).
     Full,
@@ -235,7 +235,7 @@ impl Transforms {
     }
 
     /// The content placed by `placement` from now on, shown as the lifted pixels while the hand
-    /// drags (a full layer's record is too slow to evaluate every frame on the tablet, S31);
+    /// drags (a full layer's record is too slow to evaluate every frame on the tablet);
     /// ignored before it is lifted or when the placement leaves what an artwork holds.
     pub(crate) fn place(&mut self, placement: Placement) {
         let Some(draft) = self.draft.as_mut() else {

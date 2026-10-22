@@ -2,7 +2,7 @@
 //! optional note at its right end, dimmer. Tapping it does the action; pressed, a faint wash
 //! fills the row's outline under the hand; unavailable, it dims and taps go nowhere.
 
-use egui::{Align2, Rect, Sense, TextStyle, Vec2, WidgetInfo, WidgetType};
+use egui::{Align, Align2, Layout, Rect, Sense, TextStyle, Vec2, WidgetInfo, WidgetType};
 
 use crate::components::controls;
 use crate::design::{
@@ -10,8 +10,15 @@ use crate::design::{
     paint_pressed,
 };
 
-/// Shows a row reading `label`, with `note` (empty for none) at its right end.
-pub fn menu_row(ui: &mut egui::Ui, label: &str, note: &str, enabled: bool) -> egui::Response {
+/// A row one touch target high across the panel, named `label` (`info` for accessibility),
+/// taking taps only while `enabled`, the press wash in its outline under the hand. Returns its
+/// response and whether it lies in sight (whether to paint the rest).
+pub(crate) fn tap_row(
+    ui: &mut egui::Ui,
+    label: &str,
+    enabled: bool,
+    info: impl Fn() -> WidgetInfo,
+) -> (egui::Response, bool) {
     let sense = if enabled {
         Sense::click()
     } else {
@@ -19,15 +26,23 @@ pub fn menu_row(ui: &mut egui::Ui, label: &str, note: &str, enabled: bool) -> eg
     };
     let size = Vec2::new(ui.available_width(), TOUCH_TARGET);
     let (rect, response) = ui.allocate_exact_size(size, sense);
-    response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, enabled, label));
+    response.widget_info(info);
     controls::register(ui, label, rect);
-    if !ui.is_rect_visible(rect) {
+    let shown = ui.is_rect_visible(rect);
+    if shown && enabled && response.is_pointer_button_down_on() {
+        paint_pressed(ui.painter(), Outline::row(rect));
+    }
+    (response, shown)
+}
+
+/// Shows a row reading `label`, with `note` (empty for none) at its right end.
+pub fn menu_row(ui: &mut egui::Ui, label: &str, note: &str, enabled: bool) -> egui::Response {
+    let info = || WidgetInfo::labeled(WidgetType::Button, enabled, label);
+    let (response, shown) = tap_row(ui, label, enabled, info);
+    if !shown {
         return response;
     }
-    let painter = ui.painter();
-    if enabled && response.is_pointer_button_down_on() {
-        paint_pressed(painter, Outline::row(rect));
-    }
+    let (rect, painter) = (response.rect, ui.painter());
     let (text, quiet) = if enabled {
         (INK, INK_SECONDARY)
     } else {
@@ -51,22 +66,12 @@ pub fn command_row(
     (icon, label, note): (Icon, &str, &str),
     enabled: bool,
 ) -> egui::Response {
-    let sense = if enabled {
-        Sense::click()
-    } else {
-        Sense::hover()
-    };
-    let size = Vec2::new(ui.available_width(), TOUCH_TARGET);
-    let (rect, response) = ui.allocate_exact_size(size, sense);
-    response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, enabled, label));
-    controls::register(ui, label, rect);
-    if !ui.is_rect_visible(rect) {
+    let info = || WidgetInfo::labeled(WidgetType::Button, enabled, label);
+    let (response, shown) = tap_row(ui, label, enabled, info);
+    if !shown {
         return response;
     }
-    let painter = ui.painter();
-    if enabled && response.is_pointer_button_down_on() {
-        paint_pressed(painter, Outline::row(rect));
-    }
+    let (rect, painter) = (response.rect, ui.painter());
     let color = if enabled { INK } else { INK_DISABLED };
     let lead = rect.left_center() + Vec2::new(2.0 * SPACE, 0.0);
     let square = Rect::from_min_size(
@@ -92,6 +97,31 @@ pub fn hint(ui: &mut egui::Ui, text: &str) {
     let at = rect.left_center() + Vec2::new(2.0 * SPACE, 0.0);
     ui.painter()
         .text(at, Align2::LEFT_CENTER, text, font, INK_SECONDARY);
+}
+
+/// A panel's name over its rows, two spaces in, one touch target high.
+pub fn panel_heading(ui: &mut egui::Ui, name: &str) {
+    ui.horizontal(|ui| {
+        ui.set_height(TOUCH_TARGET);
+        ui.add_space(2.0 * SPACE);
+        ui.heading(name);
+    });
+}
+
+/// As `panel_heading`, with `trailing` laid out from the row's right end (a command, a field).
+pub fn panel_heading_with<R>(
+    ui: &mut egui::Ui,
+    name: &str,
+    trailing: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    ui.horizontal(|ui| {
+        ui.set_height(TOUCH_TARGET);
+        ui.add_space(2.0 * SPACE);
+        ui.heading(name);
+        ui.with_layout(Layout::right_to_left(Align::Center), trailing)
+            .inner
+    })
+    .inner
 }
 
 /// A section's name over its rows: small and quiet, so the rows stay what the eye reads.

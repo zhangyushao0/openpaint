@@ -1,4 +1,4 @@
-//! Nested layers (S39, Merge Down): a layer merged into the one below it becomes a record among
+//! Nested layers (Merge Down): a layer merged into the one below it becomes a record among
 //! that layer's edits, at its place after the strokes the lower layer held then. The record keeps
 //! the merged layer's own content (strokes, edits, an enabled mask) and how it composited
 //! (opacity, blend mode, whether it clipped to the lower layer), so the merged layer shows
@@ -21,7 +21,7 @@ use crate::stroke_list::StrokeList;
 /// own, levels it shares with moved selections).
 pub const MAX_NESTING: usize = 8;
 
-/// A merged layer's content and how it composited (S39).
+/// A merged layer's content and how it composited.
 #[derive(Debug, Clone, PartialEq)]
 pub struct NestedLayer {
     /// The merged layer's id, never reused: its strokes and edits are stored under it.

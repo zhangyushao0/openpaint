@@ -55,7 +55,7 @@ pub struct Contact {
     pub samples: Vec<InputSample>,
 }
 
-/// The pen's side buttons held during a batch (S41, S43): Android's button state, from the tip
+/// The pen's side buttons held during a batch: Android's button state, from the tip
 /// outwards `BUTTON_STYLUS_PRIMARY`, `BUTTON_STYLUS_SECONDARY` and `BUTTON_TERTIARY` (the
 /// author's Wacom pen has all three).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]

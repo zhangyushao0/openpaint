@@ -1,4 +1,4 @@
-//! Reading the library: a project's artwork from its head, stroke and fill records (in the
+//! Reading the library: a project's artwork from its head, stroke and edit records (in the
 //! library or in an OpenPaint file's records), the catalogue for the gallery, and the small
 //! library values.
 
@@ -10,12 +10,12 @@ use openpaint_core::{Artwork, ArtworkParts, EditParts, MAX_NESTING, NestedParts,
 
 use crate::catalogue::{Entry, decode_entry, decode_thumbnail};
 use crate::editor::EDITOR;
-use crate::fills::{decode_record, fill_layer_prefix};
+use crate::edits::{decode_record, slot_edits_prefix};
 use crate::library::{Open, device};
 use crate::nested::Counts;
 use crate::records::{
-    CLOCK, ENTRY, LAST, decode_head, decode_id, entry_key, entry_project, head_key, layer_prefix,
-    mask_slot, stroke_index, thumbnail_key,
+    CLOCK, ENTRY, LAST, decode_head, decode_id, entry_key, entry_project, head_key, mask_slot,
+    record_index, slot_strokes_prefix, thumbnail_key,
 };
 use crate::strokes::decode_stroke;
 use crate::versions;
@@ -110,11 +110,7 @@ pub(crate) fn project(open: &Open, id: ProjectId) -> Result<Held, PortError> {
         },
         |entry| entry.title,
     );
-    // Derived data: an unreadable picture is left out.
-    let thumbnail = match open.projects.get(thumbnail_key(id)).map_err(device)? {
-        Some(bytes) => decode_thumbnail(&bytes).ok(),
-        None => None,
-    };
+    let thumbnail = thumbnail(open, id)?;
     log::info!("project {} opened", id.get());
     Ok(Held {
         title,
@@ -134,11 +130,11 @@ fn stored(source: &dyn Source, id: ProjectId) -> Result<(Artwork, Option<SaveId>
     let head = source.value(&head_key(id))?.ok_or(PortError::Missing(id))?;
     let head = decode_head(&head)?;
     let mut layers = Vec::with_capacity(head.layers.len());
-    for (mut layer, strokes, fills, [mask_strokes, mask_fills]) in head.layers {
-        (layer.strokes, layer.edits) = content(source, (id, layer.id), [strokes, fills], 0)?;
+    for (mut layer, strokes, edits, [mask_strokes, mask_edits]) in head.layers {
+        (layer.strokes, layer.edits) = content(source, (id, layer.id), [strokes, edits], 0)?;
         if let Some(mask) = layer.mask.as_mut() {
             let slot = (id, mask_slot(layer.id));
-            (mask.strokes, mask.edits) = content(source, slot, [mask_strokes, mask_fills], 0)?;
+            (mask.strokes, mask.edits) = content(source, slot, [mask_strokes, mask_edits], 0)?;
         }
         layers.push(layer);
     }
@@ -164,9 +160,9 @@ fn content(
     [strokes, edits]: [usize; 2],
     depth: usize,
 ) -> Result<(Vec<StrokeParts>, Vec<EditParts>), PortError> {
-    let prefix = layer_prefix(id, slot);
+    let prefix = slot_strokes_prefix(id, slot);
     let strokes = read_records(source, &prefix, strokes, "stroke records", decode_stroke)?;
-    let prefix = fill_layer_prefix(id, slot);
+    let prefix = slot_edits_prefix(id, slot);
     let records = read_records(source, &prefix, edits, "edit records", decode_record)?;
     let mut edits = Vec::with_capacity(records.len());
     for record in records {
@@ -201,7 +197,7 @@ fn nested_content(
     Ok(nested)
 }
 
-/// The `count` records under one layer's `prefix` (its strokes or its fills), decoded, which
+/// The `count` records under one slot's `prefix` (its strokes or its edits), decoded, which
 /// must sit at indices `0..count`.
 fn read_records<T>(
     source: &dyn Source,
@@ -214,7 +210,7 @@ fn read_records<T>(
     let mut values = Vec::with_capacity(count);
     source.each(prefix, &mut |key, value| {
         let expected = values.len();
-        let in_place = key.len() == prefix.len() + 8 && stroke_index(key) == Some(expected as u64);
+        let in_place = key.len() == prefix.len() + 8 && record_index(key) == Some(expected as u64);
         if expected >= count || !in_place {
             return Err(corrupt.clone());
         }
@@ -228,9 +224,18 @@ fn read_records<T>(
     }
 }
 
-/// Every project in the catalogue, touched last first, with its thumbnail and versions. A
-/// thumbnail that cannot be read is left out (it is derived and rewritten when the artwork is
-/// next left).
+/// Project `id`'s gallery picture. Derived data: one that cannot be read is left out (logged; it
+/// is rewritten when the artwork is next left).
+fn thumbnail(open: &Open, id: ProjectId) -> Result<Option<Thumbnail>, PortError> {
+    let Some(bytes) = open.projects.get(thumbnail_key(id)).map_err(device)? else {
+        return Ok(None);
+    };
+    Ok(decode_thumbnail(&bytes)
+        .inspect_err(|error| log::warn!("project {}: {error}", id.get()))
+        .ok())
+}
+
+/// Every project in the catalogue, touched last first, with its thumbnail and versions.
 pub(crate) fn list(open: &Open) -> Result<Vec<ProjectSummary>, PortError> {
     let mut entries = Vec::new();
     for guard in open.library.prefix(ENTRY) {
@@ -243,16 +248,10 @@ pub(crate) fn list(open: &Open) -> Result<Vec<ProjectSummary>, PortError> {
     entries.sort_by(|(a_id, a), (b_id, b)| (b.touched, b_id).cmp(&(a.touched, a_id)));
     let mut summaries = Vec::with_capacity(entries.len());
     for (id, entry) in entries {
-        let thumbnail = match open.projects.get(thumbnail_key(id)).map_err(device)? {
-            Some(bytes) => decode_thumbnail(&bytes)
-                .inspect_err(|error| log::warn!("project {}: {error}", id.get()))
-                .ok(),
-            None => None,
-        };
         summaries.push(ProjectSummary {
             id,
             title: entry.title,
-            thumbnail,
+            thumbnail: thumbnail(open, id)?,
             versions: versions::listed(open, id)?,
         });
     }

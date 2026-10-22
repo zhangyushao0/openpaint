@@ -1,5 +1,5 @@
 //! What the canvas tells in a pill in the top band, one thing at a time, most urgent first: a
-//! failed save or open (with Retry or OK), that the display was reset (S49: the GPU device was
+//! failed save or open (with Retry or OK), that the display was reset (the GPU device was
 //! lost and made again; with OK, and a new stroke lets it go), a refused or failed fill (with
 //! OK), then exporting (working, saved, failed), then the reference image and a picture to
 //! insert (opening, failed). Running work shows a spinner and asks nothing; a result waits for
@@ -13,6 +13,7 @@ use openpaint_app::{
 };
 
 use crate::components::{Place, Source, confirmation, notice, pill, status};
+use crate::taps::push_once;
 
 /// One thing to tell.
 enum Told {
@@ -23,7 +24,7 @@ enum Told {
     Failed(String, &'static str, bool, Intent),
     /// Work that succeeded, dismissed with OK.
     Done(String, Intent),
-    /// The display was reset (S49), dismissed with OK; nothing is asked of the app.
+    /// The display was reset, dismissed with OK; nothing is asked of the app.
     Reset,
 }
 
@@ -61,10 +62,9 @@ pub(crate) fn notice_pill(
             .then_some(None),
     });
     match tapped {
-        // egui may run a pass twice; one tap is sent once.
-        Some(Some(intent)) if taps.last() != Some(&intent) => taps.push(intent),
+        Some(Some(intent)) => push_once(taps, intent),
         Some(None) => *reset = false,
-        _ => {}
+        None => {}
     }
     Some(rect)
 }

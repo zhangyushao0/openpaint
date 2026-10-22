@@ -1,4 +1,4 @@
-//! Export files (S13, S27, S29): an artwork's pixels written as PNG or JPEG, declaring sRGB by an
+//! Export files: an artwork's pixels written as PNG or JPEG, declaring sRGB by an
 //! embedded profile (PNG `iCCP`, JPEG APP2; D53). The pixels come in bands of whole rows, top
 //! first, so a 4x export is never held whole: a PNG streams each band through the png crate's
 //! stream writer into the file's bytes; a JPEG (whose encoder takes the picture at once) keeps

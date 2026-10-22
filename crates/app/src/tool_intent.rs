@@ -14,7 +14,7 @@ use crate::streamline::StreamLine;
 use crate::toolbox::Tool;
 
 /// Changes of the current tool's brush; they apply to the tool the pen uses now. The brush
-/// editor's (S46) change the brush itself, for every tool, from the next stroke on; strokes
+/// editor's change the brush itself, for every tool, from the next stroke on; strokes
 /// drawn keep their recipes, and none is a history step.
 #[derive(Debug, Clone, PartialEq)]
 pub enum BrushIntent {
@@ -37,7 +37,7 @@ pub enum BrushIntent {
     /// A copy goes; its source is chosen where it was.
     Delete,
     /// The brush `key` lands at place `to` of its set (0 first), the others keeping their
-    /// order (S47); where it was: nothing.
+    /// order; where it was: nothing.
     Reorder { key: BrushKey, to: usize },
     /// The current tool's brush goes to the end of `set` (one of `BrushSet::EDITABLE`).
     MoveToSet(BrushSet),
@@ -62,7 +62,7 @@ pub enum ToolIntent {
     /// previewed the eyedropper stays on.
     Pick,
     /// A pen button (or the eraser end) holds this tool for the pen's contacts from now on;
-    /// `None`: the tool chosen before comes back (S41). Never stored.
+    /// `None`: the tool chosen before comes back. Never stored.
     Hold(Option<HeldTool>),
     /// A pen button switches between the brush and the eraser: the eraser from any other tool,
     /// the brush from the eraser.
@@ -91,7 +91,7 @@ pub struct BrushRow {
 pub struct BrushProjection {
     /// Every brush, in the library's order.
     pub brushes: Arc<[BrushRow]>,
-    /// Each set's rows as `BrushSet::ALL` lists them (S47): Recent newest first, the others in
+    /// Each set's rows as `BrushSet::ALL` lists them: Recent newest first, the others in
     /// their order; `rows` reads one.
     pub sets: Arc<[Vec<BrushRow>; 5]>,
     /// The set holding the current tool's brush, which its picker opens on.
@@ -118,7 +118,7 @@ pub struct BrushProjection {
     pub preview: Option<Color>,
     /// What each pen button does.
     pub buttons: ButtonMap,
-    /// The current tool's brush as its editor shows it (S46).
+    /// The current tool's brush as its editor shows it.
     pub edited: Arc<EditedBrush>,
 }
 

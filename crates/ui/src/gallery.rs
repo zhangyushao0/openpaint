@@ -23,7 +23,7 @@ use openpaint_app::{
 
 use crate::components::carry::{Arrival, Opening, land};
 use crate::components::{
-    ArtworkCard, ISLAND_TOP, Place, Source, TOP_BAND, artwork_card, card_size, icon_button,
+    ArtworkCard, ISLAND_TOP, Naming, Place, Source, TOP_BAND, artwork_card, card_size, icon_button,
     icon_toggle, island, notice, pill, text_field,
 };
 use crate::design::{CARD_GAP, Icon, SPACE, TOUCH_TARGET};
@@ -49,7 +49,8 @@ pub(crate) struct GalleryScreen {
     sizes: Sizes,
     /// One texture per listed thumbnail, replaced when the thumbnail changes.
     pictures: HashMap<ProjectId, (Thumbnail, egui::TextureHandle)>,
-    rename: Option<Rename>,
+    /// The artwork being renamed and its title as typed so far, the dialog grown from its card.
+    rename: Option<(ProjectId, Naming)>,
     /// The artwork whose deletion waits for the user's answer, and its card (points).
     confirm: Option<(ProjectId, openpaint_app::Title, Rect)>,
     /// The artwork whose options show, and its card (points).
@@ -78,16 +79,6 @@ impl std::fmt::Debug for GalleryScreen {
             .field("search", &self.search)
             .finish()
     }
-}
-
-#[derive(Debug)]
-struct Rename {
-    id: ProjectId,
-    text: String,
-    /// True until the field has taken the focus.
-    focus: bool,
-    /// The card it came from, in points.
-    card: Rect,
 }
 
 impl GalleryScreen {
@@ -263,12 +254,7 @@ impl GalleryScreen {
                 picture: picture.cloned(),
             });
         } else if tapped.rename {
-            self.rename = Some(Rename {
-                id: item.id,
-                text: item.title.as_str().to_owned(),
-                focus: true,
-                card,
-            });
+            self.rename = Some((item.id, Naming::new(item.title.as_str(), card)));
         } else if tapped.options {
             self.options = Some((item.id, card));
         } else if tapped.duplicate {

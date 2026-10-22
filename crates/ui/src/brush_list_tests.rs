@@ -1,4 +1,4 @@
-//! The brush picker's sets (S47): the five set words in two columns, the shown one changed by a
+//! The brush picker's sets: the five set words in two columns, the shown one changed by a
 //! tap on another; Recent's hint while nothing was drawn; a held row lifting in a set the hand
 //! orders and never in Recent; the editor's Set row under the brush's name, moving the brush.
 

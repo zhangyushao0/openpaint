@@ -56,7 +56,7 @@ pub struct GestureFrame {
 pub enum TouchAction {
     Undo,
     Redo,
-    /// The copy menu (S40): three fingers swiped down.
+    /// The copy menu: three fingers swiped down.
     CopyPaste,
     /// The whole canvas in view.
     Fit,

@@ -1,6 +1,6 @@
 //! Artwork commands and the result of applying one.
 
-use crate::artwork::Artwork;
+use crate::artwork::{Artwork, ArtworkState};
 use crate::blend::BlendMode;
 use crate::error::CoreError;
 use crate::id::{GroupId, LayerId};
@@ -15,7 +15,7 @@ pub enum ArtworkCommand {
     Mask(MaskCommand),
 }
 
-/// Layer masks (S24). Every one but `Select` acts on a layer that is not locked
+/// Layer masks. Every one but `Select` acts on a layer that is not locked
 /// (`LayerLocked`) and, but `Add`, has a mask (`NoMask`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MaskCommand {
@@ -69,7 +69,7 @@ pub enum LayerCommand {
     /// A copy of the layer right above it, in its group: its strokes (under new ids), edits,
     /// mask, name and properties. The copy becomes active, its paint the target.
     Duplicate(LayerId),
-    /// Merge Down (S39): the layer goes into the one below it as a nested record, which shows
+    /// Merge Down: the layer goes into the one below it as a nested record, which shows
     /// exactly what the two showed; the layer below becomes active. `Unmergeable` where it would
     /// not (`Artwork::mergeable`).
     MergeDown(LayerId),
@@ -159,6 +159,14 @@ impl Applied {
         Self {
             artwork: artwork.clone(),
             change: Change::None,
+        }
+    }
+
+    /// `state` as the new version, its content changed.
+    pub(crate) fn content(state: ArtworkState) -> Self {
+        Self {
+            artwork: Artwork::from_state(state),
+            change: Change::Content,
         }
     }
 }

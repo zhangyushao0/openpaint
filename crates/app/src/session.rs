@@ -4,7 +4,7 @@
 //! to save and reports how saving went. The session also keeps how the artwork is viewed, which
 //! is no history step and is not stored.
 
-use openpaint_core::{ActiveStroke, Artwork, CanvasSize, RegionMask, StrokeStyle};
+use openpaint_core::{ActiveStroke, Artwork, CanvasSize, RegionMask, StrokeStyle, StrokeTool};
 
 use crate::adjust::Adjusts;
 use crate::error::AppError;
@@ -20,6 +20,7 @@ use crate::streamline::StreamLine;
 use crate::stroke::Strokes;
 use crate::symmetry::Guide;
 use crate::transform::Transforms;
+use crate::view::{CanvasView, ViewIntent};
 
 #[path = "session_adjust.rs"]
 mod session_adjust;
@@ -29,7 +30,6 @@ mod session_clipboard;
 mod session_storage;
 #[path = "session_transform.rs"]
 mod session_transform;
-use crate::view::{CanvasView, ViewIntent};
 
 #[derive(Debug)]
 pub struct Session {
@@ -37,11 +37,11 @@ pub struct Session {
     strokes: Strokes,
     layers: Layers,
     fills: Fills,
-    /// The Selection tool and what is selected: tool state, never artwork or history (D42).
+    /// The Selection tool and what is selected: tool state, never artwork or history (D69).
     selection: Selection,
-    /// The Transform tool and the content it holds until it is committed (D45).
+    /// The Transform tool and the content it holds until it is committed (D57).
     transforms: Transforms,
-    /// The adjustment under way until it is applied or cancelled (D54).
+    /// The adjustment under way until it is applied or cancelled (D59).
     adjusts: Adjusts,
     autosave: Autosave,
     /// How the artwork shows; it lives as long as the session (every artwork opens at fit).
@@ -178,6 +178,21 @@ impl Session {
         self.strokes.active()
     }
 
+    /// Whether the last stroke intent changed what the canvas shows beyond the stroke the
+    /// renderer follows (its mirrored copies, a shape edited): the caller then evaluates what
+    /// changed between the two versions shown.
+    #[must_use]
+    pub const fn stroke_reshown(&self) -> bool {
+        self.strokes.reshown()
+    }
+
+    /// The tool of the stroke the last stroke intent committed, if it committed one (the caller
+    /// hands it to `Toolbox::drew`, so its brush is Recent's newest).
+    #[must_use]
+    pub const fn stroke_committed(&self) -> Option<StrokeTool> {
+        self.strokes.committed()
+    }
+
     /// What the canvas shows: the current version, or the preview of the stroke's mirrored
     /// copies, the transform, the adjustment or the fill being placed on it (not in history).
     #[must_use]
@@ -294,7 +309,7 @@ impl Session {
     }
 
     /// Undo and redo: while the Selection tool is on they walk the selection's steps, otherwise
-    /// the artwork's history (D42).
+    /// the artwork's history (D69).
     fn step(&mut self, step: HistoryIntent) -> Result<(), AppError> {
         let action = match step {
             HistoryIntent::Undo => EditorAction::Undo,
@@ -334,14 +349,6 @@ impl Session {
 
     /// `Unavailable` unless the projection offers `action` now.
     fn check(&self, action: EditorAction) -> Result<(), AppError> {
-        let availability = self.projection().availability(action);
-        if availability.is_available() {
-            Ok(())
-        } else {
-            Err(AppError::Unavailable {
-                action,
-                availability,
-            })
-        }
+        self.projection().availability(action).require(action)
     }
 }

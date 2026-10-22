@@ -3,7 +3,7 @@
 //! opacity and colour's red, green and blue (f32); the seed of its stamps' jitter (u32); its brush
 //! recipe (`write_recipe`); its samples, a count (u32) and per sample x, y, pressure, tilt and
 //! azimuth (f32) and the time since the stroke began (u32 ms); last its clip, the selection it was
-//! drawn inside (u8: 0 none, 1 a mask as fills store it, `fills.rs`).
+//! drawn inside (`write_optional_mask`, `edits.rs`).
 //!
 //! A recipe, stage by stage: softness (f32); size over pressure, speed and tilt, then opacity over
 //! pressure, speed and tilt (curves: a point count (u32) and per point x, y (f32); tilt in
@@ -14,12 +14,12 @@
 
 use openpaint_app::PortError;
 use openpaint_core::{
-    AccumulationParts, MaskParts, PaperParts, PaperTexture, RecipeParts, SampleParts, Stroke,
+    AccumulationParts, PaperParts, PaperTexture, RecipeParts, RegionMask, SampleParts, Stroke,
     StrokeBlend, StrokeParts, Tip,
 };
 
 use crate::codec::{Reader, Writer};
-use crate::fills::{read_mask, write_mask};
+use crate::edits::{read_optional_mask, write_optional_mask};
 use crate::shapes::{read_shape, write_shape};
 
 /// Bytes of one encoded sample.
@@ -65,13 +65,8 @@ pub(crate) fn encode_stroke(stroke: &Stroke) -> Vec<u8> {
         }
         writer.u32(sample.time_ms());
     }
-    match stroke.clip() {
-        None => writer.u8(0),
-        Some(clip) => {
-            writer.u8(1);
-            write_mask(&mut writer, &clip.to_parts());
-        }
-    }
+    let clip = stroke.clip().map(RegionMask::to_parts);
+    write_optional_mask(&mut writer, clip.as_ref());
     writer.finish()
 }
 
@@ -102,7 +97,7 @@ pub(crate) fn decode_stroke(bytes: &[u8]) -> Result<StrokeParts, PortError> {
             time_ms: reader.u32()?,
         });
     }
-    let clip = read_clip(&mut reader)?;
+    let clip = read_optional_mask(&mut reader)?;
     reader.end()?;
     Ok(StrokeParts {
         id,
@@ -115,14 +110,6 @@ pub(crate) fn decode_stroke(bytes: &[u8]) -> Result<StrokeParts, PortError> {
         clip,
         seed,
     })
-}
-
-fn read_clip(reader: &mut Reader<'_>) -> Result<Option<MaskParts>, PortError> {
-    match reader.u8()? {
-        0 => Ok(None),
-        1 => Ok(Some(read_mask(reader)?)),
-        _ => Err(reader.corrupt()),
-    }
 }
 
 /// A recipe, stage by stage (see the module).

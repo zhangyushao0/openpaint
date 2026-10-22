@@ -1,13 +1,13 @@
 //! The Actions panel (Procreate's Actions menu, reduced to what exists): the spanner right of
 //! Gallery in the left island opens it as a popover under it. Header "Actions"; under "Add",
-//! inserting a picture from the system's picker as a new layer (S26) and Copy & Paste, which
-//! opens the copy menu (S40, `copy_bar.rs`); under
+//! inserting a picture from the system's picker as a new layer and Copy & Paste, which
+//! opens the copy menu (`copy_bar.rs`); under
 //! "Share", saving the artwork as a PNG or JPEG file where the user chooses and sending it to
 //! another app; under "Canvas", the Reference switch that shows the floating reference window
-//! and the row that chooses its image, and the Drawing Guide (its switch and symmetries, S42);
+//! and the row that chooses its image, and the Drawing Guide (its switch and symmetries);
 //! under "Pen", Pen buttons, which shows its page in the
-//! panel's place (S41, `pen_buttons_page.rs`); last, quietly, the app's version and storage
-//! format ("OpenPaint 0.8.0 · format 1", S52). A row that opens a system dialog closes the
+//! panel's place (`pen_buttons_page.rs`); last, quietly, the app's version and storage
+//! format ("OpenPaint 0.8.0 · format 1"). A row that opens a system dialog closes the
 //! panel; the switch and the page leave it open. Any contact landing on the canvas outside
 //! closes it.
 
@@ -17,11 +17,12 @@ use openpaint_app::{
 };
 
 use crate::components::{
-    Opener, ScreenArea, choices, hint, icon_toggle, menu_row, popover_left, section, switch_row,
-    text_choice, text_choice_wide,
+    Opener, ScreenArea, choices, hint, icon_toggle, menu_row, panel_heading, popover_left, section,
+    switch_row, text_choice, word_columns,
 };
 use crate::design::{Icon, SPACE, TOUCH_TARGET};
 use crate::pen_buttons_page::{pen_buttons_page, summary};
+use crate::taps::push_once;
 
 /// The export rows, top to bottom.
 const EXPORTS: [(&str, &str, ImageFormat, Delivery); 4] = [
@@ -41,11 +42,11 @@ pub(crate) struct ActionsPanel {
     button: Option<egui::Rect>,
     /// The scale the export rows write at; 1x until another is chosen, for the app's run.
     scale: ExportScale,
-    /// Copy & Paste was tapped: the shell opens the copy menu (S40).
+    /// Copy & Paste was tapped: the shell opens the copy menu.
     copy_menu: bool,
-    /// The Pen buttons page shows in the panel's place (S41).
+    /// The Pen buttons page shows in the panel's place.
     pen_page: bool,
-    /// The app's version and storage format, the panel's quiet last line (S52).
+    /// The app's version and storage format, the panel's quiet last line.
     pub(crate) version: String,
 }
 
@@ -93,11 +94,7 @@ impl ActionsPanel {
                 }
                 return;
             }
-            ui.horizontal(|ui| {
-                ui.set_height(TOUCH_TARGET);
-                ui.add_space(2.0 * SPACE);
-                ui.heading("Actions");
-            });
+            panel_heading(ui, "Actions");
             close |= self.add_rows(ui, offered(EditorAction::InsertImage), taps);
             section(ui, "Share");
             self.scale_row(ui, projection);
@@ -105,11 +102,11 @@ impl ActionsPanel {
             section(ui, "Canvas");
             let shown = transfers.reference_shown;
             if switch_row(ui, "Reference", shown, true).clicked() {
-                push(taps, Intent::Reference(ReferenceIntent::Show(!shown)));
+                push_once(taps, Intent::Reference(ReferenceIntent::Show(!shown)));
             }
             let choose = offered(EditorAction::ChooseReference);
             if menu_row(ui, "Choose reference image…", "", choose).clicked() {
-                push(taps, Intent::Reference(ReferenceIntent::Choose));
+                push_once(taps, Intent::Reference(ReferenceIntent::Choose));
                 close = true;
             }
             guide_rows(ui, projection.guide(), taps);
@@ -147,7 +144,7 @@ impl ActionsPanel {
                     delivery,
                     scale,
                 };
-                push(taps, Intent::Export(start));
+                push_once(taps, Intent::Export(start));
                 tapped = true;
             }
         }
@@ -182,7 +179,7 @@ impl ActionsPanel {
         section(ui, "Add");
         let mut close = false;
         if menu_row(ui, "Insert image…", "As a new layer", insert).clicked() {
-            push(taps, Intent::Insert(InsertIntent::Choose));
+            push_once(taps, Intent::Insert(InsertIntent::Choose));
             close = true;
         }
         if menu_row(ui, "Copy & Paste", "Three fingers down", true).clicked() {
@@ -209,38 +206,23 @@ impl ActionsPanel {
     }
 }
 
-/// The Drawing Guide (S42): its switch, then its symmetries as words in two columns, the one in
-/// use in the ink pill while it is on (a word tapped turns it on with that symmetry), and while
-/// it is on how to move its centre.
+/// The Drawing Guide: its switch, then its symmetries as words in two columns, the one in use in
+/// the ink pill while it is on (a word tapped turns it on with that symmetry), and while it is on
+/// how to move its centre.
 fn guide_rows(ui: &mut egui::Ui, guide: Guide, taps: &mut Vec<Intent>) {
     let intent = |guide| Intent::Stroke(StrokeIntent::Guide(guide));
     if switch_row(ui, "Drawing Guide", guide.on, true).clicked() {
-        push(taps, intent(GuideIntent::Show(!guide.on)));
+        push_once(taps, intent(GuideIntent::Show(!guide.on)));
     }
-    let half = ((ui.available_width() - 2.0 * SPACE) / 2.0).floor();
-    choices(ui, "symmetry", |ui, group| {
-        for pair in Symmetry::ALL.chunks(2) {
-            ui.horizontal(|ui| {
-                ui.add_space(2.0 * SPACE);
-                for symmetry in pair {
-                    let on = guide.on && guide.symmetry == *symmetry;
-                    let word = text_choice_wide(ui, group, symmetry.label(), (true, on), half);
-                    if word.clicked() && !on {
-                        push(taps, intent(GuideIntent::Symmetry(*symmetry)));
-                    }
-                }
-            });
-        }
+    let words = Symmetry::ALL.map(|symmetry| {
+        let on = guide.on && guide.symmetry == symmetry;
+        (symmetry.label(), on, true)
     });
+    if let Some(at) = word_columns(ui, "symmetry", &words) {
+        push_once(taps, intent(GuideIntent::Symmetry(Symmetry::ALL[at])));
+    }
     if guide.on {
         hint(ui, "A finger moves the centre.");
-    }
-}
-
-/// egui may run a pass twice; one tap is sent once.
-fn push(taps: &mut Vec<Intent>, intent: Intent) {
-    if taps.last() != Some(&intent) {
-        taps.push(intent);
     }
 }
 

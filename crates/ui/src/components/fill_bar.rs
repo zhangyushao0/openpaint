@@ -7,7 +7,7 @@
 use egui::{Order, Pos2, Stroke};
 use openpaint_core::Color;
 
-use crate::components::{Place, Source, UNDER_ISLANDS, color32, divider, pill, text_button};
+use crate::components::{Place, Source, color32, divider, pill, text_button};
 use crate::design::{INK, PANEL, SPACE};
 
 /// Radius of the carried drop, in points.
@@ -22,10 +22,7 @@ pub fn fill_bar(
     action: Option<&str>,
     taken: bool,
 ) -> (egui::Rect, bool) {
-    let mut place = Place::top_middle();
-    if taken {
-        place.offset.y = UNDER_ISLANDS;
-    }
+    let place = Place::middle_unless(taken);
     let source = Source::Within(egui::Align::Center);
     let (clicked, rect) = pill(ctx, "fill bar", place, source, |ui| {
         ui.label(text);

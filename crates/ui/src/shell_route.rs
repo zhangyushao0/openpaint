@@ -1,7 +1,7 @@
 //! Routing a frame's contacts (`Shell::route`): the reference window, a colour drop and the
 //! canvas take theirs in turn, controls over the canvas never yield theirs to it, a contact on
 //! the canvas outside closes the panels and the copy menu, and three fingers swiped down open
-//! the copy menu (S40).
+//! the copy menu.
 
 use openpaint_app::{ContactPhase, InputBatch, Intent, StrokeIntent, ViewIntent, ViewMapping};
 
@@ -53,7 +53,7 @@ impl Shell {
             threshold: shown.threshold,
             bar: self.drop_bar,
         };
-        // The pen on the brush editor's strip draws there (S46).
+        // The pen on the brush editor's strip draws there.
         self.panels.brushes.route_strip(batches);
         let mut intents = self.reference.route(batches, now_ms, shown.picking);
         let (dropped, rest) = self.drop.route(&frame, &drop, batches);
@@ -78,7 +78,7 @@ impl Shell {
     }
 
     /// What this frame's contacts and taps end: a new stroke lets the notice that the display
-    /// was reset go (S49); choosing a tool ends continuing to fill.
+    /// was reset go; choosing a tool ends continuing to fill.
     fn ended_by(&mut self, intents: &[Intent]) {
         if intents.iter().any(starts_stroke) {
             self.reset_notice = false;

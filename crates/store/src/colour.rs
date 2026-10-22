@@ -1,4 +1,4 @@
-//! Colour management of picture files (S27, DECISIONS D53): every pixel inside the app is sRGB.
+//! Colour management of picture files (DECISIONS D53): every pixel inside the app is sRGB.
 //! A picture coming in is read in the colour space its embedded ICC profile names (PNG `iCCP`,
 //! JPEG APP2) and converted into sRGB; an exported file declares sRGB with an embedded profile.
 //! moxcms does the profiles and the conversion; this module only decides what a profile means.

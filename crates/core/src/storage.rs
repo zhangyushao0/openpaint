@@ -9,6 +9,7 @@ use crate::artwork::{Artwork, ArtworkState, MAX_LAYERS};
 use crate::brush::BrushRecipe;
 use crate::clear::ClearEdit;
 use crate::error::CoreError;
+use crate::fill::FillEdit;
 use crate::group::{LayerGroup, check_groups};
 use crate::id::{GroupId, IdCounters, LayerId, MAX_ID, StrokeId};
 use crate::layer::{Layer, LayerProps, check_opacity};
@@ -18,7 +19,7 @@ use crate::parts::{
     ArtworkParts, EditParts, FillParts, GroupParts, LayerMaskParts, LayerParts, MaskParts,
     NestedParts, RecipeParts, SampleParts, StrokeParts, TransformParts,
 };
-use crate::region::{FillEdit, RegionEdit, RegionMask};
+use crate::region::{RegionEdit, RegionMask};
 use crate::stroke::{
     MAX_STROKE_SAMPLES, Stroke, StrokeBlend, StrokeSample, StrokeStyle, StrokeTool, check_order,
 };
@@ -40,7 +41,7 @@ struct IdCheck {
 
 impl IdCheck {
     fn clip(&mut self, canvas: CanvasSize, parts: &MaskParts) -> Result<RegionMask, CoreError> {
-        let clip = RegionMask::from_runs(canvas, parts.origin, parts.size, &parts.runs)?;
+        let clip = parts.mask(canvas)?;
         if let Some(known) = self.clip.as_ref().filter(|known| **known == clip) {
             return Ok(known.clone());
         }
@@ -194,7 +195,7 @@ fn layer_from(
 }
 
 /// A mask's strokes paint neutral grey over it or smudge it, never under Alpha Lock; its edits
-/// are neutral fills or adjustments of its grey (S28).
+/// are neutral fills or adjustments of its grey.
 fn mask_from(
     parts: &LayerMaskParts,
     canvas: CanvasSize,
@@ -248,12 +249,7 @@ fn content_from(
             EditParts::Nested(nested) => nested_from(nested, canvas, ids, depth + 1)?,
             EditParts::Clear(clear) => RegionEdit::Clear(ClearEdit {
                 after: usize::try_from(clear.after).map_err(|_| invalid("clear place"))?,
-                mask: RegionMask::from_runs(
-                    canvas,
-                    clear.mask.origin,
-                    clear.mask.size,
-                    &clear.mask.runs,
-                )?,
+                mask: clear.mask.mask(canvas)?,
             }),
         };
         if edit.after() < after || edit.after() > strokes.len() {
@@ -321,7 +317,7 @@ fn transform_parts_from(
     let lift = parts
         .lift
         .as_ref()
-        .map(|lift| RegionMask::from_runs(canvas, lift.origin, lift.size, &lift.runs))
+        .map(|lift| lift.mask(canvas))
         .transpose()?;
     let patch = parts
         .patch

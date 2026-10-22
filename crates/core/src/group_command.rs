@@ -6,7 +6,6 @@ use crate::error::CoreError;
 use crate::group::{LayerGroup, members};
 use crate::id::{GroupId, LayerId};
 use crate::layer::{Layer, check_opacity};
-use crate::layer_command::content;
 
 pub(crate) fn apply(artwork: &Artwork, command: GroupCommand) -> Result<Applied, CoreError> {
     match command {
@@ -49,7 +48,7 @@ fn create(artwork: &Artwork, layer: LayerId) -> Result<Applied, CoreError> {
         layer.props.group = Some(id);
     }
     next.groups.push(LayerGroup::numbered(id));
-    Ok(content(next))
+    Ok(Applied::content(next))
 }
 
 fn new(artwork: &Artwork) -> Result<Applied, CoreError> {
@@ -70,7 +69,7 @@ fn new(artwork: &Artwork) -> Result<Applied, CoreError> {
     next.layers.insert(at, layer);
     next.groups.push(LayerGroup::numbered(group));
     next.activate(layer_id);
-    Ok(content(next))
+    Ok(Applied::content(next))
 }
 
 fn ungroup(artwork: &Artwork, group: GroupId) -> Result<Applied, CoreError> {
@@ -84,7 +83,7 @@ fn ungroup(artwork: &Artwork, group: GroupId) -> Result<Applied, CoreError> {
         layer.props.visible &= shown;
     }
     next.groups.retain(|g| g.id != group);
-    Ok(content(next))
+    Ok(Applied::content(next))
 }
 
 /// Changes one group's properties; reports `Change::None` when nothing differs.
@@ -105,5 +104,5 @@ fn edit(
     }
     let mut next = artwork.state().clone();
     next.groups[index] = group;
-    Ok(content(next))
+    Ok(Applied::content(next))
 }

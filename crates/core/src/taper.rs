@@ -1,4 +1,4 @@
-//! `Taper`: how a stroke narrows towards its ends (S44, DECISIONS D71). Along the stroke's path
+//! `Taper`: how a stroke narrows towards its ends (DECISIONS D71). Along the stroke's path
 //! the radius is multiplied by a factor that rises from the tip's share at the very start to 1
 //! over the start length, and falls back to the tip's share over the end length before its end,
 //! each by smoothstep. Lengths are in diameters of the stroke's size, so a larger brush tapers

@@ -1,4 +1,4 @@
-//! The preview strip (S46): a strip of white paper across a panel with the panel's outline,
+//! The preview strip: a strip of white paper across a panel with the panel's outline,
 //! showing a picture the renderer made of it (a brush's sample stroke and what the pen drew
 //! there), and Clear, a bare word at its top right corner, grey while there is nothing to clear.
 //! The pen's strokes on it are routed from the raw input, not here; a finger on it does

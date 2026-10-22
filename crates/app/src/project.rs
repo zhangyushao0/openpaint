@@ -26,7 +26,7 @@ impl ProjectId {
     }
 }
 
-/// Names what one save of an artwork wrote (S54, DECISIONS D81): the store writes a new random
+/// Names what one save of an artwork wrote (DECISIONS D81): the store writes a new random
 /// one in the artwork's head with every save (and one into a head without any when it is
 /// opened), so it never repeats, not even after a library is put back from an older backup. The
 /// display cache of the artwork's canvas is keyed by it. Never zero.

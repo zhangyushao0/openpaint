@@ -6,10 +6,11 @@
 //!
 //! - A fill: red, green, blue (f32), alpha locked (u8), its mask (`write_mask`).
 //! - Cleared pixels (a cut, or what a copy leaves outside its selection): the mask.
-//! - A transform: what moved (u8: 0 the whole layer, 1 a mask), its placement (a, b, c, d, then
-//!   the translation: f32), then its pixels (u8: 0 none, a record: the content is the layer's own;
-//!   1 a patch, an inserted picture or the drag's lift: its rectangle (x, y, width, height: u32)
-//!   and its premultiplied RGBA as a PNG file to the record's end).
+//! - A transform: what moved (`write_optional_mask`: none, the whole layer, or a mask), its
+//!   placement (a, b, c, d, then the translation: f32), then its pixels (u8: 0 none, a record:
+//!   the content is the layer's own; 1 a patch, an inserted picture or the drag's lift: its
+//!   rectangle (x, y, width, height: u32) and its premultiplied RGBA as a PNG file to the
+//!   record's end).
 
 use std::io::Cursor;
 
@@ -17,7 +18,7 @@ use image::codecs::png::{CompressionType, FilterType, PngDecoder, PngEncoder};
 use image::{ExtendedColorType, ImageDecoder, ImageEncoder};
 use openpaint_app::{PortError, ProjectId};
 use openpaint_core::{
-    ClearParts, EditParts, FillParts, MaskParts, PatchParts, RegionEdit, TransformEdit,
+    ClearParts, EditParts, FillParts, MaskParts, PatchParts, RegionEdit, RegionMask, TransformEdit,
     TransformParts,
 };
 
@@ -32,21 +33,21 @@ const KIND_CLEAR: u8 = 1;
 const KIND_TRANSFORM: u8 = 2;
 
 /// The prefix of every edit record of `project`.
-pub(crate) fn fills_prefix(project: ProjectId) -> Vec<u8> {
+pub(crate) fn edits_prefix(project: ProjectId) -> Vec<u8> {
     let mut key = project_prefix(project);
     key.push(EDIT);
     key
 }
 
 /// The prefix of the edit records of one slot, in order.
-pub(crate) fn fill_layer_prefix(project: ProjectId, slot: u64) -> Vec<u8> {
-    let mut key = fills_prefix(project);
+pub(crate) fn slot_edits_prefix(project: ProjectId, slot: u64) -> Vec<u8> {
+    let mut key = edits_prefix(project);
     key.extend_from_slice(&slot.to_be_bytes());
     key
 }
 
-pub(crate) fn fill_key(project: ProjectId, slot: u64, index: usize) -> Vec<u8> {
-    let mut key = fill_layer_prefix(project, slot);
+pub(crate) fn edit_key(project: ProjectId, slot: u64, index: usize) -> Vec<u8> {
+    let mut key = slot_edits_prefix(project, slot);
     key.extend_from_slice(&(index as u64).to_be_bytes());
     key
 }
@@ -86,13 +87,8 @@ pub(crate) fn encode_edit(edit: &RegionEdit) -> Vec<u8> {
 
 fn encode_transform(transform: &TransformEdit) -> Vec<u8> {
     let mut writer = edit_writer(KIND_TRANSFORM, transform.after(), 96);
-    match transform.lift() {
-        Some(lift) => {
-            writer.u8(1);
-            write_mask(&mut writer, &lift.to_parts());
-        }
-        None => writer.u8(0),
-    }
+    let lift = transform.lift().map(RegionMask::to_parts);
+    write_optional_mask(&mut writer, lift.as_ref());
     let placement = transform.placement();
     for value in placement
         .matrix()
@@ -160,11 +156,7 @@ fn read_fill(reader: &mut Reader<'_>, after: u64) -> Result<FillParts, PortError
 }
 
 fn read_transform(reader: &mut Reader<'_>, after: u64) -> Result<TransformParts, PortError> {
-    let lift = match reader.u8()? {
-        0 => None,
-        1 => Some(read_mask(reader)?),
-        _ => return Err(reader.corrupt()),
-    };
+    let lift = read_optional_mask(reader)?;
     let mut values = [0.0f32; 6];
     for value in &mut values {
         *value = reader.f32()?;
@@ -238,6 +230,26 @@ pub(crate) fn read_mask(reader: &mut Reader<'_>) -> Result<MaskParts, PortError>
     Ok(MaskParts { origin, size, runs })
 }
 
+/// A mask that may be absent (a stroke's or an adjustment's clip, what a transform moved): u8 0
+/// none, or 1 and the mask.
+pub(crate) fn write_optional_mask(writer: &mut Writer, mask: Option<&MaskParts>) {
+    match mask {
+        Some(mask) => {
+            writer.u8(1);
+            write_mask(writer, mask);
+        }
+        None => writer.u8(0),
+    }
+}
+
+pub(crate) fn read_optional_mask(reader: &mut Reader<'_>) -> Result<Option<MaskParts>, PortError> {
+    match reader.u8()? {
+        0 => Ok(None),
+        1 => Ok(Some(read_mask(reader)?)),
+        _ => Err(reader.corrupt()),
+    }
+}
+
 #[cfg(test)]
-#[path = "fills_tests.rs"]
+#[path = "edits_tests.rs"]
 mod tests;

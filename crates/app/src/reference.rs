@@ -131,82 +131,130 @@ pub enum ReferenceNotice {
     Failed(ImageError),
 }
 
+/// A picture chosen with the system's picker and read on the transfer worker, as the reference
+/// or to insert: idle, the picker open (for `C`, what the picture is for), the file being read,
+/// or why it failed. Choosing is only asked for when no picker or transfer runs (`Transfers`
+/// checks).
 #[derive(Debug, Default)]
-enum State {
+pub(crate) enum ImagePick<C> {
     #[default]
     Idle,
-    Choosing,
+    Choosing(C),
     Opening,
     Failed(ImageError),
+}
+
+impl<C: Copy> ImagePick<C> {
+    /// The picker opens, for `purpose`.
+    pub(crate) fn choose(&mut self, purpose: C) -> HostRequest {
+        *self = Self::Choosing(purpose);
+        HostRequest::OpenImage
+    }
+
+    /// The notice that a picture could not be used closes.
+    pub(crate) fn dismiss(&mut self) {
+        if matches!(self, Self::Failed(_)) {
+            *self = Self::Idle;
+        }
+    }
+
+    pub(crate) const fn waiting(&self) -> bool {
+        matches!(self, Self::Choosing(_))
+    }
+
+    pub(crate) const fn busy(&self) -> bool {
+        matches!(self, Self::Choosing(_) | Self::Opening)
+    }
+
+    /// The platform's answer while `waiting`: the file to read next and what it is for;
+    /// cancelling changes nothing.
+    pub(crate) fn answer(&mut self, answer: HostAnswer) -> Option<(Box<dyn ImageSource>, C)> {
+        let Self::Choosing(purpose) = *self else {
+            return None;
+        };
+        *self = Self::Idle;
+        match picked(answer) {
+            Ok(Some(source)) => {
+                *self = Self::Opening;
+                Some((source, purpose))
+            }
+            Ok(None) => None,
+            Err(error) => {
+                *self = Self::Failed(error);
+                None
+            }
+        }
+    }
+
+    /// The chosen file was read: what it gave, or nothing when it failed (the notice says why)
+    /// or nobody waited for it.
+    pub(crate) fn opened<T>(&mut self, result: Result<T, ImageError>) -> Option<T> {
+        if !matches!(self, Self::Opening) {
+            return None;
+        }
+        match result {
+            Ok(read) => {
+                *self = Self::Idle;
+                Some(read)
+            }
+            Err(error) => {
+                *self = Self::Failed(error);
+                None
+            }
+        }
+    }
+
+    /// Opening, or why it failed.
+    pub(crate) fn notice(&self) -> ReferenceNotice {
+        match self {
+            Self::Idle => ReferenceNotice::None,
+            Self::Choosing(_) | Self::Opening => ReferenceNotice::Opening,
+            Self::Failed(error) => ReferenceNotice::Failed(error.clone()),
+        }
+    }
 }
 
 #[derive(Debug, Default)]
 pub(crate) struct Reference {
     image: Option<ReferenceImage>,
     shown: bool,
-    state: State,
+    pick: ImagePick<()>,
 }
 
 impl Reference {
-    /// Applies `intent`; returns what to ask the platform for. Choosing is only called when no
-    /// picker or transfer runs (`Transfers` checks).
+    /// Applies `intent`; returns what to ask the platform for.
     pub(crate) fn dispatch(&mut self, intent: &ReferenceIntent) -> Option<HostRequest> {
         match intent {
             ReferenceIntent::Show(true) if self.image.is_some() => self.shown = true,
             ReferenceIntent::Show(false) => self.shown = false,
             ReferenceIntent::Show(true) | ReferenceIntent::Choose => {
-                self.state = State::Choosing;
-                return Some(HostRequest::OpenImage);
+                return Some(self.pick.choose(()));
             }
-            ReferenceIntent::Dismiss => {
-                if matches!(self.state, State::Failed(_)) {
-                    self.state = State::Idle;
-                }
-            }
+            ReferenceIntent::Dismiss => self.pick.dismiss(),
         }
         None
     }
 
-    pub(crate) fn waiting(&self) -> bool {
-        matches!(self.state, State::Choosing)
+    pub(crate) const fn waiting(&self) -> bool {
+        self.pick.waiting()
     }
 
-    pub(crate) fn busy(&self) -> bool {
-        matches!(self.state, State::Choosing | State::Opening)
+    pub(crate) const fn busy(&self) -> bool {
+        self.pick.busy()
     }
 
     /// The platform's answer while `waiting`: an image is read next; cancelling changes nothing.
     pub(crate) fn answer(&mut self, answer: HostAnswer) -> Option<OpenJob> {
-        if !self.waiting() {
-            return None;
-        }
-        self.state = State::Idle;
-        match picked(answer) {
-            Ok(Some(source)) => {
-                self.state = State::Opening;
-                Some(OpenJob { source })
-            }
-            Ok(None) => None,
-            Err(error) => {
-                self.state = State::Failed(error);
-                None
-            }
-        }
+        let (source, ()) = self.pick.answer(answer)?;
+        Some(OpenJob { source })
     }
 
     /// The chosen image was read: it replaces the reference and the window shows it. A failure
     /// keeps the image before.
     pub(crate) fn opened(&mut self, result: Result<ReferenceImage, ImageError>) {
-        if !matches!(self.state, State::Opening) {
-            return;
-        }
-        match result {
-            Ok(image) => {
-                self.image = Some(image);
-                self.shown = true;
-                self.state = State::Idle;
-            }
-            Err(error) => self.state = State::Failed(error),
+        if let Some(image) = self.pick.opened(result) {
+            self.image = Some(image);
+            self.shown = true;
         }
     }
 
@@ -219,16 +267,12 @@ impl Reference {
     }
 
     pub(crate) fn notice(&self) -> ReferenceNotice {
-        match &self.state {
-            State::Idle => ReferenceNotice::None,
-            State::Choosing | State::Opening => ReferenceNotice::Opening,
-            State::Failed(error) => ReferenceNotice::Failed(error.clone()),
-        }
+        self.pick.notice()
     }
 }
 
 /// The image picker's answer: the chosen file, nothing (the user cancelled) or why it failed.
-pub(crate) fn picked(answer: HostAnswer) -> Result<Option<Box<dyn ImageSource>>, ImageError> {
+fn picked(answer: HostAnswer) -> Result<Option<Box<dyn ImageSource>>, ImageError> {
     match answer {
         HostAnswer::Image(source) => Ok(Some(source)),
         HostAnswer::Cancelled => Ok(None),

@@ -1,10 +1,10 @@
-//! Inserting a picture (Procreate's Insert a photo, S26): the picture becomes a new layer above
+//! Inserting a picture (Procreate's Insert a photo): the picture becomes a new layer above
 //! the active one, in its group, named "Inserted image", and the Transform tool frames it at
 //! once. Nothing is lifted: the patch is the picture itself, placed where `picture_place` puts
 //! it, so a picture inside the canvas shows pixel for pixel until the hand moves it, and moving
 //! it resamples the picture's pixels once. The layer, the picture and where it is placed are one
 //! history step when the transform commits; undo at its first step takes both away. A pasted
-//! copy (S40) comes the same way on a layer named "Pasted layer", as records: its pixels are
+//! copy comes the same way on a layer named "Pasted layer", as records: its pixels are
 //! lifted as any transform's, and it is placed as a record.
 
 use openpaint_core::{
@@ -18,7 +18,7 @@ use crate::projection::{Availability, EditorAction};
 
 /// The inserted picture's layer, as the layer panel names it.
 const NAME: &str = "Inserted image";
-/// A pasted copy's layer (S40).
+/// A pasted copy's layer.
 const PASTED: &str = "Pasted layer";
 
 /// Where a picture of `size` pixels lies on `canvas`: its origin and its size there. A picture
@@ -131,7 +131,7 @@ impl Transforms {
         Ok(())
     }
 
-    /// Frames `copied` on a new layer above `onto`'s active one (S40, Paste); `from` is the
+    /// Frames `copied` on a new layer above `onto`'s active one (Paste); `from` is the
     /// history version now, which undo at the first step goes back to (`onto` may hold a cut
     /// of it). A transform in progress is committed by the caller first.
     pub(crate) fn paste(

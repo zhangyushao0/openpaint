@@ -1,12 +1,12 @@
 //! The brush picker and the tool buttons: Brush, Smudge and Eraser sit in the right island before
 //! Layers (Procreate's order). The current tool's button opens the picker as a popover over the
-//! canvas (Procreate's brush library, cut to five fixed sets, S47): header "Brushes", "Smudge"
+//! canvas (Procreate's brush library, cut to five fixed sets): header "Brushes", "Smudge"
 //! or "Eraser", the sets as words, then one row per brush of the set shown with its name and a
 //! stroke it painted, the tool's brush outlined in ink (`brush_list.rs`). The smudge and the
 //! eraser choose from the same brushes and sets. A tap chooses the brush; the panel stays until a
 //! contact lands on the canvas outside it, and a pen stroke there draws with the brush just
 //! chosen. Under the rows, the chosen brush's StreamLine slider (0 to 100 %). Tapping the chosen
-//! brush's row again turns the panel into its editor (`brush_editor.rs`, S46) from any of the
+//! brush's row again turns the panel into its editor (`brush_editor.rs`) from any of the
 //! three tools, as all three draw with the same brushes; Back, or the panel closing, returns to
 //! the list, on the set the editor's Set row moved the brush to, if it did.
 

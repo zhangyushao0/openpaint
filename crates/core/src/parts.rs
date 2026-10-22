@@ -4,6 +4,7 @@
 use crate::adjust::AdjustParts;
 use crate::artwork::Artwork;
 use crate::blend::BlendMode;
+use crate::error::CoreError;
 use crate::id::GroupId;
 use crate::layer::Layer;
 use crate::mask::LayerMask;
@@ -11,6 +12,7 @@ use crate::nested::NestedEdit;
 pub use crate::parts_recipe::{AccumulationParts, PaperParts, RecipeParts, ShapeParts};
 use crate::region::{RegionEdit, RegionMask};
 use crate::stroke::{Stroke, StrokeBlend, StrokeSample};
+use crate::value::CanvasSize;
 
 /// A whole artwork as plain data.
 #[derive(Debug, Clone, PartialEq)]
@@ -74,18 +76,18 @@ pub enum EditParts {
     Transform(TransformParts),
     Adjust(AdjustParts),
     Nested(NestedParts),
-    /// Pixels cleared (S40, Cut).
+    /// Pixels cleared (Cut).
     Clear(ClearParts),
 }
 
-/// Pixels cleared (S40) as plain data: their place among the layer's strokes and the mask.
+/// Pixels cleared as plain data: their place among the layer's strokes and the mask.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ClearParts {
     pub after: u64,
     pub mask: MaskParts,
 }
 
-/// A layer merged into another (S39) as plain data: its place among that layer's strokes, the
+/// A layer merged into another as plain data: its place among that layer's strokes, the
 /// merged layer's id, how it composited (`clipped`: atop the content before it), its content.
 #[derive(Debug, Clone, PartialEq)]
 pub struct NestedParts {
@@ -101,7 +103,7 @@ pub struct NestedParts {
 }
 
 /// A transform as plain data: its place among the layer's strokes, what it moved (`None`: the
-/// whole layer), where it went, and for an older transform or an inserted picture the pixels
+/// whole layer), where it went, and for an inserted picture or the drag's preview the pixels
 /// it placed.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TransformParts {
@@ -151,7 +153,7 @@ pub struct StrokeParts {
     pub samples: Vec<SampleParts>,
     /// The selection the stroke was drawn inside.
     pub clip: Option<MaskParts>,
-    /// Since S45: the seed its stamps' jitter follows.
+    /// The seed its stamps' jitter follows.
     pub seed: u32,
 }
 
@@ -173,6 +175,13 @@ impl RegionMask {
             size: self.size(),
             runs: self.runs(),
         }
+    }
+}
+
+impl MaskParts {
+    /// The mask these parts describe on `canvas` (`RegionMask::from_runs`).
+    pub(crate) fn mask(&self, canvas: CanvasSize) -> Result<RegionMask, CoreError> {
+        RegionMask::from_runs(canvas, self.origin, self.size, &self.runs)
     }
 }
 

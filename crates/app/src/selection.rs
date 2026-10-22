@@ -4,7 +4,7 @@
 //! does leaving the tool. Rectangle: drag from one corner to the other. Each closed shape adds
 //! to the selection (draweave's default). Invert and Deselect act on the whole selection.
 //!
-//! The selection is tool state, not artwork (DECISIONS D42): it never enters the artwork, its
+//! The selection is tool state, not artwork (DECISIONS D69): it never enters the artwork, its
 //! history or the store. While the tool is on, undo and redo walk its own steps (draweave's
 //! draft cursor); off, they walk the artwork's history and the selection stays. A stroke or a
 //! fill made while a selection exists changes only its pixels, and keeps that clip for good.

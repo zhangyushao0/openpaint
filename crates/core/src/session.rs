@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use crate::artwork::Artwork;
-use crate::command::{Applied, Change};
+use crate::command::Applied;
 use crate::error::CoreError;
 use crate::id::LayerId;
 use crate::region::{RegionMask, check_mask};
@@ -177,7 +177,7 @@ impl StrokeSession {
     }
 
     /// Replaces every sample, the first too, with `samples`, oldest first: a stroke snapped to
-    /// the shape it resembles (QuickShape, S42). All or nothing.
+    /// the shape it resembles (QuickShape). All or nothing.
     ///
     /// # Errors
     /// `InvalidValue` when `samples` is empty; `SampleOrder` and `SampleLimit` as for `extend`.
@@ -208,10 +208,7 @@ impl StrokeSession {
             Some(mask) => mask.strokes = mask.strokes.pushed(stroke),
             None => layer.strokes = layer.strokes.pushed(stroke),
         }
-        Applied {
-            artwork: Artwork::from_state(next),
-            change: Change::Content,
-        }
+        Applied::content(next)
     }
 
     /// Drops the stroke; returns the base artwork, which never saw it.

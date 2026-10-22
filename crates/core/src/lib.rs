@@ -13,6 +13,7 @@ mod command;
 mod copy;
 mod deposit;
 mod error;
+mod fill;
 mod filter;
 mod group;
 mod group_command;
@@ -54,6 +55,7 @@ pub use deposit::{
     Accumulation, Deposit, MAX_FLOW, MAX_PAPER_DEPTH, PAPER_SCALES, Paper, PaperTexture, Tip,
 };
 pub use error::CoreError;
+pub use fill::FillEdit;
 pub use filter::{Blur, Sharpen};
 pub use group::LayerGroup;
 pub use id::{GroupId, LayerId, MAX_ID, StrokeId};
@@ -67,7 +69,7 @@ pub use parts::{
     LayerParts, MaskParts, NestedParts, PaperParts, PatchParts, RecipeParts, SampleParts,
     ShapeParts, StrokeParts, TransformParts,
 };
-pub use region::{FillEdit, RegionEdit, RegionMask};
+pub use region::{RegionEdit, RegionMask};
 pub use session::{ActiveStroke, StrokeSession};
 pub use shape::{
     MAX_SCATTER, MAX_SPACING, MAX_STAMPS, MIN_ASPECT, MIN_SPACING, Rotation, Shape, ShapeTexture,

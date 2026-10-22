@@ -8,7 +8,7 @@ use openpaint_app::{GalleryIntent, Intent, MAX_TITLE_CHARS, ProjectSummary, Titl
 use super::GalleryScreen;
 use super::dates::kept_labels;
 use crate::components::{
-    Placement, answer_row, dialog, hint, menu_row, section, text_button, text_field,
+    Placement, answer_row, dialog, hint, menu_row, naming_dialog, section, text_button,
 };
 use crate::design::SPACE;
 
@@ -16,29 +16,19 @@ impl GalleryScreen {
     /// The title in a text field with Cancel and Done; Done (or Enter) renames when the text
     /// is a valid title.
     pub(super) fn rename_dialog(&mut self, ctx: &egui::Context, taps: &mut Vec<Intent>) {
-        let Some(rename) = &mut self.rename else {
+        let Some((id, naming)) = &mut self.rename else {
             return;
         };
-        let from = (Placement::Top, rename.card);
-        let ((cancel, done), outside) = dialog(ctx, "rename", from, |ui| {
-            ui.heading("Rename");
-            let field = text_field(ui, "Title", &mut rename.text, MAX_TITLE_CHARS, rename.focus);
-            if field.response.has_focus() {
-                rename.focus = false;
-            }
-            let valid = Title::new(&rename.text).is_ok();
-            let (cancel, done) = answer_row(ui, "Cancel", "Done", valid);
-            (cancel, done || (field.submitted && valid))
-        });
-        if done && let Ok(title) = Title::new(&rename.text) {
-            taps.push(Intent::Gallery(GalleryIntent::Rename {
-                id: rename.id,
-                title,
-            }));
-            self.rename = None;
-        } else if cancel || outside {
-            self.rename = None;
+        let words = ("Rename", "Title", MAX_TITLE_CHARS);
+        let valid = |text: &str| Title::new(text).is_ok();
+        let Some(done) = naming_dialog(ctx, "rename", words, naming, valid) else {
+            return;
+        };
+        if done && let Ok(title) = Title::new(&naming.text) {
+            let id = *id;
+            taps.push(Intent::Gallery(GalleryIntent::Rename { id, title }));
         }
+        self.rename = None;
     }
 
     pub(super) fn confirm_dialog(&mut self, ctx: &egui::Context, taps: &mut Vec<Intent>) {

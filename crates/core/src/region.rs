@@ -1,18 +1,19 @@
 //! Region edits: a set of canvas pixels (`RegionMask`) and what was done to them, at their place
-//! between the layer's strokes. A fill (ColorDrop) paints one colour over every pixel of its
-//! mask, with a hard edge; a transform (`transform.rs`) moves content; an adjustment
-//! (`adjust.rs`) changes their colours.
+//! between the layer's strokes. A fill (`fill.rs`) paints one colour over every pixel of its
+//! mask; cleared pixels (`clear.rs`) go transparent; a transform (`transform.rs`) moves content;
+//! an adjustment (`adjust.rs`) changes their colours; a merged layer (`nested.rs`) lies there.
 
 use std::sync::Arc;
 
 use crate::adjust::AdjustEdit;
 use crate::artwork::Artwork;
 use crate::clear::ClearEdit;
-use crate::command::{Applied, Change};
+use crate::command::Applied;
 use crate::error::CoreError;
+use crate::fill::FillEdit;
 use crate::nested::NestedEdit;
 use crate::transform::TransformEdit;
-use crate::value::{CanvasSize, Color, invalid};
+use crate::value::{CanvasSize, invalid};
 
 /// A non-empty set of canvas pixels inside a bounding rectangle. Rows are bit-packed: pixel
 /// `origin + (x, y)` is bit `x % 32` of word `y * stride + x / 32`. Clone is O(1).
@@ -76,10 +77,7 @@ impl RegionMask {
         size: [u32; 2],
         runs: &[u32],
     ) -> Result<Self, CoreError> {
-        let fits = |at: u32, side: u32, limit: u32| {
-            side > 0 && at.checked_add(side).is_some_and(|end| end <= limit)
-        };
-        if !fits(origin[0], size[0], canvas.width()) || !fits(origin[1], size[1], canvas.height()) {
+        if !rect_fits(canvas, origin, size) {
             return Err(invalid("region mask"));
         }
         let (width, total) = (size[0] as usize, size[0] as usize * size[1] as usize);
@@ -167,6 +165,15 @@ impl RegionMask {
         Arc::ptr_eq(&self.words, &other.words)
     }
 
+    /// True when both are absent, or both present sharing one copy of their pixels.
+    pub(crate) fn both_shared(a: Option<&Self>, b: Option<&Self>) -> bool {
+        match (a, b) {
+            (Some(a), Some(b)) => a.shares(b),
+            (None, None) => true,
+            _ => false,
+        }
+    }
+
     pub(crate) fn bit(&self, x: u32, y: u32) -> bool {
         let word = self.words[(y * self.stride() + x / 32) as usize];
         word >> (x % 32) & 1 == 1
@@ -182,7 +189,7 @@ impl PartialEq for RegionMask {
 }
 
 /// What was done to a layer's pixels, at its place among the layer's strokes: a fill, a
-/// transform, an adjustment, (S39) a layer merged into this one or (S40) pixels cleared.
+/// transform, an adjustment, a layer merged into this one or pixels cleared.
 #[derive(Debug, Clone, PartialEq)]
 pub enum RegionEdit {
     Fill(FillEdit),
@@ -302,88 +309,25 @@ impl RegionEdit {
     }
 }
 
-/// A fill on a layer: `color` over every pixel of `mask`, painted after the layer's first
-/// `after` strokes. With `alpha_locked` (the layer's Alpha Lock when it was made) the colour
-/// changes only where the layer already has paint, keeping its alpha.
-#[derive(Debug, Clone, PartialEq)]
-pub struct FillEdit {
-    pub(crate) after: usize,
-    pub(crate) mask: RegionMask,
-    pub(crate) color: Color,
-    pub(crate) alpha_locked: bool,
-}
-
-impl FillEdit {
-    /// How many of the layer's strokes lie under the fill (oldest first).
-    #[must_use]
-    pub const fn after(&self) -> usize {
-        self.after
-    }
-
-    #[must_use]
-    pub const fn mask(&self) -> &RegionMask {
-        &self.mask
-    }
-
-    #[must_use]
-    pub const fn color(&self) -> Color {
-        self.color
-    }
-
-    #[must_use]
-    pub const fn alpha_locked(&self) -> bool {
-        self.alpha_locked
-    }
-}
-
 pub(crate) fn check_mask(canvas: CanvasSize, mask: &RegionMask) -> Result<(), CoreError> {
-    let [x, y] = mask.origin;
-    let [w, h] = mask.size;
-    let fits =
-        |at: u32, side: u32, limit: u32| at.checked_add(side).is_some_and(|end| end <= limit);
-    if fits(x, w, canvas.width()) && fits(y, h, canvas.height()) {
+    if rect_fits(canvas, mask.origin, mask.size) {
         Ok(())
     } else {
         Err(invalid("region mask"))
     }
 }
 
-impl Artwork {
-    /// Fills `mask` with `color` on the active layer, above its strokes so far (ColorDrop). On
-    /// a layer with Alpha Lock on, the fill keeps the layer's alpha. When the layer's mask is
-    /// the target the fill lands there, in the colour's grey.
-    ///
-    /// # Errors
-    /// `LayerLocked` when the active layer is locked; `MaskOff` when its mask is the target
-    /// and disabled; `InvalidValue` when the mask leaves the canvas.
-    pub fn fill_region(&self, mask: RegionMask, color: Color) -> Result<Applied, CoreError> {
-        let (index, target) = self.target()?;
-        check_mask(self.canvas(), &mask)?;
-        let layer = &self.state().layers[index];
-        let edit = match target {
-            Some(target) => FillEdit {
-                after: target.strokes.len(),
-                mask,
-                color: target.grey(color),
-                alpha_locked: false,
-            },
-            None => FillEdit {
-                after: layer.strokes.len(),
-                mask,
-                color,
-                alpha_locked: layer.props.alpha_locked,
-            },
-        };
-        Ok(Applied {
-            artwork: push_edit(self, index, RegionEdit::Fill(edit)),
-            change: Change::Content,
-        })
-    }
+/// Whether the rectangle of `size` pixels at `origin` is not empty and lies on `canvas`.
+pub(crate) fn rect_fits(canvas: CanvasSize, origin: [u32; 2], size: [u32; 2]) -> bool {
+    let fits = |at: u32, side: u32, limit: u32| {
+        side > 0 && at.checked_add(side).is_some_and(|end| end <= limit)
+    };
+    fits(origin[0], size[0], canvas.width()) && fits(origin[1], size[1], canvas.height())
 }
 
 /// `artwork` with `edit` added to the edits of its layer at `index`, or of that layer's mask
 /// when the mask is the target.
-pub(crate) fn push_edit(artwork: &Artwork, index: usize, edit: RegionEdit) -> Artwork {
+pub(crate) fn push_edit(artwork: &Artwork, index: usize, edit: RegionEdit) -> Applied {
     let mut next = artwork.state().clone();
     let on_mask = next.on_mask;
     let layer = &mut next.layers[index];
@@ -394,5 +338,5 @@ pub(crate) fn push_edit(artwork: &Artwork, index: usize, edit: RegionEdit) -> Ar
     let mut grown = edits.to_vec();
     grown.push(edit);
     *edits = Arc::from(grown);
-    Artwork::from_state(next)
+    Applied::content(next)
 }

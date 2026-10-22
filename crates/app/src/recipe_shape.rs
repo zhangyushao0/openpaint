@@ -1,4 +1,4 @@
-//! A brush file's `[shape]` (`recipe.rs`): the edge's softness, and since S45 the stamps laid
+//! A brush file's `[shape]` (`recipe.rs`): the edge's softness, and the stamps laid
 //! along the path (DECISIONS D72): their shape, spacing, scatter, rotation and jitter. Without a
 //! spacing the brush is the continuous round capsule, and no other stamp key may be set.
 

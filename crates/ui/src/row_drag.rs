@@ -1,4 +1,4 @@
-//! Carrying a row of a list (S38's layer rows, S47's brush rows; Procreate's press and hold): a
+//! Carrying a row of a list (the layer rows, the brush rows; Procreate's press and hold): a
 //! contact that stays still on a row for `HOLD` lifts it; the row then follows the hand and the
 //! list lays its subject out where it would land, the other rows making room (settle); letting
 //! go puts it there. What a row carries (`K`) and where it may land (`P`) are the list's: the

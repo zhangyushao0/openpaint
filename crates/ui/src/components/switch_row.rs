@@ -2,34 +2,23 @@
 //! right end that shows whether the setting is on. Tapping anywhere on the row flips it;
 //! unavailable, it dims and taps go nowhere.
 
-use egui::{Align2, Pos2, Rect, Sense, Stroke, TextStyle, Vec2, WidgetInfo, WidgetType};
+use egui::{Align2, Pos2, Rect, Stroke, TextStyle, Vec2, WidgetInfo, WidgetType};
 
-use crate::components::{animate, controls};
+use crate::components::animate;
+use crate::components::menu_row::tap_row;
 use crate::design::motion::{ACKNOWLEDGE, lerp};
-use crate::design::{
-    INK, INK_ACTIVE, INK_DISABLED, INK_SECONDARY, Outline, SPACE, TOUCH_TARGET, paint_pressed,
-};
+use crate::design::{INK, INK_ACTIVE, INK_DISABLED, INK_SECONDARY, SPACE};
 
 /// The switch's track, in points.
 const TRACK: Vec2 = Vec2::new(5.0 * SPACE, 3.0 * SPACE);
 
 pub fn switch_row(ui: &mut egui::Ui, label: &str, on: bool, enabled: bool) -> egui::Response {
-    let sense = if enabled {
-        Sense::click()
-    } else {
-        Sense::hover()
-    };
-    let size = Vec2::new(ui.available_width(), TOUCH_TARGET);
-    let (rect, response) = ui.allocate_exact_size(size, sense);
-    response.widget_info(|| WidgetInfo::selected(WidgetType::Checkbox, enabled, on, label));
-    controls::register(ui, label, rect);
-    if !ui.is_rect_visible(rect) {
+    let info = || WidgetInfo::selected(WidgetType::Checkbox, enabled, on, label);
+    let (response, shown) = tap_row(ui, label, enabled, info);
+    if !shown {
         return response;
     }
-    let painter = ui.painter();
-    if enabled && response.is_pointer_button_down_on() {
-        paint_pressed(painter, Outline::row(rect));
-    }
+    let (rect, painter) = (response.rect, ui.painter());
     let text = if enabled { INK } else { INK_DISABLED };
     let font = TextStyle::Body.resolve(ui.style());
     let left = rect.left_center() + Vec2::new(2.0 * SPACE, 0.0);

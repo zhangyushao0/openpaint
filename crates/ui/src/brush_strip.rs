@@ -1,4 +1,4 @@
-//! The brush editor's preview strip as the panel keeps it (S46): the strokes the pen drew on it,
+//! The brush editor's preview strip as the panel keeps it: the strokes the pen drew on it,
 //! in strip pixels, the stroke it draws now, where the strip lay in the last pass and the
 //! picture the renderer made of it. The pen's contacts that touch down on the strip (outside its
 //! Clear) are routed from the raw input before the canvas's, so they carry pressure and tilt;

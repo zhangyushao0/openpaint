@@ -1,4 +1,4 @@
-//! The pen's buttons (S41, S43, D70): what each of three side buttons does is the author's
+//! The pen's buttons (D70): what each of three side buttons does is the author's
 //! choice from a short list, stored with the toolbox; the eraser end always erases. Android
 //! reports the side buttons as the button state of every pen event, hovering or touching;
 //! `ButtonTracker` turns their changes into intents placed around the contacts of the same
@@ -117,7 +117,7 @@ pub enum HeldTool {
 
 /// What each side button does. At first the first erases and the second picks colours while
 /// held, the buttons most painting apps give a Wacom pen (author, 2026-10-05); the third
-/// undoes (S43, an agent's choice).
+/// undoes (an agent's choice).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ButtonMap {
     pub primary: ButtonAction,

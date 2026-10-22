@@ -1,4 +1,4 @@
-//! Copy and paste (S40, Procreate's Copy & Paste menu): Cut, Copy, Copy All, Duplicate,
+//! Copy and paste (Procreate's Copy & Paste menu): Cut, Copy, Copy All, Duplicate,
 //! Cut & Paste and Paste act on the selection, or with nothing selected on the whole active
 //! layer (Copy All: on what every visible layer shows). What is copied is records (core's
 //! `Copied`), held for the app's run by the runtime across artworks: never stored and not the

@@ -24,16 +24,10 @@ impl Session {
         clipboard: &mut Clipboard,
     ) -> Result<(), AppError> {
         let editor_action = EditorAction::Clipboard(action);
-        let availability = self
-            .projection()
+        self.projection()
             .with_clipboard(clipboard.canvas())
-            .availability(editor_action);
-        if !availability.is_available() {
-            return Err(AppError::Unavailable {
-                action: editor_action,
-                availability,
-            });
-        }
+            .availability(editor_action)
+            .require(editor_action)?;
         self.end_drafts(&Intent::Clipboard(action));
         self.fills.interrupt();
         self.layers.interrupt();

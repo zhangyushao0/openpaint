@@ -1,4 +1,4 @@
-//! Layer masks (S24): a layer's grey content that shows or hides the layer's paint. White
+//! Layer masks: a layer's grey content that shows or hides the layer's paint. White
 //! reveals, black hides, grey shows a share; a new mask is white everywhere, so nothing changes
 //! until it is painted on. A mask holds strokes and fills like a layer, painted in neutral grey
 //! over its white (`LayerMask`); the brush paints the current colour's grey, the eraser white.

@@ -4,14 +4,13 @@
 //! (Procreate's model: the brush stays when another artwork opens). Like Procreate, the smudge
 //! and the eraser choose their own brushes from the same library, and every brush remembers its
 //! own size, opacity and StreamLine per tool. Stored apart from artworks (ARCHITECTURE section
-//! 5, DECISIONS D09): a state that cannot be used falls back to the defaults.
+//! 5): a state that cannot be used falls back to the defaults.
 //!
-//! A pen button (or the eraser end) may hold the eraser or the eyedropper (S41, D68): while
-//! held the pen uses it, the projection shows it, and the tool chosen before is what is stored
-//! and what comes back. Since S46 the library is the user's too: the brush editor changes,
-//! copies, resets and deletes brushes (`toolbox_brushes.rs`), stored with the toolbox; since S47
-//! the brushes lie in sets the hand orders, and Recent lists those drawn with last
-//! (`toolbox_sets.rs`).
+//! A pen button (or the eraser end) may hold the eraser or the eyedropper (D70): while held the
+//! pen uses it, the projection shows it, and the tool chosen before is what is stored and what
+//! comes back. The library is the user's: the brush editor changes, copies, resets and deletes
+//! brushes (`toolbox_brushes.rs`), stored with the toolbox; the brushes lie in sets the hand
+//! orders, and Recent lists those drawn with last (`toolbox_sets.rs`).
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -57,6 +56,24 @@ impl Tool {
             Self::Smudge => 2,
         }
     }
+
+    /// What a stroke of this tool does.
+    const fn stroke(self) -> StrokeTool {
+        match self {
+            Self::Brush => StrokeTool::Paint,
+            Self::Eraser => StrokeTool::Erase,
+            Self::Smudge => StrokeTool::Smudge,
+        }
+    }
+
+    /// The tool that draws strokes doing `stroke`.
+    const fn of(stroke: StrokeTool) -> Self {
+        match stroke {
+            StrokeTool::Paint => Self::Brush,
+            StrokeTool::Erase => Self::Eraser,
+            StrokeTool::Smudge => Self::Smudge,
+        }
+    }
 }
 
 /// The smudge's brush at first (draweave's Soft Airbrush), when the library holds it.
@@ -90,7 +107,7 @@ impl ToolSet {
 pub struct Toolbox {
     library: BrushLibrary,
     rows: Arc<[BrushRow]>,
-    /// Where each brush lies, and Recent (S47); `set_rows` lists them.
+    /// Where each brush lies, and Recent; `set_rows` lists them.
     brush_sets: BrushSets,
     set_rows: Arc<[Vec<BrushRow>; 5]>,
     /// The tool chosen.
@@ -108,7 +125,7 @@ pub struct Toolbox {
     unsaved: bool,
     /// A slider or the colour wheel is held; the store gets the value it settles on.
     holding: bool,
-    /// The stamps a brush had before the editor made its stroke continuous (S46), which a
+    /// The stamps a brush had before the editor made its stroke continuous, which a
     /// spacing brings back while it is edited; never stored.
     kept: Option<(BrushKey, ShapeParts)>,
     /// The names of stored brushes the engine refused at the last restore.
@@ -156,6 +173,12 @@ impl Toolbox {
     #[must_use]
     pub const fn library(&self) -> &BrushLibrary {
         &self.library
+    }
+
+    /// The picker's rows of the library and the sets as they are now.
+    fn relist(&mut self) {
+        self.rows = rows_of(&self.library);
+        self.set_rows = self.brush_sets.rows(&self.library);
     }
 
     /// True while the eyedropper is on, chosen or held by a pen button.
@@ -295,11 +318,7 @@ impl Toolbox {
             opacity,
             self.palette.color(),
         )?;
-        Ok(style.with_tool(match tool {
-            Tool::Brush => StrokeTool::Paint,
-            Tool::Eraser => StrokeTool::Erase,
-            Tool::Smudge => StrokeTool::Smudge,
-        }))
+        Ok(style.with_tool(tool.stroke()))
     }
 
     /// How the next stroke follows the pen: the brush's StreamLine of the tool used now.

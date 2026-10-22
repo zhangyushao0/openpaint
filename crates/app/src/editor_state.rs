@@ -16,16 +16,16 @@ pub struct EditorState {
     pub color: [f32; 3],
     /// Newest first.
     pub recent: Vec<[f32; 3]>,
-    /// What the pen's side buttons do (S41).
+    /// What the pen's side buttons do.
     pub buttons: ButtonMap,
-    /// The palette's swatches, sRGB, in their order (S41).
+    /// The palette's swatches, sRGB, in their order.
     pub swatches: Vec<[f32; 3]>,
-    /// The brush library in picker order (S46); empty: the built-ins as their files have them.
+    /// The brush library in picker order; empty: the built-ins as their files have them.
     pub library: Vec<StoredBrush>,
-    /// The keys of Sketching, Inking, Painting and Texture in their order (S47); all four empty
+    /// The keys of Sketching, Inking, Painting and Texture in their order; all four empty
     /// while every brush lies where a first start puts it. A brush in no list goes there.
     pub sets: [Vec<String>; 4],
-    /// The keys of the brushes drawn with last, newest first (S47).
+    /// The keys of the brushes drawn with last, newest first.
     pub recent_brushes: Vec<String>,
 }
 

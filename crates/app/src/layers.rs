@@ -1,7 +1,7 @@
 //! The layer intents: what the layer panel asks of the session, and the layer list it shows.
 //!
 //! Every change of the layers, groups and masks is one history step that undo takes back, with
-//! two exceptions (DECISIONS D65): choosing the layer to draw on (its paint or its mask) is not
+//! two exceptions (DECISIONS D66): choosing the layer to draw on (its paint or its mask) is not
 //! an edit and changes the current step in place, and an opacity slider (a layer's or a
 //! group's) moved in one touch is one step however many values it passed. Collapsing a group is
 //! the panel's own state.
@@ -26,7 +26,7 @@ pub enum LayerIntent {
     Select(LayerId),
     /// Remove the layer and its strokes; undo brings both back.
     Delete(LayerId),
-    /// Merge Down (S39): the layer goes into the one below, which becomes active; one step.
+    /// Merge Down: the layer goes into the one below, which becomes active; one step.
     MergeDown(LayerId),
     /// A copy right above the layer, which becomes active (`LayerCommand::Duplicate`).
     Duplicate(LayerId),
@@ -81,7 +81,7 @@ pub enum LayerIntent {
         opacity: f32,
         settled: bool,
     },
-    /// A white mask on the layer, which becomes active with its mask the target (S24).
+    /// A white mask on the layer, which becomes active with its mask the target.
     AddMask(LayerId),
     /// Paint on the layer's mask from now on; like `Select`, not an edit of its own.
     SelectMask(LayerId),
@@ -335,13 +335,9 @@ impl Layers {
     ) -> Result<(), AppError> {
         let artwork = history.current();
         let (action, layer) = intent.action(artwork.active());
-        let availability = availability(artwork, drawing, action, layer);
-        if !availability.is_available() {
+        if let Err(refused) = availability(artwork, drawing, action, layer).require(action) {
             self.sliding = None;
-            return Err(AppError::Unavailable {
-                action,
-                availability,
-            });
+            return Err(refused);
         }
         let applied = artwork.apply(intent.command())?;
         let (sliding, settled) = intent

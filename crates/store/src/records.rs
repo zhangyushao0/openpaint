@@ -19,7 +19,7 @@
 //!   group its id, name, visible and opacity; last the active layer (u64) and the target (u8: 0
 //!   its paint, 1 its mask);
 //! - `[project u64]['s'][slot u64][index u64]` -> a stroke (`strokes.rs`), oldest at index 0;
-//! - `[project u64]['e'][slot u64][index u64]` -> a region edit (`fills.rs`): a fill, cleared
+//! - `[project u64]['e'][slot u64][index u64]` -> a region edit (`edits.rs`): a fill, cleared
 //!   pixels, a transform, an adjustment or a merged layer;
 //! - `[project u64]['t']` -> the gallery picture (`catalogue.rs`), absent until first left;
 //! - `[project u64]['v'][version u64]` -> a kept version, an OpenPaint file (`versions.rs`).
@@ -100,20 +100,20 @@ pub(crate) fn strokes_prefix(project: ProjectId) -> Vec<u8> {
 }
 
 /// The prefix of the stroke records of one slot, in drawing order.
-pub(crate) fn layer_prefix(project: ProjectId, slot: u64) -> Vec<u8> {
+pub(crate) fn slot_strokes_prefix(project: ProjectId, slot: u64) -> Vec<u8> {
     let mut key = strokes_prefix(project);
     key.extend_from_slice(&slot.to_be_bytes());
     key
 }
 
 pub(crate) fn stroke_key(project: ProjectId, slot: u64, index: usize) -> Vec<u8> {
-    let mut key = layer_prefix(project, slot);
+    let mut key = slot_strokes_prefix(project, slot);
     key.extend_from_slice(&(index as u64).to_be_bytes());
     key
 }
 
 /// The index at the end of a stroke or edit key.
-pub(crate) fn stroke_index(key: &[u8]) -> Option<u64> {
+pub(crate) fn record_index(key: &[u8]) -> Option<u64> {
     let (_, index) = key.split_last_chunk::<8>()?;
     Some(u64::from_be_bytes(*index))
 }

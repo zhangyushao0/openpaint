@@ -13,7 +13,7 @@ use crate::batch::Batch;
 use crate::catalogue::{Entry, encode_entry, encode_thumbnail};
 use crate::delta::{contents, delta};
 use crate::editor::{EDITOR, encode_editor};
-use crate::fills::{encode_edit, fill_key, fills_prefix};
+use crate::edits::{edit_key, edits_prefix, encode_edit};
 use crate::library::{Open, device};
 use crate::read;
 use crate::records::{
@@ -94,7 +94,7 @@ pub(crate) fn open(open: &Open, id: ProjectId) -> Result<(), PortError> {
 }
 
 /// Project `id`'s head, which holds `artwork` and no save id, written again with a new one
-/// (S54), which is returned; nothing else changes.
+///, which is returned; nothing else changes.
 pub(crate) fn name(open: &Open, id: ProjectId, artwork: &Artwork) -> Result<SaveId, PortError> {
     let saved = new_save_id();
     let mut batch = Batch::new(open);
@@ -107,7 +107,7 @@ pub(crate) fn name(open: &Open, id: ProjectId, artwork: &Artwork) -> Result<Save
     Ok(saved)
 }
 
-/// The head and the stroke and fill records that turn `base` (what the disk holds, when known)
+/// The head and the stroke and edit records that turn `base` (what the disk holds, when known)
 /// into `artwork`; without a base, every record. The head holds a new save id, returned. The
 /// project is touched and stays open.
 pub(crate) fn save(
@@ -134,7 +134,7 @@ pub(crate) fn save(
     Ok(saved)
 }
 
-/// A new random save id (S54): SipHash of a count under keys `RandomState` takes from the
+/// A new random save id: SipHash of a count under keys `RandomState` takes from the
 /// system's randomness once a thread, so two saves, in this process or any other, share one
 /// only by a chance of about 2^-64.
 fn new_save_id() -> SaveId {
@@ -224,29 +224,25 @@ pub(crate) fn delete(open: &Open, id: ProjectId) -> Result<(), PortError> {
 
 fn write_delta(open: &Open, batch: &mut Batch, id: ProjectId, base: &Artwork, artwork: &Artwork) {
     let changes = delta(base, artwork);
-    for ((layer, index), stroke) in changes.write {
+    for ((slot, index), stroke) in changes.strokes {
         batch.insert(
             &open.projects,
-            stroke_key(id, layer, index),
+            stroke_key(id, slot, index),
             encode_stroke(stroke),
         );
     }
-    for (layer, index) in changes.remove {
-        batch.remove(&open.projects, stroke_key(id, layer, index));
+    for (slot, index) in changes.removed_strokes {
+        batch.remove(&open.projects, stroke_key(id, slot, index));
     }
-    for ((layer, index), fill) in changes.write_fills {
-        batch.insert(
-            &open.projects,
-            fill_key(id, layer, index),
-            encode_edit(fill),
-        );
+    for ((slot, index), edit) in changes.edits {
+        batch.insert(&open.projects, edit_key(id, slot, index), encode_edit(edit));
     }
-    for (layer, index) in changes.remove_fills {
-        batch.remove(&open.projects, fill_key(id, layer, index));
+    for (slot, index) in changes.removed_edits {
+        batch.remove(&open.projects, edit_key(id, slot, index));
     }
 }
 
-/// Every stroke and fill record of `artwork`, and the removal of any other stroke or fill
+/// Every stroke and edit record of `artwork`, and the removal of any other stroke or edit
 /// record the project has on disk. For a new project, and for a save whose base is unknown
 /// after a failure.
 fn write_all(
@@ -262,13 +258,13 @@ fn write_all(
             batch.insert(&open.projects, key.clone(), encode_stroke(stroke));
             written.insert(key);
         }
-        for (index, fill) in edits.iter().enumerate() {
-            let key = fill_key(id, slot, index);
-            batch.insert(&open.projects, key.clone(), encode_edit(fill));
+        for (index, edit) in edits.iter().enumerate() {
+            let key = edit_key(id, slot, index);
+            batch.insert(&open.projects, key.clone(), encode_edit(edit));
             written.insert(key);
         }
     }
-    for prefix in [strokes_prefix(id), fills_prefix(id)] {
+    for prefix in [strokes_prefix(id), edits_prefix(id)] {
         for guard in open.projects.prefix(prefix) {
             let key = guard.key().map_err(device)?;
             if !written.contains(key.as_ref()) {

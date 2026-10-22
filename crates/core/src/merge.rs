@@ -1,4 +1,4 @@
-//! Merge Down (S39, Procreate's): a layer goes into the layer below it as a nested record
+//! Merge Down (Procreate's): a layer goes into the layer below it as a nested record
 //! (`nested.rs`), so the canvas shows what it showed. Allowed only where that holds by the
 //! compositing rules (D50): a layer clipped to the layer below (its base) merges whatever its
 //! mode, opacity and masks, as the clipping chain was that very composite; otherwise both must
@@ -17,7 +17,6 @@ use crate::command::Applied;
 use crate::error::CoreError;
 use crate::id::LayerId;
 use crate::layer::Layer;
-use crate::layer_command::content;
 use crate::nested::{MAX_NESTING, NestedEdit, NestedLayer, nesting};
 use crate::region::RegionEdit;
 
@@ -150,7 +149,7 @@ pub(crate) fn merge_down(artwork: &Artwork, id: LayerId) -> Result<Applied, Core
     let lower_id = lower.id;
     next.layers[below] = lower;
     next.activate(lower_id);
-    Ok(content(next))
+    Ok(Applied::content(next))
 }
 
 fn nested_edit(after: usize, layer: NestedLayer) -> RegionEdit {

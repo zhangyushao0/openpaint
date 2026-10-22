@@ -7,7 +7,6 @@ use crate::command::Applied;
 use crate::error::CoreError;
 use crate::group::prune;
 use crate::id::{GroupId, LayerId};
-use crate::layer_command::content;
 
 /// Where a layer lies after `by` steps of `Raise` (above 0) or `Lower` (below 0): its index
 /// from the bottom of the stack and its group.
@@ -104,7 +103,7 @@ pub(crate) fn reorder(artwork: &Artwork, id: LayerId, index: usize) -> Result<Ap
         _ => None,
     };
     prune(&next.layers, &mut next.groups);
-    Ok(content(next))
+    Ok(Applied::content(next))
 }
 
 /// `by` single steps (`stepped`) as one change; 0 changes nothing.
@@ -131,5 +130,5 @@ pub(crate) fn move_by(artwork: &Artwork, id: LayerId, by: i32) -> Result<Applied
     layer.props.group = group;
     next.layers.insert(index, layer);
     prune(&next.layers, &mut next.groups);
-    Ok(content(next))
+    Ok(Applied::content(next))
 }

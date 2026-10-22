@@ -10,9 +10,12 @@
 use openpaint_app::{AdjustIntent, Intent};
 use openpaint_core::{Adjustment, Blur, Curves, Hsb, Sharpen, ToneChannel, ToneCurve};
 
-use crate::components::{choices, curve_editor, slider, text_button, text_choice, value_row};
+use crate::components::{
+    choices, curve_editor, panel_heading, slider, text_button, text_choice, value_row,
+};
 use crate::design::{SPACE, TOUCH_TARGET};
 use crate::layer_rows::percent;
+use crate::taps::push_once;
 
 /// The curves the choice offers, with Procreate's names.
 const CHANNELS: [(&str, ToneChannel); 4] = [
@@ -31,31 +34,31 @@ pub(crate) fn controls(
 ) {
     let reset = match adjustment {
         Adjustment::Hsb(hsb) => {
-            heading(ui, "Hue, Saturation, Brightness");
+            panel_heading(ui, "Hue, Saturation, Brightness");
             hsb_sliders(ui, *hsb, taps);
             (*hsb != Hsb::NONE).then_some(Adjustment::Hsb(Hsb::NONE))
         }
         Adjustment::Curves(curves) => {
-            heading(ui, "Curves");
+            panel_heading(ui, "Curves");
             curve_rows(ui, curves, channel, taps);
             let shown = curves.curve(*channel);
             (!shown.is_identity())
                 .then(|| Adjustment::Curves(curves.with(*channel, ToneCurve::identity())))
         }
         Adjustment::Blur(blur) => {
-            heading(ui, "Gaussian Blur");
+            panel_heading(ui, "Gaussian Blur");
             let share = blur.radius / Blur::MAX_RADIUS;
             if let Some(value) = one_slider(ui, "Radius", share) {
                 let set = Adjustment::Blur(Blur::new(value * Blur::MAX_RADIUS));
-                push(taps, Intent::Adjust(AdjustIntent::Set(set)));
+                push_once(taps, Intent::Adjust(AdjustIntent::Set(set)));
             }
             (*blur != Blur::NONE).then_some(Adjustment::Blur(Blur::NONE))
         }
         Adjustment::Sharpen(sharpen) => {
-            heading(ui, "Sharpen");
+            panel_heading(ui, "Sharpen");
             if let Some(value) = one_slider(ui, "Amount", sharpen.amount) {
                 let set = Adjustment::Sharpen(Sharpen::new(value));
-                push(taps, Intent::Adjust(AdjustIntent::Set(set)));
+                push_once(taps, Intent::Adjust(AdjustIntent::Set(set)));
             }
             (*sharpen != Sharpen::NONE).then_some(Adjustment::Sharpen(Sharpen::NONE))
         }
@@ -72,7 +75,7 @@ fn hsb_sliders(ui: &mut egui::Ui, hsb: Hsb, taps: &mut Vec<Intent>) {
             let mut set = values;
             set[index] = change.value;
             let set = Hsb::new(set[0], set[1], set[2]);
-            push(
+            push_once(
                 taps,
                 Intent::Adjust(AdjustIntent::Set(Adjustment::Hsb(set))),
             );
@@ -104,7 +107,7 @@ fn curve_rows(
     ui.add_space(SPACE);
     if let Some(change) = curve_editor(ui, "Curve", curves.curve(*channel)) {
         let set = Adjustment::Curves(curves.with(*channel, change.curve));
-        push(taps, Intent::Adjust(AdjustIntent::Set(set)));
+        push_once(taps, Intent::Adjust(AdjustIntent::Set(set)));
     }
 }
 
@@ -115,31 +118,15 @@ fn commands(ui: &mut egui::Ui, reset: Option<Adjustment>, taps: &mut Vec<Intent>
         if text_button(ui, "Reset", reset.is_some()).clicked()
             && let Some(reset) = reset
         {
-            push(taps, Intent::Adjust(AdjustIntent::Set(reset)));
+            push_once(taps, Intent::Adjust(AdjustIntent::Set(reset)));
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if text_button(ui, "Apply", true).clicked() {
-                push(taps, Intent::Adjust(AdjustIntent::Apply));
+                push_once(taps, Intent::Adjust(AdjustIntent::Apply));
             }
             if text_button(ui, "Cancel", true).clicked() {
-                push(taps, Intent::Adjust(AdjustIntent::Cancel));
+                push_once(taps, Intent::Adjust(AdjustIntent::Cancel));
             }
         });
     });
-}
-
-/// A panel's name over its rows.
-pub(crate) fn heading(ui: &mut egui::Ui, name: &str) {
-    ui.horizontal(|ui| {
-        ui.set_height(TOUCH_TARGET);
-        ui.add_space(2.0 * SPACE);
-        ui.heading(name);
-    });
-}
-
-/// egui may run a pass twice; one tap or value is sent once.
-pub(crate) fn push(taps: &mut Vec<Intent>, intent: Intent) {
-    if taps.last() != Some(&intent) {
-        taps.push(intent);
-    }
 }

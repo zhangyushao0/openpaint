@@ -1,4 +1,4 @@
-//! QuickShape's and the Drawing Guide's chrome (S42). After a stroke snaps to a shape, a pill in
+//! QuickShape's and the Drawing Guide's chrome. After a stroke snaps to a shape, a pill in
 //! the middle of the top band offers Edit shape; tapped, the shape's handles show over the
 //! canvas (the Transform tool's handle marks) and the pill says Done; anything else done ends
 //! it, and the pill goes. While the Drawing Guide is on, its lines show faintly over the canvas
@@ -9,8 +9,9 @@ use egui::{Order, Pos2, Stroke};
 use openpaint_app::{Guide, Intent, SessionProjection, StrokeIntent, Symmetry, ViewMapping};
 use openpaint_core::CanvasSize;
 
-use crate::components::{Place, ScreenArea, Source, UNDER_ISLANDS, pill, text_button};
+use crate::components::{Place, ScreenArea, Source, pill, text_button};
 use crate::design::{INK_SECONDARY, PANEL};
+use crate::taps::push_once;
 use crate::transform_bar::handle_mark;
 
 /// The guide's line and the paper line under it, in points, and how strongly they show.
@@ -36,20 +37,18 @@ impl ShapeBar {
         let Some(shape) = projection.shape() else {
             return;
         };
-        let mut place = Place::top_middle();
-        if projection.selection().tool || projection.transform().tool {
-            place.offset.y = UNDER_ISLANDS;
-        }
+        let place =
+            Place::middle_unless(projection.selection().tool || projection.transform().tool);
         let source = Source::Within(egui::Align::Center);
         let label = if shape.editing { "Done" } else { "Edit shape" };
         let (tapped, rect) = pill(ctx, "shape bar", place, source, |ui| {
             text_button(ui, label, true).clicked()
         });
         if tapped {
-            let intent = Intent::Stroke(StrokeIntent::EditShape(!shape.editing));
-            if taps.last() != Some(&intent) {
-                taps.push(intent);
-            }
+            push_once(
+                taps,
+                Intent::Stroke(StrokeIntent::EditShape(!shape.editing)),
+            );
         }
         self.area = Some(ScreenArea::from_points(rect, ctx.pixels_per_point()));
     }

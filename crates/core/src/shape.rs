@@ -1,4 +1,4 @@
-//! `Shape`: what a brush's tip looks like and how it is laid along the stroke (S45, DECISIONS
+//! `Shape`: what a brush's tip looks like and how it is laid along the stroke (DECISIONS
 //! D72). With a spacing of 0 the stroke is the continuous round capsule every stroke was before
 //! (D07, archived). With a spacing, the stroke is a row of stamps at equal distances along its
 //! path, `n * spacing * size` canvas pixels from its start for the n-th stamp: each the tip's

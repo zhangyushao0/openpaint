@@ -1,17 +1,17 @@
 //! Transform (Procreate's Transform, draweave's behaviour): a layer's content, or the part of it
 //! inside a selection, placed again by an affine map at its place among the layer's strokes.
-//! Since S31 a transform is a record: what it moved (a selection or the whole layer) and its
-//! `Placement`; the content it shows is the layer's earlier content, evaluated where each pixel
-//! maps back to, so strokes stay sharp at any scale (DECISIONS D57). An older transform and an
-//! inserted picture carry pixels instead (`Patch`, D45, D52): the edit clears what it lifted and
-//! draws the patch through its placement.
+//! A transform is a record: what it moved (a selection or the whole layer) and its `Placement`;
+//! the content it shows is the layer's earlier content, evaluated where each pixel maps back to,
+//! so strokes stay sharp at any scale (DECISIONS D57). An inserted picture (and the drag's
+//! preview) carries pixels instead (`Patch`, D67): the edit clears what it lifted and draws the
+//! patch through its placement.
 
 use std::sync::Arc;
 
 use crate::artwork::Artwork;
-use crate::command::{Applied, Change};
+use crate::command::Applied;
 use crate::error::CoreError;
-use crate::region::{RegionEdit, RegionMask, check_mask, push_edit};
+use crate::region::{RegionEdit, RegionMask, check_mask, push_edit, rect_fits};
 use crate::value::{COORD_LIMIT, CanvasSize, invalid};
 
 /// The largest a placement may scale or shrink content: `1 / MAX_SCALE..=MAX_SCALE` per axis.
@@ -147,14 +147,8 @@ impl Patch {
         size: [u32; 2],
         pixels: Vec<u8>,
     ) -> Result<Self, CoreError> {
-        let fits = |at: u32, side: u32, limit: u32| {
-            side > 0 && at.checked_add(side).is_some_and(|end| end <= limit)
-        };
         let count = size[0] as usize * size[1] as usize * 4;
-        if !fits(origin[0], size[0], canvas.width())
-            || !fits(origin[1], size[1], canvas.height())
-            || pixels.len() != count
-        {
+        if !rect_fits(canvas, origin, size) || pixels.len() != count {
             return Err(invalid("patch"));
         }
         Ok(Self {
@@ -195,7 +189,7 @@ impl PartialEq for Patch {
     }
 }
 
-/// A transform on a layer, after its first `after` strokes. Without a patch (a record, S31) the
+/// A transform on a layer, after its first `after` strokes. Without a patch (a record) the
 /// layer's content so far inside `lift` (on the canvas, when `None`) is shown through
 /// `placement` and the rest stays; with one, the pixels of `lift` (the whole layer when `None`)
 /// are cleared and `patch` is drawn through `placement`.
@@ -219,7 +213,7 @@ impl TransformEdit {
         self.lift.as_ref()
     }
 
-    /// The pixels placed, for an older transform or an inserted picture; `None` for a record,
+    /// The pixels placed, for an inserted picture or the drag's preview; `None` for a record,
     /// whose content is the layer's own.
     #[must_use]
     pub const fn patch(&self) -> Option<&Patch> {
@@ -234,11 +228,7 @@ impl TransformEdit {
     /// The same transform seen from two versions: shared masks and pixels, the same place and
     /// map.
     pub(crate) fn same(&self, other: &Self) -> bool {
-        let lift = match (&self.lift, &other.lift) {
-            (Some(a), Some(b)) => a.shares(b),
-            (None, None) => true,
-            _ => false,
-        };
+        let lift = RegionMask::both_shared(self.lift.as_ref(), other.lift.as_ref());
         let patch = match (&self.patch, &other.patch) {
             (Some(a), Some(b)) => a.shares(b),
             (None, None) => true,
@@ -258,12 +248,11 @@ pub(crate) fn transform_from(
     if let Some(lift) = &lift {
         check_mask(canvas, lift)?;
     }
-    if let Some(patch) = &patch {
-        let [x, y] = patch.origin;
-        let [w, h] = patch.size;
-        if x.saturating_add(w) > canvas.width() || y.saturating_add(h) > canvas.height() {
-            return Err(invalid("patch"));
-        }
+    if patch
+        .as_ref()
+        .is_some_and(|patch| !rect_fits(canvas, patch.origin, patch.size))
+    {
+        return Err(invalid("patch"));
     }
     Ok(TransformEdit {
         after,
@@ -275,7 +264,7 @@ pub(crate) fn transform_from(
 
 impl Artwork {
     /// Places the active layer's content so far (inside `lift`, when given) by `placement`,
-    /// above its strokes so far: a record, evaluated by mapping back (S31).
+    /// above its strokes so far: a record, evaluated by mapping back.
     ///
     /// # Errors
     /// `LayerLocked` when the active layer is locked; `OnMask` when its mask is the target (a
@@ -290,7 +279,7 @@ impl Artwork {
 
     /// Transforms the active layer above its strokes so far by pixels: clears `lift`
     /// (everything when `None`) and draws `patch` through `placement`. An inserted picture is
-    /// placed so (S26); older artworks hold such transforms.
+    /// placed so, and the drag's preview.
     ///
     /// # Errors
     /// As `place_region`, and `InvalidValue` when the patch leaves the canvas.
@@ -315,10 +304,6 @@ impl Artwork {
         }
         let after = self.state().layers[index].strokes.len();
         let edit = transform_from(self.canvas(), after, lift, patch, placement)?;
-        let artwork = push_edit(self, index, RegionEdit::Transform(edit));
-        Ok(Applied {
-            artwork,
-            change: Change::Content,
-        })
+        Ok(push_edit(self, index, RegionEdit::Transform(edit)))
     }
 }

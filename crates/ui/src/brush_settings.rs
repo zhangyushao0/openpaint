@@ -1,4 +1,4 @@
-//! The brush editor's settings (S46), one scrolling column grouped by a word each: Stroke
+//! The brush editor's settings, one scrolling column grouped by a word each: Stroke
 //! (Spacing, StreamLine, the taper), Shape (the stamp's shape as words in two columns, its
 //! aspect, rotation, angle, jitters, scatter and the edge's softness), Grain, Paint (Covering or
 //! Builds up, and under Builds up the tip, flow, maximum density and paper), Size (the size
@@ -11,9 +11,10 @@ use openpaint_app::{
 use openpaint_core::{Rotation, ShapeTexture, Stamp, Tip};
 
 use crate::components::{
-    SettingSlider, choices, hint, menu_row, section, setting_slider, text_choice_wide,
+    SettingSlider, choices, hint, menu_row, section, setting_slider, text_choice_wide, word_columns,
 };
 use crate::design::{INK, INK_DISABLED, SPACE, TOUCH_TARGET};
+use crate::taps::push_brush;
 
 /// The stamps' shapes in the order the words show, two to a row.
 const STAMPS: [(Stamp, &str); 7] = [
@@ -31,15 +32,8 @@ const ROTATIONS: [(Rotation, &str); 3] = [
     (Rotation::Azimuth, "Azimuth"),
 ];
 
-/// One value of a touch, sent once (egui may run a pass twice).
-pub(crate) fn push_once(taps: &mut Vec<Intent>, intent: Intent) {
-    if taps.last() != Some(&intent) {
-        taps.push(intent);
-    }
-}
-
 fn edit(taps: &mut Vec<Intent>, change: BrushChange, settled: bool) {
-    push_once(taps, Intent::Brush(BrushIntent::Edit { change, settled }));
+    push_brush(taps, BrushIntent::Edit { change, settled });
 }
 
 /// The column. Returns the dynamics page a row opened, if one was tapped.
@@ -152,27 +146,18 @@ fn streamline(ui: &mut egui::Ui, amount: f32, taps: &mut Vec<Intent>) {
             amount: change.value,
             settled: change.settled,
         };
-        push_once(taps, Intent::Brush(intent));
+        push_brush(taps, intent);
     }
 }
 
 /// The stamps' shapes as words in two columns, the chosen in the ink pill (a continuous
 /// stroke's round tip is the disc); while the paper keeps the stroke continuous, only the disc.
 fn stamps(ui: &mut egui::Ui, edited: &EditedBrush, taps: &mut Vec<Intent>) {
-    let half = ((ui.available_width() - 2.0 * SPACE) / 2.0).floor();
-    choices(ui, "stamps", |ui, group| {
-        for pair in stamp_words(edited).chunks(2) {
-            ui.horizontal(|ui| {
-                ui.add_space(2.0 * SPACE);
-                for &(stamp, label, on, enabled) in pair {
-                    let word = text_choice_wide(ui, group, label, (enabled, on), half);
-                    if word.clicked() && !on {
-                        edit(taps, BrushChange::Stamp(stamp), true);
-                    }
-                }
-            });
-        }
-    });
+    let stamps = stamp_words(edited);
+    let words = stamps.map(|(_, label, on, enabled)| (label, on, enabled));
+    if let Some(at) = word_columns(ui, "stamps", &words) {
+        edit(taps, BrushChange::Stamp(stamps[at].0), true);
+    }
     if !edited.offers_stamps() {
         hint(ui, "Paper keeps the stroke continuous.");
     }

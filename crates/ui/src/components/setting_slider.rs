@@ -1,4 +1,4 @@
-//! The setting slider (S46): one row across a panel for one of many numbers, as the brush
+//! The setting slider: one row across a panel for one of many numbers, as the brush
 //! editor lists them. At the left what it sets, in ink, with its value under it in the quieter
 //! ink; at the right the track, one touch target high, which alone takes the hand: the knob jumps
 //! to where it presses and follows it, lifting settles the value. While held, a bubble over the
@@ -7,7 +7,7 @@
 
 use egui::{Align2, Order, Pos2, Rect, Sense, TextStyle, Vec2, WidgetInfo};
 
-use crate::components::slider::paint_track;
+use crate::components::slider::{along, paint_track};
 use crate::components::{SliderChange, controls};
 use crate::design::{INK, INK_DISABLED, INK_SECONDARY, SPACE, TOUCH_TARGET, panel_frame};
 
@@ -46,16 +46,8 @@ pub fn setting_slider(ui: &mut egui::Ui, slider: &SettingSlider<'_>) -> Option<S
     response.widget_info(|| WidgetInfo::slider(enabled, f64::from(slider.position), slider.label));
     controls::register(ui, slider.label, track_rect);
     let track = track_rect.shrink2(Vec2::new(KNOB, 0.0));
-    let settled = response.drag_stopped() || response.clicked();
     let held = enabled && response.is_pointer_button_down_on();
-    let change = response
-        .interact_pointer_pos()
-        .filter(|_| held || (enabled && settled))
-        .map(|pos| SliderChange {
-            value: ((pos.x - track.left()) / track.width()).clamp(0.0, 1.0),
-            settled,
-        })
-        .filter(|change| change.settled || change.value != slider.position);
+    let change = along(&response, track, slider.position, enabled);
     let position = change.map_or(slider.position, |change| change.value);
     let knob = Pos2::new(track.left() + position * track.width(), track.center().y);
     if ui.is_rect_visible(row) {

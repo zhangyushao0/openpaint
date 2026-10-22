@@ -3,7 +3,7 @@
 //! version when it lifts; a cancelled contact leaves the artwork as it was.
 //!
 //! Only the pen draws, with the style the toolbox gives (painting, smudging or erasing); its
-//! eraser end draws too, with the eraser the toolbox holds for it (S41). Fingers do nothing
+//! eraser end draws too, with the eraser the toolbox holds for it. Fingers do nothing
 //! (D18).
 //!
 //! The stroke follows the pen through its StreamLine (`streamline.rs`), frozen when the stroke
@@ -69,7 +69,7 @@ struct Drawing {
 #[derive(Debug)]
 pub(crate) struct Strokes {
     style: StrokeStyle,
-    /// The seed the next stroke's stamps jitter by (S45).
+    /// The seed the next stroke's stamps jitter by.
     seed: u32,
     streamline: StreamLine,
     guide: Guide,
@@ -81,7 +81,7 @@ pub(crate) struct Strokes {
     /// The last intent changed what the canvas shows other than by drawing or committing the
     /// stroke the renderer follows.
     reshown: bool,
-    /// The last intent committed a stroke of this tool (S47: its brush becomes Recent's newest).
+    /// The last intent committed a stroke of this tool (its brush becomes Recent's newest).
     committed: Option<StrokeTool>,
 }
 
@@ -171,7 +171,7 @@ impl Strokes {
         }
     }
 
-    /// Commits the stroke being drawn into `history` as its lift would, without a lift (S50: the
+    /// Commits the stroke being drawn into `history` as its lift would, without a lift (the
     /// app is left or its window goes mid-stroke). Returns whether there was one.
     pub(crate) fn end(&mut self, history: &mut History) -> Result<bool, AppError> {
         self.reshown = false;

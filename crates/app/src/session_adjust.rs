@@ -10,21 +10,6 @@ use crate::selection::SelectionIntent;
 use crate::stroke::StrokeIntent;
 
 impl Session {
-    /// Whether the last stroke intent changed what the canvas shows beyond the stroke the
-    /// renderer follows (its mirrored copies, a shape edited, S42): the caller then evaluates
-    /// what changed between the two versions shown.
-    #[must_use]
-    pub const fn stroke_reshown(&self) -> bool {
-        self.strokes.reshown()
-    }
-
-    /// The tool of the stroke the last stroke intent committed, if it committed one (S47: the
-    /// caller hands it to `Toolbox::drew`, so its brush is Recent's newest).
-    #[must_use]
-    pub const fn stroke_committed(&self) -> Option<openpaint_core::StrokeTool> {
-        self.strokes.committed()
-    }
-
     /// True while an adjustment is under way.
     #[must_use]
     pub const fn adjusting(&self) -> bool {

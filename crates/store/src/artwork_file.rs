@@ -16,7 +16,7 @@ use openpaint_core::Artwork;
 
 use crate::catalogue::decode_thumbnail;
 use crate::codec::{Reader, Writer};
-use crate::fills::fills_prefix;
+use crate::edits::edits_prefix;
 use crate::library::{Open, device};
 use crate::read::{self, Source};
 use crate::records::{FORMAT, head_key, project_prefix, strokes_prefix, thumbnail_key, unsaved};
@@ -46,7 +46,7 @@ pub(crate) fn of_project(open: &Open, id: ProjectId) -> Result<Vec<u8>, PortErro
     let head = open.projects.get(head_key(id)).map_err(device)?;
     let head = head.ok_or(PortError::Missing(id))?;
     let mut records = vec![(head_key(id), unsaved(head.to_vec()))];
-    for kind in [strokes_prefix(id), fills_prefix(id)] {
+    for kind in [strokes_prefix(id), edits_prefix(id)] {
         open.projects.each(&kind, &mut |key, value| {
             records.push((key.to_vec(), value.to_vec()));
             Ok(())

@@ -33,21 +33,33 @@ pub fn slider(ui: &mut egui::Ui, label: &str, value: f32, enabled: bool) -> Opti
     response.widget_info(|| WidgetInfo::slider(enabled, f64::from(value), label));
     controls::register(ui, label, rect);
     let track = rect.shrink2(Vec2::new(KNOB, 0.0));
+    let change = along(&response, track, value, enabled);
+    if ui.is_rect_visible(rect) {
+        let shown = change.map_or(value, |change| change.value);
+        paint(ui, track, shown, enabled);
+    }
+    change
+}
+
+/// The value the hand set on `response` along the level `track` (its left end 0, its right 1),
+/// if it pressed or let go this frame and the value differs from `value` or the touch ended;
+/// nothing unless `enabled`. Shared with the setting slider.
+pub(crate) fn along(
+    response: &egui::Response,
+    track: Rect,
+    value: f32,
+    enabled: bool,
+) -> Option<SliderChange> {
     let settled = response.drag_stopped() || response.clicked();
     let touched = enabled && (response.is_pointer_button_down_on() || settled);
-    let change = response
+    response
         .interact_pointer_pos()
         .filter(|_| touched)
         .map(|pos| SliderChange {
             value: ((pos.x - track.left()) / track.width()).clamp(0.0, 1.0),
             settled,
         })
-        .filter(|change| change.settled || change.value != value);
-    if ui.is_rect_visible(rect) {
-        let shown = change.map_or(value, |change| change.value);
-        paint(ui, track, shown, enabled);
-    }
-    change
+        .filter(|change| change.settled || change.value != value)
 }
 
 /// The row over a slider: what it sets at the left, its value now at the right.

@@ -7,24 +7,24 @@ use crate::shape::{Rotation, Shape, Stamp};
 use crate::taper::Taper;
 use crate::value::invalid;
 
-/// A brush recipe as plain data: curves as `[x, y]` points, tilt curves over degrees.
+/// A brush recipe as plain data, stage by stage: curves as `[x, y]` points, tilt curves over
+/// degrees (`[[0, 1]]`: no tilt response).
 #[derive(Debug, Clone, PartialEq)]
 pub struct RecipeParts {
     pub softness: f32,
     pub size_pressure: Vec<[f32; 2]>,
     pub size_speed: Vec<[f32; 2]>,
+    pub size_tilt: Vec<[f32; 2]>,
     pub opacity_pressure: Vec<[f32; 2]>,
     pub opacity_speed: Vec<[f32; 2]>,
+    pub opacity_tilt: Vec<[f32; 2]>,
     pub grain_strength: f32,
     pub grain_scale: u32,
     /// `None` for a covering brush.
     pub deposit: Option<AccumulationParts>,
-    /// Since S44: size and opacity over tilt (`[[0, 1]]`: no tilt response).
-    pub size_tilt: Vec<[f32; 2]>,
-    pub opacity_tilt: Vec<[f32; 2]>,
-    /// Since S44: the taper's start and end lengths in diameters and its tip share (all 0: none).
+    /// The taper's start and end lengths in diameters and its tip share (all 0: none).
     pub taper: [f32; 3],
-    /// Since S45: the shape stage (`ShapeParts::CONTINUOUS`: the round capsule).
+    /// The shape stage (`ShapeParts::CONTINUOUS`: the round capsule).
     pub shape: ShapeParts,
 }
 
@@ -42,7 +42,7 @@ pub struct ShapeParts {
 }
 
 impl ShapeParts {
-    /// The continuous round capsule, as every recipe before S45.
+    /// The continuous round capsule.
     pub const CONTINUOUS: Self = Self {
         stamp: Stamp::Disc,
         aspect: 1.0,
@@ -172,13 +172,13 @@ impl BrushRecipe {
             softness: self.softness(),
             size_pressure: points(self.size().pressure()),
             size_speed: points(self.size().speed()),
+            size_tilt: points(self.size().tilt()),
             opacity_pressure: points(self.opacity().pressure()),
             opacity_speed: points(self.opacity().speed()),
+            opacity_tilt: points(self.opacity().tilt()),
             grain_strength: self.grain().strength(),
             grain_scale: self.grain().scale(),
             deposit,
-            size_tilt: points(self.size().tilt()),
-            opacity_tilt: points(self.opacity().tilt()),
             taper: [taper.start(), taper.end(), taper.tip()],
             shape: ShapeParts::of(self.shape()),
         }

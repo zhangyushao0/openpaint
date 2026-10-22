@@ -1,4 +1,4 @@
-//! Contacts on QuickShape's handles and on the Drawing Guide's centre (S42). While a snapped
+//! Contacts on QuickShape's handles and on the Drawing Guide's centre. While a snapped
 //! shape is edited, a pen or finger touching down within reach of one of its handles takes the
 //! nearest and drags it until it lifts (each move one `MoveHandle`). While the guide is on, a
 //! finger touching down on its centre moves it; the pen never does, so a stroke begun at the

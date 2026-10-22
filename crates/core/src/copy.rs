@@ -1,6 +1,6 @@
-//! Copy and paste (S40, Procreate's): what is copied is records, never pixels, so strokes stay
+//! Copy and paste (Procreate's): what is copied is records, never pixels, so strokes stay
 //! the truth. A copy is the content of a new layer that shows exactly what was copied: one
-//! nested record (S39, `nested.rs`) per part, then, for a copy made inside a selection, the
+//! nested record (`nested.rs`) per part, then, for a copy made inside a selection, the
 //! pixels outside it cleared (`clear.rs`). Copy takes the active layer's paint as it shows
 //! through its mask, at full opacity and by Normal; Copy All takes what the visible layers show
 //! together over nothing (no paper): each layer a record by its own opacity and mode, a
@@ -18,7 +18,6 @@ use crate::command::Applied;
 use crate::error::CoreError;
 use crate::group::members;
 use crate::layer::Layer;
-use crate::layer_command::content;
 use crate::nested::{MAX_NESTING, NestedEdit, NestedLayer};
 use crate::region::{RegionEdit, RegionMask};
 use crate::stroke_list::StrokeList;
@@ -101,7 +100,7 @@ impl Artwork {
             });
         }
         next.layers[index].edits = Arc::from(edits);
-        Ok(content(next))
+        Ok(Applied::content(next))
     }
 
     /// The records a copy holds before any clip.

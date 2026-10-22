@@ -4,7 +4,6 @@ use crate::artwork::Artwork;
 use crate::command::{Applied, Change, MaskCommand};
 use crate::error::CoreError;
 use crate::id::LayerId;
-use crate::layer_command::content;
 use crate::mask::LayerMask;
 
 pub(crate) fn apply(artwork: &Artwork, command: MaskCommand) -> Result<Applied, CoreError> {
@@ -37,7 +36,7 @@ fn add(artwork: &Artwork, id: LayerId) -> Result<Applied, CoreError> {
     next.layers[index].mask = Some(LayerMask::white());
     next.active = id;
     next.on_mask = true;
-    Ok(content(next))
+    Ok(Applied::content(next))
 }
 
 /// A disabled mask cannot be the target: disabling the target makes the layer's paint the
@@ -53,7 +52,7 @@ fn paint_target(applied: Applied, id: LayerId) -> Applied {
     }
     let mut next = state.clone();
     next.on_mask = false;
-    content(next)
+    Applied::content(next)
 }
 
 fn select(artwork: &Artwork, id: LayerId) -> Result<Applied, CoreError> {
@@ -98,7 +97,7 @@ fn edit(
     }
     let mut next = artwork.state().clone();
     next.layers[index].mask = Some(mask);
-    Ok(content(next))
+    Ok(Applied::content(next))
 }
 
 fn delete(artwork: &Artwork, id: LayerId) -> Result<Applied, CoreError> {
@@ -111,5 +110,5 @@ fn delete(artwork: &Artwork, id: LayerId) -> Result<Applied, CoreError> {
     if next.active == id {
         next.on_mask = false;
     }
-    Ok(content(next))
+    Ok(Applied::content(next))
 }

@@ -1,4 +1,4 @@
-//! Gaussian Blur and Sharpen (S33, Procreate's, on a layer): adjustments that read neighbouring
+//! Gaussian Blur and Sharpen (Procreate's, on a layer): adjustments that read neighbouring
 //! pixels. They are adjustment records like hue, saturation and brightness (`AdjustEdit`): a
 //! value, the selection they were made inside and their place among the layer's strokes; the
 //! renderer derives the layer's pixels just before them at canvas resolution and filters those

@@ -54,6 +54,17 @@ impl Place {
             offset: Vec2::new(0.0, ISLAND_TOP),
         }
     }
+
+    /// In the middle of the top band, or just under the islands while that is `taken` (by the
+    /// selection or the transform bar).
+    #[must_use]
+    pub fn middle_unless(taken: bool) -> Self {
+        let top = if taken { UNDER_ISLANDS } else { ISLAND_TOP };
+        Self {
+            anchor: Align2::CENTER_TOP,
+            offset: Vec2::new(0.0, top),
+        }
+    }
 }
 
 /// Shows the island `id` at `place`, one touch target high, with `add_contents` laid out left

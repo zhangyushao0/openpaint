@@ -1,5 +1,5 @@
 //! Nested records (format 1, DECISIONS D66): a layer merged down into another, an edit record of
-//! kind 4 (`fills.rs`). After the kind and how many strokes lie under it: the merged layer's id
+//! kind 4 (`edits.rs`). After the kind and how many strokes lie under it: the merged layer's id
 //! (u64), opacity (f32), blend (u8, as the head's), clipped (u8), its stroke and edit counts
 //! (u32), then its mask as the head stores a layer's (`write_layer_mask`). Its strokes and edits
 //! are records under its id, its mask's under `mask_slot(id)`, as a layer's are, so a merge
@@ -9,7 +9,7 @@ use openpaint_app::PortError;
 use openpaint_core::{NestedEdit, NestedParts};
 
 use crate::codec::Reader;
-use crate::fills::edit_writer;
+use crate::edits::edit_writer;
 use crate::records::{blend_byte, read_blend, read_layer_mask, write_layer_mask};
 
 pub(crate) const KIND_NESTED: u8 = 4;
@@ -64,7 +64,7 @@ mod tests {
         LayerCommand, LayerId, MaskCommand, StrokeSample, StrokeStyle,
     };
 
-    use crate::fills::{decode_record, encode_edit};
+    use crate::edits::{decode_record, encode_edit};
 
     fn draw(artwork: &Artwork) -> Artwork {
         let recipe = Arc::new(BrushRecipe::plain());

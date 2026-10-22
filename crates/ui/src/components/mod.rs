@@ -46,14 +46,14 @@ pub use chrome::{Source, ring_of};
 pub use color_wheel::{WheelChange, color_wheel};
 pub use controls::{Control, ControlMap, Unresolved};
 pub use curve_editor::{CurveChange, DynamicsCurve, curve_editor, dynamics_editor};
-pub use dialog::{Placement, answer_row, dialog};
+pub use dialog::{Naming, Placement, answer_row, dialog, naming_dialog};
 pub use fill_bar::{carried_drop, fill_bar};
 pub use floating::{Floating, FloatingLayout, MAT, floating};
 pub use icon_button::{icon_button, icon_choice, icon_toggle};
 pub use island::{ISLAND_TOP, Place, TOP_BAND, UNDER_ISLANDS, island, pill};
 pub use list_row::{ListRow, RowPicture, RowResponse, list_row};
 pub use loupe::{LOUPE, LOUPE_OFFSET, loupe, loupe_origin};
-pub use menu_row::{command_row, hint, menu_row, section};
+pub use menu_row::{command_row, hint, menu_row, panel_heading, panel_heading_with, section};
 pub use notice::{confirmation, notice};
 pub use popover::{Opener, popover, popover_left};
 pub use preview_strip::{StripResponse, preview_strip};
@@ -64,7 +64,9 @@ pub use slider::{SliderChange, slider, value_row};
 pub use status::status;
 pub use swatch::{color32, swatch};
 pub use switch_row::switch_row;
-pub use text_button::{divider, heading_button, text_button, text_choice, text_choice_wide};
+pub use text_button::{
+    divider, heading_button, text_button, text_choice, text_choice_wide, word_columns,
+};
 pub use text_field::{FieldResponse, text_field};
 pub(crate) use view_settle::ViewSettle;
 pub use view_status::{view_status, view_text};

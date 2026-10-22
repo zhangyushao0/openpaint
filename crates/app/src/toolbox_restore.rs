@@ -1,4 +1,4 @@
-//! Taking over the stored toolbox: the brush library first (S46), its sets and Recent (S47), then
+//! Taking over the stored toolbox: the brush library first, its sets and Recent, then
 //! each tool's brush and its settings per brush, the tool, the pen's buttons and the colours.
 
 use crate::brush_sets::BrushSets;
@@ -6,7 +6,7 @@ use crate::brushes::BrushKey;
 use crate::editor_state::{BrushChoice, EditorState};
 use crate::streamline::StreamLine;
 
-use super::{MIN_OPACITY, Tool, Toolbox, rows_of};
+use super::{MIN_OPACITY, Tool, Toolbox};
 
 impl Toolbox {
     /// Takes over a stored state: its library first (a stored brush the engine refuses falls
@@ -28,8 +28,7 @@ impl Toolbox {
         self.brush_sets = BrushSets::restore(&self.library, stored, &mut dropped);
         let sets = dropped.is_empty();
         self.dropped = dropped;
-        self.rows = rows_of(&self.library);
-        self.set_rows = self.brush_sets.rows(&self.library);
+        self.relist();
         self.kept = None;
         let brushes = &self.library;
         for set in &mut self.sets {

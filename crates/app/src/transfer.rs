@@ -246,10 +246,10 @@ impl Transfers {
                     action: EditorAction::InsertImage,
                     availability: Availability::NothingLeft,
                 })?;
-                let request = self.insert.choose(canvas);
+                let request = self.insert.pick.choose(canvas);
                 self.requests.push_back(request);
             }
-            InsertIntent::Dismiss => self.insert.dismiss(),
+            InsertIntent::Dismiss => self.insert.pick.dismiss(),
         }
         Ok(())
     }
@@ -262,7 +262,7 @@ impl Transfers {
     /// True while a request waits for the platform's answer.
     #[must_use]
     pub fn waiting(&self) -> bool {
-        self.export.waiting() || self.reference.waiting() || self.insert.waiting()
+        self.export.waiting() || self.reference.waiting() || self.insert.pick.waiting()
     }
 
     /// The platform's answer to the picker that is open; the work it starts, if any. An answer
@@ -272,7 +272,7 @@ impl Transfers {
             self.export.answer(answer).map(TransferJob::Export)
         } else if self.reference.waiting() {
             self.reference.answer(answer).map(TransferJob::Open)
-        } else if self.insert.waiting() {
+        } else if self.insert.pick.waiting() {
             self.insert.answer(answer).map(TransferJob::Insert)
         } else {
             None
@@ -314,13 +314,13 @@ impl Transfers {
             reference: self.reference.image().cloned(),
             reference_shown: self.reference.shown(),
             reference_notice: self.reference.notice(),
-            insert_notice: self.insert.notice(),
+            insert_notice: self.insert.pick.notice(),
             available: self.availability(),
         }
     }
 
     fn availability(&self) -> Availability {
-        if self.export.busy() || self.reference.busy() || self.insert.busy() {
+        if self.export.busy() || self.reference.busy() || self.insert.pick.busy() {
             Availability::Running
         } else {
             Availability::Available
@@ -328,15 +328,7 @@ impl Transfers {
     }
 
     fn check(&self, action: EditorAction) -> Result<(), AppError> {
-        let availability = self.availability();
-        if availability.is_available() {
-            Ok(())
-        } else {
-            Err(AppError::Unavailable {
-                action,
-                availability,
-            })
-        }
+        self.availability().require(action)
     }
 }
 

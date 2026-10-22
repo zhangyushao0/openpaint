@@ -1,4 +1,4 @@
-//! Which shape a held stroke resembles (QuickShape, S42). The drawn path is taken at evenly
+//! Which shape a held stroke resembles (QuickShape). The drawn path is taken at evenly
 //! spaced points (so neither a fast pen's sparse samples nor the samples piling up while the
 //! pen holds still weigh more than their length), then:
 //!

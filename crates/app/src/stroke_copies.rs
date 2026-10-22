@@ -1,4 +1,4 @@
-//! The stroke's mirrored copies while the Drawing Guide is on (S42): each copy is a stroke of
+//! The stroke's mirrored copies while the Drawing Guide is on: each copy is a stroke of
 //! its own with the stroke's style and selection, its samples mirrored (`symmetry.rs`); pressure,
 //! tilt, azimuth and time stay the drawn ones. While the stroke is drawn the canvas shows the
 //! artwork with the copies so far (`Strokes::shown`) under the stroke itself; at the lift the

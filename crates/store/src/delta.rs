@@ -1,28 +1,28 @@
-//! Which stroke records a save writes and removes. A layer's strokes are stored by position, so
-//! between the stored version and the new one only the strokes after their common prefix
-//! change: drawing appends one, undo drops the last, a branch replaces the tail.
+//! Which stroke and edit records a save writes and removes. A slot's strokes and edits are
+//! stored by position, so between the stored version and the new one only those after their
+//! common prefix change: drawing appends one, undo drops the last, a branch replaces the tail.
 
 use openpaint_core::{Artwork, RegionEdit, Stroke, StrokeList};
 
 use crate::records::mask_slot;
 
-/// One stroke or fill record by layer id and position.
+/// One stroke or edit record by slot and position.
 pub(crate) type Slot = (u64, usize);
 
-/// The stroke and fill records to write and the ones to remove; never the same slot in both.
+/// The stroke and edit records to write and the ones to remove; never the same slot in both.
 #[derive(Debug, Default, PartialEq)]
 pub(crate) struct Delta<'a> {
-    pub(crate) write: Vec<(Slot, &'a Stroke)>,
-    pub(crate) remove: Vec<Slot>,
-    pub(crate) write_fills: Vec<(Slot, &'a RegionEdit)>,
-    pub(crate) remove_fills: Vec<Slot>,
+    pub(crate) strokes: Vec<(Slot, &'a Stroke)>,
+    pub(crate) removed_strokes: Vec<Slot>,
+    pub(crate) edits: Vec<(Slot, &'a RegionEdit)>,
+    pub(crate) removed_edits: Vec<Slot>,
 }
 
 /// What one slot holds: a layer's paint under its id, or its mask under `mask_slot`.
 pub(crate) type Content<'a> = (u64, &'a StrokeList, &'a [RegionEdit]);
 
 /// Every slot of `artwork`: each layer's paint, then its mask's if it has one, then those of the
-/// layers merged into it (nested records, S39), each under its own id.
+/// layers merged into it (nested records), each under its own id.
 pub(crate) fn contents(artwork: &Artwork) -> Vec<Content<'_>> {
     let mut contents = Vec::with_capacity(artwork.layers().len());
     for layer in artwork.layers() {
@@ -66,31 +66,31 @@ pub(crate) fn delta<'a>(base: &Artwork, artwork: &'a Artwork) -> Delta<'a> {
         let old_strokes = before.map(|(_, strokes, _)| strokes);
         let kept = old_strokes.map_or(0, |old| common_prefix(old, strokes));
         for (offset, stroke) in strokes.since(kept).enumerate() {
-            delta.write.push(((id, kept + offset), stroke));
+            delta.strokes.push(((id, kept + offset), stroke));
         }
         let old_len = old_strokes.map_or(0, StrokeList::len);
         delta
-            .remove
+            .removed_strokes
             .extend((strokes.len().max(kept)..old_len).map(|index| (id, index)));
-        let old_fills = before.map_or(&[][..], |(_, _, edits)| edits);
-        let kept = old_fills
+        let old_edits = before.map_or(&[][..], |(_, _, edits)| edits);
+        let kept = old_edits
             .iter()
             .zip(edits)
             .take_while(|(old, new)| old.same(new))
             .count();
-        for (index, fill) in edits.iter().enumerate().skip(kept) {
-            delta.write_fills.push(((id, index), fill));
+        for (index, edit) in edits.iter().enumerate().skip(kept) {
+            delta.edits.push(((id, index), edit));
         }
-        let removed = edits.len().max(kept)..old_fills.len();
-        delta.remove_fills.extend(removed.map(|index| (id, index)));
+        let removed = edits.len().max(kept)..old_edits.len();
+        delta.removed_edits.extend(removed.map(|index| (id, index)));
     }
     for &(id, strokes, edits) in &old {
         if find(&new, id).is_none() {
             delta
-                .remove
+                .removed_strokes
                 .extend((0..strokes.len()).map(|index| (id, index)));
             delta
-                .remove_fills
+                .removed_edits
                 .extend((0..edits.len()).map(|index| (id, index)));
         }
     }
@@ -135,8 +135,8 @@ mod tests {
     }
 
     fn slots(delta: &Delta<'_>) -> (Vec<Slot>, Vec<Slot>) {
-        let written = delta.write.iter().map(|(slot, _)| *slot).collect();
-        (written, delta.remove.clone())
+        let written = delta.strokes.iter().map(|(slot, _)| *slot).collect();
+        (written, delta.removed_strokes.clone())
     }
 
     #[test]
@@ -167,8 +167,8 @@ mod tests {
         let mask = openpaint_core::RegionMask::from_pixels(canvas, &inside).expect("mask");
         let filled = one.fill_region(mask, Color::WHITE).expect("fill").artwork;
         let fills = |delta: &Delta<'_>| {
-            let written: Vec<Slot> = delta.write_fills.iter().map(|(slot, _)| *slot).collect();
-            (written, delta.remove_fills.clone())
+            let written: Vec<Slot> = delta.edits.iter().map(|(slot, _)| *slot).collect();
+            (written, delta.removed_edits.clone())
         };
         assert_eq!(fills(&delta(&one, &filled)), (vec![(1, 0)], vec![]));
         assert_eq!(
@@ -188,14 +188,14 @@ mod tests {
         let merge = ArtworkCommand::Layer(LayerCommand::MergeDown(two.active()));
         let merged = two.apply(merge).expect("merge").artwork;
         let changes = delta(&two, &merged);
-        let fills: Vec<Slot> = changes.write_fills.iter().map(|(slot, _)| *slot).collect();
-        assert_eq!(fills, [(1, 0)], "the nested record on layer 1");
+        let edits: Vec<Slot> = changes.edits.iter().map(|(slot, _)| *slot).collect();
+        assert_eq!(edits, [(1, 0)], "the nested record on layer 1");
         assert_eq!(
             slots(&changes),
             (vec![], vec![]),
             "no stroke written or removed"
         );
-        assert!(changes.remove_fills.is_empty());
+        assert!(changes.removed_edits.is_empty());
         assert_eq!(contents(&merged).len(), 2, "layer 1 and, nested, layer 2");
     }
 

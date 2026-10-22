@@ -1,4 +1,4 @@
-//! Dragging a layer row (S38, Procreate's press and hold, `row_drag.rs`): a row held still lifts;
+//! Dragging a layer row (Procreate's press and hold, `row_drag.rs`): a row held still lifts;
 //! it then follows the hand and the list shows the layer where it would land, the other rows
 //! making room (settle); letting go moves it there as one step. The places it can land are the
 //! app's (`LayerList::places`: the steps move up and down take, into and out of groups); the

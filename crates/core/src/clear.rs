@@ -1,4 +1,4 @@
-//! Cut (S40, Procreate's): what is selected leaves the layer. A cut is a record among the
+//! Cut (Procreate's): what is selected leaves the layer. A cut is a record among the
 //! layer's edits, the selection's pixels cleared with a hard edge (as a transform clears what
 //! it lifts) after the strokes the layer held then; nothing is baked, so undo is a version
 //! switch and later strokes land on top. Cutting with nothing selected empties the layer's
@@ -9,7 +9,6 @@ use std::sync::Arc;
 use crate::artwork::Artwork;
 use crate::command::Applied;
 use crate::error::CoreError;
-use crate::layer_command::content;
 use crate::region::{RegionEdit, RegionMask, check_mask};
 use crate::stroke_list::StrokeList;
 
@@ -63,6 +62,6 @@ impl Artwork {
                 layer.edits = Arc::from([]);
             }
         }
-        Ok(content(next))
+        Ok(Applied::content(next))
     }
 }

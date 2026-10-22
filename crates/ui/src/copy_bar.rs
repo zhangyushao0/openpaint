@@ -1,4 +1,4 @@
-//! The copy menu (S40, Procreate's Copy & Paste): a pill in the middle of the top band holding
+//! The copy menu (Procreate's Copy & Paste): a pill in the middle of the top band holding
 //! the commands Cut, Copy, Copy All, Duplicate, Cut & Paste and Paste as bare words, each
 //! pencil grey when there is nothing for it. Three fingers swiped down on the canvas open it,
 //! and so does Actions > Copy & Paste (the visible entry the gesture duplicates). A command
@@ -8,7 +8,8 @@
 
 use openpaint_app::{ClipboardAction, EditorAction, Intent, SessionProjection};
 
-use crate::components::{Place, ScreenArea, Source, UNDER_ISLANDS, pill, text_button};
+use crate::components::{Place, ScreenArea, Source, pill, text_button};
+use crate::taps::push_once;
 
 #[derive(Debug, Default)]
 pub(crate) struct CopyBar {
@@ -38,10 +39,8 @@ impl CopyBar {
         if !self.open {
             return;
         }
-        let mut place = Place::top_middle();
-        if projection.selection().tool || projection.transform().tool {
-            place.offset.y = UNDER_ISLANDS;
-        }
+        let place =
+            Place::middle_unless(projection.selection().tool || projection.transform().tool);
         let source = Source::Within(egui::Align::Center);
         let (tapped, rect) = pill(ctx, "copy bar", place, source, |ui| {
             let mut tapped = None;
@@ -54,11 +53,7 @@ impl CopyBar {
             tapped
         });
         if let Some(action) = tapped {
-            let intent = Intent::Clipboard(action);
-            // egui may run a pass twice; one tap is sent once.
-            if taps.last() != Some(&intent) {
-                taps.push(intent);
-            }
+            push_once(taps, Intent::Clipboard(action));
             self.close();
         } else {
             self.area = Some(ScreenArea::from_points(rect, ctx.pixels_per_point()));

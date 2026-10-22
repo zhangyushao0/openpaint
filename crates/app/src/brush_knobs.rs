@@ -1,4 +1,4 @@
-//! What the brush editor's controls set (S46): the numbers of a recipe with their names and the
+//! What the brush editor's controls set: the numbers of a recipe with their names and the
 //! ranges their controls give, and the dynamics curves by the factor they set and what they
 //! follow.
 

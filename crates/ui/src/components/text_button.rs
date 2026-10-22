@@ -1,4 +1,4 @@
-//! Words the hand taps (S25, one ring rule): a word in ink, bare on the paper, one touch target
+//! Words the hand taps (one ring rule): a word in ink, bare on the paper, one touch target
 //! high and at least one wide (the frame was never the hit area). Pressed, a faint wash fills
 //! the pill the word would carry if chosen, nothing wider; unavailable, the word fades to pencil
 //! grey and taps go nowhere. A command stays bare. A choice among words (one of a few options,
@@ -8,7 +8,7 @@
 
 use egui::{Rect, Sense, TextStyle, Vec2, WidgetInfo, WidgetType};
 
-use crate::components::{Choices, controls};
+use crate::components::{Choices, choices, controls};
 use crate::design::{
     INK, INK_ACTIVE, INK_DISABLED, Outline, SPACE, TOUCH_TARGET, paint_divider, paint_pressed,
 };
@@ -18,7 +18,7 @@ pub fn text_button(ui: &mut egui::Ui, label: &str, enabled: bool) -> egui::Respo
     button(ui, label, (enabled, None), TOUCH_TARGET)
 }
 
-/// A page's heading that is also a command (S46: a brush's name, which renames it): the words
+/// A page's heading that is also a command (a brush's name, which renames it): the words
 /// in the heading's size, bare in ink, the press wash round them.
 pub fn heading_button(ui: &mut egui::Ui, label: &str) -> egui::Response {
     ui.scope(|ui| {
@@ -51,6 +51,28 @@ pub fn text_choice_wide(
     width: f32,
 ) -> egui::Response {
     button(ui, label, (enabled, Some((group, chosen))), width)
+}
+
+/// The group `salt` of `words` (each its label, whether it is chosen and whether it may be) in
+/// two even columns two spaces in, the chosen one in the ink pill. Returns the index of a word
+/// tapped that was not chosen.
+pub fn word_columns(ui: &mut egui::Ui, salt: &str, words: &[(&str, bool, bool)]) -> Option<usize> {
+    let half = ((ui.available_width() - 2.0 * SPACE) / 2.0).floor();
+    let mut tapped = None;
+    choices(ui, salt, |ui, group| {
+        for (row, pair) in words.chunks(2).enumerate() {
+            ui.horizontal(|ui| {
+                ui.add_space(2.0 * SPACE);
+                for (column, &(label, on, enabled)) in pair.iter().enumerate() {
+                    let word = text_choice_wide(ui, group, label, (enabled, on), half);
+                    if word.clicked() && !on {
+                        tapped = Some(2 * row + column);
+                    }
+                }
+            });
+        }
+    });
+    tapped
 }
 
 /// A thin upright line between a bar's choice and its commands; it takes no width of its own,

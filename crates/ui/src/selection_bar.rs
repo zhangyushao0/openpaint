@@ -14,6 +14,7 @@ use crate::components::{
     Place, ScreenArea, choices, divider, icon_toggle, pill, ring_of, text_button, text_choice,
 };
 use crate::design::{INK, Icon, PANEL, ink_line};
+use crate::taps::push_once;
 
 /// How near the path's first point, in points, a pen contact closes it (draweave's).
 pub(crate) const CLOSE_POINTS: f32 = 14.0;
@@ -41,7 +42,7 @@ impl SelectionBar {
         let response = icon_toggle(ui, Icon::Selection, "Selection", on);
         self.button = Some(response.rect);
         if response.clicked() {
-            push(taps, Intent::Selection(SelectionIntent::Tool(!on)));
+            push_once(taps, Intent::Selection(SelectionIntent::Tool(!on)));
             return !on;
         }
         false
@@ -67,20 +68,20 @@ impl SelectionBar {
                     (SelectionShape::Rectangle, "Rectangle"),
                 ] {
                     if text_choice(ui, group, label, selection.shape == shape).clicked() {
-                        push(taps, Intent::Selection(SelectionIntent::Shape(shape)));
+                        push_once(taps, Intent::Selection(SelectionIntent::Shape(shape)));
                     }
                 }
             });
             divider(ui);
             if selection.closable && text_button(ui, "Close", true).clicked() {
-                push(taps, Intent::Selection(SelectionIntent::Close));
+                push_once(taps, Intent::Selection(SelectionIntent::Close));
             }
             if text_button(ui, "Invert", true).clicked() {
-                push(taps, Intent::Selection(SelectionIntent::Invert));
+                push_once(taps, Intent::Selection(SelectionIntent::Invert));
             }
             let any = selection.mask.is_some();
             if text_button(ui, "Deselect", any).clicked() {
-                push(taps, Intent::Selection(SelectionIntent::Deselect));
+                push_once(taps, Intent::Selection(SelectionIntent::Deselect));
             }
         });
         self.area = Some(ScreenArea::from_points(rect, ctx.pixels_per_point()));
@@ -125,12 +126,5 @@ pub(crate) fn show_path(
             let ring = Stroke::new(PATH_LINE, INK);
             painter.circle(first, CLOSE_POINTS * 0.7, Color32::TRANSPARENT, ring);
         }
-    }
-}
-
-/// egui may run a pass twice; one tap is sent once.
-fn push(taps: &mut Vec<Intent>, intent: Intent) {
-    if taps.last() != Some(&intent) {
-        taps.push(intent);
     }
 }

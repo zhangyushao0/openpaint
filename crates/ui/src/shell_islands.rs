@@ -73,7 +73,7 @@ impl Shell {
         self.panels.brushes.set_previews(previews);
     }
 
-    /// One brush's preview, made again since the brush changed or was copied (S46).
+    /// One brush's preview, made again since the brush changed or was copied.
     pub fn set_brush_picture(&mut self, key: BrushKey, image: RgbaImage) {
         self.panels.brushes.set_picture(key, image);
     }
@@ -85,7 +85,7 @@ impl Shell {
     }
 
     /// While the brush editor shows: its preview strip's size in pixels and the pen's strokes
-    /// on it, for the renderer to draw with the brush as set now (S46).
+    /// on it, for the renderer to draw with the brush as set now.
     #[must_use]
     pub fn strip(&self) -> Option<StripStrokes> {
         self.panels.brushes.strip()
@@ -97,7 +97,7 @@ impl Shell {
         self.panels.brushes.set_strip_picture(image);
     }
 
-    /// Whether the layer panel is open: only then does it want pictures of its layers (S38).
+    /// Whether the layer panel is open: only then does it want pictures of its layers.
     #[must_use]
     pub const fn layers_open(&self) -> bool {
         self.panels.layers.is_open()
@@ -116,19 +116,19 @@ impl Shell {
         self.panels.layers.set_picture((layer, mask), image);
     }
 
-    /// Lets every layer picture go (S49: the GPU memory budget's last step); rows show none
+    /// Lets every layer picture go (the GPU memory budget's last step); rows show none
     /// until new ones come.
     pub fn forget_layer_pictures(&mut self) {
         self.panels.layers.drop_pictures();
     }
 
-    /// Bytes of the layer pictures' textures (S49).
+    /// Bytes of the layer pictures' textures.
     #[must_use]
     pub fn picture_bytes(&self) -> u64 {
         self.panels.layers.picture_bytes()
     }
 
-    /// The GPU device was lost and made again (S49): the notice pill says "The display was
+    /// The GPU device was lost and made again: the notice pill says "The display was
     /// reset." until OK is tapped or the pen starts a stroke.
     pub fn display_reset(&mut self) {
         self.reset_notice = true;

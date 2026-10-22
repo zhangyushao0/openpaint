@@ -1,4 +1,4 @@
-//! Polylines and polygons (QuickShape, S42): corners are found by simplifying the path
+//! Polylines and polygons (QuickShape): corners are found by simplifying the path
 //! (Douglas-Peucker within `SIMPLIFY` of its size), keeping only places that turn at least
 //! `CORNER_TURN`; each side is then the best line through the middle of its stretch of the path
 //! (total least squares, its ends left out where the hand rounds the corners), and each corner

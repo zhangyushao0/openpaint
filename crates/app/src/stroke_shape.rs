@@ -1,4 +1,4 @@
-//! QuickShape in the stroke intent (S42, Procreate's): the pen held still on the glass for
+//! QuickShape in the stroke intent (Procreate's): the pen held still on the glass for
 //! `HOLD_MS` snaps the stroke drawn so far to the shape it resembles (`quickshape_fit.rs`), its
 //! samples replaced by samples along the shape (`quickshape::along`). Still pressing, the hand
 //! turns and sizes the shape; the lift commits it as any stroke, one step. After the lift the

@@ -1,4 +1,4 @@
-//! The brush editor's controls (S46): every setting has its control under its name, each slider
+//! The brush editor's controls: every setting has its control under its name, each slider
 //! gives the ends of the range the engine allows, the chosen shape's word carries the pill and
 //! the paper leaves only the disc, and Reset is grey while a built-in is as its file has it.
 

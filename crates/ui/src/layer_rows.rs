@@ -1,7 +1,7 @@
 //! The layer panel's rows, top of the stack first: a group's row (its chevron, name, opacity
 //! and eye) above its layers, which sit one step to the right and hide while the group is
 //! closed; a Clipping Mask's row a further step right with the arrow down to its base. Each
-//! layer row starts with a picture of its layer alone (S38) and ends with its blend mode's
+//! layer row starts with a picture of its layer alone and ends with its blend mode's
 //! letter (Procreate's "N") before its eye. A layer's mask is a row under it, one step further
 //! right, with the mask's grey as its picture; the one drawn on (paint or mask) is outlined. A
 //! row held still lifts and is dragged to another place (`layer_drag.rs`).

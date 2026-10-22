@@ -1,4 +1,4 @@
-//! The brush editor's dynamics pages (S46): Size dynamics and Opacity dynamics each show three
+//! The brush editor's dynamics pages: Size dynamics and Opacity dynamics each show three
 //! curve squares stacked, over pressure, speed and tilt, each under its name with Reset (the
 //! curve as the built-in's file has it; grey while it is) and over the ends of what it follows.
 //! The square spans what the curve follows from 0 to its largest (1, 50 px/ms, 90 degrees) and
@@ -8,9 +8,9 @@
 use egui::{Align, Align2, Layout, TextStyle, Vec2};
 use openpaint_app::{Axis, BrushChange, BrushIntent, Dynamic, EditedBrush, Intent, curve_top};
 
-use crate::brush_settings::push_once;
 use crate::components::{DynamicsCurve, dynamics_editor, text_button};
 use crate::design::{INK, INK_SECONDARY, SPACE, TOUCH_TARGET};
+use crate::taps::push_once;
 
 /// A curve square's side, in points.
 const SQUARE: f32 = 28.0 * SPACE;

@@ -1,7 +1,7 @@
-//! The brush editor (S46, Procreate's Brush Studio reduced to the engine's settings): tapping the
+//! The brush editor (Procreate's Brush Studio reduced to the engine's settings): tapping the
 //! chosen brush's row again turns the brush panel into it in place, as Actions turns into the
 //! Pen buttons page. At the top the brush's name (tapped: the Rename dialog) and Back; under it
-//! the brush's set (S47: Sketching, Inking, Painting, Texture as words, its own in the ink pill;
+//! the brush's set (Sketching, Inking, Painting, Texture as words, its own in the ink pill;
 //! another tapped moves it to that set's end); then the preview strip (`brush_strip.rs`); then
 //! the settings in one scrolling column (`brush_settings.rs`), or a dynamics page's curves
 //! (`brush_dynamics.rs`, Back to the settings); at the bottom Duplicate, and Reset for a
@@ -18,22 +18,14 @@ use crate::brush_dynamics::{curves, heading};
 use crate::brush_settings::settings;
 use crate::brush_strip::Strip;
 use crate::components::{
-    Placement, answer_row, choices, dialog, heading_button, hint, text_button, text_choice_wide,
-    text_field,
+    Naming, Placement, answer_row, choices, dialog, heading_button, hint, naming_dialog,
+    text_button, text_choice_wide,
 };
 use crate::design::{INK, SPACE, TOUCH_TARGET};
+use crate::taps::push_brush;
 
 /// The width of the Set row's word "Set", left of its choices, in points.
 const SET_LABEL: f32 = 6.0 * SPACE;
-
-/// Renaming the brush: its name as typed so far.
-#[derive(Debug)]
-struct Rename {
-    text: String,
-    /// The field takes the focus in the next pass.
-    focus: bool,
-    from: Rect,
-}
 
 /// The editor's own state while it shows.
 #[derive(Debug, Default)]
@@ -41,10 +33,11 @@ pub(crate) struct BrushEditor {
     pub(crate) strip: Strip,
     /// The dynamics page shown instead of the settings.
     dynamics: Option<Dynamic>,
-    rename: Option<Rename>,
+    /// Renaming the brush: its name as typed so far.
+    rename: Option<Naming>,
     /// Asking before the copy is deleted: where Delete was tapped.
     deleting: Option<Rect>,
-    /// The set the Set row moved the brush to this pass, for the list to show (S47).
+    /// The set the Set row moved the brush to this pass, for the list to show.
     pub(crate) moved: Option<BrushSet>,
 }
 
@@ -79,16 +72,12 @@ impl BrushEditor {
             })
             .inner;
         if let Some(named) = named.filter(egui::Response::clicked) {
-            self.rename = Some(Rename {
-                text: edited.name.clone(),
-                focus: true,
-                from: named.rect,
-            });
+            self.rename = Some(Naming::new(&edited.name, named.rect));
         }
         if self.dynamics.is_none()
             && let Some(set) = set_row(ui, brush.set)
         {
-            push(taps, BrushIntent::MoveToSet(set));
+            push_brush(taps, BrushIntent::MoveToSet(set));
             self.moved = Some(set);
         }
         self.strip.show(ui);
@@ -118,11 +107,11 @@ impl BrushEditor {
             ui.set_height(TOUCH_TARGET);
             ui.add_space(SPACE);
             if text_button(ui, "Duplicate", true).clicked() {
-                push(taps, BrushIntent::Duplicate);
+                push_brush(taps, BrushIntent::Duplicate);
             }
             if edited.built_in {
                 if text_button(ui, "Reset", edited.resettable).clicked() {
-                    push(taps, BrushIntent::Reset);
+                    push_brush(taps, BrushIntent::Reset);
                 }
             } else {
                 let delete = text_button(ui, "Delete", true);
@@ -150,31 +139,22 @@ impl BrushEditor {
                     answer_row(ui, "Cancel", "Delete", true)
                 });
             if delete {
-                push(taps, BrushIntent::Delete);
+                push_brush(taps, BrushIntent::Delete);
             }
             if delete || cancel || outside {
                 self.deleting = None;
             }
             return (true, delete);
         }
-        let Some(rename) = &mut self.rename else {
+        let Some(naming) = &mut self.rename else {
             return (false, false);
         };
-        let ((cancel, done), outside) =
-            dialog(ctx, "rename brush", (Placement::Top, rename.from), |ui| {
-                ui.heading("Rename brush");
-                let field = text_field(ui, "Name", &mut rename.text, MAX_BRUSH_NAME, rename.focus);
-                if field.response.has_focus() {
-                    rename.focus = false;
-                }
-                let valid = brush_name(&rename.text).is_some();
-                let (cancel, done) = answer_row(ui, "Cancel", "Done", valid);
-                (cancel, done || (field.submitted && valid))
-            });
-        if done {
-            push(taps, BrushIntent::Rename(rename.text.clone()));
-        }
-        if done || cancel || outside {
+        let words = ("Rename brush", "Name", MAX_BRUSH_NAME);
+        let valid = |text: &str| brush_name(text).is_some();
+        if let Some(done) = naming_dialog(ctx, "rename brush", words, naming, valid) {
+            if done {
+                push_brush(taps, BrushIntent::Rename(naming.text.clone()));
+            }
             self.rename = None;
         }
         (true, false)
@@ -201,7 +181,7 @@ fn column(
     let room = (ui.ctx().content_rect().bottom() - ui.cursor().top() - 2.0 * TOUCH_TARGET)
         .max(2.0 * TOUCH_TARGET);
     // A room of its own: the panel's area lays out within the size it had last, so a short
-    // list shown before (a set's, S47) would keep the column short.
+    // list shown before (a set's) would keep the column short.
     let size = vec2(ui.available_width(), room);
     ui.allocate_ui(size, |ui| {
         egui::ScrollArea::vertical()
@@ -221,7 +201,7 @@ fn column(
     .inner
 }
 
-/// The brush's set (S47): "Set", then the four sets as words in two columns, `set` in the ink
+/// The brush's set: "Set", then the four sets as words in two columns, `set` in the ink
 /// pill. Returns another set tapped, which the brush moves to the end of.
 pub(crate) fn set_row(ui: &mut egui::Ui, set: BrushSet) -> Option<BrushSet> {
     let half = ((ui.available_width() - 3.0 * SPACE - SET_LABEL) / 2.0).floor();
@@ -249,12 +229,4 @@ pub(crate) fn set_row(ui: &mut egui::Ui, set: BrushSet) -> Option<BrushSet> {
         }
     });
     tapped
-}
-
-/// egui may run a pass twice; one tap is sent once.
-fn push(taps: &mut Vec<Intent>, intent: BrushIntent) {
-    let intent = Intent::Brush(intent);
-    if taps.last() != Some(&intent) {
-        taps.push(intent);
-    }
 }

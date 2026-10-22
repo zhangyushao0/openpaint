@@ -43,12 +43,12 @@ pub(crate) struct CanvasFrame<'a> {
     /// An adjustment is under way: the pen draws nothing; fingers still move the view.
     pub(crate) adjusting: bool,
     pub(crate) drawing: bool,
-    /// What the pen's side buttons do (S41).
+    /// What the pen's side buttons do.
     pub(crate) buttons: ButtonMap,
     /// A control took a contact this frame.
     pub(crate) control: bool,
     /// The handles of the shape being edited and the Drawing Guide's centre while it is on, in
-    /// canvas pixels (S42).
+    /// canvas pixels.
     pub(crate) handles: &'a [[f32; 2]],
     pub(crate) guide_centre: Option<[f32; 2]>,
 }
@@ -83,19 +83,19 @@ pub(crate) struct CanvasInput {
     pressing: Option<[f32; 2]>,
     /// Where the contact picking a colour is (screen pixels).
     picking_at: Option<[f32; 2]>,
-    /// Three fingers swiped down since the shell last asked (S40).
+    /// Three fingers swiped down since the shell last asked.
     copy_menu: bool,
-    /// The pen's buttons and eraser end (S41).
+    /// The pen's buttons and eraser end.
     buttons: ButtonTracker,
     /// Contacts on the Transform tool's frame.
     drag: TransformDrag,
-    /// Contacts on a snapped shape's handles and the guide's centre (S42).
+    /// Contacts on a snapped shape's handles and the guide's centre.
     grips: Grips,
     /// The pen contact drawing a stroke, which holds still for QuickShape.
     stroking: Option<i32>,
 }
 
-/// How far the pen may wander, in points, and still hold still (QuickShape, S42).
+/// How far the pen may wander, in points, and still hold still (QuickShape).
 const STILL_POINTS: f32 = 5.0;
 
 impl CanvasInput {
@@ -111,7 +111,7 @@ impl CanvasInput {
         }
         for batch in batches {
             // The pen's buttons hold a tool before the contacts that use it, and give it back
-            // after the lift (S41).
+            // after the lift.
             intents.extend(self.buttons.before(batch, frame.buttons));
             for contact in &batch.contacts {
                 pen |= self.contact(contact, frame, &mapping, (&mut intents, &mut touches));

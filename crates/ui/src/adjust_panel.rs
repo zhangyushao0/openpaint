@@ -9,9 +9,10 @@
 use openpaint_app::{AdjustIntent, EditorAction, Intent, SessionProjection};
 use openpaint_core::{Adjustment, AdjustmentKind, ToneChannel};
 
-use crate::adjust_controls::{controls, heading, push};
-use crate::components::{Opener, ScreenArea, icon_toggle, menu_row, popover_left};
+use crate::adjust_controls::controls;
+use crate::components::{Opener, ScreenArea, icon_toggle, menu_row, panel_heading, popover_left};
 use crate::design::Icon;
+use crate::taps::push_once;
 
 /// The menu's rows, top to bottom (Procreate's names).
 const MENU: [(&str, AdjustmentKind); 4] = [
@@ -64,7 +65,7 @@ impl AdjustPanel {
             return false;
         }
         if adjusting {
-            push(taps, Intent::Adjust(AdjustIntent::Apply));
+            push_once(taps, Intent::Adjust(AdjustIntent::Apply));
             return false;
         }
         self.menu = !self.menu;
@@ -92,10 +93,10 @@ impl AdjustPanel {
         let offered = projection.availability(EditorAction::Adjust).is_offered();
         let mut chosen = false;
         let menu = popover_left(ctx, "adjustments", (opener, self.menu), |ui| {
-            heading(ui, "Adjustments");
+            panel_heading(ui, "Adjustments");
             for (label, kind) in MENU {
                 if menu_row(ui, label, "", offered).clicked() {
-                    push(taps, Intent::Adjust(AdjustIntent::Begin(kind)));
+                    push_once(taps, Intent::Adjust(AdjustIntent::Begin(kind)));
                     chosen = true;
                 }
             }

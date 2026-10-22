@@ -1,4 +1,4 @@
-//! The brush editor's changes (S46): every setting the engine has, set on the current tool's
+//! The brush editor's changes: every setting the engine has, set on the current tool's
 //! brush. A change is applied to the recipe's plain data and checked by the engine
 //! (`BrushRecipe::from_parts`); its values are first held inside their ranges (`brush_fit.rs`),
 //! so the engine never refuses one. Some settings follow from others: a shape chosen for a

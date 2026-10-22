@@ -1,4 +1,4 @@
-//! Brush sets (S47, Procreate's brush library cut to five fixed sets): every brush lies in one
+//! Brush sets (Procreate's brush library cut to five fixed sets): every brush lies in one
 //! of four sets, Sketching, Inking, Painting and Texture, in an order the hand changes; Recent
 //! lists the last brushes drawn with, newest first, and is never edited. A built-in starts in the
 //! set of its job, a copy right after its source. Stored with the toolbox as lists of keys, empty

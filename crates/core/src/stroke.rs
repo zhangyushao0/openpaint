@@ -113,7 +113,7 @@ pub enum StrokeBlend {
 
 /// How a stroke is drawn: its tool, its brush recipe (a snapshot, shared between strokes drawn
 /// with the same brush), its largest diameter `size`, its `opacity` and `color`, and the `seed`
-/// its stamps' jitter follows (S45: `shape::jitter`; a mirrored copy and a reshaped stroke keep
+/// its stamps' jitter follows (`shape::jitter`; a mirrored copy and a reshaped stroke keep
 /// it). Cloning is cheap.
 #[derive(Debug, Clone, PartialEq)]
 pub struct StrokeStyle {

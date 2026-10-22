@@ -16,6 +16,7 @@ use crate::components::{
     side_slider, side_slider_height,
 };
 use crate::design::{Icon, SIDE_SLIDER, SPACE, TOUCH_TARGET};
+use crate::taps::{push_brush, push_once};
 
 /// The history buttons, top to bottom.
 const HISTORY_BUTTONS: [(Icon, &str, EditorAction, HistoryIntent); 2] = [
@@ -112,7 +113,7 @@ fn sliders(
         length,
     };
     if let Some(change) = side_slider(ui, &size) {
-        push(
+        push_brush(
             taps,
             BrushIntent::Size {
                 position: change.value,
@@ -124,10 +125,7 @@ fn sliders(
     // picks a colour; tapped again, the pen draws again.
     let label = "Eyedropper";
     if icon_toggle(ui, Icon::Eyedropper, label, brush.picking).clicked() {
-        let intent = Intent::Tool(ToolIntent::Eyedropper(!brush.picking));
-        if taps.last() != Some(&intent) {
-            taps.push(intent);
-        }
+        push_once(taps, Intent::Tool(ToolIntent::Eyedropper(!brush.picking)));
     }
     let opacity = SideSlider {
         label: opacity_label,
@@ -142,21 +140,13 @@ fn sliders(
         length,
     };
     if let Some(change) = side_slider(ui, &opacity) {
-        push(
+        push_brush(
             taps,
             BrushIntent::Opacity {
                 opacity: change.value,
                 settled: change.settled,
             },
         );
-    }
-}
-
-/// egui may run a pass twice; one value is sent once.
-fn push(taps: &mut Vec<Intent>, intent: BrushIntent) {
-    let intent = Intent::Brush(intent);
-    if taps.last() != Some(&intent) {
-        taps.push(intent);
     }
 }
 

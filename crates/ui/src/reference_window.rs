@@ -18,6 +18,7 @@ use crate::components::{
     FloatingLayout, MAT, ScreenArea, UNDER_ISLANDS, floating, icon_button, ring_of,
 };
 use crate::design::{Icon, REFERENCE_HEIGHT, REFERENCE_WIDTH, SPACE};
+use crate::taps::push_once;
 
 /// How long the bar stays without a touch on the window, in milliseconds.
 pub(crate) const BAR_IDLE_MS: i64 = 3000;
@@ -93,7 +94,7 @@ impl ReferenceWindow {
         );
         if shown.buttons == Some(true) {
             self.bar_until = None;
-            push(taps, Intent::Reference(ReferenceIntent::Show(false)));
+            push_once(taps, Intent::Reference(ReferenceIntent::Show(false)));
         }
         self.layout = Some((shown.layout, screen));
     }
@@ -238,13 +239,6 @@ fn clamp_centre(centre: Vec2, image: Vec2, view: Vec2) -> Vec2 {
         axis(centre.x, image.x, view.x),
         axis(centre.y, image.y, view.y),
     )
-}
-
-/// egui may run a pass twice; one intent is sent once.
-fn push(taps: &mut Vec<Intent>, intent: Intent) {
-    if taps.last() != Some(&intent) {
-        taps.push(intent);
-    }
 }
 
 #[cfg(test)]

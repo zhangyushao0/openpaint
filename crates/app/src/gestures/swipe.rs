@@ -1,4 +1,4 @@
-//! The three-finger swipe down (Procreate's gesture for its Copy & Paste menu, S40): exactly
+//! The three-finger swipe down (Procreate's gesture for its Copy & Paste menu): exactly
 //! three fingers on open canvas whose middle moves down at least 48 points, within 30 degrees
 //! of straight down, every finger at least half that far down, by 0.8 s after the third one
 //! landed. It fires once, as it passes, on a move or the lift that carries the last move. The

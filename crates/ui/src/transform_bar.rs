@@ -12,6 +12,7 @@ use openpaint_app::{Intent, SessionProjection, TransformFrame, TransformIntent, 
 use crate::components::{Place, ScreenArea, animate_from, icon_toggle, pill, ring_of, text_button};
 use crate::design::motion::ACKNOWLEDGE;
 use crate::design::{INK, Icon, PANEL, ink_line};
+use crate::taps::push_once;
 
 /// Points from the frame's top edge to the turn handle (draweave's).
 const STEM: f32 = 36.0;
@@ -99,7 +100,7 @@ impl TransformBar {
         let response = icon_toggle(ui, Icon::Transform, "Transform", on);
         self.button = Some(response.rect);
         if response.clicked() {
-            push(taps, Intent::Transform(TransformIntent::Tool(!on)));
+            push_once(taps, Intent::Transform(TransformIntent::Tool(!on)));
             return !on;
         }
         false
@@ -136,7 +137,7 @@ impl TransformBar {
             ];
             for (label, intent, enabled) in taps_for {
                 if text_button(ui, label, enabled).clicked() {
-                    push(taps, Intent::Transform(intent));
+                    push_once(taps, Intent::Transform(intent));
                 }
             }
         });
@@ -187,17 +188,10 @@ impl TransformBar {
 }
 
 /// A handle's mark at `at` (points), faded to `shown`: a paper disc in an ink ring. The
-/// Transform tool's corners and a snapped shape's handles (S42) share it.
+/// Transform tool's corners and a snapped shape's handles share it.
 pub(crate) fn handle_mark(painter: &egui::Painter, at: Pos2, shown: f32) {
     let (ink, paper) = (INK.gamma_multiply(shown), PANEL.gamma_multiply(shown));
     painter.circle(at, HANDLE, paper, Stroke::new(LINE, ink));
-}
-
-/// egui may run a pass twice; one tap is sent once.
-fn push(taps: &mut Vec<Intent>, intent: Intent) {
-    if taps.last() != Some(&intent) {
-        taps.push(intent);
-    }
 }
 
 #[cfg(test)]

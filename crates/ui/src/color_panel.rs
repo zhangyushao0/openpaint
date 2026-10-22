@@ -1,18 +1,21 @@
 //! The colour panel: the colour button at the end of the right island (a swatch of the current
 //! colour, Procreate's place) opens it as a popover over the canvas: header "Colour" with the
 //! hex field (`color_palette.rs`), the colour wheel (hue ring, saturation and value square),
-//! the recent colours, newest first, then the palette (S41). The colour changes while the hand
+//! the recent colours, newest first, then the palette. The colour changes while the hand
 //! moves on the wheel and is shown at once in the button; lifting the hand makes it a recent
 //! colour. Tapping a recent colour or a swatch paints with it. The panel stays until a contact
 //! lands on the canvas outside it; a pen stroke there paints in the new colour. Dragging the
 //! button onto the canvas instead drops the colour there (`color_drop.rs`).
 
-use egui::{Align, Layout};
+use egui::Align;
 use openpaint_app::{BrushProjection, Hsv, Intent, SessionProjection, ToolIntent};
 
 use crate::color_palette::PaletteState;
-use crate::components::{Opener, ScreenArea, color_wheel, color32, popover, swatch};
+use crate::components::{
+    Opener, ScreenArea, color_wheel, color32, panel_heading_with, popover, swatch,
+};
 use crate::design::{COLOR_WHEEL, INK_SECONDARY, RECENT_SWATCH, SPACE, TOUCH_TARGET};
+use crate::taps::push_once;
 
 /// The panel's UI-local state.
 #[derive(Debug, Default)]
@@ -26,7 +29,7 @@ pub(crate) struct ColorPanel {
     /// The hue, saturation and value last set here: a grey or black has no hue of its own, so
     /// the wheel keeps the one the hand left while the colour is still the one it set.
     shown: Option<Hsv>,
-    /// The palette and the hex field (S41).
+    /// The palette and the hex field.
     palette: PaletteState,
 }
 
@@ -77,14 +80,9 @@ impl ColorPanel {
         };
         let palette = &mut self.palette;
         let rect = popover(ctx, "colours", (opener, self.open), |ui| {
-            ui.horizontal(|ui| {
-                ui.set_height(TOUCH_TARGET);
-                ui.add_space(2.0 * SPACE);
-                ui.heading("Colour");
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.add_space(SPACE);
-                    palette.hex_field(ui, brush.color, taps);
-                });
+            panel_heading_with(ui, "Colour", |ui| {
+                ui.add_space(SPACE);
+                palette.hex_field(ui, brush.color, taps);
             });
             palette.hex_hint(ui);
             ui.vertical_centered(|ui| {
@@ -136,10 +134,6 @@ fn recent(ui: &mut egui::Ui, brush: &BrushProjection, taps: &mut Vec<Intent>) {
     });
 }
 
-/// egui may run a pass twice; one change is sent once.
 fn push(taps: &mut Vec<Intent>, color: openpaint_core::Color, settled: bool) {
-    let intent = Intent::Tool(ToolIntent::Color { color, settled });
-    if taps.last() != Some(&intent) {
-        taps.push(intent);
-    }
+    push_once(taps, Intent::Tool(ToolIntent::Color { color, settled }));
 }

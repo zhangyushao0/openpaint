@@ -7,6 +7,7 @@ use openpaint_core::CanvasSize;
 
 use crate::adjust::AdjustProjection;
 use crate::clipboard::{ClipboardAction, paste};
+use crate::error::AppError;
 use crate::fill::{DEFAULT_THRESHOLD, FillProjection};
 use crate::gallery::GalleryProjection;
 use crate::layers::LayerList;
@@ -56,7 +57,7 @@ pub enum EditorAction {
     Transform,
     /// Adjust the layer's colours, blur or sharpen it.
     Adjust,
-    /// Cut, copy or paste (S40), as the copy menu offers.
+    /// Cut, copy or paste, as the copy menu offers.
     Clipboard(ClipboardAction),
 }
 
@@ -89,6 +90,18 @@ impl Availability {
     pub const fn is_offered(self) -> bool {
         matches!(self, Self::Available | Self::StrokeInProgress)
     }
+
+    /// Nothing while available; otherwise `action` refused for this reason.
+    pub(crate) const fn require(self, action: EditorAction) -> Result<(), AppError> {
+        if self.is_available() {
+            Ok(())
+        } else {
+            Err(AppError::Unavailable {
+                action,
+                availability: self,
+            })
+        }
+    }
 }
 
 /// A snapshot of the session for one UI frame. The default is no open session: nothing is
@@ -116,7 +129,7 @@ pub struct SessionProjection {
     pub(crate) adjust: Box<AdjustProjection>,
     /// The copy menu's commands in `ClipboardAction::ALL` order.
     pub(crate) clipboard: [Availability; 6],
-    /// The Drawing Guide, and the shape snapped last while it can be edited (S42).
+    /// The Drawing Guide, and the shape snapped last while it can be edited.
     pub(crate) guide: Guide,
     pub(crate) shape: Option<Box<ShapeProjection>>,
     pub(crate) brush: Option<BrushProjection>,
@@ -211,13 +224,13 @@ impl SessionProjection {
         &self.adjust
     }
 
-    /// The Drawing Guide: on or off, its symmetry and centre (S42).
+    /// The Drawing Guide: on or off, its symmetry and centre.
     #[must_use]
     pub const fn guide(&self) -> Guide {
         self.guide
     }
 
-    /// The shape the last stroke snapped to, while it can be edited (S42).
+    /// The shape the last stroke snapped to, while it can be edited.
     #[must_use]
     pub fn shape(&self) -> Option<&ShapeProjection> {
         self.shape.as_deref()

@@ -39,6 +39,7 @@ mod shape_drag;
 mod sheet;
 mod shell;
 mod side_bar;
+mod taps;
 mod transform_bar;
 mod transform_drag;
 
