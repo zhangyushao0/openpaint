@@ -1,11 +1,11 @@
-//! The protocol's transform records (S31, D57): a frame moves where the ops after it are
+//! The protocol's transform records: a frame moves where the ops after it are
 //! evaluated; a moved selection's content starts from nothing, the layer so far set aside, and
 //! its end cuts it to the selection (or, for a whole layer, the canvas) and lays it over what
 //! was set aside. The slots here are declared to WGSL by `prelude` like the rest.
 
 use super::{OP_DATA, Op, Opcode, halves};
 
-/// A frame: after its six rows, canvas pixels per content pixel and its base-2 log; then (S65)
+/// A frame: after its six rows, canvas pixels per content pixel and its base-2 log; then
 /// the six rows mapping content points back to the canvas, where the raster core places quads.
 const FRAME_FOOT: usize = 6;
 const FRAME_LEVEL: usize = 7;

@@ -1,6 +1,6 @@
-//! The frame budget for background work (S53): a screen frame takes of the waiting tiles, a view
+//! The frame budget for background work: a screen frame takes of the waiting tiles, a view
 //! tier's missing tiles and a residual being evaluated only what its budget's estimate holds (or a
-//! single piece), so the canvas fills in over frames to the cold canvas (S62: its tiles drawn by
+//! single piece), so the canvas fills in over frames to the cold canvas (its tiles drawn by
 //! the raster worker, served after each frame), a pinch's and a pan's frames stay
 //! within it, a stroke drawn while tiles wait is evaluated at once and leaves them waiting, and
 //! every smudge residual is evaluated once while nothing changes: by the canvas's fill, none again
@@ -117,7 +117,7 @@ fn cold(artwork: &Artwork) -> RgbaImage {
 }
 
 /// One screen frame: the budget whole again, the canvas, then (with a view) its tiers, then the
-/// tiles they handed to the raster worker drawn (S60, S62); the frame's background work must have
+/// tiles they handed to the raster worker drawn; the frame's background work must have
 /// kept within the budget.
 fn frame(
     (target, cache): (&mut CanvasTarget, &mut ViewCache),
@@ -221,7 +221,7 @@ fn a_stroke_drawn_while_tiles_wait_shows_at_once_and_leaves_them_waiting() {
     frame((&mut target, &mut cache), drawing, &[], None);
     assert!(target.pending(), "the waiting tiles wait for the stroke");
     let so_far = stroke.finish().artwork;
-    // S63: the stroke in progress drawn by the raster core where it reaches, as the canvas drawn
+    // The stroke in progress drawn by the raster core where it reaches, as the canvas drawn
     // cold there.
     let reached = stroke_region(&style, &samples, 0).expect("region");
     let [shown, wanted] = [target.read(core()).expect("read"), cold(&so_far)];
@@ -310,7 +310,7 @@ fn each_residual_is_evaluated_once_by_the_canvas_and_never_again_by_the_tiers() 
     core().set_frame_budget(BACKGROUND_NS);
 }
 
-/// A canvas shown complete from its display cache (S54) holds no residual yet: they are evaluated
+/// A canvas shown complete from its display cache holds no residual yet: they are evaluated
 /// over frames as background work, each once (none at once, outside the budget), while a 4x
 /// tier waits for those its tiles read; the canvas = cold and nothing waits on it meanwhile.
 #[test]

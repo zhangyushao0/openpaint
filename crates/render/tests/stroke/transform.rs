@@ -1,18 +1,14 @@
 //! Transforms on the GPU: a layer or a selection lifted and placed again. In place nothing
 //! changes; a move shows the same pixels elsewhere; outside a selection nothing changes; and
-//! the done criterion of S20: every preview frame evaluated incrementally on one target, and
+//! every preview frame evaluated incrementally on one target, and
 //! the last one equals the committed artwork, reloaded and evaluated cold, bit for bit.
 
-use openpaint_core::{Artwork, CanvasSize, Color, Patch, Placement, RegionMask};
+use openpaint_core::{Artwork, Color, Patch, Placement, RegionMask};
 use openpaint_render::{CanvasTarget, Core, PixelRect, changed_regions};
 
 use crate::fixture::{
-    SIZE, blank, cold, core, diagonal, pixel, plain, request, sample, wave, with_stroke,
+    SIZE, blank, canvas, cold, core, diagonal, pixel, plain, request, sample, wave, with_stroke,
 };
-
-fn canvas() -> CanvasSize {
-    CanvasSize::new(SIZE[0], SIZE[1]).expect("size")
-}
 
 /// The wave and a solid black bar on one layer.
 fn drawn() -> Artwork {

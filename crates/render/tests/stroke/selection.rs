@@ -1,4 +1,4 @@
-//! Painting inside a selection (S18): a stroke drawn inside a selection changes no pixel outside
+//! Painting inside a selection: a stroke drawn inside a selection changes no pixel outside
 //! it, whatever its brush or tool, drawn incrementally or committed and evaluated cold; and the
 //! screen marks the selection with an outline and stripes outside it, leaving the canvas inside
 //! as it is.

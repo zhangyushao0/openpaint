@@ -1,12 +1,12 @@
 //! `Arena`: a target's derived raster boundaries in one word buffer, so the raster core binds them
 //! all at once and each op names its block: finished smudge residuals (a residual's header, its
-//! table cut to the tiles it holds and their nodes, `Working::block`) and filter results (S33,
-//! its rectangle and its pixels, `filter.rs`). Blocks are appended; when the buffer is full, the
+//! table cut to the tiles it holds and their nodes, `Working::block`) and filter results (its
+//! rectangle and its pixels, `filter.rs`). Blocks are appended; when the buffer is full, the
 //! blocks the scene still shows move into a new one and the others go.
 //!
-//! S51: the arena keeps within a room (the GPU memory budget's share, else the device's binding
-//! limit). A residual is derived from its stroke (D46), so it is a cache: when the blocks shown
-//! pass the room, the least recently needed residuals go, never one the evaluation at hand needs,
+//! The arena keeps within a room (the GPU memory budget's share, else the device's binding
+//! limit). A residual is derived from its stroke, so it is a cache: when the blocks shown pass
+//! the room, the least recently needed residuals go, never one the evaluation at hand needs,
 //! and a smudge's residual may hold only the tiles near what is evaluated (`TileSet`); either is
 //! evaluated again from the artwork when a later evaluation needs it. It never exceeds the
 //! device's storage binding limit.
@@ -190,7 +190,7 @@ impl Arena {
     }
 
     /// Keeps only blocks `keep` shows, within its room (the least recently needed go first,
-    /// never a needed one), in a buffer just large enough (S49's third step, S51's room).
+    /// never a needed one), in a buffer just large enough.
     ///
     /// # Errors
     /// As `reserve`.
@@ -251,7 +251,7 @@ impl Arena {
         keep: &Keep<'_>,
     ) -> Result<u64, RenderError> {
         self.blocks.remove(&key);
-        // The last blocks no scene shows give their room back: a preview's earlier value (S35).
+        // The last blocks no scene shows give their room back: a preview's earlier value.
         while let Some((key, base)) = self
             .blocks
             .iter()

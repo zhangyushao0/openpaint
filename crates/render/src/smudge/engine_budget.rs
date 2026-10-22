@@ -1,7 +1,7 @@
-//! A canvas target's smudge and filter memory under the GPU memory budget (S49, D93): what it
-//! holds, the arena cut down to the blocks the scene shows (the rest is derived again from the
-//! artwork if a later version shows it), and S51's step: the residuals shown kept within a room,
-//! the least recently needed going first, never those the last draw needed.
+//! A canvas target's smudge and filter memory under the GPU memory budget: what it holds, the
+//! arena cut down to the blocks the scene shows (the rest is derived again from the artwork if a
+//! later version shows it), and the residuals shown kept within a room, the least recently needed
+//! going first, never those the last draw needed.
 
 use std::collections::HashSet;
 

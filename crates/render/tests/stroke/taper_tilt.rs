@@ -1,4 +1,4 @@
-//! Taper and tilt (S44): an Inker line's width follows its taper at 5, 50 and 95 % of its length;
+//! Taper and tilt: an Inker line's width follows its taper at 5, 50 and 95 % of its length;
 //! drawn sample by sample, every frame is the stroke so far without its end taper and the frame
 //! at the lift is the committed stroke, cold; tilt widens and lightens by its curves; a monoline
 //! keeps one width at any pressure; tapered strokes export in bands as in one piece.
@@ -101,7 +101,7 @@ fn an_inker_lines_width_follows_its_taper_at_five_fifty_and_ninety_five_percent(
 
 /// `style` drawn through `samples` one sample at a time on one canvas target: after every fifth
 /// sample the frame equals the stroke so far drawn cold as a finished stroke of `drawn` (the
-/// same brush without its end taper; S63: by the raster core); at the lift the target equals the
+/// same brush without its end taper); at the lift the target equals the
 /// committed stroke cold.
 pub fn drawn_with_a_blunt_end(style: &StrokeStyle, drawn: &StrokeStyle, samples: &[StrokeSample]) {
     let core = core();
@@ -122,7 +122,7 @@ pub fn drawn_with_a_blunt_end(style: &StrokeStyle, drawn: &StrokeStyle, samples:
         };
         target.draw(&core, &frame, &[]).expect("evaluate");
         if end % 5 == 0 || end == samples.len() {
-            // S63: the raster core's, as it draws the stroke so far committed cold.
+            // The raster core's, as it draws the stroke so far committed cold.
             let so_far = with_stroke(&base, (drawn.clone(), samples[..end].to_vec()));
             let shown = target.read(&core).expect("read");
             assert!(shown == cold(&core, &so_far), "after {end} samples: blunt");

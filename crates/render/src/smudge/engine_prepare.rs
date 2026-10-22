@@ -1,4 +1,4 @@
-//! Making the residuals a draw needs present in the arena (S51): which of them, and which tiles
+//! Making the residuals a draw needs present in the arena: which of them, and which tiles
 //! of each, `engine_needs.rs` says; here they are derived in scene order, whole when the device
 //! binds them all, else only the tiles needed, and the arena keeps within its room by dropping
 //! the residuals needed least lately.
@@ -7,13 +7,14 @@ use std::collections::HashSet;
 
 use openpaint_core::Artwork;
 
-use super::needs::{self, Need, Wanted};
+use super::needs::{self, Need};
 use super::{
     Active, Keep, Key, Smudges, TileSet, binding_limit, budget, dabs, key, material, node_words,
 };
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::filter::Filters;
+use crate::geom::PixelRect;
 use crate::scene::{Scene, SmudgeItem};
 use crate::scene_ops::SceneOps;
 
@@ -31,11 +32,11 @@ impl Smudges {
         core: &Core,
         (scene, ops): (&Scene, &SceneOps),
         artwork: &Artwork,
-        (filters, wanted): (&mut Filters, &Wanted<'_>),
+        (filters, near): (&mut Filters, &[PixelRect]),
     ) -> Result<(), RenderError> {
         let keys = budget::keys_of(scene, filters);
         let limit = binding_limit(core).min(self.limit);
-        let (needs, whole) = self.needs(scene, artwork, (&keys, wanted), limit);
+        let (needs, whole) = self.needs(scene, artwork, (&keys, near), limit);
         let filtered = keys[scene.smudges.len()..].iter();
         let needed: HashSet<Key> = (keys.iter().zip(&needs))
             .filter(|(_, need)| **need != Need::No)
@@ -97,10 +98,10 @@ impl Smudges {
         &mut self,
         scene: &Scene,
         artwork: &Artwork,
-        (keys, wanted): (&[Key], &Wanted<'_>),
+        (keys, near): (&[Key], &[PixelRect]),
         limit: u64,
     ) -> (Vec<Need>, bool) {
-        let mut needs = needs::needs(scene, wanted);
+        let mut needs = needs::needs(scene, near);
         // A just committed smudge takes the in-progress residual whole, before it ends.
         for (need, item) in needs.iter_mut().zip(&scene.smudges) {
             let adopts = |active: &Active| active.adopts(item, artwork);
@@ -143,7 +144,7 @@ impl Smudges {
         }))
     }
 
-    /// The arena keeps within `room` bytes when it can from now on (S51).
+    /// The arena keeps within `room` bytes when it can from now on.
     pub(crate) fn set_room(&mut self, room: u64) {
         self.room = room;
     }

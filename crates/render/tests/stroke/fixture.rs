@@ -6,8 +6,8 @@ use std::sync::{Arc, OnceLock};
 
 use openpaint_core::{
     Accumulation, Artwork, ArtworkCommand, BrushRecipe, CanvasPoint, CanvasSize, Color, CoreError,
-    Curve, Deposit, Dynamics, Grain, LayerCommand, Paper, PaperTexture, StrokeSample, StrokeStyle,
-    Tip,
+    Curve, Deposit, Dynamics, Grain, LayerCommand, Paper, PaperTexture, RegionMask, StrokeSample,
+    StrokeStyle, Tip,
 };
 use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RgbaImage};
 
@@ -16,7 +16,7 @@ pub const SIZE: [u32; 2] = [320, 200];
 /// The one GPU device of this test binary, opened by the first test that asks. A device per
 /// test once deadlocked NVIDIA's Windows driver: opening one loads a library under the driver's
 /// lock while an exiting thread holds the loader lock and waits for the driver's (2026-10-04).
-/// Its frames take every waiting tile (S53: a frame budget without end), as these tests compare
+/// Its frames take every waiting tile (a frame budget without end), as these tests compare
 /// pixels, not pace; `tests/frame_budget.rs` tests the budget on a device of its own.
 pub fn core() -> Shared {
     static CORE: OnceLock<Core> = OnceLock::new();
@@ -39,8 +39,45 @@ impl Deref for Shared {
     }
 }
 
+pub fn canvas() -> CanvasSize {
+    CanvasSize::new(SIZE[0], SIZE[1]).expect("canvas size")
+}
+
 pub fn blank() -> Artwork {
-    Artwork::new(CanvasSize::new(SIZE[0], SIZE[1]).expect("canvas size"))
+    Artwork::new(canvas())
+}
+
+/// The canvas pixels `inside` holds, by column and row.
+pub fn region(inside: impl Fn(u32, u32) -> bool) -> RegionMask {
+    let pixels: Vec<bool> = (0..SIZE[0] * SIZE[1])
+        .map(|at| inside(at % SIZE[0], at / SIZE[0]))
+        .collect();
+    RegionMask::from_pixels(canvas(), &pixels).expect("mask")
+}
+
+/// The pixels with `x` in `x0..x1`, every row.
+pub fn columns(x0: u32, x1: u32) -> RegionMask {
+    region(|x, _| (x0..x1).contains(&x))
+}
+
+pub fn rgb([r, g, b]: [f32; 3]) -> Color {
+    Color::rgb(r, g, b).expect("colour")
+}
+
+pub fn apply(artwork: &Artwork, command: ArtworkCommand) -> Artwork {
+    artwork.apply(command).expect("command").artwork
+}
+
+pub fn layer(artwork: &Artwork, command: LayerCommand) -> Artwork {
+    apply(artwork, ArtworkCommand::Layer(command))
+}
+
+/// `artwork` with `mask` filled in `colour` on its active layer.
+pub fn fill(artwork: &Artwork, mask: RegionMask, colour: [f32; 3]) -> Artwork {
+    artwork
+        .fill_region(mask, rgb(colour))
+        .expect("fill")
+        .artwork
 }
 
 /// The plain round brush, the only brush before recipes.
@@ -84,7 +121,7 @@ pub fn rich() -> Arc<BrushRecipe> {
     Arc::new(recipe.expect("recipe"))
 }
 
-/// The S16 pencil: graphite building up on the sketch paper under a flat tip.
+/// The pencil: graphite building up on the sketch paper under a flat tip.
 pub fn graphite() -> Arc<BrushRecipe> {
     let curve = |points: &[[f32; 2]]| Curve::new(points).expect("curve");
     let size = Dynamics::new(curve(&[[0.0, 0.3], [1.0, 1.0]]), curve(&[[0.0, 1.0]]));

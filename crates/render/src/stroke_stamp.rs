@@ -1,4 +1,4 @@
-//! A stamped stroke's stamps on the CPU side (S45, DECISIONS D72): stamp `n` lies `n * spacing *
+//! A stamped stroke's stamps on the CPU side: stamp `n` lies `n * spacing *
 //! size` canvas pixels along the stroke's path (its length along the knots' chords, the same
 //! lengths the taper follows, `stroke_path.rs`), and belongs to the one span whose length range
 //! holds it: after the span's start up to its end, the first span from its start. So a stamp is

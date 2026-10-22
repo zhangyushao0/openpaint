@@ -58,7 +58,7 @@ impl Working {
         &self.buffer
     }
 
-    /// Empty again, its buffer kept for the next residual (S51): no tile held, the table cleared.
+    /// Empty again, its buffer kept for the next residual: no tile held, the table cleared.
     /// The nodes stay as they were; a tile allocated later is reset before it is read.
     pub(crate) fn reset(&mut self, gpu: &Gpu) {
         self.table.fill(0);
@@ -163,7 +163,7 @@ impl Working {
 
     /// The residual as an arena block: its tiles in `part` (`None`: all), renumbered in slot
     /// order, the table cut to their box. A tile left out reads as the identity, so a block of
-    /// some tiles gives exactly the residual's values there (S51).
+    /// some tiles gives exactly the residual's values there.
     pub(crate) fn block(&self, part: Option<&TileSet>) -> Block {
         let column_row = |tile: u32| [tile % self.columns, tile / self.columns];
         let kept: Vec<u32> = (self.tiles.iter().copied())

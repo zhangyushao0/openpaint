@@ -5,7 +5,7 @@
 
 // Operand `k` of op `op`: read where it is used, never a whole op (copying each op whole, 24
 // words, held it in registers and made stamped spans and smudges up to twice as slow on the
-// Adreno, S55).
+// Adreno).
 fn word(op: u32, k: u32) -> f32 {
     return ops[op].data[k];
 }
@@ -126,8 +126,8 @@ fn pcg(value: u32) -> u32 {
 }
 
 // What of a transform record's moved content shows at `point` (where the centre maps back
-// to): 1 inside its selection's mask, or for the whole layer inside the canvas, else 0. What
-// was lifted came from the canvas only, as the layer's pixels did before S31.
+// to): 1 inside its selection's mask, or for the whole layer inside the canvas, else 0: what
+// moved came from the canvas only.
 fn moved_share(point: vec2<f32>, cell: vec2<u32>, op: u32) -> f32 {
     let canvas = vec2<f32>(word(op, MOVE_CANVAS), word(op, MOVE_CANVAS + 1u));
     if any(point < vec2<f32>(0.0)) || any(point >= canvas) {

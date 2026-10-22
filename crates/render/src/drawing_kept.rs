@@ -1,16 +1,16 @@
-//! The kept coverage of the stroke being drawn (S63, S64, DECISIONS D91; `drawing_frame.rs`):
+//! The kept coverage of the stroke being drawn (`drawing_frame.rs`):
 //! every frame notes the output tiles its spans reach (two slots each, taken when they reach a
 //! tile first) and which 32-px cells of them the spans settled since reach; the frame's regions
 //! lay those spans over what the slots hold and copy the result back into them
 //! (`raster_plan_kept.rs`), so after the frame the slots hold those cells too.
 
-use super::{CanvasTarget, Onto, Pen, meeting};
+use super::{CanvasTarget, Onto, Pen};
 use crate::core::Core;
 use crate::drawing::Drawing;
 use crate::error::RenderError;
 use crate::geom::PixelRect;
 use crate::output::Output;
-use crate::view_tiles::TIER_TILE;
+use crate::view_tiles::{TIER_TILE, meeting};
 
 impl CanvasTarget {
     /// The tiles `onto` draws that the stroke's spans reach given their kept coverage, and the

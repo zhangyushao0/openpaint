@@ -1,43 +1,23 @@
-//! Groups on the GPU (D50): pass-through, so a Multiply layer in a group darkens what lies
+//! Groups on the GPU: pass-through, so a Multiply layer in a group darkens what lies
 //! under the group; the group's opacity mixes between that and what lies under it, exactly the
 //! ungrouped result at 1; a hidden group shows nothing of its layers; and incremental equals
 //! cold through group, clipping and blend edits and while drawing on a clipping layer in a
 //! faded group.
 
 use openpaint_core::{
-    Artwork, ArtworkCommand, BlendMode, CanvasSize, Color, GroupCommand, GroupId, LayerCommand,
-    LayerId, RegionMask,
+    Artwork, ArtworkCommand, BlendMode, GroupCommand, GroupId, LayerCommand, LayerId,
 };
 use openpaint_render::{CanvasTarget, FrameRequest, PixelRect, changed_regions};
 
 use crate::fixture::{
-    SIZE, blank, cold, core, diagonal, pixel, request, wave, with_layer, with_stroke,
+    SIZE, apply, blank, cold, columns, core, diagonal, fill, pixel, request, wave, with_layer,
+    with_stroke,
 };
 
 const BACK: [f32; 3] = [0.2, 0.7, 0.45];
 const SOURCE: [f32; 3] = [0.85, 0.3, 0.6];
 const RIGHT: [f32; 3] = [0.1, 0.25, 0.9];
 const GROUP: GroupId = GroupId::new(4);
-
-fn color([r, g, b]: [f32; 3]) -> Color {
-    Color::rgb(r, g, b).expect("colour")
-}
-
-fn columns(x0: u32, x1: u32) -> RegionMask {
-    let inside: Vec<bool> = (0..SIZE[0] * SIZE[1])
-        .map(|at| (x0..x1).contains(&(at % SIZE[0])))
-        .collect();
-    let canvas = CanvasSize::new(SIZE[0], SIZE[1]).expect("size");
-    RegionMask::from_pixels(canvas, &inside).expect("mask")
-}
-
-fn apply(artwork: &Artwork, command: ArtworkCommand) -> Artwork {
-    artwork.apply(command).expect("command").artwork
-}
-
-fn fill(artwork: &Artwork, mask: RegionMask, rgb: [f32; 3]) -> Artwork {
-    artwork.fill_region(mask, color(rgb)).expect("fill").artwork
-}
 
 /// Layer 1: `BACK` on the left half. In group 4: layer 2, `SOURCE` everywhere by Multiply, and
 /// layer 3, `RIGHT` on the right third.

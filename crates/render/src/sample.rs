@@ -1,8 +1,7 @@
 //! Layer sampling: one layer's own pixels (or its mask's grey) at native resolution, for a fill
 //! to flood over, a transform to lift and the layer panel's pictures. Like export it draws into a
-//! target of its own, so a worker holding an `Arc<Core>` runs it while the screen draws on: since
-//! S62 (D89) through the raster core, an export of the layer's own scene at 1x
-//! (`export_raster.rs`; every layer since S65, D92).
+//! target of its own, so a worker holding an `Arc<Core>` runs it while the screen draws on: an
+//! export of the layer's own scene at 1x (`export_raster.rs`).
 
 use openpaint_core::{Artwork, LayerId};
 
@@ -39,10 +38,10 @@ impl Core {
         self.sample(artwork, layer, true)
     }
 
-    /// A small picture of `layer` alone (S38): what `layer_pixels`, or with `mask`
+    /// A small picture of `layer` alone: what `layer_pixels`, or with `mask`
     /// `mask_pixels`, gives, reduced on the GPU to at most `max` pixels (`thumbnail_size`, box
     /// means as `thumbnail`); only the small picture is read back. Made on a worker while the
-    /// screen draws on (S53), so each part of its drawing is waited for before the next. Waits for
+    /// screen draws on, so each part of its drawing is waited for before the next. Waits for
     /// the GPU.
     ///
     /// # Errors

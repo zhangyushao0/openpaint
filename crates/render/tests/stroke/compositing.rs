@@ -1,12 +1,10 @@
 //! Layers composite in stack order with their opacity and visibility (Normal, source over), and
 //! switching versions by `changed_regions` equals evaluating the new version cold.
 
-use openpaint_core::{
-    Artwork, ArtworkCommand, Color, LayerCommand, LayerId, StrokeSample, StrokeStyle,
-};
+use openpaint_core::{Artwork, Color, LayerCommand, LayerId, StrokeSample, StrokeStyle};
 use openpaint_render::{CanvasTarget, FrameRequest, PixelRect, changed_regions};
 
-use crate::fixture::{SIZE, blank, cold, core, pixel, plain, request, sample, with_stroke};
+use crate::fixture::{SIZE, blank, cold, core, layer, pixel, plain, request, sample, with_stroke};
 
 const RED: [u8; 4] = [255, 0, 0, 255];
 const BLUE: [u8; 4] = [0, 0, 255, 255];
@@ -44,13 +42,6 @@ fn blue() -> (StrokeStyle, Vec<StrokeSample>) {
         [160.0, 20.0],
         [160.0, 180.0],
     )
-}
-
-fn layer(artwork: &Artwork, command: LayerCommand) -> Artwork {
-    artwork
-        .apply(ArtworkCommand::Layer(command))
-        .expect("layer command")
-        .artwork
 }
 
 /// Red on the bottom layer, blue on a layer above it; returns the artwork and both ids.

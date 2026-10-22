@@ -28,8 +28,8 @@ pub fn frame(zoom: f32, [cx, cy]: [f32; 2]) -> ViewFrame {
     }
 }
 
-/// The canvas target and its view tiers, as the runtime holds them, and the raster worker's side
-/// (S60), served at once after each frame.
+/// The canvas target and its view tiers, as the runtime holds them, and the raster worker's side,
+/// served at once after each frame.
 pub struct Screen {
     pub target: CanvasTarget,
     pub view: ViewCache,

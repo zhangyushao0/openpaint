@@ -1,4 +1,4 @@
-// The gallery picture enlarged over a whole canvas target (S54, `underlay.rs`): each target
+// The gallery picture enlarged over a whole canvas target (`underlay.rs`): each target
 // pixel samples the picture bilinearly at its centre. What a canvas opening without a display
 // cache shows under its tiles until they are evaluated, never the truth. TEXEL_FORMAT is the
 // target's storage format, put in by `underlay.rs`.

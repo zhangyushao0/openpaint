@@ -1,4 +1,4 @@
-//! Fill edges (S30): a fill's edge at 1x, 2x and 4x lies on the line its mask was sampled from,
+//! Fill edges: a fill's edge at 1x, 2x and 4x lies on the line its mask was sampled from,
 //! antialiased over about one output pixel; its inside is exactly its colour; a transform's
 //! lift stays hard; incremental evaluation reusing a fill's edge equals cold.
 

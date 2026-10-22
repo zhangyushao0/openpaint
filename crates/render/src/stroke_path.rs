@@ -1,5 +1,5 @@
 //! `Path`: a stroke's knots (`curve::knots`), how far along its path each lies, and what follows
-//! from them: its spans, the ones no later sample can change, and the taper at each knot (S44).
+//! from them: its spans, the ones no later sample can change, and the taper at each knot.
 //! The path's length is measured along the chords between consecutive knots, so a knot's
 //! distance from the start depends only on the knots before it and stays settled while the
 //! stroke is drawn.

@@ -25,7 +25,7 @@ const PAINT_CLIP: usize = 12;
 /// Where a fill's mask starts in the mask words, split in two whole numbers below 2^16 (high
 /// part first) so each stays exact as a float.
 const FILL_MASK: usize = 7;
-/// A smoothed fill edge's canvas width and height (S30); 0 for a hard edge (a transform's lift).
+/// A smoothed fill edge's canvas width and height; 0 for a hard edge (a transform's lift).
 const FILL_EDGE: usize = 9;
 /// Where a patch starts in the patch words, split like `FILL_MASK`.
 const PATCH_AT: usize = 6;
@@ -75,7 +75,7 @@ const BLENDS: [(&str, Blend); 3] = [
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Opcode {
-    /// One settled span of a stroke's curve (S34), flattened at the output's scale.
+    /// One settled span of a stroke's curve, flattened at the output's scale.
     Segment = 0,
     /// A finished stroke's paint: its coverage painted over its layer.
     EndStroke = 1,
@@ -101,7 +101,7 @@ pub(crate) enum Opcode {
     /// An adjustment of its layer's colours, inside its clip (`protocol_adjust.rs`).
     Adjust = 10,
     /// From here the items lie in a transform record's content, drawn at the pixel's centre
-    /// mapped through the frame's rows (S31).
+    /// mapped through the frame's rows.
     Frame = 11,
     /// A moved selection's or a merged layer's content starts, from nothing.
     BeginMove = 12,
@@ -113,7 +113,7 @@ pub(crate) enum Opcode {
     /// A span of the stroke being drawn's end that later samples may still change: laid every
     /// frame, never kept.
     Tail = 15,
-    /// A merged layer's content (S39, a nested record) ends: its mask, then its opacity, then by
+    /// A merged layer's content (a nested record) ends: its mask, then its opacity, then by
     /// its mode over (or atop) what its layer held before it.
     EndNested = 16,
 }

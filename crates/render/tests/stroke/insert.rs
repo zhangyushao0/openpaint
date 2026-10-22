@@ -1,4 +1,4 @@
-//! An inserted picture on the GPU (S26): a new layer whose content is a placed patch with
+//! An inserted picture on the GPU: a new layer whose content is a placed patch with
 //! nothing lifted. Unmoved it shows its pixels exactly over the paper; every placement a hand
 //! passes through, evaluated incrementally on one target, ends bit-equal to the committed
 //! artwork reloaded and evaluated cold; a mask and a clipping layer on it evaluate incrementally

@@ -1,4 +1,4 @@
-//! `Fresh`: the in-progress stroke's ops for one frame (S63: the raster core's), and
+//! `Fresh`: the in-progress stroke's ops for one frame (the raster core's), and
 //! `ActivePlace`: where in a scene it draws (`scene.rs`).
 
 use openpaint_core::{ActiveStroke, Artwork, LayerId, RegionMask, StrokeBlend, StrokeTool};
@@ -25,7 +25,7 @@ impl ActivePlace {
         }
     }
 
-    /// The place of `active`, else (S56) where the next stroke on `artwork`'s active layer draws
+    /// The place of `active`, else where the next stroke on `artwork`'s active layer draws
     /// without a selection: a scene keeps that place while no stroke is drawn, so the pen
     /// touching down keeps the scene (the place draws nothing without a stroke).
     pub(crate) fn of_request(artwork: &Artwork, active: Option<&ActiveStroke>) -> Self {
@@ -41,7 +41,7 @@ impl ActivePlace {
 }
 
 /// The in-progress stroke's ops for one frame: `ops[0]` paints it (`EndActive`), the rest
-/// are the spans not yet in its coverage texture, then its tail, with their bounds in `bounds`.
+/// are the spans not yet in its kept coverage, then its tail, with their bounds in `bounds`.
 #[derive(Debug, Default)]
 pub(crate) struct Fresh {
     pub(crate) ops: Vec<Op>,

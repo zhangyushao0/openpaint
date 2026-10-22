@@ -1,4 +1,4 @@
-//! Snapshots under the next stroke (S63, DECISIONS D90) as the frame loop keeps them: taken ahead
+//! Snapshots under the next stroke as the frame loop keeps them: taken ahead
 //! by the raster worker while nothing touches the screen, they outlive a stroke (its successor
 //! over the same place lays it from the snapshots taken before it), an undo lets go only those it
 //! reaches, a layer switch every one; after each, the strokes drawn take no snapshot on the frame
@@ -13,8 +13,8 @@ use openpaint_render::{
 };
 
 use crate::drawing::{begun, committed, path, screen, shows};
-use crate::fixture::{SIZE, cold, plain, with_stroke};
-use crate::raster::{color, every_raster_source, layer};
+use crate::fixture::{SIZE, cold, layer, plain, with_stroke};
+use crate::raster::{color, every_raster_source};
 use crate::scale::whole;
 use crate::tiers::{assert_tiles, frame};
 
@@ -193,7 +193,7 @@ fn snapshots_taken_ahead_carry_strokes_an_undo_and_a_layer_switch_and_every_fram
     stroke(&core, &mut screen, &switched, [160.0, 100.0]);
 }
 
-/// S64: the lift takes its stroke into the scene in place (no scene built), on a layer under
+/// The lift takes its stroke into the scene in place (no scene built), on a layer under
 /// others (a mask, a clipping chain, a smudge on the top layer): the lift's frame and every frame
 /// after it are the canvas drawn cold, at the canvas and at a tier; an undo builds the scene
 /// before, a redo takes the stroke in place again, a stroke after both is cold.

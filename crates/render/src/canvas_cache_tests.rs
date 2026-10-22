@@ -1,4 +1,4 @@
-//! The display cache's round trip (S54): a canvas evaluated cold, copied out and put into a new
+//! The display cache's round trip: a canvas evaluated cold, copied out and put into a new
 //! target holds the cold canvas's texels bit for bit, at 8 bits and at ten (every code), and
 //! evaluating an edit over it gives what a cold evaluation of the edited artwork gives. The
 //! gallery picture enlarged covers a new target.

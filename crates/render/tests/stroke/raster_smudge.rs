@@ -1,4 +1,4 @@
-//! Smudges on the raster core (S61, DECISIONS D88): an artwork holding smudges of every kind
+//! Smudges on the raster core: an artwork holding smudges of every kind
 //! (across hard bands, over a fill, over an inserted picture, nine crossing over one place, inside
 //! a lasso, under Alpha Lock, on a grey mask) is drawn by the raster core with the smudge engine's
 //! residuals: one picture at 1x to 8x (each scale reduced comes back to the canvas), the same every
@@ -12,8 +12,10 @@ use openpaint_core::{
 };
 use openpaint_render::Banding;
 
-use crate::fixture::{airbrush, blank, core, plain, sample, with_layer, with_stroke};
-use crate::raster::{assert_scales_agree, color, layer, picture, region};
+use crate::fixture::{
+    airbrush, blank, core, layer, plain, region, sample, with_layer, with_stroke,
+};
+use crate::raster::{assert_scales_agree, color, picture};
 use crate::scale::{export, whole};
 use crate::tiers::{Screen, changes_reach_their_tiles, frame, tiles_are_the_export};
 
@@ -170,7 +172,7 @@ fn changes_over_smudges_draw_again_exactly_the_tiles_they_reach() {
     changes_reach_their_tiles(&first, &[smudged.clone(), over, smudged, first.clone()]);
 }
 
-/// A smudge drawn at 8x (S63: by the raster core at the tier too): the tiles it reaches follow it,
+/// A smudge drawn at 8x (by the raster core at the tier too): the tiles it reaches follow it,
 /// and the lift's frame leaves every tile the committed export bit for bit, none drawn again.
 #[test]
 fn a_smudge_drawn_while_zoomed_ends_as_its_export() {
@@ -198,7 +200,7 @@ fn a_smudge_drawn_while_zoomed_ends_as_its_export() {
     );
 }
 
-/// D88: the tiles handed to the raster worker draw the residuals they were handed with, though the
+/// The tiles handed to the raster worker draw the residuals they were handed with, though the
 /// canvas's arena moves into a new buffer before the worker draws them (a room of a few bytes:
 /// each frame lets go what it did not need).
 #[test]

@@ -1,4 +1,4 @@
-//! A batch of raster regions in one command buffer (S63, DECISIONS D90; `raster.rs`): each
+//! A batch of raster regions in one command buffer (`raster.rs`): each
 //! region's values at an offset of their own in one uniform buffer (bound by a dynamic offset),
 //! its instances one after another in the instance buffer, its passes encoded in order, so a
 //! frame of a stroke's drawing (its kept coverage laid, the snapshots it takes, its regions) is

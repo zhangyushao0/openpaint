@@ -44,15 +44,15 @@ pub(crate) enum Item {
     },
     /// A group's end.
     EndGroup(Op),
-    /// A masked layer's paint is set aside; its mask's ops follow (S24).
+    /// A masked layer's paint is set aside; its mask's ops follow.
     BeginMask(Op),
     /// Where the in-progress stroke draws: above its layer's finished strokes. Its ops are the
     /// frame's `Fresh` ops, which change every frame while the scene stays.
     Active,
     /// A smudge's residual applied to its layer where it can change it (`SmudgeItem::canvas`).
     Smudge(Op),
-    /// The items after it, up to the next frame, lie in a transform record's earlier content
-    /// (S31): their bounds are its pixels, `to_canvas` maps them to the canvas, and only what
+    /// The items after it, up to the next frame, lie in a transform record's earlier content:
+    /// their bounds are its pixels, `to_canvas` maps them to the canvas, and only what
     /// lies in `clip` (its pixels; `None`: all) can show. Its op maps where they are drawn.
     Frame {
         op: Op,
@@ -67,7 +67,7 @@ pub(crate) enum Item {
         op: Op,
         whole: bool,
     },
-    /// A merged layer's content ends (S39), laid onto the level under it (its `BeginMove`).
+    /// A merged layer's content ends, laid onto the level under it (its `BeginMove`).
     EndNested(Op),
     /// What a transform lifted cleared from the layer: an erasing fill, which never adds
     /// anything to set aside.
@@ -128,7 +128,7 @@ pub(crate) struct SmudgeItem {
     pub(crate) item: usize,
     pub(crate) clip: u32,
     /// The box its contacts can change, in its pixels (`None`: nothing), and the canvas pixels
-    /// that box reaches placed by `to_canvas`: where a draw needs its residual (S51).
+    /// that box reaches placed by `to_canvas`: where a draw needs its residual.
     pub(crate) reach: Option<Bounds>,
     pub(crate) canvas: PixelRect,
 }
@@ -140,7 +140,7 @@ pub(crate) struct SmudgeItem {
 /// share its words.
 #[derive(Debug, Default)]
 pub(crate) struct Scene {
-    /// The canvas's width and height: a fill's smoothed edge continues past them (S30).
+    /// The canvas's width and height: a fill's smoothed edge continues past them.
     pub(crate) canvas: [u32; 2],
     pub(crate) items: Vec<Item>,
     pub(crate) masks: Vec<u32>,
@@ -154,14 +154,14 @@ pub(crate) struct Scene {
     /// The finished smudges and the filters, in scene order: a draw names their arena blocks.
     pub(crate) smudges: Vec<SmudgeItem>,
     pub(crate) filters: Vec<FilterItem>,
-    /// The point adjustments, in scene order (S35: a preview changes their values in place).
+    /// The point adjustments, in scene order (a preview changes their values in place).
     pub(crate) adjusts: Vec<AdjustItem>,
     /// While building: the frame the items pushed now lie in (`Item::Frame`).
     pub(crate) frame: (Affine, Option<Bounds>),
     /// The items of the in-progress stroke's layer before its place.
     pub(crate) active_before: Option<Range<usize>>,
-    /// Where its strokes' spans lie, and while it is built the scene before's (S56,
-    /// `scene_reuse.rs`).
+    /// Where its strokes' spans lie, and while it is built the scene before's
+    /// (`scene_reuse.rs`).
     pub(crate) spans: Spans,
     pub(crate) earlier: Earlier,
     /// The fills' edge values, in order; and while building, an earlier scene's, which a fill
@@ -194,9 +194,9 @@ impl Scene {
     /// Layers that do not show (hidden, in a hidden group, clipping to a hidden base), and
     /// layers with neither content nor that place, contribute no ops. A layer ends onto the
     /// canvas, or into its clipping chain, which ends onto the canvas by its base's opacity and
-    /// mode; a group's layers end onto the canvas too, and its own end fades them (D50). A fill
+    /// mode; a group's layers end onto the canvas too, and its own end fades them. A fill
     /// whose mask an earlier scene drew takes its edge values from `known`, a stroke it drew its
-    /// spans from `earlier` (S56).
+    /// spans from `earlier`.
     pub(crate) fn build_knowing(
         artwork: &Artwork,
         active: Option<&ActivePlace>,
@@ -329,7 +329,7 @@ impl Scene {
     }
 
     /// Whether the in-progress stroke has a place, that is, its layer is visible: its `Active`
-    /// item lies right after the items of its layer before it (S64: asked every frame, never by
+    /// item lies right after the items of its layer before it (asked every frame, never by
     /// looking through the items).
     pub(crate) const fn has_active(&self) -> bool {
         self.active_before.is_some()

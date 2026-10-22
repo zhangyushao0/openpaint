@@ -1,13 +1,14 @@
 //! Blend modes and Clipping Masks on the GPU against values worked out by hand from the W3C
-//! compositing definitions on straight colours (D50): every mode over a coloured and a white
+//! compositing definitions on straight colours: every mode over a coloured and a white
 //! backdrop, a clipping layer on a translucent base, the base's opacity and mode for the chain,
 //! a hidden base, and a clip at the bottom of the stack.
 
-use openpaint_core::{
-    Artwork, ArtworkCommand, BlendMode, CanvasSize, Color, LayerCommand, LayerId, RegionMask,
-};
+use openpaint_core::{Artwork, ArtworkCommand, BlendMode, LayerCommand, LayerId};
 
-use crate::fixture::{SIZE, blank, cold, core, pixel, plain, sample, with_layer, with_stroke};
+use crate::fixture::{
+    SIZE, apply, blank, cold, columns, core, fill, pixel, plain, rgb, sample, with_layer,
+    with_stroke,
+};
 
 /// Inside the bottom layer's rectangle, and outside it (white paper under the top layer).
 const INSIDE: [u32; 2] = [60, 100];
@@ -18,22 +19,8 @@ const BACK: [f32; 3] = [0.2, 0.7, 0.45];
 const SOURCE: [f32; 3] = [0.85, 0.3, 0.6];
 const TOP_OPACITY: f32 = 0.7;
 
-fn color([r, g, b]: [f32; 3]) -> Color {
-    Color::rgb(r, g, b).expect("colour")
-}
-
-/// The pixels with `x` in `x0..x1`, every row.
-fn columns(x0: u32, x1: u32) -> RegionMask {
-    let inside: Vec<bool> = (0..SIZE[0] * SIZE[1])
-        .map(|at| (x0..x1).contains(&(at % SIZE[0])))
-        .collect();
-    let canvas = CanvasSize::new(SIZE[0], SIZE[1]).expect("size");
-    RegionMask::from_pixels(canvas, &inside).expect("mask")
-}
-
 fn layer(artwork: &Artwork, command: LayerCommand) -> Artwork {
-    let applied = artwork.apply(ArtworkCommand::Layer(command));
-    applied.expect("layer command").artwork
+    apply(artwork, ArtworkCommand::Layer(command))
 }
 
 fn blend(artwork: &Artwork, id: u64, blend: BlendMode) -> Artwork {
@@ -80,10 +67,9 @@ fn wide([r, g, b]: [f32; 3]) -> [f64; 3] {
 
 /// Layer 1: `BACK` on the left half. Layer 2 (on top, `TOP_OPACITY`): `SOURCE` everywhere.
 fn two_layers() -> Artwork {
-    let bottom = blank().fill_region(columns(0, 160), color(BACK));
-    let top = with_layer(&bottom.expect("fill").artwork, TOP_OPACITY);
-    let whole = columns(0, SIZE[0]);
-    top.fill_region(whole, color(SOURCE)).expect("fill").artwork
+    let bottom = fill(&blank(), columns(0, 160), BACK);
+    let top = with_layer(&bottom, TOP_OPACITY);
+    fill(&top, columns(0, SIZE[0]), SOURCE)
 }
 
 #[test]
@@ -128,16 +114,16 @@ fn each_mode_matches_its_formula_over_colour_and_over_white() {
 /// Layer 1: a red bar of opacity 0.6 (alpha 0.6 at its middle), 3 is clipping to it: `SOURCE`
 /// everywhere at `TOP_OPACITY`.
 fn clipped_to_a_bar(clip_mode: BlendMode) -> Artwork {
-    let style = plain(40.0, 0.6, Color::rgb(1.0, 0.0, 0.0).expect("red"));
+    let style = plain(40.0, 0.6, rgb([1.0, 0.0, 0.0]));
     let bar = vec![sample(20.0, 100.0, 1.0, 0), sample(300.0, 100.0, 1.0, 8)];
     let base = with_stroke(&blank(), (style, bar));
     let top = with_layer(&base, TOP_OPACITY);
-    let top = top.fill_region(columns(0, SIZE[0]), color(SOURCE));
+    let top = fill(&top, columns(0, SIZE[0]), SOURCE);
     let clipping = LayerCommand::SetClipping {
         layer: LayerId::new(2),
         clipping: true,
     };
-    blend(&layer(&top.expect("fill").artwork, clipping), 2, clip_mode)
+    blend(&layer(&top, clipping), 2, clip_mode)
 }
 
 /// The chain of a base of straight `base` colour and alpha `ca` with a clipping source drawn

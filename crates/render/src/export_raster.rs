@@ -1,10 +1,10 @@
-//! An export's pieces drawn by the raster core (S59, DECISIONS D86): each piece of a band in
-//! regions of at most `REGION` pixels, each rounded into the piece's 8-bit texture where it lies,
-//! then the piece read back. A pixel depends only on what reaches it, so the regions, the pieces
-//! and the bands make what one region over the whole output would. The export's smudges (S61,
-//! D88) and filters (S65) read residuals and results of its own, made near each region before it
-//! is drawn, each once. S62 (D89): a layer sample (one layer on nothing, a mask's grey on white)
-//! is such an export at 1x of its layer's scene, one piece the canvas's size.
+//! An export's pieces drawn by the raster core: each piece of a band in regions of at most
+//! `REGION` pixels, each rounded into the piece's 8-bit texture where it lies, then the piece read
+//! back. A pixel depends only on what reaches it, so the regions, the pieces and the bands make
+//! what one region over the whole output would. The export's smudges and filters read residuals
+//! and results of its own, made near each region before it is drawn, each once. A layer sample
+//! (one layer on nothing, a mask's grey on white) is such an export at 1x of its layer's scene,
+//! one piece the canvas's size (`sample.rs`).
 
 use std::time::{Duration, Instant};
 
@@ -21,7 +21,7 @@ use crate::raster_plan::RasterPlan;
 use crate::readback::{FORMAT, read_rect, target_texture, wait};
 use crate::scene::Scene;
 use crate::scene_ops::{SceneOps, scene_ops};
-use crate::smudge::{Smudges, Wanted, around_output};
+use crate::smudge::{Smudges, around_output};
 
 /// The largest region drawn at once: 8 MB a float target.
 const REGION: [u32; 2] = [1024, 512];
@@ -81,7 +81,7 @@ impl RasterExport {
     }
 
     /// As `piece`, drawn into the piece's texture and not read back; `paced` (a worker's while
-    /// the screen draws on, S53), each region waited for before the next.
+    /// the screen draws on), each region waited for before the next.
     ///
     /// # Errors
     /// As the raster core and the residuals' evaluation.
@@ -119,7 +119,7 @@ impl RasterExport {
     }
 
     /// The scene's buffers for a region of `size` pixels at `output`, the residuals it reads
-    /// made present first (D88: the smudge engine's, their material the raster core's, S62).
+    /// made present first (the smudge engine's, their material the raster core's).
     fn region(
         &mut self,
         core: &Core,
@@ -134,7 +134,7 @@ impl RasterExport {
         let near = [around_output(&rect, output.scale)];
 
         let scene = (&self.scene, &self.ops);
-        let wanted = (&mut self.filters, &Wanted::Near(&near));
+        let wanted = (&mut self.filters, &near[..]);
         self.smudges.prepare(core, scene, artwork, wanted)?;
         let held = self.smudges.held(&self.scene, &self.filters);
         Ok(SceneBuffers::of(&self.ops, held))

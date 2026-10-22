@@ -1,12 +1,12 @@
-//! Adjustment previews (S35). While a slider moves, every new value is a version that differs
-//! from the one shown only in that adjustment's values (`retuned`): the scene keeps its items
-//! and changes those ops in place, so no value builds a scene. Since S65 (DECISIONS D92) the
-//! raster core draws each value where the adjustment changes pixels, from the scene as the
-//! committed adjustment's (no snapshot of the layer before it), so a value previewed shows the
-//! pixels the committed adjustment shows.
+//! Adjustment previews. While a slider moves, every new value is a version that differs from the
+//! one shown only in that adjustment's values (`retuned`): the scene keeps its items and changes
+//! those ops in place, so no value builds a scene. The raster core draws each value where the
+//! adjustment changes pixels, from the scene as the committed adjustment's, so a value previewed
+//! shows the pixels the committed adjustment shows.
 
-use openpaint_core::{AdjustEdit, Artwork, RegionEdit, StrokeList};
+use openpaint_core::{AdjustEdit, Artwork, RegionEdit, RegionMask, StrokeList};
 
+use crate::change::alike;
 use crate::scene_adjust::EditPlace;
 
 /// A preview's next value: the adjustment at `place` now has `edit`'s values.
@@ -86,11 +86,7 @@ fn differing<'a>(
         let (RegionEdit::Adjust(x), RegionEdit::Adjust(y)) = (x, y) else {
             return None;
         };
-        let clip = match (x.clip(), y.clip()) {
-            (Some(p), Some(q)) => p.shares(q),
-            (None, None) => true,
-            _ => false,
-        };
+        let clip = alike(x.clip(), y.clip(), RegionMask::shares);
         let kind = x.adjustment().kind() == y.adjustment().kind();
         if !clip || !kind || x.after() != y.after() || x.inverted() != y.inverted() {
             return None;

@@ -2,7 +2,7 @@
 
 use openpaint_core::{ActiveStroke, Artwork, Color};
 
-/// The artwork version to draw, the in-progress stroke beside it (DECISIONS D08: it never
+/// The artwork version to draw, the in-progress stroke beside it (it never
 /// enters the artwork) and the paper under the layers. Target pixels are canvas pixels.
 #[derive(Debug, Clone, Copy)]
 pub struct FrameRequest<'a> {

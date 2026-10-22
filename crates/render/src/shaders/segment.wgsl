@@ -1,4 +1,4 @@
-// A stroke's curve spans (S34): each `Segment` op is one cubic Bézier span between two knots,
+// A stroke's curve spans: each `Segment` op is one cubic Bézier span between two knots,
 // drawn as tapered capsules of equal parameter, as many as `curve.rs` flattens it into at the
 // output pixel's footprint (`raster.wgsl`'s `piece_of`). Radius, flow and contact change evenly
 // from one knot to the next. A covering stroke keeps the largest coverage of the pieces, an
@@ -40,7 +40,7 @@ fn span_point(op: u32, t: f32) -> vec2<f32> {
 // `1 / edge` canvas pixels for a soft one (smoothed; its look keeps its canvas width). It is
 // exactly zero from half an output pixel out, inside the scene's bounds. Then times the flow,
 // which changes evenly from `a` to `b`; equal flows give that flow exactly. At scale 1 both
-// factors are 1, so the canvas is as before scales. Inside a transform record's frame the
+// factors are 1. Inside a transform record's frame the
 // output pixel is measured in its content's pixels (`foot_scale`), so a scaled stroke's edge
 // stays one output pixel wide.
 fn piece_coverage(centre: vec2<f32>, piece: Piece, edge: f32) -> f32 {

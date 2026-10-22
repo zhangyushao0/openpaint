@@ -1,8 +1,8 @@
-//! Sharp zoom (S32): a view tier's tiles equal the banded export at the tier's scale for their
+//! Sharp zoom: a view tier's tiles equal the banded export at the tier's scale for their
 //! region, bit for bit; after a stroke, a fill, a transform record and undo exactly the tiles
 //! the change reaches are evaluated again and every tile still equals the export (incremental
 //! = cold per tile); a stroke drawn while zoomed shows at the tier as it will be committed (its
-//! end taper from the lift on, S44); the canvas target stays the cold canvas. S59: the same for
+//! end taper from the lift on); the canvas target stays the cold canvas; the same for
 //! a scene the raster core draws, its tiles and its export the raster core's.
 
 use openpaint_core::{Artwork, Color, Placement, RegionMask, StrokeStyle};
@@ -31,7 +31,7 @@ fn a_tier_tile_is_the_export_at_its_scale_bit_for_bit() {
     }
 }
 
-/// The first tier's atlas is asked for ahead only while no tier was made (S60): a tier made while
+/// The first tier's atlas is asked for ahead only while no tier was made: a tier made while
 /// the screen was touched, before any atlas was asked for, leaves none wanted, so frames rest.
 #[test]
 fn a_tier_made_before_the_screen_rested_wants_no_atlas_ahead() {
@@ -47,14 +47,14 @@ fn a_tier_made_before_the_screen_rested_wants_no_atlas_ahead() {
     assert!(!screen.view.wants_spare(), "the tier came first");
 }
 
-/// S59: the raster core draws the tiers of every raster source, as it exports it.
+/// The raster core draws the tiers of every raster source, as it exports it.
 #[test]
 fn a_raster_tier_tile_is_the_raster_export_at_its_scale_bit_for_bit() {
     tiles_are_the_export(&core(), &every_raster_source());
 }
 
 /// A stroke drawn at 8x over a scene the raster core draws: while drawn, the raster core draws the
-/// tiles it reaches (S63), each the export of the stroke so far bit for bit; the lift's frame
+/// tiles it reaches, each the export of the stroke so far bit for bit; the lift's frame
 /// leaves every tile the committed export, none drawn again.
 #[test]
 fn a_stroke_drawn_while_zoomed_over_the_raster_core_ends_as_its_export() {
@@ -123,7 +123,7 @@ fn changes_evaluate_again_exactly_the_tiles_they_reach() {
     changes_reach_their_tiles(&first, &edits(&first, true));
 }
 
-/// S59: a scene the raster core draws, its tiles drawn again where a change reaches them; each
+/// A scene the raster core draws, its tiles drawn again where a change reaches them; each
 /// tier then equals the tier drawn cold (the export) bit for bit.
 #[test]
 fn changes_draw_again_exactly_the_tiles_they_reach_on_the_raster_core() {
@@ -137,7 +137,7 @@ fn a_stroke_drawn_while_zoomed_shows_at_the_tier_as_committed() {
     drawn_while_zoomed(&style, &style);
 }
 
-/// The same with a taper at both ends (S44): while drawn, the tiles are the export of the
+/// The same with a taper at both ends: while drawn, the tiles are the export of the
 /// stroke so far without its end taper; from the lift on, of the committed stroke.
 #[test]
 fn a_tapered_stroke_drawn_while_zoomed_narrows_its_end_at_the_tier_at_the_lift() {

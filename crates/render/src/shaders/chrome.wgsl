@@ -1,4 +1,4 @@
-// The chrome's paper (D44): islands and the panels growing out of them as signed distance
+// The chrome's paper: islands and the panels growing out of them as signed distance
 // fields, filled with paper and outlined with one anti-aliased ink isoline. Each panel and its
 // island form one silhouette by a smooth union, so they share one outline; a panel exists only
 // below its island's middle, so it leaves through the island's lower edge and never swells its

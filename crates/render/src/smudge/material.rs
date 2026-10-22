@@ -21,7 +21,7 @@ use crate::raster_plan::RasterPlan;
 use crate::readback::{FORMAT, target_texture};
 use crate::scene::Scene;
 use crate::scene_ops::SceneOps;
-use crate::smudge::{Bases, Held};
+use crate::smudge::Bases;
 use crate::view_tiles::TIER_TILE;
 
 /// The atlas of a material's raster targets, pixels a side: room for several of a cell's
@@ -60,7 +60,7 @@ impl Material {
 
     /// Makes the scene's items in `range` (one layer's before a smudge or filter) over `rects`,
     /// on nothing and at full opacity: that layer's own pixels there, where its pixels lie on the
-    /// canvas by `to_canvas` (under a transform record, S31). The layer's earlier smudges'
+    /// canvas by `to_canvas` (under a transform record). The layer's earlier smudges'
     /// residuals and filters' results are the arena's (`arena`, with `empty` for the in-progress
     /// residual), as `filters` names the filters'.
     pub(crate) fn make(
@@ -74,8 +74,13 @@ impl Material {
         if rects.is_empty() {
             return Ok(());
         }
-        let held = held_in(arena, empty, (scene, filters));
-        self.draw(core, (scene, ops), (&range, to_canvas), rects, held)
+        let buffers = SceneBuffers::of(ops, held_in(arena, empty, (scene, filters)));
+        for region in regions(rects) {
+            let units = ((scene, buffers.bases()), &range, to_canvas);
+            let planned = self.plan_region(core, units, &region)?;
+            self.draw_region(core, &planned, &region, &buffers)?;
+        }
+        Ok(())
     }
 }
 
@@ -136,7 +141,7 @@ impl Material {
         let atlas = self.raster.as_ref().map_or([0; 2], RasterTargets::atlas);
         let rect = region.region;
         let output = Output::at(1, rect.min.map(i32::unsigned_abs))?;
-        let size = [0, 1].map(|axis| (rect.max[axis] - rect.min[axis]).unsigned_abs());
+        let size = rect.size();
         let plan = RasterPlan::material((scene, bases), (items, base), (output, size), atlas)?;
         Ok((plan, output))
     }
@@ -164,28 +169,6 @@ impl Material {
         };
         targets.draw(core, (buffers, plan), (*output, [0.0; 4]), &finish)?;
         core.tally.rastered(1);
-        Ok(())
-    }
-
-    /// Draws the material of `scene`'s `items` (lying on the canvas by `base`) over `rects` now,
-    /// the earlier residuals and results as `held` holds them.
-    ///
-    /// # Errors
-    /// As the raster core.
-    pub(crate) fn draw(
-        &mut self,
-        core: &Core,
-        (scene, ops): (&Scene, &SceneOps),
-        (items, base): (&Range<usize>, Affine),
-        rects: &[PixelRect],
-        held: Held,
-    ) -> Result<(), RenderError> {
-        let buffers = SceneBuffers::of(ops, held);
-        for region in regions(rects) {
-            let units = ((scene, buffers.bases()), items, base);
-            let planned = self.plan_region(core, units, &region)?;
-            self.draw_region(core, &planned, &region, &buffers)?;
-        }
         Ok(())
     }
 }

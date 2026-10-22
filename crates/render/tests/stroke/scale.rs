@@ -1,18 +1,19 @@
-//! Scale-aware evaluation and banded export (S29): at 1x the bands are the canvas bit for bit;
+//! Scale-aware evaluation and banded export: at 1x the bands are the canvas bit for bit;
 //! bands equal one piece at every scale; a hard stroke edge at 2x and 4x is the analytic edge
 //! antialiased over one output pixel; reduced by its scale, every source comes back to its 1x
 //! look within a stated tolerance.
 
 use openpaint_core::{
-    Adjustment, Artwork, ArtworkCommand, BlendMode, CanvasSize, Color, GroupCommand, Hsb,
-    LayerCommand, LayerId, MaskCommand, Patch, Placement, RegionMask, StrokeStyle, StrokeTool,
+    Adjustment, Artwork, ArtworkCommand, BlendMode, Color, GroupCommand, Hsb, LayerCommand,
+    LayerId, MaskCommand, Placement, StrokeStyle, StrokeTool,
 };
 use openpaint_render::{Banding, Core, RgbaImage};
 
 use crate::fixture::{
-    SIZE, airbrush, blank, cold, core, diagonal_with, graphite, plain, sample, wave, with_layer,
-    with_stroke,
+    SIZE, airbrush, apply, blank, cold, core, diagonal_with, graphite, plain, region, rgb, sample,
+    wave, with_layer, with_stroke,
 };
+use crate::raster::picture;
 
 /// The whole output of `artwork` at `scale`, cut by `banding`.
 pub fn export(core: &Core, artwork: &Artwork, scale: u32, banding: Banding) -> RgbaImage {
@@ -72,41 +73,6 @@ fn layer(id: u64) -> LayerId {
     LayerId::new(id)
 }
 
-fn apply(artwork: &Artwork, command: ArtworkCommand) -> Artwork {
-    artwork.apply(command).expect("command").artwork
-}
-
-fn canvas() -> CanvasSize {
-    CanvasSize::new(SIZE[0], SIZE[1]).expect("size")
-}
-
-fn region(inside: impl Fn(u32, u32) -> bool) -> RegionMask {
-    let pixels: Vec<bool> = (0..SIZE[0] * SIZE[1])
-        .map(|at| inside(at % SIZE[0], at / SIZE[0]))
-        .collect();
-    RegionMask::from_pixels(canvas(), &pixels).expect("mask")
-}
-
-fn color(r: f32, g: f32, b: f32) -> Color {
-    Color::rgb(r, g, b).expect("colour")
-}
-
-/// A 64 x 48 picture: an opaque gradient with a half transparent stripe.
-fn picture() -> Patch {
-    let mut pixels = Vec::new();
-    for y in 0..48u32 {
-        for x in 0..64u32 {
-            let pixel = if (20..28).contains(&y) {
-                [60, 20, 10, 128]
-            } else {
-                [(x * 4) as u8, (y * 5) as u8, 150, 255]
-            };
-            pixels.extend(pixel);
-        }
-    }
-    Patch::new(canvas(), [40, 120], [64, 48], pixels).expect("patch")
-}
-
 /// The pencil and the ink wave on layer 1, a fill and a smudge across them.
 fn painted() -> Artwork {
     let pencil = with_stroke(&with_stroke(&blank(), wave()), diagonal_with(graphite()));
@@ -115,7 +81,7 @@ fn painted() -> Artwork {
         dx * dx + dy * dy <= 900.0
     });
     let filled = pencil
-        .fill_region(disc, color(0.9, 0.3, 0.1))
+        .fill_region(disc, rgb([0.9, 0.3, 0.1]))
         .expect("fill")
         .artwork;
     let smudge = StrokeStyle::new(airbrush(), 30.0, 0.8, Color::BLACK)
@@ -159,7 +125,7 @@ pub fn every_source() -> Artwork {
         ArtworkCommand::Mask(MaskCommand::Add(picture_layer)),
     );
     let grey = masked
-        .fill_region(region(|x, _| x < 70), color(0.4, 0.4, 0.4))
+        .fill_region(region(|x, _| x < 70), rgb([0.4, 0.4, 0.4]))
         .expect("grey")
         .artwork;
     let paint = apply(
@@ -188,7 +154,7 @@ pub fn every_source() -> Artwork {
     with_stroke(
         &chained,
         (
-            plain(30.0, 1.0, color(0.2, 0.6, 0.9)),
+            plain(30.0, 1.0, rgb([0.2, 0.6, 0.9])),
             vec![sample(20.0, 150.0, 1.0, 0), sample(200.0, 170.0, 1.0, 8)],
         ),
     )

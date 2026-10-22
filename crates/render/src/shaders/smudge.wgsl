@@ -1,4 +1,4 @@
-// Smudge contacts on a residual being evaluated (smudge/residual.rs, DECISIONS D46), after
+// Smudge contacts on a residual being evaluated (smudge/residual.rs), after
 // draweave's smudge.wgsl at one node per canvas pixel. A node at a pixel's centre holds A, the
 // share of the layer's colour before the smudge (`material`) still there, and R, the colour
 // carried in: its colour is A * material + R. One contact moves the share w of the colour a step

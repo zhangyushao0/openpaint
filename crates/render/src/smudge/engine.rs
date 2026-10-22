@@ -1,6 +1,6 @@
 //! `Smudges`: a canvas target's smudge residuals. Finished ones live in its arena, keyed by
 //! stroke; the in-progress one in a residual of its own that grows by the contacts of the spans
-//! each evaluation settles (S34: the last two follow at the commit) and, once committed, moves
+//! each evaluation settles (the last two follow at the commit) and, once committed, moves
 //! into the arena as it is. A residual that is missing is evaluated cold from its stroke and the
 //! scene, in layer order, so the layer pixels it carries already include the smudges before it.
 
@@ -10,7 +10,7 @@ use openpaint_core::{ActiveStroke, Artwork, LayerId, StrokeSample, StrokeStyle};
 
 use super::arena::{Arena, Keep, Key, TileSet, key};
 use super::dabs::{Dab, DabWalker, dabs, read_tiles};
-use super::kernels::{Job, KernelBuffers, tile_job};
+use super::kernels::{Job, KernelBuffers, jobs};
 use super::material::Material;
 use super::residual::{Working, node_words, words_buffer};
 use crate::affine::Affine;
@@ -51,7 +51,7 @@ struct Tools {
     /// The run whose material the texture holds, and the next run's name.
     owner: u64,
     next: u64,
-    /// The last cold evaluation's residual, emptied for the next (S51): its buffers are made
+    /// The last cold evaluation's residual, emptied for the next: its buffers are made
     /// once, not per residual.
     scratch: Option<Run>,
 }
@@ -60,7 +60,7 @@ pub(crate) struct Smudges {
     arena: Arena,
     active: Option<Active>,
     tools: Tools,
-    /// Bytes the arena keeps within when it can (S51): the GPU memory budget's share for the
+    /// Bytes the arena keeps within when it can: the GPU memory budget's share for the
     /// screen's canvas, else no more than the device binds.
     room: u64,
     /// The most the arena binds, below the device's limit (tests: a small device's limit).
@@ -68,9 +68,9 @@ pub(crate) struct Smudges {
     /// A budget sets the room each frame (`set_room`), so what a frame's evaluations needed is
     /// kept together; without one, each evaluation counts as a frame of its own.
     framed: bool,
-    /// A residual evaluated over frames as background work (S53, `engine_derive.rs`).
+    /// A residual evaluated over frames as background work (`engine_derive.rs`).
     deriving: Option<derive::Deriving>,
-    /// The residual tiles each smudge's contacts read (S53).
+    /// The residual tiles each smudge's contacts read.
     reads: needs::Reads,
 }
 
@@ -273,22 +273,28 @@ impl Tools {
         let kernels = self
             .kernels
             .get_or_insert_with(|| KernelBuffers::new(&core.gpu));
-        let buffer = run.working.buffer();
-        if run.group.as_ref().is_none_or(|(built, _)| built != buffer) {
-            let group = core
-                .smudge
-                .group(&core.gpu, kernels, buffer, material.view());
-            run.group = Some((buffer.clone(), group));
-        }
-        let mut jobs: Vec<Job> = new.iter().map(|tile| tile_job(*tile, size)).collect();
-        jobs.extend(
-            dabs.iter()
-                .filter_map(|dab| dab.rect(size).map(|rect| Job::Contact(*dab, rect))),
-        );
-        if let Some((_, group)) = &run.group {
-            core.smudge.run(&core.gpu, (kernels, group), &jobs, size);
-        }
+        let group = run.bind(core, kernels, material.view());
+        core.smudge
+            .run(&core.gpu, (kernels, group), &jobs(&new, dabs, size), size);
         Ok(())
+    }
+}
+
+impl Run {
+    /// The kernels' bindings for its working buffer, reading the layer's pixels from `material`:
+    /// made again when the buffer changed.
+    fn bind(
+        &mut self,
+        core: &Core,
+        kernels: &KernelBuffers,
+        material: &wgpu::TextureView,
+    ) -> &wgpu::BindGroup {
+        let buffer = self.working.buffer().clone();
+        let group = match self.group.take() {
+            Some((built, group)) if built == buffer => group,
+            _ => core.smudge.group(&core.gpu, kernels, &buffer, material),
+        };
+        &self.group.insert((buffer, group)).1
     }
 }
 
@@ -297,7 +303,7 @@ mod budget;
 
 #[path = "engine_needs.rs"]
 mod needs;
-pub(crate) use needs::{Wanted, around_output};
+pub(crate) use needs::around_output;
 
 #[path = "engine_prepare.rs"]
 mod prepare;

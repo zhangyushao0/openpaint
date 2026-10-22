@@ -1,4 +1,4 @@
-//! The residuals as a draw reads them (S61, DECISIONS D88): the arena's buffer and the
+//! The residuals as a draw reads them: the arena's buffer and the
 //! in-progress residual's, and where each of a scene's smudges' and filters' blocks starts in that
 //! arena, taken together; each draw names its smudge's or filter's block by its base. The raster
 //! core's worker draws a view tier's tile a few frames after the frame loop handed it over, and
@@ -38,7 +38,7 @@ impl Smudges {
 }
 
 /// The residuals of `scene`'s smudges and its filters' results (`filters` naming them) as `arena`
-/// holds them now, `active` the in-progress residual (S62: an empty one for a material, which
+/// holds them now, `active` the in-progress residual (an empty one for a material, which
 /// never reads it).
 pub(crate) fn held_in(
     arena: &Arena,

@@ -1,13 +1,14 @@
-//! Transform records at every output scale (S31): content scaled up stays sharp at 2x and 4x
-//! (a hard edge one output pixel wide, where the S20 patch blurred it over the placement's
+//! Transform records at every output scale: content scaled up stays sharp at 2x and 4x
+//! (a hard edge one output pixel wide, where a patch blurs it over the placement's
 //! scale); every source reduced back to 1x within a stated tolerance; shrunk below half, a
 //! record antialiases by its footprint; nested records; banded export equals one piece.
 
 use openpaint_core::{Artwork, Color, Placement, RegionMask};
 use openpaint_render::{Banding, CanvasTarget, PixelRect, RgbaImage, changed_regions};
 
+use crate::fixture::canvas;
 use crate::fixture::{SIZE, blank, cold, core, plain, request, sample, with_stroke};
-use crate::records::{busy, by_patch, by_record, canvas, lasso, turned};
+use crate::records::{busy, by_patch, by_record, lasso, turned};
 use crate::scale::{difference, export, reduced, whole};
 
 /// A black bar 20 px thick from (100, 90) to (220, 90).
@@ -103,7 +104,7 @@ fn shrunk_to_a_quarter_a_record_antialiases_by_its_footprint() {
         "a quarter, against the box-filtered 4x: record largest {largest}, mean {mean:.3}; \
          patch largest {patch_largest}, mean {patch_mean:.3}"
     );
-    // 2026-10-04: record largest 94, mean 0.26; the S20 patch (point-sampled bilinear) largest
+    // 2026-10-04: record largest 94, mean 0.26; a patch (point-sampled bilinear) largest
     // 136, mean 1.11.
     assert!(
         mean < 0.5 && largest < 112,
@@ -115,7 +116,7 @@ fn shrunk_to_a_quarter_a_record_antialiases_by_its_footprint() {
     );
 }
 
-/// Whole pixels moved: S20's patches are exact then, so records must show the same, up to the
+/// Whole pixels moved: patches are exact then, so records must show the same, up to the
 /// patch's own 8-bit rounding of the layer.
 fn moved_by_whole_pixels(lifts: &[Option<RegionMask>]) {
     let core = core();

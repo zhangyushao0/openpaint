@@ -1,19 +1,19 @@
-//! The stroke being drawn on the raster core (S63, DECISIONS D90): drawn a few samples a frame
+//! The stroke being drawn on the raster core: drawn a few samples a frame
 //! over an artwork the raster core draws, after every batch the canvas (and every ready tile of the
 //! view tier shown) equals the artwork with the stroke so far committed drawn cold (its end not
-//! tapered yet, D71), bit for bit; the lift's frame equals the committed artwork drawn cold; for
+//! tapered yet), bit for bit; the lift's frame equals the committed artwork drawn cold; for
 //! paint, erasing, Alpha Lock, a selection's clip, a mask, a clipping chain's layer (a smudge, a
 //! stroke snapped to a shape and one drawn with mirrored copies: `drawing_kinds.rs`; strokes one
 //! after another and the snapshots under them: `drawing_ahead.rs`), over a moved selection's
-//! record (S65: inside every other kind, `raster_kinds.rs`).
+//! record (inside every other kind, `raster_kinds.rs`).
 
 use openpaint_core::{
     Artwork, BrushRecipe, Color, LayerCommand, RegionMask, StrokeSample, StrokeSession,
     StrokeStyle, StrokeTool, Taper,
 };
 
-use crate::fixture::{cold, core, graphite, plain, sample};
-use crate::raster::{color, every_raster_source, layer, region};
+use crate::fixture::{cold, core, graphite, layer, plain, region, sample};
+use crate::raster::{color, every_raster_source};
 use crate::records::{busy, by_record, lasso, turned};
 use crate::scale::whole;
 use crate::stamps::brushes;

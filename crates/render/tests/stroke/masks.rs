@@ -1,17 +1,18 @@
-//! Layer masks on the GPU (S24): a mask multiplies its layer's paint before the layer's
+//! Layer masks on the GPU: a mask multiplies its layer's paint before the layer's
 //! opacity, mode, clipping and group; a base's mask shapes its chain as its alpha does, a
 //! clipping layer's mask only itself; disabled is no mask, bit for bit; inverted shows black for
 //! white; the eraser paints white; incremental equals cold through every mask edit and while
 //! painting or smudging on a mask. Values are worked by hand on straight sRGB values.
 
 use openpaint_core::{
-    Artwork, ArtworkCommand, CanvasSize, Color, GroupCommand, GroupId, LayerCommand, LayerId,
-    MaskCommand, RegionMask, StrokeTool,
+    Artwork, ArtworkCommand, Color, GroupCommand, GroupId, LayerCommand, LayerId, MaskCommand,
+    StrokeTool,
 };
 use openpaint_render::{CanvasTarget, FrameRequest, PixelRect, changed_regions};
 
 use crate::fixture::{
-    SIZE, blank, cold, core, diagonal, pixel, plain, request, sample, wave, with_layer, with_stroke,
+    SIZE, apply, blank, cold, columns, core, diagonal, fill, pixel, plain, request, sample, wave,
+    with_layer, with_stroke,
 };
 
 const BACK: [f32; 3] = [0.2, 0.7, 0.45];
@@ -19,32 +20,8 @@ const SOURCE: [f32; 3] = [0.85, 0.3, 0.6];
 /// A grey the 8-bit palette holds exactly: 102 / 255.
 const GREY: f32 = 0.4;
 
-fn color([r, g, b]: [f32; 3]) -> Color {
-    Color::rgb(r, g, b).expect("colour")
-}
-
-fn columns(x0: u32, x1: u32) -> RegionMask {
-    let inside: Vec<bool> = (0..SIZE[0] * SIZE[1])
-        .map(|at| (x0..x1).contains(&(at % SIZE[0])))
-        .collect();
-    let canvas = CanvasSize::new(SIZE[0], SIZE[1]).expect("size");
-    RegionMask::from_pixels(canvas, &inside).expect("mask")
-}
-
-fn apply(artwork: &Artwork, command: ArtworkCommand) -> Artwork {
-    artwork.apply(command).expect("command").artwork
-}
-
 fn mask(artwork: &Artwork, command: MaskCommand) -> Artwork {
     apply(artwork, ArtworkCommand::Mask(command))
-}
-
-/// Fills `region` of the target (the active layer's paint or its mask) with `rgb`.
-fn fill(artwork: &Artwork, region: RegionMask, rgb: [f32; 3]) -> Artwork {
-    artwork
-        .fill_region(region, color(rgb))
-        .expect("fill")
-        .artwork
 }
 
 fn layer(id: u64) -> LayerId {

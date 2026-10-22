@@ -1,4 +1,4 @@
-//! Smudge residuals within a room (S51): a target whose arena should hold almost nothing and
+//! Smudge residuals within a room: a target whose arena should hold almost nothing and
 //! binds little (as the tablet's 128 MiB does at its scale) keeps only the residuals near what
 //! it evaluates, some only in part, dropping the rest and evaluating them again from the artwork
 //! when a later evaluation needs them. Every pixel stays what a cold evaluation (an arena holding

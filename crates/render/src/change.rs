@@ -1,8 +1,8 @@
 //! What switching the canvas from one artwork version to another means for its pixels: the
 //! regions to evaluate again when the version changes other than by committing the stroke the
-//! target is drawing (undo and redo; later layer edits). DECISIONS D82: callers pass these.
+//! target is drawing (undo and redo, layer edits); the callers pass these to `CanvasTarget::draw`.
 
-use openpaint_core::{Artwork, RegionEdit, StrokeList};
+use openpaint_core::{Artwork, Patch, RegionEdit, RegionMask, StrokeList};
 
 use crate::edits::{edit_rect, moved_rect, placed_rect};
 use crate::filter::{MAX_EXTENT, kernel_of};
@@ -19,7 +19,8 @@ pub fn changed_regions(before: &Artwork, after: &Artwork) -> Vec<PixelRect> {
         return Vec::new();
     }
     let canvas = after.canvas();
-    let full = vec![PixelRect::full([canvas.width(), canvas.height()])];
+    let size = [canvas.width(), canvas.height()];
+    let full = vec![PixelRect::full(size)];
     if before.canvas() != canvas
         || before.layers().len() != after.layers().len()
         || before.groups() != after.groups()
@@ -35,7 +36,6 @@ pub fn changed_regions(before: &Artwork, after: &Artwork) -> Vec<PixelRect> {
             Some(tail) => regions.extend(tail),
             None => return full,
         }
-        let size = [canvas.width(), canvas.height()];
         let paint = ((old.strokes(), old.edits()), (new.strokes(), new.edits()));
         regions.extend(edit_regions((size, false), paint.0, paint.1));
         match (old.mask(), new.mask()) {
@@ -47,7 +47,6 @@ pub fn changed_regions(before: &Artwork, after: &Artwork) -> Vec<PixelRect> {
                     Some(tail) => regions.extend(tail),
                     None => return full,
                 }
-                let size = [canvas.width(), canvas.height()];
                 let mask = ((a.strokes(), a.edits()), (b.strokes(), b.edits()));
                 regions.extend(edit_regions((size, true), mask.0, mask.1));
             }
@@ -71,16 +70,8 @@ fn edit_regions(
     let common = all_a.iter().zip(b).take_while(|(x, y)| x.same(y)).count();
     let (a, rest) = (&all_a[common..], &b[common..]);
     if let ([RegionEdit::Transform(x)], [RegionEdit::Transform(y)]) = (a, rest) {
-        let lift = match (x.lift(), y.lift()) {
-            (Some(p), Some(q)) => p.shares(q),
-            (None, None) => true,
-            _ => false,
-        };
-        let patch = match (x.patch(), y.patch()) {
-            (Some(p), Some(q)) => p.shares(q),
-            (None, None) => true,
-            _ => false,
-        };
+        let lift = alike(x.lift(), y.lift(), RegionMask::shares);
+        let patch = alike(x.patch(), y.patch(), Patch::shares);
         if lift && patch && x.after() == y.after() {
             let moved = moved_rect(canvas, y);
             let moved = match y.patch() {
@@ -106,7 +97,7 @@ fn edit_regions(
 
 /// What the edit at `index` of `edits` can change: its `edit_rect`; but an adjustment without a
 /// clip, on paint, over content no transform record moves, only where the content before it
-/// lies (S35: transparent paint stays so), widened by a filter's longest reach. The scene
+/// lies (transparent paint stays so), widened by a filter's longest reach. The scene
 /// bounds its op alike (`scene_adjust.rs`), within this.
 fn edit_reach(
     (canvas, on_mask): ([u32; 2], bool),
@@ -130,21 +121,14 @@ fn edit_reach(
         .reduce(|all, next| all.union(&next));
     // Over nothing it changes nothing.
     let Some(content) = content else {
-        return PixelRect {
-            min: [0, 0],
-            max: [0, 0],
-        };
+        return PixelRect::NONE;
     };
     let reach = if kernel_of(adjust.adjustment()).is_some() {
         MAX_EXTENT as i32
     } else {
         0
     };
-    let widened = PixelRect {
-        min: content.min.map(|v| v - reach),
-        max: content.max.map(|v| v + reach),
-    };
-    widened.intersect(&PixelRect::full(canvas))
+    content.widened(reach).intersect(&PixelRect::full(canvas))
 }
 
 /// Where the first `after` strokes and `edits` can have painted, as `[x0, y0, x1, y1]` (the
@@ -168,6 +152,14 @@ fn content_rect(
     })
 }
 
+/// Both absent, or both present and `same`.
+pub(crate) fn alike<T>(a: Option<&T>, b: Option<&T>, same: impl Fn(&T, &T) -> bool) -> bool {
+    match (a, b) {
+        (Some(a), Some(b)) => same(a, b),
+        (a, b) => a.is_none() && b.is_none(),
+    }
+}
+
 /// The overlap of two rectangles `[x0, y0, x1, y1]` (empty ones stay empty).
 fn within(a: [f32; 4], b: [f32; 4]) -> [f32; 4] {
     [
@@ -180,7 +172,7 @@ fn within(a: [f32; 4], b: [f32; 4]) -> [f32; 4] {
 
 /// The segments of the strokes either list has beyond their common start, when they share all
 /// but at most their last `DIVERGED` strokes: a version and one it was built from, two branches
-/// of a history, a stroke's mirrored copies redrawn as it grows, a snapped shape edited (S42).
+/// of a history, a stroke's mirrored copies redrawn as it grows, a snapped shape edited.
 /// Lists only grow at the end, so sharing a stroke means sharing every one before it. `None`
 /// when they diverge earlier.
 fn tail_regions(a: &StrokeList, b: &StrokeList) -> Option<Vec<PixelRect>> {

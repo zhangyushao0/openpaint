@@ -1,4 +1,4 @@
-//! The raster core's fixed-function states (S59, `raster_gpu.rs`): the formats it draws in, how
+//! The raster core's fixed-function states (`raster_gpu.rs`): the formats it draws in, how
 //! the blend unit combines what each draw lays (the compositing equations, premultiplied), its
 //! bind group layouts and how a pipeline is made from two entry points.
 
@@ -88,7 +88,7 @@ pub(crate) fn painted(blend: Blend) -> wgpu::BlendState {
     }
 }
 
-/// A whole layer's moved content cut to the canvas (S65): what the layer holds times what the
+/// A whole layer's moved content cut to the canvas: what the layer holds times what the
 /// fragment gives (1 inside, 0 outside), every channel.
 pub(crate) fn cut() -> wgpu::BlendState {
     use wgpu::BlendFactor::{Src, Zero};
@@ -102,7 +102,7 @@ pub(crate) fn cut() -> wgpu::BlendState {
 /// `s` the layer as shown at its opacity, `d` what lies under it): onto the opaque canvas, over
 /// is `s + d (1 - sa)`, Multiply `d (1 - sa + s)`, Screen `s + d (1 - s)`; into a chain (its
 /// alpha kept), Normal is atop, `s da + d (1 - sa)`, Multiply the same `d (1 - sa + s)`, Screen
-/// `s da + d (1 - s)`; a base, a mode from a copy of what lies under it (Overlay, S65's modes onto
+/// `s da + d (1 - s)`; a base, a mode from a copy of what lies under it (Overlay, the modes onto
 /// a level) and a group's end are written whole.
 pub(crate) fn ended(end: EndBlend) -> (&'static str, Option<wgpu::BlendState>) {
     use wgpu::BlendFactor::{DstAlpha, One, OneMinusSrc, OneMinusSrcAlpha, Src, Zero};
@@ -130,7 +130,7 @@ pub(crate) fn ended(end: EndBlend) -> (&'static str, Option<wgpu::BlendState>) {
     }
 }
 
-/// Group 0: the values (at a dynamic offset, S63: a batch's regions each have theirs), the ops,
+/// Group 0: the values (at a dynamic offset: a batch's regions each have theirs), the ops,
 /// the masks, the textures, the patches, and (fragments only) the smudge residuals' arena and the
 /// in-progress one; group 1: three float textures read (the atlas, or a layer, its mask and a
 /// backdrop, or a smudge's copy, or the canvas).
@@ -193,54 +193,46 @@ pub(crate) fn pipeline_layout(
 const INSTANCE_ATTRIBUTES: [wgpu::VertexAttribute; 2] =
     wgpu::vertex_attr_array![0 => Uint32x4, 1 => Sint32x4];
 
-/// A pipeline's module, layout and entries.
-pub(crate) struct Stage<'a> {
-    pub(crate) module: &'a wgpu::ShaderModule,
-    pub(crate) layout: &'a wgpu::PipelineLayout,
-    pub(crate) entries: [&'a str; 2],
-}
-
-impl Stage<'_> {
-    /// Instanced quads as triangle strips (the finish draws one triangle).
-    pub(crate) fn pipeline(
-        &self,
-        device: &wgpu::Device,
-        target: wgpu::ColorTargetState,
-    ) -> wgpu::RenderPipeline {
-        let [vertex, fragment] = self.entries;
-        let instanced = [Some(wgpu::VertexBufferLayout {
-            array_stride: INSTANCE_BYTES,
-            step_mode: wgpu::VertexStepMode::Instance,
-            attributes: &INSTANCE_ATTRIBUTES,
-        })];
-        let topology = if vertex == "finish_vertex" {
-            wgpu::PrimitiveTopology::TriangleList
-        } else {
-            wgpu::PrimitiveTopology::TriangleStrip
-        };
-        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some(fragment),
-            layout: Some(self.layout),
-            vertex: wgpu::VertexState {
-                module: self.module,
-                entry_point: Some(vertex),
-                compilation_options: Default::default(),
-                buffers: &instanced,
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: self.module,
-                entry_point: Some(fragment),
-                compilation_options: Default::default(),
-                targets: &[Some(target)],
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology,
-                ..Default::default()
-            },
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview_mask: None,
-            cache: None,
-        })
-    }
+/// The pipeline of `module`'s `[vertex, fragment]` entries through `layout` into `target`:
+/// instanced quads as triangle strips (the finish draws one triangle).
+pub(crate) fn pipeline(
+    device: &wgpu::Device,
+    (module, layout): (&wgpu::ShaderModule, &wgpu::PipelineLayout),
+    [vertex, fragment]: [&str; 2],
+    target: wgpu::ColorTargetState,
+) -> wgpu::RenderPipeline {
+    let instanced = [Some(wgpu::VertexBufferLayout {
+        array_stride: INSTANCE_BYTES,
+        step_mode: wgpu::VertexStepMode::Instance,
+        attributes: &INSTANCE_ATTRIBUTES,
+    })];
+    let topology = if vertex == "finish_vertex" {
+        wgpu::PrimitiveTopology::TriangleList
+    } else {
+        wgpu::PrimitiveTopology::TriangleStrip
+    };
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some(fragment),
+        layout: Some(layout),
+        vertex: wgpu::VertexState {
+            module,
+            entry_point: Some(vertex),
+            compilation_options: Default::default(),
+            buffers: &instanced,
+        },
+        fragment: Some(wgpu::FragmentState {
+            module,
+            entry_point: Some(fragment),
+            compilation_options: Default::default(),
+            targets: &[Some(target)],
+        }),
+        primitive: wgpu::PrimitiveState {
+            topology,
+            ..Default::default()
+        },
+        depth_stencil: None,
+        multisample: wgpu::MultisampleState::default(),
+        multiview_mask: None,
+        cache: None,
+    })
 }

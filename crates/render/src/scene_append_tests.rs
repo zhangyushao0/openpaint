@@ -1,7 +1,7 @@
-//! A scene taking appended strokes in place equals the scene built anew (S64): its items, raster
+//! A scene taking appended strokes in place equals the scene built anew: its items, raster
 //! units, masks, the place, its smudges and where its strokes' spans lie; for strokes on a layer
 //! under others (a mask, smudges and a clipping chain above, a fill and smudges under), several
-//! at once, on a mask, inside a group (S65); and it takes none of a smudge or a clipped stroke.
+//! at once, on a mask, inside a group; and it takes none of a smudge or a clipped stroke.
 
 use std::sync::Arc;
 
@@ -144,7 +144,7 @@ fn strokes_appended_under_others_are_the_scene_built() {
     same(&on_mask, &drawn(&on_mask, StrokeTool::Paint, 44.0, None));
 }
 
-/// S65: a place inside a group takes strokes as one on the canvas does.
+/// A place inside a group takes strokes as one on the canvas does.
 #[test]
 fn strokes_appended_inside_a_group_are_the_scene_built() {
     let before = busy();

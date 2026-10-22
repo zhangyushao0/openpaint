@@ -1,4 +1,4 @@
-//! The kinds the raster core draws since S65 (DECISIONS D92), each alone and nested: point
+//! The kinds of record the raster core draws, each alone and nested: point
 //! adjustments (Hue, Saturation, Brightness; Curves with a channel inside a lasso; Curves on a
 //! mask), filters (a Gaussian Blur, a Sharpen inside a selection), a layer's transform record, a
 //! moved selection (over a smudge, whose material then lies under the record), a merged layer, a
@@ -17,8 +17,10 @@ use openpaint_core::{
 use openpaint_render::{Banding, CanvasTarget, PixelRect, changed_regions};
 
 use crate::drawing::{CHUNKS, begun, committed, path, screen, shows};
-use crate::fixture::{SIZE, cold, core, diagonal, plain, request, wave, with_layer, with_stroke};
-use crate::raster::{assert_scales_agree, color, layer, region};
+use crate::fixture::{
+    SIZE, apply, cold, core, diagonal, layer, plain, region, request, wave, with_layer, with_stroke,
+};
+use crate::raster::{assert_scales_agree, color};
 use crate::records::{busy, by_record, lasso, turned};
 use crate::scale::{export, whole};
 use crate::tiers::tiles_are_the_export;
@@ -27,10 +29,6 @@ fn adjusted(artwork: &Artwork, clip: Option<RegionMask>, adjustment: Adjustment)
     (artwork.adjust_region(clip, adjustment))
         .expect("adjusted")
         .artwork
-}
-
-fn apply(artwork: &Artwork, command: ArtworkCommand) -> Artwork {
-    artwork.apply(command).expect("command").artwork
 }
 
 fn curves() -> Adjustment {
@@ -252,7 +250,7 @@ fn drawn_inside(
         screen.frame(&core, (base, Some(session.active())), &[], &view);
         let what = format!("{name} at {zoom}x after {end} samples");
         if style.tool() == StrokeTool::Smudge {
-            // Its contacts trail the pen (D46): the same frame on a canvas drawn until then.
+            // Its contacts trail the pen: the same frame on a canvas drawn until then.
             let (mut once, _) = self::screen(base, (zoom, [middle.x(), middle.y()]));
             once.frame(&core, (base, Some(session.active())), &[], &view);
             let read = |target: &CanvasTarget| target.read(&core).expect("read");

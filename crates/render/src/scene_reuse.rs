@@ -1,11 +1,11 @@
-//! A finished stroke's span items kept from one scene to the next (S56). A stroke's spans (its
+//! A finished stroke's span items kept from one scene to the next. A stroke's spans (its
 //! `Segment` ops and their bounds) depend on its style and samples alone: not on where it lies in
 //! the scene (a span names its paint op by how far after it that lies), its layer, clip or the
-//! view it is seen in. Building a scene computed them again for every stroke (the curve, the
-//! dynamics at every knot, the stamps' placement): on the tablet 18 to 37 ms at the pen-down and
-//! at the lift over a few hundred strokes. Now a scene notes where each stroke's spans lie in its
-//! items, and the next scene built on the same target copies them from there; only a stroke the
-//! scene before did not draw has its spans computed.
+//! view it is seen in. Computing them (the curve, the dynamics at every knot, the stamps'
+//! placement) for every stroke of a scene takes 18 to 37 ms on the tablet over a few hundred
+//! strokes, so a scene notes where each stroke's spans lie in its items, and the next scene built
+//! on the same target copies them from there; only a stroke the scene before did not draw has its
+//! spans computed.
 
 use std::collections::HashMap;
 use std::ops::Range;
@@ -99,7 +99,7 @@ impl Spans {
         ranges
     }
 
-    /// Every span range from item `at` on moved `by` items later (S64: strokes appended before
+    /// Every span range from item `at` on moved `by` items later (strokes appended before
     /// them, `scene_append.rs`).
     pub(crate) fn moved(&mut self, at: usize, by: usize) {
         for (_, range) in self.at.values_mut() {

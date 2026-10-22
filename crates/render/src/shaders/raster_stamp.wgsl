@@ -1,4 +1,4 @@
-// The raster core's stamps (S57): one quad per stamp of a stamped span, appended after
+// The raster core's stamps: one quad per stamp of a stamped span, appended after
 // raster.wgsl. The vertex stage places stamp `n` (stamp.wgsl): on the span's chord holding its
 // place along them, scattered, turned and sized by `stamp_jitter` of the stroke's seed and `n`;
 // the fragment stage lays the shape there (`stamp_alpha`, its texture at the output pixel's
@@ -14,7 +14,7 @@ struct StampOut {
     @location(2) @interpolate(flat) near: vec3<f32>,
     @location(3) @interpolate(flat) shape: u32,
     @location(4) @interpolate(flat) place: vec2<i32>,
-    // The frame its span lies in (S65; 0: the canvas).
+    // The frame its span lies in (0: the canvas).
     @location(5) @interpolate(flat) frame: u32,
 }
 

@@ -1,4 +1,4 @@
-//! Strokes follow the curve through their samples (S34): a sparse arc keeps to its circle at 8x,
+//! Strokes follow the curve through their samples: a sparse arc keeps to its circle at 8x,
 //! resamples on the chord are no knots, an accumulating stroke lays evenly along the curve, a
 //! stroke drawn sample by sample ends as the finished stroke evaluated cold, and straight
 //! strokes keep their pixels.

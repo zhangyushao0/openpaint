@@ -1,4 +1,4 @@
-//! What the blit binds of the view tiers (S32): the second bind group of `blit.wgsl`, the
+//! What the blit binds of the view tiers: the second bind group of `blit.wgsl`, the
 //! current tier's atlas and index, the previous tier's, and their scales. Without tiers (at or
 //! below the canvas's own resolution) the core's group of one-pixel textures and scale 0.
 

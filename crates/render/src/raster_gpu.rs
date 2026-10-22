@@ -1,11 +1,10 @@
-//! The raster core's pipelines (S57's probe, product code since S59; `raster.rs`): its shader
-//! (raster.wgsl, raster_stamp.wgsl, raster_composite.wgsl, raster_paint.wgsl, then spans,
-//! stamps, textures, deposits and fill edges, the smudge engine's residual reading, adjust.wgsl
-//! and filter_composite.wgsl), one pipeline per way a stroke lays into the atlas (the blend unit
-//! keeping the largest or summing), per paint blend for a stroke's tiles and a fill onto the
-//! layer, one for patches, one for smudges (S61), one per way a layer ends (`EndBlend`), S65's
-//! for adjustments, filters, moves' ends and a whole layer's cut, and the finish per destination
-//! format. Each pipeline's entry points reach only their own kind's code, so none pays for the
+//! The raster core's pipelines (`raster.rs`): its shader (raster.wgsl, raster_stamp.wgsl,
+//! raster_composite.wgsl, raster_paint.wgsl, then spans, stamps, textures, deposits and fill
+//! edges, the smudge engine's residual reading, adjust.wgsl and filter_composite.wgsl), one
+//! pipeline per way a stroke lays into the atlas (the blend unit keeping the largest or summing),
+//! per paint blend for a stroke's tiles and a fill onto the layer, one for patches, one for
+//! smudges, one per way a layer ends (`EndBlend`), those for adjustments, filters, moves' ends and
+//! a whole layer's cut, and the finish per destination format. Each pipeline's entry points reach only their own kind's code, so none pays for the
 //! others' registers.
 
 use crate::core::Core;
@@ -14,7 +13,7 @@ use crate::gpu::{Gpu, TEN_BITS};
 use crate::protocol::{Blend, prelude};
 use crate::raster_plan::{Coverage, DrawKind, EndBlend};
 use crate::raster_states::{
-    Stage, blended, cut, ended, floats, layouts, painted, pipeline_layout, summing,
+    blended, cut, ended, floats, layouts, painted, pipeline, pipeline_layout, summing,
 };
 use crate::readback::FORMAT;
 
@@ -75,9 +74,9 @@ pub(crate) struct RasterPipelines {
     fills: [wgpu::RenderPipeline; 3],
     patch: wgpu::RenderPipeline,
     /// The kept coverage of the stroke being drawn read from its slots into the atlas, written
-    /// whole (S64).
+    /// whole.
     pub(crate) kept: wgpu::RenderPipeline,
-    /// A smudge onto the layer or its mask from their copy, written whole; S65: an adjustment
+    /// A smudge onto the layer or its mask from their copy, written whole; an adjustment
     /// and a filter likewise, a moved content laid over the level under it, a whole layer's cut
     /// in place.
     smudge: wgpu::RenderPipeline,
@@ -90,9 +89,6 @@ pub(crate) struct RasterPipelines {
     /// The atlas's and the float targets' formats: 32-bit floats where the device blends them.
     pub(crate) atlas: wgpu::TextureFormat,
     pub(crate) layer: wgpu::TextureFormat,
-    /// How many there are and how long making them took, ns (`Core::raster_pipelines`).
-    pub(crate) count: usize,
-    pub(crate) compile_ns: f64,
 }
 
 impl RasterPipelines {
@@ -107,12 +103,7 @@ impl RasterPipelines {
         let both = pipeline_layout(device, &layouts);
         let [atlas, layer] = floats(gpu);
         let make = |entries: [&str; 2], layout, target: wgpu::ColorTargetState| {
-            let stage = Stage {
-                module: &module,
-                layout,
-                entries,
-            };
-            stage.pipeline(device, target)
+            pipeline(device, (&module, layout), entries, target)
         };
         let coverage = Coverage::ALL.map(|coverage| {
             let (entries, operation) = coverage.stage();
@@ -146,13 +137,23 @@ impl RasterPipelines {
             records,
             kept,
             ends,
-            count: 5 + 3 + 3 + 1 + 1 + 4 + 1 + 8 + 1 + usize::from(finish_ten.is_some()),
             finish,
             finish_ten,
             atlas,
             layer,
-            compile_ns: 0.0,
         })
+    }
+
+    /// How many pipelines it holds.
+    fn count(&self) -> usize {
+        let single = [&self.patch, &self.kept, &self.smudge, &self.finish].len();
+        self.coverage.len()
+            + self.strokes.len()
+            + self.fills.len()
+            + self.records.len()
+            + self.ends.len()
+            + single
+            + usize::from(self.finish_ten.is_some())
     }
 
     pub(crate) fn coverage(&self, coverage: Coverage) -> &wgpu::RenderPipeline {
@@ -184,7 +185,7 @@ impl RasterPipelines {
 }
 
 /// The pipelines onto the layer's float targets (in `layer`) that `make` makes from their entries
-/// and target: S65's records (an adjustment and a filter from the copy, a moved content over the
+/// and target: the records (an adjustment and a filter from the copy, a moved content over the
 /// level under it, a whole layer's cut), then the layer ends by `EndBlend`.
 fn records(
     make: &impl Fn([&'static str; 2], wgpu::ColorTargetState) -> wgpu::RenderPipeline,
@@ -210,7 +211,7 @@ fn records(
 impl Core {
     /// The raster core's pipelines, made by the first caller (how long that took is logged), any
     /// other waiting until they are: the runtime makes them on its raster worker as the device is
-    /// made (S60), so the screen's frames never wait for them (`raster_made`).
+    /// made, so the screen's frames never wait for them (`raster_made`).
     pub(crate) fn raster_pipelines(&self) -> Result<&RasterPipelines, RenderError> {
         if let Some(pipelines) = self.raster.get() {
             return Ok(pipelines);
@@ -223,24 +224,23 @@ impl Core {
             return Ok(pipelines);
         }
         let started = std::time::Instant::now();
-        let mut made = RasterPipelines::new(&self.gpu)?;
-        made.compile_ns = started.elapsed().as_secs_f64() * 1e9;
+        let made = RasterPipelines::new(&self.gpu)?;
         log::info!(
             "raster core: {} pipelines made in {:.0} ms ({:?} atlas, {:?} targets)",
-            made.count,
-            made.compile_ns / 1e6,
+            made.count(),
+            started.elapsed().as_secs_f64() * 1e3,
             made.atlas,
             made.layer
         );
         Ok(self.raster.get_or_init(|| made))
     }
 
-    /// The raster core's pipelines when they are made, without waiting (S60).
+    /// The raster core's pipelines when they are made, without waiting.
     pub(crate) fn raster_made(&self) -> Option<&RasterPipelines> {
         self.raster.get()
     }
 
-    /// Makes the raster core's pipelines now unless they are made (S60: the runtime's raster
+    /// Makes the raster core's pipelines now unless they are made (the runtime's raster
     /// worker, as the device is made, so the first zoom finds them).
     ///
     /// # Errors

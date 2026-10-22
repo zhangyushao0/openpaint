@@ -1,4 +1,4 @@
-//! Merge Down on the GPU (S39, D66): the upper layer becomes a nested record in the lower one
+//! Merge Down on the GPU: the upper layer becomes a nested record in the lower one
 //! and the canvas shows what it showed, within a level away from antialiased edges: where the
 //! upper layer clipped to the lower one (its base) at every mode, opacity and mask; merged over by
 //! a shared mode that composes (Normal, Multiply, Screen), where the order of float operations
@@ -6,13 +6,13 @@
 //! pass-through groups and clipping chains alike. What comes after a merge: `merge_after.rs`.
 
 use openpaint_core::{
-    Artwork, ArtworkCommand, BlendMode, CanvasSize, Color, GroupCommand, LayerCommand, LayerId,
-    MaskCommand, RegionMask,
+    Artwork, ArtworkCommand, BlendMode, GroupCommand, LayerCommand, LayerId, MaskCommand,
 };
 use openpaint_render::RgbaImage;
 
 use crate::fixture::{
-    SIZE, blank, cold, core, diagonal, plain, sample, wave, with_layer, with_stroke,
+    SIZE, apply, blank, cold, columns, core, diagonal, fill, layer, plain, rgb, sample, wave,
+    with_layer, with_stroke,
 };
 use crate::raster::assert_near;
 
@@ -35,30 +35,6 @@ pub const PLAIN: Look = Look {
     clip: false,
     mask: false,
 };
-
-pub fn color([r, g, b]: [f32; 3]) -> Color {
-    Color::rgb(r, g, b).expect("colour")
-}
-
-fn columns(x0: u32, x1: u32) -> RegionMask {
-    let inside: Vec<bool> = (0..SIZE[0] * SIZE[1])
-        .map(|at| (x0..x1).contains(&(at % SIZE[0])))
-        .collect();
-    let canvas = CanvasSize::new(SIZE[0], SIZE[1]).expect("size");
-    RegionMask::from_pixels(canvas, &inside).expect("mask")
-}
-
-fn apply(artwork: &Artwork, command: ArtworkCommand) -> Artwork {
-    artwork.apply(command).expect("command").artwork
-}
-
-fn layer(artwork: &Artwork, command: LayerCommand) -> Artwork {
-    apply(artwork, ArtworkCommand::Layer(command))
-}
-
-fn fill(artwork: &Artwork, mask: RegionMask, rgb: [f32; 3]) -> Artwork {
-    artwork.fill_region(mask, color(rgb)).expect("fill").artwork
-}
 
 /// The active layer given `look`, a grey mask over `masked` columns when it has one.
 fn styled(artwork: &Artwork, look: Look, masked: (u32, u32)) -> Artwork {
@@ -125,7 +101,7 @@ fn difference(a: &RgbaImage, b: &RgbaImage) -> (u8, usize) {
 
 /// Merging the active layer of `artwork` shows what it showed: the canvases within a level away
 /// from antialiased edges (the merged layer's content lies on a level of its own, laid over the
-/// one under it at its end; D88's rule).
+/// one under it at its end).
 fn exact(artwork: &Artwork, what: &str) {
     let core = core();
     let after = merged(artwork);
@@ -267,7 +243,7 @@ fn records_nested_to_the_limit_draw_as_the_layers_did() {
             let y = 20.0 + 20.0 * round as f32;
             sample(20.0 + 24.0 * t, y, 0.9, u32::from(i) * 8)
         });
-        let style = plain(14.0, 0.7, color(SOURCE));
+        let style = plain(14.0, 0.7, rgb(SOURCE));
         let upper = with_stroke(&with_layer(&faded, 1.0), (style, line.collect()));
         close(&upper, &format!("round {round}"));
         artwork = merged(&upper);

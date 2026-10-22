@@ -1,4 +1,4 @@
-//! The protocol's layer ends: how a layer, a clipping chain and a group composite (D50). The
+//! The protocol's layer ends: how a layer, a clipping chain and a group composite. The
 //! slots and values here are declared to WGSL by `prelude` like the rest of the protocol.
 
 use openpaint_core::BlendMode;
@@ -20,7 +20,7 @@ pub(super) const LAYER_SLOTS: [(&str, usize); 4] = [
     ("LAYER_MASK", LAYER_MASK),
 ];
 
-/// How an `EndLayer` applies the layer's mask (S24), declared to WGSL as constants by
+/// How an `EndLayer` applies the layer's mask, declared to WGSL as constants by
 /// `prelude`. With a mask the layer's paint is set aside from its `BeginMask` on, the mask's
 /// strokes and fills paint over transparent on a target of their own, read as grey over white
 /// (`m = r + 1 - a`), and the end shows the paint times `m` (or `1 - m`).
@@ -117,7 +117,7 @@ impl Op {
         Self::new(Opcode::EndChain, &data)
     }
 
-    /// The end of a merged layer's content (S39): through `masking`, at `opacity`, by `mode`
+    /// The end of a merged layer's content: through `masking`, at `opacity`, by `mode`
     /// atop (`clipped`) or over what its layer held before it.
     pub(crate) fn end_nested(
         (opacity, mode): (f32, Mode),

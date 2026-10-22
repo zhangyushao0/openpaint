@@ -1,5 +1,5 @@
 //! A smudge's contacts (draweave's `DabWalker`, at one node per canvas pixel): walking the
-//! stroke's curve (its spans flattened at canvas resolution, S34), a contact every `clamp(r / 4,
+//! stroke's curve (its spans flattened at canvas resolution), a contact every `clamp(r / 4,
 //! 0.25, 1)` pixels along it, `r` the radius where the piece being walked ends. Each moves the
 //! colour by its step `d` and weighs it by the tip's profile times strength. The samples already
 //! follow the StreamLine (the app's stroke intent, with no catch-up for a smudge), so the contacts
@@ -91,7 +91,7 @@ impl Dab {
     }
 }
 
-/// Walks a smudge's curve (S34: its spans flattened at canvas resolution, `Segment::pieces`)
+/// Walks a smudge's curve (its spans flattened at canvas resolution, `Segment::pieces`)
 /// into contacts, remembering where it got to.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct DabWalker {

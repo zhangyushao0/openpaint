@@ -27,7 +27,7 @@ pub struct ScreenFrame<'a> {
 
 /// Paints screen frames. It holds the UI's textures (the font atlas among them), which egui
 /// sends only once, so one painter lives as long as the UI context that feeds it; it keeps each
-/// texture's image as egui last left it, so a painter on a new device gets them all again (S49).
+/// texture's image as egui last left it, so a painter on a new device gets them all again.
 pub struct ScreenPainter {
     renderer: egui_wgpu::Renderer,
     blit: CanvasBlit,
@@ -62,7 +62,7 @@ impl ScreenPainter {
         }
     }
 
-    /// This painter on `core`, a device made after the one it painted on was lost (S49), for
+    /// This painter on `core`, a device made after the one it painted on was lost, for
     /// `surface` (else the format it had): every texture egui sent is uploaded there again.
     #[must_use]
     pub fn moved(self, core: &Core, surface: Option<&Surface>) -> Self {
@@ -76,8 +76,8 @@ impl ScreenPainter {
         painter
     }
 
-    /// Shows the precision check over the whole screen from the next frame on, or stops (S37,
-    /// for debug builds: a soft grey ramp, its upper half at 8 bits, its lower at the window's
+    /// Shows the precision check over the whole screen from the next frame on, or stops (for
+    /// debug builds: a soft grey ramp, its upper half at 8 bits, its lower at the window's
     /// own precision, `gradient.rs`).
     pub fn show_gradient(&mut self, core: &Core, on: bool) {
         self.gradient = on.then(|| Gradient::new(&core.gpu.device, self.format));
@@ -213,7 +213,7 @@ impl Core {
     ) -> Result<bool, RenderError> {
         painter.check_format(surface.format())?;
         painter.upload(self, &frame.ui.textures);
-        // S56: both may wait for the GPU (the window's next image, the device's lock).
+        // Both may wait for the GPU (the window's next image, the device's lock).
         let acquired = waited("acquire", || surface.acquire(self))?;
         let Some(texture) = acquired else {
             return Ok(false);

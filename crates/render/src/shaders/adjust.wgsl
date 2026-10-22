@@ -1,4 +1,4 @@
-// Adjustments (S28, D59): hue, saturation and brightness, or tone curves, on the layer so far
+// Adjustments: hue, saturation and brightness, or tone curves, on the layer so far
 // at the op's place, inside its clip; elsewhere the layer stays exactly as it was. Paint is
 // adjusted as straight sRGB-encoded colour and keeps its alpha; a transparent pixel stays. A
 // mask's grey over transparent shows `1 - (a - r)`; it is adjusted as the grey it shows (turned
@@ -108,7 +108,7 @@ fn sixths(value: f32) -> f32 {
     return value - 6.0 * floor(value / 6.0);
 }
 
-// Each channel through its table (S43, D70): linearly between the two entries around the
+// Each channel through its table: linearly between the two entries around the
 // colour's place among the 256, by its fraction, so a smooth gradient through a steep curve
 // stays smooth (rounding to the nearest entry first stepped by the curve's slope).
 fn curved(rgb: vec3<f32>, op: u32) -> vec3<f32> {

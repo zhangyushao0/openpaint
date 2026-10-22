@@ -1,10 +1,9 @@
-//! Export (S29): an artwork at 1, 2, 4 or 8 output pixels per canvas pixel (the app offers up to
-//! 4), a band of rows at a time, each band in pieces at most `Banding::columns` wide, read back
-//! and handed on, so a 4x export never holds the whole picture on the GPU. Since S59 (D86) the
-//! raster core draws it (`export_raster.rs`; smudges since S61, D88; every scene since S65, D92)
-//! with targets of its own, sharing nothing with the screen's, so a worker holding an
-//! `Arc<Core>` runs it while the screen draws on. Since a pixel never depends on which regions are
-//! drawn with it, bands equal one piece; at 1x it is the screen's canvas pixel for pixel (D86).
+//! Export: an artwork at 1, 2, 4 or 8 output pixels per canvas pixel (the app offers up to 4), a
+//! band of rows at a time, each band in pieces at most `Banding::columns` wide, read back and
+//! handed on, so a 4x export never holds the whole picture on the GPU. The raster core draws it
+//! (`export_raster.rs`) with targets of its own, sharing nothing with the screen's, so a worker
+//! holding an `Arc<Core>` runs it while the screen draws on. Since a pixel never depends on which regions are
+//! drawn with it, bands equal one piece; at 1x it is the screen's canvas pixel for pixel.
 
 use std::time::Duration;
 

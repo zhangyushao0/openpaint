@@ -1,7 +1,7 @@
-// The raster core (`raster.rs`, DECISIONS D93): a scene's region drawn by the GPU's rasterizer.
+// The raster core (`raster.rs`): a scene's region drawn by the GPU's rasterizer.
 // A continuous span is flattened at the output's scale as `curve.rs` flattens it and each piece
 // is one quad around its capsule; a stamped span is one quad per stamp, placed, turned, sized and
-// scattered by the stroke's hashes (D72). Each piece's and stamp's coverage or density
+// scattered by the stroke's hashes. Each piece's and stamp's coverage or density
 // (segment.wgsl, stamp.wgsl, stamp_texture.wgsl, deposit.wgsl, appended after these files) is
 // combined within a stroke by the blend unit (max for coverage and contact, add for density) in
 // the stroke's region of a scratch atlas; then each region is composited onto the layer by the
@@ -28,7 +28,7 @@ struct Raster {
     size: vec2<f32>,
     atlas: vec2<f32>,
     unused_too: vec2<f32>,
-    // S65: where the centres lie on the canvas (a material seen from a transform record; else the
+    // Where the centres lie on the canvas (a material seen from a transform record; else the
     // identity): rows, one over its canvas pixels per pixel, that one's base-2 log; and the rows
     // mapping canvas points back.
     base_x: vec4<f32>,
@@ -43,7 +43,7 @@ struct Raster {
 @group(0) @binding(2) var<storage, read> masks: array<u32>;
 @group(0) @binding(3) var<storage, read> textures: array<u32>;
 @group(0) @binding(4) var<storage, read> patches: array<u32>;
-// The smudge residuals (smudge_composite.wgsl, S61): the finished
+// The smudge residuals (smudge_composite.wgsl): the finished
 // ones' arena, which a smudge's instance names its block in, and the in-progress one's.
 @group(0) @binding(5) var<storage, read> arena: array<u32>;
 @group(0) @binding(6) var<storage, read> active_residual: array<u32>;
@@ -264,7 +264,7 @@ struct KeptOut {
     @location(1) @interpolate(flat) cells: vec2<u32>,
 }
 
-// S64: the atlas rectangle `b` (its corners) of a stroke's kept coverage in a tile, read from its
+// The atlas rectangle `b` (its corners) of a stroke's kept coverage in a tile, read from its
 // slot on the page bound (`a.zw`: the shift to it, `a.xy`: the cells it holds).
 @vertex
 fn kept_vertex(

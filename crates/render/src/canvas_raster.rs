@@ -1,26 +1,27 @@
-//! The screen canvas on the raster core (S62, DECISIONS D89): what of it waits to be drawn, the
+//! The screen canvas on the raster core: what of it waits to be drawn, the
 //! frame loop's raster targets (shared with the view tiers' changes drawn in place), and the tiles
 //! handed to the raster worker (`canvas_raster_fill.rs` draws). A change (an undo, a layer edit, a
 //! fill, an opening) is drawn at once on the frame loop when it is small and fits the frame's
 //! budget, else the canvas's 256-px tiles it reaches wait and the worker draws them, the screen's
-//! middle first, at the GPU's pace (D87), each into a slot of a staging texture the frame loop
+//! middle first, at the GPU's pace, each into a slot of a staging texture the frame loop
 //! then copies into the canvas, unless a change reached the tile meanwhile: so only the frame loop
 //! writes the canvas, and a tile drawn for an older version never covers a newer one (a stroke
 //! being drawn, a later change). Once nothing waits, the worker takes the snapshots under the
-//! next stroke ahead (S63, `drawing_ahead.rs`).
+//! next stroke ahead (`drawing_ahead.rs`).
 
 use crate::canvas::CanvasTarget;
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::geom::PixelRect;
 use crate::raster::RasterTargets;
-use crate::readback::target_texture;
-use crate::view_raster_jobs::{RasterDone, RasterOrder};
+use crate::raster_worker::{AHEAD, RasterDone, RasterOrder};
+use crate::readback::{target_texture, texture_bytes};
 use crate::view_tiles::TIER_TILE;
 use crate::waiting::Waiting;
 
-/// Canvas tiles with the raster worker at most: as many as a view tier hands over (S60).
-pub(crate) const AHEAD: usize = crate::view_raster_fill::AHEAD;
+/// Pixels of changes drawn at once in one frame at most (the canvas's, a view tier's in place); a
+/// larger change makes the tiles it reaches wait to be drawn whole by the raster worker.
+pub(crate) const EDIT_PIXELS: i64 = 4 * 256 * 256;
 
 /// What a tile is expected to cost the GPU before any was drawn, ns: a dense one on the tablet.
 const FIRST: f64 = 6_000_000.0;
@@ -48,7 +49,7 @@ pub(crate) struct CanvasRaster {
     staging: Option<(wgpu::Texture, wgpu::TextureView)>,
     /// The canvas texture as the raster core draws into it.
     pub(crate) view: wgpu::TextureView,
-    /// The frame loop's targets, for the canvas and its view tiers (S59's, moved here).
+    /// The frame loop's targets, for the canvas and its view tiers.
     pub(crate) targets: Option<RasterTargets>,
     /// When the targets last drew (the frame clock's seconds), and whether they drew since the
     /// view tiers last looked (`ViewCache::update` stamps it).
@@ -100,7 +101,7 @@ impl CanvasRaster {
         self.fresh.extend_from_slice(rects);
     }
 
-    /// Handed tiles `rects` reach are drawn again once answered (S63: the stroke being drawn drew
+    /// Handed tiles `rects` reach are drawn again once answered (the stroke being drawn drew
     /// there since they were handed over).
     pub(crate) fn stale(&mut self, rects: &[PixelRect]) {
         let answered = self.done.iter_mut().map(|(handed, _)| handed);
@@ -172,9 +173,7 @@ impl CanvasRaster {
 
     /// Bytes of the targets, the staging texture and the worker's targets.
     pub(crate) fn bytes(&self) -> u64 {
-        let staging = self.staging().map_or(0, |texture| {
-            u64::from(texture.width()) * u64::from(texture.height()) * 4
-        });
+        let staging = self.staging().map_or(0, texture_bytes);
         self.targets.as_ref().map_or(0, RasterTargets::bytes) + staging + self.drawer
     }
 
@@ -196,13 +195,13 @@ impl CanvasRaster {
 
 impl CanvasTarget {
     /// What the canvas and its view tiers ask of the raster worker since the last call, in
-    /// order (S60): the runtime hands it over.
+    /// order: the runtime hands it over.
     pub fn take_orders(&mut self) -> Vec<RasterOrder> {
         std::mem::take(&mut self.raster.orders)
     }
 
     /// The raster worker's answer to a tile: the canvas's applied by its next frame, a view
-    /// tier's by the view's next update, a snapshot under the next stroke kept (S63).
+    /// tier's by the view's next update, a snapshot under the next stroke kept.
     pub fn answer(&mut self, done: RasterDone) {
         if self.drawing.answer(&done) {
             self.raster.drawer = done.bytes;

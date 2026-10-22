@@ -1,4 +1,4 @@
-// A filter applied to its layer at one pixel (S33, D59): inside its clip the layer so far becomes
+// A filter applied to its layer at one pixel: inside its clip the layer so far becomes
 // the filter's result (`filter.wgsl` wrote it into a block of the arena starting at word `base`,
 // which the filter's draw names: its rectangle, then one premultiplied RGBA8 word per canvas
 // pixel) at `point`, which is a canvas pixel's centre on the canvas itself (that pixel's word

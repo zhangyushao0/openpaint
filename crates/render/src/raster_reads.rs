@@ -1,7 +1,7 @@
 //! What a raster region's draws read (group 1, `raster.rs`): three float textures, by the pass
 //! drawing them. A stroke's tiles read the atlas; a layer's end the layer's paint (or the chain, a
 //! level, the group's backdrop) with the mask and the backdrop; a smudge, an adjustment or a filter
-//! the copy it rewrites from; the finish the canvas. S65: the targets read vary with the levels
+//! the copy it rewrites from; the finish the canvas. The targets read vary with the levels
 //! and the group a region uses, so each bind group is made the first time a region reads through
 //! it, and all go when a scratch target is made.
 

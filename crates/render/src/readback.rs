@@ -49,6 +49,29 @@ pub(crate) fn target_texture(
     }))
 }
 
+/// Bytes `texture` holds.
+pub(crate) fn texture_bytes(texture: &wgpu::Texture) -> u64 {
+    let texel = texture.format().block_copy_size(None).unwrap_or(16);
+    u64::from(texture.width()) * u64::from(texture.height()) * u64::from(texel)
+}
+
+/// Texel `[x, y]` of `texture`, where a copy starts.
+pub(crate) fn place(texture: &wgpu::Texture, [x, y]: [u32; 2]) -> wgpu::TexelCopyTextureInfo<'_> {
+    wgpu::TexelCopyTextureInfo {
+        origin: wgpu::Origin3d { x, y, z: 0 },
+        ..texture.as_image_copy()
+    }
+}
+
+/// A copy of `[width, height]` texels.
+pub(crate) const fn extent([width, height]: [u32; 2]) -> wgpu::Extent3d {
+    wgpu::Extent3d {
+        width,
+        height,
+        depth_or_array_layers: 1,
+    }
+}
+
 /// Copies `texture` into memory, waiting for the GPU. Strips the 256-byte row padding the copy
 /// requires, so the result is tightly packed.
 pub(crate) fn read_rgba(gpu: &Gpu, texture: &wgpu::Texture) -> Result<RgbaImage, RenderError> {
@@ -72,12 +95,7 @@ pub(crate) fn read_rect(
     });
     let mut encoder = gpu.device.create_command_encoder(&Default::default());
     encoder.copy_texture_to_buffer(
-        wgpu::TexelCopyTextureInfo {
-            texture,
-            mip_level: 0,
-            origin: wgpu::Origin3d { x, y, z: 0 },
-            aspect: wgpu::TextureAspect::All,
-        },
+        place(texture, [x, y]),
         wgpu::TexelCopyBufferInfo {
             buffer: &buffer,
             layout: wgpu::TexelCopyBufferLayout {
@@ -86,11 +104,7 @@ pub(crate) fn read_rect(
                 rows_per_image: Some(height),
             },
         },
-        wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
+        extent([width, height]),
     );
     gpu.submit([encoder.finish()]);
     map_and_wait(gpu, &buffer)?;
@@ -119,52 +133,16 @@ pub(crate) fn read_texel(
     if x >= texture.width() || y >= texture.height() {
         return Ok(None);
     }
-    let row = wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
-    let buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("texel readback"),
-        size: u64::from(row),
-        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-        mapped_at_creation: false,
-    });
-    let mut encoder = gpu.device.create_command_encoder(&Default::default());
-    encoder.copy_texture_to_buffer(
-        wgpu::TexelCopyTextureInfo {
-            texture,
-            mip_level: 0,
-            origin: wgpu::Origin3d { x, y, z: 0 },
-            aspect: wgpu::TextureAspect::All,
-        },
-        wgpu::TexelCopyBufferInfo {
-            buffer: &buffer,
-            layout: wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(row),
-                rows_per_image: Some(1),
-            },
-        },
-        wgpu::Extent3d {
-            width: 1,
-            height: 1,
-            depth_or_array_layers: 1,
-        },
-    );
-    gpu.submit([encoder.finish()]);
-    map_and_wait(gpu, &buffer)?;
-    let view = buffer.get_mapped_range(..).map_err(device)?;
+    let image = read_rect(gpu, texture, [x, y], [1, 1])?;
     let mut texel = [0; 4];
-    texel.copy_from_slice(&view[..4]);
-    drop(view);
-    buffer.unmap();
-    if texture.format() == TEN_BITS {
-        texel = eight_bits(u32::from_le_bytes(texel));
-    }
+    texel.copy_from_slice(image.pixels());
     Ok(Some(texel))
 }
 
 /// The 8-bit RGBA a ten-bit display texel (`Rgb10a2Unorm`: red in the low ten bits) stands for.
 /// The raster core writes each channel as a ten-bit code `j` chosen among those whose nearest
-/// 8-bit value, `floor(j 255 / 1023 + 1/2)`, is the one it stores in an 8-bit target (S37,
-/// `coded` in `raster_composite.wgsl`), so this is that value exactly; never halfway, as `510 j` is even
+/// 8-bit value, `floor(j 255 / 1023 + 1/2)`, is the one it stores in an 8-bit target (`coded`
+/// in `raster_composite.wgsl`), so this is that value exactly; never halfway, as `510 j` is even
 /// and `1023` odd. Alpha has two bits: display targets are opaque, 3 is 255.
 pub(crate) fn eight_bits(word: u32) -> [u8; 4] {
     let channel = |shift: u32| ((((word >> shift) & 1023) * 510 + 1023) / 2046) as u8;
@@ -205,12 +183,12 @@ pub(crate) fn read_buffer(
 pub(crate) const GPU_WAIT: Duration = Duration::from_secs(30);
 
 /// How long a wait for the GPU sleeps between its polls. A wait never blocks inside wgpu: wgpu
-/// waits for a submission holding the lock its present needs, so a worker waiting a whole
-/// backlog out held the main thread's present for seconds (S55's input timeout; S56 waited in
-/// 2 ms steps), and wgpu-core 30.0.1 asserts (a panic in the waiting thread) when another thread's
+/// waits for a submission holding the lock its present needs, so a worker waiting a whole backlog
+/// out would hold the main thread's present for seconds (long enough for Android's input
+/// timeout), and wgpu-core 30.0.1 asserts (a panic in the waiting thread) when another thread's
 /// poll or submit empties its queue between a waiting poll's fence read and its own upkeep, which
-/// a step ending unfinished meets (S61: the GPU tests hit it in 3 of 5 runs with the raster
-/// core's smudge tests; the tablet's frame loop and raster worker submit while workers wait).
+/// a step ending unfinished meets (the frame loop and the raster worker submit while workers
+/// wait).
 const POLL_STEP: Duration = Duration::from_micros(500);
 
 /// Blocks until the GPU has finished every command submitted so far, at most `GPU_WAIT`; `what`

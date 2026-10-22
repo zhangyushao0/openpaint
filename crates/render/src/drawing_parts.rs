@@ -1,4 +1,4 @@
-//! The regions a frame of a stroke's drawing draws (S63, `drawing_frame.rs`): what the frame
+//! The regions a frame of a stroke's drawing draws (`drawing_frame.rs`): what the frame
 //! changes, as regions as large as the frame loop's targets where the output's tiles lie side by
 //! side (the canvas), else a region per tile; each drawn from the snapshots of the tiles it meets
 //! (taken now when one has none, or laying the strokes committed since the one it has), the
@@ -6,10 +6,11 @@
 
 use std::collections::BTreeSet;
 
-use super::{Onto, Part, Pen, StrokeWork, meeting};
+use super::{Onto, Part, Pen, StrokeWork};
+use crate::canvas::NO_SCENE;
 use crate::canvas::{CanvasTarget, paper};
 use crate::core::Core;
-use crate::drawing::{Drawing, slot_copies as copies, tile_rect};
+use crate::drawing::{Drawing, slot_copies as copies};
 use crate::error::RenderError;
 use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
@@ -18,7 +19,7 @@ use crate::raster::Finish;
 use crate::raster_plan::{Pass, RasterPlan, Resume, SlotCopy};
 use crate::scene::Scene;
 use crate::smudge::around_output;
-use crate::view_tiles::TIER_TILE;
+use crate::view_tiles::{TIER_TILE, meeting, tile_rect};
 
 impl CanvasTarget {
     /// What `changed` (canvas pixels) reaches of `onto`'s output, as regions pushed onto `batch`:
@@ -81,12 +82,11 @@ impl CanvasTarget {
         (onto, scene, paper): (&Onto<'a>, &Scene, [f32; 4]),
         (resume, pen): (Resume, Option<&Pen>),
     ) -> Result<Part<'a>, RenderError> {
-        let missing = || RenderError::Invalid("no scene was built");
-        let held = self.held().ok_or_else(missing)?;
+        let held = self.held().ok_or(NO_SCENE)?;
         let atlas = self.raster_atlas(core)?;
         let min = region.min.map(i32::unsigned_abs);
         let output = Output::at(onto.scale, min)?;
-        let side = [0, 1].map(|axis| (region.max[axis] - region.min[axis]).unsigned_abs());
+        let side = region.size();
         let tiles: Vec<[u32; 2]> = meeting(region, size).map(|(tile, _)| tile).collect();
         let in_progress = pen.map(|pen| pen.in_progress(drawing, &tiles));
         let units = (scene, &held.bases);
@@ -98,7 +98,7 @@ impl CanvasTarget {
         }
         let first = tiles.first().copied().unwrap_or_default();
         let corner = first.map(|at| at * TIER_TILE);
-        let place = (onto.place)(first).ok_or_else(missing)?;
+        let place = (onto.place)(first).ok_or(NO_SCENE)?;
         let finish = Finish {
             view: onto.view,
             format: onto.format,
@@ -122,12 +122,11 @@ impl CanvasTarget {
         (tile, size): ([u32; 2], [u32; 2]),
         (scene, scale, paper): (&Scene, u32, [f32; 4]),
     ) -> Result<Part<'a>, RenderError> {
-        let missing = || RenderError::Invalid("no scene was built");
-        let base = drawing.base.clone().ok_or_else(missing)?;
+        let base = drawing.base.clone().ok_or(NO_SCENE)?;
         let rect = tile_rect(tile, size);
         let output = Output::at(scale, rect.min.map(i32::unsigned_abs))?;
-        let side = [0, 1].map(|axis| (rect.max[axis] - rect.min[axis]).unsigned_abs());
-        let held = self.held().ok_or_else(missing)?;
+        let side = rect.size();
+        let held = self.held().ok_or(NO_SCENE)?;
         let atlas = self.raster_atlas(core)?;
         let units = (scene, &held.bases);
         let under = drawing.under.get(&tile).cloned();
@@ -198,7 +197,7 @@ fn regions(
         return Ok((Vec::new(), skipped));
     };
     // The box of every part, cut into equal pieces the targets hold, each the box of what it holds.
-    let side = [0, 1].map(|axis| (all.max[axis] - all.min[axis]) as u32);
+    let side = all.size();
     let count = [0, 1].map(|axis| side[axis].div_ceil(capacity[axis]).max(1));
     let mut regions = Vec::new();
     for row in 0..count[1] {
@@ -280,7 +279,7 @@ fn restores(drawing: &Drawing, region: PixelRect, size: [u32; 2]) -> Vec<SlotCop
         let corner = tile.map(|at| (at * TIER_TILE) as i32);
         let offset = [0, 1].map(|axis| (part.min[axis] - corner[axis]) as u32);
         let at = [0, 1].map(|axis| (part.min[axis] - region.min[axis]) as u32);
-        let side = [0, 1].map(|axis| (part.max[axis] - part.min[axis]) as u32);
+        let side = part.size();
         all.extend(copies(&under.slots, (offset, at, side)));
     }
     all

@@ -1,6 +1,6 @@
-//! Which view tiles a view needs (S32): the tiles the screen's canvas area shows, turned with
-//! the view, then a ring of one tile round them. Since S58 the tiles beyond stay ready until a
-//! needed one wants their slot.
+//! Which view tiles a view needs: the tiles the screen's canvas area shows, turned with the
+//! view, then a ring of one tile round them. The tiles beyond stay ready until a needed one wants
+//! their slot.
 
 use crate::view_atlas::Tier;
 use crate::view_tier::ViewFrame;
@@ -95,12 +95,12 @@ impl Needed {
             .unwrap_or(u8::MAX)
     }
 
-    /// The shown tiles, nearest the centre first (S63: whose snapshots are taken ahead).
+    /// The shown tiles, nearest the centre first (whose snapshots are taken ahead).
     pub(crate) fn shown(&self) -> impl Iterator<Item = [u32; 2]> + '_ {
         self.ordered[..self.shown].iter().copied()
     }
 
-    /// `tile` is shown (S63: what a stroke being drawn draws at the tier).
+    /// `tile` is shown (what a stroke being drawn draws at the tier).
     pub(crate) fn is_shown(&self, tile: [u32; 2]) -> bool {
         self.ring(tile) == 0
     }

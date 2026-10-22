@@ -1,4 +1,4 @@
-//! One view tier (S32): its target, an atlas of `TIER_TILE`-pixel slots holding view tiles of
+//! One view tier: its target, an atlas of `TIER_TILE`-pixel slots holding view tiles of
 //! the canvas's output at the tier's scale, which tiles hold the shown version (ready), and the
 //! index the blit finds them by. Drawn by the raster core from the canvas target's scene: one
 //! scene and one set of smudge residuals serve the canvas and its tier.
@@ -10,7 +10,7 @@ use crate::drawing::Drawing;
 use crate::error::RenderError;
 use crate::image::RgbaImage;
 use crate::output::Output;
-use crate::readback::{read_rect, target_texture};
+use crate::readback::{read_rect, target_texture, texture_bytes};
 use crate::view_tiles::{TIER_TILE, TileMap};
 
 /// Slots in an atlas row at most: 4096 pixels.
@@ -21,25 +21,25 @@ pub(crate) struct Tier {
     /// Per view tile, row-major: its slot holds the shown version's pixels.
     ready: Vec<bool>,
     atlas: wgpu::Texture,
-    /// The view the raster core draws tiles into it through (S59), made with the atlas.
+    /// The view the raster core draws tiles into it through, made with the atlas.
     view: wgpu::TextureView,
     /// Per view tile, `R32Uint`: its slot plus one while ready, else 0 (`blit.wgsl`).
     index: wgpu::Texture,
     /// The index differs from `ready` and the slots.
     stale: bool,
-    /// When the screen last showed it, in the frame clock's seconds (S58: tiers are let go by
+    /// When the screen last showed it, in the frame clock's seconds (tiers are let go by
     /// recency).
     pub(crate) shown_at: f64,
-    /// The stroke being drawn as the raster core draws it on this tier's tiles shown (S63).
+    /// The stroke being drawn as the raster core draws it on this tier's tiles shown.
     pub(crate) drawing: Drawing,
-    /// Times the atlas was made larger (S60: a tile the raster worker drew into the atlas before
+    /// Times the atlas was made larger (a tile the raster worker drew into the atlas before
     /// is not in the one after).
     pub(crate) grown: u32,
 }
 
 impl Tier {
     /// A tier at `scale` over `artwork`'s canvas with room for `slots` tiles, in the atlas
-    /// `spare` when it is one of `atlas_for(slots)`'s width and at least its height (S60: made
+    /// `spare` when it is one of `atlas_for(slots)`'s width and at least its height (made
     /// ahead on the raster worker, so making the tier allocates nothing on the frame loop's
     /// thread), else in one made now.
     pub(crate) fn new(
@@ -112,19 +112,13 @@ impl Tier {
 
     /// Bytes of its textures.
     pub(crate) fn bytes(&self) -> u64 {
-        let [columns, rows] = self.map.tiles();
-        let atlas = u64::from(self.atlas.width()) * u64::from(self.atlas.height()) * 4;
-        atlas + u64::from(columns) * u64::from(rows) * 4
+        texture_bytes(&self.atlas) + texture_bytes(&self.index)
     }
 
-    /// Bytes a new tier with room for `slots` tiles of `map`'s tiling would hold (S49).
+    /// Bytes a new tier with room for `slots` tiles of `map`'s tiling would hold.
     pub(crate) fn bytes_for(map: &TileMap, slots: u32) -> u64 {
-        let across = slots.clamp(1, ACROSS);
-        let rows = slots.div_ceil(across).max(1);
-        let side = u64::from(TIER_TILE);
-        let atlas = u64::from(across) * u64::from(rows) * side * side * 4;
         let [columns, down] = map.tiles();
-        atlas + u64::from(columns) * u64::from(down) * 4
+        atlas_bytes(slots) + u64::from(columns) * u64::from(down) * 4
     }
 
     fn at(&self, [column, row]: [u32; 2]) -> usize {
@@ -229,7 +223,7 @@ impl Tier {
             return Ok(None);
         };
         let rect = self.map.tile_rect(tile);
-        let size = [0, 1].map(|axis| (rect.max[axis] - rect.min[axis]) as u32);
+        let size = rect.size();
         read_rect(&core.gpu, &self.atlas, self.map.slot_origin(slot), size).map(Some)
     }
 }
@@ -240,7 +234,14 @@ pub(crate) fn atlas_for(slots: u32) -> (u32, u32) {
     (across, slots.div_ceil(across).max(1))
 }
 
-/// An atlas of `across` by `rows` slots: the raster core draws into it (S59).
+/// Bytes of an atlas holding `slots` tiles.
+pub(crate) fn atlas_bytes(slots: u32) -> u64 {
+    let (across, rows) = atlas_for(slots);
+    let side = u64::from(TIER_TILE);
+    u64::from(across) * u64::from(rows) * side * side * 4
+}
+
+/// An atlas of `across` by `rows` slots: the raster core draws into it.
 pub(crate) fn atlas_texture(
     core: &Core,
     (across, rows): (u32, u32),

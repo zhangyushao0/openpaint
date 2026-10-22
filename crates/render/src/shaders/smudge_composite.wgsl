@@ -1,8 +1,8 @@
-// A smudge applied to its layer at one pixel (DECISIONS D46): the layer becomes A * layer + R
+// A smudge applied to its layer at one pixel: the layer becomes A * layer + R
 // from the smudge's residual (smudge.wgsl derived it) at the pixel's centre. The residual's
-// nodes sit at canvas pixel centres; between them A and R are bilinear (S29: an output pixel
+// nodes sit at canvas pixel centres; between them A and R are bilinear (an output pixel
 // at 2x to 8x), and at a node, as on the canvas itself, that node alone, exactly. A finished
-// smudge's residual is a block of the arena, starting at the base its draw names (S61); the one
+// smudge's residual is a block of the arena, starting at the base its draw names; the one
 // being drawn reads its own residual. Where the residual holds no node, or the node is still the
 // identity, the layer stays exactly as it was, as the scene's bounds require.
 

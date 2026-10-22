@@ -1,8 +1,7 @@
-//! A region's passes on the GPU (S57's probe, S59): the plan's passes in order, each a render
-//! pass over the atlas or a float target of the region (a copy for a backdrop or, S65, a group's;
-//! a copy, then a pass, for a smudge, S61, an adjustment or a filter, S65), then the finish
-//! rounding the canvas into the destination; a batch's regions one after another (S63,
-//! `raster_batch.rs`), all in one command buffer.
+//! A region's passes on the GPU: the plan's passes in order, each a render pass over the atlas or
+//! a float target of the region (a copy for a backdrop or a group's; a copy, then a pass, for a
+//! smudge, an adjustment or a filter), then the finish rounding the canvas into the destination; a
+//! batch's regions one after another (`raster_batch.rs`), all in one command buffer.
 
 use super::reads::{ATLAS, CANVAS, COPIED, ending};
 use super::{Bound, Finish, Pages, RasterTargets, Region, timed};
@@ -15,6 +14,7 @@ use crate::output::Output;
 use crate::raster_gpu::RasterPipelines;
 use crate::raster_plan::{CoverageDraw, Draw, Instance, Pass, Scratch};
 use crate::raster_states::INSTANCE_BYTES;
+use crate::readback::{extent, place};
 
 impl RasterTargets {
     /// Each region's passes on its paper (its slot passes on `pages`), then its finish when it
@@ -72,8 +72,8 @@ impl RasterTargets {
         timestamps: Option<wgpu::RenderPassTimestampWrites<'_>>,
     ) {
         match pass {
-            Pass::Restore(copies) => self.restore(encoder, copies, pages),
-            Pass::Keep(copies) => self.keep(encoder, copies, pages),
+            Pass::Restore(copies) => self.snapshot_copies(encoder, (copies, true), pages),
+            Pass::Keep(copies) => self.snapshot_copies(encoder, (copies, false), pages),
             Pass::Kept { held, draws, keep } => {
                 self.kept(encoder, pipelines, (held, draws, keep), pages, timestamps);
             }
@@ -168,18 +168,10 @@ impl RasterTargets {
         ) else {
             return;
         };
-        let at = |texture| wgpu::TexelCopyTextureInfo {
-            origin: wgpu::Origin3d { x, y, z: 0 },
-            ..wgpu::Texture::as_image_copy(texture)
-        };
         encoder.copy_texture_to_texture(
-            at(&source.texture),
-            at(&target.texture),
-            wgpu::Extent3d {
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
+            place(&source.texture, [x, y]),
+            place(&target.texture, [x, y]),
+            extent([width, height]),
         );
     }
 
@@ -273,7 +265,7 @@ pub(super) fn begin<'a>(
 }
 
 /// The values raster.wgsl's `Raster` holds, as GPU bytes: for a region of `size` pixels at
-/// `output` whose centres lie on the canvas by `base` (S65), with an atlas of `atlas` pixels.
+/// `output` whose centres lie on the canvas by `base`, with an atlas of `atlas` pixels.
 pub(super) fn values(
     output: Output,
     (size, base): ([u32; 2], Affine),

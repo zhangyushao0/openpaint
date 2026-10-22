@@ -1,4 +1,4 @@
-// Fill edges (S30, D56): a fill's coverage of an output pixel at every scale, from its mask's
+// Fill edges: a fill's coverage of an output pixel at every scale, from its mask's
 // bits and the edge values the scene derived from them (`fill_edge.rs`).
 //
 // The mask's signed distance field (at each pixel centre the distance to the nearest centre of

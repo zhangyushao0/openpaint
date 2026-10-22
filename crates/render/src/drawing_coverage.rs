@@ -1,4 +1,4 @@
-//! A drawing's kept coverage slots (S63, S64, DECISIONS D91; `drawing.rs`): per output tile the
+//! A drawing's kept coverage slots (`drawing.rs`): per output tile the
 //! stroke being drawn reaches, two slots of atlas-sized coverage pages (its coverage or density,
 //! and a pencil's contact), taken when the stroke reaches the tile first and set to nothing by
 //! that frame (`take_taken`); each page with a bind group the atlas pass reads it through, and a
@@ -41,7 +41,7 @@ impl Drawing {
         std::mem::take(&mut self.taken)
     }
 
-    /// A coverage page of `atlas` pixels and `format` made now when there is none (S63: ahead,
+    /// A coverage page of `atlas` pixels and `format` made now when there is none (ahead,
     /// so a stroke's first frame allocates nothing: making one took up to 20 ms on the tablet).
     pub(crate) fn coverage_ahead(
         &mut self,

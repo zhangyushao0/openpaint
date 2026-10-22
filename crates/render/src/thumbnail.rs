@@ -149,7 +149,7 @@ impl Core {
         self.thumbnail_of(target.texture(), max)
     }
 
-    /// As `thumbnail`, of what `texture` holds (S62: a layer sample's piece).
+    /// As `thumbnail`, of what `texture` holds (a layer sample's piece).
     pub(crate) fn thumbnail_of(
         &self,
         texture: &wgpu::Texture,

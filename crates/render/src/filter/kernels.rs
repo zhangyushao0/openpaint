@@ -1,5 +1,5 @@
 //! The filter kernels (`shaders/filter.wgsl`): a separable Gaussian over a filter's block, on
-//! cells of `factor` x `factor` canvas pixels for a large deviation (S35, `Cells`), in bands of
+//! cells of `factor` x `factor` canvas pixels for a large deviation (`Cells`), in bands of
 //! `BAND_ROWS` cell rows. Per band `across` sums the rows the band's output reads (the kernel's
 //! reach beyond it each way) into the band buffer, then `down` sums its columns and writes the
 //! block's words, or at a factor above 1 the blurred cells, which `enlarge` then spreads onto the
@@ -79,10 +79,7 @@ impl Cells {
             };
             (needed, scaled(needed))
         };
-        let widened = PixelRect {
-            min: read.min.map(|v| v - reach * factor as i32),
-            max: read.max.map(|v| v + reach * factor as i32),
-        };
+        let widened = read.widened(reach * factor as i32);
         let size = needed.max.map(|v| v as u32);
         Self {
             factor,

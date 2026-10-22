@@ -1,4 +1,4 @@
-//! Shapes and scatter (S45): a stamped stroke of discs equals a CPU reference stamping
+//! Shapes and scatter: a stamped stroke of discs equals a CPU reference stamping
 //! antialiased discs at the same places with the same hashed jitter; a straight stroke cut into
 //! many spans lays bit for bit what it lays as one; one seed evaluates bit for bit twice and
 //! another differently; the Flat brush's square turns with the stroke.
@@ -92,7 +92,7 @@ pub fn brushes() -> Vec<(&'static str, BrushRecipe, f32)> {
             40.0,
         ),
         ("speckle", speckle, 12.0),
-        // S55: stamps 6.4 px apart, wider than most spans, so many hold none and are listed
+        // Stamps 6.4 px apart, wider than most spans, so many hold none and are listed
         // in no tile.
         (
             "opaque paint at 80",

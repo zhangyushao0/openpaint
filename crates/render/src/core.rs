@@ -1,5 +1,5 @@
 //! `Core`: the renderer's GPU state. Created once per process and shared; never stored in the
-//! UI framework. When its device is lost, the runtime replaces it whole (`reopened`, S49).
+//! UI framework. When its device is lost, the runtime replaces it whole (`reopened`).
 
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 
@@ -9,7 +9,7 @@ use crate::error::RenderError;
 use crate::filter::{FILTER_SHADER, FilterPipeline};
 use crate::gpu::Gpu;
 use crate::gpu_frames::GpuFrames;
-use crate::image::RgbaImage;
+use crate::image::{RgbaImage, fnv1a};
 use crate::pace::{Background, Pace};
 use crate::paper::paper_levels;
 use crate::protocol::encode;
@@ -28,7 +28,7 @@ pub struct Core {
     /// The paper's mip chain (`paper.rs`), then the shape textures' (`shapes.rs`), uploaded once
     /// and bound by every raster draw.
     pub(crate) textures: wgpu::Buffer,
-    /// What drawing on this device did, counted (S53).
+    /// What drawing on this device did, counted.
     pub(crate) tally: Tally,
     /// How a canvas target binds for showing on screen, the same for every frame format.
     pub(crate) blit_layout: wgpu::BindGroupLayout,
@@ -40,20 +40,20 @@ pub struct Core {
     pub(crate) filter: FilterPipeline,
     /// Applies smudge contacts to residuals (`smudge`).
     pub(crate) smudge: SmudgePipeline,
-    /// How the blit binds the view tiers (S32), and its group without any.
+    /// How the blit binds the view tiers, and its group without any.
     pub(crate) tiers: TierBindings,
-    /// The screen's frame budget for background work (S53).
+    /// The screen's frame budget for background work.
     pub(crate) pace: Mutex<Pace>,
-    /// Enlarges the gallery picture into a canvas target opening without a display cache
-    /// (S54), made on first use.
+    /// Enlarges the gallery picture into a canvas target opening without a display cache,
+    /// made on first use.
     pub(crate) underlay: OnceLock<UnderlayPipeline>,
-    /// The raster core's pipelines (S57, S59), made once by the first that needs them (S60: the
+    /// The raster core's pipelines, made once by the first that needs them (the
     /// runtime's raster worker as the device is made), the others waiting for it.
     pub(crate) raster: OnceLock<RasterPipelines>,
     pub(crate) making: Mutex<()>,
     /// What the pixels it evaluates depend on, hashed (`renderer_identity`).
     identity: u64,
-    /// The screen's frames the GPU has not finished (S56).
+    /// The screen's frames the GPU has not finished.
     pub(crate) frames: GpuFrames,
 }
 
@@ -73,8 +73,8 @@ impl Core {
     }
 
     /// As `headless`, the screen's canvas and view tiers in 8 bits per channel even where the
-    /// device has ten (S37's fallback): what the scenario runner uses, whose checks read 8-bit
-    /// values and whose ten-bit reads decoded every texel on the CPU (S38).
+    /// device has ten: what the scenario runner uses, whose checks read 8-bit
+    /// values and whose ten-bit reads decoded every texel on the CPU.
     pub fn headless_eight_bits() -> Result<Self, RenderError> {
         Self::with_gpu(Gpu::new(false)?)
     }
@@ -118,7 +118,7 @@ impl Core {
         self.gpu.describe()
     }
 
-    /// The renderer's identity (S54): a hash of the build's version (a patch per slice), the
+    /// The renderer's identity: a hash of the build's version (a patch per slice), the
     /// display format and the WGSL of the raster core, the smudge kernels and the filters, so a
     /// build whose pixels may differ never takes a display cache another wrote as complete.
     #[must_use]
@@ -127,7 +127,7 @@ impl Core {
     }
 
     /// A new device on the same kind of adapter, with every pipeline built anew: what replaces
-    /// this one once it is lost (S49). Nothing made on this one can be used with it.
+    /// this one once it is lost. Nothing made on this one can be used with it.
     ///
     /// # Errors
     /// As `headless`: no adapter or device now (the driver may still be resetting).
@@ -180,19 +180,19 @@ impl Core {
         reported
     }
 
-    /// What drawing on this device did so far, counted (S53).
+    /// What drawing on this device did so far, counted.
     #[must_use]
     pub fn counts(&self) -> Counts {
         self.tally.counts()
     }
 
-    /// A frame of the screen begins (S53): the background work's budget is whole again, and the
+    /// A frame of the screen begins: the background work's budget is whole again, and the
     /// GPU's measured times since correct its estimates. The runtime calls this once a frame.
     pub fn begin_frame(&self) {
         self.pace().begin(&self.gpu, None);
     }
 
-    /// As `begin_frame` for a step of the frame loop (S60): while the screen is touched (not
+    /// As `begin_frame` for a step of the frame loop: while the screen is touched (not
     /// `idle`) a frame drawn gives background work `BACKGROUND_NS`, less what earlier frames spent
     /// beyond theirs; while nothing touches it, a step (a frame drawn or a call skipped while the
     /// GPU is behind) gives what keeps the background work queued on the GPU within
@@ -210,14 +210,14 @@ impl Core {
         self.pace().begin(&self.gpu, queued);
     }
 
-    /// The step's background work is all submitted (S60): its estimated GPU time not marked yet
+    /// The step's background work is all submitted: its estimated GPU time not marked yet
     /// counts as queued until the GPU has finished it.
     pub fn end_background(&self) {
         let given = self.pace().unmarked();
         self.background_submitted(given);
     }
 
-    /// What the frame before took for background work (S53).
+    /// What the frame before took for background work.
     #[must_use]
     pub fn background(&self) -> Background {
         self.pace().last()
@@ -270,11 +270,7 @@ fn identity(display: wgpu::TextureFormat) -> u64 {
         SMUDGE_SHADER,
         FILTER_SHADER,
     ];
-    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-    for byte in sources.iter().flat_map(|source| source.bytes()) {
-        hash = (hash ^ u64::from(byte)).wrapping_mul(0x0100_0000_01b3);
-    }
-    hash
+    fnv1a(sources.iter().flat_map(|source| source.bytes()))
 }
 
 /// A colour attachment over `view` that starts by clearing it to the 8-bit RGBA `color`.

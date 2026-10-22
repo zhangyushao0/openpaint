@@ -264,7 +264,7 @@ fn pieces_grow_with_the_square_root_of_the_scale_and_stop_at_the_cap() {
 #[test]
 fn predicted_samples_past_the_last_two_are_no_knots() {
     // Injected on the tablet at 125 Hz: Android adds a sample 1 to 2 ms after each one, on the
-    // line through it and the one before (`device-input pen`, S34).
+    // line through it and the one before (`device-input pen`).
     let rows = [
         [1146.52, 486.80, 0.8, 85.0],
         [1172.61, 469.96, 0.8, 102.0],
