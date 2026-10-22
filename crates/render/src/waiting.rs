@@ -1,4 +1,4 @@
-//! The screen canvas's tiles that wait to be drawn (S53; S62: the raster core's 256-px tiles,
+//! The screen canvas's tiles that wait to be drawn (its 256-px tiles,
 //! `canvas_raster.rs`), taken in the order the screen needs them: the tiles the view shows,
 //! nearest the screen's middle first, then the others by their distance from it; with no view
 //! known (tests, the harness's own targets), rows from the top.
@@ -10,6 +10,17 @@ use crate::geom::PixelRect;
 pub struct Focus {
     pub middle: [f32; 2],
     pub shown: PixelRect,
+}
+
+impl Focus {
+    /// Where the tile `rect` comes in the order the screen needs tiles: those it shows first,
+    /// then by the distance of the tile's middle from its middle.
+    pub(crate) fn order(&self, rect: &PixelRect) -> (bool, u64) {
+        let middle = [0, 1].map(|axis| (rect.min[axis] + rect.max[axis]) as f32 / 2.0);
+        let [dx, dy] = [0, 1].map(|axis| middle[axis] - self.middle[axis]);
+        let hidden = rect.intersect(&self.shown).is_empty();
+        (hidden, (dx * dx + dy * dy) as u64)
+    }
 }
 
 /// The middle moves this many canvas pixels before the order is made again.
@@ -96,8 +107,8 @@ impl Waiting {
         rects
     }
 
-    /// The first waiting tile in the order `focus` gives them that `skip` does not pass over (S62:
-    /// one the raster worker draws); it keeps waiting until `remove`d.
+    /// The first waiting tile in the order `focus` gives them that `skip` does not pass over
+    /// (one the raster worker draws); it keeps waiting until `remove`d.
     pub(crate) fn first(
         &mut self,
         focus: Option<Focus>,
@@ -134,18 +145,7 @@ impl Waiting {
         self.order.dedup();
         if let Some(focus) = focus {
             let (columns, side) = (self.columns, self.side);
-            let key = |tile: &u32| {
-                let [x, y] = [tile % columns, tile / columns].map(|at| (at * side) as i32);
-                let side = side as i32;
-                let rect = PixelRect {
-                    min: [x, y],
-                    max: [x + side, y + side],
-                };
-                let middle = [x, y].map(|at| (at + side / 2) as f32);
-                let [dx, dy] = [0, 1].map(|axis| middle[axis] - focus.middle[axis]);
-                let hidden = rect.intersect(&focus.shown).is_empty();
-                (hidden, (dx * dx + dy * dy) as u64)
-            };
+            let key = |tile: &u32| focus.order(&rect(tile, (columns, side)));
             self.order.sort_by_cached_key(key);
         }
         self.sorted = Some(focus);
@@ -153,12 +153,7 @@ impl Waiting {
 
     /// Tile `tile`'s pixels.
     fn rect(&self, tile: u32) -> PixelRect {
-        let [x, y] = [tile % self.columns, tile / self.columns].map(|at| (at * self.side) as i32);
-        let side = self.side as i32;
-        PixelRect {
-            min: [x, y],
-            max: [x + side, y + side],
-        }
+        rect(&tile, (self.columns, self.side))
     }
 
     /// The tiles (row-major numbers) meeting `rect`.
@@ -176,6 +171,16 @@ impl Waiting {
         let rows = span(rect.min[1], rect.max[1], self.rows);
         let width = self.columns;
         rows.flat_map(move |row| columns.clone().map(move |column| row * width + column))
+    }
+}
+
+/// The pixels of tile `tile` (row-major) of `columns` tiles a row, each `side` pixels a side.
+fn rect(tile: &u32, (columns, side): (u32, u32)) -> PixelRect {
+    let [x, y] = [tile % columns, tile / columns].map(|at| (at * side) as i32);
+    let side = side as i32;
+    PixelRect {
+        min: [x, y],
+        max: [x + side, y + side],
     }
 }
 

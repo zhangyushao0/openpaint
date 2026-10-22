@@ -1,4 +1,4 @@
-//! Drawing what changed equals drawing it cold bit for bit (S63: the stroke in progress too).
+//! Drawing what changed equals drawing it cold bit for bit (the stroke in progress too).
 
 use openpaint_core::{Artwork, StrokeSample, StrokeSession, StrokeStyle};
 use openpaint_render::{CanvasTarget, Core, FrameRequest, PixelRect, RgbaImage, stroke_region};
@@ -92,7 +92,7 @@ fn a_stroke_drawn_in_chunks_equals_the_finished_artwork_drawn_cold() {
         let session = draw_incrementally(&core, &mut target, &under, &stroke, dirty);
         let finished = session.finish().artwork;
         assert_eq!(finished, with_stroke(&under, stroke));
-        // The committed stroke already shows (S63: the raster core draws it as it is drawn, its
+        // The committed stroke already shows (the raster core draws it as it is drawn, its
         // end blunt, and these brushes taper nothing); committing changes no pixel.
         let incremental = read(&core, &target);
         target
@@ -129,7 +129,7 @@ fn a_stroke_with_more_fresh_spans_than_the_op_buffer_holds_beside_its_scene_is_c
     let core = core();
     let under = under();
     // 600 knots drawn in one frame: every span fresh at once, past the room the scene's op
-    // buffer keeps for fresh ops, which then grows (S55).
+    // buffer keeps for fresh ops, which then grows.
     let (style, _) = diagonal();
     let samples: Vec<StrokeSample> = (0..600u16)
         .map(|i| {

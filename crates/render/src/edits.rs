@@ -85,11 +85,10 @@ impl Scene {
             mask: mask.clone(),
             words,
         });
-        let [x0, y0, x1, y1] = mask_bounds(mask).0;
         self.items.push(Item::Fill {
             op: Op::fill(paint, at, Some(self.canvas)),
             // The smoothed edge reaches a pixel past the mask's.
-            bounds: Bounds([x0 - 1.0, y0 - 1.0, x1 + 1.0, y1 + 1.0]),
+            bounds: mask_bounds(mask).widened(1.0),
         });
         Ok(())
     }
@@ -172,14 +171,8 @@ fn placed_bounds([x0, y0, x1, y1]: [f32; 4], placement: Placement) -> Bounds {
 /// shows.
 pub(crate) fn edit_rect(canvas: [u32; 2], edit: &RegionEdit) -> PixelRect {
     match edit {
-        RegionEdit::Fill(fill) => {
-            let rect = mask_bounds(fill.mask()).pixels();
-            // Its smoothed edge reaches a pixel further.
-            PixelRect {
-                min: [rect.min[0] - 1, rect.min[1] - 1],
-                max: [rect.max[0] + 1, rect.max[1] + 1],
-            }
-        }
+        // Its smoothed edge reaches a pixel further.
+        RegionEdit::Fill(fill) => mask_bounds(fill.mask()).pixels().widened(1),
         RegionEdit::Transform(transform) => {
             let lifted = transform.lift().map_or_else(
                 || PixelRect::full(canvas),

@@ -1,4 +1,4 @@
-//! The curve a stroke follows (S34): a centripetal Catmull-Rom spline through its knots, every
+//! The curve a stroke follows: a centripetal Catmull-Rom spline through its knots, every
 //! sample but the ones Android makes up once a frame on the straight line between or past real
 //! ones (`knots`).
 //! Each span between two knots is a cubic Bézier; the raster core flattens it into straight

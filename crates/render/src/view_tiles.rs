@@ -1,4 +1,4 @@
-//! A view tier's tiles (S32): the canvas's output at the tier's scale cut into squares of
+//! A view tier's tiles: the canvas's output at the tier's scale cut into squares of
 //! `TIER_TILE` output pixels from the canvas's top-left, and the slots of the tier's target (an
 //! atlas of such squares, `across` to a row) holding some of them. A tier's tiles are drawn into
 //! their slots through it; the blit finds a tile's slot through its index.
@@ -106,18 +106,7 @@ impl TileMap {
 
     /// A view tile's output pixels, cut to the canvas's output.
     pub(crate) fn tile_rect(&self, tile: [u32; 2]) -> PixelRect {
-        let side = |axis: usize| {
-            let start = tile[axis] * TIER_TILE;
-            (
-                start as i32,
-                (start + TIER_TILE).min(self.size[axis]) as i32,
-            )
-        };
-        let ((x0, x1), (y0, y1)) = (side(0), side(1));
-        PixelRect {
-            min: [x0, y0],
-            max: [x1, y1],
-        }
+        tile_rect(tile, self.size)
     }
 
     /// The output pixels holding the centres of the canvas pixels `rect` (as `Output::place`).
@@ -127,30 +116,7 @@ impl TileMap {
 
     /// The view tiles meeting the output pixels `rect`, each with that part of `rect`.
     pub(crate) fn meeting(&self, rect: &PixelRect) -> impl Iterator<Item = ([u32; 2], PixelRect)> {
-        let rect = rect.intersect(&PixelRect::full(self.size));
-        let span = |axis: usize| {
-            if rect.is_empty() {
-                return 0..0;
-            }
-            let side = TIER_TILE as i32;
-            (rect.min[axis] / side) as u32..(rect.max[axis] + side - 1) as u32 / TIER_TILE
-        };
-        let (columns, rows) = (span(0), span(1));
-        let tiles: Vec<[u32; 2]> = rows
-            .flat_map(|row| columns.clone().map(move |column| [column, row]))
-            .collect();
-        let size = self.size;
-        tiles.into_iter().map(move |tile| {
-            let start = tile.map(|at| (at * TIER_TILE) as i32);
-            let end = [0, 1].map(|axis| (start[axis] + TIER_TILE as i32).min(size[axis] as i32));
-            (
-                tile,
-                rect.intersect(&PixelRect {
-                    min: start,
-                    max: end,
-                }),
-            )
-        })
+        meeting(*rect, self.size)
     }
 
     /// Output pixels `part` of `tile` as the target pixels of its `slot`.
@@ -163,6 +129,41 @@ impl TileMap {
             max: [part.max[0] + x, part.max[1] + y],
         }
     }
+}
+
+/// Output tile `tile`'s pixels inside an output of `size` pixels.
+pub(crate) fn tile_rect(tile: [u32; 2], size: [u32; 2]) -> PixelRect {
+    let min = tile.map(|at| at * TIER_TILE);
+    PixelRect {
+        min: min.map(|at| at as i32),
+        max: [0, 1].map(|axis| (min[axis] + TIER_TILE).min(size[axis]) as i32),
+    }
+}
+
+/// The output tiles meeting output pixels `rect` inside an output of `size` pixels, each with
+/// that part of `rect`.
+pub(crate) fn meeting(
+    rect: PixelRect,
+    size: [u32; 2],
+) -> impl Iterator<Item = ([u32; 2], PixelRect)> {
+    let rect = rect.intersect(&PixelRect::full(size));
+    let side = TIER_TILE as i32;
+    let span = |axis: usize| {
+        if rect.is_empty() {
+            return 0..0;
+        }
+        rect.min[axis] / side..(rect.max[axis] + side - 1) / side
+    };
+    let (columns, rows) = (span(0), span(1));
+    rows.flat_map(move |row| columns.clone().map(move |column| [column, row]))
+        .map(move |[column, row]| {
+            let min = [column * side, row * side];
+            let tile = PixelRect {
+                min,
+                max: [min[0] + side, min[1] + side],
+            };
+            ([column, row].map(i32::unsigned_abs), rect.intersect(&tile))
+        })
 }
 
 #[cfg(test)]

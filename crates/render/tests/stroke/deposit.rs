@@ -1,4 +1,4 @@
-//! Accumulating strokes (D38): density builds up where a stroke crosses itself, capped by its
+//! Accumulating strokes: density builds up where a stroke crosses itself, capped by its
 //! opacity; a covering stroke stays one even coverage; density is laid per distance travelled,
 //! so more input events over the same path change nothing and joints leave no dots; the paper
 //! takes more graphite under more pressure.

@@ -1,4 +1,4 @@
-//! The frame budget's steps (S60): while nothing touches the screen a step gives what keeps the
+//! The frame budget's steps: while nothing touches the screen a step gives what keeps the
 //! GPU's queue of background work within its most, a first piece whatever it costs only when the
 //! queue is empty; while it is touched a frame gives its share, and work another thread submits
 //! (the raster worker's tiles) is promised from that share but marked by that thread.

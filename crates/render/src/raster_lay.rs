@@ -1,7 +1,7 @@
-//! Where a stroke lies in a raster region (S57's probe, product code since S59; `raster_plan.rs`):
-//! its spans reaching the region, the composite tiles they meet and their box in whole tiles,
-//! which becomes its region of the atlas, placed shelf by shelf, and each span's instances there.
-//! S65: a unit inside a transform record's content lies in its frame's pixels (`Placing`).
+//! Where a stroke lies in a raster region (`raster_plan.rs`): its spans reaching the region, the
+//! composite tiles they meet and their box in whole tiles, which becomes its region of the atlas,
+//! placed shelf by shelf, and each span's instances there. A unit inside a transform record's
+//! content lies in its frame's pixels (`Placing`).
 
 use std::ops::Range;
 
@@ -12,18 +12,11 @@ use crate::protocol::Op;
 use crate::raster_plan::{Coverage, Instance, RasterPlan};
 use crate::raster_scene::Unit;
 use crate::scene::{Item, Scene};
-use crate::scene_cleared::intersect;
 
 /// Side of a composite tile in region pixels (`RASTER_TILE` in raster.wgsl).
 pub(crate) const TILE: u32 = 32;
 
-/// No pixels.
-const NONE: PixelRect = PixelRect {
-    min: [0, 0],
-    max: [0, 0],
-};
-
-/// Where the units laid now lie in a region (S65): bounds in the pixels of the frame they lie in,
+/// Where the units laid now lie in a region: bounds in the pixels of the frame they lie in,
 /// cut to its clip, mapped onto the canvas and, for a material seen from a transform record, into
 /// the material's pixels, placed at the region's output; the output pixels per content pixel a
 /// span is flattened at there; the frame a draw names (its item plus one, 0 on the canvas).
@@ -62,7 +55,7 @@ impl Placing {
     }
 
     /// The units from here lie in the frame of item `item`, whose content `to_canvas` maps onto
-    /// the canvas and only whose `clip` shows (S65): their bounds its pixels. A frame that maps
+    /// the canvas and only whose `clip` shows: their bounds its pixels. A frame that maps
     /// nothing names none.
     pub(crate) fn enter(&mut self, item: usize, (to_canvas, clip): (&Affine, Option<Bounds>)) {
         let identity = to_canvas.is_identity();
@@ -77,12 +70,12 @@ impl Placing {
     /// The region's pixels content `bounds` can reach.
     pub(crate) fn reach(&self, bounds: &Bounds) -> PixelRect {
         if bounds.is_empty() {
-            return NONE;
+            return PixelRect::NONE;
         }
         let bounds = match self.clip {
-            Some(clip) => match intersect(*bounds, clip) {
+            Some(clip) => match bounds.intersect(clip) {
                 Some(cut) => cut,
-                None => return NONE,
+                None => return PixelRect::NONE,
             },
             None => *bounds,
         };
@@ -93,14 +86,10 @@ impl Placing {
     /// The region's pixels the canvas pixels `rect` reach.
     pub(crate) fn reach_canvas(&self, rect: &PixelRect) -> PixelRect {
         if rect.is_empty() {
-            return NONE;
+            return PixelRect::NONE;
         }
         let rect = match self.unbase {
-            Some(unbase) => {
-                let [x0, y0] = rect.min.map(|v| v as f32);
-                let [x1, y1] = rect.max.map(|v| v as f32);
-                unbase.bounds(Bounds([x0, y0, x1, y1])).pixels()
-            }
+            Some(unbase) => unbase.bounds(Bounds::of(rect)).pixels(),
             None => *rect,
         };
         self.placed(&rect)
@@ -166,7 +155,7 @@ pub(crate) struct Laid {
 impl Laid {
     /// Its box's width and height.
     pub(crate) fn side(&self) -> [u32; 2] {
-        [0, 1].map(|axis| (self.rect.max[axis] - self.rect.min[axis]) as u32)
+        self.rect.size()
     }
 }
 
@@ -198,13 +187,7 @@ pub(crate) fn lay(
         let whole = marks.mark(&reached, &mut tiles);
         rect = Some(rect.map_or(whole, |rect| rect.union(&whole)));
     }
-    let first = scene.items[*reaching.first()?].op();
-    let coverage = match (first.is_stamped(), first.covers()) {
-        (true, true) => Coverage::StampCover,
-        (true, false) => Coverage::StampDensity,
-        (false, true) => Coverage::Cover,
-        (false, false) => Coverage::Density,
-    };
+    let coverage = coverage(&scene.items[*reaching.first()?].op());
     Some(Laid {
         spans: reaching,
         tiles,
@@ -212,6 +195,16 @@ pub(crate) fn lay(
         contact: coverage == Coverage::Density && scene.items[paint].op().on_paper(),
         coverage,
     })
+}
+
+/// How the spans of a stroke whose first span is `span` lay into the atlas.
+pub(crate) fn coverage(span: &Op) -> Coverage {
+    match (span.is_stamped(), span.covers()) {
+        (true, true) => Coverage::StampCover,
+        (true, false) => Coverage::StampDensity,
+        (false, true) => Coverage::Cover,
+        (false, false) => Coverage::Density,
+    }
 }
 
 /// Which composite tiles of the region a stroke reached: a mark per tile, renewed per stroke.

@@ -1,6 +1,6 @@
-//! Gaussian Blur and Sharpen (S33, DECISIONS D59): adjustments that read neighbouring pixels, so
+//! Gaussian Blur and Sharpen: adjustments that read neighbouring pixels, so
 //! no per-pixel op can make them. Each is a canvas-resolution raster boundary derived as a
-//! smudge's residual is (D46): the layer's pixels just before it (`Material`, drawn by the raster
+//! smudge's residual is: the layer's pixels just before it (`Material`, drawn by the raster
 //! core) filtered on the GPU (`kernels.rs`: a separable Gaussian, across then down, in bands of
 //! rows; sharpening adds `amount x STRENGTH` times the difference from it) into a block of the
 //! target's arena: its rectangle, then one premultiplied RGBA8 word per pixel. A filter's draw
@@ -76,7 +76,7 @@ impl FilterKey {
         (self.layer, self.on_mask, self.edits.len().saturating_sub(1))
     }
 
-    /// The same filter with the values of `edit` (a preview's next value, S35).
+    /// The same filter with the values of `edit` (a preview's next value).
     pub(crate) fn retuned(&self, edit: &AdjustEdit) -> Self {
         let mut key = self.clone();
         if let Some(last) = key.edits.last_mut() {
@@ -148,7 +148,7 @@ pub(crate) fn reach(sigma: f32) -> u32 {
 }
 
 /// How far a filter of deviation `sigma` reaches each way, in canvas pixels: its kernel's
-/// reach, and past a reduced kernel's (S35) its cells' and their enlarging's pixels.
+/// reach, and past a reduced kernel's its cells' and their enlarging's pixels.
 pub(crate) fn extent(sigma: f32) -> u32 {
     let factor = kernels::factor(sigma);
     reach(sigma) + if factor > 1 { 2 * factor } else { 0 }
@@ -201,7 +201,7 @@ impl Filters {
             .collect()
     }
 
-    /// The arena key of each of `items` known yet (S65: what a raster draw reads them by).
+    /// The arena key of each of `items` known yet (what a raster draw reads them by).
     pub(crate) fn known(&self, items: &[FilterItem]) -> Vec<Option<Key>> {
         (items.iter())
             .map(|item| {
@@ -249,7 +249,7 @@ impl Filters {
             .and_then(AdjustEdit::clip)
             .map(|clip| mask_bounds(clip).pixels());
         let block = block_rect(scene, item, extent(sigma), clip);
-        let size = [block.max[0] - block.min[0], block.max[1] - block.min[1]].map(|v| v as u32);
+        let size = block.size();
         let header = [block.min[0] as u32, block.min[1] as u32, size[0], size[1]];
         let words = u64::from(MASK_HEADER) + u64::from(size[0]) * u64::from(size[1]);
         if size.contains(&0) {
@@ -285,7 +285,7 @@ impl Filters {
 
     /// Makes `material` hold the layer's pixels before `item` over `read`: evaluated now, unless
     /// it still holds them (`held`: nothing but filters wrote it since) from the same content
-    /// before a filter in the same place, a preview's earlier value (S35). Evaluated for such a
+    /// before a filter in the same place, a preview's earlier value. Evaluated for such a
     /// preview, it holds what any radius reads.
     fn hold(
         &mut self,
@@ -306,7 +306,8 @@ impl Filters {
         }
         let rect = if again {
             let canvas = PixelRect::full(scene.canvas);
-            widened(block_rect(scene, item, MAX_EXTENT, clip), MAX_EXTENT).intersect(&canvas)
+            let block = block_rect(scene, item, MAX_EXTENT, clip);
+            block.widened(MAX_EXTENT as i32).intersect(&canvas)
         } else {
             read
         };
@@ -328,13 +329,17 @@ impl Filters {
 fn block_rect(scene: &Scene, item: &FilterItem, reach: u32, clip: Option<PixelRect>) -> PixelRect {
     let canvas = PixelRect::full(scene.canvas);
     let Some(content) = content_rect(scene, item) else {
-        return NOTHING;
+        return PixelRect::NONE;
     };
-    let mut block = widened(content, reach).intersect(&canvas);
+    let mut block = content.widened(reach as i32).intersect(&canvas);
     if let Some(clip) = clip {
-        block = block.intersect(&widened(clip, 1));
+        block = block.intersect(&clip.widened(1));
     }
-    if block.is_empty() { NOTHING } else { block }
+    if block.is_empty() {
+        PixelRect::NONE
+    } else {
+        block
+    }
 }
 
 /// Where the layer's ops before `item` can have painted, in its pixels: the union of their
@@ -362,21 +367,6 @@ fn content_rect(scene: &Scene, item: &FilterItem) -> Option<PixelRect> {
             .reduce(|a, b| a.union(&b));
     }
     material_reach(scene, (range, item.key.to_canvas), scene.canvas)
-}
-
-/// No pixels.
-const NOTHING: PixelRect = PixelRect {
-    min: [0, 0],
-    max: [0, 0],
-};
-
-/// `rect` widened by `by` pixels each way.
-fn widened(rect: PixelRect, by: u32) -> PixelRect {
-    let by = by as i32;
-    PixelRect {
-        min: [rect.min[0] - by, rect.min[1] - by],
-        max: [rect.max[0] + by, rect.max[1] + by],
-    }
 }
 
 #[cfg(test)]

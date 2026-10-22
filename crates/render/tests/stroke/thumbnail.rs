@@ -38,7 +38,7 @@ fn the_thumbnail_is_the_box_mean_of_the_canvas() {
     );
 }
 
-/// A layer row's picture (S38) is the layer alone, or its mask's grey, reduced by box means:
+/// A layer row's picture is the layer alone, or its mask's grey, reduced by box means:
 /// faded, hidden and masked layers show their own paint whole.
 #[test]
 fn a_layer_thumbnail_is_the_box_mean_of_the_layer_alone() {

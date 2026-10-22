@@ -1,29 +1,17 @@
-//! The screen's frames' GPU time, measured for the scenario benchmarks (S63): while it is on, a
-//! frame's first submission on the frame loop's thread carries a timestamp written once the GPU
-//! has finished everything submitted before it, and the frame's end another once the GPU has
-//! finished the frame's own work; their difference is what the frame cost the GPU (its gaps
-//! included, where the GPU waited for the frame loop to submit). Read back without waiting, a few
-//! frames later. Off unless a benchmark turns it on (`Core::time_frames`).
+//! The screen's frames' GPU time, measured for the scenario benchmarks: while it is on, a frame's
+//! first submission on the frame loop's thread carries a timestamp written once the GPU has
+//! finished everything submitted before it, and the frame's end another once the GPU has finished
+//! the frame's own work; their difference is what the frame cost the GPU (its gaps included, where
+//! the GPU waited for the frame loop to submit). Read back without waiting, a few frames later
+//! (`timestamps.rs`). Off unless a benchmark turns it on (`Core::time_frames`).
 
-use std::sync::atomic::{AtomicU8, Ordering};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::thread::ThreadId;
+
+use crate::timestamps::Timestamps;
 
 /// Frames measured at once, at most; a frame finding none free is not measured.
 const SLOTS: u32 = 8;
-/// Where each slot's two timestamps are resolved: the alignment resolving needs.
-const STRIDE: u64 = 256;
-
-/// A slot's state: free, being written by a frame, on its way back, read back.
-const FREE: u8 = 0;
-const HELD: u8 = 1;
-const FLYING: u8 = 2;
-const MAPPED: u8 = 3;
-
-struct Slot {
-    read: wgpu::Buffer,
-    state: Arc<AtomicU8>,
-}
 
 /// The frame being measured: its slot, the thread drawing it, and whether its start is written.
 struct Frame {
@@ -33,52 +21,20 @@ struct Frame {
 }
 
 pub(crate) struct FrameClock {
-    set: wgpu::QuerySet,
-    resolve: wgpu::Buffer,
-    slots: Vec<Slot>,
-    /// Nanoseconds a timestamp tick.
-    period: f64,
+    stamps: Timestamps,
     frame: Mutex<Option<Frame>>,
 }
 
 impl FrameClock {
     /// A clock on `device`; `None` without timestamp queries.
     pub(crate) fn new(device: &wgpu::Device, queue: &wgpu::Queue) -> Option<Self> {
-        if !device.features().contains(wgpu::Features::TIMESTAMP_QUERY) {
-            return None;
-        }
-        let set = device.create_query_set(&wgpu::QuerySetDescriptor {
-            label: Some("frame timestamps"),
-            ty: wgpu::QueryType::Timestamp,
-            count: 2 * SLOTS,
-        });
-        let resolve = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("frame timestamps"),
-            size: STRIDE * u64::from(SLOTS),
-            usage: wgpu::BufferUsages::QUERY_RESOLVE | wgpu::BufferUsages::COPY_SRC,
-            mapped_at_creation: false,
-        });
-        let slots = (0..SLOTS)
-            .map(|_| Slot {
-                read: device.create_buffer(&wgpu::BufferDescriptor {
-                    label: Some("frame timestamps read"),
-                    size: 16,
-                    usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
-                    mapped_at_creation: false,
-                }),
-                state: Arc::new(AtomicU8::new(FREE)),
-            })
-            .collect();
         Some(Self {
-            set,
-            resolve,
-            slots,
-            period: f64::from(queue.get_timestamp_period()),
+            stamps: Timestamps::new(device, queue, SLOTS, "frame timestamps")?,
             frame: Mutex::new(None),
         })
     }
 
-    fn frame(&self) -> std::sync::MutexGuard<'_, Option<Frame>> {
+    fn frame(&self) -> MutexGuard<'_, Option<Frame>> {
         self.frame.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
@@ -87,19 +43,13 @@ impl FrameClock {
     pub(crate) fn begin(&self) {
         let mut frame = self.frame();
         if let Some(left) = frame.take() {
-            self.slots[left.slot as usize]
-                .state
-                .store(FREE, Ordering::Release);
+            self.stamps.free(left.slot);
         }
-        let free = (self.slots.iter()).position(|slot| slot.state.load(Ordering::Acquire) == FREE);
-        if let Some(at) = free {
-            self.slots[at].state.store(HELD, Ordering::Release);
-            *frame = Some(Frame {
-                slot: at as u32,
-                thread: std::thread::current().id(),
-                started: false,
-            });
-        }
+        *frame = self.stamps.claim().map(|slot| Frame {
+            slot,
+            thread: std::thread::current().id(),
+            started: false,
+        });
     }
 
     /// The commands writing the frame's start, for this thread's first submission of the frame.
@@ -110,7 +60,9 @@ impl FrameClock {
             return None;
         }
         held.started = true;
-        Some(self.stamp(device, 2 * held.slot))
+        let mut encoder = device.create_command_encoder(&Default::default());
+        stamped(&mut encoder, &self.stamps.set, 2 * held.slot);
+        Some(encoder.finish())
     }
 
     /// The frame's work is all submitted: its end written, both resolved and read back later; a
@@ -119,60 +71,22 @@ impl FrameClock {
         let Some(frame) = self.frame().take() else {
             return;
         };
-        let slot = &self.slots[frame.slot as usize];
         if !frame.started {
-            slot.state.store(FREE, Ordering::Release);
+            self.stamps.free(frame.slot);
             return;
         }
-        let at = frame.slot;
         let mut encoder = device.create_command_encoder(&Default::default());
-        stamped(&mut encoder, &self.set, 2 * at + 1);
-        let offset = STRIDE * u64::from(at);
-        encoder.resolve_query_set(&self.set, 2 * at..2 * at + 2, &self.resolve, offset);
-        encoder.copy_buffer_to_buffer(&self.resolve, offset, &slot.read, 0, 16);
+        stamped(&mut encoder, &self.stamps.set, 2 * frame.slot + 1);
+        self.stamps.resolve(&mut encoder, frame.slot);
         queue.submit([encoder.finish()]);
-        slot.state.store(FLYING, Ordering::Release);
-        let state = Arc::clone(&slot.state);
-        slot.read
-            .slice(..)
-            .map_async(wgpu::MapMode::Read, move |result| {
-                state.store(
-                    if result.is_ok() { MAPPED } else { FREE },
-                    Ordering::Release,
-                );
-            });
+        self.stamps.read_back(frame.slot);
     }
 
     /// Every frame's GPU time read back since the last call, ns, after a poll that never waits.
     pub(crate) fn readings(&self, device: &wgpu::Device) -> Vec<f64> {
-        let _ = device.poll(wgpu::PollType::Poll);
-        let mut readings = Vec::new();
-        for slot in &self.slots {
-            if slot.state.load(Ordering::Acquire) != MAPPED {
-                continue;
-            }
-            let ticks: Vec<u64> = match slot.read.get_mapped_range(..) {
-                Ok(range) => (range.as_chunks::<8>().0.iter())
-                    .map(|bytes| u64::from_le_bytes(*bytes))
-                    .collect(),
-                Err(_) => Vec::new(),
-            };
-            slot.read.unmap();
-            slot.state.store(FREE, Ordering::Release);
-            if let [start, end] = ticks[..]
-                && end > start
-            {
-                readings.push((end - start) as f64 * self.period);
-            }
-        }
-        readings
-    }
-
-    /// A command buffer writing timestamp `index` once everything before it is finished.
-    fn stamp(&self, device: &wgpu::Device, index: u32) -> wgpu::CommandBuffer {
-        let mut encoder = device.create_command_encoder(&Default::default());
-        stamped(&mut encoder, &self.set, index);
-        encoder.finish()
+        (self.stamps.readings(device).into_iter())
+            .map(|(_, measured)| measured)
+            .collect()
     }
 }
 

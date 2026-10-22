@@ -1,14 +1,13 @@
-//! The frame budget for background work (S53, DECISIONS D80): what the screen shows waits for no
-//! work it can show without. Each frame of the screen takes, of everything that waits (the
+//! The frame budget for background work: what the screen shows waits for no work it can show
+//! without. While the screen is touched, each frame drawn takes, of everything that waits (the
 //! canvas's tiles filling in, a view tier's tiles, a smudge residual being evaluated), only what
 //! its estimates say fits `BACKGROUND_NS` of GPU time; the rest waits for the next frames.
 //!
-//! S60 (DECISIONS D87): while nothing touches the screen, a step (a frame drawn, or a frame call
-//! skipped while the GPU is behind) gives background work what keeps the GPU's queue of it within
-//! `IDLE_BACKGROUND_NS` (`Core::background_queued`), a first piece whatever it costs only when
-//! the queue is empty: so work waiting runs at the GPU's pace, between the frames drawn, and a
-//! frame drawn when a hand arrives waits for at most that much. While the screen is touched each
-//! frame drawn gives `BACKGROUND_NS`, as before.
+//! While nothing touches the screen, a step (a frame drawn, or a frame call skipped while the GPU
+//! is behind) gives background work what keeps the GPU's queue of it within `IDLE_BACKGROUND_NS`
+//! (`Core::background_queued`), a first piece whatever it costs only when the queue is empty: so
+//! work waiting runs at the GPU's pace, between the frames drawn, and a frame drawn when a hand
+//! arrives waits for at most that much.
 //!
 //! A raster region's estimate is the raster core's table (`raster_kinds.rs`, the tablet's measured
 //! times), scaled by how long the GPU really took for earlier regions (`gpu_clock.rs`): the
@@ -24,8 +23,8 @@ use crate::gpu_clock::{GpuClock, Stamps, Timing};
 /// for what the frame shows (the canvas or tier drawn to the screen, the interface, a stroke).
 pub const BACKGROUND_NS: f64 = 4_000_000.0;
 
-/// The background work the GPU's queue holds at most while nothing touches the screen (S60; S54
-/// gave a frame this much): the first frame of a touch waits for at most this much.
+/// The background work the GPU's queue holds at most while nothing touches the screen: the first
+/// frame of a touch waits for at most this much.
 pub const IDLE_BACKGROUND_NS: f64 = 10_000_000.0;
 
 /// How much of the measured and estimated sums each reading keeps: about the last 30 readings
@@ -37,9 +36,9 @@ const RATIO: [f64; 2] = [0.01, 20.0];
 
 pub(crate) struct Pace {
     /// The budget a frame gives while the screen is touched, and the queue's most while it is
-    /// not (S54, S60).
+    /// not.
     budgets: [f64; 2],
-    /// This step is one while nothing touches the screen (S60).
+    /// This step is one while nothing touches the screen.
     idle: bool,
     /// What this frame may still give, in measured ns (below 0: owed by the next frames), whether
     /// it had any at its start, and whether it gave anything yet.
@@ -51,7 +50,7 @@ pub(crate) struct Pace {
     raster_sums: [f64; 2],
     clock: Option<GpuClock>,
     /// This step's spending so far (measured ns), its pieces, and its first piece's; how much of
-    /// it is marked as queued on the GPU (S60).
+    /// it is marked as queued on the GPU.
     spent: f64,
     marked: f64,
     pieces: usize,
@@ -59,7 +58,7 @@ pub(crate) struct Pace {
     last: Background,
 }
 
-/// What the frame before took for background work (S53's logs and tests).
+/// What the frame before took for background work (for logs and tests).
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Background {
     /// GPU time it took by the corrected estimates, ns.
@@ -69,7 +68,7 @@ pub struct Background {
     /// GPU time measured for background work whose readings came back during the frame, ns;
     /// `None` without timestamp queries.
     pub measured: Option<f64>,
-    /// GPU time measured for background work since the device was opened, ns (S60: steps between
+    /// GPU time measured for background work since the device was opened, ns (steps between
     /// the frames drawn read some back too).
     pub total: f64,
     /// Pieces of work it took (plan tiles, a residual's material tiles and contacts), and what
@@ -109,7 +108,7 @@ impl Pace {
     /// A new step: the readings back since are learnt; touched (`queued` `None`), the budget is
     /// whole again less what the frames before spent beyond theirs; idle, it is what keeps the
     /// background work `queued` on the GPU (ns) within its most, a first piece taken whatever it
-    /// costs only when nothing is queued (S60).
+    /// costs only when nothing is queued.
     pub(crate) fn begin(&mut self, gpu: &Gpu, queued: Option<f64>) {
         let readings = self.clock.as_mut().map(|clock| clock.readings(gpu));
         self.last = Background {
@@ -153,7 +152,7 @@ impl Pace {
         (self.spent, self.marked, self.pieces, self.first) = (0.0, 0.0, 0, 0.0);
     }
 
-    /// Whether this step is one while nothing touches the screen (S60).
+    /// Whether this step is one while nothing touches the screen.
     pub(crate) const fn idle(&self) -> bool {
         self.idle
     }
@@ -167,12 +166,12 @@ impl Pace {
         unmarked
     }
 
-    /// The most background work the GPU's queue holds while nothing touches the screen (S60).
+    /// The most background work the GPU's queue holds while nothing touches the screen.
     pub(crate) const fn most_queued(&self) -> f64 {
         self.budgets[1]
     }
 
-    /// The background work a frame drawn while the screen is touched gives (S60: the most the
+    /// The background work a frame drawn while the screen is touched gives (the most the
     /// raster worker queues then).
     pub(crate) const fn share(&self) -> f64 {
         self.budgets[0]
@@ -189,7 +188,7 @@ impl Pace {
         true
     }
 
-    /// Work of `time` ns another thread submits and marks itself (S60: a tile the raster worker
+    /// Work of `time` ns another thread submits and marks itself (a tile the raster worker
     /// draws while the screen is touched): taken from what is left of the frame's budget as
     /// `take_serial` takes it, but not counted as this step's own.
     pub(crate) fn promise(&mut self, time: f64) -> bool {
@@ -201,14 +200,11 @@ impl Pace {
         true
     }
 
-    /// A region of the raster core estimated at `cost` ns by its own table (S59), drawn on a
-    /// worker (S60): its GPU time by the raster core's own correction, and the timestamps that
+    /// A region of the raster core estimated at `cost` ns by its own table, drawn on a
+    /// worker: its GPU time by the raster core's own correction, and the timestamps that
     /// measure it when a slot is free (`raster_finish` once submitted).
     pub(crate) fn raster_start(&mut self, cost: f64) -> (f64, Option<Stamps>) {
-        let stamps = self.clock.as_mut().and_then(|clock| {
-            let timing = clock.start(cost)?;
-            Some(clock.stamps(timing))
-        });
+        let stamps = self.clock.as_mut().and_then(|clock| clock.start(cost));
         (cost * self.raster_ratio, stamps)
     }
 
@@ -222,7 +218,7 @@ impl Pace {
         }
     }
 
-    /// A raster region of `cost` ns drawn on this thread (S62: a smudge's material over frames),
+    /// A raster region of `cost` ns drawn on this thread (a smudge's material over frames),
     /// by the raster core's correction: taken as `take_serial` takes work.
     pub(crate) fn take_raster(&mut self, cost: f64) -> bool {
         self.take_serial(cost * self.raster_ratio)

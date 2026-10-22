@@ -1,4 +1,4 @@
-// A shape texture's alpha for a stamp (S45, DECISIONS D72; `shapes.rs`). Up to SHARP_LEVEL
+// A shape texture's alpha for a stamp (`shapes.rs`). Up to SHARP_LEVEL
 // (an output pixel covering 8 texels: a stamp down to about 32 output pixels across) the rim's
 // distance field is read (bilinear, its slope turned into output pixels), so the rim is
 // antialiased over one output pixel at any size above that, however far the stamp is

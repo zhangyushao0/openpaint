@@ -1,4 +1,4 @@
-//! Shapes and scatter at every scale (S45): a square stamp's and a texture stamp's rim is one
+//! Shapes and scatter at every scale: a square stamp's and a texture stamp's rim is one
 //! output pixel wide at 1x, 2x and 4x; a texture stamp of half a pixel's radius keeps the
 //! texture's mean wherever it lands; each stamped built-in drawn sample by sample equals the
 //! stroke so far cold, its lift's frame the commit; it exports in bands as in one piece, its view
@@ -162,7 +162,7 @@ fn every_stamped_brush_exports_in_bands_as_in_one_piece() {
     let core = core();
     for (name, recipe, size) in brushes() {
         let artwork = with_stroke(&blank(), (style(recipe, size), curve()));
-        // S62: the 1x export is the canvas.
+        // The 1x export is the canvas.
         let exported = export(&core, &artwork, 1, Banding::DEFAULT);
         assert!(exported == cold(&core, &artwork), "{name}: the canvas");
         for scale in [2, 4] {

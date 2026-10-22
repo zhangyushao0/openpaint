@@ -1,4 +1,4 @@
-//! What drawing did, counted (S53): the smudge residuals derived from their strokes, the view
+//! What drawing did, counted: the smudge residuals derived from their strokes, the view
 //! tier tiles filled, the regions the raster core drew, the snapshots taken under a stroke and the
 //! scenes that took a lift's strokes in place. Read by the harness's `nav-timing`, the app's
 //! navigation log, its benchmarks and tests: a residual derived again while nothing changed, or a
@@ -23,12 +23,12 @@ pub struct Counts {
     pub derived: u64,
     /// View tier tiles filled whole.
     pub filled: u64,
-    /// Regions the raster core drew (S59): canvas and view tier tiles and their changed parts,
+    /// Regions the raster core drew: canvas and view tier tiles and their changed parts,
     /// export pieces, materials, a stroke's frames.
     pub rastered: u64,
-    /// Tiles of a stroke's drawing whose snapshot was taken (S63: the units under the stroke drawn).
+    /// Tiles of a stroke's drawing whose snapshot was taken (the units under the stroke drawn).
     pub snapshots: u64,
-    /// Scenes that took the strokes a version appends on their place in place (S64), not built.
+    /// Scenes that took the strokes a version appends on their place in place, not built.
     pub appended: u64,
 }
 

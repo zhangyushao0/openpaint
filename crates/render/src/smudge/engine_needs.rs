@@ -1,4 +1,4 @@
-//! Which smudge residuals a draw needs in the arena (S51), and which tiles of each: those
+//! Which smudge residuals a draw needs in the arena, and which tiles of each: those
 //! reaching the pixels it draws, near them; and, for a residual that must be derived anew, the
 //! earlier residuals' tiles its material reads (its own tiles). Filter results are always needed
 //! (their material reads their whole layer); a filter made anew needs every residual before it
@@ -15,7 +15,7 @@ use super::{dabs, key, read_tiles};
 use crate::geom::PixelRect;
 use crate::scene::{Scene, SmudgeItem};
 
-/// The residual tiles each smudge's contacts read, kept per stroke (S53): walking a stroke's
+/// The residual tiles each smudge's contacts read, kept per stroke: walking a stroke's
 /// contacts again for every evaluation that asks what it needs cost the screen's frames their CPU
 /// time. Each entry keeps its stroke alive, so its key names it alone.
 #[derive(Default)]
@@ -42,13 +42,6 @@ impl Reads {
             .collect();
         self.0.retain(|key, _| shown.contains(key));
     }
-}
-
-/// What an evaluation needs present in the arena.
-#[derive(Debug, Clone)]
-pub(crate) enum Wanted<'a> {
-    /// The residuals reaching these canvas pixels, near them.
-    Near(&'a [PixelRect]),
 }
 
 /// How much of one residual an evaluation needs.
@@ -87,14 +80,6 @@ impl Need {
 /// read is at hand.
 const NEAR: i32 = 17;
 
-/// `rect` widened by `by` pixels each way.
-fn widened(rect: &PixelRect, by: i32) -> PixelRect {
-    PixelRect {
-        min: rect.min.map(|value| value.saturating_sub(by)),
-        max: rect.max.map(|value| value.saturating_add(by)),
-    }
-}
-
 /// The part of `item` near the canvas pixels `near` on a canvas of `size` pixels.
 fn near(item: &SmudgeItem, near: &PixelRect, size: [u32; 2]) -> Need {
     let met = near.intersect(&item.canvas);
@@ -108,7 +93,7 @@ fn near(item: &SmudgeItem, near: &PixelRect, size: [u32; 2]) -> Need {
 }
 
 /// The canvas pixels a raster region of an output at `scale` reads (its output pixels `rect`):
-/// those its pixels' centres lie in, widened by one for a bilinear read (S61).
+/// those its pixels' centres lie in, widened by one for a bilinear read.
 pub(crate) fn around_output(rect: &PixelRect, scale: u32) -> PixelRect {
     let scale = i32::try_from(scale.max(1)).unwrap_or(1);
     PixelRect {
@@ -119,13 +104,13 @@ pub(crate) fn around_output(rect: &PixelRect, scale: u32) -> PixelRect {
     }
 }
 
-/// What `wanted` needs of each of `scene`'s smudges, before what residuals evaluated anew read.
-pub(crate) fn needs(scene: &Scene, wanted: &Wanted<'_>) -> Vec<Need> {
-    let Wanted::Near(regions) = wanted;
+/// What a draw of the canvas pixels `regions` needs of each of `scene`'s smudges (those reaching
+/// them, near them), before what residuals evaluated anew read.
+pub(crate) fn needs(scene: &Scene, regions: &[PixelRect]) -> Vec<Need> {
     let item_need = |item: &SmudgeItem| {
         let mut need = Need::No;
-        for region in *regions {
-            need.and(near(item, &widened(region, NEAR), scene.canvas));
+        for region in regions {
+            need.and(near(item, &region.widened(NEAR), scene.canvas));
         }
         need
     };
@@ -169,7 +154,7 @@ pub(crate) fn close(
                 need.and(Need::All);
                 continue;
             }
-            let around = TileSet::of(&widened(&earlier.canvas, NEAR), scene.canvas);
+            let around = TileSet::of(&earlier.canvas.widened(NEAR), scene.canvas);
             let shared: TileSet = TileSet(read.intersection(&around.0).copied().collect());
             if !shared.0.is_empty() {
                 need.and(Need::Part(shared));

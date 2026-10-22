@@ -1,19 +1,19 @@
-//! The raster core's plan on the CPU (S57's probe made product code, S59): one region of a scene's
-//! output as the render passes that draw it. Each stroke reaching the region gets a region of the
-//! scratch atlas (`raster_lay.rs`), its pieces and stamps lay their coverage there, combined by
-//! the blend unit, and its tiles composite it onto the layer by the stroke's paint; fills and
-//! patches draw onto the layer as quads; a smudge copies what it reaches of the layer (or mask)
-//! and lays it back moved by its residual (S61, D88); a mask draws onto a target of its own; each
-//! layer's end composites it onto the canvas (or its clipping chain) by its mode, through its
-//! mask, from a copy of what lies under it where fixed-function blending cannot (Overlay). S65
-//! (D92): adjustments and filters rewrite the layer from a copy of it, a transform record's
-//! content lies in its frame, a moved selection's or a merged layer's content draws on a level of
-//! its own laid onto the one under it at its end, a group's end fades the canvas over a copy of
-//! what lay under the group (`raster_plan_records.rs`, `raster_plan_ends.rs`). Strokes go into a
-//! batch in scene order while their regions fit the atlas; a batch is a coverage pass and a pass
-//! of the layer's draws; a smudge or a record ends one. Draws keep the scene's order, so a part of
-//! a region draws what the whole does there. S63: the stroke being drawn lays from its kept
-//! coverage; a plan may start from snapshots of the units before it (`raster_plan_drawing.rs`).
+//! The raster core's plan on the CPU: one region of a scene's output as the render passes that
+//! draw it. Each stroke reaching the region gets a region of the scratch atlas (`raster_lay.rs`),
+//! its pieces and stamps lay their coverage there, combined by the blend unit, and its tiles
+//! composite it onto the layer by the stroke's paint; fills and patches draw onto the layer as
+//! quads; a smudge copies what it reaches of the layer (or mask) and lays it back moved by its
+//! residual; a mask draws onto a target of its own; each layer's end composites it onto the
+//! canvas (or its clipping chain) by its mode, through its mask, from a copy of what lies under it
+//! where fixed-function blending cannot (Overlay). Adjustments and filters rewrite the layer from
+//! a copy of it, a transform record's content lies in its frame, a moved selection's or a merged
+//! layer's content draws on a level of its own laid onto the one under it at its end, a group's
+//! end fades the canvas over a copy of what lay under the group (`raster_plan_records.rs`,
+//! `raster_plan_ends.rs`). Strokes go into a batch in scene order while their regions fit the
+//! atlas; a batch is a coverage pass and a pass of the layer's draws; a smudge or a record ends
+//! one. Draws keep the scene's order, so a part of a region draws what the whole does there. The
+//! stroke being drawn lays from its kept coverage; a plan may start from snapshots of the units
+//! before it (`raster_plan_drawing.rs`).
 
 use std::ops::Range;
 
@@ -22,10 +22,9 @@ use crate::error::RenderError;
 use crate::geom::Bounds;
 use crate::output::Output;
 use crate::protocol::raster::Edit;
-pub use crate::raster_kinds::RasterCounts;
 pub(crate) use crate::raster_kinds::{
-    AtlasCopy, Coverage, CoverageDraw, Draw, DrawKind, EndBlend, Instance, Pass, SCRATCH, Scratch,
-    SlotAt, SlotCopy,
+    AtlasCopy, Coverage, CoverageDraw, Draw, DrawKind, EndBlend, Instance, Pass, RasterCounts,
+    SCRATCH, Scratch, SlotAt, SlotCopy,
 };
 use crate::raster_lay::{Laid, Marks, Packer, Placing, laid_span, lay};
 use crate::raster_scene::Unit;
@@ -38,7 +37,7 @@ pub(crate) struct RasterPlan {
     pub(crate) passes: Vec<Pass>,
     /// The region's size in pixels.
     pub(crate) size: [u32; 2],
-    /// Where the region's pixels lie on the canvas beside its output (S65: a material seen from a
+    /// Where the region's pixels lie on the canvas beside its output (a material seen from a
     /// transform record, its content's map onto the canvas; else the identity).
     pub(crate) base: Affine,
     pub(crate) counts: RasterCounts,
@@ -70,13 +69,13 @@ struct Builder<'a> {
     packer: Packer,
     marks: Marks,
     batch: Batch,
-    /// Where the units laid now lie (S65: the frame they lie in).
+    /// Where the units laid now lie (the frame they lie in).
     placing: Placing,
     /// The base's footprint: one over its canvas pixels per pixel (1 without a base).
     base_foot: f32,
     /// The paint draws go to at level 0: the layer's, or a material's (the canvas).
     paint: Scratch,
-    /// The level the units lie on (S65: 0, or a moved selection's or merged layer's content), and
+    /// The level the units lie on (0, or a moved selection's or merged layer's content), and
     /// whether on its mask (after its `BeginMask`).
     depth: u8,
     on_mask: bool,
@@ -84,12 +83,12 @@ struct Builder<'a> {
     cleared: [bool; SCRATCH],
     touched: [bool; SCRATCH],
     chain: Chain,
-    /// The group whose layers end now (S65): what lay under it is copied (`Some`), and whether
+    /// The group whose layers end now: what lay under it is copied (`Some`), and whether
     /// one of its ends reached the region.
     group: Option<bool>,
-    /// A smudge or filter whose result the arena lacks is left out (a material, S62), not refused.
+    /// A smudge or filter whose result the arena lacks is left out (a material), not refused.
     lacking: bool,
-    /// S63: the stroke being drawn, laid at its unit.
+    /// The stroke being drawn, laid at its unit.
     drawing: Option<&'a InProgress>,
 }
 
@@ -112,10 +111,10 @@ impl RasterPlan {
         builder.lay(&scene.raster.units)
     }
 
-    /// A smudge's or a filter's material (S62): the units laying the scene's `items` (one
+    /// A smudge's or a filter's material: the units laying the scene's `items` (one
     /// layer's paint or mask before it) drawn onto the canvas, which starts as nothing (the
     /// plan's paper): that layer's own pixels, premultiplied, which the finish rounds to 8 bits;
-    /// their pixels lie on the canvas by `base` (S65: under a transform record). A smudge or
+    /// their pixels lie on the canvas by `base` (under a transform record). A smudge or
     /// filter before it whose result the arena lacks reaches none of the pixels the material is
     /// wanted at (what it reads is made present first) and is left out.
     ///
@@ -248,7 +247,6 @@ impl<'a> Builder<'a> {
         paint: usize,
         bounds: Option<Bounds>,
     ) -> Result<(), RenderError> {
-        self.plan.counts.scene_strokes += 1;
         if bounds.is_none_or(|bounds| self.placing.reach(&bounds).is_empty()) {
             return Ok(());
         }
@@ -306,7 +304,7 @@ impl<'a> Builder<'a> {
         let start = self.plan.instances.len() as u32;
         let contact = places.get(1).copied().unwrap_or([0, 0]);
         let [x, y] = places[0];
-        // The contact flag, then the frame (S65).
+        // The contact flag, then the frame.
         let flags = u32::from(laid.contact) | self.placing.frame << 1;
         for [tx, ty] in &laid.tiles {
             self.plan.instances.push(Instance {
@@ -320,7 +318,6 @@ impl<'a> Builder<'a> {
             kind: DrawKind::Stroke(blend),
             instances: start..self.plan.instances.len() as u32,
         });
-        self.plan.counts.strokes += 1;
         self.touched[self.target().index()] = true;
     }
 
@@ -337,8 +334,7 @@ impl<'a> Builder<'a> {
         };
         let draw = self.quad(item, rect, kind);
         self.batch.draws.push(draw);
-        let [width, height] = [0, 1].map(|axis| (rect.max[axis] - rect.min[axis]) as u64);
-        self.plan.counts.edits += 1;
+        let [width, height] = rect.size().map(u64::from);
         self.plan.counts.edit_pixels += width * height;
         self.touched[self.target().index()] = true;
     }
@@ -361,7 +357,6 @@ impl<'a> Builder<'a> {
         let batch = std::mem::take(&mut self.batch);
         if !batch.coverage.is_empty() {
             self.plan.passes.push(Pass::Coverage(batch.coverage));
-            self.plan.counts.batches += 1;
             self.packer = Packer::new(self.atlas);
         }
         if !batch.draws.is_empty() {

@@ -1,4 +1,4 @@
-//! A merged layer's content (S39, a nested record, DECISIONS D66) among its layer's ops: what
+//! A merged layer's content (a nested record) among its layer's ops: what
 //! the layer holds so far is set aside (`BeginMove`, as a moved selection's start), the nested
 //! content's own ops follow as a level of their own (its transform records, smudges, filters and
 //! nested records drawn as they were on its layer), then its mask's, and its end (`EndNested`)

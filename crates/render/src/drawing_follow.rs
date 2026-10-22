@@ -1,4 +1,4 @@
-//! A drawing's snapshots following the artwork (S63, DECISIONS D90; `drawing.rs`). A version with
+//! A drawing's snapshots following the artwork (`drawing.rs`). A version with
 //! strokes appended on the place a stroke lays leaves every snapshot as it is: the units before
 //! the place keep their numbers, and a snapshot standing before an earlier unit lays the strokes
 //! since when it is next used. Any other change lets go the snapshots of the tiles it reaches and

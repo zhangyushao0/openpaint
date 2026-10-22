@@ -1,4 +1,4 @@
-//! Copy and paste on the GPU (S40): a pasted copy is records (nested records, the pixels outside
+//! Copy and paste on the GPU: a pasted copy is records (nested records, the pixels outside
 //! a selection cleared), and at its place it shows exactly what was copied: the layer's paint
 //! through its mask, cut to the selection bit for bit; what every visible layer showed (Copy
 //! All) within one 8-bit level over the paper. A cut clears its selection exactly; a pasted
@@ -11,15 +11,8 @@ use openpaint_core::{
 };
 use openpaint_render::{CanvasTarget, PixelRect, RgbaImage, changed_regions};
 
-use crate::fixture::{SIZE, cold, core, request, with_layer};
+use crate::fixture::{SIZE, cold, core, layer, request, with_layer};
 use crate::merge::{Look, PLAIN, alone};
-
-fn layer(artwork: &Artwork, command: LayerCommand) -> Artwork {
-    artwork
-        .apply(ArtworkCommand::Layer(command))
-        .expect("command")
-        .artwork
-}
 
 /// A rectangle and a triangle inside it cut off, as a lasso would leave a slanted edge.
 fn selection() -> RegionMask {

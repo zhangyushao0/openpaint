@@ -1,6 +1,6 @@
-//! The 1x canvas (S62, DECISIONS D89): every raster source and every smudge drawn into the
+//! The 1x canvas: every raster source and every smudge drawn into the
 //! screen's canvas is its 1x export bit for bit, alike every time; filled over frames (at once where a change fits a frame, else by the raster worker's
-//! tiles) through changes, an undo, a hidden layer, a stroke drawn and lifted and (S65) an
+//! tiles) through changes, an undo, a hidden layer, a stroke drawn and lifted and an
 //! adjustment applied and undone, it ends as the canvas drawn cold; picks read it; layer samples
 //! are the raster core's.
 
@@ -12,9 +12,9 @@ use openpaint_render::{
 };
 
 use crate::fixture::{
-    SIZE, cold, core, diagonal, pixel, plain, request, sample, wave, with_stroke,
+    SIZE, cold, core, diagonal, layer, pixel, plain, request, sample, wave, with_stroke,
 };
-use crate::raster::{every_raster_source, layer};
+use crate::raster::every_raster_source;
 use crate::raster_smudge::every_smudge;
 use crate::scale::whole;
 
@@ -130,7 +130,7 @@ fn a_canvas_filled_by_the_worker_and_changed_over_frames_ends_as_drawn_cold() {
     }
 }
 
-/// A stroke and a smudge drawn by the raster core (S63) over the canvas its worker drew: nothing
+/// A stroke and a smudge drawn by the raster core over the canvas its worker drew: nothing
 /// waits while they are drawn or after their lift, whose frame leaves the canvas as drawn cold.
 #[test]
 fn a_stroke_drawn_and_lifted_leaves_nothing_to_draw_again_and_the_canvas_cold() {
@@ -185,7 +185,7 @@ fn picks_read_the_canvas() {
     assert_eq!(target.pick(&core, SIZE).expect("pick"), None, "outside");
 }
 
-/// S65: an adjustment over the smudges, applied and undone over frames, leaves the canvas as
+/// An adjustment over the smudges, applied and undone over frames, leaves the canvas as
 /// drawn cold each time.
 #[test]
 fn an_adjustment_applied_and_undone_over_frames_ends_as_drawn_cold() {

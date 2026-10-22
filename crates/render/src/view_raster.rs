@@ -1,18 +1,19 @@
-//! A view tier's tiles drawn by the raster core (S59, DECISIONS D86; every scene since S65, D92):
-//! a missing tile is drawn whole in one region of 256 pixels a side into its slot, as background
-//! work, the screen's middle first; a change to ready tiles is drawn in place when it fits what is
-//! left of the frame, else the tiles wait to be drawn again. While a stroke is drawn the tier's
-//! own drawing of it updates the tiles it reaches that the view shows (S63, `stroke_raster`), so a
-//! tier equals the export at its scale bit for bit.
-//! S60 (D87): the background tiles are planned, encoded and submitted by the runtime's raster
-//! worker (`view_raster_jobs.rs`); this side hands them over (`view_raster_fill.rs`) and draws the
-//! changes in place with the frame loop's targets, which since S62 (D89) are the canvas's
-//! (`canvas_raster.rs`: the canvas draws its own changes with them, and holds the worker's orders
-//! and answers for both). S61 (D88): the smudge residuals a tile reads are the canvas's, made
-//! present before it is drawn or handed over and named with the arena's buffer as it is then
-//! (`smudge::Held`); a tile reading one still being evaluated waits.
+//! A view tier's tiles drawn by the raster core: a missing tile is drawn whole in one region of
+//! 256 pixels a side into its slot, as background work, the screen's middle first; a change to
+//! ready tiles is drawn in place when it fits what is left of the frame, else the tiles wait to be
+//! drawn again. While a stroke is drawn the tier's own drawing of it updates the tiles it reaches
+//! that the view shows (`stroke_raster`), so a tier equals the export at its scale bit for bit.
+//!
+//! The background tiles are planned, encoded and submitted by the runtime's raster worker
+//! (`raster_worker.rs`); this side hands them over (`view_raster_fill.rs`) and draws the changes
+//! in place with the frame loop's targets, which are the canvas's (`canvas_raster.rs`: the canvas
+//! draws its own changes with them, and holds the worker's orders and answers for both). The
+//! smudge residuals a tile reads are the canvas's, made present before it is drawn or handed over
+//! and named with the arena's buffer as it is then (`smudge::Held`); a tile reading one still
+//! being evaluated waits.
 
 use crate::canvas::{CanvasTarget, Onto, Planned, TAKING, paper};
+use crate::canvas_raster::EDIT_PIXELS;
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::frame::FrameRequest;
@@ -22,18 +23,18 @@ use crate::raster_plan::RasterPlan;
 use crate::scene::Scene;
 use crate::smudge::{Bases, Held, around_output};
 use crate::view_atlas::Tier;
-use crate::view_fill::{EDIT_PIXELS, touched};
+use crate::view_fill::touched;
 use crate::view_needed::Needed;
 use crate::view_tier::{ViewCache, ViewWork};
 
-/// The view tiers' side of the raster worker: the tiles handed to it (S60).
+/// The view tiers' side of the raster worker: the tiles handed to it.
 #[derive(Default)]
 pub(crate) struct RasterTier {
     /// Tiles handed to the worker and not answered yet, oldest first.
     pub(crate) issued: Vec<Issued>,
 }
 
-/// A tile handed to the raster worker (S60): its job, its tier's scale, the tile, the slot and the
+/// A tile handed to the raster worker: its job, its tier's scale, the tile, the slot and the
 /// atlas it goes into, and whether a change reached it since it was handed over.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Issued {
@@ -54,7 +55,7 @@ fn plan(
 ) -> Result<(RasterPlan, Output), RenderError> {
     let origin = rect.min.map(|at| at.max(0) as u32);
     let output = Output::at(scale, origin)?;
-    let size = [0, 1].map(|axis| (rect.max[axis] - rect.min[axis]).max(0) as u32);
+    let size = rect.size();
     Ok((
         RasterPlan::build((scene, bases), (output, size), atlas)?,
         output,
@@ -63,7 +64,7 @@ fn plan(
 
 /// Draws the pixels of ready tiles that `changed` (canvas pixels) reach again, when they are few,
 /// the residuals they read are at hand and their estimate fits what is left of the frame budget;
-/// else (or while the raster core's pipelines are still being made, S60) the tiles they touch
+/// else (or while the raster core's pipelines are still being made) the tiles they touch
 /// wait to be drawn whole as background work.
 ///
 /// # Errors
@@ -109,7 +110,7 @@ pub(crate) fn in_place_raster(
     Ok(())
 }
 
-/// The stroke being drawn (or just lifted or dropped) at `tier` (S63, `drawing_frame.rs`): drawn
+/// The stroke being drawn (or just lifted or dropped) at `tier` (`drawing_frame.rs`): drawn
 /// by the tier's drawing into the tiles the view shows that are ready, at once; the tiles it
 /// reaches that are not, or that the view does not show (its ring), are not ready any more (drawn
 /// whole once no stroke is).
@@ -153,7 +154,7 @@ pub(crate) fn stroke_raster(
     Ok(())
 }
 
-/// S63: once its shown tiles are ready (`ready`) and the canvas waits for nothing, the snapshots
+/// Once its shown tiles are ready (`ready`) and the canvas waits for nothing, the snapshots
 /// under the next stroke of `tier`'s shown tiles (`needed`) handed to the raster worker while
 /// nothing touches the screen (`drawing_ahead.rs`); whether any is being taken or waits to be
 /// (within the snapshots' room).
@@ -187,14 +188,14 @@ pub(crate) fn snapshots_ahead(
 }
 
 impl ViewCache {
-    /// The snapshots under the next stroke of the tier shown are being taken ahead or wait to be
-    /// (S63): frames are wanted until none is.
+    /// The snapshots under the next stroke of the tier shown are being taken ahead or wait to be:
+    /// frames are wanted until none is.
     #[must_use]
     pub const fn taking_ahead(&self) -> bool {
         self.taking
     }
 
-    /// Bytes the tier shown keeps for strokes (S63: its snapshots and coverage).
+    /// Bytes the tier shown keeps for strokes (its snapshots and coverage).
     #[must_use]
     pub fn drawing_bytes(&self) -> u64 {
         self.current.as_ref().map_or(0, |tier| tier.drawing.bytes())
@@ -237,7 +238,7 @@ fn draw_in_place(
 
 /// The residuals the raster core's draws near the canvas pixels `near` read, made present in the
 /// arena and named with the buffers they lie in (`smudge::Held`); `None` while one is still
-/// being evaluated (a share each frame): the tiles reading them wait (S61).
+/// being evaluated (a share each frame): the tiles reading them wait.
 ///
 /// # Errors
 /// As the evaluation's.

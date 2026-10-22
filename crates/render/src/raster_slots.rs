@@ -1,4 +1,4 @@
-//! The raster core's slot passes (S63, S64, DECISIONS D91; `drawing.rs`): a drawing keeps, per
+//! The raster core's slot passes (`drawing.rs`): a drawing keeps, per
 //! output tile, a snapshot of the region's float targets as the units before the next stroke
 //! leave them and, while a stroke is drawn, its coverage so far, in slots of pages of its own. A
 //! region's targets are set from the snapshots of the tiles it meets instead of drawing those
@@ -15,6 +15,7 @@ use super::frame::{begin, clear, coverage};
 use super::{RasterTargets, Target};
 use crate::raster_gpu::RasterPipelines;
 use crate::raster_plan::{AtlasCopy, CoverageDraw, SlotAt, SlotCopy};
+use crate::readback::{extent, place};
 
 /// The pages a plan's slot passes read and write: a drawing's snapshot pages (the float targets'
 /// format) and its coverage pages (the atlas's format, as large as the atlas) with the bind group
@@ -46,11 +47,12 @@ impl Pages<'_> {
 }
 
 impl RasterTargets {
-    /// The scratch targets `copies` name set from their snapshot slots.
-    pub(super) fn restore(
+    /// The scratch targets `copies` name set from their snapshot slots (`restore`), or kept into
+    /// them.
+    pub(super) fn snapshot_copies(
         &self,
         encoder: &mut wgpu::CommandEncoder,
-        copies: &[SlotCopy],
+        (copies, restore): (&[SlotCopy], bool),
         pages: Pages<'_>,
     ) {
         for copy in copies {
@@ -60,31 +62,13 @@ impl RasterTargets {
             ) else {
                 continue;
             };
-            let from = place(&page.texture, slot_pixel(copy.slot, copy.offset));
-            encoder.copy_texture_to_texture(
-                from,
-                place(&target.texture, copy.at),
-                extent(copy.size),
-            );
-        }
-    }
-
-    /// The scratch targets `copies` name kept into their snapshot slots.
-    pub(super) fn keep(
-        &self,
-        encoder: &mut wgpu::CommandEncoder,
-        copies: &[SlotCopy],
-        pages: Pages<'_>,
-    ) {
-        for copy in copies {
-            let (Some(target), Some(page)) = (
-                self.scratch[copy.target.index()].as_ref(),
-                pages.snapshots.get(copy.slot.page),
-            ) else {
-                continue;
+            let slot = place(&page.texture, slot_pixel(copy.slot, copy.offset));
+            let region = place(&target.texture, copy.at);
+            let (from, to) = if restore {
+                (slot, region)
+            } else {
+                (region, slot)
             };
-            let to = place(&page.texture, slot_pixel(copy.slot, copy.offset));
-            let from = place(&target.texture, copy.at);
             encoder.copy_texture_to_texture(from, to, extent(copy.size));
         }
     }
@@ -143,19 +127,4 @@ pub(super) fn zero(encoder: &mut wgpu::CommandEncoder, slots: &[SlotAt], pages: 
 /// A slot's pixel `offset` from its top-left, in its page.
 fn slot_pixel(slot: SlotAt, offset: [u32; 2]) -> [u32; 2] {
     [slot.at[0] + offset[0], slot.at[1] + offset[1]]
-}
-
-fn place(texture: &wgpu::Texture, [x, y]: [u32; 2]) -> wgpu::TexelCopyTextureInfo<'_> {
-    wgpu::TexelCopyTextureInfo {
-        origin: wgpu::Origin3d { x, y, z: 0 },
-        ..texture.as_image_copy()
-    }
-}
-
-fn extent([width, height]: [u32; 2]) -> wgpu::Extent3d {
-    wgpu::Extent3d {
-        width,
-        height,
-        depth_or_array_layers: 1,
-    }
 }

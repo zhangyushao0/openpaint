@@ -1,4 +1,4 @@
-// Gaussian Blur and Sharpen (S33, D59; S35): a filter's result from its layer's pixels before it
+// Gaussian Blur and Sharpen: a filter's result from its layer's pixels before it
 // (`material`, premultiplied, at canvas resolution) into its block of the arena. A blur of a
 // large deviation is evaluated on cells of `factor` x `factor` canvas pixels (their mean), its
 // deviation reduced to match, and enlarged bilinearly onto the block's pixels (`enlarge`); at

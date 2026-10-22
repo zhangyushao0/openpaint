@@ -78,7 +78,7 @@ pub(crate) fn prelude() -> String {
 
 // The paper's and the shapes' mip chains: square powers of two whose every level (down to one
 // texel on the shorter side) is a quarter of the one before, so the words before a level have a
-// closed form (`mip_offset` in deposit.wgsl, S55) from the finest level's texels, 2^bits.
+// closed form (`mip_offset` in deposit.wgsl) from the finest level's texels, 2^bits.
 const _: () = assert!(PAPER_SIZE[0].is_power_of_two() && PAPER_SIZE[1].is_power_of_two());
 const _: () = assert!(SHAPE_SIZE.is_power_of_two() && SHAPE_LEVELS == SHAPE_SIZE.ilog2() + 1);
 const PAPER_BITS: u32 = (PAPER_SIZE[0] * PAPER_SIZE[1]).ilog2();

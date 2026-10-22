@@ -1,4 +1,4 @@
-//! Stamped spans on the GPU (S45, DECISIONS D72): the slots a stamped stroke's paint op and its
+//! Stamped spans on the GPU: the slots a stamped stroke's paint op and its
 //! `Segment` ops add, and the codes of its shapes and rotations (`stamp.wgsl`).
 //!
 //! A stroke's stamps are the same for every span: they live in its paint op (`EndStroke` or

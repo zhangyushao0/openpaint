@@ -1,5 +1,5 @@
 //! A layer's content as scene ops: strokes oldest first, each region edit after the strokes it
-//! was made over, smudges as residuals, and transform records (S31, DECISIONS D57) as the
+//! was made over, smudges as residuals, and transform records as the
 //! content before them drawn again where it moved.
 //!
 //! A record is drawn by mapping back: a pixel after it takes the content before it at the
@@ -13,7 +13,7 @@
 //! laying them over what stayed). Pencil grain, fill edges, clips and smudge residuals are read
 //! at the mapped point, so they move with the content as its pixels would, and the footprint of
 //! an output pixel follows the placement's scale, so scaled strokes stay sharp.
-//! Filters (S33) read neighbouring pixels: the scene lists where their results apply
+//! Filters read neighbouring pixels: the scene lists where their results apply
 //! (`push_filter`).
 
 use openpaint_core::{LayerId, RegionEdit, StrokeBlend, StrokeList, StrokeTool, TransformEdit};
@@ -25,7 +25,7 @@ use crate::filter::{FilterKey, kernel_of};
 use crate::geom::{Bounds, PixelRect};
 use crate::protocol::Op;
 use crate::scene::{Item, Scene, SmudgeItem};
-use crate::scene_cleared::{Cleared, extents, intersect};
+use crate::scene_cleared::{Cleared, extents};
 use crate::smudge::whole_reach;
 use crate::stroke::paint;
 
@@ -218,7 +218,7 @@ impl Scene {
         }
         let placement = Affine::of(transform.placement());
         let clip = match view.clip {
-            Some(clip) => intersect(lifted, placement.inverse().bounds(clip)),
+            Some(clip) => lifted.intersect(placement.inverse().bounds(clip)),
             None => Some(lifted),
         };
         let Some(clip) = clip else {
@@ -255,16 +255,10 @@ impl Scene {
                 .iter()
                 .map(|bounds| view.to_canvas.bounds(*bounds).pixels())
                 .reduce(|a, b| a.union(&b))
-                .unwrap_or(PixelRect {
-                    min: [0, 0],
-                    max: [0, 0],
-                });
+                .unwrap_or(PixelRect::NONE);
             let reach = (reach.into_iter())
                 .filter(|bounds| !bounds.is_empty())
-                .reduce(|a, b| {
-                    let ([a0, a1, a2, a3], [b0, b1, b2, b3]) = (a.0, b.0);
-                    Bounds([a0.min(b0), a1.min(b1), a2.max(b2), a3.max(b3)])
-                });
+                .reduce(Bounds::union);
             let item = SmudgeItem {
                 layer: content.layer,
                 on_mask: content.on_mask,
@@ -280,7 +274,7 @@ impl Scene {
             self.push_smudge(item);
             return Ok(());
         }
-        // Its spans as the scene before had them, or computed (S56, `scene_reuse.rs`).
+        // Its spans as the scene before had them, or computed (`scene_reuse.rs`).
         let spans = self.push_spans(stroke);
         let shows = self.items[spans.clone()]
             .iter()

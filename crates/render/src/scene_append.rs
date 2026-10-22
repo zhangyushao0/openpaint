@@ -1,10 +1,10 @@
-//! Strokes appended to a kept scene in place (S64, DECISIONS D91). The lift commits a version
-//! that is the one before with the stroke appended on its place (its mirrored copies too); built
-//! anew, its scene is the scene before with that stroke's items right before the place's and every
-//! item after them moved by their count. So the kept scene takes them there: its items, its raster
-//! units, where its strokes' spans and its smudges lie, the place's layer before it. A build costs
-//! what the whole artwork holds (41,000 items over the A4 test page, 22 to 41 ms on the tablet);
-//! this costs the stroke and what lies above it.
+//! Strokes appended to a kept scene in place. The lift commits a version that is the one before
+//! with the stroke appended on its place (its mirrored copies too); built anew, its scene is the
+//! scene before with that stroke's items right before the place's and every item after them moved
+//! by their count. So the kept scene takes them there: its items, its raster units, where its
+//! strokes' spans and its smudges lie, the place's layer before it. A build costs what the whole
+//! artwork holds (41,000 items over the A4 test page, 22 to 41 ms on the tablet); this costs the
+//! stroke and what lies above it.
 
 use std::ops::Range;
 
@@ -16,8 +16,8 @@ use crate::scene_content::stroke_end;
 use crate::scene_reuse::span_items;
 
 /// Whether `now` is `base` with strokes appended on the paint or mask `place` names and nothing
-/// else changed: what lies under the place is what `base` holds, and the strokes appended (S63:
-/// the snapshots taken over `base` stay; S64: its scene takes them in place).
+/// else changed: what lies under the place is what `base` holds, and the strokes appended (the
+/// snapshots taken over `base` stay; its scene takes them in place).
 pub(crate) fn appended_over(
     base: &Artwork,
     now: &Artwork,
@@ -115,7 +115,7 @@ impl Scene {
     }
 
     /// Every index of an item from `at` on moved `by` items later: the place's, the smudges', the
-    /// adjustments' and filters' (S65: they lie above the place), the spans', the units'.
+    /// adjustments' and filters' (they lie above the place), the spans', the units'.
     fn moved(&mut self, at: usize, by: usize) {
         let later = |index: &mut usize| {
             if *index >= at {

@@ -1,7 +1,7 @@
 //! A raster plan's ends (`raster_plan.rs`): what a layer reached composited onto the canvas or
 //! into its clipping chain by its mode, through its mask, from a copy of what lies under it where
-//! fixed-function blending cannot (Overlay); S65 (D92): a merged layer's content laid onto the
-//! level under it by the same expressions, a group's layers ending onto the canvas after what lay
+//! fixed-function blending cannot (Overlay); a merged layer's content laid onto the level under
+//! it by the same expressions, a group's layers ending onto the canvas after what lay
 //! under the group was copied, and its end fading the canvas over that copy.
 
 use super::{Builder, Chain};
@@ -59,7 +59,7 @@ impl Builder<'_> {
         }
     }
 
-    /// A merged layer's end (S65, item `item`): its content (the level ended) through its mask at
+    /// A merged layer's end (item `item`): its content (the level ended) through its mask at
     /// its opacity laid onto the level under it by its mode, over it or atop it (clipped), as its
     /// layer's end laid it onto the canvas or its chain before the merge.
     pub(super) fn end_nested(&mut self, item: usize) -> Result<(), RenderError> {
@@ -82,7 +82,7 @@ impl Builder<'_> {
         Ok(())
     }
 
-    /// A group's end (S65, item `item`): where one of its layers reached the region, the canvas
+    /// A group's end (item `item`): where one of its layers reached the region, the canvas
     /// faded by the group's opacity over what lay under the group (`group_fragment`), written
     /// whole from a copy of the canvas.
     pub(super) fn end_group(&mut self, item: usize) {

@@ -1,4 +1,4 @@
-//! The display cache's side of the screen's canvas target (S54, DECISIONS D81): its texels copied
+//! The display cache's side of the screen's canvas target: its texels copied
 //! out exactly as it holds them, and a cached canvas or the gallery picture put in before
 //! anything is drawn into it, which the tiles still waiting then show instead of the paper.
 
@@ -125,7 +125,7 @@ impl CanvasTarget {
     }
 
     /// Smudge residuals are still being derived after a canvas shown complete from its cache:
-    /// frames are wanted until they are (S54).
+    /// frames are wanted until they are.
     #[must_use]
     pub const fn warming(&self) -> bool {
         self.warming.is_some()

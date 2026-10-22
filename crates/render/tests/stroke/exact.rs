@@ -11,8 +11,7 @@ use openpaint_core::{
     StrokeStyle,
 };
 
-use crate::fixture::{SIZE, blank, cold, core, pixel, sample, with_layer};
-use crate::raster::{layer, region};
+use crate::fixture::{SIZE, blank, cold, core, layer, pixel, region, sample, with_layer};
 use crate::scale::whole;
 
 const SOURCE: [f64; 3] = [0.8, 0.35, 0.6];

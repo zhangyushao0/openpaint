@@ -1,8 +1,8 @@
-//! `ActiveTrack`: which in-progress stroke a canvas target's coverage texture holds, so each
-//! evaluation adds only the spans of its curve that are new since the last one. The texture
+//! `ActiveTrack`: which in-progress stroke a drawing's kept coverage holds (`drawing.rs`), so
+//! each frame adds only the spans of its curve that settled since the last one. The coverage
 //! keeps only settled spans (`Path::settled`); the last two, which later samples may still
-//! change, are drawn every evaluation on a copy and never kept (`OP_TAIL`), so a stroke drawn
-//! a few samples at a time ends exactly as the finished stroke evaluated at once.
+//! change, are its tail, laid every frame and never kept, so a stroke drawn a few samples at a
+//! time ends exactly as the finished stroke drawn at once.
 
 use std::ops::Range;
 
@@ -13,7 +13,7 @@ use openpaint_core::{
 use crate::geom::PixelRect;
 use crate::stroke::{Path, lift_region, span_regions, stroke_region};
 
-/// The stroke whose coverage the texture holds, as far as it was evaluated, and the artwork
+/// The stroke whose coverage the drawing keeps, as far as it was drawn, and the artwork
 /// version it was last drawn over.
 #[derive(Debug)]
 struct Tracked {
@@ -24,7 +24,7 @@ struct Tracked {
     style: StrokeStyle,
     clip: Option<RegionMask>,
     samples: Vec<StrokeSample>,
-    /// The spans the texture holds.
+    /// The spans the kept coverage holds.
     kept: usize,
     /// Every pixel the evaluated spans can have changed.
     region: Option<PixelRect>,
@@ -36,9 +36,9 @@ struct Tracked {
 /// How one evaluation draws the in-progress stroke.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct Step {
-    /// Clear the coverage texture first: a different stroke starts.
+    /// Clear the kept coverage first: a different stroke starts.
     pub(crate) reset: bool,
-    /// The spans to add to the coverage texture: settled since the last evaluation. The spans
+    /// The spans to add to the kept coverage: settled since the last evaluation. The spans
     /// after them are the tail, drawn every time.
     pub(crate) kept: Range<usize>,
     /// The pixels to evaluate for the stroke: the new spans, the tail and the tail drawn last.
@@ -119,7 +119,7 @@ impl ActiveTrack {
         }
     }
 
-    /// A stroke is tracked: one is drawn, or was until the last evaluation (S63).
+    /// A stroke is tracked: one is drawn, or was until the last evaluation.
     pub(crate) const fn tracking(&self) -> bool {
         self.tracked.is_some()
     }
@@ -172,8 +172,8 @@ impl Tracked {
     /// it may have gained samples after its last evaluation, and its end may have moved as it
     /// lifted (StreamLine catching up with the pen): where it differs from what was drawn, both
     /// the old spans and the new are evaluated again; a smudge committed as drawn also shows its
-    /// tail now; a stroke with an end taper narrows its last stretch now (S44, `lift_region`).
-    /// A stroke whose samples were replaced whole (snapped to a shape, S42) was tracked anew
+    /// tail now; a stroke with an end taper narrows its last stretch now (`lift_region`).
+    /// A stroke whose samples were replaced whole (snapped to a shape) was tracked anew
     /// from then on.
     fn gone(&self, artwork: &Artwork) -> Option<PixelRect> {
         if artwork.same_version(&self.base) {
@@ -193,8 +193,8 @@ impl Tracked {
             .count();
         let committed = *stroke.style() == self.style && shared > 0;
         if !committed {
-            // Dropped while the version under it changed (its mirrored copies went with it,
-            // S42): everything it drew.
+            // Dropped while the version under it changed (its mirrored copies went with it):
+            // everything it drew.
             return self.region;
         }
         let smudge = self.style.tool() == StrokeTool::Smudge;

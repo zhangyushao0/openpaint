@@ -1,4 +1,4 @@
-//! Gaussian Blur and Sharpen (S33, D59) on the GPU: a filter's layer pixels equal a CPU
+//! Gaussian Blur and Sharpen on the GPU: a filter's layer pixels equal a CPU
 //! Gaussian (or unsharp mask) of the layer's pixels before it, premultiplied, so red on
 //! transparent never darkens and the canvas's edge pixel continues past it; only the selection
 //! changes, with a hard edge; on a mask the grey it shows is filtered; a filter in a clipping
@@ -15,24 +15,13 @@ use openpaint_render::{Banding, CanvasTarget, PixelRect};
 
 use crate::filter_reference::{largest, mean, reference};
 use crate::fixture::{
-    SIZE, airbrush, blank, cold, core, diagonal, pixel, plain, request, sample, wave, with_layer,
-    with_stroke,
+    SIZE, airbrush, blank, cold, core, diagonal, pixel, plain, region, request, sample, wave,
+    with_layer, with_stroke,
 };
+use crate::raster::color;
 use crate::scale::{export, whole};
 
 const LAYER: LayerId = LayerId::new(1);
-
-fn region(inside: impl Fn(u32, u32) -> bool) -> RegionMask {
-    let pixels: Vec<bool> = (0..SIZE[0] * SIZE[1])
-        .map(|at| inside(at % SIZE[0], at / SIZE[0]))
-        .collect();
-    let canvas = blank().canvas();
-    RegionMask::from_pixels(canvas, &pixels).expect("mask")
-}
-
-fn color(r: f32, g: f32, b: f32) -> Color {
-    Color::rgb(r, g, b).expect("colour")
-}
 
 fn filled(artwork: &Artwork, inside: impl Fn(u32, u32) -> bool, colour: Color) -> Artwork {
     artwork
@@ -69,7 +58,7 @@ fn a_blur_is_the_cpu_gaussian_of_the_layer_before_it() {
     let core = core();
     let before = painted();
     let source = core.layer_pixels(&before, LAYER).expect("before");
-    // From a deviation of 4 pixels on cells of 2 x 2, from 8 on cells of 4 x 4 (S35).
+    // From a deviation of 4 pixels on cells of 2 x 2, from 8 on cells of 4 x 4.
     let radii = [
         (0.4, 1),
         (2.5, 1),
@@ -261,7 +250,7 @@ fn smudge() -> (StrokeStyle, Vec<openpaint_core::StrokeSample>) {
     (style, path)
 }
 
-/// Every filter at work: a blur (on cells of 4 x 4 pixels, S35), a smudge after it, sharpening
+/// Every filter at work: a blur (on cells of 4 x 4 pixels), a smudge after it, sharpening
 /// inside a selection after that, a stroke on top; a second layer with a whole-layer record over
 /// a blur on cells of 2 x 2.
 pub fn filtered() -> Artwork {

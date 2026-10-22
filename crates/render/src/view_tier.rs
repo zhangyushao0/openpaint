@@ -1,21 +1,22 @@
-//! `ViewCache`: sharp zoom (S32). While the view magnifies the canvas by more than about
-//! √2, the screen shows a view tier instead of the canvas target: the composited canvas
-//! evaluated at a power-of-two scale (2, 4 or 8 output pixels per canvas pixel), in tiles of
-//! `TIER_TILE` output pixels aligned to the canvas, holding the visible tiles and a ring of one
-//! tile. The canvas target stays the truth for everything else and is evaluated first each
-//! frame; the tier evaluates through its scene and takes what it changed.
+//! `ViewCache`: sharp zoom. While the view magnifies the canvas by more than about √2, the
+//! screen shows a view tier instead of the canvas target: the composited canvas drawn at a
+//! power-of-two scale (2, 4 or 8 output pixels per canvas pixel), in tiles of `TIER_TILE` output
+//! pixels aligned to the canvas, holding the visible tiles and a ring of one tile. The canvas
+//! target stays the truth for everything else and is drawn first each frame; the tier draws
+//! through its scene and takes what it changed.
 //!
-//! Each frame: a change to a ready tile is evaluated in place when it is small, else the tile
-//! waits to be evaluated whole (the canvas shows meanwhile); missing tiles are evaluated whole,
-//! at most `FILL_TILES` a frame, visible ones nearest the screen's centre first. A new tier
-//! starts only once the view stands still (a pinch ends); until it has every visible tile the
-//! one before shows under it, resampled.
+//! Each frame: a change to a ready tile is drawn in place when it fits the frame, else the tile
+//! waits to be drawn whole (the canvas shows meanwhile); missing tiles are drawn whole by the
+//! raster worker as background work, visible ones nearest the screen's centre first
+//! (`view_raster_fill.rs`); the stroke being drawn is drawn at once where the view shows it
+//! (`view_raster.rs`). A new tier starts only once the view stands still (a pinch ends); until it
+//! has every visible tile the one before shows under it, resampled.
 //!
-//! S58: tiles the view no longer needs stay ready until a needed tile wants their slot, and a
-//! tier the view leaves is kept whole (`view_kept.rs`), its tiles kept up to date by dropping
-//! those a change reaches, so a return to a place or a scale shows at once what was there; tiers
-//! are let go only when the GPU memory budget says (the least recently shown first), never the
-//! tier shown.
+//! Tiles the view no longer needs stay ready until a needed tile wants their slot, and a tier the
+//! view leaves is kept whole (`view_kept.rs`), its tiles kept up to date by dropping those a
+//! change reaches, so a return to a place or a scale shows at once what was there; tiers are let
+//! go only when the GPU memory budget says (the least recently shown first), never the tier
+//! shown.
 
 use std::f32::consts::SQRT_2;
 
@@ -26,11 +27,12 @@ use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
 use crate::image::RgbaImage;
 use crate::output::{MAX_SCALE, Output};
+use crate::readback::texture_bytes;
 use crate::view_atlas::Tier;
 use crate::view_fill::{Filling, touched};
 use crate::view_needed::Needed;
 use crate::view_raster::{RasterTier, in_place_raster, snapshots_ahead, stroke_raster};
-use crate::view_raster_fill::{fill_raster, spare_bytes};
+use crate::view_raster_fill::fill_raster;
 use crate::view_shown::Shown;
 use crate::view_tiles::TileMap;
 
@@ -70,7 +72,7 @@ pub struct ViewCache {
     pub(crate) current: Option<Tier>,
     /// The tier shown before the current one, under it until the current has every visible tile.
     pub(crate) previous: Option<Tier>,
-    /// Tiers the view left, whole (S58), for a return to their scale.
+    /// Tiers the view left, whole, for a return to their scale.
     pub(crate) kept: Vec<Tier>,
     /// The view of the last update and when (seconds) it became that view: one unchanged for
     /// `SETTLE_SECONDS` has settled.
@@ -80,19 +82,19 @@ pub struct ViewCache {
     filling: Option<Filling>,
     /// The most bytes the tiers held at once.
     peak: u64,
-    /// The most bytes the tiers may hold, as the GPU memory budget leaves them (S49, S58): a
+    /// The most bytes the tiers may hold, as the GPU memory budget leaves them: a
     /// tier that would not fit, the others let go, is not made and the canvas shows.
     pub(crate) room: u64,
     /// The tier the view wants did not fit the room.
     refused: bool,
-    /// The tiles handed to the raster worker (S59, S60; the targets are the canvas's since S62).
+    /// The tiles handed to the raster worker.
     pub(crate) raster: RasterTier,
     /// The atlas of the next new tier, made ahead on the raster worker, and whether one is wanted
-    /// (S60).
+    ///.
     pub(crate) spare: Option<wgpu::Texture>,
     pub(crate) wanting: bool,
     /// The snapshots under the next stroke of the tier shown are being taken ahead or wait to be
-    /// (S63, `view_raster.rs`).
+    /// (`view_raster.rs`).
     pub(crate) taking: bool,
 }
 
@@ -158,7 +160,7 @@ impl ViewCache {
         let mut work = ViewWork::default();
         self.take_answers(core, canvas, &mut work);
         // Tiers not shown in full keep only tiles no change reached; tiles the raster worker
-        // draws that a change reached are drawn again (S60).
+        // draws that a change reached are drawn again.
         for tier in self.previous.iter_mut().chain(self.kept.iter_mut()) {
             for (tile, _) in touched(tier, &changed) {
                 tier.set_ready(tile, false);
@@ -191,7 +193,7 @@ impl ViewCache {
             .refresh(core, [self.current.as_ref(), self.previous.as_ref()]);
         work.tier = self.current.as_ref().map(Tier::scale);
         work.changing = work.tier != wanted && !self.refused;
-        // The first tier's atlas is made ahead, once nothing touches the screen (S60).
+        // The first tier's atlas is made ahead, once nothing touches the screen.
         self.ask_spare(core, canvas, frame);
         work.bytes = self.bytes();
         self.filling = Filling::step(self.filling.take(), &work);
@@ -203,7 +205,7 @@ impl ViewCache {
     }
 
     /// The shown tier's work this frame: what changed in place, then a share of the missing tiles
-    /// when it is the tier `wanted`, handed to the raster worker (S60). S63: its drawing follows
+    /// when it is the tier `wanted`, handed to the raster worker. Its drawing follows
     /// the artwork first, the canvas pixels `dirtied` naming what changes reached.
     fn work_on_current(
         &mut self,
@@ -219,8 +221,8 @@ impl ViewCache {
         };
         let scale = current.scale();
         canvas.follow(&mut current.drawing, request, (Some(dirtied), scale));
-        // What changed shows at once when it fits; missing tiles are background work (S53). The
-        // stroke being drawn, and its lift, at once where the view shows them (S63).
+        // What changed shows at once when it fits; missing tiles are background work. The
+        // stroke being drawn, and its lift, at once where the view shows them.
         if request.active.is_some() || current.drawing.tracking() {
             let needed = Needed::of(&current.map, frame);
             let place = (&mut *canvas, request);
@@ -231,9 +233,9 @@ impl ViewCache {
         if Some(current.scale()) != wanted {
             return Ok(());
         }
-        // Tiles the view left stay ready until a needed tile wants their slot (S58).
+        // Tiles the view left stay ready until a needed tile wants their slot.
         let needed = Needed::of(&current.map, frame);
-        // The canvas fills in first (S49): no missing tile is filled meanwhile.
+        // The canvas fills in first: no missing tile is filled meanwhile.
         if !canvas.pending() {
             fill_raster(core, (current, &needed), (canvas, request), raster, now)?;
         }
@@ -249,7 +251,7 @@ impl ViewCache {
 
     /// Starts tier `wanted` (or none): the tier shown so far becomes the previous one, shown
     /// under it while it fills; a tier of that scale kept from before is taken up again with
-    /// what it holds (S58), else a new one is made where the room holds it, kept tiers let go
+    /// what it holds, else a new one is made where the room holds it, kept tiers let go
     /// for it, the least recently shown first.
     fn switch(
         &mut self,
@@ -260,7 +262,7 @@ impl ViewCache {
     ) -> Result<(), RenderError> {
         self.keep_previous();
         self.previous = self.current.take();
-        // Only the tier shown draws a stroke (S63): another's drawing goes with its slots.
+        // Only the tier shown draws a stroke: another's drawing goes with its slots.
         if let Some(previous) = self.previous.as_mut() {
             previous.drawing = crate::drawing::Drawing::default();
         }
@@ -288,7 +290,7 @@ impl ViewCache {
         let slots = Needed::of(&map, frame).count();
         let bytes = Tier::bytes_for(&map, slots as u32);
         while self.bytes() + bytes > self.room && self.let_go_oldest() > 0 {}
-        // A tier the GPU memory budget leaves no room for is not made (S49).
+        // A tier the GPU memory budget leaves no room for is not made.
         if self.bytes() + bytes > self.room {
             self.refused = true;
             return Ok(());
@@ -326,7 +328,7 @@ impl ViewCache {
             .chain(&self.kept)
             .map(Tier::bytes)
             .sum::<u64>()
-            + self.spare.as_ref().map_or(0, spare_bytes)
+            + self.spare.as_ref().map_or(0, texture_bytes)
     }
 
     /// The most bytes the tiers held at once so far.

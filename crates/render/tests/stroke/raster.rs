@@ -8,14 +8,14 @@
 use std::sync::Arc;
 
 use openpaint_core::{
-    Artwork, ArtworkCommand, BlendMode, CanvasSize, Color, LayerCommand, MaskCommand, Patch,
-    Placement, RegionMask, StrokeSample, StrokeStyle, StrokeTool,
+    Artwork, ArtworkCommand, BlendMode, Color, LayerCommand, MaskCommand, Patch, Placement,
+    StrokeSample, StrokeStyle, StrokeTool,
 };
 use openpaint_render::{Banding, Core, ImageDifference, RgbaImage, image_difference};
 
 use crate::fixture::{
-    SIZE, airbrush, blank, cold, core, diagonal_with, graphite, plain, rich, sample, wave,
-    wave_with, with_layer, with_stroke,
+    airbrush, blank, canvas, cold, core, diagonal_with, graphite, layer, plain, region, rgb, rich,
+    sample, wave, wave_with, with_layer, with_stroke,
 };
 use crate::scale::{difference, export, reduced, whole};
 use crate::stamps::brushes;
@@ -35,7 +35,7 @@ fn ring(centre: [f32; 2], radius: f32) -> Vec<StrokeSample> {
         .collect()
 }
 
-/// S57's probe scene: a hard and a soft covering capsule with grain, the pencil's graphite on
+/// Every stroke kind: a hard and a soft covering capsule with grain, the pencil's graphite on
 /// paper, a bell airbrush, four stamped built-ins.
 fn strokes() -> Artwork {
     let mut artwork = with_stroke(&blank(), wave());
@@ -53,26 +53,8 @@ fn strokes() -> Artwork {
     artwork
 }
 
-fn canvas() -> CanvasSize {
-    CanvasSize::new(SIZE[0], SIZE[1]).expect("size")
-}
-
-pub fn region(inside: impl Fn(u32, u32) -> bool) -> RegionMask {
-    let pixels: Vec<bool> = (0..SIZE[0] * SIZE[1])
-        .map(|at| inside(at % SIZE[0], at / SIZE[0]))
-        .collect();
-    RegionMask::from_pixels(canvas(), &pixels).expect("mask")
-}
-
 pub fn color(r: f32, g: f32, b: f32) -> Color {
-    Color::rgb(r, g, b).expect("colour")
-}
-
-pub fn layer(artwork: &Artwork, command: LayerCommand) -> Artwork {
-    artwork
-        .apply(ArtworkCommand::Layer(command))
-        .expect("layer")
-        .artwork
+    rgb([r, g, b])
 }
 
 /// A line of `style` across the canvas at height `y`.
@@ -90,7 +72,7 @@ fn line(style: StrokeStyle, y: f32) -> (StrokeStyle, Vec<StrokeSample>) {
     (style, samples)
 }
 
-/// The probe's strokes, an eraser, a stroke inside a lasso, a fill, a cut and Alpha Lock on the
+/// Every stroke kind, an eraser, a stroke inside a lasso, a fill, a cut and Alpha Lock on the
 /// first layer.
 fn first_layer() -> Artwork {
     let mut artwork = strokes();
@@ -200,7 +182,7 @@ pub fn every_raster_source() -> Artwork {
     )
 }
 
-/// `image` against `reference` by D86's rule: no pixel away from antialiased edges more than one
+/// `image` against `reference` by the export's rule: no pixel away from antialiased edges more than one
 /// 8-bit level off.
 pub fn assert_near(reference: &RgbaImage, image: &RgbaImage, what: &str) -> ImageDifference {
     let found = image_difference(reference, image).expect("same size");
@@ -214,7 +196,7 @@ pub fn assert_near(reference: &RgbaImage, image: &RgbaImage, what: &str) -> Imag
 }
 
 /// `artwork` exported at 1x, 2x, 4x and 8x paints and, reduced by its scale, comes back to its 1x
-/// canvas within a level on average (as a file above 1x against the canvas, D86): what each scale
+/// canvas within a level on average (as a file above 1x against the canvas): what each scale
 /// draws is the same picture, sharper (finer grain and paper; measured 2026-10-21: means 0.28 to
 /// 0.57).
 pub fn assert_scales_agree(core: &Core, artwork: &Artwork, what: &str) {

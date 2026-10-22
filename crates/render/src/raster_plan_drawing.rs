@@ -1,4 +1,4 @@
-//! A raster plan with the stroke being drawn (S63, DECISIONS D90; `raster_plan.rs`). The stroke
+//! A raster plan with the stroke being drawn (`raster_plan.rs`). The stroke
 //! lays at its unit (`Unit::Active`) from what its drawing kept: its coverage so far in a slot per
 //! output tile, to which the spans settled since and its tail (the spans later samples may still
 //! change, never kept) are added in the atlas, so its region of the atlas holds what the stroke's
@@ -55,7 +55,7 @@ pub(crate) struct KeptTile {
 
 /// What a snapshot's targets hold besides the canvas and the layer: the mask (the stroke's place
 /// is a layer's mask), the clipping chain (its layer clips onto a base), what lay under its group
-/// (S65: a layer of its group ended onto the canvas before it).
+/// (a layer of its group ended onto the canvas before it).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Restored {
     pub(crate) on_mask: bool,

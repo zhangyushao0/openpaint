@@ -1,4 +1,4 @@
-//! Smudge on a real GPU (D46): colour dragged only where the stroke reaches; the in-progress
+//! Smudge on a real GPU: colour dragged only where the stroke reaches; the in-progress
 //! residual, grown a few samples per frame, equal bit for bit to a cold evaluation of the same
 //! samples, finished, reloaded from its parts, undone and redone; Alpha Lock keeping alpha; a
 //! selection limiting what changes; a smudge over an earlier smudge.

@@ -1,5 +1,5 @@
-//! The screen's frames the GPU has not finished (S56, frame pacing), and the background work it
-//! has queued (S60). After a frame's work is submitted the runtime marks it
+//! The screen's frames the GPU has not finished (frame pacing), and the background work it
+//! has queued. After a frame's work is submitted the runtime marks it
 //! (`Core::frame_submitted`); wgpu calls back once the GPU has finished everything submitted
 //! before the mark, workers' work too, and polling without waiting (`Core::frames_in_flight`)
 //! collects those calls. The runtime submits no new frame while more than one is in flight
@@ -7,7 +7,7 @@
 //! screen's work and no wait for it (acquiring the window's next image, presenting, a readback)
 //! lasts longer than that.
 //!
-//! Background work (S60, DECISIONS D87) is marked the same way with its estimated GPU time
+//! Background work is marked the same way with its estimated GPU time
 //! (`Core::background_submitted`): what is submitted and not finished is what a frame drawn now
 //! would wait for (`Core::background_queued`), which the frame budget keeps within one idle
 //! frame's share while nothing touches the screen (`pace.rs`).
@@ -51,7 +51,7 @@ impl Core {
         submitted.saturating_sub(self.frames.finished.load(Ordering::Acquire))
     }
 
-    /// Background work estimated at `ns` of GPU time is on the queue (S60): it counts as queued
+    /// Background work estimated at `ns` of GPU time is on the queue: it counts as queued
     /// until the GPU has finished everything submitted so far.
     pub(crate) fn background_submitted(&self, ns: f64) {
         if ns <= 0.0 {
@@ -71,14 +71,14 @@ impl Core {
     }
 
     /// Pieces of background work on the GPU's queue not finished yet (each `background_submitted`
-    /// one), as `background_queued` last polled them (S60).
+    /// one), as `background_queued` last polled them.
     pub(crate) fn background_pieces(&self) -> u64 {
         let pieces = self.frames.pieces.load(Ordering::Relaxed);
         pieces.saturating_sub(self.frames.pieces_done.load(Ordering::Acquire))
     }
 
     /// Background work on the GPU's queue not finished yet, by its estimates in ns, after a poll
-    /// that never waits (S60): what a frame submitted now would wait for.
+    /// that never waits: what a frame submitted now would wait for.
     #[must_use]
     pub fn background_queued(&self) -> f64 {
         self.poll();
@@ -86,7 +86,7 @@ impl Core {
         work.saturating_sub(self.frames.done.load(Ordering::Acquire)) as f64
     }
 
-    /// From now on (`on`) the screen's frames are timed on the GPU, or no longer (S63: the
+    /// From now on (`on`) the screen's frames are timed on the GPU, or no longer (the
     /// scenario benchmarks; `frame_clock.rs`). A device without timestamps times nothing.
     pub fn time_frames(&self, on: bool) {
         self.gpu.timing.store(on, Ordering::Relaxed);

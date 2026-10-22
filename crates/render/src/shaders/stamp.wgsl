@@ -1,4 +1,4 @@
-// Stamped spans (S45, DECISIONS D72; after Ciallo, Shen 2024): a stamped stroke is a row of
+// Stamped spans (after Ciallo, Shen 2024): a stamped stroke is a row of
 // stamps along its path, stamp n at n * step canvas pixels from its start, each its shape in a
 // frame of its own (centre, radius, angle) jittered by a hash of n and the stroke's seed. A
 // span holds the stamps whose places lie in it (`STAMP_FIRST` to `STAMP_LAST`, from the CPU,
@@ -72,7 +72,7 @@ fn chord_point(op: u32, k: u32, chords: u32) -> vec2<f32> {
 }
 
 // Four numbers in 0..1 for stamp `index` of seed `seed`: `openpaint_core::jitter`, exactly.
-// Straight-line (S55): filled through a loop index it cost the Adreno 6 to 14 % more.
+// Straight-line: filled through a loop index it cost the Adreno 6 to 14 % more.
 fn stamp_jitter(seed: u32, index: u32) -> vec4<f32> {
     let h0 = pcg(index ^ pcg(seed));
     let h1 = pcg(h0);

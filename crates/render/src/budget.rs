@@ -1,5 +1,4 @@
-//! The GPU memory budget (S49, S58, DECISIONS D85): the bytes the open canvas's derived caches
-//! may hold on a device. On a GPU that shares the system's memory (the tablet's Adreno) it is a
+//! The GPU memory budget: the bytes the open canvas's derived caches may hold on a device. On a GPU that shares the system's memory (the tablet's Adreno) it is a
 //! quarter of the device's memory (about 3 GB of the tablet's 12: the app is the one the author
 //! paints in, in front, and a cache made again costs seconds); on a GPU with memory of its own
 //! (the development machine) a fixed 2 GiB. Above the budget the runtime lets caches go by
@@ -11,7 +10,7 @@ use crate::core::Core;
 /// The share of the device's memory the derived caches may hold on a GPU sharing it.
 pub const SHARED_PART: u64 = 4;
 /// The budget on a GPU sharing the system's memory when the host did not say how much the device
-/// has (the harness and tests on such a GPU): S49's, measured on the tablet.
+/// has (the harness and tests on such a GPU), measured on the tablet.
 pub const SHARED_BUDGET: u64 = 384 << 20;
 /// The budget on a GPU with memory of its own.
 pub const OWN_BUDGET: u64 = 2 << 30;
@@ -19,19 +18,19 @@ pub const OWN_BUDGET: u64 = 2 << 30;
 /// What the open canvas's derived caches hold on the GPU, in bytes.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct CacheBytes {
-    /// The canvas target itself: its texture, the in-progress stroke's two textures and the
-    /// scene's ops. Never dropped.
+    /// The canvas target itself: its texture, its view's uniform and the scene's ops. Never
+    /// dropped.
     pub canvas: u64,
-    /// The view tiers (S32).
+    /// The view tiers.
     pub tiers: u64,
-    /// The in-progress stroke's and a preview's snapshots (S35, S48).
+    /// The in-progress stroke's and a preview's snapshots.
     pub snapshots: u64,
     /// The smudges' residuals and the filters' results (the arena), their material and kernels.
     pub arena: u64,
     /// The layer pictures being made (a canvas-sized target on their worker) and the brush
     /// strip's.
     pub pictures: u64,
-    /// The raster core's targets for the view tiers (S59): its atlas and float targets.
+    /// The raster core's targets for the view tiers: its atlas and float targets.
     pub raster: u64,
 }
 
@@ -49,7 +48,7 @@ pub enum DeviceClass {
     Own,
 }
 
-/// What the device's memory allocator holds (S51, the harness's long session): the bytes its
+/// What the device's memory allocator holds (the harness's long session): the bytes its
 /// live allocations take, the bytes of the memory blocks it took from the driver to hold them,
 /// and the allocations' bytes per label (`"smudge residual"`, `"snapshot"`), largest first.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

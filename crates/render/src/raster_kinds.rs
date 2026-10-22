@@ -1,4 +1,4 @@
-//! What a raster plan is made of (S59, `raster_plan.rs`): instances, the draws and passes over
+//! What a raster plan is made of (`raster_plan.rs`): instances, the draws and passes over
 //! the atlas and the region's float targets, and its counts with what they cost the tablet's GPU.
 
 use std::ops::Range;
@@ -48,9 +48,9 @@ pub(crate) enum EndBlend {
     /// A chain's base: the chain becomes the layer as its mask shows it.
     Base,
     /// By its mode onto a copy of what lies under it (written whole, unblended): Overlay, and
-    /// (S65) Multiply and Screen onto a level, which is not opaque.
+    /// Multiply and Screen onto a level, which is not opaque.
     Backdrop,
-    /// A group's end (S65): the canvas faded by its opacity over the copy of what lay under the
+    /// A group's end: the canvas faded by its opacity over the copy of what lay under the
     /// group, from a copy of the canvas (written whole).
     Group,
 }
@@ -62,9 +62,9 @@ pub(crate) enum DrawKind {
     Stroke(Blend),
     Fill(Blend),
     Patch,
-    /// A smudge from the copy of what it applies to (S61).
+    /// A smudge from the copy of what it applies to.
     Smudge,
-    /// S65: a point adjustment and a filter from the copy of what they apply to; a moved
+    /// A point adjustment and a filter from the copy of what they apply to; a moved
     /// content cut to its selection laid over the level under it; a whole layer's moved content
     /// cut to the canvas, in place.
     Adjust,
@@ -89,9 +89,9 @@ pub(crate) enum Scratch {
     Mask,
     /// What an end written whole, a smudge, an adjustment or a filter reads, copied.
     Backdrop,
-    /// What lay under the group being composited (S65), copied at its first layer's end.
+    /// What lay under the group being composited, copied at its first layer's end.
     Group,
-    /// A moved selection's or a merged layer's content `n` levels above the layer's paint (S65),
+    /// A moved selection's or a merged layer's content `n` levels above the layer's paint,
     /// from 1 to `MOVE_DEPTH`.
     Level(u8),
 }
@@ -126,12 +126,12 @@ pub(crate) enum Pass {
     },
     /// The canvas cleared to the paper, or a target to nothing.
     Clear(Scratch),
-    /// A target copied whole into another (the backdrop, or S65 the group's).
+    /// A target copied whole into another (the backdrop, or the group's).
     Copy {
         from: Scratch,
         to: Scratch,
     },
-    /// A smudge (S61), an adjustment or a filter (S65) on the layer, a level or the mask
+    /// A smudge, an adjustment or a filter on the layer, a level or the mask
     /// (`target`): the pixels `rect` (x, y, width, height) copied into the backdrop, then its draw
     /// over them from that copy.
     Rewrite {
@@ -146,11 +146,11 @@ pub(crate) enum Pass {
         reads: Scratch,
         draw: Draw,
     },
-    /// S63, the stroke being drawn (`drawing.rs`): targets set from snapshots' slots, as the
+    /// For the stroke being drawn (`drawing.rs`): targets set from snapshots' slots, as the
     /// units before the stroke left them; targets kept into slots.
     Restore(Vec<SlotCopy>),
     Keep(Vec<SlotCopy>),
-    /// S64, the stroke being drawn in one pass of the atlas, cleared first: its kept coverage
+    /// The stroke being drawn in one pass of the atlas, cleared first: its kept coverage
     /// read from each page's slots into its regions (`held`: per page, the instances), then
     /// `draws` laying the spans settled since and its tail over it; then `keep`, the regions
     /// holding the kept coverage and the settled spans (not the tail), copied into the slots.
@@ -159,12 +159,12 @@ pub(crate) enum Pass {
         draws: Vec<CoverageDraw>,
         keep: Vec<AtlasCopy>,
     },
-    /// S64: kept coverage slots taken anew set to nothing (each a copy of a tile of nothing), so
+    /// Kept coverage slots taken anew set to nothing (each a copy of a tile of nothing), so
     /// what a region copies into a part of one leaves nothing in the rest.
     Zero(Vec<SlotAt>),
 }
 
-/// A slot of a stroke's drawing (S63): its page and the page pixel at its top-left.
+/// A slot of a stroke's drawing: its page and the page pixel at its top-left.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct SlotAt {
     pub(crate) page: usize,
@@ -191,41 +191,33 @@ pub(crate) struct AtlasCopy {
     pub(crate) size: [u32; 2],
 }
 
-/// What a plan holds, counted.
+/// What a plan holds, counted for its cost estimate.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct RasterCounts {
-    /// Strokes reaching the region, of the scene's.
-    pub strokes: usize,
-    pub scene_strokes: usize,
-    /// Coverage passes, and render passes in all (the finish one more).
-    pub batches: usize,
-    pub passes: usize,
+pub(crate) struct RasterCounts {
+    /// Render passes in all (the finish one more).
+    pub(crate) passes: usize,
     /// Piece instances (a paper stroke's twice: density and contact) and stamp instances.
-    pub pieces: usize,
-    pub stamps: usize,
+    pub(crate) pieces: usize,
+    pub(crate) stamps: usize,
     /// Composite tile instances.
-    pub tiles: usize,
+    pub(crate) tiles: usize,
     /// Atlas pixels the regions take, summed over the batches.
-    pub region_pixels: u64,
-    /// Fills and patches, and the pixels their quads take; layer and chain ends.
-    pub edits: usize,
-    pub edit_pixels: u64,
-    pub ends: usize,
-    /// Smudges, and the pixels each copies and draws, summed (S61).
-    pub smudges: usize,
-    pub smudge_pixels: u64,
-    /// Adjustments, filters, moves' and merged layers' ends and groups' ends (S65), and the
-    /// pixels they copy and draw, summed.
-    pub records: usize,
-    pub record_pixels: u64,
+    pub(crate) region_pixels: u64,
+    /// The pixels the quads of fills and patches take; layer and chain ends.
+    pub(crate) edit_pixels: u64,
+    pub(crate) ends: usize,
+    /// The pixels each smudge copies and draws, summed.
+    pub(crate) smudge_pixels: u64,
+    /// The pixels adjustments, filters, moves' and merged layers' ends and groups' ends copy and
+    /// draw, summed.
+    pub(crate) record_pixels: u64,
 }
 
 impl RasterCounts {
     /// What drawing a plan of these counts over a region of `size` pixels costs the tablet's GPU,
-    /// estimated in ns (S57's measurements on the Adreno 735: about 40 µs a pass, the pile's
-    /// composites about 1 ns an output pixel; a smudge's copy and residual read about 4 ns an
-    /// output pixel); the frame budget corrects it by the raster
-    /// core's measured times (`pace.rs`).
+    /// estimated in ns (measured on its Adreno 735: about 40 µs a pass, a dense place's composites
+    /// about 1 ns an output pixel; a smudge's copy and residual read about 4 ns an output pixel);
+    /// the frame budget corrects it by the raster core's measured times (`pace.rs`).
     pub(crate) fn estimate(&self, [width, height]: [u32; 2]) -> f64 {
         const PASS: f64 = 40_000.0;
         const COMPOSITE: f64 = 1.0;
@@ -234,7 +226,7 @@ impl RasterCounts {
         const EDIT: f64 = 6.0;
         const END: f64 = 1.5;
         const SMUDGE: f64 = 4.0;
-        // A copy and a pass over each pixel, a point operation or a bilinear read (S65's guess,
+        // A copy and a pass over each pixel, a point operation or a bilinear read (estimated,
         // corrected by the readings like the rest).
         const RECORD: f64 = 2.0;
         let region = f64::from(width) * f64::from(height);

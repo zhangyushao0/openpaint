@@ -1,12 +1,12 @@
 //! Stroke geometry: a stroke follows the centripetal Catmull-Rom curve through its knots
-//! (`curve.rs`, S34), one `Segment` op per span between two knots, which the raster core flattens
-//! into tapered capsules fine enough for the scale it evaluates at, or (a stamped recipe, S45)
-//! evaluates as the stamps lying along it (`stroke_stamp.rs`; DECISIONS D72: no stamp engine). At
+//! (`curve.rs`), one `Segment` op per span between two knots, which the raster core flattens
+//! into tapered capsules fine enough for the scale it evaluates at, or (a stamped recipe)
+//! evaluates as the stamps lying along it (`stroke_stamp.rs`: no stamp engine). At
 //! every knot the stroke's recipe turns pressure, pen speed and tilt into a radius (size
-//! dynamics times the taper, S44), a flow (opacity dynamics, times the recipe's flow when it
+//! dynamics times the taper), a flow (opacity dynamics, times the recipe's flow when it
 //! accumulates) and a paper contact, which change evenly along the span; the paint op carries
 //! the colour, the stroke's opacity, the recipe's grain and how its density becomes coverage
-//! (D38).
+//!.
 //!
 //! A span depends on the knots before and after it and a knot on the sample after it, so an
 //! in-progress stroke's last two spans may still change (`Path::settled`); every earlier span
@@ -69,7 +69,7 @@ impl Segment {
     /// Coverage and density are zero from half a pixel outside every capsule it is flattened
     /// into, whatever its edge or tip: the curve lies in the hull of its four points. A stamp
     /// lies on the curve, and its shape and scatter reach no farther than its `reach`. A stamped
-    /// span holding no stamp (spacing wider than the span, S55) lays nothing anywhere: empty
+    /// span holding no stamp (spacing wider than the span) lays nothing anywhere: empty
     /// bounds, so no tile lists it (`stamps_laid` returns zero for it at once).
     pub(crate) fn bounds(&self) -> Bounds {
         if (self.operands.stamps).is_some_and(|stamps| stamps.last < stamps.first) {

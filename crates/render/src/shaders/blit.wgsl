@@ -1,6 +1,6 @@
 // Shows the canvas on screen through the view: the pass clips to the canvas area; one triangle
 // covers the screen; each pixel maps its centre to canvas pixels with the view's affine map and
-// samples the canvas there (10 bits per channel where the device has them, S37), bilinearly
+// samples the canvas there (10 bits per channel where the device has them), bilinearly
 // filtered. Outside the canvas the surround the pass was cleared to shows. At one screen pixel
 // per canvas pixel, upright and on whole pixels, every sample lands on a texel centre, so the
 // screen shows the evaluated values unchanged.
@@ -26,7 +26,7 @@ struct View {
 @group(0) @binding(2) var<uniform> view: View;
 // The selection's mask rows, one word per texel, bit `x % 32` of texel `x / 32`.
 @group(0) @binding(3) var selection: texture_2d<u32>;
-// The view tiers (S32): the current tier's atlas of tiles and its index (per view tile, its
+// The view tiers: the current tier's atlas of tiles and its index (per view tile, its
 // slot plus one while ready, else 0), the previous tier's, and their scales (output pixels per
 // canvas pixel; 0: none). Where a tier has the four texels a pixel needs, it shows, the
 // current one first; elsewhere the canvas.

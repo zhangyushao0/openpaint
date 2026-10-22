@@ -1,24 +1,20 @@
-//! Transform records on the GPU (S31): content placed by mapping back to the earlier ops. At 1x
-//! a record shows what the placed patch of S20 showed, within the difference between
+//! Transform records on the GPU: content placed by mapping back to the earlier ops. At 1x
+//! a record shows what a placed patch showed, within the difference between
 //! re-evaluating and resampling once (stated per test); outside what moved nothing changes;
 //! every drag frame evaluated incrementally equals the committed artwork, reloaded and
 //! evaluated cold; masks stay and clipping layers follow their moved base.
 
 use openpaint_core::{
-    Artwork, ArtworkCommand, CanvasSize, Color, LayerCommand, MaskCommand, Patch, Placement,
-    RegionMask, StrokeStyle, StrokeTool,
+    Artwork, ArtworkCommand, Color, LayerCommand, MaskCommand, Patch, Placement, RegionMask,
+    StrokeStyle, StrokeTool,
 };
 use openpaint_render::{CanvasTarget, Core, PixelRect, changed_regions};
 
 use crate::fixture::{
-    SIZE, airbrush, blank, cold, core, diagonal, diagonal_with, graphite, plain, request, sample,
-    wave, with_layer, with_stroke,
+    SIZE, airbrush, blank, canvas, cold, core, diagonal, diagonal_with, graphite, plain, request,
+    sample, wave, with_layer, with_stroke,
 };
 use crate::scale::difference;
-
-pub fn canvas() -> CanvasSize {
-    CanvasSize::new(SIZE[0], SIZE[1]).expect("size")
-}
 
 /// The wave, a black bar, the diagonal in pencil, an orange fill, then a smudge across.
 pub fn busy() -> Artwork {
@@ -52,7 +48,7 @@ pub fn busy() -> Artwork {
     with_stroke(&filled, (smudge, path))
 }
 
-/// The active layer's pixels (inside `clip`) as a canvas-sized patch, as S20 lifted them.
+/// The active layer's pixels (inside `clip`) as a canvas-sized patch, as a transform lifts them.
 pub fn lift(core: &Core, artwork: &Artwork, clip: Option<&RegionMask>) -> Patch {
     let mut pixels = core
         .layer_pixels(artwork, artwork.active())
@@ -67,7 +63,7 @@ pub fn lift(core: &Core, artwork: &Artwork, clip: Option<&RegionMask>) -> Patch 
     Patch::new(canvas(), [0, 0], SIZE, pixels).expect("patch")
 }
 
-/// `artwork` with its active layer (inside `clip`) moved by `placement`: as S20's patch.
+/// `artwork` with its active layer (inside `clip`) moved by `placement`: as a patch.
 pub fn by_patch(
     core: &Core,
     artwork: &Artwork,

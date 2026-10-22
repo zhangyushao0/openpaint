@@ -1,4 +1,4 @@
-//! Where a draw's target lies in the output (S29): output pixels per canvas pixel and the
+//! Where a draw's target lies in the output: output pixels per canvas pixel and the
 //! output pixel at the target's top-left. Every op is drawn at the output pixel's centre
 //! mapped back to canvas pixels, so the screen's canvas (scale 1, at the origin) and an export at
 //! 2x or 4x in bands are one picture over different grids. Ops keep their bounds in canvas
@@ -7,7 +7,7 @@
 use crate::error::RenderError;
 use crate::geom::PixelRect;
 
-/// The largest output scale: the view's finest tier (S32), 64 output pixels per canvas pixel.
+/// The largest output scale: the view's finest tier, 64 output pixels per canvas pixel.
 /// Exports offer up to 4x (the app's `ExportScale`).
 pub const MAX_SCALE: u32 = 8;
 

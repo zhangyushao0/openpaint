@@ -1,4 +1,4 @@
-//! The gallery picture enlarged into a canvas target (S54, DECISIONS D81): what a canvas opening
+//! The gallery picture enlarged into a canvas target: what a canvas opening
 //! without a display cache shows under the tiles still waiting, in place of the paper. One
 //! dispatch; the pipeline is made on first use, for the device's display format.
 

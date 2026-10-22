@@ -1,5 +1,5 @@
-//! How far an image lies from a reference (an exported file from the canvas it was drawn from,
-//! D86's rule; tests): per channel in 8-bit levels, the largest and the mean difference, and where
+//! How far an image lies from a reference (an exported file from the canvas it was drawn from;
+//! tests): per channel in 8-bit levels, the largest and the mean difference, and where
 //! the differences above one level lie: on an antialiased edge (a pixel some neighbour of which
 //! differs by `EDGE` levels or more in the reference: rims, ink edges, the paper's grain) or away
 //! from one.

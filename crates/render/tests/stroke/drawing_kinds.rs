@@ -1,4 +1,4 @@
-//! The stroke being drawn on the raster core (S63, DECISIONS D90; `drawing.rs`), of other kinds: a
+//! The stroke being drawn on the raster core (`drawing.rs`), of other kinds: a
 //! smudge, whose contacts trail the pen until it lifts, equals the same frame drawn on a canvas
 //! showing the artwork until then, and its lift the commit cold; a stroke snapped to a shape
 //! (QuickShape), one drawn with mirrored copies (symmetry) and one dropped are cold every frame.
@@ -12,7 +12,7 @@ use crate::raster::{color, every_raster_source};
 use crate::raster_smudge::every_smudge;
 use crate::tiers::Screen;
 
-/// A smudge, whose contacts trail the pen until its lift (D46): each frame as the same request
+/// A smudge, whose contacts trail the pen until its lift: each frame as the same request
 /// drawn on a canvas that showed the artwork until then; the lift the commit drawn cold.
 #[test]
 fn a_smudge_drawn_in_batches_is_the_frame_drawn_at_once_and_its_lift_the_commit() {
@@ -48,7 +48,7 @@ fn a_smudge_drawn_in_batches_is_the_frame_drawn_at_once_and_its_lift_the_commit(
 }
 
 /// The tier's tiles ready on both screens are the same (a tile of the ring round the shown ones
-/// a change reached is dropped while a stroke is drawn, S63: the two histories differ there).
+/// a change reached is dropped while a stroke is drawn: the two histories differ there).
 fn same_tiles(screen: &Screen, once: &Screen, what: &str) {
     let core = core();
     let tiles = |screen: &Screen| -> Vec<_> {
@@ -79,7 +79,7 @@ fn under() -> Artwork {
     )
 }
 
-/// QuickShape (S42): the stroke's samples replaced whole mid-stroke by a shape's.
+/// QuickShape: the stroke's samples replaced whole mid-stroke by a shape's.
 #[test]
 fn a_reshaped_stroke_is_cold_every_frame() {
     let core = core();

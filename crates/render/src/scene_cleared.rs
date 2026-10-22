@@ -1,4 +1,4 @@
-//! What a later selection record clears (S31). A selection's transform record shows the
+//! What a later selection record clears. A selection's transform record shows the
 //! content before it twice, where it stays and where it moved, so selections moved again and
 //! again would list that content twice per record, nested: 2^n times for n records (measured:
 //! 13 items, then 30, 64, ... 4,348 after eight nudges). But a selection's record first clears
@@ -13,7 +13,7 @@ use openpaint_core::{RegionEdit, RegionMask, Stroke, StrokeList, StrokeTool};
 use crate::affine::Affine;
 use crate::edits::{edit_rect, mask_bounds, moved_rect, placed_rect};
 use crate::filter::{self, kernel_of};
-use crate::geom::Bounds;
+use crate::geom::{Bounds, PixelRect};
 use crate::smudge::whole_reach;
 use crate::stroke::segments;
 
@@ -70,22 +70,16 @@ impl Alive {
 fn follow(alive: &mut Vec<Alive>, edit: &RegionEdit, canvas: [u32; 2]) -> Option<Bounds> {
     let Some(transform) = edit.transform() else {
         if let Some(fill) = edit.fill() {
-            alive.push(Alive::at(widened(mask_bounds(fill.mask()))));
+            alive.push(Alive::at(mask_bounds(fill.mask()).widened(1.0)));
         }
         if edit.nested().is_some() {
             // A merged layer's content: anywhere on the canvas, as its edit's rectangle says.
-            alive.push(Alive::at(Bounds([
-                0.0,
-                0.0,
-                canvas[0] as f32,
-                canvas[1] as f32,
-            ])));
+            alive.push(Alive::at(Bounds::of(&PixelRect::full(canvas))));
         }
         if let Some(reach) = filter_reach(edit) {
             // A filter spreads what is there by its kernel's reach.
             for item in alive.iter_mut() {
-                let Bounds([x0, y0, x1, y1]) = item.now();
-                *item = Alive::at(Bounds([x0 - reach, y0 - reach, x1 + reach, y1 + reach]));
+                *item = Alive::at(item.now().widened(reach));
             }
         }
         return None;
@@ -99,21 +93,19 @@ fn follow(alive: &mut Vec<Alive>, edit: &RegionEdit, canvas: [u32; 2]) -> Option
     if transform.patch().is_some() {
         clear(alive);
         let placed = placed_rect(moved_rect(canvas, transform), transform.placement());
-        let [x0, y0] = placed.min.map(|v| v as f32);
-        let [x1, y1] = placed.max.map(|v| v as f32);
-        alive.push(Alive::at(Bounds([x0, y0, x1, y1])));
+        alive.push(Alive::at(Bounds::of(&placed)));
         return None;
     }
     let within = match lift {
         Some(lift) => mask_bounds(lift),
-        None => Bounds([0.0, 0.0, canvas[0] as f32, canvas[1] as f32]),
+        None => Bounds::of(&PixelRect::full(canvas)),
     };
     let mut extent = None;
     let mut moved = Vec::new();
     for item in alive.iter() {
-        if let Some(part) = intersect(item.now(), within) {
+        if let Some(part) = item.now().intersect(within) {
             let placed = placement.bounds(part);
-            extent = Some(extent.map_or(placed, |all| union(all, placed)));
+            extent = Some(extent.map_or(placed, |all: Bounds| all.union(placed)));
             moved.push(Alive {
                 bounds: item.bounds,
                 moved: item.moved.then(placement),
@@ -150,7 +142,7 @@ impl Cleared {
         let mut next = edit_end;
         let hidden = |lifts: &[&RegionMask], bounds: Bounds| {
             let shown = match clip {
-                Some(clip) => intersect(bounds, clip),
+                Some(clip) => bounds.intersect(clip),
                 None => Some(bounds),
             };
             !lifts.is_empty()
@@ -210,11 +202,13 @@ fn reach(stroke: &Stroke) -> Option<Bounds> {
     let (style, samples) = (stroke.style(), stroke.samples());
     match style.tool() {
         StrokeTool::Erase => None,
-        StrokeTool::Smudge => whole_reach(style, samples).into_iter().reduce(union),
+        StrokeTool::Smudge => whole_reach(style, samples)
+            .into_iter()
+            .reduce(Bounds::union),
         StrokeTool::Paint => segments(style, samples)
             .map(|segment| segment.bounds())
             .filter(|bounds| !bounds.is_empty())
-            .reduce(union),
+            .reduce(Bounds::union),
     }
 }
 
@@ -262,28 +256,4 @@ fn full(words: &[u32], from: u32, to: u32) -> bool {
 fn filter_reach(edit: &RegionEdit) -> Option<f32> {
     let adjust = edit.adjust()?;
     kernel_of(adjust.adjustment()).map(|(sigma, _)| filter::reach(sigma) as f32)
-}
-
-fn widened(Bounds([x0, y0, x1, y1]): Bounds) -> Bounds {
-    Bounds([x0 - 1.0, y0 - 1.0, x1 + 1.0, y1 + 1.0])
-}
-
-fn union(Bounds(a): Bounds, Bounds(b): Bounds) -> Bounds {
-    Bounds([
-        a[0].min(b[0]),
-        a[1].min(b[1]),
-        a[2].max(b[2]),
-        a[3].max(b[3]),
-    ])
-}
-
-/// The overlap of two bounds, `None` when they do not meet.
-pub(crate) fn intersect(Bounds(a): Bounds, Bounds(b): Bounds) -> Option<Bounds> {
-    let overlap = [
-        a[0].max(b[0]),
-        a[1].max(b[1]),
-        a[2].min(b[2]),
-        a[3].min(b[3]),
-    ];
-    (overlap[0] <= overlap[2] && overlap[1] <= overlap[3]).then_some(Bounds(overlap))
 }

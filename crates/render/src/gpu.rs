@@ -1,6 +1,6 @@
 //! The wgpu instance, adapter, device and queue. They belong to the renderer's `Core`, never to
-//! the UI framework (DECISIONS D01). The device reports its loss to `Health` (S49): the driver's
-//! lost callback, a reset, a test destroying it.
+//! the UI framework. The device reports its loss to `Health`: the driver's lost callback, a
+//! reset, a test destroying it.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -14,13 +14,13 @@ pub(crate) struct Gpu {
     pub(crate) adapter: wgpu::Adapter,
     pub(crate) device: wgpu::Device,
     pub(crate) queue: wgpu::Queue,
-    /// What the screen's canvas and its view tiers hold (S37): `Rgb10a2Unorm` where the device
+    /// What the screen's canvas and its view tiers hold: `Rgb10a2Unorm` where the device
     /// writes it from compute shaders, else `readback::FORMAT`.
     pub(crate) display: wgpu::TextureFormat,
     /// Whether ten bits were asked for, so a device opened again after a loss is alike.
     pub(crate) ten_bits: bool,
     pub(crate) health: Arc<Health>,
-    /// The screen's frames' GPU time while a benchmark measures it (S63, `frame_clock.rs`).
+    /// The screen's frames' GPU time while a benchmark measures it (`frame_clock.rs`).
     pub(crate) frames: Option<FrameClock>,
     pub(crate) timing: AtomicBool,
 }
@@ -83,11 +83,11 @@ impl Gpu {
             pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))
                 .map_err(device)?;
         // Canvas textures need the adapter's real maximum sizes, not the portable minimums; the
-        // ten-bit display format needs the adapter's own format features (S37).
-        // S51: on a GPU sharing the system's memory (the tablet) the allocator takes blocks of 8
-        // to 64 MiB instead of 128 to 256, so what it holds stays near what is allocated.
+        // ten-bit display format needs the adapter's own format features. On a GPU sharing the
+        // system's memory (the tablet) the allocator takes blocks of 8 to 64 MiB instead of 128
+        // to 256, so what it holds stays near what is allocated.
         let shared = adapter.get_info().device_type != wgpu::DeviceType::DiscreteGpu;
-        // S53: GPU timestamps measure background work where the adapter has them.
+        // GPU timestamps measure background work where the adapter has them.
         let descriptor = wgpu::DeviceDescriptor {
             label: Some("openpaint"),
             required_features: adapter.features()
@@ -130,9 +130,9 @@ impl Gpu {
         })
     }
 
-    /// Submits `commands`; the time the call takes counts as a wait of the calling thread (S56,
-    /// `profile.rs`): wgpu's submit blocks while another thread holds the device's lock. While
-    /// frames are timed (S63), a frame's first submission on its thread writes its start first.
+    /// Submits `commands`; the time the call takes counts as a wait of the calling thread
+    /// (`profile.rs`): wgpu's submit blocks while another thread holds the device's lock. While
+    /// frames are timed, a frame's first submission on its thread writes its start first.
     pub(crate) fn submit<I: IntoIterator<Item = wgpu::CommandBuffer>>(
         &self,
         commands: I,

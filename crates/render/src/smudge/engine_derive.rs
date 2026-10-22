@@ -1,8 +1,8 @@
-//! A residual evaluated over frames as background work (S53): on the tablet a smudge's residual
-//! over a busy place took most of a second, its material (the layer's earlier ops over every tile
-//! its contacts read) the most of it, and a fresh start evaluated them all in its first frame
-//! (5 s). Now the screen canvas's background work, before it draws waiting tiles that read a
-//! residual the arena lacks, evaluates that residual a share at a time within the frame budget:
+//! A residual evaluated over frames as background work: on the tablet a smudge's residual over a
+//! busy place takes most of a second, its material (the layer's earlier ops over every tile its
+//! contacts read) the most of it, too much for one frame. So the screen canvas's background work,
+//! before it draws waiting tiles that read a residual the arena lacks, evaluates that residual a
+//! share at a time within the frame budget:
 //! first its material's regions, then its contacts in order; once whole it goes into the arena as
 //! `prepare` would put it, and the tiles that read it are drawn. The same contacts and tiles as
 //! a residual evaluated at once, so the same nodes. Only one at a time; anything else using the
@@ -14,22 +14,22 @@ use std::ops::Range;
 use openpaint_core::Artwork;
 
 use super::budget::keys_of;
-use super::needs::Wanted;
 use super::{
-    Job, Keep, KernelBuffers, Key, Run, Smudges, binding_limit, dabs, held_in, key, material,
-    read_tiles, tile_job,
+    Job, Keep, KernelBuffers, Key, Run, Smudges, binding_limit, dabs, held_in, jobs, key, material,
+    read_tiles,
 };
 use crate::affine::Affine;
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::filter::Filters;
+use crate::geom::PixelRect;
 use crate::raster::SceneBuffers;
 use crate::scene::Scene;
 use crate::scene_ops::SceneOps;
 use crate::smudge::{MaterialRegion, regions};
 
 /// What a contact costs the smudge kernels on the tablet per node it covers, stamped and
-/// committed (S21: radius 300, about 363,000 nodes, 1.5 ms); a tile's reset, per node.
+/// committed (radius 300, about 363,000 nodes, 1.5 ms); a tile's reset, per node.
 const CONTACT_NS: f64 = 4.1;
 const RESET_NS: f64 = 0.2;
 
@@ -52,7 +52,7 @@ pub(super) struct Deriving {
     next: usize,
 }
 
-/// A material made over frames by the raster core (S62): the layer's items before the smudge,
+/// A material made over frames by the raster core: the layer's items before the smudge,
 /// where its pixels lie on the canvas, its regions left, each planned as it is drawn (the arena
 /// may have moved its earlier residuals since).
 struct Making {
@@ -62,21 +62,21 @@ struct Making {
 }
 
 impl Smudges {
-    /// The residuals `wanted` needs and the arena lacks, when every residual it needs fits the
-    /// device's binding whole; `None` otherwise (and when a filter lacks its result): `prepare`
-    /// then evaluates what is needed at once, as before.
+    /// The residuals a draw of the canvas pixels `near` needs and the arena lacks, when every
+    /// residual it needs fits the device's binding whole; `None` otherwise (and when a filter
+    /// lacks its result): `prepare` then evaluates what is needed at once.
     pub(crate) fn lacking(
         &mut self,
         core: &Core,
         (scene, artwork): (&Scene, &Artwork),
-        (filters, wanted): (&mut Filters, &Wanted<'_>),
+        (filters, near): (&mut Filters, &[PixelRect]),
     ) -> Option<Lacking> {
         if scene.smudges.is_empty() {
             return None;
         }
         let keys = keys_of(scene, filters);
         let limit = binding_limit(core).min(self.limit);
-        let (needs, whole) = self.needs(scene, artwork, (&keys, wanted), limit);
+        let (needs, whole) = self.needs(scene, artwork, (&keys, near), limit);
         let filters_held = keys[scene.smudges.len()..]
             .iter()
             .all(|key| self.arena.base(key).is_some());
@@ -168,11 +168,6 @@ impl Smudges {
             base: item.to_canvas,
             left: regions(&rects).into(),
         };
-        let mut jobs: Vec<Job> = new.iter().map(|tile| tile_job(*tile, size)).collect();
-        jobs.extend(
-            all.iter()
-                .filter_map(|dab| dab.rect(size).map(|rect| Job::Contact(*dab, rect))),
-        );
         // The material texture holds this run's tiles from now on.
         self.tools.owner = run.owner;
         Ok(Deriving {
@@ -180,7 +175,7 @@ impl Smudges {
             scene: serial,
             run,
             material,
-            jobs,
+            jobs: jobs(&new, &all, size),
             next: 0,
         })
     }
@@ -239,14 +234,8 @@ impl Smudges {
         if deriving.next > start {
             let kernels = (self.tools.kernels).get_or_insert_with(|| KernelBuffers::new(&core.gpu));
             let run = &mut deriving.run;
-            let buffer = run.working.buffer();
-            if run.group.as_ref().is_none_or(|(built, _)| built != buffer)
-                && let Some(material) = self.tools.material.as_ref()
-            {
-                let group = core
-                    .smudge
-                    .group(&core.gpu, kernels, buffer, material.view());
-                run.group = Some((buffer.clone(), group));
+            if let Some(material) = self.tools.material.as_ref() {
+                run.bind(core, kernels, material.view());
             }
             if let Some((_, group)) = &run.group {
                 let jobs = &deriving.jobs[start..deriving.next];

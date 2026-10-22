@@ -1,5 +1,5 @@
-//! A kept scene changed in place: given an adjustment's new values (S35's previews, `preview.rs`),
-//! or the strokes a version appends on its place (S64, `scene_append.rs`); and the serials naming
+//! A kept scene changed in place: given an adjustment's new values (a preview's, `preview.rs`), or
+//! the strokes a version appends on its place (`scene_append.rs`); and the serials naming
 //! each scene built or changed.
 
 use std::sync::Arc;
@@ -8,13 +8,13 @@ use std::time::Instant;
 use openpaint_core::Artwork;
 
 use super::CanvasTarget;
+use crate::canvas::NO_SCENE;
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::preview::Retune;
 use crate::protocol::{Op, encode};
 use crate::scene::ActivePlace;
 use crate::scene_append::{appended, appended_over};
-use crate::smudge::Wanted;
 
 impl CanvasTarget {
     /// Gives the kept scene, of the place `active`, the strokes `artwork` appends on that place
@@ -46,7 +46,7 @@ impl CanvasTarget {
         core.tally.appended();
         let (smudges, filters) = (&mut self.smudges, &mut self.filters);
         let scene = (&*cache.scene, &cache.ops);
-        smudges.prepare(core, scene, artwork, (filters, &Wanted::Near(&[])))?;
+        smudges.prepare(core, scene, artwork, (filters, &[]))?;
         cache.artwork = artwork.clone();
         cache.serial = next_serial();
         Ok(true)
@@ -60,10 +60,7 @@ impl CanvasTarget {
         artwork: &Artwork,
         retune: &Retune,
     ) -> Result<(), RenderError> {
-        let cache = self
-            .scene
-            .as_mut()
-            .ok_or(RenderError::Invalid("no scene was built"))?;
+        let cache = self.scene.as_mut().ok_or(NO_SCENE)?;
         let scene = Arc::get_mut(&mut cache.scene).ok_or(RenderError::Invalid(
             "a scene the raster worker holds is not retuned",
         ))?;
@@ -83,7 +80,7 @@ impl CanvasTarget {
         }
         let (smudges, filters) = (&mut self.smudges, &mut self.filters);
         let scene = (&*cache.scene, &cache.ops);
-        smudges.prepare(core, scene, artwork, (filters, &Wanted::Near(&[])))?;
+        smudges.prepare(core, scene, artwork, (filters, &[]))?;
         cache.artwork = artwork.clone();
         cache.serial = next_serial();
         Ok(())

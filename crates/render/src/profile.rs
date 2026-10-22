@@ -1,4 +1,4 @@
-//! What a thread spent since it last asked (S56): the time it waited on the GPU (acquiring and
+//! What a thread spent since it last asked: the time it waited on the GPU (acquiring and
 //! presenting the window's frame, submitting, waiting for submitted work), its longest wait and
 //! where, and the time it built scenes. The Android host asks once a frame on the main thread,
 //! whose waits block input: a frame that waits seconds lets Android's input timeout kill the app.

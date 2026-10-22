@@ -1,6 +1,6 @@
 //! A canvas target's scene: built and uploaded once per artwork version, changed in place when a
 //! version only gives an adjustment new values (a preview's, `preview.rs`) or appends strokes on
-//! the place (S64, `scene_append.rs`).
+//! the place (`scene_append.rs`).
 
 use std::sync::Arc;
 use std::time::Instant;
@@ -8,22 +8,22 @@ use std::time::Instant;
 use openpaint_core::Artwork;
 
 use super::CanvasTarget;
+use crate::canvas::NO_SCENE;
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::preview::retuned;
 use crate::scene::{ActivePlace, Scene};
 use crate::scene_ops::{SceneOps, scene_ops};
-use crate::smudge::Wanted;
 
 /// One artwork version's scene and its ops on the GPU, reused while the version stays.
 pub(super) struct SceneCache {
     pub(super) artwork: Artwork,
-    /// The in-progress stroke's place, or while none is drawn the next one's (S56).
+    /// The in-progress stroke's place, or while none is drawn the next one's.
     pub(super) active: ActivePlace,
-    /// Shared with the raster worker drawing tiles from it (S60).
+    /// Shared with the raster worker drawing tiles from it.
     pub(super) scene: Arc<Scene>,
     pub(super) ops: SceneOps,
-    /// Names this scene among every scene built or changed in place (S53).
+    /// Names this scene among every scene built or changed in place.
     pub(super) serial: u64,
 }
 
@@ -51,7 +51,7 @@ impl CanvasTarget {
             .and_then(|cache| retuned(&cache.artwork, artwork));
         let changed = match retune {
             Some(retune) => self.retune(core, artwork, &retune).map(|()| true),
-            // S64: the strokes a lift commits on the place, taken in place.
+            // The strokes a lift commits on the place, taken in place.
             None => self.append(core, artwork, &active),
         };
         match changed {
@@ -80,9 +80,9 @@ impl CanvasTarget {
     }
 
     /// A new scene of `artwork` with the place `active` on the GPU, its filters prepared. The
-    /// strokes' spans the scene before drew are copied from it (S56), which leaves that scene
+    /// strokes' spans the scene before drew are copied from it, which leaves that scene
     /// without its items: on an error the caller keeps no scene. A scene the raster worker still
-    /// holds (S60) gives none: they are made anew, the same.
+    /// holds gives none: they are made anew, the same.
     fn built(
         &mut self,
         core: &Core,
@@ -103,16 +103,14 @@ impl CanvasTarget {
         });
         let ops = scene_ops(&core.gpu, &scene, patches);
         crate::profile::scene_built(started.elapsed());
-        // Its filters' results now; the residuals near what each draw draws (S51).
+        // Its filters' results now; the residuals near what each draw draws.
         let (smudges, filters) = (&mut self.smudges, &mut self.filters);
-        smudges.prepare(core, (&scene, &ops), artwork, (filters, &Wanted::Near(&[])))?;
+        smudges.prepare(core, (&scene, &ops), artwork, (filters, &[]))?;
         Ok((scene, ops))
     }
 
     fn cached(&self) -> Result<&SceneCache, RenderError> {
-        self.scene
-            .as_ref()
-            .ok_or(RenderError::Invalid("no scene was built"))
+        self.scene.as_ref().ok_or(NO_SCENE)
     }
 }
 
@@ -121,13 +119,13 @@ mod retune;
 use retune::next_serial;
 
 impl SceneCache {
-    /// Bytes of the scene's ops on the GPU (S49).
+    /// Bytes of the scene's ops on the GPU.
     pub(super) fn bytes(&self) -> u64 {
         let ops = &self.ops;
         ops.ops().size() + ops.masks.size() + ops.patches.size()
     }
 
-    /// Heap bytes of the scene: its items, mask words and smudge and filter items (S51).
+    /// Heap bytes of the scene: its items, mask words and smudge and filter items.
     pub(super) fn heap_bytes(&self) -> u64 {
         let scene = &self.scene;
         let items = scene.items.capacity() * size_of::<crate::scene::Item>()

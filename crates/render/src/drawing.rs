@@ -1,4 +1,4 @@
-//! Drawing on the raster core (S63, DECISIONS D90): what one output (the 1x canvas, or a view
+//! Drawing on the raster core: what one output (the 1x canvas, or a view
 //! tier) keeps for the strokes drawn on it. Per 256-px output tile, in slots of pages of its own:
 //! a snapshot of the region's float targets (the canvas, the layer, its mask or clipping chain as
 //! the place needs) as the units before the next stroke's place leave them, which outlives the
@@ -18,11 +18,10 @@ use openpaint_core::{Artwork, LayerId};
 use crate::active::ActiveTrack;
 use crate::core::Core;
 use crate::error::RenderError;
-use crate::geom::PixelRect;
 use crate::raster::{Pages, Target};
 use crate::raster_plan::{Restored, Scratch, SlotAt, SlotCopy};
-use crate::readback::target_texture;
-use crate::view_raster_jobs::RasterDone;
+use crate::raster_worker::RasterDone;
+use crate::readback::{target_texture, texture_bytes};
 use crate::view_tiles::TIER_TILE;
 
 /// Slots a snapshot page holds across and down: 16 slots of 256 x 256 float pixels.
@@ -45,7 +44,7 @@ pub(crate) struct Drawing {
     made: u64,
     snapshots: Pool,
     coverage: Pool,
-    /// A bind group reading each coverage page (S64: the kept coverage is read, not copied), a
+    /// A bind group reading each coverage page (the kept coverage is read, not copied), a
     /// tile of nothing in their format, and the slots taken this frame, to set to it.
     reads: Vec<wgpu::BindGroup>,
     nothing: Option<Target>,
@@ -284,23 +283,10 @@ pub(crate) fn slot_copies(
         .collect()
 }
 
-/// Output tile `tile`'s pixels inside an output of `size` pixels.
-pub(crate) fn tile_rect(tile: [u32; 2], size: [u32; 2]) -> PixelRect {
-    let min = tile.map(|at| at * TIER_TILE);
-    PixelRect {
-        min: min.map(|at| at as i32),
-        max: [0, 1].map(|axis| (min[axis] + TIER_TILE).min(size[axis]) as i32),
-    }
-}
-
 impl Pool {
     fn bytes(&self) -> u64 {
         (self.pages.iter())
-            .map(|page| {
-                let texture = &page.texture;
-                let texel = texture.format().block_copy_size(None).unwrap_or(16);
-                u64::from(texture.width()) * u64::from(texture.height()) * u64::from(texel)
-            })
+            .map(|page| texture_bytes(&page.texture))
             .sum()
     }
 

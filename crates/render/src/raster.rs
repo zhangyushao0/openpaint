@@ -1,4 +1,4 @@
-//! The raster core (DECISIONS D93): a region of a scene's output drawn by the GPU's rasterizer.
+//! The raster core: a region of a scene's output drawn by the GPU's rasterizer.
 //! Each stroke's coverage (or density, and a paper stroke's contact) lies in a region of a scratch
 //! atlas, combined by the blend unit (max or add); each region is composited onto a float layer by
 //! the stroke's paint, fills and patches drawn there too, a mask onto a float target of its own;
@@ -15,7 +15,7 @@ use crate::error::RenderError;
 use crate::output::Output;
 use crate::raster_gpu::RasterPipelines;
 use crate::raster_plan::{Pass, RasterPlan, SCRATCH, Scratch};
-use crate::readback::target_texture;
+use crate::readback::{target_texture, texture_bytes};
 use crate::scene_ops::SceneOps;
 use crate::smudge::{Bases, Held};
 use crate::view_tiles::TIER_TILE;
@@ -27,8 +27,8 @@ mod frame;
 mod reads;
 use reads::Reads;
 
-/// The buffers a scene's ops lie in on the GPU as the raster core binds them (S60: a worker draws
-/// from them while the canvas keeps its scene), and its smudges' residuals (S61).
+/// The buffers a scene's ops lie in on the GPU as the raster core binds them (a worker draws
+/// from them while the canvas keeps its scene), and its smudges' residuals.
 #[derive(Debug, Clone)]
 pub(crate) struct SceneBuffers {
     pub(crate) ops: wgpu::Buffer,
@@ -71,6 +71,12 @@ impl SceneBuffers {
 /// whole 256-pixel tile, 8 of an export's 1024 x 512 piece.
 pub(crate) const ATLAS: u32 = 2048;
 
+/// How the atlas and the float targets are used: drawn into, read, and copied into (a stroke's
+/// drawing copies snapshots into the targets and coverage into the atlas).
+const DRAWN: wgpu::TextureUsages = wgpu::TextureUsages::RENDER_ATTACHMENT
+    .union(wgpu::TextureUsages::TEXTURE_BINDING)
+    .union(wgpu::TextureUsages::COPY_DST);
+
 /// A target no side of which is longer is small (`RasterTargets::sized`).
 const SMALL: u32 = 4 * TIER_TILE;
 
@@ -87,7 +93,7 @@ pub(crate) struct RasterTargets {
     /// Bound where a draw reads nothing.
     unread: Target,
     /// Each region's values, `VALUES_STRIDE` bytes apart, and its instances, one after another
-    /// (S63: a batch's regions in one command buffer); where the region being encoded starts.
+    /// (a batch's regions in one command buffer); where the region being encoded starts.
     values: wgpu::Buffer,
     instances: wgpu::Buffer,
     bound: Bound,
@@ -115,7 +121,7 @@ impl Target {
 }
 
 /// Where a region's pixels go: a destination's view, its format, the pixel holding the region's
-/// top-left, and the destination's pixels it writes (S62: a smudge's material, only the tiles its
+/// top-left, and the destination's pixels it writes (a smudge's material, only the tiles its
 /// residual reads); empty: the whole region.
 pub(crate) struct Finish<'a> {
     pub(crate) view: &'a wgpu::TextureView,
@@ -131,10 +137,6 @@ impl RasterTargets {
     /// As the GPU: sizes the device cannot hold.
     pub(crate) fn new(core: &Core, capacity: [u32; 2], atlas: u32) -> Result<Self, RenderError> {
         let pipelines = core.raster_pipelines()?;
-        // S63: a stroke's drawing copies snapshots into the targets and coverage into the atlas.
-        let drawn = wgpu::TextureUsages::RENDER_ATTACHMENT
-            | wgpu::TextureUsages::TEXTURE_BINDING
-            | wgpu::TextureUsages::COPY_DST;
         let gpu = &core.gpu;
         let buffer = |label, size, usage| {
             gpu.device.create_buffer(&wgpu::BufferDescriptor {
@@ -144,19 +146,11 @@ impl RasterTargets {
                 mapped_at_creation: false,
             })
         };
-        let mut scratch: [Option<Target>; SCRATCH] = Default::default();
-        for at in [Scratch::Canvas, Scratch::Layer] {
-            scratch[at.index()] = Some(Target::of(target_texture(
-                gpu,
-                (capacity, pipelines.layer),
-                drawn,
-            )?));
-        }
-        Ok(Self {
+        let mut targets = Self {
             capacity,
-            atlas: Target::of(target_texture(gpu, ([atlas; 2], pipelines.atlas), drawn)?),
-            scratch,
-            unread: Target::of(target_texture(gpu, ([1, 1], pipelines.layer), drawn)?),
+            atlas: Target::of(target_texture(gpu, ([atlas; 2], pipelines.atlas), DRAWN)?),
+            scratch: Default::default(),
+            unread: Target::of(target_texture(gpu, ([1, 1], pipelines.layer), DRAWN)?),
             values: buffer(
                 "raster values",
                 4 * VALUES_STRIDE,
@@ -166,12 +160,16 @@ impl RasterTargets {
             bound: Bound::default(),
             scene: None,
             reads: Reads::default(),
-        })
+        };
+        for at in [Scratch::Canvas, Scratch::Layer] {
+            targets.make(core, pipelines, at)?;
+        }
+        Ok(targets)
     }
 
-    /// Targets for drawing a canvas of `size` pixels on the frame loop's thread (S62: the
+    /// Targets for drawing a canvas of `size` pixels on the frame loop's thread (the
     /// canvas's changes, a whole canvas at once, its view tiers' changes): regions of up to four
-    /// view tiles a side (S63: a frame of a stroke's drawing is one region), two on a small canvas
+    /// view tiles a side (a frame of a stroke's drawing is one region), two on a small canvas
     /// (a brush's picture, the editor's strip), no larger than the canvas but for a view tile,
     /// and an atlas holding two of them (a pencil's density and contact).
     ///
@@ -201,14 +199,10 @@ impl RasterTargets {
 
     /// Bytes of its textures and buffers.
     pub(crate) fn bytes(&self) -> u64 {
-        let texels = |texture: &wgpu::Texture| {
-            let texel = texture.format().block_copy_size(None).unwrap_or(16);
-            u64::from(texture.width()) * u64::from(texture.height()) * u64::from(texel)
-        };
         let scratch: u64 = (self.scratch.iter().flatten())
-            .map(|at| texels(&at.texture))
+            .map(|at| texture_bytes(&at.texture))
             .sum();
-        texels(&self.atlas.texture) + scratch + self.instances.size() + self.values.size()
+        texture_bytes(&self.atlas.texture) + scratch + self.instances.size() + self.values.size()
     }
 
     /// Draws `plan` (of the scene in `scene`) at `output` on `paper`, rounds it into `finish`,
@@ -261,7 +255,7 @@ impl RasterTargets {
     }
 
     /// Every scratch target a stroke's frame may read made now, the group's backdrop when its
-    /// place lies in a group (S63: the screen canvas's ahead, while nothing touches the screen,
+    /// place lies in a group (the screen canvas's ahead, while nothing touches the screen,
     /// so no stroke's frame makes one: making one took up to 30 ms on the tablet).
     ///
     /// # Errors
@@ -288,11 +282,8 @@ impl RasterTargets {
         if self.scratch[at.index()].is_some() {
             return Ok(());
         }
-        let usage = wgpu::TextureUsages::RENDER_ATTACHMENT
-            | wgpu::TextureUsages::TEXTURE_BINDING
-            | wgpu::TextureUsages::COPY_DST;
         let format = (self.capacity, pipelines.layer);
-        self.scratch[at.index()] = Some(Target::of(target_texture(&core.gpu, format, usage)?));
+        self.scratch[at.index()] = Some(Target::of(target_texture(&core.gpu, format, DRAWN)?));
         self.reads = Reads::default();
         Ok(())
     }

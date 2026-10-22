@@ -1,9 +1,11 @@
-//! The chrome's paper drawn on the GPU (D44): one full-screen pass of `chrome.wgsl` inside the
+//! The chrome's paper drawn on the GPU: one full-screen pass of `chrome.wgsl` inside the
 //! UI's frame, through an egui-wgpu paint callback, so the islands and the panels growing out of
 //! them are one signed distance field with one crisp ink outline. The UI says what to draw
 //! (`ChromeShapes`); the pipeline lives with the screen painter, one per frame format.
 
 use egui::{Color32, Pos2, Rect};
+
+use crate::screen::screen_pipeline;
 
 const SHADER: &str = include_str!("../shaders/chrome.wgsl");
 /// At most this many islands carry chrome at once.
@@ -128,55 +130,19 @@ pub(crate) fn install(
             resource: uniforms.as_entire_binding(),
         }],
     });
+    // The full-screen pass of `chrome.wgsl`, blending as egui does: premultiplied alpha.
+    let target = wgpu::ColorTargetState {
+        format,
+        blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+        write_mask: wgpu::ColorWrites::ALL,
+    };
+    let pipeline = screen_pipeline(device, ("chrome", SHADER), &[Some(&layout)], target);
     renderer.callback_resources.insert(Resources {
-        pipeline: pipeline(device, &layout, format),
+        pipeline,
         uniforms,
         bind_group,
         linear: format.is_srgb(),
     });
-}
-
-/// The full-screen pass of `chrome.wgsl` into frames of `format`, blending as egui does.
-fn pipeline(
-    device: &wgpu::Device,
-    layout: &wgpu::BindGroupLayout,
-    format: wgpu::TextureFormat,
-) -> wgpu::RenderPipeline {
-    let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some("chrome"),
-        source: wgpu::ShaderSource::Wgsl(SHADER.into()),
-    });
-    let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-        label: Some("chrome"),
-        bind_group_layouts: &[Some(layout)],
-        immediate_size: 0,
-    });
-    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-        label: Some("chrome"),
-        layout: Some(&pipeline_layout),
-        vertex: wgpu::VertexState {
-            module: &module,
-            entry_point: Some("vertex"),
-            compilation_options: Default::default(),
-            buffers: &[],
-        },
-        fragment: Some(wgpu::FragmentState {
-            module: &module,
-            entry_point: Some("fragment"),
-            compilation_options: Default::default(),
-            // egui's own blending: premultiplied alpha.
-            targets: &[Some(wgpu::ColorTargetState {
-                format,
-                blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
-                write_mask: wgpu::ColorWrites::ALL,
-            })],
-        }),
-        primitive: wgpu::PrimitiveState::default(),
-        depth_stencil: None,
-        multisample: wgpu::MultisampleState::default(),
-        multiview_mask: None,
-        cache: None,
-    })
 }
 
 /// This frame's chrome as a paint callback.

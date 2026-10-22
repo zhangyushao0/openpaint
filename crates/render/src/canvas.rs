@@ -32,38 +32,51 @@ pub struct CanvasTarget {
     scene: Option<SceneCache>,
     /// The selection the screen shows over the canvas (`show_selection`).
     selection: Option<RegionMask>,
-    /// The smudges' residuals and the filters' results the scene draws (D46, D59).
+    /// The smudges' residuals and the filters' results the scene draws.
     smudges: Smudges,
     filters: Filters,
-    /// The canvas pixels draws changed since a view cache last took them (S32).
+    /// The canvas pixels draws changed since a view cache last took them.
     changed: Vec<PixelRect>,
-    /// Drawing on the 1x canvas (S63, `drawing.rs`); the canvas pixels the version under the
+    /// Drawing on the 1x canvas (`drawing.rs`); the canvas pixels the version under the
     /// stroke changed this frame (its mirrored copies), which its view tiers draw too; the canvas
     /// pixels changes reached since the view tiers last took them (their drawings' snapshots
     /// there go).
     pub(crate) drawing: Drawing,
     pub(crate) moved: Vec<PixelRect>,
     dirtied: Vec<PixelRect>,
-    /// Where the screen looks: the waiting tiles it shows go first (S53).
+    /// Where the screen looks: the waiting tiles it shows go first.
     focus: Option<Focus>,
     /// Nothing was drawn into it yet: its pixels are undefined.
     blank: bool,
-    /// Shown complete from a display cache (S54): residuals derived so far while it warms.
+    /// Shown complete from a display cache: residuals derived so far while it warms.
     warming: Option<usize>,
-    /// What waits to be drawn, the frame loop's raster targets, the worker's tiles (S62).
+    /// What waits to be drawn, the frame loop's raster targets, the worker's tiles.
     pub(crate) raster: CanvasRaster,
-    /// Bytes its snapshots under the next stroke may grow to (S49: what the GPU memory budget
+    /// Bytes its snapshots under the next stroke may grow to (what the GPU memory budget
     /// leaves them).
     snapshot_room: u64,
-    /// Its draws are a worker's: each region waited for (S53, `pace_draws`).
+    /// Its draws are a worker's: each region waited for (`pace_draws`).
     paced: bool,
 }
 
 /// More changed rectangles than this are kept as the one rectangle holding them.
 const CHANGED_KEPT: usize = 256;
 
+/// The error for a draw that needs the scene before one was built.
+pub(crate) const NO_SCENE: RenderError = RenderError::Invalid("no scene was built");
+
+/// `rects` added to the changed rectangles `list`, kept as one past `CHANGED_KEPT`.
+fn kept(list: &mut Vec<PixelRect>, rects: &[PixelRect]) {
+    list.extend_from_slice(rects);
+    if list.len() > CHANGED_KEPT
+        && let Some(all) = list.iter().copied().reduce(|a, b| a.union(&b))
+    {
+        *list = vec![all];
+    }
+}
+
 impl CanvasTarget {
-    /// A target of `size` pixels for the screen, in the device's display format (S37: ten bits
+    /// A target of `size` pixels for the screen, in the device's display format (ten bits
     /// per channel where it has them, opaque); `read` and `pick` give the 8-bit values an
     /// 8-bit target would hold, exactly. Its content is undefined until a region is drawn.
     pub fn new(core: &Core, size: [u32; 2]) -> Result<Self, RenderError> {
@@ -78,8 +91,8 @@ impl CanvasTarget {
     }
 
     fn of(core: &Core, size: ([u32; 2], wgpu::TextureFormat)) -> Result<Self, RenderError> {
-        // Copied into for a display cache's pixels (S54) and the raster worker's tiles, drawn into
-        // by the raster core, written by the gallery picture's enlarging (S54).
+        // Copied into for a display cache's pixels and the raster worker's tiles, drawn into
+        // by the raster core, written by the gallery picture's enlarging.
         let usage = wgpu::TextureUsages::STORAGE_BINDING
             | wgpu::TextureUsages::TEXTURE_BINDING
             | wgpu::TextureUsages::COPY_DST
@@ -120,7 +133,7 @@ impl CanvasTarget {
     ///
     /// The in-progress stroke needs no regions: the raster core draws where its new samples
     /// change the canvas, erases a stroke that disappeared while the artwork stayed the same
-    /// version (cancelled), and draws the committed stroke at its lift (S63). Every other
+    /// version (cancelled), and draws the committed stroke at its lift. Every other
     /// artwork change is the caller's to pass as regions.
     ///
     /// # Errors
@@ -135,7 +148,7 @@ impl CanvasTarget {
         self.canvas(core, request, (regions, false))
     }
 
-    /// As `draw`, for one frame of the screen (S49, S62): a change too large for what is left of
+    /// As `draw`, for one frame of the screen: a change too large for what is left of
     /// the frame waits, and the raster worker draws its tiles over the next frames (`pending`);
     /// the stroke being drawn never waits.
     ///
@@ -165,13 +178,7 @@ impl CanvasTarget {
         let started = std::time::Instant::now();
         let drawn = self.drawn(core, request, regions, frame);
         crate::profile::drawn(started.elapsed());
-        let changed = &mut self.changed;
-        changed.extend(drawn?);
-        if changed.len() > CHANGED_KEPT
-            && let Some(all) = changed.iter().copied().reduce(|a, b| a.union(&b))
-        {
-            *changed = vec![all];
-        }
+        kept(&mut self.changed, &drawn?);
         Ok(())
     }
 
@@ -181,14 +188,9 @@ impl CanvasTarget {
         std::mem::take(&mut self.changed)
     }
 
-    /// Changes reached the canvas pixels `rects` (S63: kept for the view tiers' drawings).
+    /// Changes reached the canvas pixels `rects` (kept for the view tiers' drawings).
     pub(crate) fn dirtied(&mut self, rects: &[PixelRect]) {
-        self.dirtied.extend_from_slice(rects);
-        if self.dirtied.len() > CHANGED_KEPT
-            && let Some(all) = self.dirtied.iter().copied().reduce(|a, b| a.union(&b))
-        {
-            self.dirtied = vec![all];
-        }
+        kept(&mut self.dirtied, rects);
     }
 
     /// The canvas pixels changes reached since the last call.
@@ -267,7 +269,7 @@ impl CanvasTarget {
         &self.texture
     }
 
-    /// Tiles wait to be drawn (S62: the raster worker's included). The target shows them as they
+    /// Tiles wait to be drawn (the raster worker's included). The target shows them as they
     /// were until then; `read` and `pick` read them so.
     #[must_use]
     pub fn pending(&self) -> bool {
@@ -275,12 +277,12 @@ impl CanvasTarget {
     }
 
     /// Where the screen looks on the canvas from now on: the waiting tiles it shows are drawn
-    /// first, nearest its middle (S53); `None`: rows from the top.
+    /// first, nearest its middle; `None`: rows from the top.
     pub fn look_at(&mut self, focus: Option<Focus>) {
         self.focus = focus;
     }
 
-    /// Its draws are a worker's: each region waited for before the next (S53), so the screen's
+    /// Its draws are a worker's: each region waited for before the next, so the screen's
     /// frames find the GPU free between them (the brush editor's strip, brush pictures).
     pub fn pace_draws(&mut self) {
         self.paced = true;

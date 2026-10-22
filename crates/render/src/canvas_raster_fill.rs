@@ -1,9 +1,11 @@
-//! The screen canvas drawn by the raster core (S62; `canvas_raster.rs` holds what waits): its
+//! The screen canvas drawn by the raster core (`canvas_raster.rs` holds what waits): its
 //! changes drawn at once when small (`draw_now`), else as the worker's tiles
 //! (`canvas_raster_hand.rs`); the stroke being drawn and its lift at once where they change the
-//! canvas (S63, `drawing_frame.rs`).
+//! canvas (`drawing_frame.rs`).
 
 use super::CanvasTarget;
+use crate::canvas::NO_SCENE;
+use crate::canvas_raster::EDIT_PIXELS;
 use crate::core::Core;
 use crate::error::RenderError;
 use crate::frame::FrameRequest;
@@ -14,7 +16,6 @@ use crate::raster_plan::RasterPlan;
 use crate::readback::wait;
 use crate::scene::ActivePlace;
 use crate::smudge::{Held, around_output};
-use crate::view_fill::EDIT_PIXELS;
 use crate::view_tiles::TIER_TILE;
 
 /// A region's plan, the output it lies at, and where it goes in the destination.
@@ -22,8 +23,8 @@ pub(crate) type Planned = (RasterPlan, Output, [u32; 2]);
 
 impl CanvasTarget {
     /// `request` into the canvas (`draw`, `draw_frame`): the stroke being drawn (or just lifted or
-    /// dropped) drawn at once where it changed, from its kept coverage over its snapshots (S63,
-    /// `drawing_frame.rs`), with the regions passed meanwhile (its mirrored copies, a smudge
+    /// dropped) drawn at once where it changed, from its kept coverage over its snapshots
+    /// (`drawing_frame.rs`), with the regions passed meanwhile (its mirrored copies, a smudge
     /// started over); with none, the regions passed are drawn or wait (`frame`: one of the
     /// screen's). Returns the canvas pixels drawn now.
     pub(super) fn drawn(
@@ -41,7 +42,7 @@ impl CanvasTarget {
             target.show_paper(core, request);
         }
         let restarted = target.smudged(core, request, drawn)?;
-        // What a change reached: the snapshots under the next stroke there go (S63), its view
+        // What a change reached: the snapshots under the next stroke there go, its view
         // tiers' too.
         let dirty: Vec<PixelRect> = restarted.into_iter().chain(regions.to_vec()).collect();
         let mut drawing = std::mem::take(&mut target.drawing);
@@ -68,7 +69,7 @@ impl CanvasTarget {
 
     /// One frame of the screen with no stroke drawn: the worker's tiles applied, the changes
     /// drawn at once when they fit what is left of the frame, else waiting; the waiting tiles
-    /// handed to the worker; residuals warm while nothing waits (S54). Returns the canvas pixels
+    /// handed to the worker; residuals warm while nothing waits. Returns the canvas pixels
     /// drawn now.
     fn raster_frame(
         &mut self,
@@ -139,9 +140,7 @@ impl CanvasTarget {
             }
         }
         self.reach(core, request.artwork, &near)?;
-        let held = self
-            .held()
-            .ok_or(RenderError::Invalid("no scene was built"))?;
+        let held = self.held().ok_or(NO_SCENE)?;
         let atlas = self.raster_atlas(core)?;
         let plans = self.plans(&parts, &held, atlas)?;
         if budgeted {
@@ -165,13 +164,12 @@ impl CanvasTarget {
         held: &Held,
         atlas: [u32; 2],
     ) -> Result<Vec<Planned>, RenderError> {
-        let missing = || RenderError::Invalid("no scene was built");
-        let cache = self.scene.as_ref().ok_or_else(missing)?;
+        let cache = self.scene.as_ref().ok_or(NO_SCENE)?;
         let units = (&*cache.scene, &held.bases);
         (parts.iter())
             .map(|part| {
                 let at = part.min.map(i32::unsigned_abs);
-                let size = [0, 1].map(|axis| (part.max[axis] - part.min[axis]).unsigned_abs());
+                let size = part.size();
                 let output = Output::at(1, at)?;
                 Ok((RasterPlan::build(units, (output, size), atlas)?, output, at))
             })
@@ -186,8 +184,8 @@ impl CanvasTarget {
         Ok((self.raster.targets.as_ref()).map_or([0; 2], RasterTargets::atlas))
     }
 
-    /// Draws `plans` of the scene the last draw drew (S62: the canvas's own regions, or its view
-    /// tiers' changes, S59), its residuals as `held` holds them, with the frame loop's
+    /// Draws `plans` of the scene the last draw drew (the canvas's own regions, or its view
+    /// tiers' changes), its residuals as `held` holds them, with the frame loop's
     /// raster targets, into `into` (its format) on `paper`; each waited for when the target's
     /// draws are a worker's (`pace_draws`).
     ///
@@ -201,9 +199,8 @@ impl CanvasTarget {
         (into, format, paper): (&wgpu::TextureView, wgpu::TextureFormat, [f32; 4]),
     ) -> Result<(), RenderError> {
         self.raster_atlas(core)?;
-        let missing = || RenderError::Invalid("no scene was built");
-        let cache = self.scene.as_ref().ok_or_else(missing)?;
-        let targets = self.raster.targets.as_mut().ok_or_else(missing)?;
+        let cache = self.scene.as_ref().ok_or(NO_SCENE)?;
+        let targets = self.raster.targets.as_mut().ok_or(NO_SCENE)?;
         let buffers = SceneBuffers::of(&cache.ops, held);
         for (plan, output, at) in plans {
             let finish = Finish {
@@ -222,7 +219,7 @@ impl CanvasTarget {
         Ok(())
     }
 
-    /// A new canvas shows the paper where its tiles wait (S49), the raster core's way: cleared.
+    /// A new canvas shows the paper where its tiles wait, the raster core's way: cleared.
     fn show_paper(&mut self, core: &Core, request: &FrameRequest<'_>) {
         self.blank = false;
         let [r, g, b, a] = paper(request).map(f64::from);
@@ -277,7 +274,7 @@ fn parts(rects: &[PixelRect], size: [u32; 2]) -> Vec<PixelRect> {
 }
 
 fn area(rect: &PixelRect) -> i64 {
-    let [width, height] = [0, 1].map(|axis| i64::from(rect.max[axis] - rect.min[axis]));
+    let [width, height] = rect.size().map(i64::from);
     width * height
 }
 

@@ -1,4 +1,4 @@
-//! A stroke's curve spans on the GPU (S34): the `Segment` op's layout, its tips, and the
+//! A stroke's curve spans on the GPU: the `Segment` op's layout, its tips, and the
 //! flattening constants the shaders share with `curve.rs`.
 
 use super::{OP_DATA, Op, Opcode, SpanStamps};
@@ -32,7 +32,7 @@ pub(super) const SEGMENT_SLOTS: [(&str, usize); 7] = [
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Tip {
-    /// Coverage of a soft-edged capsule; the stroke keeps the maximum (D82).
+    /// Coverage of a soft-edged capsule; the stroke keeps the maximum.
     Cover = 0,
     /// Optical density of a flat cross-section `1 - d^8` over the radii travelled, summed.
     Flat = 1,
@@ -65,7 +65,7 @@ pub(crate) struct SegmentOperands {
     pub(crate) controls: [[f32; 2]; 2],
     pub(crate) flat: f32,
     pub(crate) bend: f32,
-    /// A stamped span's stamps (S45), and the pen's azimuth at both knots, which its op carries
+    /// A stamped span's stamps, and the pen's azimuth at both knots, which its op carries
     /// in the contacts' place (stamps take no paper).
     pub(crate) stamps: Option<SpanStamps>,
     pub(crate) azimuths: [f32; 2],
@@ -78,7 +78,7 @@ impl Op {
     }
 
     /// A span of the in-progress stroke's end that later samples may still change: evaluated
-    /// as a segment but never kept (`OP_TAIL`).
+    /// as a segment but never kept.
     pub(crate) fn tail(s: &SegmentOperands, paint: i32) -> Self {
         Self::span(Opcode::Tail, s, paint)
     }

@@ -1,4 +1,4 @@
-//! A scene as the raster core draws it (S59, DECISIONS D92): its items as the units the raster
+//! A scene as the raster core draws it: its items as the units the raster
 //! plan lays out, in scene order. Strokes carry the box of all their spans, smudges the canvas
 //! pixels they can change; a point adjustment and a filter rewrite the layer (or its mask) so far
 //! within their bounds; a frame names the transform record's content the units after it lie in; a
@@ -29,9 +29,9 @@ pub(crate) enum Unit {
         smudge: usize,
         reach: PixelRect,
     },
-    /// A point adjustment (S65): the layer (or its mask) so far through it, within `bounds`.
+    /// A point adjustment: the layer (or its mask) so far through it, within `bounds`.
     Adjust { item: usize, bounds: Bounds },
-    /// A filter (S65), the scene's filter number `filter`: the layer (or its mask) so far
+    /// A filter, the scene's filter number `filter`: the layer (or its mask) so far
     /// becomes its result from the arena, within `bounds`.
     Filter {
         item: usize,
@@ -42,12 +42,12 @@ pub(crate) enum Unit {
     BeginMask(usize),
     /// A layer's or a clipping chain's end.
     End(usize),
-    /// A group's end (S65): what its layers left on the canvas faded by its opacity over what lay
+    /// A group's end: what its layers left on the canvas faded by its opacity over what lay
     /// under it.
     EndGroup(usize),
-    /// The units from here lie in the frame of item `.0` (S65), until the next frame.
+    /// The units from here lie in the frame of item `.0`, until the next frame.
     Frame(usize),
-    /// A moved selection's or a merged layer's content starts on a level of its own (S65).
+    /// A moved selection's or a merged layer's content starts on a level of its own.
     BeginMove(usize),
     /// A move's end (item `.0`): its content cut to its selection and laid over the level under
     /// it, or (a whole layer's) cut to the canvas.
@@ -55,7 +55,7 @@ pub(crate) enum Unit {
     /// A merged layer's end (item `.0`): its content through its mask laid onto the level under
     /// it as its layer's end laid it before the merge.
     EndNested(usize),
-    /// Where the stroke being drawn lays (S63; item `.0`, `Item::Active`): above its layer's
+    /// Where the stroke being drawn lays (item `.0`, `Item::Active`): above its layer's
     /// finished content (or the next stroke's place, where nothing is drawn).
     Active(usize),
 }
@@ -80,7 +80,7 @@ impl Unit {
         }
     }
 
-    /// Every item index it holds moved by `moved` (S64: strokes taken into a kept scene).
+    /// Every item index it holds moved by `moved` (strokes taken into a kept scene).
     pub(crate) fn renumber(&mut self, moved: impl Fn(&mut usize)) {
         match self {
             Self::Stroke { spans, paint, .. } => {
@@ -113,7 +113,7 @@ pub(crate) struct RasterScene {
 impl RasterScene {
     /// The units laying the scene's items `items` (one layer's paint or mask before a smudge or a
     /// filter: its strokes, edits, smudges, records and the merged layers in it), in order: what
-    /// a material draws (S62). No layer's end, group's end or stroke's place lies among them.
+    /// a material draws. No layer's end, group's end or stroke's place lies among them.
     pub(crate) fn within<'a>(
         &'a self,
         items: &'a Range<usize>,
@@ -124,14 +124,14 @@ impl RasterScene {
         })
     }
 
-    /// The unit the stroke being drawn lays at (S63), when its layer shows.
+    /// The unit the stroke being drawn lays at, when its layer shows.
     pub(crate) fn active(&self) -> Option<usize> {
         self.units
             .iter()
             .position(|unit| matches!(unit, Unit::Active(_)))
     }
 
-    /// Whether a group's backdrop is held at unit `at` (S65): a layer or chain of a group ended
+    /// Whether a group's backdrop is held at unit `at`: a layer or chain of a group ended
     /// onto the canvas before it and the group did not end since.
     pub(crate) fn group_open_at(&self, scene: &Scene, at: usize) -> bool {
         let mut open = false;
@@ -213,14 +213,10 @@ pub(crate) fn opens_group(item: &Item) -> bool {
 fn smudge(scene: &Scene, item: usize, number: usize) -> Unit {
     let found = scene.smudges.get(number);
     debug_assert_eq!(found.map(|found| found.item), Some(item));
-    let none = PixelRect {
-        min: [0, 0],
-        max: [0, 0],
-    };
     Unit::Smudge {
         item,
         smudge: number,
-        reach: found.map_or(none, |found| found.canvas),
+        reach: found.map_or(PixelRect::NONE, |found| found.canvas),
     }
 }
 
@@ -230,10 +226,7 @@ pub(crate) fn stroke_unit(scene: &Scene, spans: Range<usize>, paint: usize) -> U
         .iter()
         .filter_map(Item::bounds)
         .filter(|bounds| !bounds.is_empty())
-        .reduce(|a, b| {
-            let ([a0, a1, a2, a3], [b0, b1, b2, b3]) = (a.0, b.0);
-            Bounds([a0.min(b0), a1.min(b1), a2.max(b2), a3.max(b3)])
-        });
+        .reduce(Bounds::union);
     Unit::Stroke {
         spans,
         paint,

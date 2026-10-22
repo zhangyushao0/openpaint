@@ -16,8 +16,8 @@ const STRIDE: u64 = 256;
 const CONTACT_BYTES: u64 = 64;
 /// Jobs per submission.
 const JOBS_PER_SUBMIT: usize = 512;
-/// Nodes one submission's jobs cover at most (S49): about 70 ms on the tablet, where a contact of
-/// radius 300 (about 363,000 nodes, stamped and committed) took about 1.5 ms (S21).
+/// Nodes one submission's jobs cover at most: about 70 ms on the tablet, where a contact of
+/// radius 300 (about 363,000 nodes, stamped and committed) took about 1.5 ms.
 const NODES_PER_SUBMIT: u64 = 1 << 24;
 /// Nodes one contact can change at most: its rectangle's side is under `2 r + 3`.
 const SCRATCH_NODES: u64 = (2 * MAX_RADIUS as u64 + 3) * (2 * MAX_RADIUS as u64 + 3);
@@ -177,7 +177,7 @@ impl SmudgePipeline {
 
 /// `jobs` cut in order into submissions of at most `JOBS_PER_SUBMIT` jobs over at most
 /// `NODES_PER_SUBMIT` nodes (a job above it alone), so no submission runs past the GPU's time
-/// limit (S49).
+/// limit.
 fn submissions(jobs: &[Job]) -> Vec<&[Job]> {
     let nodes = |job: &Job| {
         let (Job::Reset(rect) | Job::Contact(_, rect)) = job;
@@ -266,9 +266,20 @@ fn contact_words(job: &Job, [width, height]: [u32; 2]) -> [u32; 16] {
     words
 }
 
+/// The jobs of a residual's newly allocated tiles `new` and contacts `dabs`, on a canvas of `size`
+/// pixels: the tiles reset, then the contacts in order.
+pub(crate) fn jobs(new: &[u32], dabs: &[Dab], size: [u32; 2]) -> Vec<Job> {
+    let mut jobs: Vec<Job> = new.iter().map(|tile| tile_job(*tile, size)).collect();
+    jobs.extend(
+        dabs.iter()
+            .filter_map(|dab| dab.rect(size).map(|rect| Job::Contact(*dab, rect))),
+    );
+    jobs
+}
+
 /// The nodes of residual tile `tile` (row major over a canvas of `size` pixels) as a reset's
 /// rectangle.
-pub(crate) fn tile_job(tile: u32, size: [u32; 2]) -> Job {
+fn tile_job(tile: u32, size: [u32; 2]) -> Job {
     let columns = size[0].div_ceil(RESIDUAL_TILE);
     let origin = [
         tile % columns * RESIDUAL_TILE,

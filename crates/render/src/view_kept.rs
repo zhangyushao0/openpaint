@@ -1,7 +1,8 @@
-//! The view tiers the GPU memory budget holds (S58, DECISIONS D85): a tier the view leaves is
+//! The view tiers the GPU memory budget holds: a tier the view leaves is
 //! kept whole for a return to its scale; the budget lets tiers go by recency, the least recently
 //! shown first, never the tier shown now; leaving the app lets every tier go.
 
+use crate::readback::texture_bytes;
 use crate::view_atlas::Tier;
 use crate::view_tier::ViewCache;
 
@@ -23,11 +24,11 @@ impl ViewCache {
         }
     }
 
-    /// Lets the atlas made ahead go (S60), else the least recently shown tier but the one shown: a
+    /// Lets the atlas made ahead go, else the least recently shown tier but the one shown: a
     /// kept one, else the previous. Returns its bytes, 0 when only the tier shown is left.
     pub(crate) fn let_go_oldest(&mut self) -> u64 {
         if let Some(spare) = self.spare.take() {
-            return u64::from(spare.width()) * u64::from(spare.height()) * 4;
+            return texture_bytes(&spare);
         }
         let oldest = (self.kept.iter().enumerate())
             .min_by(|a, b| a.1.shown_at.total_cmp(&b.1.shown_at))
@@ -38,7 +39,7 @@ impl ViewCache {
         }
     }
 
-    /// The tiers hold at most `bytes` from now on (S49): when they hold more, the least recently
+    /// The tiers hold at most `bytes` from now on: when they hold more, the least recently
     /// shown go, never the tier shown; a new tier must fit what is left. Returns the bytes given
     /// back.
     pub fn set_room(&mut self, bytes: u64) -> u64 {
@@ -54,7 +55,7 @@ impl ViewCache {
         freed
     }
 
-    /// Lets the tier of `scale` go unless it is the one shown now (the budget's step, S58).
+    /// Lets the tier of `scale` go unless it is the one shown now (the budget's step).
     /// Returns its bytes.
     pub fn let_go(&mut self, scale: u32) -> u64 {
         if let Some(at) = self.kept.iter().position(|tier| tier.scale() == scale) {
@@ -86,9 +87,9 @@ impl ViewCache {
             .collect()
     }
 
-    /// Lets every tier go, the one shown too (the app left the screen, S58: Android's
-    /// `onTrimMemory`; the raster core's targets are the canvas's since S62); the view makes them
-    /// again when it shows. Returns their bytes.
+    /// Lets every tier go, the one shown too (the app left the screen: Android's
+    /// `onTrimMemory`; the raster core's targets are the canvas's); the view makes them again when
+    /// it shows. Returns their bytes.
     pub fn release(&mut self) -> u64 {
         let bytes = self.bytes();
         self.current = None;

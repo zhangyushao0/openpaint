@@ -1,6 +1,6 @@
-//! The screen's canvas at ten bits (S37): it reads, picks and reduces to thumbnails exactly as
+//! The screen's canvas at ten bits: it reads, picks and reduces to thumbnails exactly as
 //! an 8-bit target of the same artwork, and holds more levels than one where paint is soft. A
-//! steep curve over a soft ramp (S43) steps by one level and one code, not by its slope.
+//! steep curve over a soft ramp steps by one level and one code, not by its slope.
 
 use std::sync::Arc;
 
@@ -11,7 +11,6 @@ use openpaint_core::{
 
 use crate::core::{Core, test_core};
 use crate::gpu::TEN_BITS;
-use crate::readback::read_buffer;
 use crate::{CanvasTarget, FrameRequest, PixelRect};
 
 const SIZE: [u32; 2] = [160, 96];
@@ -55,32 +54,8 @@ fn evaluated(core: &Core, mut target: CanvasTarget, artwork: &Artwork) -> Canvas
 
 /// The target's texels as the GPU holds them, one word each, row by row.
 fn words(core: &Core, target: &CanvasTarget) -> Vec<u32> {
-    let texture = target.texture();
-    let row = (SIZE[0] * 4).next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
-    let buffer = core.gpu.device.create_buffer(&wgpu::BufferDescriptor {
-        label: Some("raw words"),
-        size: u64::from(row * SIZE[1]),
-        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::COPY_SRC,
-        mapped_at_creation: false,
-    });
-    let mut encoder = core.gpu.device.create_command_encoder(&Default::default());
-    encoder.copy_texture_to_buffer(
-        texture.as_image_copy(),
-        wgpu::TexelCopyBufferInfo {
-            buffer: &buffer,
-            layout: wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(row),
-                rows_per_image: Some(SIZE[1]),
-            },
-        },
-        texture.size(),
-    );
-    core.gpu.queue.submit([encoder.finish()]);
-    let bytes = read_buffer(&core.gpu, &buffer, u64::from(row * SIZE[1])).expect("read");
-    bytes
-        .chunks_exact(row as usize)
-        .flat_map(|padded| padded[..(SIZE[0] * 4) as usize].as_chunks::<4>().0)
+    let bytes = target.copy_out(core).bytes(core).expect("read back");
+    (bytes.as_chunks::<4>().0.iter())
         .map(|word| u32::from_le_bytes(*word))
         .collect()
 }
@@ -264,7 +239,7 @@ fn interpolated_tables_keep_within_a_level_of_the_curve() {
             worst.1 = worst.1.max((nearest - exact).abs());
         }
         assert!(worst.0 <= 1.0, "{} levels off between entries", worst.0);
-        // The nearest entry alone is off by up to half the slope (S28's lookup).
+        // The nearest entry alone is off by up to half the slope.
         assert!(
             worst.1 >= nearest_off,
             "{} levels off at the nearest",

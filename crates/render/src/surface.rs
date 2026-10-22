@@ -38,7 +38,7 @@ impl Core {
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format,
-            // The artwork and the UI are sRGB-encoded (D50, S27): declared as such, so a
+            // The artwork and the UI are sRGB-encoded: declared as such, so a
             // wide-gamut display's compositor maps them instead of stretching them to its gamut.
             color_space: wgpu::SurfaceColorSpace::Srgb,
             width: size[0],
@@ -132,7 +132,7 @@ fn acquired(
 }
 
 /// The format the window presents in the sRGB colour space: ten bits per channel where it
-/// offers them (S37: the canvas's ten bits reach the display), else the first non-sRGB one (the
+/// offers them (the canvas's ten bits reach the display), else the first non-sRGB one (the
 /// UI painter blends in gamma space, so such a format shows its colours unchanged), else the
 /// first. On the tablet the compositor keeps a ten-bit layer as it is (STATUS).
 fn preferred_format(offered: &[wgpu::SurfaceFormatCapabilities]) -> Option<wgpu::TextureFormat> {

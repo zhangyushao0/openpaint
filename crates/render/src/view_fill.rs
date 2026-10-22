@@ -1,4 +1,4 @@
-//! A view tier's work in one frame (S32): which ready tiles the canvas's changes reach (drawn in
+//! A view tier's work in one frame: which ready tiles the canvas's changes reach (drawn in
 //! place or made to wait, `view_raster.rs`), and logging how long a fill took.
 
 use std::time::Instant;
@@ -6,10 +6,6 @@ use std::time::Instant;
 use crate::geom::PixelRect;
 use crate::view_atlas::Tier;
 use crate::view_tier::ViewWork;
-
-/// Output pixels of changes to ready tiles drawn in place in one frame at most; a larger change
-/// makes the tiles it touches wait to be drawn whole.
-pub(crate) const EDIT_PIXELS: i64 = 4 * 256 * 256;
 
 /// The ready tiles of `tier` the canvas pixels `changed` reach, each with the output pixels
 /// reached.

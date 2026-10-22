@@ -1,4 +1,4 @@
-//! The stroke being drawn in one region's plan (S63, S64, DECISIONS D91; `raster_plan.rs`): one
+//! The stroke being drawn in one region's plan (`raster_plan.rs`): one
 //! pass of the atlas, cleared first. Per kind of coverage (a pencil's density and contact), the
 //! stroke's region of the atlas (its box in whole composite tiles) is drawn from its kept
 //! coverage, read from the slots of the output tiles it meets where they hold kept spans, then the
@@ -37,7 +37,7 @@ impl Builder<'_> {
             return Ok(());
         };
         let rect = reached.rect;
-        let side = [0, 1].map(|axis| (rect.max[axis] - rect.min[axis]) as u32);
+        let side = rect.size();
         self.packer = Packer::new(self.atlas);
         let kinds: &[Coverage] = if stroke.contact {
             &[Coverage::Density, Coverage::Contact]
@@ -77,7 +77,6 @@ impl Builder<'_> {
         }
         let held = self.grouped(held);
         self.plan.passes.push(Pass::Kept { held, draws, keep });
-        self.plan.counts.batches += 1;
         self.drawn_tiles(stroke, (shown, rect), &reached.tiles);
         Ok(())
     }
@@ -215,7 +214,6 @@ impl Builder<'_> {
             kind: DrawKind::Stroke(op.paint_blend()),
             instances: start..self.plan.instances.len() as u32,
         });
-        self.plan.counts.strokes += 1;
         self.flush();
         self.touched[self.target().index()] = true;
     }
@@ -238,7 +236,7 @@ fn kept_back(
             at: [0, 1].map(|axis| at[axis] + (part.min[axis] - rect.min[axis]) as u32),
             slot: kept.slots[kind],
             offset: [0, 1].map(|axis| (part.min[axis] - tile.min[axis]) as u32),
-            size: [0, 1].map(|axis| (part.max[axis] - part.min[axis]) as u32),
+            size: part.size(),
         });
     }
     copies

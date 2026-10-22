@@ -1,7 +1,7 @@
 //! Putting the canvas on screen: `CanvasBlit` draws a canvas target into a window or offscreen
 //! frame through the view (scale, rotation, pan), and `ScreenTarget` is the offscreen frame the
 //! harness draws into instead of a window. The target itself stays at canvas resolution; the
-//! screen samples it bilinearly, without mipmaps, or a view tier where one is ready (S32, D58).
+//! screen samples it bilinearly, without mipmaps, or a view tier where one is ready.
 
 use crate::canvas::CanvasTarget;
 use crate::core::Core;
@@ -28,7 +28,7 @@ pub struct CanvasPlacement<'a> {
     pub to_canvas: [f32; 6],
     pub cursor: Option<BrushCursor>,
     pub pixels_per_point: f32,
-    /// The view tiers shown instead of the target where they are ready (S32); `None`: the
+    /// The view tiers shown instead of the target where they are ready; `None`: the
     /// target alone.
     pub view: Option<&'a ViewCache>,
 }
@@ -173,39 +173,53 @@ pub(crate) struct CanvasBlit {
     pipeline: wgpu::RenderPipeline,
 }
 
+/// A pass over the whole screen: `source`'s `vertex` and `fragment` entries drawing triangles
+/// without vertex buffers into `target`, through the bind groups `groups` (none: derived from the
+/// shader).
+pub(crate) fn screen_pipeline(
+    device: &wgpu::Device,
+    (label, source): (&str, &str),
+    groups: &[Option<&wgpu::BindGroupLayout>],
+    target: wgpu::ColorTargetState,
+) -> wgpu::RenderPipeline {
+    let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some(label),
+        source: wgpu::ShaderSource::Wgsl(source.into()),
+    });
+    let layout = (!groups.is_empty()).then(|| {
+        device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some(label),
+            bind_group_layouts: groups,
+            immediate_size: 0,
+        })
+    });
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some(label),
+        layout: layout.as_ref(),
+        vertex: wgpu::VertexState {
+            module: &module,
+            entry_point: Some("vertex"),
+            compilation_options: Default::default(),
+            buffers: &[],
+        },
+        fragment: Some(wgpu::FragmentState {
+            module: &module,
+            entry_point: Some("fragment"),
+            compilation_options: Default::default(),
+            targets: &[Some(target)],
+        }),
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: None,
+        multisample: wgpu::MultisampleState::default(),
+        multiview_mask: None,
+        cache: None,
+    })
+}
+
 impl CanvasBlit {
     pub(crate) fn new(core: &Core, format: wgpu::TextureFormat) -> Self {
-        let device = &core.gpu.device;
-        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("blit"),
-            source: wgpu::ShaderSource::Wgsl(SHADER.into()),
-        });
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("blit"),
-            bind_group_layouts: &[Some(&core.blit_layout), Some(&core.tiers.layout)],
-            immediate_size: 0,
-        });
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("blit"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &module,
-                entry_point: Some("vertex"),
-                compilation_options: Default::default(),
-                buffers: &[],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &module,
-                entry_point: Some("fragment"),
-                compilation_options: Default::default(),
-                targets: &[Some(format.into())],
-            }),
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview_mask: None,
-            cache: None,
-        });
+        let groups = [Some(&core.blit_layout), Some(&core.tiers.layout)];
+        let pipeline = screen_pipeline(&core.gpu.device, ("blit", SHADER), &groups, format.into());
         Self { pipeline }
     }
 
@@ -269,8 +283,8 @@ impl CanvasBlit {
     }
 }
 
-/// An offscreen frame in place of a window, in the canvas's display format as the window is
-/// (S37): drawn by `Core::render_screen`, read back on demand as the nearest 8-bit values.
+/// An offscreen frame in place of a window, in the canvas's display format as the window is:
+/// drawn by `Core::render_screen`, read back on demand as the nearest 8-bit values.
 pub struct ScreenTarget {
     texture: wgpu::Texture,
 }

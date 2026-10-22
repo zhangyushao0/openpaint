@@ -1,5 +1,5 @@
-//! The raster scene's tests: what the author's artworks hold, smudges included (S61), and since
-//! S65 every kind of record, are the raster core's units, in scene order.
+//! The raster scene's tests: what the author's artworks hold, smudges included, and since
+//! every kind of record, are the raster core's units, in scene order.
 
 use std::sync::Arc;
 
@@ -106,7 +106,7 @@ fn what_the_authors_artworks_hold_goes_to_the_raster_core() {
     assert_eq!(edits, 3, "the fill, the cut, the picture");
 }
 
-/// S61: a smudge on the paint and one on the mask are units of their own, in scene order, each
+/// A smudge on the paint and one on the mask are units of their own, in scene order, each
 /// naming its op, its number among the scene's smudges and the canvas pixels it can change.
 #[test]
 fn smudges_on_paint_and_on_a_mask_are_units_in_scene_order() {
@@ -145,7 +145,7 @@ fn smudges_on_paint_and_on_a_mask_are_units_in_scene_order() {
     assert!(second > mask_at, "the mask's smudge after its start");
 }
 
-/// What each kind of record makes of the scene's units (S65): its own units, never a fallback.
+/// What each kind of record makes of the scene's units: its own units, never a fallback.
 fn kinds(units: &RasterScene) -> Vec<&'static str> {
     (units.units.iter())
         .filter_map(|unit| match unit {

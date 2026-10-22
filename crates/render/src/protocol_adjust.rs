@@ -1,5 +1,5 @@
-//! The protocol's adjustments (S28, D59): hue, saturation and brightness, or tone curves,
-//! applied to the layer so far at the op's place, inside its clip; and (S33) a filter's result,
+//! The protocol's adjustments: hue, saturation and brightness, or tone curves,
+//! applied to the layer so far at the op's place, inside its clip; and a filter's result,
 //! a block of the target's arena. The slots and values here are declared to WGSL by
 //! `prelude` like the rest of the protocol.
 

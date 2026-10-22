@@ -1,4 +1,4 @@
-//! A view tier's tiles drawn by the raster core on a worker (S60, DECISIONS D87): the frame loop
+//! A view tier's tiles drawn by the raster core on a worker: the frame loop
 //! hands a tile over as a `RasterJob` (the canvas's scene shared, the tier's atlas and the slot),
 //! and the runtime's raster worker plans, encodes and submits it with a `RasterDrawer`, so a
 //! tile filling costs the screen's frames nothing but handing it over. The worker submits a tile
@@ -23,13 +23,18 @@ use crate::raster_plan::{Pass, RasterPlan, Restored, SlotCopy};
 use crate::scene::Scene;
 use crate::view_tiles::TIER_TILE;
 
+/// Tiles of one canvas or tier handed to the worker and not answered yet, at most: the frame loop
+/// hands tiles over a vsync apart, and the worker plans and encodes a sparse one in a millisecond
+/// or less (a dense one about 3.5 ms on the tablet), so it always has the next.
+pub(crate) const AHEAD: usize = 8;
+
 /// How long the worker waits between looks at the GPU's queue for room, and how many looks at
 /// most (about two of the tablet's frames) before it submits anyway.
 const LOOK: Duration = Duration::from_millis(1);
 const PATIENCE: u32 = 16;
 
 /// One tile for the raster worker: the region of the scene's output at a scale (its buffers with
-/// its smudges' residuals as the arena held them when it was handed over, S61) and where it goes.
+/// its smudges' residuals as the arena held them when it was handed over) and where it goes.
 pub struct RasterJob {
     pub(crate) id: u64,
     pub(crate) scene: Arc<Scene>,
@@ -40,8 +45,8 @@ pub struct RasterJob {
     pub(crate) into: JobInto,
 }
 
-/// Where a job's region goes: a view tier's atlas, or (S62) a slot of the canvas's staging
-/// texture (a destination's view, its format, the pixel its top-left goes to); or (S63) a
+/// Where a job's region goes: a view tier's atlas, or a slot of the canvas's staging
+/// texture (a destination's view, its format, the pixel its top-left goes to); or a
 /// snapshot of what lies under the next stroke.
 pub(crate) enum JobInto {
     Tile {
@@ -97,7 +102,7 @@ pub enum RasterOrder {
     Draw(Box<RasterJob>),
     /// Let the targets go (the GPU memory budget's step); the next job makes them again.
     LetGo,
-    /// Make the atlas of the next new tier, of this many slots (S60: making one allocates tens of
+    /// Make the atlas of the next new tier, of this many slots (making one allocates tens of
     /// MB, 20 to 36 ms on the tablet).
     Atlas(u32),
 }
@@ -126,7 +131,7 @@ impl RasterDrawer {
         self.targets = None;
     }
 
-    /// Makes the raster core's pipelines and its targets now, unless they are made (S60: as the
+    /// Makes the raster core's pipelines and its targets now, unless they are made (as the
     /// device is made, so neither the first zoom nor its first tile waits for them, nor the
     /// frame loop for the device's allocator while they are made).
     ///
@@ -175,7 +180,7 @@ impl RasterDrawer {
             return Ok(self.answer(id, (false, 0.0)));
         };
         let plan = job.plan(targets.atlas())?;
-        // The scene is not needed past the plan: a new one can take this one's spans (S56).
+        // The scene is not needed past the plan: a new one can take this one's spans.
         drop(job.scene);
         let (time, stamps) = core.pace().raster_start(plan.counts.estimate(plan.size));
         let (finish, pages) = match &job.into {

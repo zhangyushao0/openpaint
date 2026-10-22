@@ -1,4 +1,4 @@
-//! Smudge (DECISIONS D46, after draweave's ADR-0049): a smudge stroke carries its own layer's
+//! Smudge (after draweave's ADR-0049): a smudge stroke carries its own layer's
 //! colour along its path. Its contacts (`dabs.rs`, one at most a pixel apart) each move a share
 //! `w` of the colour a contact's step back to where it is: `F <- (1 - w) F(p) + w F(p - d)`.
 //! A pixel's result then depends on its neighbours, so a smudge is no per-pixel op of its own:
@@ -6,7 +6,7 @@
 //! before + R` (`residual.rs`, tiles allocated as its contacts reach them), from the layer's
 //! pixels just before it (`material.rs`, drawn by the raster core). The raster core applies a
 //! residual as a pass over the layer from its copy (smudge_composite.wgsl), its block named with
-//! the buffers it lies in (`engine_held.rs`, D88).
+//! the buffers it lies in (`engine_held.rs`).
 //!
 //! The in-progress smudge extends its residual by the contacts its settled spans add, with the
 //! very contacts and tiles a cold derivation of the same samples applies, so both are bit for
@@ -14,7 +14,7 @@
 //! residual is derived and owned by its canvas target; it is rebuilt from the artwork whenever it
 //! is missing (another target, a reopened artwork, a redo after it was dropped).
 //!
-//! The residuals share their arena with the filters' results (S33, `filter.rs`), prepared with
+//! The residuals share their arena with the filters' results (`filter.rs`), prepared with
 //! them in scene order, as each may read the other's pixels.
 
 mod arena;
@@ -26,7 +26,7 @@ mod residual;
 
 pub(crate) use arena::{Arena, Keep, Key};
 pub(crate) use dabs::{smudge_reach, whole_reach};
-pub(crate) use engine::{Bases, Held, Smudges, Wanted, around_output, held_in};
+pub(crate) use engine::{Bases, Held, Smudges, around_output, held_in};
 pub(crate) use kernels::{SHADER as SMUDGE_SHADER, SmudgePipeline};
 pub(crate) use material::{Material, MaterialRegion, regions};
 

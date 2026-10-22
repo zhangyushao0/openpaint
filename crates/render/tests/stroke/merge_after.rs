@@ -1,8 +1,8 @@
-//! After Merge Down on the GPU (S39, D66): strokes, adjustments, filters, smudges and transform
+//! After Merge Down on the GPU: strokes, adjustments, filters, smudges and transform
 //! records on the merged layer act on the whole merged content (equal to one layer that held it
 //! all, its pixels alone too); incremental equals cold through the merge, drawing on the merged
 //! layer and undo; a merged layer exports at 2x and 4x as the two layers did (within one level
-//! away from edges since S59: the two layers export on the raster core).
+//! away from edges).
 
 use openpaint_core::{Adjustment, Artwork, BlendMode, Blur, Color, Hsb, Placement, StrokeTool};
 use openpaint_render::{
@@ -10,9 +10,9 @@ use openpaint_render::{
 };
 
 use crate::fixture::{
-    SIZE, blank, cold, core, diagonal, plain, request, sample, wave, with_layer, with_stroke,
+    SIZE, blank, cold, core, diagonal, plain, request, rgb, sample, wave, with_layer, with_stroke,
 };
-use crate::merge::{Look, PLAIN, SOURCE, alone, color, merged};
+use crate::merge::{Look, PLAIN, SOURCE, alone, merged};
 use crate::raster::assert_near;
 use crate::scale::export;
 
@@ -35,7 +35,7 @@ fn both_ways(then: &dyn Fn(&Artwork) -> Artwork) -> [(RgbaImage, RgbaImage); 2] 
 #[test]
 fn everything_after_a_merge_acts_on_the_whole_merged_content() {
     let stroke = |a: &Artwork| {
-        let style = plain(18.0, 0.9, color(SOURCE));
+        let style = plain(18.0, 0.9, rgb(SOURCE));
         let line = (0..30u16).map(|i| {
             let t = f32::from(i);
             sample(20.0 + 9.0 * t, 60.0 + 3.0 * t, 0.8, u32::from(i) * 8)
@@ -168,7 +168,7 @@ fn a_merged_layer_exports_at_two_and_four_x_as_the_two_did() {
             rows: 96,
             columns: 4096,
         };
-        // S59: the two layers export on the raster core, the merged one is evaluated (D86's
+        // The merged layer is evaluated within a level of the two layers (the export's
         // rule between them).
         let one = export(&core, &before, scale, banding);
         let merged = export(&core, &after, scale, banding);

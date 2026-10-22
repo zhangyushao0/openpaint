@@ -63,7 +63,7 @@ impl SceneOps {
     }
 
     /// The ops of `scene`, whose items `inserted` were inserted into the scene these ops hold
-    /// (every later item moved by their count, S64), in a buffer of their own: the ops before and
+    /// (every later item moved by their count), in a buffer of their own: the ops before and
     /// after them copied over on the GPU, theirs written. A raster worker's job may still read
     /// this buffer (it drops the scene before it submits), so it is never changed under one.
     pub(crate) fn inserted(&self, gpu: &Gpu, scene: &Scene, inserted: Range<usize>) -> Self {
@@ -115,7 +115,7 @@ pub(crate) fn scene_ops(gpu: &Gpu, scene: &Scene, patches: Option<wgpu::Buffer>)
     });
     // The smudges' base words are written after their residuals are placed.
     let masks = wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST;
-    // Rewritten in place when a preview's values change (S35), fresh ops written behind.
+    // Rewritten in place when a preview's values change, fresh ops written behind.
     let held = empty(gpu, ((ops.len() + FRESH_ROOM) as u64) * OP_BYTES);
     if !ops.is_empty() {
         gpu.queue.write_buffer(&held, 0, &encode(&ops));

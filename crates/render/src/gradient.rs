@@ -1,7 +1,9 @@
-//! A check of the screen's precision for the eye (S37, reached only from debug builds): a soft
+//! A check of the screen's precision for the eye (reached only from debug builds): a soft
 //! grey ramp from sRGB 100 to 120 across the whole screen, over everything; its upper half
 //! rounded to 8 bits, its lower half as the window holds it (ten bits on the tablet). Where ten
 //! bits reach the panel the lower half shows four times as many, narrower bands.
+
+use crate::screen::screen_pipeline;
 
 const SHADER: &str = r"
 struct Out {
@@ -32,31 +34,7 @@ pub(crate) struct Gradient {
 
 impl Gradient {
     pub(crate) fn new(device: &wgpu::Device, format: wgpu::TextureFormat) -> Self {
-        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("gradient"),
-            source: wgpu::ShaderSource::Wgsl(SHADER.into()),
-        });
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("gradient"),
-            layout: None,
-            vertex: wgpu::VertexState {
-                module: &module,
-                entry_point: Some("vertex"),
-                compilation_options: Default::default(),
-                buffers: &[],
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &module,
-                entry_point: Some("fragment"),
-                compilation_options: Default::default(),
-                targets: &[Some(format.into())],
-            }),
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            multiview_mask: None,
-            cache: None,
-        });
+        let pipeline = screen_pipeline(device, ("gradient", SHADER), &[], format.into());
         Self { pipeline }
     }
 

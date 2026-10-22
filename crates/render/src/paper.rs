@@ -1,4 +1,4 @@
-//! The paper under an accumulating flat tip (DECISIONS D38): a height field fixed to the canvas,
+//! The paper under an accumulating flat tip: a height field fixed to the canvas,
 //! each texel's value its rank among all of them (uniform in `0..=1`), wrapping at its edges.
 //! The sketch paper is ambientCG's Paper001 (CC0) as draweave packed it, halved to 1024 x 512
 //! texels and ranked again (`assets/paper-sketch.bin`, one byte per texel, row major).

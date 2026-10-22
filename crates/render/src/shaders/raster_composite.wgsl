@@ -1,14 +1,14 @@
-// The raster core's draws onto the layer, its layer ends and its finish (S57's composites, S59),
+// The raster core's draws onto the layer, its layer ends and its finish,
 // appended after raster_stamp.wgsl. A stroke's region of the atlas goes onto the layer through
 // its paint (`stroke_paint`: colour, opacity, grain, clip, density to coverage through the
 // paper), one quad per tile its spans reach, combined by the paint op's blend in the blend unit;
 // a fill paints its colour by its edge (`fill_coverage`), a patch is sampled through its
 // placement (`patch_sample`), each over the pixels its bounds reach; a smudge writes the layer's
-// copy moved by its residual (`smudge_applied`, S61). A layer's end shows it through its mask
+// copy moved by its residual (`smudge_applied`). A layer's end shows it through its mask
 // (`masked`) at its opacity and lays it onto the canvas or into its chain by its mode: by the
 // blend unit where its equation is one (`composite`, `clipped`; the canvas is opaque), else
 // written whole from a copy of what lies under it (Overlay). The finish rounds the canvas into
-// 8 bits (`quantized`) or the screen's ten (`coded`). S65: every draw is made at the point its
+// 8 bits (`quantized`) or the screen's ten (`coded`). Every draw is made at the point its
 // frame maps the pixel's centre to (`point_of`); an adjustment and a filter rewrite the layer
 // from a copy of it, a moved content is cut and laid over the level under it, a whole layer's cut
 // in place, and a group's end fades the canvas over a copy of what lay under the group. The
@@ -20,7 +20,7 @@ struct CompositeOut {
     @location(1) @interpolate(flat) contact: u32,
     // Where the stroke's coverage (and its contact) lie in the atlas from the region pixel.
     @location(2) @interpolate(flat) places: vec4<i32>,
-    // The frame its stroke lies in (S65).
+    // The frame its stroke lies in.
     @location(3) @interpolate(flat) frame: u32,
 }
 
@@ -87,7 +87,7 @@ struct ArenaOut {
     @location(2) @interpolate(flat) frame: u32,
 }
 
-// The rectangle `b` a smudge or (S65) a filter may change: op `a.x`, its block from word `a.y` of
+// The rectangle `b` a smudge or a filter may change: op `a.x`, its block from word `a.y` of
 // the arena, in frame `a.z`.
 @vertex
 fn arena_vertex(
@@ -105,7 +105,7 @@ fn arena_vertex(
 
 // The layer (or mask) after the smudge: its copy (`source`) moved by the smudge's residual at
 // the output pixel's centre where the smudge's clip lets it change the canvas pixel there, else
-// the copy as it is; written whole. The smudge being drawn reads its own residual (S63).
+// the copy as it is; written whole. The smudge being drawn reads its own residual.
 @fragment
 fn smudge_fragment(in: ArenaOut) -> @location(0) vec4<f32> {
     let pixel = vec2<i32>(floor(in.position.xy));
@@ -133,7 +133,7 @@ fn patch_fragment(in: RectOut) -> @location(0) vec4<f32> {
     return patch_sample(point_of(vec2<i32>(floor(in.position.xy)), in.frame), in.op);
 }
 
-// S65: the layer (or mask) through a point adjustment (`adjusted`, adjust.wgsl), from its copy;
+// The layer (or mask) through a point adjustment (`adjusted`, adjust.wgsl), from its copy;
 // written whole.
 @fragment
 fn adjust_fragment(in: RectOut) -> @location(0) vec4<f32> {
@@ -142,7 +142,7 @@ fn adjust_fragment(in: RectOut) -> @location(0) vec4<f32> {
     return adjusted(textureLoad(source, pixel, 0), cell_of(point, in.frame), in.op);
 }
 
-// S65: the layer (or mask) as a filter leaves it (`filtered_from`, filter_composite.wgsl): its
+// The layer (or mask) as a filter leaves it (`filtered_from`, filter_composite.wgsl): its
 // result where the clip and its block hold the point, else its copy; written whole.
 @fragment
 fn filter_fragment(in: ArenaOut) -> @location(0) vec4<f32> {
@@ -152,7 +152,7 @@ fn filter_fragment(in: ArenaOut) -> @location(0) vec4<f32> {
     return filtered_from(before, point, cell_of(point, in.frame), in.op, in.base);
 }
 
-// S65: a moved selection's content (`source`, its level) cut to its selection where the pixel's
+// A moved selection's content (`source`, its level) cut to its selection where the pixel's
 // centre maps back (`moved_share`), which the blend unit lays over the level under it.
 @fragment
 fn moved_fragment(in: RectOut) -> @location(0) vec4<f32> {
@@ -161,7 +161,7 @@ fn moved_fragment(in: RectOut) -> @location(0) vec4<f32> {
     return textureLoad(source, pixel, 0) * moved_share(point, cell_of(point, in.frame), in.op);
 }
 
-// S65: a whole layer's moved content cut to the canvas where the pixel's centre maps back: the
+// A whole layer's moved content cut to the canvas where the pixel's centre maps back: the
 // blend unit multiplies the layer by it, in place.
 @fragment
 fn cut_fragment(in: RectOut) -> @location(0) vec4<f32> {
@@ -169,7 +169,7 @@ fn cut_fragment(in: RectOut) -> @location(0) vec4<f32> {
     return vec4<f32>(moved_share(point, cell_of(point, in.frame), in.op));
 }
 
-// S65: a group's end (pass-through): the canvas (its copy, `backdrop`) at the
+// A group's end (pass-through): the canvas (its copy, `backdrop`) at the
 // group's opacity over what lay under the group (`source`); where the two are alike (none of its
 // layers changed the pixel) the canvas as it is. Written whole.
 @fragment
@@ -213,7 +213,7 @@ fn base_fragment(in: RectOut) -> @location(0) vec4<f32> {
 }
 
 // By its mode onto the copy of what lies under it (`composite`, `clipped`): Overlay, and
-// (S65) a merged layer's Multiply or Screen onto a level, which is not opaque.
+// a merged layer's Multiply or Screen onto a level, which is not opaque.
 @fragment
 fn backdrop_fragment(in: RectOut) -> @location(0) vec4<f32> {
     let pixel = vec2<i32>(floor(in.position.xy));
@@ -252,7 +252,7 @@ fn finish_eight(in: FinishOut) -> @location(0) vec4<f32> {
     return quantized(textureLoad(source, vec2<i32>(floor(in.position.xy)) - in.place, 0));
 }
 
-// The canvas as the ten-bit code the screen shows (S37).
+// The canvas as the ten-bit code the screen shows.
 @fragment
 fn finish_ten(in: FinishOut) -> @location(0) vec4<f32> {
     return coded(textureLoad(source, vec2<i32>(floor(in.position.xy)) - in.place, 0));
@@ -301,7 +301,7 @@ fn mixed(s: vec4<f32>, d: vec4<f32>, mode: u32) -> vec3<f32> {
 
 // `source` onto `backdrop` by `mode`: each keeps what the other does not cover, plus what both
 // make together; alpha is source over. Normal is `over` itself, so a Normal layer composites
-// exactly as before blend modes. Zero source leaves the backdrop exactly as it was.
+// exactly as source over. Zero source leaves the backdrop exactly as it was.
 fn composite(source: vec4<f32>, backdrop: vec4<f32>, mode: u32) -> vec4<f32> {
     if mode == MODE_NORMAL {
         return over(source, backdrop);

@@ -1,8 +1,8 @@
-//! An adjustment as a scene op (S28, D54): it reaches every pixel of its clip; with no clip on
-//! paint, every pixel the layer's ops before it reach (S35: elsewhere the layer is transparent
+//! An adjustment as a scene op: it reaches every pixel of its clip; with no clip on
+//! paint, every pixel the layer's ops before it reach (elsewhere the layer is transparent
 //! and an adjustment leaves it so), widened by the kernel's longest reach for a filter; on a mask
 //! (white where nothing is painted) or under transform records it is unbounded. The curves'
-//! tables go into the mask words. A filter (S33, D59) is such an op too, whose result the
+//! tables go into the mask words. A filter is such an op too, whose result the
 //! target's arena holds (`filter.rs`). A preview's next value changes only these ops' values
 //! (`retune`), so the scene, its plan and its other words stay.
 
@@ -173,19 +173,9 @@ impl Scene {
         let union = (self.items[start..].iter().filter_map(Item::bounds))
             .chain(smudges)
             .filter(|bounds| !bounds.is_empty())
-            .map(|bounds| bounds.0)
-            .reduce(|a, b| {
-                [
-                    a[0].min(b[0]),
-                    a[1].min(b[1]),
-                    a[2].max(b[2]),
-                    a[3].max(b[3]),
-                ]
-            });
+            .reduce(Bounds::union);
         // Over nothing it changes nothing: bounds that reach no pixel.
-        union.map_or(Bounds::NOTHING, |[x0, y0, x1, y1]| {
-            Bounds([x0 - reach, y0 - reach, x1 + reach, y1 + reach])
-        })
+        union.map_or(Bounds::NOTHING, |union| union.widened(reach))
     }
 
     /// Appends `words` to the mask words; returns where they start.

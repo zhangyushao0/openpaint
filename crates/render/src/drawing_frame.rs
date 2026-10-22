@@ -1,10 +1,10 @@
-//! One frame of the stroke being drawn on the raster core (S63, DECISIONS D90; `drawing.rs` holds
-//! the slots): its new spans laid into the kept coverage of the output tiles they reach, then the
-//! regions the frame changes (the spans settled since, its tail now and last frame, its mirrored
-//! copies, a dropped stroke's pixels) drawn from the snapshots of what lies under the stroke, the
-//! stroke from its kept coverage and tail, and the units above it (`drawing_parts.rs`), all one
-//! batch, one submission. The frame after the lift draws the committed stroke (its end tapered,
-//! D71) where it changed, from the same snapshots: so every frame and the lift equal the canvas
+//! One frame of the stroke being drawn on the raster core (`drawing.rs` holds the slots): its new
+//! spans laid into the kept coverage of the output tiles they reach, then the regions the frame
+//! changes (the spans settled since, its tail now and last frame, its mirrored copies, a dropped
+//! stroke's pixels) drawn from the snapshots of what lies under the stroke, the stroke from its
+//! kept coverage and tail, and the units above it (`drawing_parts.rs`), all one batch, one
+//! submission. The frame after the lift draws the committed stroke (its end tapered) where it
+//! changed, from the same snapshots: so every frame and the lift equal the canvas
 //! drawn cold, and nothing is drawn again after the lift.
 
 use std::ops::Range;
@@ -13,6 +13,7 @@ use std::sync::Arc;
 use openpaint_core::{ActiveStroke, StrokeTool};
 
 use super::CanvasTarget;
+use crate::canvas::NO_SCENE;
 use crate::core::Core;
 use crate::drawing::Drawing;
 use crate::error::RenderError;
@@ -21,6 +22,7 @@ use crate::geom::{Bounds, PixelRect};
 use crate::output::Output;
 use crate::protocol::Op;
 use crate::raster::{Finish, Region, SceneBuffers};
+use crate::raster_lay::coverage;
 use crate::raster_plan::{
     Coverage, InProgress, KeptTile, Pass, RasterPlan, Restored, SlotAt, StrokeDrawn,
 };
@@ -167,10 +169,7 @@ impl CanvasTarget {
         drawing: &mut Drawing,
         (onto, moved): (&Onto<'_>, &[PixelRect]),
     ) -> Result<StrokeWork, RenderError> {
-        let cache = self
-            .scene
-            .as_ref()
-            .ok_or(RenderError::Invalid("no scene"))?;
+        let cache = self.scene.as_ref().ok_or(NO_SCENE)?;
         let scene = Arc::clone(&cache.scene);
         let drawn = scene.has_active();
         let step = drawing
@@ -216,10 +215,7 @@ impl CanvasTarget {
         (active, kept): (&ActiveStroke, Range<usize>),
         scene: &Scene,
     ) -> Result<Pen, RenderError> {
-        let cache = self
-            .scene
-            .as_ref()
-            .ok_or(RenderError::Invalid("no scene"))?;
+        let cache = self.scene.as_ref().ok_or(NO_SCENE)?;
         let fresh = Fresh::new(active, kept.start, scene.active_clip);
         cache.ops.with_fresh(&core.gpu, &fresh.ops);
         let first = cache.ops.count();
@@ -246,12 +242,7 @@ impl CanvasTarget {
         pen.settled = spans[..settled].to_vec();
         pen.tail = spans[settled..].to_vec();
         if let Some((_, op, _)) = spans.first() {
-            pen.coverage = match (op.is_stamped(), op.covers()) {
-                (true, true) => Coverage::StampCover,
-                (true, false) => Coverage::StampDensity,
-                (false, true) => Coverage::Cover,
-                (false, false) => Coverage::Density,
-            };
+            pen.coverage = coverage(op);
         }
         pen.contact = pen.coverage == Coverage::Density && paint.1.on_paper();
         Ok(pen)
@@ -268,11 +259,10 @@ impl CanvasTarget {
         if batch.is_empty() {
             return Ok(());
         }
-        let missing = || RenderError::Invalid("no scene was built");
-        let held = self.held().ok_or_else(missing)?;
-        let cache = self.scene.as_ref().ok_or_else(missing)?;
+        let held = self.held().ok_or(NO_SCENE)?;
+        let cache = self.scene.as_ref().ok_or(NO_SCENE)?;
         let buffers = SceneBuffers::of(&cache.ops, held);
-        let targets = self.raster.targets.as_mut().ok_or_else(missing)?;
+        let targets = self.raster.targets.as_mut().ok_or(NO_SCENE)?;
         let regions: Vec<Region<'_>> = (batch.iter())
             .map(|part| Region {
                 plan: &part.plan,
@@ -308,27 +298,4 @@ fn zeroed<'a>(taken: Vec<SlotAt>) -> Option<Part<'a>> {
         paper: [0.0; 4],
         finish: None,
     })
-}
-
-/// The output tiles meeting output pixels `rect` inside an output of `size` pixels, each with that
-/// part of `rect`.
-fn meeting(rect: PixelRect, size: [u32; 2]) -> impl Iterator<Item = ([u32; 2], PixelRect)> {
-    let rect = rect.intersect(&PixelRect::full(size));
-    let side = TIER_TILE as i32;
-    let span = |axis: usize| {
-        if rect.is_empty() {
-            return 0..0;
-        }
-        rect.min[axis] / side..(rect.max[axis] + side - 1) / side
-    };
-    let (columns, rows) = (span(0), span(1));
-    rows.flat_map(move |row| columns.clone().map(move |column| [column, row]))
-        .map(move |[column, row]| {
-            let min = [column * side, row * side];
-            let tile = PixelRect {
-                min,
-                max: [min[0] + side, min[1] + side],
-            };
-            ([column, row].map(i32::unsigned_abs), rect.intersect(&tile))
-        })
 }
