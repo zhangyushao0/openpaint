@@ -64,8 +64,36 @@ The author, 2026-10-23: practice is their main activity now. The app gets a prac
 - S78 Practice packs is done (D101; merged from a worktree beside S77): a pack is one checked file of a manifest and its pictures kept beside the library; `cargo practice-pack build|search` makes it from a curated list in the repository, every licence read from the source's API (a mismatch fails naming the item), the same list and cache giving the same bytes; the first official pack `openpaint-shapes`, single shapes in four tiers, 127 items (entry 33: Twemoji figures and a Pepper&Carrot character; simple 33: Cleveland and Met objects; medium 30: animal sculpture, dress, US federal fish drawings; hard 31: armour, busts, clocks, guitars, NASA aircraft, a fantasy figure), each chosen on a contact sheet; no picture committed; not yet in the app.
 - S79 Combined lines and the warm-up pool is done (1.3.0; D102): `cargo device-input practice-test start|end` starts the session Today would start next beside the author's open one and removes it, record and sheet, leaving theirs byte for byte; combined lines (two to four lines joined, branched, crossing or near, held to rules on corners, crossings and gaps) compared in place and aligned as one shape, a partial copy fitted to the lines drawn; every session from the second on opens with a warm-up of four exercises from the kinds met, then 6 lines, 4 combined lines and 6 colours (about 28 minutes). `s79-combined-warm-up` passes, 49 scenarios with every hash before unchanged but s75's second sheet (a seventh row for its warm-up); on the tablet S76's, S77's and S79's sessions walked on test sessions, `bench practice` 83 to 98 %, the smoke 16.8 s, the library restored.
 - S80 Single shapes and stage 2 is done (1.4.0; D103): packs imported from the Today card's practice options, the user's own pictures in a personal pack never exported, a CC BY credit under its picture; each picture's outline derived when the pack is built (a marker watershed on plain or clear grounds, checked for size, roundness, parts and cut) and judged on the contact sheet, a wrong one listed `no_outline` (60 of the official 126 kept); a shape copied with Sketch and Draw, compared with its picture faint and its outline red in place or aligned (move and size, lines inside never pulling), in place only without an outline; every fit on its own thread; stage 2 (warm-up, 4 shapes by tier, a group, 2 colours) offered after 15 sessions or at once from the options, stages revisited. `s80-shapes-stage-two` passes, 50 scenarios with every hash before unchanged; on the tablet the official pack imported and test sessions walked, a line's Compare 83 -> 95 % of the vsyncs, a shape's 91 %, the smoke 16.9 s, the library restored, the pack left in Download.
+- S81 Outlines for (nearly) every picture, in parallel with S82 (a worktree: the pack builder, the outline module and the list; no UI). S80's ground model gave outlines to 60 of 126 pictures, and only about a third of the simple tier: pale objects on pale studio grounds, shadows and stands defeat it. Rather than show none, segment better where the pack is built.
+  - **Segmentation in the builder.** A salient-object segmentation model runs in the builder only, through a pinned ONNX runtime crate (D14). Candidates: U²-Net or IS-Net. The model's licence must permit it (Apache-2.0 or MIT). The weights are downloaded into the builder's cache and never committed.
+  - **The outline.** The model's mask, cleaned (largest region, holes kept where the object has them, a smooth contour), becomes the outline.
+  - **Checked by eye.** Every outline is checked by eye on the sheet, as now. The method is chosen by results:
+    - The model's outlines are kept when the sheets show them right.
+    - Items they still fail are replaced by other licensed pictures of their tier, so each tier keeps about 30 items.
+  - **Device side unchanged.** Personal pictures keep S80's classical derivation on the device. A model on the device is a later choice.
+
+  Done:
+  - At least 90 % of the pack's items with an outline.
+  - Every sheet looked at and named.
+  - The builder still rebuilds the same bytes from its list and cache.
+  - The licences still checked.
+  - The model's licence noted in the decision.
+- S82 Colour combinations, value scales and the long project. Following V大's week 2 colour work and the Gurney/Ctrl+Paint value studies, as further stage-2 colour kinds.
+  - **Colour combinations** (V大's 临摹色彩组合). A small abstract image of a few colour areas is copied by eye: first its tone, then the middle tones, never picked from the original. Images are generated: soft or hard-edged areas of related and contrasting colours. Compared side by side and overlaid in place. The numbers are per area:
+    - each area's difference shown on the wheel as S76 shows a single colour;
+    - the strong and weak contrasts checked (the weak ones not made strong, V大's most common mistake).
+  - **Value scales.** A row of cells between a given dark and light, filled in even steps of value. Generated, then checked as value differences and their order, the colour wheel's value only.
+  - **The long project** (V大's 色彩临摹, 10 to 20 hours, Ctrl+Paint's tiny study). A colour copy of a picture from the packs or the author's own, kept as its own project beside the sessions.
+    - Opened from the Today card, worked on in any session's spare time, never counted against one.
+    - The original sits beside the canvas as a reference: locked, and not picked from until a check.
+    - Overlay and eyedropper comparison on request.
+  - **The session mix** gains these kinds in stage 2, about 20 to 30 minutes.
+
+  Done:
+  - The walk-through as a passing scenario: a combination, a value scale, a long project opened and worked on and compared. Both languages.
+  - Generation tested per seed, the per-area numbers on known cases.
+  - On the tablet: a test session and a long project walked, the smoke, the library restored.
 - Next, each specified after the one before lands:
-  - Colour combinations and value scales, with the long-project space.
   - Perspective boxes, ellipses, point positioning, proportion and angle estimates.
   - Picture division, Notan and whole-picture copies.
   - Key shifts, gamut masks and abstract analysis.
