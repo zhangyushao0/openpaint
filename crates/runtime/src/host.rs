@@ -16,14 +16,6 @@ use crate::storage::Job;
 /// Longest `leave` waits for the store; a longer save goes on in the background.
 const LEAVE_WAIT: Duration = Duration::from_secs(2);
 
-/// Actions' last line (D79): the workspace's version, which xtask also hands to Android as
-/// `versionName` with the same format as build metadata, and the storage format this build
-/// reads and writes.
-pub(crate) fn version_line() -> String {
-    let version = env!("CARGO_PKG_VERSION");
-    format!("OpenPaint {version} · format {}", openpaint_store::FORMAT)
-}
-
 impl Runtime {
     /// The user is leaving the app (Android `onPause`): a stroke still being drawn is committed
     /// as drawn so far, then the open artwork's current version (a failed one included) and

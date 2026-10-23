@@ -16,6 +16,7 @@ use crate::components::{
 };
 use crate::design::{INK, Icon, PANEL, ink_line};
 use crate::taps::push_once;
+use crate::text as t;
 
 /// How near the path's first point, in points, a pen contact closes it (draweave's).
 pub(crate) const CLOSE_POINTS: f32 = 14.0;
@@ -40,7 +41,7 @@ impl SelectionBar {
         taps: &mut Vec<Intent>,
     ) -> bool {
         let on = projection.selection().tool;
-        let response = icon_toggle(ui, Icon::Selection, "Selection", on);
+        let response = icon_toggle(ui, Icon::Selection, t::SELECTION, on);
         self.button = Some(response.rect);
         if response.clicked() {
             push_once(taps, Intent::Selection(SelectionIntent::Tool(!on)));
@@ -65,8 +66,8 @@ impl SelectionBar {
         let ((), rect) = pill(ctx, "selection bar", Place::top_middle(), source, |ui| {
             choices(ui, "selection shape", |ui, group| {
                 for (shape, label) in [
-                    (SelectionShape::Freehand, "Freehand"),
-                    (SelectionShape::Rectangle, "Rectangle"),
+                    (SelectionShape::Freehand, t::FREEHAND),
+                    (SelectionShape::Rectangle, t::RECTANGLE),
                 ] {
                     if text_choice(ui, group, label, selection.shape == shape).clicked() {
                         push_once(taps, Intent::Selection(SelectionIntent::Shape(shape)));
@@ -74,14 +75,14 @@ impl SelectionBar {
                 }
             });
             divider(ui);
-            if selection.closable && text_button(ui, "Close", true).clicked() {
+            if selection.closable && text_button(ui, t::CLOSE_PATH, true).clicked() {
                 push_once(taps, Intent::Selection(SelectionIntent::Close));
             }
-            if text_button(ui, "Invert", true).clicked() {
+            if text_button(ui, t::INVERT, true).clicked() {
                 push_once(taps, Intent::Selection(SelectionIntent::Invert));
             }
             let any = selection.mask.is_some();
-            if text_button(ui, "Deselect", any).clicked() {
+            if text_button(ui, t::DESELECT, any).clicked() {
                 push_once(taps, Intent::Selection(SelectionIntent::Deselect));
             }
         });

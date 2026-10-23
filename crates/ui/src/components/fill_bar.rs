@@ -9,6 +9,7 @@ use openpaint_core::Color;
 
 use crate::components::{Place, Source, color32, divider, pill, text_button};
 use crate::design::{INK, PANEL, SPACE};
+use crate::text::Words;
 
 /// Radius of the carried drop, in points.
 const DROP_RADIUS: f32 = 12.0;
@@ -18,14 +19,14 @@ const DROP_RADIUS: f32 = 12.0;
 /// bar's rectangle in points and whether the button was clicked.
 pub fn fill_bar(
     ctx: &egui::Context,
-    text: &str,
-    action: Option<&str>,
+    text: Words<'_>,
+    action: Option<Words<'_>>,
     taken: bool,
 ) -> (egui::Rect, bool) {
     let place = Place::middle_unless(taken);
     let source = Source::Within(egui::Align::Center);
     let (clicked, rect) = pill(ctx, "fill bar", place, source, |ui| {
-        ui.label(text);
+        ui.label(text.shown(ui.ctx()));
         action.is_some_and(|label| {
             // As far from the text as the word's own margin keeps it from the line.
             ui.add_space(2.0 * SPACE);

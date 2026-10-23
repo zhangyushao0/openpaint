@@ -9,11 +9,16 @@ use crate::components::{controls, icon_button};
 use crate::design::{
     CARD_PICTURE, INK, INK_DISABLED, INK_SECONDARY, Icon, SPACE, TOUCH_TARGET, paint_sheet_shadow,
 };
+use crate::text::{
+    ARTWORK_OPTIONS, DELETE_ARTWORK, DUPLICATE_ARTWORK, NO_PREVIEW, OPEN_ARTWORK, RENAME_ARTWORK,
+    Words,
+};
 
 /// What one card shows.
 pub struct ArtworkCard<'a> {
     /// Stays the same for one artwork from frame to frame.
     pub id: egui::Id,
+    /// The title in the language shown (a default title reads in it).
     pub title: &'a str,
     /// The thumbnail, `None` until the artwork has been left once since it was made.
     pub picture: Option<&'a egui::TextureHandle>,
@@ -49,7 +54,7 @@ pub fn artwork_card(ui: &mut egui::Ui, card: &ArtworkCard<'_>) -> CardTaps {
     let (rect, _) = ui.allocate_exact_size(card_size(), Sense::hover());
     let picture = Rect::from_min_size(rect.min, CARD_PICTURE);
     let open = ui.interact(picture, card.id, sense);
-    controls::register(ui, "Open artwork", picture);
+    controls::register(ui, OPEN_ARTWORK.id(), picture);
     let shown = shown_picture(card.picture, picture);
     if !card.away {
         paint_picture(ui, card, shown, open.is_pointer_button_down_on());
@@ -70,22 +75,22 @@ pub fn artwork_card(ui: &mut egui::Ui, card: &ArtworkCard<'_>) -> CardTaps {
             .layout(Layout::right_to_left(Align::Center)),
     );
     buttons.spacing_mut().item_spacing = Vec2::ZERO;
-    taps.delete = icon_button(&mut buttons, Icon::Delete, "Delete artwork", card.enabled).clicked();
+    taps.delete = icon_button(&mut buttons, Icon::Delete, DELETE_ARTWORK, card.enabled).clicked();
     taps.duplicate = icon_button(
         &mut buttons,
         Icon::Duplicate,
-        "Duplicate artwork",
+        DUPLICATE_ARTWORK,
         card.enabled,
     )
     .clicked();
-    let options = icon_button(&mut buttons, Icon::More, "Artwork options", card.enabled);
+    let options = icon_button(&mut buttons, Icon::More, ARTWORK_OPTIONS, card.enabled);
     taps.options = options.clicked();
     let title = Rect::from_min_max(
         row.min,
         egui::pos2(row.max.x - 3.0 * TOUCH_TARGET, row.max.y),
     );
     let rename = ui.interact(title, open.id.with("title"), sense);
-    controls::register(ui, "Rename artwork", title);
+    controls::register(ui, RENAME_ARTWORK.id(), title);
     taps.rename = rename.clicked();
     paint_title(ui, card, title);
     taps
@@ -116,7 +121,7 @@ fn paint_picture(ui: &egui::Ui, card: &ArtworkCard<'_>, shown: Rect, pressed: bo
         ui.painter().text(
             shown.center(),
             egui::Align2::CENTER_CENTER,
-            "No preview",
+            Words::from(NO_PREVIEW).shown(ui.ctx()),
             TextStyle::Small.resolve(ui.style()),
             INK_SECONDARY,
         );

@@ -30,29 +30,6 @@ pub enum Knob {
 }
 
 impl Knob {
-    /// What the control is called.
-    #[must_use]
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Spacing => "Spacing",
-            Self::TaperStart => "Taper start",
-            Self::TaperEnd => "Taper end",
-            Self::TaperTip => "Taper tip",
-            Self::Aspect => "Aspect",
-            Self::Angle => "Angle",
-            Self::RotationJitter => "Rotation jitter",
-            Self::SizeJitter => "Size jitter",
-            Self::Scatter => "Scatter",
-            Self::Softness => "Softness",
-            Self::GrainStrength => "Strength",
-            Self::GrainScale => "Scale",
-            Self::Flow => "Flow",
-            Self::MaxDensity => "Max density",
-            Self::SizeMin => "Minimum",
-            Self::SizeMax => "Maximum",
-        }
-    }
-
     /// True for the settings of stamps, which a continuous stroke does not have.
     pub(crate) const fn stamps_only(self) -> bool {
         matches!(
@@ -129,15 +106,6 @@ pub enum Axis {
 
 impl Axis {
     pub const ALL: [Self; 3] = [Self::Pressure, Self::Speed, Self::Tilt];
-
-    #[must_use]
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Pressure => "Pressure",
-            Self::Speed => "Speed",
-            Self::Tilt => "Tilt",
-        }
-    }
 
     /// The largest value of what the curve follows.
     #[must_use]

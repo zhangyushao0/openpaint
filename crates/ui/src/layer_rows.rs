@@ -16,6 +16,7 @@ use crate::components::{ListRow, RowPicture, list_row};
 use crate::design::{Icon, SPACE, TOUCH_TARGET};
 use crate::layer_drag::{self, Drag, placed, slot};
 use crate::row_drag::held;
+use crate::text::{self as t, Words};
 
 /// How far a group's layers, and a Clipping Mask within its chain, sit right of the row above.
 const INDENT: f32 = 3.0 * SPACE;
@@ -152,21 +153,22 @@ fn mask_row(
     (enabled, lifted, picture): (bool, Option<f32>, Option<RowPicture>),
     taps: &mut Vec<Intent>,
 ) {
+    let language = t::language(ui.ctx());
     let detail = match (mask.enabled, mask.inverted) {
-        (false, _) => "Off",
-        (true, true) => "Inverted",
+        (false, _) => t::MASK_OFF.get(language),
+        (true, true) => t::MASK_INVERTED.get(language),
         (true, false) => "",
     };
     let (icon, icon_label) = if mask.enabled {
-        (Icon::Visible, "Turn mask off")
+        (Icon::Visible, t::TURN_MASK_OFF)
     } else {
-        (Icon::Hidden, "Turn mask on")
+        (Icon::Hidden, t::TURN_MASK_ON)
     };
     let response = list_row(
         ui,
         &ListRow {
             key: egui::Id::new(("mask row", row.id.get())),
-            label: "Layer Mask",
+            label: t::LAYER_MASK.into(),
             detail,
             indent: indent_of(row) + INDENT,
             lead: Some(Icon::Mask),
@@ -195,10 +197,11 @@ fn group_row(
     taps: &mut Vec<Intent>,
 ) {
     let closed = collapsed.contains(&group.id);
+    let name = t::shown_name(t::language(ui.ctx()), group.name.as_str());
     let (icon, icon_label) = if group.visible {
-        (Icon::Visible, "Hide group")
+        (Icon::Visible, t::HIDE_GROUP)
     } else {
-        (Icon::Hidden, "Show group")
+        (Icon::Hidden, t::SHOW_GROUP)
     };
     let detail = if group.opacity < 1.0 {
         percent(group.opacity)
@@ -209,7 +212,7 @@ fn group_row(
         ui,
         &ListRow {
             key: egui::Id::new(("group row", group.id.get())),
-            label: group.name.as_str(),
+            label: Words::named(group.name.as_str(), &name),
             detail: &detail,
             indent: 0.0,
             lead: Some(if closed {
@@ -242,24 +245,26 @@ fn layer_row(
     (enabled, lifted, picture): (bool, Option<f32>, Option<RowPicture>),
     taps: &mut Vec<Intent>,
 ) -> egui::Response {
+    let language = t::language(ui.ctx());
+    let name = t::shown_name(language, row.name.as_str());
     let mut detail = Vec::new();
     if row.alpha_locked {
-        detail.push("Alpha Lock".to_owned());
+        detail.push(t::ALPHA_LOCK.get(language).to_owned());
     }
     if row.opacity < 1.0 {
         detail.push(percent(row.opacity));
     }
     detail.push(letter(row.blend).to_owned());
     let (icon, icon_label) = if row.visible {
-        (Icon::Visible, "Hide layer")
+        (Icon::Visible, t::HIDE_LAYER)
     } else {
-        (Icon::Hidden, "Show layer")
+        (Icon::Hidden, t::SHOW_LAYER)
     };
     let response = list_row(
         ui,
         &ListRow {
             key: egui::Id::new(("layer row", row.id.get())),
-            label: row.name.as_str(),
+            label: Words::named(row.name.as_str(), &name),
             detail: &detail.join(" · "),
             indent: indent_of(row),
             lead: row.clipped.then_some(Icon::Clipped),

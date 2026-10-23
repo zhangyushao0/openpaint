@@ -11,24 +11,17 @@ use openpaint_app::{Axis, BrushChange, BrushIntent, Dynamic, EditedBrush, Intent
 use crate::components::{DynamicsCurve, dynamics_editor, text_button};
 use crate::design::{INK, INK_SECONDARY, SPACE, TOUCH_TARGET};
 use crate::taps::push_brush;
+use crate::text::{self as t, Text, Words};
 
 /// A curve square's side, in points.
 const SQUARE: f32 = 28.0 * SPACE;
 
-/// The page's heading.
-pub(crate) const fn heading(dynamic: Dynamic) -> &'static str {
-    match dynamic {
-        Dynamic::Size => "Size dynamics",
-        Dynamic::Opacity => "Opacity dynamics",
-    }
-}
-
-/// What the ends of an axis read, from its start to its largest.
-const fn ends(axis: Axis) -> [&'static str; 2] {
+/// What the ends of an axis read, from its start to its largest (words, or a number).
+const fn ends(axis: Axis) -> [Option<Text>; 2] {
     match axis {
-        Axis::Pressure => ["Light", "Firm"],
-        Axis::Speed => ["Slow", "50 px/ms"],
-        Axis::Tilt => ["Upright", "Flat"],
+        Axis::Pressure => [Some(t::LIGHT), Some(t::FIRM)],
+        Axis::Speed => [Some(t::SLOW), None],
+        Axis::Tilt => [Some(t::UPRIGHT), Some(t::LYING_FLAT)],
     }
 }
 
@@ -55,7 +48,7 @@ pub(crate) fn curves(
         let changed = ui
             .horizontal(|ui| {
                 ui.add_space(((ui.available_width() - SQUARE) / 2.0).max(0.0));
-                dynamics_editor(ui, (axis.label(), SQUARE), &curve)
+                dynamics_editor(ui, (t::axis(axis), SQUARE), &curve)
             })
             .inner;
         if let Some((shaped, settled)) = changed {
@@ -85,11 +78,11 @@ fn title(
     ui.horizontal(|ui| {
         ui.set_height(TOUCH_TARGET);
         ui.add_space(2.0 * SPACE);
-        ui.colored_label(INK, axis.label());
+        ui.colored_label(INK, Words::from(t::axis(axis)).shown(ui.ctx()));
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             ui.add_space(SPACE);
             let changed = edited.curve_changed(dynamic, axis);
-            if text_button(ui, "Reset", changed).clicked() {
+            if text_button(ui, t::RESET, changed).clicked() {
                 let change = BrushChange::ResetCurve { dynamic, axis };
                 let settled = true;
                 push_brush(taps, BrushIntent::Edit { change, settled });
@@ -104,15 +97,16 @@ fn axis_ends(ui: &mut egui::Ui, axis: Axis, top: f32) {
     let (rect, _) = ui.allocate_exact_size(size, egui::Sense::hover());
     let inset = (rect.width() - SQUARE) / 2.0 + TOUCH_TARGET / 4.0;
     let font = TextStyle::Small.resolve(ui.style());
+    let language = t::language(ui.ctx());
     let painter = ui.painter();
-    let [start, end] = ends(axis);
+    let [start, end] = ends(axis).map(|end| end.map_or("50 px/ms", |text| text.get(language)));
     let left = rect.left_top() + Vec2::new(inset, 0.0);
     painter.text(left, Align2::LEFT_TOP, start, font.clone(), INK_SECONDARY);
     let right = rect.right_top() - Vec2::new(inset, 0.0);
     painter.text(right, Align2::RIGHT_TOP, end, font.clone(), INK_SECONDARY);
     if top > 1.0 {
         let middle = rect.center_top();
-        let up_to = format!("Up to {top:.0}×");
+        let up_to = t::up_to(language, top);
         painter.text(middle, Align2::CENTER_TOP, up_to, font, INK_SECONDARY);
     }
 }

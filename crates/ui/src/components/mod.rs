@@ -58,7 +58,9 @@ pub use icon_button::{icon_button, icon_choice, icon_toggle};
 pub use island::{ISLAND_TOP, Place, TOP_BAND, UNDER_ISLANDS, island, pill};
 pub use list_row::{ListRow, RowPicture, RowResponse, list_row};
 pub use loupe::{LOUPE, LOUPE_OFFSET, loupe, loupe_origin};
-pub use menu_row::{command_row, hint, menu_row, panel_heading, panel_heading_with, section};
+pub use menu_row::{
+    command_row, hint, label_row, menu_row, panel_heading, panel_heading_with, section,
+};
 pub use notice::{confirmation, notice};
 pub(crate) use picture::{Alpha, picture_texture};
 pub use popover::{Opener, popover, popover_left};
@@ -74,7 +76,7 @@ pub use switch_row::switch_row;
 pub use text_button::{
     Lead, divider, heading_button, text_button, text_choice, text_choice_wide, word_columns,
 };
-pub use text_field::{FieldResponse, text_field};
+pub use text_field::{FieldResponse, field_id, text_field};
 pub use today_card::{TodayCard, today_card};
 pub(crate) use view_settle::ViewSettle;
 pub use view_status::{view_status, view_text};

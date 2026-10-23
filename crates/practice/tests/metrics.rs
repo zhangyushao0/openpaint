@@ -3,7 +3,7 @@
 //! in V大's words.
 
 use openpaint_practice::{
-    ColourCopy, Difference, Metric, delta_e, hue_towards, oklab, score_colour, value,
+    ColourCopy, Difference, Metric, delta_e, hue_name, hue_towards, oklab, score_colour, value,
 };
 
 #[test]
@@ -42,16 +42,21 @@ fn a_known_colour_pair_gives_known_hue_saturation_value_and_delta() {
 
 #[test]
 fn a_hue_moved_is_redder_or_yellower_towards_the_next_of_six() {
-    // Orange (30 degrees) moved on is yellower, moved back redder.
-    assert_eq!(hue_towards(30.0, 12.0), "yellower");
-    assert_eq!(hue_towards(30.0, -12.0), "redder");
+    // Orange (30 degrees) moved on is yellower (towards 1, yellow), moved back redder (0, red).
+    assert_eq!(hue_towards(30.0, 12.0), 1);
+    assert_eq!(hue_towards(30.0, -12.0), 0);
     // From a hue of the six itself, towards the next one either way.
-    assert_eq!(hue_towards(60.0, 5.0), "greener");
-    assert_eq!(hue_towards(60.0, -5.0), "redder");
-    assert_eq!(hue_towards(0.0, -5.0), "more magenta");
-    assert_eq!(hue_towards(350.0, 15.0), "redder");
-    assert_eq!(hue_towards(200.0, 10.0), "bluer");
-    assert_eq!(hue_towards(200.0, -10.0), "more cyan");
+    assert_eq!(hue_towards(60.0, 5.0), 2);
+    assert_eq!(hue_towards(60.0, -5.0), 0);
+    assert_eq!(hue_towards(0.0, -5.0), 5);
+    assert_eq!(hue_towards(350.0, 15.0), 0);
+    assert_eq!(hue_towards(200.0, 10.0), 4);
+    assert_eq!(hue_towards(200.0, -10.0), 3);
+    // Twelve names 30 degrees apart: 15 degrees on is the next one.
+    assert_eq!(
+        [0.0, 14.0, 16.0, 200.0, 350.0].map(hue_name),
+        [0, 0, 1, 7, 0]
+    );
 }
 
 #[test]

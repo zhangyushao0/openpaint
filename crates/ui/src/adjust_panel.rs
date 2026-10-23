@@ -13,16 +13,17 @@ use crate::adjust_controls::controls;
 use crate::components::{Opener, ScreenArea, icon_toggle, menu_row, panel_heading, popover_left};
 use crate::design::Icon;
 use crate::taps::push_once;
+use crate::text::{self as t, Text, Words};
 
 /// The menu's rows, top to bottom (Procreate's names).
-const MENU: [(&str, AdjustmentKind); 4] = [
+const MENU: [(Text, AdjustmentKind); 4] = [
     (
-        "Hue, Saturation, Brightness",
+        t::HUE_SATURATION_BRIGHTNESS,
         AdjustmentKind::HueSaturationBrightness,
     ),
-    ("Curves", AdjustmentKind::Curves),
-    ("Gaussian Blur", AdjustmentKind::GaussianBlur),
-    ("Sharpen", AdjustmentKind::Sharpen),
+    (t::CURVES, AdjustmentKind::Curves),
+    (t::GAUSSIAN_BLUR, AdjustmentKind::GaussianBlur),
+    (t::SHARPEN, AdjustmentKind::Sharpen),
 ];
 
 #[derive(Debug)]
@@ -59,7 +60,12 @@ impl AdjustPanel {
         taps: &mut Vec<Intent>,
     ) -> bool {
         let adjusting = projection.adjust().adjustment.is_some();
-        let response = icon_toggle(ui, Icon::Adjustments, "Adjustments", self.menu || adjusting);
+        let response = icon_toggle(
+            ui,
+            Icon::Adjustments,
+            t::ADJUSTMENTS,
+            self.menu || adjusting,
+        );
         self.button = Some(response.rect);
         if !response.clicked() {
             return false;
@@ -93,9 +99,9 @@ impl AdjustPanel {
         let offered = projection.availability(EditorAction::Adjust).is_offered();
         let mut chosen = false;
         let menu = popover_left(ctx, "adjustments", (opener, self.menu), |ui| {
-            panel_heading(ui, "Adjustments");
+            panel_heading(ui, t::ADJUSTMENTS);
             for (label, kind) in MENU {
-                if menu_row(ui, label, "", offered).clicked() {
+                if menu_row(ui, label, Words::EMPTY, offered).clicked() {
                     push_once(taps, Intent::Adjust(AdjustIntent::Begin(kind)));
                     chosen = true;
                 }

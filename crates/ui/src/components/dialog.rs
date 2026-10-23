@@ -8,6 +8,7 @@ use egui::{Align, Align2, Id, Layout, Margin, Order, Rect, Shape, Vec2};
 use crate::components::chrome::{self, Source};
 use crate::components::{UNDER_ISLANDS, text_button, text_field};
 use crate::design::{BACKDROP, CORNER, DIALOG_WIDTH, PANEL_RULE_WIDTH, SPACE, surface_frame};
+use crate::text::{CANCEL, DELETE, DONE, Text, Words};
 
 /// Where a dialog sits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -96,18 +97,18 @@ impl Naming {
 pub fn naming_dialog(
     ctx: &egui::Context,
     id: &str,
-    (heading, field, max_chars): (&str, &str, usize),
+    (heading, field, max_chars): (Text, Text, usize),
     naming: &mut Naming,
     valid: impl Fn(&str) -> bool,
 ) -> Option<bool> {
     let ((cancel, done), outside) = dialog(ctx, id, (Placement::Top, naming.from), |ui| {
-        ui.heading(heading);
+        ui.heading(Words::from(heading).shown(ui.ctx()));
         let typed = text_field(ui, field, &mut naming.text, max_chars, naming.focus);
         if typed.response.has_focus() {
             naming.focus = false;
         }
         let valid = valid(&naming.text);
-        let (cancel, done) = answer_row(ui, "Cancel", "Done", valid);
+        let (cancel, done) = answer_row(ui, CANCEL, DONE, valid);
         (cancel, done || (typed.submitted && valid))
     });
     if done {
@@ -133,7 +134,7 @@ pub fn delete_dialog(
     let ((cancel, delete), outside) = dialog(ctx, id, (Placement::Centre, from), |ui| {
         ui.heading(question);
         note(ui);
-        answer_row(ui, "Cancel", "Delete", true)
+        answer_row(ui, CANCEL, DELETE, true)
     });
     if delete {
         Some(true)
@@ -146,7 +147,7 @@ pub fn delete_dialog(
 
 /// Two words at the right of a dialog's last row: the cancelling one, then the answering one
 /// (grey unless `enabled`). Returns whether each was tapped.
-pub fn answer_row(ui: &mut egui::Ui, cancel: &str, answer: &str, enabled: bool) -> (bool, bool) {
+pub fn answer_row(ui: &mut egui::Ui, cancel: Text, answer: Text, enabled: bool) -> (bool, bool) {
     ui.add_space(SPACE);
     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
         let answered = text_button(ui, answer, enabled).clicked();

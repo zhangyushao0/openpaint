@@ -1,5 +1,6 @@
 //! Taking over the stored toolbox: the brush library first, its sets and Recent, then
-//! each tool's brush and its settings per brush, the tool, the pen's buttons and the colours.
+//! each tool's brush and its settings per brush, the tool, the pen's buttons, the language and
+//! the colours.
 
 use crate::brush_sets::BrushSets;
 use crate::brushes::BrushKey;
@@ -38,6 +39,7 @@ impl Toolbox {
         }
         self.tool = state.tool;
         self.buttons = state.buttons;
+        self.language = state.language;
         let paint = self.restore_set(Tool::Brush, &state.paint);
         let erase = self.restore_set(Tool::Eraser, &state.erase);
         let smudge = self.restore_set(Tool::Smudge, &state.smudge);

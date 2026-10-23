@@ -13,16 +13,29 @@ use crate::design::{
     ICON_SIZE, INK, INK_ACTIVE, INK_DISABLED, Icon, Outline, TOUCH_TARGET, paint_icon, paint_mark,
     paint_pressed,
 };
+use crate::text::Words;
 
-/// Shows a button of one touch target with `icon`; `label` names it for accessibility. Only an
-/// `enabled` button can be clicked.
-pub fn icon_button(ui: &mut egui::Ui, icon: Icon, label: &str, enabled: bool) -> egui::Response {
+/// Shows a button of one touch target with `icon`; `label` names it (the hover label in the
+/// pass's language, the control by its English). Only an `enabled` button can be clicked.
+pub fn icon_button<'a>(
+    ui: &mut egui::Ui,
+    icon: Icon,
+    label: impl Into<Words<'a>>,
+    enabled: bool,
+) -> egui::Response {
+    let label = label.into();
     let response = button(ui, icon, label, enabled, false);
-    response.on_hover_text(label)
+    response.on_hover_text(label.shown(ui.ctx()))
 }
 
 /// An icon button that shows whether what it opens is `on`.
-pub fn icon_toggle(ui: &mut egui::Ui, icon: Icon, label: &str, on: bool) -> egui::Response {
+pub fn icon_toggle<'a>(
+    ui: &mut egui::Ui,
+    icon: Icon,
+    label: impl Into<Words<'a>>,
+    on: bool,
+) -> egui::Response {
+    let label = label.into();
     let response = button(ui, icon, label, true, on);
     let mark = animate(
         ui.ctx(),
@@ -33,33 +46,40 @@ pub fn icon_toggle(ui: &mut egui::Ui, icon: Icon, label: &str, on: bool) -> egui
     if ui.is_rect_visible(response.rect) {
         paint_mark(ui.painter(), Outline::ring(response.rect), mark);
     }
-    response.on_hover_text(label)
+    response.on_hover_text(label.shown(ui.ctx()))
 }
 
 /// An icon of the group `group`, showing whether it is the one `chosen`.
 pub fn icon_choice(
     ui: &mut egui::Ui,
     group: &mut Choices,
-    (icon, label): (Icon, &str),
+    (icon, label): (Icon, Words<'_>),
     chosen: bool,
 ) -> egui::Response {
     let response = button(ui, icon, label, true, chosen);
     if chosen {
         group.chosen(Outline::ring(response.rect));
     }
-    response.on_hover_text(label)
+    response.on_hover_text(label.shown(ui.ctx()))
 }
 
 /// The button without its mark; `on` inks the icon deeper.
-fn button(ui: &mut egui::Ui, icon: Icon, label: &str, enabled: bool, on: bool) -> egui::Response {
+fn button(
+    ui: &mut egui::Ui,
+    icon: Icon,
+    label: Words<'_>,
+    enabled: bool,
+    on: bool,
+) -> egui::Response {
     let sense = if enabled {
         Sense::click()
     } else {
         Sense::hover()
     };
     let (rect, response) = ui.allocate_exact_size(Vec2::splat(TOUCH_TARGET), sense);
-    response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, enabled, label));
-    controls::register(ui, label, rect);
+    let shown = label.shown(ui.ctx());
+    response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, enabled, shown));
+    controls::register(ui, label.id(), rect);
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
         if enabled && response.is_pointer_button_down_on() {

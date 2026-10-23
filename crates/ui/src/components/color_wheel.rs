@@ -11,6 +11,7 @@ use openpaint_app::Hsv;
 use crate::components::controls;
 use crate::components::swatch::color32;
 use crate::design::{HUE_RING, INK, PANEL, SPACE};
+use crate::text::{COLOUR_WHEEL, SATURATION_AND_VALUE, Words};
 
 /// Steps around the ring and across the square; enough that the shading looks smooth.
 const RING_STEPS: usize = 96;
@@ -92,11 +93,12 @@ impl Geometry {
 /// Shows the wheel at `hsv`, `side` points square; returns the colour the hand set, if any.
 pub fn color_wheel(ui: &mut egui::Ui, hsv: Hsv, side: f32) -> Option<WheelChange> {
     let (rect, response) = ui.allocate_exact_size(Vec2::splat(side), Sense::click_and_drag());
-    response.widget_info(|| WidgetInfo::labeled(WidgetType::Other, true, "Colour wheel"));
+    let name = Words::from(COLOUR_WHEEL).shown(ui.ctx());
+    response.widget_info(|| WidgetInfo::labeled(WidgetType::Other, true, name));
     let shape = Geometry::of(rect);
     // The square lies on the ring's control.
-    controls::register(ui, "Colour wheel", rect);
-    controls::register(ui, "Saturation and value", shape.square);
+    controls::register(ui, COLOUR_WHEEL.id(), rect);
+    controls::register(ui, SATURATION_AND_VALUE.id(), shape.square);
     let held = response.is_pointer_button_down_on();
     let settled = response.drag_stopped() || response.clicked();
     let mut part = ui.data(|data| data.get_temp::<Part>(response.id));

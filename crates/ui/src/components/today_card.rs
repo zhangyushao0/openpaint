@@ -8,15 +8,16 @@ use egui::{Align2, Color32, Rect, Sense, TextStyle};
 
 use crate::components::{card_size, controls, paint_sheet};
 use crate::design::{CARD_PICTURE, INK, INK_DISABLED, INK_SECONDARY, SPACE};
+use crate::text::{PRACTICE, TODAY, Text, Words};
 
 /// What the Today card shows.
 pub struct TodayCard<'a> {
-    /// "Stage 1 · Lines and colours".
+    /// "Stage 1 · Lines and colours", in the language shown.
     pub stage: &'a str,
-    /// "3 of about 15 sessions done".
+    /// "3 of about 15 sessions done", in the language shown.
     pub progress: &'a str,
-    /// "Start practice" or "Continue practice": the sheet's name as a control too.
-    pub action: &'a str,
+    /// Start practice or Continue practice: the sheet's name as a control too.
+    pub action: Text,
     pub enabled: bool,
 }
 
@@ -30,12 +31,13 @@ pub fn today_card(ui: &mut egui::Ui, card: &TodayCard<'_>) -> (bool, Rect) {
         Sense::hover()
     };
     let response = ui.interact(sheet, ui.id().with("today"), sense);
-    controls::register(ui, card.action, sheet);
+    controls::register(ui, card.action.id(), sheet);
     let tint = if response.is_pointer_button_down_on() {
         Color32::from_gray(200)
     } else {
         Color32::WHITE
     };
+    let words = |text: Text| Words::from(text).shown(ui.ctx());
     let painter = ui.painter();
     paint_sheet(painter, None, sheet, tint);
     let font = |style: TextStyle| style.resolve(ui.style());
@@ -44,7 +46,7 @@ pub fn today_card(ui: &mut egui::Ui, card: &TodayCard<'_>) -> (bool, Rect) {
     painter.text(
         egui::pos2(left, y),
         Align2::LEFT_TOP,
-        "Today",
+        words(TODAY),
         font(TextStyle::Heading),
         INK,
     );
@@ -65,7 +67,7 @@ pub fn today_card(ui: &mut egui::Ui, card: &TodayCard<'_>) -> (bool, Rect) {
     painter.text(
         at,
         Align2::LEFT_BOTTOM,
-        card.action,
+        words(card.action),
         font(TextStyle::Button),
         ink,
     );
@@ -74,7 +76,7 @@ pub fn today_card(ui: &mut egui::Ui, card: &TodayCard<'_>) -> (bool, Rect) {
     painter.text(
         at,
         Align2::LEFT_CENTER,
-        "Practice",
+        words(PRACTICE),
         font(TextStyle::Body),
         ink,
     );

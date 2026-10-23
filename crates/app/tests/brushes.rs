@@ -268,6 +268,7 @@ fn a_stored_state_that_does_not_fit_falls_back_to_defaults() {
         library: Vec::new(),
         sets: Default::default(),
         recent_brushes: Vec::new(),
+        language: None,
     };
     assert!(!toolbox.restore(&state));
     assert_eq!(toolbox.projection(), fresh);

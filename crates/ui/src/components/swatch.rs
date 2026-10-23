@@ -8,6 +8,7 @@ use openpaint_core::Color;
 use crate::components::{animate, controls};
 use crate::design::motion::ACKNOWLEDGE;
 use crate::design::{INK, Outline, paint_mark, paint_pressed};
+use crate::text::Words;
 
 /// The colour as egui paints it: 8-bit sRGB, opaque.
 #[must_use]
@@ -16,11 +17,20 @@ pub fn color32(color: Color) -> Color32 {
     Color32::from_rgb(byte(color.r()), byte(color.g()), byte(color.b()))
 }
 
-/// Shows a swatch of `color` in a square of `side` points; `label` names it for accessibility.
-pub fn swatch(ui: &mut egui::Ui, color: Color, label: &str, side: f32, on: bool) -> egui::Response {
+/// Shows a swatch of `color` in a square of `side` points; `label` names it (the hover label in
+/// the pass's language, the control by its English).
+pub fn swatch<'a>(
+    ui: &mut egui::Ui,
+    color: Color,
+    label: impl Into<Words<'a>>,
+    side: f32,
+    on: bool,
+) -> egui::Response {
+    let label = label.into();
+    let shown = label.shown(ui.ctx());
     let (rect, response) = ui.allocate_exact_size(Vec2::splat(side), Sense::click());
-    response.widget_info(|| WidgetInfo::selected(WidgetType::Button, true, on, label));
-    controls::register(ui, label, rect);
+    response.widget_info(|| WidgetInfo::selected(WidgetType::Button, true, on, shown));
+    controls::register(ui, label.id(), rect);
     let target = f32::from(u8::from(on));
     let mark = animate(ui.ctx(), response.id.with("mark"), target, ACKNOWLEDGE);
     if ui.is_rect_visible(rect) {
@@ -32,5 +42,5 @@ pub fn swatch(ui: &mut egui::Ui, color: Color, label: &str, side: f32, on: bool)
         let radius = 0.3 * side;
         painter.circle(rect.center(), radius, color32(color), Stroke::new(1.0, INK));
     }
-    response.on_hover_text(label)
+    response.on_hover_text(shown)
 }

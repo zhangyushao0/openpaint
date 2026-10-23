@@ -8,21 +8,29 @@ use crate::components::animate;
 use crate::components::menu_row::tap_row;
 use crate::design::motion::{ACKNOWLEDGE, lerp};
 use crate::design::{INK, INK_ACTIVE, INK_DISABLED, INK_SECONDARY, SPACE};
+use crate::text::Words;
 
 /// The switch's track, in points.
 const TRACK: Vec2 = Vec2::new(5.0 * SPACE, 3.0 * SPACE);
 
-pub fn switch_row(ui: &mut egui::Ui, label: &str, on: bool, enabled: bool) -> egui::Response {
-    let info = || WidgetInfo::selected(WidgetType::Checkbox, enabled, on, label);
-    let (response, shown) = tap_row(ui, label, enabled, info);
-    if !shown {
+pub fn switch_row<'a>(
+    ui: &mut egui::Ui,
+    label: impl Into<Words<'a>>,
+    on: bool,
+    enabled: bool,
+) -> egui::Response {
+    let label = label.into();
+    let shown = label.shown(ui.ctx());
+    let info = || WidgetInfo::selected(WidgetType::Checkbox, enabled, on, shown);
+    let (response, visible) = tap_row(ui, label.id(), enabled, info);
+    if !visible {
         return response;
     }
     let (rect, painter) = (response.rect, ui.painter());
     let text = if enabled { INK } else { INK_DISABLED };
     let font = TextStyle::Body.resolve(ui.style());
     let left = rect.left_center() + Vec2::new(2.0 * SPACE, 0.0);
-    painter.text(left, Align2::LEFT_CENTER, label, font, text);
+    painter.text(left, Align2::LEFT_CENTER, shown, font, text);
     let centre = rect.right_center() - Vec2::new(2.0 * SPACE + TRACK.x / 2.0, 0.0);
     let track = Rect::from_center_size(centre, TRACK);
     // Off: an empty outline with a hollow knob at the left. On: the knob inked at the right.

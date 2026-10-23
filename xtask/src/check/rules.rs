@@ -130,6 +130,10 @@ pub const FORBIDDEN_TOKENS: &[(&str, &[&str])] = &[
     ("crates/devtools", &["jni", "std::fs"]),
 ];
 
+/// The interface's sources, whose words live in its text tables (DECISIONS D100).
+pub const UI_SOURCES: &str = "crates/ui/src/";
+pub const TEXT_TABLES: &str = "crates/ui/src/text/";
+
 /// The renderer may mention the UI framework only inside its adapter directory.
 pub const RENDER_DIR: &str = "crates/render/";
 pub const RENDER_EGUI_DIR: &str = "crates/render/src/adapter/";

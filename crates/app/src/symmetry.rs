@@ -28,16 +28,6 @@ impl Symmetry {
         Self::Radial,
     ];
 
-    #[must_use]
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Vertical => "Vertical",
-            Self::Horizontal => "Horizontal",
-            Self::Quadrant => "Quadrant",
-            Self::Radial => "Radial",
-        }
-    }
-
     /// The linear part of every copy besides the stroke itself, as rows `[[a, b], [c, d]]`:
     /// reflections across the guide's lines and, for several lines, the turns they compose to.
     fn copies(self) -> Vec<[[f32; 2]; 2]> {

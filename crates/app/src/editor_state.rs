@@ -2,6 +2,7 @@
 
 use openpaint_core::RecipeParts;
 
+use crate::language::Language;
 use crate::pen_buttons::ButtonMap;
 use crate::toolbox::Tool;
 
@@ -27,6 +28,8 @@ pub struct EditorState {
     pub sets: [Vec<String>; 4],
     /// The keys of the brushes drawn with last, newest first.
     pub recent_brushes: Vec<String>,
+    /// The interface's language as chosen in Actions; `None` until one is: the system's.
+    pub language: Option<Language>,
 }
 
 /// One tool's brush and each brush's size, opacity and StreamLine for it, by key. An empty

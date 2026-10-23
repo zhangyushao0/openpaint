@@ -1,4 +1,4 @@
-//! The sample toolbox: every field of the toolbox record set.
+//! The sample toolbox: every field of the toolbox record set but the language (D100).
 
 use openpaint_app::{
     BrushChoice, BrushParts, BrushSetting, ButtonAction, ButtonMap, EditorState, StoredBrush, Tool,
@@ -99,5 +99,8 @@ pub fn sample_editor() -> EditorState {
             keys(&["textured-round"]),
         ],
         recent_brushes: keys(&["copy-1", "speckle", "ink-pen"]),
+        // No language chosen: the record ends with the buttons, as 1.1 wrote it (a chosen
+        // language's byte is `editor.rs`'s and `library.rs`'s test).
+        language: None,
     }
 }

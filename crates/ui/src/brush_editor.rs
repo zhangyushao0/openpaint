@@ -14,7 +14,7 @@ use openpaint_app::{
     BrushIntent, BrushProjection, BrushSet, Dynamic, Intent, MAX_BRUSH_NAME, brush_name,
 };
 
-use crate::brush_dynamics::{curves, heading};
+use crate::brush_dynamics::curves;
 use crate::brush_settings::settings;
 use crate::brush_strip::Strip;
 use crate::components::{
@@ -22,6 +22,7 @@ use crate::components::{
 };
 use crate::design::{SPACE, TOUCH_TARGET};
 use crate::taps::push_brush;
+use crate::text::{self as t, Words, dynamic as dynamic_text};
 
 /// The width of the Set row's word "Set", left of its choices, in points.
 const SET_LABEL: f32 = 6.0 * SPACE;
@@ -32,8 +33,9 @@ pub(crate) struct BrushEditor {
     pub(crate) strip: Strip,
     /// The dynamics page shown instead of the settings.
     dynamics: Option<Dynamic>,
-    /// Renaming the brush: its name as typed so far.
-    rename: Option<Naming>,
+    /// Renaming the brush: its name as typed so far, and as it showed when the dialog opened
+    /// (a built-in's name shows in the language: kept unless it is changed).
+    rename: Option<(Naming, String)>,
     /// Asking before the copy is deleted: where Delete was tapped.
     deleting: Option<Rect>,
     /// The set the Set row moved the brush to this pass, for the list to show.
@@ -50,6 +52,7 @@ impl BrushEditor {
         taps: &mut Vec<Intent>,
     ) -> bool {
         let edited = &brush.edited;
+        let name = t::shown_name(t::language(ui.ctx()), &edited.name);
         let (named, back) = ui
             .horizontal(|ui| {
                 ui.set_height(TOUCH_TARGET);
@@ -58,20 +61,20 @@ impl BrushEditor {
                 let named = match self.dynamics {
                     Some(dynamic) => {
                         ui.add_space(2.0 * SPACE);
-                        ui.heading(heading(dynamic));
+                        ui.heading(Words::from(dynamic_text(dynamic)).shown(ui.ctx()));
                         None
                     }
-                    None => Some(heading_button(ui, &edited.name)),
+                    None => Some(heading_button(ui, Words::named(&edited.name, &name))),
                 };
                 let back = ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.add_space(SPACE);
-                    text_button(ui, "Back", true).clicked()
+                    text_button(ui, t::BACK, true).clicked()
                 });
                 (named, back.inner)
             })
             .inner;
         if let Some(named) = named.filter(egui::Response::clicked) {
-            self.rename = Some(Naming::new(&edited.name, named.rect));
+            self.rename = Some((Naming::new(&name, named.rect), name.into_owned()));
         }
         if self.dynamics.is_none()
             && let Some(set) = set_row(ui, brush.set)
@@ -105,15 +108,15 @@ impl BrushEditor {
         ui.horizontal(|ui| {
             ui.set_height(TOUCH_TARGET);
             ui.add_space(SPACE);
-            if text_button(ui, "Duplicate", true).clicked() {
+            if text_button(ui, t::DUPLICATE, true).clicked() {
                 push_brush(taps, BrushIntent::Duplicate);
             }
             if edited.built_in {
-                if text_button(ui, "Reset", edited.resettable).clicked() {
+                if text_button(ui, t::RESET, edited.resettable).clicked() {
                     push_brush(taps, BrushIntent::Reset);
                 }
             } else {
-                let delete = text_button(ui, "Delete", true);
+                let delete = text_button(ui, t::DELETE, true);
                 if delete.clicked() {
                     self.deleting = Some(delete.rect);
                 }
@@ -130,8 +133,10 @@ impl BrushEditor {
         taps: &mut Vec<Intent>,
     ) -> (bool, bool) {
         if let Some(from) = self.deleting {
-            let question = format!("Delete {}?", brush.edited.name);
-            let note = |ui: &mut egui::Ui| hint(ui, "Strokes drawn with it stay.");
+            let language = t::language(ctx);
+            let name = t::shown_name(language, &brush.edited.name);
+            let question = t::delete_brush(language, &name);
+            let note = |ui: &mut egui::Ui| hint(ui, t::STROKES_STAY);
             let answer = delete_dialog(ctx, "delete brush", from, &question, note);
             let delete = answer == Some(true);
             if delete {
@@ -142,13 +147,13 @@ impl BrushEditor {
             }
             return (true, delete);
         }
-        let Some(naming) = &mut self.rename else {
+        let Some((naming, shown)) = &mut self.rename else {
             return (false, false);
         };
-        let words = ("Rename brush", "Name", MAX_BRUSH_NAME);
+        let words = (t::RENAME_BRUSH, t::NAME, MAX_BRUSH_NAME);
         let valid = |text: &str| brush_name(text).is_some();
         if let Some(done) = naming_dialog(ctx, "rename brush", words, naming, valid) {
-            if done {
+            if done && naming.text != *shown {
                 push_brush(taps, BrushIntent::Rename(naming.text.clone()));
             }
             self.rename = None;
@@ -181,7 +186,7 @@ fn column(
     let size = vec2(ui.available_width(), room);
     ui.allocate_ui(size, |ui| {
         egui::ScrollArea::vertical()
-            .id_salt(page.map_or("brush settings", heading))
+            .id_salt(page.map_or("brush settings", |page| dynamic_text(page).id()))
             .max_height(room)
             // A finger drags the column (egui asks for a touch screen otherwise).
             .scroll_source(egui::scroll_area::ScrollSource::ALL)
@@ -200,7 +205,7 @@ fn column(
 /// The brush's set: "Set", then the four sets as words in two columns, `set` in the ink
 /// pill. Returns another set tapped, which the brush moves to the end of.
 pub(crate) fn set_row(ui: &mut egui::Ui, set: BrushSet) -> Option<BrushSet> {
-    let words = BrushSet::EDITABLE.map(|word| (word.label(), word == set, true));
-    let lead = Lead::Label("Set", SET_LABEL);
+    let words = BrushSet::EDITABLE.map(|word| (t::brush_set(word).into(), word == set, true));
+    let lead = Lead::Label(t::SET.into(), SET_LABEL);
     word_columns(ui, "brush set", &words, lead).map(|at| BrushSet::EDITABLE[at])
 }

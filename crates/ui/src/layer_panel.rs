@@ -22,6 +22,7 @@ use crate::design::{Icon, LAYER_PICTURE, TOUCH_TARGET};
 use crate::layer_drag::Drag;
 use crate::layer_options::{footer, footer_rows};
 use crate::layer_rows::{Pictures, RowState, rows};
+use crate::text as t;
 
 /// Rows of touch targets the panel keeps free of layer rows besides its footer: the header and
 /// the room above and below the panel.
@@ -38,8 +39,9 @@ pub(crate) struct LayerPanel {
     /// The closed groups: the panel's own state, no artwork change and not stored.
     collapsed: HashSet<GroupId>,
     drag: Option<Drag>,
-    /// The layer being renamed and its name as typed so far.
-    rename: Option<(LayerId, Naming)>,
+    /// The layer being renamed, its name as typed so far and as it showed when the dialog
+    /// opened (a name the app gave shows in the language: kept unless it is changed).
+    rename: Option<(LayerId, Naming, String)>,
     /// Pictures from the runtime waiting for the next pass to load them, and those loaded.
     arrived: Vec<((LayerId, bool), RgbaImage)>,
     pictures: Pictures,
@@ -59,7 +61,7 @@ impl std::fmt::Debug for LayerPanel {
 impl LayerPanel {
     /// The Layers button, in the right island. Returns whether it opened the panel.
     pub(crate) fn button(&mut self, ui: &mut egui::Ui) -> bool {
-        let response = icon_toggle(ui, Icon::Layers, "Layers", self.open);
+        let response = icon_toggle(ui, Icon::Layers, t::LAYERS, self.open);
         self.button = Some(response.rect);
         if response.clicked() {
             self.open = !self.open;
@@ -138,7 +140,8 @@ impl LayerPanel {
             asked = footer(ui, list, projection, taps);
         });
         if let (Some(from), Some(active)) = (asked, list.active_row()) {
-            self.rename = Some((active.id, Naming::new(active.name.as_str(), from)));
+            let name = t::shown_name(t::language(ctx), active.name.as_str());
+            self.rename = Some((active.id, Naming::new(&name, from), name.into_owned()));
         }
         self.area = rect.map(|rect| ScreenArea::from_points(rect, ctx.pixels_per_point()));
         if self.rename.is_some() {
@@ -152,15 +155,18 @@ impl LayerPanel {
     /// The name in a text field with Cancel and Done; Done (or Enter) renames when the text is
     /// a name; Cancel or a tap outside keeps the old one.
     fn rename_dialog(&mut self, ctx: &egui::Context, taps: &mut Vec<Intent>) {
-        let Some((layer, naming)) = &mut self.rename else {
+        let Some((layer, naming, shown)) = &mut self.rename else {
             return;
         };
-        let words = ("Rename layer", "Name", MAX_NAME_CHARS);
+        let words = (t::RENAME_LAYER, t::NAME, MAX_NAME_CHARS);
         let valid = |text: &str| LayerName::new(text).is_ok();
         let Some(done) = naming_dialog(ctx, "rename layer", words, naming, valid) else {
             return;
         };
-        if done && let Ok(name) = LayerName::new(&naming.text) {
+        if done
+            && naming.text != *shown
+            && let Ok(name) = LayerName::new(&naming.text)
+        {
             let layer = *layer;
             taps.push(Intent::Layer(LayerIntent::Rename { layer, name }));
         }
@@ -218,12 +224,12 @@ pub(crate) fn picture_pixels(pixels_per_point: f32) -> [u32; 2] {
 }
 
 fn header(ui: &mut egui::Ui, projection: &SessionProjection, taps: &mut Vec<Intent>) {
-    panel_heading_with(ui, "Layers", |ui| {
+    panel_heading_with(ui, t::LAYERS, |ui| {
         let enabled = projection.availability(EditorAction::AddLayer).is_offered();
-        if icon_button(ui, Icon::Add, "Add layer", enabled).clicked() {
+        if icon_button(ui, Icon::Add, t::ADD_LAYER, enabled).clicked() {
             taps.push(Intent::Layer(LayerIntent::Add));
         }
-        if icon_button(ui, Icon::Group, "New group", enabled).clicked() {
+        if icon_button(ui, Icon::Group, t::NEW_GROUP, enabled).clicked() {
             taps.push(Intent::Layer(LayerIntent::NewGroup));
         }
     });

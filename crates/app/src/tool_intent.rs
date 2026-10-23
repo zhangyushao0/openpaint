@@ -9,6 +9,7 @@ use crate::brush_edit::BrushChange;
 use crate::brush_sets::BrushSet;
 use crate::brushes::BrushKey;
 use crate::edited_brush::EditedBrush;
+use crate::language::Language;
 use crate::pen_buttons::{ButtonAction, ButtonMap, HeldTool, PenButton};
 use crate::streamline::StreamLine;
 use crate::toolbox::Tool;
@@ -43,7 +44,7 @@ pub enum BrushIntent {
     MoveToSet(BrushSet),
 }
 
-/// The tool, the colour, the eyedropper, the pen's buttons and the palette.
+/// The tool, the colour, the eyedropper, the pen's buttons, the palette and the language.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ToolIntent {
     /// The pen paints or erases from the next stroke on; ends the eyedropper.
@@ -72,6 +73,8 @@ pub enum ToolIntent {
         button: PenButton,
         action: ButtonAction,
     },
+    /// The interface shows `Language` from now on, kept with the toolbox.
+    Language(Language),
     /// The current colour joins the palette's end (nothing when it is there or full).
     AddSwatch,
     /// `color` leaves the palette.

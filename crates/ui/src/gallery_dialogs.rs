@@ -3,14 +3,17 @@
 //! and a card's options (save as an OpenPaint file, kept versions).
 
 use egui::{Align, Layout};
-use openpaint_app::{GalleryIntent, Intent, MAX_TITLE_CHARS, ProjectSummary, Title};
+use openpaint_app::{
+    ARTWORK_EXTENSION, GalleryIntent, Intent, MAX_TITLE_CHARS, ProjectSummary, Title,
+};
 
-use super::GalleryScreen;
 use super::dates::kept_labels;
+use super::{GalleryScreen, shown_title};
 use crate::components::{
     Placement, delete_dialog, dialog, hint, menu_row, naming_dialog, section, text_button,
 };
 use crate::design::SPACE;
+use crate::text::{self as t, Words};
 
 impl GalleryScreen {
     /// The title in a text field with Cancel and Done; Done (or Enter) renames when the text
@@ -19,7 +22,7 @@ impl GalleryScreen {
         let Some((id, naming)) = &mut self.rename else {
             return;
         };
-        let words = ("Rename", "Title", MAX_TITLE_CHARS);
+        let words = (t::RENAME, t::TITLE, MAX_TITLE_CHARS);
         let valid = |text: &str| Title::new(text).is_ok();
         let Some(done) = naming_dialog(ctx, "rename", words, naming, valid) else {
             return;
@@ -35,9 +38,10 @@ impl GalleryScreen {
         let Some((id, title, card)) = &self.confirm else {
             return;
         };
-        let question = format!("Delete “{title}”?");
+        let language = t::language(ctx);
+        let question = t::delete_artwork(language, shown_title(language, title).as_str());
         let note = |ui: &mut egui::Ui| {
-            ui.label("This can't be undone. Its kept versions go with it.");
+            ui.label(t::CANNOT_BE_UNDONE.get(language));
         };
         let Some(delete) = delete_dialog(ctx, "delete", *card, &question, note) else {
             return;
@@ -67,36 +71,40 @@ impl GalleryScreen {
             return;
         };
         let offset = self.utc_offset;
+        let language = t::language(ctx);
+        let shown = shown_title(language, &item.title);
         let ((chosen, close), outside) = dialog(ctx, "options", (Placement::Top, card), |ui| {
-            ui.heading(item.title.as_str());
+            ui.heading(shown.as_str());
             let mut chosen = None;
-            if menu_row(ui, "Save as OpenPaint file…", ".openpaint", true).clicked() {
+            let extension = format!(".{ARTWORK_EXTENSION}");
+            if menu_row(ui, t::SAVE_AS_FILE, Words::made(&extension), true).clicked() {
                 chosen = Some(GalleryIntent::SaveFile(id));
             }
-            section(ui, "Versions");
+            section(ui, t::VERSIONS);
             if item.versions.is_empty() {
-                hint(ui, "Kept when you leave it after a change.");
+                hint(ui, t::KEPT_WHEN_LEFT);
             } else {
-                hint(ui, "Each opens as a new copy.");
+                hint(ui, t::OPENS_AS_COPY);
             }
             let times: Vec<u64> = item
                 .versions
                 .iter()
                 .map(|version| version.kept_at)
                 .collect();
-            for (version, label) in item.versions.iter().zip(kept_labels(&times, offset)) {
-                if menu_row(ui, &label, "", true).clicked() {
+            let labels = kept_labels(&times, offset, language);
+            for (version, (name, label)) in item.versions.iter().zip(labels) {
+                if menu_row(ui, Words::named(&name, &label), Words::EMPTY, true).clicked() {
                     chosen = Some(GalleryIntent::Restore {
                         id,
                         version: version.id,
-                        title: item.title.noted(&label),
+                        title: shown.noted(&label),
                     });
                 }
             }
             ui.add_space(SPACE);
             let close = ui
                 .with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    text_button(ui, "Close", true).clicked()
+                    text_button(ui, t::CLOSE, true).clicked()
                 })
                 .inner;
             (chosen, close)

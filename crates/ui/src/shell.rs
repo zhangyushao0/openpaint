@@ -12,7 +12,7 @@
 //! quick pinch settles the view at fit.
 
 use openpaint_app::{
-    ButtonMap, CanvasView, GalleryIntent, Intent, ScreenProjection, SessionProjection,
+    ButtonMap, CanvasView, GalleryIntent, Intent, Language, ScreenProjection, SessionProjection,
     TransformFrame, ViewMapping,
 };
 use openpaint_core::{CanvasSize, Color};
@@ -39,7 +39,7 @@ use crate::shape_bar::{self, ShapeBar};
 use crate::sheet::{self, Showing};
 use crate::side_bar::SideBar;
 use crate::transform_bar::TransformBar;
-use crate::{practice_marks, practice_tools};
+use crate::{practice_marks, practice_tools, text};
 
 #[path = "shell_islands.rs"]
 mod islands;
@@ -141,6 +141,8 @@ pub struct Shell {
     controls: ControlMap,
     /// The GPU device was made again: the notice says so until OK or the next stroke.
     reset_notice: bool,
+    /// The language every word shows in.
+    language: Language,
 }
 
 impl Shell {
@@ -151,6 +153,7 @@ impl Shell {
         let ctx = ui.ctx().clone();
         chrome::begin(&ctx);
         controls::begin(&ctx);
+        text::set_language(&ctx, self.language);
         let showing = Showing::of(projection);
         if showing != self.showing {
             self.switch(&ctx, showing);
@@ -327,9 +330,14 @@ impl Shell {
         self.gallery.utc_offset = minutes;
     }
 
-    /// The app's version and storage format as Actions' last line shows them.
-    pub fn set_version(&mut self, line: &str) {
-        line.clone_into(&mut self.panels.actions.version);
+    /// The app's version and storage format, which Actions' last line shows.
+    pub fn set_version(&mut self, version: &str, format: u32) {
+        self.panels.actions.version = Some((version.to_owned(), format));
+    }
+
+    /// The language the interface shows from the next pass on (D100).
+    pub fn set_language(&mut self, language: Language) {
+        self.language = language;
     }
 
     /// The pen's outline in screen pixels: the current brush at full size around where the pen

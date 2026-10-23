@@ -9,9 +9,10 @@ use egui::{Align, Layout, Vec2};
 use openpaint_app::{BrushProjection, Intent, MAX_SWATCHES, ToolIntent, hex_of, parse_hex};
 use openpaint_core::Color;
 
-use crate::components::{hint, icon_button, swatch, text_button, text_field};
+use crate::components::{field_id, hint, icon_button, swatch, text_button, text_field};
 use crate::design::{INK_SECONDARY, Icon, RECENT_SWATCH, SPACE, TOUCH_TARGET};
 use crate::taps::push_once;
+use crate::text::{self as t, Words};
 
 /// Swatches in one row of the panel.
 const PER_ROW: usize = 8;
@@ -41,11 +42,11 @@ impl PaletteState {
     pub(crate) fn hex_field(&mut self, ui: &mut egui::Ui, color: Color, taps: &mut Vec<Intent>) {
         let size = Vec2::new(HEX_WIDTH, TOUCH_TARGET);
         ui.allocate_ui_with_layout(size, Layout::left_to_right(Align::Center), |ui| {
-            let id = egui::Id::new(("text field", "Hex"));
+            let id = field_id(t::HEX.id());
             if !ui.memory(|memory| memory.has_focus(id)) {
                 self.hex = hex_of(color);
             }
-            let field = text_field(ui, "Hex", &mut self.hex, 7, self.select);
+            let field = text_field(ui, t::HEX, &mut self.hex, 7, self.select);
             self.select = field.response.gained_focus();
             if field.response.gained_focus() {
                 self.wrong = false;
@@ -71,7 +72,7 @@ impl PaletteState {
     /// A line under the header after a text that is no colour.
     pub(crate) fn hex_hint(&self, ui: &mut egui::Ui) {
         if self.wrong {
-            hint(ui, "Type a colour as #RRGGBB.");
+            hint(ui, t::TYPE_A_COLOUR);
         }
     }
 
@@ -89,32 +90,32 @@ impl PaletteState {
         ui.horizontal(|ui| {
             ui.set_height(TOUCH_TARGET);
             ui.add_space(2.0 * SPACE);
-            ui.colored_label(INK_SECONDARY, "Palette");
+            ui.colored_label(INK_SECONDARY, Words::from(t::PALETTE).shown(ui.ctx()));
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                let word = if self.editing { "Done" } else { "Edit" };
+                let word = if self.editing { t::DONE } else { t::EDIT };
                 if text_button(ui, word, !swatches.is_empty()).clicked() {
                     self.editing = !self.editing;
                 }
                 let room = swatches.len() < MAX_SWATCHES && !swatches.contains(&brush.color);
-                let add = icon_button(ui, Icon::Add, "Add to palette", room && !self.editing);
+                let add = icon_button(ui, Icon::Add, t::ADD_TO_PALETTE, room && !self.editing);
                 if add.clicked() {
                     push_once(taps, Intent::Tool(ToolIntent::AddSwatch));
                 }
             });
         });
         if swatches.is_empty() {
-            hint(ui, "Tap + to keep the colour here.");
+            hint(ui, t::KEEP_THE_COLOUR);
             return;
         }
         if self.editing {
-            hint(ui, "Tap a colour to remove it.");
+            hint(ui, t::TAP_TO_REMOVE);
         }
         for row in swatches.chunks(PER_ROW) {
             ui.horizontal(|ui| {
                 ui.set_height(RECENT_SWATCH);
                 for color in row {
                     let current = *color == brush.color && !self.editing;
-                    if swatch(ui, *color, "Palette colour", RECENT_SWATCH, current).clicked() {
+                    if swatch(ui, *color, t::PALETTE_COLOUR, RECENT_SWATCH, current).clicked() {
                         let intent = if self.editing {
                             ToolIntent::RemoveSwatch(*color)
                         } else {

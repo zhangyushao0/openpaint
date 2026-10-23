@@ -10,6 +10,7 @@ use openpaint_app::{ClipboardAction, EditorAction, Intent, SessionProjection};
 
 use crate::components::{Place, ScreenArea, Source, pill, text_button};
 use crate::taps::push_once;
+use crate::text as t;
 
 #[derive(Debug, Default)]
 pub(crate) struct CopyBar {
@@ -46,7 +47,7 @@ impl CopyBar {
             let mut tapped = None;
             for action in ClipboardAction::ALL {
                 let offered = projection.availability(EditorAction::Clipboard(action));
-                if text_button(ui, action.label(), offered.is_offered()).clicked() {
+                if text_button(ui, t::clipboard(action), offered.is_offered()).clicked() {
                     tapped = Some(action);
                 }
             }

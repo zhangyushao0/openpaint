@@ -5,6 +5,7 @@ use egui::{Pos2, Rect, Sense, Stroke, Vec2, WidgetInfo};
 
 use crate::components::controls;
 use crate::design::{HAIRLINE, INK, INK_DISABLED, PANEL, SPACE, TOUCH_TARGET, ink_line};
+use crate::text::Words;
 
 /// Radius of the knob, in points.
 const KNOB: f32 = 1.25 * SPACE;
@@ -22,7 +23,13 @@ pub struct SliderChange {
 
 /// Shows `value` (in `0..=1`) across the available width; `label` names it for accessibility.
 /// Returns the value the hand set, if it set one this frame; only an `enabled` slider moves.
-pub fn slider(ui: &mut egui::Ui, label: &str, value: f32, enabled: bool) -> Option<SliderChange> {
+pub fn slider<'a>(
+    ui: &mut egui::Ui,
+    label: impl Into<Words<'a>>,
+    value: f32,
+    enabled: bool,
+) -> Option<SliderChange> {
+    let label = label.into();
     let sense = if enabled {
         Sense::click_and_drag()
     } else {
@@ -30,8 +37,9 @@ pub fn slider(ui: &mut egui::Ui, label: &str, value: f32, enabled: bool) -> Opti
     };
     let size = Vec2::new(ui.available_width(), TOUCH_TARGET);
     let (rect, response) = ui.allocate_exact_size(size, sense);
-    response.widget_info(|| WidgetInfo::slider(enabled, f64::from(value), label));
-    controls::register(ui, label, rect);
+    let shown = label.shown(ui.ctx());
+    response.widget_info(|| WidgetInfo::slider(enabled, f64::from(value), shown));
+    controls::register(ui, label.id(), rect);
     let track = rect.shrink2(Vec2::new(KNOB, 0.0));
     let change = along(&response, track, value, enabled);
     if ui.is_rect_visible(rect) {
@@ -63,7 +71,8 @@ pub(crate) fn along(
 }
 
 /// The row over a slider: what it sets at the left, its value now at the right.
-pub fn value_row(ui: &mut egui::Ui, label: &str, value: &str) {
+pub fn value_row<'a>(ui: &mut egui::Ui, label: impl Into<Words<'a>>, value: &str) {
+    let label = label.into().shown(ui.ctx());
     ui.horizontal(|ui| {
         ui.set_height(TOUCH_TARGET);
         ui.add_space(2.0 * SPACE);

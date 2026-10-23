@@ -8,6 +8,7 @@ use egui::{Align2, Color32, Rect, Sense, TextStyle, Vec2, WidgetInfo, WidgetType
 use crate::components::controls;
 use crate::components::list_row::{row_offset, row_painter};
 use crate::design::{BRUSH_PREVIEW, INK, INK_ACTIVE, Outline, SPACE, paint_mark, paint_pressed};
+use crate::text::Words;
 
 /// The height of a brush row, in points.
 pub const BRUSH_ROW: f32 = BRUSH_PREVIEW.y + 2.0 * SPACE;
@@ -17,7 +18,8 @@ pub const BRUSH_ROW: f32 = BRUSH_PREVIEW.y + 2.0 * SPACE;
 pub struct BrushRowView<'a> {
     /// Stays the same for one brush in one list from frame to frame, wherever the row moves.
     pub key: egui::Id,
-    pub name: &'a str,
+    /// Its name, named by the stored one, shown in the pass's language.
+    pub name: Words<'a>,
     /// A texture of `BRUSH_PREVIEW` points, once it is loaded.
     pub preview: Option<egui::TextureId>,
     pub selected: bool,
@@ -31,8 +33,9 @@ pub fn brush_row(ui: &mut egui::Ui, row: &BrushRowView<'_>) -> egui::Response {
     let size = Vec2::new(ui.available_width(), BRUSH_ROW);
     let (rect, response) = ui.allocate_exact_size(size, Sense::click());
     let selected = row.selected;
-    response.widget_info(|| WidgetInfo::selected(WidgetType::Button, true, selected, row.name));
-    controls::register(ui, row.name, rect);
+    let name = row.name.shown(ui.ctx());
+    response.widget_info(|| WidgetInfo::selected(WidgetType::Button, true, selected, name));
+    controls::register(ui, row.name.id(), rect);
     let shown = rect.translate(Vec2::new(0.0, row_offset(ui, row.key, rect, row.lifted)));
     if !ui.is_rect_visible(shown) && row.lifted.is_none() {
         return response;
@@ -47,7 +50,7 @@ pub fn brush_row(ui: &mut egui::Ui, row: &BrushRowView<'_>) -> egui::Response {
     let font = TextStyle::Body.resolve(ui.style());
     let left = shown.left_center() + Vec2::new(2.0 * SPACE, 0.0);
     let color = if selected { INK_ACTIVE } else { INK };
-    painter.text(left, Align2::LEFT_CENTER, row.name, font, color);
+    painter.text(left, Align2::LEFT_CENTER, name, font, color);
     if let Some(texture) = row.preview {
         let right = shown.right_center() - Vec2::new(SPACE + BRUSH_PREVIEW.x / 2.0, 0.0);
         let picture = Rect::from_center_size(right, BRUSH_PREVIEW);

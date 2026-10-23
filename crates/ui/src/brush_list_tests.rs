@@ -7,10 +7,11 @@ use std::collections::HashMap;
 use openpaint_app::{BrushIntent, BrushKey, BrushLibrary, BrushSet, Intent, Toolbox};
 use openpaint_core::StrokeTool;
 
-use super::{ListState, RECENT_EMPTY, list};
+use super::{ListState, list};
 use crate::brush_editor::BrushEditor;
 use crate::components::{ControlMap, controls};
 use crate::design;
+use crate::text::{Language, RECENT_EMPTY, brush_set, set_language};
 
 /// One pass of `draw` at `time` seconds on a screen a panel wide, with `events`: what it asked
 /// for, the controls it laid out and every text it painted.
@@ -99,7 +100,7 @@ fn the_sets_are_words_in_two_columns_and_a_tap_shows_another() {
     let toolbox = toolbox();
     let mut state = ListState::default();
     let (_, map, _) = shown(&ctx, &toolbox, &mut state, (1.0, Vec::new()));
-    let words = BrushSet::ALL.map(BrushSet::label);
+    let words = BrushSet::ALL.map(|set| brush_set(set).id());
     assert_eq!(
         top(&map, words[0]),
         top(&map, words[1]),
@@ -142,12 +143,35 @@ fn recent_says_what_comes_there_until_a_brush_was_drawn_with() {
         drag: None,
     };
     let (_, map, texts) = shown(&ctx, &toolbox, &mut state, (1.0, Vec::new()));
-    assert!(texts.iter().any(|text| text == RECENT_EMPTY), "{texts:?}");
+    assert!(
+        texts.iter().any(|text| text == RECENT_EMPTY.id()),
+        "{texts:?}"
+    );
     assert!(map.find("Ink Pen").is_err());
     toolbox.drew(StrokeTool::Paint);
     let (_, map, texts) = shown(&ctx, &toolbox, &mut state, (2.0, Vec::new()));
-    assert!(!texts.iter().any(|text| text == RECENT_EMPTY));
+    assert!(!texts.iter().any(|text| text == RECENT_EMPTY.id()));
     assert!(map.find("Ink Pen").is_ok());
+}
+
+#[test]
+fn in_chinese_the_sets_and_brushes_read_in_chinese_and_keep_their_names() {
+    let ctx = context();
+    set_language(&ctx, Language::Chinese);
+    let toolbox = toolbox();
+    let mut state = ListState::default();
+    let (_, map, texts) = shown(&ctx, &toolbox, &mut state, (1.0, Vec::new()));
+    for word in ["笔刷", "最近", "上墨", "墨水笔", "勾线笔", "流线"] {
+        assert!(texts.iter().any(|text| text == word), "{word} in {texts:?}");
+    }
+    assert!(
+        texts
+            .iter()
+            .all(|text| text != "Ink Pen" && text != "Inking")
+    );
+    for name in ["Ink Pen", "Inking", "Recent", "StreamLine"] {
+        assert!(map.find(name).is_ok(), "{name} in {:?}", map.names());
+    }
 }
 
 /// Presses `name` from `t` seconds on, holds it still half a second and lets go: whether its
@@ -203,7 +227,7 @@ fn the_set_row_lies_under_the_name_and_moves_the_brush() {
     let (_, map, texts) = page(&toolbox, (1.0, Vec::new()));
     assert!(texts.iter().any(|text| text == "Set"), "{texts:?}");
     let name = top(&map, "Speckle");
-    for word in BrushSet::EDITABLE.map(BrushSet::label) {
+    for word in BrushSet::EDITABLE.map(|set| brush_set(set).id()) {
         assert!(top(&map, word) > name, "{word} under the name");
         assert!(
             top(&map, word) < top(&map, "Preview"),

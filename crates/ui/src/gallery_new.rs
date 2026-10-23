@@ -7,13 +7,14 @@ use openpaint_app::{CanvasPreset, GalleryIntent, Intent};
 use super::{GalleryScreen, ISLAND, Sizes};
 use crate::components::carry::Opening;
 use crate::components::{Opener, ScreenArea, menu_row, panel_heading, popover, section};
+use crate::text::{self as t, Words};
 
 /// The sizes "+" offers, top to bottom.
-const PRESETS: [(CanvasPreset, &str); 4] = [
-    (CanvasPreset::Screen, "Screen size"),
-    (CanvasPreset::Square, "Square"),
-    (CanvasPreset::A4Portrait, "A4 portrait"),
-    (CanvasPreset::A4Landscape, "A4 landscape"),
+const PRESETS: [CanvasPreset; 4] = [
+    CanvasPreset::Screen,
+    CanvasPreset::Square,
+    CanvasPreset::A4Portrait,
+    CanvasPreset::A4Landscape,
 ];
 
 /// What was chosen in the popover.
@@ -24,7 +25,7 @@ enum Chosen {
 
 impl GalleryScreen {
     /// The popover under "+". A row makes the artwork or opens the file picker; a tap outside
-    /// closes the popover, and the tap that opened it does not. "Screen size" is the canvas
+    /// closes the popover, and the tap that opened it does not. Screen size is the canvas
     /// area `under` the top band.
     pub(super) fn sizes_popover(
         &mut self,
@@ -40,17 +41,17 @@ impl GalleryScreen {
         };
         let open = self.sizes != Sizes::Closed;
         let rect = popover(ctx, "new canvas", (opener, open), |ui| {
-            panel_heading(ui, "New canvas");
-            for (preset, label) in PRESETS {
+            panel_heading(ui, t::NEW_CANVAS);
+            for preset in PRESETS {
                 let [width, height] = preset.size(area);
                 let note = format!("{width} × {height}");
-                let row = menu_row(ui, label, &note, true);
+                let row = menu_row(ui, t::preset(preset), Words::made(&note), true);
                 if row.clicked() {
                     chosen = Some(Chosen::Size(preset, row.rect));
                 }
             }
-            section(ui, "From a file");
-            if menu_row(ui, "Open OpenPaint file…", "", true).clicked() {
+            section(ui, t::FROM_A_FILE);
+            if menu_row(ui, t::OPEN_FILE, Words::EMPTY, true).clicked() {
                 chosen = Some(Chosen::File);
             }
         });

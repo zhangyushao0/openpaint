@@ -23,6 +23,7 @@ use crate::components::{
     Alpha, Opener, ScreenArea, choices, icon_choice, picture_texture, popover,
 };
 use crate::design::{INK, Icon};
+use crate::text as t;
 
 /// The panel's UI-local state and the brushes' preview pictures.
 #[derive(Default)]
@@ -107,12 +108,12 @@ impl BrushPanel {
         choices(ui, "tools", |ui, group| {
             let mut opened = false;
             for (tool, icon, label) in [
-                (Tool::Brush, Icon::Brush, "Brushes"),
-                (Tool::Smudge, Icon::Smudge, "Smudge"),
-                (Tool::Eraser, Icon::Eraser, "Eraser"),
+                (Tool::Brush, Icon::Brush, t::BRUSHES),
+                (Tool::Smudge, Icon::Smudge, t::SMUDGE),
+                (Tool::Eraser, Icon::Eraser, t::ERASER),
             ] {
                 let current = brush.tool == tool && !other;
-                let response = icon_choice(ui, group, (icon, label), current);
+                let response = icon_choice(ui, group, (icon, label.into()), current);
                 if brush.tool == tool {
                     self.button = Some(response.rect);
                 }

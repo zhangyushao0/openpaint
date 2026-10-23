@@ -16,13 +16,14 @@ use crate::components::{
 use crate::design::{SPACE, TOUCH_TARGET};
 use crate::layer_rows::percent;
 use crate::taps::push_once;
+use crate::text::{self as t, Text};
 
-/// The curves the choice offers, with Procreate's names.
-const CHANNELS: [(&str, ToneChannel); 4] = [
-    ("Gamma", ToneChannel::Composite),
-    ("Red", ToneChannel::Red),
-    ("Green", ToneChannel::Green),
-    ("Blue", ToneChannel::Blue),
+/// The curves the choice offers, in their order (Procreate's names, `text::channel`).
+const CHANNELS: [ToneChannel; 4] = [
+    ToneChannel::Composite,
+    ToneChannel::Red,
+    ToneChannel::Green,
+    ToneChannel::Blue,
 ];
 
 /// The panel's rows for `adjustment`, the curve editor showing `channel`.
@@ -34,29 +35,29 @@ pub(crate) fn controls(
 ) {
     let reset = match adjustment {
         Adjustment::Hsb(hsb) => {
-            panel_heading(ui, "Hue, Saturation, Brightness");
+            panel_heading(ui, t::HUE_SATURATION_BRIGHTNESS);
             hsb_sliders(ui, *hsb, taps);
             (*hsb != Hsb::NONE).then_some(Adjustment::Hsb(Hsb::NONE))
         }
         Adjustment::Curves(curves) => {
-            panel_heading(ui, "Curves");
+            panel_heading(ui, t::CURVES);
             curve_rows(ui, curves, channel, taps);
             let shown = curves.curve(*channel);
             (!shown.is_identity())
                 .then(|| Adjustment::Curves(curves.with(*channel, ToneCurve::identity())))
         }
         Adjustment::Blur(blur) => {
-            panel_heading(ui, "Gaussian Blur");
+            panel_heading(ui, t::GAUSSIAN_BLUR);
             let share = blur.radius / Blur::MAX_RADIUS;
-            if let Some(value) = one_slider(ui, "Radius", share) {
+            if let Some(value) = one_slider(ui, t::RADIUS, share) {
                 let set = Adjustment::Blur(Blur::new(value * Blur::MAX_RADIUS));
                 push_once(taps, Intent::Adjust(AdjustIntent::Set(set)));
             }
             (*blur != Blur::NONE).then_some(Adjustment::Blur(Blur::NONE))
         }
         Adjustment::Sharpen(sharpen) => {
-            panel_heading(ui, "Sharpen");
-            if let Some(value) = one_slider(ui, "Amount", sharpen.amount) {
+            panel_heading(ui, t::SHARPEN);
+            if let Some(value) = one_slider(ui, t::AMOUNT, sharpen.amount) {
                 let set = Adjustment::Sharpen(Sharpen::new(value));
                 push_once(taps, Intent::Adjust(AdjustIntent::Set(set)));
             }
@@ -69,7 +70,10 @@ pub(crate) fn controls(
 
 fn hsb_sliders(ui: &mut egui::Ui, hsb: Hsb, taps: &mut Vec<Intent>) {
     let values = [hsb.hue, hsb.saturation, hsb.brightness];
-    for (index, label) in ["Hue", "Saturation", "Brightness"].into_iter().enumerate() {
+    for (index, label) in [t::HUE, t::SATURATION, t::BRIGHTNESS]
+        .into_iter()
+        .enumerate()
+    {
         value_row(ui, label, &percent(values[index]));
         if let Some(change) = slider(ui, label, values[index], true) {
             let mut set = values;
@@ -84,7 +88,7 @@ fn hsb_sliders(ui: &mut egui::Ui, hsb: Hsb, taps: &mut Vec<Intent>) {
 }
 
 /// One slider with its percentage (Procreate's); the value the hand set, if it moved.
-fn one_slider(ui: &mut egui::Ui, label: &str, value: f32) -> Option<f32> {
+fn one_slider(ui: &mut egui::Ui, label: Text, value: f32) -> Option<f32> {
     value_row(ui, label, &percent(value));
     slider(ui, label, value, true).map(|change| change.value)
 }
@@ -97,15 +101,15 @@ fn curve_rows(
 ) {
     ui.horizontal(|ui| {
         choices(ui, "curve channel", |ui, group| {
-            for (label, each) in CHANNELS {
-                if text_choice(ui, group, label, *channel == each).clicked() {
+            for each in CHANNELS {
+                if text_choice(ui, group, t::channel(each), *channel == each).clicked() {
                     *channel = each;
                 }
             }
         });
     });
     ui.add_space(SPACE);
-    if let Some(change) = curve_editor(ui, "Curve", curves.curve(*channel)) {
+    if let Some(change) = curve_editor(ui, t::CURVE, curves.curve(*channel)) {
         let set = Adjustment::Curves(curves.with(*channel, change.curve));
         push_once(taps, Intent::Adjust(AdjustIntent::Set(set)));
     }
@@ -115,16 +119,16 @@ fn curve_rows(
 fn commands(ui: &mut egui::Ui, reset: Option<Adjustment>, taps: &mut Vec<Intent>) {
     ui.horizontal(|ui| {
         ui.set_height(TOUCH_TARGET);
-        if text_button(ui, "Reset", reset.is_some()).clicked()
+        if text_button(ui, t::RESET, reset.is_some()).clicked()
             && let Some(reset) = reset
         {
             push_once(taps, Intent::Adjust(AdjustIntent::Set(reset)));
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if text_button(ui, "Apply", true).clicked() {
+            if text_button(ui, t::APPLY, true).clicked() {
                 push_once(taps, Intent::Adjust(AdjustIntent::Apply));
             }
-            if text_button(ui, "Cancel", true).clicked() {
+            if text_button(ui, t::CANCEL, true).clicked() {
                 push_once(taps, Intent::Adjust(AdjustIntent::Cancel));
             }
         });

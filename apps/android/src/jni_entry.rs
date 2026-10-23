@@ -12,7 +12,7 @@ use jni::objects::{
 };
 use jni::sys::{jboolean, jfloat, jint, jlong};
 use jni::{Env, EnvUnowned};
-use openpaint_runtime::{DisplayCache, Runtime, StartOptions, TextFonts, take_spent};
+use openpaint_runtime::{DisplayCache, Language, Runtime, StartOptions, TextFonts, take_spent};
 use openpaint_store::Library;
 
 use crate::error::HostError;
@@ -80,12 +80,17 @@ pub extern "system" fn Java_dev_openpaint_Native_create<'local>(
     files_dir: JString<'local>,
     cache_dir: JString<'local>,
     memory: jlong,
+    language: JString<'local>,
 ) -> jlong {
     init_logging();
     env.with_env(|env| -> Result<jlong, HostError> {
         // The app's private storage (`Context.getFilesDir()`); the library opens on a worker.
         let library = PathBuf::from(files_dir.try_to_string(env)?).join("library");
         let cache_dir = PathBuf::from(cache_dir.try_to_string(env)?);
+        // The system's locale: the interface's language until one is chosen in Actions.
+        let tag = language.try_to_string(env)?;
+        let language = Language::of_tag(&tag);
+        log::info!("system language {tag}: {language:?}");
         let share_dir = cache_dir.join("share");
         // Each artwork's canvas as last shown complete, derived: the system may clear it.
         let display = DisplayCache::at(cache_dir.join("canvas"));
@@ -94,6 +99,7 @@ pub extern "system" fn Java_dev_openpaint_Native_create<'local>(
         let options = StartOptions {
             cache: Some(display),
             memory: Some(memory),
+            language,
             ..StartOptions::default()
         };
         let runtime = Runtime::start(density, Box::new(Library::at(library)), options)?;

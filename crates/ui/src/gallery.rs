@@ -18,8 +18,8 @@ use std::collections::HashMap;
 
 use egui::{Align, Layout, Rect, Vec2};
 use openpaint_app::{
-    FileProblem, GalleryIntent, GalleryNotice, GalleryProjection, Intent, MAX_TITLE_CHARS,
-    ProjectId, ProjectSummary, Thumbnail, TodayProjection,
+    GalleryIntent, GalleryProjection, Intent, Language, MAX_TITLE_CHARS, ProjectId, ProjectSummary,
+    Thumbnail, Title, TodayProjection,
 };
 
 use crate::components::carry::{Arrival, Opening, land};
@@ -29,6 +29,7 @@ use crate::components::{
     today_card,
 };
 use crate::design::{CARD_GAP, Icon, SPACE, TOUCH_TARGET};
+use crate::text::{self as t, Words};
 
 /// The island "+" sits on; the new-canvas popover grows out of it.
 const ISLAND: &str = "gallery island";
@@ -118,7 +119,7 @@ impl GalleryScreen {
             .show(ctx, |ui| {
                 ui.set_height(TOUCH_TARGET);
                 ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
-                    ui.heading("Gallery");
+                    ui.heading(Words::from(t::GALLERY).shown(ui.ctx()));
                 });
             });
         egui::Area::new(egui::Id::new("gallery search"))
@@ -126,12 +127,12 @@ impl GalleryScreen {
             .anchor(egui::Align2::CENTER_TOP, Vec2::new(0.0, ISLAND_TOP))
             .show(ctx, |ui| {
                 ui.set_width(SEARCH_WIDTH);
-                text_field(ui, "Search", &mut self.search, MAX_TITLE_CHARS, false);
+                text_field(ui, t::SEARCH, &mut self.search, MAX_TITLE_CHARS, false);
             });
         let enabled = projection.availability().is_available();
         let open = self.sizes != Sizes::Closed;
         let (button, plus) = island(ctx, ISLAND, Place::top_right(0.0), |ui| {
-            let label = "New artwork";
+            let label = t::NEW_ARTWORK;
             if enabled {
                 icon_toggle(ui, Icon::Add, label, open)
             } else {
@@ -142,11 +143,11 @@ impl GalleryScreen {
         if button.clicked() {
             self.sizes = if open { Sizes::Closed } else { Sizes::Opened };
         }
-        if let Some(message) = message(projection.notice()) {
+        if let Some(message) = t::gallery_notice(projection.notice()) {
             let place = Place::top_right(plus.width() + SPACE);
             let source = Source::Within(Align::Max);
             let (dismissed, _) = pill(ctx, "gallery notice", place, source, |ui| {
-                notice(ui, message, "OK", true).clicked()
+                notice(ui, message, t::OK, true).clicked()
             });
             if dismissed {
                 taps.push(Intent::Gallery(GalleryIntent::Dismiss));
@@ -162,7 +163,9 @@ impl GalleryScreen {
         projection: &GalleryProjection,
         taps: &mut Vec<Intent>,
     ) {
-        self.load_pictures(ui.ctx(), projection.items());
+        let ctx = ui.ctx().clone();
+        let language = t::language(&ctx);
+        self.load_pictures(&ctx, projection.items());
         // While the sizes are open a tap elsewhere only closes them.
         let enabled = projection.availability().is_available() && self.sizes == Sizes::Closed;
         let mut under = ui.max_rect();
@@ -171,15 +174,16 @@ impl GalleryScreen {
         let found: Vec<&ProjectSummary> = projection
             .items()
             .iter()
-            .filter(|item| item.title.matches(&self.search))
+            .filter(|item| shown_title(language, &item.title).matches(&self.search))
             .collect();
         // The Today card comes first, unless a search is typed.
         let today = projection.today().filter(|_| self.search.trim().is_empty());
         if projection.listed() && projection.items().is_empty() && today.is_none() {
             self.arriving = None;
-            list.centered_and_justified(|ui| ui.label("No artworks yet. Tap + to start one."));
+            let empty = Words::from(t::NO_ARTWORKS).shown(&ctx);
+            list.centered_and_justified(|ui| ui.label(empty));
         } else if found.is_empty() && !projection.items().is_empty() && today.is_none() {
-            let text = format!("No title holds “{}”.", self.search.trim());
+            let text = t::nothing_found(language, self.search.trim());
             list.centered_and_justified(|ui| ui.label(text));
         } else {
             egui::ScrollArea::vertical().show(&mut list, |ui| {
@@ -256,12 +260,13 @@ impl GalleryScreen {
         taps: &mut Vec<Intent>,
     ) -> Rect {
         let mut slot = ui.new_child(egui::UiBuilder::new().max_rect(rect));
-        let stage = format!("Stage {} · {}", today.stage, today.topic());
-        let progress = format!("{} of about {} sessions done", today.done, today.sessions);
+        let language = t::language(ui.ctx());
+        let stage = t::stage(language, today.stage);
+        let progress = t::sessions_done(language, today.done, today.sessions);
         let action = if today.open.is_some() {
-            "Continue practice"
+            t::CONTINUE_PRACTICE
         } else {
-            "Start practice"
+            t::START_PRACTICE
         };
         let card = TodayCard {
             stage: &stage,
@@ -293,11 +298,12 @@ impl GalleryScreen {
         taps: &mut Vec<Intent>,
     ) -> Rect {
         let picture = self.pictures.get(&item.id).map(|(_, texture)| texture);
+        let title = t::shown_name(t::language(ui.ctx()), item.title.as_str());
         let tapped = artwork_card(
             ui,
             &ArtworkCard {
                 id: egui::Id::new(("artwork", item.id.get())),
-                title: item.title.as_str(),
+                title: &title,
                 picture,
                 enabled,
                 away,
@@ -312,7 +318,7 @@ impl GalleryScreen {
                 picture: picture.cloned(),
             });
         } else if tapped.rename {
-            self.rename = Some((item.id, Naming::new(item.title.as_str(), card)));
+            self.rename = Some((item.id, Naming::new(&title, card)));
         } else if tapped.options {
             self.options = Some((item.id, card));
         } else if tapped.duplicate {
@@ -361,28 +367,8 @@ impl GalleryScreen {
     }
 }
 
-const fn message(notice: GalleryNotice) -> Option<&'static str> {
-    Some(match notice {
-        GalleryNotice::None => return None,
-        GalleryNotice::ListFailed => "Couldn't read the gallery.",
-        GalleryNotice::OtherLibrary => {
-            "These artworks are from another version of OpenPaint. They are left as they are."
-        }
-        GalleryNotice::OpenFailed => "Couldn't open this artwork. It is kept as it was.",
-        GalleryNotice::CreateFailed => "Couldn't make a new artwork.",
-        GalleryNotice::ChangeFailed => "Couldn't change the gallery.",
-        GalleryNotice::FileSaved => "Saved as an OpenPaint file.",
-        GalleryNotice::FileSaveFailed => "Couldn't save the file.",
-        GalleryNotice::FileRefused(FileProblem::NotOpenPaint) => {
-            "Couldn't open the file: it is not an OpenPaint file."
-        }
-        GalleryNotice::FileRefused(FileProblem::Damaged) => {
-            "Couldn't open the file: it is damaged."
-        }
-        GalleryNotice::FileRefused(FileProblem::OtherFormat) => {
-            "Couldn't open the file: it is from another version of OpenPaint."
-        }
-        GalleryNotice::FileRefused(FileProblem::Unreadable) => "Couldn't read the file.",
-        GalleryNotice::RestoreFailed => "Couldn't restore this version.",
-    })
+/// `title` as `language` shows it: the app's "Untitled Artwork" in the language, the user's as
+/// typed. What the search looks in, and what a restored version's title is noted on.
+pub(crate) fn shown_title(language: Language, title: &Title) -> Title {
+    Title::new(&t::shown_name(language, title.as_str())).unwrap_or_else(|_| title.clone())
 }

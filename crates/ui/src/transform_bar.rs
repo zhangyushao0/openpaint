@@ -15,6 +15,7 @@ use crate::components::{
 use crate::design::motion::ACKNOWLEDGE;
 use crate::design::{INK, Icon, PANEL, ink_line};
 use crate::taps::push_once;
+use crate::text as t;
 
 /// Points from the frame's top edge to the turn handle (draweave's).
 const STEM: f32 = 36.0;
@@ -99,7 +100,7 @@ impl TransformBar {
         taps: &mut Vec<Intent>,
     ) -> bool {
         let on = projection.transform().tool;
-        let response = icon_toggle(ui, Icon::Transform, "Transform", on);
+        let response = icon_toggle(ui, Icon::Transform, t::TRANSFORM, on);
         self.button = Some(response.rect);
         if response.clicked() {
             push_once(taps, Intent::Transform(TransformIntent::Tool(!on)));
@@ -125,17 +126,17 @@ impl TransformBar {
         let ((), rect) = pill(ctx, "transform bar", Place::top_middle(), source, |ui| {
             let taps_for = [
                 (
-                    "Flip Horizontal",
+                    t::FLIP_HORIZONTAL,
                     TransformIntent::Flip { horizontal: true },
                     framed,
                 ),
                 (
-                    "Flip Vertical",
+                    t::FLIP_VERTICAL,
                     TransformIntent::Flip { horizontal: false },
                     framed,
                 ),
-                ("Rotate 45°", TransformIntent::Rotate, framed),
-                ("Reset", TransformIntent::Reset, transform.placed),
+                (t::ROTATE_45, TransformIntent::Rotate, framed),
+                (t::RESET, TransformIntent::Reset, transform.placed),
             ];
             for (label, intent, enabled) in taps_for {
                 if text_button(ui, label, enabled).clicked() {

@@ -33,18 +33,6 @@ impl BrushSet {
     /// The sets a brush lies in, whose order the hand changes.
     pub const EDITABLE: [Self; 4] = [Self::Sketching, Self::Inking, Self::Painting, Self::Texture];
 
-    /// Its word in the pickers and the editor.
-    #[must_use]
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Recent => "Recent",
-            Self::Sketching => "Sketching",
-            Self::Inking => "Inking",
-            Self::Painting => "Painting",
-            Self::Texture => "Texture",
-        }
-    }
-
     /// Its place in `ALL`.
     pub(crate) const fn index(self) -> usize {
         match self {

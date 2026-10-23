@@ -11,8 +11,8 @@
 use std::sync::Arc;
 
 use openpaint_app::{
-    Clipboard, InputBatch, Intent, PalmRejection, PracticeLog, ScreenProjection, SessionProjection,
-    Toolbox, Transfers, TransformIntent,
+    Clipboard, InputBatch, Intent, Language, PalmRejection, PracticeLog, ScreenProjection,
+    SessionProjection, Toolbox, Transfers, TransformIntent,
 };
 use openpaint_core::Artwork;
 use openpaint_render::{Core, ScreenPainter, ScreenTarget, Surface, SurfaceWindow, UiFrame};
@@ -82,6 +82,8 @@ pub struct Runtime {
     /// The brush, size and opacity: the app's, kept across artworks; the open session gets the
     /// style it makes.
     pub(crate) toolbox: Toolbox,
+    /// The host's language, which shows until the toolbox holds one chosen in Actions.
+    system_language: Language,
     /// What was copied last: the app's, kept across artworks, never stored.
     pub(crate) clipboard: Clipboard,
     /// Every practice session: the app's, kept across artworks, as the store holds them.
@@ -261,6 +263,12 @@ impl Runtime {
         }
     }
 
+    /// The language the interface shows: the one chosen in Actions, else the system's (D100).
+    #[must_use]
+    pub fn language(&self) -> Language {
+        self.toolbox.language().unwrap_or(self.system_language)
+    }
+
     /// What the whole screen offers: the canvas, the gallery, or nothing yet.
     #[must_use]
     pub fn screen(&self) -> ScreenProjection {
@@ -293,6 +301,8 @@ impl Runtime {
         let mut events = pointer_events(&batches, self.pixels_per_point);
         events.append(&mut self.typed);
         self.shell.set_now(self.clock.now_ms());
+        let language = self.language();
+        self.shell.set_language(language);
         let shown = self.screen();
         let laid = std::time::Instant::now();
         let pass = run_ui(
@@ -325,7 +335,7 @@ impl Runtime {
         self.evaluate_screen(area)?;
         self.core.end_background();
         self.send_raster(idle);
-        let changed = self.screen() != shown;
+        let changed = self.screen() != shown || self.language() != language;
         // Also until the next tier's atlas is asked for, made ahead once nothing touches.
         let viewing = (self.screen.canvas())
             .is_some_and(|canvas| canvas.waiting() || canvas.view().wants_spare());

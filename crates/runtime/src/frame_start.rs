@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Clipboard, PalmRejection, PracticeLog, ProjectStore, Toolbox, Transfers,
+    BrushLibrary, Clipboard, Language, PalmRejection, PracticeLog, ProjectStore, Toolbox, Transfers,
 };
 use openpaint_render::Core;
 use openpaint_store::DisplayCache;
@@ -18,7 +18,6 @@ use crate::clock::{FrameClock, InputClock};
 use crate::display::CacheWorker;
 use crate::error::RuntimeError;
 use crate::fill::FillWorker;
-use crate::host::version_line;
 use crate::normalise::Normaliser;
 use crate::pacing::Pacing;
 use crate::pictures::PictureWorker;
@@ -46,6 +45,9 @@ pub struct StartOptions {
     /// The device's memory in bytes (Android's `ActivityManager.MemoryInfo.totalMem`): the GPU
     /// memory budget follows from it (`Core::memory_budget`).
     pub memory: Option<u64>,
+    /// The system's language (the host's locale): the interface shows it until one is chosen
+    /// in Actions (D100). English by default.
+    pub language: Language,
 }
 
 impl Runtime {
@@ -62,6 +64,7 @@ impl Runtime {
             core,
             cache,
             memory,
+            language,
         } = options;
         let core = match core {
             Some(core) => core,
@@ -74,7 +77,9 @@ impl Runtime {
         let ui = egui::Context::default();
         design::install(&ui);
         let mut shell = Shell::default();
-        shell.set_version(&version_line());
+        // Actions' last line (D79): the workspace's version, which xtask also hands to Android
+        // as `versionName` with the same format as build metadata, and the storage format.
+        shell.set_version(env!("CARGO_PKG_VERSION"), openpaint_store::FORMAT);
         let library = toolbox.library();
         let shared = SharedCore::new(Arc::clone(&core));
         let brushes =
@@ -85,6 +90,7 @@ impl Runtime {
             cache: CacheWorker::start(cache)?,
             screen: Screen::Opening(None),
             toolbox,
+            system_language: language,
             transfers: Transfers::default(),
             clipboard: Clipboard::default(),
             practice: PracticeLog::default(),

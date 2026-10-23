@@ -16,6 +16,7 @@ use crate::components::{
 };
 use crate::design::{COLOR_WHEEL, INK_SECONDARY, RECENT_SWATCH, SPACE, TOUCH_TARGET};
 use crate::taps::push_once;
+use crate::text::{self as t, Words};
 
 /// The panel's UI-local state.
 #[derive(Debug, Default)]
@@ -40,7 +41,7 @@ impl ColorPanel {
             self.button = None;
             return false;
         };
-        let response = swatch(ui, brush.color, "Colour", TOUCH_TARGET, self.open);
+        let response = swatch(ui, brush.color, t::COLOUR, TOUCH_TARGET, self.open);
         self.opener = Some(response.rect);
         self.button = Some(ScreenArea::from_points(
             response.rect,
@@ -75,7 +76,7 @@ impl ColorPanel {
         };
         let (palette, shown) = (&mut self.palette, &mut self.shown);
         let rect = popover(ctx, "colours", (opener, self.open), |ui| {
-            panel_heading_with(ui, "Colour", |ui| {
+            panel_heading_with(ui, t::COLOUR, |ui| {
                 ui.add_space(SPACE);
                 palette.hex_field(ui, brush.color, taps);
             });
@@ -136,13 +137,16 @@ fn recent(ui: &mut egui::Ui, brush: &BrushProjection, taps: &mut Vec<Intent>) {
         if brush.recent.is_empty() {
             ui.add_space(2.0 * SPACE);
             ui.with_layout(egui::Layout::left_to_right(Align::Center), |ui| {
-                ui.colored_label(INK_SECONDARY, "Colours you choose appear here.");
+                ui.colored_label(
+                    INK_SECONDARY,
+                    Words::from(t::COLOURS_APPEAR).shown(ui.ctx()),
+                );
             });
             return;
         }
         for color in brush.recent.iter() {
             let current = *color == brush.color;
-            if swatch(ui, *color, "Recent colour", RECENT_SWATCH, current).clicked() {
+            if swatch(ui, *color, t::RECENT_COLOUR, RECENT_SWATCH, current).clicked() {
                 push(taps, *color, true);
             }
         }

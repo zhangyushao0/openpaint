@@ -20,6 +20,7 @@ use crate::components::{
 };
 use crate::design::{Icon, REFERENCE_HEIGHT, REFERENCE_WIDTH, SPACE};
 use crate::taps::push_once;
+use crate::text as t;
 
 /// How long the bar stays without a touch on the window, in milliseconds.
 pub(crate) const BAR_IDLE_MS: i64 = 3000;
@@ -88,9 +89,9 @@ impl ReferenceWindow {
         self.bar_until = self.bar_until.filter(|until| now_ms < *until);
         let shown = floating(
             ctx,
-            "Reference",
+            t::REFERENCE.id(),
             (place, self.bar_until.is_some(), ring_of(opener)),
-            |ui| icon_button(ui, Icon::Close, "Close reference", true).clicked(),
+            |ui| icon_button(ui, Icon::Close, t::CLOSE_REFERENCE, true).clicked(),
             |ui, picture| self.paint_picture(ui, picture, (image, &texture)),
         );
         if shown.buttons == Some(true) {

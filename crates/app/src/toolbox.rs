@@ -1,10 +1,10 @@
 //! The toolbox: what the pen does (paint, smudge or erase with a brush), which brush each tool
 //! uses at what size, opacity (the smudge's strength) and StreamLine, the colour, the palette,
-//! the eyedropper and what the pen's buttons do. It belongs to the app, not to one artwork
-//! (Procreate's model: the brush stays when another artwork opens). Like Procreate, the smudge
-//! and the eraser choose their own brushes from the same library, and every brush remembers its
-//! own size, opacity and StreamLine per tool. Stored apart from artworks (ARCHITECTURE section
-//! 5): a state that cannot be used falls back to the defaults.
+//! the eyedropper, what the pen's buttons do and the interface's language (D100). It belongs to
+//! the app, not to one artwork (Procreate's model: the brush stays when another artwork opens).
+//! Like Procreate, the smudge and the eraser choose their own brushes from the same library, and
+//! every brush remembers its own size, opacity and StreamLine per tool. Stored apart from
+//! artworks (ARCHITECTURE section 5): a state that cannot be used falls back to the defaults.
 //!
 //! A pen button (or the eraser end) may hold the eraser or the eyedropper (D70): while held the
 //! pen uses it, the projection shows it, and the tool chosen before is what is stored and what
@@ -21,6 +21,7 @@ use crate::brush_sets::{BrushSet, BrushSets};
 use crate::brushes::{Brush, BrushKey, BrushLibrary};
 use crate::edited_brush::EditedBrush;
 use crate::editor_state::{BrushChoice, BrushSetting, EditorState};
+use crate::language::Language;
 use crate::palette::Palette;
 use crate::pen_buttons::{ButtonMap, HeldTool};
 use crate::streamline::StreamLine;
@@ -118,6 +119,8 @@ pub struct Toolbox {
     /// While picking, the last colour under the contact.
     preview: Option<Color>,
     buttons: ButtonMap,
+    /// The interface's language as chosen; `None` until one is (the system's).
+    language: Option<Language>,
     /// The tool a pen button or the eraser end holds now; never stored.
     held: Option<HeldTool>,
     /// Changed since the state was last handed to the store.
@@ -158,6 +161,7 @@ impl Toolbox {
             picking: false,
             preview: None,
             buttons: ButtonMap::default(),
+            language: None,
             held: None,
             unsaved: false,
             holding: false,
@@ -246,7 +250,14 @@ impl Toolbox {
             library: self.library.stored(),
             sets,
             recent_brushes,
+            language: self.language,
         }
+    }
+
+    /// The interface's language as chosen in Actions; `None` until one is: the system's.
+    #[must_use]
+    pub const fn language(&self) -> Option<Language> {
+        self.language
     }
 
     /// Applies a tool, colour, eyedropper, pen button or palette intent.
@@ -281,6 +292,10 @@ impl Toolbox {
                 let buttons = self.buttons.with(button, action);
                 self.unsaved |= buttons != self.buttons;
                 self.buttons = buttons;
+            }
+            ToolIntent::Language(language) => {
+                self.unsaved |= self.language != Some(language);
+                self.language = Some(language);
             }
             ToolIntent::AddSwatch => self.unsaved |= self.palette.add_swatch(),
             ToolIntent::RemoveSwatch(color) => self.unsaved |= self.palette.remove_swatch(color),

@@ -23,13 +23,10 @@ use crate::components::{
 };
 use crate::design::{Icon, SPACE, TOUCH_TARGET};
 use crate::taps::push_once;
+use crate::text as t;
 
 /// The pens' words, in the island's order.
-const PENS: [(Pen, &str); 3] = [
-    (Pen::Sketch, "Sketch"),
-    (Pen::Draw, "Draw"),
-    (Pen::Correct, "Correct"),
-];
+const PENS: [Pen; 3] = [Pen::Sketch, Pen::Draw, Pen::Correct];
 
 /// Whether the exercise's own tools show on `projection`'s sheet (not the full interface).
 pub(crate) fn own_tools(projection: &SessionProjection) -> bool {
@@ -42,7 +39,7 @@ pub(crate) fn own_tools(projection: &SessionProjection) -> bool {
 pub(crate) fn all_tools(ui: &mut egui::Ui, practice: &PracticeProjection, taps: &mut Vec<Intent>) {
     choices(ui, "all tools", |ui, group| {
         let on = practice.all_tools;
-        if text_choice(ui, group, "All tools", on).clicked() {
+        if text_choice(ui, group, t::ALL_TOOLS, on).clicked() {
             push_once(taps, Intent::Practice(PracticeIntent::AllTools(!on)));
             if on {
                 // Back to the exercise's tools: the pens draw again, the toolbox's brush tool on.
@@ -77,8 +74,8 @@ pub(crate) fn exercise_tools(
         ui.horizontal(|ui| {
             ui.add_space(SPACE);
             let fill = Intent::Practice(PracticeIntent::Fill(brush.color));
-            let picked = swatch(ui, brush.color, "Colour picked", TOUCH_TARGET, false);
-            let tapped = text_button(ui, "Fill frame", true);
+            let picked = swatch(ui, brush.color, t::COLOUR_PICKED, TOUCH_TARGET, false);
+            let tapped = text_button(ui, t::FILL_FRAME, true);
             if picked.clicked() || tapped.clicked() {
                 push_once(taps, fill);
             }
@@ -96,11 +93,11 @@ fn line_tools(ui: &mut egui::Ui, projection: &SessionProjection, taps: &mut Vec<
     let compared = practice.result.is_some();
     ui.horizontal(|ui| {
         choices(ui, "pens", |ui, group| {
-            for (pen, word) in PENS {
+            for pen in PENS {
                 if pen == Pen::Correct && !compared {
                     continue;
                 }
-                if text_choice(ui, group, word, chosen == Some(pen)).clicked() {
+                if text_choice(ui, group, t::pen(pen), chosen == Some(pen)).clicked() {
                     push_once(taps, Intent::Practice(PracticeIntent::Pen(pen)));
                     // The pens are the brush tool's: a chosen eraser gives way.
                     taps.push(Intent::Tool(ToolIntent::Use(Tool::Brush)));
@@ -110,8 +107,8 @@ fn line_tools(ui: &mut egui::Ui, projection: &SessionProjection, taps: &mut Vec<
     });
     ui.horizontal(|ui| {
         let history = [
-            (Icon::Undo, "Undo", EditorAction::Undo, HistoryIntent::Undo),
-            (Icon::Redo, "Redo", EditorAction::Redo, HistoryIntent::Redo),
+            (Icon::Undo, t::UNDO, EditorAction::Undo, HistoryIntent::Undo),
+            (Icon::Redo, t::REDO, EditorAction::Redo, HistoryIntent::Redo),
         ];
         for (icon, label, action, intent) in history {
             let enabled = projection.availability(action).is_offered();

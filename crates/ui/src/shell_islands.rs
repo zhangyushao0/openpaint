@@ -17,6 +17,7 @@ use crate::layer_panel::picture_pixels;
 use crate::notices::notice_pill;
 use crate::panels::Panel;
 use crate::practice_tools;
+use crate::text as t;
 
 impl Shell {
     /// The left island (Gallery, Actions, Selection, Transform), the right one (Brush, Smudge,
@@ -26,7 +27,7 @@ impl Shell {
         let own = practice_tools::own_tools(projection);
         let ((), left) = island(ctx, "left island", Place::top_left(), |ui| {
             let enabled = projection.availability(EditorAction::Gallery).is_offered();
-            if text_button(ui, "Gallery", enabled).clicked() {
+            if text_button(ui, t::GALLERY, enabled).clicked() {
                 self.taps.push(Intent::Gallery(GalleryIntent::Show));
             }
             if let Some(practice) = projection.practice() {
@@ -156,8 +157,8 @@ impl Shell {
         self.panels.layers.picture_bytes()
     }
 
-    /// The GPU device was lost and made again: the notice pill says "The display was
-    /// reset." until OK is tapped or the pen starts a stroke.
+    /// The GPU device was lost and made again: the notice pill says the display was
+    /// reset until OK is tapped or the pen starts a stroke.
     pub fn display_reset(&mut self) {
         self.reset_notice = true;
     }

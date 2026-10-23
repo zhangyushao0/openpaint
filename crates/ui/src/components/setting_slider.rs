@@ -10,6 +10,7 @@ use egui::{Align2, Order, Pos2, Rect, Sense, TextStyle, Vec2, WidgetInfo};
 use crate::components::slider::{along, paint_track};
 use crate::components::{SliderChange, controls};
 use crate::design::{INK, INK_DISABLED, INK_SECONDARY, SPACE, TOUCH_TARGET, panel_frame};
+use crate::text::Words;
 
 /// The width of the words left of the track, in points.
 const WORDS: f32 = 16.0 * SPACE;
@@ -18,8 +19,8 @@ const KNOB: f32 = 1.25 * SPACE;
 
 /// What the setting slider shows.
 pub struct SettingSlider<'a> {
-    /// What it sets: its words and its name.
-    pub label: &'a str,
+    /// What it sets: its words, named by their English.
+    pub label: Words<'a>,
     /// The value as it reads, such as "Continuous" or "2.0 diameters".
     pub shown: &'a str,
     /// Where the value sits along the track, `0..=1`.
@@ -40,11 +41,12 @@ pub fn setting_slider(ui: &mut egui::Ui, slider: &SettingSlider<'_>) -> Option<S
     } else {
         Sense::hover()
     };
-    let id = ui.id().with(slider.label);
+    let id = ui.id().with(slider.label.id());
     let response = ui.interact(track_rect, id, sense);
     let enabled = slider.enabled;
-    response.widget_info(|| WidgetInfo::slider(enabled, f64::from(slider.position), slider.label));
-    controls::register(ui, slider.label, track_rect);
+    let name = slider.label.shown(ui.ctx());
+    response.widget_info(|| WidgetInfo::slider(enabled, f64::from(slider.position), name));
+    controls::register(ui, slider.label.id(), track_rect);
     let track = track_rect.shrink2(Vec2::new(KNOB, 0.0));
     let held = enabled && response.is_pointer_button_down_on();
     let change = along(&response, track, slider.position, enabled);
@@ -73,7 +75,8 @@ fn words(ui: &egui::Ui, row: Rect, slider: &SettingSlider<'_>) {
     let body = TextStyle::Body.resolve(ui.style());
     let small = TextStyle::Small.resolve(ui.style());
     let name = Pos2::new(left, row.center().y + 1.0);
-    painter.text(name, Align2::LEFT_BOTTOM, slider.label, body, ink);
+    let label = slider.label.shown(ui.ctx());
+    painter.text(name, Align2::LEFT_BOTTOM, label, body, ink);
     let value = Pos2::new(left, row.center().y + 2.0);
     painter.text(value, Align2::LEFT_TOP, slider.shown, small, quiet);
 }

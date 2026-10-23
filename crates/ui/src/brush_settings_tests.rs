@@ -11,6 +11,7 @@ use super::{settings, shown, stamp_words};
 use crate::brush_editor::BrushEditor;
 use crate::components::{ControlMap, controls};
 use crate::design;
+use crate::text::{Language, knob as knob_text};
 
 const KNOBS: [Knob; 16] = [
     Knob::Spacing,
@@ -98,7 +99,7 @@ fn every_setting_has_its_control_and_its_value_reads_in_its_units() {
     let ctx = context();
     let brush = toolbox("speckle").projection();
     let (_, map) = columns(&ctx, &brush, Vec::new());
-    let mut names: Vec<&str> = KNOBS.iter().map(|knob| knob.label()).collect();
+    let mut names: Vec<&str> = KNOBS.iter().map(|knob| knob_text(*knob).id()).collect();
     names.extend([
         "StreamLine",
         "Disc",
@@ -126,7 +127,7 @@ fn every_setting_has_its_control_and_its_value_reads_in_its_units() {
         (Knob::SizeMax, 400.0, "400 px"),
     ];
     for (knob, value, text) in reads {
-        assert_eq!(shown(knob, value), text);
+        assert_eq!(shown(Language::English, knob, value), text);
     }
 }
 
@@ -139,7 +140,7 @@ fn each_slider_gives_the_ends_of_the_range_the_engine_allows() {
         let Some(range) = brush.edited.range(knob) else {
             continue;
         };
-        let control = map.find(knob.label()).expect("a control");
+        let control = map.find(knob_text(knob).id()).expect("a control");
         for (fraction, end) in [(0.999, range.max), (0.001, range.min)] {
             let (taps, _) = columns(&ctx, &brush, tap(control.at([fraction, 0.5])));
             let asked = Intent::Brush(BrushIntent::Edit {

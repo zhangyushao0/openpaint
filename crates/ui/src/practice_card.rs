@@ -3,9 +3,10 @@
 //! rather than erase; name a colour, pick once by eye, compare and correct two or three times),
 //! a comparison (a line: in place or aligned, no numbers; a colour: both on the wheel with the
 //! way from yours to the original, its differences in V大's words), and a session's summary (the
-//! colour judgement's radar over the earlier sessions', the colour means beside theirs).
+//! colour judgement's radar over the earlier sessions', the colour means beside theirs). The
+//! words are `text/practice.rs`'s, in the pass's language.
 
-use openpaint_app::{Hsv, Intent, Overlay, Pen, PracticeIntent, PracticeProjection};
+use openpaint_app::{Hsv, Intent, Language, Overlay, Pen, PracticeIntent, PracticeProjection};
 use openpaint_core::Color;
 use openpaint_practice::{
     Axis, Difference, KindSummary, LEAST_CHROMA, Metric, Rgb8, chroma, hsv, hue_name, hue_towards,
@@ -17,6 +18,7 @@ use crate::components::{
 };
 use crate::design::{CORRECTION, DIALOG_WIDTH, SPACE};
 use crate::taps::push_once;
+use crate::text::{self as t, Words, language};
 
 /// The comparison wheel's side on the card, in points.
 const COMPARE_WHEEL: f32 = 280.0;
@@ -25,39 +27,13 @@ const OTHER_HUE: f64 = 45.0;
 
 /// The instructions for lines (or colours); returns whether Got it was tapped.
 pub(crate) fn instructions(ui: &mut egui::Ui, lines: bool) -> bool {
-    let (heading, text): (&str, [&str; 4]) = if lines {
-        (
-            "Copy a line",
-            [
-                "Copy the line into the empty frame beside it.",
-                "Look before you draw: find its two ends and where it bends most, and judge \
-                 where they sit in the frame. Mark them lightly with Sketch if you like.",
-                "Draw the line with Draw in one sure stroke. If it goes wrong, don't erase: draw \
-                 the better line over it.",
-                "Then tap Compare: the original lies over your line in red, in place or aligned \
-                 to it. Correct in blue and compare again, as often as you like.",
-            ],
-        )
-    } else {
-        (
-            "Match a colour",
-            [
-                "Fill the empty frame with the colour of the swatch beside it.",
-                "Name it first: its hue, how pure or grey, how light or dark. Then pick it once \
-                 by eye on the wheel and tap Fill frame.",
-                "Compare by eye: redder or yellower? Lighter or darker? Purer or greyer? Pick \
-                 and fill again two or three times.",
-                "Then tap Compare: the wheel shows where your colour lies against the original. \
-                 The swatch can't be picked with the eyedropper before.",
-            ],
-        )
-    };
-    ui.heading(heading);
+    let (heading, text) = t::instructions(lines);
+    ui.heading(Words::from(heading).shown(ui.ctx()));
     for line in text {
         card_text(ui, line, false);
     }
     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-        text_button(ui, "Got it", true).clicked()
+        text_button(ui, t::GOT_IT, true).clicked()
     })
     .inner
 }
@@ -76,10 +52,10 @@ pub(crate) fn compared(ui: &mut egui::Ui, practice: &PracticeProjection, taps: &
 
 /// Line `place` compared: in place or aligned, and how to go on.
 fn line(ui: &mut egui::Ui, practice: &PracticeProjection, place: usize, taps: &mut Vec<Intent>) {
-    ui.heading(format!("Line {place}"));
+    ui.heading(t::exercise(language(ui.ctx()), true, place));
     ui.horizontal(|ui| {
         choices(ui, "overlay", |ui, group| {
-            for (aligned, word) in [(false, "In place"), (true, "Aligned")] {
+            for (aligned, word) in [(false, t::IN_PLACE), (true, t::ALIGNED)] {
                 let chosen = practice.aligned == aligned;
                 if text_choice(ui, group, word, chosen).clicked() && !chosen {
                     push_once(taps, Intent::Practice(PracticeIntent::Aligned(aligned)));
@@ -88,17 +64,16 @@ fn line(ui: &mut egui::Ui, practice: &PracticeProjection, place: usize, taps: &m
         });
     });
     let shows = if practice.aligned {
-        "In red: the original moved and sized onto your line, never turned. Its shape alone \
-         shows, wherever you placed it."
+        t::SHOWS_ALIGNED
     } else {
-        "In red: the original where it lies in its frame. Where you placed it shows too."
+        t::SHOWS_IN_PLACE
     };
     card_text(ui, shows, false);
     let blue = practice.pen.is_some_and(|(pen, _)| pen == Pen::Correct);
     let next = if blue {
-        "Draw over your line in blue to correct it, then tap Compare again."
+        t::CORRECT_IN_BLUE
     } else {
-        "Draw over your line to correct it, then tap Compare again."
+        t::CORRECT_OVER
     };
     card_text(ui, next, true);
 }
@@ -111,7 +86,8 @@ fn colour(
     place: usize,
     (original, last): (Rgb8, Rgb8),
 ) {
-    ui.heading(format!("Colour {place}"));
+    let language = language(ui.ctx());
+    ui.heading(t::exercise(language, false, place));
     let as_hsv = |rgb: Rgb8| {
         let [r, g, b] = rgb.map(|c| f32::from(c) / 255.0);
         Color::rgb(r, g, b).map_or(
@@ -130,82 +106,72 @@ fn colour(
     });
     let now = Difference::of(original, last);
     card_columns(ui, &["ΔE", &format!("{:.1}", now.delta * 100.0)], false);
-    card_text(ui, &difference((original, last), now), false);
+    let differs = difference(language, (original, last), now);
+    card_text(ui, Words::made(&differs), false);
     if let Some(result) = &practice.result {
         let metrics = &result.metrics;
         let shown =
             |metric| value(metrics, metric).map_or_else(|| "—".to_owned(), |v| text(metric, v));
         let corrections = value(metrics, Metric::Corrections).unwrap_or(0.0);
-        let plural = if corrections == 1.0 { "" } else { "s" };
-        let stored = format!(
-            "Kept from your first Compare: ΔE {} at the first pick, {} at the last, after \
-             {corrections:.0} correction{plural}.",
-            shown(Metric::FirstDelta),
-            shown(Metric::FinalDelta),
-        );
-        card_text(ui, &stored, true);
+        let deltas = (shown(Metric::FirstDelta), shown(Metric::FinalDelta));
+        let stored = t::kept_from_first(language, (&deltas.0, &deltas.1), corrections);
+        card_text(ui, Words::made(&stored), true);
     }
-    card_text(
-        ui,
-        "Yours in ink, the original in red, the arrows from yours to it. ΔE: Oklab × 100; \
-         about 2 is just noticeable.",
-        true,
-    );
+    card_text(ui, t::WHEEL_NOTE, true);
 }
 
 /// How `copy` differs from `original` (`by`), as V大 compares: redder or yellower, purer or
 /// greyer, lighter or darker; another hue altogether (`OTHER_HUE` or more) by its name; or grey
 /// where the other has a hue.
-fn difference((original, copy): (Rgb8, Rgb8), by: Difference) -> String {
+fn difference(language: Language, (original, copy): (Rgb8, Rgb8), by: Difference) -> String {
     let mut parts = Vec::new();
     let hue_of = |c: Rgb8| hsv(c)[0];
+    let name = |c: Rgb8| t::HUE_NAMES[hue_name(hue_of(c))];
     match by.hue.filter(|h| h.abs() >= 1.0) {
         Some(hue) if hue.abs() >= OTHER_HUE => {
-            let (mine, theirs) = (hue_name(hue_of(copy)), hue_name(hue_of(original)));
-            parts.push(format!("{mine} where it is {theirs}"));
+            parts.push(t::instead(language, name(copy), name(original)));
         }
         Some(hue) => {
-            let word = hue_towards(hue_of(original), hue);
-            parts.push(format!("{:.0}° {word}", hue.abs()));
+            let word = t::TOWARDS[hue_towards(hue_of(original), hue)];
+            parts.push(t::by(language, &format!("{:.0}°", hue.abs()), word));
         }
         None => {
             let grey = |c: Rgb8| chroma(c) < LEAST_CHROMA;
-            let name = |c: Rgb8| if grey(c) { "grey" } else { hue_name(hue_of(c)) };
+            let named = |c: Rgb8| if grey(c) { t::GREY } else { name(c) };
             if grey(copy) != grey(original) {
-                parts.push(format!("{} where it is {}", name(copy), name(original)));
+                parts.push(t::instead(language, named(copy), named(original)));
             }
         }
     }
     if by.saturation.abs() >= 0.01 {
         let way = if by.saturation > 0.0 {
-            "purer"
+            t::PURER
         } else {
-            "greyer"
+            t::GREYER
         };
-        parts.push(format!("{:.0} % {way}", by.saturation.abs() * 100.0));
+        let amount = format!("{:.0} %", by.saturation.abs() * 100.0);
+        parts.push(t::by(language, &amount, way));
     }
     if by.value.abs() >= 0.01 {
-        let way = if by.value > 0.0 { "lighter" } else { "darker" };
-        parts.push(format!("{:.0} % {way}", by.value.abs() * 100.0));
+        let way = if by.value > 0.0 {
+            t::LIGHTER
+        } else {
+            t::DARKER
+        };
+        let amount = format!("{:.0} %", by.value.abs() * 100.0);
+        parts.push(t::by(language, &amount, way));
     }
-    if parts.is_empty() {
-        "The same hue, purity and lightness.".to_owned()
-    } else {
-        format!("Yours is {}.", parts.join(", "))
-    }
+    t::yours_is(language, &parts)
 }
 
 /// The summary: what was compared, the colour judgement over the earlier sessions', and the
 /// colour means beside theirs.
 pub(crate) fn summary(ui: &mut egui::Ui, practice: &PracticeProjection, kinds: &[KindSummary]) {
-    ui.heading(format!("Session {} done", practice.number));
+    let language = language(ui.ctx());
+    ui.heading(t::session_done(language, practice.number));
     for kind in kinds {
-        let name = if kind.lines { "Lines" } else { "Colours" };
-        card_text(
-            ui,
-            &format!("{name}: {} of {} compared", kind.checked, kind.held),
-            false,
-        );
+        let line = t::compared_of(language, kind.lines, (kind.checked, kind.held));
+        card_text(ui, Words::made(&line), false);
     }
     let Some(colours) = kinds.iter().find(|kind| !kind.lines) else {
         return;
@@ -215,7 +181,7 @@ pub(crate) fn summary(ui: &mut egui::Ui, practice: &PracticeProjection, kinds: &
             .iter()
             .map(|&axis| {
                 (
-                    axis_name(axis),
+                    t::judgement_axis(axis).get(language),
                     share(this.of(axis)),
                     share(before.of(axis)),
                 )
@@ -223,47 +189,19 @@ pub(crate) fn summary(ui: &mut egui::Ui, practice: &PracticeProjection, kinds: &
             .collect();
         radar(ui, &axes, DIALOG_WIDTH - 4.0 * SPACE);
     }
-    card_columns(ui, &["Colours", "this", "before"], true);
+    let heads = [t::COLOURS, t::THIS_SESSION, t::BEFORE].map(|head| head.get(language));
+    card_columns(ui, &heads, true);
     for (metric, this, before) in &colours.rows {
         let shown = |mean: &Option<f64>| mean.map_or_else(|| "—".to_owned(), |v| text(*metric, v));
-        card_columns(ui, &[label(*metric), &shown(this), &shown(before)], false);
+        let name = t::metric(*metric).get(language);
+        card_columns(ui, &[name, &shown(this), &shown(before)], false);
     }
-    let note = format!(
-        "The shape: your colour judgement, the rim exact. Hue falls to the centre at 30° off, \
-         saturation and value at 25 %, dark and low-saturation colours at ΔE 10; first to final: \
-         how much of the first pick's error your corrections took away. Dashed: your earlier \
-         sessions in stage {}.",
-        practice.stage
-    );
-    card_text(ui, &note, true);
+    let note = t::radar_note(language, practice.stage);
+    card_text(ui, Words::made(&note), true);
 }
 
 fn share(value: Option<f64>) -> Option<f32> {
     value.map(|v| v as f32)
-}
-
-/// An axis's name on the radar.
-const fn axis_name(axis: Axis) -> &'static str {
-    match axis {
-        Axis::Hue => "Hue",
-        Axis::Saturation => "Saturation",
-        Axis::Value => "Value",
-        Axis::Dark => "Dark",
-        Axis::LowSaturation => "Greyish",
-        Axis::FirstToFinal => "First → final",
-    }
-}
-
-/// A metric's name on the card.
-const fn label(metric: Metric) -> &'static str {
-    match metric {
-        Metric::FirstDelta => "First pick ΔE",
-        Metric::FinalDelta => "Final ΔE",
-        Metric::FirstHue | Metric::FinalHue => "Hue",
-        Metric::FirstSaturation | Metric::FinalSaturation => "Saturation",
-        Metric::FirstValue | Metric::FinalValue => "Value",
-        Metric::Corrections => "Corrections",
-    }
 }
 
 /// A metric's value in its plain unit.

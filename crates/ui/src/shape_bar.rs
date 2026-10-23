@@ -12,6 +12,7 @@ use openpaint_core::CanvasSize;
 use crate::components::{Place, ScreenArea, Source, canvas_point, pill, text_button};
 use crate::design::{INK_SECONDARY, PANEL};
 use crate::taps::push_once;
+use crate::text as t;
 use crate::transform_bar::handle_mark;
 
 /// The guide's line and the paper line under it, in points, and how strongly they show.
@@ -40,7 +41,11 @@ impl ShapeBar {
         let place =
             Place::middle_unless(projection.selection().tool || projection.transform().tool);
         let source = Source::Within(egui::Align::Center);
-        let label = if shape.editing { "Done" } else { "Edit shape" };
+        let label = if shape.editing {
+            t::DONE
+        } else {
+            t::EDIT_SHAPE
+        };
         let (tapped, rect) = pill(ctx, "shape bar", place, source, |ui| {
             text_button(ui, label, true).clicked()
         });

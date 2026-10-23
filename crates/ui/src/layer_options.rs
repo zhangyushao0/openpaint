@@ -7,7 +7,7 @@
 //! the layer's mask is highlighted instead: Invert, Clear and delete the mask.
 
 use openpaint_app::{EditorAction, Intent, LayerIntent, LayerList, LayerRow, SessionProjection};
-use openpaint_core::{BlendMode, Unmergeable};
+use openpaint_core::BlendMode;
 
 use crate::components::{
     Lead, command_row, hint, icon_button, slider, switch_row, text_button, value_row, word_columns,
@@ -15,6 +15,7 @@ use crate::components::{
 use crate::design::Icon;
 use crate::layer_rows::percent;
 use crate::taps::push_once;
+use crate::text::{self as t, Words};
 
 /// Rows of touch targets the footer takes, with the group's two when the layer is in one; the
 /// mask's options take two.
@@ -30,28 +31,6 @@ fn offered(projection: &SessionProjection, action: EditorAction) -> bool {
     projection.availability(action).is_offered()
 }
 
-fn name(blend: BlendMode) -> &'static str {
-    match blend {
-        BlendMode::Normal => "Normal",
-        BlendMode::Multiply => "Multiply",
-        BlendMode::Screen => "Screen",
-        BlendMode::Overlay => "Overlay",
-    }
-}
-
-/// Why Merge Down is grey, at the end of its row.
-const fn unmergeable(why: Unmergeable) -> &'static str {
-    match why {
-        Unmergeable::NothingBelow => "Nothing below",
-        Unmergeable::Hidden => "Hidden layer",
-        Unmergeable::Locked => "Locked layer",
-        Unmergeable::Modes => "Modes clash",
-        Unmergeable::BelowClips => "Below clips",
-        Unmergeable::ClippedTo => "Has clips",
-        Unmergeable::TooDeep => "Too deep",
-    }
-}
-
 pub(crate) fn footer(
     ui: &mut egui::Ui,
     list: &LayerList,
@@ -65,8 +44,8 @@ pub(crate) fn footer(
     }
     let enabled = offered(projection, EditorAction::EditLayer);
     ui.separator();
-    value_row(ui, "Opacity", &percent(active.opacity));
-    if let Some(change) = slider(ui, "Opacity", active.opacity, enabled) {
+    value_row(ui, t::OPACITY, &percent(active.opacity));
+    if let Some(change) = slider(ui, t::OPACITY, active.opacity, enabled) {
         let intent = Intent::Layer(LayerIntent::SetOpacity {
             layer: active.id,
             opacity: change.value,
@@ -75,25 +54,26 @@ pub(crate) fn footer(
         push_once(taps, intent);
     }
     blends(ui, active, enabled, taps);
-    if switch_row(ui, "Alpha Lock", active.alpha_locked, enabled).clicked() {
+    if switch_row(ui, t::ALPHA_LOCK, active.alpha_locked, enabled).clicked() {
         taps.push(Intent::Layer(LayerIntent::SetAlphaLock {
             layer: active.id,
             locked: !active.alpha_locked,
         }));
     }
-    if switch_row(ui, "Clipping Mask", active.clipping, enabled).clicked() {
+    if switch_row(ui, t::CLIPPING_MASK, active.clipping, enabled).clicked() {
         taps.push(Intent::Layer(LayerIntent::SetClipping {
             layer: active.id,
             clipping: !active.clipping,
         }));
     }
     let can_mask = offered(projection, EditorAction::AddMask);
-    if command_row(ui, (Icon::Add, "Add Mask", ""), can_mask).clicked() {
+    let add = (Icon::Add, t::ADD_MASK.into(), Words::EMPTY);
+    if command_row(ui, add, can_mask).clicked() {
         taps.push(Intent::Layer(LayerIntent::AddMask(active.id)));
     }
     let can_merge = offered(projection, EditorAction::MergeDown);
-    let why = list.merge_down.map_or("", unmergeable);
-    if command_row(ui, (Icon::MergeDown, "Merge Down", why), can_merge).clicked() {
+    let why = (list.merge_down).map_or(Words::EMPTY, |why| t::unmergeable(why).into());
+    if command_row(ui, (Icon::MergeDown, t::MERGE_DOWN.into(), why), can_merge).clicked() {
         taps.push(Intent::Layer(LayerIntent::MergeDown(active.id)));
     }
     let rename = commands(ui, active, projection, taps);
@@ -110,18 +90,18 @@ fn mask_options(
     taps: &mut Vec<Intent>,
 ) {
     ui.separator();
-    hint(ui, "Black hides · white shows");
+    hint(ui, t::BLACK_HIDES);
     ui.horizontal(|ui| {
         let enabled = offered(projection, EditorAction::ChangeMask);
-        if text_button(ui, "Invert", enabled).clicked() {
+        if text_button(ui, t::INVERT, enabled).clicked() {
             taps.push(Intent::Layer(LayerIntent::InvertMask(active.id)));
         }
-        if text_button(ui, "Clear", enabled).clicked() {
+        if text_button(ui, t::CLEAR, enabled).clicked() {
             taps.push(Intent::Layer(LayerIntent::ClearMask(active.id)));
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             let enabled = offered(projection, EditorAction::EditMask);
-            if icon_button(ui, Icon::Delete, "Delete mask", enabled).clicked() {
+            if icon_button(ui, Icon::Delete, t::DELETE_MASK, enabled).clicked() {
                 taps.push(Intent::Layer(LayerIntent::DeleteMask(active.id)));
             }
         });
@@ -131,7 +111,8 @@ fn mask_options(
 /// The four modes in two even columns, the layer's own carrying the ink pill (one group: the
 /// pill slides across the grid to the mode chosen).
 fn blends(ui: &mut egui::Ui, active: &LayerRow, enabled: bool, taps: &mut Vec<Intent>) {
-    let words = BlendMode::ALL.map(|blend| (name(blend), active.blend == blend, enabled));
+    let words =
+        BlendMode::ALL.map(|blend| (t::blend(blend).into(), active.blend == blend, enabled));
     if let Some(at) = word_columns(ui, "blend modes", &words, Lead::None) {
         let (layer, blend) = (active.id, BlendMode::ALL[at]);
         taps.push(Intent::Layer(LayerIntent::SetBlend { layer, blend }));
@@ -148,15 +129,15 @@ fn commands(
 ) -> Option<egui::Rect> {
     ui.horizontal(|ui| {
         let edit = offered(projection, EditorAction::EditLayer);
-        let rename = text_button(ui, "Rename", edit);
+        let rename = text_button(ui, t::RENAME, edit);
         let (label, intent, action) = match active.group {
             Some(group) => (
-                "Ungroup",
+                t::UNGROUP,
                 LayerIntent::Ungroup(group),
                 EditorAction::EditLayer,
             ),
             None => (
-                "Group",
+                t::GROUP,
                 LayerIntent::Group(active.id),
                 EditorAction::GroupLayer,
             ),
@@ -166,11 +147,11 @@ fn commands(
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             let enabled = offered(projection, EditorAction::DeleteLayer);
-            if icon_button(ui, Icon::Delete, "Delete layer", enabled).clicked() {
+            if icon_button(ui, Icon::Delete, t::DELETE_LAYER, enabled).clicked() {
                 taps.push(Intent::Layer(LayerIntent::Delete(active.id)));
             }
             let room = offered(projection, EditorAction::AddLayer);
-            if icon_button(ui, Icon::Duplicate, "Duplicate layer", room).clicked() {
+            if icon_button(ui, Icon::Duplicate, t::DUPLICATE_LAYER, room).clicked() {
                 taps.push(Intent::Layer(LayerIntent::Duplicate(active.id)));
             }
         });
@@ -191,8 +172,9 @@ fn group(
         return;
     };
     ui.separator();
-    value_row(ui, group.name.as_str(), &percent(group.opacity));
-    if let Some(change) = slider(ui, "Group opacity", group.opacity, enabled) {
+    let name = t::shown_name(t::language(ui.ctx()), group.name.as_str());
+    value_row(ui, Words::made(&name), &percent(group.opacity));
+    if let Some(change) = slider(ui, t::GROUP_OPACITY, group.opacity, enabled) {
         let intent = Intent::Layer(LayerIntent::SetGroupOpacity {
             group: group.id,
             opacity: change.value,

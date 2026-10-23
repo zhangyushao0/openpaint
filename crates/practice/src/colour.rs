@@ -115,45 +115,24 @@ impl Difference {
     }
 }
 
-/// How a hue moved `by` degrees from `degrees` looks in words, as V大 compares two colours
-/// ("redder or yellower"): the comparative of the next of six hues 60 degrees apart (red, yellow,
-/// green, cyan, blue, magenta) it moves towards.
+/// Which way a hue moved `by` degrees from `degrees` goes, as V大 compares two colours
+/// ("redder or yellower"): the next of six hues 60 degrees apart it moves towards, as its index
+/// from red (0 red, 1 yellow, 2 green, 3 cyan, 4 blue, 5 magenta). The words are the UI's.
 #[must_use]
-pub fn hue_towards(degrees: f64, by: f64) -> &'static str {
-    const WORDS: [&str; 6] = [
-        "redder",
-        "yellower",
-        "greener",
-        "more cyan",
-        "bluer",
-        "more magenta",
-    ];
+pub fn hue_towards(degrees: f64, by: f64) -> usize {
     let at = degrees.rem_euclid(360.0) / 60.0;
     let next = if by >= 0.0 {
         at.floor() + 1.0
     } else {
         at.ceil() - 1.0
     };
-    WORDS[(next as i64).rem_euclid(6) as usize]
+    (next as i64).rem_euclid(6) as usize
 }
 
-/// The name of the hue `degrees` lies nearest, of twelve round the wheel.
+/// The hue `degrees` lies nearest, of twelve 30 degrees apart round the wheel, as its index
+/// from red (0 red, 1 orange, 2 yellow, 3 yellow-green, 4 green, 5 green-cyan, 6 cyan, 7 azure,
+/// 8 blue, 9 violet, 10 magenta, 11 rose). The names are the UI's.
 #[must_use]
-pub fn hue_name(degrees: f64) -> &'static str {
-    const NAMES: [&str; 12] = [
-        "red",
-        "orange",
-        "yellow",
-        "yellow-green",
-        "green",
-        "green-cyan",
-        "cyan",
-        "azure",
-        "blue",
-        "violet",
-        "magenta",
-        "rose",
-    ];
-    let index = ((degrees.rem_euclid(360.0) + 15.0) / 30.0) as usize % NAMES.len();
-    NAMES[index]
+pub fn hue_name(degrees: f64) -> usize {
+    ((degrees.rem_euclid(360.0) + 15.0) / 30.0) as usize % 12
 }

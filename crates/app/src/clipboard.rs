@@ -38,19 +38,6 @@ impl ClipboardAction {
         Self::Paste,
     ];
 
-    /// The command's name in the menu.
-    #[must_use]
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Cut => "Cut",
-            Self::Copy => "Copy",
-            Self::CopyAll => "Copy All",
-            Self::Duplicate => "Duplicate",
-            Self::CutPaste => "Cut & Paste",
-            Self::Paste => "Paste",
-        }
-    }
-
     pub(crate) const fn index(self) -> usize {
         self as usize
     }

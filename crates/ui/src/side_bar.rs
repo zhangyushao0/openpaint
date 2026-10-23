@@ -17,11 +17,12 @@ use crate::components::{
 };
 use crate::design::{Icon, SIDE_SLIDER, SPACE, TOUCH_TARGET};
 use crate::taps::{push_brush, push_once};
+use crate::text::{self as t, Text};
 
 /// The history buttons, top to bottom.
-const HISTORY_BUTTONS: [(Icon, &str, EditorAction, HistoryIntent); 2] = [
-    (Icon::Undo, "Undo", EditorAction::Undo, HistoryIntent::Undo),
-    (Icon::Redo, "Redo", EditorAction::Redo, HistoryIntent::Redo),
+const HISTORY_BUTTONS: [(Icon, Text, EditorAction, HistoryIntent); 2] = [
+    (Icon::Undo, t::UNDO, EditorAction::Undo, HistoryIntent::Undo),
+    (Icon::Redo, t::REDO, EditorAction::Redo, HistoryIntent::Redo),
 ];
 /// Between the side bar's parts: one around the eyedropper, a double one after the sliders, one
 /// between the history buttons, in points.
@@ -96,12 +97,12 @@ fn sliders(
     // The smudge's opacity is how strongly it carries colour (draweave's "Strength").
     let smudge = brush.tool == Tool::Smudge;
     let (size_label, opacity_label) = if smudge {
-        ("Smudge size", "Strength")
+        (t::SMUDGE_SIZE, t::SMUDGE_STRENGTH)
     } else {
-        ("Brush size", "Brush opacity")
+        (t::BRUSH_SIZE, t::BRUSH_OPACITY)
     };
     let size = SideSlider {
-        label: size_label,
+        label: size_label.into(),
         value: brush.size_position,
         shown: &pixels(brush.size),
         ends: [Icon::SizeSmall, Icon::SizeLarge],
@@ -123,12 +124,12 @@ fn sliders(
     }
     // Between the sliders, as Procreate's: the eyedropper. On, the next contact on the canvas
     // picks a colour; tapped again, the pen draws again.
-    let label = "Eyedropper";
+    let label = t::EYEDROPPER;
     if icon_toggle(ui, Icon::Eyedropper, label, brush.picking).clicked() {
         push_once(taps, Intent::Tool(ToolIntent::Eyedropper(!brush.picking)));
     }
     let opacity = SideSlider {
-        label: opacity_label,
+        label: opacity_label.into(),
         value: brush.opacity,
         shown: &format!("{} %", (brush.opacity * 100.0).round()),
         ends: [Icon::OpacityLight, Icon::OpacityDark],

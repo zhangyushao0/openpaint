@@ -6,6 +6,7 @@ use openpaint_app::SessionProjection;
 
 use crate::color_drop::{ColorDrop, DropBar};
 use crate::components::{ScreenArea, carried_drop, fill_bar, screen_point};
+use crate::text::{self as t, Words};
 
 /// Shows the carried drop and the fill bar for `drop`; returns where the bar lies, in pixels of
 /// a screen of `pixels_per_point`.
@@ -26,20 +27,22 @@ pub(crate) fn show(
         drop.set_continuing(false);
         return None;
     }
+    let language = t::language(ctx);
     let (text, action) = match bar {
-        DropBar::Dropping(None) => ("Lift to fill. Hold still to adjust.".to_owned(), None),
-        DropBar::Dropping(Some(threshold)) => (
-            format!("Threshold {:.1} % · slide to adjust", threshold * 100.0),
-            None,
+        DropBar::Dropping(None) => (t::LIFT_TO_FILL.get(language).to_owned(), None),
+        DropBar::Dropping(Some(threshold)) => (t::threshold(language, threshold), None),
+        DropBar::Offered => (
+            t::FILLED.get(language).to_owned(),
+            Some(t::CONTINUE_FILLING),
         ),
-        DropBar::Offered => ("Filled.".to_owned(), Some("Continue filling")),
-        DropBar::Continuing => ("Tap an area to fill it.".to_owned(), Some("Done")),
+        DropBar::Continuing => (t::TAP_TO_FILL.get(language).to_owned(), Some(t::DONE)),
     };
     // Under the islands while another bar holds the band's middle (a practice sheet's always).
     let taken = projection.selection().tool
         || projection.transform().tool
         || projection.practice().is_some();
-    let (rect, clicked) = fill_bar(ctx, &text, action, taken);
+    let action = action.map(Words::from);
+    let (rect, clicked) = fill_bar(ctx, Words::made(&text), action, taken);
     if clicked {
         drop.set_continuing(bar == DropBar::Offered);
     }

@@ -45,7 +45,11 @@ class MainActivity : Activity(), SurfaceHolder.Callback2, Choreographer.FrameCal
         super.onCreate(savedInstanceState)
         val memory = ActivityManager.MemoryInfo()
         getSystemService(ActivityManager::class.java)?.getMemoryInfo(memory)
-        handle = Native.create(density(), filesDir.absolutePath, cacheDir.absolutePath, memory.totalMem)
+        // The system's language now: a change recreates the activity, so this start sees it.
+        val language = resources.configuration.locales[0].toLanguageTag()
+        handle = Native.create(
+            density(), filesDir.absolutePath, cacheDir.absolutePath, memory.totalMem, language,
+        )
         Native.fonts(handle, SystemFonts.latin(), SystemFonts.chinese())
         view = CanvasView(this)
         view.handle = handle

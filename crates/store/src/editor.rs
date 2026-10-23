@@ -5,12 +5,14 @@
 //! and Recent (`editor_library.rs`); the colour, red, green, blue (f32); the recent colours, a
 //! count (u32) and per colour red, green, blue (f32), newest first; the palette's swatches alike,
 //! in their order; what the pen's first, second and third side button do (u8 each: 0 nothing, 1
-//! eraser while held, 2 eyedropper while held, 3 undo, 4 redo, 5 switch tool). It is not
-//! artwork: the app falls back to the defaults when it cannot be read, and nothing else depends
-//! on it.
+//! eraser while held, 2 eyedropper while held, 3 undo, 4 redo, 5 switch tool); then, once a
+//! language was chosen (added in 1.2, D100), the interface's language (u8: 0 English, 1
+//! Chinese): a record without it, 1.1's or one written before the choice, follows the system's.
+//! It is not artwork: the app falls back to the defaults when it cannot be read, and nothing
+//! else depends on it.
 
 use openpaint_app::{
-    BrushChoice, BrushSetting, ButtonAction, ButtonMap, EditorState, PortError, Tool,
+    BrushChoice, BrushSetting, ButtonAction, ButtonMap, EditorState, Language, PortError, Tool,
 };
 
 use crate::codec::{Reader, Writer};
@@ -41,7 +43,31 @@ pub(crate) fn encode_editor(state: &EditorState) -> Vec<u8> {
     for action in [buttons.primary, buttons.secondary, buttons.tertiary] {
         writer.u8(action_code(action));
     }
+    if let Some(language) = state.language {
+        writer.u8(language_code(language));
+    }
     writer.finish()
+}
+
+/// A language as the record holds it.
+const fn language_code(language: Language) -> u8 {
+    match language {
+        Language::English => 0,
+        Language::Chinese => 1,
+    }
+}
+
+/// The language ending the record, if one was chosen.
+fn read_language(reader: &mut Reader<'_>) -> Result<Option<Language>, PortError> {
+    if reader.is_done() {
+        return Ok(None);
+    }
+    let code = reader.u8()?;
+    Language::ALL
+        .into_iter()
+        .find(|language| language_code(*language) == code)
+        .map(Some)
+        .ok_or_else(|| reader.corrupt())
 }
 
 /// One tool's brush choice as the record holds it.
@@ -110,6 +136,7 @@ pub(crate) fn decode_editor(bytes: &[u8]) -> Result<EditorState, PortError> {
         secondary: read_action(&mut reader)?,
         tertiary: read_action(&mut reader)?,
     };
+    let language = read_language(&mut reader)?;
     reader.end()?;
     Ok(EditorState {
         tool,
@@ -123,6 +150,7 @@ pub(crate) fn decode_editor(bytes: &[u8]) -> Result<EditorState, PortError> {
         library,
         sets,
         recent_brushes,
+        language,
     })
 }
 
@@ -188,7 +216,31 @@ mod tests {
             library: Vec::new(),
             sets: Default::default(),
             recent_brushes: Vec::new(),
+            language: None,
         }
+    }
+
+    #[test]
+    fn a_chosen_language_ends_the_record_and_none_writes_nothing() {
+        let none = encode_editor(&state());
+        for (language, code) in [(Language::English, 0), (Language::Chinese, 1)] {
+            let chosen = EditorState {
+                language: Some(language),
+                ..state()
+            };
+            let bytes = encode_editor(&chosen);
+            assert_eq!((bytes.len(), bytes[none.len()]), (none.len() + 1, code));
+            assert_eq!(decode_editor(&bytes), Ok(chosen));
+        }
+        let mut unknown = none.clone();
+        unknown.push(2);
+        let corrupt = PortError::Corrupt {
+            what: "editor state",
+        };
+        assert_eq!(decode_editor(&unknown), Err(corrupt.clone()));
+        unknown.truncate(none.len());
+        unknown.extend([1, 0]);
+        assert_eq!(decode_editor(&unknown), Err(corrupt));
     }
 
     #[test]

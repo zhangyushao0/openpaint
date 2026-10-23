@@ -5,17 +5,18 @@
 //! is pressed, so the page lists all three side buttons (from the tip outwards) and says so.
 //! Back returns to Actions.
 
-use openpaint_app::{ButtonAction, ButtonMap, Intent, PenButton, ToolIntent};
+use openpaint_app::{ButtonAction, ButtonMap, Intent, Language, PenButton, ToolIntent};
 
-use crate::components::{Lead, hint, panel_heading_with, text_button, word_columns};
-use crate::design::{INK, SPACE, TOUCH_TARGET};
+use crate::components::{Lead, hint, label_row, panel_heading_with, text_button, word_columns};
+use crate::design::SPACE;
 use crate::taps::push_once;
+use crate::text::{self as t, Words};
 
 /// The Pen buttons row's note on the Actions page: what the side buttons do, from the tip
-/// outwards ("Eraser · Eyedropper · Undo" at first).
-pub(crate) fn summary(buttons: ButtonMap) -> String {
+/// outwards ("Eraser · Eyedropper · Undo" at first), in `language`.
+pub(crate) fn summary(language: Language, buttons: ButtonMap) -> String {
     PenButton::ALL
-        .map(|button| buttons.action(button).label())
+        .map(|button| t::button_action(buttons.action(button)).get(language))
         .join(" · ")
 }
 
@@ -25,34 +26,31 @@ pub(crate) fn pen_buttons_page(
     buttons: ButtonMap,
     taps: &mut Vec<Intent>,
 ) -> bool {
-    let back = panel_heading_with(ui, "Pen buttons", |ui| {
+    let back = panel_heading_with(ui, t::PEN_BUTTONS, |ui| {
         ui.add_space(SPACE);
-        text_button(ui, "Back", true).clicked()
+        text_button(ui, t::BACK, true).clicked()
     });
-    hint(ui, "For the buttons your pen has.");
+    hint(ui, t::FOR_YOUR_PEN);
     for button in PenButton::ALL {
-        label(ui, button.label());
+        label_row(ui, t::pen_button(button), true);
         actions(ui, button, buttons.action(button), taps);
     }
-    label(ui, "Eraser end");
-    hint(ui, "Erases with the eraser's brush.");
-    hint(ui, "Eraser, Eyedropper: while held.");
+    label_row(ui, t::ERASER_END, true);
+    hint(ui, t::ERASER_END_ERASES);
+    hint(ui, t::WHILE_HELD);
     back
-}
-
-/// A button's name, in ink.
-fn label(ui: &mut egui::Ui, text: &str) {
-    ui.horizontal(|ui| {
-        ui.set_height(TOUCH_TARGET);
-        ui.add_space(2.0 * SPACE);
-        ui.colored_label(INK, text);
-    });
 }
 
 /// The six actions for `button` in two even columns, `chosen` in the ink pill.
 fn actions(ui: &mut egui::Ui, button: PenButton, chosen: ButtonAction, taps: &mut Vec<Intent>) {
-    let words = ButtonAction::ALL.map(|action| (action.label(), action == chosen, true));
-    if let Some(at) = word_columns(ui, button.label(), &words, Lead::Indent) {
+    let words = ButtonAction::ALL.map(|action| {
+        (
+            Words::from(t::button_action(action)),
+            action == chosen,
+            true,
+        )
+    });
+    if let Some(at) = word_columns(ui, t::pen_button(button).id(), &words, Lead::Indent) {
         let action = ButtonAction::ALL[at];
         push_once(taps, Intent::Tool(ToolIntent::SetButton { button, action }));
     }

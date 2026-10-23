@@ -44,7 +44,7 @@ pub use crate::painted::{drawn, pile_path, style_of};
 pub use crate::text::{EditKey, TextInput};
 pub use crate::transfer::{Encoded, encoded};
 pub use openpaint_app::{
-    BytesSource, HostAnswer, HostRequest, ImageFormat, ImageSink, ImageSource, PortError,
+    BytesSource, HostAnswer, HostRequest, ImageFormat, ImageSink, ImageSource, Language, PortError,
     ScreenProjection,
 };
 pub use openpaint_render::{Background, Counts, Spent, SurfaceWindow, take_spent};

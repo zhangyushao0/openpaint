@@ -30,16 +30,6 @@ pub enum PenButton {
 impl PenButton {
     pub const ALL: [Self; 3] = [Self::Primary, Self::Secondary, Self::Tertiary];
 
-    /// The button's name on the pen buttons' page.
-    #[must_use]
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Primary => "Side button 1",
-            Self::Secondary => "Side button 2",
-            Self::Tertiary => "Side button 3",
-        }
-    }
-
     /// Whether `buttons` holds this one down.
     const fn down(self, buttons: PenButtons) -> bool {
         match self {
@@ -74,19 +64,6 @@ impl ButtonAction {
         Self::Redo,
         Self::SwitchTool,
     ];
-
-    /// The word the pen buttons' page shows.
-    #[must_use]
-    pub const fn label(self) -> &'static str {
-        match self {
-            Self::Nothing => "Nothing",
-            Self::Eraser => "Eraser",
-            Self::Eyedropper => "Eyedropper",
-            Self::Undo => "Undo",
-            Self::Redo => "Redo",
-            Self::SwitchTool => "Switch tool",
-        }
-    }
 
     /// The tool this action holds while its button is down, if it is one that holds.
     const fn held(self) -> Option<HeldTool> {

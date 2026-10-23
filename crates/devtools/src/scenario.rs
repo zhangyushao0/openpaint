@@ -36,7 +36,20 @@ pub struct Scenario {
     pub screen: [u32; 2],
     /// Physical pixels per UI point.
     pub density: f32,
+    /// The system's language the app starts in, as the host's locale: English unless given.
+    /// Controls keep their English names in either (D100).
+    #[serde(default)]
+    pub system_language: SystemLanguage,
     pub steps: Vec<Step>,
+}
+
+/// The system language a scenario's host reports.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SystemLanguage {
+    #[default]
+    English,
+    Chinese,
 }
 
 /// One thing the user does, or one thing the runner looks at.

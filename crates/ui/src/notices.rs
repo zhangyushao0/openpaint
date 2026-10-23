@@ -3,34 +3,31 @@
 //! lost and made again; with OK, and a new stroke lets it go), a refused or failed fill (with
 //! OK), then exporting (working, saved, failed), then the reference image and a picture to
 //! insert (opening, failed). Running work shows a spinner and asks nothing; a result waits for
-//! OK. The messages are the user-facing form of the app's typed errors. At fit the pill lies on
-//! the desk above the canvas.
+//! OK. The messages are the user-facing form of the app's typed errors, in the pass's language
+//! (`text/notices.rs`). At fit the pill lies on the desk above the canvas.
 
 use openpaint_app::{
-    AdjustIntent, Delivery, EditorAction, ExportError, ExportIntent, ExportNotice, FillIntent,
-    FillRefusal, ImageError, InsertIntent, Intent, LayerRefusal, PracticeIntent, PracticeNotice,
-    ReferenceIntent, ReferenceNotice, SessionProjection, StorageIntent, StorageNotice,
-    TransformIntent, TransformRefusal,
+    AdjustIntent, EditorAction, ExportIntent, ExportNotice, FillIntent, FillRefusal, InsertIntent,
+    Intent, Language, PracticeIntent, PracticeNotice, ReferenceIntent, ReferenceNotice,
+    SessionProjection, StorageIntent, StorageNotice, TransformIntent, TransformRefusal,
 };
 
 use crate::components::{Place, Source, confirmation, notice, pill, status};
 use crate::taps::push_once;
+use crate::text::{self as t, Refused, Text, Words};
 
 /// One thing to tell.
 enum Told {
     /// Work running in the background.
     Running(String),
-    /// Something went wrong: the message, the answer's label, whether it can be given now, and
+    /// Something went wrong: the message, the answer's words, whether it can be given now, and
     /// what giving it asks for.
-    Failed(String, &'static str, bool, Intent),
+    Failed(String, Text, bool, Intent),
     /// Work that succeeded, dismissed with OK.
     Done(String, Intent),
     /// The display was reset, dismissed with OK; nothing is asked of the app.
     Reset,
 }
-
-/// What the notice tells when the GPU device was made again.
-pub(crate) const DISPLAY_RESET: &str = "The display was reset.";
 
 /// The pill for `projection`, if there is something to tell, at `place`, with the notice that the
 /// display was reset while `reset` holds (OK clears it); its taps go to `taps`. Returns its
@@ -41,25 +38,30 @@ pub(crate) fn notice_pill(
     (place, reset): (Place, &mut bool),
     taps: &mut Vec<Intent>,
 ) -> Option<egui::Rect> {
-    let told = storage(projection)
+    let language = t::language(ctx);
+    let told = storage(projection, language)
         .or_else(|| (*reset).then_some(Told::Reset))
-        .or_else(|| practice(projection))
-        .or_else(|| fill(projection))
-        .or_else(|| transform(projection))
-        .or_else(|| adjust(projection))
-        .or_else(|| transfers(projection))?;
+        .or_else(|| practice(projection, language))
+        .or_else(|| fill(projection, language))
+        .or_else(|| transform(projection, language))
+        .or_else(|| adjust(projection, language))
+        .or_else(|| transfers(projection, language))?;
     // It comes out of its right end, beside the right island.
     let source = Source::Within(egui::Align::Max);
     let (tapped, rect) = pill(ctx, "notice", place, source, |ui| match told {
         Told::Running(message) => {
-            status(ui, &message);
+            status(ui, Words::made(&message));
             None
         }
-        Told::Failed(message, action, enabled, intent) => notice(ui, &message, action, enabled)
+        Told::Failed(message, action, enabled, intent) => {
+            notice(ui, Words::made(&message), action, enabled)
+                .clicked()
+                .then_some(Some(intent))
+        }
+        Told::Done(message, intent) => confirmation(ui, Words::made(&message))
             .clicked()
             .then_some(Some(intent)),
-        Told::Done(message, intent) => confirmation(ui, &message).clicked().then_some(Some(intent)),
-        Told::Reset => notice(ui, DISPLAY_RESET, "OK", true)
+        Told::Reset => notice(ui, t::DISPLAY_RESET, t::OK, true)
             .clicked()
             .then_some(None),
     });
@@ -71,162 +73,131 @@ pub(crate) fn notice_pill(
     Some(rect)
 }
 
+/// What a notice answered with OK says.
+fn with_ok(message: String, dismiss: Intent) -> Told {
+    Told::Failed(message, t::OK, true, dismiss)
+}
+
 /// A failed save (with Retry) or a failed open (with OK).
-fn storage(projection: &SessionProjection) -> Option<Told> {
+fn storage(projection: &SessionProjection, language: Language) -> Option<Told> {
     let (message, action, editor_action, intent) = match projection.storage() {
         StorageNotice::None => return None,
         StorageNotice::SaveFailed { retrying: false } => (
-            "Couldn't save. Your drawing is still here.",
-            "Retry",
+            t::SAVE_FAILED,
+            t::RETRY,
             EditorAction::RetrySave,
             StorageIntent::RetrySave,
         ),
         StorageNotice::SaveFailed { retrying: true } => (
-            "Saving…",
-            "Retry",
+            t::SAVING,
+            t::RETRY,
             EditorAction::RetrySave,
             StorageIntent::RetrySave,
         ),
         StorageNotice::OpenFailed => (
-            "Couldn't open the last drawing. This is a new one.",
-            "OK",
+            t::LAST_DRAWING_FAILED,
+            t::OK,
             EditorAction::DismissNotice,
             StorageIntent::Dismiss,
         ),
     };
     let enabled = projection.availability(editor_action).is_available();
     Some(Told::Failed(
-        message.to_owned(),
+        message.get(language).to_owned(),
         action,
         enabled,
         Intent::Storage(intent),
     ))
 }
 
-/// Why the active layer took no `verb` ("Can't fill: the layer is hidden.").
-fn refused(verb: &str, refusal: LayerRefusal) -> String {
-    format!("Can't {verb}: {refusal}.")
-}
-
 /// Why a practice sheet took no contact, with OK.
-fn practice(projection: &SessionProjection) -> Option<Told> {
+fn practice(projection: &SessionProjection, language: Language) -> Option<Told> {
     let message = match projection.practice()?.notice? {
-        PracticeNotice::DrawInFrame => "Draw in the empty frame.".to_owned(),
-        PracticeNotice::PickAfterCompare => "The original can be picked after Compare.".to_owned(),
-        PracticeNotice::CannotFill(refusal) => refused("fill", refusal),
-        PracticeNotice::Done => "This session is done.".to_owned(),
+        PracticeNotice::DrawInFrame => t::DRAW_IN_FRAME.get(language).to_owned(),
+        PracticeNotice::PickAfterCompare => t::PICK_AFTER_COMPARE.get(language).to_owned(),
+        PracticeNotice::CannotFill(refusal) => t::refused(language, Refused::Fill, refusal),
+        PracticeNotice::Done => t::SESSION_DONE.get(language).to_owned(),
     };
-    let dismiss = Intent::Practice(PracticeIntent::Dismiss);
-    Some(Told::Failed(message, "OK", true, dismiss))
+    Some(with_ok(message, Intent::Practice(PracticeIntent::Dismiss)))
 }
 
 /// A refused or failed fill, with OK.
-fn fill(projection: &SessionProjection) -> Option<Told> {
+fn fill(projection: &SessionProjection, language: Language) -> Option<Told> {
     let fill = projection.fill();
     let message = match (fill.refused, fill.failed) {
-        (Some(FillRefusal::Layer(refusal)), _) => refused("fill", refusal),
+        (Some(FillRefusal::Layer(refusal)), _) => t::refused(language, Refused::Fill, refusal),
         // On a practice sheet the empty frame is what a fill stays inside.
         (Some(FillRefusal::OutsideSelection), _) if projection.practice().is_some() => {
-            "Drop inside the empty frame to fill.".into()
+            t::DROP_IN_FRAME.get(language).to_owned()
         }
-        (Some(FillRefusal::OutsideSelection), _) => "Drop inside the selection to fill.".into(),
-        (None, true) => "Couldn't fill there. Try again.".into(),
+        (Some(FillRefusal::OutsideSelection), _) => t::DROP_IN_SELECTION.get(language).to_owned(),
+        (None, true) => t::FILL_FAILED.get(language).to_owned(),
         (None, false) => return None,
     };
-    let dismiss = Intent::Fill(FillIntent::Cancel);
-    Some(Told::Failed(message, "OK", true, dismiss))
+    Some(with_ok(message, Intent::Fill(FillIntent::Cancel)))
 }
 
 /// Why the Transform tool did not turn on, with OK.
-fn transform(projection: &SessionProjection) -> Option<Told> {
-    let message = match projection.transform().refused? {
-        TransformRefusal::Layer(refusal) => refused("transform", refusal),
-        TransformRefusal::Empty => "Nothing to transform here.".into(),
-        TransformRefusal::NothingPasted => "Nothing to paste: the copy holds no paint.".into(),
-        TransformRefusal::Failed => "Couldn't pick up the layer. Try again.".into(),
-        TransformRefusal::Mask => {
-            "A mask can't be transformed. Tap the layer to move its paint.".into()
+fn transform(projection: &SessionProjection, language: Language) -> Option<Told> {
+    let refusal = projection.transform().refused?;
+    let message = match (refusal, t::transform_refused(refusal)) {
+        (_, Some(text)) => text.get(language).to_owned(),
+        (TransformRefusal::Layer(refusal), None) => {
+            t::refused(language, Refused::Transform, refusal)
         }
-        TransformRefusal::Full => "Can't insert: no room for another layer.".into(),
+        (_, None) => return None,
     };
-    let dismiss = Intent::Transform(TransformIntent::Tool(false));
-    Some(Told::Failed(message, "OK", true, dismiss))
+    Some(with_ok(
+        message,
+        Intent::Transform(TransformIntent::Tool(false)),
+    ))
 }
 
 /// Why an adjustment did not start, with OK.
-fn adjust(projection: &SessionProjection) -> Option<Told> {
-    let message = refused("adjust", projection.adjust().refused?);
-    let dismiss = Intent::Adjust(AdjustIntent::Dismiss);
-    Some(Told::Failed(message, "OK", true, dismiss))
+fn adjust(projection: &SessionProjection, language: Language) -> Option<Told> {
+    let message = t::refused(language, Refused::Adjust, projection.adjust().refused?);
+    Some(with_ok(message, Intent::Adjust(AdjustIntent::Dismiss)))
 }
 
 /// Exporting, then the reference image.
-fn transfers(projection: &SessionProjection) -> Option<Told> {
+fn transfers(projection: &SessionProjection, language: Language) -> Option<Told> {
     let transfers = projection.transfers()?;
     let dismiss_export = Intent::Export(ExportIntent::Dismiss);
     match &transfers.export {
         ExportNotice::Working { format, delivery } => {
-            let doing = match delivery {
-                Delivery::Save => "Saving",
-                Delivery::Share => "Preparing",
-            };
-            return Some(Told::Running(format!("{doing} {}…", format.name())));
+            let message = t::exporting(language, *delivery, format.name());
+            return Some(Told::Running(message));
         }
         ExportNotice::Saved { name } => {
-            return Some(Told::Done(format!("Saved “{name}”."), dismiss_export));
+            return Some(Told::Done(t::exported(language, name), dismiss_export));
         }
         ExportNotice::Failed {
             format,
             delivery,
             error,
         } => {
-            let message = export_failed(format.name(), *delivery, error);
-            return Some(Told::Failed(message, "OK", true, dismiss_export));
+            let message = t::export_failed(language, (format.name(), *delivery), error);
+            return Some(with_ok(message, dismiss_export));
         }
         ExportNotice::None => {}
     }
     let reference = Intent::Reference(ReferenceIntent::Dismiss);
     let insert = Intent::Insert(InsertIntent::Dismiss);
-    image(&transfers.reference_notice, "open", reference)
-        .or_else(|| image(&transfers.insert_notice, "insert", insert))
+    image(&transfers.reference_notice, (language, false), reference)
+        .or_else(|| image(&transfers.insert_notice, (language, true), insert))
 }
 
 /// Opening a reference image or a picture to insert, or why it failed.
-fn image(notice: &ReferenceNotice, verb: &str, dismiss: Intent) -> Option<Told> {
+fn image(
+    notice: &ReferenceNotice,
+    (language, insert): (Language, bool),
+    dismiss: Intent,
+) -> Option<Told> {
     match notice {
-        ReferenceNotice::Opening => Some(Told::Running("Opening the image…".to_owned())),
-        ReferenceNotice::Failed(error) => Some(Told::Failed(
-            format!("Couldn't {verb} the image: {}", image_failed(error)),
-            "OK",
-            true,
-            dismiss,
-        )),
+        ReferenceNotice::Opening => Some(Told::Running(t::OPENING_IMAGE.get(language).to_owned())),
+        ReferenceNotice::Failed(error) => {
+            Some(with_ok(t::image_failed(language, insert, error), dismiss))
+        }
         ReferenceNotice::None => None,
-    }
-}
-
-fn export_failed(format: &str, delivery: Delivery, error: &ExportError) -> String {
-    match (error, delivery) {
-        (ExportError::Picker(_), Delivery::Save) => {
-            "Couldn't open the save dialog. Nothing was saved.".to_owned()
-        }
-        (ExportError::Picker(_) | ExportError::Write(_), Delivery::Share) => {
-            format!("Couldn't prepare the {format} to share.")
-        }
-        (ExportError::Render, _) => "Couldn't render the artwork. Nothing was saved.".to_owned(),
-        (ExportError::Encode, _) => format!("Couldn't make the {format} file."),
-        (ExportError::Write(_), Delivery::Save) => {
-            format!("Couldn't write the {format} file. Is there space left?")
-        }
-    }
-}
-
-fn image_failed(error: &ImageError) -> &'static str {
-    match error {
-        ImageError::Picker(_) => "the picker failed.",
-        ImageError::Read(_) => "the file could not be read.",
-        ImageError::Unsupported => "only PNG and JPEG images can be used.",
-        ImageError::Damaged => "the file is damaged.",
-        ImageError::TooLarge => "it is larger than 50 megapixels.",
     }
 }

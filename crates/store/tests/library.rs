@@ -314,6 +314,7 @@ fn the_toolbox_is_stored_apart_and_an_unreadable_one_never_blocks_an_artwork() {
         library: Vec::new(),
         sets: [vec!["pencil".into()], Vec::new(), Vec::new(), Vec::new()],
         recent_brushes: vec!["pencil".into()],
+        language: Some(openpaint_app::Language::Chinese),
     };
     library.save_editor(&state).expect("toolbox");
     assert_eq!(library.editor(), Ok(Some(state)));

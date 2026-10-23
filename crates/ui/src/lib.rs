@@ -44,6 +44,7 @@ mod sheet;
 mod shell;
 mod side_bar;
 mod taps;
+pub mod text;
 mod transform_bar;
 mod transform_drag;
 

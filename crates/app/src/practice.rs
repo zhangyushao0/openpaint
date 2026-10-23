@@ -82,14 +82,6 @@ pub struct TodayProjection {
     pub open: Option<ProjectId>,
 }
 
-impl TodayProjection {
-    /// What stage 1 practises.
-    #[must_use]
-    pub const fn topic(&self) -> &'static str {
-        "Lines and colours"
-    }
-}
-
 /// The open practice sheet for one UI frame.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PracticeProjection {

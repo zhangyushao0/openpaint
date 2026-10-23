@@ -40,7 +40,8 @@ Do not rebuild the big picture from source; the module map is in ARCHITECTURE. D
 - Read the exit code. Never judge a pass from gate output piped through `tail` or `grep`.
 - Fix clippy findings in code; no `#[allow]`. A justified exception is `#[expect(lint, reason = "...")]`.
 - Device verification is a separate tier, done only on the slices ROADMAP marks. If it did not run, STATUS says `not_run`, never "pass".
-- Scenario steps name the controls they touch (`{ "tap": { "at": "Undo" } }`, see `crates/devtools/src/target.rs`); only places on the canvas are pixels. The runner fails a step that touches a control by pixels and prints the name to use.
+- Scenario steps name the controls they touch (`{ "tap": { "at": "Undo" } }`, see `crates/devtools/src/target.rs`); only places on the canvas are pixels. The runner fails a step that touches a control by pixels and prints the name to use. A control's name is its English in either language (D100); a scenario runs in English unless it sets `"system_language": "chinese"`.
+- Every word the interface shows goes in the UI's text tables (`crates/ui/src/text/`), English and Chinese together; `cargo repo-check` refuses words written elsewhere.
 
 ## Device chores: these commands only, never hand-typed adb
 

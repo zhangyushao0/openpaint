@@ -19,12 +19,13 @@ use std::time::{Duration, Instant};
 
 use openpaint_render::Core;
 use openpaint_runtime::{
-    EditKey, HostRequest, MotionBatch, Runtime, RuntimeError, StartOptions, TextFonts, TextInput,
+    EditKey, HostRequest, Language, MotionBatch, Runtime, RuntimeError, StartOptions, TextFonts,
+    TextInput,
 };
 
 use crate::error::ScenarioError;
 use crate::report::{Record, Report, record, view_check};
-use crate::scenario::{Scenario, Step};
+use crate::scenario::{Scenario, Step, SystemLanguage};
 use crate::system::{self, Written};
 use crate::target::{self, Key, Spot};
 use crate::watched::Watched;
@@ -119,8 +120,13 @@ impl Runner<'_> {
     /// included; what survives is what the library stores. Runs frames until it has opened.
     fn start(&mut self) -> Result<Runtime, ScenarioError> {
         let store = Watched::new(self.library, Arc::clone(&self.storage_off));
+        let language = match self.scenario.system_language {
+            SystemLanguage::English => Language::English,
+            SystemLanguage::Chinese => Language::Chinese,
+        };
         let options = StartOptions {
             core: Some(Arc::clone(&self.core)),
+            language,
             ..StartOptions::default()
         };
         let mut runtime = Runtime::start(self.scenario.density, Box::new(store), options)?;

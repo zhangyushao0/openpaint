@@ -18,6 +18,7 @@ use crate::design::SPACE;
 use crate::practice_card;
 use crate::practice_tools::exercise_tools;
 use crate::taps::push_once;
+use crate::text as t;
 
 #[derive(Debug, Default)]
 pub(crate) struct PracticeBar {
@@ -89,21 +90,21 @@ impl PracticeBar {
         taps: &mut Vec<Intent>,
     ) {
         // A label, then the commands, as far apart as a notice's message and its answer.
+        let language = t::language(ui.ctx());
         if practice.current.is_none() {
-            ui.label(format!("Session {} done", practice.number));
+            ui.label(t::session_done(language, practice.number));
             ui.add_space(2.0 * SPACE);
             divider(ui);
-            if text_button(ui, "One more", true).clicked() {
+            if text_button(ui, t::ONE_MORE, true).clicked() {
                 push_once(taps, Intent::Practice(PracticeIntent::OneMore));
             }
             return;
         }
-        let kind = if practice.line { "Line" } else { "Colour" };
-        let (place, of) = practice.place;
-        ui.label(format!("{kind} {place} of {of}"));
+        let place = practice.place;
+        ui.label(t::exercise_of(language, practice.line, place));
         ui.add_space(2.0 * SPACE);
         divider(ui);
-        let how = text_button(ui, "How", true);
+        let how = text_button(ui, t::HOW, true);
         if how.clicked() {
             let show = practice.instructions.is_none();
             push_once(taps, Intent::Practice(PracticeIntent::Instructions(show)));
@@ -112,13 +113,13 @@ impl PracticeBar {
         let offered = practice.compare.is_offered();
         choices(ui, "compare", |ui, group| {
             let on = practice.comparing;
-            let compare = text_choice_wide(ui, group, "Compare", (offered, on), 0.0);
+            let compare = text_choice_wide(ui, group, t::COMPARE, (offered, on), 0.0);
             if compare.clicked() {
                 push_once(taps, Intent::Practice(PracticeIntent::Compare(!on)));
                 self.source = Some(compare.rect);
             }
         });
-        let next = if practice.last { "Finish" } else { "Next" };
+        let next = if practice.last { t::FINISH } else { t::NEXT };
         let tapped = text_button(ui, next, viewport.is_some());
         if let (true, Some(viewport)) = (tapped.clicked(), viewport) {
             push_once(taps, Intent::Practice(PracticeIntent::Next(viewport)));

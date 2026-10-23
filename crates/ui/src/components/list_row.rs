@@ -12,14 +12,16 @@ use crate::design::{
     CHECKER, DIVIDER, ICON_SIZE, INK, INK_ACTIVE, INK_DISABLED, INK_SECONDARY, Icon, Outline,
     PANEL, SPACE, TOUCH_TARGET, paint_icon, paint_mark, paint_pressed,
 };
+use crate::text::{Text, Words};
 
 /// What one row shows.
 #[derive(Debug, Clone, Copy)]
 pub struct ListRow<'a> {
     /// Stays the same for one row's subject from frame to frame, wherever the row moves.
     pub key: egui::Id,
-    pub label: &'a str,
-    /// Shown dimmer, right-aligned before the icon; empty for none.
+    /// Its words, named by the stored name (a layer's), shown in the pass's language.
+    pub label: Words<'a>,
+    /// Shown dimmer, right-aligned before the icon, in the language shown; empty for none.
     pub detail: &'a str,
     /// How far the row's content starts right of its usual place (a layer in a group); a row
     /// whose indent changes slides there (settle).
@@ -31,7 +33,7 @@ pub struct ListRow<'a> {
     pub selected: bool,
     pub icon: Icon,
     /// Names the icon button for accessibility.
-    pub icon_label: &'a str,
+    pub icon_label: Text,
     pub enabled: bool,
     /// Carried by the hand: drawn this far below its place (points), on paper over the other
     /// rows, following the hand 1:1; let go, it slides from there to its place (settle).
@@ -68,18 +70,15 @@ pub fn list_row(ui: &mut egui::Ui, row: &ListRow<'_>) -> RowResponse {
     );
     // Added after the row, so it takes the contacts that land on it.
     let icon = ui.interact(button, response.id.with("icon"), sense);
+    let (label, icon_label) = (row.label.shown(ui.ctx()), Words::from(row.icon_label));
+    let icon_shown = icon_label.shown(ui.ctx());
     response.widget_info(|| {
-        WidgetInfo::selected(
-            egui::WidgetType::Button,
-            row.enabled,
-            row.selected,
-            row.label,
-        )
+        WidgetInfo::selected(egui::WidgetType::Button, row.enabled, row.selected, label)
     });
-    icon.widget_info(|| WidgetInfo::labeled(egui::WidgetType::Button, row.enabled, row.icon_label));
+    icon.widget_info(|| WidgetInfo::labeled(egui::WidgetType::Button, row.enabled, icon_shown));
     // The icon after the row: it lies on top.
-    controls::register(ui, row.label, rect);
-    controls::register(ui, row.icon_label, button);
+    controls::register(ui, row.label.id(), rect);
+    controls::register(ui, icon_label.id(), button);
     // A row seen for the first time (a layer just added) fades in where it lands.
     let appear = animate_from(ui.ctx(), row.key.with("appear"), 0.0, 1.0, ACKNOWLEDGE);
     let shown = rect.translate(Vec2::new(0.0, offset));
@@ -90,7 +89,7 @@ pub fn list_row(ui: &mut egui::Ui, row: &ListRow<'_>) -> RowResponse {
     }
     RowResponse {
         row: response,
-        icon: icon.on_hover_text(row.icon_label),
+        icon: icon.on_hover_text(icon_shown),
     }
 }
 
@@ -165,7 +164,8 @@ fn paint(
         paint_picture(painter, picture.texture, frame);
         left += Vec2::new(picture.size.x + SPACE, 0.0);
     }
-    painter.text(left, Align2::LEFT_CENTER, row.label, font.clone(), color);
+    let label = row.label.shown(ui.ctx());
+    painter.text(left, Align2::LEFT_CENTER, label, font.clone(), color);
     let right = rect.right_center() - Vec2::new(TOUCH_TARGET, 0.0);
     let small = TextStyle::Small.resolve(ui.style());
     painter.text(

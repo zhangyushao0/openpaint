@@ -49,10 +49,6 @@ fn a_first_start_puts_every_built_in_in_the_set_of_its_job() {
         .map(|(set, names)| (set, names.into_iter().map(String::from).collect()))
         .collect();
     assert_eq!(sets, expected);
-    assert_eq!(
-        BrushSet::ALL.map(BrushSet::label),
-        ["Recent", "Sketching", "Inking", "Painting", "Texture"]
-    );
     let brush = toolbox.projection();
     assert_eq!(
         brush.set,

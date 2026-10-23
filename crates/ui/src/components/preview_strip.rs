@@ -9,6 +9,7 @@ use egui::{Align, Color32, Layout, Rect, Sense, Stroke, StrokeKind, UiBuilder, V
 
 use crate::components::{controls, text_button};
 use crate::design::{CORNER, PANEL_RULE, PANEL_RULE_WIDTH, SPACE, TOUCH_TARGET};
+use crate::text::{CLEAR, PREVIEW};
 
 /// What the strip did this frame.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -30,7 +31,7 @@ pub fn preview_strip(
     let size = Vec2::new(ui.available_width(), height);
     // Takes the hand, so a finger on it moves nothing under it.
     let (rect, _) = ui.allocate_exact_size(size, Sense::click_and_drag());
-    controls::register(ui, "Preview", rect);
+    controls::register(ui, PREVIEW.id(), rect);
     if ui.is_rect_visible(rect) {
         let paper = RectShape::filled(rect, CORNER, Color32::WHITE);
         let shape = match picture {
@@ -54,7 +55,7 @@ pub fn preview_strip(
             .max_rect(corner)
             .layout(Layout::right_to_left(Align::Center)),
     );
-    let response = text_button(&mut clear, "Clear", strokes);
+    let response = text_button(&mut clear, CLEAR, strokes);
     StripResponse {
         rect,
         clear_rect: response.rect,

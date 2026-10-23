@@ -12,6 +12,7 @@ use openpaint_core::{MAX_CURVE_POINTS, ToneCurve};
 
 use crate::components::controls;
 use crate::design::{HAIRLINE, INK, INK_DISABLED, PANEL, TOUCH_TARGET, ink_line};
+use crate::text::Text;
 
 /// Radius of a point's ring, in points.
 const POINT: f32 = 6.0;
@@ -182,7 +183,7 @@ impl Square {
 
 /// Shows `curve` in a square as wide as the panel, named `label`; returns the curve the hand
 /// set, if it set one this frame.
-pub fn curve_editor(ui: &mut egui::Ui, label: &str, curve: &ToneCurve) -> Option<CurveChange> {
+pub fn curve_editor(ui: &mut egui::Ui, label: Text, curve: &ToneCurve) -> Option<CurveChange> {
     let side = ui.available_width();
     edit(ui, (label, side), curve).map(|(curve, settled)| CurveChange { curve, settled })
 }
@@ -191,16 +192,17 @@ pub fn curve_editor(ui: &mut egui::Ui, label: &str, curve: &ToneCurve) -> Option
 /// hand set this frame and whether the hand lifted.
 pub fn dynamics_editor(
     ui: &mut egui::Ui,
-    (label, side): (&str, f32),
+    (label, side): (Text, f32),
     curve: &DynamicsCurve,
 ) -> Option<(DynamicsCurve, bool)> {
     edit(ui, (label, side), curve)
 }
 
-fn edit<C: Edited>(ui: &mut egui::Ui, (label, side): (&str, f32), curve: &C) -> Option<(C, bool)> {
+fn edit<C: Edited>(ui: &mut egui::Ui, (label, side): (Text, f32), curve: &C) -> Option<(C, bool)> {
     let (rect, response) = ui.allocate_exact_size(Vec2::splat(side), Sense::click_and_drag());
-    response.widget_info(|| WidgetInfo::labeled(WidgetType::Other, true, label));
-    controls::register(ui, label, rect);
+    let shown = label.get(crate::text::language(ui.ctx()));
+    response.widget_info(|| WidgetInfo::labeled(WidgetType::Other, true, shown));
+    controls::register(ui, label.id(), rect);
     let square = Square(rect.shrink(TOUCH_TARGET / 4.0));
     let held = response.is_pointer_button_down_on();
     let settled = response.drag_stopped() || response.clicked();
