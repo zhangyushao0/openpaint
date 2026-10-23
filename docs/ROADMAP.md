@@ -67,8 +67,35 @@ The author, 2026-10-23: practice is their main activity now. The app gets a prac
 - S81 Outlines for every picture is done (D106; merged from a worktree beside S82 and S83): U²-Net's matte (Apache-2.0, rembg's ONNX file) through tract-onnx in the pack builder only, cleaned into a silhouette with its holes; all 126 of the official pack outlined and looked at on the sheets, 7 items the model still failed replaced in their tiers; the device keeps D103's derivation for the user's own pictures.
 - S82 Colour combinations, value scales and the long project is done (1.5.0; D104): a colour combination generated per seed (4 to 6 areas as bands, patches or blocks, soft or hard edged, related colours with one contrasting, half low in saturation, one weak and one strong contrast) copied by eye with Fill frame and the pens Big, Small and Soft, compared in place under a slider with each area's pair on the wheel read from the copy's pixels and the weak contrasts made strong drawn red (Oklab distance, validated on known cases); a value scale of 5 to 7 cells between a given dark and light, filled a cell at a time and checked on the wheel's value as bars against the even steps; a long colour copy (色彩临摹) of a pack picture or one's own, a record of its own beside the sessions, opened from the practice options with the full interface and no Next, compared in place under the slider and point by point with the eyedropper; stage 2 as a warm-up of three, 4 shapes, a combination, a scale and a colour (about 27 to 29 minutes). `s82-colour-work` passes in both languages, 51 scenarios with every hash before unchanged; on the tablet a test session and a test copy walked, `bench practice` (a combination's Compare 89 %, its slider 76 %), the smoke 16.9 s, the library restored.
 - S83 Practice polish is done (1.5.1; D105; in the main tree beside S81): New copy… opens a picker of the packs' pictures by tier and My pictures (thumbnails made on a worker, credits, those copied before marked), nothing picked for the user; the options list each copy with its picture, and a copy's page opens, renames (the naming dialog) or deletes it (the delete dialog); My pictures listed small with tier and outline, the tier asked before a picture is added and changed on its page, a picture deleted after a dialog saying what used it (records kept, "Picture deleted" where it lay, its Compare unavailable); Next keeps only the current version, so undo stops at the exercise's start; value scales checked on Oklab L, the even cells on the Oklab line between the ends (metric code 35); the slider's cause: the blit through the 2x tier read eight dependent texels a pixel (8.5 of 10.3 ms of GPU), now one hardware bilinear sample inside a tile; Compare's reading drawn at 1x and read on the compare worker. `s83-practice-polish` passes, 52 scenarios with every hash before unchanged; on the tablet the slider 73 -> 94 % of the vsyncs (GPU a frame 10.3 -> 7.2 ms), a combination's Compare 89 -> 92 %, a test copy opened, the smoke 16.8 s, the library restored.
+- S84 Perspective boxes and ellipses: V大's week-2 透视盒子, with Drawabox's checks; the rest of stage 2. Every exercise here has an exact answer, so the check is geometry made visible, never a score.
+  - **Complete the box.** A generated box in two- or three-point perspective is given by its front corner and three edges on a sheet with its horizon. The author draws the rest.
+    - Compare overlays the exact box in red.
+    - It extends each drawn edge faintly to where it meets its vanishing point or the horizon (Drawabox's rough-perspective check), so a wrong convergence shows as lines missing the point.
+  - **Free boxes.** On a page with a horizon, a few boxes drawn freely at varied angles and proportions, as V大 asks.
+    - Compare extends every straight drawn edge to the horizon: edges of one direction meeting at one point, verticals staying vertical.
+    - It marks a front corner under 90°, which V大 names as distortion.
+    - The edges are found from the drawing-pen strokes by line fitting. Show nothing it can't find.
+  - **Ellipses** (Drawabox's tables).
+    - A generated frame or guide: a rectangle in perspective or a plain box. The author draws the ellipse that fits it.
+    - Compare overlays the exact ellipse and the fitted one (a direct least-squares fit of the stroke), each in its colour.
+    - Words: rounder or flatter, tilted which way, missing which side.
+  - **Stage 2's mix** gains these. A session stays about 20 to 30 minutes.
+
+  Done:
+  - The walk-through as a passing scenario, in both languages.
+  - The geometry tested: the exact boxes, the extensions, the line and ellipse fits on known shapes.
+  - On the tablet: a test session walked, Compare at the display's rate, the smoke, and the library restored last.
+- S85 The composition pack, in parallel with S84 (a worktree: the builder's lists and kinds only, no UI). The pictures week 3 on needs: paintings and photographs with strong composition, clear colour and clear value structure, for picture division, Notan, whole-picture copies, colour copies and abstract analysis.
+  - **Sources.**
+    - Public-domain paintings from the Met, the Art Institute of Chicago, the National Gallery of Art and the Rijksmuseum (CC0 or PD), each item's licence read from its API.
+    - Frames of Blender's open films, CC BY with attribution, where a frame is a clear composition.
+  - **Selection.** About 60 items, each looked at on a contact sheet for a readable large structure: few big shapes, a clear focal point, both strong and weak contrasts, low-saturation colour as well as bright. The reasons are kept in the list.
+  - **A kind of its own** (`Composition`) in the pack model, with tiers by complexity.
+  - **No outlines** for compositions: their comparison is the picture in place.
+
+  Done: the pack built and rebuilt to the same bytes, every licence checked, every sheet looked at, no picture committed.
 - Next, each specified after the one before lands:
-  - Perspective boxes, ellipses, point positioning, proportion and angle estimates.
+  - Point positioning, proportion and angle estimates (stage 3).
   - Picture division, Notan and whole-picture copies.
   - Key shifts, gamut masks and abstract analysis.
   - Structure rotation against renders.
@@ -82,6 +109,7 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 
 (Findings outside the current slice, one line each, dated.)
 
+- 2026-10-23 The long copy's picker lists each picture as a row with its full credit and links, which crowds a tier of 30: a grid of thumbnails, the credit shown with the picture chosen (S83).
 - 2026-10-23 Languages after S77: Chinese typed on the tablet's keyboard into a title or name (IME composition) is unchecked; only a card's paragraphs are line-broken the Chinese way (dialog notes and hints are one line today); curly quotes in Chinese come from Roboto (Android's own order); a card title is still cut at about 12 characters, Chinese or not; Android 13's per-app language setting could also choose the language (it is the locale the host hands over at start).
 
 - 2026-10-23 Practice after S76: the aligned fit takes the copy as it is now, corrections with it (fit to the latest strokes only if the author finds the compromise misleading); the fit runs on the main thread at Compare (on the tablet Compare's frame 68 ms, a gap of 12 vsyncs; a group tries up to nine parts: a worker); a Fill frame's frame took 35 ms on the tablet (the fill's scene).
