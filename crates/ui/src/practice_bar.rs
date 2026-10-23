@@ -1,40 +1,46 @@
 //! A practice sheet's chrome (G9): the practice bar in the middle of the top band ("Line 3 of
-//! 10", How, Compare carrying the ink pill while the check shows, Next or Finish; once done
-//! "Session 3 done" and One more), and the card under it, grown out of the word that asked for
-//! it: the instructions (by themselves the first time a kind comes up), a check's numbers, or the
-//! session's summary (`practice_card.rs`). The sheet itself is `practice_marks.rs`.
+//! 10", How, Compare carrying the ink pill while the comparison shows, Next or Finish; once done
+//! "Session 3 done" and One more), the exercise's own tools beside its frame
+//! (`practice_tools.rs`), and under them the card, grown out of the word that asked for it: the
+//! instructions (by themselves
+//! the first time a kind comes up), the comparison, or the session's summary
+//! (`practice_card.rs`). The sheet itself is `practice_marks.rs`.
 
 use egui::Align;
 use openpaint_app::{Intent, PracticeIntent, PracticeProjection, SessionProjection, Viewport};
 
+use crate::color_panel::ColorPanel;
 use crate::components::{
-    Place, ScreenArea, Source, card, choices, divider, pill, ring_of, text_button, text_choice_wide,
+    Place, ScreenArea, Source, UNDER_ISLANDS, card, choices, divider, pill, ring_of, text_button,
+    text_choice_wide,
 };
 use crate::design::SPACE;
 use crate::practice_card;
+use crate::practice_tools::exercise_tools;
 use crate::taps::push_once;
 
 #[derive(Debug, Default)]
 pub(crate) struct PracticeBar {
-    /// Where the bar and the card lie on screen, in pixels, from the last pass.
+    /// Where the bar, the exercise's tools and the card lie on screen, in pixels, from the last pass.
     bar: Option<ScreenArea>,
+    tools: Option<ScreenArea>,
     card: Option<ScreenArea>,
     /// The word the card last grew out of, in points.
     source: Option<egui::Rect>,
 }
 
 impl PracticeBar {
-    /// The bar and the card on a practice sheet, its taps pushed to `taps`; Next moves the view
-    /// within `viewport`. The card lies at the right under the islands, in the room the view
-    /// leaves it (`PRACTICE_ROOM`).
+    /// The bar, the exercise's tools (a colour's wheel `colors` keeps) and the card on a practice sheet,
+    /// their taps pushed to `taps`; Next moves the view within `viewport`. The tools and the card
+    /// lie at the right under the islands, in the room the view leaves them (`PRACTICE_ROOM`).
     pub(crate) fn show(
         &mut self,
         ctx: &egui::Context,
         projection: &SessionProjection,
-        viewport: Option<Viewport>,
+        (viewport, colors): (Option<Viewport>, &mut ColorPanel),
         taps: &mut Vec<Intent>,
     ) {
-        (self.bar, self.card) = (None, None);
+        (self.bar, self.tools, self.card) = (None, None, None);
         let Some(practice) = projection.practice() else {
             return;
         };
@@ -46,7 +52,10 @@ impl PracticeBar {
         });
         let ppp = ctx.pixels_per_point();
         self.bar = Some(ScreenArea::from_points(bar, ppp));
-        let opened = ring_of(self.source.unwrap_or(bar));
+        let tools = exercise_tools(ctx, projection, colors, taps);
+        self.tools = tools.map(|rect| ScreenArea::from_points(rect, ppp));
+        let top = tools.map_or(UNDER_ISLANDS, |rect| rect.bottom() + SPACE);
+        let opened = (ring_of(self.source.unwrap_or(bar)), top);
         let card = if let Some(kinds) = &practice.summary {
             card(ctx, "practice card", opened, |ui| {
                 practice_card::summary(ui, practice, kinds);
@@ -60,9 +69,9 @@ impl PracticeBar {
                 push_once(taps, Intent::Practice(PracticeIntent::Instructions(false)));
             }
             rect
-        } else if practice.comparing && practice.result.is_some() {
+        } else if practice.comparing {
             card(ctx, "practice card", opened, |ui| {
-                practice_card::results(ui, practice);
+                practice_card::compared(ui, practice, taps);
             })
             .1
         } else {
@@ -117,8 +126,9 @@ impl PracticeBar {
         }
     }
 
-    /// Where the bar and the card lie, which the canvas must not take contacts from.
-    pub(crate) fn areas(&self) -> [Option<ScreenArea>; 2] {
-        [self.bar, self.card]
+    /// Where the bar, the exercise's tools and the card lie, which the canvas must not take contacts
+    /// from.
+    pub(crate) fn areas(&self) -> [Option<ScreenArea>; 3] {
+        [self.bar, self.tools, self.card]
     }
 }

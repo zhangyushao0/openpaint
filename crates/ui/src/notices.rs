@@ -111,13 +111,13 @@ fn refused(verb: &str, refusal: LayerRefusal) -> String {
 /// Why a practice sheet took no contact, with OK.
 fn practice(projection: &SessionProjection) -> Option<Told> {
     let message = match projection.practice()?.notice? {
-        PracticeNotice::DrawInFrame => "Draw in the empty frame.",
-        PracticeNotice::Checked => "Checked. Tap Next for the next one.",
-        PracticeNotice::PickAfterCompare => "The original can be picked after Compare.",
-        PracticeNotice::Done => "This session is done.",
+        PracticeNotice::DrawInFrame => "Draw in the empty frame.".to_owned(),
+        PracticeNotice::PickAfterCompare => "The original can be picked after Compare.".to_owned(),
+        PracticeNotice::CannotFill(refusal) => refused("fill", refusal),
+        PracticeNotice::Done => "This session is done.".to_owned(),
     };
     let dismiss = Intent::Practice(PracticeIntent::Dismiss);
-    Some(Told::Failed(message.to_owned(), "OK", true, dismiss))
+    Some(Told::Failed(message, "OK", true, dismiss))
 }
 
 /// A refused or failed fill, with OK.

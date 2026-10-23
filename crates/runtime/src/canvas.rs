@@ -4,8 +4,9 @@
 use std::time::Instant;
 
 use openpaint_app::{
-    Clipboard, ContactPhase, FillFailed, Intent, LiftFailed, PracticeIntent, SelectionIntent,
-    Session, StrokeIntent, Title, ToolIntent, Toolbox, TransformJob, ViewMapping, Viewport,
+    Clipboard, ContactPhase, FillFailed, Intent, LiftFailed, PracticeIntent, PracticePens,
+    SelectionIntent, Session, StrokeIntent, Title, ToolIntent, Toolbox, TransformJob, ViewMapping,
+    Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, Patch, RegionMask, StrokeTool};
 use openpaint_practice::SessionRecord;
@@ -100,10 +101,11 @@ impl Canvas {
         }
         let brush = toolbox.style()?;
         let (mut session, title) = match (content, sheet) {
-            (Content::Stored(artwork, title, _), Some(sheet)) => (
-                Session::practising(artwork.clone(), brush, sheet, viewport),
-                title.clone(),
-            ),
+            (Content::Stored(artwork, title, _), Some(sheet)) => {
+                let pens = PracticePens::of(toolbox.library())?;
+                let session = Session::practising(artwork.clone(), (brush, pens), sheet, viewport);
+                (session, title.clone())
+            }
             (Content::Stored(artwork, title, _), None) => {
                 (Session::open(artwork.clone(), brush), title.clone())
             }

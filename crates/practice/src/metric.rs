@@ -1,53 +1,31 @@
 //! Every number a result holds, with its stable code: what is stored, summed up and, later,
-//! followed over sessions. Values are kept in natural units: distances in frame sides, speed in
-//! frame sides a second, times in seconds, hue in degrees, saturation and value as shares
-//! (0 to 1), colour differences in Oklab units (0 to about 1), counts as counts.
+//! followed over sessions. Values are kept in natural units: hue in degrees, saturation and value
+//! as shares (0 to 1), colour differences in Oklab units (0 to about 1), counts as counts.
+//!
+//! Lines have no numbers (D99: a number that does not match what the eye sees misleads; the
+//! overlay is the feedback). Codes 1 to 8 were 1.1.0's line metrics (key points, frame, shape,
+//! speed, wobble, strokes, erased, seconds): retired, never reused, passed over when read.
 
 /// One measured quantity of a result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Metric {
-    /// Line: the mean distance of the original's key points (its ends and most bulging points)
-    /// from the nearest point of the copy.
-    KeyPoints,
-    /// Line: the symmetric mean distance between copy and original as placed in their frames.
-    Frame,
-    /// Line: the same after the copy is moved and sized (never turned) onto the original.
-    Shape,
-    /// Line: the paint strokes' length over the time the pen was down drawing them.
-    Speed,
-    /// Line: the root mean square distance of the copy from its own local smoothing.
-    Wobble,
-    /// Line: paint strokes drawn in the frame.
-    Strokes,
-    /// Line: eraser strokes in the frame.
-    Erased,
-    /// Line: seconds the pen was down drawing the paint strokes.
-    Seconds,
     /// Colour: the first colour laid against the original: Oklab difference, hue (degrees,
     /// signed, only when both have colour), saturation and value (signed shares).
     FirstDelta,
     FirstHue,
     FirstSaturation,
     FirstValue,
-    /// Colour: the colour laid last, as the first.
+    /// Colour: the colour laid at the first Compare, as the first.
     FinalDelta,
     FinalHue,
     FinalSaturation,
     FinalValue,
-    /// Colour: how often the colour laid changed after the first.
+    /// Colour: how often the colour laid changed after the first, before the first Compare.
     Corrections,
 }
 
 impl Metric {
-    pub const ALL: [Self; 17] = [
-        Self::KeyPoints,
-        Self::Frame,
-        Self::Shape,
-        Self::Speed,
-        Self::Wobble,
-        Self::Strokes,
-        Self::Erased,
-        Self::Seconds,
+    pub const ALL: [Self; 9] = [
         Self::FirstDelta,
         Self::FirstHue,
         Self::FirstSaturation,
@@ -63,14 +41,6 @@ impl Metric {
     #[must_use]
     pub const fn code(self) -> u8 {
         match self {
-            Self::KeyPoints => 1,
-            Self::Frame => 2,
-            Self::Shape => 3,
-            Self::Speed => 4,
-            Self::Wobble => 5,
-            Self::Strokes => 6,
-            Self::Erased => 7,
-            Self::Seconds => 8,
             Self::FirstDelta => 20,
             Self::FirstHue => 21,
             Self::FirstSaturation => 22,
@@ -107,7 +77,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn codes_are_distinct_and_read_back() {
+    fn codes_are_distinct_and_read_back_and_the_retired_ones_are_unknown() {
         for metric in Metric::ALL {
             assert_eq!(Metric::of_code(metric.code()), Some(metric));
         }
@@ -115,6 +85,8 @@ mod tests {
         codes.sort_unstable();
         codes.dedup();
         assert_eq!(codes.len(), Metric::ALL.len());
-        assert_eq!(Metric::of_code(0), None);
+        for retired in 0..=8 {
+            assert_eq!(Metric::of_code(retired), None, "code {retired}");
+        }
     }
 }

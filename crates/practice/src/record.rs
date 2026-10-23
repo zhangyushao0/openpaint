@@ -1,10 +1,13 @@
 //! What is kept of a session: its stage and place in it, its seed and exercises, where its sheet
-//! is, its progress and every checked exercise's numbers with when it was checked. Enough for the
-//! summary now and for trajectories, re-tests and drills later. The summary sets this session's
-//! means beside those of the sessions before it in its stage.
+//! is, its progress and every compared exercise: when it was first compared, how often, which of
+//! its strokes are corrections and, for a colour, its numbers. Enough for the summary now and for
+//! trajectories, re-tests, drills and a study of the strokes later. The summary sets this
+//! session's colour means and judgement beside those of the sessions before it in its stage.
 
+use crate::colour_match::Tone;
+use crate::judgement::{Judgement, judgement};
 use crate::metric::{Metric, Metrics, value};
-use crate::plan::{Exercise, stage_one};
+use crate::plan::{Exercise, Kind, stage_one};
 
 /// One session as it is stored.
 #[derive(Debug, Clone, PartialEq)]
@@ -24,18 +27,46 @@ pub struct SessionRecord {
     /// The exercise shown, an index into `exercises`.
     pub current: u32,
     pub exercises: Vec<Exercise>,
-    /// The exercises checked, in the order they were.
+    /// The exercises compared, in the order they first were.
     pub results: Vec<ExerciseResult>,
 }
 
-/// One checked exercise.
+/// One compared exercise.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExerciseResult {
     /// Its index in the session's exercises.
     pub index: u32,
-    /// When it was checked, in seconds since 1970 UTC.
+    /// When it was first compared, in seconds since 1970 UTC.
     pub checked_at: u64,
+    /// How often it was compared, from 1.
+    pub compares: u32,
+    /// The sheet's first stroke id after the first Compare: the strokes begun in its frame with
+    /// this id or a later one are corrections. `None` in 1.1.0's records, where a compared frame
+    /// took nothing more.
+    pub corrected_from: Option<u64>,
+    /// A colour's numbers at its first Compare; none for a line.
     pub metrics: Metrics,
+}
+
+impl ExerciseResult {
+    /// Exercise `index` compared for the first time at `checked_at`, the sheet's next stroke id
+    /// then `next_stroke`, with `metrics`.
+    #[must_use]
+    pub const fn first(index: u32, checked_at: u64, next_stroke: u64, metrics: Metrics) -> Self {
+        Self {
+            index,
+            checked_at,
+            compares: 1,
+            corrected_from: Some(next_stroke),
+            metrics,
+        }
+    }
+
+    /// Whether the stroke `id` begun in its frame is a correction.
+    #[must_use]
+    pub fn corrects(&self, id: u64) -> bool {
+        self.corrected_from.is_some_and(|from| id >= from)
+    }
 }
 
 impl SessionRecord {
@@ -81,28 +112,24 @@ impl SessionRecord {
     }
 }
 
-/// The metrics the summary sets side by side for lines and for colours.
-pub const LINE_ROWS: [Metric; 5] = [
-    Metric::KeyPoints,
-    Metric::Frame,
-    Metric::Shape,
-    Metric::Speed,
-    Metric::Wobble,
-];
+/// The metrics the summary sets side by side for colours.
 pub const COLOUR_ROWS: [Metric; 3] = [Metric::FirstDelta, Metric::FinalDelta, Metric::Corrections];
 
 /// One kind of exercise in a session's summary.
 #[derive(Debug, Clone, PartialEq)]
 pub struct KindSummary {
     pub lines: bool,
-    /// Exercises of the kind checked, and held.
+    /// Exercises of the kind compared, and held.
     pub checked: usize,
     pub held: usize,
-    /// Per metric: the mean over this session's results and over the earlier sessions'.
+    /// Colours: per metric the mean over this session's results and over the earlier sessions';
+    /// lines have none.
     pub rows: Vec<(Metric, Option<f64>, Option<f64>)>,
+    /// Colours: this session's judgement and the earlier sessions'.
+    pub judgement: Option<[Judgement; 2]>,
 }
 
-/// `this` session's means per kind beside those of `before` (the earlier sessions of its stage).
+/// `this` session's summary per kind beside `before` (the earlier sessions of its stage).
 #[must_use]
 pub fn summary(this: &SessionRecord, before: &[&SessionRecord]) -> Vec<KindSummary> {
     [true, false]
@@ -116,43 +143,54 @@ pub fn summary(this: &SessionRecord, before: &[&SessionRecord]) -> Vec<KindSumma
             (held > 0).then(|| {
                 let mine = results_of(&[this], lines);
                 let earlier = results_of(before, lines);
-                let rows = if lines {
-                    &LINE_ROWS[..]
+                let (rows, judged) = if lines {
+                    (Vec::new(), None)
                 } else {
-                    &COLOUR_ROWS[..]
+                    let rows = COLOUR_ROWS.map(|m| (m, mean(&mine, m), mean(&earlier, m)));
+                    (rows.to_vec(), Some([judged(&mine), judged(&earlier)]))
                 };
                 KindSummary {
                     lines,
                     checked: mine.len(),
                     held,
-                    rows: rows
-                        .iter()
-                        .map(|&m| (m, mean(&mine, m), mean(&earlier, m)))
-                        .collect(),
+                    rows,
+                    judgement: judged,
                 }
             })
         })
         .collect()
 }
 
-/// Every result of `sessions` of lines (or colours).
-fn results_of<'a>(sessions: &[&'a SessionRecord], lines: bool) -> Vec<&'a Metrics> {
+/// Every result of `sessions` of lines (or colours), with its exercise's kind.
+fn results_of<'a>(sessions: &[&'a SessionRecord], lines: bool) -> Vec<(Kind, &'a Metrics)> {
     sessions
         .iter()
         .flat_map(|session| {
-            session.results.iter().filter(move |result| {
-                session
-                    .exercises
-                    .get(result.index as usize)
-                    .is_some_and(|e| e.kind.is_line() == lines)
+            session.results.iter().filter_map(move |result| {
+                let exercise = session.exercises.get(result.index as usize)?;
+                (exercise.kind.is_line() == lines).then_some((exercise.kind, &result.metrics))
             })
         })
-        .map(|result| &result.metrics)
         .collect()
 }
 
 /// The mean of `metric` over the results holding it.
-fn mean(results: &[&Metrics], metric: Metric) -> Option<f64> {
-    let values: Vec<f64> = results.iter().filter_map(|m| value(m, metric)).collect();
+fn mean(results: &[(Kind, &Metrics)], metric: Metric) -> Option<f64> {
+    let values: Vec<f64> = results
+        .iter()
+        .filter_map(|(_, m)| value(m, metric))
+        .collect();
     (!values.is_empty()).then(|| values.iter().sum::<f64>() / values.len() as f64)
+}
+
+/// The judgement of the colour results among `results`.
+fn judged(results: &[(Kind, &Metrics)]) -> Judgement {
+    let colours: Vec<(Tone, &[(Metric, f64)])> = results
+        .iter()
+        .filter_map(|(kind, metrics)| match kind {
+            Kind::Colour(tone) => Some((*tone, metrics.as_slice())),
+            Kind::Line(_) => None,
+        })
+        .collect();
+    judgement(&colours)
 }

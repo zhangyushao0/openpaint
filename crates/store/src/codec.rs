@@ -174,6 +174,11 @@ impl<'a> Reader<'a> {
         std::mem::take(&mut self.bytes)
     }
 
+    /// Whether every byte was read: a record that grew a tail later ends here when written before.
+    pub(crate) const fn is_done(&self) -> bool {
+        self.bytes.is_empty()
+    }
+
     /// Succeeds only when every byte was read.
     pub(crate) fn end(&self) -> Result<(), PortError> {
         if self.bytes.is_empty() {

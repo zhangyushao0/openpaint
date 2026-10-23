@@ -33,13 +33,13 @@ use crate::gallery::GalleryScreen;
 use crate::panels::Panels;
 use crate::pen_marks;
 use crate::practice_bar::PracticeBar;
-use crate::practice_marks;
 use crate::reference_window::ReferenceWindow;
 use crate::selection_bar::{self, SelectionBar};
 use crate::shape_bar::{self, ShapeBar};
 use crate::sheet::{self, Showing};
 use crate::side_bar::SideBar;
 use crate::transform_bar::TransformBar;
+use crate::{practice_marks, practice_tools};
 
 #[path = "shell_islands.rs"]
 mod islands;
@@ -69,6 +69,30 @@ pub(crate) struct Shown {
     pub(crate) buttons: ButtonMap,
     /// A practice sheet: its bar holds the band's middle.
     pub(crate) practising: bool,
+}
+
+impl Shown {
+    /// What `projection`'s canvas shows, while there is one.
+    fn of(projection: &SessionProjection) -> Option<Self> {
+        let brush = projection.brush();
+        // A practice pen draws instead of the toolbox's brush: its size.
+        let pen = projection.practice().and_then(|p| p.pen);
+        projection.canvas().map(|canvas| Self {
+            canvas,
+            view: projection.view(),
+            picking: brush.is_some_and(|brush| brush.picking),
+            selecting: projection.selection().tool,
+            transforming: projection.transform().tool,
+            adjusting: projection.adjust().adjustment.is_some(),
+            transform: projection.transform().frame,
+            drawing: projection.drawing(),
+            color: brush.map(|brush| brush.color),
+            threshold: projection.fill().threshold,
+            brush_size: pen.map(|(_, size)| size).or(brush.map(|brush| brush.size)),
+            buttons: brush.map(|brush| brush.buttons).unwrap_or_default(),
+            practising: projection.practice().is_some(),
+        })
+    }
 }
 
 /// The screen's UI-local state between frames.
@@ -201,21 +225,7 @@ impl Shell {
 
     fn canvas_screen(&mut self, ui: &mut egui::Ui, projection: &SessionProjection) -> egui::Rect {
         let brush = projection.brush();
-        self.shown = projection.canvas().map(|canvas| Shown {
-            canvas,
-            view: projection.view(),
-            picking: brush.is_some_and(|brush| brush.picking),
-            selecting: projection.selection().tool,
-            transforming: projection.transform().tool,
-            adjusting: projection.adjust().adjustment.is_some(),
-            transform: projection.transform().frame,
-            drawing: projection.drawing(),
-            color: brush.map(|brush| brush.color),
-            threshold: projection.fill().threshold,
-            brush_size: brush.map(|brush| brush.size),
-            buttons: brush.map(|brush| brush.buttons).unwrap_or_default(),
-            practising: projection.practice().is_some(),
-        });
+        self.shown = Shown::of(projection);
         let rect = canvas_frame(ui);
         let ctx = ui.ctx().clone();
         let area = CanvasArea::from_points(rect, self.pixels_per_point);
@@ -241,12 +251,19 @@ impl Shell {
         sheet::show_view(self, &ctx, &area);
         self.top_islands(&ctx, projection);
         let viewport = Some(area.viewport(self.pixels_per_point));
+        let colors = &mut self.panels.colors;
         self.practice
-            .show(&ctx, projection, viewport, &mut self.taps);
+            .show(&ctx, projection, (viewport, colors), &mut self.taps);
         self.selection.show(&ctx, projection, &mut self.taps);
         self.transform.show(&ctx, projection, &mut self.taps);
-        self.side
-            .show(&ctx, projection, self.scale(&area), &mut self.taps);
+        if practice_tools::own_tools(projection) {
+            // The exercise's own tools: no side bar, and no panel without its button.
+            self.side.hide();
+            self.panels.close();
+        } else {
+            let scale = self.scale(&area);
+            self.side.show(&ctx, projection, scale, &mut self.taps);
+        }
         let opener = self.panels.actions.button_rect();
         self.reference
             .show(&ctx, projection, (self.now_ms, opener), &mut self.taps);

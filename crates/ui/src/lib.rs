@@ -33,6 +33,7 @@ mod pen_marks;
 mod practice_bar;
 mod practice_card;
 mod practice_marks;
+mod practice_tools;
 mod reference_touch;
 mod reference_window;
 mod row_drag;

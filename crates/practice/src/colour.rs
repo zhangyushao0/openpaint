@@ -115,6 +115,28 @@ impl Difference {
     }
 }
 
+/// How a hue moved `by` degrees from `degrees` looks in words, as V大 compares two colours
+/// ("redder or yellower"): the comparative of the next of six hues 60 degrees apart (red, yellow,
+/// green, cyan, blue, magenta) it moves towards.
+#[must_use]
+pub fn hue_towards(degrees: f64, by: f64) -> &'static str {
+    const WORDS: [&str; 6] = [
+        "redder",
+        "yellower",
+        "greener",
+        "more cyan",
+        "bluer",
+        "more magenta",
+    ];
+    let at = degrees.rem_euclid(360.0) / 60.0;
+    let next = if by >= 0.0 {
+        at.floor() + 1.0
+    } else {
+        at.ceil() - 1.0
+    };
+    WORDS[(next as i64).rem_euclid(6) as usize]
+}
+
 /// The name of the hue `degrees` lies nearest, of twelve round the wheel.
 #[must_use]
 pub fn hue_name(degrees: f64) -> &'static str {

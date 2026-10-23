@@ -106,10 +106,20 @@ fn every_scenario_benchmark_runs_through_the_frame_loop() {
     });
     let lines = runtime.bench_scenario("practice").expect("practice");
     eprintln!("{}", lines.join("\n"));
+    for motion in [
+        "aligned",
+        "next 3",
+        "inline wheel dragged",
+        "colour compared",
+    ] {
+        let found = lines.iter().any(|line| line.starts_with(motion));
+        assert!(found, "{motion}: {lines:?}");
+    }
+    let projection = runtime.projection();
+    let practice = projection.practice().expect("the sheet");
+    assert_eq!(practice.current, Some(10), "on to the first colour");
     assert!(
-        lines.iter().any(|line| line.starts_with("next 3")),
-        "{lines:?}"
+        practice.comparing && practice.result.is_some(),
+        "filled and compared"
     );
-    let practice = runtime.projection().practice().map(|p| p.current);
-    assert_eq!(practice, Some(Some(3)), "three exercises on");
 }

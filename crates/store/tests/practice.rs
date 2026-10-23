@@ -56,11 +56,12 @@ fn a_session_round_trips_with_its_sheet_hidden_from_the_gallery() {
     let mut checked = stored[0].clone();
     checked.current = 3;
     checked.finished = Some(1_791_202_400);
-    checked.results.push(ExerciseResult {
-        index: 2,
-        checked_at: 1_791_201_900,
-        metrics: vec![(Metric::KeyPoints, 0.012_5), (Metric::Shape, 0.3)],
-    });
+    checked.results.push(ExerciseResult::first(
+        12,
+        1_791_201_900,
+        5,
+        vec![(Metric::FirstDelta, 0.012_5), (Metric::FinalValue, -0.3)],
+    ));
     library.save_practice(&checked).expect("saved");
     drop(library);
     let after = records(&dir);

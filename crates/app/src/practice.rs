@@ -2,7 +2,8 @@
 //! stored like an artwork (its strokes and fills through the same history, autosave and
 //! library), but the gallery never lists it: it belongs to its session's record, which the store
 //! keeps beside the artworks (`ProjectStore::practice`). The open sheet's flow is
-//! `practice_sheet.rs`, the copy read from its records `practice_copy.rs`.
+//! `practice_sheet.rs` (Compare in `practice_compare.rs`, its views in `practice_view.rs`), its
+//! pens `practice_pens.rs`, the copy read from its records `practice_copy.rs`.
 //!
 //! `PracticeLog` is the app's, kept across artworks like the toolbox: every session's record,
 //! for the gallery's Today card (the stage, sessions finished, the one still open) and for the
@@ -10,10 +11,12 @@
 
 use std::sync::Arc;
 
+use openpaint_core::Color;
 use openpaint_practice::{
-    KindSummary, Metrics, Original, Pair, Rgb8, STAGE_SESSIONS, SessionRecord, Sheet,
+    ExerciseResult, KindSummary, Original, Pair, Rgb8, STAGE_SESSIONS, SessionRecord, Sheet,
 };
 
+use crate::layer_rules::LayerRefusal;
 use crate::project::ProjectId;
 use crate::projection::Availability;
 use crate::title::Title;
@@ -24,9 +27,17 @@ use crate::view::Viewport;
 pub enum PracticeIntent {
     /// The instructions for the shown exercise's kind, shown (true) or closed.
     Instructions(bool),
-    /// The original laid over the copy and the numbers (true; the first time checks the
-    /// exercise and stores its result), or neither.
+    /// The original laid over the copy (true; the first time stores the exercise's result, every
+    /// time counts), or taken away.
     Compare(bool),
+    /// A line's original laid over the copy aligned onto it (true) or in place.
+    Aligned(bool),
+    /// The pen the exercise's own tools draw lines with.
+    Pen(Pen),
+    /// The full interface over the sheet (true), or the exercise's own tools.
+    AllTools(bool),
+    /// The shown colour's empty frame filled with `Color` (the wheel beside it).
+    Fill(Color),
     /// On to the next exercise, the view moved to it within `viewport` at its zoom; after the
     /// last the session ends and its summary shows over the whole sheet.
     Next(Viewport),
@@ -36,15 +47,26 @@ pub enum PracticeIntent {
     Dismiss,
 }
 
-/// Why the practice sheet did not take a contact.
+/// The pens a line exercise's own tools offer (`practice_pens.rs`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Pen {
+    /// A light pencil: marks and construction lines, left out of the aligned fit.
+    Sketch,
+    /// The ink pen the copy is drawn with.
+    Draw,
+    /// The blue pen that corrects a compared copy.
+    Correct,
+}
+
+/// Why the practice sheet did not take a contact or a fill.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PracticeNotice {
     /// The pen landed outside the shown exercise's empty frame.
     DrawInFrame,
-    /// The shown exercise was checked: its frame takes no more strokes.
-    Checked,
-    /// The eyedropper over an original not checked yet.
+    /// The eyedropper over an original not compared yet.
     PickAfterCompare,
+    /// The frame could not be filled: the layer is hidden or locked.
+    CannotFill(LayerRefusal),
     /// The session is done.
     Done,
 }
@@ -86,8 +108,15 @@ pub struct PracticeProjection {
     pub last: bool,
     pub compare: Availability,
     pub comparing: bool,
-    /// The shown exercise's stored numbers, once checked.
-    pub result: Option<Metrics>,
+    /// A line's original lies over the copy aligned onto it, else in place.
+    pub aligned: bool,
+    /// The full interface shows over the sheet, else the exercise's own tools.
+    pub all_tools: bool,
+    /// The pen a line exercise's own tools draw with now and its diameter (canvas pixels);
+    /// `None` while they do not show or the toolbox's eraser is used.
+    pub pen: Option<(Pen, f32)>,
+    /// The shown exercise's stored result, once compared.
+    pub result: Option<ExerciseResult>,
     /// What lies over the copy while comparing.
     pub overlay: Option<Overlay>,
     /// The instructions shown: for lines (true) or colours.
@@ -117,12 +146,11 @@ impl SheetView {
     }
 }
 
-/// The comparison over the copy's frame.
+/// The comparison over the copy's frame, as the last Compare found the copy.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Overlay {
-    /// Each key point of the original, moved into the copy's frame, and the nearest point of
-    /// the copy, in canvas pixels.
-    Line(Vec<([f32; 2], [f32; 2])>),
+    /// The original line where it lies over the copy (in place or aligned), in canvas pixels.
+    Line(Vec<[f32; 2]>),
     /// The swatch and the first and last colours laid.
     Colour {
         original: Rgb8,

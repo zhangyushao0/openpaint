@@ -69,37 +69,35 @@ impl ColorPanel {
         let (Some(brush), Some(button)) = (projection.brush(), self.opener) else {
             return;
         };
-        let hsv = self
-            .shown
-            .filter(|shown| color32(shown.color()) == color32(brush.color))
-            .unwrap_or_else(|| Hsv::of(brush.color));
-        let mut set = None;
         let opener = Opener {
             island: "right island",
             button,
         };
-        let palette = &mut self.palette;
+        let (palette, shown) = (&mut self.palette, &mut self.shown);
         let rect = popover(ctx, "colours", (opener, self.open), |ui| {
             panel_heading_with(ui, "Colour", |ui| {
                 ui.add_space(SPACE);
                 palette.hex_field(ui, brush.color, taps);
             });
             palette.hex_hint(ui);
-            ui.vertical_centered(|ui| {
-                if let Some(change) = color_wheel(ui, hsv, COLOR_WHEEL) {
-                    set = Some(change.hsv);
-                    push(taps, change.hsv.color(), change.settled);
-                }
-            });
+            ui.vertical_centered(|ui| wheel(ui, shown, brush, taps));
             ui.add_space(SPACE);
             recent(ui, brush, taps);
             palette.palette(ui, brush, taps);
             ui.add_space(SPACE);
         });
-        if let Some(hsv) = set {
-            self.shown = Some(hsv);
-        }
         self.area = rect.map(|rect| ScreenArea::from_points(rect, ctx.pixels_per_point()));
+    }
+
+    /// The wheel outside the panel, at the current colour of `brush`: a practice colour's, beside
+    /// its frame. The same wheel as the panel's, keeping the hue the hand left on a grey.
+    pub(crate) fn inline_wheel(
+        &mut self,
+        ui: &mut egui::Ui,
+        brush: &BrushProjection,
+        taps: &mut Vec<Intent>,
+    ) {
+        wheel(ui, &mut self.shown, brush, taps);
     }
 
     /// Where the open panel lies, which the canvas must not take contacts from.
@@ -111,6 +109,23 @@ impl ColorPanel {
         self.open = false;
         self.area = None;
         self.palette.close();
+    }
+}
+
+/// The colour wheel at `brush`'s colour (with the hue `shown` last kept while the colour is the
+/// one it set), its changes pushed to `taps` and kept in `shown`.
+fn wheel(
+    ui: &mut egui::Ui,
+    shown: &mut Option<Hsv>,
+    brush: &BrushProjection,
+    taps: &mut Vec<Intent>,
+) {
+    let hsv = shown
+        .filter(|shown| color32(shown.color()) == color32(brush.color))
+        .unwrap_or_else(|| Hsv::of(brush.color));
+    if let Some(change) = color_wheel(ui, hsv, COLOR_WHEEL) {
+        *shown = Some(change.hsv);
+        push(taps, change.hsv.color(), change.settled);
     }
 }
 

@@ -22,29 +22,34 @@ fn the_same_seed_gives_the_same_line_and_another_seed_another() {
 }
 
 #[test]
-fn lines_keep_clear_of_the_frame_edge_and_have_their_key_points() {
+fn lines_keep_clear_of_the_frame_edge() {
     for tier in LineTier::ALL {
         for seed in 0..200 {
             let line = LineExercise::generate(tier, seed);
+            assert_eq!(line.points.len(), 481, "{tier:?} {seed}");
             for p in &line.points {
                 assert!(
                     p.iter().all(|v| (0.119..=0.881).contains(v)),
                     "{tier:?} {seed}: {p:?}"
                 );
             }
-            let keys = line.key_points.len();
-            let expected = match tier {
-                LineTier::Straight => 2..=3,
-                LineTier::Arc | LineTier::Hook => 3..=4,
-                LineTier::Wave => 3..=5,
-            };
-            assert!(
-                expected.contains(&keys),
-                "{tier:?} {seed}: {keys} key points"
-            );
-            assert_eq!(line.key_points[0], line.points[0], "an end first");
         }
     }
+}
+
+/// The ends of the wave seeded `0x5EED_0045`, as its generator lays them.
+const GENERATED: [[f64; 2]; 2] = [
+    [0.373_935_229_852_733_36, 0.154_197_245_368_887_51],
+    [0.686_650_806_083_420_9, 0.783_084_490_731_614_1],
+];
+
+#[test]
+fn a_generator_keeps_giving_the_same_line() {
+    // A kind code names one generator for good (D98): a stored session's lines come back to
+    // the last bit; a changed generator is a new code.
+    let line = LineExercise::generate(LineTier::Wave, 0x5EED_0045);
+    let ends = [line.points[0], line.points[480]];
+    assert_eq!(ends, GENERATED);
 }
 
 #[test]

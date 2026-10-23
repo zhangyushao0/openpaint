@@ -1,10 +1,10 @@
 //! A practice sheet's exercises over its canvas (G9): each pair revealed so far as two frames,
 //! the original's and the empty one for the copy, the shown pair's in ink and the earlier ones
-//! faint; each original in its frame (a line in ink, a swatch filling the frame). While a check
-//! is compared, the original lies over the copy in the marking red with its key points ringed and
-//! a hairline to where the copy passes nearest; a colour shows as a patch inside the other. All
-//! of it is drawn by the screen over the canvas through the view, never into the artwork: the
-//! originals cannot be drawn on.
+//! faint; each original in its frame (a line in ink, a swatch filling the frame). While compared,
+//! a line's original lies over the copy, in place or aligned onto it, thick and clear in a
+//! semi-transparent marking red the copy shows through; a colour shows as a patch inside the
+//! other. All of it is drawn by the screen over the canvas through the view, never into the
+//! artwork: the originals cannot be drawn on.
 
 use egui::{Color32, Order, Pos2, Shape, Stroke};
 use openpaint_app::{Overlay, PracticeProjection, SessionProjection, ViewMapping};
@@ -16,10 +16,11 @@ use crate::design::{CORRECTION, DIVIDER, INK, PANEL_RULE_WIDTH};
 /// An original line's width, in canvas pixels, and the least it shows at, in points.
 const LINE_WIDTH: f32 = 3.0;
 const LEAST_LINE: f32 = 1.25;
-/// How strongly the original lies over the copy while compared, and its key points' rings, in
-/// points.
-const OVERLAY_SHOWN: f32 = 0.6;
-const KEY_RING: f32 = 6.0;
+/// The overlay's width, in canvas pixels (a frame is 400) and at least in points, and how
+/// strongly it lies over the copy.
+const OVERLAY_WIDTH: f32 = 12.0;
+const LEAST_OVERLAY: f32 = 4.0;
+const OVERLAY_SHOWN: f32 = 0.5;
 
 /// The sheet of `projection`'s practice, if it is one, through `mapping` on a screen of
 /// `pixels_per_point`.
@@ -75,35 +76,27 @@ pub(crate) fn show_marks(
         painter.add(Shape::closed_line(copy.to_vec(), frame));
     }
     if let Some(overlay) = &practice.overlay {
-        show_overlay(&painter, practice, overlay, (&at, line_width));
+        let width = (OVERLAY_WIDTH * mapping.scale() / pixels_per_point).max(LEAST_OVERLAY);
+        show_overlay(&painter, practice, overlay, (&at, width));
     }
 }
 
-/// The shown exercise's check over its copy.
+/// The shown exercise's comparison over its copy; a line's `width` points wide.
 fn show_overlay(
     painter: &egui::Painter,
     practice: &PracticeProjection,
     overlay: &Overlay,
-    (at, line_width): (&dyn Fn([f64; 2]) -> Pos2, f32),
+    (at, width): (&dyn Fn([f64; 2]) -> Pos2, f32),
 ) {
     let Some(index) = practice.current else {
         return;
     };
     let pair = practice.sheet.pairs[index];
-    let red = CORRECTION.gamma_multiply(OVERLAY_SHOWN);
     match (overlay, &practice.sheet.originals[index]) {
-        (Overlay::Line(matches), Original::Line(line)) => {
-            let points: Vec<Pos2> = line
-                .points
-                .iter()
-                .map(|p| at(pair.copy.to_canvas(*p)))
-                .collect();
-            painter.add(Shape::line(points, Stroke::new(line_width * 1.5, red)));
-            for (key, near) in matches {
-                let [key, near] = [key, near].map(|p| at(p.map(f64::from)));
-                painter.line_segment([key, near], Stroke::new(1.0, CORRECTION));
-                painter.circle_stroke(key, KEY_RING, Stroke::new(1.5, CORRECTION));
-            }
+        (Overlay::Line(points), Original::Line(_)) => {
+            let red = CORRECTION.gamma_multiply(OVERLAY_SHOWN);
+            let points: Vec<Pos2> = (points.iter()).map(|p| at(p.map(f64::from))).collect();
+            painter.add(Shape::line(points, Stroke::new(width, red)));
         }
         (Overlay::Colour { original, last, .. }, Original::Colour(_)) => {
             // Each colour as a patch in the middle of the other's frame.

@@ -67,6 +67,15 @@ pub(super) fn drag(path: &[[f32; 2]], ms: i64) -> Gesture {
     gesture
 }
 
+/// `gesture` (a finger's) made by the pen instead.
+pub(super) fn by_pen(gesture: Gesture) -> Gesture {
+    let pen = |step: Step| Step {
+        tool: ToolKind::Stylus,
+        ..step
+    };
+    gesture.into_iter().map(pen).collect()
+}
+
 /// `gesture` by the pen, which then hovers where it lifted for `ms` and goes.
 pub(super) fn hovering(mut gesture: Gesture, ms: i64) -> Gesture {
     let Some(last) = gesture.last().copied() else {

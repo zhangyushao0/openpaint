@@ -1,16 +1,18 @@
 //! The copy on a practice sheet: what the pen laid in an exercise's empty frame, read from the
 //! artwork's records. StreamLine and QuickShape are off on a practice sheet, so a stroke's
-//! samples are the pen's own: where it went, how hard and when.
+//! samples are the pen's own: where it went, how hard and when (kept for a later study).
 //!
 //! A stroke belongs to the frame its first sample lies in (grown by `MARGIN` of its side, where
-//! strokes may begin and are clipped to the frame). A line's copy is its paint strokes, oldest
-//! first, less what a later eraser stroke passed over within its radius (the brush's size, the
-//! pressure not counted). A colour's copy is the colours laid: each paint stroke's colour and
-//! each fill's whose region lies in the frame, in the order they lie on their layer, layers
-//! bottom to top.
+//! strokes may begin and are clipped to the frame). A line's copy, which the aligned overlay is
+//! fitted to, is its paint strokes but the sketch pen's construction lines, oldest first, less
+//! what a later eraser stroke passed over within its radius (the brush's size, the pressure not
+//! counted). A colour's copy is the colours laid: each paint stroke's colour and each fill's whose
+//! region lies in the frame, in the order they lie on their layer, layers bottom to top.
 
 use openpaint_core::{Artwork, Color, Layer, Stroke, StrokeTool};
-use openpaint_practice::{ColourCopy, Frame, LineCopy, Point, Rgb8, length, nearest};
+use openpaint_practice::{ColourCopy, Frame, Point, Rgb8, nearest};
+
+use crate::practice_pens::PracticePens;
 
 /// Strokes may begin this share of the frame's side outside it.
 pub(crate) const MARGIN: f64 = 0.1;
@@ -46,37 +48,29 @@ fn positions(stroke: &Stroke) -> Vec<Point> {
         .collect()
 }
 
-/// The line copied in `frame`, in frame units.
-pub(crate) fn line_copy(artwork: &Artwork, frame: &Frame) -> LineCopy {
+/// The line copied in `frame` in pieces, in frame units: what the aligned overlay fits.
+pub(crate) fn line_pieces(
+    artwork: &Artwork,
+    frame: &Frame,
+    pens: &PracticePens,
+) -> Vec<Vec<Point>> {
     let strokes = strokes_in(artwork, frame);
-    let mut copy = LineCopy::default();
+    let mut pieces = Vec::new();
     for (index, stroke) in strokes.iter().enumerate() {
-        match stroke.style().tool() {
-            StrokeTool::Erase => copy.erased += 1,
-            StrokeTool::Smudge => {}
-            StrokeTool::Paint => {
-                copy.strokes += 1;
-                let path = positions(stroke);
-                copy.length += length(&path) / frame.side;
-                let samples = stroke.samples();
-                let time = |sample: Option<&openpaint_core::StrokeSample>| {
-                    sample.map_or(0, openpaint_core::StrokeSample::time_ms)
-                };
-                let took = time(samples.last()).saturating_sub(time(samples.first()));
-                copy.duration_ms += f64::from(took);
-                let erasers: Vec<(Vec<Point>, f64)> = strokes[index + 1..]
-                    .iter()
-                    .filter(|later| later.style().tool() == StrokeTool::Erase)
-                    .map(|later| (positions(later), f64::from(later.style().size()) / 2.0))
-                    .collect();
-                for piece in kept_pieces(&path, &erasers) {
-                    copy.pieces
-                        .push(piece.iter().map(|p| frame.to_frame(*p)).collect());
-                }
-            }
+        let style = stroke.style();
+        if style.tool() != StrokeTool::Paint || pens.is_sketch(style) {
+            continue;
+        }
+        let erasers: Vec<(Vec<Point>, f64)> = strokes[index + 1..]
+            .iter()
+            .filter(|later| later.style().tool() == StrokeTool::Erase)
+            .map(|later| (positions(later), f64::from(later.style().size()) / 2.0))
+            .collect();
+        for piece in kept_pieces(&positions(stroke), &erasers) {
+            pieces.push(piece.iter().map(|p| frame.to_frame(*p)).collect());
         }
     }
-    copy
+    pieces
 }
 
 /// `path` cut where any of `erasers` (a path and its radius) passed over it.

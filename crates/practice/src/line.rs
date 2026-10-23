@@ -1,25 +1,18 @@
 //! Single lines to copy (V大's W1 single lines): a curve in a square frame, from near-straight
-//! lines to arcs, S-curves and hooks, any way round, long or short, and the key points a copy is
-//! judged by first: its two ends and the most bulging point of each bend (V大: fix the ends and
-//! the most obvious turns first).
+//! lines to arcs, S-curves and hooks, any way round, long or short.
 //!
 //! A line is drawn by its curvature along its length (a near-constant bend, one bend, two
 //! opposite bends, a gentle stretch ending in a tight turn), integrated into a path of unit
 //! length, then turned, sized and placed in the frame. Everything follows from the tier and the
 //! seed (`Random`), so the same seed gives the same line.
 
-use crate::path::{Point, distance};
+use crate::path::Point;
 use crate::random::Random;
 
 /// The frame's margin the line keeps clear of, in frame sides.
 const MARGIN: f64 = 0.12;
 /// Steps the curvature is integrated in.
 const STEPS: usize = 480;
-/// A bend whose most bulging point lies less than this far from its chord (frame sides) has
-/// none worth fixing: a near-straight line has only its ends.
-const LEAST_BULGE: f64 = 0.02;
-/// Key points closer than this to one already taken (frame sides) are the same place.
-const DISTINCT: f64 = 0.05;
 
 /// How a line bends.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -43,8 +36,6 @@ impl LineTier {
 pub struct LineExercise {
     /// The line, densely: about `STEPS` points.
     pub points: Vec<Point>,
-    /// Its ends, then the most bulging point of each bend that bulges.
-    pub key_points: Vec<Point>,
 }
 
 impl LineExercise {
@@ -54,16 +45,16 @@ impl LineExercise {
         let mut random = Random::new(seed);
         let curvature = Curvature::of(tier, &mut random);
         let turn = random.range(0.0, std::f64::consts::TAU);
-        let (points, signs) = integrate(&curvature, turn);
+        let points = integrate(&curvature, turn);
         let size = match tier {
             LineTier::Straight => random.range(0.4, 0.76),
             LineTier::Arc => random.range(0.4, 0.72),
             LineTier::Wave => random.range(0.45, 0.76),
             LineTier::Hook => random.range(0.38, 0.66),
         };
-        let points = placed(&points, size, &mut random);
-        let key_points = key_points(&points, &signs);
-        Self { points, key_points }
+        Self {
+            points: placed(&points, size, &mut random),
+        }
     }
 }
 
@@ -146,11 +137,10 @@ impl Curvature {
 }
 
 /// The path of unit length whose direction starts at `turn` and turns by `curvature`, from the
-/// origin, and the sign of the curvature on each of its steps.
-fn integrate(curvature: &Curvature, turn: f64) -> (Vec<Point>, Vec<f64>) {
+/// origin.
+fn integrate(curvature: &Curvature, turn: f64) -> Vec<Point> {
     let step = 1.0 / STEPS as f64;
     let mut points = Vec::with_capacity(STEPS + 1);
-    let mut signs = Vec::with_capacity(STEPS);
     let (mut at, mut heading) = ([0.0, 0.0], turn);
     points.push(at);
     for index in 0..STEPS {
@@ -161,9 +151,8 @@ fn integrate(curvature: &Curvature, turn: f64) -> (Vec<Point>, Vec<f64>) {
         at = [at[0] + middle.cos() * step, at[1] + middle.sin() * step];
         heading += bend * step;
         points.push(at);
-        signs.push(bend.signum());
     }
-    (points, signs)
+    points
 }
 
 /// `points` scaled so the larger side of their box is `size` frame sides, placed anywhere in the
@@ -198,44 +187,4 @@ fn bounds(points: &[Point]) -> (Point, Point) {
             )
         },
     )
-}
-
-/// The two ends, then for each stretch bending one way (`signs` per step) its point farthest
-/// from the stretch's chord, if that lies at least `LEAST_BULGE` from it and apart from the
-/// points already taken.
-fn key_points(points: &[Point], signs: &[f64]) -> Vec<Point> {
-    let (Some(&first), Some(&last)) = (points.first(), points.last()) else {
-        return Vec::new();
-    };
-    let mut keys = vec![first, last];
-    let mut start = 0;
-    for end in 1..=signs.len() {
-        if end < signs.len() && signs[end] == signs[start] {
-            continue;
-        }
-        let stretch = &points[start..=end];
-        if let Some(bulge) = bulge(stretch)
-            && keys.iter().all(|key| distance(*key, bulge) >= DISTINCT)
-        {
-            keys.push(bulge);
-        }
-        start = end;
-    }
-    keys
-}
-
-/// The point of `stretch` farthest from the chord between its ends, if far enough.
-fn bulge(stretch: &[Point]) -> Option<Point> {
-    let (&a, &b) = (stretch.first()?, stretch.last()?);
-    let chord = distance(a, b).max(1e-12);
-    let off =
-        |p: &Point| ((b[0] - a[0]) * (a[1] - p[1]) - (a[0] - p[0]) * (b[1] - a[1])).abs() / chord;
-    let (point, far) =
-        stretch
-            .iter()
-            .map(|p| (*p, off(p)))
-            .fold(([0.0, 0.0], f64::MIN), |best, next| {
-                if next.1 > best.1 { next } else { best }
-            });
-    (far >= LEAST_BULGE).then_some(point)
 }

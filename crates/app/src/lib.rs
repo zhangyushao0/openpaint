@@ -31,6 +31,7 @@ mod palm;
 mod pen_buttons;
 mod practice;
 mod practice_copy;
+mod practice_pens;
 mod practice_sheet;
 mod project;
 mod projection;
@@ -88,9 +89,10 @@ pub use crate::palette::{Hsv, MAX_SWATCHES, RECENT_COLORS, hex_of, parse_hex};
 pub use crate::palm::PalmRejection;
 pub use crate::pen_buttons::{ButtonAction, ButtonMap, ButtonTracker, HeldTool, PenButton};
 pub use crate::practice::{
-    Overlay, PracticeIntent, PracticeLog, PracticeNotice, PracticeProjection, SheetView,
+    Overlay, Pen, PracticeIntent, PracticeLog, PracticeNotice, PracticeProjection, SheetView,
     TodayProjection,
 };
+pub use crate::practice_pens::PracticePens;
 pub use crate::practice_sheet::{PRACTICE_ROOM, PracticePick};
 pub use crate::project::{
     KEPT_VERSIONS, KeptVersion, PortError, Project, ProjectId, ProjectStore, ProjectSummary,

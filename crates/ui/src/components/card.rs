@@ -1,11 +1,10 @@
 //! The card: a piece of paper at the screen's right, under the right island, holding a few lines
-//! to read (how to practise, a check's numbers, a session's summary) beside what they are about.
-//! It grows out of the word that asked for it and goes back into it (D44); it is not modal: the
-//! canvas left of it stays the hand's.
+//! to read (how to practise, a comparison, a session's summary) beside what they are about, or
+//! the tools an exercise uses beside its frame. It grows out of what asked for it and goes back
+//! into it (D44); it is not modal: the canvas left of it stays the hand's.
 
 use egui::{Align2, Id, Margin, Order, Rect, RichText, Sense, TextStyle, Vec2};
 
-use crate::components::UNDER_ISLANDS;
 use crate::components::chrome::Source;
 use crate::components::paper::paper;
 use crate::design::{DIALOG_WIDTH, INK, INK_SECONDARY, SPACE, surface_frame};
@@ -13,14 +12,14 @@ use crate::design::{DIALOG_WIDTH, INK, INK_SECONDARY, SPACE, surface_frame};
 /// Width of a card's number column, in points.
 const COLUMN: f32 = 96.0;
 
-/// Shows the card `id`, one space in from the screen's right and under the islands, grown out of
-/// `source`, with `add_contents` laid out top to bottom, `DIALOG_WIDTH` wide. Returns what the
-/// contents returned and the card's rectangle in points, which nothing under it may take a
-/// contact from.
+/// Shows the card `id`, one space in from the screen's right with its top `top` points from the
+/// screen's (`UNDER_ISLANDS`, or under another card), grown out of `source`, with
+/// `add_contents` laid out top to bottom, `DIALOG_WIDTH` wide. Returns what the contents returned
+/// and the card's rectangle in points, which nothing under it may take a contact from.
 pub fn card<R>(
     ctx: &egui::Context,
     id: &str,
-    source: Source,
+    (source, top): (Source, f32),
     add_contents: impl FnOnce(&mut egui::Ui) -> R,
 ) -> (R, Rect) {
     let area = egui::Area::new(Id::new(id))
@@ -28,7 +27,7 @@ pub fn card<R>(
         .movable(false)
         .constrain(false)
         .fade_in(false)
-        .anchor(Align2::RIGHT_TOP, Vec2::new(-SPACE, UNDER_ISLANDS));
+        .anchor(Align2::RIGHT_TOP, Vec2::new(-SPACE, top));
     let margin = 2.0 * SPACE;
     paper(ctx, Id::new(id), source, area, |ui| {
         surface_frame(Margin::same(margin as i8))

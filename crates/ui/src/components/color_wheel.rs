@@ -15,8 +15,10 @@ use crate::design::{HUE_RING, INK, PANEL, SPACE};
 /// Steps around the ring and across the square; enough that the shading looks smooth.
 const RING_STEPS: usize = 96;
 const SQUARE_STEPS: usize = 16;
-/// Radius of a marker, in points.
+/// Radius of a marker, in points, and of one on the comparison picture (smaller, so the way from
+/// one colour to the other shows even when they lie near).
 const MARKER: f32 = SPACE;
+const COMPARED: f32 = 0.75 * SPACE;
 
 /// A colour the hand set this frame.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -127,6 +129,100 @@ pub fn color_wheel(ui: &mut egui::Ui, hsv: Hsv, side: f32) -> Option<WheelChange
 
 fn paint(ui: &egui::Ui, shape: &Geometry, hsv: Hsv) {
     let painter = ui.painter();
+    paint_wheel(painter, shape, hsv.h);
+    for centre in [shape.on_ring(hsv.h), shape.spot(hsv)] {
+        painter.circle_stroke(centre, MARKER, Stroke::new(4.0, PANEL));
+        painter.circle_stroke(centre, MARKER, Stroke::new(1.5, INK));
+    }
+}
+
+impl Geometry {
+    /// The point of the ring's middle at `hue`.
+    fn on_ring(&self, hue: f32) -> Pos2 {
+        let radius = (self.inner + self.outer) / 2.0;
+        self.centre + radius * Vec2::new((hue * TAU).cos(), -(hue * TAU).sin())
+    }
+
+    /// Where `hsv`'s saturation and value lie in the square.
+    fn spot(&self, hsv: Hsv) -> Pos2 {
+        let square = self.square;
+        Pos2::new(
+            square.left() + hsv.s * square.width(),
+            square.bottom() - hsv.v * square.height(),
+        )
+    }
+}
+
+/// Two colours on the wheel as a picture (no hand moves it), `side` points square, the square
+/// shaded at `to`'s hue: `from` ringed in ink, `to` in `mark`, and arrows in `mark` from one to
+/// the other round the ring (when both have a hue, `hued`) and across the square. The practice
+/// card's comparison of a pick with its original (S76): the geometry the hand picks in.
+pub fn color_compare(
+    ui: &mut egui::Ui,
+    (from, to): (Hsv, Hsv),
+    (hued, mark): ([bool; 2], Color32),
+    side: f32,
+) {
+    let (rect, _) = ui.allocate_exact_size(Vec2::splat(side), Sense::hover());
+    if !ui.is_rect_visible(rect) {
+        return;
+    }
+    let shape = Geometry::of(rect);
+    let painter = ui.painter();
+    paint_wheel(painter, &shape, to.h);
+    let marks = [(from, hued[0], INK), (to, hued[1], mark)];
+    for (hsv, has_hue, colour) in marks {
+        let ring = has_hue.then(|| shape.on_ring(hsv.h));
+        for centre in ring.into_iter().chain([shape.spot(hsv)]) {
+            painter.circle_stroke(centre, COMPARED, Stroke::new(4.0, PANEL));
+            painter.circle_stroke(centre, COMPARED, Stroke::new(2.0, colour));
+        }
+    }
+    if hued[0] && hued[1] {
+        // The short way round, along the ring's middle.
+        let turn = (to.h - from.h + 0.5).rem_euclid(1.0) - 0.5;
+        let steps = ((turn.abs() * RING_STEPS as f32).ceil() as usize).max(1);
+        let path: Vec<Pos2> = (0..=steps)
+            .map(|k| shape.on_ring(from.h + turn * k as f32 / steps as f32))
+            .collect();
+        arrow(painter, &path, mark);
+    }
+    arrow(painter, &[shape.spot(from), shape.spot(to)], mark);
+}
+
+/// A line along `path` in `colour` from its start (inside the hollow marker there) to a head
+/// whose tip touches the marker at its end; none where the path is too short for the head.
+fn arrow(painter: &egui::Painter, path: &[Pos2], colour: Color32) {
+    let (Some(&tip), Some(&start)) = (path.last(), path.first()) else {
+        return;
+    };
+    let length: f32 = path.windows(2).map(|pair| pair[0].distance(pair[1])).sum();
+    let head = 1.6 * COMPARED;
+    if length < COMPARED + head {
+        return;
+    }
+    let before = (path.iter().rev())
+        .find(|p| p.distance(tip) >= COMPARED + head)
+        .copied()
+        .unwrap_or(start);
+    let towards = (tip - before).normalized();
+    let end = tip - towards * COMPARED;
+    let back = end - towards * head;
+    let mut line: Vec<Pos2> = (path.iter().copied())
+        .take_while(|p| p.distance(tip) > COMPARED + head)
+        .collect();
+    line.push(back);
+    painter.add(Shape::line(line, Stroke::new(2.5, colour)));
+    let across = Vec2::new(-towards.y, towards.x) * head * 0.45;
+    painter.add(Shape::convex_polygon(
+        vec![end, back + across, back - across],
+        colour,
+        Stroke::NONE,
+    ));
+}
+
+/// The hue ring and the square of saturation and value for `hue`.
+fn paint_wheel(painter: &egui::Painter, shape: &Geometry, hue: f32) {
     let mut mesh = Mesh::default();
     let at = |radius: f32, turn: f32| {
         shape.centre + radius * Vec2::new((turn * TAU).cos(), -(turn * TAU).sin())
@@ -149,18 +245,8 @@ fn paint(ui: &egui::Ui, shape: &Geometry, hsv: Hsv) {
             mesh.add_triangle(i - 1, i + 1, i);
         }
     }
-    square_mesh(&mut mesh, shape.square, hsv.h);
+    square_mesh(&mut mesh, shape.square, hue);
     painter.add(Shape::mesh(mesh));
-    let ring = at((shape.inner + shape.outer) / 2.0, hsv.h);
-    let square = shape.square;
-    let spot = Pos2::new(
-        square.left() + hsv.s * square.width(),
-        square.bottom() - hsv.v * square.height(),
-    );
-    for centre in [ring, spot] {
-        painter.circle_stroke(centre, MARKER, Stroke::new(4.0, PANEL));
-        painter.circle_stroke(centre, MARKER, Stroke::new(1.5, INK));
-    }
 }
 
 /// The square of saturation and value for `hue`, as a grid of shaded cells.

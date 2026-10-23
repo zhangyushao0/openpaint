@@ -1,14 +1,8 @@
-//! Polylines in a cell's units (its side is 1): length, even resampling, nearest points,
-//! centre and spread, and the local smoothing the wobble is measured against.
+//! Polylines in a cell's units (its side is 1): length, even resampling, nearest points, centre
+//! and spread.
 
 /// A point, `[x, y]`.
 pub type Point = [f64; 2];
-
-/// The quadratic Savitzky-Golay smoothing over nine points (each point replaced by the value at
-/// its middle of the parabola that fits its eight neighbours and itself best), divided by
-/// `SAVITZKY_GOLAY_NORM`. A curve that is locally a parabola or a cubic passes unchanged.
-const SAVITZKY_GOLAY: [f64; 9] = [-21.0, 14.0, 39.0, 54.0, 59.0, 54.0, 39.0, 14.0, -21.0];
-const SAVITZKY_GOLAY_NORM: f64 = 231.0;
 
 #[must_use]
 pub fn distance(a: Point, b: Point) -> f64 {
@@ -93,20 +87,6 @@ pub fn nearest(lines: &[&[Point]], p: Point) -> Option<(Point, f64)> {
     best
 }
 
-/// The mean over `points` of each one's distance to the nearest point of `lines`; 0 for no
-/// points, `None` when `lines` holds none.
-#[must_use]
-pub fn mean_distance(points: &[Point], lines: &[&[Point]]) -> Option<f64> {
-    if points.is_empty() {
-        return Some(0.0);
-    }
-    let mut sum = 0.0;
-    for &p in points {
-        sum += nearest(lines, p)?.1;
-    }
-    Some(sum / points.len() as f64)
-}
-
 /// The centre of `lines` taken along their length (every bit of line weighing as much as its
 /// length) and their root mean square distance from it, likewise; `None` for no length. Exact
 /// for polylines, so a moved and sized copy of a line has the moved and sized centre and spread.
@@ -138,39 +118,6 @@ pub fn centre_and_spread(lines: &[&[Point]]) -> Option<(Point, f64)> {
     Some((centre, (squares / total).sqrt()))
 }
 
-/// `points` moved by `-centre` and scaled by `scale`.
-#[must_use]
-pub fn normalised(points: &[Point], centre: Point, scale: f64) -> Vec<Point> {
-    points
-        .iter()
-        .map(|p| [(p[0] - centre[0]) * scale, (p[1] - centre[1]) * scale])
-        .collect()
-}
-
-/// Each point of `points` but the four at either end, with where the nine-point quadratic
-/// Savitzky-Golay smoothing puts it: `(point, smoothed)`. Empty for fewer than nine points.
-#[must_use]
-pub fn smoothing(points: &[Point]) -> Vec<(Point, Point)> {
-    points
-        .windows(SAVITZKY_GOLAY.len())
-        .map(|window| {
-            let mut smooth = [0.0, 0.0];
-            for (p, weight) in window.iter().zip(SAVITZKY_GOLAY) {
-                smooth[0] += p[0] * weight;
-                smooth[1] += p[1] * weight;
-            }
-            let middle = window[SAVITZKY_GOLAY.len() / 2];
-            (
-                middle,
-                [
-                    smooth[0] / SAVITZKY_GOLAY_NORM,
-                    smooth[1] / SAVITZKY_GOLAY_NORM,
-                ],
-            )
-        })
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -193,20 +140,20 @@ mod tests {
         let (at, d) = nearest(&[line, dot], [0.25, 0.5]).expect("nearest");
         assert_eq!((at, d), ([0.25, 0.0], 0.5));
         assert_eq!(nearest(&[], [0.0, 0.0]), None);
-        assert_eq!(mean_distance(&[[0.5, 1.75]], &[line, dot]), Some(0.25));
+        assert_eq!(nearest(&[line, dot], [0.5, 1.75]), Some(([0.5, 2.0], 0.25)));
     }
 
     #[test]
-    fn smoothing_keeps_a_parabola_and_takes_a_zigzag_away() {
-        let parabola: Vec<Point> = (0..20).map(|i| [f64::from(i), f64::from(i * i)]).collect();
-        for (point, smooth) in smoothing(&parabola) {
-            assert!(distance(point, smooth) < 1e-9);
-        }
-        let zigzag: Vec<Point> = (0..20)
-            .map(|i| [f64::from(i), if i % 2 == 0 { 0.0 } else { 1.0 }])
+    fn centre_and_spread_move_and_size_with_the_line() {
+        let line: &[Point] = &[[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]];
+        let moved: Vec<Point> = line
+            .iter()
+            .map(|p| [2.0 * p[0] + 1.0, 2.0 * p[1] - 3.0])
             .collect();
-        let moved = smoothing(&zigzag);
-        assert_eq!(moved.len(), 12);
-        assert!(moved.iter().all(|(p, s)| distance(*p, *s) > 0.3));
+        let (centre, spread) = centre_and_spread(&[line]).expect("a line");
+        let (moved_centre, moved_spread) = centre_and_spread(&[&moved]).expect("a line");
+        assert!(distance(moved_centre, [2.0 * centre[0] + 1.0, 2.0 * centre[1] - 3.0]) < 1e-12);
+        assert!((moved_spread - 2.0 * spread).abs() < 1e-12);
+        assert_eq!(centre_and_spread(&[&[[0.5, 0.5]]]), None, "no length");
     }
 }

@@ -1,13 +1,17 @@
 //! Practice records (format 1, added in 1.1 beside the records before them, whose bytes stay as
-//! they were): `['p'][session u64]` in `library` -> one practice session (DECISIONS D98). Its
-//! sheet is an ordinary project that `list` leaves out.
+//! they were): `['p'][session u64]` in `library` -> one practice session (DECISIONS D98, D99).
+//! Its sheet is an ordinary project that `list` leaves out.
 //!
 //! - Session: stage (u8), number in the stage (u32), seed (u64), its sheet's project (u64, 0
 //!   none), started and finished (u64 seconds since 1970 UTC, finished 0 while open), the
 //!   exercise shown (u32); its exercises, a count (u32) and each one's kind and variant (u8 each,
 //!   `Kind::code`) and seed (u64); its results, a count (u32) and each one's exercise (u32), when
-//!   it was checked (u64) and its metrics, a count (u32) and each one's code (u8, `Metric::code`)
-//!   and value (f64). A metric of a code this version does not know is passed over.
+//!   it was first compared (u64) and its metrics, a count (u32) and each one's code (u8,
+//!   `Metric::code`) and value (f64). A metric of a code this version does not know is passed
+//!   over: 1.1.0's line metrics (codes 1 to 8) read as none.
+//! - Then (1.1.1 on) the results' tail, each result in the same order: how often it was compared
+//!   (u32) and the sheet's first stroke id after its first Compare (u64, 0 unknown). A record
+//!   1.1.0 wrote ends before it: compared once, no stroke a correction.
 
 use std::collections::HashSet;
 
@@ -20,10 +24,12 @@ use crate::library::{Open, device};
 /// The first byte of every practice record's key.
 pub(crate) const PRACTICE: &[u8] = b"p";
 
-/// Bytes of an exercise, and of a result and a metric without their lists.
+/// Bytes of an exercise, and of a result and a metric without their lists, and of a result's
+/// tail.
 const EXERCISE_BYTES: usize = 1 + 1 + 8;
 const RESULT_BYTES: usize = 4 + 8 + 4;
 const METRIC_BYTES: usize = 1 + 8;
+const TAIL_BYTES: usize = 4 + 8;
 
 /// The key of session `id`'s record.
 pub(crate) fn practice_key(id: u64) -> Vec<u8> {
@@ -33,7 +39,8 @@ pub(crate) fn practice_key(id: u64) -> Vec<u8> {
 }
 
 pub(crate) fn encode_session(session: &SessionRecord) -> Vec<u8> {
-    let mut writer = Writer::with_capacity(64 + session.exercises.len() * EXERCISE_BYTES);
+    let results = session.results.len() * (RESULT_BYTES + TAIL_BYTES);
+    let mut writer = Writer::with_capacity(64 + session.exercises.len() * EXERCISE_BYTES + results);
     writer.u8(session.stage);
     writer.u32(session.number);
     writer.u64(session.seed);
@@ -58,6 +65,10 @@ pub(crate) fn encode_session(session: &SessionRecord) -> Vec<u8> {
             writer.f64(*value);
         }
     }
+    for result in &session.results {
+        writer.u32(result.compares);
+        writer.u64(result.corrected_from.unwrap_or(0));
+    }
     writer.finish()
 }
 
@@ -81,6 +92,31 @@ pub(crate) fn decode_session(key: &[u8], bytes: &[u8]) -> Result<SessionRecord, 
             seed: reader.u64()?,
         });
     }
+    let mut results = decode_results(&mut reader)?;
+    if !reader.is_done() {
+        for result in &mut results {
+            result.compares = reader.u32()?;
+            result.corrected_from = Some(reader.u64()?).filter(|id| *id != 0);
+        }
+    }
+    reader.end()?;
+    Ok(SessionRecord {
+        id,
+        stage,
+        number,
+        seed,
+        canvas,
+        started,
+        finished: (finished != 0).then_some(finished),
+        current,
+        exercises,
+        results,
+    })
+}
+
+/// The results, as a record of 1.1.0 holds them: compared once, no stroke a correction until
+/// the tail says otherwise.
+fn decode_results(reader: &mut Reader<'_>) -> Result<Vec<ExerciseResult>, PortError> {
     let count = reader.count(RESULT_BYTES)?;
     let mut results = Vec::with_capacity(count);
     for _ in 0..count {
@@ -96,22 +132,12 @@ pub(crate) fn decode_session(key: &[u8], bytes: &[u8]) -> Result<SessionRecord, 
         results.push(ExerciseResult {
             index,
             checked_at,
+            compares: 1,
+            corrected_from: None,
             metrics,
         });
     }
-    reader.end()?;
-    Ok(SessionRecord {
-        id,
-        stage,
-        number,
-        seed,
-        canvas,
-        started,
-        finished: (finished != 0).then_some(finished),
-        current,
-        exercises,
-        results,
-    })
+    Ok(results)
 }
 
 /// Every practice session, oldest first; a record that cannot be read is left out (logged).
@@ -139,21 +165,34 @@ pub(crate) fn sheets(open: &Open) -> Result<HashSet<u64>, PortError> {
 mod tests {
     use super::*;
 
-    #[test]
-    fn a_session_round_trips_and_damage_is_refused() {
+    fn session() -> SessionRecord {
         let mut session = SessionRecord::stage_one(7, 3, 0x5EED_0045, 1_791_201_600);
         session.canvas = 12;
         session.current = 11;
         session.finished = Some(1_791_202_000);
-        session.results.push(ExerciseResult {
-            index: 4,
-            checked_at: 1_791_201_700,
-            metrics: vec![(Metric::Frame, 0.031_25), (Metric::Speed, 1.7)],
-        });
+        let mut line = ExerciseResult::first(4, 1_791_201_700, 31, Vec::new());
+        line.compares = 3;
+        session.results.push(line);
+        session.results.push(ExerciseResult::first(
+            10,
+            1_791_201_800,
+            40,
+            vec![(Metric::FinalDelta, 0.031_25), (Metric::Corrections, 2.0)],
+        ));
+        session
+    }
+
+    #[test]
+    fn a_session_round_trips_and_damage_is_refused() {
+        let session = session();
         let key = practice_key(7);
         let bytes = encode_session(&session);
         assert_eq!(decode_session(&key, &bytes), Ok(session.clone()));
         assert!(decode_session(&key, &bytes[..bytes.len() - 1]).is_err());
+        assert!(
+            decode_session(&key, &[bytes.as_slice(), &[0]].concat()).is_err(),
+            "a byte after the tail"
+        );
         assert!(
             decode_session(b"p", &bytes).is_err(),
             "a key without its id"
@@ -162,5 +201,35 @@ mod tests {
         // The first exercise's kind, after the session's fixed fields and the count.
         unknown[1 + 4 + 8 * 4 + 4 + 4] = 9;
         assert!(decode_session(&key, &unknown).is_err());
+    }
+
+    #[test]
+    fn a_record_of_1_1_0_reads_with_its_line_metrics_passed_over() {
+        // As 1.1.0 wrote it: no tail, a line's result with the metrics of codes 1 to 8.
+        let session = session();
+        let bytes = encode_session(&session);
+        let mut old = bytes[..bytes.len() - 2 * TAIL_BYTES].to_vec();
+        // The line's metric count: before the colour's result (its index, time, count and two
+        // metrics).
+        let metrics = old.len() - (4 + 8 + 4 + 2 * METRIC_BYTES) - 4;
+        assert_eq!(
+            old[metrics..metrics + 4],
+            0u32.to_le_bytes(),
+            "the line's count"
+        );
+        let mut retired = Writer::with_capacity(4 + 8 * METRIC_BYTES);
+        retired.len(8);
+        for code in 1..=8 {
+            retired.u8(code);
+            retired.f64(f64::from(code) / 100.0);
+        }
+        old.splice(metrics..metrics + 4, retired.finish());
+        let read = decode_session(&practice_key(7), &old).expect("read");
+        let results: Vec<(u32, u32, Option<u64>, usize)> = read
+            .results
+            .iter()
+            .map(|r| (r.index, r.compares, r.corrected_from, r.metrics.len()))
+            .collect();
+        assert_eq!(results, vec![(4, 1, None, 0), (10, 1, None, 2)]);
     }
 }

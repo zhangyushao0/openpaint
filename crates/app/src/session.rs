@@ -52,6 +52,8 @@ pub struct Session {
     view: CanvasView,
     /// On a practice sheet, its session's flow (`session_practice.rs`).
     practice: Option<PracticeSheet>,
+    /// The toolbox's style; strokes start with it unless a practice sheet's pen draws.
+    brush: StrokeStyle,
 }
 
 impl Session {
@@ -69,7 +71,8 @@ impl Session {
         Self {
             autosave: Autosave::new(artwork.clone()),
             history: History::new(artwork, HISTORY_BUDGET),
-            strokes: Strokes::new(brush, guide),
+            strokes: Strokes::new(brush.clone(), guide),
+            brush,
             layers: Layers::default(),
             fills: Fills::default(),
             selection: Selection::default(),
@@ -89,9 +92,11 @@ impl Session {
         session
     }
 
-    /// The next stroke starts with `brush`; a stroke being drawn keeps the style it began with.
+    /// The next stroke starts with `brush` (on a practice sheet, unless its pen draws); a stroke
+    /// being drawn keeps the style it began with.
     pub fn set_brush(&mut self, brush: StrokeStyle) {
-        self.strokes.set_style(brush);
+        self.brush = brush;
+        self.restyle();
     }
 
     /// The next stroke follows the pen through `streamline` (the toolbox's, per brush); a
@@ -131,6 +136,7 @@ impl Session {
         }
         self.layers.interrupt();
         if let Intent::Fill(fill) = intent {
+            self.filling_frame();
             let drawing = self.strokes.active().is_some();
             let clip = self.clip();
             return self
@@ -293,7 +299,8 @@ impl Session {
             shape: self.strokes.shape().map(Box::new),
             brush: None,
             transfers: None,
-            practice: (self.practice.as_ref()).map(|p| Box::new(p.projection(artwork))),
+            practice: (self.practice.as_ref())
+                .map(|p| Box::new(p.projection(artwork, &self.brush))),
         }
     }
 

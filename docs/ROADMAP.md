@@ -59,32 +59,7 @@ The author, 2026-10-23: practice is their main activity now. The app gets a prac
 - **Method notes.** V大's methods, distilled from the course's subtitles, guide every exercise's instructions and checks. They are not in the repository.
 
 - S75 Practice foundation is done (1.1.0): the Today card; sessions of 10 single lines and 8 single colours on a sheet the app lays out, a project the gallery never lists, its originals drawn by the screen (D98); the pen's own samples, clipped to the empty frame; Compare's overlay and numbers, stored once; Next keeping the zoom; the summary against earlier sessions; One more; records beside the artworks under format 1 (`openpaint-practice` the math). Generators the same per seed, metrics right on known cases, records round-tripping; 46 scenarios with every hash before unchanged; on the tablet a session walked through, How's card at 92 to 94 % of the vsyncs and Next's glide at 80 to 84 % (`bench practice`), the smoke 16.8 s.
-- S76 Compare by overlay, and tools by the exercise. The author, 2026-10-23, after the first sessions:
-  - **No numbers for lines.** A number that doesn't match what the eye sees misleads; line metrics may return later as a study of their own. The overlay is the feedback. Marking points and construction lines first is the right process, so nothing judges a first stroke.
-  - **Colour keeps numbers** with a graphic that shows at a glance where it is off.
-  - **The practice UI suits the exercise,** with the full UI always reachable.
-
-  Scope:
-  - **Overlay modes.** Compare overlays the original in two modes, switched with one tap:
-    - in place, the frame as it is, so placement shows, as V大 checks;
-    - aligned, the original moved and sized onto the copy's best fit, so the shape alone shows however far off the placement is.
-  - **The overlay** is thick and clear over any copy, however rough, with nothing to fail.
-  - **The correction pen.** After Compare the pen turns blue. The author corrects over the copy, compares again, and repeats as often as they like, as they practised on paper. Corrections are stored as such. Compare no longer locks an exercise.
-  - **Line numbers go.** Line numbers go from the card, the summary and the records, together with the line metrics' code. The strokes stay stored, so a later study can measure them.
-  - **Colour feedback:**
-    - per exercise, both colours placed on the colour wheel's ring and square, with an arrow from the pick to the original, plus the hue, saturation and value differences and their direction in words;
-    - in the summary, a radar of the colour judgement: hue, saturation and value accuracy, first pick against final, and low-saturation and dark colours.
-  - **Tools by the exercise.** On a sheet the chrome holds only what the exercise uses, placed by it:
-    - lines: a sketch pen (light), a drawing pen, and the correction pen after Compare, with undo and redo;
-    - colours: the wheel and square inline beside the empty frame, picking and filling the frame in one place.
-
-    The full UI is one tap away and back.
-
-  Done:
-  - The walk-through as a passing scenario: compare in place and aligned, correct in blue, compare again, pick and fill a colour from the inline wheel, see the arrow and the radar, open and leave the full UI.
-  - The alignment tested on known shifts and scales.
-  - Every other scenario hash unchanged.
-  - On the tablet: a session walked through, its motions at the display's rate, the smoke, and the library restored last.
+- S76 Compare by overlay, and tools by the exercise is done (1.1.1) but for its tablet session (the author, 2026-10-23, after the first sessions; D99): no numbers for lines (card, summary, records; the line metrics' code deleted, old codes passed over); Compare as often as asked, the original thick and semi-transparent red in place or aligned onto the copy (`practice::align`), never locking; the pen blue after Compare, corrections marked in the records; colours on the wheel with arrows and in words, the summary's colour-judgement radar; the exercise's own tools beside its frame (pens, undo, redo; the inline wheel with Fill frame) and All tools one tap away. The alignment recovers known shifts and scales; `s76-practice` passes, 47 scenarios with every hash before unchanged but `s75-practice`'s (a stroke after Compare now corrects); on the tablet the smoke 16.8 s and the library restored, the session and `bench practice` not_run (STATUS pending 28).
 - S77 Two languages. The author, 2026-10-23: the whole UI in Chinese or English, switched in the app. Scope: every user-facing string in one table per language, the practice instructions included, a language setting stored with the toolbox, Chinese text set in a CJK font the host reads (D40), layouts that hold either language's lengths. Done: every screen in both languages without clipping (the scenarios' screenshots in both), the switch kept after reopening, scenario control names stable whichever language shows.
 - Next, each specified after the one before lands:
   - Combined lines and the warm-up pool.
@@ -103,6 +78,8 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 ## Candidates
 
 (Findings outside the current slice, one line each, dated.)
+
+- 2026-10-23 Practice after S76: the aligned fit takes the copy as it is now, corrections with it (fit to the latest strokes only if the author finds the compromise misleading); the fit runs on the main thread at Compare (43 ms in the unoptimised dev build, the tablet not measured: a worker if it shows); a Fill frame's frame took 30 ms in the dev build (the fill's scene); the device chores cannot start a practice session of their own while the author's is open (a debug hook, or `device-reset` for practice slices).
 
 - 2026-10-23 Practice sheets: a fill on a sheet floods its whole 2,920 x 3,160 layer before the frame cuts it (flood within the clip's box); Next's glide shows 80 to 84 % of the vsyncs while the 2x tier fills the arriving pair (fill the next pair's tiles ahead); an exported sheet lacks its originals; the StreamLine slider shows on a sheet where it does nothing.
 - 2026-10-23 First openings: the layer panel's pictures draw each layer whole on a worker, a smudge's or filter's material one GPU piece of up to 45 ms, so its first opening over a dense artwork shows 77 % of vsyncs (make materials in pieces as the frame budget does); a panel's first frame lays out its text anew (15 to 20 ms of UI pass; the brush editor's whole column, 19 ms): lay out only what shows, or warm the glyphs ahead.
@@ -157,3 +134,4 @@ Slices S0 to S72 and the stage exits: `docs/archive/ROADMAP-2026-10.md`.
 - S73 2026-10-22 `chore(release): OpenPaint 1.0.0, what S72 left and the documents as the product now is (S73)`; one layer refusal, one curve mapping, the budget test on the held clock, the delete note in ink; the documents rewritten; on the tablet a fresh 1.0.0 with the smoke (15.9 s) and benches alike to S65 to S67's
 - S74 2026-10-23 `perf(runtime): the interface at the display's rate, a frame every vsync while a hand or the interface moves (S74)`; `bench ui`, D97, the chrome pass over the shapes there are, a worker's paced regions 256 px; on the tablet 1.0.1, the smoke 16.9 s
 - S75 2026-10-23 `feat(app): practice foundation, sessions of single lines and colours checked against their originals (S75)`; `openpaint-practice`, D98, `s75-practice`, `bench practice`; on the tablet 1.1.0, a session walked through, the smoke 16.8 s
+- S76 2026-10-23 `feat(app): compare by overlay, no numbers for lines, the tools by the exercise (S76)`; `practice::align`, `judgement.rs`, `PracticePens`, `practice_tools.rs`, D99, `s76-practice`, `bench practice` extended; on the tablet 1.1.1, the smoke 16.8 s, the session not_run

@@ -126,7 +126,7 @@ impl Runtime {
     }
 
     /// `gesture` measured, then the frames it still wants and a pause; the motion's line.
-    fn bench_measured(&mut self, gesture: Gesture) -> Result<String, RuntimeError> {
+    pub(super) fn bench_measured(&mut self, gesture: Gesture) -> Result<String, RuntimeError> {
         let motion = self.bench_motion(gesture)?;
         self.bench_rest()?;
         Ok(motion.line())
@@ -206,7 +206,10 @@ impl Runtime {
     }
 
     /// The control `name`'s top-left corner and size in the last frame, screen pixels.
-    fn bench_rect(&self, name: &'static str) -> Result<([f32; 2], [f32; 2]), RuntimeError> {
+    pub(super) fn bench_rect(
+        &self,
+        name: &'static str,
+    ) -> Result<([f32; 2], [f32; 2]), RuntimeError> {
         let control = (self.controls().find(name)).map_err(|_| RuntimeError::NotNow(name))?;
         let [left, top, right, bottom] = control.rect;
         Ok(([left, top], [right - left, bottom - top]))
