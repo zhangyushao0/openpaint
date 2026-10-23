@@ -21,6 +21,7 @@ use openpaint_core::{Artwork, LayerId, Patch, Placement, RegionMask};
 
 use crate::error::AppError;
 use crate::history::History;
+use crate::layer_rules::LayerRefusal;
 use crate::projection::{Availability, EditorAction};
 
 #[path = "transform_insert.rs"]
@@ -52,10 +53,8 @@ pub enum TransformIntent {
 /// Why the tool did not turn on, for the notice.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TransformRefusal {
-    /// The active layer is hidden.
-    Hidden,
-    /// The active layer is locked.
-    Locked,
+    /// The active layer takes no transform.
+    Layer(LayerRefusal),
     /// Nothing is painted there (inside the selection, if there is one).
     Empty,
     /// Sampling the layer failed.
@@ -70,15 +69,15 @@ pub enum TransformRefusal {
 
 impl fmt::Display for TransformRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Hidden => "the layer is hidden",
+        let why = match self {
+            Self::Layer(refusal) => return write!(f, "{refusal}"),
             Self::Full => "no room for another layer",
-            Self::Locked => "the layer is locked",
             Self::Mask => "a mask cannot be transformed",
             Self::Empty => "nothing to transform",
             Self::NothingPasted => "the copy holds no paint",
             Self::Failed => "the layer could not be sampled",
-        })
+        };
+        f.write_str(why)
     }
 }
 
@@ -171,14 +170,9 @@ impl Transforms {
         if drawing {
             return Availability::StrokeInProgress.require(EditorAction::Transform);
         }
-        let props = artwork.layer(artwork.active()).map(|layer| *layer.props());
-        self.refused = match props {
-            // Hidden by its own eye or its group's.
-            Some(_) if !artwork.shown(artwork.active()) => Some(TransformRefusal::Hidden),
-            Some(props) if props.locked() => Some(TransformRefusal::Locked),
-            _ if artwork.on_mask() => Some(TransformRefusal::Mask),
-            _ => None,
-        };
+        self.refused = LayerRefusal::of(artwork)
+            .map(TransformRefusal::Layer)
+            .or_else(|| artwork.on_mask().then_some(TransformRefusal::Mask));
         if let Some(refusal) = self.refused {
             return Err(AppError::TransformRefused(refusal));
         }

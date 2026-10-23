@@ -1,4 +1,4 @@
-//! Brush files: one brush as TOML, read into a `Brush` with typed errors (DECISIONS D72: fixed
+//! Brush files: one brush as TOML, read into a `Brush` with typed errors (DECISIONS D74: fixed
 //! stages with typed fields, no graph). Every key is checked; an unknown one is an error, so a
 //! typo never passes silently.
 //!

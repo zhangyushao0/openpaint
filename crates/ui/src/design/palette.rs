@@ -1,4 +1,4 @@
-//! The paper and the ink (D32, D40): every colour, line weight and shadow the chrome uses.
+//! The paper and the ink (D40): every colour, line weight and shadow the chrome uses.
 //! Near-neutral warm paper, so the chrome never tints how colours on the canvas are seen; one
 //! ink for text, icons and lines, one deeper ink for what is active; panels drawn as ink
 //! outlines, never as filled blocks.

@@ -4,8 +4,8 @@
 //! or locked layers refuse with a notice. Gaussian Blur and Sharpen (S33) behave alike.
 
 use openpaint_app::{
-    AdjustIntent, AdjustRefusal, AppError, Availability, BrushLibrary, Contact, ContactPhase,
-    Device, EditorAction, HistoryIntent, InputSample, Intent, LayerIntent, SelectionIntent,
+    AdjustIntent, AppError, Availability, BrushLibrary, Contact, ContactPhase, Device,
+    EditorAction, HistoryIntent, InputSample, Intent, LayerIntent, LayerRefusal, SelectionIntent,
     SelectionShape, Session, Toolbox,
 };
 use openpaint_core::{Adjustment, AdjustmentKind, Artwork, CanvasSize, Hsb, LayerId, RegionMask};
@@ -201,10 +201,10 @@ fn hidden_and_locked_layers_refuse_with_a_notice() {
         .expect("hide");
     let begin = AdjustIntent::Begin(AdjustmentKind::Curves);
     let refused = session.dispatch(Intent::Adjust(begin));
-    assert_eq!(refused, Err(AppError::AdjustRefused(AdjustRefusal::Hidden)));
+    assert_eq!(refused, Err(AppError::AdjustRefused(LayerRefusal::Hidden)));
     assert_eq!(
         session.projection().adjust().refused,
-        Some(AdjustRefusal::Hidden)
+        Some(LayerRefusal::Hidden)
     );
     assert!(!session.adjusting());
     adjust(&mut session, AdjustIntent::Dismiss);

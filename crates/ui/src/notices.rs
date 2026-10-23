@@ -7,8 +7,8 @@
 //! the desk above the canvas.
 
 use openpaint_app::{
-    AdjustIntent, AdjustRefusal, Delivery, EditorAction, ExportError, ExportIntent, ExportNotice,
-    FillIntent, FillRefusal, ImageError, InsertIntent, Intent, ReferenceIntent, ReferenceNotice,
+    AdjustIntent, Delivery, EditorAction, ExportError, ExportIntent, ExportNotice, FillIntent,
+    FillRefusal, ImageError, InsertIntent, Intent, LayerRefusal, ReferenceIntent, ReferenceNotice,
     SessionProjection, StorageIntent, StorageNotice, TransformIntent, TransformRefusal,
 };
 
@@ -101,43 +101,45 @@ fn storage(projection: &SessionProjection) -> Option<Told> {
     ))
 }
 
+/// Why the active layer took no `verb` ("Can't fill: the layer is hidden.").
+fn refused(verb: &str, refusal: LayerRefusal) -> String {
+    format!("Can't {verb}: {refusal}.")
+}
+
 /// A refused or failed fill, with OK.
 fn fill(projection: &SessionProjection) -> Option<Told> {
     let fill = projection.fill();
     let message = match (fill.refused, fill.failed) {
-        (Some(FillRefusal::Hidden), _) => "Can't fill: the layer is hidden.",
-        (Some(FillRefusal::Locked), _) => "Can't fill: the layer is locked.",
-        (Some(FillRefusal::OutsideSelection), _) => "Drop inside the selection to fill.",
-        (None, true) => "Couldn't fill there. Try again.",
+        (Some(FillRefusal::Layer(refusal)), _) => refused("fill", refusal),
+        (Some(FillRefusal::OutsideSelection), _) => "Drop inside the selection to fill.".into(),
+        (None, true) => "Couldn't fill there. Try again.".into(),
         (None, false) => return None,
     };
     let dismiss = Intent::Fill(FillIntent::Cancel);
-    Some(Told::Failed(message.to_owned(), "OK", true, dismiss))
+    Some(Told::Failed(message, "OK", true, dismiss))
 }
 
 /// Why the Transform tool did not turn on, with OK.
 fn transform(projection: &SessionProjection) -> Option<Told> {
     let message = match projection.transform().refused? {
-        TransformRefusal::Hidden => "Can't transform: the layer is hidden.",
-        TransformRefusal::Locked => "Can't transform: the layer is locked.",
-        TransformRefusal::Empty => "Nothing to transform here.",
-        TransformRefusal::NothingPasted => "Nothing to paste: the copy holds no paint.",
-        TransformRefusal::Failed => "Couldn't pick up the layer. Try again.",
-        TransformRefusal::Mask => "A mask can't be transformed. Tap the layer to move its paint.",
-        TransformRefusal::Full => "Can't insert: no room for another layer.",
+        TransformRefusal::Layer(refusal) => refused("transform", refusal),
+        TransformRefusal::Empty => "Nothing to transform here.".into(),
+        TransformRefusal::NothingPasted => "Nothing to paste: the copy holds no paint.".into(),
+        TransformRefusal::Failed => "Couldn't pick up the layer. Try again.".into(),
+        TransformRefusal::Mask => {
+            "A mask can't be transformed. Tap the layer to move its paint.".into()
+        }
+        TransformRefusal::Full => "Can't insert: no room for another layer.".into(),
     };
     let dismiss = Intent::Transform(TransformIntent::Tool(false));
-    Some(Told::Failed(message.to_owned(), "OK", true, dismiss))
+    Some(Told::Failed(message, "OK", true, dismiss))
 }
 
 /// Why an adjustment did not start, with OK.
 fn adjust(projection: &SessionProjection) -> Option<Told> {
-    let message = match projection.adjust().refused? {
-        AdjustRefusal::Hidden => "Can't adjust: the layer is hidden.",
-        AdjustRefusal::Locked => "Can't adjust: the layer is locked.",
-    };
+    let message = refused("adjust", projection.adjust().refused?);
     let dismiss = Intent::Adjust(AdjustIntent::Dismiss);
-    Some(Told::Failed(message.to_owned(), "OK", true, dismiss))
+    Some(Told::Failed(message, "OK", true, dismiss))
 }
 
 /// Exporting, then the reference image.

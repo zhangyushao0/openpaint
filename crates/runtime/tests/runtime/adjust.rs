@@ -1,4 +1,4 @@
-//! Adjustments on the GPU (S28, D54): an applied adjustment is an operation the raster core
+//! Adjustments on the GPU (S28, D59): an applied adjustment is an operation the raster core
 //! runs on the layer's content so far. Each shows the values worked out by hand, on paint and on
 //! a mask (inverted too), only inside its selection and never on what was painted after it;
 //! preview frames evaluated incrementally on one target end equal to the committed artwork

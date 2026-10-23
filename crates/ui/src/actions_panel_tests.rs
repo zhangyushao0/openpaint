@@ -7,7 +7,7 @@ use super::ActionsPanel;
 use crate::components::{ControlMap, chrome, controls};
 use crate::design;
 
-const LINE: &str = "OpenPaint 0.8.0 · format 1";
+const LINE: &str = "OpenPaint 1.0.0 · format 1";
 
 /// The open panel after a second of frames: its controls and every text with its top.
 fn settled(panel: &mut ActionsPanel) -> (ControlMap, Vec<(String, f32)>) {

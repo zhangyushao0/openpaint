@@ -50,7 +50,7 @@ mod transfer;
 mod transform;
 mod view;
 
-pub use crate::adjust::{AdjustIntent, AdjustProjection, AdjustRefusal};
+pub use crate::adjust::{AdjustIntent, AdjustProjection};
 pub use crate::brush_edit::BrushChange;
 pub use crate::brush_fit::{EDITOR_TAPER, MIN_DENSITY, MIN_FLOW, MIN_SIZE};
 pub use crate::brush_knobs::{Axis, Dynamic, Knob, KnobRange, curve_top};
@@ -79,6 +79,7 @@ pub use crate::history::{HISTORY_BUDGET, History, HistoryIntent};
 pub use crate::input::{Contact, ContactPhase, Device, InputBatch, InputSample, PenButtons};
 pub use crate::insert::{InsertIntent, InsertJob};
 pub use crate::intent::Intent;
+pub use crate::layer_rules::LayerRefusal;
 pub use crate::layers::{GroupRow, LayerIntent, LayerList, LayerRow, MaskRow};
 pub use crate::palette::{Hsv, MAX_SWATCHES, RECENT_COLORS, hex_of, parse_hex};
 pub use crate::palm::PalmRejection;

@@ -1,4 +1,4 @@
-//! `BrushRecipe`: how a brush turns pen samples into paint (DECISIONS D72). A recipe has fixed
+//! `BrushRecipe`: how a brush turns pen samples into paint (DECISIONS D74). A recipe has fixed
 //! stages with typed values: the edge of its round shape, size and opacity dynamics over pressure,
 //! speed and tilt, grain, how its segments deposit paint (`deposit.rs`), how it tapers at its
 //! ends (`taper.rs`) and its tip's shape along the path (`shape.rs`). The renderer evaluates it

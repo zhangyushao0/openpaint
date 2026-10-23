@@ -1,4 +1,4 @@
-# Opaque Paint: a rough square tip turning with the stroke, overlapping densely (DECISIONS D72):
+# Opaque Paint: a rough square tip turning with the stroke, overlapping densely (DECISIONS D74):
 # a solid band of paint with a bristly edge and blocky ends. Pressure lays more paint; where it
 # crosses itself it never darkens.
 name = "Opaque Paint"

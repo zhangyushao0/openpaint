@@ -1,4 +1,4 @@
-//! Save ids and the display cache (S54, DECISIONS D81): every save writes a new save id into the
+//! Save ids and the display cache (S54, DECISIONS D96): every save writes a new save id into the
 //! head, two saves of the same content too; a head without one gets one when it is opened and
 //! keeps it; a version rolled back to an older head holds that head's id, never the later
 //! save's. The display cache's file gives back what was written, bit for bit, replaces it whole,

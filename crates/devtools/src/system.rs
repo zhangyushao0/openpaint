@@ -213,7 +213,7 @@ pub struct Export {
     pub largest_difference: u8,
     pub mean_difference: f64,
     /// At 1x, the pixels more than one 8-bit level off the canvas away from its antialiased
-    /// edges (`image_difference`, D86's rule); `usize::MAX` where the sizes differ.
+    /// edges (`image_difference`, D93's rule); `usize::MAX` where the sizes differ.
     pub off_inside: usize,
 }
 

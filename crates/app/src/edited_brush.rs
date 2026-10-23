@@ -4,7 +4,7 @@
 
 use openpaint_core::{RecipeParts, Rotation, Stamp, Tip};
 
-use crate::brush_edit::curve_of_ref;
+use crate::brush_edit::curve_in;
 use crate::brush_fit;
 use crate::brush_knobs::{Axis, Dynamic, Knob, KnobRange, curve_top};
 use crate::brushes::{BrushKey, SizeRange};
@@ -87,8 +87,8 @@ impl EditedBrush {
 
     /// The curve of `dynamic` over `axis`, `[x, y]` in the axis's units.
     #[must_use]
-    pub fn curve(&self, dynamic: Dynamic, axis: Axis) -> &[[f32; 2]] {
-        curve_of_ref(&self.recipe, dynamic, axis)
+    pub fn curve(&self, dynamic: Dynamic, axis: Axis) -> Vec<[f32; 2]> {
+        curve_in(&self.recipe, dynamic, axis)
     }
 
     /// The highest factor its points may take now: the curve's top (`curve_top`), or less for a
@@ -97,7 +97,7 @@ impl EditedBrush {
     pub fn curve_limit(&self, dynamic: Dynamic, axis: Axis) -> f32 {
         let top = curve_top(dynamic, axis);
         match dynamic {
-            Dynamic::Size => brush_fit::curve_limit(&self.recipe, self.curve(dynamic, axis), top),
+            Dynamic::Size => brush_fit::curve_limit(&self.recipe, &self.curve(dynamic, axis), top),
             Dynamic::Opacity => top,
         }
     }
@@ -105,6 +105,6 @@ impl EditedBrush {
     /// Whether the curve differs from the built-in's file (its Reset gives that back).
     #[must_use]
     pub fn curve_changed(&self, dynamic: Dynamic, axis: Axis) -> bool {
-        self.curve(dynamic, axis) != curve_of_ref(&self.origin, dynamic, axis)
+        self.curve(dynamic, axis) != curve_in(&self.origin, dynamic, axis)
     }
 }

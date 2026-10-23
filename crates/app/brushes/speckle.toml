@@ -1,5 +1,5 @@
 # Speckle: small dots of different sizes sprayed around the path, up to three radii away from it
-# (DECISIONS D72), for texture and noise. Where dots overlap they build up, up to the opacity.
+# (DECISIONS D74), for texture and noise. Where dots overlap they build up, up to the opacity.
 # Each stroke scatters its own way.
 name = "Speckle"
 

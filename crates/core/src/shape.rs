@@ -1,9 +1,7 @@
 //! `Shape`: what a brush's tip looks like and how it is laid along the stroke (DECISIONS
-//! D72). With a spacing of 0 the stroke is the continuous round capsule every stroke was before
-//! (D07, archived). With a spacing, the stroke is a row of stamps at equal distances along its
-//! path, `n * spacing * size` canvas pixels from its start for the n-th stamp: each the tip's
-//! shape (a disc,
-//! a square or an ellipse of an aspect, or one of the shape textures) in its own frame, turned
+//! D74). With a spacing of 0 the stroke is a continuous round capsule. With a spacing, the stroke
+//! is a row of stamps at equal distances along its path, `n * spacing * size` canvas pixels from
+//! its start for the n-th stamp: each the tip's shape (a disc, a square or an ellipse of an aspect, or one of the shape textures) in its own frame, turned
 //! by the rotation and jittered by a hash of the stamp's index and the stroke's seed (`jitter`),
 //! so a stroke is the same on every frame, scale and device. The renderer evaluates the stamps
 //! per pixel from the path; there is no stamp engine and nothing is kept between frames.

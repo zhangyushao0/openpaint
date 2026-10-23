@@ -166,7 +166,7 @@ impl Runtime {
         };
         let kept = self.palms.filter(input);
         // A hand arriving ends the work handed over while nothing touched, at once.
-        if self.touches.saw(&kept) {
+        if self.touches.saw(&kept, self.frame_clock.seconds()) {
             self.raster.hand_arrived();
         }
         let wanted = !kept.is_empty();

@@ -5,8 +5,8 @@ use std::fmt;
 
 use openpaint_core::CoreError;
 
-use crate::adjust::AdjustRefusal;
 use crate::fill::FillRefusal;
+use crate::layer_rules::LayerRefusal;
 use crate::projection::{Availability, EditorAction};
 use crate::transform::TransformRefusal;
 
@@ -23,7 +23,7 @@ pub enum AppError {
     /// The active layer cannot be transformed.
     TransformRefused(TransformRefusal),
     /// The active layer cannot be adjusted.
-    AdjustRefused(AdjustRefusal),
+    AdjustRefused(LayerRefusal),
 }
 
 impl fmt::Display for AppError {

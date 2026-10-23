@@ -6,7 +6,7 @@
 
 use openpaint_app::{
     AppError, Availability, BrushLibrary, EditorAction, HistoryIntent, Intent, LayerIntent,
-    LiftFailed, SelectionIntent, Session, Toolbox, TransformIntent, TransformRefusal,
+    LayerRefusal, LiftFailed, SelectionIntent, Session, Toolbox, TransformIntent, TransformRefusal,
 };
 use openpaint_core::{
     Artwork, ArtworkCommand, CanvasSize, LayerCommand, Patch, Placement, RegionMask,
@@ -196,7 +196,9 @@ fn hidden_locked_and_empty_layers_refuse_with_a_notice() {
     let refused = session.dispatch(Intent::Transform(TransformIntent::Tool(true)));
     assert_eq!(
         refused,
-        Err(AppError::TransformRefused(TransformRefusal::Hidden))
+        Err(AppError::TransformRefused(TransformRefusal::Layer(
+            LayerRefusal::Hidden
+        )))
     );
     assert!(session.transform_request().is_none());
     let show = ArtworkCommand::Layer(LayerCommand::SetVisible {
@@ -213,7 +215,9 @@ fn hidden_locked_and_empty_layers_refuse_with_a_notice() {
     let refused = session.dispatch(Intent::Transform(TransformIntent::Tool(true)));
     assert_eq!(
         refused,
-        Err(AppError::TransformRefused(TransformRefusal::Locked))
+        Err(AppError::TransformRefused(TransformRefusal::Layer(
+            LayerRefusal::Locked
+        )))
     );
 }
 

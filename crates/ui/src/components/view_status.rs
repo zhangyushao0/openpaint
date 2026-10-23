@@ -1,5 +1,5 @@
 //! The view status: one quiet line, "250 % · 30°", in a pill in the middle of the top band while
-//! the fingers move the view and for a moment after, then fading away (restraint, D32). The zoom
+//! the fingers move the view and for a moment after, then fading away (restraint, D40). The zoom
 //! is the actual size: 100 % shows one canvas pixel per screen pixel. It takes no contacts.
 
 use egui::{Align2, Color32, Frame, Margin, Order, Stroke, Vec2};

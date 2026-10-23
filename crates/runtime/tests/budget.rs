@@ -6,7 +6,9 @@
 //! canvas itself is never let go and stays equal to a cold evaluation throughout, also for a
 //! smudge drawn over a residual let go. A zoom round from 2x to 8x and back evaluates no tier
 //! tile twice: the tiers left are kept (S58). A test binary of its own: the zoom round reads its
-//! device's counts.
+//! device's counts. Every state asserted is reached on the held clock alone: the snapshots taken
+//! ahead all taken before the caches are weighed, the pen over the glass while the budget acts,
+//! so nothing depends on how long a frame or a cold draw took.
 
 #[path = "runtime/support/gpu.rs"]
 mod gpu;
@@ -86,7 +88,7 @@ fn pinch(runtime: &mut Runtime, hand: &mut Hand, from: [[f32; 2]; 2], to: [[f32;
     runtime.core().counts().filled - lifted
 }
 
-/// Frames 16 ms apart on a held clock until nothing moves or fills in.
+/// Frames 16 ms apart on a held clock until nothing moves or fills in and no worker is busy.
 fn settle(runtime: &mut Runtime, hand: &mut Hand) {
     for _ in 0..400 {
         hand.clock += 16;
@@ -96,14 +98,61 @@ fn settle(runtime: &mut Runtime, hand: &mut Hand) {
             return;
         }
     }
+    panic!("still moving after 400 frames");
+}
+
+/// Settles, then frames on the held clock until the canvas has no background work left: half a
+/// second after the last touch the snapshots under the next stroke are taken ahead, every one
+/// the budget leaves room for. What the caches hold then does not depend on how long the
+/// frames took.
+fn settle_ahead(runtime: &mut Runtime, hand: &mut Hand) {
+    settle(runtime, hand);
+    for _ in 0..400 {
+        if !runtime.canvas_waiting() {
+            return;
+        }
+        hand.clock += 16;
+        runtime.fix_clock(hand.clock);
+        runtime.frame_offscreen(SIZE).expect("frame");
+    }
+    panic!("the canvas still had work after 400 frames");
 }
 
 fn held(runtime: &Runtime) -> CacheBytes {
     runtime.cache_bytes().expect("a canvas")
 }
 
-/// Sets the budget, runs a frame or two, and returns what the caches hold then.
+/// The pen comes over the glass and leaves it again: for half a second of the held clock the
+/// screen is not idle, so nothing is taken ahead.
+fn hover(runtime: &mut Runtime, hand: &mut Hand) {
+    for phase in [MotionPhase::HoverEnter, MotionPhase::HoverExit] {
+        hand.clock += 16;
+        runtime.fix_clock(hand.clock);
+        let pointer = Pointer {
+            id: 0,
+            tool: ToolKind::Stylus,
+            samples: vec![PointerSample {
+                position: [800.0, 1300.0],
+                pressure: 0.0,
+                tilt: 0.0,
+                orientation: 0.0,
+                time_ms: hand.clock,
+            }],
+        };
+        let batch = MotionBatch {
+            phase,
+            buttons: Buttons::default(),
+            pointers: vec![pointer],
+        };
+        runtime.motion(&batch);
+        runtime.frame_offscreen(SIZE).expect("frame");
+    }
+}
+
+/// Sets the budget with the pen over the glass (nothing taken ahead meanwhile: what the budget
+/// let go is not made again at once), settles, and returns what the caches hold then.
 fn budget(runtime: &mut Runtime, hand: &mut Hand, bytes: u64) -> CacheBytes {
+    hover(runtime, hand);
     runtime.set_memory_budget(bytes);
     settle(runtime, hand);
     held(runtime)
@@ -147,6 +196,8 @@ fn a_lower_budget_lets_the_least_recently_used_go_and_never_what_the_frame_needs
     // Zoomed in about three times, then twice more: the 2x tier left, the 4x tier shown.
     zoom_by(&mut runtime, &mut hand, 200.0, 3.0);
     zoom_by(&mut runtime, &mut hand, 400.0, 2.0);
+    // Nothing touching for half a second: every snapshot the budget leaves room for taken.
+    settle_ahead(&mut runtime, &mut hand);
     let all = held(&runtime);
     eprintln!("caches before: {all:?}");
     assert!(

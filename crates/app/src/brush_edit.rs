@@ -83,7 +83,7 @@ pub(crate) fn edited(
             points,
         } => curve(&mut parts, (*dynamic, *axis), points)?,
         BrushChange::ResetCurve { dynamic, axis } => {
-            *curve_of(&mut parts, *dynamic, *axis) = curve_of_ref(origin, *dynamic, *axis).to_vec();
+            *curve_of(&mut parts, *dynamic, *axis) = curve_in(origin, *dynamic, *axis);
         }
         BrushChange::Rotation(_) => return None,
     }
@@ -237,7 +237,7 @@ fn curve(
     points: &[[f32; 2]],
 ) -> Option<()> {
     let top = curve_top(dynamic, axis);
-    let own = curve_of_ref(parts, dynamic, axis).to_vec();
+    let own = curve_of(parts, dynamic, axis).clone();
     let limit = match dynamic {
         Dynamic::Size => brush_fit::curve_limit(parts, &own, top),
         Dynamic::Opacity => top,
@@ -254,6 +254,7 @@ fn curve(
     Some(())
 }
 
+/// The curve of `dynamic` over `axis` in `parts`.
 pub(crate) fn curve_of(
     parts: &mut RecipeParts,
     dynamic: Dynamic,
@@ -269,13 +270,7 @@ pub(crate) fn curve_of(
     }
 }
 
-pub(crate) fn curve_of_ref(parts: &RecipeParts, dynamic: Dynamic, axis: Axis) -> &[[f32; 2]] {
-    match (dynamic, axis) {
-        (Dynamic::Size, Axis::Pressure) => &parts.size_pressure,
-        (Dynamic::Size, Axis::Speed) => &parts.size_speed,
-        (Dynamic::Size, Axis::Tilt) => &parts.size_tilt,
-        (Dynamic::Opacity, Axis::Pressure) => &parts.opacity_pressure,
-        (Dynamic::Opacity, Axis::Speed) => &parts.opacity_speed,
-        (Dynamic::Opacity, Axis::Tilt) => &parts.opacity_tilt,
-    }
+/// A copy of the curve of `dynamic` over `axis` in `parts`.
+pub(crate) fn curve_in(parts: &RecipeParts, dynamic: Dynamic, axis: Axis) -> Vec<[f32; 2]> {
+    curve_of(&mut parts.clone(), dynamic, axis).clone()
 }

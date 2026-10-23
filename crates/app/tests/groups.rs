@@ -6,7 +6,7 @@ use openpaint_app::{
     AppError, Availability, EditorAction, FillIntent, FillRefusal, HistoryIntent, Intent,
     LayerIntent, Session, TransformIntent, TransformRefusal,
 };
-use openpaint_app::{BrushLibrary, Toolbox};
+use openpaint_app::{BrushLibrary, LayerRefusal, Toolbox};
 use openpaint_core::{BlendMode, CanvasSize, Color, GroupId, LayerId};
 
 fn session() -> Session {
@@ -140,10 +140,17 @@ fn a_layer_in_a_hidden_group_refuses_fills_and_transforms() {
         threshold: 0.5,
         color: Color::BLACK,
     }));
-    assert_eq!(fill, Err(AppError::FillRefused(FillRefusal::Hidden)));
+    assert_eq!(
+        fill,
+        Err(AppError::FillRefused(FillRefusal::Layer(
+            LayerRefusal::Hidden
+        )))
+    );
     let transform = session.dispatch(Intent::Transform(TransformIntent::Tool(true)));
     assert_eq!(
         transform,
-        Err(AppError::TransformRefused(TransformRefusal::Hidden))
+        Err(AppError::TransformRefused(TransformRefusal::Layer(
+            LayerRefusal::Hidden
+        )))
     );
 }

@@ -46,7 +46,7 @@ fn the_exported_png_holds_exactly_what_the_screen_shows() {
     let (size, pixels) = decode_image(&bytes).expect("a PNG");
     let canvas = runtime.read_canvas().expect("readback").expect("canvas");
     assert_eq!(size, canvas.size(), "native size");
-    // The raster core draws the file and the canvas: at 1x the same pixels (D86).
+    // The raster core draws the file and the canvas: at 1x the same pixels (D93).
     let file = RgbaImage::from_rgba(size, pixels).expect("whole");
     let found = image_difference(&canvas, &file).expect("same size");
     assert_eq!(found.largest, [0; 4], "the file is the canvas: {found:?}");

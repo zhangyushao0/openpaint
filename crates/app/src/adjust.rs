@@ -6,12 +6,11 @@
 //! (nothing when it changes nothing); Cancel and undo leave the artwork as it was; any other
 //! edit or tool applies it as it shows (D59).
 
-use std::fmt;
-
 use openpaint_core::{Adjustment, AdjustmentKind, Artwork, RegionMask};
 
 use crate::error::AppError;
 use crate::history::History;
+use crate::layer_rules::LayerRefusal;
 use crate::projection::{Availability, EditorAction};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -28,30 +27,13 @@ pub enum AdjustIntent {
     Dismiss,
 }
 
-/// Why an adjustment did not start, for the notice.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AdjustRefusal {
-    /// The active layer is hidden (by its eye or its group's).
-    Hidden,
-    /// The active layer is locked.
-    Locked,
-}
-
-impl fmt::Display for AdjustRefusal {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Hidden => "the layer is hidden",
-            Self::Locked => "the layer is locked",
-        })
-    }
-}
-
 /// What the UI shows of adjusting.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct AdjustProjection {
     /// The adjustment under way and its values now, until it is applied or cancelled.
     pub adjustment: Option<Adjustment>,
-    pub refused: Option<AdjustRefusal>,
+    /// Why the last one did not start, for the notice.
+    pub refused: Option<LayerRefusal>,
 }
 
 #[derive(Debug)]
@@ -67,7 +49,7 @@ struct Draft {
 #[derive(Debug, Default)]
 pub(crate) struct Adjusts {
     draft: Option<Draft>,
-    refused: Option<AdjustRefusal>,
+    refused: Option<LayerRefusal>,
 }
 
 impl Adjusts {
@@ -87,13 +69,7 @@ impl Adjusts {
         if drawing {
             return Availability::StrokeInProgress.require(EditorAction::Adjust);
         }
-        let layer = artwork.active();
-        let props = artwork.layer(layer).map(|layer| *layer.props());
-        self.refused = match props {
-            Some(_) if !artwork.shown(layer) => Some(AdjustRefusal::Hidden),
-            Some(props) if props.locked() => Some(AdjustRefusal::Locked),
-            _ => None,
-        };
+        self.refused = LayerRefusal::of(artwork);
         if let Some(refusal) = self.refused {
             self.draft = None;
             return Err(AppError::AdjustRefused(refusal));

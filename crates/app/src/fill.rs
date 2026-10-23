@@ -11,6 +11,7 @@ use openpaint_core::{Artwork, Color, LayerId, RegionMask};
 
 use crate::error::AppError;
 use crate::history::History;
+use crate::layer_rules::LayerRefusal;
 use crate::projection::{Availability, EditorAction};
 
 /// The threshold a fill starts with (draweave's tested default): 60 % of the full 8-bit range.
@@ -34,21 +35,18 @@ pub enum FillIntent {
 /// Why a fill was refused, for the notice.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FillRefusal {
-    /// The active layer is hidden: a fill there would not show.
-    Hidden,
-    /// The active layer is locked.
-    Locked,
+    /// The active layer takes no fill.
+    Layer(LayerRefusal),
     /// A selection exists and the drop landed outside it, where nothing may change.
     OutsideSelection,
 }
 
 impl fmt::Display for FillRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(match self {
-            Self::Hidden => "the layer is hidden",
-            Self::Locked => "the layer is locked",
-            Self::OutsideSelection => "the drop is outside the selection",
-        })
+        match self {
+            Self::Layer(refusal) => write!(f, "{refusal}"),
+            Self::OutsideSelection => f.write_str("the drop is outside the selection"),
+        }
     }
 }
 
@@ -180,17 +178,11 @@ impl Fills {
             }));
         }
         let layer = artwork.active();
-        let props = artwork.layer(layer).map(|layer| *layer.props());
         let point = point.map(|value| value as u32);
-        let refusal = match props {
-            // Hidden by its own eye or its group's.
-            Some(_) if !artwork.shown(layer) => Some(FillRefusal::Hidden),
-            Some(props) if props.locked() => Some(FillRefusal::Locked),
-            _ if clip.is_some_and(|clip| !clip.contains(point)) => {
-                Some(FillRefusal::OutsideSelection)
-            }
-            _ => None,
-        };
+        let outside = clip.is_some_and(|clip| !clip.contains(point));
+        let refusal = LayerRefusal::of(artwork)
+            .map(FillRefusal::Layer)
+            .or_else(|| outside.then_some(FillRefusal::OutsideSelection));
         self.refused = refusal;
         if let Some(refusal) = refusal {
             self.draft = None;

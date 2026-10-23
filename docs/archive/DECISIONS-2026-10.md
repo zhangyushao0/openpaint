@@ -380,3 +380,21 @@ Superseded decisions moved here whole from `docs/DECISIONS.md`. Written, never r
 - Reason: S60's pacing numbers stand (archived D87); S64 found small brushes' frames every other vsync while the clocks are low, and the hint session is Android's channel for frame work against a deadline, from the runtime because the benchmarks drive its frames without Kotlin.
 - Consequences: on the tablet the session is made, reported to, paused and closed (dumpsys) but changes nothing measurable, not even at twice its target (STATUS pending 24: keep, remove, or find the lever a busy device shows); frames are timed on the GPU while a hand is there (0.5 to 0.9 ms of frame work) and the reports add 0.2 to 0.4 ms; a hand's first frame waits for the piece the GPU runs and one more (18 to 24 ms over the pile at 8x); both threads submit.
 - Archived 2026-10-22 (S68): the hint session removed (no effect; the author found drawing good); the rest carried on by D96.
+
+## D13 2026-10-02 The UI is designed from the user inward, with Procreate as the default model
+- Decision: every slice that changes what the user sees or does starts with a walk-through written as the user and ends with that walk-through as a passing harness scenario plus a screenshot review against the checklist in ARCHITECTURE section 10. Procreate's interaction model is the default; the theme and the components are defined once.
+- Reason: in the previous project features were built function-first with the UI attached afterwards. The result resembled Procreate but felt unpolished in small aesthetic and usability details, because nobody had walked through it as a user. An agent cannot feel the tablet, but it can look at screenshots, count taps and verify hit sizes, so those are made explicit and checkable.
+- Consequences: the walk-through lives in the scenario file and the commit message, never in a document; the author's on-device judgement at stage exits is the only authority on feel and beauty.
+- Archived 2026-10-22 (S73): a working rule, kept in AGENTS.md ("Design from the user inward") and ROADMAP's rules.
+
+## D33 2026-10-02 Simplest design first; optimisation is coarse-grained and comes in G5; draweave is the behaviour reference
+- Decision: each slice builds the simplest direct design that meets its done criteria and budgets; caches, incremental schemes and tuning beyond that are written under ROADMAP "Candidates" and done in G5, coarse-grained and measured on the tablet. Before building a feature, the slice reads draweave's implementation of the same feature (behaviour, constants, tests, fix commits) and carries its lessons over; its architecture is not copied.
+- Reason: the author's direction; the predecessor spent heavily on structure and tuning, and agents here re-hit pitfalls it had already solved (undo/redo greying out on every stroke).
+- Consequences: subagent briefs name the draweave files for the feature; lessons that apply to all UI live in ARCHITECTURE section 10.
+- Archived 2026-10-22 (S73): a working rule, kept in ROADMAP's rules.
+
+## D47 2026-10-04 Performance in a slice: a usability floor at default sizes; everything else is measured, not chased
+- Decision: a slice must be fluid at its feature's default sizes on the tablet (a frame within one 60 Hz vsync); every other performance number is measured and recorded in STATUS, never a done criterion; chasing it belongs to G5 (D33). Large smudge brushes (about 25 to 35 Hz at 600 px, S21) stay as they are until then.
+- Reason: S21 spent a large share of its time on a 60 Hz criterion for sizes the author rarely uses; criteria written before D33 contradicted it.
+- Consequences: briefs state the floor and a stop rule (one contained attempt, then record and report); ROADMAP slices carry no other performance criteria.
+- Archived 2026-10-22 (S73): a working rule, kept in ROADMAP's rules.

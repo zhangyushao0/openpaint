@@ -1,7 +1,7 @@
 //! The app's version (DECISIONS D79): semantic, from the workspace manifest's
 //! `[workspace.package] version` (which every crate, xtask too, carries as `CARGO_PKG_VERSION`),
 //! with the storage format (`FORMAT` in `crates/store/src/records.rs`, its owner) as build
-//! metadata: `versionName` "0.8.0+format1", `versionCode` major x 10,000 + minor x 100 + patch.
+//! metadata: `versionName` "1.0.0+format1", `versionCode` major x 10,000 + minor x 100 + patch.
 //! The Android build hands both to Gradle (`android.rs`); the app shows the same two from its own
 //! compiled constants.
 

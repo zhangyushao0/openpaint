@@ -51,7 +51,7 @@ Do not rebuild the big picture from source; the module map is in ARCHITECTURE. D
 - `cargo device-clean`: the agent's test files (`/sdcard/{Pictures,Download}/openpaint-test`, `/sdcard/openpaint-*.mp4`), nothing else.
 - `cargo device-reset`: the app's data cleared (`pm clear`), every file it held listed; refuses unless a backup was written the same day (UTC). Only where a slice says so.
 - `cargo device-smoke`: the installed debug build in about 20 s, one line per step: a test artwork it makes, a stroke of each tool, undo, a layer, a fill, Share PNG, reopen, its deletion, the app's log; never another artwork. Between backup and restore (it changes the toolbox).
-- `cargo test-art pile|a4|a4-plain|session [n]`: a test artwork as an OpenPaint file under `artifacts/test-art/`, the same bytes every run; `cargo device-push <file>` puts it into the test folder.
+- `cargo test-art pile|a4|a4-plain|kinds|session [n]`: a test artwork as an OpenPaint file under `artifacts/test-art/`, the same bytes every run; `cargo device-push <file>` puts it into the test folder.
 - `cargo device-input open-file <name>`: that pushed file imported and opened from the gallery as a new test artwork, its id printed; never draw test artworks by injection. Delete it by taps at the end.
 - `cargo device-input bench open-cold|open|zoom|pan|strokes|session|export|touch|undo|adjust[@fast]`: a scenario on the artwork open, its times and counts (`touch`: a hand arriving mid-fill, event to its first frame) (paced as a person sees them; `@fast` as fast as the GPU takes frames); `home` presses home without instrumentation.
 

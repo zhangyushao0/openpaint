@@ -7,7 +7,7 @@
 //! and the row that chooses its image, and the Drawing Guide (its switch and symmetries);
 //! under "Pen", Pen buttons, which shows its page in the
 //! panel's place (`pen_buttons_page.rs`); last, quietly, the app's version and storage
-//! format ("OpenPaint 0.8.0 · format 1"). A row that opens a system dialog closes the
+//! format ("OpenPaint 1.0.0 · format 1"). A row that opens a system dialog closes the
 //! panel; the switch and the page leave it open. Any contact landing on the canvas outside
 //! closes it.
 

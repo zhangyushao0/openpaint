@@ -7,7 +7,7 @@ use openpaint_app::{
     FillFailed, FillIntent, FillRefusal, HistoryIntent, InputSample, Intent, LayerIntent, Session,
     StrokeIntent,
 };
-use openpaint_app::{BrushLibrary, Toolbox};
+use openpaint_app::{BrushLibrary, LayerRefusal, Toolbox};
 use openpaint_core::{
     Artwork, ArtworkCommand, CanvasSize, Color, LayerCommand, RegionMask, StrokeStyle,
 };
@@ -177,10 +177,15 @@ fn a_hidden_or_locked_layer_refuses_with_a_notice() {
         }))
         .expect("hide");
     let refused = request(&mut session, 3.0, 0.5);
-    assert_eq!(refused, Err(AppError::FillRefused(FillRefusal::Hidden)));
+    assert_eq!(
+        refused,
+        Err(AppError::FillRefused(FillRefusal::Layer(
+            LayerRefusal::Hidden
+        )))
+    );
     assert_eq!(
         session.projection().fill().refused,
-        Some(FillRefusal::Hidden)
+        Some(FillRefusal::Layer(LayerRefusal::Hidden))
     );
     assert!(session.fill_request().is_none());
     session
@@ -201,7 +206,12 @@ fn a_hidden_or_locked_layer_refuses_with_a_notice() {
     let locked = session.artwork().apply(lock).expect("lock").artwork;
     let mut session = Session::open(locked, brush());
     let refused = request(&mut session, 3.0, 0.5);
-    assert_eq!(refused, Err(AppError::FillRefused(FillRefusal::Locked)));
+    assert_eq!(
+        refused,
+        Err(AppError::FillRefused(FillRefusal::Layer(
+            LayerRefusal::Locked
+        )))
+    );
 }
 
 #[test]

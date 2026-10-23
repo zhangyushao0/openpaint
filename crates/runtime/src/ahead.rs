@@ -17,7 +17,7 @@ impl Runtime {
     /// Whether nothing touches the screen now (`touches.rs`).
     pub(crate) fn idle(&mut self) -> bool {
         let drawing = self.screen.canvas().is_some_and(Canvas::drawing);
-        self.touches.idle(drawing)
+        self.touches.idle(drawing, self.frame_clock.seconds())
     }
 
     /// A frame call skipped while the GPU is behind: while nothing touches the screen, the open

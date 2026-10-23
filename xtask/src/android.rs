@@ -35,7 +35,7 @@ pub fn build() -> Result<(), String> {
         .args(["ndk", "-t", ABI, "-P", MIN_SDK, "-o"])
         .arg(&jni_libs)
         .args(["build", "--release", "-p", "openpaint-android"]))?;
-    // The wrapper jar is launched directly: no gradlew scripts in the repository (D05).
+    // The wrapper jar is launched directly: no gradlew scripts in the repository (D79).
     run(Command::new(java())
         .env("ANDROID_HOME", &sdk)
         .args(["-cp", WRAPPER_JAR, "org.gradle.wrapper.GradleWrapperMain"])

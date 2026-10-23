@@ -14,6 +14,7 @@ use openpaint_core::{
 
 use super::{Draft, TransformRefusal, Transforms};
 use crate::error::AppError;
+use crate::layer_rules::LayerRefusal;
 use crate::projection::{Availability, EditorAction};
 
 /// The inserted picture's layer, as the layer panel names it.
@@ -190,7 +191,7 @@ fn layered(artwork: &Artwork, name: &str) -> Result<Artwork, TransformRefusal> {
     if named.shown(layer) {
         Ok(named)
     } else {
-        Err(TransformRefusal::Hidden)
+        Err(TransformRefusal::Layer(LayerRefusal::Hidden))
     }
 }
 

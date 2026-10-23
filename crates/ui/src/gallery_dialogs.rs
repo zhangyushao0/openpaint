@@ -36,8 +36,10 @@ impl GalleryScreen {
             return;
         };
         let question = format!("Delete “{title}”?");
-        let note = "This can't be undone. Its kept versions go with it.";
-        let Some(delete) = delete_dialog(ctx, "delete", *card, (&question, note)) else {
+        let note = |ui: &mut egui::Ui| {
+            ui.label("This can't be undone. Its kept versions go with it.");
+        };
+        let Some(delete) = delete_dialog(ctx, "delete", *card, &question, note) else {
             return;
         };
         if delete {

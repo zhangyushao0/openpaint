@@ -1,4 +1,4 @@
-//! The theme, defined once (ARCHITECTURE section 10, D32, D40): paper-white line art. Light,
+//! The theme, defined once (ARCHITECTURE section 10, D40): paper-white line art. Light,
 //! near-neutral warm paper islands drawn as ink outlines, floating over the desk the white
 //! canvas lies on; ink-line icons in one weight; one deeper ink ring for the active state; the
 //! system's plain sans at sizes that read at arm's length; an 8-point spacing scale; 48-point
@@ -113,7 +113,7 @@ pub fn install(ctx: &egui::Context) {
 }
 
 /// No scroll bar at rest: a cut-off last row and a soft fade at the edge say there is more; a
-/// thin line shows only while the hand scrolls (D32).
+/// thin line shows only while the hand scrolls (D40).
 fn scrolling() -> ScrollStyle {
     ScrollStyle {
         bar_width: 3.0,

@@ -1,9 +1,43 @@
 //! Which layer actions the panel offers now: the rules the projection reads, so the UI never
-//! works them out itself.
+//! works them out itself; and the one check an edit of the active layer makes before it starts.
+
+use std::fmt;
 
 use openpaint_core::{Artwork, ArtworkCommand, GroupCommand, LayerId, MAX_LAYERS};
 
 use crate::projection::{Availability, EditorAction};
+
+/// Why the active layer takes no fill, adjustment or transform, for the notice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LayerRefusal {
+    /// The active layer is hidden, by its eye or its group's: the edit would not show.
+    Hidden,
+    /// The active layer is locked.
+    Locked,
+}
+
+impl LayerRefusal {
+    /// Why `artwork`'s active layer refuses an edit, if it does.
+    pub(crate) fn of(artwork: &Artwork) -> Option<Self> {
+        let layer = artwork.layer(artwork.active())?;
+        if !artwork.shown(layer.id()) {
+            Some(Self::Hidden)
+        } else if layer.props().locked() {
+            Some(Self::Locked)
+        } else {
+            None
+        }
+    }
+}
+
+impl fmt::Display for LayerRefusal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Hidden => "the layer is hidden",
+            Self::Locked => "the layer is locked",
+        })
+    }
+}
 
 /// Whether `action` can act on `layer` of `artwork` now; `drawing` while a stroke is drawn.
 pub(crate) fn availability(

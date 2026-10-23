@@ -1,4 +1,4 @@
-//! Finger gestures on the canvas (Procreate's defaults as draweave tuned them, D34): two fingers
+//! Finger gestures on the canvas (Procreate's defaults as draweave tuned them): two fingers
 //! pan, pinch-zoom and rotate, each past its own dead zone; one finger pans; a quick pinch fits
 //! the canvas; a two-finger tap undoes and a three-finger tap redoes, held they repeat; three
 //! fingers swiped down open the copy menu (`swipe.rs`). The pen
@@ -51,7 +51,7 @@ pub struct GestureFrame {
     pub pen: bool,
 }
 
-/// A finger shortcut. Each duplicates a visible control (D32).
+/// A finger shortcut. Each duplicates a visible control (D40).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TouchAction {
     Undo,

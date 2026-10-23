@@ -1,5 +1,5 @@
 //! A brush file's `[shape]` (`recipe.rs`): the edge's softness, and the stamps laid
-//! along the path (DECISIONS D72): their shape, spacing, scatter, rotation and jitter. Without a
+//! along the path (DECISIONS D74): their shape, spacing, scatter, rotation and jitter. Without a
 //! spacing the brush is the continuous round capsule, and no other stamp key may be set.
 
 use openpaint_core::{

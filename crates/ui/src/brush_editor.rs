@@ -18,7 +18,7 @@ use crate::brush_dynamics::{curves, heading};
 use crate::brush_settings::settings;
 use crate::brush_strip::Strip;
 use crate::components::{
-    Lead, Naming, delete_dialog, heading_button, naming_dialog, text_button, word_columns,
+    Lead, Naming, delete_dialog, heading_button, hint, naming_dialog, text_button, word_columns,
 };
 use crate::design::{SPACE, TOUCH_TARGET};
 use crate::taps::push_brush;
@@ -131,8 +131,8 @@ impl BrushEditor {
     ) -> (bool, bool) {
         if let Some(from) = self.deleting {
             let question = format!("Delete {}?", brush.edited.name);
-            let note = "Strokes drawn with it stay.";
-            let answer = delete_dialog(ctx, "delete brush", from, (&question, note));
+            let note = |ui: &mut egui::Ui| hint(ui, "Strokes drawn with it stay.");
+            let answer = delete_dialog(ctx, "delete brush", from, &question, note);
             let delete = answer == Some(true);
             if delete {
                 push_brush(taps, BrushIntent::Delete);

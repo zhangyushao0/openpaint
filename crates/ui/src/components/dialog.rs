@@ -6,7 +6,7 @@
 use egui::{Align, Align2, Id, Layout, Margin, Order, Rect, Shape, Vec2};
 
 use crate::components::chrome::{self, Source};
-use crate::components::{UNDER_ISLANDS, hint, text_button, text_field};
+use crate::components::{UNDER_ISLANDS, text_button, text_field};
 use crate::design::{BACKDROP, CORNER, DIALOG_WIDTH, PANEL_RULE_WIDTH, SPACE, surface_frame};
 
 /// Where a dialog sits.
@@ -120,18 +120,19 @@ pub fn naming_dialog(
 }
 
 /// The dialog `id` in the middle of the screen, grown from `from` (points), asking before
-/// something is deleted for good: `question` as its heading, `note` in the quieter grey under it,
-/// then Cancel and Delete. Returns `Some(true)` once Delete answered, `Some(false)` once Cancel
-/// or a tap outside did, `None` while it waits.
+/// something is deleted for good: `question` as its heading, `note` laying out what the
+/// deletion means under it, then Cancel and Delete. Returns `Some(true)` once Delete answered,
+/// `Some(false)` once Cancel or a tap outside did, `None` while it waits.
 pub fn delete_dialog(
     ctx: &egui::Context,
     id: &str,
     from: Rect,
-    (question, note): (&str, &str),
+    question: &str,
+    note: impl FnOnce(&mut egui::Ui),
 ) -> Option<bool> {
     let ((cancel, delete), outside) = dialog(ctx, id, (Placement::Centre, from), |ui| {
         ui.heading(question);
-        hint(ui, note);
+        note(ui);
         answer_row(ui, "Cancel", "Delete", true)
     });
     if delete {
