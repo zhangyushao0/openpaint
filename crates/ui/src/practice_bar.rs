@@ -1,6 +1,6 @@
-//! A practice sheet's chrome (G9): the practice bar in the middle of the top band ("Line 3 of
-//! 10", How, Compare carrying the ink pill while the comparison shows, Next or Finish; once done
-//! "Session 3 done" and One more), the exercise's own tools beside its frame
+//! A practice sheet's chrome (G9): the practice bar in the middle of the top band ("Warm-up 1 of
+//! 4", "Line 3 of 6", How, Compare carrying the ink pill while the comparison shows, Next or
+//! Finish; once done "Session 3 done" and One more), the exercise's own tools beside its frame
 //! (`practice_tools.rs`), and under them the card, grown out of the word that asked for it: the
 //! instructions (by themselves
 //! the first time a kind comes up), the comparison, or the session's summary
@@ -62,9 +62,9 @@ impl PracticeBar {
                 practice_card::summary(ui, practice, kinds);
             })
             .1
-        } else if let Some(lines) = practice.instructions {
+        } else if let Some(family) = practice.instructions {
             let (done, rect) = card(ctx, "practice card", opened, |ui| {
-                practice_card::instructions(ui, lines)
+                practice_card::instructions(ui, family)
             });
             if done {
                 push_once(taps, Intent::Practice(PracticeIntent::Instructions(false)));
@@ -100,8 +100,10 @@ impl PracticeBar {
             }
             return;
         }
-        let place = practice.place;
-        ui.label(t::exercise_of(language, practice.line, place));
+        if let Some(family) = practice.family {
+            let called = (family, practice.warming_up);
+            ui.label(t::exercise_of(language, called, practice.place));
+        }
         ui.add_space(2.0 * SPACE);
         divider(ui);
         let how = text_button(ui, t::HOW, true);

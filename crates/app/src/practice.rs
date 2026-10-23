@@ -13,7 +13,8 @@ use std::sync::Arc;
 
 use openpaint_core::Color;
 use openpaint_practice::{
-    ExerciseResult, KindSummary, Original, Pair, Rgb8, STAGE_SESSIONS, SessionRecord, Sheet,
+    ExerciseResult, Family, KindSummary, Original, Pair, Rgb8, STAGE_SESSIONS, SessionRecord,
+    Sheet, met,
 };
 
 use crate::layer_rules::LayerRefusal;
@@ -91,10 +92,12 @@ pub struct PracticeProjection {
     pub stage: u8,
     /// The session's number in its stage.
     pub number: u32,
-    /// The exercise shown (none once the session is done), whether it is a line, its place
-    /// among its kind and how many of its kind the session holds.
+    /// The exercise shown (none once the session is done), its family (none once done), whether
+    /// it is part of the warm-up, its place among the warm-up's exercises or those of its family
+    /// after it and how many those are.
     pub current: Option<usize>,
-    pub line: bool,
+    pub family: Option<Family>,
+    pub warming_up: bool,
     pub place: (usize, usize),
     /// Whether Next ends the session.
     pub last: bool,
@@ -111,8 +114,8 @@ pub struct PracticeProjection {
     pub result: Option<ExerciseResult>,
     /// What lies over the copy while comparing.
     pub overlay: Option<Overlay>,
-    /// The instructions shown: for lines (true) or colours.
-    pub instructions: Option<bool>,
+    /// The instructions shown, for a family.
+    pub instructions: Option<Family>,
     /// Once done: this session's means beside the earlier ones', per kind.
     pub summary: Option<Vec<KindSummary>>,
     pub notice: Option<PracticeNotice>,
@@ -141,8 +144,8 @@ impl SheetView {
 /// The comparison over the copy's frame, as the last Compare found the copy.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Overlay {
-    /// The original line where it lies over the copy (in place or aligned), in canvas pixels.
-    Line(Vec<[f32; 2]>),
+    /// The original's lines where they lie over the copy (in place or aligned), in canvas pixels.
+    Lines(Vec<Vec<[f32; 2]>>),
     /// The swatch and the first and last colours laid.
     Colour {
         original: Rgb8,
@@ -188,14 +191,28 @@ impl PracticeLog {
     }
 
     /// The next session of stage 1, seeded `seed`, started at `now` (seconds since 1970 UTC),
-    /// with its sheet's title; it has no canvas until the store gives it one.
+    /// its warm-up from the kinds compared in every session so far, with its sheet's title; it
+    /// has no canvas until the store gives it one.
     #[must_use]
     pub fn begin(&self, seed: u64, now: u64) -> (SessionRecord, Title) {
-        let id = self.sessions.last().map_or(1, |s| s.id + 1);
+        let id = self.next_id();
         let number = self.sessions.iter().filter(|s| s.stage == 1).count() + 1;
         let number = u32::try_from(number).unwrap_or(u32::MAX);
         let title = Title::new(&format!("Practice {number}")).unwrap_or_else(|_| Title::untitled());
-        (SessionRecord::stage_one(id, number, seed, now), title)
+        let met = met(&self.sessions);
+        (SessionRecord::stage_one(id, number, seed, now, &met), title)
+    }
+
+    /// The id the next session begun takes.
+    #[must_use]
+    pub fn next_id(&self) -> u64 {
+        self.sessions.last().map_or(1, |s| s.id + 1)
+    }
+
+    /// Session `id`, if the log holds it.
+    #[must_use]
+    pub fn session(&self, id: u64) -> Option<&SessionRecord> {
+        self.sessions.iter().find(|s| s.id == id)
     }
 
     /// The session whose sheet is project `id`.
@@ -223,5 +240,10 @@ impl PracticeLog {
                 self.sessions.sort_by_key(|s| s.id);
             }
         }
+    }
+
+    /// Forgets session `id`, which the store removed.
+    pub fn forget(&mut self, id: u64) {
+        self.sessions.retain(|s| s.id != id);
     }
 }

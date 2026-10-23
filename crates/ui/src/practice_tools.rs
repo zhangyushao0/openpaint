@@ -6,8 +6,8 @@
 //! - All tools: a word after Gallery in the left island; while the full interface shows it
 //!   carries the ink pill and the usual islands and side bar are back (the toolbox's brush
 //!   draws).
-//! - A line: the pens, Sketch (a light pencil for marks and construction lines) and Draw, and
-//!   after Compare Correct (blue); under them Undo and Redo.
+//! - A line or combined lines: the pens, Sketch (a light pencil for marks and construction
+//!   lines) and Draw, and after Compare Correct (blue); under them Undo and Redo.
 //! - A colour: the colour wheel (the colour panel's own) and Fill frame, which fills the frame
 //!   with the colour picked in one tap.
 
@@ -16,6 +16,7 @@ use openpaint_app::{
     EditorAction, HistoryIntent, Intent, Pen, PracticeIntent, PracticeProjection,
     SessionProjection, Tool, ToolIntent,
 };
+use openpaint_practice::Family;
 
 use crate::color_panel::ColorPanel;
 use crate::components::{
@@ -63,7 +64,7 @@ pub(crate) fn exercise_tools(
         return None;
     }
     let source = (Source::Within(Align::Center), UNDER_ISLANDS);
-    if practice.line {
+    if practice.family.is_some_and(Family::drawn) {
         let pens = |ui: &mut egui::Ui| line_tools(ui, projection, taps);
         return Some(card(ctx, "practice pens", source, pens).1);
     }

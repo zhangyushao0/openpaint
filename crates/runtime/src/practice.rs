@@ -1,8 +1,8 @@
 //! Practice sessions on the storage worker (G9): a new session's sheet and record are written in
 //! one call and the sheet becomes the open artwork; a session's record is written again after
-//! each change on its sheet. And the job a new session starts with: the next session in the
-//! app's practice log, seeded from the strokes' seed source (fixed in the harness), its sheet
-//! the size its exercises' layout asks.
+//! each change on its sheet; a test session is removed with its sheet (`practice_test.rs`). And
+//! the job a new session starts with: the next session in the app's practice log, seeded from the
+//! strokes' seed source (fixed in the harness), its sheet the size its exercises' layout asks.
 
 use openpaint_app::{PortError, PracticeLog, ProjectId, ProjectStore, Title};
 use openpaint_core::{Artwork, CanvasSize};
@@ -22,6 +22,8 @@ pub(crate) enum PracticeJob {
     },
     /// A session's record changed.
     Save(SessionRecord),
+    /// A test session to remove, its record and sheet.
+    Remove(SessionRecord),
 }
 
 pub(crate) enum PracticeDone {
@@ -35,6 +37,8 @@ pub(crate) enum PracticeDone {
     Saved(Result<(), PortError>),
     /// The session could not start; nothing was written.
     Failed(PortError),
+    /// Session `id` removed, or why not (nothing was).
+    Removed(u64, Result<(), PortError>),
 }
 
 pub(crate) fn run(store: &mut dyn ProjectStore, kept: &mut Kept, job: PracticeJob) -> Done {
@@ -66,6 +70,12 @@ pub(crate) fn run(store: &mut dyn ProjectStore, kept: &mut Kept, job: PracticeJo
             }
         },
         PracticeJob::Save(session) => PracticeDone::Saved(store.save_practice(&session)),
+        PracticeJob::Remove(session) => {
+            if kept.open.is_some_and(|open| open.get() == session.canvas) {
+                *kept = Kept::default();
+            }
+            PracticeDone::Removed(session.id, store.remove_practice(&session))
+        }
     })
 }
 
@@ -74,6 +84,7 @@ pub(crate) const fn stopped(job: &PracticeJob) -> Done {
     Done::Practice(match job {
         PracticeJob::Start { .. } => PracticeDone::Failed(PortError::Stopped),
         PracticeJob::Save(_) => PracticeDone::Saved(Err(PortError::Stopped)),
+        PracticeJob::Remove(session) => PracticeDone::Removed(session.id, Err(PortError::Stopped)),
     })
 }
 

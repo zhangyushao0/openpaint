@@ -1,16 +1,16 @@
 //! The open practice sheet's flow (`practice.rs`): which exercise shows, where the pen may draw
 //! (strokes and fills only in its empty frame, clipped to it), what the eyedropper may read (an
-//! original only once compared), the exercise's own tools or the full interface, the pen a line
-//! is drawn with, Compare and its overlay (`practice_compare.rs`), Next (the view glides to the
-//! next pair at its zoom, `practice_view.rs`; after the last the session ends over the whole
-//! sheet), the instructions (by themselves the first time a kind comes up), the summary and the
-//! notices. The session record changes here and goes to the store whenever it did
-//! (`save_request`).
+//! original only once compared), the exercise's own tools or the full interface, the pen lines
+//! are drawn with (a single line or combined lines), Compare and its overlay
+//! (`practice_compare.rs`), Next (the view glides to the next pair at its zoom,
+//! `practice_view.rs`; after the last the session ends over the whole sheet), the instructions
+//! (by themselves the first time a family comes up), the summary and the notices. The session
+//! record changes here and goes to the store whenever it did (`save_request`).
 
 use std::sync::Arc;
 
 use openpaint_core::{Artwork, CanvasSize, Color, RegionMask, StrokeStyle, StrokeTool};
-use openpaint_practice::{Original, Pair, SessionRecord, summary};
+use openpaint_practice::{Family, Original, Pair, SessionRecord, summary};
 
 use crate::error::AppError;
 use crate::practice::{Pen, PracticeIntent, PracticeNotice, PracticeProjection, SheetView};
@@ -58,9 +58,10 @@ pub(crate) struct PracticeSheet {
     /// The pen lines are drawn with, and the last of Sketch and Draw chosen.
     pen: Pen,
     drawing: Pen,
-    instructions: Option<bool>,
-    /// Whether the instructions for lines and for colours showed by themselves already.
-    told: [bool; 2],
+    instructions: Option<Family>,
+    /// Whether each family's instructions (`Family::ALL`'s order) showed by themselves already,
+    /// or need not: a family compared before or in the warm-up.
+    told: [bool; 3],
     notice: Option<PracticeNotice>,
     /// The record changed since the store last got it.
     changed: bool,
@@ -73,16 +74,19 @@ impl PracticeSheet {
         pens: PracticePens,
     ) -> Self {
         let sheet = Arc::new(SheetView::of(&record));
-        let done = |lines: bool| {
-            before.iter().chain([&record]).any(|session| {
+        // Told: compared before or in this session, or warmed up with (only kinds met are).
+        let warm_up = &record.exercises[..(record.warm_up as usize).min(record.exercises.len())];
+        let done = |family: Family| {
+            let compared = before.iter().chain([&record]).any(|session| {
                 session.results.iter().any(|result| {
                     let kind = session.exercises.get(result.index as usize);
-                    kind.is_some_and(|e| e.kind.is_line() == lines)
+                    kind.is_some_and(|e| e.kind.family() == family)
                 })
-            })
+            });
+            compared || warm_up.iter().any(|e| e.kind.family() == family)
         };
         let mut practice = Self {
-            told: [done(true), done(false)],
+            told: Family::ALL.map(done),
             record,
             before,
             sheet,
@@ -112,13 +116,19 @@ impl PracticeSheet {
         self.sheet.pairs.get(index)
     }
 
-    fn is_line(&self, index: usize) -> bool {
-        matches!(self.sheet.originals.get(index), Some(Original::Line(_)))
+    /// Whether exercise `index` is drawn with the pens (a single line or combined lines).
+    fn drawn(&self, index: usize) -> bool {
+        matches!(self.sheet.originals.get(index), Some(Original::Lines(_)))
     }
 
-    /// An exercise came to show: its frame becomes the clip; a line compared before is
-    /// corrected in blue, another drawn with the pen last chosen; its kind's instructions show by
-    /// themselves the first time.
+    fn family(&self, index: usize) -> Option<Family> {
+        let exercise = self.record.exercises.get(index)?;
+        Some(exercise.kind.family())
+    }
+
+    /// An exercise came to show: its frame becomes the clip; lines compared before are
+    /// corrected in blue, others drawn with the pen last chosen; its family's instructions show
+    /// by themselves the first time.
     fn shown(&mut self) {
         self.clip = self.current().and_then(|index| {
             let frame = self.sheet.pairs[index].copy;
@@ -129,12 +139,11 @@ impl PracticeSheet {
         });
         let compared = (self.current()).is_some_and(|index| self.record.result(index).is_some());
         self.pen = if compared { Pen::Correct } else { self.drawing };
-        if let Some(index) = self.current() {
-            let line = self.is_line(index);
-            let told = &mut self.told[usize::from(!line)];
-            if !*told {
-                *told = true;
-                self.instructions = Some(line);
+        if let Some(family) = self.current().and_then(|index| self.family(index)) {
+            let at = Family::ALL.iter().position(|f| *f == family).unwrap_or(0);
+            if !self.told[at] {
+                self.told[at] = true;
+                self.instructions = Some(family);
             }
         }
     }
@@ -144,11 +153,12 @@ impl PracticeSheet {
         self.clip.as_ref()
     }
 
-    /// The style the next stroke takes instead of the toolbox's `brush`: the pen chosen, while a
-    /// line shows with its own tools and the toolbox paints (its eraser, held or chosen, erases).
+    /// The style the next stroke takes instead of the toolbox's `brush`: the pen chosen, while
+    /// lines show with their own tools and the toolbox paints (its eraser, held or chosen,
+    /// erases).
     pub(crate) fn pen_style(&self, brush: &StrokeStyle) -> Option<StrokeStyle> {
         let index = self.current()?;
-        let pens = !self.all_tools && self.is_line(index) && brush.tool() == StrokeTool::Paint;
+        let pens = !self.all_tools && self.drawn(index) && brush.tool() == StrokeTool::Paint;
         pens.then(|| self.pens.style(self.pen).clone())
     }
 
@@ -190,7 +200,7 @@ impl PracticeSheet {
                 let [r, g, b] = rgb.map(|c| f32::from(c) / 255.0);
                 Color::rgb(r, g, b).map_or(PracticePick::Canvas, PracticePick::Colour)
             }
-            Original::Line(_) => PracticePick::Canvas,
+            Original::Lines(_) => PracticePick::Canvas,
         }
     }
 
@@ -213,7 +223,7 @@ impl PracticeSheet {
         match intent {
             PracticeIntent::Instructions(on) => {
                 self.instructions = on
-                    .then(|| self.current().map(|i| self.is_line(i)))
+                    .then(|| self.current().and_then(|i| self.family(i)))
                     .flatten();
             }
             PracticeIntent::Compare(on) => self.compare(on, artwork, now)?,
@@ -279,9 +289,7 @@ impl PracticeSheet {
             Some(index) if result.is_some() || held(index) => Availability::Available,
             _ => Availability::NothingLeft,
         };
-        let (line, place) = current.map_or((false, (0, 0)), |index| {
-            (self.is_line(index), self.record.place(index))
-        });
+        let place = current.map_or((0, 0), |index| self.record.place(index));
         let before: Vec<&SessionRecord> = self.before.iter().collect();
         let pen = self.pen_style(brush).map(|style| (self.pen, style.size()));
         PracticeProjection {
@@ -290,7 +298,8 @@ impl PracticeSheet {
             stage: self.record.stage,
             number: self.record.number,
             current,
-            line,
+            family: current.and_then(|index| self.family(index)),
+            warming_up: current.is_some_and(|index| self.record.warming_up(index)),
             place,
             last: current.is_some_and(|index| index + 1 == self.sheet.pairs.len()),
             compare,

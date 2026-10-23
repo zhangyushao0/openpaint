@@ -221,6 +221,11 @@ pub trait ProjectStore: Send {
 
     /// Replaces the stored record of `session` (by its id); its sheet is saved as any artwork.
     fn save_practice(&mut self, session: &SessionRecord) -> Result<(), PortError>;
+
+    /// Removes the record of `session` (by its id) and its sheet, everything stored for it, for
+    /// good, in one write; every other record stays as it is. The test-session chore's (debug
+    /// builds) undoing of a session it started.
+    fn remove_practice(&mut self, session: &SessionRecord) -> Result<(), PortError>;
 }
 
 /// Why a port (the library, a file the system gave) could not serve a call.

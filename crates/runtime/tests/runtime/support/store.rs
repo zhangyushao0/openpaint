@@ -126,4 +126,8 @@ impl ProjectStore for Nowhere {
     fn save_practice(&mut self, _session: &SessionRecord) -> Result<(), PortError> {
         Ok(())
     }
+
+    fn remove_practice(&mut self, _session: &SessionRecord) -> Result<(), PortError> {
+        Ok(())
+    }
 }

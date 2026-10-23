@@ -21,6 +21,7 @@ mod painted;
 mod pictures;
 mod pointer;
 mod practice;
+mod practice_test;
 mod raster;
 mod recover;
 mod screen;
@@ -41,6 +42,7 @@ pub use crate::frame::{Runtime, StartOptions};
 pub use crate::input::{Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, ToolKind};
 pub use crate::pacing::Paced;
 pub use crate::painted::{drawn, pile_path, style_of};
+pub use crate::practice_test::PracticeTest;
 pub use crate::text::{EditKey, TextInput};
 pub use crate::transfer::{Encoded, encoded};
 pub use openpaint_app::{

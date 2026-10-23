@@ -12,6 +12,8 @@
 //! - Then (1.1.1 on) the results' tail, each result in the same order: how often it was compared
 //!   (u32) and the sheet's first stroke id after its first Compare (u64, 0 unknown). A record
 //!   1.1.0 wrote ends before it: compared once, no stroke a correction.
+//! - Then (1.3.0 on) how many of the first exercises are the warm-up (u32). A record written
+//!   before ends before it: no warm-up.
 
 use std::collections::HashSet;
 
@@ -69,6 +71,7 @@ pub(crate) fn encode_session(session: &SessionRecord) -> Vec<u8> {
         writer.u32(result.compares);
         writer.u64(result.corrected_from.unwrap_or(0));
     }
+    writer.u32(session.warm_up);
     writer.finish()
 }
 
@@ -99,6 +102,7 @@ pub(crate) fn decode_session(key: &[u8], bytes: &[u8]) -> Result<SessionRecord, 
             result.corrected_from = Some(reader.u64()?).filter(|id| *id != 0);
         }
     }
+    let warm_up = if reader.is_done() { 0 } else { reader.u32()? };
     reader.end()?;
     Ok(SessionRecord {
         id,
@@ -110,6 +114,7 @@ pub(crate) fn decode_session(key: &[u8], bytes: &[u8]) -> Result<SessionRecord, 
         finished: (finished != 0).then_some(finished),
         current,
         exercises,
+        warm_up,
         results,
     })
 }
@@ -163,10 +168,17 @@ pub(crate) fn sheets(open: &Open) -> Result<HashSet<u64>, PortError> {
 
 #[cfg(test)]
 mod tests {
+    use openpaint_practice::{Combination, LineTier};
+
     use super::*;
 
+    /// Bytes of the warm-up's count at the record's end.
+    const WARM_UP_BYTES: usize = 4;
+
     fn session() -> SessionRecord {
-        let mut session = SessionRecord::stage_one(7, 3, 0x5EED_0045, 1_791_201_600);
+        let met = [Kind::Line(LineTier::Arc), Kind::Combined(Combination::Near)];
+        let mut session = SessionRecord::stage_one(7, 3, 0x5EED_0045, 1_791_201_600, &met);
+        assert_eq!(session.warm_up, 4);
         session.canvas = 12;
         session.current = 11;
         session.finished = Some(1_791_202_000);
@@ -174,7 +186,7 @@ mod tests {
         line.compares = 3;
         session.results.push(line);
         session.results.push(ExerciseResult::first(
-            10,
+            14,
             1_791_201_800,
             40,
             vec![(Metric::FinalDelta, 0.031_25), (Metric::Corrections, 2.0)],
@@ -204,11 +216,28 @@ mod tests {
     }
 
     #[test]
+    fn a_record_of_1_2_0_reads_without_a_warm_up() {
+        // As 1.1.1 to 1.2.0 wrote it: the results' tail, then nothing.
+        let session = session();
+        let bytes = encode_session(&session);
+        let old = &bytes[..bytes.len() - WARM_UP_BYTES];
+        let read = decode_session(&practice_key(7), old).expect("read");
+        assert_eq!(read.warm_up, 0);
+        assert_eq!(read.results, session.results);
+        let mut empty = session.clone();
+        empty.results.clear();
+        let bytes = encode_session(&empty);
+        let read = decode_session(&practice_key(7), &bytes[..bytes.len() - WARM_UP_BYTES]);
+        assert_eq!(read.map(|r| r.warm_up), Ok(0), "no results, no tail");
+        assert_eq!(decode_session(&practice_key(7), &bytes), Ok(empty));
+    }
+
+    #[test]
     fn a_record_of_1_1_0_reads_with_its_line_metrics_passed_over() {
         // As 1.1.0 wrote it: no tail, a line's result with the metrics of codes 1 to 8.
         let session = session();
         let bytes = encode_session(&session);
-        let mut old = bytes[..bytes.len() - 2 * TAIL_BYTES].to_vec();
+        let mut old = bytes[..bytes.len() - 2 * TAIL_BYTES - WARM_UP_BYTES].to_vec();
         // The line's metric count: before the colour's result (its index, time, count and two
         // metrics).
         let metrics = old.len() - (4 + 8 + 4 + 2 * METRIC_BYTES) - 4;
@@ -230,6 +259,6 @@ mod tests {
             .iter()
             .map(|r| (r.index, r.compares, r.corrected_from, r.metrics.len()))
             .collect();
-        assert_eq!(results, vec![(4, 1, None, 0), (10, 1, None, 2)]);
+        assert_eq!(results, vec![(4, 1, None, 0), (14, 1, None, 2)]);
     }
 }

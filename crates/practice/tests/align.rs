@@ -1,8 +1,11 @@
 //! The alignment on known cases: a copy moved and evenly sized from its original gives back that
-//! shift and scale, also drawn in pieces, shaky, overshooting or with a stray mark; a turned
-//! copy is never turned back; a copy with no length gives no fit.
+//! shift and scale, also drawn in pieces, shaky, overshooting or with a stray mark; a group of
+//! combined lines is fitted together, its lines drawn in any order; a turned copy is never
+//! turned back; a copy with no length gives no fit.
 
-use openpaint_practice::{Fit, LineExercise, LineTier, Point, align, distance};
+use openpaint_practice::{
+    Combination, CombinedLines, Fit, LineExercise, LineTier, Point, align, distance,
+};
 
 fn line(tier: LineTier, seed: u64) -> Vec<Point> {
     LineExercise::generate(tier, seed).points
@@ -44,7 +47,7 @@ fn a_moved_and_sized_copy_gives_back_its_shift_and_scale() {
         let original = line(tier, 7);
         for known in KNOWN {
             let copy = moved(&original, known);
-            let found = align(&original, &[&copy]).expect("a fit");
+            let found = align(&[&original], &[&copy]).expect("a fit");
             assert!(
                 (found.scale - known.scale).abs() < 1e-6,
                 "{tier:?} {found:?}"
@@ -64,7 +67,7 @@ fn a_copy_in_pieces_with_a_gap_still_gives_them_back() {
     let copy = moved(&original, known);
     // Three strokes, a little of the line left out between two of them.
     let pieces = [&copy[..150], &copy[140..300], &copy[320..]];
-    let found = align(&original, &pieces).expect("a fit");
+    let found = align(&[&original], &pieces).expect("a fit");
     assert!(recovers(&original, found, known, 0.004), "{found:?}");
 }
 
@@ -81,7 +84,7 @@ fn a_shaky_copy_lands_its_original_on_the_line_the_hand_meant() {
             [p[0] + side, p[1] - side]
         })
         .collect();
-    let found = align(&original, &[&shaky]).expect("a fit");
+    let found = align(&[&original], &[&shaky]).expect("a fit");
     // Within the tremor's own reach (0.85 % of the frame across the line).
     assert!(recovers(&original, found, known, 0.01), "{found:?}");
 }
@@ -100,7 +103,7 @@ fn an_overshoot_and_a_stray_mark_do_not_pull_the_fit() {
         })
         .collect();
     let tick: Vec<Point> = vec![[0.9, 0.9], [0.92, 0.88]];
-    let found = align(&original, &[&copy, &run, &tick]).expect("a fit");
+    let found = align(&[&original], &[&copy, &run, &tick]).expect("a fit");
     assert!(recovers(&original, found, known, 0.02), "{found:?}");
 }
 
@@ -115,7 +118,7 @@ fn a_turned_copy_is_moved_and_sized_but_never_turned() {
             [0.5 + x * cos - y * sin, 0.5 + x * sin + y * cos]
         })
         .collect();
-    let found = align(&original, &[&turned]).expect("a fit");
+    let found = align(&[&original], &[&turned]).expect("a fit");
     // The same length, so about the same size; the angle stays in the overlay.
     assert!((found.scale - 1.0).abs() < 0.15, "{found:?}");
     let ends = [found.apply(original[0]), found.apply(original[480])];
@@ -123,9 +126,64 @@ fn a_turned_copy_is_moved_and_sized_but_never_turned() {
 }
 
 #[test]
+fn combined_lines_are_fitted_together_as_one_shape() {
+    for combination in Combination::ALL {
+        let group = CombinedLines::generate(combination, 21).lines;
+        let original: Vec<&[Point]> = group.iter().map(Vec::as_slice).collect();
+        for known in KNOWN {
+            // Drawn in another order, the last line first, one line in two strokes.
+            let mut copy: Vec<Vec<Point>> = group.iter().map(|l| moved(l, known)).collect();
+            copy.reverse();
+            let split = copy.remove(0);
+            let middle = split.len() / 2;
+            copy.push(split[..=middle].to_vec());
+            copy.push(split[middle..].to_vec());
+            let copy: Vec<&[Point]> = copy.iter().map(Vec::as_slice).collect();
+            let found = align(&original, &copy).expect("a fit");
+            assert!(
+                (found.scale - known.scale).abs() < 1e-6,
+                "{combination:?} {found:?}"
+            );
+            assert!(
+                distance(found.shift, known.shift) < 1e-6,
+                "{combination:?} {found:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_group_copied_in_part_lands_on_the_lines_drawn() {
+    for combination in Combination::ALL {
+        for seed in 0..30 {
+            let group = CombinedLines::generate(combination, seed).lines;
+            let original: Vec<&[Point]> = group.iter().map(Vec::as_slice).collect();
+            let known = KNOWN[1];
+            // The first line not drawn yet, or (three lines on) only the last one drawn.
+            let parts = if group.len() > 2 {
+                vec![&group[1..], &group[group.len() - 1..]]
+            } else {
+                vec![&group[1..]]
+            };
+            for drawn in parts {
+                // One of several near lines alike in shape could be any of them.
+                if combination == Combination::Near && drawn.len() == 1 {
+                    continue;
+                }
+                let copy: Vec<Vec<Point>> = drawn.iter().map(|l| moved(l, known)).collect();
+                let copy: Vec<&[Point]> = copy.iter().map(Vec::as_slice).collect();
+                let found = align(&original, &copy).expect("a fit");
+                let landed = drawn.iter().all(|line| recovers(line, found, known, 1e-6));
+                assert!(landed, "{combination:?} {seed} {} {found:?}", drawn.len());
+            }
+        }
+    }
+}
+
+#[test]
 fn a_copy_with_no_length_gives_no_fit() {
     let original = line(LineTier::Arc, 1);
-    assert_eq!(align(&original, &[]), None);
-    assert_eq!(align(&original, &[&[[0.5, 0.5]]]), None);
-    assert_eq!(align(&original, &[&[[0.5, 0.5], [0.5, 0.5]]]), None);
+    assert_eq!(align(&[&original], &[]), None);
+    assert_eq!(align(&[&original], &[&[[0.5, 0.5]]]), None);
+    assert_eq!(align(&[&original], &[&[[0.5, 0.5], [0.5, 0.5]]]), None);
 }

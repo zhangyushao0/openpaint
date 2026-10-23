@@ -302,4 +302,18 @@ impl ProjectStore for Library {
     fn save_practice(&mut self, session: &SessionRecord) -> Result<(), PortError> {
         self.with(|open| write::practice(open, session))
     }
+
+    fn remove_practice(&mut self, session: &SessionRecord) -> Result<(), PortError> {
+        self.with(|open| write::remove_practice(open, session))?;
+        let sheet = ProjectId::new(session.canvas);
+        if self.stored.as_ref().is_some_and(|(id, _)| *id == sheet) {
+            self.stored = None;
+        }
+        log::info!(
+            "practice session {} and its sheet {} removed",
+            session.id,
+            session.canvas
+        );
+        Ok(())
+    }
 }

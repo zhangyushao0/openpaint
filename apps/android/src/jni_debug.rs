@@ -2,8 +2,9 @@
 //! `cargo device-input tap <name>` (D48's names, as scenarios use them), says what the app shows
 //! (`device-input state`, the device smoke), turns the screen's
 //! precision check on and off (`gradient on|off`), loses the GPU device on purpose
-//! (`lose-device`), runs the app's scenario benchmarks (`bench`) and opens a pushed
-//! OpenPaint file without the picker (`open-file`).
+//! (`lose-device`), runs the app's scenario benchmarks (`bench`), opens a pushed
+//! OpenPaint file without the picker (`open-file`) and starts and removes a test practice
+//! session beside the author's (`practice-test start|end`, D102).
 //! Only Kotlin's debug source set declares
 //! them (`DebugControls`, called from `GestureInstrumentation` on the main thread); the library
 //! is built with the release profile for every APK, so a release APK carries these symbols with
@@ -16,7 +17,7 @@ use jni::errors::LogErrorAndDefault;
 use jni::objects::{JByteArray, JClass, JObject, JString};
 use jni::sys::{jboolean, jlong};
 
-use openpaint_runtime::{BytesSource, Runtime, SCENARIOS, ScreenProjection};
+use openpaint_runtime::{BytesSource, PracticeTest, Runtime, SCENARIOS, ScreenProjection};
 
 use crate::error::HostError;
 use crate::jni_entry::runtime;
@@ -191,6 +192,73 @@ fn imported(runtime: &mut Runtime) -> Result<String, HostError> {
         }
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
+}
+
+/// For `cargo device-input practice-test start|end`: `start` starts a test practice session
+/// beside any open one, from the gallery, and answers "started <name>" once its sheet shows;
+/// `end:<name>` removes the session of that name, its record and sheet, from the gallery, and
+/// answers "removed <name>" once the store did, or "no such session". Otherwise why not.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_dev_openpaint_DebugControls_practiceTest<'local>(
+    mut env: EnvUnowned<'local>,
+    _class: JClass<'local>,
+    command: JString<'local>,
+) -> JObject<'local> {
+    env.with_env(|env| -> Result<JObject<'local>, HostError> {
+        let command = command.try_to_string(env)?;
+        let line = match runtime(HANDLE.load(Ordering::SeqCst)) {
+            None => "no runtime".to_owned(),
+            Some(runtime) => practice_test(runtime, &command)?,
+        };
+        log::info!("practice-test: {line}");
+        Ok(env.new_string(line)?.into())
+    })
+    .resolve::<LogErrorAndDefault>()
+}
+
+/// `command` (`start` or `end:<name>`) on `runtime`, frames run here until it is done, at most a
+/// minute: the answer.
+fn practice_test(runtime: &mut Runtime, command: &str) -> Result<String, HostError> {
+    if command == "start" {
+        let id = match runtime.start_test_practice() {
+            Ok(id) => id,
+            Err(error) => return Ok(format!("not started: {error}")),
+        };
+        if !settled(runtime, &|r| r.test_practice(id).is_some())? {
+            return Ok("not started: no sheet after 60 s".to_owned());
+        }
+        let name = runtime.test_practice(id).map(|test| test.to_string());
+        return Ok(format!("started {}", name.unwrap_or_default()));
+    }
+    let Some(Ok(test)) = command.strip_prefix("end:").map(str::parse::<PracticeTest>) else {
+        return Ok(format!("not understood: {command}"));
+    };
+    if !runtime.names_practice(&test) {
+        return Ok("no such session".to_owned());
+    }
+    if let Err(error) = runtime.end_test_practice(&test) {
+        return Ok(format!("not removed: {error}"));
+    }
+    if !settled(runtime, &|r| !r.holds_practice(test.id))? {
+        return Ok("not removed after 60 s".to_owned());
+    }
+    Ok(format!("removed {test}"))
+}
+
+/// Frames until `done` holds, no worker is busy and the runtime wants no more frames (what shows
+/// has grown in: nothing asks for Choreographer's frames afterwards, as no hand touches the
+/// screen), at most a minute; whether it got there.
+fn settled(runtime: &mut Runtime, done: &dyn Fn(&Runtime) -> bool) -> Result<bool, HostError> {
+    let started = std::time::Instant::now();
+    let mut wanted = true;
+    while wanted || !done(runtime) || runtime.storing() {
+        wanted = runtime.frame()?;
+        if started.elapsed().as_secs() > 60 {
+            return Ok(false);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    Ok(true)
 }
 
 /// For `cargo device-input gradient on|off`: the screen's precision check on or off, and

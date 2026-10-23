@@ -30,8 +30,9 @@ import android.view.MotionEvent
  * injects nothing: it turns the screen's precision check on or off ([DebugControls.gradient]);
  * `-e lose device` loses the GPU device on purpose ([DebugControls.loseDevice]); `-e bench
  * <scenario>` answers a scenario benchmark ([DebugControls.bench]); `-e open-file <path>` opens
- * a pushed OpenPaint file as a new artwork without the picker ([DebugControls.openFile]). A
- * question is answered with `gesture=answered`.
+ * a pushed OpenPaint file as a new artwork without the picker ([DebugControls.openFile]);
+ * `-e practice-test start|end:<name>` starts or removes a test practice session
+ * ([DebugControls.practiceTest]). A question is answered with `gesture=answered`.
  */
 class GestureInstrumentation : Instrumentation() {
     private var arguments = Bundle()
@@ -91,8 +92,9 @@ class GestureInstrumentation : Instrumentation() {
 
     /**
      * A question instead of a gesture, its answer put in [result]: `-e find <name>` (where
-     * the control lies), `-e bench <scenario>` (a scenario benchmark) or
-     * `-e state 1` (what the app shows). False when there is none.
+     * the control lies), `-e bench <scenario>` (a scenario benchmark), `-e practice-test`
+     * (a test session started or removed), `-e open-file` or `-e state 1` (what the app shows).
+     * False when there is none.
      */
     private fun answer(result: Bundle): Boolean {
         arguments.getString("find")?.let { name ->
@@ -104,6 +106,12 @@ class GestureInstrumentation : Instrumentation() {
             var lines: String? = null
             runOnMainSync { lines = DebugControls.bench(scene) }
             result.putString("bench", lines ?: error("no answer for the benchmark"))
+            return true
+        }
+        arguments.getString("practice-test")?.let { command ->
+            var answer: String? = null
+            runOnMainSync { answer = DebugControls.practiceTest(command) }
+            result.putString("practice-test", answer ?: error("no answer for the test session"))
             return true
         }
         arguments.getString("open-file")?.let { path ->

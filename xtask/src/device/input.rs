@@ -28,6 +28,8 @@
 //!   the app's `meminfo` before and after;
 //! - `open-file <name>`: the OpenPaint file `cargo device-push` put into the test folder opened
 //!   as a new artwork without the picker, its id printed (`open_file.rs`);
+//! - `practice-test start|end`: a test practice session started beside the author's open one,
+//!   or removed with its sheet (`practice_test.rs`);
 //! - `home`: the system's home key, no instrumentation (the app's memory released when its UI is
 //!   hidden).
 
@@ -36,6 +38,7 @@ use std::time::Duration;
 use super::adb::{Adb, DeviceError, PACKAGE, Result};
 use super::check::wake;
 use super::open_file::open_file;
+use super::practice_test::practice_test;
 
 const INSTRUMENTATION: &str = "dev.openpaint/.GestureInstrumentation";
 
@@ -45,6 +48,11 @@ pub fn input(args: &[String]) -> Result<()> {
         let adb = Adb::connected()?;
         wake(&adb)?;
         return open_file(&adb, name);
+    }
+    if let ["practice-test", what] = args[..] {
+        let adb = Adb::connected()?;
+        wake(&adb)?;
+        return practice_test(&adb, what);
     }
     // Home as the system's key, outside the instrumentation (whose process keeps its importance
     // while it runs, so the system would not tell the app its UI is hidden).
@@ -153,8 +161,8 @@ const INPUT_USAGE: &str = "cargo device-input \
                            | hover x,y [ms] [primary|secondary|tertiary|eraser] \
                            | tap <control name> | drag <control name> x,y [ms] \
                            | find <control name> | state | gradient on|off | lose-device \
-                           | bench open-cold|open|zoom|pan|strokes|session|export|touch|undo|adjust|ui[@fast] \
-                           | open-file <name> | home";
+                           | bench open-cold|open|zoom|pan|strokes|session|export|touch|undo|adjust|ui|practice[@fast] \
+                           | open-file <name> | practice-test start|end | home";
 
 /// A control's name for the device's shell, which reads the line: in single quotes, so none
 /// inside.

@@ -1,8 +1,11 @@
 //! Polylines in a cell's units (its side is 1): length, even resampling, nearest points, centre
-//! and spread.
+//! and spread, where two cross and how far apart they keep, a point along one.
 
 /// A point, `[x, y]`.
 pub type Point = [f64; 2];
+
+/// Crossings closer than this are one.
+const SAME_CROSSING: f64 = 1e-9;
 
 #[must_use]
 pub fn distance(a: Point, b: Point) -> f64 {
@@ -118,6 +121,78 @@ pub fn centre_and_spread(lines: &[&[Point]]) -> Option<(Point, f64)> {
     Some((centre, (squares / total).sqrt()))
 }
 
+/// The point `share` of the way along `points` (0 its first, 1 its last) and the direction
+/// there, as an angle; `None` for a path of no length.
+#[must_use]
+pub fn along(points: &[Point], share: f64) -> Option<(Point, f64)> {
+    let total = length(points);
+    if total <= 0.0 {
+        return None;
+    }
+    let goal = share.clamp(0.0, 1.0) * total;
+    let mut walked = 0.0;
+    for pair in points.windows(2) {
+        let step = distance(pair[0], pair[1]);
+        if step > 0.0 && walked + step >= goal {
+            let at = lerp(pair[0], pair[1], (goal - walked) / step);
+            let heading = (pair[1][1] - pair[0][1]).atan2(pair[1][0] - pair[0][0]);
+            return Some((at, heading));
+        }
+        walked += step;
+    }
+    let [.., before, last] = points else {
+        return None;
+    };
+    Some((*last, (last[1] - before[1]).atan2(last[0] - before[0])))
+}
+
+/// Where the polylines `a` and `b` cross or touch, each place once.
+#[must_use]
+pub fn crossings(a: &[Point], b: &[Point]) -> Vec<Point> {
+    let mut found: Vec<Point> = Vec::new();
+    for p in a.windows(2) {
+        for q in b.windows(2) {
+            if let Some(at) = crossing([p[0], p[1]], [q[0], q[1]])
+                && found.iter().all(|f| distance(*f, at) > SAME_CROSSING)
+            {
+                found.push(at);
+            }
+        }
+    }
+    found
+}
+
+/// Where the segments `p` and `q` meet, ends included; `None` when they do not (parallel ones
+/// never do).
+fn crossing(p: [Point; 2], q: [Point; 2]) -> Option<Point> {
+    let r = [p[1][0] - p[0][0], p[1][1] - p[0][1]];
+    let s = [q[1][0] - q[0][0], q[1][1] - q[0][1]];
+    let across = r[0] * s[1] - r[1] * s[0];
+    if across == 0.0 {
+        return None;
+    }
+    let d = [q[0][0] - p[0][0], q[0][1] - p[0][1]];
+    let t = (d[0] * s[1] - d[1] * s[0]) / across;
+    let u = (d[0] * r[1] - d[1] * r[0]) / across;
+    ((0.0..=1.0).contains(&t) && (0.0..=1.0).contains(&u)).then(|| lerp(p[0], p[1], t))
+}
+
+/// The least distance between the polylines `a` and `b` (0 where they cross).
+#[must_use]
+pub fn apart(a: &[Point], b: &[Point]) -> f64 {
+    if !crossings(a, b).is_empty() {
+        return 0.0;
+    }
+    // Apart, the nearest two points of two polylines include a corner of one of them.
+    let from = |points: &[Point], other: &[Point]| {
+        points
+            .iter()
+            .filter_map(|p| nearest(&[other], *p).map(|(_, d)| d))
+            .fold(f64::INFINITY, f64::min)
+    };
+    from(a, b).min(from(b, a))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -155,5 +230,26 @@ mod tests {
         assert!(distance(moved_centre, [2.0 * centre[0] + 1.0, 2.0 * centre[1] - 3.0]) < 1e-12);
         assert!((moved_spread - 2.0 * spread).abs() < 1e-12);
         assert_eq!(centre_and_spread(&[&[[0.5, 0.5]]]), None, "no length");
+    }
+
+    #[test]
+    fn crossings_apartness_and_points_along() {
+        let across: &[Point] = &[[0.0, 0.0], [0.5, 0.0], [1.0, 0.0]];
+        let down: &[Point] = &[[0.5, -1.0], [0.5, 1.0]];
+        assert_eq!(
+            crossings(across, down),
+            vec![[0.5, 0.0]],
+            "met at a corner once"
+        );
+        let wave: &[Point] = &[[0.0, 1.0], [0.25, -1.0], [0.75, 1.0], [1.0, -1.0]];
+        assert_eq!(crossings(across, wave).len(), 3);
+        let above: &[Point] = &[[0.0, 0.3], [1.0, 0.5]];
+        assert!(crossings(across, above).is_empty());
+        assert!((apart(across, above) - 0.3).abs() < 1e-12);
+        assert_eq!(apart(across, down), 0.0);
+        let (at, heading) = along(&[[0.0, 0.0], [1.0, 0.0], [1.0, 1.0]], 0.75).expect("a path");
+        assert!(distance(at, [1.0, 0.5]) < 1e-12);
+        assert!((heading - std::f64::consts::FRAC_PI_2).abs() < 1e-12);
+        assert_eq!(along(&[[0.2, 0.2]], 0.5), None);
     }
 }

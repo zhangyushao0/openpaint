@@ -4,7 +4,7 @@
 //!   app's library out of the app's private storage into `artifacts/device/backups/`, and back in
 //!   place, compared byte for byte;
 //! - `cargo device-check [label] [--no-install]` (`check.rs`) and `cargo device-input ...`
-//!   (`input.rs`);
+//!   (`input.rs`; a test practice session beside the author's, `practice_test.rs`);
 //! - `cargo device-clean`: removes the agent's own test files, and only those (the test folders
 //!   and screen recordings);
 //! - `cargo device-push <file>`: a PNG or JPEG for the system picker, or an OpenPaint file for
@@ -26,6 +26,7 @@ mod info;
 mod input;
 mod library;
 mod open_file;
+mod practice_test;
 mod push;
 mod reset;
 mod smoke;

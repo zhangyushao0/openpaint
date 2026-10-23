@@ -1,7 +1,7 @@
 {
   "walkthrough": [
     "Goal: practise lines and colours the way I did on paper: copy a line, lay the original over my copy, correct in blue, compare again; for a colour, pick and fill beside the frame and see on the wheel where my pick lies against the original. No number for a line pretends to judge what my eye sees better.",
-    "Entry: Today, Start practice. The sheet opens on Line 1 of 10, its instructions on the card at the right (Got it closes them). The chrome holds only what lines use: Gallery and All tools at the top left, the practice bar in the middle; beside the empty frame at the right, the pens, Sketch (a light pencil) and Draw (chosen), and under them Undo and Redo. No side bar, no brush, layer or colour buttons: nothing else to look at, and nothing meets the bar in portrait.",
+    "Entry: Today, Start practice. The sheet opens on Line 1 of 6, its instructions on the card at the right (Got it closes them). The chrome holds only what lines use: Gallery and All tools at the top left, the practice bar in the middle; beside the empty frame at the right, the pens, Sketch (a light pencil) and Draw (chosen), and under them Undo and Redo. No side bar, no brush, layer or colour buttons: nothing else to look at, and nothing meets the bar in portrait.",
     "Copy: I mark the line's two ends lightly with Sketch, choose Draw and draw the line in the empty frame, a little low and short. A stray stroke: Undo takes it back, Redo brings it, Undo again. Strokes stay in the frame; the pen's own samples are kept, no StreamLine.",
     "Compare: the original lies over my copy in a thick, clear, semi-transparent red, in place: where it lies in its frame, so my placement errors show, as V大 checks. The card at the right reads Line 1 with In place and Aligned. One tap on Aligned: the red moves and sizes onto my line (never turned), so only the shape's errors show, however far off my placement was; one tap on In place brings it back. No numbers: the overlay is the feedback; my sketch marks are never judged and the aligned fit leaves them out.",
     "Correct: after Compare the pen has turned blue: Correct is chosen beside the frame. As my pen lands in the frame the red and the card go, so I correct by eye; I draw the better line over the old one in blue. Compare again: the red comes back over the corrected copy in the mode I chose last. As often as I like; each Compare is counted, and every stroke after the first Compare is stored as a correction.",
@@ -72,8 +72,6 @@
     { "tap": { "at": "All tools" } },
     { "expect": { "shown": ["Fill frame"], "absent": ["Actions", "Eyedropper"] } },
     { "screenshot": { "name": "own-tools-again" } },
-    { "tap": { "at": "Next" } },
-    { "tap": { "at": "Next" } },
     { "tap": { "at": "Next" } },
     { "tap": { "at": "Next" } },
     { "tap": { "at": "Next" } },

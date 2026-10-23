@@ -12,7 +12,7 @@ use crate::random::Random;
 /// The frame's margin the line keeps clear of, in frame sides.
 const MARGIN: f64 = 0.12;
 /// Steps the curvature is integrated in.
-const STEPS: usize = 480;
+pub(crate) const STEPS: usize = 480;
 
 /// How a line bends.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -52,15 +52,16 @@ impl LineExercise {
             LineTier::Wave => random.range(0.45, 0.76),
             LineTier::Hook => random.range(0.38, 0.66),
         };
+        let placing = Placing::of(&[&points], size, &mut random);
         Self {
-            points: placed(&points, size, &mut random),
+            points: points.iter().map(|p| placing.apply(*p)).collect(),
         }
     }
 }
 
 /// Curvature along the unit length, in radians per unit of length.
 #[derive(Debug, Clone, Copy)]
-enum Curvature {
+pub(crate) enum Curvature {
     /// `a + b (s - 0.5)`.
     Linear { a: f64, b: f64 },
     /// `turn1` over `0..middle` and `-turn2` over `middle..1`, each a half sine.
@@ -75,7 +76,7 @@ enum Curvature {
 }
 
 impl Curvature {
-    fn of(tier: LineTier, random: &mut Random) -> Self {
+    pub(crate) fn of(tier: LineTier, random: &mut Random) -> Self {
         match tier {
             LineTier::Straight => Self::Linear {
                 a: random.sign() * random.range(0.0, 0.22),
@@ -138,7 +139,7 @@ impl Curvature {
 
 /// The path of unit length whose direction starts at `turn` and turns by `curvature`, from the
 /// origin.
-fn integrate(curvature: &Curvature, turn: f64) -> Vec<Point> {
+pub(crate) fn integrate(curvature: &Curvature, turn: f64) -> Vec<Point> {
     let step = 1.0 / STEPS as f64;
     let mut points = Vec::with_capacity(STEPS + 1);
     let (mut at, mut heading) = ([0.0, 0.0], turn);
@@ -155,30 +156,38 @@ fn integrate(curvature: &Curvature, turn: f64) -> Vec<Point> {
     points
 }
 
-/// `points` scaled so the larger side of their box is `size` frame sides, placed anywhere in the
-/// frame that keeps the margin clear.
-fn placed(points: &[Point], size: f64, random: &mut Random) -> Vec<Point> {
-    let (low, high) = bounds(points);
-    let extent = (high[0] - low[0]).max(high[1] - low[1]).max(1e-9);
-    let scale = size / extent;
-    let box_size = [(high[0] - low[0]) * scale, (high[1] - low[1]) * scale];
-    let corner = [0, 1].map(|axis| {
-        let room = (1.0 - 2.0 * MARGIN - box_size[axis]).max(0.0);
-        MARGIN + random.range(0.0, room)
-    });
-    points
-        .iter()
-        .map(|p| {
-            [
-                corner[0] + (p[0] - low[0]) * scale,
-                corner[1] + (p[1] - low[1]) * scale,
-            ]
-        })
-        .collect()
+/// Lines scaled so the larger side of their box is `size` frame sides, placed anywhere in the
+/// frame that keeps the margin clear: `p` goes to `corner + (p - low) scale`.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Placing {
+    low: Point,
+    scale: f64,
+    corner: Point,
 }
 
-fn bounds(points: &[Point]) -> (Point, Point) {
-    points.iter().fold(
+impl Placing {
+    pub(crate) fn of(lines: &[&[Point]], size: f64, random: &mut Random) -> Self {
+        let (low, high) = bounds(lines.iter().flat_map(|line| line.iter()));
+        let extent = (high[0] - low[0]).max(high[1] - low[1]).max(1e-9);
+        let scale = size / extent;
+        let box_size = [(high[0] - low[0]) * scale, (high[1] - low[1]) * scale];
+        let corner = [0, 1].map(|axis| {
+            let room = (1.0 - 2.0 * MARGIN - box_size[axis]).max(0.0);
+            MARGIN + random.range(0.0, room)
+        });
+        Self { low, scale, corner }
+    }
+
+    pub(crate) fn apply(&self, p: Point) -> Point {
+        [
+            self.corner[0] + (p[0] - self.low[0]) * self.scale,
+            self.corner[1] + (p[1] - self.low[1]) * self.scale,
+        ]
+    }
+}
+
+fn bounds<'a>(points: impl Iterator<Item = &'a Point>) -> (Point, Point) {
+    points.fold(
         ([f64::MAX, f64::MAX], [f64::MIN, f64::MIN]),
         |(low, high), p| {
             (

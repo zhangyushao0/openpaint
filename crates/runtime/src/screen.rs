@@ -195,6 +195,13 @@ impl Screen {
                 log::error!("storing the practice session failed: {error}");
             }
             PracticeDone::Saved(Ok(())) => {}
+            PracticeDone::Removed(id, Ok(())) => {
+                log::info!("practice session {id} removed");
+                practice.forget(id);
+            }
+            PracticeDone::Removed(id, Err(error)) => {
+                log::error!("practice session {id} was not removed: {error}");
+            }
         }
     }
 

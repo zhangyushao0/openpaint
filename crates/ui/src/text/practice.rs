@@ -1,9 +1,9 @@
 //! A practice sheet: the bar, the exercise's own tools, the card (instructions after V大's method,
 //! in our own words; comparisons in his terms: 叠图对比, 原位, 对齐, 更红/更黄, 更亮/更暗,
-//! 更纯/更灰) and the summary.
+//! 更纯/更灰; 组合线条, 热身) and the summary.
 
 use openpaint_app::Pen;
-use openpaint_practice::{Axis, Metric};
+use openpaint_practice::{Axis, Family, Metric};
 
 use super::{Language, Text};
 
@@ -22,7 +22,11 @@ texts! { PRACTICE_TABLE;
     GOT_IT = "Got it", "知道了";
     IN_PLACE = "In place", "原位";
     ALIGNED = "Aligned", "对齐";
+    WARM_UP = "Warm-up", "热身";
+    LINE = "Line", "线条";
+    COMBINED_LINES = "Combined lines", "组合线条";
     COPY_A_LINE = "Copy a line", "单根线条";
+    COPY_COMBINED = "Copy combined lines", "组合线条";
     MATCH_A_COLOUR = "Match a colour", "单色";
     SHOWS_ALIGNED = "In red: the original moved and sized onto your line, never turned. Its \
         shape alone shows, wherever you placed it.",
@@ -32,6 +36,15 @@ texts! { PRACTICE_TABLE;
     CORRECT_IN_BLUE = "Draw over your line in blue to correct it, then tap Compare again.",
         "用蓝色在你的线条上修正，然后再点一次“叠图对比”。";
     CORRECT_OVER = "Draw over your line to correct it, then tap Compare again.",
+        "在你的线条上修正，然后再点一次“叠图对比”。";
+    SHOWS_ALIGNED_GROUP = "In red: the whole group moved and sized onto your lines as one shape, \
+        never turned. The shape alone shows, wherever you placed it.",
+        "红色是整组原线条，作为一个形状移动并缩放到你的线条上，不旋转。只比形状，不论你画在哪里。";
+    SHOWS_IN_PLACE_GROUP = "In red: the original lines where they lie in their frame. Where you \
+        placed them shows too.", "红色是原线条，在它们框里的原位。也能看出你画的位置准不准。";
+    CORRECT_GROUP_IN_BLUE = "Draw over your lines in blue to correct them, then tap Compare \
+        again.", "用蓝色在你的线条上修正，然后再点一次“叠图对比”。";
+    CORRECT_GROUP_OVER = "Draw over your lines to correct them, then tap Compare again.",
         "在你的线条上修正，然后再点一次“叠图对比”。";
     SAME_COLOUR = "The same hue, purity and lightness.", "色相、纯度和明度都一样。";
     WHEEL_NOTE = "Yours in ink, the original in red, the arrows from yours to it. ΔE: Oklab × \
@@ -59,6 +72,18 @@ texts! { PRACTICE_STEPS;
     LINE_4 = "Then tap Compare: the original lies over your line in red, in place or aligned to \
         it. Correct in blue and compare again, as often as you like.",
         "然后点“叠图对比”：原线条以红色叠在你的线条上，可选原位或对齐。用修正笔改，再对比，次数不限。";
+    GROUP_1 = "Copy the group of lines into the empty frame beside it.",
+        "把这组线条临摹到旁边的空白框里。";
+    GROUP_2 = "See the whole group as one shape first: its outer ends and corners, where lines \
+        meet or cross. Fix those key points in the frame before anything else, lightly with \
+        Sketch.",
+        "先把整组线条看成一个形状：外围的端点和转角，线条相接或交叉的地方。先用草稿笔轻轻定下这些关键点在框里的位置。";
+    GROUP_3 = "Then the inside: each line between its points, its bends found as for a single \
+        line, in sure strokes with Draw. Don't erase; draw the better line over it.",
+        "再画里面：每条线连接它的关键点，弯曲处像单根线条一样找。用画图笔果断画出，不要擦，画错就在上面画一条更准的。";
+    GROUP_4 = "Compare, don't guess: tap Compare. In place shows where the group lies; Aligned \
+        lays the whole group onto yours as one shape. Correct in blue and compare again.",
+        "要对比，别凭感觉画：点“叠图对比”。原位看位置，对齐把整组线条当成一个形状叠到你的线条上。用修正笔改，再对比。";
     COLOUR_1 = "Fill the empty frame with the colour of the swatch beside it.",
         "用旁边色块的颜色填满空白框。";
     COLOUR_2 = "Name it first: its hue, how pure or grey, how light or dark. Then pick it once by \
@@ -116,13 +141,31 @@ pub(crate) const HUE_NAMES: [Text; 12] = [
     HUE_ROSE,
 ];
 
-/// The instructions for lines (or colours): the heading and four paragraphs.
-pub(crate) const fn instructions(lines: bool) -> (Text, [Text; 4]) {
-    if lines {
-        (COPY_A_LINE, [LINE_1, LINE_2, LINE_3, LINE_4])
-    } else {
-        (MATCH_A_COLOUR, [COLOUR_1, COLOUR_2, COLOUR_3, COLOUR_4])
+/// The instructions for a family: the heading and four paragraphs.
+pub(crate) const fn instructions(family: Family) -> (Text, [Text; 4]) {
+    match family {
+        Family::Line => (COPY_A_LINE, [LINE_1, LINE_2, LINE_3, LINE_4]),
+        Family::Combined => (COPY_COMBINED, [GROUP_1, GROUP_2, GROUP_3, GROUP_4]),
+        Family::Colour => (MATCH_A_COLOUR, [COLOUR_1, COLOUR_2, COLOUR_3, COLOUR_4]),
     }
+}
+
+/// What a drawn exercise's overlay shows (`aligned`, else in place), and how to go on (in blue,
+/// else with the pen in hand), for one line or a group.
+pub(crate) const fn compared_lines(group: bool, aligned: bool, blue: bool) -> [Text; 2] {
+    let shows = match (group, aligned) {
+        (false, true) => SHOWS_ALIGNED,
+        (false, false) => SHOWS_IN_PLACE,
+        (true, true) => SHOWS_ALIGNED_GROUP,
+        (true, false) => SHOWS_IN_PLACE_GROUP,
+    };
+    let next = match (group, blue) {
+        (false, true) => CORRECT_IN_BLUE,
+        (false, false) => CORRECT_OVER,
+        (true, true) => CORRECT_GROUP_IN_BLUE,
+        (true, false) => CORRECT_GROUP_OVER,
+    };
+    [shows, next]
 }
 
 /// A line exercise's pens.
@@ -158,24 +201,37 @@ pub(crate) const fn metric(metric: Metric) -> Text {
     }
 }
 
-/// The exercise shown, as the bar names it: "Line 3 of 10".
-pub(crate) fn exercise_of(language: Language, line: bool, (place, of): (usize, usize)) -> String {
-    match (language, line) {
-        (Language::English, true) => format!("Line {place} of {of}"),
-        (Language::English, false) => format!("Colour {place} of {of}"),
-        (Language::Chinese, true) => format!("线条 {place}/{of}"),
-        (Language::Chinese, false) => format!("颜色 {place}/{of}"),
+/// What an exercise is called ("Line", "Warm-up"): a warm-up's by its part of the session, any
+/// other by its family.
+const fn called(family: Family, warming_up: bool) -> Text {
+    match (warming_up, family) {
+        (true, _) => WARM_UP,
+        (false, Family::Line) => LINE,
+        (false, Family::Combined) => COMBINED_LINES,
+        (false, Family::Colour) => super::COLOUR,
     }
 }
 
-/// A compared exercise's heading: "Line 3".
-pub(crate) fn exercise(language: Language, line: bool, place: usize) -> String {
-    match (language, line) {
-        (Language::English, true) => format!("Line {place}"),
-        (Language::English, false) => format!("Colour {place}"),
-        (Language::Chinese, true) => format!("线条 {place}"),
-        (Language::Chinese, false) => format!("颜色 {place}"),
+/// The exercise shown, as the bar names it: "Line 3 of 6", "Warm-up 1 of 4".
+pub(crate) fn exercise_of(
+    language: Language,
+    (family, warming_up): (Family, bool),
+    (place, of): (usize, usize),
+) -> String {
+    let called = called(family, warming_up).get(language);
+    match language {
+        Language::English => format!("{called} {place} of {of}"),
+        Language::Chinese => format!("{called} {place}/{of}"),
     }
+}
+
+/// A compared exercise's heading: "Line 3", "Warm-up 2".
+pub(crate) fn exercise(
+    language: Language,
+    (family, warming_up): (Family, bool),
+    place: usize,
+) -> String {
+    format!("{} {place}", called(family, warming_up).get(language))
 }
 
 /// A finished session's heading.
@@ -186,17 +242,21 @@ pub(crate) fn session_done(language: Language, number: u32) -> String {
     }
 }
 
-/// The summary's line per kind: "Lines: 10 of 10 compared".
+/// The summary's line per family: "Lines: 8 of 8 compared".
 pub(crate) fn compared_of(
     language: Language,
-    lines: bool,
+    family: Family,
     (checked, held): (usize, usize),
 ) -> String {
-    match (language, lines) {
-        (Language::English, true) => format!("Lines: {checked} of {held} compared"),
-        (Language::English, false) => format!("Colours: {checked} of {held} compared"),
-        (Language::Chinese, true) => format!("线条：已对比 {checked}/{held}"),
-        (Language::Chinese, false) => format!("颜色：已对比 {checked}/{held}"),
+    match (language, family) {
+        (Language::English, Family::Line) => format!("Lines: {checked} of {held} compared"),
+        (Language::English, Family::Combined) => {
+            format!("Combined lines: {checked} of {held} compared")
+        }
+        (Language::English, Family::Colour) => format!("Colours: {checked} of {held} compared"),
+        (Language::Chinese, Family::Line) => format!("线条：已对比 {checked}/{held}"),
+        (Language::Chinese, Family::Combined) => format!("组合线条：已对比 {checked}/{held}"),
+        (Language::Chinese, Family::Colour) => format!("颜色：已对比 {checked}/{held}"),
     }
 }
 

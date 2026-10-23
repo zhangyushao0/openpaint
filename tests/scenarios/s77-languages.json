@@ -146,8 +146,6 @@
     { "tap": { "at": "Next" } },
     { "tap": { "at": "Next" } },
     { "tap": { "at": "Next" } },
-    { "tap": { "at": "Next" } },
-    { "tap": { "at": "Next" } },
     { "tap": { "at": "Finish" } },
     { "screenshot": { "name": "practice-summary" } }
   ]

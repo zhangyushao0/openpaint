@@ -119,6 +119,10 @@ impl ProjectStore for Other {
     fn save_practice(&mut self, _session: &SessionRecord) -> Result<(), PortError> {
         self.wrote("practice record")
     }
+
+    fn remove_practice(&mut self, _session: &SessionRecord) -> Result<(), PortError> {
+        self.wrote("practice removal")
+    }
 }
 
 #[test]

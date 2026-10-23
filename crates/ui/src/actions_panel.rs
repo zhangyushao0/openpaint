@@ -8,7 +8,7 @@
 //! under "Pen", Pen buttons, which shows its page in the panel's place
 //! (`pen_buttons_page.rs`); then Language with English and 中文, each in its own words, the one
 //! shown in the ink pill (Procreate's Prefs; D100); last, quietly, the app's version and
-//! storage format ("OpenPaint 1.2.0 · format 1"). A row that opens a system dialog closes the
+//! storage format ("OpenPaint 1.3.0 · format 1"). A row that opens a system dialog closes the
 //! panel; the switch, the words and the page leave it open. Any contact landing on the canvas
 //! outside closes it.
 

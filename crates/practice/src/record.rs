@@ -1,13 +1,15 @@
-//! What is kept of a session: its stage and place in it, its seed and exercises, where its sheet
-//! is, its progress and every compared exercise: when it was first compared, how often, which of
-//! its strokes are corrections and, for a colour, its numbers. Enough for the summary now and for
-//! trajectories, re-tests, drills and a study of the strokes later. The summary sets this
-//! session's colour means and judgement beside those of the sessions before it in its stage.
+//! What is kept of a session: its stage and place in it, its seed and exercises (the first of
+//! them its warm-up), where its sheet is, its progress and every compared exercise: when it was
+//! first compared, how often, which of its strokes are corrections and, for a colour, its
+//! numbers. Enough for the summary and the next warm-up now, and for trajectories, re-tests,
+//! drills and a study of the strokes later. The summary sets this session's colour means and
+//! judgement beside those of the sessions before it in its stage.
 
 use crate::colour_match::Tone;
 use crate::judgement::{Judgement, judgement};
 use crate::metric::{Metric, Metrics, value};
-use crate::plan::{Exercise, Kind, stage_one};
+use crate::plan::{Exercise, Family, Kind};
+use crate::session::stage_one;
 
 /// One session as it is stored.
 #[derive(Debug, Clone, PartialEq)]
@@ -27,6 +29,8 @@ pub struct SessionRecord {
     /// The exercise shown, an index into `exercises`.
     pub current: u32,
     pub exercises: Vec<Exercise>,
+    /// How many of the first exercises are the warm-up.
+    pub warm_up: u32,
     /// The exercises compared, in the order they first were.
     pub results: Vec<ExerciseResult>,
 }
@@ -70,9 +74,11 @@ impl ExerciseResult {
 }
 
 impl SessionRecord {
-    /// Session `number` of stage 1, the `id`th of all, seeded `seed`, started at `started`.
+    /// Session `number` of stage 1, the `id`th of all, seeded `seed`, started at `started`, after
+    /// the kinds `met` in earlier sessions (its warm-up's, `met`).
     #[must_use]
-    pub fn stage_one(id: u64, number: u32, seed: u64, started: u64) -> Self {
+    pub fn stage_one(id: u64, number: u32, seed: u64, started: u64, met: &[Kind]) -> Self {
+        let plan = stage_one(seed, met);
         Self {
             id,
             stage: 1,
@@ -82,7 +88,8 @@ impl SessionRecord {
             started,
             finished: None,
             current: 0,
-            exercises: stage_one(seed),
+            exercises: plan.exercises,
+            warm_up: plan.warm_up,
             results: Vec::new(),
         }
     }
@@ -99,26 +106,54 @@ impl SessionRecord {
         self.exercises.get(self.current as usize)
     }
 
-    /// Of the kind of exercise `index` (lines or colours): its place among them, from 1, and how
-    /// many the session holds.
+    /// Whether exercise `index` is part of the warm-up.
+    #[must_use]
+    pub fn warming_up(&self, index: usize) -> bool {
+        index < self.warm_up as usize
+    }
+
+    /// Exercise `index`'s place, from 1, and how many there are: in the warm-up among the
+    /// warm-up's exercises, after it among those of its family after it.
     #[must_use]
     pub fn place(&self, index: usize) -> (usize, usize) {
-        let Some(line) = self.exercises.get(index).map(|e| e.kind.is_line()) else {
+        let Some(family) = self.exercises.get(index).map(|e| e.kind.family()) else {
             return (0, 0);
         };
-        let alike = |e: &&Exercise| e.kind.is_line() == line;
-        let before = self.exercises[..index].iter().filter(alike).count();
-        (before + 1, self.exercises.iter().filter(alike).count())
+        let warm_up = (self.warm_up as usize).min(self.exercises.len());
+        if index < warm_up {
+            return (index + 1, warm_up);
+        }
+        let alike = |e: &&Exercise| e.kind.family() == family;
+        let before = self.exercises[warm_up..index].iter().filter(alike).count();
+        let all = self.exercises[warm_up..].iter().filter(alike).count();
+        (before + 1, all)
     }
+}
+
+/// The kinds compared in `sessions`, each once, in the order of their codes: what a warm-up
+/// draws from.
+#[must_use]
+pub fn met(sessions: &[SessionRecord]) -> Vec<Kind> {
+    let mut kinds: Vec<Kind> = sessions
+        .iter()
+        .flat_map(|session| {
+            (session.results.iter())
+                .filter_map(|result| session.exercises.get(result.index as usize))
+                .map(|exercise| exercise.kind)
+        })
+        .collect();
+    kinds.sort_by_key(|kind| kind.code());
+    kinds.dedup();
+    kinds
 }
 
 /// The metrics the summary sets side by side for colours.
 pub const COLOUR_ROWS: [Metric; 3] = [Metric::FirstDelta, Metric::FinalDelta, Metric::Corrections];
 
-/// One kind of exercise in a session's summary.
+/// One family of exercises in a session's summary.
 #[derive(Debug, Clone, PartialEq)]
 pub struct KindSummary {
-    pub lines: bool,
+    pub family: Family,
     /// Exercises of the kind compared, and held.
     pub checked: usize,
     pub held: usize,
@@ -129,28 +164,27 @@ pub struct KindSummary {
     pub judgement: Option<[Judgement; 2]>,
 }
 
-/// `this` session's summary per kind beside `before` (the earlier sessions of its stage).
+/// `this` session's summary per family it holds (the warm-up's exercises counted in their
+/// families) beside `before` (the earlier sessions of its stage).
 #[must_use]
 pub fn summary(this: &SessionRecord, before: &[&SessionRecord]) -> Vec<KindSummary> {
-    [true, false]
+    Family::ALL
         .into_iter()
-        .filter_map(|lines| {
-            let held = this
-                .exercises
-                .iter()
-                .filter(|e| e.kind.is_line() == lines)
+        .filter_map(|family| {
+            let held = (this.exercises.iter())
+                .filter(|e| e.kind.family() == family)
                 .count();
             (held > 0).then(|| {
-                let mine = results_of(&[this], lines);
-                let earlier = results_of(before, lines);
-                let (rows, judged) = if lines {
+                let mine = results_of(&[this], family);
+                let earlier = results_of(before, family);
+                let (rows, judged) = if family.drawn() {
                     (Vec::new(), None)
                 } else {
                     let rows = COLOUR_ROWS.map(|m| (m, mean(&mine, m), mean(&earlier, m)));
                     (rows.to_vec(), Some([judged(&mine), judged(&earlier)]))
                 };
                 KindSummary {
-                    lines,
+                    family,
                     checked: mine.len(),
                     held,
                     rows,
@@ -161,14 +195,14 @@ pub fn summary(this: &SessionRecord, before: &[&SessionRecord]) -> Vec<KindSumma
         .collect()
 }
 
-/// Every result of `sessions` of lines (or colours), with its exercise's kind.
-fn results_of<'a>(sessions: &[&'a SessionRecord], lines: bool) -> Vec<(Kind, &'a Metrics)> {
+/// Every result of `sessions` of `family`, with its exercise's kind.
+fn results_of<'a>(sessions: &[&'a SessionRecord], family: Family) -> Vec<(Kind, &'a Metrics)> {
     sessions
         .iter()
         .flat_map(|session| {
             session.results.iter().filter_map(move |result| {
                 let exercise = session.exercises.get(result.index as usize)?;
-                (exercise.kind.is_line() == lines).then_some((exercise.kind, &result.metrics))
+                (exercise.kind.family() == family).then_some((exercise.kind, &result.metrics))
             })
         })
         .collect()
@@ -189,7 +223,7 @@ fn judged(results: &[(Kind, &Metrics)]) -> Judgement {
         .iter()
         .filter_map(|(kind, metrics)| match kind {
             Kind::Colour(tone) => Some((*tone, metrics.as_slice())),
-            Kind::Line(_) => None,
+            Kind::Line(_) | Kind::Combined(_) => None,
         })
         .collect();
     judgement(&colours)

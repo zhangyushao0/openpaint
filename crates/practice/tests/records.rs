@@ -1,6 +1,10 @@
-//! A session's record and its summary beside the sessions before it.
+//! A session's record, its places with and without a warm-up, the kinds met, and its summary
+//! beside the sessions before it.
 
-use openpaint_practice::{Axis, ExerciseResult, Metric, SessionRecord, summary};
+use openpaint_practice::{
+    Axis, Combination, ExerciseResult, Family, Kind, LineTier, Metric, SessionRecord, Tone, met,
+    summary,
+};
 
 fn checked(index: u32, metrics: Vec<(Metric, f64)>) -> ExerciseResult {
     ExerciseResult::first(index, 1_791_201_600, 40, metrics)
@@ -8,13 +12,17 @@ fn checked(index: u32, metrics: Vec<(Metric, f64)>) -> ExerciseResult {
 
 #[test]
 fn a_session_knows_its_places_and_results() {
-    let mut session = SessionRecord::stage_one(3, 2, 99, 1_791_201_600);
+    let mut session = SessionRecord::stage_one(3, 2, 99, 1_791_201_600, &[]);
     assert_eq!((session.stage, session.number, session.current), (1, 2, 0));
-    assert_eq!(session.place(0), (1, 10));
-    assert_eq!(session.place(9), (10, 10));
-    assert_eq!(session.place(10), (1, 8));
-    assert_eq!(session.place(17), (8, 8));
-    assert_eq!(session.place(18), (0, 0));
+    assert_eq!(session.warm_up, 0);
+    assert_eq!(session.place(0), (1, 6));
+    assert_eq!(session.place(5), (6, 6));
+    assert_eq!(session.place(6), (1, 4), "combined lines");
+    assert_eq!(session.place(9), (4, 4));
+    assert_eq!(session.place(10), (1, 6), "colours");
+    assert_eq!(session.place(15), (6, 6));
+    assert_eq!(session.place(16), (0, 0));
+    assert!(!session.warming_up(0));
     session.results.push(checked(4, Vec::new()));
     assert!(session.result(4).is_some() && session.result(3).is_none());
     assert_eq!(session.exercise(), session.exercises.first());
@@ -32,8 +40,52 @@ fn a_session_knows_its_places_and_results() {
 }
 
 #[test]
-fn the_summary_counts_lines_and_sets_colours_beside_the_earlier_ones() {
-    let mut before = SessionRecord::stage_one(1, 1, 7, 0);
+fn a_warm_up_has_its_own_places_before_the_mix() {
+    let met = [
+        Kind::Line(LineTier::Wave),
+        Kind::Colour(Tone::of_code(1).expect("a tone")),
+    ];
+    let session = SessionRecord::stage_one(4, 3, 7, 0, &met);
+    assert_eq!(session.warm_up, 4);
+    assert_eq!(session.exercises.len(), 20);
+    assert!(session.warming_up(3) && !session.warming_up(4));
+    assert_eq!(session.place(0), (1, 4));
+    assert_eq!(session.place(3), (4, 4), "a colour in the warm-up");
+    assert_eq!(session.place(4), (1, 6), "the mix's first line");
+    assert_eq!(session.place(14), (1, 6), "the mix's first colour");
+}
+
+#[test]
+fn the_kinds_met_are_those_compared_each_once() {
+    let mut first = SessionRecord::stage_one(1, 1, 7, 0, &[]);
+    first.results = vec![
+        checked(0, Vec::new()),
+        checked(7, Vec::new()),
+        checked(10, Vec::new()),
+    ];
+    let mut second = SessionRecord::stage_one(2, 2, 8, 0, &met(std::slice::from_ref(&first)));
+    second.results = vec![checked(4, Vec::new())];
+    let kinds = met(&[first.clone(), second.clone()]);
+    let expected = vec![
+        first.exercises[0].kind,
+        first.exercises[10].kind,
+        first.exercises[7].kind,
+    ];
+    assert_eq!(
+        kinds, expected,
+        "lines, colours, combined lines by their codes; once each"
+    );
+    assert!(matches!(kinds[2], Kind::Combined(Combination::Crossing)));
+    assert_eq!(
+        second.exercises[4].kind, first.exercises[0].kind,
+        "the mix again"
+    );
+    assert!(met(&[]).is_empty());
+}
+
+#[test]
+fn the_summary_counts_each_family_and_sets_colours_beside_the_earlier_ones() {
+    let mut before = SessionRecord::stage_one(1, 1, 7, 0, &[]);
     before.results = vec![
         checked(0, Vec::new()),
         checked(
@@ -45,10 +97,11 @@ fn the_summary_counts_lines_and_sets_colours_beside_the_earlier_ones() {
             ],
         ),
     ];
-    let mut this = SessionRecord::stage_one(2, 2, 8, 100);
+    let mut this = SessionRecord::stage_one(2, 2, 8, 100, &[]);
     this.results = vec![
         checked(0, Vec::new()),
         checked(2, Vec::new()),
+        checked(7, Vec::new()),
         checked(
             11,
             vec![
@@ -59,17 +112,19 @@ fn the_summary_counts_lines_and_sets_colours_beside_the_earlier_ones() {
         ),
     ];
     let kinds = summary(&this, &[&before]);
-    assert_eq!(kinds.len(), 2);
+    let families: Vec<Family> = kinds.iter().map(|k| k.family).collect();
+    assert_eq!(families, Family::ALL);
     let lines = &kinds[0];
-    assert!(lines.lines);
-    assert_eq!((lines.checked, lines.held), (2, 10));
+    assert_eq!((lines.checked, lines.held), (2, 6));
     assert!(
         lines.rows.is_empty() && lines.judgement.is_none(),
         "no numbers"
     );
-    let colours = &kinds[1];
-    assert!(!colours.lines);
-    assert_eq!((colours.checked, colours.held), (1, 8));
+    let combined = &kinds[1];
+    assert_eq!((combined.checked, combined.held), (1, 4));
+    assert!(combined.rows.is_empty() && combined.judgement.is_none());
+    let colours = &kinds[2];
+    assert_eq!((colours.checked, colours.held), (1, 6));
     assert_eq!(
         colours.rows[0],
         (Metric::FirstDelta, Some(0.04), Some(0.08))
@@ -85,5 +140,5 @@ fn the_summary_counts_lines_and_sets_colours_beside_the_earlier_ones() {
     assert_eq!(earlier.of(Axis::Value), None);
     assert!(earlier.of(Axis::FirstToFinal).is_some());
     let first = summary(&this, &[]);
-    assert!(first[1].judgement.expect("a judgement")[1].is_empty());
+    assert!(first[2].judgement.expect("a judgement")[1].is_empty());
 }

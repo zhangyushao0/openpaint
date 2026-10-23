@@ -13,7 +13,7 @@ use openpaint_app::{
     Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
-use openpaint_practice::{Metric, Metrics, Original, Pair, SessionRecord, Sheet, value};
+use openpaint_practice::{Family, Metric, Metrics, Original, Pair, SessionRecord, Sheet, value};
 
 const VIEWPORT: Viewport = Viewport {
     origin: [0.0, 84.0],
@@ -34,7 +34,7 @@ fn pens() -> PracticePens {
 }
 
 fn practising() -> Session {
-    let record = SessionRecord::stage_one(1, 1, 0x5EED_0045, 1_791_201_600);
+    let record = SessionRecord::stage_one(1, 1, 0x5EED_0045, 1_791_201_600, &[]);
     let [width, height] = Sheet::of(record.exercises.len()).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
     let tools = (brush(Color::BLACK), pens());
@@ -102,7 +102,7 @@ fn practise(session: &mut Session, intent: PracticeIntent) {
 /// The overlay's line, while it shows.
 fn overlay(session: &Session) -> Option<Vec<[f32; 2]>> {
     match session.projection().practice()?.overlay.clone()? {
-        Overlay::Line(points) => Some(points),
+        Overlay::Lines(lines) => lines.into_iter().next(),
         Overlay::Colour { .. } => None,
     }
 }
@@ -118,7 +118,7 @@ fn copied() -> (Session, Pair, Vec<[f64; 2]>, Vec<[f32; 2]>) {
     assert!(close(on_screen(&session, pair.centre()), ROOM_MIDDLE, 0.5));
     assert_eq!(
         practice.instructions,
-        Some(true),
+        Some(Family::Line),
         "lines' instructions first"
     );
     assert_eq!(practice.pen.map(|(pen, _)| pen), Some(Pen::Draw));
@@ -130,11 +130,12 @@ fn copied() -> (Session, Pair, Vec<[f64; 2]>, Vec<[f32; 2]>) {
     // The copy: the original moved 30 px right and drawn smaller about its frame's middle;
     // StreamLine asked for and not used.
     session.set_streamline(StreamLine::new(1.0).expect("streamline"));
-    let Original::Line(line) = original else {
+    let Original::Lines(mut lines) = original else {
         panic!("a line first")
     };
-    let copy: Vec<[f32; 2]> = (line.points.iter().step_by(6))
-        .chain(line.points.last())
+    let line = lines.remove(0);
+    let copy: Vec<[f32; 2]> = (line.iter().step_by(6))
+        .chain(line.last())
         .map(|p| {
             pair.copy
                 .to_canvas([0.5 + (p[0] - 0.5) * 0.8 + 0.075, 0.5 + (p[1] - 0.5) * 0.8])
@@ -160,7 +161,7 @@ fn copied() -> (Session, Pair, Vec<[f64; 2]>, Vec<[f32; 2]>) {
         .map(|s| [s.position().x(), s.position().y()])
         .collect();
     assert_eq!(drawn, copy, "the pen's own samples");
-    (session, pair, line.points, copy)
+    (session, pair, line, copy)
 }
 
 #[test]
@@ -226,7 +227,7 @@ fn a_compared_line_is_corrected_in_blue_compared_again_and_left_by_next() {
     assert_eq!(session.view().zoom(), zoom, "the zoom kept");
     let projection = session.projection();
     let practice = projection.practice().expect("a practice sheet");
-    assert_eq!((practice.current, practice.place), (Some(1), (2, 10)));
+    assert_eq!((practice.current, practice.place), (Some(1), (2, 6)));
     assert_eq!(
         practice.pen.map(|p| p.0),
         Some(Pen::Draw),
@@ -283,10 +284,13 @@ fn a_colour_is_filled_from_beside_its_frame_picked_once_compared_and_summed_up()
     }
     let projection = session.projection();
     let practice = projection.practice().expect("a practice sheet");
-    assert_eq!((practice.line, practice.place), (false, (1, 8)));
+    assert_eq!(
+        (practice.family, practice.place),
+        (Some(Family::Colour), (1, 6))
+    );
     assert_eq!(
         practice.instructions,
-        Some(false),
+        Some(Family::Colour),
         "colours' instructions first"
     );
     assert_eq!(practice.pen, None, "colours have no pens");
@@ -356,15 +360,15 @@ fn finished(session: &mut Session, at: [f32; 2]) {
         session.practise(PracticeIntent::OneMore, 30).is_err(),
         "not done yet"
     );
-    for _ in 10..18 {
+    for _ in 10..16 {
         practise(session, PracticeIntent::Next(VIEWPORT));
     }
     let projection = session.projection();
     let practice = projection.practice().expect("a practice sheet");
     assert_eq!(practice.current, None);
     let summary = practice.summary.as_ref().expect("the summary");
-    assert_eq!((summary[1].checked, summary[1].held), (1, 8));
-    let [this, before] = summary[1].judgement.expect("a judgement");
+    assert_eq!((summary[2].checked, summary[2].held), (1, 6));
+    let [this, before] = summary[2].judgement.expect("a judgement");
     assert!(!this.is_empty() && before.is_empty());
     assert!(
         session

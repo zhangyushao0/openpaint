@@ -238,6 +238,23 @@ pub(crate) fn duplicate(open: &Open, id: ProjectId) -> Result<ProjectId, PortErr
 
 pub(crate) fn delete(open: &Open, id: ProjectId) -> Result<(), PortError> {
     let mut batch = Batch::new(open);
+    remove_project(open, &mut batch, id)?;
+    batch.commit()
+}
+
+/// `session`'s record and its sheet removed, in one batch.
+pub(crate) fn remove_practice(open: &Open, session: &SessionRecord) -> Result<(), PortError> {
+    let mut batch = Batch::new(open);
+    batch.remove(&open.library, practice_key(session.id));
+    if session.canvas != 0 {
+        remove_project(open, &mut batch, ProjectId::new(session.canvas))?;
+    }
+    batch.commit()
+}
+
+/// Every record of project `id` removed: its own, its catalogue entry, its kept versions, and
+/// `last` if it names it.
+fn remove_project(open: &Open, batch: &mut Batch, id: ProjectId) -> Result<(), PortError> {
     for guard in open.projects.prefix(project_prefix(id)) {
         batch.remove(&open.projects, guard.key().map_err(device)?);
     }
@@ -249,7 +266,7 @@ pub(crate) fn delete(open: &Open, id: ProjectId) -> Result<(), PortError> {
     if last.is_some_and(|last| decode_id(&last, "last project").ok() == Some(id.get())) {
         batch.remove(&open.library, LAST);
     }
-    batch.commit()
+    Ok(())
 }
 
 fn write_delta(open: &Open, batch: &mut Batch, id: ProjectId, base: &Artwork, artwork: &Artwork) {

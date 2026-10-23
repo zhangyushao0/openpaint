@@ -47,4 +47,11 @@ internal object DebugControls {
      * one, no picker shown: "opening", or why not.
      */
     @JvmStatic external fun openFile(bytes: ByteArray): String?
+
+    /**
+     * A test practice session beside the author's: [command] `start` starts one from the gallery
+     * ("started <name>" once its sheet shows), `end:<name>` removes that one, its record and
+     * sheet ("removed <name>", or "no such session"). Otherwise why not.
+     */
+    @JvmStatic external fun practiceTest(command: String): String?
 }

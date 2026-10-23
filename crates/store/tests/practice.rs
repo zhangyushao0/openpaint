@@ -1,13 +1,14 @@
 //! Practice records in the library: a session starts with its sheet in one write, its record
 //! round-trips and is replaced whole, its sheet opens as the last artwork but the gallery never
-//! lists it, and the records before practice keep their bytes.
+//! lists it, the records before practice keep their bytes, and a session removed (the
+//! test-session chore's) takes its record and sheet with it and leaves every other byte.
 
 mod common;
 
 use common::{fresh_dir, records, untitled, write_records};
 use openpaint_app::{ProjectStore, Title};
 use openpaint_core::{Artwork, CanvasSize};
-use openpaint_practice::{ExerciseResult, Metric, SessionRecord, Sheet};
+use openpaint_practice::{ExerciseResult, Metric, SessionRecord, Sheet, met};
 use openpaint_store::Library;
 
 fn sheet() -> Artwork {
@@ -30,7 +31,7 @@ fn a_session_round_trips_with_its_sheet_hidden_from_the_gallery() {
         dir.clone()
     });
     let mut library = Library::at(&dir);
-    let session = SessionRecord::stage_one(1, 1, 0x5EED_0045, 1_791_201_600);
+    let session = SessionRecord::stage_one(1, 1, 0x5EED_0045, 1_791_201_600, &[]);
     let title = Title::new("Practice 1").expect("title");
     let id = library
         .start_practice(&sheet(), &title, &session)
@@ -80,10 +81,77 @@ fn a_session_round_trips_with_its_sheet_hidden_from_the_gallery() {
 }
 
 #[test]
+fn a_session_removed_takes_its_record_and_sheet_and_leaves_every_other_byte() {
+    let dir = fresh_dir("practice-removed");
+    let mut library = Library::at(&dir);
+    library
+        .create(
+            &Artwork::new(CanvasSize::new(64, 48).expect("size")),
+            &untitled(),
+        )
+        .expect("an artwork");
+    // The author's session, part done, then the gallery.
+    let mut theirs = SessionRecord::stage_one(1, 1, 0x5EED_0045, 1_791_201_600, &[]);
+    let title = Title::new("Practice 1").expect("title");
+    let sheet_id = library
+        .start_practice(&sheet(), &title, &theirs)
+        .expect("started");
+    theirs.canvas = sheet_id.get();
+    library.save(sheet_id, &sheet()).expect("their sheet saved");
+    theirs.current = 3;
+    theirs
+        .results
+        .push(ExerciseResult::first(0, 1_791_201_700, 2, Vec::new()));
+    library.save_practice(&theirs).expect("their record");
+    library.close().expect("the gallery");
+    drop(library);
+    let before = records(&dir);
+
+    // A test session beside it, worked on, then removed.
+    let mut library = Library::at(&dir);
+    let sessions = library.practice().expect("practice");
+    let mut test = SessionRecord::stage_one(2, 2, 77, 1_791_202_000, &met(&sessions));
+    assert_eq!(
+        test.warm_up, 4,
+        "beside the author's, as their next would be"
+    );
+    let test_title = Title::new("Practice 2").expect("title");
+    let test_id = library
+        .start_practice(&sheet(), &test_title, &test)
+        .expect("started");
+    test.canvas = test_id.get();
+    library
+        .save(test_id, &sheet())
+        .expect("the test sheet saved");
+    test.current = 5;
+    library.save_practice(&test).expect("the test record");
+    library
+        .keep_version(test_id, 1_791_202_100)
+        .expect("a version, were one kept");
+    library.remove_practice(&test).expect("removed");
+    assert_eq!(library.practice().expect("practice"), vec![theirs.clone()]);
+    assert!(library.load(test_id).is_err(), "its sheet is gone");
+    drop(library);
+    let after = records(&dir);
+    // Only the change counter and the next project id moved on.
+    let counter = |(keyspace, key, _): &&(String, Vec<u8>, Vec<u8>)| {
+        keyspace == "library" && (key == b"clock" || key == b"next")
+    };
+    let kept = |all: &[(String, Vec<u8>, Vec<u8>)]| -> Vec<(String, Vec<u8>, Vec<u8>)> {
+        all.iter().filter(|r| !counter(r)).cloned().collect()
+    };
+    assert_eq!(
+        kept(&after),
+        kept(&before),
+        "every other record byte for byte"
+    );
+}
+
+#[test]
 fn a_practice_record_that_cannot_be_read_is_left_out() {
     let dir = fresh_dir("practice-damaged");
     let mut library = Library::at(&dir);
-    let session = SessionRecord::stage_one(1, 1, 3, 0);
+    let session = SessionRecord::stage_one(1, 1, 3, 0, &[]);
     let title = Title::new("Practice 1").expect("title");
     library
         .start_practice(&sheet(), &title, &session)

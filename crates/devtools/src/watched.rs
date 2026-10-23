@@ -161,4 +161,8 @@ impl ProjectStore for Watched {
     fn save_practice(&mut self, session: &SessionRecord) -> Result<(), PortError> {
         self.on(|library| library.save_practice(session))
     }
+
+    fn remove_practice(&mut self, session: &SessionRecord) -> Result<(), PortError> {
+        self.on(|library| library.remove_practice(session))
+    }
 }

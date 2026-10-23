@@ -8,6 +8,7 @@
 //! and compared.
 
 use openpaint_app::{Intent, PracticeIntent};
+use openpaint_practice::Family;
 
 use super::Watch;
 use super::hand::to_screen;
@@ -23,7 +24,7 @@ const WHEEL_MS: i64 = 1000;
 impl Runtime {
     /// `practice`: see the module.
     pub(crate) fn bench_practice(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
-        let line = self.projection().practice().is_some_and(|p| p.line);
+        let line = (self.projection().practice()).is_some_and(|p| p.family == Some(Family::Line));
         if !line {
             return Err(RuntimeError::NotNow("a practice sheet open at a line"));
         }
@@ -75,7 +76,9 @@ impl Runtime {
     /// The session taken on to its first colour (its instructions closed), the inline wheel's
     /// square dragged round, Fill frame and Compare: a line each.
     fn bench_colour(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
-        let colour = |runtime: &Self| runtime.projection().practice().is_some_and(|p| !p.line);
+        let colour = |runtime: &Self| {
+            (runtime.projection().practice()).is_some_and(|p| p.family == Some(Family::Colour))
+        };
         let mut watch = Watch::paced(self);
         while !colour(self) {
             let viewport = self.bench_viewport()?;

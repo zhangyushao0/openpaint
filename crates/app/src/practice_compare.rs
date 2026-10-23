@@ -1,7 +1,8 @@
 //! Compare on a practice sheet (D99): the original laid over the copy as the copy is now, as often
-//! as the hand asks, with nothing judged but colours. A line's original lies in place (where it
-//! lies in its frame, so placement shows) or aligned (moved and evenly sized onto the copy's best
-//! fit, `openpaint_practice::align`, so the shape alone shows); a copy no fit can be found for is
+//! as the hand asks, with nothing judged but colours. A line's original, or a group of combined
+//! lines, lies in place (where it lies in its frame, so placement shows) or aligned (moved and
+//! evenly sized onto the copy's best fit, the group's lines fitted together as one shape,
+//! `openpaint_practice::align`, so the shape alone shows); a copy no fit can be found for is
 //! shown in place in both. A colour's swatch and the colours laid swap frames.
 //!
 //! The first Compare stores the exercise's result: when, the sheet's next stroke id (every stroke
@@ -52,13 +53,14 @@ impl PracticeSheet {
         let frame = self.sheet.pairs[index].copy;
         let nothing = || unavailable(Availability::NothingLeft);
         let compared = match &self.sheet.originals[index] {
-            Original::Line(line) => {
+            Original::Lines(lines) => {
                 if !holds_copy(artwork, &frame) {
                     return Err(nothing());
                 }
                 let pieces = line_pieces(artwork, &frame, &self.pens);
                 let pieces: Vec<&[Point]> = pieces.iter().map(Vec::as_slice).collect();
-                Compared::Line(align(&line.points, &pieces).unwrap_or(Fit::SAME))
+                let lines: Vec<&[Point]> = lines.iter().map(Vec::as_slice).collect();
+                Compared::Line(align(&lines, &pieces).unwrap_or(Fit::SAME))
             }
             Original::Colour(original) => {
                 let picks = colour_copy(artwork, &frame).picks;
@@ -101,7 +103,7 @@ impl PracticeSheet {
             Original::Colour(rgb) => (score_colour(*rgb, &colour_copy(artwork, &frame)))
                 .map(|score| score.metrics())
                 .unwrap_or_default(),
-            Original::Line(_) => Metrics::new(),
+            Original::Lines(_) => Metrics::new(),
         }
     }
 
@@ -113,7 +115,7 @@ impl PracticeSheet {
         artwork: &Artwork,
         selection: Option<&RegionMask>,
     ) -> Result<RegionMask, AppError> {
-        let colour = (self.current()).is_some_and(|index| !self.is_line(index));
+        let colour = (self.current()).is_some_and(|index| !self.drawn(index));
         let clip = self.clip.as_ref().filter(|_| colour);
         let Some(clip) = clip else {
             return Err(unavailable(Availability::NothingLeft));
@@ -139,10 +141,11 @@ impl PracticeSheet {
     pub(super) fn overlay(&self, index: usize) -> Option<Overlay> {
         let frame = self.pair(index)?.copy;
         match (self.compared.as_ref()?, &self.sheet.originals[index]) {
-            (Compared::Line(fit), Original::Line(line)) => {
+            (Compared::Line(fit), Original::Lines(lines)) => {
                 let fit = if self.aligned { *fit } else { Fit::SAME };
                 let canvas = |p: &Point| frame.to_canvas(fit.apply(*p)).map(|v| v as f32);
-                Some(Overlay::Line(line.points.iter().map(canvas).collect()))
+                let laid = lines.iter().map(|line| line.iter().map(canvas).collect());
+                Some(Overlay::Lines(laid.collect()))
             }
             (
                 Compared::Colour {

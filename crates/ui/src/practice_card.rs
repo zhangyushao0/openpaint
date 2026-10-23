@@ -1,16 +1,17 @@
-//! What the practice card says: how to practise each kind (our own words after V大's method:
+//! What the practice card says: how to practise each family (our own words after V大's method:
 //! look first, mark the ends and the most bent points, draw in one sure stroke, correct over
-//! rather than erase; name a colour, pick once by eye, compare and correct two or three times),
-//! a comparison (a line: in place or aligned, no numbers; a colour: both on the wheel with the
-//! way from yours to the original, its differences in V大's words), and a session's summary (the
-//! colour judgement's radar over the earlier sessions', the colour means beside theirs). The
-//! words are `text/practice.rs`'s, in the pass's language.
+//! rather than erase; combined lines seen as one shape, the outer key points first, then the
+//! inside, compared rather than guessed; name a colour, pick once by eye, compare and correct two
+//! or three times), a comparison (lines: in place or aligned, no numbers; a colour: both on the
+//! wheel with the way from yours to the original, its differences in V大's words), and a
+//! session's summary (the colour judgement's radar over the earlier sessions', the colour means
+//! beside theirs). The words are `text/practice.rs`'s, in the pass's language.
 
 use openpaint_app::{Hsv, Intent, Language, Overlay, Pen, PracticeIntent, PracticeProjection};
 use openpaint_core::Color;
 use openpaint_practice::{
-    Axis, Difference, KindSummary, LEAST_CHROMA, Metric, Rgb8, chroma, hsv, hue_name, hue_towards,
-    value,
+    Axis, Difference, Family, KindSummary, LEAST_CHROMA, Metric, Rgb8, chroma, hsv, hue_name,
+    hue_towards, value,
 };
 
 use crate::components::{
@@ -25,9 +26,9 @@ const COMPARE_WHEEL: f32 = 280.0;
 /// Degrees of hue past which a pick is another hue altogether, named rather than compared.
 const OTHER_HUE: f64 = 45.0;
 
-/// The instructions for lines (or colours); returns whether Got it was tapped.
-pub(crate) fn instructions(ui: &mut egui::Ui, lines: bool) -> bool {
-    let (heading, text) = t::instructions(lines);
+/// The instructions for a family; returns whether Got it was tapped.
+pub(crate) fn instructions(ui: &mut egui::Ui, family: Family) -> bool {
+    let (heading, text) = t::instructions(family);
     ui.heading(Words::from(heading).shown(ui.ctx()));
     for line in text {
         card_text(ui, line, false);
@@ -40,19 +41,26 @@ pub(crate) fn instructions(ui: &mut egui::Ui, lines: bool) -> bool {
 
 /// The shown exercise as compared.
 pub(crate) fn compared(ui: &mut egui::Ui, practice: &PracticeProjection, taps: &mut Vec<Intent>) {
-    let (place, _) = practice.place;
+    let Some(family) = practice.family else {
+        return;
+    };
+    let called = (family, practice.warming_up);
+    let heading = t::exercise(language(ui.ctx()), called, practice.place.0);
     match &practice.overlay {
-        Some(Overlay::Line(_)) => line(ui, practice, place, taps),
+        Some(Overlay::Lines(_)) => {
+            ui.heading(heading);
+            lines(ui, practice, family == Family::Combined, taps);
+        }
         Some(Overlay::Colour { original, last, .. }) => {
-            colour(ui, practice, place, (*original, *last));
+            ui.heading(heading);
+            colour(ui, practice, (*original, *last));
         }
         None => {}
     }
 }
 
-/// Line `place` compared: in place or aligned, and how to go on.
-fn line(ui: &mut egui::Ui, practice: &PracticeProjection, place: usize, taps: &mut Vec<Intent>) {
-    ui.heading(t::exercise(language(ui.ctx()), true, place));
+/// Lines compared (a `group` of them, or one): in place or aligned, and how to go on.
+fn lines(ui: &mut egui::Ui, practice: &PracticeProjection, group: bool, taps: &mut Vec<Intent>) {
     ui.horizontal(|ui| {
         choices(ui, "overlay", |ui, group| {
             for (aligned, word) in [(false, t::IN_PLACE), (true, t::ALIGNED)] {
@@ -63,31 +71,16 @@ fn line(ui: &mut egui::Ui, practice: &PracticeProjection, place: usize, taps: &m
             }
         });
     });
-    let shows = if practice.aligned {
-        t::SHOWS_ALIGNED
-    } else {
-        t::SHOWS_IN_PLACE
-    };
-    card_text(ui, shows, false);
     let blue = practice.pen.is_some_and(|(pen, _)| pen == Pen::Correct);
-    let next = if blue {
-        t::CORRECT_IN_BLUE
-    } else {
-        t::CORRECT_OVER
-    };
+    let [shows, next] = t::compared_lines(group, practice.aligned, blue);
+    card_text(ui, shows, false);
     card_text(ui, next, true);
 }
 
-/// Colour `place` compared: the colour laid now (`last`) and the `original` on the wheel, the
-/// way from one to the other in words, and the numbers stored at the first Compare.
-fn colour(
-    ui: &mut egui::Ui,
-    practice: &PracticeProjection,
-    place: usize,
-    (original, last): (Rgb8, Rgb8),
-) {
+/// A colour compared: the colour laid now (`last`) and the `original` on the wheel, the way from
+/// one to the other in words, and the numbers stored at the first Compare.
+fn colour(ui: &mut egui::Ui, practice: &PracticeProjection, (original, last): (Rgb8, Rgb8)) {
     let language = language(ui.ctx());
-    ui.heading(t::exercise(language, false, place));
     let as_hsv = |rgb: Rgb8| {
         let [r, g, b] = rgb.map(|c| f32::from(c) / 255.0);
         Color::rgb(r, g, b).map_or(
@@ -170,10 +163,10 @@ pub(crate) fn summary(ui: &mut egui::Ui, practice: &PracticeProjection, kinds: &
     let language = language(ui.ctx());
     ui.heading(t::session_done(language, practice.number));
     for kind in kinds {
-        let line = t::compared_of(language, kind.lines, (kind.checked, kind.held));
+        let line = t::compared_of(language, kind.family, (kind.checked, kind.held));
         card_text(ui, Words::made(&line), false);
     }
-    let Some(colours) = kinds.iter().find(|kind| !kind.lines) else {
+    let Some(colours) = kinds.iter().find(|kind| kind.family == Family::Colour) else {
         return;
     };
     if let Some([this, before]) = colours.judgement {
