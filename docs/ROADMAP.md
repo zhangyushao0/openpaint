@@ -85,15 +85,7 @@ The author, 2026-10-23: practice is their main activity now. The app gets a prac
   - The walk-through as a passing scenario, in both languages.
   - The geometry tested: the exact boxes, the extensions, the line and ellipse fits on known shapes.
   - On the tablet: a test session walked, Compare at the display's rate, the smoke, and the library restored last.
-- S85 The composition pack, in parallel with S84 (a worktree: the builder's lists and kinds only, no UI). The pictures week 3 on needs: paintings and photographs with strong composition, clear colour and clear value structure, for picture division, Notan, whole-picture copies, colour copies and abstract analysis.
-  - **Sources.**
-    - Public-domain paintings from the Met, the Art Institute of Chicago, the National Gallery of Art and the Rijksmuseum (CC0 or PD), each item's licence read from its API.
-    - Frames of Blender's open films, CC BY with attribution, where a frame is a clear composition.
-  - **Selection.** About 60 items, each looked at on a contact sheet for a readable large structure: few big shapes, a clear focal point, both strong and weak contrasts, low-saturation colour as well as bright. The reasons are kept in the list.
-  - **A kind of its own** (`Composition`) in the pack model, with tiers by complexity.
-  - **No outlines** for compositions: their comparison is the picture in place.
-
-  Done: the pack built and rebuilt to the same bytes, every licence checked, every sheet looked at, no picture committed.
+- S85 The composition pack is done (D101; merged from a worktree beside S84): `openpaint-compositions`, 61 pictures for week 3 on (simple 21: two or three big masses and a focal point; medium 22: four to six masses in three values; hard 18: crowds, figures in space, close values), 48 public-domain paintings from the Art Institute of Chicago, the Met, the National Gallery of Art and the Rijksmuseum and 13 stills of 8 Blender open films (CC BY), each licence read from its source and each picture chosen on a contact sheet with its reason in the list; a `Composition` kind never outlined; built twice to the same bytes; no exercise uses it yet.
 - Next, each specified after the one before lands:
   - Point positioning, proportion and angle estimates (stage 3).
   - Picture division, Notan and whole-picture copies.
@@ -178,3 +170,4 @@ Slices S0 to S72 and the stage exits: `docs/archive/ROADMAP-2026-10.md`.
 - S82 2026-10-23 `feat(practice): colour combinations, value scales and the long colour copy (S82)`; `practice/src/areas*.rs`, `scale.rs`, `session.rs`, `app/src/practice_read.rs`, `practice_log.rs`, `render` `read_region`, `ui/src/practice_paint_marks.rs`, `practice_card_colour.rs`, `practice-test start copy`, D104, `s82-colour-work`; on the tablet 1.5.0, a test session and copy walked, `bench practice`, the smoke 16.9 s
 - S83 2026-10-23 `feat(practice): copies of a chosen picture, My pictures by tier, undo kept to the exercise, scales on Oklab lightness (S83)`; `practice/src/sheet.rs`, `scale.rs`, `pictures.rs`, `app/src/practice_today.rs`, `History::keep_only_current`, `runtime/src/compare.rs`, `pack_pictures.rs`, `ui/src/gallery_pictures.rs`, `gallery_copies.rs`, `render` `export_region` and the blit's bilinear tier, D105, `s83-practice-polish`; on the tablet 1.5.1, `bench practice` before and after, a test copy, the smoke 16.8 s
 - S81 2026-10-23 `feat(harness): …outlines from a segmentation model in the pack builder (S81)`; merged beside S82 and S83; 126 of 126 outlined (60 before), every sheet looked at, 7 items replaced, two builds byte-identical, the outline tests on the matte path, every scenario hash unchanged
+- S85 2026-10-23 `feat(harness): the composition pack from four museums and Blender's films, a picture kind compared in place (S85)`; merged beside S84; `pack/nga.rs`, `rijks.rs`, AIC in `sources.rs`, Commons stills, `PictureKind::Composition`, `compositions.toml`; a wrong licence fails per new source, no outline step for a composition, two builds byte-identical, the shapes pack rebuilt byte-identical, the gate
