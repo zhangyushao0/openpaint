@@ -282,14 +282,6 @@ licence = "CC BY 4.0"
 reason = "an upside-down figure: the body read by its gesture"
 
 [[item]]
-id = "big-buck-bunny"
-tier = "entry"
-source = "commons"
-object = "File:Peach Bunny Poster.jpg"
-licence = "CC BY 3.0"
-reason = "a whole cartoon figure, shaded in 3D, on a plain gradient"
-
-[[item]]
 id = "coriander"
 tier = "entry"
 source = "commons"
@@ -298,20 +290,12 @@ licence = "CC BY 4.0"
 reason = "a whole standing character on a plain ground: hat, coat and boots"
 
 [[item]]
-id = "dragon-economist"
-tier = "entry"
-source = "commons"
-object = "File:2020-01-28 red-dragon-economist-from-komona by-David-Revoy.jpg"
-licence = "CC BY 4.0"
-reason = "a standing cartoon dragon in a suit holding a scroll"
-
-[[item]]
 id = "eir"
-tier = "entry"
+tier = "hard"
 source = "commons"
 object = "File:Eir character.png"
 licence = "CC BY 3.0"
-reason = "a whole fantasy figure with a staff on white: the tier's most detailed"
+reason = "a whole fantasy figure with a staff on white: intricate armour and robes, a hard silhouette"
 
 # Simple
 
@@ -1054,11 +1038,3 @@ source = "commons"
 object = "File:The deployable, inflatable wing technology demonstrator experiment aircraft maintains a steady attitude following separation from its carrier aircraft during a flight conducted by the NASA Dryden Flight Research Center, (EC01-0136-12).jpg"
 licence = "PD-US-gov"
 reason = "a small aircraft on a deep blue sky"
-
-[[item]]
-id = "lunar-rover"
-tier = "hard"
-source = "commons"
-object = "File:NASA Apollo 17 Lunar Roving Vehicle.jpg"
-licence = "PD-US-gov"
-reason = "wheels, frame and antenna on the plain lunar ground"

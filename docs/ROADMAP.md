@@ -61,30 +61,7 @@ The author, 2026-10-23: practice is their main activity now. The app gets a prac
 - S75 Practice foundation is done (1.1.0): the Today card; sessions of 10 single lines and 8 single colours on a sheet the app lays out, a project the gallery never lists, its originals drawn by the screen (D98); the pen's own samples, clipped to the empty frame; Compare's overlay and numbers, stored once; Next keeping the zoom; the summary against earlier sessions; One more; records beside the artworks under format 1 (`openpaint-practice` the math). Generators the same per seed, metrics right on known cases, records round-tripping; 46 scenarios with every hash before unchanged; on the tablet a session walked through, How's card at 92 to 94 % of the vsyncs and Next's glide at 80 to 84 % (`bench practice`), the smoke 16.8 s.
 - S76 Compare by overlay, and tools by the exercise is done (1.1.1) but for its tablet session (the author, 2026-10-23, after the first sessions; D99): no numbers for lines (card, summary, records; the line metrics' code deleted, old codes passed over); Compare as often as asked, the original thick and semi-transparent red in place or aligned onto the copy (`practice::align`), never locking; the pen blue after Compare, corrections marked in the records; colours on the wheel with arrows and in words, the summary's colour-judgement radar; the exercise's own tools beside its frame (pens, undo, redo; the inline wheel with Fill frame) and All tools one tap away. The alignment recovers known shifts and scales; `s76-practice` passes, 47 scenarios with every hash before unchanged but `s75-practice`'s (a stroke after Compare now corrects); on the tablet the smoke 16.8 s and the library restored, the session and `bench practice` not_run (STATUS pending 28).
 - S77 Two languages is done (1.2.0; D100): every word in the UI's text tables, English and Chinese side by side, the practice's in V大's terms; a control named by its English in both; the names the app gives shown in the language; Actions' Language row, kept with the toolbox, the system's locale until chosen; Chinese card text line-broken by the UI; `cargo repo-check` refuses words outside the tables. `s77-languages` walks every screen in Chinese with English runs' hashes, switches and reopens; 48 scenarios with every hash before unchanged; on the tablet Chinese screenshots, `bench ui` 94 to 99 %, the smoke 16.9 s, the practice session not_run (the author's open).
-- S78 Practice packs, in parallel with S77 (a worktree; no UI). Goal: the pictures practice needs, legally clean, built by a tool and read by the app, with no picture in the repository. Scope:
-  - **The pack format.** A pack is one file holding a manifest and its images, the format versioned. Each item carries:
-    - an id and a kind with its tier;
-    - the image, its long side at most 2048 px;
-    - its source page and creator;
-    - its licence and the attribution text the licence asks for;
-    - notes.
-    The store reads and writes packs, and they are imported beside the library.
-  - **The builder** (`cargo practice-pack`, harness).
-    - It reads a curated source list kept in the repository: ids, URLs, tiers and expected licences, no images.
-    - It fetches each item through the museum's or Commons' API, checks the licence the API states against the list, downscales, and writes the pack under `artifacts/packs/`.
-    - A licence that disagrees fails the build and names the item.
-  - **The first official pack: single shapes in four tiers.**
-    - **Entry:** cartoon characters and creatures, CC BY with attribution or CC0 (Pepper&Carrot, Blender's open films, OpenGameArt).
-    - **Simple:** objects with clean outlines on plain studio backgrounds (Cleveland CC0, the Met CC0).
-    - **Medium:** animals, sculpture and everyday things (US federal public domain, museum CC0).
-    - **Hard:** complex structure, heads and machines (museum CC0, NASA public domain).
-    - About 30 to 40 items a tier, each looked at and chosen for a clear silhouette and an uncluttered background; the reasons for a tier are kept in the list.
-  Done:
-  - Packs round-trip in the store.
-  - The builder rebuilds the same pack from the same list, given the same downloads.
-  - Every item's licence is checked.
-  - A contact sheet per tier is looked at.
-  - No picture, and no third-party text beyond titles and attributions, is committed.
+- S78 Practice packs is done (D101; merged from a worktree beside S77): a pack is one checked file of a manifest and its pictures kept beside the library; `cargo practice-pack build|search` makes it from a curated list in the repository, every licence read from the source's API (a mismatch fails naming the item), the same list and cache giving the same bytes; the first official pack `openpaint-shapes`, single shapes in four tiers, 127 items (entry 33: Twemoji figures and a Pepper&Carrot character; simple 33: Cleveland and Met objects; medium 30: animal sculpture, dress, US federal fish drawings; hard 31: armour, busts, clocks, guitars, NASA aircraft, a fantasy figure), each chosen on a contact sheet; no picture committed; not yet in the app.
 - S79 Combined lines and the warm-up pool. Tooling first: a debug-only device chore that starts a test practice session beside the author's open one and removes it afterwards, so practice slices walk their sessions on the tablet without touching the author's (STATUS pending 28, the main session's call: option c); S76's tablet session walked with it.
   - Combined lines: generated groups of two to four lines in one frame, compared by overlay as single lines are.
   - The warm-up pool: each session from the second on begins with about 5 minutes drawn from the types already met.
@@ -164,3 +141,4 @@ Slices S0 to S72 and the stage exits: `docs/archive/ROADMAP-2026-10.md`.
 - S75 2026-10-23 `feat(app): practice foundation, sessions of single lines and colours checked against their originals (S75)`; `openpaint-practice`, D98, `s75-practice`, `bench practice`; on the tablet 1.1.0, a session walked through, the smoke 16.8 s
 - S76 2026-10-23 `feat(app): compare by overlay, no numbers for lines, the tools by the exercise (S76)`; `practice::align`, `judgement.rs`, `PracticePens`, `practice_tools.rs`, D99, `s76-practice`, `bench practice` extended; on the tablet 1.1.1, the smoke 16.8 s, the session not_run
 - S77 2026-10-23 `feat(ui): two languages, every word in the text tables, chosen in Actions (S77)`; `ui/src/text/`, `Words`, `app::Language`, the editor record's language byte, `xtask` words check, D100, `s77-languages`; on the tablet 1.2.0 in Chinese, `bench ui`, the smoke 16.9 s, the session not_run
+- S78 2026-10-23 `feat(store): practice packs, one file of a manifest and its pictures kept beside the library, built from a curated list with every licence checked (S78)`; merged beside S77; packs round-trip, every changed byte refused, a pack beside the format-1 sample leaves its records byte-identical; a rebuild from the cache gives the same bytes; a wrong licence fails naming the item; the main session then dropped a poster with a tagline, a busy painted scene and a lunar scene and moved one figure to hard (127 items)

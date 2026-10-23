@@ -56,11 +56,6 @@ Only decisions that constrain the code now and are not self-evident, each statin
 - Reason: no Android `EditText` over the surface (a second UI toolkit, D11).
 - Consequences: a new text field needs nothing in the host; dialogs that type sit under the islands, above the keyboard.
 
-## D37 2026-10-03 ColorDrop: draweave's flood and gestures; previews off the UI thread; the threshold is session state
-- Decision: `openpaint-raster::connected_region` floods four neighbours from the seed against the seed's colour (max channel difference of premultiplied RGBA8, limit threshold x 255, 0.6 at first), plus one 8-neighbour edge ring where the distance keeps rising; no gap closing. The source is the target (paint or mask) alone, sampled once per fill gesture on the `openpaint-fill` worker. The session hands out only its newest request; the last preview stays shown and is never a history step; a commit is one step. Hidden or locked layers refuse (`LayerRefusal`); Alpha Lock paints atop.
-- UI (`color_drop.rs`): from the colour button, active after 8 pt, anchored after 0.4 s still, the threshold slides with the hand; a drop over a control or off the canvas cancels; Continue filling after a drop.
-- Consequences: a full-canvas flood takes about 145 ms on the tablet; a pencil's grain stops a low-threshold fill.
-
 ## D38 2026-10-03 Accumulating deposits on a canvas-fixed paper, after draweave's tuned pencil
 - Decision: a recipe deposits by `Cover` (the largest coverage: crossings never darken) or `Accumulate` (tip flat or bell, flow, max density, optional paper): an accumulating span adds optical density, its tip's cross-section integrated over the radii travelled times opacity and flow, coverage = max density x (1 - exp(-density)) x grain x opacity, so crossings darken up to the stroke's opacity.
 - Paper (flat tips): ranks fixed to canvas coordinates; contact over pressure touches ridges with rank > 1 - contact; coverage is a five-point Gauss-Hermite expectation over the mean and variance of the ranks under the pixel (a mip chain of moments).
@@ -71,12 +66,6 @@ Only decisions that constrain the code now and are not self-evident, each statin
 - Decision: warm paper (250, 248, 244) islands and panels in a 1.25 pt ink outline (70, 67, 62), no shadows but the canvas's, the white canvas on a greyer desk (233, 230, 224), ink (38, 37, 35) text and icons, the active state an ink ring, pill or row outline in a deeper ink (22, 28, 44), never a filled block. Nothing spans the width: Gallery, Actions, Adjustments, Selection and Transform float top left, Brush, Smudge, Eraser, Layers and the colour top right, the side bar at the left edge; notices, bars and the zoom are pills in the 48-point top band; the canvas shows on the whole screen and fits under the band. Text is the system's sans (Roboto, Noto Sans CJK) at weight 400, 18-point body, found by the host in `/system/etc/fonts.xml`. Restraint: UI appears when needed; a hidden shortcut only duplicates a visible control.
 - Reason: the author's chosen style (a calm sketchbook page, no dark chrome).
 - Consequences: one theme in `ui/src/design/`; the pen's hover outline is drawn in the screen blit, black or white per pixel.
-
-## D41 2026-10-03 The eyedropper previews in a loupe and commits on lift; outlines while pressing; a gesture-driven reference window
-- Decision: while a contact picks (canvas or reference picture, pen or finger) the colour under it is a preview shown in draweave's loupe (76 pt, up and right of the contact, below it near the top; the preview over the current colour); the lift commits the last preview, never a colour where the contact drifted; a lift with no preview keeps the eyedropper on.
-- Outlines: hovering shows the brush's full-size outline; pressed, the brush shows none and the eraser its outline at the stroke's pressure radius (`render::tip_radius`); both hide over controls and with a finger down.
-- Reference window: no title bar; a tap toggles a slim bar (grip, ×) and a corner resize mark, hidden after 3 s; its contacts are routed before the canvas; one finger pans and two pinch (1x to 8x) the picture; the pen never paints there; place, size and zoom are session state.
-- Consequences: a contact crossing between the canvas and the reference samples only where it started.
 
 ## D43 2026-10-03 A stroke drawn inside a selection stores its clip mask; fills are cut to it
 - Decision: a selection is a `core::RegionMask` (pixel centres inside the closed polygon, even-odd; union, intersect, invert). A stroke begun while a selection exists keeps it as its clip, a hard edge, so it changes nothing outside; consecutive strokes share one mask in memory and after loading. A fill inside a selection stores the flood intersected with it; a drop outside is refused.
@@ -290,3 +279,11 @@ Only decisions that constrain the code now and are not self-evident, each statin
 - Text: the host's Roboto, then Noto Sans CJK (D40), unchanged; a card's Chinese paragraph is broken by the UI (epaint would start a line with a full-width comma or colon): marks that never begin a line stay with what comes before, Latin words and numbers whole.
 - Reason: the author (2026-10-23): the whole UI in Chinese or English, switched in the app.
 - Consequences: a new word is a table entry in both languages or the check fails; a third language is a field on every entry; names the user typed are never translated.
+
+## D101 2026-10-23 Practice packs: the app ships no third-party picture; pictures come only in packs, each item's licence checked against its source's API
+- File (`store/src/pack.rs`): `OpenPaintPack\0`, its own `PACK_FORMAT` 1 (packs travel apart from libraries), a head (the manifest; each picture's length and CRC-32) with its CRC-32, then PNG or JPEG pictures, long side at most 2048; records with check sums as D62, no archive crate. Model in `practice/src/pack.rs`, `licence.rs`: items, `PictureKind`, four tiers, `ItemRef { pack, item }`, `Pack::check`.
+- Kept (`Packs::at`): `<dir>/<pack id>.pack` beside the library, checked whole on import and renamed into place (a newer edition replaces it); lists read heads, an exercise reads one picture at its offset; the library's records untouched.
+- Licences: CC0, PD-US-gov, PD-old, CC BY 4.0/3.0/2.5/2.0 only; no share-alike, no non-commercial; codes fixed for good.
+- Builder (`cargo practice-pack build|search`, harness, ureq 3.5.0 there only): a curated TOML list in the repository (`apps/harness/packs/`) names each object, its expected licence and the reason for its tier; the licence comes from the API's own field (Cleveland `share_license_status`, the Met `isPublicDomain`, Commons' licence and PD templates) and a mismatch fails naming the item; downloads cached under `artifacts/packs/cache/`, so the same list and cache give the same bytes; every item looked at on a contact sheet first. Requests carry the repository's URL, never a person's address.
+- Reason: the app will be released publicly (the author, 2026-10-23).
+- Consequences: a CC BY item's attribution shows with its picture in the UI; a pack layout change is a new `PACK_FORMAT`; nothing third-party is committed but titles and attributions.

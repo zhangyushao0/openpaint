@@ -4,7 +4,7 @@ Updated 2026-10-23 (1.2.0). Current facts only; rewritten at the end of every sl
 
 ## Stage
 
-OpenPaint 1.x (format 1) is on the tablet: G0 to G7 passed (ROADMAP), the 1.0 slices are done, and the author paints with it daily; "1.x Daily use" slices follow as the author finds them. G9 Practice: S75 Practice foundation, S76 Compare by overlay and tools by the exercise and S77 Two languages are done (1.2.0; S76's and S77's tablet sessions not_run, pending 28); S78 (practice packs, in parallel) is to be merged, then S79 (combined lines, the warm-up pool and a test-session chore). G8 projects are the author's call.
+OpenPaint 1.x (format 1) is on the tablet: G0 to G7 passed (ROADMAP), the 1.0 slices are done, and the author paints with it daily; "1.x Daily use" slices follow as the author finds them. G9 Practice: S75 Practice foundation, S76 Compare by overlay and tools by the exercise and S77 Two languages are done (1.2.0; S76's and S77's tablet sessions not_run, pending 28); S78 Practice packs is done (D101; the first official pack, single shapes, built locally and not yet in the app); S79 (combined lines, the warm-up pool and a test-session chore) is next. G8 projects are the author's call.
 
 ## Working features
 
@@ -71,6 +71,7 @@ GPU memory after the a4's zoom round and strokes: the caches at most 673 MB (can
 
 ## Known limits
 
+- Practice packs (S78): no import UI, app port or Android packs directory yet (S80); the entry tier is mostly Twemoji figures (1280-px renders, titled by file code), open-licence full-figure cartoon art being scarce; the builder needs the network on a cache miss; a non-pack file reads as a corrupt practice pack.
 - Painting speed: while the GPU's clocks are low a small brush's frames come every other vsync (event to present p50 15 to 18 ms; 10 to 13 with the clocks up): no frame starts while the one before is unfinished, and the screen pass ends about 9.5 ms after a frame begins. An in-progress smudge draws its new residual tiles' material from its layer every frame, and the lift of a smudge or a clipped stroke builds the scene (13 to 59 ms). A stroke with mirrored copies takes their tiles' snapshots again every frame. Snapshots hold 2 MB a 256-px tile. Presentation reaches the glass about 3.4 vsyncs after the frame is queued.
 - The interface's frames: the layer panel's first opening over a dense artwork waits for its pictures (each layer drawn whole on a worker; a smudge's or a filter's material in it is one GPU piece of up to about 45 ms: 77 % of vsyncs and a gap of 10 on the kinds test artwork); a panel's first frame lays out what it shows for the first time (the colour, brush and Actions panels 15 to 20 ms of UI pass, the brush editor 19 ms); a real tap's opening shows one frame of about 20 ms near 0.75 s (the app's own work, cause not found); while the compositor holds the frames before, `present` waits up to a vsync on the main thread (input queues meanwhile).
 - Smudges: cost grows with the radius squared (120 px: p95 70 to 105 ms; large sizes run well under 60 Hz; radii capped at 300 px); a smudge reads only the active layer; reopening or exporting evaluates every smudge once; where the residuals needed together pass what the device binds (about 140 default smudges crossing on the tablet) a frame fails and strokes there re-derive them.

@@ -398,3 +398,17 @@ Superseded decisions moved here whole from `docs/DECISIONS.md`. Written, never r
 - Reason: S21 spent a large share of its time on a 60 Hz criterion for sizes the author rarely uses; criteria written before D33 contradicted it.
 - Consequences: briefs state the floor and a stop rule (one contained attempt, then record and report); ROADMAP slices carry no other performance criteria.
 - Archived 2026-10-22 (S73): a working rule, kept in ROADMAP's rules.
+
+## Archived 2026-10-23 (room for D101; behaviour unchanged, still as the code does it)
+
+## D37 2026-10-03 ColorDrop: draweave's flood and gestures; previews off the UI thread; the threshold is session state
+- Decision: `openpaint-raster::connected_region` floods four neighbours from the seed against the seed's colour (max channel difference of premultiplied RGBA8, limit threshold x 255, 0.6 at first), plus one 8-neighbour edge ring where the distance keeps rising; no gap closing. The source is the target (paint or mask) alone, sampled once per fill gesture on the `openpaint-fill` worker. The session hands out only its newest request; the last preview stays shown and is never a history step; a commit is one step. Hidden or locked layers refuse (`LayerRefusal`); Alpha Lock paints atop.
+- UI (`color_drop.rs`): from the colour button, active after 8 pt, anchored after 0.4 s still, the threshold slides with the hand; a drop over a control or off the canvas cancels; Continue filling after a drop.
+- Consequences: a full-canvas flood takes about 145 ms on the tablet; a pencil's grain stops a low-threshold fill.
+
+## D41 2026-10-03 The eyedropper previews in a loupe and commits on lift; outlines while pressing; a gesture-driven reference window
+- Decision: while a contact picks (canvas or reference picture, pen or finger) the colour under it is a preview shown in draweave's loupe (76 pt, up and right of the contact, below it near the top; the preview over the current colour); the lift commits the last preview, never a colour where the contact drifted; a lift with no preview keeps the eyedropper on.
+- Outlines: hovering shows the brush's full-size outline; pressed, the brush shows none and the eraser its outline at the stroke's pressure radius (`render::tip_radius`); both hide over controls and with a finger down.
+- Reference window: no title bar; a tap toggles a slim bar (grip, ×) and a corner resize mark, hidden after 3 s; its contacts are routed before the canvas; one finger pans and two pinch (1x to 8x) the picture; the pen never paints there; place, size and zoom are session state.
+- Consequences: a contact crossing between the canvas and the reference samples only where it started.
+
