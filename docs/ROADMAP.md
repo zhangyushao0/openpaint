@@ -79,6 +79,21 @@ The author, 2026-10-23: practice is their main activity now. The app gets a prac
   - The licences still checked.
   - The model's licence noted in the decision.
 - S82 Colour combinations, value scales and the long project is done (1.5.0; D104): a colour combination generated per seed (4 to 6 areas as bands, patches or blocks, soft or hard edged, related colours with one contrasting, half low in saturation, one weak and one strong contrast) copied by eye with Fill frame and the pens Big, Small and Soft, compared in place under a slider with each area's pair on the wheel read from the copy's pixels and the weak contrasts made strong drawn red (Oklab distance, validated on known cases); a value scale of 5 to 7 cells between a given dark and light, filled a cell at a time and checked on the wheel's value as bars against the even steps; a long colour copy (色彩临摹) of a pack picture or one's own, a record of its own beside the sessions, opened from the practice options with the full interface and no Next, compared in place under the slider and point by point with the eyedropper; stage 2 as a warm-up of three, 4 shapes, a combination, a scale and a colour (about 27 to 29 minutes). `s82-colour-work` passes in both languages, 51 scenarios with every hash before unchanged; on the tablet a test session and a test copy walked, `bench practice` (a combination's Compare 89 %, its slider 76 %), the smoke 16.9 s, the library restored.
+- S83 Practice polish, in parallel with S81 (the main tree; S81 keeps to the pack builder). What S80 and S82 left that the author would meet in daily use:
+  - **The long copy** chooses its picture: on New copy, a picker of the packs' pictures by tier, plus My pictures, with thumbnails and credits. The options list the copies with their pictures; a copy can be renamed or removed, with a confirmation as the gallery's delete.
+  - **My pictures** are listed with thumbnails. A picture can be removed, and its tier chosen when added or later.
+  - **Undo and redo on a sheet** reach only the exercise shown. Never an earlier one, so a Compare's record is never undone from a later exercise.
+  - **Value scales** are checked on perceptual lightness (Oklab L, the main session's call on STATUS pending 32): even steps as the eye sees them, on coloured scales too.
+  - **Display rate.** The "Original shown" slider runs at the display's rate (76 % of vsyncs in S82), its cause found and fixed.
+  - **Compare's readback** of the copy's pixels runs off the frame loop, as S80's fits do.
+
+  Done:
+  - The walk-through as a passing scenario: a copy started from a chosen picture, renamed, removed; a picture of my own given a tier and removed; undo stopping at the exercise's start; a coloured value scale judged.
+  - Every other hash unchanged.
+  - On the tablet, with test sessions and copies only:
+    - the slider and Compare at the display's rate (`bench practice`);
+    - the smoke;
+    - the library restored last.
 - Next, each specified after the one before lands:
   - Perspective boxes, ellipses, point positioning, proportion and angle estimates.
   - Picture division, Notan and whole-picture copies.
