@@ -59,6 +59,33 @@ The author, 2026-10-23: practice is their main activity now. The app gets a prac
 - **Method notes.** V大's methods, distilled from the course's subtitles, guide every exercise's instructions and checks. They are not in the repository.
 
 - S75 Practice foundation is done (1.1.0): the Today card; sessions of 10 single lines and 8 single colours on a sheet the app lays out, a project the gallery never lists, its originals drawn by the screen (D98); the pen's own samples, clipped to the empty frame; Compare's overlay and numbers, stored once; Next keeping the zoom; the summary against earlier sessions; One more; records beside the artworks under format 1 (`openpaint-practice` the math). Generators the same per seed, metrics right on known cases, records round-tripping; 46 scenarios with every hash before unchanged; on the tablet a session walked through, How's card at 92 to 94 % of the vsyncs and Next's glide at 80 to 84 % (`bench practice`), the smoke 16.8 s.
+- S76 Compare by overlay, and tools by the exercise. The author, 2026-10-23, after the first sessions:
+  - **No numbers for lines.** A number that doesn't match what the eye sees misleads; line metrics may return later as a study of their own. The overlay is the feedback. Marking points and construction lines first is the right process, so nothing judges a first stroke.
+  - **Colour keeps numbers** with a graphic that shows at a glance where it is off.
+  - **The practice UI suits the exercise,** with the full UI always reachable.
+
+  Scope:
+  - **Overlay modes.** Compare overlays the original in two modes, switched with one tap:
+    - in place, the frame as it is, so placement shows, as V大 checks;
+    - aligned, the original moved and sized onto the copy's best fit, so the shape alone shows however far off the placement is.
+  - **The overlay** is thick and clear over any copy, however rough, with nothing to fail.
+  - **The correction pen.** After Compare the pen turns blue. The author corrects over the copy, compares again, and repeats as often as they like, as they practised on paper. Corrections are stored as such. Compare no longer locks an exercise.
+  - **Line numbers go.** Line numbers go from the card, the summary and the records, together with the line metrics' code. The strokes stay stored, so a later study can measure them.
+  - **Colour feedback:**
+    - per exercise, both colours placed on the colour wheel's ring and square, with an arrow from the pick to the original, plus the hue, saturation and value differences and their direction in words;
+    - in the summary, a radar of the colour judgement: hue, saturation and value accuracy, first pick against final, and low-saturation and dark colours.
+  - **Tools by the exercise.** On a sheet the chrome holds only what the exercise uses, placed by it:
+    - lines: a sketch pen (light), a drawing pen, and the correction pen after Compare, with undo and redo;
+    - colours: the wheel and square inline beside the empty frame, picking and filling the frame in one place.
+
+    The full UI is one tap away and back.
+
+  Done:
+  - The walk-through as a passing scenario: compare in place and aligned, correct in blue, compare again, pick and fill a colour from the inline wheel, see the arrow and the radar, open and leave the full UI.
+  - The alignment tested on known shifts and scales.
+  - Every other scenario hash unchanged.
+  - On the tablet: a session walked through, its motions at the display's rate, the smoke, and the library restored last.
+- S77 Two languages. The author, 2026-10-23: the whole UI in Chinese or English, switched in the app. Scope: every user-facing string in one table per language, the practice instructions included, a language setting stored with the toolbox, Chinese text set in a CJK font the host reads (D40), layouts that hold either language's lengths. Done: every screen in both languages without clipping (the scenarios' screenshots in both), the switch kept after reopening, scenario control names stable whichever language shows.
 - Next, each specified after the one before lands:
   - Combined lines and the warm-up pool.
   - Single shapes in four tiers from the first official pack, with the pack tool and local imports.
