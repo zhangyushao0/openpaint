@@ -4,7 +4,8 @@
 //!
 //! - `build <list> [out] [--sheet]`: the pack the list names (`build.rs`), written to `out` or
 //!   `artifacts/packs/<pack id>.pack`, one line per item; with `--sheet` a contact sheet per tier
-//!   beside it (`<pack id>-<tier>.png`), numbered as the lines.
+//!   beside it (`<pack id>-<tier>.png`), numbered as the lines. The outlines' segmentation model
+//!   comes through the same cache (`segment.rs`, 176 MB on the first build).
 //! - `search <cleveland|met|commons> <query> [count]`: candidates and their contact sheet for the
 //!   curator (`search.rs`).
 
@@ -13,6 +14,7 @@ mod commons;
 mod fetch;
 mod list;
 mod search;
+mod segment;
 mod sheet;
 mod sources;
 #[cfg(test)]
@@ -29,6 +31,7 @@ use crate::output::workspace_root;
 use build::{Built, Outlined};
 use fetch::Fetcher;
 use list::{Source, SourceList};
+use segment::Segmenter;
 use sheet::{Mark, Picture, write_sheet};
 
 const USAGE: &str = "practice-pack build <list.toml> [out.pack] [--sheet]\n       \
@@ -69,7 +72,9 @@ fn build_command(rest: &[&str]) -> Result<(), HarnessError> {
         _ => return Err(HarnessError::Missing(USAGE)),
     };
     let list = SourceList::parse(&fs::read_to_string(list)?)?;
-    let built = build::build(&list, &Fetcher::new(packs_dir().join("cache")))?;
+    let fetcher = Fetcher::new(packs_dir().join("cache"));
+    let segmenter = Segmenter::load(&fetcher)?;
+    let built = build::build(&list, &fetcher, &|size, rgba| segmenter.matte(size, rgba))?;
     let out = out.unwrap_or_else(|| packs_dir().join(format!("{}.pack", built.pack.id)));
     if let Some(dir) = out.parent() {
         fs::create_dir_all(dir)?;

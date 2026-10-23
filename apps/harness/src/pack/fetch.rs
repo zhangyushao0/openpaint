@@ -15,8 +15,9 @@ pub const USER_AGENT: &str = concat!(
     env!("CARGO_PKG_VERSION"),
     " (https://github.com/zhangyushao0/openpaint; practice pictures from open-access collections)"
 );
-/// The largest download taken: a museum's print picture or a Commons original.
-const MOST_BYTES: u64 = 120 << 20;
+/// The largest download taken: a museum's print picture, a Commons original or the
+/// segmentation model (`segment.rs`).
+const MOST_BYTES: u64 = 256 << 20;
 /// A pause after every request that reached the network.
 const PAUSE: Duration = Duration::from_millis(150);
 
@@ -116,8 +117,13 @@ pub fn cache_name(source: &str, object: &str, extension: &str) -> String {
 
 /// FNV-1a over the bytes of `text`.
 pub fn fnv(text: &str) -> u64 {
-    text.bytes().fold(0xcbf2_9ce4_8422_2325, |hash, byte| {
-        (hash ^ u64::from(byte)).wrapping_mul(0x0100_0000_01b3)
+    fnv_bytes(text.as_bytes())
+}
+
+/// FNV-1a over `bytes`.
+pub fn fnv_bytes(bytes: &[u8]) -> u64 {
+    bytes.iter().fold(0xcbf2_9ce4_8422_2325, |hash, byte| {
+        (hash ^ u64::from(*byte)).wrapping_mul(0x0100_0000_01b3)
     })
 }
 

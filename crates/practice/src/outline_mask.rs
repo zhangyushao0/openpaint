@@ -145,7 +145,7 @@ const NEIGHBOURS_8: [(isize, isize); 8] = [
 
 /// The pixels not in `object` that the edge reaches through others not in it (4-connected, so
 /// the ground never slips between two object pixels meeting at a corner).
-fn reached_from_edge([width, height]: [usize; 2], object: &[bool]) -> Vec<bool> {
+pub(crate) fn reached_from_edge([width, height]: [usize; 2], object: &[bool]) -> Vec<bool> {
     let mut reached = vec![false; object.len()];
     let mut stack: Vec<usize> = (0..object.len())
         .filter(|&i| {

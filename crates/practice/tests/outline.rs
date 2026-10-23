@@ -4,7 +4,7 @@
 //! must yield none (a busy photo, an object cut by the edge, nothing at all). A derived outline,
 //! filled, covers the true silhouette within a few percent; a refused one is no outline.
 
-use openpaint_practice::{Outline, OutlineRefusal, Random, outline};
+use openpaint_practice::{Matte, Outline, OutlineRefusal, Random, outline, outline_of_matte};
 
 /// A picture being made: 8-bit sRGB with straight alpha.
 struct Canvas {
@@ -249,4 +249,88 @@ fn grounds_that_are_no_ground_give_no_outline() {
         outline([4, 4], &[0; 12]).err(),
         Some(OutlineRefusal::Pixels)
     );
+}
+
+/// A segmentation's matte of `cells` over a picture of `size`, as a model would give it: each
+/// cell's share of `object` (its 4 x 4 samples), so its edge is soft.
+fn matte_of(size: [u32; 2], cells: [u32; 2], object: &dyn Fn(f64, f64) -> bool) -> Matte {
+    let [across, down] = [0, 1].map(|axis| f64::from(size[axis]) / f64::from(cells[axis]));
+    let values = (0..cells[0] * cells[1])
+        .map(|i| {
+            let [x, y] = [f64::from(i % cells[0]), f64::from(i / cells[0])];
+            let samples = (0..16).filter(|s| {
+                let [dx, dy] = [f64::from(s % 4) + 0.5, f64::from(s / 4) + 0.5].map(|d| d / 4.0);
+                object((x + dx) * across, (y + dy) * down)
+            });
+            samples.count() as f32 / 16.0
+        })
+        .collect();
+    Matte {
+        size: cells,
+        values,
+    }
+}
+
+#[test]
+fn a_matte_gives_the_object_its_holes_and_near_parts_without_specks() {
+    let size = [900, 700];
+    let mut canvas = studio(size, 13);
+    let truth = teapot(&mut canvas);
+    // The model also finds the lid's knob apart from the body, and a speck far off.
+    let knob = ellipse(450.0, 222.0, 30.0, 14.0);
+    let speck = ellipse(80.0, 80.0, 6.0, 6.0);
+    let found = |x: f64, y: f64| truth(x, y) || knob(x, y) || speck(x, y);
+    let matte = matte_of(size, [320, 320], &found);
+    let outline = outline_of_matte(size, &canvas.rgba, &matte).expect("an outline");
+    let kept = |x: f64, y: f64| truth(x, y) || knob(x, y);
+    let shared = overlap(&outline, size, &kept);
+    assert!(shared >= 0.97, "the silhouette shares {shared:.3}");
+    assert!(
+        filled(&outline, 450.0, 222.0),
+        "the knob beside it is a part"
+    );
+    assert!(!filled(&outline, 450.0, 242.0), "apart from the body");
+    assert!(!filled(&outline, 80.0, 80.0), "the speck is dropped");
+    assert!(
+        !filled(&outline, 668.0, 380.0),
+        "the handle's loop is a hole"
+    );
+    assert!(
+        !filled(&outline, 470.0, 585.0),
+        "the shadow is not the matte's"
+    );
+}
+
+#[test]
+fn a_clear_ground_keeps_its_alpha_and_a_doubtful_matte_gives_none() {
+    let size = [600, 600];
+    let mut clear = Canvas::new(size, |_, _| [0.0, 0.0, 0.0, 0.0]);
+    let body = ellipse(300.0, 320.0, 160.0, 200.0);
+    clear.lay(&body, &mut |_, _| [200.0, 90.0, 60.0, 255.0]);
+    let elsewhere = matte_of(size, [64, 64], &ellipse(100.0, 100.0, 60.0, 60.0));
+    let outline = outline_of_matte(size, &clear.rgba, &elsewhere).expect("an outline");
+    assert!(
+        overlap(&outline, size, &body) >= 0.98,
+        "the alpha, not the matte"
+    );
+
+    let photo = studio(size, 21);
+    let two = |x: f64, y: f64| {
+        ellipse(160.0, 300.0, 100.0, 140.0)(x, y) || ellipse(470.0, 300.0, 70.0, 90.0)(x, y)
+    };
+    let found = outline_of_matte(size, &photo.rgba, &matte_of(size, [320, 320], &two));
+    assert_eq!(
+        found.err(),
+        Some(OutlineRefusal::Parts),
+        "two objects apart"
+    );
+    let none = matte_of(size, [320, 320], &|_, _| false);
+    let found = outline_of_matte(size, &photo.rgba, &none);
+    assert_eq!(found.err(), Some(OutlineRefusal::Nothing));
+    let wrong = Matte {
+        size: [8, 8],
+        values: vec![1.0; 10],
+    };
+    let found = outline_of_matte(size, &photo.rgba, &wrong);
+    assert_eq!(found.err(), Some(OutlineRefusal::Pixels));
 }

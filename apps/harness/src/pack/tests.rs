@@ -6,7 +6,7 @@ use std::fs;
 use std::path::Path;
 
 use openpaint_app::ImageFormat;
-use openpaint_practice::{Licence, Tier};
+use openpaint_practice::{Licence, Matte, Tier};
 use openpaint_store::{encode_image, encode_pack, open_pack};
 
 use super::build::{Outlined, attribution, build};
@@ -112,6 +112,22 @@ fn cache(name: &str, answers: [String; 3]) -> std::path::PathBuf {
     dir
 }
 
+/// The tests' segmentation: an ellipse filling the middle of any picture, its edge soft.
+fn ellipse_matte(_: [u32; 2], _: &[u8]) -> Result<Matte, HarnessError> {
+    let side = 64u32;
+    let values = (0..side * side)
+        .map(|i| {
+            let [x, y] = [i % side, i / side].map(|v| (f64::from(v) + 0.5) / f64::from(side));
+            let reach = ((x - 0.5) / 0.35).hypot((y - 0.5) / 0.3);
+            ((1.2 - reach) * 2.5).clamp(0.0, 1.0) as f32
+        })
+        .collect();
+    Ok(Matte {
+        size: [side, side],
+        values,
+    })
+}
+
 fn answers() -> [String; 3] {
     [
         cleveland("CC0"),
@@ -125,15 +141,21 @@ fn a_rebuild_from_the_same_list_and_cache_gives_the_same_bytes() {
     let list = SourceList::parse(LIST).expect("the list");
     let dir = cache("pack-cache", answers());
     let fetcher = Fetcher::cache_only(&dir);
-    let built = build(&list, &fetcher).expect("built");
+    let built = build(&list, &fetcher, &ellipse_matte).expect("built");
     let bytes = encode_pack(&built.pack, &built.pictures).expect("encoded");
-    let again = build(&list, &fetcher).expect("built again");
+    let again = build(&list, &fetcher, &ellipse_matte).expect("built again");
     assert!(encode_pack(&again.pack, &again.pictures).expect("encoded") == bytes);
     assert!(
         matches!(&built.outlines[1], Outlined::Listed { why, .. } if why.contains("mark")),
         "the list's mark kept"
     );
     assert!(built.pack.items[1].outline.is_none());
+    assert_eq!(
+        built.outlines[0],
+        Outlined::Kept,
+        "the matte's ellipse outlined"
+    );
+    assert!(built.pack.items[0].outline.is_some());
 
     let (opened, pictures) = open_pack(&bytes).expect("a whole pack");
     let sizes: Vec<[u32; 2]> = opened.items.iter().map(|item| item.size).collect();
@@ -176,7 +198,7 @@ fn a_rebuild_from_the_same_list_and_cache_gives_the_same_bytes() {
 fn failure(name: &str, answers: [String; 3]) -> (String, String) {
     let list = SourceList::parse(LIST).expect("the list");
     let dir = cache(name, answers);
-    let failed = build(&list, &Fetcher::cache_only(&dir));
+    let failed = build(&list, &Fetcher::cache_only(&dir), &ellipse_matte);
     fs::remove_dir_all(&dir).expect("removed");
     match failed {
         Err(HarnessError::Pack { item, problem }) => (item, problem),
@@ -205,7 +227,7 @@ fn a_licence_that_disagrees_fails_the_build_and_names_the_item() {
 fn nothing_missing_from_the_cache_is_taken_without_the_network() {
     let list = SourceList::parse(LIST).expect("the list");
     let dir = scratch("pack-empty");
-    match build(&list, &Fetcher::cache_only(&dir)) {
+    match build(&list, &Fetcher::cache_only(&dir), &ellipse_matte) {
         Err(HarnessError::Pack { item, problem }) => {
             assert_eq!(item, "teapot");
             assert!(problem.contains("not in the cache"), "{problem}");

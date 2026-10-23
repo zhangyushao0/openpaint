@@ -1,12 +1,14 @@
 //! A pack built from its source list: each item looked up through its source's API, the licence
 //! the API states checked against the list's (a licence that disagrees fails the build and names
 //! the item), its picture downloaded and made as the pack holds it (the store's `pack_picture`),
-//! its silhouette outline derived (`openpaint_practice::outline`) unless the list says it has
-//! none and why. Every download comes through the cache, and decoding, reducing, encoding and
+//! its silhouette outline derived unless the list says it has none and why. The rule for every
+//! item alike (`openpaint_practice::outline_of_matte`): a picture on a clear ground keeps the
+//! outline of its own alpha, any other the outline of the segmentation's matte (`segment.rs`).
+//! Every download comes through the cache, and decoding, reducing, encoding, segmenting and
 //! deriving are exact, so the same list and cache give the same pack byte for byte.
 
 use openpaint_practice::{
-    Credit, Licence, Outline, OutlineRefusal, Pack, PackItem, PictureKind, outline,
+    Credit, Licence, Matte, Outline, OutlineRefusal, Pack, PackItem, PictureKind, outline_of_matte,
 };
 use openpaint_store::pack_picture;
 
@@ -37,18 +39,26 @@ pub struct Built {
     pub outlines: Vec<Outlined>,
 }
 
-/// The pack `list` names and its pictures, in the list's order.
+/// The segmentation's matte of a picture (8-bit sRGB RGBA of its size): the model's
+/// (`Segmenter::matte`), or a test's own.
+pub type Segment<'a> = &'a dyn Fn([u32; 2], &[u8]) -> Result<Matte, HarnessError>;
+
+/// The pack `list` names and its pictures, in the list's order, outlined with `segment`.
 ///
 /// # Errors
 /// `Pack` naming the first item that cannot go in: its licence disagrees with the list's, its
 /// source cannot be reached or its picture does not decode, or it breaks a rule of a pack.
-pub fn build(list: &SourceList, fetcher: &Fetcher) -> Result<Built, HarnessError> {
+pub fn build(
+    list: &SourceList,
+    fetcher: &Fetcher,
+    segment: Segment<'_>,
+) -> Result<Built, HarnessError> {
     let mut items = Vec::with_capacity(list.items.len());
     let mut pictures = Vec::with_capacity(list.items.len());
     let mut outlines = Vec::with_capacity(list.items.len());
     for listed in &list.items {
         let (item, picture, outlined) =
-            item(list.kind, listed, fetcher).map_err(|error| match error {
+            item(list.kind, listed, (fetcher, segment)).map_err(|error| match error {
                 HarnessError::Pack { .. } => error,
                 other => HarnessError::Pack {
                     item: listed.id.clone(),
@@ -78,7 +88,7 @@ pub fn build(list: &SourceList, fetcher: &Fetcher) -> Result<Built, HarnessError
 fn item(
     kind: PictureKind,
     listed: &Listed,
-    fetcher: &Fetcher,
+    (fetcher, segment): (&Fetcher, Segment<'_>),
 ) -> Result<(PackItem, Vec<u8>, Outlined), HarnessError> {
     let found = look_up(fetcher, listed.source, &listed.object)?;
     if found.stated != Stated::Licence(listed.licence) {
@@ -97,7 +107,8 @@ fn item(
         url: found.picture.clone(),
         detail: format!("the picture: {error}"),
     })?;
-    let derived = outline(picture.size, &picture.rgba);
+    let matte = segment(picture.size, &picture.rgba)?;
+    let derived = outline_of_matte(picture.size, &picture.rgba, &matte);
     let (kept, outlined) = match (&listed.no_outline, derived) {
         (Some(why), derived) => (
             None,

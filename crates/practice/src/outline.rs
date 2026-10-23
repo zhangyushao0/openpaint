@@ -1,6 +1,9 @@
 //! A picture's silhouette outline (S80): what Compare lays over a copy of a single shape. It is
 //! derived once, when a pack is built (and the official pack's are looked at on its contact
-//! sheets) or when one of the user's own pictures is imported, and kept with the picture.
+//! sheets) or when one of the user's own pictures is imported, and kept with the picture. The
+//! derivation here is the device's, for the user's own pictures; the pack builder outlines a
+//! picture on a clear ground the same way and any other from a segmentation's matte
+//! (`outline_matte.rs`, S81).
 //!
 //! The way: the picture reduced to a working grid of `WORK_SIDE` (`outline_ground.rs`); its
 //! ground read from its edge, clear (transparent) or a plain colour changing smoothly (a quadratic
@@ -17,7 +20,7 @@
 
 use std::fmt;
 
-use crate::outline_ground::{Ground, difference, grid};
+use crate::outline_ground::{Grid, Ground, difference, grid};
 use crate::outline_mask::silhouette;
 use crate::outline_trace::{area, contours, perimeter, thinned};
 use crate::path::Point;
@@ -104,9 +107,21 @@ pub fn outline(size: [u32; 2], rgba: &[u8]) -> Result<Outline, OutlineRefusal> {
     let cells = [grid.width, grid.height];
     let difference = difference(&grid)?;
     let inside = silhouette(cells, &difference)?;
-    check_silhouette(cells, &inside, difference.ground)?;
+    let cut = matches!(difference.ground, Ground::Plain { .. });
+    check_silhouette(cells, &inside, cut)?;
+    traced(size, &grid, &inside)
+}
+
+/// The outline of the silhouette `inside` on `grid` (of a picture of `size` pixels): its
+/// contours traced, thinned and checked, in the picture's pixels.
+pub(crate) fn traced(
+    size: [u32; 2],
+    grid: &Grid,
+    inside: &[bool],
+) -> Result<Outline, OutlineRefusal> {
+    let cells = [grid.width, grid.height];
     let filled = inside.iter().filter(|i| **i).count() as f64;
-    let mut traced: Vec<Vec<Point>> = contours(cells, &inside)
+    let mut traced: Vec<Vec<Point>> = contours(cells, inside)
         .into_iter()
         .filter(|contour| area(contour).abs() >= LEAST_CONTOUR * filled)
         .map(|contour| thinned(&contour, THINNING))
@@ -128,11 +143,12 @@ pub fn outline(size: [u32; 2], rgba: &[u8]) -> Result<Outline, OutlineRefusal> {
     Ok(Outline { contours })
 }
 
-/// The silhouette's size and, on a plain ground, how much of the edge it touches.
-fn check_silhouette(
+/// The silhouette's size and, where it stands on a ground (`cut`), how much of the picture's
+/// edge it touches.
+pub(crate) fn check_silhouette(
     [width, height]: [usize; 2],
     inside: &[bool],
-    ground: Ground,
+    cut: bool,
 ) -> Result<(), OutlineRefusal> {
     let filled = inside.iter().filter(|i| **i).count();
     let share = filled as f64 / inside.len().max(1) as f64;
@@ -153,8 +169,7 @@ fn check_silhouette(
         return Err(OutlineRefusal::Size);
     }
     let ring = 2 * (width + height) - 4;
-    let cut = edge as f64 / ring.max(1) as f64;
-    if matches!(ground, Ground::Plain { .. }) && cut > MOST_CUT {
+    if cut && edge as f64 / ring.max(1) as f64 > MOST_CUT {
         return Err(OutlineRefusal::Cut);
     }
     Ok(())

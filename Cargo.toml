@@ -65,6 +65,9 @@ toml = { version = "=1.1.6", default-features = false, features = ["std", "parse
 # The practice pack builder's downloads from the museums' and Commons' APIs (harness only,
 # never a product crate): HTTPS through rustls, gzip.
 ureq = "=3.5.0"
+# The practice pack builder's salient-object segmentation, U²-Net through ONNX in pure Rust, no
+# native library (harness only, never a product crate; S81); without its transformer operators.
+tract-onnx = { version = "=0.23.9", default-features = false }
 wgpu = "=30.0.1"
 
 # Debug builds for agents and tests: workspace crates keep line tables (backtraces show file
