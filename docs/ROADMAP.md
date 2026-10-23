@@ -61,9 +61,35 @@ The author, 2026-10-23: practice is their main activity now. The app gets a prac
 - S75 Practice foundation is done (1.1.0): the Today card; sessions of 10 single lines and 8 single colours on a sheet the app lays out, a project the gallery never lists, its originals drawn by the screen (D98); the pen's own samples, clipped to the empty frame; Compare's overlay and numbers, stored once; Next keeping the zoom; the summary against earlier sessions; One more; records beside the artworks under format 1 (`openpaint-practice` the math). Generators the same per seed, metrics right on known cases, records round-tripping; 46 scenarios with every hash before unchanged; on the tablet a session walked through, How's card at 92 to 94 % of the vsyncs and Next's glide at 80 to 84 % (`bench practice`), the smoke 16.8 s.
 - S76 Compare by overlay, and tools by the exercise is done (1.1.1) but for its tablet session (the author, 2026-10-23, after the first sessions; D99): no numbers for lines (card, summary, records; the line metrics' code deleted, old codes passed over); Compare as often as asked, the original thick and semi-transparent red in place or aligned onto the copy (`practice::align`), never locking; the pen blue after Compare, corrections marked in the records; colours on the wheel with arrows and in words, the summary's colour-judgement radar; the exercise's own tools beside its frame (pens, undo, redo; the inline wheel with Fill frame) and All tools one tap away. The alignment recovers known shifts and scales; `s76-practice` passes, 47 scenarios with every hash before unchanged but `s75-practice`'s (a stroke after Compare now corrects); on the tablet the smoke 16.8 s and the library restored, the session and `bench practice` not_run (STATUS pending 28).
 - S77 Two languages. The author, 2026-10-23: the whole UI in Chinese or English, switched in the app. Scope: every user-facing string in one table per language, the practice instructions included, a language setting stored with the toolbox, Chinese text set in a CJK font the host reads (D40), layouts that hold either language's lengths. Done: every screen in both languages without clipping (the scenarios' screenshots in both), the switch kept after reopening, scenario control names stable whichever language shows.
+- S78 Practice packs, in parallel with S77 (a worktree; no UI). Goal: the pictures practice needs, legally clean, built by a tool and read by the app, with no picture in the repository. Scope:
+  - **The pack format.** A pack is one file holding a manifest and its images, the format versioned. Each item carries:
+    - an id and a kind with its tier;
+    - the image, its long side at most 2048 px;
+    - its source page and creator;
+    - its licence and the attribution text the licence asks for;
+    - notes.
+    The store reads and writes packs, and they are imported beside the library.
+  - **The builder** (`cargo practice-pack`, harness).
+    - It reads a curated source list kept in the repository: ids, URLs, tiers and expected licences, no images.
+    - It fetches each item through the museum's or Commons' API, checks the licence the API states against the list, downscales, and writes the pack under `artifacts/packs/`.
+    - A licence that disagrees fails the build and names the item.
+  - **The first official pack: single shapes in four tiers.**
+    - **Entry:** cartoon characters and creatures, CC BY with attribution or CC0 (Pepper&Carrot, Blender's open films, OpenGameArt).
+    - **Simple:** objects with clean outlines on plain studio backgrounds (Cleveland CC0, the Met CC0).
+    - **Medium:** animals, sculpture and everyday things (US federal public domain, museum CC0).
+    - **Hard:** complex structure, heads and machines (museum CC0, NASA public domain).
+    - About 30 to 40 items a tier, each looked at and chosen for a clear silhouette and an uncluttered background; the reasons for a tier are kept in the list.
+  Done:
+  - Packs round-trip in the store.
+  - The builder rebuilds the same pack from the same list, given the same downloads.
+  - Every item's licence is checked.
+  - A contact sheet per tier is looked at.
+  - No picture, and no third-party text beyond titles and attributions, is committed.
+- S79 Combined lines and the warm-up pool. Tooling first: a debug-only device chore that starts a test practice session beside the author's open one and removes it afterwards, so practice slices walk their sessions on the tablet without touching the author's (STATUS pending 28, the main session's call: option c); S76's tablet session walked with it.
+  - Combined lines: generated groups of two to four lines in one frame, compared by overlay as single lines are.
+  - The warm-up pool: each session from the second on begins with about 5 minutes drawn from the types already met.
 - Next, each specified after the one before lands:
-  - Combined lines and the warm-up pool.
-  - Single shapes in four tiers from the first official pack, with the pack tool and local imports.
+  - Single shapes in four tiers from S78's pack, with local imports of the author's own pictures.
   - Colour combinations and value scales, with the long-project space.
   - Perspective boxes, ellipses, point positioning, proportion and angle estimates.
   - Picture division, Notan and whole-picture copies.
