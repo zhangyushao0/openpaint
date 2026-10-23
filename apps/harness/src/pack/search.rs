@@ -34,6 +34,12 @@ pub fn run(fetcher: &Fetcher, source: Source, query: &str, count: u32) -> Result
         Source::Cleveland => cleveland(fetcher, query, count)?,
         Source::Met => met(fetcher, query, count)?,
         Source::Commons => commons(fetcher, query, count)?,
+        Source::Aic | Source::Nga | Source::Rijks => {
+            return Err(HarnessError::Missing(
+                "search takes cleveland, met or commons; the others' items are found on their \
+                 sites and checked by the build",
+            ));
+        }
     };
     let mut pictures = Vec::with_capacity(candidates.len());
     for (number, candidate) in candidates.iter().enumerate() {

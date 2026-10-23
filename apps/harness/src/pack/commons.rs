@@ -3,7 +3,9 @@
 //! a public-domain file names its reason by its licence template: `PD-USGov…` a US federal work,
 //! `PD-old…` or `PD-Art…` by age. `LicenseShortName` must be there as well: a file whose page
 //! states no licence is never taken. The picture is the original when it is a JPEG or PNG,
-//! else the API's 1,280-pixel rendering (an SVG's, a TIFF's).
+//! else the API's 1,280-pixel rendering (an SVG's, a TIFF's). A frame of a video (a Blender open
+//! film's official release) is the API's 1,920-pixel still at the second the list names
+//! (`seek`), under the video file's licence, titled with its time.
 
 use openpaint_practice::Licence;
 use serde_json::Value;
@@ -13,21 +15,26 @@ use super::sources::{Found, Stated, lacking, text};
 use crate::error::HarnessError;
 
 /// The API's answer about the file `title` (`File:…`): its picture's URLs, size and type, its
-/// metadata and its templates.
-pub fn info_url(title: &str) -> String {
+/// metadata and its templates; with `at`, the still of a video at that second.
+pub fn info_url(title: &str, at: Option<f64>) -> String {
+    let rendering = match at {
+        Some(at) => format!("iiurlwidth=1920&iiurlparam=1920px-seek%3D{at}"),
+        None => "iiurlwidth=1280".to_owned(),
+    };
     format!(
         "https://commons.wikimedia.org/w/api.php?action=query&format=json&formatversion=2\
          &prop=imageinfo%7Ctemplates&titles={}&iiprop=url%7Csize%7Cmime%7Cextmetadata\
-         &iiurlwidth=1280&tlnamespace=10&tllimit=max",
+         &{rendering}&tlnamespace=10&tllimit=max",
         query_text(title)
     )
 }
 
-/// The file in the API's `answer` (of `url`).
+/// The file in the API's `answer` (of `url`); with `at`, its still at that second.
 ///
 /// # Errors
-/// `Fetch` for a missing file or one whose page states no licence or no author.
-pub fn found(answer: &Value, url: &str) -> Result<Found, HarnessError> {
+/// `Fetch` for a missing file, one whose page states no licence or no author, or a still asked
+/// of a file that is no video.
+pub fn found(answer: &Value, url: &str, at: Option<f64>) -> Result<Found, HarnessError> {
     let page = &answer["query"]["pages"][0];
     if page.get("missing").is_some() || page.get("invalid").is_some() {
         return Err(lacking(url, "file: Commons has no such file"));
@@ -40,10 +47,12 @@ pub fn found(answer: &Value, url: &str) -> Result<Found, HarnessError> {
         .filter_map(|template| template["title"].as_str())
         .collect();
     let mime = text(info, "mime").unwrap_or_default();
-    let picture = if mime == "image/jpeg" || mime == "image/png" {
-        text(info, "url")
-    } else {
-        text(info, "thumburl")
+    let picture = match at {
+        Some(_) if !mime.starts_with("video/") => {
+            return Err(lacking(url, "video to take a still of"));
+        }
+        None if mime == "image/jpeg" || mime == "image/png" => text(info, "url"),
+        _ => text(info, "thumburl"),
     };
     let artist = meta_text(meta, "Artist").ok_or_else(|| lacking(url, "author"))?;
     // Commons' note on a file moved from another wiki is no part of the author's name.
@@ -53,15 +62,31 @@ pub fn found(answer: &Value, url: &str) -> Result<Found, HarnessError> {
         .unwrap_or_default()
         .to_owned();
     let file = text(page, "title").ok_or_else(|| lacking(url, "title"))?;
+    let title = meta_text(meta, "ObjectName").unwrap_or_else(|| file_name(&file));
     Ok(Found {
-        title: meta_text(meta, "ObjectName").unwrap_or_else(|| file_name(&file)),
+        title: match at {
+            Some(at) => format!("{title}, {}", minutes(at)),
+            None => title,
+        },
         credit: meta_text(meta, "Attribution").unwrap_or_else(|| creator.clone()),
         creator,
         page: text(info, "descriptionurl").ok_or_else(|| lacking(url, "page"))?,
         stated: stated(&code, &short, &templates),
         picture: picture.ok_or_else(|| lacking(url, "picture"))?,
         collection: "Wikimedia Commons",
+        changes: if at.is_some() {
+            "a still of the film, resized"
+        } else {
+            "resized"
+        },
+        headers: &[],
     })
+}
+
+/// A second of a film as minutes and seconds, `2:05`.
+fn minutes(at: f64) -> String {
+    let whole = at.floor() as u64;
+    format!("{}:{:02}", whole / 60, whole % 60)
 }
 
 /// The licence a file's machine-readable code and templates state.

@@ -28,16 +28,22 @@ pub const MAX_OUTLINE_POINTS: usize = 8192;
 pub enum PictureKind {
     /// One object alone, copied by its outline (V大's 复制单体图形).
     Shape,
+    /// A whole picture of strong composition and clear colour and value structure: divided by
+    /// its main lines (画面分割), reduced to two or three values (Notan), copied whole in line,
+    /// colour blocks or colour, analysed for its focal point and contrasts. Compared by the
+    /// picture itself laid in place, never by an outline.
+    Composition,
 }
 
 impl PictureKind {
-    pub const ALL: [Self; 1] = [Self::Shape];
+    pub const ALL: [Self; 2] = [Self::Shape, Self::Composition];
 
     /// As stored; a code names one kind for good.
     #[must_use]
     pub const fn code(self) -> u8 {
         match self {
             Self::Shape => 1,
+            Self::Composition => 2,
         }
     }
 
@@ -51,6 +57,7 @@ impl PictureKind {
     pub const fn name(self) -> &'static str {
         match self {
             Self::Shape => "shape",
+            Self::Composition => "composition",
         }
     }
 
@@ -58,18 +65,41 @@ impl PictureKind {
     pub fn of_name(name: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|kind| kind.name() == name)
     }
+
+    /// The tiers its pictures come in. Compositions skip Entry: even the simplest is a few big
+    /// masses, so their three tiers follow how the structure is read: Simple (two or three big
+    /// masses and one focal point, a Notan in two values), Medium (four to six masses, three
+    /// values, secondary dividing lines), Hard (many masses, figures in space, close values).
+    #[must_use]
+    pub const fn tiers(self) -> &'static [Tier] {
+        match self {
+            Self::Shape => &Tier::ALL,
+            Self::Composition => &[Tier::Simple, Tier::Medium, Tier::Hard],
+        }
+    }
+
+    /// Whether its pictures may carry a silhouette outline: a shape's does, a composition's
+    /// never (its comparison is the picture in place).
+    #[must_use]
+    pub const fn outlined(self) -> bool {
+        matches!(self, Self::Shape)
+    }
 }
 
-/// How hard a picture is to copy, easiest first.
+/// How hard a picture is to copy, easiest first; what each holds depends on the kind
+/// (`PictureKind::tiers`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Tier {
-    /// Cartoon characters and creatures: bold, closed outlines.
+    /// Shapes: cartoon characters and creatures, bold closed outlines. No composition.
     Entry,
-    /// Objects with clean outlines on plain backgrounds.
+    /// Shapes: objects with clean outlines on plain backgrounds. Compositions: two or three big
+    /// masses and one focal point.
     Simple,
-    /// Animals, sculpture and everyday things: softer, longer outlines.
+    /// Shapes: animals, sculpture and everyday things, softer and longer outlines.
+    /// Compositions: four to six masses in three values.
     Medium,
-    /// Complex structure: heads, armour, machines.
+    /// Shapes: heads, armour, machines. Compositions: many masses, figures in space, close
+    /// values.
     Hard,
 }
 
@@ -219,8 +249,9 @@ impl Pack {
     }
 
     /// Checks every rule of a pack: a valid id and a title; at least one item; each item's id
-    /// valid and unique, its picture's sides from 1 to `MAX_PICTURE_SIDE`, a title, an outline
-    /// (if any) of closed contours inside the picture; in an official pack every item credited
+    /// valid and unique, a tier its kind takes, its picture's sides from 1 to
+    /// `MAX_PICTURE_SIDE`, a title, an outline (if any) only on a kind outlined and of closed
+    /// contours inside the picture; in an official pack every item credited
     /// (its source an https page, a creator, and an attribution where its licence asks for
     /// one), in the personal pack none.
     ///
@@ -273,9 +304,15 @@ impl PackItem {
         if self.title.trim().is_empty() {
             return Err("it has no title");
         }
+        if !self.kind.tiers().contains(&self.tier) {
+            return Err("its tier is not one its kind takes");
+        }
         let Some(outline) = &self.outline else {
             return Ok(());
         };
+        if !self.kind.outlined() {
+            return Err("its kind is compared without an outline and it has one");
+        }
         let [width, height] = self.size.map(f64::from);
         let inside = |p: &[f64; 2]| (0.0..=width).contains(&p[0]) && (0.0..=height).contains(&p[1]);
         let points: usize = outline.contours.iter().map(Vec::len).sum();

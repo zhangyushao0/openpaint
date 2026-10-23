@@ -15,8 +15,9 @@ pub const USER_AGENT: &str = concat!(
     env!("CARGO_PKG_VERSION"),
     " (https://github.com/zhangyushao0/openpaint; practice pictures from open-access collections)"
 );
-/// The largest download taken: a museum's print picture, a Commons original or the
-/// segmentation model (`segment.rs`).
+/// The largest download taken: a museum's print picture, a Commons original, the National
+/// Gallery of Art's open data tables (`nga.rs`, about 90 MB each) or the segmentation model
+/// (`segment.rs`).
 const MOST_BYTES: u64 = 256 << 20;
 /// A pause after every request that reached the network.
 const PAUSE: Duration = Duration::from_millis(150);
@@ -57,6 +58,19 @@ impl Fetcher {
     /// `Fetch` when the download fails or, without the network, the cache lacks it; `Io` when
     /// the cache cannot be written.
     pub fn get(&self, name: &str, url: &str) -> Result<Vec<u8>, HarnessError> {
+        self.get_with(name, url, &[])
+    }
+
+    /// As `get`, the request carrying `headers` too (an API's own, as its policy asks).
+    ///
+    /// # Errors
+    /// As `get`.
+    pub fn get_with(
+        &self,
+        name: &str,
+        url: &str,
+        headers: &[(&str, &str)],
+    ) -> Result<Vec<u8>, HarnessError> {
         let path = self.cache.join(name);
         if let Ok(bytes) = fs::read(&path) {
             return Ok(bytes);
@@ -70,8 +84,11 @@ impl Fetcher {
             .as_ref()
             .ok_or_else(|| failed(format!("not in the cache as {name}")))?;
         // The Met's picture URLs may hold spaces, which a request line cannot.
-        let bytes = agent
-            .get(url.replace(' ', "%20"))
+        let mut request = agent.get(url.replace(' ', "%20"));
+        for (header, value) in headers {
+            request = request.header(*header, *value);
+        }
+        let bytes = request
             .call()
             .and_then(|mut answer| {
                 answer
@@ -96,7 +113,20 @@ impl Fetcher {
     /// # Errors
     /// As `get`; `Fetch` when the answer is not JSON (the cached file stays for a look).
     pub fn json(&self, name: &str, url: &str) -> Result<serde_json::Value, HarnessError> {
-        let bytes = self.get(name, url)?;
+        self.json_with(name, url, &[])
+    }
+
+    /// As `json`, the request carrying `headers` too.
+    ///
+    /// # Errors
+    /// As `json`.
+    pub fn json_with(
+        &self,
+        name: &str,
+        url: &str,
+        headers: &[(&str, &str)],
+    ) -> Result<serde_json::Value, HarnessError> {
+        let bytes = self.get_with(name, url, headers)?;
         serde_json::from_slice(&bytes).map_err(|error| HarnessError::Fetch {
             url: url.to_owned(),
             detail: format!("not JSON ({error}); cached as {name}"),

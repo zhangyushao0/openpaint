@@ -4,8 +4,9 @@
 //!
 //! - `build <list> [out] [--sheet]`: the pack the list names (`build.rs`), written to `out` or
 //!   `artifacts/packs/<pack id>.pack`, one line per item; with `--sheet` a contact sheet per tier
-//!   beside it (`<pack id>-<tier>.png`), numbered as the lines. The outlines' segmentation model
-//!   comes through the same cache (`segment.rs`, 176 MB on the first build).
+//!   beside it (`<pack id>-<tier>.png`), numbered as the lines. A list of shapes loads the
+//!   outlines' segmentation model through the same cache (`segment.rs`, 176 MB on the first
+//!   build); a list of compositions never does.
 //! - `search <cleveland|met|commons> <query> [count]`: candidates and their contact sheet for the
 //!   curator (`search.rs`).
 
@@ -13,12 +14,16 @@ mod build;
 mod commons;
 mod fetch;
 mod list;
+mod nga;
+mod rijks;
 mod search;
 mod segment;
 mod sheet;
 mod sources;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_sources;
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -73,8 +78,13 @@ fn build_command(rest: &[&str]) -> Result<(), HarnessError> {
     };
     let list = SourceList::parse(&fs::read_to_string(list)?)?;
     let fetcher = Fetcher::new(packs_dir().join("cache"));
-    let segmenter = Segmenter::load(&fetcher)?;
-    let built = build::build(&list, &fetcher, &|size, rgba| segmenter.matte(size, rgba))?;
+    let segmenter = (list.kind.outlined())
+        .then(|| Segmenter::load(&fetcher))
+        .transpose()?;
+    let built = build::build(&list, &fetcher, &|size, rgba| match &segmenter {
+        Some(segmenter) => segmenter.matte(size, rgba),
+        None => Err(HarnessError::Missing("no outline is derived for this kind")),
+    })?;
     let out = out.unwrap_or_else(|| packs_dir().join(format!("{}.pack", built.pack.id)));
     if let Some(dir) = out.parent() {
         fs::create_dir_all(dir)?;
@@ -118,6 +128,7 @@ fn describe(built: &Built) {
                 Outlined::Kept => "outline".to_owned(),
                 Outlined::Listed { why, .. } => format!("none: {why}"),
                 Outlined::Refused(refusal) => format!("REFUSED: {refusal}"),
+                Outlined::Never => "no outline: a composition".to_owned(),
             };
             println!(
                 "{:<6} {:>3}  {:<30} {:>4} x {:<4} {:<9}  {} | {outline}",
@@ -133,9 +144,9 @@ fn describe(built: &Built) {
     }
     let counts: Vec<String> = Tier::ALL
         .iter()
-        .map(|tier| {
+        .filter_map(|tier| {
             let count = pack.items.iter().filter(|item| item.tier == *tier).count();
-            format!("{} {count}", tier.name())
+            (count > 0).then(|| format!("{} {count}", tier.name()))
         })
         .collect();
     let kept = (built.outlines.iter())
@@ -164,7 +175,7 @@ fn write_sheets(built: &Built, dir: &Path) -> Result<(), HarnessError> {
                         derived: Ok(outline),
                         ..
                     } => Some((outline.clone(), Mark::Dropped)),
-                    Outlined::Listed { .. } | Outlined::Refused(_) => None,
+                    Outlined::Listed { .. } | Outlined::Refused(_) | Outlined::Never => None,
                 };
                 cells.push(Picture {
                     size,

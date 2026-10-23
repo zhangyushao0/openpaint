@@ -75,8 +75,15 @@ fn codes_and_names_are_fixed_and_round_trip() {
         assert_eq!(Tier::of_code(tier.code()), Some(tier));
         assert_eq!(Tier::of_name(tier.name()), Some(tier));
     }
-    assert_eq!(PictureKind::Shape.code(), 1);
-    assert_eq!(PictureKind::of_name("shape"), Some(PictureKind::Shape));
+    let kinds: Vec<(u8, &str)> = (PictureKind::ALL.iter())
+        .map(|kind| (kind.code(), kind.name()))
+        .collect();
+    assert_eq!(kinds, [(1, "shape"), (2, "composition")]);
+    for kind in PictureKind::ALL {
+        assert_eq!(PictureKind::of_code(kind.code()), Some(kind));
+        assert_eq!(PictureKind::of_name(kind.name()), Some(kind));
+    }
+    assert_eq!(PictureKind::of_code(3), None);
     assert_eq!(Licence::of_code(0), None);
     assert_eq!(
         Licence::of_name("CC BY-SA 4.0"),
@@ -178,6 +185,47 @@ fn an_outline_lies_inside_its_picture_and_closes() {
         4,
         "a line closes on its first point"
     );
+}
+
+#[test]
+fn a_composition_takes_three_tiers_and_never_an_outline() {
+    let composition = |p: &mut Pack| p.items[3].kind = PictureKind::Composition;
+    assert_eq!(broken(composition), Ok(()), "a simple composition");
+    let item = |rule| {
+        Err(PackProblem {
+            item: Some("vase".to_owned()),
+            rule,
+        })
+    };
+    assert_eq!(
+        broken(|p| {
+            composition(p);
+            p.items[3].tier = Tier::Entry;
+        }),
+        item("its tier is not one its kind takes")
+    );
+    let outline = Outline {
+        contours: vec![vec![[10.0, 10.0], [1190.0, 10.0], [600.0, 890.0]]],
+    };
+    assert_eq!(
+        broken(|p| {
+            composition(p);
+            p.items[3].outline = Some(outline.clone());
+        }),
+        item("its kind is compared without an outline and it has one")
+    );
+    assert_eq!(
+        PictureKind::Composition.tiers(),
+        [Tier::Simple, Tier::Medium, Tier::Hard]
+    );
+    assert_eq!(PictureKind::Shape.tiers(), Tier::ALL);
+    assert!(PictureKind::Shape.outlined() && !PictureKind::Composition.outlined());
+    let mut mixed = pack();
+    composition(&mut mixed);
+    let shapes: Vec<&str> = (mixed.of(PictureKind::Shape, Tier::Simple))
+        .map(|item| item.id.as_str())
+        .collect();
+    assert_eq!(shapes, ["teapot"], "a composition is no shape");
 }
 
 #[test]
