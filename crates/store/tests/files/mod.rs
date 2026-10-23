@@ -7,7 +7,7 @@ use openpaint_app::{KEPT_VERSIONS, PortError, ProjectId, ProjectStore, Title};
 use openpaint_core::{Artwork, ArtworkCommand, LayerCommand};
 use openpaint_store::{FORMAT, Library};
 
-use crate::common::{fresh_dir, records};
+use crate::common::{TestDir, records};
 use crate::sample::{parts, sample_thumbnail, sample_title};
 
 /// The file layout written out by hand, as `artwork_file.rs` documents it: the magic, the
@@ -30,23 +30,26 @@ fn file_of(format: u32, title: &str, records: &[(Vec<u8>, Vec<u8>)]) -> Vec<u8> 
     bytes
 }
 
-/// A library holding the sample artwork with its title and thumbnail.
-fn sample_library(name: &str) -> (Library, ProjectId) {
-    let mut library = Library::at(fresh_dir(name));
+/// A library holding the sample artwork with its title and thumbnail, in its directory (bound
+/// first, so it outlives the library).
+fn sample_library(name: &str) -> (TestDir, Library, ProjectId) {
+    let dir = TestDir::new(name);
+    let mut library = Library::at(&dir);
     let artwork = Artwork::from_storage(parts()).expect("the sample artwork");
     let id = library.create(&artwork, &sample_title()).expect("create");
     library
         .save_thumbnail(id, &sample_thumbnail())
         .expect("thumbnail");
-    (library, id)
+    (dir, library, id)
 }
 
 #[test]
 fn a_file_holds_the_artwork_exactly_and_opens_as_a_new_one() {
-    let (mut library, id) = sample_library("file-source");
+    let (_dir, mut library, id) = sample_library("file-source");
     let file = library.artwork_file(id).expect("the file");
     assert!(file.starts_with(b"OpenPaint\0"));
-    let mut other = Library::at(fresh_dir("file-target"));
+    let target = TestDir::new("file-target");
+    let mut other = Library::at(&target);
     let copy = other.import_file(&file).expect("opens");
     assert_eq!(
         other.artwork_file(copy).expect("again"),
@@ -79,7 +82,7 @@ fn marked(file: &[u8], format: u32) -> Vec<u8> {
 
 #[test]
 fn foreign_damaged_and_other_format_files_are_refused_and_change_nothing() {
-    let (mut library, id) = sample_library("file-refused");
+    let (_dir, mut library, id) = sample_library("file-refused");
     let file = library.artwork_file(id).expect("the file");
     assert_eq!(file[10..14], FORMAT.to_le_bytes(), "the file's format");
     let before = library.list().expect("list");
@@ -119,7 +122,7 @@ fn faded(artwork: &Artwork, opacity: f32) -> Artwork {
 
 #[test]
 fn versions_are_capped_listed_newest_first_and_restored_as_copies() {
-    let (mut library, id) = sample_library("versions");
+    let (_dir, mut library, id) = sample_library("versions");
     let sample = Artwork::from_storage(parts()).expect("the sample artwork");
     let mut kept = Vec::new();
     for at in 0..KEPT_VERSIONS + 2 {
@@ -166,7 +169,7 @@ fn versions_are_capped_listed_newest_first_and_restored_as_copies() {
 
 #[test]
 fn deleting_an_artwork_deletes_its_versions() {
-    let dir = fresh_dir("versions-deleted");
+    let dir = TestDir::new("versions-deleted");
     let mut library = Library::at(&dir);
     let artwork = Artwork::from_storage(parts()).expect("the sample artwork");
     let id = library.create(&artwork, &sample_title()).expect("create");

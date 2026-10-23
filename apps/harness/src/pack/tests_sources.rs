@@ -4,7 +4,6 @@
 //! no outline is ever derived for a composition, and the official list reads.
 
 use std::fs;
-use std::path::PathBuf;
 
 use openpaint_app::ImageFormat;
 use openpaint_practice::{PictureKind, Tier};
@@ -16,7 +15,7 @@ use super::list::SourceList;
 use super::nga::table_name;
 use crate::error::HarnessError;
 use crate::output::workspace_root;
-use crate::test_art::scratch;
+use crate::scratch::Scratch;
 
 const LIST: &str = r#"
 id = "test-compositions"
@@ -122,8 +121,8 @@ fn answers() -> [String; 4] {
 }
 
 /// A cache holding every answer and picture `LIST` needs, with the answers given.
-fn cache(name: &str, [aic, nga, rijks_object, film]: [String; 4]) -> PathBuf {
-    let dir = scratch(name);
+fn cache(name: &str, [aic, nga, rijks_object, film]: [String; 4]) -> Scratch {
+    let dir = Scratch::new(name).expect("a directory");
     let put = |file: String, bytes: &[u8]| {
         let path = dir.join(file);
         fs::create_dir_all(path.parent().expect("a directory")).expect("the cache");
@@ -179,7 +178,6 @@ fn a_composition_pack_takes_every_new_source_and_derives_no_outline() {
     let bytes = encode_pack(&built.pack, &built.pictures).expect("encoded");
     let again = build(&list, &fetcher, &no_segment).expect("built again");
     assert!(encode_pack(&again.pack, &again.pictures).expect("encoded") == bytes);
-    fs::remove_dir_all(&dir).expect("removed");
     assert!(built.outlines.iter().all(|o| *o == Outlined::Never));
 
     let (opened, _) = open_pack(&bytes).expect("a whole pack");
@@ -226,7 +224,6 @@ fn failure(name: &str, answers: [String; 4]) -> (String, String) {
     let list = SourceList::parse(LIST).expect("the list");
     let dir = cache(name, answers);
     let failed = build(&list, &Fetcher::cache_only(&dir), &no_segment);
-    fs::remove_dir_all(&dir).expect("removed");
     match failed {
         Err(HarnessError::Pack { item, problem }) => (item, problem),
         other => panic!("not a failed item: {:?}", other.map(|built| built.pack.id)),

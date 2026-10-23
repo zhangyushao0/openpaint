@@ -1,28 +1,19 @@
-//! Helpers shared by the store tests: fresh directories and raw record dumps.
+//! Helpers shared by the store tests: their own directories and raw record dumps.
 
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, Ordering};
+mod test_dir;
+
+use std::path::Path;
 
 use fjall::{Database, KeyspaceCreateOptions};
 use openpaint_app::Title;
+
+pub use test_dir::TestDir;
 
 /// The library's keyspaces, in dump order.
 pub const KEYSPACES: [&str; 2] = ["library", "projects"];
 
 pub fn untitled() -> Title {
     Title::untitled()
-}
-
-/// A directory that does not exist yet, under cargo's temporary directory for tests.
-pub fn fresh_dir(name: &str) -> PathBuf {
-    static NEXT: AtomicU32 = AtomicU32::new(0);
-    let unique = NEXT.fetch_add(1, Ordering::Relaxed);
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR"))
-        .join(format!("store-{name}-{}-{unique}", std::process::id()));
-    if dir.exists() {
-        std::fs::remove_dir_all(&dir).expect("clear an old test directory");
-    }
-    dir
 }
 
 /// Every record of a closed library as `(keyspace, key, value)`, sorted.

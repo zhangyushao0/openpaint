@@ -10,7 +10,7 @@ use openpaint_runtime::{
 };
 use openpaint_store::Library;
 
-use crate::support::{Hand, assert_cold, library_dir, line, start};
+use crate::support::{Hand, TestDir, assert_cold, line, start};
 
 const SIZE: [u32; 2] = [1600, 1000];
 const PIXELS_PER_POINT: f32 = 2.0;
@@ -113,7 +113,7 @@ fn pinch(runtime: &mut Runtime, hand: &mut Hand) {
 
 #[test]
 fn a_stroke_being_drawn_when_the_window_goes_is_committed_and_the_view_kept() {
-    let dir = library_dir("detached");
+    let dir = TestDir::new("detached");
     let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Library::at(&dir)));
     let mut hand = Hand::new(SIZE);
     hand.gesture(&mut runtime, ToolKind::Stylus, &line(300.0));
@@ -171,7 +171,7 @@ fn a_stroke_being_drawn_when_the_window_goes_is_committed_and_the_view_kept() {
 
 #[test]
 fn leaving_the_app_mid_stroke_stores_the_stroke_drawn_so_far() {
-    let dir = library_dir("left");
+    let dir = TestDir::new("left");
     let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Library::at(&dir)));
     let mut hand = Hand::new(SIZE);
     hand.gesture(&mut runtime, ToolKind::Stylus, &line(300.0));

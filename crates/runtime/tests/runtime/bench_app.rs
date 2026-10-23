@@ -11,7 +11,7 @@ use openpaint_runtime::{
 };
 use openpaint_store::Library;
 
-use crate::support::{Hand, assert_cold, core, gallery, library_dir, strokes, until};
+use crate::support::{Hand, TestDir, assert_cold, core, gallery, strokes, until};
 
 /// Tall enough that `ui` finds the brush editor's StreamLine row in its column.
 const SIZE: [u32; 2] = [1800, 1300];
@@ -40,8 +40,10 @@ fn pile() -> Artwork {
     artwork
 }
 
-fn runtime() -> Runtime {
-    let root = library_dir("bench-app");
+/// A runtime on the pile in a library and display cache of their own, and their directory (bound
+/// first by the caller, so it outlives the runtime).
+fn runtime() -> (TestDir, Runtime) {
+    let root = TestDir::new("bench-app");
     let mut library = Library::at(root.join("library"));
     let title = Title::new("Bench").expect("title");
     library.create(&pile(), &title).expect("created");
@@ -58,13 +60,13 @@ fn runtime() -> Runtime {
         frames += 1;
         assert!(frames < 10_000, "the artwork never opened");
     }
-    runtime
+    (root, runtime)
 }
 
 #[test]
 fn every_scenario_benchmark_runs_through_the_frame_loop() {
     let core = core();
-    let mut runtime = runtime();
+    let (_root, mut runtime) = runtime();
     let mut appended = 0;
     // `practice` runs on a practice sheet, below.
     for name in SCENARIOS.into_iter().filter(|name| *name != "practice") {

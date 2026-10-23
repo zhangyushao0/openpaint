@@ -4,26 +4,13 @@
 //! save's. The display cache's file gives back what was written, bit for bit, replaces it whole,
 //! and refuses anything damaged.
 
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicU32, Ordering};
+#[path = "common/test_dir.rs"]
+mod test_dir;
 
 use openpaint_app::{ProjectId, ProjectStore, SaveId, Title};
 use openpaint_core::{Artwork, CanvasSize};
 use openpaint_store::{CacheKey, DisplayCache, Library};
-
-/// A directory that does not exist yet, under cargo's temporary directory for tests.
-fn fresh(name: &str) -> PathBuf {
-    static NEXT: AtomicU32 = AtomicU32::new(0);
-    let unique = NEXT.fetch_add(1, Ordering::Relaxed);
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!(
-        "store-saves-{name}-{}-{unique}",
-        std::process::id()
-    ));
-    if dir.exists() {
-        std::fs::remove_dir_all(&dir).expect("clear an old test directory");
-    }
-    dir
-}
+use test_dir::TestDir;
 
 fn blank() -> Artwork {
     Artwork::new(CanvasSize::new(64, 48).expect("size"))
@@ -31,7 +18,7 @@ fn blank() -> Artwork {
 
 #[test]
 fn every_save_writes_a_new_save_id_and_opening_gives_a_head_without_one_its_own() {
-    let dir = fresh("ids");
+    let dir = TestDir::new("saves-ids");
     let mut library = Library::at(&dir);
     let artwork = blank();
     let id = library
@@ -56,14 +43,14 @@ fn every_save_writes_a_new_save_id_and_opening_gives_a_head_without_one_its_own(
 
 #[test]
 fn a_library_rolled_back_holds_the_older_heads_id() {
-    let dir = fresh("rollback");
+    let dir = TestDir::new("saves-rollback");
     let mut library = Library::at(&dir);
     let id = library
         .create(&blank(), &Title::untitled())
         .expect("create");
     let older = library.save(id, &blank()).expect("save");
     drop(library);
-    let backup = fresh("rollback-backup");
+    let backup = TestDir::new("saves-rollback-backup");
     copy_dir(&dir, &backup);
     let mut library = Library::at(&dir);
     let later = library.save(id, &blank()).expect("a later save");
@@ -115,7 +102,8 @@ fn pixels([width, height]: [u32; 2], ink: u8) -> Vec<u8> {
 
 #[test]
 fn a_cached_canvas_reads_back_bit_for_bit_and_is_replaced_whole() {
-    let cache = DisplayCache::at(fresh("cache").join("canvas"));
+    let dir = TestDir::new("saves-cache");
+    let cache = DisplayCache::at(dir.join("canvas"));
     let project = ProjectId::new(7);
     assert!(
         cache.read(project).expect("read").is_none(),
@@ -133,8 +121,8 @@ fn a_cached_canvas_reads_back_bit_for_bit_and_is_replaced_whole() {
     cache.write(project, &key(2), &second).expect("write again");
     let read = cache.read(project).expect("read").expect("cached");
     assert_eq!((read.key, read.pixels), (key(2), second));
-    let dir = cache.path(project).parent().expect("dir").to_path_buf();
-    let files: Vec<_> = std::fs::read_dir(&dir).expect("dir").collect();
+    let canvas = cache.path(project).parent().expect("dir").to_path_buf();
+    let files: Vec<_> = std::fs::read_dir(&canvas).expect("dir").collect();
     assert_eq!(files.len(), 1, "no temporary file stays");
     assert!(
         cache.write(project, &key(3), &[0; 12]).is_err(),
@@ -147,7 +135,8 @@ fn a_cached_canvas_reads_back_bit_for_bit_and_is_replaced_whole() {
 
 #[test]
 fn a_damaged_cache_file_is_refused() {
-    let cache = DisplayCache::at(fresh("damaged"));
+    let dir = TestDir::new("saves-damaged");
+    let cache = DisplayCache::at(&dir);
     let project = ProjectId::new(3);
     cache
         .write(project, &key(5), &pixels([33, 7], 1))

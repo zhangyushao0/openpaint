@@ -1,11 +1,11 @@
-//! GPU test of the runner: a stroke changes the canvas, a finger tap and a wait do not, a
-//! restart reopens the library with the stroke, a library that fails to open starts blank, and
-//! the diff marks exactly the pixels the stroke changed.
-
-use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
+//! GPU test of the devtools' scenario runner, on a library the test makes and removes (here, not
+//! in devtools, which never touches the file system): a stroke changes the canvas, a finger tap
+//! and a wait do not, a restart reopens the library with the stroke, a library that fails to open
+//! starts blank, and the diff marks exactly the pixels the stroke changed.
 
 use openpaint_devtools::{Checkpoint, Scenario, diff, run};
+
+use crate::scratch::Scratch;
 
 const SCENARIO: &str = r#"{
     "screen": [320, 240],
@@ -26,20 +26,17 @@ const SCENARIO: &str = r#"{
     ]
 }"#;
 
-/// A library directory no earlier run used; fjall creates it.
-fn library() -> PathBuf {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |since| since.as_nanos());
-    PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join(format!("devtools-runner-{nanos}"))
-}
-
 #[test]
 fn steps_reach_the_canvas_and_restart_reopens_the_library() {
     let scenario = Scenario::parse(SCENARIO).expect("valid scenario");
     let fonts = openpaint_runtime::TextFonts::default();
-    let report = run(&scenario, (&library(), &library()), &fonts)
-        .expect("a GPU adapter is required for devtools tests");
+    let dir = Scratch::new("runner").expect("a directory");
+    let report = run(
+        &scenario,
+        (&dir.join("library"), &dir.join("packs")),
+        &fonts,
+    )
+    .expect("a GPU adapter is required for devtools tests");
     let checkpoints: Vec<&Checkpoint> = report.checkpoints().collect();
     let hashes: Vec<u64> = checkpoints.iter().map(|c| c.actual()).collect();
     assert_ne!(hashes[0], hashes[1], "the stroke reached the canvas");

@@ -1,14 +1,15 @@
 //! Shared by the runtime's GPU tests: the device, a hand's gestures and the cold draw, a library
-//! that keeps nothing, starting on it, where the canvas shows, and the few steps many tests take.
-//! The binaries of their own (`../budget.rs` and the others) take the first four files alone.
+//! that keeps nothing, starting on it, where the canvas shows, a test's own directory, and the
+//! few steps many tests take. The binaries of their own (`../budget.rs` and the others) take the
+//! files they need alone.
 
 pub mod gpu;
 pub mod hand;
 pub mod launch;
 pub mod screen;
 pub mod store;
+pub mod test_dir;
 
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
@@ -21,6 +22,7 @@ pub use hand::{Hand, assert_cold, cold, on};
 pub use launch::start;
 pub use screen::{mapping, pixel_at};
 pub use store::Nowhere;
+pub use test_dir::TestDir;
 
 /// The strokes of every layer.
 pub fn strokes(runtime: &Runtime) -> usize {
@@ -55,16 +57,6 @@ pub fn until(runtime: &mut Runtime, size: [u32; 2], ready: impl Fn(&Runtime) -> 
     while runtime.frame_offscreen(size).expect("frame") || !ready(runtime) {
         assert!(start.elapsed().as_secs() < 20, "never got there");
     }
-}
-
-/// A directory for the library `name` under the tests' temporary one, empty.
-pub fn library_dir(name: &str) -> PathBuf {
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR"))
-        .join(format!("runtime-{name}-{}", std::process::id()));
-    if dir.exists() {
-        std::fs::remove_dir_all(&dir).expect("clear an old library");
-    }
-    dir
 }
 
 /// A file the system's save dialog gave, in memory: what was written into it last.

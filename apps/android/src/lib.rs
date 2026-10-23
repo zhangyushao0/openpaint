@@ -14,6 +14,9 @@ pub mod navigation;
 pub mod pacing;
 pub mod transfer;
 
+#[cfg(test)]
+mod test_dir;
+
 #[cfg(target_os = "android")]
 mod error;
 #[cfg(target_os = "android")]

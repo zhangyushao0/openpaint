@@ -40,16 +40,17 @@ pub fn read_face(line: &str) -> Result<FontFile, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_dir::TestDir;
 
     #[test]
     fn a_line_names_the_face_and_the_file() {
-        let path = std::env::temp_dir().join("openpaint-font-line-test.bin");
+        let dir = TestDir::new("font-line");
+        let path = dir.path().join("face.bin");
         std::fs::write(&path, [1, 2, 3]).expect("write");
         let face = read_face(&format!("2\n{}", path.display())).expect("face");
         assert_eq!((face.index, face.bytes), (2, vec![1, 2, 3]));
         assert!(read_face("no newline").is_err());
         assert!(read_face("x\n/nowhere").is_err());
         assert!(read_face("0\n/no/such/font.ttf").is_err());
-        std::fs::remove_file(path).expect("remove");
     }
 }

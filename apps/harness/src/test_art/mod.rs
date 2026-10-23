@@ -33,6 +33,7 @@ use openpaint_store::Library;
 
 use crate::error::HarnessError;
 use crate::output::workspace_root;
+use crate::scratch::Scratch;
 
 mod kinds;
 mod page;
@@ -164,37 +165,19 @@ fn pile(library: &BrushLibrary, n: u32) -> Result<Artwork, HarnessError> {
 }
 
 /// The bytes of `artwork` as an OpenPaint file titled `title`: stored in a library of its own
-/// (emptied first, removed after) and written out by the store, as Save as OpenPaint file does.
+/// (removed after, the library closed first) and written out by the store, as Save as OpenPaint
+/// file does.
 ///
 /// # Errors
 /// The library's, and the file system's.
 pub fn file_bytes(artwork: &Artwork, title: &str) -> Result<Vec<u8>, HarnessError> {
-    let dir = scratch("test-art-library");
     let title = Title::new(title).map_err(|_| HarnessError::Missing("not a title"))?;
-    let bytes = {
-        let mut library = Library::at(&dir);
-        let id = library
-            .create(artwork, &title)
-            .map_err(HarnessError::Port)?;
-        library.artwork_file(id).map_err(HarnessError::Port)?
-    };
-    fs::remove_dir_all(&dir)?;
-    Ok(bytes)
-}
-
-/// A directory of this process under `target/tmp`, named `name` and a count, that does not exist.
-pub fn scratch(name: &str) -> PathBuf {
-    use std::sync::atomic::{AtomicU32, Ordering};
-    static MADE: AtomicU32 = AtomicU32::new(0);
-    let count = MADE.fetch_add(1, Ordering::Relaxed);
-    let dir = workspace_root()
-        .join("target")
-        .join("tmp")
-        .join(format!("{name}-{}-{count}", std::process::id()));
-    if dir.exists() {
-        let _ = fs::remove_dir_all(&dir);
-    }
-    dir
+    let dir = Scratch::new("test-art-library")?;
+    let mut library = Library::at(&dir);
+    let id = library
+        .create(artwork, &title)
+        .map_err(HarnessError::Port)?;
+    library.artwork_file(id).map_err(HarnessError::Port)
 }
 
 /// A number from 0 to 1 drawn from `k` and `salt` (SplitMix64): the same on every run.
@@ -287,7 +270,7 @@ mod tests {
             let first = file_bytes(&artwork, "Test").expect("written");
             let again = file_bytes(&make(kind).expect("made again"), "Test").expect("again");
             assert!(first == again, "{kind:?}: two runs, two files");
-            let dir = scratch("test-art-open");
+            let dir = Scratch::new("test-art-open").expect("a directory");
             let mut library = Library::at(&dir);
             let id = library.import_file(&first).expect("the file opens");
             let opened = library.load(id).expect("loaded").artwork;
@@ -298,8 +281,6 @@ mod tests {
             };
             assert_eq!(count(&opened), count(&artwork), "{kind:?}");
             assert_eq!(opened.layers().len(), artwork.layers().len(), "{kind:?}");
-            drop(library);
-            fs::remove_dir_all(&dir).expect("removed");
         }
     }
 }

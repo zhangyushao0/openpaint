@@ -16,7 +16,7 @@ use super::list::SourceList;
 use super::sources::{Found, Stated};
 use crate::error::HarnessError;
 use crate::output::workspace_root;
-use crate::test_art::scratch;
+use crate::scratch::Scratch;
 
 const LIST: &str = r#"
 id = "test-shapes"
@@ -89,8 +89,8 @@ fn picture(format: ImageFormat, size: [u32; 2], clear: bool) -> Vec<u8> {
 }
 
 /// A cache holding every answer and picture `LIST` needs, with the answers given.
-fn cache(name: &str, answers: [String; 3]) -> std::path::PathBuf {
-    let dir = scratch(name);
+fn cache(name: &str, answers: [String; 3]) -> Scratch {
+    let dir = Scratch::new(name).expect("a directory");
     let put = |file: String, bytes: &[u8]| {
         let path = dir.join(file);
         fs::create_dir_all(path.parent().expect("a directory")).expect("the cache");
@@ -191,7 +191,6 @@ fn a_rebuild_from_the_same_list_and_cache_gives_the_same_bytes() {
          (https://commons.wikimedia.org/wiki/File:Test_fox.png), licensed CC BY 4.0 \
          (https://creativecommons.org/licenses/by/4.0/); resized."
     );
-    fs::remove_dir_all(&dir).expect("removed");
 }
 
 /// The item the build of `LIST` fails on with `answers`, and why.
@@ -199,7 +198,6 @@ fn failure(name: &str, answers: [String; 3]) -> (String, String) {
     let list = SourceList::parse(LIST).expect("the list");
     let dir = cache(name, answers);
     let failed = build(&list, &Fetcher::cache_only(&dir), &ellipse_matte);
-    fs::remove_dir_all(&dir).expect("removed");
     match failed {
         Err(HarnessError::Pack { item, problem }) => (item, problem),
         other => panic!("not a failed item: {:?}", other.map(|built| built.pack.id)),
@@ -226,7 +224,7 @@ fn a_licence_that_disagrees_fails_the_build_and_names_the_item() {
 #[test]
 fn nothing_missing_from_the_cache_is_taken_without_the_network() {
     let list = SourceList::parse(LIST).expect("the list");
-    let dir = scratch("pack-empty");
+    let dir = Scratch::new("pack-empty").expect("a directory");
     match build(&list, &Fetcher::cache_only(&dir), &ellipse_matte) {
         Err(HarnessError::Pack { item, problem }) => {
             assert_eq!(item, "teapot");

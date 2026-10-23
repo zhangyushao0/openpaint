@@ -6,7 +6,7 @@ mod common;
 
 use std::sync::Arc;
 
-use common::{fresh_dir, records, untitled, write_records};
+use common::{TestDir, records, untitled, write_records};
 use openpaint_app::{BrushLibrary, PortError, ProjectStore};
 use openpaint_core::{
     Artwork, ArtworkCommand, CanvasPoint, CanvasSize, Color, LayerCommand, MaskCommand,
@@ -60,7 +60,7 @@ fn stroke_records(dir: &std::path::Path) -> usize {
 
 #[test]
 fn fills_are_saved_by_their_own_records_and_open_again_exactly() {
-    let dir = fresh_dir("fills");
+    let dir = TestDir::new("fills");
     let one = draw(&blank(), 10.0, 20);
     let mut inside = vec![false; 320 * 200];
     inside[30 * 320 + 40..][..100].fill(true);
@@ -86,7 +86,7 @@ fn fills_are_saved_by_their_own_records_and_open_again_exactly() {
 
 #[test]
 fn masks_are_saved_by_their_own_records_and_deleting_one_removes_them() {
-    let dir = fresh_dir("masks");
+    let dir = TestDir::new("masks");
     let one = draw(&blank(), 10.0, 20);
     let layer = one.active();
     let mask = |command| one_more(&one, command);
@@ -129,13 +129,13 @@ fn one_more(artwork: &Artwork, command: MaskCommand) -> Artwork {
 
 #[test]
 fn an_empty_library_has_no_last_project() {
-    let dir = fresh_dir("empty");
+    let dir = TestDir::new("empty");
     assert_eq!(Library::at(&dir).open_last(), Ok(None));
 }
 
 #[test]
 fn every_saved_version_opens_again_exactly() {
-    let dir = fresh_dir("versions");
+    let dir = TestDir::new("versions");
     let one = draw(&blank(), 10.0, 40);
     let two = draw(&one, 50.0, 300);
     let branch = draw(&one, 90.0, 5);
@@ -169,7 +169,7 @@ fn every_saved_version_opens_again_exactly() {
 
 #[test]
 fn layer_edits_open_again_exactly_and_an_undone_delete_restores_the_strokes() {
-    let dir = fresh_dir("layers");
+    let dir = TestDir::new("layers");
     let layer = |artwork: &Artwork, command| {
         artwork
             .apply(ArtworkCommand::Layer(command))
@@ -220,7 +220,7 @@ fn layer_edits_open_again_exactly_and_an_undone_delete_restores_the_strokes() {
 
 #[test]
 fn a_save_without_a_known_base_rewrites_the_project() {
-    let dir = fresh_dir("rewrite");
+    let dir = TestDir::new("rewrite");
     let one = draw(&blank(), 10.0, 20);
     let three = draw(&draw(&one, 40.0, 20), 70.0, 20);
     let mut first = Library::at(&dir);
@@ -235,14 +235,14 @@ fn a_save_without_a_known_base_rewrites_the_project() {
 }
 
 fn corrupted(name: &str, change: impl Fn(&mut Vec<(String, Vec<u8>, Vec<u8>)>)) -> PortError {
-    let source = fresh_dir(&format!("{name}-source"));
+    let source = TestDir::new(&format!("{name}-source"));
     let artwork = draw(&draw(&blank(), 10.0, 20), 40.0, 20);
     Library::at(&source)
         .create(&artwork, &untitled())
         .expect("create");
     let mut stored = records(&source);
     change(&mut stored);
-    let dir = fresh_dir(name);
+    let dir = TestDir::new(name);
     write_records(&dir, &stored);
     Library::at(&dir).open_last().expect_err("refused")
 }
@@ -289,7 +289,7 @@ fn unreadable_records_are_refused_with_a_reason() {
 
 #[test]
 fn the_toolbox_is_stored_apart_and_an_unreadable_one_never_blocks_an_artwork() {
-    let dir = fresh_dir("editor");
+    let dir = TestDir::new("editor");
     let mut library = Library::at(&dir);
     let artwork = draw(&blank(), 10.0, 5);
     library.create(&artwork, &untitled()).expect("create");
@@ -322,7 +322,7 @@ fn the_toolbox_is_stored_apart_and_an_unreadable_one_never_blocks_an_artwork() {
     let mut stored = records(&dir);
     let editor = stored.iter_mut().find(|(_, key, _)| key == b"editor");
     editor.expect("the toolbox record").2.truncate(3);
-    let damaged = fresh_dir("editor-damaged");
+    let damaged = TestDir::new("editor-damaged");
     write_records(&damaged, &stored);
     let mut library = Library::at(&damaged);
     let corrupt = PortError::Corrupt {
@@ -335,7 +335,7 @@ fn the_toolbox_is_stored_apart_and_an_unreadable_one_never_blocks_an_artwork() {
 
 #[test]
 fn a_failed_call_is_retried_by_the_next_one() {
-    let dir = fresh_dir("locked");
+    let dir = TestDir::new("locked");
     let mut holder = Library::at(&dir);
     let id = holder
         .create(&draw(&blank(), 10.0, 5), &untitled())

@@ -6,7 +6,7 @@ use openpaint_render::{thumbnail_reference, thumbnail_size};
 use openpaint_runtime::{EditKey, TextInput, ToolKind};
 use openpaint_store::Library;
 
-use crate::support::{Hand, assert_cold, core, gallery, library_dir, start, until};
+use crate::support::{Hand, TestDir, assert_cold, core, gallery, start, until};
 
 /// 800 x 500 points at density 2.
 const SIZE: [u32; 2] = [1600, 1000];
@@ -17,7 +17,7 @@ const THUMBNAIL_MAX: [u32; 2] = [448, 336];
 #[test]
 fn the_gallery_shows_a_matching_thumbnail_and_renames_by_keyboard() {
     let core = core();
-    let dir = library_dir("gallery-rename");
+    let dir = TestDir::new("gallery-rename");
     let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Library::at(&dir)));
     let mut hand = Hand::new(SIZE);
     let wave: Vec<[f32; 2]> = (0..=30u8)
