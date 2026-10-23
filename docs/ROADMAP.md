@@ -47,6 +47,56 @@ Findings from the author's own use of 1.0, fixed one at a time.
 
 - S74 UI at the display's rate is done (1.0.1): `bench ui` measures each popover, the wheel, a slider and the editor's column; the cause was the pacing (a UI frame's CPU and GPU work together pass a vsync while the clocks are low, and frames waited for the one before: every third vsync at rest, every second with a hand) and an open panel's chrome pass (4 to 11 ms of GPU); a frame now goes every vsync unless a stroke is drawn or nothing moves (D97). Openings 36 to 50 -> 95 to 100 %, closings 51 to 88 -> 97 to 98 %, the wheel 45 -> 98 %, the editor's column 44 to 48 -> 92 to 96 %; the layer panel's first opening 42 -> 77 % and the editor's first frame 40 -> 78 % (first-open work, STATUS); resting, open-cold, zoom and strokes as before.
 
+## G9 Practice
+
+The author, 2026-10-23: practice is their main activity now. The app gets a practice mode, so they tap in and know what to do.
+- **Course.** It follows V大's 《预科作业 3.0》 as the main line, in 8 stages matching its 8 weeks, so its videos can be watched alongside. It also takes in what works from Drawabox, Proko, Gurney, Marco Bucci and accuracy trainers.
+- **Sessions.** The unit is a session of 20 to 30 minutes: warm-up from types already learnt, then the stage's main types, then a summary. After a session, another one is offered. Progress counts sessions done, never days: no quotas, streak pressure or nagging. A stage holds about 15 sessions and may be left early or revisited. Long colour copies are separate projects.
+- **Exercises are scenes the app lays out itself,** never pre-made sheets. The reference is locked: it cannot be drawn on, nor picked from before the check. StreamLine is off in practice. One tap overlays the copy on its reference.
+- **Scores come from the strokes' own path, pressure and time.** Each skill is measured several ways and tracked as a trajectory. Re-tests run at each stage's start and end. Optional targeted drills appear only in the summary, never in the main line.
+- **Content.** Generated exercises carry their own answers. Pictures come only from packs: an official one built from CC0/PD and attributed CC BY sources, curated AI images, and renders of CC0 models, each item with its source and licence. The author's own pictures are imported locally. Nothing third-party is in the repository.
+- **No accounts, community or sharing service.**
+- **Method notes.** V大's methods, distilled from the course's subtitles, guide every exercise's instructions and checks. They are not in the repository.
+
+- S75 Practice foundation. Goal: the author starts practising stage 1 on the tablet. Scope:
+  - **The gallery's "Today" card.** It shows the stage and its progress in sessions, and "Start practice". A finished session offers "One more".
+  - **A session.** Exercises come one after another, each a scene laid out by the app on a practice canvas with the usual tools, navigation and undo.
+  - **Locked reference.** The reference is locked: it cannot be drawn on, nor picked by the eyedropper before the check.
+  - **Practice pen.** StreamLine is off; scores read the raw samples.
+  - **Next exercise.** Moving to the next exercise pans the view to it and keeps the author's zoom, never filling the screen.
+  - **Check.** "Compare" overlays the copy on its reference and shows the numbers.
+  - **The summary** shows this session against the ones before.
+  - **Two generated types**, deterministic per seed:
+    - Single-line copy: a curve in a cell, copied in the empty cell beside it.
+      - Key-point error: endpoints and turning points, as V大 teaches.
+      - Accuracy within the frame: position and size relative to the cell.
+      - Shape accuracy after aligning position and scale.
+      - The stroke's speed, wobble and number of strokes.
+    - Single-colour match: a swatch, matched by filling the empty cell.
+      - First-pick error and final error, as hue, saturation and value differences plus one perceptual difference (Oklab).
+      - The number of corrections.
+  - **Short instructions** per type, shown the first time and on request, written from V大's method in our own words.
+  - **Stored.** Every result is stored (type, seed, metrics, time) with the session's progress. Additions keep format 1 if they leave existing bytes as they are; else a format step.
+  Done:
+  - Walk-through as a passing scenario: gallery -> Today -> a session of both types -> compare -> summary -> One more -> reopen, progress kept.
+  - Unit tests of the generators (same seed, same exercise).
+  - Unit tests of the metrics against known cases:
+    - an exact copy scores zero;
+    - a shifted copy errs in the frame but not in shape;
+    - a jittered copy shows wobble;
+    - a known colour pair gives known hue, saturation and value differences.
+  - Records round-trip in the store; every other scenario hash unchanged.
+  - On the tablet: a session through the scenario's steps, its UI at the display's rate (`bench ui`), device-smoke pass, the library restored last.
+- Next, each specified after the one before lands:
+  - Combined lines and the warm-up pool.
+  - Single shapes in four tiers from the first official pack, with the pack tool and local imports.
+  - Colour combinations and value scales, with the long-project space.
+  - Perspective boxes, ellipses, point positioning, proportion and angle estimates.
+  - Picture division, Notan and whole-picture copies.
+  - Key shifts, gamut masks and abstract analysis.
+  - Structure rotation against renders.
+  - Trajectories, stage reports, re-tests and drills.
+
 ## G8 Independent extensions after stabilisation
 
 Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud sync, plugins: each is its own project and never enters the main line automatically.
