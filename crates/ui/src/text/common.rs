@@ -17,7 +17,7 @@ texts! { COMMON;
     INVERT = "Invert", "反转";
     APPLY = "Apply", "应用";
     EDIT = "Edit", "编辑";
-    OK = "OK", "好";
+    OK = "OK", "确定";
     RETRY = "Retry", "重试";
     NAME = "Name", "名称";
     NONE = "None", "无";

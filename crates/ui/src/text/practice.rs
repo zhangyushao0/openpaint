@@ -12,13 +12,13 @@ texts! { PRACTICE_TABLE;
     COMPARE = "Compare", "叠图对比";
     NEXT = "Next", "下一个";
     FINISH = "Finish", "结束";
-    ONE_MORE = "One more", "再练一节";
+    ONE_MORE = "One more", "再练一次";
     ALL_TOOLS = "All tools", "全部工具";
     SKETCH = "Sketch", "草稿笔";
-    DRAW = "Draw", "画线笔";
+    DRAW = "Draw", "画图笔";
     CORRECT = "Correct", "修正笔";
     COLOUR_PICKED = "Colour picked", "所选颜色";
-    FILL_FRAME = "Fill frame", "填充框";
+    FILL_FRAME = "Fill frame", "填满方框";
     GOT_IT = "Got it", "知道了";
     IN_PLACE = "In place", "原位";
     ALIGNED = "Aligned", "对齐";
@@ -37,7 +37,7 @@ texts! { PRACTICE_TABLE;
     WHEEL_NOTE = "Yours in ink, the original in red, the arrows from yours to it. ΔE: Oklab × \
         100; about 2 is just noticeable.",
         "墨色是你的颜色，红色是原色，箭头从你的指向原色。ΔE：Oklab × 100，约 2 时刚能看出差别。";
-    THIS_SESSION = "this", "本节";
+    THIS_SESSION = "this", "本次";
     BEFORE = "before", "此前";
     COLOURS = "Colours", "颜色";
     FIRST_PICK_DELTA = "First pick ΔE", "首次选色 ΔE";
@@ -55,7 +55,7 @@ texts! { PRACTICE_STEPS;
         "先看再画：找出两个端点和弯得最厉害的地方，判断它们在框里的位置。可以先用草稿笔轻轻标出来。";
     LINE_3 = "Draw the line with Draw in one sure stroke. If it goes wrong, don't erase: draw the \
         better line over it.",
-        "用画线笔一笔果断画出。画错了不要擦，在上面画一条更准的。";
+        "用画图笔一笔果断画出。画错了不要擦，在上面画一条更准的。";
     LINE_4 = "Then tap Compare: the original lies over your line in red, in place or aligned to \
         it. Correct in blue and compare again, as often as you like.",
         "然后点“叠图对比”：原线条以红色叠在你的线条上，可选原位或对齐。用修正笔改，再对比，次数不限。";
@@ -63,7 +63,7 @@ texts! { PRACTICE_STEPS;
         "用旁边色块的颜色填满空白框。";
     COLOUR_2 = "Name it first: its hue, how pure or grey, how light or dark. Then pick it once by \
         eye on the wheel and tap Fill frame.",
-        "先说出它的色相、纯度和明暗：偏纯还是偏灰，偏亮还是偏暗。再凭眼睛在色轮上选一次，点“填充框”。";
+        "先说出它的色相、纯度和明暗：偏纯还是偏灰，偏亮还是偏暗。再凭眼睛在色轮上选一次，点“填满方框”。";
     COLOUR_3 = "Compare by eye: redder or yellower? Lighter or darker? Purer or greyer? Pick and \
         fill again two or three times.",
         "用眼睛比较：更红还是更黄？更亮还是更暗？更纯还是更灰？再选色填充两三次。";
@@ -78,7 +78,7 @@ texts! { PRACTICE_HUES;
     GREENER = "greener", "更绿";
     MORE_CYAN = "more cyan", "更青";
     BLUER = "bluer", "更蓝";
-    MORE_MAGENTA = "more magenta", "更品红";
+    MORE_MAGENTA = "more magenta", "更偏品红";
     HUE_RED = "red", "红色";
     HUE_ORANGE = "orange", "橙色";
     HUE_YELLOW = "yellow", "黄色";
@@ -182,7 +182,7 @@ pub(crate) fn exercise(language: Language, line: bool, place: usize) -> String {
 pub(crate) fn session_done(language: Language, number: u32) -> String {
     match language {
         Language::English => format!("Session {number} done"),
-        Language::Chinese => format!("第 {number} 节完成"),
+        Language::Chinese => format!("第 {number} 次练习完成"),
     }
 }
 

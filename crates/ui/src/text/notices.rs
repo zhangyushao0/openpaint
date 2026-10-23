@@ -14,7 +14,7 @@ texts! { NOTICES;
         "无法打开上次的画，这是一张新画。";
     DRAW_IN_FRAME = "Draw in the empty frame.", "请在空白框里画。";
     PICK_AFTER_COMPARE = "The original can be picked after Compare.", "叠图对比之后才能吸取原图的颜色。";
-    SESSION_DONE = "This session is done.", "这一节练习已完成。";
+    SESSION_DONE = "This session is done.", "这次练习已完成。";
     DROP_IN_FRAME = "Drop inside the empty frame to fill.", "拖到空白框里即可填充。";
     DROP_IN_SELECTION = "Drop inside the selection to fill.", "拖到选区里即可填充。";
     FILL_FAILED = "Couldn't fill there. Try again.", "无法在这里填充，请重试。";

@@ -9,7 +9,7 @@ texts! { GALLERY_TABLE;
     SEARCH = "Search", "搜索";
     NEW_ARTWORK = "New artwork", "新建作品";
     NO_ARTWORKS = "No artworks yet. Tap + to start one.", "还没有作品。轻点 + 开始创作。";
-    TODAY = "Today", "今日";
+    TODAY = "Today", "今天";
     PRACTICE = "Practice", "练习";
     START_PRACTICE = "Start practice", "开始练习";
     CONTINUE_PRACTICE = "Continue practice", "继续练习";
@@ -112,7 +112,7 @@ pub(crate) fn stage(language: Language, stage: u8) -> String {
 pub(crate) fn sessions_done(language: Language, done: u32, about: u32) -> String {
     match language {
         Language::English => format!("{done} of about {about} sessions done"),
-        Language::Chinese => format!("已完成 {done} 节，共约 {about} 节"),
+        Language::Chinese => format!("已完成 {done} 次，共约 {about} 次"),
     }
 }
 

@@ -11,7 +11,7 @@ texts! { BRUSHES_TABLE;
     STREAMLINE = "StreamLine", "流线";
     RENAME_BRUSH = "Rename brush", "重命名笔刷";
     STROKES_STAY = "Strokes drawn with it stay.", "用它画过的笔画会保留。";
-    SET = "Set", "分组";
+    SET = "Set", "笔刷组";
     STROKE = "Stroke", "笔画";
     SHAPE = "Shape", "形状";
     GRAIN = "Grain", "颗粒";
