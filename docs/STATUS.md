@@ -4,7 +4,7 @@ Updated 2026-10-22 (1.0.0). Current facts only; rewritten at the end of every sl
 
 ## Stage
 
-OpenPaint 1.0.0 (format 1) is released to the tablet: G0 to G7 passed (ROADMAP), the 1.0 slices are done, and the app is installed fresh with an empty library for the author. Nothing in the main line is ordered after it; G8 projects are the author's call.
+OpenPaint 1.0.0 (format 1) is released to the tablet: G0 to G7 passed (ROADMAP), the 1.0 slices are done, and the app is installed fresh with an empty library for the author. The author uses it daily; findings from that use are ROADMAP's "1.x Daily use" slices, S74 UI at the display's rate next (2026-10-23: the colour and brush panels don't feel like 120 Hz). G8 projects are the author's call.
 
 ## Working features
 

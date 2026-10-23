@@ -41,6 +41,12 @@ The author, 2026-10-22: 1.0.0 is a new product, not an upgrade. No compatibility
 - S72 Cross-crate simplification is done: one image source, one whole draw, one runtime constructor, one store wrapper, one runtime test binary, the canvas's modules in `render/src/canvas/`.
 - S73 1.0.0 is done: one layer refusal, one curve mapping, the budget test on its own clock, the gallery's delete note in ink; the four documents rewritten as the product now is; the version 1.0.0; on the tablet a fresh install, the smoke and the benches.
 
+## 1.x Daily use
+
+Findings from the author's own use of 1.0, fixed one at a time.
+
+- S74 UI at the display's rate. Goal: every UI motion presents a frame every vsync at 120 Hz, as drawing does. This covers a popover or panel opening and closing, the colour wheel and sliders while dragged, lists scrolling, and pictures appearing. The author, 2026-10-23: the colour and brush panels don't feel like 120 Hz. Tooling first: `bench ui` opens and closes each island's popovers, drags the colour wheel, a slider and a list, and reports per motion the frames presented against the vsyncs it spans, frame work and GPU time a frame, and the longest gap. Suspects to measure, not presume: D96's resting rule (with no contact on the glass a frame waits until the one before was found done a call earlier); a panel's first-open work (brush pictures, textures); egui's layout. Done: each motion before -> after on the tablet; during each motion frames presented at 95 % or more of vsyncs and no gap over two, or what bounds it stated; resting unchanged (frame calls and GPU time while idle); fills' pace unchanged (open-cold, zoom); device-smoke pass; the library restored last.
+
 ## G8 Independent extensions after stabilisation
 
 Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud sync, plugins: each is its own project and never enters the main line automatically.
