@@ -11,8 +11,10 @@ mod align;
 mod colour;
 mod colour_match;
 mod judgement;
+mod licence;
 mod line;
 mod metric;
+mod pack;
 mod path;
 mod plan;
 mod random;
@@ -24,8 +26,12 @@ pub use colour::{
 };
 pub use colour_match::{ColourCopy, ColourScore, Lightness, Purity, Tone, score_colour};
 pub use judgement::{Axis, DELTA_SPAN, HUE_SPAN, Judgement, NOTICEABLE, SV_SPAN, judgement};
+pub use licence::Licence;
 pub use line::{LineExercise, LineTier};
 pub use metric::{Metric, Metrics, value};
+pub use pack::{
+    ItemRef, MAX_ID, MAX_PICTURE_SIDE, Pack, PackItem, PackProblem, PictureKind, Tier, valid_id,
+};
 pub use path::{Point, distance, length, nearest, resample};
 pub use plan::{
     Exercise, FRAME, Frame, Kind, Original, Pair, STAGE_SESSIONS, STAGES, Sheet, stage_one,

@@ -1,0 +1,1064 @@
+# The first official practice pack: single shapes in four tiers (ROADMAP S78), for V大's
+# 复制单体图形, copying one object by its outline: clean things with clear outlines, no trees or
+# water, the subjects varied. Built by `cargo practice-pack build apps/harness/packs/shapes.toml`;
+# the format is in apps/harness/src/pack/list.rs. No picture is kept here: each item names its
+# object at its source, the licence the source's API must state, and why it is in its tier.
+#
+# The tiers:
+# - entry: cartoon creatures and characters, flat or simply shaded, one closed outline each
+#   (Twemoji, Pepper&Carrot, Blender's Big Buck Bunny, OpenGameArt), CC BY with their
+#   attribution;
+# - simple: vessels, furniture, lamps and tools on plain studio grounds, symmetric or nearly,
+#   few parts (Cleveland Museum of Art and the Met, CC0);
+# - medium: animals, standing figures and everyday things whose outlines are longer and softer
+#   (museum CC0; US Fish and Wildlife Service fish illustrations, US federal public domain);
+# - hard: heads, armour, clocks, instruments and machines: many parts, overlaps, perspective
+#   (museum CC0; NASA photographs, US federal public domain).
+#
+# Looked at on contact sheets (`--sheet`) before going in; left out: busy or textured grounds,
+# watermarks or labels, pairs and groups, cropped figures, nudity, living people's faces, any
+# licence the API does not state as one of the pack's.
+
+id = "openpaint-shapes"
+title = "Single shapes"
+kind = "shape"
+
+# Entry
+
+[[item]]
+id = "ghost"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f47b.svg"
+licence = "CC BY 4.0"
+reason = "one closed blob with a wavy hem; the face inside the outline"
+
+[[item]]
+id = "snowman"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 26c4.svg"
+licence = "CC BY 4.0"
+reason = "two stacked circles, a hat and stick arms: round masses in proportion"
+
+[[item]]
+id = "pig"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f416.svg"
+licence = "CC BY 4.0"
+reason = "a rounded body on four short legs: one simple closed outline"
+
+[[item]]
+id = "penguin"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f427.svg"
+licence = "CC BY 4.0"
+reason = "an upright egg with flippers and feet, symmetric"
+
+[[item]]
+id = "hippopotamus"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f99b.svg"
+licence = "CC BY 4.0"
+reason = "a long barrel body on stubby legs"
+
+[[item]]
+id = "mouse"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f401.svg"
+licence = "CC BY 4.0"
+reason = "a teardrop body, a round ear and a long curved tail"
+
+[[item]]
+id = "rabbit"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f407.svg"
+licence = "CC BY 4.0"
+reason = "a crouched oval with two tall ears"
+
+[[item]]
+id = "duck"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f986.svg"
+licence = "CC BY 4.0"
+reason = "a floating body, a head and a bill: few parts"
+
+[[item]]
+id = "dolphin"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f42c.svg"
+licence = "CC BY 4.0"
+reason = "one sweeping curved body with fins"
+
+[[item]]
+id = "shark"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f988.svg"
+licence = "CC BY 4.0"
+reason = "a pointed body, fins and an open jaw: sharp angles"
+
+[[item]]
+id = "snail"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f40c.svg"
+licence = "CC BY 4.0"
+reason = "a spiral shell on a soft foot: a spiral against a straight base"
+
+[[item]]
+id = "turtle"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f422.svg"
+licence = "CC BY 4.0"
+reason = "a domed shell with head and legs out"
+
+[[item]]
+id = "owl"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f989.svg"
+licence = "CC BY 4.0"
+reason = "a symmetric bird face on: round eyes in a squarish body"
+
+[[item]]
+id = "swan"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f9a2.svg"
+licence = "CC BY 4.0"
+reason = "an S-shaped neck over a round body"
+
+[[item]]
+id = "sauropod"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f995.svg"
+licence = "CC BY 4.0"
+reason = "a long neck and tail on a heavy body"
+
+[[item]]
+id = "camel"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f42b.svg"
+licence = "CC BY 4.0"
+reason = "two humps on long thin legs: the spaces between the legs"
+
+[[item]]
+id = "kangaroo"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f998.svg"
+licence = "CC BY 4.0"
+reason = "an upright animal leaning on a long tail"
+
+[[item]]
+id = "dog"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f415.svg"
+licence = "CC BY 4.0"
+reason = "a standing dog in profile: legs, ears and a curled tail"
+
+[[item]]
+id = "cat"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f408.svg"
+licence = "CC BY 4.0"
+reason = "a walking cat with its tail raised"
+
+[[item]]
+id = "rooster"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f413.svg"
+licence = "CC BY 4.0"
+reason = "a comb, a wattle and a fanned tail on a round body"
+
+[[item]]
+id = "flamingo"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f9a9.svg"
+licence = "CC BY 4.0"
+reason = "one leg, an S neck and a bent bill: thin parts"
+
+[[item]]
+id = "dodo"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji13 1f9a4.svg"
+licence = "CC BY 4.0"
+reason = "a heavy bird with a hooked bill and stubby wings"
+
+[[item]]
+id = "mammoth"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji13 1f9a3.svg"
+licence = "CC BY 4.0"
+reason = "a shaggy outline with curved tusks and a trunk"
+
+[[item]]
+id = "t-rex"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f996.svg"
+licence = "CC BY 4.0"
+reason = "a striding dinosaur: small arms, a big head and a long tail"
+
+[[item]]
+id = "horse"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f40e.svg"
+licence = "CC BY 4.0"
+reason = "a galloping horse: four legs in motion"
+
+[[item]]
+id = "bat"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f987.svg"
+licence = "CC BY 4.0"
+reason = "spread scalloped wings, symmetric"
+
+[[item]]
+id = "butterfly"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f98b.svg"
+licence = "CC BY 4.0"
+reason = "four wings mirrored about a thin body"
+
+[[item]]
+id = "crab"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f980.svg"
+licence = "CC BY 4.0"
+reason = "a shell with eight legs and two claws: many parts round one body"
+
+[[item]]
+id = "lizard"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f98e.svg"
+licence = "CC BY 4.0"
+reason = "a diagonal body, four splayed legs and a long tail"
+
+[[item]]
+id = "runner"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f3c3-200d-2642-fe0f.svg"
+licence = "CC BY 4.0"
+reason = "a running figure: arms and legs at angles"
+
+[[item]]
+id = "dancer"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f483.svg"
+licence = "CC BY 4.0"
+reason = "a dancing figure with a flaring dress"
+
+[[item]]
+id = "cartwheel"
+tier = "entry"
+source = "commons"
+object = "File:Twemoji12 1f938-200d-2640-fe0f.svg"
+licence = "CC BY 4.0"
+reason = "an upside-down figure: the body read by its gesture"
+
+[[item]]
+id = "big-buck-bunny"
+tier = "entry"
+source = "commons"
+object = "File:Peach Bunny Poster.jpg"
+licence = "CC BY 3.0"
+reason = "a whole cartoon figure, shaded in 3D, on a plain gradient"
+
+[[item]]
+id = "coriander"
+tier = "entry"
+source = "commons"
+object = "File:2015-05-13 coriander concept-art by-David-Revoy.jpg"
+licence = "CC BY 4.0"
+reason = "a whole standing character on a plain ground: hat, coat and boots"
+
+[[item]]
+id = "dragon-economist"
+tier = "entry"
+source = "commons"
+object = "File:2020-01-28 red-dragon-economist-from-komona by-David-Revoy.jpg"
+licence = "CC BY 4.0"
+reason = "a standing cartoon dragon in a suit holding a scroll"
+
+[[item]]
+id = "eir"
+tier = "entry"
+source = "commons"
+object = "File:Eir character.png"
+licence = "CC BY 3.0"
+reason = "a whole fantasy figure with a staff on white: the tier's most detailed"
+
+# Simple
+
+[[item]]
+id = "teapot-silver"
+tier = "simple"
+source = "cleveland"
+object = "1940.228"
+licence = "CC0"
+reason = "a round body, a spout and a wooden handle"
+
+[[item]]
+id = "teapot-side-handle"
+tier = "simple"
+source = "cleveland"
+object = "2022.168"
+licence = "CC0"
+reason = "a porcelain pot with a straight side handle and a spout"
+
+[[item]]
+id = "teapot-bail"
+tier = "simple"
+source = "cleveland"
+object = "2022.203"
+licence = "CC0"
+reason = "a round pot under a wire bail handle"
+
+[[item]]
+id = "ewer-celadon"
+tier = "simple"
+source = "cleveland"
+object = "1928.179"
+licence = "CC0"
+reason = "a pear-shaped ewer: a spout and a loop handle"
+
+[[item]]
+id = "ewer-brass"
+tier = "simple"
+source = "cleveland"
+object = "1956.11"
+licence = "CC0"
+reason = "a long straight spout, a tall neck and a handle"
+
+[[item]]
+id = "kundika"
+tier = "simple"
+source = "cleveland"
+object = "1921.631"
+licence = "CC0"
+reason = "a slender upright vessel with a side spout"
+
+[[item]]
+id = "ewer-white"
+tier = "simple"
+source = "cleveland"
+object = "1948.219"
+licence = "CC0"
+reason = "a squat ewer with a spout and a high handle"
+
+[[item]]
+id = "coffee-pot-conical"
+tier = "simple"
+source = "cleveland"
+object = "1987.163"
+licence = "CC0"
+reason = "straight conical sides and an S-shaped spout"
+
+[[item]]
+id = "coffee-pot-straight"
+tier = "simple"
+source = "cleveland"
+object = "1991.314.1"
+licence = "CC0"
+reason = "a straight-sided pot, a long spout and a dark handle"
+
+[[item]]
+id = "milk-jug"
+tier = "simple"
+source = "cleveland"
+object = "1962.378"
+licence = "CC0"
+reason = "a covered pear-shaped jug with one handle"
+
+[[item]]
+id = "chair-roundback"
+tier = "simple"
+source = "cleveland"
+object = "1955.40.1"
+licence = "CC0"
+reason = "a horseshoe-back armchair: straight members and the spaces between"
+
+[[item]]
+id = "chair-lattice"
+tier = "simple"
+source = "cleveland"
+object = "1986.208.2"
+licence = "CC0"
+reason = "a side chair with a lattice back, nearly square on"
+
+[[item]]
+id = "chair-crossed-back"
+tier = "simple"
+source = "cleveland"
+object = "1988.32"
+licence = "CC0"
+reason = "a crossed curved back over straight legs"
+
+[[item]]
+id = "lamp-cone"
+tier = "simple"
+source = "cleveland"
+object = "2018.277"
+licence = "CC0"
+reason = "a cone shade on a thin stem, dark ground"
+
+[[item]]
+id = "lamp-column"
+tier = "simple"
+source = "cleveland"
+object = "2018.276"
+licence = "CC0"
+reason = "a cone shade on a square column"
+
+[[item]]
+id = "lamp-mushroom"
+tier = "simple"
+source = "cleveland"
+object = "2018.288"
+licence = "CC0"
+reason = "a small dome on a stem"
+
+[[item]]
+id = "oil-lamp"
+tier = "simple"
+source = "cleveland"
+object = "1954.597.a"
+licence = "CC0"
+reason = "a low oil lamp with a horse-head handle"
+
+[[item]]
+id = "mosque-lamp"
+tier = "simple"
+source = "cleveland"
+object = "1981.10"
+licence = "CC0"
+reason = "a flared neck on a round body with small handles"
+
+[[item]]
+id = "candlestick-pricket"
+tier = "simple"
+source = "cleveland"
+object = "1974.185"
+licence = "CC0"
+reason = "a turned candlestick: stacked rings, symmetric"
+
+[[item]]
+id = "candlestick-stepped"
+tier = "simple"
+source = "cleveland"
+object = "1951.539"
+licence = "CC0"
+reason = "two flaring drums stacked"
+
+[[item]]
+id = "candlestick-white"
+tier = "simple"
+source = "cleveland"
+object = "1989.298.1"
+licence = "CC0"
+reason = "two dishes on a column, white on a dark ground"
+
+[[item]]
+id = "vase-amphora"
+tier = "simple"
+source = "cleveland"
+object = "1944.190"
+licence = "CC0"
+reason = "a tall vase with two dragon handles"
+
+[[item]]
+id = "vase-gu"
+tier = "simple"
+source = "cleveland"
+object = "2022.224"
+licence = "CC0"
+reason = "a beaker flaring at both ends"
+
+[[item]]
+id = "vase-bamboo"
+tier = "simple"
+source = "cleveland"
+object = "2022.235"
+licence = "CC0"
+reason = "a bottle vase ringed like bamboo"
+
+[[item]]
+id = "vase-covered"
+tier = "simple"
+source = "cleveland"
+object = "1951.299"
+licence = "CC0"
+reason = "a covered vase with two handles on a foot"
+
+[[item]]
+id = "bell-bronze"
+tier = "simple"
+source = "cleveland"
+object = "1989.3"
+licence = "CC0"
+reason = "a flat-sided bell with a shank and studs"
+
+[[item]]
+id = "bell-vajra"
+tier = "simple"
+source = "cleveland"
+object = "2016.38"
+licence = "CC0"
+reason = "a hand bell under a pronged handle"
+
+[[item]]
+id = "beaker-glass"
+tier = "simple"
+source = "cleveland"
+object = "1915.541"
+licence = "CC0"
+reason = "a flared glass cup on a foot"
+
+[[item]]
+id = "scissors"
+tier = "simple"
+source = "met"
+object = "210032"
+licence = "CC0"
+reason = "scissors lying flat: rings and blades"
+
+[[item]]
+id = "shears"
+tier = "simple"
+source = "met"
+object = "471615"
+licence = "CC0"
+reason = "two blades on a spring bow, on white"
+
+[[item]]
+id = "padlock-triangle"
+tier = "simple"
+source = "met"
+object = "186853"
+licence = "CC0"
+reason = "a triangle under a round shackle"
+
+[[item]]
+id = "key-trefoil"
+tier = "simple"
+source = "met"
+object = "463368"
+licence = "CC0"
+reason = "a key with a trefoil bow and a toothed bit"
+
+[[item]]
+id = "key-pierced"
+tier = "simple"
+source = "met"
+object = "463339"
+licence = "CC0"
+reason = "a key with a pierced bow"
+
+# Medium
+
+[[item]]
+id = "horse-glazed"
+tier = "medium"
+source = "cleveland"
+object = "1955.295"
+licence = "CC0"
+reason = "a saddled horse standing: head, legs and tail"
+
+[[item]]
+id = "horse-bronze"
+tier = "medium"
+source = "cleveland"
+object = "1952.108"
+licence = "CC0"
+reason = "a bronze horse: the muscles shape the outline"
+
+[[item]]
+id = "horse-haniwa"
+tier = "medium"
+source = "cleveland"
+object = "1957.27"
+licence = "CC0"
+reason = "a clay horse on tube legs: simple masses with harness"
+
+[[item]]
+id = "horse-geometric"
+tier = "medium"
+source = "cleveland"
+object = "1991.49"
+licence = "CC0"
+reason = "a stylised horse: a long neck and thin legs on a base"
+
+[[item]]
+id = "hippopotamus-bronze"
+tier = "medium"
+source = "cleveland"
+object = "1958.100"
+licence = "CC0"
+reason = "a walking hippopotamus seen at an angle"
+
+[[item]]
+id = "apis-bull"
+tier = "medium"
+source = "cleveland"
+object = "1969.118"
+licence = "CC0"
+reason = "a standing bull on a base, in profile"
+
+[[item]]
+id = "dog-seated"
+tier = "medium"
+source = "cleveland"
+object = "1983.1"
+licence = "CC0"
+reason = "a seated dog: a long neck and big ears"
+
+[[item]]
+id = "frog"
+tier = "medium"
+source = "cleveland"
+object = "1976.5"
+licence = "CC0"
+reason = "a crouching frog: a few rounded masses at an angle"
+
+[[item]]
+id = "baboon"
+tier = "medium"
+source = "cleveland"
+object = "1988.154"
+licence = "CC0"
+reason = "a seated baboon on a base"
+
+[[item]]
+id = "ibis"
+tier = "medium"
+source = "cleveland"
+object = "1974.3"
+licence = "CC0"
+reason = "a wading bird on a stand: thin legs and a curved neck"
+
+[[item]]
+id = "eagle"
+tier = "medium"
+source = "cleveland"
+object = "1988.40"
+licence = "CC0"
+reason = "a perched eagle: folded wings and a hooked beak"
+
+[[item]]
+id = "falcon"
+tier = "medium"
+source = "cleveland"
+object = "1940.615"
+licence = "CC0"
+reason = "a compact upright falcon"
+
+[[item]]
+id = "lion-aquamanile"
+tier = "medium"
+source = "cleveland"
+object = "1972.167"
+licence = "CC0"
+reason = "a lion-shaped vessel with a curling tail handle"
+
+[[item]]
+id = "elephant-stone"
+tier = "medium"
+source = "cleveland"
+object = "1982.10"
+licence = "CC0"
+reason = "a stone elephant head on, trunk curled"
+
+[[item]]
+id = "elephant-gilt"
+tier = "medium"
+source = "cleveland"
+object = "1980.24"
+licence = "CC0"
+reason = "an elephant under a decorated cloth"
+
+[[item]]
+id = "spaniel-and-duck"
+tier = "medium"
+source = "cleveland"
+object = "1960.92"
+licence = "CC0"
+reason = "a dog standing over a duck: two animals as one mass"
+
+[[item]]
+id = "turtle-bell-push"
+tier = "medium"
+source = "cleveland"
+object = "1966.473"
+licence = "CC0"
+reason = "a turtle seen low: a domed shell and small legs"
+
+[[item]]
+id = "statuette-draped"
+tier = "medium"
+source = "cleveland"
+object = "1916.2013"
+licence = "CC0"
+reason = "a standing draped figure: folds in the outline"
+
+[[item]]
+id = "virgin-and-child"
+tier = "medium"
+source = "cleveland"
+object = "1942.784"
+licence = "CC0"
+reason = "a standing figure with a child on one arm"
+
+[[item]]
+id = "childs-coat"
+tier = "medium"
+source = "cleveland"
+object = "1996.2.1"
+licence = "CC0"
+reason = "a coat spread flat: sleeves and hem"
+
+[[item]]
+id = "cat-statuette"
+tier = "medium"
+source = "met"
+object = "544118"
+licence = "CC0"
+reason = "a seated cat in three-quarter view"
+
+[[item]]
+id = "cat-seated"
+tier = "medium"
+source = "met"
+object = "570740"
+licence = "CC0"
+reason = "a seated cat in profile on a block"
+
+[[item]]
+id = "bird-padlock"
+tier = "medium"
+source = "met"
+object = "446007"
+licence = "CC0"
+reason = "a padlock shaped as a bird"
+
+[[item]]
+id = "red-boots"
+tier = "medium"
+source = "met"
+object = "158267"
+licence = "CC0"
+reason = "a pair of laced boots overlapping as one shape"
+
+[[item]]
+id = "slippers"
+tier = "medium"
+source = "met"
+object = "156241"
+licence = "CC0"
+reason = "a pair of quilted slippers with buckles"
+
+[[item]]
+id = "straw-hat"
+tier = "medium"
+source = "met"
+object = "81227"
+licence = "CC0"
+reason = "a wide brim in perspective: an ellipse under a crown"
+
+[[item]]
+id = "freshwater-drum"
+tier = "medium"
+source = "commons"
+object = "File:Freshwaterdrum (white background).png"
+licence = "PD-US-gov"
+reason = "a humped body with spiny and soft fins, on white"
+
+[[item]]
+id = "catfish"
+tier = "medium"
+source = "commons"
+object = "File:Ameiurus melas by Duane Raver.png"
+licence = "PD-US-gov"
+reason = "a catfish with barbels and soft fins"
+
+[[item]]
+id = "pickerel"
+tier = "medium"
+source = "commons"
+object = "File:Esox americanus americanus.jpg"
+licence = "PD-US-gov"
+reason = "a long pike body with a duck-bill snout and fins set far back"
+
+[[item]]
+id = "sturgeon"
+tier = "medium"
+source = "commons"
+object = "File:Acipenser oxyrhynchus (edit).png"
+licence = "PD-US-gov"
+reason = "a long armoured body, a pointed snout and an uneven tail"
+
+# Hard
+
+[[item]]
+id = "close-helmet"
+tier = "hard"
+source = "met"
+object = "26538"
+licence = "CC0"
+reason = "visor slits and overlapping curved plates"
+
+[[item]]
+id = "close-helmet-profile"
+tier = "hard"
+source = "met"
+object = "34339"
+licence = "CC0"
+reason = "a helmet in profile, its visor raised"
+
+[[item]]
+id = "turban-helmet"
+tier = "hard"
+source = "met"
+object = "27936"
+licence = "CC0"
+reason = "a fluted dome with cheek pieces and a nasal"
+
+[[item]]
+id = "helmet-cheek-plates"
+tier = "hard"
+source = "met"
+object = "32137"
+licence = "CC0"
+reason = "hinged cheek plates and a neck guard round a dome"
+
+[[item]]
+id = "helmet-nasal"
+tier = "hard"
+source = "met"
+object = "24028"
+licence = "CC0"
+reason = "a pointed helmet with a nasal bar and cheek guards"
+
+[[item]]
+id = "kabuto"
+tier = "hard"
+source = "met"
+object = "774458"
+licence = "CC0"
+reason = "a Japanese helmet: tiers of lames round a bowl"
+
+[[item]]
+id = "armor-field"
+tier = "hard"
+source = "met"
+object = "35937"
+licence = "CC0"
+reason = "a whole standing suit of plate armour"
+
+[[item]]
+id = "armor-gothic"
+tier = "hard"
+source = "met"
+object = "22277"
+licence = "CC0"
+reason = "a Gothic armour with long pointed sabatons"
+
+[[item]]
+id = "armor-half"
+tier = "hard"
+source = "met"
+object = "22270"
+licence = "CC0"
+reason = "a half armour and its helmet: plates over a torso"
+
+[[item]]
+id = "armor-gusoku"
+tier = "hard"
+source = "met"
+object = "22020"
+licence = "CC0"
+reason = "a Japanese armour: laced plates and a crested helmet"
+
+[[item]]
+id = "armor-equestrian"
+tier = "hard"
+source = "met"
+object = "32077"
+licence = "CC0"
+reason = "horse and rider in armour: the tier's most complex outline"
+
+[[item]]
+id = "bust-bronze"
+tier = "hard"
+source = "cleveland"
+object = "1928.860"
+licence = "CC0"
+reason = "a bronze head and shoulders: a head's structure"
+
+[[item]]
+id = "bust-child"
+tier = "hard"
+source = "cleveland"
+object = "1951.288"
+licence = "CC0"
+reason = "a child's bust on a socle"
+
+[[item]]
+id = "bust-hero"
+tier = "hard"
+source = "cleveland"
+object = "2013.31"
+licence = "CC0"
+reason = "a bearded head of curls, turned"
+
+[[item]]
+id = "bust-cicero"
+tier = "hard"
+source = "cleveland"
+object = "1916.1004"
+licence = "CC0"
+reason = "a portrait bust in dark marble"
+
+[[item]]
+id = "bust-rossini"
+tier = "hard"
+source = "cleveland"
+object = "1980.182"
+licence = "CC0"
+reason = "a white bust of an older man on a base"
+
+[[item]]
+id = "bust-lady"
+tier = "hard"
+source = "cleveland"
+object = "1967.31"
+licence = "CC0"
+reason = "a terracotta bust with a ruffled collar"
+
+[[item]]
+id = "bust-victor-hugo"
+tier = "hard"
+source = "cleveland"
+object = "1940.580"
+licence = "CC0"
+reason = "beard and hair as masses round a face"
+
+[[item]]
+id = "karashishi"
+tier = "hard"
+source = "cleveland"
+object = "1924.351.2"
+licence = "CC0"
+reason = "a guardian lion-dog: mane and paws in many lobes"
+
+[[item]]
+id = "griffin"
+tier = "hard"
+source = "cleveland"
+object = "1928.861.1"
+licence = "CC0"
+reason = "a reclining winged griffin"
+
+[[item]]
+id = "clock-rococo"
+tier = "hard"
+source = "cleveland"
+object = "1951.550"
+licence = "CC0"
+reason = "scrolls and foliage round a dial"
+
+[[item]]
+id = "clock-mantel"
+tier = "hard"
+source = "cleveland"
+object = "2011.204"
+licence = "CC0"
+reason = "columns, figures and a dial on a plinth"
+
+[[item]]
+id = "clock-urn"
+tier = "hard"
+source = "cleveland"
+object = "1985.11"
+licence = "CC0"
+reason = "an urn-shaped clock on a stepped base"
+
+[[item]]
+id = "harp-guitar"
+tier = "hard"
+source = "met"
+object = "506867"
+licence = "CC0"
+reason = "a body, a neck and a harp arm: three parts to relate"
+
+[[item]]
+id = "archtop-guitar"
+tier = "hard"
+source = "met"
+object = "506865"
+licence = "CC0"
+reason = "a scrolled body in perspective"
+
+[[item]]
+id = "t-38"
+tier = "hard"
+source = "commons"
+object = "File:NASA Dryden's T-38 Talon trainer aircraft in flight near Edwards Air Force Base (ED06-0072-4).jpg"
+licence = "PD-US-gov"
+reason = "a jet in flight against a plain sky"
+
+[[item]]
+id = "b-52"
+tier = "hard"
+source = "commons"
+object = "File:NASA Dryden's B-52H in flight (EC02-0083-3).jpg"
+licence = "PD-US-gov"
+reason = "long wings with engine pods, in perspective"
+
+[[item]]
+id = "himat"
+tier = "hard"
+source = "commons"
+object = "File:The HiMAT (Highly Maneuverable Aircraft Technology) subscale research vehicle, seen here during a research flight, was flown by the NASA Dryden Flight Research Center, Edwards, California, from mid 1979 to January 1983 (ECN-14273).jpg"
+licence = "PD-US-gov"
+reason = "canards, wings and fins at an angle"
+
+[[item]]
+id = "inflatable-wing"
+tier = "hard"
+source = "commons"
+object = "File:The deployable, inflatable wing technology demonstrator experiment aircraft maintains a steady attitude following separation from its carrier aircraft during a flight conducted by the NASA Dryden Flight Research Center, (EC01-0136-12).jpg"
+licence = "PD-US-gov"
+reason = "a small aircraft on a deep blue sky"
+
+[[item]]
+id = "lunar-rover"
+tier = "hard"
+source = "commons"
+object = "File:NASA Apollo 17 Lunar Roving Vehicle.jpg"
+licence = "PD-US-gov"
+reason = "wheels, frame and antenna on the plain lunar ground"
