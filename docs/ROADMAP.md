@@ -63,8 +63,40 @@ The author, 2026-10-23: practice is their main activity now. The app gets a prac
 - S77 Two languages is done (1.2.0; D100): every word in the UI's text tables, English and Chinese side by side, the practice's in V大's terms; a control named by its English in both; the names the app gives shown in the language; Actions' Language row, kept with the toolbox, the system's locale until chosen; Chinese card text line-broken by the UI; `cargo repo-check` refuses words outside the tables. `s77-languages` walks every screen in Chinese with English runs' hashes, switches and reopens; 48 scenarios with every hash before unchanged; on the tablet Chinese screenshots, `bench ui` 94 to 99 %, the smoke 16.9 s, the practice session not_run (the author's open).
 - S78 Practice packs is done (D101; merged from a worktree beside S77): a pack is one checked file of a manifest and its pictures kept beside the library; `cargo practice-pack build|search` makes it from a curated list in the repository, every licence read from the source's API (a mismatch fails naming the item), the same list and cache giving the same bytes; the first official pack `openpaint-shapes`, single shapes in four tiers, 127 items (entry 33: Twemoji figures and a Pepper&Carrot character; simple 33: Cleveland and Met objects; medium 30: animal sculpture, dress, US federal fish drawings; hard 31: armour, busts, clocks, guitars, NASA aircraft, a fantasy figure), each chosen on a contact sheet; no picture committed; not yet in the app.
 - S79 Combined lines and the warm-up pool is done (1.3.0; D102): `cargo device-input practice-test start|end` starts the session Today would start next beside the author's open one and removes it, record and sheet, leaving theirs byte for byte; combined lines (two to four lines joined, branched, crossing or near, held to rules on corners, crossings and gaps) compared in place and aligned as one shape, a partial copy fitted to the lines drawn; every session from the second on opens with a warm-up of four exercises from the kinds met, then 6 lines, 4 combined lines and 6 colours (about 28 minutes). `s79-combined-warm-up` passes, 49 scenarios with every hash before unchanged but s75's second sheet (a seventh row for its warm-up); on the tablet S76's, S77's and S79's sessions walked on test sessions, `bench practice` 83 to 98 %, the smoke 16.8 s, the library restored.
+- S80 Single shapes and stage 2. Goal: V大's 复制单体图形 from S78's pack and the author's own pictures, and the course reaching its second stage. Scope:
+  - **Packs in the app.**
+    - Import a pack file with the system picker (from the gallery's practice card).
+    - The author's own pictures go into a personal pack kept on the device. No licence check: pictures they choose for themselves. Never exported, never mixed into official packs.
+    - A CC BY item's attribution shows small under its picture wherever it is shown.
+  - **Outlines made when a pack is built and checked by eye.**
+    - The builder derives each item's silhouette outline: background found from the border on the studio and flat grounds, a contour traced. It stores the outline in the pack and draws it over the picture on the contact sheet.
+    - An item whose outline is wrong is marked to have none, never shown wrong. A personal picture's outline is derived on import the same way, and shown only if it passes the same checks; otherwise none.
+  - **The exercise.**
+    - The picture in its frame, the empty frame beside it.
+    - The copy is a line drawing with the sketch pen and the drawing pen, as V大 teaches: proportion, the negative shapes, the hierarchy first.
+    - Compare in place shows the picture's outline in red, and the picture itself faint, over the copy.
+    - Aligned fits the outline onto the copy's drawing-pen lines: move and size, never turn.
+    - Without an outline, the picture is overlaid faint in place only.
+    - The blue correction pen as before.
+  - **Compare never stalls a frame.** The fit runs off the frame loop and shows when ready. S79's combined group took one 68 ms frame on the tablet.
+  - **Stage 2** follows V大's week 2 as far as the exercises exist:
+    - single shapes by tier, entry and simple first, the harder tiers mixed in as sessions go;
+    - the warm-up from every kind met;
+    - stage 1's kinds kept;
+    - the others joining as their slices land.
+  - **Moving through stages.** The Today card offers the next stage once a stage's sessions are done, and earlier at the author's choice (the author, 2026-10-23); a stage can be revisited.
+
+  Done:
+  - The walk-through as a passing scenario: import a pack and a picture, a stage-2 session with shapes of two tiers, compare in place and aligned, a correction, an attribution shown, moving to stage 2 early. Both languages where cheap.
+  - The outline derivation tested on studio, flat and failing grounds.
+  - Every outline in the official pack looked at on its sheet.
+  - Every other hash unchanged.
+  - On the tablet:
+    - the pack imported and a test session walked (`practice-test`), Compare's frames at the display's rate;
+    - the smoke;
+    - the library restored last;
+    - the official pack left in `/sdcard/Download/` for the author to import with one tap.
 - Next, each specified after the one before lands:
-  - Single shapes in four tiers from S78's pack, with local imports of the author's own pictures.
   - Colour combinations and value scales, with the long-project space.
   - Perspective boxes, ellipses, point positioning, proportion and angle estimates.
   - Picture division, Notan and whole-picture copies.

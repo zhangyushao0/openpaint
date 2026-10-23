@@ -4,7 +4,7 @@ Updated 2026-10-23 (1.3.0). Current facts only; rewritten at the end of every sl
 
 ## Stage
 
-OpenPaint 1.x (format 1) is on the tablet: G0 to G7 passed (ROADMAP), the 1.0 slices are done, and the author paints with it daily; "1.x Daily use" slices follow as the author finds them. G9 Practice: S75 to S79 are done (1.3.0): sessions, Compare by overlay, two languages, practice packs (D101; the first pack built locally, not yet in the app), combined lines and the warm-up (D102); S76's, S77's and S79's sessions were walked on the tablet on test sessions beside the author's. Next in G9: single shapes from S78's pack. G8 projects are the author's call.
+OpenPaint 1.x (format 1) is on the tablet: G0 to G7 passed (ROADMAP), the 1.0 slices are done, and the author paints with it daily; "1.x Daily use" slices follow as the author finds them. G9 Practice: S75 to S79 are done (1.3.0): sessions, Compare by overlay, two languages, practice packs (D101; the first pack built locally, not yet in the app), combined lines and the warm-up (D102); S76's, S77's and S79's sessions were walked on the tablet on test sessions beside the author's. Next in G9: S80 (single shapes from the packs and the author's own pictures, stage 2). G8 projects are the author's call.
 
 ## Working features
 
