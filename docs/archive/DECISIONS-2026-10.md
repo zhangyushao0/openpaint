@@ -433,3 +433,13 @@ Superseded decisions moved here whole from `docs/DECISIONS.md`. Written, never r
 - Stage 2 (replaces D103's mix): a warm-up of 3 (`WARM_UP_TWO`), at most one long kind (shapes, combinations, scales in turn by number), the quick ones in turn from the number; 4 shapes, a combination, a scale and a colour, about 27 to 29 minutes; s80's sheet keeps its size.
 - Reason: the author's G9 (V大's 色彩组合 and 色彩临摹, Gurney's value scales): numbers only where they match what the eye sees. Consequences: a combination's Compare reads 400² pixels on the main thread; a copy cannot be removed in the app yet.
 - Replaced 2026-10-23 by D105 (S83): scales on Oklab lightness, the reading on a worker, a copy's picture chosen, copies and My pictures managed, undo kept to the exercise.
+
+## Archived 2026-10-23 (room for D106; ARCHITECTURE section 6 holds the raster core's map)
+
+## D92 2026-10-18 Every scene on the raster core: adjustments and filters as passes from a copy, records on level targets, groups over a copy of what lay under them
+- Units (`raster_scene.rs`): every scene is units as it is built: strokes, edits, smudges, layer ends, `Adjust` and `Filter` with their reach, `Frame` (a transform record's content in its placement, its draws evaluated where the frame maps the pixel's centre), `BeginMove`, `EndMove`, `EndNested` and `EndGroup`.
+- Passes: an adjustment and a filter rewrite the layer (or mask) from a copy over their reach, as a smudge does (`Pass::Rewrite`); a moved selection's or a merged layer's content draws on a level target (`Scratch::Level`, up to `MOVE_DEPTH`) laid over the level under it at its end; a nested end by fixed-function blending where its equation is one, else from the copied backdrop; a group's first layer end copies what lay under the group (`Scratch::Group`) and its end fades the canvas over that copy by the group's opacity.
+- Materials and previews: a smudge's and a filter's material is the raster core's, seen from a record through a base map; every slider value is drawn where the adjustment reaches, from the scene as the commit's.
+- Reason: one renderer for every product path, so what an artwork holds never changes how fast or how exactly it draws.
+- Consequences: a preview value redraws its whole reach (STATUS pending 22); a retune while the worker holds the scene builds it anew; the group copy and each level are a float target more where used (16 MB at 1024²).
+
