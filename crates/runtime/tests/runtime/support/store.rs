@@ -114,6 +114,10 @@ impl ProjectStore for Nowhere {
         Ok(Vec::new())
     }
 
+    fn sheet_titles(&mut self) -> Result<Vec<(ProjectId, Title)>, PortError> {
+        Ok(Vec::new())
+    }
+
     fn start_practice(
         &mut self,
         sheet: &Artwork,

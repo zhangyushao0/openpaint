@@ -47,8 +47,8 @@ texts! { GALLERY_TABLE;
     ADD_PICTURE = "Add my picture…", "添加我的图片…";
     NO_PACKS = "No pack yet: single shapes copy a pack's pictures.",
         "还没有图包：单体图形临摹的是图包里的图片。";
-    PACKS_NOTE = "Your own pictures stay on this tablet; one comes up in each stage 2 session.",
-        "你自己的图片只保存在这台平板上；第 2 阶段每次练习会出现一张。";
+    PACKS_NOTE = "Your own pictures stay on this tablet; one comes up in each stage 2 session \
+        that reaches its tier.", "你自己的图片只保存在这台平板上；第 2 阶段的练习进行到它的难度后，每次会出现一张。";
     SHAPES_NEED_PACK = "Shapes need a practice pack: see the options.",
         "单体图形需要练习图包：见选项。";
 }

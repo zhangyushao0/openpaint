@@ -98,8 +98,10 @@ pub struct Runtime {
     pub(crate) transfers: Transfers,
     pub(crate) transfer: TransferWorker,
     fill: FillWorker,
-    fit: crate::fit::FitWorker,
+    compare: crate::compare::CompareWorker,
     pub(crate) pictures: PictureWorker,
+    /// The practice options' pictures (the gallery's).
+    pack_pictures: crate::pack_pictures::PackPictureWorker,
     /// Makes the raster core's pipelines and draws the view tiers' tiles.
     pub(crate) raster: RasterWorker,
     /// The brush panel's pictures and the editor's preview strip.
@@ -282,8 +284,9 @@ impl Runtime {
     #[must_use]
     pub fn storing(&self) -> bool {
         let working = self.storage.busy() || self.transfer.busy() || self.fill.busy();
-        let working = working || self.fit.busy();
+        let working = working || self.compare.busy();
         let drawing = self.pictures.busy() || self.brushes.busy() || self.cache.busy();
+        let drawing = drawing || self.pack_pictures.busy();
         working || drawing || matches!(self.screen, Screen::Opening(_))
     }
 

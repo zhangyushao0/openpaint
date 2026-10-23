@@ -18,7 +18,7 @@ use openpaint_practice::{Family, Frame, ItemRef, Original, Pair, SessionRecord, 
 
 use crate::error::AppError;
 use crate::practice::{Pen, PracticeIntent, PracticeNotice, PracticeProjection, SheetView};
-use crate::practice_copy::{MARGIN, holds_copy};
+use crate::practice_copy::MARGIN;
 use crate::practice_pens::PracticePens;
 use crate::practice_pictures::{FitJob, PictureImage};
 use crate::projection::{Availability, EditorAction};
@@ -35,7 +35,7 @@ mod read;
 #[path = "practice_view.rs"]
 mod view;
 
-pub use read::{PracticePick, ReadJob};
+pub use read::{CopyRead, PracticePick, ReadJob};
 pub use view::PRACTICE_ROOM;
 
 use compare::Compared;
@@ -181,7 +181,6 @@ impl PracticeSheet {
     /// exercises painted with the painting pen last chosen; its family's instructions show by
     /// themselves the first time.
     fn shown(&mut self) {
-        self.painting_state = Painting::default();
         let frame = self.current().map(|index| self.sheet.pairs[index].copy);
         self.clip = frame.and_then(|frame| self.region(&frame));
         let compared = (self.current()).is_some_and(|index| self.record.result(index).is_some());
@@ -352,14 +351,7 @@ impl PracticeSheet {
     pub(crate) fn projection(&self, artwork: &Artwork, brush: &StrokeStyle) -> PracticeProjection {
         let current = self.current();
         let result = current.and_then(|index| self.record.result(index));
-        let held = |index: usize| {
-            self.pair(index)
-                .is_some_and(|pair| holds_copy(artwork, &pair.copy))
-        };
-        let compare = match current {
-            Some(index) if result.is_some() || held(index) => Availability::Available,
-            _ => Availability::NothingLeft,
-        };
+        let compare = self.compare_offered(current, artwork);
         let place = current.map_or((0, 0), |index| self.record.place(index));
         let before: Vec<&SessionRecord> = self.before.iter().collect();
         let pen = self.pen_style(brush).map(|style| (self.pen, style.size()));

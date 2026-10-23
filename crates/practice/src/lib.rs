@@ -36,13 +36,15 @@ mod random;
 mod record;
 mod scale;
 mod session;
+mod sheet;
 
 pub use align::{Fit, align};
 pub use align_shape::align_shape;
 pub use areas::{Areas, Arrangement, GRID, STRONG, WEAK};
 pub use areas_read::{AreasCopy, Contrast, MADE_STRONG};
 pub use colour::{
-    Difference, LEAST_CHROMA, Rgb8, chroma, delta_e, from_hsv, hsv, hue_name, hue_towards, oklab,
+    Difference, LEAST_CHROMA, Rgb8, chroma, delta_e, from_hsv, from_oklab, hsv, hue_name,
+    hue_towards, oklab,
 };
 pub use colour_match::{ColourCopy, ColourScore, Lightness, Purity, Tone, score_colour};
 pub use combined::{Combination, CombinedLines};
@@ -52,15 +54,12 @@ pub use line::{LineExercise, LineTier};
 pub use metric::{Metric, Metrics, value};
 pub use outline::{Outline, OutlineRefusal, outline};
 pub use pack::{
-    Credit, ItemRef, MAX_ID, MAX_OUTLINE_POINTS, MAX_PICTURE_SIDE, PERSONAL, PERSONAL_TIER, Pack,
-    PackItem, PackProblem, PictureKind, Tier, valid_id,
+    Credit, ItemRef, MAX_ID, MAX_OUTLINE_POINTS, MAX_PICTURE_SIDE, PERSONAL, Pack, PackItem,
+    PackProblem, PictureKind, Tier, valid_id,
 };
 pub use path::{Point, apart, crossings, distance, length, nearest, resample};
 pub use pictures::Pictures;
-pub use plan::{
-    Exercise, FRAME, Family, Frame, Kind, Original, PICTURE_MARGIN, Pair, PictureFit,
-    STAGE_SESSIONS, STAGES, STAGES_READY, STUDY_SIDE, Sheet,
-};
+pub use plan::{Exercise, Family, Kind, Original, STAGE_SESSIONS, STAGES, STAGES_READY};
 pub use random::{Random, derived};
 pub use record::{
     AREAS_ROWS, COLOUR_ROWS, ExerciseResult, KindSummary, PROJECT, SCALE_ROWS, SessionRecord, met,
@@ -68,3 +67,4 @@ pub use record::{
 };
 pub use scale::{BARS, ROW, ScaleCheck, ScaleTone, ValueScale};
 pub use session::{Before, Plan, WARM_UP, WARM_UP_TWO, plan, stage_one, stage_two};
+pub use sheet::{FRAME, Frame, PICTURE_MARGIN, Pair, PictureFit, STUDY_SIDE, Sheet};

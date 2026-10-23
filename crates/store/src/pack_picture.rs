@@ -55,13 +55,27 @@ pub fn pack_picture(original: &[u8]) -> Result<PackPicture, ImageError> {
 /// # Errors
 /// As `decode_image`.
 pub fn shown_picture(file: &[u8]) -> Result<PictureImage, ImageError> {
+    side_at_most(file, SHOWN_SIDE, FilterType::Lanczos3)
+}
+
+/// A pack's picture file as a list shows it small (the practice options, S83): decoded, its
+/// long side reduced to `side` with a triangle filter, quicker than `shown_picture`'s.
+///
+/// # Errors
+/// As `decode_image`.
+pub fn thumbnail_picture(file: &[u8], side: u32) -> Result<PictureImage, ImageError> {
+    side_at_most(file, side, FilterType::Triangle)
+}
+
+/// The picture file `file` decoded, its long side reduced to `most` by `filter` when longer.
+fn side_at_most(file: &[u8], most: u32, filter: FilterType) -> Result<PictureImage, ImageError> {
     let ([width, height], rgba) = decode_image(file)?;
     let picture = RgbaImage::from_raw(width, height, rgba).ok_or(ImageError::Damaged)?;
     let long = width.max(height);
-    let picture = if long > SHOWN_SIDE {
-        let scale = f64::from(SHOWN_SIDE) / f64::from(long);
+    let picture = if long > most {
+        let scale = f64::from(most) / f64::from(long);
         let side = |length: u32| ((f64::from(length) * scale).round() as u32).clamp(1, long);
-        reduced(&picture, [side(width), side(height)])
+        resized(&picture, [side(width), side(height)], filter)
     } else {
         picture
     };
@@ -71,8 +85,13 @@ pub fn shown_picture(file: &[u8]) -> Result<PictureImage, ImageError> {
     })
 }
 
-/// `picture` resized to `size` through premultiplied pixels.
+/// `picture` resized to `size` through premultiplied pixels with Lanczos-3.
 fn reduced(picture: &RgbaImage, size: [u32; 2]) -> RgbaImage {
+    resized(picture, size, FilterType::Lanczos3)
+}
+
+/// `picture` resized to `size` through premultiplied pixels by `filter`.
+fn resized(picture: &RgbaImage, size: [u32; 2], filter: FilterType) -> RgbaImage {
     let mut premultiplied = picture.clone();
     for pixel in premultiplied.pixels_mut() {
         let alpha = u32::from(pixel[3]);
@@ -80,7 +99,7 @@ fn reduced(picture: &RgbaImage, size: [u32; 2]) -> RgbaImage {
             *channel = ((u32::from(*channel) * alpha + 127) / 255) as u8;
         }
     }
-    let mut out = imageops::resize(&premultiplied, size[0], size[1], FilterType::Lanczos3);
+    let mut out = imageops::resize(&premultiplied, size[0], size[1], filter);
     for pixel in out.pixels_mut() {
         let alpha = u32::from(pixel[3]);
         for channel in &mut pixel.0[..3] {

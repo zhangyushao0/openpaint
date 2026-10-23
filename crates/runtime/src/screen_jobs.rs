@@ -1,16 +1,61 @@
 //! The store's jobs the screen hands over: leaving the canvas, and the gallery's calls (a new
-//! practice session among them); and the gallery's intents applied in order.
+//! practice session among them); the gallery's intents applied in order; and practice's answers
+//! from the store.
 
-use openpaint_app::{Gallery, LibraryRequest, PracticeLog};
+use openpaint_app::{Gallery, LibraryAnswer, LibraryRequest, PortError, PracticeLog};
 use openpaint_core::{Artwork, CanvasSize};
 use openpaint_render::Core;
 use openpaint_ui::CanvasArea;
 
+use super::{Content, Screen, new_project};
 use crate::canvas::Canvas;
 use crate::error::RuntimeError;
-use crate::practice::{copy_job, start_job};
+use crate::practice::{PracticeDone, PracticeJob, copy_job, start_job};
 use crate::seeds::Seeds;
 use crate::storage::{Job, LibraryCall};
+
+impl Screen {
+    /// A practice session started (its sheet opens), failed to, or its record was written; a
+    /// colour copy renamed or removed; the user's own pictures changed. A change that failed
+    /// leaves everything as it was and the gallery says so.
+    pub(super) fn practice(&mut self, done: PracticeDone, practice: &mut PracticeLog) {
+        let failed = |screen: &mut Self, error: PortError| {
+            screen.gallery_answer(LibraryAnswer::Changed(Err(error)));
+        };
+        match done {
+            PracticeDone::Started {
+                sheet,
+                title,
+                id,
+                session,
+            } => {
+                log::info!("practice session {} on project {}", session.id, id.get());
+                practice.keep(session);
+                practice.name(id, title.clone());
+                *self = Self::Opening(Some(Content::Stored(sheet, title, new_project(id))));
+            }
+            PracticeDone::Failed(error) => {
+                self.gallery_answer(LibraryAnswer::CreateFailed(error));
+            }
+            PracticeDone::Saved(Err(error)) => {
+                log::error!("storing the practice session failed: {error}");
+            }
+            PracticeDone::Saved(Ok(())) => {}
+            PracticeDone::Renamed(sheet, title, Ok(())) => practice.name(sheet, title),
+            PracticeDone::Removed(id, Ok(())) => {
+                log::info!("practice session {id} removed");
+                practice.forget(id);
+            }
+            PracticeDone::Pictures(Ok(pack)) => practice.set_personal(pack),
+            PracticeDone::Renamed(.., Err(error))
+            | PracticeDone::Removed(_, Err(error))
+            | PracticeDone::Pictures(Err(error)) => {
+                log::error!("a practice change failed: {error}");
+                failed(self, error);
+            }
+        }
+    }
+}
 
 /// The store's job for leaving `canvas`: `version` (from `Session::leave_request`) and the
 /// thumbnail of what the canvas shows (every tile waiting evaluated first), with a version kept
@@ -65,6 +110,7 @@ pub(super) fn gallery_job(
     area: Option<CanvasArea>,
     (practice, seeds, now): (&PracticeLog, &mut Seeds, u64),
 ) -> Result<Job, RuntimeError> {
+    let job = |job| Ok(Job::Practice(job));
     Ok(Job::Library(match request {
         LibraryRequest::Create(title, preset) => {
             let area = area.ok_or(RuntimeError::Render(
@@ -81,6 +127,17 @@ pub(super) fn gallery_job(
         LibraryRequest::Delete(id) => LibraryCall::Delete(id),
         LibraryRequest::Restore(id, version, title) => LibraryCall::Restore(id, version, title),
         LibraryRequest::Practice(stage) => return start_job(practice, stage, seeds, now),
-        LibraryRequest::Copy(from) => return copy_job(practice, from, seeds, now),
+        LibraryRequest::Copy(picture) => return copy_job(practice, &picture, seeds, now),
+        LibraryRequest::RenameCopy(sheet, title) => return job(PracticeJob::Rename(sheet, title)),
+        LibraryRequest::RemoveCopy(sheet) => {
+            let copy = (practice.of_canvas(sheet))
+                .filter(|copy| copy.is_project())
+                .ok_or(RuntimeError::NotNow("a colour copy of that sheet"))?;
+            return job(PracticeJob::Remove(copy.clone()));
+        }
+        LibraryRequest::RemovePicture(item) => return job(PracticeJob::RemovePicture(item)),
+        LibraryRequest::PictureTier(item, tier) => {
+            return job(PracticeJob::PictureTier(item, tier));
+        }
     }))
 }

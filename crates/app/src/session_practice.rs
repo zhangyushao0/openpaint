@@ -8,7 +8,7 @@
 //! each change.
 
 use openpaint_core::{Artwork, RegionMask, StrokeStyle};
-use openpaint_practice::{Fit, ItemRef, SessionRecord};
+use openpaint_practice::{Fit, ItemRef, Metrics, SessionRecord};
 
 use super::Session;
 use crate::error::AppError;
@@ -16,7 +16,7 @@ use crate::input::{ContactPhase, Device};
 use crate::practice::PracticeIntent;
 use crate::practice_pens::PracticePens;
 use crate::practice_pictures::{FitJob, PictureImage};
-use crate::practice_sheet::{PracticePick, PracticeSheet, Practising, ReadJob};
+use crate::practice_sheet::{CopyRead, PracticePick, PracticeSheet, Practising, ReadJob};
 use crate::stroke::StrokeIntent;
 use crate::view::Viewport;
 
@@ -75,6 +75,14 @@ impl Session {
                 self.history.record(filled.artwork);
                 Ok(())
             }
+            PracticeIntent::Next(_) => {
+                practice.handle(intent, &artwork, (&mut self.view, now))?;
+                // Undo and redo reach only the exercise shown: never an earlier one, whose
+                // Compare's record stands (a fill still being found is dropped with them).
+                self.fills.interrupt();
+                self.history.keep_only_current();
+                Ok(())
+            }
             intent => practice.handle(intent, &artwork, (&mut self.view, now)),
         };
         self.restyle();
@@ -99,15 +107,17 @@ impl Session {
         self.practice.as_mut()?.fit_request()
     }
 
-    /// A painted copy's frame for the runtime to read from the canvas, once per Compare.
+    /// A painted copy's frame for the runtime to draw and read off the frame loop, once per
+    /// Compare.
     pub fn practice_read_request(&mut self) -> Option<ReadJob> {
         self.practice.as_mut()?.read_request()
     }
 
-    /// The runtime read the copy for the Compare numbered `sequence` (`None`: it could not).
-    pub fn practice_read(&mut self, sequence: u64, pixels: Option<&PictureImage>) {
+    /// The runtime read the copy for the Compare numbered `sequence` (`ReadJob::run`; `None`: it
+    /// could not).
+    pub fn practice_read(&mut self, sequence: u64, painted: Option<(CopyRead, Metrics)>) {
         if let Some(practice) = self.practice.as_mut() {
-            practice.read(sequence, pixels);
+            practice.read(sequence, painted);
         }
     }
 

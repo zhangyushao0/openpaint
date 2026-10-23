@@ -1,77 +1,52 @@
 //! The app's practice log (`PracticeLog`), kept across artworks like the toolbox: every
 //! session's record, for the gallery's Today card (the stage, sessions finished, the one still
-//! open) and for the summary's earlier sessions; the long colour copies beside them; and the
-//! practice packs kept (their manifests: the pictures single shapes and colour copies copy,
-//! `practice_pictures.rs`). Progress counts sessions, never days; the stage is the last session's,
-//! the next one offered once a stage's sessions are done and earlier at the user's choice, an
-//! earlier one revisited. A long colour copy counts in no stage: it is worked on whenever the
-//! user likes.
+//! open) and for the summary's earlier sessions; the long colour copies beside them with their
+//! sheets' titles (their names); and the practice packs kept (their manifests: the pictures single
+//! shapes and colour copies copy, `practice_pictures.rs`). Progress counts sessions, never days;
+//! the stage is the last session's, the next one offered once a stage's sessions are done and
+//! earlier at the user's choice, an earlier one revisited. A long colour copy counts in no stage:
+//! it is worked on whenever the user likes, of a picture the user chose (`practice_today.rs`).
+
+use std::collections::HashMap;
+use std::sync::Arc;
 
 use openpaint_practice::{
-    Before, ItemRef, Pack, PictureKind, Pictures, Random, STAGE_SESSIONS, STAGES_READY,
+    Before, ItemRef, PERSONAL, Pack, PictureKind, Pictures, Random, STAGE_SESSIONS, STAGES_READY,
     SessionRecord, met, plan, used,
 };
 
 use crate::practice_pictures::PackShown;
+use crate::practice_today::{CopyShown, PictureShown, TodayProjection, pictures_shown};
 use crate::project::ProjectId;
 use crate::title::Title;
 
-/// The gallery's Today card and its options.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TodayProjection {
-    pub stage: u8,
-    /// Sessions finished in the stage, and about how many it holds.
-    pub done: u32,
-    pub sessions: u32,
-    /// The sheet of the session still open, to continue.
-    pub open: Option<ProjectId>,
-    /// The next stage, offered on the card once this one's sessions are done.
-    pub next: Option<u8>,
-    /// The stages a session can be started in, from 1 (the options offer the others).
-    pub ready: u8,
-    /// The packs kept, the official ones first.
-    pub packs: Vec<PackShown>,
-    /// The long colour copies, newest first.
-    pub copies: Vec<CopyShown>,
-    /// Whether a colour copy can be begun from a pack's picture, and from one of the user's own.
-    pub copy_from: [bool; 2],
-}
-
-/// A long colour copy as the practice options list it.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CopyShown {
-    /// Its sheet, which opens it.
-    pub sheet: ProjectId,
-    /// Its number among the copies.
-    pub number: u32,
-    /// Its picture's title (none: a picture no pack holds now).
-    pub title: Option<String>,
-}
-
-/// Where a new colour copy's picture comes from.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CopyFrom {
-    /// An official pack's picture, one not copied before while there are.
-    Pack,
-    /// The user's own newest picture not copied before, else their newest.
-    Mine,
-}
-
-/// Every practice session and colour copy the library holds, oldest first, and the practice
-/// packs kept.
+/// Every practice session and colour copy the library holds, oldest first, the titles of the
+/// copies' sheets, and the practice packs kept.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct PracticeLog {
     sessions: Vec<SessionRecord>,
+    /// Each colour copy's sheet's title, by its project.
+    titles: HashMap<u64, Title>,
     packs: Vec<Pack>,
+    /// The packs' pictures as the options show them, made again as the log changes.
+    pictures: Arc<[PictureShown]>,
 }
 
 impl PracticeLog {
+    /// The log of `sessions` (with the titles of the sheets `titles` names) and `packs`.
     #[must_use]
-    pub fn new(mut sessions: Vec<SessionRecord>, packs: Vec<Pack>) -> Self {
+    pub fn new(
+        mut sessions: Vec<SessionRecord>,
+        titles: Vec<(ProjectId, Title)>,
+        packs: Vec<Pack>,
+    ) -> Self {
         sessions.sort_by_key(|session| session.id);
         let mut log = Self {
             sessions,
-            packs: Vec::new(),
+            titles: (titles.into_iter())
+                .map(|(id, title)| (id.get(), title))
+                .collect(),
+            ..Self::default()
         };
         log.set_packs(packs);
         log
@@ -91,7 +66,7 @@ impl PracticeLog {
     }
 
     /// The Today card: the stage practised, its finished sessions, the open one, the next stage
-    /// once this one's sessions are done, the packs kept and the colour copies.
+    /// once this one's sessions are done, the packs kept, the colour copies and the pictures.
     #[must_use]
     pub fn today(&self) -> TodayProjection {
         let stage = self.stage();
@@ -102,11 +77,6 @@ impl PracticeLog {
         let open = (self.sessions().rev())
             .find(|s| s.finished.is_none() && s.canvas != 0)
             .map(|s| ProjectId::new(s.canvas));
-        let pictures = |personal: bool| {
-            (self.packs.iter())
-                .filter(|pack| pack.personal() == personal)
-                .any(|pack| pack.items.iter().any(|i| i.kind == PictureKind::Shape))
-        };
         TodayProjection {
             stage,
             done,
@@ -116,7 +86,7 @@ impl PracticeLog {
             ready: STAGES_READY,
             packs: self.packs.iter().map(PackShown::of).collect(),
             copies: self.copies(),
-            copy_from: [pictures(false), pictures(true)],
+            pictures: Arc::clone(&self.pictures),
         }
     }
 
@@ -126,11 +96,14 @@ impl PracticeLog {
             .filter(|s| s.is_project() && s.canvas != 0)
             .map(|copy| {
                 let item = copy.exercises.first().and_then(|e| e.picture.as_ref());
-                let found = item.and_then(|item| self.packs.iter().find_map(|p| p.find(item)));
+                let kept = item.filter(|item| self.packs.iter().any(|p| p.find(item).is_some()));
+                let name = (self.titles.get(&copy.canvas).cloned())
+                    .unwrap_or_else(|| copy_title(copy.number));
                 CopyShown {
                     sheet: ProjectId::new(copy.canvas),
                     number: copy.number,
-                    title: found.map(|item| item.title.clone()),
+                    name,
+                    picture: kept.cloned(),
                 }
             })
             .collect()
@@ -163,58 +136,46 @@ impl PracticeLog {
         (record, title)
     }
 
-    /// A new colour copy of a picture `from` the packs kept (picked by `seed`), begun at `now`,
-    /// with its sheet's title; none without such a picture.
+    /// A new colour copy of `picture` (the user chose it; none unless a pack kept holds it),
+    /// seeded `seed`, begun at `now`, with its sheet's title.
     #[must_use]
     pub fn begin_copy(
         &self,
-        from: CopyFrom,
+        picture: &ItemRef,
         seed: u64,
         now: u64,
     ) -> Option<(SessionRecord, Title)> {
-        let copied: Vec<&ItemRef> = (self.sessions.iter())
-            .filter(|s| s.is_project())
-            .filter_map(|s| s.exercises.first()?.picture.as_ref())
-            .collect();
-        let personal = from == CopyFrom::Mine;
-        let items: Vec<ItemRef> = (self.packs.iter())
-            .filter(|pack| pack.personal() == personal)
-            .flat_map(|pack| {
-                (pack.items.iter())
-                    .filter(|item| item.kind == PictureKind::Shape)
-                    .map(|item| ItemRef {
-                        pack: pack.id.clone(),
-                        item: item.id.clone(),
-                    })
-            })
-            .collect();
-        let fresh: Vec<&ItemRef> = items.iter().filter(|i| !copied.contains(i)).collect();
-        let from_these: Vec<&ItemRef> = if fresh.is_empty() {
-            items.iter().collect()
-        } else {
-            fresh
-        };
-        let picture = if personal {
-            // The newest: the user's own pictures are kept oldest first.
-            from_these.last().copied()
-        } else {
-            let at = (Random::new(seed).unit() * from_these.len() as f64) as usize;
-            from_these
-                .get(at.min(from_these.len().saturating_sub(1)))
-                .copied()
-        }?;
+        let found = self.packs.iter().find_map(|pack| pack.find(picture))?;
+        if found.kind != PictureKind::Shape {
+            return None;
+        }
         let number = self.sessions.iter().filter(|s| s.is_project()).count() + 1;
         let number = u32::try_from(number).unwrap_or(u32::MAX);
-        let title =
-            Title::new(&format!("Colour copy {number}")).unwrap_or_else(|_| Title::untitled());
         let record = SessionRecord::project(self.next_id(), number, (seed, now), picture.clone());
-        Some((record, title))
+        Some((record, copy_title(number)))
+    }
+
+    /// An official pack's picture not copied before (any once each was), picked by `seed`: the
+    /// test colour copy's (`practice-test start copy`).
+    #[must_use]
+    pub fn fresh_picture(&self, seed: u64) -> Option<ItemRef> {
+        let official: Vec<&PictureShown> = (self.pictures.iter())
+            .filter(|picture| !picture.personal)
+            .collect();
+        let fresh: Vec<&PictureShown> = (official.iter().copied())
+            .filter(|picture| picture.copies == 0)
+            .collect();
+        let from = if fresh.is_empty() { official } else { fresh };
+        let at = (Random::new(seed).unit() * from.len() as f64) as usize;
+        from.get(at.min(from.len().saturating_sub(1)))
+            .map(|picture| picture.item.clone())
     }
 
     /// The packs kept now (as the store listed them).
     pub fn set_packs(&mut self, mut packs: Vec<Pack>) {
         packs.sort_by(|a, b| (a.personal(), &a.id).cmp(&(b.personal(), &b.id)));
         self.packs = packs;
+        self.shown();
     }
 
     /// Keeps `pack`, new or a newer edition of one kept.
@@ -223,6 +184,18 @@ impl PracticeLog {
         packs.retain(|kept| kept.id != pack.id);
         packs.push(pack);
         self.set_packs(packs);
+    }
+
+    /// The user's own pictures as the store keeps them now: `pack`, or none left.
+    pub fn set_personal(&mut self, pack: Option<Pack>) {
+        match pack {
+            Some(pack) => self.keep_pack(pack),
+            None => {
+                let mut packs = std::mem::take(&mut self.packs);
+                packs.retain(|kept| kept.id != PERSONAL);
+                self.set_packs(packs);
+            }
+        }
     }
 
     /// The packs kept.
@@ -265,12 +238,32 @@ impl PracticeLog {
             None => {
                 self.sessions.push(session);
                 self.sessions.sort_by_key(|s| s.id);
+                self.shown();
             }
         }
     }
 
-    /// Forgets session `id`, which the store removed.
-    pub fn forget(&mut self, id: u64) {
-        self.sessions.retain(|s| s.id != id);
+    /// The sheet of project `sheet` is titled `title` (a colour copy named or renamed).
+    pub fn name(&mut self, sheet: ProjectId, title: Title) {
+        self.titles.insert(sheet.get(), title);
     }
+
+    /// Forgets session `id`, which the store removed, with its sheet's title.
+    pub fn forget(&mut self, id: u64) {
+        if let Some(canvas) = self.session(id).map(|session| session.canvas) {
+            self.titles.remove(&canvas);
+        }
+        self.sessions.retain(|s| s.id != id);
+        self.shown();
+    }
+
+    /// The pictures as the options show them, made again.
+    fn shown(&mut self) {
+        self.pictures = pictures_shown(&self.packs, &self.sessions);
+    }
+}
+
+/// The title a new colour copy's sheet takes, its name until renamed: "Colour copy n".
+fn copy_title(number: u32) -> Title {
+    Title::new(&format!("Colour copy {number}")).unwrap_or_else(|_| Title::untitled())
 }

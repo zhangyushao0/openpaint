@@ -39,6 +39,6 @@ pub use crate::export_file::{ImageEncoder, encode_image};
 pub use crate::image_file::{decode_image, open_picture, open_reference};
 pub use crate::library::Library;
 pub use crate::pack::{PACK_FORMAT, encode_pack, open_pack};
-pub use crate::pack_picture::{PackPicture, pack_picture, shown_picture};
+pub use crate::pack_picture::{PackPicture, pack_picture, shown_picture, thumbnail_picture};
 pub use crate::packs::Packs;
 pub use crate::records::FORMAT;

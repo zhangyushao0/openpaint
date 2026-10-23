@@ -3,10 +3,14 @@
 //! Brush, Smudge, Eraser, Layers and the colour at the right; the notice pill left of the right
 //! one. On a practice sheet All tools follows Gallery, and while the exercise's own tools show
 //! (`practice_tools.rs`) the left island holds only those two and there is no right one. The
-//! calls that hand the panels what the renderer drew (brush previews, layer pictures).
+//! calls that hand the panels what the renderer drew (brush previews, layer pictures) and the
+//! practice options the pictures read for them.
 
-use openpaint_app::{BrushKey, EditorAction, GalleryIntent, Intent, SessionProjection};
+use openpaint_app::{
+    BrushKey, EditorAction, GalleryIntent, Intent, PictureImage, SessionProjection,
+};
 use openpaint_core::LayerId;
+use openpaint_practice::ItemRef;
 use openpaint_render::RgbaImage;
 
 use super::Shell;
@@ -143,6 +147,18 @@ impl Shell {
     /// its row shows it from the next pass on, until a newer one comes.
     pub fn set_layer_picture(&mut self, (layer, mask): (LayerId, bool), image: RgbaImage) {
         self.panels.layers.set_picture((layer, mask), image);
+    }
+
+    /// The next picture the gallery's practice options want read (a pack's, by its item), once
+    /// each: the rows showing first.
+    pub fn pack_picture_wanted(&mut self) -> Option<ItemRef> {
+        self.gallery.pack_picture_wanted()
+    }
+
+    /// `item`'s picture for the practice options, 8-bit sRGB with straight alpha (none: it could
+    /// not be read): its rows show it from the next pass on.
+    pub fn set_pack_picture(&mut self, item: ItemRef, picture: Option<PictureImage>) {
+        self.gallery.set_pack_picture(item, picture);
     }
 
     /// Lets every layer picture go (the GPU memory budget's last step); rows show none

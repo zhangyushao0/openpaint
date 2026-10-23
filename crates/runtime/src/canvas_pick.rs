@@ -1,8 +1,8 @@
 //! The eyedropper on the open canvas: what a picking contact previews, read back from the
-//! canvas target, and on a practice sheet what its originals let it read; and a painted practice
-//! copy's frame read back for Compare.
+//! canvas target, and on a practice sheet what its originals let it read (a painted copy's frame
+//! is read off the frame loop: `compare.rs`).
 
-use openpaint_app::{Contact, ContactPhase, PictureImage, PracticePick, ToolIntent, Toolbox};
+use openpaint_app::{Contact, ContactPhase, PracticePick, ToolIntent, Toolbox};
 use openpaint_core::Color;
 use openpaint_render::Core;
 
@@ -75,26 +75,6 @@ impl Canvas {
                 log::error!("picking failed: {error}");
                 None
             }
-        }
-    }
-
-    /// A painted practice copy's frame asked for by Compare, read back from the target (every
-    /// waiting tile evaluated first) and handed to the sheet; a read that fails hands none.
-    pub(crate) fn practice_reads(&mut self, core: &Core) {
-        while let Some(job) = self.session_mut().practice_read_request() {
-            if let Err(error) = self.settle(core) {
-                log::error!("evaluating the canvas before reading a copy failed: {error}");
-            }
-            let read = self.target().read_region(core, job.origin, job.size);
-            let pixels = read
-                .inspect_err(|error| log::error!("reading a practice copy failed: {error}"))
-                .ok()
-                .map(|image| PictureImage {
-                    size: image.size(),
-                    pixels: image.into_pixels(),
-                });
-            self.session_mut()
-                .practice_read(job.sequence, pixels.as_ref());
         }
     }
 }

@@ -15,7 +15,7 @@ use openpaint_ui::CanvasArea;
 use crate::canvas::{Canvas, Content, Held, Leaving, Then};
 use crate::display::{CacheJob, CacheWorker};
 use crate::error::RuntimeError;
-use crate::practice::{PracticeDone, PracticeJob};
+use crate::practice::PracticeJob;
 use crate::seeds::Seeds;
 use crate::storage::{Done, Job, Loaded, Opened, Storage, Stored};
 
@@ -99,11 +99,15 @@ impl Screen {
     ) -> Result<(), RuntimeError> {
         if let (Self::Opening(Some(content)), Some(area)) = (&*self, area) {
             let sheet = match content {
-                Content::Stored(_, _, held) => practice.of_canvas(held.project).map(|session| {
-                    let before = practice.before(session);
-                    let view = SheetView::of(session, practice.packs());
-                    (session.clone(), before, view)
-                }),
+                Content::Stored(artwork, title, held) => {
+                    practice.of_canvas(held.project).map(|session| {
+                        let before = practice.before(session);
+                        let canvas = artwork.canvas();
+                        let size = [canvas.width(), canvas.height()];
+                        let view = SheetView::of(session, practice.packs(), (size, title));
+                        (session.clone(), before, view)
+                    })
+                }
                 Content::Blank | Content::BlankAfterFailedOpen => None,
             };
             let viewport = area.viewport(pixels_per_point);
@@ -125,7 +129,7 @@ impl Screen {
         (toolbox, core, cache, practice): Answered<'_>,
     ) -> bool {
         match done {
-            Done::Started(opened, editor, (sessions, packs)) => {
+            Done::Started(opened, editor, (sessions, titles, packs)) => {
                 if let Some(state) = editor
                     && !toolbox.restore(&state)
                 {
@@ -137,7 +141,7 @@ impl Screen {
                 for key in toolbox.dropped() {
                     log::warn!("the stored brush sets list {key} for no brush or again; dropped");
                 }
-                *practice = PracticeLog::new(sessions, packs);
+                *practice = PracticeLog::new(sessions, titles, packs);
                 *self = started(opened);
             }
             Done::Picture(item, image) => {
@@ -185,36 +189,6 @@ impl Screen {
                 *self = Self::Gallery(gallery);
             }
             _ => log::warn!("a gallery answer arrived after the gallery closed"),
-        }
-    }
-
-    /// A practice session started (its sheet opens), failed to, or its record was written.
-    fn practice(&mut self, done: PracticeDone, practice: &mut PracticeLog) {
-        match done {
-            PracticeDone::Started {
-                sheet,
-                title,
-                id,
-                session,
-            } => {
-                log::info!("practice session {} on project {}", session.id, id.get());
-                practice.keep(session);
-                *self = Self::Opening(Some(Content::Stored(sheet, title, new_project(id))));
-            }
-            PracticeDone::Failed(error) => {
-                self.gallery_answer(LibraryAnswer::CreateFailed(error));
-            }
-            PracticeDone::Saved(Err(error)) => {
-                log::error!("storing the practice session failed: {error}");
-            }
-            PracticeDone::Saved(Ok(())) => {}
-            PracticeDone::Removed(id, Ok(())) => {
-                log::info!("practice session {id} removed");
-                practice.forget(id);
-            }
-            PracticeDone::Removed(id, Err(error)) => {
-                log::error!("practice session {id} was not removed: {error}");
-            }
         }
     }
 
@@ -319,15 +293,25 @@ impl Screen {
             }
             Self::Gallery(gallery) => {
                 while let Some(request) = gallery.request() {
-                    // A deleted artwork's cached canvas goes after any write still queued.
-                    if let LibraryRequest::Delete(id) = &request {
+                    // A deleted artwork's or copy's cached canvas goes after any write queued.
+                    if let LibraryRequest::Delete(id) | LibraryRequest::RemoveCopy(id) = &request {
                         cache.submit(CacheJob::Delete(*id));
                     }
+                    let creates = matches!(
+                        request,
+                        LibraryRequest::Create(..)
+                            | LibraryRequest::Practice(_)
+                            | LibraryRequest::Copy(_)
+                    );
                     match gallery_job(request, area, (practice, seeds, now)) {
                         Ok(job) => storage.submit(job),
-                        Err(error) => {
-                            log::error!("no blank artwork: {error}");
+                        Err(error) if creates => {
+                            log::error!("nothing to open: {error}");
                             gallery.answer(LibraryAnswer::CreateFailed(PortError::Stopped));
+                        }
+                        Err(error) => {
+                            log::error!("a change was not asked: {error}");
+                            gallery.answer(LibraryAnswer::Changed(Err(PortError::Stopped)));
                         }
                     }
                 }

@@ -107,6 +107,10 @@ impl ProjectStore for Other {
         Err(refused())
     }
 
+    fn sheet_titles(&mut self) -> Result<Vec<(ProjectId, Title)>, PortError> {
+        Err(refused())
+    }
+
     fn start_practice(
         &mut self,
         _sheet: &Artwork,

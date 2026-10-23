@@ -37,6 +37,7 @@ mod practice_log;
 mod practice_pens;
 mod practice_pictures;
 mod practice_sheet;
+mod practice_today;
 mod project;
 mod projection;
 mod quickshape;
@@ -98,10 +99,11 @@ pub use crate::practice::{
     AREAS_SIDE, AreasRead, Overlay, Pen, PracticeIntent, PracticeNotice, PracticeProjection, Probe,
     SHAPE_SHOWN, SHOWN, SheetView, sheet_of,
 };
-pub use crate::practice_log::{CopyFrom, CopyShown, PracticeLog, TodayProjection};
+pub use crate::practice_log::PracticeLog;
 pub use crate::practice_pens::PracticePens;
 pub use crate::practice_pictures::{FitJob, PackShown, PictureImage, SHOWN_SIDE, SheetPicture};
-pub use crate::practice_sheet::{PRACTICE_ROOM, PracticePick, Practising, ReadJob};
+pub use crate::practice_sheet::{CopyRead, PRACTICE_ROOM, PracticePick, Practising, ReadJob};
+pub use crate::practice_today::{CopyShown, PictureShown, TodayProjection};
 pub use crate::project::{
     KEPT_VERSIONS, KeptVersion, PortError, Project, ProjectId, ProjectStore, ProjectSummary,
     SaveId, Thumbnail, VersionId,

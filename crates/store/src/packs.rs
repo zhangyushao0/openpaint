@@ -3,25 +3,25 @@
 //! The library's records are never touched: a pack is no artwork, and the library's format 1
 //! stays as it is. Importing a pack whose id is kept replaces it whole (a newer edition); the
 //! personal pack is never imported. The user's own pictures are added one at a time to the
-//! personal pack (`PERSONAL`), written whole again with the new one at its end. A file is written
-//! under a temporary name and renamed over the old one, so a reader finds the old pack or the new
-//! one, never part of one.
+//! personal pack (`PERSONAL`), written whole again with the new one at its end, and removed or
+//! moved to another tier the same way (S83; its last picture removed, the file goes). A file is
+//! written under a temporary name and renamed over the old one, so a reader finds the old pack or
+//! the new one, never part of one.
 
 use std::fs::{self, File};
 use std::io::{ErrorKind, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use openpaint_app::PortError;
-use openpaint_practice::{
-    ItemRef, Outline, PERSONAL, PERSONAL_TIER, Pack, PackItem, PictureKind, valid_id,
-};
+use openpaint_practice::{ItemRef, Outline, PERSONAL, Pack, PackItem, PictureKind, Tier, valid_id};
 
 use crate::pack::{Placed, START, damaged, decode_head, encode_pack, head_length, open_pack};
 use crate::pack_picture::PackPicture;
 
-/// The personal pack's title and the start of its items' ids, numbered from 1.
+/// The personal pack's title, the start of its items' ids and of their titles, numbered from 1.
 const PERSONAL_TITLE: &str = "My pictures";
 const PERSONAL_ITEM: &str = "mine-";
+const PERSONAL_TITLE_ITEM: &str = "Picture ";
 
 /// The imported packs in one directory (the app's files directory's `packs`, beside its
 /// `library`).
@@ -70,9 +70,11 @@ impl Packs {
         Ok(pack)
     }
 
-    /// Adds `picture` (as `pack_picture` made it) with its `outline` to the personal pack, made
-    /// with it when there is none. Returns the personal pack as it is now, the picture its last
-    /// item.
+    /// Adds `picture` (as `pack_picture` made it) with its `outline` at `tier` to the personal
+    /// pack, made with it when there is none. Its id comes from its bytes (`mine-` and their
+    /// CRC-32), so a removed picture's id names no other picture later: a session or copy that
+    /// used it finds it only if the very picture comes back. Returns the personal pack as it is
+    /// now, the picture its last item.
     ///
     /// # Errors
     /// `Device` when the pack cannot be read or written (nothing is replaced then), `Corrupt`
@@ -80,39 +82,43 @@ impl Packs {
     pub fn add_picture(
         &self,
         picture: &PackPicture,
-        outline: Option<Outline>,
+        (outline, tier): (Option<Outline>, Tier),
     ) -> Result<Pack, PortError> {
-        let path = self.path(PERSONAL);
-        let kept = match fs::read(&path) {
-            Ok(bytes) => Some(bytes),
-            Err(error) if error.kind() == ErrorKind::NotFound => None,
-            Err(error) => return Err(device(&error)),
-        };
-        let (mut pack, mut pictures) = match &kept {
-            Some(bytes) => {
-                let (pack, pictures) = open_pack(bytes)?;
-                (pack, pictures.into_iter().map(<[u8]>::to_vec).collect())
+        let (mut pack, mut pictures) = self.personal()?;
+        let mut id = format!("{PERSONAL_ITEM}{:08x}", crc32fast::hash(&picture.file));
+        for again in 2.. {
+            if pack.item(&id).is_none() {
+                break;
             }
-            None => (personal_pack(), Vec::new()),
-        };
+            id = format!(
+                "{PERSONAL_ITEM}{:08x}-{again}",
+                crc32fast::hash(&picture.file)
+            );
+        }
         let number = 1
             + (pack.items.iter())
-                .filter_map(|item| item.id.strip_prefix(PERSONAL_ITEM)?.parse::<u32>().ok())
+                .filter_map(|item| {
+                    item.title
+                        .strip_prefix(PERSONAL_TITLE_ITEM)?
+                        .parse::<u32>()
+                        .ok()
+                })
                 .max()
                 .unwrap_or(0);
         let item = PackItem {
-            id: format!("{PERSONAL_ITEM}{number}"),
+            id,
             kind: PictureKind::Shape,
-            tier: PERSONAL_TIER,
+            tier,
             size: picture.size,
-            title: format!("Picture {number}"),
+            title: format!("{PERSONAL_TITLE_ITEM}{number}"),
             credit: None,
             outline,
         };
         log::info!(
-            "picture {} added to the personal pack ({} items), outline {}",
+            "picture {} added to the personal pack ({} items) at {}, outline {}",
             item.id,
             pack.items.len() + 1,
+            tier.name(),
             item.outline.is_some()
         );
         pack.items.push(item);
@@ -120,6 +126,64 @@ impl Packs {
         let bytes = encode_pack(&pack, &pictures)?;
         self.keep(PERSONAL, &bytes)?;
         Ok(pack)
+    }
+
+    /// The user's own picture `item` removed from the personal pack, which is written whole
+    /// again, or removed with its last picture. Returns the personal pack as it is now (none:
+    /// no picture left); a picture it does not hold changes nothing.
+    ///
+    /// # Errors
+    /// As `add_picture`.
+    pub fn remove_picture(&self, item: &str) -> Result<Option<Pack>, PortError> {
+        let (mut pack, mut pictures) = self.personal()?;
+        let Some(at) = pack.items.iter().position(|kept| kept.id == item) else {
+            return Ok((!pack.items.is_empty()).then_some(pack));
+        };
+        pack.items.remove(at);
+        pictures.remove(at);
+        log::info!(
+            "picture {item} removed from the personal pack ({} left)",
+            pack.items.len()
+        );
+        if pack.items.is_empty() {
+            return match fs::remove_file(self.path(PERSONAL)) {
+                Ok(()) => Ok(None),
+                Err(error) => Err(device(&error)),
+            };
+        }
+        let bytes = encode_pack(&pack, &pictures)?;
+        self.keep(PERSONAL, &bytes)?;
+        Ok(Some(pack))
+    }
+
+    /// The user's own picture `item` moved to `tier`. Returns the personal pack as it is now
+    /// (none: no picture at all); a picture it does not hold changes nothing.
+    ///
+    /// # Errors
+    /// As `add_picture`.
+    pub fn set_tier(&self, item: &str, tier: Tier) -> Result<Option<Pack>, PortError> {
+        let (mut pack, pictures) = self.personal()?;
+        let Some(kept) = pack.items.iter_mut().find(|kept| kept.id == item) else {
+            return Ok((!pack.items.is_empty()).then_some(pack));
+        };
+        kept.tier = tier;
+        let bytes = encode_pack(&pack, &pictures)?;
+        self.keep(PERSONAL, &bytes)?;
+        Ok(Some(pack))
+    }
+
+    /// The personal pack kept and its pictures' files; empty when there is none.
+    fn personal(&self) -> Result<(Pack, Vec<Vec<u8>>), PortError> {
+        let bytes = match fs::read(self.path(PERSONAL)) {
+            Ok(bytes) => bytes,
+            Err(error) if error.kind() == ErrorKind::NotFound => {
+                return Ok((personal_pack(), Vec::new()));
+            }
+            Err(error) => return Err(device(&error)),
+        };
+        let (pack, pictures) = open_pack(&bytes)?;
+        let pictures = pictures.into_iter().map(<[u8]>::to_vec).collect();
+        Ok((pack, pictures))
     }
 
     /// Writes `bytes` as the pack `id`'s file, replacing any kept one whole.

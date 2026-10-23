@@ -53,7 +53,7 @@ pub(crate) fn compared(ui: &mut egui::Ui, practice: &PracticeProjection, taps: &
     };
     let language = language(ui.ctx());
     let heading = if family == Family::Study {
-        t::colour_copy(language, practice.number)
+        t::shown_name(language, practice.sheet.name.as_str()).into_owned()
     } else {
         t::exercise(language, (family, practice.warming_up), practice.place.0)
     };

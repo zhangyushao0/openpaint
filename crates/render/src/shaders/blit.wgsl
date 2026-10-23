@@ -55,13 +55,29 @@ fn tier_texel(atlas: texture_2d<f32>, index: texture_2d<u32>, at: vec2<i32>, siz
 }
 
 // The tier at `scale` at canvas point `point`, bilinear between its four nearest texels as the
-// canvas's sampler would be; alpha -1 when one of them is not ready.
+// canvas's sampler would be; alpha -1 when one of them is not ready. Where the four lie in one
+// tile (all but a tile's last row and column), they lie side by side in its slot: one index
+// load and the sampler's own bilinear filter read them, as the canvas's are read. Across a
+// tile's edge each is found apart.
 fn tier_sample(atlas: texture_2d<f32>, index: texture_2d<u32>, scale: f32, point: vec2<f32>) -> vec4<f32> {
     let size = vec2<i32>(vec2<f32>(textureDimensions(canvas)) * scale);
     let at = point * scale - vec2<f32>(0.5);
     let base = floor(at);
     let t = at - base;
     let cell = vec2<i32>(base);
+    let inner = cell % TIER_TILE;
+    let inside = all(cell >= vec2<i32>(0)) && all(cell + vec2<i32>(1) < size);
+    if inside && all(inner < vec2<i32>(TIER_TILE - 1)) {
+        let held = textureLoad(index, cell / TIER_TILE, 0).r;
+        if held == 0u {
+            return vec4<f32>(0.0, 0.0, 0.0, -1.0);
+        }
+        let across = i32(textureDimensions(atlas).x) / TIER_TILE;
+        let slot = i32(held - 1u);
+        let origin = vec2<i32>(slot % across, slot / across) * TIER_TILE;
+        let texel = vec2<f32>(origin + inner) + vec2<f32>(0.5) + t;
+        return textureSampleLevel(atlas, filtering, texel / vec2<f32>(textureDimensions(atlas)), 0.0);
+    }
     let a = tier_texel(atlas, index, cell, size);
     let b = tier_texel(atlas, index, cell + vec2<i32>(1, 0), size);
     let c = tier_texel(atlas, index, cell + vec2<i32>(0, 1), size);

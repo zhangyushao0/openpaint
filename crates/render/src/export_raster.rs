@@ -91,6 +91,21 @@ impl RasterExport {
         Ok((image, [submitted - started, submitted.elapsed()]))
     }
 
+    /// As `piece`, a worker's while the screen draws on: each region waited for before the next.
+    ///
+    /// # Errors
+    /// As `piece`.
+    pub(crate) fn paced_piece(
+        &mut self,
+        core: &Core,
+        at: (&Artwork, u32, [u32; 2]),
+        size: [u32; 2],
+        background: [f32; 4],
+    ) -> Result<RgbaImage, RenderError> {
+        self.draw(core, at, size, (background, true))?;
+        read_rect(&core.gpu, &self.piece, [0, 0], size)
+    }
+
     /// As `piece`, drawn into the piece's texture and not read back; `paced` (a worker's while
     /// the screen draws on), each region waited for before the next.
     ///

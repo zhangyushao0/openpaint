@@ -149,6 +149,10 @@ impl ProjectStore for Watched {
         self.on(Library::practice)
     }
 
+    fn sheet_titles(&mut self) -> Result<Vec<(ProjectId, Title)>, PortError> {
+        self.on(Library::sheet_titles)
+    }
+
     fn start_practice(
         &mut self,
         sheet: &Artwork,

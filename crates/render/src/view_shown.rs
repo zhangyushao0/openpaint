@@ -21,7 +21,8 @@ fn tier_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
         },
         count: None,
     };
-    let colour = wgpu::TextureSampleType::Float { filterable: false };
+    // Filtered by the canvas's sampler within a tile (`blit.wgsl`).
+    let colour = wgpu::TextureSampleType::Float { filterable: true };
     let index = wgpu::TextureSampleType::Uint;
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("view tiers"),

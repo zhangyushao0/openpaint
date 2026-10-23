@@ -80,6 +80,22 @@ fn a_session_round_trips_with_its_sheet_hidden_from_the_gallery() {
     assert_eq!(reopened.practice().expect("practice"), vec![checked]);
 }
 
+/// A sheet's title (a colour copy's name) is read beside the records, renamed as any project's.
+#[test]
+fn a_sheet_s_title_is_read_beside_its_record_and_renamed() {
+    let mut library = Library::at(fresh_dir("practice-titles"));
+    let session = SessionRecord::stage_one(1, 1, 5, 1_791_201_600, &[]);
+    let title = Title::new("Colour copy 1").expect("title");
+    let id = library
+        .start_practice(&sheet(), &title, &session)
+        .expect("started");
+    assert_eq!(library.sheet_titles(), Ok(vec![(id, title)]));
+    let named = Title::new("Lamp study").expect("title");
+    library.rename(id, &named).expect("renamed");
+    assert_eq!(library.sheet_titles(), Ok(vec![(id, named)]));
+    assert!(library.list().expect("list").is_empty(), "still no artwork");
+}
+
 #[test]
 fn a_session_removed_takes_its_record_and_sheet_and_leaves_every_other_byte() {
     let dir = fresh_dir("practice-removed");

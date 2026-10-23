@@ -2,7 +2,8 @@
 //! official packs' by tier and the user's own apart, and how a session picks one. A picture is
 //! picked by the session's seed among those of its tier not shown in an earlier session, all of
 //! them again once each was; a tier with none falls back to the nearest tier that has some, the
-//! easier first. The user's own pictures take one place in every stage-2 session.
+//! easier first. The user's own pictures take one place in every stage-2 session, once the
+//! session's tiers reach theirs (S83: the tier the user chose for each).
 
 use std::collections::HashSet;
 
@@ -14,8 +15,8 @@ use crate::random::Random;
 pub struct Pictures {
     /// The official packs' shape items with their tiers, by pack and the pack's order.
     official: Vec<(Tier, ItemRef)>,
-    /// The user's own, oldest first.
-    personal: Vec<ItemRef>,
+    /// The user's own with the tiers chosen for them, oldest first.
+    personal: Vec<(Tier, ItemRef)>,
 }
 
 impl Pictures {
@@ -30,7 +31,7 @@ impl Pictures {
                     item: item.id.clone(),
                 };
                 if pack.personal() {
-                    pictures.personal.push(named);
+                    pictures.personal.push((item.tier, named));
                 } else {
                     pictures.official.push((item.tier, named));
                 }
@@ -45,10 +46,10 @@ impl Pictures {
         self.official.is_empty() && self.personal.is_empty()
     }
 
-    /// Whether the user has pictures of their own.
+    /// Whether the user has pictures of their own of `reach` or an easier tier.
     #[must_use]
-    pub fn has_personal(&self) -> bool {
-        !self.personal.is_empty()
+    pub fn has_personal(&self, reach: Tier) -> bool {
+        self.personal.iter().any(|(tier, _)| *tier <= reach)
     }
 
     /// An official picture of `tier`, or of the nearest tier with any (the easier first), else
@@ -70,18 +71,23 @@ impl Pictures {
                 return Some((near, item));
             }
         }
-        self.pick_personal(random, used)
-            .map(|item| (crate::pack::PERSONAL_TIER, item))
+        self.pick_personal(Tier::Hard, random, used)
     }
 
-    /// One of the user's own pictures, else an official one of their tier.
+    /// One of the user's own pictures of `reach` or an easier tier, with its tier.
     pub(crate) fn pick_personal(
         &self,
+        reach: Tier,
         random: &mut Random,
         used: &HashSet<ItemRef>,
-    ) -> Option<ItemRef> {
-        let own: Vec<&ItemRef> = self.personal.iter().collect();
-        chosen(&own, random, used)
+    ) -> Option<(Tier, ItemRef)> {
+        let own: Vec<&ItemRef> = (self.personal.iter())
+            .filter(|(tier, _)| *tier <= reach)
+            .map(|(_, item)| item)
+            .collect();
+        let item = chosen(&own, random, used)?;
+        let tier = (self.personal.iter()).find_map(|(tier, held)| (*held == item).then_some(*tier));
+        tier.map(|tier| (tier, item))
     }
 }
 

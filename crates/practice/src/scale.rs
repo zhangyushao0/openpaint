@@ -1,15 +1,19 @@
 //! Value scales (after Gurney's and Ctrl+Paint's value studies, beside V大's week 2 colour work):
 //! a row of cells between a given dark and light of one hue and purity, the cells between them
-//! filled in even steps of value. Generated the same for the same seed: five to seven cells, the
-//! ends' values far apart, grey or of a hue.
+//! filled in even steps of lightness. Generated the same for the same seed: five to seven cells,
+//! the ends far apart (HSV value 0.12 to 0.3 and 0.78 to 0.95 as the wheel sets them), grey or
+//! of a hue (in turn by session, `session.rs`).
 //!
-//! Checked on the colour wheel's value only, where the hand sets it: each cell's value read from
-//! the copy's pixels (the median over the cell's middle, clear of its edges), against the even
-//! step there, and the order (each cell lighter than the one before). A cell a quarter of a step
-//! off or more is uneven: the steps either side of it then differ by half a step, which the eye
-//! sees in a row.
+//! Checked on perceptual lightness, Oklab's `L`, as the eye sees it (the main session, S83: the
+//! wheel's value steps unevenly to the eye, the more so on a hue): each cell's lightness read
+//! from the copy's pixels (the median over the cell's middle, clear of its edges), against the
+//! even step there, and the order (each cell lighter than the one before). A cell a quarter of a
+//! step off or more is uneven: the steps either side of it then differ by half a step, which the
+//! eye sees in a row. A coloured scale's ends lie on one ray from black in Oklab (the wheel's
+//! value scales sRGB's channels together, so hue and purity hold), and so does the even scale
+//! between them: a hue held, its lightness stepped.
 
-use crate::colour::{Rgb8, from_hsv, hsv};
+use crate::colour::{Rgb8, from_hsv, from_oklab, oklab};
 use crate::metric::{Metric, Metrics};
 use crate::path::Point;
 use crate::random::Random;
@@ -47,9 +51,9 @@ pub struct ValueScale {
 /// A value scale's copy as checked.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ScaleCheck {
-    /// Each cell's value (the ends given); none for a cell not filled.
+    /// Each cell's lightness (Oklab `L`, 0 to 1; the ends given); none for a cell not filled.
     pub values: Vec<Option<f64>>,
-    /// Each cell's value on an even scale.
+    /// Each cell's lightness on an even scale.
     pub targets: Vec<f64>,
     /// The cells (between the ends) a quarter of a step off or more.
     pub uneven: Vec<usize>,
@@ -76,16 +80,24 @@ impl ValueScale {
         }
     }
 
-    /// The colour of `value` on this scale.
+    /// The colour of lightness `lightness` (Oklab `L`) on this scale: the point of that lightness
+    /// on the Oklab line through its ends (beyond them, the line drawn on), clipped to sRGB.
     #[must_use]
-    pub fn colour(&self, value: f64) -> Rgb8 {
-        from_hsv([self.hue, self.saturation, value])
+    pub fn colour(&self, lightness: f64) -> Rgb8 {
+        let [dark, light] = self.ends().map(oklab);
+        let span = light[0] - dark[0];
+        let t = if span.abs() < f64::EPSILON {
+            0.0
+        } else {
+            (lightness - dark[0]) / span
+        };
+        from_oklab([0, 1, 2].map(|axis| dark[axis] + (light[axis] - dark[axis]) * t))
     }
 
     /// The ends as the screen shows them: the dark and the light colour.
     #[must_use]
     pub fn ends(&self) -> [Rgb8; 2] {
-        [self.colour(self.dark), self.colour(self.light)]
+        [self.dark, self.light].map(|value| from_hsv([self.hue, self.saturation, value]))
     }
 
     /// Cell `index`'s top left and bottom right corners, in frame units.
@@ -106,10 +118,10 @@ impl ValueScale {
         })
     }
 
-    /// Each cell's value on an even scale between the ends as shown.
+    /// Each cell's lightness on an even scale between the ends as shown.
     #[must_use]
     pub fn targets(&self) -> Vec<f64> {
-        let [dark, light] = self.ends().map(|end| hsv(end)[2]);
+        let [dark, light] = self.ends().map(|end| oklab(end)[0]);
         let steps = (self.cells - 1).max(1) as f64;
         (0..self.cells)
             .map(|index| {
@@ -120,8 +132,8 @@ impl ValueScale {
     }
 
     /// The copy whose pixels `rgba` (8-bit RGBA, `size` pixels) cover its frame exactly, the
-    /// sheet's paper `paper`: each cell between the ends its middle's median value, none while
-    /// most of it is `paper`; the ends as given.
+    /// sheet's paper `paper`: each cell between the ends its middle's median lightness, none
+    /// while most of it is `paper`; the ends as given.
     #[must_use]
     pub fn read(&self, size: [u32; 2], rgba: &[u8], paper: Rgb8) -> ScaleCheck {
         let targets = self.targets();
@@ -160,7 +172,7 @@ impl ValueScale {
         }
     }
 
-    /// Cell `index`'s value in the copy: the median over its middle.
+    /// Cell `index`'s lightness in the copy: the median over its middle.
     fn cell_value(
         &self,
         index: usize,
@@ -185,14 +197,14 @@ impl ValueScale {
                 };
                 let colour = [texel[0], texel[1], texel[2]];
                 bare += usize::from(colour == paper);
-                values.push(colour.into_iter().max().unwrap_or(0));
+                values.push(oklab(colour)[0]);
             }
         }
         if values.is_empty() || 2 * bare > values.len() {
             return None;
         }
-        values.sort_unstable();
-        Some(f64::from(values[values.len() / 2]) / 255.0)
+        values.sort_unstable_by(f64::total_cmp);
+        Some(values[values.len() / 2])
     }
 }
 

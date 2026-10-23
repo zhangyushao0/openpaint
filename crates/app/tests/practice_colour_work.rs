@@ -7,13 +7,13 @@
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, CopyFrom, Device, InputSample, Intent, Overlay, Pen,
-    PictureImage, PracticeIntent, PracticeLog, PracticeNotice, PracticePens, PracticePick, Probe,
-    Session, SheetView, StrokeIntent, Toolbox, Viewport, sheet_of,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Overlay, Pen, PictureImage,
+    PracticeIntent, PracticeLog, PracticeNotice, PracticePens, PracticePick, Probe, Session,
+    SheetView, StrokeIntent, Title, Toolbox, Viewport, sheet_of,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Areas, Arrangement, Exercise, Family, Kind, Metric, Original, Pack, PackItem, Pair,
+    Areas, Arrangement, Exercise, Family, ItemRef, Kind, Metric, Original, Pack, PackItem, Pair,
     PictureKind, Plan, ScaleTone, SessionRecord, Tier, ValueScale, value,
 };
 
@@ -37,7 +37,7 @@ fn pens() -> PracticePens {
 fn opened(record: SessionRecord, packs: &[Pack]) -> Session {
     let [width, height] = sheet_of(&record, packs).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
-    let view = SheetView::of(&record, packs);
+    let view = SheetView::of(&record, packs, ([width, height], &Title::untitled()));
     let tools = (brush(Color::rgb(0.2, 0.4, 0.6).expect("colour")), pens());
     Session::practising(sheet, tools, (record, Vec::new(), view), &VIEWPORT)
 }
@@ -98,7 +98,7 @@ fn read(session: &mut Session, pixels: Vec<u8>) {
         size: job.size,
         pixels,
     };
-    session.practice_read(job.sequence, Some(&image));
+    session.practice_read(job.sequence, job.run(&image));
 }
 
 fn overlay(session: &Session) -> Option<Overlay> {
@@ -283,13 +283,27 @@ fn pack() -> Pack {
     }
 }
 
-/// A colour copy of the pack's one picture begun and opened, its picture read: the log, the
-/// copy's record, the session and its frames.
+/// The pack's one picture.
+fn teapot() -> ItemRef {
+    ItemRef {
+        pack: "test-shapes".to_owned(),
+        item: "teapot".to_owned(),
+    }
+}
+
+/// A colour copy of the pack's one picture begun (chosen) and opened, its picture read: the log,
+/// the copy's record, the session and its frames.
 fn copy_opened() -> (PracticeLog, SessionRecord, Session, Pair) {
-    let log = PracticeLog::new(Vec::new(), vec![pack()]);
-    let mine = log.begin_copy(CopyFrom::Mine, 1, 2);
-    assert!(mine.is_none(), "no picture of my own");
-    let (mut record, title) = log.begin_copy(CopyFrom::Pack, 1, 2).expect("a picture");
+    let log = PracticeLog::new(Vec::new(), Vec::new(), vec![pack()]);
+    let elsewhere = ItemRef {
+        pack: "personal".to_owned(),
+        ..teapot()
+    };
+    assert!(
+        log.begin_copy(&elsewhere, 1, 2).is_none(),
+        "a picture no pack holds"
+    );
+    let (mut record, title) = log.begin_copy(&teapot(), 1, 2).expect("a picture");
     assert_eq!(title.as_str(), "Colour copy 1");
     assert!(record.is_project());
     record.canvas = 40;
@@ -367,12 +381,12 @@ fn a_long_colour_copy_is_kept_beside_the_sessions_and_counts_in_none() {
     let today = log.today();
     assert_eq!((today.stage, today.done, today.open), (1, 0, None));
     assert_eq!(today.copies.len(), 1);
-    assert_eq!(today.copies[0].title.as_deref(), Some("Teapot"));
-    assert_eq!(today.copy_from, [true, false]);
+    assert_eq!(today.copies[0].name.as_str(), "Colour copy 1");
+    assert_eq!(today.copies[0].picture, Some(teapot()));
+    let shown = today.picture(&teapot()).expect("the picture offered");
+    assert_eq!((shown.copies, shown.sessions), (1, 0));
     let (next, _) = log.begin(1, 9, 3);
     assert_eq!((next.number, next.warm_up), (1, 0), "the first session");
-    let (second, title) = log
-        .begin_copy(CopyFrom::Pack, 4, 5)
-        .expect("a picture again");
+    let (second, title) = log.begin_copy(&teapot(), 4, 5).expect("a picture again");
     assert_eq!((second.number, title.as_str()), (2, "Colour copy 2"));
 }

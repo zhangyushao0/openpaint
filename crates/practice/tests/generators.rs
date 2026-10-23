@@ -272,6 +272,11 @@ fn a_colour_copy_s_sheet_is_one_pair_of_frames_shaped_as_its_picture() {
     assert_eq!(sheet.size, [3400, 1360]);
     let tall = Sheet::study([600, 1000]);
     assert_eq!(tall.pairs[0].copy.size, [960.0, 1600.0]);
+    // Read back from its canvas, as a copy whose picture was removed is laid out.
+    for picture in [[1200, 900], [600, 1000], [777, 333], [1, 2048]] {
+        let made = Sheet::study(picture);
+        assert_eq!(Sheet::study_on(made.size), made, "{picture:?}");
+    }
     // The picture fills its frame; frame units run evenly, one to the frame's width.
     let fit = PictureFit::filling([1200, 900]);
     assert_eq!(fit.size, [1.0, 0.75]);

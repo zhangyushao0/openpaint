@@ -210,6 +210,9 @@ pub trait ProjectStore: Send {
     /// `list` leaves out.
     fn practice(&mut self) -> Result<Vec<SessionRecord>, PortError>;
 
+    /// The titles of the practice sheets (a colour copy's is its name), by project.
+    fn sheet_titles(&mut self) -> Result<Vec<(ProjectId, Title)>, PortError>;
+
     /// A new practice session: `sheet` as a new project titled `title`, which becomes the open
     /// one, and `session` with that project as its canvas, in one write. Returns the project.
     fn start_practice(
@@ -223,8 +226,9 @@ pub trait ProjectStore: Send {
     fn save_practice(&mut self, session: &SessionRecord) -> Result<(), PortError>;
 
     /// Removes the record of `session` (by its id) and its sheet, everything stored for it, for
-    /// good, in one write; every other record stays as it is. The test-session chore's (debug
-    /// builds) undoing of a session it started.
+    /// good, in one write; every other record stays as it is. A colour copy removed from the
+    /// practice options, and the test-session chore's (debug builds) undoing of a session it
+    /// started.
     fn remove_practice(&mut self, session: &SessionRecord) -> Result<(), PortError>;
 }
 

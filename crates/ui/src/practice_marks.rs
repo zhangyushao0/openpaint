@@ -136,8 +136,9 @@ pub(crate) fn show_marks(
     paint_marks::show_probe(&painter, practice, &at);
 }
 
-/// Exercise `index`'s picture fitted in its `frame` (or that it is missing), its credit under the
-/// frame; `at` maps canvas points to the screen, `scale` is points per canvas pixel.
+/// Exercise `index`'s picture fitted in its `frame` (or, where no pack kept holds it now, that
+/// it was removed: the strokes copied from it stay), its credit under the frame; `at` maps
+/// canvas points to the screen, `scale` is points per canvas pixel.
 fn show_picture(
     painter: &egui::Painter,
     practice: &PracticeProjection,
@@ -147,8 +148,11 @@ fn show_picture(
 ) {
     let picture = practice.sheet.pictures.get(index).and_then(Option::as_ref);
     let texture = picture.and_then(|p| pictures.texture(&p.item));
-    let middle = at(frame.to_canvas([0.5, 0.5]));
-    let font = FontId::proportional((14.0 * scale).max(6.0));
+    // Frame units run one to the frame's width: its middle lies half its height down.
+    let middle = at(frame.to_canvas([0.5, 0.5 * frame.size[1] / frame.unit()]));
+    // In step with the frame: a colour copy's frame is four times a session's.
+    let grown = (frame.unit() / FRAME) as f32;
+    let font = FontId::proportional((14.0 * scale * grown).max(6.0));
     match (picture, texture) {
         (Some(picture), Some(Some(texture))) => {
             let [x, y] = picture.fit.origin;
@@ -159,7 +163,7 @@ fn show_picture(
         }
         (Some(_), None) => {}
         _ => {
-            let missing = Words::from(t::PICTURE_MISSING).shown(painter.ctx());
+            let missing = Words::from(t::PICTURE_REMOVED).shown(painter.ctx());
             let centre = egui::Align2::CENTER_CENTER;
             painter.text(middle, centre, missing, font, INK_SECONDARY);
         }
@@ -170,8 +174,6 @@ fn show_picture(
     let left = at(frame.to_canvas([0.0, 1.0]));
     let right = at(frame.to_canvas([1.0, 1.0]));
     let angle = (right.y - left.y).atan2(right.x - left.x);
-    // In step with the frame: a colour copy's frame is four times a session's.
-    let grown = (frame.unit() / FRAME) as f32;
     let below = at([
         frame.origin[0],
         frame.origin[1] + frame.size[1] + f64::from(CREDIT_GAP * grown),

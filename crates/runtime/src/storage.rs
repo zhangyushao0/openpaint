@@ -76,7 +76,8 @@ pub(crate) enum Job {
     /// An OpenPaint file to write or to read, a practice pack to import or a picture to add,
     /// once the system gave it.
     File(FileJob),
-    /// A practice session started or its record changed.
+    /// A practice session started or its record changed; a colour copy renamed or removed; one
+    /// of the user's own pictures removed or moved to a tier.
     Practice(PracticeJob),
     /// A practice picture read for the screen.
     Picture(ItemRef),
@@ -94,13 +95,9 @@ pub(crate) enum LibraryCall {
 
 pub(crate) enum Done {
     /// What opening found, the stored toolbox (`None` when there is none or it could not be
-    /// read, logged here: the brushes keep their defaults), the practice sessions and the packs
-    /// kept (none when they could not be read, logged).
-    Started(
-        Opened,
-        Option<Box<EditorState>>,
-        (Vec<SessionRecord>, Vec<Pack>),
-    ),
+    /// read, logged here: the brushes keep their defaults), the practice sessions, their sheets'
+    /// titles and the packs kept (none when they could not be read, logged).
+    Started(Opened, Option<Box<EditorState>>, Practised),
     /// A practice picture as read for the screen; none when it could not be (logged).
     Picture(ItemRef, Option<PictureImage>),
     EditorSaved(Result<(), PortError>),
@@ -120,6 +117,9 @@ pub(crate) enum Done {
     Gallery(LibraryAnswer),
     Practice(PracticeDone),
 }
+
+/// The practice sessions, their sheets' titles and the packs kept, as opening read them.
+pub(crate) type Practised = (Vec<SessionRecord>, Vec<(ProjectId, Title)>, Vec<Pack>);
 
 /// What the worker knows between calls.
 #[derive(Debug, Default)]
@@ -197,7 +197,7 @@ fn serve(served: Served<'_>, kept: &mut Kept, job: Job) -> Done {
 fn stopped(job: &Job) -> Done {
     let error = PortError::Stopped;
     match job {
-        Job::Start => Done::Started(Opened::Failed(error), None, (Vec::new(), Vec::new())),
+        Job::Start => Done::Started(Opened::Failed(error), None, Practised::default()),
         Job::Picture(item) => Done::Picture(item.clone(), None),
         Job::SaveEditor(_) => Done::EditorSaved(Err(error)),
         Job::Save(artwork) => Done::Saved(artwork.clone(), Err(error)),
@@ -231,12 +231,16 @@ fn run((store, cache, packs): Served<'_>, kept: &mut Kept, job: Job) -> Done {
                 .practice()
                 .inspect_err(|error| log::warn!("the practice sessions are unreadable: {error}"))
                 .unwrap_or_default();
+            let titles = store
+                .sheet_titles()
+                .inspect_err(|error| log::warn!("the practice sheets' titles are unread: {error}"))
+                .unwrap_or_default();
             let packs = (packs.map(Packs::list).transpose())
                 .inspect_err(|error| log::warn!("the practice packs are not listed: {error}"))
                 .ok()
                 .flatten()
                 .unwrap_or_default();
-            Done::Started(opened, editor.map(Box::new), (sessions, packs))
+            Done::Started(opened, editor.map(Box::new), (sessions, titles, packs))
         }
         Job::Picture(item) => {
             let image = files::picture(packs, &item);
@@ -265,7 +269,7 @@ fn run((store, cache, packs): Served<'_>, kept: &mut Kept, job: Job) -> Done {
         },
         Job::Library(request) => library((store, cache), kept, request),
         Job::File(job) => Done::Gallery(files::run(store, packs, job)),
-        Job::Practice(job) => practice::run(store, kept, job),
+        Job::Practice(job) => practice::run((store, packs), kept, job),
     }
 }
 

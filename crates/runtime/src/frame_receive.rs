@@ -29,13 +29,13 @@ impl Runtime {
             }
         }
         if !matches!(self.screen, Screen::Canvas(_)) {
-            self.fit.let_go();
+            self.compare.let_go();
         }
         self.open_canvas()
     }
 
-    /// The frame's intents applied to the canvas (then its fill, fit, a practice copy's pixels
-    /// read for Compare, pictures and brush rows) or the gallery. Returns whether brush pictures
+    /// The frame's intents applied to the canvas (then its fill, Compare's fit and copy read off
+    /// the frame loop, pictures and brush rows) or the gallery. Returns whether brush pictures
     /// arrived.
     pub(super) fn apply(&mut self, intents: Vec<Intent>) -> bool {
         match &mut self.screen {
@@ -44,8 +44,7 @@ impl Runtime {
                 let app = (&mut self.toolbox, &mut self.clipboard, &mut self.seeds, now);
                 canvas.dispatch(&self.core, intents, app);
                 self.fill.step(canvas);
-                self.fit.step(canvas);
-                canvas.practice_reads(&self.core);
+                self.compare.step(canvas);
                 while let Some(item) = canvas.session_mut().practice_picture_request() {
                     self.storage.submit(crate::storage::Job::Picture(item));
                 }
@@ -54,6 +53,7 @@ impl Runtime {
             }
             Screen::Gallery(gallery) => {
                 dispatch_gallery(gallery, intents);
+                self.pack_pictures.step(&mut self.shell);
                 false
             }
             Screen::Opening(_) => false,

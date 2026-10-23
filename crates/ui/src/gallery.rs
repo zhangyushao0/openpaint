@@ -7,12 +7,16 @@
 //! keyboard), the options to save it as an OpenPaint file or restore a kept version, the copy
 //! button to duplicate it and the bin to delete it, which asks first: it cannot be undone.
 
+#[path = "gallery_copies.rs"]
+mod copies;
 #[path = "gallery_dates.rs"]
 mod dates;
 #[path = "gallery_dialogs.rs"]
 mod dialogs;
 #[path = "gallery_new.rs"]
 mod new;
+#[path = "gallery_pictures.rs"]
+mod pictures;
 #[path = "gallery_practice.rs"]
 mod practice;
 
@@ -60,8 +64,8 @@ pub(crate) struct GalleryScreen {
     confirm: Option<(ProjectId, openpaint_app::Title, Rect)>,
     /// The artwork whose options show, and its card (points).
     options: Option<(ProjectId, Rect)>,
-    /// The practice options show, grown from the Today card (points).
-    practice_options: Option<Rect>,
+    /// The practice options, grown from the Today card, their pages and pictures.
+    practice: practice::PracticeOptions,
     /// What the search field holds; not stored.
     search: String,
     /// The device's offset from UTC in minutes (`Shell::set_utc_offset`).
@@ -295,7 +299,7 @@ impl GalleryScreen {
                 picture: None,
             });
         } else if tapped.options {
-            self.practice_options = Some(rect);
+            self.practice.open(rect);
         }
         tapped.rect
     }
@@ -343,15 +347,15 @@ impl GalleryScreen {
     /// Closes an open dialog as Cancel would, or the new-canvas popover. Returns whether one
     /// was open.
     pub(crate) fn back(&mut self) -> bool {
+        let practice = self.practice.close();
         let open = self.rename.is_some()
             || self.confirm.is_some()
             || self.options.is_some()
-            || self.practice_options.is_some()
+            || practice
             || self.sizes != Sizes::Closed;
         self.rename = None;
         self.confirm = None;
         self.options = None;
-        self.practice_options = None;
         self.sizes = Sizes::Closed;
         open
     }

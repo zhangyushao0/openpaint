@@ -3,8 +3,8 @@
 
 use openpaint_practice::{
     Arrangement, Before, Combination, Exercise, Family, Fit, ItemRef, Kind, LineTier, PERSONAL,
-    PERSONAL_TIER, Pack, PackItem, PictureKind, Pictures, Point, ScaleTone, Tier, Tone,
-    WARM_UP_TWO, align_shape, plan, stage_two,
+    Pack, PackItem, PictureKind, Pictures, Point, ScaleTone, Tier, Tone, WARM_UP_TWO, align_shape,
+    plan, stage_two,
 };
 
 fn item(id: &str, tier: Tier) -> PackItem {
@@ -20,8 +20,13 @@ fn item(id: &str, tier: Tier) -> PackItem {
 }
 
 /// An official pack of `per_tier` pictures in each of `tiers` (credits left out: the plan reads
-/// ids and tiers only), and the user's own `mine`.
+/// ids and tiers only), and the user's own `mine`, simple ones.
 fn pictures(tiers: &[Tier], per_tier: usize, mine: usize) -> Pictures {
+    with_own(tiers, per_tier, &vec![Tier::Simple; mine])
+}
+
+/// As `pictures`, the user's own of the tiers `mine`.
+fn with_own(tiers: &[Tier], per_tier: usize, mine: &[Tier]) -> Pictures {
     let official = Pack {
         id: "test-shapes".to_owned(),
         title: "Test shapes".to_owned(),
@@ -34,8 +39,8 @@ fn pictures(tiers: &[Tier], per_tier: usize, mine: usize) -> Pictures {
     let personal = Pack {
         id: PERSONAL.to_owned(),
         title: "My pictures".to_owned(),
-        items: (1..=mine)
-            .map(|n| item(&format!("mine-{n}"), PERSONAL_TIER))
+        items: (mine.iter().enumerate())
+            .map(|(n, tier)| item(&format!("mine-{n}"), *tier))
             .collect(),
     };
     Pictures::of(&[official, personal])
@@ -148,7 +153,7 @@ fn the_user_s_own_picture_takes_the_last_place_and_pictures_shown_wait_their_tur
         picked[3].1.pack, PERSONAL,
         "the last shape is the user's own"
     );
-    assert_eq!(picked[3].0, PERSONAL_TIER);
+    assert_eq!(picked[3].0, Tier::Simple, "the tier chosen for it");
     assert!(
         picked[..3]
             .iter()
@@ -166,6 +171,31 @@ fn the_user_s_own_picture_takes_the_last_place_and_pictures_shown_wait_their_tur
         .map(|(_, item)| item)
         .collect();
     assert!(simple_left.iter().all(|item| !used.contains(item)) || simple_left.len() > 1);
+}
+
+/// The tier the user chose for a picture of their own: it takes the last place once the session's
+/// tiers reach it (simple from the first, medium from the third, hard from the sixth), the
+/// shape's kind its tier; before that the place is an official picture's.
+#[test]
+fn a_picture_of_my_own_comes_once_the_sessions_reach_its_tier() {
+    let last = |mine: &[Tier], number| {
+        let all = with_own(&Tier::ALL, 3, mine);
+        let picked = shapes(&stage_two(number, 21, &before(&[], &all, &[])).exercises);
+        picked[3].clone()
+    };
+    let (tier, item) = last(&[Tier::Hard], 1);
+    assert_eq!((tier, item.pack.as_str()), (Tier::Simple, "test-shapes"));
+    assert_eq!(last(&[Tier::Hard], 5).1.pack, "test-shapes");
+    let (tier, item) = last(&[Tier::Hard], 6);
+    assert_eq!((tier, item.pack.as_str()), (Tier::Hard, PERSONAL));
+    let (tier, item) = last(&[Tier::Medium], 3);
+    assert_eq!((tier, item.pack.as_str()), (Tier::Medium, PERSONAL));
+    let (tier, item) = last(&[Tier::Entry, Tier::Hard], 1);
+    assert_eq!(
+        (tier, item.item.as_str()),
+        (Tier::Entry, "mine-0"),
+        "the one it reaches"
+    );
 }
 
 #[test]

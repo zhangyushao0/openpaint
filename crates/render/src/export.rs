@@ -86,6 +86,33 @@ impl Core {
             waited: Duration::ZERO,
         })
     }
+
+    /// The `size` pixels of `artwork` from `origin` at 1x on `background` paper, as the screen's
+    /// canvas shows them (a practice copy's frame, read off the frame loop): drawn in a worker's
+    /// paced regions on targets of their own, so the screen draws on meanwhile.
+    ///
+    /// # Errors
+    /// `Invalid` for a region not inside the canvas; as the export.
+    pub fn export_region(
+        &self,
+        artwork: &Artwork,
+        background: Color,
+        (origin, size): ([u32; 2], [u32; 2]),
+    ) -> Result<RgbaImage, RenderError> {
+        let canvas = artwork.canvas();
+        let sides = [canvas.width(), canvas.height()];
+        let inside = (0..2).all(|axis| {
+            size[axis] > 0
+                && u64::from(origin[axis]) + u64::from(size[axis]) <= u64::from(sides[axis])
+        });
+        if !inside {
+            return Err(RenderError::Invalid("a region not inside the canvas"));
+        }
+        let scene = Scene::build_knowing(artwork, None, (Vec::new(), Earlier::default()))?;
+        let mut raster = RasterExport::new(self, scene, (size, true))?;
+        let paper = [background.r(), background.g(), background.b(), 1.0];
+        raster.paced_piece(self, (artwork, 1, origin), size, paper)
+    }
 }
 
 impl Bands<'_> {

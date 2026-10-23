@@ -1,7 +1,8 @@
 //! A painted exercise on a practice sheet (S82): a colour combination, a value scale, a long
-//! colour copy. Its copy is read from the canvas's pixels (strokes of any brush, fills and smudges
-//! as they show), so Compare asks the runtime for the copy's frame (`ReadJob`) and the numbers
-//! come when the pixels do, the first Compare's kept in the record. How much of the original
+//! colour copy. Its copy is read from the artwork's pixels as the canvas shows them (strokes of
+//! any brush, fills and smudges), so Compare asks the runtime for the copy's frame (`ReadJob`),
+//! which draws it and reads it off the frame loop (S83, as the fits are), and the numbers come
+//! when the reading does, the first Compare's kept in the record. How much of the original
 //! shows over the copy is the user's (a slider); a combination's card compares one area at a
 //! time, its outline marked on both frames; a value scale is painted a cell at a time, the cell
 //! the pen lands in (Fill fills it, then the next).
@@ -14,7 +15,7 @@
 use std::sync::Arc;
 
 use openpaint_core::Color;
-use openpaint_practice::{Original, Point, Rgb8};
+use openpaint_practice::{Metrics, Original, Point, Rgb8, ScaleCheck};
 
 use super::{Compared, PracticeSheet, unavailable};
 use crate::error::AppError;
@@ -23,13 +24,50 @@ use crate::practice_copy::PAPER;
 use crate::practice_pictures::PictureImage;
 use crate::projection::Availability;
 
-/// The copy's frame for the runtime to read from the canvas, for the Compare numbered
-/// `sequence`: canvas pixels from `origin`, `size` large.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// The copy's frame for the runtime to draw and read, for the Compare numbered `sequence`:
+/// canvas pixels from `origin`, `size` large, read as `original` asks (`run`).
+#[derive(Debug, Clone, PartialEq)]
 pub struct ReadJob {
     pub sequence: u64,
     pub origin: [u32; 2],
     pub size: [u32; 2],
+    pub original: Original,
+}
+
+/// A painted copy as read: a colour combination's areas and the edges where it made a weak
+/// contrast strong, or a value scale's cells checked.
+#[derive(Debug, Clone, PartialEq)]
+pub enum CopyRead {
+    Areas(Arc<AreasRead>),
+    Scale(Arc<ScaleCheck>),
+}
+
+impl ReadJob {
+    /// The copy whose frame's pixels are `pixels` (8-bit RGBA on the sheet's paper) as read, with
+    /// the numbers a first Compare keeps; none for an original that is not painted.
+    #[must_use]
+    pub fn run(&self, pixels: &PictureImage) -> Option<(CopyRead, Metrics)> {
+        match &self.original {
+            Original::Areas(areas) => {
+                let copy = areas.read(pixels.size, &pixels.pixels, PAPER);
+                let strong = (copy.contrasts.iter())
+                    .filter(|c| c.made_strong())
+                    .flat_map(|c| areas.edges(c.areas.0, Some(c.areas.1)))
+                    .collect();
+                let metrics = copy.metrics(areas);
+                Some((
+                    CopyRead::Areas(Arc::new(AreasRead { copy, strong })),
+                    metrics,
+                ))
+            }
+            Original::Scale(scale) => {
+                let check = scale.read(pixels.size, &pixels.pixels, PAPER);
+                let metrics = check.metrics();
+                Some((CopyRead::Scale(Arc::new(check)), metrics))
+            }
+            _ => None,
+        }
+    }
 }
 
 /// What the eyedropper reads at a point of a practice sheet.
@@ -56,8 +94,7 @@ pub enum PracticePick {
 pub(super) enum Reading {
     /// Its pixels asked of the runtime by the Compare numbered so.
     Asked(u64),
-    Areas(Arc<AreasRead>),
-    Scale(Arc<openpaint_practice::ScaleCheck>),
+    Read(CopyRead),
     /// Nothing to read (a colour copy), or the pixels could not be read.
     Shown,
 }
@@ -72,9 +109,11 @@ pub(super) struct Painting {
     outline: Arc<Vec<Vec<Point>>>,
     /// A value scale's cell the pen paints and Fill fills (an end never).
     cell: usize,
-    /// The copy's pixels to read, and how many reads were asked.
+    /// The copy's pixels to read, how many reads the sheet asked and how many before this
+    /// exercise came to show (a reading of an earlier exercise arriving late is dropped).
     job: Option<ReadJob>,
     reads: u64,
+    since: u64,
     /// The point the eyedropper compares, waiting for the copy's pixel (frame units, the
     /// original's colour), and the last one compared.
     probing: Option<(Point, Rgb8)>,
@@ -90,6 +129,7 @@ impl Default for Painting {
             cell: 1,
             job: None,
             reads: 0,
+            since: 0,
             probing: None,
             probe: None,
         }
@@ -102,9 +142,15 @@ fn colour(rgb: Rgb8) -> Option<Color> {
 }
 
 impl PracticeSheet {
-    /// A painted exercise came to show: a combination's first area outlined, a value scale's
-    /// first cell between its ends the clip.
+    /// An exercise came to show: its painting begins anew (the sheet's count of reads goes on); a
+    /// combination's first area outlined, a value scale's first cell between its ends the clip.
     pub(super) fn painted_shown(&mut self) {
+        let reads = self.painting_state.reads;
+        self.painting_state = Painting {
+            reads,
+            since: reads,
+            ..Painting::default()
+        };
         let Some(index) = self.current() else {
             return;
         };
@@ -195,6 +241,7 @@ impl PracticeSheet {
             sequence: self.painting_state.reads,
             origin: frame.origin.map(|v| v.round().max(0.0) as u32),
             size: frame.size.map(|v| v.round().max(1.0) as u32),
+            original: self.sheet.originals[index].clone(),
         });
         Reading::Asked(self.painting_state.reads)
     }
@@ -207,30 +254,12 @@ impl PracticeSheet {
     /// The runtime read the copy for the Compare numbered `sequence` (`None`: it could not): the
     /// copy as read shows if that Compare's comparison still does, and its numbers are kept as
     /// the exercise's first.
-    pub(crate) fn read(&mut self, sequence: u64, pixels: Option<&PictureImage>) {
-        let Some(index) = self.current() else {
+    pub(crate) fn read(&mut self, sequence: u64, painted: Option<(CopyRead, Metrics)>) {
+        if self.current().is_none() || sequence <= self.painting_state.since {
             return;
-        };
-        let reading = pixels.and_then(|pixels| match &self.sheet.originals[index] {
-            Original::Areas(areas) => {
-                let copy = areas.read(pixels.size, &pixels.pixels, PAPER);
-                let strong = (copy.contrasts.iter())
-                    .filter(|c| c.made_strong())
-                    .flat_map(|c| areas.edges(c.areas.0, Some(c.areas.1)))
-                    .collect();
-                let metrics = copy.metrics(areas);
-                Some((
-                    Reading::Areas(Arc::new(AreasRead { copy, strong })),
-                    metrics,
-                ))
-            }
-            Original::Scale(scale) => {
-                let check = scale.read(pixels.size, &pixels.pixels, PAPER);
-                let metrics = check.metrics();
-                Some((Reading::Scale(Arc::new(check)), metrics))
-            }
-            _ => None,
-        });
+        }
+        let reading = painted.map(|(read, metrics)| (Reading::Read(read), metrics));
+        let index = self.record.current as usize;
         if let Some(result) = self
             .record
             .results

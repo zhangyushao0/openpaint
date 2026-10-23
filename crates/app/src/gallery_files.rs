@@ -8,6 +8,8 @@
 use std::collections::VecDeque;
 use std::fmt;
 
+use openpaint_practice::Tier;
+
 use crate::export::artwork_file_name;
 use crate::gallery::{FileProblem, GalleryNotice};
 use crate::project::{PortError, ProjectId};
@@ -30,8 +32,11 @@ pub enum FileJob {
     Open { source: Box<dyn ImageSource> },
     /// Read `source` as a practice pack and keep it.
     ImportPack { source: Box<dyn ImageSource> },
-    /// Read `source` as a picture and add it to the user's own, its outline derived.
-    AddPicture { source: Box<dyn ImageSource> },
+    /// Read `source` as a picture and add it to the user's own at `tier`, its outline derived.
+    AddPicture {
+        source: Box<dyn ImageSource>,
+        tier: Tier,
+    },
 }
 
 impl fmt::Debug for FileJob {
@@ -40,7 +45,7 @@ impl fmt::Debug for FileJob {
             Self::Save { id, .. } => write!(f, "Save({})", id.get()),
             Self::Open { .. } => f.write_str("Open"),
             Self::ImportPack { .. } => f.write_str("ImportPack"),
-            Self::AddPicture { .. } => f.write_str("AddPicture"),
+            Self::AddPicture { tier, .. } => write!(f, "AddPicture({})", tier.name()),
         }
     }
 }
@@ -51,7 +56,7 @@ enum Choice {
     Save(ProjectId),
     Open,
     Pack,
-    Picture,
+    Picture(Tier),
 }
 
 #[derive(Debug, Default)]
@@ -92,9 +97,9 @@ impl Files {
         self.ask(HostRequest::OpenPack, Choice::Pack);
     }
 
-    /// Asks for the picker of a picture of the user's own.
-    pub(crate) fn add_picture(&mut self) {
-        self.ask(HostRequest::OpenImage, Choice::Picture);
+    /// Asks for the picker of a picture of the user's own, to add at `tier`.
+    pub(crate) fn add_picture(&mut self, tier: Tier) {
+        self.ask(HostRequest::OpenImage, Choice::Picture(tier));
     }
 
     fn ask(&mut self, request: HostRequest, choice: Choice) {
@@ -121,11 +126,13 @@ impl Files {
             (Choice::Save(id), HostAnswer::File(sink)) => FileJob::Save { id, sink },
             (Choice::Open, HostAnswer::Image(source)) => FileJob::Open { source },
             (Choice::Pack, HostAnswer::Image(source)) => FileJob::ImportPack { source },
-            (Choice::Picture, HostAnswer::Image(source)) => FileJob::AddPicture { source },
+            (Choice::Picture(tier), HostAnswer::Image(source)) => {
+                FileJob::AddPicture { source, tier }
+            }
             (Choice::Save(_), _) => return Err(GalleryNotice::FileSaveFailed),
             (Choice::Open, _) => return Err(GalleryNotice::FileRefused(FileProblem::Unreadable)),
             (Choice::Pack, _) => return Err(GalleryNotice::PackRefused(FileProblem::Unreadable)),
-            (Choice::Picture, _) => return Err(GalleryNotice::PictureRefused),
+            (Choice::Picture(_), _) => return Err(GalleryNotice::PictureRefused),
         };
         self.state = State::Working;
         Ok(Some(job))

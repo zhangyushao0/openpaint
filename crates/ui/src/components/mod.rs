@@ -56,7 +56,10 @@ pub use fill_bar::{carried_drop, fill_bar};
 pub use floating::{Floating, FloatingLayout, MAT, floating};
 pub use icon_button::{icon_button, icon_choice, icon_toggle};
 pub use island::{ISLAND_TOP, Place, TOP_BAND, UNDER_ISLANDS, island, pill};
-pub use list_row::{ListRow, RowPicture, RowResponse, list_row};
+pub use list_row::{
+    ListRow, PICTURE_ROW, PictureRow, RowPicture, RowResponse, fitted, list_row, paint_picture,
+    picture_row,
+};
 pub use loupe::{LOUPE, LOUPE_OFFSET, loupe, loupe_origin};
 pub use menu_row::{
     command_row, hint, label_row, menu_row, panel_heading, panel_heading_with, section,

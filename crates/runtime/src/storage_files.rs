@@ -8,7 +8,7 @@ use openpaint_app::{
     FileJob, ImageSource, LibraryAnswer, MAX_ARTWORK_FILE_BYTES, MAX_IMAGE_BYTES, MAX_PACK_BYTES,
     PictureImage, PortError, ProjectStore,
 };
-use openpaint_practice::{ItemRef, Pack, outline};
+use openpaint_practice::{ItemRef, Pack, Tier, outline};
 use openpaint_store::{Packs, pack_picture, shown_picture};
 
 /// Runs `job` on `store` and `packs`; what the gallery is told.
@@ -41,8 +41,8 @@ pub(super) fn run(
             }
             LibraryAnswer::PackImported(result)
         }
-        FileJob::AddPicture { source } => {
-            let result = read(source, MAX_IMAGE_BYTES).and_then(|bytes| add(packs, &bytes));
+        FileJob::AddPicture { source, tier } => {
+            let result = read(source, MAX_IMAGE_BYTES).and_then(|bytes| add(packs, &bytes, tier));
             if let Err(error) = &result {
                 log::warn!("the chosen picture was not added: {error}");
             }
@@ -79,9 +79,9 @@ fn no_packs() -> PortError {
     }
 }
 
-/// The picture file `bytes` added to the user's own pictures with the outline derived from it,
-/// if it passes; the personal pack as it is now.
-fn add(packs: Option<&Packs>, bytes: &[u8]) -> Result<Pack, PortError> {
+/// The picture file `bytes` added to the user's own pictures at `tier` with the outline derived
+/// from it, if it passes; the personal pack as it is now.
+fn add(packs: Option<&Packs>, bytes: &[u8], tier: Tier) -> Result<Pack, PortError> {
     let packs = packs.ok_or_else(no_packs)?;
     let picture = pack_picture(bytes).map_err(|error| {
         log::warn!("the chosen picture is not taken: {error}");
@@ -90,7 +90,7 @@ fn add(packs: Option<&Packs>, bytes: &[u8]) -> Result<Pack, PortError> {
     let derived = outline(picture.size, &picture.rgba)
         .inspect_err(|refusal| log::info!("the chosen picture has no outline: {refusal}"))
         .ok();
-    packs.add_picture(&picture, derived)
+    packs.add_picture(&picture, (derived, tier))
 }
 
 /// `item`'s picture read and reduced for the screen; none when it cannot be (logged).

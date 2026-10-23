@@ -146,6 +146,71 @@ fn the_hover_outline_is_white_over_dark_and_black_over_light_and_leaves_the_rest
     );
 }
 
+/// Zoomed past the canvas's resolution the screen shows the view tier: each screen pixel is the
+/// tier's export read bilinearly where the view's map puts it, inside a tile (one index load and
+/// the sampler's filter, whose weights the GPU holds in a few bits) and across its edges (each
+/// texel found apart) alike, within a level and a half.
+#[test]
+fn through_a_tier_each_pixel_is_its_export_read_bilinearly_across_tile_edges_too() {
+    let core = core();
+    let artwork = crate::scale::every_source();
+    let mut tiers = crate::tiers::Screen::new(&core, &artwork);
+    // At 2.2 the 2x tier shows; canvas x 59 to 241 spans its tiles' edge at x 128.
+    let view = crate::tiers::frame(2.2, [150.0, 110.0]);
+    tiers.settle(&core, &artwork, &view);
+    let export = crate::scale::whole(&core, &artwork, 2);
+    let placement = CanvasPlacement {
+        target: &tiers.target,
+        origin: view.origin,
+        size: view.size,
+        to_canvas: view.to_canvas,
+        cursor: None,
+        pixels_per_point: 1.0,
+        view: Some(&tiers.view),
+    };
+    let screen = shown(&core, placement);
+    let [a, b, c, d, e, f] = view.to_canvas;
+    let [width, height] = export.size().map(|side| side as i32);
+    let texel = |x: i32, y: i32| {
+        pixel(
+            &export,
+            [x.clamp(0, width - 1), y.clamp(0, height - 1)].map(|v| v as u32),
+        )
+    };
+    let mut off = Vec::new();
+    for y in 0..SCREEN[1] {
+        for x in 0..SCREEN[0] {
+            let [sx, sy] = [x as f32 + 0.5, y as f32 + 0.5];
+            let at = [a * sx + b * sy + c, d * sx + e * sy + f].map(|v| v * 2.0 - 0.5);
+            let base = at.map(f32::floor);
+            let [tx, ty] = [at[0] - base[0], at[1] - base[1]];
+            let [bx, by] = base.map(|v| v as i32);
+            let corners = [
+                texel(bx, by),
+                texel(bx + 1, by),
+                texel(bx, by + 1),
+                texel(bx + 1, by + 1),
+            ];
+            let want: Vec<f32> = (0..4)
+                .map(|k| {
+                    let [p, q, r, s] = corners.map(|t| f32::from(t[k]));
+                    (p + (q - p) * tx) * (1.0 - ty) + (r + (s - r) * tx) * ty
+                })
+                .collect();
+            let got = pixel(&screen, [x, y]);
+            if (0..4).any(|k| (f32::from(got[k]) - want[k]).abs() > 1.5) {
+                off.push(([x, y], got, want));
+            }
+        }
+    }
+    assert!(
+        off.is_empty(),
+        "{} pixels off, the first {:?}",
+        off.len(),
+        off.first()
+    );
+}
+
 #[test]
 fn the_precision_check_covers_the_screen_with_a_ramp_from_100_to_120() {
     let core = core();

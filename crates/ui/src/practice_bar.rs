@@ -104,7 +104,8 @@ impl PracticeBar {
         }
         let study = practice.family == Some(Family::Study);
         if study {
-            ui.label(t::colour_copy(language, practice.number));
+            // Its name: its sheet's title, "Colour copy n" until renamed.
+            ui.label(t::shown_name(language, practice.sheet.name.as_str()));
         } else if let Some(family) = practice.family {
             let called = (family, practice.warming_up);
             ui.label(t::exercise_of(language, called, practice.place));

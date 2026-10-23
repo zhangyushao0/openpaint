@@ -20,6 +20,7 @@ use openpaint_practice::{
 use crate::layer_rules::LayerRefusal;
 use crate::practice_pictures::{PictureImage, SheetPicture};
 use crate::projection::Availability;
+use crate::title::Title;
 use crate::view::Viewport;
 
 /// The side a colour combination's picture is drawn at, in pixels: one to a frame's canvas pixel.
@@ -165,24 +166,33 @@ pub struct PracticeProjection {
 /// A session's sheet as the screen draws it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SheetView {
+    /// Its project's title: a colour copy's name.
+    pub name: Title,
     pub size: [u32; 2],
     pub pairs: Vec<Pair>,
     pub originals: Vec<Original>,
     /// Each exercise's picture, a single shape's or a colour copy's (none: another kind, or a
-    /// picture no pack holds now).
+    /// picture no pack holds now: removed).
     pub pictures: Vec<Option<Arc<SheetPicture>>>,
     /// Each colour combination's picture, `AREAS_SIDE` square.
     pub painted: Vec<Option<Arc<PictureImage>>>,
 }
 
 impl SheetView {
-    /// The sheet of `record`, its pictures as `packs` hold them.
+    /// The sheet of `record` on its canvas of `size` pixels, titled `name`, its pictures as
+    /// `packs` hold them. A colour copy's frames are read from its canvas, so they stay where
+    /// its strokes lie whatever became of its picture.
     #[must_use]
-    pub fn of(record: &SessionRecord, packs: &[Pack]) -> Self {
-        let sheet = sheet_of(record, packs);
+    pub fn of(record: &SessionRecord, packs: &[Pack], (size, name): ([u32; 2], &Title)) -> Self {
+        let sheet = if record.is_project() {
+            Sheet::study_on(size)
+        } else {
+            Sheet::of(record.exercises.len())
+        };
         let originals: Vec<Original> = record.exercises.iter().map(|e| e.original()).collect();
         let filling = record.is_project();
         Self {
+            name: name.clone(),
             size: sheet.size,
             pairs: sheet.pairs,
             pictures: (record.exercises.iter())
@@ -202,8 +212,8 @@ impl SheetView {
     }
 }
 
-/// The sheet `record`'s exercises lie on: a long colour copy's of its picture's shape (as
-/// `packs` hold it), a session's three pairs a row.
+/// The sheet a new `record`'s exercises are laid on: a long colour copy's of its picture's shape
+/// (as `packs` hold it), a session's three pairs a row.
 #[must_use]
 pub fn sheet_of(record: &SessionRecord, packs: &[Pack]) -> Sheet {
     if !record.is_project() {

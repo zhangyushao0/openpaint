@@ -9,13 +9,12 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use openpaint_practice::Pack;
+use openpaint_practice::{ItemRef, Pack, Tier};
 
 use crate::error::AppError;
 use crate::gallery_files::{FileJob, Files, problem};
-pub use crate::gallery_projection::GalleryProjection;
 use crate::gallery_projection::offered_unless;
-use crate::practice_log::CopyFrom;
+pub use crate::gallery_projection::{FileProblem, GalleryNotice, GalleryProjection};
 use crate::project::{PortError, ProjectId, ProjectSummary, VersionId};
 use crate::projection::{Availability, EditorAction};
 use crate::title::Title;
@@ -51,13 +50,24 @@ pub enum GalleryIntent {
     /// A new practice session of the stage given, opened at once (the Today card and its
     /// options; an open one is continued by opening its sheet).
     Practice(u8),
-    /// A new long colour copy of a picture from where given, opened at once (the practice
-    /// options; one begun is opened by its sheet).
-    Copy(CopyFrom),
+    /// A new long colour copy of the picture chosen, opened at once (the practice options' New
+    /// copy; one begun is opened by its sheet).
+    Copy(ItemRef),
+    /// A colour copy's name: its sheet's title.
+    RenameCopy {
+        sheet: ProjectId,
+        title: Title,
+    },
+    /// A colour copy removed with its sheet, for good; asked only after the user confirmed it.
+    RemoveCopy(ProjectId),
     /// "Import practice pack…": a pack file the user chooses, kept beside the library.
     ImportPack,
-    /// "Add my picture…": a picture the user chooses, added to their own pictures.
-    AddPicture,
+    /// "Add my picture…": a picture the user chooses, added to their own at the tier chosen first.
+    AddPicture(Tier),
+    /// One of the user's own pictures deleted, once the user confirmed it (`PictureShown`).
+    RemovePicture(ItemRef),
+    /// One of the user's own pictures moved to a tier.
+    PictureTier(ItemRef, Tier),
 }
 
 /// The canvas sizes "+" offers (Procreate's new-canvas menu, reduced to four).
@@ -106,8 +116,16 @@ pub enum LibraryRequest {
     Restore(ProjectId, VersionId, Title),
     /// A new practice session of the stage given and its sheet, which becomes the open one.
     Practice(u8),
-    /// A new long colour copy and its sheet, which becomes the open one.
-    Copy(CopyFrom),
+    /// A new long colour copy of the picture given and its sheet, which becomes the open one.
+    Copy(ItemRef),
+    /// A colour copy's sheet titled anew.
+    RenameCopy(ProjectId, Title),
+    /// A colour copy removed, its record and its sheet.
+    RemoveCopy(ProjectId),
+    /// One of the user's own pictures (by its item id) removed from their pack.
+    RemovePicture(String),
+    /// One of the user's own pictures (by its item id) moved to a tier.
+    PictureTier(String, Tier),
 }
 
 /// How a library call went, for the gallery. A successful open or create leaves the gallery.
@@ -128,53 +146,6 @@ pub enum LibraryAnswer {
     /// The chosen picture was added to the user's own (`FileJob::AddPicture`), the personal
     /// pack as it is now (the picture its last item), or refused.
     PictureAdded(Result<Pack, PortError>),
-}
-
-/// Why a chosen file did not open as an artwork.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FileProblem {
-    /// Not an OpenPaint file.
-    NotOpenPaint,
-    /// An OpenPaint file that breaks its format or check sum.
-    Damaged,
-    /// An OpenPaint file of another format, from another version of OpenPaint.
-    OtherFormat,
-    /// The file could not be read.
-    Unreadable,
-}
-
-/// What the gallery tells the user, with an OK to close it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum GalleryNotice {
-    #[default]
-    None,
-    /// The library could not be listed.
-    ListFailed,
-    /// The library is of another format, from another version of OpenPaint; it is left as it is
-    /// and nothing is written to it.
-    OtherLibrary,
-    /// The artwork could not be opened; it stays in the library as it was.
-    OpenFailed,
-    CreateFailed,
-    /// A rename, duplicate or delete failed; the gallery shows the library as it is.
-    ChangeFailed,
-    /// The artwork was saved as an OpenPaint file.
-    FileSaved,
-    FileSaveFailed,
-    /// The chosen file was not added; nothing changed.
-    FileRefused(FileProblem),
-    /// The version could not be restored; nothing changed.
-    RestoreFailed,
-    /// The chosen practice pack is kept: its pictures come up in single shapes.
-    PackImported,
-    /// The chosen file was not kept as a practice pack; nothing changed.
-    PackRefused(FileProblem),
-    /// The chosen picture is among the user's own, with an outline found or none.
-    PictureAdded {
-        outline: bool,
-    },
-    /// The chosen picture was not added (not a PNG or JPEG one, or unreadable); nothing changed.
-    PictureRefused,
 }
 
 /// The gallery's flow while it is shown.
@@ -228,7 +199,7 @@ impl Gallery {
             GalleryIntent::SaveFile(_)
                 | GalleryIntent::OpenFile
                 | GalleryIntent::ImportPack
-                | GalleryIntent::AddPicture
+                | GalleryIntent::AddPicture(_)
         );
         let availability = if file && self.files.busy() {
             Availability::Running
@@ -236,37 +207,34 @@ impl Gallery {
             self.availability()
         };
         availability.require(EditorAction::Gallery)?;
-        let request = match intent {
-            GalleryIntent::Show | GalleryIntent::Dismiss => return Ok(()),
+        if !self.file_dialog(&intent)
+            && let Some(request) = request_of(intent)
+        {
+            self.ask(request);
+        }
+        Ok(())
+    }
+
+    /// A system dialog `intent` asks for (a file to save into, a file, a pack or a picture to
+    /// read); whether it was one.
+    fn file_dialog(&mut self, intent: &GalleryIntent) -> bool {
+        match intent {
             GalleryIntent::SaveFile(id) => {
-                let item = self.items.iter().find(|item| item.id == id);
+                let item = self.items.iter().find(|item| item.id == *id);
                 let title = item.map_or_else(Title::untitled, |item| item.title.clone());
-                self.files.save(id, &title);
-                return Ok(());
+                self.files.save(*id, &title);
             }
-            GalleryIntent::OpenFile => {
-                self.files.open();
-                return Ok(());
-            }
-            GalleryIntent::ImportPack => {
-                self.files.import_pack();
-                return Ok(());
-            }
-            GalleryIntent::AddPicture => {
-                self.files.add_picture();
-                return Ok(());
-            }
-            GalleryIntent::Create(preset) => LibraryRequest::Create(Title::untitled(), preset),
-            GalleryIntent::Open(id) => LibraryRequest::Open(id),
-            GalleryIntent::Rename { id, title } => LibraryRequest::Rename(id, title),
-            GalleryIntent::Duplicate(id) => LibraryRequest::Duplicate(id),
-            GalleryIntent::Delete(id) => LibraryRequest::Delete(id),
-            GalleryIntent::Restore { id, version, title } => {
-                LibraryRequest::Restore(id, version, title)
-            }
-            GalleryIntent::Practice(stage) => LibraryRequest::Practice(stage),
-            GalleryIntent::Copy(from) => LibraryRequest::Copy(from),
-        };
+            GalleryIntent::OpenFile => self.files.open(),
+            GalleryIntent::ImportPack => self.files.import_pack(),
+            GalleryIntent::AddPicture(tier) => self.files.add_picture(*tier),
+            _ => return false,
+        }
+        true
+    }
+
+    /// `request` asked of the library, in order; an open or create waits for nothing more, any
+    /// other change of the artworks is followed by their list again.
+    fn ask(&mut self, request: LibraryRequest) {
         self.opening = matches!(
             request,
             LibraryRequest::Create(..)
@@ -274,11 +242,18 @@ impl Gallery {
                 | LibraryRequest::Practice(_)
                 | LibraryRequest::Copy(_)
         );
+        // Practice's copies and pictures are no artworks: the list stays as it is.
+        let artworks = !matches!(
+            request,
+            LibraryRequest::RenameCopy(..)
+                | LibraryRequest::RemoveCopy(_)
+                | LibraryRequest::RemovePicture(_)
+                | LibraryRequest::PictureTier(..)
+        );
         self.requests.push_back(request);
-        if !self.opening {
+        if !self.opening && artworks {
             self.requests.push_back(LibraryRequest::List);
         }
-        Ok(())
     }
 
     /// The next call for the library, oldest first.
@@ -393,4 +368,33 @@ impl Default for Gallery {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// The library's call `intent` asks for; none for the canvas's `Show`, a notice dismissed or a
+/// system dialog (`Gallery::file_dialog`).
+fn request_of(intent: GalleryIntent) -> Option<LibraryRequest> {
+    Some(match intent {
+        GalleryIntent::Show
+        | GalleryIntent::Dismiss
+        | GalleryIntent::SaveFile(_)
+        | GalleryIntent::OpenFile
+        | GalleryIntent::ImportPack
+        | GalleryIntent::AddPicture(_) => return None,
+        GalleryIntent::Create(preset) => LibraryRequest::Create(Title::untitled(), preset),
+        GalleryIntent::Open(id) => LibraryRequest::Open(id),
+        GalleryIntent::Rename { id, title } => LibraryRequest::Rename(id, title),
+        GalleryIntent::Duplicate(id) => LibraryRequest::Duplicate(id),
+        GalleryIntent::Delete(id) => LibraryRequest::Delete(id),
+        GalleryIntent::Restore { id, version, title } => {
+            LibraryRequest::Restore(id, version, title)
+        }
+        GalleryIntent::Practice(stage) => LibraryRequest::Practice(stage),
+        GalleryIntent::Copy(picture) => LibraryRequest::Copy(picture),
+        GalleryIntent::RenameCopy { sheet, title } => LibraryRequest::RenameCopy(sheet, title),
+        GalleryIntent::RemoveCopy(sheet) => LibraryRequest::RemoveCopy(sheet),
+        GalleryIntent::RemovePicture(picture) => LibraryRequest::RemovePicture(picture.item),
+        GalleryIntent::PictureTier(picture, tier) => {
+            LibraryRequest::PictureTier(picture.item, tier)
+        }
+    })
 }

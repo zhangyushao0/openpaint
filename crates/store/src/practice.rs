@@ -20,11 +20,13 @@
 //!
 //! 1.5.0 adds no field: kinds 5 to 7 (colour combinations, value scales, a colour copy), metric
 //! codes 29 to 34, and a long colour copy as a record of stage 0 (`PROJECT`) holding its one
-//! exercise and its picture (D104).
+//! exercise and its picture (D105). 1.5.1 adds none either: a value scale's mean off its even
+//! steps in lightness is code 35 (32, on the wheel's value, retired); a colour copy's name is its
+//! sheet's title.
 
 use std::collections::HashSet;
 
-use openpaint_app::PortError;
+use openpaint_app::{PortError, ProjectId, Title};
 use openpaint_practice::{Exercise, ExerciseResult, ItemRef, Kind, Metric, SessionRecord};
 
 use crate::codec::{Reader, Writer};
@@ -185,6 +187,20 @@ pub(crate) fn sessions(open: &Open) -> Result<Vec<SessionRecord>, PortError> {
         }
     }
     Ok(sessions)
+}
+
+/// The titles of the practice sheets, by project; a sheet whose entry cannot be read is left out
+/// (logged).
+pub(crate) fn titles(open: &Open) -> Result<Vec<(ProjectId, Title)>, PortError> {
+    let mut titles = Vec::new();
+    for session in sessions(open)?.iter().filter(|session| session.canvas != 0) {
+        let id = ProjectId::new(session.canvas);
+        match crate::read::entry(open, id) {
+            Ok(entry) => titles.push((id, entry.title)),
+            Err(error) => log::warn!("practice sheet {} has no title read: {error}", id.get()),
+        }
+    }
+    Ok(titles)
 }
 
 /// The projects holding practice sheets.

@@ -40,7 +40,6 @@ texts! { PRACTICE_TABLE;
         in its frame. Aligned needs an outline.",
         "这张图没有外形轮廓：原图淡淡地叠在你的临摹上，在它框里的原位。对齐需要轮廓。";
     ALIGNING = "Aligning…", "正在对齐…";
-    PICTURE_MISSING = "Picture missing", "图片缺失";
     SHOWS_ALIGNED = "In red: the original moved and sized onto your line, never turned. Its \
         shape alone shows, wherever you placed it.",
         "红色是原线条，已移动并缩放到你的线条上，不旋转。只比形状，不论你画在哪里。";

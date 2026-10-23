@@ -175,23 +175,79 @@ fn a_picture_of_one_s_own_joins_the_personal_pack_with_its_outline() {
     let file = encode_image(ImageFormat::Png, [80, 60], &pixels).expect("a picture");
     let picture = pack_picture(&file).expect("taken");
     assert_eq!(picture.size, [80, 60]);
-    let first = packs.add_picture(&picture, None).expect("added");
+    let first = packs
+        .add_picture(&picture, (None, Tier::Entry))
+        .expect("added");
     assert_eq!((first.id.as_str(), first.items.len()), (PERSONAL, 1));
     let outline = Outline {
         contours: vec![vec![[20.0, 10.0], [60.0, 10.0], [40.0, 50.0]]],
     };
     let second = packs
-        .add_picture(&picture, Some(outline.clone()))
+        .add_picture(&picture, (Some(outline.clone()), Tier::Hard))
         .expect("added");
+    // Named by the picture's bytes, the same picture again apart.
+    let id = format!("mine-{:08x}", crc32fast::hash(&picture.file));
     let ids: Vec<&str> = second.items.iter().map(|item| item.id.as_str()).collect();
-    assert_eq!(ids, ["mine-1", "mine-2"]);
+    assert_eq!(ids, [id.clone(), format!("{id}-2")]);
+    let titles: Vec<&str> = second
+        .items
+        .iter()
+        .map(|item| item.title.as_str())
+        .collect();
+    assert_eq!(titles, ["Picture 1", "Picture 2"]);
+    let tiers: Vec<Tier> = second.items.iter().map(|item| item.tier).collect();
+    assert_eq!(tiers, [Tier::Entry, Tier::Hard], "the tiers chosen");
     assert_eq!(second.items[1].outline, Some(outline));
     assert!(second.items.iter().all(|item| item.credit.is_none()));
     assert_eq!(packs.list(), Ok(vec![second.clone()]));
-    let named = named(PERSONAL, "mine-2");
+    let named = named(PERSONAL, &format!("{id}-2"));
     let kept = packs.picture(&named).expect("read").expect("held");
     let shown = shown_picture(&kept).expect("decoded");
     assert_eq!(shown.size, [80, 60]);
+}
+
+/// A picture of one's own moved to another tier, then removed: the pack written whole again
+/// without it, its file gone with the last; one it does not hold changes nothing.
+#[test]
+fn a_picture_of_one_s_own_changes_tier_and_goes() {
+    let dir = fresh_dir("packs-mine-removed");
+    let packs = Packs::at(&dir);
+    let file = |grey: u8| {
+        let pixels: Vec<u8> = (0..40 * 30).flat_map(|_| [grey, grey, grey, 255]).collect();
+        pack_picture(&encode_image(ImageFormat::Png, [40, 30], &pixels).expect("png"))
+            .expect("taken")
+    };
+    let (dark, light) = (file(40), file(200));
+    packs
+        .add_picture(&dark, (None, Tier::Simple))
+        .expect("added");
+    let both = packs
+        .add_picture(&light, (None, Tier::Medium))
+        .expect("added");
+    let [first, second] = [0, 1].map(|at| both.items[at].id.clone());
+    let moved = packs
+        .set_tier(&first, Tier::Hard)
+        .expect("moved")
+        .expect("kept");
+    assert_eq!(moved.items[0].tier, Tier::Hard);
+    assert_eq!(packs.list(), Ok(vec![moved.clone()]));
+    assert_eq!(
+        packs.set_tier("mine-none", Tier::Entry),
+        Ok(Some(moved.clone()))
+    );
+    let left = packs
+        .remove_picture(&first)
+        .expect("removed")
+        .expect("one left");
+    assert_eq!(left.items.len(), 1);
+    assert_eq!(left.items[0].id, second);
+    assert_eq!(packs.picture(&named(PERSONAL, &first)), Ok(None));
+    let kept = packs.picture(&named(PERSONAL, &second)).expect("read");
+    assert_eq!(kept, Some(light.file.clone()));
+    assert_eq!(packs.remove_picture("mine-none"), Ok(Some(left)));
+    assert_eq!(packs.remove_picture(&second), Ok(None), "none left");
+    assert!(!packs.path(PERSONAL).exists(), "its file goes");
+    assert_eq!(packs.list(), Ok(Vec::new()));
 }
 
 #[test]

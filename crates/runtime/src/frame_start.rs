@@ -15,12 +15,13 @@ use super::Runtime;
 use crate::brush_pictures::BrushPictures;
 use crate::budget::Budget;
 use crate::clock::{FrameClock, InputClock};
+use crate::compare::CompareWorker;
 use crate::display::CacheWorker;
 use crate::error::RuntimeError;
 use crate::fill::FillWorker;
-use crate::fit::FitWorker;
 use crate::normalise::Normaliser;
 use crate::pacing::Pacing;
+use crate::pack_pictures::PackPictureWorker;
 use crate::pictures::PictureWorker;
 use crate::raster::RasterWorker;
 use crate::recover::Recoveries;
@@ -70,6 +71,7 @@ impl Runtime {
             None => Arc::new(Core::headless()?),
         };
         let toolbox = Toolbox::new(BrushLibrary::built_in()?);
+        let pack_pictures = PackPictureWorker::start(options.packs.clone())?;
         let storage = Storage::start(store, (cache.clone(), options.packs))?;
         log::info!("GPU adapter: {}", core.adapter());
         core.catch_errors();
@@ -98,8 +100,9 @@ impl Runtime {
             ui_ns: 0,
             transfer: TransferWorker::start(shared.clone())?,
             fill: FillWorker::start(shared.clone())?,
-            fit: FitWorker::start()?,
+            compare: CompareWorker::start(shared.clone())?,
             pictures: PictureWorker::start(shared.clone())?,
+            pack_pictures,
             raster: RasterWorker::start(shared.clone())?,
             budget: Budget::of(&core, memory),
             core,

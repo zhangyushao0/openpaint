@@ -27,8 +27,8 @@ texts! { PRACTICE_COLOUR;
         on the wheel.", "用吸管点任一边的一个位置：两边该处的颜色会显示在色轮上。";
     SHOWS_STUDY = "The original lies over your copy in place; the slider sets how much shows.",
         "原图叠在你的临摹上的原位，滑块调节显示多少。";
-    SCALE_NOTE = "Under the row: each cell's value as a bar, its even step marked in red.",
-        "格子下方：每格的明度画成竖条，红线标出均匀的那一级。";
+    SCALE_NOTE = "Under the row: each cell's lightness as the eye sees it, as a bar, its even \
+        step marked in red.", "格子下方：每格人眼看到的明度画成竖条，红线标出均匀的那一级。";
     SCALE_EVEN = "Every cell is a quarter of a step or less from even, in order.",
         "每一格都在均匀位置的四分之一级以内，顺序也对。";
     SCALE_NEXT = "Fill a cell again to correct it, then tap Compare again.",
@@ -42,8 +42,6 @@ texts! { PRACTICE_COLOUR;
     UNEVEN_CELLS = "Uneven cells", "不均匀的格";
     OUT_OF_ORDER = "Out of order", "顺序反了";
     COLOUR_COPIES = "Colour copies (long projects)", "色彩临摹（大作业）";
-    COPY_A_PACK_PICTURE = "New copy of a pack picture", "新建：临摹图包里的图片";
-    COPY_MY_PICTURE = "New copy of my picture", "新建：临摹我的图片";
     OPEN = "Open", "打开";
     COPIES_NOTE = "A long copy in colour, worked on whenever you like over 10 to 20 hours; it never \
         counts as a session.", "用颜色做的长时间临摹，总共约 10 到 20 小时，随时都可以画；不算在练习次数里。";
@@ -61,16 +59,17 @@ texts! { PRACTICE_COLOUR_STEPS;
     AREAS_4 = "Then the hierarchy: the smaller areas and the edges, soft where the original is \
         soft, with Small and Soft. Keep weak contrasts weak: most copies make them too strong.",
         "最后是层次：用小笔和柔边笔画小块和边缘，原图柔和的地方就画柔。弱对比要保持弱：大多数人会把它画强。";
-    SCALE_1 = "Fill the cells between the dark and the light end in even steps of value: each step \
-        as far from the one before as from the one after.",
-        "在暗端和亮端之间的格子里，按均匀的明度一级一级填色：每一级和前后两级的差距都相同。";
-    SCALE_2 = "Keep the hue and the purity: move only up and down in the wheel's square. The ends \
-        can be picked.", "保持色相和饱和度不变，只在色轮的方块里上下移动。两端的颜色可以吸取。";
+    SCALE_1 = "Fill the cells between the dark and the light end in even steps of lightness as \
+        your eye sees it: each step as far from the one before as from the one after.",
+        "在暗端和亮端之间的格子里，按眼睛看到的明度均匀地一级一级填色：每一级和前后两级的差距都相同。";
+    SCALE_2 = "Keep the hue and the purity: move only up and down in the wheel's square, and \
+        judge each step by eye. The ends can be picked.",
+        "保持色相和饱和度不变，只在色轮的方块里上下移动，每一级都用眼睛判断。两端的颜色可以吸取。";
     SCALE_3 = "Pick a value and tap Fill cell; the next cell comes in hand. The pen landing in a \
         cell takes that one, to paint or fill again.",
         "选好明度，点“填满格子”，下一格就接着选中。笔落在哪一格就选中哪一格，可以重画或重填。";
-    SCALE_4 = "Then tap Compare: under the row each cell's value shows as a bar, its even step in \
-        red.", "然后点“叠图对比”：格子下方每格的明度显示成竖条，红线是均匀的那一级。";
+    SCALE_4 = "Then tap Compare: under the row each cell's lightness shows as a bar, its even \
+        step in red.", "然后点“叠图对比”：格子下方每格的明度显示成竖条，红线是均匀的那一级。";
     STUDY_1 = "Copy the picture in colour into the empty frame beside it, over as many sittings as \
         you like: about 10 to 20 hours in all. It never counts as a session.",
         "把这张图用颜色临摹到旁边的空白框里，分多次画完，总共约 10 到 20 小时。它不算在练习次数里。";
@@ -186,19 +185,5 @@ pub(crate) fn cell_empty(language: Language, cell: usize) -> String {
     match language {
         Language::English => format!("Cell {cell} not filled yet."),
         Language::Chinese => format!("第 {cell} 格还没有填。"),
-    }
-}
-
-/// A colour copy's name: "Colour copy 2".
-pub(crate) fn colour_copy(language: Language, number: u32) -> String {
-    format!("{} {number}", STUDY_EXERCISE.get(language))
-}
-
-/// A colour copy's row in the options: "Colour copy 2 · Teapot".
-pub(crate) fn copy_row(language: Language, number: u32, title: Option<&str>) -> String {
-    let name = colour_copy(language, number);
-    match title {
-        Some(title) => format!("{name} · {title}"),
-        None => name,
     }
 }

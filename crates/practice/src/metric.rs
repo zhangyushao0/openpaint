@@ -3,8 +3,10 @@
 //! as shares (0 to 1), colour differences in Oklab units (0 to about 1), counts as counts.
 //!
 //! Lines and shapes have no numbers (D99: a number that does not match what the eye sees misleads;
-//! the overlay is the feedback). Colours, colour combinations and value scales do (D104). Codes 1 to 8 were 1.1.0's line metrics (key points, frame, shape,
-//! speed, wobble, strokes, erased, seconds): retired, never reused, passed over when read.
+//! the overlay is the feedback). Colours, colour combinations and value scales do (D105). Codes 1
+//! to 8 were 1.1.0's line metrics (key points, frame, shape, speed, wobble, strokes, erased,
+//! seconds) and code 32 1.5.0's value scale off its even steps on the wheel's value: retired,
+//! never reused, passed over when read.
 
 /// One measured quantity of a result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -27,8 +29,8 @@ pub enum Metric {
     AreasDelta,
     AreasWeak,
     AreasMadeStrong,
-    /// Value scale: the mean value off the even scale over the cells filled (a share), the cells
-    /// a quarter of a step off or more and the cells out of order (`scale.rs`).
+    /// Value scale: the mean lightness (Oklab `L`) off the even scale over the cells filled, the
+    /// cells a quarter of a step off or more and the cells out of order (`scale.rs`).
     ScaleOff,
     ScaleUneven,
     ScaleReversed,
@@ -69,7 +71,7 @@ impl Metric {
             Self::AreasDelta => 29,
             Self::AreasWeak => 30,
             Self::AreasMadeStrong => 31,
-            Self::ScaleOff => 32,
+            Self::ScaleOff => 35,
             Self::ScaleUneven => 33,
             Self::ScaleReversed => 34,
         }
@@ -107,7 +109,7 @@ mod tests {
         codes.sort_unstable();
         codes.dedup();
         assert_eq!(codes.len(), Metric::ALL.len());
-        for retired in 0..=8 {
+        for retired in (0..=8).chain([32]) {
             assert_eq!(Metric::of_code(retired), None, "code {retired}");
         }
     }

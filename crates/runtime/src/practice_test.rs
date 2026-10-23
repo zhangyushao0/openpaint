@@ -13,13 +13,13 @@
 use std::fmt;
 use std::str::FromStr;
 
-use openpaint_app::{CopyFrom, ProjectId};
+use openpaint_app::ProjectId;
 use openpaint_practice::SessionRecord;
 
 use crate::display::CacheJob;
 use crate::error::RuntimeError;
 use crate::frame::Runtime;
-use crate::practice::{PracticeJob, copy_job, start_job};
+use crate::practice::{PracticeJob, copy_job, seed, start_job};
 use crate::storage::Job;
 
 /// A test session's name: its id, its sheet's project, its seed and when it started (seconds
@@ -97,19 +97,22 @@ impl Runtime {
         Ok(id)
     }
 
-    /// For debug builds only: a test colour copy of a pack's picture begun from the gallery
-    /// beside the author's; its sheet opens once the store wrote it (`test_practice` names it
-    /// then, `end_test_practice` removes it as a session). Returns its id.
+    /// For debug builds only: a test colour copy of an official pack's picture not copied before
+    /// (picked by a seed: a test chooses no picture) begun from the gallery beside the author's;
+    /// its sheet opens once the store wrote it (`test_practice` names it then,
+    /// `end_test_practice` removes it as a session). Returns its id.
     ///
     /// # Errors
-    /// `NotNow` when the gallery does not show or no pack holds a picture.
+    /// `NotNow` when the gallery does not show or no official pack holds a picture.
     pub fn start_test_copy(&mut self) -> Result<u64, RuntimeError> {
         if self.screen.gallery_mut().is_none() {
             return Err(RuntimeError::NotNow("the gallery"));
         }
         let now = self.frame_clock.wall_seconds();
         let id = self.practice.next_id();
-        let job = copy_job(&self.practice, CopyFrom::Pack, &mut self.seeds, now)?;
+        let picture = (self.practice.fresh_picture(seed(&mut self.seeds)))
+            .ok_or(RuntimeError::NotNow("a pack's picture to copy"))?;
+        let job = copy_job(&self.practice, &picture, &mut self.seeds, now)?;
         self.storage.submit(job);
         Ok(id)
     }

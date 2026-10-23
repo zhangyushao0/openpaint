@@ -10,7 +10,7 @@ use std::sync::Arc;
 use openpaint_app::{
     BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Overlay, Pen, PracticeIntent,
     PracticeNotice, PracticePens, PracticePick, Session, SheetView, StreamLine, StrokeIntent,
-    Toolbox, Viewport,
+    Title, Toolbox, Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{Family, Metric, Metrics, Original, Pair, SessionRecord, Sheet, value};
@@ -38,7 +38,7 @@ fn practising() -> Session {
     let [width, height] = Sheet::of(record.exercises.len()).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
     let tools = (brush(Color::BLACK), pens());
-    let view = SheetView::of(&record, &[]);
+    let view = SheetView::of(&record, &[], ([width, height], &Title::untitled()));
     Session::practising(sheet, tools, (record, Vec::new(), view), &VIEWPORT)
 }
 

@@ -11,8 +11,9 @@
 //! Stage 2 (V大's week 2): four single shapes, the main exercise, then week 2's colour work, a
 //! colour combination and a value scale, and one colour, stage 1's judgement kept alive (lines
 //! and groups live on in the warm-up). The shapes' tiers follow the session's number: entry and
-//! simple first, medium from the third session, hard from the sixth; the user's own pictures,
-//! once there are some, take the last place. A shape taken at about 3.5 minutes (a line drawing,
+//! simple first, medium from the third session, hard from the sixth; the user's own pictures take
+//! the last place once there are some of a tier the session reaches (its hardest or an easier
+//! one, the tier the user chose for each). A shape taken at about 3.5 minutes (a line drawing,
 //! basically right, compared and corrected once), a combination at about 4 (the tone, the middle
 //! tones, the edges with a big brush), a value scale at about 3: the mix about 22.75 minutes. Its
 //! warm-up is three exercises, at most one of them long (a shape, a combination or a scale), so
@@ -119,20 +120,23 @@ pub fn stage_one(seed: u64, met: &[Kind]) -> Plan {
 }
 
 /// Stage 2's session `number` seeded `seed` after `before`: its warm-up, then four shapes of the
-/// session's tiers (the last the user's own when they have some), a colour combination, a value
-/// scale and a colour, the combination's arrangement and the scale's tone in turn by number.
-/// Without any picture there are no shapes.
+/// session's tiers (the last the user's own when they have some the session reaches), a colour
+/// combination, a value scale and a colour, the combination's arrangement and the scale's tone
+/// (grey, then of a hue) in turn by number. Without any picture there are no shapes.
 #[must_use]
 pub fn stage_two(number: u32, seed: u64, before: &Before<'_>) -> Plan {
     let mut random = Random::new(derived(seed, u64::MAX - 1));
     let mut used: HashSet<ItemRef> = before.used.iter().cloned().collect();
+    let tiers = shape_tiers(number);
+    // The user's own pictures of the session's hardest tier or an easier one.
+    let reach = tiers[tiers.len() - 1];
     let mut pick = |kind: Kind, own: bool| -> Option<(Kind, Option<ItemRef>)> {
         let Kind::Shape(tier) = kind else {
             return Some((kind, None));
         };
-        let personal = own.then(|| before.pictures.pick_personal(&mut random, &used));
+        let personal = own.then(|| before.pictures.pick_personal(reach, &mut random, &used));
         let (tier, item) = match personal.flatten() {
-            Some(item) => (crate::pack::PERSONAL_TIER, item),
+            Some(found) => found,
             None => before.pictures.pick(tier, &mut random, &used)?,
         };
         used.insert(item.clone());
@@ -142,8 +146,7 @@ pub fn stage_two(number: u32, seed: u64, before: &Before<'_>) -> Plan {
         .into_iter()
         .filter_map(|kind| pick(kind, false))
         .collect();
-    let tiers = shape_tiers(number);
-    let own = before.pictures.has_personal();
+    let own = before.pictures.has_personal(reach);
     let shapes = (tiers.iter().enumerate())
         .filter_map(|(at, tier)| pick(Kind::Shape(*tier), own && at + 1 == tiers.len()));
     let turn = number.saturating_sub(1) as usize;

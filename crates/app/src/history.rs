@@ -101,6 +101,16 @@ impl History {
         *entry = Entry { artwork, bytes };
     }
 
+    /// Keeps the current version alone: undo and redo reach nothing before or after it, as when
+    /// the artwork was opened. A practice sheet's next exercise starts so (D08, D20: the floor of
+    /// its undo is the version it came to show on).
+    pub fn keep_only_current(&mut self) {
+        let artwork = self.current().clone();
+        self.entries = VecDeque::from([Entry { artwork, bytes: 0 }]);
+        self.cursor = 0;
+        self.total_bytes = 0;
+    }
+
     /// Steps back one version; `None` when there is none.
     pub fn undo(&mut self) -> Option<&Artwork> {
         self.cursor = self.cursor.checked_sub(1)?;

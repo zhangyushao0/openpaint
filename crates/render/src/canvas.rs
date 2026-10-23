@@ -12,7 +12,7 @@ use crate::filter::Filters;
 use crate::frame::FrameRequest;
 use crate::geom::PixelRect;
 use crate::image::RgbaImage;
-use crate::readback::{read_rect, read_rgba, read_texel, target_texture};
+use crate::readback::{read_rgba, read_texel, target_texture};
 use crate::scene::{ActivePlace, Scene};
 use crate::scene_ops::SceneOps;
 use crate::screen::{VIEW_BYTES, blit_bind_group, selection_texture};
@@ -274,26 +274,6 @@ impl CanvasTarget {
     /// same bytes `read` gives at that position.
     pub fn pick(&self, core: &Core, at: [u32; 2]) -> Result<Option<[u8; 4]>, RenderError> {
         read_texel(&core.gpu, &self.texture, at)
-    }
-
-    /// As `read`, the `size` pixels from `origin` only (a practice copy's frame).
-    ///
-    /// # Errors
-    /// `Invalid` for a region not inside the target; as `read`.
-    pub fn read_region(
-        &self,
-        core: &Core,
-        origin: [u32; 2],
-        size: [u32; 2],
-    ) -> Result<RgbaImage, RenderError> {
-        let inside = (0..2).all(|axis| {
-            size[axis] > 0
-                && u64::from(origin[axis]) + u64::from(size[axis]) <= u64::from(self.size()[axis])
-        });
-        if !inside {
-            return Err(RenderError::Invalid("a region not inside the target"));
-        }
-        read_rect(&core.gpu, &self.texture, origin, size)
     }
 
     pub(crate) fn shown(&self) -> &wgpu::BindGroup {

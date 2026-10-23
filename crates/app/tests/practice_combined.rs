@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use openpaint_app::{
     BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Overlay, Pen, PracticeIntent,
-    PracticeLog, PracticePens, Session, SheetView, StrokeIntent, Toolbox, Viewport,
+    PracticeLog, PracticePens, Session, SheetView, StrokeIntent, Title, Toolbox, Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{ExerciseResult, Family, Original, SessionRecord, Sheet};
@@ -41,12 +41,12 @@ fn after_first(finished: bool) -> Session {
         ExerciseResult::first(0, 1_791_201_700, 2, Vec::new()),
         ExerciseResult::first(10, 1_791_201_800, 4, Vec::new()),
     ];
-    let log = PracticeLog::new(vec![first.clone()], Vec::new());
+    let log = PracticeLog::new(vec![first.clone()], Vec::new(), Vec::new());
     let (record, _) = log.begin(1, 0x5EED_0079, 1_791_290_000);
     let [width, height] = Sheet::of(record.exercises.len()).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
     let before = if finished { vec![first] } else { Vec::new() };
-    let view = SheetView::of(&record, &[]);
+    let view = SheetView::of(&record, &[], ([width, height], &Title::untitled()));
     Session::practising(sheet, (brush, pens()), (record, before, view), &VIEWPORT)
 }
 

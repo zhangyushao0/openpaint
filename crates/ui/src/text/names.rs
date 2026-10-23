@@ -1,16 +1,18 @@
 //! The names the app gives, shown in the language. The app stores them as it made them, in
 //! English ("Layer 3", "Group 2", "Inserted image", "Pasted layer", "Untitled Artwork", the
-//! built-in brushes' names, "<name> copy"), so they read in whichever language shows and the
-//! stored name stays the control's name. A name the user typed shows as typed; one that reads
-//! like a default shows as the default would.
+//! built-in brushes' names, "<name> copy", a colour copy's "Colour copy 2", a picture of one's
+//! own "Picture 4"), so they read in whichever language shows and the stored name stays the
+//! control's name. A name the user typed shows as typed; one that reads like a default shows as
+//! the default would.
 
 use std::borrow::Cow;
 
-use super::{BUILT_IN, Language};
+use super::{BUILT_IN, Language, STUDY_EXERCISE};
 
 texts! { NAMES;
     LAYER_NAME = "Layer", "图层";
     GROUP_NAME = "Group", "组";
+    PICTURE_NAME = "Picture", "图片";
     INSERTED_IMAGE = "Inserted image", "插入的图像";
     PASTED_LAYER = "Pasted layer", "粘贴的图层";
     UNTITLED_ARTWORK = "Untitled Artwork", "未命名作品";
@@ -27,7 +29,7 @@ pub(crate) fn shown_name(language: Language, name: &str) -> Cow<'_, str> {
         let copy = COPY_NAME.get(language);
         return Cow::Owned(format!("{} {copy}", shown_name(language, base)));
     }
-    for word in [LAYER_NAME, GROUP_NAME] {
+    for word in [LAYER_NAME, GROUP_NAME, PICTURE_NAME, STUDY_EXERCISE] {
         if let Some(number) = name
             .strip_prefix(word.id())
             .and_then(|rest| rest.strip_prefix(' '))
@@ -58,6 +60,8 @@ mod tests {
         assert_eq!(zh("Group 3"), "组 3");
         assert_eq!(zh("Pencil copy copy"), "铅笔 副本 副本");
         assert_eq!(zh("Untitled Artwork"), "未命名作品");
+        assert_eq!(zh("Colour copy 2"), "色彩临摹 2");
+        assert_eq!(zh("Picture 4"), "图片 4");
         for kept in [
             "Layer",
             "Layer x",

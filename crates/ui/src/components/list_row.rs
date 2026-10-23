@@ -1,7 +1,8 @@
 //! The list row: one touch target high across a panel, a name at its left, an optional detail
 //! before an icon button at its right end. Tapping the row chooses it; the chosen row carries
 //! the active mark. The icon button acts on the row without choosing it. A row may show a small
-//! picture before its name (a layer's) and may be carried by the hand (`lifted`).
+//! picture before its name (a layer's) and may be carried by the hand (`lifted`). A picture row
+//! leads with a larger picture and wraps its words under its title (`picture_row`).
 
 use egui::{Align2, Color32, Order, Rect, Sense, Stroke, StrokeKind, TextStyle, Vec2, WidgetInfo};
 
@@ -187,12 +188,78 @@ fn paint(
     paint_icon(painter, row.icon, square, color);
 }
 
+/// A row a picture leads, as tall as its picture and words need (the practice options' pictures:
+/// choosing one to copy): the picture fitted in `PICTURE_ROW` points, its title in ink and
+/// under it its note and credit, small, quiet and wrapped. Tapping it chooses the picture.
+#[derive(Debug, Clone, Copy)]
+pub struct PictureRow<'a> {
+    /// The title, which names the control.
+    pub label: Words<'a>,
+    /// Shown small under the title (empty for none): a note, then the credit.
+    pub note: &'a str,
+    pub credit: Option<&'a str>,
+    /// The picture once there is one: its texture and its size in pixels.
+    pub picture: Option<(egui::TextureId, Vec2)>,
+    pub enabled: bool,
+}
+
+/// The picture's place in a picture row, in points.
+pub const PICTURE_ROW: Vec2 = Vec2::new(96.0, 72.0);
+
+pub fn picture_row(ui: &mut egui::Ui, row: &PictureRow<'_>) -> egui::Response {
+    let width = ui.available_width();
+    let words = (width - PICTURE_ROW.x - 5.0 * SPACE).max(TOUCH_TARGET);
+    let body = TextStyle::Body.resolve(ui.style());
+    let small = TextStyle::Small.resolve(ui.style());
+    let colour = if row.enabled { INK } else { INK_DISABLED };
+    let label = row.label.shown(ui.ctx()).to_owned();
+    let title = ui.painter().layout(label, body, colour, words);
+    let lines: Vec<&str> = ([row.note].into_iter().chain(row.credit))
+        .filter(|line| !line.is_empty())
+        .collect();
+    let notes = ui
+        .painter()
+        .layout(lines.join("\n"), small, INK_SECONDARY, words);
+    let text = title.size().y + SPACE / 2.0 + notes.size().y;
+    let height = text.max(PICTURE_ROW.y) + 2.0 * SPACE;
+    let sense = if row.enabled {
+        Sense::click()
+    } else {
+        Sense::hover()
+    };
+    let (rect, response) = ui.allocate_exact_size(Vec2::new(width, height), sense);
+    let shown = row.label.shown(ui.ctx());
+    response.widget_info(|| WidgetInfo::labeled(egui::WidgetType::Button, row.enabled, shown));
+    controls::register(ui, row.label.id(), rect);
+    if ui.is_rect_visible(rect) {
+        let painter = ui.painter();
+        if row.enabled && response.is_pointer_button_down_on() {
+            paint_pressed(painter, Outline::row(rect));
+        }
+        let place = Rect::from_min_size(rect.min + Vec2::new(2.0 * SPACE, SPACE), PICTURE_ROW);
+        let fitted = row.picture.map_or(place, |(_, size)| fitted(place, size));
+        paint_picture(painter, row.picture.map(|(id, _)| id), fitted);
+        let at = egui::pos2(place.right() + 2.0 * SPACE, rect.top() + SPACE);
+        let below = at + Vec2::new(0.0, title.size().y + SPACE / 2.0);
+        painter.galley(at, title, colour);
+        painter.galley(below, notes, INK_SECONDARY);
+    }
+    response
+}
+
+/// `size` (any units) fitted inside `place`, centred.
+#[must_use]
+pub fn fitted(place: Rect, size: Vec2) -> Rect {
+    let scale = (place.width() / size.x.max(1.0)).min(place.height() / size.y.max(1.0));
+    Rect::from_center_size(place.center(), size * scale)
+}
+
 /// Side of a checker cell under a picture, in points.
 const CHECKER_CELL: f32 = 5.5;
 
 /// A picture in `frame`: white and light checker cells (what shows where it is empty), the
 /// texture over them, a faint line round it.
-fn paint_picture(painter: &egui::Painter, texture: Option<egui::TextureId>, frame: Rect) {
+pub fn paint_picture(painter: &egui::Painter, texture: Option<egui::TextureId>, frame: Rect) {
     painter.rect_filled(frame, 0.0, Color32::WHITE);
     let cells = (frame.size() / CHECKER_CELL).ceil();
     for row in 0..cells.y as u32 {

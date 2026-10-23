@@ -18,10 +18,8 @@ use crate::outline::Outline;
 pub const MAX_PICTURE_SIDE: u32 = 2048;
 /// The longest id of a pack or an item, in bytes.
 pub const MAX_ID: usize = 64;
-/// The personal pack's id: the user's own pictures.
+/// The personal pack's id: the user's own pictures, each at the tier the user chose for it.
 pub const PERSONAL: &str = "personal";
-/// The tier the user's own pictures are kept at (a session takes one of them whatever its tiers).
-pub const PERSONAL_TIER: Tier = Tier::Medium;
 /// The most points an item's outline holds.
 pub const MAX_OUTLINE_POINTS: usize = 8192;
 

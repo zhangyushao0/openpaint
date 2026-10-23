@@ -22,7 +22,7 @@ use openpaint_practice::{
     ExerciseResult, Family, Fit, Frame, Metrics, Original, Point, Rgb8, score_colour,
 };
 
-use super::read::Reading;
+use super::read::{CopyRead, Reading};
 use super::{PracticeSheet, unavailable};
 use crate::error::AppError;
 use crate::layer_rules::LayerRefusal;
@@ -74,6 +74,9 @@ impl PracticeSheet {
         }
         let frame = self.sheet.pairs[index].copy;
         let nothing = || unavailable(Availability::NothingLeft);
+        if !self.compare_offered(Some(index), artwork).is_available() {
+            return Err(nothing());
+        }
         self.forget_probe();
         let compared = match &self.sheet.originals[index] {
             Original::Colour(original) => {
@@ -114,6 +117,27 @@ impl PracticeSheet {
         }
         self.compared = Some(compared);
         Ok(())
+    }
+
+    /// Whether Compare is offered on exercise `current` of `artwork`: once it holds a copy or was
+    /// compared, unless its picture was removed (nothing is left to compare it with).
+    pub(super) fn compare_offered(
+        &self,
+        current: Option<usize>,
+        artwork: &Artwork,
+    ) -> Availability {
+        let Some(index) = current else {
+            return Availability::NothingLeft;
+        };
+        let removed = matches!(self.sheet.originals[index], Original::Picture(_))
+            && self.sheet.pictures[index].is_none();
+        let held = self.record.result(index).is_some()
+            || (self.pair(index)).is_some_and(|pair| holds_copy(artwork, &pair.copy));
+        if held && !removed {
+            Availability::Available
+        } else {
+            Availability::NothingLeft
+        }
     }
 
     /// The fit for exercise `index`'s copy in `frame`, handed to the worker: the original's
@@ -239,7 +263,7 @@ impl PracticeSheet {
             (Compared::Painted(reading), Original::Areas(_)) => {
                 let (shown, chosen, outline) = self.painted_overlay();
                 let read = match reading {
-                    Reading::Areas(read) => Some(std::sync::Arc::clone(read)),
+                    Reading::Read(CopyRead::Areas(read)) => Some(std::sync::Arc::clone(read)),
                     _ => None,
                 };
                 Some(Overlay::Areas {
@@ -251,7 +275,7 @@ impl PracticeSheet {
             }
             (Compared::Painted(reading), Original::Scale(_)) => {
                 Some(Overlay::Scale(match reading {
-                    Reading::Scale(check) => Some(std::sync::Arc::clone(check)),
+                    Reading::Read(CopyRead::Scale(check)) => Some(std::sync::Arc::clone(check)),
                     _ => None,
                 }))
             }

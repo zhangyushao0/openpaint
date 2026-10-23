@@ -1,6 +1,7 @@
 //! Colours as the colour exercises judge them: 8-bit sRGB in, HSV (hue, saturation and value as
 //! the colour panel shows them) and Oklab (Björn Ottosson's perceptual space: equal steps look
-//! about equally different) out, and the differences between two colours in both.
+//! about equally different; its `L` the lightness the eye sees) out and back, and the
+//! differences between two colours in both.
 
 /// An 8-bit sRGB colour.
 pub type Rgb8 = [u8; 3];
@@ -71,12 +72,36 @@ pub fn oklab(rgb: Rgb8) -> [f64; 3] {
     ]
 }
 
+/// The 8-bit sRGB colour of the Oklab point `[l, a, b]`, each channel clipped to sRGB's range.
+#[must_use]
+pub fn from_oklab([l, a, b]: [f64; 3]) -> Rgb8 {
+    let l_ = l + 0.396_337_777_4 * a + 0.215_803_757_3 * b;
+    let m_ = l - 0.105_561_345_8 * a - 0.063_854_172_8 * b;
+    let s_ = l - 0.089_484_177_5 * a - 1.291_485_548_0 * b;
+    let [l, m, s] = [l_, m_, s_].map(|v| v * v * v);
+    [
+        4.076_741_662_1 * l - 3.307_711_591_3 * m + 0.230_969_929_2 * s,
+        -1.268_438_004_6 * l + 2.609_757_401_1 * m - 0.341_319_396_5 * s,
+        -0.004_196_086_3 * l - 0.703_418_614_7 * m + 1.707_614_701_0 * s,
+    ]
+    .map(|c| (encoded(c.clamp(0.0, 1.0)) * 255.0).round() as u8)
+}
+
 /// sRGB's transfer function undone.
 fn linear(c: f64) -> f64 {
     if c <= 0.040_45 {
         c / 12.92
     } else {
         ((c + 0.055) / 1.055).powf(2.4)
+    }
+}
+
+/// sRGB's transfer function.
+fn encoded(c: f64) -> f64 {
+    if c <= 0.003_130_8 {
+        c * 12.92
+    } else {
+        1.055 * c.powf(1.0 / 2.4) - 0.055
     }
 }
 

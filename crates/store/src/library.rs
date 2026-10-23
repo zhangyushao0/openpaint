@@ -283,6 +283,10 @@ impl ProjectStore for Library {
         self.with(practice::sessions)
     }
 
+    fn sheet_titles(&mut self) -> Result<Vec<(ProjectId, Title)>, PortError> {
+        self.with(practice::titles)
+    }
+
     fn start_practice(
         &mut self,
         sheet: &Artwork,
