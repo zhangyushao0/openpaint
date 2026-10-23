@@ -27,6 +27,10 @@ device-reset = "xtask device-reset"
 # Test artworks as OpenPaint files, deterministic (apps/harness/src/test_art/):
 # `cargo test-art pile|a4|a4-plain|kinds|session [n] [out]` -> artifacts/test-art/<kind>-<n>.openpaint.
 test-art = "run --quiet --package openpaint-harness -- test-art"
+# Practice packs from the curated source lists in apps/harness/packs/ (see apps/harness/src/pack/):
+# `cargo practice-pack build <list> [out] [--sheet]` -> artifacts/packs/<pack id>.pack, the same
+# bytes from the same list and download cache; `cargo practice-pack search <source> <query>`.
+practice-pack = "run --quiet --package openpaint-harness -- practice-pack"
 # The brush shape textures (crates/render/assets/shape-*.bin) from seeded noise (see
 # xtask/src/shapes.rs); deterministic, committed, their hashes in DECISIONS.
 shape-assets = "xtask shape-assets"

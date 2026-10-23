@@ -48,6 +48,19 @@ pub enum HarnessError {
         value: u64,
         bound: u64,
     },
+    /// `practice-pack`: a download failed (its URL and the client's or server's reason).
+    Fetch {
+        url: String,
+        detail: String,
+    },
+    /// `practice-pack`: the source list cannot be read.
+    List(String),
+    /// `practice-pack`: an item cannot go into the pack (its id in the list, and why: a licence
+    /// that disagrees with the list's, a picture that does not decode, a download that failed).
+    Pack {
+        item: String,
+        problem: String,
+    },
 }
 
 impl fmt::Display for HarnessError {
@@ -79,6 +92,9 @@ impl fmt::Display for HarnessError {
             Self::Bound { what, value, bound } => {
                 write!(f, "{what}: {value} bytes or items, past its bound {bound}")
             }
+            Self::Fetch { url, detail } => write!(f, "{url}: {detail}"),
+            Self::List(detail) => write!(f, "source list: {detail}"),
+            Self::Pack { item, problem } => write!(f, "item {item}: {problem}"),
         }
     }
 }

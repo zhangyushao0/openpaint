@@ -1,0 +1,241 @@
+//! Practice packs: the pictures practice copies, each with where it came from and the licence it
+//! is used under. The app ships no third-party picture; a pack is built from a curated list by
+//! the harness (`cargo practice-pack`) and imported beside the library, which keeps its bytes
+//! (`openpaint-store`). This is a pack's manifest and its rules; an exercise names a picture by
+//! its pack and its id (`ItemRef`).
+
+use std::collections::HashSet;
+use std::fmt;
+
+use crate::licence::Licence;
+
+/// The longest side a pack's picture may have, in pixels.
+pub const MAX_PICTURE_SIDE: u32 = 2048;
+/// The longest id of a pack or an item, in bytes.
+pub const MAX_ID: usize = 64;
+
+/// What a picture is for: the exercise kind that copies it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PictureKind {
+    /// One object alone, copied by its outline (V大's 复制单体图形).
+    Shape,
+}
+
+impl PictureKind {
+    pub const ALL: [Self; 1] = [Self::Shape];
+
+    /// As stored; a code names one kind for good.
+    #[must_use]
+    pub const fn code(self) -> u8 {
+        match self {
+            Self::Shape => 1,
+        }
+    }
+
+    #[must_use]
+    pub fn of_code(code: u8) -> Option<Self> {
+        Self::ALL.into_iter().find(|kind| kind.code() == code)
+    }
+
+    /// As a source list writes it.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Shape => "shape",
+        }
+    }
+
+    #[must_use]
+    pub fn of_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|kind| kind.name() == name)
+    }
+}
+
+/// How hard a picture is to copy, easiest first.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Tier {
+    /// Cartoon characters and creatures: bold, closed outlines.
+    Entry,
+    /// Objects with clean outlines on plain backgrounds.
+    Simple,
+    /// Animals, sculpture and everyday things: softer, longer outlines.
+    Medium,
+    /// Complex structure: heads, armour, machines.
+    Hard,
+}
+
+impl Tier {
+    pub const ALL: [Self; 4] = [Self::Entry, Self::Simple, Self::Medium, Self::Hard];
+
+    /// As stored, 1 to 4.
+    #[must_use]
+    pub const fn code(self) -> u8 {
+        match self {
+            Self::Entry => 1,
+            Self::Simple => 2,
+            Self::Medium => 3,
+            Self::Hard => 4,
+        }
+    }
+
+    #[must_use]
+    pub fn of_code(code: u8) -> Option<Self> {
+        Self::ALL.into_iter().find(|tier| tier.code() == code)
+    }
+
+    /// As a source list writes it.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Entry => "entry",
+            Self::Simple => "simple",
+            Self::Medium => "medium",
+            Self::Hard => "hard",
+        }
+    }
+
+    #[must_use]
+    pub fn of_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|tier| tier.name() == name)
+    }
+}
+
+/// One picture of a pack and everything its licence and its curator say about it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackItem {
+    /// Unique in its pack and kept across the pack's editions: exercises name it.
+    pub id: String,
+    pub kind: PictureKind,
+    pub tier: Tier,
+    /// The picture's width and height in pixels, at most `MAX_PICTURE_SIDE` each.
+    pub size: [u32; 2],
+    /// The page the picture comes from (https).
+    pub source: String,
+    pub title: String,
+    pub creator: String,
+    pub licence: Licence,
+    /// The credit to show with the picture, word for word: what an Attribution licence asks for
+    /// (title, creator, source, licence, changes), a courtesy line for the others.
+    pub attribution: String,
+    /// The curator's notes: why the picture is in its tier.
+    pub notes: String,
+}
+
+/// A pack's manifest: its pictures' items, in the pack's order.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Pack {
+    /// Names the pack (and its file) for good: lower-case letters, digits and hyphens.
+    pub id: String,
+    pub title: String,
+    pub items: Vec<PackItem>,
+}
+
+/// How an exercise names a picture: its pack and its item.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct ItemRef {
+    pub pack: String,
+    pub item: String,
+}
+
+/// A rule of a pack broken, and by which item (none: the pack's own fields).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackProblem {
+    pub item: Option<String>,
+    pub rule: &'static str,
+}
+
+impl fmt::Display for PackProblem {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.item {
+            Some(item) => write!(f, "item {item}: {}", self.rule),
+            None => write!(f, "the pack: {}", self.rule),
+        }
+    }
+}
+
+impl std::error::Error for PackProblem {}
+
+/// Whether `id` may name a pack or an item: 1 to `MAX_ID` lower-case ASCII letters, digits and
+/// hyphens, starting with a letter or digit (so it is also a file name everywhere).
+#[must_use]
+pub fn valid_id(id: &str) -> bool {
+    let allowed = |c: char| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-';
+    (1..=MAX_ID).contains(&id.len()) && !id.starts_with('-') && id.chars().all(allowed)
+}
+
+impl Pack {
+    /// The item `id`.
+    #[must_use]
+    pub fn item(&self, id: &str) -> Option<&PackItem> {
+        self.items.iter().find(|item| item.id == id)
+    }
+
+    /// The item an exercise names, if it is in this pack.
+    #[must_use]
+    pub fn find(&self, item: &ItemRef) -> Option<&PackItem> {
+        (item.pack == self.id)
+            .then(|| self.item(&item.item))
+            .flatten()
+    }
+
+    /// The items of `kind` and `tier`, in the pack's order.
+    pub fn of(&self, kind: PictureKind, tier: Tier) -> impl Iterator<Item = &PackItem> {
+        (self.items.iter()).filter(move |item| item.kind == kind && item.tier == tier)
+    }
+
+    /// Checks every rule of a pack: a valid id and a title; at least one item; each item's id
+    /// valid and unique, its picture's sides from 1 to `MAX_PICTURE_SIDE`, its source an https
+    /// page, a title and a creator, and an attribution where its licence asks for one.
+    ///
+    /// # Errors
+    /// The first rule broken.
+    pub fn check(&self) -> Result<(), PackProblem> {
+        let pack = |rule| PackProblem { item: None, rule };
+        if !valid_id(&self.id) {
+            return Err(pack("its id is not lower-case letters, digits and hyphens"));
+        }
+        if self.title.trim().is_empty() {
+            return Err(pack("it has no title"));
+        }
+        if self.items.is_empty() {
+            return Err(pack("it holds no item"));
+        }
+        let mut seen = HashSet::new();
+        for item in &self.items {
+            let broken = |rule| PackProblem {
+                item: Some(item.id.clone()),
+                rule,
+            };
+            if !valid_id(&item.id) {
+                return Err(broken(
+                    "its id is not lower-case letters, digits and hyphens",
+                ));
+            }
+            if !seen.insert(item.id.as_str()) {
+                return Err(broken("its id is taken by an item before it"));
+            }
+            item.check().map_err(broken)?;
+        }
+        Ok(())
+    }
+}
+
+impl PackItem {
+    /// The rules of one item but its id's.
+    fn check(&self) -> Result<(), &'static str> {
+        let side = 1..=MAX_PICTURE_SIDE;
+        if !self.size.iter().all(|length| side.contains(length)) {
+            return Err("its picture's sides are not 1 to 2048 pixels");
+        }
+        if !self.source.starts_with("https://") {
+            return Err("its source is not an https page");
+        }
+        if self.title.trim().is_empty() || self.creator.trim().is_empty() {
+            return Err("it has no title or no creator");
+        }
+        if self.licence.requires_attribution() && self.attribution.trim().is_empty() {
+            return Err("its licence asks for an attribution and it has none");
+        }
+        Ok(())
+    }
+}

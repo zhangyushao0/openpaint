@@ -11,6 +11,7 @@ mod heap;
 mod launch;
 mod long_session;
 mod output;
+mod pack;
 mod quantiles;
 mod replay;
 mod scenario;
@@ -23,7 +24,7 @@ mod tilt_stats;
 
 use std::process::ExitCode;
 
-const USAGE: &str = "usage: openpaint-harness <command>\n\ncommands:\n  render-smoke   clear an offscreen GPU target, write artifacts/harness/smoke.png, print its hash\n  render-stroke  draw a fixed stroke, write artifacts/harness/stroke.png, print its hash\n  brush-sheet    every built-in brush's stroke at 1x and its turn at 4x, and the shape\n                 textures, as PNGs under artifacts/harness/\n  shell-smoke    draw one runtime frame at tablet size, write artifacts/harness/shell.png\n  replay         replay a 10,000-sample pen stroke and a finger swipe through the frame loop,\n                 report frame times, write artifacts/harness/replay.png, check its golden hash\n                 (time it with --release)\n  export-timing  export a busy 2732 x 2048 artwork at 1x, 2x and 4x as PNG in bands, report\n                 planning, GPU and encoding times (time it with --release)\n  long-session   3,000 strokes of the built-in brushes over 60 simulated minutes with smudges,\n                 undo, layer pictures and kept versions; memory, arena, caches, history,\n                 library size and versions every 5 minutes against bounds (--release)\n  stroke-stats DIR  every stroke of the library in DIR (opened as a copy): time between\n                 samples, spacing, speed, synthesized samples, turns and the straight\n                 segments' distance from the curve by speed, gaps, the pen's tilt\n  test-art KIND [N] [OUT]  a test artwork as an OpenPaint file: pile, a4, a4-plain, kinds or session\n                 (also `cargo test-art`), deterministic\n  scenario NAME  run tests/scenarios/NAME.json, check its canvas checkpoints, write PNGs and\n                 failure diffs under artifacts/scenarios/NAME/ (also `cargo scenario NAME`)\n  scenario --all every tests/scenarios/*.json in one process, one line each, the report of\n                 each failure (also `cargo scenarios`)";
+const USAGE: &str = "usage: openpaint-harness <command>\n\ncommands:\n  render-smoke   clear an offscreen GPU target, write artifacts/harness/smoke.png, print its hash\n  render-stroke  draw a fixed stroke, write artifacts/harness/stroke.png, print its hash\n  brush-sheet    every built-in brush's stroke at 1x and its turn at 4x, and the shape\n                 textures, as PNGs under artifacts/harness/\n  shell-smoke    draw one runtime frame at tablet size, write artifacts/harness/shell.png\n  replay         replay a 10,000-sample pen stroke and a finger swipe through the frame loop,\n                 report frame times, write artifacts/harness/replay.png, check its golden hash\n                 (time it with --release)\n  export-timing  export a busy 2732 x 2048 artwork at 1x, 2x and 4x as PNG in bands, report\n                 planning, GPU and encoding times (time it with --release)\n  long-session   3,000 strokes of the built-in brushes over 60 simulated minutes with smudges,\n                 undo, layer pictures and kept versions; memory, arena, caches, history,\n                 library size and versions every 5 minutes against bounds (--release)\n  stroke-stats DIR  every stroke of the library in DIR (opened as a copy): time between\n                 samples, spacing, speed, synthesized samples, turns and the straight\n                 segments' distance from the curve by speed, gaps, the pen's tilt\n  test-art KIND [N] [OUT]  a test artwork as an OpenPaint file: pile, a4, a4-plain, kinds or session\n                 (also `cargo test-art`), deterministic\n  practice-pack build LIST [OUT] [--sheet]  a practice pack from a source list\n                 (apps/harness/packs/), its downloads cached under artifacts/packs/cache/;\n                 contact sheets per tier with --sheet (also `cargo practice-pack`)\n  practice-pack search SOURCE QUERY [N]  candidates from cleveland, met or commons, with\n                 a contact sheet of their previews\n  scenario NAME  run tests/scenarios/NAME.json, check its canvas checkpoints, write PNGs and\n                 failure diffs under artifacts/scenarios/NAME/ (also `cargo scenario NAME`)\n  scenario --all every tests/scenarios/*.json in one process, one line each, the report of\n                 each failure (also `cargo scenarios`)";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -43,6 +44,7 @@ fn main() -> ExitCode {
         },
         ["stroke-stats", dir] => stroke_stats::run(dir),
         ["test-art", ref rest @ ..] => test_art::run(rest),
+        ["practice-pack", ref rest @ ..] => pack::run(rest),
         ["scenario", "--all"] => scenario::run_all(),
         ["scenario", name] => scenario::run(name),
         _ => {
