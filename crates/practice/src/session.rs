@@ -1,27 +1,32 @@
-//! The stages' sessions, each a warm-up of about five minutes from the kinds already met, then the
-//! stage's mix.
+//! The stages' sessions, each a warm-up from the kinds already met, then the stage's mix.
 //!
 //! Stage 1 (V大's week 1): six single lines (one near-straight, then bends of every kind), four
 //! groups of combined lines (each arrangement once) and six colours (four low in saturation, every
 //! lightness). After S75's estimates (a line about 0.8 minutes, a colour about 1.75) and a group of
-//! combined lines taken at about 2: the mix about 23 minutes, the warm-up about 5, so a session
-//! from the second on is about 28 and the first about 23. The mix keeps a session's first colour
-//! where S75's sheet had it (the eleventh pair).
+//! combined lines taken at about 2: the mix about 23 minutes, the warm-up of four about 5, so a
+//! session from the second on is about 28 and the first about 23. The mix keeps a session's first
+//! colour where S75's sheet had it (the eleventh pair). Its warm-up takes the stage's families met
+//! in turn (lines, combined lines, colours).
 //!
-//! Stage 2 (V大's week 2, single shapes the main exercise): four single shapes, then one group of
-//! combined lines and two colours, stage 1's judgements kept alive while week 2's other exercises
-//! wait for their slices. The shapes' tiers follow the session's number: entry and simple first,
-//! medium from the third session, hard from the sixth; the user's own pictures, once there are
-//! some, take the last place. A shape taken at about 3.5 minutes (a line drawing, basically
-//! right, compared and corrected once): the mix about 19.5 minutes, so a session about 25 with a
-//! warm-up of lines, a group and a colour, about 27.5 once shapes are met and one warms up too.
+//! Stage 2 (V大's week 2): four single shapes, the main exercise, then week 2's colour work, a
+//! colour combination and a value scale, and one colour, stage 1's judgement kept alive (lines
+//! and groups live on in the warm-up). The shapes' tiers follow the session's number: entry and
+//! simple first, medium from the third session, hard from the sixth; the user's own pictures,
+//! once there are some, take the last place. A shape taken at about 3.5 minutes (a line drawing,
+//! basically right, compared and corrected once), a combination at about 4 (the tone, the middle
+//! tones, the edges with a big brush), a value scale at about 3: the mix about 22.75 minutes. Its
+//! warm-up is three exercises, at most one of them long (a shape, a combination or a scale), so
+//! it stays about 5 to 6.5 minutes and a session about 27 to 29: the long families met take the
+//! long place in turn by the session's number, the quick ones the others in turn from a family
+//! the number moves on, so over sessions every kind met comes back.
 //!
-//! The warm-up's four exercises take the families met in turn (lines, combined lines, shapes,
-//! colours), each a kind of its family already met, chosen by the seed; a shape in it a picture of
-//! its tier. A plan's shapes carry their pictures, picked by the seed (`pictures.rs`).
+//! The warm-up's exercises are kinds met, each chosen by the seed among its family's; a shape in
+//! it a picture of its tier. A plan's shapes carry their pictures, picked by the seed
+//! (`pictures.rs`).
 
 use std::collections::HashSet;
 
+use crate::areas::Arrangement;
 use crate::colour_match::{Lightness, Purity, Tone};
 use crate::combined::Combination;
 use crate::line::LineTier;
@@ -29,9 +34,12 @@ use crate::pack::{ItemRef, Tier};
 use crate::pictures::Pictures;
 use crate::plan::{Exercise, Family, Kind};
 use crate::random::{Random, derived};
+use crate::scale::ScaleTone;
 
-/// Exercises a warm-up holds.
+/// Exercises a stage-1 warm-up holds.
 pub const WARM_UP: usize = 4;
+/// Exercises a stage-2 warm-up holds, at most one of them long.
+pub const WARM_UP_TWO: usize = 3;
 
 /// Stage 1's mix: lines, combined lines and colours, in order.
 const LINES: [LineTier; 6] = [
@@ -56,8 +64,9 @@ const COLOURS: [(Purity, Lightness); 6] = [
     (Purity::Vivid, Lightness::Middle),
     (Purity::Grey, Lightness::Dark),
 ];
-/// Stage 2's colours a session.
-const STAGE_TWO_COLOURS: usize = 2;
+/// The families of stage 1's exercises, quick to do; and stage 2's long ones.
+const QUICK: [Family; 3] = [Family::Line, Family::Combined, Family::Colour];
+const LONG: [Family; 3] = [Family::Shape, Family::Areas, Family::Scale];
 
 /// A session's exercises, the first `warm_up` of them its warm-up.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -87,14 +96,12 @@ pub fn plan(stage: u8, number: u32, seed: u64, before: &Before<'_>) -> Plan {
 }
 
 /// Stage 1's session seeded `seed` after the kinds `met` in earlier sessions: its warm-up from
-/// them (none when nothing was met), then the stage's mix. Exercise `i`'s seed is
-/// `derived(seed, i)`; a shape met warms up with no picture (stage 1 has none).
+/// those of its families (none when nothing was met), then the stage's mix. Exercise `i`'s seed
+/// is `derived(seed, i)`.
 #[must_use]
 pub fn stage_one(seed: u64, met: &[Kind]) -> Plan {
-    let met: Vec<Kind> = met
-        .iter()
-        .copied()
-        .filter(|k| k.family() != Family::Shape)
+    let met: Vec<Kind> = (met.iter().copied())
+        .filter(|k| QUICK.contains(&k.family()))
         .collect();
     let warm_up = warm_up(seed, &met);
     let lines = LINES.map(Kind::Line);
@@ -112,8 +119,9 @@ pub fn stage_one(seed: u64, met: &[Kind]) -> Plan {
 }
 
 /// Stage 2's session `number` seeded `seed` after `before`: its warm-up, then four shapes of the
-/// session's tiers (the last the user's own when they have some), a group of combined lines and
-/// two colours. Without any picture there are no shapes.
+/// session's tiers (the last the user's own when they have some), a colour combination, a value
+/// scale and a colour, the combination's arrangement and the scale's tone in turn by number.
+/// Without any picture there are no shapes.
 #[must_use]
 pub fn stage_two(number: u32, seed: u64, before: &Before<'_>) -> Plan {
     let mut random = Random::new(derived(seed, u64::MAX - 1));
@@ -130,7 +138,7 @@ pub fn stage_two(number: u32, seed: u64, before: &Before<'_>) -> Plan {
         used.insert(item.clone());
         Some((Kind::Shape(tier), Some(item)))
     };
-    let warm_up: Vec<(Kind, Option<ItemRef>)> = warm_up(seed, before.met)
+    let warm_up: Vec<(Kind, Option<ItemRef>)> = warm_up_two(number, seed, before.met)
         .into_iter()
         .filter_map(|kind| pick(kind, false))
         .collect();
@@ -139,16 +147,16 @@ pub fn stage_two(number: u32, seed: u64, before: &Before<'_>) -> Plan {
     let shapes = (tiers.iter().enumerate())
         .filter_map(|(at, tier)| pick(Kind::Shape(*tier), own && at + 1 == tiers.len()));
     let turn = number.saturating_sub(1) as usize;
-    let combined = Kind::Combined(COMBINED[turn % COMBINED.len()]);
-    let colours = (0..STAGE_TWO_COLOURS).map(|k| {
-        let (purity, lightness) = COLOURS[(turn * STAGE_TWO_COLOURS + k) % COLOURS.len()];
-        Kind::Colour(Tone { purity, lightness })
-    });
+    let (purity, lightness) = COLOURS[turn % COLOURS.len()];
+    let colour_work = [
+        Kind::Areas(Arrangement::ALL[turn % Arrangement::ALL.len()]),
+        Kind::Scale(ScaleTone::ALL[turn % ScaleTone::ALL.len()]),
+        Kind::Colour(Tone { purity, lightness }),
+    ];
     let warmed = u32::try_from(warm_up.len()).unwrap_or(0);
     let all = (warm_up.into_iter())
         .chain(shapes.collect::<Vec<_>>())
-        .chain([(combined, None)])
-        .chain(colours.map(|kind| (kind, None)));
+        .chain(colour_work.map(|kind| (kind, None)));
     Plan {
         exercises: seeded(seed, all),
         warm_up: warmed,
@@ -177,12 +185,26 @@ fn seeded(seed: u64, kinds: impl Iterator<Item = (Kind, Option<ItemRef>)>) -> Ve
         .collect()
 }
 
-/// The warm-up's kinds: `WARM_UP` of the kinds `met`, the families met taken in turn, each a
-/// kind of its family chosen by the seed; then in the families' order.
-fn warm_up(seed: u64, met: &[Kind]) -> Vec<Kind> {
+/// The kinds `met`, each once, in the order of their codes.
+fn distinct(met: &[Kind]) -> Vec<Kind> {
     let mut met = met.to_vec();
     met.sort_by_key(|kind| kind.code());
     met.dedup();
+    met
+}
+
+/// A kind of `family` among `met`, chosen by `random`.
+fn of_family(met: &[Kind], family: Family, random: &mut Random) -> Option<Kind> {
+    let of: Vec<&Kind> = met.iter().filter(|k| k.family() == family).collect();
+    let at = (random.unit() * of.len() as f64) as usize;
+    of.get(at.min(of.len().saturating_sub(1)))
+        .map(|kind| **kind)
+}
+
+/// Stage 1's warm-up: `WARM_UP` of the kinds `met`, the families met taken in turn, each a kind
+/// of its family chosen by the seed; then in the families' order.
+fn warm_up(seed: u64, met: &[Kind]) -> Vec<Kind> {
+    let met = distinct(met);
     let families: Vec<Family> = (Family::ALL.into_iter())
         .filter(|family| met.iter().any(|kind| kind.family() == *family))
         .collect();
@@ -191,13 +213,35 @@ fn warm_up(seed: u64, met: &[Kind]) -> Vec<Kind> {
     }
     let mut random = Random::new(derived(seed, u64::MAX));
     let mut kinds: Vec<Kind> = (0..WARM_UP)
-        .filter_map(|turn| {
-            let family = families[turn % families.len()];
-            let of: Vec<&Kind> = met.iter().filter(|k| k.family() == family).collect();
-            let at = (random.unit() * of.len() as f64) as usize;
-            of.get(at.min(of.len().saturating_sub(1)))
-                .map(|kind| **kind)
-        })
+        .filter_map(|turn| of_family(&met, families[turn % families.len()], &mut random))
+        .collect();
+    kinds.sort_by_key(|kind| kind.family());
+    kinds
+}
+
+/// Stage 2's warm-up for session `number`: `WARM_UP_TWO` of the kinds `met`, one of a long
+/// family (the long families met in turn by number) and the rest of the quick families met in
+/// turn from one the number moves on; then in the families' order.
+fn warm_up_two(number: u32, seed: u64, met: &[Kind]) -> Vec<Kind> {
+    let met = distinct(met);
+    let present = |families: [Family; 3]| -> Vec<Family> {
+        (families.into_iter())
+            .filter(|family| met.iter().any(|kind| kind.family() == *family))
+            .collect()
+    };
+    let (quick, long) = (present(QUICK), present(LONG));
+    let turn = number.saturating_sub(1) as usize;
+    let mut families = Vec::with_capacity(WARM_UP_TWO);
+    if !long.is_empty() {
+        families.push(long[turn % long.len()]);
+    }
+    if !quick.is_empty() {
+        let room = WARM_UP_TWO - families.len();
+        families.extend((0..room).map(|k| quick[(turn + k) % quick.len()]));
+    }
+    let mut random = Random::new(derived(seed, u64::MAX));
+    let mut kinds: Vec<Kind> = (families.into_iter())
+        .filter_map(|family| of_family(&met, family, &mut random))
         .collect();
     kinds.sort_by_key(|kind| kind.family());
     kinds

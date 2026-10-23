@@ -1,14 +1,19 @@
 //! Practice (G9): the course's exercises as pure math. Generators lay out exercises that carry
 //! their own answers, the same for the same seed; a session draws its warm-up from the kinds met
 //! before; the alignment lays an original line or group onto a copy for Compare's overlay; colour
-//! matches are measured and judged; records keep what a session did. The app turns the strokes on
-//! a practice sheet into copies and the store keeps the records.
+//! matches, colour combinations and value scales are measured and judged; records keep what a
+//! session (or a long colour copy) did. The app turns the strokes and pixels on a practice sheet
+//! into copies and the store keeps the records.
 //!
 //! Pure by rule: no GPU, no UI, no file system, no threads, no clock (`cargo repo-check`).
 #![forbid(unsafe_code)]
 
 mod align;
 mod align_shape;
+mod areas;
+mod areas_edges;
+mod areas_field;
+mod areas_read;
 mod colour;
 mod colour_match;
 mod combined;
@@ -29,10 +34,13 @@ mod pictures;
 mod plan;
 mod random;
 mod record;
+mod scale;
 mod session;
 
 pub use align::{Fit, align};
 pub use align_shape::align_shape;
+pub use areas::{Areas, Arrangement, GRID, STRONG, WEAK};
+pub use areas_read::{AreasCopy, Contrast, MADE_STRONG};
 pub use colour::{
     Difference, LEAST_CHROMA, Rgb8, chroma, delta_e, from_hsv, hsv, hue_name, hue_towards, oklab,
 };
@@ -51,8 +59,12 @@ pub use path::{Point, apart, crossings, distance, length, nearest, resample};
 pub use pictures::Pictures;
 pub use plan::{
     Exercise, FRAME, Family, Frame, Kind, Original, PICTURE_MARGIN, Pair, PictureFit,
-    STAGE_SESSIONS, STAGES, STAGES_READY, Sheet,
+    STAGE_SESSIONS, STAGES, STAGES_READY, STUDY_SIDE, Sheet,
 };
 pub use random::{Random, derived};
-pub use record::{COLOUR_ROWS, ExerciseResult, KindSummary, SessionRecord, met, summary, used};
-pub use session::{Before, Plan, WARM_UP, plan, stage_one, stage_two};
+pub use record::{
+    AREAS_ROWS, COLOUR_ROWS, ExerciseResult, KindSummary, PROJECT, SCALE_ROWS, SessionRecord, met,
+    summary, used,
+};
+pub use scale::{BARS, ROW, ScaleCheck, ScaleTone, ValueScale};
+pub use session::{Before, Plan, WARM_UP, WARM_UP_TWO, plan, stage_one, stage_two};

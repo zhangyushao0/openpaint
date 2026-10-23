@@ -14,8 +14,10 @@ use openpaint_practice::{ColourCopy, Frame, Point, Rgb8, nearest};
 
 use crate::practice_pens::PracticePens;
 
-/// Strokes may begin this share of the frame's side outside it.
+/// Strokes may begin this share of the frame's width outside it.
 pub(crate) const MARGIN: f64 = 0.1;
+/// The paper under a sheet, as the canvas shows it where nothing was laid (the runtime's).
+pub(crate) const PAPER: Rgb8 = [255; 3];
 
 fn first_point(stroke: &Stroke) -> Option<Point> {
     let first = stroke.samples().first()?.position();
@@ -24,7 +26,7 @@ fn first_point(stroke: &Stroke) -> Option<Point> {
 
 /// Whether `stroke` began in `frame`.
 fn in_frame(stroke: &Stroke, frame: &Frame) -> bool {
-    first_point(stroke).is_some_and(|p| frame.contains(p, MARGIN * frame.side))
+    first_point(stroke).is_some_and(|p| frame.contains(p, MARGIN * frame.unit()))
 }
 
 /// Every stroke of `artwork` begun in `frame`, oldest first.

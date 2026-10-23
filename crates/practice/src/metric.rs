@@ -2,8 +2,8 @@
 //! followed over sessions. Values are kept in natural units: hue in degrees, saturation and value
 //! as shares (0 to 1), colour differences in Oklab units (0 to about 1), counts as counts.
 //!
-//! Lines have no numbers (D99: a number that does not match what the eye sees misleads; the
-//! overlay is the feedback). Codes 1 to 8 were 1.1.0's line metrics (key points, frame, shape,
+//! Lines and shapes have no numbers (D99: a number that does not match what the eye sees misleads;
+//! the overlay is the feedback). Colours, colour combinations and value scales do (D104). Codes 1 to 8 were 1.1.0's line metrics (key points, frame, shape,
 //! speed, wobble, strokes, erased, seconds): retired, never reused, passed over when read.
 
 /// One measured quantity of a result.
@@ -22,10 +22,20 @@ pub enum Metric {
     FinalValue,
     /// Colour: how often the colour laid changed after the first, before the first Compare.
     Corrections,
+    /// Colour combination: the mean Oklab difference over the areas painted, the weak
+    /// contrasts the original holds and how many of them the copy made strong (`areas_read.rs`).
+    AreasDelta,
+    AreasWeak,
+    AreasMadeStrong,
+    /// Value scale: the mean value off the even scale over the cells filled (a share), the cells
+    /// a quarter of a step off or more and the cells out of order (`scale.rs`).
+    ScaleOff,
+    ScaleUneven,
+    ScaleReversed,
 }
 
 impl Metric {
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 15] = [
         Self::FirstDelta,
         Self::FirstHue,
         Self::FirstSaturation,
@@ -35,6 +45,12 @@ impl Metric {
         Self::FinalSaturation,
         Self::FinalValue,
         Self::Corrections,
+        Self::AreasDelta,
+        Self::AreasWeak,
+        Self::AreasMadeStrong,
+        Self::ScaleOff,
+        Self::ScaleUneven,
+        Self::ScaleReversed,
     ];
 
     /// The code it is stored by; never reused.
@@ -50,6 +66,12 @@ impl Metric {
             Self::FinalSaturation => 26,
             Self::FinalValue => 27,
             Self::Corrections => 28,
+            Self::AreasDelta => 29,
+            Self::AreasWeak => 30,
+            Self::AreasMadeStrong => 31,
+            Self::ScaleOff => 32,
+            Self::ScaleUneven => 33,
+            Self::ScaleReversed => 34,
         }
     }
 

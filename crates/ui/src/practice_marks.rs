@@ -1,12 +1,13 @@
 //! A practice sheet's exercises over its canvas (G9): each pair revealed so far as two frames,
 //! the original's and the empty one for the copy, the shown pair's in ink and the earlier ones
 //! faint; each original in its frame (a line or a group of lines in ink, a swatch filling the
-//! frame, a single shape's picture fitted inside with its credit small under the frame where its
-//! licence asks for one). While compared, the original's lines lie over the copy, in place or
-//! aligned onto it, thick and clear in a semi-transparent marking red the copy shows through; a
-//! picture lies faint over the copy with its outline in that red; a colour shows as a patch
-//! inside the other. All of it is drawn by the screen over the canvas through the view, never
-//! into the artwork: the originals cannot be drawn on.
+//! frame, a single shape's or a colour copy's picture with its credit small under the frame where
+//! its licence asks for one, a colour combination's or a value scale's in `practice_paint_marks.rs`).
+//! While compared, the original's lines lie over the copy, in place or aligned onto it, thick and
+//! clear in a semi-transparent marking red the copy shows through; a picture lies over the copy
+//! (a shape's faint with its outline in that red, a colour copy's as strongly as the user sets);
+//! a colour shows as a patch inside the other. All of it is drawn by the screen over the canvas
+//! through the view, never into the artwork: the originals cannot be drawn on.
 
 use std::fmt;
 use std::sync::Arc;
@@ -14,30 +15,32 @@ use std::sync::Arc;
 use egui::epaint::TextShape;
 use egui::{Color32, FontId, Mesh, Order, Pos2, Shape, Stroke, TextureHandle};
 use openpaint_app::{Overlay, PictureImage, PracticeProjection, SessionProjection, ViewMapping};
-use openpaint_practice::{Frame, ItemRef, Original, Rgb8};
+use openpaint_practice::{FRAME, Frame, ItemRef, Original, Rgb8};
 
 use crate::components::{Alpha, canvas_point, picture_texture};
 use crate::design::{CORRECTION, DIVIDER, INK, INK_SECONDARY, PANEL_RULE_WIDTH};
+use crate::practice_paint_marks as paint_marks;
 use crate::text::{self as t, Words};
 
 /// An original line's width, in canvas pixels, and the least it shows at, in points.
 const LINE_WIDTH: f32 = 3.0;
 const LEAST_LINE: f32 = 1.25;
 /// The overlay's width, in canvas pixels (a frame is 400) and at least in points, and how
-/// strongly it lies over the copy; how strongly a picture lies over the copy.
+/// strongly it lies over the copy.
 const OVERLAY_WIDTH: f32 = 12.0;
 const LEAST_OVERLAY: f32 = 4.0;
 const OVERLAY_SHOWN: f32 = 0.5;
-const PICTURE_SHOWN: f32 = 0.35;
-/// A picture's credit under its frame: its type size and its distance below, in canvas pixels.
+/// A picture's credit under its frame: its type size and its distance below, in canvas pixels of
+/// a session's frame.
 const CREDIT_SIZE: f32 = 9.0;
 const CREDIT_GAP: f32 = 6.0;
 
 /// The session's pictures as textures, uploaded as the store reads them (none: one that could not
-/// be read).
+/// be read), and its colour combinations' pictures.
 #[derive(Default)]
 pub(crate) struct SheetPictures {
     shown: Vec<(ItemRef, Option<TextureHandle>)>,
+    painted: paint_marks::PaintedPictures,
 }
 
 impl fmt::Debug for SheetPictures {
@@ -82,6 +85,7 @@ pub(crate) fn show_marks(
         return;
     };
     pictures.sync(ctx, &practice.images);
+    pictures.painted.sync(ctx, &practice.sheet.painted);
     let layer = egui::LayerId::new(Order::Background, egui::Id::new("practice sheet"));
     let painter = ctx.layer_painter(layer);
     let screen = ctx.content_rect();
@@ -89,11 +93,7 @@ pub(crate) fn show_marks(
     let line_width = (LINE_WIDTH * mapping.scale() / pixels_per_point).max(LEAST_LINE);
     let sheet = &practice.sheet;
     for (index, pair) in sheet.pairs.iter().enumerate().take(practice.revealed) {
-        let corners = |frame: &Frame| {
-            let [x, y] = frame.origin;
-            let side = frame.side;
-            [[x, y], [x + side, y], [x + side, y + side], [x, y + side]].map(at)
-        };
+        let corners = |frame: &Frame| frame.corners().map(at);
         let [original, copy] = [corners(&pair.original), corners(&pair.copy)];
         let shown = egui::Rect::from_points(&original).union(egui::Rect::from_points(&copy));
         if !shown.intersects(screen) {
@@ -112,31 +112,28 @@ pub(crate) fn show_marks(
                 }
             }
             Original::Colour(rgb) => {
-                painter.add(Shape::convex_polygon(
-                    original.to_vec(),
-                    colour(*rgb),
-                    Stroke::NONE,
-                ));
+                let swatch = Shape::convex_polygon(original.to_vec(), colour(*rgb), Stroke::NONE);
+                painter.add(swatch);
             }
             Original::Picture(_) => {
                 let scale = mapping.scale() / pixels_per_point;
                 let placed: (&dyn Fn([f64; 2]) -> Pos2, f32) = (&at, scale);
-                show_picture(
-                    &painter,
-                    practice,
-                    (index, &pair.original),
-                    placed,
-                    pictures,
-                );
+                let shown = (index, &pair.original);
+                show_picture(&painter, practice, shown, placed, pictures);
+            }
+            Original::Areas(_) | Original::Scale(_) => {
+                let painted = &pictures.painted;
+                paint_marks::show_original(&painter, practice, (index, pair), &at, painted);
             }
         }
         painter.add(Shape::closed_line(original.to_vec(), frame));
         painter.add(Shape::closed_line(copy.to_vec(), frame));
     }
+    let width = (OVERLAY_WIDTH * mapping.scale() / pixels_per_point).max(LEAST_OVERLAY);
     if let Some(overlay) = &practice.overlay {
-        let width = (OVERLAY_WIDTH * mapping.scale() / pixels_per_point).max(LEAST_OVERLAY);
         show_overlay(&painter, practice, overlay, (&at, width), pictures);
     }
+    paint_marks::show_probe(&painter, practice, &at);
 }
 
 /// Exercise `index`'s picture fitted in its `frame` (or that it is missing), its credit under the
@@ -173,11 +170,13 @@ fn show_picture(
     let left = at(frame.to_canvas([0.0, 1.0]));
     let right = at(frame.to_canvas([1.0, 1.0]));
     let angle = (right.y - left.y).atan2(right.x - left.x);
+    // In step with the frame: a colour copy's frame is four times a session's.
+    let grown = (frame.unit() / FRAME) as f32;
     let below = at([
         frame.origin[0],
-        frame.origin[1] + frame.side + f64::from(CREDIT_GAP),
+        frame.origin[1] + frame.size[1] + f64::from(CREDIT_GAP * grown),
     ]);
-    let size = CREDIT_SIZE * scale;
+    let size = CREDIT_SIZE * scale * grown;
     let width = left.distance(right);
     let galley = painter.layout(
         credit.clone(),
@@ -189,7 +188,7 @@ fn show_picture(
 }
 
 /// `texture` laid on the quad `corners` (top left, top right, bottom right, bottom left), tinted.
-fn quad(texture: &TextureHandle, corners: [Pos2; 4], tint: Color32) -> Shape {
+pub(crate) fn quad(texture: &TextureHandle, corners: [Pos2; 4], tint: Color32) -> Shape {
     let mut mesh = Mesh::with_texture(texture.id());
     let uv = [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]];
     for (pos, [u, v]) in corners.into_iter().zip(uv) {
@@ -225,10 +224,17 @@ fn show_overlay(
                 painter.add(Shape::line(points, Stroke::new(width, red)));
             }
         }
-        (Overlay::Picture { corners, outline }, Original::Picture(_)) => {
+        (
+            Overlay::Picture {
+                corners,
+                outline,
+                shown,
+            },
+            Original::Picture(_),
+        ) => {
             let item = practice.sheet.pictures[index].as_ref().map(|p| &p.item);
             if let Some(Some(texture)) = item.and_then(|item| pictures.texture(item)) {
-                let faint = Color32::WHITE.gamma_multiply(PICTURE_SHOWN);
+                let faint = Color32::WHITE.gamma_multiply(*shown);
                 painter.add(quad(texture, corners.map(|p| canvas(&p)), faint));
             }
             // An outline holds the shape's every turn: half a line's width keeps them apart.
@@ -240,8 +246,8 @@ fn show_overlay(
         (Overlay::Colour { original, last, .. }, Original::Colour(_)) => {
             // Each colour as a patch in the middle of the other's frame.
             let patch = |frame: &Frame| {
-                let [x, y] = frame.origin;
-                let (inset, side) = (frame.side / 4.0, frame.side / 2.0);
+                let [[x, y], _, [right, bottom], _] = frame.corners();
+                let (inset, side) = ((right - x) / 4.0, (bottom - y) / 2.0);
                 let [x, y] = [x + inset, y + inset];
                 vec![[x, y], [x + side, y], [x + side, y + side], [x, y + side]]
                     .into_iter()
@@ -259,10 +265,14 @@ fn show_overlay(
                 Stroke::NONE,
             ));
         }
+        (Overlay::Areas { .. } | Overlay::Scale(_), _) => {
+            let painted = &pictures.painted;
+            paint_marks::show_overlay(painter, practice, overlay, (at, width), painted);
+        }
         _ => {}
     }
 }
 
-fn colour([r, g, b]: Rgb8) -> Color32 {
+pub(crate) fn colour([r, g, b]: Rgb8) -> Color32 {
     Color32::from_rgb(r, g, b)
 }

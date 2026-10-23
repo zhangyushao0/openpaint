@@ -17,6 +17,10 @@
 //! - Then (1.4.0 on, only when it holds any) the pictures single shapes copy: a count (u32) and
 //!   each one's exercise (u32) and picture, its pack's id and its item's id (strings). A record
 //!   without ends before them, as 1.3.0 wrote it.
+//!
+//! 1.5.0 adds no field: kinds 5 to 7 (colour combinations, value scales, a colour copy), metric
+//! codes 29 to 34, and a long colour copy as a record of stage 0 (`PROJECT`) holding its one
+//! exercise and its picture (D104).
 
 use std::collections::HashSet;
 
@@ -271,6 +275,33 @@ mod tests {
         let at = without.len() + 4;
         far[at..at + 4].copy_from_slice(&99u32.to_le_bytes());
         assert!(decode_session(&practice_key(7), &far).is_err());
+    }
+
+    #[test]
+    fn week_two_s_colour_work_and_a_long_colour_copy_round_trip() {
+        use openpaint_practice::{Arrangement, Plan, ScaleTone};
+        let plan = Plan {
+            exercises: vec![
+                Exercise::generated(Kind::Areas(Arrangement::Blocks), 3),
+                Exercise::generated(Kind::Scale(ScaleTone::Hue), 4),
+            ],
+            warm_up: 0,
+        };
+        let mut session = SessionRecord::begun(9, (2, 4), (11, 12), plan);
+        let areas = [(Metric::AreasDelta, 0.04), (Metric::AreasMadeStrong, 1.0)];
+        let scale = [(Metric::ScaleOff, 0.03), (Metric::ScaleReversed, 2.0)];
+        (session.results).push(ExerciseResult::first(0, 13, 7, areas.to_vec()));
+        (session.results).push(ExerciseResult::first(1, 14, 9, scale.to_vec()));
+        let bytes = encode_session(&session);
+        assert_eq!(decode_session(&practice_key(9), &bytes), Ok(session));
+        let picture = ItemRef {
+            pack: "openpaint-shapes".to_owned(),
+            item: "teapot-bail".to_owned(),
+        };
+        let copy = SessionRecord::project(10, 1, (5, 6), picture);
+        let read = decode_session(&practice_key(10), &encode_session(&copy));
+        assert!(read.as_ref().is_ok_and(SessionRecord::is_project));
+        assert_eq!(read, Ok(copy));
     }
 
     #[test]

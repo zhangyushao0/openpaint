@@ -2,9 +2,73 @@
 //! beside the sessions before it.
 
 use openpaint_practice::{
-    Axis, Combination, ExerciseResult, Family, Kind, LineTier, Metric, SessionRecord, Tone, met,
-    summary,
+    Arrangement, Axis, Combination, Exercise, ExerciseResult, Family, ItemRef, Kind, LineTier,
+    Metric, PROJECT, Plan, ScaleTone, SessionRecord, Tone, met, summary, used,
 };
+
+#[test]
+fn a_long_colour_copy_is_kept_beside_the_sessions_and_counts_in_none() {
+    let item = ItemRef {
+        pack: "test-shapes".to_owned(),
+        item: "teapot".to_owned(),
+    };
+    let mut copy = SessionRecord::project(5, 2, (77, 100), item.clone());
+    assert!(copy.is_project());
+    assert_eq!((copy.stage, copy.number, copy.warm_up), (PROJECT, 2, 0));
+    assert_eq!(copy.exercises.len(), 1);
+    assert_eq!(copy.exercises[0].kind, Kind::Study);
+    assert_eq!(copy.exercises[0].picture, Some(item));
+    copy.results.push(checked(0, Vec::new()));
+    assert!(
+        met(std::slice::from_ref(&copy)).is_empty(),
+        "no warm-up from a copy"
+    );
+    assert!(used(std::slice::from_ref(&copy)).is_empty());
+    assert!(!SessionRecord::stage_one(1, 1, 7, 0, &[]).is_project());
+}
+
+#[test]
+fn the_summary_sets_combinations_and_scales_beside_the_earlier_ones() {
+    let plan = Plan {
+        exercises: vec![
+            Exercise::generated(Kind::Areas(Arrangement::Strata), 1),
+            Exercise::generated(Kind::Scale(ScaleTone::Grey), 2),
+        ],
+        warm_up: 0,
+    };
+    let mut before = SessionRecord::begun(1, (2, 1), (5, 0), plan.clone());
+    before.results = vec![checked(
+        0,
+        vec![(Metric::AreasDelta, 0.08), (Metric::AreasMadeStrong, 2.0)],
+    )];
+    let mut this = SessionRecord::begun(2, (2, 2), (6, 0), plan);
+    this.results = vec![
+        checked(
+            0,
+            vec![(Metric::AreasDelta, 0.05), (Metric::AreasMadeStrong, 0.0)],
+        ),
+        checked(
+            1,
+            vec![(Metric::ScaleOff, 0.04), (Metric::ScaleReversed, 1.0)],
+        ),
+    ];
+    let kinds = summary(&this, &[&before]);
+    let families: Vec<Family> = kinds.iter().map(|k| k.family).collect();
+    assert_eq!(families, [Family::Areas, Family::Scale]);
+    assert_eq!(
+        kinds[0].rows[0],
+        (Metric::AreasDelta, Some(0.05), Some(0.08))
+    );
+    assert_eq!(
+        kinds[0].rows[1],
+        (Metric::AreasMadeStrong, Some(0.0), Some(2.0))
+    );
+    assert_eq!(kinds[1].rows[0], (Metric::ScaleOff, Some(0.04), None));
+    assert!(
+        kinds.iter().all(|k| k.judgement.is_none()),
+        "the radar is the colours'"
+    );
+}
 
 fn checked(index: u32, metrics: Vec<(Metric, f64)>) -> ExerciseResult {
     ExerciseResult::first(index, 1_791_201_600, 40, metrics)

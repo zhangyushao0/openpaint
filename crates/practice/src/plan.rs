@@ -1,14 +1,17 @@
 //! What a session holds and where it lies: the stages, an exercise's kind and seed (and a single
-//! shape's picture), the stages' sessions (`session.rs`), and the sheet the app lays the exercises
-//! out on, a pair of frames each (the original at the left, the empty frame for the copy at its
-//! right), three pairs a row; a picture fitted inside its frame.
+//! shape's or a colour copy's picture), the stages' sessions (`session.rs`), and the sheet the app
+//! lays the exercises out on, a pair of frames each (the original at the left, the empty frame
+//! for the copy at its right), three pairs a row; a long colour copy's sheet, one pair of frames
+//! shaped as its picture; a picture fitted inside its frame.
 
+use crate::areas::{Areas, Arrangement};
 use crate::colour::Rgb8;
 use crate::colour_match::Tone;
 use crate::combined::{Combination, CombinedLines};
 use crate::line::{LineExercise, LineTier};
 use crate::pack::{ItemRef, Tier};
 use crate::path::Point;
+use crate::scale::{ScaleTone, ValueScale};
 
 /// The course's stages, after V大's eight weeks.
 pub const STAGES: u8 = 8;
@@ -21,6 +24,8 @@ pub const PICTURE_MARGIN: f64 = 0.05;
 
 /// A frame's side on the sheet, in canvas pixels.
 pub const FRAME: f64 = 400.0;
+/// A long colour copy's frames' longer side, in canvas pixels: room for 10 to 20 hours of detail.
+pub const STUDY_SIDE: f64 = 1600.0;
 /// Between the original's frame and the copy's.
 const PAIR_GAP: f64 = 40.0;
 /// Between pairs, across and down, and round the sheet's edge.
@@ -41,6 +46,13 @@ pub enum Kind {
     Combined(Combination),
     /// One object's picture of a tier, copied by its outline as a line drawing.
     Shape(Tier),
+    /// A small abstract picture of a few colour areas, copied by eye (V大's 临摹色彩组合).
+    Areas(Arrangement),
+    /// A row of cells between a given dark and light, filled in even steps of value.
+    Scale(ScaleTone),
+    /// A long colour copy of a picture (V大's 色彩临摹): a project beside the sessions, never
+    /// one of their exercises.
+    Study,
 }
 
 /// What an exercise asks for, whatever its variant: its instructions, its tools, its line in
@@ -51,23 +63,43 @@ pub enum Family {
     Combined,
     Shape,
     Colour,
+    Areas,
+    Scale,
+    Study,
 }
 
 impl Family {
     /// In a warm-up's order.
-    pub const ALL: [Self; 4] = [Self::Line, Self::Combined, Self::Shape, Self::Colour];
+    pub const ALL: [Self; 7] = [
+        Self::Line,
+        Self::Combined,
+        Self::Shape,
+        Self::Colour,
+        Self::Areas,
+        Self::Scale,
+        Self::Study,
+    ];
 
-    /// Whether its exercises are drawn (with the pens, compared by overlay), not coloured.
+    /// Whether its exercises are drawn with the pens as lines and compared by overlay (lines,
+    /// combined lines, single shapes), not coloured.
     #[must_use]
     pub const fn drawn(self) -> bool {
-        !matches!(self, Self::Colour)
+        matches!(self, Self::Line | Self::Combined | Self::Shape)
+    }
+
+    /// Whether its exercises are painted with brushes and read from the copy's pixels (colour
+    /// combinations, value scales, colour copies).
+    #[must_use]
+    pub const fn painted(self) -> bool {
+        matches!(self, Self::Areas | Self::Scale | Self::Study)
     }
 }
 
 impl Kind {
     /// The kind and its variant as stored: (1, tier) for a line, (2, tone) for a colour, (3,
-    /// arrangement) for combined lines, (4, the picture's tier code) for a single shape. A code
-    /// names one generator for good; a changed generator is a new code.
+    /// arrangement) for combined lines, (4, the picture's tier code) for a single shape, (5,
+    /// arrangement) for a colour combination, (6, tone) for a value scale, (7, 0) for a colour
+    /// copy. A code names one generator for good; a changed generator is a new code.
     #[must_use]
     pub fn code(self) -> (u8, u8) {
         let index = |found: Option<usize>| found.unwrap_or(0) as u8;
@@ -79,6 +111,12 @@ impl Kind {
                 (3, index(at))
             }
             Self::Shape(tier) => (4, tier.code()),
+            Self::Areas(arrangement) => {
+                let at = Arrangement::ALL.iter().position(|a| *a == arrangement);
+                (5, index(at))
+            }
+            Self::Scale(tone) => (6, index(ScaleTone::ALL.iter().position(|t| *t == tone))),
+            Self::Study => (7, 0),
         }
     }
 
@@ -90,6 +128,9 @@ impl Kind {
             2 => Tone::of_code(variant).map(Self::Colour),
             3 => Combination::ALL.get(at).map(|c| Self::Combined(*c)),
             4 => Tier::of_code(variant).map(Self::Shape),
+            5 => Arrangement::ALL.get(at).map(|a| Self::Areas(*a)),
+            6 => ScaleTone::ALL.get(at).map(|t| Self::Scale(*t)),
+            7 => (variant == 0).then_some(Self::Study),
             _ => None,
         }
     }
@@ -101,12 +142,15 @@ impl Kind {
             Self::Colour(_) => Family::Colour,
             Self::Combined(_) => Family::Combined,
             Self::Shape(_) => Family::Shape,
+            Self::Areas(_) => Family::Areas,
+            Self::Scale(_) => Family::Scale,
+            Self::Study => Family::Study,
         }
     }
 }
 
-/// One exercise: its kind, the seed it is generated from and, for a single shape, the picture
-/// it copies.
+/// One exercise: its kind, the seed it is generated from and, for a single shape or a colour
+/// copy, the picture it copies.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Exercise {
     pub kind: Kind,
@@ -136,7 +180,11 @@ impl Exercise {
             Kind::Combined(combination) => {
                 Original::Lines(CombinedLines::generate(combination, self.seed).lines)
             }
-            Kind::Shape(_) => Original::Picture(self.picture.clone().unwrap_or_default()),
+            Kind::Shape(_) | Kind::Study => {
+                Original::Picture(self.picture.clone().unwrap_or_default())
+            }
+            Kind::Areas(arrangement) => Original::Areas(Areas::generate(arrangement, self.seed)),
+            Kind::Scale(tone) => Original::Scale(ValueScale::generate(tone, self.seed)),
         }
     }
 }
@@ -150,9 +198,14 @@ pub enum Original {
     Colour(Rgb8),
     /// A pack's picture (an empty reference: none was kept).
     Picture(ItemRef),
+    /// A colour combination's areas.
+    Areas(Areas),
+    /// A value scale's ends and cells.
+    Scale(ValueScale),
 }
 
-/// Where a picture lies in its frame: evenly scaled to fit inside `PICTURE_MARGIN`, centred.
+/// Where a picture lies in its frame: evenly scaled to fit inside `PICTURE_MARGIN`, centred, or
+/// filling a frame of its own shape.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PictureFit {
     /// Frame units per picture pixel.
@@ -164,7 +217,7 @@ pub struct PictureFit {
 }
 
 impl PictureFit {
-    /// The fit of a picture of `size` pixels.
+    /// The fit of a picture of `size` pixels in a square frame.
     #[must_use]
     pub fn of(size: [u32; 2]) -> Self {
         let [width, height] = size.map(|side| f64::from(side.max(1)));
@@ -178,6 +231,17 @@ impl PictureFit {
         }
     }
 
+    /// The fit of a picture of `size` pixels filling a frame of its own shape (a colour copy's).
+    #[must_use]
+    pub fn filling(size: [u32; 2]) -> Self {
+        let [width, height] = size.map(|side| f64::from(side.max(1)));
+        Self {
+            scale: 1.0 / width,
+            origin: [0.0, 0.0],
+            size: [1.0, height / width],
+        }
+    }
+
     /// The frame point of the picture's pixel point `p`.
     #[must_use]
     pub fn to_frame(&self, p: Point) -> Point {
@@ -186,22 +250,48 @@ impl PictureFit {
             self.origin[1] + p[1] * self.scale,
         ]
     }
+
+    /// The picture's pixel point of the frame point `p`.
+    #[must_use]
+    pub fn to_picture(&self, p: Point) -> Point {
+        [
+            (p[0] - self.origin[0]) / self.scale,
+            (p[1] - self.origin[1]) / self.scale,
+        ]
+    }
 }
 
-/// A square frame on the sheet, in canvas pixels.
+/// A frame on the sheet, in canvas pixels: square, or a colour copy's of its picture's shape.
+/// Frame units run evenly on both axes, one to the frame's width.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Frame {
     pub origin: Point,
-    pub side: f64,
+    /// Width and height.
+    pub size: Point,
 }
 
 impl Frame {
+    /// A square frame of `side` pixels at `origin`.
+    #[must_use]
+    pub const fn square(origin: Point, side: f64) -> Self {
+        Self {
+            origin,
+            size: [side, side],
+        }
+    }
+
+    /// Canvas pixels per frame unit: the frame's width.
+    #[must_use]
+    pub const fn unit(&self) -> f64 {
+        self.size[0]
+    }
+
     /// The canvas point of the frame point `p` (frame units).
     #[must_use]
     pub fn to_canvas(&self, p: Point) -> Point {
         [
-            self.origin[0] + p[0] * self.side,
-            self.origin[1] + p[1] * self.side,
+            self.origin[0] + p[0] * self.unit(),
+            self.origin[1] + p[1] * self.unit(),
         ]
     }
 
@@ -209,8 +299,8 @@ impl Frame {
     #[must_use]
     pub fn to_frame(&self, p: Point) -> Point {
         [
-            (p[0] - self.origin[0]) / self.side,
-            (p[1] - self.origin[1]) / self.side,
+            (p[0] - self.origin[0]) / self.unit(),
+            (p[1] - self.origin[1]) / self.unit(),
         ]
     }
 
@@ -219,8 +309,15 @@ impl Frame {
     pub fn contains(&self, p: Point, margin: f64) -> bool {
         (0..2).all(|axis| {
             p[axis] >= self.origin[axis] - margin
-                && p[axis] <= self.origin[axis] + self.side + margin
+                && p[axis] <= self.origin[axis] + self.size[axis] + margin
         })
+    }
+
+    /// Its corners, top left first, clockwise, in canvas pixels.
+    #[must_use]
+    pub fn corners(&self) -> [Point; 4] {
+        let ([x, y], [w, h]) = (self.origin, self.size);
+        [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]
     }
 }
 
@@ -236,8 +333,8 @@ impl Pair {
     #[must_use]
     pub fn centre(&self) -> Point {
         [
-            (self.original.origin[0] + self.copy.origin[0] + self.copy.side) / 2.0,
-            self.original.origin[1] + self.original.side / 2.0,
+            (self.original.origin[0] + self.copy.origin[0] + self.copy.size[0]) / 2.0,
+            self.original.origin[1] + self.original.size[1] / 2.0,
         ]
     }
 }
@@ -263,14 +360,8 @@ impl Sheet {
                 let x = EDGE + column * (pair_width + COLUMN_GAP);
                 let y = EDGE + row * (FRAME + ROW_GAP);
                 Pair {
-                    original: Frame {
-                        origin: [x, y],
-                        side: FRAME,
-                    },
-                    copy: Frame {
-                        origin: [x + FRAME + PAIR_GAP, y],
-                        side: FRAME,
-                    },
+                    original: Frame::square([x, y], FRAME),
+                    copy: Frame::square([x + FRAME + PAIR_GAP, y], FRAME),
                 }
             })
             .collect();
@@ -279,6 +370,28 @@ impl Sheet {
         Self {
             size: [width as u32, height as u32],
             pairs,
+        }
+    }
+
+    /// A long colour copy's sheet for a picture of `picture` pixels: one pair of frames of the
+    /// picture's shape, their longer side `STUDY_SIDE`.
+    #[must_use]
+    pub fn study(picture: [u32; 2]) -> Self {
+        let [width, height] = picture.map(|side| f64::from(side.max(1)));
+        let scale = STUDY_SIDE / width.max(height);
+        let size = [(width * scale).round(), (height * scale).round()];
+        let original = Frame {
+            origin: [EDGE, EDGE],
+            size,
+        };
+        let copy = Frame {
+            origin: [EDGE + size[0] + PAIR_GAP, EDGE],
+            size,
+        };
+        let sheet = [2.0 * EDGE + 2.0 * size[0] + PAIR_GAP, 2.0 * EDGE + size[1]];
+        Self {
+            size: sheet.map(|side| side as u32),
+            pairs: vec![Pair { original, copy }],
         }
     }
 }

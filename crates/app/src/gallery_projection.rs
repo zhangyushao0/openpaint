@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use crate::gallery::GalleryNotice;
-use crate::practice::TodayProjection;
+use crate::practice_log::TodayProjection;
 use crate::project::ProjectSummary;
 use crate::projection::Availability;
 

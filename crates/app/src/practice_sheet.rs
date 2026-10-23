@@ -1,18 +1,20 @@
 //! The open practice sheet's flow (`practice.rs`): which exercise shows, where the pen may draw
-//! (strokes and fills only in its empty frame, clipped to it), what the eyedropper may read (an
-//! original only once compared), the exercise's own tools or the full interface, the pen drawn
-//! exercises are drawn with (a single line, combined lines, a single shape), Compare and its
-//! overlay (`practice_compare.rs`), Next (the view glides to the next pair at its zoom,
+//! (strokes and fills only in its empty frame, or a value scale's cell, clipped to it), the
+//! exercise's own tools or the full interface, the pen drawn exercises are drawn with (a single
+//! line, combined lines, a single shape) or painted ones painted with (a colour combination, a
+//! value scale), Compare and its overlay (`practice_compare.rs`), a painted copy's reading and the
+//! eyedropper (`practice_read.rs`), Next (the view glides to the next pair at its zoom,
 //! `practice_view.rs`; after the last the session ends over the whole sheet), the instructions
 //! (by themselves the first time a family comes up), the summary and the notices; the session's
-//! pictures as the store reads them. The session record changes here and goes to the store
+//! pictures as the store reads them. A long colour copy is a sheet of one pair, the full
+//! interface showing at first and no Next. The session record changes here and goes to the store
 //! whenever it did (`save_request`).
 
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use openpaint_core::{Artwork, CanvasSize, Color, RegionMask, StrokeStyle, StrokeTool};
-use openpaint_practice::{Family, ItemRef, Original, Pair, SessionRecord, summary};
+use openpaint_core::{Artwork, CanvasSize, RegionMask, StrokeStyle, StrokeTool};
+use openpaint_practice::{Family, Frame, ItemRef, Original, Pair, SessionRecord, summary};
 
 use crate::error::AppError;
 use crate::practice::{Pen, PracticeIntent, PracticeNotice, PracticeProjection, SheetView};
@@ -28,23 +30,16 @@ pub type Practising = (SessionRecord, Vec<SessionRecord>, SheetView);
 
 #[path = "practice_compare.rs"]
 mod compare;
+#[path = "practice_read.rs"]
+mod read;
 #[path = "practice_view.rs"]
 mod view;
 
+pub use read::{PracticePick, ReadJob};
 pub use view::PRACTICE_ROOM;
 
 use compare::Compared;
-
-/// What the eyedropper reads at a point of a practice sheet.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum PracticePick {
-    /// The canvas, as anywhere.
-    Canvas,
-    /// Nothing: an original not compared yet.
-    Refused,
-    /// A compared swatch's colour.
-    Colour(Color),
-}
+use read::Painting;
 
 #[derive(Debug)]
 pub(crate) struct PracticeSheet {
@@ -54,7 +49,8 @@ pub(crate) struct PracticeSheet {
     sheet: Arc<SheetView>,
     canvas: CanvasSize,
     pens: PracticePens,
-    /// The shown exercise's empty frame, which strokes and fills stay inside.
+    /// What strokes and fills stay inside: the shown exercise's empty frame, or a value scale's
+    /// cell.
     clip: Option<RegionMask>,
     /// While comparing: the check as the last Compare found the copy.
     compared: Option<Compared>,
@@ -62,19 +58,24 @@ pub(crate) struct PracticeSheet {
     aligned: bool,
     /// The full interface shows, else the exercise's own tools.
     all_tools: bool,
-    /// The pen lines are drawn with, and the last of Sketch and Draw chosen.
+    /// The pen the exercise draws or paints with now, the last of Sketch and Draw chosen and the
+    /// last painting pen chosen.
     pen: Pen,
     drawing: Pen,
+    painting: Pen,
     instructions: Option<Family>,
     /// Whether each family's instructions (`Family::ALL`'s order) showed by themselves already,
     /// or need not: a family compared before or in the warm-up.
-    told: [bool; 4],
+    told: [bool; 7],
     notice: Option<PracticeNotice>,
     /// The record changed since the store last got it.
     changed: bool,
     /// The aligned fit for the worker, and how many were asked.
     fit_job: Option<FitJob>,
     fits: u64,
+    /// A painted exercise's state: how much of the original shows, the area compared, the
+    /// value scale's cell, the copy's pixels asked for, the eyedropper's comparison.
+    painting_state: Painting,
     /// The pictures read (none: unreadable) and those asked of the store.
     images: Vec<(ItemRef, Option<Arc<PictureImage>>)>,
     asked: HashSet<ItemRef>,
@@ -100,6 +101,7 @@ impl PracticeSheet {
         };
         let mut practice = Self {
             told: Family::ALL.map(done),
+            all_tools: record.is_project(),
             record,
             before,
             sheet,
@@ -108,14 +110,15 @@ impl PracticeSheet {
             clip: None,
             compared: None,
             aligned: false,
-            all_tools: false,
             pen: Pen::Draw,
             drawing: Pen::Draw,
+            painting: Pen::Big,
             instructions: None,
             notice: None,
             changed: false,
             fit_job: None,
             fits: 0,
+            painting_state: Painting::default(),
             images: Vec::new(),
             asked: HashSet::new(),
         };
@@ -149,43 +152,47 @@ impl PracticeSheet {
         self.sheet.pairs.get(index)
     }
 
-    /// Whether exercise `index` is drawn with the pens (lines, a group, a single shape).
-    fn drawn(&self, index: usize) -> bool {
-        matches!(
-            self.sheet.originals.get(index),
-            Some(Original::Lines(_) | Original::Picture(_))
-        )
-    }
-
-    /// Whether Aligned can be chosen for exercise `index`: lines, or a picture with an outline.
-    fn aligned_offered(&self, index: usize) -> bool {
-        match self.sheet.originals.get(index) {
-            Some(Original::Lines(_)) => true,
-            Some(Original::Picture(_)) => (self.sheet.pictures.get(index))
-                .is_some_and(|p| p.as_ref().is_some_and(|p| p.outline.is_some())),
-            _ => false,
-        }
-    }
-
     fn family(&self, index: usize) -> Option<Family> {
         let exercise = self.record.exercises.get(index)?;
         Some(exercise.kind.family())
     }
 
-    /// An exercise came to show: its frame becomes the clip; lines compared before are
-    /// corrected in blue, others drawn with the pen last chosen; its family's instructions show
-    /// by themselves the first time.
+    /// Whether exercise `index` is drawn with the pens as lines (lines, a group, a single shape).
+    fn drawn(&self, index: usize) -> bool {
+        self.family(index).is_some_and(Family::drawn)
+    }
+
+    /// Whether Aligned can be chosen for exercise `index`: lines, or a shape's picture with an
+    /// outline.
+    fn aligned_offered(&self, index: usize) -> bool {
+        match self.sheet.originals.get(index) {
+            Some(Original::Lines(_)) => true,
+            Some(Original::Picture(_)) => {
+                self.drawn(index)
+                    && (self.sheet.pictures.get(index))
+                        .is_some_and(|p| p.as_ref().is_some_and(|p| p.outline.is_some()))
+            }
+            _ => false,
+        }
+    }
+
+    /// An exercise came to show: its frame (a value scale's first cell) becomes the clip; lines
+    /// compared before are corrected in blue, others drawn with the pen last chosen, painted
+    /// exercises painted with the painting pen last chosen; its family's instructions show by
+    /// themselves the first time.
     fn shown(&mut self) {
-        self.clip = self.current().and_then(|index| {
-            let frame = self.sheet.pairs[index].copy;
-            let [x, y] = frame.origin.map(|v| v as f32);
-            let side = frame.side as f32;
-            let corners = [[x, y], [x + side, y], [x + side, y + side], [x, y + side]];
-            RegionMask::polygon(self.canvas, &corners)
-        });
+        self.painting_state = Painting::default();
+        let frame = self.current().map(|index| self.sheet.pairs[index].copy);
+        self.clip = frame.and_then(|frame| self.region(&frame));
         let compared = (self.current()).is_some_and(|index| self.record.result(index).is_some());
-        self.pen = if compared { Pen::Correct } else { self.drawing };
-        if let Some(family) = self.current().and_then(|index| self.family(index)) {
+        let family = self.current().and_then(|index| self.family(index));
+        self.pen = match family {
+            Some(family) if !family.drawn() => self.painting,
+            _ if compared => Pen::Correct,
+            _ => self.drawing,
+        };
+        self.painted_shown();
+        if let Some(family) = family {
             let at = Family::ALL.iter().position(|f| *f == family).unwrap_or(0);
             if !self.told[at] {
                 self.told[at] = true;
@@ -194,29 +201,40 @@ impl PracticeSheet {
         }
     }
 
+    /// `frame`'s region of the canvas.
+    fn region(&self, frame: &Frame) -> Option<RegionMask> {
+        let corners = frame.corners().map(|p| p.map(|v| v as f32));
+        RegionMask::polygon(self.canvas, &corners)
+    }
+
     /// What strokes and fills stay inside.
     pub(crate) fn clip(&self) -> Option<&RegionMask> {
         self.clip.as_ref()
     }
 
     /// The style the next stroke takes instead of the toolbox's `brush`: the pen chosen, while
-    /// lines show with their own tools and the toolbox paints (its eraser, held or chosen,
-    /// erases).
+    /// the exercise's own tools show and the toolbox paints (its eraser, held or chosen,
+    /// erases); a painting pen in `brush`'s colour. A colour is filled, not painted.
     pub(crate) fn pen_style(&self, brush: &StrokeStyle) -> Option<StrokeStyle> {
-        let index = self.current()?;
-        let pens = !self.all_tools && self.drawn(index) && brush.tool() == StrokeTool::Paint;
-        pens.then(|| self.pens.style(self.pen).clone())
+        let family = self.family(self.current()?)?;
+        let pens = !self.all_tools && family != Family::Colour && brush.tool() == StrokeTool::Paint;
+        pens.then(|| self.pens.stroke(self.pen, brush.color()))
     }
 
     /// Whether a pen landing at `point` (canvas pixels) may draw; if not, the notice says why.
-    /// Drawing in the frame takes the comparison away: a correction is made by eye.
+    /// Drawing in the frame takes the comparison away: a correction is made by eye. On a value
+    /// scale the cell it lands in is the one it paints.
     pub(crate) fn may_draw(&mut self, point: [f32; 2]) -> bool {
         let point = point.map(f64::from);
         let notice = match self.current() {
             None => Some(PracticeNotice::Done),
             Some(index) => {
                 let frame = self.sheet.pairs[index].copy;
-                (!frame.contains(point, MARGIN * frame.side)).then_some(PracticeNotice::DrawInFrame)
+                if frame.contains(point, MARGIN * frame.unit()) {
+                    self.take_cell(index, frame.to_frame(point))
+                } else {
+                    Some(PracticeNotice::DrawInFrame)
+                }
             }
         };
         // A stroke that may begin lets an earlier refusal's notice go.
@@ -225,29 +243,6 @@ impl PracticeSheet {
             self.laid();
         }
         notice.is_none()
-    }
-
-    /// What the eyedropper reads at `point` (canvas pixels).
-    pub(crate) fn pick(&mut self, point: [f32; 2]) -> PracticePick {
-        let point = point.map(f64::from);
-        let revealed = self.revealed();
-        let over = self.sheet.pairs[..revealed]
-            .iter()
-            .position(|pair| pair.original.contains(point, 0.0));
-        let Some(index) = over else {
-            return PracticePick::Canvas;
-        };
-        if self.record.result(index).is_none() {
-            self.notice = Some(PracticeNotice::PickAfterCompare);
-            return PracticePick::Refused;
-        }
-        match self.sheet.originals[index] {
-            Original::Colour(rgb) => {
-                let [r, g, b] = rgb.map(|c| f32::from(c) / 255.0);
-                Color::rgb(r, g, b).map_or(PracticePick::Canvas, PracticePick::Colour)
-            }
-            Original::Lines(_) | Original::Picture(_) => PracticePick::Canvas,
-        }
     }
 
     /// Pairs shown: up to the one shown, or all once the session is done.
@@ -280,9 +275,11 @@ impl PracticeSheet {
                 }
                 self.aligned = on;
             }
+            PracticeIntent::Shown(share) => self.painting_state.shown = share.clamp(0.0, 1.0),
+            PracticeIntent::Area(area) => self.choose_area(area)?,
             PracticeIntent::Pen(pen) => self.choose(pen)?,
             PracticeIntent::AllTools(on) => self.all_tools = on,
-            PracticeIntent::Next(viewport) => self.next(view, &viewport, now),
+            PracticeIntent::Next(viewport) => self.next(view, &viewport, now)?,
             PracticeIntent::OneMore => {
                 if self.current().is_some() {
                     return Err(unavailable(Availability::Running));
@@ -294,23 +291,43 @@ impl PracticeSheet {
         Ok(())
     }
 
-    /// Lines are drawn with `pen` from now on; the blue one only once the line was compared.
+    /// The shown exercise is drawn or painted with `pen` from now on: a drawing pen for lines and
+    /// shapes (the blue one only once compared), a painting pen for painted exercises.
     fn choose(&mut self, pen: Pen) -> Result<(), AppError> {
-        let compared = (self.current()).is_some_and(|index| self.record.result(index).is_some());
-        if pen == Pen::Correct && !compared {
+        let index = self
+            .current()
+            .ok_or(unavailable(Availability::NothingLeft))?;
+        let compared = self.record.result(index).is_some();
+        let fits = if self.drawn(index) {
+            !pen.paints() && (pen != Pen::Correct || compared)
+        } else {
+            pen.paints()
+        };
+        if !fits {
             return Err(unavailable(Availability::NothingLeft));
         }
         self.pen = pen;
-        if pen != Pen::Correct {
+        if pen.paints() {
+            self.painting = pen;
+        } else if pen != Pen::Correct {
             self.drawing = pen;
         }
         Ok(())
     }
 
-    fn next(&mut self, view: &mut CanvasView, viewport: &Viewport, now: u64) {
+    fn next(
+        &mut self,
+        view: &mut CanvasView,
+        viewport: &Viewport,
+        now: u64,
+    ) -> Result<(), AppError> {
         let Some(index) = self.current() else {
-            return;
+            return Ok(());
         };
+        if self.record.is_project() {
+            // A colour copy is worked on whenever the user likes; it never ends with Next.
+            return Err(unavailable(Availability::NothingLeft));
+        }
         (self.compared, self.instructions, self.notice) = (None, None, None);
         self.fit_job = None;
         if index + 1 < self.sheet.pairs.len() {
@@ -324,6 +341,7 @@ impl PracticeSheet {
         }
         self.changed = true;
         self.shown();
+        Ok(())
     }
 
     /// The record for the store, once after each change.
@@ -368,6 +386,8 @@ impl PracticeSheet {
             aligned_offered: current.is_some_and(|index| self.aligned_offered(index)),
             fitting: self.fitting(),
             images: self.images.clone(),
+            cell: self.cell(),
+            probe: self.probe(),
         }
     }
 }

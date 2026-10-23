@@ -31,8 +31,8 @@ import android.view.MotionEvent
  * `-e lose device` loses the GPU device on purpose ([DebugControls.loseDevice]); `-e bench
  * <scenario>` answers a scenario benchmark ([DebugControls.bench]); `-e open-file <path>` opens
  * a pushed OpenPaint file as a new artwork without the picker ([DebugControls.openFile]);
- * `-e practice-test start|start:<stage>|end:<name>` starts or removes a test practice session
- * ([DebugControls.practiceTest]). A question is answered with `gesture=answered`.
+ * `-e practice-test start|start:<stage>|start:copy|end:<name>` starts or removes a test practice
+ * session or colour copy ([DebugControls.practiceTest]). A question is answered with `gesture=answered`.
  */
 class GestureInstrumentation : Instrumentation() {
     private var arguments = Bundle()

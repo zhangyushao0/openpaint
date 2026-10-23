@@ -2,9 +2,9 @@
 //! every kind met, and a shape's outline aligned onto a copy with lines inside it.
 
 use openpaint_practice::{
-    Before, Combination, Exercise, Family, Fit, ItemRef, Kind, LineTier, PERSONAL, PERSONAL_TIER,
-    Pack, PackItem, PictureKind, Pictures, Point, Tier, Tone, WARM_UP, align_shape, plan,
-    stage_two,
+    Arrangement, Before, Combination, Exercise, Family, Fit, ItemRef, Kind, LineTier, PERSONAL,
+    PERSONAL_TIER, Pack, PackItem, PictureKind, Pictures, Point, ScaleTone, Tier, Tone,
+    WARM_UP_TWO, align_shape, plan, stage_two,
 };
 
 fn item(id: &str, tier: Tier) -> PackItem {
@@ -60,7 +60,7 @@ fn shapes(exercises: &[Exercise]) -> Vec<(Tier, ItemRef)> {
 }
 
 #[test]
-fn a_first_stage_two_session_is_four_shapes_of_the_easy_tiers_a_group_and_two_colours() {
+fn a_first_stage_two_session_is_four_shapes_of_the_easy_tiers_then_week_two_s_colour_work() {
     let all = pictures(&Tier::ALL, 5, 0);
     let plan = stage_two(1, 0x5EED_0045, &before(&[], &all, &[]));
     assert_eq!(
@@ -75,8 +75,8 @@ fn a_first_stage_two_session_is_four_shapes_of_the_easy_tiers_a_group_and_two_co
         Family::Shape,
         Family::Shape,
         Family::Shape,
-        Family::Combined,
-        Family::Colour,
+        Family::Areas,
+        Family::Scale,
         Family::Colour,
     ];
     assert_eq!(families, expected);
@@ -112,6 +112,30 @@ fn a_first_stage_two_session_is_four_shapes_of_the_easy_tiers_a_group_and_two_co
         later(14),
         [Tier::Simple, Tier::Medium, Tier::Medium, Tier::Hard]
     );
+}
+
+#[test]
+fn the_combination_s_arrangement_and_the_scale_s_tone_come_in_turn() {
+    let all = pictures(&Tier::ALL, 5, 0);
+    let colour_work = |number| -> Vec<Kind> {
+        let plan = stage_two(number, 9, &before(&[], &all, &[]));
+        plan.exercises[4..6].iter().map(|e| e.kind).collect()
+    };
+    assert_eq!(
+        colour_work(1),
+        [
+            Kind::Areas(Arrangement::Strata),
+            Kind::Scale(ScaleTone::Grey)
+        ]
+    );
+    assert_eq!(
+        colour_work(2),
+        [
+            Kind::Areas(Arrangement::Patches),
+            Kind::Scale(ScaleTone::Hue)
+        ]
+    );
+    assert_eq!(colour_work(3)[0], Kind::Areas(Arrangement::Blocks));
 }
 
 #[test]
@@ -157,7 +181,52 @@ fn a_tier_without_pictures_falls_back_and_no_pictures_means_no_shapes() {
     assert!(none.is_empty());
     let plan = stage_two(1, 3, &before(&[], &none, &[]));
     assert!(shapes(&plan.exercises).is_empty());
-    assert_eq!(plan.exercises.len(), 3, "the group and two colours");
+    assert_eq!(
+        plan.exercises.len(),
+        3,
+        "the combination, the scale and a colour"
+    );
+}
+
+#[test]
+fn the_warm_up_takes_one_long_kind_in_turn_and_quick_ones_in_turn() {
+    let met = [
+        Kind::Line(LineTier::Arc),
+        Kind::Combined(Combination::Near),
+        Kind::Shape(Tier::Simple),
+        Kind::Colour(Tone::of_code(1).expect("a tone")),
+        Kind::Areas(Arrangement::Patches),
+        Kind::Scale(ScaleTone::Grey),
+    ];
+    let all = pictures(&Tier::ALL, 4, 0);
+    let warm = |number, seed| -> Vec<Family> {
+        let plan = stage_two(number, seed, &before(&met, &all, &[]));
+        assert_eq!(plan.warm_up as usize, WARM_UP_TWO);
+        (plan.exercises[..WARM_UP_TWO].iter())
+            .map(|e| e.kind.family())
+            .collect()
+    };
+    for seed in 0..50 {
+        assert_eq!(
+            warm(1, seed),
+            [Family::Line, Family::Combined, Family::Shape]
+        );
+        assert_eq!(
+            warm(2, seed),
+            [Family::Combined, Family::Colour, Family::Areas]
+        );
+        assert_eq!(warm(3, seed), [Family::Line, Family::Colour, Family::Scale]);
+    }
+    // Over three sessions every family met comes back, and never two long ones in one.
+    let mut seen: Vec<Family> = (1..=3).flat_map(|number| warm(number, 7)).collect();
+    seen.sort();
+    seen.dedup();
+    assert_eq!(seen.len(), 6);
+    // Only long kinds met: the one long exercise.
+    let long_only = [Kind::Shape(Tier::Simple), Kind::Scale(ScaleTone::Hue)];
+    let plan = stage_two(2, 5, &before(&long_only, &all, &[]));
+    assert_eq!(plan.warm_up, 1);
+    assert_eq!(plan.exercises[0].kind, Kind::Scale(ScaleTone::Hue));
 }
 
 #[test]
@@ -171,20 +240,13 @@ fn the_warm_up_takes_shapes_once_met_with_pictures_of_their_tiers() {
     ];
     for seed in 0..100 {
         let plan = stage_two(5, seed, &before(&met, &all, &[]));
-        assert_eq!(plan.warm_up as usize, WARM_UP);
-        let warm: Vec<Family> = (plan.exercises[..WARM_UP].iter())
+        assert_eq!(plan.warm_up as usize, WARM_UP_TWO);
+        let warm: Vec<Family> = (plan.exercises[..WARM_UP_TWO].iter())
             .map(|e| e.kind.family())
             .collect();
-        assert_eq!(
-            warm,
-            [
-                Family::Line,
-                Family::Combined,
-                Family::Shape,
-                Family::Colour
-            ]
-        );
-        let shape = &plan.exercises[2];
+        // Session 5: the shape, and the quick families from the fifth turn on.
+        assert_eq!(warm, [Family::Combined, Family::Shape, Family::Colour]);
+        let shape = &plan.exercises[1];
         assert_eq!(shape.kind, Kind::Shape(Tier::Simple));
         assert!(
             shape

@@ -1,7 +1,7 @@
 //! For debug builds only (`cargo device-input practice-test start|end`, DECISIONS D102): a test
-//! practice session started beside any open one, and removed afterwards with its sheet, so a
-//! practice slice walks its session on the tablet while the author's session, its record and the
-//! Today card's progress stay as they were.
+//! practice session (or a test colour copy, `start copy`) started beside any open one, and
+//! removed afterwards with its sheet, so a practice slice walks its session on the tablet while
+//! the author's sessions, copies, records and the Today card's progress stay as they were.
 //!
 //! The test session is the one Start practice would start now (the next of the log: its number,
 //! its warm-up from the kinds met), started from the gallery even while another is open. It is
@@ -13,13 +13,13 @@
 use std::fmt;
 use std::str::FromStr;
 
-use openpaint_app::ProjectId;
+use openpaint_app::{CopyFrom, ProjectId};
 use openpaint_practice::SessionRecord;
 
 use crate::display::CacheJob;
 use crate::error::RuntimeError;
 use crate::frame::Runtime;
-use crate::practice::{PracticeJob, start_job};
+use crate::practice::{PracticeJob, copy_job, start_job};
 use crate::storage::Job;
 
 /// A test session's name: its id, its sheet's project, its seed and when it started (seconds
@@ -97,7 +97,24 @@ impl Runtime {
         Ok(id)
     }
 
-    /// Test session `id`'s name, once its sheet is stored and shows.
+    /// For debug builds only: a test colour copy of a pack's picture begun from the gallery
+    /// beside the author's; its sheet opens once the store wrote it (`test_practice` names it
+    /// then, `end_test_practice` removes it as a session). Returns its id.
+    ///
+    /// # Errors
+    /// `NotNow` when the gallery does not show or no pack holds a picture.
+    pub fn start_test_copy(&mut self) -> Result<u64, RuntimeError> {
+        if self.screen.gallery_mut().is_none() {
+            return Err(RuntimeError::NotNow("the gallery"));
+        }
+        let now = self.frame_clock.wall_seconds();
+        let id = self.practice.next_id();
+        let job = copy_job(&self.practice, CopyFrom::Pack, &mut self.seeds, now)?;
+        self.storage.submit(job);
+        Ok(id)
+    }
+
+    /// Test session (or colour copy) `id`'s name, once its sheet is stored and shows.
     #[must_use]
     pub fn test_practice(&self, id: u64) -> Option<PracticeTest> {
         let session = self.practice.session(id).filter(|s| s.canvas != 0)?;

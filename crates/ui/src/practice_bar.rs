@@ -1,6 +1,7 @@
 //! A practice sheet's chrome (G9): the practice bar in the middle of the top band ("Warm-up 1 of
 //! 4", "Line 3 of 6", How, Compare carrying the ink pill while the comparison shows, Next or
-//! Finish; once done "Session 3 done" and One more), the exercise's own tools beside its frame
+//! Finish; once done "Session 3 done" and One more; on a long colour copy "Colour copy 2", How
+//! and Compare, never an end), the exercise's own tools beside its frame
 //! (`practice_tools.rs`), and under them the card, grown out of the word that asked for it: the
 //! instructions (by themselves
 //! the first time a kind comes up), the comparison, or the session's summary
@@ -8,6 +9,7 @@
 
 use egui::Align;
 use openpaint_app::{Intent, PracticeIntent, PracticeProjection, SessionProjection, Viewport};
+use openpaint_practice::Family;
 
 use crate::color_panel::ColorPanel;
 use crate::components::{
@@ -100,7 +102,10 @@ impl PracticeBar {
             }
             return;
         }
-        if let Some(family) = practice.family {
+        let study = practice.family == Some(Family::Study);
+        if study {
+            ui.label(t::colour_copy(language, practice.number));
+        } else if let Some(family) = practice.family {
             let called = (family, practice.warming_up);
             ui.label(t::exercise_of(language, called, practice.place));
         }
@@ -121,6 +126,10 @@ impl PracticeBar {
                 self.source = Some(compare.rect);
             }
         });
+        if study {
+            // A colour copy is worked on whenever the user likes: no Next, no end.
+            return;
+        }
         let next = if practice.last { t::FINISH } else { t::NEXT };
         let tapped = text_button(ui, next, viewport.is_some());
         if let (true, Some(viewport)) = (tapped.clicked(), viewport) {

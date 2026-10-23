@@ -13,6 +13,7 @@ texts! { NOTICES;
     LAST_DRAWING_FAILED = "Couldn't open the last drawing. This is a new one.",
         "无法打开上次的画，这是一张新画。";
     DRAW_IN_FRAME = "Draw in the empty frame.", "请在空白框里画。";
+    DRAW_IN_CELL = "Paint in a cell between the two ends.", "请在两端之间的格子里画。";
     PICK_AFTER_COMPARE = "The original can be picked after Compare.", "叠图对比之后才能吸取原图的颜色。";
     SESSION_DONE = "This session is done.", "这次练习已完成。";
     DROP_IN_FRAME = "Drop inside the empty frame to fill.", "拖到空白框里即可填充。";

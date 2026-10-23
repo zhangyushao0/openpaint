@@ -34,8 +34,9 @@ impl Runtime {
         self.open_canvas()
     }
 
-    /// The frame's intents applied to the canvas (then its fill, pictures and brush rows) or the
-    /// gallery. Returns whether brush pictures arrived.
+    /// The frame's intents applied to the canvas (then its fill, fit, a practice copy's pixels
+    /// read for Compare, pictures and brush rows) or the gallery. Returns whether brush pictures
+    /// arrived.
     pub(super) fn apply(&mut self, intents: Vec<Intent>) -> bool {
         match &mut self.screen {
             Screen::Canvas(canvas) => {
@@ -44,6 +45,7 @@ impl Runtime {
                 canvas.dispatch(&self.core, intents, app);
                 self.fill.step(canvas);
                 self.fit.step(canvas);
+                canvas.practice_reads(&self.core);
                 while let Some(item) = canvas.session_mut().practice_picture_request() {
                     self.storage.submit(crate::storage::Job::Picture(item));
                 }

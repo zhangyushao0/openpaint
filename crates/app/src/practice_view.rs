@@ -15,6 +15,8 @@ pub const PRACTICE_ROOM: f32 = 416.0;
 /// its height.
 const PAIR_WIDTH: f32 = 0.85;
 const FRAME_HEIGHT: f32 = 0.45;
+/// A colour copy's frames take at most this share of the room's height.
+const STUDY_HEIGHT: f32 = 0.8;
 
 impl PracticeSheet {
     /// The view a sheet opens with: the shown pair (or the whole sheet, once done) in the middle
@@ -24,9 +26,15 @@ impl PracticeSheet {
             return self.whole(viewport);
         };
         let ([width, height], _) = room(viewport);
-        let pair_width = (pair.copy.origin[0] + pair.copy.side - pair.original.origin[0]) as f32;
-        let side = pair.copy.side as f32;
-        let scale = (PAIR_WIDTH * width / pair_width).min(FRAME_HEIGHT * height / side);
+        let pair_width = (pair.copy.origin[0] + pair.copy.size[0] - pair.original.origin[0]) as f32;
+        let frame_height = pair.copy.size[1] as f32;
+        // A colour copy's pair fills the room: it is the whole sheet.
+        let tall = if self.record.is_project() {
+            STUDY_HEIGHT
+        } else {
+            FRAME_HEIGHT
+        };
+        let scale = (PAIR_WIDTH * width / pair_width).min(tall * height / frame_height);
         self.at_scale(scale, pair.centre(), viewport)
     }
 

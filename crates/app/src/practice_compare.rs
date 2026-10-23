@@ -7,22 +7,26 @@
 //! lines, `align_shape`, the picture moved with it); a picture without an outline lies in place
 //! only. The fit is found off the frame loop (`FitJob`, the runtime's worker) and shows when ready;
 //! a copy no fit can be found for is shown in place in both. A colour's swatch and the colours
-//! laid swap frames.
+//! laid swap frames. A painted copy (a colour combination, a value scale, a colour copy) has its
+//! original over it in place as strong as the user sets, and is read from its pixels
+//! (`practice_read.rs`).
 //!
 //! The first Compare stores the exercise's result: when, the sheet's next stroke id (every stroke
-//! in the frame from it on is a correction) and a colour's numbers, which judge the eye before
-//! the answer was seen; every later one counts. A drawn exercise's pen turns blue. Anything laid
-//! in the frame afterwards takes the comparison away: corrections are made by eye.
+//! in the frame from it on is a correction) and a colour's numbers (a painted copy's when its
+//! pixels arrive), which judge the eye before the answer was seen; every later one counts. A
+//! drawn exercise's pen turns blue. Anything laid in the frame afterwards takes the comparison
+//! away: corrections are made by eye.
 
 use openpaint_core::{Artwork, RegionMask};
 use openpaint_practice::{
-    ExerciseResult, Fit, Frame, Metrics, Original, Point, Rgb8, score_colour,
+    ExerciseResult, Family, Fit, Frame, Metrics, Original, Point, Rgb8, score_colour,
 };
 
+use super::read::Reading;
 use super::{PracticeSheet, unavailable};
 use crate::error::AppError;
 use crate::layer_rules::LayerRefusal;
-use crate::practice::{Overlay, Pen, PracticeNotice};
+use crate::practice::{Overlay, Pen, PracticeNotice, SHAPE_SHOWN};
 use crate::practice_copy::{colour_copy, holds_copy, line_pieces};
 use crate::practice_pictures::FitJob;
 use crate::projection::Availability;
@@ -37,6 +41,8 @@ pub(super) enum Compared {
         first: Rgb8,
         last: Rgb8,
     },
+    /// A painted copy and what its pixels read as.
+    Painted(Reading),
 }
 
 /// The aligned overlay's fit.
@@ -68,6 +74,7 @@ impl PracticeSheet {
         }
         let frame = self.sheet.pairs[index].copy;
         let nothing = || unavailable(Availability::NothingLeft);
+        self.forget_probe();
         let compared = match &self.sheet.originals[index] {
             Original::Colour(original) => {
                 let picks = colour_copy(artwork, &frame).picks;
@@ -80,10 +87,10 @@ impl PracticeSheet {
                     last,
                 }
             }
+            _ if !holds_copy(artwork, &frame) => return Err(nothing()),
+            Original::Areas(_) | Original::Scale(_) => Compared::Painted(self.ask_read(index)),
+            Original::Picture(_) if !self.drawn(index) => Compared::Painted(Reading::Shown),
             Original::Lines(_) | Original::Picture(_) => {
-                if !holds_copy(artwork, &frame) {
-                    return Err(nothing());
-                }
                 Compared::Drawn(self.ask_fit(index, artwork, &frame))
             }
         };
@@ -117,7 +124,7 @@ impl PracticeSheet {
             Original::Picture(_) => (self.sheet.pictures[index].as_ref())
                 .and_then(|picture| picture.outline.clone())
                 .map(|outline| (outline, true)),
-            Original::Colour(_) => None,
+            _ => None,
         };
         let Some((original, shape)) = original else {
             self.fit_job = None;
@@ -148,28 +155,29 @@ impl PracticeSheet {
         self.fit_job.take()
     }
 
-    /// A colour's numbers now; a drawn exercise has none.
+    /// A colour's numbers now; a drawn exercise has none, a painted one's come with its pixels.
     fn numbers(&self, artwork: &Artwork, index: usize) -> Metrics {
         let frame = self.sheet.pairs[index].copy;
         match &self.sheet.originals[index] {
             Original::Colour(rgb) => (score_colour(*rgb, &colour_copy(artwork, &frame)))
                 .map(|score| score.metrics())
                 .unwrap_or_default(),
-            Original::Lines(_) | Original::Picture(_) => Metrics::new(),
+            _ => Metrics::new(),
         }
     }
 
-    /// The region a fill of the shown colour's frame covers (with `selection`), or why none: not
-    /// a colour shown, or the active layer of `artwork` hidden or locked (the notice says so).
-    /// Filling takes the comparison away.
+    /// The region a fill of the shown colour's, colour combination's or value scale's cell's
+    /// frame covers (with `selection`), or why none: not one of those shown, or the active layer
+    /// of `artwork` hidden or locked (the notice says so). Filling takes the comparison away; a
+    /// value scale's next cell comes in hand.
     pub(crate) fn fill_region(
         &mut self,
         artwork: &Artwork,
         selection: Option<&RegionMask>,
     ) -> Result<RegionMask, AppError> {
-        let colour = (self.current()).is_some_and(|index| !self.drawn(index));
-        let clip = self.clip.as_ref().filter(|_| colour);
-        let Some(clip) = clip else {
+        let family = self.current().and_then(|index| self.family(index));
+        let fills = matches!(family, Some(Family::Colour | Family::Areas | Family::Scale));
+        let Some(clip) = self.clip.clone().filter(|_| fills) else {
             return Err(unavailable(Availability::NothingLeft));
         };
         if let Some(refusal) = LayerRefusal::of(artwork) {
@@ -178,9 +186,10 @@ impl PracticeSheet {
         }
         let region = match selection {
             Some(selection) => clip.intersect(selection),
-            None => Some(clip.clone()),
+            None => Some(clip),
         };
         self.laid();
+        self.filled_cell();
         region.ok_or(unavailable(Availability::NothingLeft))
     }
 
@@ -219,18 +228,32 @@ impl PracticeSheet {
                 Some(Overlay::Lines(lines.collect()))
             }
             (Compared::Drawn(fitting), Original::Picture(_)) => {
-                let picture = self.sheet.pictures[index].as_ref()?;
                 let fit = self.laid_by(*fitting)?;
-                let [x, y] = picture.fit.origin;
-                let [w, h] = picture.fit.size;
-                let corners = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
-                let outline = picture.outline.iter().flatten();
-                Some(Overlay::Picture {
-                    corners: corners.map(|p| laid(fit, &p)),
-                    outline: outline
-                        .map(|line| line.iter().map(|p| laid(fit, p)).collect())
-                        .collect(),
+                self.picture_overlay(index, |p| laid(fit, p), (SHAPE_SHOWN, true))
+            }
+            (Compared::Painted(_), Original::Picture(_)) => {
+                // A colour copy compares colours: the picture alone, no outline.
+                let (shown, _, _) = self.painted_overlay();
+                self.picture_overlay(index, |p| laid(Fit::SAME, p), (shown, false))
+            }
+            (Compared::Painted(reading), Original::Areas(_)) => {
+                let (shown, chosen, outline) = self.painted_overlay();
+                let read = match reading {
+                    Reading::Areas(read) => Some(std::sync::Arc::clone(read)),
+                    _ => None,
+                };
+                Some(Overlay::Areas {
+                    shown,
+                    read,
+                    chosen,
+                    outline,
                 })
+            }
+            (Compared::Painted(reading), Original::Scale(_)) => {
+                Some(Overlay::Scale(match reading {
+                    Reading::Scale(check) => Some(std::sync::Arc::clone(check)),
+                    _ => None,
+                }))
             }
             (
                 Compared::Colour {
@@ -246,5 +269,27 @@ impl PracticeSheet {
             }),
             _ => None,
         }
+    }
+
+    /// Exercise `index`'s picture over its copy, its points laid by `laid`, `shown` strong, with
+    /// its outline where it has one if `outlined`.
+    fn picture_overlay(
+        &self,
+        index: usize,
+        laid: impl Fn(&Point) -> [f32; 2],
+        (shown, outlined): (f32, bool),
+    ) -> Option<Overlay> {
+        let picture = self.sheet.pictures[index].as_ref()?;
+        let [x, y] = picture.fit.origin;
+        let [w, h] = picture.fit.size;
+        let corners = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+        let outline = picture.outline.iter().filter(|_| outlined).flatten();
+        Some(Overlay::Picture {
+            corners: corners.map(|p| laid(&p)),
+            outline: outline
+                .map(|line| line.iter().map(&laid).collect())
+                .collect(),
+            shown,
+        })
     }
 }

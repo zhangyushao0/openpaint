@@ -4,33 +4,27 @@ Only decisions that constrain the code now and are not self-evident, each statin
 
 ## D01 2026-10-02 Stack: Rust 2024, wgpu, egui, one workspace
 - Decision: core, rendering, application, storage and UI are all Rust; GPU through wgpu; UI through egui; Android is the only product host; the development machine runs a headless harness, never a desktop window (ARCHITECTURE).
-- Reason: the previous project proved this stack on the target tablet (pressure, palm rejection, layer compositing, smudge).
-- Consequences: renderer state never lives in egui's type map; egui appears only under `render/src/adapter/`.
+- Reason: the previous project proved this stack on the target tablet (pressure, palm rejection, layer compositing, smudge). Consequences: renderer state never lives in egui's type map; egui appears only under `render/src/adapter/`.
 
 ## D02 2026-10-02 Crate layering and purity are tool-enforced
 - Decision: dependencies point down as ARCHITECTURE section 2 draws them; core never mentions GPU, UI, file system, threads or clocks. The tables live in `xtask/src/check/rules.rs`.
-- Reason: the direction is guarded by tooling, the inside of each layer by file and function length.
-- Consequences: a new crate is registered in `LAYERS` first; an upward dependency fails the gate.
+- Reason: the direction is guarded by tooling, the inside of each layer by file and function length. Consequences: a new crate is registered in `LAYERS` first; an upward dependency fails the gate.
 
 ## D08 2026-10-02 The artwork is an immutable value; undo is a version switch
 - Decision: `Artwork(Arc<State>)`; an edit returns a new version plus the kind of change; history stores versions; `from_storage` is the single full-validation entry; no public mutable setters.
-- Reason: the previous project's mutable layers beside snapshot structures copied the active stroke every frame and deep-compared edits.
-- Consequences: the renderer detects change by identity; the in-progress stroke travels to the renderer as a separate item and never enters the artwork.
+- Reason: the previous project's mutable layers beside snapshot structures copied the active stroke every frame and deep-compared edits. Consequences: the renderer detects change by identity; the in-progress stroke travels to the renderer as a separate item and never enters the artwork.
 
 ## D10 2026-10-02 Errors are types; product crates have no cargo features
 - Decision: `CoreError`, `AppError`, `PortError`, `RenderError`, `RuntimeError`; `Result<_, String>` only in JNI, system APIs and xtask. No `cfg(feature)` in product crates; diagnostics and automation live in separate crates assembled only by composition roots.
-- Reason: the previous project's `String` errors and 379 `cfg` sites made four build combinations and hid diagnostics in product code.
-- Consequences: `cargo repo-check` rejects `[features]` and `cfg(feature`; the platform layer turns typed errors into user-facing messages.
+- Reason: the previous project's `String` errors and 379 `cfg` sites made four build combinations and hid diagnostics in product code. Consequences: `cargo repo-check` rejects `[features]` and `cfg(feature`; the platform layer turns typed errors into user-facing messages.
 
 ## D11 2026-10-02 Android host: a hand-written Activity, JNI and SurfaceView; no winit
 - Decision: `apps/android` is a small Kotlin Activity owning the lifecycle, a `SurfaceView` and the system pickers; Rust receives the Surface through JNI and renders with wgpu; `MotionEvent` fields (tool type, pressure, tilt, orientation, buttons, hover, historical samples) cross as typed batches.
-- Reason: winit's Android touch abstraction drops stylus detail.
-- Consequences: egui gets its input from our own normaliser; Kotlin stays limited to lifecycle, Surface, pickers and share; product rules never live in the host.
+- Reason: winit's Android touch abstraction drops stylus detail. Consequences: egui gets its input from our own normaliser; Kotlin stays limited to lifecycle, Surface, pickers and share; product rules never live in the host.
 
 ## D14 2026-10-02 External crates are pinned exactly in the workspace manifest
 - Decision: every external crate is declared once in `[workspace.dependencies]` with an exact `=` version (wgpu 30.0.1, egui and egui-wgpu 0.36.2, fjall 3.1.11, image 0.25.10, png 0.18.1, moxcms 0.8.1, crc32fast 1.5.2, lz4_flex 0.13.1 and the rest); crates use `.workspace = true`. Gradle 8.13, the Android Gradle plugin 8.13.2 and Kotlin 2.2.21 are pinned in `apps/android`.
-- Reason: wgpu and egui break APIs every release; a silent bump would change GPU behaviour and hashes without review.
-- Consequences: wgpu, egui and egui-wgpu are upgraded together in one commit that reruns the GPU tests and re-records any moved hash with the reason.
+- Reason: wgpu and egui break APIs every release; a silent bump would change GPU behaviour and hashes without review. Consequences: wgpu, egui and egui-wgpu are upgraded together in one commit that reruns the GPU tests and re-records any moved hash with the reason.
 
 ## D18 2026-10-02 Only the stylus paints; touch is reserved for gestures
 - Decision: a finger never draws. Pen contacts paint; touch drives the canvas (pan, pinch, rotate, two-finger undo, three-finger redo and the copy menu). The author's choice.
@@ -38,13 +32,11 @@ Only decisions that constrain the code now and are not self-evident, each statin
 
 ## D19 2026-10-02 Scenario checkpoints compare canvas hashes; references stay untracked
 - Decision: a checkpoint passes when the canvas readback (artwork pixels, no UI) hashes to the value in the scenario file; screenshots are for looking at, never compared; the diff reference is the last pass on this machine (`artifacts/scenarios/<name>/`, untracked).
-- Reason: canvas pixels come from the renderer's own formulas, egui's text edges differ by backend.
-- Consequences: a slice that changes pixels on purpose updates the hash in the same commit after looking at the PNG; UI changes are checked by screenshots and GPU tests on specific pixels.
+- Reason: canvas pixels come from the renderer's own formulas, egui's text edges differ by backend. Consequences: a slice that changes pixels on purpose updates the hash in the same commit after looking at the PNG; UI changes are checked by screenshots and GPU tests on specific pixels.
 
 ## D20 2026-10-02 History: versions costed by unshared bytes; no history step during a stroke
 - Decision: every artwork change reaching the session is a version in `app::History`, costed by `Artwork::bytes_since(previous)`; recording drops the redo side and trims the oldest steps above 64 MiB, keeping the newest. Undo and redo are refused while a stroke is drawn. After a history switch the renderer redraws `render::changed_regions(shown, current)`.
-- Reason: versions share almost everything (D08); undo mid-stroke would drop the stroke or land it on a version no longer shown.
-- Consequences: new edit kinds go through `History::record` without new code; a UI offering history reads availability from the projection.
+- Reason: versions share almost everything (D08); undo mid-stroke would drop the stroke or land it on a version no longer shown. Consequences: new edit kinds go through `History::record` without new code; a UI offering history reads availability from the projection.
 
 ## D38 2026-10-03 Accumulating deposits on a canvas-fixed paper, after draweave's tuned pencil
 - Decision: a recipe deposits by `Cover` (the largest coverage: crossings never darken) or `Accumulate` (tip flat or bell, flow, max density, optional paper): an accumulating span adds optical density, its tip's cross-section integrated over the radii travelled times opacity and flow, coverage = max density x (1 - exp(-density)) x grain x opacity, so crossings darken up to the stroke's opacity.
@@ -246,7 +238,7 @@ Only decisions that constrain the code now and are not self-evident, each statin
 ## D98 2026-10-23 Practice: a session's sheet is a hidden project, its originals drawn by the screen, its record beside the artworks
 - Model: a session is a `SessionRecord` (stage, number, seed, its exercises' kinds and seeds, the exercise shown, finished, each checked exercise's metrics and time) and a sheet: an ordinary project of the library (strokes, fills, history, autosave, undo as any artwork), which `list` leaves out, no versions or picture kept. The app's `PracticeLog` holds every record (the Today card); the open sheet's flow is `Session`'s `PracticeSheet`.
 - Originals: generated from (kind code, seed) and drawn by the UI over the canvas through the view, never into the artwork: they cannot be drawn on; the eyedropper reads a swatch only once checked. Strokes and fills begin only in the shown exercise's empty frame and are clipped to it (with any selection). StreamLine, QuickShape and the guide are off on a sheet: a stroke's samples are the pen's.
-- Metrics read the artwork's records (the colours laid by fills and strokes), never pixels. Compare, the line numbers and the lock: D99.
+- A colour's metrics read the artwork's records (the colours laid by fills and strokes); a painted copy's are read from its pixels (D104). Compare, the line numbers and the lock: D99.
 - Stored (format 1, additive): `['p'][session u64]` in `library` (`store/src/practice.rs`); every byte before stays; a record that cannot be read is left out. A kind code names one generator for good: a changed generator is a new code.
 - Where: generators, metrics, records and the sheet's layout are the pure crate `openpaint-practice` (no dependency), beside core: practice is not artwork semantics.
 - Reason: the author's G9 (2026-10-23): the usual tools on a sheet the app lays out; references locked; scores from the strokes' own path, pressure and time.
@@ -290,5 +282,15 @@ Only decisions that constrain the code now and are not self-evident, each statin
 - Outline (`practice/src/outline*.rs`): the picture on a 512-px grid; its ground from its edge, clear (half the edge transparent: opacity) or plain (each side's Oklab profile freed of the object by a running median and a trimmed polynomial trend, laid inside as a Coons patch; refused when under 70 % of the edge fits or its noise passes 0.03); on a plain ground a marker watershed over the colour gradient (ground: what the edge reaches through smooth pixels, clear and enclosed smooth pockets of the ground's colour as a Laplace-filled mesh shows it; object: pixels surely off it, no shadow, rimmed by an edge); holes kept; contours by marching squares, Douglas-Peucker. Refused (none, never a guess): no plain ground, nothing, several parts (plain: one of 88 % and none past 2 %), cut by the edge (over 6 %), area outside 1.5 to 92 %, too ragged or long.
 - Packs (`PACK_FORMAT` 2; S78's 1 never released): an item's title, its credit (an official item's source, creator, licence, attribution, notes) or none (the user's own), its outline or none. The builder derives every outline, draws it on the sheets (red kept, blue listed without) and fails on a refusal the list's `no_outline` does not name; each outline was looked at. The user's own pictures go into the pack `personal` (no credit, never imported or exported), their outline derived on adding, shown only if it passes.
 - Exercise: kind code 4 (the tier); the record keeps each picture (after the warm-up's count, only when it holds any). Compare lays the picture at 35 % and its outline in red, in place or aligned (`align_shape`: start from the boxes, outline-to-copy pairs trimmed at 2.5x their median, copy-to-outline only the nearer half, so lines inside never pull); no outline: in place only, Aligned unavailable and said so. Every fit (lines too) runs on `openpaint-fit` and shows when it arrives.
-- Stage 2: warm-up of every kind met, 4 shapes (tiers by the session's number: E E S S, from 3 E S S M, from 6 S S M H, from 10 S M M H; the last the user's own once there is one; pictures shown before wait while fresh ones remain), 1 group, 2 colours, about 25 to 28 minutes. The stage is the last session's; the Today card offers the next once 15 are done, the options any other ready stage at once.
+- Stage 2: 4 shapes (tiers by the session's number: E E S S, from 3 E S S M, from 6 S S M H, from 10 S M M H; the last the user's own once there is one; pictures shown before wait while fresh ones remain), its warm-up and the rest of its mix in D104. The stage is the last session's; the Today card offers the next once 15 are done, the options any other ready stage at once.
 - Reason: the author (2026-10-23): a wrong outline must never show; quality before speed; no numbers. Consequences: 60 of the official pack's 126 pictures have an outline; stage 1 records keep 1.3.0's bytes.
+
+## D104 2026-10-23 Colour combinations, value scales and the long colour copy: painted copies read from their pixels, weak contrasts in Oklab, a copy kept beside the sessions
+- Colour combinations (kind 5, `practice/src/areas*.rs`): 4 to 6 areas of a field (bands, patches of a power diagram, blocks) under a slow warp, soft or hard edged; colours related to a key, one contrasting, half or more under HSV saturation 0.3, every neighbour pair at least Oklab 0.025 apart, one pair at most `WEAK` 0.06 and one at least `STRONG` 0.15; laid again from the seed's sequence until kept. A 128² map holds each area's core (6 cells and any soft edge's reach inside its edges).
+- Reading: Compare asks the runtime for the copy's frame (`ReadJob`: the canvas target read back after a settle, on the main thread); an area's colour is its core's median per channel, none while mostly paper; its difference shows on the wheel as a colour's. A neighbour pair's contrast is their Oklab distance (equal distances look equally different, 0.02 just noticeable): weak at `WEAK` or less, made strong when the copy's is twice the original's and `MADE_STRONG` 0.05 more, marked red on the copy's edge.
+- Validated on known cases (`practice/tests/areas.rs`): the picture itself, a copy with its edges 12 px off and one a third strays read their exact colours; a copy lighter all over makes nothing strong; a weak pair pushed 0.22 apart in value is caught there and nowhere else; greys 128/140 are weak, 128/180 strong.
+- Value scales (kind 6, `scale.rs`): 5 to 7 cells between ends of HSV value 0.12 to 0.3 and 0.78 to 0.95, grey or of a hue; checked on value only, each cell's middle's median against its even step (uneven at a quarter step) and against the cell before (out of order when no lighter); the pen and Fill cell take one cell at a time.
+- Metrics (codes 29 to 34, additive): a combination's mean ΔE, weak contrasts, those made strong; a scale's mean off, uneven and reversed cells; the first Compare's, kept when its pixels arrive.
+- Long colour copy (kind 7): a `SessionRecord` of stage `PROJECT` 0 with one exercise and its picture (a pack's not copied before, by the seed, or the user's newest), its sheet one pair of frames of the picture's shape (`STUDY_SIDE` 1600); opened from the practice options with the full interface and no Next; Compare lays the picture in place as strongly as a slider sets, then the eyedropper compares a point of either frame (`Probe`). It counts in no stage, warm-up, `used` or summary; `practice-test start copy` makes a test one.
+- Stage 2 (replaces D103's mix): a warm-up of 3 (`WARM_UP_TWO`), at most one long kind (shapes, combinations, scales in turn by number), the quick ones in turn from the number; 4 shapes, a combination, a scale and a colour, about 27 to 29 minutes; s80's sheet keeps its size.
+- Reason: the author's G9 (V大's 色彩组合 and 色彩临摹, Gurney's value scales): numbers only where they match what the eye sees. Consequences: a combination's Compare reads 400² pixels on the main thread; a copy cannot be removed in the app yet.

@@ -114,6 +114,7 @@ fn storage(projection: &SessionProjection, language: Language) -> Option<Told> {
 fn practice(projection: &SessionProjection, language: Language) -> Option<Told> {
     let message = match projection.practice()?.notice? {
         PracticeNotice::DrawInFrame => t::DRAW_IN_FRAME.get(language).to_owned(),
+        PracticeNotice::DrawInCell => t::DRAW_IN_CELL.get(language).to_owned(),
         PracticeNotice::PickAfterCompare => t::PICK_AFTER_COMPARE.get(language).to_owned(),
         PracticeNotice::CannotFill(refusal) => t::refused(language, Refused::Fill, refusal),
         PracticeNotice::Done => t::SESSION_DONE.get(language).to_owned(),

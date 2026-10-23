@@ -194,8 +194,9 @@ fn imported(runtime: &mut Runtime) -> Result<String, HostError> {
     }
 }
 
-/// For `cargo device-input practice-test start [stage]|end`: `start` starts a test practice session
-/// beside any open one, from the gallery, and answers "started <name>" once its sheet shows;
+/// For `cargo device-input practice-test start [stage|copy]|end`: `start` starts a test practice
+/// session (or a test colour copy) beside any open one, from the gallery, and answers "started
+/// <name>" once its sheet shows;
 /// `end:<name>` removes the session of that name, its record and sheet, from the gallery, and
 /// answers "removed <name>" once the store did, or "no such session". Otherwise why not.
 #[unsafe(no_mangle)]
@@ -216,19 +217,25 @@ pub extern "system" fn Java_dev_openpaint_DebugControls_practiceTest<'local>(
     .resolve::<LogErrorAndDefault>()
 }
 
-/// `command` (`start`, `start:<stage>` or `end:<name>`) on `runtime`, frames run here until it is
-/// done, at most a minute: the answer.
+/// `command` (`start`, `start:<stage>`, `start:copy` or `end:<name>`) on `runtime`, frames run
+/// here until it is done, at most a minute: the answer.
 fn practice_test(runtime: &mut Runtime, command: &str) -> Result<String, HostError> {
-    let stage = match command.strip_prefix("start") {
-        Some("") => Some(None),
+    // A session of the stage given (none: the one practised), or a colour copy (`Err`).
+    let start: Option<Result<Option<u8>, ()>> = match command.strip_prefix("start") {
+        Some("") => Some(Ok(None)),
+        Some(":copy") => Some(Err(())),
         Some(stage) => stage
             .strip_prefix(':')
             .and_then(|s| s.parse::<u8>().ok())
-            .map(Some),
+            .map(|s| Ok(Some(s))),
         None => None,
     };
-    if let Some(stage) = stage {
-        let id = match runtime.start_test_practice(stage) {
+    if let Some(start) = start {
+        let started = match start {
+            Ok(stage) => runtime.start_test_practice(stage),
+            Err(()) => runtime.start_test_copy(),
+        };
+        let id = match started {
             Ok(id) => id,
             Err(error) => return Ok(format!("not started: {error}")),
         };

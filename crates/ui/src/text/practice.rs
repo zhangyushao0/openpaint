@@ -123,57 +123,26 @@ texts! { PRACTICE_STEPS;
         "然后用画图笔画出外形，点“叠图对比”：原位看位置，对齐只比形状。用修正笔改，再对比。";
 }
 
-texts! { PRACTICE_HUES;
-    REDDER = "redder", "更红";
-    YELLOWER = "yellower", "更黄";
-    GREENER = "greener", "更绿";
-    MORE_CYAN = "more cyan", "更青";
-    BLUER = "bluer", "更蓝";
-    MORE_MAGENTA = "more magenta", "更偏品红";
-    HUE_RED = "red", "红色";
-    HUE_ORANGE = "orange", "橙色";
-    HUE_YELLOW = "yellow", "黄色";
-    HUE_YELLOW_GREEN = "yellow-green", "黄绿色";
-    HUE_GREEN = "green", "绿色";
-    HUE_GREEN_CYAN = "green-cyan", "青绿色";
-    HUE_CYAN = "cyan", "青色";
-    HUE_AZURE = "azure", "天蓝色";
-    HUE_BLUE = "blue", "蓝色";
-    HUE_VIOLET = "violet", "紫色";
-    HUE_MAGENTA = "magenta", "品红色";
-    HUE_ROSE = "rose", "玫红色";
-    GREY = "grey", "灰色";
-    PURER = "purer", "更纯";
-    GREYER = "greyer", "更灰";
-    LIGHTER = "lighter", "更亮";
-    DARKER = "darker", "更暗";
-}
-
-/// The comparatives of the six hues 60 degrees apart, from red (`practice::hue_towards`).
-pub(crate) const TOWARDS: [Text; 6] = [REDDER, YELLOWER, GREENER, MORE_CYAN, BLUER, MORE_MAGENTA];
-/// The names of the twelve hues round the wheel, from red (`practice::hue_name`).
-pub(crate) const HUE_NAMES: [Text; 12] = [
-    HUE_RED,
-    HUE_ORANGE,
-    HUE_YELLOW,
-    HUE_YELLOW_GREEN,
-    HUE_GREEN,
-    HUE_GREEN_CYAN,
-    HUE_CYAN,
-    HUE_AZURE,
-    HUE_BLUE,
-    HUE_VIOLET,
-    HUE_MAGENTA,
-    HUE_ROSE,
-];
-
 /// The instructions for a family: the heading and four paragraphs.
 pub(crate) const fn instructions(family: Family) -> (Text, [Text; 4]) {
+    use super::practice_colour as c;
     match family {
         Family::Line => (COPY_A_LINE, [LINE_1, LINE_2, LINE_3, LINE_4]),
         Family::Combined => (COPY_COMBINED, [GROUP_1, GROUP_2, GROUP_3, GROUP_4]),
         Family::Shape => (COPY_A_SHAPE, [SHAPE_1, SHAPE_2, SHAPE_3, SHAPE_4]),
         Family::Colour => (MATCH_A_COLOUR, [COLOUR_1, COLOUR_2, COLOUR_3, COLOUR_4]),
+        Family::Areas => (
+            c::AREAS_EXERCISE,
+            [c::AREAS_1, c::AREAS_2, c::AREAS_3, c::AREAS_4],
+        ),
+        Family::Scale => (
+            c::SCALE_EXERCISE,
+            [c::SCALE_1, c::SCALE_2, c::SCALE_3, c::SCALE_4],
+        ),
+        Family::Study => (
+            c::STUDY_EXERCISE,
+            [c::STUDY_1, c::STUDY_2, c::STUDY_3, c::STUDY_4],
+        ),
     }
 }
 
@@ -211,12 +180,15 @@ pub(crate) const fn compared_lines(group: bool, aligned: bool, blue: bool) -> [T
     [shows, next]
 }
 
-/// A line exercise's pens.
+/// An exercise's pens.
 pub(crate) const fn pen(pen: Pen) -> Text {
     match pen {
         Pen::Sketch => SKETCH,
         Pen::Draw => DRAW,
         Pen::Correct => CORRECT,
+        Pen::Big => super::BIG,
+        Pen::Small => super::SMALL,
+        Pen::Soft => super::SOFT,
     }
 }
 
@@ -241,6 +213,12 @@ pub(crate) const fn metric(metric: Metric) -> Text {
         Metric::FirstSaturation | Metric::FinalSaturation => super::SATURATION,
         Metric::FirstValue | Metric::FinalValue => super::VALUE,
         Metric::Corrections => CORRECTIONS,
+        Metric::AreasDelta => super::AREAS_DELTA,
+        Metric::AreasWeak => super::WEAK_CONTRASTS,
+        Metric::AreasMadeStrong => super::WEAK_MADE_STRONG,
+        Metric::ScaleOff => super::OFF_EVEN,
+        Metric::ScaleUneven => super::UNEVEN_CELLS,
+        Metric::ScaleReversed => super::OUT_OF_ORDER,
     }
 }
 
@@ -253,6 +231,9 @@ const fn called(family: Family, warming_up: bool) -> Text {
         (false, Family::Combined) => COMBINED_LINES,
         (false, Family::Shape) => SHAPE_EXERCISE,
         (false, Family::Colour) => super::COLOUR,
+        (false, Family::Areas) => super::AREAS_EXERCISE,
+        (false, Family::Scale) => super::SCALE_EXERCISE,
+        (false, Family::Study) => super::STUDY_EXERCISE,
     }
 }
 
@@ -299,10 +280,22 @@ pub(crate) fn compared_of(
         }
         (Language::English, Family::Colour) => format!("Colours: {checked} of {held} compared"),
         (Language::English, Family::Shape) => format!("Shapes: {checked} of {held} compared"),
+        (Language::English, Family::Areas) => {
+            format!("Colour combinations: {checked} of {held} compared")
+        }
+        (Language::English, Family::Scale) => {
+            format!("Value scales: {checked} of {held} compared")
+        }
+        (Language::English, Family::Study) => {
+            format!("Colour copies: {checked} of {held} compared")
+        }
         (Language::Chinese, Family::Line) => format!("线条：已对比 {checked}/{held}"),
         (Language::Chinese, Family::Combined) => format!("组合线条：已对比 {checked}/{held}"),
         (Language::Chinese, Family::Shape) => format!("单体图形：已对比 {checked}/{held}"),
         (Language::Chinese, Family::Colour) => format!("颜色：已对比 {checked}/{held}"),
+        (Language::Chinese, Family::Areas) => format!("色彩组合：已对比 {checked}/{held}"),
+        (Language::Chinese, Family::Scale) => format!("明度推移：已对比 {checked}/{held}"),
+        (Language::Chinese, Family::Study) => format!("色彩临摹：已对比 {checked}/{held}"),
     }
 }
 

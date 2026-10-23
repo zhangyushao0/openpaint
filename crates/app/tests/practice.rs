@@ -112,7 +112,7 @@ fn fit(session: &mut Session) {
 fn overlay(session: &Session) -> Option<Vec<[f32; 2]>> {
     match session.projection().practice()?.overlay.clone()? {
         Overlay::Lines(lines) => lines.into_iter().next(),
-        Overlay::Colour { .. } | Overlay::Picture { .. } => None,
+        _ => None,
     }
 }
 

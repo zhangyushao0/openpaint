@@ -8,7 +8,7 @@ use openpaint_ui::CanvasArea;
 
 use crate::canvas::Canvas;
 use crate::error::RuntimeError;
-use crate::practice::start_job;
+use crate::practice::{copy_job, start_job};
 use crate::seeds::Seeds;
 use crate::storage::{Job, LibraryCall};
 
@@ -81,5 +81,6 @@ pub(super) fn gallery_job(
         LibraryRequest::Delete(id) => LibraryCall::Delete(id),
         LibraryRequest::Restore(id, version, title) => LibraryCall::Restore(id, version, title),
         LibraryRequest::Practice(stage) => return start_job(practice, stage, seeds, now),
+        LibraryRequest::Copy(from) => return copy_job(practice, from, seeds, now),
     }))
 }

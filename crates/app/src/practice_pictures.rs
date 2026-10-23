@@ -1,7 +1,7 @@
-//! Pictures on a practice sheet (S80): a single shape's picture as its pack holds it (its size,
-//! its outline and the credit to show under it), fitted in its frame; the picture's pixels as the
-//! store read them for the screen; the packs kept as the Today card's options list them; and the
-//! aligned overlay's fit, found off the frame loop (`FitJob`).
+//! Pictures on a practice sheet (S80): a single shape's or a colour copy's picture as its pack
+//! holds it (its size, its outline and the credit to show under it), fitted in its frame; the
+//! picture's pixels as the store read them for the screen; the packs kept as the Today card's
+//! options list them; and the aligned overlay's fit, found off the frame loop (`FitJob`).
 
 use openpaint_practice::{Fit, ItemRef, Pack, PackItem, PictureFit, Point, align, align_shape};
 
@@ -25,11 +25,16 @@ pub struct SheetPicture {
 }
 
 impl SheetPicture {
-    /// The picture `item` names, as `packs` hold it; `None` when no pack kept holds it.
+    /// The picture `item` names, as `packs` hold it, fitted in a square frame or `filling` one
+    /// of its own shape (a colour copy's); `None` when no pack kept holds it.
     #[must_use]
-    pub fn of(item: &ItemRef, packs: &[Pack]) -> Option<Self> {
+    pub fn of(item: &ItemRef, packs: &[Pack], filling: bool) -> Option<Self> {
         let found: &PackItem = packs.iter().find_map(|pack| pack.find(item))?;
-        let fit = PictureFit::of(found.size);
+        let fit = if filling {
+            PictureFit::filling(found.size)
+        } else {
+            PictureFit::of(found.size)
+        };
         let outline = (found.outline.as_ref()).map(|outline| {
             (outline.lines().into_iter())
                 .map(|line| line.iter().map(|p| fit.to_frame(*p)).collect())
@@ -45,12 +50,26 @@ impl SheetPicture {
     }
 }
 
-/// A picture's pixels as the screen shows them: 8-bit sRGB with straight alpha, reduced to at
-/// most `SHOWN_SIDE`.
+/// A picture's pixels as the screen shows them: 8-bit sRGB with straight alpha, a pack's reduced
+/// to at most `SHOWN_SIDE`; or a copy's pixels as the canvas shows them.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PictureImage {
     pub size: [u32; 2],
     pub pixels: Vec<u8>,
+}
+
+impl PictureImage {
+    /// The colour at the point `p` given in shares of the width and height (0 to 1), the nearest
+    /// pixel's; none outside.
+    #[must_use]
+    pub fn colour_at(&self, p: Point) -> Option<[u8; 3]> {
+        let inside = (0.0..1.0).contains(&p[0]) && (0.0..1.0).contains(&p[1]);
+        let [w, h] = self.size.map(|side| side as usize);
+        let [x, y] = [(p[0] * w as f64) as usize, (p[1] * h as f64) as usize];
+        let at = 4 * (y.min(h.saturating_sub(1)) * w + x.min(w.saturating_sub(1)));
+        let texel = self.pixels.get(at..at + 3).filter(|_| inside)?;
+        Some([texel[0], texel[1], texel[2]])
+    }
 }
 
 /// A pack kept, as the Today card's options list it.

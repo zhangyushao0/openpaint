@@ -1,7 +1,8 @@
 //! Every word the interface shows, in English and Chinese (DECISIONS D100). A `Text` holds both,
 //! side by side, so a missing translation does not compile and each Chinese line sits beside the
 //! English it renders; the tables are split by where the words show (`common.rs`, `canvas.rs`,
-//! `layers.rs`, `brushes.rs`, `colour.rs`, `gallery.rs`, `notices.rs`, `practice.rs`), words
+//! `layers.rs`, `brushes.rs`, `colour.rs`, `gallery.rs`, `notices.rs`, `practice.rs`,
+//! `practice_colour.rs`), words
 //! made with numbers are functions beside them. Screens write no words of their own (`cargo
 //! repo-check` refuses a capitalised literal under `crates/ui/src` outside this module).
 //!
@@ -30,6 +31,7 @@ mod layers;
 mod names;
 mod notices;
 mod practice;
+mod practice_colour;
 
 pub(crate) use brushes::*;
 pub(crate) use canvas::*;
@@ -40,6 +42,7 @@ pub(crate) use layers::*;
 pub(crate) use names::*;
 pub(crate) use notices::*;
 pub(crate) use practice::*;
+pub(crate) use practice_colour::*;
 
 pub use openpaint_app::Language;
 
@@ -192,6 +195,8 @@ mod tests {
             PRACTICE_TABLE,
             PRACTICE_STEPS,
             PRACTICE_HUES,
+            PRACTICE_COLOUR,
+            PRACTICE_COLOUR_STEPS,
         ];
         let han = |c: char| ('\u{4e00}'..='\u{9fff}').contains(&c);
         for text in tables.concat() {

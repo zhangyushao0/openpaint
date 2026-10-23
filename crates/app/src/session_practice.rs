@@ -1,9 +1,11 @@
 //! The session's side of practice (`practice_sheet.rs`): a practice sheet opens on its shown
 //! pair, its strokes keep the pen's own samples (no StreamLine, QuickShape or guide), the pen
 //! draws only in the shown exercise's empty frame and every stroke and fill stays inside it, a
-//! line shown with its own tools is drawn with the practice pen chosen instead of the toolbox's
-//! brush, the colour beside a colour's frame fills it in one step, the eyedropper asks the sheet
-//! first, and the session record goes to the store after each change.
+//! line or a painted exercise shown with its own tools is drawn with the practice pen chosen
+//! instead of the toolbox's brush, the colour beside a colour's frame (a combination's, a value
+//! scale's cell) fills it in one step, the eyedropper asks the sheet first, a painted copy's
+//! pixels are read by the runtime for Compare, and the session record goes to the store after
+//! each change.
 
 use openpaint_core::{Artwork, RegionMask, StrokeStyle};
 use openpaint_practice::{Fit, ItemRef, SessionRecord};
@@ -14,7 +16,7 @@ use crate::input::{ContactPhase, Device};
 use crate::practice::PracticeIntent;
 use crate::practice_pens::PracticePens;
 use crate::practice_pictures::{FitJob, PictureImage};
-use crate::practice_sheet::{PracticePick, PracticeSheet, Practising};
+use crate::practice_sheet::{PracticePick, PracticeSheet, Practising, ReadJob};
 use crate::stroke::StrokeIntent;
 use crate::view::Viewport;
 
@@ -95,6 +97,26 @@ impl Session {
     /// The aligned overlay's fit for the runtime's worker, once per Compare.
     pub fn practice_fit_request(&mut self) -> Option<FitJob> {
         self.practice.as_mut()?.fit_request()
+    }
+
+    /// A painted copy's frame for the runtime to read from the canvas, once per Compare.
+    pub fn practice_read_request(&mut self) -> Option<ReadJob> {
+        self.practice.as_mut()?.read_request()
+    }
+
+    /// The runtime read the copy for the Compare numbered `sequence` (`None`: it could not).
+    pub fn practice_read(&mut self, sequence: u64, pixels: Option<&PictureImage>) {
+        if let Some(practice) = self.practice.as_mut() {
+            practice.read(sequence, pixels);
+        }
+    }
+
+    /// The runtime read the copy's pixel at the point the eyedropper compares
+    /// (`PracticePick::Probe`).
+    pub fn practice_probed(&mut self, copy: [u8; 3]) {
+        if let Some(practice) = self.practice.as_mut() {
+            practice.probed(copy);
+        }
     }
 
     /// The worker found the fit of the Compare numbered `sequence`.

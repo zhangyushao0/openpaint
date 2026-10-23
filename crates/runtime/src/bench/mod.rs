@@ -32,7 +32,8 @@
 //!   colour wheel, a slider and the brush editor's column dragged): frames drawn against the
 //!   vsyncs wanting one, the longest gap, frame work, UI pass and GPU time a frame (`ui.rs`,
 //!   `motion.rs`).
-//! - `practice`: on the practice sheet open, How's card opened and closed and Next three times,
+//! - `practice`: on the practice sheet open, How's card opened and closed, a line compared, Next
+//!   three times, a shape and a colour combination compared, a colour filled and compared,
 //!   measured as `ui` measures (`practice.rs`).
 
 use std::time::{Duration, Instant};

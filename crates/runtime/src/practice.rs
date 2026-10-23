@@ -1,12 +1,13 @@
-//! Practice sessions on the storage worker (G9): a new session's sheet and record are written in
-//! one call and the sheet becomes the open artwork; a session's record is written again after
-//! each change on its sheet; a test session is removed with its sheet (`practice_test.rs`). And
-//! the job a new session starts with: the next session in the app's practice log, seeded from the
-//! strokes' seed source (fixed in the harness), its sheet the size its exercises' layout asks.
+//! Practice sessions on the storage worker (G9): a new session's or colour copy's sheet and record
+//! are written in one call and the sheet becomes the open artwork; a record is written again after
+//! each change on its sheet; a test session or copy is removed with its sheet
+//! (`practice_test.rs`). And the job a new one starts with: the next session in the app's
+//! practice log, or a colour copy of a picture from the packs, seeded from the strokes' seed
+//! source (fixed in the harness), its sheet the size its layout asks.
 
-use openpaint_app::{PortError, PracticeLog, ProjectId, ProjectStore, Title};
+use openpaint_app::{CopyFrom, PortError, PracticeLog, ProjectId, ProjectStore, Title, sheet_of};
 use openpaint_core::{Artwork, CanvasSize};
-use openpaint_practice::{SessionRecord, Sheet};
+use openpaint_practice::SessionRecord;
 
 use crate::error::RuntimeError;
 use crate::seeds::Seeds;
@@ -96,16 +97,43 @@ pub(crate) fn start_job(
     seeds: &mut Seeds,
     now: u64,
 ) -> Result<Job, RuntimeError> {
-    let seed = u64::from(seeds.next()) << 32 | u64::from(seeds.next());
+    let seed = seed(seeds);
     let (session, title) = log.begin(stage, seed, now);
-    let [width, height] = Sheet::of(session.exercises.len()).size;
-    let sheet = Artwork::new(CanvasSize::new(width, height)?);
     log::info!(
         "practice session {} (stage {}, number {}) seeded {seed:016x}",
         session.id,
         session.stage,
         session.number
     );
+    started(log, session, title)
+}
+
+/// The job that begins a long colour copy of a picture `from` the packs of `log`, picked by a
+/// seed from `seeds`, at `now`.
+///
+/// # Errors
+/// `NotNow` without such a picture (the options offer none then).
+pub(crate) fn copy_job(
+    log: &PracticeLog,
+    from: CopyFrom,
+    seeds: &mut Seeds,
+    now: u64,
+) -> Result<Job, RuntimeError> {
+    let seed = seed(seeds);
+    let (copy, title) =
+        (log.begin_copy(from, seed, now)).ok_or(RuntimeError::NotNow("a picture to copy"))?;
+    log::info!("colour copy {} (number {})", copy.id, copy.number);
+    started(log, copy, title)
+}
+
+fn seed(seeds: &mut Seeds) -> u64 {
+    u64::from(seeds.next()) << 32 | u64::from(seeds.next())
+}
+
+/// The job that stores `session`'s new sheet, titled `title`, of the size its layout asks.
+fn started(log: &PracticeLog, session: SessionRecord, title: Title) -> Result<Job, RuntimeError> {
+    let [width, height] = sheet_of(&session, log.packs()).size;
+    let sheet = Artwork::new(CanvasSize::new(width, height)?);
     Ok(Job::Practice(PracticeJob::Start {
         sheet,
         title,

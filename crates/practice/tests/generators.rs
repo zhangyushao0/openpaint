@@ -157,7 +157,7 @@ fn a_first_session_is_six_lines_four_combined_and_six_colours_mostly_low_in_satu
         .iter()
         .filter(|e| match e.original() {
             Original::Colour(colour) => hsv(colour)[1] < 0.36 || chroma(colour) < 0.1,
-            Original::Lines(_) | Original::Picture(_) => false,
+            _ => false,
         })
         .count();
     assert!(low >= 4, "{low} of 6 low in saturation");
@@ -168,7 +168,10 @@ fn a_first_session_is_six_lines_four_combined_and_six_colours_mostly_low_in_satu
         assert_eq!(Kind::of_code(kind, variant), Some(exercise.kind));
     }
     assert_eq!(Kind::of_code(4, 0), None);
-    assert_eq!(Kind::of_code(5, 1), None);
+    assert_eq!(Kind::of_code(5, 3), None);
+    assert_eq!(Kind::of_code(6, 2), None);
+    assert_eq!(Kind::of_code(7, 1), None);
+    assert_eq!(Kind::of_code(8, 0), None);
     assert_eq!(Kind::of_code(3, 4), None);
 }
 
@@ -258,6 +261,33 @@ fn a_picture_fits_inside_its_frame_evenly_and_centred() {
 }
 
 #[test]
+fn a_colour_copy_s_sheet_is_one_pair_of_frames_shaped_as_its_picture() {
+    let sheet = Sheet::study([1200, 900]);
+    assert_eq!(sheet.pairs.len(), 1);
+    let pair = sheet.pairs[0];
+    assert_eq!(pair.original.size, [1600.0, 1200.0]);
+    assert_eq!(pair.copy.size, pair.original.size);
+    assert_eq!(pair.copy.origin[1], pair.original.origin[1]);
+    assert!(pair.copy.origin[0] > pair.original.origin[0] + 1600.0);
+    assert_eq!(sheet.size, [3400, 1360]);
+    let tall = Sheet::study([600, 1000]);
+    assert_eq!(tall.pairs[0].copy.size, [960.0, 1600.0]);
+    // The picture fills its frame; frame units run evenly, one to the frame's width.
+    let fit = PictureFit::filling([1200, 900]);
+    assert_eq!(fit.size, [1.0, 0.75]);
+    assert_eq!(fit.to_frame([1200.0, 900.0]), [1.0, 0.75]);
+    let middle = fit.to_picture([0.5, 0.375]);
+    assert!((middle[0] - 600.0).abs() < 1e-9 && (middle[1] - 450.0).abs() < 1e-9);
+    let corner = pair.copy.to_canvas([1.0, 0.75]);
+    assert_eq!(
+        corner,
+        [pair.copy.origin[0] + 1600.0, pair.copy.origin[1] + 1200.0]
+    );
+    assert!(pair.copy.contains(corner, 0.0));
+    assert_eq!(pair.copy.to_frame(corner), [1.0, 0.75]);
+}
+
+#[test]
 fn the_sheet_lays_pairs_three_a_row_apart_and_inside() {
     let sheet = Sheet::of(18);
     assert_eq!(sheet.size, [2920, 3160]);
@@ -274,12 +304,13 @@ fn the_sheet_lays_pairs_three_a_row_apart_and_inside() {
         .flat_map(|pair| [pair.original, pair.copy])
         .collect();
     for (index, a) in frames.iter().enumerate() {
-        assert_eq!(a.side, FRAME);
-        assert!(a.origin[0] >= 0.0 && a.origin[0] + a.side <= width);
-        assert!(a.origin[1] >= 0.0 && a.origin[1] + a.side <= height);
+        assert_eq!(a.size, [FRAME, FRAME]);
+        assert!(a.origin[0] >= 0.0 && a.origin[0] + a.size[0] <= width);
+        assert!(a.origin[1] >= 0.0 && a.origin[1] + a.size[1] <= height);
         for b in &frames[index + 1..] {
             let apart = (0..2).any(|axis| {
-                a.origin[axis] + a.side < b.origin[axis] || b.origin[axis] + b.side < a.origin[axis]
+                a.origin[axis] + a.size[axis] < b.origin[axis]
+                    || b.origin[axis] + b.size[axis] < a.origin[axis]
             });
             assert!(apart, "{a:?} and {b:?} overlap");
         }

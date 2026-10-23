@@ -93,7 +93,7 @@ fn shown(session: &Session) -> (Option<Family>, bool, (usize, usize), Option<Fam
 fn overlay(session: &Session) -> Option<Vec<Vec<[f32; 2]>>> {
     match session.projection().practice()?.overlay.clone()? {
         Overlay::Lines(lines) => Some(lines),
-        Overlay::Colour { .. } | Overlay::Picture { .. } => None,
+        _ => None,
     }
 }
 

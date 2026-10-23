@@ -15,6 +15,7 @@ use crate::error::AppError;
 use crate::gallery_files::{FileJob, Files, problem};
 pub use crate::gallery_projection::GalleryProjection;
 use crate::gallery_projection::offered_unless;
+use crate::practice_log::CopyFrom;
 use crate::project::{PortError, ProjectId, ProjectSummary, VersionId};
 use crate::projection::{Availability, EditorAction};
 use crate::title::Title;
@@ -50,6 +51,9 @@ pub enum GalleryIntent {
     /// A new practice session of the stage given, opened at once (the Today card and its
     /// options; an open one is continued by opening its sheet).
     Practice(u8),
+    /// A new long colour copy of a picture from where given, opened at once (the practice
+    /// options; one begun is opened by its sheet).
+    Copy(CopyFrom),
     /// "Import practice pack…": a pack file the user chooses, kept beside the library.
     ImportPack,
     /// "Add my picture…": a picture the user chooses, added to their own pictures.
@@ -102,6 +106,8 @@ pub enum LibraryRequest {
     Restore(ProjectId, VersionId, Title),
     /// A new practice session of the stage given and its sheet, which becomes the open one.
     Practice(u8),
+    /// A new long colour copy and its sheet, which becomes the open one.
+    Copy(CopyFrom),
 }
 
 /// How a library call went, for the gallery. A successful open or create leaves the gallery.
@@ -259,10 +265,14 @@ impl Gallery {
                 LibraryRequest::Restore(id, version, title)
             }
             GalleryIntent::Practice(stage) => LibraryRequest::Practice(stage),
+            GalleryIntent::Copy(from) => LibraryRequest::Copy(from),
         };
         self.opening = matches!(
             request,
-            LibraryRequest::Create(..) | LibraryRequest::Open(_) | LibraryRequest::Practice(_)
+            LibraryRequest::Create(..)
+                | LibraryRequest::Open(_)
+                | LibraryRequest::Practice(_)
+                | LibraryRequest::Copy(_)
         );
         self.requests.push_back(request);
         if !self.opening {

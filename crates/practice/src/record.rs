@@ -1,9 +1,13 @@
 //! What is kept of a session: its stage and place in it, its seed and exercises (the first of
 //! them its warm-up), where its sheet is, its progress and every compared exercise: when it was
-//! first compared, how often, which of its strokes are corrections and, for a colour, its
-//! numbers. Enough for the summary and the next warm-up now, and for trajectories, re-tests,
-//! drills and a study of the strokes later. The summary sets this session's colour means and
-//! judgement beside those of the sessions before it in its stage.
+//! first compared, how often, which of its strokes are corrections and, for a colour, a colour
+//! combination or a value scale, its numbers. Enough for the summary and the next warm-up now,
+//! and for trajectories, re-tests, drills and a study of the strokes later. The summary sets this
+//! session's means (and colour judgement) beside those of the sessions before it in its stage.
+//!
+//! A long colour copy (V大's 色彩临摹) is kept the same way, as a project beside the sessions:
+//! stage `PROJECT` (none of the course's), its number among the copies, one exercise, the copy of
+//! its picture, never finished by a session's Next. It counts in no stage, warm-up or summary.
 
 use crate::colour_match::Tone;
 use crate::judgement::{Judgement, judgement};
@@ -12,14 +16,17 @@ use crate::pack::ItemRef;
 use crate::plan::{Exercise, Family, Kind};
 use crate::session::{Plan, stage_one};
 
+/// The stage a long colour copy's record holds: none of the course's.
+pub const PROJECT: u8 = 0;
+
 /// One session as it is stored.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SessionRecord {
-    /// Its number among all sessions, from 1; never reused.
+    /// Its number among all sessions and copies, from 1; never reused.
     pub id: u64,
-    /// Its stage, 1 to `STAGES`.
+    /// Its stage, 1 to `STAGES`; `PROJECT` for a long colour copy.
     pub stage: u8,
-    /// Its number within its stage, from 1.
+    /// Its number within its stage (among the copies), from 1.
     pub number: u32,
     pub seed: u64,
     /// The project that holds its sheet (the app's project id); 0 until it has one.
@@ -106,6 +113,27 @@ impl SessionRecord {
         }
     }
 
+    /// Long colour copy `number`, the `id`th of all sessions and copies, seeded `seed`, begun at
+    /// `started`, of `picture`.
+    #[must_use]
+    pub fn project(id: u64, number: u32, (seed, started): (u64, u64), picture: ItemRef) -> Self {
+        let copy = Exercise {
+            picture: Some(picture),
+            ..Exercise::generated(Kind::Study, seed)
+        };
+        let plan = Plan {
+            exercises: vec![copy],
+            warm_up: 0,
+        };
+        Self::begun(id, (PROJECT, number), (seed, started), plan)
+    }
+
+    /// Whether it is a long colour copy, not a session.
+    #[must_use]
+    pub const fn is_project(&self) -> bool {
+        self.stage == PROJECT
+    }
+
     /// The result of exercise `index`, once it was checked.
     #[must_use]
     pub fn result(&self, index: usize) -> Option<&ExerciseResult> {
@@ -142,12 +170,13 @@ impl SessionRecord {
     }
 }
 
-/// The kinds compared in `sessions`, each once, in the order of their codes: what a warm-up
-/// draws from.
+/// The kinds compared in `sessions` (long colour copies left out), each once, in the order of
+/// their codes: what a warm-up draws from.
 #[must_use]
 pub fn met(sessions: &[SessionRecord]) -> Vec<Kind> {
     let mut kinds: Vec<Kind> = sessions
         .iter()
+        .filter(|session| !session.is_project())
         .flat_map(|session| {
             (session.results.iter())
                 .filter_map(|result| session.exercises.get(result.index as usize))
@@ -159,10 +188,12 @@ pub fn met(sessions: &[SessionRecord]) -> Vec<Kind> {
     kinds
 }
 
-/// The pictures `sessions` showed, each once: what the next session picks others than.
+/// The pictures `sessions` showed (long colour copies left out), each once: what the next
+/// session picks others than.
 #[must_use]
 pub fn used(sessions: &[SessionRecord]) -> Vec<ItemRef> {
     let mut items: Vec<ItemRef> = (sessions.iter())
+        .filter(|session| !session.is_project())
         .flat_map(|session| session.exercises.iter())
         .filter_map(|exercise| exercise.picture.clone())
         .collect();
@@ -171,8 +202,20 @@ pub fn used(sessions: &[SessionRecord]) -> Vec<ItemRef> {
     items
 }
 
-/// The metrics the summary sets side by side for colours.
+/// The metrics the summary sets side by side for colours, colour combinations and value scales.
 pub const COLOUR_ROWS: [Metric; 3] = [Metric::FirstDelta, Metric::FinalDelta, Metric::Corrections];
+pub const AREAS_ROWS: [Metric; 2] = [Metric::AreasDelta, Metric::AreasMadeStrong];
+pub const SCALE_ROWS: [Metric; 2] = [Metric::ScaleOff, Metric::ScaleReversed];
+
+/// The metrics the summary sets side by side for `family`.
+const fn rows_of(family: Family) -> &'static [Metric] {
+    match family {
+        Family::Colour => &COLOUR_ROWS,
+        Family::Areas => &AREAS_ROWS,
+        Family::Scale => &SCALE_ROWS,
+        Family::Line | Family::Combined | Family::Shape | Family::Study => &[],
+    }
+}
 
 /// One family of exercises in a session's summary.
 #[derive(Debug, Clone, PartialEq)]
@@ -181,8 +224,8 @@ pub struct KindSummary {
     /// Exercises of the kind compared, and held.
     pub checked: usize,
     pub held: usize,
-    /// Colours: per metric the mean over this session's results and over the earlier sessions';
-    /// lines have none.
+    /// Colours, colour combinations and value scales: per metric the mean over this session's
+    /// results and over the earlier sessions'; lines and shapes have none.
     pub rows: Vec<(Metric, Option<f64>, Option<f64>)>,
     /// Colours: this session's judgement and the earlier sessions'.
     pub judgement: Option<[Judgement; 2]>,
@@ -209,12 +252,10 @@ pub fn summary(this: &SessionRecord, before: &[&SessionRecord]) -> Vec<KindSumma
             (held > 0).then(|| {
                 let mine = results_of(&[this], family);
                 let earlier = results_of(before, family);
-                let (rows, judged) = if family.drawn() {
-                    (Vec::new(), None)
-                } else {
-                    let rows = COLOUR_ROWS.map(|m| (m, mean(&mine, m), mean(&earlier, m)));
-                    (rows.to_vec(), Some([judged(&mine), judged(&earlier)]))
-                };
+                let rows = (rows_of(family).iter())
+                    .map(|m| (*m, mean(&mine, *m), mean(&earlier, *m)))
+                    .collect();
+                let judged = (family == Family::Colour).then(|| [judged(&mine), judged(&earlier)]);
                 KindSummary {
                     family,
                     checked: mine.len(),
@@ -255,7 +296,7 @@ fn judged(results: &[(Kind, &Metrics)]) -> Judgement {
         .iter()
         .filter_map(|(kind, metrics)| match kind {
             Kind::Colour(tone) => Some((*tone, metrics.as_slice())),
-            Kind::Line(_) | Kind::Combined(_) | Kind::Shape(_) => None,
+            _ => None,
         })
         .collect();
     judgement(&colours)
