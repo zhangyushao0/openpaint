@@ -13,8 +13,8 @@ use std::sync::Arc;
 
 use openpaint_core::Color;
 use openpaint_practice::{
-    AreasCopy, ExerciseResult, Family, KindSummary, Original, Pack, Pair, Point, Rgb8, ScaleCheck,
-    SessionRecord, Sheet,
+    AreasCopy, BoxCheck, EllipseCheck, ExerciseResult, Family, FreeCheck, KindSummary, Original,
+    Pack, Pair, Point, Rgb8, ScaleCheck, SessionRecord, Sheet,
 };
 
 use crate::layer_rules::LayerRefusal;
@@ -263,4 +263,12 @@ pub enum Overlay {
     },
     /// A value scale's copy as checked (none until its pixels are read).
     Scale(Option<Arc<ScaleCheck>>),
+    /// A completed box: the exact box lies over the copy, the copy's edges extended towards its
+    /// vanishing points (frame units).
+    Box(Arc<BoxCheck>),
+    /// Free boxes: each one's edges extended to the horizon, where each direction meets it and
+    /// its front corners under 90 degrees (frame units).
+    FreeBoxes(Arc<FreeCheck>),
+    /// An ellipse: the exact one and the one fitted to the copy's lines, and their differences.
+    Ellipse(Arc<EllipseCheck>),
 }

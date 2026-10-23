@@ -443,3 +443,10 @@ Superseded decisions moved here whole from `docs/DECISIONS.md`. Written, never r
 - Reason: one renderer for every product path, so what an artwork holds never changes how fast or how exactly it draws.
 - Consequences: a preview value redraws its whole reach (STATUS pending 22); a retune while the worker holds the scene builds it anew; the group copy and each level are a float target more where used (16 MB at 1024²).
 
+## Archived 2026-10-23 (room for D107; behaviour unchanged, still as the code does it, the frozen format-1 sample holding its records)
+
+## D63 2026-10-05 Kept versions: the artwork as left after a change, as an OpenPaint file, 10 per artwork, restored as a copy
+- Decision: when the open artwork is left (to the gallery or `onPause`) and was saved since it opened or was last kept, the storage worker keeps a version: its OpenPaint file's bytes under `[project]['v'][n]` and an entry `['v'][project][n]` -> seconds since 1970 UTC in `library`, so the gallery lists versions without reading them. At most `KEPT_VERSIONS` 10, the oldest dropped in the same batch. Restoring opens the version into a new artwork "<title> (<date>)"; deleting an artwork deletes its versions; duplicating copies none. Dates show in the device's zone; the harness holds the wall clock at 2026-10-05 12:00 UTC.
+- Reason: undo does not survive leaving, so the state at the previous leave is what a later regret needs.
+- Consequences: up to 10 x (records + thumbnail) per artwork; frequent short leaves push older versions out.
+

@@ -9,17 +9,22 @@
 //! in turn (lines, combined lines, colours).
 //!
 //! Stage 2 (V大's week 2): four single shapes, the main exercise, then week 2's colour work, a
-//! colour combination and a value scale, and one colour, stage 1's judgement kept alive (lines
-//! and groups live on in the warm-up). The shapes' tiers follow the session's number: entry and
+//! colour combination and a value scale, then its perspective in turn by the session's number:
+//! a box to complete and an ellipse in the first, third, fifth session, a page of free boxes in
+//! the second, fourth, sixth (the box two-point, then three-point; the ellipse in a plain frame,
+//! then in perspective; the free boxes' horizon in the middle, high, then low). Lines, groups and
+//! colours live on in the warm-up. The shapes' tiers follow the session's number: entry and
 //! simple first, medium from the third session, hard from the sixth; the user's own pictures take
 //! the last place once there are some of a tier the session reaches (its hardest or an easier
 //! one, the tier the user chose for each). A shape taken at about 3.5 minutes (a line drawing,
 //! basically right, compared and corrected once), a combination at about 4 (the tone, the middle
-//! tones, the edges with a big brush), a value scale at about 3: the mix about 22.75 minutes. Its
-//! warm-up is three exercises, at most one of them long (a shape, a combination or a scale), so
-//! it stays about 5 to 6.5 minutes and a session about 27 to 29: the long families met take the
-//! long place in turn by the session's number, the quick ones the others in turn from a family
-//! the number moves on, so over sessions every kind met comes back.
+//! tones, the edges with a big brush), a value scale at about 3, a box to complete at about 2.5
+//! (nine edges, ghosted, extended and corrected), an ellipse at about 1, a page of three or four
+//! free boxes at about 3: the mix about 24 to 24.5 minutes. Its warm-up is three exercises, at
+//! most one of them long (a shape, a combination, a scale or free boxes), so it stays about 5 to
+//! 6.5 minutes and a session about 29 to 31: the long families met take the long place in turn
+//! by the session's number, the quick ones (lines, groups, colours, boxes, ellipses) the others in
+//! turn from a family the number moves on, so over sessions every kind met comes back.
 //!
 //! The warm-up's exercises are kinds met, each chosen by the seed among its family's; a shape in
 //! it a picture of its tier. A plan's shapes carry their pictures, picked by the seed
@@ -30,8 +35,10 @@ use std::collections::HashSet;
 use crate::areas::Arrangement;
 use crate::colour_match::{Lightness, Purity, Tone};
 use crate::combined::Combination;
+use crate::ellipse::Guide;
 use crate::line::LineTier;
 use crate::pack::{ItemRef, Tier};
+use crate::perspective::{BoxView, Horizon};
 use crate::pictures::Pictures;
 use crate::plan::{Exercise, Family, Kind};
 use crate::random::{Random, derived};
@@ -65,9 +72,24 @@ const COLOURS: [(Purity, Lightness); 6] = [
     (Purity::Vivid, Lightness::Middle),
     (Purity::Grey, Lightness::Dark),
 ];
-/// The families of stage 1's exercises, quick to do; and stage 2's long ones.
+/// The families of stage 1's exercises, quick to do; stage 2's quick ones (theirs, boxes and
+/// ellipses) and its long ones.
 const QUICK: [Family; 3] = [Family::Line, Family::Combined, Family::Colour];
-const LONG: [Family; 3] = [Family::Shape, Family::Areas, Family::Scale];
+const QUICK_TWO: [Family; 5] = [
+    Family::Line,
+    Family::Combined,
+    Family::Colour,
+    Family::Box,
+    Family::Ellipse,
+];
+const LONG: [Family; 4] = [
+    Family::Shape,
+    Family::Areas,
+    Family::Scale,
+    Family::FreeBoxes,
+];
+/// The free boxes' horizons in turn: in the middle first.
+const HORIZONS: [Horizon; 3] = [Horizon::Middle, Horizon::High, Horizon::Low];
 
 /// A session's exercises, the first `warm_up` of them its warm-up.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -121,8 +143,9 @@ pub fn stage_one(seed: u64, met: &[Kind]) -> Plan {
 
 /// Stage 2's session `number` seeded `seed` after `before`: its warm-up, then four shapes of the
 /// session's tiers (the last the user's own when they have some the session reaches), a colour
-/// combination, a value scale and a colour, the combination's arrangement and the scale's tone
-/// (grey, then of a hue) in turn by number. Without any picture there are no shapes.
+/// combination, a value scale and the session's perspective (`perspective`), the combination's
+/// arrangement and the scale's tone (grey, then of a hue) in turn by number. Without any picture
+/// there are no shapes.
 #[must_use]
 pub fn stage_two(number: u32, seed: u64, before: &Before<'_>) -> Plan {
     let mut random = Random::new(derived(seed, u64::MAX - 1));
@@ -150,19 +173,36 @@ pub fn stage_two(number: u32, seed: u64, before: &Before<'_>) -> Plan {
     let shapes = (tiers.iter().enumerate())
         .filter_map(|(at, tier)| pick(Kind::Shape(*tier), own && at + 1 == tiers.len()));
     let turn = number.saturating_sub(1) as usize;
-    let (purity, lightness) = COLOURS[turn % COLOURS.len()];
     let colour_work = [
         Kind::Areas(Arrangement::ALL[turn % Arrangement::ALL.len()]),
         Kind::Scale(ScaleTone::ALL[turn % ScaleTone::ALL.len()]),
-        Kind::Colour(Tone { purity, lightness }),
     ];
     let warmed = u32::try_from(warm_up.len()).unwrap_or(0);
     let all = (warm_up.into_iter())
         .chain(shapes.collect::<Vec<_>>())
-        .chain(colour_work.map(|kind| (kind, None)));
+        .chain(
+            colour_work
+                .into_iter()
+                .chain(perspective(turn))
+                .map(|kind| (kind, None)),
+        );
     Plan {
         exercises: seeded(seed, all),
         warm_up: warmed,
+    }
+}
+
+/// Stage 2's perspective in the session after `turn` others: a box to complete and an ellipse,
+/// then a page of free boxes, in turn; each kind's variant in turn among its sessions.
+fn perspective(turn: usize) -> Vec<Kind> {
+    let round = turn / 2;
+    if turn.is_multiple_of(2) {
+        vec![
+            Kind::Box(BoxView::ALL[round % BoxView::ALL.len()]),
+            Kind::Ellipse(Guide::ALL[round % Guide::ALL.len()]),
+        ]
+    } else {
+        vec![Kind::FreeBoxes(HORIZONS[round % HORIZONS.len()])]
     }
 }
 
@@ -227,12 +267,12 @@ fn warm_up(seed: u64, met: &[Kind]) -> Vec<Kind> {
 /// turn from one the number moves on; then in the families' order.
 fn warm_up_two(number: u32, seed: u64, met: &[Kind]) -> Vec<Kind> {
     let met = distinct(met);
-    let present = |families: [Family; 3]| -> Vec<Family> {
-        (families.into_iter())
+    let present = |families: &[Family]| -> Vec<Family> {
+        (families.iter().copied())
             .filter(|family| met.iter().any(|kind| kind.family() == *family))
             .collect()
     };
-    let (quick, long) = (present(QUICK), present(LONG));
+    let (quick, long) = (present(&QUICK_TWO), present(&LONG));
     let turn = number.saturating_sub(1) as usize;
     let mut families = Vec::with_capacity(WARM_UP_TWO);
     if !long.is_empty() {

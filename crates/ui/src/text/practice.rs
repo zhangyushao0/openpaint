@@ -125,10 +125,23 @@ texts! { PRACTICE_STEPS;
 /// The instructions for a family: the heading and four paragraphs.
 pub(crate) const fn instructions(family: Family) -> (Text, [Text; 4]) {
     use super::practice_colour as c;
+    use super::practice_perspective as p;
     match family {
         Family::Line => (COPY_A_LINE, [LINE_1, LINE_2, LINE_3, LINE_4]),
         Family::Combined => (COPY_COMBINED, [GROUP_1, GROUP_2, GROUP_3, GROUP_4]),
         Family::Shape => (COPY_A_SHAPE, [SHAPE_1, SHAPE_2, SHAPE_3, SHAPE_4]),
+        Family::Box => (
+            p::COMPLETE_THE_BOX,
+            [p::BOX_1, p::BOX_2, p::BOX_3, p::BOX_4],
+        ),
+        Family::FreeBoxes => (
+            p::FREE_BOXES_EXERCISE,
+            [p::FREE_1, p::FREE_2, p::FREE_3, p::FREE_4],
+        ),
+        Family::Ellipse => (
+            p::DRAW_AN_ELLIPSE,
+            [p::ELLIPSE_1, p::ELLIPSE_2, p::ELLIPSE_3, p::ELLIPSE_4],
+        ),
         Family::Colour => (MATCH_A_COLOUR, [COLOUR_1, COLOUR_2, COLOUR_3, COLOUR_4]),
         Family::Areas => (
             c::AREAS_EXERCISE,
@@ -229,6 +242,9 @@ const fn called(family: Family, warming_up: bool) -> Text {
         (false, Family::Line) => LINE,
         (false, Family::Combined) => COMBINED_LINES,
         (false, Family::Shape) => SHAPE_EXERCISE,
+        (false, Family::Box) => super::BOX_EXERCISE,
+        (false, Family::FreeBoxes) => super::FREE_BOXES_EXERCISE,
+        (false, Family::Ellipse) => super::ELLIPSE_EXERCISE,
         (false, Family::Colour) => super::COLOUR,
         (false, Family::Areas) => super::AREAS_EXERCISE,
         (false, Family::Scale) => super::SCALE_EXERCISE,
@@ -279,6 +295,11 @@ pub(crate) fn compared_of(
         }
         (Language::English, Family::Colour) => format!("Colours: {checked} of {held} compared"),
         (Language::English, Family::Shape) => format!("Shapes: {checked} of {held} compared"),
+        (Language::English, Family::Box) => format!("Boxes: {checked} of {held} compared"),
+        (Language::English, Family::FreeBoxes) => {
+            format!("Free boxes: {checked} of {held} compared")
+        }
+        (Language::English, Family::Ellipse) => format!("Ellipses: {checked} of {held} compared"),
         (Language::English, Family::Areas) => {
             format!("Colour combinations: {checked} of {held} compared")
         }
@@ -291,6 +312,9 @@ pub(crate) fn compared_of(
         (Language::Chinese, Family::Line) => format!("线条：已对比 {checked}/{held}"),
         (Language::Chinese, Family::Combined) => format!("组合线条：已对比 {checked}/{held}"),
         (Language::Chinese, Family::Shape) => format!("单体图形：已对比 {checked}/{held}"),
+        (Language::Chinese, Family::Box) => format!("透视盒子：已对比 {checked}/{held}"),
+        (Language::Chinese, Family::FreeBoxes) => format!("自由盒子：已对比 {checked}/{held}"),
+        (Language::Chinese, Family::Ellipse) => format!("椭圆：已对比 {checked}/{held}"),
         (Language::Chinese, Family::Colour) => format!("颜色：已对比 {checked}/{held}"),
         (Language::Chinese, Family::Areas) => format!("色彩组合：已对比 {checked}/{held}"),
         (Language::Chinese, Family::Scale) => format!("明度推移：已对比 {checked}/{held}"),

@@ -5,9 +5,11 @@
 //! next pair; then, in a session holding single shapes (stage 2), on to its first shape: an
 //! outline drawn, Compare, Aligned (its fit found off the frame loop), In place and Compare taken
 //! away; on to its colour combination: Fill frame, a stroke, Compare (its copy read back), another
-//! area, the original shown dragged, Compare taken away; then, the session taken on to its next
-//! colour, the inline wheel's square dragged round, Fill frame and Compare (the colours on the
-//! wheel). Between motions the frames still wanted, then a pause as the hand moves on.
+//! area, the original shown dragged, Compare taken away; on to its perspective: a box's edges or
+//! free boxes' drawn, Compare (the edges found and extended, at once on the frame loop) and taken
+//! away, an ellipse's loop, Compare and taken away; then, the session taken on to its next colour
+//! (if one is left), the inline wheel's square dragged round, Fill frame and Compare (the colours
+//! on the wheel). Between motions the frames still wanted, then a pause as the hand moves on.
 
 use openpaint_app::{Intent, PracticeIntent};
 use openpaint_practice::Family;
@@ -61,11 +63,92 @@ impl Runtime {
             }
             lines.push(format!("next {next}: {line}"));
         }
-        // Stage 2's shapes come before its colour work.
+        // Stage 2's shapes come before its colour work, its perspective after it.
         self.bench_shape(lines)?;
         self.bench_combination(lines)?;
+        self.bench_perspective(lines)?;
         self.bench_colour(lines)?;
         self.bench_rest()
+    }
+
+    /// In a stage-2 session: on to its perspective, a box to complete or a page of free boxes and
+    /// an ellipse, each drawn (edges or a loop) and compared, the comparison then taken away: a
+    /// line each.
+    fn bench_perspective(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
+        for (family, name) in [
+            (Family::Box, "box"),
+            (Family::FreeBoxes, "free boxes"),
+            (Family::Ellipse, "ellipse"),
+        ] {
+            if !self.bench_on_to(family)? {
+                lines.push(format!("no {name} after this point of the session"));
+                continue;
+            }
+            if family == Family::Ellipse {
+                self.bench_outline()?;
+            } else {
+                self.bench_edges()?;
+            }
+            for when in ["opens", "closes"] {
+                let line = self.bench_tap("Compare", ToolKind::Finger)?;
+                lines.push(format!("{name} compare {when}: {line}"));
+            }
+        }
+        Ok(())
+    }
+
+    /// Next until an exercise of `family` shows, its instructions closed and the hand at rest;
+    /// false when none comes after the one shown.
+    fn bench_on_to(&mut self, family: Family) -> Result<bool, RuntimeError> {
+        use openpaint_practice::Original;
+        let shown = |runtime: &Self| runtime.projection().practice().and_then(|p| p.family);
+        let of = |original: &Original| match original {
+            Original::Box(_) => Some(Family::Box),
+            Original::FreeBoxes(_) => Some(Family::FreeBoxes),
+            Original::Ellipse(_) => Some(Family::Ellipse),
+            _ => None,
+        };
+        let holds = (self.projection().practice()).is_some_and(|p| {
+            let from = p.current.unwrap_or(p.sheet.originals.len());
+            (p.sheet.originals.iter().skip(from)).any(|original| of(original) == Some(family))
+        });
+        if !holds {
+            return Ok(false);
+        }
+        let mut watch = Watch::paced(self);
+        while shown(self) != Some(family) {
+            let viewport = self.bench_viewport()?;
+            let next = Intent::Practice(PracticeIntent::Next(viewport));
+            self.bench_intents(vec![next], &mut watch)?;
+        }
+        let close = Intent::Practice(PracticeIntent::Instructions(false));
+        self.bench_intents(vec![close], &mut watch)?;
+        self.bench_settle()?;
+        self.bench_rest()?;
+        Ok(true)
+    }
+
+    /// A box's edges drawn by the pen in the shown copy's frame: three verticals and the lines
+    /// between their ends, each a stroke.
+    fn bench_edges(&mut self) -> Result<(), RuntimeError> {
+        let practice = self.projection().practice().cloned();
+        let frame = (practice.as_ref())
+            .and_then(|p| p.current.map(|index| p.sheet.pairs[index].copy))
+            .ok_or(RuntimeError::NotNow("an exercise shown"))?;
+        let view = self.bench_view()?;
+        let at = |p: [f64; 2]| to_screen(&view, frame.to_canvas(p).map(|v| v as f32));
+        let edges = [
+            [[0.3, 0.35], [0.3, 0.7]],
+            [[0.5, 0.4], [0.5, 0.8]],
+            [[0.7, 0.35], [0.7, 0.7]],
+            [[0.3, 0.7], [0.5, 0.8]],
+            [[0.5, 0.8], [0.7, 0.7]],
+            [[0.3, 0.35], [0.5, 0.4]],
+        ];
+        for [a, b] in edges {
+            self.bench_measured(by_pen(drag(&[at(a), at(b)], LINE_MS / 2)))?;
+        }
+        Ok(())
     }
 
     /// In a stage-2 session: on to its colour combination, Fill frame, a stroke of Big across the
@@ -192,6 +275,15 @@ impl Runtime {
         let colour = |runtime: &Self| {
             (runtime.projection().practice()).is_some_and(|p| p.family == Some(Family::Colour))
         };
+        let holds = (self.projection().practice()).is_some_and(|p| {
+            let from = p.current.unwrap_or(p.sheet.originals.len());
+            (p.sheet.originals.iter().skip(from))
+                .any(|original| matches!(original, openpaint_practice::Original::Colour(_)))
+        });
+        if !holds {
+            lines.push("no colour after this point of the session".to_owned());
+            return Ok(());
+        }
         let mut watch = Watch::paced(self);
         while !colour(self) {
             let viewport = self.bench_viewport()?;

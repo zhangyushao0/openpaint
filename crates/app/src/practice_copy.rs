@@ -9,6 +9,8 @@
 //! counted). A colour's copy is the colours laid: each paint stroke's colour and each fill's whose
 //! region lies in the frame, in the order they lie on their layer, layers bottom to top.
 
+use std::ops::Range;
+
 use openpaint_core::{Artwork, Color, Layer, Stroke, StrokeTool};
 use openpaint_practice::{ColourCopy, Frame, Point, Rgb8, nearest};
 
@@ -50,17 +52,22 @@ fn positions(stroke: &Stroke) -> Vec<Point> {
         .collect()
 }
 
-/// The line copied in `frame` in pieces, in frame units: what the aligned overlay fits.
+/// Every stroke id.
+pub(crate) const ALL_STROKES: Range<u64> = 0..u64::MAX;
+
+/// The line copied in `frame` in pieces, in frame units, of the strokes whose ids lie in `ids`:
+/// what the aligned overlay fits and a geometry check reads.
 pub(crate) fn line_pieces(
     artwork: &Artwork,
     frame: &Frame,
-    pens: &PracticePens,
+    (pens, ids): (&PracticePens, Range<u64>),
 ) -> Vec<Vec<Point>> {
     let strokes = strokes_in(artwork, frame);
     let mut pieces = Vec::new();
     for (index, stroke) in strokes.iter().enumerate() {
         let style = stroke.style();
-        if style.tool() != StrokeTool::Paint || pens.is_sketch(style) {
+        let left_out = !ids.contains(&stroke.id().get());
+        if style.tool() != StrokeTool::Paint || pens.is_sketch(style) || left_out {
             continue;
         }
         let erasers: Vec<(Vec<Point>, f64)> = strokes[index + 1..]

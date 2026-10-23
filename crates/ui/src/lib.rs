@@ -33,6 +33,8 @@ mod pen_marks;
 mod practice_bar;
 mod practice_card;
 mod practice_card_colour;
+mod practice_card_geometry;
+mod practice_geometry_marks;
 mod practice_marks;
 mod practice_paint_marks;
 mod practice_tools;

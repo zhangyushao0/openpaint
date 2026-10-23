@@ -6,9 +6,11 @@ use crate::areas::{Areas, Arrangement};
 use crate::colour::Rgb8;
 use crate::colour_match::Tone;
 use crate::combined::{Combination, CombinedLines};
+use crate::ellipse::{EllipseGuide, Guide};
 use crate::line::{LineExercise, LineTier};
 use crate::pack::{ItemRef, Tier};
 use crate::path::Point;
+use crate::perspective::{BoxView, Horizon, PerspectiveBox};
 use crate::scale::{ScaleTone, ValueScale};
 
 /// The course's stages, after V大's eight weeks.
@@ -36,6 +38,13 @@ pub enum Kind {
     /// A long colour copy of a picture (V大's 色彩临摹): a project beside the sessions, never
     /// one of their exercises.
     Study,
+    /// A box in perspective given by its front corner and three edges, to complete (V大's
+    /// 透视盒子).
+    Box(BoxView),
+    /// A page with a horizon, a few boxes drawn freely on it.
+    FreeBoxes(Horizon),
+    /// An ellipse drawn to fit a guide (Drawabox's tables, V大's cylinder in a box).
+    Ellipse(Guide),
 }
 
 /// What an exercise asks for, whatever its variant: its instructions, its tools, its line in
@@ -45,6 +54,9 @@ pub enum Family {
     Line,
     Combined,
     Shape,
+    Box,
+    FreeBoxes,
+    Ellipse,
     Colour,
     Areas,
     Scale,
@@ -53,21 +65,34 @@ pub enum Family {
 
 impl Family {
     /// In a warm-up's order.
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 10] = [
         Self::Line,
         Self::Combined,
         Self::Shape,
+        Self::Box,
+        Self::FreeBoxes,
+        Self::Ellipse,
         Self::Colour,
         Self::Areas,
         Self::Scale,
         Self::Study,
     ];
 
-    /// Whether its exercises are drawn with the pens as lines and compared by overlay (lines,
-    /// combined lines, single shapes), not coloured.
+    /// Whether its exercises are drawn with the pens as lines (lines, combined lines, single
+    /// shapes, boxes, ellipses), not coloured.
     #[must_use]
     pub const fn drawn(self) -> bool {
-        matches!(self, Self::Line | Self::Combined | Self::Shape)
+        matches!(
+            self,
+            Self::Line | Self::Combined | Self::Shape | Self::Box | Self::FreeBoxes | Self::Ellipse
+        )
+    }
+
+    /// Whether its copy is checked as geometry (boxes in perspective, ellipses): its edges or its
+    /// ellipse found in the lines and set against an exact answer or rule, never aligned.
+    #[must_use]
+    pub const fn geometric(self) -> bool {
+        matches!(self, Self::Box | Self::FreeBoxes | Self::Ellipse)
     }
 
     /// Whether its exercises are painted with brushes and read from the copy's pixels (colour
@@ -82,7 +107,8 @@ impl Kind {
     /// The kind and its variant as stored: (1, tier) for a line, (2, tone) for a colour, (3,
     /// arrangement) for combined lines, (4, the picture's tier code) for a single shape, (5,
     /// arrangement) for a colour combination, (6, tone) for a value scale, (7, 0) for a colour
-    /// copy. A code names one generator for good; a changed generator is a new code.
+    /// copy, (8, view) for a box to complete, (9, horizon) for free boxes, (10, guide) for an
+    /// ellipse. A code names one generator for good; a changed generator is a new code.
     #[must_use]
     pub fn code(self) -> (u8, u8) {
         let index = |found: Option<usize>| found.unwrap_or(0) as u8;
@@ -100,6 +126,9 @@ impl Kind {
             }
             Self::Scale(tone) => (6, index(ScaleTone::ALL.iter().position(|t| *t == tone))),
             Self::Study => (7, 0),
+            Self::Box(view) => (8, index(BoxView::ALL.iter().position(|v| *v == view))),
+            Self::FreeBoxes(horizon) => (9, index(Horizon::ALL.iter().position(|h| *h == horizon))),
+            Self::Ellipse(guide) => (10, index(Guide::ALL.iter().position(|g| *g == guide))),
         }
     }
 
@@ -114,6 +143,9 @@ impl Kind {
             5 => Arrangement::ALL.get(at).map(|a| Self::Areas(*a)),
             6 => ScaleTone::ALL.get(at).map(|t| Self::Scale(*t)),
             7 => (variant == 0).then_some(Self::Study),
+            8 => BoxView::ALL.get(at).map(|v| Self::Box(*v)),
+            9 => Horizon::ALL.get(at).map(|h| Self::FreeBoxes(*h)),
+            10 => Guide::ALL.get(at).map(|g| Self::Ellipse(*g)),
             _ => None,
         }
     }
@@ -128,6 +160,9 @@ impl Kind {
             Self::Areas(_) => Family::Areas,
             Self::Scale(_) => Family::Scale,
             Self::Study => Family::Study,
+            Self::Box(_) => Family::Box,
+            Self::FreeBoxes(_) => Family::FreeBoxes,
+            Self::Ellipse(_) => Family::Ellipse,
         }
     }
 }
@@ -168,6 +203,11 @@ impl Exercise {
             }
             Kind::Areas(arrangement) => Original::Areas(Areas::generate(arrangement, self.seed)),
             Kind::Scale(tone) => Original::Scale(ValueScale::generate(tone, self.seed)),
+            Kind::Box(view) => Original::Box(PerspectiveBox::generate(view, self.seed)),
+            Kind::FreeBoxes(horizon) => {
+                Original::FreeBoxes(PerspectiveBox::on_horizon(horizon, self.seed))
+            }
+            Kind::Ellipse(guide) => Original::Ellipse(EllipseGuide::generate(guide, self.seed)),
         }
     }
 }
@@ -185,4 +225,10 @@ pub enum Original {
     Areas(Areas),
     /// A value scale's ends and cells.
     Scale(ValueScale),
+    /// A box to complete: the exact box, its front corner's three edges given.
+    Box(PerspectiveBox),
+    /// A free-boxes page: its horizon is the example box's.
+    FreeBoxes(PerspectiveBox),
+    /// An ellipse's guide and the exact ellipse.
+    Ellipse(EllipseGuide),
 }

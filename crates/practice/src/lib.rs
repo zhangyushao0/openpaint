@@ -17,6 +17,9 @@ mod areas_read;
 mod colour;
 mod colour_match;
 mod combined;
+mod edges;
+mod ellipse;
+mod ellipse_fit;
 mod judgement;
 mod licence;
 mod line;
@@ -31,6 +34,10 @@ mod outline_sides;
 mod outline_trace;
 mod pack;
 mod path;
+mod perspective;
+mod perspective_check;
+mod perspective_eye;
+mod perspective_free;
 mod pictures;
 mod plan;
 mod random;
@@ -49,6 +56,11 @@ pub use colour::{
 };
 pub use colour_match::{ColourCopy, ColourScore, Lightness, Purity, Tone, score_colour};
 pub use combined::{Combination, CombinedLines};
+pub use edges::{Edge, SHORTEST, corrected, edges};
+pub use ellipse::{Ellipse, EllipseGuide, Guide};
+pub use ellipse_fit::{
+    DEGREE, EllipseCheck, REACH, Reach, Roundness, Side, TILT, Tilt, fit_ellipse,
+};
 pub use judgement::{Axis, DELTA_SPAN, HUE_SPAN, Judgement, NOTICEABLE, SV_SPAN, judgement};
 pub use licence::Licence;
 pub use line::{LineExercise, LineTier};
@@ -60,6 +72,9 @@ pub use pack::{
     PackProblem, PictureKind, Tier, valid_id,
 };
 pub use path::{Point, apart, crossings, distance, length, nearest, resample};
+pub use perspective::{BoxView, Direction, EDGES, FAR, Horizon, PerspectiveBox};
+pub use perspective_check::{BoxCheck, Checked, ON_ANGLE};
+pub use perspective_free::{Corner, FreeBox, FreeCheck, RIGHT_ANGLE};
 pub use pictures::Pictures;
 pub use plan::{Exercise, Family, Kind, Original, STAGE_SESSIONS, STAGES, STAGES_READY};
 pub use random::{Random, derived};

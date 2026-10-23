@@ -35,3 +35,7 @@ pub const SHEET_SHADOW: u8 = 34;
 /// The marking red a check lays over a practice copy: the original and its key points. Never
 /// chrome.
 pub const CORRECTION: Color32 = Color32::from_rgb(200, 58, 44);
+/// What a check found in the copy's own lines (an ellipse fitted to them, its edges drawn on to
+/// their vanishing points), drawn dashed beside the red answer: a blue apart from the blue
+/// correcting pen's. Never chrome.
+pub const FOUND: Color32 = Color32::from_rgb(28, 112, 150);

@@ -213,7 +213,13 @@ const fn rows_of(family: Family) -> &'static [Metric] {
         Family::Colour => &COLOUR_ROWS,
         Family::Areas => &AREAS_ROWS,
         Family::Scale => &SCALE_ROWS,
-        Family::Line | Family::Combined | Family::Shape | Family::Study => &[],
+        Family::Line
+        | Family::Combined
+        | Family::Shape
+        | Family::Box
+        | Family::FreeBoxes
+        | Family::Ellipse
+        | Family::Study => &[],
     }
 }
 

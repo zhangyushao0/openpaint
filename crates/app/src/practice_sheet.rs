@@ -66,7 +66,7 @@ pub(crate) struct PracticeSheet {
     instructions: Option<Family>,
     /// Whether each family's instructions (`Family::ALL`'s order) showed by themselves already,
     /// or need not: a family compared before or in the warm-up.
-    told: [bool; 7],
+    told: [bool; Family::ALL.len()],
     notice: Option<PracticeNotice>,
     /// The record changed since the store last got it.
     changed: bool,

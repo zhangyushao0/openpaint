@@ -2,9 +2,9 @@
 //! every kind met, and a shape's outline aligned onto a copy with lines inside it.
 
 use openpaint_practice::{
-    Arrangement, Before, Combination, Exercise, Family, Fit, ItemRef, Kind, LineTier, PERSONAL,
-    Pack, PackItem, PictureKind, Pictures, Point, ScaleTone, Tier, Tone, WARM_UP_TWO, align_shape,
-    plan, stage_two,
+    Arrangement, Before, BoxView, Combination, Exercise, Family, Fit, Guide, Horizon, ItemRef,
+    Kind, LineTier, PERSONAL, Pack, PackItem, PictureKind, Pictures, Point, ScaleTone, Tier, Tone,
+    WARM_UP_TWO, align_shape, plan, stage_two,
 };
 
 fn item(id: &str, tier: Tier) -> PackItem {
@@ -65,7 +65,7 @@ fn shapes(exercises: &[Exercise]) -> Vec<(Tier, ItemRef)> {
 }
 
 #[test]
-fn a_first_stage_two_session_is_four_shapes_of_the_easy_tiers_then_week_two_s_colour_work() {
+fn a_first_stage_two_session_is_four_shapes_of_the_easy_tiers_then_colour_work_and_perspective() {
     let all = pictures(&Tier::ALL, 5, 0);
     let plan = stage_two(1, 0x5EED_0045, &before(&[], &all, &[]));
     assert_eq!(
@@ -82,7 +82,8 @@ fn a_first_stage_two_session_is_four_shapes_of_the_easy_tiers_then_week_two_s_co
         Family::Shape,
         Family::Areas,
         Family::Scale,
-        Family::Colour,
+        Family::Box,
+        Family::Ellipse,
     ];
     assert_eq!(families, expected);
     let picked = shapes(&plan.exercises);
@@ -141,6 +142,42 @@ fn the_combination_s_arrangement_and_the_scale_s_tone_come_in_turn() {
         ]
     );
     assert_eq!(colour_work(3)[0], Kind::Areas(Arrangement::Blocks));
+}
+
+#[test]
+fn perspective_comes_in_turn_a_box_and_an_ellipse_then_free_boxes() {
+    let all = pictures(&Tier::ALL, 5, 0);
+    let perspective = |number| -> Vec<Kind> {
+        let plan = stage_two(number, 13, &before(&[], &all, &[]));
+        plan.exercises[6..].iter().map(|e| e.kind).collect()
+    };
+    let box_and_ellipse = |view, guide| vec![Kind::Box(view), Kind::Ellipse(guide)];
+    assert_eq!(
+        perspective(1),
+        box_and_ellipse(BoxView::TwoPoint, Guide::Frame)
+    );
+    assert_eq!(perspective(2), [Kind::FreeBoxes(Horizon::Middle)]);
+    assert_eq!(
+        perspective(3),
+        box_and_ellipse(BoxView::ThreePoint, Guide::Plane)
+    );
+    assert_eq!(perspective(4), [Kind::FreeBoxes(Horizon::High)]);
+    assert_eq!(
+        perspective(5),
+        box_and_ellipse(BoxView::TwoPoint, Guide::Frame)
+    );
+    assert_eq!(perspective(6), [Kind::FreeBoxes(Horizon::Low)]);
+    // Boxes and ellipses met come back in the warm-up as quick kinds, free boxes as the long one.
+    let met = [
+        Kind::Box(BoxView::TwoPoint),
+        Kind::FreeBoxes(Horizon::Middle),
+        Kind::Ellipse(Guide::Frame),
+    ];
+    let plan = stage_two(3, 5, &before(&met, &all, &[]));
+    let warm: Vec<Family> = (plan.exercises[..WARM_UP_TWO].iter())
+        .map(|e| e.kind.family())
+        .collect();
+    assert_eq!(warm, [Family::Box, Family::FreeBoxes, Family::Ellipse]);
 }
 
 #[test]
@@ -213,9 +250,10 @@ fn a_tier_without_pictures_falls_back_and_no_pictures_means_no_shapes() {
     assert!(shapes(&plan.exercises).is_empty());
     assert_eq!(
         plan.exercises.len(),
-        3,
-        "the combination, the scale and a colour"
+        4,
+        "the combination, the scale, a box and an ellipse"
     );
+    assert_eq!(stage_two(2, 3, &before(&[], &none, &[])).exercises.len(), 3);
 }
 
 #[test]

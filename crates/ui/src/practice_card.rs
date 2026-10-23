@@ -20,9 +20,9 @@ use crate::components::{
     text_choice_wide,
 };
 use crate::design::{CORRECTION, DIALOG_WIDTH, SPACE};
-use crate::practice_card_colour;
 use crate::taps::push_once;
 use crate::text::{self as t, Words, language};
+use crate::{practice_card_colour, practice_card_geometry};
 
 /// The comparison wheel's side on the card, in points.
 const COMPARE_WHEEL: f32 = 280.0;
@@ -62,6 +62,10 @@ pub(crate) fn compared(ui: &mut egui::Ui, practice: &PracticeProjection, taps: &
         Some(Overlay::Colour { original, last, .. }) => {
             ui.heading(heading);
             colour(ui, practice, (*original, *last));
+        }
+        _ if drawn && family.geometric() => {
+            ui.heading(heading);
+            practice_card_geometry::compared(ui, practice);
         }
         _ if drawn => {
             ui.heading(heading);

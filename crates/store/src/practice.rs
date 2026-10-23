@@ -22,7 +22,8 @@
 //! codes 29 to 34, and a long colour copy as a record of stage 0 (`PROJECT`) holding its one
 //! exercise and its picture (D105). 1.5.1 adds none either: a value scale's mean off its even
 //! steps in lightness is code 35 (32, on the wheel's value, retired); a colour copy's name is its
-//! sheet's title.
+//! sheet's title. 1.6.0 adds none: kinds 8 to 10 (a box to complete, free boxes, an ellipse),
+//! which keep no numbers.
 
 use std::collections::HashSet;
 
@@ -255,8 +256,8 @@ mod tests {
             "a key without its id"
         );
         let mut unknown = bytes.clone();
-        // The first exercise's kind, after the session's fixed fields and the count.
-        unknown[1 + 4 + 8 * 4 + 4 + 4] = 9;
+        // The first exercise's kind, after the session's fixed fields and the count: none of 1.6.0's.
+        unknown[1 + 4 + 8 * 4 + 4 + 4] = 11;
         assert!(decode_session(&key, &unknown).is_err());
     }
 
@@ -318,6 +319,24 @@ mod tests {
         let read = decode_session(&practice_key(10), &encode_session(&copy));
         assert!(read.as_ref().is_ok_and(SessionRecord::is_project));
         assert_eq!(read, Ok(copy));
+    }
+
+    #[test]
+    fn boxes_and_ellipses_round_trip_with_no_numbers() {
+        use openpaint_practice::{BoxView, Guide, Horizon, Plan};
+        let kinds = [
+            Kind::Box(BoxView::ThreePoint),
+            Kind::FreeBoxes(Horizon::Low),
+            Kind::Ellipse(Guide::Plane),
+        ];
+        let plan = Plan {
+            exercises: (kinds.iter()).map(|k| Exercise::generated(*k, 5)).collect(),
+            warm_up: 1,
+        };
+        let mut session = SessionRecord::begun(11, (2, 3), (13, 14), plan);
+        (session.results).push(ExerciseResult::first(1, 15, 4, Vec::new()));
+        let bytes = encode_session(&session);
+        assert_eq!(decode_session(&practice_key(11), &bytes), Ok(session));
     }
 
     #[test]
