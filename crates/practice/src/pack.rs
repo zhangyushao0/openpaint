@@ -1,18 +1,29 @@
 //! Practice packs: the pictures practice copies, each with where it came from and the licence it
-//! is used under. The app ships no third-party picture; a pack is built from a curated list by
-//! the harness (`cargo practice-pack`) and imported beside the library, which keeps its bytes
-//! (`openpaint-store`). This is a pack's manifest and its rules; an exercise names a picture by
-//! its pack and its id (`ItemRef`).
+//! is used under, and its silhouette outline where one was derived and judged right. The app
+//! ships no third-party picture; an official pack is built from a curated list by the harness
+//! (`cargo practice-pack`) and imported beside the library, which keeps its bytes
+//! (`openpaint-store`). The user's own pictures go into the personal pack, `PERSONAL`, kept on
+//! the device: no credit or licence (pictures they chose for themselves), never exported, and
+//! never mixed with an official pack's (an official pack credits every item, the personal pack
+//! none). This is a pack's manifest and its rules; an exercise names a picture by its pack and its
+//! id (`ItemRef`).
 
 use std::collections::HashSet;
 use std::fmt;
 
 use crate::licence::Licence;
+use crate::outline::Outline;
 
 /// The longest side a pack's picture may have, in pixels.
 pub const MAX_PICTURE_SIDE: u32 = 2048;
 /// The longest id of a pack or an item, in bytes.
 pub const MAX_ID: usize = 64;
+/// The personal pack's id: the user's own pictures.
+pub const PERSONAL: &str = "personal";
+/// The tier the user's own pictures are kept at (a session takes one of them whatever its tiers).
+pub const PERSONAL_TIER: Tier = Tier::Medium;
+/// The most points an item's outline holds.
+pub const MAX_OUTLINE_POINTS: usize = 8192;
 
 /// What a picture is for: the exercise kind that copies it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -100,8 +111,8 @@ impl Tier {
     }
 }
 
-/// One picture of a pack and everything its licence and its curator say about it.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// One picture of a pack: what it is, where it came from, and its outline.
+#[derive(Debug, Clone, PartialEq)]
 pub struct PackItem {
     /// Unique in its pack and kept across the pack's editions: exercises name it.
     pub id: String,
@@ -109,9 +120,19 @@ pub struct PackItem {
     pub tier: Tier,
     /// The picture's width and height in pixels, at most `MAX_PICTURE_SIDE` each.
     pub size: [u32; 2],
+    pub title: String,
+    /// Where it comes from and the licence it is used under; none for the user's own picture.
+    pub credit: Option<Credit>,
+    /// Its silhouette (in the picture's pixels); none where none was derived or it was judged
+    /// wrong: Compare then shows the picture itself, faint.
+    pub outline: Option<Outline>,
+}
+
+/// What an official item's licence and its curator say about it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Credit {
     /// The page the picture comes from (https).
     pub source: String,
-    pub title: String,
     pub creator: String,
     pub licence: Licence,
     /// The credit to show with the picture, word for word: what an Attribution licence asks for
@@ -121,8 +142,18 @@ pub struct PackItem {
     pub notes: String,
 }
 
+impl PackItem {
+    /// The credit that must show small under the picture wherever it is shown: an Attribution
+    /// licence's.
+    #[must_use]
+    pub fn shown_credit(&self) -> Option<&str> {
+        let credit = self.credit.as_ref()?;
+        (credit.licence.requires_attribution()).then_some(credit.attribution.as_str())
+    }
+}
+
 /// A pack's manifest: its pictures' items, in the pack's order.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Pack {
     /// Names the pack (and its file) for good: lower-case letters, digits and hyphens.
     pub id: String,
@@ -131,7 +162,7 @@ pub struct Pack {
 }
 
 /// How an exercise names a picture: its pack and its item.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct ItemRef {
     pub pack: String,
     pub item: String,
@@ -164,6 +195,12 @@ pub fn valid_id(id: &str) -> bool {
 }
 
 impl Pack {
+    /// Whether it is the personal pack, the user's own pictures.
+    #[must_use]
+    pub fn personal(&self) -> bool {
+        self.id == PERSONAL
+    }
+
     /// The item `id`.
     #[must_use]
     pub fn item(&self, id: &str) -> Option<&PackItem> {
@@ -184,8 +221,10 @@ impl Pack {
     }
 
     /// Checks every rule of a pack: a valid id and a title; at least one item; each item's id
-    /// valid and unique, its picture's sides from 1 to `MAX_PICTURE_SIDE`, its source an https
-    /// page, a title and a creator, and an attribution where its licence asks for one.
+    /// valid and unique, its picture's sides from 1 to `MAX_PICTURE_SIDE`, a title, an outline
+    /// (if any) of closed contours inside the picture; in an official pack every item credited
+    /// (its source an https page, a creator, and an attribution where its licence asks for
+    /// one), in the personal pack none.
     ///
     /// # Errors
     /// The first rule broken.
@@ -215,23 +254,51 @@ impl Pack {
                 return Err(broken("its id is taken by an item before it"));
             }
             item.check().map_err(broken)?;
+            match (&item.credit, self.personal()) {
+                (Some(_), true) => return Err(broken("a picture of your own is credited")),
+                (None, false) => return Err(broken("an official item has no credit")),
+                (Some(credit), false) => credit.check().map_err(broken)?,
+                (None, true) => {}
+            }
         }
         Ok(())
     }
 }
 
 impl PackItem {
-    /// The rules of one item but its id's.
+    /// The rules of one item but its id's and its credit's.
     fn check(&self) -> Result<(), &'static str> {
         let side = 1..=MAX_PICTURE_SIDE;
         if !self.size.iter().all(|length| side.contains(length)) {
             return Err("its picture's sides are not 1 to 2048 pixels");
         }
+        if self.title.trim().is_empty() {
+            return Err("it has no title");
+        }
+        let Some(outline) = &self.outline else {
+            return Ok(());
+        };
+        let [width, height] = self.size.map(f64::from);
+        let inside = |p: &[f64; 2]| (0.0..=width).contains(&p[0]) && (0.0..=height).contains(&p[1]);
+        let points: usize = outline.contours.iter().map(Vec::len).sum();
+        let closed = outline.contours.iter().all(|contour| contour.len() >= 3);
+        if outline.contours.is_empty() || !closed || points > MAX_OUTLINE_POINTS {
+            return Err("its outline is not closed contours");
+        }
+        if !outline.contours.iter().flatten().all(inside) {
+            return Err("its outline leaves its picture");
+        }
+        Ok(())
+    }
+}
+
+impl Credit {
+    fn check(&self) -> Result<(), &'static str> {
         if !self.source.starts_with("https://") {
             return Err("its source is not an https page");
         }
-        if self.title.trim().is_empty() || self.creator.trim().is_empty() {
-            return Err("it has no title or no creator");
+        if self.creator.trim().is_empty() {
+            return Err("it has no creator");
         }
         if self.licence.requires_attribution() && self.attribution.trim().is_empty() {
             return Err("its licence asks for an attribution and it has none");

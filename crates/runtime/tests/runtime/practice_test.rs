@@ -51,7 +51,7 @@ impl Held {
 
 fn today(runtime: &Runtime) -> TodayProjection {
     gallery(runtime)
-        .and_then(|g| g.today())
+        .and_then(|g| g.today().cloned())
         .expect("the Today card")
 }
 
@@ -105,7 +105,7 @@ fn a_test_session_beside_the_authors_leaves_theirs_as_it_was() {
     assert!(held.runtime.back());
     held.until(|r| gallery(r).is_some());
     assert_eq!(today(&held.runtime), theirs);
-    let id = held.runtime.start_test_practice().expect("started");
+    let id = held.runtime.start_test_practice(None).expect("started");
     held.until(|r| r.test_practice(id).is_some());
     let test = held.runtime.test_practice(id).expect("its name");
     assert_ne!(test.sheet, sheet.get(), "a sheet of its own");

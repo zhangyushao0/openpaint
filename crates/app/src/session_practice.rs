@@ -6,26 +6,27 @@
 //! first, and the session record goes to the store after each change.
 
 use openpaint_core::{Artwork, RegionMask, StrokeStyle};
-use openpaint_practice::SessionRecord;
+use openpaint_practice::{Fit, ItemRef, SessionRecord};
 
 use super::Session;
 use crate::error::AppError;
 use crate::input::{ContactPhase, Device};
 use crate::practice::PracticeIntent;
 use crate::practice_pens::PracticePens;
-use crate::practice_sheet::{PracticePick, PracticeSheet};
+use crate::practice_pictures::{FitJob, PictureImage};
+use crate::practice_sheet::{PracticePick, PracticeSheet, Practising};
 use crate::stroke::StrokeIntent;
 use crate::view::Viewport;
 
 impl Session {
-    /// The practice sheet `artwork` of session `record` (`before`: the finished sessions of its
-    /// stage before it), opening on its shown pair in `viewport`; `brush` is the toolbox's, `pens`
-    /// the practice pens.
+    /// The practice sheet `artwork` of `sheet` (its session's record, the finished sessions of
+    /// its stage before it and the sheet as drawn), opening on its shown pair in `viewport`;
+    /// `brush` is the toolbox's, `pens` the practice pens.
     #[must_use]
     pub fn practising(
         artwork: Artwork,
         (brush, pens): (StrokeStyle, PracticePens),
-        sheet: (SessionRecord, Vec<SessionRecord>),
+        sheet: Practising,
         viewport: &Viewport,
     ) -> Self {
         let canvas = artwork.canvas();
@@ -89,6 +90,30 @@ impl Session {
     /// The session record for the store, once after each change.
     pub fn practice_save_request(&mut self) -> Option<SessionRecord> {
         self.practice.as_mut()?.save_request()
+    }
+
+    /// The aligned overlay's fit for the runtime's worker, once per Compare.
+    pub fn practice_fit_request(&mut self) -> Option<FitJob> {
+        self.practice.as_mut()?.fit_request()
+    }
+
+    /// The worker found the fit of the Compare numbered `sequence`.
+    pub fn practice_fitted(&mut self, sequence: u64, fit: Option<Fit>) {
+        if let Some(practice) = self.practice.as_mut() {
+            practice.fitted(sequence, fit);
+        }
+    }
+
+    /// The next picture of the session for the store to read, once each.
+    pub fn practice_picture_request(&mut self) -> Option<ItemRef> {
+        self.practice.as_mut()?.picture_request()
+    }
+
+    /// The store read `item`'s picture for the screen (`None`: it could not).
+    pub fn practice_picture_read(&mut self, item: ItemRef, image: Option<PictureImage>) {
+        if let Some(practice) = self.practice.as_mut() {
+            practice.picture_read(item, image);
+        }
     }
 
     /// The next stroke's style: on a practice sheet the pen the sheet draws with now, else the

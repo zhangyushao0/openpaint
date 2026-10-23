@@ -9,7 +9,7 @@ use openpaint_app::{
     Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, Patch, RegionMask, StrokeTool};
-use openpaint_practice::SessionRecord;
+
 use openpaint_render::{
     BrushCursor, CanvasPlacement, CanvasTarget, Core, ViewCache, ViewFrame, tip_radius,
 };
@@ -55,8 +55,9 @@ pub(crate) enum Then {
     Practice,
 }
 
-/// A practice sheet's session record and the finished sessions of its stage before it.
-pub(crate) type SheetOf = Option<(SessionRecord, Vec<SessionRecord>)>;
+/// A practice sheet: its session record, the finished sessions of its stage before it and the
+/// sheet as drawn.
+pub(crate) type SheetOf = Option<openpaint_app::Practising>;
 
 pub(crate) struct Canvas {
     session: Session,

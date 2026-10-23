@@ -9,7 +9,10 @@
 //! - `object`: what the source's API knows it by: Cleveland's accession number, the Met's object
 //!   id, a Commons file's title (`File:…`);
 //! - `licence`: the licence the API must state (`CC0`, `PD-US-gov`, `PD-old`, `CC BY 4.0`, …);
-//! - `reason`: why it is in its tier, which the pack keeps as the item's notes.
+//! - `reason`: why it is in its tier, which the pack keeps as the item's notes;
+//! - `no_outline` (only where it applies): why the item has no outline, its derived outline
+//!   looked at on the contact sheet and judged wrong, or refused by the derivation itself (the
+//!   build fails on a refusal the list does not record).
 
 use std::collections::HashSet;
 
@@ -62,6 +65,8 @@ struct WrittenItem {
     object: String,
     licence: String,
     reason: String,
+    #[serde(default)]
+    no_outline: Option<String>,
 }
 
 /// A source list, read and checked.
@@ -82,6 +87,8 @@ pub struct Listed {
     pub object: String,
     pub licence: Licence,
     pub reason: String,
+    /// Why it has no outline, when it has none.
+    pub no_outline: Option<String>,
 }
 
 impl SourceList {
@@ -108,6 +115,13 @@ impl SourceList {
             if item.object.trim().is_empty() || item.reason.trim().is_empty() {
                 return Err(wrong("it has no object or no reason"));
             }
+            if item
+                .no_outline
+                .as_ref()
+                .is_some_and(|why| why.trim().is_empty())
+            {
+                return Err(wrong("it has no outline and says not why"));
+            }
             items.push(Listed {
                 tier: Tier::of_name(&item.tier).ok_or_else(|| wrong("no such tier"))?,
                 source: Source::of_name(&item.source).ok_or_else(|| wrong("no such source"))?,
@@ -116,6 +130,7 @@ impl SourceList {
                 id: item.id,
                 object: item.object,
                 reason: item.reason,
+                no_outline: item.no_outline,
             });
         }
         Ok(Self {

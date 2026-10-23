@@ -7,31 +7,37 @@
 //! `PACK_FORMAT`); the head's length (u32), the head and its CRC-32 (u32, IEEE); then the
 //! pictures, each right after the one before in the items' order, the last ending the file. The
 //! head: the pack's id and title (u32 length + UTF-8 each); the item count (u32); per item its id
-//! (string), kind and tier (u8 each, their codes), the picture's width and height (u32 each), the
-//! source page, title and creator (strings), the licence (u8, its code), attribution and notes
-//! (strings), and its picture's length and CRC-32 (u32 each). A picture is a PNG or JPEG file of
-//! the item's size.
+//! (string), kind and tier (u8 each, their codes), the picture's width and height (u32 each), its
+//! title (string); its credit, a flag (u8, 1 credited, 0 not: the user's own) and when credited
+//! the source page and creator (strings), the licence (u8, its code), attribution and notes
+//! (strings); its outline, a contour count (u32, 0 none) and per contour a point count (u32) and
+//! each point's x and y in the picture's pixels (f32 each); and its picture's length and CRC-32
+//! (u32 each). A picture is a PNG or JPEG file of the item's size.
 //!
 //! So a pack's list reads its head alone and an exercise one picture at its offset, each
-//! checked by its own sum; an import checks every part.
+//! checked by its own sum; an import checks every part. Format 2 (1.4.0) added the outline and
+//! the personal pack's uncredited items; S78's format 1 was never released and is not read.
 
 use std::io::Cursor;
 
 use image::{ImageFormat, ImageReader};
 use openpaint_app::PortError;
-use openpaint_practice::{Licence, Pack, PackItem, PictureKind, Tier};
+use openpaint_practice::{Credit, Licence, Outline, Pack, PackItem, PictureKind, Point, Tier};
 
 use crate::codec::{Reader, Writer};
 
 /// The layout this build reads and writes.
-pub const PACK_FORMAT: u32 = 1;
+pub const PACK_FORMAT: u32 = 2;
 const MAGIC: &[u8; 14] = b"OpenPaintPack\0";
 /// Bytes before the head: the magic, the format and the head's length.
 pub(crate) const START: usize = MAGIC.len() + 4 + 4;
 /// The longest head a pack may have: a length naming more is damage, never an allocation.
 const MAX_HEAD: usize = 16 << 20;
-/// The fewest bytes of an item in the head (empty strings, a one-byte id).
-const ITEM_BYTES: usize = 5 + 2 + 8 + 3 * 4 + 1 + 2 * 4 + 8;
+/// The fewest bytes of an item in the head (a one-byte id, an empty title, no credit, no
+/// outline), of a contour and of a point.
+const ITEM_BYTES: usize = 5 + 2 + 8 + 4 + 1 + 4 + 8;
+const CONTOUR_BYTES: usize = 4;
+const POINT_BYTES: usize = 8;
 
 /// Where an item's picture lies in its pack's file.
 #[derive(Debug, Clone, Copy)]
@@ -94,12 +100,30 @@ fn write_item(head: &mut Writer, item: &PackItem) {
     head.u8(item.tier.code());
     head.u32(item.size[0]);
     head.u32(item.size[1]);
-    head.str(&item.source);
     head.str(&item.title);
-    head.str(&item.creator);
-    head.u8(item.licence.code());
-    head.str(&item.attribution);
-    head.str(&item.notes);
+    match &item.credit {
+        Some(credit) => {
+            head.u8(1);
+            head.str(&credit.source);
+            head.str(&credit.creator);
+            head.u8(credit.licence.code());
+            head.str(&credit.attribution);
+            head.str(&credit.notes);
+        }
+        None => head.u8(0),
+    }
+    let contours = item
+        .outline
+        .as_ref()
+        .map_or(&[][..], |o| o.contours.as_slice());
+    head.len(contours.len());
+    for contour in contours {
+        head.len(contour.len());
+        for [x, y] in contour {
+            head.f32(*x as f32);
+            head.f32(*y as f32);
+        }
+    }
 }
 
 /// Opens a pack file and checks every part: its head and every picture against their sums, the
@@ -191,20 +215,36 @@ fn read_item(reader: &mut Reader<'_>) -> Result<PackItem, PortError> {
     let kind = PictureKind::of_code(reader.u8()?).ok_or_else(damaged)?;
     let tier = Tier::of_code(reader.u8()?).ok_or_else(damaged)?;
     let size = [reader.u32()?, reader.u32()?];
-    let (source, title, creator) = (reader.str()?, reader.str()?, reader.str()?);
-    let licence = Licence::of_code(reader.u8()?).ok_or_else(damaged)?;
-    let (attribution, notes) = (reader.str()?, reader.str()?);
+    let title = reader.str()?;
+    let credit = match reader.u8()? {
+        0 => None,
+        1 => Some(Credit {
+            source: reader.str()?,
+            creator: reader.str()?,
+            licence: Licence::of_code(reader.u8()?).ok_or_else(damaged)?,
+            attribution: reader.str()?,
+            notes: reader.str()?,
+        }),
+        _ => return Err(damaged()),
+    };
+    let count = reader.count(CONTOUR_BYTES)?;
+    let mut contours = Vec::with_capacity(count);
+    for _ in 0..count {
+        let points = reader.count(POINT_BYTES)?;
+        let mut contour: Vec<Point> = Vec::with_capacity(points);
+        for _ in 0..points {
+            contour.push([f64::from(reader.f32()?), f64::from(reader.f32()?)]);
+        }
+        contours.push(contour);
+    }
     Ok(PackItem {
         id,
         kind,
         tier,
         size,
-        source,
         title,
-        creator,
-        licence,
-        attribution,
-        notes,
+        credit,
+        outline: (!contours.is_empty()).then_some(Outline { contours }),
     })
 }
 

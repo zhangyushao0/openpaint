@@ -77,6 +77,6 @@ pub use text_button::{
     Lead, divider, heading_button, text_button, text_choice, text_choice_wide, word_columns,
 };
 pub use text_field::{FieldResponse, field_id, text_field};
-pub use today_card::{TodayCard, today_card};
+pub use today_card::{TodayCard, TodayTaps, today_card};
 pub(crate) use view_settle::ViewSettle;
 pub use view_status::{view_status, view_text};

@@ -412,3 +412,13 @@ Superseded decisions moved here whole from `docs/DECISIONS.md`. Written, never r
 - Reference window: no title bar; a tap toggles a slim bar (grip, ×) and a corner resize mark, hidden after 3 s; its contacts are routed before the canvas; one finger pans and two pinch (1x to 8x) the picture; the pen never paints there; place, size and zoom are session state.
 - Consequences: a contact crossing between the canvas and the reference samples only where it started.
 
+
+## D12 2026-10-02 The development machine runs a headless harness, never a desktop window
+- Decision: `apps/harness` is a dev-only binary: offscreen wgpu rendering with readback, recorded-input replay through the full frame loop, JSON scenarios with pixel checkpoints, PNG and hash output.
+- Reason: agents need a seconds-long loop on the dev machine; a desktop window would pull output into code that proves nothing about a stylus product.
+- Consequences: "seeing" a result means reading the PNG the harness wrote; pen feel is judged only on the tablet.
+
+## D26 2026-10-02 Text input: the host is the editor, egui's IME events carry the text
+- Decision: text fields are egui `TextEdit`s; when one has the focus the runtime reports `keyboard_wanted` and the Kotlin `CanvasView` becomes the text editor and shows the soft keyboard; composing text arrives as IME preedit and commit, the keyboard's Done as Enter; the back button goes to `Runtime::back` first.
+- Reason: no Android `EditText` over the surface (a second UI toolkit, D11).
+- Consequences: a new text field needs nothing in the host; dialogs that type sit under the islands, above the keyboard.

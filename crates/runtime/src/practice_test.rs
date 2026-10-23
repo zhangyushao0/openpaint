@@ -79,19 +79,20 @@ impl FromStr for PracticeTest {
 }
 
 impl Runtime {
-    /// For debug builds only: the next practice session started from the gallery, beside any
-    /// open one; its sheet opens once the store wrote it (`test_practice` names it then).
-    /// Returns its id.
+    /// For debug builds only: the next practice session of `stage` (none: the stage practised)
+    /// started from the gallery, beside any open one; its sheet opens once the store wrote it
+    /// (`test_practice` names it then). Returns its id.
     ///
     /// # Errors
     /// `NotNow` when the gallery does not show; a sheet that cannot be made.
-    pub fn start_test_practice(&mut self) -> Result<u64, RuntimeError> {
+    pub fn start_test_practice(&mut self, stage: Option<u8>) -> Result<u64, RuntimeError> {
         if self.screen.gallery_mut().is_none() {
             return Err(RuntimeError::NotNow("the gallery"));
         }
         let now = self.frame_clock.wall_seconds();
         let id = self.practice.next_id();
-        let job = start_job(&self.practice, &mut self.seeds, now)?;
+        let stage = stage.unwrap_or_else(|| self.practice.stage());
+        let job = start_job(&self.practice, stage, &mut self.seeds, now)?;
         self.storage.submit(job);
         Ok(id)
     }

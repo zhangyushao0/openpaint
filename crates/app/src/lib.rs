@@ -19,6 +19,7 @@ mod export;
 mod fill;
 mod gallery;
 mod gallery_files;
+mod gallery_projection;
 mod gestures;
 mod history;
 mod input;
@@ -33,6 +34,7 @@ mod pen_buttons;
 mod practice;
 mod practice_copy;
 mod practice_pens;
+mod practice_pictures;
 mod practice_sheet;
 mod project;
 mod projection;
@@ -52,6 +54,7 @@ mod title;
 mod tool_intent;
 mod toolbox;
 mod transfer;
+mod transfer_errors;
 mod transform;
 mod view;
 
@@ -76,7 +79,7 @@ pub use crate::gallery::{
     CanvasPreset, FileProblem, Gallery, GalleryIntent, GalleryNotice, GalleryProjection,
     LibraryAnswer, LibraryRequest,
 };
-pub use crate::gallery_files::{FileJob, MAX_ARTWORK_FILE_BYTES};
+pub use crate::gallery_files::{FileJob, MAX_ARTWORK_FILE_BYTES, MAX_PACK_BYTES};
 pub use crate::gestures::{
     GestureFrame, Gestured, Gestures, PictureGestured, PictureGestures, Touch, TouchAction,
 };
@@ -95,7 +98,8 @@ pub use crate::practice::{
     TodayProjection,
 };
 pub use crate::practice_pens::PracticePens;
-pub use crate::practice_sheet::{PRACTICE_ROOM, PracticePick};
+pub use crate::practice_pictures::{FitJob, PackShown, PictureImage, SHOWN_SIDE, SheetPicture};
+pub use crate::practice_sheet::{PRACTICE_ROOM, PracticePick, Practising};
 pub use crate::project::{
     KEPT_VERSIONS, KeptVersion, PortError, Project, ProjectId, ProjectStore, ProjectSummary,
     SaveId, Thumbnail, VersionId,

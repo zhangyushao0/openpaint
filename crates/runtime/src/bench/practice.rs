@@ -2,10 +2,11 @@
 //! shows it (`motion.rs`), on the practice sheet open at a line: How's card grown out of its word
 //! and gone back; a line drawn with the pen, then Compare (the overlay and its card), the switch to
 //! Aligned and back to In place, Compare taken away; Next three times, the view gliding to the
-//! next pair; then, the session taken on to its first colour, the inline wheel's square dragged
-//! round, Fill frame and Compare (the colours on the wheel). Between motions the frames still
-//! wanted, then a pause as the hand moves on. The session moves on to its first colour, filled
-//! and compared.
+//! next pair; then, in a session holding single shapes (stage 2), on to its first shape: an
+//! outline drawn, Compare, Aligned (its fit found off the frame loop), In place and Compare taken
+//! away; then, the session taken on to its next colour, the inline wheel's square dragged round,
+//! Fill frame and Compare (the colours on the wheel). Between motions the frames still wanted,
+//! then a pause as the hand moves on.
 
 use openpaint_app::{Intent, PracticeIntent};
 use openpaint_practice::Family;
@@ -56,8 +57,70 @@ impl Runtime {
             }
             lines.push(format!("next {next}: {line}"));
         }
+        // Stage 2's shapes come before its colours.
+        self.bench_shape(lines)?;
         self.bench_colour(lines)?;
         self.bench_rest()
+    }
+
+    /// In a session holding single shapes: on to the first, an outline drawn round its copy's
+    /// frame, then Compare (the picture and its outline in place), Aligned (fitted off the frame
+    /// loop) and In place, Compare taken away: a line each.
+    fn bench_shape(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
+        let family = |runtime: &Self| runtime.projection().practice().and_then(|p| p.family);
+        let holds = (self.projection().practice()).is_some_and(|p| {
+            (p.current.unwrap_or(0)..p.sheet.originals.len()).any(|index| {
+                matches!(
+                    p.sheet.originals[index],
+                    openpaint_practice::Original::Picture(_)
+                )
+            })
+        });
+        if !holds {
+            lines.push("no single shape after this point of the session".to_owned());
+            return Ok(());
+        }
+        let mut watch = Watch::paced(self);
+        while family(self) != Some(Family::Shape) {
+            let viewport = self.bench_viewport()?;
+            let next = Intent::Practice(PracticeIntent::Next(viewport));
+            self.bench_intents(vec![next], &mut watch)?;
+        }
+        let close = Intent::Practice(PracticeIntent::Instructions(false));
+        self.bench_intents(vec![close], &mut watch)?;
+        self.bench_settle()?;
+        self.bench_rest()?;
+        self.bench_outline()?;
+        for (label, control) in [
+            ("shape compare opens", "Compare"),
+            ("shape aligned", "Aligned"),
+            ("shape in place", "In place"),
+            ("shape compare closes", "Compare"),
+        ] {
+            let line = self.bench_tap(control, ToolKind::Finger)?;
+            lines.push(format!("{label}: {line}"));
+        }
+        Ok(())
+    }
+
+    /// A loop drawn by the pen round the middle of the shown copy's frame, with a line inside.
+    fn bench_outline(&mut self) -> Result<(), RuntimeError> {
+        let practice = self.projection().practice().cloned();
+        let frame = (practice.as_ref())
+            .and_then(|p| p.current.map(|index| p.sheet.pairs[index].copy))
+            .ok_or(RuntimeError::NotNow("an exercise shown"))?;
+        let view = self.bench_view()?;
+        let at = |p: [f64; 2]| to_screen(&view, frame.to_canvas(p).map(|v| v as f32));
+        let round: Vec<[f32; 2]> = (0..=24)
+            .map(|k| {
+                let turn = f64::from(k) / 24.0 * std::f64::consts::TAU;
+                at([0.5 + 0.3 * turn.cos(), 0.5 + 0.35 * turn.sin()])
+            })
+            .collect();
+        self.bench_measured(by_pen(drag(&round, LINE_MS * 2)))?;
+        let fold = [at([0.35, 0.5]), at([0.65, 0.52])];
+        self.bench_measured(by_pen(drag(&fold, LINE_MS)))?;
+        Ok(())
     }
 
     /// A line drawn by the pen across the shown copy's frame, its instructions closed first.

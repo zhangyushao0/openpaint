@@ -114,6 +114,8 @@ pub struct Shell {
     copy: CopyBar,
     /// QuickShape's pill.
     shape: ShapeBar,
+    /// A practice sheet's pictures as textures.
+    practice_pictures: practice_marks::SheetPictures,
     /// A practice sheet's bar and card.
     practice: PracticeBar,
     /// The shape's handles while it is edited and the guide's centre while it is on, in canvas
@@ -242,7 +244,8 @@ impl Shell {
             let ppp = self.pixels_per_point;
             self.transform.show_frame(&ctx, projection, &shown, ppp);
             shape_bar::show_marks(&ctx, projection, &shown, ppp);
-            practice_marks::show_marks(&ctx, projection, &shown, ppp);
+            let pictures = &mut self.practice_pictures;
+            practice_marks::show_marks(&ctx, projection, (&shown, ppp), pictures);
         }
         let editing = projection.shape().filter(|shape| shape.editing);
         self.handles = editing

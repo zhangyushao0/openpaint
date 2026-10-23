@@ -9,16 +9,19 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::time::{Duration, Instant};
 
 use openpaint_app::{
-    EditorState, FileJob, LibraryAnswer, MAX_ARTWORK_FILE_BYTES, PortError, Project, ProjectId,
-    ProjectStore, ProjectSummary, SaveId, Thumbnail, Title, VersionId,
+    EditorState, FileJob, LibraryAnswer, PictureImage, PortError, Project, ProjectId, ProjectStore,
+    ProjectSummary, SaveId, Thumbnail, Title, VersionId,
 };
 use openpaint_core::Artwork;
-use openpaint_practice::SessionRecord;
-use openpaint_store::{Cached, DisplayCache};
+use openpaint_practice::{ItemRef, Pack, SessionRecord};
+use openpaint_store::{Cached, DisplayCache, Packs};
 
 use crate::error::RuntimeError;
 use crate::practice::{self, PracticeDone, PracticeJob};
 use crate::worker::Queue;
+
+#[path = "storage_files.rs"]
+mod files;
 
 /// An artwork the library opened, with its cached canvas if the display cache holds one.
 #[derive(Debug)]
@@ -70,10 +73,13 @@ pub(crate) enum Job {
     Create { artwork: Artwork, title: Title },
     /// A gallery call other than create, which needs the blank artwork from the frame loop.
     Library(LibraryCall),
-    /// An OpenPaint file to write or to read, once the system gave it.
+    /// An OpenPaint file to write or to read, a practice pack to import or a picture to add,
+    /// once the system gave it.
     File(FileJob),
     /// A practice session started or its record changed.
     Practice(PracticeJob),
+    /// A practice picture read for the screen.
+    Picture(ItemRef),
 }
 
 /// The gallery's calls the store serves as they are.
@@ -88,9 +94,15 @@ pub(crate) enum LibraryCall {
 
 pub(crate) enum Done {
     /// What opening found, the stored toolbox (`None` when there is none or it could not be
-    /// read, logged here: the brushes keep their defaults) and the practice sessions (none when
-    /// they could not be read, logged).
-    Started(Opened, Option<Box<EditorState>>, Vec<SessionRecord>),
+    /// read, logged here: the brushes keep their defaults), the practice sessions and the packs
+    /// kept (none when they could not be read, logged).
+    Started(
+        Opened,
+        Option<Box<EditorState>>,
+        (Vec<SessionRecord>, Vec<Pack>),
+    ),
+    /// A practice picture as read for the screen; none when it could not be (logged).
+    Picture(ItemRef, Option<PictureImage>),
     EditorSaved(Result<(), PortError>),
     /// A version saved, and where to: `None` for the first save of an artwork started blank,
     /// which created its project (its head holds no save id yet).
@@ -123,14 +135,19 @@ pub(crate) struct Storage {
 
 impl Storage {
     /// Starts the worker with `store` and asks it to open the library. An artwork it opens comes
-    /// with its canvas from `cache`, if one is kept there.
+    /// with its canvas from `cache`, if one is kept there; practice packs are kept in `packs`
+    /// (none: there are none, and none can be imported).
     pub(crate) fn start(
         mut store: Box<dyn ProjectStore>,
-        cache: Option<DisplayCache>,
+        (cache, packs): (Option<DisplayCache>, Option<Packs>),
     ) -> Result<Self, RuntimeError> {
         let mut kept = Kept::default();
         let mut worker = Queue::spawn("openpaint-store", move |job| {
-            serve((store.as_mut(), cache.as_ref()), &mut kept, job)
+            serve(
+                (store.as_mut(), cache.as_ref(), packs.as_ref()),
+                &mut kept,
+                job,
+            )
         })?;
         worker.submit(Job::Start);
         Ok(Self { worker })
@@ -156,8 +173,12 @@ impl Storage {
     }
 }
 
-/// The store and the display cache the worker serves from.
-type Served<'a> = (&'a mut dyn ProjectStore, Option<&'a DisplayCache>);
+/// The store, the display cache and the packs the worker serves from.
+type Served<'a> = (
+    &'a mut dyn ProjectStore,
+    Option<&'a DisplayCache>,
+    Option<&'a Packs>,
+);
 
 /// One call on the worker. A panic in the store is a bug: it is logged and reported as
 /// `PortError::Stopped`, and the worker serves the next call.
@@ -176,7 +197,8 @@ fn serve(served: Served<'_>, kept: &mut Kept, job: Job) -> Done {
 fn stopped(job: &Job) -> Done {
     let error = PortError::Stopped;
     match job {
-        Job::Start => Done::Started(Opened::Failed(error), None, Vec::new()),
+        Job::Start => Done::Started(Opened::Failed(error), None, (Vec::new(), Vec::new())),
+        Job::Picture(item) => Done::Picture(item.clone(), None),
         Job::SaveEditor(_) => Done::EditorSaved(Err(error)),
         Job::Save(artwork) => Done::Saved(artwork.clone(), Err(error)),
         Job::Leave { version, .. } => Done::Left {
@@ -191,13 +213,12 @@ fn stopped(job: &Job) -> Done {
             Done::Gallery(LibraryAnswer::Restored(Err(error)))
         }
         Job::Library(_) => Done::Gallery(LibraryAnswer::Changed(Err(error))),
-        Job::File(FileJob::Save { .. }) => Done::Gallery(LibraryAnswer::FileSaved(Err(error))),
-        Job::File(FileJob::Open { .. }) => Done::Gallery(LibraryAnswer::FileOpened(Err(error))),
+        Job::File(job) => Done::Gallery(files::stopped(job)),
         Job::Practice(job) => practice::stopped(job),
     }
 }
 
-fn run((store, cache): Served<'_>, kept: &mut Kept, job: Job) -> Done {
+fn run((store, cache, packs): Served<'_>, kept: &mut Kept, job: Job) -> Done {
     match job {
         Job::Start => {
             let opened = start(store, kept, cache);
@@ -210,7 +231,16 @@ fn run((store, cache): Served<'_>, kept: &mut Kept, job: Job) -> Done {
                 .practice()
                 .inspect_err(|error| log::warn!("the practice sessions are unreadable: {error}"))
                 .unwrap_or_default();
-            Done::Started(opened, editor.map(Box::new), sessions)
+            let packs = (packs.map(Packs::list).transpose())
+                .inspect_err(|error| log::warn!("the practice packs are not listed: {error}"))
+                .ok()
+                .flatten()
+                .unwrap_or_default();
+            Done::Started(opened, editor.map(Box::new), (sessions, packs))
+        }
+        Job::Picture(item) => {
+            let image = files::picture(packs, &item);
+            Done::Picture(item, image)
         }
         Job::SaveEditor(state) => Done::EditorSaved(store.save_editor(&state)),
         Job::Save(artwork) => {
@@ -234,7 +264,7 @@ fn run((store, cache): Served<'_>, kept: &mut Kept, job: Job) -> Done {
             Err(error) => Done::Gallery(LibraryAnswer::CreateFailed(error)),
         },
         Job::Library(request) => library((store, cache), kept, request),
-        Job::File(job) => file(store, job),
+        Job::File(job) => Done::Gallery(files::run(store, packs, job)),
         Job::Practice(job) => practice::run(store, kept, job),
     }
 }
@@ -333,7 +363,11 @@ fn leave(
     }
 }
 
-fn library((store, cache): Served<'_>, kept: &mut Kept, call: LibraryCall) -> Done {
+fn library(
+    (store, cache): (&mut dyn ProjectStore, Option<&DisplayCache>),
+    kept: &mut Kept,
+    call: LibraryCall,
+) -> Done {
     Done::Gallery(match call {
         LibraryCall::List => LibraryAnswer::Listed(store.list()),
         LibraryCall::Load(id) => match store.load(id) {
@@ -353,31 +387,4 @@ fn library((store, cache): Served<'_>, kept: &mut Kept, call: LibraryCall) -> Do
             LibraryAnswer::Restored(store.restore_version(id, version, &title).map(drop))
         }
     })
-}
-
-/// Writes an artwork into the file the user chose, or adds the chosen file as a new artwork.
-fn file(store: &mut dyn ProjectStore, job: FileJob) -> Done {
-    match job {
-        FileJob::Save { id, sink } => {
-            let result = store.artwork_file(id).and_then(|bytes| sink.write(&bytes));
-            if let Err(error) = &result {
-                log::error!("saving an OpenPaint file failed: {error}");
-            }
-            Done::Gallery(LibraryAnswer::FileSaved(result))
-        }
-        FileJob::Open { source } => {
-            let result = source.read(MAX_ARTWORK_FILE_BYTES).and_then(|bytes| {
-                if bytes.len() as u64 > MAX_ARTWORK_FILE_BYTES {
-                    return Err(PortError::Device {
-                        detail: format!("larger than {MAX_ARTWORK_FILE_BYTES} bytes"),
-                    });
-                }
-                store.import_file(&bytes).map(drop)
-            });
-            if let Err(error) = &result {
-                log::warn!("the chosen file was not opened: {error}");
-            }
-            Done::Gallery(LibraryAnswer::FileOpened(result))
-        }
-    }
 }

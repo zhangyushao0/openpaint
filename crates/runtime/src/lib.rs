@@ -11,6 +11,7 @@ mod clock;
 mod display;
 mod error;
 mod fill;
+mod fit;
 mod frame;
 mod host;
 mod input;

@@ -113,7 +113,7 @@ fn the_summary_counts_each_family_and_sets_colours_beside_the_earlier_ones() {
     ];
     let kinds = summary(&this, &[&before]);
     let families: Vec<Family> = kinds.iter().map(|k| k.family).collect();
-    assert_eq!(families, Family::ALL);
+    assert_eq!(families, [Family::Line, Family::Combined, Family::Colour]);
     let lines = &kinds[0];
     assert_eq!((lines.checked, lines.held), (2, 6));
     assert!(

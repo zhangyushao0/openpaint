@@ -46,6 +46,8 @@ pub enum SystemAnswer {
     SavedFile,
     /// As `saved_file`, with one byte in its middle changed, as a broken copy would.
     DamagedFile,
+    /// In the file picker, a practice pack of pictures drawn for the tests (`test_pack.rs`).
+    TestPack,
 }
 
 /// The fixture pictures, built into the runner (it never reads files).
@@ -128,12 +130,14 @@ fn answers(answer: SystemAnswer, request: &HostRequest) -> bool {
         | SystemAnswer::PhotoJpeg
         | SystemAnswer::P3Png
         | SystemAnswer::P3Jpeg => matches!(request, HostRequest::OpenImage),
-        SystemAnswer::TextFile => {
-            matches!(request, HostRequest::OpenImage | HostRequest::OpenArtwork)
-        }
+        SystemAnswer::TextFile => matches!(
+            request,
+            HostRequest::OpenImage | HostRequest::OpenArtwork | HostRequest::OpenPack
+        ),
         SystemAnswer::SavedFile | SystemAnswer::DamagedFile => {
             matches!(request, HostRequest::OpenArtwork)
         }
+        SystemAnswer::TestPack => matches!(request, HostRequest::OpenPack),
         SystemAnswer::Cancel | SystemAnswer::PickerFails => {
             !matches!(request, HostRequest::Send { .. })
         }
@@ -148,6 +152,8 @@ fn chosen(answer: SystemAnswer, written: &Written) -> Result<Vec<u8>, ScenarioEr
         SystemAnswer::P3Png => P3_PNG.to_vec(),
         SystemAnswer::P3Jpeg => P3_JPEG.to_vec(),
         SystemAnswer::TextFile => b"Shopping list: ink, paper.\n".to_vec(),
+        SystemAnswer::TestPack => crate::test_pack::test_pack()
+            .ok_or(ScenarioError::Missing("the test pack could not be made"))?,
         SystemAnswer::SavedFile | SystemAnswer::DamagedFile => {
             let saved = written.lock().unwrap_or_else(PoisonError::into_inner);
             let mut bytes = saved

@@ -1,17 +1,23 @@
-//! What a session holds and where it lies: the stages, an exercise's kind and seed, stage 1's
-//! session (`session.rs`), and the sheet the app lays the exercises out on, a pair of frames each
-//! (the original at the left, the empty frame for the copy at its right), three pairs a row.
+//! What a session holds and where it lies: the stages, an exercise's kind and seed (and a single
+//! shape's picture), the stages' sessions (`session.rs`), and the sheet the app lays the exercises
+//! out on, a pair of frames each (the original at the left, the empty frame for the copy at its
+//! right), three pairs a row; a picture fitted inside its frame.
 
 use crate::colour::Rgb8;
 use crate::colour_match::Tone;
 use crate::combined::{Combination, CombinedLines};
 use crate::line::{LineExercise, LineTier};
+use crate::pack::{ItemRef, Tier};
 use crate::path::Point;
 
 /// The course's stages, after V大's eight weeks.
 pub const STAGES: u8 = 8;
+/// The stages whose exercises exist so far: a session can be started in these.
+pub const STAGES_READY: u8 = 2;
 /// About how many sessions a stage holds; only a guide, never a quota.
 pub const STAGE_SESSIONS: u32 = 15;
+/// The margin a picture keeps inside its frame, a share of the frame's side.
+pub const PICTURE_MARGIN: f64 = 0.05;
 
 /// A frame's side on the sheet, in canvas pixels.
 pub const FRAME: f64 = 400.0;
@@ -33,6 +39,8 @@ pub enum Kind {
     Colour(Tone),
     /// Two to four lines to copy as one shape.
     Combined(Combination),
+    /// One object's picture of a tier, copied by its outline as a line drawing.
+    Shape(Tier),
 }
 
 /// What an exercise asks for, whatever its variant: its instructions, its tools, its line in
@@ -41,12 +49,13 @@ pub enum Kind {
 pub enum Family {
     Line,
     Combined,
+    Shape,
     Colour,
 }
 
 impl Family {
-    /// In a session's order.
-    pub const ALL: [Self; 3] = [Self::Line, Self::Combined, Self::Colour];
+    /// In a warm-up's order.
+    pub const ALL: [Self; 4] = [Self::Line, Self::Combined, Self::Shape, Self::Colour];
 
     /// Whether its exercises are drawn (with the pens, compared by overlay), not coloured.
     #[must_use]
@@ -57,8 +66,8 @@ impl Family {
 
 impl Kind {
     /// The kind and its variant as stored: (1, tier) for a line, (2, tone) for a colour, (3,
-    /// arrangement) for combined lines. A code names one generator for good; a changed generator
-    /// is a new code.
+    /// arrangement) for combined lines, (4, the picture's tier code) for a single shape. A code
+    /// names one generator for good; a changed generator is a new code.
     #[must_use]
     pub fn code(self) -> (u8, u8) {
         let index = |found: Option<usize>| found.unwrap_or(0) as u8;
@@ -69,6 +78,7 @@ impl Kind {
                 let at = Combination::ALL.iter().position(|c| *c == combination);
                 (3, index(at))
             }
+            Self::Shape(tier) => (4, tier.code()),
         }
     }
 
@@ -79,6 +89,7 @@ impl Kind {
             1 => LineTier::ALL.get(at).map(|t| Self::Line(*t)),
             2 => Tone::of_code(variant).map(Self::Colour),
             3 => Combination::ALL.get(at).map(|c| Self::Combined(*c)),
+            4 => Tier::of_code(variant).map(Self::Shape),
             _ => None,
         }
     }
@@ -89,27 +100,31 @@ impl Kind {
             Self::Line(_) => Family::Line,
             Self::Colour(_) => Family::Colour,
             Self::Combined(_) => Family::Combined,
+            Self::Shape(_) => Family::Shape,
         }
     }
 }
 
-/// One exercise: its kind and the seed it is generated from.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// One exercise: its kind, the seed it is generated from and, for a single shape, the picture
+/// it copies.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Exercise {
     pub kind: Kind,
     pub seed: u64,
-}
-
-/// What an exercise's original is.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Original {
-    /// One line or a group of them, each in frame units.
-    Lines(Vec<Vec<Point>>),
-    /// A swatch.
-    Colour(Rgb8),
+    pub picture: Option<ItemRef>,
 }
 
 impl Exercise {
+    /// A generated exercise of `kind` seeded `seed`, no picture.
+    #[must_use]
+    pub const fn generated(kind: Kind, seed: u64) -> Self {
+        Self {
+            kind,
+            seed,
+            picture: None,
+        }
+    }
+
     /// Its original, the same for the same kind and seed.
     #[must_use]
     pub fn original(&self) -> Original {
@@ -121,7 +136,55 @@ impl Exercise {
             Kind::Combined(combination) => {
                 Original::Lines(CombinedLines::generate(combination, self.seed).lines)
             }
+            Kind::Shape(_) => Original::Picture(self.picture.clone().unwrap_or_default()),
         }
+    }
+}
+
+/// What an exercise's original is.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Original {
+    /// One line or a group of them, each in frame units.
+    Lines(Vec<Vec<Point>>),
+    /// A swatch.
+    Colour(Rgb8),
+    /// A pack's picture (an empty reference: none was kept).
+    Picture(ItemRef),
+}
+
+/// Where a picture lies in its frame: evenly scaled to fit inside `PICTURE_MARGIN`, centred.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PictureFit {
+    /// Frame units per picture pixel.
+    pub scale: f64,
+    /// The picture's top left corner, in frame units.
+    pub origin: Point,
+    /// Its width and height, in frame units.
+    pub size: Point,
+}
+
+impl PictureFit {
+    /// The fit of a picture of `size` pixels.
+    #[must_use]
+    pub fn of(size: [u32; 2]) -> Self {
+        let [width, height] = size.map(|side| f64::from(side.max(1)));
+        let room = 1.0 - 2.0 * PICTURE_MARGIN;
+        let scale = room / width.max(height);
+        let shown = [width * scale, height * scale];
+        Self {
+            scale,
+            origin: [(1.0 - shown[0]) / 2.0, (1.0 - shown[1]) / 2.0],
+            size: shown,
+        }
+    }
+
+    /// The frame point of the picture's pixel point `p`.
+    #[must_use]
+    pub fn to_frame(&self, p: Point) -> Point {
+        [
+            self.origin[0] + p[0] * self.scale,
+            self.origin[1] + p[1] * self.scale,
+        ]
     }
 }
 

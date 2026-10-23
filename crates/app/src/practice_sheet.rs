@@ -1,23 +1,30 @@
 //! The open practice sheet's flow (`practice.rs`): which exercise shows, where the pen may draw
 //! (strokes and fills only in its empty frame, clipped to it), what the eyedropper may read (an
-//! original only once compared), the exercise's own tools or the full interface, the pen lines
-//! are drawn with (a single line or combined lines), Compare and its overlay
-//! (`practice_compare.rs`), Next (the view glides to the next pair at its zoom,
+//! original only once compared), the exercise's own tools or the full interface, the pen drawn
+//! exercises are drawn with (a single line, combined lines, a single shape), Compare and its
+//! overlay (`practice_compare.rs`), Next (the view glides to the next pair at its zoom,
 //! `practice_view.rs`; after the last the session ends over the whole sheet), the instructions
-//! (by themselves the first time a family comes up), the summary and the notices. The session
-//! record changes here and goes to the store whenever it did (`save_request`).
+//! (by themselves the first time a family comes up), the summary and the notices; the session's
+//! pictures as the store reads them. The session record changes here and goes to the store
+//! whenever it did (`save_request`).
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use openpaint_core::{Artwork, CanvasSize, Color, RegionMask, StrokeStyle, StrokeTool};
-use openpaint_practice::{Family, Original, Pair, SessionRecord, summary};
+use openpaint_practice::{Family, ItemRef, Original, Pair, SessionRecord, summary};
 
 use crate::error::AppError;
 use crate::practice::{Pen, PracticeIntent, PracticeNotice, PracticeProjection, SheetView};
 use crate::practice_copy::{MARGIN, holds_copy};
 use crate::practice_pens::PracticePens;
+use crate::practice_pictures::{FitJob, PictureImage};
 use crate::projection::{Availability, EditorAction};
 use crate::view::{CanvasView, Viewport};
+
+/// A practice sheet opening: its session's record, the finished sessions of its stage before it
+/// (for the summary) and the sheet as the screen draws it.
+pub type Practising = (SessionRecord, Vec<SessionRecord>, SheetView);
 
 #[path = "practice_compare.rs"]
 mod compare;
@@ -61,19 +68,25 @@ pub(crate) struct PracticeSheet {
     instructions: Option<Family>,
     /// Whether each family's instructions (`Family::ALL`'s order) showed by themselves already,
     /// or need not: a family compared before or in the warm-up.
-    told: [bool; 3],
+    told: [bool; 4],
     notice: Option<PracticeNotice>,
     /// The record changed since the store last got it.
     changed: bool,
+    /// The aligned fit for the worker, and how many were asked.
+    fit_job: Option<FitJob>,
+    fits: u64,
+    /// The pictures read (none: unreadable) and those asked of the store.
+    images: Vec<(ItemRef, Option<Arc<PictureImage>>)>,
+    asked: HashSet<ItemRef>,
 }
 
 impl PracticeSheet {
     pub(crate) fn new(
-        (record, before): (SessionRecord, Vec<SessionRecord>),
+        (record, before, view): Practising,
         canvas: CanvasSize,
         pens: PracticePens,
     ) -> Self {
-        let sheet = Arc::new(SheetView::of(&record));
+        let sheet = Arc::new(view);
         // Told: compared before or in this session, or warmed up with (only kinds met are).
         let warm_up = &record.exercises[..(record.warm_up as usize).min(record.exercises.len())];
         let done = |family: Family| {
@@ -101,9 +114,29 @@ impl PracticeSheet {
             instructions: None,
             notice: None,
             changed: false,
+            fit_job: None,
+            fits: 0,
+            images: Vec::new(),
+            asked: HashSet::new(),
         };
         practice.shown();
         practice
+    }
+
+    /// The next picture of the session to read for the screen, once each.
+    pub(crate) fn picture_request(&mut self) -> Option<ItemRef> {
+        let item = (self.sheet.pictures.iter().flatten())
+            .map(|picture| &picture.item)
+            .find(|item| !self.asked.contains(*item))?
+            .clone();
+        self.asked.insert(item.clone());
+        Some(item)
+    }
+
+    /// The store read `item`'s picture (`None`: it could not).
+    pub(crate) fn picture_read(&mut self, item: ItemRef, image: Option<PictureImage>) {
+        self.images.retain(|(kept, _)| *kept != item);
+        self.images.push((item, image.map(Arc::new)));
     }
 
     /// The exercise shown, unless the session is done.
@@ -116,9 +149,22 @@ impl PracticeSheet {
         self.sheet.pairs.get(index)
     }
 
-    /// Whether exercise `index` is drawn with the pens (a single line or combined lines).
+    /// Whether exercise `index` is drawn with the pens (lines, a group, a single shape).
     fn drawn(&self, index: usize) -> bool {
-        matches!(self.sheet.originals.get(index), Some(Original::Lines(_)))
+        matches!(
+            self.sheet.originals.get(index),
+            Some(Original::Lines(_) | Original::Picture(_))
+        )
+    }
+
+    /// Whether Aligned can be chosen for exercise `index`: lines, or a picture with an outline.
+    fn aligned_offered(&self, index: usize) -> bool {
+        match self.sheet.originals.get(index) {
+            Some(Original::Lines(_)) => true,
+            Some(Original::Picture(_)) => (self.sheet.pictures.get(index))
+                .is_some_and(|p| p.as_ref().is_some_and(|p| p.outline.is_some())),
+            _ => false,
+        }
     }
 
     fn family(&self, index: usize) -> Option<Family> {
@@ -176,7 +222,7 @@ impl PracticeSheet {
         // A stroke that may begin lets an earlier refusal's notice go.
         self.notice = notice;
         if notice.is_none() {
-            self.compared = None;
+            self.laid();
         }
         notice.is_none()
     }
@@ -200,7 +246,7 @@ impl PracticeSheet {
                 let [r, g, b] = rgb.map(|c| f32::from(c) / 255.0);
                 Color::rgb(r, g, b).map_or(PracticePick::Canvas, PracticePick::Colour)
             }
-            Original::Lines(_) => PracticePick::Canvas,
+            Original::Lines(_) | Original::Picture(_) => PracticePick::Canvas,
         }
     }
 
@@ -227,7 +273,13 @@ impl PracticeSheet {
                     .flatten();
             }
             PracticeIntent::Compare(on) => self.compare(on, artwork, now)?,
-            PracticeIntent::Aligned(on) => self.aligned = on,
+            PracticeIntent::Aligned(on) => {
+                let offered = self.current().is_some_and(|i| self.aligned_offered(i));
+                if on && !offered {
+                    return Err(unavailable(Availability::NothingLeft));
+                }
+                self.aligned = on;
+            }
             PracticeIntent::Pen(pen) => self.choose(pen)?,
             PracticeIntent::AllTools(on) => self.all_tools = on,
             PracticeIntent::Next(viewport) => self.next(view, &viewport, now),
@@ -260,6 +312,7 @@ impl PracticeSheet {
             return;
         };
         (self.compared, self.instructions, self.notice) = (None, None, None);
+        self.fit_job = None;
         if index + 1 < self.sheet.pairs.len() {
             self.record.current += 1;
             if let Some(pair) = self.pair(index + 1) {
@@ -312,6 +365,9 @@ impl PracticeSheet {
             instructions: self.instructions,
             summary: current.is_none().then(|| summary(&self.record, &before)),
             notice: self.notice,
+            aligned_offered: current.is_some_and(|index| self.aligned_offered(index)),
+            fitting: self.fitting(),
+            images: self.images.clone(),
         }
     }
 }

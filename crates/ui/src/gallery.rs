@@ -13,6 +13,8 @@ mod dates;
 mod dialogs;
 #[path = "gallery_new.rs"]
 mod new;
+#[path = "gallery_practice.rs"]
+mod practice;
 
 use std::collections::HashMap;
 
@@ -58,6 +60,8 @@ pub(crate) struct GalleryScreen {
     confirm: Option<(ProjectId, openpaint_app::Title, Rect)>,
     /// The artwork whose options show, and its card (points).
     options: Option<(ProjectId, Rect)>,
+    /// The practice options show, grown from the Today card (points).
+    practice_options: Option<Rect>,
     /// What the search field holds; not stored.
     search: String,
     /// The device's offset from UTC in minutes (`Shell::set_utc_offset`).
@@ -193,13 +197,16 @@ impl GalleryScreen {
         self.rename_dialog(ui.ctx(), taps);
         self.confirm_dialog(ui.ctx(), taps);
         self.options_dialog(ui.ctx(), projection.items(), taps);
+        if let Some(today) = projection.today() {
+            self.practice_dialog(ui.ctx(), today, taps);
+        }
         self.sizes_popover(ui.ctx(), under, taps);
     }
 
     fn grid(
         &mut self,
         ui: &mut egui::Ui,
-        (today, items): (Option<TodayProjection>, &[&ProjectSummary]),
+        (today, items): (Option<&TodayProjection>, &[&ProjectSummary]),
         enabled: bool,
         taps: &mut Vec<Intent>,
     ) {
@@ -251,42 +258,46 @@ impl GalleryScreen {
     }
 
     /// The Today card in `rect`; returns where its sheet lies. Tapped, it continues the open
-    /// session (opening its sheet) or starts one, the sheet growing out of the card.
+    /// session (opening its sheet) or starts one of its stage, or of the next once this one's
+    /// sessions are done, the sheet growing out of the card; its options open the practice
+    /// options.
     fn today(
         &mut self,
         ui: &mut egui::Ui,
         rect: Rect,
-        (today, enabled): (TodayProjection, bool),
+        (today, enabled): (&TodayProjection, bool),
         taps: &mut Vec<Intent>,
     ) -> Rect {
         let mut slot = ui.new_child(egui::UiBuilder::new().max_rect(rect));
         let language = t::language(ui.ctx());
         let stage = t::stage(language, today.stage);
         let progress = t::sessions_done(language, today.done, today.sessions);
-        let action = if today.open.is_some() {
-            t::CONTINUE_PRACTICE
-        } else {
-            t::START_PRACTICE
+        let (action, starts) = match (today.open, today.next) {
+            (Some(_), _) => (t::CONTINUE_PRACTICE, today.stage),
+            (None, Some(next)) => (t::START_NEXT_STAGE, next),
+            (None, None) => (t::START_PRACTICE, today.stage),
         };
+        let pictures = today.packs.iter().any(|pack| pack.pictures > 0);
         let card = TodayCard {
             stage: &stage,
             progress: &progress,
+            hint: (today.stage == 2 && !pictures).then_some(t::SHAPES_NEED_PACK),
             action,
             enabled,
         };
-        let (tapped, sheet) = today_card(&mut slot, &card);
-        if tapped {
-            let intent = today
-                .open
-                .map_or(GalleryIntent::Practice, GalleryIntent::Open);
+        let tapped = today_card(&mut slot, &card);
+        if tapped.sheet {
+            let intent = (today.open).map_or(GalleryIntent::Practice(starts), GalleryIntent::Open);
             taps.push(Intent::Gallery(intent));
             self.opening = Some(Opening {
-                from: sheet,
+                from: tapped.rect,
                 id: today.open,
                 picture: None,
             });
+        } else if tapped.options {
+            self.practice_options = Some(rect);
         }
-        sheet
+        tapped.rect
     }
 
     /// One card; returns where its picture lies.
@@ -335,10 +346,12 @@ impl GalleryScreen {
         let open = self.rename.is_some()
             || self.confirm.is_some()
             || self.options.is_some()
+            || self.practice_options.is_some()
             || self.sizes != Sizes::Closed;
         self.rename = None;
         self.confirm = None;
         self.options = None;
+        self.practice_options = None;
         self.sizes = Sizes::Closed;
         open
     }

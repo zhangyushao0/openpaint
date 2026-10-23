@@ -8,6 +8,7 @@
 #![forbid(unsafe_code)]
 
 mod align;
+mod align_shape;
 mod colour;
 mod colour_match;
 mod combined;
@@ -15,14 +16,23 @@ mod judgement;
 mod licence;
 mod line;
 mod metric;
+mod outline;
+mod outline_flood;
+mod outline_ground;
+mod outline_mask;
+mod outline_mesh;
+mod outline_sides;
+mod outline_trace;
 mod pack;
 mod path;
+mod pictures;
 mod plan;
 mod random;
 mod record;
 mod session;
 
 pub use align::{Fit, align};
+pub use align_shape::align_shape;
 pub use colour::{
     Difference, LEAST_CHROMA, Rgb8, chroma, delta_e, from_hsv, hsv, hue_name, hue_towards, oklab,
 };
@@ -32,13 +42,17 @@ pub use judgement::{Axis, DELTA_SPAN, HUE_SPAN, Judgement, NOTICEABLE, SV_SPAN, 
 pub use licence::Licence;
 pub use line::{LineExercise, LineTier};
 pub use metric::{Metric, Metrics, value};
+pub use outline::{Outline, OutlineRefusal, outline};
 pub use pack::{
-    ItemRef, MAX_ID, MAX_PICTURE_SIDE, Pack, PackItem, PackProblem, PictureKind, Tier, valid_id,
+    Credit, ItemRef, MAX_ID, MAX_OUTLINE_POINTS, MAX_PICTURE_SIDE, PERSONAL, PERSONAL_TIER, Pack,
+    PackItem, PackProblem, PictureKind, Tier, valid_id,
 };
 pub use path::{Point, apart, crossings, distance, length, nearest, resample};
+pub use pictures::Pictures;
 pub use plan::{
-    Exercise, FRAME, Family, Frame, Kind, Original, Pair, STAGE_SESSIONS, STAGES, Sheet,
+    Exercise, FRAME, Family, Frame, Kind, Original, PICTURE_MARGIN, Pair, PictureFit,
+    STAGE_SESSIONS, STAGES, STAGES_READY, Sheet,
 };
 pub use random::{Random, derived};
-pub use record::{COLOUR_ROWS, ExerciseResult, KindSummary, SessionRecord, met, summary};
-pub use session::{Plan, WARM_UP, stage_one};
+pub use record::{COLOUR_ROWS, ExerciseResult, KindSummary, SessionRecord, met, summary, used};
+pub use session::{Before, Plan, WARM_UP, plan, stage_one, stage_two};

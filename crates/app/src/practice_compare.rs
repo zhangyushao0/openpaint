@@ -2,17 +2,21 @@
 //! as the hand asks, with nothing judged but colours. A line's original, or a group of combined
 //! lines, lies in place (where it lies in its frame, so placement shows) or aligned (moved and
 //! evenly sized onto the copy's best fit, the group's lines fitted together as one shape,
-//! `openpaint_practice::align`, so the shape alone shows); a copy no fit can be found for is
-//! shown in place in both. A colour's swatch and the colours laid swap frames.
+//! `openpaint_practice::align`, so the shape alone shows). A single shape's picture lies faint
+//! over the copy with its outline in red, in place or aligned (the outline fitted onto the copy's
+//! lines, `align_shape`, the picture moved with it); a picture without an outline lies in place
+//! only. The fit is found off the frame loop (`FitJob`, the runtime's worker) and shows when ready;
+//! a copy no fit can be found for is shown in place in both. A colour's swatch and the colours
+//! laid swap frames.
 //!
 //! The first Compare stores the exercise's result: when, the sheet's next stroke id (every stroke
 //! in the frame from it on is a correction) and a colour's numbers, which judge the eye before
-//! the answer was seen; every later one counts. A line's pen turns blue. Anything laid in the
-//! frame afterwards takes the comparison away: corrections are made by eye.
+//! the answer was seen; every later one counts. A drawn exercise's pen turns blue. Anything laid
+//! in the frame afterwards takes the comparison away: corrections are made by eye.
 
 use openpaint_core::{Artwork, RegionMask};
 use openpaint_practice::{
-    ExerciseResult, Fit, Metrics, Original, Point, Rgb8, align, score_colour,
+    ExerciseResult, Fit, Frame, Metrics, Original, Point, Rgb8, score_colour,
 };
 
 use super::{PracticeSheet, unavailable};
@@ -20,18 +24,30 @@ use crate::error::AppError;
 use crate::layer_rules::LayerRefusal;
 use crate::practice::{Overlay, Pen, PracticeNotice};
 use crate::practice_copy::{colour_copy, holds_copy, line_pieces};
+use crate::practice_pictures::FitJob;
 use crate::projection::Availability;
 
 /// The check over the shown copy, as Compare found the copy.
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum Compared {
-    /// The original's fit onto the copy, for the aligned overlay.
-    Line(Fit),
+    /// A drawn copy (lines, a group or a shape) and the original's fit onto it.
+    Drawn(Fitting),
     Colour {
         original: Rgb8,
         first: Rgb8,
         last: Rgb8,
     },
+}
+
+/// The aligned overlay's fit.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) enum Fitting {
+    /// Asked of the worker by the Compare numbered so.
+    Asked(u64),
+    /// Found; none when the copy had no length: in place.
+    Found(Option<Fit>),
+    /// None to be had: a picture without an outline.
+    Unavailable,
 }
 
 impl PracticeSheet {
@@ -47,21 +63,12 @@ impl PracticeSheet {
         };
         self.instructions = None;
         if !on {
-            self.compared = None;
+            (self.compared, self.fit_job) = (None, None);
             return Ok(());
         }
         let frame = self.sheet.pairs[index].copy;
         let nothing = || unavailable(Availability::NothingLeft);
         let compared = match &self.sheet.originals[index] {
-            Original::Lines(lines) => {
-                if !holds_copy(artwork, &frame) {
-                    return Err(nothing());
-                }
-                let pieces = line_pieces(artwork, &frame, &self.pens);
-                let pieces: Vec<&[Point]> = pieces.iter().map(Vec::as_slice).collect();
-                let lines: Vec<&[Point]> = lines.iter().map(Vec::as_slice).collect();
-                Compared::Line(align(&lines, &pieces).unwrap_or(Fit::SAME))
-            }
             Original::Colour(original) => {
                 let picks = colour_copy(artwork, &frame).picks;
                 let (Some(&first), Some(&last)) = (picks.first(), picks.last()) else {
@@ -72,6 +79,12 @@ impl PracticeSheet {
                     first,
                     last,
                 }
+            }
+            Original::Lines(_) | Original::Picture(_) => {
+                if !holds_copy(artwork, &frame) {
+                    return Err(nothing());
+                }
+                Compared::Drawn(self.ask_fit(index, artwork, &frame))
             }
         };
         match self
@@ -89,21 +102,60 @@ impl PracticeSheet {
             }
         }
         self.changed = true;
-        if matches!(compared, Compared::Line(_)) {
+        if matches!(compared, Compared::Drawn(_)) {
             self.pen = Pen::Correct;
         }
         self.compared = Some(compared);
         Ok(())
     }
 
-    /// A colour's numbers now; a line has none.
+    /// The fit for exercise `index`'s copy in `frame`, handed to the worker: the original's
+    /// lines, or its picture's outline, onto the copy's drawn lines (the sketch pen's left out).
+    fn ask_fit(&mut self, index: usize, artwork: &Artwork, frame: &Frame) -> Fitting {
+        let original = match &self.sheet.originals[index] {
+            Original::Lines(lines) => Some((lines.clone(), false)),
+            Original::Picture(_) => (self.sheet.pictures[index].as_ref())
+                .and_then(|picture| picture.outline.clone())
+                .map(|outline| (outline, true)),
+            Original::Colour(_) => None,
+        };
+        let Some((original, shape)) = original else {
+            self.fit_job = None;
+            return Fitting::Unavailable;
+        };
+        self.fits += 1;
+        self.fit_job = Some(FitJob {
+            sequence: self.fits,
+            original,
+            copy: line_pieces(artwork, frame, &self.pens),
+            shape,
+        });
+        Fitting::Asked(self.fits)
+    }
+
+    /// The fit for the Compare numbered `sequence` was found (`None`: the copy had no length);
+    /// a later Compare's or none waiting drops it.
+    pub(crate) fn fitted(&mut self, sequence: u64, fit: Option<Fit>) {
+        if let Some(Compared::Drawn(fitting)) = &mut self.compared
+            && *fitting == Fitting::Asked(sequence)
+        {
+            *fitting = Fitting::Found(fit);
+        }
+    }
+
+    /// The fit to find, once: the runtime's worker takes it.
+    pub(crate) fn fit_request(&mut self) -> Option<FitJob> {
+        self.fit_job.take()
+    }
+
+    /// A colour's numbers now; a drawn exercise has none.
     fn numbers(&self, artwork: &Artwork, index: usize) -> Metrics {
         let frame = self.sheet.pairs[index].copy;
         match &self.sheet.originals[index] {
             Original::Colour(rgb) => (score_colour(*rgb, &colour_copy(artwork, &frame)))
                 .map(|score| score.metrics())
                 .unwrap_or_default(),
-            Original::Lines(_) => Metrics::new(),
+            Original::Lines(_) | Original::Picture(_) => Metrics::new(),
         }
     }
 
@@ -134,18 +186,51 @@ impl PracticeSheet {
 
     /// Something was laid in the frame (a fill): the comparison goes.
     pub(crate) fn laid(&mut self) {
-        self.compared = None;
+        (self.compared, self.fit_job) = (None, None);
+    }
+
+    /// The fit the overlay lies by now: none while the aligned one is being found.
+    fn laid_by(&self, fitting: Fitting) -> Option<Fit> {
+        if !self.aligned {
+            return Some(Fit::SAME);
+        }
+        match fitting {
+            Fitting::Asked(_) => None,
+            Fitting::Found(fit) => Some(fit.unwrap_or(Fit::SAME)),
+            Fitting::Unavailable => Some(Fit::SAME),
+        }
+    }
+
+    /// Whether the aligned fit is chosen and still being found.
+    pub(super) fn fitting(&self) -> bool {
+        self.aligned && matches!(self.compared, Some(Compared::Drawn(Fitting::Asked(_))))
     }
 
     /// What lies over exercise `index`'s copy while comparing.
     pub(super) fn overlay(&self, index: usize) -> Option<Overlay> {
         let frame = self.pair(index)?.copy;
+        let laid = |fit: Fit, p: &Point| frame.to_canvas(fit.apply(*p)).map(|v| v as f32);
         match (self.compared.as_ref()?, &self.sheet.originals[index]) {
-            (Compared::Line(fit), Original::Lines(lines)) => {
-                let fit = if self.aligned { *fit } else { Fit::SAME };
-                let canvas = |p: &Point| frame.to_canvas(fit.apply(*p)).map(|v| v as f32);
-                let laid = lines.iter().map(|line| line.iter().map(canvas).collect());
-                Some(Overlay::Lines(laid.collect()))
+            (Compared::Drawn(fitting), Original::Lines(lines)) => {
+                let fit = self.laid_by(*fitting)?;
+                let lines = lines
+                    .iter()
+                    .map(|line| line.iter().map(|p| laid(fit, p)).collect());
+                Some(Overlay::Lines(lines.collect()))
+            }
+            (Compared::Drawn(fitting), Original::Picture(_)) => {
+                let picture = self.sheet.pictures[index].as_ref()?;
+                let fit = self.laid_by(*fitting)?;
+                let [x, y] = picture.fit.origin;
+                let [w, h] = picture.fit.size;
+                let corners = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+                let outline = picture.outline.iter().flatten();
+                Some(Overlay::Picture {
+                    corners: corners.map(|p| laid(fit, &p)),
+                    outline: outline
+                        .map(|line| line.iter().map(|p| laid(fit, p)).collect())
+                        .collect(),
+                })
             }
             (
                 Compared::Colour {

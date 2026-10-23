@@ -28,6 +28,19 @@ texts! { PRACTICE_TABLE;
     COPY_A_LINE = "Copy a line", "单根线条";
     COPY_COMBINED = "Copy combined lines", "组合线条";
     MATCH_A_COLOUR = "Match a colour", "单色";
+    SHAPE_EXERCISE = "Shape", "单体图形";
+    COPY_A_SHAPE = "Copy a single shape", "单体图形";
+    SHOWS_SHAPE_IN_PLACE = "In red: the picture's outline where it lies in its frame, the picture \
+        faint under it. Where you placed it shows too.",
+        "红色是原图的外形轮廓，在它框里的原位，下面淡淡的是原图。也能看出你画的位置准不准。";
+    SHOWS_SHAPE_ALIGNED = "In red: the outline moved and sized onto your lines, never turned, the \
+        picture faint with it. Its shape alone shows.",
+        "红色是外形轮廓，已移动并缩放到你的线条上，不旋转，原图也淡淡地跟着。只比形状。";
+    SHOWS_PICTURE_ONLY = "This picture has no outline: it lies faint over your copy where it lies \
+        in its frame. Aligned needs an outline.",
+        "这张图没有外形轮廓：原图淡淡地叠在你的临摹上，在它框里的原位。对齐需要轮廓。";
+    ALIGNING = "Aligning…", "正在对齐…";
+    PICTURE_MISSING = "Picture missing", "图片缺失";
     SHOWS_ALIGNED = "In red: the original moved and sized onto your line, never turned. Its \
         shape alone shows, wherever you placed it.",
         "红色是原线条，已移动并缩放到你的线条上，不旋转。只比形状，不论你画在哪里。";
@@ -95,6 +108,19 @@ texts! { PRACTICE_STEPS;
     COLOUR_4 = "Then tap Compare: the wheel shows where your colour lies against the original. \
         The swatch can't be picked with the eyedropper before.",
         "然后点“叠图对比”：色轮上会显示你的颜色和原色的位置。对比之前，吸管吸不到色块。";
+    SHAPE_1 = "Copy the object's outline into the empty frame beside it as a line drawing: not \
+        too fine, but accurate.",
+        "把物体的外形用线条临摹到旁边的空白框里：不必画得很细，但要准。";
+    SHAPE_2 = "See the whole silhouette first. Mark where its top, bottom, left and right ends sit \
+        in the frame, lightly with Sketch.",
+        "先看整体轮廓。用草稿笔轻轻标出它最上、最下、最左、最右的位置在框里的哪里。";
+    SHAPE_3 = "Hierarchy before detail: the big masses and long lines first, small turns later. \
+        Check the negative shapes, the ground between and around the parts; fix one that is off \
+        before going on.",
+        "先层级后细节：先定大的体块和长线，再画小的起伏。检查负形，也就是各部分之间和周围的空白；哪里不对先改，再往下画。";
+    SHAPE_4 = "Then draw the outline with Draw and tap Compare: In place shows where you placed \
+        it, Aligned its shape alone. Correct in blue and compare again.",
+        "然后用画图笔画出外形，点“叠图对比”：原位看位置，对齐只比形状。用修正笔改，再对比。";
 }
 
 texts! { PRACTICE_HUES;
@@ -146,8 +172,25 @@ pub(crate) const fn instructions(family: Family) -> (Text, [Text; 4]) {
     match family {
         Family::Line => (COPY_A_LINE, [LINE_1, LINE_2, LINE_3, LINE_4]),
         Family::Combined => (COPY_COMBINED, [GROUP_1, GROUP_2, GROUP_3, GROUP_4]),
+        Family::Shape => (COPY_A_SHAPE, [SHAPE_1, SHAPE_2, SHAPE_3, SHAPE_4]),
         Family::Colour => (MATCH_A_COLOUR, [COLOUR_1, COLOUR_2, COLOUR_3, COLOUR_4]),
     }
+}
+
+/// What a shape's overlay shows (`aligned` with an outline, else in place; `outline` whether
+/// the picture has one), and how to go on.
+pub(crate) const fn compared_shape(aligned: bool, outline: bool, blue: bool) -> [Text; 2] {
+    let shows = match (outline, aligned) {
+        (false, _) => SHOWS_PICTURE_ONLY,
+        (true, true) => SHOWS_SHAPE_ALIGNED,
+        (true, false) => SHOWS_SHAPE_IN_PLACE,
+    };
+    let next = if blue {
+        CORRECT_GROUP_IN_BLUE
+    } else {
+        CORRECT_GROUP_OVER
+    };
+    [shows, next]
 }
 
 /// What a drawn exercise's overlay shows (`aligned`, else in place), and how to go on (in blue,
@@ -208,6 +251,7 @@ const fn called(family: Family, warming_up: bool) -> Text {
         (true, _) => WARM_UP,
         (false, Family::Line) => LINE,
         (false, Family::Combined) => COMBINED_LINES,
+        (false, Family::Shape) => SHAPE_EXERCISE,
         (false, Family::Colour) => super::COLOUR,
     }
 }
@@ -254,8 +298,10 @@ pub(crate) fn compared_of(
             format!("Combined lines: {checked} of {held} compared")
         }
         (Language::English, Family::Colour) => format!("Colours: {checked} of {held} compared"),
+        (Language::English, Family::Shape) => format!("Shapes: {checked} of {held} compared"),
         (Language::Chinese, Family::Line) => format!("线条：已对比 {checked}/{held}"),
         (Language::Chinese, Family::Combined) => format!("组合线条：已对比 {checked}/{held}"),
+        (Language::Chinese, Family::Shape) => format!("单体图形：已对比 {checked}/{held}"),
         (Language::Chinese, Family::Colour) => format!("颜色：已对比 {checked}/{held}"),
     }
 }

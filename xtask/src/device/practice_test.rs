@@ -1,9 +1,11 @@
-//! `cargo device-input practice-test start|end` (DECISIONS D102): a test practice session beside
-//! the author's open one, for a practice slice to walk on the tablet, and removed afterwards with
-//! its sheet, so the author's session, its record and the Today card's progress stay as they were.
+//! `cargo device-input practice-test start [stage]|end` (DECISIONS D102): a test practice session
+//! beside the author's open one, for a practice slice to walk on the tablet, and removed afterwards
+//! with its sheet, so the author's session, its record and the Today card's progress stay as they
+//! were.
 //!
 //! `start` goes to the gallery (a canvas showing is left by its Gallery button, nothing drawn),
-//! starts the session the Today card would start next, beside any open one, and keeps its name
+//! starts the session the Today card would start next (of `stage` when given, as the practice
+//! options' stage rows do), beside any open one, and keeps its name
 //! (id, sheet, seed, start) in `artifacts/device/practice-test`; it refuses while a name is kept.
 //! `end` goes to the gallery, has the app remove the session of the name kept (its record and
 //! sheet) and forgets the name; a name the app holds no session of (a library restored since)
@@ -32,14 +34,17 @@ fn failed(why: impl Into<String>) -> DeviceError {
     }
 }
 
-/// `start` or `end`.
-pub(super) fn practice_test(adb: &Adb, what: &str) -> Result<()> {
-    match what {
-        "start" => start(adb, &kept()),
-        "end" => end(adb, &kept()),
-        _ => Err(DeviceError::Usage(
-            "cargo device-input practice-test start|end",
-        )),
+/// `start [stage]` or `end`.
+pub(super) fn practice_test(adb: &Adb, what: &str, stage: &[&str]) -> Result<()> {
+    let usage = DeviceError::Usage("cargo device-input practice-test start [stage]|end");
+    match (what, stage) {
+        ("start", []) => start(adb, &kept(), "start"),
+        ("start", [stage]) => {
+            let stage: u8 = stage.parse().map_err(|_| usage)?;
+            start(adb, &kept(), &format!("start:{stage}"))
+        }
+        ("end", []) => end(adb, &kept()),
+        _ => Err(usage),
     }
 }
 
@@ -51,7 +56,7 @@ fn to_gallery(adb: &Adb) -> Result<()> {
     until(adb, WAIT, State::listed).map(drop)
 }
 
-fn start(adb: &Adb, kept: &Path) -> Result<()> {
+fn start(adb: &Adb, kept: &Path, command: &str) -> Result<()> {
     if let Ok(name) = std::fs::read_to_string(kept) {
         return Err(failed(format!(
             "test session {} is still kept in {}: end it first",
@@ -60,7 +65,7 @@ fn start(adb: &Adb, kept: &Path) -> Result<()> {
         )));
     }
     to_gallery(adb)?;
-    let output = instrument(adb, &[("practice-test", "start".to_owned())])?;
+    let output = instrument(adb, &[("practice-test", command.to_owned())])?;
     let said = answer(&output, "practice-test").unwrap_or("no answer");
     let name = said.strip_prefix("started ").filter(|name| named(name));
     let Some(name) = name else {

@@ -1,16 +1,20 @@
 //! The gallery (Procreate's model): every artwork as a thumbnail with its title, the one changed
 //! last first; "+" makes a new one, a tap opens one, and each can be renamed, duplicated or
 //! deleted, saved as an OpenPaint file or brought back from a kept version as a copy; "+" also
-//! opens an OpenPaint file as a new artwork (`gallery_files.rs`). This module decides what to
-//! ask of the library and what the user is told; the store answers on the runtime's worker.
-//! Deleting cannot be undone: the UI asks first.
+//! opens an OpenPaint file as a new artwork (`gallery_files.rs`); the Today card's options import
+//! practice packs and add pictures of the user's own. This module decides what to ask of the
+//! library and what the user is told; the store answers on the runtime's worker. Deleting cannot
+//! be undone: the UI asks first. What a frame shows is `gallery_projection.rs`.
 
 use std::collections::VecDeque;
 use std::sync::Arc;
 
+use openpaint_practice::Pack;
+
 use crate::error::AppError;
 use crate::gallery_files::{FileJob, Files, problem};
-use crate::practice::TodayProjection;
+pub use crate::gallery_projection::GalleryProjection;
+use crate::gallery_projection::offered_unless;
 use crate::project::{PortError, ProjectId, ProjectSummary, VersionId};
 use crate::projection::{Availability, EditorAction};
 use crate::title::Title;
@@ -43,9 +47,13 @@ pub enum GalleryIntent {
         version: VersionId,
         title: Title,
     },
-    /// A new practice session, opened at once (the Today card; an open one is continued by
-    /// opening its sheet).
-    Practice,
+    /// A new practice session of the stage given, opened at once (the Today card and its
+    /// options; an open one is continued by opening its sheet).
+    Practice(u8),
+    /// "Import practice pack…": a pack file the user chooses, kept beside the library.
+    ImportPack,
+    /// "Add my picture…": a picture the user chooses, added to their own pictures.
+    AddPicture,
 }
 
 /// The canvas sizes "+" offers (Procreate's new-canvas menu, reduced to four).
@@ -92,8 +100,8 @@ pub enum LibraryRequest {
     Duplicate(ProjectId),
     Delete(ProjectId),
     Restore(ProjectId, VersionId, Title),
-    /// A new practice session and its sheet, which becomes the open one.
-    Practice,
+    /// A new practice session of the stage given and its sheet, which becomes the open one.
+    Practice(u8),
 }
 
 /// How a library call went, for the gallery. A successful open or create leaves the gallery.
@@ -109,6 +117,11 @@ pub enum LibraryAnswer {
     FileSaved(Result<(), PortError>),
     /// The chosen file was added as a new artwork (`FileJob::Open`), or refused.
     FileOpened(Result<(), PortError>),
+    /// The chosen practice pack was kept (`FileJob::ImportPack`), or refused.
+    PackImported(Result<Pack, PortError>),
+    /// The chosen picture was added to the user's own (`FileJob::AddPicture`), the personal
+    /// pack as it is now (the picture its last item), or refused.
+    PictureAdded(Result<Pack, PortError>),
 }
 
 /// Why a chosen file did not open as an artwork.
@@ -146,6 +159,16 @@ pub enum GalleryNotice {
     FileRefused(FileProblem),
     /// The version could not be restored; nothing changed.
     RestoreFailed,
+    /// The chosen practice pack is kept: its pictures come up in single shapes.
+    PackImported,
+    /// The chosen file was not kept as a practice pack; nothing changed.
+    PackRefused(FileProblem),
+    /// The chosen picture is among the user's own, with an outline found or none.
+    PictureAdded {
+        outline: bool,
+    },
+    /// The chosen picture was not added (not a PNG or JPEG one, or unreadable); nothing changed.
+    PictureRefused,
 }
 
 /// The gallery's flow while it is shown.
@@ -159,16 +182,6 @@ pub struct Gallery {
     opening: bool,
     notice: GalleryNotice,
     files: Files,
-}
-
-/// A snapshot of the gallery for one UI frame.
-#[derive(Debug, Clone, PartialEq)]
-pub struct GalleryProjection {
-    items: Arc<[ProjectSummary]>,
-    listed: bool,
-    opening: bool,
-    notice: GalleryNotice,
-    today: Option<TodayProjection>,
 }
 
 impl Gallery {
@@ -204,7 +217,13 @@ impl Gallery {
             self.notice = GalleryNotice::None;
             return Ok(());
         }
-        let file = matches!(intent, GalleryIntent::SaveFile(_) | GalleryIntent::OpenFile);
+        let file = matches!(
+            intent,
+            GalleryIntent::SaveFile(_)
+                | GalleryIntent::OpenFile
+                | GalleryIntent::ImportPack
+                | GalleryIntent::AddPicture
+        );
         let availability = if file && self.files.busy() {
             Availability::Running
         } else {
@@ -223,6 +242,14 @@ impl Gallery {
                 self.files.open();
                 return Ok(());
             }
+            GalleryIntent::ImportPack => {
+                self.files.import_pack();
+                return Ok(());
+            }
+            GalleryIntent::AddPicture => {
+                self.files.add_picture();
+                return Ok(());
+            }
             GalleryIntent::Create(preset) => LibraryRequest::Create(Title::untitled(), preset),
             GalleryIntent::Open(id) => LibraryRequest::Open(id),
             GalleryIntent::Rename { id, title } => LibraryRequest::Rename(id, title),
@@ -231,11 +258,11 @@ impl Gallery {
             GalleryIntent::Restore { id, version, title } => {
                 LibraryRequest::Restore(id, version, title)
             }
-            GalleryIntent::Practice => LibraryRequest::Practice,
+            GalleryIntent::Practice(stage) => LibraryRequest::Practice(stage),
         };
         self.opening = matches!(
             request,
-            LibraryRequest::Create(..) | LibraryRequest::Open(_) | LibraryRequest::Practice
+            LibraryRequest::Create(..) | LibraryRequest::Open(_) | LibraryRequest::Practice(_)
         );
         self.requests.push_back(request);
         if !self.opening {
@@ -292,6 +319,22 @@ impl Gallery {
                     Err(error) => self.notice = GalleryNotice::FileRefused(problem(&error)),
                 }
             }
+            LibraryAnswer::PackImported(result) => {
+                self.files.finished();
+                self.notice = match result {
+                    Ok(_) => GalleryNotice::PackImported,
+                    Err(error) => GalleryNotice::PackRefused(problem(&error)),
+                };
+            }
+            LibraryAnswer::PictureAdded(result) => {
+                self.files.finished();
+                self.notice = match result {
+                    Ok(pack) => GalleryNotice::PictureAdded {
+                        outline: pack.items.last().is_some_and(|i| i.outline.is_some()),
+                    },
+                    Err(_) => GalleryNotice::PictureRefused,
+                };
+            }
         }
     }
 
@@ -339,54 +382,5 @@ impl Gallery {
 impl Default for Gallery {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// Every gallery action, unless an artwork is being `opening`.
-const fn offered_unless(opening: bool) -> Availability {
-    if opening {
-        Availability::Running
-    } else {
-        Availability::Available
-    }
-}
-
-impl GalleryProjection {
-    /// The artworks, the one changed last first.
-    #[must_use]
-    pub fn items(&self) -> &[ProjectSummary] {
-        &self.items
-    }
-
-    /// False until the library has been listed; an empty list before that is not "no artworks".
-    #[must_use]
-    pub const fn listed(&self) -> bool {
-        self.listed
-    }
-
-    /// Whether the artworks can be opened, created, renamed, duplicated and deleted now.
-    #[must_use]
-    pub const fn availability(&self) -> Availability {
-        offered_unless(self.opening)
-    }
-
-    #[must_use]
-    pub const fn notice(&self) -> GalleryNotice {
-        self.notice
-    }
-
-    /// The Today card, once the app's practice log is added (`with_today`).
-    #[must_use]
-    pub const fn today(&self) -> Option<TodayProjection> {
-        self.today
-    }
-
-    /// This projection with the Today card, which the app's practice log gives.
-    #[must_use]
-    pub fn with_today(self, today: TodayProjection) -> Self {
-        Self {
-            today: Some(today),
-            ..self
-        }
     }
 }

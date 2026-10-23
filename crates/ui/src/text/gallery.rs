@@ -34,6 +34,23 @@ texts! { GALLERY_TABLE;
     FROM_A_FILE = "From a file", "从文件";
     OPEN_FILE = "Open OpenPaint file…", "打开 OpenPaint 文件…";
     LINES_AND_COLOURS = "Lines and colours", "线条与颜色";
+    SINGLE_SHAPES = "Single shapes", "单体图形";
+    PRACTICE_OPTIONS = "Practice options", "练习选项";
+    START_NEXT_STAGE = "Start the next stage", "开始下一阶段";
+    STAGES = "Stages", "阶段";
+    START = "Start", "开始";
+    STAGE_HINT = "A stage holds about 15 sessions; you can move on earlier or go back.",
+        "每个阶段约 15 次练习；可以提前进入下一阶段，也可以回到前面的阶段。";
+    PRACTICE_PACKS = "Practice packs", "练习图包";
+    MY_PICTURES = "My pictures", "我的图片";
+    IMPORT_PACK = "Import practice pack…", "导入练习图包…";
+    ADD_PICTURE = "Add my picture…", "添加我的图片…";
+    NO_PACKS = "No pack yet: single shapes copy a pack's pictures.",
+        "还没有图包：单体图形临摹的是图包里的图片。";
+    PACKS_NOTE = "Your own pictures stay on this tablet; one comes up in each stage 2 session.",
+        "你自己的图片只保存在这台平板上；第 2 阶段每次练习会出现一张。";
+    SHAPES_NEED_PACK = "Shapes need a practice pack: see the options.",
+        "单体图形需要练习图包：见选项。";
 }
 
 texts! { GALLERY_NOTICES;
@@ -52,11 +69,33 @@ texts! { GALLERY_NOTICES;
         "无法打开文件：它来自其他版本的 OpenPaint。";
     FILE_UNREADABLE = "Couldn't read the file.", "无法读取文件。";
     RESTORE_FAILED = "Couldn't restore this version.", "无法恢复此版本。";
+    PACK_IMPORTED = "Practice pack imported: its pictures come up in single shapes.",
+        "练习图包已导入：单体图形会用到其中的图片。";
+    PACK_DAMAGED = "Couldn't import: the file is not a practice pack, or it is damaged.",
+        "无法导入：这不是练习图包，或图包已损坏。";
+    PACK_OTHER_FORMAT = "Couldn't import: the pack is from another version of OpenPaint.",
+        "无法导入：图包来自其他版本的 OpenPaint。";
+    PICTURE_ADDED = "Added to My pictures. Its outline was found: Compare lays it over your copy.",
+        "已添加到“我的图片”。已找到外形轮廓：叠图对比时会叠在你的临摹上。";
+    PICTURE_ADDED_PLAIN = "Added to My pictures. No outline was found for it: Compare lays the \
+        picture itself over your copy, faint.",
+        "已添加到“我的图片”。没有找到它的外形轮廓：叠图对比时会把原图淡淡地叠在你的临摹上。";
+    PICTURE_REFUSED = "Couldn't add the picture: only PNG and JPEG pictures are taken.",
+        "无法添加图片：只支持 PNG 和 JPEG 图片。";
 }
 
 /// What the gallery's notice says.
 pub(crate) const fn gallery_notice(notice: GalleryNotice) -> Option<Text> {
     Some(match notice {
+        GalleryNotice::PackImported => PACK_IMPORTED,
+        GalleryNotice::PackRefused(FileProblem::OtherFormat) => PACK_OTHER_FORMAT,
+        GalleryNotice::PackRefused(FileProblem::Unreadable) => FILE_UNREADABLE,
+        GalleryNotice::PackRefused(FileProblem::NotOpenPaint | FileProblem::Damaged) => {
+            PACK_DAMAGED
+        }
+        GalleryNotice::PictureAdded { outline: true } => PICTURE_ADDED,
+        GalleryNotice::PictureAdded { outline: false } => PICTURE_ADDED_PLAIN,
+        GalleryNotice::PictureRefused => PICTURE_REFUSED,
         GalleryNotice::None => return None,
         GalleryNotice::ListFailed => LIST_FAILED,
         GalleryNotice::OtherLibrary => OTHER_LIBRARY,
@@ -101,10 +140,29 @@ pub(crate) fn delete_artwork(language: Language, title: &str) -> String {
 
 /// The Today card's stage line: "Stage 1 · Lines and colours".
 pub(crate) fn stage(language: Language, stage: u8) -> String {
-    let topic = LINES_AND_COLOURS.get(language);
+    let topic = match stage {
+        2 => SINGLE_SHAPES,
+        _ => LINES_AND_COLOURS,
+    }
+    .get(language);
     match language {
         Language::English => format!("Stage {stage} · {topic}"),
         Language::Chinese => format!("第 {stage} 阶段 · {topic}"),
+    }
+}
+
+/// A pack's line in the options: "Single shapes: 126 pictures, 60 with an outline".
+pub(crate) fn pack_line(
+    language: Language,
+    title: &str,
+    (pictures, outlines): (usize, usize),
+) -> String {
+    match language {
+        Language::English => {
+            let plural = if pictures == 1 { "" } else { "s" };
+            format!("{title}: {pictures} picture{plural}, {outlines} with an outline")
+        }
+        Language::Chinese => format!("{title}：{pictures} 张图片，{outlines} 张有轮廓"),
     }
 }
 

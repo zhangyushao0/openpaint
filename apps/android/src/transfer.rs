@@ -89,7 +89,10 @@ pub fn request_line(request: &HostRequest, share_dir: &Path) -> Option<(String, 
         HostRequest::SaveArtwork { name } => {
             Some((format!("save\t{ARTWORK_MIME}\t{name}"), Some(Pick::Save)))
         }
-        HostRequest::OpenArtwork => Some(("open-file".to_owned(), Some(Pick::Open))),
+        // A practice pack is any file too: the host's file picker, the pack read by the app.
+        HostRequest::OpenArtwork | HostRequest::OpenPack => {
+            Some(("open-file".to_owned(), Some(Pick::Open)))
+        }
         HostRequest::Send { name, format } => {
             let path = share_dir.join(name);
             Some((format!("send\t{}\t{}", format.mime(), path.display()), None))

@@ -8,8 +8,9 @@
 use crate::colour_match::Tone;
 use crate::judgement::{Judgement, judgement};
 use crate::metric::{Metric, Metrics, value};
+use crate::pack::ItemRef;
 use crate::plan::{Exercise, Family, Kind};
-use crate::session::stage_one;
+use crate::session::{Plan, stage_one};
 
 /// One session as it is stored.
 #[derive(Debug, Clone, PartialEq)]
@@ -78,10 +79,21 @@ impl SessionRecord {
     /// the kinds `met` in earlier sessions (its warm-up's, `met`).
     #[must_use]
     pub fn stage_one(id: u64, number: u32, seed: u64, started: u64, met: &[Kind]) -> Self {
-        let plan = stage_one(seed, met);
+        Self::begun(id, (1, number), (seed, started), stage_one(seed, met))
+    }
+
+    /// Session `number` of `stage`, the `id`th of all, seeded `seed`, started at `started`,
+    /// holding `plan` (made from the same seed).
+    #[must_use]
+    pub fn begun(
+        id: u64,
+        (stage, number): (u8, u32),
+        (seed, started): (u64, u64),
+        plan: Plan,
+    ) -> Self {
         Self {
             id,
-            stage: 1,
+            stage,
             number,
             seed,
             canvas: 0,
@@ -147,6 +159,18 @@ pub fn met(sessions: &[SessionRecord]) -> Vec<Kind> {
     kinds
 }
 
+/// The pictures `sessions` showed, each once: what the next session picks others than.
+#[must_use]
+pub fn used(sessions: &[SessionRecord]) -> Vec<ItemRef> {
+    let mut items: Vec<ItemRef> = (sessions.iter())
+        .flat_map(|session| session.exercises.iter())
+        .filter_map(|exercise| exercise.picture.clone())
+        .collect();
+    items.sort();
+    items.dedup();
+    items
+}
+
 /// The metrics the summary sets side by side for colours.
 pub const COLOUR_ROWS: [Metric; 3] = [Metric::FirstDelta, Metric::FinalDelta, Metric::Corrections];
 
@@ -165,10 +189,18 @@ pub struct KindSummary {
 }
 
 /// `this` session's summary per family it holds (the warm-up's exercises counted in their
-/// families) beside `before` (the earlier sessions of its stage).
+/// families) beside `before` (the earlier sessions of its stage), in the order the session's mix
+/// meets them (a family only warmed up with last).
 #[must_use]
 pub fn summary(this: &SessionRecord, before: &[&SessionRecord]) -> Vec<KindSummary> {
-    Family::ALL
+    let warm_up = (this.warm_up as usize).min(this.exercises.len());
+    let mut families = Family::ALL.to_vec();
+    families.sort_by_key(|family| {
+        (this.exercises[warm_up..].iter())
+            .position(|e| e.kind.family() == *family)
+            .unwrap_or(usize::MAX)
+    });
+    families
         .into_iter()
         .filter_map(|family| {
             let held = (this.exercises.iter())
@@ -223,7 +255,7 @@ fn judged(results: &[(Kind, &Metrics)]) -> Judgement {
         .iter()
         .filter_map(|(kind, metrics)| match kind {
             Kind::Colour(tone) => Some((*tone, metrics.as_slice())),
-            Kind::Line(_) | Kind::Combined(_) => None,
+            Kind::Line(_) | Kind::Combined(_) | Kind::Shape(_) => None,
         })
         .collect();
     judgement(&colours)

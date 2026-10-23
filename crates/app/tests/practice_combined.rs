@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use openpaint_app::{
     BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Overlay, Pen, PracticeIntent,
-    PracticeLog, PracticePens, Session, StrokeIntent, Toolbox, Viewport,
+    PracticeLog, PracticePens, Session, SheetView, StrokeIntent, Toolbox, Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{ExerciseResult, Family, Original, SessionRecord, Sheet};
@@ -41,12 +41,13 @@ fn after_first(finished: bool) -> Session {
         ExerciseResult::first(0, 1_791_201_700, 2, Vec::new()),
         ExerciseResult::first(10, 1_791_201_800, 4, Vec::new()),
     ];
-    let log = PracticeLog::new(vec![first.clone()]);
-    let (record, _) = log.begin(0x5EED_0079, 1_791_290_000);
+    let log = PracticeLog::new(vec![first.clone()], Vec::new());
+    let (record, _) = log.begin(1, 0x5EED_0079, 1_791_290_000);
     let [width, height] = Sheet::of(record.exercises.len()).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
     let before = if finished { vec![first] } else { Vec::new() };
-    Session::practising(sheet, (brush, pens()), (record, before), &VIEWPORT)
+    let view = SheetView::of(&record, &[]);
+    Session::practising(sheet, (brush, pens()), (record, before, view), &VIEWPORT)
 }
 
 /// A pen stroke through `points` (canvas pixels), 8 ms apart.
@@ -78,6 +79,9 @@ fn draw(session: &mut Session, points: &[[f32; 2]]) {
 
 fn practise(session: &mut Session, intent: PracticeIntent) {
     session.practise(intent, 1_791_290_100).expect("practised");
+    if let Some(job) = session.practice_fit_request() {
+        session.practice_fitted(job.sequence, job.run());
+    }
 }
 
 fn shown(session: &Session) -> (Option<Family>, bool, (usize, usize), Option<Family>) {
@@ -89,7 +93,7 @@ fn shown(session: &Session) -> (Option<Family>, bool, (usize, usize), Option<Fam
 fn overlay(session: &Session) -> Option<Vec<Vec<[f32; 2]>>> {
     match session.projection().practice()?.overlay.clone()? {
         Overlay::Lines(lines) => Some(lines),
-        Overlay::Colour { .. } => None,
+        Overlay::Colour { .. } | Overlay::Picture { .. } => None,
     }
 }
 

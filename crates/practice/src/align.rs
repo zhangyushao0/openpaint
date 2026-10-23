@@ -63,14 +63,14 @@ impl Fit {
 
 /// A round's placement: `p` goes to `scale R(turn) p + shift`, the turn as its cosine and sine.
 #[derive(Debug, Clone, Copy)]
-struct Similarity {
-    scale: f64,
-    turn: [f64; 2],
-    shift: Point,
+pub(crate) struct Similarity {
+    pub(crate) scale: f64,
+    pub(crate) turn: [f64; 2],
+    pub(crate) shift: Point,
 }
 
 impl Similarity {
-    fn apply(&self, p: Point) -> Point {
+    pub(crate) fn apply(&self, p: Point) -> Point {
         let [cos, sin] = self.turn;
         [
             self.scale * (cos * p[0] - sin * p[1]) + self.shift[0],
@@ -88,7 +88,7 @@ impl Similarity {
         [cos * x + sin * y, -sin * x + cos * y]
     }
 
-    fn moved(&self, other: &Self) -> f64 {
+    pub(crate) fn moved(&self, other: &Self) -> f64 {
         (self.scale - other.scale).abs()
             + distance(self.turn, other.turn)
             + distance(self.shift, other.shift)
@@ -248,7 +248,7 @@ fn trimmed(placed: &Similarity, pairs: Vec<(Point, Point)>) -> Vec<(Point, Point
 /// The similarity that takes the first points of `pairs` nearest the second by least squares,
 /// and the same without its turn (the centres laid on each other); `None` when the first points
 /// do not spread.
-fn solve(pairs: &[(Point, Point)]) -> Option<(Similarity, Fit)> {
+pub(crate) fn solve(pairs: &[(Point, Point)]) -> Option<(Similarity, Fit)> {
     if pairs.is_empty() {
         return None;
     }

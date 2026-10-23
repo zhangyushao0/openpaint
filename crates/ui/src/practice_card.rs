@@ -15,7 +15,8 @@ use openpaint_practice::{
 };
 
 use crate::components::{
-    RadarAxis, card_columns, card_text, choices, color_compare, radar, text_button, text_choice,
+    RadarAxis, card_columns, card_text, choices, color_compare, hint, radar, text_button,
+    text_choice_wide,
 };
 use crate::design::{CORRECTION, DIALOG_WIDTH, SPACE};
 use crate::taps::push_once;
@@ -46,33 +47,43 @@ pub(crate) fn compared(ui: &mut egui::Ui, practice: &PracticeProjection, taps: &
     };
     let called = (family, practice.warming_up);
     let heading = t::exercise(language(ui.ctx()), called, practice.place.0);
+    let drawn = practice.comparing && family.drawn();
     match &practice.overlay {
-        Some(Overlay::Lines(_)) => {
-            ui.heading(heading);
-            lines(ui, practice, family == Family::Combined, taps);
-        }
         Some(Overlay::Colour { original, last, .. }) => {
             ui.heading(heading);
             colour(ui, practice, (*original, *last));
         }
-        None => {}
+        _ if drawn => {
+            ui.heading(heading);
+            lines(ui, practice, family, taps);
+        }
+        _ => {}
     }
 }
 
-/// Lines compared (a `group` of them, or one): in place or aligned, and how to go on.
-fn lines(ui: &mut egui::Ui, practice: &PracticeProjection, group: bool, taps: &mut Vec<Intent>) {
+/// A drawn exercise compared (a line, a group of them, a single shape): in place or aligned
+/// (while its fit is found, saying so), and how to go on.
+fn lines(ui: &mut egui::Ui, practice: &PracticeProjection, family: Family, taps: &mut Vec<Intent>) {
     ui.horizontal(|ui| {
         choices(ui, "overlay", |ui, group| {
             for (aligned, word) in [(false, t::IN_PLACE), (true, t::ALIGNED)] {
-                let chosen = practice.aligned == aligned;
-                if text_choice(ui, group, word, chosen).clicked() && !chosen {
+                let chosen = (practice.aligned && practice.aligned_offered) == aligned;
+                let offered = !aligned || practice.aligned_offered;
+                let tapped = text_choice_wide(ui, group, word, (offered, chosen), 0.0).clicked();
+                if tapped && !chosen && offered {
                     push_once(taps, Intent::Practice(PracticeIntent::Aligned(aligned)));
                 }
             }
         });
+        if practice.fitting {
+            hint(ui, t::ALIGNING);
+        }
     });
     let blue = practice.pen.is_some_and(|(pen, _)| pen == Pen::Correct);
-    let [shows, next] = t::compared_lines(group, practice.aligned, blue);
+    let [shows, next] = match family {
+        Family::Shape => t::compared_shape(practice.aligned, practice.aligned_offered, blue),
+        _ => t::compared_lines(family == Family::Combined, practice.aligned, blue),
+    };
     card_text(ui, shows, false);
     card_text(ui, next, true);
 }

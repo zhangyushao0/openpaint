@@ -1,18 +1,21 @@
 //! Contact sheets: pictures in a grid of numbered cells on grey, so every candidate and every
 //! item of a pack is looked at before it goes in (a white studio background shows as a white
-//! box, a transparent one as the grey). The numbers are drawn in a 3 x 5 pixel font; the command
-//! prints what each number is.
+//! box, a transparent one as the grey), each pack item's outline drawn over its picture: red
+//! where it goes into the pack, blue where the list says the item has none (the outline looked at
+//! and judged wrong). The numbers are drawn in a 3 x 5 pixel font; the command prints what each
+//! number is.
 
 use std::path::Path;
 
 use image::imageops::{self, FilterType};
 use image::{Rgba, RgbaImage};
+use openpaint_practice::Outline;
 
 use crate::error::HarnessError;
 use crate::output::write_rgba;
 
 /// A cell's side, the gap between cells and the cells a row.
-const CELL: u32 = 300;
+const CELL: u32 = 480;
 const GAP: u32 = 14;
 const COLUMNS: u32 = 6;
 /// A digit's pixel, in sheet pixels.
@@ -34,11 +37,24 @@ const DIGITS: [[u8; 5]; 10] = [
     [7, 5, 7, 1, 7],
 ];
 
-/// A picture for a cell: 8-bit sRGB RGBA of `size`.
+/// A picture for a cell: 8-bit sRGB RGBA of `size`, with an outline to draw over it.
 pub struct Picture {
     pub size: [u32; 2],
     pub rgba: Vec<u8>,
+    pub outline: Option<(Outline, Mark)>,
 }
+
+/// What an outline drawn on a sheet is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mark {
+    /// It goes into the pack: red.
+    Kept,
+    /// Derived, but the list says the item has none: blue.
+    Dropped,
+}
+
+/// An outline's width on a sheet, in sheet pixels.
+const OUTLINE_WIDTH: f64 = 2.0;
 
 /// Writes `pictures` as a contact sheet PNG at `path`, numbered from 1 in order.
 ///
@@ -59,6 +75,11 @@ pub fn write_sheet(pictures: &[Picture], path: &Path) -> Result<(), HarnessError
             let left = x + (CELL - thumb.width()) / 2;
             let top = y + (CELL - thumb.height()) / 2;
             imageops::overlay(&mut sheet, &thumb, i64::from(left), i64::from(top));
+            if let Some((outline, mark)) = &picture.outline {
+                let scale = f64::from(thumb.width()) / f64::from(picture.size[0]);
+                let at = [f64::from(left), f64::from(top)];
+                draw_outline(&mut sheet, outline, (at, scale), *mark);
+            }
         }
         number(&mut sheet, [x, y], index as usize + 1);
     }
@@ -80,6 +101,34 @@ fn thumbnail(picture: &Picture) -> Option<RgbaImage> {
         side(height),
         FilterType::Triangle,
     ))
+}
+
+/// `outline` over its thumbnail, which lies at `at` and shows the picture at `scale`.
+fn draw_outline(
+    sheet: &mut RgbaImage,
+    outline: &Outline,
+    (at, scale): ([f64; 2], f64),
+    mark: Mark,
+) {
+    let colour = match mark {
+        Mark::Kept => Rgba([225, 25, 25, 255]),
+        Mark::Dropped => Rgba([30, 90, 235, 255]),
+    };
+    let place = |p: [f64; 2]| [at[0] + p[0] * scale, at[1] + p[1] * scale];
+    for line in outline.lines() {
+        for pair in line.windows(2) {
+            let [a, b] = [place(pair[0]), place(pair[1])];
+            let steps = ((b[0] - a[0]).hypot(b[1] - a[1]) * 2.0).ceil().max(1.0) as usize;
+            for step in 0..=steps {
+                let t = step as f64 / steps as f64;
+                let [cx, cy] = [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
+                let half = OUTLINE_WIDTH / 2.0;
+                let corner = |v: f64| (v - half).round().max(0.0) as u32;
+                let side = OUTLINE_WIDTH as u32;
+                fill(sheet, [corner(cx), corner(cy)], [side, side], colour);
+            }
+        }
+    }
 }
 
 fn fill(sheet: &mut RgbaImage, [x, y]: [u32; 2], [width, height]: [u32; 2], colour: Rgba<u8>) {

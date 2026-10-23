@@ -4,7 +4,7 @@
 
 use std::time::Duration;
 
-use openpaint_app::{GalleryIntent, HostAnswer, HostRequest, ImageSource};
+use openpaint_app::{BytesSource, GalleryIntent, HostAnswer, HostRequest};
 use openpaint_ui::CanvasArea;
 
 use crate::canvas::Leaving;
@@ -96,20 +96,26 @@ impl Runtime {
     }
 
     /// For debug builds only (`cargo device-input open-file`): the gallery's Open OpenPaint
-    /// file… with `source` as the picker's answer at once, no picker shown: the file goes the
-    /// import's way and its new card comes first.
+    /// file… with the file `bytes` as the picker's answer at once, no picker shown: the file goes
+    /// the import's way and its new card comes first; a practice pack (its magic) goes Import
+    /// practice pack…'s way instead.
     ///
     /// # Errors
     /// `NotNow` when the gallery does not show; `App` while it opens an artwork or a file is
     /// being read or written.
-    pub fn open_file_now(&mut self, source: Box<dyn ImageSource>) -> Result<(), RuntimeError> {
+    pub fn open_file_now(&mut self, bytes: Vec<u8>) -> Result<(), RuntimeError> {
         let gallery = (self.screen.gallery_mut()).ok_or(RuntimeError::NotNow("the gallery"))?;
-        gallery.dispatch(GalleryIntent::OpenFile)?;
+        let intent = if bytes.starts_with(b"OpenPaintPack\0") {
+            GalleryIntent::ImportPack
+        } else {
+            GalleryIntent::OpenFile
+        };
+        gallery.dispatch(intent)?;
         while let Some(request) = gallery.host_request() {
             log::info!("not shown, the file given at once: {request:?}");
         }
         let job = gallery
-            .host_answer(HostAnswer::Image(source))
+            .host_answer(HostAnswer::Image(Box::new(BytesSource(bytes))))
             .ok_or(RuntimeError::NotNow("a gallery taking the file"))?;
         self.storage.submit(Job::File(job));
         Ok(())

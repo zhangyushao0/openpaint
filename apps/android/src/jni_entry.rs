@@ -13,7 +13,7 @@ use jni::objects::{
 use jni::sys::{jboolean, jfloat, jint, jlong};
 use jni::{Env, EnvUnowned};
 use openpaint_runtime::{DisplayCache, Language, Runtime, StartOptions, TextFonts, take_spent};
-use openpaint_store::Library;
+use openpaint_store::{Library, Packs};
 
 use crate::error::HostError;
 use crate::fonts::read_face;
@@ -84,8 +84,11 @@ pub extern "system" fn Java_dev_openpaint_Native_create<'local>(
 ) -> jlong {
     init_logging();
     env.with_env(|env| -> Result<jlong, HostError> {
-        // The app's private storage (`Context.getFilesDir()`); the library opens on a worker.
-        let library = PathBuf::from(files_dir.try_to_string(env)?).join("library");
+        // The app's private storage (`Context.getFilesDir()`); the library opens on a worker,
+        // the practice packs kept beside it.
+        let files = PathBuf::from(files_dir.try_to_string(env)?);
+        let library = files.join("library");
+        let packs = Packs::at(files.join("packs"));
         let cache_dir = PathBuf::from(cache_dir.try_to_string(env)?);
         // The system's locale: the interface's language until one is chosen in Actions.
         let tag = language.try_to_string(env)?;
@@ -100,6 +103,7 @@ pub extern "system" fn Java_dev_openpaint_Native_create<'local>(
             cache: Some(display),
             memory: Some(memory),
             language,
+            packs: Some(packs),
             ..StartOptions::default()
         };
         let runtime = Runtime::start(density, Box::new(Library::at(library)), options)?;

@@ -3,7 +3,7 @@
 Only decisions that constrain the code now and are not self-evident, each stating today's design: date, decision, reason, consequences, at most 15 lines. A superseded decision moves to `docs/archive/` whole. "The previous project" is draweave (2026-07 to 2026-10), the predecessor this repository replaces.
 
 ## D01 2026-10-02 Stack: Rust 2024, wgpu, egui, one workspace
-- Decision: core, rendering, application, storage and UI are all Rust; GPU through wgpu; UI through egui; Android is the only product host; the development machine runs a headless harness (D12).
+- Decision: core, rendering, application, storage and UI are all Rust; GPU through wgpu; UI through egui; Android is the only product host; the development machine runs a headless harness, never a desktop window (ARCHITECTURE).
 - Reason: the previous project proved this stack on the target tablet (pressure, palm rejection, layer compositing, smudge).
 - Consequences: renderer state never lives in egui's type map; egui appears only under `render/src/adapter/`.
 
@@ -27,11 +27,6 @@ Only decisions that constrain the code now and are not self-evident, each statin
 - Reason: winit's Android touch abstraction drops stylus detail.
 - Consequences: egui gets its input from our own normaliser; Kotlin stays limited to lifecycle, Surface, pickers and share; product rules never live in the host.
 
-## D12 2026-10-02 The development machine runs a headless harness, never a desktop window
-- Decision: `apps/harness` is a dev-only binary: offscreen wgpu rendering with readback, recorded-input replay through the full frame loop, JSON scenarios with pixel checkpoints, PNG and hash output.
-- Reason: agents need a seconds-long loop on the dev machine; a desktop window would pull output into code that proves nothing about a stylus product.
-- Consequences: "seeing" a result means reading the PNG the harness wrote; pen feel is judged only on the tablet.
-
 ## D14 2026-10-02 External crates are pinned exactly in the workspace manifest
 - Decision: every external crate is declared once in `[workspace.dependencies]` with an exact `=` version (wgpu 30.0.1, egui and egui-wgpu 0.36.2, fjall 3.1.11, image 0.25.10, png 0.18.1, moxcms 0.8.1, crc32fast 1.5.2, lz4_flex 0.13.1 and the rest); crates use `.workspace = true`. Gradle 8.13, the Android Gradle plugin 8.13.2 and Kotlin 2.2.21 are pinned in `apps/android`.
 - Reason: wgpu and egui break APIs every release; a silent bump would change GPU behaviour and hashes without review.
@@ -50,11 +45,6 @@ Only decisions that constrain the code now and are not self-evident, each statin
 - Decision: every artwork change reaching the session is a version in `app::History`, costed by `Artwork::bytes_since(previous)`; recording drops the redo side and trims the oldest steps above 64 MiB, keeping the newest. Undo and redo are refused while a stroke is drawn. After a history switch the renderer redraws `render::changed_regions(shown, current)`.
 - Reason: versions share almost everything (D08); undo mid-stroke would drop the stroke or land it on a version no longer shown.
 - Consequences: new edit kinds go through `History::record` without new code; a UI offering history reads availability from the projection.
-
-## D26 2026-10-02 Text input: the host is the editor, egui's IME events carry the text
-- Decision: text fields are egui `TextEdit`s; when one has the focus the runtime reports `keyboard_wanted` and the Kotlin `CanvasView` becomes the text editor and shows the soft keyboard; composing text arrives as IME preedit and commit, the keyboard's Done as Enter; the back button goes to `Runtime::back` first.
-- Reason: no Android `EditText` over the surface (a second UI toolkit, D11).
-- Consequences: a new text field needs nothing in the host; dialogs that type sit under the islands, above the keyboard.
 
 ## D38 2026-10-03 Accumulating deposits on a canvas-fixed paper, after draweave's tuned pencil
 - Decision: a recipe deposits by `Cover` (the largest coverage: crossings never darken) or `Accumulate` (tip flat or bell, flow, max density, optional paper): an accumulating span adds optical density, its tip's cross-section integrated over the radii travelled times opacity and flow, coverage = max density x (1 - exp(-density)) x grain x opacity, so crossings darken up to the stroke's opacity.
@@ -269,7 +259,7 @@ Only decisions that constrain the code now and are not self-evident, each statin
 - Pens (`PracticePens`, the built-in files, the toolbox untouched): Sketch a grey Pencil 4 px at 60 %, Draw the Ink Pen 5 px in ink, Correct the same in blue, chosen at Compare; they draw while a line shows with its own tools and the toolbox paints.
 - Tools by the exercise: a card beside the frame at the right (a line's pens with undo and redo; a colour's wheel, the colour panel's own, and Fill frame, which fills the frame's region at once); All tools after Gallery brings the full interface back; session state, not stored.
 - Colour feedback: the card's wheel picture (`color_compare`) with arrows from the pick to the original; words: within 45 degrees the comparative of the next of six hues ("12 degrees yellower"), beyond it the hue's name. The summary's radar (`judgement.rs`): hue, saturation, value, dark, greyish, first pick to final, each the mean of 1 - error/span clamped (30 degrees, 25 %, Oklab 0.10; first to final the share of the first error removed, a first pick within 0.02 counting 1), over the earlier sessions' dashed.
-- Consequences: the alignment runs on the main thread at Compare; ids revert with an undo, so a stroke drawn after undoing past the first Compare counts as the copy.
+- Consequences: the alignment runs off the frame loop (D103); ids revert with an undo, so a stroke drawn after undoing past the first Compare counts as the copy.
 
 ## D100 2026-10-23 Two languages: every word in the UI's text tables, a control named by its English, the language kept with the toolbox
 - Tables (`ui/src/text/`, split by where the words show): each `Text` holds the English and the Chinese side by side, so a missing translation does not compile and each Chinese line sits beside what it renders; words made with numbers are functions beside them. Components take `Words` (a `Text`, or words made in the language with the name the control goes by). `cargo repo-check` refuses, under `crates/ui/src/` outside the tables and tests, a literal starting with a capital and a small letter and a literal handed to `Words::made` or `named`. App, core and practice give no words (their labels deleted; `hue_towards` and `hue_name` return indices).
@@ -294,4 +284,11 @@ Only decisions that constrain the code now and are not self-evident, each statin
 - Stored (format 1, additive): the warm-up's count, a u32 after the results' tail; absent, none.
 - Test session (`cargo device-input practice-test start|end`, `runtime/src/practice_test.rs`): the session Start practice would start now, started from the gallery beside any open one and named by id, sheet, seed and start, kept on the dev machine; `end` removes the session of that name, record and sheet in one batch (`ProjectStore::remove_practice`), nothing else; the next session takes its id again.
 - Reason: the author's G9 (V大's W1 combined lines; the warm-up from what was learnt); STATUS pending 28, option (c).
-- Consequences: s75's second sheet has a seventh row (its hash moved); a removal moves `clock` and `next` on and nothing else; the fit tries up to nine parts on the main thread at Compare.
+- Consequences: s75's second sheet has a seventh row (its hash moved); a removal moves `clock` and `next` on and nothing else; the fit tries up to nine parts (on the fit worker, D103).
+
+## D103 2026-10-23 Single shapes: outlines derived once and judged by eye, the user's own pictures apart, stage 2, fits off the frame loop
+- Outline (`practice/src/outline*.rs`): the picture on a 512-px grid; its ground from its edge, clear (half the edge transparent: opacity) or plain (each side's Oklab profile freed of the object by a running median and a trimmed polynomial trend, laid inside as a Coons patch; refused when under 70 % of the edge fits or its noise passes 0.03); on a plain ground a marker watershed over the colour gradient (ground: what the edge reaches through smooth pixels, clear and enclosed smooth pockets of the ground's colour as a Laplace-filled mesh shows it; object: pixels surely off it, no shadow, rimmed by an edge); holes kept; contours by marching squares, Douglas-Peucker. Refused (none, never a guess): no plain ground, nothing, several parts (plain: one of 88 % and none past 2 %), cut by the edge (over 6 %), area outside 1.5 to 92 %, too ragged or long.
+- Packs (`PACK_FORMAT` 2; S78's 1 never released): an item's title, its credit (an official item's source, creator, licence, attribution, notes) or none (the user's own), its outline or none. The builder derives every outline, draws it on the sheets (red kept, blue listed without) and fails on a refusal the list's `no_outline` does not name; each outline was looked at. The user's own pictures go into the pack `personal` (no credit, never imported or exported), their outline derived on adding, shown only if it passes.
+- Exercise: kind code 4 (the tier); the record keeps each picture (after the warm-up's count, only when it holds any). Compare lays the picture at 35 % and its outline in red, in place or aligned (`align_shape`: start from the boxes, outline-to-copy pairs trimmed at 2.5x their median, copy-to-outline only the nearer half, so lines inside never pull); no outline: in place only, Aligned unavailable and said so. Every fit (lines too) runs on `openpaint-fit` and shows when it arrives.
+- Stage 2: warm-up of every kind met, 4 shapes (tiers by the session's number: E E S S, from 3 E S S M, from 6 S S M H, from 10 S M M H; the last the user's own once there is one; pictures shown before wait while fresh ones remain), 1 group, 2 colours, about 25 to 28 minutes. The stage is the last session's; the Today card offers the next once 15 are done, the options any other ready stage at once.
+- Reason: the author (2026-10-23): a wrong outline must never show; quality before speed; no numbers. Consequences: 60 of the official pack's 126 pictures have an outline; stage 1 records keep 1.3.0's bytes.

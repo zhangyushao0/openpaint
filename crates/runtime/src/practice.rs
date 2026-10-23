@@ -88,15 +88,16 @@ pub(crate) const fn stopped(job: &PracticeJob) -> Done {
     })
 }
 
-/// The job that starts the next session of `log`, seeded from `seeds`, at `now` (seconds since
-/// 1970 UTC).
+/// The job that starts the next session of `stage` in `log`, seeded from `seeds`, at `now`
+/// (seconds since 1970 UTC).
 pub(crate) fn start_job(
     log: &PracticeLog,
+    stage: u8,
     seeds: &mut Seeds,
     now: u64,
 ) -> Result<Job, RuntimeError> {
     let seed = u64::from(seeds.next()) << 32 | u64::from(seeds.next());
-    let (session, title) = log.begin(seed, now);
+    let (session, title) = log.begin(stage, seed, now);
     let [width, height] = Sheet::of(session.exercises.len()).size;
     let sheet = Artwork::new(CanvasSize::new(width, height)?);
     log::info!(

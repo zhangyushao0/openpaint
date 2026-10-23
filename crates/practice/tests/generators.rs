@@ -3,8 +3,9 @@
 //! the sheet keeps its pairs apart.
 
 use openpaint_practice::{
-    Combination, CombinedLines, Exercise, FRAME, Family, Kind, LineExercise, LineTier, Original,
-    Sheet, Tone, WARM_UP, chroma, hsv, length, stage_one,
+    Combination, CombinedLines, Exercise, FRAME, Family, ItemRef, Kind, LineExercise, LineTier,
+    Original, PICTURE_MARGIN, PictureFit, Sheet, Tier, Tone, WARM_UP, chroma, hsv, length,
+    stage_one,
 };
 
 #[test]
@@ -156,7 +157,7 @@ fn a_first_session_is_six_lines_four_combined_and_six_colours_mostly_low_in_satu
         .iter()
         .filter(|e| match e.original() {
             Original::Colour(colour) => hsv(colour)[1] < 0.36 || chroma(colour) < 0.1,
-            Original::Lines(_) => false,
+            Original::Lines(_) | Original::Picture(_) => false,
         })
         .count();
     assert!(low >= 4, "{low} of 6 low in saturation");
@@ -167,6 +168,7 @@ fn a_first_session_is_six_lines_four_combined_and_six_colours_mostly_low_in_satu
         assert_eq!(Kind::of_code(kind, variant), Some(exercise.kind));
     }
     assert_eq!(Kind::of_code(4, 0), None);
+    assert_eq!(Kind::of_code(5, 1), None);
     assert_eq!(Kind::of_code(3, 4), None);
 }
 
@@ -216,20 +218,43 @@ fn the_warm_up_draws_only_from_the_kinds_met_lines_first() {
 
 #[test]
 fn an_exercise_is_its_kind_and_seed() {
-    let exercise = Exercise {
-        kind: Kind::Line(LineTier::Wave),
-        seed: 42,
-    };
+    let exercise = Exercise::generated(Kind::Line(LineTier::Wave), 42);
     assert_eq!(
         exercise.original(),
         Original::Lines(vec![LineExercise::generate(LineTier::Wave, 42).points])
     );
-    let group = Exercise {
-        kind: Kind::Combined(Combination::Branched),
-        seed: 42,
-    };
+    let group = Exercise::generated(Kind::Combined(Combination::Branched), 42);
     let lines = CombinedLines::generate(Combination::Branched, 42).lines;
     assert_eq!(group.original(), Original::Lines(lines));
+    let item = ItemRef {
+        pack: "test-shapes".to_owned(),
+        item: "teapot".to_owned(),
+    };
+    let shape = Exercise {
+        picture: Some(item.clone()),
+        ..Exercise::generated(Kind::Shape(Tier::Simple), 42)
+    };
+    assert_eq!(shape.original(), Original::Picture(item));
+    assert_eq!(shape.kind.code(), (4, 2));
+    assert_eq!(Kind::of_code(4, 2), Some(shape.kind));
+}
+
+#[test]
+fn a_picture_fits_inside_its_frame_evenly_and_centred() {
+    let wide = PictureFit::of([2000, 1000]);
+    assert!((wide.size[0] - (1.0 - 2.0 * PICTURE_MARGIN)).abs() < 1e-12);
+    assert!((wide.size[1] - wide.size[0] / 2.0).abs() < 1e-12);
+    assert!(
+        (wide.origin[1] - 0.25 - PICTURE_MARGIN / 2.0).abs() < 1e-12,
+        "{wide:?}"
+    );
+    let corner = wide.to_frame([2000.0, 1000.0]);
+    assert!((corner[0] - (1.0 - PICTURE_MARGIN)).abs() < 1e-12);
+    let tall = PictureFit::of([300, 900]);
+    assert!(
+        (tall.to_frame([150.0, 450.0])[0] - 0.5).abs() < 1e-12,
+        "the middle in the middle"
+    );
 }
 
 #[test]

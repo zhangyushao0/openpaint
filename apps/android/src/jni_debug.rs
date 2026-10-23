@@ -17,7 +17,7 @@ use jni::errors::LogErrorAndDefault;
 use jni::objects::{JByteArray, JClass, JObject, JString};
 use jni::sys::{jboolean, jlong};
 
-use openpaint_runtime::{BytesSource, PracticeTest, Runtime, SCENARIOS, ScreenProjection};
+use openpaint_runtime::{PracticeTest, Runtime, SCENARIOS, ScreenProjection};
 
 use crate::error::HostError;
 use crate::jni_entry::runtime;
@@ -150,7 +150,7 @@ pub extern "system" fn Java_dev_openpaint_DebugControls_bench<'local>(
     .resolve::<LogErrorAndDefault>()
 }
 
-/// For `cargo device-input open-file <name>`: a pushed OpenPaint file's `bytes` (read by
+/// For `cargo device-input open-file <name>`: a pushed OpenPaint file's or practice pack's `bytes` (read by
 /// the instrumentation's shell, as the app may not read the test folder) opened as the gallery's
 /// Open OpenPaint file… opens a chosen one, no picker shown. Returns "opening", or why not.
 #[unsafe(no_mangle)]
@@ -163,7 +163,7 @@ pub extern "system" fn Java_dev_openpaint_DebugControls_openFile<'local>(
         let bytes = env.convert_byte_array(&bytes)?;
         let line = match runtime(HANDLE.load(Ordering::SeqCst)) {
             None => "no runtime".to_owned(),
-            Some(runtime) => match runtime.open_file_now(Box::new(BytesSource(bytes))) {
+            Some(runtime) => match runtime.open_file_now(bytes) {
                 Ok(()) => imported(runtime)?,
                 Err(error) => format!("not opened: {error}"),
             },
@@ -194,7 +194,7 @@ fn imported(runtime: &mut Runtime) -> Result<String, HostError> {
     }
 }
 
-/// For `cargo device-input practice-test start|end`: `start` starts a test practice session
+/// For `cargo device-input practice-test start [stage]|end`: `start` starts a test practice session
 /// beside any open one, from the gallery, and answers "started <name>" once its sheet shows;
 /// `end:<name>` removes the session of that name, its record and sheet, from the gallery, and
 /// answers "removed <name>" once the store did, or "no such session". Otherwise why not.
@@ -216,11 +216,19 @@ pub extern "system" fn Java_dev_openpaint_DebugControls_practiceTest<'local>(
     .resolve::<LogErrorAndDefault>()
 }
 
-/// `command` (`start` or `end:<name>`) on `runtime`, frames run here until it is done, at most a
-/// minute: the answer.
+/// `command` (`start`, `start:<stage>` or `end:<name>`) on `runtime`, frames run here until it is
+/// done, at most a minute: the answer.
 fn practice_test(runtime: &mut Runtime, command: &str) -> Result<String, HostError> {
-    if command == "start" {
-        let id = match runtime.start_test_practice() {
+    let stage = match command.strip_prefix("start") {
+        Some("") => Some(None),
+        Some(stage) => stage
+            .strip_prefix(':')
+            .and_then(|s| s.parse::<u8>().ok())
+            .map(Some),
+        None => None,
+    };
+    if let Some(stage) = stage {
+        let id = match runtime.start_test_practice(stage) {
             Ok(id) => id,
             Err(error) => return Ok(format!("not started: {error}")),
         };

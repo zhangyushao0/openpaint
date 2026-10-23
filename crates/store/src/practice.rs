@@ -14,11 +14,14 @@
 //!   1.1.0 wrote ends before it: compared once, no stroke a correction.
 //! - Then (1.3.0 on) how many of the first exercises are the warm-up (u32). A record written
 //!   before ends before it: no warm-up.
+//! - Then (1.4.0 on, only when it holds any) the pictures single shapes copy: a count (u32) and
+//!   each one's exercise (u32) and picture, its pack's id and its item's id (strings). A record
+//!   without ends before them, as 1.3.0 wrote it.
 
 use std::collections::HashSet;
 
 use openpaint_app::PortError;
-use openpaint_practice::{Exercise, ExerciseResult, Kind, Metric, SessionRecord};
+use openpaint_practice::{Exercise, ExerciseResult, ItemRef, Kind, Metric, SessionRecord};
 
 use crate::codec::{Reader, Writer};
 use crate::library::{Open, device};
@@ -32,6 +35,7 @@ const EXERCISE_BYTES: usize = 1 + 1 + 8;
 const RESULT_BYTES: usize = 4 + 8 + 4;
 const METRIC_BYTES: usize = 1 + 8;
 const TAIL_BYTES: usize = 4 + 8;
+const PICTURE_BYTES: usize = 4 + 4 + 4;
 
 /// The key of session `id`'s record.
 pub(crate) fn practice_key(id: u64) -> Vec<u8> {
@@ -72,6 +76,19 @@ pub(crate) fn encode_session(session: &SessionRecord) -> Vec<u8> {
         writer.u64(result.corrected_from.unwrap_or(0));
     }
     writer.u32(session.warm_up);
+    let pictures: Vec<(usize, &ItemRef)> = (session.exercises.iter().enumerate())
+        .filter_map(|(index, exercise)| Some((index, exercise.picture.as_ref()?)))
+        .collect();
+    // A session without pictures ends here, as 1.3.0 wrote it.
+    if pictures.is_empty() {
+        return writer.finish();
+    }
+    writer.len(pictures.len());
+    for (index, picture) in pictures {
+        writer.len(index);
+        writer.str(&picture.pack);
+        writer.str(&picture.item);
+    }
     writer.finish()
 }
 
@@ -90,10 +107,7 @@ pub(crate) fn decode_session(key: &[u8], bytes: &[u8]) -> Result<SessionRecord, 
     let mut exercises = Vec::with_capacity(count);
     for _ in 0..count {
         let kind = Kind::of_code(reader.u8()?, reader.u8()?).ok_or(reader.corrupt())?;
-        exercises.push(Exercise {
-            kind,
-            seed: reader.u64()?,
-        });
+        exercises.push(Exercise::generated(kind, reader.u64()?));
     }
     let mut results = decode_results(&mut reader)?;
     if !reader.is_done() {
@@ -103,6 +117,17 @@ pub(crate) fn decode_session(key: &[u8], bytes: &[u8]) -> Result<SessionRecord, 
         }
     }
     let warm_up = if reader.is_done() { 0 } else { reader.u32()? };
+    if !reader.is_done() {
+        for _ in 0..reader.count(PICTURE_BYTES)? {
+            let index = reader.u32()? as usize;
+            let picture = ItemRef {
+                pack: reader.str()?,
+                item: reader.str()?,
+            };
+            let exercise = exercises.get_mut(index).ok_or(reader.corrupt())?;
+            exercise.picture = Some(picture);
+        }
+    }
     reader.end()?;
     Ok(SessionRecord {
         id,
@@ -213,6 +238,39 @@ mod tests {
         // The first exercise's kind, after the session's fixed fields and the count.
         unknown[1 + 4 + 8 * 4 + 4 + 4] = 9;
         assert!(decode_session(&key, &unknown).is_err());
+    }
+
+    #[test]
+    fn a_stage_two_record_keeps_its_pictures_and_one_without_stays_as_1_3_0_wrote_it() {
+        let mut session = session();
+        let without = encode_session(&session);
+        // As 1.3.0 wrote it: the warm-up's count last.
+        assert_eq!(without[without.len() - 4..], 4u32.to_le_bytes());
+        session.stage = 2;
+        session.exercises[1] = Exercise {
+            picture: Some(ItemRef {
+                pack: "openpaint-shapes".to_owned(),
+                item: "teapot-bail".to_owned(),
+            }),
+            ..Exercise::generated(Kind::Shape(openpaint_practice::Tier::Simple), 9)
+        };
+        session.exercises[2].picture = Some(ItemRef {
+            pack: "personal".to_owned(),
+            item: "mine-3".to_owned(),
+        });
+        session.exercises[2].kind = Kind::Shape(openpaint_practice::Tier::Medium);
+        let bytes = encode_session(&session);
+        assert_eq!(bytes[..without.len()].len(), without.len());
+        assert_eq!(
+            decode_session(&practice_key(7), &bytes),
+            Ok(session.clone())
+        );
+        assert!(decode_session(&practice_key(7), &bytes[..bytes.len() - 1]).is_err());
+        let mut far = bytes.clone();
+        // The first picture's exercise, past the count: one no session holds.
+        let at = without.len() + 4;
+        far[at..at + 4].copy_from_slice(&99u32.to_le_bytes());
+        assert!(decode_session(&practice_key(7), &far).is_err());
     }
 
     #[test]

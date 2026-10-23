@@ -98,6 +98,7 @@ pub struct Runtime {
     pub(crate) transfers: Transfers,
     pub(crate) transfer: TransferWorker,
     fill: FillWorker,
+    fit: crate::fit::FitWorker,
     pub(crate) pictures: PictureWorker,
     /// Makes the raster core's pipelines and draws the view tiers' tiles.
     pub(crate) raster: RasterWorker,
@@ -281,6 +282,7 @@ impl Runtime {
     #[must_use]
     pub fn storing(&self) -> bool {
         let working = self.storage.busy() || self.transfer.busy() || self.fill.busy();
+        let working = working || self.fit.busy();
         let drawing = self.pictures.busy() || self.brushes.busy() || self.cache.busy();
         working || drawing || matches!(self.screen, Screen::Opening(_))
     }

@@ -1,18 +1,27 @@
 //! Imported practice packs, kept beside the library (ROADMAP S78): one file a pack,
 //! `<dir>/<pack id>.pack`, holding the pack's bytes as imported (`pack.rs`), checked whole first.
 //! The library's records are never touched: a pack is no artwork, and the library's format 1
-//! stays as it is. Importing a pack whose id is kept replaces it whole (a newer edition). A file is
-//! written under a temporary name and renamed over the old one, so a reader finds the old pack or
-//! the new one, never part of one.
+//! stays as it is. Importing a pack whose id is kept replaces it whole (a newer edition); the
+//! personal pack is never imported. The user's own pictures are added one at a time to the
+//! personal pack (`PERSONAL`), written whole again with the new one at its end. A file is written
+//! under a temporary name and renamed over the old one, so a reader finds the old pack or the new
+//! one, never part of one.
 
 use std::fs::{self, File};
 use std::io::{ErrorKind, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 
 use openpaint_app::PortError;
-use openpaint_practice::{ItemRef, Pack, valid_id};
+use openpaint_practice::{
+    ItemRef, Outline, PERSONAL, PERSONAL_TIER, Pack, PackItem, PictureKind, valid_id,
+};
 
-use crate::pack::{Placed, START, damaged, decode_head, head_length, open_pack};
+use crate::pack::{Placed, START, damaged, decode_head, encode_pack, head_length, open_pack};
+use crate::pack_picture::PackPicture;
+
+/// The personal pack's title and the start of its items' ids, numbered from 1.
+const PERSONAL_TITLE: &str = "My pictures";
+const PERSONAL_ITEM: &str = "mine-";
 
 /// The imported packs in one directory (the app's files directory's `packs`, beside its
 /// `library`).
@@ -47,8 +56,76 @@ impl Packs {
     /// (nothing is replaced then).
     pub fn import(&self, bytes: &[u8]) -> Result<Pack, PortError> {
         let (pack, _) = open_pack(bytes)?;
+        if pack.personal() {
+            log::warn!("a personal pack is never imported");
+            return Err(damaged());
+        }
+        self.keep(&pack.id, bytes)?;
+        log::info!(
+            "practice pack {} imported: {} items, {} bytes",
+            pack.id,
+            pack.items.len(),
+            bytes.len()
+        );
+        Ok(pack)
+    }
+
+    /// Adds `picture` (as `pack_picture` made it) with its `outline` to the personal pack, made
+    /// with it when there is none. Returns the personal pack as it is now, the picture its last
+    /// item.
+    ///
+    /// # Errors
+    /// `Device` when the pack cannot be read or written (nothing is replaced then), `Corrupt`
+    /// when the kept personal pack is damaged.
+    pub fn add_picture(
+        &self,
+        picture: &PackPicture,
+        outline: Option<Outline>,
+    ) -> Result<Pack, PortError> {
+        let path = self.path(PERSONAL);
+        let kept = match fs::read(&path) {
+            Ok(bytes) => Some(bytes),
+            Err(error) if error.kind() == ErrorKind::NotFound => None,
+            Err(error) => return Err(device(&error)),
+        };
+        let (mut pack, mut pictures) = match &kept {
+            Some(bytes) => {
+                let (pack, pictures) = open_pack(bytes)?;
+                (pack, pictures.into_iter().map(<[u8]>::to_vec).collect())
+            }
+            None => (personal_pack(), Vec::new()),
+        };
+        let number = 1
+            + (pack.items.iter())
+                .filter_map(|item| item.id.strip_prefix(PERSONAL_ITEM)?.parse::<u32>().ok())
+                .max()
+                .unwrap_or(0);
+        let item = PackItem {
+            id: format!("{PERSONAL_ITEM}{number}"),
+            kind: PictureKind::Shape,
+            tier: PERSONAL_TIER,
+            size: picture.size,
+            title: format!("Picture {number}"),
+            credit: None,
+            outline,
+        };
+        log::info!(
+            "picture {} added to the personal pack ({} items), outline {}",
+            item.id,
+            pack.items.len() + 1,
+            item.outline.is_some()
+        );
+        pack.items.push(item);
+        pictures.push(picture.file.clone());
+        let bytes = encode_pack(&pack, &pictures)?;
+        self.keep(PERSONAL, &bytes)?;
+        Ok(pack)
+    }
+
+    /// Writes `bytes` as the pack `id`'s file, replacing any kept one whole.
+    fn keep(&self, id: &str, bytes: &[u8]) -> Result<(), PortError> {
         fs::create_dir_all(&self.dir).map_err(|error| device(&error))?;
-        let path = self.path(&pack.id);
+        let path = self.path(id);
         let written = path.with_extension("pack.part");
         fs::write(&written, bytes).map_err(|error| device(&error))?;
         if let Err(error) = fs::rename(&written, &path) {
@@ -57,13 +134,7 @@ impl Packs {
             }
             return Err(device(&error));
         }
-        log::info!(
-            "practice pack {} imported: {} items, {} bytes",
-            pack.id,
-            pack.items.len(),
-            bytes.len()
-        );
-        Ok(pack)
+        Ok(())
     }
 
     /// Every kept pack's manifest, by id; a pack that cannot be read is left out (logged).
@@ -109,6 +180,15 @@ impl Packs {
             return Ok(None);
         };
         read_picture(&path, placed[index]).map(Some)
+    }
+}
+
+/// The personal pack before its first picture.
+fn personal_pack() -> Pack {
+    Pack {
+        id: PERSONAL.to_owned(),
+        title: PERSONAL_TITLE.to_owned(),
+        items: Vec::new(),
     }
 }
 

@@ -80,6 +80,6 @@ pub(super) fn gallery_job(
         LibraryRequest::Duplicate(id) => LibraryCall::Duplicate(id),
         LibraryRequest::Delete(id) => LibraryCall::Delete(id),
         LibraryRequest::Restore(id, version, title) => LibraryCall::Restore(id, version, title),
-        LibraryRequest::Practice => return start_job(practice, seeds, now),
+        LibraryRequest::Practice(stage) => return start_job(practice, stage, seeds, now),
     }))
 }

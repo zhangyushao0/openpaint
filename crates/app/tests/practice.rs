@@ -9,8 +9,8 @@ use std::sync::Arc;
 
 use openpaint_app::{
     BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Overlay, Pen, PracticeIntent,
-    PracticeNotice, PracticePens, PracticePick, Session, StreamLine, StrokeIntent, Toolbox,
-    Viewport,
+    PracticeNotice, PracticePens, PracticePick, Session, SheetView, StreamLine, StrokeIntent,
+    Toolbox, Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{Family, Metric, Metrics, Original, Pair, SessionRecord, Sheet, value};
@@ -38,7 +38,8 @@ fn practising() -> Session {
     let [width, height] = Sheet::of(record.exercises.len()).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
     let tools = (brush(Color::BLACK), pens());
-    Session::practising(sheet, tools, (record, Vec::new()), &VIEWPORT)
+    let view = SheetView::of(&record, &[]);
+    Session::practising(sheet, tools, (record, Vec::new(), view), &VIEWPORT)
 }
 
 /// A pen stroke through `points` (canvas pixels), 8 ms apart.
@@ -97,13 +98,21 @@ fn close(a: [f32; 2], b: [f32; 2], within: f32) -> bool {
 
 fn practise(session: &mut Session, intent: PracticeIntent) {
     session.practise(intent, 1_791_201_700).expect("practised");
+    fit(session);
+}
+
+/// The aligned fit asked for, found as the runtime's worker finds it.
+fn fit(session: &mut Session) {
+    if let Some(job) = session.practice_fit_request() {
+        session.practice_fitted(job.sequence, job.run());
+    }
 }
 
 /// The overlay's line, while it shows.
 fn overlay(session: &Session) -> Option<Vec<[f32; 2]>> {
     match session.projection().practice()?.overlay.clone()? {
         Overlay::Lines(lines) => lines.into_iter().next(),
-        Overlay::Colour { .. } => None,
+        Overlay::Colour { .. } | Overlay::Picture { .. } => None,
     }
 }
 

@@ -103,33 +103,14 @@ fn replay(name: &str, fonts: &TextFonts, log: &mut Log) -> Result<(), HarnessErr
     log.push(format!("scenario {}", file.display()));
     let scenario = Scenario::parse(&fs::read_to_string(&file)?)?;
     let dir = root.join("artifacts").join("scenarios").join(name);
-    let library = fresh_library(dir.join("library"))?;
-    let report = openpaint_devtools::run(&scenario, &library, fonts)?;
+    let (library, packs) = (
+        fresh_library(dir.join("library"))?,
+        fresh_library(dir.join("packs"))?,
+    );
+    let report = openpaint_devtools::run(&scenario, (&library, &packs), fonts)?;
     log.push(format!("adapter {}", report.adapter));
     fs::create_dir_all(&dir)?;
-    for record in &report.records {
-        match record {
-            Record::Checkpoint(checkpoint) => write_checkpoint(&dir, checkpoint, log)?,
-            Record::Screenshot(shot) => {
-                let path = dir.join(format!("{}.png", shot.name));
-                write_rgba(&path, shot.screen.size(), shot.screen.pixels())?;
-                log.push(format!("screenshot {}: {}", shot.name, path.display()));
-            }
-            Record::Export(export) => write_export(&dir, export, log)?,
-            Record::View(view) => {
-                let (zoom, rotation, pan) = view.actual;
-                log.push(format!(
-                    "view {}: {}, zoom {zoom:.3}, rotation {rotation:.1}°, pan [{:.1}, {:.1}] \
-                     (expected {:?})",
-                    view.name,
-                    if view.passed() { "pass" } else { "FAIL" },
-                    pan[0],
-                    pan[1],
-                    view.expected
-                ));
-            }
-        }
-    }
+    write_records(&dir, &report.records, log)?;
     let total = report.checkpoints().count() + report.exports().count() + report.views().count();
     let failed = report.checkpoints().filter(|c| !c.passed()).count()
         + report.exports().filter(|e| !e.passed()).count()
@@ -148,6 +129,34 @@ fn replay(name: &str, fonts: &TextFonts, log: &mut Log) -> Result<(), HarnessErr
     }
     if !report.unnamed.is_empty() {
         return Err(HarnessError::Unnamed(report.unnamed.len()));
+    }
+    Ok(())
+}
+
+/// The scenario's checkpoints, screenshots, exports and views written to `dir` and logged.
+fn write_records(dir: &Path, records: &[Record], log: &mut Log) -> Result<(), HarnessError> {
+    for record in records {
+        match record {
+            Record::Checkpoint(checkpoint) => write_checkpoint(dir, checkpoint, log)?,
+            Record::Screenshot(shot) => {
+                let path = dir.join(format!("{}.png", shot.name));
+                write_rgba(&path, shot.screen.size(), shot.screen.pixels())?;
+                log.push(format!("screenshot {}: {}", shot.name, path.display()));
+            }
+            Record::Export(export) => write_export(dir, export, log)?,
+            Record::View(view) => {
+                let (zoom, rotation, pan) = view.actual;
+                log.push(format!(
+                    "view {}: {}, zoom {zoom:.3}, rotation {rotation:.1}°, pan [{:.1}, {:.1}] \
+                     (expected {:?})",
+                    view.name,
+                    if view.passed() { "pass" } else { "FAIL" },
+                    pan[0],
+                    pan[1],
+                    view.expected
+                ));
+            }
+        }
     }
     Ok(())
 }

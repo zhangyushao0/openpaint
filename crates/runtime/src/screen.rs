@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use openpaint_app::{
     Clipboard, Gallery, LibraryAnswer, LibraryRequest, PortError, PracticeLog, ScreenProjection,
-    Toolbox, Transfers,
+    SheetView, Toolbox, Transfers,
 };
 use openpaint_core::Artwork;
 use openpaint_render::Core;
@@ -101,7 +101,8 @@ impl Screen {
             let sheet = match content {
                 Content::Stored(_, _, held) => practice.of_canvas(held.project).map(|session| {
                     let before = practice.before(session);
-                    (session.clone(), before)
+                    let view = SheetView::of(session, practice.packs());
+                    (session.clone(), before, view)
                 }),
                 Content::Blank | Content::BlankAfterFailedOpen => None,
             };
@@ -124,7 +125,7 @@ impl Screen {
         (toolbox, core, cache, practice): Answered<'_>,
     ) -> bool {
         match done {
-            Done::Started(opened, editor, sessions) => {
+            Done::Started(opened, editor, (sessions, packs)) => {
                 if let Some(state) = editor
                     && !toolbox.restore(&state)
                 {
@@ -136,8 +137,13 @@ impl Screen {
                 for key in toolbox.dropped() {
                     log::warn!("the stored brush sets list {key} for no brush or again; dropped");
                 }
-                *practice = PracticeLog::new(sessions);
+                *practice = PracticeLog::new(sessions, packs);
                 *self = started(opened);
+            }
+            Done::Picture(item, image) => {
+                if let Some(canvas) = self.canvas_mut() {
+                    canvas.session_mut().practice_picture_read(item, image);
+                }
             }
             Done::EditorSaved(result) => {
                 if let Err(error) = result {
@@ -155,7 +161,14 @@ impl Screen {
                 log::info!("new artwork {}", id.get());
                 *self = Self::Opening(Some(Content::Stored(artwork, title, new_project(id))));
             }
-            Done::Gallery(answer) => self.gallery_answer(answer),
+            Done::Gallery(answer) => {
+                if let LibraryAnswer::PackImported(Ok(pack))
+                | LibraryAnswer::PictureAdded(Ok(pack)) = &answer
+                {
+                    practice.keep_pack(pack.clone());
+                }
+                self.gallery_answer(answer);
+            }
             Done::Practice(done) => self.practice(done, practice),
         }
         false

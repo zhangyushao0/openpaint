@@ -2,7 +2,8 @@
 //! exercise finds its picture.
 
 use openpaint_practice::{
-    ItemRef, Licence, MAX_PICTURE_SIDE, Pack, PackItem, PackProblem, PictureKind, Tier, valid_id,
+    Credit, ItemRef, Licence, MAX_PICTURE_SIDE, Outline, PERSONAL, Pack, PackItem, PackProblem,
+    PictureKind, Tier, valid_id,
 };
 
 fn item(id: &str, tier: Tier, licence: Licence) -> PackItem {
@@ -11,13 +12,20 @@ fn item(id: &str, tier: Tier, licence: Licence) -> PackItem {
         kind: PictureKind::Shape,
         tier,
         size: [1200, 900],
-        source: format!("https://example.org/{id}"),
         title: "Teapot".to_owned(),
-        creator: "Unknown maker".to_owned(),
-        licence,
-        attribution: String::new(),
-        notes: "one handle, one spout".to_owned(),
+        credit: Some(Credit {
+            source: format!("https://example.org/{id}"),
+            creator: "Unknown maker".to_owned(),
+            licence,
+            attribution: String::new(),
+            notes: "one handle, one spout".to_owned(),
+        }),
+        outline: None,
     }
+}
+
+fn credit(pack: &mut Pack, at: usize) -> &mut Credit {
+    pack.items[at].credit.as_mut().expect("credited")
 }
 
 fn pack() -> Pack {
@@ -120,8 +128,8 @@ fn every_rule_is_checked() {
         item("its picture's sides are not 1 to 2048 pixels")
     );
     assert!(broken(|p| p.items[3].size = [0, 10]).is_err());
-    assert!(broken(|p| p.items[3].source = "http://example.org".into()).is_err());
-    assert!(broken(|p| p.items[3].creator = String::new()).is_err());
+    assert!(broken(|p| credit(p, 3).source = "http://example.org".into()).is_err());
+    assert!(broken(|p| credit(p, 3).creator = String::new()).is_err());
     assert_eq!(
         broken(|p| p.items[3].id = "teapot".into()),
         Err(PackProblem {
@@ -130,18 +138,67 @@ fn every_rule_is_checked() {
         })
     );
     assert_eq!(
-        broken(|p| p.items[3].licence = Licence::CcBy4),
+        broken(|p| credit(p, 3).licence = Licence::CcBy4),
         item("its licence asks for an attribution and it has none")
     );
     assert_eq!(
         broken(|p| {
-            p.items[3].licence = Licence::CcBy4;
-            p.items[3].attribution = "“Vase” by A. Potter, CC BY 4.0".into();
+            credit(p, 3).licence = Licence::CcBy4;
+            credit(p, 3).attribution = "“Vase” by A. Potter, CC BY 4.0".into();
         }),
         Ok(())
     );
     let shown = broken(|p| p.items[3].size = [0, 0]).expect_err("broken");
     assert!(shown.to_string().starts_with("item vase: "), "{shown}");
+    assert_eq!(
+        broken(|p| p.items[3].credit = None),
+        item("an official item has no credit")
+    );
+}
+
+#[test]
+fn an_outline_lies_inside_its_picture_and_closes() {
+    let inside = Outline {
+        contours: vec![vec![[10.0, 10.0], [1190.0, 10.0], [600.0, 890.0]]],
+    };
+    assert_eq!(
+        broken(|p| p.items[3].outline = Some(inside.clone())),
+        Ok(())
+    );
+    let mut outside = inside.clone();
+    outside.contours[0][1] = [1201.0, 10.0];
+    assert!(broken(|p| p.items[3].outline = Some(outside)).is_err());
+    let open = Outline {
+        contours: vec![vec![[10.0, 10.0], [20.0, 20.0]]],
+    };
+    assert!(broken(|p| p.items[3].outline = Some(open)).is_err());
+    assert!(broken(|p| p.items[3].outline = Some(Outline { contours: vec![] })).is_err());
+    assert_eq!(
+        inside.lines()[0].len(),
+        4,
+        "a line closes on its first point"
+    );
+}
+
+#[test]
+fn the_personal_pack_credits_nothing_and_shows_no_credit() {
+    let mut mine = pack();
+    mine.id = PERSONAL.to_owned();
+    assert!(mine.personal());
+    assert!(mine.check().is_err(), "a credited picture of your own");
+    for item in &mut mine.items {
+        item.credit = None;
+    }
+    assert_eq!(mine.check(), Ok(()));
+    assert!(mine.items.iter().all(|item| item.shown_credit().is_none()));
+    let mut official = pack();
+    assert_eq!(official.items[0].shown_credit(), None, "CC0: none asked");
+    credit(&mut official, 0).licence = Licence::CcBy4;
+    credit(&mut official, 0).attribution = "“Teapot” by A. Potter, CC BY 4.0".into();
+    assert_eq!(
+        official.items[0].shown_credit(),
+        Some("“Teapot” by A. Potter, CC BY 4.0")
+    );
 }
 
 #[test]

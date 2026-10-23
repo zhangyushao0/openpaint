@@ -23,9 +23,13 @@ impl Runtime {
             );
             if self.screen.answer(done, after) {
                 let now = self.frame_clock.wall_seconds();
-                let job = crate::practice::start_job(&self.practice, &mut self.seeds, now)?;
+                let stage = self.practice.stage();
+                let job = crate::practice::start_job(&self.practice, stage, &mut self.seeds, now)?;
                 self.storage.submit(job);
             }
+        }
+        if !matches!(self.screen, Screen::Canvas(_)) {
+            self.fit.let_go();
         }
         self.open_canvas()
     }
@@ -39,6 +43,10 @@ impl Runtime {
                 let app = (&mut self.toolbox, &mut self.clipboard, &mut self.seeds, now);
                 canvas.dispatch(&self.core, intents, app);
                 self.fill.step(canvas);
+                self.fit.step(canvas);
+                while let Some(item) = canvas.session_mut().practice_picture_request() {
+                    self.storage.submit(crate::storage::Job::Picture(item));
+                }
                 self.pictures.step(canvas, &mut self.shell);
                 self.brushes.step(&self.toolbox, &mut self.shell)
             }

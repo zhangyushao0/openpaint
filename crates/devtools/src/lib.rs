@@ -12,6 +12,7 @@ mod runner;
 mod scenario;
 mod system;
 mod target;
+mod test_pack;
 mod watched;
 
 pub use crate::diff::{Diff, diff};

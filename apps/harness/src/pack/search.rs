@@ -55,7 +55,11 @@ pub fn run(fetcher: &Fetcher, source: Source, query: &str, count: u32) -> Result
             println!("       its preview does not decode ({error}): a red dot");
             ([1, 1], vec![255, 0, 0, 255])
         });
-        pictures.push(Picture { size, rgba });
+        pictures.push(Picture {
+            size,
+            rgba,
+            outline: None,
+        });
     }
     let sheet = sheet_path(source, query, count);
     write_sheet(&pictures, &sheet)?;

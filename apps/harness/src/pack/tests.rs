@@ -9,7 +9,7 @@ use openpaint_app::ImageFormat;
 use openpaint_practice::{Licence, Tier};
 use openpaint_store::{encode_image, encode_pack, open_pack};
 
-use super::build::{attribution, build};
+use super::build::{Outlined, attribution, build};
 use super::commons::{plain, stated};
 use super::fetch::{Fetcher, cache_name};
 use super::list::SourceList;
@@ -38,6 +38,7 @@ source = "met"
 object = "4242"
 licence = "CC0"
 reason = "a visor's hinges"
+no_outline = "a test of the list's mark"
 
 [[item]]
 id = "fox"
@@ -124,10 +125,15 @@ fn a_rebuild_from_the_same_list_and_cache_gives_the_same_bytes() {
     let list = SourceList::parse(LIST).expect("the list");
     let dir = cache("pack-cache", answers());
     let fetcher = Fetcher::cache_only(&dir);
-    let (pack, pictures) = build(&list, &fetcher).expect("built");
-    let bytes = encode_pack(&pack, &pictures).expect("encoded");
-    let (again, again_pictures) = build(&list, &fetcher).expect("built again");
-    assert!(encode_pack(&again, &again_pictures).expect("encoded") == bytes);
+    let built = build(&list, &fetcher).expect("built");
+    let bytes = encode_pack(&built.pack, &built.pictures).expect("encoded");
+    let again = build(&list, &fetcher).expect("built again");
+    assert!(encode_pack(&again.pack, &again.pictures).expect("encoded") == bytes);
+    assert!(
+        matches!(&built.outlines[1], Outlined::Listed { why, .. } if why.contains("mark")),
+        "the list's mark kept"
+    );
+    assert!(built.pack.items[1].outline.is_none());
 
     let (opened, pictures) = open_pack(&bytes).expect("a whole pack");
     let sizes: Vec<[u32; 2]> = opened.items.iter().map(|item| item.size).collect();
@@ -141,19 +147,24 @@ fn a_rebuild_from_the_same_list_and_cache_gives_the_same_bytes() {
     let [teapot, helmet, fox] = &opened.items[..] else {
         panic!("three items");
     };
-    assert_eq!((teapot.tier, teapot.licence), (Tier::Simple, Licence::Cc0));
-    assert_eq!(teapot.creator, "Unknown maker, America");
-    assert_eq!(teapot.notes, "one handle, one spout");
+    let credit = |item: &openpaint_practice::PackItem| item.credit.clone().expect("credited");
+    let (teapot_credit, fox_credit) = (credit(teapot), credit(fox));
     assert_eq!(
-        helmet.source,
+        (teapot.tier, teapot_credit.licence),
+        (Tier::Simple, Licence::Cc0)
+    );
+    assert_eq!(teapot_credit.creator, "Unknown maker, America");
+    assert_eq!(teapot_credit.notes, "one handle, one spout");
+    assert_eq!(
+        credit(helmet).source,
         "https://www.metmuseum.org/art/collection/search/4242"
     );
     assert_eq!(
-        (fox.creator.as_str(), fox.licence),
+        (fox_credit.creator.as_str(), fox_credit.licence),
         ("A. Painter", Licence::CcBy4)
     );
     assert_eq!(
-        fox.attribution,
+        fox_credit.attribution,
         "“Test fox” by A. Painter, Wikimedia Commons \
          (https://commons.wikimedia.org/wiki/File:Test_fox.png), licensed CC BY 4.0 \
          (https://creativecommons.org/licenses/by/4.0/); resized."
@@ -169,7 +180,7 @@ fn failure(name: &str, answers: [String; 3]) -> (String, String) {
     fs::remove_dir_all(&dir).expect("removed");
     match failed {
         Err(HarnessError::Pack { item, problem }) => (item, problem),
-        other => panic!("not a failed item: {other:?}"),
+        other => panic!("not a failed item: {:?}", other.map(|built| built.pack.id)),
     }
 }
 
@@ -199,7 +210,7 @@ fn nothing_missing_from_the_cache_is_taken_without_the_network() {
             assert_eq!(item, "teapot");
             assert!(problem.contains("not in the cache"), "{problem}");
         }
-        other => panic!("not a failed item: {other:?}"),
+        other => panic!("not a failed item: {:?}", other.map(|built| built.pack.id)),
     }
 }
 

@@ -7,7 +7,7 @@ use openpaint_app::{
     BrushLibrary, Clipboard, Language, PalmRejection, PracticeLog, ProjectStore, Toolbox, Transfers,
 };
 use openpaint_render::Core;
-use openpaint_store::DisplayCache;
+use openpaint_store::{DisplayCache, Packs};
 use openpaint_ui::Shell;
 use openpaint_ui::design;
 
@@ -18,6 +18,7 @@ use crate::clock::{FrameClock, InputClock};
 use crate::display::CacheWorker;
 use crate::error::RuntimeError;
 use crate::fill::FillWorker;
+use crate::fit::FitWorker;
 use crate::normalise::Normaliser;
 use crate::pacing::Pacing;
 use crate::pictures::PictureWorker;
@@ -48,6 +49,9 @@ pub struct StartOptions {
     /// The system's language (the host's locale): the interface shows it until one is chosen
     /// in Actions (D100). English by default.
     pub language: Language,
+    /// Where practice packs are kept (the Android host's `filesDir/packs`, beside the library).
+    /// `None`: there are none, and none can be imported.
+    pub packs: Option<Packs>,
 }
 
 impl Runtime {
@@ -60,18 +64,13 @@ impl Runtime {
         store: Box<dyn ProjectStore>,
         options: StartOptions,
     ) -> Result<Self, RuntimeError> {
-        let StartOptions {
-            core,
-            cache,
-            memory,
-            language,
-        } = options;
-        let core = match core {
+        let (cache, memory, language) = (options.cache, options.memory, options.language);
+        let core = match options.core {
             Some(core) => core,
             None => Arc::new(Core::headless()?),
         };
         let toolbox = Toolbox::new(BrushLibrary::built_in()?);
-        let storage = Storage::start(store, cache.clone())?;
+        let storage = Storage::start(store, (cache.clone(), options.packs))?;
         log::info!("GPU adapter: {}", core.adapter());
         core.catch_errors();
         let ui = egui::Context::default();
@@ -99,6 +98,7 @@ impl Runtime {
             ui_ns: 0,
             transfer: TransferWorker::start(shared.clone())?,
             fill: FillWorker::start(shared.clone())?,
+            fit: FitWorker::start()?,
             pictures: PictureWorker::start(shared.clone())?,
             raster: RasterWorker::start(shared.clone())?,
             budget: Budget::of(&core, memory),

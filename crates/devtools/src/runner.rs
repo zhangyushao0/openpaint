@@ -42,11 +42,12 @@ const SETTLE_FRAMES: usize = 240;
 /// The seed every stroke's stamps take: fixed, so hashes hold.
 const SEED: u32 = 0x5EED_0045;
 
-/// Starts the app on the library in `library` (created when missing), with the text faces a
-/// host would hand over, opens it and runs every step.
+/// Starts the app on the library in `library` (created when missing) with its practice packs
+/// kept in `packs` (a directory the caller makes fresh), with the text faces a host would hand
+/// over, opens it and runs every step.
 pub fn run(
     scenario: &Scenario,
-    library: &Path,
+    (library, packs): (&Path, &Path),
     fonts: &TextFonts,
 ) -> Result<Report, ScenarioError> {
     let started = Instant::now();
@@ -57,6 +58,7 @@ pub fn run(
         core: Arc::new(core),
         scenario,
         library,
+        packs,
         fonts,
         storage_off: Arc::new(AtomicBool::new(false)),
         clock_ms: 0,
@@ -95,6 +97,7 @@ struct Runner<'a> {
     core: Arc<Core>,
     scenario: &'a Scenario,
     library: &'a Path,
+    packs: &'a Path,
     /// The text faces a host would hand over, given to every start.
     fonts: &'a TextFonts,
     /// Set by `storage_fails`, cleared by `storage_works`; survives restarts.
@@ -127,6 +130,7 @@ impl Runner<'_> {
         let options = StartOptions {
             core: Some(Arc::clone(&self.core)),
             language,
+            packs: Some(openpaint_store::Packs::at(self.packs)),
             ..StartOptions::default()
         };
         let mut runtime = Runtime::start(self.scenario.density, Box::new(store), options)?;

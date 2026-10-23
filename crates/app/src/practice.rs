@@ -7,17 +7,21 @@
 //!
 //! `PracticeLog` is the app's, kept across artworks like the toolbox: every session's record,
 //! for the gallery's Today card (the stage, sessions finished, the one still open) and for the
-//! summary's earlier sessions. Progress counts sessions, never days.
+//! summary's earlier sessions, and the practice packs kept (their manifests: the pictures single
+//! shapes copy, `practice_pictures.rs`). Progress counts sessions, never days; the stage is the
+//! last session's, the next one offered once a stage's sessions are done and earlier at the
+//! user's choice, an earlier one revisited.
 
 use std::sync::Arc;
 
 use openpaint_core::Color;
 use openpaint_practice::{
-    ExerciseResult, Family, KindSummary, Original, Pair, Rgb8, STAGE_SESSIONS, SessionRecord,
-    Sheet, met,
+    Before, ExerciseResult, Family, KindSummary, Original, Pack, Pair, Pictures, Rgb8,
+    STAGE_SESSIONS, STAGES_READY, SessionRecord, Sheet, met, plan, used,
 };
 
 use crate::layer_rules::LayerRefusal;
+use crate::practice_pictures::{PackShown, PictureImage, SheetPicture};
 use crate::project::ProjectId;
 use crate::projection::Availability;
 use crate::title::Title;
@@ -72,8 +76,8 @@ pub enum PracticeNotice {
     Done,
 }
 
-/// The gallery's Today card.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// The gallery's Today card and its options.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TodayProjection {
     pub stage: u8,
     /// Sessions finished in the stage, and about how many it holds.
@@ -81,6 +85,12 @@ pub struct TodayProjection {
     pub sessions: u32,
     /// The sheet of the session still open, to continue.
     pub open: Option<ProjectId>,
+    /// The next stage, offered on the card once this one's sessions are done.
+    pub next: Option<u8>,
+    /// The stages a session can be started in, from 1 (the options offer the others).
+    pub ready: u8,
+    /// The packs kept, the official ones first.
+    pub packs: Vec<PackShown>,
 }
 
 /// The open practice sheet for one UI frame.
@@ -119,6 +129,12 @@ pub struct PracticeProjection {
     /// Once done: this session's means beside the earlier ones', per kind.
     pub summary: Option<Vec<KindSummary>>,
     pub notice: Option<PracticeNotice>,
+    /// Whether Aligned can be chosen for the shown exercise: lines, or a picture with an outline.
+    pub aligned_offered: bool,
+    /// Aligned is chosen and its fit is still being found (off the frame loop).
+    pub fitting: bool,
+    /// The session's pictures read so far (none: one that could not be read).
+    pub images: Vec<(openpaint_practice::ItemRef, Option<Arc<PictureImage>>)>,
 }
 
 /// A session's sheet as the screen draws it.
@@ -127,16 +143,23 @@ pub struct SheetView {
     pub size: [u32; 2],
     pub pairs: Vec<Pair>,
     pub originals: Vec<Original>,
+    /// Each exercise's picture, a single shape's (none: another kind, or a picture no pack
+    /// holds now).
+    pub pictures: Vec<Option<Arc<SheetPicture>>>,
 }
 
 impl SheetView {
+    /// The sheet of `record`, its shapes' pictures as `packs` hold them.
     #[must_use]
-    pub fn of(record: &SessionRecord) -> Self {
+    pub fn of(record: &SessionRecord, packs: &[Pack]) -> Self {
         let sheet = Sheet::of(record.exercises.len());
         Self {
             size: sheet.size,
             pairs: sheet.pairs,
             originals: record.exercises.iter().map(|e| e.original()).collect(),
+            pictures: (record.exercises.iter())
+                .map(|e| SheetPicture::of(e.picture.as_ref()?, packs).map(Arc::new))
+                .collect(),
         }
     }
 }
@@ -146,6 +169,13 @@ impl SheetView {
 pub enum Overlay {
     /// The original's lines where they lie over the copy (in place or aligned), in canvas pixels.
     Lines(Vec<Vec<[f32; 2]>>),
+    /// A single shape's picture over the copy, faint, its corners (top left, top right, bottom
+    /// right, bottom left) in canvas pixels, with its outline's lines (none without one), in
+    /// place or aligned.
+    Picture {
+        corners: [[f32; 2]; 4],
+        outline: Vec<Vec<[f32; 2]>>,
+    },
     /// The swatch and the first and last colours laid.
     Colour {
         original: Rgb8,
@@ -154,28 +184,44 @@ pub enum Overlay {
     },
 }
 
-/// Every practice session the library holds, oldest first.
+/// Every practice session the library holds, oldest first, and the practice packs kept.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct PracticeLog {
     sessions: Vec<SessionRecord>,
+    packs: Vec<Pack>,
 }
 
 impl PracticeLog {
     #[must_use]
-    pub fn new(mut sessions: Vec<SessionRecord>) -> Self {
+    pub fn new(mut sessions: Vec<SessionRecord>, packs: Vec<Pack>) -> Self {
         sessions.sort_by_key(|session| session.id);
-        Self { sessions }
+        let mut log = Self {
+            sessions,
+            packs: Vec::new(),
+        };
+        log.set_packs(packs);
+        log
     }
 
-    /// The Today card: stage 1 (the only stage so far), its finished sessions and the open one.
+    /// The stage practised: the last session's, 1 before any.
+    #[must_use]
+    pub fn stage(&self) -> u8 {
+        self.sessions
+            .last()
+            .map_or(1, |s| s.stage.clamp(1, STAGES_READY))
+    }
+
+    /// The Today card: the stage practised, its finished sessions, the open one, the next stage
+    /// once this one's sessions are done, and the packs kept.
     #[must_use]
     pub fn today(&self) -> TodayProjection {
-        let stage = 1;
+        let stage = self.stage();
         let done = self
             .sessions
             .iter()
             .filter(|s| s.stage == stage && s.finished.is_some())
             .count();
+        let done = u32::try_from(done).unwrap_or(u32::MAX);
         let open = self
             .sessions
             .iter()
@@ -184,23 +230,60 @@ impl PracticeLog {
             .map(|s| ProjectId::new(s.canvas));
         TodayProjection {
             stage,
-            done: u32::try_from(done).unwrap_or(u32::MAX),
+            done,
             sessions: STAGE_SESSIONS,
             open,
+            next: (done >= STAGE_SESSIONS && stage < STAGES_READY).then_some(stage + 1),
+            ready: STAGES_READY,
+            packs: self.packs.iter().map(PackShown::of).collect(),
         }
     }
 
-    /// The next session of stage 1, seeded `seed`, started at `now` (seconds since 1970 UTC),
-    /// its warm-up from the kinds compared in every session so far, with its sheet's title; it
-    /// has no canvas until the store gives it one.
+    /// The next session of `stage` (one ready, else stage 1), seeded `seed`, started at `now`
+    /// (seconds since 1970 UTC), its warm-up from the kinds compared in every session so far and
+    /// its shapes' pictures from the packs kept (others than those shown before while there
+    /// are), with its sheet's title; it has no canvas until the store gives it one.
     #[must_use]
-    pub fn begin(&self, seed: u64, now: u64) -> (SessionRecord, Title) {
+    pub fn begin(&self, stage: u8, seed: u64, now: u64) -> (SessionRecord, Title) {
+        let stage = if (1..=STAGES_READY).contains(&stage) {
+            stage
+        } else {
+            1
+        };
         let id = self.next_id();
-        let number = self.sessions.iter().filter(|s| s.stage == 1).count() + 1;
+        let number = self.sessions.iter().filter(|s| s.stage == stage).count() + 1;
         let number = u32::try_from(number).unwrap_or(u32::MAX);
         let title = Title::new(&format!("Practice {number}")).unwrap_or_else(|_| Title::untitled());
-        let met = met(&self.sessions);
-        (SessionRecord::stage_one(id, number, seed, now, &met), title)
+        let (met, used) = (met(&self.sessions), used(&self.sessions));
+        let pictures = Pictures::of(&self.packs);
+        let before = Before {
+            met: &met,
+            pictures: &pictures,
+            used: &used,
+        };
+        let plan = plan(stage, number, seed, &before);
+        let record = SessionRecord::begun(id, (stage, number), (seed, now), plan);
+        (record, title)
+    }
+
+    /// The packs kept now (as the store listed them).
+    pub fn set_packs(&mut self, mut packs: Vec<Pack>) {
+        packs.sort_by(|a, b| (a.personal(), &a.id).cmp(&(b.personal(), &b.id)));
+        self.packs = packs;
+    }
+
+    /// Keeps `pack`, new or a newer edition of one kept.
+    pub fn keep_pack(&mut self, pack: Pack) {
+        let mut packs = std::mem::take(&mut self.packs);
+        packs.retain(|kept| kept.id != pack.id);
+        packs.push(pack);
+        self.set_packs(packs);
+    }
+
+    /// The packs kept.
+    #[must_use]
+    pub fn packs(&self) -> &[Pack] {
+        &self.packs
     }
 
     /// The id the next session begun takes.
