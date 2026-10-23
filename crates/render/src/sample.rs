@@ -83,7 +83,7 @@ impl Core {
         let scene = Scene::layer(artwork, layer, mask)?;
         let canvas = artwork.canvas();
         let size = [canvas.width(), canvas.height()];
-        let mut export = RasterExport::new(self, scene, size)?;
+        let mut export = RasterExport::new(self, scene, (size, paced))?;
         // On nothing; a mask's grey on white.
         let background = if mask { [1.0; 4] } else { [0.0; 4] };
         export.draw(self, (artwork, 1, [0, 0]), size, (background, paced))?;

@@ -87,6 +87,7 @@ impl Runtime {
             clipboard: Clipboard::default(),
             seeds: Seeds::from_clock(),
             bench_fast: false,
+            ui_ns: 0,
             transfer: TransferWorker::start(shared.clone())?,
             fill: FillWorker::start(shared.clone())?,
             pictures: PictureWorker::start(shared.clone())?,

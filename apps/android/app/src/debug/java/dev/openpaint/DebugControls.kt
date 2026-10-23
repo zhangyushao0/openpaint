@@ -37,8 +37,8 @@ internal object DebugControls {
 
     /**
      * One of the app's scenario benchmarks (open-cold, open, zoom, pan, strokes, session,
-     * export, touch, undo, adjust) on the artwork open, as [scene] names it. Its lines, written
-     * to the log too, separated by tabs.
+     * export, touch, undo, adjust, ui) on the artwork open, as [scene] names it. Its lines,
+     * written to the log too, separated by tabs.
      */
     @JvmStatic external fun bench(scene: String): String?
 

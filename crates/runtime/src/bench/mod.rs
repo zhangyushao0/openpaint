@@ -28,6 +28,10 @@
 //!   each fill's time to complete and its frames' work.
 //! - `adjust`: on the busiest layer a slider dragged in each adjustment and filter panel, 60
 //!   values, then cancelled: frame work, values shown in their frame, each one's time to show.
+//! - `ui`: the interface's motions (each popover opening and closing, panels switching, the
+//!   colour wheel, a slider and the brush editor's column dragged): frames drawn against the
+//!   vsyncs wanting one, the longest gap, frame work, UI pass and GPU time a frame (`ui.rs`,
+//!   `motion.rs`).
 
 use std::time::{Duration, Instant};
 
@@ -41,10 +45,12 @@ use crate::screen::Screen;
 mod adjust;
 mod export;
 mod hand;
+mod motion;
 mod open;
 mod session;
 mod strokes;
 mod touch;
+mod ui;
 mod undo;
 mod view;
 
@@ -52,7 +58,7 @@ pub use hand::busiest;
 pub use strokes::STROKES_ADDED;
 
 /// The scenarios `bench_scenario` runs.
-pub const SCENARIOS: [&str; 10] = [
+pub const SCENARIOS: [&str; 11] = [
     "open-cold",
     "open",
     "zoom",
@@ -63,6 +69,7 @@ pub const SCENARIOS: [&str; 10] = [
     "touch",
     "undo",
     "adjust",
+    "ui",
 ];
 
 /// The screen offscreen when no frame was drawn yet: the tablet's.
@@ -234,6 +241,7 @@ impl Runtime {
             "touch" => self.bench_touch(&mut lines)?,
             "undo" => self.bench_undo(&mut lines)?,
             "adjust" => self.bench_adjust(&mut lines)?,
+            "ui" => self.bench_ui(&mut lines)?,
             _ => return Err(RuntimeError::NotNow("a scenario of SCENARIOS")),
         }
         Ok(lines)

@@ -72,7 +72,7 @@ impl Core {
         }
         let piece = [banding.columns.min(size[0]), banding.rows.min(size[1])];
         let scene = Scene::build_knowing(artwork, None, (Vec::new(), Earlier::default()))?;
-        let raster = Box::new(RasterExport::new(self, scene, piece)?);
+        let raster = Box::new(RasterExport::new(self, scene, (piece, false))?);
         Ok(Bands {
             core: self,
             artwork: artwork.clone(),

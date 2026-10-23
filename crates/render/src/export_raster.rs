@@ -25,6 +25,11 @@ use crate::smudge::{Smudges, around_output};
 
 /// The largest region drawn at once: 8 MB a float target.
 const REGION: [u32; 2] = [1024, 512];
+/// The largest region a worker draws at once while the screen draws on (`paced`): a canvas
+/// tile's, as the frame loop's background pieces are, so a frame queued behind it waits for
+/// little (a layer's picture over a dense layer took up to 50 ms of GPU a 1024 x 512 region on
+/// the tablet, D97).
+const PACED_REGION: [u32; 2] = [256, 256];
 
 /// An export's scene for the raster core, its smudges' residuals, its targets and its 8-bit
 /// piece.
@@ -38,13 +43,19 @@ pub(crate) struct RasterExport {
 }
 
 impl RasterExport {
-    /// The export of `scene` in pieces of up to `piece` pixels.
+    /// The export of `scene` in pieces of up to `piece` pixels, its regions a worker's while the
+    /// screen draws on when `paced` (`draw`).
     ///
     /// # Errors
     /// As the GPU: sizes the device cannot hold.
-    pub(crate) fn new(core: &Core, scene: Scene, piece: [u32; 2]) -> Result<Self, RenderError> {
+    pub(crate) fn new(
+        core: &Core,
+        scene: Scene,
+        (piece, paced): ([u32; 2], bool),
+    ) -> Result<Self, RenderError> {
         let usage = wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING;
-        let region = [0, 1].map(|axis| REGION[axis].min(piece[axis]));
+        let most = if paced { PACED_REGION } else { REGION };
+        let region = [0, 1].map(|axis| most[axis].min(piece[axis]));
         Ok(Self {
             ops: scene_ops(&core.gpu, &scene, None),
             scene,

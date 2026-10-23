@@ -9,6 +9,7 @@ use openpaint_ui::ControlMap;
 use crate::canvas::Canvas;
 use crate::error::RuntimeError;
 use crate::frame::{Runtime, screen_frame};
+use crate::pacing::Wanted;
 
 impl Runtime {
     /// Runs one frame into an offscreen target of `size` pixels, for the harness, which never
@@ -18,7 +19,7 @@ impl Runtime {
     /// the next frame shows them and scenarios and tests take the same frames on any machine.
     pub fn frame_offscreen(&mut self, size: [u32; 2]) -> Result<bool, RuntimeError> {
         self.recover_if_lost()?;
-        if self.pacing.skips(&self.core, (false, false)) {
+        if self.pacing.skips(&self.core, (false, Wanted::Stroke)) {
             let result = self.ahead().map(|()| true);
             return self.after_frame(result);
         }

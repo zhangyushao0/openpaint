@@ -23,9 +23,9 @@
 //! - `lose-device`: no gesture; the GPU device destroyed under the app as a driver reset loses
 //!   it, so the app makes its renderer again;
 //! - `bench <scenario>[@fast]`: no gesture; `open-cold`, `open`, `zoom`, `pan`, `strokes`,
-//!   `session`, `export`, `touch`, `undo` or `adjust` runs that scenario benchmark on the artwork
-//!   open (`runtime/src/bench/`), a line per stage (also in the app's log), `session` with the
-//!   app's `meminfo` before and after;
+//!   `session`, `export`, `touch`, `undo`, `adjust` or `ui` runs that scenario benchmark on the
+//!   artwork open (`runtime/src/bench/`), a line per stage (also in the app's log), `session` with
+//!   the app's `meminfo` before and after;
 //! - `open-file <name>`: the OpenPaint file `cargo device-push` put into the test folder opened
 //!   as a new artwork without the picker, its id printed (`open_file.rs`);
 //! - `home`: the system's home key, no instrumentation (the app's memory released when its UI is
@@ -153,7 +153,7 @@ const INPUT_USAGE: &str = "cargo device-input \
                            | hover x,y [ms] [primary|secondary|tertiary|eraser] \
                            | tap <control name> | drag <control name> x,y [ms] \
                            | find <control name> | state | gradient on|off | lose-device \
-                           | bench open-cold|open|zoom|pan|strokes|session|export|touch|undo|adjust[@fast] \
+                           | bench open-cold|open|zoom|pan|strokes|session|export|touch|undo|adjust|ui[@fast] \
                            | open-file <name> | home";
 
 /// A control's name for the device's shell, which reads the line: in single quotes, so none

@@ -12,7 +12,8 @@ use openpaint_store::Library;
 
 use crate::support::{assert_cold, core, library_dir, strokes};
 
-const SIZE: [u32; 2] = [1200, 900];
+/// Tall enough that `ui` finds the brush editor's StreamLine row in its column.
+const SIZE: [u32; 2] = [1800, 1300];
 const PIXELS_PER_POINT: f32 = 2.0;
 const CANVAS: [u32; 2] = [900, 640];
 const STROKES: u32 = 24;

@@ -28,7 +28,7 @@ use crate::error::RuntimeError;
 use crate::fill::FillWorker;
 use crate::input::MotionBatch;
 use crate::normalise::Normaliser;
-use crate::pacing::{Paced, Pacing};
+use crate::pacing::{Paced, Pacing, Wanted};
 use crate::pictures::PictureWorker;
 use crate::pointer::pointer_events;
 use crate::raster::RasterWorker;
@@ -88,6 +88,8 @@ pub struct Runtime {
     pub(crate) seeds: Seeds,
     /// Debug builds' scenario benchmark runs its frames as fast as the GPU takes them.
     pub(crate) bench_fast: bool,
+    /// The last UI pass's time (egui's layout and tessellation), ns, for the benchmarks.
+    pub(crate) ui_ns: u64,
     /// Export and the reference image: the app's, kept across artworks.
     pub(crate) transfers: Transfers,
     pub(crate) transfer: TransferWorker,
@@ -203,8 +205,11 @@ impl Runtime {
     pub fn frame(&mut self) -> Result<bool, RuntimeError> {
         self.recover_if_lost()?;
         let drawing = self.screen.canvas().is_some_and(Canvas::drawing);
-        let resting = self.touches.resting(drawing);
-        if self.pacing.skips(&self.core, (true, resting)) {
+        // Input waiting is a hand's (a lift, the last of a drag) even once nothing touches.
+        let input = !self.pending.is_empty() || !self.typed.is_empty();
+        let resting = self.touches.resting(drawing) && !input;
+        let wanted = Wanted::of(drawing, (resting, self.shell.animating()));
+        if self.pacing.skips(&self.core, (true, wanted)) {
             let result = self.ahead().map(|()| true);
             return self.after_frame(result);
         }
@@ -297,6 +302,7 @@ impl Runtime {
         events.append(&mut self.typed);
         self.shell.set_now(self.clock.now_ms());
         let shown = self.screen();
+        let laid = std::time::Instant::now();
         let pass = run_ui(
             &self.ui,
             UiPass {
@@ -308,6 +314,7 @@ impl Runtime {
                 time: self.frame_clock.seconds(),
             },
         );
+        self.ui_ns = u64::try_from(laid.elapsed().as_nanos()).unwrap_or(u64::MAX);
         self.keyboard = pass.keyboard;
         let intents = self.shell.route(&batches);
         let mut intents = route(&mut self.transfers, self.screen.canvas(), intents);

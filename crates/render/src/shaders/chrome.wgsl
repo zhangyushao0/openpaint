@@ -72,24 +72,28 @@ fn fragment(@builtin(position) frag: vec4<f32>) -> @location(0) vec4<f32> {
     let islands = u32(u.widths.z);
     let panels = u32(u.widths.w);
     var color = vec4<f32>(0.0);
-    for (var k = 0u; k < 4u; k++) {
+    // Only the islands and panels there are, each panel with its own island: the loops' bounds
+    // and the skip come from the uniform, so every pixel takes the same path (the derivatives
+    // need it) and does no work for shapes that are not there.
+    for (var k = 0u; k < islands; k++) {
         var d = rounded_rect(p, u.islands[k], u.island_corners[k].x);
         var ink = u.rule.rgb;
         var width = u.widths.x;
-        for (var i = 0u; i < 3u; i++) {
-            let mine = i < panels && u32(u.shapes[i].w) == k;
+        for (var i = 0u; i < panels; i++) {
+            if (u32(u.shapes[i].w) != k) {
+                continue;
+            }
             let b = panel(p, i, k);
             // The outline takes the panel's ink where the panel is the nearer surface: the ring
             // it grew from turns into the panel's rule.
-            let near = smoothstep(-1.5, 1.5, d - b) * f32(mine);
+            let near = smoothstep(-1.5, 1.5, d - b);
             let panel_ink = mix(u.ring.rgb, u.rule.rgb, u.shapes[i].z);
             let panel_width = mix(u.widths.y, u.widths.x, u.shapes[i].z);
             ink = mix(ink, panel_ink, near);
             width = mix(width, panel_width, near);
-            d = select(d, smin(d, b, u.shapes[i].y), mine);
+            d = smin(d, b, u.shapes[i].y);
         }
-        let painted = paint(color, to_pixels(d), width * ppp, ink);
-        color = select(color, painted, k < islands);
+        color = paint(color, to_pixels(d), width * ppp, ink);
     }
     if (u.screen.w > 0.5 && color.a > 0.0) {
         let straight = color.rgb / color.a;
