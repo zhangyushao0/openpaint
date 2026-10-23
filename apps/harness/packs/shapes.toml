@@ -19,10 +19,14 @@
 # watermarks or labels, pairs and groups, cropped figures, nudity, living people's faces, any
 # licence the API does not state as one of the pack's.
 #
-# Outlines (S80): the build derives each item's silhouette and draws it on the sheets in red. Every
-# one was looked at; an item whose outline is wrong (a shadow or a pool of light taken in, a pale
-# body melting into a pale ground, a part cut off) or refused by the derivation says so in
-# `no_outline` and has none: Compare then lays the picture itself over the copy, faint.
+# Outlines (S80, S81): the build derives each item's silhouette, one rule for all: a picture on a
+# clear (transparent) ground by its own alpha, any other by U²-Net's matte (apps/harness/src/pack/
+# segment.rs), and draws it on the sheets in red. Every one was looked at. An item whose outline
+# is wrong (a shadow or a stand taken in, a base cut off, a hole following a reflection) is
+# replaced by another picture of its tier; one kept anyway would say so in `no_outline` and have
+# none, Compare then laying the picture itself over the copy, faint. S81 replaced seven: the
+# roundback armchair, the scissors, the triangular padlock, the ibis, the spaniel and duck, the
+# child's coat on its stand and the mantel clock.
 
 id = "openpaint-shapes"
 title = "Single shapes"
@@ -293,7 +297,6 @@ source = "commons"
 object = "File:2015-05-13 coriander concept-art by-David-Revoy.jpg"
 licence = "CC BY 4.0"
 reason = "a whole standing character on a plain ground: hat, coat and boots"
-no_outline = "the cast shadow at her feet is taken in"
 
 [[item]]
 id = "eir"
@@ -312,7 +315,6 @@ source = "cleveland"
 object = "1940.228"
 licence = "CC0"
 reason = "a round body, a spout and a wooden handle"
-no_outline = "refused: several parts, none of them the object"
 
 [[item]]
 id = "teapot-side-handle"
@@ -321,7 +323,6 @@ source = "cleveland"
 object = "2022.168"
 licence = "CC0"
 reason = "a porcelain pot with a straight side handle and a spout"
-no_outline = "the white body meets the pale ground; the outline follows the painted leaves"
 
 [[item]]
 id = "teapot-bail"
@@ -330,7 +331,6 @@ source = "cleveland"
 object = "2022.203"
 licence = "CC0"
 reason = "a round pot under a wire bail handle"
-no_outline = "the white body meets the pale ground; the outline follows the painted bamboo"
 
 [[item]]
 id = "ewer-celadon"
@@ -339,7 +339,6 @@ source = "cleveland"
 object = "1928.179"
 licence = "CC0"
 reason = "a pear-shaped ewer: a spout and a loop handle"
-no_outline = "notched at the lid, and the shadow at its foot is taken in"
 
 [[item]]
 id = "ewer-brass"
@@ -356,7 +355,6 @@ source = "cleveland"
 object = "1921.631"
 licence = "CC0"
 reason = "a slender upright vessel with a side spout"
-no_outline = "refused: several parts, none of them the object"
 
 [[item]]
 id = "ewer-white"
@@ -365,7 +363,6 @@ source = "cleveland"
 object = "1948.219"
 licence = "CC0"
 reason = "a squat ewer with a spout and a high handle"
-no_outline = "the white glaze meets the grey ground; the outline follows the painted leaves"
 
 [[item]]
 id = "coffee-pot-conical"
@@ -374,7 +371,6 @@ source = "cleveland"
 object = "1987.163"
 licence = "CC0"
 reason = "straight conical sides and an S-shaped spout"
-no_outline = "the polished silver meets the grey ground; the outline cuts into the body"
 
 [[item]]
 id = "coffee-pot-straight"
@@ -383,7 +379,6 @@ source = "cleveland"
 object = "1991.314.1"
 licence = "CC0"
 reason = "a straight-sided pot, a long spout and a dark handle"
-no_outline = "refused: several parts, none of them the object"
 
 [[item]]
 id = "milk-jug"
@@ -392,17 +387,14 @@ source = "cleveland"
 object = "1962.378"
 licence = "CC0"
 reason = "a covered pear-shaped jug with one handle"
-no_outline = "the white body meets the grey ground; the outline cuts in at its left"
 
 [[item]]
-id = "chair-roundback"
+id = "chair-cane-back"
 tier = "simple"
 source = "cleveland"
-object = "1955.40.1"
+object = "1984.178"
 licence = "CC0"
-reason = "a horseshoe-back armchair: straight members and the spaces between"
-no_outline = "an opening between its rails cuts into the outline"
-
+reason = "a straight armchair with a woven back: straight members and the spaces between"
 [[item]]
 id = "chair-lattice"
 tier = "simple"
@@ -418,7 +410,6 @@ source = "cleveland"
 object = "1988.32"
 licence = "CC0"
 reason = "a crossed curved back over straight legs"
-no_outline = "a ball foot is cut off"
 
 [[item]]
 id = "lamp-cone"
@@ -427,7 +418,6 @@ source = "cleveland"
 object = "2018.277"
 licence = "CC0"
 reason = "a cone shade on a thin stem, dark ground"
-no_outline = "the pool of light on the floor is taken in"
 
 [[item]]
 id = "lamp-column"
@@ -436,7 +426,6 @@ source = "cleveland"
 object = "2018.276"
 licence = "CC0"
 reason = "a cone shade on a square column"
-no_outline = "the shadow at its base is taken in"
 
 [[item]]
 id = "lamp-mushroom"
@@ -445,7 +434,6 @@ source = "cleveland"
 object = "2018.288"
 licence = "CC0"
 reason = "a small dome on a stem"
-no_outline = "refused: several parts, none of them the object"
 
 [[item]]
 id = "oil-lamp"
@@ -454,7 +442,6 @@ source = "cleveland"
 object = "1954.597.a"
 licence = "CC0"
 reason = "a low oil lamp with a horse-head handle"
-no_outline = "the shadow under it is taken in"
 
 [[item]]
 id = "mosque-lamp"
@@ -463,7 +450,6 @@ source = "cleveland"
 object = "1981.10"
 licence = "CC0"
 reason = "a flared neck on a round body with small handles"
-no_outline = "refused: its edge is no plain ground"
 
 [[item]]
 id = "candlestick-pricket"
@@ -488,7 +474,6 @@ source = "cleveland"
 object = "1989.298.1"
 licence = "CC0"
 reason = "two dishes on a column, white on a dark ground"
-no_outline = "refused: several parts, none of them the object"
 
 [[item]]
 id = "vase-amphora"
@@ -497,7 +482,6 @@ source = "cleveland"
 object = "1944.190"
 licence = "CC0"
 reason = "a tall vase with two dragon handles"
-no_outline = "refused: its edge is no plain ground"
 
 [[item]]
 id = "vase-gu"
@@ -506,7 +490,6 @@ source = "cleveland"
 object = "2022.224"
 licence = "CC0"
 reason = "a beaker flaring at both ends"
-no_outline = "the white body meets the pale ground; the outline follows the incised band"
 
 [[item]]
 id = "vase-bamboo"
@@ -515,7 +498,6 @@ source = "cleveland"
 object = "2022.235"
 licence = "CC0"
 reason = "a bottle vase ringed like bamboo"
-no_outline = "refused: its edge is no plain ground"
 
 [[item]]
 id = "vase-covered"
@@ -524,7 +506,6 @@ source = "cleveland"
 object = "1951.299"
 licence = "CC0"
 reason = "a covered vase with two handles on a foot"
-no_outline = "refused: its edge is no plain ground"
 
 [[item]]
 id = "bell-bronze"
@@ -533,7 +514,6 @@ source = "cleveland"
 object = "1989.3"
 licence = "CC0"
 reason = "a flat-sided bell with a shank and studs"
-no_outline = "refused: several parts, none of them the object"
 
 [[item]]
 id = "bell-vajra"
@@ -542,7 +522,6 @@ source = "cleveland"
 object = "2016.38"
 licence = "CC0"
 reason = "a hand bell under a pronged handle"
-no_outline = "only the bell is found, not the vajra handle above it"
 
 [[item]]
 id = "beaker-glass"
@@ -551,16 +530,14 @@ source = "cleveland"
 object = "1915.541"
 licence = "CC0"
 reason = "a flared glass cup on a foot"
-no_outline = "refused: the object runs off the picture's edge"
 
 [[item]]
-id = "scissors"
+id = "tankard-silver"
 tier = "simple"
-source = "met"
-object = "210032"
+source = "cleveland"
+object = "1940.173"
 licence = "CC0"
-reason = "scissors lying flat: rings and blades"
-no_outline = "the polished blade melts into the white ground"
+reason = "a tapering tankard: a domed lid, an S-shaped handle"
 
 [[item]]
 id = "shears"
@@ -571,14 +548,12 @@ licence = "CC0"
 reason = "two blades on a spring bow, on white"
 
 [[item]]
-id = "padlock-triangle"
+id = "key-knot"
 tier = "simple"
 source = "met"
-object = "186853"
+object = "186982"
 licence = "CC0"
-reason = "a triangle under a round shackle"
-no_outline = "refused: several parts, none of them the object"
-
+reason = "a brass key with a knotted openwork bow"
 [[item]]
 id = "key-trefoil"
 tier = "simple"
@@ -604,7 +579,6 @@ source = "cleveland"
 object = "1955.295"
 licence = "CC0"
 reason = "a saddled horse standing: head, legs and tail"
-no_outline = "refused: its edge is no plain ground"
 
 [[item]]
 id = "horse-bronze"
@@ -613,7 +587,6 @@ source = "cleveland"
 object = "1952.108"
 licence = "CC0"
 reason = "a bronze horse: the muscles shape the outline"
-no_outline = "the shadow on the floor is taken in"
 
 [[item]]
 id = "horse-haniwa"
@@ -630,7 +603,6 @@ source = "cleveland"
 object = "1991.49"
 licence = "CC0"
 reason = "a stylised horse: a long neck and thin legs on a base"
-no_outline = "the shadow beside its base is taken in"
 
 [[item]]
 id = "hippopotamus-bronze"
@@ -639,7 +611,6 @@ source = "cleveland"
 object = "1958.100"
 licence = "CC0"
 reason = "a walking hippopotamus seen at an angle"
-no_outline = "the shadow on the floor is taken in"
 
 [[item]]
 id = "apis-bull"
@@ -664,7 +635,6 @@ source = "cleveland"
 object = "1976.5"
 licence = "CC0"
 reason = "a crouching frog: a few rounded masses at an angle"
-no_outline = "the shaded front of its head is cut off"
 
 [[item]]
 id = "baboon"
@@ -675,13 +645,20 @@ licence = "CC0"
 reason = "a seated baboon on a base"
 
 [[item]]
-id = "ibis"
+id = "goat-recumbent"
 tier = "medium"
 source = "cleveland"
-object = "1974.3"
+object = "1974.37"
 licence = "CC0"
-reason = "a wading bird on a stand: thin legs and a curved neck"
-no_outline = "the thin legs and the shadow under the base are not right"
+reason = "a lying goat on a low base: curved horns and folded legs"
+
+[[item]]
+id = "curly-tail-pendant"
+tier = "medium"
+source = "cleveland"
+object = "1948.15"
+licence = "CC0"
+reason = "a small animal whose tail curls up into a ring over its back"
 
 [[item]]
 id = "eagle"
@@ -690,7 +667,6 @@ source = "cleveland"
 object = "1988.40"
 licence = "CC0"
 reason = "a perched eagle: folded wings and a hooked beak"
-no_outline = "the shadow behind the base is taken in"
 
 [[item]]
 id = "falcon"
@@ -707,7 +683,6 @@ source = "cleveland"
 object = "1972.167"
 licence = "CC0"
 reason = "a lion-shaped vessel with a curling tail handle"
-no_outline = "the shadow under its feet is taken in"
 
 [[item]]
 id = "elephant-stone"
@@ -716,7 +691,6 @@ source = "cleveland"
 object = "1982.10"
 licence = "CC0"
 reason = "a stone elephant head on, trunk curled"
-no_outline = "the outline cuts into the body"
 
 [[item]]
 id = "elephant-gilt"
@@ -725,16 +699,6 @@ source = "cleveland"
 object = "1980.24"
 licence = "CC0"
 reason = "an elephant under a decorated cloth"
-no_outline = "the shadow on the floor is taken in"
-
-[[item]]
-id = "spaniel-and-duck"
-tier = "medium"
-source = "cleveland"
-object = "1960.92"
-licence = "CC0"
-reason = "a dog standing over a duck: two animals as one mass"
-no_outline = "the head of the dog is cut off"
 
 [[item]]
 id = "turtle-bell-push"
@@ -751,7 +715,6 @@ source = "cleveland"
 object = "1916.2013"
 licence = "CC0"
 reason = "a standing draped figure: folds in the outline"
-no_outline = "the outline cuts into the arm"
 
 [[item]]
 id = "virgin-and-child"
@@ -762,13 +725,12 @@ licence = "CC0"
 reason = "a standing figure with a child on one arm"
 
 [[item]]
-id = "childs-coat"
+id = "common-carp"
 tier = "medium"
-source = "cleveland"
-object = "1996.2.1"
-licence = "CC0"
-reason = "a coat spread flat: sleeves and hem"
-no_outline = "the top of the stand under it is taken in"
+source = "commons"
+object = "File:Common carp (white background).jpg"
+licence = "PD-US-gov"
+reason = "a carp with a long dorsal fin and a forked tail, on white"
 
 [[item]]
 id = "cat-statuette"
@@ -777,7 +739,6 @@ source = "met"
 object = "544118"
 licence = "CC0"
 reason = "a seated cat in three-quarter view"
-no_outline = "the white base melts into the pale ground"
 
 [[item]]
 id = "cat-seated"
@@ -786,7 +747,6 @@ source = "met"
 object = "570740"
 licence = "CC0"
 reason = "a seated cat in profile on a block"
-no_outline = "the white base melts into the pale ground"
 
 [[item]]
 id = "bird-padlock"
@@ -803,7 +763,6 @@ source = "met"
 object = "158267"
 licence = "CC0"
 reason = "a pair of laced boots overlapping as one shape"
-no_outline = "the shadow at the left heel is taken in"
 
 [[item]]
 id = "slippers"
@@ -820,7 +779,6 @@ source = "met"
 object = "81227"
 licence = "CC0"
 reason = "a wide brim in perspective: an ellipse under a crown"
-no_outline = "the open weave at the crown breaks the outline"
 
 [[item]]
 id = "freshwater-drum"
@@ -879,7 +837,6 @@ source = "met"
 object = "27936"
 licence = "CC0"
 reason = "a fluted dome with cheek pieces and a nasal"
-no_outline = "refused: its edge is no plain ground"
 
 [[item]]
 id = "helmet-cheek-plates"
@@ -888,7 +845,6 @@ source = "met"
 object = "32137"
 licence = "CC0"
 reason = "hinged cheek plates and a neck guard round a dome"
-no_outline = "the dark inside between the cheek plates is left out"
 
 [[item]]
 id = "helmet-nasal"
@@ -897,7 +853,6 @@ source = "met"
 object = "24028"
 licence = "CC0"
 reason = "a pointed helmet with a nasal bar and cheek guards"
-no_outline = "a reflection is taken for a hole"
 
 [[item]]
 id = "kabuto"
@@ -906,7 +861,6 @@ source = "met"
 object = "774458"
 licence = "CC0"
 reason = "a Japanese helmet: tiers of lames round a bowl"
-no_outline = "the stand under it is taken in"
 
 [[item]]
 id = "armor-field"
@@ -915,7 +869,6 @@ source = "met"
 object = "35937"
 licence = "CC0"
 reason = "a whole standing suit of plate armour"
-no_outline = "refused: its edge is no plain ground"
 
 [[item]]
 id = "armor-gothic"
@@ -924,7 +877,6 @@ source = "met"
 object = "22277"
 licence = "CC0"
 reason = "a Gothic armour with long pointed sabatons"
-no_outline = "the outline cuts into the arms"
 
 [[item]]
 id = "armor-half"
@@ -941,7 +893,6 @@ source = "met"
 object = "22020"
 licence = "CC0"
 reason = "a Japanese armour: laced plates and a crested helmet"
-no_outline = "refused: its edge is no plain ground"
 
 [[item]]
 id = "armor-equestrian"
@@ -950,7 +901,6 @@ source = "met"
 object = "32077"
 licence = "CC0"
 reason = "horse and rider in armour: the tier's most complex outline"
-no_outline = "refused: its edge is no plain ground"
 
 [[item]]
 id = "bust-bronze"
@@ -959,7 +909,6 @@ source = "cleveland"
 object = "1928.860"
 licence = "CC0"
 reason = "a bronze head and shoulders: a head's structure"
-no_outline = "the shadow under the chest is taken in at the right"
 
 [[item]]
 id = "bust-child"
@@ -968,7 +917,6 @@ source = "cleveland"
 object = "1951.288"
 licence = "CC0"
 reason = "a child's bust on a socle"
-no_outline = "refused: its edge is no plain ground"
 
 [[item]]
 id = "bust-hero"
@@ -977,7 +925,6 @@ source = "cleveland"
 object = "2013.31"
 licence = "CC0"
 reason = "a bearded head of curls, turned"
-no_outline = "refused: its edge is no plain ground"
 
 [[item]]
 id = "bust-cicero"
@@ -986,7 +933,6 @@ source = "cleveland"
 object = "1916.1004"
 licence = "CC0"
 reason = "a portrait bust in dark marble"
-no_outline = "refused: its edge is no plain ground"
 
 [[item]]
 id = "bust-rossini"
@@ -995,7 +941,6 @@ source = "cleveland"
 object = "1980.182"
 licence = "CC0"
 reason = "a white bust of an older man on a base"
-no_outline = "refused: several parts, none of them the object"
 
 [[item]]
 id = "bust-lady"
@@ -1004,7 +949,6 @@ source = "cleveland"
 object = "1967.31"
 licence = "CC0"
 reason = "a terracotta bust with a ruffled collar"
-no_outline = "refused: its edge is no plain ground"
 
 [[item]]
 id = "bust-victor-hugo"
@@ -1013,7 +957,6 @@ source = "cleveland"
 object = "1940.580"
 licence = "CC0"
 reason = "beard and hair as masses round a face"
-no_outline = "refused: several parts, none of them the object"
 
 [[item]]
 id = "karashishi"
@@ -1022,7 +965,6 @@ source = "cleveland"
 object = "1924.351.2"
 licence = "CC0"
 reason = "a guardian lion-dog: mane and paws in many lobes"
-no_outline = "refused: its edge is no plain ground"
 
 [[item]]
 id = "griffin"
@@ -1031,7 +973,6 @@ source = "cleveland"
 object = "1928.861.1"
 licence = "CC0"
 reason = "a reclining winged griffin"
-no_outline = "refused: its edge is no plain ground"
 
 [[item]]
 id = "clock-rococo"
@@ -1042,13 +983,12 @@ licence = "CC0"
 reason = "scrolls and foliage round a dial"
 
 [[item]]
-id = "clock-mantel"
+id = "clock-cabinet"
 tier = "hard"
 source = "cleveland"
-object = "2011.204"
+object = "2009.77"
 licence = "CC0"
-reason = "columns, figures and a dial on a plinth"
-
+reason = "a gilt cabinet clock: a scrolled pediment over doors, on ball feet"
 [[item]]
 id = "clock-urn"
 tier = "hard"
@@ -1056,7 +996,6 @@ source = "cleveland"
 object = "1985.11"
 licence = "CC0"
 reason = "an urn-shaped clock on a stepped base"
-no_outline = "the finial on top is left out"
 
 [[item]]
 id = "harp-guitar"
@@ -1065,7 +1004,6 @@ source = "met"
 object = "506867"
 licence = "CC0"
 reason = "a body, a neck and a harp arm: three parts to relate"
-no_outline = "the round bottom is cut flat"
 
 [[item]]
 id = "archtop-guitar"
@@ -1090,7 +1028,6 @@ source = "commons"
 object = "File:NASA Dryden's B-52H in flight (EC02-0083-3).jpg"
 licence = "PD-US-gov"
 reason = "long wings with engine pods, in perspective"
-no_outline = "the tail fin melts into the sky"
 
 [[item]]
 id = "himat"
@@ -1099,7 +1036,6 @@ source = "commons"
 object = "File:The HiMAT (Highly Maneuverable Aircraft Technology) subscale research vehicle, seen here during a research flight, was flown by the NASA Dryden Flight Research Center, Edwards, California, from mid 1979 to January 1983 (ECN-14273).jpg"
 licence = "PD-US-gov"
 reason = "canards, wings and fins at an angle"
-no_outline = "the wings against the sky are not found"
 
 [[item]]
 id = "inflatable-wing"
@@ -1108,4 +1044,3 @@ source = "commons"
 object = "File:The deployable, inflatable wing technology demonstrator experiment aircraft maintains a steady attitude following separation from its carrier aircraft during a flight conducted by the NASA Dryden Flight Research Center, (EC01-0136-12).jpg"
 licence = "PD-US-gov"
 reason = "a small aircraft on a deep blue sky"
-no_outline = "the wheels below and the thin wing are left out"

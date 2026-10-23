@@ -20,6 +20,7 @@ mod outline;
 mod outline_flood;
 mod outline_ground;
 mod outline_mask;
+mod outline_matte;
 mod outline_mesh;
 mod outline_sides;
 mod outline_trace;
@@ -43,6 +44,7 @@ pub use licence::Licence;
 pub use line::{LineExercise, LineTier};
 pub use metric::{Metric, Metrics, value};
 pub use outline::{Outline, OutlineRefusal, outline};
+pub use outline_matte::{Matte, outline_of_matte};
 pub use pack::{
     Credit, ItemRef, MAX_ID, MAX_OUTLINE_POINTS, MAX_PICTURE_SIDE, PERSONAL, PERSONAL_TIER, Pack,
     PackItem, PackProblem, PictureKind, Tier, valid_id,

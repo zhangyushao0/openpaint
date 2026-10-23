@@ -117,13 +117,8 @@ pub(crate) fn grid(size: [u32; 2], rgba: &[u8]) -> Option<Grid> {
 /// `Ground` when the edge is neither clear nor a plain ground.
 pub(crate) fn difference(grid: &Grid) -> Result<Difference, OutlineRefusal> {
     let [width, height] = [grid.width, grid.height];
-    let in_ring = |i: usize| {
-        let (x, y) = (i % width, i / width);
-        x < RING || y < RING || x + RING >= width || y + RING >= height
-    };
-    let ring: Vec<usize> = (0..grid.pixels.len()).filter(|&i| in_ring(i)).collect();
-    let clear = ring.iter().filter(|&&i| grid.pixels[i][3] < 0.5).count();
-    if clear as f64 >= CLEAR_RING * ring.len() as f64 {
+    let ring = ring(grid);
+    if clear(grid) {
         return Ok(Difference {
             ground: Ground::Clear,
             values: grid.pixels.iter().map(|p| p[3]).collect(),
@@ -153,6 +148,23 @@ pub(crate) fn difference(grid: &Grid) -> Result<Difference, OutlineRefusal> {
         high: (HIGH * noise).max(LEAST_HIGH) as f32,
         lab,
     })
+}
+
+/// The grid pixels of the strip `RING` deep along the picture's edge.
+fn ring(grid: &Grid) -> Vec<usize> {
+    let [width, height] = [grid.width, grid.height];
+    let in_ring = |i: usize| {
+        let (x, y) = (i % width, i / width);
+        x < RING || y < RING || x + RING >= width || y + RING >= height
+    };
+    (0..grid.pixels.len()).filter(|&i| in_ring(i)).collect()
+}
+
+/// Whether the picture's ground is clear: at least `CLEAR_RING` of its edge transparent.
+pub(crate) fn clear(grid: &Grid) -> bool {
+    let ring = ring(grid);
+    let clear = ring.iter().filter(|&&i| grid.pixels[i][3] < 0.5).count();
+    clear as f64 >= CLEAR_RING * ring.len() as f64
 }
 
 /// A pixel in Oklab, laid on white where it is see-through.
