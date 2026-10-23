@@ -83,6 +83,9 @@ pub(crate) struct Strokes {
     reshown: bool,
     /// The last intent committed a stroke of this tool (its brush becomes Recent's newest).
     committed: Option<StrokeTool>,
+    /// On a practice sheet: strokes keep the pen's own samples, with no StreamLine, QuickShape
+    /// or guide.
+    raw: bool,
 }
 
 impl Strokes {
@@ -97,7 +100,14 @@ impl Strokes {
             shaped: None,
             reshown: false,
             committed: None,
+            raw: false,
         }
+    }
+
+    /// From now on strokes keep the pen's own samples (a practice sheet).
+    pub(crate) const fn set_raw(&mut self) {
+        self.raw = true;
+        self.streamline = StreamLine::OFF;
     }
 
     /// The next stroke starts with `style`; a stroke in progress keeps its own.
@@ -105,9 +115,12 @@ impl Strokes {
         self.style = style;
     }
 
-    /// The next stroke follows the pen through `streamline`; a stroke in progress keeps its own.
+    /// The next stroke follows the pen through `streamline` (never while raw); a stroke in
+    /// progress keeps its own.
     pub(crate) const fn set_streamline(&mut self, streamline: StreamLine) {
-        self.streamline = streamline;
+        if !self.raw {
+            self.streamline = streamline;
+        }
     }
 
     /// The next stroke's stamps jitter by `seed`; a stroke in progress keeps its own.
@@ -158,6 +171,7 @@ impl Strokes {
                 history.record(artwork);
                 result
             }
+            StrokeIntent::Hold { .. } | StrokeIntent::Guide(_) if self.raw => Ok(()),
             StrokeIntent::Hold { now_ms, still } => self.hold(now_ms, still),
             StrokeIntent::EditShape(on) => {
                 self.edit_shape(on);

@@ -11,8 +11,8 @@
 use std::sync::Arc;
 
 use openpaint_app::{
-    Clipboard, InputBatch, Intent, PalmRejection, ScreenProjection, SessionProjection, Toolbox,
-    Transfers, TransformIntent,
+    Clipboard, InputBatch, Intent, PalmRejection, PracticeLog, ScreenProjection, SessionProjection,
+    Toolbox, Transfers, TransformIntent,
 };
 use openpaint_core::Artwork;
 use openpaint_render::{Core, ScreenPainter, ScreenTarget, Surface, SurfaceWindow, UiFrame};
@@ -33,7 +33,7 @@ use crate::pictures::PictureWorker;
 use crate::pointer::pointer_events;
 use crate::raster::RasterWorker;
 use crate::recover::{Reattach, Recoveries};
-use crate::screen::{Screen, dispatch_gallery};
+use crate::screen::Screen;
 use crate::seeds::Seeds;
 use crate::shared::SharedCore;
 use crate::storage::{Job, Storage};
@@ -84,6 +84,8 @@ pub struct Runtime {
     pub(crate) toolbox: Toolbox,
     /// What was copied last: the app's, kept across artworks, never stored.
     pub(crate) clipboard: Clipboard,
+    /// Every practice session: the app's, kept across artworks, as the store holds them.
+    pub(crate) practice: PracticeLog,
     /// Where every new stroke's seed comes from.
     pub(crate) seeds: Seeds,
     /// Debug builds' scenario benchmark runs its frames as fast as the GPU takes them.
@@ -105,6 +107,8 @@ pub struct Runtime {
     pub(crate) storage: Storage,
 }
 
+#[path = "frame_receive.rs"]
+mod receive;
 #[path = "frame_start.rs"]
 mod start;
 pub use start::StartOptions;
@@ -260,7 +264,7 @@ impl Runtime {
     /// What the whole screen offers: the canvas, the gallery, or nothing yet.
     #[must_use]
     pub fn screen(&self) -> ScreenProjection {
-        let app = (&self.transfers, &self.clipboard);
+        let app = (&self.transfers, &self.clipboard, &self.practice);
         self.screen.projection(&self.toolbox, app)
     }
 
@@ -271,18 +275,6 @@ impl Runtime {
         let working = self.storage.busy() || self.transfer.busy() || self.fill.busy();
         let drawing = self.pictures.busy() || self.brushes.busy() || self.cache.busy();
         working || drawing || matches!(self.screen, Screen::Opening(_))
-    }
-
-    /// Applies everything the workers finished, then opens a canvas that is ready.
-    pub(crate) fn receive(&mut self) -> Result<(), RuntimeError> {
-        self.transfer.receive(&mut self.transfers);
-        self.cache.collect();
-        while let Some(done) = self.storage.take() {
-            let after = (&mut self.toolbox, &self.core, &mut self.cache);
-            self.screen.answer(done, after);
-        }
-        let area = self.shell.canvas_area();
-        self.screen.open(&self.core, area, &self.toolbox)
     }
 
     /// Everything before drawing: storage results, input, UI, intents, evaluation, storage
@@ -323,19 +315,8 @@ impl Runtime {
             intents.insert(0, Intent::Transform(TransformIntent::Insert(picture)));
         }
         let area = self.shell.canvas_area();
-        self.screen.open(&self.core, area, &self.toolbox)?;
-        let mut arrived = false;
-        match &mut self.screen {
-            Screen::Canvas(canvas) => {
-                let app = (&mut self.toolbox, &mut self.clipboard, &mut self.seeds);
-                canvas.dispatch(&self.core, intents, app);
-                self.fill.step(canvas);
-                self.pictures.step(canvas, &mut self.shell);
-                arrived = self.brushes.step(&self.toolbox, &mut self.shell);
-            }
-            Screen::Gallery(gallery) => dispatch_gallery(gallery, intents),
-            Screen::Opening(_) => {}
-        }
+        self.open_canvas()?;
+        let arrived = self.apply(intents);
         if let Some(state) = self.toolbox.save_request() {
             self.storage.submit(Job::SaveEditor(Box::new(state)));
         }
@@ -369,7 +350,9 @@ impl Runtime {
             _ => None,
         };
         let workers = (&mut self.storage, &mut self.cache);
-        self.screen.progress(&self.core, workers, (area, now))?;
+        let practice = (&mut self.practice, &mut self.seeds);
+        self.screen
+            .progress(&self.core, workers, (area, now), practice)?;
         if let (Some(canvas), Some(frame)) = (self.screen.canvas_mut(), frame) {
             canvas.update_view(&self.core, (&frame, self.frame_clock.seconds()))?;
         }

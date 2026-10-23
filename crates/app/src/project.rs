@@ -6,6 +6,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use openpaint_core::{Artwork, CoreError};
+use openpaint_practice::SessionRecord;
 
 use crate::editor_state::EditorState;
 use crate::title::Title;
@@ -204,6 +205,22 @@ pub trait ProjectStore: Send {
         version: VersionId,
         title: &Title,
     ) -> Result<ProjectId, PortError>;
+
+    /// Every practice session the library holds, oldest first. Their sheets are projects that
+    /// `list` leaves out.
+    fn practice(&mut self) -> Result<Vec<SessionRecord>, PortError>;
+
+    /// A new practice session: `sheet` as a new project titled `title`, which becomes the open
+    /// one, and `session` with that project as its canvas, in one write. Returns the project.
+    fn start_practice(
+        &mut self,
+        sheet: &Artwork,
+        title: &Title,
+        session: &SessionRecord,
+    ) -> Result<ProjectId, PortError>;
+
+    /// Replaces the stored record of `session` (by its id); its sheet is saved as any artwork.
+    fn save_practice(&mut self, session: &SessionRecord) -> Result<(), PortError>;
 }
 
 /// Why a port (the library, a file the system gave) could not serve a call.

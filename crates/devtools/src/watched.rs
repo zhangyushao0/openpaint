@@ -13,6 +13,7 @@ use openpaint_app::{
     Title, VersionId,
 };
 use openpaint_core::Artwork;
+use openpaint_practice::SessionRecord;
 use openpaint_store::Library;
 
 /// What the library just wrote, for the look after it.
@@ -142,5 +143,22 @@ impl ProjectStore for Watched {
         title: &Title,
     ) -> Result<ProjectId, PortError> {
         self.on(|library| library.restore_version(id, version, title))
+    }
+
+    fn practice(&mut self) -> Result<Vec<SessionRecord>, PortError> {
+        self.on(Library::practice)
+    }
+
+    fn start_practice(
+        &mut self,
+        sheet: &Artwork,
+        title: &Title,
+        session: &SessionRecord,
+    ) -> Result<ProjectId, PortError> {
+        self.on(|library| library.start_practice(sheet, title, session))
+    }
+
+    fn save_practice(&mut self, session: &SessionRecord) -> Result<(), PortError> {
+        self.on(|library| library.save_practice(session))
     }
 }

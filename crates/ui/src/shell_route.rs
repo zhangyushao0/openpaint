@@ -3,7 +3,9 @@
 //! the canvas outside closes the panels and the copy menu, and three fingers swiped down open
 //! the copy menu.
 
-use openpaint_app::{ContactPhase, InputBatch, Intent, StrokeIntent, ViewIntent, ViewMapping};
+use openpaint_app::{
+    ContactPhase, InputBatch, Intent, PracticeIntent, StrokeIntent, ViewIntent, ViewMapping,
+};
 
 use super::Shell;
 use crate::canvas_input::{CanvasFrame, touched_outside};
@@ -27,6 +29,7 @@ impl Shell {
             .into_iter()
             .chain([self.drop_bar, self.selection.area(), self.transform.area()])
             .chain([self.adjust.area(), self.copy.area(), self.shape.area()])
+            .chain(self.practice.areas())
             .flatten()
             .chain(self.islands.iter().copied())
             .collect();
@@ -96,9 +99,15 @@ fn starts_stroke(intent: &Intent) -> bool {
 }
 
 impl Shell {
-    /// A quick pinch settles the view at fit from where it showed; a contact on the canvas or a
-    /// navigation ends any settling at once, so the hand always acts on what it sees.
+    /// A quick pinch settles the view at fit from where it showed, and Next on a practice sheet
+    /// at its next pair; a contact on the canvas or a navigation ends any settling at once, so
+    /// the hand always acts on what it sees.
     fn settle_view(&mut self, intents: &[Intent], mapping: ViewMapping) {
+        // A tap on Next: the view glides to the next exercise, or to the whole sheet once done.
+        let next = |tap: &Intent| matches!(tap, Intent::Practice(PracticeIntent::Next(_)));
+        if self.taps.iter().any(next) {
+            self.view.start(self.view.shown(mapping), SETTLE);
+        }
         for intent in intents {
             match intent {
                 Intent::View(ViewIntent::Fit) => self.view.start(self.view.shown(mapping), SETTLE),

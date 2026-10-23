@@ -32,3 +32,6 @@ pub const PRESSED: Color32 = Color32::from_black_alpha(18);
 pub const CHECKER: Color32 = Color32::from_rgb(228, 226, 222);
 /// The canvas's and the gallery pictures' shadow on the desk: strength at the sheet's edge.
 pub const SHEET_SHADOW: u8 = 34;
+/// The marking red a check lays over a practice copy: the original and its key points. Never
+/// chrome.
+pub const CORRECTION: Color32 = Color32::from_rgb(200, 58, 44);

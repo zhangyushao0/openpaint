@@ -11,6 +11,7 @@ use crate::error::AppError;
 use crate::fill::{DEFAULT_THRESHOLD, FillProjection};
 use crate::gallery::GalleryProjection;
 use crate::layers::LayerList;
+use crate::practice::PracticeProjection;
 use crate::selection::SelectionProjection;
 use crate::storage::StorageNotice;
 use crate::stroke::ShapeProjection;
@@ -59,6 +60,8 @@ pub enum EditorAction {
     Adjust,
     /// Cut, copy or paste, as the copy menu offers.
     Clipboard(ClipboardAction),
+    /// Compare a practice copy with its original, or another practice action.
+    Practice,
 }
 
 /// Whether an action can run now, and why not.
@@ -135,6 +138,8 @@ pub struct SessionProjection {
     pub(crate) brush: Option<BrushProjection>,
     /// Boxed: rarely more than a notice, but its errors are large.
     pub(crate) transfers: Option<Box<TransferProjection>>,
+    /// On a practice sheet, its session (boxed: its sheet and numbers).
+    pub(crate) practice: Option<Box<PracticeProjection>>,
 }
 
 /// What the whole screen shows for one UI frame.
@@ -188,6 +193,10 @@ impl SessionProjection {
             EditorAction::MergeDown => self.layer_actions[7],
             EditorAction::Gallery => self.gallery,
             EditorAction::Clipboard(action) => self.clipboard[action.index()],
+            EditorAction::Practice => match &self.practice {
+                Some(practice) => practice.compare,
+                None => Availability::NothingLeft,
+            },
             EditorAction::Fill | EditorAction::Transform | EditorAction::Adjust => {
                 if self.canvas.is_none() {
                     Availability::NothingLeft
@@ -296,6 +305,12 @@ impl SessionProjection {
         self
     }
 
+    /// On a practice sheet: its session, what shows and what can be done.
+    #[must_use]
+    pub fn practice(&self) -> Option<&PracticeProjection> {
+        self.practice.as_deref()
+    }
+
     /// This projection with the export and reference flows, which belong to the app.
     #[must_use]
     pub fn with_transfers(self, transfers: TransferProjection) -> Self {
@@ -335,6 +350,7 @@ impl Default for SessionProjection {
             shape: None,
             brush: None,
             transfers: None,
+            practice: None,
         }
     }
 }
@@ -362,6 +378,7 @@ impl fmt::Display for EditorAction {
             Self::Transform => "transform",
             Self::Adjust => "adjust",
             Self::Clipboard(_) => "cut, copy or paste",
+            Self::Practice => "practise",
         })
     }
 }

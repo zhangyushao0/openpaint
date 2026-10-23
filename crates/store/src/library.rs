@@ -12,11 +12,12 @@ use openpaint_app::{
     Title, VersionId,
 };
 use openpaint_core::Artwork;
+use openpaint_practice::SessionRecord;
 
 use crate::batch::Batch;
 use crate::editor::decode_editor;
 use crate::records::{FORMAT, FORMAT_KEY, LIBRARY, PROJECTS, decode_format, encode_format};
-use crate::{artwork_file, read, versions, write};
+use crate::{artwork_file, practice, read, versions, write};
 
 /// The database and its two keyspaces.
 pub(crate) struct Open {
@@ -276,5 +277,29 @@ impl ProjectStore for Library {
             copy.get()
         );
         Ok(copy)
+    }
+
+    fn practice(&mut self) -> Result<Vec<SessionRecord>, PortError> {
+        self.with(practice::sessions)
+    }
+
+    fn start_practice(
+        &mut self,
+        sheet: &Artwork,
+        title: &Title,
+        session: &SessionRecord,
+    ) -> Result<ProjectId, PortError> {
+        let id = self.with(|open| write::start_practice(open, (sheet, title), session))?;
+        log::info!(
+            "practice session {} started on project {}",
+            session.id,
+            id.get()
+        );
+        self.stored = Some((id, sheet.clone()));
+        Ok(id)
+    }
+
+    fn save_practice(&mut self, session: &SessionRecord) -> Result<(), PortError> {
+        self.with(|open| write::practice(open, session))
     }
 }

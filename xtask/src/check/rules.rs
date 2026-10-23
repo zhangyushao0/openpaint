@@ -18,8 +18,9 @@ pub const DOCS: &[(&str, usize)] = &[
 pub const ARCHIVE_DIR: &str = "docs/archive/";
 
 /// Every workspace crate a composition root may use.
-pub const ALL_PRODUCT: [&str; 7] = [
+pub const ALL_PRODUCT: [&str; 8] = [
     "openpaint-core",
+    "openpaint-practice",
     "openpaint-raster",
     "openpaint-app",
     "openpaint-store",
@@ -31,19 +32,30 @@ pub const ALL_PRODUCT: [&str; 7] = [
 /// Every crate directory and the workspace crates it may depend on. Dependencies point down.
 pub const LAYERS: &[(&str, &[&str])] = &[
     ("crates/core", &[]),
+    // Practice's generators, metrics and records: pure math, beside core (G9).
+    ("crates/practice", &[]),
     // Pure pixel geometry (flood fill): no GPU, no threads, no file system.
     ("crates/raster", &["openpaint-core"]),
-    ("crates/app", &["openpaint-core"]),
-    ("crates/store", &["openpaint-core", "openpaint-app"]),
+    ("crates/app", &["openpaint-core", "openpaint-practice"]),
+    (
+        "crates/store",
+        &["openpaint-core", "openpaint-practice", "openpaint-app"],
+    ),
     ("crates/render", &["openpaint-core"]),
     (
         "crates/ui",
-        &["openpaint-core", "openpaint-app", "openpaint-render"],
+        &[
+            "openpaint-core",
+            "openpaint-practice",
+            "openpaint-app",
+            "openpaint-render",
+        ],
     ),
     (
         "crates/runtime",
         &[
             "openpaint-core",
+            "openpaint-practice",
             "openpaint-raster",
             "openpaint-app",
             "openpaint-store",
@@ -58,8 +70,9 @@ pub const LAYERS: &[(&str, &[&str])] = &[
 ];
 
 /// The harness assembles the product crates and the devtools.
-const WITH_DEVTOOLS: [&str; 8] = [
+const WITH_DEVTOOLS: [&str; 9] = [
     "openpaint-core",
+    "openpaint-practice",
     "openpaint-raster",
     "openpaint-app",
     "openpaint-store",
@@ -81,6 +94,19 @@ pub const FORBIDDEN_TOKENS: &[(&str, &[&str])] = &[
             "std::fs",
             "std::thread",
             "std::time::Instant",
+            "serde",
+        ],
+    ),
+    (
+        "crates/practice",
+        &[
+            "wgpu",
+            "egui",
+            "winit",
+            "jni",
+            "std::fs",
+            "std::thread",
+            "std::time",
             "serde",
         ],
     ),

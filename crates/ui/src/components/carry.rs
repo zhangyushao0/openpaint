@@ -34,6 +34,8 @@ pub(crate) struct Arrival {
     pub(crate) from: Rect,
     /// Its card; `None` for the first card (the artwork changed last).
     pub(crate) id: Option<ProjectId>,
+    /// A practice sheet, which goes back into the Today card.
+    pub(crate) practice: bool,
     /// One motion per return.
     pub(crate) run: u64,
 }

@@ -1,7 +1,8 @@
 //! The scenario benchmarks (S58, `cargo device-input bench <scenario>` on the tablet) run
 //! offscreen through the whole frame loop on a library with a display cache: each finishes, says
 //! what it measured, and leaves the canvas equal to a cold evaluation. `session` appends the open
-//! artwork's strokes to a new one, which then holds them all but the undone ones.
+//! artwork's strokes to a new one, which then holds them all but the undone ones. `practice` runs
+//! on a practice sheet started from the gallery's Today card and moves it three exercises on.
 
 use openpaint_app::{BrushLibrary, ProjectStore, Title};
 use openpaint_core::{Artwork, CanvasSize};
@@ -10,7 +11,7 @@ use openpaint_runtime::{
 };
 use openpaint_store::Library;
 
-use crate::support::{assert_cold, core, library_dir, strokes};
+use crate::support::{Hand, assert_cold, core, gallery, library_dir, strokes, until};
 
 /// Tall enough that `ui` finds the brush editor's StreamLine row in its column.
 const SIZE: [u32; 2] = [1800, 1300];
@@ -65,7 +66,8 @@ fn every_scenario_benchmark_runs_through_the_frame_loop() {
     let core = core();
     let mut runtime = runtime();
     let mut appended = 0;
-    for name in SCENARIOS {
+    // `practice` runs on a practice sheet, below.
+    for name in SCENARIOS.into_iter().filter(|name| *name != "practice") {
         if name == "session" {
             appended = strokes(&runtime);
         }
@@ -90,4 +92,24 @@ fn every_scenario_benchmark_runs_through_the_frame_loop() {
     }
     assert_eq!(strokes(&runtime), appended - 1, "the zoom undid nothing");
     assert!(runtime.bench_scenario("dance").is_err());
+    assert!(
+        runtime.bench_scenario("practice").is_err(),
+        "no practice sheet"
+    );
+    // A practice sheet started from the Today card.
+    let mut hand = Hand::new(SIZE);
+    hand.tap(&mut runtime, "Gallery");
+    until(&mut runtime, SIZE, |runtime| gallery(runtime).is_some());
+    hand.tap(&mut runtime, "Start practice");
+    until(&mut runtime, SIZE, |runtime| {
+        runtime.projection().practice().is_some()
+    });
+    let lines = runtime.bench_scenario("practice").expect("practice");
+    eprintln!("{}", lines.join("\n"));
+    assert!(
+        lines.iter().any(|line| line.starts_with("next 3")),
+        "{lines:?}"
+    );
+    let practice = runtime.projection().practice().map(|p| p.current);
+    assert_eq!(practice, Some(Some(3)), "three exercises on");
 }

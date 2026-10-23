@@ -5,6 +5,7 @@ mod animate;
 mod artwork_card;
 mod brush_row;
 mod canvas_frame;
+mod card;
 pub(crate) mod carry;
 mod choices;
 pub(crate) mod chrome;
@@ -35,6 +36,7 @@ mod swatch;
 mod switch_row;
 mod text_button;
 mod text_field;
+mod today_card;
 mod view_settle;
 mod view_status;
 
@@ -42,6 +44,7 @@ pub use animate::{animate, animate_from, moving};
 pub use artwork_card::{ArtworkCard, CardTaps, artwork_card, card_size, paint_sheet};
 pub use brush_row::{BRUSH_ROW, BrushRowView, brush_row};
 pub use canvas_frame::{CanvasArea, ScreenArea, canvas_frame, canvas_point, screen_point};
+pub use card::{card, card_columns, card_text};
 pub use choices::{Choices, choices};
 pub use chrome::{Source, ring_of};
 pub use color_wheel::{WheelChange, color_wheel};
@@ -70,5 +73,6 @@ pub use text_button::{
     Lead, divider, heading_button, text_button, text_choice, text_choice_wide, word_columns,
 };
 pub use text_field::{FieldResponse, text_field};
+pub use today_card::{TodayCard, today_card};
 pub(crate) use view_settle::ViewSettle;
 pub use view_status::{view_status, view_text};

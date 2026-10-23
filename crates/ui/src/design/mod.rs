@@ -22,8 +22,8 @@ pub use paint::{
     panel_frame, surface_frame,
 };
 pub use palette::{
-    BUTTON_RULE, CHECKER, DESK, DIVIDER, INK, INK_ACTIVE, INK_DISABLED, INK_SECONDARY, PANEL,
-    PANEL_RULE, PANEL_RULE_WIDTH, PRESSED,
+    BUTTON_RULE, CHECKER, CORRECTION, DESK, DIVIDER, INK, INK_ACTIVE, INK_DISABLED, INK_SECONDARY,
+    PANEL, PANEL_RULE, PANEL_RULE_WIDTH, PRESSED,
 };
 
 /// The spacing unit in points; every gap and margin is a multiple of it.

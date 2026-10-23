@@ -37,6 +37,10 @@ impl Writer {
         self.bytes.extend_from_slice(&value.to_le_bytes());
     }
 
+    pub(crate) fn f64(&mut self, value: f64) {
+        self.bytes.extend_from_slice(&value.to_le_bytes());
+    }
+
     /// `value` in 1 to 5 bytes, 7 bits each, least significant first (LEB128): small values,
     /// such as most runs of a fill mask, take one byte.
     pub(crate) fn varint(&mut self, mut value: u32) {
@@ -116,6 +120,10 @@ impl<'a> Reader<'a> {
 
     pub(crate) fn f32(&mut self) -> Result<f32, PortError> {
         self.take().map(f32::from_le_bytes)
+    }
+
+    pub(crate) fn f64(&mut self) -> Result<f64, PortError> {
+        self.take().map(f64::from_le_bytes)
     }
 
     /// A value `Writer::varint` wrote; longer or larger than a `u32` is corrupt.

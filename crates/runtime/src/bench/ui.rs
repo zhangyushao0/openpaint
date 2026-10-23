@@ -103,7 +103,11 @@ impl Runtime {
     }
 
     /// A tap by `tool` on the control `name` (the pen hovering after it); the motion's line.
-    fn bench_tap(&mut self, name: &'static str, tool: ToolKind) -> Result<String, RuntimeError> {
+    pub(super) fn bench_tap(
+        &mut self,
+        name: &'static str,
+        tool: ToolKind,
+    ) -> Result<String, RuntimeError> {
         let at = self.bench_control(name)?;
         let gesture = match tool {
             ToolKind::Stylus => hovering(tap(at, tool), HOVER_MS),
@@ -135,7 +139,7 @@ impl Runtime {
     }
 
     /// Frames at the display's cadence while one is wanted (at most `REST`), then `PAUSE`.
-    fn bench_rest(&mut self) -> Result<(), RuntimeError> {
+    pub(super) fn bench_rest(&mut self) -> Result<(), RuntimeError> {
         let mut watch = Watch::paced(self);
         let started = Instant::now();
         while self.bench_frame(&mut watch)? && started.elapsed() < REST {}

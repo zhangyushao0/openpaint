@@ -10,6 +10,7 @@ use std::sync::Arc;
 
 use crate::error::AppError;
 use crate::gallery_files::{FileJob, Files, problem};
+use crate::practice::TodayProjection;
 use crate::project::{PortError, ProjectId, ProjectSummary, VersionId};
 use crate::projection::{Availability, EditorAction};
 use crate::title::Title;
@@ -42,6 +43,9 @@ pub enum GalleryIntent {
         version: VersionId,
         title: Title,
     },
+    /// A new practice session, opened at once (the Today card; an open one is continued by
+    /// opening its sheet).
+    Practice,
 }
 
 /// The canvas sizes "+" offers (Procreate's new-canvas menu, reduced to four).
@@ -88,6 +92,8 @@ pub enum LibraryRequest {
     Duplicate(ProjectId),
     Delete(ProjectId),
     Restore(ProjectId, VersionId, Title),
+    /// A new practice session and its sheet, which becomes the open one.
+    Practice,
 }
 
 /// How a library call went, for the gallery. A successful open or create leaves the gallery.
@@ -162,6 +168,7 @@ pub struct GalleryProjection {
     listed: bool,
     opening: bool,
     notice: GalleryNotice,
+    today: Option<TodayProjection>,
 }
 
 impl Gallery {
@@ -224,10 +231,11 @@ impl Gallery {
             GalleryIntent::Restore { id, version, title } => {
                 LibraryRequest::Restore(id, version, title)
             }
+            GalleryIntent::Practice => LibraryRequest::Practice,
         };
         self.opening = matches!(
             request,
-            LibraryRequest::Create(..) | LibraryRequest::Open(_)
+            LibraryRequest::Create(..) | LibraryRequest::Open(_) | LibraryRequest::Practice
         );
         self.requests.push_back(request);
         if !self.opening {
@@ -323,6 +331,7 @@ impl Gallery {
             listed: self.listed,
             opening: self.opening,
             notice: self.notice,
+            today: None,
         }
     }
 }
@@ -364,5 +373,20 @@ impl GalleryProjection {
     #[must_use]
     pub const fn notice(&self) -> GalleryNotice {
         self.notice
+    }
+
+    /// The Today card, once the app's practice log is added (`with_today`).
+    #[must_use]
+    pub const fn today(&self) -> Option<TodayProjection> {
+        self.today
+    }
+
+    /// This projection with the Today card, which the app's practice log gives.
+    #[must_use]
+    pub fn with_today(self, today: TodayProjection) -> Self {
+        Self {
+            today: Some(today),
+            ..self
+        }
     }
 }

@@ -1,24 +1,38 @@
 //! What the screen shows and how it changes with the library's answers: opening an artwork
-//! onto the canvas, leaving the canvas for the gallery once the artwork is stored, and the
-//! gallery's calls on the storage worker.
+//! (or a practice sheet) onto the canvas, leaving the canvas for the gallery (or for the next
+//! practice session) once the artwork is stored, and the gallery's calls on the storage worker.
 
 use std::sync::Arc;
 
 use openpaint_app::{
-    Clipboard, Gallery, LibraryAnswer, LibraryRequest, PortError, ScreenProjection, Toolbox,
-    Transfers,
+    Clipboard, Gallery, LibraryAnswer, LibraryRequest, PortError, PracticeLog, ScreenProjection,
+    Toolbox, Transfers,
 };
-use openpaint_core::{Artwork, CanvasSize};
+use openpaint_core::Artwork;
 use openpaint_render::Core;
 use openpaint_ui::CanvasArea;
 
-use crate::canvas::{Canvas, Content, Held, Leaving};
+use crate::canvas::{Canvas, Content, Held, Leaving, Then};
 use crate::display::{CacheJob, CacheWorker};
 use crate::error::RuntimeError;
-use crate::storage::{Done, Job, LibraryCall, Loaded, Opened, Storage, Stored};
+use crate::practice::{PracticeDone, PracticeJob};
+use crate::seeds::Seeds;
+use crate::storage::{Done, Job, Loaded, Opened, Storage, Stored};
+
+#[path = "screen_jobs.rs"]
+mod jobs;
+use jobs::gallery_job;
+pub(crate) use jobs::{dispatch_gallery, leave_job};
 
 /// The workers a frame hands calls to: the store and the display cache.
 pub(crate) type Workers<'a> = (&'a mut Storage, &'a mut CacheWorker);
+/// What applying the store's answers changes beside the screen.
+pub(crate) type Answered<'a> = (
+    &'a mut Toolbox,
+    &'a Arc<Core>,
+    &'a mut CacheWorker,
+    &'a mut PracticeLog,
+);
 
 pub(crate) enum Screen {
     /// An artwork is about to show: waiting for the library (`None`) or the canvas area.
@@ -30,11 +44,12 @@ pub(crate) enum Screen {
 
 impl Screen {
     /// What the screen offers; on the canvas with the toolbox's brush, size and opacity, the
-    /// export and reference flows and whether the clipboard can paste.
+    /// export and reference flows and whether the clipboard can paste; in the gallery with the
+    /// Today card.
     pub(crate) fn projection(
         &self,
         toolbox: &Toolbox,
-        (transfers, clipboard): (&Transfers, &Clipboard),
+        (transfers, clipboard, practice): (&Transfers, &Clipboard, &PracticeLog),
     ) -> ScreenProjection {
         match self {
             Self::Opening(_) => ScreenProjection::Starting,
@@ -47,7 +62,9 @@ impl Screen {
                         .with_clipboard(clipboard.canvas()),
                 ))
             }
-            Self::Gallery(gallery) => ScreenProjection::Gallery(gallery.projection()),
+            Self::Gallery(gallery) => {
+                ScreenProjection::Gallery(gallery.projection().with_today(practice.today()))
+            }
         }
     }
 
@@ -72,30 +89,42 @@ impl Screen {
         }
     }
 
-    /// Shows `content` on a canvas once the area is known, drawing with the toolbox's brush.
+    /// Shows `content` on a canvas once the area is known, drawing with the toolbox's brush; a
+    /// practice sheet of `practice` opens as one, on a screen of `pixels_per_point`.
     pub(crate) fn open(
         &mut self,
         core: &Core,
-        area: Option<CanvasArea>,
-        toolbox: &Toolbox,
+        (area, pixels_per_point): (Option<CanvasArea>, f32),
+        (toolbox, practice): (&Toolbox, &PracticeLog),
     ) -> Result<(), RuntimeError> {
-        if let (Self::Opening(Some(content)), Some(area)) = (&*self, area)
-            && let Some(canvas) = Canvas::open(core, &area, content, toolbox)?
-        {
-            *self = Self::Canvas(Box::new(canvas));
+        if let (Self::Opening(Some(content)), Some(area)) = (&*self, area) {
+            let sheet = match content {
+                Content::Stored(_, _, held) => practice.of_canvas(held.project).map(|session| {
+                    let before = practice.before(session);
+                    (session.clone(), before)
+                }),
+                Content::Blank | Content::BlankAfterFailedOpen => None,
+            };
+            let viewport = area.viewport(pixels_per_point);
+            if let Some(canvas) = Canvas::open(core, (&area, &viewport), content, (toolbox, sheet))?
+            {
+                *self = Self::Canvas(Box::new(canvas));
+            }
         }
         Ok(())
     }
 
-    /// Applies what the storage worker finished; the stored toolbox goes to `toolbox`. After a
-    /// save the canvas's pixels may go to the display cache (`cache`, from `core`).
+    /// Applies what the storage worker finished; the stored toolbox goes to `toolbox` and the
+    /// practice sessions to `practice`. After a save the canvas's pixels may go to the display
+    /// cache (`cache`, from `core`). Returns whether the next practice session should start now
+    /// (One more, once the sheet left was stored).
     pub(crate) fn answer(
         &mut self,
         done: Done,
-        (toolbox, core, cache): (&mut Toolbox, &Arc<Core>, &mut CacheWorker),
-    ) {
+        (toolbox, core, cache, practice): Answered<'_>,
+    ) -> bool {
         match done {
-            Done::Started(opened, editor) => {
+            Done::Started(opened, editor, sessions) => {
                 if let Some(state) = editor
                     && !toolbox.restore(&state)
                 {
@@ -107,6 +136,7 @@ impl Screen {
                 for key in toolbox.dropped() {
                     log::warn!("the stored brush sets list {key} for no brush or again; dropped");
                 }
+                *practice = PracticeLog::new(sessions);
                 *self = started(opened);
             }
             Done::EditorSaved(result) => {
@@ -119,22 +149,52 @@ impl Screen {
                 version,
                 result,
                 closed,
-            } => self.left(version.as_ref(), (&result, closed), (core, cache)),
+            } => return self.left(version.as_ref(), (&result, closed), (core, cache)),
             Done::Loaded(loaded) => *self = opening(*loaded),
             Done::Created(artwork, title, id) => {
                 log::info!("new artwork {}", id.get());
-                let held = Held {
-                    project: id,
-                    saved: None,
-                    cached: None,
-                    picture: None,
-                };
-                *self = Self::Opening(Some(Content::Stored(artwork, title, Box::new(held))));
+                *self = Self::Opening(Some(Content::Stored(artwork, title, new_project(id))));
             }
-            Done::Gallery(answer) => match self {
-                Self::Gallery(gallery) => gallery.answer(answer),
-                _ => log::warn!("a gallery answer arrived after the gallery closed"),
-            },
+            Done::Gallery(answer) => self.gallery_answer(answer),
+            Done::Practice(done) => self.practice(done, practice),
+        }
+        false
+    }
+
+    /// A gallery call's answer; a new artwork or session that failed while no gallery shows
+    /// (One more) shows it with the failure.
+    fn gallery_answer(&mut self, answer: LibraryAnswer) {
+        match self {
+            Self::Gallery(gallery) => gallery.answer(answer),
+            _ if matches!(answer, LibraryAnswer::CreateFailed(_)) => {
+                let mut gallery = Gallery::new();
+                gallery.answer(answer);
+                *self = Self::Gallery(gallery);
+            }
+            _ => log::warn!("a gallery answer arrived after the gallery closed"),
+        }
+    }
+
+    /// A practice session started (its sheet opens), failed to, or its record was written.
+    fn practice(&mut self, done: PracticeDone, practice: &mut PracticeLog) {
+        match done {
+            PracticeDone::Started {
+                sheet,
+                title,
+                id,
+                session,
+            } => {
+                log::info!("practice session {} on project {}", session.id, id.get());
+                practice.keep(session);
+                *self = Self::Opening(Some(Content::Stored(sheet, title, new_project(id))));
+            }
+            PracticeDone::Failed(error) => {
+                self.gallery_answer(LibraryAnswer::CreateFailed(error));
+            }
+            PracticeDone::Saved(Err(error)) => {
+                log::error!("storing the practice session failed: {error}");
+            }
+            PracticeDone::Saved(Ok(())) => {}
         }
     }
 
@@ -163,19 +223,19 @@ impl Screen {
 
     /// The canvas's last version and thumbnail were handed to the store: its pixels may go to
     /// the display cache (complete, as the thumbnail evaluated it); on success the gallery
-    /// replaces the canvas (its history goes with it); on failure the canvas stays and shows
-    /// that saving failed.
+    /// replaces the canvas (its history goes with it), or for One more the next session's sheet
+    /// is on its way (returns true); on failure the canvas stays and shows that saving failed.
     fn left(
         &mut self,
         version: Option<&Artwork>,
         (result, closed): (&Result<Option<Stored>, PortError>, bool),
         (core, cache): (&Arc<Core>, &mut CacheWorker),
-    ) {
+    ) -> bool {
         if let Err(error) = result {
             log::error!("saving before leaving failed: {error}");
         }
         let Some(canvas) = self.canvas_mut() else {
-            return;
+            return false;
         };
         if let Some(version) = version {
             canvas
@@ -186,27 +246,43 @@ impl Screen {
             }
         }
         canvas.keep_cache(core, cache);
-        if closed {
-            log::info!("left the artwork for the gallery");
-            *self = Self::Gallery(Gallery::new());
-        } else {
+        if !closed {
             canvas.leaving = Leaving::Staying;
+            return false;
+        }
+        match canvas.then {
+            Then::Gallery => {
+                log::info!("left the artwork for the gallery");
+                *self = Self::Gallery(Gallery::new());
+                false
+            }
+            Then::Practice => {
+                log::info!("left the practice sheet for the next session");
+                *self = Self::Opening(None);
+                true
+            }
         }
     }
 
-    /// Everything after the frame's intents: the canvas is evaluated and its unsaved version or
-    /// its leaving handed to the store; the gallery's calls go to the store in order.
-    /// `now` is the wall clock's seconds since 1970 UTC, for a version kept on leaving.
+    /// Everything after the frame's intents: the canvas is evaluated and its unsaved version,
+    /// its practice record or its leaving handed to the store; the gallery's calls go to the
+    /// store in order. `now` is the wall clock's seconds since 1970 UTC, for a version kept on
+    /// leaving and a new practice session (seeded from `seeds`, the next of `practice`).
     pub(crate) fn progress(
         &mut self,
         core: &Arc<Core>,
         (storage, cache): Workers<'_>,
         (area, now): (Option<CanvasArea>, u64),
+        (practice, seeds): (&mut PracticeLog, &mut Seeds),
     ) -> Result<(), RuntimeError> {
         match self {
             Self::Canvas(canvas) => {
                 canvas.evaluate(core)?;
                 canvas.keep_cache(core, cache);
+                if let Some(session) = canvas.session_mut().practice_save_request() {
+                    practice.keep(session.clone());
+                    storage.submit(Job::Practice(PracticeJob::Save(session)));
+                }
                 match canvas.leaving {
                     Leaving::Staying => {
                         if let Some(version) = canvas.session_mut().save_request() {
@@ -227,7 +303,7 @@ impl Screen {
                     if let LibraryRequest::Delete(id) = &request {
                         cache.submit(CacheJob::Delete(*id));
                     }
-                    match gallery_job(request, area) {
+                    match gallery_job(request, area, (practice, seeds, now)) {
                         Ok(job) => storage.submit(job),
                         Err(error) => {
                             log::error!("no blank artwork: {error}");
@@ -242,41 +318,14 @@ impl Screen {
     }
 }
 
-/// The store's job for leaving `canvas`: `version` (from `Session::leave_request`) and the
-/// thumbnail of what the canvas shows (every tile waiting evaluated first); `close` for the
-/// gallery. A thumbnail that cannot be made is left out (it is derived data).
-pub(crate) fn leave_job(
-    canvas: &mut Canvas,
-    core: &Core,
-    version: Option<Artwork>,
-    (kept_at, close): (u64, bool),
-) -> Job {
-    let thumbnail = canvas
-        .thumbnail(core)
-        .inspect_err(|error| log::error!("no thumbnail: {error}"))
-        .ok();
-    Job::Leave {
-        version,
-        thumbnail,
-        kept_at,
-        close,
-    }
-}
-
-/// The gallery's intents in order; anything else from a gallery frame is a stray.
-pub(crate) fn dispatch_gallery(gallery: &mut Gallery, intents: Vec<openpaint_app::Intent>) {
-    for intent in intents {
-        let result = match intent {
-            openpaint_app::Intent::Gallery(intent) => gallery.dispatch(intent),
-            other => {
-                log::debug!("ignored in the gallery: {other:?}");
-                Ok(())
-            }
-        };
-        if let Err(error) = result {
-            log::warn!("intent refused: {error}");
-        }
-    }
+/// What a canvas opening project `id`, just made, holds for it: nothing to show yet.
+fn new_project(id: openpaint_app::ProjectId) -> Box<Held> {
+    Box::new(Held {
+        project: id,
+        saved: None,
+        cached: None,
+        picture: None,
+    })
 }
 
 /// The canvas about to show what the library opened, with its cached canvas or gallery picture.
@@ -309,25 +358,4 @@ fn started(opened: Opened) -> Screen {
             Screen::Gallery(gallery)
         }
     }
-}
-
-/// The store's job for a gallery request; a new artwork is blank, of the size chosen for the
-/// canvas `area`.
-fn gallery_job(request: LibraryRequest, area: Option<CanvasArea>) -> Result<Job, RuntimeError> {
-    Ok(Job::Library(match request {
-        LibraryRequest::Create(title, preset) => {
-            let area = area.ok_or(RuntimeError::Render(
-                openpaint_render::RenderError::Invalid("the canvas area is unknown"),
-            ))?;
-            let [width, height] = preset.size(area.fit.size);
-            let artwork = Artwork::new(CanvasSize::new(width, height)?);
-            return Ok(Job::Create { artwork, title });
-        }
-        LibraryRequest::List => LibraryCall::List,
-        LibraryRequest::Open(id) => LibraryCall::Load(id),
-        LibraryRequest::Rename(id, title) => LibraryCall::Rename(id, title),
-        LibraryRequest::Duplicate(id) => LibraryCall::Duplicate(id),
-        LibraryRequest::Delete(id) => LibraryCall::Delete(id),
-        LibraryRequest::Restore(id, version, title) => LibraryCall::Restore(id, version, title),
-    }))
 }

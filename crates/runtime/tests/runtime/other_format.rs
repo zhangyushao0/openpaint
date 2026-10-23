@@ -8,6 +8,7 @@ use openpaint_app::{
     SaveId, ScreenProjection, Thumbnail, Title, VersionId,
 };
 use openpaint_core::Artwork;
+use openpaint_practice::SessionRecord;
 use openpaint_runtime::{Runtime, StartOptions};
 
 use crate::support::{core, settle};
@@ -100,6 +101,23 @@ impl ProjectStore for Other {
         _title: &Title,
     ) -> Result<ProjectId, PortError> {
         self.wrote("restore")
+    }
+
+    fn practice(&mut self) -> Result<Vec<SessionRecord>, PortError> {
+        Err(refused())
+    }
+
+    fn start_practice(
+        &mut self,
+        _sheet: &Artwork,
+        _title: &Title,
+        _session: &SessionRecord,
+    ) -> Result<ProjectId, PortError> {
+        self.wrote("practice")
+    }
+
+    fn save_practice(&mut self, _session: &SessionRecord) -> Result<(), PortError> {
+        self.wrote("practice record")
     }
 }
 

@@ -3,7 +3,9 @@
 
 use std::sync::Arc;
 
-use openpaint_app::{BrushLibrary, Clipboard, PalmRejection, ProjectStore, Toolbox, Transfers};
+use openpaint_app::{
+    BrushLibrary, Clipboard, PalmRejection, PracticeLog, ProjectStore, Toolbox, Transfers,
+};
 use openpaint_render::Core;
 use openpaint_store::DisplayCache;
 use openpaint_ui::Shell;
@@ -85,6 +87,7 @@ impl Runtime {
             toolbox,
             transfers: Transfers::default(),
             clipboard: Clipboard::default(),
+            practice: PracticeLog::default(),
             seeds: Seeds::from_clock(),
             bench_fast: false,
             ui_ns: 0,

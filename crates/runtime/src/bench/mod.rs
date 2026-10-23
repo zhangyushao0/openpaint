@@ -32,6 +32,8 @@
 //!   colour wheel, a slider and the brush editor's column dragged): frames drawn against the
 //!   vsyncs wanting one, the longest gap, frame work, UI pass and GPU time a frame (`ui.rs`,
 //!   `motion.rs`).
+//! - `practice`: on the practice sheet open, How's card opened and closed and Next three times,
+//!   measured as `ui` measures (`practice.rs`).
 
 use std::time::{Duration, Instant};
 
@@ -47,6 +49,7 @@ mod export;
 mod hand;
 mod motion;
 mod open;
+mod practice;
 mod session;
 mod strokes;
 mod touch;
@@ -58,7 +61,7 @@ pub use hand::busiest;
 pub use strokes::STROKES_ADDED;
 
 /// The scenarios `bench_scenario` runs.
-pub const SCENARIOS: [&str; 11] = [
+pub const SCENARIOS: [&str; 12] = [
     "open-cold",
     "open",
     "zoom",
@@ -70,6 +73,7 @@ pub const SCENARIOS: [&str; 11] = [
     "undo",
     "adjust",
     "ui",
+    "practice",
 ];
 
 /// The screen offscreen when no frame was drawn yet: the tablet's.
@@ -242,6 +246,7 @@ impl Runtime {
             "undo" => self.bench_undo(&mut lines)?,
             "adjust" => self.bench_adjust(&mut lines)?,
             "ui" => self.bench_ui(&mut lines)?,
+            "practice" => self.bench_practice(&mut lines)?,
             _ => return Err(RuntimeError::NotNow("a scenario of SCENARIOS")),
         }
         Ok(lines)
@@ -324,7 +329,8 @@ impl Runtime {
     /// `intents` applied to the open canvas as the frame applies a hand's.
     pub(crate) fn bench_dispatch(&mut self, intents: Vec<Intent>) {
         if let Screen::Canvas(canvas) = &mut self.screen {
-            let app = (&mut self.toolbox, &mut self.clipboard, &mut self.seeds);
+            let now = self.frame_clock.wall_seconds();
+            let app = (&mut self.toolbox, &mut self.clipboard, &mut self.seeds, now);
             canvas.dispatch(&self.core, intents, app);
         }
     }

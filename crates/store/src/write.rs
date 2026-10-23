@@ -7,6 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use openpaint_app::{EditorState, PortError, ProjectId, SaveId, Thumbnail, Title};
 use openpaint_core::Artwork;
+use openpaint_practice::SessionRecord;
 
 use crate::artwork_file::Opened;
 use crate::batch::Batch;
@@ -15,6 +16,7 @@ use crate::delta::{contents, delta};
 use crate::editor::{EDITOR, encode_editor};
 use crate::edits::{edit_key, edits_prefix, encode_edit};
 use crate::library::{Open, device};
+use crate::practice::{encode_session, practice_key};
 use crate::read;
 use crate::records::{
     CLOCK, LAST, NEXT, decode_id, encode_head, encode_id, entry_key, head_key, project_prefix,
@@ -84,6 +86,34 @@ fn new_project(
     batch.insert(&open.projects, head_key(id), encode_head(artwork, None));
     touch(open, batch, id, title.clone())?;
     Ok(id)
+}
+
+/// A new practice session: `sheet` as a new project titled `title`, which becomes the open one,
+/// and `session`'s record naming it, in one batch.
+pub(crate) fn start_practice(
+    open: &Open,
+    (sheet, title): (&Artwork, &Title),
+    session: &SessionRecord,
+) -> Result<ProjectId, PortError> {
+    let mut batch = Batch::new(open);
+    let id = new_project(open, &mut batch, sheet, title)?;
+    batch.insert(&open.library, LAST, encode_id(id.get()));
+    let session = SessionRecord {
+        canvas: id.get(),
+        ..session.clone()
+    };
+    let key = practice_key(session.id);
+    batch.insert(&open.library, key, encode_session(&session));
+    batch.commit()?;
+    Ok(id)
+}
+
+/// Replaces `session`'s record.
+pub(crate) fn practice(open: &Open, session: &SessionRecord) -> Result<(), PortError> {
+    let mut batch = Batch::new(open);
+    let key = practice_key(session.id);
+    batch.insert(&open.library, key, encode_session(session));
+    batch.commit()
 }
 
 /// Project `id` becomes the open one.

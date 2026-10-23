@@ -32,6 +32,8 @@ use crate::drop_bar;
 use crate::gallery::GalleryScreen;
 use crate::panels::Panels;
 use crate::pen_marks;
+use crate::practice_bar::PracticeBar;
+use crate::practice_marks;
 use crate::reference_window::ReferenceWindow;
 use crate::selection_bar::{self, SelectionBar};
 use crate::shape_bar::{self, ShapeBar};
@@ -65,6 +67,8 @@ pub(crate) struct Shown {
     pub(crate) brush_size: Option<f32>,
     /// What the pen's side buttons do.
     pub(crate) buttons: ButtonMap,
+    /// A practice sheet: its bar holds the band's middle.
+    pub(crate) practising: bool,
 }
 
 /// The screen's UI-local state between frames.
@@ -86,6 +90,8 @@ pub struct Shell {
     copy: CopyBar,
     /// QuickShape's pill.
     shape: ShapeBar,
+    /// A practice sheet's bar and card.
+    practice: PracticeBar,
     /// The shape's handles while it is edited and the guide's centre while it is on, in canvas
     /// pixels, from the last pass.
     handles: Vec<[f32; 2]>,
@@ -179,8 +185,10 @@ impl Shell {
                 self.came_from = self.opening.as_ref().and_then(|opening| opening.id);
             }
             (Showing::Canvas, Showing::Gallery) => {
+                // The last canvas pass's: a practice sheet goes back into the Today card.
+                let practice = self.shown.is_some_and(|shown| shown.practising);
                 if let Some(from) = self.shown_at.take() {
-                    self.gallery.arrive(from, self.came_from);
+                    self.gallery.arrive(from, (self.came_from, practice));
                 }
             }
             _ => {}
@@ -206,6 +214,7 @@ impl Shell {
             threshold: projection.fill().threshold,
             brush_size: brush.map(|brush| brush.size),
             buttons: brush.map(|brush| brush.buttons).unwrap_or_default(),
+            practising: projection.practice().is_some(),
         });
         let rect = canvas_frame(ui);
         let ctx = ui.ctx().clone();
@@ -220,6 +229,7 @@ impl Shell {
             let ppp = self.pixels_per_point;
             self.transform.show_frame(&ctx, projection, &shown, ppp);
             shape_bar::show_marks(&ctx, projection, &shown, ppp);
+            practice_marks::show_marks(&ctx, projection, &shown, ppp);
         }
         let editing = projection.shape().filter(|shape| shape.editing);
         self.handles = editing
@@ -230,6 +240,9 @@ impl Shell {
         self.shape.show(&ctx, projection, &mut self.taps);
         sheet::show_view(self, &ctx, &area);
         self.top_islands(&ctx, projection);
+        let viewport = Some(area.viewport(self.pixels_per_point));
+        self.practice
+            .show(&ctx, projection, viewport, &mut self.taps);
         self.selection.show(&ctx, projection, &mut self.taps);
         self.transform.show(&ctx, projection, &mut self.taps);
         self.side

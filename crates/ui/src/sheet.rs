@@ -62,6 +62,6 @@ pub(crate) fn show_view(shell: &Shell, ctx: &egui::Context, area: &CanvasArea) {
         return;
     }
     let text = view_text(shell.scale(area), shown.view.rotation());
-    let taken = shell.drop.bar().is_some() || shown.selecting;
+    let taken = shell.drop.bar().is_some() || shown.selecting || shown.practising;
     view_status(ctx, &text, strength, taken);
 }

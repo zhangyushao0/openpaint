@@ -35,7 +35,10 @@ pub(crate) fn show(
         DropBar::Offered => ("Filled.".to_owned(), Some("Continue filling")),
         DropBar::Continuing => ("Tap an area to fill it.".to_owned(), Some("Done")),
     };
-    let taken = projection.selection().tool || projection.transform().tool;
+    // Under the islands while another bar holds the band's middle (a practice sheet's always).
+    let taken = projection.selection().tool
+        || projection.transform().tool
+        || projection.practice().is_some();
     let (rect, clicked) = fill_bar(ctx, &text, action, taken);
     if clicked {
         drop.set_continuing(bar == DropBar::Offered);

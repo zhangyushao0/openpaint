@@ -9,6 +9,7 @@ use openpaint_app::{
     Title, VersionId,
 };
 use openpaint_core::Artwork;
+use openpaint_practice::SessionRecord;
 
 /// Lists nothing and opens `last` (none: a new canvas); creating and saving keep the artwork in
 /// `saved` and fail, as a full or removed disk would, while `fail` is set; everything else
@@ -107,5 +108,22 @@ impl ProjectStore for Nowhere {
         _title: &Title,
     ) -> Result<ProjectId, PortError> {
         Err(PortError::Missing(id))
+    }
+
+    fn practice(&mut self) -> Result<Vec<SessionRecord>, PortError> {
+        Ok(Vec::new())
+    }
+
+    fn start_practice(
+        &mut self,
+        sheet: &Artwork,
+        _title: &Title,
+        _session: &SessionRecord,
+    ) -> Result<ProjectId, PortError> {
+        self.keep(sheet).map(|()| ProjectId::new(2))
+    }
+
+    fn save_practice(&mut self, _session: &SessionRecord) -> Result<(), PortError> {
+        Ok(())
     }
 }

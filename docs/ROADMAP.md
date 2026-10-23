@@ -58,35 +58,7 @@ The author, 2026-10-23: practice is their main activity now. The app gets a prac
 - **No accounts, community or sharing service.**
 - **Method notes.** V大's methods, distilled from the course's subtitles, guide every exercise's instructions and checks. They are not in the repository.
 
-- S75 Practice foundation. Goal: the author starts practising stage 1 on the tablet. Scope:
-  - **The gallery's "Today" card.** It shows the stage and its progress in sessions, and "Start practice". A finished session offers "One more".
-  - **A session.** Exercises come one after another, each a scene laid out by the app on a practice canvas with the usual tools, navigation and undo.
-  - **Locked reference.** The reference is locked: it cannot be drawn on, nor picked by the eyedropper before the check.
-  - **Practice pen.** StreamLine is off; scores read the raw samples.
-  - **Next exercise.** Moving to the next exercise pans the view to it and keeps the author's zoom, never filling the screen.
-  - **Check.** "Compare" overlays the copy on its reference and shows the numbers.
-  - **The summary** shows this session against the ones before.
-  - **Two generated types**, deterministic per seed:
-    - Single-line copy: a curve in a cell, copied in the empty cell beside it.
-      - Key-point error: endpoints and turning points, as V大 teaches.
-      - Accuracy within the frame: position and size relative to the cell.
-      - Shape accuracy after aligning position and scale.
-      - The stroke's speed, wobble and number of strokes.
-    - Single-colour match: a swatch, matched by filling the empty cell.
-      - First-pick error and final error, as hue, saturation and value differences plus one perceptual difference (Oklab).
-      - The number of corrections.
-  - **Short instructions** per type, shown the first time and on request, written from V大's method in our own words.
-  - **Stored.** Every result is stored (type, seed, metrics, time) with the session's progress. Additions keep format 1 if they leave existing bytes as they are; else a format step.
-  Done:
-  - Walk-through as a passing scenario: gallery -> Today -> a session of both types -> compare -> summary -> One more -> reopen, progress kept.
-  - Unit tests of the generators (same seed, same exercise).
-  - Unit tests of the metrics against known cases:
-    - an exact copy scores zero;
-    - a shifted copy errs in the frame but not in shape;
-    - a jittered copy shows wobble;
-    - a known colour pair gives known hue, saturation and value differences.
-  - Records round-trip in the store; every other scenario hash unchanged.
-  - On the tablet: a session through the scenario's steps, its UI at the display's rate (`bench ui`), device-smoke pass, the library restored last.
+- S75 Practice foundation is done (1.1.0): the Today card; sessions of 10 single lines and 8 single colours on a sheet the app lays out, a project the gallery never lists, its originals drawn by the screen (D98); the pen's own samples, clipped to the empty frame; Compare's overlay and numbers, stored once; Next keeping the zoom; the summary against earlier sessions; One more; records beside the artworks under format 1 (`openpaint-practice` the math). Generators the same per seed, metrics right on known cases, records round-tripping; 46 scenarios with every hash before unchanged; on the tablet a session walked through, How's card at 92 to 94 % of the vsyncs and Next's glide at 80 to 84 % (`bench practice`), the smoke 16.8 s.
 - Next, each specified after the one before lands:
   - Combined lines and the warm-up pool.
   - Single shapes in four tiers from the first official pack, with the pack tool and local imports.
@@ -105,6 +77,7 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 
 (Findings outside the current slice, one line each, dated.)
 
+- 2026-10-23 Practice sheets: a fill on a sheet floods its whole 2,920 x 3,160 layer before the frame cuts it (flood within the clip's box); Next's glide shows 80 to 84 % of the vsyncs while the 2x tier fills the arriving pair (fill the next pair's tiles ahead); an exported sheet lacks its originals; the StreamLine slider shows on a sheet where it does nothing.
 - 2026-10-23 First openings: the layer panel's pictures draw each layer whole on a worker, a smudge's or filter's material one GPU piece of up to 45 ms, so its first opening over a dense artwork shows 77 % of vsyncs (make materials in pieces as the frame budget does); a panel's first frame lays out its text anew (15 to 20 ms of UI pass; the brush editor's whole column, 19 ms): lay out only what shows, or warm the glyphs ahead.
 - 2026-10-23 `bench ui` feeds input inside the app, so the display wakes at each motion's start (no touch boost) and the vsyncs are its own clock's: a variant injecting real input and reading SurfaceFlinger's present times per motion would measure the glass; a real tap's opening shows one 20 ms frame near 0.75 s (cause not found).
 
@@ -156,3 +129,4 @@ Slices S0 to S72 and the stage exits: `docs/archive/ROADMAP-2026-10.md`.
 
 - S73 2026-10-22 `chore(release): OpenPaint 1.0.0, what S72 left and the documents as the product now is (S73)`; one layer refusal, one curve mapping, the budget test on the held clock, the delete note in ink; the documents rewritten; on the tablet a fresh 1.0.0 with the smoke (15.9 s) and benches alike to S65 to S67's
 - S74 2026-10-23 `perf(runtime): the interface at the display's rate, a frame every vsync while a hand or the interface moves (S74)`; `bench ui`, D97, the chrome pass over the shapes there are, a worker's paced regions 256 px; on the tablet 1.0.1, the smoke 16.9 s
+- S75 2026-10-23 `feat(app): practice foundation, sessions of single lines and colours checked against their originals (S75)`; `openpaint-practice`, D98, `s75-practice`, `bench practice`; on the tablet 1.1.0, a session walked through, the smoke 16.8 s

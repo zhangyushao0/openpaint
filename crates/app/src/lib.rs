@@ -29,6 +29,9 @@ mod layers;
 mod palette;
 mod palm;
 mod pen_buttons;
+mod practice;
+mod practice_copy;
+mod practice_sheet;
 mod project;
 mod projection;
 mod quickshape;
@@ -84,6 +87,11 @@ pub use crate::layers::{GroupRow, LayerIntent, LayerList, LayerRow, MaskRow};
 pub use crate::palette::{Hsv, MAX_SWATCHES, RECENT_COLORS, hex_of, parse_hex};
 pub use crate::palm::PalmRejection;
 pub use crate::pen_buttons::{ButtonAction, ButtonMap, ButtonTracker, HeldTool, PenButton};
+pub use crate::practice::{
+    Overlay, PracticeIntent, PracticeLog, PracticeNotice, PracticeProjection, SheetView,
+    TodayProjection,
+};
+pub use crate::practice_sheet::{PRACTICE_ROOM, PracticePick};
 pub use crate::project::{
     KEPT_VERSIONS, KeptVersion, PortError, Project, ProjectId, ProjectStore, ProjectSummary,
     SaveId, Thumbnail, VersionId,

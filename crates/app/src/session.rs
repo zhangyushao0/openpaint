@@ -13,6 +13,7 @@ use crate::history::{HISTORY_BUDGET, History, HistoryIntent};
 use crate::intent::Intent;
 use crate::layer_rules;
 use crate::layers::{LayerList, Layers};
+use crate::practice_sheet::PracticeSheet;
 use crate::projection::{Availability, EditorAction, LAYER_ACTIONS, SessionProjection};
 use crate::selection::{Selection, SelectionIntent};
 use crate::storage::Autosave;
@@ -26,6 +27,8 @@ use crate::view::{CanvasView, ViewIntent};
 mod session_adjust;
 #[path = "session_clipboard.rs"]
 mod session_clipboard;
+#[path = "session_practice.rs"]
+mod session_practice;
 #[path = "session_storage.rs"]
 mod session_storage;
 #[path = "session_transform.rs"]
@@ -44,8 +47,11 @@ pub struct Session {
     /// The adjustment under way until it is applied or cancelled (D59).
     adjusts: Adjusts,
     autosave: Autosave,
-    /// How the artwork shows; it lives as long as the session (every artwork opens at fit).
+    /// How the artwork shows; it lives as long as the session (every artwork opens at fit, a
+    /// practice sheet on its shown pair).
     view: CanvasView,
+    /// On a practice sheet, its session's flow (`session_practice.rs`).
+    practice: Option<PracticeSheet>,
 }
 
 impl Session {
@@ -70,6 +76,7 @@ impl Session {
             transforms: Transforms::default(),
             adjusts: Adjusts::default(),
             view: CanvasView::FIT,
+            practice: None,
         }
     }
 
@@ -125,8 +132,10 @@ impl Session {
         self.layers.interrupt();
         if let Intent::Fill(fill) = intent {
             let drawing = self.strokes.active().is_some();
-            let clip = self.selection.mask();
-            return self.fills.handle(&mut self.history, drawing, fill, clip);
+            let clip = self.clip();
+            return self
+                .fills
+                .handle(&mut self.history, drawing, fill, clip.as_ref());
         }
         if matches!(
             intent,
@@ -135,9 +144,10 @@ impl Session {
             self.fills.interrupt();
         }
         match intent {
+            Intent::Stroke(stroke) if self.refuses(&stroke) => Ok(()),
             Intent::Stroke(stroke) => {
-                let clip = self.selection.mask();
-                self.strokes.handle(&mut self.history, stroke, clip)
+                let clip = self.clip();
+                self.strokes.handle(&mut self.history, stroke, clip.as_ref())
             }
             Intent::Selection(selection) => {
                 self.select(selection);
@@ -158,7 +168,9 @@ impl Session {
             | Intent::Export(_)
             | Intent::Reference(_)
             | Intent::Insert(_)
-            | Intent::Clipboard(_) => Ok(()),
+            | Intent::Clipboard(_)
+            // Practice is `practise`'s, which the runtime calls with the time.
+            | Intent::Practice(_) => Ok(()),
             // Leaving is the runtime's (it stores the artwork first); the session only says
             // whether it may happen now.
             Intent::Gallery(_) => self.check(EditorAction::Gallery),
@@ -281,6 +293,7 @@ impl Session {
             shape: self.strokes.shape().map(Box::new),
             brush: None,
             transfers: None,
+            practice: (self.practice.as_ref()).map(|p| Box::new(p.projection(artwork))),
         }
     }
 

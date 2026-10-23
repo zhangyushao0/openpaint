@@ -20,6 +20,7 @@ mod pacing;
 mod painted;
 mod pictures;
 mod pointer;
+mod practice;
 mod raster;
 mod recover;
 mod screen;

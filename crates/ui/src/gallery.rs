@@ -1,7 +1,8 @@
 //! The gallery screen (Procreate's model): its name on the desk at the top left, a search field
 //! in the top band's middle, an island at the top right with the "+" that makes a new artwork
-//! of a size chosen in a small popover or opens an OpenPaint file, and below them every artwork
-//! whose title holds the search's text as a card in a grid, the one changed last first. Tap a
+//! of a size chosen in a small popover or opens an OpenPaint file, and below them the Today card
+//! (practice, G9; not while searching), then every artwork whose title holds the search's text
+//! as a card in a grid, the one changed last first. Tap a
 //! picture to open it, its title to rename it (a dialog under the islands, above the soft
 //! keyboard), the options to save it as an OpenPaint file or restore a kept version, the copy
 //! button to duplicate it and the bin to delete it, which asks first: it cannot be undone.
@@ -18,13 +19,14 @@ use std::collections::HashMap;
 use egui::{Align, Layout, Rect, Vec2};
 use openpaint_app::{
     FileProblem, GalleryIntent, GalleryNotice, GalleryProjection, Intent, MAX_TITLE_CHARS,
-    ProjectId, ProjectSummary, Thumbnail,
+    ProjectId, ProjectSummary, Thumbnail, TodayProjection,
 };
 
 use crate::components::carry::{Arrival, Opening, land};
 use crate::components::{
-    Alpha, ArtworkCard, ISLAND_TOP, Naming, Place, Source, TOP_BAND, artwork_card, card_size,
-    icon_button, icon_toggle, island, notice, picture_texture, pill, text_field,
+    Alpha, ArtworkCard, ISLAND_TOP, Naming, Place, Source, TOP_BAND, TodayCard, artwork_card,
+    card_size, icon_button, icon_toggle, island, notice, picture_texture, pill, text_field,
+    today_card,
 };
 use crate::design::{CARD_GAP, Icon, SPACE, TOUCH_TARGET};
 
@@ -88,12 +90,13 @@ impl GalleryScreen {
     }
 
     /// The canvas, last shown at `from` (points), comes back into the card of `id` (or the
-    /// first card).
-    pub(crate) fn arrive(&mut self, from: Rect, id: Option<ProjectId>) {
+    /// first card), a practice sheet into the Today card.
+    pub(crate) fn arrive(&mut self, from: Rect, (id, practice): (Option<ProjectId>, bool)) {
         self.arrivals += 1;
         self.arriving = Some(Arrival {
             from,
             id,
+            practice,
             run: self.arrivals,
         });
     }
@@ -170,15 +173,17 @@ impl GalleryScreen {
             .iter()
             .filter(|item| item.title.matches(&self.search))
             .collect();
-        if projection.listed() && projection.items().is_empty() {
+        // The Today card comes first, unless a search is typed.
+        let today = projection.today().filter(|_| self.search.trim().is_empty());
+        if projection.listed() && projection.items().is_empty() && today.is_none() {
             self.arriving = None;
             list.centered_and_justified(|ui| ui.label("No artworks yet. Tap + to start one."));
-        } else if found.is_empty() && !projection.items().is_empty() {
+        } else if found.is_empty() && !projection.items().is_empty() && today.is_none() {
             let text = format!("No title holds “{}”.", self.search.trim());
             list.centered_and_justified(|ui| ui.label(text));
         } else {
             egui::ScrollArea::vertical().show(&mut list, |ui| {
-                self.grid(ui, &found, enabled, taps);
+                self.grid(ui, (today, &found), enabled, taps);
             });
         }
         self.rename_dialog(ui.ctx(), taps);
@@ -190,7 +195,7 @@ impl GalleryScreen {
     fn grid(
         &mut self,
         ui: &mut egui::Ui,
-        items: &[&ProjectSummary],
+        (today, items): (Option<TodayProjection>, &[&ProjectSummary]),
         enabled: bool,
         taps: &mut Vec<Intent>,
     ) {
@@ -198,22 +203,37 @@ impl GalleryScreen {
         let pitch = card_size() + Vec2::splat(CARD_GAP);
         let width = ui.available_width();
         let columns = (((width - CARD_GAP) / pitch.x).floor() as usize).max(1);
-        let rows = items.len().div_ceil(columns);
+        let first = usize::from(today.is_some());
+        let rows = (items.len() + first).div_ceil(columns);
         let origin = ui.cursor().min + Vec2::splat(CARD_GAP);
         let height = rows as f32 * pitch.y + CARD_GAP;
         ui.allocate_space(Vec2::new(width, height));
+        let place = |slot: usize| {
+            let cell = Vec2::new((slot % columns) as f32, (slot / columns) as f32);
+            egui::Rect::from_min_size(origin + cell * pitch, card_size())
+        };
+        if let Some(today) = today {
+            let sheet = self.today(ui, place(0), (today, enabled), taps);
+            if let Some(arrival) = self.arriving.filter(|arrival| arrival.practice)
+                && land(ui.ctx(), &arrival, None, sheet)
+            {
+                self.arriving = None;
+            }
+        }
         // The card the canvas comes back into: its own, else the first (changed last).
-        let arriving = self.arriving.map(|arrival| {
-            let listed = items.iter().any(|item| Some(item.id) == arrival.id);
-            let id = arrival
-                .id
-                .filter(|_| listed)
-                .or(items.first().map(|item| item.id));
-            (arrival, id)
-        });
+        let arriving = self
+            .arriving
+            .filter(|arrival| !arrival.practice)
+            .map(|arrival| {
+                let listed = items.iter().any(|item| Some(item.id) == arrival.id);
+                let id = arrival
+                    .id
+                    .filter(|_| listed)
+                    .or(items.first().map(|item| item.id));
+                (arrival, id)
+            });
         for (index, item) in items.iter().enumerate() {
-            let cell = Vec2::new((index % columns) as f32, (index / columns) as f32);
-            let rect = egui::Rect::from_min_size(origin + cell * pitch, card_size());
+            let rect = place(index + first);
             let mut slot = ui.new_child(egui::UiBuilder::new().max_rect(rect));
             let landing = arriving.filter(|(_, id)| *id == Some(item.id));
             let card = self.card(&mut slot, item, (enabled, landing.is_some()), taps);
@@ -224,6 +244,44 @@ impl GalleryScreen {
                 }
             }
         }
+    }
+
+    /// The Today card in `rect`; returns where its sheet lies. Tapped, it continues the open
+    /// session (opening its sheet) or starts one, the sheet growing out of the card.
+    fn today(
+        &mut self,
+        ui: &mut egui::Ui,
+        rect: Rect,
+        (today, enabled): (TodayProjection, bool),
+        taps: &mut Vec<Intent>,
+    ) -> Rect {
+        let mut slot = ui.new_child(egui::UiBuilder::new().max_rect(rect));
+        let stage = format!("Stage {} · {}", today.stage, today.topic());
+        let progress = format!("{} of about {} sessions done", today.done, today.sessions);
+        let action = if today.open.is_some() {
+            "Continue practice"
+        } else {
+            "Start practice"
+        };
+        let card = TodayCard {
+            stage: &stage,
+            progress: &progress,
+            action,
+            enabled,
+        };
+        let (tapped, sheet) = today_card(&mut slot, &card);
+        if tapped {
+            let intent = today
+                .open
+                .map_or(GalleryIntent::Practice, GalleryIntent::Open);
+            taps.push(Intent::Gallery(intent));
+            self.opening = Some(Opening {
+                from: sheet,
+                id: today.open,
+                picture: None,
+            });
+        }
+        sheet
     }
 
     /// One card; returns where its picture lies.

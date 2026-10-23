@@ -8,8 +8,9 @@
 
 use openpaint_app::{
     AdjustIntent, Delivery, EditorAction, ExportError, ExportIntent, ExportNotice, FillIntent,
-    FillRefusal, ImageError, InsertIntent, Intent, LayerRefusal, ReferenceIntent, ReferenceNotice,
-    SessionProjection, StorageIntent, StorageNotice, TransformIntent, TransformRefusal,
+    FillRefusal, ImageError, InsertIntent, Intent, LayerRefusal, PracticeIntent, PracticeNotice,
+    ReferenceIntent, ReferenceNotice, SessionProjection, StorageIntent, StorageNotice,
+    TransformIntent, TransformRefusal,
 };
 
 use crate::components::{Place, Source, confirmation, notice, pill, status};
@@ -42,6 +43,7 @@ pub(crate) fn notice_pill(
 ) -> Option<egui::Rect> {
     let told = storage(projection)
         .or_else(|| (*reset).then_some(Told::Reset))
+        .or_else(|| practice(projection))
         .or_else(|| fill(projection))
         .or_else(|| transform(projection))
         .or_else(|| adjust(projection))
@@ -106,11 +108,27 @@ fn refused(verb: &str, refusal: LayerRefusal) -> String {
     format!("Can't {verb}: {refusal}.")
 }
 
+/// Why a practice sheet took no contact, with OK.
+fn practice(projection: &SessionProjection) -> Option<Told> {
+    let message = match projection.practice()?.notice? {
+        PracticeNotice::DrawInFrame => "Draw in the empty frame.",
+        PracticeNotice::Checked => "Checked. Tap Next for the next one.",
+        PracticeNotice::PickAfterCompare => "The original can be picked after Compare.",
+        PracticeNotice::Done => "This session is done.",
+    };
+    let dismiss = Intent::Practice(PracticeIntent::Dismiss);
+    Some(Told::Failed(message.to_owned(), "OK", true, dismiss))
+}
+
 /// A refused or failed fill, with OK.
 fn fill(projection: &SessionProjection) -> Option<Told> {
     let fill = projection.fill();
     let message = match (fill.refused, fill.failed) {
         (Some(FillRefusal::Layer(refusal)), _) => refused("fill", refusal),
+        // On a practice sheet the empty frame is what a fill stays inside.
+        (Some(FillRefusal::OutsideSelection), _) if projection.practice().is_some() => {
+            "Drop inside the empty frame to fill.".into()
+        }
         (Some(FillRefusal::OutsideSelection), _) => "Drop inside the selection to fill.".into(),
         (None, true) => "Couldn't fill there. Try again.".into(),
         (None, false) => return None,

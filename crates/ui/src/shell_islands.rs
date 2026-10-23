@@ -56,7 +56,12 @@ impl Shell {
                 self.adjust.close_menu();
             }
         });
-        let place = Place::top_right(right.width() + SPACE);
+        // On a practice sheet its bar holds the band's middle: the notice goes under it.
+        let place = if projection.practice().is_some() {
+            Place::middle_unless(true)
+        } else {
+            Place::top_right(right.width() + SPACE)
+        };
         let shown = (place, &mut self.reset_notice);
         let notice = notice_pill(ctx, projection, shown, &mut self.taps);
         let ppp = self.pixels_per_point;

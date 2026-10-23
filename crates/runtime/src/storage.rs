@@ -13,9 +13,11 @@ use openpaint_app::{
     ProjectStore, ProjectSummary, SaveId, Thumbnail, Title, VersionId,
 };
 use openpaint_core::Artwork;
+use openpaint_practice::SessionRecord;
 use openpaint_store::{Cached, DisplayCache};
 
 use crate::error::RuntimeError;
+use crate::practice::{self, PracticeDone, PracticeJob};
 use crate::worker::Queue;
 
 /// An artwork the library opened, with its cached canvas if the display cache holds one.
@@ -55,12 +57,13 @@ pub(crate) enum Job {
     /// creates its project.
     Save(Artwork),
     /// Leaving the open artwork: its `version` if not stored yet, then its thumbnail, then a
-    /// kept version dated `kept_at` (seconds since 1970 UTC) if it changed; with `close`, no
-    /// artwork is open afterwards. Nothing after a failed save happens.
+    /// kept version dated `kept_at` (seconds since 1970 UTC; none for a practice sheet) if it
+    /// changed; with `close`, no artwork is open afterwards. Nothing after a failed save
+    /// happens.
     Leave {
         version: Option<Artwork>,
         thumbnail: Option<Thumbnail>,
-        kept_at: u64,
+        kept_at: Option<u64>,
         close: bool,
     },
     /// A new artwork, which becomes the open one.
@@ -69,6 +72,8 @@ pub(crate) enum Job {
     Library(LibraryCall),
     /// An OpenPaint file to write or to read, once the system gave it.
     File(FileJob),
+    /// A practice session started or its record changed.
+    Practice(PracticeJob),
 }
 
 /// The gallery's calls the store serves as they are.
@@ -82,9 +87,10 @@ pub(crate) enum LibraryCall {
 }
 
 pub(crate) enum Done {
-    /// What opening found, and the stored toolbox; `None` when there is none or it could not
-    /// be read (logged here): the brushes keep their defaults.
-    Started(Opened, Option<Box<EditorState>>),
+    /// What opening found, the stored toolbox (`None` when there is none or it could not be
+    /// read, logged here: the brushes keep their defaults) and the practice sessions (none when
+    /// they could not be read, logged).
+    Started(Opened, Option<Box<EditorState>>, Vec<SessionRecord>),
     EditorSaved(Result<(), PortError>),
     /// A version saved, and where to: `None` for the first save of an artwork started blank,
     /// which created its project (its head holds no save id yet).
@@ -100,14 +106,15 @@ pub(crate) enum Done {
     Created(Artwork, Title, ProjectId),
     /// Everything else the gallery asked for, and the failures of the two above.
     Gallery(LibraryAnswer),
+    Practice(PracticeDone),
 }
 
 /// What the worker knows between calls.
 #[derive(Debug, Default)]
-struct Kept {
-    open: Option<ProjectId>,
+pub(crate) struct Kept {
+    pub(crate) open: Option<ProjectId>,
     /// The open artwork was saved since it opened or since a version of it was last kept.
-    changed: bool,
+    pub(crate) changed: bool,
 }
 
 pub(crate) struct Storage {
@@ -169,7 +176,7 @@ fn serve(served: Served<'_>, kept: &mut Kept, job: Job) -> Done {
 fn stopped(job: &Job) -> Done {
     let error = PortError::Stopped;
     match job {
-        Job::Start => Done::Started(Opened::Failed(error), None),
+        Job::Start => Done::Started(Opened::Failed(error), None, Vec::new()),
         Job::SaveEditor(_) => Done::EditorSaved(Err(error)),
         Job::Save(artwork) => Done::Saved(artwork.clone(), Err(error)),
         Job::Leave { version, .. } => Done::Left {
@@ -186,6 +193,7 @@ fn stopped(job: &Job) -> Done {
         Job::Library(_) => Done::Gallery(LibraryAnswer::Changed(Err(error))),
         Job::File(FileJob::Save { .. }) => Done::Gallery(LibraryAnswer::FileSaved(Err(error))),
         Job::File(FileJob::Open { .. }) => Done::Gallery(LibraryAnswer::FileOpened(Err(error))),
+        Job::Practice(job) => practice::stopped(job),
     }
 }
 
@@ -198,7 +206,11 @@ fn run((store, cache): Served<'_>, kept: &mut Kept, job: Job) -> Done {
                 .inspect_err(|error| log::warn!("the stored toolbox is unreadable: {error}"))
                 .ok()
                 .flatten();
-            Done::Started(opened, editor.map(Box::new))
+            let sessions = store
+                .practice()
+                .inspect_err(|error| log::warn!("the practice sessions are unreadable: {error}"))
+                .unwrap_or_default();
+            Done::Started(opened, editor.map(Box::new), sessions)
         }
         Job::SaveEditor(state) => Done::EditorSaved(store.save_editor(&state)),
         Job::Save(artwork) => {
@@ -223,6 +235,7 @@ fn run((store, cache): Served<'_>, kept: &mut Kept, job: Job) -> Done {
         },
         Job::Library(request) => library((store, cache), kept, request),
         Job::File(job) => file(store, job),
+        Job::Practice(job) => practice::run(store, kept, job),
     }
 }
 
@@ -286,7 +299,7 @@ fn leave(
     store: &mut dyn ProjectStore,
     kept: &mut Kept,
     (version, thumbnail): (Option<Artwork>, Option<&Thumbnail>),
-    kept_at: u64,
+    kept_at: Option<u64>,
     close: bool,
 ) -> Done {
     let result = match &version {
@@ -299,7 +312,7 @@ fn leave(
         {
             log::warn!("storing the thumbnail failed: {error}");
         }
-        if let Some(id) = kept.open.filter(|_| kept.changed) {
+        if let (Some(id), Some(kept_at)) = (kept.open.filter(|_| kept.changed), kept_at) {
             match store.keep_version(id, kept_at) {
                 Ok(()) => kept.changed = false,
                 Err(error) => log::warn!("keeping a version failed: {error}"),

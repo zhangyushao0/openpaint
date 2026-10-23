@@ -4,10 +4,11 @@
 use std::time::Instant;
 
 use openpaint_app::{
-    Clipboard, Contact, ContactPhase, FillFailed, Intent, LiftFailed, SelectionIntent, Session,
-    StrokeIntent, Title, ToolIntent, Toolbox, TransformJob, ViewMapping,
+    Clipboard, ContactPhase, FillFailed, Intent, LiftFailed, PracticeIntent, SelectionIntent,
+    Session, StrokeIntent, Title, ToolIntent, Toolbox, TransformJob, ViewMapping, Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, Patch, RegionMask, StrokeTool};
+use openpaint_practice::SessionRecord;
 use openpaint_render::{
     BrushCursor, CanvasPlacement, CanvasTarget, Core, ViewCache, ViewFrame, tip_radius,
 };
@@ -45,6 +46,17 @@ pub(crate) enum Leaving {
     Storing,
 }
 
+/// Where the canvas goes once it is left.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Then {
+    Gallery,
+    /// The next practice session's sheet (One more).
+    Practice,
+}
+
+/// A practice sheet's session record and the finished sessions of its stage before it.
+pub(crate) type SheetOf = Option<(SessionRecord, Vec<SessionRecord>)>;
+
 pub(crate) struct Canvas {
     session: Session,
     /// The gallery's name for the artwork, which exported files carry.
@@ -61,6 +73,7 @@ pub(crate) struct Canvas {
     /// layer edit), until it is evaluated.
     changed_from: Option<Artwork>,
     pub(crate) leaving: Leaving,
+    pub(crate) then: Then,
     /// What the layer panel's pictures were made of.
     pub(crate) pictures: Drawn,
     /// When it opened (or its device was made again), until the whole canvas was evaluated:
@@ -71,26 +84,31 @@ pub(crate) struct Canvas {
 }
 
 impl Canvas {
-    /// `content` shown at fit; a blank artwork is the size of the area it fits in; strokes
-    /// start with the toolbox's brush and StreamLine. `None` while the area is empty. Later area
+    /// `content` shown at fit (a practice sheet, given its session in `sheet`, on its shown
+    /// pair in `viewport`); a blank artwork is the size of the area it fits in; strokes start
+    /// with the toolbox's brush and StreamLine. `None` while the area is empty. Later area
     /// changes (rotation) refit the view, which is relative to fit, and never resize the canvas.
     pub(crate) fn open(
         core: &Core,
-        area: &CanvasArea,
+        (area, viewport): (&CanvasArea, &Viewport),
         content: &Content,
-        toolbox: &Toolbox,
+        (toolbox, sheet): (&Toolbox, SheetOf),
     ) -> Result<Option<Self>, RuntimeError> {
         let area = &area.fit;
         if area.size.contains(&0) {
             return Ok(None);
         }
         let brush = toolbox.style()?;
-        let (mut session, title) = match content {
-            Content::Stored(artwork, title, _) => {
+        let (mut session, title) = match (content, sheet) {
+            (Content::Stored(artwork, title, _), Some(sheet)) => (
+                Session::practising(artwork.clone(), brush, sheet, viewport),
+                title.clone(),
+            ),
+            (Content::Stored(artwork, title, _), None) => {
                 (Session::open(artwork.clone(), brush), title.clone())
             }
-            Content::Blank => (Session::new(blank_size(area)?, brush), Title::untitled()),
-            Content::BlankAfterFailedOpen => (
+            (Content::Blank, _) => (Session::new(blank_size(area)?, brush), Title::untitled()),
+            (Content::BlankAfterFailedOpen, _) => (
                 Session::after_failed_open(blank_size(area)?, brush),
                 Title::untitled(),
             ),
@@ -109,6 +127,7 @@ impl Canvas {
             evaluated: false,
             changed_from: None,
             leaving: Leaving::Staying,
+            then: Then::Gallery,
             pictures: Drawn::default(),
             opened: Some(Opening::start(core)),
             cache: CacheState::default(),
@@ -125,12 +144,13 @@ impl Canvas {
     /// session draws its next stroke with the style that results. While the eyedropper is on,
     /// canvas contacts pick colours instead of drawing (`pick`). The copy menu's commands copy
     /// into and paste from `clipboard`, the app's. Every contact touching down takes the next of
-    /// `seeds` for the stroke it may begin.
+    /// `seeds` for the stroke it may begin. Practice's intents happen at `now` (seconds since
+    /// 1970 UTC); One more leaves the sheet for the next session's.
     pub(crate) fn dispatch(
         &mut self,
         core: &Core,
         intents: Vec<Intent>,
-        (toolbox, clipboard, seeds): (&mut Toolbox, &mut Clipboard, &mut Seeds),
+        (toolbox, clipboard, seeds, now): (&mut Toolbox, &mut Clipboard, &mut Seeds, u64),
     ) {
         for intent in intents {
             if self.leaving != Leaving::Staying {
@@ -158,6 +178,13 @@ impl Canvas {
             let before = self.session.shown().clone();
             let result = match intent {
                 Intent::Clipboard(action) => self.session.clipboard(action, clipboard),
+                Intent::Practice(practice) => {
+                    let result = self.session.practise(practice, now);
+                    if result.is_ok() && practice == PracticeIntent::OneMore {
+                        (self.leaving, self.then) = (Leaving::Waiting, Then::Practice);
+                    }
+                    result
+                }
                 intent => self.session.dispatch(intent),
             };
             if cancel && self.session.active().is_none() {
@@ -232,45 +259,6 @@ impl Canvas {
         }
         if !before.same_version(self.session.shown()) {
             self.changed_from.get_or_insert(before);
-        }
-    }
-
-    /// The eyedropper: a contact on the canvas (pen or finger) previews the colour the canvas
-    /// shows under it, read back from the target (render picking), as it touches down and
-    /// moves; the loupe shows it. Lifting picks the last colour previewed, never one at the
-    /// release point: it joins the recent colours and the tool used before comes back. A
-    /// cancelled contact ends the eyedropper and keeps the colour.
-    fn pick(&mut self, core: &Core, contact: &Contact, toolbox: &mut Toolbox) {
-        match contact.phase {
-            ContactPhase::Down | ContactPhase::Move => {}
-            ContactPhase::Up => return toolbox.dispatch_tool(&ToolIntent::Pick),
-            ContactPhase::Cancel => return toolbox.dispatch_tool(&ToolIntent::Eyedropper(false)),
-            ContactPhase::Hover | ContactPhase::Leave => return,
-        }
-        let Some(sample) = contact.samples.last() else {
-            return;
-        };
-        // Tiles still waiting would read as they were.
-        if let Err(error) = self.settle(core) {
-            log::error!("evaluating the canvas before picking failed: {error}");
-        }
-        let [x, y] = sample.position.map(f32::floor);
-        let picked = if x >= 0.0 && y >= 0.0 {
-            self.target.pick(core, [x as u32, y as u32])
-        } else {
-            Ok(None)
-        };
-        match picked {
-            Ok(Some([r, g, b, _])) => {
-                let channel = |value: u8| f32::from(value) / 255.0;
-                match Color::rgb(channel(r), channel(g), channel(b)) {
-                    Ok(color) => toolbox.dispatch_tool(&ToolIntent::Preview(color)),
-                    Err(error) => log::error!("picked no colour: {error}"),
-                }
-            }
-            // Off the canvas: nothing to preview there; the last preview stays.
-            Ok(None) => {}
-            Err(error) => log::error!("picking failed: {error}"),
         }
     }
 
@@ -353,6 +341,9 @@ impl Canvas {
         &self.target
     }
 }
+
+#[path = "canvas_pick.rs"]
+mod pick;
 
 #[path = "canvas_gpu.rs"]
 mod gpu;

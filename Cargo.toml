@@ -5,6 +5,7 @@ members = [
     "crates/app",
     "crates/core",
     "crates/devtools",
+    "crates/practice",
     "crates/raster",
     "crates/render",
     "crates/runtime",
@@ -17,7 +18,7 @@ resolver = "3"
 [workspace.package]
 # The app's version (DECISIONS D79): xtask hands it to Gradle with the store's format as build
 # metadata (xtask/src/version.rs).
-version = "1.0.1"
+version = "1.1.0"
 edition = "2024"
 rust-version = "1.98"
 license = "MIT"
@@ -27,6 +28,7 @@ publish = false
 openpaint-app = { path = "crates/app" }
 openpaint-core = { path = "crates/core" }
 openpaint-devtools = { path = "crates/devtools" }
+openpaint-practice = { path = "crates/practice" }
 openpaint-raster = { path = "crates/raster" }
 openpaint-render = { path = "crates/render" }
 openpaint-runtime = { path = "crates/runtime" }

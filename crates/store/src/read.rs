@@ -18,7 +18,7 @@ use crate::records::{
     record_index, slot_strokes_prefix, thumbnail_key,
 };
 use crate::strokes::decode_stroke;
-use crate::versions;
+use crate::{practice, versions};
 
 /// What `Source::each` hands every record to: its key and value.
 pub(crate) type Visit<'a> = dyn FnMut(&[u8], &[u8]) -> Result<(), PortError> + 'a;
@@ -235,15 +235,19 @@ fn thumbnail(open: &Open, id: ProjectId) -> Result<Option<Thumbnail>, PortError>
         .ok())
 }
 
-/// Every project in the catalogue, touched last first, with its thumbnail and versions.
+/// Every project in the catalogue but the practice sheets, touched last first, with its
+/// thumbnail and versions.
 pub(crate) fn list(open: &Open) -> Result<Vec<ProjectSummary>, PortError> {
+    let sheets = practice::sheets(open)?;
     let mut entries = Vec::new();
     for guard in open.library.prefix(ENTRY) {
         let (key, value) = guard.into_inner().map_err(device)?;
         let id = entry_project(&key).ok_or(PortError::Corrupt {
             what: "catalogue key",
         })?;
-        entries.push((id, decode_entry(&value)?));
+        if !sheets.contains(&id.get()) {
+            entries.push((id, decode_entry(&value)?));
+        }
     }
     entries.sort_by(|(a_id, a), (b_id, b)| (b.touched, b_id).cmp(&(a.touched, a_id)));
     let mut summaries = Vec::with_capacity(entries.len());
