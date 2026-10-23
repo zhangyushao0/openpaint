@@ -1,0 +1,545 @@
+# The second official practice pack: compositions in three tiers (ROADMAP S85), the pictures
+# week 3 of V大's course on needs: picture division (画面分割: about five long main dividing
+# lines, then the secondary and tertiary ones), Notan in two or three values, whole-picture
+# copies in line or colour blocks, colour copies and abstract analysis (the focal point, the
+# contrasts and how they are spread). Built by
+# `cargo practice-pack build apps/harness/packs/compositions.toml --sheet`; the format is in
+# apps/harness/src/pack/list.rs. No picture is kept here: each item names its object at its
+# source, the licence the source must state, and why it is in its tier.
+#
+# Sources: public-domain paintings of the Met (`isPublicDomain`), the Art Institute of Chicago
+# (`is_public_domain`) and the National Gallery of Art (`openaccess` in its open data), all three
+# CC0, and of the Rijksmuseum (its picture's own rights statement, the Public Domain Mark, kept as
+# PD-old); stills of Blender's open films (`at`, the second) from their official releases on
+# Wikimedia Commons, under the film file's CC BY with its attribution.
+#
+# The tiers (`PictureKind::tiers`; no entry tier: even the simplest composition is a few masses):
+# - simple: two or three big masses and one focal point; a Notan in two values reads at a glance;
+# - medium: four to six masses in three values, secondary dividing lines, a figure or two;
+# - hard: many masses, figures in space, close values or a crowd held together by its light.
+#
+# Chosen on the contact sheets for a readable large structure, a clear focal point, strong and
+# weak contrasts, quiet low-saturation colour as well as bright; landscapes, interiors, figures in
+# space, still lifes and city views. Left out: nudes, violence, devotional pictures, portraits
+# without space, pictures dominated by text, small or damaged scans, scans showing the frame,
+# film frames showing actors' faces, and any licence the API does not state as the list's.
+# Looked at and left out (S85): a Monet stack in summer, Cézanne's Gulf of Marseille and Mont
+# Sainte-Victoire (the bay and the bands kept once), Turner's Whalers and Valley of Aosta (no
+# readable focal point), Twachtman's Winter Harmony (no structure), Madame X and Van Gogh's
+# Wheat Field with Cypresses (the Met's scans show the frame), van de Cappelle's Calm (only 843
+# pixels), Cassatt's Child's Bath (a bare child), a fourth and fifth Vermeer, Homer's Breezing
+# Up, Chardin's Attentive Nurse, Bellows' Lone Tenement, Pissarro's Louvre in rain, Breitner's
+# Kimono, Cuyp's riders, Constable's Salisbury, Boudin's Beach; Cosmos Laundromat (CC BY-SA on
+# Commons), Tears of Steel (actors), Glass Half (picture frames), Singularity (no ground).
+# No outline: a composition is compared by its picture in place.
+
+id = "openpaint-compositions"
+title = "Compositions"
+kind = "composition"
+
+# Simple
+
+[[item]]
+id = "monet-wheat-stack-snow"
+tier = "simple"
+source = "aic"
+object = "16560"
+licence = "CC0"
+reason = "one dark stack on a pale snow field under a band of blue hills: three masses, one focal point, close cool greys"
+
+[[item]]
+id = "monet-cliff-walk"
+tier = "simple"
+source = "aic"
+object = "14620"
+licence = "CC0"
+reason = "a cliff on the diagonal against sea and sky, two small figures on its edge: two big masses split by one line, bright colour"
+
+[[item]]
+id = "breton-song-of-the-lark"
+tier = "simple"
+source = "aic"
+object = "94841"
+licence = "CC0"
+reason = "one standing figure against a flat dark field, the low red sun beside her: a vertical against horizontals, the focal point at the face"
+
+[[item]]
+id = "bingham-fur-traders"
+tier = "simple"
+source = "met"
+object = "10159"
+licence = "CC0"
+reason = "one dark canoe and its reflection across a pale misty river: a horizontal band in a light field, the black cat as the accent"
+
+[[item]]
+id = "heade-approaching-storm"
+tier = "simple"
+source = "met"
+object = "11050"
+licence = "CC0"
+reason = "a black sky over a pale shore and dark still water, a white sail as the accent: a two-value Notan almost as painted"
+
+[[item]]
+id = "homer-northeaster"
+tier = "simple"
+source = "met"
+object = "11130"
+licence = "CC0"
+reason = "a white breaking wave against dark rocks and a grey sky: three masses on a diagonal, the strongest contrast at the crest"
+
+[[item]]
+id = "rembrandt-the-mill"
+tier = "simple"
+source = "nga"
+object = "1201"
+licence = "CC0"
+reason = "one dark mill on its bastion against a lit sky: a single silhouette, the bank's diagonal the main dividing line"
+
+[[item]]
+id = "turner-keelmen"
+tier = "simple"
+source = "nga"
+object = "1225"
+licence = "CC0"
+reason = "the moon between two dark banks of ships, its light down the water: a symmetrical tunnel of value round one focal point"
+
+[[item]]
+id = "monet-woman-with-parasol"
+tier = "simple"
+source = "nga"
+object = "61379"
+licence = "CC0"
+reason = "a figure seen from below against a bright sky, the dark parasol at the top: one vertical mass on a light ground, bright colour"
+
+[[item]]
+id = "sisley-first-snow"
+tier = "simple"
+source = "nga"
+object = "62641"
+licence = "CC0"
+reason = "a snowy road between a fence and trees leading to one house: converging lines in close light greys, a weak-contrast picture"
+
+[[item]]
+id = "heade-giant-magnolias"
+tier = "simple"
+source = "nga"
+object = "93464"
+licence = "CC0"
+reason = "white magnolias on a deep blue velvet cloth: a still life of one light mass on a dark ground"
+
+[[item]]
+id = "ruisdael-windmill"
+tier = "simple"
+source = "rijks"
+object = "SK-C-211"
+licence = "PD-old"
+reason = "one dark mill against a towering cloudy sky over a low horizon: a single vertical accent dividing sky and water"
+
+[[item]]
+id = "asselijn-threatened-swan"
+tier = "simple"
+source = "rijks"
+object = "SK-A-4"
+licence = "PD-old"
+reason = "one white swan, wings spread, on a dark ground: a single light shape filling the frame"
+
+[[item]]
+id = "rembrandt-stone-bridge"
+tier = "simple"
+source = "rijks"
+object = "SK-A-1935"
+licence = "PD-old"
+reason = "a lit clump of trees under a storm-dark sky: one light focal mass in a dark field, a Notan of two values"
+
+[[item]]
+id = "mauve-morning-ride"
+tier = "simple"
+source = "rijks"
+object = "SK-A-3602"
+licence = "PD-old"
+reason = "three riders on a pale beach under a grey sky: dark accents on a light ground, quiet low-saturation colour"
+
+[[item]]
+id = "coorte-asparagus"
+tier = "simple"
+source = "rijks"
+object = "SK-A-2099"
+licence = "PD-old"
+reason = "a bundle of asparagus on a stone ledge before a dark ground: a still life of one light mass and one edge"
+
+[[item]]
+id = "spring-cliff-above-clouds"
+tier = "simple"
+source = "commons"
+object = "File:Spring - Blender Open Movie.webm"
+at = 72
+licence = "CC BY 4.0"
+reason = "a girl and her dog on a dark cliff over a sea of cloud and far peaks: one small focal figure, three bands of value"
+
+[[item]]
+id = "spring-stone-in-fog"
+tier = "simple"
+source = "commons"
+object = "File:Spring - Blender Open Movie.webm"
+at = 120
+licence = "CC BY 4.0"
+reason = "a carved stone on a mound at the end of a path, lit fog behind it: one silhouette against light, dark framing roots, low saturation"
+
+[[item]]
+id = "sintel-dunes"
+tier = "simple"
+source = "commons"
+object = "File:Sintel movie 4K.webm"
+at = 370
+licence = "CC BY 3.0"
+reason = "pale dunes under a pale sky, one tiny walker: soft curves in close warm values, the figure the only accent"
+
+[[item]]
+id = "big-buck-bunny-meadow"
+tier = "simple"
+source = "commons"
+object = "File:Big Buck Bunny 4K.webm"
+at = 490
+licence = "CC BY 3.0"
+reason = "a big sky and cloud over a low meadow, a dark tree at the edge and a small white figure: a low horizon and one framing mass"
+
+[[item]]
+id = "coffee-run-slope"
+tier = "simple"
+source = "commons"
+object = "File:Coffee Run - Blender Open Movie-full movie.webm"
+at = 8
+licence = "CC BY 4.0"
+reason = "a steep orange slope against pale city silhouettes, a tiny rider on it: one diagonal division, flat low-saturation colour"
+
+# Medium
+
+[[item]]
+id = "homer-herring-net"
+tier = "medium"
+source = "aic"
+object = "25865"
+licence = "CC0"
+reason = "two fishermen hauling a net in a boat on a grey swell: the figures one dark mass against the sky, close greys round the silver catch"
+
+[[item]]
+id = "van-gogh-bedroom"
+tier = "medium"
+source = "aic"
+object = "28560"
+licence = "CC0"
+reason = "a small room in flat bright colour: bed, chairs, table and window as five masses in a steep perspective"
+
+[[item]]
+id = "cezanne-basket-of-apples"
+tier = "medium"
+source = "aic"
+object = "111436"
+licence = "CC0"
+reason = "a basket, a bottle, a plate and a white cloth on a tilted table: a still life of several masses, the cloth the strongest light"
+
+[[item]]
+id = "cezanne-bay-of-marseille"
+tier = "medium"
+source = "aic"
+object = "16487"
+licence = "CC0"
+reason = "roofs, the bay and the hills in three bands: picture division by horizontals, warm against cool, the village in many small planes"
+
+[[item]]
+id = "hokusai-great-wave"
+tier = "medium"
+source = "aic"
+object = "24645"
+licence = "CC0"
+reason = "a wave's claw arching over boats, a small mountain in the hollow: one curved main division and a clear focal point, few colours (a small title panel)"
+
+[[item]]
+id = "eakins-single-scull"
+tier = "medium"
+source = "met"
+object = "10819"
+licence = "CC0"
+reason = "a sculler on a still river under a bridge: horizontal bands of sky, trees and water, one bright boat as the focal point"
+
+[[item]]
+id = "cezanne-card-players"
+tier = "medium"
+source = "met"
+object = "435868"
+licence = "CC0"
+reason = "three players and a standing man round a table: figures as interlocking masses, warm against cool"
+
+[[item]]
+id = "seurat-circus-sideshow"
+tier = "medium"
+source = "met"
+object = "437654"
+licence = "CC0"
+reason = "a night frieze of a stage, lamps and a crowd's heads: horizontals and verticals in close dark blues and violets, a weak-contrast picture"
+
+[[item]]
+id = "corot-ville-davray"
+tier = "medium"
+source = "nga"
+object = "43430"
+licence = "CC0"
+reason = "trees by a pond, a far house, one small figure: soft masses in close silvery greens, low saturation"
+
+[[item]]
+id = "bellows-blue-morning"
+tier = "medium"
+source = "nga"
+object = "46557"
+licence = "CC0"
+reason = "a building pit seen between dark columns of an elevated railway: strong verticals framing a bright middle band"
+
+[[item]]
+id = "sargent-street-in-venice"
+tier = "medium"
+source = "nga"
+object = "46428"
+licence = "CC0"
+reason = "a woman walking down a narrow street, two men watching: a deep recession in close browns and greys"
+
+[[item]]
+id = "cassatt-boating-party"
+tier = "medium"
+source = "nga"
+object = "46569"
+licence = "CC0"
+reason = "a rower's dark back, a mother and child, a yellow boat on a blue sea: big flat masses on strong diagonals"
+
+[[item]]
+id = "vermeer-milkmaid"
+tier = "medium"
+source = "rijks"
+object = "SK-A-2344"
+licence = "PD-old"
+reason = "a woman pouring milk by a window: one figure as a vertical mass before a lit wall, blue against yellow"
+
+[[item]]
+id = "vermeer-little-street"
+tier = "medium"
+source = "rijks"
+object = "SK-A-2860"
+licence = "PD-old"
+reason = "a house front with two doorways and a strip of sky: rectangles of brick, whitewash and window, two small figures"
+
+[[item]]
+id = "van-de-velde-cannon-shot"
+tier = "medium"
+source = "rijks"
+object = "SK-C-244"
+licence = "PD-old"
+reason = "a warship firing a salute on a calm sea, its smoke a pale mass: light sails against cloud, the reflection doubling the ship"
+
+[[item]]
+id = "saenredam-mariakerk"
+tier = "medium"
+source = "rijks"
+object = "SK-A-851"
+licence = "PD-old"
+reason = "a nave seen along its arches to the choir: architecture in light greys and ochres, a weak-contrast perspective"
+
+[[item]]
+id = "heda-gilt-cup"
+tier = "medium"
+source = "rijks"
+object = "SK-A-4830"
+licence = "PD-old"
+reason = "a gilt cup, a green glass, a pewter jug and plates on a white cloth: a still life in close greys with one gold accent"
+
+[[item]]
+id = "sprite-fright-forest-path"
+tier = "medium"
+source = "commons"
+object = "File:Sprite Fright - Blender Open Movie-full movie.webm"
+at = 70
+licence = "CC BY 4.0"
+reason = "a sunlit path through a dark forest arch: a tunnel of dark trees round a light opening, warm greens"
+
+[[item]]
+id = "big-buck-bunny-hill-tree"
+tier = "medium"
+source = "commons"
+object = "File:Big Buck Bunny 4K.webm"
+at = 30
+licence = "CC BY 3.0"
+reason = "a great tree on a sunlit mound, a burrow under it: one big mass, light and shade across it, a dark focal hole"
+
+[[item]]
+id = "sintel-rock-in-haze"
+tier = "medium"
+source = "commons"
+object = "File:Sintel movie 4K.webm"
+at = 690
+licence = "CC BY 3.0"
+reason = "a girl sitting on a rock spur in a pink haze of mountains: dark foreground, receding pale planes, one small figure"
+
+[[item]]
+id = "charge-firelight"
+tier = "medium"
+source = "commons"
+object = "File:Charge - Blender Open Movie-full movie.webm"
+at = 170
+licence = "CC BY 4.0"
+reason = "an old man and a small robot by a fire in a dark room: two lit figures in a dark ground, warm against one green light"
+
+[[item]]
+id = "caminandes-frozen-pond"
+tier = "medium"
+source = "commons"
+object = "File:Caminandes 3 - Llamigos - Blender Animated Short.webm"
+at = 10
+licence = "CC BY 3.0"
+reason = "a llama on a frozen pond before a fence and snowy hills: one warm figure on cool light grounds, the fence as a dividing line"
+
+# Hard
+
+[[item]]
+id = "monet-gare-saint-lazare"
+tier = "hard"
+source = "aic"
+object = "16571"
+licence = "CC0"
+reason = "a station shed, steam and engines: a big dark roof over soft greys and blues, many small masses held by the arch"
+
+[[item]]
+id = "caillebotte-paris-street-rain"
+tier = "hard"
+source = "aic"
+object = "20684"
+licence = "CC0"
+reason = "a rainy crossroads in deep perspective, a lamp post dividing it in two: figures at several distances, close greys"
+
+[[item]]
+id = "toulouse-lautrec-moulin-rouge"
+tier = "hard"
+source = "aic"
+object = "61128"
+licence = "CC0"
+reason = "figures round a table behind a sharp diagonal rail, a lit face cut by the edge: many overlapping masses, strange colour"
+
+[[item]]
+id = "seurat-grande-jatte"
+tier = "hard"
+source = "aic"
+object = "27992"
+licence = "CC0"
+reason = "a park of many figures in sun and shade: big bands of light and shadow holding dozens of figures, a painted border"
+
+[[item]]
+id = "cole-oxbow"
+tier = "hard"
+source = "met"
+object = "10497"
+licence = "CC0"
+reason = "a storm over a wooded hill and a sunlit river bend: a diagonal division between a dark and a light half, much detail"
+
+[[item]]
+id = "bruegel-harvesters"
+tier = "hard"
+source = "met"
+object = "435809"
+licence = "CC0"
+reason = "harvesters resting under a tree, wheat to a far horizon: a gold mass against green, many figures at several depths"
+
+[[item]]
+id = "pissarro-tuileries-winter"
+tier = "hard"
+source = "met"
+object = "437314"
+licence = "CC0"
+reason = "a garden seen from above, paths, lawns and bare trees under a winter sky: many small masses in close greys"
+
+[[item]]
+id = "bierstadt-rocky-mountains"
+tier = "hard"
+source = "met"
+object = "10154"
+licence = "CC0"
+reason = "peaks, a waterfall, a lake and a camp: layered planes from a dark foreground to a pale distance"
+
+[[item]]
+id = "pissarro-boulevard-des-italiens"
+tier = "hard"
+source = "nga"
+object = "46673"
+licence = "CC0"
+reason = "a boulevard from above, crowds, carriages and trees: one diagonal street holding countless small marks"
+
+[[item]]
+id = "canaletto-saint-marks"
+tier = "hard"
+source = "nga"
+object = "32588"
+licence = "CC0"
+reason = "a square in perspective with the basilica, the palace and the flagpoles: architecture and many small figures under a light sky"
+
+[[item]]
+id = "de-hooch-dutch-courtyard"
+tier = "hard"
+source = "nga"
+object = "63"
+licence = "CC0"
+reason = "a courtyard with figures at a table and a girl by a door: rectangles of wall, door and sky, figures at two depths"
+
+[[item]]
+id = "breitner-singel-bridge"
+tier = "hard"
+source = "rijks"
+object = "SK-A-3580"
+licence = "PD-old"
+reason = "walkers on a snowy bridge, houses beyond: figures cut by the edge, warm darks on snow, a high horizon"
+
+[[item]]
+id = "de-hooch-linen-cupboard"
+tier = "hard"
+source = "rijks"
+object = "SK-C-1191"
+licence = "PD-old"
+reason = "two women at a cupboard, rooms opening behind them: interiors in depth, a tiled floor, light through doors"
+
+[[item]]
+id = "avercamp-skaters"
+tier = "hard"
+source = "rijks"
+object = "SK-A-1718"
+licence = "PD-old"
+reason = "hundreds of skaters on a frozen river: a pale field held by dark trees and buildings at the sides"
+
+[[item]]
+id = "rembrandt-night-watch"
+tier = "hard"
+source = "rijks"
+object = "SK-C-5"
+licence = "PD-old"
+reason = "a militia company stepping out of the dark: lit figures in a deep dark ground, many faces and diagonals"
+
+[[item]]
+id = "coffee-run-cafe"
+tier = "hard"
+source = "commons"
+object = "File:Coffee Run - Blender Open Movie-full movie.webm"
+at = 56
+licence = "CC BY 4.0"
+reason = "a café interior against a bright window, customers in silhouette, the counter on the right: many flat masses in depth"
+
+[[item]]
+id = "sintel-ruined-city"
+tier = "hard"
+source = "commons"
+object = "File:Sintel movie 4K.webm"
+at = 290
+licence = "CC BY 3.0"
+reason = "ruined stairs and columns in low warm light, a banner on a pole: many planes and edges in close warm values"
+
+[[item]]
+id = "elephants-dream-machine-hall"
+tier = "hard"
+source = "commons"
+object = "File:Elephants Dream (2006).webm"
+at = 510
+licence = "CC BY 2.5"
+reason = "a small figure in a golden hall of machines: a tangle of warm forms round one standing figure in green"

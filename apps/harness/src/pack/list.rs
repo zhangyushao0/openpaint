@@ -1,18 +1,22 @@
 //! A pack's source list (`apps/harness/packs/<name>.toml`, kept in the repository): which
-//! pictures go into the pack and why, never the pictures. The pack's id, title and kind, then
-//! per item:
+//! pictures go into the pack and why, never the pictures. The pack's id, title and kind
+//! (`shape` or `composition`), then per item:
 //!
 //! - `id`: the item's id in the pack, kept across editions (exercises name it);
-//! - `tier`: `entry`, `simple`, `medium` or `hard`;
+//! - `tier`: one its kind takes (`entry`, `simple`, `medium`, `hard`; a composition no `entry`);
 //! - `source`: `cleveland` (the Cleveland Museum of Art's Open Access API), `met` (the
-//!   Metropolitan Museum of Art's Collection API) or `commons` (Wikimedia Commons' API);
-//! - `object`: what the source's API knows it by: Cleveland's accession number, the Met's object
-//!   id, a Commons file's title (`File:…`);
+//!   Metropolitan Museum of Art's Collection API), `aic` (the Art Institute of Chicago's API),
+//!   `nga` (the National Gallery of Art's open data), `rijks` (the Rijksmuseum's Linked Art
+//!   API) or `commons` (Wikimedia Commons' API);
+//! - `object`: what the source knows it by: Cleveland's accession number, the Met's, the Art
+//!   Institute's or the National Gallery's object id, the Rijksmuseum's object number, a Commons
+//!   file's title (`File:…`);
+//! - `at` (a Commons video only): the second of the frame taken, as a still;
 //! - `licence`: the licence the API must state (`CC0`, `PD-US-gov`, `PD-old`, `CC BY 4.0`, …);
 //! - `reason`: why it is in its tier, which the pack keeps as the item's notes;
-//! - `no_outline` (only where it applies): why the item has no outline, its derived outline
-//!   looked at on the contact sheet and judged wrong, or refused by the derivation itself (the
-//!   build fails on a refusal the list does not record).
+//! - `no_outline` (a shape only, where it applies): why the item has no outline, its derived
+//!   outline looked at on the contact sheet and judged wrong, or refused by the derivation itself
+//!   (the build fails on a refusal the list does not record). A composition never has one.
 
 use std::collections::HashSet;
 
@@ -26,16 +30,29 @@ use crate::error::HarnessError;
 pub enum Source {
     Cleveland,
     Met,
+    Aic,
+    Nga,
+    Rijks,
     Commons,
 }
 
 impl Source {
-    pub const ALL: [Self; 3] = [Self::Cleveland, Self::Met, Self::Commons];
+    pub const ALL: [Self; 6] = [
+        Self::Cleveland,
+        Self::Met,
+        Self::Aic,
+        Self::Nga,
+        Self::Rijks,
+        Self::Commons,
+    ];
 
     pub const fn name(self) -> &'static str {
         match self {
             Self::Cleveland => "cleveland",
             Self::Met => "met",
+            Self::Aic => "aic",
+            Self::Nga => "nga",
+            Self::Rijks => "rijks",
             Self::Commons => "commons",
         }
     }
@@ -63,6 +80,8 @@ struct WrittenItem {
     tier: String,
     source: String,
     object: String,
+    #[serde(default)]
+    at: Option<f64>,
     licence: String,
     reason: String,
     #[serde(default)]
@@ -85,10 +104,22 @@ pub struct Listed {
     pub tier: Tier,
     pub source: Source,
     pub object: String,
+    /// The second of a Commons video's frame taken as the picture.
+    pub at: Option<f64>,
     pub licence: Licence,
     pub reason: String,
     /// Why it has no outline, when it has none.
     pub no_outline: Option<String>,
+}
+
+impl Listed {
+    /// What names its downloads in the cache: its object, and the second of its frame.
+    pub fn key(&self) -> String {
+        match self.at {
+            Some(at) => format!("{}@{at}", self.object),
+            None => self.object.clone(),
+        }
+    }
 }
 
 impl SourceList {
@@ -96,7 +127,9 @@ impl SourceList {
     ///
     /// # Errors
     /// `List` for TOML that is no source list, a kind, tier, source or licence of no known name,
-    /// an id that is not a pack's, taken twice, or an item without its object or reason.
+    /// a tier the kind does not take, an id that is not a pack's, taken twice, an item without
+    /// its object or reason, a frame's second outside Commons or below zero, or `no_outline` on
+    /// a kind never outlined.
     pub fn parse(text: &str) -> Result<Self, HarnessError> {
         let written: Written =
             toml::from_str(text).map_err(|error| HarnessError::List(error.to_string()))?;
@@ -108,30 +141,13 @@ impl SourceList {
         let mut seen = HashSet::new();
         let mut items = Vec::with_capacity(written.items.len());
         for item in written.items {
-            let wrong = |what: &str| HarnessError::List(format!("item {}: {what}", item.id));
             if !valid_id(&item.id) || !seen.insert(item.id.clone()) {
-                return Err(wrong("its id is no item id or is taken"));
+                let id = &item.id;
+                return Err(HarnessError::List(format!(
+                    "item {id}: its id is no item id or is taken"
+                )));
             }
-            if item.object.trim().is_empty() || item.reason.trim().is_empty() {
-                return Err(wrong("it has no object or no reason"));
-            }
-            if item
-                .no_outline
-                .as_ref()
-                .is_some_and(|why| why.trim().is_empty())
-            {
-                return Err(wrong("it has no outline and says not why"));
-            }
-            items.push(Listed {
-                tier: Tier::of_name(&item.tier).ok_or_else(|| wrong("no such tier"))?,
-                source: Source::of_name(&item.source).ok_or_else(|| wrong("no such source"))?,
-                licence: Licence::of_name(&item.licence)
-                    .ok_or_else(|| wrong("no licence a pack takes"))?,
-                id: item.id,
-                object: item.object,
-                reason: item.reason,
-                no_outline: item.no_outline,
-            });
+            items.push(listed(kind, item)?);
         }
         Ok(Self {
             id: written.id,
@@ -140,4 +156,39 @@ impl SourceList {
             items,
         })
     }
+}
+
+/// One written item of a list of `kind`, checked.
+fn listed(kind: PictureKind, item: WrittenItem) -> Result<Listed, HarnessError> {
+    let wrong = |what: &str| HarnessError::List(format!("item {}: {what}", item.id));
+    if item.object.trim().is_empty() || item.reason.trim().is_empty() {
+        return Err(wrong("it has no object or no reason"));
+    }
+    match &item.no_outline {
+        Some(_) if !kind.outlined() => return Err(wrong("its kind never has an outline")),
+        Some(why) if why.trim().is_empty() => {
+            return Err(wrong("it has no outline and says not why"));
+        }
+        _ => {}
+    }
+    let tier = Tier::of_name(&item.tier).ok_or_else(|| wrong("no such tier"))?;
+    if !kind.tiers().contains(&tier) {
+        return Err(wrong("its tier is not one its kind takes"));
+    }
+    let source = Source::of_name(&item.source).ok_or_else(|| wrong("no such source"))?;
+    match item.at {
+        Some(_) if source != Source::Commons => return Err(wrong("a frame comes from Commons")),
+        Some(at) if !(at >= 0.0 && at.is_finite()) => return Err(wrong("its frame's second")),
+        _ => {}
+    }
+    Ok(Listed {
+        tier,
+        source,
+        licence: Licence::of_name(&item.licence).ok_or_else(|| wrong("no licence a pack takes"))?,
+        id: item.id,
+        object: item.object,
+        at: item.at,
+        reason: item.reason,
+        no_outline: item.no_outline,
+    })
 }

@@ -1,14 +1,18 @@
 //! What each source's API says about an object: its title, creator, page, the licence the API
 //! states and the picture to download. The licence is read only from the API's own field
-//! (Cleveland's `share_license_status`, the Met's `isPublicDomain`, Commons' machine-readable
-//! `License` with its templates, `commons.rs`), never assumed from the source.
+//! (Cleveland's `share_license_status`, the Met's `isPublicDomain`, the Art Institute's
+//! `is_public_domain`, the National Gallery's `openaccess`, `nga.rs`, the Rijksmuseum's rights
+//! statement of its picture, `rijks.rs`, Commons' machine-readable `License` with its templates,
+//! `commons.rs`), never assumed from the source.
+
+use std::cell::OnceCell;
 
 use openpaint_practice::Licence;
 use serde_json::Value;
 
-use super::commons;
-use super::fetch::{Fetcher, cache_name, query_text};
-use super::list::Source;
+use super::fetch::{Fetcher, USER_AGENT, cache_name, query_text};
+use super::list::{Listed, Source};
+use super::{commons, nga, rijks};
 use crate::error::HarnessError;
 
 /// The licence an API states for an object.
@@ -36,41 +40,87 @@ pub struct Found {
     /// The object's page at the source.
     pub page: String,
     pub stated: Stated,
-    /// The picture to download: the largest the source hands out as a JPEG or PNG.
+    /// The picture to download: the largest the source hands out as a JPEG or PNG (at most
+    /// 2,048 pixels a side where the source sizes it).
     pub picture: String,
     /// Who to credit: the creator, or the attribution the file's author asked for.
     pub credit: String,
     /// The collection the picture comes from.
     pub collection: &'static str,
+    /// What the pack's picture changes, as an Attribution licence's credit says it.
+    pub changes: &'static str,
+    /// The headers the source asks the picture's request to carry.
+    pub headers: &'static [(&'static str, &'static str)],
 }
 
-/// `object` as `source`'s API describes it, its answer cached.
-///
-/// # Errors
-/// `Fetch` when the API cannot be reached or does not answer as documented (a field missing).
-pub fn look_up(fetcher: &Fetcher, source: Source, object: &str) -> Result<Found, HarnessError> {
-    let name = cache_name(source.name(), object, "json");
-    match source {
-        Source::Cleveland => {
-            let url = format!(
-                "https://openaccess-api.clevelandart.org/api/artworks/{}",
-                query_text(object)
-            );
-            cleveland(&fetcher.json(&name, &url)?["data"], &url)
+/// The sources' APIs through one cache, the National Gallery's tables read once for all items.
+pub struct Sources<'a> {
+    fetcher: &'a Fetcher,
+    nga: OnceCell<nga::Tables>,
+}
+
+impl<'a> Sources<'a> {
+    pub fn new(fetcher: &'a Fetcher) -> Self {
+        Self {
+            fetcher,
+            nga: OnceCell::new(),
         }
-        Source::Met => {
-            let url = format!(
-                "https://collectionapi.metmuseum.org/public/collection/v1/objects/{}",
-                query_text(object)
-            );
-            met(&fetcher.json(&name, &url)?, &url)
-        }
-        Source::Commons => {
-            let url = commons::info_url(object);
-            commons::found(&fetcher.json(&name, &url)?, &url)
+    }
+
+    pub fn fetcher(&self) -> &'a Fetcher {
+        self.fetcher
+    }
+
+    /// The object `listed` names, as its source's API describes it, the answers cached.
+    ///
+    /// # Errors
+    /// `Fetch` when the API cannot be reached or does not answer as documented (a field
+    /// missing).
+    pub fn look_up(&self, listed: &Listed) -> Result<Found, HarnessError> {
+        let fetcher = self.fetcher;
+        let object = listed.object.as_str();
+        let name = cache_name(listed.source.name(), &listed.key(), "json");
+        match listed.source {
+            Source::Cleveland => {
+                let url = format!(
+                    "https://openaccess-api.clevelandart.org/api/artworks/{}",
+                    query_text(object)
+                );
+                cleveland(&fetcher.json(&name, &url)?["data"], &url)
+            }
+            Source::Met => {
+                let url = format!(
+                    "https://collectionapi.metmuseum.org/public/collection/v1/objects/{}",
+                    query_text(object)
+                );
+                met(&fetcher.json(&name, &url)?, &url)
+            }
+            Source::Aic => {
+                let url = aic_url(object);
+                aic(&fetcher.json_with(&name, &url, &AIC_HEADERS)?, &url)
+            }
+            Source::Nga => {
+                let tables = match self.nga.get() {
+                    Some(tables) => tables,
+                    None => {
+                        let loaded = nga::Tables::load(fetcher)?;
+                        self.nga.get_or_init(|| loaded)
+                    }
+                };
+                tables.found(object)
+            }
+            Source::Rijks => rijks::found(fetcher, object),
+            Source::Commons => {
+                let url = commons::info_url(object, listed.at);
+                commons::found(&fetcher.json(&name, &url)?, &url, listed.at)
+            }
         }
     }
 }
+
+/// The header the Art Institute asks every request to its API and pictures to carry: who is
+/// asking (without it the requests are turned away).
+pub const AIC_HEADERS: [(&str, &str); 1] = [("AIC-User-Agent", USER_AGENT)];
 
 /// The text at `field`, trimmed; `None` when missing or empty.
 pub fn text(value: &Value, field: &str) -> Option<String> {
@@ -83,6 +133,15 @@ pub fn lacking(url: &str, field: &str) -> HarnessError {
     HarnessError::Fetch {
         url: url.to_owned(),
         detail: format!("the answer has no {field}"),
+    }
+}
+
+/// `Cc0` when `open`, else the API's own words for what it is.
+fn cc0_when(open: bool, otherwise: &str) -> Stated {
+    if open {
+        Stated::Licence(Licence::Cc0)
+    } else {
+        Stated::Other(otherwise.to_owned())
     }
 }
 
@@ -100,14 +159,12 @@ fn cleveland(data: &Value, url: &str) -> Result<Found, HarnessError> {
         credit: creator.clone(),
         creator,
         page: text(data, "url").ok_or_else(|| lacking(url, "page"))?,
-        stated: if status == "CC0" {
-            Stated::Licence(Licence::Cc0)
-        } else {
-            Stated::Other(status)
-        },
+        stated: cc0_when(status == "CC0", &status),
         picture: text(&data["images"]["print"], "url")
             .ok_or_else(|| lacking(url, "print picture"))?,
         collection: "The Cleveland Museum of Art",
+        changes: "resized",
+        headers: &[],
     })
 }
 
@@ -124,18 +181,50 @@ fn met(object: &Value, url: &str) -> Result<Found, HarnessError> {
         credit: creator.clone(),
         creator,
         page: text(object, "objectURL").ok_or_else(|| lacking(url, "page"))?,
-        stated: if public {
-            Stated::Licence(Licence::Cc0)
-        } else {
-            Stated::Other("not public domain".to_owned())
-        },
+        stated: cc0_when(public, "not public domain"),
         picture: text(object, "primaryImage").ok_or_else(|| lacking(url, "picture"))?,
         collection: "The Metropolitan Museum of Art",
+        changes: "resized",
+        headers: &[],
+    })
+}
+
+/// The Art Institute of Chicago's API answer about artwork `id`, its fields only.
+pub fn aic_url(id: &str) -> String {
+    format!(
+        "https://api.artic.edu/api/v1/artworks/{}?fields=id,title,artist_title,is_public_domain,\
+         image_id",
+        query_text(id)
+    )
+}
+
+/// The Art Institute of Chicago's API: `is_public_domain` true for the works whose pictures the
+/// museum releases under CC0; the picture from its IIIF server (the answer's `iiif_url`),
+/// fitted within 2,048 pixels.
+fn aic(answer: &Value, url: &str) -> Result<Found, HarnessError> {
+    let data = &answer["data"];
+    let public = data["is_public_domain"]
+        .as_bool()
+        .ok_or_else(|| lacking(url, "is_public_domain"))?;
+    let id = data["id"].as_u64().ok_or_else(|| lacking(url, "id"))?;
+    let image = text(data, "image_id").ok_or_else(|| lacking(url, "image_id"))?;
+    let iiif = text(&answer["config"], "iiif_url").ok_or_else(|| lacking(url, "iiif_url"))?;
+    let creator = text(data, "artist_title").unwrap_or_else(|| unknown_maker(None));
+    Ok(Found {
+        title: text(data, "title").ok_or_else(|| lacking(url, "title"))?,
+        credit: creator.clone(),
+        creator,
+        page: format!("https://www.artic.edu/artworks/{id}"),
+        stated: cc0_when(public, "not public domain"),
+        picture: format!("{iiif}/{image}/full/!2048,2048/0/default.jpg"),
+        collection: "The Art Institute of Chicago",
+        changes: "resized",
+        headers: &AIC_HEADERS,
     })
 }
 
 /// An anonymous object's creator, by its culture when the museum names one.
-fn unknown_maker(culture: Option<&str>) -> String {
+pub fn unknown_maker(culture: Option<&str>) -> String {
     match culture.map(str::trim).filter(|culture| !culture.is_empty()) {
         Some(culture) => format!("Unknown maker, {culture}"),
         None => "Unknown maker".to_owned(),

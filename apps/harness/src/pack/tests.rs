@@ -270,6 +270,8 @@ fn an_attribution_names_the_creator_and_the_credit_asked_for() {
         picture: String::new(),
         credit: "Copyright 2019 Twitter, Inc and other contributors".to_owned(),
         collection: "Wikimedia Commons",
+        changes: "resized",
+        headers: &[],
     };
     assert_eq!(
         attribution(&found, Licence::CcBy4),

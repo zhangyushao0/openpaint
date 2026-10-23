@@ -1,20 +1,21 @@
 //! A pack built from its source list: each item looked up through its source's API, the licence
 //! the API states checked against the list's (a licence that disagrees fails the build and names
 //! the item), its picture downloaded and made as the pack holds it (the store's `pack_picture`),
-//! its silhouette outline derived unless the list says it has none and why. The rule for every
-//! item alike (`openpaint_practice::outline_of_matte`): a picture on a clear ground keeps the
-//! outline of its own alpha, any other the outline of the segmentation's matte (`segment.rs`).
+//! and, for a kind outlined (shapes), its silhouette outline derived unless the list says it has
+//! none and why. The rule for every shape alike (`openpaint_practice::outline_of_matte`): a
+//! picture on a clear ground keeps the outline of its own alpha, any other the outline of the
+//! segmentation's matte (`segment.rs`). A composition is never outlined: the step does not run.
 //! Every download comes through the cache, and decoding, reducing, encoding, segmenting and
 //! deriving are exact, so the same list and cache give the same pack byte for byte.
 
 use openpaint_practice::{
     Credit, Licence, Matte, Outline, OutlineRefusal, Pack, PackItem, PictureKind, outline_of_matte,
 };
-use openpaint_store::pack_picture;
+use openpaint_store::{PackPicture, pack_picture};
 
 use super::fetch::{Fetcher, cache_name};
 use super::list::{Listed, SourceList};
-use super::sources::{Found, Stated, look_up};
+use super::sources::{Found, Sources, Stated};
 use crate::error::HarnessError;
 
 /// What became of an item's outline.
@@ -29,6 +30,8 @@ pub enum Outlined {
     },
     /// The derivation refused it and the list does not say so: the pack is not written.
     Refused(OutlineRefusal),
+    /// Its kind is compared without one (a composition): nothing was derived.
+    Never,
 }
 
 /// A pack as built: its manifest, its pictures' files in the list's order and what became of
@@ -40,10 +43,11 @@ pub struct Built {
 }
 
 /// The segmentation's matte of a picture (8-bit sRGB RGBA of its size): the model's
-/// (`Segmenter::matte`), or a test's own.
+/// (`Segmenter::matte`), or a test's own. Never called for a kind not outlined.
 pub type Segment<'a> = &'a dyn Fn([u32; 2], &[u8]) -> Result<Matte, HarnessError>;
 
-/// The pack `list` names and its pictures, in the list's order, outlined with `segment`.
+/// The pack `list` names and its pictures, in the list's order, outlined with `segment` when
+/// its kind is.
 ///
 /// # Errors
 /// `Pack` naming the first item that cannot go in: its licence disagrees with the list's, its
@@ -53,12 +57,13 @@ pub fn build(
     fetcher: &Fetcher,
     segment: Segment<'_>,
 ) -> Result<Built, HarnessError> {
+    let sources = Sources::new(fetcher);
     let mut items = Vec::with_capacity(list.items.len());
     let mut pictures = Vec::with_capacity(list.items.len());
     let mut outlines = Vec::with_capacity(list.items.len());
     for listed in &list.items {
         let (item, picture, outlined) =
-            item(list.kind, listed, (fetcher, segment)).map_err(|error| match error {
+            item(list.kind, listed, (&sources, segment)).map_err(|error| match error {
                 HarnessError::Pack { .. } => error,
                 other => HarnessError::Pack {
                     item: listed.id.clone(),
@@ -88,9 +93,9 @@ pub fn build(
 fn item(
     kind: PictureKind,
     listed: &Listed,
-    (fetcher, segment): (&Fetcher, Segment<'_>),
+    (sources, segment): (&Sources<'_>, Segment<'_>),
 ) -> Result<(PackItem, Vec<u8>, Outlined), HarnessError> {
-    let found = look_up(fetcher, listed.source, &listed.object)?;
+    let found = sources.look_up(listed)?;
     if found.stated != Stated::Licence(listed.licence) {
         return Err(HarnessError::Pack {
             item: listed.id.clone(),
@@ -101,24 +106,16 @@ fn item(
             ),
         });
     }
-    let name = cache_name(listed.source.name(), &listed.object, "img");
-    let original = fetcher.get(&name, &found.picture)?;
+    let name = cache_name(listed.source.name(), &listed.key(), "img");
+    let original = (sources.fetcher()).get_with(&name, &found.picture, found.headers)?;
     let picture = pack_picture(&original).map_err(|error| HarnessError::Fetch {
         url: found.picture.clone(),
         detail: format!("the picture: {error}"),
     })?;
-    let matte = segment(picture.size, &picture.rgba)?;
-    let derived = outline_of_matte(picture.size, &picture.rgba, &matte);
-    let (kept, outlined) = match (&listed.no_outline, derived) {
-        (Some(why), derived) => (
-            None,
-            Outlined::Listed {
-                why: why.clone(),
-                derived,
-            },
-        ),
-        (None, Ok(outline)) => (Some(outline), Outlined::Kept),
-        (None, Err(refusal)) => (None, Outlined::Refused(refusal)),
+    let (kept, outlined) = if kind.outlined() {
+        outline(listed, &picture, segment)?
+    } else {
+        (None, Outlined::Never)
     };
     let item = PackItem {
         id: listed.id.clone(),
@@ -138,6 +135,27 @@ fn item(
     Ok((item, picture.file, outlined))
 }
 
+/// A shape's outline: derived from the segmentation's matte, kept unless the list says why not.
+fn outline(
+    listed: &Listed,
+    picture: &PackPicture,
+    segment: Segment<'_>,
+) -> Result<(Option<Outline>, Outlined), HarnessError> {
+    let matte = segment(picture.size, &picture.rgba)?;
+    let derived = outline_of_matte(picture.size, &picture.rgba, &matte);
+    Ok(match (&listed.no_outline, derived) {
+        (Some(why), derived) => (
+            None,
+            Outlined::Listed {
+                why: why.clone(),
+                derived,
+            },
+        ),
+        (None, Ok(outline)) => (Some(outline), Outlined::Kept),
+        (None, Err(refusal)) => (None, Outlined::Refused(refusal)),
+    })
+}
+
 /// The credit shown with the picture: for an Attribution licence what it asks for (title,
 /// creator with the attribution the author asked for, source, licence and its deed, the change
 /// made); for the others a courtesy line naming the collection.
@@ -148,6 +166,7 @@ pub fn attribution(found: &Found, licence: Licence) -> String {
         page,
         credit,
         collection,
+        changes,
         ..
     } = found;
     let by = if credit == creator {
@@ -157,7 +176,7 @@ pub fn attribution(found: &Found, licence: Licence) -> String {
     };
     match (licence, licence.deed()) {
         (licence, Some(deed)) if licence.requires_attribution() => format!(
-            "“{title}” by {by}, {collection} ({page}), licensed {} ({deed}); resized.",
+            "“{title}” by {by}, {collection} ({page}), licensed {} ({deed}); {changes}.",
             licence.name()
         ),
         (_, Some(deed)) => format!("“{title}”, {creator}. {collection} ({page}), CC0 ({deed})."),
