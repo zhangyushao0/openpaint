@@ -171,7 +171,7 @@ fn the_summary_counts_each_family_and_sets_colours_beside_the_earlier_ones() {
             vec![
                 (Metric::FirstDelta, 0.04),
                 (Metric::FinalDelta, 0.01),
-                (Metric::FinalValue, -0.05),
+                (Metric::FinalLightness, -0.01),
             ],
         ),
     ];
@@ -199,9 +199,9 @@ fn the_summary_counts_each_family_and_sets_colours_beside_the_earlier_ones() {
     );
     assert_eq!(colours.rows[2], (Metric::Corrections, None, Some(3.0)));
     let [mine, earlier] = colours.judgement.expect("a judgement");
-    let value = mine.of(Axis::Value).expect("value");
-    assert!((value - 0.8).abs() < 1e-9, "{value}");
-    assert_eq!(earlier.of(Axis::Value), None);
+    let lightness = mine.of(Axis::Lightness).expect("lightness");
+    assert!((lightness - 0.8).abs() < 1e-9, "{lightness}");
+    assert_eq!(earlier.of(Axis::Lightness), None);
     assert!(earlier.of(Axis::FirstToFinal).is_some());
     let first = summary(&this, &[]);
     assert!(first[2].judgement.expect("a judgement")[1].is_empty());

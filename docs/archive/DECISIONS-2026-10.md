@@ -450,3 +450,11 @@ Superseded decisions moved here whole from `docs/DECISIONS.md`. Written, never r
 - Reason: undo does not survive leaving, so the state at the previous leave is what a later regret needs.
 - Consequences: up to 10 x (records + thumbnail) per artwork; frequent short leaves push older versions out.
 
+## Archived 2026-10-23 (room for D108: superseded lines of D99 and D105)
+
+From D99, replaced by D108 (1.6.1):
+- Colour feedback: the card's wheel picture (`color_compare`) with arrows from the pick to the original; words: within 45 degrees the comparative of the next of six hues ("12 degrees yellower"), beyond it the hue's name. The summary's radar (`judgement.rs`): hue, saturation, value, dark, greyish, first pick to final, each the mean of 1 - error/span clamped (30 degrees, 25 %, Oklab 0.10; first to final the share of the first error removed, a first pick within 0.02 counting 1), over the earlier sessions' dashed.
+
+From D105, replaced by D107 (1.6.0):
+- Stage 2 (replaces D103's mix): a warm-up of 3 (`WARM_UP_TWO`), at most one long kind (shapes, combinations, scales in turn by number), the quick ones in turn from the number; 4 shapes, a combination, a scale and a colour, about 27 to 29 minutes; s80's sheet keeps its size (the mix since S84: D107).
+

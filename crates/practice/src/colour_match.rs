@@ -3,9 +3,9 @@
 //! swatches are low in saturation, which V大 stresses; every hue comes up.
 //!
 //! A match is judged by its first pick and its final colour, each against the original as an
-//! Oklab difference (one number for how different they look) and as hue, saturation and value
-//! differences (which way to correct: redder or yellower, purer or greyer, lighter or darker),
-//! and by how many corrections it took.
+//! Oklab difference (one number for how different they look) and its lightness, chroma and hue
+//! parts (which way to correct: lighter or darker, purer or greyer, towards which neighbouring
+//! hue), and by how many corrections it took.
 
 use crate::colour::{Difference, Rgb8, from_hsv};
 use crate::metric::{Metric, Metrics};
@@ -108,23 +108,19 @@ impl ColourScore {
         let mut metrics = Vec::with_capacity(9);
         let firsts = [
             Metric::FirstDelta,
+            Metric::FirstLightness,
+            Metric::FirstChroma,
             Metric::FirstHue,
-            Metric::FirstSaturation,
-            Metric::FirstValue,
         ];
         let finals = [
             Metric::FinalDelta,
+            Metric::FinalLightness,
+            Metric::FinalChroma,
             Metric::FinalHue,
-            Metric::FinalSaturation,
-            Metric::FinalValue,
         ];
-        for (names, difference) in [(firsts, self.first), (finals, self.last)] {
-            metrics.push((names[0], difference.delta));
-            if let Some(hue) = difference.hue {
-                metrics.push((names[1], hue));
-            }
-            metrics.push((names[2], difference.saturation));
-            metrics.push((names[3], difference.value));
+        for (names, d) in [(firsts, self.first), (finals, self.last)] {
+            let values = [d.delta, d.lightness, d.chroma, d.hue];
+            metrics.extend(names.into_iter().zip(values));
         }
         metrics.push((Metric::Corrections, f64::from(self.corrections)));
         metrics

@@ -1,14 +1,15 @@
 //! Colours as the colour exercises judge them: 8-bit sRGB in, HSV (hue, saturation and value as
-//! the colour panel shows them) and Oklab (Björn Ottosson's perceptual space: equal steps look
-//! about equally different; its `L` the lightness the eye sees) out and back, and the
-//! differences between two colours in both.
+//! the colour panel shows them, where the hand picks) and Oklab (Björn Ottosson's perceptual
+//! space: equal steps look about equally different; its `L` the lightness the eye sees) out and
+//! back, in its polar form too (lightness, chroma, hue), and the difference between two colours
+//! as the eye sees it: Oklab's distance and its three parts (D108).
 
 /// An 8-bit sRGB colour.
 pub type Rgb8 = [u8; 3];
 
-/// Below this chroma (max channel minus min channel, 0 to 1) a colour is too grey for its hue to
-/// mean anything.
-pub const LEAST_CHROMA: f64 = 0.06;
+/// The Oklab chroma under which an 8-bit colour is grey to the eye and its hue angle is only the
+/// rounding's (a quarter of a just-noticeable step): where a hue is drawn, never what is judged.
+pub const HUELESS: f64 = 0.005;
 
 /// Hue in degrees (`0..360`), saturation and value (`0..=1`), as the colour panel's HSV.
 #[must_use]
@@ -48,14 +49,6 @@ pub fn from_hsv([h, s, v]: [f64; 3]) -> Rgb8 {
     [r, g, b].map(|c| ((c + m).clamp(0.0, 1.0) * 255.0).round() as u8)
 }
 
-/// The chroma of `rgb`: its largest channel minus its smallest, 0 to 1.
-#[must_use]
-pub fn chroma(rgb: Rgb8) -> f64 {
-    let max = rgb.iter().max().copied().unwrap_or(0);
-    let min = rgb.iter().min().copied().unwrap_or(0);
-    f64::from(max - min) / 255.0
-}
-
 /// `rgb` in Oklab: lightness `L` (0 to 1) and the opponent axes `a` (green to red) and `b`
 /// (blue to yellow).
 #[must_use]
@@ -87,6 +80,23 @@ pub fn from_oklab([l, a, b]: [f64; 3]) -> Rgb8 {
     .map(|c| (encoded(c.clamp(0.0, 1.0)) * 255.0).round() as u8)
 }
 
+/// `rgb` in Oklab's polar form: lightness `L`, chroma (the distance from grey) and hue in degrees
+/// (`0..360`, from `a`'s positive axis towards `b`'s: red about 29, yellow 110, green 142, cyan
+/// 195, blue 264, magenta 328).
+#[must_use]
+pub fn oklch(rgb: Rgb8) -> [f64; 3] {
+    let [l, a, b] = oklab(rgb);
+    [l, a.hypot(b), b.atan2(a).to_degrees().rem_euclid(360.0)]
+}
+
+/// The 8-bit sRGB colour of lightness `l`, chroma `c` and hue `h` (degrees) in Oklab, clipped to
+/// sRGB's range as `from_oklab`.
+#[must_use]
+pub fn from_oklch([l, c, h]: [f64; 3]) -> Rgb8 {
+    let (sin, cos) = h.to_radians().sin_cos();
+    from_oklab([l, c * cos, c * sin])
+}
+
 /// sRGB's transfer function undone.
 fn linear(c: f64) -> f64 {
     if c <= 0.040_45 {
@@ -112,52 +122,44 @@ pub fn delta_e(a: Rgb8, b: Rgb8) -> f64 {
     ((a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2) + (a[2] - b[2]).powi(2)).sqrt()
 }
 
-/// How `copy` differs from `original`.
+/// How `copy` differs from `original`, as the eye sees it: Oklab's distance and its three parts,
+/// each the copy's less the original's, so `delta² = lightness² + chroma² + hue²`. No colour is
+/// too grey for its hue: the hue part is the chord between the hues at the chromas' geometric mean
+/// (`2 √(C₀ C₁) sin(Δh / 2)`), so it fades as either colour greys and two dark colours side by
+/// side, an olive and a brown, still show their hues apart.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Difference {
     /// The Oklab distance.
     pub delta: f64,
-    /// Degrees from the original's hue to the copy's the short way round (positive: on round
-    /// the wheel from red towards yellow); `None` when either is too grey (`LEAST_CHROMA`).
-    pub hue: Option<f64>,
-    /// The copy's saturation and value less the original's.
-    pub saturation: f64,
-    pub value: f64,
+    /// Lighter (positive) or darker: Oklab `L`.
+    pub lightness: f64,
+    /// Purer (positive) or greyer: Oklab chroma.
+    pub chroma: f64,
+    /// Round the hues the short way (positive: on from the original's hue the way red goes to
+    /// yellow, yellow to green, green to cyan, cyan to blue, blue to magenta, magenta to red).
+    pub hue: f64,
 }
 
 impl Difference {
     #[must_use]
     pub fn of(original: Rgb8, copy: Rgb8) -> Self {
-        let [h0, s0, v0] = hsv(original);
-        let [h1, s1, v1] = hsv(copy);
-        let coloured = chroma(original) >= LEAST_CHROMA && chroma(copy) >= LEAST_CHROMA;
+        let [l0, c0, h0] = oklch(original);
+        let [l1, c1, h1] = oklch(copy);
+        let turn = ((h1 - h0 + 180.0).rem_euclid(360.0) - 180.0).to_radians();
         Self {
             delta: delta_e(original, copy),
-            hue: coloured.then(|| (h1 - h0 + 180.0).rem_euclid(360.0) - 180.0),
-            saturation: s1 - s0,
-            value: v1 - v0,
+            lightness: l1 - l0,
+            chroma: c1 - c0,
+            hue: 2.0 * (c0 * c1).sqrt() * (turn / 2.0).sin(),
         }
     }
-}
 
-/// Which way a hue moved `by` degrees from `degrees` goes, as V大 compares two colours
-/// ("redder or yellower"): the next of six hues 60 degrees apart it moves towards, as its index
-/// from red (0 red, 1 yellow, 2 green, 3 cyan, 4 blue, 5 magenta). The words are the UI's.
-#[must_use]
-pub fn hue_towards(degrees: f64, by: f64) -> usize {
-    let at = degrees.rem_euclid(360.0) / 60.0;
-    let next = if by >= 0.0 {
-        at.floor() + 1.0
-    } else {
-        at.ceil() - 1.0
-    };
-    (next as i64).rem_euclid(6) as usize
-}
-
-/// The hue `degrees` lies nearest, of twelve 30 degrees apart round the wheel, as its index
-/// from red (0 red, 1 orange, 2 yellow, 3 yellow-green, 4 green, 5 green-cyan, 6 cyan, 7 azure,
-/// 8 blue, 9 violet, 10 magenta, 11 rose). The names are the UI's.
-#[must_use]
-pub fn hue_name(degrees: f64) -> usize {
-    ((degrees.rem_euclid(360.0) + 15.0) / 30.0) as usize % 12
+    /// The largest of the three parts, unsigned.
+    #[must_use]
+    pub fn largest_part(&self) -> f64 {
+        self.lightness
+            .abs()
+            .max(self.chroma.abs())
+            .max(self.hue.abs())
+    }
 }

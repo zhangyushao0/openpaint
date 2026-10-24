@@ -198,7 +198,6 @@ mod tests {
             NOTICES,
             PRACTICE_TABLE,
             PRACTICE_STEPS,
-            PRACTICE_HUES,
             PRACTICE_COLOUR,
             PRACTICE_COLOUR_STEPS,
             PRACTICE_OPTIONS_TABLE,

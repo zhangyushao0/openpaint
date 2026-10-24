@@ -51,8 +51,7 @@ pub use align_shape::align_shape;
 pub use areas::{Areas, Arrangement, GRID, STRONG, WEAK};
 pub use areas_read::{AreasCopy, Contrast, MADE_STRONG};
 pub use colour::{
-    Difference, LEAST_CHROMA, Rgb8, chroma, delta_e, from_hsv, from_oklab, hsv, hue_name,
-    hue_towards, oklab,
+    Difference, HUELESS, Rgb8, delta_e, from_hsv, from_oklab, from_oklch, hsv, oklab, oklch,
 };
 pub use colour_match::{ColourCopy, ColourScore, Lightness, Purity, Tone, score_colour};
 pub use combined::{Combination, CombinedLines};
@@ -61,7 +60,7 @@ pub use ellipse::{Ellipse, EllipseGuide, Guide};
 pub use ellipse_fit::{
     DEGREE, EllipseCheck, REACH, Reach, Roundness, Side, TILT, Tilt, fit_ellipse,
 };
-pub use judgement::{Axis, DELTA_SPAN, HUE_SPAN, Judgement, NOTICEABLE, SV_SPAN, judgement};
+pub use judgement::{Axis, DELTA_SPAN, Judgement, NOTICEABLE, PART_SPAN, judgement};
 pub use licence::Licence;
 pub use line::{LineExercise, LineTier};
 pub use metric::{Metric, Metrics, value};

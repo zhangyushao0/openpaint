@@ -4,18 +4,18 @@
 //! counts, of a share: 1 for no error, falling evenly to 0 at a span off or more, so one wild
 //! match costs no more than a span.
 //!
-//! - Hue, saturation and value: the final colour's errors as the colour wheel measures them,
-//!   where the hand picks: hue against `HUE_SPAN` (one of the wheel's twelve named hues; only
-//!   colours that both have a hue), saturation and value against `SV_SPAN` (a quarter of the
-//!   square's side).
+//! - Hue, chroma and lightness: the final colour's parts of its Oklab difference as the eye sees
+//!   them (`Difference`, D108), each against `PART_SPAN` (two and a half just-noticeable steps
+//!   in that part alone), every colour counted: a grey's hue part is near nothing, as it looks.
 //! - Dark and low-saturation colours: the final Oklab difference against `DELTA_SPAN` (five
 //!   just-noticeable steps), over the swatches of the dark band and of the grey and muted bands:
 //!   the colours V大 says are judged worst.
 //! - First pick to final: the share of the first pick's difference the corrections took away; a
 //!   first pick within `NOTICEABLE` counts as 1 (nothing was left to correct).
 //!
-//! Every value comes from the numbers a result stores at the first Compare, so the sessions of
-//! 1.1.0 count too.
+//! Every value comes from the numbers a result stores at the first Compare. Results of 1.6.0
+//! and before hold their parts on the wheel's HSV (codes retired), so they count in the last
+//! three axes only.
 
 use crate::colour_match::{Lightness, Purity, Tone};
 use crate::metric::{Metric, value};
@@ -24,8 +24,8 @@ use crate::metric::{Metric, value};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Axis {
     Hue,
-    Saturation,
-    Value,
+    Chroma,
+    Lightness,
     Dark,
     LowSaturation,
     FirstToFinal,
@@ -34,20 +34,19 @@ pub enum Axis {
 impl Axis {
     pub const ALL: [Self; 6] = [
         Self::Hue,
-        Self::Saturation,
-        Self::Value,
+        Self::Chroma,
+        Self::Lightness,
         Self::Dark,
         Self::LowSaturation,
         Self::FirstToFinal,
     ];
 }
 
-/// Degrees of hue, and shares of saturation or value, an error falls to 0 at.
-pub const HUE_SPAN: f64 = 30.0;
-pub const SV_SPAN: f64 = 0.25;
 /// The Oklab difference an error falls to 0 at, and the one that is just noticeable.
 pub const DELTA_SPAN: f64 = 0.10;
 pub const NOTICEABLE: f64 = 0.02;
+/// The Oklab lightness, chroma or hue part an error falls to 0 at.
+pub const PART_SPAN: f64 = 0.05;
 
 /// Each axis's value, `0..=1`, in `Axis::ALL`'s order; `None` where no colour counts.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -83,9 +82,9 @@ pub fn judgement(colours: &[(Tone, &[(Metric, f64)])]) -> Judgement {
 fn share(axis: Axis, tone: Tone, metrics: &[(Metric, f64)]) -> Option<f64> {
     let off = |metric: Metric, span: f64| value(metrics, metric).map(|v| fall(v.abs(), span));
     match axis {
-        Axis::Hue => off(Metric::FinalHue, HUE_SPAN),
-        Axis::Saturation => off(Metric::FinalSaturation, SV_SPAN),
-        Axis::Value => off(Metric::FinalValue, SV_SPAN),
+        Axis::Hue => off(Metric::FinalHue, PART_SPAN),
+        Axis::Chroma => off(Metric::FinalChroma, PART_SPAN),
+        Axis::Lightness => off(Metric::FinalLightness, PART_SPAN),
         Axis::Dark => (tone.lightness == Lightness::Dark)
             .then(|| off(Metric::FinalDelta, DELTA_SPAN))
             .flatten(),
@@ -128,17 +127,17 @@ mod tests {
             (Metric::FirstDelta, 0.0),
             (Metric::FinalDelta, 0.0),
             (Metric::FinalHue, 0.0),
-            (Metric::FinalSaturation, 0.0),
-            (Metric::FinalValue, 0.0),
+            (Metric::FinalChroma, 0.0),
+            (Metric::FinalLightness, 0.0),
         ];
         let all = judgement(&[(DARK_GREY, &exact[..])]);
         assert_eq!(all, Judgement([Some(1.0); 6]));
         let off = [
             (Metric::FirstDelta, 0.08),
             (Metric::FinalDelta, 0.04),
-            (Metric::FinalHue, -15.0),
-            (Metric::FinalSaturation, 0.5),
-            (Metric::FinalValue, -0.05),
+            (Metric::FinalHue, -0.025),
+            (Metric::FinalChroma, 0.06),
+            (Metric::FinalLightness, -0.01),
         ];
         let judged = judgement(&[(LIGHT_VIVID, &off[..])]);
         let near = |axis, expected: f64| {
@@ -146,8 +145,8 @@ mod tests {
             assert!((got - expected).abs() < 1e-9, "{axis:?}: {got}");
         };
         near(Axis::Hue, 0.5);
-        near(Axis::Saturation, 0.0);
-        near(Axis::Value, 0.8);
+        near(Axis::Chroma, 0.0);
+        near(Axis::Lightness, 0.8);
         near(Axis::FirstToFinal, 0.5);
         assert_eq!(judged.of(Axis::Dark), None, "a light swatch");
         assert_eq!(judged.of(Axis::LowSaturation), None, "a vivid one");
@@ -166,7 +165,7 @@ mod tests {
         near(Axis::LowSaturation, 0.75);
         // The first within a noticeable step: 1; the second worse after: 0.
         near(Axis::FirstToFinal, 0.5);
-        assert_eq!(judged.of(Axis::Hue), None, "greys have no hue");
+        assert_eq!(judged.of(Axis::Hue), None, "no hue part stored");
         assert!(judgement(&[]).is_empty());
     }
 }

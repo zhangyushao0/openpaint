@@ -4,8 +4,7 @@
 
 use openpaint_practice::{
     Combination, CombinedLines, Exercise, FRAME, Family, ItemRef, Kind, LineExercise, LineTier,
-    Original, PICTURE_MARGIN, PictureFit, Sheet, Tier, Tone, WARM_UP, chroma, hsv, length,
-    stage_one,
+    Original, PICTURE_MARGIN, PictureFit, Sheet, Tier, Tone, WARM_UP, hsv, length, stage_one,
 };
 
 #[test]
@@ -156,7 +155,7 @@ fn a_first_session_is_six_lines_four_combined_and_six_colours_mostly_low_in_satu
     let low = session[10..]
         .iter()
         .filter(|e| match e.original() {
-            Original::Colour(colour) => hsv(colour)[1] < 0.36 || chroma(colour) < 0.1,
+            Original::Colour(colour) => hsv(colour)[1] < 0.36,
             _ => false,
         })
         .count();

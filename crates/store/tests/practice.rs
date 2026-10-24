@@ -61,7 +61,7 @@ fn a_session_round_trips_with_its_sheet_hidden_from_the_gallery() {
         12,
         1_791_201_900,
         5,
-        vec![(Metric::FirstDelta, 0.012_5), (Metric::FinalValue, -0.3)],
+        vec![(Metric::FirstDelta, 0.012_5), (Metric::FinalHue, -0.3)],
     ));
     library.save_practice(&checked).expect("saved");
     drop(library);

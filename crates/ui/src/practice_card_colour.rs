@@ -1,12 +1,13 @@
-//! What the practice card says of week 2's colour work and of a long colour copy (S82):
+//! What the practice card shows of week 2's colour work and of a long colour copy (S82, D108);
+//! what the frames show (the weak contrasts made strong in red, a scale's bars and even steps) is
+//! not said again, and the How cards say what the marks mean:
 //!
 //! - a colour combination compared: how strongly the original shows over the copy (a slider),
 //!   each area as a chip of two colours (the original's over yours) to choose one, the chosen
-//!   area's colours on the wheel with the way from yours to the original and in V大's words, or
-//!   the point the eyedropper compared; how the weak contrasts were kept;
-//! - a value scale compared: how many cells lie within a quarter step of even, and in words each
-//!   cell off or out of order (the bars under the row show them);
-//! - a colour copy compared: the slider, and the point the eyedropper compared on the wheel;
+//!   area's colours on the wheel and in the colour table, or the point the eyedropper compared;
+//!   a line only where the area is not painted;
+//! - a value scale compared: its title; the bars under the row speak;
+//! - a colour copy compared: the slider, and the point the eyedropper compared;
 //! - in a session's summary, the combinations' and scales' means beside the earlier sessions'.
 //!
 //! The words are `text/practice_colour.rs`'s, in the pass's language.
@@ -44,10 +45,8 @@ pub(crate) fn compared(
         Some(Overlay::Scale(check)) => scale(ui, check.as_deref()),
         Some(Overlay::Picture { shown, .. }) if practice.family == Some(Family::Study) => {
             shown_slider(ui, *shown, taps);
-            card_text(ui, t::SHOWS_STUDY, true);
-            match practice.probe {
-                Some(probe) => probed(ui, probe, STUDY_WHEEL),
-                None => card_text(ui, t::PROBE_HINT, true),
+            if let Some(probe) = practice.probe {
+                probed(ui, probe, STUDY_WHEEL);
             }
         }
         _ => return false,
@@ -69,7 +68,7 @@ fn shown_slider(ui: &mut egui::Ui, shown: f32, taps: &mut Vec<Intent>) {
     }
 }
 
-/// The point the eyedropper compared: both colours on the wheel, the way from yours.
+/// The point the eyedropper compared: both colours on the wheel and in the table.
 fn probed(ui: &mut egui::Ui, probe: Probe, side: f32) {
     pair_on_wheel(ui, (probe.original, probe.copy), side);
 }
@@ -101,20 +100,6 @@ fn areas(ui: &mut egui::Ui, practice: &PracticeProjection, taps: &mut Vec<Intent
             None => card_text(ui, t::NOT_PAINTED, false),
         },
     }
-    if let Some(read) = read {
-        let judged: Vec<_> = (read.copy.contrasts.iter())
-            .filter(|c| c.weak() && c.copy.is_some())
-            .collect();
-        let strong = judged.iter().filter(|c| c.made_strong()).count();
-        let language = language(ui.ctx());
-        if strong > 0 {
-            let line = t::weak_made_strong(language, (strong, judged.len()));
-            card_text(ui, crate::text::Words::made(&line), false);
-        } else if !judged.is_empty() {
-            card_text(ui, t::WEAK_KEPT, false);
-        }
-    }
-    card_text(ui, t::SHOWS_AREAS, true);
 }
 
 /// A chip for each area: the original's colour over yours (the paper while not painted), the
@@ -161,42 +146,11 @@ fn paint_chip(ui: &egui::Ui, rect: Rect, (original, mine): (Rgb8, Option<Rgb8>))
     }
 }
 
+/// A value scale compared: its bars under the row speak; until the copy is read, saying so.
 fn scale(ui: &mut egui::Ui, check: Option<&ScaleCheck>) {
-    let language = language(ui.ctx());
-    let Some(check) = check else {
+    if check.is_none() {
         card_text(ui, t::READING_COPY, true);
-        return;
-    };
-    let inner = 1..check.values.len().saturating_sub(1);
-    let filled: Vec<usize> = (inner.clone())
-        .filter(|cell| check.values[*cell].is_some())
-        .collect();
-    let even = filled
-        .iter()
-        .filter(|cell| !check.uneven.contains(cell))
-        .count();
-    if check.uneven.is_empty() && check.reversed.is_empty() && filled.len() == inner.len() {
-        card_text(ui, t::SCALE_EVEN, false);
-    } else {
-        let line = t::scale_even(language, (even, filled.len()));
-        card_text(ui, crate::text::Words::made(&line), false);
     }
-    let mut lines = Vec::new();
-    for cell in inner {
-        match check.values[cell] {
-            None => lines.push(t::cell_empty(language, cell + 1)),
-            Some(value) if check.uneven.contains(&cell) => {
-                lines.push(t::cell_off(language, cell + 1, value < check.targets[cell]));
-            }
-            Some(_) => {}
-        }
-    }
-    lines.extend((check.reversed.iter()).map(|cell| t::cells_reversed(language, cell + 1)));
-    for line in &lines {
-        card_text(ui, crate::text::Words::made(line), false);
-    }
-    card_text(ui, t::SCALE_NEXT, false);
-    card_text(ui, t::SCALE_NOTE, true);
 }
 
 /// The summary's rows for colour combinations and value scales: this session's means beside the

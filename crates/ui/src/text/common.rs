@@ -24,7 +24,9 @@ texts! { COMMON;
     OPACITY = "Opacity", "不透明度";
     HUE = "Hue", "色相";
     SATURATION = "Saturation", "饱和度";
-    VALUE = "Value", "明度";
+    // Oklab's lightness and chroma as the colour table and the radar name them (V大's 明度, 纯度).
+    LIGHTNESS = "Lightness", "明度";
+    CHROMA = "Chroma", "纯度";
     // The language's own name, the same in both.
     ENGLISH = "English", "English";
     CHINESE = "中文", "中文";

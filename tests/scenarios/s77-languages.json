@@ -6,7 +6,7 @@
     "Switch: Actions, under 语言, shows English and 中文 each in its own words, 中文 in the ink pill. One tap on English: the whole interface reads in English at once, the panel still open, English in the pill. Undo does not touch it: it is a setting, kept with my brushes and colours, not a change to my artwork.",
     "Reopen: I leave the app and the system closes it; it opens again in English, the language I chose, not the system's. I switch back to 中文 and reopen: Chinese.",
     "Gallery in Chinese: 图库, the 今天 card (第 1 阶段 · 线条与颜色, 已完成 0 次，共约 15 次, 开始练习), my artwork's card titled 未命名作品, the 新建画布 popover (屏幕尺寸, 正方形, A4 竖向, A4 横向), a card's options (存为 OpenPaint 文件…, 版本), the delete question with 取消 and 删除, the rename dialog.",
-    "Practice in Chinese, in V大's terms: the bar reads 线条 1/10, 怎么练, 叠图对比, 下一个; the card explains 单根线条 in our own words with 草稿笔, 画图笔 and 修正笔; 叠图对比 lays the original over my copy 原位 or 对齐; a colour (单色) compares as 更红/更黄, 更亮/更暗, 更纯/更灰 with 色相, 饱和度, 明度; the summary reads 第 1 次练习完成.",
+    "Practice in Chinese, in V大's terms: the bar reads 线条 1/10, 怎么练, 叠图对比, 下一个; the card explains 单根线条 in our own words with 草稿笔, 画图笔 and 修正笔; 叠图对比 lays the original over my copy 原位 or 对齐; a colour (单色) is judged by eye as 更红/更黄, 更亮/更暗, 更纯/更灰, and its table under the wheel names 明度, 纯度, 色相; the summary reads 第 1 次练习完成.",
     "Nothing else changes with the language: the strokes and fills are the same pixels (the checkpoints are English runs' hashes), and the controls keep their English names, so every scenario, bench and device chore names them alike in both."
   ],
   "screen": [2880, 1800],

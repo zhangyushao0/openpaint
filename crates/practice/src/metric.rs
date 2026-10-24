@@ -1,27 +1,28 @@
 //! Every number a result holds, with its stable code: what is stored, summed up and, later,
-//! followed over sessions. Values are kept in natural units: hue in degrees, saturation and value
-//! as shares (0 to 1), colour differences in Oklab units (0 to about 1), counts as counts.
+//! followed over sessions. Values are kept in natural units: colour differences in Oklab units
+//! (0 to about 1), shares as shares, counts as counts.
 //!
 //! Lines and shapes have no numbers (D99: a number that does not match what the eye sees misleads;
-//! the overlay is the feedback). Colours, colour combinations and value scales do (D105). Codes 1
-//! to 8 were 1.1.0's line metrics (key points, frame, shape, speed, wobble, strokes, erased,
-//! seconds) and code 32 1.5.0's value scale off its even steps on the wheel's value: retired,
-//! never reused, passed over when read.
+//! the overlay is the feedback). Colours, colour combinations and value scales do (D105, D108).
+//! Retired, never reused, passed over when read: codes 1 to 8, 1.1.0's line metrics (key points,
+//! frame, shape, speed, wobble, strokes, erased, seconds); 21 to 23 and 25 to 27, a colour's hue
+//! (degrees, only where both passed an RGB chroma gate), saturation and value on the wheel's HSV
+//! until 1.6.0; 32, 1.5.0's value scale off its even steps on the wheel's value.
 
 /// One measured quantity of a result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Metric {
-    /// Colour: the first colour laid against the original: Oklab difference, hue (degrees,
-    /// signed, only when both have colour), saturation and value (signed shares).
+    /// Colour: the first colour laid against the original: the Oklab difference and its parts,
+    /// lightness, chroma and hue, signed (`Difference`).
     FirstDelta,
+    FirstLightness,
+    FirstChroma,
     FirstHue,
-    FirstSaturation,
-    FirstValue,
     /// Colour: the colour laid at the first Compare, as the first.
     FinalDelta,
+    FinalLightness,
+    FinalChroma,
     FinalHue,
-    FinalSaturation,
-    FinalValue,
     /// Colour: how often the colour laid changed after the first, before the first Compare.
     Corrections,
     /// Colour combination: the mean Oklab difference over the areas painted, the weak
@@ -39,13 +40,13 @@ pub enum Metric {
 impl Metric {
     pub const ALL: [Self; 15] = [
         Self::FirstDelta,
+        Self::FirstLightness,
+        Self::FirstChroma,
         Self::FirstHue,
-        Self::FirstSaturation,
-        Self::FirstValue,
         Self::FinalDelta,
+        Self::FinalLightness,
+        Self::FinalChroma,
         Self::FinalHue,
-        Self::FinalSaturation,
-        Self::FinalValue,
         Self::Corrections,
         Self::AreasDelta,
         Self::AreasWeak,
@@ -60,13 +61,13 @@ impl Metric {
     pub const fn code(self) -> u8 {
         match self {
             Self::FirstDelta => 20,
-            Self::FirstHue => 21,
-            Self::FirstSaturation => 22,
-            Self::FirstValue => 23,
+            Self::FirstLightness => 36,
+            Self::FirstChroma => 37,
+            Self::FirstHue => 38,
             Self::FinalDelta => 24,
-            Self::FinalHue => 25,
-            Self::FinalSaturation => 26,
-            Self::FinalValue => 27,
+            Self::FinalLightness => 39,
+            Self::FinalChroma => 40,
+            Self::FinalHue => 41,
             Self::Corrections => 28,
             Self::AreasDelta => 29,
             Self::AreasWeak => 30,
@@ -109,7 +110,7 @@ mod tests {
         codes.sort_unstable();
         codes.dedup();
         assert_eq!(codes.len(), Metric::ALL.len());
-        for retired in (0..=8).chain([32]) {
+        for retired in (0..=8).chain([21, 22, 23, 25, 26, 27, 32]) {
             assert_eq!(Metric::of_code(retired), None, "code {retired}");
         }
     }

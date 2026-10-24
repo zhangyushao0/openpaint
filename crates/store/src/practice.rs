@@ -23,7 +23,8 @@
 //! exercise and its picture (D105). 1.5.1 adds none either: a value scale's mean off its even
 //! steps in lightness is code 35 (32, on the wheel's value, retired); a colour copy's name is its
 //! sheet's title. 1.6.0 adds none: kinds 8 to 10 (a box to complete, free boxes, an ellipse),
-//! which keep no numbers.
+//! which keep no numbers. 1.6.1 adds none: a colour's lightness, chroma and hue parts of its
+//! Oklab difference are codes 36 to 41 (21 to 23 and 25 to 27, on the wheel's HSV, retired).
 
 use std::collections::HashSet;
 
