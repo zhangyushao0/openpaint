@@ -5,7 +5,7 @@
 
 mod common;
 
-use common::{fresh_dir, records, untitled, write_records};
+use common::{TestDir, records, untitled, write_records};
 use openpaint_app::{ProjectStore, Title};
 use openpaint_core::{Artwork, CanvasSize};
 use openpaint_practice::{ExerciseResult, Metric, SessionRecord, Sheet, met};
@@ -18,7 +18,7 @@ fn sheet() -> Artwork {
 
 #[test]
 fn a_session_round_trips_with_its_sheet_hidden_from_the_gallery() {
-    let dir = fresh_dir("practice");
+    let dir = TestDir::new("practice");
     let mut library = Library::at(&dir);
     let artwork = library
         .create(
@@ -26,10 +26,8 @@ fn a_session_round_trips_with_its_sheet_hidden_from_the_gallery() {
             &untitled(),
         )
         .expect("an artwork");
-    let before = records(&{
-        drop(library);
-        dir.clone()
-    });
+    drop(library);
+    let before = records(&dir);
     let mut library = Library::at(&dir);
     let session = SessionRecord::stage_one(1, 1, 0x5EED_0045, 1_791_201_600, &[]);
     let title = Title::new("Practice 1").expect("title");
@@ -83,7 +81,8 @@ fn a_session_round_trips_with_its_sheet_hidden_from_the_gallery() {
 /// A sheet's title (a colour copy's name) is read beside the records, renamed as any project's.
 #[test]
 fn a_sheet_s_title_is_read_beside_its_record_and_renamed() {
-    let mut library = Library::at(fresh_dir("practice-titles"));
+    let dir = TestDir::new("practice-titles");
+    let mut library = Library::at(&dir);
     let session = SessionRecord::stage_one(1, 1, 5, 1_791_201_600, &[]);
     let title = Title::new("Colour copy 1").expect("title");
     let id = library
@@ -98,7 +97,7 @@ fn a_sheet_s_title_is_read_beside_its_record_and_renamed() {
 
 #[test]
 fn a_session_removed_takes_its_record_and_sheet_and_leaves_every_other_byte() {
-    let dir = fresh_dir("practice-removed");
+    let dir = TestDir::new("practice-removed");
     let mut library = Library::at(&dir);
     library
         .create(
@@ -165,7 +164,7 @@ fn a_session_removed_takes_its_record_and_sheet_and_leaves_every_other_byte() {
 
 #[test]
 fn a_practice_record_that_cannot_be_read_is_left_out() {
-    let dir = fresh_dir("practice-damaged");
+    let dir = TestDir::new("practice-damaged");
     let mut library = Library::at(&dir);
     let session = SessionRecord::stage_one(1, 1, 3, 0, &[]);
     let title = Title::new("Practice 1").expect("title");

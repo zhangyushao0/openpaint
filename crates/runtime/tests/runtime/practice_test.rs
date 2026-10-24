@@ -10,7 +10,7 @@ use openpaint_app::{ProjectId, ProjectStore, TodayProjection};
 use openpaint_runtime::{Runtime, StartOptions, ToolKind};
 use openpaint_store::Library;
 
-use crate::support::{Hand, core, gallery, library_dir, mapping};
+use crate::support::{Hand, TestDir, core, gallery, mapping};
 
 /// 800 x 500 points at density 2.
 const SIZE: [u32; 2] = [1600, 1000];
@@ -79,7 +79,7 @@ fn copy_and_compare(held: &mut Held, hand: &mut Hand) {
 
 #[test]
 fn a_test_session_beside_the_authors_leaves_theirs_as_it_was() {
-    let dir = library_dir("practice-test");
+    let dir = TestDir::new("practice-test");
     let mut held = Held::start(&dir);
     let mut hand = Hand::new(SIZE);
     // The author's session: a line copied and compared, the session left open.

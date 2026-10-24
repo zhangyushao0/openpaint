@@ -2,11 +2,13 @@
 //! it, on a layer of its own as a placed patch with nothing lifted; saved, it reopens with every
 //! pixel and its placement, and needs no format change (an S20 transform record).
 
-use std::path::PathBuf;
+#[path = "common/test_dir.rs"]
+mod test_dir;
 
 use openpaint_app::{ProjectStore, Title};
 use openpaint_core::{Artwork, ArtworkCommand, CanvasSize, LayerCommand, Placement};
 use openpaint_store::{Library, open_picture};
+use test_dir::TestDir;
 
 const CUTOUT: &[u8] = include_bytes!("../../../tests/fixtures/s26-cutout.png");
 const PHOTO: &[u8] = include_bytes!("../../../tests/fixtures/s26-photo.jpg");
@@ -42,12 +44,7 @@ fn the_fixtures_open_fitted_upright_and_with_their_transparency() {
 
 #[test]
 fn an_inserted_picture_reopens_with_every_pixel_and_its_place() {
-    // A directory of its own under cargo's temporary directory for tests.
-    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR"))
-        .join(format!("store-picture-{}", std::process::id()));
-    if dir.exists() {
-        std::fs::remove_dir_all(&dir).expect("clear an old test directory");
-    }
+    let dir = TestDir::new("picture");
     let blank = Artwork::new(CanvasSize::new(900, 600).expect("canvas"));
     let placed = Placement::around([450.0, 300.0], 0.8, 0.3, [true, false]).expect("placed");
     let one = inserted(&blank, CUTOUT, Placement::IDENTITY);

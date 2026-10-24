@@ -104,6 +104,7 @@ pub fn request_line(request: &HostRequest, share_dir: &Path) -> Option<(String, 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_dir::TestDir;
     use openpaint_runtime::ImageFormat;
 
     #[test]
@@ -148,7 +149,9 @@ mod tests {
 
     #[test]
     fn a_shared_file_replaces_the_one_before_and_round_trips() {
-        let dir = std::env::temp_dir().join(format!("openpaint-share-{}", std::process::id()));
+        let held = TestDir::new("share");
+        // The host's place for shares, made by the first share.
+        let dir = held.path().join("share");
         let (first, file) = share_file(&dir, "first.png").expect("first");
         Box::new(FileSink(file)).write(b"one").expect("write");
         let (second, file) = share_file(&dir, "second.png").expect("second");
@@ -157,6 +160,5 @@ mod tests {
         let read = Box::new(FileSource(File::open(&second).expect("open")));
         assert_eq!(read.read(2).expect("read"), b"two");
         assert!(share_file(&dir, "../escape.png").is_err());
-        fs::remove_dir_all(&dir).expect("clean up");
     }
 }

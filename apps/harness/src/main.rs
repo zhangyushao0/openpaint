@@ -14,7 +14,10 @@ mod output;
 mod pack;
 mod quantiles;
 mod replay;
+#[cfg(test)]
+mod runner_tests;
 mod scenario;
+mod scratch;
 mod shell;
 mod smoke;
 mod stroke;

@@ -20,7 +20,7 @@ mod sample;
 
 use std::path::Path;
 
-use common::{fresh_dir, records, untitled, write_records};
+use common::{TestDir, records, untitled, write_records};
 use openpaint_app::{PortError, ProjectStore, Title};
 use openpaint_core::Artwork;
 use openpaint_store::{FORMAT, Library};
@@ -45,7 +45,7 @@ fn the_format_1_sample_round_trips() {
     assert_eq!(FORMAT, 1, "another format ships its own sample");
     let artwork = Artwork::from_storage(parts()).expect("valid sample artwork");
     let written = encode(&stored(
-        &fresh_dir("sample-write"),
+        &TestDir::new("sample-write"),
         &artwork,
         &sample_title(),
     ));
@@ -63,7 +63,7 @@ fn the_format_1_sample_round_trips() {
         written == frozen,
         "storing the sample artwork no longer gives the format-1 bytes"
     );
-    let dir = fresh_dir("sample-read");
+    let dir = TestDir::new("sample-read");
     write_records(&dir, &decode(&frozen));
     let mut library = Library::at(&dir);
     let project = library
@@ -81,7 +81,7 @@ fn the_format_1_sample_round_trips() {
 #[test]
 fn every_record_kind_round_trips_byte_for_byte() {
     let frozen = decode(&std::fs::read(sample_path()).expect("the sample"));
-    let dir = fresh_dir("sample-reread");
+    let dir = TestDir::new("sample-reread");
     write_records(&dir, &frozen);
     let mut library = Library::at(&dir);
     let opened = library
@@ -90,7 +90,7 @@ fn every_record_kind_round_trips_byte_for_byte() {
     assert_eq!(library.editor(), Ok(Some(sample_editor())));
     drop(library);
     let again = stored(
-        &fresh_dir("sample-restored"),
+        &TestDir::new("sample-restored"),
         &opened.artwork,
         &opened.title,
     );
@@ -152,7 +152,7 @@ fn a_library_of_another_format_is_refused_untouched() {
     let mut later = frozen.clone();
     let format = later.iter_mut().find(|(_, key, _)| key == b"format");
     format.expect("the format record").2 = 2u32.to_le_bytes().to_vec();
-    let dir = fresh_dir("format-2");
+    let dir = TestDir::new("format-2");
     write_records(&dir, &later);
     refused_untouched(&dir, Some(2));
     // A library made before 1.0: its schema, a project, no format.
@@ -165,14 +165,14 @@ fn a_library_of_another_format_is_refused_untouched() {
         b"schema".to_vec(),
         23u32.to_le_bytes().to_vec(),
     ));
-    let dir = fresh_dir("schema-23");
+    let dir = TestDir::new("schema-23");
     write_records(&dir, &older);
     refused_untouched(&dir, None);
 }
 
 #[test]
 fn an_empty_library_is_made_format_1() {
-    let dir = fresh_dir("empty");
+    let dir = TestDir::new("empty");
     let mut library = Library::at(&dir);
     assert_eq!(library.list(), Ok(Vec::new()));
     drop(library);

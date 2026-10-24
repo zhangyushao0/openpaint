@@ -2,9 +2,11 @@
 //! process, over the frozen sample (`tests/samples/format-1.bin`). Unit tests: they make writes
 //! fail through the test hook in `batch.rs`.
 
+#[path = "../tests/common/test_dir.rs"]
+mod test_dir;
+
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, Ordering};
 
 use fjall::{Database, KeyspaceCreateOptions, PersistMode};
 use openpaint_app::{ProjectId, ProjectStore, Thumbnail, Title};
@@ -12,6 +14,7 @@ use openpaint_core::{
     Artwork, ArtworkCommand, BrushRecipe, CanvasPoint, Color, LayerCommand, StrokeSample,
     StrokeStyle,
 };
+use test_dir::TestDir;
 
 use crate::Library;
 use crate::batch::faults;
@@ -46,23 +49,9 @@ fn take<'a>(rest: &mut &'a [u8], len: usize) -> &'a [u8] {
     part
 }
 
-/// A directory that does not exist yet, under the target directory's `tmp` (as cargo's
-/// `CARGO_TARGET_TMPDIR`, which unit tests are not given).
-fn fresh(name: &str) -> PathBuf {
-    static NEXT: AtomicU32 = AtomicU32::new(0);
-    let unique = NEXT.fetch_add(1, Ordering::Relaxed);
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../target/tmp")
-        .join(format!("store-unit-{name}-{}-{unique}", std::process::id()));
-    if dir.exists() {
-        std::fs::remove_dir_all(&dir).expect("clear an old test directory");
-    }
-    dir
-}
-
 /// A library in a new directory holding `records`, written past the store.
-fn library_of(name: &str, records: &Dump) -> PathBuf {
-    let dir = fresh(name);
+fn library_of(name: &str, records: &Dump) -> TestDir {
+    let dir = TestDir::new(name);
     let db = Database::builder(&dir).open().expect("open raw");
     for (name, key, value) in records {
         let keyspace = db
@@ -91,8 +80,8 @@ fn records(dir: &Path) -> Dump {
 }
 
 /// A copy of the closed library in `from`.
-fn copied(from: &Path, name: &str) -> PathBuf {
-    let to = fresh(name);
+fn copied(from: &Path, name: &str) -> TestDir {
+    let to = TestDir::new(name);
     copy_dir(from, &to);
     to
 }
@@ -137,7 +126,7 @@ fn thumbnail() -> Thumbnail {
 }
 
 /// The sample (project 1) with a second artwork and a kept version of each, closed.
-fn two_artworks() -> (PathBuf, Artwork, Artwork) {
+fn two_artworks() -> (TestDir, Artwork, Artwork) {
     let dir = library_of("two", &sample());
     let mut library = Library::at(&dir);
     let one = artwork_of(&mut library, 1);
@@ -212,7 +201,6 @@ fn a_write_failing_anywhere_in_leaving_keeps_the_last_complete_save_and_every_ve
             "write {n}: its file and its entry, or neither"
         );
         assert!(added.len() != 1, "write {n}: half a version");
-        std::fs::remove_dir_all(&dir).expect("the trial's copy goes");
     }
 }
 
@@ -299,6 +287,5 @@ fn cut_at(saved: &Path, name: &std::ffi::OsStr, cut: u64) -> openpaint_core::Art
     let mut library = Library::at(&dir);
     let opened = library.open_last().expect("opens").expect("a project");
     drop(library);
-    std::fs::remove_dir_all(&dir).expect("the trial's copy goes");
     opened.artwork.to_parts()
 }

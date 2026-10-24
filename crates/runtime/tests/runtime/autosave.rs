@@ -9,7 +9,7 @@ use openpaint_app::StorageNotice;
 use openpaint_runtime::ToolKind;
 use openpaint_store::Library;
 
-use crate::support::{Hand, Nowhere, library_dir, line, settle, start};
+use crate::support::{Hand, Nowhere, TestDir, line, settle, start};
 
 /// Wide enough for the notice pill beside the right island.
 const SIZE: [u32; 2] = [1600, 1000];
@@ -17,7 +17,7 @@ const PIXELS_PER_POINT: f32 = 2.0;
 
 #[test]
 fn strokes_survive_a_restart_with_identical_pixels() {
-    let dir = library_dir("restart");
+    let dir = TestDir::new("restart");
     let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Library::at(&dir)));
     let mut hand = Hand::new(SIZE);
     hand.gesture(&mut runtime, ToolKind::Stylus, &line(160.0));

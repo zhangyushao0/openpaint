@@ -85,35 +85,62 @@ fn todays_backup(dir: &Path, day: u64) -> Result<Option<PathBuf>> {
 
 #[cfg(test)]
 mod tests {
+    use std::io::{ErrorKind, Write};
     use std::time::Duration;
 
     use super::*;
 
     #[test]
     fn only_a_backup_written_today_counts() {
-        let dir = crate::process::root()
-            .join("target")
-            .join("tmp")
-            .join(format!("xtask-reset-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("a directory");
+        let held = TestDir::new("xtask-reset");
+        let dir = held.0.as_path();
         let today = day_of(SystemTime::now());
-        assert!(matches!(todays_backup(&dir, today), Ok(None)), "empty");
+        assert!(matches!(todays_backup(dir, today), Ok(None)), "empty");
         let note = dir.join("notes.txt");
         std::fs::write(&note, b"not a backup").expect("a file");
-        assert!(matches!(todays_backup(&dir, today), Ok(None)), "no tar");
+        assert!(matches!(todays_backup(dir, today), Ok(None)), "no tar");
         let tar = dir.join("pre-1-0.tar");
         std::fs::write(&tar, b"a backup").expect("a file");
-        assert_eq!(todays_backup(&dir, today).expect("read"), Some(tar.clone()));
+        assert_eq!(todays_backup(dir, today).expect("read"), Some(tar.clone()));
         assert!(
-            matches!(todays_backup(&dir, today + 1), Ok(None)),
+            matches!(todays_backup(dir, today + 1), Ok(None)),
             "yesterday's"
         );
         let missing = dir.join("missing");
         assert!(matches!(todays_backup(&missing, today), Ok(None)));
         let day = Duration::from_secs(86_400);
         assert_eq!(day_of(UNIX_EPOCH + day * 20_748), 20_748);
-        std::fs::remove_file(&tar).expect("the test's tar goes");
-        std::fs::remove_file(&note).expect("the test's note goes");
-        std::fs::remove_dir(&dir).expect("the test's directory goes");
+    }
+
+    /// The test's own new directory under `target/tmp` (S87): removed with everything in it when
+    /// the test passes, kept and named when it fails; never one an earlier run left.
+    struct TestDir(PathBuf);
+
+    impl TestDir {
+        fn new(name: &str) -> Self {
+            let tmp = crate::process::root().join("target").join("tmp");
+            std::fs::create_dir_all(&tmp).expect("the tests' temporary directory");
+            let mut n = 0;
+            loop {
+                let dir = tmp.join(format!("{name}-{}-{n}", std::process::id()));
+                match std::fs::create_dir(&dir) {
+                    Ok(()) => return Self(dir),
+                    Err(error) if error.kind() == ErrorKind::AlreadyExists => n += 1,
+                    Err(error) => panic!("{}: {error}", dir.display()),
+                }
+            }
+        }
+    }
+
+    impl Drop for TestDir {
+        fn drop(&mut self) {
+            // Straight to stderr: the test harness shows no captured line of a test that passes.
+            let (mut stderr, shown) = (std::io::stderr(), self.0.display());
+            if std::thread::panicking() {
+                let _ = writeln!(stderr, "kept the failed test's directory {shown}");
+            } else if let Err(error) = std::fs::remove_dir_all(&self.0) {
+                let _ = writeln!(stderr, "warning: test directory {shown} stays: {error}");
+            }
+        }
     }
 }

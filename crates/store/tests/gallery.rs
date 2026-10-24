@@ -3,7 +3,7 @@
 
 mod common;
 
-use common::{fresh_dir, records, untitled, write_records};
+use common::{TestDir, records, untitled, write_records};
 use openpaint_app::{PortError, ProjectId, ProjectStore, Thumbnail, Title};
 use openpaint_core::{
     Artwork, BrushRecipe, CanvasPoint, CanvasSize, Color, StrokeSample, StrokeStyle,
@@ -40,7 +40,7 @@ fn title(text: &str) -> Title {
 
 #[test]
 fn the_gallery_lists_the_artwork_changed_last_first() {
-    let dir = fresh_dir("list");
+    let dir = TestDir::new("list");
     let mut library = Library::at(&dir);
     assert_eq!(library.list(), Ok(Vec::new()));
     let one = library.create(&blank(), &title("One")).expect("create");
@@ -68,7 +68,7 @@ fn the_gallery_lists_the_artwork_changed_last_first() {
 
 #[test]
 fn a_thumbnail_is_kept_with_its_project() {
-    let dir = fresh_dir("thumbnail");
+    let dir = TestDir::new("thumbnail");
     let mut library = Library::at(&dir);
     let id = library.create(&blank(), &untitled()).expect("create");
     assert_eq!(library.list().expect("list")[0].thumbnail, None);
@@ -81,7 +81,7 @@ fn a_thumbnail_is_kept_with_its_project() {
 
 #[test]
 fn a_duplicate_is_a_separate_copy_listed_first() {
-    let dir = fresh_dir("duplicate");
+    let dir = TestDir::new("duplicate");
     let mut library = Library::at(&dir);
     let drawn = draw(&blank(), 10.0);
     let id = library.create(&drawn, &title("Harbour")).expect("create");
@@ -106,7 +106,7 @@ fn a_duplicate_is_a_separate_copy_listed_first() {
 
 #[test]
 fn delete_removes_every_record_and_leaves_the_others() {
-    let dir = fresh_dir("delete");
+    let dir = TestDir::new("delete");
     let mut library = Library::at(&dir);
     let keep = library
         .create(&draw(&blank(), 5.0), &title("Keep"))
@@ -133,7 +133,7 @@ fn delete_removes_every_record_and_leaves_the_others() {
 
 #[test]
 fn the_next_start_opens_the_artwork_left_open_or_none_after_the_gallery() {
-    let dir = fresh_dir("last");
+    let dir = TestDir::new("last");
     let mut library = Library::at(&dir);
     let one = library
         .create(&draw(&blank(), 5.0), &untitled())
@@ -152,7 +152,7 @@ fn the_next_start_opens_the_artwork_left_open_or_none_after_the_gallery() {
 
 #[test]
 fn an_unreadable_thumbnail_is_left_out_and_an_unreadable_entry_refused() {
-    let source = fresh_dir("unreadable-source");
+    let source = TestDir::new("unreadable-source");
     let mut library = Library::at(&source);
     let id = library.create(&blank(), &untitled()).expect("create");
     let picture = Thumbnail::new([1, 1], vec![0; 4]).expect("thumbnail");
@@ -166,7 +166,7 @@ fn an_unreadable_thumbnail_is_left_out_and_an_unreadable_entry_refused() {
             .iter_mut()
             .find(|(keyspace, key, _)| keyspace == part && key.len() == 9 && is(key));
         record.expect("the record").2.pop();
-        let dir = fresh_dir(&format!("unreadable-{part}"));
+        let dir = TestDir::new(&format!("unreadable-{part}"));
         write_records(&dir, &changed);
         Library::at(&dir).list()
     };

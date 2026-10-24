@@ -5,7 +5,7 @@
 mod common;
 mod sample;
 
-use common::{fresh_dir, records, untitled, write_records};
+use common::{TestDir, records, untitled, write_records};
 use openpaint_app::{ImageFormat, PortError, ProjectStore};
 use openpaint_practice::{
     Credit, ItemRef, Licence, Outline, PERSONAL, Pack, PackItem, PictureKind, Tier,
@@ -150,17 +150,13 @@ fn a_pack_breaking_a_rule_or_its_pictures_is_never_written() {
     }
     let bytes = encode_pack(&personal, &pictures).expect("the personal pack");
     assert_eq!(open_pack(&bytes).map(|(pack, _)| pack), Ok(personal));
-    assert!(
-        Packs::at(fresh_dir("packs-personal"))
-            .import(&bytes)
-            .is_err(),
-        "never imported"
-    );
+    let dir = TestDir::new("packs-personal");
+    assert!(Packs::at(&dir).import(&bytes).is_err(), "never imported");
 }
 
 #[test]
 fn a_picture_of_one_s_own_joins_the_personal_pack_with_its_outline() {
-    let dir = fresh_dir("packs-mine");
+    let dir = TestDir::new("packs-mine");
     let packs = Packs::at(&dir);
     let ground = |x: u32, y: u32| {
         if (x as i32 - 40).pow(2) + (y as i32 - 30).pow(2) < 400 {
@@ -210,7 +206,7 @@ fn a_picture_of_one_s_own_joins_the_personal_pack_with_its_outline() {
 /// without it, its file gone with the last; one it does not hold changes nothing.
 #[test]
 fn a_picture_of_one_s_own_changes_tier_and_goes() {
-    let dir = fresh_dir("packs-mine-removed");
+    let dir = TestDir::new("packs-mine-removed");
     let packs = Packs::at(&dir);
     let file = |grey: u8| {
         let pixels: Vec<u8> = (0..40 * 30).flat_map(|_| [grey, grey, grey, 255]).collect();
@@ -253,7 +249,7 @@ fn a_picture_of_one_s_own_changes_tier_and_goes() {
 #[test]
 fn an_imported_pack_is_kept_beside_the_library_whose_bytes_stay() {
     // The frozen format-1 library (every record kind, `tests/format.rs`) and packs beside it.
-    let dir = fresh_dir("packs");
+    let dir = TestDir::new("packs");
     let frozen = std::fs::read(sample_path()).expect("the format-1 sample");
     write_records(&dir.join("library"), &decode(&frozen));
 
@@ -293,7 +289,7 @@ fn an_imported_pack_is_kept_beside_the_library_whose_bytes_stay() {
 
 #[test]
 fn a_new_edition_replaces_the_kept_one_and_a_refused_import_changes_nothing() {
-    let dir = fresh_dir("packs-edition");
+    let dir = TestDir::new("packs-edition");
     let packs = Packs::at(&dir);
     let (pack, pictures) = sample("test-shapes");
     packs
@@ -320,7 +316,7 @@ fn a_new_edition_replaces_the_kept_one_and_a_refused_import_changes_nothing() {
 
 #[test]
 fn a_damaged_kept_pack_is_left_out_and_its_pictures_refused() {
-    let dir = fresh_dir("packs-damaged");
+    let dir = TestDir::new("packs-damaged");
     let packs = Packs::at(&dir);
     let (pack, pictures) = sample("test-shapes");
     let bytes = encode_pack(&pack, &pictures).expect("encoded");

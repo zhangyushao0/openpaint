@@ -11,10 +11,11 @@
 mod gpu;
 #[path = "runtime/support/hand.rs"]
 mod hand;
+#[path = "runtime/support/test_dir.rs"]
+mod test_dir;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU32, Ordering};
 
 use hand::{Hand, assert_cold};
 use openpaint_app::{ProjectId, ProjectStore, SaveId, Title};
@@ -23,29 +24,27 @@ use openpaint_core::{
 };
 use openpaint_runtime::{DisplayCache, Runtime, StartOptions, ToolKind};
 use openpaint_store::{CacheKey, Library};
+use test_dir::TestDir;
 
 const SIZE: [u32; 2] = [1200, 900];
 const PIXELS_PER_POINT: f32 = 2.0;
 const CANVAS: [u32; 2] = [480, 320];
 const PROJECT: ProjectId = ProjectId::new(1);
 
-/// A library directory and a cache directory, neither there yet.
+/// A library directory and a cache directory, neither there yet, in the test's own directory.
 struct Dirs {
     library: PathBuf,
     cache: PathBuf,
+    /// Both under it; removed when the test's `Dirs` goes, after the runtimes declared later.
+    _root: TestDir,
 }
 
 fn fresh(name: &str) -> Dirs {
-    static NEXT: AtomicU32 = AtomicU32::new(0);
-    let unique = NEXT.fetch_add(1, Ordering::Relaxed);
-    let root = PathBuf::from(env!("CARGO_TARGET_TMPDIR"))
-        .join(format!("display-{name}-{}-{unique}", std::process::id()));
-    if root.exists() {
-        std::fs::remove_dir_all(&root).expect("clear an old test directory");
-    }
+    let root = TestDir::new(&format!("display-{name}"));
     Dirs {
         library: root.join("library"),
         cache: root.join("cache"),
+        _root: root,
     }
 }
 

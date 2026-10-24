@@ -12,7 +12,7 @@ use openpaint_app::{GalleryNotice, ProjectStore};
 use openpaint_runtime::{BytesSource, HostAnswer, HostRequest, Runtime, StartOptions};
 use openpaint_store::Library;
 
-use crate::support::{Hand, Written, assert_cold, core, gallery, library_dir, until};
+use crate::support::{Hand, TestDir, Written, assert_cold, core, gallery, until};
 
 const SIZE: [u32; 2] = [1600, 1000];
 const PIXELS_PER_POINT: f32 = 2.0;
@@ -106,7 +106,7 @@ fn restore_the_version(runtime: &mut Runtime, hand: &mut Hand) -> String {
 #[test]
 fn a_saved_file_opens_as_the_same_artwork_and_a_version_restores_what_was_left() {
     let core = core();
-    let dir = library_dir("files-round-trip");
+    let dir = TestDir::new("files-round-trip");
     Library::at(&dir)
         .import_file(&sample_file())
         .expect("the sample");

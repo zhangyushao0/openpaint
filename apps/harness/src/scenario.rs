@@ -1,6 +1,7 @@
 //! `scenario <name>`: runs `tests/scenarios/<name>.json` through the product frame loop on a
-//! fresh library in `artifacts/scenarios/<name>/library/` (which `restart` reopens) and writes
-//! what it saw under `artifacts/scenarios/<name>/`:
+//! fresh library in `artifacts/scenarios/<name>/library/` (which `restart` reopens) and packs in
+//! `packs/` beside it, both removed when the scenario passes and kept (their paths printed) when
+//! it fails, and writes what it saw under `artifacts/scenarios/<name>/`:
 //!
 //! - `<screenshot>.png`: the screen at each screenshot step, for looking at;
 //! - `<checkpoint>.canvas.png`: the canvas each time its checkpoint passes, the reference for
@@ -13,7 +14,7 @@
 //! same artifacts; it prints one line per scenario and the full report of each one that fails.
 
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use openpaint_devtools::{Checkpoint, Export, Record, Scenario, diff, is_file_name};
@@ -22,6 +23,7 @@ use openpaint_runtime::TextFonts;
 use crate::error::HarnessError;
 use crate::launch::{fresh_library, text_fonts};
 use crate::output::{read_rgba, workspace_root, write_rgba};
+use crate::scratch;
 
 /// What one scenario run reports, line by line.
 type Log = Vec<String>;
@@ -103,14 +105,36 @@ fn replay(name: &str, fonts: &TextFonts, log: &mut Log) -> Result<(), HarnessErr
     log.push(format!("scenario {}", file.display()));
     let scenario = Scenario::parse(&fs::read_to_string(&file)?)?;
     let dir = root.join("artifacts").join("scenarios").join(name);
-    let (library, packs) = (
+    let made = [
         fresh_library(dir.join("library"))?,
         fresh_library(dir.join("packs"))?,
-    );
-    let report = openpaint_devtools::run(&scenario, (&library, &packs), fonts)?;
+    ];
+    let result = check(&scenario, name, &dir, &made, fonts, log);
+    // The library and packs the run made: gone when it passed, kept for a look when it failed.
+    for path in &made {
+        if result.is_ok() {
+            scratch::remove(path);
+        } else if path.exists() {
+            log.push(format!("kept for a look: {}", path.display()));
+        }
+    }
+    result
+}
+
+/// `scenario` run on the library and packs in `made`, what it saw written to `dir` and logged;
+/// fails when a checkpoint, export or view fails or a step touched a control by pixels.
+fn check(
+    scenario: &Scenario,
+    name: &str,
+    dir: &Path,
+    [library, packs]: &[PathBuf; 2],
+    fonts: &TextFonts,
+    log: &mut Log,
+) -> Result<(), HarnessError> {
+    let report = openpaint_devtools::run(scenario, (library, packs), fonts)?;
     log.push(format!("adapter {}", report.adapter));
-    fs::create_dir_all(&dir)?;
-    write_records(&dir, &report.records, log)?;
+    fs::create_dir_all(dir)?;
+    write_records(dir, &report.records, log)?;
     let total = report.checkpoints().count() + report.exports().count() + report.views().count();
     let failed = report.checkpoints().filter(|c| !c.passed()).count()
         + report.exports().filter(|e| !e.passed()).count()
