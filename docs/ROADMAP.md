@@ -78,8 +78,16 @@ The author, 2026-10-23: practice is their main activity now. The app gets a prac
   - **Free boxes reachable on the tablet.** `practice-test start 2 <n>` starts the test session as stage 2's n-th would be, so free boxes (even sessions) are walked.
 
   Done: a line's, a group's and a shape's Compare in place and aligned looked at at fit and at 4x (the ink visible through the red, an error of a pen's width visible), a box's extensions beside the original's frame; `cargo scenarios` with every hash before unchanged; on the tablet the fit's time before and after, a test session's free boxes drawn and compared, the smoke, the library restored.
+- S89 The practice book (1.7.0; after S88; the author, 2026-10-28: progress at a glance like Duolingo, what was done each day, rewarding and beautiful, never rigid; the design agreed on a mock the same day; no days in a row).
+  - **The road.** The Today card shows the stage's road; a tap opens the practice book, a page of paper: V大's eight stages as one ink road, the stage's 15 sessions as dots inked as they are done, the next one ringed, stages ahead in pencil, a finished stage's node sealed; the stages there are by name, later ones by number.
+  - **The days.** A month as a calendar, earlier months a swipe away: a day practised an ink wash, darker the longer, today ringed, a day without practice plain paper; no days in a row, quotas, reminders or slots to fill.
+  - **Time is practice only.** Time counts while the app is in front and between uses of the pen (touching or hovering), a finger or a control; a gap longer than a few minutes counts nothing (the author leaves the app open an hour or four while doing something else), nor does time hidden. Kept in each record by local day as it accrues, so a copy painted over days shows on each; sessions from before get theirs from their compares' times by the same rule.
+  - **A day.** Tapped, a day shows its time, its sessions' and copies' sheets (a tap opens one) and the colours matched as pairs, each split corner to corner, the original and the copy.
+  - **Progress seen.** The colour's first pick per session (ΔE × 100, the eye's own level before corrections) as an ink line; lines as the first session's overlay beside the latest's, no numbers.
+  - **Seals.** Milestones stamped in vermilion, the page's only colour: the first session, ten sessions, a stage finished, 100 lines, 100 colours, the first colour copy and the like; only those earned show. At Finish the session's dot inks in on the road and a new seal stamps down, on the interface's springs.
+
+  Done: the walk-through `s89-practice-book` in both languages over sessions on several days (one paused two hours counting only its minutes): the Today card's road, the book, a day and its sheet opened, Finish inking a dot and stamping a seal; time and seals tested on known records (pauses, hidden spans, a copy over two days, records from before); records round-trip with their time; `cargo scenarios` with every hash before unchanged; on the tablet the book opened over the author's records (nothing written), a test session's Finish, the book's opening measured, the smoke, the library restored.
 - Next, each specified after the one before lands:
-  - Progress at a glance (the author, 2026-10-28: like Duolingo, what was done each day, rewarding and beautiful, never rigid), its design agreed with the author first.
   - Point positioning, proportion and angle estimates (stage 3).
   - Picture division, Notan and whole-picture copies.
   - Key shifts, gamut masks and abstract analysis.
