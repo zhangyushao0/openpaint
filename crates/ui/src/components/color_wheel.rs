@@ -46,9 +46,14 @@ struct Geometry {
 
 impl Geometry {
     fn of(rect: Rect) -> Self {
+        Self::with_ring(rect, HUE_RING, SPACE)
+    }
+
+    /// Inside `rect`, the ring `ring` points wide and the square `gap` inside it.
+    fn with_ring(rect: Rect, ring: f32, gap: f32) -> Self {
         let outer = rect.width().min(rect.height()) / 2.0;
-        let inner = outer - HUE_RING;
-        let side = (inner - SPACE) * SQRT_2;
+        let inner = outer - ring;
+        let side = (inner - gap) * SQRT_2;
         Self {
             centre: rect.center(),
             outer,
@@ -190,6 +195,26 @@ pub fn color_compare(
         arrow(painter, &path, mark);
     }
     arrow(painter, &[shape.spot(from), shape.spot(to)], mark);
+}
+
+/// A small wheel as a picture in `rect` (no hand moves it), its ring a share of its side: the
+/// square at `pick`'s hue with `pick` marked as the wheel marks it, and each colour of `ringed` in
+/// its own (the How card's demonstration, S92).
+pub fn wheel_picture(painter: &egui::Painter, rect: Rect, pick: Hsv, ringed: &[(Hsv, Color32)]) {
+    let ring = rect.width().min(rect.height()) * 0.13;
+    let shape = Geometry::with_ring(rect, ring, ring * 0.3);
+    paint_wheel(painter, &shape, pick.h);
+    let marker = ring * 0.4;
+    for (hsv, colour) in ringed {
+        for centre in [shape.on_ring(hsv.h), shape.spot(*hsv)] {
+            painter.circle_stroke(centre, marker, Stroke::new(4.0, PANEL));
+            painter.circle_stroke(centre, marker, Stroke::new(2.0, *colour));
+        }
+    }
+    for centre in [shape.on_ring(pick.h), shape.spot(pick)] {
+        painter.circle_stroke(centre, marker, Stroke::new(3.5, PANEL));
+        painter.circle_stroke(centre, marker, Stroke::new(1.5, INK));
+    }
 }
 
 /// A line along `path` in `colour` from its start (inside the hollow marker there) to a head

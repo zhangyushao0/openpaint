@@ -14,7 +14,7 @@
 //!   the painting pens Big, Small and Soft in the colour picked and the eyedropper (the copy may
 //!   be picked from); a value scale the same with Fill cell (the cell in hand); a colour copy
 //!   shown with its own tools the wheel, Undo, Redo, the pens. While a painted copy is compared
-//!   the wheel gives its room to the comparison's card.
+//!   the wheel gives its room to the comparison's card, and while How shows to its card (S92).
 
 use egui::Align;
 use openpaint_app::{
@@ -76,8 +76,9 @@ pub(crate) fn exercise_tools(
         return Some(card(ctx, "practice pens", source, pens).1);
     }
     let brush = projection.brush()?;
-    // A painted copy compared: its card needs the room; the wheel comes back with the pen.
-    let wheel = !(practice.comparing && family.painted());
+    // A painted copy compared, or any How with its demonstration: the card needs the room; the
+    // wheel comes back with the pen or Got it.
+    let wheel = !(practice.comparing && family.painted()) && practice.instructions.is_none();
     let ((), rect) = card(ctx, "practice colour", source, |ui| {
         if wheel {
             ui.vertical_centered(|ui| colors.inline_wheel(ui, brush, taps));

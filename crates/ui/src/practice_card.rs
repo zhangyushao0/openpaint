@@ -1,8 +1,6 @@
-//! What the practice card says: how to practise each family (our own words after V大's method:
-//! look first, mark the ends and the most bent points, draw in one sure stroke, correct over
-//! rather than erase; combined lines seen as one shape, the outer key points first, then the
-//! inside, compared rather than guessed; name a colour, pick once by eye, compare and correct two
-//! or three times), each family's How saying once what Compare shows; a comparison, which shows
+//! What the practice card says: how to practise each family (S92: its title, what it trains and
+//! its week, V大's way played on an example with its numbered steps, `practice_demo.rs`, and once
+//! what Compare shows, `text/practice_demo*.rs`; Again and Got it); a comparison, which shows
 //! rather than tells (D108): lines in place or aligned, no numbers, a line only where Aligned is
 //! unavailable; a colour both on the wheel and in the colour table; week 2's colour work and a
 //! colour copy in `practice_card_colour.rs`, boxes and ellipses in `practice_card_geometry.rs`;
@@ -18,7 +16,8 @@ use crate::components::{
     keep_moving, paint_seal, paint_stretch, radar, seal_turn, text_button, text_choice_wide,
 };
 use crate::design::motion::OPEN;
-use crate::design::{CORRECTION, DIALOG_WIDTH, INK_SECONDARY, SPACE};
+use crate::design::{CORRECTION, DIALOG_WIDTH, INK_SECONDARY, SPACE, TOUCH_TARGET};
+use crate::practice_demo::Demonstrations;
 use crate::taps::push_once;
 use crate::text::{self as t, Words, language};
 use crate::{practice_card_colour, practice_card_geometry};
@@ -35,18 +34,43 @@ const BIG_SEAL: f32 = 84.0;
 /// that a new seal stamps down.
 const INK_AFTER: f64 = 0.4;
 const STAMP_AFTER: f64 = 0.75;
+/// Under a How card's body: its foot (Again, Got it), the card's margin and a gap to the screen's
+/// edge; and the least of its body that shows, in points.
+const HOW_FOOT: f32 = TOUCH_TARGET + 4.0 * SPACE;
+const HOW_LEAST: f32 = 12.0 * SPACE;
 
-/// The instructions for a family; returns whether Got it was tapped.
-pub(crate) fn instructions(ui: &mut egui::Ui, family: Family) -> bool {
-    let (heading, text) = t::instructions(family);
-    ui.heading(Words::from(heading).shown(ui.ctx()));
-    for line in text {
-        card_text(ui, *line, false);
-    }
+/// A family's How (S92): its title, what it trains and its week, its demonstration playing with
+/// its numbered steps (`demos`), what Compare's marks mean, and Again beside Got it; returns
+/// whether Got it was tapped.
+pub(crate) fn instructions(ui: &mut egui::Ui, family: Family, demos: &mut Demonstrations) -> bool {
+    let how = t::how(family);
+    ui.heading(Words::from(how.heading).shown(ui.ctx()));
+    // On a screen too short for the whole card its body scrolls; Again and Got it stay in reach.
+    let room = ui.ctx().content_rect().bottom() - ui.cursor().top() - HOW_FOOT;
+    egui::ScrollArea::vertical()
+        .id_salt("how")
+        .max_height(room.max(HOW_LEAST))
+        .auto_shrink([false, true])
+        .show(ui, |ui| {
+            if let Some(trains) = how.trains {
+                card_text(ui, trains, true);
+            }
+            demos.show(ui, family, how.steps);
+            for line in how.says {
+                card_text(ui, *line, false);
+            }
+        });
     // At the top of its row: centred, the row would take the height the card had before (a
     // summary's) and keep it.
-    ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-        text_button(ui, t::GOT_IT, true).clicked()
+    ui.horizontal_top(|ui| {
+        let again = how.trains.is_some() && text_button(ui, t::AGAIN, true).clicked();
+        if again {
+            demos.again(ui.ctx());
+        }
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+            text_button(ui, t::GOT_IT, true).clicked()
+        })
+        .inner
     })
     .inner
 }
