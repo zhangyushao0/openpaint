@@ -30,9 +30,18 @@ pub fn screens(args: &[String]) -> Result<()> {
     let adb = Adb::connected()?;
     let mut found = Vec::new();
     for folder in FOLDERS {
-        // Seconds since 1970 and the path, one a line; an empty or missing folder lists nothing.
-        let listing = format!("stat -c '%Y %n' '{folder}'/* 2>/dev/null; true");
-        found.extend(listed(&adb.shell(&[&listing])?));
+        // "held" when the folder is there, then seconds since 1970 and the path, one a line.
+        let listing = format!(
+            "if [ -d '{folder}' ]; then echo held; stat -c '%Y %n' '{folder}'/* 2>/dev/null; fi; \
+             true"
+        );
+        let output = adb.shell(&[&listing])?;
+        let pictures = listed(&output);
+        match output.lines().next().map(str::trim) {
+            Some("held") => println!("  {folder}: {} pictures", pictures.len()),
+            _ => println!("  {folder}: not there"),
+        }
+        found.extend(pictures);
     }
     found.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
     found.truncate(count);
