@@ -14,11 +14,15 @@ use openpaint_core::{Color, CoreError, StrokeStyle};
 use crate::brushes::{BrushKey, BrushLibrary};
 use crate::practice::Pen;
 
+/// The Draw and Correct pens' diameter, canvas pixels: Compare lays the original's lines over the
+/// copy as thick (S88), so an error of a pen's width shows.
+pub const INK_DIAMETER: f32 = 5.0;
+
 /// Each pen's brush, diameter (canvas pixels; a frame is 400), opacity and colour (a painting
 /// pen takes the colour picked instead).
 const SKETCH: (&str, f32, f32, [f32; 3]) = ("pencil", 4.0, 0.6, [0.48, 0.46, 0.43]);
-const DRAW: (&str, f32, f32, [f32; 3]) = ("ink-pen", 5.0, 1.0, [0.149, 0.145, 0.137]);
-const CORRECT: (&str, f32, f32, [f32; 3]) = ("ink-pen", 5.0, 1.0, [0.12, 0.33, 0.80]);
+const DRAW: (&str, f32, f32, [f32; 3]) = ("ink-pen", INK_DIAMETER, 1.0, [0.149, 0.145, 0.137]);
+const CORRECT: (&str, f32, f32, [f32; 3]) = ("ink-pen", INK_DIAMETER, 1.0, [0.12, 0.33, 0.80]);
 const BIG: (&str, f32, f32, [f32; 3]) = ("opaque-paint", 64.0, 1.0, [0.5; 3]);
 const SMALL: (&str, f32, f32, [f32; 3]) = ("opaque-paint", 20.0, 1.0, [0.5; 3]);
 const SOFT: (&str, f32, f32, [f32; 3]) = ("soft-brush", 100.0, 0.8, [0.5; 3]);

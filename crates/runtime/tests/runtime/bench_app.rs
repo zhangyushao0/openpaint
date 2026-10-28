@@ -2,7 +2,8 @@
 //! offscreen through the whole frame loop on a library with a display cache: each finishes, says
 //! what it measured, and leaves the canvas equal to a cold evaluation. `session` appends the open
 //! artwork's strokes to a new one, which then holds them all but the undone ones. `practice` runs
-//! on a practice sheet started from the gallery's Today card and moves it three exercises on.
+//! on a practice sheet started from the gallery's Today card, moves it three exercises on and to
+//! its first group of combined lines, each compared aligned with its fit shown.
 
 use openpaint_app::{BrushLibrary, ProjectStore, Title};
 use openpaint_core::{Artwork, CanvasSize};
@@ -110,13 +111,19 @@ fn every_scenario_benchmark_runs_through_the_frame_loop() {
     eprintln!("{}", lines.join("\n"));
     for motion in [
         "aligned",
+        "line compared aligned, the fit shown",
         "next 3",
+        "group compared aligned, the fit shown",
         "inline wheel dragged",
         "colour compared",
     ] {
         let found = lines.iter().any(|line| line.starts_with(motion));
         assert!(found, "{motion}: {lines:?}");
     }
+    assert!(
+        lines.iter().all(|line| !line.contains("NOT shown")),
+        "every fit shown: {lines:?}"
+    );
     let projection = runtime.projection();
     let practice = projection.practice().expect("the sheet");
     assert_eq!(practice.current, Some(10), "on to the first colour");

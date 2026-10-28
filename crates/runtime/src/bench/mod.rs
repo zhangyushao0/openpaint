@@ -33,8 +33,10 @@
 //!   vsyncs wanting one, the longest gap, frame work, UI pass and GPU time a frame (`ui.rs`,
 //!   `motion.rs`).
 //! - `practice`: on the practice sheet open, How's card opened and closed, a line compared, Next
-//!   three times, a shape and a colour combination compared, a colour filled and compared,
-//!   measured as `ui` measures (`practice.rs`).
+//!   three times, a group of combined lines, a shape and a colour combination compared, a colour
+//!   filled and compared, measured as `ui` measures; a line, a group and a shape compared aligned
+//!   also say when the fit showed after the tap and how long it took on its worker
+//!   (`practice.rs`).
 
 use std::time::{Duration, Instant};
 

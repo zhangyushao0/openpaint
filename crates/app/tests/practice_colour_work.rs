@@ -385,7 +385,7 @@ fn a_long_colour_copy_is_kept_beside_the_sessions_and_counts_in_none() {
     assert_eq!(today.copies[0].picture, Some(teapot()));
     let shown = today.picture(&teapot()).expect("the picture offered");
     assert_eq!((shown.copies, shown.sessions), (1, 0));
-    let (next, _) = log.begin(1, 9, 3);
+    let (next, _) = log.begin((1, None), 9, 3);
     assert_eq!((next.number, next.warm_up), (1, 0), "the first session");
     let (second, title) = log.begin_copy(&teapot(), 4, 5).expect("a picture again");
     assert_eq!((second.number, title.as_str()), (2, "Colour copy 2"));

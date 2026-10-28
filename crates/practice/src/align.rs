@@ -21,8 +21,17 @@
 //! fitted is the one that leaves the least between it and the copy, both ways (each point of
 //! either to the other, on the mean): the whole group, the group without one line, or one line
 //! alone. The lines drawn land on theirs, and the rest lie where those put them.
+//!
+//! Each side's lines are indexed once (`Grid`), so a nearest point is found among the few segments
+//! round it rather than among all of them (S88: a group's fit took 0.4 s on the tablet, now about
+//! 16 ms). The copy's raw pen samples are indexed as they are: resampled, their chords cut the
+//! curve, and a known move and size would no longer come back exactly. The placed original's
+//! nearest point to a copy's is the original's own nearest to that point taken back through the
+//! placement, which a similarity keeps (distances only scale), so the original is indexed once,
+//! not every round.
 
-use crate::path::{Point, centre_and_spread, distance, nearest, resample};
+use crate::grid::Grid;
+use crate::path::{Point, centre_and_spread, distance, resample};
 
 /// Steps the two lines are compared at, in frame sides.
 const SPACING: f64 = 0.01;
@@ -95,14 +104,37 @@ impl Similarity {
     }
 }
 
+/// One side of a fit: its lines, the points along them it is paired by, and the lines indexed for
+/// nearest points.
+struct Side<'a> {
+    lines: &'a [&'a [Point]],
+    points: Vec<Point>,
+    grid: Grid,
+}
+
+impl<'a> Side<'a> {
+    /// `lines` paired by points every `SPACING` along them.
+    fn of(lines: &'a [&'a [Point]]) -> Self {
+        let points = lines.iter().flat_map(|l| resample(l, SPACING)).collect();
+        Self::with(lines, points)
+    }
+
+    fn with(lines: &'a [&'a [Point]], points: Vec<Point>) -> Self {
+        Self {
+            lines,
+            points,
+            grid: Grid::of(lines),
+        }
+    }
+}
+
 /// The fit that lays the lines of `original` together best over the lines of `copy`, or the part
 /// of them the copy holds; `None` when either has no length.
 #[must_use]
 pub fn align(original: &[&[Point]], copy: &[&[Point]]) -> Option<Fit> {
     let part = held(original, copy);
     let lines: Vec<&[Point]> = part.iter().map(|&line| original[line]).collect();
-    let copies: Vec<Point> = copy.iter().flat_map(|l| resample(l, SPACING)).collect();
-    fitted(&lines, (copy, &copies), ROUNDS)
+    fitted(&Side::of(&lines), &Side::of(copy), ROUNDS)
 }
 
 /// Which of `original`'s lines the copy holds: of the parts tried, the one whose fit leaves the
@@ -118,11 +150,11 @@ fn held(original: &[&[Point]], copy: &[&[Point]]) -> Vec<usize> {
     };
     let (original, copy) = (thin(original), thin(copy));
     let copy_lines: Vec<&[Point]> = copy.iter().map(Vec::as_slice).collect();
-    let copies = copy.concat();
+    let copy = Side::with(&copy_lines, copy.concat());
     let tried = parts(original.len()).into_iter().filter_map(|part| {
         let lines: Vec<&[Point]> = part.iter().map(|&line| original[line].as_slice()).collect();
-        let fit = fitted(&lines, (&copy_lines, &copies), SEARCH_ROUNDS)?;
-        Some((mismatch(&lines, fit, (&copy_lines, &copies)), part))
+        let fit = fitted(&Side::of(&lines), &copy, SEARCH_ROUNDS)?;
+        Some((mismatch(&lines, fit, &copy), part))
     });
     tried
         .min_by(|a, b| a.0.total_cmp(&b.0))
@@ -144,30 +176,26 @@ fn parts(count: usize) -> Vec<Vec<usize>> {
 
 /// How far `lines` laid by `fit` and the copy lie from each other: the mean distance of the
 /// copy's points to them and theirs to the copy.
-fn mismatch(lines: &[&[Point]], fit: Fit, (copy, copies): (&[&[Point]], &[Point])) -> f64 {
+fn mismatch(lines: &[&[Point]], fit: Fit, copy: &Side<'_>) -> f64 {
     let laid: Vec<Vec<Point>> = (lines.iter())
         .map(|line| line.iter().map(|p| fit.apply(*p)).collect())
         .collect();
     let laid_lines: Vec<&[Point]> = laid.iter().map(Vec::as_slice).collect();
     let laid_points: Vec<Point> = laid.iter().flat_map(|l| resample(l, SPACING)).collect();
-    let mean = |points: &[Point], to: &[&[Point]]| {
+    let mean = |points: &[Point], to: &Grid| {
         let gaps = points
             .iter()
-            .filter_map(|p| nearest(to, *p).map(|(_, d)| d));
+            .filter_map(|p| to.nearest(*p).map(|near| near.distance));
         gaps.sum::<f64>() / points.len().max(1) as f64
     };
-    mean(copies, &laid_lines) + mean(&laid_points, copy)
+    mean(&copy.points, &Grid::of(&laid_lines)) + mean(&laid_points, &copy.grid)
 }
 
-/// The fit that lays the lines of `original` together best over the lines of `copy` (`copies`:
-/// points along them), in at most `rounds`; `None` when either has no length.
-fn fitted(
-    original: &[&[Point]],
-    (copy, copies): (&[&[Point]], &[Point]),
-    rounds: usize,
-) -> Option<Fit> {
-    let (original_centre, original_spread) = centre_and_spread(original)?;
-    let (copy_centre, copy_spread) = centre_and_spread(copy)?;
+/// The fit that lays the lines of `original` together best over the lines of `copy`, in at most
+/// `rounds`; `None` when either has no length.
+fn fitted(original: &Side<'_>, copy: &Side<'_>, rounds: usize) -> Option<Fit> {
+    let (original_centre, original_spread) = centre_and_spread(original.lines)?;
+    let (copy_centre, copy_spread) = centre_and_spread(copy.lines)?;
     if original_spread <= 0.0 || copy_spread <= 0.0 {
         return None;
     }
@@ -184,14 +212,8 @@ fn fitted(
         scale,
         shift: placed.shift,
     };
-    let originals: Vec<Point> = (original.iter())
-        .flat_map(|l| resample(l, SPACING))
-        .collect();
     for _ in 0..rounds {
-        let pairs = trimmed(
-            &placed,
-            pairs(&placed, (original, &originals), (copy, copies)),
-        );
+        let pairs = trimmed(&placed, pairs(&placed, original, copy));
         let Some((next, unturned)) = solve(&pairs) else {
             break;
         };
@@ -204,27 +226,20 @@ fn fitted(
     Some(fit)
 }
 
-/// Corresponding points `(original's, copy's)` under `placed`: each of `originals` (points along
-/// `original`) with the copy's nearest point to where it is placed, and each of `copies` (points
-/// along `copy`) with the placed original's nearest point, taken back to the original.
-fn pairs(
-    placed: &Similarity,
-    (original, originals): (&[&[Point]], &[Point]),
-    (copy, copies): (&[&[Point]], &[Point]),
-) -> Vec<(Point, Point)> {
-    let mut pairs = Vec::with_capacity(originals.len() + copies.len());
-    for &o in originals {
-        if let Some((c, _)) = nearest(copy, placed.apply(o)) {
-            pairs.push((o, c));
+/// Corresponding points `(original's, copy's)` under `placed`: each of the original's points with
+/// the copy's nearest point to where it is placed, and each of the copy's points with the placed
+/// original's nearest point, taken back to the original (the original's nearest to the copy's
+/// point taken back: `placed` only scales distances).
+fn pairs(placed: &Similarity, original: &Side<'_>, copy: &Side<'_>) -> Vec<(Point, Point)> {
+    let mut pairs = Vec::with_capacity(original.points.len() + copy.points.len());
+    for &o in &original.points {
+        if let Some(near) = copy.grid.nearest(placed.apply(o)) {
+            pairs.push((o, near.at));
         }
     }
-    let laid: Vec<Vec<Point>> = (original.iter())
-        .map(|line| line.iter().map(|p| placed.apply(*p)).collect())
-        .collect();
-    let laid: Vec<&[Point]> = laid.iter().map(Vec::as_slice).collect();
-    for &c in copies {
-        if let Some((q, _)) = nearest(&laid, c) {
-            pairs.push((placed.invert(q), c));
+    for &c in &copy.points {
+        if let Some(near) = original.grid.nearest(placed.invert(c)) {
+            pairs.push((near.at, c));
         }
     }
     pairs

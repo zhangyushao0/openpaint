@@ -18,8 +18,10 @@ use crate::input::{MotionPhase, ToolKind};
 const TAP_MS: i64 = 64;
 /// Between a gesture's batches, ms.
 const STEP_MS: i64 = 8;
-/// How long a motion may go on after its last input before it is cut, ms.
+/// How long a motion may go on after its last input before it is cut, ms; and while what it
+/// waits to show (a fit) has not shown.
 const TAIL_MS: f64 = 2000.0;
+const SHOWN_MS: f64 = 10_000.0;
 
 /// One input batch of a gesture: when (ms from the motion's start), what, by what, where.
 #[derive(Debug, Clone, Copy)]
@@ -118,9 +120,20 @@ pub(super) struct Motion {
     /// Waits for the GPU, ms, and the longest with what it was.
     waited: f64,
     longest: (f64, &'static str),
+    /// From the gesture's last input to the end of the first frame drawn showing what the motion
+    /// waited for (`bench_motion_until`), ms.
+    pub(super) shown: Option<f64>,
 }
 
 impl Motion {
+    /// The vsyncs since the last frame call up to `tick`: wanted (and missed, a frame call still
+    /// working) or not.
+    fn pass_to(&mut self, tick: usize, wanted: bool) {
+        let before = if wanted { Vsync::Missed } else { Vsync::Idle };
+        let first = self.vsyncs.len();
+        self.vsyncs.extend((first..tick).map(|_| before));
+    }
+
     /// "<drawn> of <wanted> vsyncs (<share> %), longest gap <n>; ..." (see the module).
     pub(super) fn line(&self) -> String {
         let drawn_at = |at: &usize| self.vsyncs[*at] == Vsync::Drawn;
@@ -169,6 +182,16 @@ impl Runtime {
     /// `gesture` fed as a hand makes it, frames as the display asks for them, until it is over
     /// and nothing moves (at most `TAIL_MS` after its last input): the motion measured.
     pub(super) fn bench_motion(&mut self, gesture: Gesture) -> Result<Motion, RuntimeError> {
+        self.bench_motion_until(gesture, |_| true)
+    }
+
+    /// `bench_motion`, going on until a frame drawn after the gesture shows what `shown` says
+    /// it waits for (at most `SHOWN_MS` after its last input), and when that frame came.
+    pub(super) fn bench_motion_until(
+        &mut self,
+        gesture: Gesture,
+        shown: impl Fn(&Self) -> bool,
+    ) -> Result<Motion, RuntimeError> {
         self.core.wait_idle()?;
         let _ = self.core.frame_times();
         self.core.time_frames(true);
@@ -182,24 +205,20 @@ impl Runtime {
             ..Watch::start(self)
         };
         let vsync = VSYNC.as_secs_f64() * 1e3;
-        let (mut again, mut still) = (false, 0);
+        let (mut again, mut still, mut lifted) = (false, 0, 0.0);
         loop {
             let now = watch.ms();
             let mut fed = false;
             while let Some(step) = steps.next_if(|step| step.ms as f64 <= now) {
                 let at = std::slice::from_ref(&step.at);
                 self.motion(&batch(step.phase, step.tool, at, base + step.ms));
-                fed = true;
+                (fed, lifted) = (true, now);
             }
             let wanted = fed || again;
             if fed {
                 still = 0;
             }
-            // The vsyncs since the last call: wanted (and missed) while a frame still is.
-            let tick = (now / vsync) as usize;
-            let before = if wanted { Vsync::Missed } else { Vsync::Idle };
-            let first = motion.vsyncs.len();
-            motion.vsyncs.extend((first..tick).map(|_| before));
+            motion.pass_to((now / vsync) as usize, wanted);
             if !wanted {
                 if steps.peek().is_none() {
                     break;
@@ -217,8 +236,12 @@ impl Runtime {
                 if moving || !over {
                     motion.moved = motion.vsyncs.len();
                 }
+                if over && motion.shown.is_none() && shown(self) {
+                    motion.shown = Some(watch.ms() - lifted);
+                }
             }
-            if (over && still >= 2) || now > last + TAIL_MS {
+            let tail = motion.shown.map_or(SHOWN_MS, |_| TAIL_MS);
+            if (over && still >= 2 && motion.shown.is_some()) || now > last + tail {
                 break;
             }
             watch.wait(false);

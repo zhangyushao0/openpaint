@@ -1,11 +1,12 @@
-//! `cargo device-input practice-test start [stage|copy]|end` (DECISIONS D102): a test practice
+//! `cargo device-input practice-test start [stage [n]|copy]|end` (DECISIONS D102): a test practice
 //! session (or a test colour copy) beside the author's, for a practice slice to walk on the
 //! tablet, and removed afterwards with its sheet, so the author's sessions, copies, records and the
 //! Today card's progress stay as they were.
 //!
 //! `start` goes to the gallery (a canvas showing is left by its Gallery button, nothing drawn),
 //! starts the session the Today card would start next (of `stage` when given, as the practice
-//! options' stage rows do; `copy`: a colour copy of a pack's picture), beside any open one, and
+//! options' stage rows do; as the stage's `n`-th would be when that is given, so a stage's every
+//! other session is reached; `copy`: a colour copy of a pack's picture), beside any open one, and
 //! keeps its name
 //! (id, sheet, seed, start) in `artifacts/device/practice-test`; it refuses while a name is kept.
 //! `end` goes to the gallery, has the app remove the session of the name kept (its record and
@@ -35,15 +36,23 @@ fn failed(why: impl Into<String>) -> DeviceError {
     }
 }
 
-/// `start [stage|copy]` or `end`.
+/// `start [stage [n]|copy]` or `end`.
 pub(super) fn practice_test(adb: &Adb, what: &str, stage: &[&str]) -> Result<()> {
-    let usage = DeviceError::Usage("cargo device-input practice-test start [stage|copy]|end");
+    let usage = DeviceError::Usage("cargo device-input practice-test start [stage [n]|copy]|end");
     match (what, stage) {
         ("start", []) => start(adb, &kept(), "start"),
         ("start", ["copy"]) => start(adb, &kept(), "start:copy"),
         ("start", [stage]) => {
             let stage: u8 = stage.parse().map_err(|_| usage)?;
             start(adb, &kept(), &format!("start:{stage}"))
+        }
+        ("start", [stage, number]) => {
+            let stage = stage.parse::<u8>().ok();
+            let number = number.parse::<u32>().ok().filter(|n| *n >= 1);
+            let (Some(stage), Some(number)) = (stage, number) else {
+                return Err(usage);
+            };
+            start(adb, &kept(), &format!("start:{stage}:{number}"))
         }
         ("end", []) => end(adb, &kept()),
         _ => Err(usage),

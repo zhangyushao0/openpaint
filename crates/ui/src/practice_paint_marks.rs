@@ -190,7 +190,7 @@ pub(crate) fn show_overlay(
                 segments(painter, (&frame, outline), at, (OUTLINE, INK));
             }
             if let Some(read) = read {
-                let red = (width / 2.0).max(OUTLINE);
+                let red = width.max(OUTLINE);
                 segments(painter, (&pair.copy, &read.strong), at, (red, CORRECTION));
             }
         }

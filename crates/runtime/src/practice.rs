@@ -124,16 +124,16 @@ pub(crate) fn stopped(job: &PracticeJob) -> Done {
     })
 }
 
-/// The job that starts the next session of `stage` in `log`, seeded from `seeds`, at `now`
-/// (seconds since 1970 UTC).
+/// The job that starts the next session of `stage` in `log` (or the one numbered `number`: a
+/// test session's), seeded from `seeds`, at `now` (seconds since 1970 UTC).
 pub(crate) fn start_job(
     log: &PracticeLog,
-    stage: u8,
+    (stage, number): (u8, Option<u32>),
     seeds: &mut Seeds,
     now: u64,
 ) -> Result<Job, RuntimeError> {
     let seed = seed(seeds);
-    let (session, title) = log.begin(stage, seed, now);
+    let (session, title) = log.begin((stage, number), seed, now);
     log::info!(
         "practice session {} (stage {}, number {}) seeded {seed:016x}",
         session.id,

@@ -1,10 +1,13 @@
 //! `bench practice`: a practice sheet's motions as a hand makes them, each measured as the display
 //! shows it (`motion.rs`), on the practice sheet open: How's card grown out of its word and gone
 //! back; at a line, a line drawn with the pen, then Compare (the overlay and its card), the switch
-//! to Aligned and back to In place, Compare taken away; Next three times, the view gliding to the
-//! next pair; then, in a session holding single shapes (stage 2), on to its first shape: an
-//! outline drawn, Compare, Aligned (its fit found off the frame loop), In place and Compare taken
-//! away; on to its colour combination: Fill frame, a stroke, Compare (its copy read back), another
+//! to Aligned and back to In place, Compare taken away, and Compare again with Aligned chosen: the
+//! time from the tap to the frame showing the aligned fit (S88); Next three times, the view gliding
+//! to the next pair; in a session holding combined lines (stage 1), on to the first group, its
+//! lines drawn along the original and compared aligned likewise; then, in a session holding single
+//! shapes (stage 2), on to its first shape: an outline drawn, Compare, Aligned (its fit found off
+//! the frame loop), In place, Compare taken away and compared aligned likewise; on to its colour
+//! combination: Fill frame, a stroke, Compare (its copy read back), another
 //! area, the original shown dragged, Compare taken away; on to its perspective: a box's edges or
 //! free boxes' drawn, Compare (the edges found and extended, at once on the frame loop) and taken
 //! away, an ellipse's loop, Compare and taken away; then, the session taken on to its next colour
@@ -16,13 +19,15 @@ use openpaint_practice::Family;
 
 use super::Watch;
 use super::hand::to_screen;
-use super::motion::{by_pen, drag};
+use super::motion::{by_pen, drag, tap};
 use crate::error::RuntimeError;
 use crate::frame::Runtime;
 use crate::input::ToolKind;
 
-/// The pen's line across the copy's frame, ms; the wheel dragged round, ms.
+/// The pen's line across the copy's frame, ms; a group's line drawn along its original, ms; the
+/// wheel dragged round, ms.
 const LINE_MS: i64 = 400;
+const GROUP_LINE_MS: i64 = 800;
 const WHEEL_MS: i64 = 1000;
 
 impl Runtime {
@@ -51,6 +56,7 @@ impl Runtime {
                 let line = self.bench_tap(control, ToolKind::Finger)?;
                 lines.push(format!("{label}: {line}"));
             }
+            self.bench_fit_shown("line", lines)?;
         } else {
             lines.push("no line shown first: its Compare left out".to_owned());
         }
@@ -63,6 +69,7 @@ impl Runtime {
             }
             lines.push(format!("next {next}: {line}"));
         }
+        self.bench_group(lines)?;
         // Stage 2's shapes come before its colour work, its perspective after it.
         self.bench_shape(lines)?;
         self.bench_combination(lines)?;
@@ -103,6 +110,7 @@ impl Runtime {
         use openpaint_practice::Original;
         let shown = |runtime: &Self| runtime.projection().practice().and_then(|p| p.family);
         let of = |original: &Original| match original {
+            Original::Lines(lines) if lines.len() > 1 => Some(Family::Combined),
             Original::Box(_) => Some(Family::Box),
             Original::FreeBoxes(_) => Some(Family::FreeBoxes),
             Original::Ellipse(_) => Some(Family::Ellipse),
@@ -233,6 +241,67 @@ impl Runtime {
             let line = self.bench_tap(control, ToolKind::Finger)?;
             lines.push(format!("{label}: {line}"));
         }
+        self.bench_fit_shown("shape", lines)
+    }
+
+    /// In a session holding combined lines: on to the first group, each of its lines drawn by the
+    /// pen along its original a little moved and smaller (a stroke of `GROUP_LINE_MS`, the pen's
+    /// samples 8 ms apart), then compared aligned (`bench_fit_shown`).
+    fn bench_group(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
+        use openpaint_practice::Original;
+        if !self.bench_on_to(Family::Combined)? {
+            lines.push("no combined lines after this point of the session".to_owned());
+            return Ok(());
+        }
+        let practice = self.projection().practice().cloned();
+        let shown = (practice.as_ref()).and_then(|p| {
+            let index = p.current?;
+            let Original::Lines(group) = &p.sheet.originals[index] else {
+                return None;
+            };
+            Some((group.clone(), p.sheet.pairs[index].copy))
+        });
+        let (group, frame) = shown.ok_or(RuntimeError::NotNow("combined lines shown"))?;
+        let view = self.bench_view()?;
+        let at = |p: &[f64; 2]| {
+            let copied = [0.03 + 0.94 * p[0], 0.02 + 0.94 * p[1]];
+            to_screen(&view, frame.to_canvas(copied).map(|v| v as f32))
+        };
+        for line in &group {
+            let path: Vec<[f32; 2]> = (line.iter().step_by(16).chain(line.last()))
+                .map(at)
+                .collect();
+            self.bench_measured(by_pen(drag(&path, GROUP_LINE_MS)))?;
+        }
+        self.bench_fit_shown("group", lines)
+    }
+
+    /// Compare tapped with Aligned chosen, as a hand comparing aligned keeps it (the comparison
+    /// taken away first): the motion, and when the frame showing the aligned overlay came after
+    /// the tap's lift; then In place chosen again and Compare taken away, unmeasured.
+    fn bench_fit_shown(&mut self, name: &str, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
+        let mut watch = Watch::paced(self);
+        let aligned = Intent::Practice(PracticeIntent::Aligned(true));
+        self.bench_intents(vec![aligned], &mut watch)?;
+        self.bench_rest()?;
+        let at = self.bench_control("Compare")?;
+        let fitted = |runtime: &Self| {
+            (runtime.projection().practice()).is_some_and(|p| p.comparing && !p.fitting)
+        };
+        let motion = self.bench_motion_until(tap(at, ToolKind::Finger), fitted)?;
+        self.bench_rest()?;
+        let shown =
+            (motion.shown).map_or_else(|| "NOT shown".to_owned(), |ms| format!("{ms:.0} ms"));
+        let work =
+            (self.compare.fitted_ms()).map_or_else(|| "-".to_owned(), |ms| format!("{ms:.1}"));
+        lines.push(format!(
+            "{name} compared aligned, the fit shown after the tap's lift: {shown} (the fit {work} \
+             ms on its worker); {}",
+            motion.line()
+        ));
+        let in_place = Intent::Practice(PracticeIntent::Aligned(false));
+        self.bench_intents(vec![in_place], &mut watch)?;
+        self.bench_tap("Compare", ToolKind::Finger)?;
         Ok(())
     }
 

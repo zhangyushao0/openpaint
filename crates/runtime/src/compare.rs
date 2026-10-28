@@ -25,12 +25,15 @@ enum Job {
 }
 
 enum Done {
-    Fit(u64, Option<Fit>),
+    /// The fit asked by the Compare numbered so, and how long it took, ms.
+    Fit(u64, Option<Fit>, f64),
     Read(u64, Option<(CopyRead, Metrics)>),
 }
 
 pub(crate) struct CompareWorker {
     worker: Queue<Job, Done>,
+    /// How long the last fit taken took on the worker, ms (`bench practice` reports it).
+    fitted_ms: Option<f64>,
 }
 
 impl CompareWorker {
@@ -39,7 +42,15 @@ impl CompareWorker {
             Job::Fit(job) => fit(&job),
             Job::Read(job, artwork) => read(&core.get(), &job, &artwork),
         })?;
-        Ok(Self { worker })
+        Ok(Self {
+            worker,
+            fitted_ms: None,
+        })
+    }
+
+    /// How long the last fit taken took on the worker, ms.
+    pub(crate) const fn fitted_ms(&self) -> Option<f64> {
+        self.fitted_ms
     }
 
     /// True while a job is queued or running, or its answer waits to be taken.
@@ -53,15 +64,23 @@ impl CompareWorker {
         while self.worker.take().is_some() {}
     }
 
-    /// One frame's compare work on `canvas`: answers go to its sheet, new jobs to the worker.
-    pub(crate) fn step(&mut self, canvas: &mut Canvas) {
+    /// The answers finished, to `canvas`'s sheet: at the frame's start, so the frame they arrive
+    /// by shows them (S88: taken after the UI pass, a fit showed a frame later).
+    pub(crate) fn receive(&mut self, canvas: &mut Canvas) {
         while let Some(done) = self.worker.take() {
             let session = canvas.session_mut();
             match done {
-                Done::Fit(sequence, fit) => session.practice_fitted(sequence, fit),
+                Done::Fit(sequence, fit, ms) => {
+                    self.fitted_ms = Some(ms);
+                    session.practice_fitted(sequence, fit);
+                }
                 Done::Read(sequence, read) => session.practice_read(sequence, read),
             }
         }
+    }
+
+    /// The jobs `canvas`'s sheet asks after the frame's intents, to the worker.
+    pub(crate) fn step(&mut self, canvas: &mut Canvas) {
         if let Some(job) = canvas.session_mut().practice_fit_request() {
             self.worker.submit(Job::Fit(job));
         }
@@ -79,13 +98,13 @@ fn fit(job: &FitJob) -> Done {
         log::error!("a fit panicked; the overlay lies in place");
         None
     });
+    let ms = started.elapsed().as_secs_f64() * 1e3;
     log::info!(
-        "fit {} ({}) in {} ms",
+        "fit {} ({}) in {ms:.1} ms",
         job.sequence,
-        if job.shape { "shape" } else { "lines" },
-        started.elapsed().as_millis()
+        if job.shape { "shape" } else { "lines" }
     );
-    Done::Fit(job.sequence, fit)
+    Done::Fit(job.sequence, fit, ms)
 }
 
 /// The copy's frame drawn as the canvas shows it (the 1x export is the canvas pixel for pixel)

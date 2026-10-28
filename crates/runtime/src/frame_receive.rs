@@ -9,8 +9,8 @@ use crate::error::RuntimeError;
 use crate::screen::{Screen, dispatch_gallery};
 
 impl Runtime {
-    /// Applies everything the workers finished (One more's sheet left: the next session starts),
-    /// then opens a canvas that is ready.
+    /// Applies everything the workers finished (One more's sheet left: the next session starts;
+    /// Compare's fit or reading to the open sheet), then opens a canvas that is ready.
     pub(crate) fn receive(&mut self) -> Result<(), RuntimeError> {
         self.transfer.receive(&mut self.transfers);
         self.cache.collect();
@@ -24,12 +24,18 @@ impl Runtime {
             if self.screen.answer(done, after) {
                 let now = self.frame_clock.wall_seconds();
                 let stage = self.practice.stage();
-                let job = crate::practice::start_job(&self.practice, stage, &mut self.seeds, now)?;
+                let job = crate::practice::start_job(
+                    &self.practice,
+                    (stage, None),
+                    &mut self.seeds,
+                    now,
+                )?;
                 self.storage.submit(job);
             }
         }
-        if !matches!(self.screen, Screen::Canvas(_)) {
-            self.compare.let_go();
+        match &mut self.screen {
+            Screen::Canvas(canvas) => self.compare.receive(canvas),
+            _ => self.compare.let_go(),
         }
         self.open_canvas()
     }

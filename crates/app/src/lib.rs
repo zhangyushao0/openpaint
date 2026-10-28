@@ -100,7 +100,7 @@ pub use crate::practice::{
     SHAPE_SHOWN, SHOWN, SheetView, sheet_of,
 };
 pub use crate::practice_log::PracticeLog;
-pub use crate::practice_pens::PracticePens;
+pub use crate::practice_pens::{INK_DIAMETER, PracticePens};
 pub use crate::practice_pictures::{FitJob, PackShown, PictureImage, SHOWN_SIDE, SheetPicture};
 pub use crate::practice_sheet::{CopyRead, PRACTICE_ROOM, PracticePick, Practising, ReadJob};
 pub use crate::practice_today::{CopyShown, PictureShown, TodayProjection};

@@ -28,8 +28,9 @@
 //!   the app's `meminfo` before and after;
 //! - `open-file <name>`: the OpenPaint file (or `.pack`) `cargo device-push` put into the test folder opened
 //!   as a new artwork without the picker, its id printed (`open_file.rs`);
-//! - `practice-test start [stage|copy]|end`: a test practice session (of the stage given, else the
-//!   one practised) or a test colour copy started beside the author's,
+//! - `practice-test start [stage [n]|copy]|end`: a test practice session (of the stage given, else
+//!   the one practised; as its `n`-th would be when given) or a test colour copy started beside the
+//!   author's,
 //!   or removed with its sheet (`practice_test.rs`);
 //! - `home`: the system's home key, no instrumentation (the app's memory released when its UI is
 //!   hidden).
@@ -163,7 +164,7 @@ const INPUT_USAGE: &str = "cargo device-input \
                            | tap <control name> | drag <control name> x,y [ms] \
                            | find <control name> | state | gradient on|off | lose-device \
                            | bench open-cold|open|zoom|pan|strokes|session|export|touch|undo|adjust|ui|practice[@fast] \
-                           | open-file <name> | practice-test start [stage|copy]|end | home";
+                           | open-file <name> | practice-test start [stage [n]|copy]|end | home";
 
 /// A control's name for the device's shell, which reads the line: in single quotes, so none
 /// inside.

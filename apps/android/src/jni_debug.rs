@@ -194,9 +194,9 @@ fn imported(runtime: &mut Runtime) -> Result<String, HostError> {
     }
 }
 
-/// For `cargo device-input practice-test start [stage|copy]|end`: `start` starts a test practice
-/// session (or a test colour copy) beside any open one, from the gallery, and answers "started
-/// <name>" once its sheet shows;
+/// For `cargo device-input practice-test start [stage [n]|copy]|end`: `start` starts a test
+/// practice session (or a test colour copy) beside any open one, from the gallery, and answers
+/// "started <name>" once its sheet shows;
 /// `end:<name>` removes the session of that name, its record and sheet, from the gallery, and
 /// answers "removed <name>" once the store did, or "no such session". Otherwise why not.
 #[unsafe(no_mangle)]
@@ -217,22 +217,30 @@ pub extern "system" fn Java_dev_openpaint_DebugControls_practiceTest<'local>(
     .resolve::<LogErrorAndDefault>()
 }
 
-/// `command` (`start`, `start:<stage>`, `start:copy` or `end:<name>`) on `runtime`, frames run
-/// here until it is done, at most a minute: the answer.
+/// `command` (`start`, `start:<stage>`, `start:<stage>:<n>`, `start:copy` or `end:<name>`) on
+/// `runtime`, frames run here until it is done, at most a minute: the answer.
 fn practice_test(runtime: &mut Runtime, command: &str) -> Result<String, HostError> {
-    // A session of the stage given (none: the one practised), or a colour copy (`Err`).
-    let start: Option<Result<Option<u8>, ()>> = match command.strip_prefix("start") {
-        Some("") => Some(Ok(None)),
+    // A session of the stage given (none: the one practised), its number given or the next, or a
+    // colour copy (`Err`).
+    type Start = Result<(Option<u8>, Option<u32>), ()>;
+    let start: Option<Start> = match command.strip_prefix("start") {
+        Some("") => Some(Ok((None, None))),
         Some(":copy") => Some(Err(())),
-        Some(stage) => stage
-            .strip_prefix(':')
-            .and_then(|s| s.parse::<u8>().ok())
-            .map(|s| Ok(Some(s))),
+        Some(given) => {
+            let mut parts = given.strip_prefix(':').unwrap_or("-").split(':');
+            let stage = parts.next().and_then(|s| s.parse::<u8>().ok());
+            let number = parts.next().map(str::parse::<u32>);
+            match (stage, number, parts.next()) {
+                (Some(stage), None, None) => Some(Ok((Some(stage), None))),
+                (Some(stage), Some(Ok(number)), None) => Some(Ok((Some(stage), Some(number)))),
+                _ => None,
+            }
+        }
         None => None,
     };
     if let Some(start) = start {
         let started = match start {
-            Ok(stage) => runtime.start_test_practice(stage),
+            Ok((stage, number)) => runtime.start_test_practice(stage, number),
             Err(()) => runtime.start_test_copy(),
         };
         let id = match started {

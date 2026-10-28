@@ -4,7 +4,9 @@
 //! the author's sessions, copies, records and the Today card's progress stay as they were.
 //!
 //! The test session is the one Start practice would start now (the next of the log: its number,
-//! its warm-up from the kinds met), started from the gallery even while another is open. It is
+//! its warm-up from the kinds met), or the stage's session of a number given (so a stage's every
+//! other session, stage 2's free boxes, is reached on the tablet), started from the gallery even
+//! while another is open. It is
 //! named by its id, its sheet, its seed and when it started (`PracticeTest`), which the chore
 //! keeps on the dev machine between the two calls: `end` removes the session holding all four
 //! and nothing else, also after the app restarted, and a name another session could hold (a
@@ -79,20 +81,26 @@ impl FromStr for PracticeTest {
 }
 
 impl Runtime {
-    /// For debug builds only: the next practice session of `stage` (none: the stage practised)
-    /// started from the gallery, beside any open one; its sheet opens once the store wrote it
-    /// (`test_practice` names it then). Returns its id.
+    /// For debug builds only: the next practice session of `stage` (none: the stage practised),
+    /// or the one numbered `number` of it (as that session of the stage would be: its mix by its
+    /// number, its warm-up from the kinds met so far), started from the gallery, beside any open
+    /// one; its sheet opens once the store wrote it (`test_practice` names it then). Returns its
+    /// id.
     ///
     /// # Errors
     /// `NotNow` when the gallery does not show; a sheet that cannot be made.
-    pub fn start_test_practice(&mut self, stage: Option<u8>) -> Result<u64, RuntimeError> {
+    pub fn start_test_practice(
+        &mut self,
+        stage: Option<u8>,
+        number: Option<u32>,
+    ) -> Result<u64, RuntimeError> {
         if self.screen.gallery_mut().is_none() {
             return Err(RuntimeError::NotNow("the gallery"));
         }
         let now = self.frame_clock.wall_seconds();
         let id = self.practice.next_id();
         let stage = stage.unwrap_or_else(|| self.practice.stage());
-        let job = start_job(&self.practice, stage, &mut self.seeds, now)?;
+        let job = start_job(&self.practice, (stage, number), &mut self.seeds, now)?;
         self.storage.submit(job);
         Ok(id)
     }

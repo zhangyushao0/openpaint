@@ -7,7 +7,8 @@ use std::sync::Arc;
 
 use openpaint_app::{
     BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Overlay, Pen, PracticeIntent,
-    PracticePens, Session, SheetView, StrokeIntent, Title, Toolbox, Viewport, sheet_of,
+    PracticeLog, PracticePens, Session, SheetView, StrokeIntent, Title, Toolbox, Viewport,
+    sheet_of,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
@@ -192,4 +193,18 @@ fn an_ellipse_is_fitted_then_its_correction_alone() {
         panic!("the ellipse's check")
     };
     assert_eq!(check.roundness, Some(Roundness::Flatter));
+}
+
+#[test]
+fn a_session_begun_as_the_stages_second_holds_its_free_boxes() {
+    // The test session's chore (`practice-test start 2 2`) asks the log for stage 2's second.
+    let log = PracticeLog::new(Vec::new(), Vec::new(), Vec::new());
+    let begun = |number: Option<u32>| {
+        let (record, title) = log.begin((2, number), 0x5EED_0088, 1_791_290_000);
+        let free = (record.exercises.iter()).any(|e| matches!(e.kind, Kind::FreeBoxes(_)));
+        (record.number, free, title.as_str().to_owned())
+    };
+    assert_eq!(begun(None), (1, false, "Practice 1".to_owned()), "the next");
+    assert_eq!(begun(Some(2)), (2, true, "Practice 2".to_owned()));
+    assert!(!begun(Some(3)).1, "a box and an ellipse again");
 }

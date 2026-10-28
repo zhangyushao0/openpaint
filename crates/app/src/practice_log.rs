@@ -109,20 +109,27 @@ impl PracticeLog {
             .collect()
     }
 
-    /// The next session of `stage` (one ready, else stage 1), seeded `seed`, started at `now`
+    /// The next session of `stage` (one ready, else stage 1), or the one numbered `number` of it
+    /// (a test session's, `practice-test start <stage> <n>`), seeded `seed`, started at `now`
     /// (seconds since 1970 UTC), its warm-up from the kinds compared in every session so far and
     /// its shapes' pictures from the packs kept (others than those shown before while there
     /// are), with its sheet's title; it has no canvas until the store gives it one.
     #[must_use]
-    pub fn begin(&self, stage: u8, seed: u64, now: u64) -> (SessionRecord, Title) {
+    pub fn begin(
+        &self,
+        (stage, number): (u8, Option<u32>),
+        seed: u64,
+        now: u64,
+    ) -> (SessionRecord, Title) {
         let stage = if (1..=STAGES_READY).contains(&stage) {
             stage
         } else {
             1
         };
         let id = self.next_id();
-        let number = self.sessions().filter(|s| s.stage == stage).count() + 1;
-        let number = u32::try_from(number).unwrap_or(u32::MAX);
+        let next = self.sessions().filter(|s| s.stage == stage).count() + 1;
+        let number = number.unwrap_or_else(|| u32::try_from(next).unwrap_or(u32::MAX));
+        let number = number.max(1);
         let title = Title::new(&format!("Practice {number}")).unwrap_or_else(|_| Title::untitled());
         let (met, used) = (met(&self.sessions), used(&self.sessions));
         let pictures = Pictures::of(&self.packs);

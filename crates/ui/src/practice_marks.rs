@@ -4,18 +4,22 @@
 //! frame, a single shape's or a colour copy's picture with its credit small under the frame where
 //! its licence asks for one, a colour combination's or a value scale's in `practice_paint_marks.rs`,
 //! a box's or an ellipse's in `practice_geometry_marks.rs`).
-//! While compared, the original's lines lie over the copy, in place or aligned onto it, thick and
-//! clear in a semi-transparent marking red the copy shows through; a picture lies over the copy
-//! (a shape's faint with its outline in that red, a colour copy's as strongly as the user sets);
-//! a colour shows as a patch inside the other. All of it is drawn by the screen over the canvas
-//! through the view, never into the artwork: the originals cannot be drawn on.
+//! While compared, the original's lines lie over the copy, in place or aligned onto it, as thick as
+//! the pen that drew the copy and in a semi-transparent marking red the ink shows through (S88:
+//! thicker, the red hid an error of a pen's width inside it), a hairline at least however far the
+//! view is zoomed out; a picture lies over the copy (a shape's faint with its outline in that red,
+//! a colour copy's as strongly as the user sets); a colour shows as a patch inside the other. All
+//! of it is drawn by the screen over the canvas through the view, never into the artwork: the
+//! originals cannot be drawn on.
 
 use std::fmt;
 use std::sync::Arc;
 
 use egui::epaint::TextShape;
 use egui::{Color32, FontId, Mesh, Order, Pos2, Shape, Stroke, TextureHandle};
-use openpaint_app::{Overlay, PictureImage, PracticeProjection, SessionProjection, ViewMapping};
+use openpaint_app::{
+    INK_DIAMETER, Overlay, PictureImage, PracticeProjection, SessionProjection, ViewMapping,
+};
 use openpaint_practice::{FRAME, Frame, ItemRef, Original, Rgb8};
 
 use crate::components::{Alpha, canvas_point, picture_texture};
@@ -27,10 +31,9 @@ use crate::text::{self as t, Words};
 /// An original line's width, in canvas pixels, and the least it shows at, in points.
 const LINE_WIDTH: f32 = 3.0;
 const LEAST_LINE: f32 = 1.25;
-/// The overlay's width, in canvas pixels (a frame is 400) and at least in points, and how
-/// strongly it lies over the copy.
-const OVERLAY_WIDTH: f32 = 12.0;
-const LEAST_OVERLAY: f32 = 4.0;
+/// The overlay's least width, in points (its width is the Draw pen's, `INK_DIAMETER` canvas
+/// pixels), and how strongly it lies over the copy.
+const LEAST_OVERLAY: f32 = 1.0;
 const OVERLAY_SHOWN: f32 = 0.5;
 /// A picture's credit under its frame: its type size and its distance below, in canvas pixels of
 /// a session's frame.
@@ -136,7 +139,7 @@ pub(crate) fn show_marks(
         painter.add(Shape::closed_line(original.to_vec(), frame));
         painter.add(Shape::closed_line(copy.to_vec(), frame));
     }
-    let width = (OVERLAY_WIDTH * mapping.scale() / pixels_per_point).max(LEAST_OVERLAY);
+    let width = (INK_DIAMETER * mapping.scale() / pixels_per_point).max(LEAST_OVERLAY);
     if let Some(overlay) = &practice.overlay {
         show_overlay(&painter, practice, overlay, (&at, width), pictures);
     }
@@ -246,10 +249,9 @@ fn show_overlay(
                 let faint = Color32::WHITE.gamma_multiply(*shown);
                 painter.add(quad(texture, corners.map(|p| canvas(&p)), faint));
             }
-            // An outline holds the shape's every turn: half a line's width keeps them apart.
             for line in outline {
                 let points: Vec<Pos2> = line.iter().map(canvas).collect();
-                painter.add(Shape::line(points, Stroke::new(width / 2.0, red)));
+                painter.add(Shape::line(points, Stroke::new(width, red)));
             }
         }
         (Overlay::Colour { original, last, .. }, Original::Colour(_)) => {

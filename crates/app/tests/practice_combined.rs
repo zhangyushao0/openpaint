@@ -42,7 +42,7 @@ fn after_first(finished: bool) -> Session {
         ExerciseResult::first(10, 1_791_201_800, 4, Vec::new()),
     ];
     let log = PracticeLog::new(vec![first.clone()], Vec::new(), Vec::new());
-    let (record, _) = log.begin(1, 0x5EED_0079, 1_791_290_000);
+    let (record, _) = log.begin((1, None), 0x5EED_0079, 1_791_290_000);
     let [width, height] = Sheet::of(record.exercises.len()).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
     let before = if finished { vec![first] } else { Vec::new() };

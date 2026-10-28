@@ -98,7 +98,7 @@ pub struct Runtime {
     pub(crate) transfers: Transfers,
     pub(crate) transfer: TransferWorker,
     fill: FillWorker,
-    compare: crate::compare::CompareWorker,
+    pub(crate) compare: crate::compare::CompareWorker,
     pub(crate) pictures: PictureWorker,
     /// The practice options' pictures (the gallery's).
     pack_pictures: crate::pack_pictures::PackPictureWorker,

@@ -55,7 +55,7 @@ fn lerp(a: Point, b: Point, t: f64) -> Point {
 }
 
 /// The point of the segment from `a` to `b` nearest `p`.
-fn nearest_on_segment(a: Point, b: Point, p: Point) -> Point {
+pub(crate) fn nearest_on_segment(a: Point, b: Point, p: Point) -> Point {
     let d = [b[0] - a[0], b[1] - a[1]];
     let squared = d[0] * d[0] + d[1] * d[1];
     if squared <= 0.0 {

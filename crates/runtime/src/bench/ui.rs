@@ -133,7 +133,7 @@ impl Runtime {
     }
 
     /// The middle of the control `name` in the last frame.
-    fn bench_control(&self, name: &'static str) -> Result<[f32; 2], RuntimeError> {
+    pub(super) fn bench_control(&self, name: &'static str) -> Result<[f32; 2], RuntimeError> {
         let control = (self.controls().find(name)).map_err(|_| RuntimeError::NotNow(name))?;
         Ok(control.at([0.5, 0.5]))
     }

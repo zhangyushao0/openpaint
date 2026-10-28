@@ -20,6 +20,7 @@ mod combined;
 mod edges;
 mod ellipse;
 mod ellipse_fit;
+mod grid;
 mod judgement;
 mod licence;
 mod line;

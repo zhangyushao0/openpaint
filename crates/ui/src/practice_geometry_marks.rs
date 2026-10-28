@@ -10,13 +10,14 @@
 //!   original's shows the exact ellipse, the diagonals and the lines through the centre that
 //!   find each side's middle.
 //!
-//! Compared, over the copy: the answer in the marking red (the exact box or ellipse, its vanishing
-//! points or the middles it touches ringed, the true vertical through a vertical edge that leans);
-//! the original's answer and construction kept inside its frame, where it cannot be taken for the
-//! copy's; what was
-//! found in the copy's own lines dashed in `FOUND` blue (each edge drawn on towards its point or
-//! the horizon, red where it misses the point; where a free box's directions meet ringed; the
-//! fitted ellipse); a front corner under 90 degrees marked red.
+//! Compared, over the copy: the answer in the marking red, as thick as the pen (the exact box or
+//! ellipse, its vanishing points or the middles it touches ringed, the true vertical through a
+//! vertical edge that leans); the original's answer and construction kept inside its frame, where
+//! it cannot be taken for the copy's; what was found in the copy's own lines dashed in `FOUND`
+//! blue (each edge drawn on towards its point or the horizon, red where it misses the point; where
+//! a free box's directions meet ringed; the fitted ellipse); a front corner under 90 degrees
+//! marked red. The copy's extensions and rings never cover the original's frame (S88); past the
+//! copy's frame elsewhere they show.
 
 use egui::{Align2, FontId, Pos2, Shape, Stroke};
 use openpaint_app::{Overlay, PracticeProjection};
@@ -155,27 +156,34 @@ pub(crate) fn show_overlay(
     let Some(index) = practice.current else {
         return;
     };
-    let frame = practice.sheet.pairs[index].copy;
-    let red = Stroke::new(width / 2.0, CORRECTION.gamma_multiply(0.6));
+    let pair = practice.sheet.pairs[index];
+    let (frame, keep) = (pair.copy, Keep::of(&pair.original, at));
+    let red = Stroke::new(width, CORRECTION.gamma_multiply(0.6));
     match (overlay, &practice.sheet.originals[index]) {
         (Overlay::Box(check), Original::Box(exact)) => {
             for (a, b, _) in exact.edges() {
                 segment(painter, &frame, [a, b], at, red);
             }
             for point in exact.vanishing.iter().flatten() {
-                ring(painter, at(frame.to_canvas(*point)), CORRECTION);
+                let place = frame.to_canvas(*point);
+                if keep.clear(place) {
+                    ring(painter, at(place), CORRECTION);
+                }
             }
             for edge in &check.edges {
-                found_edge(painter, &frame, edge, at);
+                found_edge(painter, (&frame, &keep), edge, at);
             }
         }
         (Overlay::FreeBoxes(check), Original::FreeBoxes(_)) => {
             for free in &check.boxes {
                 for edge in &free.edges {
-                    found_edge(painter, &frame, edge, at);
+                    found_edge(painter, (&frame, &keep), edge, at);
                 }
                 for (_, meet) in &free.meets {
-                    ring(painter, at(frame.to_canvas(*meet)), FOUND);
+                    let place = frame.to_canvas(*meet);
+                    if keep.clear(place) {
+                        ring(painter, at(place), FOUND);
+                    }
                 }
                 for corner in &free.narrow {
                     narrow(painter, &frame, corner, at);
@@ -197,14 +205,76 @@ pub(crate) fn show_overlay(
 }
 
 /// An edge found in the copy: drawn on dashed towards its point, blue where it heads for it, red
-/// where it misses; a vertical that leans, the true vertical through it in red.
-fn found_edge(painter: &egui::Painter, frame: &Frame, edge: &Checked, at: At<'_>) {
+/// where it misses, never over the original's frame (`keep`); a vertical that leans, the true
+/// vertical through it in red.
+fn found_edge(painter: &egui::Painter, (frame, keep): (&Frame, &Keep), edge: &Checked, at: At<'_>) {
     if let Some([from, to]) = edge.extension {
         let colour = if edge.on { FOUND } else { CORRECTION };
-        dashed(painter, frame, &[from, to], at, Stroke::new(FAINT, colour));
+        let stroke = Stroke::new(FAINT, colour);
+        for piece in keep.outside(frame.to_canvas(from), frame.to_canvas(to)) {
+            let path: Vec<Pos2> = piece.into_iter().map(at).collect();
+            painter.extend(Shape::dashed_line(&path, stroke, DASH, GAP));
+        }
     }
     if let Some(plumb) = edge.plumb.filter(|_| !edge.on) {
         segment(painter, frame, plumb, at, Stroke::new(FAINT, CORRECTION));
+    }
+}
+
+/// The original's frame, which the copy's marks never cover (S88: the extensions and rings ran
+/// over it, where its own box and lines lie): its corners in canvas pixels, and how far a ring
+/// with its halo reaches at the view's scale.
+struct Keep {
+    low: Point,
+    high: Point,
+    reach: f64,
+}
+
+impl Keep {
+    fn of(frame: &Frame, at: At<'_>) -> Self {
+        let [low, _, high, _] = frame.corners();
+        let points = at([0.0, 0.0]).distance(at([1.0, 0.0]));
+        Self {
+            low,
+            high,
+            reach: f64::from(RING + MARK + HALO) / f64::from(points.max(1e-6)),
+        }
+    }
+
+    /// Whether a ring at `place` (canvas pixels) lies clear of the frame.
+    fn clear(&self, place: Point) -> bool {
+        let gap = |axis: usize| (self.low[axis] - place[axis]).max(place[axis] - self.high[axis]);
+        gap(0).max(0.0).hypot(gap(1).max(0.0)) > self.reach
+    }
+
+    /// The pieces of the line from `a` to `b` (canvas pixels) outside the frame: the whole line,
+    /// or what lies before it and after it (Liang and Barsky's clip).
+    fn outside(&self, a: Point, b: Point) -> Vec<[Point; 2]> {
+        let d = [b[0] - a[0], b[1] - a[1]];
+        let (mut enter, mut leave) = (0.0_f64, 1.0_f64);
+        for axis in 0..2 {
+            if d[axis] == 0.0 {
+                if a[axis] < self.low[axis] || a[axis] > self.high[axis] {
+                    return vec![[a, b]];
+                }
+                continue;
+            }
+            let [t0, t1] = [self.low[axis], self.high[axis]].map(|v| (v - a[axis]) / d[axis]);
+            enter = enter.max(t0.min(t1));
+            leave = leave.min(t0.max(t1));
+        }
+        if enter >= leave {
+            return vec![[a, b]];
+        }
+        let along = |t: f64| [a[0] + d[0] * t, a[1] + d[1] * t];
+        let mut pieces = Vec::new();
+        if enter > 0.0 {
+            pieces.push([a, along(enter)]);
+        }
+        if leave < 1.0 {
+            pieces.push([along(leave), b]);
+        }
+        pieces
     }
 }
 
@@ -264,4 +334,34 @@ fn ring(painter: &egui::Painter, centre: Pos2, colour: egui::Color32) {
 
 fn distance2(a: Point, b: Point) -> f64 {
     (a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Keep;
+
+    #[test]
+    fn marks_keep_off_the_originals_frame() {
+        // A frame from (100, 100) to (500, 500); a ring reaches 10 canvas pixels.
+        let keep = Keep {
+            low: [100.0, 100.0],
+            high: [500.0, 500.0],
+            reach: 10.0,
+        };
+        // An extension from the copy at the right through the frame to a point past its left.
+        let through = keep.outside([900.0, 300.0], [-100.0, 200.0]);
+        assert_eq!(through.len(), 2, "{through:?}");
+        assert_eq!(through[0][1], [500.0, 260.0]);
+        assert_eq!(through[1][0], [100.0, 220.0]);
+        // Ending inside: the piece up to the frame's side; clear of it, whole.
+        assert_eq!(
+            keep.outside([900.0, 300.0], [300.0, 300.0]),
+            vec![[[900.0, 300.0], [500.0, 300.0]]]
+        );
+        let above = [[0.0, 50.0], [900.0, 50.0]];
+        assert_eq!(keep.outside(above[0], above[1]), vec![above]);
+        // A ring on the frame's horizon or just beside its side is left out; farther, shown.
+        assert!(!keep.clear([300.0, 300.0]) && !keep.clear([505.0, 300.0]));
+        assert!(keep.clear([520.0, 300.0]) && keep.clear([-20.0, 600.0]));
+    }
 }
