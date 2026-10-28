@@ -2,10 +2,10 @@
 //! against the frame's halves and thirds, a proportion's halves and thirds on both segments, an
 //! angle against a level and upright cross and run on to the frame's edges, then marked or drawn)
 //! and V大's five tricks for points in space (the trick's construction in order with Sketch, the
-//! answer with Draw), each then compared. The tricks' lines are `SpaceTask::construction`'s and
-//! their answers `SpaceTask::answer`'s.
+//! answer with Draw, the example framed on the shaded face), each then compared. The tricks'
+//! lines are `SpaceTask::construction`'s and their answers `SpaceTask::answer`'s.
 
-use super::{Demo, Drawn, Layout, Marker, On, Script, clearest, line, tick};
+use super::{Demo, Drawn, Layout, Marker, On, Script, bounds, clearest, line, tick};
 use crate::flat::{Estimate, Flat, FlatAnswer};
 use crate::path::{Point, across_frame, distance};
 use crate::plan::Family;
@@ -244,16 +244,18 @@ pub(super) fn trick(family: Family) -> Option<Demo> {
         ),
         _ => return None,
     };
-    // The face shaded widest across the picture, so its construction reads small.
+    // The face as wide as the card's picture is (about twice as wide as tall), so framed on it
+    // its construction reads apart; a mirror's dot well off the middle and high, so its rectangle
+    // is wide and tall.
     let task = clearest(
-        (seed, 48),
+        (seed, 96),
         |seed| SpaceTask::generate(trick, seed),
         |task| {
-            let [near_bottom, far_bottom, far_top, near_top] = task.corners;
-            let across = (far_bottom[0] - near_bottom[0])
-                .abs()
-                .min((far_top[0] - near_top[0]).abs());
-            across / distance(near_bottom, near_top).max(0.1)
+            let wide = bounds(&task.corners).map_or(0.0, |[low, high]| {
+                ((high[0] - low[0]) / (high[1] - low[1]).max(1e-3)).min(2.0)
+            });
+            let room = task.given.map_or(0.0, |[u, v]| (0.5 - u).abs() + v / 2.0);
+            wide + room
         },
     );
     let mut script = Script::new();
@@ -278,7 +280,16 @@ pub(super) fn trick(family: Family) -> Option<Demo> {
     for drawn in mine {
         script.draw(On::Copy, Marker::Ink, drawn);
     }
-    Some(script.compare(family, Layout::Single, compared))
+    let mut demo = script.compare(family, Layout::Single, compared);
+    // Framed on the shaded face (and a next face beyond it), so every construction line and the
+    // answer read apart; the rest of the box and the lines to its vanishing point leave the
+    // picture at its edge.
+    let mut held = task.corners.to_vec();
+    if let SpaceAnswer::Lines(lines) = task.answer() {
+        held.extend(lines.into_iter().flatten());
+    }
+    demo.view = bounds(&held);
+    Some(demo)
 }
 
 /// The box of `task` as the exercise gives it: its face shaded, the horizon, the edges the eye
@@ -316,7 +327,13 @@ fn answered(task: &SpaceTask) -> (Vec<Drawn>, Vec<(On, Marker, Drawn)>) {
         }
         SpaceAnswer::Lines(lines) => {
             let shift = [NEAR[0], -NEAR[1]];
-            let mine: Vec<[Point; 2]> = (lines.iter())
+            // The next face's answer is the whole face; the hand draws its far upright alone.
+            let drawn = if task.trick == Trick::Step {
+                &lines[1..2]
+            } else {
+                &lines[..]
+            };
+            let mine: Vec<[Point; 2]> = (drawn.iter())
                 .map(|[a, b]| [moved(*a, shift), moved(*b, shift)])
                 .collect();
             let mut compared: Vec<(On, Marker, Drawn)> = (mine.iter())

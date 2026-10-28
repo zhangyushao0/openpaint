@@ -1,8 +1,8 @@
-//! The colour kinds' How cards (`practice_demo.rs`), after V大's method in our own words (name a
-//! colour by its hue, then its purity and lightness, pick once by eye and correct two or three
-//! times; squint for the overall tone and cover the frame first, the big areas by colour, each
-//! against its neighbours, weak contrasts kept weak), and the colour copy's, which has no
-//! demonstration. In his terms: 色相, 纯度, 明度, 更纯/更灰, 更亮/更暗, 眯眼, 色调, 弱对比, 明度推移.
+//! The colour kinds' How cards (`practice_demo.rs`), after V大's method in our own words (squint,
+//! a colour's hue first, then its lightness and purity, pick once by eye and correct two or
+//! three times; squint for the overall tone and cover the frame first, the big areas by colour,
+//! each against its neighbours, weak contrasts kept weak), and the colour copy's, which has no
+//! demonstration. In his terms: 色相, 明度, 纯度, 更亮/更暗, 更纯/更灰, 眯眼, 色调, 弱对比, 明度推移.
 
 use super::practice_demo::{COMPARE_STEP, How};
 
@@ -44,11 +44,12 @@ pub(crate) const STUDY: How = How {
 };
 
 texts! { PRACTICE_DEMO_COLOUR;
-    COLOUR_TRAINS = "Week 1 · a colour judged by its hue, purity and lightness, and corrected by \
-        eye.", "第 1 周 · 按色相、纯度、明度判断颜色，凭眼睛修正。";
-    COLOUR_STEP_1 = "Its hue first: the family on the ring", "先定色相：在色环上找到色系";
-    COLOUR_STEP_2 = "Purer or greyer", "再比纯度：更纯还是更灰";
-    COLOUR_STEP_3 = "Lighter or darker", "再比明度：更亮还是更暗";
+    COLOUR_TRAINS = "Week 1 · a colour judged by its hue, lightness and purity, and corrected by \
+        eye.", "第 1 周 · 按色相、明度、纯度判断颜色，凭眼睛修正。";
+    COLOUR_STEP_1 = "Squint, the hue first: the family on the ring",
+        "眯眼，先定色相：在色环上找到色系";
+    COLOUR_STEP_2 = "Lighter or darker", "再比明度：更亮还是更暗";
+    COLOUR_STEP_3 = "Purer or greyer", "再比纯度：更纯还是更灰";
     COLOUR_SAYS = "Compare: on the wheel yours is ringed in ink, the original in red; under it ΔE, \
         how different they look (about 2 just noticeable), and its lightness, chroma and hue, \
         each a bar from the original's red line to yours. Correct the longest first, two or three \

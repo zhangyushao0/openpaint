@@ -11,15 +11,17 @@ use std::fmt;
 use std::sync::Arc;
 
 use egui::{Rect, Sense, TextureHandle, Vec2};
-use openpaint_practice::{Demo, Drawn, Family, Layout, Marker, On, Point, Rgb8};
+use openpaint_practice::{Demo, Drawn, Family, Layout, Marker, On, Rgb8};
 
 use crate::components::{Alpha, card_step, keep_moving, picture_texture};
 use crate::design::{INK, PENCIL, SPACE};
 use crate::practice_demo_marks::{Frames, paint};
 use crate::text::Text;
 
-/// The example's height, and between its frames, in points.
+/// The example's height (a lone one's taller: a box with its points, a trick's face), and between
+/// its frames, in points.
 const HEIGHT: f32 = 176.0;
+const LONE_HEIGHT: f32 = 224.0;
 const GAP: f32 = 2.0 * SPACE;
 /// Between a fitted example and its paper's edge, in points.
 const FIT_MARGIN: f32 = 1.5 * SPACE;
@@ -108,7 +110,8 @@ impl Demonstrations {
         let width = ui.available_width();
         let height = match demo.layout {
             Layout::Wheel => (width - 2.0 * GAP) / 3.0,
-            _ => HEIGHT,
+            Layout::Single | Layout::Wide => LONE_HEIGHT,
+            Layout::Pair => HEIGHT,
         };
         let (rect, _) = ui.allocate_exact_size(Vec2::new(width, height), Sense::hover());
         let frames = laid(demo, rect);
@@ -174,32 +177,12 @@ fn laid(demo: &Demo, rect: Rect) -> Frames {
     }
 }
 
-/// Where the frame lies so the example (what is given, inked and answered, and every ring: a
-/// box's vanishing points) fills `rect`, centred.
+/// Where the frame lies so the part of it the example shows (`Demo::view`: a box with its
+/// vanishing points, a trick's face) fills `rect`, centred.
 fn fitted(demo: &Demo, rect: Rect) -> Rect {
-    let [mut low, mut high] = [[f64::INFINITY; 2], [f64::NEG_INFINITY; 2]];
-    let mut take = |p: &Point| {
-        for axis in 0..2 {
-            low[axis] = low[axis].min(p[axis]);
-            high[axis] = high[axis].max(p[axis]);
-        }
-    };
-    for mark in demo.marks.iter().filter(|mark| mark.on == On::Copy) {
-        let example = matches!(
-            mark.pen,
-            Marker::Given | Marker::Ink | Marker::Answer | Marker::Shade
-        );
-        match &mark.drawn {
-            Drawn::Ring(p) => take(p),
-            Drawn::Line(points) if example => points.iter().for_each(&mut take),
-            Drawn::Band { rows, .. } if example => rows.iter().flatten().for_each(&mut take),
-            Drawn::Cross(p) | Drawn::Dot(p) if example => take(p),
-            _ => {}
-        }
-    }
-    if low[0] > high[0] {
+    let Some([low, high]) = demo.view else {
         return rect;
-    }
+    };
     let span = [high[0] - low[0], high[1] - low[1]].map(|v| v.max(1e-3) as f32);
     let side = (rect.width() / span[0]).min(rect.height() / span[1]);
     let middle = [(low[0] + high[0]) / 2.0, (low[1] + high[1]) / 2.0].map(|v| v as f32);

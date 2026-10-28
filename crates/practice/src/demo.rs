@@ -131,6 +131,10 @@ pub struct Demo {
     pub steps: Vec<f64>,
     /// When it is over: from then on it stands still on its last frame.
     pub length: f64,
+    /// The part of the copy's frame a lone example shows, as large as the card lets it: its top
+    /// left and bottom right (frame units); what lies beyond is cut at the picture's edge. None
+    /// for frames side by side, shown whole.
+    pub view: Option<[Point; 2]>,
 }
 
 impl Demo {
@@ -241,6 +245,7 @@ impl Script {
                 to: from + SHOWING,
             });
         }
+        let view = matches!(layout, Layout::Single | Layout::Wide).then(|| seen(&self.marks));
         Demo {
             family,
             layout,
@@ -248,8 +253,40 @@ impl Script {
             marks: self.marks,
             steps: self.steps,
             length: from + SHOWING + HOLD,
+            view: view.flatten(),
         }
     }
+}
+
+/// What a lone example shows: on the copy's frame what is given, inked or answered, and every
+/// ring (a box's vanishing points).
+fn seen(marks: &[Mark]) -> Option<[Point; 2]> {
+    let mut points: Vec<Point> = Vec::new();
+    for mark in marks.iter().filter(|mark| mark.on == On::Copy) {
+        let example = matches!(
+            mark.pen,
+            Marker::Given | Marker::Ink | Marker::Answer | Marker::Shade
+        );
+        match &mark.drawn {
+            Drawn::Ring(p) => points.push(*p),
+            Drawn::Line(line) if example => points.extend(line),
+            Drawn::Band { rows, .. } if example => points.extend(rows.iter().flatten()),
+            Drawn::Cross(p) | Drawn::Dot(p) if example => points.push(*p),
+            _ => {}
+        }
+    }
+    bounds(&points)
+}
+
+/// The top left and bottom right of `points`; none when there are none.
+pub(crate) fn bounds(points: &[Point]) -> Option<[Point; 2]> {
+    let first = *points.first()?;
+    Some(points.iter().fold([first, first], |[low, high], p| {
+        [
+            [low[0].min(p[0]), low[1].min(p[1])],
+            [high[0].max(p[0]), high[1].max(p[1])],
+        ]
+    }))
 }
 
 /// How long `drawn` takes in `pen` at a hand's pace: a line by its length (a pass in the air and
@@ -327,17 +364,12 @@ pub(crate) fn clearest<T>(
 
 /// How far the middle of `points`' bounds lies from the frame's middle.
 pub(crate) fn off_middle(points: &[Point]) -> f64 {
-    let [mut low, mut high] = [[f64::INFINITY; 2], [f64::NEG_INFINITY; 2]];
-    for p in points {
-        for axis in 0..2 {
-            low[axis] = low[axis].min(p[axis]);
-            high[axis] = high[axis].max(p[axis]);
-        }
-    }
-    distance(
-        [(low[0] + high[0]) / 2.0, (low[1] + high[1]) / 2.0],
-        [0.5, 0.5],
-    )
+    bounds(points).map_or(0.0, |[low, high]| {
+        distance(
+            [(low[0] + high[0]) / 2.0, (low[1] + high[1]) / 2.0],
+            [0.5, 0.5],
+        )
+    })
 }
 
 /// The line through `a` and `b`, two points.

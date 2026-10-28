@@ -1,5 +1,5 @@
 //! The colour kinds' demonstrations (`demo.rs`): a colour (the wheel's ring to the hue's family,
-//! then purer or greyer, then lighter or darker, the frame filled), a colour combination (the
+//! then lighter or darker, then purer or greyer, the frame filled), a colour combination (the
 //! overall tone, the largest area first, each neighbour against it, the weak contrast kept weak)
 //! and a value scale (the middle cell first, then the quarters, the pick moving only up and down
 //! the wheel's square), each then compared.
@@ -52,12 +52,12 @@ pub(super) fn colour() -> Demo {
         Marker::Given,
         Drawn::Pick([(h + 140.0) % 360.0, 0.85, 0.9]),
     );
-    // A first pick by eye a little off, as a hand makes it: its hue a step round, a little purer
-    // and darker.
+    // V大's order: the hue first, then lightness, then purity. A first pick by eye a little off,
+    // as a hand makes it: its hue a step round, a little darker and purer.
     let hue = (h + 12.0) % 360.0;
     let picks = [
         [hue, 0.85, 0.9],
-        [hue, s + 0.07, 0.9],
+        [hue, 0.85, v - 0.06],
         [hue, s + 0.07, v - 0.06],
     ];
     for pick in picks {

@@ -31,6 +31,51 @@ fn demo(family: Family) -> Demo {
 }
 
 #[test]
+fn a_lone_example_is_framed_on_what_it_is_about_a_trick_on_its_face() {
+    for (family, _) in STEPS {
+        let demo = demo(family);
+        let lone = matches!(demo.layout, Layout::Single | Layout::Wide);
+        assert_eq!(demo.view.is_some(), lone, "{family:?}");
+    }
+    let face_of = |demo: &Demo| -> [Point; 2] {
+        let rows = (demo.marks.iter())
+            .find_map(|m| match &m.drawn {
+                Drawn::Band { rows, .. } if m.pen == Marker::Shade => Some(rows.clone()),
+                _ => None,
+            })
+            .expect("the shaded face");
+        let corners: Vec<Point> = rows.into_iter().flatten().collect();
+        let low = corners
+            .iter()
+            .fold([f64::INFINITY; 2], |l, p| [l[0].min(p[0]), l[1].min(p[1])]);
+        let high = (corners.iter()).fold([f64::NEG_INFINITY; 2], |h, p| {
+            [h[0].max(p[0]), h[1].max(p[1])]
+        });
+        [low, high]
+    };
+    // The face is the picture: its answer lies on it, the rest of the box is cut away.
+    for family in [
+        Family::Centre,
+        Family::Halves,
+        Family::Thirds,
+        Family::Mirror,
+    ] {
+        let demo = demo(family);
+        let [low, high] = demo.view.expect("framed");
+        let [face_low, face_high] = face_of(&demo);
+        for (a, b) in [(low, face_low), (high, face_high)] {
+            assert!(distance(a, b) < 1e-9, "{family:?}: {a:?} {b:?}");
+        }
+    }
+    // The next face: the face and the one beyond it.
+    let step = demo(Family::Step);
+    let [low, high] = step.view.expect("framed");
+    let [face_low, face_high] = face_of(&step);
+    assert!(low[0] <= face_low[0] + 1e-9 && high[0] >= face_high[0] - 1e-9);
+    assert!((high[0] - low[0]) <= 2.5 * (face_high[0] - face_low[0]));
+}
+
+#[test]
 fn every_kind_but_the_colour_copy_plays_once_through_in_five_to_ten_seconds() {
     assert!(Demo::of(Family::Study).is_none());
     let lengths: Vec<String> = (STEPS.iter())
