@@ -19,6 +19,7 @@ mod export;
 mod fill;
 mod gallery;
 mod gallery_files;
+mod gallery_library;
 mod gallery_projection;
 mod gestures;
 mod history;
@@ -32,6 +33,7 @@ mod palette;
 mod palm;
 mod pen_buttons;
 mod practice;
+mod practice_book;
 mod practice_copy;
 mod practice_log;
 mod practice_pens;
@@ -99,10 +101,13 @@ pub use crate::practice::{
     AREAS_SIDE, AreasRead, Overlay, Pen, PracticeIntent, PracticeNotice, PracticeProjection, Probe,
     SHAPE_SHOWN, SHOWN, SheetView, sheet_of,
 };
+pub use crate::practice_book::{BookProjection, BookRecord, LineRead, Mark, SheetRead};
 pub use crate::practice_log::PracticeLog;
 pub use crate::practice_pens::{INK_DIAMETER, PracticePens};
 pub use crate::practice_pictures::{FitJob, PackShown, PictureImage, SHOWN_SIDE, SheetPicture};
-pub use crate::practice_sheet::{CopyRead, PRACTICE_ROOM, PracticePick, Practising, ReadJob};
+pub use crate::practice_sheet::{
+    CopyRead, Finished, PRACTICE_ROOM, PracticePick, Practising, ReadJob,
+};
 pub use crate::practice_today::{CopyShown, PictureShown, TodayProjection};
 pub use crate::project::{
     KEPT_VERSIONS, KeptVersion, PortError, Project, ProjectId, ProjectStore, ProjectSummary,

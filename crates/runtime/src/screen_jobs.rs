@@ -47,6 +47,7 @@ impl Screen {
                 practice.forget(id);
             }
             PracticeDone::Pictures(Ok(pack)) => practice.set_personal(pack),
+            PracticeDone::Read(read) => practice.sheets_read(read),
             PracticeDone::Renamed(.., Err(error))
             | PracticeDone::Removed(_, Err(error))
             | PracticeDone::Pictures(Err(error)) => {
@@ -138,6 +139,14 @@ pub(super) fn gallery_job(
         LibraryRequest::RemovePicture(item) => return job(PracticeJob::RemovePicture(item)),
         LibraryRequest::PictureTier(item, tier) => {
             return job(PracticeJob::PictureTier(item, tier));
+        }
+        LibraryRequest::ReadSheets(ids) => {
+            let records = (ids.iter())
+                .filter_map(|id| practice.session(*id))
+                .filter(|record| record.canvas != 0)
+                .cloned()
+                .collect();
+            return job(PracticeJob::Read(records));
         }
     }))
 }

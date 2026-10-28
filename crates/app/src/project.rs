@@ -213,6 +213,10 @@ pub trait ProjectStore: Send {
     /// The titles of the practice sheets (a colour copy's is its name), by project.
     fn sheet_titles(&mut self) -> Result<Vec<(ProjectId, Title)>, PortError>;
 
+    /// Practice sheet `id`'s artwork as stored, read for the practice book; nothing is written
+    /// (it does not become the open one).
+    fn sheet(&mut self, id: ProjectId) -> Result<Artwork, PortError>;
+
     /// A new practice session: `sheet` as a new project titled `title`, which becomes the open
     /// one, and `session` with that project as its canvas, in one write. Returns the project.
     fn start_practice(

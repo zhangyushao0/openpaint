@@ -23,7 +23,7 @@ pub use paint::{
 };
 pub use palette::{
     BUTTON_RULE, CHECKER, CORRECTION, DESK, DIVIDER, FOUND, INK, INK_ACTIVE, INK_DISABLED,
-    INK_SECONDARY, PANEL, PANEL_RULE, PANEL_RULE_WIDTH, PRESSED,
+    INK_SECONDARY, PANEL, PANEL_RULE, PANEL_RULE_WIDTH, PENCIL, PRESSED, VERMILION,
 };
 
 /// The spacing unit in points; every gap and margin is a multiple of it.

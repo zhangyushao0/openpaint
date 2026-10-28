@@ -7,21 +7,23 @@
 //! earlier at the user's choice, an earlier one revisited. A long colour copy counts in no stage:
 //! it is worked on whenever the user likes, of a picture the user chose (`practice_today.rs`).
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use openpaint_practice::{
-    Before, ItemRef, PERSONAL, Pack, PictureKind, Pictures, Random, STAGE_SESSIONS, STAGES_READY,
-    SessionRecord, met, plan, used,
+    Before, Book, ItemRef, PERSONAL, Pack, PictureKind, Pictures, Random, STAGE_SESSIONS,
+    STAGES_READY, SessionRecord, Tally, local_day, met, plan, used,
 };
 
+use crate::practice_book::{BookProjection, BookRecord, SheetRead};
 use crate::practice_pictures::PackShown;
 use crate::practice_today::{CopyShown, PictureShown, TodayProjection, pictures_shown};
 use crate::project::ProjectId;
 use crate::title::Title;
 
 /// Every practice session and colour copy the library holds, oldest first, the titles of the
-/// copies' sheets, and the practice packs kept.
+/// copies' sheets, and the practice packs kept; the practice book made of them on the device's
+/// clock, with the sheets read for it.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct PracticeLog {
     sessions: Vec<SessionRecord>,
@@ -30,6 +32,14 @@ pub struct PracticeLog {
     packs: Vec<Pack>,
     /// The packs' pictures as the options show them, made again as the log changes.
     pictures: Arc<[PictureShown]>,
+    /// The device's offset from UTC in minutes, and the local day now.
+    offset: i32,
+    today: i64,
+    /// The practice book and the records it names, made again as the log changes; the sheets
+    /// read for it, by record (one is read again once its record changed).
+    book: Arc<Book>,
+    named: Arc<[BookRecord]>,
+    read: Arc<BTreeMap<u64, Arc<SheetRead>>>,
 }
 
 impl PracticeLog {
@@ -49,6 +59,7 @@ impl PracticeLog {
             ..Self::default()
         };
         log.set_packs(packs);
+        log.booked();
         log
     }
 
@@ -87,7 +98,51 @@ impl PracticeLog {
             packs: self.packs.iter().map(PackShown::of).collect(),
             copies: self.copies(),
             pictures: Arc::clone(&self.pictures),
+            book: BookProjection {
+                book: Arc::clone(&self.book),
+                today: self.today,
+                records: Arc::clone(&self.named),
+                read: Arc::clone(&self.read),
+            },
         }
+    }
+
+    /// The device's clock now: `now` seconds since 1970 UTC, `offset` minutes from UTC.
+    pub fn set_clock(&mut self, now: u64, offset: i32) {
+        self.today = local_day(now, offset);
+        if offset != self.offset {
+            self.offset = offset;
+            self.booked();
+        }
+    }
+
+    /// The sheets the store read for the book, by record.
+    pub fn sheets_read(&mut self, read: Vec<(u64, SheetRead)>) {
+        let mut kept = (*self.read).clone();
+        kept.extend(read.into_iter().map(|(id, sheet)| (id, Arc::new(sheet))));
+        self.read = Arc::new(kept);
+    }
+
+    /// What every record but `id` adds up to: what a session's seals are earned beside.
+    #[must_use]
+    pub fn tally_without(&self, id: u64) -> Tally {
+        Tally::of(self.sessions.iter().filter(|s| s.id != id))
+    }
+
+    /// The book made again from the records.
+    fn booked(&mut self) {
+        self.book = Arc::new(Book::of(&self.sessions, self.stage(), self.offset));
+        self.named = (self.sessions.iter())
+            .filter(|s| s.canvas != 0)
+            .map(|s| BookRecord {
+                id: s.id,
+                sheet: ProjectId::new(s.canvas),
+                number: s.number,
+                copy: (s.is_project()).then(|| {
+                    (self.titles.get(&s.canvas).cloned()).unwrap_or_else(|| copy_title(s.number))
+                }),
+            })
+            .collect();
     }
 
     /// The colour copies begun, newest first, as the options list them.
@@ -238,8 +293,13 @@ impl PracticeLog {
             .collect()
     }
 
-    /// Keeps `session`, new or newer.
+    /// Keeps `session`, new or newer; its sheet is read again when the book asks.
     pub fn keep(&mut self, session: SessionRecord) {
+        if self.read.contains_key(&session.id) {
+            let mut read = (*self.read).clone();
+            read.remove(&session.id);
+            self.read = Arc::new(read);
+        }
         match self.sessions.iter_mut().find(|s| s.id == session.id) {
             Some(kept) => *kept = session,
             None => {
@@ -248,11 +308,13 @@ impl PracticeLog {
                 self.shown();
             }
         }
+        self.booked();
     }
 
     /// The sheet of project `sheet` is titled `title` (a colour copy named or renamed).
     pub fn name(&mut self, sheet: ProjectId, title: Title) {
         self.titles.insert(sheet.get(), title);
+        self.booked();
     }
 
     /// Forgets session `id`, which the store removed, with its sheet's title.
@@ -262,6 +324,7 @@ impl PracticeLog {
         }
         self.sessions.retain(|s| s.id != id);
         self.shown();
+        self.booked();
     }
 
     /// The pictures as the options show them, made again.

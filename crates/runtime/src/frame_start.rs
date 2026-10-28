@@ -95,6 +95,7 @@ impl Runtime {
             transfers: Transfers::default(),
             clipboard: Clipboard::default(),
             practice: PracticeLog::default(),
+            utc_offset: 0,
             seeds: Seeds::from_clock(),
             bench_fast: false,
             ui_ns: 0,

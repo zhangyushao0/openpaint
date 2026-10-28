@@ -9,10 +9,12 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use openpaint_practice::{ItemRef, Pack, Tier};
+use openpaint_practice::{ItemRef, Tier};
 
 use crate::error::AppError;
 use crate::gallery_files::{FileJob, Files, problem};
+use crate::gallery_library::request_of;
+pub use crate::gallery_library::{LibraryAnswer, LibraryRequest};
 use crate::gallery_projection::offered_unless;
 pub use crate::gallery_projection::{FileProblem, GalleryNotice, GalleryProjection};
 use crate::project::{PortError, ProjectId, ProjectSummary, VersionId};
@@ -68,6 +70,8 @@ pub enum GalleryIntent {
     RemovePicture(ItemRef),
     /// One of the user's own pictures moved to a tier.
     PictureTier(ItemRef, Tier),
+    /// The practice book reads the sheets of these practice records (by id) to show them.
+    ReadSheets(Vec<u64>),
 }
 
 /// The canvas sizes "+" offers (Procreate's new-canvas menu, reduced to four).
@@ -102,50 +106,6 @@ impl CanvasPreset {
             Self::A4Landscape => [3508, 2480],
         }
     }
-}
-
-/// A call the gallery needs from the library, in the order it must run.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LibraryRequest {
-    List,
-    Create(Title, CanvasPreset),
-    Open(ProjectId),
-    Rename(ProjectId, Title),
-    Duplicate(ProjectId),
-    Delete(ProjectId),
-    Restore(ProjectId, VersionId, Title),
-    /// A new practice session of the stage given and its sheet, which becomes the open one.
-    Practice(u8),
-    /// A new long colour copy of the picture given and its sheet, which becomes the open one.
-    Copy(ItemRef),
-    /// A colour copy's sheet titled anew.
-    RenameCopy(ProjectId, Title),
-    /// A colour copy removed, its record and its sheet.
-    RemoveCopy(ProjectId),
-    /// One of the user's own pictures (by its item id) removed from their pack.
-    RemovePicture(String),
-    /// One of the user's own pictures (by its item id) moved to a tier.
-    PictureTier(String, Tier),
-}
-
-/// How a library call went, for the gallery. A successful open or create leaves the gallery.
-#[derive(Debug, Clone, PartialEq)]
-pub enum LibraryAnswer {
-    Listed(Result<Vec<ProjectSummary>, PortError>),
-    /// A rename, duplicate or delete.
-    Changed(Result<(), PortError>),
-    OpenFailed(PortError),
-    CreateFailed(PortError),
-    Restored(Result<(), PortError>),
-    /// The artwork was written into the chosen file (`FileJob::Save`), or not.
-    FileSaved(Result<(), PortError>),
-    /// The chosen file was added as a new artwork (`FileJob::Open`), or refused.
-    FileOpened(Result<(), PortError>),
-    /// The chosen practice pack was kept (`FileJob::ImportPack`), or refused.
-    PackImported(Result<Pack, PortError>),
-    /// The chosen picture was added to the user's own (`FileJob::AddPicture`), the personal
-    /// pack as it is now (the picture its last item), or refused.
-    PictureAdded(Result<Pack, PortError>),
 }
 
 /// The gallery's flow while it is shown.
@@ -242,14 +202,7 @@ impl Gallery {
                 | LibraryRequest::Practice(_)
                 | LibraryRequest::Copy(_)
         );
-        // Practice's copies and pictures are no artworks: the list stays as it is.
-        let artworks = !matches!(
-            request,
-            LibraryRequest::RenameCopy(..)
-                | LibraryRequest::RemoveCopy(_)
-                | LibraryRequest::RemovePicture(_)
-                | LibraryRequest::PictureTier(..)
-        );
+        let artworks = request.changes_artworks();
         self.requests.push_back(request);
         if !self.opening && artworks {
             self.requests.push_back(LibraryRequest::List);
@@ -368,33 +321,4 @@ impl Default for Gallery {
     fn default() -> Self {
         Self::new()
     }
-}
-
-/// The library's call `intent` asks for; none for the canvas's `Show`, a notice dismissed or a
-/// system dialog (`Gallery::file_dialog`).
-fn request_of(intent: GalleryIntent) -> Option<LibraryRequest> {
-    Some(match intent {
-        GalleryIntent::Show
-        | GalleryIntent::Dismiss
-        | GalleryIntent::SaveFile(_)
-        | GalleryIntent::OpenFile
-        | GalleryIntent::ImportPack
-        | GalleryIntent::AddPicture(_) => return None,
-        GalleryIntent::Create(preset) => LibraryRequest::Create(Title::untitled(), preset),
-        GalleryIntent::Open(id) => LibraryRequest::Open(id),
-        GalleryIntent::Rename { id, title } => LibraryRequest::Rename(id, title),
-        GalleryIntent::Duplicate(id) => LibraryRequest::Duplicate(id),
-        GalleryIntent::Delete(id) => LibraryRequest::Delete(id),
-        GalleryIntent::Restore { id, version, title } => {
-            LibraryRequest::Restore(id, version, title)
-        }
-        GalleryIntent::Practice(stage) => LibraryRequest::Practice(stage),
-        GalleryIntent::Copy(picture) => LibraryRequest::Copy(picture),
-        GalleryIntent::RenameCopy { sheet, title } => LibraryRequest::RenameCopy(sheet, title),
-        GalleryIntent::RemoveCopy(sheet) => LibraryRequest::RemoveCopy(sheet),
-        GalleryIntent::RemovePicture(picture) => LibraryRequest::RemovePicture(picture.item),
-        GalleryIntent::PictureTier(picture, tier) => {
-            LibraryRequest::PictureTier(picture.item, tier)
-        }
-    })
 }

@@ -102,6 +102,29 @@ impl Session {
         self.practice.as_mut()?.save_request()
     }
 
+    /// A use of the pen, a finger or a control at `now` (seconds since 1970 UTC) while a practice
+    /// sheet shows: its time runs on (`practice_time.rs`).
+    pub fn practised(&mut self, now: u64) {
+        if let Some(practice) = self.practice.as_mut() {
+            practice.practised(now);
+        }
+    }
+
+    /// The app is hidden: on a practice sheet the next use starts a new span of its time, which
+    /// goes to the store with the next save request.
+    pub fn practice_hidden(&mut self) {
+        if let Some(practice) = self.practice.as_mut() {
+            practice.hidden();
+        }
+    }
+
+    /// The sheet is being left: its time goes to the store with the next save request.
+    pub fn practice_flush(&mut self) {
+        if let Some(practice) = self.practice.as_mut() {
+            practice.flush();
+        }
+    }
+
     /// The aligned overlay's fit for the runtime's worker, once per Compare.
     pub fn practice_fit_request(&mut self) -> Option<FitJob> {
         self.practice.as_mut()?.fit_request()

@@ -6,7 +6,7 @@
 //! session in the app's practice log, or a colour copy of the picture chosen, seeded from the
 //! strokes' seed source (fixed in the harness), its sheet the size its layout asks.
 
-use openpaint_app::{PortError, PracticeLog, ProjectId, ProjectStore, Title, sheet_of};
+use openpaint_app::{PortError, PracticeLog, ProjectId, ProjectStore, SheetRead, Title, sheet_of};
 use openpaint_core::{Artwork, CanvasSize};
 use openpaint_practice::{ItemRef, Pack, SessionRecord, Tier};
 use openpaint_store::Packs;
@@ -32,6 +32,8 @@ pub(crate) enum PracticeJob {
     /// One of the user's own pictures (its item id) removed, or moved to a tier.
     RemovePicture(String),
     PictureTier(String, Tier),
+    /// The sheets of these records read for the practice book, nothing written (S89).
+    Read(Vec<SessionRecord>),
 }
 
 pub(crate) enum PracticeDone {
@@ -52,6 +54,9 @@ pub(crate) enum PracticeDone {
     /// The user's own pictures as their pack holds them now (none left: none), or why they
     /// stayed as they were.
     Pictures(Result<Option<Pack>, PortError>),
+    /// What the practice book shows of the sheets read, by record (one not read left out,
+    /// logged).
+    Read(Vec<(u64, SheetRead)>),
 }
 
 pub(crate) fn run(
@@ -105,7 +110,23 @@ pub(crate) fn run(
             let moved = packs.map(|packs| packs.set_tier(&item, tier));
             PracticeDone::Pictures(moved.unwrap_or(Err(PortError::Stopped)))
         }
+        PracticeJob::Read(records) => PracticeDone::Read(read_sheets(store, &records)),
     })
+}
+
+/// What the practice book shows of `records`' sheets, each read without writing anything.
+fn read_sheets(store: &mut dyn ProjectStore, records: &[SessionRecord]) -> Vec<(u64, SheetRead)> {
+    let mut read = Vec::with_capacity(records.len());
+    for record in records {
+        match store.sheet(ProjectId::new(record.canvas)) {
+            Ok(artwork) => read.push((record.id, SheetRead::of(&artwork, record))),
+            Err(error) => log::warn!(
+                "the sheet of practice record {} not read: {error}",
+                record.id
+            ),
+        }
+    }
+    read
 }
 
 /// What `job` answers when the store panicked.
@@ -121,6 +142,7 @@ pub(crate) fn stopped(job: &PracticeJob) -> Done {
         PracticeJob::RemovePicture(_) | PracticeJob::PictureTier(..) => {
             PracticeDone::Pictures(Err(error))
         }
+        PracticeJob::Read(_) => PracticeDone::Read(Vec::new()),
     })
 }
 

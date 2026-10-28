@@ -162,6 +162,68 @@ fn a_session_removed_takes_its_record_and_sheet_and_leaves_every_other_byte() {
     );
 }
 
+/// A record as 1.6.2 wrote it (no pictures, no time: it ended after its warm-up's count) is given
+/// its time from its compares once, when the library opens, and every other record keeps its
+/// bytes; the sheet is read for the practice book without anything written.
+#[test]
+fn a_record_of_1_6_2_is_timed_by_its_compares_once_when_the_library_opens() {
+    let dir = TestDir::new("practice-upgrade");
+    let mut library = Library::at(&dir);
+    let mut old = SessionRecord::stage_one(1, 1, 0x5EED_0045, 1_791_201_600, &[]);
+    let title = Title::new("Practice 1").expect("title");
+    let id = library
+        .start_practice(&sheet(), &title, &old)
+        .expect("started");
+    old.canvas = id.get();
+    old.results
+        .push(ExerciseResult::first(0, 1_791_201_700, 2, Vec::new()));
+    old.results.push(ExerciseResult::first(
+        1,
+        1_791_201_700 + 7200,
+        4,
+        Vec::new(),
+    ));
+    library.save_practice(&old).expect("saved");
+    let timed = SessionRecord::stage_one(2, 2, 3, 1_791_300_000, &[]);
+    library
+        .start_practice(&sheet(), &Title::new("Practice 2").expect("title"), &timed)
+        .expect("started");
+    drop(library);
+    let key = |id: u64| [b"p".as_slice(), &id.to_be_bytes()].concat();
+    let mut stored = records(&dir);
+    let at = (stored.iter())
+        .position(|(_, k, _)| *k == key(1))
+        .expect("the record");
+    // As 1.6.2 wrote it: without the pictures' count and the spans' (both 0 here).
+    let length = stored[at].2.len();
+    assert_eq!(stored[at].2[length - 8..], [0; 8]);
+    stored[at].2.truncate(length - 8);
+    write_records(&dir, std::slice::from_ref(&stored[at]));
+    let before = records(&dir);
+
+    let mut library = Library::at(&dir);
+    let sessions = library.practice().expect("practice");
+    assert_eq!(sessions[0].time, old.time_of_compares());
+    assert_eq!(
+        openpaint_practice::seconds(&sessions[0].time),
+        100,
+        "two hours between the compares count nothing"
+    );
+    assert_eq!(sessions[1].time, [], "written by 1.7.0: as it was");
+    assert_eq!(library.sheet(id), Ok(sheet()));
+    drop(library);
+    let after = records(&dir);
+    for record in &before {
+        if record.1 != key(1) {
+            assert!(after.contains(record), "{record:?} changed");
+        }
+    }
+    let mut again = Library::at(&dir);
+    assert_eq!(again.practice().expect("practice"), sessions);
+    drop(again);
+    assert_eq!(records(&dir), after, "upgraded once");
+}
+
 #[test]
 fn a_practice_record_that_cannot_be_read_is_left_out() {
     let dir = TestDir::new("practice-damaged");

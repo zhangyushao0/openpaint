@@ -160,7 +160,7 @@ impl PracticeSheet {
     /// construction left out), a correction in place of the edge it redraws.
     fn edges_in(&self, index: usize, artwork: &Artwork, frame: &Frame) -> Vec<Edge> {
         let found = |ids: Range<u64>| {
-            let pieces = line_pieces(artwork, frame, (&self.pens, ids));
+            let pieces = line_pieces(artwork, frame, ids);
             let lines: Vec<&[Point]> = pieces.iter().map(Vec::as_slice).collect();
             edges(&lines)
         };
@@ -178,7 +178,7 @@ impl PracticeSheet {
         guide: &EllipseGuide,
         (artwork, frame): (&Artwork, &Frame),
     ) -> EllipseCheck {
-        let pieces = |ids: Range<u64>| line_pieces(artwork, frame, (&self.pens, ids));
+        let pieces = |ids: Range<u64>| line_pieces(artwork, frame, ids);
         let corrections = self
             .corrected_from(index)
             .map(|since| pieces(since..u64::MAX));
@@ -232,7 +232,7 @@ impl PracticeSheet {
         self.fit_job = Some(FitJob {
             sequence: self.fits,
             original,
-            copy: line_pieces(artwork, frame, (&self.pens, ALL_STROKES)),
+            copy: line_pieces(artwork, frame, ALL_STROKES),
             shape,
         });
         Fitting::Asked(self.fits)

@@ -1,12 +1,15 @@
 //! The gallery screen (Procreate's model): its name on the desk at the top left, a search field
 //! in the top band's middle, an island at the top right with the "+" that makes a new artwork
 //! of a size chosen in a small popover or opens an OpenPaint file, and below them the Today card
-//! (practice, G9; not while searching), then every artwork whose title holds the search's text
+//! (practice, G9; not while searching; its sheet opens the practice book, `gallery_book.rs`),
+//! then every artwork whose title holds the search's text
 //! as a card in a grid, the one changed last first. Tap a
 //! picture to open it, its title to rename it (a dialog under the islands, above the soft
 //! keyboard), the options to save it as an OpenPaint file or restore a kept version, the copy
 //! button to duplicate it and the bin to delete it, which asks first: it cannot be undone.
 
+#[path = "gallery_book.rs"]
+mod book;
 #[path = "gallery_copies.rs"]
 mod copies;
 #[path = "gallery_dates.rs"]
@@ -30,9 +33,8 @@ use openpaint_app::{
 
 use crate::components::carry::{Arrival, Opening, land};
 use crate::components::{
-    Alpha, ArtworkCard, ISLAND_TOP, Naming, Place, Source, TOP_BAND, TodayCard, artwork_card,
-    card_size, icon_button, icon_toggle, island, notice, picture_texture, pill, text_field,
-    today_card,
+    Alpha, ArtworkCard, ISLAND_TOP, Naming, Place, Source, TOP_BAND, artwork_card, card_size,
+    icon_button, icon_toggle, island, notice, picture_texture, pill, text_field,
 };
 use crate::design::{CARD_GAP, Icon, SPACE, TOUCH_TARGET};
 use crate::text::{self as t, Words};
@@ -66,6 +68,8 @@ pub(crate) struct GalleryScreen {
     options: Option<(ProjectId, Rect)>,
     /// The practice options, grown from the Today card, their pages and pictures.
     practice: practice::PracticeOptions,
+    /// The practice book, grown from the Today card's sheet (S89).
+    book: book::BookState,
     /// What the search field holds; not stored.
     search: String,
     /// The device's offset from UTC in minutes (`Shell::set_utc_offset`).
@@ -119,6 +123,11 @@ impl GalleryScreen {
         projection: &GalleryProjection,
         taps: &mut Vec<Intent>,
     ) {
+        // The practice book takes the whole screen: its own island only.
+        if self.book.shows() && projection.today().is_some() {
+            self.book_island(ctx);
+            return;
+        }
         egui::Area::new(egui::Id::new("gallery title"))
             .order(egui::Order::Background)
             .interactable(false)
@@ -172,6 +181,12 @@ impl GalleryScreen {
         taps: &mut Vec<Intent>,
     ) {
         let ctx = ui.ctx().clone();
+        if let Some(today) = projection.today().filter(|_| self.book.shows()) {
+            self.book_page(&ctx, today, taps);
+            if self.book.covers() {
+                return;
+            }
+        }
         let language = t::language(&ctx);
         self.load_pictures(&ctx, projection.items());
         // While the sizes are open a tap elsewhere only closes them.
@@ -261,49 +276,6 @@ impl GalleryScreen {
         }
     }
 
-    /// The Today card in `rect`; returns where its sheet lies. Tapped, it continues the open
-    /// session (opening its sheet) or starts one of its stage, or of the next once this one's
-    /// sessions are done, the sheet growing out of the card; its options open the practice
-    /// options.
-    fn today(
-        &mut self,
-        ui: &mut egui::Ui,
-        rect: Rect,
-        (today, enabled): (&TodayProjection, bool),
-        taps: &mut Vec<Intent>,
-    ) -> Rect {
-        let mut slot = ui.new_child(egui::UiBuilder::new().max_rect(rect));
-        let language = t::language(ui.ctx());
-        let stage = t::stage(language, today.stage);
-        let progress = t::sessions_done(language, today.done, today.sessions);
-        let (action, starts) = match (today.open, today.next) {
-            (Some(_), _) => (t::CONTINUE_PRACTICE, today.stage),
-            (None, Some(next)) => (t::START_NEXT_STAGE, next),
-            (None, None) => (t::START_PRACTICE, today.stage),
-        };
-        let pictures = today.packs.iter().any(|pack| pack.pictures > 0);
-        let card = TodayCard {
-            stage: &stage,
-            progress: &progress,
-            hint: (today.stage == 2 && !pictures).then_some(t::SHAPES_NEED_PACK),
-            action,
-            enabled,
-        };
-        let tapped = today_card(&mut slot, &card);
-        if tapped.sheet {
-            let intent = (today.open).map_or(GalleryIntent::Practice(starts), GalleryIntent::Open);
-            taps.push(Intent::Gallery(intent));
-            self.opening = Some(Opening {
-                from: tapped.rect,
-                id: today.open,
-                picture: None,
-            });
-        } else if tapped.options {
-            self.practice.open(rect);
-        }
-        tapped.rect
-    }
-
     /// One card; returns where its picture lies.
     fn card(
         &mut self,
@@ -347,7 +319,7 @@ impl GalleryScreen {
     /// Closes an open dialog as Cancel would, or the new-canvas popover. Returns whether one
     /// was open.
     pub(crate) fn back(&mut self) -> bool {
-        let practice = self.practice.close();
+        let practice = self.practice.close() | self.book.close();
         let open = self.rename.is_some()
             || self.confirm.is_some()
             || self.options.is_some()

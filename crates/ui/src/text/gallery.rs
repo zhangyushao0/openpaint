@@ -2,6 +2,7 @@
 //! the dates of kept versions.
 
 use openpaint_app::{CanvasPreset, FileProblem, GalleryNotice};
+use openpaint_practice::Date;
 
 use super::{Language, Text};
 
@@ -166,19 +167,11 @@ pub(crate) fn pack_line(
     }
 }
 
-/// The Today card's progress: sessions finished of about how many.
-pub(crate) fn sessions_done(language: Language, done: u32, about: u32) -> String {
-    match language {
-        Language::English => format!("{done} of about {about} sessions done"),
-        Language::Chinese => format!("已完成 {done} 次，共约 {about} 次"),
-    }
-}
-
 /// A kept version's date and time of day: "5 Oct 2026 14:32", or "2026年10月5日 14:32";
 /// `second` with the seconds.
 pub(crate) fn kept_date(
     language: Language,
-    (year, month, day): (i64, usize, i64),
+    Date { year, month, day }: Date,
     (hour, minute, second): (i64, i64, Option<i64>),
 ) -> String {
     const MONTHS: [&str; 12] = [
@@ -188,8 +181,9 @@ pub(crate) fn kept_date(
         Some(second) => format!("{hour:02}:{minute:02}:{second:02}"),
         None => format!("{hour:02}:{minute:02}"),
     };
+    let name = MONTHS[(month.clamp(1, 12) - 1) as usize];
     match language {
-        Language::English => format!("{day} {} {year} {time}", MONTHS[month - 1]),
+        Language::English => format!("{day} {name} {year} {time}"),
         Language::Chinese => format!("{year}年{month}月{day}日 {time}"),
     }
 }

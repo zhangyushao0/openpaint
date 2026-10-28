@@ -176,12 +176,8 @@ impl Runner<'_> {
                 self.frame(runtime)?;
                 self.input_ms = self.clock_ms;
             }
-            Step::Wait { frames } => {
-                for _ in 0..*frames {
-                    self.frame(runtime)?;
-                    self.clock_ms += FRAME_MS;
-                }
-            }
+            Step::Wait { frames } => self.wait(runtime, *frames)?,
+            Step::Later { minutes, hidden } => self.later(runtime, (*minutes, *hidden))?,
             Step::Restart => return Err(ScenarioError::Missing("restart is run by `run`")),
             Step::StorageFails => self.storage_off.store(true, Ordering::Relaxed),
             Step::StorageWorks => self.storage_off.store(false, Ordering::Relaxed),

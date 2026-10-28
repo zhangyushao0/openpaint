@@ -19,6 +19,7 @@ use openpaint_practice::{
 
 use crate::layer_rules::LayerRefusal;
 use crate::practice_pictures::{PictureImage, SheetPicture};
+use crate::practice_sheet::Finished;
 use crate::projection::Availability;
 use crate::title::Title;
 use crate::view::Viewport;
@@ -150,6 +151,8 @@ pub struct PracticeProjection {
     pub instructions: Option<Family>,
     /// Once done: this session's means beside the earlier ones', per kind.
     pub summary: Option<Vec<KindSummary>>,
+    /// Once a session is done: its dot on its stage's road and the seals it earned (S89).
+    pub finished: Option<Finished>,
     pub notice: Option<PracticeNotice>,
     /// Whether Aligned can be chosen for the shown exercise: lines, or a picture with an outline.
     pub aligned_offered: bool,

@@ -33,7 +33,17 @@ fn opened(record: SessionRecord, packs: &[Pack], size: [u32; 2]) -> Session {
     let brush =
         StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK).expect("brush");
     let pens = PracticePens::of(&BrushLibrary::built_in().expect("brushes")).expect("pens");
-    Session::practising(sheet, (brush, pens), (record, Vec::new(), view), &VIEWPORT)
+    Session::practising(
+        sheet,
+        (brush, pens),
+        (
+            record,
+            Vec::new(),
+            view,
+            openpaint_practice::Tally::default(),
+        ),
+        &VIEWPORT,
+    )
 }
 
 /// A pen stroke through `points` (canvas pixels).

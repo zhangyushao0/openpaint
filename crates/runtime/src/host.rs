@@ -10,6 +10,7 @@ use openpaint_ui::CanvasArea;
 use crate::canvas::Leaving;
 use crate::error::RuntimeError;
 use crate::frame::Runtime;
+use crate::practice::PracticeJob;
 use crate::screen::leave_job;
 use crate::storage::Job;
 
@@ -26,6 +27,13 @@ impl Runtime {
     pub fn leave(&mut self) {
         if let Some(canvas) = self.screen.canvas_mut() {
             canvas.end_stroke(&mut self.toolbox);
+            // Time hidden is no practice: a sheet's time so far goes to the store.
+            canvas.session_mut().practice_hidden();
+            if let Some(record) = canvas.session_mut().practice_save_request() {
+                self.practice.keep(record.clone());
+                self.storage
+                    .submit(Job::Practice(PracticeJob::Save(record)));
+            }
         }
         if let Some(state) = self.toolbox.save_request() {
             self.storage.submit(Job::SaveEditor(Box::new(state)));
@@ -83,8 +91,9 @@ impl Runtime {
     }
 
     /// The device's offset from UTC in minutes now (the host's time zone), for the dates of kept
-    /// versions; 0 until the host says.
+    /// versions and the practice book's days; 0 until the host says.
     pub fn set_utc_offset(&mut self, minutes: i32) {
+        self.utc_offset = minutes;
         self.shell.set_utc_offset(minutes);
     }
 

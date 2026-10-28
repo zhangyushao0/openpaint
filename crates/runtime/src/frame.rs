@@ -88,6 +88,8 @@ pub struct Runtime {
     pub(crate) clipboard: Clipboard,
     /// Every practice session: the app's, kept across artworks, as the store holds them.
     pub(crate) practice: PracticeLog,
+    /// The device's offset from UTC in minutes (the host's), for the practice book's days.
+    pub(crate) utc_offset: i32,
     /// Where every new stroke's seed comes from.
     pub(crate) seeds: Seeds,
     /// Debug builds' scenario benchmark runs its frames as fast as the GPU takes them.
@@ -303,6 +305,12 @@ impl Runtime {
         self.core.frame_begun();
         self.receive()?;
         let batches = std::mem::take(&mut self.pending);
+        let now = self.frame_clock.wall_seconds();
+        self.practice.set_clock(now, self.utc_offset);
+        // A use of the pen (touching or hovering), a finger or a control on a practice sheet.
+        if let (false, Some(canvas)) = (batches.is_empty(), self.screen.canvas_mut()) {
+            canvas.session_mut().practised(now);
+        }
         let mut events = pointer_events(&batches, self.pixels_per_point);
         events.append(&mut self.typed);
         self.shell.set_now(self.clock.now_ms());

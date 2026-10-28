@@ -83,6 +83,9 @@ pub enum Icon {
     Mask,
     /// Three dots in a row: more for this item.
     More,
+    /// A chevron to the left and one to the right: earlier and later (the practice book's months).
+    Earlier,
+    Later,
 }
 
 pub(super) type Line = Vec<[f32; 2]>;
@@ -164,6 +167,8 @@ fn polylines(icon: Icon) -> Vec<Line> {
             vec![[0.58, 0.82], [0.82, 0.58]],
         ],
         Icon::Done => vec![vec![[0.22, 0.52], [0.42, 0.72], [0.78, 0.32]]],
+        Icon::Earlier => vec![vec![[0.58, 0.28], [0.36, 0.5], [0.58, 0.72]]],
+        Icon::Later => vec![vec![[0.42, 0.28], [0.64, 0.5], [0.42, 0.72]]],
         Icon::More => [0.26, 0.5, 0.74]
             .map(|x| vec![[x - 0.01, 0.5], [x + 0.01, 0.5]])
             .to_vec(),
@@ -371,6 +376,8 @@ mod tests {
             Icon::Mask,
             Icon::MergeDown,
             Icon::More,
+            Icon::Earlier,
+            Icon::Later,
         ];
         for icon in icons {
             let lines = polylines(icon);

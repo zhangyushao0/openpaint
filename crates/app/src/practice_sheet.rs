@@ -14,7 +14,9 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use openpaint_core::{Artwork, CanvasSize, RegionMask, StrokeStyle, StrokeTool};
-use openpaint_practice::{Family, Frame, ItemRef, Original, Pair, SessionRecord, summary};
+use openpaint_practice::{
+    Family, Frame, ItemRef, Original, Pair, SessionRecord, Tally, seconds, summary,
+};
 
 use crate::error::AppError;
 use crate::practice::{Pen, PracticeIntent, PracticeNotice, PracticeProjection, SheetView};
@@ -22,20 +24,24 @@ use crate::practice_copy::MARGIN;
 use crate::practice_pens::PracticePens;
 use crate::practice_pictures::{FitJob, PictureImage};
 use crate::projection::{Availability, EditorAction};
-use crate::view::{CanvasView, Viewport};
+use crate::view::CanvasView;
 
 /// A practice sheet opening: its session's record, the finished sessions of its stage before it
-/// (for the summary) and the sheet as the screen draws it.
-pub type Practising = (SessionRecord, Vec<SessionRecord>, SheetView);
+/// (for the summary), the sheet as the screen draws it, and what every other record adds up to
+/// (for the seals its finish stamps).
+pub type Practising = (SessionRecord, Vec<SessionRecord>, SheetView, Tally);
 
 #[path = "practice_compare.rs"]
 mod compare;
 #[path = "practice_read.rs"]
 mod read;
+#[path = "practice_time.rs"]
+mod time;
 #[path = "practice_view.rs"]
 mod view;
 
 pub use read::{CopyRead, PracticePick, ReadJob};
+pub use time::Finished;
 pub use view::PRACTICE_ROOM;
 
 use compare::Compared;
@@ -70,6 +76,11 @@ pub(crate) struct PracticeSheet {
     notice: Option<PracticeNotice>,
     /// The record changed since the store last got it.
     changed: bool,
+    /// The app was hidden (or the sheet just opened) since the last use, the time the store last
+    /// got, and what every other record adds up to (`practice_time.rs`).
+    hidden: bool,
+    time_saved: u64,
+    others: Tally,
     /// The aligned fit for the worker, and how many were asked.
     fit_job: Option<FitJob>,
     fits: u64,
@@ -83,7 +94,7 @@ pub(crate) struct PracticeSheet {
 
 impl PracticeSheet {
     pub(crate) fn new(
-        (record, before, view): Practising,
+        (record, before, view, others): Practising,
         canvas: CanvasSize,
         pens: PracticePens,
     ) -> Self {
@@ -102,6 +113,9 @@ impl PracticeSheet {
         let mut practice = Self {
             told: Family::ALL.map(done),
             all_tools: record.is_project(),
+            hidden: true,
+            time_saved: seconds(&record.time),
+            others,
             record,
             before,
             sheet,
@@ -314,38 +328,13 @@ impl PracticeSheet {
         Ok(())
     }
 
-    fn next(
-        &mut self,
-        view: &mut CanvasView,
-        viewport: &Viewport,
-        now: u64,
-    ) -> Result<(), AppError> {
-        let Some(index) = self.current() else {
-            return Ok(());
-        };
-        if self.record.is_project() {
-            // A colour copy is worked on whenever the user likes; it never ends with Next.
-            return Err(unavailable(Availability::NothingLeft));
-        }
-        (self.compared, self.instructions, self.notice) = (None, None, None);
-        self.fit_job = None;
-        if index + 1 < self.sheet.pairs.len() {
-            self.record.current += 1;
-            if let Some(pair) = self.pair(index + 1) {
-                *view = view::centred(view, pair.centre(), (self.canvas, viewport));
-            }
-        } else {
-            self.record.finished = Some(now);
-            *view = self.whole(viewport);
-        }
-        self.changed = true;
-        self.shown();
-        Ok(())
-    }
-
-    /// The record for the store, once after each change.
+    /// The record for the store, once after each change (its time included).
     pub(crate) fn save_request(&mut self) -> Option<SessionRecord> {
-        std::mem::take(&mut self.changed).then(|| self.record.clone())
+        let changed = std::mem::take(&mut self.changed);
+        changed.then(|| {
+            self.time_saved = seconds(&self.record.time);
+            self.record.clone()
+        })
     }
 
     pub(crate) fn projection(&self, artwork: &Artwork, brush: &StrokeStyle) -> PracticeProjection {
@@ -374,6 +363,7 @@ impl PracticeSheet {
             overlay: current.and_then(|index| self.overlay(index)),
             instructions: self.instructions,
             summary: current.is_none().then(|| summary(&self.record, &before)),
+            finished: self.finished(),
             notice: self.notice,
             aligned_offered: current.is_some_and(|index| self.aligned_offered(index)),
             fitting: self.fitting(),

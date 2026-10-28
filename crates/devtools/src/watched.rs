@@ -153,6 +153,10 @@ impl ProjectStore for Watched {
         self.on(Library::sheet_titles)
     }
 
+    fn sheet(&mut self, id: ProjectId) -> Result<Artwork, PortError> {
+        self.on(|library| library.sheet(id))
+    }
+
     fn start_practice(
         &mut self,
         sheet: &Artwork,

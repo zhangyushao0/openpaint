@@ -1,7 +1,8 @@
 //! What is kept of a session: its stage and place in it, its seed and exercises (the first of
 //! them its warm-up), where its sheet is, its progress and every compared exercise: when it was
 //! first compared, how often, which of its strokes are corrections and, for a colour, a colour
-//! combination or a value scale, its numbers. Enough for the summary and the next warm-up now,
+//! combination or a value scale, its numbers; and the spans its sheet was practised in (`time.rs`,
+//! S89). Enough for the summary, the next warm-up and the practice book now,
 //! and for trajectories, re-tests, drills and a study of the strokes later. The summary sets this
 //! session's means (and colour judgement) beside those of the sessions before it in its stage.
 //!
@@ -15,6 +16,7 @@ use crate::metric::{Metric, Metrics, value};
 use crate::pack::ItemRef;
 use crate::plan::{Exercise, Family, Kind};
 use crate::session::{Plan, stage_one};
+use crate::time::{Span, spans_of};
 
 /// The stage a long colour copy's record holds: none of the course's.
 pub const PROJECT: u8 = 0;
@@ -41,6 +43,8 @@ pub struct SessionRecord {
     pub warm_up: u32,
     /// The exercises compared, in the order they first were.
     pub results: Vec<ExerciseResult>,
+    /// The spans its sheet was practised in, oldest first (`time.rs`).
+    pub time: Vec<Span>,
 }
 
 /// One compared exercise.
@@ -110,7 +114,20 @@ impl SessionRecord {
             exercises: plan.exercises,
             warm_up: plan.warm_up,
             results: Vec::new(),
+            time: Vec::new(),
         }
+    }
+
+    /// The spans a record kept before S89 practised, as the times it holds tell them: when it
+    /// began, when each exercise was first compared and when it finished, joined where at most
+    /// `PAUSE` apart (`time.rs`).
+    #[must_use]
+    pub fn time_of_compares(&self) -> Vec<Span> {
+        let compared = self.results.iter().map(|result| result.checked_at);
+        let times: Vec<u64> = (std::iter::once(self.started).chain(compared))
+            .chain(self.finished)
+            .collect();
+        spans_of(&times)
     }
 
     /// Long colour copy `number`, the `id`th of all sessions and copies, seeded `seed`, begun at

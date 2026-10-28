@@ -47,7 +47,12 @@ fn after_first(finished: bool) -> Session {
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
     let before = if finished { vec![first] } else { Vec::new() };
     let view = SheetView::of(&record, &[], ([width, height], &Title::untitled()));
-    Session::practising(sheet, (brush, pens()), (record, before, view), &VIEWPORT)
+    Session::practising(
+        sheet,
+        (brush, pens()),
+        (record, before, view, openpaint_practice::Tally::default()),
+        &VIEWPORT,
+    )
 }
 
 /// A pen stroke through `points` (canvas pixels), 8 ms apart.

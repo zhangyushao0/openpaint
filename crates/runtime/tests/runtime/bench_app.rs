@@ -69,8 +69,11 @@ fn every_scenario_benchmark_runs_through_the_frame_loop() {
     let core = core();
     let (_root, mut runtime) = runtime();
     let mut appended = 0;
-    // `practice` runs on a practice sheet, below.
-    for name in SCENARIOS.into_iter().filter(|name| *name != "practice") {
+    // `practice` runs on a practice sheet and `book` in the gallery, below.
+    for name in SCENARIOS
+        .into_iter()
+        .filter(|name| !["practice", "book"].contains(name))
+    {
         if name == "session" {
             appended = strokes(&runtime);
         }
@@ -99,12 +102,19 @@ fn every_scenario_benchmark_runs_through_the_frame_loop() {
         runtime.bench_scenario("practice").is_err(),
         "no practice sheet"
     );
-    // A practice sheet started from the Today card.
+    book_then_practice(&mut runtime);
+}
+
+/// In the gallery the practice book's bench, then a practice sheet started from the Today card
+/// and its bench.
+fn book_then_practice(runtime: &mut Runtime) {
     let mut hand = Hand::new(SIZE);
-    hand.tap(&mut runtime, "Gallery");
-    until(&mut runtime, SIZE, |runtime| gallery(runtime).is_some());
-    hand.tap(&mut runtime, "Start practice");
-    until(&mut runtime, SIZE, |runtime| {
+    hand.tap(runtime, "Gallery");
+    until(runtime, SIZE, |runtime| gallery(runtime).is_some());
+    let book = runtime.bench_scenario("book").expect("book");
+    assert_eq!(book.len(), 6, "{book:?}");
+    hand.tap(runtime, "Start practice");
+    until(runtime, SIZE, |runtime| {
         runtime.projection().practice().is_some()
     });
     let lines = runtime.bench_scenario("practice").expect("practice");

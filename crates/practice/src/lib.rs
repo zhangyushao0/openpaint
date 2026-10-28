@@ -14,6 +14,7 @@ mod areas;
 mod areas_edges;
 mod areas_field;
 mod areas_read;
+mod book;
 mod colour;
 mod colour_match;
 mod combined;
@@ -44,13 +45,16 @@ mod plan;
 mod random;
 mod record;
 mod scale;
+mod seals;
 mod session;
 mod sheet;
+mod time;
 
 pub use align::{Fit, align};
 pub use align_shape::align_shape;
 pub use areas::{Areas, Arrangement, GRID, STRONG, WEAK};
 pub use areas_read::{AreasCopy, Contrast, MADE_STRONG};
+pub use book::{Book, Day, LineShown, Road};
 pub use colour::{
     Difference, HUELESS, Rgb8, delta_e, from_hsv, from_oklab, from_oklch, hsv, oklab, oklch,
 };
@@ -83,5 +87,7 @@ pub use record::{
     summary, used,
 };
 pub use scale::{BARS, ROW, ScaleCheck, ScaleTone, ValueScale};
+pub use seals::{Earned, Seal, Tally, earned, sealed};
 pub use session::{Before, Plan, WARM_UP, WARM_UP_TWO, plan, stage_one, stage_two};
 pub use sheet::{FRAME, Frame, PICTURE_MARGIN, Pair, PictureFit, STUDY_SIDE, Sheet};
+pub use time::{Date, PAUSE, Span, by_day, local_day, practised, seconds, spans_of, weekday};

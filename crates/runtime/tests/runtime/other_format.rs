@@ -111,6 +111,10 @@ impl ProjectStore for Other {
         Err(refused())
     }
 
+    fn sheet(&mut self, _id: ProjectId) -> Result<Artwork, PortError> {
+        Err(refused())
+    }
+
     fn start_practice(
         &mut self,
         _sheet: &Artwork,

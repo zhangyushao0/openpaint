@@ -14,7 +14,7 @@ use std::ops::Range;
 use openpaint_core::{Artwork, Color, Layer, Stroke, StrokeTool};
 use openpaint_practice::{ColourCopy, Frame, Point, Rgb8, nearest};
 
-use crate::practice_pens::PracticePens;
+use crate::practice_pens::sketched;
 
 /// Strokes may begin this share of the frame's width outside it.
 pub(crate) const MARGIN: f64 = 0.1;
@@ -56,18 +56,14 @@ fn positions(stroke: &Stroke) -> Vec<Point> {
 pub(crate) const ALL_STROKES: Range<u64> = 0..u64::MAX;
 
 /// The line copied in `frame` in pieces, in frame units, of the strokes whose ids lie in `ids`:
-/// what the aligned overlay fits and a geometry check reads.
-pub(crate) fn line_pieces(
-    artwork: &Artwork,
-    frame: &Frame,
-    (pens, ids): (&PracticePens, Range<u64>),
-) -> Vec<Vec<Point>> {
+/// what the aligned overlay fits, a geometry check reads and the practice book shows.
+pub(crate) fn line_pieces(artwork: &Artwork, frame: &Frame, ids: Range<u64>) -> Vec<Vec<Point>> {
     let strokes = strokes_in(artwork, frame);
     let mut pieces = Vec::new();
     for (index, stroke) in strokes.iter().enumerate() {
         let style = stroke.style();
         let left_out = !ids.contains(&stroke.id().get());
-        if style.tool() != StrokeTool::Paint || pens.is_sketch(style) || left_out {
+        if style.tool() != StrokeTool::Paint || sketched(style) || left_out {
             continue;
         }
         let erasers: Vec<(Vec<Point>, f64)> = strokes[index + 1..]

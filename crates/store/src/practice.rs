@@ -14,9 +14,13 @@
 //!   1.1.0 wrote ends before it: compared once, no stroke a correction.
 //! - Then (1.3.0 on) how many of the first exercises are the warm-up (u32). A record written
 //!   before ends before it: no warm-up.
-//! - Then (1.4.0 on, only when it holds any) the pictures single shapes copy: a count (u32) and
-//!   each one's exercise (u32) and picture, its pack's id and its item's id (strings). A record
-//!   without ends before them, as 1.3.0 wrote it.
+//! - Then the pictures single shapes and colour copies copy: a count (u32) and each one's
+//!   exercise (u32) and picture, its pack's id and its item's id (strings). From 1.4.0 to 1.6.2 a
+//!   record without any ended before the count.
+//! - Then (1.7.0 on, S89) the spans its sheet was practised in: a count (u32) and each one's
+//!   start and end (u64 seconds since 1970 UTC, the end not before the start). A record written
+//!   before ends before them; the store's upgrade (`upgrade`) gives it the spans its compares'
+//!   times tell, once, when the library opens: nothing else reads a record without its time.
 //!
 //! 1.5.0 adds no field: kinds 5 to 7 (colour combinations, value scales, a colour copy), metric
 //! codes 29 to 34, and a long colour copy as a record of stage 0 (`PROJECT`) holding its one
@@ -29,8 +33,9 @@
 use std::collections::HashSet;
 
 use openpaint_app::{PortError, ProjectId, Title};
-use openpaint_practice::{Exercise, ExerciseResult, ItemRef, Kind, Metric, SessionRecord};
+use openpaint_practice::{Exercise, ExerciseResult, ItemRef, Kind, Metric, SessionRecord, Span};
 
+use crate::batch::Batch;
 use crate::codec::{Reader, Writer};
 use crate::library::{Open, device};
 
@@ -38,12 +43,13 @@ use crate::library::{Open, device};
 pub(crate) const PRACTICE: &[u8] = b"p";
 
 /// Bytes of an exercise, and of a result and a metric without their lists, and of a result's
-/// tail.
+/// tail, a picture's place and a span.
 const EXERCISE_BYTES: usize = 1 + 1 + 8;
 const RESULT_BYTES: usize = 4 + 8 + 4;
 const METRIC_BYTES: usize = 1 + 8;
 const TAIL_BYTES: usize = 4 + 8;
 const PICTURE_BYTES: usize = 4 + 4 + 4;
+const SPAN_BYTES: usize = 8 + 8;
 
 /// The key of session `id`'s record.
 pub(crate) fn practice_key(id: u64) -> Vec<u8> {
@@ -54,7 +60,9 @@ pub(crate) fn practice_key(id: u64) -> Vec<u8> {
 
 pub(crate) fn encode_session(session: &SessionRecord) -> Vec<u8> {
     let results = session.results.len() * (RESULT_BYTES + TAIL_BYTES);
-    let mut writer = Writer::with_capacity(64 + session.exercises.len() * EXERCISE_BYTES + results);
+    let spans = session.time.len() * SPAN_BYTES;
+    let mut writer =
+        Writer::with_capacity(72 + session.exercises.len() * EXERCISE_BYTES + results + spans);
     writer.u8(session.stage);
     writer.u32(session.number);
     writer.u64(session.seed);
@@ -87,21 +95,23 @@ pub(crate) fn encode_session(session: &SessionRecord) -> Vec<u8> {
     let pictures: Vec<(usize, &ItemRef)> = (session.exercises.iter().enumerate())
         .filter_map(|(index, exercise)| Some((index, exercise.picture.as_ref()?)))
         .collect();
-    // A session without pictures ends here, as 1.3.0 wrote it.
-    if pictures.is_empty() {
-        return writer.finish();
-    }
     writer.len(pictures.len());
     for (index, picture) in pictures {
         writer.len(index);
         writer.str(&picture.pack);
         writer.str(&picture.item);
     }
+    writer.len(session.time.len());
+    for span in &session.time {
+        writer.u64(span.from);
+        writer.u64(span.to);
+    }
     writer.finish()
 }
 
-/// The session stored under `key` as `bytes`.
-pub(crate) fn decode_session(key: &[u8], bytes: &[u8]) -> Result<SessionRecord, PortError> {
+/// The session stored under `key` as `bytes`, and whether its record keeps its time (one written
+/// before 1.7.0 does not: `upgrade`).
+pub(crate) fn decode_session(key: &[u8], bytes: &[u8]) -> Result<(SessionRecord, bool), PortError> {
     let mut reader = Reader::new(bytes, "practice session");
     let id = key
         .strip_prefix(PRACTICE)
@@ -126,18 +136,24 @@ pub(crate) fn decode_session(key: &[u8], bytes: &[u8]) -> Result<SessionRecord, 
     }
     let warm_up = if reader.is_done() { 0 } else { reader.u32()? };
     if !reader.is_done() {
-        for _ in 0..reader.count(PICTURE_BYTES)? {
-            let index = reader.u32()? as usize;
-            let picture = ItemRef {
-                pack: reader.str()?,
-                item: reader.str()?,
+        decode_pictures(&mut reader, &mut exercises)?;
+    }
+    let timed = !reader.is_done();
+    let mut time = Vec::new();
+    if timed {
+        for _ in 0..reader.count(SPAN_BYTES)? {
+            let span = Span {
+                from: reader.u64()?,
+                to: reader.u64()?,
             };
-            let exercise = exercises.get_mut(index).ok_or(reader.corrupt())?;
-            exercise.picture = Some(picture);
+            if span.to < span.from {
+                return Err(reader.corrupt());
+            }
+            time.push(span);
         }
     }
     reader.end()?;
-    Ok(SessionRecord {
+    let session = SessionRecord {
         id,
         stage,
         number,
@@ -149,7 +165,9 @@ pub(crate) fn decode_session(key: &[u8], bytes: &[u8]) -> Result<SessionRecord, 
         exercises,
         warm_up,
         results,
-    })
+        time,
+    };
+    Ok((session, timed))
 }
 
 /// The results, as a record of 1.1.0 holds them: compared once, no stroke a correction until
@@ -178,13 +196,50 @@ fn decode_results(reader: &mut Reader<'_>) -> Result<Vec<ExerciseResult>, PortEr
     Ok(results)
 }
 
+/// The pictures of `exercises`.
+fn decode_pictures(reader: &mut Reader<'_>, exercises: &mut [Exercise]) -> Result<(), PortError> {
+    for _ in 0..reader.count(PICTURE_BYTES)? {
+        let index = reader.u32()? as usize;
+        let picture = ItemRef {
+            pack: reader.str()?,
+            item: reader.str()?,
+        };
+        let exercise = exercises.get_mut(index).ok_or(reader.corrupt())?;
+        exercise.picture = Some(picture);
+    }
+    Ok(())
+}
+
+/// The store's upgrade of practice records (S89), when the library opens: every record written
+/// before 1.7.0, which keeps no time, is given the spans its compares' times tell
+/// (`SessionRecord::time_of_compares`) and written again as this version writes it, all in one
+/// batch. A record that cannot be read is left as it is (`sessions` leaves it out).
+pub(crate) fn upgrade(open: &Open) -> Result<(), PortError> {
+    let mut batch = Batch::new(open);
+    let mut upgraded = 0;
+    for guard in open.library.prefix(PRACTICE) {
+        let (key, value) = guard.into_inner().map_err(device)?;
+        if let Ok((mut session, false)) = decode_session(&key, &value) {
+            session.time = session.time_of_compares();
+            batch.insert(&open.library, key, encode_session(&session));
+            upgraded += 1;
+        }
+    }
+    if upgraded == 0 {
+        return Ok(());
+    }
+    batch.commit()?;
+    log::info!("{upgraded} practice records given their time from their compares");
+    Ok(())
+}
+
 /// Every practice session, oldest first; a record that cannot be read is left out (logged).
 pub(crate) fn sessions(open: &Open) -> Result<Vec<SessionRecord>, PortError> {
     let mut sessions = Vec::new();
     for guard in open.library.prefix(PRACTICE) {
         let (key, value) = guard.into_inner().map_err(device)?;
         match decode_session(&key, &value) {
-            Ok(session) => sessions.push(session),
+            Ok((session, _)) => sessions.push(session),
             Err(error) => log::warn!("a practice record is not read: {error}"),
         }
     }
@@ -214,176 +269,5 @@ pub(crate) fn sheets(open: &Open) -> Result<HashSet<u64>, PortError> {
 }
 
 #[cfg(test)]
-mod tests {
-    use openpaint_practice::{Combination, LineTier};
-
-    use super::*;
-
-    /// Bytes of the warm-up's count at the record's end.
-    const WARM_UP_BYTES: usize = 4;
-
-    fn session() -> SessionRecord {
-        let met = [Kind::Line(LineTier::Arc), Kind::Combined(Combination::Near)];
-        let mut session = SessionRecord::stage_one(7, 3, 0x5EED_0045, 1_791_201_600, &met);
-        assert_eq!(session.warm_up, 4);
-        session.canvas = 12;
-        session.current = 11;
-        session.finished = Some(1_791_202_000);
-        let mut line = ExerciseResult::first(4, 1_791_201_700, 31, Vec::new());
-        line.compares = 3;
-        session.results.push(line);
-        session.results.push(ExerciseResult::first(
-            14,
-            1_791_201_800,
-            40,
-            vec![(Metric::FinalDelta, 0.031_25), (Metric::Corrections, 2.0)],
-        ));
-        session
-    }
-
-    #[test]
-    fn a_session_round_trips_and_damage_is_refused() {
-        let session = session();
-        let key = practice_key(7);
-        let bytes = encode_session(&session);
-        assert_eq!(decode_session(&key, &bytes), Ok(session.clone()));
-        assert!(decode_session(&key, &bytes[..bytes.len() - 1]).is_err());
-        assert!(
-            decode_session(&key, &[bytes.as_slice(), &[0]].concat()).is_err(),
-            "a byte after the tail"
-        );
-        assert!(
-            decode_session(b"p", &bytes).is_err(),
-            "a key without its id"
-        );
-        let mut unknown = bytes.clone();
-        // The first exercise's kind, after the session's fixed fields and the count: none of 1.6.0's.
-        unknown[1 + 4 + 8 * 4 + 4 + 4] = 11;
-        assert!(decode_session(&key, &unknown).is_err());
-    }
-
-    #[test]
-    fn a_stage_two_record_keeps_its_pictures_and_one_without_stays_as_1_3_0_wrote_it() {
-        let mut session = session();
-        let without = encode_session(&session);
-        // As 1.3.0 wrote it: the warm-up's count last.
-        assert_eq!(without[without.len() - 4..], 4u32.to_le_bytes());
-        session.stage = 2;
-        session.exercises[1] = Exercise {
-            picture: Some(ItemRef {
-                pack: "openpaint-shapes".to_owned(),
-                item: "teapot-bail".to_owned(),
-            }),
-            ..Exercise::generated(Kind::Shape(openpaint_practice::Tier::Simple), 9)
-        };
-        session.exercises[2].picture = Some(ItemRef {
-            pack: "personal".to_owned(),
-            item: "mine-3".to_owned(),
-        });
-        session.exercises[2].kind = Kind::Shape(openpaint_practice::Tier::Medium);
-        let bytes = encode_session(&session);
-        assert_eq!(bytes[..without.len()].len(), without.len());
-        assert_eq!(
-            decode_session(&practice_key(7), &bytes),
-            Ok(session.clone())
-        );
-        assert!(decode_session(&practice_key(7), &bytes[..bytes.len() - 1]).is_err());
-        let mut far = bytes.clone();
-        // The first picture's exercise, past the count: one no session holds.
-        let at = without.len() + 4;
-        far[at..at + 4].copy_from_slice(&99u32.to_le_bytes());
-        assert!(decode_session(&practice_key(7), &far).is_err());
-    }
-
-    #[test]
-    fn week_two_s_colour_work_and_a_long_colour_copy_round_trip() {
-        use openpaint_practice::{Arrangement, Plan, ScaleTone};
-        let plan = Plan {
-            exercises: vec![
-                Exercise::generated(Kind::Areas(Arrangement::Blocks), 3),
-                Exercise::generated(Kind::Scale(ScaleTone::Hue), 4),
-            ],
-            warm_up: 0,
-        };
-        let mut session = SessionRecord::begun(9, (2, 4), (11, 12), plan);
-        let areas = [(Metric::AreasDelta, 0.04), (Metric::AreasMadeStrong, 1.0)];
-        let scale = [(Metric::ScaleOff, 0.03), (Metric::ScaleReversed, 2.0)];
-        (session.results).push(ExerciseResult::first(0, 13, 7, areas.to_vec()));
-        (session.results).push(ExerciseResult::first(1, 14, 9, scale.to_vec()));
-        let bytes = encode_session(&session);
-        assert_eq!(decode_session(&practice_key(9), &bytes), Ok(session));
-        let picture = ItemRef {
-            pack: "openpaint-shapes".to_owned(),
-            item: "teapot-bail".to_owned(),
-        };
-        let copy = SessionRecord::project(10, 1, (5, 6), picture);
-        let read = decode_session(&practice_key(10), &encode_session(&copy));
-        assert!(read.as_ref().is_ok_and(SessionRecord::is_project));
-        assert_eq!(read, Ok(copy));
-    }
-
-    #[test]
-    fn boxes_and_ellipses_round_trip_with_no_numbers() {
-        use openpaint_practice::{BoxView, Guide, Horizon, Plan};
-        let kinds = [
-            Kind::Box(BoxView::ThreePoint),
-            Kind::FreeBoxes(Horizon::Low),
-            Kind::Ellipse(Guide::Plane),
-        ];
-        let plan = Plan {
-            exercises: (kinds.iter()).map(|k| Exercise::generated(*k, 5)).collect(),
-            warm_up: 1,
-        };
-        let mut session = SessionRecord::begun(11, (2, 3), (13, 14), plan);
-        (session.results).push(ExerciseResult::first(1, 15, 4, Vec::new()));
-        let bytes = encode_session(&session);
-        assert_eq!(decode_session(&practice_key(11), &bytes), Ok(session));
-    }
-
-    #[test]
-    fn a_record_of_1_2_0_reads_without_a_warm_up() {
-        // As 1.1.1 to 1.2.0 wrote it: the results' tail, then nothing.
-        let session = session();
-        let bytes = encode_session(&session);
-        let old = &bytes[..bytes.len() - WARM_UP_BYTES];
-        let read = decode_session(&practice_key(7), old).expect("read");
-        assert_eq!(read.warm_up, 0);
-        assert_eq!(read.results, session.results);
-        let mut empty = session.clone();
-        empty.results.clear();
-        let bytes = encode_session(&empty);
-        let read = decode_session(&practice_key(7), &bytes[..bytes.len() - WARM_UP_BYTES]);
-        assert_eq!(read.map(|r| r.warm_up), Ok(0), "no results, no tail");
-        assert_eq!(decode_session(&practice_key(7), &bytes), Ok(empty));
-    }
-
-    #[test]
-    fn a_record_of_1_1_0_reads_with_its_line_metrics_passed_over() {
-        // As 1.1.0 wrote it: no tail, a line's result with the metrics of codes 1 to 8.
-        let session = session();
-        let bytes = encode_session(&session);
-        let mut old = bytes[..bytes.len() - 2 * TAIL_BYTES - WARM_UP_BYTES].to_vec();
-        // The line's metric count: before the colour's result (its index, time, count and two
-        // metrics).
-        let metrics = old.len() - (4 + 8 + 4 + 2 * METRIC_BYTES) - 4;
-        assert_eq!(
-            old[metrics..metrics + 4],
-            0u32.to_le_bytes(),
-            "the line's count"
-        );
-        let mut retired = Writer::with_capacity(4 + 8 * METRIC_BYTES);
-        retired.len(8);
-        for code in 1..=8 {
-            retired.u8(code);
-            retired.f64(f64::from(code) / 100.0);
-        }
-        old.splice(metrics..metrics + 4, retired.finish());
-        let read = decode_session(&practice_key(7), &old).expect("read");
-        let results: Vec<(u32, u32, Option<u64>, usize)> = read
-            .results
-            .iter()
-            .map(|r| (r.index, r.compares, r.corrected_from, r.metrics.len()))
-            .collect();
-        assert_eq!(results, vec![(4, 1, None, 0), (14, 1, None, 2)]);
-    }
-}
+#[path = "practice_tests.rs"]
+mod tests;

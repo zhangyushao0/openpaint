@@ -120,8 +120,14 @@ impl Library {
 
 /// Checks the format of an opened database: an empty one is marked with this build's format;
 /// one of another format, or holding records without a format (every library before 1.0), is
-/// refused as it is, nothing written.
+/// refused as it is, nothing written. One of this format has its practice records upgraded
+/// (`practice::upgrade`).
 fn prepare(open: &Open) -> Result<(), PortError> {
+    check_format(open)?;
+    practice::upgrade(open)
+}
+
+fn check_format(open: &Open) -> Result<(), PortError> {
     let found = match open.library.get(FORMAT_KEY).map_err(device)? {
         Some(bytes) => decode_format(&bytes),
         None if open.library.iter().next().is_none() && open.projects.iter().next().is_none() => {
@@ -285,6 +291,10 @@ impl ProjectStore for Library {
 
     fn sheet_titles(&mut self) -> Result<Vec<(ProjectId, Title)>, PortError> {
         self.with(practice::titles)
+    }
+
+    fn sheet(&mut self, id: ProjectId) -> Result<Artwork, PortError> {
+        self.with(|open| read::artwork(&open.projects, id))
     }
 
     fn start_practice(

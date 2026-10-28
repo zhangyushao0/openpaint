@@ -2,9 +2,9 @@
 //! side by side, so a missing translation does not compile and each Chinese line sits beside the
 //! English it renders; the tables are split by where the words show (`common.rs`, `canvas.rs`,
 //! `layers.rs`, `brushes.rs`, `colour.rs`, `gallery.rs`, `notices.rs`, `practice.rs`,
-//! `practice_colour.rs`, `practice_options.rs`, `practice_perspective.rs`), words
-//! made with numbers are functions beside them. Screens write no words of their own (`cargo
-//! repo-check` refuses a capitalised literal under `crates/ui/src` outside this module).
+//! `practice_colour.rs`, `practice_options.rs`, `practice_perspective.rs`, `practice_book.rs`),
+//! words made with numbers are functions beside them. Screens write no words of their own
+//! (`cargo repo-check` refuses a capitalised literal under `crates/ui/src` outside this module).
 //!
 //! The English is a control's name too: the control map registers it whichever language shows
 //! (D48), so scenarios, benches and device chores name controls alike in both. A name the user
@@ -31,6 +31,7 @@ mod layers;
 mod names;
 mod notices;
 mod practice;
+mod practice_book;
 mod practice_colour;
 mod practice_options;
 mod practice_perspective;
@@ -44,6 +45,7 @@ pub(crate) use layers::*;
 pub(crate) use names::*;
 pub(crate) use notices::*;
 pub(crate) use practice::*;
+pub(crate) use practice_book::*;
 pub(crate) use practice_colour::*;
 pub(crate) use practice_options::*;
 pub(crate) use practice_perspective::*;
@@ -198,6 +200,8 @@ mod tests {
             NOTICES,
             PRACTICE_TABLE,
             PRACTICE_STEPS,
+            PRACTICE_BOOK_TABLE,
+            PRACTICE_BOOK_WEEKDAYS,
             PRACTICE_COLOUR,
             PRACTICE_COLOUR_STEPS,
             PRACTICE_OPTIONS_TABLE,

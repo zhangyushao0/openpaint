@@ -151,6 +151,14 @@ pub enum Step {
     Back,
     /// Frames with no input.
     Wait { frames: u32 },
+    /// The user puts the tablet down for `minutes`: the app stays in front untouched, or with
+    /// `hidden` it is left (Android's `onPause`) and come back to; then one frame. The clock
+    /// (the wall clock's too) moves on by that much, no frames between.
+    Later {
+        minutes: u32,
+        #[serde(default)]
+        hidden: bool,
+    },
     /// The app process ends and starts again with the same screen and the same library, as
     /// after leaving the app and coming back once the system has closed it.
     Restart,

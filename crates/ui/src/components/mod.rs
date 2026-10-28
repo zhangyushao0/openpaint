@@ -28,6 +28,8 @@ mod picture;
 mod popover;
 mod preview_strip;
 mod radar;
+mod road;
+mod seal;
 mod setting_slider;
 mod side_panel;
 mod side_slider;
@@ -42,6 +44,7 @@ mod today_card;
 mod view_settle;
 mod view_status;
 
+pub(crate) use animate::keep_moving;
 pub use animate::{animate, animate_from, moving};
 pub use artwork_card::{ArtworkCard, CardTaps, artwork_card, card_size, paint_sheet};
 pub use brush_row::{BRUSH_ROW, BrushRowView, brush_row};
@@ -67,10 +70,13 @@ pub use menu_row::{
     command_row, hint, label_row, menu_row, panel_heading, panel_heading_with, section,
 };
 pub use notice::{confirmation, notice};
+pub(crate) use paper::paper;
 pub(crate) use picture::{Alpha, picture_texture};
 pub use popover::{Opener, popover, popover_left};
 pub use preview_strip::{StripResponse, preview_strip};
 pub use radar::{RadarAxis, radar};
+pub use road::{Dot, curve, curve_y, inked, paint_dot, paint_stretch, pencilled, stretch_dots};
+pub use seal::{paint_seal, seal_turn};
 pub use setting_slider::{SettingSlider, setting_slider};
 pub use side_panel::side_panel;
 pub use side_slider::{Preview, SideSlider, side_slider, side_slider_height};

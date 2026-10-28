@@ -458,3 +458,15 @@ From D99, replaced by D108 (1.6.1):
 From D105, replaced by D107 (1.6.0):
 - Stage 2 (replaces D103's mix): a warm-up of 3 (`WARM_UP_TWO`), at most one long kind (shapes, combinations, scales in turn by number), the quick ones in turn from the number; 4 shapes, a combination, a scale and a colour, about 27 to 29 minutes; s80's sheet keeps its size (the mix since S84: D107).
 
+## Archived 2026-10-28 (room for D109; still as the code does it, ARCHITECTURE sections 4 and 6 stating them)
+
+## D11 2026-10-02 Android host: a hand-written Activity, JNI and SurfaceView; no winit
+- Decision: `apps/android` is a small Kotlin Activity owning the lifecycle, a `SurfaceView` and the system pickers; Rust receives the Surface through JNI and renders with wgpu; `MotionEvent` fields (tool type, pressure, tilt, orientation, buttons, hover, historical samples) cross as typed batches.
+- Reason: winit's Android touch abstraction drops stylus detail. Consequences: egui gets its input from our own normaliser; Kotlin stays limited to lifecycle, Surface, pickers and share; product rules never live in the host.
+
+## D38 2026-10-03 Accumulating deposits on a canvas-fixed paper, after draweave's tuned pencil
+- Decision: a recipe deposits by `Cover` (the largest coverage: crossings never darken) or `Accumulate` (tip flat or bell, flow, max density, optional paper): an accumulating span adds optical density, its tip's cross-section integrated over the radii travelled times opacity and flow, coverage = max density x (1 - exp(-density)) x grain x opacity, so crossings darken up to the stroke's opacity.
+- Paper (flat tips): ranks fixed to canvas coordinates; contact over pressure touches ridges with rank > 1 - contact; coverage is a five-point Gauss-Hermite expectation over the mean and variance of the ranks under the pixel (a mip chain of moments).
+- Texture: `render/assets/paper-sketch.bin`, 1024 x 512 ranks from draweave's sketch paper (ambientCG Paper001, CC0); a released texture never changes, another look is another texture id.
+- The Pencil is draweave's tuned pencil; Soft Brush accumulates under a bell (flow 1.2), so the soft eraser builds up too.
+

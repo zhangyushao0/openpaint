@@ -118,6 +118,10 @@ impl ProjectStore for Nowhere {
         Ok(Vec::new())
     }
 
+    fn sheet(&mut self, id: ProjectId) -> Result<Artwork, PortError> {
+        Err(PortError::Missing(id))
+    }
+
     fn start_practice(
         &mut self,
         sheet: &Artwork,

@@ -105,7 +105,8 @@ impl Screen {
                         let canvas = artwork.canvas();
                         let size = [canvas.width(), canvas.height()];
                         let view = SheetView::of(session, practice.packs(), (size, title));
-                        (session.clone(), before, view)
+                        let others = practice.tally_without(session.id);
+                        (session.clone(), before, view, others)
                     })
                 }
                 Content::Blank | Content::BlankAfterFailedOpen => None,
@@ -273,6 +274,10 @@ impl Screen {
             Self::Canvas(canvas) => {
                 canvas.evaluate(core)?;
                 canvas.keep_cache(core, cache);
+                // A sheet being left takes its time to the store with it.
+                if canvas.leaving != Leaving::Staying {
+                    canvas.session_mut().practice_flush();
+                }
                 if let Some(session) = canvas.session_mut().practice_save_request() {
                     practice.keep(session.clone());
                     storage.submit(Job::Practice(PracticeJob::Save(session)));

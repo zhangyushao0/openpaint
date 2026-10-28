@@ -5,7 +5,9 @@
 
 use openpaint_core::CanvasSize;
 
-use super::PracticeSheet;
+use super::{PracticeSheet, unavailable};
+use crate::error::AppError;
+use crate::projection::Availability;
 use crate::view::{CanvasView, FIT_MARGIN, MAX_ZOOM, MIN_ZOOM, Viewport};
 
 /// Points at the view's right kept for the practice card (its width and margins): the pair, and
@@ -19,6 +21,37 @@ const FRAME_HEIGHT: f32 = 0.45;
 const STUDY_HEIGHT: f32 = 0.8;
 
 impl PracticeSheet {
+    /// On to the next exercise, the view gliding to its pair within `viewport` at its zoom; after
+    /// the last the session ends at `now` and the whole sheet shows.
+    pub(super) fn next(
+        &mut self,
+        view: &mut CanvasView,
+        viewport: &Viewport,
+        now: u64,
+    ) -> Result<(), AppError> {
+        let Some(index) = self.current() else {
+            return Ok(());
+        };
+        if self.record.is_project() {
+            // A colour copy is worked on whenever the user likes; it never ends with Next.
+            return Err(unavailable(Availability::NothingLeft));
+        }
+        (self.compared, self.instructions, self.notice) = (None, None, None);
+        self.fit_job = None;
+        if index + 1 < self.sheet.pairs.len() {
+            self.record.current += 1;
+            if let Some(pair) = self.pair(index + 1) {
+                *view = centred(view, pair.centre(), (self.canvas, viewport));
+            }
+        } else {
+            self.record.finished = Some(now);
+            *view = self.whole(viewport);
+        }
+        self.changed = true;
+        self.shown();
+        Ok(())
+    }
+
     /// The view a sheet opens with: the shown pair (or the whole sheet, once done) in the middle
     /// of `viewport`, large but leaving room round it.
     pub(crate) fn opening_view(&self, viewport: &Viewport) -> CanvasView {

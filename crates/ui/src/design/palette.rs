@@ -39,3 +39,7 @@ pub const CORRECTION: Color32 = Color32::from_rgb(200, 58, 44);
 /// their vanishing points), drawn dashed beside the red answer: a blue apart from the blue
 /// correcting pen's. Never chrome.
 pub const FOUND: Color32 = Color32::from_rgb(28, 112, 150);
+/// The practice book's seals (S89): its only colour besides the user's own colours. Never chrome.
+pub const VERMILION: Color32 = Color32::from_rgb(184, 58, 38);
+/// The pencil the practice book draws what lies ahead with.
+pub const PENCIL: Color32 = Color32::from_rgb(189, 186, 177);

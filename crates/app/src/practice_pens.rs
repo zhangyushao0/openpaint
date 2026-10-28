@@ -89,13 +89,13 @@ impl PracticePens {
         StrokeStyle::new(recipe, style.size(), style.opacity(), colour)
             .unwrap_or_else(|_| style.clone())
     }
+}
 
-    /// Whether `style` is the sketch pen's: a construction line. Its colour, size and opacity
-    /// (stored exactly) tell it; no brush of the toolbox starts at them.
-    pub(crate) fn is_sketch(&self, style: &StrokeStyle) -> bool {
-        let sketch = &self.sketch;
-        style.color() == sketch.color()
-            && style.size() == sketch.size()
-            && style.opacity() == sketch.opacity()
-    }
+/// Whether `style` is the sketch pen's: a construction line. Its colour, size and opacity (stored
+/// exactly) tell it; no brush of the toolbox starts at them.
+pub(crate) fn sketched(style: &StrokeStyle) -> bool {
+    let (_, size, opacity, [r, g, b]) = SKETCH;
+    style.size() == size
+        && style.opacity() == opacity
+        && Color::rgb(r, g, b).is_ok_and(|colour| colour == style.color())
 }

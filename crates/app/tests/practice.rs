@@ -13,7 +13,9 @@ use openpaint_app::{
     Title, Toolbox, Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
-use openpaint_practice::{Family, Metric, Metrics, Original, Pair, SessionRecord, Sheet, value};
+use openpaint_practice::{
+    Family, Metric, Metrics, Original, Pair, SessionRecord, Sheet, Tally, value,
+};
 
 const VIEWPORT: Viewport = Viewport {
     origin: [0.0, 84.0],
@@ -39,7 +41,8 @@ fn practising() -> Session {
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
     let tools = (brush(Color::BLACK), pens());
     let view = SheetView::of(&record, &[], ([width, height], &Title::untitled()));
-    Session::practising(sheet, tools, (record, Vec::new(), view), &VIEWPORT)
+    let opening = (record, Vec::new(), view, Tally::default());
+    Session::practising(sheet, tools, opening, &VIEWPORT)
 }
 
 /// A pen stroke through `points` (canvas pixels), 8 ms apart.

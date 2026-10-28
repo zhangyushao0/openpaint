@@ -39,7 +39,13 @@ fn opened(record: SessionRecord, packs: &[Pack]) -> Session {
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
     let view = SheetView::of(&record, packs, ([width, height], &Title::untitled()));
     let tools = (brush(Color::rgb(0.2, 0.4, 0.6).expect("colour")), pens());
-    Session::practising(sheet, tools, (record, Vec::new(), view), &VIEWPORT)
+    let opening = (
+        record,
+        Vec::new(),
+        view,
+        openpaint_practice::Tally::default(),
+    );
+    Session::practising(sheet, tools, opening, &VIEWPORT)
 }
 
 /// A pen stroke through `points` (canvas pixels).

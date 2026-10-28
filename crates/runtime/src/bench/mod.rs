@@ -37,6 +37,8 @@
 //!   filled and compared, measured as `ui` measures; a line, a group and a shape compared aligned
 //!   also say when the fit showed after the tap and how long it took on its worker
 //!   (`practice.rs`).
+//! - `book`: in the gallery, the practice book opened and closed twice, measured as `ui` measures
+//!   (`book.rs`).
 
 use std::time::{Duration, Instant};
 
@@ -48,6 +50,7 @@ use crate::frame::Runtime;
 use crate::screen::Screen;
 
 mod adjust;
+mod book;
 mod export;
 mod hand;
 mod motion;
@@ -64,7 +67,7 @@ pub use hand::busiest;
 pub use strokes::STROKES_ADDED;
 
 /// The scenarios `bench_scenario` runs.
-pub const SCENARIOS: [&str; 12] = [
+pub const SCENARIOS: [&str; 13] = [
     "open-cold",
     "open",
     "zoom",
@@ -77,6 +80,7 @@ pub const SCENARIOS: [&str; 12] = [
     "adjust",
     "ui",
     "practice",
+    "book",
 ];
 
 /// The screen offscreen when no frame was drawn yet: the tablet's.
@@ -250,6 +254,7 @@ impl Runtime {
             "adjust" => self.bench_adjust(&mut lines)?,
             "ui" => self.bench_ui(&mut lines)?,
             "practice" => self.bench_practice(&mut lines)?,
+            "book" => self.bench_book(&mut lines)?,
             _ => return Err(RuntimeError::NotNow("a scenario of SCENARIOS")),
         }
         Ok(lines)

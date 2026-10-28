@@ -9,12 +9,13 @@ use std::sync::Arc;
 
 use openpaint_practice::{ItemRef, Pack, PictureKind, SessionRecord, Tier};
 
+use crate::practice_book::BookProjection;
 use crate::practice_pictures::PackShown;
 use crate::project::ProjectId;
 use crate::title::Title;
 
-/// The gallery's Today card and its options.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// The gallery's Today card, its options and the practice book.
+#[derive(Debug, Clone, PartialEq)]
 pub struct TodayProjection {
     pub stage: u8,
     /// Sessions finished in the stage, and about how many it holds.
@@ -33,6 +34,8 @@ pub struct TodayProjection {
     /// The pictures a colour copy can be begun of: the official packs' by tier (easiest first,
     /// in their packs' order), then the user's own, oldest first.
     pub pictures: Arc<[PictureShown]>,
+    /// The practice book, which the card's road opens (S89).
+    pub book: BookProjection,
 }
 
 /// A long colour copy as the practice options list it.
