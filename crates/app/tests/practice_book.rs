@@ -148,8 +148,7 @@ fn a_finished_session_shows_its_dot_and_stamps_the_seal_it_earned() {
     assert_eq!(
         finished,
         Some(Finished {
-            done: 10,
-            of: STAGE_SESSIONS,
+            road: Some((10, STAGE_SESSIONS)),
             sealed: vec![Seal::TenSessions],
         })
     );

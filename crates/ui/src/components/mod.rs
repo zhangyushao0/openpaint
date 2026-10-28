@@ -19,6 +19,7 @@ mod fill_bar;
 mod floating;
 mod icon_button;
 mod island;
+mod kind_tile;
 mod list_row;
 mod loupe;
 mod menu_row;
@@ -56,11 +57,14 @@ pub use color_wheel::{WheelChange, color_compare, color_wheel};
 pub use colour_table::colour_table;
 pub use controls::{Control, ControlMap, Unresolved};
 pub use curve_editor::{CurveChange, DynamicsCurve, curve_editor, dynamics_editor};
-pub use dialog::{Naming, Placement, answer_row, delete_dialog, dialog, naming_dialog};
+pub use dialog::{
+    Naming, Placement, answer_row, delete_dialog, dialog, dialog_of_width, naming_dialog,
+};
 pub use fill_bar::{carried_drop, fill_bar};
 pub use floating::{Floating, FloatingLayout, MAT, floating};
 pub use icon_button::{icon_button, icon_choice, icon_toggle};
 pub use island::{ISLAND_TOP, Place, TOP_BAND, UNDER_ISLANDS, island, pill};
+pub use kind_tile::{KindTile, TILE, kind_tile, paint_kind};
 pub use list_row::{
     ListRow, PICTURE_ROW, PictureRow, RowPicture, RowResponse, fitted, list_row, paint_picture,
     picture_row,

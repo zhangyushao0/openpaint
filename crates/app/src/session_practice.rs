@@ -47,6 +47,13 @@ impl Session {
         self.practice.is_some()
     }
 
+    /// The kind a drill's sheet drills, which One more starts another drill of (S91); none on
+    /// any other sheet or artwork.
+    #[must_use]
+    pub fn practice_drill(&self) -> Option<openpaint_practice::Family> {
+        self.practice.as_ref()?.drill()
+    }
+
     /// Applies a practice intent at `now` (seconds since 1970 UTC, when a check is stored).
     ///
     /// # Errors

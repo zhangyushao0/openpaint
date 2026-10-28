@@ -17,6 +17,7 @@ use openpaint_ui::{CanvasArea, ScreenArea};
 
 use crate::error::RuntimeError;
 use crate::pictures::Drawn;
+use crate::practice::Next;
 use crate::seeds::Seeds;
 
 /// The paper under the layers until artworks carry their own background; exports show it too.
@@ -51,8 +52,8 @@ pub(crate) enum Leaving {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Then {
     Gallery,
-    /// The next practice session's sheet (One more).
-    Practice,
+    /// The next practice session's or drill's sheet (One more).
+    Practice(Next),
 }
 
 /// A practice sheet: its session record, the finished sessions of its stage before it and the
@@ -184,7 +185,11 @@ impl Canvas {
                 Intent::Practice(practice) => {
                     let result = self.session.practise(practice, now);
                     if result.is_ok() && practice == PracticeIntent::OneMore {
-                        (self.leaving, self.then) = (Leaving::Waiting, Then::Practice);
+                        let next = self
+                            .session
+                            .practice_drill()
+                            .map_or(Next::Session, Next::Drill);
+                        (self.leaving, self.then) = (Leaving::Waiting, Then::Practice(next));
                     }
                     result
                 }

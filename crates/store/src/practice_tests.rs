@@ -183,6 +183,33 @@ fn week_two_s_colour_work_and_a_long_colour_copy_round_trip() {
 }
 
 #[test]
+fn a_drill_round_trips_as_a_record_of_stage_drill_its_kind_its_exercises() {
+    use openpaint_practice::{DRILL, Family, Plan, Trick};
+    let plan = Plan {
+        exercises: (0..3)
+            .map(|seed| Exercise::generated(Kind::Space(Trick::Thirds), seed))
+            .collect(),
+        warm_up: 0,
+    };
+    let mut drill = SessionRecord::drill(14, 2, (21, 22), plan);
+    drill.canvas = 30;
+    (drill.results).push(ExerciseResult::first(
+        1,
+        23,
+        6,
+        vec![(Metric::SpaceOff, 0.04)],
+    ));
+    drill.time.push(Span { from: 22, to: 400 });
+    let bytes = encode_session(&drill);
+    // The stage byte first: no field is added for a drill.
+    assert_eq!(bytes[0], DRILL);
+    let read = read(&practice_key(14), &bytes).expect("read");
+    assert_eq!(read.drilled(), Some(Family::Thirds));
+    assert!(read.is_drill() && !read.is_session());
+    assert_eq!(read, drill);
+}
+
+#[test]
 fn boxes_and_ellipses_round_trip_with_no_numbers() {
     use openpaint_practice::{BoxView, Guide, Horizon, Plan};
     let kinds = [

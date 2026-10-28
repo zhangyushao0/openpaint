@@ -6,14 +6,6 @@ Only decisions that constrain the code now and are not self-evident, each statin
 - Decision: core, rendering, application, storage and UI are all Rust; GPU through wgpu; UI through egui; Android is the only product host; the development machine runs a headless harness, never a desktop window (ARCHITECTURE).
 - Reason: the previous project proved this stack on the target tablet (pressure, palm rejection, layer compositing, smudge). Consequences: renderer state never lives in egui's type map; egui appears only under `render/src/adapter/`.
 
-## D02 2026-10-02 Crate layering and purity are tool-enforced
-- Decision: dependencies point down as ARCHITECTURE section 2 draws them; core never mentions GPU, UI, file system, threads or clocks. The tables live in `xtask/src/check/rules.rs`.
-- Reason: the direction is guarded by tooling, the inside of each layer by file and function length. Consequences: a new crate is registered in `LAYERS` first; an upward dependency fails the gate.
-
-## D08 2026-10-02 The artwork is an immutable value; undo is a version switch
-- Decision: `Artwork(Arc<State>)`; an edit returns a new version plus the kind of change; history stores versions; `from_storage` is the single full-validation entry; no public mutable setters.
-- Reason: the previous project's mutable layers beside snapshot structures copied the active stroke every frame and deep-compared edits. Consequences: the renderer detects change by identity; the in-progress stroke travels to the renderer as a separate item and never enters the artwork.
-
 ## D10 2026-10-02 Errors are types; product crates have no cargo features
 - Decision: `CoreError`, `AppError`, `PortError`, `RenderError`, `RuntimeError`; `Result<_, String>` only in JNI, system APIs and xtask. No `cfg(feature)` in product crates; diagnostics and automation live in separate crates assembled only by composition roots.
 - Reason: the previous project's `String` errors and 379 `cfg` sites made four build combinations and hid diagnostics in product code. Consequences: `cargo repo-check` rejects `[features]` and `cfg(feature`; the platform layer turns typed errors into user-facing messages.
@@ -29,10 +21,6 @@ Only decisions that constrain the code now and are not self-evident, each statin
 ## D19 2026-10-02 Scenario checkpoints compare canvas hashes; references stay untracked
 - Decision: a checkpoint passes when the canvas readback (artwork pixels, no UI) hashes to the value in the scenario file; screenshots are for looking at, never compared; the diff reference is the last pass on this machine (`artifacts/scenarios/<name>/`, untracked).
 - Reason: canvas pixels come from the renderer's own formulas, egui's text edges differ by backend. Consequences: a slice that changes pixels on purpose updates the hash in the same commit after looking at the PNG; UI changes are checked by screenshots and GPU tests on specific pixels.
-
-## D20 2026-10-02 History: versions costed by unshared bytes; no history step during a stroke
-- Decision: every artwork change reaching the session is a version in `app::History`, costed by `Artwork::bytes_since(previous)`; recording drops the redo side and trims the oldest steps above 64 MiB, keeping the newest. Undo and redo are refused while a stroke is drawn. After a history switch the renderer redraws `render::changed_regions(shown, current)`.
-- Reason: versions share almost everything (D08); undo mid-stroke would drop the stroke or land it on a version no longer shown. Consequences: new edit kinds go through `History::record` without new code; a UI offering history reads availability from the projection.
 
 ## D40 2026-10-03 Paper-white line art: floating ink-outlined islands, the system's sans
 - Decision: warm paper (250, 248, 244) islands and panels in a 1.25 pt ink outline (70, 67, 62), no shadows but the canvas's, the white canvas on a greyer desk (233, 230, 224), ink (38, 37, 35) text and icons, the active state an ink ring, pill or row outline in a deeper ink (22, 28, 44), never a filled block. Nothing spans the width: Gallery, Actions, Adjustments, Selection and Transform float top left, Brush, Smudge, Eraser, Layers and the colour top right, the side bar at the left edge; notices, bars and the zoom are pills in the 48-point top band; the canvas shows on the whole screen and fits under the band. Text is the system's sans (Roboto, Noto Sans CJK) at weight 400, 18-point body, found by the host in `/system/etc/fonts.xml`. Restraint: UI appears when needed; a hidden shortcut only duplicates a visible control.
@@ -298,3 +286,10 @@ Only decisions that constrain the code now and are not self-evident, each statin
 - The book reads the sheets it shows on the storage worker (`ProjectStore::sheet`, nothing written): a small picture drawn from their strokes, fills and frames, a line's first copy (strokes before its first Compare), a colour's first pick (the first colour laid); no picture is kept for sheets, so every version's records show alike.
 - Motion: a finish's dot inking in (two rings spreading) and a seal stamping down are D44's acknowledge on the OPEN spring, each waiting for the card to grow.
 - Consequences: the author's records are rewritten once by the first 1.7.0 opening, their content unchanged; time before 1.7.0 counts only between compares; a sheet practised over days shows its colours on each; vermilion is the book's only colour besides the user's.
+
+## D110 2026-10-28 Drills: one kind on a sheet of its own, a record of stage `DRILL`, never a session
+- Decision (S91; the author: try every kind one by one, and practise one on purpose, 专项训练): the practice options' Practice section lists each ready stage (its row starts a session) with its kinds as tiles (`practice::kinds_of`); a tile starts a drill of the kind (`practice::drill`) or continues the one left unfinished. A drill: 6 lines, 4 groups, 6 colours, 3 shapes (tiers in turn, the user's own last), 2 combinations, 2 scales, 3 boxes, a free page, 4 ellipses, 5 points, proportions or angles, or 3 of a trick; variants in turn by its number among its kind's; no warm-up; its How first every time it opens; One more starts the kind's next.
+- Stored (format 1, no field added): a record of stage `DRILL` (255) whose exercises are all of the kind it drills (`SessionRecord::drilled`), `number` its place among its kind's drills; earlier records read as they are, no upgrade.
+- Counted: its time and day in the book, the kinds met (warm-ups draw on them, tiles ink), the pictures shown, the seals of lines, colours and time; never as a session (Today, the road, sessions done, a stage's seals, the first picks, the lines shown). Its summary sets it beside the earlier finished drills of its kind only.
+- Tiles: fixed line drawings in the UI (`components/kind_tile.rs`), ink once the kind was compared anywhere, pencil before, ringed while a drill is unfinished; Shape without a pack's picture says where to import one. The options' first page in two columns where the screen holds 800 points.
+- Reason: V大 drills one skill at a time, and a drill chosen by the user must not move the course on. Consequences: the harness gives every sheet one seed, so its drills of a kind repeat their exercises.

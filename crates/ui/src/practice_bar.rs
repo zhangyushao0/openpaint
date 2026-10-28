@@ -94,7 +94,7 @@ impl PracticeBar {
         // A label, then the commands, as far apart as a notice's message and its answer.
         let language = t::language(ui.ctx());
         if practice.current.is_none() {
-            ui.label(t::session_done(language, practice.number));
+            ui.label(practice_card::done_heading(language, practice));
             ui.add_space(2.0 * SPACE);
             divider(ui);
             if text_button(ui, t::ONE_MORE, true).clicked() {

@@ -15,7 +15,7 @@ use openpaint_ui::CanvasArea;
 use crate::canvas::{Canvas, Content, Held, Leaving, Then};
 use crate::display::{CacheJob, CacheWorker};
 use crate::error::RuntimeError;
-use crate::practice::PracticeJob;
+use crate::practice::{Next, PracticeJob};
 use crate::seeds::Seeds;
 use crate::storage::{Done, Job, Loaded, Opened, Storage, Stored};
 
@@ -122,13 +122,13 @@ impl Screen {
 
     /// Applies what the storage worker finished; the stored toolbox goes to `toolbox` and the
     /// practice sessions to `practice`. After a save the canvas's pixels may go to the display
-    /// cache (`cache`, from `core`). Returns whether the next practice session should start now
-    /// (One more, once the sheet left was stored).
+    /// cache (`cache`, from `core`). Returns the next practice session or drill to start now (One
+    /// more, once the sheet left was stored).
     pub(crate) fn answer(
         &mut self,
         done: Done,
         (toolbox, core, cache, practice): Answered<'_>,
-    ) -> bool {
+    ) -> Option<Next> {
         match done {
             Done::Started(opened, editor, (sessions, titles, packs)) => {
                 if let Some(state) = editor
@@ -176,7 +176,13 @@ impl Screen {
             }
             Done::Practice(done) => self.practice(done, practice),
         }
-        false
+        None
+    }
+
+    /// One more's next session or drill could not be asked for: the gallery shows, saying a new
+    /// one could not be made.
+    pub(crate) fn not_started(&mut self) {
+        self.gallery_answer(LibraryAnswer::CreateFailed(PortError::Stopped));
     }
 
     /// A gallery call's answer; a new artwork or session that failed while no gallery shows
@@ -218,20 +224,19 @@ impl Screen {
 
     /// The canvas's last version and thumbnail were handed to the store: its pixels may go to
     /// the display cache (complete, as the thumbnail evaluated it); on success the gallery
-    /// replaces the canvas (its history goes with it), or for One more the next session's sheet
-    /// is on its way (returns true); on failure the canvas stays and shows that saving failed.
+    /// replaces the canvas (its history goes with it), or for One more the next session's or
+    /// drill's sheet is on its way (returns which); on failure the canvas stays and shows that
+    /// saving failed.
     fn left(
         &mut self,
         version: Option<&Artwork>,
         (result, closed): (&Result<Option<Stored>, PortError>, bool),
         (core, cache): (&Arc<Core>, &mut CacheWorker),
-    ) -> bool {
+    ) -> Option<Next> {
         if let Err(error) = result {
             log::error!("saving before leaving failed: {error}");
         }
-        let Some(canvas) = self.canvas_mut() else {
-            return false;
-        };
+        let canvas = self.canvas_mut()?;
         if let Some(version) = version {
             canvas
                 .session_mut()
@@ -243,18 +248,18 @@ impl Screen {
         canvas.keep_cache(core, cache);
         if !closed {
             canvas.leaving = Leaving::Staying;
-            return false;
+            return None;
         }
         match canvas.then {
             Then::Gallery => {
                 log::info!("left the artwork for the gallery");
                 *self = Self::Gallery(Gallery::new());
-                false
+                None
             }
-            Then::Practice => {
-                log::info!("left the practice sheet for the next session");
+            Then::Practice(next) => {
+                log::info!("left the practice sheet for the next ({next:?})");
                 *self = Self::Opening(None);
-                true
+                Some(next)
             }
         }
     }
@@ -306,6 +311,7 @@ impl Screen {
                         request,
                         LibraryRequest::Create(..)
                             | LibraryRequest::Practice(_)
+                            | LibraryRequest::Drill(_)
                             | LibraryRequest::Copy(_)
                     );
                     match gallery_job(request, area, (practice, seeds, now)) {

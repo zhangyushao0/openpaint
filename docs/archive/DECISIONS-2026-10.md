@@ -470,3 +470,17 @@ From D105, replaced by D107 (1.6.0):
 - Texture: `render/assets/paper-sketch.bin`, 1024 x 512 ranks from draweave's sketch paper (ambientCG Paper001, CC0); a released texture never changes, another look is another texture id.
 - The Pencil is draweave's tuned pencil; Soft Brush accumulates under a bell (flow 1.2), so the soft eraser builds up too.
 
+## Archived 2026-10-28 (room for D110; still as the code does it, ARCHITECTURE sections 1 to 3 stating them)
+
+## D02 2026-10-02 Crate layering and purity are tool-enforced
+- Decision: dependencies point down as ARCHITECTURE section 2 draws them; core never mentions GPU, UI, file system, threads or clocks. The tables live in `xtask/src/check/rules.rs`.
+- Reason: the direction is guarded by tooling, the inside of each layer by file and function length. Consequences: a new crate is registered in `LAYERS` first; an upward dependency fails the gate.
+
+## D08 2026-10-02 The artwork is an immutable value; undo is a version switch
+- Decision: `Artwork(Arc<State>)`; an edit returns a new version plus the kind of change; history stores versions; `from_storage` is the single full-validation entry; no public mutable setters.
+- Reason: the previous project's mutable layers beside snapshot structures copied the active stroke every frame and deep-compared edits. Consequences: the renderer detects change by identity; the in-progress stroke travels to the renderer as a separate item and never enters the artwork.
+
+## D20 2026-10-02 History: versions costed by unshared bytes; no history step during a stroke
+- Decision: every artwork change reaching the session is a version in `app::History`, costed by `Artwork::bytes_since(previous)`; recording drops the redo side and trims the oldest steps above 64 MiB, keeping the newest. Undo and redo are refused while a stroke is drawn. After a history switch the renderer redraws `render::changed_regions(shown, current)`.
+- Reason: versions share almost everything (D08); undo mid-stroke would drop the stroke or land it on a version no longer shown. Consequences: new edit kinds go through `History::record` without new code; a UI offering history reads availability from the projection.
+

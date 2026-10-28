@@ -1,5 +1,6 @@
 //! The gallery's Today card and its options as one UI frame sees them (`practice_log.rs` keeps
-//! the log they are made of): the stage practised and its sessions, the packs kept, the long
+//! the log they are made of): the stage practised and its sessions, each ready stage's kinds to
+//! drill (S91), the packs kept, the long
 //! colour copies with their names and pictures, and every picture a copy can be begun of (S83),
 //! the packs' by tier and the user's own after them, each with its credit, its tier and how often
 //! sessions and copies used it (what removing one of the user's own would leave without its
@@ -7,7 +8,7 @@
 
 use std::sync::Arc;
 
-use openpaint_practice::{ItemRef, Pack, PictureKind, SessionRecord, Tier};
+use openpaint_practice::{Family, ItemRef, Pack, PictureKind, SessionRecord, Tier};
 
 use crate::practice_book::BookProjection;
 use crate::practice_pictures::PackShown;
@@ -36,6 +37,20 @@ pub struct TodayProjection {
     pub pictures: Arc<[PictureShown]>,
     /// The practice book, which the card's road opens (S89).
     pub book: BookProjection,
+    /// Each ready stage's kinds as the practice options' tiles show them, stage by stage (S91).
+    pub drills: Vec<DrillShown>,
+}
+
+/// A kind as its tile in the practice options shows it (S91).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DrillShown {
+    /// The stage whose row it lies under, and the kind.
+    pub stage: u8,
+    pub family: Family,
+    /// Compared at least once anywhere (a session or a drill): drawn in ink, else in pencil.
+    pub compared: bool,
+    /// The sheet of its drill left unfinished, which its tile continues.
+    pub open: Option<ProjectId>,
 }
 
 /// A long colour copy as the practice options list it.

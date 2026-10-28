@@ -51,7 +51,7 @@ pub const WARM_UP: usize = 4;
 pub const WARM_UP_TWO: usize = 3;
 
 /// Stage 1's mix: lines, combined lines and colours, in order.
-const LINES: [LineTier; 6] = [
+pub(crate) const LINES: [LineTier; 6] = [
     LineTier::Straight,
     LineTier::Arc,
     LineTier::Wave,
@@ -59,13 +59,13 @@ const LINES: [LineTier; 6] = [
     LineTier::Hook,
     LineTier::Wave,
 ];
-const COMBINED: [Combination; 4] = [
+pub(crate) const COMBINED: [Combination; 4] = [
     Combination::Joined,
     Combination::Crossing,
     Combination::Branched,
     Combination::Near,
 ];
-const COLOURS: [(Purity, Lightness); 6] = [
+pub(crate) const COLOURS: [(Purity, Lightness); 6] = [
     (Purity::Muted, Lightness::Middle),
     (Purity::Grey, Lightness::Light),
     (Purity::Middle, Lightness::Dark),
@@ -90,7 +90,7 @@ pub(crate) const LONG: [Family; 4] = [
     Family::FreeBoxes,
 ];
 /// The free boxes' horizons in turn: in the middle first.
-const HORIZONS: [Horizon; 3] = [Horizon::Middle, Horizon::High, Horizon::Low];
+pub(crate) const HORIZONS: [Horizon; 3] = [Horizon::Middle, Horizon::High, Horizon::Low];
 
 /// A session's exercises, the first `warm_up` of them its warm-up.
 #[derive(Debug, Clone, PartialEq, Eq)]

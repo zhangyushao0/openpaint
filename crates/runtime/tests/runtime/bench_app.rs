@@ -9,11 +9,12 @@
 use openpaint_app::{BrushLibrary, ProjectStore, Title};
 use openpaint_core::{Artwork, CanvasSize};
 use openpaint_runtime::{
-    DisplayCache, Runtime, SCENARIOS, STROKES_ADDED, StartOptions, drawn, pile_path, style_of,
+    DisplayCache, Runtime, SCENARIOS, STROKES_ADDED, StartOptions, ToolKind, drawn, pile_path,
+    style_of,
 };
 use openpaint_store::Library;
 
-use crate::support::{Hand, TestDir, assert_cold, core, gallery, strokes, until};
+use crate::support::{Hand, TestDir, assert_cold, core, gallery, on, strokes, until};
 
 /// Tall enough that `ui` finds the brush editor's StreamLine row in its column.
 const SIZE: [u32; 2] = [1800, 1300];
@@ -151,6 +152,12 @@ fn stage_three(runtime: &mut Runtime, hand: &mut Hand) {
     hand.tap(runtime, "Gallery");
     until(runtime, SIZE, |runtime| gallery(runtime).is_some());
     hand.tap(runtime, "Practice options");
+    // On this short window stage 3's row lies below the Practice column's room: a finger drags
+    // the column up to it (S91's tiles take the room).
+    let [x, y] = on(runtime, "Stage 2 · Single shapes", [0.3, 0.5]);
+    let drag: Vec<[f32; 2]> = (0..=12).map(|step| [x, y - 50.0 * step as f32]).collect();
+    hand.gesture(runtime, ToolKind::Finger, &drag);
+    until(runtime, SIZE, |_| true);
     hand.tap(runtime, "Stage 3 · Points");
     until(runtime, SIZE, |runtime| {
         (runtime.projection().practice()).is_some_and(|practice| practice.stage == 3)

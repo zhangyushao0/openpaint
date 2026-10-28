@@ -108,7 +108,7 @@ pub use crate::practice_pictures::{FitJob, PackShown, PictureImage, SHOWN_SIDE, 
 pub use crate::practice_sheet::{
     CopyRead, Finished, PRACTICE_ROOM, PracticePick, Practising, ReadJob,
 };
-pub use crate::practice_today::{CopyShown, PictureShown, TodayProjection};
+pub use crate::practice_today::{CopyShown, DrillShown, PictureShown, TodayProjection};
 pub use crate::project::{
     KEPT_VERSIONS, KeptVersion, PortError, Project, ProjectId, ProjectStore, ProjectSummary,
     SaveId, Thumbnail, VersionId,

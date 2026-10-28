@@ -61,7 +61,8 @@ impl Tally {
             self.copies += u32::from(record.canvas != 0);
             return;
         }
-        if record.finished.is_some() {
+        // A drill counts its time and what it compared, never as a session (S91).
+        if record.finished.is_some() && record.is_session() {
             self.sessions += 1;
             let stage = usize::from(record.stage).wrapping_sub(1);
             if let Some(done) = self.stages.get_mut(stage) {

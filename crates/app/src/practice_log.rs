@@ -6,18 +6,19 @@
 //! the stage is the last session's, the next one offered once a stage's sessions are done and
 //! earlier at the user's choice, an earlier one revisited. A long colour copy counts in no stage:
 //! it is worked on whenever the user likes, of a picture the user chose (`practice_today.rs`).
+//! Nor does a drill (S91): one kind on its own sheet, chosen from the options' tiles.
 
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use openpaint_practice::{
-    Before, Book, ItemRef, PERSONAL, Pack, PictureKind, Pictures, Random, STAGE_SESSIONS,
-    STAGES_READY, SessionRecord, Tally, local_day, met, plan, used,
+    Before, Book, Family, ItemRef, PERSONAL, Pack, PictureKind, Pictures, Random, STAGE_SESSIONS,
+    STAGES_READY, SessionRecord, Tally, drill, kinds_of, local_day, met, plan, used,
 };
 
 use crate::practice_book::{BookProjection, BookRecord, SheetRead};
 use crate::practice_pictures::PackShown;
-use crate::practice_today::{CopyShown, PictureShown, TodayProjection, pictures_shown};
+use crate::practice_today::{CopyShown, DrillShown, PictureShown, TodayProjection, pictures_shown};
 use crate::project::ProjectId;
 use crate::title::Title;
 
@@ -63,9 +64,9 @@ impl PracticeLog {
         log
     }
 
-    /// The sessions, colour copies left out.
+    /// The sessions, colour copies and drills left out.
     fn sessions(&self) -> impl DoubleEndedIterator<Item = &SessionRecord> {
-        self.sessions.iter().filter(|s| !s.is_project())
+        self.sessions.iter().filter(|s| s.is_session())
     }
 
     /// The stage practised: the last session's, 1 before any.
@@ -104,7 +105,54 @@ impl PracticeLog {
                 records: Arc::clone(&self.named),
                 read: Arc::clone(&self.read),
             },
+            drills: self.drills(),
         }
+    }
+
+    /// Each ready stage's kinds: in ink once compared anywhere, with the newest drill of it left
+    /// unfinished, which its tile continues.
+    fn drills(&self) -> Vec<DrillShown> {
+        let met: Vec<Family> = (met(&self.sessions).iter()).map(|k| k.family()).collect();
+        let open = |family: Family| {
+            (self.sessions.iter().rev())
+                .find(|s| s.drilled() == Some(family) && s.finished.is_none() && s.canvas != 0)
+                .map(|s| ProjectId::new(s.canvas))
+        };
+        (1..=STAGES_READY)
+            .flat_map(|stage| kinds_of(stage).iter().map(move |family| (stage, *family)))
+            .map(|(stage, family)| DrillShown {
+                stage,
+                family,
+                compared: met.contains(&family),
+                open: open(family),
+            })
+            .collect()
+    }
+
+    /// A new drill of `family` seeded `seed`, begun at `now`, numbered among the kind's drills,
+    /// its shapes' pictures picked as a session's are (others than those shown before while there
+    /// are), with its sheet's title; none for a kind no stage drills, or shapes without a picture.
+    #[must_use]
+    pub fn begin_drill(
+        &self,
+        family: Family,
+        seed: u64,
+        now: u64,
+    ) -> Option<(SessionRecord, Title)> {
+        let number = (self.sessions.iter())
+            .filter(|s| s.drilled() == Some(family))
+            .count();
+        let number = u32::try_from(number + 1).unwrap_or(u32::MAX);
+        let (used, pictures) = (used(&self.sessions), Pictures::of(&self.packs));
+        let before = Before {
+            met: &[],
+            pictures: &pictures,
+            used: &used,
+        };
+        let plan = drill(family, number, seed, &before)?;
+        let record = SessionRecord::drill(self.next_id(), number, (seed, now), plan);
+        let title = Title::new(&format!("Drill {number}")).unwrap_or_else(|_| Title::untitled());
+        Some((record, title))
     }
 
     /// The device's clock now: `now` seconds since 1970 UTC, `offset` minutes from UTC.
@@ -138,6 +186,7 @@ impl PracticeLog {
                 id: s.id,
                 sheet: ProjectId::new(s.canvas),
                 number: s.number,
+                drill: s.drilled(),
                 copy: (s.is_project()).then(|| {
                     (self.titles.get(&s.canvas).cloned()).unwrap_or_else(|| copy_title(s.number))
                 }),
@@ -284,11 +333,16 @@ impl PracticeLog {
         self.sessions.iter().find(|s| s.canvas == id.get())
     }
 
-    /// The finished sessions of `session`'s stage before it.
+    /// What `session`'s summary sets it beside: the finished sessions of its stage before it, or
+    /// for a drill the finished drills of its kind before it (never a session).
     #[must_use]
     pub fn before(&self, session: &SessionRecord) -> Vec<SessionRecord> {
-        self.sessions()
-            .filter(|s| s.stage == session.stage && s.id < session.id && s.finished.is_some())
+        let alike = |s: &SessionRecord| match session.drilled() {
+            Some(family) => s.drilled() == Some(family),
+            None => s.is_session() && s.stage == session.stage,
+        };
+        (self.sessions.iter())
+            .filter(|s| alike(s) && s.id < session.id && s.finished.is_some())
             .cloned()
             .collect()
     }

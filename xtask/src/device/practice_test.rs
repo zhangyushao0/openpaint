@@ -1,13 +1,14 @@
-//! `cargo device-input practice-test start [stage [n]|copy]|end` (DECISIONS D102): a test practice
-//! session (or a test colour copy) beside the author's, for a practice slice to walk on the
-//! tablet, and removed afterwards with its sheet, so the author's sessions, copies, records and the
-//! Today card's progress stay as they were.
+//! `cargo device-input practice-test start [stage [n]|copy|drill <kind>]|end` (DECISIONS D102): a
+//! test practice session (or a test colour copy or drill) beside the author's, for a practice
+//! slice to walk on the tablet, and removed afterwards with its sheet, so the author's sessions,
+//! drills, copies, records and the Today card's progress stay as they were.
 //!
 //! `start` goes to the gallery (a canvas showing is left by its Gallery button, nothing drawn),
 //! starts the session the Today card would start next (of `stage` when given, as the practice
 //! options' stage rows do; as the stage's `n`-th would be when that is given, so a stage's every
-//! other session is reached; `copy`: a colour copy of a pack's picture), beside any open one, and
-//! keeps its name
+//! other session is reached; `copy`: a colour copy of a pack's picture; `drill <kind>`: a drill of
+//! the kind its tile starts, named in a-z and '-' as `line`, `centre` or `next-face`, the app
+//! refusing another name with the list), beside any open one, and keeps its name
 //! (id, sheet, seed, start) in `artifacts/device/practice-test`; it refuses while a name is kept.
 //! `end` goes to the gallery, has the app remove the session of the name kept (its record and
 //! sheet) and forgets the name; a name the app holds no session of (a library restored since)
@@ -36,12 +37,18 @@ fn failed(why: impl Into<String>) -> DeviceError {
     }
 }
 
-/// `start [stage [n]|copy]` or `end`.
+/// `start [stage [n]|copy|drill <kind>]` or `end`.
 pub(super) fn practice_test(adb: &Adb, what: &str, stage: &[&str]) -> Result<()> {
-    let usage = DeviceError::Usage("cargo device-input practice-test start [stage [n]|copy]|end");
+    let usage = DeviceError::Usage(
+        "cargo device-input practice-test start [stage [n]|copy|drill <kind>]|end",
+    );
     match (what, stage) {
         ("start", []) => start(adb, &kept(), "start"),
         ("start", ["copy"]) => start(adb, &kept(), "start:copy"),
+        ("start", ["drill", kind]) => {
+            let kind = super::plain(kind)?;
+            start(adb, &kept(), &format!("start:drill:{kind}"))
+        }
         ("start", [stage]) => {
             let stage: u8 = stage.parse().map_err(|_| usage)?;
             start(adb, &kept(), &format!("start:{stage}"))

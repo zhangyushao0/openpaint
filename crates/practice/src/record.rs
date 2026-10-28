@@ -9,6 +9,10 @@
 //! A long colour copy (V大's 色彩临摹) is kept the same way, as a project beside the sessions:
 //! stage `PROJECT` (none of the course's), its number among the copies, one exercise, the copy of
 //! its picture, never finished by a session's Next. It counts in no stage, warm-up or summary.
+//!
+//! A drill (S91, `drill.rs`) too: stage `DRILL` (past the course's eight), its number among its
+//! kind's drills, exercises of one kind, which is the kind it drills. It counts in the kinds met,
+//! the pictures shown, the time and the seals of lines and colours, never as a session.
 
 use crate::colour_match::Tone;
 use crate::judgement::{Judgement, judgement};
@@ -20,6 +24,8 @@ use crate::time::{Span, spans_of};
 
 /// The stage a long colour copy's record holds: none of the course's.
 pub const PROJECT: u8 = 0;
+/// The stage a drill's record holds: none of the course's, past its eight.
+pub const DRILL: u8 = u8::MAX;
 
 /// One session as it is stored.
 #[derive(Debug, Clone, PartialEq)]
@@ -145,10 +151,36 @@ impl SessionRecord {
         Self::begun(id, (PROJECT, number), (seed, started), plan)
     }
 
+    /// Drill `number` of its kind, the `id`th of all records, seeded `seed`, begun at `started`,
+    /// holding `plan` (`drill.rs`, made from the same seed).
+    #[must_use]
+    pub fn drill(id: u64, number: u32, (seed, started): (u64, u64), plan: Plan) -> Self {
+        Self::begun(id, (DRILL, number), (seed, started), plan)
+    }
+
     /// Whether it is a long colour copy, not a session.
     #[must_use]
     pub const fn is_project(&self) -> bool {
         self.stage == PROJECT
+    }
+
+    /// Whether it is a drill, not a session.
+    #[must_use]
+    pub const fn is_drill(&self) -> bool {
+        self.stage == DRILL
+    }
+
+    /// Whether it is a session of the course's stages: neither a colour copy nor a drill.
+    #[must_use]
+    pub const fn is_session(&self) -> bool {
+        !self.is_project() && !self.is_drill()
+    }
+
+    /// The kind a drill drills (its exercises'); none for a session or a copy.
+    #[must_use]
+    pub fn drilled(&self) -> Option<Family> {
+        let first = self.exercises.first().filter(|_| self.is_drill())?;
+        Some(first.kind.family())
     }
 
     /// The result of exercise `index`, once it was checked.
@@ -187,8 +219,8 @@ impl SessionRecord {
     }
 }
 
-/// The kinds compared in `sessions` (long colour copies left out), each once, in the order of
-/// their codes: what a warm-up draws from.
+/// The kinds compared in `sessions` and drills (long colour copies left out), each once, in the
+/// order of their codes: what a warm-up draws from, and what the practice options draw in ink.
 #[must_use]
 pub fn met(sessions: &[SessionRecord]) -> Vec<Kind> {
     let mut kinds: Vec<Kind> = sessions
@@ -205,8 +237,8 @@ pub fn met(sessions: &[SessionRecord]) -> Vec<Kind> {
     kinds
 }
 
-/// The pictures `sessions` showed (long colour copies left out), each once: what the next
-/// session picks others than.
+/// The pictures `sessions` and drills showed (long colour copies left out), each once: what the
+/// next session or drill picks others than.
 #[must_use]
 pub fn used(sessions: &[SessionRecord]) -> Vec<ItemRef> {
     let mut items: Vec<ItemRef> = (sessions.iter())

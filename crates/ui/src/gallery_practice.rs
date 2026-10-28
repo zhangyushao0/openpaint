@@ -1,6 +1,8 @@
 //! The practice options, grown out of the Today card (S80, S83), one dialog whose page changes
-//! in place: the stages one can move to (the next one before its time, an earlier one to
-//! revisit), each starting a session at once; the practice packs kept, each with how many
+//! in place: Practice, each ready stage starting a session at once (the next one before its time,
+//! an earlier one to revisit) with its kinds as tiles to drill (S91, `gallery_drills.rs`), beside
+//! the rest where the screen is wide enough (under it where not); the practice packs kept, each
+//! with how many
 //! pictures it holds and how many of them have an outline, the user's own as My pictures (a page
 //! of their own: `gallery_pictures.rs`); Import practice pack… and Add my picture… (a tier first,
 //! then the system's picker); the long colour copies (S82), each with its picture and name, to
@@ -9,21 +11,23 @@
 //! Back goes to the first page; Close or a tap outside closes them.
 
 use egui::{Align, Layout, Rect};
-use openpaint_app::{GalleryIntent, Intent, Language, ProjectId, TodayProjection};
+use openpaint_app::{GalleryIntent, Intent, ProjectId, TodayProjection};
 use openpaint_practice::{ItemRef, Tier};
 
 use super::GalleryScreen;
 use super::pictures::OptionsPictures;
 use crate::components::{
-    ListRow, Naming, Placement, RowPicture, UNDER_ISLANDS, card_text, dialog, list_row, menu_row,
-    section, text_button,
+    ListRow, Naming, Placement, RowPicture, UNDER_ISLANDS, card_text, dialog_of_width, list_row,
+    menu_row, section, text_button,
 };
-use crate::design::{Icon, LAYER_PICTURE, SPACE, TOUCH_TARGET};
+use crate::design::{DIALOG_WIDTH, Icon, LAYER_PICTURE, SPACE, TOUCH_TARGET};
 use crate::text::{self as t, Words};
 
 /// What a page holds above and below its column of rows (its heading, its last row and the
 /// dialog's margins), in points: the column scrolls in the rest of the screen.
 const CHROME_ROOM: f32 = 4.0 * TOUCH_TARGET;
+/// The first page's width where its two columns stand side by side, in points.
+const WIDE: f32 = 2.0 * DIALOG_WIDTH;
 
 /// Which page the practice options show.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -69,6 +73,8 @@ pub(crate) struct PracticeOptions {
     pub(super) remove: Option<Removal>,
     /// The packs' pictures as the options show them small.
     pub(crate) pictures: OptionsPictures,
+    /// The Shape tile was tapped without a pack's picture: its note shows until they close.
+    needs_pack: bool,
 }
 
 impl std::fmt::Debug for PracticeOptions {
@@ -85,6 +91,7 @@ impl PracticeOptions {
     /// Opens them on their first page, grown from `card`.
     pub(super) fn open(&mut self, card: Rect) {
         self.shown = Some((card, Page::Main));
+        self.needs_pack = false;
     }
 
     /// Closes them and any dialog of theirs as Cancel would. Returns whether one was open.
@@ -124,9 +131,12 @@ impl GalleryScreen {
             return;
         };
         let options = &mut self.practice;
+        // The first page's two columns side by side where the screen holds them.
+        let wide = page == Page::Main && ctx.content_rect().width() >= WIDE + 2.0 * TOUCH_TARGET;
+        let width = if wide { WIDE } else { DIALOG_WIDTH };
         let ((tapped, back, close), outside) =
-            dialog(ctx, "practice", (Placement::Top, card), |ui| {
-                let tapped = page_of(ui, &page, today, &mut options.pictures);
+            dialog_of_width(ctx, "practice", (Placement::Top, card, width), |ui| {
+                let tapped = page_of(ui, &page, today, options);
                 let (back, close) = bottom_row(ui, page != Page::Main);
                 (tapped, back, close)
             });
@@ -178,14 +188,38 @@ fn page_of(
     ui: &mut egui::Ui,
     page: &Page,
     today: &TodayProjection,
-    pictures: &mut OptionsPictures,
+    options: &mut PracticeOptions,
 ) -> Option<Tapped> {
+    let pictures = &mut options.pictures;
     pictures.begin();
     let room = ui.ctx().content_rect().height() - UNDER_ISLANDS - CHROME_ROOM;
     match page {
         Page::Main => {
             ui.heading(Words::from(t::PRACTICE_OPTIONS).shown(ui.ctx()));
-            scrolled(ui, room, |ui| main_page(ui, today, pictures))
+            let needs_pack = &mut options.needs_pack;
+            if ui.available_width() < WIDE - 4.0 * SPACE {
+                return scrolled(ui, room, |ui| {
+                    let drills = super::drills::practice_section(ui, today, needs_pack);
+                    main_page(ui, today, pictures).or(drills)
+                });
+            }
+            let column = (ui.available_width() - 2.0 * SPACE) / 2.0;
+            ui.horizontal_top(|ui| {
+                let drills = ui.vertical(|ui| {
+                    ui.set_width(column);
+                    let area = egui::ScrollArea::vertical().id_salt("practice");
+                    scrolled_in(ui, area, room, |ui| {
+                        super::drills::practice_section(ui, today, needs_pack)
+                    })
+                });
+                ui.add_space(2.0 * SPACE);
+                let rest = ui.vertical(|ui| {
+                    ui.set_width(column);
+                    scrolled(ui, room, |ui| main_page(ui, today, pictures))
+                });
+                rest.inner.or(drills.inner)
+            })
+            .inner
         }
         Page::Picker(tier) => super::pictures::picker(ui, (*tier, room), today, pictures),
         Page::Mine => super::pictures::mine(ui, room, today, pictures),
@@ -197,35 +231,31 @@ fn page_of(
 
 /// `add` in a column that scrolls once it is taller than `room` points.
 pub(super) fn scrolled<R>(ui: &mut egui::Ui, room: f32, add: impl FnOnce(&mut egui::Ui) -> R) -> R {
-    egui::ScrollArea::vertical()
-        .max_height(room.max(4.0 * TOUCH_TARGET))
+    scrolled_in(ui, egui::ScrollArea::vertical(), room, add)
+}
+
+/// `add` in `area`, a column that scrolls once it is taller than `room` points.
+fn scrolled_in<R>(
+    ui: &mut egui::Ui,
+    area: egui::ScrollArea,
+    room: f32,
+    add: impl FnOnce(&mut egui::Ui) -> R,
+) -> R {
+    area.max_height(room.max(4.0 * TOUCH_TARGET))
         // A finger drags the column (egui asks for a touch screen otherwise).
         .scroll_source(egui::scroll_area::ScrollSource::ALL)
         .show(ui, add)
         .inner
 }
 
-/// The first page: the stages, the packs and the colour copies.
+/// The first page's packs and colour copies (the Practice section beside or above them).
 fn main_page(
     ui: &mut egui::Ui,
     today: &TodayProjection,
     pictures: &mut OptionsPictures,
 ) -> Option<Tapped> {
-    let language = t::language(ui.ctx());
-    let mut chosen = None;
-    section(ui, t::STAGES);
-    for stage in (1..=today.ready).filter(|stage| *stage != today.stage) {
-        let name = t::stage(language, stage);
-        let english = t::stage(Language::English, stage);
-        let row = menu_row(ui, Words::named(&english, &name), t::START, true);
-        if row.clicked() {
-            chosen = Some(Tapped::Intent(GalleryIntent::Practice(stage), true));
-        }
-    }
-    note(ui, t::STAGE_HINT.into(), true);
-    chosen = packs(ui, today).or(chosen);
-    chosen = copies(ui, today, pictures).or(chosen);
-    chosen
+    let chosen = packs(ui, today);
+    copies(ui, today, pictures).or(chosen)
 }
 
 /// The practice packs kept, My pictures, Import practice pack… and Add my picture…; returns what

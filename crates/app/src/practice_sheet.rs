@@ -101,7 +101,8 @@ impl PracticeSheet {
         pens: PracticePens,
     ) -> Self {
         let sheet = Arc::new(view);
-        // Told: compared before or in this session, or warmed up with (only kinds met are).
+        // Told: compared before or in this session, or warmed up with (only kinds met are); a
+        // drill's How shows first every time it opens (S91).
         let warm_up = &record.exercises[..(record.warm_up as usize).min(record.exercises.len())];
         let done = |family: Family| {
             let compared = before.iter().chain([&record]).any(|session| {
@@ -110,7 +111,8 @@ impl PracticeSheet {
                     kind.is_some_and(|e| e.kind.family() == family)
                 })
             });
-            compared || warm_up.iter().any(|e| e.kind.family() == family)
+            let warmed = warm_up.iter().any(|e| e.kind.family() == family);
+            (compared || warmed) && record.drilled() != Some(family)
         };
         let mut practice = Self {
             told: Family::ALL.map(done),
@@ -156,6 +158,11 @@ impl PracticeSheet {
     pub(crate) fn picture_read(&mut self, item: ItemRef, image: Option<PictureImage>) {
         self.images.retain(|(kept, _)| *kept != item);
         self.images.push((item, image.map(Arc::new)));
+    }
+
+    /// The kind a drill drills (One more starts another of it); none on a session's sheet.
+    pub(crate) fn drill(&self) -> Option<Family> {
+        self.record.drilled()
     }
 
     /// The exercise shown, unless the session is done.
@@ -351,6 +358,7 @@ impl PracticeSheet {
             revealed: self.revealed(),
             stage: self.record.stage,
             number: self.record.number,
+            drill: self.record.drilled(),
             current,
             family: current.and_then(|index| self.family(index)),
             warming_up: current.is_some_and(|index| self.record.warming_up(index)),

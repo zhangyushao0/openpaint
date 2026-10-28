@@ -3,12 +3,13 @@
 //! each change on its sheet; a colour copy renamed (its sheet's title) or removed with its sheet
 //! (S83), and a test session or copy removed so (`practice_test.rs`); the user's own pictures
 //! removed or moved to another tier in their pack. And the job a new one starts with: the next
-//! session in the app's practice log, or a colour copy of the picture chosen, seeded from the
-//! strokes' seed source (fixed in the harness), its sheet the size its layout asks.
+//! session in the app's practice log, a drill of the kind chosen (S91), or a colour copy of the
+//! picture chosen, seeded from the strokes' seed source (fixed in the harness), its sheet the size
+//! its layout asks.
 
 use openpaint_app::{PortError, PracticeLog, ProjectId, ProjectStore, SheetRead, Title, sheet_of};
 use openpaint_core::{Artwork, CanvasSize};
-use openpaint_practice::{ItemRef, Pack, SessionRecord, Tier};
+use openpaint_practice::{Family, ItemRef, Pack, SessionRecord, Tier};
 use openpaint_store::Packs;
 
 use crate::error::RuntimeError;
@@ -163,6 +164,36 @@ pub(crate) fn start_job(
         session.number
     );
     started(log, session, title)
+}
+
+/// What One more starts once the sheet left is stored.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Next {
+    /// The next session of the stage practised.
+    Session,
+    /// Another drill of the kind (S91).
+    Drill(Family),
+}
+
+/// The job that begins the next drill of `family` in `log` (S91), seeded from `seeds`, at `now`.
+///
+/// # Errors
+/// `NotNow` for a kind no stage drills, or shapes while no pack holds a picture.
+pub(crate) fn drill_job(
+    log: &PracticeLog,
+    family: Family,
+    seeds: &mut Seeds,
+    now: u64,
+) -> Result<Job, RuntimeError> {
+    let seed = seed(seeds);
+    let (drill, title) = (log.begin_drill(family, seed, now))
+        .ok_or(RuntimeError::NotNow("a kind to drill with its pictures"))?;
+    log::info!(
+        "practice drill {} of {family:?} (number {}) seeded {seed:016x}",
+        drill.id,
+        drill.number
+    );
+    started(log, drill, title)
 }
 
 /// The job that begins a long colour copy of `picture` (the user chose it) from the packs of

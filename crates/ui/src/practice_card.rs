@@ -134,7 +134,7 @@ pub(crate) fn pair_on_wheel(ui: &mut egui::Ui, (original, mine): (Rgb8, Rgb8), s
 /// colour means beside theirs.
 pub(crate) fn summary(ui: &mut egui::Ui, practice: &PracticeProjection, kinds: &[KindSummary]) {
     let language = language(ui.ctx());
-    ui.heading(t::session_done(language, practice.number));
+    ui.heading(done_heading(language, practice));
     if let Some(finished) = &practice.finished {
         finish(ui, finished, (practice.stage, practice.number));
     }
@@ -179,8 +179,17 @@ pub(crate) fn summary(ui: &mut egui::Ui, practice: &PracticeProjection, kinds: &
     practice_card_colour::summary_rows(ui, kinds);
 }
 
+/// A finished session's heading ("Session 3 done"), or a drill's ("Centre drill done").
+pub(crate) fn done_heading(language: t::Language, practice: &PracticeProjection) -> String {
+    match practice.drill {
+        Some(family) => t::drill_done(language, family),
+        None => t::session_done(language, practice.number),
+    }
+}
+
 /// A session's finish (S89): its dot on its stage's road inks in, then each seal its work earned
-/// stamps down with its name under it, on the interface's spring (D44's acknowledge).
+/// stamps down with its name under it, on the interface's spring (D44's acknowledge); a drill's
+/// (S91) only its seals, for it has no dot on the road.
 fn finish(ui: &mut egui::Ui, finished: &Finished, session: (u8, u32)) {
     let ctx = ui.ctx().clone();
     let id = egui::Id::new(("practice finish", session));
@@ -195,15 +204,12 @@ fn finish(ui: &mut egui::Ui, finished: &Finished, session: (u8, u32)) {
             1.0
         }
     };
-    let inked = animate_from(&ctx, id.with("dot"), 0.0, after(INK_AFTER), OPEN);
     let width = ui.available_width();
-    let (road, _) = ui.allocate_exact_size(egui::vec2(width, ROAD), egui::Sense::hover());
-    paint_stretch(
-        ui.painter(),
-        road,
-        (finished.done, finished.of),
-        Some(inked),
-    );
+    if let Some(stretch) = finished.road {
+        let inked = animate_from(&ctx, id.with("dot"), 0.0, after(INK_AFTER), OPEN);
+        let (road, _) = ui.allocate_exact_size(egui::vec2(width, ROAD), egui::Sense::hover());
+        paint_stretch(ui.painter(), road, stretch, Some(inked));
+    }
     let language = language(&ctx);
     for (place, seal) in finished.sealed.iter().enumerate() {
         let wait = STAMP_AFTER + 0.3 * place as f64;

@@ -18,6 +18,7 @@ mod book;
 mod colour;
 mod colour_match;
 mod combined;
+mod drill;
 mod edges;
 mod ellipse;
 mod ellipse_fit;
@@ -65,6 +66,7 @@ pub use colour::{
 };
 pub use colour_match::{ColourCopy, ColourScore, Lightness, Purity, Tone, score_colour};
 pub use combined::{Combination, CombinedLines};
+pub use drill::{drill, kinds_of};
 pub use edges::{Edge, SHORTEST, corrected, edges};
 pub use ellipse::{Ellipse, EllipseGuide, Guide};
 pub use ellipse_fit::{
@@ -90,8 +92,8 @@ pub use pictures::Pictures;
 pub use plan::{Exercise, Family, Kind, Original, STAGE_SESSIONS, STAGES, STAGES_READY};
 pub use random::{Random, derived};
 pub use record::{
-    AREAS_ROWS, COLOUR_ROWS, ExerciseResult, KindSummary, PROJECT, SCALE_ROWS, SessionRecord, met,
-    summary, used,
+    AREAS_ROWS, COLOUR_ROWS, DRILL, ExerciseResult, KindSummary, PROJECT, SCALE_ROWS,
+    SessionRecord, met, summary, used,
 };
 pub use scale::{BARS, ROW, ScaleCheck, ScaleTone, ValueScale};
 pub use seals::{Earned, Seal, Tally, earned, sealed};

@@ -9,7 +9,7 @@
 use std::collections::VecDeque;
 use std::sync::Arc;
 
-use openpaint_practice::{ItemRef, Tier};
+use openpaint_practice::{Family, ItemRef, Tier};
 
 use crate::error::AppError;
 use crate::gallery_files::{FileJob, Files, problem};
@@ -52,6 +52,9 @@ pub enum GalleryIntent {
     /// A new practice session of the stage given, opened at once (the Today card and its
     /// options; an open one is continued by opening its sheet).
     Practice(u8),
+    /// A new drill of the kind given, opened at once (a tile of the practice options, S91; one
+    /// left unfinished is continued by opening its sheet).
+    Drill(Family),
     /// A new long colour copy of the picture chosen, opened at once (the practice options' New
     /// copy; one begun is opened by its sheet).
     Copy(ItemRef),
@@ -200,6 +203,7 @@ impl Gallery {
             LibraryRequest::Create(..)
                 | LibraryRequest::Open(_)
                 | LibraryRequest::Practice(_)
+                | LibraryRequest::Drill(_)
                 | LibraryRequest::Copy(_)
         );
         let artworks = request.changes_artworks();

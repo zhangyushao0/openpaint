@@ -231,6 +231,12 @@ fn sheets(ui: &mut egui::Ui, book: &BookProjection, records: &[u64]) -> Option<B
 
 /// A record's name, in English (its control's) and as `language` shows it.
 fn name(record: &BookRecord, language: Language) -> (String, String) {
+    if let Some(family) = record.drill {
+        return (
+            t::drill_number(Language::English, family, record.number),
+            t::drill_number(language, family, record.number),
+        );
+    }
     match &record.copy {
         Some(title) => (
             title.as_str().to_owned(),

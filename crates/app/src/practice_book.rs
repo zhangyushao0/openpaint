@@ -27,7 +27,7 @@ pub struct BookProjection {
     pub book: Arc<Book>,
     /// The local day now (`openpaint_practice::local_day`).
     pub today: i64,
-    /// Every session and copy, by id, as the book names and opens them.
+    /// Every session, drill and copy, by id, as the book names and opens them.
     pub records: Arc<[BookRecord]>,
     /// The sheets read so far, by record.
     pub read: Arc<BTreeMap<u64, Arc<SheetRead>>>,
@@ -47,9 +47,11 @@ pub struct BookRecord {
     pub id: u64,
     /// Its sheet, which opens it.
     pub sheet: ProjectId,
-    /// Its number in its stage, or among the copies.
+    /// Its number in its stage, among the copies, or among its kind's drills.
     pub number: u32,
-    /// A colour copy's name (its sheet's title); none for a session.
+    /// The kind a drill drills (S91); none for a session or a copy.
+    pub drill: Option<Family>,
+    /// A colour copy's name (its sheet's title); none for a session or a drill.
     pub copy: Option<Title>,
 }
 

@@ -38,10 +38,9 @@ texts! { GALLERY_TABLE;
     SINGLE_SHAPES = "Single shapes", "单体图形";
     PRACTICE_OPTIONS = "Practice options", "练习选项";
     START_NEXT_STAGE = "Start the next stage", "开始下一阶段";
-    STAGES = "Stages", "阶段";
-    START = "Start", "开始";
-    STAGE_HINT = "A stage holds about 15 sessions; you can move on earlier or go back.",
-        "每个阶段约 15 次练习；可以提前进入下一阶段，也可以回到前面的阶段。";
+    START_A_SESSION = "Start a session", "开始一次练习";
+    DRILL_NEEDS_PACK = "Shapes copy a practice pack's pictures: import one under Practice packs.",
+        "单体图形临摹的是练习图包里的图片：请在“练习图包”下导入。";
     PRACTICE_PACKS = "Practice packs", "练习图包";
     MY_PICTURES = "My pictures", "我的图片";
     IMPORT_PACK = "Import practice pack…", "导入练习图包…";

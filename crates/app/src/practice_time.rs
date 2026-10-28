@@ -4,7 +4,7 @@
 //! opens again (the time between was not spent on it). The time goes to the store with every
 //! other change, at least once a minute while it grows, when the app is hidden and when the sheet
 //! is left. Once a session is done: its dot on its stage's road and the seals its work earned
-//! beside every other record's.
+//! beside every other record's; once a drill is done, the seals only.
 
 use openpaint_practice::{STAGE_SESSIONS, Seal, practised, sealed, seconds};
 
@@ -13,13 +13,12 @@ use super::PracticeSheet;
 /// Seconds of time not yet stored after which the record goes to the store again.
 const SAVE_EVERY: u64 = 60;
 
-/// A session done, as its finish shows it.
+/// A session or drill done, as its finish shows it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Finished {
-    /// Sessions of its stage finished, this one the last of them, and about how many the stage
-    /// holds.
-    pub done: u32,
-    pub of: u32,
+    /// A session's dot on its stage's road: the sessions of its stage finished, this one the last
+    /// of them, and about how many the stage holds; none for a drill, which is no session (S91).
+    pub road: Option<(u32, u32)>,
     /// The seals its work earned.
     pub sealed: Vec<Seal>,
 }
@@ -48,15 +47,15 @@ impl PracticeSheet {
         }
     }
 
-    /// The finish of a session done.
+    /// The finish of a session or drill done.
     pub(super) fn finished(&self) -> Option<Finished> {
         let done = self.current().is_none() && self.record.finished.is_some();
         if !done || self.record.is_project() {
             return None;
         }
+        let done = u32::try_from(self.before.len() + 1).unwrap_or(u32::MAX);
         Some(Finished {
-            done: u32::try_from(self.before.len() + 1).unwrap_or(u32::MAX),
-            of: STAGE_SESSIONS,
+            road: self.record.is_session().then_some((done, STAGE_SESSIONS)),
             sealed: sealed(&self.others, &self.record),
         })
     }

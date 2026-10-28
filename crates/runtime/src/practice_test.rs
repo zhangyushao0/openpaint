@@ -1,7 +1,8 @@
 //! For debug builds only (`cargo device-input practice-test start|end`, DECISIONS D102): a test
-//! practice session (or a test colour copy, `start copy`) started beside any open one, and
-//! removed afterwards with its sheet, so a practice slice walks its session on the tablet while
-//! the author's sessions, copies, records and the Today card's progress stay as they were.
+//! practice session (or a test colour copy, `start copy`, or a test drill, `start drill <kind>`)
+//! started beside any open one, and removed afterwards with its sheet, so a practice slice walks
+//! its session on the tablet while the author's sessions, drills, copies, records and the Today
+//! card's progress stay as they were.
 //!
 //! The test session is the one Start practice would start now (the next of the log: its number,
 //! its warm-up from the kinds met), or the stage's session of a number given (so a stage's every
@@ -16,13 +17,38 @@ use std::fmt;
 use std::str::FromStr;
 
 use openpaint_app::ProjectId;
-use openpaint_practice::SessionRecord;
+use openpaint_practice::{Family, SessionRecord};
 
 use crate::display::CacheJob;
 use crate::error::RuntimeError;
 use crate::frame::Runtime;
-use crate::practice::{PracticeJob, copy_job, seed, start_job};
+use crate::practice::{PracticeJob, copy_job, drill_job, seed, start_job};
 use crate::storage::Job;
+
+/// The kinds a test drill is named by (`practice-test start drill <kind>`, S91).
+const DRILL_NAMES: [(&str, Family); 17] = [
+    ("line", Family::Line),
+    ("combined", Family::Combined),
+    ("colour", Family::Colour),
+    ("shape", Family::Shape),
+    ("combination", Family::Areas),
+    ("scale", Family::Scale),
+    ("box", Family::Box),
+    ("free-boxes", Family::FreeBoxes),
+    ("ellipse", Family::Ellipse),
+    ("point", Family::Point),
+    ("proportion", Family::Proportion),
+    ("angle", Family::Angle),
+    ("centre", Family::Centre),
+    ("halves", Family::Halves),
+    ("thirds", Family::Thirds),
+    ("next-face", Family::Step),
+    ("mirror", Family::Mirror),
+];
+/// What a test drill's kind is named, as the refusal of another name says it.
+const DRILL_KINDS: &str = "a drill of line, combined, colour, shape, combination, scale, box, \
+                           free-boxes, ellipse, point, proportion, angle, centre, halves, thirds, \
+                           next-face or mirror";
 
 /// A test session's name: its id, its sheet's project, its seed and when it started (seconds
 /// since 1970 UTC). Written `id:sheet:seed:started`, the seed in hex.
@@ -125,6 +151,28 @@ impl Runtime {
         Ok(id)
     }
 
+    /// For debug builds only: a test drill of the kind named `kind` (`DRILL_NAMES`), begun from
+    /// the gallery beside the author's sessions and drills (S91); its sheet opens once the store
+    /// wrote it (`test_practice` names it then, `end_test_practice` removes it). Returns its id.
+    ///
+    /// # Errors
+    /// `NotNow` when the gallery does not show, the kind is not named so, or (shapes) no pack
+    /// holds a picture.
+    pub fn start_test_drill(&mut self, kind: &str) -> Result<u64, RuntimeError> {
+        if self.screen.gallery_mut().is_none() {
+            return Err(RuntimeError::NotNow("the gallery"));
+        }
+        let family = (DRILL_NAMES.iter())
+            .find(|(name, _)| *name == kind)
+            .map(|(_, family)| *family)
+            .ok_or(RuntimeError::NotNow(DRILL_KINDS))?;
+        let now = self.frame_clock.wall_seconds();
+        let id = self.practice.next_id();
+        let job = drill_job(&self.practice, family, &mut self.seeds, now)?;
+        self.storage.submit(job);
+        Ok(id)
+    }
+
     /// Test session (or colour copy) `id`'s name, once its sheet is stored and shows.
     #[must_use]
     pub fn test_practice(&self, id: u64) -> Option<PracticeTest> {
@@ -187,6 +235,18 @@ mod tests {
         assert_eq!(written.parse::<PracticeTest>(), Ok(test));
         for bad in ["", "13:41:5eed", "13:41:zz:1", "13:41:1:2:3", "-1:41:1:2"] {
             assert!(bad.parse::<PracticeTest>().is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn every_kind_drilled_has_one_plain_name_the_refusal_lists() {
+        let drilled: Vec<Family> = (1..=openpaint_practice::STAGES_READY)
+            .flat_map(|stage| openpaint_practice::kinds_of(stage).iter().copied())
+            .collect();
+        assert_eq!(DRILL_NAMES.map(|(_, family)| family).to_vec(), drilled);
+        for (name, _) in DRILL_NAMES {
+            assert!(name.bytes().all(|b| b.is_ascii_lowercase() || b == b'-'));
+            assert!(DRILL_KINDS.contains(name), "{name}");
         }
     }
 }

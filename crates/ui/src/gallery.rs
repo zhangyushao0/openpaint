@@ -16,6 +16,8 @@ mod copies;
 mod dates;
 #[path = "gallery_dialogs.rs"]
 mod dialogs;
+#[path = "gallery_drills.rs"]
+mod drills;
 #[path = "gallery_new.rs"]
 mod new;
 #[path = "gallery_pictures.rs"]

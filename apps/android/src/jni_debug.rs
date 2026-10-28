@@ -194,11 +194,11 @@ fn imported(runtime: &mut Runtime) -> Result<String, HostError> {
     }
 }
 
-/// For `cargo device-input practice-test start [stage [n]|copy]|end`: `start` starts a test
-/// practice session (or a test colour copy) beside any open one, from the gallery, and answers
-/// "started <name>" once its sheet shows;
-/// `end:<name>` removes the session of that name, its record and sheet, from the gallery, and
-/// answers "removed <name>" once the store did, or "no such session". Otherwise why not.
+/// For `cargo device-input practice-test start [stage [n]|copy|drill <kind>]|end`: `start`
+/// starts a test practice session (or a test colour copy or drill) beside any open one, from the
+/// gallery, and answers "started <name>" once its sheet shows; `end:<name>` removes the session
+/// of that name, its record and sheet, from the gallery, and answers "removed <name>" once the
+/// store did, or "no such session". Otherwise why not.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_dev_openpaint_DebugControls_practiceTest<'local>(
     mut env: EnvUnowned<'local>,
@@ -217,15 +217,16 @@ pub extern "system" fn Java_dev_openpaint_DebugControls_practiceTest<'local>(
     .resolve::<LogErrorAndDefault>()
 }
 
-/// `command` (`start`, `start:<stage>`, `start:<stage>:<n>`, `start:copy` or `end:<name>`) on
-/// `runtime`, frames run here until it is done, at most a minute: the answer.
+/// `command` (`start`, `start:<stage>`, `start:<stage>:<n>`, `start:copy`, `start:drill:<kind>`
+/// or `end:<name>`) on `runtime`, frames run here until it is done, at most a minute: the answer.
 fn practice_test(runtime: &mut Runtime, command: &str) -> Result<String, HostError> {
     // A session of the stage given (none: the one practised), its number given or the next, or a
-    // colour copy (`Err`).
-    type Start = Result<(Option<u8>, Option<u32>), ()>;
-    let start: Option<Start> = match command.strip_prefix("start") {
+    // colour copy (`Err(None)`) or a drill of a kind (`Err(Some(kind))`).
+    type Start<'a> = Result<(Option<u8>, Option<u32>), Option<&'a str>>;
+    let start: Option<Start<'_>> = match command.strip_prefix("start") {
         Some("") => Some(Ok((None, None))),
-        Some(":copy") => Some(Err(())),
+        Some(":copy") => Some(Err(None)),
+        Some(given) if given.starts_with(":drill:") => Some(Err(given.strip_prefix(":drill:"))),
         Some(given) => {
             let mut parts = given.strip_prefix(':').unwrap_or("-").split(':');
             let stage = parts.next().and_then(|s| s.parse::<u8>().ok());
@@ -241,7 +242,8 @@ fn practice_test(runtime: &mut Runtime, command: &str) -> Result<String, HostErr
     if let Some(start) = start {
         let started = match start {
             Ok((stage, number)) => runtime.start_test_practice(stage, number),
-            Err(()) => runtime.start_test_copy(),
+            Err(None) => runtime.start_test_copy(),
+            Err(Some(kind)) => runtime.start_test_drill(kind),
         };
         let id = match started {
             Ok(id) => id,

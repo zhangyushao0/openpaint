@@ -30,7 +30,9 @@
 //! which keep no numbers. 1.6.1 adds none: a colour's lightness, chroma and hue parts of its
 //! Oklab difference are codes 36 to 41 (21 to 23 and 25 to 27, on the wheel's HSV, retired).
 //! 1.8.0 adds none: kinds 11 and 12 (an estimate on the flat, a point in space) and their errors,
-//! metric codes 42 to 46 (D107).
+//! metric codes 42 to 46 (D107). 1.9.0 adds none: a drill (S91) is a record of stage `DRILL`
+//! (255), its number among its kind's drills, its exercises all of the kind it drills; earlier
+//! records read as they are.
 
 use std::collections::HashSet;
 

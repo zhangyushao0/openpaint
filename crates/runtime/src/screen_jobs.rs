@@ -10,7 +10,7 @@ use openpaint_ui::CanvasArea;
 use super::{Content, Screen, new_project};
 use crate::canvas::Canvas;
 use crate::error::RuntimeError;
-use crate::practice::{PracticeDone, PracticeJob, copy_job, start_job};
+use crate::practice::{PracticeDone, PracticeJob, copy_job, drill_job, start_job};
 use crate::seeds::Seeds;
 use crate::storage::{Job, LibraryCall};
 
@@ -128,6 +128,7 @@ pub(super) fn gallery_job(
         LibraryRequest::Delete(id) => LibraryCall::Delete(id),
         LibraryRequest::Restore(id, version, title) => LibraryCall::Restore(id, version, title),
         LibraryRequest::Practice(stage) => return start_job(practice, (stage, None), seeds, now),
+        LibraryRequest::Drill(family) => return drill_job(practice, family, seeds, now),
         LibraryRequest::Copy(picture) => return copy_job(practice, &picture, seeds, now),
         LibraryRequest::RenameCopy(sheet, title) => return job(PracticeJob::Rename(sheet, title)),
         LibraryRequest::RemoveCopy(sheet) => {

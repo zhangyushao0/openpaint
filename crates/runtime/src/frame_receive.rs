@@ -6,11 +6,12 @@ use openpaint_app::Intent;
 
 use super::Runtime;
 use crate::error::RuntimeError;
+use crate::practice::{Next, drill_job, start_job};
 use crate::screen::{Screen, dispatch_gallery};
 
 impl Runtime {
-    /// Applies everything the workers finished (One more's sheet left: the next session starts;
-    /// Compare's fit or reading to the open sheet), then opens a canvas that is ready.
+    /// Applies everything the workers finished (One more's sheet left: the next session or drill
+    /// starts; Compare's fit or reading to the open sheet), then opens a canvas that is ready.
     pub(crate) fn receive(&mut self) -> Result<(), RuntimeError> {
         self.transfer.receive(&mut self.transfers);
         self.cache.collect();
@@ -21,16 +22,20 @@ impl Runtime {
                 &mut self.cache,
                 &mut self.practice,
             );
-            if self.screen.answer(done, after) {
+            if let Some(next) = self.screen.answer(done, after) {
                 let now = self.frame_clock.wall_seconds();
-                let stage = self.practice.stage();
-                let job = crate::practice::start_job(
-                    &self.practice,
-                    (stage, None),
-                    &mut self.seeds,
-                    now,
-                )?;
-                self.storage.submit(job);
+                let (log, seeds) = (&self.practice, &mut self.seeds);
+                let job = match next {
+                    Next::Session => start_job(log, (log.stage(), None), seeds, now),
+                    Next::Drill(family) => drill_job(log, family, seeds, now),
+                };
+                match job {
+                    Ok(job) => self.storage.submit(job),
+                    Err(error) => {
+                        log::error!("One more could not start: {error}");
+                        self.screen.not_started();
+                    }
+                }
             }
         }
         match &mut self.screen {

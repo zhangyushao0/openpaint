@@ -195,6 +195,29 @@ pub(crate) const fn metric(metric: Metric) -> Text {
     }
 }
 
+/// A kind's name as its tile and its drill say it: "Line", "Centre" (S91).
+pub(crate) const fn kind_name(family: Family) -> Text {
+    called(family, false)
+}
+
+/// A finished drill's heading: "Centre drill done".
+pub(crate) fn drill_done(language: Language, family: Family) -> String {
+    let name = kind_name(family).get(language);
+    match language {
+        Language::English => format!("{name} drill done"),
+        Language::Chinese => format!("{name}专项完成"),
+    }
+}
+
+/// A drill's name in the practice book: "Centre drill 2".
+pub(crate) fn drill_number(language: Language, family: Family, number: u32) -> String {
+    let name = kind_name(family).get(language);
+    match language {
+        Language::English => format!("{name} drill {number}"),
+        Language::Chinese => format!("{name}专项 {number}"),
+    }
+}
+
 /// What an exercise is called ("Line", "Warm-up"): a warm-up's by its part of the session, any
 /// other by its family.
 const fn called(family: Family, warming_up: bool) -> Text {

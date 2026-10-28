@@ -2,7 +2,7 @@
 //! artworks' calls, a new practice session or colour copy, a copy's name or removal, the user's
 //! own pictures, and the practice sheets the practice book reads (S89).
 
-use openpaint_practice::{ItemRef, Pack, Tier};
+use openpaint_practice::{Family, ItemRef, Pack, Tier};
 
 use crate::gallery::GalleryIntent;
 use crate::project::{PortError, ProjectId, ProjectSummary, VersionId};
@@ -20,6 +20,8 @@ pub enum LibraryRequest {
     Restore(ProjectId, VersionId, Title),
     /// A new practice session of the stage given and its sheet, which becomes the open one.
     Practice(u8),
+    /// A new drill of the kind given and its sheet, which becomes the open one (S91).
+    Drill(Family),
     /// A new long colour copy of the picture given and its sheet, which becomes the open one.
     Copy(ItemRef),
     /// A colour copy's sheet titled anew.
@@ -88,6 +90,7 @@ pub(crate) fn request_of(intent: GalleryIntent) -> Option<LibraryRequest> {
             LibraryRequest::Restore(id, version, title)
         }
         GalleryIntent::Practice(stage) => LibraryRequest::Practice(stage),
+        GalleryIntent::Drill(family) => LibraryRequest::Drill(family),
         GalleryIntent::Copy(picture) => LibraryRequest::Copy(picture),
         GalleryIntent::RenameCopy { sheet, title } => LibraryRequest::RenameCopy(sheet, title),
         GalleryIntent::RemoveCopy(sheet) => LibraryRequest::RemoveCopy(sheet),

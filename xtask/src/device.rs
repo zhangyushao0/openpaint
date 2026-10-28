@@ -15,6 +15,8 @@
 //!   over that time (`watch.rs`);
 //! - `cargo device-smoke`: the installed debug build walked through every main feature on a
 //!   test artwork it creates and deletes, about 20 s (`smoke.rs`);
+//! - `cargo device-screens [n]`: the tablet's newest screenshots copied to
+//!   `artifacts/device/screens/` and listed, nothing on the tablet changed (`screens.rs`);
 //! - `cargo device-reset`: the app's data cleared by `pm clear`, each file it held listed;
 //!   refused without a backup written today (`reset.rs`).
 //!
@@ -29,6 +31,7 @@ mod open_file;
 mod practice_test;
 mod push;
 mod reset;
+mod screens;
 mod smoke;
 mod smoke_checks;
 mod state;
@@ -47,6 +50,7 @@ pub use input::input;
 pub use library::{backup, restore};
 pub use push::push;
 pub use reset::reset;
+pub use screens::screens;
 pub use smoke::smoke;
 
 /// The agent's test locations: never anything else (`clean`).

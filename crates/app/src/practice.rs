@@ -56,7 +56,7 @@ pub enum PracticeIntent {
     /// On to the next exercise, the view moved to it within `viewport` at its zoom; after the
     /// last the session ends and its summary shows over the whole sheet.
     Next(Viewport),
-    /// Another session, from the summary.
+    /// Another session (after a drill, another drill of its kind), from the summary.
     OneMore,
     /// Closes the notice.
     Dismiss,
@@ -123,8 +123,10 @@ pub struct PracticeProjection {
     pub revealed: usize,
     /// The stage (`openpaint_practice::PROJECT` for a long colour copy).
     pub stage: u8,
-    /// The session's number in its stage.
+    /// The session's number in its stage (a drill's among its kind's drills).
     pub number: u32,
+    /// The kind a drill drills (S91); none on a session's or a copy's sheet.
+    pub drill: Option<Family>,
     /// The exercise shown (none once the session is done), its family (none once done), whether
     /// it is part of the warm-up, its place among the warm-up's exercises or those of its family
     /// after it and how many those are.

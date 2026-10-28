@@ -7,6 +7,7 @@
 use std::time::Instant;
 
 use openpaint_app::{ProjectId, ProjectStore, TodayProjection};
+use openpaint_practice::Family;
 use openpaint_runtime::{Runtime, StartOptions, ToolKind};
 use openpaint_store::Library;
 
@@ -57,7 +58,13 @@ fn today(runtime: &Runtime) -> TodayProjection {
 
 /// A line across the shown exercise's empty frame, Compare, and back to the gallery.
 fn copy_and_compare(held: &mut Held, hand: &mut Hand) {
-    let runtime = &mut held.runtime;
+    copy(&mut held.runtime, hand);
+    assert!(held.runtime.back(), "back to the gallery");
+    held.until(|r| gallery(r).is_some());
+}
+
+/// A line across the shown exercise's empty frame, and Compare.
+fn copy(runtime: &mut Runtime, hand: &mut Hand) {
     let practice = runtime
         .projection()
         .practice()
@@ -73,8 +80,6 @@ fn copy_and_compare(held: &mut Held, hand: &mut Hand) {
     );
     hand.tap(runtime, "Compare");
     assert!(runtime.projection().practice().is_some_and(|p| p.comparing));
-    assert!(runtime.back(), "back to the gallery");
-    held.until(|r| gallery(r).is_some());
 }
 
 #[test]
@@ -141,4 +146,65 @@ fn a_test_session_beside_the_authors_leaves_theirs_as_it_was() {
     );
     assert_eq!(library.artwork_file(sheet).expect("their sheet"), file);
     assert!(library.load(ProjectId::new(test.sheet)).is_err());
+}
+
+/// The kind a drill's sheet drills and its number, while one shows.
+fn drilled(runtime: &Runtime) -> Option<(Family, u32)> {
+    let practice = runtime.projection().practice().cloned()?;
+    Some((practice.drill?, practice.number))
+}
+
+#[test]
+fn a_test_drill_is_named_by_its_kind_counts_in_no_session_and_one_more_drills_again() {
+    let dir = TestDir::new("practice-test-drill");
+    let mut held = Held::start(&dir);
+    let mut hand = Hand::new(SIZE);
+    held.until(|r| r.artwork().is_some());
+    assert!(held.runtime.back());
+    held.until(|r| gallery(r).is_some());
+    let before = today(&held.runtime);
+    assert!(
+        held.runtime.start_test_drill("middle").is_err(),
+        "no such kind"
+    );
+    let id = (held.runtime.start_test_drill("centre")).expect("started");
+    held.until(|r| r.test_practice(id).is_some());
+    assert_eq!(drilled(&held.runtime), Some((Family::Centre, 1)));
+    let test = held.runtime.test_practice(id).expect("its name");
+    let shown = held
+        .runtime
+        .projection()
+        .practice()
+        .cloned()
+        .expect("a sheet");
+    assert_eq!(shown.instructions, Some(Family::Centre), "its How first");
+    // Its How closes by its word (on this small screen Got it lies below the card's room).
+    hand.tap(&mut held.runtime, "How");
+    copy(&mut held.runtime, &mut hand);
+    // Finished: One more starts the kind's next drill, its How first again.
+    for word in ["Next", "Next", "Finish", "One more"] {
+        hand.tap(&mut held.runtime, word);
+    }
+    held.until(|r| drilled(r).is_some_and(|(_, number)| number == 2));
+    let again = held
+        .runtime
+        .projection()
+        .practice()
+        .cloned()
+        .expect("a sheet");
+    assert_eq!(again.instructions, Some(Family::Centre));
+    assert!(held.runtime.back(), "back to the gallery");
+    held.until(|r| gallery(r).is_some());
+    // No session: the Today card as before; the tile inked and ringed (the next drill open).
+    let after = today(&held.runtime);
+    assert_eq!(
+        (after.stage, after.done, after.open),
+        (before.stage, 0, None)
+    );
+    let tile = (after.drills.iter())
+        .find(|tile| tile.family == Family::Centre)
+        .expect("its tile");
+    assert!(tile.compared && tile.open.is_some());
+    held.runtime.end_test_practice(&test).expect("ended");
+    held.until(|r| !r.holds_practice(id));
 }

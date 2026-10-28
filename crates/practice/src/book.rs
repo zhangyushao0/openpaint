@@ -14,7 +14,7 @@ use crate::time::{by_day, seconds};
 /// The practice book's contents.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Book {
-    /// Sessions finished, and the time practised in sessions and copies, in seconds.
+    /// Sessions finished, and the time practised in sessions, drills and copies, in seconds.
     pub sessions: u32,
     pub seconds: u64,
     pub road: Road,
@@ -74,8 +74,9 @@ impl Book {
     pub fn of(records: &[SessionRecord], stage: u8, offset: i32) -> Self {
         let mut ordered: Vec<&SessionRecord> = records.iter().collect();
         ordered.sort_by_key(|record| record.id);
+        // Drills count in the time and the days, never on the road, the first picks or the lines.
         let sessions: Vec<&SessionRecord> = (ordered.iter().copied())
-            .filter(|record| !record.is_project())
+            .filter(|record| record.is_session())
             .collect();
         let finished: Vec<&&SessionRecord> = (sessions.iter())
             .filter(|session| session.finished.is_some())

@@ -12,7 +12,7 @@ mod version;
 
 const USAGE: &str = "usage: cargo xtask <gate|check|android-build|device-backup|device-restore|\
 device-check|device-input|device-clean|device-push|\
-                     device-info|device-smoke|device-reset|shape-assets> [args]";
+                     device-info|device-smoke|device-reset|device-screens|shape-assets> [args]";
 
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -31,6 +31,7 @@ fn main() {
         Some("device-info") => device(device::info(rest)),
         Some("device-smoke") => device(device::smoke(rest)),
         Some("device-reset") => device(device::reset(rest)),
+        Some("device-screens") => device(device::screens(rest)),
         Some("shape-assets") => shapes::generate(&process::root()),
         _ => {
             eprintln!("{USAGE}");

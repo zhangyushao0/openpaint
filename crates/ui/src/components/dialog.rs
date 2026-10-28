@@ -28,6 +28,16 @@ pub fn dialog<T>(
     (placement, from): (Placement, Rect),
     add_contents: impl FnOnce(&mut egui::Ui) -> T,
 ) -> (T, bool) {
+    dialog_of_width(ctx, id, (placement, from, DIALOG_WIDTH), add_contents)
+}
+
+/// As `dialog`, `width` points wide (a page of two columns, the practice options' first).
+pub fn dialog_of_width<T>(
+    ctx: &egui::Context,
+    id: &str,
+    (placement, from, width): (Placement, Rect, f32),
+    add_contents: impl FnOnce(&mut egui::Ui) -> T,
+) -> (T, bool) {
     let (align, offset) = match placement {
         Placement::Centre => (Align2::CENTER_CENTER, Vec2::ZERO),
         Placement::Top => (Align2::CENTER_TOP, Vec2::new(0.0, UNDER_ISLANDS)),
@@ -53,7 +63,7 @@ pub fn dialog<T>(
         .show(ctx, |ui| {
             let paper = ui.painter().add(Shape::Noop);
             ui.multiply_opacity(reveal);
-            ui.set_width(DIALOG_WIDTH - 4.0 * SPACE);
+            ui.set_width(width - 4.0 * SPACE);
             ui.spacing_mut().item_spacing = Vec2::splat(SPACE);
             let inner = add_contents(ui);
             (
