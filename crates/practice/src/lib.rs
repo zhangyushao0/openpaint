@@ -21,10 +21,12 @@ mod combined;
 mod edges;
 mod ellipse;
 mod ellipse_fit;
+mod flat;
 mod grid;
 mod judgement;
 mod licence;
 mod line;
+mod marks;
 mod metric;
 mod outline;
 mod outline_flood;
@@ -47,7 +49,10 @@ mod record;
 mod scale;
 mod seals;
 mod session;
+mod session_three;
 mod sheet;
+mod space;
+mod space_check;
 mod time;
 
 pub use align::{Fit, align};
@@ -65,9 +70,11 @@ pub use ellipse::{Ellipse, EllipseGuide, Guide};
 pub use ellipse_fit::{
     DEGREE, EllipseCheck, REACH, Reach, Roundness, Side, TILT, Tilt, fit_ellipse,
 };
+pub use flat::{Estimate, Flat, FlatAnswer, FlatCheck};
 pub use judgement::{Axis, DELTA_SPAN, Judgement, NOTICEABLE, PART_SPAN, judgement};
 pub use licence::Licence;
 pub use line::{LineExercise, LineTier};
+pub use marks::{MARK, last_edges, last_mark};
 pub use metric::{Metric, Metrics, value};
 pub use outline::{Outline, OutlineRefusal, outline};
 pub use outline_matte::{Matte, outline_of_matte};
@@ -75,7 +82,7 @@ pub use pack::{
     Credit, ItemRef, MAX_ID, MAX_OUTLINE_POINTS, MAX_PICTURE_SIDE, PERSONAL, Pack, PackItem,
     PackProblem, PictureKind, Tier, valid_id,
 };
-pub use path::{Point, apart, crossings, distance, length, nearest, resample};
+pub use path::{Point, across_frame, apart, crossings, distance, length, meet, nearest, resample};
 pub use perspective::{BoxView, Direction, EDGES, FAR, Horizon, PerspectiveBox};
 pub use perspective_check::{BoxCheck, Checked, ON_ANGLE};
 pub use perspective_free::{Corner, FreeBox, FreeCheck, RIGHT_ANGLE};
@@ -89,5 +96,8 @@ pub use record::{
 pub use scale::{BARS, ROW, ScaleCheck, ScaleTone, ValueScale};
 pub use seals::{Earned, Seal, Tally, earned, sealed};
 pub use session::{Before, Plan, WARM_UP, WARM_UP_TWO, plan, stage_one, stage_two};
+pub use session_three::stage_three;
 pub use sheet::{FRAME, Frame, PICTURE_MARGIN, Pair, PictureFit, STUDY_SIDE, Sheet};
+pub use space::{SpaceAnswer, SpaceTask, Trick};
+pub use space_check::SpaceCheck;
 pub use time::{Date, PAUSE, Span, by_day, local_day, practised, seconds, spans_of, weekday};

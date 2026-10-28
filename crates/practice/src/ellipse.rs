@@ -253,11 +253,11 @@ fn square_on(corners: [Point; 4]) -> EllipseGuide {
     }
 }
 
-type Matrix = [[f64; 3]; 3];
+pub(crate) type Matrix = [[f64; 3]; 3];
 
 /// The homography taking the unit square's corners (0,0), (1,0), (1,1), (0,1) to `q` (Heckbert's
 /// square-to-quadrilateral).
-fn homography(q: [Point; 4]) -> Matrix {
+pub(crate) fn homography(q: [Point; 4]) -> Matrix {
     let s = [0, 1].map(|k| q[0][k] - q[1][k] + q[2][k] - q[3][k]);
     let d1 = [0, 1].map(|k| q[1][k] - q[2][k]);
     let d2 = [0, 1].map(|k| q[3][k] - q[2][k]);
@@ -285,7 +285,7 @@ fn homography(q: [Point; 4]) -> Matrix {
     ]
 }
 
-fn apply(m: &Matrix, [x, y]: Point) -> Point {
+pub(crate) fn apply(m: &Matrix, [x, y]: Point) -> Point {
     let w = m[2][0] * x + m[2][1] * y + m[2][2];
     [
         (m[0][0] * x + m[0][1] * y + m[0][2]) / w,
@@ -302,7 +302,7 @@ fn transpose(m: &Matrix) -> Matrix {
 }
 
 /// `m`'s inverse up to scale (its adjugate), which a conic needs no more of.
-fn inverse(m: &Matrix) -> Matrix {
+pub(crate) fn inverse(m: &Matrix) -> Matrix {
     let at = |i: usize, j: usize| m[i % 3][j % 3];
     std::array::from_fn(|i| {
         std::array::from_fn(|j| {

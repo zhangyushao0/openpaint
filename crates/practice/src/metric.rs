@@ -3,7 +3,8 @@
 //! (0 to about 1), shares as shares, counts as counts.
 //!
 //! Lines and shapes have no numbers (D99: a number that does not match what the eye sees misleads;
-//! the overlay is the feedback). Colours, colour combinations and value scales do (D105, D108).
+//! the overlay is the feedback). Colours, colour combinations and value scales do (D105, D108);
+//! estimates and points in space keep their exact errors for the trajectories, never shown (D107).
 //! Retired, never reused, passed over when read: codes 1 to 8, 1.1.0's line metrics (key points,
 //! frame, shape, speed, wobble, strokes, erased, seconds); 21 to 23 and 25 to 27, a colour's hue
 //! (degrees, only where both passed an RGB chroma gate), saturation and value on the wheel's HSV
@@ -35,10 +36,19 @@ pub enum Metric {
     ScaleOff,
     ScaleUneven,
     ScaleReversed,
+    /// A point placed: the copy's mark off the answer across and down (frame units, signed).
+    PointAcross,
+    PointDown,
+    /// A proportion: the mark off the division along its segment (a share of it, signed).
+    ProportionOff,
+    /// An angle: the line drawn turned off the original's (degrees, clockwise positive).
+    AngleOff,
+    /// A point in space: the copy off the answer, a share of the face (`space_check.rs`).
+    SpaceOff,
 }
 
 impl Metric {
-    pub const ALL: [Self; 15] = [
+    pub const ALL: [Self; 20] = [
         Self::FirstDelta,
         Self::FirstLightness,
         Self::FirstChroma,
@@ -54,6 +64,11 @@ impl Metric {
         Self::ScaleOff,
         Self::ScaleUneven,
         Self::ScaleReversed,
+        Self::PointAcross,
+        Self::PointDown,
+        Self::ProportionOff,
+        Self::AngleOff,
+        Self::SpaceOff,
     ];
 
     /// The code it is stored by; never reused.
@@ -75,6 +90,11 @@ impl Metric {
             Self::ScaleOff => 35,
             Self::ScaleUneven => 33,
             Self::ScaleReversed => 34,
+            Self::PointAcross => 42,
+            Self::PointDown => 43,
+            Self::ProportionOff => 44,
+            Self::AngleOff => 45,
+            Self::SpaceOff => 46,
         }
     }
 

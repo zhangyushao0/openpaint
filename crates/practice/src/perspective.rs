@@ -139,7 +139,7 @@ pub const EDGES: [(usize, usize, Direction); 12] = [
 
 /// Where a box lies against the eye's level: below it (its top seen), across it, above it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Place {
+pub(crate) enum Place {
     Below,
     Across,
     Above,
@@ -231,7 +231,7 @@ impl PerspectiveBox {
 
     /// Whether it keeps every rule: inside the frame, its vanishing points at sane distances,
     /// its front angle wide, its edges long enough (the given ones too, when `given`).
-    fn keeps(&self, given: bool) -> bool {
+    pub(crate) fn keeps(&self, given: bool) -> bool {
         let inside = |v: f64| (INSIDE..=1.0 - INSIDE).contains(&v);
         let middle = [0.5, 0.5];
         let front = self.corners[self.front];
@@ -322,7 +322,7 @@ impl PerspectiveBox {
 }
 
 /// Where a box goes against the eye's level, from `roll` (0 to 1) and the page's horizon.
-fn place(roll: f64, page: Option<Horizon>) -> Place {
+pub(crate) fn place(roll: f64, page: Option<Horizon>) -> Place {
     let [below, across] = match page {
         None => [0.45, 0.75],
         Some(Horizon::High) => [0.7, 1.0],
@@ -339,7 +339,7 @@ fn place(roll: f64, page: Option<Horizon>) -> Place {
 }
 
 /// A box's middle's height against the eye, for a box `height` high placed so.
-fn level(place: Place, height: f64, random: &mut Random) -> f64 {
+pub(crate) fn level(place: Place, height: f64, random: &mut Random) -> f64 {
     match place {
         Place::Below => -(height / 2.0 + random.range(0.1, 1.0)),
         Place::Across => random.range(-0.3, 0.3) * height,

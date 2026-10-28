@@ -3,7 +3,8 @@
 //! faint; each original in its frame (a line or a group of lines in ink, a swatch filling the
 //! frame, a single shape's or a colour copy's picture with its credit small under the frame where
 //! its licence asks for one, a colour combination's or a value scale's in `practice_paint_marks.rs`,
-//! a box's or an ellipse's in `practice_geometry_marks.rs`).
+//! a box's or an ellipse's in `practice_geometry_marks.rs`, an estimate's or a point in space's in
+//! `practice_points_marks.rs`).
 //! While compared, the original's lines lie over the copy, in place or aligned onto it, as thick as
 //! the pen that drew the copy and in a semi-transparent marking red the ink shows through (S88:
 //! thicker, the red hid an error of a pen's width inside it), a hairline at least however far the
@@ -26,6 +27,7 @@ use crate::components::{Alpha, canvas_point, picture_texture};
 use crate::design::{CORRECTION, DIVIDER, INK, INK_SECONDARY, PANEL_RULE_WIDTH};
 use crate::practice_geometry_marks as geometry_marks;
 use crate::practice_paint_marks as paint_marks;
+use crate::practice_points_marks as points_marks;
 use crate::text::{self as t, Words};
 
 /// An original line's width, in canvas pixels, and the least it shows at, in points.
@@ -96,6 +98,9 @@ pub(crate) fn show_marks(
     let screen = ctx.content_rect();
     let at = |point: [f64; 2]| canvas_point(mapping, pixels_per_point, point.map(|v| v as f32));
     let line_width = (LINE_WIDTH * mapping.scale() / pixels_per_point).max(LEAST_LINE);
+    // Points per canvas pixel; an original's line width beside it.
+    let scale = mapping.scale() / pixels_per_point;
+    let widths = (line_width, scale);
     let sheet = &practice.sheet;
     for (index, pair) in sheet.pairs.iter().enumerate().take(practice.revealed) {
         let corners = |frame: &Frame| frame.corners().map(at);
@@ -121,7 +126,6 @@ pub(crate) fn show_marks(
                 painter.add(swatch);
             }
             Original::Picture(_) => {
-                let scale = mapping.scale() / pixels_per_point;
                 let placed: (&dyn Fn([f64; 2]) -> Pos2, f32) = (&at, scale);
                 let shown = (index, &pair.original);
                 show_picture(&painter, practice, shown, placed, pictures);
@@ -131,9 +135,10 @@ pub(crate) fn show_marks(
                 paint_marks::show_original(&painter, practice, (index, pair), &at, painted);
             }
             Original::Box(_) | Original::FreeBoxes(_) | Original::Ellipse(_) => {
-                let scale = mapping.scale() / pixels_per_point;
-                let widths = (line_width, scale);
                 geometry_marks::show_original(&painter, practice, (index, pair), &at, widths);
+            }
+            Original::Flat(_) | Original::Space(_) => {
+                points_marks::show_original(&painter, practice, (index, pair), &at, widths);
             }
         }
         painter.add(Shape::closed_line(original.to_vec(), frame));
@@ -263,6 +268,9 @@ fn show_overlay(
         }
         (Overlay::Box(_) | Overlay::FreeBoxes(_) | Overlay::Ellipse(_), _) => {
             geometry_marks::show_overlay(painter, practice, overlay, (at, width));
+        }
+        (Overlay::Flat(_) | Overlay::Space(_), _) => {
+            points_marks::show_overlay(painter, practice, overlay, (at, width));
         }
         _ => {}
     }

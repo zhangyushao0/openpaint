@@ -4,7 +4,7 @@
 //! summary.
 
 use openpaint_app::Pen;
-use openpaint_practice::{Axis, Family, Metric};
+use openpaint_practice::{Axis, Estimate, Family, Metric, Trick};
 
 use super::{Language, Text};
 
@@ -104,6 +104,7 @@ texts! { PRACTICE_STEPS;
 pub(crate) const fn instructions(family: Family) -> (Text, &'static [Text]) {
     use super::practice_colour as c;
     use super::practice_perspective as p;
+    use super::practice_points as s;
     match family {
         Family::Line => (COPY_A_LINE, &[LINE_1, LINE_2, LINE_3, LINE_4]),
         Family::Combined => (COPY_COMBINED, &[GROUP_1, GROUP_2, GROUP_3, GROUP_4]),
@@ -120,6 +121,14 @@ pub(crate) const fn instructions(family: Family) -> (Text, &'static [Text]) {
             p::DRAW_AN_ELLIPSE,
             &[p::ELLIPSE_1, p::ELLIPSE_2, p::ELLIPSE_3, p::ELLIPSE_4],
         ),
+        Family::Point => s::estimate_steps(Estimate::Point),
+        Family::Proportion => s::estimate_steps(Estimate::Proportion),
+        Family::Angle => s::estimate_steps(Estimate::Angle),
+        Family::Centre => s::trick_steps(Trick::Centre),
+        Family::Halves => s::trick_steps(Trick::Halves),
+        Family::Thirds => s::trick_steps(Trick::Thirds),
+        Family::Step => s::trick_steps(Trick::Step),
+        Family::Mirror => s::trick_steps(Trick::Mirror),
         Family::Colour => (
             MATCH_A_COLOUR,
             &[COLOUR_1, COLOUR_2, COLOUR_3, COLOUR_4, COLOUR_5],
@@ -178,6 +187,11 @@ pub(crate) const fn metric(metric: Metric) -> Text {
         Metric::ScaleOff => super::OFF_EVEN,
         Metric::ScaleUneven => super::UNEVEN_CELLS,
         Metric::ScaleReversed => super::OUT_OF_ORDER,
+        Metric::PointAcross => super::OFF_ACROSS,
+        Metric::PointDown => super::OFF_DOWN,
+        Metric::ProportionOff => super::OFF_ALONG,
+        Metric::AngleOff => super::TURNED_OFF,
+        Metric::SpaceOff => super::OFF_ON_THE_FACE,
     }
 }
 
@@ -192,6 +206,14 @@ const fn called(family: Family, warming_up: bool) -> Text {
         (false, Family::Box) => super::BOX_EXERCISE,
         (false, Family::FreeBoxes) => super::FREE_BOXES_EXERCISE,
         (false, Family::Ellipse) => super::ELLIPSE_EXERCISE,
+        (false, Family::Point) => super::POINT_EXERCISE,
+        (false, Family::Proportion) => super::PROPORTION_EXERCISE,
+        (false, Family::Angle) => super::ANGLE_EXERCISE,
+        (false, Family::Centre) => super::CENTRE_EXERCISE,
+        (false, Family::Halves) => super::HALVES_EXERCISE,
+        (false, Family::Thirds) => super::THIRDS_EXERCISE,
+        (false, Family::Step) => super::STEP_EXERCISE,
+        (false, Family::Mirror) => super::MIRROR_EXERCISE,
         (false, Family::Colour) => super::COLOUR,
         (false, Family::Areas) => super::AREAS_EXERCISE,
         (false, Family::Scale) => super::SCALE_EXERCISE,
@@ -235,7 +257,16 @@ pub(crate) fn compared_of(
     family: Family,
     (checked, held): (usize, usize),
 ) -> String {
+    let named = |name: Text| super::counted(language, name, (checked, held));
     match (language, family) {
+        (_, Family::Point) => named(super::POINTS_COUNTED),
+        (_, Family::Proportion) => named(super::PROPORTIONS_COUNTED),
+        (_, Family::Angle) => named(super::ANGLES_COUNTED),
+        (_, Family::Centre) => named(super::CENTRES_COUNTED),
+        (_, Family::Halves) => named(super::HALVES_COUNTED),
+        (_, Family::Thirds) => named(super::THIRDS_COUNTED),
+        (_, Family::Step) => named(super::STEPS_COUNTED),
+        (_, Family::Mirror) => named(super::MIRRORS_COUNTED),
         (Language::English, Family::Line) => format!("Lines: {checked} of {held} compared"),
         (Language::English, Family::Combined) => {
             format!("Combined lines: {checked} of {held} compared")

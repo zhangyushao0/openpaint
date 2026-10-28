@@ -28,7 +28,7 @@
 //!
 //! The warm-up's exercises are kinds met, each chosen by the seed among its family's; a shape in
 //! it a picture of its tier. A plan's shapes carry their pictures, picked by the seed
-//! (`pictures.rs`).
+//! (`pictures.rs`). Stage 3's sessions: `session_three.rs`.
 
 use std::collections::HashSet;
 
@@ -43,10 +43,11 @@ use crate::pictures::Pictures;
 use crate::plan::{Exercise, Family, Kind};
 use crate::random::{Random, derived};
 use crate::scale::ScaleTone;
+use crate::session_three::stage_three;
 
 /// Exercises a stage-1 warm-up holds.
 pub const WARM_UP: usize = 4;
-/// Exercises a stage-2 warm-up holds, at most one of them long.
+/// Exercises a stage-2 or stage-3 warm-up holds, at most one of them long.
 pub const WARM_UP_TWO: usize = 3;
 
 /// Stage 1's mix: lines, combined lines and colours, in order.
@@ -82,7 +83,7 @@ const QUICK_TWO: [Family; 5] = [
     Family::Box,
     Family::Ellipse,
 ];
-const LONG: [Family; 4] = [
+pub(crate) const LONG: [Family; 4] = [
     Family::Shape,
     Family::Areas,
     Family::Scale,
@@ -107,14 +108,14 @@ pub struct Before<'a> {
     pub used: &'a [ItemRef],
 }
 
-/// Session `number` of `stage` seeded `seed` after `before`: stage 2's for stage 2, else stage
-/// 1's.
+/// Session `number` of `stage` seeded `seed` after `before`: stage 2's for stage 2, stage 3's for
+/// stage 3 (`session_three.rs`), else stage 1's.
 #[must_use]
 pub fn plan(stage: u8, number: u32, seed: u64, before: &Before<'_>) -> Plan {
-    if stage == 2 {
-        stage_two(number, seed, before)
-    } else {
-        stage_one(seed, before.met)
+    match stage {
+        2 => stage_two(number, seed, before),
+        3 => stage_three(number, seed, before),
+        _ => stage_one(seed, before.met),
     }
 }
 
@@ -148,47 +149,78 @@ pub fn stage_one(seed: u64, met: &[Kind]) -> Plan {
 /// there are no shapes.
 #[must_use]
 pub fn stage_two(number: u32, seed: u64, before: &Before<'_>) -> Plan {
-    let mut random = Random::new(derived(seed, u64::MAX - 1));
-    let mut used: HashSet<ItemRef> = before.used.iter().cloned().collect();
     let tiers = shape_tiers(number);
-    // The user's own pictures of the session's hardest tier or an easier one.
-    let reach = tiers[tiers.len() - 1];
-    let mut pick = |kind: Kind, own: bool| -> Option<(Kind, Option<ItemRef>)> {
-        let Kind::Shape(tier) = kind else {
-            return Some((kind, None));
-        };
-        let personal = own.then(|| before.pictures.pick_personal(reach, &mut random, &used));
-        let (tier, item) = match personal.flatten() {
-            Some(found) => found,
-            None => before.pictures.pick(tier, &mut random, &used)?,
-        };
-        used.insert(item.clone());
-        Some((Kind::Shape(tier), Some(item)))
-    };
-    let warm_up: Vec<(Kind, Option<ItemRef>)> = warm_up_two(number, seed, before.met)
-        .into_iter()
-        .filter_map(|kind| pick(kind, false))
-        .collect();
-    let own = before.pictures.has_personal(reach);
-    let shapes = (tiers.iter().enumerate())
-        .filter_map(|(at, tier)| pick(Kind::Shape(*tier), own && at + 1 == tiers.len()));
+    let mut picker = Picker::new(seed, before, tiers[tiers.len() - 1]);
+    let warm_up = picker.warm_up(warm_up_of(number, seed, before.met, &QUICK_TWO));
+    let shapes = picker.shapes(&tiers);
     let turn = number.saturating_sub(1) as usize;
     let colour_work = [
         Kind::Areas(Arrangement::ALL[turn % Arrangement::ALL.len()]),
         Kind::Scale(ScaleTone::ALL[turn % ScaleTone::ALL.len()]),
     ];
     let warmed = u32::try_from(warm_up.len()).unwrap_or(0);
-    let all = (warm_up.into_iter())
-        .chain(shapes.collect::<Vec<_>>())
-        .chain(
-            colour_work
-                .into_iter()
-                .chain(perspective(turn))
-                .map(|kind| (kind, None)),
-        );
+    let all = (warm_up.into_iter()).chain(shapes).chain(
+        colour_work
+            .into_iter()
+            .chain(perspective(turn))
+            .map(|kind| (kind, None)),
+    );
     Plan {
         exercises: seeded(seed, all),
         warm_up: warmed,
+    }
+}
+
+/// The pictures a session's shapes copy, picked by the seed: others than those shown before while
+/// there are, the last of the session's shapes the user's own of its hardest tier (`reach`) or an
+/// easier one when they have one.
+pub(crate) struct Picker<'a> {
+    before: &'a Before<'a>,
+    random: Random,
+    used: HashSet<ItemRef>,
+    reach: Tier,
+}
+
+impl<'a> Picker<'a> {
+    pub(crate) fn new(seed: u64, before: &'a Before<'a>, reach: Tier) -> Self {
+        Self {
+            before,
+            random: Random::new(derived(seed, u64::MAX - 1)),
+            used: before.used.iter().cloned().collect(),
+            reach,
+        }
+    }
+
+    /// `kind` with its picture (a shape's; none for another kind), the user's own when `own`
+    /// and they have one; none when no picture of its tier is left.
+    fn pick(&mut self, kind: Kind, own: bool) -> Option<(Kind, Option<ItemRef>)> {
+        let Kind::Shape(tier) = kind else {
+            return Some((kind, None));
+        };
+        let pictures = self.before.pictures;
+        let personal =
+            own.then(|| pictures.pick_personal(self.reach, &mut self.random, &self.used));
+        let (tier, item) = match personal.flatten() {
+            Some(found) => found,
+            None => pictures.pick(tier, &mut self.random, &self.used)?,
+        };
+        self.used.insert(item.clone());
+        Some((Kind::Shape(tier), Some(item)))
+    }
+
+    /// A warm-up's `kinds` with their pictures.
+    pub(crate) fn warm_up(&mut self, kinds: Vec<Kind>) -> Vec<(Kind, Option<ItemRef>)> {
+        (kinds.into_iter())
+            .filter_map(|kind| self.pick(kind, false))
+            .collect()
+    }
+
+    /// Shapes of `tiers` with their pictures, the last the user's own when they have one.
+    pub(crate) fn shapes(&mut self, tiers: &[Tier]) -> Vec<(Kind, Option<ItemRef>)> {
+        let own = self.before.pictures.has_personal(self.reach);
+        (tiers.iter().enumerate())
+            .filter_map(|(at, tier)| self.pick(Kind::Shape(*tier), own && at + 1 == tiers.len()))
+            .collect()
     }
 }
 
@@ -217,7 +249,10 @@ const fn shape_tiers(number: u32) -> [Tier; 4] {
 }
 
 /// `kinds` (with their pictures) as exercises, exercise `i` seeded `derived(seed, i)`.
-fn seeded(seed: u64, kinds: impl Iterator<Item = (Kind, Option<ItemRef>)>) -> Vec<Exercise> {
+pub(crate) fn seeded(
+    seed: u64,
+    kinds: impl Iterator<Item = (Kind, Option<ItemRef>)>,
+) -> Vec<Exercise> {
     kinds
         .enumerate()
         .map(|(index, (kind, picture))| Exercise {
@@ -262,17 +297,17 @@ fn warm_up(seed: u64, met: &[Kind]) -> Vec<Kind> {
     kinds
 }
 
-/// Stage 2's warm-up for session `number`: `WARM_UP_TWO` of the kinds `met`, one of a long
-/// family (the long families met in turn by number) and the rest of the quick families met in
+/// Stage 2's or 3's warm-up for session `number`: `WARM_UP_TWO` of the kinds `met`, one of a long
+/// family (the long families met in turn by number) and the rest of the `quick` families met in
 /// turn from one the number moves on; then in the families' order.
-fn warm_up_two(number: u32, seed: u64, met: &[Kind]) -> Vec<Kind> {
+pub(crate) fn warm_up_of(number: u32, seed: u64, met: &[Kind], quick: &[Family]) -> Vec<Kind> {
     let met = distinct(met);
     let present = |families: &[Family]| -> Vec<Family> {
         (families.iter().copied())
             .filter(|family| met.iter().any(|kind| kind.family() == *family))
             .collect()
     };
-    let (quick, long) = (present(&QUICK_TWO), present(&LONG));
+    let (quick, long) = (present(quick), present(&LONG));
     let turn = number.saturating_sub(1) as usize;
     let mut families = Vec::with_capacity(WARM_UP_TWO);
     if !long.is_empty() {

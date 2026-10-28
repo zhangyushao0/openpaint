@@ -351,10 +351,7 @@ fn paint_node(
     let body = TextStyle::Body.resolve(ui.style());
     painter.text(at, Align2::CENTER_CENTER, stage.to_string(), body, ink);
     if stage <= STAGES_READY {
-        let topic = match stage {
-            1 => t::LINES_AND_COLOURS,
-            _ => t::SINGLE_SHAPES,
-        };
+        let topic = t::stage_topic(stage);
         let small = TextStyle::Small.resolve(ui.style());
         let below = at + Vec2::new(0.0, NODE + SPACE);
         let quiet = if reached { INK_SECONDARY } else { PENCIL };

@@ -7,16 +7,18 @@ use crate::colour::Rgb8;
 use crate::colour_match::Tone;
 use crate::combined::{Combination, CombinedLines};
 use crate::ellipse::{EllipseGuide, Guide};
+use crate::flat::{Estimate, Flat};
 use crate::line::{LineExercise, LineTier};
 use crate::pack::{ItemRef, Tier};
 use crate::path::Point;
 use crate::perspective::{BoxView, Horizon, PerspectiveBox};
 use crate::scale::{ScaleTone, ValueScale};
+use crate::space::{SpaceTask, Trick};
 
 /// The course's stages, after V大's eight weeks.
 pub const STAGES: u8 = 8;
 /// The stages whose exercises exist so far: a session can be started in these.
-pub const STAGES_READY: u8 = 2;
+pub const STAGES_READY: u8 = 3;
 /// About how many sessions a stage holds; only a guide, never a quota.
 pub const STAGE_SESSIONS: u32 = 15;
 
@@ -45,6 +47,10 @@ pub enum Kind {
     FreeBoxes(Horizon),
     /// An ellipse drawn to fit a guide (Drawabox's tables, V大's cylinder in a box).
     Ellipse(Guide),
+    /// A point, a proportion or an angle estimated on the flat (V大's 二维抽象网格).
+    Flat(Estimate),
+    /// A point in space fixed on a box by one of V大's five tricks (点定位).
+    Space(Trick),
 }
 
 /// What an exercise asks for, whatever its variant: its instructions, its tools, its line in
@@ -57,6 +63,16 @@ pub enum Family {
     Box,
     FreeBoxes,
     Ellipse,
+    /// Estimates on the flat: a point, a proportion, an angle.
+    Point,
+    Proportion,
+    Angle,
+    /// Points in space, a family each of V大's five tricks: each has its own instructions.
+    Centre,
+    Halves,
+    Thirds,
+    Step,
+    Mirror,
     Colour,
     Areas,
     Scale,
@@ -65,13 +81,21 @@ pub enum Family {
 
 impl Family {
     /// In a warm-up's order.
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 18] = [
         Self::Line,
         Self::Combined,
         Self::Shape,
         Self::Box,
         Self::FreeBoxes,
         Self::Ellipse,
+        Self::Point,
+        Self::Proportion,
+        Self::Angle,
+        Self::Centre,
+        Self::Halves,
+        Self::Thirds,
+        Self::Step,
+        Self::Mirror,
         Self::Colour,
         Self::Areas,
         Self::Scale,
@@ -79,20 +103,18 @@ impl Family {
     ];
 
     /// Whether its exercises are drawn with the pens as lines (lines, combined lines, single
-    /// shapes, boxes, ellipses), not coloured.
+    /// shapes, boxes, ellipses, estimates and points in space), not coloured.
     #[must_use]
     pub const fn drawn(self) -> bool {
-        matches!(
-            self,
-            Self::Line | Self::Combined | Self::Shape | Self::Box | Self::FreeBoxes | Self::Ellipse
-        )
+        !matches!(self, Self::Colour | Self::Areas | Self::Scale | Self::Study)
     }
 
-    /// Whether its copy is checked as geometry (boxes in perspective, ellipses): its edges or its
-    /// ellipse found in the lines and set against an exact answer or rule, never aligned.
+    /// Whether its copy is checked as geometry (boxes in perspective, ellipses, estimates, points
+    /// in space): what it holds found in the lines and set against an exact answer or rule, never
+    /// aligned.
     #[must_use]
     pub const fn geometric(self) -> bool {
-        matches!(self, Self::Box | Self::FreeBoxes | Self::Ellipse)
+        self.drawn() && !matches!(self, Self::Line | Self::Combined | Self::Shape)
     }
 
     /// Whether its exercises are painted with brushes and read from the copy's pixels (colour
@@ -108,7 +130,8 @@ impl Kind {
     /// arrangement) for combined lines, (4, the picture's tier code) for a single shape, (5,
     /// arrangement) for a colour combination, (6, tone) for a value scale, (7, 0) for a colour
     /// copy, (8, view) for a box to complete, (9, horizon) for free boxes, (10, guide) for an
-    /// ellipse. A code names one generator for good; a changed generator is a new code.
+    /// ellipse, (11, estimate) for an estimate on the flat, (12, trick) for a point in space. A
+    /// code names one generator for good; a changed generator is a new code.
     #[must_use]
     pub fn code(self) -> (u8, u8) {
         let index = |found: Option<usize>| found.unwrap_or(0) as u8;
@@ -129,6 +152,8 @@ impl Kind {
             Self::Box(view) => (8, index(BoxView::ALL.iter().position(|v| *v == view))),
             Self::FreeBoxes(horizon) => (9, index(Horizon::ALL.iter().position(|h| *h == horizon))),
             Self::Ellipse(guide) => (10, index(Guide::ALL.iter().position(|g| *g == guide))),
+            Self::Flat(estimate) => (11, index(Estimate::ALL.iter().position(|e| *e == estimate))),
+            Self::Space(trick) => (12, index(Trick::ALL.iter().position(|t| *t == trick))),
         }
     }
 
@@ -146,6 +171,8 @@ impl Kind {
             8 => BoxView::ALL.get(at).map(|v| Self::Box(*v)),
             9 => Horizon::ALL.get(at).map(|h| Self::FreeBoxes(*h)),
             10 => Guide::ALL.get(at).map(|g| Self::Ellipse(*g)),
+            11 => Estimate::ALL.get(at).map(|e| Self::Flat(*e)),
+            12 => Trick::ALL.get(at).map(|t| Self::Space(*t)),
             _ => None,
         }
     }
@@ -163,6 +190,8 @@ impl Kind {
             Self::Box(_) => Family::Box,
             Self::FreeBoxes(_) => Family::FreeBoxes,
             Self::Ellipse(_) => Family::Ellipse,
+            Self::Flat(estimate) => estimate.family(),
+            Self::Space(trick) => trick.family(),
         }
     }
 }
@@ -208,6 +237,8 @@ impl Exercise {
                 Original::FreeBoxes(PerspectiveBox::on_horizon(horizon, self.seed))
             }
             Kind::Ellipse(guide) => Original::Ellipse(EllipseGuide::generate(guide, self.seed)),
+            Kind::Flat(estimate) => Original::Flat(Flat::generate(estimate, self.seed)),
+            Kind::Space(trick) => Original::Space(Box::new(SpaceTask::generate(trick, self.seed))),
         }
     }
 }
@@ -231,4 +262,8 @@ pub enum Original {
     FreeBoxes(PerspectiveBox),
     /// An ellipse's guide and the exact ellipse.
     Ellipse(EllipseGuide),
+    /// An estimate's givens: its answer follows from them.
+    Flat(Flat),
+    /// A box with a face to fix a point in space on.
+    Space(Box<SpaceTask>),
 }

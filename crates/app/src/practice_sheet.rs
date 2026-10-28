@@ -31,6 +31,8 @@ use crate::view::CanvasView;
 /// (for the seals its finish stamps).
 pub type Practising = (SessionRecord, Vec<SessionRecord>, SheetView, Tally);
 
+#[path = "practice_checks.rs"]
+mod checks;
 #[path = "practice_compare.rs"]
 mod compare;
 #[path = "practice_read.rs"]

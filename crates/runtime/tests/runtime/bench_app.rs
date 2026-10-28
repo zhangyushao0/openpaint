@@ -3,7 +3,8 @@
 //! what it measured, and leaves the canvas equal to a cold evaluation. `session` appends the open
 //! artwork's strokes to a new one, which then holds them all but the undone ones. `practice` runs
 //! on a practice sheet started from the gallery's Today card, moves it three exercises on and to
-//! its first group of combined lines, each compared aligned with its fit shown.
+//! its first group of combined lines, each compared aligned with its fit shown; then on stage 3's
+//! first session, its point, angle and point in space compared.
 
 use openpaint_app::{BrushLibrary, ProjectStore, Title};
 use openpaint_core::{Artwork, CanvasSize};
@@ -141,4 +142,27 @@ fn book_then_practice(runtime: &mut Runtime) {
         practice.comparing && practice.result.is_some(),
         "filled and compared"
     );
+    stage_three(runtime, &mut hand);
+}
+
+/// Stage 3 started from the practice options and its bench: a point, an angle and a point in
+/// space marked and compared (S90).
+fn stage_three(runtime: &mut Runtime, hand: &mut Hand) {
+    hand.tap(runtime, "Gallery");
+    until(runtime, SIZE, |runtime| gallery(runtime).is_some());
+    hand.tap(runtime, "Practice options");
+    hand.tap(runtime, "Stage 3 · Points");
+    until(runtime, SIZE, |runtime| {
+        (runtime.projection().practice()).is_some_and(|practice| practice.stage == 3)
+    });
+    let lines = runtime.bench_scenario("practice").expect("practice");
+    eprintln!("{}", lines.join("\n"));
+    for motion in [
+        "point compare opens",
+        "angle compare closes",
+        "point in space compare opens",
+    ] {
+        let found = lines.iter().any(|line| line.starts_with(motion));
+        assert!(found, "{motion}: {lines:?}");
+    }
 }

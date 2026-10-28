@@ -48,8 +48,8 @@ texts! { GALLERY_TABLE;
     ADD_PICTURE = "Add my picture…", "添加我的图片…";
     NO_PACKS = "No pack yet: single shapes copy a pack's pictures.",
         "还没有图包：单体图形临摹的是图包里的图片。";
-    PACKS_NOTE = "Your own pictures stay on this tablet; one comes up in each stage 2 session \
-        that reaches its tier.", "你自己的图片只保存在这台平板上；第 2 阶段的练习进行到它的难度后，每次会出现一张。";
+    PACKS_NOTE = "Your own pictures stay on this tablet; one comes up in each stage 2 or 3 \
+        session that reaches its tier.", "你自己的图片只保存在这台平板上；第 2、3 阶段的练习进行到它的难度后，每次会出现一张。";
     SHAPES_NEED_PACK = "Shapes need a practice pack: see the options.",
         "单体图形需要练习图包：见选项。";
 }
@@ -141,14 +141,19 @@ pub(crate) fn delete_artwork(language: Language, title: &str) -> String {
 
 /// The Today card's stage line: "Stage 1 · Lines and colours".
 pub(crate) fn stage(language: Language, stage: u8) -> String {
-    let topic = match stage {
-        2 => SINGLE_SHAPES,
-        _ => LINES_AND_COLOURS,
-    }
-    .get(language);
+    let topic = stage_topic(stage).get(language);
     match language {
         Language::English => format!("Stage {stage} · {topic}"),
         Language::Chinese => format!("第 {stage} 阶段 · {topic}"),
+    }
+}
+
+/// What a stage the app holds practises: "Lines and colours", "Single shapes", "Points".
+pub(crate) const fn stage_topic(stage: u8) -> Text {
+    match stage {
+        2 => SINGLE_SHAPES,
+        3 => super::POINTS_STAGE,
+        _ => LINES_AND_COLOURS,
     }
 }
 

@@ -177,6 +177,42 @@ fn crossing(p: [Point; 2], q: [Point; 2]) -> Option<Point> {
     ((0.0..=1.0).contains(&t) && (0.0..=1.0).contains(&u)).then(|| lerp(p[0], p[1], t))
 }
 
+/// Where the lines through `a` and through `b` (each two points) meet; `None` when they are
+/// parallel.
+#[must_use]
+pub fn meet(a: [Point; 2], b: [Point; 2]) -> Option<Point> {
+    let r = [a[1][0] - a[0][0], a[1][1] - a[0][1]];
+    let s = [b[1][0] - b[0][0], b[1][1] - b[0][1]];
+    let across = r[0] * s[1] - r[1] * s[0];
+    if across.abs() < 1e-12 {
+        return None;
+    }
+    let d = [b[0][0] - a[0][0], b[0][1] - a[0][1]];
+    let t = (d[0] * s[1] - d[1] * s[0]) / across;
+    Some(lerp(a[0], a[1], t))
+}
+
+/// The line through `through` along `direction`, from frame edge to frame edge (the frame from 0
+/// to 1 on both axes); `None` when it misses the frame or has no direction.
+#[must_use]
+pub fn across_frame(through: Point, direction: Point) -> Option<[Point; 2]> {
+    let (mut enter, mut leave) = (f64::NEG_INFINITY, f64::INFINITY);
+    for axis in 0..2 {
+        let d = direction[axis];
+        if d.abs() < 1e-12 {
+            if !(0.0..=1.0).contains(&through[axis]) {
+                return None;
+            }
+            continue;
+        }
+        let [t0, t1] = [0.0, 1.0].map(|edge| (edge - through[axis]) / d);
+        enter = enter.max(t0.min(t1));
+        leave = leave.min(t0.max(t1));
+    }
+    let along = |t: f64| [through[0] + t * direction[0], through[1] + t * direction[1]];
+    (enter.is_finite() && enter < leave).then(|| [along(enter), along(leave)])
+}
+
 /// The least distance between the polylines `a` and `b` (0 where they cross).
 #[must_use]
 pub fn apart(a: &[Point], b: &[Point]) -> f64 {
@@ -251,5 +287,24 @@ mod tests {
         assert!(distance(at, [1.0, 0.5]) < 1e-12);
         assert!((heading - std::f64::consts::FRAC_PI_2).abs() < 1e-12);
         assert_eq!(along(&[[0.2, 0.2]], 0.5), None);
+    }
+
+    #[test]
+    fn lines_meet_and_run_across_the_frame() {
+        let met = meet([[0.0, 0.0], [1.0, 1.0]], [[0.0, 1.0], [1.0, 0.0]]).expect("they meet");
+        assert!(distance(met, [0.5, 0.5]) < 1e-12);
+        assert_eq!(
+            meet([[0.0, 0.0], [1.0, 0.0]], [[0.0, 1.0], [1.0, 1.0]]),
+            None
+        );
+        let level = across_frame([0.3, 0.4], [2.0, 0.0]).expect("across");
+        assert_eq!(level, [[0.0, 0.4], [1.0, 0.4]]);
+        let [a, b] = across_frame([0.5, 0.5], [1.0, 1.0]).expect("the diagonal");
+        assert!(distance(a, [0.0, 0.0]) < 1e-12 && distance(b, [1.0, 1.0]) < 1e-12);
+        assert_eq!(
+            across_frame([0.5, 1.5], [1.0, 0.0]),
+            None,
+            "below the frame"
+        );
     }
 }

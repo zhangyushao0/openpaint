@@ -4,11 +4,12 @@
 //! to Aligned and back to In place, Compare taken away, and Compare again with Aligned chosen: the
 //! time from the tap to the frame showing the aligned fit (S88); Next three times, the view gliding
 //! to the next pair; in a session holding combined lines (stage 1), on to the first group, its
-//! lines drawn along the original and compared aligned likewise; then, in a session holding single
-//! shapes (stage 2), on to its first shape: an outline drawn, Compare, Aligned (its fit found off
+//! lines drawn along the original and compared aligned likewise; in stage 3, its first point,
+//! angle and point in space marked and compared (`practice_points.rs`); then, in a session holding
+//! single shapes, on to its first shape: an outline drawn, Compare, Aligned (its fit found off
 //! the frame loop), In place, Compare taken away and compared aligned likewise; on to its colour
-//! combination: Fill frame, a stroke, Compare (its copy read back), another
-//! area, the original shown dragged, Compare taken away; on to its perspective: a box's edges or
+//! combination: Fill frame, a stroke, Compare (its copy read back), another area, the original
+//! shown dragged, Compare taken away; on to its perspective: a box's edges or
 //! free boxes' drawn, Compare (the edges found and extended, at once on the frame loop) and taken
 //! away, an ellipse's loop, Compare and taken away; then, the session taken on to its next colour
 //! (if one is left), the inline wheel's square dragged round, Fill frame and Compare (the colours
@@ -70,6 +71,7 @@ impl Runtime {
             lines.push(format!("next {next}: {line}"));
         }
         self.bench_group(lines)?;
+        self.bench_points(lines)?;
         // Stage 2's shapes come before its colour work, its perspective after it.
         self.bench_shape(lines)?;
         self.bench_combination(lines)?;
@@ -106,7 +108,7 @@ impl Runtime {
 
     /// Next until an exercise of `family` shows, its instructions closed and the hand at rest;
     /// false when none comes after the one shown.
-    fn bench_on_to(&mut self, family: Family) -> Result<bool, RuntimeError> {
+    pub(super) fn bench_on_to(&mut self, family: Family) -> Result<bool, RuntimeError> {
         use openpaint_practice::Original;
         let shown = |runtime: &Self| runtime.projection().practice().and_then(|p| p.family);
         let of = |original: &Original| match original {
@@ -114,6 +116,8 @@ impl Runtime {
             Original::Box(_) => Some(Family::Box),
             Original::FreeBoxes(_) => Some(Family::FreeBoxes),
             Original::Ellipse(_) => Some(Family::Ellipse),
+            Original::Flat(flat) => Some(flat.estimate().family()),
+            Original::Space(task) => Some(task.trick.family()),
             _ => None,
         };
         let holds = (self.projection().practice()).is_some_and(|p| {

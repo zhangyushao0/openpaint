@@ -13,8 +13,8 @@ use std::sync::Arc;
 
 use openpaint_core::Color;
 use openpaint_practice::{
-    AreasCopy, BoxCheck, EllipseCheck, ExerciseResult, Family, FreeCheck, KindSummary, Original,
-    Pack, Pair, Point, Rgb8, ScaleCheck, SessionRecord, Sheet,
+    AreasCopy, BoxCheck, EllipseCheck, ExerciseResult, Family, FlatCheck, FreeCheck, KindSummary,
+    Original, Pack, Pair, Point, Rgb8, ScaleCheck, SessionRecord, Sheet, SpaceCheck,
 };
 
 use crate::layer_rules::LayerRefusal;
@@ -274,4 +274,8 @@ pub enum Overlay {
     FreeBoxes(Arc<FreeCheck>),
     /// An ellipse: the exact one and the one fitted to the copy's lines, and their differences.
     Ellipse(Arc<EllipseCheck>),
+    /// An estimate on the flat: the last mark or line read (frame units) and its error.
+    Flat(Arc<FlatCheck>),
+    /// A point in space: the last mark or lines read (frame units) and the error on the face.
+    Space(Arc<SpaceCheck>),
 }

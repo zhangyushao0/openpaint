@@ -2,9 +2,10 @@
 //! side by side, so a missing translation does not compile and each Chinese line sits beside the
 //! English it renders; the tables are split by where the words show (`common.rs`, `canvas.rs`,
 //! `layers.rs`, `brushes.rs`, `colour.rs`, `gallery.rs`, `notices.rs`, `practice.rs`,
-//! `practice_colour.rs`, `practice_options.rs`, `practice_perspective.rs`, `practice_book.rs`),
-//! words made with numbers are functions beside them. Screens write no words of their own
-//! (`cargo repo-check` refuses a capitalised literal under `crates/ui/src` outside this module).
+//! `practice_colour.rs`, `practice_options.rs`, `practice_perspective.rs`, `practice_points.rs`,
+//! `practice_book.rs`), words made with numbers are functions beside them. Screens write no words
+//! of their own (`cargo repo-check` refuses a capitalised literal under `crates/ui/src` outside
+//! this module).
 //!
 //! The English is a control's name too: the control map registers it whichever language shows
 //! (D48), so scenarios, benches and device chores name controls alike in both. A name the user
@@ -35,6 +36,7 @@ mod practice_book;
 mod practice_colour;
 mod practice_options;
 mod practice_perspective;
+mod practice_points;
 
 pub(crate) use brushes::*;
 pub(crate) use canvas::*;
@@ -49,6 +51,7 @@ pub(crate) use practice_book::*;
 pub(crate) use practice_colour::*;
 pub(crate) use practice_options::*;
 pub(crate) use practice_perspective::*;
+pub(crate) use practice_points::*;
 
 pub use openpaint_app::Language;
 
@@ -207,6 +210,8 @@ mod tests {
             PRACTICE_OPTIONS_TABLE,
             PRACTICE_PERSPECTIVE,
             PRACTICE_PERSPECTIVE_STEPS,
+            PRACTICE_POINTS,
+            PRACTICE_POINTS_STEPS,
         ];
         let han = |c: char| ('\u{4e00}'..='\u{9fff}').contains(&c);
         for text in tables.concat() {

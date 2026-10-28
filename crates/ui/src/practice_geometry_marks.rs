@@ -28,10 +28,10 @@ use crate::text::{self as t, Words};
 
 /// A ring's radius round a vanishing point or a middle, in points; a mark's line and the paper's
 /// halo under it; a faint line's.
-const RING: f32 = 7.0;
-const MARK: f32 = 2.0;
+pub(crate) const RING: f32 = 7.0;
+pub(crate) const MARK: f32 = 2.0;
 const HALO: f32 = 3.0;
-const FAINT: f32 = 1.25;
+pub(crate) const FAINT: f32 = 1.25;
 /// Dashes and gaps, in points.
 const DASH: f32 = 7.0;
 const GAP: f32 = 5.0;
@@ -42,7 +42,7 @@ const PIECES: usize = 96;
 const LABEL: f32 = 11.0;
 
 /// Canvas points to the screen.
-type At<'a> = &'a dyn Fn([f64; 2]) -> Pos2;
+pub(crate) type At<'a> = &'a dyn Fn([f64; 2]) -> Pos2;
 
 /// Exercise `index`'s original and givens in its two frames; an original's line `width` points
 /// wide, `scale` points to a canvas pixel.
@@ -105,7 +105,12 @@ pub(crate) fn show_original(
 }
 
 /// The horizon at `height` across `frame`, labelled small at its left.
-fn horizon(painter: &egui::Painter, (frame, height): (&Frame, f64), at: At<'_>, scale: f32) {
+pub(crate) fn horizon(
+    painter: &egui::Painter,
+    (frame, height): (&Frame, f64),
+    at: At<'_>,
+    scale: f32,
+) {
     let ends = [[0.0, height], [1.0, height]];
     segment(painter, frame, ends, at, Stroke::new(FAINT, INK_SECONDARY));
     let label = Words::from(t::HORIZON).shown(painter.ctx());
@@ -313,7 +318,13 @@ fn ellipse(painter: &egui::Painter, frame: &Frame, e: &Ellipse, at: At<'_>, stro
 }
 
 /// The line from `a` to `b` (frame units) of `frame`.
-fn segment(painter: &egui::Painter, frame: &Frame, [a, b]: [Point; 2], at: At<'_>, stroke: Stroke) {
+pub(crate) fn segment(
+    painter: &egui::Painter,
+    frame: &Frame,
+    [a, b]: [Point; 2],
+    at: At<'_>,
+    stroke: Stroke,
+) {
     painter.add(Shape::line_segment(
         [a, b].map(|p| at(frame.to_canvas(p))),
         stroke,
@@ -321,13 +332,19 @@ fn segment(painter: &egui::Painter, frame: &Frame, [a, b]: [Point; 2], at: At<'_
 }
 
 /// The line through `points` (frame units) of `frame`, dashed.
-fn dashed(painter: &egui::Painter, frame: &Frame, points: &[Point], at: At<'_>, stroke: Stroke) {
+pub(crate) fn dashed(
+    painter: &egui::Painter,
+    frame: &Frame,
+    points: &[Point],
+    at: At<'_>,
+    stroke: Stroke,
+) {
     let path: Vec<Pos2> = points.iter().map(|p| at(frame.to_canvas(*p))).collect();
     painter.extend(Shape::dashed_line(&path, stroke, DASH, GAP));
 }
 
 /// A ring at `centre` (screen) over the paper's halo.
-fn ring(painter: &egui::Painter, centre: Pos2, colour: egui::Color32) {
+pub(crate) fn ring(painter: &egui::Painter, centre: Pos2, colour: egui::Color32) {
     painter.circle_stroke(centre, RING, Stroke::new(MARK + HALO, PANEL));
     painter.circle_stroke(centre, RING, Stroke::new(MARK, colour));
 }

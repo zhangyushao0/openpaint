@@ -45,9 +45,40 @@ fn a_session_round_trips_and_damage_is_refused() {
         "a key without its id"
     );
     let mut unknown = bytes.clone();
-    // The first exercise's kind, after the session's fixed fields and the count: none of 1.7.0's.
-    unknown[1 + 4 + 8 * 4 + 4 + 4] = 11;
+    // The first exercise's kind, after the session's fixed fields and the count: none of 1.8.0's.
+    unknown[1 + 4 + 8 * 4 + 4 + 4] = 13;
     assert!(decode_session(&key, &unknown).is_err());
+}
+
+#[test]
+fn estimates_and_points_in_space_round_trip_with_their_errors() {
+    use openpaint_practice::{Estimate, Plan, Trick};
+    let kinds = [
+        Kind::Flat(Estimate::Point),
+        Kind::Flat(Estimate::Angle),
+        Kind::Space(Trick::Mirror),
+    ];
+    let plan = Plan {
+        exercises: (kinds.iter()).map(|k| Exercise::generated(*k, 8)).collect(),
+        warm_up: 0,
+    };
+    let mut session = SessionRecord::begun(12, (3, 1), (15, 16), plan);
+    let point = [(Metric::PointAcross, -0.031), (Metric::PointDown, 0.012)];
+    (session.results).push(ExerciseResult::first(0, 17, 3, point.to_vec()));
+    (session.results).push(ExerciseResult::first(
+        1,
+        18,
+        5,
+        vec![(Metric::AngleOff, 4.5)],
+    ));
+    (session.results).push(ExerciseResult::first(
+        2,
+        19,
+        9,
+        vec![(Metric::SpaceOff, 0.07)],
+    ));
+    let bytes = encode_session(&session);
+    assert_eq!(read(&practice_key(12), &bytes), Ok(session));
 }
 
 #[test]

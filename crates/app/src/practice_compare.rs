@@ -9,25 +9,19 @@
 //! a copy no fit can be found for is shown in place in both. A colour's swatch and the colours
 //! laid swap frames. A painted copy (a colour combination, a value scale, a colour copy) has its
 //! original over it in place as strong as the user sets, and is read from its pixels
-//! (`practice_read.rs`). A box's or an ellipse's copy is checked as geometry (S84): its straight
-//! edges found in the drawn lines (a correction in place of the edge it redraws) and extended
-//! towards the exact box's vanishing points or a free page's horizon, its ellipse fitted to the
-//! lines (to the corrections once there are some) against the exact one; at once, in well under
-//! a millisecond, so on the frame loop.
+//! (`practice_read.rs`). A box's, an ellipse's, an estimate's or a point in space's copy is
+//! checked as geometry against its exact answer, at once on the frame loop
+//! (`practice_checks.rs`).
 //!
 //! The first Compare stores the exercise's result: when, the sheet's next stroke id (every stroke
 //! in the frame from it on is a correction) and a colour's numbers (a painted copy's when its
-//! pixels arrive), which judge the eye before the answer was seen; every later one counts. A
-//! drawn exercise's pen turns blue. Anything laid in the frame afterwards takes the comparison
-//! away: corrections are made by eye.
-
-use std::ops::Range;
-use std::sync::Arc;
+//! pixels arrive) or an estimate's or a point in space's error, which judge the eye before the
+//! answer was seen; every later one counts. A drawn exercise's pen turns blue. Anything laid in
+//! the frame afterwards takes the comparison away: corrections are made by eye.
 
 use openpaint_core::{Artwork, RegionMask};
 use openpaint_practice::{
-    BoxCheck, Edge, EllipseCheck, EllipseGuide, ExerciseResult, Family, Fit, Frame, FreeCheck,
-    Metrics, Original, Point, Rgb8, corrected, edges, score_colour,
+    ExerciseResult, Family, Fit, Frame, Metrics, Original, Point, Rgb8, score_colour,
 };
 
 use super::read::{CopyRead, Reading};
@@ -98,7 +92,7 @@ impl PracticeSheet {
         {
             Some(result) => result.compares = result.compares.saturating_add(1),
             None => {
-                let metrics = self.numbers(artwork, index);
+                let metrics = self.numbers(artwork, index, &compared);
                 let index = u32::try_from(index).unwrap_or(u32::MAX);
                 let next = artwork.next_stroke_id();
                 (self.record.results).push(ExerciseResult::first(index, now, next, metrics));
@@ -137,60 +131,14 @@ impl PracticeSheet {
             _ if !holds_copy(artwork, frame) => return Err(nothing()),
             Original::Areas(_) | Original::Scale(_) => Compared::Painted(self.ask_read(index)),
             Original::Picture(_) if !self.drawn(index) => Compared::Painted(Reading::Shown),
-            Original::Box(exact) => {
-                let found = self.edges_in(index, artwork, frame);
-                Compared::Checked(Overlay::Box(Arc::new(BoxCheck::of(exact, &found))))
-            }
-            Original::FreeBoxes(page) => {
-                let found = self.edges_in(index, artwork, frame);
-                let check = FreeCheck::of(page.horizon, &found);
-                Compared::Checked(Overlay::FreeBoxes(Arc::new(check)))
-            }
-            Original::Ellipse(guide) => {
-                let check = self.ellipse_in(index, guide, (artwork, frame));
-                Compared::Checked(Overlay::Ellipse(Arc::new(check)))
-            }
             Original::Lines(_) | Original::Picture(_) => {
                 Compared::Drawn(self.ask_fit(index, artwork, frame))
             }
+            geometry => {
+                let checked = self.checked(index, geometry, (artwork, frame));
+                Compared::Checked(checked.ok_or_else(nothing)?)
+            }
         })
-    }
-
-    /// The straight edges of exercise `index`'s copy drawn in `frame` (the sketch pen's
-    /// construction left out), a correction in place of the edge it redraws.
-    fn edges_in(&self, index: usize, artwork: &Artwork, frame: &Frame) -> Vec<Edge> {
-        let found = |ids: Range<u64>| {
-            let pieces = line_pieces(artwork, frame, ids);
-            let lines: Vec<&[Point]> = pieces.iter().map(Vec::as_slice).collect();
-            edges(&lines)
-        };
-        match self.corrected_from(index) {
-            Some(since) => corrected(found(0..since), found(since..u64::MAX)),
-            None => found(ALL_STROKES),
-        }
-    }
-
-    /// The ellipse drawn in `frame` against `guide`: the corrections once there are some (the
-    /// latest try, not one averaged with the first), else every line drawn.
-    fn ellipse_in(
-        &self,
-        index: usize,
-        guide: &EllipseGuide,
-        (artwork, frame): (&Artwork, &Frame),
-    ) -> EllipseCheck {
-        let pieces = |ids: Range<u64>| line_pieces(artwork, frame, ids);
-        let corrections = self
-            .corrected_from(index)
-            .map(|since| pieces(since..u64::MAX));
-        let drawn = (corrections.filter(|pieces| !pieces.is_empty()))
-            .unwrap_or_else(|| pieces(ALL_STROKES));
-        let lines: Vec<&[Point]> = drawn.iter().map(Vec::as_slice).collect();
-        EllipseCheck::of(guide, &lines)
-    }
-
-    /// The first stroke id of exercise `index`'s corrections, once it was compared.
-    fn corrected_from(&self, index: usize) -> Option<u64> {
-        (self.record.result(index)).and_then(|result| result.corrected_from)
     }
 
     /// Whether Compare is offered on exercise `current` of `artwork`: once it holds a copy or was
@@ -253,13 +201,16 @@ impl PracticeSheet {
         self.fit_job.take()
     }
 
-    /// A colour's numbers now; a drawn exercise has none, a painted one's come with its pixels.
-    fn numbers(&self, artwork: &Artwork, index: usize) -> Metrics {
+    /// A colour's numbers now, or an estimate's or a point in space's error as `compared` found
+    /// it; other drawn exercises have none, a painted one's come with its pixels.
+    fn numbers(&self, artwork: &Artwork, index: usize, compared: &Compared) -> Metrics {
         let frame = self.sheet.pairs[index].copy;
-        match &self.sheet.originals[index] {
-            Original::Colour(rgb) => (score_colour(*rgb, &colour_copy(artwork, &frame)))
+        match (compared, &self.sheet.originals[index]) {
+            (_, Original::Colour(rgb)) => (score_colour(*rgb, &colour_copy(artwork, &frame)))
                 .map(|score| score.metrics())
                 .unwrap_or_default(),
+            (Compared::Checked(Overlay::Flat(check)), _) => check.metrics.clone(),
+            (Compared::Checked(Overlay::Space(check)), _) => check.metrics.clone(),
             _ => Metrics::new(),
         }
     }

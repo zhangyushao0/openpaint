@@ -68,15 +68,16 @@ impl Eye {
     }
 }
 
-/// The box whose image corners are `image`, horizon and vanishing points `(horizon, vanishing)`,
-/// sized so its longer side is `size` and moved into the frame: its middle `shift` off the
-/// frame's, or on a page its horizon on the page's and its middle across.
-pub(crate) fn fitted(
-    image: [Point; 8],
-    (horizon, vanishing): (f64, [Option<Point>; 3]),
+/// How the image of a box (its corners `image`, its horizon at `horizon`) is laid in the frame:
+/// made so large that its longer side is `size` (frame units per image unit) and moved by an
+/// offset: its middle `shift` off the frame's, or on a page its horizon on the page's and its
+/// middle across.
+pub(crate) fn framing(
+    image: &[Point; 8],
+    horizon: f64,
     (size, shift): (f64, Point),
     page: Option<Horizon>,
-) -> PerspectiveBox {
+) -> (f64, Point) {
     let low = [0, 1].map(|k| image.iter().map(|p| p[k]).fold(f64::INFINITY, f64::min));
     let high = [0, 1].map(|k| image.iter().map(|p| p[k]).fold(f64::NEG_INFINITY, f64::max));
     let scale = size / (high[0] - low[0]).max(high[1] - low[1]).max(1e-9);
@@ -85,6 +86,18 @@ pub(crate) fn fitted(
         None => [0.5 + shift[0] - middle[0], 0.5 + shift[1] - middle[1]],
         Some(page) => [0.5 + shift[0] - middle[0], page.height() - horizon * scale],
     };
+    (scale, offset)
+}
+
+/// The box whose image corners are `image`, horizon and vanishing points `(horizon, vanishing)`,
+/// laid in the frame as `framing` lays it.
+pub(crate) fn fitted(
+    image: [Point; 8],
+    (horizon, vanishing): (f64, [Option<Point>; 3]),
+    (size, shift): (f64, Point),
+    page: Option<Horizon>,
+) -> PerspectiveBox {
+    let (scale, offset) = framing(&image, horizon, (size, shift), page);
     let map = |p: Point| [p[0] * scale + offset[0], p[1] * scale + offset[1]];
     let corners = image.map(map);
     let horizon = horizon * scale + offset[1];

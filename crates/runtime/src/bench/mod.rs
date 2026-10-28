@@ -36,7 +36,8 @@
 //!   three times, a group of combined lines, a shape and a colour combination compared, a colour
 //!   filled and compared, measured as `ui` measures; a line, a group and a shape compared aligned
 //!   also say when the fit showed after the tap and how long it took on its worker
-//!   (`practice.rs`).
+//!   (`practice.rs`); in stage 3 a point, an angle and a point in space compared
+//!   (`practice_points.rs`).
 //! - `book`: in the gallery, the practice book opened and closed twice, measured as `ui` measures
 //!   (`book.rs`).
 
@@ -56,6 +57,7 @@ mod hand;
 mod motion;
 mod open;
 mod practice;
+mod practice_points;
 mod session;
 mod strokes;
 mod touch;
