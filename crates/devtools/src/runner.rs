@@ -37,8 +37,9 @@ const FRAME_MS: i64 = 16;
 const FOLLOW_UPS: usize = 4;
 /// Longest wait for the storage worker after a step.
 const STORAGE_LIMIT: Duration = Duration::from_secs(10);
-/// Most frames motion may take to settle before a step looks.
-const SETTLE_FRAMES: usize = 240;
+/// Most frames motion may take to settle before a step looks: a How card's demonstration plays
+/// for up to about 10 s (S92).
+const SETTLE_FRAMES: usize = 900;
 /// The seed every stroke's stamps take: fixed, so hashes hold.
 const SEED: u32 = 0x5EED_0045;
 

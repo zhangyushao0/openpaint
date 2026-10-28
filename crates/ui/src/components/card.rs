@@ -3,15 +3,16 @@
 //! the tools an exercise uses beside its frame. It grows out of what asked for it and goes back
 //! into it (D44); it is not modal: the canvas left of it stays the hand's.
 
-use egui::{Align2, Id, Margin, Order, Rect, RichText, Sense, TextStyle, Vec2};
+use egui::{Align2, Color32, Id, Margin, Order, Rect, RichText, Sense, TextStyle, Vec2};
 
 use crate::components::chrome::Source;
 use crate::components::paper::paper;
 use crate::design::{DIALOG_WIDTH, INK, INK_SECONDARY, SPACE, surface_frame};
 use crate::text::Words;
 
-/// Width of a card's number column, in points.
+/// Width of a card's number column, in points; of a step's number.
 const COLUMN: f32 = 96.0;
+const STEP_NUMBER: f32 = 3.0 * SPACE;
 
 /// Shows the card `id`, one space in from the screen's right with its top `top` points from the
 /// screen's (`UNDER_ISLANDS`, or under another card), grown out of `source`, with
@@ -62,6 +63,31 @@ pub fn card_text<'a>(ui: &mut egui::Ui, text: impl Into<Words<'a>>, quiet: bool)
         RichText::new(text).color(INK)
     };
     ui.label(text);
+}
+
+/// A numbered step of a card (a How card's, S92): its number in a column of its own, its words
+/// wrapped beside it, both in `ink`. Chinese is set as Chinese is.
+pub fn card_step<'a>(ui: &mut egui::Ui, number: usize, text: impl Into<Words<'a>>, ink: Color32) {
+    let text = text.into().shown(ui.ctx());
+    let font = TextStyle::Body.resolve(ui.style());
+    let width = ui.available_width() - STEP_NUMBER;
+    let text = if text.chars().any(is_han) {
+        chinese_lines(ui.ctx(), text, &font, width)
+    } else {
+        text.to_owned()
+    };
+    let galley = ui.painter().layout(text, font.clone(), ink, width);
+    let size = Vec2::new(ui.available_width(), galley.size().y);
+    let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+    let painter = ui.painter();
+    painter.text(
+        rect.left_top(),
+        Align2::LEFT_TOP,
+        number.to_string(),
+        font,
+        ink,
+    );
+    painter.galley(rect.left_top() + Vec2::new(STEP_NUMBER, 0.0), galley, ink);
 }
 
 /// Marks that never begin a line in Chinese typesetting (they stay with what comes before), and

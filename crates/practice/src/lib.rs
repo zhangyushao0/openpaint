@@ -18,6 +18,7 @@ mod book;
 mod colour;
 mod colour_match;
 mod combined;
+mod demo;
 mod drill;
 mod edges;
 mod ellipse;
@@ -66,6 +67,7 @@ pub use colour::{
 };
 pub use colour_match::{ColourCopy, ColourScore, Lightness, Purity, Tone, score_colour};
 pub use combined::{Combination, CombinedLines};
+pub use demo::{Demo, Drawn, Layout, Mark, Marker, On, WIDE_REACH};
 pub use drill::{drill, kinds_of};
 pub use edges::{Edge, SHORTEST, corrected, edges};
 pub use ellipse::{Ellipse, EllipseGuide, Guide};

@@ -18,6 +18,7 @@ use crate::components::{
 };
 use crate::design::SPACE;
 use crate::practice_card;
+use crate::practice_demo::Demonstrations;
 use crate::practice_tools::exercise_tools;
 use crate::taps::push_once;
 use crate::text as t;
@@ -30,6 +31,8 @@ pub(crate) struct PracticeBar {
     card: Option<ScreenArea>,
     /// The word the card last grew out of, in points.
     source: Option<egui::Rect>,
+    /// The How card's demonstrations (S92).
+    demos: Demonstrations,
 }
 
 impl PracticeBar {
@@ -65,8 +68,9 @@ impl PracticeBar {
             })
             .1
         } else if let Some(family) = practice.instructions {
+            let demos = &mut self.demos;
             let (done, rect) = card(ctx, "practice card", opened, |ui| {
-                practice_card::instructions(ui, family)
+                practice_card::instructions(ui, family, demos)
             });
             if done {
                 push_once(taps, Intent::Practice(PracticeIntent::Instructions(false)));
