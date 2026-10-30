@@ -49,9 +49,23 @@ pub(crate) fn compared(
                 probed(ui, probe, STUDY_WHEEL);
             }
         }
+        // Value masses (S96): the slider; the answer's edges and hatching speak.
+        Some(Overlay::Masses { shown, read, .. }) => {
+            shown_slider(ui, *shown, taps);
+            if read.is_none() {
+                card_text(ui, t::READING_COPY, true);
+            }
+        }
         _ => return false,
     }
     true
+}
+
+/// A whole copy's point the eyedropper compared, where its colour blocks were painted (S96).
+pub(crate) fn whole_copy_probe(ui: &mut egui::Ui, practice: &PracticeProjection) {
+    if let Some(probe) = practice.probe {
+        probed(ui, probe, STUDY_WHEEL);
+    }
 }
 
 /// How strongly the original shows over the copy (a division's and a whole copy's too, S95).

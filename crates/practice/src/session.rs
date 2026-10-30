@@ -202,23 +202,27 @@ impl<'a> Picker<'a> {
         }
     }
 
-    /// `kinds` (divisions and whole copies) with compositions of their tiers; none without a
-    /// composition.
+    /// `kinds` (divisions, whole copies and value masses) with compositions of their tiers (value
+    /// masses' among those whose masses read); none without such a composition.
     pub(crate) fn compositions(&mut self, kinds: &[Kind]) -> Vec<(Kind, Option<ItemRef>)> {
         let mut picked = Vec::new();
         for kind in kinds {
-            let (Kind::Division(tier) | Kind::WholeCopy(tier)) = *kind else {
+            let (Kind::Division(tier) | Kind::WholeCopy(tier) | Kind::ValueMasses(tier)) = *kind
+            else {
                 continue;
             };
+            let massed = matches!(kind, Kind::ValueMasses(_));
             let pictures = self.before.pictures;
             let shown = (&self.shown, &self.recent);
-            let Some((tier, item)) = pictures.pick_composition(tier, &mut self.random, shown)
+            let Some((tier, item)) =
+                pictures.pick_composition((tier, massed), &mut self.random, shown)
             else {
                 continue;
             };
             self.shown.insert(item.clone());
             let kind = match kind {
                 Kind::Division(_) => Kind::Division(tier),
+                Kind::ValueMasses(_) => Kind::ValueMasses(tier),
                 _ => Kind::WholeCopy(tier),
             };
             picked.push((kind, Some(item)));

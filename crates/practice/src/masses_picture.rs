@@ -2,39 +2,43 @@
 //! before, four samples a pixel where parts meet; each in its colour shading from its top to its
 //! foot (the sky lightening to the horizon, the far hills hazed, the field darker near), with a
 //! slow mottle and a fine grain so it reads as paint rather than flat fills, the crown's mottle
-//! stronger (leaves). A day's colours or an evening's.
+//! stronger (leaves). A day's colours or an evening's. Its values are three clear groups, so its
+//! value masses are known (S96): the sky, the wall and the path light (Oklab lightness 0.77 to
+//! 0.92), the hills and the field middle (0.53 to 0.63), the crown, the roof, the trunk and the
+//! openings dark (0.28 to 0.41), whatever the hues.
 
 use crate::colour::Rgb8;
 use crate::masses::{Masses, Paint, Part, bounds};
 use crate::path::Point;
 use crate::random::Random;
+use crate::value_masses::Value;
 
 /// Each paint's colour at its top and at its foot, by day and in the evening.
 const fn colours(paint: Paint, evening: bool) -> [[f64; 3]; 2] {
     match (paint, evening) {
-        (Paint::Sky, false) => [[118.0, 158.0, 204.0], [206.0, 220.0, 226.0]],
-        (Paint::Sky, true) => [[206.0, 150.0, 124.0], [246.0, 214.0, 168.0]],
-        (Paint::Hills, false) => [[138.0, 154.0, 170.0], [112.0, 128.0, 122.0]],
-        (Paint::Hills, true) => [[150.0, 120.0, 132.0], [118.0, 96.0, 104.0]],
-        (Paint::Field, false) => [[150.0, 158.0, 92.0], [88.0, 102.0, 56.0]],
-        (Paint::Field, true) => [[132.0, 118.0, 74.0], [84.0, 72.0, 52.0]],
-        (Paint::Path, false) => [[196.0, 178.0, 138.0], [176.0, 154.0, 112.0]],
-        (Paint::Path, true) => [[190.0, 158.0, 120.0], [160.0, 126.0, 92.0]],
-        (Paint::Wall, false) => [[232.0, 220.0, 192.0], [208.0, 194.0, 166.0]],
-        (Paint::Wall, true) => [[236.0, 196.0, 154.0], [204.0, 162.0, 126.0]],
-        (Paint::Roof, false) => [[150.0, 74.0, 58.0], [118.0, 58.0, 46.0]],
-        (Paint::Roof, true) => [[120.0, 56.0, 52.0], [96.0, 44.0, 42.0]],
+        (Paint::Sky, false) => [[150.0, 186.0, 222.0], [214.0, 228.0, 236.0]],
+        (Paint::Sky, true) => [[226.0, 180.0, 150.0], [248.0, 218.0, 176.0]],
+        (Paint::Hills, false) => [[126.0, 140.0, 150.0], [112.0, 126.0, 120.0]],
+        (Paint::Hills, true) => [[140.0, 114.0, 124.0], [124.0, 100.0, 108.0]],
+        (Paint::Field, false) => [[128.0, 142.0, 84.0], [106.0, 122.0, 68.0]],
+        (Paint::Field, true) => [[138.0, 122.0, 80.0], [124.0, 108.0, 70.0]],
+        (Paint::Path, false) => [[214.0, 198.0, 160.0], [198.0, 180.0, 140.0]],
+        (Paint::Path, true) => [[214.0, 184.0, 146.0], [204.0, 176.0, 138.0]],
+        (Paint::Wall, false) => [[238.0, 228.0, 204.0], [222.0, 210.0, 184.0]],
+        (Paint::Wall, true) => [[240.0, 206.0, 166.0], [224.0, 186.0, 148.0]],
+        (Paint::Roof, false) => [[110.0, 52.0, 44.0], [90.0, 42.0, 36.0]],
+        (Paint::Roof, true) => [[104.0, 48.0, 46.0], [86.0, 38.0, 36.0]],
         (Paint::Opening, _) => [[62.0, 56.0, 58.0], [52.0, 46.0, 46.0]],
         (Paint::Trunk, _) => [[86.0, 66.0, 48.0], [70.0, 52.0, 38.0]],
-        (Paint::Crown, false) => [[70.0, 104.0, 60.0], [40.0, 68.0, 42.0]],
-        (Paint::Crown, true) => [[72.0, 74.0, 50.0], [46.0, 46.0, 36.0]],
+        (Paint::Crown, false) => [[54.0, 82.0, 48.0], [36.0, 60.0, 38.0]],
+        (Paint::Crown, true) => [[60.0, 62.0, 44.0], [40.0, 42.0, 34.0]],
     }
 }
 
 /// How strongly a part is mottled and grained, 8-bit levels either way.
 const fn texture(paint: Paint) -> (f64, f64) {
     match paint {
-        Paint::Crown => (16.0, 6.0),
+        Paint::Crown => (12.0, 6.0),
         Paint::Field | Paint::Hills => (8.0, 4.0),
         Paint::Sky => (4.0, 1.5),
         _ => (5.0, 3.0),
@@ -71,6 +75,21 @@ impl Masses {
             }
         }
         ([width, height], pixels)
+    }
+
+    /// The value of the part painted at the picture point `p` (picture units, its width 1), and
+    /// whether that part is a detail (a door or a window, the trunk, the roof: too small or thin
+    /// to be a mass a squinting eye keeps, or near the least one); none outside the picture. What
+    /// the value masses of the picture are known to be (S96).
+    #[must_use]
+    pub fn known(&self, p: Point) -> Option<(Value, bool)> {
+        let part = self
+            .parts
+            .iter()
+            .rev()
+            .find(|part| Laid::of(part).holds(p))?;
+        let detail = matches!(part.paint, Paint::Opening | Paint::Trunk | Paint::Roof);
+        Some((part.paint.value(), detail))
     }
 
     /// The colour the topmost part over `p` paints there.

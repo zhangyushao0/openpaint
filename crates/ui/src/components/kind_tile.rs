@@ -16,7 +16,7 @@ use egui::{Color32, Pos2, Rect, Sense, Shape, Stroke, TextStyle, Vec2, pos2};
 use openpaint_practice::Family;
 
 use crate::components::controls;
-use crate::design::{INK, Outline, PENCIL, SPACE, ink_line, paint_pressed};
+use crate::design::{INK, Outline, PANEL, PENCIL, SPACE, ink_line, paint_pressed};
 use crate::text::Words;
 
 /// A tile's frame, in points; its picture is drawn in as many units.
@@ -105,6 +105,8 @@ enum Mark {
     Line(Vec<[f32; 2]>),
     /// A convex area tinted by a share of the colour.
     Tint(Vec<[f32; 2]>, f32),
+    /// A convex area of paper over what lies under it (a light mass, S96).
+    Paper(Vec<[f32; 2]>),
     Dot([f32; 2]),
     Ring([f32; 2]),
 }
@@ -124,6 +126,10 @@ pub fn paint_kind(painter: &egui::Painter, frame: Rect, family: Family, colour: 
                 let points = corners.into_iter().map(at).collect();
                 let fill = colour.gamma_multiply(share);
                 painter.add(Shape::convex_polygon(points, fill, Stroke::NONE));
+            }
+            Mark::Paper(corners) => {
+                let points = corners.into_iter().map(at).collect();
+                painter.add(Shape::convex_polygon(points, PANEL, Stroke::NONE));
             }
             Mark::Dot(centre) => {
                 painter.circle_filled(at(centre), DOT * scale, colour);
@@ -190,7 +196,7 @@ fn sketch(family: Family) -> Vec<Mark> {
             marks
         }
         Family::Cylinder | Family::Cone | Family::Sphere | Family::Object => solids::solid(family),
-        Family::Division | Family::WholeCopy => pictures::picture(family),
+        Family::Division | Family::WholeCopy | Family::ValueMasses => pictures::picture(family),
     }
 }
 
@@ -347,7 +353,9 @@ mod tests {
             );
             for mark in &marks {
                 let points = match mark {
-                    Mark::Line(points) | Mark::Tint(points, _) => points.clone(),
+                    Mark::Line(points) | Mark::Tint(points, _) | Mark::Paper(points) => {
+                        points.clone()
+                    }
                     Mark::Dot(at) | Mark::Ring(at) => vec![*at],
                 };
                 assert!(points.iter().all(|p| inside(*p)), "{family:?}: {mark:?}");

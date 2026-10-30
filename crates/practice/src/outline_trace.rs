@@ -233,7 +233,7 @@ pub(crate) fn thinned(contour: &[Point], tolerance: f64) -> Vec<Point> {
 }
 
 /// How far `p` lies from the segment from `a` to `b`.
-fn off_segment(p: Point, a: Point, b: Point) -> f64 {
+pub(crate) fn off_segment(p: Point, a: Point, b: Point) -> f64 {
     let d = [b[0] - a[0], b[1] - a[1]];
     let squared = d[0] * d[0] + d[1] * d[1];
     if squared <= 0.0 {

@@ -5,8 +5,9 @@
 //! its licence asks for one, a colour combination's or a value scale's in `practice_paint_marks.rs`,
 //! a box's or an ellipse's in `practice_geometry_marks.rs`, an estimate's or a point in space's in
 //! `practice_points_marks.rs`, a solid's in `practice_solid_marks.rs`, an object's picture and
-//! box in `practice_object_marks.rs`; a division's or whole copy's picture's edge in the copy's
-//! frame and a division's compared lines in `practice_division_marks.rs`).
+//! box in `practice_object_marks.rs`; a division's, whole copy's or value masses' picture's edge
+//! in the copy's frame and a division's compared lines in `practice_division_marks.rs`; value
+//! masses compared in `practice_masses_marks.rs`).
 //! While compared, the original's lines lie over the copy, in place or aligned onto it, as thick as
 //! the pen that drew the copy and in a semi-transparent marking red the ink shows through (S88:
 //! thicker, the red hid an error of a pen's width inside it), a hairline at least however far the
@@ -29,6 +30,7 @@ use crate::components::{Alpha, canvas_point, picture_texture};
 use crate::design::{CORRECTION, DIVIDER, INK, INK_SECONDARY, PANEL_RULE_WIDTH};
 use crate::practice_division_marks as division_marks;
 use crate::practice_geometry_marks as geometry_marks;
+use crate::practice_masses_marks as masses_marks;
 use crate::practice_object_marks as object_marks;
 use crate::practice_paint_marks as paint_marks;
 use crate::practice_points_marks as points_marks;
@@ -273,6 +275,10 @@ fn show_overlay(
             let painted = &pictures.painted;
             paint_marks::show_overlay(painter, practice, overlay, (at, width), painted);
         }
+        (Overlay::Masses { .. }, _) => {
+            let painted = &pictures.painted;
+            masses_marks::show_overlay(painter, practice, overlay, (at, width), painted);
+        }
         (Overlay::Box(_) | Overlay::FreeBoxes(_) | Overlay::Ellipse(_), _) => {
             geometry_marks::show_overlay(painter, practice, overlay, (at, width));
         }
@@ -351,4 +357,9 @@ fn swapped(
 
 pub(crate) fn colour([r, g, b]: Rgb8) -> Color32 {
     Color32::from_rgb(r, g, b)
+}
+
+/// A value's grey (S96).
+pub(crate) fn value_colour(value: openpaint_practice::Value) -> Color32 {
+    colour(value.grey())
 }

@@ -10,6 +10,7 @@
 use crate::division::Level;
 use crate::path::Point;
 use crate::random::Random;
+use crate::value_masses::Value;
 
 /// What a part is painted as.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,6 +24,17 @@ pub(crate) enum Paint {
     Opening,
     Trunk,
     Crown,
+}
+
+impl Paint {
+    /// Its value, as its colours keep it by day and in the evening (`masses_picture.rs`, S96).
+    pub(crate) const fn value(self) -> Value {
+        match self {
+            Self::Sky | Self::Path | Self::Wall => Value::Light,
+            Self::Hills | Self::Field => Value::Middle,
+            Self::Roof | Self::Opening | Self::Trunk | Self::Crown => Value::Dark,
+        }
+    }
 }
 
 /// A part of the picture: its outline (a closed polygon) and what it is painted as.

@@ -22,6 +22,7 @@ mod library;
 mod nested;
 mod pack;
 mod pack_picture;
+mod pack_upgrade;
 mod packs;
 mod practice;
 mod read;

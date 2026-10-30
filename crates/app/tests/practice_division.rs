@@ -36,6 +36,7 @@ fn compositions() -> Pack {
         title: "Test".to_owned(),
         credit: None,
         outline: None,
+        masses: None,
     };
     Pack {
         id: "test-compositions".to_owned(),

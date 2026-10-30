@@ -3,10 +3,12 @@
 //! (none without), and a drill's record: the kinds met and its time and lines count, never as a
 //! session, on the road or in the first picks.
 
+use std::sync::Arc;
+
 use openpaint_practice::{
     Before, Book, DRILL, ExerciseResult, Family, ItemRef, Kind, Metric, Pack, PackItem,
-    PictureKind, Pictures, STAGES, STAGES_READY, Seal, SessionRecord, Span, Tally, Tier, drill,
-    kinds_of, met, sealed,
+    PictureKind, Pictures, STAGES, STAGES_READY, Seal, SessionRecord, Span, Tally, Tier,
+    ValueMasses, drill, kinds_of, met, sealed,
 };
 
 /// 2026-10-05 12:00 UTC, a Monday.
@@ -21,6 +23,7 @@ fn pictures(tiers: &[Tier], personal: Option<Tier>) -> Pictures {
         title: "test".to_owned(),
         credit: None,
         outline: None,
+        masses: None,
     };
     let pack = Pack {
         id: "test-shapes".to_owned(),
@@ -43,9 +46,12 @@ fn pictures(tiers: &[Tier], personal: Option<Tier>) -> Pictures {
     Pictures::of(&packs)
 }
 
-/// A composition pack of four pictures of each of `tiers`.
+/// A composition pack of four pictures of each of `tiers`, the last of each whose value masses do
+/// not read (S96).
 fn compositions(tiers: &[Tier]) -> Pack {
+    let masses = ValueMasses::checked([2, 2], vec![0, 1, 2, 1]).map(Arc::new);
     let item = |id: String, tier: Tier| PackItem {
+        masses: masses.clone().filter(|_| !id.ends_with("-3")),
         id,
         kind: PictureKind::Composition,
         tier,
@@ -104,6 +110,7 @@ fn each_kind_s_drill_holds_that_kind_only_as_many_as_the_slice_says() {
         (Family::Sphere, 3),
         (Family::Object, 3),
         (Family::Division, 3),
+        (Family::ValueMasses, 3),
         (Family::WholeCopy, 1),
     ];
     for (family, count) in counts {
@@ -124,6 +131,12 @@ fn each_kind_s_drill_holds_that_kind_only_as_many_as_the_slice_says() {
         .collect();
     assert_eq!(tiles, counts.map(|(family, _)| family));
     assert!((STAGES_READY + 1..=STAGES).all(|stage| kinds_of(stage).is_empty()));
+    // Value masses only of pictures whose masses read (S96), in four drills of three.
+    for number in 1..=4 {
+        let plan = drill(Family::ValueMasses, number, 7, &before(&all, &[])).expect("masses");
+        let items = plan.exercises.iter().filter_map(|e| e.picture.as_ref());
+        assert!(items.clone().count() == 3 && items.into_iter().all(|i| !i.item.ends_with("-3")));
+    }
 }
 
 #[test]

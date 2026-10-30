@@ -43,6 +43,7 @@ fn item(id: &str, tier: Tier, size: [u32; 2], licence: Licence) -> PackItem {
             notes: "one clear outline".to_owned(),
         }),
         outline: None,
+        masses: None,
     }
 }
 

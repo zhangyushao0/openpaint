@@ -9,7 +9,7 @@ use openpaint_app::ImageFormat;
 use openpaint_practice::{PictureKind, Tier};
 use openpaint_store::{encode_image, encode_pack, open_pack};
 
-use super::build::{Outlined, build};
+use super::build::{Massed, Outlined, build};
 use super::fetch::{Fetcher, cache_name};
 use super::list::SourceList;
 use super::nga::table_name;
@@ -179,11 +179,24 @@ fn a_composition_pack_takes_every_new_source_and_derives_no_outline() {
     let again = build(&list, &fetcher, &no_segment).expect("built again");
     assert!(encode_pack(&again.pack, &again.pictures).expect("encoded") == bytes);
     assert!(built.outlines.iter().all(|o| *o == Outlined::Never));
+    // Every composition's value masses made and kept (S96).
+    assert!(built.masses.iter().all(|m| *m == Massed::Kept));
 
     let (opened, _) = open_pack(&bytes).expect("a whole pack");
     assert!(
         (opened.items.iter()).all(|i| i.kind == PictureKind::Composition && i.outline.is_none())
     );
+    assert!(opened.items.iter().all(|i| i.masses.is_some()));
+    // One listed `no_masses`: made for the sheet, never in the pack.
+    let marked = LIST.replacen(
+        "licence = \"CC0\"",
+        "licence = \"CC0\"\nno_masses = \"a test\"",
+        1,
+    );
+    let marked = SourceList::parse(&marked).expect("the list");
+    let built = build(&marked, &fetcher, &no_segment).expect("built");
+    assert!(matches!(&built.masses[0], Massed::Listed { why, .. } if why == "a test"));
+    assert!(built.pack.items[0].masses.is_none() && built.pack.items[1].masses.is_some());
     let credits: Vec<String> = (opened.items.iter())
         .map(|item| {
             let credit = item.credit.as_ref().expect("credited");
@@ -284,6 +297,8 @@ fn a_composition_list_refuses_an_outline_mark_entry_and_frames_off_commons() {
         "licence = \"CC0\"\nno_outline = \"a test\"",
     );
     assert!(why.contains("its kind never has an outline"), "{why}");
+    let why = refused("licence = \"CC0\"", "licence = \"CC0\"\nno_masses = \" \"");
+    assert!(why.contains("no value masses and says not why"), "{why}");
     let why = refused("object = \"64818\"", "object = \"64818\"\nat = 3");
     assert!(why.contains("a frame comes from Commons"), "{why}");
     let why = refused("at = 120", "at = -1");

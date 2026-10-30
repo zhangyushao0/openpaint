@@ -6,13 +6,14 @@
 //! later, and a soft one for soft edges (V大: a big brush first, smaller as the copy goes on).
 //! For a division and a whole copy's division (S95), the ink pen in V大's three colours: the main
 //! lines red, the second level green, the third blue; a stroke's level is read back from them.
-//! Each is a built-in brush as its file has it (the user's edits never reach them) at a size of
-//! its own; the toolbox is not touched.
+//! For value masses (S96), opaque paint in the three greys, dark, middle and light, a size for
+//! big masses. Each is a built-in brush as its file has it (the user's edits never reach them) at
+//! a size of its own; the toolbox is not touched.
 
 use std::sync::Arc;
 
 use openpaint_core::{Color, CoreError, StrokeStyle};
-use openpaint_practice::Level;
+use openpaint_practice::{Level, Value};
 
 use crate::brushes::{BrushKey, BrushLibrary};
 use crate::practice::Pen;
@@ -29,6 +30,8 @@ const CORRECT: (&str, f32, f32, [f32; 3]) = ("ink-pen", INK_DIAMETER, 1.0, [0.12
 const BIG: (&str, f32, f32, [f32; 3]) = ("opaque-paint", 64.0, 1.0, [0.5; 3]);
 const SMALL: (&str, f32, f32, [f32; 3]) = ("opaque-paint", 20.0, 1.0, [0.5; 3]);
 const SOFT: (&str, f32, f32, [f32; 3]) = ("soft-brush", 100.0, 0.8, [0.5; 3]);
+/// Value masses' pens: opaque paint, big for masses, in each value's grey.
+const VALUE: (&str, f32, f32) = ("opaque-paint", 24.0, 1.0);
 
 /// The pens' styles.
 #[derive(Debug, Clone, PartialEq)]
@@ -41,11 +44,22 @@ pub struct PracticePens {
     soft: StrokeStyle,
     /// A division's levels' (S95): the ink pen as Draw's, in each level's colour.
     levels: [StrokeStyle; 3],
+    /// Value masses' greys (S96), dark, middle, light.
+    values: [StrokeStyle; 3],
 }
 
 /// A division's level's colour as a stroke holds it.
 fn level_colour(level: Level) -> Result<Color, CoreError> {
     let [r, g, b] = level.colour().map(|c| f32::from(c) / 255.0);
+    Color::rgb(r, g, b)
+}
+
+/// A value's grey as a stroke or a fill holds it (S96).
+///
+/// # Errors
+/// Never for the three greys.
+pub fn value_colour(value: Value) -> Result<Color, CoreError> {
+    let [r, g, b] = value.grey().map(|c| f32::from(c) / 255.0);
     Color::rgb(r, g, b)
 }
 
@@ -73,6 +87,11 @@ impl PracticePens {
             let recipe = Arc::clone(draw.recipe());
             StrokeStyle::new(recipe, draw.size(), draw.opacity(), level_colour(level)?)
         };
+        let (key, size, opacity) = VALUE;
+        let grey = |value: Value| {
+            let rgb = value.grey().map(|c| f32::from(c) / 255.0);
+            style((key, size, opacity, rgb))
+        };
         Ok(Self {
             sketch: style(SKETCH)?,
             correct: style(CORRECT)?,
@@ -83,6 +102,11 @@ impl PracticePens {
                 level(Level::Main)?,
                 level(Level::Second)?,
                 level(Level::Third)?,
+            ],
+            values: [
+                grey(Value::Dark)?,
+                grey(Value::Middle)?,
+                grey(Value::Light)?,
             ],
             draw,
         })
@@ -100,6 +124,9 @@ impl PracticePens {
             Pen::Main => &self.levels[0],
             Pen::Second => &self.levels[1],
             Pen::Third => &self.levels[2],
+            Pen::Dark => &self.values[0],
+            Pen::Middle => &self.values[1],
+            Pen::Light => &self.values[2],
         }
     }
 

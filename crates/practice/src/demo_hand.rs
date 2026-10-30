@@ -1,7 +1,24 @@
-//! How a demonstration's hand marks a line (`demo.rs`): a short tick across it, and a copy of it
-//! that strays a little as a hand's does.
+//! How a demonstration's hand marks a line (`demo.rs`): a line through two points, a short tick
+//! across it, and a copy of it that strays a little as a hand's does; and how far an example
+//! lies off the frame's middle.
 
+use super::{Drawn, bounds};
 use crate::path::{Point, distance, length};
+
+/// The line through `a` and `b`, two points.
+pub(crate) fn line(a: Point, b: Point) -> Drawn {
+    Drawn::Line(vec![a, b])
+}
+
+/// How far the middle of `points`' bounds lies from the frame's middle.
+pub(crate) fn off_middle(points: &[Point]) -> f64 {
+    bounds(points).map_or(0.0, |[low, high]| {
+        distance(
+            [(low[0] + high[0]) / 2.0, (low[1] + high[1]) / 2.0],
+            [0.5, 0.5],
+        )
+    })
+}
 
 /// A short tick across the point `at` of a line heading `towards`, `half` long either side.
 pub(crate) fn tick(at: Point, towards: Point, half: f64) -> Vec<Point> {

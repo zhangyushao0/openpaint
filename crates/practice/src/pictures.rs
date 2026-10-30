@@ -5,7 +5,8 @@
 //! some, the easier first. The user's own pictures take one place in every stage-2 session, once
 //! the session's tiers reach theirs (S83: the tier the user chose for each). A composition is
 //! picked alike among those not shown in the last ten sessions, one of those only when none other
-//! is left, never one the session holds already while another is left.
+//! is left, never one the session holds already while another is left; for value masses (S96)
+//! only among those whose masses read (the pack holds them).
 
 use std::collections::HashSet;
 
@@ -19,8 +20,9 @@ pub struct Pictures {
     official: Vec<(Tier, ItemRef)>,
     /// The user's own with the tiers chosen for them, oldest first.
     personal: Vec<(Tier, ItemRef)>,
-    /// The packs' compositions with their tiers (S95).
+    /// The packs' compositions with their tiers (S95), and those whose value masses read (S96).
     compositions: Vec<(Tier, ItemRef)>,
+    massed: Vec<(Tier, ItemRef)>,
 }
 
 impl Pictures {
@@ -35,7 +37,12 @@ impl Pictures {
                     item: item.id.clone(),
                 };
                 match item.kind {
-                    PictureKind::Composition => pictures.compositions.push((item.tier, named)),
+                    PictureKind::Composition => {
+                        if item.masses.is_some() {
+                            pictures.massed.push((item.tier, named.clone()));
+                        }
+                        pictures.compositions.push((item.tier, named));
+                    }
                     PictureKind::Shape if pack.personal() => {
                         pictures.personal.push((item.tier, named));
                     }
@@ -58,6 +65,12 @@ impl Pictures {
         !self.compositions.is_empty()
     }
 
+    /// Whether there is a composition whose value masses read (S96).
+    #[must_use]
+    pub fn has_masses(&self) -> bool {
+        !self.massed.is_empty()
+    }
+
     /// Whether the user has pictures of their own of `reach` or an easier tier.
     #[must_use]
     pub fn has_personal(&self, reach: Tier) -> bool {
@@ -76,15 +89,21 @@ impl Pictures {
             .or_else(|| self.pick_personal(Tier::Hard, random, used))
     }
 
-    /// A composition of `tier` or of the nearest tier with any, picked by `random` among those
-    /// neither `shown` in the session nor `recent`, then among those not `shown`, then any.
+    /// A composition of `tier` or of the nearest tier with any (one whose value masses read when
+    /// `massed`), picked by `random` among those neither `shown` in the session nor `recent`, then
+    /// among those not `shown`, then any.
     pub(crate) fn pick_composition(
         &self,
-        tier: Tier,
+        (tier, massed): (Tier, bool),
         random: &mut Random,
         (shown, recent): (&HashSet<ItemRef>, &HashSet<ItemRef>),
     ) -> Option<(Tier, ItemRef)> {
-        nearest(&self.compositions, tier, |of| {
+        let from = if massed {
+            &self.massed
+        } else {
+            &self.compositions
+        };
+        nearest(from, tier, |of| {
             let fresh: Vec<&ItemRef> = (of.iter().copied())
                 .filter(|item| !shown.contains(*item) && !recent.contains(*item))
                 .collect();

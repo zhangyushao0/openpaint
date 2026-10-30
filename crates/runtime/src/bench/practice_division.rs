@@ -3,8 +3,10 @@
 //! Second and two short lines with Third drawn by the pen, then Compare opened (its lines read,
 //! joined and counted at once on the frame loop, the picture laid faint under them) and closed; on
 //! to its whole copy: two main lines, then Draw (the division dims: its layer amended), two lines
-//! drawn over it, Compare opened (the division hidden, the picture over the copy), the slider
-//! dragged, Compare closed: a line each.
+//! drawn over it, Big (the wheel shows, the colour blocks' layer made), Fill frame and a block
+//! painted (S96), Compare opened (the division hidden, the picture over the copy), the slider
+//! dragged, Compare closed: a line each; in a session holding value masses instead, those
+//! (`practice_masses.rs`).
 
 use openpaint_app::{Intent, Pen, PracticeIntent};
 use openpaint_practice::Family;
@@ -47,8 +49,8 @@ impl Runtime {
             }
         }
         if !self.bench_on_to(Family::WholeCopy)? {
-            lines.push("no whole copy after this point of the session".to_owned());
-            return Ok(());
+            // Value masses in the sessions without a whole copy (S96).
+            return self.bench_masses(lines);
         }
         for (pen, line) in DIVISION.into_iter().take(2) {
             self.bench_pen_line(pen, line)?;
@@ -58,6 +60,12 @@ impl Runtime {
         for line in [[[0.1, 0.36], [0.9, 0.31]], [[0.1, 0.63], [0.9, 0.67]]] {
             self.bench_pen_line(Pen::Draw, line)?;
         }
+        // Its colour blocks (S96): Big chosen, the wheel shows; the frame filled, a block painted.
+        let line = self.bench_tap("Big", ToolKind::Finger)?;
+        lines.push(format!("whole copy's Big (the wheel shows): {line}"));
+        let line = self.bench_tap("Fill frame", ToolKind::Finger)?;
+        lines.push(format!("whole copy's Fill frame: {line}"));
+        self.bench_pen_line(Pen::Big, [[0.2, 0.7], [0.8, 0.72]])?;
         let line = self.bench_tap("Compare", ToolKind::Finger)?;
         lines.push(format!("whole copy compare opens: {line}"));
         let ([left, top], [width, height]) = self.bench_rect("Original shown")?;
@@ -72,7 +80,11 @@ impl Runtime {
 
     /// `pen` chosen (unmeasured, as a hand's choice between lines) and a line drawn with it
     /// across the shown copy's frame from `a` to `b` (frame units).
-    fn bench_pen_line(&mut self, pen: Pen, [a, b]: [[f64; 2]; 2]) -> Result<(), RuntimeError> {
+    pub(super) fn bench_pen_line(
+        &mut self,
+        pen: Pen,
+        [a, b]: [[f64; 2]; 2],
+    ) -> Result<(), RuntimeError> {
         let chosen = (self.projection().practice()).and_then(|p| p.pen.map(|(pen, _)| pen));
         if chosen != Some(pen) {
             let mut watch = Watch::paced(self);

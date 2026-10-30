@@ -17,6 +17,9 @@
 //! - `no_outline` (a shape only, where it applies): why the item has no outline, its derived
 //!   outline looked at on the contact sheet and judged wrong, or refused by the derivation itself
 //!   (the build fails on a refusal the list does not record). A composition never has one.
+//! - `no_masses` (a composition only, where it applies, S96): why the item has no value masses,
+//!   its answer looked at beside it on the contact sheet and judged not to read as a squinting eye
+//!   sees the picture; it is never offered for value masses. A shape never has them.
 
 use std::collections::HashSet;
 
@@ -86,6 +89,8 @@ struct WrittenItem {
     reason: String,
     #[serde(default)]
     no_outline: Option<String>,
+    #[serde(default)]
+    no_masses: Option<String>,
 }
 
 /// A source list, read and checked.
@@ -110,6 +115,8 @@ pub struct Listed {
     pub reason: String,
     /// Why it has no outline, when it has none.
     pub no_outline: Option<String>,
+    /// Why it has no value masses, when it has none (a composition's, S96).
+    pub no_masses: Option<String>,
 }
 
 impl Listed {
@@ -171,6 +178,13 @@ fn listed(kind: PictureKind, item: WrittenItem) -> Result<Listed, HarnessError> 
         }
         _ => {}
     }
+    match &item.no_masses {
+        Some(_) if !kind.massed() => return Err(wrong("its kind never has value masses")),
+        Some(why) if why.trim().is_empty() => {
+            return Err(wrong("it has no value masses and says not why"));
+        }
+        _ => {}
+    }
     let tier = Tier::of_name(&item.tier).ok_or_else(|| wrong("no such tier"))?;
     if !kind.tiers().contains(&tier) {
         return Err(wrong("its tier is not one its kind takes"));
@@ -190,5 +204,6 @@ fn listed(kind: PictureKind, item: WrittenItem) -> Result<Listed, HarnessError> 
         at: item.at,
         reason: item.reason,
         no_outline: item.no_outline,
+        no_masses: item.no_masses,
     })
 }

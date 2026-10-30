@@ -5,17 +5,14 @@
 //! when the reading does, the first Compare's kept in the record. How much of the original
 //! shows over the copy is the user's (a slider); a combination's card compares one area at a
 //! time, its outline marked on both frames; a value scale is painted a cell at a time, the cell
-//! the pen lands in (Fill fills it, then the next).
-//!
-//! The eyedropper (`pick`): an original not compared yet reads nothing; a compared swatch its
-//! colour; a value scale's given ends their colours; and while a colour combination or a colour
-//! copy is compared, a point of either frame compares the original and the copy there (`Probe`):
-//! the runtime reads the copy's pixel and hands it back (`probed`).
+//! the pen lands in (Fill fills it, then the next); value masses (S96) are read against the
+//! picture's answer. The eyedropper is `practice_pick.rs`.
 
 use std::sync::Arc;
 
-use openpaint_core::Color;
-use openpaint_practice::{Metrics, Original, Point, Rgb8, ScaleCheck};
+use openpaint_practice::{
+    Areas, MassesCheck, Metrics, Original, Point, Rgb8, ScaleCheck, ValueMasses, ValueScale,
+};
 
 use super::{Compared, PracticeSheet, unavailable};
 use crate::error::AppError;
@@ -25,30 +22,46 @@ use crate::practice_pictures::PictureImage;
 use crate::projection::Availability;
 
 /// The copy's frame for the runtime to draw and read, for the Compare numbered `sequence`:
-/// canvas pixels from `origin`, `size` large, read as `original` asks (`run`).
+/// canvas pixels from `origin`, `size` large, read as `read` asks (`run`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReadJob {
     pub sequence: u64,
     pub origin: [u32; 2],
     pub size: [u32; 2],
-    pub original: Original,
+    pub read: ReadAs,
+}
+
+/// What a painted copy is read against.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ReadAs {
+    Areas(Areas),
+    Scale(ValueScale),
+    /// Value masses' answer (S96) and where the picture lies in the frame: its top left and its
+    /// size, frame units.
+    Masses(Arc<ValueMasses>, [Point; 2]),
 }
 
 /// A painted copy as read: a colour combination's areas and the edges where it made a weak
-/// contrast strong, or a value scale's cells checked.
+/// contrast strong, a value scale's cells checked, or value masses' hatching (S96).
 #[derive(Debug, Clone, PartialEq)]
 pub enum CopyRead {
     Areas(Arc<AreasRead>),
     Scale(Arc<ScaleCheck>),
+    Masses(Arc<MassesCheck>),
 }
 
 impl ReadJob {
     /// The copy whose frame's pixels are `pixels` (8-bit RGBA on the sheet's paper) as read, with
-    /// the numbers a first Compare keeps; none for an original that is not painted.
+    /// the numbers a first Compare keeps.
     #[must_use]
     pub fn run(&self, pixels: &PictureImage) -> Option<(CopyRead, Metrics)> {
-        match &self.original {
-            Original::Areas(areas) => {
+        match &self.read {
+            ReadAs::Masses(answer, place) => {
+                let check = answer.read((pixels.size, &pixels.pixels), *place);
+                let metrics = check.metrics.clone();
+                Some((CopyRead::Masses(Arc::new(check)), metrics))
+            }
+            ReadAs::Areas(areas) => {
                 let copy = areas.read(pixels.size, &pixels.pixels, PAPER);
                 let strong = (copy.contrasts.iter())
                     .filter(|c| c.made_strong())
@@ -60,33 +73,13 @@ impl ReadJob {
                     metrics,
                 ))
             }
-            Original::Scale(scale) => {
+            ReadAs::Scale(scale) => {
                 let check = scale.read(pixels.size, &pixels.pixels, PAPER);
                 let metrics = check.metrics();
                 Some((CopyRead::Scale(Arc::new(check)), metrics))
             }
-            _ => None,
         }
     }
-}
-
-/// What the eyedropper reads at a point of a practice sheet.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum PracticePick {
-    /// The canvas, as anywhere.
-    Canvas,
-    /// Nothing: an original not compared yet.
-    Refused,
-    /// A compared swatch's colour, or a value scale's given end.
-    Colour(Color),
-    /// While a colour combination or a colour copy is compared: the copy at `copy` (canvas
-    /// pixels) to be read and compared with the original's colour there; the eyedropper shows
-    /// the original's when the point lies on it.
-    Probe {
-        copy: [f32; 2],
-        original: Color,
-        on_original: bool,
-    },
 }
 
 /// What a painted copy read as.
@@ -115,9 +108,9 @@ pub(super) struct Painting {
     reads: u64,
     since: u64,
     /// The point the eyedropper compares, waiting for the copy's pixel (frame units, the
-    /// original's colour), and the last one compared.
-    probing: Option<(Point, Rgb8)>,
-    probe: Option<Probe>,
+    /// original's colour), and the last one compared (`practice_pick.rs`).
+    pub(super) probing: Option<(Point, Rgb8)>,
+    pub(super) probe: Option<Probe>,
 }
 
 impl Default for Painting {
@@ -134,11 +127,6 @@ impl Default for Painting {
             probe: None,
         }
     }
-}
-
-fn colour(rgb: Rgb8) -> Option<Color> {
-    let [r, g, b] = rgb.map(|c| f32::from(c) / 255.0);
-    Color::rgb(r, g, b).ok()
 }
 
 impl PracticeSheet {
@@ -233,15 +221,29 @@ impl PracticeSheet {
         self.painting_state.probing = None;
     }
 
-    /// The copy of exercise `index` asked of the runtime for Compare.
+    /// The copy of exercise `index` asked of the runtime for Compare; nothing to read where its
+    /// original is no painted one (value masses without their answer: a picture removed).
     pub(super) fn ask_read(&mut self, index: usize) -> Reading {
+        let read = match &self.sheet.originals[index] {
+            Original::Areas(areas) => ReadAs::Areas(areas.clone()),
+            Original::Scale(scale) => ReadAs::Scale(*scale),
+            Original::Picture(_) => {
+                let picture = self.sheet.pictures.get(index).and_then(Option::as_ref);
+                let Some((masses, fit)) = picture.and_then(|p| Some((p.masses.as_ref()?, p.fit)))
+                else {
+                    return Reading::Shown;
+                };
+                ReadAs::Masses(Arc::clone(&masses.answer), [fit.origin, fit.size])
+            }
+            _ => return Reading::Shown,
+        };
         let frame = self.sheet.pairs[index].copy;
         self.painting_state.reads += 1;
         self.painting_state.job = Some(ReadJob {
             sequence: self.painting_state.reads,
             origin: frame.origin.map(|v| v.round().max(0.0) as u32),
             size: frame.size.map(|v| v.round().max(1.0) as u32),
-            original: self.sheet.originals[index].clone(),
+            read,
         });
         Reading::Asked(self.painting_state.reads)
     }
@@ -275,93 +277,6 @@ impl PracticeSheet {
             && *shown == Reading::Asked(sequence)
         {
             *shown = reading.map_or(Reading::Shown, |(reading, _)| reading);
-        }
-    }
-
-    /// The last point the eyedropper compared, while comparing.
-    pub(super) fn probe(&self) -> Option<Probe> {
-        self.compared.as_ref().and(self.painting_state.probe)
-    }
-
-    /// What the eyedropper reads at `point` (canvas pixels).
-    pub(crate) fn pick(&mut self, point: [f32; 2]) -> PracticePick {
-        let point = point.map(f64::from);
-        let revealed = self.revealed();
-        let over = |copy: bool| {
-            (self.sheet.pairs[..revealed].iter()).position(|pair| {
-                let frame = if copy { pair.copy } else { pair.original };
-                frame.contains(point, 0.0)
-            })
-        };
-        if let Some(index) = over(false) {
-            if self.record.result(index).is_none() {
-                self.notice = Some(PracticeNotice::PickAfterCompare);
-                return PracticePick::Refused;
-            }
-            return self.picked(index, point, true);
-        }
-        match over(true) {
-            Some(index) => self.picked(index, point, false),
-            None => PracticePick::Canvas,
-        }
-    }
-
-    /// What the eyedropper reads at the canvas `point` of exercise `index`'s original's frame
-    /// (compared) or its copy's frame.
-    fn picked(&mut self, index: usize, point: Point, on_original: bool) -> PracticePick {
-        let pair = self.sheet.pairs[index];
-        let frame = if on_original {
-            pair.original
-        } else {
-            pair.copy
-        };
-        let at = frame.to_frame(point);
-        let original = match &self.sheet.originals[index] {
-            Original::Colour(rgb) if on_original => Some(*rgb),
-            Original::Scale(scale) if !on_original => {
-                let end = scale
-                    .cell_at(at)
-                    .filter(|cell| *cell == 0 || cell + 1 == scale.cells);
-                let given = end.map(|cell| scale.ends()[usize::from(cell > 0)]);
-                return given
-                    .and_then(colour)
-                    .map_or(PracticePick::Canvas, PracticePick::Colour);
-            }
-            Original::Areas(areas) => Some(areas.colour_at(at, 0.0)),
-            Original::Picture(_) if !self.drawn(index) => self.picture_colour(index, at),
-            _ => None,
-        };
-        let Some((rgb, shown)) = original.and_then(|rgb| Some((rgb, colour(rgb)?))) else {
-            return PracticePick::Canvas;
-        };
-        let painted = !matches!(self.sheet.originals[index], Original::Colour(_));
-        if painted && self.compared.is_some() && self.current() == Some(index) {
-            self.painting_state.probing = Some((at, rgb));
-            PracticePick::Probe {
-                copy: pair.copy.to_canvas(at).map(|v| v as f32),
-                original: shown,
-                on_original,
-            }
-        } else if on_original {
-            PracticePick::Colour(shown)
-        } else {
-            PracticePick::Canvas
-        }
-    }
-
-    /// A colour copy's picture's colour at the frame point `at`, as read for the screen.
-    fn picture_colour(&self, index: usize, at: Point) -> Option<Rgb8> {
-        let picture = self.sheet.pictures.get(index)?.as_ref()?;
-        let (_, image) = self.images.iter().find(|(item, _)| *item == picture.item)?;
-        let [x, y] = picture.fit.to_picture(at);
-        let [w, h] = picture.size.map(f64::from);
-        image.as_ref()?.colour_at([x / w, y / h])
-    }
-
-    /// The runtime read the copy's pixel at the point the eyedropper compares: `copy`.
-    pub(crate) fn probed(&mut self, copy: Rgb8) {
-        if let Some((at, original)) = self.painting_state.probing.take() {
-            self.painting_state.probe = Some(Probe { at, original, copy });
         }
     }
 

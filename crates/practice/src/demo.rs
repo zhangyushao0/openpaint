@@ -12,12 +12,13 @@
 //! pack is needed. The marks reuse what the exercises compute: the generators' exact answers, the
 //! tricks' constructions, the ellipse's middles, the solids' exact outlines (S93), an object's
 //! picture, construction and visible edges (S94), a landscape's picture, its division in V大's
-//! three levels and its line drawing (S95).
+//! three levels and its line drawing (S95), its value masses and a copy of them read (S96).
 
 use crate::colour::Rgb8;
 use crate::division::Level;
-use crate::path::{Point, distance, length};
+use crate::path::{Point, length};
 use crate::plan::Family;
+use crate::value_masses::{Value, ValueMasses};
 
 #[path = "demo_colour.rs"]
 mod colour;
@@ -27,6 +28,8 @@ mod division;
 mod drawn;
 #[path = "demo_hand.rs"]
 mod hand;
+#[path = "demo_masses.rs"]
+mod masses;
 #[path = "demo_objects.rs"]
 mod objects;
 #[path = "demo_points.rs"]
@@ -36,7 +39,7 @@ mod solids;
 #[path = "demo_space.rs"]
 mod space;
 
-pub(crate) use hand::{tick, wobbled};
+pub(crate) use hand::{line, off_middle, tick, wobbled};
 
 /// Seconds before the first mark (the card grows meanwhile), between marks and between steps (a
 /// moment to read the step's words before it draws).
@@ -102,6 +105,9 @@ pub enum Marker {
     Faint,
     /// A division's pen of its level, in V大's colour (S95).
     Level(Level),
+    /// Compare: hatching where a copy's value differs from the answer's, in the answer's grey
+    /// (S96).
+    Hatch(Value),
 }
 
 /// What a mark draws.
@@ -125,6 +131,13 @@ pub enum Drawn {
     Shaded,
     /// The example landscape's picture between its top left and bottom right (frame units, S95).
     Masses([Point; 2]),
+    /// The example's value masses there (S96), the hand's copy's or the answer's, in their greys
+    /// where `shown` (dark, middle, light), the paper elsewhere.
+    Values {
+        rect: [Point; 2],
+        copy: bool,
+        shown: [bool; 3],
+    },
     /// The wheel's pick moved to this colour (hue in degrees, saturation, value).
     Pick([f64; 3]),
     /// A colour ringed on the wheel (hue in degrees, saturation, value), in the pen's colour.
@@ -156,6 +169,8 @@ pub struct Demo {
     /// A whole copy's division (S95): its marks dim from the first time on (Draw chosen) and are
     /// gone from the second (Compare hides them).
     pub dimmed: Option<[f64; 2]>,
+    /// The value masses its `Drawn::Values` marks show (S96): the answer's, then the hand's copy's.
+    pub values: Option<Box<[ValueMasses; 2]>>,
     /// Its marks in the order drawn, given ones first.
     pub marks: Vec<Mark>,
     /// When each step begins, seconds; a step's words are the UI's.
@@ -190,6 +205,7 @@ impl Demo {
             Family::Object => objects::object()?,
             Family::Division => division::division(),
             Family::WholeCopy => division::whole_copy(),
+            Family::ValueMasses => masses::value_masses(),
             Family::Study => return None,
         })
     }
@@ -288,6 +304,7 @@ impl Script {
             object: None,
             masses: None,
             dimmed: None,
+            values: None,
             marks: self.marks,
             steps: self.steps,
             length: from + SHOWING + HOLD,
@@ -346,6 +363,7 @@ fn seconds(pen: Marker, drawn: &Drawn) -> f64 {
         Drawn::Cross(_) => 0.7,
         Drawn::Band { .. } | Drawn::Ringed(_) => 0.55,
         Drawn::Areas(_) | Drawn::Shaded | Drawn::Masses(_) => 0.65,
+        Drawn::Values { .. } => 1.2,
         Drawn::Pick(_) => 1.1,
     }
 }
@@ -367,19 +385,4 @@ pub(crate) fn clearest<T>(
         }
     }
     best
-}
-
-/// How far the middle of `points`' bounds lies from the frame's middle.
-pub(crate) fn off_middle(points: &[Point]) -> f64 {
-    bounds(points).map_or(0.0, |[low, high]| {
-        distance(
-            [(low[0] + high[0]) / 2.0, (low[1] + high[1]) / 2.0],
-            [0.5, 0.5],
-        )
-    })
-}
-
-/// The line through `a` and `b`, two points.
-pub(crate) fn line(a: Point, b: Point) -> Drawn {
-    Drawn::Line(vec![a, b])
 }

@@ -21,6 +21,7 @@ fn item(id: &str, tier: Tier, licence: Licence) -> PackItem {
             notes: "one handle, one spout".to_owned(),
         }),
         outline: None,
+        masses: None,
     }
 }
 

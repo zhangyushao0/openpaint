@@ -6,7 +6,7 @@ use openpaint_practice::{
 };
 
 /// Each kind's steps, Compare the last.
-const STEPS: [(Family, usize); 23] = [
+const STEPS: [(Family, usize); 24] = [
     (Family::Line, 4),
     (Family::Combined, 4),
     (Family::Shape, 5),
@@ -27,6 +27,7 @@ const STEPS: [(Family, usize); 23] = [
     (Family::Object, 5),
     (Family::Division, 4),
     (Family::WholeCopy, 3),
+    (Family::ValueMasses, 4),
     (Family::Colour, 5),
     (Family::Areas, 5),
     (Family::Scale, 3),

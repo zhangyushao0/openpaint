@@ -4,12 +4,16 @@
 //! and, for a kind outlined (shapes), its silhouette outline derived unless the list says it has
 //! none and why. The rule for every shape alike (`openpaint_practice::outline_of_matte`): a
 //! picture on a clear ground keeps the outline of its own alpha, any other the outline of the
-//! segmentation's matte (`segment.rs`). A composition is never outlined: the step does not run.
-//! Every download comes through the cache, and decoding, reducing, encoding, segmenting and
-//! deriving are exact, so the same list and cache give the same pack byte for byte.
+//! segmentation's matte (`segment.rs`). A composition is never outlined: the step does not run;
+//! its value masses are made instead (S96, `ValueMasses::of`) and kept unless the list says they
+//! do not read and why. Every download comes through the cache, and decoding, reducing, encoding,
+//! segmenting and deriving are exact, so the same list and cache give the same pack byte for byte.
+
+use std::sync::Arc;
 
 use openpaint_practice::{
-    Credit, Licence, Matte, Outline, OutlineRefusal, Pack, PackItem, PictureKind, outline_of_matte,
+    Credit, Licence, Matte, Outline, OutlineRefusal, Pack, PackItem, PictureKind, ValueMasses,
+    outline_of_matte,
 };
 use openpaint_store::{PackPicture, pack_picture};
 
@@ -34,12 +38,24 @@ pub enum Outlined {
     Never,
 }
 
+/// What became of an item's value masses (S96).
+#[derive(Debug, Clone, PartialEq)]
+pub enum Massed {
+    /// Made, and in the pack.
+    Kept,
+    /// The list says they do not read, and why; what was made, for the sheet.
+    Listed { why: String, made: ValueMasses },
+    /// Its kind has none (a shape).
+    Never,
+}
+
 /// A pack as built: its manifest, its pictures' files in the list's order and what became of
-/// each item's outline.
+/// each item's outline and value masses.
 pub struct Built {
     pub pack: Pack,
     pub pictures: Vec<Vec<u8>>,
     pub outlines: Vec<Outlined>,
+    pub masses: Vec<Massed>,
 }
 
 /// The segmentation's matte of a picture (8-bit sRGB RGBA of its size): the model's
@@ -61,9 +77,10 @@ pub fn build(
     let mut items = Vec::with_capacity(list.items.len());
     let mut pictures = Vec::with_capacity(list.items.len());
     let mut outlines = Vec::with_capacity(list.items.len());
+    let mut masses = Vec::with_capacity(list.items.len());
     for listed in &list.items {
-        let (item, picture, outlined) =
-            item(list.kind, listed, (&sources, segment)).map_err(|error| match error {
+        let (item, picture, (outlined, massed)) = item(list.kind, listed, (&sources, segment))
+            .map_err(|error| match error {
                 HarnessError::Pack { .. } => error,
                 other => HarnessError::Pack {
                     item: listed.id.clone(),
@@ -73,6 +90,7 @@ pub fn build(
         items.push(item);
         pictures.push(picture);
         outlines.push(outlined);
+        masses.push(massed);
     }
     let pack = Pack {
         id: list.id.clone(),
@@ -87,14 +105,19 @@ pub fn build(
         pack,
         pictures,
         outlines,
+        masses,
     })
 }
+
+/// An item as built: its manifest entry, its picture's file, what became of its outline and of
+/// its value masses.
+type ItemBuilt = (PackItem, Vec<u8>, (Outlined, Massed));
 
 fn item(
     kind: PictureKind,
     listed: &Listed,
     (sources, segment): (&Sources<'_>, Segment<'_>),
-) -> Result<(PackItem, Vec<u8>, Outlined), HarnessError> {
+) -> Result<ItemBuilt, HarnessError> {
     let found = sources.look_up(listed)?;
     if found.stated != Stated::Licence(listed.licence) {
         return Err(HarnessError::Pack {
@@ -117,6 +140,11 @@ fn item(
     } else {
         (None, Outlined::Never)
     };
+    let (massed, masses) = if kind.massed() {
+        masses(listed, &picture)
+    } else {
+        (None, Massed::Never)
+    };
     let item = PackItem {
         id: listed.id.clone(),
         kind,
@@ -131,8 +159,9 @@ fn item(
             notes: listed.reason.clone(),
         }),
         outline: kept,
+        masses: massed,
     };
-    Ok((item, picture.file, outlined))
+    Ok((item, picture.file, (outlined, masses)))
 }
 
 /// A shape's outline: derived from the segmentation's matte, kept unless the list says why not.
@@ -154,6 +183,21 @@ fn outline(
         (None, Ok(outline)) => (Some(outline), Outlined::Kept),
         (None, Err(refusal)) => (None, Outlined::Refused(refusal)),
     })
+}
+
+/// A composition's value masses: made from its picture, kept unless the list says why not.
+fn masses(listed: &Listed, picture: &PackPicture) -> (Option<Arc<ValueMasses>>, Massed) {
+    let made = ValueMasses::of(picture.size, &picture.rgba);
+    match &listed.no_masses {
+        Some(why) => (
+            None,
+            Massed::Listed {
+                why: why.clone(),
+                made,
+            },
+        ),
+        None => (Some(Arc::new(made)), Massed::Kept),
+    }
 }
 
 /// The credit shown with the picture: for an Attribution licence what it asks for (title,

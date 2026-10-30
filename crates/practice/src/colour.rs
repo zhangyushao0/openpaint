@@ -97,8 +97,19 @@ pub fn from_oklch([l, c, h]: [f64; 3]) -> Rgb8 {
     from_oklab([l, c * cos, c * sin])
 }
 
+/// Oklab's lightness `L` of a colour given in linear sRGB (0 to 1 a channel): light mixed, as an
+/// eye's blur mixes it (S96's value masses).
+#[must_use]
+pub(crate) fn lightness_of_linear([r, g, b]: [f64; 3]) -> f64 {
+    let l = 0.412_221_470_8 * r + 0.536_332_536_3 * g + 0.051_445_992_9 * b;
+    let m = 0.211_903_498_2 * r + 0.680_699_545_1 * g + 0.107_396_956_6 * b;
+    let s = 0.088_302_461_9 * r + 0.281_718_837_6 * g + 0.629_978_700_5 * b;
+    let [l, m, s] = [l, m, s].map(f64::cbrt);
+    0.210_454_255_3 * l + 0.793_617_785_0 * m - 0.004_072_046_8 * s
+}
+
 /// sRGB's transfer function undone.
-fn linear(c: f64) -> f64 {
+pub(crate) fn linear(c: f64) -> f64 {
     if c <= 0.040_45 {
         c / 12.92
     } else {

@@ -1,10 +1,12 @@
 //! The composition pack a scenario's picker offers (`SystemAnswer::TestCompositions`, S95): small
 //! landscapes of a few masses painted by the practice crate (`Masses`: a sky, a ridge, a field, a
 //! tree and a house, by day or in the evening), no third-party picture, built as the harness builds
-//! the official pack (each made as a pack holds it, never outlined). Three simple pictures and two
-//! medium ones, one of them upright; the same bytes every run.
+//! the official pack (each made as a pack holds it, never outlined, its value masses made from it,
+//! S96). Three simple pictures and two medium ones, one of them upright; the same bytes every run.
 
-use openpaint_practice::{Credit, Licence, Masses, Pack, PackItem, PictureKind, Tier};
+use std::sync::Arc;
+
+use openpaint_practice::{Credit, Licence, Masses, Pack, PackItem, PictureKind, Tier, ValueMasses};
 use openpaint_runtime::ImageFormat;
 use openpaint_store::{encode_image, encode_pack, pack_picture};
 
@@ -45,6 +47,7 @@ pub(crate) fn test_compositions() -> Option<Vec<u8>> {
             }),
             title,
             outline: None,
+            masses: Some(Arc::new(ValueMasses::of(picture.size, &picture.rgba))),
         });
         files.push(picture.file);
     }

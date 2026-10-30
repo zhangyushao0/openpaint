@@ -33,7 +33,7 @@ use openpaint_store::{decode_image, encode_pack};
 
 use crate::error::HarnessError;
 use crate::output::workspace_root;
-use build::{Built, Outlined};
+use build::{Built, Massed, Outlined};
 use fetch::Fetcher;
 use list::{Source, SourceList};
 use segment::Segmenter;
@@ -117,18 +117,25 @@ fn build_command(rest: &[&str]) -> Result<(), HarnessError> {
 }
 
 /// One line per item, numbered within its tier as its sheet numbers it, with its outline (kept,
-/// none as the list says, refused), then the tiers' counts.
+/// none as the list says, refused) or its value masses (kept, none as the list says), then the
+/// tiers' counts.
 fn describe(built: &Built) {
     let pack = &built.pack;
     for tier in Tier::ALL {
-        let items = (pack.items.iter().zip(&built.outlines)).filter(|(item, _)| item.tier == tier);
-        for (number, (item, outlined)) in items.enumerate() {
+        let items = (pack
+            .items
+            .iter()
+            .zip(built.outlines.iter().zip(&built.masses)))
+        .filter(|(item, _)| item.tier == tier);
+        for (number, (item, (outlined, massed))) in items.enumerate() {
             let licence = item.credit.as_ref().map_or("", |c| c.licence.name());
-            let outline = match outlined {
-                Outlined::Kept => "outline".to_owned(),
-                Outlined::Listed { why, .. } => format!("none: {why}"),
-                Outlined::Refused(refusal) => format!("REFUSED: {refusal}"),
-                Outlined::Never => "no outline: a composition".to_owned(),
+            let outline = match (outlined, massed) {
+                (Outlined::Kept, _) => "outline".to_owned(),
+                (Outlined::Listed { why, .. }, _) => format!("none: {why}"),
+                (Outlined::Refused(refusal), _) => format!("REFUSED: {refusal}"),
+                (Outlined::Never, Massed::Kept) => "value masses".to_owned(),
+                (Outlined::Never, Massed::Listed { why, .. }) => format!("no masses: {why}"),
+                (Outlined::Never, Massed::Never) => "no outline: a composition".to_owned(),
             };
             println!(
                 "{:<6} {:>3}  {:<30} {:>4} x {:<4} {:<9}  {} | {outline}",
@@ -152,18 +159,25 @@ fn describe(built: &Built) {
     let kept = (built.outlines.iter())
         .filter(|o| **o == Outlined::Kept)
         .count();
-    println!("{}; {kept} outlines", counts.join(", "));
+    let massed = (built.masses.iter())
+        .filter(|m| **m == Massed::Kept)
+        .count();
+    println!(
+        "{}; {kept} outlines, {massed} value masses",
+        counts.join(", ")
+    );
 }
 
 /// A contact sheet per tier of the built pack in `dir`, `<pack id>-<tier>.png`, each picture
 /// with its outline in red, or the one the derivation made of an item listed without one in
-/// blue.
+/// blue; a composition beside its value masses, their edges red, or blue where listed without.
 fn write_sheets(built: &Built, dir: &Path) -> Result<(), HarnessError> {
     let pack = &built.pack;
     for tier in Tier::ALL {
         let mut cells = Vec::new();
-        let items = pack.items.iter().zip(&built.pictures).zip(&built.outlines);
-        for ((item, bytes), outlined) in items {
+        let items =
+            (pack.items.iter().zip(&built.pictures)).zip(built.outlines.iter().zip(&built.masses));
+        for ((item, bytes), (outlined, massed)) in items {
             if item.tier == tier {
                 let (size, rgba) = decode_image(bytes).map_err(|error| HarnessError::Pack {
                     item: item.id.clone(),
@@ -177,10 +191,16 @@ fn write_sheets(built: &Built, dir: &Path) -> Result<(), HarnessError> {
                     } => Some((outline.clone(), Mark::Dropped)),
                     Outlined::Listed { .. } | Outlined::Refused(_) | Outlined::Never => None,
                 };
+                let masses = match massed {
+                    Massed::Kept => item.masses.as_deref().map(|m| (m.clone(), Mark::Kept)),
+                    Massed::Listed { made, .. } => Some((made.clone(), Mark::Dropped)),
+                    Massed::Never => None,
+                };
                 cells.push(Picture {
                     size,
                     rgba,
                     outline,
+                    masses,
                 });
             }
         }

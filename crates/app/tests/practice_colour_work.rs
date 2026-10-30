@@ -285,6 +285,7 @@ fn pack() -> Pack {
             title: "Teapot".to_owned(),
             credit: None,
             outline: None,
+            masses: None,
         }],
     }
 }

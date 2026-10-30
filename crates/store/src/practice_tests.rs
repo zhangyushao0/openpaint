@@ -45,8 +45,8 @@ fn a_session_round_trips_and_damage_is_refused() {
         "a key without its id"
     );
     let mut unknown = bytes.clone();
-    // The first exercise's kind, after the session's fixed fields and the count: none of 1.13.0's.
-    unknown[1 + 4 + 8 * 4 + 4 + 4] = 17;
+    // The first exercise's kind, after the session's fixed fields and the count: none of 1.14.0's.
+    unknown[1 + 4 + 8 * 4 + 4 + 4] = 18;
     assert!(decode_session(&key, &unknown).is_err());
 }
 
@@ -122,7 +122,7 @@ fn objects_round_trip_with_their_error() {
 }
 
 #[test]
-fn divisions_and_whole_copies_round_trip_with_their_pictures_and_numbers() {
+fn divisions_whole_copies_and_value_masses_round_trip_with_their_pictures_and_numbers() {
     use openpaint_practice::{ItemRef, Level, Plan, Tier};
     let picture = |item: &str| ItemRef {
         pack: "openpaint-compositions".to_owned(),
@@ -136,6 +136,7 @@ fn divisions_and_whole_copies_round_trip_with_their_pictures_and_numbers() {
         exercises: vec![
             exercise(Kind::Division(Tier::Simple), "harbour"),
             exercise(Kind::WholeCopy(Tier::Medium), "hills"),
+            exercise(Kind::ValueMasses(Tier::Medium), "valley"),
         ],
         warm_up: 0,
     };
@@ -148,6 +149,8 @@ fn divisions_and_whole_copies_round_trip_with_their_pictures_and_numbers() {
         (Metric::DivisionLines(Level::Third), 0.0),
     ];
     (session.results).push(ExerciseResult::first(0, 17, 4, counted));
+    let matched = vec![(Metric::MassesMatched, 0.83)];
+    (session.results).push(ExerciseResult::first(2, 18, 9, matched));
     let bytes = encode_session(&session);
     assert_eq!(read(&practice_key(15), &bytes), Ok(session));
 }

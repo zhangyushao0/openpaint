@@ -102,6 +102,7 @@ fn item(id: &str, tier: Tier, licence: Licence, pixels: Vec<u8>) -> Option<(Pack
             notes: "drawn for the scenarios".to_owned(),
         }),
         outline: outline(picture.size, &picture.rgba).ok(),
+        masses: None,
     };
     Some((item, picture.file))
 }

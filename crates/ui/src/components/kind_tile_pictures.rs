@@ -1,11 +1,16 @@
 //! The tiles' pictures of the kinds that copy a whole picture (S95, `kind_tile.rs`): a division (a
 //! picture's edge, a long line right through it, a bent one meeting its sides and a part's small
-//! frame standing on it) and a whole copy (the same edge, a ridge, a field's edge, a tree and a
-//! house), in `TILE`'s units.
+//! frame standing on it), a whole copy (the same edge, a ridge, a field's edge, a tree and a
+//! house) and value masses (S96: the same edge, its ground under the ridge tinted middle, a
+//! crown and a roof dark, the sky and a wall left light), in `TILE`'s units.
 
 use openpaint_practice::Family;
 
 use super::{Mark, closed, curve, square};
+
+/// Value masses' tints: the middle and the dark, shares of the tile's colour.
+const MIDDLE: f32 = 0.3;
+const DARK: f32 = 0.75;
 
 /// A picture's edge in the tile.
 const EDGE: [[f32; 2]; 2] = [[9.0, 8.0], [45.0, 32.0]];
@@ -30,7 +35,38 @@ pub(super) fn picture(family: Family) -> Vec<Mark> {
             })),
             Mark::Line(vec![[16.0, 23.7], [16.0, 26.3]]),
         ]),
+        Family::ValueMasses => marks.extend(masses()),
         _ => return Vec::new(),
     }
     marks
+}
+
+/// Value masses' blocks: the ground middle, a crown and a roof dark, a wall light on the ground.
+fn masses() -> Vec<Mark> {
+    let ground = vec![
+        [9.0, 19.0],
+        [22.0, 12.5],
+        [45.0, 18.0],
+        [45.0, 32.0],
+        [9.0, 32.0],
+    ];
+    let crown: Vec<[f32; 2]> = (0..8)
+        .map(|k| {
+            let turn = std::f32::consts::TAU * k as f32 / 8.0;
+            [16.0 + 4.0 * turn.cos(), 20.0 + 4.6 * turn.sin()]
+        })
+        .collect();
+    let roof = vec![[29.8, 21.0], [34.5, 16.5], [39.2, 21.0]];
+    let wall = square([31.0, 21.0], [38.0, 26.5]);
+    vec![
+        Mark::Tint(ground.clone(), MIDDLE),
+        Mark::Tint(crown.clone(), DARK),
+        Mark::Tint(roof.clone(), DARK),
+        // The wall lies light over the ground: the paper, its outline drawn.
+        Mark::Paper(wall.to_vec()),
+        Mark::Line(vec![ground[0], ground[1], ground[2]]),
+        Mark::Line(closed(&crown)),
+        Mark::Line(closed(&roof)),
+        Mark::Line(closed(&wall)),
+    ]
 }

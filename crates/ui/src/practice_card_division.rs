@@ -1,6 +1,8 @@
 //! What the practice card shows of a division or a whole copy compared (S95, D108: shows, not
 //! tells). Both: their title and the slider setting how strongly the picture lies under the
-//! division or over the copy (half at first: a dark picture raised reads under the lines). A
+//! division or over the copy (half at first: a dark picture raised reads under the lines); a
+//! whole copy's point the eyedropper compared where its colour blocks were painted, on the wheel
+//! and in the colour table (S96). A
 //! division, under it: a table of its three levels, each named beside a short line in its colour,
 //! the lines drawn and how far they run on the mean (a share of the picture's longer side), the
 //! main lines' count in the marking red past V大's five; no sentence.
@@ -42,6 +44,7 @@ pub(crate) fn compared(
         }
         Some(Overlay::Picture { shown, .. }) if practice.family == Some(Family::WholeCopy) => {
             shown_slider(ui, *shown, taps);
+            crate::practice_card_colour::whole_copy_probe(ui, practice);
             true
         }
         _ => false,

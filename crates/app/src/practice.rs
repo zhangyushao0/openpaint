@@ -14,8 +14,8 @@ use std::sync::Arc;
 use openpaint_core::Color;
 use openpaint_practice::{
     AreasCopy, BoxCheck, DivisionCheck, EllipseCheck, ExerciseResult, Family, FlatCheck, FreeCheck,
-    KindSummary, Level, Original, Pack, Pair, Point, Rgb8, ScaleCheck, SessionRecord, Sheet,
-    SolidCheck, SpaceCheck,
+    KindSummary, Level, MassesCheck, Original, Pack, Pair, Point, Rgb8, ScaleCheck, SessionRecord,
+    Sheet, SolidCheck, SpaceCheck, Value,
 };
 
 use crate::layer_rules::LayerRefusal;
@@ -85,6 +85,10 @@ pub enum Pen {
     Main,
     Second,
     Third,
+    /// Value masses' three greys (S96): the dark, the middle and the light.
+    Dark,
+    Middle,
+    Light,
 }
 
 impl Pen {
@@ -92,14 +96,28 @@ impl Pen {
     /// is painted with.
     pub const DRAWING: [Self; 3] = [Self::Sketch, Self::Draw, Self::Correct];
     pub const PAINTING: [Self; 3] = [Self::Big, Self::Small, Self::Soft];
-    /// A division's pens, and a whole copy's: its division's, then Draw for its line drawing.
+    /// A division's pens, and a whole copy's: its division's, then Draw for its line drawing (and
+    /// the painting pens for its colour blocks, S96).
     pub const DIVIDING: [Self; 3] = [Self::Main, Self::Second, Self::Third];
     pub const COPYING: [Self; 4] = [Self::Main, Self::Second, Self::Third, Self::Draw];
+    /// Value masses' greys (S96).
+    pub const VALUES: [Self; 3] = [Self::Dark, Self::Middle, Self::Light];
 
     /// Whether it paints in the colour picked.
     #[must_use]
     pub fn paints(self) -> bool {
         Self::PAINTING.contains(&self)
+    }
+
+    /// The value it paints, if it is one of value masses' greys.
+    #[must_use]
+    pub const fn value(self) -> Option<Value> {
+        match self {
+            Self::Dark => Some(Value::Dark),
+            Self::Middle => Some(Value::Middle),
+            Self::Light => Some(Value::Light),
+            _ => None,
+        }
     }
 
     /// The division's level it draws, if it is a division's pen.
@@ -205,8 +223,9 @@ pub struct SheetView {
     /// Each exercise's picture, a single shape's or a colour copy's (none: another kind, or a
     /// picture no pack holds now: removed).
     pub pictures: Vec<Option<Arc<SheetPicture>>>,
-    /// Each colour combination's picture, `AREAS_SIDE` square, and each object's (S94),
-    /// `OBJECT_SIDE` square: pictures the practice crate draws.
+    /// Each colour combination's picture, `AREAS_SIDE` square, each object's (S94),
+    /// `OBJECT_SIDE` square, and each value masses' answer in its greys, a pixel a cell (S96):
+    /// pictures the practice crate draws.
     pub painted: Vec<Option<Arc<PictureImage>>>,
 }
 
@@ -223,30 +242,42 @@ impl SheetView {
         };
         let originals: Vec<Original> = record.exercises.iter().map(|e| e.original()).collect();
         let filling = record.is_project();
+        let families: Vec<Family> = (record.exercises.iter()).map(|e| e.kind.family()).collect();
+        let pictures: Vec<Option<Arc<SheetPicture>>> = (record.exercises.iter())
+            .map(|e| SheetPicture::of(e.picture.as_ref()?, packs, filling).map(Arc::new))
+            .collect();
+        let painted = (originals.iter().zip(&pictures).zip(&families))
+            .map(|((original, picture), family)| painted(original, picture.as_deref(), *family))
+            .collect();
         Self {
             name: name.clone(),
             size: sheet.size,
             pairs: sheet.pairs,
-            pictures: (record.exercises.iter())
-                .map(|e| SheetPicture::of(e.picture.as_ref()?, packs, filling).map(Arc::new))
-                .collect(),
-            painted: (originals.iter())
-                .map(|original| match original {
-                    Original::Areas(areas) => Some(Arc::new(PictureImage {
-                        size: [AREAS_SIDE; 2],
-                        pixels: areas.picture(AREAS_SIDE),
-                    })),
-                    Original::Object(task) => Some(Arc::new(PictureImage {
-                        size: [OBJECT_SIDE; 2],
-                        pixels: task.picture(OBJECT_SIDE),
-                    })),
-                    _ => None,
-                })
-                .collect(),
+            pictures,
+            painted,
             originals,
-            families: (record.exercises.iter()).map(|e| e.kind.family()).collect(),
+            families,
         }
     }
+}
+
+/// The picture the practice crate draws for an exercise of `family` whose original is `original`
+/// (its pack's `picture`, if any): a colour combination's, an object's, value masses' answer.
+fn painted(
+    original: &Original,
+    picture: Option<&SheetPicture>,
+    family: Family,
+) -> Option<Arc<PictureImage>> {
+    let (size, pixels) = match original {
+        Original::Areas(areas) => ([AREAS_SIDE; 2], areas.picture(AREAS_SIDE)),
+        Original::Object(task) => ([OBJECT_SIDE; 2], task.picture(OBJECT_SIDE)),
+        Original::Picture(_) if family == Family::ValueMasses => {
+            let masses = picture?.masses.as_ref()?;
+            (masses.answer.size, masses.answer.picture())
+        }
+        _ => return None,
+    };
+    Some(Arc::new(PictureImage { size, pixels }))
 }
 
 /// The sheet a new `record`'s exercises are laid on: a long colour copy's of its picture's shape
@@ -325,5 +356,14 @@ pub enum Overlay {
         corners: [[f32; 2]; 4],
         shown: f32,
         check: Arc<DivisionCheck>,
+    },
+    /// Value masses (S96): the answer's greys (the sheet's painted picture) over the picture's
+    /// place in the copy's frame, its corners (top left, top right, bottom right, bottom left) in
+    /// canvas pixels, `shown` strong, its mass edges (the sheet picture's) red over it; the copy
+    /// as read (none until its pixels arrive): the hatching where it differs.
+    Masses {
+        corners: [[f32; 2]; 4],
+        shown: f32,
+        read: Option<Arc<MassesCheck>>,
     },
 }

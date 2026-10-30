@@ -65,6 +65,7 @@ pub fn run(fetcher: &Fetcher, source: Source, query: &str, count: u32) -> Result
             size,
             rgba,
             outline: None,
+            masses: None,
         });
     }
     let sheet = sheet_path(source, query, count);

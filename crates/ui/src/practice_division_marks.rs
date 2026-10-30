@@ -21,14 +21,15 @@ pub(crate) fn level_colour(level: Level) -> Color32 {
     Color32::from_rgb(r, g, b)
 }
 
-/// Exercise `index`'s picture's edge in its copy's frame, where it is a division or a whole copy.
+/// Exercise `index`'s picture's edge in its copy's frame, where it is a division, a whole copy or
+/// value masses (S96).
 pub(crate) fn show_edge(
     painter: &egui::Painter,
     practice: &PracticeProjection,
     (index, pair): (usize, &Pair),
     at: &dyn Fn([f64; 2]) -> Pos2,
 ) {
-    let divided = (practice.sheet.families.get(index)).is_some_and(|family| family.divided());
+    let divided = (practice.sheet.families.get(index)).is_some_and(|family| family.composed());
     let Some(picture) = practice.sheet.pictures.get(index).and_then(Option::as_ref) else {
         return;
     };

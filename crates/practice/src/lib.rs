@@ -73,6 +73,10 @@ mod solid_check;
 mod space;
 mod space_check;
 mod time;
+mod value_masses;
+mod value_masses_edges;
+mod value_masses_islands;
+mod value_masses_read;
 mod vector;
 
 pub use align::{Fit, align};
@@ -138,3 +142,5 @@ pub use solid_check::{COVERED, ReadCurve, SolidCheck};
 pub use space::{SpaceAnswer, SpaceTask, Trick};
 pub use space_check::SpaceCheck;
 pub use time::{Date, PAUSE, Span, by_day, local_day, practised, seconds, spans_of, weekday};
+pub use value_masses::{BLUR, ISLAND, MASSES_SIDE, RIM, Value, ValueMasses};
+pub use value_masses_read::{HATCH_GAP, MASSES_PEN, MassesCheck};

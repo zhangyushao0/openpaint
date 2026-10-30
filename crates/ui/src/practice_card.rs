@@ -275,7 +275,8 @@ pub(crate) fn metric_text(metric: Metric, value: f64) -> String {
         | Metric::SpaceOff
         | Metric::SolidOff
         | Metric::ObjectOff
-        | Metric::DivisionLength(_) => format!("{:.0} %", value * 100.0),
+        | Metric::DivisionLength(_)
+        | Metric::MassesMatched => format!("{:.0} %", value * 100.0),
         Metric::DivisionLines(_) => format!("{value:.0}"),
         Metric::PointAcross | Metric::PointDown | Metric::ProportionOff => {
             format!("{:+.1} %", value * 100.0)

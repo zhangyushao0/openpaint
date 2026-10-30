@@ -35,8 +35,12 @@ pub type Practising = (SessionRecord, Vec<SessionRecord>, SheetView, Tally);
 mod checks;
 #[path = "practice_compare.rs"]
 mod compare;
+#[path = "practice_overlay.rs"]
+mod overlay;
 #[path = "practice_sheet_pens.rs"]
 mod pens;
+#[path = "practice_pick.rs"]
+mod pick;
 #[path = "practice_read.rs"]
 mod read;
 #[path = "practice_time.rs"]
@@ -44,8 +48,9 @@ mod time;
 #[path = "practice_view.rs"]
 mod view;
 
-pub(crate) use pens::Layering;
-pub use read::{CopyRead, PracticePick, ReadJob};
+pub(crate) use pens::{CopyLayer, Layering};
+pub use pick::PracticePick;
+pub use read::{CopyRead, ReadAs, ReadJob};
 pub use time::Finished;
 pub use view::PRACTICE_ROOM;
 
@@ -70,11 +75,13 @@ pub(crate) struct PracticeSheet {
     /// The full interface shows, else the exercise's own tools.
     all_tools: bool,
     /// The pen the exercise draws or paints with now, the last of Sketch and Draw chosen, the
-    /// last painting pen chosen and the last division's pen chosen (S95).
+    /// last painting pen chosen, the last division's pen chosen (S95) and value masses' last
+    /// grey chosen (S96).
     pen: Pen,
     drawing: Pen,
     painting: Pen,
     dividing: Pen,
+    valuing: Pen,
     instructions: Option<Family>,
     /// Whether each family's instructions (`Family::ALL`'s order) showed by themselves already,
     /// or need not: a family compared before or in the warm-up.
@@ -136,6 +143,7 @@ impl PracticeSheet {
             drawing: Pen::Draw,
             painting: Pen::Big,
             dividing: Pen::Main,
+            valuing: Pen::Dark,
             instructions: None,
             notice: None,
             changed: false,
@@ -204,16 +212,21 @@ impl PracticeSheet {
         }
     }
 
-    /// An exercise came to show: its frame (a value scale's first cell) becomes the clip; lines
-    /// compared before are corrected in blue, others drawn with the pen last chosen, painted
-    /// exercises painted with the painting pen last chosen; its family's instructions show by
-    /// themselves the first time.
+    /// An exercise came to show: its frame (a value scale's first cell, value masses' picture's
+    /// place in it) becomes the clip; lines compared before are corrected in blue, others drawn
+    /// with the pen last chosen, painted exercises painted with the painting pen last chosen (value
+    /// masses with the grey last chosen); its family's instructions show by themselves the first
+    /// time.
     fn shown(&mut self) {
         let frame = self.current().map(|index| self.sheet.pairs[index].copy);
         self.clip = frame.and_then(|frame| self.region(&frame));
         let compared = (self.current()).is_some_and(|index| self.record.result(index).is_some());
         let family = self.current().and_then(|index| self.family(index));
+        if family == Some(Family::ValueMasses) {
+            self.clip = self.current().and_then(|index| self.picture_region(index));
+        }
         self.pen = match family {
+            Some(Family::ValueMasses) => self.valuing,
             Some(family) if !family.drawn() => self.painting,
             Some(family) if family.divided() => self.dividing,
             _ if compared => Pen::Correct,
@@ -232,6 +245,17 @@ impl PracticeSheet {
     /// `frame`'s region of the canvas.
     fn region(&self, frame: &Frame) -> Option<RegionMask> {
         let corners = frame.corners().map(|p| p.map(|v| v as f32));
+        RegionMask::polygon(self.canvas, &corners)
+    }
+
+    /// The region of the canvas exercise `index`'s picture lies on in its copy's frame (value
+    /// masses' clip, a whole copy's colour blocks' fill, S96); none without a picture.
+    fn picture_region(&self, index: usize) -> Option<RegionMask> {
+        let picture = self.sheet.pictures.get(index)?.as_ref()?;
+        let frame = self.sheet.pairs[index].copy;
+        let ([x, y], [w, h]) = (picture.fit.origin, picture.fit.size);
+        let corners = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]
+            .map(|p| frame.to_canvas(p).map(|v| v as f32));
         RegionMask::polygon(self.canvas, &corners)
     }
 

@@ -3,7 +3,11 @@
 //! picture's pixels as the store read them for the screen; the packs kept as the Today card's
 //! options list them; and the aligned overlay's fit, found off the frame loop (`FitJob`).
 
-use openpaint_practice::{Fit, ItemRef, Pack, PackItem, PictureFit, Point, align, align_shape};
+use std::sync::Arc;
+
+use openpaint_practice::{
+    Fit, ItemRef, Pack, PackItem, PictureFit, Point, ValueMasses, align, align_shape,
+};
 
 /// The longest side a picture is read at for the screen, in pixels: a frame shows it at most
 /// about 900 pixels on the tablet, and the reduced picture keeps every session's few pictures
@@ -22,6 +26,16 @@ pub struct SheetPicture {
     pub outline: Option<Vec<Vec<Point>>>,
     /// The credit that shows small under it: an Attribution licence's.
     pub credit: Option<String>,
+    /// Its value masses (a composition's whose masses read, S96); none where its pack has none.
+    pub masses: Option<MassesShown>,
+}
+
+/// A picture's value masses as its frame shows them: the answer, and its mass edges in frame
+/// units (where the picture lies in its frame).
+#[derive(Debug, Clone, PartialEq)]
+pub struct MassesShown {
+    pub answer: Arc<ValueMasses>,
+    pub edges: Vec<Vec<Point>>,
 }
 
 impl SheetPicture {
@@ -40,12 +54,24 @@ impl SheetPicture {
                 .map(|line| line.iter().map(|p| fit.to_frame(*p)).collect())
                 .collect()
         });
+        let masses = found.masses.as_ref().map(|answer| {
+            let [x, y] = fit.origin;
+            let [w, h] = fit.size;
+            let at = |[u, v]: Point| [x + u * w, y + v * h];
+            MassesShown {
+                edges: (answer.edges().into_iter())
+                    .map(|edge| edge.into_iter().map(at).collect())
+                    .collect(),
+                answer: Arc::clone(answer),
+            }
+        });
         Some(Self {
             item: item.clone(),
             size: found.size,
             fit,
             outline,
             credit: found.shown_credit().map(str::to_owned),
+            masses,
         })
     }
 }

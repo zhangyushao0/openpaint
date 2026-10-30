@@ -22,6 +22,7 @@ use openpaint_app::{
     EditorAction, HistoryIntent, Intent, Pen, PracticeIntent, PracticeProjection,
     SessionProjection, Tool, ToolIntent,
 };
+use openpaint_core::Color;
 use openpaint_practice::Family;
 
 use crate::color_panel::ColorPanel;
@@ -69,17 +70,24 @@ pub(crate) fn exercise_tools(
     }
     let source = (Source::Within(Align::Center), UNDER_ISLANDS);
     let family = practice.family?;
+    if family == Family::WholeCopy {
+        let tools = |ui: &mut egui::Ui| whole_copy_tools(ui, projection, colors, taps);
+        return Some(card(ctx, "practice pens", source, tools).1);
+    }
     if family.drawn() {
         let offered: &[Pen] = match family {
             Family::Division => &Pen::DIVIDING,
-            Family::WholeCopy => &Pen::COPYING,
             _ => &Pen::DRAWING,
         };
         let pens = |ui: &mut egui::Ui| {
-            ui.horizontal(|ui| pens(ui, projection, offered, taps));
+            ui.horizontal(|ui| pens(ui, ("pens", offered), projection, taps));
             ui.horizontal(|ui| history(ui, projection, taps));
         };
         return Some(card(ctx, "practice pens", source, pens).1);
+    }
+    if family == Family::ValueMasses {
+        let greys = |ui: &mut egui::Ui| masses_tools(ui, projection, taps);
+        return Some(card(ctx, "practice greys", source, greys).1);
     }
     let brush = projection.brush()?;
     // A painted copy compared, or any How with its demonstration: the card needs the room; the
@@ -97,13 +105,7 @@ pub(crate) fn exercise_tools(
         };
         ui.horizontal(|ui| {
             if let Some(words) = fill {
-                ui.add_space(SPACE);
-                let fill = Intent::Practice(PracticeIntent::Fill(brush.color));
-                let picked = swatch(ui, brush.color, t::COLOUR_PICKED, TOUCH_TARGET, false);
-                let tapped = text_button(ui, words, true);
-                if picked.clicked() || tapped.clicked() {
-                    push_once(taps, fill);
-                }
+                fill_frame(ui, brush.color, words, taps);
             }
             if family.painted() {
                 history(ui, projection, taps);
@@ -111,7 +113,7 @@ pub(crate) fn exercise_tools(
         });
         if family.painted() {
             ui.horizontal(|ui| {
-                pens(ui, projection, &Pen::PAINTING, taps);
+                pens(ui, ("pens", &Pen::PAINTING), projection, taps);
                 // Your own copy may be picked from (V大); the original only after Compare.
                 let picking = brush.picking;
                 if icon_toggle(ui, Icon::Eyedropper, t::EYEDROPPER, picking).clicked() {
@@ -123,11 +125,76 @@ pub(crate) fn exercise_tools(
     Some(rect)
 }
 
-/// The exercise's pens of `offered` (the blue one only once compared).
-fn pens(
+/// A whole copy's tools (S95, S96): its division's pens and Draw, then the painting pens for its
+/// colour blocks with the eyedropper, Undo and Redo; while a painting pen is chosen the wheel
+/// over them (unless the comparison or How needs the room) and Fill frame beside Undo.
+fn whole_copy_tools(
     ui: &mut egui::Ui,
     projection: &SessionProjection,
-    offered: &[Pen],
+    colors: &mut ColorPanel,
+    taps: &mut Vec<Intent>,
+) {
+    let Some(practice) = projection.practice() else {
+        return;
+    };
+    let painting = practice.pen.is_some_and(|(pen, _)| pen.paints());
+    let brush = projection.brush().filter(|_| painting);
+    let room = !practice.comparing && practice.instructions.is_none();
+    if let Some(brush) = brush.filter(|_| room) {
+        ui.vertical_centered(|ui| colors.inline_wheel(ui, brush, taps));
+        ui.add_space(SPACE);
+    }
+    ui.horizontal(|ui| pens(ui, ("pens", &Pen::COPYING), projection, taps));
+    ui.horizontal(|ui| {
+        pens(ui, ("block pens", &Pen::PAINTING), projection, taps);
+        if let Some(brush) = projection.brush() {
+            let picking = brush.picking;
+            if icon_toggle(ui, Icon::Eyedropper, t::EYEDROPPER, picking).clicked() {
+                push_once(taps, Intent::Tool(ToolIntent::Eyedropper(!picking)));
+            }
+        }
+    });
+    ui.horizontal(|ui| {
+        if let Some(brush) = brush {
+            fill_frame(ui, brush.color, t::FILL_FRAME, taps);
+        }
+        history(ui, projection, taps);
+    });
+}
+
+/// Value masses' tools (S96): the three greys, Fill frame in the grey chosen, Undo and Redo.
+fn masses_tools(ui: &mut egui::Ui, projection: &SessionProjection, taps: &mut Vec<Intent>) {
+    let Some(practice) = projection.practice() else {
+        return;
+    };
+    ui.horizontal(|ui| pens(ui, ("pens", &Pen::VALUES), projection, taps));
+    let grey = (practice.pen)
+        .and_then(|(pen, _)| pen.value())
+        .and_then(|value| openpaint_app::value_colour(value).ok());
+    ui.horizontal(|ui| {
+        if let Some(grey) = grey {
+            fill_frame(ui, grey, t::FILL_FRAME, taps);
+        }
+        history(ui, projection, taps);
+    });
+}
+
+/// The colour the fill takes as a swatch beside `words`, a tap on either filling.
+fn fill_frame(ui: &mut egui::Ui, colour: Color, words: t::Text, taps: &mut Vec<Intent>) {
+    ui.add_space(SPACE);
+    let picked = swatch(ui, colour, t::COLOUR_PICKED, TOUCH_TARGET, false);
+    let tapped = text_button(ui, words, true);
+    if picked.clicked() || tapped.clicked() {
+        push_once(taps, Intent::Practice(PracticeIntent::Fill(colour)));
+    }
+}
+
+/// The exercise's pens of `offered` (the blue one only once compared), a group of choices named
+/// `id` (a whole copy's two rows two groups, each its own mark).
+fn pens(
+    ui: &mut egui::Ui,
+    (id, offered): (&str, &[Pen]),
+    projection: &SessionProjection,
     taps: &mut Vec<Intent>,
 ) {
     let Some(practice) = projection.practice() else {
@@ -135,21 +202,24 @@ fn pens(
     };
     let chosen = practice.pen.map(|(pen, _)| pen);
     let compared = practice.result.is_some();
-    choices(ui, "pens", |ui, group| {
+    choices(ui, id, |ui, group| {
         for &pen in offered {
             if pen == Pen::Correct && !compared {
                 continue;
             }
             let word = text_choice(ui, group, t::pen(pen), chosen == Some(pen));
-            // A division's level shows its colour under its word (S95).
-            if let Some(level) = pen.level() {
+            // A division's level shows its colour under its word (S95), a grey its grey (S96).
+            let colour = (pen.level())
+                .map(crate::practice_division_marks::level_colour)
+                .or_else(|| pen.value().map(crate::practice_marks::value_colour));
+            if let Some(colour) = colour {
                 let rect = word.rect;
                 let under = rect.center().y + 1.4 * SPACE;
                 let ends = [rect.left() + 1.5 * SPACE, rect.right() - 1.5 * SPACE];
                 let line = ends.map(|x| egui::pos2(x, under));
-                let colour = crate::practice_division_marks::level_colour(level);
+                let width = if pen.value().is_some() { 4.0 } else { 2.0 };
                 ui.painter()
-                    .line_segment(line, egui::Stroke::new(2.0, colour));
+                    .line_segment(line, egui::Stroke::new(width, colour));
             }
             if word.clicked() {
                 push_once(taps, Intent::Practice(PracticeIntent::Pen(pen)));

@@ -16,6 +16,7 @@ fn pictures(tiers: &[Tier]) -> Pictures {
         title: "test".to_owned(),
         credit: None,
         outline: None,
+        masses: None,
     };
     let pack = Pack {
         id: "test-shapes".to_owned(),

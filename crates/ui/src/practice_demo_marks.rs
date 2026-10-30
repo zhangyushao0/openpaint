@@ -27,6 +27,7 @@ const PENCIL_LINE: f32 = 1.25;
 const INK_LINE: f32 = 2.0;
 const ANSWER: f32 = 3.5;
 const FOUND_LINE: f32 = 1.75;
+const HATCH_LINE: f32 = 1.5;
 /// A ring's radius and a dot's, in points; a cross's arm in frame units.
 const RING: f32 = 5.5;
 const DOT: f32 = 3.0;
@@ -210,12 +211,22 @@ fn on_frame(
         Drawn::Masses([low, high]) => {
             let strength = if pen == Marker::Faint { FAINT } else { 1.0 };
             let place = Rect::from_min_max(at(*low), at(*high));
-            laid(
-                painter,
-                place,
-                pictures(&PictureKey::Masses),
-                alpha * strength,
-            );
+            let picture = pictures(&PictureKey::Masses);
+            laid(painter, place, picture, alpha * strength);
+        }
+        Drawn::Values {
+            rect: [low, high],
+            copy,
+            shown,
+        } => {
+            // The answer's greys over the copy at the slider's first strength (S96).
+            let strength = if pen == Marker::Faint { LAID } else { 1.0 };
+            let key = PictureKey::Values {
+                copy: *copy,
+                shown: *shown,
+            };
+            let place = Rect::from_min_max(at(*low), at(*high));
+            laid(painter, place, pictures(&key), alpha * strength);
         }
         Drawn::Pick(_) | Drawn::Ringed(_) => {}
     }
@@ -245,6 +256,10 @@ pub(crate) fn colour_of(pen: Marker) -> Color32 {
         Marker::Rule => DIVIDER,
         Marker::Shade | Marker::Faint => PENCIL,
         Marker::Level(level) => level_colour(level),
+        Marker::Hatch(value) => {
+            let [r, g, b] = value.grey();
+            Color32::from_rgb(r, g, b)
+        }
     }
 }
 
@@ -265,6 +280,7 @@ fn line(painter: &egui::Painter, pen: Marker, path: Vec<Pos2>, colour: Color32) 
         Marker::Pencil | Marker::Construction | Marker::Shade | Marker::Faint => {
             (PENCIL_LINE, None)
         }
+        Marker::Hatch(_) => (HATCH_LINE, None),
     };
     let colour = if matches!(pen, Marker::Answer | Marker::Hidden) {
         colour.gamma_multiply(RED)

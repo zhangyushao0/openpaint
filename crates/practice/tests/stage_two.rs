@@ -16,6 +16,7 @@ fn item(id: &str, tier: Tier) -> PackItem {
         title: id.to_owned(),
         credit: None,
         outline: None,
+        masses: None,
     }
 }
 

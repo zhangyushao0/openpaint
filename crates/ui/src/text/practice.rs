@@ -55,6 +55,9 @@ pub(crate) const fn pen(pen: Pen) -> Text {
         Pen::Main => super::MAIN_PEN,
         Pen::Second => super::SECOND_PEN,
         Pen::Third => super::THIRD_PEN,
+        Pen::Dark => super::DARK_PEN,
+        Pen::Middle => super::MIDDLE_PEN,
+        Pen::Light => super::LIGHT_PEN,
     }
 }
 
@@ -94,6 +97,7 @@ pub(crate) const fn metric(metric: Metric) -> Text {
         Metric::ObjectOff => super::OFF_THE_OBJECT,
         Metric::DivisionLines(_) => super::LINES_DRAWN,
         Metric::DivisionLength(_) => super::MEAN_LENGTH,
+        Metric::MassesMatched => super::AT_ITS_VALUE,
     }
 }
 
@@ -145,6 +149,7 @@ const fn called(family: Family, warming_up: bool) -> Text {
         (false, Family::Object) => super::OBJECT_EXERCISE,
         (false, Family::Division) => super::DIVISION_EXERCISE,
         (false, Family::WholeCopy) => super::WHOLE_COPY_EXERCISE,
+        (false, Family::ValueMasses) => super::VALUE_MASSES_EXERCISE,
         (false, Family::Colour) => super::COLOUR,
         (false, Family::Areas) => super::AREAS_EXERCISE,
         (false, Family::Scale) => super::SCALE_EXERCISE,
@@ -204,6 +209,7 @@ pub(crate) fn compared_of(
         (_, Family::Object) => named(super::OBJECTS_COUNTED),
         (_, Family::Division) => named(super::DIVISIONS_COUNTED),
         (_, Family::WholeCopy) => named(super::WHOLE_COPIES_COUNTED),
+        (_, Family::ValueMasses) => named(super::MASSES_COUNTED),
         (Language::English, Family::Line) => format!("Lines: {checked} of {held} compared"),
         (Language::English, Family::Combined) => {
             format!("Combined lines: {checked} of {held} compared")

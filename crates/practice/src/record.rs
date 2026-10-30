@@ -281,7 +281,8 @@ const fn rows_of(family: Family) -> &'static [Metric] {
         Family::Areas => &AREAS_ROWS,
         Family::Scale => &SCALE_ROWS,
         // Estimates, points in space and solids keep their errors for the trajectories, never
-        // shown (D107); a division its counts and lengths, shown on its card only (S95).
+        // shown (D107); a division its counts and lengths, shown on its card only (S95); value
+        // masses their share at the answer's value, shown nowhere (S96).
         Family::Line
         | Family::Combined
         | Family::Shape
@@ -302,6 +303,7 @@ const fn rows_of(family: Family) -> &'static [Metric] {
         | Family::Object
         | Family::Division
         | Family::WholeCopy
+        | Family::ValueMasses
         | Family::Study => &[],
     }
 }

@@ -62,9 +62,12 @@ pub enum Kind {
     /// A composition's picture of a tier divided by its most obvious lines in three levels
     /// (V大's 画面分割, S95).
     Division(Tier),
-    /// A composition's picture of a tier divided, then copied whole as a line drawing over its
-    /// division dimmed (V大's 整图复制, S95).
+    /// A composition's picture of a tier divided, then copied whole as a line drawing (or in
+    /// colour blocks, S96) over its division dimmed (V大's 整图复制, S95).
     WholeCopy(Tier),
+    /// A composition's picture of a tier painted as its few big masses in three greys, grouped by
+    /// value (V大's 黑白灰 and colour blocks by attribute, S96).
+    ValueMasses(Tier),
 }
 
 /// What an exercise asks for, whatever its variant: its instructions, its tools, its line in
@@ -100,11 +103,13 @@ pub enum Family {
     Areas,
     Scale,
     Study,
+    /// A picture's value masses painted in three greys (S96).
+    ValueMasses,
 }
 
 impl Family {
     /// In a warm-up's order.
-    pub const ALL: [Self; 24] = [
+    pub const ALL: [Self; 25] = [
         Self::Line,
         Self::Combined,
         Self::Shape,
@@ -129,13 +134,18 @@ impl Family {
         Self::Areas,
         Self::Scale,
         Self::Study,
+        Self::ValueMasses,
     ];
 
     /// Whether its exercises are drawn with the pens as lines (lines, combined lines, single
-    /// shapes, boxes, ellipses, estimates, points in space, solids and objects), not coloured.
+    /// shapes, boxes, ellipses, estimates, points in space, solids, objects, divisions and whole
+    /// copies), not coloured.
     #[must_use]
     pub const fn drawn(self) -> bool {
-        !matches!(self, Self::Colour | Self::Areas | Self::Scale | Self::Study)
+        !matches!(
+            self,
+            Self::Colour | Self::Areas | Self::Scale | Self::Study | Self::ValueMasses
+        )
     }
 
     /// Whether its copy is checked as geometry (boxes in perspective, ellipses, estimates, points
@@ -156,10 +166,20 @@ impl Family {
     }
 
     /// Whether its exercises are painted with brushes and read from the copy's pixels (colour
-    /// combinations, value scales, colour copies).
+    /// combinations, value scales, colour copies, value masses).
     #[must_use]
     pub const fn painted(self) -> bool {
-        matches!(self, Self::Areas | Self::Scale | Self::Study)
+        matches!(
+            self,
+            Self::Areas | Self::Scale | Self::Study | Self::ValueMasses
+        )
+    }
+
+    /// Whether its exercises copy a composition's picture (S95, S96): a division, a whole copy,
+    /// value masses.
+    #[must_use]
+    pub const fn composed(self) -> bool {
+        matches!(self, Self::Division | Self::WholeCopy | Self::ValueMasses)
     }
 }
 
@@ -170,8 +190,9 @@ impl Kind {
     /// copy, (8, view) for a box to complete, (9, horizon) for free boxes, (10, guide) for an
     /// ellipse, (11, estimate) for an estimate on the flat, (12, trick) for a point in space, (13,
     /// solid) for a solid in a box, (14, carve) for an object simplified into its box, (15, the
-    /// picture's tier code) for a division, (16, the picture's tier code) for a whole copy. A code
-    /// names one generator for good; a changed generator is a new code.
+    /// picture's tier code) for a division, (16, the picture's tier code) for a whole copy, (17,
+    /// the picture's tier code) for value masses. A code names one generator for good; a changed
+    /// generator is a new code.
     #[must_use]
     pub fn code(self) -> (u8, u8) {
         let index = |found: Option<usize>| found.unwrap_or(0) as u8;
@@ -198,6 +219,7 @@ impl Kind {
             Self::Object(carve) => (14, index(Carve::ALL.iter().position(|c| *c == carve))),
             Self::Division(tier) => (15, tier.code()),
             Self::WholeCopy(tier) => (16, tier.code()),
+            Self::ValueMasses(tier) => (17, tier.code()),
         }
     }
 
@@ -221,6 +243,7 @@ impl Kind {
             14 => Carve::ALL.get(at).map(|c| Self::Object(*c)),
             15 => Tier::of_code(variant).map(Self::Division),
             16 => Tier::of_code(variant).map(Self::WholeCopy),
+            17 => Tier::of_code(variant).map(Self::ValueMasses),
             _ => None,
         }
     }
@@ -244,6 +267,7 @@ impl Kind {
             Self::Object(_) => Family::Object,
             Self::Division(_) => Family::Division,
             Self::WholeCopy(_) => Family::WholeCopy,
+            Self::ValueMasses(_) => Family::ValueMasses,
         }
     }
 }
@@ -279,9 +303,11 @@ impl Exercise {
             Kind::Combined(combination) => {
                 Original::Lines(CombinedLines::generate(combination, self.seed).lines)
             }
-            Kind::Shape(_) | Kind::Study | Kind::Division(_) | Kind::WholeCopy(_) => {
-                Original::Picture(self.picture.clone().unwrap_or_default())
-            }
+            Kind::Shape(_)
+            | Kind::Study
+            | Kind::Division(_)
+            | Kind::WholeCopy(_)
+            | Kind::ValueMasses(_) => Original::Picture(self.picture.clone().unwrap_or_default()),
             Kind::Areas(arrangement) => Original::Areas(Areas::generate(arrangement, self.seed)),
             Kind::Scale(tone) => Original::Scale(ValueScale::generate(tone, self.seed)),
             Kind::Box(view) => Original::Box(PerspectiveBox::generate(view, self.seed)),

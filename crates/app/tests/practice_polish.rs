@@ -200,6 +200,7 @@ fn pack(id: &str, item: &str) -> Pack {
             title: "Picture 1".to_owned(),
             credit: None,
             outline: None,
+            masses: None,
         }],
     }
 }

@@ -92,7 +92,7 @@ impl Session {
             }
             PracticeIntent::Fill(color) => {
                 let region = practice.fill_region(&artwork, self.selection.mask())?;
-                let filled = artwork.fill_region(region, color)?;
+                let filled = artwork.fill_region(region, practice.fill_colour(color))?;
                 self.fills.interrupt();
                 self.history.record(filled.artwork);
                 Ok(())

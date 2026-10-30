@@ -11,33 +11,40 @@
 //! title (string); its credit, a flag (u8, 1 credited, 0 not: the user's own) and when credited
 //! the source page and creator (strings), the licence (u8, its code), attribution and notes
 //! (strings); its outline, a contour count (u32, 0 none) and per contour a point count (u32) and
-//! each point's x and y in the picture's pixels (f32 each); and its picture's length and CRC-32
-//! (u32 each). A picture is a PNG or JPEG file of the item's size.
+//! each point's x and y in the picture's pixels (f32 each); its value masses (S96), their cells
+//! across and down (u32 each, both 0 none) and then a run count (u32) and per run, row by row, a
+//! value (u8, dark 0, middle 1, light 2) and how many cells hold it (u32); and its picture's
+//! length and CRC-32 (u32 each). A picture is a PNG or JPEG file of the item's size.
 //!
 //! So a pack's list reads its head alone and an exercise one picture at its offset, each
 //! checked by its own sum; an import checks every part. Format 2 (1.4.0) added the outline and
-//! the personal pack's uncredited items; S78's format 1 was never released and is not read.
+//! the personal pack's uncredited items, format 3 (1.14.0) the value masses; a format-2 pack is
+//! upgraded (`pack_upgrade.rs`); S78's format 1 was never released and is not read.
 
 use std::io::Cursor;
+use std::sync::Arc;
 
 use image::{ImageFormat, ImageReader};
 use openpaint_app::PortError;
-use openpaint_practice::{Credit, Licence, Outline, Pack, PackItem, PictureKind, Point, Tier};
+use openpaint_practice::{
+    Credit, Licence, MASSES_SIDE, Outline, Pack, PackItem, PictureKind, Point, Tier, ValueMasses,
+};
 
 use crate::codec::{Reader, Writer};
 
 /// The layout this build reads and writes.
-pub const PACK_FORMAT: u32 = 2;
-const MAGIC: &[u8; 14] = b"OpenPaintPack\0";
+pub const PACK_FORMAT: u32 = 3;
+pub(crate) const MAGIC: &[u8; 14] = b"OpenPaintPack\0";
 /// Bytes before the head: the magic, the format and the head's length.
 pub(crate) const START: usize = MAGIC.len() + 4 + 4;
 /// The longest head a pack may have: a length naming more is damage, never an allocation.
-const MAX_HEAD: usize = 16 << 20;
+pub(crate) const MAX_HEAD: usize = 16 << 20;
 /// The fewest bytes of an item in the head (a one-byte id, an empty title, no credit, no
-/// outline), of a contour and of a point.
-const ITEM_BYTES: usize = 5 + 2 + 8 + 4 + 1 + 4 + 8;
+/// outline, no value masses), of a contour, of a point and of a run of value masses.
+const ITEM_BYTES: usize = 5 + 2 + 8 + 4 + 1 + 4 + 8 + 8;
 const CONTOUR_BYTES: usize = 4;
 const POINT_BYTES: usize = 8;
+const RUN_BYTES: usize = 5;
 
 /// Where an item's picture lies in its pack's file.
 #[derive(Debug, Clone, Copy)]
@@ -124,6 +131,31 @@ fn write_item(head: &mut Writer, item: &PackItem) {
             head.f32(*y as f32);
         }
     }
+    let Some(masses) = &item.masses else {
+        head.u32(0);
+        head.u32(0);
+        return;
+    };
+    head.u32(masses.size[0]);
+    head.u32(masses.size[1]);
+    let runs = runs(&masses.values);
+    head.len(runs.len());
+    for (value, length) in runs {
+        head.u8(value);
+        head.u32(length);
+    }
+}
+
+/// `values` as runs: each value and how many cells in a row hold it.
+fn runs(values: &[u8]) -> Vec<(u8, u32)> {
+    let mut runs: Vec<(u8, u32)> = Vec::new();
+    for value in values {
+        match runs.last_mut() {
+            Some((held, length)) if held == value => *length += 1,
+            _ => runs.push((*value, 1)),
+        }
+    }
+    runs
 }
 
 /// Opens a pack file and checks every part: its head and every picture against their sums, the
@@ -137,7 +169,7 @@ pub fn open_pack(bytes: &[u8]) -> Result<(Pack, Vec<&[u8]>), PortError> {
     let (head, mut rest) = bytes[START..]
         .split_at_checked(length + 4)
         .ok_or_else(damaged)?;
-    let (pack, placed) = decode_head(head)?;
+    let (pack, placed) = decode_head(head, PACK_FORMAT)?;
     let mut pictures = Vec::with_capacity(placed.len());
     for (item, place) in pack.items.iter().zip(&placed) {
         let (picture, after) = rest
@@ -176,23 +208,31 @@ pub(crate) fn head_length(start: &[u8; START]) -> Result<usize, PortError> {
     Ok(length)
 }
 
-/// The pack in a head followed by its check sum, and where each item's picture lies in the file.
+/// The pack in a head of `format` (this build's, or format 2 for the upgrade alone,
+/// `pack_upgrade.rs`) followed by its check sum, and where each item's picture lies in the file.
 ///
 /// # Errors
 /// `Corrupt` when the sum does not hold, the head does not decode or the pack breaks a rule.
-pub(crate) fn decode_head(head_and_check: &[u8]) -> Result<(Pack, Vec<Placed>), PortError> {
+pub(crate) fn decode_head(
+    head_and_check: &[u8],
+    format: u32,
+) -> Result<(Pack, Vec<Placed>), PortError> {
     let (head, check) = head_and_check.split_last_chunk::<4>().ok_or_else(damaged)?;
     if crc32fast::hash(head) != u32::from_le_bytes(*check) {
         return Err(damaged());
     }
     let mut reader = Reader::new(head, "practice pack");
     let (id, title) = (reader.str()?, reader.str()?);
-    let count = reader.count(ITEM_BYTES)?;
+    let count = reader.count(ITEM_BYTES - if format < 3 { 8 } else { 0 })?;
     let mut items = Vec::with_capacity(count);
     let mut placed = Vec::with_capacity(count);
     let mut offset = (START + head_and_check.len()) as u64;
     for _ in 0..count {
-        items.push(read_item(&mut reader)?);
+        let mut item = read_item(&mut reader)?;
+        if format >= 3 {
+            item.masses = read_masses(&mut reader)?;
+        }
+        items.push(item);
         let (length, check) = (reader.u32()?, reader.u32()?);
         placed.push(Placed {
             offset,
@@ -245,7 +285,31 @@ fn read_item(reader: &mut Reader<'_>) -> Result<PackItem, PortError> {
         title,
         credit,
         outline: (!contours.is_empty()).then_some(Outline { contours }),
+        masses: None,
     })
+}
+
+/// An item's value masses, after its outline (format 3); none where both sides are 0.
+fn read_masses(reader: &mut Reader<'_>) -> Result<Option<Arc<ValueMasses>>, PortError> {
+    let size = [reader.u32()?, reader.u32()?];
+    if size == [0, 0] {
+        return Ok(None);
+    }
+    if !size.iter().all(|side| (1..=MASSES_SIDE).contains(side)) {
+        return Err(damaged());
+    }
+    let cells = size[0] as usize * size[1] as usize;
+    let runs = reader.count(RUN_BYTES)?;
+    let mut values = Vec::with_capacity(cells);
+    for _ in 0..runs {
+        let (value, length) = (reader.u8()?, reader.u32()? as usize);
+        if values.len() + length > cells {
+            return Err(damaged());
+        }
+        values.extend(std::iter::repeat_n(value, length));
+    }
+    let masses = ValueMasses::checked(size, values).ok_or_else(damaged)?;
+    Ok(Some(Arc::new(masses)))
 }
 
 /// The width and height a PNG or JPEG file's header states; `None` for any other bytes.

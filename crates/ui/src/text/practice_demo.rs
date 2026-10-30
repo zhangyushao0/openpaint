@@ -72,6 +72,7 @@ pub(crate) const fn how(family: Family) -> How {
         Family::Object => super::practice_demo_objects::OBJECT,
         Family::Division => super::practice_demo_division::DIVISION,
         Family::WholeCopy => super::practice_demo_division::WHOLE_COPY,
+        Family::ValueMasses => super::practice_masses::VALUE_MASSES,
         Family::Colour => c::COLOUR,
         Family::Areas => c::AREAS,
         Family::Scale => c::SCALE,

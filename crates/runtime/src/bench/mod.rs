@@ -58,6 +58,7 @@ mod motion;
 mod open;
 mod practice;
 mod practice_division;
+mod practice_masses;
 mod practice_points;
 mod session;
 mod strokes;

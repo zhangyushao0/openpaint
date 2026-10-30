@@ -71,8 +71,8 @@ texts! { GALLERY_NOTICES;
     RESTORE_FAILED = "Couldn't restore this version.", "无法恢复此版本。";
     PACK_IMPORTED = "Practice pack imported: its pictures come up in single shapes.",
         "练习图包已导入：单体图形会用到其中的图片。";
-    COMPOSITIONS_IMPORTED = "Practice pack imported: its pictures come up in divisions and whole \
-        copies.", "练习图包已导入：画面分割和整图复制会用到其中的图片。";
+    COMPOSITIONS_IMPORTED = "Practice pack imported: for divisions, value masses and whole \
+        copies.", "练习图包已导入：画面分割、黑白灰和整图复制会用到其中的图片。";
     PACK_DAMAGED = "Couldn't import: the file is not a practice pack, or it is damaged.",
         "无法导入：这不是练习图包，或图包已损坏。";
     PACK_OTHER_FORMAT = "Couldn't import: the pack is from another version of OpenPaint.",

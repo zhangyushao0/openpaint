@@ -10,9 +10,11 @@
 
 use std::collections::HashSet;
 use std::fmt;
+use std::sync::Arc;
 
 use crate::licence::Licence;
 use crate::outline::Outline;
+use crate::value_masses::ValueMasses;
 
 /// The longest side a pack's picture may have, in pixels.
 pub const MAX_PICTURE_SIDE: u32 = 2048;
@@ -84,6 +86,12 @@ impl PictureKind {
     pub const fn outlined(self) -> bool {
         matches!(self, Self::Shape)
     }
+
+    /// Whether its pictures may carry value masses (S96): a composition's do, a shape's never.
+    #[must_use]
+    pub const fn massed(self) -> bool {
+        matches!(self, Self::Composition)
+    }
 }
 
 /// How hard a picture is to copy, easiest first; what each holds depends on the kind
@@ -154,6 +162,10 @@ pub struct PackItem {
     /// Its silhouette (in the picture's pixels); none where none was derived or it was judged
     /// wrong: Compare then shows the picture itself, faint.
     pub outline: Option<Outline>,
+    /// Its value masses (a composition's, S96), made when the pack was built and judged on its
+    /// sheet; none where they were judged not to read as a squinting eye sees them: the picture
+    /// is never offered for value masses then.
+    pub masses: Option<Arc<ValueMasses>>,
 }
 
 /// What an official item's licence and its curator say about it.
@@ -306,6 +318,14 @@ impl PackItem {
         }
         if !self.kind.tiers().contains(&self.tier) {
             return Err("its tier is not one its kind takes");
+        }
+        if let Some(masses) = &self.masses {
+            if !self.kind.massed() {
+                return Err("its kind never has value masses and it has them");
+            }
+            if !masses.valid() {
+                return Err("its value masses are no map of values");
+            }
         }
         let Some(outline) = &self.outline else {
             return Ok(());

@@ -99,6 +99,8 @@ impl PracticeLog {
             packs: self.packs.iter().map(PackShown::of).collect(),
             compositions: (self.packs.iter().flat_map(|pack| &pack.items))
                 .any(|item| item.kind == PictureKind::Composition),
+            masses: (self.packs.iter().flat_map(|pack| &pack.items))
+                .any(|item| item.masses.is_some()),
             copies: self.copies(),
             pictures: Arc::clone(&self.pictures),
             book: BookProjection {

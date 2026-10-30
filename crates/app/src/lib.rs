@@ -103,12 +103,14 @@ pub use crate::practice::{
     PracticeProjection, Probe, SHAPE_SHOWN, SHOWN, SheetView, sheet_of,
 };
 pub use crate::practice_book::{BookProjection, BookRecord, LineRead, Mark, SheetRead};
-pub use crate::practice_layers::{DIVISION_DIMMED, DIVISION_LAYER, LINES_LAYER};
+pub use crate::practice_layers::{BLOCKS_LAYER, DIVISION_DIMMED, DIVISION_LAYER, LINES_LAYER};
 pub use crate::practice_log::PracticeLog;
-pub use crate::practice_pens::{INK_DIAMETER, PracticePens};
-pub use crate::practice_pictures::{FitJob, PackShown, PictureImage, SHOWN_SIDE, SheetPicture};
+pub use crate::practice_pens::{INK_DIAMETER, PracticePens, value_colour};
+pub use crate::practice_pictures::{
+    FitJob, MassesShown, PackShown, PictureImage, SHOWN_SIDE, SheetPicture,
+};
 pub use crate::practice_sheet::{
-    CopyRead, Finished, PRACTICE_ROOM, PracticePick, Practising, ReadJob,
+    CopyRead, Finished, PRACTICE_ROOM, PracticePick, Practising, ReadAs, ReadJob,
 };
 pub use crate::practice_today::{CopyShown, DrillShown, PictureShown, TodayProjection};
 pub use crate::project::{

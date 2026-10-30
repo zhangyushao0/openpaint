@@ -11,7 +11,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use egui::{Rect, Sense, TextureHandle, Vec2};
-use openpaint_practice::{Demo, Drawn, Family, Layout, Marker, On, Rgb8};
+use openpaint_practice::{Demo, Drawn, Family, Layout, Marker, On, Rgb8, ValueMasses};
 
 use crate::components::{Alpha, card_step, keep_moving, picture_texture};
 use crate::design::{INK, PENCIL, SPACE};
@@ -42,6 +42,8 @@ pub(crate) enum PictureKey {
     Object,
     /// The example landscape's (S95).
     Masses,
+    /// Its value masses (S96): the hand's copy's or the answer's, the values shown.
+    Values { copy: bool, shown: [bool; 3] },
 }
 
 /// The demonstrations made so far and the one playing.
@@ -136,6 +138,10 @@ impl Demonstrations {
                 Drawn::Areas(colours) if mark.from <= seconds => PictureKey::Areas(colours.clone()),
                 Drawn::Shaded => PictureKey::Object,
                 Drawn::Masses(_) => PictureKey::Masses,
+                Drawn::Values { copy, shown, .. } => PictureKey::Values {
+                    copy: *copy,
+                    shown: *shown,
+                },
                 _ => continue,
             };
             self.picture(ui.ctx(), demo, key);
@@ -162,6 +168,10 @@ impl Demonstrations {
             PictureKey::Object => (demo.object.as_deref())
                 .map(|object| ([OBJECT_PICTURE; 2], object.picture(OBJECT_PICTURE))),
             PictureKey::Masses => (demo.masses.as_deref()).map(|m| m.picture(MASSES_PICTURE)),
+            PictureKey::Values { copy, shown } => (demo.values.as_deref()).map(|maps| {
+                let map = &maps[usize::from(*copy)];
+                (map.size, shown_values(map, *shown))
+            }),
         };
         let Some((size, pixels)) = made else {
             return;
@@ -170,6 +180,17 @@ impl Demonstrations {
         let texture = picture_texture(ctx, name, (size, &pixels, Alpha::Straight));
         self.pictures.push((key, texture));
     }
+}
+
+/// `map`'s cells in their greys where their value is `shown` (dark, middle, light), clear
+/// elsewhere (S96).
+fn shown_values(map: &ValueMasses, shown: [bool; 3]) -> Vec<u8> {
+    (map.picture().chunks(4).zip(&map.values))
+        .flat_map(|(pixel, value)| {
+            let on = shown.get(usize::from(*value)).copied().unwrap_or(false);
+            [pixel[0], pixel[1], pixel[2], if on { 255 } else { 0 }]
+        })
+        .collect()
 }
 
 /// Where the example's frames lie in `rect`: a copying kind's frames side by side; a box's, an

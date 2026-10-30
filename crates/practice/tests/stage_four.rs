@@ -3,14 +3,16 @@
 //! turn, none twice in a session, none of the last ten sessions' while others are left); without
 //! a composition S94's mix (a solid in turn, a medium or hard shape in turn, a colour combination
 //! in turn); after a warm-up of three from the kinds met, never an object, a solid, a division or
-//! a whole copy. Divisions and whole copies drilled likewise.
+//! a whole copy. Divisions and whole copies drilled likewise. Where a picture's value masses read
+//! (S96), value masses in the first, third, fifth session in the whole copy's place.
 
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use openpaint_practice::{
     Arrangement, Before, Carve, Family, ItemRef, Kind, LineTier, Metric, Pack, PackItem,
-    PictureKind, Pictures, STAGES_READY, Solid, Tier, WARM_UP_TWO, drill, kinds_of, plan,
-    stage_four,
+    PictureKind, Pictures, STAGES_READY, Solid, Tier, ValueMasses, WARM_UP_TWO, drill, kinds_of,
+    plan, stage_four,
 };
 
 fn pack(id: &str, kind: PictureKind, tiers: &[Tier]) -> Pack {
@@ -22,6 +24,7 @@ fn pack(id: &str, kind: PictureKind, tiers: &[Tier]) -> Pack {
         title: "test".to_owned(),
         credit: None,
         outline: None,
+        masses: None,
     };
     Pack {
         id: id.to_owned(),
@@ -63,7 +66,12 @@ fn a_first_stage_four_session_without_compositions_is_s94_s_mix() {
     assert_eq!(STAGES_READY, 4);
     assert_eq!(
         kinds_of(4),
-        [Family::Object, Family::Division, Family::WholeCopy]
+        [
+            Family::Object,
+            Family::Division,
+            Family::ValueMasses,
+            Family::WholeCopy
+        ]
     );
     let all = pictures(&Tier::ALL);
     let first = stage_four(1, 0x5EED_0094, &before(&[], &all));
@@ -253,5 +261,53 @@ fn the_warm_up_is_three_of_the_kinds_met_never_an_object_a_solid_or_a_division()
         assert!(kind.family().drawn() && kind.family().divided());
         assert!(!kind.family().geometric() && !kind.family().painted());
     }
-    assert_eq!(Kind::of_code(17, 0), None);
+    let masses = Kind::ValueMasses(Tier::Medium);
+    assert_eq!(masses.code(), (17, 3));
+    assert_eq!(Kind::of_code(17, 3), Some(masses));
+    assert!(masses.family().painted() && !masses.family().drawn() && masses.family().composed());
+    assert_eq!(Kind::of_code(18, 0), None);
+    assert_eq!(Metric::MassesMatched.code(), 55);
+}
+
+/// Shapes of every tier and compositions of the simple and medium tiers whose value masses read
+/// (S96), but the last of each.
+fn with_masses() -> Pictures {
+    let mut compositions = pack(
+        "test-compositions",
+        PictureKind::Composition,
+        &[Tier::Simple, Tier::Medium],
+    );
+    let masses = ValueMasses::checked([2, 2], vec![0, 1, 2, 1]).map(Arc::new);
+    for item in &mut compositions.items {
+        item.masses = masses.clone().filter(|_| !item.id.ends_with("-3"));
+    }
+    Pictures::of(&[
+        pack("test-shapes", PictureKind::Shape, &Tier::ALL),
+        compositions,
+    ])
+}
+
+#[test]
+fn value_masses_and_whole_copies_come_in_turn_after_the_division() {
+    let all = with_masses();
+    let met = [Kind::ValueMasses(Tier::Simple), Kind::Line(LineTier::Arc)];
+    for number in 1..=8 {
+        let plan = stage_four(number, 0x5EED_0096 + u64::from(number), &before(&met, &all));
+        let warmed = plan.warm_up as usize;
+        let warm_up = &plan.exercises[..warmed];
+        assert!(warm_up.iter().all(|e| !e.kind.family().composed()));
+        let last = &plan.exercises[warmed + 4];
+        let (turn, medium) = ((number - 1) as usize, [Tier::Simple, Tier::Medium]);
+        let tier = medium[(turn + 1) % 2];
+        let expected = if number % 2 == 1 {
+            Kind::ValueMasses(tier)
+        } else {
+            Kind::WholeCopy(tier)
+        };
+        assert_eq!(last.kind, expected, "session {number}");
+        let item = last.picture.as_ref().expect("a composition");
+        if number % 2 == 1 {
+            assert!(!item.item.ends_with("-3"), "only masses that read");
+        }
+    }
 }
