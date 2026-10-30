@@ -1,16 +1,17 @@
 //! Compare for free boxes (S84, `perspective_check.rs`): boxes drawn freely on a page with a
 //! horizon, with no answer but the rules. The edges found are gathered into boxes by touching one
 //! another; a box's verticals (near the page's vertical) should stay vertical, its other edges
-//! are extended to the horizon and split into its two directions where their crossings, seen from
+//! are run on to the horizon and split into its two directions where their crossings, seen from
 //! the box, lie widely apart; each direction meets the horizon where the edges that agree pass
-//! nearest, and its edges either head there or miss. A front corner (where an edge of each
-//! direction leaves towards its meeting point) under 90 degrees is marked: V大 calls it
-//! distortion, the vanishing points too close.
+//! nearest, its vanishing point, and its edges either head there or miss it (S97: only one that
+//! misses drawn on, past the point). A front corner (where an edge of each direction leaves
+//! towards its meeting point) under 90 degrees is marked: V大 calls it distortion, the vanishing
+//! points too close.
 
 use crate::edges::Edge;
 use crate::path::{Point, apart, distance};
 use crate::perspective::{Direction, FAR, angle_between};
-use crate::perspective_check::{Checked, ON_ANGLE, extended, line_angle, plumb, sub};
+use crate::perspective_check::{Checked, ON_ANGLE, checked, line_angle, sub};
 
 /// On a free page an edge within this angle of the vertical is a vertical (degrees).
 const VERTICAL: f64 = 12.0;
@@ -57,6 +58,20 @@ impl FreeCheck {
             .collect();
         Self { boxes }
     }
+
+    /// How many edges miss where their direction meets (or lean, a vertical).
+    #[must_use]
+    pub fn missed(&self) -> usize {
+        (self.boxes.iter().flat_map(|free| &free.edges))
+            .filter(|edge| !edge.on)
+            .count()
+    }
+
+    /// How many front corners are under 90 degrees.
+    #[must_use]
+    pub fn narrow(&self) -> usize {
+        self.boxes.iter().map(|free| free.narrow.len()).sum()
+    }
 }
 
 /// `found` gathered into groups of edges touching one another, left to right.
@@ -95,18 +110,12 @@ fn touching(found: &[Edge]) -> Vec<Vec<Edge>> {
 /// One box's `edges` checked against the `horizon`.
 fn free_box(horizon: f64, edges: &[Edge]) -> FreeBox {
     let centre = mean(&edges.iter().map(Edge::middle).collect::<Vec<_>>());
-    let mut checked = Vec::new();
+    let mut read: Vec<Checked> = Vec::new();
     let mut receding: Vec<(Edge, f64)> = Vec::new();
     for edge in edges {
         let lean = line_angle(edge.direction(), [0.0, 1.0]);
         if lean <= VERTICAL {
-            checked.push(Checked {
-                edge: *edge,
-                direction: Direction::Vertical,
-                extension: None,
-                plumb: Some(plumb(edge)),
-                on: lean <= ON_ANGLE,
-            });
+            read.push(checked(edge, Direction::Vertical, None, FAR));
         } else if let Some(x) = crossing(edge, horizon) {
             receding.push((*edge, x));
         }
@@ -119,15 +128,9 @@ fn free_box(horizon: f64, edges: &[Edge]) -> FreeBox {
         meets.push((*direction, meet));
         let mut missed = false;
         for (edge, _) in group {
-            let on = line_angle(edge.direction(), sub(meet, edge.middle())) <= ON_ANGLE;
-            missed |= !on;
-            checked.push(Checked {
-                edge: *edge,
-                direction: *direction,
-                extension: extended(edge, meet, (horizon, None), FAR),
-                plumb: None,
-                on,
-            });
+            let edge = checked(edge, *direction, Some(meet), FAR);
+            missed |= !edge.on;
+            read.push(edge);
         }
         if missed && group.len() > 1 {
             apart.push(*direction);
@@ -135,7 +138,7 @@ fn free_box(horizon: f64, edges: &[Edge]) -> FreeBox {
     }
     let narrow = front_corners(&groups, &meets);
     FreeBox {
-        edges: checked,
+        edges: read,
         meets,
         apart,
         narrow,

@@ -2,11 +2,18 @@
 //! read at even steps and split where it turns (Douglas–Peucker: where it leaves the chord between
 //! its ends by more than `SPLIT`), neighbouring runs that turn but a little joined again while
 //! together still straight, and each run fitted by a straight line (total least squares) and kept
-//! only if it is straight along its whole length: a curve is no edge. An edge drawn twice,
-//! retraced, or in pieces along one line becomes one, fitted to all its points. An edge's ends are
-//! where its first and last points fall on its line, so an overshoot past a corner stays part of
-//! the edge it continues. Edges shorter than `SHORTEST` are left out, and nothing is guessed: a
-//! run that is no straight line shows nothing.
+//! only if it is straight along its whole length: a curve is no edge. Strokes along one edge are
+//! one edge (S97): drawn in pieces, fitted to all their points; drawn again over it (a redraw, the
+//! two overlapping over half the shorter), the later stroke's line, as a correction counts, over
+//! the reach of both. A hand redraws an edge a few pixels and a degree or two off, each stroke a
+//! degree or two off its own aim besides (the author's redrawn edges read as two while the
+//! shorter's ends had to lie within 4 pixels of the longer's line): two lines are one edge when
+//! within `DOUBLE_ANGLE` of each other and the shorter's middle near the longer's line, a tenth of
+//! its length (at most two pen widths), under a face's least width (`perspective.rs`'s `FACE`, a
+//! small free box's faces a fifth of its edges). An edge's ends are where its first and last
+//! points fall on its line, so an overshoot past a corner stays part of the edge it continues.
+//! Edges shorter than `SHORTEST` are left out, and nothing is guessed: a run that is no straight
+//! line shows nothing.
 //!
 //! Frame units (a frame's side is 1). How reliable it is on hand-drawn boxes: `tests/edges.rs`.
 
@@ -25,13 +32,17 @@ const SMOOTH: f64 = 60.0;
 /// its length, whichever is more: a hand's tremor and bow, never a curve's bend.
 const STRAIGHT: f64 = 0.006;
 const STRAIGHT_SHARE: f64 = 0.03;
-/// Two edges are one drawn twice when they lie within this angle (degrees), the shorter's ends
-/// within `DOUBLE_APART` (or that share of the longer's length: two bowed strokes) of the
-/// longer's line, and they overlap or leave at most `DOUBLE_GAP` between them along it.
-const DOUBLE_ANGLE: f64 = 4.0;
-const DOUBLE_APART: f64 = 0.01;
-const DOUBLE_APART_SHARE: f64 = 0.025;
+/// Two edges are one drawn twice or in pieces when they lie within this angle (degrees: a redraw's
+/// 3 and each stroke's own 2), the shorter's middle within `DOUBLE_APART_SHARE` of the longer's
+/// length of its line (kept within `DOUBLE_APART`, 3 to 10 pixels; a small box's faces are some
+/// fifth of its edges' length wide, a large one's 20 pixels at least), and they overlap or leave
+/// at most `DOUBLE_GAP` between them along it; a redraw when they overlap over `REDRAW_SHARE` of
+/// the shorter's length.
+const DOUBLE_ANGLE: f64 = 7.0;
+const DOUBLE_APART: [f64; 2] = [0.008, 0.025];
+const DOUBLE_APART_SHARE: f64 = 0.1;
 const DOUBLE_GAP: f64 = 0.03;
+const REDRAW_SHARE: f64 = 0.5;
 /// A correction redraws an edge it runs within this angle (degrees) of and this near.
 const REDRAWN_ANGLE: f64 = 10.0;
 const REDRAWN_APART: f64 = 0.03;
@@ -67,11 +78,20 @@ impl Edge {
     }
 }
 
-/// A run of points and the straight line fitted to it.
+/// A run of points, the straight line fitted to it and when its latest stroke was drawn (runs
+/// are numbered in the order drawn).
 #[derive(Debug, Clone)]
 struct Run {
     points: Vec<Point>,
     line: Fitted,
+    order: usize,
+}
+
+impl Run {
+    /// Its line's two ends.
+    fn ends(&self) -> [Point; 2] {
+        self.line.extent.map(|t| self.line.at(t))
+    }
 }
 
 /// A fitted line: a point on it (the points' centre), its unit direction (along the points'
@@ -120,14 +140,12 @@ pub fn edges(lines: &[&[Point]]) -> Vec<Edge> {
         }
         runs.extend(split(&even).into_iter().filter(|run| run.line.straight()));
     }
+    for (order, run) in runs.iter_mut().enumerate() {
+        run.order = order;
+    }
     join_doubles(&mut runs);
     let mut found: Vec<Edge> = (runs.iter())
-        .map(|run| Edge {
-            ends: [
-                run.line.at(run.line.extent[0]),
-                run.line.at(run.line.extent[1]),
-            ],
-        })
+        .map(|run| Edge { ends: run.ends() })
         .filter(|edge| edge.length() >= SHORTEST)
         .collect();
     found.sort_by(|a, b| b.length().total_cmp(&a.length()));
@@ -213,7 +231,13 @@ fn split(points: &[Point]) -> Vec<Run> {
         .collect();
     join_turns(&mut runs);
     let runs: Vec<Run> = (runs.into_iter())
-        .filter_map(|points| fit(&points).map(|line| Run { points, line }))
+        .filter_map(|points| {
+            fit(&points).map(|line| Run {
+                points,
+                line,
+                order: 0,
+            })
+        })
         .collect();
     let curve = on_curves(&runs);
     (runs.into_iter().zip(curve))
@@ -278,29 +302,50 @@ fn turn(a: Point, b: Point) -> f64 {
     cross.abs().atan2(dot).to_degrees()
 }
 
-/// Edges drawn twice, retraced or in pieces along one line joined into one.
+/// Strokes along one edge joined into one: drawn twice, retraced or in pieces.
 fn join_doubles(runs: &mut Vec<Run>) {
     'joining: loop {
         for i in 0..runs.len() {
             for j in i + 1..runs.len() {
-                if doubled(&runs[i].line, &runs[j].line) {
-                    let mut points = runs[i].points.clone();
-                    points.extend_from_slice(&runs[j].points);
-                    let longer = if runs[i].line.length() >= runs[j].line.length() {
-                        runs[i].line
-                    } else {
-                        runs[j].line
-                    };
-                    if let Some(line) = fit_along(&points, longer.along) {
-                        runs[i] = Run { points, line };
-                        runs.remove(j);
-                        continue 'joining;
-                    }
+                if let Some(run) = joined(&runs[i], &runs[j]) {
+                    runs[i] = run;
+                    runs.remove(j);
+                    continue 'joining;
                 }
             }
         }
         return;
     }
+}
+
+/// `a` and `b` as one edge, if they are strokes along one: a redraw, the later's line over the
+/// reach of both; pieces, fitted together.
+fn joined(a: &Run, b: &Run) -> Option<Run> {
+    let (long, short) = if a.line.length() >= b.line.length() {
+        (a, b)
+    } else {
+        (b, a)
+    };
+    let overlap = doubled(&long.line, &short.line)?;
+    let (earlier, later) = if a.order <= b.order { (a, b) } else { (b, a) };
+    let reach = [earlier.ends(), later.ends()];
+    let (points, way) = if overlap >= REDRAW_SHARE * short.line.length() {
+        (later.points.clone(), later.line.along)
+    } else {
+        let mut points = earlier.points.clone();
+        points.extend_from_slice(&later.points);
+        (points, long.line.along)
+    };
+    let mut line = fit_along(&points, way)?;
+    for end in reach.iter().flatten() {
+        let (t, _) = line.place(*end);
+        line.extent = [line.extent[0].min(t), line.extent[1].max(t)];
+    }
+    Some(Run {
+        points,
+        line,
+        order: later.order,
+    })
 }
 
 /// `points`' line, oriented along `way`, its extent over every point.
@@ -317,23 +362,20 @@ fn fit_along(points: &[Point], way: Point) -> Option<Fitted> {
     Some(line)
 }
 
-/// Whether the lines `a` and `b` are one edge drawn twice (or in pieces).
-fn doubled(a: &Fitted, b: &Fitted) -> bool {
-    let angle = turn(a.along, b.along);
+/// How far the lines `long` and `short` (the shorter) overlap along `long` (less than zero: the
+/// gap between them), when they are one edge drawn twice or in pieces; none when they are not.
+fn doubled(long: &Fitted, short: &Fitted) -> Option<f64> {
+    let angle = turn(long.along, short.along);
     if angle.min(180.0 - angle) > DOUBLE_ANGLE {
-        return false;
+        return None;
     }
-    let (long, short) = if a.length() >= b.length() {
-        (a, b)
-    } else {
-        (b, a)
-    };
-    let ends = short.extent.map(|t| long.place(short.at(t)));
-    let apart = DOUBLE_APART.max(DOUBLE_APART_SHARE * long.length());
-    if ends.iter().any(|(_, off)| *off > apart) {
-        return false;
+    let (_, off) = long.place(short.at((short.extent[0] + short.extent[1]) / 2.0));
+    let apart = (DOUBLE_APART_SHARE * long.length()).clamp(DOUBLE_APART[0], DOUBLE_APART[1]);
+    if off > apart {
+        return None;
     }
-    let low = ends[0].0.min(ends[1].0);
-    let high = ends[0].0.max(ends[1].0);
-    low <= long.extent[1] + DOUBLE_GAP && high >= long.extent[0] - DOUBLE_GAP
+    let ends = short.extent.map(|t| long.place(short.at(t)).0);
+    let (low, high) = (ends[0].min(ends[1]), ends[0].max(ends[1]));
+    let overlap = high.min(long.extent[1]) - low.max(long.extent[0]);
+    (overlap >= -DOUBLE_GAP).then_some(overlap)
 }

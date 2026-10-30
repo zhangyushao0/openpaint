@@ -12,8 +12,9 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use openpaint_practice::{
-    Before, Book, Family, ItemRef, PERSONAL, Pack, PictureKind, Pictures, Random, STAGE_SESSIONS,
-    STAGES_READY, SessionRecord, Tally, drill, kinds_of, local_day, met, plan, recent, used,
+    Before, Book, Family, ItemRef, Kind, PERSONAL, Pack, PictureKind, Pictures, Random,
+    STAGE_SESSIONS, STAGES_READY, SessionRecord, Tally, drill, kinds_of, local_day, met, plan,
+    recent, scales_met, used,
 };
 
 use crate::practice_book::{BookProjection, BookRecord, SheetRead};
@@ -147,15 +148,7 @@ impl PracticeLog {
             .filter(|s| s.drilled() == Some(family))
             .count();
         let number = u32::try_from(number + 1).unwrap_or(u32::MAX);
-        let (used, pictures) = (used(&self.sessions), Pictures::of(&self.packs));
-        let recent = recent(&self.sessions);
-        let before = Before {
-            met: &[],
-            pictures: &pictures,
-            used: &used,
-            recent: &recent,
-        };
-        let plan = drill(family, number, seed, &before)?;
+        let plan = self.planned(&[], |before| drill(family, number, seed, before))?;
         let record = SessionRecord::drill(self.next_id(), number, (seed, now), plan);
         let title = Title::new(&format!("Drill {number}")).unwrap_or_else(|_| Title::untitled());
         Some((record, title))
@@ -241,17 +234,24 @@ impl PracticeLog {
         let number = number.unwrap_or_else(|| u32::try_from(next).unwrap_or(u32::MAX));
         let number = number.max(1);
         let title = Title::new(&format!("Practice {number}")).unwrap_or_else(|_| Title::untitled());
-        let (met, used) = (met(&self.sessions), used(&self.sessions));
-        let (pictures, recent) = (Pictures::of(&self.packs), recent(&self.sessions));
-        let before = Before {
-            met: &met,
+        let kinds = met(&self.sessions);
+        let plan = self.planned(&kinds, |before| plan(stage, number, seed, before));
+        let record = SessionRecord::begun(id, (stage, number), (seed, now), plan);
+        (record, title)
+    }
+
+    /// What `plan` makes of what the records tell (`Before`) with the kinds `met` (a drill's none:
+    /// it has no warm-up): the pictures kept, used and lately shown, the scales met.
+    fn planned<T>(&self, met: &[Kind], plan: impl FnOnce(&Before<'_>) -> T) -> T {
+        let (used, recent) = (used(&self.sessions), recent(&self.sessions));
+        let pictures = Pictures::of(&self.packs);
+        plan(&Before {
+            met,
             pictures: &pictures,
             used: &used,
             recent: &recent,
-        };
-        let plan = plan(stage, number, seed, &before);
-        let record = SessionRecord::begun(id, (stage, number), (seed, now), plan);
-        (record, title)
+            scales: scales_met(&self.sessions),
+        })
     }
 
     /// A new colour copy of `picture` (the user chose it; none unless a pack kept holds it),

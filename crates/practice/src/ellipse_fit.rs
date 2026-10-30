@@ -7,10 +7,13 @@
 //!
 //! The words compare the fitted ellipse with the exact one in what the eye sees: rounder or
 //! flatter (its degree, `DEGREE`), tilted which way (its major axis, `TILT`, only where both are
-//! clearly not round), and which side of the guide it falls short of or runs past (`REACH`).
+//! clearly not round), and which side of the guide it falls short of or runs past by more than a
+//! pen's width (`REACH`), the side's middle where the exact one touches it ringed (S97: the fitted
+//! one is not drawn; the copy's own line beside the red answer shows its shape).
 
 use crate::ellipse::{Ellipse, EllipseGuide, upright};
 use crate::path::{Point, resample};
+use crate::solid::PEN_WIDTH;
 
 /// The even step the lines are read at.
 const SPACING: f64 = 0.005;
@@ -20,9 +23,9 @@ pub const DEGREE: f64 = 4.0;
 /// `ROUND` (a near circle's axis says nothing).
 pub const TILT: f64 = 4.0;
 const ROUND: f64 = 0.9;
-/// How far an ellipse may fall short of a side or run past it before it misses it: 8 pixels of a
-/// 400-pixel frame.
-pub const REACH: f64 = 0.02;
+/// How far an ellipse may fall short of a side or run past it before it misses it: the Draw pen's
+/// width, 5 pixels of a 400-pixel frame.
+pub const REACH: f64 = PEN_WIDTH;
 /// A fit thinner than this, or larger than the frame many times, is no ellipse drawn.
 const THINNEST: f64 = 0.03;
 const LARGEST: f64 = 2.0;
@@ -57,6 +60,15 @@ pub enum Reach {
     Past,
 }
 
+/// A side of the guide the drawn ellipse misses: which, which way, and its middle, where the exact
+/// one touches it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Missed {
+    pub side: Side,
+    pub reach: Reach,
+    pub middle: Point,
+}
+
 /// An ellipse compared: the one fitted to the copy's lines (none found: nothing more), and how it
 /// differs from the exact one.
 #[derive(Debug, Clone, PartialEq)]
@@ -64,7 +76,7 @@ pub struct EllipseCheck {
     pub fitted: Option<Ellipse>,
     pub roundness: Option<Roundness>,
     pub tilt: Option<Tilt>,
-    pub sides: Vec<(Side, Reach)>,
+    pub sides: Vec<Missed>,
 }
 
 impl EllipseCheck {
@@ -103,7 +115,7 @@ impl EllipseCheck {
 }
 
 /// The sides of `guide` the ellipse `fitted` falls short of or runs past, in order round.
-fn missed(guide: &EllipseGuide, fitted: &Ellipse) -> Vec<(Side, Reach)> {
+fn missed(guide: &EllipseGuide, fitted: &Ellipse) -> Vec<Missed> {
     let c = guide.corners;
     let middle = [0, 1].map(|k| c.iter().map(|p| p[k]).sum::<f64>() / 4.0);
     (0..4)
@@ -136,7 +148,11 @@ fn missed(guide: &EllipseGuide, fitted: &Ellipse) -> Vec<(Side, Reach)> {
             } else {
                 Side::Top
             };
-            Some((side, reach))
+            Some(Missed {
+                side,
+                reach,
+                middle: guide.touches[i],
+            })
         })
         .collect()
 }

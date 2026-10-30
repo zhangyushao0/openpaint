@@ -1,12 +1,13 @@
-//! Compare for boxes in perspective (S84): geometry made visible, never a score. Every exercise
-//! here has an exact answer or an exact rule, so the check extends the copy's own edges (found by
-//! `edges.rs`) the way Drawabox's rough-perspective check does: each edge drawn on towards where
-//! its direction vanishes, so a wrong convergence shows as lines missing the point.
+//! Compare for boxes in perspective (S84, S97): geometry made visible, never a score. Every
+//! exercise here has an exact answer or an exact rule; the exact box lies over the copy, and only
+//! what is off is marked (S97, the author: every stroke drawn on dashed was clutter): an edge whose
+//! line misses its vanishing point is drawn on, the way Drawabox's rough-perspective check does,
+//! past where it comes nearest the point, so by how much it misses shows beside the point.
 //!
 //! A box to complete (here): each edge found is taken for the direction whose vanishing point its
-//! line passes nearest (in angle), and extended from its end nearer that point until it meets the
-//! horizon or comes level with the point (a three-point box's verticals: the third point's
-//! height). A two-point vertical has no point: the true vertical is drawn through it instead.
+//! line passes nearest (in angle); one that misses it is extended from its end nearer the point to
+//! `PAST` beyond where its line passes nearest it (a three-point box's verticals: the third
+//! point). A two-point vertical has no point: a leaning one gets the true vertical through it.
 //! Free boxes, with no answer but the rules: `perspective_free.rs`.
 //!
 //! An edge "heads for" a point when its line passes within `ON_ANGLE` of the line from its middle
@@ -23,10 +24,13 @@ pub const ON_ANGLE: f64 = 2.0;
 const TAKEN: f64 = 20.0;
 /// A true vertical runs this share of its edge beyond either end.
 const PLUMB: f64 = 0.15;
+/// How far an extension runs past where its line comes nearest its point (frame units): past the
+/// point's ring at the sheet's view.
+pub const PAST: f64 = 0.06;
 
-/// One edge of the copy as checked: the direction it was taken for, its extension towards that
-/// direction's vanishing point (from its end nearer the point), or the true vertical through it,
-/// and whether it heads for its point (a vertical: stays vertical).
+/// One edge of the copy as checked: the direction it was taken for and whether it heads for its
+/// point (a vertical: stays vertical); one that misses, its extension past its point (from its end
+/// nearer the point) or the true vertical through it.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Checked {
     pub edge: Edge,
@@ -56,10 +60,16 @@ impl BoxCheck {
             .collect();
         Self { edges }
     }
+
+    /// How many edges miss their vanishing point (or lean, a two-point vertical).
+    #[must_use]
+    pub fn missed(&self) -> usize {
+        self.edges.iter().filter(|edge| !edge.on).count()
+    }
 }
 
-/// `edge` taken for the direction of `exact` its line lies nearest, extended within `reach` of the
-/// frame's middle.
+/// `edge` taken for the direction of `exact` its line lies nearest, a miss extended within `reach`
+/// of the frame's middle.
 fn against(exact: &PerspectiveBox, edge: &Edge, reach: f64) -> Option<Checked> {
     let middle = edge.middle();
     let off = |d: Direction| match exact.vanishing[d.index()] {
@@ -72,62 +82,53 @@ fn against(exact: &PerspectiveBox, edge: &Edge, reach: f64) -> Option<Checked> {
     if angle > TAKEN {
         return None;
     }
-    let on = angle <= ON_ANGLE;
-    let Some(point) = exact.vanishing[direction.index()] else {
-        return Some(Checked {
+    Some(checked(
+        edge,
+        direction,
+        exact.vanishing[direction.index()],
+        reach,
+    ))
+}
+
+/// `edge` taken for `direction`, whose edges meet at `point` (none: they stay vertical): whether
+/// it heads there, and if not its extension within `reach` of the frame's middle or its true
+/// vertical.
+pub(crate) fn checked(
+    edge: &Edge,
+    direction: Direction,
+    point: Option<Point>,
+    reach: f64,
+) -> Checked {
+    let Some(point) = point else {
+        let on = line_angle(edge.direction(), [0.0, 1.0]) <= ON_ANGLE;
+        return Checked {
             edge: *edge,
             direction,
             extension: None,
-            plumb: Some(plumb(edge)),
+            plumb: (!on).then(|| plumb(edge)),
             on,
-        });
+        };
     };
-    // The horizontal directions stop on the horizon or at their point's side; the third at its
-    // height.
-    let side = (direction != Direction::Vertical).then_some(point[0]);
-    let level = if direction == Direction::Vertical {
-        point[1]
-    } else {
-        exact.horizon
-    };
-    Some(Checked {
+    let on = line_angle(edge.direction(), sub(point, edge.middle())) <= ON_ANGLE;
+    Checked {
         edge: *edge,
         direction,
-        extension: extended(edge, point, (level, side), reach),
+        extension: if on { None } else { toward(edge, point, reach) },
         plumb: None,
         on,
-    })
+    }
 }
 
-/// `edge` drawn on from its end nearer `towards` until it meets the height `level` or, given, the
-/// side `side`; never past `reach` from the frame's middle. None when it already got there.
-pub(crate) fn extended(
-    edge: &Edge,
-    towards: Point,
-    (level, side): (f64, Option<f64>),
-    reach: f64,
-) -> Option<[Point; 2]> {
+/// `edge` drawn on from its end nearer `point` to `PAST` beyond where its line passes nearest the
+/// point; never past `reach` from the frame's middle. None when it already got there.
+pub(crate) fn toward(edge: &Edge, point: Point, reach: f64) -> Option<[Point; 2]> {
     let mut d = edge.direction();
-    let middle = edge.middle();
-    if dot(d, sub(towards, middle)) < 0.0 {
+    if dot(d, sub(point, edge.middle())) < 0.0 {
         d = [-d[0], -d[1]];
     }
     let [a, b] = edge.ends;
     let from = if dot(d, sub(b, a)) >= 0.0 { b } else { a };
-    let mut stops = Vec::new();
-    if d[1].abs() > 1e-9 {
-        stops.push((level - from[1]) / d[1]);
-    }
-    if let Some(side) = side
-        && d[0].abs() > 1e-9
-    {
-        stops.push((side - from[0]) / d[0]);
-    }
-    let t = stops
-        .into_iter()
-        .filter(|t| *t > 0.0)
-        .fold(f64::INFINITY, f64::min)
-        .min(within(from, d, reach));
+    let t = (dot(sub(point, from), d) + PAST).min(within(from, d, reach));
     (t.is_finite() && t > 1e-6).then(|| [from, [from[0] + t * d[0], from[1] + t * d[1]]])
 }
 

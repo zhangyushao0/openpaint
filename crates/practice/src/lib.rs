@@ -97,7 +97,7 @@ pub use drill::{drill, kinds_of};
 pub use edges::{Edge, SHORTEST, corrected, edges};
 pub use ellipse::{Ellipse, EllipseGuide, Guide};
 pub use ellipse_fit::{
-    DEGREE, EllipseCheck, REACH, Reach, Roundness, Side, TILT, Tilt, fit_ellipse,
+    DEGREE, EllipseCheck, Missed, REACH, Reach, Roundness, Side, TILT, Tilt, fit_ellipse,
 };
 pub use flat::{Estimate, Flat, FlatAnswer, FlatCheck};
 pub use judgement::{Axis, DELTA_SPAN, Judgement, NOTICEABLE, PART_SPAN, judgement};
@@ -121,16 +121,18 @@ pub use path::{
     Point, across_frame, apart, crossings, distance, length, meet, nearest, resample, within,
 };
 pub use perspective::{BoxView, Direction, EDGES, FAR, Horizon, PerspectiveBox};
-pub use perspective_check::{BoxCheck, Checked, ON_ANGLE};
+pub use perspective_check::{BoxCheck, Checked, ON_ANGLE, PAST};
 pub use perspective_free::{Corner, FreeBox, FreeCheck, RIGHT_ANGLE};
 pub use pictures::Pictures;
 pub use plan::{Exercise, Family, Kind, Original, STAGE_SESSIONS, STAGES, STAGES_READY};
 pub use random::{Random, derived};
 pub use record::{
     AREAS_ROWS, COLOUR_ROWS, DRILL, ExerciseResult, KindSummary, PROJECT, RECENT, SCALE_ROWS,
-    SessionRecord, met, recent, summary, used,
+    SessionRecord, met, recent, scales_met, summary, used,
 };
-pub use scale::{BARS, ROW, ScaleCheck, ScaleTone, ValueScale};
+pub use scale::{
+    CELLS, EVEN_ROW, FIRST_CELLS, FIRST_SCALES, ROW, ScaleCheck, ScaleTone, ValueScale,
+};
 pub use seals::{Earned, Seal, Tally, earned, sealed};
 pub use session::{Before, Plan, WARM_UP, WARM_UP_TWO, plan, stage_one, stage_two};
 pub use session_four::stage_four;

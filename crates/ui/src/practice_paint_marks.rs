@@ -4,11 +4,10 @@
 //! - a colour combination's picture in its frame; compared, the picture over the copy in place
 //!   as strongly as the user sets, the area the card compares outlined in ink on both frames, and
 //!   the edges where the copy made a weak contrast strong in the marking red;
-//! - a value scale: its given ends as two halves of the row in the original's frame (once
-//!   compared, the even scale there instead, side by side with the copy's row), and in the copy's
-//!   frame its cells, the ends filled as given, the cell in hand outlined in ink; compared, under
-//!   the row a bar per cell as high as its value (in that value's colour) with the even step a
-//!   red tick across it, the bar outlined red where the cell is uneven or out of order;
+//! - a value scale, in the one frame drawn in (S97): its cells, the ends filled as given, the
+//!   cell in hand outlined in ink; compared, the even scale as a row under the copy's, cell under
+//!   cell (a hued scale keeping its hue), a cell of the copy's that is uneven outlined red
+//!   together with its even one;
 //! - the point the eyedropper compared, ringed on both frames.
 
 use std::fmt;
@@ -16,7 +15,7 @@ use std::sync::Arc;
 
 use egui::{Color32, Pos2, Shape, Stroke, TextureHandle};
 use openpaint_app::{Overlay, PictureImage, PracticeProjection};
-use openpaint_practice::{BARS, Frame, Original, Pair, Point, ROW, ScaleCheck, ValueScale};
+use openpaint_practice::{Frame, Original, Pair, Point, ROW, ScaleCheck, ValueScale};
 
 use crate::components::{Alpha, picture_texture};
 use crate::design::{CORRECTION, DIVIDER, INK, PANEL, PANEL_RULE_WIDTH};
@@ -26,9 +25,6 @@ use crate::practice_marks::{colour, quad};
 const OUTLINE: f32 = 2.0;
 const HALO: f32 = 4.0;
 const PROBE: f32 = 10.0;
-/// A bar's half width and its even step's tick's, shares of a cell's width.
-const BAR: f64 = 0.22;
-const TICK: f64 = 0.36;
 
 /// The colour combinations' and objects' pictures as textures, uploaded once a sheet.
 #[derive(Default)]
@@ -116,31 +112,13 @@ fn show_scale(
 ) {
     let shown = practice.current == Some(index);
     let targets = scale.targets();
-    let fill = |frame: &Frame, cell: [Point; 2], value: f64| {
-        let colour = colour(scale.colour(value));
-        painter.add(Shape::convex_polygon(
-            rect(frame, cell, at),
-            colour,
-            Stroke::NONE,
-        ));
-    };
-    let last = scale.cells - 1;
-    if shown && practice.result.is_some() {
-        for (cell, target) in targets.iter().enumerate() {
-            fill(&pair.original, scale.cell(cell), *target);
-        }
-    } else {
-        let [left, top, right, bottom] = ROW;
-        let middle = (left + right) / 2.0;
-        fill(&pair.original, [[left, top], [middle, bottom]], targets[0]);
+    for end in [0, scale.cells - 1] {
         fill(
-            &pair.original,
-            [[middle, top], [right, bottom]],
-            targets[last],
+            painter,
+            (&pair.copy, scale.cell(end)),
+            at,
+            scale.colour(targets[end]),
         );
-    }
-    for end in [0, last] {
-        fill(&pair.copy, scale.cell(end), targets[end]);
     }
     for cell in 0..scale.cells {
         let in_hand = shown && practice.cell == Some(cell);
@@ -194,10 +172,50 @@ pub(crate) fn show_overlay(
                 segments(painter, (&pair.copy, &read.strong), at, (red, CORRECTION));
             }
         }
-        (Overlay::Scale(Some(check)), Original::Scale(scale)) => {
-            bars(painter, &pair.copy, (scale, check), at);
+        (Overlay::Scale(check), Original::Scale(scale)) => {
+            even_row(painter, &pair.copy, (scale, check.as_deref()), at);
         }
         _ => {}
+    }
+}
+
+/// `cell` (its top left and bottom right, frame units) of `frame` filled with `rgb`.
+fn fill(
+    painter: &egui::Painter,
+    (frame, cell): (&Frame, [Point; 2]),
+    at: &dyn Fn([f64; 2]) -> Pos2,
+    rgb: openpaint_practice::Rgb8,
+) {
+    let corners = rect(frame, cell, at);
+    painter.add(Shape::convex_polygon(corners, colour(rgb), Stroke::NONE));
+}
+
+/// The even scale as a row under the copy's, cell under cell; once the copy is read, each of its
+/// uneven cells outlined red together with its even one.
+fn even_row(
+    painter: &egui::Painter,
+    frame: &Frame,
+    (scale, check): (&ValueScale, Option<&ScaleCheck>),
+    at: &dyn Fn([f64; 2]) -> Pos2,
+) {
+    for (cell, target) in scale.targets().iter().enumerate() {
+        let even = scale.even_cell(cell);
+        fill(painter, (frame, even), at, scale.colour(*target));
+        let outline = rect(frame, even, at);
+        painter.add(Shape::closed_line(outline, Stroke::new(1.0, DIVIDER)));
+    }
+    let Some(check) = check else {
+        return;
+    };
+    let top = ROW[1];
+    for cell in &check.uneven {
+        let [[left, _], [right, bottom]] = scale.even_cell(*cell);
+        let both = rect(frame, [[left, top], [right, bottom]], at);
+        painter.add(Shape::closed_line(
+            both.clone(),
+            Stroke::new(OUTLINE + HALO, PANEL),
+        ));
+        painter.add(Shape::closed_line(both, Stroke::new(OUTLINE, CORRECTION)));
     }
 }
 
@@ -214,44 +232,6 @@ fn segments(
         for edge in edges {
             painter.add(Shape::line(line(edge), stroke));
         }
-    }
-}
-
-/// Under the copy's row: each cell's value as a bar in its colour, its even step a red tick.
-fn bars(
-    painter: &egui::Painter,
-    frame: &Frame,
-    (scale, check): (&ValueScale, &ScaleCheck),
-    at: &dyn Fn([f64; 2]) -> Pos2,
-) {
-    let [top, bottom] = BARS;
-    let height = bottom - top;
-    let base = [
-        frame.to_canvas([ROW[0], bottom]),
-        frame.to_canvas([ROW[2], bottom]),
-    ];
-    painter.add(Shape::line_segment(base.map(at), Stroke::new(1.0, DIVIDER)));
-    for cell in 0..scale.cells {
-        let [[left, _], [right, _]] = scale.cell(cell);
-        let (middle, width) = ((left + right) / 2.0, right - left);
-        if let Some(value) = check.values[cell] {
-            let off = check.uneven.contains(&cell) || check.reversed.contains(&cell);
-            let line = if off {
-                Stroke::new(OUTLINE, CORRECTION)
-            } else {
-                Stroke::new(1.0, INK)
-            };
-            let bar = [
-                [middle - BAR * width, bottom - value * height],
-                [middle + BAR * width, bottom],
-            ];
-            let fill = colour(scale.colour(value));
-            painter.add(Shape::convex_polygon(rect(frame, bar, at), fill, line));
-        }
-        let y = bottom - check.targets[cell] * height;
-        let tick = [[middle - TICK * width, y], [middle + TICK * width, y]];
-        let tick = tick.map(|p| at(frame.to_canvas(p)));
-        painter.add(Shape::line_segment(tick, Stroke::new(OUTLINE, CORRECTION)));
     }
 }
 

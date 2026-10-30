@@ -69,7 +69,7 @@ pub fn stage_four(number: u32, seed: u64, before: &Before<'_>) -> Plan {
     };
     let all = (warm_up.into_iter()).chain(objects).chain(rest);
     Plan {
-        exercises: seeded(seed, all),
+        exercises: seeded(seed, all, before.scales),
         warm_up: warmed,
     }
 }

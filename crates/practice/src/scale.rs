@@ -1,8 +1,10 @@
 //! Value scales (after Gurney's and Ctrl+Paint's value studies, beside V大's week 2 colour work):
 //! a row of cells between a given dark and light of one hue and purity, the cells between them
-//! filled in even steps of lightness. Generated the same for the same seed: five to seven cells,
-//! the ends far apart (HSV value 0.12 to 0.3 and 0.78 to 0.95 as the wheel sets them), grey or
-//! of a hue (in turn by session, `session.rs`).
+//! filled in even steps of lightness. Nine cells (S97: halved and halved again, the middle, the
+//! halves' middles, then the rest, `rounds`), five in a beginner's first two scales
+//! (`FIRST_CELLS`, `session.rs`); generated the same for the same seed: the ends far apart (HSV
+//! value 0.12 to 0.3 and 0.78 to 0.95 as the wheel sets them), grey or of a hue (in turn by
+//! session). Compare lays the even scale as a row under the copy's (`EVEN_ROW`), cell under cell.
 //!
 //! Checked on perceptual lightness, Oklab's `L`, as the eye sees it (the main session, S83: the
 //! wheel's value steps unevenly to the eye, the more so on a hue): each cell's lightness read
@@ -18,11 +20,14 @@ use crate::metric::{Metric, Metrics};
 use crate::path::Point;
 use crate::random::Random;
 
-/// Where the row lies in the copy's frame and in the original's: left, top, right, bottom (frame
-/// units).
+/// Where the row lies in the copy's frame: left, top, right, bottom (frame units).
 pub const ROW: [f64; 4] = [0.06, 0.34, 0.94, 0.56];
-/// Where the bars that show each cell's value lie under the row: top and bottom.
-pub const BARS: [f64; 2] = [0.62, 0.9];
+/// Where Compare lays the even scale, cell under cell under the row: its top and bottom.
+pub const EVEN_ROW: [f64; 2] = [0.58, 0.8];
+/// A scale's cells, the ends among them; a beginner's first scales' (`FIRST_SCALES` of them).
+pub const CELLS: usize = 9;
+pub const FIRST_CELLS: usize = 5;
+pub const FIRST_SCALES: usize = 2;
 /// A cell's middle, which is read: the share of its width and height kept inside its edges.
 const MIDDLE: f64 = 0.6;
 
@@ -62,11 +67,11 @@ pub struct ScaleCheck {
 }
 
 impl ValueScale {
-    /// The scale `tone` and `seed` make.
+    /// The scale of `cells` cells `tone` and `seed` make.
     #[must_use]
-    pub fn generate(tone: ScaleTone, seed: u64) -> Self {
+    pub fn generate(tone: ScaleTone, cells: usize, seed: u64) -> Self {
         let mut random = Random::new(seed);
-        let cells = 5 + ((random.unit() * 3.0) as usize).min(2);
+        let cells = cells.max(3);
         let (hue, saturation) = match tone {
             ScaleTone::Grey => (0.0, 0.0),
             ScaleTone::Hue => (random.range(0.0, 360.0), random.range(0.2, 0.55)),
@@ -107,6 +112,38 @@ impl ValueScale {
         let width = (right - left) / self.cells as f64;
         let x = left + width * index as f64;
         [[x, top], [x + width, bottom]]
+    }
+
+    /// The even scale's cell `index` as Compare lays it, under the copy's cell: its top left and
+    /// bottom right corners.
+    #[must_use]
+    pub fn even_cell(&self, index: usize) -> [Point; 2] {
+        let [[left, _], [right, _]] = self.cell(index);
+        let [top, bottom] = EVEN_ROW;
+        [[left, top], [right, bottom]]
+    }
+
+    /// The cells between the ends in the order to paint them, a round at a time (S97, V大's way
+    /// of halving): the middle; each half's middle; each quarter's, and so on. Of nine: the 5th;
+    /// the 3rd and 7th; the 2nd, 4th, 6th and 8th (indices from 0).
+    #[must_use]
+    pub fn rounds(&self) -> Vec<Vec<usize>> {
+        let mut rounds = Vec::new();
+        let mut spans = vec![(0, self.cells - 1)];
+        while !spans.is_empty() {
+            let mut round = Vec::new();
+            let mut next = Vec::new();
+            for (low, high) in spans.into_iter().filter(|(low, high)| high - low >= 2) {
+                let middle = (low + high) / 2;
+                round.push(middle);
+                next.extend([(low, middle), (middle, high)]);
+            }
+            if !round.is_empty() {
+                rounds.push(round);
+            }
+            spans = next;
+        }
+        rounds
     }
 
     /// The cell holding the frame point `p`, if any.

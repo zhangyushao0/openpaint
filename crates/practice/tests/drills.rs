@@ -75,6 +75,7 @@ fn before<'a>(pictures: &'a Pictures, used: &'a [ItemRef]) -> Before<'a> {
         pictures,
         used,
         recent: used,
+        scales: 0,
     }
 }
 

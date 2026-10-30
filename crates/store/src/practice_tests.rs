@@ -34,7 +34,10 @@ fn a_session_round_trips_and_damage_is_refused() {
     let session = session();
     let key = practice_key(7);
     let bytes = encode_session(&session);
-    assert_eq!(decode_session(&key, &bytes), Ok((session.clone(), true)));
+    assert_eq!(
+        decode_session(&key, &bytes),
+        Ok((session.clone(), Owed::default()))
+    );
     assert!(decode_session(&key, &bytes[..bytes.len() - 1]).is_err());
     assert!(
         decode_session(&key, &[bytes.as_slice(), &[0]].concat()).is_err(),
@@ -45,7 +48,7 @@ fn a_session_round_trips_and_damage_is_refused() {
         "a key without its id"
     );
     let mut unknown = bytes.clone();
-    // The first exercise's kind, after the session's fixed fields and the count: none of 1.14.0's.
+    // The first exercise's kind, after the session's fixed fields and the count: none of 1.15.0's.
     unknown[1 + 4 + 8 * 4 + 4 + 4] = 18;
     assert!(decode_session(&key, &unknown).is_err());
 }
@@ -170,7 +173,10 @@ fn a_record_keeps_its_time_and_one_of_1_6_2_reads_without_it() {
     ];
     let key = practice_key(7);
     let bytes = encode_session(&session);
-    assert_eq!(decode_session(&key, &bytes), Ok((session.clone(), true)));
+    assert_eq!(
+        decode_session(&key, &bytes),
+        Ok((session.clone(), Owed::default()))
+    );
     // The spans last: their count, then each one's start and end.
     let spans = bytes.len() - 2 * SPAN_BYTES;
     assert_eq!(bytes[spans - 4..spans], 2u32.to_le_bytes());
@@ -182,8 +188,8 @@ fn a_record_keeps_its_time_and_one_of_1_6_2_reads_without_it() {
     );
     // As 1.6.2 wrote it: the warm-up's count last, no pictures' count, no time.
     let old = &bytes[..spans - 4 - 4];
-    let (read, timed) = decode_session(&key, old).expect("read");
-    assert!(!timed);
+    let (read, owed) = decode_session(&key, old).expect("read");
+    assert!(owed.time && !owed.scales);
     assert_eq!(read.time, []);
     assert_eq!(read.results, session.results);
 }
@@ -211,7 +217,13 @@ fn a_stage_two_record_keeps_its_pictures_and_one_of_1_6_2_with_pictures_reads_un
     let old = &bytes[..bytes.len() - 4];
     assert_eq!(
         decode_session(&practice_key(7), old),
-        Ok((session.clone(), false))
+        Ok((
+            session.clone(),
+            Owed {
+                time: true,
+                scales: false
+            }
+        ))
     );
     let mut far = bytes.clone();
     // The first picture's exercise, past the warm-up's and the pictures' counts.
@@ -234,7 +246,7 @@ fn week_two_s_colour_work_and_a_long_colour_copy_round_trip() {
     let plan = Plan {
         exercises: vec![
             Exercise::generated(Kind::Areas(Arrangement::Blocks), 3),
-            Exercise::generated(Kind::Scale(ScaleTone::Hue), 4),
+            Exercise::generated(Kind::Scale(ScaleTone::Hue, 9), 4),
         ],
         warm_up: 0,
     };
@@ -307,15 +319,18 @@ fn a_record_of_1_2_0_reads_without_a_warm_up() {
     let session = session();
     let bytes = encode_session(&session);
     let old = &bytes[..bytes.len() - END_BYTES];
-    let (read, timed) = decode_session(&practice_key(7), old).expect("read");
-    assert_eq!((read.warm_up, timed), (0, false));
+    let (read, owed) = decode_session(&practice_key(7), old).expect("read");
+    assert_eq!((read.warm_up, owed.time), (0, true));
     assert_eq!(read.results, session.results);
     let mut empty = session.clone();
     empty.results.clear();
     let bytes = encode_session(&empty);
     let read = decode_session(&practice_key(7), &bytes[..bytes.len() - END_BYTES]);
     assert_eq!(read.map(|(r, _)| r.warm_up), Ok(0), "no results, no tail");
-    assert_eq!(decode_session(&practice_key(7), &bytes), Ok((empty, true)));
+    assert_eq!(
+        decode_session(&practice_key(7), &bytes),
+        Ok((empty, Owed::default()))
+    );
 }
 
 #[test]

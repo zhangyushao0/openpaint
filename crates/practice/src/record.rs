@@ -1,10 +1,9 @@
 //! What is kept of a session: its stage and place in it, its seed and exercises (the first of
-//! them its warm-up), where its sheet is, its progress and every compared exercise: when it was
-//! first compared, how often, which of its strokes are corrections and, for a colour, a colour
-//! combination or a value scale, its numbers; and the spans its sheet was practised in (`time.rs`,
-//! S89). Enough for the summary, the next warm-up and the practice book now,
-//! and for trajectories, re-tests, drills and a study of the strokes later. The summary sets this
-//! session's means (and colour judgement) beside those of the sessions before it in its stage.
+//! them its warm-up), where its sheet is, its progress and every compared exercise (when first
+//! compared, how often, which strokes are corrections, a colour's, combination's or scale's
+//! numbers) and the spans its sheet was practised in (`time.rs`, S89): enough for the summary
+//! (this session's means and colour judgement beside its stage's earlier sessions'), the next
+//! warm-up, the practice book, and later trajectories, re-tests and a study of the strokes.
 //!
 //! A long colour copy (V大's 色彩临摹) is kept the same way, as a project beside the sessions:
 //! stage `PROJECT` (none of the course's), its number among the copies, one exercise, the copy of
@@ -62,9 +61,8 @@ pub struct ExerciseResult {
     pub checked_at: u64,
     /// How often it was compared, from 1.
     pub compares: u32,
-    /// The sheet's first stroke id after the first Compare: the strokes begun in its frame with
-    /// this id or a later one are corrections. `None` in 1.1.0's records, where a compared frame
-    /// took nothing more.
+    /// The sheet's first stroke id after the first Compare: strokes begun in its frame from it on
+    /// are corrections; `None` in 1.1.0's records (a compared frame took nothing more).
     pub corrected_from: Option<u64>,
     /// A colour's numbers at its first Compare; none for a line.
     pub metrics: Metrics,
@@ -223,18 +221,26 @@ impl SessionRecord {
 /// order of their codes: what a warm-up draws from, and what the practice options draw in ink.
 #[must_use]
 pub fn met(sessions: &[SessionRecord]) -> Vec<Kind> {
-    let mut kinds: Vec<Kind> = sessions
-        .iter()
-        .filter(|session| !session.is_project())
-        .flat_map(|session| {
-            (session.results.iter())
-                .filter_map(|result| session.exercises.get(result.index as usize))
-                .map(|exercise| exercise.kind)
-        })
-        .collect();
+    let mut kinds: Vec<Kind> = compared(sessions).collect();
     kinds.sort_by_key(|kind| kind.code());
     kinds.dedup();
     kinds
+}
+
+/// How many value scales `sessions` and drills compared (S97: a beginner's first two are short).
+#[must_use]
+pub fn scales_met(sessions: &[SessionRecord]) -> usize {
+    let scale = |kind: &Kind| kind.family() == Family::Scale;
+    compared(sessions).filter(scale).count()
+}
+
+/// The kind of every exercise `sessions` and drills compared (long colour copies left out).
+fn compared(sessions: &[SessionRecord]) -> impl Iterator<Item = Kind> + '_ {
+    (sessions.iter().filter(|session| !session.is_project())).flat_map(|session| {
+        (session.results.iter())
+            .filter_map(|result| session.exercises.get(result.index as usize))
+            .map(|exercise| exercise.kind)
+    })
 }
 
 /// The pictures `sessions` and drills showed (long colour copies left out), each once: what the

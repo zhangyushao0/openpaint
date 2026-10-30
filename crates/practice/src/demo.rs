@@ -65,6 +65,9 @@ pub enum Layout {
     Wide,
     /// The original's frame, the copy's and a colour wheel.
     Wheel,
+    /// The copy's frame cropped to its row (`Demo::view`) and a colour wheel: a value scale's, one
+    /// frame (S97).
+    Row,
 }
 
 /// Where a mark lies: in a frame (frame units, a single frame's is `Copy`) or on the wheel.
@@ -78,8 +81,11 @@ pub enum On {
 /// How a mark is drawn.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Marker {
-    /// What the exercise gives (an original's lines, a box's given edges): ink, from the start.
+    /// What the exercise gives (an original's lines): ink, from the start.
     Given,
+    /// What a kind built from given parts gives in its one frame (a box's given edges, an
+    /// ellipse's frame): printed grey, from the start (S97).
+    Printed,
     /// Sketch's pencil: looking and construction.
     Pencil,
     /// Sketch's pencil finding an object's points (S94): dark while its step draws, faint once
@@ -95,6 +101,8 @@ pub enum Marker {
     Hidden,
     /// Compare: what was read of the copy, in blue.
     Found,
+    /// Compare: an edge that misses its vanishing point drawn on past it, dashed red (S97).
+    Missed,
     /// Dashed pencil: a horizon, the way to see it.
     Guide,
     /// Pencil shading: a face, a negative shape looked at.
@@ -119,6 +127,8 @@ pub enum Drawn {
     /// A small cross, an arm after the other.
     Cross(Point),
     Dot(Point),
+    /// A small number centred there: a cell's place in the order to paint (S97).
+    Numeral(Point, u8),
     /// The area between rows of two points, each row joined to the next: a frame's colour, a
     /// cell, a face, a silhouette; in `colour`, or the pen's.
     Band {
@@ -179,7 +189,8 @@ pub struct Demo {
     pub length: f64,
     /// The part of the copy's frame a lone example shows, as large as the card lets it: its top
     /// left and bottom right (frame units); what lies beyond is cut at the picture's edge. None
-    /// for frames side by side, shown whole, but an object's (S94): both cropped to its box.
+    /// for frames side by side, shown whole, but an object's (S94): both cropped to its box; a
+    /// value scale's frame cropped to its rows (S97).
     pub view: Option<[Point; 2]>,
 }
 
@@ -320,7 +331,7 @@ fn seen(marks: &[Mark]) -> Option<[Point; 2]> {
     for mark in marks.iter().filter(|mark| mark.on == On::Copy) {
         let example = matches!(
             mark.pen,
-            Marker::Given | Marker::Ink | Marker::Answer | Marker::Shade
+            Marker::Given | Marker::Printed | Marker::Ink | Marker::Answer | Marker::Shade
         );
         match &mark.drawn {
             Drawn::Ring(p) => points.push(*p),
@@ -359,7 +370,7 @@ fn seconds(pen: Marker, drawn: &Drawn) -> f64 {
             };
             (long / speed).clamp(least, most)
         }
-        Drawn::Ring(_) | Drawn::Dot(_) => 0.4,
+        Drawn::Ring(_) | Drawn::Dot(_) | Drawn::Numeral(..) => 0.4,
         Drawn::Cross(_) => 0.7,
         Drawn::Band { .. } | Drawn::Ringed(_) => 0.55,
         Drawn::Areas(_) | Drawn::Shaded | Drawn::Masses(_) => 0.65,

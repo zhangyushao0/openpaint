@@ -135,22 +135,32 @@ impl SheetRead {
                 _ => {}
             }
         }
-        let frames = (sheet.pairs.iter())
-            .flat_map(|pair| [pair.original, pair.copy])
-            .map(|frame| {
-                let [x, y] = frame.origin.map(|v| v as f32);
-                let [w, h] = frame.size.map(|v| v as f32);
-                [[x, y], [x + w, y + h]]
-            })
-            .collect();
         Self {
             size,
-            frames,
+            frames: frames(&sheet, record),
             marks: artwork.layers().iter().flat_map(marks).collect(),
             lines,
             colours,
         }
     }
+}
+
+/// `sheet`'s frames as `record`'s exercises show them (top left to bottom right): a kind built in
+/// one frame that one (S97), the others both.
+fn frames(sheet: &Sheet, record: &SessionRecord) -> Vec<[[f32; 2]; 2]> {
+    let one =
+        |index: usize| (record.exercises.get(index)).is_some_and(|e| e.kind.family().constructed());
+    (sheet.pairs.iter().enumerate())
+        .flat_map(|(index, pair)| {
+            let original = (!one(index)).then_some(pair.original);
+            original.into_iter().chain([pair.copy])
+        })
+        .map(|frame| {
+            let [x, y] = frame.origin.map(|v| v as f32);
+            let [w, h] = frame.size.map(|v| v as f32);
+            [[x, y], [x + w, y + h]]
+        })
+        .collect()
 }
 
 /// `layer`'s paint strokes and fills in the order they lie on it (a fill after the strokes

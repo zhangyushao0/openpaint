@@ -3,7 +3,7 @@
 
 use openpaint_practice::{
     Arrangement, Axis, Combination, Exercise, ExerciseResult, Family, ItemRef, Kind, LineTier,
-    Metric, PROJECT, Plan, ScaleTone, SessionRecord, Tone, met, summary, used,
+    Metric, PROJECT, Plan, ScaleTone, SessionRecord, Tone, met, scales_met, summary, used,
 };
 
 #[test]
@@ -32,7 +32,7 @@ fn the_summary_sets_combinations_and_scales_beside_the_earlier_ones() {
     let plan = Plan {
         exercises: vec![
             Exercise::generated(Kind::Areas(Arrangement::Strata), 1),
-            Exercise::generated(Kind::Scale(ScaleTone::Grey), 2),
+            Exercise::generated(Kind::Scale(ScaleTone::Grey, 9), 2),
         ],
         warm_up: 0,
     };
@@ -68,6 +68,16 @@ fn the_summary_sets_combinations_and_scales_beside_the_earlier_ones() {
         kinds.iter().all(|k| k.judgement.is_none()),
         "the radar is the colours'"
     );
+    // The value scales met (S97): compared ones only, sessions and drills alike, copies never.
+    assert_eq!(scales_met(&[before.clone()]), 0, "its scale never compared");
+    assert_eq!(scales_met(&[before.clone(), this.clone()]), 1);
+    let scales = Plan {
+        exercises: vec![Exercise::generated(Kind::Scale(ScaleTone::Hue, 5), 3)],
+        warm_up: 0,
+    };
+    let mut drill = SessionRecord::drill(3, 1, (7, 0), scales);
+    drill.results = vec![checked(0, Vec::new())];
+    assert_eq!(scales_met(&[before, this, drill]), 2);
 }
 
 fn checked(index: u32, metrics: Vec<(Metric, f64)>) -> ExerciseResult {

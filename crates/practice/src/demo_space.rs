@@ -1,13 +1,18 @@
 //! Week 2's perspective demonstrations (`demo.rs`): a box to complete (the given edges run on to
-//! their vanishing points on the horizon, lines back from the points to the far corners, the nine
-//! edges inked), free boxes (two points on the horizon, a front upright, its edges towards the
-//! points, the rest) and an ellipse (the diagonals, the four middles through the centre, passes in
-//! the air, one stroke), each then compared as the exercise compares it.
+//! their vanishing points on the horizon, lines back from the points to the far corners, each of
+//! the nine edges ghosted, then inked once), free boxes (two points on the horizon, a front
+//! upright, its edges towards the points, the rest) and an ellipse (the diagonals, the four
+//! middles through the centre, passes in the air, one stroke), each then compared as the exercise
+//! compares it (S97): the answer red, an edge that misses its point drawn on past it, the middles
+//! an ellipse misses ringed; nothing on what is right.
 
 use super::{Demo, Drawn, Layout, Marker, On, Script, WIDE_REACH, clearest, line, wobbled};
+use crate::edges::Edge;
 use crate::ellipse::{Ellipse, EllipseGuide, Guide};
-use crate::path::{Point, distance, meet};
+use crate::ellipse_fit::EllipseCheck;
+use crate::path::{Point, distance};
 use crate::perspective::{BoxView, Direction, EDGES, Horizon, PerspectiveBox};
+use crate::perspective_check::toward;
 use crate::plan::Family;
 
 const BOX_SEED: u64 = 0xDE30_5EED_0007;
@@ -57,15 +62,14 @@ fn ruled(a: Point, b: Point, turn: usize) -> Drawn {
     line([a[0] + off, a[1] - off], [b[0] - off, b[1] + off])
 }
 
-/// Where the line through `a` and `b` meets the horizon at `height`, from the end nearer it.
-fn run_on(a: Point, b: Point, height: f64) -> Option<Drawn> {
-    let at = meet([a, b], [[0.0, height], [1.0, height]])?;
-    let from = if distance(a, at) < distance(b, at) {
-        a
-    } else {
-        b
-    };
-    Some(line(from, at))
+/// An edge from `a` to `b` drawn `degrees` off its aim, turned about `a`: the hand's miss.
+fn turned(a: Point, b: Point, degrees: f64) -> Point {
+    let (sin, cos) = degrees.to_radians().sin_cos();
+    let v = [b[0] - a[0], b[1] - a[1]];
+    [
+        a[0] + cos * v[0] - sin * v[1],
+        a[1] + sin * v[0] + cos * v[1],
+    ]
 }
 
 /// Lines in pencil back from `exact`'s vanishing point of `direction` to the far end of each of
@@ -92,25 +96,39 @@ fn back_lines(
         .collect()
 }
 
-/// `edges` of `exact` ruled with Draw one after another (the `first`'s hair off one way), and each
-/// as Compare draws it on to the horizon in blue.
+/// How far off its aim the hand draws the edge Compare then draws on (degrees), and how far from
+/// the frame's middle an extension may run (frame units).
+const MISS: f64 = 5.0;
+const REACH: f64 = 2.0;
+
+/// `edges` of `exact` ruled with Draw one after another, each once (the `first`'s hair off one
+/// way); the one at `off`, if any, drawn `MISS` off its aim: what Compare draws of the copy's own
+/// lines, that edge on past its vanishing point.
 fn rule_edges(
     script: &mut Script,
     exact: &PerspectiveBox,
     edges: &[(usize, usize, Direction)],
-    first: usize,
+    (first, off): (usize, Option<usize>),
 ) -> Vec<(On, Marker, Drawn)> {
-    let mut found = Vec::new();
+    let mut missed = Vec::new();
     for (turn, (a, b, direction)) in edges.iter().enumerate() {
-        let drawn = ruled(exact.corners[*a], exact.corners[*b], turn + first);
-        if let (Drawn::Line(ends), Some(_)) = (&drawn, point(exact, *direction))
-            && let Some(on) = run_on(ends[0], ends[1], exact.horizon)
-        {
-            found.push((On::Copy, Marker::Found, on));
+        let (a, mut b) = (exact.corners[*a], exact.corners[*b]);
+        if Some(turn) == off {
+            b = turned(a, b, MISS);
+            let edge = Edge { ends: [a, b] };
+            let way = point(exact, *direction).and_then(|p| toward(&edge, p, REACH));
+            missed.extend(way.map(|[from, to]| (On::Copy, Marker::Missed, line(from, to))));
         }
-        script.draw(On::Copy, Marker::Ink, drawn);
+        script.draw(On::Copy, Marker::Ink, ruled(a, b, turn + first));
     }
-    found
+    missed
+}
+
+/// The rings of `points` in the answer's red.
+fn red_rings(points: impl Iterator<Item = Point>) -> Vec<(On, Marker, Drawn)> {
+    points
+        .map(|p| (On::Copy, Marker::Answer, Drawn::Ring(p)))
+        .collect()
 }
 
 /// A box to complete.
@@ -119,7 +137,7 @@ pub(super) fn perspective_box() -> Demo {
     let mut script = Script::new();
     script.given(On::Copy, Marker::Guide, horizon(exact.horizon));
     for (a, b, _) in exact.given() {
-        script.given(On::Copy, Marker::Given, line(a, b));
+        script.given(On::Copy, Marker::Printed, line(a, b));
     }
     script.step();
     let run: Vec<_> = (exact.given().into_iter())
@@ -147,18 +165,24 @@ pub(super) fn perspective_box() -> Demo {
         script.together(vec![left, right]);
     }
     script.step();
-    let found = rule_edges(&mut script, &exact, &missing, 0);
-    let mut compared: Vec<(On, Marker, Drawn)> = (exact.edges().into_iter())
-        .map(|(a, b, _)| (On::Copy, Marker::Answer, line(a, b)))
+    // One of the far edges drawn a little off: it alone is drawn on at Compare.
+    let off = missing
+        .iter()
+        .rposition(|(_, _, d)| *d != Direction::Vertical);
+    let missed = rule_edges(&mut script, &exact, &missing, (0, off));
+    let edges = exact.edges().into_iter().zip(exact.hidden());
+    let mut compared: Vec<(On, Marker, Drawn)> = edges
+        .map(|((a, b, _), hidden)| {
+            let pen = if hidden {
+                Marker::Hidden
+            } else {
+                Marker::Answer
+            };
+            (On::Copy, pen, line(a, b))
+        })
         .collect();
-    compared.extend(
-        exact
-            .vanishing
-            .iter()
-            .flatten()
-            .map(|p| (On::Copy, Marker::Answer, Drawn::Ring(*p))),
-    );
-    compared.extend(found);
+    compared.extend(red_rings(exact.vanishing.iter().flatten().copied()));
+    compared.extend(missed);
     script.compare(Family::Box, Layout::Wide, compared)
 }
 
@@ -196,16 +220,17 @@ pub(super) fn free_boxes() -> Demo {
     };
     let near = edges(&[(0, 1), (2, 3), (0, 4), (2, 6)]);
     let far = edges(&[(1, 3), (4, 6), (5, 7), (1, 5), (3, 7), (4, 5), (6, 7)]);
-    let mut found = rule_edges(&mut script, &example, &near, 0);
+    let mut compared = rule_edges(&mut script, &example, &near, (0, None));
     script.step();
-    found.extend(rule_edges(&mut script, &example, &far, 1));
-    found.extend(
-        [left, right]
-            .into_iter()
-            .flatten()
-            .map(|p| (On::Copy, Marker::Found, Drawn::Ring(p))),
-    );
-    script.compare(Family::FreeBoxes, Layout::Wide, found)
+    // The last of the far edges drawn a little off: it alone is drawn on at Compare.
+    compared.extend(rule_edges(
+        &mut script,
+        &example,
+        &far,
+        (1, Some(far.len() - 1)),
+    ));
+    compared.extend(red_rings([left, right].into_iter().flatten()));
+    script.compare(Family::FreeBoxes, Layout::Wide, compared)
 }
 
 /// An ellipse in a square in perspective.
@@ -226,7 +251,7 @@ pub(super) fn ellipse() -> Demo {
     let mut script = Script::new();
     script.given(
         On::Copy,
-        Marker::Given,
+        Marker::Printed,
         Drawn::Line(vec![c0, c1, c2, c3, c0]),
     );
     script.step();
@@ -246,19 +271,18 @@ pub(super) fn ellipse() -> Demo {
         script.draw(On::Copy, Marker::Air, Drawn::Line(pass));
     }
     script.step();
+    // The hand's ellipse a little wide, turned and to the left: its middles at the sides it falls
+    // short of or runs past are ringed.
     let exact = guide.exact;
     let drawn = Ellipse {
+        centre: [exact.centre[0] - 0.02, exact.centre[1]],
         axes: [exact.axes[0] * 1.04, exact.axes[1] * 0.97],
         angle: exact.angle + 0.05,
-        ..exact
     }
     .outline(PIECES);
     script.draw(On::Copy, Marker::Ink, Drawn::Line(drawn.clone()));
     let mut compared = vec![(On::Copy, Marker::Answer, Drawn::Line(exact.outline(PIECES)))];
-    compared.extend(
-        t.iter()
-            .map(|p| (On::Copy, Marker::Answer, Drawn::Ring(*p))),
-    );
-    compared.push((On::Copy, Marker::Found, Drawn::Line(drawn)));
+    let check = EllipseCheck::of(&guide, &[&drawn]);
+    compared.extend(red_rings(check.sides.iter().map(|missed| missed.middle)));
     script.compare(Family::Ellipse, Layout::Single, compared)
 }

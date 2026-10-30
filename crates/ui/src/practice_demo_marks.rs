@@ -2,8 +2,9 @@
 //! exercise gives in ink, Sketch's pencil (an object's construction dark in its own step, faint
 //! once the next begins), a pass in the air as a dotted trace that goes again,
 //! Draw's ink, the dashed pencil of a horizon or a way to see it, a face or a negative shape
-//! shaded in pencil; then Compare's see-through red answer (dashed where a solid hides it), its
-//! blue reading (rings, dashes) and an original laid faint; a division's lines in its levels'
+//! shaded in pencil, a value scale's order numbered (S97); then Compare's see-through red answer
+//! (dashed where a solid hides it), an edge that misses drawn on dashed red (S97), its blue
+//! reading (rings, dashes) and an original laid faint; a division's lines in its levels'
 //! colours, a whole copy's dimming once Draw's step begins and gone at Compare (S95). A hand's
 //! mark draws along its length as time goes; what the exercise
 //! gives and Compare's marks show at once, fading in. Marks keep inside their frame, a wide
@@ -14,7 +15,7 @@ use openpaint_app::DIVISION_DIMMED;
 use openpaint_practice::{Demo, Drawn, Mark, Marker, On, Point, Rgb8, length};
 
 use crate::design::{
-    CORRECTION, DIVIDER, FOUND, INK, INK_SECONDARY, PANEL, PANEL_RULE_WIDTH, PENCIL,
+    CORRECTION, DIVIDER, FOUND, INK, INK_SECONDARY, PANEL, PANEL_RULE_WIDTH, PENCIL, PRINTED,
 };
 use crate::practice_demo::{PictureKey, by_hand, drawn, placed};
 use crate::practice_demo_wheel::wheel;
@@ -28,10 +29,12 @@ const INK_LINE: f32 = 2.0;
 const ANSWER: f32 = 3.5;
 const FOUND_LINE: f32 = 1.75;
 const HATCH_LINE: f32 = 1.5;
-/// A ring's radius and a dot's, in points; a cross's arm in frame units.
+/// A ring's radius and a dot's, in points; a cross's arm in frame units; a numeral's size, a share
+/// of its frame's side.
 const RING: f32 = 5.5;
 const DOT: f32 = 3.0;
 const CROSS: f64 = 0.045;
+const NUMERAL: f32 = 0.06;
 /// How strongly the red lies over the copy, a shape's picture shows faint, a combination's
 /// original over its copy, and pencil shades.
 const RED: f32 = 0.55;
@@ -197,6 +200,7 @@ fn on_frame(
         Drawn::Dot(p) => {
             painter.circle_filled(at(*p), DOT, colour);
         }
+        Drawn::Numeral(p, number) => numeral(painter, (at(*p), rect.width()), *number, colour),
         Drawn::Band { rows, colour } => {
             let fill = colour.map_or(PENCIL.gamma_multiply(SHADE), rgb);
             let strength = if pen == Marker::Faint { FAINT } else { 1.0 };
@@ -232,6 +236,13 @@ fn on_frame(
     }
 }
 
+/// `number` centred at `centre`, in step with its frame's `side` (points), in `colour`.
+fn numeral(painter: &egui::Painter, (centre, side): (Pos2, f32), number: u8, colour: Color32) {
+    let font = egui::FontId::proportional((side * NUMERAL).max(8.0));
+    let middle = egui::Align2::CENTER_CENTER;
+    painter.text(centre, middle, number.to_string(), font, colour);
+}
+
 /// `texture` (if made) laid on `rect`, `strength` strong.
 fn laid(painter: &egui::Painter, rect: Rect, texture: Option<TextureHandle>, strength: f32) {
     if let Some(texture) = texture {
@@ -250,8 +261,9 @@ fn laid(painter: &egui::Painter, rect: Rect, texture: Option<TextureHandle>, str
 pub(crate) fn colour_of(pen: Marker) -> Color32 {
     match pen {
         Marker::Given | Marker::Ink | Marker::Construction => INK,
+        Marker::Printed => PRINTED,
         Marker::Pencil | Marker::Air | Marker::Guide => INK_SECONDARY,
-        Marker::Answer | Marker::Hidden => CORRECTION,
+        Marker::Answer | Marker::Hidden | Marker::Missed => CORRECTION,
         Marker::Found => FOUND,
         Marker::Rule => DIVIDER,
         Marker::Shade | Marker::Faint => PENCIL,
@@ -269,11 +281,11 @@ fn line(painter: &egui::Painter, pen: Marker, path: Vec<Pos2>, colour: Color32) 
         return;
     }
     let (width, dashes) = match pen {
-        Marker::Given => (GIVEN, None),
+        Marker::Given | Marker::Printed => (GIVEN, None),
         Marker::Ink | Marker::Level(_) => (INK_LINE, None),
         Marker::Answer => (ANSWER, None),
         Marker::Hidden => (ANSWER / 2.0, Some((6.0, 4.0))),
-        Marker::Found => (FOUND_LINE, Some((6.0, 4.0))),
+        Marker::Found | Marker::Missed => (FOUND_LINE, Some((6.0, 4.0))),
         Marker::Guide => (1.0, Some((5.0, 4.0))),
         Marker::Air => (PENCIL_LINE, Some((2.0, 3.0))),
         Marker::Rule => (1.0, None),

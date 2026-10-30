@@ -70,7 +70,7 @@ pub fn stage_three(number: u32, seed: u64, before: &Before<'_>) -> Plan {
         .chain(shapes)
         .chain([(combination, None)]);
     Plan {
-        exercises: seeded(seed, all),
+        exercises: seeded(seed, all, before.scales),
         warm_up: warmed,
     }
 }

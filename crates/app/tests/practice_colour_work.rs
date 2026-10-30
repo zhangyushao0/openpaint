@@ -89,7 +89,7 @@ fn colour_work() -> Session {
     let plan = Plan {
         exercises: vec![
             Exercise::generated(Kind::Areas(Arrangement::Patches), 0x5EED_0082),
-            Exercise::generated(Kind::Scale(ScaleTone::Grey), 0x5EED_0083),
+            Exercise::generated(Kind::Scale(ScaleTone::Grey, 9), 0x5EED_0083),
         ],
         warm_up: 0,
     };

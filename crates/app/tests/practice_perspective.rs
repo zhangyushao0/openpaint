@@ -1,7 +1,8 @@
 //! Week 2's perspective on a practice sheet (S84): a box completed from its front corner, drawn
-//! with the pens and compared as geometry (the copy's edges extended towards the exact box's
-//! vanishing points, never aligned), a page of free boxes read box by box, and an ellipse fitted
-//! to the lines drawn, then to the corrections alone; no numbers kept.
+//! with the pens and compared as geometry (an edge that misses the exact box's vanishing point
+//! drawn on past it, never aligned; its construction on request, S97), a page of free boxes read
+//! box by box, and an ellipse fitted to the lines drawn, then to the corrections alone; no numbers
+//! kept.
 
 use std::sync::Arc;
 
@@ -96,8 +97,29 @@ fn overlay(session: &Session) -> Option<Overlay> {
     session.projection().practice()?.overlay.clone()
 }
 
+/// The opened sheet's box completed (the nine edges but the front corner's, one of them a little
+/// off) and compared; its copy's frame.
+fn completed(session: &mut Session) -> Frame {
+    let practice = session.projection().practice().cloned().expect("a sheet");
+    let frame = practice.sheet.pairs[0].copy;
+    let Original::Box(exact) = practice.sheet.originals[0] else {
+        panic!("a box")
+    };
+    let mut drawn = 0;
+    for (a, b, _) in exact.edges() {
+        if a == exact.corners[exact.front] || b == exact.corners[exact.front] {
+            continue;
+        }
+        let end = if drawn == 0 { [b[0], b[1] + 0.03] } else { b };
+        draw(session, &frame, &[a, end]);
+        drawn += 1;
+    }
+    practise(session, PracticeIntent::Compare(true));
+    frame
+}
+
 #[test]
-fn a_box_is_completed_and_its_edges_extended_towards_its_vanishing_points() {
+fn a_box_is_completed_and_only_its_edge_that_misses_is_drawn_on() {
     let mut session = opened();
     let projection = session.projection();
     let practice = projection.practice().expect("a sheet");
@@ -109,21 +131,7 @@ fn a_box_is_completed_and_its_edges_extended_towards_its_vanishing_points() {
     );
     assert_eq!(practice.pen.map(|(pen, _)| pen), Some(Pen::Draw));
     assert!(!practice.aligned_offered, "geometry is never aligned");
-    let frame = practice.sheet.pairs[0].copy;
-    let Original::Box(exact) = practice.sheet.originals[0] else {
-        panic!("a box")
-    };
-    // The nine edges but the front corner's, one of them a little off.
-    let mut drawn = 0;
-    for (a, b, _) in exact.edges() {
-        if a == exact.corners[exact.front] || b == exact.corners[exact.front] {
-            continue;
-        }
-        let end = if drawn == 0 { [b[0], b[1] + 0.03] } else { b };
-        draw(&mut session, &frame, &[a, end]);
-        drawn += 1;
-    }
-    practise(&mut session, PracticeIntent::Compare(true));
+    let frame = completed(&mut session);
     let Some(Overlay::Box(check)) = overlay(&session) else {
         panic!("the box's check")
     };
@@ -133,6 +141,10 @@ fn a_box_is_completed_and_its_edges_extended_towards_its_vanishing_points() {
         1,
         "the one off"
     );
+    // Only the edge that misses its point is drawn on (S97).
+    let extended: Vec<bool> = check.edges.iter().map(|e| e.extension.is_some()).collect();
+    let missed: Vec<bool> = check.edges.iter().map(|e| !e.on).collect();
+    assert_eq!(extended, missed);
     let practice = session.projection().practice().cloned().expect("a sheet");
     assert_eq!(practice.pen.map(|(pen, _)| pen), Some(Pen::Correct));
     assert!(session.practise(PracticeIntent::Aligned(true), 1).is_err());
@@ -143,6 +155,44 @@ fn a_box_is_completed_and_its_edges_extended_towards_its_vanishing_points() {
     let record = session.practice_save_request().expect("the record changed");
     let result = record.result(0).expect("compared");
     assert_eq!((result.compares, result.metrics.len()), (2, 0));
+}
+
+/// Construction (S97): off at each Compare, on when asked, off again when tapped again; none
+/// to lay with nothing compared.
+#[test]
+fn a_compared_box_s_construction_shows_on_request() {
+    let mut session = opened();
+    let construction =
+        |session: &Session| (session.projection().practice()).map(|p| p.construction);
+    assert!(
+        session
+            .practise(PracticeIntent::Construction(true), 1)
+            .is_err()
+    );
+    let frame = completed(&mut session);
+    assert_eq!(construction(&session), Some(false));
+    practise(&mut session, PracticeIntent::Construction(true));
+    assert_eq!(construction(&session), Some(true));
+    practise(&mut session, PracticeIntent::Construction(false));
+    assert_eq!(construction(&session), Some(false));
+    practise(&mut session, PracticeIntent::Construction(true));
+    draw(&mut session, &frame, &[[0.4, 0.4], [0.45, 0.47]]);
+    assert_eq!(
+        construction(&session),
+        Some(false),
+        "nothing to lay it over"
+    );
+    assert!(
+        session
+            .practise(PracticeIntent::Construction(true), 1)
+            .is_err()
+    );
+    practise(&mut session, PracticeIntent::Compare(true));
+    assert_eq!(
+        construction(&session),
+        Some(false),
+        "each Compare starts without it"
+    );
 }
 
 #[test]

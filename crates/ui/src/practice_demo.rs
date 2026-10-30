@@ -1,7 +1,8 @@
 //! A How card's demonstration (S92): under the card's title a small example of the kind (for a
 //! copying kind the original and the copy side by side; a box, an ellipse or a point in space
-//! alone, as large as the card lets it, a box's vanishing points beside it; a colour's or a value
-//! scale's two frames and a little wheel) where V大's way draws itself step by step
+//! alone, as large as the card lets it, a box's vanishing points beside it; a colour's two frames
+//! and a little wheel; a value scale's one frame cropped to its rows beside the wheel, S97) where
+//! V大's way draws itself step by step
 //! (`openpaint_practice::Demo`), and under it the numbered steps, the one being drawn in ink and the
 //! others in pencil grey, every one in ink once it is over. It plays whenever How opens, once
 //! through on the frame clock, then stands still on its last frame; Again plays it from the start.
@@ -25,6 +26,8 @@ const LONE_HEIGHT: f32 = 224.0;
 const GAP: f32 = 2.0 * SPACE;
 /// Between a fitted example and its paper's edge, in points.
 const FIT_MARGIN: f32 = 1.5 * SPACE;
+/// A value scale example's wheel, a share of the example's height (S97).
+const ROW_WHEEL: f32 = 0.7;
 /// A combination's picture's side, in pixels.
 const PICTURE: u32 = 128;
 /// An object's picture's side, in pixels (its frame some 176 points, at up to 2 pixels a point).
@@ -129,7 +132,7 @@ impl Demonstrations {
         let height = match demo.layout {
             Layout::Wheel => (width - 2.0 * GAP) / 3.0,
             Layout::Single | Layout::Wide => LONE_HEIGHT,
-            Layout::Pair => HEIGHT,
+            Layout::Pair | Layout::Row => HEIGHT,
         };
         let (rect, _) = ui.allocate_exact_size(Vec2::new(width, height), Sense::hover());
         let frames = laid(demo, rect);
@@ -224,6 +227,17 @@ fn laid(demo: &Demo, rect: Rect) -> Frames {
             let left = rect.left();
             let at = |k: f32| square(left + k * (side + GAP), side);
             Frames::of(Some(at(0.0)), at(1.0), Some(at(2.0)))
+        }
+        // A value scale's one frame cropped to its rows, the wheel smaller at its right (S97),
+        // so the row's nine cells and their numbers read.
+        Layout::Row => {
+            let side = rect.height() * ROW_WHEEL;
+            let wheel = square(rect.right() - side, side);
+            let row = Rect::from_min_max(rect.min, egui::pos2(wheel.left() - GAP, rect.max.y));
+            Frames {
+                wide: Some(row),
+                ..Frames::of(None, fitted(demo, row), Some(wheel))
+            }
         }
     }
 }

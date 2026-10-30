@@ -33,7 +33,7 @@ pub(crate) const AREAS: How = How {
 pub(crate) const SCALE: How = How {
     heading: super::SCALE_EXERCISE,
     trains: Some(SCALE_TRAINS),
-    steps: &[SCALE_STEP_1, SCALE_STEP_2, COMPARE_STEP],
+    steps: &[SCALE_STEP_1, SCALE_STEP_2, SCALE_STEP_3, COMPARE_STEP],
     says: &[SCALE_SAYS],
 };
 pub(crate) const STUDY: How = How {
@@ -70,13 +70,16 @@ texts! { PRACTICE_DEMO_COLOUR;
         "叠图对比之前不能吸原图，可以吸你自己的。叠图对比把原图叠在你的临摹上，滑块调节强弱；每个色片上为原色、下为你的颜色，点它在色轮和表里比较，它的色块用墨线勾出；画强了的弱对比标红。之后用吸管点任意位置比较。";
     SCALE_TRAINS = "Beside week 2's colour work · lightness as the eye sees it, in even steps.",
         "配合第 2 周的色彩练习 · 按眼睛看到的明度均匀推移。";
-    SCALE_STEP_1 = "The middle cell: halfway in lightness", "先填中间一格：明度在两端正中";
-    SCALE_STEP_2 = "The quarters: halfway again", "再填四分之一处：各取一半";
-    SCALE_SAYS = "Keep the hue and purity: move only up and down in the wheel's square; Fill cell \
-        fills the cell in hand, the ends can be picked. Compare shows the even scale in the \
-        original's frame; under your row each cell's lightness as a bar, its even step a red \
-        tick, an uneven cell's bar outlined red. Fill a cell again to correct it.",
-        "保持色相和纯度：只在色轮的方块里上下移动；“填满格子”填满选中的格子，两端可以吸取。叠图对比时原图框里显示均匀的推移；你的格子下方每格的明度画成竖条，红线是均匀的那一级，不均匀的格子竖条描红。重填某一格来修正。";
+    SCALE_STEP_1 = "The middle cell first (of nine, the 5th): halfway in lightness",
+        "先填正中一格（九格里的第 5 格）：明度取两端的正中";
+    SCALE_STEP_2 = "Then each half's middle (the 3rd and 7th)", "再填两半各自的正中（第 3、7 格）";
+    SCALE_STEP_3 = "Then the cells left between (2nd, 4th, 6th, 8th)",
+        "最后填剩下的格子（第 2、4、6、8 格）";
+    SCALE_SAYS = "The numbers under the example's cells are the order. Keep the hue and purity: \
+        move only up and down in the wheel's square; Fill cell fills the cell in hand, the ends \
+        can be picked. Compare lays the even scale under your row, cell under cell; a cell of \
+        yours that is uneven is outlined red with its even one. Fill a cell again to correct it.",
+        "示例格子下的数字就是先后顺序。保持色相和纯度：只在色轮的方块里上下移动；“填满格子”填满选中的格子，两端可以吸取。叠图对比把均匀的推移排在你那一行下面，一格对一格；不均匀的格子和下面对应的那格一起描红。重填那一格来修正。";
     STUDY_1 = "Copy the picture in colour into the empty frame beside it, over as many sittings as \
         you like: about 10 to 20 hours in all. It never counts as a session.",
         "把这张图用颜色临摹到旁边的空白框里，分多次画完，总共约 10 到 20 小时。它不算在练习次数里。";

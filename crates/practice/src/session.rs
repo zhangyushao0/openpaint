@@ -43,7 +43,7 @@ use crate::perspective::{BoxView, Horizon};
 use crate::pictures::Pictures;
 use crate::plan::{Exercise, Family, Kind};
 use crate::random::{Random, derived};
-use crate::scale::ScaleTone;
+use crate::scale::{CELLS, FIRST_CELLS, FIRST_SCALES, ScaleTone};
 use crate::session_four::stage_four;
 use crate::session_three::stage_three;
 
@@ -93,6 +93,9 @@ pub(crate) const LONG: [Family; 4] = [
 ];
 /// The free boxes' horizons in turn: in the middle first.
 pub(crate) const HORIZONS: [Horizon; 3] = [Horizon::Middle, Horizon::High, Horizon::Low];
+/// A value scale's cells as a kind holds them: a scale's, a beginner's (`seeded` sizes them).
+pub(crate) const FULL: u8 = CELLS as u8;
+const SHORT: u8 = FIRST_CELLS as u8;
 
 /// A session's exercises, the first `warm_up` of them its warm-up.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -103,13 +106,15 @@ pub struct Plan {
 
 /// What a session's plan reads: the kinds `met` in earlier sessions, the `pictures` there are,
 /// those `used` in earlier sessions and those the last ten showed (`recent`, S95: a composition
-/// comes back after ten sessions).
+/// comes back after ten sessions), and how many value `scales` were met (S97: a beginner's first
+/// two are shorter).
 #[derive(Debug, Clone, Copy)]
 pub struct Before<'a> {
     pub met: &'a [Kind],
     pub pictures: &'a Pictures,
     pub used: &'a [ItemRef],
     pub recent: &'a [ItemRef],
+    pub scales: usize,
 }
 
 /// Session `number` of `stage` seeded `seed` after `before`: stage 2's for stage 2, stage 3's for
@@ -142,7 +147,8 @@ pub fn stage_one(seed: u64, met: &[Kind]) -> Plan {
         .chain(colours)
         .collect();
     Plan {
-        exercises: seeded(seed, kinds.into_iter().map(|kind| (kind, None))),
+        // Stage 1 holds no value scale.
+        exercises: seeded(seed, kinds.into_iter().map(|kind| (kind, None)), 0),
         warm_up: u32::try_from(warm_up.len()).unwrap_or(0),
     }
 }
@@ -161,7 +167,7 @@ pub fn stage_two(number: u32, seed: u64, before: &Before<'_>) -> Plan {
     let turn = number.saturating_sub(1) as usize;
     let colour_work = [
         Kind::Areas(Arrangement::ALL[turn % Arrangement::ALL.len()]),
-        Kind::Scale(ScaleTone::ALL[turn % ScaleTone::ALL.len()]),
+        Kind::Scale(ScaleTone::ALL[turn % ScaleTone::ALL.len()], FULL),
     ];
     let warmed = u32::try_from(warm_up.len()).unwrap_or(0);
     let all = (warm_up.into_iter()).chain(shapes).chain(
@@ -171,7 +177,7 @@ pub fn stage_two(number: u32, seed: u64, before: &Before<'_>) -> Plan {
             .map(|kind| (kind, None)),
     );
     Plan {
-        exercises: seeded(seed, all),
+        exercises: seeded(seed, all, before.scales),
         warm_up: warmed,
     }
 }
@@ -287,15 +293,26 @@ const fn shape_tiers(number: u32) -> [Tier; 4] {
     }
 }
 
-/// `kinds` (with their pictures) as exercises, exercise `i` seeded `derived(seed, i)`.
+/// `kinds` (with their pictures) as exercises, exercise `i` seeded `derived(seed, i)`; each value
+/// scale of `CELLS` cells, but `FIRST_CELLS` while fewer than `FIRST_SCALES` were met, counting
+/// the plan's own after the `scales` met before it (S97: a beginner's first two scales are short).
 pub(crate) fn seeded(
     seed: u64,
     kinds: impl Iterator<Item = (Kind, Option<ItemRef>)>,
+    scales: usize,
 ) -> Vec<Exercise> {
+    let mut met = scales;
     kinds
         .enumerate()
         .map(|(index, (kind, picture))| Exercise {
-            kind,
+            kind: match kind {
+                Kind::Scale(tone, _) => {
+                    met += 1;
+                    let short = met <= FIRST_SCALES;
+                    Kind::Scale(tone, if short { SHORT } else { FULL })
+                }
+                kind => kind,
+            },
             seed: derived(seed, index as u64),
             picture,
         })

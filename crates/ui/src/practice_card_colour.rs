@@ -1,12 +1,13 @@
 //! What the practice card shows of week 2's colour work and of a long colour copy (S82, D108);
-//! what the frames show (the weak contrasts made strong in red, a scale's bars and even steps) is
-//! not said again, and the How cards say what the marks mean:
+//! what the frames show (the weak contrasts made strong in red, a scale's even row) is not said
+//! again, and the How cards say what the marks mean:
 //!
 //! - a colour combination compared: how strongly the original shows over the copy (a slider),
 //!   each area as a chip of two colours (the original's over yours) to choose one, the chosen
 //!   area's colours on the wheel and in the colour table, or the point the eyedropper compared;
 //!   a line only where the area is not painted;
-//! - a value scale compared: its title; the bars under the row speak;
+//! - a value scale compared: its title and how many cells are uneven (S97); the even row under
+//!   the copy's speaks;
 //! - a colour copy compared: the slider, and the point the eyedropper compared;
 //! - in a session's summary, the combinations' and scales' means beside the earlier sessions'.
 //!
@@ -23,7 +24,7 @@ use crate::design::{DIVIDER, INK, Outline, PANEL, TOUCH_TARGET};
 use crate::practice_card::{metric_text, pair_on_wheel};
 use crate::practice_marks::colour;
 use crate::taps::push_once;
-use crate::text::{self as t, Language, language};
+use crate::text::{self as t, Language, Words, language};
 
 /// The wheel's side on a colour combination's card, in points: smaller than a colour's, so the
 /// card fits under the exercise's tools on a landscape screen.
@@ -160,10 +161,16 @@ fn paint_chip(ui: &egui::Ui, rect: Rect, (original, mine): (Rgb8, Option<Rgb8>))
     }
 }
 
-/// A value scale compared: its bars under the row speak; until the copy is read, saying so.
+/// A value scale compared (S97): the even row under the copy's speaks, and how many cells are
+/// uneven when any; until the copy is read, saying so.
 fn scale(ui: &mut egui::Ui, check: Option<&ScaleCheck>) {
-    if check.is_none() {
-        card_text(ui, t::READING_COPY, true);
+    match check {
+        None => card_text(ui, t::READING_COPY, true),
+        Some(check) if !check.uneven.is_empty() => {
+            let line = t::cells_uneven(language(ui.ctx()), check.uneven.len());
+            card_text(ui, Words::made(&line), false);
+        }
+        Some(_) => {}
     }
 }
 

@@ -1,5 +1,6 @@
 //! A practice sheet's exercises over its canvas (G9): each pair revealed so far as two frames,
-//! the original's and the empty one for the copy, the shown pair's in ink and the earlier ones
+//! the original's and the empty one for the copy (a kind built from given parts the one frame
+//! drawn in, S97), the shown pair's in ink and the earlier ones
 //! faint; each original in its frame (a line or a group of lines in ink, a swatch filling the
 //! frame, a single shape's or a colour copy's picture with its credit small under the frame where
 //! its licence asks for one, a colour combination's or a value scale's in `practice_paint_marks.rs`,
@@ -122,7 +123,10 @@ pub(crate) fn show_marks(
             Stroke::new(1.0, DIVIDER)
         };
         show_original(&painter, practice, (index, pair), (&at, widths), pictures);
-        painter.add(Shape::closed_line(original.to_vec(), frame));
+        // A kind built from given parts has the one frame drawn in (S97).
+        if !practice.sheet.families[index].constructed() {
+            painter.add(Shape::closed_line(original.to_vec(), frame));
+        }
         painter.add(Shape::closed_line(copy.to_vec(), frame));
     }
     let width = (INK_DIAMETER * mapping.scale() / pixels_per_point).max(LEAST_OVERLAY);

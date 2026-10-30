@@ -1,5 +1,6 @@
-//! The perspective checks (S84): a completed box's edges extended towards its vanishing points (an
-//! exact edge's extension ends on its point, a turned one's misses it), free boxes read box by box
+//! The perspective checks (S84, S97): a completed box's edges taken for their vanishing points (an
+//! exact edge heads for its point and gets no mark, a turned one alone is drawn on past its point,
+//! missing it by what it is off), free boxes read box by box
 //! (their directions found, a direction drawn apart said, a front corner under 90 degrees marked),
 //! and how reliable that is on boxes drawn by hand. Run with `--nocapture` to read the figures.
 
@@ -36,8 +37,18 @@ fn truth(edge: &Edge, drawn: &[(Point, Point, Direction)]) -> Option<Direction> 
         .map(|(_, _, d)| *d)
 }
 
+/// How far the line through `from` and `to` passes from `point`, and how far `to` lies beyond
+/// where it comes nearest.
+fn passing([from, to]: [Point; 2], point: Point) -> (f64, f64) {
+    let d = crate::edges::unit(from, to);
+    let rel = [point[0] - from[0], point[1] - from[1]];
+    let along = rel[0] * d[0] + rel[1] * d[1];
+    let off = (rel[0] * d[1] - rel[1] * d[0]).abs();
+    (off, distance(from, to) - along)
+}
+
 #[test]
-fn exact_edges_head_for_their_points_and_their_extensions_end_on_them() {
+fn exact_edges_head_for_their_points_and_get_no_marks() {
     for view in BoxView::ALL {
         for seed in 0..100 {
             let exact = PerspectiveBox::generate(view, seed);
@@ -48,26 +59,18 @@ fn exact_edges_head_for_their_points_and_their_extensions_end_on_them() {
                 "{view:?} {seed}: {}",
                 check.edges.len()
             );
+            assert_eq!(check.missed(), 0, "{view:?} {seed}");
             for checked in &check.edges {
                 assert!(checked.on, "{view:?} {seed}: {checked:?}");
                 assert_eq!(truth(&checked.edge, &drawn), Some(checked.direction));
-                match exact.vanishing[checked.direction.index()] {
-                    Some(point) => {
-                        let [_, end] = checked.extension.unwrap_or([point; 2]);
-                        assert!(
-                            distance(end, point) < 1e-6,
-                            "{view:?} {seed}: {end:?} {point:?}"
-                        );
-                    }
-                    None => assert!(checked.plumb.is_some() && checked.extension.is_none()),
-                }
+                assert!(checked.extension.is_none() && checked.plumb.is_none());
             }
         }
     }
 }
 
 #[test]
-fn an_edge_turned_off_its_direction_misses_its_point() {
+fn only_an_edge_that_misses_its_point_is_drawn_on_past_it() {
     let exact = PerspectiveBox::generate(BoxView::TwoPoint, 0x5EED_0084);
     let mut drawn = to_complete(&exact);
     let at = (drawn.iter())
@@ -77,10 +80,18 @@ fn an_edge_turned_off_its_direction_misses_its_point() {
     let check = BoxCheck::of(&exact, &found(&clean(&drawn)));
     let point = exact.vanishing[Direction::Right.index()].expect("the right point");
     let off: Vec<_> = check.edges.iter().filter(|c| !c.on).collect();
-    assert_eq!(off.len(), 1, "{off:?}");
+    assert_eq!((off.len(), check.missed()), (1, 1), "{off:?}");
     assert_eq!(off[0].direction, Direction::Right);
-    let [_, end] = off[0].extension.expect("extended");
-    assert!(distance(end, point) > 0.03, "{end:?} misses {point:?}");
+    let extension = off[0].extension.expect("extended");
+    let (missed_by, past) = passing(extension, point);
+    assert!(
+        missed_by > 0.03,
+        "{extension:?} misses {point:?} by {missed_by}"
+    );
+    assert!((past - openpaint_practice::PAST).abs() < 1e-9, "{past}");
+    let others = check.edges.iter().filter(|c| c.on);
+    assert!(others.clone().count() >= 7);
+    assert!(others.into_iter().all(|c| c.extension.is_none()));
 }
 
 /// Boxes completed by `manner`'s hand, each edge drawn as meant or `error` degrees off: edges

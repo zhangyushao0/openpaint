@@ -1,8 +1,8 @@
 //! Week 2's perspective on a practice sheet (S84): the bar's names and the cards' words (the How
 //! cards are `practice_demo_space.rs`). In V大's terms: 透视盒子, 视平线, 消失点, 前角, 椭圆, 补全盒子,
-//! 自由盒子.
+//! 自由盒子, 看画法.
 
-use openpaint_practice::{Reach, Roundness, Side, Tilt};
+use openpaint_practice::{Missed, Reach, Roundness, Side, Tilt};
 
 use super::{Language, Text};
 
@@ -13,10 +13,10 @@ texts! { PRACTICE_PERSPECTIVE;
     ELLIPSE_EXERCISE = "Ellipse", "椭圆";
     COMPLETE_THE_BOX = "Complete the box", "补全盒子";
     DRAW_AN_ELLIPSE = "Draw an ellipse in its frame", "在方框里画椭圆";
+    CONSTRUCTION = "Construction", "看画法";
     NO_EDGES = "No straight edge found in your lines.", "你的线条里没有找到直边。";
     NO_ELLIPSE = "No ellipse found in your lines.", "你的线条里没有找到椭圆。";
-    BOXES_MEET = "Every direction meets, every vertical upright, every front corner over 90°.",
-        "方向都交于一点，竖边竖直，前角都大于 90°。";
+    EDGES_HEAD = "Every edge heads for its vanishing point.", "每条边都对准了消失点。";
     ELLIPSE_FITS = "Yours fits.", "你的椭圆很贴合。";
     SIDE_TOP = "top side", "上边";
     SIDE_RIGHT = "right side", "右边";
@@ -30,52 +30,40 @@ texts! { PRACTICE_PERSPECTIVE;
     RUNS_PAST = "runs past the", "超出了";
 }
 
-/// What a completed box's card says of its edges: how many of those found head for their
-/// vanishing point (or stay vertical).
-pub(crate) fn box_edges(language: Language, (found, on): (usize, usize)) -> String {
-    match (language, found == on) {
-        (Language::English, true) => format!("All {found} edges head for their vanishing point."),
-        (Language::English, false) => {
-            format!("{on} of {found} edges head for their vanishing point.")
-        }
-        (Language::Chinese, true) => format!("{found} 条边都指向消失点。"),
-        (Language::Chinese, false) => format!("{found} 条边中 {on} 条指向消失点。"),
+/// What a box's or free boxes' card says, in one short line, of what is off (S97): the edges
+/// that miss their vanishing point, the verticals that lean, the front corners under 90 degrees;
+/// that every edge heads for its point when none is.
+pub(crate) fn off(language: Language, (missed, lean, narrow): (usize, usize, usize)) -> String {
+    if missed + lean + narrow == 0 {
+        return EDGES_HEAD.get(language).to_owned();
     }
-}
-
-/// How many free boxes were found, with how many straight edges.
-pub(crate) fn free_found(language: Language, (edges, boxes): (usize, usize)) -> String {
+    let english = |n: usize, one: &str, many: &str| match n {
+        1 => format!("1 {one}"),
+        n => format!("{n} {many}"),
+    };
+    let parts: Vec<String> = match language {
+        Language::English => [
+            (missed > 0).then(|| {
+                english(missed, "edge misses its", "edges miss their") + " vanishing point"
+            }),
+            (lean > 0).then(|| english(lean, "vertical leans", "verticals lean")),
+            (narrow > 0).then(|| english(narrow, "front corner", "front corners") + " under 90°"),
+        ]
+        .into_iter()
+        .flatten()
+        .collect(),
+        Language::Chinese => [
+            (missed > 0).then(|| format!("{missed} 条边没对准消失点")),
+            (lean > 0).then(|| format!("{lean} 条竖边歪了")),
+            (narrow > 0).then(|| format!("{narrow} 个前角小于 90°")),
+        ]
+        .into_iter()
+        .flatten()
+        .collect(),
+    };
     match language {
-        Language::English if boxes == 1 => format!("1 box, {edges} edges."),
-        Language::English => format!("{boxes} boxes, {edges} edges."),
-        Language::Chinese => format!("{boxes} 个盒子，{edges} 条边。"),
-    }
-}
-
-/// Free boxes whose edges of one direction do not meet at one point.
-pub(crate) fn boxes_apart(language: Language, boxes: usize) -> String {
-    match language {
-        Language::English if boxes == 1 => "In 1 box a direction's edges don't meet.".into(),
-        Language::English => format!("In {boxes} boxes a direction's edges don't meet."),
-        Language::Chinese => format!("有 {boxes} 个盒子同一方向的边没有交于一点。"),
-    }
-}
-
-/// Front corners under 90 degrees.
-pub(crate) fn corners_narrow(language: Language, corners: usize) -> String {
-    match language {
-        Language::English if corners == 1 => "1 front corner under 90°.".into(),
-        Language::English => format!("{corners} front corners under 90°."),
-        Language::Chinese => format!("有 {corners} 个前角小于 90°。"),
-    }
-}
-
-/// Vertical edges that lean.
-pub(crate) fn verticals_lean(language: Language, edges: usize) -> String {
-    match language {
-        Language::English if edges == 1 => "1 vertical leans.".into(),
-        Language::English => format!("{edges} verticals lean."),
-        Language::Chinese => format!("有 {edges} 条竖边不竖直。"),
+        Language::English => parts.join("; ") + ".",
+        Language::Chinese => parts.join("，") + "。",
     }
 }
 
@@ -93,7 +81,7 @@ const fn side(side: Side) -> Text {
 pub(crate) fn ellipse_differs(
     language: Language,
     (roundness, tilt): (Option<Roundness>, Option<Tilt>),
-    sides: &[(Side, Reach)],
+    sides: &[Missed],
 ) -> String {
     let shape: Vec<&str> = [
         roundness.map(|r| match r {
@@ -114,8 +102,8 @@ pub(crate) fn ellipse_differs(
         .into_iter()
         .filter_map(|(way, how)| {
             let at: Vec<&str> = (sides.iter())
-                .filter(|(_, reach)| *reach == way)
-                .map(|(at, _)| side(*at).get(language))
+                .filter(|missed| missed.reach == way)
+                .map(|missed| side(missed.side).get(language))
                 .collect();
             (!at.is_empty()).then(|| match language {
                 Language::English => format!("{} {}", how.get(language), at.join(" and the ")),

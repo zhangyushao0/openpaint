@@ -32,12 +32,15 @@
 //! 1.8.0 adds none: kinds 11 and 12 (an estimate on the flat, a point in space) and their errors,
 //! metric codes 42 to 46 (D107). 1.9.0 adds none: a drill (S91) is a record of stage `DRILL`
 //! (255), its number among its kind's drills, its exercises all of the kind it drills; earlier
-//! records read as they are.
+//! records read as they are. 1.15.0 adds none: a value scale's kind holds its cells, (6, tone + 2
+//! x cells); a record holding one as (6, tone) is turned so by the store's upgrade (`upgrade`).
 
 use std::collections::HashSet;
 
 use openpaint_app::{PortError, ProjectId, Title};
-use openpaint_practice::{Exercise, ExerciseResult, ItemRef, Kind, Metric, SessionRecord, Span};
+use openpaint_practice::{
+    Exercise, ExerciseResult, ItemRef, Kind, Metric, Random, ScaleTone, SessionRecord, Span,
+};
 
 use crate::batch::Batch;
 use crate::codec::{Reader, Writer};
@@ -113,9 +116,16 @@ pub(crate) fn encode_session(session: &SessionRecord) -> Vec<u8> {
     writer.finish()
 }
 
-/// The session stored under `key` as `bytes`, and whether its record keeps its time (one written
-/// before 1.7.0 does not: `upgrade`).
-pub(crate) fn decode_session(key: &[u8], bytes: &[u8]) -> Result<(SessionRecord, bool), PortError> {
+/// What the store's upgrade still owes a record read (`upgrade`): its time (one written before
+/// 1.7.0 keeps none) and its value scales' cells (one written before 1.15.0 holding a scale).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct Owed {
+    pub(crate) time: bool,
+    pub(crate) scales: bool,
+}
+
+/// The session stored under `key` as `bytes`, and what the store's upgrade owes its record.
+pub(crate) fn decode_session(key: &[u8], bytes: &[u8]) -> Result<(SessionRecord, Owed), PortError> {
     let mut reader = Reader::new(bytes, "practice session");
     let id = key
         .strip_prefix(PRACTICE)
@@ -125,12 +135,7 @@ pub(crate) fn decode_session(key: &[u8], bytes: &[u8]) -> Result<(SessionRecord,
     let (stage, number, seed) = (reader.u8()?, reader.u32()?, reader.u64()?);
     let (canvas, started, finished) = (reader.u64()?, reader.u64()?, reader.u64()?);
     let current = reader.u32()?;
-    let count = reader.count(EXERCISE_BYTES)?;
-    let mut exercises = Vec::with_capacity(count);
-    for _ in 0..count {
-        let kind = Kind::of_code(reader.u8()?, reader.u8()?).ok_or(reader.corrupt())?;
-        exercises.push(Exercise::generated(kind, reader.u64()?));
-    }
+    let (mut exercises, scales) = decode_exercises(&mut reader)?;
     let mut results = decode_results(&mut reader)?;
     if !reader.is_done() {
         for result in &mut results {
@@ -171,7 +176,49 @@ pub(crate) fn decode_session(key: &[u8], bytes: &[u8]) -> Result<(SessionRecord,
         results,
         time,
     };
-    Ok((session, timed))
+    let owed = Owed {
+        time: !timed,
+        scales,
+    };
+    Ok((session, owed))
+}
+
+/// The exercises, and whether any is a value scale as 1.5.0 to 1.14.0 stored it (`older_scale`).
+fn decode_exercises(reader: &mut Reader<'_>) -> Result<(Vec<Exercise>, bool), PortError> {
+    let count = reader.count(EXERCISE_BYTES)?;
+    let mut exercises = Vec::with_capacity(count);
+    let mut older = false;
+    for _ in 0..count {
+        let (kind, variant, seed) = (reader.u8()?, reader.u8()?, reader.u64()?);
+        let exercise = match Kind::of_code(kind, variant) {
+            Some(kind) => Exercise::generated(kind, seed),
+            None => {
+                older = true;
+                older_scale((kind, variant), seed).ok_or(reader.corrupt())?
+            }
+        };
+        exercises.push(exercise);
+    }
+    Ok((exercises, older))
+}
+
+/// SplitMix64's step (`openpaint_practice::Random`): a seed one draw on.
+const ONE_DRAW: u64 = 0x9E37_79B9_7F4A_7C15;
+
+/// A value scale as 1.5.0 to 1.14.0 stored it, kind (6, tone): its cells, 5 to 7, were its seed's
+/// first draw and its ends the draws after. As this version keeps it (S97): its cells in its kind
+/// and its seed one draw on, so it is the same scale, its strokes where they lay. None for any
+/// other kind this version does not know.
+fn older_scale((kind, variant): (u8, u8), seed: u64) -> Option<Exercise> {
+    let tone = *ScaleTone::ALL
+        .get(usize::from(variant))
+        .filter(|_| kind == 6)?;
+    let mut random = Random::new(seed);
+    let cells = 5 + ((random.unit() * 3.0) as u8).min(2);
+    Some(Exercise::generated(
+        Kind::Scale(tone, cells),
+        seed.wrapping_add(ONE_DRAW),
+    ))
 }
 
 /// The results, as a record of 1.1.0 holds them: compared once, no stroke a correction until
@@ -214,17 +261,24 @@ fn decode_pictures(reader: &mut Reader<'_>, exercises: &mut [Exercise]) -> Resul
     Ok(())
 }
 
-/// The store's upgrade of practice records (S89), when the library opens: every record written
-/// before 1.7.0, which keeps no time, is given the spans its compares' times tell
-/// (`SessionRecord::time_of_compares`) and written again as this version writes it, all in one
-/// batch. A record that cannot be read is left as it is (`sessions` leaves it out).
+/// The store's upgrade of practice records, when the library opens: every record written before
+/// 1.7.0, which keeps no time, is given the spans its compares' times tell
+/// (`SessionRecord::time_of_compares`, S89); one holding a value scale as 1.5.0 to 1.14.0 stored
+/// it gets the scale's cells in its kind (`older_scale`, S97); each written again as this version
+/// writes it, all in one batch. A record that cannot be read is left as it is (`sessions` leaves
+/// it out).
 pub(crate) fn upgrade(open: &Open) -> Result<(), PortError> {
     let mut batch = Batch::new(open);
     let mut upgraded = 0;
     for guard in open.library.prefix(PRACTICE) {
         let (key, value) = guard.into_inner().map_err(device)?;
-        if let Ok((mut session, false)) = decode_session(&key, &value) {
+        let Ok((mut session, owed)) = decode_session(&key, &value) else {
+            continue;
+        };
+        if owed.time {
             session.time = session.time_of_compares();
+        }
+        if owed.time || owed.scales {
             batch.insert(&open.library, key, encode_session(&session));
             upgraded += 1;
         }
@@ -233,7 +287,7 @@ pub(crate) fn upgrade(open: &Open) -> Result<(), PortError> {
         return Ok(());
     }
     batch.commit()?;
-    log::info!("{upgraded} practice records given their time from their compares");
+    log::info!("{upgraded} practice records upgraded (their time, their value scales' cells)");
     Ok(())
 }
 
@@ -275,3 +329,6 @@ pub(crate) fn sheets(open: &Open) -> Result<HashSet<u64>, PortError> {
 #[cfg(test)]
 #[path = "practice_tests.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "practice_upgrade_tests.rs"]
+mod upgrade_tests;

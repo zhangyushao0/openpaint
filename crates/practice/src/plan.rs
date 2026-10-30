@@ -14,7 +14,7 @@ use crate::object_design::Carve;
 use crate::pack::{ItemRef, Tier};
 use crate::path::Point;
 use crate::perspective::{BoxView, Horizon, PerspectiveBox};
-use crate::scale::{ScaleTone, ValueScale};
+use crate::scale::{CELLS, FIRST_CELLS, ScaleTone, ValueScale};
 use crate::solid::{Solid, SolidTask};
 use crate::space::{SpaceTask, Trick};
 
@@ -38,8 +38,9 @@ pub enum Kind {
     Shape(Tier),
     /// A small abstract picture of a few colour areas, copied by eye (V大's 临摹色彩组合).
     Areas(Arrangement),
-    /// A row of cells between a given dark and light, filled in even steps of value.
-    Scale(ScaleTone),
+    /// A row of cells (its count, the ends among them) between a given dark and light, filled in
+    /// even steps of value.
+    Scale(ScaleTone, u8),
     /// A long colour copy of a picture (V大's 色彩临摹): a project beside the sessions, never
     /// one of their exercises.
     Study,
@@ -175,6 +176,17 @@ impl Family {
         )
     }
 
+    /// Whether its answer is built from given parts in the one frame drawn in (S97): a value
+    /// scale, a box, free boxes, an ellipse. The original's frame beside it is left empty, room
+    /// for what Compare draws beyond the frame (the sheet keeps its place, so strokes stay put).
+    #[must_use]
+    pub const fn constructed(self) -> bool {
+        matches!(
+            self,
+            Self::Scale | Self::Box | Self::FreeBoxes | Self::Ellipse
+        )
+    }
+
     /// Whether its exercises copy a composition's picture (S95, S96): a division, a whole copy,
     /// value masses.
     #[must_use]
@@ -186,7 +198,9 @@ impl Family {
 impl Kind {
     /// The kind and its variant as stored: (1, tier) for a line, (2, tone) for a colour, (3,
     /// arrangement) for combined lines, (4, the picture's tier code) for a single shape, (5,
-    /// arrangement) for a colour combination, (6, tone) for a value scale, (7, 0) for a colour
+    /// arrangement) for a colour combination, (6, tone + 2 x cells) for a value scale (S97; 1.5.0
+    /// to 1.14.0 stored (6, tone), the cells drawn from the seed: the store's upgrade turns it into
+    /// this, `store/src/practice.rs`), (7, 0) for a colour
     /// copy, (8, view) for a box to complete, (9, horizon) for free boxes, (10, guide) for an
     /// ellipse, (11, estimate) for an estimate on the flat, (12, trick) for a point in space, (13,
     /// solid) for a solid in a box, (14, carve) for an object simplified into its box, (15, the
@@ -208,7 +222,10 @@ impl Kind {
                 let at = Arrangement::ALL.iter().position(|a| *a == arrangement);
                 (5, index(at))
             }
-            Self::Scale(tone) => (6, index(ScaleTone::ALL.iter().position(|t| *t == tone))),
+            Self::Scale(tone, cells) => {
+                let tone = index(ScaleTone::ALL.iter().position(|t| *t == tone));
+                (6, tone + 2 * cells)
+            }
             Self::Study => (7, 0),
             Self::Box(view) => (8, index(BoxView::ALL.iter().position(|v| *v == view))),
             Self::FreeBoxes(horizon) => (9, index(Horizon::ALL.iter().position(|h| *h == horizon))),
@@ -232,7 +249,11 @@ impl Kind {
             3 => Combination::ALL.get(at).map(|c| Self::Combined(*c)),
             4 => Tier::of_code(variant).map(Self::Shape),
             5 => Arrangement::ALL.get(at).map(|a| Self::Areas(*a)),
-            6 => ScaleTone::ALL.get(at).map(|t| Self::Scale(*t)),
+            6 => {
+                let cells = variant / 2;
+                let kept = (usize::from(cells) >= FIRST_CELLS) && usize::from(cells) <= CELLS;
+                (ScaleTone::ALL.get(at % 2)).and_then(|t| kept.then_some(Self::Scale(*t, cells)))
+            }
             7 => (variant == 0).then_some(Self::Study),
             8 => BoxView::ALL.get(at).map(|v| Self::Box(*v)),
             9 => Horizon::ALL.get(at).map(|h| Self::FreeBoxes(*h)),
@@ -256,7 +277,7 @@ impl Kind {
             Self::Combined(_) => Family::Combined,
             Self::Shape(_) => Family::Shape,
             Self::Areas(_) => Family::Areas,
-            Self::Scale(_) => Family::Scale,
+            Self::Scale(..) => Family::Scale,
             Self::Study => Family::Study,
             Self::Box(_) => Family::Box,
             Self::FreeBoxes(_) => Family::FreeBoxes,
@@ -309,7 +330,9 @@ impl Exercise {
             | Kind::WholeCopy(_)
             | Kind::ValueMasses(_) => Original::Picture(self.picture.clone().unwrap_or_default()),
             Kind::Areas(arrangement) => Original::Areas(Areas::generate(arrangement, self.seed)),
-            Kind::Scale(tone) => Original::Scale(ValueScale::generate(tone, self.seed)),
+            Kind::Scale(tone, cells) => {
+                Original::Scale(ValueScale::generate(tone, usize::from(cells), self.seed))
+            }
             Kind::Box(view) => Original::Box(PerspectiveBox::generate(view, self.seed)),
             Kind::FreeBoxes(horizon) => {
                 Original::FreeBoxes(PerspectiveBox::on_horizon(horizon, self.seed))

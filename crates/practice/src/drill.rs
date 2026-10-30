@@ -19,7 +19,7 @@ use crate::pack::Tier;
 use crate::perspective::BoxView;
 use crate::plan::{Family, Kind};
 use crate::scale::ScaleTone;
-use crate::session::{Before, COLOURS, COMBINED, HORIZONS, LINES, Picker, Plan, seeded};
+use crate::session::{Before, COLOURS, COMBINED, FULL, HORIZONS, LINES, Picker, Plan, seeded};
 use crate::session_four::COMPOSITION_TIERS;
 use crate::solid::Solid;
 use crate::space::Trick;
@@ -84,7 +84,8 @@ pub const fn kinds_of(stage: u8) -> &'static [Family] {
 }
 
 /// Drill `number` (from 1) of `family`, seeded `seed`, after `before` (the pictures there are and
-/// those shown before; nothing met is drawn on: a drill has no warm-up). None for a kind no stage
+/// those shown before, the value scales met; no kind met is drawn on: a drill has no warm-up).
+/// None for a kind no stage
 /// drills (a colour copy), for shapes without any picture, for divisions and whole copies without
 /// a composition and for value masses without one whose masses read.
 #[must_use]
@@ -99,7 +100,7 @@ pub fn drill(family: Family, number: u32, seed: u64, before: &Before<'_>) -> Opt
         _ => kinds(family, turn).into_iter().map(|k| (k, None)).collect(),
     };
     (!all.is_empty()).then(|| Plan {
-        exercises: seeded(seed, all.into_iter()),
+        exercises: seeded(seed, all.into_iter(), before.scales),
         warm_up: 0,
     })
 }
@@ -131,7 +132,7 @@ fn kinds(family: Family, turn: usize) -> Vec<Kind> {
             .map(Kind::Areas)
             .collect(),
         (Family::Scale, ..) => (in_turn(&ScaleTone::ALL, turn, SCALES).into_iter())
-            .map(Kind::Scale)
+            .map(|tone| Kind::Scale(tone, FULL))
             .collect(),
         (Family::Box, ..) => (in_turn(&BoxView::ALL, turn, BOXES).into_iter())
             .map(Kind::Box)

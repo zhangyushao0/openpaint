@@ -53,6 +53,7 @@ fn before<'a>(met: &'a [Kind], pictures: &'a Pictures) -> Before<'a> {
         pictures,
         used: &[],
         recent: &[],
+        scales: 0,
     }
 }
 

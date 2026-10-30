@@ -111,7 +111,19 @@ impl PracticeSheet {
             self.pen = Pen::Correct;
         }
         self.compared = Some(compared);
+        self.construction = false;
         Ok(())
+    }
+
+    /// Whether the shown comparison has a construction to lay over it (S97): a box's, free boxes'
+    /// or an ellipse's.
+    pub(super) fn construction_offered(&self) -> bool {
+        matches!(
+            self.compared,
+            Some(Compared::Checked(
+                Overlay::Box(_) | Overlay::FreeBoxes(_) | Overlay::Ellipse(_)
+            ))
+        )
     }
 
     /// Exercise `index`'s copy in `frame` of `artwork` as Compare finds it now: a colour's

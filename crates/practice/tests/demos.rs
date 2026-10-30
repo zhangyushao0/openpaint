@@ -30,7 +30,7 @@ const STEPS: [(Family, usize); 24] = [
     (Family::ValueMasses, 4),
     (Family::Colour, 5),
     (Family::Areas, 5),
-    (Family::Scale, 3),
+    (Family::Scale, 4),
 ];
 
 fn demo(family: Family) -> Demo {
@@ -41,8 +41,10 @@ fn demo(family: Family) -> Demo {
 fn a_lone_example_is_framed_on_what_it_is_about_a_trick_on_its_face() {
     for (family, _) in STEPS {
         let demo = demo(family);
-        // An object's frames side by side are cropped to its box (S94).
-        let lone = matches!(demo.layout, Layout::Single | Layout::Wide) || family == Family::Object;
+        // An object's frames side by side are cropped to its box (S94), a scale's frame to its
+        // rows (S97).
+        let cropped = matches!(demo.layout, Layout::Single | Layout::Wide | Layout::Row);
+        let lone = cropped || family == Family::Object;
         assert_eq!(demo.view.is_some(), lone, "{family:?}");
     }
     let face_of = |demo: &Demo| -> [Point; 2] {
@@ -114,7 +116,7 @@ fn every_kind_but_the_colour_copy_plays_once_through_in_five_to_ten_seconds() {
         let compared = |mark: &&openpaint_practice::Mark| {
             matches!(
                 mark.pen,
-                Marker::Answer | Marker::Hidden | Marker::Found | Marker::Faint
+                Marker::Answer | Marker::Hidden | Marker::Found | Marker::Missed | Marker::Faint
             )
         };
         assert!(
@@ -256,20 +258,11 @@ fn a_boxs_vanishing_points_lie_in_the_room_the_card_gives() {
             );
             assert!((0.0..=1.0).contains(&y), "{family:?}: {y}");
         }
-        // Each edge drawn on in blue ends on the horizon near its point.
-        let found: Vec<Point> = (demo.marks.iter())
-            .filter(|m| m.pen == Marker::Found)
-            .filter_map(|m| match &m.drawn {
-                Drawn::Line(points) => points.last().copied(),
-                _ => None,
-            })
-            .collect();
-        assert!(found.len() >= 6, "{family:?}: {}", found.len());
     }
 }
 
 #[test]
-fn a_combination_is_painted_area_by_area_and_a_scale_cell_by_cell() {
+fn a_combination_is_painted_area_by_area() {
     let areas = demo(Family::Areas);
     let example = areas.areas.as_ref().expect("the combination painted");
     let painted: Vec<&Vec<openpaint_practice::Rgb8>> = (areas.marks.iter())
@@ -288,12 +281,6 @@ fn a_combination_is_painted_area_by_area_and_a_scale_cell_by_cell() {
     for (copy, original) in last.iter().zip(&example.colours) {
         assert!(openpaint_practice::delta_e(*copy, *original) < 0.03);
     }
-    let scale = demo(Family::Scale);
-    assert_eq!(scale.layout, Layout::Wheel);
-    let fills = (scale.marks.iter())
-        .filter(|m| m.on == On::Copy && m.pen == Marker::Ink)
-        .count();
-    assert_eq!(fills, 3, "the middle cell and the quarters");
 }
 
 #[test]

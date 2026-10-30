@@ -6,7 +6,7 @@
     "Rename and delete: the copy's options button shows its page: the vase larger with its title and credit, Open, Rename… and Delete…. Rename… opens the naming dialog; I type 'Vase study'; the page shows the new name, so does the list. Delete… asks 'Delete “Vase study”?': my painting on it goes for good, its picture stays. Delete: the copy is gone from the list.",
     "Deleting a picture a copy used: I begin a copy of my own picture (New copy…, My pictures) and paint on it. Back in My pictures its bin asks 'Delete “Picture 1”?' and says what that leaves: no session and one colour copy used it; they keep my strokes and where it lay they say 'Picture deleted'. Delete. The copy stays in the list, 'Picture deleted' beside it; opened, its frames are where they were, my stroke is there, the original's frame says 'Picture deleted' and Compare is greyed.",
     "Undo on a session's sheet: Stage 2 · Single shapes starts a session; I pass it to its end and take One more. On the first shape I draw a line and Compare; Next. On the second shape I draw a line and undo it; Undo then does nothing more: the first shape's line and its Compare stay. Redo brings my line back.",
-    "A coloured value scale: on to the session's value scale, a hue this time. I pick its dark end with the eyedropper, then in the wheel's square move only up for lighter cells, a cell at a time with Fill cell. Compare: the original's frame shows the even scale in lightness as the eye sees it, hue held; the bars under my row show each cell's lightness against its even step, the card only its title. In Chinese the card reads the same.",
+    "A coloured value scale: on to the session's value scale, a hue this time. I pick its dark end with the eyedropper, then in the wheel's square move only up for lighter cells, a cell at a time with Fill cell. Compare (S97): the even scale in lightness as the eye sees it, hue held, as a row under mine, cell under cell, each uneven cell outlined red together with its even one, the card its title and '2 cells uneven.' (S97 changed this checkpoint: a scale is five cells for a beginner and its ends are drawn from its seed without the cell count, so its dark end picked and the cells filled from it are other colours). In Chinese the card reads the same.",
     "Not here: renaming or deleting from the canvas; a picture's own title; sorting the picker."
   ],
   "screen": [2880, 1800],
@@ -108,7 +108,7 @@
     { "tap": { "at": "Fill cell" } },
     { "tap": { "at": { "on": "Saturation and value", "fraction": [0.26, 0.3] } } },
     { "tap": { "at": "Fill cell" } },
-    { "checkpoint": { "name": "hue-scale-filled", "canvas": "e2ceb7fb3b4a9830" } },
+    { "checkpoint": { "name": "hue-scale-filled", "canvas": "753966155bb48d80" } },
     { "tap": { "at": "Compare" } },
     { "screenshot": { "name": "hue-scale-compared" } },
     { "tap": { "at": "All tools" } },

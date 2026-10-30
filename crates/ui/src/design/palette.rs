@@ -35,10 +35,13 @@ pub const SHEET_SHADOW: u8 = 34;
 /// The marking red a check lays over a practice copy: the original and its key points. Never
 /// chrome.
 pub const CORRECTION: Color32 = Color32::from_rgb(200, 58, 44);
-/// What a check found in the copy's own lines (an ellipse fitted to them, its edges drawn on to
-/// their vanishing points), drawn dashed beside the red answer: a blue apart from the blue
-/// correcting pen's. Never chrome.
+/// What a check found in the copy's own lines (a solid's curves read, a point's mark), drawn
+/// beside the red answer: a blue apart from the blue correcting pen's. Never chrome.
 pub const FOUND: Color32 = Color32::from_rgb(28, 112, 150);
+/// What a constructed exercise gives in the frame drawn in (S97: a box's horizon, corner and
+/// edges, an ellipse's frame): a solid slate grey, as if printed on the sheet, cool and even
+/// beside Draw's black ink and Sketch's warm grainy pencil. Never chrome.
+pub const PRINTED: Color32 = Color32::from_rgb(112, 122, 134);
 /// The practice book's seals (S89): its only colour besides the user's own colours. Never chrome.
 pub const VERMILION: Color32 = Color32::from_rgb(184, 58, 38);
 /// The pencil the practice book draws what lies ahead with.

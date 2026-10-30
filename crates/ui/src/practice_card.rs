@@ -99,7 +99,7 @@ pub(crate) fn compared(ui: &mut egui::Ui, practice: &PracticeProjection, taps: &
         }
         _ if drawn && family.geometric() => {
             ui.heading(heading);
-            practice_card_geometry::compared(ui, practice);
+            practice_card_geometry::compared(ui, practice, taps);
         }
         _ if drawn => {
             ui.heading(heading);

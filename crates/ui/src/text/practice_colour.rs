@@ -30,6 +30,15 @@ texts! { PRACTICE_COLOUR;
         counts as a session.", "用颜色做的长时间临摹，总共约 10 到 20 小时，随时都可以画；不算在练习次数里。";
 }
 
+/// A value scale compared (S97): how many of its cells are uneven.
+pub(crate) fn cells_uneven(language: Language, cells: usize) -> String {
+    match language {
+        Language::English if cells == 1 => "1 cell uneven.".to_owned(),
+        Language::English => format!("{cells} cells uneven."),
+        Language::Chinese => format!("{cells} 格不均匀。"),
+    }
+}
+
 /// A colour combination's area on the card: "Area 3".
 pub(crate) fn area(language: Language, number: usize) -> String {
     match language {

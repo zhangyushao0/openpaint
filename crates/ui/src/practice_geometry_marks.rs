@@ -1,29 +1,30 @@
-//! A box's or an ellipse's marks over a practice sheet (S84), drawn by the screen through the view
-//! as every original is (`practice_marks.rs`), never into the artwork:
+//! A box's, free boxes' or an ellipse's marks over a practice sheet (S84, S97), drawn by the screen
+//! through the view as every original is (`practice_marks.rs`), never into the artwork. One frame,
+//! the one drawn in (S97): what the exercise gives lies in it in `PRINTED` grey, apart from Draw's
+//! ink and Sketch's pencil:
 //!
-//! - a box to complete: the horizon across both frames and the front corner's three edges in
-//!   each; once compared, the original's frame shows the whole exact box (its hidden edges dashed)
-//!   with faint lines on to its vanishing points, ringed;
-//! - free boxes: the horizon across both frames; in the original's, an example box on it with its
-//!   lines on to its vanishing points;
-//! - an ellipse: its frame (a table's cell or a square in perspective) in both; once compared, the
-//!   original's shows the exact ellipse, the diagonals and the lines through the centre that
-//!   find each side's middle.
+//! - a box to complete: its horizon, labelled, and its front corner's three edges;
+//! - free boxes: the horizon;
+//! - an ellipse: its frame (a table's cell or a square in perspective).
 //!
-//! Compared, over the copy: the answer in the marking red, as thick as the pen (the exact box or
-//! ellipse, its vanishing points or the middles it touches ringed, the true vertical through a
-//! vertical edge that leans); the original's answer and construction kept inside its frame, where
-//! it cannot be taken for the copy's; what was found in the copy's own lines dashed in `FOUND`
-//! blue (each edge drawn on towards its point or the horizon, red where it misses the point; where
-//! a free box's directions meet ringed; the fitted ellipse); a front corner under 90 degrees
-//! marked red. The copy's extensions and rings never cover the original's frame (S88); past the
-//! copy's frame elsewhere they show.
+//! The original's frame beside it stays empty: room on the sheet for what Compare draws beyond the
+//! frame. Compared, over the copy, the answer and only what is off: the exact box or ellipse in the
+//! marking red as thick as the pen and see-through (a box's hidden edges dashed), a box's
+//! vanishing points ringed red; an edge that misses its point drawn on dashed red past it, a
+//! leaning vertical's true vertical; free boxes' meeting points ringed red, a front corner under
+//! 90 degrees an arc; an ellipse's side middles it falls short of or runs past ringed. An edge
+//! that heads for its point gets nothing. The card's Construction lays the way to see it faint:
+//! every corner's line to its vanishing points and the horizon run on across the sheet, free
+//! boxes' edges run on to the horizon, an ellipse's diagonals and middle lines, its middles dotted.
 
-use egui::{Align2, FontId, Pos2, Shape, Stroke};
+use egui::{Align2, Color32, FontId, Pos2, Shape, Stroke};
 use openpaint_app::{Overlay, PracticeProjection};
-use openpaint_practice::{Checked, Corner, Ellipse, Frame, Original, Pair, PerspectiveBox, Point};
+use openpaint_practice::{
+    BoxCheck, Checked, Corner, Direction, Ellipse, EllipseCheck, EllipseGuide, Frame, FreeCheck,
+    Original, Pair, PerspectiveBox, Point,
+};
 
-use crate::design::{CORRECTION, DIVIDER, FOUND, INK, INK_SECONDARY, PANEL};
+use crate::design::{CORRECTION, DIVIDER, INK_SECONDARY, PANEL, PRINTED};
 use crate::text::{self as t, Words};
 
 /// A ring's radius round a vanishing point or a middle, in points; a mark's line and the paper's
@@ -35,17 +36,23 @@ pub(crate) const FAINT: f32 = 1.25;
 /// Dashes and gaps, in points.
 const DASH: f32 = 7.0;
 const GAP: f32 = 5.0;
-/// A narrow corner's arc's radius, in points; an ellipse drawn in pieces.
+/// A narrow corner's arc's radius, in points; an ellipse drawn in pieces; a middle's dot.
 const ARC: f32 = 22.0;
 const PIECES: usize = 96;
+const DOT: f32 = 3.0;
 /// The horizon's label's size in canvas pixels of a frame.
 const LABEL: f32 = 11.0;
+/// How far either side of the frame the construction runs the horizon on (frame units): past the
+/// farthest vanishing point (`openpaint_practice::FAR`).
+const RUN_ON: f64 = 3.5;
+/// How strongly the answer's red lies over the copy.
+const SEE_THROUGH: f32 = 0.6;
 
 /// Canvas points to the screen.
 pub(crate) type At<'a> = &'a dyn Fn([f64; 2]) -> Pos2;
 
-/// Exercise `index`'s original and givens in its two frames; an original's line `width` points
-/// wide, `scale` points to a canvas pixel.
+/// Exercise `index`'s givens in its frame, printed grey; an original's line `width` points wide,
+/// `scale` points to a canvas pixel.
 pub(crate) fn show_original(
     painter: &egui::Painter,
     practice: &PracticeProjection,
@@ -53,105 +60,56 @@ pub(crate) fn show_original(
     at: At<'_>,
     (width, scale): (f32, f32),
 ) {
-    let answered = practice.current == Some(index) && practice.result.is_some();
-    let ink = Stroke::new(width, INK);
+    let frame = &pair.copy;
+    let printed = Stroke::new(width, PRINTED);
     match &practice.sheet.originals[index] {
         Original::Box(exact) => {
-            for frame in [&pair.original, &pair.copy] {
-                horizon(painter, (frame, exact.horizon), at, scale);
-                for (a, b, _) in exact.given() {
-                    segment(painter, frame, [a, b], at, ink);
-                }
-            }
-            if answered {
-                whole_box(painter, &pair.original, exact, at, width);
+            labelled(painter, (frame, exact.horizon), at, (scale, PRINTED));
+            for (a, b, _) in exact.given() {
+                segment(painter, frame, [a, b], at, printed);
             }
         }
         Original::FreeBoxes(example) => {
-            for frame in [&pair.original, &pair.copy] {
-                horizon(painter, (frame, example.horizon), at, scale);
-            }
-            whole_box(painter, &pair.original, example, at, width);
+            labelled(painter, (frame, example.horizon), at, (scale, PRINTED));
         }
         Original::Ellipse(guide) => {
-            for frame in [&pair.original, &pair.copy] {
-                let corners: Vec<Pos2> = guide
-                    .corners
-                    .iter()
-                    .map(|p| at(frame.to_canvas(*p)))
-                    .collect();
-                painter.add(Shape::closed_line(corners, ink));
-            }
-            if answered {
-                let frame = &pair.original;
-                let faint = Stroke::new(FAINT, DIVIDER);
-                let c = guide.corners;
-                for line in [
-                    [c[0], c[2]],
-                    [c[1], c[3]],
-                    [guide.touches[0], guide.touches[2]],
-                    [guide.touches[1], guide.touches[3]],
-                ] {
-                    segment(painter, frame, line, at, faint);
-                }
-                ellipse(painter, frame, &guide.exact, at, ink);
-                for touch in guide.touches {
-                    painter.circle_filled(at(frame.to_canvas(touch)), MARK + 1.0, INK);
-                }
-            }
+            let corners: Vec<Pos2> = (guide.corners.iter())
+                .map(|p| at(frame.to_canvas(*p)))
+                .collect();
+            painter.add(Shape::closed_line(corners, printed));
         }
         _ => {}
     }
 }
 
-/// The horizon at `height` across `frame`, labelled small at its left.
+/// The horizon at `height` across `frame`, labelled small at its left (a point in space's, a
+/// solid's and an object's, in quiet ink).
 pub(crate) fn horizon(
     painter: &egui::Painter,
     (frame, height): (&Frame, f64),
     at: At<'_>,
     scale: f32,
 ) {
+    labelled(painter, (frame, height), at, (scale, INK_SECONDARY));
+}
+
+/// The horizon at `height` across `frame` in `colour`, labelled small at its left.
+fn labelled(
+    painter: &egui::Painter,
+    (frame, height): (&Frame, f64),
+    at: At<'_>,
+    (scale, colour): (f32, Color32),
+) {
     let ends = [[0.0, height], [1.0, height]];
-    segment(painter, frame, ends, at, Stroke::new(FAINT, INK_SECONDARY));
+    segment(painter, frame, ends, at, Stroke::new(FAINT, colour));
     let label = Words::from(t::HORIZON).shown(painter.ctx());
     let place = at(frame.to_canvas([0.01, height - 0.012]));
     let font = FontId::proportional((LABEL * scale).max(6.0));
-    painter.text(place, Align2::LEFT_BOTTOM, label, font, INK_SECONDARY);
+    painter.text(place, Align2::LEFT_BOTTOM, label, font, colour);
 }
 
-/// The whole of `exact` in `frame`: its edges in ink (the hidden ones dashed), each drawn on
-/// faintly to its vanishing point, ringed; kept inside the frame.
-fn whole_box(
-    painter: &egui::Painter,
-    frame: &Frame,
-    exact: &PerspectiveBox,
-    at: At<'_>,
-    width: f32,
-) {
-    let inside = egui::Rect::from_points(&frame.corners().map(at));
-    let painter = &painter.with_clip_rect(inside.intersect(painter.clip_rect()));
-    let faint = Stroke::new(FAINT, DIVIDER);
-    for ((a, b, direction), hidden) in exact.edges().into_iter().zip(exact.hidden()) {
-        if let Some(point) = exact.vanishing[direction.index()] {
-            let near = if distance2(a, point) < distance2(b, point) {
-                a
-            } else {
-                b
-            };
-            segment(painter, frame, [near, point], at, faint);
-        }
-        if hidden {
-            dashed(painter, frame, &[a, b], at, Stroke::new(width / 2.0, INK));
-        } else {
-            segment(painter, frame, [a, b], at, Stroke::new(width, INK));
-        }
-    }
-    for point in exact.vanishing.iter().flatten() {
-        ring(painter, at(frame.to_canvas(*point)), INK_SECONDARY);
-    }
-}
-
-/// A box's or an ellipse's comparison over the copy's frame; the answer's line `width` points.
+/// A box's, free boxes' or an ellipse's comparison over the copy's frame; the answer's line
+/// `width` points.
 pub(crate) fn show_overlay(
     painter: &egui::Painter,
     practice: &PracticeProjection,
@@ -161,126 +119,167 @@ pub(crate) fn show_overlay(
     let Some(index) = practice.current else {
         return;
     };
-    let pair = practice.sheet.pairs[index];
-    let (frame, keep) = (pair.copy, Keep::of(&pair.original, at));
-    let red = Stroke::new(width, CORRECTION.gamma_multiply(0.6));
+    let frame = practice.sheet.pairs[index].copy;
+    let (on, construction) = ((&frame, at), practice.construction);
     match (overlay, &practice.sheet.originals[index]) {
         (Overlay::Box(check), Original::Box(exact)) => {
-            for (a, b, _) in exact.edges() {
-                segment(painter, &frame, [a, b], at, red);
+            if construction {
+                box_construction(painter, on, exact);
             }
-            for point in exact.vanishing.iter().flatten() {
-                let place = frame.to_canvas(*point);
-                if keep.clear(place) {
-                    ring(painter, at(place), CORRECTION);
-                }
-            }
-            for edge in &check.edges {
-                found_edge(painter, (&frame, &keep), edge, at);
-            }
+            box_compared(painter, on, (exact, check), width);
         }
-        (Overlay::FreeBoxes(check), Original::FreeBoxes(_)) => {
-            for free in &check.boxes {
-                for edge in &free.edges {
-                    found_edge(painter, (&frame, &keep), edge, at);
-                }
-                for (_, meet) in &free.meets {
-                    let place = frame.to_canvas(*meet);
-                    if keep.clear(place) {
-                        ring(painter, at(place), FOUND);
-                    }
-                }
-                for corner in &free.narrow {
-                    narrow(painter, &frame, corner, at);
-                }
+        (Overlay::FreeBoxes(check), Original::FreeBoxes(example)) => {
+            if construction {
+                free_construction(painter, on, (example.horizon, check));
             }
+            free_compared(painter, on, check);
         }
         (Overlay::Ellipse(check), Original::Ellipse(guide)) => {
-            ellipse(painter, &frame, &guide.exact, at, red);
-            for touch in guide.touches {
-                ring(painter, at(frame.to_canvas(touch)), CORRECTION);
+            if construction {
+                ellipse_construction(painter, on, guide);
             }
-            if let Some(fitted) = &check.fitted {
-                let outline: Vec<Point> = fitted.outline(PIECES);
-                dashed(painter, &frame, &outline, at, Stroke::new(MARK, FOUND));
+            ellipse_compared(painter, on, (guide, check), width);
+            // The middles dotted over the red, which runs through them.
+            for touch in guide.touches.iter().filter(|_| construction) {
+                painter.circle_filled(at(frame.to_canvas(*touch)), DOT, INK_SECONDARY);
             }
         }
         _ => {}
     }
 }
 
-/// An edge found in the copy: drawn on dashed towards its point, blue where it heads for it, red
-/// where it misses, never over the original's frame (`keep`); a vertical that leans, the true
-/// vertical through it in red.
-fn found_edge(painter: &egui::Painter, (frame, keep): (&Frame, &Keep), edge: &Checked, at: At<'_>) {
+/// A frame and how its canvas points reach the screen.
+type On<'a> = (&'a Frame, At<'a>);
+
+/// The exact box red over the copy (hidden edges dashed), its vanishing points ringed, and what
+/// of the copy's edges is off.
+fn box_compared(
+    painter: &egui::Painter,
+    (frame, at): On<'_>,
+    (exact, check): (&PerspectiveBox, &BoxCheck),
+    width: f32,
+) {
+    let red = Stroke::new(width, CORRECTION.gamma_multiply(SEE_THROUGH));
+    for ((a, b, _), hidden) in exact.edges().into_iter().zip(exact.hidden()) {
+        if hidden {
+            dashed(painter, frame, &[a, b], at, red);
+        } else {
+            segment(painter, frame, [a, b], at, red);
+        }
+    }
+    for point in exact.vanishing.iter().flatten() {
+        ring(painter, at(frame.to_canvas(*point)), CORRECTION);
+    }
+    for edge in &check.edges {
+        off(painter, (frame, at), edge);
+    }
+}
+
+/// Free boxes: where each box's directions meet ringed red, what of the edges is off, a front
+/// corner under 90 degrees an arc.
+fn free_compared(painter: &egui::Painter, (frame, at): On<'_>, check: &FreeCheck) {
+    for free in &check.boxes {
+        for (_, meet) in &free.meets {
+            ring(painter, at(frame.to_canvas(*meet)), CORRECTION);
+        }
+        for edge in &free.edges {
+            off(painter, (frame, at), edge);
+        }
+        for corner in &free.narrow {
+            narrow(painter, frame, corner, at);
+        }
+    }
+}
+
+/// An ellipse: the exact one red, a ring on each side's middle the copy misses.
+fn ellipse_compared(
+    painter: &egui::Painter,
+    (frame, at): On<'_>,
+    (guide, check): (&EllipseGuide, &EllipseCheck),
+    width: f32,
+) {
+    let red = Stroke::new(width, CORRECTION.gamma_multiply(SEE_THROUGH));
+    ellipse(painter, frame, &guide.exact, at, red);
+    for missed in &check.sides {
+        ring(painter, at(frame.to_canvas(missed.middle)), CORRECTION);
+    }
+}
+
+/// An edge of the copy that misses its point drawn on dashed red past it; a vertical that leans,
+/// the true vertical through it. An edge that heads for its point gets nothing.
+fn off(painter: &egui::Painter, (frame, at): On<'_>, edge: &Checked) {
+    if edge.on {
+        return;
+    }
     if let Some([from, to]) = edge.extension {
-        let colour = if edge.on { FOUND } else { CORRECTION };
-        let stroke = Stroke::new(FAINT, colour);
-        for piece in keep.outside(frame.to_canvas(from), frame.to_canvas(to)) {
-            let path: Vec<Pos2> = piece.into_iter().map(at).collect();
-            painter.extend(Shape::dashed_line(&path, stroke, DASH, GAP));
-        }
+        dashed(
+            painter,
+            frame,
+            &[from, to],
+            at,
+            Stroke::new(MARK, CORRECTION),
+        );
     }
-    if let Some(plumb) = edge.plumb.filter(|_| !edge.on) {
-        segment(painter, frame, plumb, at, Stroke::new(FAINT, CORRECTION));
+    if let Some(plumb) = edge.plumb {
+        segment(painter, frame, plumb, at, Stroke::new(MARK, CORRECTION));
     }
 }
 
-/// The original's frame, which the copy's marks never cover (S88: the extensions and rings ran
-/// over it, where its own box and lines lie): its corners in canvas pixels, and how far a ring
-/// with its halo reaches at the view's scale.
-struct Keep {
-    low: Point,
-    high: Point,
-    reach: f64,
-}
-
-impl Keep {
-    fn of(frame: &Frame, at: At<'_>) -> Self {
-        let [low, _, high, _] = frame.corners();
-        let points = at([0.0, 0.0]).distance(at([1.0, 0.0]));
-        Self {
-            low,
-            high,
-            reach: f64::from(RING + MARK + HALO) / f64::from(points.max(1e-6)),
+/// A box's construction, faint: every corner's line to each vanishing point, the horizon run on
+/// across the sheet.
+fn box_construction(painter: &egui::Painter, (frame, at): On<'_>, exact: &PerspectiveBox) {
+    let faint = Stroke::new(FAINT, DIVIDER);
+    run_on(painter, (frame, at), exact.horizon);
+    for point in exact.vanishing.iter().flatten() {
+        for corner in exact.corners {
+            segment(painter, frame, [corner, *point], at, faint);
         }
     }
+}
 
-    /// Whether a ring at `place` (canvas pixels) lies clear of the frame.
-    fn clear(&self, place: Point) -> bool {
-        let gap = |axis: usize| (self.low[axis] - place[axis]).max(place[axis] - self.high[axis]);
-        gap(0).max(0.0).hypot(gap(1).max(0.0)) > self.reach
-    }
-
-    /// The pieces of the line from `a` to `b` (canvas pixels) outside the frame: the whole line,
-    /// or what lies before it and after it (Liang and Barsky's clip).
-    fn outside(&self, a: Point, b: Point) -> Vec<[Point; 2]> {
-        let d = [b[0] - a[0], b[1] - a[1]];
-        let (mut enter, mut leave) = (0.0_f64, 1.0_f64);
-        for axis in 0..2 {
-            if d[axis] == 0.0 {
-                if a[axis] < self.low[axis] || a[axis] > self.high[axis] {
-                    return vec![[a, b]];
-                }
-                continue;
+/// Free boxes' construction, faint: each receding edge run on to where its direction meets the
+/// horizon, the horizon run on across the sheet.
+fn free_construction(
+    painter: &egui::Painter,
+    (frame, at): On<'_>,
+    (horizon, check): (f64, &FreeCheck),
+) {
+    let faint = Stroke::new(FAINT, DIVIDER);
+    run_on(painter, (frame, at), horizon);
+    for free in &check.boxes {
+        for edge in free
+            .edges
+            .iter()
+            .filter(|e| e.direction != Direction::Vertical)
+        {
+            let meet = free.meets.iter().find(|(d, _)| *d == edge.direction);
+            if let Some((_, meet)) = meet {
+                let [a, b] = edge.edge.ends;
+                let near = if distance2(a, *meet) < distance2(b, *meet) {
+                    a
+                } else {
+                    b
+                };
+                segment(painter, frame, [near, *meet], at, faint);
             }
-            let [t0, t1] = [self.low[axis], self.high[axis]].map(|v| (v - a[axis]) / d[axis]);
-            enter = enter.max(t0.min(t1));
-            leave = leave.min(t0.max(t1));
         }
-        if enter >= leave {
-            return vec![[a, b]];
-        }
-        let along = |t: f64| [a[0] + d[0] * t, a[1] + d[1] * t];
-        let mut pieces = Vec::new();
-        if enter > 0.0 {
-            pieces.push([a, along(enter)]);
-        }
-        if leave < 1.0 {
-            pieces.push([along(leave), b]);
-        }
-        pieces
     }
+}
+
+/// An ellipse's construction, faint: its frame's diagonals and middle lines (its middles are
+/// dotted over the red answer).
+fn ellipse_construction(painter: &egui::Painter, (frame, at): On<'_>, guide: &EllipseGuide) {
+    let faint = Stroke::new(FAINT, DIVIDER);
+    let (c, t) = (guide.corners, guide.touches);
+    for line in [[c[0], c[2]], [c[1], c[3]], [t[0], t[2]], [t[1], t[3]]] {
+        segment(painter, frame, line, at, faint);
+    }
+}
+
+/// The horizon at `height` run on faint far either side of `frame`.
+fn run_on(painter: &egui::Painter, (frame, at): On<'_>, height: f64) {
+    let ends = [[-RUN_ON, height], [1.0 + RUN_ON, height]];
+    segment(painter, frame, ends, at, Stroke::new(FAINT, DIVIDER));
 }
 
 /// A front corner under 90 degrees: an arc between its edges and a ring, red.
@@ -351,34 +350,4 @@ pub(crate) fn ring(painter: &egui::Painter, centre: Pos2, colour: egui::Color32)
 
 fn distance2(a: Point, b: Point) -> f64 {
     (a[0] - b[0]).powi(2) + (a[1] - b[1]).powi(2)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Keep;
-
-    #[test]
-    fn marks_keep_off_the_originals_frame() {
-        // A frame from (100, 100) to (500, 500); a ring reaches 10 canvas pixels.
-        let keep = Keep {
-            low: [100.0, 100.0],
-            high: [500.0, 500.0],
-            reach: 10.0,
-        };
-        // An extension from the copy at the right through the frame to a point past its left.
-        let through = keep.outside([900.0, 300.0], [-100.0, 200.0]);
-        assert_eq!(through.len(), 2, "{through:?}");
-        assert_eq!(through[0][1], [500.0, 260.0]);
-        assert_eq!(through[1][0], [100.0, 220.0]);
-        // Ending inside: the piece up to the frame's side; clear of it, whole.
-        assert_eq!(
-            keep.outside([900.0, 300.0], [300.0, 300.0]),
-            vec![[[900.0, 300.0], [500.0, 300.0]]]
-        );
-        let above = [[0.0, 50.0], [900.0, 50.0]];
-        assert_eq!(keep.outside(above[0], above[1]), vec![above]);
-        // A ring on the frame's horizon or just beside its side is left out; farther, shown.
-        assert!(!keep.clear([300.0, 300.0]) && !keep.clear([505.0, 300.0]));
-        assert!(keep.clear([520.0, 300.0]) && keep.clear([-20.0, 600.0]));
-    }
 }

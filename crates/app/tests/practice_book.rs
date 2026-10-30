@@ -13,7 +13,7 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Original, PAUSE, STAGE_SESSIONS, Seal, SessionRecord, Sheet, Span, Tally,
+    Kind, Original, PAUSE, STAGE_SESSIONS, ScaleTone, Seal, SessionRecord, Sheet, Span, Tally,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -181,6 +181,11 @@ fn the_book_reads_a_sheet_s_first_line_its_first_colour_its_frames_and_marks() {
     let read = SheetRead::of(session.artwork(), &record);
     assert_eq!(read.size, Sheet::of(record.exercises.len()).size);
     assert_eq!(read.frames.len(), 2 * record.exercises.len());
+    // A kind built in one frame shows that one (S97).
+    let mut scaled = record.clone();
+    scaled.exercises[3].kind = Kind::Scale(ScaleTone::Grey, 9);
+    let one_less = SheetRead::of(session.artwork(), &scaled).frames.len();
+    assert_eq!(one_less, 2 * record.exercises.len() - 1);
     assert_eq!(read.lines.len(), 1);
     assert_eq!(read.lines[0].index, 0);
     let Original::Lines(original) = record.exercises[0].original() else {

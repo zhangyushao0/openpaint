@@ -53,6 +53,7 @@ fn before<'a>(met: &'a [Kind], pictures: &'a Pictures, used: &'a [ItemRef]) -> B
         pictures,
         used,
         recent: used,
+        scales: 0,
     }
 }
 
@@ -133,14 +134,14 @@ fn the_combination_s_arrangement_and_the_scale_s_tone_come_in_turn() {
         colour_work(1),
         [
             Kind::Areas(Arrangement::Strata),
-            Kind::Scale(ScaleTone::Grey)
+            Kind::Scale(ScaleTone::Grey, 5)
         ]
     );
     assert_eq!(
         colour_work(2),
         [
             Kind::Areas(Arrangement::Patches),
-            Kind::Scale(ScaleTone::Hue)
+            Kind::Scale(ScaleTone::Hue, 5)
         ]
     );
     assert_eq!(colour_work(3)[0], Kind::Areas(Arrangement::Blocks));
@@ -266,7 +267,7 @@ fn the_warm_up_takes_one_long_kind_in_turn_and_quick_ones_in_turn() {
         Kind::Shape(Tier::Simple),
         Kind::Colour(Tone::of_code(1).expect("a tone")),
         Kind::Areas(Arrangement::Patches),
-        Kind::Scale(ScaleTone::Grey),
+        Kind::Scale(ScaleTone::Grey, 5),
     ];
     let all = pictures(&Tier::ALL, 4, 0);
     let warm = |number, seed| -> Vec<Family> {
@@ -293,10 +294,10 @@ fn the_warm_up_takes_one_long_kind_in_turn_and_quick_ones_in_turn() {
     seen.dedup();
     assert_eq!(seen.len(), 6);
     // Only long kinds met: the one long exercise.
-    let long_only = [Kind::Shape(Tier::Simple), Kind::Scale(ScaleTone::Hue)];
+    let long_only = [Kind::Shape(Tier::Simple), Kind::Scale(ScaleTone::Hue, 5)];
     let plan = stage_two(2, 5, &before(&long_only, &all, &[]));
     assert_eq!(plan.warm_up, 1);
-    assert_eq!(plan.exercises[0].kind, Kind::Scale(ScaleTone::Hue));
+    assert_eq!(plan.exercises[0].kind, Kind::Scale(ScaleTone::Hue, 5));
 }
 
 #[test]

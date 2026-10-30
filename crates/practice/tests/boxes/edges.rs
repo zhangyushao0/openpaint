@@ -67,6 +67,110 @@ fn a_line_drawn_twice_overshooting_and_trembling_is_one_edge() {
     }
 }
 
+/// `a`-`b` turned `degrees` about its middle and moved `shift` across it.
+fn moved((a, b): (Point, Point), degrees: f64, shift: f64) -> (Point, Point) {
+    let middle = [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0];
+    let d = unit(a, b);
+    let across = [-d[1] * shift, d[0] * shift];
+    let (sin, cos) = degrees.to_radians().sin_cos();
+    let turn = |p: Point| {
+        let v = [p[0] - middle[0], p[1] - middle[1]];
+        [
+            middle[0] + cos * v[0] - sin * v[1] + across[0],
+            middle[1] + sin * v[0] + cos * v[1] + across[1],
+        ]
+    };
+    (turn(a), turn(b))
+}
+
+/// The author's redrawn edges (S97): an edge drawn, then drawn again over it as a hand redraws one
+/// it sees is off, 2 to 5 pixels of a 400-pixel frame across and 1 to 3 degrees turned, each
+/// stroke with its own overshoot, bow and tremor. One edge, the last stroke's line over the reach
+/// of both: the redraw is the try that counts, as a correction does. (Where the hand's own stroke
+/// alone is no single edge, a hook at its end its own piece, the pair is not a redraw's test: at
+/// most a few of each hand's.)
+#[test]
+fn an_edge_redrawn_a_few_pixels_and_degrees_off_is_one_edge_the_last_counting() {
+    for (manner, most_hooked) in [(Manner::STEADY, 6), (Manner::SHAKY, 20)] {
+        let mut random = openpaint_practice::Random::new(97);
+        let mut hooked = 0;
+        for seed in 0..300 {
+            let mut hand = Hand::new(seed, manner);
+            let long = random.range(0.15, 0.5);
+            let heading = random.range(0.0, std::f64::consts::TAU);
+            let a = [random.range(0.3, 0.45), random.range(0.3, 0.45)];
+            let b = [a[0] + long * heading.cos(), a[1] + long * heading.sin()];
+            let degrees = random.range(1.0, 3.0) * random.sign();
+            let shift = random.range(0.005, 0.0125) * random.sign();
+            let again = moved((a, b), degrees, shift);
+            let strokes = vec![hand.line(a, b), hand.line(again.0, again.1)];
+            let (first, redraw) = (found(&strokes[..1]), found(&strokes[1..]));
+            let [redraw] = redraw.as_slice() else {
+                hooked += 1;
+                continue;
+            };
+            if first.len() != 1 {
+                hooked += 1;
+                continue;
+            }
+            let found = found(&strokes);
+            assert_eq!(
+                found.len(),
+                1,
+                "{seed}: {degrees:.1}° {shift:.3}: {found:?}"
+            );
+            let off = angle(found[0].direction(), redraw.direction());
+            assert!(off < 1e-6, "{seed}: {off}° off the redraw's line");
+            assert!(found[0].length() + 1e-9 >= redraw.length().max(first[0].length()) * 0.98);
+        }
+        assert!(
+            hooked <= most_hooked,
+            "{hooked} strokes alone no single edge"
+        );
+    }
+}
+
+/// An edge drawn in two pieces end to end, the second a few pixels and a degree or two off the
+/// first's line with a gap or an overlap between them: one edge over both.
+#[test]
+fn an_edge_drawn_in_two_pieces_off_each_other_is_one_edge_over_both() {
+    let mut random = openpaint_practice::Random::new(98);
+    for seed in 0..300 {
+        let mut hand = Hand::new(seed, Manner::STEADY);
+        let (a, b) = ([0.2, 0.3], [0.75, 0.55]);
+        let at = random.range(0.4, 0.6);
+        let joint = [a[0] + (b[0] - a[0]) * at, a[1] + (b[1] - a[1]) * at];
+        let gap = random.range(-0.03, 0.02);
+        let d = unit(a, b);
+        let start = [joint[0] + gap * d[0], joint[1] + gap * d[1]];
+        let second = moved(
+            (start, b),
+            random.range(-2.0, 2.0),
+            random.range(-0.008, 0.008),
+        );
+        let strokes = vec![hand.line(a, joint), hand.line(second.0, second.1)];
+        let found = found(&strokes);
+        assert_eq!(found.len(), 1, "{seed}: {found:?}");
+        assert!(
+            found[0].length() > distance(a, b) * 0.97,
+            "{seed}: {found:?}"
+        );
+    }
+}
+
+/// Edges of one direction a face's least width apart (`FACE`, 0.05), parallel or meeting at a
+/// vanishing point a frame away, stay two edges whatever the redraws' tolerance.
+#[test]
+fn edges_a_face_apart_stay_two() {
+    let parallel = found(&[vec![[0.2, 0.4], [0.7, 0.45]], vec![[0.2, 0.45], [0.7, 0.5]]]);
+    assert_eq!(parallel.len(), 2, "{parallel:?}");
+    let meeting = found(&[
+        vec![[0.2, 0.4], [0.6, 0.45]],
+        vec![[0.2, 0.48], [0.6, 0.495]],
+    ]);
+    assert_eq!(meeting.len(), 2, "{meeting:?}");
+}
+
 #[test]
 fn a_correction_takes_the_place_of_the_edge_it_redraws() {
     let earlier = found(&[vec![[0.2, 0.5], [0.6, 0.47]], vec![[0.2, 0.5], [0.2, 0.2]]]);

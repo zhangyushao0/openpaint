@@ -1,8 +1,9 @@
 //! The colour kinds' demonstrations (`demo.rs`): a colour (the wheel's ring to the hue's family,
 //! then lighter or darker, then purer or greyer, the frame filled), a colour combination (the
 //! overall tone, the largest area first, each neighbour against it, the weak contrast kept weak)
-//! and a value scale (the middle cell first, then the quarters, the pick moving only up and down
-//! the wheel's square), each then compared.
+//! and a value scale of nine cells (S97: their order numbered under them, the middle cell first,
+//! then each half's middle, then the rest, the pick moving only up and down the wheel's square),
+//! each then compared.
 
 use super::{Demo, Drawn, Layout, Marker, On, Script, clearest};
 use crate::areas::{Areas, Arrangement, GRID};
@@ -10,16 +11,18 @@ use crate::colour::{Rgb8, delta_e, from_hsv, from_oklab, hsv, oklab};
 use crate::colour_match::{Lightness, Purity, Tone};
 use crate::path::Point;
 use crate::plan::Family;
-use crate::random::derived;
-use crate::scale::{BARS, ROW, ScaleTone, ValueScale};
+use crate::scale::{CELLS, ROW, ScaleTone, ValueScale};
 
 const COLOUR_SEED: u64 = 0xDE30_5EED_0004;
 const AREAS_SEED: u64 = 0xDE30_5EED_0005;
 const SCALE_SEED: u64 = 0xDE30_5EED_0006;
-/// A value scale's example has five cells: its middle and quarters are cells.
-const SCALE_CELLS: usize = 5;
-/// A bar's half width under a cell, a share of the cell's width.
-const BAR: f64 = 0.22;
+/// Where a value scale's order is numbered under its cells, under the even row Compare lays.
+const NUMBERED: f64 = 0.87;
+/// The part of the scale's frame its example shows: the row, the even row and the numbers.
+const SCALE_VIEW: [Point; 2] = [[0.02, 0.27], [0.98, 0.93]];
+/// How far off the hand's copy of each cell is in lightness: a little, one cell (the 7th) over a
+/// quarter step, so Compare outlines it with its even one.
+const HAND: [f64; CELLS] = [0.0, -0.008, 0.006, 0.01, 0.004, -0.006, 0.032, 0.005, 0.0];
 
 /// The rectangle from `[left, top]` to `[right, bottom]` as two rows.
 fn rect([left, top]: Point, [right, bottom]: Point) -> Vec<[Point; 2]> {
@@ -179,44 +182,43 @@ fn sizes(areas: &Areas) -> Vec<usize> {
     sizes
 }
 
-/// A value scale.
+/// A value scale of nine cells, painted in V大's order of halving.
 pub(super) fn scale() -> Demo {
-    let scale = (0..64)
-        .map(|k| ValueScale::generate(ScaleTone::Hue, derived(SCALE_SEED, k)))
-        .find(|scale| scale.cells == SCALE_CELLS)
-        .unwrap_or_else(|| ValueScale::generate(ScaleTone::Hue, SCALE_SEED));
-    let targets = scale.targets();
+    let scale = ValueScale::generate(ScaleTone::Hue, CELLS, SCALE_SEED);
+    let rounds = scale.rounds();
     let mut script = Script::new();
-    scale_given(&mut script, &scale);
+    scale_given(&mut script, &scale, &rounds);
     // The copy's lightness per cell: the ends given, the others a little off as an eye judges.
-    let mut values = targets.clone();
-    values[2] += 0.008;
-    values[1] -= 0.012;
-    values[3] += 0.01;
-    for (turn, cell) in [2, 1, 3].into_iter().enumerate() {
-        if turn < 2 {
-            script.step();
-        }
-        let colour = scale.colour(values[cell]);
-        script.draw(On::Wheel, Marker::Ink, Drawn::Pick(hsv(colour)));
-        let [a, b] = scale.cell(cell);
-        script.draw(On::Copy, Marker::Ink, band(rect(a, b), colour));
+    let values: Vec<f64> = (scale.targets().iter().zip(HAND))
+        .map(|(target, off)| target + off)
+        .collect();
+    // A round at a time: the pick moved up or down the wheel's square to its first cell, then
+    // the round's cells painted, each its own step of lightness.
+    for round in &rounds {
+        script.step();
+        let colour = |cell: usize| scale.colour(values[cell]);
+        let pick = Drawn::Pick(hsv(colour(round[0])));
+        script.draw(On::Wheel, Marker::Ink, pick);
+        script.together(
+            (round.iter())
+                .map(|cell| {
+                    let [a, b] = scale.cell(*cell);
+                    (On::Copy, Marker::Ink, band(rect(a, b), colour(*cell)))
+                })
+                .collect(),
+        );
     }
     let compared = scale_compared(&scale, &values);
-    script.compare(Family::Scale, Layout::Wheel, compared)
+    let mut demo = script.compare(Family::Scale, Layout::Row, compared);
+    demo.view = Some(SCALE_VIEW);
+    demo
 }
 
-/// What a value scale's exercise gives: its ends as halves in the original's frame, its cells in
-/// the copy's with the ends filled, the wheel picking the dark end.
-fn scale_given(script: &mut Script, scale: &ValueScale) {
+/// What a value scale's exercise gives: its cells with the ends filled, the order to paint them
+/// numbered under them in pencil (`rounds`, each cell its round's number), the wheel picking the
+/// dark end.
+fn scale_given(script: &mut Script, scale: &ValueScale, rounds: &[Vec<usize>]) {
     let [dark, light] = scale.ends();
-    let [left, top, right, bottom] = ROW;
-    let middle = (left + right) / 2.0;
-    let halves = [([left, middle], dark), ([middle, right], light)];
-    for ([from, to], colour) in halves {
-        let half = band(rect([from, top], [to, bottom]), colour);
-        script.given(On::Original, Marker::Given, half);
-    }
     for cell in 0..scale.cells {
         let [a, b] = scale.cell(cell);
         let outline = vec![a, [b[0], a[1]], b, [a[0], b[1]], a];
@@ -226,44 +228,38 @@ fn scale_given(script: &mut Script, scale: &ValueScale) {
         let [a, b] = scale.cell(end);
         script.given(On::Copy, Marker::Given, band(rect(a, b), colour));
     }
+    for (place, round) in rounds.iter().enumerate() {
+        for cell in round {
+            let [[left, _], [right, _]] = scale.cell(*cell);
+            let at = [(left + right) / 2.0, NUMBERED];
+            let number = u8::try_from(place + 1).unwrap_or(u8::MAX);
+            script.given(On::Copy, Marker::Pencil, Drawn::Numeral(at, number));
+        }
+    }
     script.given(On::Wheel, Marker::Given, Drawn::Pick(hsv(dark)));
 }
 
-/// A value scale compared: the even scale in the original's frame, under the copy's row each
-/// cell's lightness (`values`) as a bar in its colour with its even step a red tick.
+/// A value scale compared: the even scale as a row under the copy's, cell under cell, and a cell
+/// of the copy's (`values`) a quarter step off or more outlined red with its even one.
 fn scale_compared(scale: &ValueScale, values: &[f64]) -> Vec<(On, Marker, Drawn)> {
-    let [left, _, right, _] = ROW;
+    let check = scale.check(values.iter().map(|value| Some(*value)).collect());
     let mut compared = Vec::new();
-    for (cell, target) in scale.targets().iter().enumerate() {
-        let [a, b] = scale.cell(cell);
-        compared.push((
-            On::Original,
-            Marker::Given,
-            band(rect(a, b), scale.colour(*target)),
-        ));
-        let [[x0, _], [x1, _]] = [a, b];
-        let (centre, width) = ((x0 + x1) / 2.0, x1 - x0);
-        let [high, low] = BARS;
-        let level = |value: f64| low - value * (low - high);
-        let bar = rect(
-            [centre - BAR * width, level(values[cell])],
-            [centre + BAR * width, low],
-        );
-        compared.push((
-            On::Copy,
-            Marker::Given,
-            band(bar, scale.colour(values[cell])),
-        ));
-        let tick = vec![
-            [x0 + 0.1 * width, level(*target)],
-            [x1 - 0.1 * width, level(*target)],
-        ];
-        compared.push((On::Copy, Marker::Answer, Drawn::Line(tick)));
+    for (cell, target) in check.targets.iter().enumerate() {
+        let [a, b] = scale.even_cell(cell);
+        let colour = scale.colour(*target);
+        compared.push((On::Copy, Marker::Given, band(rect(a, b), colour)));
     }
-    compared.push((
-        On::Copy,
-        Marker::Rule,
-        Drawn::Line(vec![[left, BARS[1]], [right, BARS[1]]]),
-    ));
+    let [_, top, _, _] = ROW;
+    for cell in &check.uneven {
+        let [[left, _], [right, bottom]] = scale.even_cell(*cell);
+        let outline = vec![
+            [left, top],
+            [right, top],
+            [right, bottom],
+            [left, bottom],
+            [left, top],
+        ];
+        compared.push((On::Copy, Marker::Answer, Drawn::Line(outline)));
+    }
     compared
 }

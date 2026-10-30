@@ -72,6 +72,8 @@ pub(crate) struct PracticeSheet {
     compared: Option<Compared>,
     /// A line's original lies over the copy aligned onto it, else in place.
     aligned: bool,
+    /// A compared box's or ellipse's construction shows (S97); each Compare starts without it.
+    construction: bool,
     /// The full interface shows, else the exercise's own tools.
     all_tools: bool,
     /// The pen the exercise draws or paints with now, the last of Sketch and Draw chosen, the
@@ -139,6 +141,7 @@ impl PracticeSheet {
             clip: None,
             compared: None,
             aligned: false,
+            construction: false,
             pen: Pen::Draw,
             drawing: Pen::Draw,
             painting: Pen::Big,
@@ -318,6 +321,12 @@ impl PracticeSheet {
                 }
                 self.aligned = on;
             }
+            PracticeIntent::Construction(on) => {
+                if !self.construction_offered() {
+                    return Err(unavailable(Availability::NothingLeft));
+                }
+                self.construction = on;
+            }
             PracticeIntent::Shown(share) => self.painting_state.shown = share.clamp(0.0, 1.0),
             PracticeIntent::Area(area) => self.choose_area(area)?,
             PracticeIntent::Pen(pen) => self.choose(pen)?,
@@ -364,6 +373,7 @@ impl PracticeSheet {
             compare,
             comparing: self.compared.is_some(),
             aligned: self.aligned,
+            construction: self.construction && self.construction_offered(),
             all_tools: self.all_tools,
             pen,
             result: result.cloned(),

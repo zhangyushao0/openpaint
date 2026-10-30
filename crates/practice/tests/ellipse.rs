@@ -222,10 +222,24 @@ fn the_words_say_rounder_or_flatter_tilted_which_way_and_the_side_missed() {
         centre: [exact.centre[0] - 0.04, exact.centre[1]],
         ..exact
     });
+    let sides: Vec<(Side, Reach)> = moved.sides.iter().map(|m| (m.side, m.reach)).collect();
     assert_eq!(
-        moved.sides,
+        sides,
         vec![(Side::Right, Reach::Short), (Side::Left, Reach::Past)]
     );
+    // Each ringed at its middle, where the exact one touches it.
+    assert_eq!(moved.sides[0].middle, guide.touches[1]);
+    assert_eq!(moved.sides[1].middle, guide.touches[3]);
+    // A pen's width off is no miss; a little more is.
+    let shift = |by: f64| {
+        let e = Ellipse {
+            centre: [exact.centre[0] - by, exact.centre[1]],
+            ..exact
+        };
+        words(e).sides.len()
+    };
+    assert_eq!(shift(0.9 * openpaint_practice::REACH), 0);
+    assert_eq!(shift(1.2 * openpaint_practice::REACH), 2);
     let none = EllipseCheck::of(&guide, &[&[[0.2, 0.2], [0.8, 0.8]]]);
     assert_eq!(none.fitted, None);
     assert!(none.sides.is_empty() && none.roundness.is_none());

@@ -1,8 +1,12 @@
 //! Value scales: the same scale per seed, its even steps even in lightness (Oklab `L`) with the
 //! hue held, and a copy's cells read from its pixels and checked against the even scale on known
 //! cases: a cell of another hue at the same value of the wheel reads as lighter as the eye sees.
+//! The order to paint (S97): halved and halved again; the even row cell under cell.
 
-use openpaint_practice::{Metric, Rgb8, ScaleTone, ValueScale, from_hsv, hsv, oklab, value};
+use openpaint_practice::{
+    Before, CELLS, EVEN_ROW, FIRST_CELLS, Family, Kind, Metric, Pictures, Plan, ROW, Rgb8,
+    ScaleTone, ValueScale, drill, from_hsv, hsv, oklab, stage_two, value,
+};
 
 const PAPER: Rgb8 = [255, 255, 255];
 const SIDE: u32 = 400;
@@ -10,12 +14,10 @@ const SIDE: u32 = 400;
 #[test]
 fn the_same_seed_gives_the_same_scale_between_a_far_dark_and_light() {
     for tone in ScaleTone::ALL {
-        let mut counts = [0; 8];
-        for seed in 0..300 {
-            let scale = ValueScale::generate(tone, seed);
-            assert_eq!(scale, ValueScale::generate(tone, seed));
-            assert!((5..=7).contains(&scale.cells), "{tone:?} {seed}");
-            counts[scale.cells] += 1;
+        for (seed, cells) in (0..300).zip([FIRST_CELLS, CELLS].into_iter().cycle()) {
+            let scale = ValueScale::generate(tone, cells, seed);
+            assert_eq!(scale, ValueScale::generate(tone, cells, seed));
+            assert_eq!(scale.cells, cells, "{tone:?} {seed}");
             assert!(scale.light - scale.dark >= 0.48, "{tone:?} {seed}");
             let [dark, light] = scale.ends();
             match tone {
@@ -38,9 +40,83 @@ fn the_same_seed_gives_the_same_scale_between_a_far_dark_and_light() {
                 }
             }
         }
+    }
+}
+
+/// S97: a value scale has nine cells, but the first two a beginner meets (in sessions and drills
+/// alike) five; a plan's own scales count in order after those met before; stored as (6, tone +
+/// 2 x cells).
+#[test]
+fn the_first_two_scales_met_have_five_cells_the_rest_nine() {
+    let none = Pictures::default();
+    let before = |met, scales| Before {
+        met,
+        pictures: &none,
+        used: &[],
+        recent: &[],
+        scales,
+    };
+    let scales = |plan: Plan| -> Vec<Kind> {
+        (plan.exercises.into_iter())
+            .filter(|e| e.kind.family() == Family::Scale)
+            .map(|e| e.kind)
+            .collect()
+    };
+    let cells = |met: usize, number| scales(stage_two(number, 9, &before(&[], met)));
+    assert_eq!(cells(0, 1), [Kind::Scale(ScaleTone::Grey, 5)]);
+    assert_eq!(cells(1, 2), [Kind::Scale(ScaleTone::Hue, 5)]);
+    assert_eq!(cells(2, 3), [Kind::Scale(ScaleTone::Grey, 9)]);
+    // A drill of two after one met: the second of the beginner's, then a full one.
+    let drill = drill(Family::Scale, 1, 4, &before(&[], 1)).expect("a drill");
+    let full = [
+        Kind::Scale(ScaleTone::Grey, 5),
+        Kind::Scale(ScaleTone::Hue, 9),
+    ];
+    assert_eq!(scales(drill), full);
+    // A warm-up drawing on a beginner's scale met gives it its full nine once two were met.
+    let met = [Kind::Scale(ScaleTone::Hue, 5)];
+    let warm = scales(stage_two(3, 5, &before(&met, 2)));
+    assert!(
+        warm.iter().all(|k| matches!(k, Kind::Scale(_, 9))),
+        "{warm:?}"
+    );
+    for kind in full {
+        let (code, variant) = kind.code();
+        assert_eq!(Kind::of_code(code, variant), Some(kind));
+    }
+    assert_eq!(Kind::Scale(ScaleTone::Hue, 9).code(), (6, 19));
+    assert_eq!(
+        Kind::of_code(6, 1),
+        None,
+        "1.14.0's form: the store's upgrade turns it"
+    );
+}
+
+#[test]
+fn the_order_to_paint_halves_and_halves_again_and_the_even_row_lies_cell_under_cell() {
+    let rounds = |cells| ValueScale::generate(ScaleTone::Grey, cells, 1).rounds();
+    assert_eq!(rounds(9), vec![vec![4], vec![2, 6], vec![1, 3, 5, 7]]);
+    assert_eq!(rounds(5), vec![vec![2], vec![1, 3]]);
+    // Every cell between the ends painted once, whatever the count (a 1.14.0 scale's 6 or 7).
+    for cells in 5..=9 {
+        let mut all: Vec<usize> = rounds(cells).into_iter().flatten().collect();
+        all.sort_unstable();
+        assert_eq!(all, (1..cells - 1).collect::<Vec<_>>(), "{cells}");
+    }
+    let scale = ValueScale::generate(ScaleTone::Hue, CELLS, 2);
+    for cell in 0..CELLS {
+        let [[left, top], [right, bottom]] = scale.cell(cell);
+        let [[even_left, even_top], [even_right, even_bottom]] = scale.even_cell(cell);
+        assert_eq!((left, right), (even_left, even_right), "cell under cell");
+        assert_eq!([top, bottom], [ROW[1], ROW[3]]);
+        assert_eq!([even_top, even_bottom], EVEN_ROW);
         assert!(
-            counts[5] > 0 && counts[6] > 0 && counts[7] > 0,
-            "{counts:?}"
+            even_top > bottom && even_bottom <= 1.0,
+            "under the copy's row"
+        );
+        assert_eq!(
+            scale.cell_at([(left + right) / 2.0, (even_top + even_bottom) / 2.0]),
+            None
         );
     }
 }
@@ -62,7 +138,7 @@ fn filled(scale: &ValueScale, values: &[Option<f64>]) -> Vec<u8> {
 
 #[test]
 fn an_even_copy_reads_even_and_mistakes_show_where_they_are() {
-    let scale = ValueScale::generate(ScaleTone::Hue, 0x5EED_0045);
+    let scale = ValueScale::generate(ScaleTone::Hue, 7, 0x5EED_0045);
     let targets = scale.targets();
     let step = (targets[scale.cells - 1] - targets[0]) / (scale.cells - 1) as f64;
     let even: Vec<Option<f64>> = targets.iter().copied().map(Some).collect();
@@ -157,7 +233,7 @@ fn paint_cell(scale: &ValueScale, pixels: &mut [u8], cell: usize, colour: Rgb8) 
 
 #[test]
 fn a_cell_reads_its_middle_whatever_strays_over_its_edges() {
-    let scale = ValueScale::generate(ScaleTone::Grey, 7);
+    let scale = ValueScale::generate(ScaleTone::Grey, 9, 7);
     let targets = scale.targets();
     let even: Vec<Option<f64>> = targets.iter().copied().map(Some).collect();
     let mut pixels = filled(&scale, &even);
