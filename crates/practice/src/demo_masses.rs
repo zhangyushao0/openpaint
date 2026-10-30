@@ -3,7 +3,7 @@
 //! as the exercise's does. Squinting, the darkest big masses painted first in their grey, then the
 //! light ones, the middle last over what is left; Compare lays the answer's greys faint over the
 //! copy, its mass edges red, and hatches in the answer's grey where the hand's copy strayed over
-//! more than a pen's width (the dark masses painted a little wide on their right).
+//! more than the grey pen's width (the dark masses painted wide on their right).
 
 use super::{Demo, Drawn, Layout, Marker, On, Script};
 use crate::masses::Masses;
@@ -11,14 +11,15 @@ use crate::path::Point;
 use crate::plan::Family;
 use crate::sheet::PictureFit;
 use crate::value_masses::{Value, ValueMasses};
-use crate::value_masses_read::{HATCH_GAP, MASSES_PEN, differences, hatched};
+use crate::value_masses_read::{HATCH_GAP, VALUE_PEN, differences, hatched};
 
 /// The example: a landscape four by three, its picture this wide.
 const SEED: u64 = 0xDE30_5EED_0096;
 const ASPECT: f64 = 0.75;
 const WIDTH: u32 = 400;
-/// How far the hand's dark masses run past the answer's on their right, cells.
-const STRAY: usize = 8;
+/// How far the hand's dark masses run past the answer's on their right, cells (of about 222 a
+/// frame unit: half as wide again as the grey pen, so Compare hatches it).
+const STRAY: usize = 20;
 
 /// Value masses.
 pub(super) fn value_masses() -> Demo {
@@ -76,7 +77,8 @@ fn strayed(answer: &ValueMasses) -> ValueMasses {
 }
 
 /// Compare's marks: the answer's greys faint over the copy, its edges red, and the hatching where
-/// `copy` differs from it over more than a pen's width, all in the picture's `rect` of the frame.
+/// `copy` differs from it over more than the grey pen's width, all in the picture's `rect` of the
+/// frame.
 fn compared(
     answer: &ValueMasses,
     copy: &ValueMasses,
@@ -104,7 +106,7 @@ fn compared(
     let truth = values(answer);
     // A frame unit holds this many cells: the pen and the hatching's gap in cells.
     let cells = size[0] as f64 / (right - left);
-    let opened = differences(&painted, &truth, size, MASSES_PEN / 2.0 * cells);
+    let opened = differences(&painted, &truth, size, VALUE_PEN / 2.0 * cells);
     let cell = |[x, y]: Point| [x / size[0] as f64, y / size[1] as f64];
     for (value, [a, b]) in hatched(&opened, &truth, size, HATCH_GAP * cells) {
         let line = vec![at(cell(a)), at(cell(b))];

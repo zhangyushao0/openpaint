@@ -1,19 +1,20 @@
 //! A value-mass copy read against its answer (`value_masses.rs`, S96). The copy's frame is drawn
 //! as the canvas shows it (on the compare worker), and each pixel over the picture is taken for
 //! the grey it was painted in: the nearest of the three by lightness, or bare where it lies nearer
-//! the paper's white. Where the copy's value differs from the answer's over more than a pen's
-//! width (what is left of the differing pixels once a disc as wide as the pen is rolled inside
-//! them: a morphological opening), the answer's value is hatched there in its grey; a mass edge
-//! off by less than a pen's width is no difference. The share of the picture painted at the
-//! answer's value is kept by the first Compare (`Metric::MassesMatched`), shown nowhere.
+//! the paper's white. Where the copy's value differs from the answer's over more than the grey
+//! pens' width (what is left of the differing pixels once a disc as wide as the pen is rolled
+//! inside them: a morphological opening), the answer's value is hatched there in its grey; a mass
+//! edge off by less, or a seam the strokes leave between them, is no difference, as a squinting
+//! eye merges it. The share of the picture painted at the answer's value is kept by the first
+//! Compare (`Metric::MassesMatched`), shown nowhere.
 
 use crate::metric::{Metric, Metrics};
 use crate::path::Point;
 use crate::value_masses::{Value, ValueMasses};
 
-/// The pen's width, frame units (5 canvas pixels on a 400-pixel frame): a difference narrower is
-/// none.
-pub const MASSES_PEN: f64 = 0.0125;
+/// The grey pens' width, frame units (24 canvas pixels on a 400-pixel frame): the app paints value
+/// masses this wide, and a difference from the answer narrower than it is none.
+pub const VALUE_PEN: f64 = 0.06;
 /// Between hatching's lines, frame units.
 pub const HATCH_GAP: f64 = 0.02;
 /// The shortest stretch of hatching kept, in the grid's steps.
@@ -61,7 +62,7 @@ impl ValueMasses {
                 answer.push(self.at(p));
             }
         }
-        let opened = differences(&copy, &answer, [w, h], MASSES_PEN / 2.0 * unit);
+        let opened = differences(&copy, &answer, [w, h], VALUE_PEN / 2.0 * unit);
         let at = |[x, y]: Point| [(x0 as f64 + x) / unit, (y0 as f64 + y) / unit];
         let hatching = (hatched(&opened, &answer, [w, h], HATCH_GAP * unit).into_iter())
             .map(|(value, [a, b])| (value, [at(a), at(b)]))
@@ -79,7 +80,8 @@ impl ValueMasses {
 }
 
 /// Where `copy` (each step's value painted, none bare) differs from `answer` over a grid of
-/// `[w, h]` steps, wider than a disc of `radius` steps: the differing steps opened by the disc.
+/// `[w, h]` steps, wider than a disc of `radius` steps: the differing steps opened by the disc,
+/// which must lie inside the grid.
 pub(crate) fn differences(
     copy: &[Option<Value>],
     answer: &[Value],
@@ -95,22 +97,25 @@ pub(crate) fn differences(
         .filter(|[dx, dy]| ((dx * dx + dy * dy) as f64) <= radius * radius)
         .collect();
     let (wi, hi) = (w as isize, h as isize);
+    // The step at `d` from `(x, y)`, none beyond the grid: the disc must lie inside the picture,
+    // so a strip along its edge narrower than the pen is no difference either.
     let near = |x: isize, y: isize, [dx, dy]: [isize; 2]| {
-        let [nx, ny] = [(x + dx).clamp(0, wi - 1), (y + dy).clamp(0, hi - 1)];
-        (ny * wi + nx) as usize
+        let [nx, ny] = [x + dx, y + dy];
+        ((0..wi).contains(&nx) && (0..hi).contains(&ny)).then(|| (ny * wi + nx) as usize)
     };
     let mut kept = vec![false; differ.len()];
     for y in 0..hi {
         for x in 0..wi {
-            kept[(y * wi + x) as usize] = disc.iter().all(|d| differ[near(x, y, *d)]);
+            let inside = |d: &[isize; 2]| near(x, y, *d).is_some_and(|at| differ[at]);
+            kept[(y * wi + x) as usize] = disc.iter().all(inside);
         }
     }
     let mut opened = vec![false; differ.len()];
     for y in 0..hi {
         for x in 0..wi {
             if kept[(y * wi + x) as usize] {
-                for d in &disc {
-                    opened[near(x, y, *d)] = true;
+                for at in disc.iter().filter_map(|d| near(x, y, *d)) {
+                    opened[at] = true;
                 }
             }
         }

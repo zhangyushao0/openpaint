@@ -143,4 +143,4 @@ pub use space::{SpaceAnswer, SpaceTask, Trick};
 pub use space_check::SpaceCheck;
 pub use time::{Date, PAUSE, Span, by_day, local_day, practised, seconds, spans_of, weekday};
 pub use value_masses::{BLUR, ISLAND, MASSES_SIDE, RIM, Value, ValueMasses};
-pub use value_masses_read::{HATCH_GAP, MASSES_PEN, MassesCheck};
+pub use value_masses_read::{HATCH_GAP, MassesCheck, VALUE_PEN};

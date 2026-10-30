@@ -13,7 +13,7 @@
 use std::sync::Arc;
 
 use openpaint_core::{Color, CoreError, StrokeStyle};
-use openpaint_practice::{Level, Value};
+use openpaint_practice::{FRAME, Level, VALUE_PEN, Value};
 
 use crate::brushes::{BrushKey, BrushLibrary};
 use crate::practice::Pen;
@@ -30,8 +30,9 @@ const CORRECT: (&str, f32, f32, [f32; 3]) = ("ink-pen", INK_DIAMETER, 1.0, [0.12
 const BIG: (&str, f32, f32, [f32; 3]) = ("opaque-paint", 64.0, 1.0, [0.5; 3]);
 const SMALL: (&str, f32, f32, [f32; 3]) = ("opaque-paint", 20.0, 1.0, [0.5; 3]);
 const SOFT: (&str, f32, f32, [f32; 3]) = ("soft-brush", 100.0, 0.8, [0.5; 3]);
-/// Value masses' pens: opaque paint, big for masses, in each value's grey.
-const VALUE: (&str, f32, f32) = ("opaque-paint", 24.0, 1.0);
+/// Value masses' pens: opaque paint in each value's grey, as wide as Compare's tolerance
+/// (`VALUE_PEN` of a frame: 24 pixels), big for masses.
+const VALUE: (&str, f32, f32) = ("opaque-paint", (VALUE_PEN * FRAME) as f32, 1.0);
 
 /// The pens' styles.
 #[derive(Debug, Clone, PartialEq)]
