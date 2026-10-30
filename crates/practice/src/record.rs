@@ -281,6 +281,7 @@ const fn rows_of(family: Family) -> &'static [Metric] {
         | Family::Cylinder
         | Family::Cone
         | Family::Sphere
+        | Family::Object
         | Family::Study => &[],
     }
 }

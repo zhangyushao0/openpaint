@@ -3,15 +3,16 @@
 //! of that kind only, about ten minutes and no warm-up: 6 single lines, 4 groups of combined lines
 //! (each arrangement), 6 colours (stage 1's), 3 single shapes (their tiers in turn from entry to
 //! hard, the last the user's own as in stage 2), 2 colour combinations, 2 value scales, 3 boxes, a
-//! page of free boxes, 4 ellipses, 5 points, proportions or angles, 3 of one of V大's five tricks
-//! or 3 of a solid (S93); each kind's variants in turn by the drill's number among its kind's
-//! drills (a solid's pose by its seed). Its record
-//! is one of stage `DRILL` (`record.rs`): it counts in no session, road or stage.
+//! page of free boxes, 4 ellipses, 5 points, proportions or angles, 3 of one of V大's five tricks,
+//! 3 of a solid (S93) or 3 objects (S94, their carves in turn); each kind's variants in turn by the
+//! drill's number among its kind's drills (a solid's pose by its seed). Its record is one of stage
+//! `DRILL` (`record.rs`): it counts in no session, road or stage.
 
 use crate::areas::Arrangement;
 use crate::colour_match::Tone;
 use crate::ellipse::Guide;
 use crate::flat::Estimate;
+use crate::object_design::Carve;
 use crate::pack::Tier;
 use crate::perspective::BoxView;
 use crate::plan::{Family, Kind};
@@ -44,6 +45,9 @@ const STAGE_THREE: [Family; 11] = [
     Family::Sphere,
 ];
 
+/// Stage 4's one kind, objects simplified into boxes (S94).
+const STAGE_FOUR: [Family; 1] = [Family::Object];
+
 /// How many exercises a drill of each kind holds.
 const SHAPES: usize = 3;
 const COMBINATIONS: usize = 2;
@@ -53,6 +57,7 @@ const ELLIPSES: usize = 4;
 const ESTIMATES: usize = 5;
 const TRICKS: usize = 3;
 const SOLIDS: usize = 3;
+const OBJECTS: usize = 3;
 
 /// The kinds `stage` practises, in its tiles' order; none for a stage not ready.
 #[must_use]
@@ -61,6 +66,7 @@ pub const fn kinds_of(stage: u8) -> &'static [Family] {
         1 => &STAGE_ONE,
         2 => &STAGE_TWO,
         3 => &STAGE_THREE,
+        4 => &STAGE_FOUR,
         _ => &[],
     }
 }
@@ -117,6 +123,9 @@ fn kinds(family: Family, turn: usize) -> Vec<Kind> {
         (Family::FreeBoxes, ..) => in_turn(&HORIZONS, turn, 1)
             .into_iter()
             .map(Kind::FreeBoxes)
+            .collect(),
+        (Family::Object, ..) => (in_turn(&Carve::ALL, turn, OBJECTS).into_iter())
+            .map(Kind::Object)
             .collect(),
         (Family::Ellipse, ..) => (in_turn(&Guide::ALL, turn, ELLIPSES).into_iter())
             .map(Kind::Ellipse)

@@ -9,6 +9,8 @@ use crate::combined::{Combination, CombinedLines};
 use crate::ellipse::{EllipseGuide, Guide};
 use crate::flat::{Estimate, Flat};
 use crate::line::{LineExercise, LineTier};
+use crate::object::ObjectTask;
+use crate::object_design::Carve;
 use crate::pack::{ItemRef, Tier};
 use crate::path::Point;
 use crate::perspective::{BoxView, Horizon, PerspectiveBox};
@@ -19,7 +21,7 @@ use crate::space::{SpaceTask, Trick};
 /// The course's stages, after V大's eight weeks.
 pub const STAGES: u8 = 8;
 /// The stages whose exercises exist so far: a session can be started in these.
-pub const STAGES_READY: u8 = 3;
+pub const STAGES_READY: u8 = 4;
 /// About how many sessions a stage holds; only a guide, never a quota.
 pub const STAGE_SESSIONS: u32 = 15;
 
@@ -54,6 +56,9 @@ pub enum Kind {
     Space(Trick),
     /// A cylinder, a cone or a sphere found in its box (V大's week 3, S93).
     Solid(Solid),
+    /// An object made from a box by one or two changes, simplified back into it (V大's weeks 3
+    /// and 4, 几何体 + 点定位 概括单体, S94).
+    Object(Carve),
 }
 
 /// What an exercise asks for, whatever its variant: its instructions, its tools, its line in
@@ -80,6 +85,8 @@ pub enum Family {
     Cylinder,
     Cone,
     Sphere,
+    /// Objects simplified into boxes (S94).
+    Object,
     Colour,
     Areas,
     Scale,
@@ -88,7 +95,7 @@ pub enum Family {
 
 impl Family {
     /// In a warm-up's order.
-    pub const ALL: [Self; 21] = [
+    pub const ALL: [Self; 22] = [
         Self::Line,
         Self::Combined,
         Self::Shape,
@@ -106,6 +113,7 @@ impl Family {
         Self::Cylinder,
         Self::Cone,
         Self::Sphere,
+        Self::Object,
         Self::Colour,
         Self::Areas,
         Self::Scale,
@@ -113,15 +121,15 @@ impl Family {
     ];
 
     /// Whether its exercises are drawn with the pens as lines (lines, combined lines, single
-    /// shapes, boxes, ellipses, estimates, points in space and solids), not coloured.
+    /// shapes, boxes, ellipses, estimates, points in space, solids and objects), not coloured.
     #[must_use]
     pub const fn drawn(self) -> bool {
         !matches!(self, Self::Colour | Self::Areas | Self::Scale | Self::Study)
     }
 
     /// Whether its copy is checked as geometry (boxes in perspective, ellipses, estimates, points
-    /// in space, solids): what it holds found in the lines and set against an exact answer or
-    /// rule, never aligned.
+    /// in space, solids, objects): what it holds found in the lines and set against an exact
+    /// answer or rule, never aligned.
     #[must_use]
     pub const fn geometric(self) -> bool {
         self.drawn() && !matches!(self, Self::Line | Self::Combined | Self::Shape)
@@ -141,8 +149,8 @@ impl Kind {
     /// arrangement) for a colour combination, (6, tone) for a value scale, (7, 0) for a colour
     /// copy, (8, view) for a box to complete, (9, horizon) for free boxes, (10, guide) for an
     /// ellipse, (11, estimate) for an estimate on the flat, (12, trick) for a point in space, (13,
-    /// solid) for a solid in a box. A code names one generator for good; a changed generator is a
-    /// new code.
+    /// solid) for a solid in a box, (14, carve) for an object simplified into its box. A code names
+    /// one generator for good; a changed generator is a new code.
     #[must_use]
     pub fn code(self) -> (u8, u8) {
         let index = |found: Option<usize>| found.unwrap_or(0) as u8;
@@ -166,6 +174,7 @@ impl Kind {
             Self::Flat(estimate) => (11, index(Estimate::ALL.iter().position(|e| *e == estimate))),
             Self::Space(trick) => (12, index(Trick::ALL.iter().position(|t| *t == trick))),
             Self::Solid(solid) => (13, index(Solid::ALL.iter().position(|s| *s == solid))),
+            Self::Object(carve) => (14, index(Carve::ALL.iter().position(|c| *c == carve))),
         }
     }
 
@@ -186,6 +195,7 @@ impl Kind {
             11 => Estimate::ALL.get(at).map(|e| Self::Flat(*e)),
             12 => Trick::ALL.get(at).map(|t| Self::Space(*t)),
             13 => Solid::ALL.get(at).map(|s| Self::Solid(*s)),
+            14 => Carve::ALL.get(at).map(|c| Self::Object(*c)),
             _ => None,
         }
     }
@@ -206,6 +216,7 @@ impl Kind {
             Self::Flat(estimate) => estimate.family(),
             Self::Space(trick) => trick.family(),
             Self::Solid(solid) => solid.family(),
+            Self::Object(_) => Family::Object,
         }
     }
 }
@@ -254,6 +265,9 @@ impl Exercise {
             Kind::Flat(estimate) => Original::Flat(Flat::generate(estimate, self.seed)),
             Kind::Space(trick) => Original::Space(Box::new(SpaceTask::generate(trick, self.seed))),
             Kind::Solid(solid) => Original::Solid(Box::new(SolidTask::generate(solid, self.seed))),
+            Kind::Object(carve) => {
+                Original::Object(Box::new(ObjectTask::generate(carve, self.seed)))
+            }
         }
     }
 }
@@ -283,4 +297,6 @@ pub enum Original {
     Space(Box<SpaceTask>),
     /// A box with a solid to find in it.
     Solid(Box<SolidTask>),
+    /// An object to simplify into its box.
+    Object(Box<ObjectTask>),
 }

@@ -10,7 +10,8 @@
 //! bent near the middle, a box widest beside its vanishing points with both within `WIDE_REACH`,
 //! a face shaded wide), so it is the same every time; a single shape's is a generated vase, so no
 //! pack is needed. The marks reuse what the exercises compute: the generators' exact answers, the
-//! tricks' constructions, the ellipse's middles, the solids' exact outlines (S93).
+//! tricks' constructions, the ellipse's middles, the solids' exact outlines (S93), an object's
+//! picture, construction and visible edges (S94).
 
 use crate::colour::Rgb8;
 use crate::path::{Point, distance, length};
@@ -20,6 +21,8 @@ use crate::plan::Family;
 mod colour;
 #[path = "demo_drawn.rs"]
 mod drawn;
+#[path = "demo_objects.rs"]
+mod objects;
 #[path = "demo_points.rs"]
 mod points;
 #[path = "demo_solids.rs"]
@@ -68,6 +71,9 @@ pub enum Marker {
     Given,
     /// Sketch's pencil: looking and construction.
     Pencil,
+    /// Sketch's pencil finding an object's points (S94): dark while its step draws, faint once
+    /// the next begins, so the step in hand reads apart from those before it.
+    Construction,
     /// A pass in the air: a faint trace that goes again.
     Air,
     /// Draw's ink: the answer.
@@ -105,6 +111,8 @@ pub enum Drawn {
     },
     /// The example's colour combination filling its frame, its areas in these colours.
     Areas(Vec<Rgb8>),
+    /// The example object's picture filling its frame (S94).
+    Shaded,
     /// The wheel's pick moved to this colour (hue in degrees, saturation, value).
     Pick([f64; 3]),
     /// A colour ringed on the wheel (hue in degrees, saturation, value), in the pen's colour.
@@ -129,6 +137,8 @@ pub struct Demo {
     pub layout: Layout,
     /// The colour combination its `Drawn::Areas` marks paint (a combination's only).
     pub areas: Option<crate::areas::Areas>,
+    /// The object its `Drawn::Shaded` mark shows (an object's only, S94).
+    pub object: Option<Box<crate::object::ObjectTask>>,
     /// Its marks in the order drawn, given ones first.
     pub marks: Vec<Mark>,
     /// When each step begins, seconds; a step's words are the UI's.
@@ -137,7 +147,7 @@ pub struct Demo {
     pub length: f64,
     /// The part of the copy's frame a lone example shows, as large as the card lets it: its top
     /// left and bottom right (frame units); what lies beyond is cut at the picture's edge. None
-    /// for frames side by side, shown whole.
+    /// for frames side by side, shown whole, but an object's (S94): both cropped to its box.
     pub view: Option<[Point; 2]>,
 }
 
@@ -160,6 +170,7 @@ impl Demo {
                 points::trick(family)?
             }
             Family::Cylinder | Family::Cone | Family::Sphere => solids::solid(family)?,
+            Family::Object => objects::object()?,
             Family::Study => return None,
         })
     }
@@ -255,6 +266,7 @@ impl Script {
             family,
             layout,
             areas: None,
+            object: None,
             marks: self.marks,
             steps: self.steps,
             length: from + SHOWING + HOLD,
@@ -304,7 +316,7 @@ fn seconds(pen: Marker, drawn: &Drawn) -> f64 {
             let (speed, least, most) = match pen {
                 Marker::Air => (1.3, 0.5, 0.9),
                 Marker::Ink => (1.3, 0.25, 0.9),
-                Marker::Pencil | Marker::Guide => (1.2, 0.4, 0.6),
+                Marker::Pencil | Marker::Construction | Marker::Guide => (1.2, 0.4, 0.6),
                 _ => (2.0, 0.3, 0.5),
             };
             (long / speed).clamp(least, most)
@@ -312,7 +324,7 @@ fn seconds(pen: Marker, drawn: &Drawn) -> f64 {
         Drawn::Ring(_) | Drawn::Dot(_) => 0.4,
         Drawn::Cross(_) => 0.7,
         Drawn::Band { .. } | Drawn::Ringed(_) => 0.55,
-        Drawn::Areas(_) => 0.65,
+        Drawn::Areas(_) | Drawn::Shaded => 0.65,
         Drawn::Pick(_) => 1.1,
     }
 }

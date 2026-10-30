@@ -113,7 +113,7 @@ fn every_solid_keeps_its_rules_and_is_the_same_per_seed() {
         );
     }
     assert_eq!(Kind::of_code(13, 3), None);
-    assert_eq!(Kind::of_code(14, 0), None);
+    assert_eq!(Kind::of_code(15, 0), None);
     let families = [Family::Cylinder, Family::Cone, Family::Sphere];
     assert_eq!(Solid::ALL.map(Solid::family), families);
 }

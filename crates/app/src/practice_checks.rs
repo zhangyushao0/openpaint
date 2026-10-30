@@ -3,8 +3,8 @@
 //! horizon (a correction in place of the edge it redraws), an ellipse fitted to the lines (to the
 //! corrections once there are some), (S90) an estimate's or a point in space's last mark or lines
 //! read against the exact answer, and (S93) a solid's curves and sides read against the exact
-//! solid, the corrections in place of what they redraw. The sketch pen's construction is never
-//! read.
+//! solid, (S94) an object's against its visible edges and outlines, the corrections in place of
+//! what they redraw. The sketch pen's construction is never read.
 
 use std::ops::Range;
 use std::sync::Arc;
@@ -50,13 +50,14 @@ impl PracticeSheet {
                 Overlay::Space(Arc::new(SpaceCheck::of(task, &read(&pieces))))
             }
             Original::Solid(task) => {
-                let pieces = |ids: Range<u64>| line_pieces(artwork, frame, ids);
-                let (first, corrections) = match self.corrected_from(index) {
-                    Some(since) => (pieces(0..since), pieces(since..u64::MAX)),
-                    None => (pieces(ALL_STROKES), Vec::new()),
-                };
+                let (first, corrections) = self.drawn_then_corrected(index, (artwork, frame));
                 let lines = (read(&first), read(&corrections));
                 Overlay::Solid(Arc::new(SolidCheck::of(task, (&lines.0, &lines.1))))
+            }
+            Original::Object(task) => {
+                let (first, corrections) = self.drawn_then_corrected(index, (artwork, frame));
+                let lines = (read(&first), read(&corrections));
+                Overlay::Object(Arc::new(SolidCheck::of_object(task, (&lines.0, &lines.1))))
             }
             Original::Lines(_)
             | Original::Colour(_)
@@ -96,6 +97,20 @@ impl PracticeSheet {
             .unwrap_or_else(|| pieces(ALL_STROKES));
         let lines: Vec<&[Point]> = drawn.iter().map(Vec::as_slice).collect();
         EllipseCheck::of(guide, &lines)
+    }
+
+    /// Exercise `index`'s lines in `frame` drawn before its first Compare and the corrections
+    /// after it (the sketch pen's left out).
+    fn drawn_then_corrected(
+        &self,
+        index: usize,
+        (artwork, frame): (&Artwork, &Frame),
+    ) -> (Vec<Vec<Point>>, Vec<Vec<Point>>) {
+        let pieces = |ids: Range<u64>| line_pieces(artwork, frame, ids);
+        match self.corrected_from(index) {
+            Some(since) => (pieces(0..since), pieces(since..u64::MAX)),
+            None => (pieces(ALL_STROKES), Vec::new()),
+        }
     }
 
     /// The first stroke id of exercise `index`'s corrections, once it was compared.

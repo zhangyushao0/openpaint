@@ -8,13 +8,18 @@
 //!
 //! The first Compare keeps the read lines' mean distance from the answer, a share of the box
 //! (`Metric::SolidOff`), never shown. Frame units.
+//!
+//! An object's copy (S94) is read alike against its visible edges and outlines (`ObjectOff`): its
+//! round part's ends only where seen, as only those are drawn.
 
 use crate::edges::edges;
 use crate::ellipse::Ellipse;
 use crate::ellipse_fit::fit_ellipse;
 use crate::metric::{Metric, Metrics};
-use crate::path::{Point, distance, length, nearest_on_segment, resample};
+use crate::object::ObjectTask;
+use crate::path::{Point, distance, length, nearest, nearest_on_segment, resample};
 use crate::solid::SolidTask;
+use crate::solid_answer::SolidAnswer;
 
 /// The even step lines are read at.
 const SPACING: f64 = 0.004;
@@ -67,8 +72,23 @@ impl SolidCheck {
     /// `task`'s copy drawn as `drawn` before the first Compare and `corrections` after it (Draw
     /// and Correct, oldest first) read and measured.
     #[must_use]
-    pub fn of(task: &SolidTask, (drawn, corrections): (&[&[Point]], &[&[Point]])) -> Self {
-        let (first, later) = (read(task, drawn), read(task, corrections));
+    pub fn of(task: &SolidTask, lines: (&[&[Point]], &[&[Point]])) -> Self {
+        Self::against(&task.answer, (task.size(), Metric::SolidOff), lines)
+    }
+
+    /// An object's copy (S94) read so against its visible edges and outlines.
+    #[must_use]
+    pub fn of_object(task: &ObjectTask, lines: (&[&[Point]], &[&[Point]])) -> Self {
+        Self::against(&task.answer, (task.size(), Metric::ObjectOff), lines)
+    }
+
+    /// The copy read against `answer`, its error `metric`, a share of `size`.
+    fn against(
+        answer: &SolidAnswer,
+        (size, metric): (f64, Metric),
+        (drawn, corrections): (&[&[Point]], &[&[Point]]),
+    ) -> Self {
+        let (first, later) = (read(answer, drawn), read(answer, corrections));
         // A part the corrections redraw reads them alone; a bit of a correction near a part it
         // only passes (where a side touches an ellipse) redraws nothing.
         let latest = |a: Vec<Vec<Point>>, b: Vec<Vec<Point>>| {
@@ -76,7 +96,7 @@ impl SolidCheck {
             if long >= REDRAWN { b } else { a }
         };
         let curves: Vec<ReadCurve> = (first.curves.into_iter().zip(later.curves))
-            .zip(&task.answer.ellipses)
+            .zip(&answer.ellipses)
             .map(|((a, b), exact)| {
                 let pieces = latest(a, b);
                 let fitted = covered(exact, &pieces).then(|| fitted(&pieces)).flatten();
@@ -86,8 +106,8 @@ impl SolidCheck {
         let sides: Vec<Vec<Vec<Point>>> = (first.sides.into_iter().zip(later.sides))
             .map(|(a, b)| latest(a, b))
             .collect();
-        let metrics = off(task, &curves, &sides).map_or_else(Vec::new, |off| {
-            vec![(Metric::SolidOff, off / task.size().max(f64::MIN_POSITIVE))]
+        let metrics = off(answer, &curves, &sides).map_or_else(Vec::new, |off| {
+            vec![(metric, off / size.max(f64::MIN_POSITIVE))]
         });
         Self {
             curves,
@@ -97,22 +117,27 @@ impl SolidCheck {
     }
 }
 
-/// How far `p` lies from `part` of `task`'s answer.
-fn apart(task: &SolidTask, part: Part, p: Point) -> f64 {
+/// How far `p` lies from `part` of `answer`: an ellipse whole, or where seen when only that is
+/// drawn (an object's).
+fn apart(answer: &SolidAnswer, part: Part, p: Point) -> f64 {
     match part {
-        Part::Ellipse(k) => task.answer.ellipses[k].distance(p),
+        Part::Ellipse(k) if answer.whole => answer.ellipses[k].distance(p),
+        Part::Ellipse(k) => (answer.outlines[k].iter())
+            .filter(|stretch| !stretch.hidden)
+            .filter_map(|stretch| nearest(&[&stretch.points], p).map(|(_, d)| d))
+            .fold(f64::INFINITY, f64::min),
         Part::Side(k) => {
-            let [a, b] = task.answer.sides[k];
+            let [a, b] = answer.sides[k];
             distance(p, nearest_on_segment(a, b, p))
         }
     }
 }
 
-/// The part of `task`'s answer nearest by `how_far`, within `FAR`.
-fn nearest_part(task: &SolidTask, how_far: impl Fn(Part) -> f64) -> Option<Part> {
-    let parts = (0..task.answer.ellipses.len())
+/// The part of `answer` nearest by `how_far`, within `FAR`.
+fn nearest_part(answer: &SolidAnswer, how_far: impl Fn(Part) -> f64) -> Option<Part> {
+    let parts = (0..answer.ellipses.len())
         .map(Part::Ellipse)
-        .chain((0..task.answer.sides.len()).map(Part::Side));
+        .chain((0..answer.sides.len()).map(Part::Side));
     parts
         .map(|part| (part, how_far(part)))
         .filter(|(_, d)| *d <= FAR)
@@ -120,12 +145,12 @@ fn nearest_part(task: &SolidTask, how_far: impl Fn(Part) -> f64) -> Option<Part>
         .map(|(part, _)| part)
 }
 
-/// `lines` split into straight pieces and curves, each given to the part of `task`'s answer it
+/// `lines` split into straight pieces and curves, each given to the part of `answer` it
 /// lies nearest.
-fn read(task: &SolidTask, lines: &[&[Point]]) -> Parts {
+fn read(answer: &SolidAnswer, lines: &[&[Point]]) -> Parts {
     let mut parts = Parts {
-        curves: vec![Vec::new(); task.answer.ellipses.len()],
-        sides: vec![Vec::new(); task.answer.sides.len()],
+        curves: vec![Vec::new(); answer.ellipses.len()],
+        sides: vec![Vec::new(); answer.sides.len()],
     };
     let mut give = |part: Part, piece: Vec<Point>| match part {
         Part::Ellipse(k) => parts.curves[k].push(piece),
@@ -138,9 +163,9 @@ fn read(task: &SolidTask, lines: &[&[Point]]) -> Parts {
             let points = resample(&edge.ends, SPACING);
             // A straight piece goes whole to the part its points lie nearest on the whole.
             let mean = |part: Part| {
-                points.iter().map(|p| apart(task, part, *p)).sum::<f64>() / points.len() as f64
+                points.iter().map(|p| apart(answer, part, *p)).sum::<f64>() / points.len() as f64
             };
-            if let Some(part) = nearest_part(task, mean) {
+            if let Some(part) = nearest_part(answer, mean) {
                 give(part, edge.ends.to_vec());
             }
         }
@@ -152,7 +177,7 @@ fn read(task: &SolidTask, lines: &[&[Point]]) -> Parts {
         let mut run: Option<(Part, Vec<Point>)> = None;
         for p in even {
             let part = (!on_edge(p))
-                .then(|| nearest_part(task, |part| apart(task, part, p)))
+                .then(|| nearest_part(answer, |part| apart(answer, part, p)))
                 .flatten();
             match (&mut run, part) {
                 (Some((held, points)), Some(part)) if *held == part => points.push(p),
@@ -195,7 +220,7 @@ fn fitted(pieces: &[Vec<Point>]) -> Option<Ellipse> {
 }
 
 /// The mean distance of everything read from the part it was read for; none when nothing was.
-fn off(task: &SolidTask, curves: &[ReadCurve], sides: &[Vec<Vec<Point>>]) -> Option<f64> {
+fn off(answer: &SolidAnswer, curves: &[ReadCurve], sides: &[Vec<Vec<Point>>]) -> Option<f64> {
     let parts = (curves.iter().enumerate())
         .map(|(k, curve)| (Part::Ellipse(k), &curve.pieces))
         .chain(
@@ -207,7 +232,7 @@ fn off(task: &SolidTask, curves: &[ReadCurve], sides: &[Vec<Vec<Point>>]) -> Opt
     let (mut sum, mut count) = (0.0, 0usize);
     for (part, pieces) in parts {
         for p in pieces.iter().flat_map(|piece| resample(piece, SPACING)) {
-            sum += apart(task, part, p);
+            sum += apart(answer, part, p);
             count += 1;
         }
     }

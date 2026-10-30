@@ -30,7 +30,7 @@ const PROBE: f32 = 10.0;
 const BAR: f64 = 0.22;
 const TICK: f64 = 0.36;
 
-/// The colour combinations' pictures as textures, uploaded once a sheet.
+/// The colour combinations' and objects' pictures as textures, uploaded once a sheet.
 #[derive(Default)]
 pub(crate) struct PaintedPictures {
     shown: Vec<(Arc<PictureImage>, TextureHandle)>,
@@ -67,8 +67,8 @@ impl PaintedPictures {
             .map(|(_, texture)| texture)
     }
 
-    /// Exercise `index`'s picture's texture, if it is a colour combination's.
-    fn of(&self, practice: &PracticeProjection, index: usize) -> Option<&TextureHandle> {
+    /// Exercise `index`'s picture's texture, if it is a colour combination's or an object's.
+    pub(crate) fn of(&self, practice: &PracticeProjection, index: usize) -> Option<&TextureHandle> {
         let image = practice.sheet.painted.get(index)?.as_ref()?;
         self.texture(image)
     }

@@ -27,6 +27,8 @@ const GAP: f32 = 2.0 * SPACE;
 const FIT_MARGIN: f32 = 1.5 * SPACE;
 /// A combination's picture's side, in pixels.
 const PICTURE: u32 = 128;
+/// An object's picture's side, in pixels (its frame some 176 points, at up to 2 pixels a point).
+const OBJECT_PICTURE: u32 = 360;
 
 /// The demonstrations made so far and the one playing.
 #[derive(Default)]
@@ -116,10 +118,12 @@ impl Demonstrations {
         let (rect, _) = ui.allocate_exact_size(Vec2::new(width, height), Sense::hover());
         let frames = laid(demo, rect);
         for mark in &demo.marks {
-            if let Drawn::Areas(colours) = &mark.drawn
-                && mark.from <= seconds
-            {
-                self.picture(ui.ctx(), demo, colours);
+            match &mark.drawn {
+                Drawn::Areas(colours) if mark.from <= seconds => {
+                    self.picture(ui.ctx(), demo, colours);
+                }
+                Drawn::Shaded => self.shaded(ui.ctx(), demo),
+                _ => {}
             }
         }
         let pictures = |colours: &[Rgb8]| -> Option<TextureHandle> {
@@ -146,6 +150,22 @@ impl Demonstrations {
     }
 }
 
+impl Demonstrations {
+    /// Makes the example object's picture (S94), once; it goes by no colours.
+    fn shaded(&mut self, ctx: &egui::Context, demo: &Demo) {
+        if self.pictures.iter().any(|(shown, _)| shown.is_empty()) {
+            return;
+        }
+        let Some(object) = demo.object.as_deref() else {
+            return;
+        };
+        let pixels = object.picture(OBJECT_PICTURE);
+        let name = "demonstration-object".to_owned();
+        let texture = picture_texture(ctx, name, ([OBJECT_PICTURE; 2], &pixels, Alpha::Straight));
+        self.pictures.push((Vec::new(), texture));
+    }
+}
+
 /// Where the example's frames lie in `rect`: a copying kind's frames side by side; a box's, an
 /// ellipse's or a point in space's example as large as the card lets it (its frame left out,
 /// the paper the whole example).
@@ -158,11 +178,15 @@ fn laid(demo: &Demo, rect: Rect) -> Frames {
         Layout::Pair => {
             let side = ((rect.width() - GAP) / 2.0).min(rect.height());
             let left = rect.center().x - side - GAP / 2.0;
-            Frames::of(
-                Some(square(left, side)),
-                square(left + side + GAP, side),
-                None,
-            )
+            let [original, copy] = [square(left, side), square(left + side + GAP, side)];
+            // An object's example cropped to its box in both frames (S94), so it reads large.
+            if demo.view.is_some() {
+                return Frames {
+                    shown: Some([original, copy]),
+                    ..Frames::of(Some(fitted(demo, original)), fitted(demo, copy), None)
+                };
+            }
+            Frames::of(Some(original), copy, None)
         }
         Layout::Single | Layout::Wide => Frames {
             wide: Some(rect),
@@ -213,7 +237,10 @@ pub(crate) fn drawn(mark: &openpaint_practice::Mark, seconds: f64) -> f32 {
 /// Whether `pen` draws its line along its length (a hand's), rather than showing it at once
 /// (what the exercise gives, Compare's marks).
 pub(crate) const fn by_hand(pen: Marker) -> bool {
-    matches!(pen, Marker::Pencil | Marker::Air | Marker::Ink)
+    matches!(
+        pen,
+        Marker::Pencil | Marker::Construction | Marker::Air | Marker::Ink
+    )
 }
 
 #[cfg(test)]
@@ -221,6 +248,27 @@ mod tests {
     use super::*;
     use crate::components::moving;
     use crate::text;
+
+    #[test]
+    fn an_objects_construction_is_dark_in_its_step_and_faint_from_the_next_on() {
+        use crate::practice_demo_marks::toned;
+        let demo = Demo::of(Family::Object).expect("an object's demonstration");
+        let built = |m: &&openpaint_practice::Mark| m.pen == Marker::Construction;
+        for mark in demo.marks.iter().filter(built) {
+            let next = demo.steps[demo.step_at(mark.from) + 1];
+            assert_eq!(toned(&demo, mark, mark.to), INK, "dark while drawn");
+            assert_eq!(
+                toned(&demo, mark, next + 1.0),
+                PENCIL,
+                "faint in the next step"
+            );
+            assert_eq!(
+                toned(&demo, mark, demo.length),
+                PENCIL,
+                "faint under Compare"
+            );
+        }
+    }
 
     #[test]
     fn every_kinds_card_has_a_step_for_each_step_of_its_demonstration() {

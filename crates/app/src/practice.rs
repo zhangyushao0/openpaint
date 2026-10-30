@@ -26,6 +26,8 @@ use crate::view::Viewport;
 
 /// The side a colour combination's picture is drawn at, in pixels: one to a frame's canvas pixel.
 pub const AREAS_SIDE: u32 = 400;
+/// The side an object's picture is drawn at (S94), likewise.
+pub const OBJECT_SIDE: u32 = 400;
 /// How much of a colour combination's or a colour copy's original shows over the copy at first,
 /// in place; and how much of a single shape's picture shows under its outline.
 pub const SHOWN: f32 = 0.5;
@@ -179,7 +181,8 @@ pub struct SheetView {
     /// Each exercise's picture, a single shape's or a colour copy's (none: another kind, or a
     /// picture no pack holds now: removed).
     pub pictures: Vec<Option<Arc<SheetPicture>>>,
-    /// Each colour combination's picture, `AREAS_SIDE` square.
+    /// Each colour combination's picture, `AREAS_SIDE` square, and each object's (S94),
+    /// `OBJECT_SIDE` square: pictures the practice crate draws.
     pub painted: Vec<Option<Arc<PictureImage>>>,
 }
 
@@ -208,6 +211,10 @@ impl SheetView {
                     Original::Areas(areas) => Some(Arc::new(PictureImage {
                         size: [AREAS_SIDE; 2],
                         pixels: areas.picture(AREAS_SIDE),
+                    })),
+                    Original::Object(task) => Some(Arc::new(PictureImage {
+                        size: [OBJECT_SIDE; 2],
+                        pixels: task.picture(OBJECT_SIDE),
                     })),
                     _ => None,
                 })
@@ -282,4 +289,7 @@ pub enum Overlay {
     Space(Arc<SpaceCheck>),
     /// A solid in its box: the curves and sides read (frame units), the ellipses fitted.
     Solid(Arc<SolidCheck>),
+    /// An object simplified into its box (S94): the curves and edges read against its visible
+    /// edges and outlines.
+    Object(Arc<SolidCheck>),
 }

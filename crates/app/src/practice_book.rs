@@ -112,6 +112,10 @@ impl SheetRead {
             else {
                 continue;
             };
+            // Only a line's and a colour's original is read: others (an object's) take time to lay.
+            if !matches!(exercise.kind.family(), Family::Line | Family::Colour) {
+                continue;
+            }
             match (exercise.kind.family(), exercise.original()) {
                 (Family::Line, Original::Lines(original)) => {
                     let first = result.corrected_from.map_or(ALL_STROKES, |from| 0..from);

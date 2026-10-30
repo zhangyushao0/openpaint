@@ -266,7 +266,9 @@ pub(crate) fn metric_text(metric: Metric, value: f64) -> String {
         | Metric::FinalChroma
         | Metric::FirstHue
         | Metric::FinalHue => format!("{:+.1}", value * 100.0),
-        Metric::ScaleOff | Metric::SpaceOff | Metric::SolidOff => format!("{:.0} %", value * 100.0),
+        Metric::ScaleOff | Metric::SpaceOff | Metric::SolidOff | Metric::ObjectOff => {
+            format!("{:.0} %", value * 100.0)
+        }
         Metric::PointAcross | Metric::PointDown | Metric::ProportionOff => {
             format!("{:+.1} %", value * 100.0)
         }

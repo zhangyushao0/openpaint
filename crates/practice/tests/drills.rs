@@ -1,7 +1,7 @@
-//! Drills (S91): one kind on its own sheet, the counts the slice gives each kind, the variants in
-//! turn by the drill's number, shapes from the pictures there are (none without), and a drill's
-//! record: the kinds met and its time and lines count, never as a session, on the road or in the
-//! first picks.
+//! Drills (S91): one kind on its own sheet, the counts the slice gives each kind (stage 4's objects
+//! among them, S94), the variants in turn by the drill's number, shapes from the pictures there are
+//! (none without), and a drill's record: the kinds met and its time and lines count, never as a
+//! session, on the road or in the first picks.
 
 use openpaint_practice::{
     Before, Book, DRILL, ExerciseResult, Family, ItemRef, Kind, Metric, Pack, PackItem,
@@ -75,6 +75,7 @@ fn each_kind_s_drill_holds_that_kind_only_as_many_as_the_slice_says() {
         (Family::Cylinder, 3),
         (Family::Cone, 3),
         (Family::Sphere, 3),
+        (Family::Object, 3),
     ];
     for (family, count) in counts {
         let drilled = kinds(family, 1, &all);
@@ -119,6 +120,14 @@ fn variants_come_in_turn_by_the_drill_s_number() {
         first.windows(2).all(|pair| pair[0] != pair[1]),
         "frame, then plane"
     );
+    // Objects' carves in turn: four drills of three show each carve three times.
+    let objects: Vec<Kind> = (1..=4)
+        .flat_map(|n| kinds(Family::Object, n, &none))
+        .collect();
+    for carve in openpaint_practice::Carve::ALL {
+        let held = objects.iter().filter(|k| **k == Kind::Object(carve));
+        assert_eq!(held.count(), 3, "{carve:?}");
+    }
 }
 
 #[test]

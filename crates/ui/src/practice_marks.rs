@@ -4,7 +4,8 @@
 //! frame, a single shape's or a colour copy's picture with its credit small under the frame where
 //! its licence asks for one, a colour combination's or a value scale's in `practice_paint_marks.rs`,
 //! a box's or an ellipse's in `practice_geometry_marks.rs`, an estimate's or a point in space's in
-//! `practice_points_marks.rs`, a solid's in `practice_solid_marks.rs`).
+//! `practice_points_marks.rs`, a solid's in `practice_solid_marks.rs`, an object's picture and
+//! box in `practice_object_marks.rs`).
 //! While compared, the original's lines lie over the copy, in place or aligned onto it, as thick as
 //! the pen that drew the copy and in a semi-transparent marking red the ink shows through (S88:
 //! thicker, the red hid an error of a pen's width inside it), a hairline at least however far the
@@ -26,6 +27,7 @@ use openpaint_practice::{FRAME, Frame, ItemRef, Original, Rgb8};
 use crate::components::{Alpha, canvas_point, picture_texture};
 use crate::design::{CORRECTION, DIVIDER, INK, INK_SECONDARY, PANEL_RULE_WIDTH};
 use crate::practice_geometry_marks as geometry_marks;
+use crate::practice_object_marks as object_marks;
 use crate::practice_paint_marks as paint_marks;
 use crate::practice_points_marks as points_marks;
 use crate::practice_solid_marks as solid_marks;
@@ -115,33 +117,7 @@ pub(crate) fn show_marks(
         } else {
             Stroke::new(1.0, DIVIDER)
         };
-        match &sheet.originals[index] {
-            Original::Lines(lines) => {
-                for line in lines {
-                    let points = (line.iter()).map(|p| at(pair.original.to_canvas(*p)));
-                    painter.add(Shape::line(points.collect(), Stroke::new(line_width, INK)));
-                }
-            }
-            Original::Colour(rgb) => {
-                let swatch = Shape::convex_polygon(original.to_vec(), colour(*rgb), Stroke::NONE);
-                painter.add(swatch);
-            }
-            Original::Picture(_) => {
-                let placed: (&dyn Fn([f64; 2]) -> Pos2, f32) = (&at, scale);
-                let shown = (index, &pair.original);
-                show_picture(&painter, practice, shown, placed, pictures);
-            }
-            Original::Areas(_) | Original::Scale(_) => {
-                let painted = &pictures.painted;
-                paint_marks::show_original(&painter, practice, (index, pair), &at, painted);
-            }
-            Original::Box(_) | Original::FreeBoxes(_) | Original::Ellipse(_) => {
-                geometry_marks::show_original(&painter, practice, (index, pair), &at, widths);
-            }
-            Original::Flat(_) | Original::Space(_) | Original::Solid(_) => {
-                points_marks::show_original(&painter, practice, (index, pair), &at, widths);
-            }
-        }
+        show_original(&painter, practice, (index, pair), (&at, widths), pictures);
         painter.add(Shape::closed_line(original.to_vec(), frame));
         painter.add(Shape::closed_line(copy.to_vec(), frame));
     }
@@ -150,6 +126,48 @@ pub(crate) fn show_marks(
         show_overlay(&painter, practice, overlay, (&at, width), pictures);
     }
     paint_marks::show_probe(&painter, practice, &at);
+}
+
+/// Exercise `index`'s original (and its givens) in its pair's frames; `at` maps canvas points to
+/// the screen; an original's line `widths.0` points wide, `widths.1` points to a canvas pixel.
+fn show_original(
+    painter: &egui::Painter,
+    practice: &PracticeProjection,
+    (index, pair): (usize, &openpaint_practice::Pair),
+    (at, widths): (&dyn Fn([f64; 2]) -> Pos2, (f32, f32)),
+    pictures: &SheetPictures,
+) {
+    let (line_width, scale) = widths;
+    match &practice.sheet.originals[index] {
+        Original::Lines(lines) => {
+            for line in lines {
+                let points = (line.iter()).map(|p| at(pair.original.to_canvas(*p)));
+                painter.add(Shape::line(points.collect(), Stroke::new(line_width, INK)));
+            }
+        }
+        Original::Colour(rgb) => {
+            let corners = pair.original.corners().map(at).to_vec();
+            painter.add(Shape::convex_polygon(corners, colour(*rgb), Stroke::NONE));
+        }
+        Original::Picture(_) => {
+            let shown = (index, &pair.original);
+            show_picture(painter, practice, shown, (at, scale), pictures);
+        }
+        Original::Areas(_) | Original::Scale(_) => {
+            let painted = &pictures.painted;
+            paint_marks::show_original(painter, practice, (index, pair), at, painted);
+        }
+        Original::Box(_) | Original::FreeBoxes(_) | Original::Ellipse(_) => {
+            geometry_marks::show_original(painter, practice, (index, pair), at, widths);
+        }
+        Original::Object(_) => {
+            let painted = &pictures.painted;
+            object_marks::show_original(painter, practice, (index, pair), (at, widths), painted);
+        }
+        Original::Flat(_) | Original::Space(_) | Original::Solid(_) => {
+            points_marks::show_original(painter, practice, (index, pair), at, widths);
+        }
+    }
 }
 
 /// Exercise `index`'s picture fitted in its `frame` (or, where no pack kept holds it now, that
@@ -272,6 +290,9 @@ fn show_overlay(
         }
         (Overlay::Flat(_) | Overlay::Space(_), _) => {
             points_marks::show_overlay(painter, practice, overlay, (at, width));
+        }
+        (Overlay::Object(_), _) => {
+            object_marks::show_overlay(painter, practice, overlay, (at, width));
         }
         (Overlay::Solid(_), _) => {
             solid_marks::show_overlay(painter, practice, overlay, (at, width));

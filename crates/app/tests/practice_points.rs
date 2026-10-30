@@ -216,5 +216,5 @@ fn the_log_begins_stage_three_and_offers_it_after_stage_two() {
         [Family::Point, Family::Proportion, Family::Angle]
     );
     assert_eq!(families.last(), Some(&Family::Areas));
-    assert_eq!(log.today().ready, 3);
+    assert!(log.today().ready >= 3);
 }

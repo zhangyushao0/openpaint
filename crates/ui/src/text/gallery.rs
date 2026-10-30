@@ -147,11 +147,13 @@ pub(crate) fn stage(language: Language, stage: u8) -> String {
     }
 }
 
-/// What a stage the app holds practises: "Lines and colours", "Single shapes", "Points".
+/// What a stage the app holds practises: "Lines and colours", "Single shapes", "Points",
+/// "Simplifying".
 pub(crate) const fn stage_topic(stage: u8) -> Text {
     match stage {
         2 => SINGLE_SHAPES,
         3 => super::POINTS_STAGE,
+        4 => super::SIMPLIFYING_STAGE,
         _ => LINES_AND_COLOURS,
     }
 }

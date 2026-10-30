@@ -1,5 +1,6 @@
 //! A demonstration's marks on its example (`practice_demo.rs`), as the sheet draws them: what the
-//! exercise gives in ink, Sketch's pencil, a pass in the air as a dotted trace that goes again,
+//! exercise gives in ink, Sketch's pencil (an object's construction dark in its own step, faint
+//! once the next begins), a pass in the air as a dotted trace that goes again,
 //! Draw's ink, the dashed pencil of a horizon or a way to see it, a face or a negative shape
 //! shaded in pencil; then Compare's see-through red answer (dashed where a solid hides it), its
 //! blue reading (rings, dashes) and an original laid faint. A hand's mark draws along its length as time goes; what the exercise
@@ -38,12 +39,15 @@ const AIR_GOES: f64 = 0.6;
 
 /// Where an example's frames lie: the original's (a copying kind's), the copy's (the only one
 /// of a box, an ellipse or a point in space), the wheel (a colour's); an example fitted to the
-/// card (`wide`) lies on paper the size of the whole example, its marks kept inside it.
+/// card (`wide`) lies on paper the size of the whole example, its marks kept inside it; frames
+/// side by side cropped to the part the example shows (`shown`, an object's, S94) show that part,
+/// each its marks inside it.
 pub(crate) struct Frames {
     pub(crate) original: Option<Rect>,
     pub(crate) copy: Rect,
     pub(crate) wheel: Option<Rect>,
     pub(crate) wide: Option<Rect>,
+    pub(crate) shown: Option<[Rect; 2]>,
 }
 
 impl Frames {
@@ -53,6 +57,7 @@ impl Frames {
             copy,
             wheel,
             wide: None,
+            shown: None,
         }
     }
 }
@@ -65,9 +70,10 @@ pub(crate) fn paint(
     frames: &Frames,
     pictures: &dyn Fn(&[Rgb8]) -> Option<TextureHandle>,
 ) {
-    let papers = match frames.wide {
-        Some(paper) => [None, Some(paper)],
-        None => [frames.original, Some(frames.copy)],
+    let papers = match (frames.wide, frames.shown) {
+        (Some(paper), _) => [None, Some(paper)],
+        (None, Some([original, copy])) => [Some(original), Some(copy)],
+        (None, None) => [frames.original, Some(frames.copy)],
     };
     for rect in papers.into_iter().flatten() {
         painter.rect_filled(rect, 0.0, Color32::WHITE);
@@ -78,16 +84,24 @@ pub(crate) fn paint(
         else {
             continue;
         };
-        let clip = frames.wide.unwrap_or(rect).intersect(painter.clip_rect());
+        let cropped = (frames.shown).map(|[original, copy]| {
+            if mark.on == On::Original {
+                original
+            } else {
+                copy
+            }
+        });
+        let clip = (frames.wide.or(cropped).unwrap_or(rect)).intersect(painter.clip_rect());
         let alpha = if by_hand(mark.pen) {
             going(mark, seconds)
         } else {
             shown
         };
+        let colour = toned(demo, mark, seconds).gamma_multiply(alpha);
         on_frame(
             &painter.with_clip_rect(clip),
             rect,
-            (mark, shown, alpha),
+            (mark, shown, alpha, colour),
             pictures,
         );
     }
@@ -117,11 +131,26 @@ fn going(mark: &Mark, seconds: f64) -> f32 {
     }
 }
 
-/// `mark` on the frame `rect`, drawn `shown` of the way, at `alpha`.
+/// How long an object's construction takes to go faint once the next step begins (S94).
+const FADING: f64 = 0.4;
+
+/// What `mark` draws in `seconds` after the start: its pen's colour; an object's construction
+/// dark while its step draws, going faint once a later step begins (S94).
+pub(crate) fn toned(demo: &Demo, mark: &Mark, seconds: f64) -> Color32 {
+    if mark.pen != Marker::Construction {
+        return colour_of(mark.pen);
+    }
+    let next = demo.steps.get(demo.step_at(mark.from) + 1).copied();
+    let gone = next.map_or(0.0, |next| ((seconds - next) / FADING).clamp(0.0, 1.0));
+    INK.lerp_to_gamma(PENCIL, gone as f32)
+}
+
+/// `mark` on the frame `rect`, drawn `shown` of the way, at `alpha`, its lines and dots in
+/// `colour`.
 fn on_frame(
     painter: &egui::Painter,
     rect: Rect,
-    (mark, shown, alpha): (&Mark, f32, f32),
+    (mark, shown, alpha, colour): (&Mark, f32, f32, Color32),
     pictures: &dyn Fn(&[Rgb8]) -> Option<TextureHandle>,
 ) {
     let at = |p: Point| rect.min + Vec2::new(p[0] as f32, p[1] as f32) * rect.width();
@@ -130,7 +159,7 @@ fn on_frame(
         Drawn::Line(points) => {
             let share = if by_hand(pen) { shown } else { 1.0 };
             let path: Vec<Pos2> = along(points, share).into_iter().map(at).collect();
-            line(painter, pen, path, alpha);
+            line(painter, pen, path, colour);
         }
         Drawn::Ring(p) => ring(painter, (at(*p), rect.width()), pen, alpha),
         Drawn::Cross(p) => {
@@ -143,11 +172,11 @@ fn on_frame(
                 };
                 let ends = [[p[0] - dx, p[1] - dy], [p[0] + dx, p[1] + dy]];
                 let path: Vec<Pos2> = along(&ends, share).into_iter().map(at).collect();
-                line(painter, pen, path, alpha);
+                line(painter, pen, path, colour);
             }
         }
         Drawn::Dot(p) => {
-            painter.circle_filled(at(*p), DOT, colour_of(pen).gamma_multiply(alpha));
+            painter.circle_filled(at(*p), DOT, colour);
         }
         Drawn::Band { rows, colour } => {
             let fill = colour.map_or(PENCIL.gamma_multiply(SHADE), rgb);
@@ -167,6 +196,21 @@ fn on_frame(
                 painter.add(quad(&texture, corners, tint));
             }
         }
+        Drawn::Shaded => {
+            if let Some(texture) = pictures(&[]) {
+                let corners = [
+                    rect.left_top(),
+                    rect.right_top(),
+                    rect.right_bottom(),
+                    rect.left_bottom(),
+                ];
+                painter.add(quad(
+                    &texture,
+                    corners,
+                    Color32::WHITE.gamma_multiply(alpha),
+                ));
+            }
+        }
         Drawn::Pick(_) | Drawn::Ringed(_) => {}
     }
 }
@@ -174,7 +218,7 @@ fn on_frame(
 /// The colour `pen` draws in.
 const fn colour_of(pen: Marker) -> Color32 {
     match pen {
-        Marker::Given | Marker::Ink => INK,
+        Marker::Given | Marker::Ink | Marker::Construction => INK,
         Marker::Pencil | Marker::Air | Marker::Guide => INK_SECONDARY,
         Marker::Answer | Marker::Hidden => CORRECTION,
         Marker::Found => FOUND,
@@ -183,12 +227,11 @@ const fn colour_of(pen: Marker) -> Color32 {
     }
 }
 
-/// A line through `path` as `pen` draws it.
-fn line(painter: &egui::Painter, pen: Marker, path: Vec<Pos2>, alpha: f32) {
+/// A line through `path` as `pen` draws it, in `colour`.
+fn line(painter: &egui::Painter, pen: Marker, path: Vec<Pos2>, colour: Color32) {
     if path.len() < 2 {
         return;
     }
-    let colour = colour_of(pen).gamma_multiply(alpha);
     let (width, dashes) = match pen {
         Marker::Given => (GIVEN, None),
         Marker::Ink => (INK_LINE, None),
@@ -198,7 +241,9 @@ fn line(painter: &egui::Painter, pen: Marker, path: Vec<Pos2>, alpha: f32) {
         Marker::Guide => (1.0, Some((5.0, 4.0))),
         Marker::Air => (PENCIL_LINE, Some((2.0, 3.0))),
         Marker::Rule => (1.0, None),
-        Marker::Pencil | Marker::Shade | Marker::Faint => (PENCIL_LINE, None),
+        Marker::Pencil | Marker::Construction | Marker::Shade | Marker::Faint => {
+            (PENCIL_LINE, None)
+        }
     };
     let colour = if matches!(pen, Marker::Answer | Marker::Hidden) {
         colour.gamma_multiply(RED)

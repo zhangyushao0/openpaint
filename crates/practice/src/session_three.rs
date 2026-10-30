@@ -24,7 +24,7 @@ use crate::space::Trick;
 
 /// The quick families a stage-3 warm-up takes in turn: the stage's own first, then stage 1's and
 /// stage 2's.
-const QUICK_THREE: [Family; 13] = [
+pub(crate) const QUICK_THREE: [Family; 13] = [
     Family::Point,
     Family::Proportion,
     Family::Angle,

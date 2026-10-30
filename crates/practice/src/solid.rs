@@ -26,8 +26,9 @@ use crate::perspective_eye::{box_corners, directions, fitted, framing};
 use crate::plan::Family;
 use crate::random::Random;
 use crate::sheet::FRAME;
-use crate::solid_answer::{Body, SolidAnswer, Square, Vector, View, add, answer, sub};
+use crate::solid_answer::{Body, SolidAnswer, Square, View, answer};
 use crate::space::projected;
+use crate::vector::{Vector, add, sub};
 
 /// The Draw pen's width (the app's `INK_DIAMETER`, 5 canvas pixels) on a frame of `FRAME`.
 pub const PEN_WIDTH: f64 = 5.0 / FRAME;

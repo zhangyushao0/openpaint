@@ -28,7 +28,7 @@
 //!
 //! The warm-up's exercises are kinds met, each chosen by the seed among its family's; a shape in
 //! it a picture of its tier. A plan's shapes carry their pictures, picked by the seed
-//! (`pictures.rs`). Stage 3's sessions: `session_three.rs`.
+//! (`pictures.rs`). Stage 3's sessions: `session_three.rs`; stage 4's: `session_four.rs`.
 
 use std::collections::HashSet;
 
@@ -43,6 +43,7 @@ use crate::pictures::Pictures;
 use crate::plan::{Exercise, Family, Kind};
 use crate::random::{Random, derived};
 use crate::scale::ScaleTone;
+use crate::session_four::stage_four;
 use crate::session_three::stage_three;
 
 /// Exercises a stage-1 warm-up holds.
@@ -109,12 +110,13 @@ pub struct Before<'a> {
 }
 
 /// Session `number` of `stage` seeded `seed` after `before`: stage 2's for stage 2, stage 3's for
-/// stage 3 (`session_three.rs`), else stage 1's.
+/// stage 3 (`session_three.rs`), stage 4's for stage 4 (`session_four.rs`), else stage 1's.
 #[must_use]
 pub fn plan(stage: u8, number: u32, seed: u64, before: &Before<'_>) -> Plan {
     match stage {
         2 => stage_two(number, seed, before),
         3 => stage_three(number, seed, before),
+        4 => stage_four(number, seed, before),
         _ => stage_one(seed, before.met),
     }
 }

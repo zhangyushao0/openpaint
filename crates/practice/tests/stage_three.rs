@@ -4,7 +4,7 @@
 
 use openpaint_practice::{
     Before, Estimate, Family, ItemRef, Kind, LineTier, Pack, PackItem, PictureKind, Pictures,
-    STAGES_READY, Solid, Tier, Trick, WARM_UP_TWO, stage_three,
+    Solid, Tier, Trick, WARM_UP_TWO, stage_three,
 };
 
 fn pictures(tiers: &[Tier]) -> Pictures {
@@ -55,7 +55,6 @@ fn tricks(kinds: &[Kind]) -> Vec<Trick> {
 
 #[test]
 fn a_first_stage_three_session_is_estimates_points_in_space_shapes_and_a_combination() {
-    assert_eq!(STAGES_READY, 3);
     let all = pictures(&Tier::ALL);
     let plan = stage_three(1, 0x5EED_0090, &before(&[], &all, &[]));
     assert_eq!(plan, stage_three(1, 0x5EED_0090, &before(&[], &all, &[])));

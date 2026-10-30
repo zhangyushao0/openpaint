@@ -1,9 +1,10 @@
-//! `bench practice` on stage 3 (S90, S93): in a session holding them, on to its first point and
-//! its first angle estimated on the flat, its first point in space and its first solid, a mark,
-//! lines or the solid drawn by the pen (a cross on the point, a line along the angle, the answer
-//! of the point in space a little off, each of the solid's ellipses round once and its sides),
-//! then Compare opened (the copy read and the answer drawn, at once on the frame loop) and closed:
-//! a line each.
+//! `bench practice` on stages 3 and 4 (S90, S93, S94): in a session holding them, on to its first
+//! point and its first angle estimated on the flat, its first point in space, its first object and
+//! its first solid, a mark, lines, the object's visible edges or the solid drawn by the pen (a cross
+//! on the point, a line along the angle, the answer of the point in space a little off, each edge
+//! and seen curve of the object, each of the solid's ellipses round once and its sides), then
+//! Compare opened (the copy read and the answer drawn, at once on the frame loop) and closed: a
+//! line each.
 
 use openpaint_practice::{Family, FlatAnswer, Original, SpaceAnswer};
 
@@ -37,7 +38,10 @@ impl Runtime {
         let families = [(Family::Point, "point"), (Family::Angle, "angle")];
         let space = space.map(|family| (family, "point in space"));
         let solid = solid.map(|family| (family, "solid"));
-        for (family, name) in families.into_iter().chain(space).chain(solid) {
+        // Stage 4's objects come before its solid.
+        let object = [(Family::Object, "object")];
+        let all = families.into_iter().chain(space).chain(object).chain(solid);
+        for (family, name) in all {
             if !self.bench_on_to(family)? {
                 lines.push(format!("no {name} after this point of the session"));
                 continue;
@@ -68,6 +72,13 @@ impl Runtime {
                 Original::Solid(task) => (task.answer.ellipses.iter())
                     .map(|e| e.outline(PIECES))
                     .chain(task.answer.sides.iter().map(|side| side.to_vec()))
+                    .collect(),
+                Original::Object(task) => (task.answer.sides.iter().map(|side| side.to_vec()))
+                    .chain(
+                        (task.answer.outlines.iter().flatten())
+                            .filter(|stretch| !stretch.hidden)
+                            .map(|stretch| stretch.points.clone()),
+                    )
                     .collect(),
                 _ => return None,
             };

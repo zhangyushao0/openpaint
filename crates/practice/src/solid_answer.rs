@@ -20,30 +20,13 @@ use crate::ellipse::{Ellipse, EllipseGuide};
 use crate::ellipse_fit::placed;
 use crate::path::Point;
 use crate::space::projected;
+use crate::vector::{Vector, add, dot, sub, times};
 
 /// An outline drawn in this many pieces.
 const PIECES: usize = 192;
 /// A side's touches lie well clear of where they would meet and vanish: the cosine that finds them
 /// at most this (no cone's point nearly inside its base, no cylinder seen nearly down its axis).
 const TOUCHING: f64 = 0.95;
-
-pub(crate) type Vector = [f64; 3];
-
-pub(crate) fn add(a: Vector, b: Vector) -> Vector {
-    std::array::from_fn(|k| a[k] + b[k])
-}
-
-pub(crate) fn sub(a: Vector, b: Vector) -> Vector {
-    std::array::from_fn(|k| a[k] - b[k])
-}
-
-fn times(a: Vector, by: f64) -> Vector {
-    a.map(|v| v * by)
-}
-
-fn dot(a: Vector, b: Vector) -> f64 {
-    (0..3).map(|k| a[k] * b[k]).sum()
-}
 
 /// A square face in the world: a corner and its two edges from it.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -62,6 +45,11 @@ impl Square {
     pub(crate) fn rim(&self, t: f64) -> Vector {
         let out = add(times(self.u, 0.5 * t.cos()), times(self.v, 0.5 * t.sin()));
         add(self.centre(), out)
+    }
+
+    /// Its inscribed circle's direction of travel at `t` (radians), not one long.
+    pub(crate) fn rim_along(&self, t: f64) -> Vector {
+        add(times(self.u, -0.5 * t.sin()), times(self.v, 0.5 * t.cos()))
     }
 
     /// Its corners in order round: the corner, along `u`, opposite, along `v`.
@@ -122,16 +110,20 @@ pub struct Stretch {
     pub hidden: bool,
 }
 
-/// A solid as the eye sees it, in frame units.
+/// A solid as the eye sees it, in frame units; an object's too (S94: `object_answer.rs`).
 #[derive(Debug, Clone, PartialEq)]
 pub struct SolidAnswer {
-    /// A cylinder's two ends (the one seen whole first), a cone's base, a sphere's outline.
+    /// A cylinder's two ends (the one seen whole first), a cone's base, a sphere's outline; an
+    /// object's round part's ends.
     pub ellipses: Vec<Ellipse>,
     /// Each ellipse in stretches, seen or hidden.
     pub outlines: Vec<Vec<Stretch>>,
     /// The sides: a cylinder's from one end to the other, a cone's from its point to its base;
-    /// none where they cannot be drawn.
+    /// none where they cannot be drawn. An object's every straight edge and outline seen.
     pub sides: Vec<[Point; 2]>,
+    /// Whether its ellipses are drawn whole, hidden stretches too (a solid's: V大 draws
+    /// through), or only where seen (an object's: its visible edges alone).
+    pub whole: bool,
 }
 
 /// `body` seen through `view`; a cylinder's or a cone's ellipses those of `guides`.
@@ -158,6 +150,7 @@ pub(crate) fn answer(body: &Body, view: View, guides: &[EllipseGuide]) -> SolidA
                     rim(&far, view, |t| !seen[1] && turned(t)),
                 ],
                 sides: sides.unwrap_or_default(),
+                whole: true,
             }
         }
         Body::Cone(base, point) => {
@@ -178,6 +171,7 @@ pub(crate) fn answer(body: &Body, view: View, guides: &[EllipseGuide]) -> SolidA
                 ellipses: exact(0).into_iter().collect(),
                 outlines: vec![rim(&base, view, turned)],
                 sides: sides.unwrap_or_default(),
+                whole: true,
             }
         }
         Body::Sphere(centre, radius) => {
@@ -189,6 +183,7 @@ pub(crate) fn answer(body: &Body, view: View, guides: &[EllipseGuide]) -> SolidA
                     hidden: false,
                 }]],
                 sides: Vec::new(),
+                whole: true,
             }
         }
     }

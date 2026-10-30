@@ -38,6 +38,7 @@ mod practice_demo;
 mod practice_demo_marks;
 mod practice_geometry_marks;
 mod practice_marks;
+mod practice_object_marks;
 mod practice_paint_marks;
 mod practice_points_marks;
 mod practice_solid_marks;

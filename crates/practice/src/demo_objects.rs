@@ -1,0 +1,117 @@
+//! An object's demonstration (`demo.rs`, S94), V大's way in his order beside the picture: the box
+//! completed from its front corner, three edges and horizon; the biggest change's points by halves
+//! and thirds, then the smaller part's, each change's construction dark while its step draws and
+//! faint under the next (`Marker::Construction`); the visible edges in ink; then Compare as the
+//! exercise shows it: the visible edges red, what was drawn blue, the construction faint under
+//! them. The picture, the lines and the points are `ObjectTask`'s.
+
+use super::{Demo, Drawn, Layout, Marker, On, Script, bounds, line, wobbled};
+use crate::object::ObjectTask;
+use crate::object_design::Carve;
+use crate::path::Point;
+use crate::plan::Family;
+use crate::random::derived;
+
+/// The example: a box with a slope cut down its far end and a notch out of its near corner, seen
+/// from above; of the first 2,000 cuts of its seed's sequence with a second change seen so, the
+/// one whose construction is fewest lines and points (6 and 11 lines, 3 and 9 points), so each
+/// step reads on the card; a post's step is 29 lines at least, on a part a quarter to a third of
+/// the box wide: too many to read there. Named, as laying 2,000 objects to find it would take
+/// seconds.
+const SEED: u64 = 0xDE30_5EED_0094;
+const EXAMPLE: u64 = 1895;
+/// How far a hand's line strays (frame units).
+const STRAY: f64 = 0.004;
+/// Visible edges inked in the time of one.
+const INKED_TOGETHER: usize = 4;
+/// Paper kept round the box where the example is cropped (frame units).
+const AROUND: f64 = 0.04;
+
+/// An object's demonstration: a box cut, then a smaller part taken out.
+pub(super) fn object() -> Option<Demo> {
+    let task = ObjectTask::generate(Carve::Cut, derived(SEED, EXAMPLE));
+    let [biggest, smaller] = [task.stages.first()?, task.stages.get(1)?];
+    let mut script = Script::new();
+    script.given(On::Original, Marker::Given, Drawn::Shaded);
+    let height = task.seen.horizon;
+    script.given(On::Copy, Marker::Guide, line([0.0, height], [1.0, height]));
+    for (a, b, _) in task.seen.given() {
+        script.given(On::Copy, Marker::Given, line(a, b));
+    }
+    script.step();
+    let given = task.seen.given();
+    let completed = (task.seen.edges().into_iter())
+        .filter(|(a, b, _)| !given.iter().any(|(p, q, _)| same(*a, *b, *p, *q)))
+        .map(|(a, b, _)| (On::Copy, Marker::Pencil, line(a, b)))
+        .collect();
+    script.together(completed);
+    // Each change's construction dark while its step draws, faint under the next.
+    for stage in [biggest, smaller] {
+        script.step();
+        let lines = (stage.lines.iter())
+            .map(|[a, b]| (On::Copy, Marker::Construction, line(*a, *b)))
+            .collect();
+        script.together(lines);
+        let dots = (stage.found.iter().chain(&stage.middles))
+            .map(|p| (On::Copy, Marker::Construction, Drawn::Dot(*p)))
+            .collect();
+        script.together(dots);
+    }
+    script.step();
+    let mut drawn: Vec<Vec<Point>> = Vec::new();
+    let seen = (task.answer.outlines.iter().flatten()).filter(|stretch| !stretch.hidden);
+    let strokes = (task.answer.sides.iter().map(|side| side.to_vec()))
+        .chain(seen.map(|stretch| stretch.points.clone()));
+    // A few edges a stroke's time, so the many edges of an object ink at a hand's pace overall.
+    let inked: Vec<Vec<Point>> = (strokes.enumerate())
+        .map(|(turn, stroke)| wobbled(&stroke, STRAY, 0.3 + turn as f64))
+        .collect();
+    for group in inked.chunks(INKED_TOGETHER) {
+        let marks = (group.iter())
+            .map(|line| (On::Copy, Marker::Ink, Drawn::Line(line.clone())))
+            .collect();
+        script.together(marks);
+    }
+    drawn.extend(inked);
+    let mut demo = compared(script, &task, drawn);
+    // Both frames cropped to the box, a little round it, so the example reads
+    // large on the card.
+    let seen: Vec<Point> = task.seen.corners.to_vec();
+    demo.view = bounds(&seen).map(|[low, high]| {
+        let side = (high[0] - low[0]).max(high[1] - low[1]) + 2.0 * AROUND;
+        let middle = [(low[0] + high[0]) / 2.0, (low[1] + high[1]) / 2.0];
+        [
+            [middle[0] - side / 2.0, middle[1] - side / 2.0],
+            [middle[0] + side / 2.0, middle[1] + side / 2.0],
+        ]
+    });
+    demo.object = Some(Box::new(task));
+    Some(demo)
+}
+
+/// Whether the segments `a b` and `p q` are one, either way.
+fn same(a: Point, b: Point, p: Point, q: Point) -> bool {
+    let near = |x: Point, y: Point| (x[0] - y[0]).hypot(x[1] - y[1]) <= 1e-9;
+    (near(a, p) && near(b, q)) || (near(a, q) && near(b, p))
+}
+
+/// Compare: the visible edges red, what was drawn blue.
+fn compared(script: Script, task: &ObjectTask, drawn: Vec<Vec<Point>>) -> Demo {
+    let mut marks: Vec<(On, Marker, Drawn)> = (task.answer.sides.iter())
+        .map(|[a, b]| (On::Copy, Marker::Answer, line(*a, *b)))
+        .collect();
+    let seen = (task.answer.outlines.iter().flatten()).filter(|stretch| !stretch.hidden);
+    marks.extend(seen.map(|stretch| {
+        (
+            On::Copy,
+            Marker::Answer,
+            Drawn::Line(stretch.points.clone()),
+        )
+    }));
+    marks.extend(
+        drawn
+            .into_iter()
+            .map(|points| (On::Copy, Marker::Found, Drawn::Line(points))),
+    );
+    script.compare(Family::Object, Layout::Pair, marks)
+}

@@ -6,7 +6,7 @@ use openpaint_practice::{
 };
 
 /// Each kind's steps, Compare the last.
-const STEPS: [(Family, usize); 20] = [
+const STEPS: [(Family, usize); 21] = [
     (Family::Line, 4),
     (Family::Combined, 4),
     (Family::Shape, 5),
@@ -24,6 +24,7 @@ const STEPS: [(Family, usize); 20] = [
     (Family::Cylinder, 6),
     (Family::Cone, 4),
     (Family::Sphere, 5),
+    (Family::Object, 5),
     (Family::Colour, 5),
     (Family::Areas, 5),
     (Family::Scale, 3),
@@ -37,7 +38,8 @@ fn demo(family: Family) -> Demo {
 fn a_lone_example_is_framed_on_what_it_is_about_a_trick_on_its_face() {
     for (family, _) in STEPS {
         let demo = demo(family);
-        let lone = matches!(demo.layout, Layout::Single | Layout::Wide);
+        // An object's frames side by side are cropped to its box (S94).
+        let lone = matches!(demo.layout, Layout::Single | Layout::Wide) || family == Family::Object;
         assert_eq!(demo.view.is_some(), lone, "{family:?}");
     }
     let face_of = |demo: &Demo| -> [Point; 2] {
@@ -287,4 +289,48 @@ fn a_combination_is_painted_area_by_area_and_a_scale_cell_by_cell() {
         .filter(|m| m.on == On::Copy && m.pen == Marker::Ink)
         .count();
     assert_eq!(fills, 3, "the middle cell and the quarters");
+}
+
+#[test]
+fn an_objects_example_shows_its_picture_beside_the_box_and_its_corners_on_the_construction() {
+    let demo = demo(Family::Object);
+    assert_eq!(demo.layout, Layout::Pair);
+    let task = demo.object.as_deref().expect("the example object");
+    assert_eq!(task.stages.len(), 2, "big to small: two changes");
+    // Each step reads on the card: a dozen lines at most, no round part's square and middles.
+    assert!(task.squares.is_empty());
+    assert!(task.stages.iter().all(|stage| stage.lines.len() <= 12));
+    // Its construction is drawn as construction (dark in its step, faint after: the UI's).
+    let lines = (demo.marks.iter())
+        .filter(|m| m.pen == Marker::Construction && matches!(m.drawn, Drawn::Line(_)))
+        .count();
+    assert_eq!(lines, task.construction().len());
+    let shaded = |m: &&openpaint_practice::Mark| m.drawn == Drawn::Shaded;
+    let picture = demo.marks.iter().find(shaded).expect("the picture");
+    assert_eq!(
+        (picture.on, picture.to),
+        (On::Original, 0.0),
+        "shown from the start"
+    );
+    // Each corner found is dotted where its construction finds it, the object's corner projected.
+    let dots: Vec<Point> = (demo.marks.iter())
+        .filter_map(|m| match m.drawn {
+            Drawn::Dot(p) if m.pen == Marker::Construction => Some(p),
+            _ => None,
+        })
+        .collect();
+    for stage in &task.stages {
+        for (found, at) in stage.found.iter().zip(&stage.at) {
+            assert!(distance(*found, task.projected(*at)) < 1e-9);
+            assert!(dots.iter().any(|d| distance(*d, *found) < 1e-12));
+        }
+    }
+    // Compare's red is the visible edges.
+    let red = (demo.marks.iter())
+        .filter(|m| m.pen == Marker::Answer)
+        .count();
+    let seen = (task.answer.outlines.iter().flatten())
+        .filter(|s| !s.hidden)
+        .count();
+    assert_eq!(red, task.answer.sides.len() + seen);
 }

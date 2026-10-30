@@ -45,8 +45,8 @@ fn a_session_round_trips_and_damage_is_refused() {
         "a key without its id"
     );
     let mut unknown = bytes.clone();
-    // The first exercise's kind, after the session's fixed fields and the count: none of 1.11.0's.
-    unknown[1 + 4 + 8 * 4 + 4 + 4] = 14;
+    // The first exercise's kind, after the session's fixed fields and the count: none of 1.12.0's.
+    unknown[1 + 4 + 8 * 4 + 4 + 4] = 15;
     assert!(decode_session(&key, &unknown).is_err());
 }
 
@@ -99,6 +99,26 @@ fn solids_round_trip_with_their_error() {
     ));
     let bytes = encode_session(&session);
     assert_eq!(read(&practice_key(13), &bytes), Ok(session));
+}
+
+#[test]
+fn objects_round_trip_with_their_error() {
+    use openpaint_practice::{Carve, Plan};
+    let plan = Plan {
+        exercises: (Carve::ALL.iter())
+            .map(|c| Exercise::generated(Kind::Object(*c), 9))
+            .collect(),
+        warm_up: 0,
+    };
+    let mut session = SessionRecord::begun(14, (4, 1), (15, 16), plan);
+    (session.results).push(ExerciseResult::first(
+        3,
+        17,
+        4,
+        vec![(Metric::ObjectOff, 0.009)],
+    ));
+    let bytes = encode_session(&session);
+    assert_eq!(read(&practice_key(14), &bytes), Ok(session));
 }
 
 #[test]
