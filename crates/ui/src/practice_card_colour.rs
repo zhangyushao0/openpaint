@@ -54,7 +54,7 @@ pub(crate) fn compared(
     true
 }
 
-/// How strongly the original shows over the copy (a whole copy's too, S95).
+/// How strongly the original shows over the copy (a division's and a whole copy's too, S95).
 pub(crate) fn shown_slider(ui: &mut egui::Ui, shown: f32, taps: &mut Vec<Intent>) {
     let percent = format!("{:.0} %", shown * 100.0);
     let slider = SettingSlider {

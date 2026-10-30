@@ -11,9 +11,9 @@
 //! the pen that drew the copy and in a semi-transparent marking red the ink shows through (S88:
 //! thicker, the red hid an error of a pen's width inside it), a hairline at least however far the
 //! view is zoomed out; a picture lies over the copy (a shape's faint with its outline in that red,
-//! a colour copy's as strongly as the user sets); a colour shows as a patch inside the other. All
-//! of it is drawn by the screen over the canvas through the view, never into the artwork: the
-//! originals cannot be drawn on.
+//! a colour copy's, a division's or a whole copy's as strongly as the user sets); a colour shows
+//! as a patch inside the other. All of it is drawn by the screen over the canvas through the view,
+//! never into the artwork: the originals cannot be drawn on.
 
 use std::fmt;
 use std::sync::Arc;

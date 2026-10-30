@@ -1,8 +1,9 @@
 //! What the practice card shows of a division or a whole copy compared (S95, D108: shows, not
-//! tells). A division: its title and a table of its three levels, each named beside a short line
-//! in its colour, the lines drawn and how far they run on the mean (a share of the picture's
-//! longer side), the main lines' count in the marking red past V大's five; no sentence. A whole
-//! copy: its title and the slider setting how strongly the picture lies over the copy.
+//! tells). Both: their title and the slider setting how strongly the picture lies under the
+//! division or over the copy (half at first: a dark picture raised reads under the lines). A
+//! division, under it: a table of its three levels, each named beside a short line in its colour,
+//! the lines drawn and how far they run on the mean (a share of the picture's longer side), the
+//! main lines' count in the marking red past V大's five; no sentence.
 
 use egui::{Align2, Sense, Stroke, TextStyle, Vec2};
 use openpaint_app::{Overlay, PracticeProjection};
@@ -24,7 +25,8 @@ pub(crate) fn compared(
     taps: &mut Vec<openpaint_app::Intent>,
 ) -> bool {
     match &practice.overlay {
-        Some(Overlay::Division { check, .. }) => {
+        Some(Overlay::Division { check, shown, .. }) => {
+            shown_slider(ui, *shown, taps);
             let language = language(ui.ctx());
             let heads = [t::LINES_DRAWN, t::MEAN_LENGTH].map(|head| head.get(language));
             row(ui, (None, ""), [heads[0], heads[1]], None);

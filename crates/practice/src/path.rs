@@ -1,5 +1,6 @@
 //! Polylines in a cell's units (its side is 1): length, even resampling, nearest points, centre
-//! and spread, where two cross and how far apart they keep, a point along one.
+//! and spread, where two cross and how far apart they keep, a point along one, the parts of one
+//! inside a rectangle.
 
 /// A point, `[x, y]`.
 pub type Point = [f64; 2];
@@ -213,6 +214,48 @@ pub fn across_frame(through: Point, direction: Point) -> Option<[Point; 2]> {
     (enter.is_finite() && enter < leave).then(|| [along(enter), along(leave)])
 }
 
+/// The parts of the polyline `points` inside the rectangle from `[0, 0]` to `size`, cut at its
+/// edges, each a polyline of its own; where it only touches the rectangle, none.
+#[must_use]
+pub fn within(points: &[Point], size: Point) -> Vec<Vec<Point>> {
+    let mut parts: Vec<Vec<Point>> = Vec::new();
+    // Whether the last part runs on: its last segment ended inside, uncut.
+    let mut running = false;
+    for segment in points.windows(2) {
+        let (a, b) = (segment[0], segment[1]);
+        let Some((enter, leave)) = segment_within(a, b, size) else {
+            running = false;
+            continue;
+        };
+        let to = if leave < 1.0 { lerp(a, b, leave) } else { b };
+        match parts.last_mut() {
+            Some(part) if running && enter <= 0.0 => part.push(to),
+            _ => parts.push(vec![lerp(a, b, enter), to]),
+        }
+        running = leave >= 1.0;
+    }
+    parts
+}
+
+/// Where the segment from `a` to `b` enters and leaves the rectangle from `[0, 0]` to `size`, as
+/// shares of the way (0 at `a`, 1 at `b`); `None` where it stays outside or only touches it.
+fn segment_within(a: Point, b: Point, size: Point) -> Option<(f64, f64)> {
+    let (mut enter, mut leave) = (0.0_f64, 1.0_f64);
+    for axis in 0..2 {
+        let d = b[axis] - a[axis];
+        if d.abs() < 1e-12 {
+            if !(0.0..=size[axis]).contains(&a[axis]) {
+                return None;
+            }
+            continue;
+        }
+        let [t0, t1] = [0.0, size[axis]].map(|edge| (edge - a[axis]) / d);
+        enter = enter.max(t0.min(t1));
+        leave = leave.min(t0.max(t1));
+    }
+    (enter < leave).then_some((enter, leave))
+}
+
 /// The least distance between the polylines `a` and `b` (0 where they cross).
 #[must_use]
 pub fn apart(a: &[Point], b: &[Point]) -> f64 {
@@ -242,6 +285,25 @@ mod tests {
         assert_eq!(even[4], [1.0, 0.0]);
         assert_eq!(*even.last().expect("last"), [1.0, 0.5]);
         assert_eq!(resample(&[[0.3, 0.3], [0.3, 0.3]], 0.1), vec![[0.3, 0.3]]);
+    }
+
+    #[test]
+    fn a_polyline_within_a_rectangle_is_cut_at_its_edges_into_parts() {
+        let size = [1.0, 0.5];
+        // In, out over the right edge, back in, out below: two parts, cut where they cross.
+        let line = [[0.5, 0.25], [1.5, 0.25], [0.75, 0.4], [0.75, 0.8]];
+        let parts = within(&line, size);
+        assert_eq!(parts.len(), 2, "{parts:?}");
+        assert_eq!(parts[0], vec![[0.5, 0.25], [1.0, 0.25]]);
+        let [from, middle, to] = [parts[1][0], parts[1][1], parts[1][2]];
+        assert!((from[0] - 1.0).abs() < 1e-12 && from[1] > 0.25 && from[1] < 0.4);
+        assert_eq!(middle, [0.75, 0.4]);
+        assert!(distance(to, [0.75, 0.5]) < 1e-12);
+        // Inside whole: the same points; outside or along an edge's outer side: none.
+        let inside = [[0.1, 0.1], [0.2, 0.3], [0.9, 0.2]];
+        assert_eq!(within(&inside, size), vec![inside.to_vec()]);
+        assert!(within(&[[1.2, 0.1], [1.4, 0.4]], size).is_empty());
+        assert!(within(&[[-0.5, -0.5], [0.0, 0.0]], size).is_empty());
     }
 
     #[test]

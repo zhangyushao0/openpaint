@@ -11,9 +11,9 @@
 //! original over it in place as strong as the user sets, and is read from its pixels
 //! (`practice_read.rs`). A box's, an ellipse's, an estimate's or a point in space's copy is
 //! checked as geometry against its exact answer, at once on the frame loop
-//! (`practice_checks.rs`). A division (S95) has its picture laid faint under its lines, which are
-//! counted and measured per level; a whole copy its picture laid over it as strongly as the user
-//! sets, its division hidden.
+//! (`practice_checks.rs`). A division (S95) has its picture laid under its lines, which are
+//! counted and measured per level, and a whole copy its picture laid over it, its division
+//! hidden: both in place and as strongly as the user sets.
 //!
 //! The first Compare stores the exercise's result: when, the sheet's next stroke id (every stroke
 //! in the frame from it on is a correction) and a colour's numbers (a painted copy's when its
@@ -21,9 +21,11 @@
 //! answer was seen; every later one counts. A drawn exercise's pen turns blue. Anything laid in
 //! the frame afterwards takes the comparison away: corrections are made by eye.
 
+use std::sync::Arc;
+
 use openpaint_core::{Artwork, RegionMask};
 use openpaint_practice::{
-    ExerciseResult, Family, Fit, Frame, Metrics, Original, Point, Rgb8, score_colour,
+    DivisionCheck, ExerciseResult, Family, Fit, Frame, Metrics, Original, Point, Rgb8, score_colour,
 };
 
 use super::read::{CopyRead, Reading};
@@ -50,6 +52,9 @@ pub(super) enum Compared {
     /// A box's or an ellipse's copy, its geometry checked (`Overlay::Box`, `FreeBoxes`,
     /// `Ellipse`).
     Checked(Overlay),
+    /// A division's lines read (S95): its picture lies under them as strongly as the user sets.
+    /// Lines drawn after it are the division's own: no correcting pen.
+    Divided(Arc<DivisionCheck>),
 }
 
 /// The aligned overlay's fit.
@@ -101,9 +106,7 @@ impl PracticeSheet {
             }
         }
         self.changed = true;
-        // A division's lines drawn after Compare are its own: no correcting pen (S95).
-        let divided = self.family(index).is_some_and(Family::divided);
-        if matches!(compared, Compared::Drawn(_) | Compared::Checked(_)) && !divided {
+        if matches!(compared, Compared::Drawn(_) | Compared::Checked(_)) {
             self.pen = Pen::Correct;
         }
         self.compared = Some(compared);
@@ -133,11 +136,11 @@ impl PracticeSheet {
                 }
             }
             _ if !holds_copy(artwork, frame) => return Err(nothing()),
-            // A division: the picture laid faint under its lines, counted (S95); a whole copy:
-            // the picture over it as strong as the slider sets, its division hidden.
+            // A division: its lines counted, the picture under them (S95); a whole copy: the
+            // picture over it, its division hidden; both as strongly as the slider sets.
             Original::Picture(_) if self.family(index) == Some(Family::Division) => {
-                let overlay = self.division_overlay(index, artwork);
-                Compared::Checked(overlay.ok_or_else(nothing)?)
+                let check = self.division(index, artwork).ok_or_else(nothing)?;
+                Compared::Divided(Arc::new(check))
             }
             Original::Picture(_) if self.family(index) == Some(Family::WholeCopy) => {
                 Compared::Painted(Reading::Shown)
@@ -227,7 +230,7 @@ impl PracticeSheet {
             (Compared::Checked(Overlay::Solid(check) | Overlay::Object(check)), _) => {
                 check.metrics.clone()
             }
-            (Compared::Checked(Overlay::Division { check, .. }), _) => check.metrics.clone(),
+            (Compared::Divided(check), _) => check.metrics.clone(),
             // A whole copy keeps its own division's numbers.
             _ if self.family(index) == Some(Family::WholeCopy) => (self.division(index, artwork))
                 .map(|check| check.metrics)
@@ -326,6 +329,11 @@ impl PracticeSheet {
                 }))
             }
             (Compared::Checked(checked), _) => Some(checked.clone()),
+            (Compared::Divided(check), Original::Picture(_)) => Some(Overlay::Division {
+                corners: self.picture_corners(index, |p| laid(Fit::SAME, p))?,
+                shown: self.painted_overlay().0,
+                check: Arc::clone(check),
+            }),
             (
                 Compared::Colour {
                     original,
@@ -351,16 +359,26 @@ impl PracticeSheet {
         (shown, outlined): (f32, bool),
     ) -> Option<Overlay> {
         let picture = self.sheet.pictures[index].as_ref()?;
-        let [x, y] = picture.fit.origin;
-        let [w, h] = picture.fit.size;
-        let corners = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
         let outline = picture.outline.iter().filter(|_| outlined).flatten();
         Some(Overlay::Picture {
-            corners: corners.map(|p| laid(&p)),
+            corners: self.picture_corners(index, &laid)?,
             outline: outline
                 .map(|line| line.iter().map(&laid).collect())
                 .collect(),
             shown,
         })
+    }
+
+    /// Exercise `index`'s picture's corners (top left, top right, bottom right, bottom left)
+    /// laid by `laid`.
+    fn picture_corners(
+        &self,
+        index: usize,
+        laid: impl Fn(&Point) -> [f32; 2],
+    ) -> Option<[[f32; 2]; 4]> {
+        let picture = self.sheet.pictures[index].as_ref()?;
+        let ([x, y], [w, h]) = (picture.fit.origin, picture.fit.size);
+        let corners = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+        Some(corners.map(|p| laid(&p)))
     }
 }

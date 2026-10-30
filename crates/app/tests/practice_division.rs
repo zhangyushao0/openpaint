@@ -1,10 +1,10 @@
 //! Divisions and whole copies on a practice sheet (S95): a composition beside the empty frame of
 //! its size; a division drawn with the levels' pens (no Sketch, Draw or Correct), its picture laid
-//! faint under its lines at Compare (a line drawn at a known place of the picture lies on that
-//! pixel), its lines joined, counted and measured, the first numbers kept, lines drawn after
-//! Compare part of it; a whole copy's division on a layer of its own, dimmed under Draw's line
-//! drawing and hidden at Compare, none of it a step undo takes back; stage 4 from the log with and
-//! without the composition pack.
+//! under its lines at Compare as strongly as the slider sets (a line drawn at a known place of the
+//! picture lies on that pixel), its lines joined, counted and measured, the first numbers kept,
+//! lines drawn after Compare part of it; a whole copy's division on a layer of its own, dimmed
+//! under Draw's line drawing and hidden at Compare, none of it a step undo takes back; stage 4
+//! from the log with and without the composition pack.
 
 use std::sync::Arc;
 
@@ -163,7 +163,12 @@ fn a_division_is_drawn_by_level_and_compared_with_its_picture_under_it() {
     practise(&mut session, PracticeIntent::Compare(true));
     let (laid, shown, check) = division_overlay(&session);
     assert_eq!(check.rows.map(|row| row.lines), [2, 3, 1]);
-    assert!(shown > 0.0 && shown < 0.5, "faint");
+    assert!((shown - 0.5).abs() < 1e-6, "at half strength");
+    // The slider raises the picture under the same lines.
+    practise(&mut session, PracticeIntent::Shown(0.9));
+    let (_, raised, again) = division_overlay(&session);
+    assert!((raised - 0.9).abs() < 1e-6);
+    assert_eq!(again, check);
     // The picture lies in place: its pixel (400, 330) on the canvas pixel the line was drawn at.
     let (u, v) = (400.0 / 800.0, 330.0 / 600.0);
     let laid_at = [

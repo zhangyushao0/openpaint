@@ -2,12 +2,13 @@
 //! the view as every original is (`practice_marks.rs`), never into the artwork: the picture in the
 //! original's frame (`practice_marks.rs` lays it, with its credit), and in the copy's frame the
 //! picture's edge in pencil, the empty frame of its size the division and the copy are drawn in.
-//! Compared, a division's lines lie over its faint picture in their levels' colours as thick as the
-//! pen (V大's red, green and blue: no answer, the picture under them is the check).
+//! Compared, a division's lines lie over its picture (as strong as the card's slider sets) in their
+//! levels' colours as thick as the pen and inside the copy's frame (V大's red, green and blue: no
+//! answer, the picture under them is the check).
 
-use egui::{Color32, Pos2, Shape, Stroke};
+use egui::{Color32, Pos2, Rect, Shape, Stroke};
 use openpaint_app::PracticeProjection;
-use openpaint_practice::{DivisionCheck, Frame, Level, Pair};
+use openpaint_practice::{DivisionCheck, Frame, Level, Pair, within};
 
 use crate::design::DIVIDER;
 
@@ -41,18 +42,26 @@ pub(crate) fn show_edge(
 }
 
 /// A division's lines over its copy in `frame`, each in its level's colour, `width` points (the
-/// pen's width).
+/// pen's width) with round joins and ends, so a stroke's hook shows no spike; kept to the frame:
+/// cut at its edges, and on the screen inside its bounds (exact while the view is not turned).
 pub(crate) fn show_lines(
     painter: &egui::Painter,
     frame: &Frame,
     check: &DivisionCheck,
     (at, width): (&dyn Fn([f64; 2]) -> Pos2, f32),
 ) {
+    let painter = painter.with_clip_rect(Rect::from_points(&frame.corners().map(at)));
+    let size = [1.0, frame.size[1] / frame.unit()];
     for line in &check.lines {
-        let points: Vec<Pos2> = (line.points.iter())
-            .map(|p| at(frame.to_canvas(*p)))
-            .collect();
-        let stroke = Stroke::new(width, level_colour(line.level));
-        painter.add(Shape::line(points, stroke));
+        let colour = level_colour(line.level);
+        for part in within(&line.points, size) {
+            let points: Vec<Pos2> = part.iter().map(|p| at(frame.to_canvas(*p))).collect();
+            for segment in points.windows(2) {
+                painter.line_segment([segment[0], segment[1]], Stroke::new(width, colour));
+            }
+            for point in points {
+                painter.circle_filled(point, width / 2.0, colour);
+            }
+        }
     }
 }

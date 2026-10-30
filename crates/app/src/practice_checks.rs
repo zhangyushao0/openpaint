@@ -17,7 +17,7 @@ use openpaint_practice::{
 };
 
 use super::PracticeSheet;
-use crate::practice::{Overlay, SHAPE_SHOWN};
+use crate::practice::Overlay;
 use crate::practice_copy::{ALL_STROKES, division_pieces, line_pieces};
 
 impl PracticeSheet {
@@ -127,20 +127,6 @@ impl PracticeSheet {
         let frame = self.sheet.pairs.get(index)?.copy;
         let side = picture.fit.size[0].max(picture.fit.size[1]);
         Some(DivisionCheck::of(&division_pieces(artwork, &frame), side))
-    }
-
-    /// Exercise `index`'s division compared: its picture faint in place under the lines.
-    pub(super) fn division_overlay(&self, index: usize, artwork: &Artwork) -> Option<Overlay> {
-        let check = self.division(index, artwork)?;
-        let picture = self.sheet.pictures.get(index)?.as_ref()?;
-        let frame = self.sheet.pairs.get(index)?.copy;
-        let ([x, y], [w, h]) = (picture.fit.origin, picture.fit.size);
-        let corners = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
-        Some(Overlay::Division {
-            corners: corners.map(|p| frame.to_canvas(p).map(|v| v as f32)),
-            shown: SHAPE_SHOWN,
-            check: Arc::new(check),
-        })
     }
 }
 

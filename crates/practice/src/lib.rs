@@ -113,7 +113,9 @@ pub use pack::{
     Credit, ItemRef, MAX_ID, MAX_OUTLINE_POINTS, MAX_PICTURE_SIDE, PERSONAL, Pack, PackItem,
     PackProblem, PictureKind, Tier, valid_id,
 };
-pub use path::{Point, across_frame, apart, crossings, distance, length, meet, nearest, resample};
+pub use path::{
+    Point, across_frame, apart, crossings, distance, length, meet, nearest, resample, within,
+};
 pub use perspective::{BoxView, Direction, EDGES, FAR, Horizon, PerspectiveBox};
 pub use perspective_check::{BoxCheck, Checked, ON_ANGLE};
 pub use perspective_free::{Corner, FreeBox, FreeCheck, RIGHT_ANGLE};

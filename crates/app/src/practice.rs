@@ -29,8 +29,9 @@ use crate::view::Viewport;
 pub const AREAS_SIDE: u32 = 400;
 /// The side an object's picture is drawn at (S94), likewise.
 pub const OBJECT_SIDE: u32 = 400;
-/// How much of a colour combination's or a colour copy's original shows over the copy at first,
-/// in place; and how much of a single shape's picture shows under its outline.
+/// How much of a colour combination's, a colour copy's, a division's or a whole copy's original
+/// shows over the copy at first, in place; and how much of a single shape's picture shows under
+/// its outline.
 pub const SHOWN: f32 = 0.5;
 pub const SHAPE_SHOWN: f32 = 0.35;
 
@@ -44,8 +45,8 @@ pub enum PracticeIntent {
     Compare(bool),
     /// A line's original laid over the copy aligned onto it (true) or in place.
     Aligned(bool),
-    /// How much of a colour combination's or a colour copy's original shows over the copy, 0 to
-    /// 1.
+    /// How much of a colour combination's, a colour copy's, a division's or a whole copy's
+    /// original shows over the copy, 0 to 1.
     Shown(f32),
     /// The colour combination's area the card compares on the wheel.
     Area(usize),
@@ -317,7 +318,7 @@ pub enum Overlay {
     /// An object simplified into its box (S94): the curves and edges read against its visible
     /// edges and outlines.
     Object(Arc<SolidCheck>),
-    /// A division (S95): its picture faint in place under the copy, its corners (top left, top
+    /// A division (S95): its picture in place under the copy, its corners (top left, top
     /// right, bottom right, bottom left) in canvas pixels, `shown` strong; the lines as drawn,
     /// joined, by level (frame units), and each level's count and length.
     Division {
