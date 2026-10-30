@@ -76,8 +76,42 @@ The author, 2026-10-23: practice is their main activity now. The app gets a prac
 - S90 Points, proportions and angles: stage 3 is done (1.8.0; D107 amended; V大's week 1 二维抽象网格 as quick estimates with exact answers, then week 3's 点定位 on a box): a point placed in its frame, a proportion marked on a segment of another length and direction (the end its share counts from ringed), an angle drawn through a given dot, each marked with Draw (a dot or a small cross, the last counting; Sketch never read); a two-point box with a front face shaded and one of V大's five tricks in turn (the centre, the halves towards the vanishing point, thirds in depth, the next face, a mirror), every answer a point of the face in space projected; Compare draws the answer red as thick as the pen, what was read blue and the way to see it in dashed pencil (the halves and thirds, lines run on to the frame, a trick's construction in the original's frame), the card its title; the first Compare's error kept (codes 42 to 46), never shown; stage 3 (点定位 / Points) of six estimates, three tricks, a medium and a hard shape and a combination after a warm-up of three, about 28 minutes, named on the Today card, the options and the book's road. The tricks' constructions on the picture land on the projected answers on 300 boxes each; `s90-points` passes in English and as on a Chinese tablet, 56 scenarios with every hash before unchanged; on the tablet a test session's point and centre marked, compared and corrected, `bench practice` (an estimate's and a point in space's Compare 96 % of the vsyncs), the smoke 16.7 s, the library restored.
 - S91 Single-kind practice is done (1.9.0; D110; the author, 2026-10-28: try every exercise one by one and practise one kind on purpose, 专项训练; agreed on a mock): the practice options' Practice section, each ready stage a row starting a session and its kinds as tiles drawn as fixed line drawings, in ink once compared anywhere, pencil before, ringed while a drill is unfinished; a tile starts or continues a drill of its kind on a sheet of its own (6 lines, 4 groups, 6 colours, 3 shapes, 2 combinations, 2 scales, 3 boxes, a free page, 4 ellipses, 5 estimates or 3 of a trick), its How first every time, Finish without a road, One more the kind's next; a record of stage `DRILL` (format 1, no field), counted in time, the book's days, the kinds met and the seals of lines and colours, never as a session; Shape without a pack's picture says where to import one; `cargo device-screens`, `practice-test start drill <kind>`. `s91-drills` and `s91-drills-zh` pass, every screenshot looked at, 58 scenarios with every hash before unchanged; on the tablet the practice page over the author's records and a test centre drill walked (How first, a mark, Compare, a correction), `device-screens` finding no screenshot folder there yet, the smoke 19.7 s, the library restored.
 - S92 Demonstrations is done (1.10.0; D108 amended; merged from a worktree beside S91's tablet run; the author, 2026-10-28, new to drawing: "you have to tell me how to practise"; agreed on a mock): each kind's How opens with a line on what it trains and its week in V大's course, then a small example, never the exercise in hand, where V大's way draws itself at a hand's pace (pencil to look and construct, passes in the air, ink for the answer, then Compare's marks), its numbered steps lit as they draw, then the one paragraph on the marks; built in `openpaint-practice` from the generators' exact answers and the tricks' constructions, each trick framed on its face, a colour in V大's order (hue, lightness, purity); played whenever How opens, once (4.5 to 10.3 s), Again replaying; the colour copy has none. `s92-demonstrations` and `s92-demonstrations-zh` pass (every kind mid-way and at its end, every screenshot looked at by the agent, the main session checking each kind's steps against V大's method), 60 scenarios with every hash before unchanged; on the tablet (2026-10-28) a line's, a colour's and a mirror's test drill How played and replayed, How opening 98 % of the vsyncs over its first 2 s (`bench practice`), the smoke 16.7 s, the library restored byte-identical.
+- S93 Solids in boxes (1.11.0; after S92; V大's week 3, solids found in a box by 点定位: "never draw a cylinder straight off, draw the box first").
+  - **The exercise.** A two-point box like the tricks' boxes, drawn whole with its hidden edges dashed and its horizon, sized for its solid, beside the same box in the copy's frame as the tricks pair them. The solid is one of three:
+    - a cylinder with square ends, upright or lying along either horizontal direction;
+    - a cone, its square base on one face and its point at the opposite face's centre, upright or lying;
+    - a sphere in a cube.
+
+    The user constructs with Sketch and draws the solid with Draw: a cylinder's two ends and two sides, a cone's base and two sides, a sphere's outline.
+  - **The answer is exact.**
+    - The circle inscribed in a square face, in perspective, is the ellipse touching the face's four edges at their middles. V大's way finds those points exactly: the face's diagonals, then lines through their crossing towards the vanishing points.
+    - A cylinder's sides are the lines touching both ends; a cone's sides are the lines from its point touching its base.
+    - A sphere's outline is its exact projection. V大's way finds a circle: the middle section's ellipse found the same way, then a circle through the ends of its long axis. Cubes are generated only where that circle lies within the Draw pen's width of the exact outline at the sheet's view.
+  - **Compare.**
+    - The solid in red as thick as the pen and see-through (S88), its hidden halves dashed.
+    - What was read, in blue: Draw's curves nearest each end, base or outline, fitted as an ellipse (S84's direct fit) when they cover enough of it; Draw's straight pieces nearest each side (S84's line pieces). Corrections count in place of what they redraw, as in S84.
+    - V大's construction in dashed pencil in the original's frame: the diagonals, the lines through the centre, the four middles ringed, and for a sphere its middle section and that section's ellipse.
+    - The card shows its title only (D108). The first Compare's error is kept as a new code (the read lines' mean distance from the answer, as a share of the box) and never shown.
+  - **Where it lives.**
+    - Three kinds, 圆柱 / Cylinder, 圆锥 / Cone and 球体 / Sphere, each with its How and a demonstration in V大's order (S92):
+      - cylinder: an end's diagonals; through their crossing to both points for the four middles; the ellipse through them; the other end alike; the two sides touching both ends;
+      - cone: the base's ellipse alike; the opposite face's diagonals for the point; the two sides from the point touching the base;
+      - sphere: the box halved in height for its middle section; its diagonals and four middles; its ellipse; a circle through the ends of the ellipse's long axis.
+    - Stage 3's sessions take two solids, in turn by the session's number, in place of one trick and two estimates, so a session stays about 28 to 30 minutes. The warm-up may take a solid once one is met.
+    - Drills of 3 of a solid, from three new tiles on stage 3's row.
+
+  Done:
+  - Tests:
+    - on 300 generated boxes of each solid, the construction's points lie on the exact ellipses and the sides touch them;
+    - V大's sphere circle is within the pen's width of the exact outline on every generated cube;
+    - simulated hands (S84's) drawing each solid read back as its ellipses and sides.
+  - The walk-through `s93-solids` passes in both languages: each solid constructed, drawn and compared, one corrected; a drill's How mid-play and at its end.
+  - Every screenshot looked at.
+  - Every scenario before keeps its hashes, but those stage 3's new mix changes, which are named.
+  - `cargo gate` passes.
+  - On the tablet: a test drill of each solid with its How and Compare, `bench practice`, the smoke, the library restored.
 - Next, each specified after the one before lands:
-  - Solids in boxes (a cylinder, a cone and a sphere in a given box) and objects simplified into them.
+  - Objects simplified into boxes and solids (V大's 几何体 + 点定位 概括单体: a pack's object at its own angle, boxed and cut beside it, every point found, compared against the picture).
   - Picture division, Notan and whole-picture copies.
   - Key shifts, gamut masks and abstract analysis.
   - Structure rotation against renders.
