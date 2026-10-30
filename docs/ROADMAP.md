@@ -93,6 +93,7 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 
 (Findings outside the current slice, one line each, dated.)
 
+- 2026-10-30 The author, trying value masses and single shapes (kept to change later, on their word): a picture not square lies inside the square frame with its own ground, so the picture's edge and the copy's square disagree and they did not know what to copy against, a busy ground getting in the way of reading the shape by its negative space (the copy's frame shows the picture's edge in pencil for compositions only, faint; never for shapes); their idea: both frames the picture's shape. Recommended: the original's frame cropped to its picture and the copy's frame the same, one edge to measure against; for a single shape its ground faded to paper by its outline, to try.
 - 2026-10-23 The long copy's picker lists each picture as a row with its full credit and links, which crowds a tier of 30: a grid of thumbnails, the credit shown with the picture chosen (S83).
 - 2026-10-23 Languages after S77: Chinese typed on the tablet's keyboard into a title or name (IME composition) is unchecked; only a card's paragraphs are line-broken the Chinese way (dialog notes and hints are one line today); curly quotes in Chinese come from Roboto (Android's own order); a card title is still cut at about 12 characters, Chinese or not; Android 13's per-app language setting could also choose the language (it is the locale the host hands over at start).
 
