@@ -1,10 +1,10 @@
-//! Stage 3 (S90): sessions of estimates on the flat and points in space, V大's five tricks in
-//! turn, two shapes of the medium and hard tiers, a colour combination, and a warm-up of three
-//! from the kinds met.
+//! Stage 3 (S90, S93): sessions of estimates on the flat, points in space (V大's five tricks in
+//! turn) and solids in boxes (in turn), two shapes of the medium and hard tiers, a colour
+//! combination, and a warm-up of three from the kinds met.
 
 use openpaint_practice::{
     Before, Estimate, Family, ItemRef, Kind, LineTier, Pack, PackItem, PictureKind, Pictures,
-    STAGES_READY, Tier, Trick, WARM_UP_TWO, stage_three,
+    STAGES_READY, Solid, Tier, Trick, WARM_UP_TWO, stage_three,
 };
 
 fn pictures(tiers: &[Tier]) -> Pictures {
@@ -35,6 +35,15 @@ fn before<'a>(met: &'a [Kind], pictures: &'a Pictures, used: &'a [ItemRef]) -> B
     }
 }
 
+fn solids(kinds: &[Kind]) -> Vec<Solid> {
+    (kinds.iter())
+        .filter_map(|kind| match kind {
+            Kind::Solid(solid) => Some(*solid),
+            _ => None,
+        })
+        .collect()
+}
+
 fn tricks(kinds: &[Kind]) -> Vec<Trick> {
     (kinds.iter())
         .filter_map(|kind| match kind {
@@ -52,29 +61,32 @@ fn a_first_stage_three_session_is_estimates_points_in_space_shapes_and_a_combina
     assert_eq!(plan, stage_three(1, 0x5EED_0090, &before(&[], &all, &[])));
     assert_eq!(plan.warm_up, 0, "nothing met");
     let kinds: Vec<Kind> = plan.exercises.iter().map(|e| e.kind).collect();
-    let flat = [Estimate::Point, Estimate::Proportion, Estimate::Angle].map(Kind::Flat);
-    assert_eq!(kinds[..6], [flat, flat].concat());
+    let flat = [
+        Estimate::Point,
+        Estimate::Proportion,
+        Estimate::Angle,
+        Estimate::Point,
+    ];
+    assert_eq!(kinds[..4], flat.map(Kind::Flat));
+    assert_eq!(tricks(&kinds), [Trick::Centre, Trick::Halves]);
+    assert_eq!(solids(&kinds), [Solid::Cylinder, Solid::Cone]);
     assert_eq!(
-        tricks(&kinds),
-        [Trick::Centre, Trick::Halves, Trick::Thirds]
-    );
-    assert_eq!(
-        kinds[9..11],
+        kinds[8..10],
         [Kind::Shape(Tier::Medium), Kind::Shape(Tier::Hard)]
     );
-    for exercise in &plan.exercises[9..11] {
+    for exercise in &plan.exercises[8..10] {
         let picture = exercise.picture.as_ref().expect("a picture");
         let Kind::Shape(tier) = exercise.kind else {
             panic!("a shape")
         };
         assert!(picture.item.starts_with(tier.name()));
     }
-    assert_eq!(kinds[11].family(), Family::Areas);
-    assert_eq!(kinds.len(), 12);
+    assert_eq!(kinds[10].family(), Family::Areas);
+    assert_eq!(kinds.len(), 11);
     // Without a pack's pictures, no shapes.
     let none = pictures(&[]);
     let bare = plan_of(1, &[], &none);
-    assert_eq!(bare.len(), 10);
+    assert_eq!(bare.len(), 9);
     assert!(bare.iter().all(|kind| kind.family() != Family::Shape));
     // `plan` gives stage 3 its own.
     let planned = openpaint_practice::plan(3, 1, 0x5EED_0090, &before(&[], &all, &[]));
@@ -90,15 +102,26 @@ fn plan_of(number: u32, met: &[Kind], pictures: &Pictures) -> Vec<Kind> {
 }
 
 #[test]
-fn the_five_tricks_come_in_turn_and_their_codes_hold() {
+fn the_five_tricks_the_three_solids_and_the_fourth_estimate_come_in_turn_and_codes_hold() {
     let none = pictures(&[]);
     let mut seen = Vec::new();
-    for number in 1..=5 {
-        seen.extend(tricks(&plan_of(number, &[], &none)));
+    let mut shapes = Vec::new();
+    let mut fourth = Vec::new();
+    for number in 1..=15 {
+        let kinds = plan_of(number, &[], &none);
+        seen.extend(tricks(&kinds));
+        shapes.extend(solids(&kinds));
+        fourth.push(kinds[3]);
     }
-    assert_eq!(&seen[3..6], [Trick::Step, Trick::Mirror, Trick::Centre]);
+    assert_eq!(&seen[2..5], [Trick::Thirds, Trick::Step, Trick::Mirror]);
+    assert_eq!(&shapes[2..4], [Solid::Sphere, Solid::Cylinder]);
+    for solid in Solid::ALL {
+        let count = shapes.iter().filter(|s| **s == solid).count();
+        assert_eq!(count, 10, "{solid:?}: twice in three sessions");
+    }
+    assert_eq!(fourth[..3], Estimate::ALL.map(Kind::Flat));
     for trick in Trick::ALL {
-        assert_eq!(seen.iter().filter(|t| **t == trick).count(), 3, "{trick:?}");
+        assert_eq!(seen.iter().filter(|t| **t == trick).count(), 6, "{trick:?}");
         let (code, variant) = Kind::Space(trick).code();
         assert_eq!(code, 12);
         assert_eq!(Kind::of_code(code, variant), Some(Kind::Space(trick)));
@@ -126,6 +149,7 @@ fn the_warm_up_holds_three_from_the_kinds_met_at_most_one_long() {
         Kind::Shape(Tier::Simple),
         Kind::Flat(Estimate::Angle),
         Kind::Space(Trick::Mirror),
+        Kind::Solid(Solid::Cone),
         Kind::Areas(openpaint_practice::Arrangement::Strata),
     ];
     for number in 2..12 {
@@ -140,7 +164,9 @@ fn the_warm_up_holds_three_from_the_kinds_met_at_most_one_long() {
             .filter(|e| matches!(e.kind.family(), Family::Shape | Family::Areas))
             .count();
         assert_eq!(long, 1, "{number}");
+        // A solid takes minutes: never in the warm-up, two in every mix.
+        assert!(warm.iter().all(|e| !matches!(e.kind, Kind::Solid(_))));
         let rest = &plan.exercises[WARM_UP_TWO..];
-        assert_eq!(rest.len(), 12, "the mix whatever the warm-up");
+        assert_eq!(rest.len(), 11, "the mix whatever the warm-up");
     }
 }

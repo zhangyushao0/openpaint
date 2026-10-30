@@ -10,7 +10,8 @@
 //!   to the frame's edges with a cross through its middle;
 //! - a point in space: the box as the eye sees it in ink in both frames, its horizon, the
 //!   face shaded in pencil, a mirror's given dot; once compared, the original's frame shows the
-//!   trick's construction in dashed pencil and its answer in ink, inside the frame.
+//!   trick's construction in dashed pencil and its answer in ink, inside the frame;
+//! - a solid in its box (S93): `practice_solid_marks.rs`.
 //!
 //! Compared, over the copy: the exact answer in the marking red as thick as the pen (a cross for a
 //! point, a bar across a segment, the line, the uprights or the next face), an estimate's way to
@@ -26,6 +27,7 @@ use openpaint_practice::{
 
 use crate::design::{CORRECTION, FOUND, INK, INK_SECONDARY, PANEL, PENCIL};
 use crate::practice_geometry_marks::{At, FAINT, MARK, RING, dashed, horizon, segment};
+use crate::practice_solid_marks as solid_marks;
 
 /// A given dot's radius in canvas pixels of a frame, and the least it shows at, in points.
 const DOT: f32 = 4.5;
@@ -86,6 +88,9 @@ pub(crate) fn show_original(
             if answered {
                 constructed(painter, &pair.original, task, at, width);
             }
+        }
+        Original::Solid(_) => {
+            solid_marks::show_original(painter, practice, (index, pair), at, (width, scale));
         }
         _ => {}
     }

@@ -4,7 +4,7 @@
 //! frame, a single shape's or a colour copy's picture with its credit small under the frame where
 //! its licence asks for one, a colour combination's or a value scale's in `practice_paint_marks.rs`,
 //! a box's or an ellipse's in `practice_geometry_marks.rs`, an estimate's or a point in space's in
-//! `practice_points_marks.rs`).
+//! `practice_points_marks.rs`, a solid's in `practice_solid_marks.rs`).
 //! While compared, the original's lines lie over the copy, in place or aligned onto it, as thick as
 //! the pen that drew the copy and in a semi-transparent marking red the ink shows through (S88:
 //! thicker, the red hid an error of a pen's width inside it), a hairline at least however far the
@@ -28,6 +28,7 @@ use crate::design::{CORRECTION, DIVIDER, INK, INK_SECONDARY, PANEL_RULE_WIDTH};
 use crate::practice_geometry_marks as geometry_marks;
 use crate::practice_paint_marks as paint_marks;
 use crate::practice_points_marks as points_marks;
+use crate::practice_solid_marks as solid_marks;
 use crate::text::{self as t, Words};
 
 /// An original line's width, in canvas pixels, and the least it shows at, in points.
@@ -137,7 +138,7 @@ pub(crate) fn show_marks(
             Original::Box(_) | Original::FreeBoxes(_) | Original::Ellipse(_) => {
                 geometry_marks::show_original(&painter, practice, (index, pair), &at, widths);
             }
-            Original::Flat(_) | Original::Space(_) => {
+            Original::Flat(_) | Original::Space(_) | Original::Solid(_) => {
                 points_marks::show_original(&painter, practice, (index, pair), &at, widths);
             }
         }
@@ -271,6 +272,9 @@ fn show_overlay(
         }
         (Overlay::Flat(_) | Overlay::Space(_), _) => {
             points_marks::show_overlay(painter, practice, overlay, (at, width));
+        }
+        (Overlay::Solid(_), _) => {
+            solid_marks::show_overlay(painter, practice, overlay, (at, width));
         }
         _ => {}
     }

@@ -174,7 +174,8 @@ fn a_first_session_is_six_lines_four_combined_and_six_colours_mostly_low_in_satu
     assert_eq!(Kind::of_code(10, 2), None);
     assert_eq!(Kind::of_code(11, 3), None);
     assert_eq!(Kind::of_code(12, 5), None);
-    assert_eq!(Kind::of_code(13, 0), None);
+    assert_eq!(Kind::of_code(13, 3), None);
+    assert_eq!(Kind::of_code(14, 0), None);
     assert_eq!(Kind::of_code(3, 4), None);
 }
 

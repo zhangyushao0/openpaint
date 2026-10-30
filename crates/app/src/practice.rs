@@ -14,7 +14,7 @@ use std::sync::Arc;
 use openpaint_core::Color;
 use openpaint_practice::{
     AreasCopy, BoxCheck, EllipseCheck, ExerciseResult, Family, FlatCheck, FreeCheck, KindSummary,
-    Original, Pack, Pair, Point, Rgb8, ScaleCheck, SessionRecord, Sheet, SpaceCheck,
+    Original, Pack, Pair, Point, Rgb8, ScaleCheck, SessionRecord, Sheet, SolidCheck, SpaceCheck,
 };
 
 use crate::layer_rules::LayerRefusal;
@@ -280,4 +280,6 @@ pub enum Overlay {
     Flat(Arc<FlatCheck>),
     /// A point in space: the last mark or lines read (frame units) and the error on the face.
     Space(Arc<SpaceCheck>),
+    /// A solid in its box: the curves and sides read (frame units), the ellipses fitted.
+    Solid(Arc<SolidCheck>),
 }

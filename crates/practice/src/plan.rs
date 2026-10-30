@@ -13,6 +13,7 @@ use crate::pack::{ItemRef, Tier};
 use crate::path::Point;
 use crate::perspective::{BoxView, Horizon, PerspectiveBox};
 use crate::scale::{ScaleTone, ValueScale};
+use crate::solid::{Solid, SolidTask};
 use crate::space::{SpaceTask, Trick};
 
 /// The course's stages, after V大's eight weeks.
@@ -51,6 +52,8 @@ pub enum Kind {
     Flat(Estimate),
     /// A point in space fixed on a box by one of V大's five tricks (点定位).
     Space(Trick),
+    /// A cylinder, a cone or a sphere found in its box (V大's week 3, S93).
+    Solid(Solid),
 }
 
 /// What an exercise asks for, whatever its variant: its instructions, its tools, its line in
@@ -73,6 +76,10 @@ pub enum Family {
     Thirds,
     Step,
     Mirror,
+    /// Solids found in a box, a family each: each has its own instructions.
+    Cylinder,
+    Cone,
+    Sphere,
     Colour,
     Areas,
     Scale,
@@ -81,7 +88,7 @@ pub enum Family {
 
 impl Family {
     /// In a warm-up's order.
-    pub const ALL: [Self; 18] = [
+    pub const ALL: [Self; 21] = [
         Self::Line,
         Self::Combined,
         Self::Shape,
@@ -96,6 +103,9 @@ impl Family {
         Self::Thirds,
         Self::Step,
         Self::Mirror,
+        Self::Cylinder,
+        Self::Cone,
+        Self::Sphere,
         Self::Colour,
         Self::Areas,
         Self::Scale,
@@ -103,15 +113,15 @@ impl Family {
     ];
 
     /// Whether its exercises are drawn with the pens as lines (lines, combined lines, single
-    /// shapes, boxes, ellipses, estimates and points in space), not coloured.
+    /// shapes, boxes, ellipses, estimates, points in space and solids), not coloured.
     #[must_use]
     pub const fn drawn(self) -> bool {
         !matches!(self, Self::Colour | Self::Areas | Self::Scale | Self::Study)
     }
 
     /// Whether its copy is checked as geometry (boxes in perspective, ellipses, estimates, points
-    /// in space): what it holds found in the lines and set against an exact answer or rule, never
-    /// aligned.
+    /// in space, solids): what it holds found in the lines and set against an exact answer or
+    /// rule, never aligned.
     #[must_use]
     pub const fn geometric(self) -> bool {
         self.drawn() && !matches!(self, Self::Line | Self::Combined | Self::Shape)
@@ -130,8 +140,9 @@ impl Kind {
     /// arrangement) for combined lines, (4, the picture's tier code) for a single shape, (5,
     /// arrangement) for a colour combination, (6, tone) for a value scale, (7, 0) for a colour
     /// copy, (8, view) for a box to complete, (9, horizon) for free boxes, (10, guide) for an
-    /// ellipse, (11, estimate) for an estimate on the flat, (12, trick) for a point in space. A
-    /// code names one generator for good; a changed generator is a new code.
+    /// ellipse, (11, estimate) for an estimate on the flat, (12, trick) for a point in space, (13,
+    /// solid) for a solid in a box. A code names one generator for good; a changed generator is a
+    /// new code.
     #[must_use]
     pub fn code(self) -> (u8, u8) {
         let index = |found: Option<usize>| found.unwrap_or(0) as u8;
@@ -154,6 +165,7 @@ impl Kind {
             Self::Ellipse(guide) => (10, index(Guide::ALL.iter().position(|g| *g == guide))),
             Self::Flat(estimate) => (11, index(Estimate::ALL.iter().position(|e| *e == estimate))),
             Self::Space(trick) => (12, index(Trick::ALL.iter().position(|t| *t == trick))),
+            Self::Solid(solid) => (13, index(Solid::ALL.iter().position(|s| *s == solid))),
         }
     }
 
@@ -173,6 +185,7 @@ impl Kind {
             10 => Guide::ALL.get(at).map(|g| Self::Ellipse(*g)),
             11 => Estimate::ALL.get(at).map(|e| Self::Flat(*e)),
             12 => Trick::ALL.get(at).map(|t| Self::Space(*t)),
+            13 => Solid::ALL.get(at).map(|s| Self::Solid(*s)),
             _ => None,
         }
     }
@@ -192,6 +205,7 @@ impl Kind {
             Self::Ellipse(_) => Family::Ellipse,
             Self::Flat(estimate) => estimate.family(),
             Self::Space(trick) => trick.family(),
+            Self::Solid(solid) => solid.family(),
         }
     }
 }
@@ -239,6 +253,7 @@ impl Exercise {
             Kind::Ellipse(guide) => Original::Ellipse(EllipseGuide::generate(guide, self.seed)),
             Kind::Flat(estimate) => Original::Flat(Flat::generate(estimate, self.seed)),
             Kind::Space(trick) => Original::Space(Box::new(SpaceTask::generate(trick, self.seed))),
+            Kind::Solid(solid) => Original::Solid(Box::new(SolidTask::generate(solid, self.seed))),
         }
     }
 }
@@ -266,4 +281,6 @@ pub enum Original {
     Flat(Flat),
     /// A box with a face to fix a point in space on.
     Space(Box<SpaceTask>),
+    /// A box with a solid to find in it.
+    Solid(Box<SolidTask>),
 }

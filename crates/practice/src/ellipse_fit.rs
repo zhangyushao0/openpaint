@@ -207,7 +207,7 @@ fn direct_fit(points: &[Point]) -> Option<[f64; 6]> {
 
 /// The conic `[a, b, c, d, e, f]` of points centred on `centre` and divided by `scale`, as a conic
 /// of the points themselves.
-fn placed([a, b, c, d, e, f]: [f64; 6], [mx, my]: Point, s: f64) -> [f64; 6] {
+pub(crate) fn placed([a, b, c, d, e, f]: [f64; 6], [mx, my]: Point, s: f64) -> [f64; 6] {
     let s2 = s * s;
     [
         a / s2,

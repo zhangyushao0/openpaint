@@ -3,8 +3,9 @@
 //! of that kind only, about ten minutes and no warm-up: 6 single lines, 4 groups of combined lines
 //! (each arrangement), 6 colours (stage 1's), 3 single shapes (their tiers in turn from entry to
 //! hard, the last the user's own as in stage 2), 2 colour combinations, 2 value scales, 3 boxes, a
-//! page of free boxes, 4 ellipses, 5 points, proportions or angles, or 3 of one of V大's five
-//! tricks; each kind's variants in turn by the drill's number among its kind's drills. Its record
+//! page of free boxes, 4 ellipses, 5 points, proportions or angles, 3 of one of V大's five tricks
+//! or 3 of a solid (S93); each kind's variants in turn by the drill's number among its kind's
+//! drills (a solid's pose by its seed). Its record
 //! is one of stage `DRILL` (`record.rs`): it counts in no session, road or stage.
 
 use crate::areas::Arrangement;
@@ -16,6 +17,7 @@ use crate::perspective::BoxView;
 use crate::plan::{Family, Kind};
 use crate::scale::ScaleTone;
 use crate::session::{Before, COLOURS, COMBINED, HORIZONS, LINES, Picker, Plan, seeded};
+use crate::solid::Solid;
 use crate::space::Trick;
 
 /// The kinds each ready stage practises, as the practice options' tiles show them.
@@ -28,7 +30,7 @@ const STAGE_TWO: [Family; 6] = [
     Family::FreeBoxes,
     Family::Ellipse,
 ];
-const STAGE_THREE: [Family; 8] = [
+const STAGE_THREE: [Family; 11] = [
     Family::Point,
     Family::Proportion,
     Family::Angle,
@@ -37,6 +39,9 @@ const STAGE_THREE: [Family; 8] = [
     Family::Thirds,
     Family::Step,
     Family::Mirror,
+    Family::Cylinder,
+    Family::Cone,
+    Family::Sphere,
 ];
 
 /// How many exercises a drill of each kind holds.
@@ -47,6 +52,7 @@ const BOXES: usize = 3;
 const ELLIPSES: usize = 4;
 const ESTIMATES: usize = 5;
 const TRICKS: usize = 3;
+const SOLIDS: usize = 3;
 
 /// The kinds `stage` practises, in its tiles' order; none for a stage not ready.
 #[must_use]
@@ -87,6 +93,9 @@ fn in_turn<T: Copy>(variants: &[T], turn: usize, count: usize) -> Vec<T> {
 fn kinds(family: Family, turn: usize) -> Vec<Kind> {
     let estimate = Estimate::ALL.into_iter().find(|e| e.family() == family);
     let trick = Trick::ALL.into_iter().find(|t| t.family() == family);
+    if let Some(solid) = Solid::ALL.into_iter().find(|s| s.family() == family) {
+        return vec![Kind::Solid(solid); SOLIDS];
+    }
     match (family, estimate, trick) {
         (_, Some(estimate), _) => vec![Kind::Flat(estimate); ESTIMATES],
         (_, _, Some(trick)) => vec![Kind::Space(trick); TRICKS],

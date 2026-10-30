@@ -4,9 +4,9 @@
 //! boxes and edges, then the boxes whose edges of a direction do not meet, the front corners
 //! under 90 degrees, the verticals that lean; or that all is well. An ellipse: rounder or
 //! flatter, turned which way, which sides it falls short of or runs past; or that it fits. An
-//! estimate or a point in space (S90): nothing but its title, the picture saying it all, unless no
-//! mark or line was found. The words are `text/practice_perspective.rs`'s and
-//! `text/practice_points.rs`'s.
+//! estimate, a point in space (S90) or a solid (S93): nothing but its title, the picture saying it
+//! all, unless no mark, line or curve was found. The words are `text/practice_perspective.rs`'s,
+//! `text/practice_points.rs`'s and `text/practice_solids.rs`'s.
 
 use openpaint_app::{Overlay, PracticeProjection};
 use openpaint_practice::{Direction, Family};
@@ -55,6 +55,11 @@ pub(crate) fn compared(ui: &mut egui::Ui, practice: &PracticeProjection) -> bool
         }
         Some(Overlay::Flat(check)) => nothing_read(ui, practice, check.metrics.is_empty()),
         Some(Overlay::Space(check)) => nothing_read(ui, practice, check.metrics.is_empty()),
+        Some(Overlay::Solid(check)) => {
+            if check.metrics.is_empty() {
+                card_text(ui, t::NO_SOLID, false);
+            }
+        }
         Some(Overlay::Ellipse(check)) => {
             if check.fitted.is_none() {
                 card_text(ui, t::NO_ELLIPSE, false);

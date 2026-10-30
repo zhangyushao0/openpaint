@@ -1,8 +1,8 @@
 //! A demonstration's marks on its example (`practice_demo.rs`), as the sheet draws them: what the
 //! exercise gives in ink, Sketch's pencil, a pass in the air as a dotted trace that goes again,
 //! Draw's ink, the dashed pencil of a horizon or a way to see it, a face or a negative shape
-//! shaded in pencil; then Compare's see-through red answer, its blue reading (rings, dashes) and
-//! an original laid faint. A hand's mark draws along its length as time goes; what the exercise
+//! shaded in pencil; then Compare's see-through red answer (dashed where a solid hides it), its
+//! blue reading (rings, dashes) and an original laid faint. A hand's mark draws along its length as time goes; what the exercise
 //! gives and Compare's marks show at once, fading in. Marks keep inside their frame, a wide
 //! example's inside the whole example (its vanishing points lie beside its frame).
 
@@ -176,7 +176,7 @@ const fn colour_of(pen: Marker) -> Color32 {
     match pen {
         Marker::Given | Marker::Ink => INK,
         Marker::Pencil | Marker::Air | Marker::Guide => INK_SECONDARY,
-        Marker::Answer => CORRECTION,
+        Marker::Answer | Marker::Hidden => CORRECTION,
         Marker::Found => FOUND,
         Marker::Rule => DIVIDER,
         Marker::Shade | Marker::Faint => PENCIL,
@@ -193,13 +193,14 @@ fn line(painter: &egui::Painter, pen: Marker, path: Vec<Pos2>, alpha: f32) {
         Marker::Given => (GIVEN, None),
         Marker::Ink => (INK_LINE, None),
         Marker::Answer => (ANSWER, None),
+        Marker::Hidden => (ANSWER / 2.0, Some((6.0, 4.0))),
         Marker::Found => (FOUND_LINE, Some((6.0, 4.0))),
         Marker::Guide => (1.0, Some((5.0, 4.0))),
         Marker::Air => (PENCIL_LINE, Some((2.0, 3.0))),
         Marker::Rule => (1.0, None),
         Marker::Pencil | Marker::Shade | Marker::Faint => (PENCIL_LINE, None),
     };
-    let colour = if pen == Marker::Answer {
+    let colour = if matches!(pen, Marker::Answer | Marker::Hidden) {
         colour.gamma_multiply(RED)
     } else {
         colour

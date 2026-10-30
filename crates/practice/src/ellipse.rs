@@ -16,6 +16,10 @@ const INSIDE: f64 = 0.06;
 const SIDE: f64 = 0.15;
 /// The exact ellipse's roundness (minor over major) at least and at most: about 15 to 76 degrees.
 const ROUNDNESS: [f64; 2] = [0.26, 0.97];
+/// A point's distance from an ellipse: its parameter searched at this many even steps, then
+/// refined by this many of Newton's.
+const SEARCH: usize = 16;
+const NEWTON: usize = 5;
 
 /// An ellipse: its centre, its semi-axes (major first) and the major axis's direction, radians
 /// in (-pi/2, pi/2], measured from x towards y (clockwise as the screen shows it).
@@ -68,6 +72,34 @@ impl Ellipse {
     #[must_use]
     pub fn degree(&self) -> f64 {
         self.roundness().clamp(0.0, 1.0).asin().to_degrees()
+    }
+
+    /// How far `p` lies from its outline: from the nearest of `SEARCH` points at even steps of
+    /// its parameter, Newton's steps on the parameter towards the nearest point (S93).
+    #[must_use]
+    pub fn distance(&self, p: Point) -> f64 {
+        let (sin, cos) = self.angle.sin_cos();
+        let [dx, dy] = [p[0] - self.centre[0], p[1] - self.centre[1]];
+        let (x, y) = (dx * cos + dy * sin, -dx * sin + dy * cos);
+        let [a, b] = self.axes;
+        let gap = |t: f64| (a * t.cos() - x).hypot(b * t.sin() - y);
+        let step = std::f64::consts::TAU / SEARCH as f64;
+        let start = (0..SEARCH)
+            .map(|k| k as f64 * step)
+            .min_by(|s, u| gap(*s).total_cmp(&gap(*u)))
+            .unwrap_or(0.0);
+        let mut t = start;
+        for _ in 0..NEWTON {
+            let (s, c) = t.sin_cos();
+            let slope = (b * b - a * a) * s * c + x * a * s - y * b * c;
+            let bend = (b * b - a * a) * (c * c - s * s) + x * a * c + y * b * s;
+            if bend.abs() < 1e-12 {
+                break;
+            }
+            // Kept beside the nearest even point: a step past its neighbours finds a worse one.
+            t = (t - slope / bend).clamp(start - step, start + step);
+        }
+        gap(t).min(gap(start))
     }
 
     /// The ellipse `a x² + b xy + c y² + d x + e y + f = 0`; none for another conic.
@@ -226,7 +258,7 @@ fn plane(random: &mut Random) -> Option<EllipseGuide> {
 
 /// The guide whose corners are `corners` (a square's image, in its order round), its exact
 /// ellipse the image of the square's inscribed circle.
-fn square_on(corners: [Point; 4]) -> EllipseGuide {
+pub(crate) fn square_on(corners: [Point; 4]) -> EllipseGuide {
     let to = homography(corners);
     let touches = [[0.5, 0.0], [1.0, 0.5], [0.5, 1.0], [0.0, 0.5]].map(|p| apply(&to, p));
     // The circle inscribed in the unit square: x² + y² - x - y + 1/4 = 0.

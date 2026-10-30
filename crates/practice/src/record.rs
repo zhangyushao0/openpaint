@@ -262,8 +262,8 @@ const fn rows_of(family: Family) -> &'static [Metric] {
         Family::Colour => &COLOUR_ROWS,
         Family::Areas => &AREAS_ROWS,
         Family::Scale => &SCALE_ROWS,
-        // Estimates and points in space keep their errors for the trajectories, never shown
-        // (D107).
+        // Estimates, points in space and solids keep their errors for the trajectories, never
+        // shown (D107).
         Family::Line
         | Family::Combined
         | Family::Shape
@@ -278,6 +278,9 @@ const fn rows_of(family: Family) -> &'static [Metric] {
         | Family::Thirds
         | Family::Step
         | Family::Mirror
+        | Family::Cylinder
+        | Family::Cone
+        | Family::Sphere
         | Family::Study => &[],
     }
 }

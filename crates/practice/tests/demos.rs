@@ -6,7 +6,7 @@ use openpaint_practice::{
 };
 
 /// Each kind's steps, Compare the last.
-const STEPS: [(Family, usize); 17] = [
+const STEPS: [(Family, usize); 20] = [
     (Family::Line, 4),
     (Family::Combined, 4),
     (Family::Shape, 5),
@@ -21,6 +21,9 @@ const STEPS: [(Family, usize); 17] = [
     (Family::Thirds, 5),
     (Family::Step, 5),
     (Family::Mirror, 6),
+    (Family::Cylinder, 6),
+    (Family::Cone, 4),
+    (Family::Sphere, 5),
     (Family::Colour, 5),
     (Family::Areas, 5),
     (Family::Scale, 3),
@@ -81,11 +84,12 @@ fn every_kind_but_the_colour_copy_plays_once_through_in_five_to_ten_seconds() {
     let lengths: Vec<String> = (STEPS.iter())
         .map(|(family, _)| format!("{family:?} {:.2}", demo(*family).length))
         .collect();
+    println!("{lengths:?}");
     for (family, steps) in STEPS {
         let demo = demo(family);
         assert_eq!(demo.family, family);
         assert_eq!(demo.steps.len(), steps, "{family:?}");
-        assert!((4.5..=10.5).contains(&demo.length), "{lengths:?}");
+        assert!((4.5..=10.3).contains(&demo.length), "{lengths:?}");
         assert!(demo.steps.windows(2).all(|w| w[0] < w[1]), "{family:?}");
         for mark in &demo.marks {
             assert!(
@@ -103,7 +107,10 @@ fn every_kind_but_the_colour_copy_plays_once_through_in_five_to_ten_seconds() {
         // Compare's marks show in the last step, and only there.
         let last = demo.steps[steps - 1];
         let compared = |mark: &&openpaint_practice::Mark| {
-            matches!(mark.pen, Marker::Answer | Marker::Found | Marker::Faint)
+            matches!(
+                mark.pen,
+                Marker::Answer | Marker::Hidden | Marker::Found | Marker::Faint
+            )
         };
         assert!(
             demo.marks.iter().filter(compared).all(|m| m.from >= last),
@@ -192,6 +199,34 @@ fn a_tricks_construction_lands_on_its_exact_answer() {
     let on_line = ((b[0] - a[0]) * (red_end[1] - a[1]) - (b[1] - a[1]) * (red_end[0] - a[0])).abs()
         / distance(a, b);
     assert!(on_line < 1e-9, "the red line lies on it: {on_line}");
+}
+
+#[test]
+fn a_solids_middles_lie_on_its_red_answer_and_its_hidden_part_is_dashed() {
+    for family in [Family::Cylinder, Family::Cone] {
+        let demo = demo(family);
+        let red: Vec<&[Point]> = (demo.marks.iter())
+            .filter(|m| matches!(m.pen, Marker::Answer | Marker::Hidden))
+            .filter_map(|m| match &m.drawn {
+                Drawn::Line(points) => Some(points.as_slice()),
+                _ => None,
+            })
+            .collect();
+        let dots: Vec<Point> = (demo.marks.iter())
+            .filter(|m| m.pen == Marker::Pencil)
+            .filter_map(|m| match m.drawn {
+                Drawn::Dot(p) => Some(p),
+                _ => None,
+            })
+            .collect();
+        assert!(dots.len() >= 4, "{family:?}");
+        for dot in dots {
+            let (_, off) = openpaint_practice::nearest(&red, dot).expect("a red answer");
+            assert!(off < 1e-4, "{family:?}: {dot:?} off {off}");
+        }
+    }
+    let hidden = |family| demo(family).marks.iter().any(|m| m.pen == Marker::Hidden);
+    assert!(hidden(Family::Cylinder) && !hidden(Family::Sphere));
 }
 
 #[test]

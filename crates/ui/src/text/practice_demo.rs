@@ -3,7 +3,7 @@
 //! kind trains and its week in the course, its steps (one per step of its demonstration, a few
 //! words each, Compare the last) and once what Compare's red, blue, ink, dashed and rings mean
 //! (D108). The drawn kinds here; the colour kinds in `practice_demo_colour.rs`, perspective in
-//! `practice_demo_space.rs`, stage 3 in `practice_demo_points.rs`.
+//! `practice_demo_space.rs`, stage 3 in `practice_demo_points.rs` and `practice_demo_solids.rs`.
 
 use openpaint_practice::{Estimate, Family, Trick};
 
@@ -66,6 +66,9 @@ pub(crate) const fn how(family: Family) -> How {
         Family::Thirds => p::trick(Trick::Thirds),
         Family::Step => p::trick(Trick::Step),
         Family::Mirror => p::trick(Trick::Mirror),
+        Family::Cylinder => super::practice_demo_solids::CYLINDER,
+        Family::Cone => super::practice_demo_solids::CONE,
+        Family::Sphere => super::practice_demo_solids::SPHERE,
         Family::Colour => c::COLOUR,
         Family::Areas => c::AREAS,
         Family::Scale => c::SCALE,

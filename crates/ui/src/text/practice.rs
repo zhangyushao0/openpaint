@@ -87,6 +87,7 @@ pub(crate) const fn metric(metric: Metric) -> Text {
         Metric::ProportionOff => super::OFF_ALONG,
         Metric::AngleOff => super::TURNED_OFF,
         Metric::SpaceOff => super::OFF_ON_THE_FACE,
+        Metric::SolidOff => super::OFF_THE_SOLID,
     }
 }
 
@@ -132,6 +133,9 @@ const fn called(family: Family, warming_up: bool) -> Text {
         (false, Family::Thirds) => super::THIRDS_EXERCISE,
         (false, Family::Step) => super::STEP_EXERCISE,
         (false, Family::Mirror) => super::MIRROR_EXERCISE,
+        (false, Family::Cylinder) => super::CYLINDER_EXERCISE,
+        (false, Family::Cone) => super::CONE_EXERCISE,
+        (false, Family::Sphere) => super::SPHERE_EXERCISE,
         (false, Family::Colour) => super::COLOUR,
         (false, Family::Areas) => super::AREAS_EXERCISE,
         (false, Family::Scale) => super::SCALE_EXERCISE,
@@ -185,6 +189,9 @@ pub(crate) fn compared_of(
         (_, Family::Thirds) => named(super::THIRDS_COUNTED),
         (_, Family::Step) => named(super::STEPS_COUNTED),
         (_, Family::Mirror) => named(super::MIRRORS_COUNTED),
+        (_, Family::Cylinder) => named(super::CYLINDERS_COUNTED),
+        (_, Family::Cone) => named(super::CONES_COUNTED),
+        (_, Family::Sphere) => named(super::SPHERES_COUNTED),
         (Language::English, Family::Line) => format!("Lines: {checked} of {held} compared"),
         (Language::English, Family::Combined) => {
             format!("Combined lines: {checked} of {held} compared")

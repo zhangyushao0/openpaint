@@ -72,6 +72,9 @@ fn each_kind_s_drill_holds_that_kind_only_as_many_as_the_slice_says() {
         (Family::Thirds, 3),
         (Family::Step, 3),
         (Family::Mirror, 3),
+        (Family::Cylinder, 3),
+        (Family::Cone, 3),
+        (Family::Sphere, 3),
     ];
     for (family, count) in counts {
         let drilled = kinds(family, 1, &all);

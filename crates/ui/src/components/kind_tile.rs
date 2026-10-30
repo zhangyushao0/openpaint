@@ -3,7 +3,8 @@
 //! line, two joined lines, a colour square, a shape's outline, a combination's bands, a scale's
 //! cells, a box, boxes on a horizon, an ellipse in a square, a dot in a frame, a segment, a
 //! slanted line, a box with its face's diagonals, halving line, two uprights, next face or a
-//! dot), drawn here rather than by the generators: at this size a generated original reads as
+//! dot, a cylinder, a cone, a sphere: `kind_tile_solids.rs`), drawn here rather than by the
+//! generators: at this size a generated original reads as
 //! noise, and a shape's needs a pack's picture. A kind compared at least once is drawn and named
 //! in ink, one never compared in pencil, as the road draws what is done and what lies ahead; a
 //! drill left unfinished is ringed in ink, as Next is on the road. No ticks, counts or words
@@ -27,6 +28,9 @@ const RING_LINE: f32 = 1.5;
 const RING_GAP: f32 = 6.0;
 /// A dot's radius, in the picture's units.
 const DOT: f32 = 1.8;
+
+#[path = "kind_tile_solids.rs"]
+mod solids;
 
 /// What a tile shows.
 #[derive(Debug, Clone, Copy)]
@@ -182,6 +186,7 @@ fn sketch(family: Family) -> Vec<Mark> {
             marks.extend(trick(family));
             marks
         }
+        Family::Cylinder | Family::Cone | Family::Sphere => solids::solid(family),
     }
 }
 

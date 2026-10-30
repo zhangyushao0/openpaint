@@ -211,6 +211,7 @@ impl PracticeSheet {
                 .unwrap_or_default(),
             (Compared::Checked(Overlay::Flat(check)), _) => check.metrics.clone(),
             (Compared::Checked(Overlay::Space(check)), _) => check.metrics.clone(),
+            (Compared::Checked(Overlay::Solid(check)), _) => check.metrics.clone(),
             _ => Metrics::new(),
         }
     }

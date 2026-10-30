@@ -152,6 +152,39 @@ fn the_fit_finds_known_ellipses_drawn_by_hand() {
 }
 
 #[test]
+fn a_points_distance_from_an_ellipse_is_the_least_to_its_outline() {
+    let mut random = Random::new(93);
+    for _ in 0..2000 {
+        let e = Ellipse {
+            centre: [random.range(0.3, 0.7), random.range(0.3, 0.7)],
+            axes: [random.range(0.1, 0.3), 0.0],
+            angle: random.range(-1.5, 1.5),
+        };
+        let e = Ellipse {
+            axes: [e.axes[0], e.axes[0] * random.range(0.2, 1.0)],
+            ..e
+        };
+        let on = e.at(random.range(0.0, std::f64::consts::TAU));
+        let p = [
+            on[0] + random.range(-0.12, 0.12),
+            on[1] + random.range(-0.12, 0.12),
+        ];
+        let dense = e.outline(20_000);
+        let least = (dense.windows(2))
+            .map(|w| {
+                let d = [w[1][0] - w[0][0], w[1][1] - w[0][1]];
+                let t = (((p[0] - w[0][0]) * d[0] + (p[1] - w[0][1]) * d[1])
+                    / (d[0] * d[0] + d[1] * d[1]))
+                    .clamp(0.0, 1.0);
+                distance(p, [w[0][0] + t * d[0], w[0][1] + t * d[1]])
+            })
+            .fold(f64::INFINITY, f64::min);
+        let found = e.distance(p);
+        assert!((found - least).abs() < 1e-6, "{e:?} {p:?}: {found} {least}");
+    }
+}
+
+#[test]
 fn the_words_say_rounder_or_flatter_tilted_which_way_and_the_side_missed() {
     // A frame clearly wider than tall, so the minor axis grown stays the minor one.
     let guide = (0..)

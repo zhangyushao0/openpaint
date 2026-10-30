@@ -10,7 +10,7 @@
 //! bent near the middle, a box widest beside its vanishing points with both within `WIDE_REACH`,
 //! a face shaded wide), so it is the same every time; a single shape's is a generated vase, so no
 //! pack is needed. The marks reuse what the exercises compute: the generators' exact answers, the
-//! tricks' constructions, the ellipse's middles.
+//! tricks' constructions, the ellipse's middles, the solids' exact outlines (S93).
 
 use crate::colour::Rgb8;
 use crate::path::{Point, distance, length};
@@ -22,6 +22,8 @@ mod colour;
 mod drawn;
 #[path = "demo_points.rs"]
 mod points;
+#[path = "demo_solids.rs"]
+mod solids;
 #[path = "demo_space.rs"]
 mod space;
 
@@ -72,6 +74,8 @@ pub enum Marker {
     Ink,
     /// Compare: the original or the exact answer, in see-through red.
     Answer,
+    /// Compare: the exact answer where the solid hides it, dashed in see-through red (S93).
+    Hidden,
     /// Compare: what was read of the copy, in blue.
     Found,
     /// Dashed pencil: a horizon, the way to see it.
@@ -155,6 +159,7 @@ impl Demo {
             Family::Centre | Family::Halves | Family::Thirds | Family::Step | Family::Mirror => {
                 points::trick(family)?
             }
+            Family::Cylinder | Family::Cone | Family::Sphere => solids::solid(family)?,
             Family::Study => return None,
         })
     }

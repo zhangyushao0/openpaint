@@ -1,8 +1,10 @@
 //! The copies Compare checks as geometry, at once on the frame loop (each in well under a
 //! millisecond): a box's edges found and extended towards its vanishing points or a free page's
 //! horizon (a correction in place of the edge it redraws), an ellipse fitted to the lines (to the
-//! corrections once there are some), and (S90) an estimate's or a point in space's last mark or
-//! lines read against the exact answer. The sketch pen's construction is never read.
+//! corrections once there are some), (S90) an estimate's or a point in space's last mark or lines
+//! read against the exact answer, and (S93) a solid's curves and sides read against the exact
+//! solid, the corrections in place of what they redraw. The sketch pen's construction is never
+//! read.
 
 use std::ops::Range;
 use std::sync::Arc;
@@ -10,7 +12,7 @@ use std::sync::Arc;
 use openpaint_core::Artwork;
 use openpaint_practice::{
     BoxCheck, Edge, EllipseCheck, EllipseGuide, FlatCheck, Frame, FreeCheck, Original, Point,
-    SpaceCheck, corrected, edges,
+    SolidCheck, SpaceCheck, corrected, edges,
 };
 
 use super::PracticeSheet;
@@ -46,6 +48,15 @@ impl PracticeSheet {
             Original::Space(task) => {
                 let pieces = drawn();
                 Overlay::Space(Arc::new(SpaceCheck::of(task, &read(&pieces))))
+            }
+            Original::Solid(task) => {
+                let pieces = |ids: Range<u64>| line_pieces(artwork, frame, ids);
+                let (first, corrections) = match self.corrected_from(index) {
+                    Some(since) => (pieces(0..since), pieces(since..u64::MAX)),
+                    None => (pieces(ALL_STROKES), Vec::new()),
+                };
+                let lines = (read(&first), read(&corrections));
+                Overlay::Solid(Arc::new(SolidCheck::of(task, (&lines.0, &lines.1))))
             }
             Original::Lines(_)
             | Original::Colour(_)
