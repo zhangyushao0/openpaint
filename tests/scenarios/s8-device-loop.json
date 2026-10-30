@@ -33,17 +33,17 @@
       "points": [[600, 250, 0.5], [1500, 200, 0.9], [2500, 300, 0.5]],
       "palm": { "at": [70, 1315], "lands": "during" }
     } },
-    { "checkpoint": { "name": "palm-over-undo", "canvas": "d43aaa38cc521a67" } },
+    { "checkpoint": { "name": "palm-over-undo", "canvas": "701e14859a5621e2" } },
     { "stroke": {
       "points": [[700, 1600, 0.4], [1600, 1500, 0.9], [2600, 1650, 0.5]],
       "palm": { "at": [70, 1315], "lands": "before" }
     } },
-    { "checkpoint": { "name": "palm-resting-on-undo", "canvas": "384a836cacf2631c" } },
+    { "checkpoint": { "name": "palm-resting-on-undo", "canvas": "4d667de5bd25323d" } },
     { "screenshot": { "name": "four-strokes" } },
     { "tap": { "at": "Undo" } },
-    { "checkpoint": { "name": "finger-undo", "canvas": "d43aaa38cc521a67" } },
+    { "checkpoint": { "name": "finger-undo", "canvas": "701e14859a5621e2" } },
     "restart",
-    { "checkpoint": { "name": "reopened", "canvas": "d43aaa38cc521a67" } },
+    { "checkpoint": { "name": "reopened", "canvas": "701e14859a5621e2" } },
     { "screenshot": { "name": "after-restart" } }
   ]
 }

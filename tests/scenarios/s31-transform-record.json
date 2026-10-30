@@ -18,13 +18,13 @@
     { "press": { "path": [[726, 476, 0], [858, 579, 120], [990, 682, 240]], "tool": "stylus", "before_lift": "scaling" } },
     { "screenshot": { "name": "tripled-frame" } },
     { "tap": { "at": "Transform" } },
-    { "checkpoint": { "name": "tripled", "canvas": "2130e4e585d8c3c0" } },
+    { "checkpoint": { "name": "tripled", "canvas": "b0dadc4920ae0f02" } },
     { "screenshot": { "name": "tripled-screen" } },
     { "tap": { "at": "Actions" } },
     { "tap": { "at": "4×" } },
     { "tap": { "at": "Save PNG…" } },
     { "system": "choose_file" },
-    { "exported": { "name": "png-4x", "scale": 4, "pixels": "928a4533bd4e3688" } },
+    { "exported": { "name": "png-4x", "scale": 4, "pixels": "baee85947df20b2b" } },
     { "tap": { "at": "Selection" } },
     { "tap": { "at": "Rectangle" } },
     { "press": { "path": [[560, 340, 0], [680, 530, 120], [790, 720, 240]], "tool": "stylus" } },
@@ -43,7 +43,7 @@
     { "tap": { "at": "Undo" } },
     { "checkpoint": { "name": "turn-undone", "canvas": "3e463af07e7f1c65" } },
     { "tap": { "at": "Undo" } },
-    { "checkpoint": { "name": "move-undone", "canvas": "2130e4e585d8c3c0" } },
+    { "checkpoint": { "name": "move-undone", "canvas": "b0dadc4920ae0f02" } },
     { "tap": { "at": "Redo" } },
     { "tap": { "at": "Redo" } },
     { "checkpoint": { "name": "redone", "canvas": "8cf22ac55b0e4ffd" } },
@@ -54,6 +54,6 @@
     { "tap": { "at": "4×" } },
     { "tap": { "at": "Save PNG…" } },
     { "system": "choose_file" },
-    { "exported": { "name": "reopened-png-4x", "scale": 4, "pixels": "64234eaabb1d2e88" } }
+    { "exported": { "name": "reopened-png-4x", "scale": 4, "pixels": "afcf74a2ccae61f0" } }
   ]
 }

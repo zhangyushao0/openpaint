@@ -90,7 +90,7 @@
     { "stroke": { "points": [[1300, 1123, 0.8], [1392, 1106, 0.8], [1485, 1090, 0.8]] } },
     { "stroke": { "points": [[1732, 1129, 0.8], [1608, 1109, 0.8], [1485, 1090, 0.8]] } },
     { "stroke": { "points": [[1485, 1090, 0.8], [1486, 965, 0.8], [1485, 841, 0.8]] } },
-    { "checkpoint": { "name": "box-copied", "canvas": "33a2da532c169c78" } },
+    { "checkpoint": { "name": "box-copied", "canvas": "84051be288db9e6c" } },
     { "tap": { "at": "Compare" } },
     { "expect": { "shown": ["Compare", "Correct"], "absent": ["Aligned", "In place"] } },
     { "screenshot": { "name": "box-compared" } }

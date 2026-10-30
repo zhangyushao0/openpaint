@@ -20,11 +20,12 @@ const SIZE: [u32; 2] = [320, 200];
 /// graphite on the sketch paper) and the soft brush (density building up under a bell tip),
 /// and in S34 for all three (the wave is a curve now, not chords: at most 17 levels, mean 0.007);
 /// in S62 for the pencil and the soft brush (the raster core draws the canvas: each one channel
-/// of one pixel a level away); the brushes before keep their own hashes below.
+/// of one pixel a level away), and in S93 for the same two under the dev machine's NVIDIA 621.01
+/// driver (9634eea draws them alike); the brushes before keep their own hashes below.
 const GOLDEN: [(&str, u64); 3] = [
-    ("pencil", 0x1f09_bc12_0bd9_68b3),
+    ("pencil", 0xb194_0d31_1dfa_5cae),
     ("ink-pen", 0x23c3_d74a_8ac0_d9c3),
-    ("soft-brush", 0x930e_5c64_7606_690d),
+    ("soft-brush", 0x8b6f_4148_679e_bd02),
 ];
 
 /// An S-curve whose pressure rises from 0.1 to 1 and falls back, drawn faster in its middle,
@@ -115,9 +116,9 @@ const BEFORE_S16: [(&str, &str); 2] = [
 ];
 /// Their golden hashes before S16, moved once in S34 by the curve through the samples (at most 8
 /// levels, mean 0.014), the pencil's in S62 by the raster core (one channel of one pixel a level
-/// away).
+/// away) and in S93 by the dev machine's NVIDIA 621.01 driver.
 const GOLDEN_BEFORE_S16: [(&str, u64); 2] = [
-    ("pencil", 0x069b_0861_074e_1601),
+    ("pencil", 0x8f4c_0b57_68d2_8370),
     ("soft-brush", 0xcb6d_3517_5561_828d),
 ];
 

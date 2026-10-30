@@ -31,12 +31,12 @@
     { "tap": { "at": "Flip Horizontal" } },
     { "screenshot": { "name": "flipped" } },
     { "tap": { "at": "Transform" } },
-    { "checkpoint": { "name": "committed", "canvas": "fbd541b26ec24b19" } },
+    { "checkpoint": { "name": "committed", "canvas": "6ad7b3ee8fbaf85c" } },
     { "screenshot": { "name": "committed-screen" } },
     { "tap": { "at": "Undo" } },
     { "checkpoint": { "name": "undone", "canvas": "6a22572e7d33c063" } },
     { "tap": { "at": "Redo" } },
-    { "checkpoint": { "name": "redone", "canvas": "fbd541b26ec24b19" } },
+    { "checkpoint": { "name": "redone", "canvas": "6ad7b3ee8fbaf85c" } },
     { "stroke": { "points": [[300, 300, 1.0], [700, 450, 1.0]] } },
     { "tap": { "at": "Selection" } },
     { "tap": { "at": "Rectangle" } },
@@ -47,10 +47,10 @@
     { "touch": { "from": [[550, 1000], [650, 1000]], "to": [[515, 1000], [685, 1000]], "ms": 200 } },
     { "screenshot": { "name": "selection-pinched" } },
     { "tap": { "at": "Brushes" } },
-    { "checkpoint": { "name": "selection-moved", "canvas": "d72e6c2f194ff5d8" } },
+    { "checkpoint": { "name": "selection-moved", "canvas": "3bb4f989410b9595" } },
     { "screenshot": { "name": "selection-moved-screen" } },
     "restart",
-    { "checkpoint": { "name": "reopened", "canvas": "d72e6c2f194ff5d8" } },
+    { "checkpoint": { "name": "reopened", "canvas": "3bb4f989410b9595" } },
     { "screenshot": { "name": "reopened-screen" } }
   ]
 }

@@ -30,7 +30,7 @@
     { "tap": { "at": "4×" } },
     { "tap": { "at": "Save PNG…" } },
     { "system": "choose_file" },
-    { "exported": { "name": "png-4x", "scale": 4, "pixels": "4779d1c6aa6a5ff4" } },
+    { "exported": { "name": "png-4x", "scale": 4, "pixels": "d9915cd4b7e47777" } },
     { "tap": { "at": "Undo" } },
     { "checkpoint": { "name": "second-undone", "canvas": "9374ce13e9b7af5a" } },
     { "tap": { "at": "Redo" } },
