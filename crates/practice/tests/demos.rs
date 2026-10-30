@@ -6,7 +6,7 @@ use openpaint_practice::{
 };
 
 /// Each kind's steps, Compare the last.
-const STEPS: [(Family, usize); 21] = [
+const STEPS: [(Family, usize); 23] = [
     (Family::Line, 4),
     (Family::Combined, 4),
     (Family::Shape, 5),
@@ -25,6 +25,8 @@ const STEPS: [(Family, usize); 21] = [
     (Family::Cone, 4),
     (Family::Sphere, 5),
     (Family::Object, 5),
+    (Family::Division, 4),
+    (Family::WholeCopy, 3),
     (Family::Colour, 5),
     (Family::Areas, 5),
     (Family::Scale, 3),
@@ -136,7 +138,9 @@ fn the_steps_draw_with_the_pencil_and_the_ink_before_compare_shows_red() {
         // Free boxes have no exact answer; a combination's original lies faint over the copy.
         let red = drawn_in(Marker::Answer) || drawn_in(Marker::Faint);
         assert!(red || family == Family::FreeBoxes, "{family:?}");
-        let inked = drawn_in(Marker::Ink);
+        // A division's lines are its levels' pens' (S95).
+        let levels = (demo.marks.iter()).any(|m| matches!(m.pen, Marker::Level(_)) && m.to > 0.0);
+        let inked = drawn_in(Marker::Ink) || (family == Family::Division && levels);
         assert!(inked, "{family:?}: the answer is drawn");
         let before = demo.steps[steps - 1];
         assert!(
@@ -333,4 +337,55 @@ fn an_objects_example_shows_its_picture_beside_the_box_and_its_corners_on_the_co
         .filter(|s| !s.hidden)
         .count();
     assert_eq!(red, task.answer.sides.len() + seen);
+}
+
+#[test]
+fn a_division_is_drawn_red_then_green_then_blue_and_a_whole_copy_over_it_dimmed() {
+    use openpaint_practice::Level;
+    let division = demo(Family::Division);
+    assert_eq!(division.layout, Layout::Pair);
+    assert!(division.masses.is_some() && division.dimmed.is_none());
+    let drawn = |demo: &Demo, level: Level| -> Vec<f64> {
+        let before = demo.steps[demo.steps.len() - 1];
+        (demo.marks.iter())
+            .filter(|m| m.pen == Marker::Level(level) && m.from < before)
+            .map(|m| m.from)
+            .collect()
+    };
+    let [main, second, third] = Level::ALL.map(|level| drawn(&division, level));
+    assert!(!main.is_empty() && !second.is_empty() && !third.is_empty());
+    let last = |times: &[f64]| times.iter().copied().fold(0.0, f64::max);
+    let first = |times: &[f64]| times.iter().copied().fold(f64::MAX, f64::min);
+    assert!(last(&main) < first(&second) && last(&second) < first(&third));
+    // The turning point first: a dot before any main line.
+    let dot = (division.marks.iter()).find(|m| matches!(m.drawn, Drawn::Dot(_)));
+    assert!(dot.is_some_and(|d| d.from <= first(&main)));
+    // Every line lies on the picture, whose edge the copy's frame shows from the start.
+    let rect = (division.marks.iter())
+        .find_map(|m| match m.drawn {
+            Drawn::Masses(rect) if m.on == On::Original => Some(rect),
+            _ => None,
+        })
+        .expect("the picture");
+    let [[left, top], [right, bottom]] = rect;
+    for mark in &division.marks {
+        if let (Marker::Level(_), Drawn::Line(line)) = (mark.pen, &mark.drawn) {
+            assert!(line.iter().all(|p| {
+                (left - 0.01..=right + 0.01).contains(&p[0])
+                    && (top - 0.01..=bottom + 0.01).contains(&p[1])
+            }));
+        }
+    }
+    // Compare: the picture faint over the copy, the lines in their colours over it.
+    let compare = division.steps[3];
+    let faint = (division.marks.iter()).find(|m| m.pen == Marker::Faint);
+    assert!(faint.is_some_and(|m| m.from >= compare && matches!(m.drawn, Drawn::Masses(_))));
+    // A whole copy: the division, then Draw's ink over it dimmed from that step, gone at Compare.
+    let whole = demo(Family::WholeCopy);
+    let [draw, compare] = whole.dimmed.expect("dimmed");
+    assert_eq!([draw, compare], [whole.steps[1], whole.steps[2]]);
+    let ink = (whole.marks.iter()).filter(|m| m.pen == Marker::Ink);
+    assert!(ink.clone().count() >= 5 && ink.clone().all(|m| m.from >= draw));
+    let divided = (whole.marks.iter()).filter(|m| matches!(m.pen, Marker::Level(_)));
+    assert!(divided.clone().count() >= 4 && divided.clone().all(|m| m.to <= draw));
 }

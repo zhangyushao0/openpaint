@@ -14,6 +14,7 @@ use super::Session;
 use crate::error::AppError;
 use crate::input::{ContactPhase, Device};
 use crate::practice::PracticeIntent;
+use crate::practice_layers::layered;
 use crate::practice_pens::PracticePens;
 use crate::practice_pictures::{FitJob, PictureImage};
 use crate::practice_sheet::{CopyRead, PracticePick, PracticeSheet, Practising, ReadJob};
@@ -38,7 +39,21 @@ impl Session {
         session.view = practice.opening_view(viewport);
         session.practice = Some(practice);
         session.restyle();
+        session.practice_layers();
         session
+    }
+
+    /// On a sheet holding a whole copy (S95), its division's and line drawing's layers as the pen
+    /// and Compare want them (`practice_layers.rs`), amended into the version shown: never a step
+    /// of their own, never while a stroke is drawn. A sheet with no room for them stays as it is.
+    pub(super) fn practice_layers(&mut self) {
+        let layering = self.practice.as_ref().and_then(PracticeSheet::layering);
+        let Some(layering) = layering.filter(|_| self.strokes.active().is_none()) else {
+            return;
+        };
+        if let Ok(artwork) = layered(self.history.current(), layering) {
+            self.history.amend(artwork);
+        }
     }
 
     /// True on a practice sheet.
@@ -93,6 +108,7 @@ impl Session {
             intent => practice.handle(intent, &artwork, (&mut self.view, now)),
         };
         self.restyle();
+        self.practice_layers();
         result
     }
 

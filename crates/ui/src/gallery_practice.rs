@@ -73,8 +73,9 @@ pub(crate) struct PracticeOptions {
     pub(super) remove: Option<Removal>,
     /// The packs' pictures as the options show them small.
     pub(crate) pictures: OptionsPictures,
-    /// The Shape tile was tapped without a pack's picture: its note shows until they close.
-    needs_pack: bool,
+    /// A tile tapped without its pack's pictures (Shape, Division, Whole copy): its note shows
+    /// until they close.
+    needs_pack: Option<openpaint_practice::Family>,
 }
 
 impl std::fmt::Debug for PracticeOptions {
@@ -91,7 +92,7 @@ impl PracticeOptions {
     /// Opens them on their first page, grown from `card`.
     pub(super) fn open(&mut self, card: Rect) {
         self.shown = Some((card, Page::Main));
-        self.needs_pack = false;
+        self.needs_pack = None;
     }
 
     /// Closes them and any dialog of theirs as Cancel would. Returns whether one was open.

@@ -44,8 +44,11 @@ pub enum GalleryNotice {
     FileRefused(FileProblem),
     /// The version could not be restored; nothing changed.
     RestoreFailed,
-    /// The chosen practice pack is kept: its pictures come up in single shapes.
-    PackImported,
+    /// The chosen practice pack is kept: its pictures come up in single shapes, or (a pack of
+    /// compositions) in divisions and whole copies.
+    PackImported {
+        compositions: bool,
+    },
     /// The chosen file was not kept as a practice pack; nothing changed.
     PackRefused(FileProblem),
     /// The chosen picture is among the user's own, with an outline found or none.

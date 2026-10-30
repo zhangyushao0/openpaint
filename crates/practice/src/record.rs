@@ -251,6 +251,24 @@ pub fn used(sessions: &[SessionRecord]) -> Vec<ItemRef> {
     items
 }
 
+/// The sessions and drills a composition waits before it comes back (S95).
+pub const RECENT: usize = 10;
+
+/// The pictures the last `RECENT` sessions and drills of `sessions` (oldest first; colour copies
+/// left out) showed: what a division or a whole copy picks others than while there are.
+#[must_use]
+pub fn recent(sessions: &[SessionRecord]) -> Vec<ItemRef> {
+    let mut items: Vec<ItemRef> = (sessions.iter().rev())
+        .filter(|session| !session.is_project())
+        .take(RECENT)
+        .flat_map(|session| session.exercises.iter())
+        .filter_map(|exercise| exercise.picture.clone())
+        .collect();
+    items.sort();
+    items.dedup();
+    items
+}
+
 /// The metrics the summary sets side by side for colours, colour combinations and value scales.
 pub const COLOUR_ROWS: [Metric; 3] = [Metric::FirstDelta, Metric::FinalDelta, Metric::Corrections];
 pub const AREAS_ROWS: [Metric; 2] = [Metric::AreasDelta, Metric::AreasMadeStrong];
@@ -263,7 +281,7 @@ const fn rows_of(family: Family) -> &'static [Metric] {
         Family::Areas => &AREAS_ROWS,
         Family::Scale => &SCALE_ROWS,
         // Estimates, points in space and solids keep their errors for the trajectories, never
-        // shown (D107).
+        // shown (D107); a division its counts and lengths, shown on its card only (S95).
         Family::Line
         | Family::Combined
         | Family::Shape
@@ -282,6 +300,8 @@ const fn rows_of(family: Family) -> &'static [Metric] {
         | Family::Cone
         | Family::Sphere
         | Family::Object
+        | Family::Division
+        | Family::WholeCopy
         | Family::Study => &[],
     }
 }

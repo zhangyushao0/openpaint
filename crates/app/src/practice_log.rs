@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 use openpaint_practice::{
     Before, Book, Family, ItemRef, PERSONAL, Pack, PictureKind, Pictures, Random, STAGE_SESSIONS,
-    STAGES_READY, SessionRecord, Tally, drill, kinds_of, local_day, met, plan, used,
+    STAGES_READY, SessionRecord, Tally, drill, kinds_of, local_day, met, plan, recent, used,
 };
 
 use crate::practice_book::{BookProjection, BookRecord, SheetRead};
@@ -97,6 +97,8 @@ impl PracticeLog {
             next: (done >= STAGE_SESSIONS && stage < STAGES_READY).then_some(stage + 1),
             ready: STAGES_READY,
             packs: self.packs.iter().map(PackShown::of).collect(),
+            compositions: (self.packs.iter().flat_map(|pack| &pack.items))
+                .any(|item| item.kind == PictureKind::Composition),
             copies: self.copies(),
             pictures: Arc::clone(&self.pictures),
             book: BookProjection {
@@ -144,10 +146,12 @@ impl PracticeLog {
             .count();
         let number = u32::try_from(number + 1).unwrap_or(u32::MAX);
         let (used, pictures) = (used(&self.sessions), Pictures::of(&self.packs));
+        let recent = recent(&self.sessions);
         let before = Before {
             met: &[],
             pictures: &pictures,
             used: &used,
+            recent: &recent,
         };
         let plan = drill(family, number, seed, &before)?;
         let record = SessionRecord::drill(self.next_id(), number, (seed, now), plan);
@@ -236,11 +240,12 @@ impl PracticeLog {
         let number = number.max(1);
         let title = Title::new(&format!("Practice {number}")).unwrap_or_else(|_| Title::untitled());
         let (met, used) = (met(&self.sessions), used(&self.sessions));
-        let pictures = Pictures::of(&self.packs);
+        let (pictures, recent) = (Pictures::of(&self.packs), recent(&self.sessions));
         let before = Before {
             met: &met,
             pictures: &pictures,
             used: &used,
+            recent: &recent,
         };
         let plan = plan(stage, number, seed, &before);
         let record = SessionRecord::begun(id, (stage, number), (seed, now), plan);

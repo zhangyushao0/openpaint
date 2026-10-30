@@ -30,13 +30,27 @@ const PICTURE: u32 = 128;
 /// An object's picture's side, in pixels (its frame some 176 points, at up to 2 pixels a point).
 const OBJECT_PICTURE: u32 = 360;
 
+/// A landscape's picture's width, in pixels (its frame some 176 points, S95).
+const MASSES_PICTURE: u32 = 360;
+
+/// Which picture of an example a texture is.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum PictureKey {
+    /// A combination's, by its areas' colours.
+    Areas(Vec<Rgb8>),
+    /// The example object's (S94).
+    Object,
+    /// The example landscape's (S95).
+    Masses,
+}
+
 /// The demonstrations made so far and the one playing.
 #[derive(Default)]
 pub(crate) struct Demonstrations {
     made: Vec<Arc<Demo>>,
     playing: Option<Playing>,
-    /// A combination's pictures by their areas' colours.
-    pictures: Vec<(Vec<Rgb8>, TextureHandle)>,
+    /// The examples' pictures.
+    pictures: Vec<(PictureKey, TextureHandle)>,
 }
 
 impl fmt::Debug for Demonstrations {
@@ -118,51 +132,43 @@ impl Demonstrations {
         let (rect, _) = ui.allocate_exact_size(Vec2::new(width, height), Sense::hover());
         let frames = laid(demo, rect);
         for mark in &demo.marks {
-            match &mark.drawn {
-                Drawn::Areas(colours) if mark.from <= seconds => {
-                    self.picture(ui.ctx(), demo, colours);
-                }
-                Drawn::Shaded => self.shaded(ui.ctx(), demo),
-                _ => {}
-            }
+            let key = match &mark.drawn {
+                Drawn::Areas(colours) if mark.from <= seconds => PictureKey::Areas(colours.clone()),
+                Drawn::Shaded => PictureKey::Object,
+                Drawn::Masses(_) => PictureKey::Masses,
+                _ => continue,
+            };
+            self.picture(ui.ctx(), demo, key);
         }
-        let pictures = |colours: &[Rgb8]| -> Option<TextureHandle> {
+        let pictures = |key: &PictureKey| -> Option<TextureHandle> {
             (self.pictures.iter())
-                .find(|(shown, _)| shown == colours)
+                .find(|(shown, _)| shown == key)
                 .map(|(_, texture)| texture.clone())
         };
         paint(ui.painter(), (demo, seconds), &frames, &pictures);
     }
 
-    /// Makes the example combination's picture with its areas in `colours`, once.
-    fn picture(&mut self, ctx: &egui::Context, demo: &Demo, colours: &[Rgb8]) {
-        if self.pictures.iter().any(|(shown, _)| shown == colours) {
+    /// Makes the example's picture `key` names, once: a combination's with its areas in its
+    /// colours, the object's (S94), the landscape's (S95).
+    fn picture(&mut self, ctx: &egui::Context, demo: &Demo, key: PictureKey) {
+        if self.pictures.iter().any(|(shown, _)| *shown == key) {
             return;
         }
-        let Some(mut areas) = demo.areas.clone() else {
+        let made = match &key {
+            PictureKey::Areas(colours) => demo.areas.clone().map(|mut areas| {
+                areas.colours.clone_from(colours);
+                ([PICTURE; 2], areas.picture(PICTURE))
+            }),
+            PictureKey::Object => (demo.object.as_deref())
+                .map(|object| ([OBJECT_PICTURE; 2], object.picture(OBJECT_PICTURE))),
+            PictureKey::Masses => (demo.masses.as_deref()).map(|m| m.picture(MASSES_PICTURE)),
+        };
+        let Some((size, pixels)) = made else {
             return;
         };
-        areas.colours = colours.to_vec();
-        let pixels = areas.picture(PICTURE);
         let name = format!("demonstration-{}", self.pictures.len());
-        let texture = picture_texture(ctx, name, ([PICTURE; 2], &pixels, Alpha::Straight));
-        self.pictures.push((colours.to_vec(), texture));
-    }
-}
-
-impl Demonstrations {
-    /// Makes the example object's picture (S94), once; it goes by no colours.
-    fn shaded(&mut self, ctx: &egui::Context, demo: &Demo) {
-        if self.pictures.iter().any(|(shown, _)| shown.is_empty()) {
-            return;
-        }
-        let Some(object) = demo.object.as_deref() else {
-            return;
-        };
-        let pixels = object.picture(OBJECT_PICTURE);
-        let name = "demonstration-object".to_owned();
-        let texture = picture_texture(ctx, name, ([OBJECT_PICTURE; 2], &pixels, Alpha::Straight));
-        self.pictures.push((Vec::new(), texture));
+        let texture = picture_texture(ctx, name, (size, &pixels, Alpha::Straight));
+        self.pictures.push((key, texture));
     }
 }
 
@@ -239,7 +245,7 @@ pub(crate) fn drawn(mark: &openpaint_practice::Mark, seconds: f64) -> f32 {
 pub(crate) const fn by_hand(pen: Marker) -> bool {
     matches!(
         pen,
-        Marker::Pencil | Marker::Construction | Marker::Air | Marker::Ink
+        Marker::Pencil | Marker::Construction | Marker::Air | Marker::Ink | Marker::Level(_)
     )
 }
 

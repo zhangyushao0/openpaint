@@ -3,7 +3,8 @@
 //! what Compare shows, `text/practice_demo*.rs`; Again and Got it); a comparison, which shows
 //! rather than tells (D108): lines in place or aligned, no numbers, a line only where Aligned is
 //! unavailable; a colour both on the wheel and in the colour table; week 2's colour work and a
-//! colour copy in `practice_card_colour.rs`, boxes and ellipses in `practice_card_geometry.rs`;
+//! colour copy in `practice_card_colour.rs`, boxes and ellipses in `practice_card_geometry.rs`, a
+//! division's table and a whole copy's slider in `practice_card_division.rs` (S95);
 //! and a session's summary (the colour judgement's radar over the earlier sessions', the colour
 //! means beside theirs). The words are `text/practice.rs`'s, in the pass's language.
 
@@ -20,7 +21,7 @@ use crate::design::{CORRECTION, DIALOG_WIDTH, INK_SECONDARY, SPACE, TOUCH_TARGET
 use crate::practice_demo::Demonstrations;
 use crate::taps::push_once;
 use crate::text::{self as t, Words, language};
-use crate::{practice_card_colour, practice_card_geometry};
+use crate::{practice_card_colour, practice_card_division, practice_card_geometry};
 
 /// The comparison wheel's side on the card, in points.
 const COMPARE_WHEEL: f32 = 280.0;
@@ -91,6 +92,10 @@ pub(crate) fn compared(ui: &mut egui::Ui, practice: &PracticeProjection, taps: &
         Some(Overlay::Colour { original, last, .. }) => {
             ui.heading(heading);
             pair_on_wheel(ui, (*original, *last), COMPARE_WHEEL);
+        }
+        _ if drawn && family.divided() => {
+            ui.heading(heading);
+            practice_card_division::compared(ui, practice, taps);
         }
         _ if drawn && family.geometric() => {
             ui.heading(heading);
@@ -266,9 +271,12 @@ pub(crate) fn metric_text(metric: Metric, value: f64) -> String {
         | Metric::FinalChroma
         | Metric::FirstHue
         | Metric::FinalHue => format!("{:+.1}", value * 100.0),
-        Metric::ScaleOff | Metric::SpaceOff | Metric::SolidOff | Metric::ObjectOff => {
-            format!("{:.0} %", value * 100.0)
-        }
+        Metric::ScaleOff
+        | Metric::SpaceOff
+        | Metric::SolidOff
+        | Metric::ObjectOff
+        | Metric::DivisionLength(_) => format!("{:.0} %", value * 100.0),
+        Metric::DivisionLines(_) => format!("{value:.0}"),
         Metric::PointAcross | Metric::PointDown | Metric::ProportionOff => {
             format!("{:+.1} %", value * 100.0)
         }

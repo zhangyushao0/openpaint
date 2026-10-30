@@ -263,10 +263,10 @@ impl Gallery {
             }
             LibraryAnswer::PackImported(result) => {
                 self.files.finished();
-                self.notice = match result {
-                    Ok(_) => GalleryNotice::PackImported,
-                    Err(error) => GalleryNotice::PackRefused(problem(&error)),
-                };
+                self.notice = result.map_or_else(
+                    |error| GalleryNotice::PackRefused(problem(&error)),
+                    |pack| imported(&pack),
+                );
             }
             LibraryAnswer::PictureAdded(result) => {
                 self.files.finished();
@@ -325,4 +325,12 @@ impl Default for Gallery {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// What the notice says of `pack` imported: where its pictures come up (S95: a pack of
+/// compositions in divisions and whole copies).
+fn imported(pack: &openpaint_practice::Pack) -> GalleryNotice {
+    let compositions =
+        (pack.items.iter()).any(|item| item.kind == openpaint_practice::PictureKind::Composition);
+    GalleryNotice::PackImported { compositions }
 }

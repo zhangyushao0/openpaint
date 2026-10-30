@@ -19,6 +19,7 @@ mod colour;
 mod colour_match;
 mod combined;
 mod demo;
+mod division;
 mod drill;
 mod edges;
 mod ellipse;
@@ -29,6 +30,8 @@ mod judgement;
 mod licence;
 mod line;
 mod marks;
+mod masses;
+mod masses_picture;
 mod metric;
 mod object;
 mod object_answer;
@@ -83,6 +86,9 @@ pub use colour::{
 pub use colour_match::{ColourCopy, ColourScore, Lightness, Purity, Tone, score_colour};
 pub use combined::{Combination, CombinedLines};
 pub use demo::{Demo, Drawn, Layout, Mark, Marker, On, WIDE_REACH};
+pub use division::{
+    DivisionCheck, DivisionLine, HEADING_ON, JOIN_REACH, Level, LevelRow, MOST_MAIN, joined,
+};
 pub use drill::{drill, kinds_of};
 pub use edges::{Edge, SHORTEST, corrected, edges};
 pub use ellipse::{Ellipse, EllipseGuide, Guide};
@@ -94,6 +100,7 @@ pub use judgement::{Axis, DELTA_SPAN, Judgement, NOTICEABLE, PART_SPAN, judgemen
 pub use licence::Licence;
 pub use line::{LineExercise, LineTier};
 pub use marks::{MARK, last_edges, last_mark};
+pub use masses::Masses;
 pub use metric::{Metric, Metrics, value};
 pub use object::ObjectTask;
 pub use object_construction::Stage;
@@ -114,8 +121,8 @@ pub use pictures::Pictures;
 pub use plan::{Exercise, Family, Kind, Original, STAGE_SESSIONS, STAGES, STAGES_READY};
 pub use random::{Random, derived};
 pub use record::{
-    AREAS_ROWS, COLOUR_ROWS, DRILL, ExerciseResult, KindSummary, PROJECT, SCALE_ROWS,
-    SessionRecord, met, summary, used,
+    AREAS_ROWS, COLOUR_ROWS, DRILL, ExerciseResult, KindSummary, PROJECT, RECENT, SCALE_ROWS,
+    SessionRecord, met, recent, summary, used,
 };
 pub use scale::{BARS, ROW, ScaleCheck, ScaleTone, ValueScale};
 pub use seals::{Earned, Seal, Tally, earned, sealed};

@@ -1,7 +1,8 @@
 //! The names the app gives, shown in the language. The app stores them as it made them, in
 //! English ("Layer 3", "Group 2", "Inserted image", "Pasted layer", "Untitled Artwork", the
 //! built-in brushes' names, "<name> copy", a colour copy's "Colour copy 2", a picture of one's
-//! own "Picture 4"), so they read in whichever language shows and the stored name stays the
+//! own "Picture 4", a whole copy's "Division" and "Line drawing" layers), so they read in
+//! whichever language shows and the stored name stays the
 //! control's name. A name the user typed shows as typed; one that reads like a default shows as
 //! the default would.
 
@@ -17,6 +18,8 @@ texts! { NAMES;
     PASTED_LAYER = "Pasted layer", "粘贴的图层";
     UNTITLED_ARTWORK = "Untitled Artwork", "未命名作品";
     COPY_NAME = "copy", "副本";
+    DIVISION_LAYER_NAME = "Division", "画面分割";
+    LINES_LAYER_NAME = "Line drawing", "线稿";
 }
 
 /// `name` as `language` shows it.
@@ -39,7 +42,13 @@ pub(crate) fn shown_name(language: Language, name: &str) -> Cow<'_, str> {
             return Cow::Owned(format!("{} {number}", word.get(language)));
         }
     }
-    let fixed = [INSERTED_IMAGE, PASTED_LAYER, UNTITLED_ARTWORK];
+    let fixed = [
+        INSERTED_IMAGE,
+        PASTED_LAYER,
+        UNTITLED_ARTWORK,
+        DIVISION_LAYER_NAME,
+        LINES_LAYER_NAME,
+    ];
     match fixed.iter().chain(&BUILT_IN).find(|text| text.id() == name) {
         Some(text) => Cow::Borrowed(text.get(language)),
         None => Cow::Borrowed(name),
@@ -94,5 +103,8 @@ mod tests {
             );
         }
         assert_eq!(library.brushes().len(), BUILT_IN.len());
+        // A whole copy's layers (S95).
+        assert_eq!(DIVISION_LAYER_NAME.id(), openpaint_app::DIVISION_LAYER);
+        assert_eq!(LINES_LAYER_NAME.id(), openpaint_app::LINES_LAYER);
     }
 }

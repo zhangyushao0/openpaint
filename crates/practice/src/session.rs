@@ -28,7 +28,8 @@
 //!
 //! The warm-up's exercises are kinds met, each chosen by the seed among its family's; a shape in
 //! it a picture of its tier. A plan's shapes carry their pictures, picked by the seed
-//! (`pictures.rs`). Stage 3's sessions: `session_three.rs`; stage 4's: `session_four.rs`.
+//! (`pictures.rs`), its divisions and whole copies compositions (S95). Stage 3's sessions:
+//! `session_three.rs`; stage 4's: `session_four.rs`.
 
 use std::collections::HashSet;
 
@@ -100,13 +101,15 @@ pub struct Plan {
     pub warm_up: u32,
 }
 
-/// What a session's plan reads: the kinds `met` in earlier sessions, the `pictures` there are and
-/// those `used` in earlier sessions.
+/// What a session's plan reads: the kinds `met` in earlier sessions, the `pictures` there are,
+/// those `used` in earlier sessions and those the last ten showed (`recent`, S95: a composition
+/// comes back after ten sessions).
 #[derive(Debug, Clone, Copy)]
 pub struct Before<'a> {
     pub met: &'a [Kind],
     pub pictures: &'a Pictures,
     pub used: &'a [ItemRef],
+    pub recent: &'a [ItemRef],
 }
 
 /// Session `number` of `stage` seeded `seed` after `before`: stage 2's for stage 2, stage 3's for
@@ -175,12 +178,16 @@ pub fn stage_two(number: u32, seed: u64, before: &Before<'_>) -> Plan {
 
 /// The pictures a session's shapes copy, picked by the seed: others than those shown before while
 /// there are, the last of the session's shapes the user's own of its hardest tier (`reach`) or an
-/// easier one when they have one.
+/// easier one when they have one; its compositions others than those of the last ten sessions
+/// while there are, none twice while another is left (S95).
 pub(crate) struct Picker<'a> {
     before: &'a Before<'a>,
     random: Random,
     used: HashSet<ItemRef>,
     reach: Tier,
+    /// The session's own pictures so far, and those of the last ten sessions.
+    shown: HashSet<ItemRef>,
+    recent: HashSet<ItemRef>,
 }
 
 impl<'a> Picker<'a> {
@@ -190,7 +197,33 @@ impl<'a> Picker<'a> {
             random: Random::new(derived(seed, u64::MAX - 1)),
             used: before.used.iter().cloned().collect(),
             reach,
+            shown: HashSet::new(),
+            recent: before.recent.iter().cloned().collect(),
         }
+    }
+
+    /// `kinds` (divisions and whole copies) with compositions of their tiers; none without a
+    /// composition.
+    pub(crate) fn compositions(&mut self, kinds: &[Kind]) -> Vec<(Kind, Option<ItemRef>)> {
+        let mut picked = Vec::new();
+        for kind in kinds {
+            let (Kind::Division(tier) | Kind::WholeCopy(tier)) = *kind else {
+                continue;
+            };
+            let pictures = self.before.pictures;
+            let shown = (&self.shown, &self.recent);
+            let Some((tier, item)) = pictures.pick_composition(tier, &mut self.random, shown)
+            else {
+                continue;
+            };
+            self.shown.insert(item.clone());
+            let kind = match kind {
+                Kind::Division(_) => Kind::Division(tier),
+                _ => Kind::WholeCopy(tier),
+            };
+            picked.push((kind, Some(item)));
+        }
+        picked
     }
 
     /// `kind` with its picture (a shape's; none for another kind), the user's own when `own`

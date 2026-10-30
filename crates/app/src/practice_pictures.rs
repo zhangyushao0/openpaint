@@ -80,19 +80,21 @@ pub struct PackShown {
     /// The user's own pictures.
     pub personal: bool,
     pub pictures: usize,
-    /// How many of them have an outline.
-    pub outlines: usize,
+    /// How many of them have an outline; none for a pack of kinds never outlined (compositions,
+    /// S95).
+    pub outlines: Option<usize>,
 }
 
 impl PackShown {
     #[must_use]
     pub fn of(pack: &Pack) -> Self {
+        let outlined = pack.items.iter().any(|item| item.kind.outlined());
         Self {
             id: pack.id.clone(),
             title: pack.title.clone(),
             personal: pack.personal(),
             pictures: pack.items.len(),
-            outlines: pack.items.iter().filter(|i| i.outline.is_some()).count(),
+            outlines: outlined.then(|| pack.items.iter().filter(|i| i.outline.is_some()).count()),
         }
     }
 }

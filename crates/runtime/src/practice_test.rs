@@ -26,7 +26,7 @@ use crate::practice::{PracticeJob, copy_job, drill_job, seed, start_job};
 use crate::storage::Job;
 
 /// The kinds a test drill is named by (`practice-test start drill <kind>`, S91).
-const DRILL_NAMES: [(&str, Family); 21] = [
+const DRILL_NAMES: [(&str, Family); 23] = [
     ("line", Family::Line),
     ("combined", Family::Combined),
     ("colour", Family::Colour),
@@ -48,11 +48,14 @@ const DRILL_NAMES: [(&str, Family); 21] = [
     ("cone", Family::Cone),
     ("sphere", Family::Sphere),
     ("objects", Family::Object),
+    ("division", Family::Division),
+    ("whole-copy", Family::WholeCopy),
 ];
 /// What a test drill's kind is named, as the refusal of another name says it.
 const DRILL_KINDS: &str = "a drill of line, combined, colour, shape, combination, scale, box, \
                            free-boxes, ellipse, point, proportion, angle, centre, halves, thirds, \
-                           next-face, mirror, cylinder, cone, sphere or objects";
+                           next-face, mirror, cylinder, cone, sphere, objects, division or \
+                           whole-copy";
 
 /// A test session's name: its id, its sheet's project, its seed and when it started (seconds
 /// since 1970 UTC). Written `id:sheet:seed:started`, the seed in hex.

@@ -35,6 +35,7 @@ mod pen_buttons;
 mod practice;
 mod practice_book;
 mod practice_copy;
+mod practice_layers;
 mod practice_log;
 mod practice_pens;
 mod practice_pictures;
@@ -102,6 +103,7 @@ pub use crate::practice::{
     PracticeProjection, Probe, SHAPE_SHOWN, SHOWN, SheetView, sheet_of,
 };
 pub use crate::practice_book::{BookProjection, BookRecord, LineRead, Mark, SheetRead};
+pub use crate::practice_layers::{DIVISION_DIMMED, DIVISION_LAYER, LINES_LAYER};
 pub use crate::practice_log::PracticeLog;
 pub use crate::practice_pens::{INK_DIAMETER, PracticePens};
 pub use crate::practice_pictures::{FitJob, PackShown, PictureImage, SHOWN_SIDE, SheetPicture};

@@ -34,7 +34,33 @@ fn pictures(tiers: &[Tier], personal: Option<Tier>) -> Pictures {
         title: "My pictures".to_owned(),
         items: vec![item("mine-1".to_owned(), tier)],
     });
-    Pictures::of(&[Some(pack), mine].into_iter().flatten().collect::<Vec<_>>())
+    // Compositions (S95) only where there are shapes: the tests without pictures have neither.
+    let compositions = (!tiers.is_empty()).then(|| compositions(&[Tier::Simple, Tier::Medium]));
+    let packs: Vec<Pack> = [Some(pack), mine, compositions]
+        .into_iter()
+        .flatten()
+        .collect();
+    Pictures::of(&packs)
+}
+
+/// A composition pack of four pictures of each of `tiers`.
+fn compositions(tiers: &[Tier]) -> Pack {
+    let item = |id: String, tier: Tier| PackItem {
+        id,
+        kind: PictureKind::Composition,
+        tier,
+        size: [800, 600],
+        title: "test".to_owned(),
+        credit: None,
+        outline: None,
+    };
+    Pack {
+        id: "test-compositions".to_owned(),
+        title: "Test compositions".to_owned(),
+        items: (tiers.iter())
+            .flat_map(|tier| (0..4).map(move |n| item(format!("{}-{n}", tier.name()), *tier)))
+            .collect(),
+    }
 }
 
 fn before<'a>(pictures: &'a Pictures, used: &'a [ItemRef]) -> Before<'a> {
@@ -42,6 +68,7 @@ fn before<'a>(pictures: &'a Pictures, used: &'a [ItemRef]) -> Before<'a> {
         met: &[],
         pictures,
         used,
+        recent: used,
     }
 }
 
@@ -76,6 +103,8 @@ fn each_kind_s_drill_holds_that_kind_only_as_many_as_the_slice_says() {
         (Family::Cone, 3),
         (Family::Sphere, 3),
         (Family::Object, 3),
+        (Family::Division, 3),
+        (Family::WholeCopy, 1),
     ];
     for (family, count) in counts {
         let drilled = kinds(family, 1, &all);

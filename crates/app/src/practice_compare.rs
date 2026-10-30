@@ -11,7 +11,9 @@
 //! original over it in place as strong as the user sets, and is read from its pixels
 //! (`practice_read.rs`). A box's, an ellipse's, an estimate's or a point in space's copy is
 //! checked as geometry against its exact answer, at once on the frame loop
-//! (`practice_checks.rs`).
+//! (`practice_checks.rs`). A division (S95) has its picture laid faint under its lines, which are
+//! counted and measured per level; a whole copy its picture laid over it as strongly as the user
+//! sets, its division hidden.
 //!
 //! The first Compare stores the exercise's result: when, the sheet's next stroke id (every stroke
 //! in the frame from it on is a correction) and a colour's numbers (a painted copy's when its
@@ -99,7 +101,9 @@ impl PracticeSheet {
             }
         }
         self.changed = true;
-        if matches!(compared, Compared::Drawn(_) | Compared::Checked(_)) {
+        // A division's lines drawn after Compare are its own: no correcting pen (S95).
+        let divided = self.family(index).is_some_and(Family::divided);
+        if matches!(compared, Compared::Drawn(_) | Compared::Checked(_)) && !divided {
             self.pen = Pen::Correct;
         }
         self.compared = Some(compared);
@@ -129,6 +133,15 @@ impl PracticeSheet {
                 }
             }
             _ if !holds_copy(artwork, frame) => return Err(nothing()),
+            // A division: the picture laid faint under its lines, counted (S95); a whole copy:
+            // the picture over it as strong as the slider sets, its division hidden.
+            Original::Picture(_) if self.family(index) == Some(Family::Division) => {
+                let overlay = self.division_overlay(index, artwork);
+                Compared::Checked(overlay.ok_or_else(nothing)?)
+            }
+            Original::Picture(_) if self.family(index) == Some(Family::WholeCopy) => {
+                Compared::Painted(Reading::Shown)
+            }
             Original::Areas(_) | Original::Scale(_) => Compared::Painted(self.ask_read(index)),
             Original::Picture(_) if !self.drawn(index) => Compared::Painted(Reading::Shown),
             Original::Lines(_) | Original::Picture(_) => {
@@ -214,6 +227,11 @@ impl PracticeSheet {
             (Compared::Checked(Overlay::Solid(check) | Overlay::Object(check)), _) => {
                 check.metrics.clone()
             }
+            (Compared::Checked(Overlay::Division { check, .. }), _) => check.metrics.clone(),
+            // A whole copy keeps its own division's numbers.
+            _ if self.family(index) == Some(Family::WholeCopy) => (self.division(index, artwork))
+                .map(|check| check.metrics)
+                .unwrap_or_default(),
             _ => Metrics::new(),
         }
     }

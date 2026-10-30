@@ -13,8 +13,9 @@ use std::sync::Arc;
 
 use openpaint_core::Color;
 use openpaint_practice::{
-    AreasCopy, BoxCheck, EllipseCheck, ExerciseResult, Family, FlatCheck, FreeCheck, KindSummary,
-    Original, Pack, Pair, Point, Rgb8, ScaleCheck, SessionRecord, Sheet, SolidCheck, SpaceCheck,
+    AreasCopy, BoxCheck, DivisionCheck, EllipseCheck, ExerciseResult, Family, FlatCheck, FreeCheck,
+    KindSummary, Level, Original, Pack, Pair, Point, Rgb8, ScaleCheck, SessionRecord, Sheet,
+    SolidCheck, SpaceCheck,
 };
 
 use crate::layer_rules::LayerRefusal;
@@ -78,6 +79,11 @@ pub enum Pen {
     Big,
     Small,
     Soft,
+    /// A division's levels in V大's colours (S95): its main lines red, the second green, the
+    /// third blue.
+    Main,
+    Second,
+    Third,
 }
 
 impl Pen {
@@ -85,11 +91,25 @@ impl Pen {
     /// is painted with.
     pub const DRAWING: [Self; 3] = [Self::Sketch, Self::Draw, Self::Correct];
     pub const PAINTING: [Self; 3] = [Self::Big, Self::Small, Self::Soft];
+    /// A division's pens, and a whole copy's: its division's, then Draw for its line drawing.
+    pub const DIVIDING: [Self; 3] = [Self::Main, Self::Second, Self::Third];
+    pub const COPYING: [Self; 4] = [Self::Main, Self::Second, Self::Third, Self::Draw];
 
     /// Whether it paints in the colour picked.
     #[must_use]
     pub fn paints(self) -> bool {
         Self::PAINTING.contains(&self)
+    }
+
+    /// The division's level it draws, if it is a division's pen.
+    #[must_use]
+    pub const fn level(self) -> Option<Level> {
+        match self {
+            Self::Main => Some(Level::Main),
+            Self::Second => Some(Level::Second),
+            Self::Third => Some(Level::Third),
+            _ => None,
+        }
     }
 }
 
@@ -178,6 +198,9 @@ pub struct SheetView {
     pub size: [u32; 2],
     pub pairs: Vec<Pair>,
     pub originals: Vec<Original>,
+    /// Each exercise's family: a picture's original is a shape's, a copy's, a division's or a
+    /// whole copy's.
+    pub families: Vec<Family>,
     /// Each exercise's picture, a single shape's or a colour copy's (none: another kind, or a
     /// picture no pack holds now: removed).
     pub pictures: Vec<Option<Arc<SheetPicture>>>,
@@ -220,6 +243,7 @@ impl SheetView {
                 })
                 .collect(),
             originals,
+            families: (record.exercises.iter()).map(|e| e.kind.family()).collect(),
         }
     }
 }
@@ -250,7 +274,8 @@ pub struct AreasRead {
 pub enum Overlay {
     /// The original's lines where they lie over the copy (in place or aligned), in canvas pixels.
     Lines(Vec<Vec<[f32; 2]>>),
-    /// A single shape's or a colour copy's picture over the copy, `shown` strong, its corners (top
+    /// A single shape's, a colour copy's or a whole copy's picture over the copy, `shown` strong
+    /// (a whole copy's division hidden under it, S95), its corners (top
     /// left, top right, bottom right, bottom left) in canvas pixels, with a shape's outline's
     /// lines (none without one), in place or aligned.
     Picture {
@@ -292,4 +317,12 @@ pub enum Overlay {
     /// An object simplified into its box (S94): the curves and edges read against its visible
     /// edges and outlines.
     Object(Arc<SolidCheck>),
+    /// A division (S95): its picture faint in place under the copy, its corners (top left, top
+    /// right, bottom right, bottom left) in canvas pixels, `shown` strong; the lines as drawn,
+    /// joined, by level (frame units), and each level's count and length.
+    Division {
+        corners: [[f32; 2]; 4],
+        shown: f32,
+        check: Arc<DivisionCheck>,
+    },
 }

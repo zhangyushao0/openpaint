@@ -48,6 +48,9 @@ pub enum SystemAnswer {
     DamagedFile,
     /// In the file picker, a practice pack of pictures drawn for the tests (`test_pack.rs`).
     TestPack,
+    /// In the file picker, a composition pack painted for the tests (`test_compositions.rs`,
+    /// S95).
+    TestCompositions,
 }
 
 /// The fixture pictures, built into the runner (it never reads files).
@@ -137,7 +140,9 @@ fn answers(answer: SystemAnswer, request: &HostRequest) -> bool {
         SystemAnswer::SavedFile | SystemAnswer::DamagedFile => {
             matches!(request, HostRequest::OpenArtwork)
         }
-        SystemAnswer::TestPack => matches!(request, HostRequest::OpenPack),
+        SystemAnswer::TestPack | SystemAnswer::TestCompositions => {
+            matches!(request, HostRequest::OpenPack)
+        }
         SystemAnswer::Cancel | SystemAnswer::PickerFails => {
             !matches!(request, HostRequest::Send { .. })
         }
@@ -154,6 +159,9 @@ fn chosen(answer: SystemAnswer, written: &Written) -> Result<Vec<u8>, ScenarioEr
         SystemAnswer::TextFile => b"Shopping list: ink, paper.\n".to_vec(),
         SystemAnswer::TestPack => crate::test_pack::test_pack()
             .ok_or(ScenarioError::Missing("the test pack could not be made"))?,
+        SystemAnswer::TestCompositions => crate::test_compositions::test_compositions().ok_or(
+            ScenarioError::Missing("the test compositions could not be made"),
+        )?,
         SystemAnswer::SavedFile | SystemAnswer::DamagedFile => {
             let saved = written.lock().unwrap_or_else(PoisonError::into_inner);
             let mut bytes = saved

@@ -4,12 +4,15 @@
 //! that corrects it, as on paper. For colour combinations and value scales, in the colour picked
 //! on the wheel: a big brush for the masses first, a small one for the edges and the hierarchy
 //! later, and a soft one for soft edges (V大: a big brush first, smaller as the copy goes on).
+//! For a division and a whole copy's division (S95), the ink pen in V大's three colours: the main
+//! lines red, the second level green, the third blue; a stroke's level is read back from them.
 //! Each is a built-in brush as its file has it (the user's edits never reach them) at a size of
 //! its own; the toolbox is not touched.
 
 use std::sync::Arc;
 
 use openpaint_core::{Color, CoreError, StrokeStyle};
+use openpaint_practice::Level;
 
 use crate::brushes::{BrushKey, BrushLibrary};
 use crate::practice::Pen;
@@ -36,6 +39,14 @@ pub struct PracticePens {
     big: StrokeStyle,
     small: StrokeStyle,
     soft: StrokeStyle,
+    /// A division's levels' (S95): the ink pen as Draw's, in each level's colour.
+    levels: [StrokeStyle; 3],
+}
+
+/// A division's level's colour as a stroke holds it.
+fn level_colour(level: Level) -> Result<Color, CoreError> {
+    let [r, g, b] = level.colour().map(|c| f32::from(c) / 255.0);
+    Color::rgb(r, g, b)
 }
 
 impl PracticePens {
@@ -57,13 +68,23 @@ impl PracticePens {
                 Color::rgb(r, g, b)?,
             )
         };
+        let draw = style(DRAW)?;
+        let level = |level: Level| {
+            let recipe = Arc::clone(draw.recipe());
+            StrokeStyle::new(recipe, draw.size(), draw.opacity(), level_colour(level)?)
+        };
         Ok(Self {
             sketch: style(SKETCH)?,
-            draw: style(DRAW)?,
             correct: style(CORRECT)?,
             big: style(BIG)?,
             small: style(SMALL)?,
             soft: style(SOFT)?,
+            levels: [
+                level(Level::Main)?,
+                level(Level::Second)?,
+                level(Level::Third)?,
+            ],
+            draw,
         })
     }
 
@@ -76,6 +97,9 @@ impl PracticePens {
             Pen::Big => &self.big,
             Pen::Small => &self.small,
             Pen::Soft => &self.soft,
+            Pen::Main => &self.levels[0],
+            Pen::Second => &self.levels[1],
+            Pen::Third => &self.levels[2],
         }
     }
 
@@ -98,4 +122,13 @@ pub(crate) fn sketched(style: &StrokeStyle) -> bool {
     style.size() == size
         && style.opacity() == opacity
         && Color::rgb(r, g, b).is_ok_and(|colour| colour == style.color())
+}
+
+/// The division's level `style` draws, if it is a level's pen's (S95): its colour, size and
+/// opacity (stored exactly) tell it.
+pub(crate) fn levelled(style: &StrokeStyle) -> Option<Level> {
+    let (_, size, opacity, _) = DRAW;
+    let pen = style.size() == size && style.opacity() == opacity;
+    let colour = |level: &Level| level_colour(*level).is_ok_and(|c| c == style.color());
+    Level::ALL.into_iter().find(|level| pen && colour(level))
 }

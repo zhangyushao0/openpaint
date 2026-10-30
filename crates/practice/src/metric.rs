@@ -5,11 +5,14 @@
 //! Lines and shapes have no numbers (D99: a number that does not match what the eye sees misleads;
 //! the overlay is the feedback). Colours, colour combinations and value scales do (D105, D108);
 //! estimates, points in space, solids and objects keep their exact errors for the trajectories,
-//! never shown (D107).
+//! never shown (D107); a division its lines' counts and lengths per level, for its card's table
+//! and later trajectories (S95).
 //! Retired, never reused, passed over when read: codes 1 to 8, 1.1.0's line metrics (key points,
 //! frame, shape, speed, wobble, strokes, erased, seconds); 21 to 23 and 25 to 27, a colour's hue
 //! (degrees, only where both passed an RGB chroma gate), saturation and value on the wheel's HSV
 //! until 1.6.0; 32, 1.5.0's value scale off its even steps on the wheel's value.
+
+use crate::division::Level;
 
 /// One measured quantity of a result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -52,10 +55,14 @@ pub enum Metric {
     /// An object (S94): the lines read off its visible edges on the mean, a share of its box
     /// (`solid_check.rs`).
     ObjectOff,
+    /// A division's level (S95, a whole copy's own division too): its lines drawn, and how far
+    /// they run on the mean, a share of the picture's longer side (`division.rs`).
+    DivisionLines(Level),
+    DivisionLength(Level),
 }
 
 impl Metric {
-    pub const ALL: [Self; 22] = [
+    pub const ALL: [Self; 28] = [
         Self::FirstDelta,
         Self::FirstLightness,
         Self::FirstChroma,
@@ -78,6 +85,12 @@ impl Metric {
         Self::SpaceOff,
         Self::SolidOff,
         Self::ObjectOff,
+        Self::DivisionLines(Level::Main),
+        Self::DivisionLength(Level::Main),
+        Self::DivisionLines(Level::Second),
+        Self::DivisionLength(Level::Second),
+        Self::DivisionLines(Level::Third),
+        Self::DivisionLength(Level::Third),
     ];
 
     /// The code it is stored by; never reused.
@@ -106,6 +119,12 @@ impl Metric {
             Self::SpaceOff => 46,
             Self::SolidOff => 47,
             Self::ObjectOff => 48,
+            Self::DivisionLines(Level::Main) => 49,
+            Self::DivisionLength(Level::Main) => 50,
+            Self::DivisionLines(Level::Second) => 51,
+            Self::DivisionLength(Level::Second) => 52,
+            Self::DivisionLines(Level::Third) => 53,
+            Self::DivisionLength(Level::Third) => 54,
         }
     }
 

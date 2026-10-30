@@ -12,6 +12,7 @@ mod runner;
 mod scenario;
 mod system;
 mod target;
+mod test_compositions;
 mod test_pack;
 mod watched;
 

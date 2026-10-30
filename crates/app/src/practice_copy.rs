@@ -12,9 +12,9 @@
 use std::ops::Range;
 
 use openpaint_core::{Artwork, Color, Layer, Stroke, StrokeTool};
-use openpaint_practice::{ColourCopy, Frame, Point, Rgb8, nearest};
+use openpaint_practice::{ColourCopy, Frame, Level, Point, Rgb8, nearest};
 
-use crate::practice_pens::sketched;
+use crate::practice_pens::{levelled, sketched};
 
 /// Strokes may begin this share of the frame's width outside it.
 pub(crate) const MARGIN: f64 = 0.1;
@@ -58,21 +58,48 @@ pub(crate) const ALL_STROKES: Range<u64> = 0..u64::MAX;
 /// The line copied in `frame` in pieces, in frame units, of the strokes whose ids lie in `ids`:
 /// what the aligned overlay fits, a geometry check reads and the practice book shows.
 pub(crate) fn line_pieces(artwork: &Artwork, frame: &Frame, ids: Range<u64>) -> Vec<Vec<Point>> {
+    let taken = |stroke: &Stroke| {
+        let style = stroke.style();
+        let kept = style.tool() == StrokeTool::Paint && !sketched(style);
+        (kept && ids.contains(&stroke.id().get())).then_some(())
+    };
+    (pieces_of(artwork, frame, taken).into_iter())
+        .map(|((), piece)| piece)
+        .collect()
+}
+
+/// A division's lines drawn in `frame` in pieces, in frame units, each with the level its pen
+/// draws (S95): the strokes of the levels' pens, less what a later eraser passed over.
+pub(crate) fn division_pieces(artwork: &Artwork, frame: &Frame) -> Vec<(Level, Vec<Point>)> {
+    let level = |stroke: &Stroke| {
+        let style = stroke.style();
+        (style.tool() == StrokeTool::Paint)
+            .then(|| levelled(style))
+            .flatten()
+    };
+    pieces_of(artwork, frame, level)
+}
+
+/// The strokes begun in `frame` that `taken` keeps (with what it tells of each), cut where a later
+/// eraser stroke passed over them, in frame units, oldest first.
+fn pieces_of<T: Copy>(
+    artwork: &Artwork,
+    frame: &Frame,
+    taken: impl Fn(&Stroke) -> Option<T>,
+) -> Vec<(T, Vec<Point>)> {
     let strokes = strokes_in(artwork, frame);
     let mut pieces = Vec::new();
     for (index, stroke) in strokes.iter().enumerate() {
-        let style = stroke.style();
-        let left_out = !ids.contains(&stroke.id().get());
-        if style.tool() != StrokeTool::Paint || sketched(style) || left_out {
+        let Some(told) = taken(stroke) else {
             continue;
-        }
+        };
         let erasers: Vec<(Vec<Point>, f64)> = strokes[index + 1..]
             .iter()
             .filter(|later| later.style().tool() == StrokeTool::Erase)
             .map(|later| (positions(later), f64::from(later.style().size()) / 2.0))
             .collect();
         for piece in kept_pieces(&positions(stroke), &erasers) {
-            pieces.push(piece.iter().map(|p| frame.to_frame(*p)).collect());
+            pieces.push((told, piece.iter().map(|p| frame.to_frame(*p)).collect()));
         }
     }
     pieces

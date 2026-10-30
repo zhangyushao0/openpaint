@@ -70,6 +70,8 @@ pub(crate) const fn how(family: Family) -> How {
         Family::Cone => super::practice_demo_solids::CONE,
         Family::Sphere => super::practice_demo_solids::SPHERE,
         Family::Object => super::practice_demo_objects::OBJECT,
+        Family::Division => super::practice_demo_division::DIVISION,
+        Family::WholeCopy => super::practice_demo_division::WHOLE_COPY,
         Family::Colour => c::COLOUR,
         Family::Areas => c::AREAS,
         Family::Scale => c::SCALE,

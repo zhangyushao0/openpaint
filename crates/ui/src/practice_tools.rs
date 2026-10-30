@@ -7,7 +7,8 @@
 //!   carries the ink pill and the usual islands and side bar are back (the toolbox's brush
 //!   draws).
 //! - A line, combined lines or a single shape: the pens, Sketch (a light pencil for marks and
-//!   construction lines) and Draw, and after Compare Correct (blue); under them Undo and Redo.
+//!   construction lines) and Draw, and after Compare Correct (blue); under them Undo and Redo. A
+//!   division: its levels' pens, Main, Second, Third (S95); a whole copy those and Draw.
 //! - A colour: the colour wheel (the colour panel's own) and Fill frame, which fills the frame
 //!   with the colour picked in one tap.
 //! - A colour combination: the wheel, Fill frame (the overall tone first) with Undo and Redo,
@@ -69,8 +70,13 @@ pub(crate) fn exercise_tools(
     let source = (Source::Within(Align::Center), UNDER_ISLANDS);
     let family = practice.family?;
     if family.drawn() {
+        let offered: &[Pen] = match family {
+            Family::Division => &Pen::DIVIDING,
+            Family::WholeCopy => &Pen::COPYING,
+            _ => &Pen::DRAWING,
+        };
         let pens = |ui: &mut egui::Ui| {
-            ui.horizontal(|ui| pens(ui, projection, &Pen::DRAWING, taps));
+            ui.horizontal(|ui| pens(ui, projection, offered, taps));
             ui.horizontal(|ui| history(ui, projection, taps));
         };
         return Some(card(ctx, "practice pens", source, pens).1);
@@ -134,7 +140,18 @@ fn pens(
             if pen == Pen::Correct && !compared {
                 continue;
             }
-            if text_choice(ui, group, t::pen(pen), chosen == Some(pen)).clicked() {
+            let word = text_choice(ui, group, t::pen(pen), chosen == Some(pen));
+            // A division's level shows its colour under its word (S95).
+            if let Some(level) = pen.level() {
+                let rect = word.rect;
+                let under = rect.center().y + 1.4 * SPACE;
+                let ends = [rect.left() + 1.5 * SPACE, rect.right() - 1.5 * SPACE];
+                let line = ends.map(|x| egui::pos2(x, under));
+                let colour = crate::practice_division_marks::level_colour(level);
+                ui.painter()
+                    .line_segment(line, egui::Stroke::new(2.0, colour));
+            }
+            if word.clicked() {
                 push_once(taps, Intent::Practice(PracticeIntent::Pen(pen)));
                 // The pens are the brush tool's: a chosen eraser gives way.
                 taps.push(Intent::Tool(ToolIntent::Use(Tool::Brush)));

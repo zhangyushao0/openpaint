@@ -4,7 +4,8 @@
 //! (each arrangement), 6 colours (stage 1's), 3 single shapes (their tiers in turn from entry to
 //! hard, the last the user's own as in stage 2), 2 colour combinations, 2 value scales, 3 boxes, a
 //! page of free boxes, 4 ellipses, 5 points, proportions or angles, 3 of one of V大's five tricks,
-//! 3 of a solid (S93) or 3 objects (S94, their carves in turn); each kind's variants in turn by the
+//! 3 of a solid (S93), 3 objects (S94, their carves in turn), 3 divisions or a whole copy (S95,
+//! compositions of the simple and medium tiers in turn); each kind's variants in turn by the
 //! drill's number among its kind's drills (a solid's pose by its seed). Its record is one of stage
 //! `DRILL` (`record.rs`): it counts in no session, road or stage.
 
@@ -18,6 +19,7 @@ use crate::perspective::BoxView;
 use crate::plan::{Family, Kind};
 use crate::scale::ScaleTone;
 use crate::session::{Before, COLOURS, COMBINED, HORIZONS, LINES, Picker, Plan, seeded};
+use crate::session_four::COMPOSITION_TIERS;
 use crate::solid::Solid;
 use crate::space::Trick;
 
@@ -45,8 +47,9 @@ const STAGE_THREE: [Family; 11] = [
     Family::Sphere,
 ];
 
-/// Stage 4's one kind, objects simplified into boxes (S94).
-const STAGE_FOUR: [Family; 1] = [Family::Object];
+/// Stage 4's kinds: objects simplified into boxes (S94), a picture divided and one copied whole
+/// (S95).
+const STAGE_FOUR: [Family; 3] = [Family::Object, Family::Division, Family::WholeCopy];
 
 /// How many exercises a drill of each kind holds.
 const SHAPES: usize = 3;
@@ -58,6 +61,8 @@ const ESTIMATES: usize = 5;
 const TRICKS: usize = 3;
 const SOLIDS: usize = 3;
 const OBJECTS: usize = 3;
+const DIVISIONS: usize = 3;
+const WHOLE_COPIES: usize = 1;
 
 /// The kinds `stage` practises, in its tiles' order; none for a stage not ready.
 #[must_use]
@@ -73,12 +78,14 @@ pub const fn kinds_of(stage: u8) -> &'static [Family] {
 
 /// Drill `number` (from 1) of `family`, seeded `seed`, after `before` (the pictures there are and
 /// those shown before; nothing met is drawn on: a drill has no warm-up). None for a kind no stage
-/// drills (a colour copy) and for shapes without any picture.
+/// drills (a colour copy), for shapes without any picture and for divisions and whole copies
+/// without a composition.
 #[must_use]
 pub fn drill(family: Family, number: u32, seed: u64, before: &Before<'_>) -> Option<Plan> {
     let turn = number.saturating_sub(1) as usize;
     let all = match family {
         Family::Shape => shapes(turn, seed, before),
+        Family::Division | Family::WholeCopy => compositions(family, turn, seed, before),
         Family::Study => Vec::new(),
         _ => kinds(family, turn).into_iter().map(|k| (k, None)).collect(),
     };
@@ -146,4 +153,24 @@ fn shapes(
     tiers.sort();
     let mut picker = Picker::new(seed, before, tiers[tiers.len() - 1]);
     picker.shapes(&tiers)
+}
+
+/// A drill of divisions (3) or whole copies (1) after `turn` others, with their compositions: the
+/// simple and medium tiers in turn, none twice, none of the last ten sessions' while others are
+/// left; none without a composition.
+fn compositions(
+    family: Family,
+    turn: usize,
+    seed: u64,
+    before: &Before<'_>,
+) -> Vec<(Kind, Option<crate::pack::ItemRef>)> {
+    let (count, kind): (usize, fn(Tier) -> Kind) = if family == Family::Division {
+        (DIVISIONS, Kind::Division)
+    } else {
+        (WHOLE_COPIES, Kind::WholeCopy)
+    };
+    let kinds: Vec<Kind> = (in_turn(&COMPOSITION_TIERS, turn, count).into_iter())
+        .map(kind)
+        .collect();
+    Picker::new(seed, before, Tier::Medium).compositions(&kinds)
 }

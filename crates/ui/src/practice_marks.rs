@@ -5,7 +5,8 @@
 //! its licence asks for one, a colour combination's or a value scale's in `practice_paint_marks.rs`,
 //! a box's or an ellipse's in `practice_geometry_marks.rs`, an estimate's or a point in space's in
 //! `practice_points_marks.rs`, a solid's in `practice_solid_marks.rs`, an object's picture and
-//! box in `practice_object_marks.rs`).
+//! box in `practice_object_marks.rs`; a division's or whole copy's picture's edge in the copy's
+//! frame and a division's compared lines in `practice_division_marks.rs`).
 //! While compared, the original's lines lie over the copy, in place or aligned onto it, as thick as
 //! the pen that drew the copy and in a semi-transparent marking red the ink shows through (S88:
 //! thicker, the red hid an error of a pen's width inside it), a hairline at least however far the
@@ -26,6 +27,7 @@ use openpaint_practice::{FRAME, Frame, ItemRef, Original, Rgb8};
 
 use crate::components::{Alpha, canvas_point, picture_texture};
 use crate::design::{CORRECTION, DIVIDER, INK, INK_SECONDARY, PANEL_RULE_WIDTH};
+use crate::practice_division_marks as division_marks;
 use crate::practice_geometry_marks as geometry_marks;
 use crate::practice_object_marks as object_marks;
 use crate::practice_paint_marks as paint_marks;
@@ -152,6 +154,7 @@ fn show_original(
         Original::Picture(_) => {
             let shown = (index, &pair.original);
             show_picture(painter, practice, shown, (at, scale), pictures);
+            division_marks::show_edge(painter, practice, (index, pair), at);
         }
         Original::Areas(_) | Original::Scale(_) => {
             let painted = &pictures.painted;
@@ -260,23 +263,8 @@ fn show_overlay(
                 painter.add(Shape::line(points, Stroke::new(width, red)));
             }
         }
-        (
-            Overlay::Picture {
-                corners,
-                outline,
-                shown,
-            },
-            Original::Picture(_),
-        ) => {
-            let item = practice.sheet.pictures[index].as_ref().map(|p| &p.item);
-            if let Some(Some(texture)) = item.and_then(|item| pictures.texture(item)) {
-                let faint = Color32::WHITE.gamma_multiply(*shown);
-                painter.add(quad(texture, corners.map(|p| canvas(&p)), faint));
-            }
-            for line in outline {
-                let points: Vec<Pos2> = line.iter().map(canvas).collect();
-                painter.add(Shape::line(points, Stroke::new(width, red)));
-            }
+        (Overlay::Picture { .. } | Overlay::Division { .. }, Original::Picture(_)) => {
+            laid(painter, (practice, index), overlay, (at, width), pictures);
         }
         (Overlay::Colour { original, last, .. }, Original::Colour(_)) => {
             swapped(painter, &pair, at, (*original, *last));
@@ -296,6 +284,44 @@ fn show_overlay(
         }
         (Overlay::Solid(_), _) => {
             solid_marks::show_overlay(painter, practice, overlay, (at, width));
+        }
+        _ => {}
+    }
+}
+
+/// Exercise `index`'s picture laid over its copy as `overlay` lays it, then over it a shape's
+/// outline in the marking red or a division's lines in their levels' colours (S95), `width`
+/// points wide.
+fn laid(
+    painter: &egui::Painter,
+    (practice, index): (&PracticeProjection, usize),
+    overlay: &Overlay,
+    (at, width): (&dyn Fn([f64; 2]) -> Pos2, f32),
+    pictures: &SheetPictures,
+) {
+    let canvas = |p: &[f32; 2]| at(p.map(f64::from));
+    let (corners, shown) = match overlay {
+        Overlay::Picture { corners, shown, .. } | Overlay::Division { corners, shown, .. } => {
+            (corners, *shown)
+        }
+        _ => return,
+    };
+    let item = practice.sheet.pictures[index].as_ref().map(|p| &p.item);
+    if let Some(Some(texture)) = item.and_then(|item| pictures.texture(item)) {
+        let faint = Color32::WHITE.gamma_multiply(shown);
+        painter.add(quad(texture, corners.map(|p| canvas(&p)), faint));
+    }
+    match overlay {
+        Overlay::Picture { outline, .. } => {
+            let red = CORRECTION.gamma_multiply(OVERLAY_SHOWN);
+            for line in outline {
+                let points: Vec<Pos2> = line.iter().map(canvas).collect();
+                painter.add(Shape::line(points, Stroke::new(width, red)));
+            }
+        }
+        Overlay::Division { check, .. } => {
+            let frame = practice.sheet.pairs[index].copy;
+            division_marks::show_lines(painter, &frame, check, (at, width));
         }
         _ => {}
     }

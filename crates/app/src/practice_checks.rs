@@ -4,20 +4,21 @@
 //! corrections once there are some), (S90) an estimate's or a point in space's last mark or lines
 //! read against the exact answer, and (S93) a solid's curves and sides read against the exact
 //! solid, (S94) an object's against its visible edges and outlines, the corrections in place of
-//! what they redraw. The sketch pen's construction is never read.
+//! what they redraw. The sketch pen's construction is never read. And (S95) a division's lines,
+//! read by their pens' levels, joined, counted and measured: no answer to check them against.
 
 use std::ops::Range;
 use std::sync::Arc;
 
 use openpaint_core::Artwork;
 use openpaint_practice::{
-    BoxCheck, Edge, EllipseCheck, EllipseGuide, FlatCheck, Frame, FreeCheck, Original, Point,
-    SolidCheck, SpaceCheck, corrected, edges,
+    BoxCheck, DivisionCheck, Edge, EllipseCheck, EllipseGuide, FlatCheck, Frame, FreeCheck,
+    Original, Point, SolidCheck, SpaceCheck, corrected, edges,
 };
 
 use super::PracticeSheet;
-use crate::practice::Overlay;
-use crate::practice_copy::{ALL_STROKES, line_pieces};
+use crate::practice::{Overlay, SHAPE_SHOWN};
+use crate::practice_copy::{ALL_STROKES, division_pieces, line_pieces};
 
 impl PracticeSheet {
     /// Exercise `index`'s copy in `frame` of `artwork` checked as geometry; none for an exercise
@@ -116,6 +117,30 @@ impl PracticeSheet {
     /// The first stroke id of exercise `index`'s corrections, once it was compared.
     fn corrected_from(&self, index: usize) -> Option<u64> {
         (self.record.result(index)).and_then(|result| result.corrected_from)
+    }
+
+    /// Exercise `index`'s division as drawn in its copy's frame of `artwork` (S95): every line of
+    /// the levels' pens (those drawn after a Compare too, part of it), joined, counted and
+    /// measured against its picture's longer side; none without its picture.
+    pub(super) fn division(&self, index: usize, artwork: &Artwork) -> Option<DivisionCheck> {
+        let picture = self.sheet.pictures.get(index)?.as_ref()?;
+        let frame = self.sheet.pairs.get(index)?.copy;
+        let side = picture.fit.size[0].max(picture.fit.size[1]);
+        Some(DivisionCheck::of(&division_pieces(artwork, &frame), side))
+    }
+
+    /// Exercise `index`'s division compared: its picture faint in place under the lines.
+    pub(super) fn division_overlay(&self, index: usize, artwork: &Artwork) -> Option<Overlay> {
+        let check = self.division(index, artwork)?;
+        let picture = self.sheet.pictures.get(index)?.as_ref()?;
+        let frame = self.sheet.pairs.get(index)?.copy;
+        let ([x, y], [w, h]) = (picture.fit.origin, picture.fit.size);
+        let corners = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
+        Some(Overlay::Division {
+            corners: corners.map(|p| frame.to_canvas(p).map(|v| v as f32)),
+            shown: SHAPE_SHOWN,
+            check: Arc::new(check),
+        })
     }
 }
 

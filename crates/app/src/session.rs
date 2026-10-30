@@ -112,12 +112,20 @@ impl Session {
     }
 
     /// Applies one intent. On error the session is as it was before, except that a stroke
-    /// whose lift failed to extend is still committed with the samples it had.
+    /// whose lift failed to extend is still committed with the samples it had. On a sheet holding
+    /// a whole copy its layers then follow the pen and Compare (`practice_layers.rs`).
     ///
     /// # Errors
     /// `Core` when the artwork refuses the edit (a locked layer, an invalid sample);
     /// `Unavailable` when the projection does not offer the action.
     pub fn dispatch(&mut self, intent: Intent) -> Result<(), AppError> {
+        let result = self.apply(intent);
+        self.practice_layers();
+        result
+    }
+
+    /// `dispatch`'s intent applied.
+    fn apply(&mut self, intent: Intent) -> Result<(), AppError> {
         self.end_drafts(&intent);
         if let Intent::Adjust(adjust) = intent {
             return self.adjust(adjust);
@@ -152,6 +160,8 @@ impl Session {
         match intent {
             Intent::Stroke(stroke) if self.refuses(&stroke) => Ok(()),
             Intent::Stroke(stroke) => {
+                // A whole copy's stroke begins on the layer its pen draws on.
+                self.practice_layers();
                 let clip = self.clip();
                 self.strokes.handle(&mut self.history, stroke, clip.as_ref())
             }

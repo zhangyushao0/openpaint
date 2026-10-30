@@ -5,7 +5,8 @@
 //! time from the tap to the frame showing the aligned fit (S88); Next three times, the view gliding
 //! to the next pair; in a session holding combined lines (stage 1), on to the first group, its
 //! lines drawn along the original and compared aligned likewise; in stage 3, its first point,
-//! angle and point in space marked and compared (`practice_points.rs`); then, in a session holding
+//! angle and point in space marked and compared (`practice_points.rs`); in stage 4 its division
+//! and whole copy drawn and compared (`practice_division.rs`, S95); then, in a session holding
 //! single shapes, on to its first shape: an outline drawn, Compare, Aligned (its fit found off
 //! the frame loop), In place, Compare taken away and compared aligned likewise; on to its colour
 //! combination: Fill frame, a stroke, Compare (its copy read back), another area, the original
@@ -72,6 +73,8 @@ impl Runtime {
         }
         self.bench_group(lines)?;
         self.bench_points(lines)?;
+        // Stage 4's division and whole copy after its objects (S95).
+        self.bench_division(lines)?;
         // Stage 2's shapes come before its colour work, its perspective after it.
         self.bench_shape(lines)?;
         self.bench_combination(lines)?;
@@ -109,22 +112,10 @@ impl Runtime {
     /// Next until an exercise of `family` shows, its instructions closed and the hand at rest;
     /// false when none comes after the one shown.
     pub(super) fn bench_on_to(&mut self, family: Family) -> Result<bool, RuntimeError> {
-        use openpaint_practice::Original;
         let shown = |runtime: &Self| runtime.projection().practice().and_then(|p| p.family);
-        let of = |original: &Original| match original {
-            Original::Lines(lines) if lines.len() > 1 => Some(Family::Combined),
-            Original::Box(_) => Some(Family::Box),
-            Original::FreeBoxes(_) => Some(Family::FreeBoxes),
-            Original::Ellipse(_) => Some(Family::Ellipse),
-            Original::Flat(flat) => Some(flat.estimate().family()),
-            Original::Space(task) => Some(task.trick.family()),
-            Original::Solid(task) => Some(task.solid.family()),
-            Original::Object(_) => Some(Family::Object),
-            _ => None,
-        };
         let holds = (self.projection().practice()).is_some_and(|p| {
-            let from = p.current.unwrap_or(p.sheet.originals.len());
-            (p.sheet.originals.iter().skip(from)).any(|original| of(original) == Some(family))
+            let from = p.current.unwrap_or(p.sheet.families.len());
+            (p.sheet.families.iter().skip(from)).any(|held| *held == family)
         });
         if !holds {
             return Ok(false);
@@ -169,30 +160,10 @@ impl Runtime {
     /// copy, Compare (the copy's frame read back, the picture over it), another area chosen, the
     /// original shown dragged to full and Compare taken away: a line each.
     fn bench_combination(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
-        let family = |runtime: &Self| runtime.projection().practice().and_then(|p| p.family);
-        let holds = (self.projection().practice()).is_some_and(|p| {
-            let after = p.current.unwrap_or(0)..p.sheet.originals.len();
-            after.into_iter().any(|index| {
-                matches!(
-                    p.sheet.originals[index],
-                    openpaint_practice::Original::Areas(_)
-                )
-            })
-        });
-        if !holds {
+        if !self.bench_on_to(Family::Areas)? {
             lines.push("no colour combination after this point of the session".to_owned());
             return Ok(());
         }
-        let mut watch = Watch::paced(self);
-        while family(self) != Some(Family::Areas) {
-            let viewport = self.bench_viewport()?;
-            let next = Intent::Practice(PracticeIntent::Next(viewport));
-            self.bench_intents(vec![next], &mut watch)?;
-        }
-        let close = Intent::Practice(PracticeIntent::Instructions(false));
-        self.bench_intents(vec![close], &mut watch)?;
-        self.bench_settle()?;
-        self.bench_rest()?;
         let line = self.bench_tap("Fill frame", ToolKind::Finger)?;
         lines.push(format!("combination filled: {line}"));
         self.bench_copy()?;
@@ -214,29 +185,10 @@ impl Runtime {
     /// frame, then Compare (the picture and its outline in place), Aligned (fitted off the frame
     /// loop) and In place, Compare taken away: a line each.
     fn bench_shape(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
-        let family = |runtime: &Self| runtime.projection().practice().and_then(|p| p.family);
-        let holds = (self.projection().practice()).is_some_and(|p| {
-            (p.current.unwrap_or(0)..p.sheet.originals.len()).any(|index| {
-                matches!(
-                    p.sheet.originals[index],
-                    openpaint_practice::Original::Picture(_)
-                )
-            })
-        });
-        if !holds {
+        if !self.bench_on_to(Family::Shape)? {
             lines.push("no single shape after this point of the session".to_owned());
             return Ok(());
         }
-        let mut watch = Watch::paced(self);
-        while family(self) != Some(Family::Shape) {
-            let viewport = self.bench_viewport()?;
-            let next = Intent::Practice(PracticeIntent::Next(viewport));
-            self.bench_intents(vec![next], &mut watch)?;
-        }
-        let close = Intent::Practice(PracticeIntent::Instructions(false));
-        self.bench_intents(vec![close], &mut watch)?;
-        self.bench_settle()?;
-        self.bench_rest()?;
         self.bench_outline()?;
         for (label, control) in [
             ("shape compare opens", "Compare"),
@@ -347,28 +299,10 @@ impl Runtime {
     /// The session taken on to its first colour (its instructions closed), the inline wheel's
     /// square dragged round, Fill frame and Compare: a line each.
     fn bench_colour(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
-        let colour = |runtime: &Self| {
-            (runtime.projection().practice()).is_some_and(|p| p.family == Some(Family::Colour))
-        };
-        let holds = (self.projection().practice()).is_some_and(|p| {
-            let from = p.current.unwrap_or(p.sheet.originals.len());
-            (p.sheet.originals.iter().skip(from))
-                .any(|original| matches!(original, openpaint_practice::Original::Colour(_)))
-        });
-        if !holds {
+        if !self.bench_on_to(Family::Colour)? {
             lines.push("no colour after this point of the session".to_owned());
             return Ok(());
         }
-        let mut watch = Watch::paced(self);
-        while !colour(self) {
-            let viewport = self.bench_viewport()?;
-            let next = Intent::Practice(PracticeIntent::Next(viewport));
-            self.bench_intents(vec![next], &mut watch)?;
-        }
-        let close = Intent::Practice(PracticeIntent::Instructions(false));
-        self.bench_intents(vec![close], &mut watch)?;
-        self.bench_settle()?;
-        self.bench_rest()?;
         let ([left, top], [width, height]) = self.bench_rect("Saturation and value")?;
         let centre = [left + width / 2.0, top + height / 2.0];
         let round: Vec<[f32; 2]> = (0..=32)

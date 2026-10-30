@@ -3,19 +3,22 @@
 //! once the next begins), a pass in the air as a dotted trace that goes again,
 //! Draw's ink, the dashed pencil of a horizon or a way to see it, a face or a negative shape
 //! shaded in pencil; then Compare's see-through red answer (dashed where a solid hides it), its
-//! blue reading (rings, dashes) and an original laid faint. A hand's mark draws along its length as time goes; what the exercise
+//! blue reading (rings, dashes) and an original laid faint; a division's lines in its levels'
+//! colours, a whole copy's dimming once Draw's step begins and gone at Compare (S95). A hand's
+//! mark draws along its length as time goes; what the exercise
 //! gives and Compare's marks show at once, fading in. Marks keep inside their frame, a wide
 //! example's inside the whole example (its vanishing points lie beside its frame).
 
 use egui::{Color32, Mesh, Pos2, Rect, Shape, Stroke, TextureHandle, Vec2};
-use openpaint_app::Hsv;
+use openpaint_app::DIVISION_DIMMED;
 use openpaint_practice::{Demo, Drawn, Mark, Marker, On, Point, Rgb8, length};
 
-use crate::components::wheel_picture;
 use crate::design::{
     CORRECTION, DIVIDER, FOUND, INK, INK_SECONDARY, PANEL, PANEL_RULE_WIDTH, PENCIL,
 };
-use crate::practice_demo::{by_hand, drawn, placed};
+use crate::practice_demo::{PictureKey, by_hand, drawn, placed};
+use crate::practice_demo_wheel::wheel;
+use crate::practice_division_marks::level_colour;
 use crate::practice_marks::quad;
 
 /// Line widths, in points: what is given, the pencil, the ink, the red answer, the blue reading.
@@ -62,13 +65,12 @@ impl Frames {
     }
 }
 
-/// `demo` as it shows `seconds` after its start on `frames`, a combination's pictures from
-/// `pictures`.
+/// `demo` as it shows `seconds` after its start on `frames`, its pictures from `pictures`.
 pub(crate) fn paint(
     painter: &egui::Painter,
     (demo, seconds): (&Demo, f64),
     frames: &Frames,
-    pictures: &dyn Fn(&[Rgb8]) -> Option<TextureHandle>,
+    pictures: &dyn Fn(&PictureKey) -> Option<TextureHandle>,
 ) {
     let papers = match (frames.wide, frames.shown) {
         (Some(paper), _) => [None, Some(paper)],
@@ -96,7 +98,10 @@ pub(crate) fn paint(
             going(mark, seconds)
         } else {
             shown
-        };
+        } * dimmed(demo, mark, seconds);
+        if alpha <= 0.0 {
+            continue;
+        }
         let colour = toned(demo, mark, seconds).gamma_multiply(alpha);
         on_frame(
             &painter.with_clip_rect(clip),
@@ -134,6 +139,19 @@ fn going(mark: &Mark, seconds: f64) -> f32 {
 /// How long an object's construction takes to go faint once the next step begins (S94).
 const FADING: f64 = 0.4;
 
+/// How much of a whole copy's division shows `seconds` after the start (S95): all of it, going
+/// down to `DIVISION_DIMMED` once Draw's step begins, none from Compare's; 1 for any other mark.
+fn dimmed(demo: &Demo, mark: &Mark, seconds: f64) -> f32 {
+    let (Marker::Level(_), Some([from, gone])) = (mark.pen, demo.dimmed) else {
+        return 1.0;
+    };
+    if seconds >= gone {
+        return 0.0;
+    }
+    let t = ((seconds - from) / FADING).clamp(0.0, 1.0) as f32;
+    1.0 + (DIVISION_DIMMED - 1.0) * t
+}
+
 /// What `mark` draws in `seconds` after the start: its pen's colour; an object's construction
 /// dark while its step draws, going faint once a later step begins (S94).
 pub(crate) fn toned(demo: &Demo, mark: &Mark, seconds: f64) -> Color32 {
@@ -151,7 +169,7 @@ fn on_frame(
     painter: &egui::Painter,
     rect: Rect,
     (mark, shown, alpha, colour): (&Mark, f32, f32, Color32),
-    pictures: &dyn Fn(&[Rgb8]) -> Option<TextureHandle>,
+    pictures: &dyn Fn(&PictureKey) -> Option<TextureHandle>,
 ) {
     let at = |p: Point| rect.min + Vec2::new(p[0] as f32, p[1] as f32) * rect.width();
     let pen = mark.pen;
@@ -184,39 +202,41 @@ fn on_frame(
             band(painter, rows, &at, fill.gamma_multiply(alpha * strength));
         }
         Drawn::Areas(colours) => {
-            if let Some(texture) = pictures(colours) {
-                let strength = if pen == Marker::Faint { LAID } else { 1.0 };
-                let corners = [
-                    rect.left_top(),
-                    rect.right_top(),
-                    rect.right_bottom(),
-                    rect.left_bottom(),
-                ];
-                let tint = Color32::WHITE.gamma_multiply(alpha * strength);
-                painter.add(quad(&texture, corners, tint));
-            }
+            let strength = if pen == Marker::Faint { LAID } else { 1.0 };
+            let key = PictureKey::Areas(colours.clone());
+            laid(painter, rect, pictures(&key), alpha * strength);
         }
-        Drawn::Shaded => {
-            if let Some(texture) = pictures(&[]) {
-                let corners = [
-                    rect.left_top(),
-                    rect.right_top(),
-                    rect.right_bottom(),
-                    rect.left_bottom(),
-                ];
-                painter.add(quad(
-                    &texture,
-                    corners,
-                    Color32::WHITE.gamma_multiply(alpha),
-                ));
-            }
+        Drawn::Shaded => laid(painter, rect, pictures(&PictureKey::Object), alpha),
+        Drawn::Masses([low, high]) => {
+            let strength = if pen == Marker::Faint { FAINT } else { 1.0 };
+            let place = Rect::from_min_max(at(*low), at(*high));
+            laid(
+                painter,
+                place,
+                pictures(&PictureKey::Masses),
+                alpha * strength,
+            );
         }
         Drawn::Pick(_) | Drawn::Ringed(_) => {}
     }
 }
 
-/// The colour `pen` draws in.
-const fn colour_of(pen: Marker) -> Color32 {
+/// `texture` (if made) laid on `rect`, `strength` strong.
+fn laid(painter: &egui::Painter, rect: Rect, texture: Option<TextureHandle>, strength: f32) {
+    if let Some(texture) = texture {
+        let corners = [
+            rect.left_top(),
+            rect.right_top(),
+            rect.right_bottom(),
+            rect.left_bottom(),
+        ];
+        let tint = Color32::WHITE.gamma_multiply(strength);
+        painter.add(quad(&texture, corners, tint));
+    }
+}
+
+/// The colour `pen` draws in: a division's level's in V大's colour (S95).
+pub(crate) fn colour_of(pen: Marker) -> Color32 {
     match pen {
         Marker::Given | Marker::Ink | Marker::Construction => INK,
         Marker::Pencil | Marker::Air | Marker::Guide => INK_SECONDARY,
@@ -224,6 +244,7 @@ const fn colour_of(pen: Marker) -> Color32 {
         Marker::Found => FOUND,
         Marker::Rule => DIVIDER,
         Marker::Shade | Marker::Faint => PENCIL,
+        Marker::Level(level) => level_colour(level),
     }
 }
 
@@ -234,7 +255,7 @@ fn line(painter: &egui::Painter, pen: Marker, path: Vec<Pos2>, colour: Color32) 
     }
     let (width, dashes) = match pen {
         Marker::Given => (GIVEN, None),
-        Marker::Ink => (INK_LINE, None),
+        Marker::Ink | Marker::Level(_) => (INK_LINE, None),
         Marker::Answer => (ANSWER, None),
         Marker::Hidden => (ANSWER / 2.0, Some((6.0, 4.0))),
         Marker::Found => (FOUND_LINE, Some((6.0, 4.0))),
@@ -323,49 +344,4 @@ fn along(points: &[Point], share: f32) -> Vec<Point> {
 
 fn rgb([r, g, b]: Rgb8) -> Color32 {
     Color32::from_rgb(r, g, b)
-}
-
-/// The colour wheel beside a colour's frames: its pick where the demonstration has moved it
-/// (round the ring the short way, then across and up or down the square), Compare's original
-/// ringed in red.
-fn wheel(painter: &egui::Painter, demo: &Demo, seconds: f64, rect: Rect) {
-    let mut pick: Option<[f64; 3]> = None;
-    let mut ringed = Vec::new();
-    for mark in demo.marks.iter().filter(|mark| mark.on == On::Wheel) {
-        let shown = drawn(mark, seconds);
-        if shown <= 0.0 {
-            continue;
-        }
-        match mark.drawn {
-            Drawn::Pick(to) => pick = Some(pick.map_or(to, |from| moved(from, to, shown))),
-            Drawn::Ringed(colour) => {
-                ringed.push((hsv(colour), colour_of(mark.pen).gamma_multiply(shown)));
-            }
-            _ => {}
-        }
-    }
-    if let Some(pick) = pick {
-        wheel_picture(painter, rect, hsv(pick), &ringed);
-    }
-}
-
-/// The pick `shown` of the way from `from` to `to`, eased: the hue the short way round.
-fn moved(from: [f64; 3], to: [f64; 3], shown: f32) -> [f64; 3] {
-    let t = f64::from(shown);
-    let t = t * t * (3.0 - 2.0 * t);
-    let turn = (to[0] - from[0] + 540.0).rem_euclid(360.0) - 180.0;
-    [
-        (from[0] + turn * t).rem_euclid(360.0),
-        from[1] + (to[1] - from[1]) * t,
-        from[2] + (to[2] - from[2]) * t,
-    ]
-}
-
-/// A hue in degrees, saturation and value as the wheel takes them.
-fn hsv([h, s, v]: [f64; 3]) -> Hsv {
-    Hsv {
-        h: (h / 360.0) as f32,
-        s: s.clamp(0.0, 1.0) as f32,
-        v: v.clamp(0.0, 1.0) as f32,
-    }
 }

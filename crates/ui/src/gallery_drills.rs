@@ -3,8 +3,8 @@
 //! stages did before: the next stage early, an earlier one to revisit), and under it the stage's
 //! kinds as tiles (`components::kind_tile`), in ink once compared anywhere, in pencil before,
 //! ringed while a drill of the kind is left unfinished. A tile tapped starts a drill of its kind,
-//! or continues the one left unfinished; the Shape tile without any pack picture says where to
-//! import a pack instead, and nothing starts.
+//! or continues the one left unfinished; the Shape tile without any pack picture, or Division and
+//! Whole copy without a composition (S95), say where to import a pack instead, and nothing starts.
 
 use egui::{Align2, Sense, TextStyle, Vec2, WidgetInfo, WidgetType};
 use openpaint_app::{DrillShown, GalleryIntent, Language, TodayProjection};
@@ -18,12 +18,12 @@ use crate::text::{self as t, Words};
 /// The least width a tile takes with its name under it, in points.
 const TILE_CELL: f32 = 72.0;
 
-/// The Practice section; `needs_pack` is set once the Shape tile was tapped without a pack's
-/// picture (its note shows under the stage's tiles). Returns what was tapped.
+/// The Practice section; `needs_pack` is set to the kind whose tile was tapped without its pack's
+/// pictures (its note shows under its stage's tiles). Returns what was tapped.
 pub(super) fn practice_section(
     ui: &mut egui::Ui,
     today: &TodayProjection,
-    needs_pack: &mut bool,
+    needs_pack: &mut Option<Family>,
 ) -> Option<Tapped> {
     let language = t::language(ui.ctx());
     let mut chosen = None;
@@ -40,14 +40,19 @@ pub(super) fn practice_section(
         if let Some(tapped) = tiles_of(ui, &tiles) {
             let pictures = !today.pictures.is_empty();
             match (tapped.family, tapped.open) {
-                (Family::Shape, None) if !pictures => *needs_pack = true,
+                (Family::Shape, None) if !pictures => *needs_pack = Some(Family::Shape),
+                (Family::Division | Family::WholeCopy, None) if !today.compositions => {
+                    *needs_pack = Some(tapped.family);
+                }
                 (_, Some(sheet)) => chosen = Some(Tapped::Intent(GalleryIntent::Open(sheet), true)),
                 (family, None) => chosen = Some(Tapped::Intent(GalleryIntent::Drill(family), true)),
             }
         }
-        let shapes = tiles.iter().any(|tile| tile.family == Family::Shape);
-        if shapes && *needs_pack {
-            note(ui, t::DRILL_NEEDS_PACK.into(), false);
+        let needed = needs_pack.filter(|family| tiles.iter().any(|tile| tile.family == *family));
+        match needed {
+            Some(Family::Shape) => note(ui, t::DRILL_NEEDS_PACK.into(), false),
+            Some(_) => note(ui, t::DRILL_NEEDS_COMPOSITIONS.into(), false),
+            None => {}
         }
     }
     chosen

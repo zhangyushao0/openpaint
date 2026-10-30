@@ -30,6 +30,8 @@ pub struct TodayProjection {
     pub ready: u8,
     /// The packs kept, the official ones first.
     pub packs: Vec<PackShown>,
+    /// Whether a pack kept holds a composition: divisions and whole copies can be drilled (S95).
+    pub compositions: bool,
     /// The long colour copies, newest first.
     pub copies: Vec<CopyShown>,
     /// The pictures a colour copy can be begun of: the official packs' by tier (easiest first,

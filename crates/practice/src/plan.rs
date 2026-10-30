@@ -59,6 +59,12 @@ pub enum Kind {
     /// An object made from a box by one or two changes, simplified back into it (V大's weeks 3
     /// and 4, 几何体 + 点定位 概括单体, S94).
     Object(Carve),
+    /// A composition's picture of a tier divided by its most obvious lines in three levels
+    /// (V大's 画面分割, S95).
+    Division(Tier),
+    /// A composition's picture of a tier divided, then copied whole as a line drawing over its
+    /// division dimmed (V大's 整图复制, S95).
+    WholeCopy(Tier),
 }
 
 /// What an exercise asks for, whatever its variant: its instructions, its tools, its line in
@@ -87,6 +93,9 @@ pub enum Family {
     Sphere,
     /// Objects simplified into boxes (S94).
     Object,
+    /// A picture divided in three levels, and one copied whole over its division (S95).
+    Division,
+    WholeCopy,
     Colour,
     Areas,
     Scale,
@@ -95,7 +104,7 @@ pub enum Family {
 
 impl Family {
     /// In a warm-up's order.
-    pub const ALL: [Self; 22] = [
+    pub const ALL: [Self; 24] = [
         Self::Line,
         Self::Combined,
         Self::Shape,
@@ -114,6 +123,8 @@ impl Family {
         Self::Cone,
         Self::Sphere,
         Self::Object,
+        Self::Division,
+        Self::WholeCopy,
         Self::Colour,
         Self::Areas,
         Self::Scale,
@@ -132,7 +143,16 @@ impl Family {
     /// answer or rule, never aligned.
     #[must_use]
     pub const fn geometric(self) -> bool {
-        self.drawn() && !matches!(self, Self::Line | Self::Combined | Self::Shape)
+        self.drawn()
+            && !matches!(self, Self::Line | Self::Combined | Self::Shape)
+            && !self.divided()
+    }
+
+    /// Whether it is drawn with a division's pens in V大's three colours (a division, a whole
+    /// copy's division): no answer, the picture laid under the lines (S95).
+    #[must_use]
+    pub const fn divided(self) -> bool {
+        matches!(self, Self::Division | Self::WholeCopy)
     }
 
     /// Whether its exercises are painted with brushes and read from the copy's pixels (colour
@@ -149,8 +169,9 @@ impl Kind {
     /// arrangement) for a colour combination, (6, tone) for a value scale, (7, 0) for a colour
     /// copy, (8, view) for a box to complete, (9, horizon) for free boxes, (10, guide) for an
     /// ellipse, (11, estimate) for an estimate on the flat, (12, trick) for a point in space, (13,
-    /// solid) for a solid in a box, (14, carve) for an object simplified into its box. A code names
-    /// one generator for good; a changed generator is a new code.
+    /// solid) for a solid in a box, (14, carve) for an object simplified into its box, (15, the
+    /// picture's tier code) for a division, (16, the picture's tier code) for a whole copy. A code
+    /// names one generator for good; a changed generator is a new code.
     #[must_use]
     pub fn code(self) -> (u8, u8) {
         let index = |found: Option<usize>| found.unwrap_or(0) as u8;
@@ -175,6 +196,8 @@ impl Kind {
             Self::Space(trick) => (12, index(Trick::ALL.iter().position(|t| *t == trick))),
             Self::Solid(solid) => (13, index(Solid::ALL.iter().position(|s| *s == solid))),
             Self::Object(carve) => (14, index(Carve::ALL.iter().position(|c| *c == carve))),
+            Self::Division(tier) => (15, tier.code()),
+            Self::WholeCopy(tier) => (16, tier.code()),
         }
     }
 
@@ -196,6 +219,8 @@ impl Kind {
             12 => Trick::ALL.get(at).map(|t| Self::Space(*t)),
             13 => Solid::ALL.get(at).map(|s| Self::Solid(*s)),
             14 => Carve::ALL.get(at).map(|c| Self::Object(*c)),
+            15 => Tier::of_code(variant).map(Self::Division),
+            16 => Tier::of_code(variant).map(Self::WholeCopy),
             _ => None,
         }
     }
@@ -217,12 +242,14 @@ impl Kind {
             Self::Space(trick) => trick.family(),
             Self::Solid(solid) => solid.family(),
             Self::Object(_) => Family::Object,
+            Self::Division(_) => Family::Division,
+            Self::WholeCopy(_) => Family::WholeCopy,
         }
     }
 }
 
-/// One exercise: its kind, the seed it is generated from and, for a single shape or a colour
-/// copy, the picture it copies.
+/// One exercise: its kind, the seed it is generated from and, for a single shape, a colour copy,
+/// a division or a whole copy, the picture it copies.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Exercise {
     pub kind: Kind,
@@ -252,7 +279,7 @@ impl Exercise {
             Kind::Combined(combination) => {
                 Original::Lines(CombinedLines::generate(combination, self.seed).lines)
             }
-            Kind::Shape(_) | Kind::Study => {
+            Kind::Shape(_) | Kind::Study | Kind::Division(_) | Kind::WholeCopy(_) => {
                 Original::Picture(self.picture.clone().unwrap_or_default())
             }
             Kind::Areas(arrangement) => Original::Areas(Areas::generate(arrangement, self.seed)),

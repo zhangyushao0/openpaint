@@ -51,6 +51,7 @@ fn before<'a>(met: &'a [Kind], pictures: &'a Pictures, used: &'a [ItemRef]) -> B
         met,
         pictures,
         used,
+        recent: used,
     }
 }
 

@@ -3,7 +3,8 @@
 //! English it renders; the tables are split by where the words show (`common.rs`, `canvas.rs`,
 //! `layers.rs`, `brushes.rs`, `colour.rs`, `gallery.rs`, `notices.rs`, `practice.rs`,
 //! `practice_colour.rs`, `practice_options.rs`, `practice_perspective.rs`, `practice_points.rs`,
-//! `practice_solids.rs`, `practice_objects.rs`, `practice_book.rs`; each kind's How card in
+//! `practice_solids.rs`, `practice_objects.rs`, `practice_division.rs`, `practice_book.rs`; each
+//! kind's How card in
 //! `practice_demo*.rs`), words made with numbers are functions beside them. Screens write no
 //! words of their own (`cargo repo-check` refuses a capitalised literal under `crates/ui/src`
 //! outside this module).
@@ -37,10 +38,12 @@ mod practice_book;
 mod practice_colour;
 mod practice_demo;
 mod practice_demo_colour;
+mod practice_demo_division;
 mod practice_demo_objects;
 mod practice_demo_points;
 mod practice_demo_solids;
 mod practice_demo_space;
+mod practice_division;
 mod practice_objects;
 mod practice_options;
 mod practice_perspective;
@@ -59,6 +62,7 @@ pub(crate) use practice::*;
 pub(crate) use practice_book::*;
 pub(crate) use practice_colour::*;
 pub(crate) use practice_demo::{AGAIN, how};
+pub(crate) use practice_division::*;
 pub(crate) use practice_objects::*;
 pub(crate) use practice_options::*;
 pub(crate) use practice_perspective::*;
@@ -219,10 +223,12 @@ mod tests {
             PRACTICE_COLOUR,
             practice_demo::PRACTICE_DEMO,
             practice_demo_colour::PRACTICE_DEMO_COLOUR,
+            practice_demo_division::PRACTICE_DEMO_DIVISION,
             practice_demo_objects::PRACTICE_DEMO_OBJECTS,
             practice_demo_points::PRACTICE_DEMO_POINTS,
             practice_demo_solids::PRACTICE_DEMO_SOLIDS,
             practice_demo_space::PRACTICE_DEMO_SPACE,
+            PRACTICE_DIVISION,
             PRACTICE_OBJECTS,
             PRACTICE_OPTIONS_TABLE,
             PRACTICE_PERSPECTIVE,

@@ -11,16 +11,22 @@
 //! a face shaded wide), so it is the same every time; a single shape's is a generated vase, so no
 //! pack is needed. The marks reuse what the exercises compute: the generators' exact answers, the
 //! tricks' constructions, the ellipse's middles, the solids' exact outlines (S93), an object's
-//! picture, construction and visible edges (S94).
+//! picture, construction and visible edges (S94), a landscape's picture, its division in V大's
+//! three levels and its line drawing (S95).
 
 use crate::colour::Rgb8;
+use crate::division::Level;
 use crate::path::{Point, distance, length};
 use crate::plan::Family;
 
 #[path = "demo_colour.rs"]
 mod colour;
+#[path = "demo_division.rs"]
+mod division;
 #[path = "demo_drawn.rs"]
 mod drawn;
+#[path = "demo_hand.rs"]
+mod hand;
 #[path = "demo_objects.rs"]
 mod objects;
 #[path = "demo_points.rs"]
@@ -29,6 +35,8 @@ mod points;
 mod solids;
 #[path = "demo_space.rs"]
 mod space;
+
+pub(crate) use hand::{tick, wobbled};
 
 /// Seconds before the first mark (the card grows meanwhile), between marks and between steps (a
 /// moment to read the step's words before it draws).
@@ -92,6 +100,8 @@ pub enum Marker {
     Rule,
     /// Compare: the original laid faint over the copy.
     Faint,
+    /// A division's pen of its level, in V大's colour (S95).
+    Level(Level),
 }
 
 /// What a mark draws.
@@ -113,6 +123,8 @@ pub enum Drawn {
     Areas(Vec<Rgb8>),
     /// The example object's picture filling its frame (S94).
     Shaded,
+    /// The example landscape's picture between its top left and bottom right (frame units, S95).
+    Masses([Point; 2]),
     /// The wheel's pick moved to this colour (hue in degrees, saturation, value).
     Pick([f64; 3]),
     /// A colour ringed on the wheel (hue in degrees, saturation, value), in the pen's colour.
@@ -139,6 +151,11 @@ pub struct Demo {
     pub areas: Option<crate::areas::Areas>,
     /// The object its `Drawn::Shaded` mark shows (an object's only, S94).
     pub object: Option<Box<crate::object::ObjectTask>>,
+    /// The landscape its `Drawn::Masses` marks show (a division's and a whole copy's, S95).
+    pub masses: Option<Box<crate::masses::Masses>>,
+    /// A whole copy's division (S95): its marks dim from the first time on (Draw chosen) and are
+    /// gone from the second (Compare hides them).
+    pub dimmed: Option<[f64; 2]>,
     /// Its marks in the order drawn, given ones first.
     pub marks: Vec<Mark>,
     /// When each step begins, seconds; a step's words are the UI's.
@@ -171,6 +188,8 @@ impl Demo {
             }
             Family::Cylinder | Family::Cone | Family::Sphere => solids::solid(family)?,
             Family::Object => objects::object()?,
+            Family::Division => division::division(),
+            Family::WholeCopy => division::whole_copy(),
             Family::Study => return None,
         })
     }
@@ -267,6 +286,8 @@ impl Script {
             layout,
             areas: None,
             object: None,
+            masses: None,
+            dimmed: None,
             marks: self.marks,
             steps: self.steps,
             length: from + SHOWING + HOLD,
@@ -315,7 +336,7 @@ fn seconds(pen: Marker, drawn: &Drawn) -> f64 {
             let long = length(points);
             let (speed, least, most) = match pen {
                 Marker::Air => (1.3, 0.5, 0.9),
-                Marker::Ink => (1.3, 0.25, 0.9),
+                Marker::Ink | Marker::Level(_) => (1.3, 0.25, 0.9),
                 Marker::Pencil | Marker::Construction | Marker::Guide => (1.2, 0.4, 0.6),
                 _ => (2.0, 0.3, 0.5),
             };
@@ -324,40 +345,9 @@ fn seconds(pen: Marker, drawn: &Drawn) -> f64 {
         Drawn::Ring(_) | Drawn::Dot(_) => 0.4,
         Drawn::Cross(_) => 0.7,
         Drawn::Band { .. } | Drawn::Ringed(_) => 0.55,
-        Drawn::Areas(_) | Drawn::Shaded => 0.65,
+        Drawn::Areas(_) | Drawn::Shaded | Drawn::Masses(_) => 0.65,
         Drawn::Pick(_) => 1.1,
     }
-}
-
-/// A short tick across the point `at` of a line heading `towards`, `half` long either side.
-pub(crate) fn tick(at: Point, towards: Point, half: f64) -> Vec<Point> {
-    let d = [towards[0] - at[0], towards[1] - at[1]];
-    let long = d[0].hypot(d[1]).max(f64::MIN_POSITIVE);
-    let n = [-d[1] / long * half, d[0] / long * half];
-    vec![[at[0] - n[0], at[1] - n[1]], [at[0] + n[0], at[1] + n[1]]]
-}
-
-/// `points` as a hand copies them: moved off sideways by up to `amount` (frame units) in one
-/// smooth swell along the line, the ends near their places.
-pub(crate) fn wobbled(points: &[Point], amount: f64, phase: f64) -> Vec<Point> {
-    let total = length(points).max(f64::MIN_POSITIVE);
-    let mut walked = 0.0;
-    let mut out = Vec::with_capacity(points.len());
-    for (index, p) in points.iter().enumerate() {
-        if index > 0 {
-            walked += distance(points[index - 1], *p);
-        }
-        let (before, after) = (
-            points[index.saturating_sub(1)],
-            points[(index + 1).min(points.len() - 1)],
-        );
-        let d = [after[0] - before[0], after[1] - before[1]];
-        let long = d[0].hypot(d[1]).max(f64::MIN_POSITIVE);
-        let s = walked / total;
-        let off = amount * (std::f64::consts::PI * s).sin() * (phase + 2.0 * s).cos();
-        out.push([p[0] - d[1] / long * off, p[1] + d[0] / long * off]);
-    }
-    out
 }
 
 /// The example a kind shows: of the first `tries` seeds of `seed`'s sequence, the one whose

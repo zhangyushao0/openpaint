@@ -71,6 +71,8 @@ texts! { GALLERY_NOTICES;
     RESTORE_FAILED = "Couldn't restore this version.", "无法恢复此版本。";
     PACK_IMPORTED = "Practice pack imported: its pictures come up in single shapes.",
         "练习图包已导入：单体图形会用到其中的图片。";
+    COMPOSITIONS_IMPORTED = "Practice pack imported: its pictures come up in divisions and whole \
+        copies.", "练习图包已导入：画面分割和整图复制会用到其中的图片。";
     PACK_DAMAGED = "Couldn't import: the file is not a practice pack, or it is damaged.",
         "无法导入：这不是练习图包，或图包已损坏。";
     PACK_OTHER_FORMAT = "Couldn't import: the pack is from another version of OpenPaint.",
@@ -87,7 +89,10 @@ texts! { GALLERY_NOTICES;
 /// What the gallery's notice says.
 pub(crate) const fn gallery_notice(notice: GalleryNotice) -> Option<Text> {
     Some(match notice {
-        GalleryNotice::PackImported => PACK_IMPORTED,
+        GalleryNotice::PackImported {
+            compositions: false,
+        } => PACK_IMPORTED,
+        GalleryNotice::PackImported { compositions: true } => COMPOSITIONS_IMPORTED,
         GalleryNotice::PackRefused(FileProblem::OtherFormat) => PACK_OTHER_FORMAT,
         GalleryNotice::PackRefused(FileProblem::Unreadable) => FILE_UNREADABLE,
         GalleryNotice::PackRefused(FileProblem::NotOpenPaint | FileProblem::Damaged) => {
@@ -158,18 +163,26 @@ pub(crate) const fn stage_topic(stage: u8) -> Text {
     }
 }
 
-/// A pack's line in the options: "Single shapes: 126 pictures, 60 with an outline".
+/// A pack's line in the options: "Single shapes: 126 pictures, 60 with an outline"; a pack of
+/// pictures never outlined (compositions) its pictures alone.
 pub(crate) fn pack_line(
     language: Language,
     title: &str,
-    (pictures, outlines): (usize, usize),
+    (pictures, outlines): (usize, Option<usize>),
 ) -> String {
-    match language {
-        Language::English => {
+    match (language, outlines) {
+        (Language::English, outlines) => {
             let plural = if pictures == 1 { "" } else { "s" };
-            format!("{title}: {pictures} picture{plural}, {outlines} with an outline")
+            let line = format!("{title}: {pictures} picture{plural}");
+            match outlines {
+                Some(outlines) => format!("{line}, {outlines} with an outline"),
+                None => line,
+            }
         }
-        Language::Chinese => format!("{title}：{pictures} 张图片，{outlines} 张有轮廓"),
+        (Language::Chinese, Some(outlines)) => {
+            format!("{title}：{pictures} 张图片，{outlines} 张有轮廓")
+        }
+        (Language::Chinese, None) => format!("{title}：{pictures} 张图片"),
     }
 }
 

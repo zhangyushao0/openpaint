@@ -13,7 +13,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use openpaint_core::{Artwork, CanvasSize, RegionMask, StrokeStyle, StrokeTool};
+use openpaint_core::{Artwork, CanvasSize, RegionMask, StrokeStyle};
 use openpaint_practice::{
     Family, Frame, ItemRef, Original, Pair, SessionRecord, Tally, seconds, summary,
 };
@@ -35,6 +35,8 @@ pub type Practising = (SessionRecord, Vec<SessionRecord>, SheetView, Tally);
 mod checks;
 #[path = "practice_compare.rs"]
 mod compare;
+#[path = "practice_sheet_pens.rs"]
+mod pens;
 #[path = "practice_read.rs"]
 mod read;
 #[path = "practice_time.rs"]
@@ -42,6 +44,7 @@ mod time;
 #[path = "practice_view.rs"]
 mod view;
 
+pub(crate) use pens::Layering;
 pub use read::{CopyRead, PracticePick, ReadJob};
 pub use time::Finished;
 pub use view::PRACTICE_ROOM;
@@ -66,11 +69,12 @@ pub(crate) struct PracticeSheet {
     aligned: bool,
     /// The full interface shows, else the exercise's own tools.
     all_tools: bool,
-    /// The pen the exercise draws or paints with now, the last of Sketch and Draw chosen and the
-    /// last painting pen chosen.
+    /// The pen the exercise draws or paints with now, the last of Sketch and Draw chosen, the
+    /// last painting pen chosen and the last division's pen chosen (S95).
     pen: Pen,
     drawing: Pen,
     painting: Pen,
+    dividing: Pen,
     instructions: Option<Family>,
     /// Whether each family's instructions (`Family::ALL`'s order) showed by themselves already,
     /// or need not: a family compared before or in the warm-up.
@@ -131,6 +135,7 @@ impl PracticeSheet {
             pen: Pen::Draw,
             drawing: Pen::Draw,
             painting: Pen::Big,
+            dividing: Pen::Main,
             instructions: None,
             notice: None,
             changed: false,
@@ -210,6 +215,7 @@ impl PracticeSheet {
         let family = self.current().and_then(|index| self.family(index));
         self.pen = match family {
             Some(family) if !family.drawn() => self.painting,
+            Some(family) if family.divided() => self.dividing,
             _ if compared => Pen::Correct,
             _ => self.drawing,
         };
@@ -232,15 +238,6 @@ impl PracticeSheet {
     /// What strokes and fills stay inside.
     pub(crate) fn clip(&self) -> Option<&RegionMask> {
         self.clip.as_ref()
-    }
-
-    /// The style the next stroke takes instead of the toolbox's `brush`: the pen chosen, while
-    /// the exercise's own tools show and the toolbox paints (its eraser, held or chosen,
-    /// erases); a painting pen in `brush`'s colour. A colour is filled, not painted.
-    pub(crate) fn pen_style(&self, brush: &StrokeStyle) -> Option<StrokeStyle> {
-        let family = self.family(self.current()?)?;
-        let pens = !self.all_tools && family != Family::Colour && brush.tool() == StrokeTool::Paint;
-        pens.then(|| self.pens.stroke(self.pen, brush.color()))
     }
 
     /// Whether a pen landing at `point` (canvas pixels) may draw; if not, the notice says why.
@@ -309,30 +306,6 @@ impl PracticeSheet {
             }
             PracticeIntent::Fill(_) => return Err(unavailable(Availability::NothingLeft)),
             PracticeIntent::Dismiss => self.notice = None,
-        }
-        Ok(())
-    }
-
-    /// The shown exercise is drawn or painted with `pen` from now on: a drawing pen for lines and
-    /// shapes (the blue one only once compared), a painting pen for painted exercises.
-    fn choose(&mut self, pen: Pen) -> Result<(), AppError> {
-        let index = self
-            .current()
-            .ok_or(unavailable(Availability::NothingLeft))?;
-        let compared = self.record.result(index).is_some();
-        let fits = if self.drawn(index) {
-            !pen.paints() && (pen != Pen::Correct || compared)
-        } else {
-            pen.paints()
-        };
-        if !fits {
-            return Err(unavailable(Availability::NothingLeft));
-        }
-        self.pen = pen;
-        if pen.paints() {
-            self.painting = pen;
-        } else if pen != Pen::Correct {
-            self.drawing = pen;
         }
         Ok(())
     }
