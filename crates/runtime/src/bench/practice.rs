@@ -118,6 +118,7 @@ impl Runtime {
             Original::Ellipse(_) => Some(Family::Ellipse),
             Original::Flat(flat) => Some(flat.estimate().family()),
             Original::Space(task) => Some(task.trick.family()),
+            Original::Solid(task) => Some(task.solid.family()),
             _ => None,
         };
         let holds = (self.projection().practice()).is_some_and(|p| {
