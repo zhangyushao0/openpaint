@@ -1,6 +1,6 @@
 //! How a demonstration's hand marks a line (`demo.rs`): a line through two points, a short tick
-//! across it, and a copy of it that strays a little as a hand's does; and how far an example
-//! lies off the frame's middle.
+//! across it, and a copy of it that strays a little as a hand's does; how far an example lies off
+//! the frame's middle, and which example of a fixed seed's sequence is clearest.
 
 use super::{Drawn, bounds};
 use crate::path::{Point, distance, length};
@@ -18,6 +18,25 @@ pub(crate) fn off_middle(points: &[Point]) -> f64 {
             [0.5, 0.5],
         )
     })
+}
+
+/// The example a kind shows: of the first `tries` seeds of `seed`'s sequence, the one whose
+/// example `score` finds clearest on a small card (the first of the best), so it is fixed.
+pub(crate) fn clearest<T>(
+    (seed, tries): (u64, u64),
+    made: impl Fn(u64) -> T,
+    score: impl Fn(&T) -> f64,
+) -> T {
+    let mut best = made(crate::random::derived(seed, 0));
+    let mut best_score = score(&best);
+    for k in 1..tries {
+        let example = made(crate::random::derived(seed, k));
+        let scored = score(&example);
+        if scored > best_score {
+            (best, best_score) = (example, scored);
+        }
+    }
+    best
 }
 
 /// A short tick across the point `at` of a line heading `towards`, `half` long either side.

@@ -1,8 +1,8 @@
 //! A How card's demonstration (S92): under the card's title a small example of the kind (for a
 //! copying kind the original and the copy side by side; a box, an ellipse or a point in space
 //! alone, as large as the card lets it, a box's vanishing points beside it; a colour's two frames
-//! and a little wheel; a value scale's one frame cropped to its rows beside the wheel, S97) where
-//! V大's way draws itself step by step
+//! and a little wheel; a value scale's one frame cropped to its rows beside the wheel, of as many
+//! cells as the row in hand, S97) where V大's way draws itself step by step
 //! (`openpaint_practice::Demo`), and under it the numbered steps, the one being drawn in ink and the
 //! others in pencil grey, every one in ink once it is over. It plays whenever How opens, once
 //! through on the frame clock, then stands still on its last frame; Again plays it from the start.
@@ -17,7 +17,7 @@ use openpaint_practice::{Demo, Drawn, Family, Layout, Marker, On, Rgb8, ValueMas
 use crate::components::{Alpha, card_step, keep_moving, picture_texture};
 use crate::design::{INK, PENCIL, SPACE};
 use crate::practice_demo_marks::{Frames, paint};
-use crate::text::Text;
+use crate::text::Words;
 
 /// The example's height (a lone one's taller: a box with its points, a trick's face), and between
 /// its frames, in points.
@@ -52,7 +52,7 @@ pub(crate) enum PictureKey {
 /// The demonstrations made so far and the one playing.
 #[derive(Default)]
 pub(crate) struct Demonstrations {
-    made: Vec<Arc<Demo>>,
+    made: Vec<(HowOf, Arc<Demo>)>,
     playing: Option<Playing>,
     /// The examples' pictures.
     pictures: Vec<(PictureKey, TextureHandle)>,
@@ -64,28 +64,50 @@ impl fmt::Debug for Demonstrations {
     }
 }
 
-/// The demonstration on the card: since when it plays, and the pass it last showed in.
+/// Which How a card shows: its family's, a value scale's for the cells of the row in hand (S97:
+/// its example and steps of that count; every other family's the same whatever is in hand).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct HowOf {
+    pub(crate) family: Family,
+    cells: usize,
+}
+
+impl HowOf {
+    /// `family`'s How with a value scale of `cells` in hand.
+    pub(crate) fn new(family: Family, cells: usize) -> Self {
+        let cells = if family == Family::Scale { cells } else { 0 };
+        Self { family, cells }
+    }
+
+    /// The cells a value scale's How shows.
+    pub(crate) const fn cells(self) -> usize {
+        self.cells
+    }
+}
+
+/// The demonstration on the card: which, since when it plays, and the pass it last showed in.
 struct Playing {
+    of: HowOf,
     demo: Arc<Demo>,
     start: f64,
     pass: u64,
 }
 
 impl Demonstrations {
-    /// `family`'s demonstration under the card's title, playing since How opened (a card not
-    /// shown in the pass before has just opened), and its numbered `steps`. A kind without one
-    /// (the colour copy) shows nothing.
-    pub(crate) fn show(&mut self, ui: &mut egui::Ui, family: Family, steps: &[Text]) {
+    /// `of`'s demonstration under the card's title, playing since How opened (a card not shown in
+    /// the pass before has just opened), and its numbered `steps`. A kind without one (the colour
+    /// copy) shows nothing.
+    pub(crate) fn show(&mut self, ui: &mut egui::Ui, of: HowOf, steps: &[String]) {
         let ctx = ui.ctx().clone();
         let (now, pass) = (ctx.input(|input| input.time), ctx.cumulative_pass_nr());
-        let still =
-            (self.playing.as_ref()).is_some_and(|p| p.demo.family == family && p.pass + 1 >= pass);
+        let still = (self.playing.as_ref()).is_some_and(|p| p.of == of && p.pass + 1 >= pass);
         if !still {
-            let Some(demo) = self.made(family) else {
+            let Some(demo) = self.made(of) else {
                 self.playing = None;
                 return;
             };
             self.playing = Some(Playing {
+                of,
                 demo,
                 start: now,
                 pass,
@@ -101,7 +123,7 @@ impl Demonstrations {
         let (lit, over) = (demo.step_at(seconds), seconds >= demo.length);
         for (index, words) in steps.iter().enumerate() {
             let ink = if over || index == lit { INK } else { PENCIL };
-            card_step(ui, index + 1, *words, ink);
+            card_step(ui, index + 1, Words::made(words), ink);
         }
         if !over {
             keep_moving(&ctx);
@@ -116,13 +138,17 @@ impl Demonstrations {
         }
     }
 
-    /// `family`'s demonstration, made once.
-    fn made(&mut self, family: Family) -> Option<Arc<Demo>> {
-        if let Some(made) = self.made.iter().find(|d| d.family == family) {
+    /// `of`'s demonstration, made once.
+    fn made(&mut self, of: HowOf) -> Option<Arc<Demo>> {
+        if let Some((_, made)) = self.made.iter().find(|(made, _)| *made == of) {
             return Some(Arc::clone(made));
         }
-        let made = Arc::new(Demo::of(family)?);
-        self.made.push(Arc::clone(&made));
+        let demo = match of.family {
+            Family::Scale => Demo::of_scale(of.cells),
+            family => Demo::of(family)?,
+        };
+        let made = Arc::new(demo);
+        self.made.push((of, Arc::clone(&made)));
         Some(made)
     }
 
@@ -285,88 +311,5 @@ pub(crate) const fn by_hand(pen: Marker) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::components::moving;
-    use crate::text;
-
-    #[test]
-    fn an_objects_construction_is_dark_in_its_step_and_faint_from_the_next_on() {
-        use crate::practice_demo_marks::toned;
-        let demo = Demo::of(Family::Object).expect("an object's demonstration");
-        let built = |m: &&openpaint_practice::Mark| m.pen == Marker::Construction;
-        for mark in demo.marks.iter().filter(built) {
-            let next = demo.steps[demo.step_at(mark.from) + 1];
-            assert_eq!(toned(&demo, mark, mark.to), INK, "dark while drawn");
-            assert_eq!(
-                toned(&demo, mark, next + 1.0),
-                PENCIL,
-                "faint in the next step"
-            );
-            assert_eq!(
-                toned(&demo, mark, demo.length),
-                PENCIL,
-                "faint under Compare"
-            );
-        }
-    }
-
-    #[test]
-    fn every_kinds_card_has_a_step_for_each_step_of_its_demonstration() {
-        for family in Family::ALL {
-            let how = text::how(family);
-            match Demo::of(family) {
-                Some(demo) => assert_eq!(how.steps.len(), demo.steps.len(), "{family:?}"),
-                None => assert!(how.steps.is_empty() && how.trains.is_none(), "{family:?}"),
-            }
-        }
-    }
-
-    /// One pass at `time` seconds, the card showing `family`'s demonstration when `shown` (and
-    /// Again tapped when `again`); whether frames are wanted after it.
-    fn pass(
-        (ctx, demos): (&egui::Context, &mut Demonstrations),
-        time: f64,
-        (family, shown, again): (Family, bool, bool),
-    ) -> bool {
-        let input = egui::RawInput {
-            time: Some(time),
-            ..Default::default()
-        };
-        let mut wanted = false;
-        let mut output = ctx.run_ui(input, |ui| {
-            if shown {
-                demos.show(ui, family, text::how(family).steps);
-            }
-            if again {
-                demos.again(ui.ctx());
-            }
-            wanted = moving(ui.ctx());
-        });
-        output.textures_delta.clear();
-        wanted
-    }
-
-    #[test]
-    fn it_plays_once_through_then_stands_still_until_again_or_how_opens_it_again() {
-        let ctx = egui::Context::default();
-        let mut demos = Demonstrations::default();
-        let family = Family::Centre;
-        let length = Demo::of(family).map_or(0.0, |demo| demo.length);
-        let mut at = |time: f64, shown: bool, again: bool| {
-            pass((&ctx, &mut demos), time, (family, shown, again))
-        };
-        assert!(at(10.0, true, false), "it plays as How opens");
-        assert!(at(10.0 + length / 2.0, true, false));
-        assert!(
-            !at(10.0 + length + 0.1, true, false),
-            "still on its last frame"
-        );
-        assert!(!at(30.0, true, false), "no frames while it stands still");
-        assert!(at(30.0, true, true), "Again plays it from the start");
-        assert!(at(30.0 + length / 2.0, true, false));
-        assert!(!at(30.0 + length + 0.1, true, false));
-        let _ = at(50.0, false, false);
-        assert!(at(60.0, true, false), "How opened again plays it again");
-    }
-}
+#[path = "practice_demo_tests.rs"]
+mod tests;

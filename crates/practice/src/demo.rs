@@ -39,7 +39,7 @@ mod solids;
 #[path = "demo_space.rs"]
 mod space;
 
-pub(crate) use hand::{line, off_middle, tick, wobbled};
+pub(crate) use hand::{clearest, line, off_middle, tick, wobbled};
 
 /// Seconds before the first mark (the card grows meanwhile), between marks and between steps (a
 /// moment to read the step's words before it draws).
@@ -204,7 +204,7 @@ impl Demo {
             Family::Shape => drawn::shape(),
             Family::Colour => colour::colour(),
             Family::Areas => colour::areas(),
-            Family::Scale => colour::scale(),
+            Family::Scale => colour::scale(crate::scale::CELLS),
             Family::Box => space::perspective_box(),
             Family::FreeBoxes => space::free_boxes(),
             Family::Ellipse => space::ellipse(),
@@ -219,6 +219,13 @@ impl Demo {
             Family::ValueMasses => masses::value_masses(),
             Family::Study => return None,
         })
+    }
+
+    /// A value scale's demonstration of `cells` cells, the count of the scale in hand (S97: its
+    /// steps name that row's cells); `of(Family::Scale)` is nine's.
+    #[must_use]
+    pub fn of_scale(cells: usize) -> Self {
+        colour::scale(cells)
     }
 
     /// The step being drawn `seconds` after the start (the first before it begins, the last once
@@ -377,23 +384,4 @@ fn seconds(pen: Marker, drawn: &Drawn) -> f64 {
         Drawn::Values { .. } => 1.2,
         Drawn::Pick(_) => 1.1,
     }
-}
-
-/// The example a kind shows: of the first `tries` seeds of `seed`'s sequence, the one whose
-/// example `score` finds clearest on a small card (the first of the best), so it is fixed.
-pub(crate) fn clearest<T>(
-    (seed, tries): (u64, u64),
-    made: impl Fn(u64) -> T,
-    score: impl Fn(&T) -> f64,
-) -> T {
-    let mut best = made(crate::random::derived(seed, 0));
-    let mut best_score = score(&best);
-    for k in 1..tries {
-        let example = made(crate::random::derived(seed, k));
-        let scored = score(&example);
-        if scored > best_score {
-            (best, best_score) = (example, scored);
-        }
-    }
-    best
 }

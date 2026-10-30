@@ -63,7 +63,7 @@ pub(crate) use notices::*;
 pub(crate) use practice::*;
 pub(crate) use practice_book::*;
 pub(crate) use practice_colour::*;
-pub(crate) use practice_demo::{AGAIN, how};
+pub(crate) use practice_demo::{AGAIN, how, how_steps};
 pub(crate) use practice_division::*;
 pub(crate) use practice_masses::{
     AT_ITS_VALUE, DARK_PEN, DRILL_NEEDS_MASSES, LIGHT_PEN, MASSES_COUNTED, MIDDLE_PEN,

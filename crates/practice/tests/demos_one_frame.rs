@@ -59,6 +59,51 @@ fn an_ellipses_compare_rings_only_the_middles_it_misses() {
     assert!(demo.marks.iter().all(|m| m.pen != Marker::Found));
 }
 
+/// The How of a scale follows the cell count of the scale in hand (the review of S97): of five,
+/// its order 2 1 2 under the inner cells, the 3rd painted first, then the 2nd and 4th, Compare.
+#[test]
+fn a_scale_of_five_is_numbered_and_painted_as_a_five_cell_row_is() {
+    assert_eq!(
+        Demo::of_scale(9),
+        demo(Family::Scale),
+        "nine's is the kind's"
+    );
+    let scale = Demo::of_scale(5);
+    assert_eq!((scale.family, scale.layout), (Family::Scale, Layout::Row));
+    let numbered: Vec<(f64, u8)> = (scale.marks.iter())
+        .filter_map(|m| match m.drawn {
+            Drawn::Numeral(at, n) if m.to == 0.0 => Some((at[0], n)),
+            _ => None,
+        })
+        .collect();
+    let mut along = numbered.clone();
+    along.sort_by(|a, b| a.0.total_cmp(&b.0));
+    let left_to_right: Vec<u8> = along.iter().map(|(_, n)| *n).collect();
+    assert_eq!(left_to_right, [2, 1, 2]);
+    assert_eq!(
+        scale.steps.len(),
+        3,
+        "the middle, the halves' middles, Compare"
+    );
+    let fills: Vec<f64> = (scale.marks.iter())
+        .filter(|m| m.on == On::Copy && m.pen == Marker::Ink)
+        .map(|m| m.from)
+        .collect();
+    let in_step = |at: usize| {
+        let (start, end) = (scale.steps[at], scale.steps[at + 1]);
+        fills
+            .iter()
+            .filter(|from| (start..end).contains(*from))
+            .count()
+    };
+    assert_eq!([in_step(0), in_step(1)], [1, 2]);
+    let outlined = (scale.marks.iter())
+        .filter(|m| m.pen == Marker::Answer)
+        .count();
+    assert_eq!(outlined, 1, "the uneven cell with its even one");
+    assert!((4.5..=10.3).contains(&scale.length), "{}", scale.length);
+}
+
 #[test]
 fn a_scale_of_nine_is_numbered_and_painted_a_round_at_a_time() {
     let scale = demo(Family::Scale);

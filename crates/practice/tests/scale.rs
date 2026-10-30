@@ -5,7 +5,7 @@
 
 use openpaint_practice::{
     Before, CELLS, EVEN_ROW, FIRST_CELLS, Family, Kind, Metric, Pictures, Plan, ROW, Rgb8,
-    ScaleTone, ValueScale, drill, from_hsv, hsv, oklab, stage_two, value,
+    ScaleTone, ValueScale, drill, from_hsv, halving, hsv, oklab, stage_two, value,
 };
 
 const PAPER: Rgb8 = [255, 255, 255];
@@ -94,7 +94,7 @@ fn the_first_two_scales_met_have_five_cells_the_rest_nine() {
 
 #[test]
 fn the_order_to_paint_halves_and_halves_again_and_the_even_row_lies_cell_under_cell() {
-    let rounds = |cells| ValueScale::generate(ScaleTone::Grey, cells, 1).rounds();
+    let rounds = halving;
     assert_eq!(rounds(9), vec![vec![4], vec![2, 6], vec![1, 3, 5, 7]]);
     assert_eq!(rounds(5), vec![vec![2], vec![1, 3]]);
     // Every cell between the ends painted once, whatever the count (a 1.14.0 scale's 6 or 7).

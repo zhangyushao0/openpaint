@@ -131,7 +131,7 @@ pub use record::{
     SessionRecord, met, recent, scales_met, summary, used,
 };
 pub use scale::{
-    CELLS, EVEN_ROW, FIRST_CELLS, FIRST_SCALES, ROW, ScaleCheck, ScaleTone, ValueScale,
+    CELLS, EVEN_ROW, FIRST_CELLS, FIRST_SCALES, ROW, ScaleCheck, ScaleTone, ValueScale, halving,
 };
 pub use seals::{Earned, Seal, Tally, earned, sealed};
 pub use session::{Before, Plan, WARM_UP, WARM_UP_TWO, plan, stage_one, stage_two};

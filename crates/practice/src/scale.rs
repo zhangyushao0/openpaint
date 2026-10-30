@@ -1,7 +1,7 @@
 //! Value scales (after Gurney's and Ctrl+Paint's value studies, beside V大's week 2 colour work):
 //! a row of cells between a given dark and light of one hue and purity, the cells between them
 //! filled in even steps of lightness. Nine cells (S97: halved and halved again, the middle, the
-//! halves' middles, then the rest, `rounds`), five in a beginner's first two scales
+//! halves' middles, then the rest, `halving`), five in a beginner's first two scales
 //! (`FIRST_CELLS`, `session.rs`); generated the same for the same seed: the ends far apart (HSV
 //! value 0.12 to 0.3 and 0.78 to 0.95 as the wheel sets them), grey or of a hue (in turn by
 //! session). Compare lays the even scale as a row under the copy's (`EVEN_ROW`), cell under cell.
@@ -123,29 +123,6 @@ impl ValueScale {
         [[left, top], [right, bottom]]
     }
 
-    /// The cells between the ends in the order to paint them, a round at a time (S97, V大's way
-    /// of halving): the middle; each half's middle; each quarter's, and so on. Of nine: the 5th;
-    /// the 3rd and 7th; the 2nd, 4th, 6th and 8th (indices from 0).
-    #[must_use]
-    pub fn rounds(&self) -> Vec<Vec<usize>> {
-        let mut rounds = Vec::new();
-        let mut spans = vec![(0, self.cells - 1)];
-        while !spans.is_empty() {
-            let mut round = Vec::new();
-            let mut next = Vec::new();
-            for (low, high) in spans.into_iter().filter(|(low, high)| high - low >= 2) {
-                let middle = (low + high) / 2;
-                round.push(middle);
-                next.extend([(low, middle), (middle, high)]);
-            }
-            if !round.is_empty() {
-                rounds.push(round);
-            }
-            spans = next;
-        }
-        rounds
-    }
-
     /// The cell holding the frame point `p`, if any.
     #[must_use]
     pub fn cell_at(&self, p: Point) -> Option<usize> {
@@ -243,6 +220,30 @@ impl ValueScale {
         values.sort_unstable_by(f64::total_cmp);
         Some(values[values.len() / 2])
     }
+}
+
+/// The cells between the ends of a scale of `cells` in the order to paint them, a round at a time
+/// (S97, V大's way of halving): the middle; each half's middle; each quarter's, and so on. Of
+/// five: the 3rd; the 2nd and 4th. Of nine: the 5th; the 3rd and 7th; the 2nd, 4th, 6th and 8th
+/// (indices from 0).
+#[must_use]
+pub fn halving(cells: usize) -> Vec<Vec<usize>> {
+    let mut rounds = Vec::new();
+    let mut spans = vec![(0, cells.max(1) - 1)];
+    while !spans.is_empty() {
+        let mut round = Vec::new();
+        let mut next = Vec::new();
+        for (low, high) in spans.into_iter().filter(|(low, high)| high - low >= 2) {
+            let middle = (low + high) / 2;
+            round.push(middle);
+            next.extend([(low, middle), (middle, high)]);
+        }
+        if !round.is_empty() {
+            rounds.push(round);
+        }
+        spans = next;
+    }
+    rounds
 }
 
 impl ScaleCheck {

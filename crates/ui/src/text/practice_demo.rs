@@ -7,7 +7,7 @@
 
 use openpaint_practice::{Estimate, Family, Trick};
 
-use super::Text;
+use super::{Language, Text};
 
 /// A kind's How card's words.
 #[derive(Debug, Clone, Copy)]
@@ -15,7 +15,8 @@ pub(crate) struct How {
     pub(crate) heading: Text,
     /// What it trains and its week; none for the colour copy, which has no demonstration.
     pub(crate) trains: Option<Text>,
-    /// One per step of its demonstration.
+    /// One per step of its demonstration (a value scale's own Compare only: its others are made
+    /// for the row in hand, `how_steps`).
     pub(crate) steps: &'static [Text],
     /// What Compare shows and how to correct: the card's paragraphs under the steps.
     pub(crate) says: &'static [Text],
@@ -45,6 +46,20 @@ const SHAPE: How = How {
     ],
     says: &[SHAPE_SAYS],
 };
+
+/// `family`'s How card's numbered steps as `language` reads them, one per step of its
+/// demonstration: a value scale's made for the `cells` of the row in hand (S97), then the card's
+/// own, Compare last.
+pub(crate) fn how_steps(family: Family, cells: usize, language: Language) -> Vec<String> {
+    let mut steps = if family == Family::Scale {
+        super::practice_demo_colour::scale_steps(language, cells)
+    } else {
+        Vec::new()
+    };
+    let own = how(family).steps.iter();
+    steps.extend(own.map(|step| step.get(language).to_owned()));
+    steps
+}
 
 /// `family`'s How card.
 pub(crate) const fn how(family: Family) -> How {

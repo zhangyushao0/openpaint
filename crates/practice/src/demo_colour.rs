@@ -1,9 +1,9 @@
 //! The colour kinds' demonstrations (`demo.rs`): a colour (the wheel's ring to the hue's family,
 //! then lighter or darker, then purer or greyer, the frame filled), a colour combination (the
 //! overall tone, the largest area first, each neighbour against it, the weak contrast kept weak)
-//! and a value scale of nine cells (S97: their order numbered under them, the middle cell first,
-//! then each half's middle, then the rest, the pick moving only up and down the wheel's square),
-//! each then compared.
+//! and a value scale of as many cells as the scale in hand (S97: their order numbered under them,
+//! the middle cell first, then each half's middle, then the rest, the pick moving only up and down
+//! the wheel's square), each then compared.
 
 use super::{Demo, Drawn, Layout, Marker, On, Script, clearest};
 use crate::areas::{Areas, Arrangement, GRID};
@@ -11,7 +11,7 @@ use crate::colour::{Rgb8, delta_e, from_hsv, from_oklab, hsv, oklab};
 use crate::colour_match::{Lightness, Purity, Tone};
 use crate::path::Point;
 use crate::plan::Family;
-use crate::scale::{CELLS, ROW, ScaleTone, ValueScale};
+use crate::scale::{ROW, ScaleTone, ValueScale, halving};
 
 const COLOUR_SEED: u64 = 0xDE30_5EED_0004;
 const AREAS_SEED: u64 = 0xDE30_5EED_0005;
@@ -20,9 +20,11 @@ const SCALE_SEED: u64 = 0xDE30_5EED_0006;
 const NUMBERED: f64 = 0.87;
 /// The part of the scale's frame its example shows: the row, the even row and the numbers.
 const SCALE_VIEW: [Point; 2] = [[0.02, 0.27], [0.98, 0.93]];
-/// How far off the hand's copy of each cell is in lightness: a little, one cell (the 7th) over a
-/// quarter step, so Compare outlines it with its even one.
-const HAND: [f64; CELLS] = [0.0, -0.008, 0.006, 0.01, 0.004, -0.006, 0.032, 0.005, 0.0];
+/// How far off the hand's copy of a cell is in lightness, in turn along the row: a little (under a
+/// quarter step of nine cells); and the cell it paints last this share of a step, over a quarter,
+/// so Compare outlines it with its even one.
+const HAND: [f64; 4] = [-0.008, 0.006, 0.01, -0.006];
+const HAND_OFF: f64 = 0.35;
 
 /// The rectangle from `[left, top]` to `[right, bottom]` as two rows.
 fn rect([left, top]: Point, [right, bottom]: Point) -> Vec<[Point; 2]> {
@@ -182,15 +184,24 @@ fn sizes(areas: &Areas) -> Vec<usize> {
     sizes
 }
 
-/// A value scale of nine cells, painted in V大's order of halving.
-pub(super) fn scale() -> Demo {
-    let scale = ValueScale::generate(ScaleTone::Hue, CELLS, SCALE_SEED);
-    let rounds = scale.rounds();
+/// A value scale of `cells` cells (the scale in hand's count; never its colours), painted in
+/// V大's order of halving.
+pub(super) fn scale(cells: usize) -> Demo {
+    let scale = ValueScale::generate(ScaleTone::Hue, cells, SCALE_SEED);
+    let rounds = halving(scale.cells);
     let mut script = Script::new();
     scale_given(&mut script, &scale, &rounds);
-    // The copy's lightness per cell: the ends given, the others a little off as an eye judges.
-    let values: Vec<f64> = (scale.targets().iter().zip(HAND))
-        .map(|(target, off)| target + off)
+    // The copy's lightness per cell: the ends given, the others a little off as an eye judges,
+    // the last painted over a quarter step.
+    let targets = scale.targets();
+    let step = (targets[scale.cells - 1] - targets[0]) / (scale.cells - 1) as f64;
+    let last = rounds.last().and_then(|round| round.last()).copied();
+    let values: Vec<f64> = (targets.iter().enumerate())
+        .map(|(cell, target)| match cell {
+            _ if cell == 0 || cell + 1 == scale.cells => *target,
+            _ if Some(cell) == last => target + HAND_OFF * step,
+            _ => target + HAND[cell % HAND.len()],
+        })
         .collect();
     // A round at a time: the pick moved up or down the wheel's square to its first cell, then
     // the round's cells painted, each its own step of lightness.

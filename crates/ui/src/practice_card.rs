@@ -10,7 +10,9 @@
 
 use openpaint_app::{Finished, Hsv, Intent, Overlay, PracticeIntent, PracticeProjection};
 use openpaint_core::Color;
-use openpaint_practice::{Axis, Family, HUELESS, KindSummary, Metric, Rgb8, oklch};
+use openpaint_practice::{
+    Axis, CELLS, Family, HUELESS, KindSummary, Metric, Original, Rgb8, oklch,
+};
 
 use crate::components::{
     RadarAxis, animate_from, card_columns, card_text, choices, color_compare, colour_table, hint,
@@ -18,7 +20,7 @@ use crate::components::{
 };
 use crate::design::motion::OPEN;
 use crate::design::{CORRECTION, DIALOG_WIDTH, INK_SECONDARY, SPACE, TOUCH_TARGET};
-use crate::practice_demo::Demonstrations;
+use crate::practice_demo::{Demonstrations, HowOf};
 use crate::taps::push_once;
 use crate::text::{self as t, Words, language};
 use crate::{practice_card_colour, practice_card_division, practice_card_geometry};
@@ -40,11 +42,26 @@ const STAMP_AFTER: f64 = 0.75;
 const HOW_FOOT: f32 = TOUCH_TARGET + 4.0 * SPACE;
 const HOW_LEAST: f32 = 12.0 * SPACE;
 
+/// The How `practice` shows for `family`: a value scale's of the cells of the row in hand (S97),
+/// nine where none is.
+pub(crate) fn how_of(practice: &PracticeProjection, family: Family) -> HowOf {
+    let shown = practice
+        .current
+        .and_then(|index| practice.sheet.originals.get(index));
+    let cells = match shown {
+        Some(Original::Scale(scale)) => scale.cells,
+        _ => CELLS,
+    };
+    HowOf::new(family, cells)
+}
+
 /// A family's How (S92): its title, what it trains and its week, its demonstration playing with
-/// its numbered steps (`demos`), what Compare's marks mean, and Again beside Got it; returns
-/// whether Got it was tapped.
-pub(crate) fn instructions(ui: &mut egui::Ui, family: Family, demos: &mut Demonstrations) -> bool {
+/// its numbered steps (`demos`; a value scale's of the row in hand's cells), what Compare's marks
+/// mean, and Again beside Got it; returns whether Got it was tapped.
+pub(crate) fn instructions(ui: &mut egui::Ui, of: HowOf, demos: &mut Demonstrations) -> bool {
+    let family = of.family;
     let how = t::how(family);
+    let steps = t::how_steps(family, of.cells(), language(ui.ctx()));
     ui.heading(Words::from(how.heading).shown(ui.ctx()));
     // On a screen too short for the whole card its body scrolls; Again and Got it stay in reach.
     let room = ui.ctx().content_rect().bottom() - ui.cursor().top() - HOW_FOOT;
@@ -56,7 +73,7 @@ pub(crate) fn instructions(ui: &mut egui::Ui, family: Family, demos: &mut Demons
             if let Some(trains) = how.trains {
                 card_text(ui, trains, true);
             }
-            demos.show(ui, family, how.steps);
+            demos.show(ui, of, &steps);
             for line in how.says {
                 card_text(ui, *line, false);
             }

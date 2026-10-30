@@ -68,9 +68,9 @@ impl PracticeBar {
             })
             .1
         } else if let Some(family) = practice.instructions {
-            let demos = &mut self.demos;
+            let (demos, of) = (&mut self.demos, practice_card::how_of(practice, family));
             let (done, rect) = card(ctx, "practice card", opened, |ui| {
-                practice_card::instructions(ui, family, demos)
+                practice_card::instructions(ui, of, demos)
             });
             if done {
                 push_once(taps, Intent::Practice(PracticeIntent::Instructions(false)));
