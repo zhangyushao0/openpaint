@@ -2,8 +2,9 @@
 //! by step at a hand's pace, then Compare's marks as the exercise shows them. A demonstration is a
 //! short timeline of marks in frame units: what the example gives (`Marker::Given`, shown from the
 //! start), the pencil of looking and construction, passes in the air, the ink of the answer, and
-//! Compare's see-through red answer and blue reading. The screen draws it on its frame clock; the
-//! words of each step are the UI's, one per step.
+//! Compare's see-through red answer with only what is off marked (S97, S98: the exercise's own
+//! check on the example's ink, `off_marks`). The screen draws it on its frame clock; the words of
+//! each step are the UI's, one per step.
 //!
 //! The example is never the exercise in hand: each kind's is the clearest on a small card of the
 //! first few its generator makes from a fixed seed's sequence (`clearest`: a line long and plainly
@@ -39,7 +40,7 @@ mod solids;
 #[path = "demo_space.rs"]
 mod space;
 
-pub(crate) use hand::{clearest, line, off_middle, tick, wobbled};
+pub(crate) use hand::{DRAWN_OFF, clearest, line, off_marks, off_middle, tick, wobbled};
 
 /// Seconds before the first mark (the card grows meanwhile), between marks and between steps (a
 /// moment to read the step's words before it draws).
@@ -84,8 +85,11 @@ pub enum Marker {
     /// What the exercise gives (an original's lines): ink, from the start.
     Given,
     /// What a kind built from given parts gives in its one frame (a box's given edges, an
-    /// ellipse's frame): printed grey, from the start (S97).
+    /// ellipse's frame, a trick's shaded face): printed grey, from the start (S97).
     Printed,
+    /// What it gives that the eye cannot see (a solid's box's hidden edges): printed grey, dashed
+    /// (S98).
+    PrintedHidden,
     /// Sketch's pencil: looking and construction.
     Pencil,
     /// Sketch's pencil finding an object's points (S94): dark while its step draws, faint once
@@ -99,9 +103,7 @@ pub enum Marker {
     Answer,
     /// Compare: the exact answer where the solid hides it, dashed in see-through red (S93).
     Hidden,
-    /// Compare: what was read of the copy, in blue.
-    Found,
-    /// Compare: an edge that misses its vanishing point drawn on past it, dashed red (S97).
+    /// Compare: an edge that misses where it heads drawn on past it, dashed red (S97, S98).
     Missed,
     /// Dashed pencil: a horizon, the way to see it.
     Guide,
@@ -338,7 +340,12 @@ fn seen(marks: &[Mark]) -> Option<[Point; 2]> {
     for mark in marks.iter().filter(|mark| mark.on == On::Copy) {
         let example = matches!(
             mark.pen,
-            Marker::Given | Marker::Printed | Marker::Ink | Marker::Answer | Marker::Shade
+            Marker::Given
+                | Marker::Printed
+                | Marker::PrintedHidden
+                | Marker::Ink
+                | Marker::Answer
+                | Marker::Shade
         );
         match &mark.drawn {
             Drawn::Ring(p) => points.push(*p),

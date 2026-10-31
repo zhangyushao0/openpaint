@@ -13,7 +13,8 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Kind, Original, PAUSE, STAGE_SESSIONS, ScaleTone, Seal, SessionRecord, Sheet, Span, Tally,
+    Estimate, Kind, Original, PAUSE, STAGE_SESSIONS, ScaleTone, Seal, SessionRecord, Sheet, Solid,
+    Span, Tally, Trick,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -186,6 +187,12 @@ fn the_book_reads_a_sheet_s_first_line_its_first_colour_its_frames_and_marks() {
     scaled.exercises[3].kind = Kind::Scale(ScaleTone::Grey, 9);
     let one_less = SheetRead::of(session.artwork(), &scaled).frames.len();
     assert_eq!(one_less, 2 * record.exercises.len() - 1);
+    // A trick and a solid alike (S98); an estimate keeps its original beside its copy.
+    scaled.exercises[4].kind = Kind::Space(Trick::Centre);
+    scaled.exercises[5].kind = Kind::Solid(Solid::Cone);
+    scaled.exercises[6].kind = Kind::Flat(Estimate::Point);
+    let alike = SheetRead::of(session.artwork(), &scaled).frames.len();
+    assert_eq!(alike, 2 * record.exercises.len() - 3);
     assert_eq!(read.lines.len(), 1);
     assert_eq!(read.lines[0].index, 0);
     let Original::Lines(original) = record.exercises[0].original() else {

@@ -15,6 +15,7 @@
 //! but some 20 pixels at a vanishing point a frame away, where the extension shows it.
 
 use crate::edges::Edge;
+use crate::off::Off;
 use crate::path::{Point, distance};
 use crate::perspective::{Direction, PerspectiveBox, angle_between};
 
@@ -27,17 +28,26 @@ const PLUMB: f64 = 0.15;
 /// How far an extension runs past where its line comes nearest its point (frame units): past the
 /// point's ring at the sheet's view.
 pub const PAST: f64 = 0.06;
+/// How far beyond a point (frame units) from the frame's middle an extension may run.
+const BEYOND: f64 = 0.25;
 
 /// One edge of the copy as checked: the direction it was taken for and whether it heads for its
-/// point (a vertical: stays vertical); one that misses, its extension past its point (from its end
-/// nearer the point) or the true vertical through it.
+/// point (a vertical: stays vertical); one that misses, what is off (`Off::RunOn` from its end
+/// nearer the point past it, or `Off::Plumb`, the true vertical through it).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Checked {
     pub edge: Edge,
     pub direction: Direction,
-    pub extension: Option<[Point; 2]>,
-    pub plumb: Option<[Point; 2]>,
+    pub off: Option<Off>,
     pub on: bool,
+}
+
+impl Checked {
+    /// Whether it is a vertical that leans.
+    #[must_use]
+    pub const fn leans(&self) -> bool {
+        matches!(self.off, Some(Off::Plumb(_)))
+    }
 }
 
 /// A completed box as checked against the exact one.
@@ -51,10 +61,8 @@ impl BoxCheck {
     /// direction of the box (`TAKEN`) is left out.
     #[must_use]
     pub fn of(exact: &PerspectiveBox, found: &[Edge]) -> Self {
-        let middle = [0.5, 0.5];
-        let reach = (exact.vanishing.iter().flatten())
-            .map(|p| distance(*p, middle) + 0.25)
-            .fold(1.0, f64::max);
+        let points: Vec<Point> = exact.vanishing.iter().flatten().copied().collect();
+        let reach = reach(&points);
         let edges = (found.iter())
             .filter_map(|edge| against(exact, edge, reach))
             .collect();
@@ -104,19 +112,26 @@ pub(crate) fn checked(
         return Checked {
             edge: *edge,
             direction,
-            extension: None,
-            plumb: (!on).then(|| plumb(edge)),
+            off: (!on).then(|| Off::Plumb(plumb(edge))),
             on,
         };
     };
     let on = line_angle(edge.direction(), sub(point, edge.middle())) <= ON_ANGLE;
+    let run = (!on).then(|| toward(edge, point, reach)).flatten();
     Checked {
         edge: *edge,
         direction,
-        extension: if on { None } else { toward(edge, point, reach) },
-        plumb: None,
+        off: run.map(|line| Off::RunOn { line, past: None }),
         on,
     }
+}
+
+/// How far from the frame's middle an extension towards any of `points` may run: a little beyond
+/// the farthest, a frame at least.
+pub(crate) fn reach(points: &[Point]) -> f64 {
+    (points.iter())
+        .map(|p| distance(*p, [0.5, 0.5]) + BEYOND)
+        .fold(1.0, f64::max)
 }
 
 /// `edge` drawn on from its end nearer `point` to `PAST` beyond where its line passes nearest the

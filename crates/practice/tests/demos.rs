@@ -50,7 +50,8 @@ fn a_lone_example_is_framed_on_what_it_is_about_a_trick_on_its_face() {
     let face_of = |demo: &Demo| -> [Point; 2] {
         let rows = (demo.marks.iter())
             .find_map(|m| match &m.drawn {
-                Drawn::Band { rows, .. } if m.pen == Marker::Shade => Some(rows.clone()),
+                // Printed grey in its one frame (S98).
+                Drawn::Band { rows, .. } if m.pen == Marker::Printed => Some(rows.clone()),
                 _ => None,
             })
             .expect("the shaded face");
@@ -116,7 +117,7 @@ fn every_kind_but_the_colour_copy_plays_once_through_in_five_to_ten_seconds() {
         let compared = |mark: &&openpaint_practice::Mark| {
             matches!(
                 mark.pen,
-                Marker::Answer | Marker::Hidden | Marker::Found | Marker::Missed | Marker::Faint
+                Marker::Answer | Marker::Hidden | Marker::Missed | Marker::Faint
             )
         };
         assert!(
@@ -164,9 +165,10 @@ fn pencil_lines(demo: &Demo) -> Vec<[Point; 2]> {
         .collect()
 }
 
+/// The red answer's lines and crosses (its rings mark what is off, S98).
 fn answers(demo: &Demo) -> Vec<&Drawn> {
     (demo.marks.iter())
-        .filter(|m| m.pen == Marker::Answer)
+        .filter(|m| m.pen == Marker::Answer && !matches!(m.drawn, Drawn::Ring(_)))
         .map(|m| &m.drawn)
         .collect()
 }
@@ -317,10 +319,8 @@ fn an_objects_example_shows_its_picture_beside_the_box_and_its_corners_on_the_co
             assert!(dots.iter().any(|d| distance(*d, *found) < 1e-12));
         }
     }
-    // Compare's red is the visible edges.
-    let red = (demo.marks.iter())
-        .filter(|m| m.pen == Marker::Answer)
-        .count();
+    // Compare's red is the visible edges (and its rings what is off, S98).
+    let red = answers(&demo).len();
     let seen = (task.answer.outlines.iter().flatten())
         .filter(|s| !s.hidden)
         .count();

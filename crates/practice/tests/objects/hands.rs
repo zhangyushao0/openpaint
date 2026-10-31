@@ -30,7 +30,7 @@ fn curve(points: &[Point], random: &mut Random, manner: Manner) -> Vec<Point> {
 
 /// `task`'s visible edges drawn by a hand in `manner` seeded `seed`, each a stroke, and its seen
 /// curves.
-fn drawn(task: &ObjectTask, manner: Manner, seed: u64) -> Vec<Vec<Point>> {
+pub(crate) fn drawn(task: &ObjectTask, manner: Manner, seed: u64) -> Vec<Vec<Point>> {
     let mut hand = Hand::new(seed, manner);
     let mut random = Random::new(seed ^ 0x0B1E);
     let mut strokes: Vec<Vec<Point>> = (task.answer.sides.iter())

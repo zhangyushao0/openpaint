@@ -29,11 +29,10 @@ texts! { PRACTICE_DEMO_OBJECTS;
     OBJECT_STEP_3 = "Then the smaller part; a round one's square and ellipse",
         "再找小的部分；圆的部分先找方形再画椭圆";
     OBJECT_STEP_4 = "The visible edges with Draw", "画图笔画出看得见的边";
-    OBJECT_SAYS = "Find each point on the box's surface or inside it, never in the air: diagonals \
-        for a centre, a line to the vanishing point for halves, thirds and quarters measured on \
-        the near upright. No details, no small rounded corners. Compare: the visible edges in \
-        red; what was read of your lines dashed in blue; the left frame shows the box and the \
-        construction in dashed pencil, the points it finds ringed. Correct in blue and compare \
-        again.",
-        "点要找在方块的表面或内部，不要凭空找：对角线找中心，连向消失点得二等分，在近处的竖边上量三等分、四等分。不画细节，不画小圆角。叠图对比：红色是看得见的边；蓝色虚线是从你的线条里读出的部分；左边的框里用铅笔虚线显示方块和作图，找到的点画圈。用修正笔（蓝色）改，再对比。";
+    OBJECT_SAYS = "Find each point on the box by a reason, never in the air: diagonals, a line to \
+        the vanishing point, thirds measured on the near upright. No details. Ghost each edge, \
+        then draw it once. Compare: the visible edges in red; an edge of yours off its vanishing \
+        point runs on dashed red past it, one off its place has its corners ringed. Construction \
+        shows the box and its construction over the picture. Correct in blue and compare again.",
+        "每个点都要在方块上用作图找到，不要凭空找：对角线、连向消失点的线、在近处竖边上量出的三等分。不画细节。每条边先在空中比划，再一笔画出。叠图对比：红色是看得见的边；你的边没对准消失点，用红色虚线延长越过它；位置偏了，它的两端画红圈。点“看画法”，图上会显示方块和作图。用修正笔（蓝色）改，再对比。";
 }

@@ -142,7 +142,7 @@ fn a_box_is_completed_and_only_its_edge_that_misses_is_drawn_on() {
         "the one off"
     );
     // Only the edge that misses its point is drawn on (S97).
-    let extended: Vec<bool> = check.edges.iter().map(|e| e.extension.is_some()).collect();
+    let extended: Vec<bool> = check.edges.iter().map(|e| e.off.is_some()).collect();
     let missed: Vec<bool> = check.edges.iter().map(|e| !e.on).collect();
     assert_eq!(extended, missed);
     let practice = session.projection().practice().cloned().expect("a sheet");

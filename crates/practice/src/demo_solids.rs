@@ -3,14 +3,20 @@
 //! the other end alike; two lines touching both), a cone (its base alike; the opposite face's
 //! diagonals for the point; two lines from it touching the base) and a sphere (its box halved in
 //! height for the middle section; that section's diagonals and middles; its ellipse; a circle
-//! through the ends of the ellipse's long axis), each then compared as the exercise compares it:
-//! the exact solid red (its hidden part dashed), what was drawn blue. The lines are `SolidTask`'s.
+//! through the ends of the ellipse's long axis), each in its one frame (S98: the box printed
+//! grey), then compared as the exercise compares it: the exact solid red (its hidden part dashed)
+//! and only what is off, by `SolidCheck`'s own marks on the hand's ink (a cylinder's far end drawn
+//! a little narrow: the middles it misses ringed; a cone's second side drawn past its point: run
+//! on past it; V大's sphere circle near enough). The lines are `SolidTask`'s.
 
-use super::{Demo, Drawn, Layout, Marker, On, Script, clearest, line, wobbled};
+use super::{
+    DRAWN_OFF, Demo, Drawn, Layout, Marker, On, Script, clearest, line, off_marks, wobbled,
+};
 use crate::ellipse::{Ellipse, EllipseGuide};
 use crate::path::Point;
 use crate::plan::Family;
 use crate::solid::{Pose, Solid, SolidTask, diagonals, middle_lines};
+use crate::solid_check::SolidCheck;
 
 /// The examples' seeds: a cylinder's, a cone's, a sphere's.
 const SEEDS: [u64; 3] = [0xDE30_5EED_0012, 0xDE30_5EED_0013, 0xDE30_5EED_0014];
@@ -57,10 +63,17 @@ pub(super) fn solid(family: Family) -> Option<Demo> {
                     );
                     middles(&mut script, square);
                 }
-                drawn.push(ink_ellipse(&mut script, &square.exact, index));
+                // The far end a little narrow: Compare rings the middles it misses.
+                let exact = square.exact;
+                let narrow = Ellipse {
+                    axes: [exact.axes[0] - DRAWN_OFF, exact.axes[1]],
+                    ..exact
+                };
+                let shown = if index == 0 { exact } else { narrow };
+                drawn.push(ink_ellipse(&mut script, &shown, index));
             }
             script.step();
-            drawn.extend(ink_sides(&mut script, &task.answer.sides));
+            drawn.extend(ink_sides(&mut script, &task.answer.sides, false));
         }
         Solid::Cone => {
             let base = task.squares.first()?;
@@ -72,7 +85,7 @@ pub(super) fn solid(family: Family) -> Option<Demo> {
             construct(&mut script, &[diagonals(&task.top?)]);
             script.draw(On::Copy, Marker::Pencil, Drawn::Dot(task.point?));
             script.step();
-            drawn.extend(ink_sides(&mut script, &task.answer.sides));
+            drawn.extend(ink_sides(&mut script, &task.answer.sides, true));
         }
         Solid::Sphere => drawn.push(sphere(&mut script, &task)?),
     }
@@ -135,12 +148,17 @@ fn sphere(script: &mut Script, task: &SolidTask) -> Option<Vec<Point>> {
     Some(ink_ellipse(script, &circle, 1))
 }
 
-/// The box as the exercise gives it: its horizon, its edges in ink, the hidden ones dashed.
+/// The box as the exercise gives it in its one frame (S98): its horizon, its edges printed grey,
+/// the hidden ones dashed.
 fn given_box(script: &mut Script, task: &SolidTask) {
     let height = task.seen.horizon;
     script.given(On::Copy, Marker::Guide, line([0.0, height], [1.0, height]));
     for ((a, b, _), hidden) in task.seen.edges().into_iter().zip(task.seen.hidden()) {
-        let pen = if hidden { Marker::Guide } else { Marker::Given };
+        let pen = if hidden {
+            Marker::PrintedHidden
+        } else {
+            Marker::Printed
+        };
         script.given(On::Copy, pen, line(a, b));
     }
 }
@@ -169,19 +187,26 @@ fn ink_ellipse(script: &mut Script, exact: &Ellipse, turn: usize) -> Vec<Point> 
     drawn
 }
 
-/// `sides` ruled with Draw, a hair off; the lines drawn.
-fn ink_sides(script: &mut Script, sides: &[[Point; 2]]) -> Vec<Vec<Point>> {
+/// `sides` ruled with Draw, a hair off (the last, when `past`, aimed `DRAWN_OFF` beside its first
+/// end, a cone's point); the lines drawn.
+fn ink_sides(script: &mut Script, sides: &[[Point; 2]], past: bool) -> Vec<Vec<Point>> {
     let mut drawn = Vec::new();
     for (turn, [a, b]) in sides.iter().enumerate() {
         let off = if turn % 2 == 0 { OFF } else { -OFF };
-        let ruled = vec![[a[0] + off, a[1] - off], [b[0] - off, b[1] + off]];
+        let mut ruled = vec![[a[0] + off, a[1] - off], [b[0] - off, b[1] + off]];
+        if past && turn + 1 == sides.len() {
+            let long = (b[0] - a[0]).hypot(b[1] - a[1]).max(f64::MIN_POSITIVE);
+            let across = [(a[1] - b[1]) / long, (b[0] - a[0]) / long];
+            ruled[0] = [a[0] + DRAWN_OFF * across[0], a[1] + DRAWN_OFF * across[1]];
+        }
         script.draw(On::Copy, Marker::Ink, Drawn::Line(ruled.clone()));
         drawn.push(ruled);
     }
     drawn
 }
 
-/// Compare: the exact solid red, its hidden part dashed, what was drawn blue.
+/// Compare: the exact solid red, its hidden part dashed, and what the exercise's check finds off
+/// in `drawn`.
 fn compared(script: Script, family: Family, task: &SolidTask, drawn: Vec<Vec<Point>>) -> Demo {
     let mut marks: Vec<(On, Marker, Drawn)> = Vec::new();
     for stretch in task.answer.outlines.iter().flatten() {
@@ -195,10 +220,7 @@ fn compared(script: Script, family: Family, task: &SolidTask, drawn: Vec<Vec<Poi
     for [a, b] in &task.answer.sides {
         marks.push((On::Copy, Marker::Answer, line(*a, *b)));
     }
-    marks.extend(
-        drawn
-            .into_iter()
-            .map(|points| (On::Copy, Marker::Found, Drawn::Line(points))),
-    );
+    let lines: Vec<&[Point]> = drawn.iter().map(Vec::as_slice).collect();
+    marks.extend(off_marks(&SolidCheck::of(task, (&lines, &[])).off));
     script.compare(family, Layout::Single, marks)
 }

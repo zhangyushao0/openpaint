@@ -45,8 +45,8 @@ pub enum PracticeIntent {
     Compare(bool),
     /// A line's original laid over the copy aligned onto it (true) or in place.
     Aligned(bool),
-    /// The way to see a compared box's or ellipse's answer laid faint over it (true) or taken
-    /// away (S97, 看画法); each Compare starts without it.
+    /// The way to see a compared geometric answer laid faint over it (true) or taken away (S97,
+    /// 看画法; S98 every kind checked as geometry); each Compare starts without it.
     Construction(bool),
     /// How much of a colour combination's, a colour copy's, a division's or a whole copy's
     /// original shows over the copy, 0 to 1.
@@ -184,7 +184,7 @@ pub struct PracticeProjection {
     pub comparing: bool,
     /// A line's original lies over the copy aligned onto it, else in place.
     pub aligned: bool,
-    /// A compared box's or ellipse's construction shows (S97).
+    /// A compared geometric answer's construction shows (S97, S98).
     pub construction: bool,
     /// The full interface shows over the sheet, else the exercise's own tools.
     pub all_tools: bool,

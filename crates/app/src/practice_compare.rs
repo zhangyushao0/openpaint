@@ -115,15 +115,11 @@ impl PracticeSheet {
         Ok(())
     }
 
-    /// Whether the shown comparison has a construction to lay over it (S97): a box's, free boxes'
-    /// or an ellipse's.
+    /// Whether the shown comparison has a construction to lay over it: whatever is checked as
+    /// geometry (S97: a box's, free boxes', an ellipse's; S98: an estimate's, a trick's, a solid's,
+    /// an object's).
     pub(super) fn construction_offered(&self) -> bool {
-        matches!(
-            self.compared,
-            Some(Compared::Checked(
-                Overlay::Box(_) | Overlay::FreeBoxes(_) | Overlay::Ellipse(_)
-            ))
-        )
+        matches!(self.compared, Some(Compared::Checked(_)))
     }
 
     /// Exercise `index`'s copy in `frame` of `artwork` as Compare finds it now: a colour's

@@ -1,15 +1,21 @@
 //! Stage 3's demonstrations (`demo.rs`): the estimates on the flat (a point run across and down
 //! against the frame's halves and thirds, a proportion's halves and thirds on both segments, an
 //! angle against a level and upright cross and run on to the frame's edges, then marked or drawn)
-//! and V大's five tricks for points in space (the trick's construction in order with Sketch, the
-//! answer with Draw, the example framed on the shaded face), each then compared. The tricks'
-//! lines are `SpaceTask::construction`'s and their answers `SpaceTask::answer`'s.
+//! and V大's five tricks for points in space in their one frame (S98: the box printed grey; the
+//! trick's construction in order with Sketch, the answer with Draw, the example framed on the
+//! shaded face), each then compared as the exercise compares it: the answer red and only what is
+//! off (`FlatCheck`'s and `SpaceCheck`'s own marks on the hand's ink, which lands a little off on
+//! purpose). The tricks' lines are `SpaceTask::construction`'s and their answers
+//! `SpaceTask::answer`'s.
 
-use super::{Demo, Drawn, Layout, Marker, On, Script, bounds, clearest, line, tick};
-use crate::flat::{Estimate, Flat, FlatAnswer};
+use super::{
+    DRAWN_OFF, Demo, Drawn, Layout, Marker, On, Script, bounds, clearest, line, off_marks, tick,
+};
+use crate::flat::{Estimate, Flat, FlatAnswer, FlatCheck};
 use crate::path::{Point, across_frame, distance};
 use crate::plan::Family;
 use crate::space::{SpaceAnswer, SpaceTask, Trick};
+use crate::space_check::SpaceCheck;
 
 /// The examples' seeds, one per kind.
 const SEEDS: [u64; 8] = [
@@ -27,8 +33,8 @@ const HALF_TICK: f64 = 0.04;
 const THIRD_TICK: f64 = 0.025;
 /// How far a mark estimated by eye lies off the exact place, across and down (frame units).
 const OFF: Point = [0.035, -0.025];
-/// How far a mark or a line found by construction lies off: a hair, as a careful hand draws it.
-const NEAR: Point = [0.012, -0.009];
+/// A cross's arm as the hand marks it (frame units).
+const ARM: f64 = 0.02;
 
 const SHARES: [f64; 3] = [1.0 / 3.0, 0.5, 2.0 / 3.0];
 
@@ -111,7 +117,21 @@ fn runs(on: On, p: Point) -> [(On, Marker, Drawn); 2] {
     ]
 }
 
+/// The two strokes of a small cross at `p`, as the check reads them.
+fn crossed(p: Point) -> [Vec<Point>; 2] {
+    [
+        vec![[p[0] - ARM, p[1]], [p[0] + ARM, p[1]]],
+        vec![[p[0], p[1] - ARM], [p[0], p[1] + ARM]],
+    ]
+}
+
+/// `strokes` as lines to read.
+fn read(strokes: &[Vec<Point>]) -> Vec<&[Point]> {
+    strokes.iter().map(Vec::as_slice).collect()
+}
+
 fn point(at: Point) -> Demo {
+    let flat = Flat::Point { at };
     let mut script = Script::new();
     script.given(On::Original, Marker::Given, Drawn::Dot(at));
     script.step();
@@ -124,10 +144,9 @@ fn point(at: Point) -> Demo {
     script.step();
     let mark = moved(at, OFF);
     script.draw(On::Copy, Marker::Ink, Drawn::Cross(mark));
-    // What was read first, the red over it, as Compare lays them.
-    let mut compared = runs(On::Copy, at).to_vec();
-    compared.push((On::Copy, Marker::Found, Drawn::Ring(mark)));
-    compared.push((On::Copy, Marker::Answer, Drawn::Cross(at)));
+    let check = FlatCheck::of(&flat, &read(&crossed(mark)));
+    let mut compared = vec![(On::Copy, Marker::Answer, Drawn::Cross(at))];
+    compared.extend(off_marks(&check.off));
     script.compare(Family::Point, Layout::Pair, compared)
 }
 
@@ -145,21 +164,23 @@ fn segment_ticks(on: On, segment: [Point; 2]) -> Vec<(On, Marker, Drawn)> {
         .collect()
 }
 
-/// A given segment: its line, its first end ringed (the share counts from it), its last barred.
-fn barred(script: &mut Script, on: On, [first, last]: [Point; 2]) {
-    script.given(on, Marker::Given, line(first, last));
-    script.given(
-        on,
-        Marker::Given,
-        Drawn::Line(tick(last, first, THIRD_TICK)),
-    );
-    script.given(on, Marker::Given, Drawn::Ring(first));
+/// A given segment in `pen` (the original's ink, the copy's printed grey): its line, its first
+/// end ringed (the share counts from it), its last barred.
+fn barred(script: &mut Script, (on, pen): (On, Marker), [first, last]: [Point; 2]) {
+    script.given(on, pen, line(first, last));
+    script.given(on, pen, Drawn::Line(tick(last, first, THIRD_TICK)));
+    script.given(on, pen, Drawn::Ring(first));
 }
 
 fn proportion(original: [Point; 2], share: f64, copy: [Point; 2]) -> Demo {
+    let flat = Flat::Proportion {
+        original,
+        share,
+        copy,
+    };
     let mut script = Script::new();
-    barred(&mut script, On::Original, original);
-    barred(&mut script, On::Copy, copy);
+    barred(&mut script, (On::Original, Marker::Given), original);
+    barred(&mut script, (On::Copy, Marker::Printed), copy);
     script.given(
         On::Original,
         Marker::Given,
@@ -171,20 +192,16 @@ fn proportion(original: [Point; 2], share: f64, copy: [Point; 2]) -> Demo {
     script.together(segment_ticks(On::Copy, copy));
     script.step();
     let mark = along(copy, share + 0.04);
-    script.draw(
-        On::Copy,
-        Marker::Ink,
-        Drawn::Line(tick(mark, copy[1], HALF_TICK)),
-    );
+    let drawn = tick(mark, copy[1], HALF_TICK);
+    script.draw(On::Copy, Marker::Ink, Drawn::Line(drawn.clone()));
+    let check = FlatCheck::of(&flat, &[&drawn]);
     let exact = along(copy, share);
-    let compared = vec![
-        (On::Copy, Marker::Found, Drawn::Ring(mark)),
-        (
-            On::Copy,
-            Marker::Answer,
-            Drawn::Line(tick(exact, copy[1], HALF_TICK)),
-        ),
-    ];
+    let mut compared = vec![(
+        On::Copy,
+        Marker::Answer,
+        Drawn::Line(tick(exact, copy[1], HALF_TICK)),
+    )];
+    compared.extend(off_marks(&check.off));
     script.compare(Family::Proportion, Layout::Pair, compared)
 }
 
@@ -194,7 +211,7 @@ fn angle(flat: &Flat, original: [Point; 2], through: Point) -> Option<Demo> {
     };
     let mut script = Script::new();
     script.given(On::Original, Marker::Given, line(original[0], original[1]));
-    script.given(On::Copy, Marker::Given, Drawn::Dot(through));
+    script.given(On::Copy, Marker::Printed, Drawn::Dot(through));
     script.step();
     let middle = along(original, 0.5);
     for arm in [[0.1, 0.0], [0.0, 0.1]] {
@@ -217,15 +234,9 @@ fn angle(flat: &Flat, original: [Point; 2], through: Point) -> Option<Demo> {
         ]
     });
     script.draw(On::Copy, Marker::Ink, line(mine[0], mine[1]));
-    let read = across_frame(through, direction(mine))?;
-    let exact = across_frame(through, direction(answer))?;
-    let mut compared = vec![(On::Copy, Marker::Guide, line(exact[0], exact[1]))];
-    for arm in [[0.1, 0.0], [0.0, 0.1]] {
-        let ends = [-1.0, 1.0].map(|s| [through[0] + s * arm[0], through[1] + s * arm[1]]);
-        compared.push((On::Copy, Marker::Guide, line(ends[0], ends[1])));
-    }
-    compared.push((On::Copy, Marker::Found, line(read[0], read[1])));
-    compared.push((On::Copy, Marker::Answer, line(answer[0], answer[1])));
+    let check = FlatCheck::of(flat, &[mine.as_slice()]);
+    let mut compared = vec![(On::Copy, Marker::Answer, line(answer[0], answer[1]))];
+    compared.extend(off_marks(&check.off));
     Some(script.compare(Family::Angle, Layout::Pair, compared))
 }
 
@@ -292,59 +303,67 @@ pub(super) fn trick(family: Family) -> Option<Demo> {
     Some(demo)
 }
 
-/// The box of `task` as the exercise gives it: its face shaded, the horizon, the edges the eye
-/// sees, a mirror's dot.
+/// The box of `task` as the exercise gives it in its one frame, printed grey (S98): its face
+/// shaded, the horizon, the edges the eye sees, a mirror's dot.
 fn given_box(script: &mut Script, task: &SpaceTask) {
     let [near_bottom, far_bottom, far_top, near_top] = task.corners;
     let face = Drawn::Band {
         rows: vec![[near_top, far_top], [near_bottom, far_bottom]],
         colour: None,
     };
-    script.given(On::Copy, Marker::Shade, face);
+    script.given(On::Copy, Marker::Printed, face);
     let height = task.seen.horizon;
     script.given(On::Copy, Marker::Guide, line([0.0, height], [1.0, height]));
     for ((a, b, _), hidden) in task.seen.edges().into_iter().zip(task.seen.hidden()) {
         if !hidden {
-            script.given(On::Copy, Marker::Given, line(a, b));
+            script.given(On::Copy, Marker::Printed, line(a, b));
         }
     }
     if let Some(dot) = task.given_at() {
-        script.given(On::Copy, Marker::Given, Drawn::Dot(dot));
+        script.given(On::Copy, Marker::Printed, Drawn::Dot(dot));
     }
 }
 
-/// What a hand draws for `task`'s answer (a little off), and Compare's marks: the exact answer
-/// red, what was read blue.
+/// What a hand draws for `task`'s answer, a part of it off by `DRAWN_OFF` (a point beside it; the
+/// halving line through the vanishing point but above the centre; the far third's upright, or
+/// the next face's, beside its place), and Compare's marks: the exact answer red, and what the
+/// exercise's check finds off.
 fn answered(task: &SpaceTask) -> (Vec<Drawn>, Vec<(On, Marker, Drawn)>) {
-    match task.answer() {
+    let (mine, strokes, mut compared): (Vec<Drawn>, Vec<Vec<Point>>, Vec<_>) = match task.answer() {
         SpaceAnswer::Point(p) => {
-            let mark = moved(p, NEAR);
-            let compared = vec![
-                (On::Copy, Marker::Found, Drawn::Ring(mark)),
-                (On::Copy, Marker::Answer, Drawn::Cross(p)),
-            ];
-            (vec![Drawn::Cross(mark)], compared)
+            let mark = moved(p, [0.8 * DRAWN_OFF, -0.6 * DRAWN_OFF]);
+            let compared = vec![(On::Copy, Marker::Answer, Drawn::Cross(p))];
+            (vec![Drawn::Cross(mark)], crossed(mark).to_vec(), compared)
         }
         SpaceAnswer::Lines(lines) => {
-            let shift = [NEAR[0], -NEAR[1]];
-            // The next face's answer is the whole face; the hand draws its far upright alone.
-            let drawn = if task.trick == Trick::Step {
-                &lines[1..2]
-            } else {
-                &lines[..]
+            let shift = [DRAWN_OFF, 0.0];
+            let mine: Vec<[Point; 2]> = match task.trick {
+                // A line to the vanishing point a tenth of the face above its middle.
+                Trick::Halves => vec![[task.at([0.0, 0.6]), task.at([1.0, 0.6])]],
+                // The next face's answer is the whole face; the hand draws its far upright alone.
+                Trick::Step => vec![lines[1].map(|p| moved(p, shift))],
+                _ => (lines.iter().enumerate())
+                    .map(|(k, [a, b])| {
+                        let by = if k + 1 == lines.len() {
+                            shift
+                        } else {
+                            [0.0; 2]
+                        };
+                        [moved(*a, by), moved(*b, by)]
+                    })
+                    .collect(),
             };
-            let mine: Vec<[Point; 2]> = (drawn.iter())
-                .map(|[a, b]| [moved(*a, shift), moved(*b, shift)])
+            let compared = (lines.iter())
+                .map(|[a, b]| (On::Copy, Marker::Answer, line(*a, *b)))
                 .collect();
-            let mut compared: Vec<(On, Marker, Drawn)> = (mine.iter())
-                .map(|[a, b]| (On::Copy, Marker::Found, line(*a, *b)))
-                .collect();
-            compared.extend(
-                lines
-                    .iter()
-                    .map(|[a, b]| (On::Copy, Marker::Answer, line(*a, *b))),
-            );
-            (mine.iter().map(|[a, b]| line(*a, *b)).collect(), compared)
+            let drawn = mine.iter().map(|[a, b]| line(*a, *b)).collect();
+            (
+                drawn,
+                mine.iter().map(|ends| ends.to_vec()).collect(),
+                compared,
+            )
         }
-    }
+    };
+    compared.extend(off_marks(&SpaceCheck::of(task, &read(&strokes)).off));
+    (mine, compared)
 }

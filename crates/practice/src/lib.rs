@@ -43,6 +43,7 @@ mod object_hull;
 mod object_picture;
 mod object_rays;
 mod object_rules;
+mod off;
 mod outline;
 mod outline_flood;
 mod outline_ground;
@@ -111,6 +112,7 @@ pub use object_construction::Stage;
 pub use object_design::Carve;
 pub use object_picture::{PAPER_SHADE, SHADE_STEP};
 pub use object_rules::LEAST_EDGE;
+pub use off::{Heads, Off, Straight, ringed};
 pub use outline::{Outline, OutlineRefusal, outline};
 pub use outline_matte::{Matte, outline_of_matte};
 pub use pack::{
@@ -118,7 +120,8 @@ pub use pack::{
     PackProblem, PictureKind, Tier, valid_id,
 };
 pub use path::{
-    Point, across_frame, apart, crossings, distance, length, meet, nearest, resample, within,
+    Point, across_frame, apart, crossings, distance, length, meet, nearest, outside, resample,
+    within,
 };
 pub use perspective::{BoxView, Direction, EDGES, FAR, Horizon, PerspectiveBox};
 pub use perspective_check::{BoxCheck, Checked, ON_ANGLE, PAST};

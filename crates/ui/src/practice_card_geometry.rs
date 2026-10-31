@@ -5,8 +5,8 @@
 //! many edges miss their vanishing point, the verticals that lean, the front corners under 90
 //! degrees; or that every edge heads for its point. An ellipse: rounder or flatter, turned which
 //! way, which sides it falls short of or runs past; or that it fits. An estimate, a point in space
-//! (S90), a solid (S93) or an object (S94): nothing but its title, the picture saying it all,
-//! unless no mark, line or curve was found. The words are `text/practice_perspective.rs`'s,
+//! (S90), a solid (S93) or an object (S94): its title and Construction (S98), the picture saying
+//! the rest, unless no mark, line or curve was found. The words are `text/practice_perspective.rs`'s,
 //! `text/practice_points.rs`'s, `text/practice_solids.rs`'s and `text/practice_objects.rs`'s.
 
 use openpaint_app::{Intent, Overlay, PracticeIntent, PracticeProjection};
@@ -40,13 +40,21 @@ pub(crate) fn compared(
             said(ui, &t::off(language, counted(&edges, check.narrow())));
             construction(ui, practice, taps);
         }
-        Some(Overlay::Flat(check)) => nothing_read(ui, practice, check.metrics.is_empty()),
-        Some(Overlay::Space(check)) => nothing_read(ui, practice, check.metrics.is_empty()),
-        Some(Overlay::Object(check) | Overlay::Solid(check)) if check.metrics.is_empty() => {
-            let object = matches!(practice.overlay, Some(Overlay::Object(_)));
-            card_text(ui, if object { t::NO_OBJECT } else { t::NO_SOLID }, false);
+        Some(Overlay::Flat(check)) => {
+            nothing_read(ui, practice, check.metrics.is_empty());
+            construction(ui, practice, taps);
         }
-        Some(Overlay::Object(_) | Overlay::Solid(_)) => {}
+        Some(Overlay::Space(check)) => {
+            nothing_read(ui, practice, check.metrics.is_empty());
+            construction(ui, practice, taps);
+        }
+        Some(Overlay::Object(check) | Overlay::Solid(check)) => {
+            if check.metrics.is_empty() {
+                let object = matches!(practice.overlay, Some(Overlay::Object(_)));
+                card_text(ui, if object { t::NO_OBJECT } else { t::NO_SOLID }, false);
+            }
+            construction(ui, practice, taps);
+        }
         Some(Overlay::Ellipse(check)) => {
             if check.fitted.is_none() {
                 card_text(ui, t::NO_ELLIPSE, false);
@@ -71,7 +79,7 @@ fn counted(edges: &[Checked], narrow: usize) -> (usize, usize, usize) {
     let off = edges.iter().filter(|edge| !edge.on);
     let lean = off
         .clone()
-        .filter(|edge| edge.direction == Direction::Vertical && edge.plumb.is_some())
+        .filter(|edge| edge.direction == Direction::Vertical && edge.leans())
         .count();
     (off.count() - lean, lean, narrow)
 }

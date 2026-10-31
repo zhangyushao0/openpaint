@@ -5,7 +5,7 @@
 //! and how reliable that is on boxes drawn by hand. Run with `--nocapture` to read the figures.
 
 use openpaint_practice::{
-    BoxCheck, BoxView, Direction, Edge, FreeCheck, Horizon, PerspectiveBox, Point, distance,
+    BoxCheck, BoxView, Direction, Edge, FreeCheck, Horizon, Off, PerspectiveBox, Point, distance,
 };
 
 use crate::edges::{found, matches};
@@ -63,7 +63,7 @@ fn exact_edges_head_for_their_points_and_get_no_marks() {
             for checked in &check.edges {
                 assert!(checked.on, "{view:?} {seed}: {checked:?}");
                 assert_eq!(truth(&checked.edge, &drawn), Some(checked.direction));
-                assert!(checked.extension.is_none() && checked.plumb.is_none());
+                assert!(checked.off.is_none());
             }
         }
     }
@@ -82,7 +82,13 @@ fn only_an_edge_that_misses_its_point_is_drawn_on_past_it() {
     let off: Vec<_> = check.edges.iter().filter(|c| !c.on).collect();
     assert_eq!((off.len(), check.missed()), (1, 1), "{off:?}");
     assert_eq!(off[0].direction, Direction::Right);
-    let extension = off[0].extension.expect("extended");
+    let Some(Off::RunOn {
+        line: extension,
+        past: None,
+    }) = off[0].off
+    else {
+        panic!("extended: {:?}", off[0].off)
+    };
     let (missed_by, past) = passing(extension, point);
     assert!(
         missed_by > 0.03,
@@ -91,7 +97,7 @@ fn only_an_edge_that_misses_its_point_is_drawn_on_past_it() {
     assert!((past - openpaint_practice::PAST).abs() < 1e-9, "{past}");
     let others = check.edges.iter().filter(|c| c.on);
     assert!(others.clone().count() >= 7);
-    assert!(others.into_iter().all(|c| c.extension.is_none()));
+    assert!(others.into_iter().all(|c| c.off.is_none()));
 }
 
 /// Boxes completed by `manner`'s hand, each edge drawn as meant or `error` degrees off: edges

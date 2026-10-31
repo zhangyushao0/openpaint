@@ -12,7 +12,7 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Estimate, Exercise, Family, Flat, FlatAnswer, Frame, Kind, Metric, Original, Plan, Point,
+    Estimate, Exercise, Family, Flat, FlatAnswer, Frame, Kind, Metric, Off, Original, Plan, Point,
     SessionRecord, SpaceAnswer, Trick, value,
 };
 
@@ -202,6 +202,43 @@ fn an_angle_s_last_line_is_read_and_a_point_in_space_marked_on_its_face() {
         panic!("the point's check")
     };
     assert!(value(&check.metrics, Metric::SpaceOff).is_some_and(|v| v < 0.02));
+}
+
+/// S98: Compare marks only what is off (a mark 20 px off its answer ringed, one on it nothing),
+/// and lays the way to see it on request, off again at each Compare.
+#[test]
+fn an_estimate_rings_only_a_mark_off_and_shows_its_construction_on_request() {
+    let mut session = opened();
+    let construction =
+        |session: &Session| (session.projection().practice()).map(|p| p.construction);
+    let practice = session.projection().practice().cloned().expect("a sheet");
+    let frame = practice.sheet.pairs[0].copy;
+    let Original::Flat(flat) = practice.sheet.originals[0] else {
+        panic!("an estimate")
+    };
+    let FlatAnswer::Point(at) = flat.answer() else {
+        panic!("a point")
+    };
+    cross(&mut session, &frame, [at[0] + 0.05, at[1]]);
+    practise(&mut session, PracticeIntent::Compare(true));
+    let Some(Overlay::Flat(check)) = overlay(&session) else {
+        panic!("the estimate's check")
+    };
+    assert_eq!(check.off, vec![Off::Ring(at)]);
+    assert_eq!(construction(&session), Some(false));
+    practise(&mut session, PracticeIntent::Construction(true));
+    assert_eq!(construction(&session), Some(true));
+    cross(&mut session, &frame, at);
+    practise(&mut session, PracticeIntent::Compare(true));
+    let Some(Overlay::Flat(check)) = overlay(&session) else {
+        panic!("the estimate's check")
+    };
+    assert!(check.off.is_empty(), "{:?}", check.off);
+    assert_eq!(
+        construction(&session),
+        Some(false),
+        "each Compare starts without it"
+    );
 }
 
 #[test]

@@ -177,13 +177,26 @@ impl Family {
     }
 
     /// Whether its answer is built from given parts in the one frame drawn in (S97): a value
-    /// scale, a box, free boxes, an ellipse. The original's frame beside it is left empty, room
-    /// for what Compare draws beyond the frame (the sheet keeps its place, so strokes stay put).
+    /// scale, a box, free boxes, an ellipse; V大's five tricks and the three solids (S98). The
+    /// original's frame beside it is left empty, room for what Compare draws beyond the frame (the
+    /// sheet keeps its place, so strokes stay put). An estimate and an object keep their original
+    /// beside them: it is copied by eye.
     #[must_use]
     pub const fn constructed(self) -> bool {
         matches!(
             self,
-            Self::Scale | Self::Box | Self::FreeBoxes | Self::Ellipse
+            Self::Scale
+                | Self::Box
+                | Self::FreeBoxes
+                | Self::Ellipse
+                | Self::Centre
+                | Self::Halves
+                | Self::Thirds
+                | Self::Step
+                | Self::Mirror
+                | Self::Cylinder
+                | Self::Cone
+                | Self::Sphere
         )
     }
 

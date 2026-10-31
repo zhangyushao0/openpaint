@@ -1,13 +1,36 @@
 //! How a demonstration's hand marks a line (`demo.rs`): a line through two points, a short tick
-//! across it, and a copy of it that strays a little as a hand's does; how far an example lies off
-//! the frame's middle, and which example of a fixed seed's sequence is clearest.
+//! across it, and a copy of it that strays a little as a hand's does; how far it lands off a part
+//! on purpose and how Compare marks it (S98); how far an example lies off the frame's middle, and
+//! which example of a fixed seed's sequence is clearest.
 
-use super::{Drawn, bounds};
+use super::{Drawn, Marker, On, bounds};
+use crate::off::Off;
 use crate::path::{Point, distance, length};
+
+/// What a hand draws in the examples a little off a part on purpose (frame units): twice the Draw
+/// pen's width, so Compare marks it as the exercise would (S98).
+pub(crate) const DRAWN_OFF: f64 = 2.0 * crate::solid::PEN_WIDTH;
 
 /// The line through `a` and `b`, two points.
 pub(crate) fn line(a: Point, b: Point) -> Drawn {
     Drawn::Line(vec![a, b])
+}
+
+/// Compare's marks of what is off (`off.rs`) on the copy's frame: a ring in the answer's red, an
+/// edge run on dashed red (its point ringed), a true vertical.
+pub(crate) fn off_marks(off: &[Off]) -> Vec<(On, Marker, Drawn)> {
+    let mut marks = Vec::new();
+    for mark in off {
+        match *mark {
+            Off::Ring(p) => marks.push((On::Copy, Marker::Answer, Drawn::Ring(p))),
+            Off::RunOn { line: [a, b], past } => {
+                marks.push((On::Copy, Marker::Missed, line(a, b)));
+                marks.extend(past.map(|p| (On::Copy, Marker::Answer, Drawn::Ring(p))));
+            }
+            Off::Plumb([a, b]) => marks.push((On::Copy, Marker::Missed, line(a, b))),
+        }
+    }
+    marks
 }
 
 /// How far the middle of `points`' bounds lies from the frame's middle.

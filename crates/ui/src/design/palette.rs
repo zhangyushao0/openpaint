@@ -32,12 +32,9 @@ pub const PRESSED: Color32 = Color32::from_black_alpha(18);
 pub const CHECKER: Color32 = Color32::from_rgb(228, 226, 222);
 /// The canvas's and the gallery pictures' shadow on the desk: strength at the sheet's edge.
 pub const SHEET_SHADOW: u8 = 34;
-/// The marking red a check lays over a practice copy: the original and its key points. Never
-/// chrome.
+/// The marking red a check lays over a practice copy: the original or the answer, and what of the
+/// copy is off. Never chrome.
 pub const CORRECTION: Color32 = Color32::from_rgb(200, 58, 44);
-/// What a check found in the copy's own lines (a solid's curves read, a point's mark), drawn
-/// beside the red answer: a blue apart from the blue correcting pen's. Never chrome.
-pub const FOUND: Color32 = Color32::from_rgb(28, 112, 150);
 /// What a constructed exercise gives in the frame drawn in (S97: a box's horizon, corner and
 /// edges, an ellipse's frame): a solid slate grey, as if printed on the sheet, cool and even
 /// beside Draw's black ink and Sketch's warm grainy pencil. Never chrome.

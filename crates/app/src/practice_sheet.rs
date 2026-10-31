@@ -72,7 +72,7 @@ pub(crate) struct PracticeSheet {
     compared: Option<Compared>,
     /// A line's original lies over the copy aligned onto it, else in place.
     aligned: bool,
-    /// A compared box's or ellipse's construction shows (S97); each Compare starts without it.
+    /// A compared geometric answer's construction shows (S97, S98); each Compare starts without it.
     construction: bool,
     /// The full interface shows, else the exercise's own tools.
     all_tools: bool,

@@ -237,6 +237,34 @@ pub fn within(points: &[Point], size: Point) -> Vec<Vec<Point>> {
     parts
 }
 
+/// The parts of the polyline `points` outside the rectangle from `low` to `high`, cut at its edges,
+/// each a polyline of its own (S98: a mark kept off an original's frame).
+#[must_use]
+pub fn outside(points: &[Point], low: Point, high: Point) -> Vec<Vec<Point>> {
+    let size = [high[0] - low[0], high[1] - low[1]];
+    let from_low = |p: Point| [p[0] - low[0], p[1] - low[1]];
+    let (mut parts, mut part): (Vec<Vec<Point>>, Vec<Point>) = (Vec::new(), Vec::new());
+    for segment in points.windows(2) {
+        let (a, b) = (segment[0], segment[1]);
+        let inside = segment_within(from_low(a), from_low(b), size);
+        if part.is_empty() && inside.is_none_or(|(enter, _)| enter > 0.0) {
+            part.push(a);
+        }
+        let Some((enter, leave)) = inside else {
+            part.push(b);
+            continue;
+        };
+        part.extend((enter > 0.0).then(|| lerp(a, b, enter)));
+        parts.push(std::mem::take(&mut part));
+        if leave < 1.0 {
+            part = vec![lerp(a, b, leave), b];
+        }
+    }
+    parts.push(part);
+    parts.retain(|part| part.len() > 1);
+    parts
+}
+
 /// Where the segment from `a` to `b` enters and leaves the rectangle from `[0, 0]` to `size`, as
 /// shares of the way (0 at `a`, 1 at `b`); `None` where it stays outside or only touches it.
 fn segment_within(a: Point, b: Point, size: Point) -> Option<(f64, f64)> {

@@ -11,14 +11,23 @@
 //!
 //! An object's copy (S94) is read alike against its visible edges and outlines (`ObjectOff`): its
 //! round part's ends only where seen, as only those are drawn.
+//!
+//! What is off (S98, `off.rs`): an ellipse's middles the curve read for it misses (in its square;
+//! a sphere's outline along its axes), a side read off its line run on to where it heads (a
+//! cylinder's to its axis's vanishing point or upright, a cone's to its point; an object's edge to
+//! the box's vanishing point it runs to, upright, or, slanted, nowhere) or the points fixing it
+//! ringed (a side's touches, an edge's corners).
 
 use crate::edges::edges;
-use crate::ellipse::Ellipse;
+use crate::ellipse::{Ellipse, EllipseGuide};
 use crate::ellipse_fit::fit_ellipse;
 use crate::metric::{Metric, Metrics};
 use crate::object::ObjectTask;
+use crate::off::{Heads, Off, Straight, middles_missed, once, turn};
 use crate::path::{Point, distance, length, nearest, nearest_on_segment, resample};
-use crate::solid::SolidTask;
+use crate::perspective::{Direction, PerspectiveBox};
+use crate::perspective_check::{line_angle, sub};
+use crate::solid::{Pose, Solid, SolidTask};
 use crate::solid_answer::SolidAnswer;
 
 /// The even step lines are read at.
@@ -34,6 +43,11 @@ pub const COVERED: f64 = 2.0 / 3.0;
 const BINS: usize = 24;
 /// Corrections redraw a part once they hold this much of it (20 pixels of a 400-pixel frame).
 const REDRAWN: f64 = 0.05;
+/// An object's edge runs to a vanishing point, or stands upright, within this (degrees): exact
+/// edges do to the last bits.
+const SAME_WAY: f64 = 1e-4;
+/// A side is marked by an edge drawn along this share of it at least (S98).
+const ALONG: f64 = 0.4;
 
 /// What was read for one of the answer's ellipses: the curves drawn nearest it, and the ellipse
 /// fitted to them once they go far enough round.
@@ -43,16 +57,23 @@ pub struct ReadCurve {
     pub fitted: Option<Ellipse>,
 }
 
-/// A solid's copy as Compare read it: per ellipse of the answer and per side, and how far off.
+/// A solid's copy as Compare read it: per ellipse of the answer and per side, what is off, and
+/// how far off.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SolidCheck {
     pub curves: Vec<ReadCurve>,
     /// Each side's straight pieces (or curves) drawn nearest it.
     pub sides: Vec<Vec<Vec<Point>>>,
+    /// What of them is off by more than a pen's width (S98).
+    pub off: Vec<Off>,
     /// The read lines' mean distance from the answer, a share of the box; none when nothing was
     /// read.
     pub metrics: Metrics,
 }
+
+/// An answer's parts as what is off is found on them: each ellipse in its frame, each side as a
+/// straight part.
+type Marked = (Vec<EllipseGuide>, Vec<Straight>);
 
 /// The part of the answer a piece belongs to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -61,11 +82,14 @@ enum Part {
     Side(usize),
 }
 
+/// What was read for one part: its pieces, each a line.
+type Pieces = Vec<Vec<Point>>;
+
 /// The pieces read per part.
 #[derive(Debug, Default)]
 struct Parts {
-    curves: Vec<Vec<Vec<Point>>>,
-    sides: Vec<Vec<Vec<Point>>>,
+    curves: Vec<Pieces>,
+    sides: Vec<Pieces>,
 }
 
 impl SolidCheck {
@@ -73,18 +97,25 @@ impl SolidCheck {
     /// and Correct, oldest first) read and measured.
     #[must_use]
     pub fn of(task: &SolidTask, lines: (&[&[Point]], &[&[Point]])) -> Self {
-        Self::against(&task.answer, (task.size(), Metric::SolidOff), lines)
+        let measure = (task.size(), Metric::SolidOff);
+        Self::against((&task.answer, &solid_parts(task)), measure, lines)
     }
 
     /// An object's copy (S94) read so against its visible edges and outlines.
     #[must_use]
     pub fn of_object(task: &ObjectTask, lines: (&[&[Point]], &[&[Point]])) -> Self {
-        Self::against(&task.answer, (task.size(), Metric::ObjectOff), lines)
+        let parts = (task.squares.clone(), edge_parts(&task.answer, &task.seen));
+        Self::against(
+            (&task.answer, &parts),
+            (task.size(), Metric::ObjectOff),
+            lines,
+        )
     }
 
-    /// The copy read against `answer`, its error `metric`, a share of `size`.
+    /// The copy read against `answer` (what is off found on its `parts`), its error `metric`, a
+    /// share of `size`.
     fn against(
-        answer: &SolidAnswer,
+        (answer, parts): (&SolidAnswer, &Marked),
         (size, metric): (f64, Metric),
         (drawn, corrections): (&[&[Point]], &[&[Point]]),
     ) -> Self {
@@ -106,15 +137,87 @@ impl SolidCheck {
         let sides: Vec<Vec<Vec<Point>>> = (first.sides.into_iter().zip(later.sides))
             .map(|(a, b)| latest(a, b))
             .collect();
-        let metrics = off(answer, &curves, &sides).map_or_else(Vec::new, |off| {
+        let metrics = mean_off(answer, &curves, &sides).map_or_else(Vec::new, |off| {
             vec![(metric, off / size.max(f64::MIN_POSITIVE))]
         });
         Self {
+            off: marked(parts, (&curves, &sides)),
             curves,
             sides,
             metrics,
         }
     }
+}
+
+/// What of `curves` and `sides` is off on `parts` (S98), each mark once: a side by the straight
+/// pieces read for it, those along one edge one, drawn along `ALONG` of it at least (an end's
+/// curve or a short straight stretch of it passing near a side is the end's).
+fn marked((frames, straights): &Marked, (curves, sides): (&[ReadCurve], &[Pieces])) -> Vec<Off> {
+    let mut off: Vec<Off> = (curves.iter().zip(frames))
+        .flat_map(|(curve, frame)| middles_missed(frame, curve))
+        .collect();
+    for (pieces, part) in sides.iter().zip(straights) {
+        let lines: Vec<&[Point]> = (pieces.iter())
+            .filter(|piece| piece.len() == 2)
+            .map(Vec::as_slice)
+            .collect();
+        let long = ALONG * distance(part.line[0], part.line[1]);
+        for edge in edges(&lines).iter().filter(|edge| edge.length() >= long) {
+            off.extend(part.off(edge));
+        }
+    }
+    once(off)
+}
+
+/// A solid's parts: its ends' or its base's squares (a sphere's outline framed along its axes);
+/// a cylinder's sides heading for its axis's vanishing point (upright when it stands), fixed
+/// where they touch its ends; a cone's heading for its point, fixed where they touch its base.
+fn solid_parts(task: &SolidTask) -> Marked {
+    let frames = match task.solid {
+        Solid::Sphere => (task.answer.ellipses.iter())
+            .map(|e| EllipseGuide::framing(*e))
+            .collect(),
+        Solid::Cylinder | Solid::Cone => task.squares.clone(),
+    };
+    let axis = match task.pose {
+        Pose::Upright => Some(Heads::Upright),
+        Pose::Left => task.seen.vanishing[Direction::Left.index()].map(Heads::Point),
+        Pose::Right => task.seen.vanishing[Direction::Right.index()].map(Heads::Point),
+    };
+    let straights = (task.answer.sides.iter())
+        .map(|&[a, b]| match (task.solid, task.point) {
+            (Solid::Cone, Some(point)) => Straight {
+                line: [a, b],
+                heads: Some(Heads::Point(point)),
+                fixed: vec![b],
+            },
+            _ => Straight {
+                line: [a, b],
+                heads: axis,
+                fixed: vec![a, b],
+            },
+        })
+        .collect();
+    (frames, straights)
+}
+
+/// An object's visible edges as straight parts: each heading for the box's vanishing point it
+/// runs to, upright, or nowhere (a slanted cut's, a cone's side), fixed at its ends.
+fn edge_parts(answer: &SolidAnswer, seen: &PerspectiveBox) -> Vec<Straight> {
+    (answer.sides.iter())
+        .map(|&[a, b]| {
+            let d = sub(b, a);
+            let to_point = (seen.vanishing.iter().flatten())
+                .find(|p| line_angle(d, sub(**p, a)) <= SAME_WAY)
+                .map(|p| Heads::Point(*p));
+            let upright = (line_angle(d, [0.0, 1.0]) <= SAME_WAY).then_some(Heads::Upright);
+            Straight {
+                line: [a, b],
+                heads: upright.or(to_point),
+                fixed: vec![a, b],
+            }
+        })
+        .collect()
 }
 
 /// How far `p` lies from `part` of `answer`: an ellipse whole, or where seen when only that is
@@ -200,13 +303,9 @@ fn read(answer: &SolidAnswer, lines: &[&[Point]]) -> Parts {
 /// Whether `pieces` go `COVERED` round `exact`: the share of its `BINS` arcs (by the angle round
 /// its own centre, as on the circle it is drawn from) that hold a point.
 fn covered(exact: &Ellipse, pieces: &[Vec<Point>]) -> bool {
-    let (sin, cos) = exact.angle.sin_cos();
     let mut held = [false; BINS];
     for p in pieces.iter().flat_map(|piece| resample(piece, SPACING)) {
-        let [dx, dy] = [p[0] - exact.centre[0], p[1] - exact.centre[1]];
-        let along = (dx * cos + dy * sin) / exact.axes[0].max(f64::MIN_POSITIVE);
-        let across = (-dx * sin + dy * cos) / exact.axes[1].max(f64::MIN_POSITIVE);
-        let turn = across.atan2(along).rem_euclid(std::f64::consts::TAU);
+        let turn = turn(exact, p).rem_euclid(std::f64::consts::TAU);
         let bin = (turn / std::f64::consts::TAU * BINS as f64) as usize;
         held[bin.min(BINS - 1)] = true;
     }
@@ -220,7 +319,7 @@ fn fitted(pieces: &[Vec<Point>]) -> Option<Ellipse> {
 }
 
 /// The mean distance of everything read from the part it was read for; none when nothing was.
-fn off(answer: &SolidAnswer, curves: &[ReadCurve], sides: &[Vec<Vec<Point>>]) -> Option<f64> {
+fn mean_off(answer: &SolidAnswer, curves: &[ReadCurve], sides: &[Pieces]) -> Option<f64> {
     let parts = (curves.iter().enumerate())
         .map(|(k, curve)| (Part::Ellipse(k), &curve.pieces))
         .chain(

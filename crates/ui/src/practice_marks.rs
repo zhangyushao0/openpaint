@@ -31,6 +31,7 @@ use crate::components::{Alpha, canvas_point, picture_texture};
 use crate::design::{CORRECTION, DIVIDER, INK, INK_SECONDARY, PANEL_RULE_WIDTH};
 use crate::practice_division_marks as division_marks;
 use crate::practice_geometry_marks as geometry_marks;
+use crate::practice_mark_lines::At;
 use crate::practice_masses_marks as masses_marks;
 use crate::practice_object_marks as object_marks;
 use crate::practice_paint_marks as paint_marks;
@@ -122,7 +123,8 @@ pub(crate) fn show_marks(
         } else {
             Stroke::new(1.0, DIVIDER)
         };
-        show_original(&painter, practice, (index, pair), (&at, widths), pictures);
+        let marks = At::new(&at, sheet.size);
+        show_original(&painter, practice, (index, pair), (marks, widths), pictures);
         // A kind built from given parts has the one frame drawn in (S97).
         if !practice.sheet.families[index].constructed() {
             painter.add(Shape::closed_line(original.to_vec(), frame));
@@ -131,21 +133,23 @@ pub(crate) fn show_marks(
     }
     let width = (INK_DIAMETER * mapping.scale() / pixels_per_point).max(LEAST_OVERLAY);
     if let Some(overlay) = &practice.overlay {
-        show_overlay(&painter, practice, overlay, (&at, width), pictures);
+        let marks = At::new(&at, sheet.size);
+        show_overlay(&painter, practice, overlay, (marks, width), pictures);
     }
     paint_marks::show_probe(&painter, practice, &at);
 }
 
-/// Exercise `index`'s original (and its givens) in its pair's frames; `at` maps canvas points to
-/// the screen; an original's line `widths.0` points wide, `widths.1` points to a canvas pixel.
+/// Exercise `index`'s original (and its givens) in its pair's frames; `marks` maps canvas points
+/// to the screen; an original's line `widths.0` points wide, `widths.1` points to a canvas pixel.
 fn show_original(
     painter: &egui::Painter,
     practice: &PracticeProjection,
     (index, pair): (usize, &openpaint_practice::Pair),
-    (at, widths): (&dyn Fn([f64; 2]) -> Pos2, (f32, f32)),
+    (marks, widths): (At<'_>, (f32, f32)),
     pictures: &SheetPictures,
 ) {
     let (line_width, scale) = widths;
+    let at = &|p: [f64; 2]| marks.of(p);
     match &practice.sheet.originals[index] {
         Original::Lines(lines) => {
             for line in lines {
@@ -167,14 +171,15 @@ fn show_original(
             paint_marks::show_original(painter, practice, (index, pair), at, painted);
         }
         Original::Box(_) | Original::FreeBoxes(_) | Original::Ellipse(_) => {
-            geometry_marks::show_original(painter, practice, (index, pair), at, widths);
+            geometry_marks::show_original(painter, practice, (index, pair), marks, widths);
         }
         Original::Object(_) => {
             let painted = &pictures.painted;
-            object_marks::show_original(painter, practice, (index, pair), (at, widths), painted);
+            let shown = (marks, widths);
+            object_marks::show_original(painter, practice, (index, pair), shown, painted);
         }
         Original::Flat(_) | Original::Space(_) | Original::Solid(_) => {
-            points_marks::show_original(painter, practice, (index, pair), at, widths);
+            points_marks::show_original(painter, practice, (index, pair), marks, widths);
         }
     }
 }
@@ -253,12 +258,13 @@ fn show_overlay(
     painter: &egui::Painter,
     practice: &PracticeProjection,
     overlay: &Overlay,
-    (at, width): (&dyn Fn([f64; 2]) -> Pos2, f32),
+    (marks, width): (At<'_>, f32),
     pictures: &SheetPictures,
 ) {
     let Some(index) = practice.current else {
         return;
     };
+    let at = &|p: [f64; 2]| marks.of(p);
     let pair = practice.sheet.pairs[index];
     let red = CORRECTION.gamma_multiply(OVERLAY_SHOWN);
     let canvas = |p: &[f32; 2]| at(p.map(f64::from));
@@ -284,16 +290,16 @@ fn show_overlay(
             masses_marks::show_overlay(painter, practice, overlay, (at, width), painted);
         }
         (Overlay::Box(_) | Overlay::FreeBoxes(_) | Overlay::Ellipse(_), _) => {
-            geometry_marks::show_overlay(painter, practice, overlay, (at, width));
+            geometry_marks::show_overlay(painter, practice, overlay, (marks, width));
         }
         (Overlay::Flat(_) | Overlay::Space(_), _) => {
-            points_marks::show_overlay(painter, practice, overlay, (at, width));
+            points_marks::show_overlay(painter, practice, overlay, (marks, width));
         }
         (Overlay::Object(_), _) => {
-            object_marks::show_overlay(painter, practice, overlay, (at, width));
+            object_marks::show_overlay(painter, practice, overlay, (marks, width));
         }
         (Overlay::Solid(_), _) => {
-            solid_marks::show_overlay(painter, practice, overlay, (at, width));
+            solid_marks::show_overlay(painter, practice, overlay, (marks, width));
         }
         _ => {}
     }

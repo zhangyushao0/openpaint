@@ -109,13 +109,18 @@ impl EllipseCheck {
             fitted: Some(fitted),
             roundness,
             tilt,
-            sides: missed(guide, &fitted),
+            sides: missed(guide, |_, normal| Some(fitted.support(normal))),
         }
     }
 }
 
-/// The sides of `guide` the ellipse `fitted` falls short of or runs past, in order round.
-fn missed(guide: &EllipseGuide, fitted: &Ellipse) -> Vec<Missed> {
+/// The sides of `guide` a curve falls short of or runs past by more than `REACH`, in order round:
+/// how far it reaches along each side's outward normal is `reach(side, normal)` (none: the curve
+/// says nothing of that side, S98's pieces too little round to fit).
+pub(crate) fn missed(
+    guide: &EllipseGuide,
+    reach: impl Fn(usize, Point) -> Option<f64>,
+) -> Vec<Missed> {
     let c = guide.corners;
     let middle = [0, 1].map(|k| c.iter().map(|p| p[k]).sum::<f64>() / 4.0);
     (0..4)
@@ -129,7 +134,7 @@ fn missed(guide: &EllipseGuide, fitted: &Ellipse) -> Vec<Missed> {
             if normal[0] * outward[0] + normal[1] * outward[1] < 0.0 {
                 normal = [-normal[0], -normal[1]];
             }
-            let gap = normal[0] * a[0] + normal[1] * a[1] - fitted.support(normal);
+            let gap = normal[0] * a[0] + normal[1] * a[1] - reach(i, normal)?;
             let reach = if gap > REACH {
                 Reach::Short
             } else if gap < -REACH {

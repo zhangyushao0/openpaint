@@ -187,6 +187,26 @@ impl EllipseGuide {
         last.unwrap_or_else(|| square_on([[0.25, 0.3], [0.75, 0.3], [0.75, 0.7], [0.25, 0.7]]))
     }
 
+    /// `exact` in the frame along its axes, touching it at their ends (S98: a sphere's outline,
+    /// whose middles are its axes' ends).
+    #[must_use]
+    pub fn framing(exact: Ellipse) -> Self {
+        let (sin, cos) = exact.angle.sin_cos();
+        let [a, b] = exact.axes;
+        let at = |s: f64, t: f64| {
+            let [x, y] = [a * s, b * t];
+            [
+                exact.centre[0] + x * cos - y * sin,
+                exact.centre[1] + x * sin + y * cos,
+            ]
+        };
+        Self {
+            corners: [at(-1.0, -1.0), at(1.0, -1.0), at(1.0, 1.0), at(-1.0, 1.0)],
+            exact,
+            touches: [at(0.0, -1.0), at(1.0, 0.0), at(0.0, 1.0), at(-1.0, 0.0)],
+        }
+    }
+
     fn keeps(&self) -> bool {
         let inside = |v: f64| (INSIDE..=1.0 - INSIDE).contains(&v);
         let turns: Vec<f64> = (0..4)

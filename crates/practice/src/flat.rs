@@ -13,9 +13,11 @@
 use crate::edges::Edge;
 use crate::marks::{last_edges, last_mark};
 use crate::metric::{Metric, Metrics};
+use crate::off::{Heads, Off, Straight, ringed};
 use crate::path::{Point, distance};
 use crate::plan::Family;
 use crate::random::Random;
+use crate::solid::PEN_WIDTH;
 
 /// How far inside its frame a given segment keeps.
 const INSIDE: f64 = 0.08;
@@ -152,11 +154,15 @@ impl Flat {
 }
 
 /// An estimate's copy as Compare read it: the last mark (a point or a proportion) or the last
-/// straight line drawn (an angle), and how far off it is (none when nothing was read).
+/// straight line drawn (an angle), what of it is off (S98: the answer's point ringed when the mark
+/// lies more than a pen's width off it, along a proportion's segment; an angle's line run on
+/// across the frame when it turns from the answer, the dot ringed when it misses it), and how far
+/// off it is (none when nothing was read).
 #[derive(Debug, Clone, PartialEq)]
 pub struct FlatCheck {
     pub mark: Option<Point>,
     pub line: Option<Edge>,
+    pub off: Vec<Off>,
     /// A point's error across and down (frame units), a proportion's along its segment (a share
     /// of it), an angle's in degrees: each signed, the copy's less the answer's.
     pub metrics: Metrics,
@@ -178,28 +184,43 @@ impl FlatCheck {
                 Self {
                     mark,
                     line: None,
+                    off: mark.and_then(|m| ringed(at, m)).into_iter().collect(),
                     metrics,
                 }
             }
             Flat::Proportion { share, copy, .. } => {
                 let mark = last_mark(lines);
-                let metrics = mark.map_or_else(Vec::new, |m| {
-                    vec![(Metric::ProportionOff, share_along(copy, m) - share)]
-                });
+                let error = mark.map(|m| share_along(copy, m) - share);
+                let long = distance(copy[0], copy[1]);
+                let off = error.filter(|off| off.abs() * long > PEN_WIDTH);
                 Self {
                     mark,
                     line: None,
-                    metrics,
+                    off: off
+                        .map(|_| Off::Ring(along(copy, share)))
+                        .into_iter()
+                        .collect(),
+                    metrics: (error.into_iter())
+                        .map(|off| (Metric::ProportionOff, off))
+                        .collect(),
                 }
             }
-            Flat::Angle { original, .. } => {
+            Flat::Angle { original, through } => {
                 let line = last_edges(lines, 1, |edge| edge.length() >= LINE).pop();
                 let metrics = line.map_or_else(Vec::new, |edge| {
                     let off = heading(edge.ends) - heading(original);
                     vec![(Metric::AngleOff, wrapped(off))]
                 });
+                // The line through the dot at the original's angle.
+                let d = unit(original);
+                let answer = Straight {
+                    line: [through, [through[0] + d[0], through[1] + d[1]]],
+                    heads: Some(Heads::Across),
+                    fixed: vec![through],
+                };
                 Self {
                     mark: None,
+                    off: line.map(|edge| answer.off(&edge)).unwrap_or_default(),
                     line,
                     metrics,
                 }

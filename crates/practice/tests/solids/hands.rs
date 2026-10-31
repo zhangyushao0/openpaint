@@ -14,7 +14,11 @@ const SEEDS: u64 = 100;
 
 /// `e` drawn round by a hand in `manner`: from a turn of its own, a little past once round,
 /// wobbling slowly and trembling across the outline; `share` of the way round when less.
-fn round(e: &Ellipse, (random, manner): (&mut Random, Manner), share: f64) -> Vec<Point> {
+pub(crate) fn round(
+    e: &Ellipse,
+    (random, manner): (&mut Random, Manner),
+    share: f64,
+) -> Vec<Point> {
     let start = random.range(0.0, std::f64::consts::TAU);
     let turns = if share < 1.0 {
         share

@@ -40,6 +40,7 @@ mod practice_demo_marks;
 mod practice_demo_wheel;
 mod practice_division_marks;
 mod practice_geometry_marks;
+mod practice_mark_lines;
 mod practice_marks;
 mod practice_masses_marks;
 mod practice_object_marks;
