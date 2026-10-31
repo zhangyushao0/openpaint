@@ -103,6 +103,20 @@ The author, 2026-10-23: practice is their main activity now. The app gets a prac
   - Every scenario before keeps its hashes, but those of these kinds (named).
   - `cargo gate`.
   - The tablet run is the main session's.
+- S103 Faster checks and the tablet's idle probe (tooling; beside S99 in its own worktree; the author, 2026-10-30, "why is each slice so slow, where is the block": S97 took 105 minutes and S98 64. About half of that was model time. Up to 40 minutes went to waiting on `cargo scenarios`, now about 14 minutes for 72 scenarios run one after another; AGENTS still says about 2. `cargo gate` waited about 6 minutes, 5.6 of them tests. The tablet run waited on the author's word).
+  - **Scenarios in parallel.** `cargo scenarios` replays its scenarios on several workers (the dev machine has 12 threads), each scenario's report and hashes as now, one line each in the order of the files. The goal is a few minutes for all 72.
+  - **The gate's tests faster.** Measure which test binaries and tests take the gate's time, and cut it at the cause: slow tests made faster or run in parallel. Never drop a test or weaken what it checks. The goal is under three minutes.
+  - **The tablet's idle probe.** `cargo device-idle` reports the screen's state, the app in front and the minutes since the last touch or pen. It exits 0 when the tablet has been untouched for at least 10 minutes or its screen is off, and 1 otherwise. Every device routine starts with it instead of asking the author.
+  - **AGENTS.md:**
+    - the chores and timings as they now are;
+    - start `cargo scenarios` in the background as soon as the code is done, and write the documents while it runs;
+    - a fix after review reruns the scenarios it can reach and the gate, and the whole suite only when shared drawing or layout code changed;
+    - a choice that only makes the interface consistent with what the author asked is made, not listed for them.
+  Done:
+  - the suite's and the gate's times before and after;
+  - every scenario's hashes unchanged;
+  - `cargo device-idle` tried on the tablet;
+  - `cargo gate`.
 - Then, each specified when the one before lands:
   - S100 Painting pens (the author: Opaque Paint's pressure-made transparency and bristles get in the colour's way; every colour kind looked at): Big and Small a plain hard tip at full opacity, pressure on size only; each colour kind's pens chosen by V大's four (hard and opaque for blocks, a round whose pressure sets opacity for transitions, an airbrush for soft gradients, texture later), value masses' greys alike, the How saying when to use each.
   - S101 Colour combinations from real crops (the author: the generated ones vary too little; V大 copies a corner of an abstract painting or a rusted old thing): generated ones retired; crops of the composition pack's paintings, a CC0 pack of rust, peeling paint and stone, and the user's own; each crop's areas and weak contrasts found by the pack builder (validated on crops of known areas, judged on contact sheets), Compare keeping the chips, the wheel and the weak contrasts.
