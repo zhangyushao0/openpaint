@@ -24,9 +24,10 @@ texts! { PRACTICE_MASSES;
     MASSES_TRAINS = "Weeks 2 to 4 · a picture squinted at until only its few big masses are \
         left, each dark, middle or light, grouped by value and not by object.",
         "第 2 至 4 周 · 眯眼看画面，只剩几块大的色块，每块归为黑、白或灰：按明度归纳，不按物体分。";
-    MASSES_STEP_1 = "Squint: the darkest big masses with Dark", "眯眼：先用黑画最暗的几块大色块";
-    MASSES_STEP_2 = "Then the light ones with Light", "再用白画亮的色块";
-    MASSES_STEP_3 = "The middle last, over what is left", "最后用灰画剩下的中间色块";
+    MASSES_STEP_1 = "Squint: Fill frame with Middle, the overall tone",
+        "眯眼：先用灰填满方框，作为整体色调";
+    MASSES_STEP_2 = "The darkest big masses with Dark", "用黑画最暗的几块大色块";
+    MASSES_STEP_3 = "Then the light ones with Light", "再用白画亮的色块";
     MASSES_SAYS = "A shadow and a dark ground are one mass; leave out what squinting loses, and \
         paint big, the canvas not zoomed in. Compare lays the answer's three greys over your copy \
         as strongly as the slider sets: its mass edges red, and where your grey differs over more \

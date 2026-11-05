@@ -73,8 +73,10 @@ pub(crate) struct PracticeSheet {
     aligned: bool,
     /// A compared geometric answer's construction shows (S97, S98); each Compare starts without it.
     construction: bool,
-    /// The full interface shows, else the exercise's own tools.
+    /// The full interface shows, else the exercise's own tools; a long colour copy's pen paints
+    /// there too until the toolbox's brush, size or opacity is chosen (`held`, S100).
     all_tools: bool,
+    held: bool,
     /// The pen the exercise draws or paints with now, the last of Sketch and Draw chosen, the
     /// last painting pen chosen, the last division's pen chosen (S95) and value masses' last
     /// grey chosen (S96).
@@ -131,6 +133,7 @@ impl PracticeSheet {
         let mut practice = Self {
             told: Family::ALL.map(done),
             all_tools: record.is_project(),
+            held: true,
             hidden: true,
             time_saved: seconds(&record.time),
             others,
@@ -147,7 +150,7 @@ impl PracticeSheet {
             drawing: Pen::Draw,
             painting: Pen::Big,
             dividing: Pen::Main,
-            valuing: Pen::Dark,
+            valuing: Pen::Middle,
             instructions: None,
             notice: None,
             changed: false,
@@ -263,30 +266,6 @@ impl PracticeSheet {
     /// What strokes and fills stay inside.
     pub(crate) fn clip(&self) -> Option<&RegionMask> {
         self.clip.as_ref()
-    }
-
-    /// Whether a pen landing at `point` (canvas pixels) may draw; if not, the notice says why.
-    /// Drawing in the frame takes the comparison away: a correction is made by eye. On a value
-    /// scale the cell it lands in is the one it paints.
-    pub(crate) fn may_draw(&mut self, point: [f32; 2]) -> bool {
-        let point = point.map(f64::from);
-        let notice = match self.current() {
-            None => Some(PracticeNotice::Done),
-            Some(index) => {
-                let frame = self.sheet.pairs[index].copy;
-                if frame.holds(point) {
-                    self.take_cell(index, frame.to_frame(point))
-                } else {
-                    Some(PracticeNotice::DrawInFrame)
-                }
-            }
-        };
-        // A stroke that may begin lets an earlier refusal's notice go.
-        self.notice = notice;
-        if notice.is_none() {
-            self.laid();
-        }
-        notice.is_none()
     }
 
     /// Pairs shown: up to the one shown, or all once the session is done.

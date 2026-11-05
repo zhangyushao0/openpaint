@@ -1,0 +1,20 @@
+# The soft tip (S100), V大's airbrush (柔边笔): a wide round tip whose edge fades out, for an edge
+# or a gradient soft in the picture itself. Pressure sets how much paint lands, and going over the
+# same place again builds it up, up to the opacity (an airbrush's flow). The Soft Brush as 1.17.0
+# shipped it, kept here so a retuned built-in never reaches it.
+name = "Soft tip"
+
+[size]
+default = 120
+min = 8
+max = 1000
+pressure = [[0.0, 0.8], [1.0, 1.0]]
+
+[opacity]
+default = 0.8
+pressure = [[0.0, 0.05], [1.0, 1.0]]
+
+[accumulate]
+tip = "bell"
+# One pass at full pressure lays about 72 % of the opacity; a second about 92 %.
+flow = 1.2

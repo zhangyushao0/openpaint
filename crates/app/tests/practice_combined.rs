@@ -19,7 +19,7 @@ const VIEWPORT: Viewport = Viewport {
 };
 
 fn pens() -> PracticePens {
-    PracticePens::of(&BrushLibrary::built_in().expect("built-in brushes")).expect("pens")
+    PracticePens::built_in().expect("pens")
 }
 
 /// The second session after a first that compared a line and a colour.

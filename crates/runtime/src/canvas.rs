@@ -104,7 +104,7 @@ impl Canvas {
         let brush = toolbox.style()?;
         let (mut session, title) = match (content, sheet) {
             (Content::Stored(artwork, title, _), Some(sheet)) => {
-                let pens = PracticePens::of(toolbox.library())?;
+                let pens = PracticePens::built_in()?;
                 let session = Session::practising(artwork.clone(), (brush, pens), sheet, viewport);
                 (session, title.clone())
             }

@@ -30,7 +30,7 @@ fn brush(color: Color) -> StrokeStyle {
 }
 
 fn pens() -> PracticePens {
-    PracticePens::of(&BrushLibrary::built_in().expect("built-in brushes")).expect("pens")
+    PracticePens::built_in().expect("pens")
 }
 
 /// The sheet of `record` with `packs`, opened.
@@ -317,10 +317,9 @@ fn copy_opened() -> (PracticeLog, SessionRecord, Session, Pair) {
     let mut session = opened(record.clone(), &[pack()]);
     let projection = session.projection();
     let practice = projection.practice().expect("a sheet");
-    assert!(
-        practice.all_tools && practice.pen.is_none(),
-        "the full interface"
-    );
+    // The full interface, opening on the hard tip as large to its frame as to an exercise's (S100).
+    assert!(practice.all_tools, "the full interface");
+    assert_eq!(practice.pen, Some((Pen::Big, 256.0)));
     assert_eq!(practice.instructions, Some(Family::Study));
     let pair = practice.sheet.pairs[0];
     assert_eq!(pair.copy.size, [1600.0, 1200.0]);

@@ -1,0 +1,14 @@
+# The hard tip (S100), V大's first brush: a round tip with a hard edge for blocks of colour. It
+# lays the colour picked at full strength at any pressure, so a light touch never shows a colour
+# other than the one picked; pressure sets only its size, a little (early on, little pressure
+# dependence). Where a stroke crosses itself it never darkens. Big, Small and value masses' greys.
+name = "Hard tip"
+
+[size]
+default = 24
+min = 1
+max = 1000
+pressure = [[0.0, 0.6], [1.0, 1.0]]
+
+[opacity]
+default = 1.0

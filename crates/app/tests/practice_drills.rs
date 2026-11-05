@@ -113,7 +113,7 @@ fn practising(record: SessionRecord, before: Vec<SessionRecord>) -> Session {
     let style = Toolbox::new(library.clone()).style().expect("style");
     let brush =
         StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK).expect("brush");
-    let pens = PracticePens::of(&library).expect("pens");
+    let pens = PracticePens::built_in().expect("pens");
     let view = SheetView::of(&record, &[], ([width, height], &Title::untitled()));
     let opening = (record, before, view, Tally::default());
     Session::practising(sheet, (brush, pens), opening, &VIEWPORT)

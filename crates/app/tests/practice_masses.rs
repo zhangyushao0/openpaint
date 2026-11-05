@@ -74,7 +74,7 @@ fn opened(kind: Kind) -> Session {
     let style = Toolbox::new(library.clone()).style().expect("style");
     let brush =
         StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK).expect("brush");
-    let pens = PracticePens::of(&library).expect("pens");
+    let pens = PracticePens::built_in().expect("pens");
     let tally = openpaint_practice::Tally::default();
     let mut session = Session::practising(
         sheet,
@@ -118,7 +118,8 @@ fn value_masses_are_painted_in_three_greys_and_read_against_the_answer() {
     let mut session = opened(Kind::ValueMasses(Tier::Simple));
     let practice = session.projection().practice().cloned().expect("a sheet");
     assert_eq!(practice.family, Some(Family::ValueMasses));
-    assert_eq!(practice.pen.map(|(pen, _)| pen), Some(Pen::Dark));
+    // Middle first: Fill frame lays the overall tone before Dark and Light (S100).
+    assert_eq!(practice.pen.map(|(pen, _)| pen), Some(Pen::Middle));
     assert!(practice.sheet.painted[0].is_some(), "the answer's greys");
     for refused in [Pen::Sketch, Pen::Draw, Pen::Main, Pen::Big] {
         assert!(session.practise(PracticeIntent::Pen(refused), NOW).is_err());

@@ -20,6 +20,7 @@ mod layers;
 mod other_format;
 mod pacing;
 mod palm;
+mod practice_pens;
 mod practice_test;
 mod quickshape;
 mod shell_frame;

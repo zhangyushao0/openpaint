@@ -32,7 +32,7 @@ fn brush(color: Color) -> StrokeStyle {
 }
 
 fn pens() -> PracticePens {
-    PracticePens::of(&BrushLibrary::built_in().expect("built-in brushes")).expect("pens")
+    PracticePens::built_in().expect("pens")
 }
 
 fn practising() -> Session {

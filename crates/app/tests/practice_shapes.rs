@@ -73,7 +73,7 @@ fn opened(picture: &str) -> Session {
     let style = Toolbox::new(library.clone()).style().expect("style");
     let brush =
         StrokeStyle::new(Arc::clone(style.recipe()), 8.0, 1.0, Color::BLACK).expect("brush");
-    let pens = PracticePens::of(&library).expect("pens");
+    let pens = PracticePens::built_in().expect("pens");
     let tally = openpaint_practice::Tally::default();
     let mut session = Session::practising(
         sheet,

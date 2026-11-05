@@ -29,7 +29,7 @@ const STEPS: [(Family, usize); 24] = [
     (Family::WholeCopy, 3),
     (Family::ValueMasses, 4),
     (Family::Colour, 5),
-    (Family::Areas, 5),
+    (Family::Areas, 6),
     (Family::Scale, 4),
 ];
 
@@ -264,25 +264,38 @@ fn a_boxs_vanishing_points_lie_in_the_room_the_card_gives() {
 }
 
 #[test]
-fn a_combination_is_painted_area_by_area() {
+fn a_combination_is_painted_area_by_area_with_its_pens_in_their_order() {
     let areas = demo(Family::Areas);
     let example = areas.areas.as_ref().expect("the combination painted");
-    let painted: Vec<&Vec<openpaint_practice::Rgb8>> = (areas.marks.iter())
+    let painted: Vec<(&Vec<openpaint_practice::Rgb8>, bool, usize)> = (areas.marks.iter())
         .filter(|m| m.on == On::Copy && m.pen == Marker::Ink)
         .filter_map(|m| match &m.drawn {
-            Drawn::Areas(colours) => Some(colours),
+            Drawn::Areas { colours, soft } => Some((colours, *soft, areas.step_at(m.from))),
             _ => None,
         })
         .collect();
-    assert_eq!(
-        painted.len(),
-        example.count() + 1,
-        "the tone, then each area"
-    );
-    let last = painted[painted.len() - 1];
+    // Fill frame's tone, then the areas with Big (the largest, then its neighbours) and Small, their
+    // edges hard as the hard tip lays them; then Soft softens the edges soft in the picture (S100).
+    assert_eq!(areas.steps.len(), 6, "tone, Big, Big, Small, Soft, Compare");
+    let (tone, _, first) = painted[0];
+    assert!(first == 0 && tone.iter().all(|c| c == &tone[0]));
+    let steps: Vec<usize> = painted.iter().map(|(_, _, step)| *step).collect();
+    assert!(steps.windows(2).all(|w| w[0] <= w[1]) && steps.contains(&3));
+    let (last, softened, step) = painted[painted.len() - 1];
+    let hard = painted[..painted.len() - 1].iter().all(|p| !p.1);
+    assert!(softened && step == 4 && hard, "Soft last, its own step");
     for (copy, original) in last.iter().zip(&example.colours) {
         assert!(openpaint_practice::delta_e(*copy, *original) < 0.03);
     }
+    // Some edges soft in the picture and some hard: Soft looks only at the soft ones.
+    let soft = (example.neighbours.iter())
+        .filter(|(a, b)| example.soft[*a].max(example.soft[*b]) > 0.0)
+        .count();
+    assert!(soft > 0 && soft < example.neighbours.len(), "{soft}");
+    let looked = (areas.marks.iter())
+        .filter(|m| m.pen == Marker::Pencil && areas.step_at(m.from) == 4)
+        .count();
+    assert!(looked >= soft, "each soft edge pencilled");
 }
 
 #[test]

@@ -137,8 +137,12 @@ pub enum Drawn {
         rows: Vec<[Point; 2]>,
         colour: Option<Rgb8>,
     },
-    /// The example's colour combination filling its frame, its areas in these colours.
-    Areas(Vec<Rgb8>),
+    /// The example's colour combination filling its frame, its areas in these colours, its edges
+    /// soft where the picture's are or (`soft` false) all hard, as the hard tip lays them (S100).
+    Areas {
+        colours: Vec<Rgb8>,
+        soft: bool,
+    },
     /// The example object's picture filling its frame (S94).
     Shaded,
     /// The example landscape's picture between its top left and bottom right (frame units, S95).
@@ -388,7 +392,7 @@ fn seconds(pen: Marker, drawn: &Drawn) -> f64 {
         Drawn::Ring(_) | Drawn::Dot(_) | Drawn::Numeral(..) => 0.4,
         Drawn::Cross(_) => 0.7,
         Drawn::Band { .. } | Drawn::Ringed(_) => 0.55,
-        Drawn::Areas(_) | Drawn::Shaded | Drawn::Masses(_) => 0.65,
+        Drawn::Areas { .. } | Drawn::Shaded | Drawn::Masses(_) => 0.65,
         Drawn::Values { .. } => 1.2,
         Drawn::Pick(_) => 1.1,
     }

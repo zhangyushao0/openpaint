@@ -510,3 +510,9 @@ From D105, replaced by D107 (1.6.0):
 - D108's How, its framing: framed on what it is about (`Demo::view`: a box with its points, a trick's face); a composition's example lay in a square frame at 90 %, the copy's frame showing its edge in pencil.
 - D108's level colours, its picture: its lines as Compare redraws them (round-joined, cut at the copy's frame) over its picture laid in place under S82's slider, half at first; the copy's frame square with the picture's edge in pencil inside it.
 - D108's value masses, its place: Dark, Middle and Light (Oklab L 0.35, 0.6, 0.85; Opaque Paint 24 px, Fill frame) inside the picture's place.
+
+## Archived 2026-11-05 (S100: the lines of D99, D105 and D108 it amended, as they stood)
+
+- D99's Pens: Pens (`PracticePens`, the built-in files, the toolbox untouched): Sketch a grey Pencil 4 px at 60 %, Draw the Ink Pen 5 px in ink, Correct the same in blue, chosen at Compare; they draw while a line shows with its own tools and the toolbox paints. (Big and Small were Opaque Paint 64 and 20 px, Soft the Soft Brush 100 px at 0.8, value masses' greys Opaque Paint 24 px, on the toolbox's built-in files as their files had them; a value scale offered Big, Small and Soft beside Fill cell; a long colour copy opened on the toolbox's brush.)
+- D105's heading: D105 2026-10-23 Painted practice: colour combinations, value scales on Oklab lightness, long copies of a chosen picture, My pictures by tier, undo kept to the exercise (replaces D104).
+- D108's value masses, its pens: (Oklab L 0.35, 0.6, 0.85; Opaque Paint 24 px, Fill frame).

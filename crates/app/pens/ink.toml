@@ -1,0 +1,13 @@
+# The ink pen (S76, S100): Draw, Correct and a division's levels. A hard edge, the line swells with
+# pressure, full strength all along: the Ink Pen as 1.17.0 shipped it, kept here so a retuned
+# built-in never reaches it (Compare's red is as thick as this pen, `INK_DIAMETER`).
+name = "Ink"
+
+[size]
+default = 12
+min = 1
+max = 80
+pressure = [[0.0, 0.0], [1.0, 1.0]]
+
+[opacity]
+default = 1.0

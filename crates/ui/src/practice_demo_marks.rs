@@ -209,9 +209,9 @@ fn on_frame(
             let strength = if pen == Marker::Faint { FAINT } else { 1.0 };
             band(painter, rows, &at, fill.gamma_multiply(alpha * strength));
         }
-        Drawn::Areas(colours) => {
+        Drawn::Areas { colours, soft } => {
             let strength = if pen == Marker::Faint { LAID } else { 1.0 };
-            let key = PictureKey::Areas(colours.clone());
+            let key = PictureKey::Areas(colours.clone(), *soft);
             laid(painter, rect, pictures(&key), alpha * strength);
         }
         Drawn::Shaded => laid(painter, rect, pictures(&PictureKey::Object), alpha),

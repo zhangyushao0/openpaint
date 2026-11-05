@@ -93,8 +93,18 @@ impl Session {
     }
 
     /// The next stroke starts with `brush` (on a practice sheet, unless its pen draws); a stroke
-    /// being drawn keeps the style it began with.
+    /// being drawn keeps the style it began with. A brush, size or opacity chosen for the toolbox's
+    /// brush, not only its colour, is the user's own: a long colour copy's pen gives way (S100).
     pub fn set_brush(&mut self, brush: StrokeStyle) {
+        let painting = |style: &StrokeStyle| style.tool() == openpaint_core::StrokeTool::Paint;
+        let own = painting(&self.brush)
+            && painting(&brush)
+            && (brush.recipe() != self.brush.recipe()
+                || brush.size() != self.brush.size()
+                || brush.opacity() != self.brush.opacity());
+        if let Some(practice) = self.practice.as_mut().filter(|_| own) {
+            practice.toolbox_chosen();
+        }
         self.brush = brush;
         self.restyle();
     }

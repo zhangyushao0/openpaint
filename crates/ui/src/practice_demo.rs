@@ -39,8 +39,9 @@ const MASSES_PICTURE: u32 = 360;
 /// Which picture of an example a texture is.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum PictureKey {
-    /// A combination's, by its areas' colours.
-    Areas(Vec<Rgb8>),
+    /// A combination's, by its areas' colours, its edges soft where the picture's are or all hard
+    /// (S100).
+    Areas(Vec<Rgb8>, bool),
     /// The example object's (S94).
     Object,
     /// The example landscape's (S95).
@@ -164,7 +165,9 @@ impl Demonstrations {
         let frames = laid(demo, rect);
         for mark in &demo.marks {
             let key = match &mark.drawn {
-                Drawn::Areas(colours) if mark.from <= seconds => PictureKey::Areas(colours.clone()),
+                Drawn::Areas { colours, soft } if mark.from <= seconds => {
+                    PictureKey::Areas(colours.clone(), *soft)
+                }
                 Drawn::Shaded => PictureKey::Object,
                 Drawn::Masses(_) => PictureKey::Masses,
                 Drawn::Values { copy, shown, .. } => PictureKey::Values {
@@ -190,8 +193,11 @@ impl Demonstrations {
             return;
         }
         let made = match &key {
-            PictureKey::Areas(colours) => demo.areas.clone().map(|mut areas| {
+            PictureKey::Areas(colours, soft) => demo.areas.clone().map(|mut areas| {
                 areas.colours.clone_from(colours);
+                if !soft {
+                    areas.soft.fill(0.0);
+                }
                 ([PICTURE; 2], areas.picture(PICTURE))
             }),
             PictureKey::Object => (demo.object.as_deref())

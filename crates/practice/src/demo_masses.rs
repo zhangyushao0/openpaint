@@ -1,9 +1,10 @@
 //! Value masses' demonstration (`demo.rs`, S96): V大's way on a landscape of known masses made
 //! without a pack (`masses.rs`), beside its picture, both frames the picture's shape as the
-//! exercise's are (S99). Squinting, the darkest big masses painted first in their grey, then the
-//! light ones, the middle last over what is left; Compare lays the answer's greys faint over the
-//! copy, its mass edges red, and hatches in the answer's grey where the hand's copy strayed over
-//! more than the grey pen's width (the dark masses painted wide on their right).
+//! exercise's are (S99). Squinting, the frame filled with the middle grey first, the overall tone
+//! (S100: Fill frame before the pens), then the darkest big masses painted in their grey, then the
+//! light ones; Compare lays the answer's greys faint over the copy, its mass edges red, and hatches
+//! in the answer's grey where the hand's copy strayed over more than the grey pen's width (the dark
+//! masses painted wide on their right).
 
 use super::{Demo, Drawn, Layout, Marker, On, Script};
 use crate::masses::Masses;
@@ -30,8 +31,19 @@ pub(super) fn value_masses() -> Demo {
     let rect = [[0.0, 0.0], PictureFit::of(size).size];
     let mut script = Script::new();
     script.given(On::Original, Marker::Given, Drawn::Masses(rect));
-    // The darkest masses first, then the light, the middle last over what is left.
-    for shown in [[true, false, false], [true, false, true], [true; 3]] {
+    // Fill frame with the middle, the overall tone; then the darkest masses, then the light.
+    let [[left, top], [right, bottom]] = rect;
+    let frame = vec![
+        [[left, top], [right, top]],
+        [[left, bottom], [right, bottom]],
+    ];
+    let middle = Drawn::Band {
+        rows: frame,
+        colour: Some(Value::Middle.grey()),
+    };
+    script.step();
+    script.draw(On::Copy, Marker::Ink, middle);
+    for shown in [[true, false, false], [true, false, true]] {
         script.step();
         let values = Drawn::Values {
             rect,

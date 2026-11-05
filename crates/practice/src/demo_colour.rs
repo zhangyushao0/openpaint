@@ -1,7 +1,7 @@
 //! The colour kinds' demonstrations (`demo.rs`): a colour (the wheel's ring to the hue's family,
-//! then lighter or darker, then purer or greyer, the frame filled), a colour combination (the
-//! overall tone, the largest area first, each neighbour against it, the weak contrast kept weak)
-//! and a value scale of as many cells as the scale in hand (S97: their order numbered under them,
+//! then lighter or darker, then purer or greyer, the frame filled), a colour combination with its
+//! pens in their order (S100: Fill frame's overall tone, Big's largest area and each neighbour
+//! against it, Small keeping the weak contrast weak, Soft only on the soft edges) and a value scale of as many cells as the scale in hand (S97: their order numbered under them,
 //! the middle cell first, then each half's middle, then the rest, the pick moving only up and down
 //! the wheel's square), each then compared.
 
@@ -81,55 +81,51 @@ pub(super) fn colour() -> Demo {
     script.compare(Family::Colour, Layout::Wheel, compared)
 }
 
-/// A colour combination.
+/// The areas in `colours`, their edges soft where the picture's are (`soft`) or all hard, as the
+/// hard tip lays them.
+const fn painted(colours: Vec<Rgb8>, soft: bool) -> Drawn {
+    Drawn::Areas { colours, soft }
+}
+
+/// A colour combination, painted with its pens in their order (S100): Fill frame with the overall
+/// tone; Big for the largest area, then each neighbour against it; Small along the weak contrast's
+/// edge, keeping it weak; Soft only on the edges soft in the picture (the copy's edges hard until
+/// then, as the hard tip lays them); then Compare.
 pub(super) fn areas() -> Demo {
-    // Four or five bands of middle lightness, so each area and the weak contrast read small.
+    // Four or five bands of middle lightness, so each area and the weak contrast read small; some
+    // edges soft and some hard, so Soft shows where it belongs and where it does not.
     let areas = clearest(
         (AREAS_SEED, 8),
         |seed| Areas::generate(Arrangement::Strata, seed),
         |areas| {
             let count = areas.count() as f64;
             let light = areas.colours.iter().map(|c| oklab(*c)[0]).sum::<f64>() / count;
-            -(light - 0.66).abs() - if count > 5.0 { 0.2 } else { 0.0 }
+            let soft = soft_edges(areas).len();
+            let mixed = soft > 0 && soft < areas.neighbours.len();
+            -(light - 0.66).abs()
+                - if count > 5.0 { 0.2 } else { 0.0 }
+                - if mixed { 0.0 } else { 0.5 }
         },
     );
-    let count = areas.count();
     let sizes = sizes(&areas);
     let (order, weak, last) = painting(&areas, &sizes);
-    // A hand's copy: each area a little lighter or darker.
-    let copied: Vec<Rgb8> = (0..count)
-        .map(|a| {
-            let [l, x, y] = oklab(areas.colours[a]);
-            let off = if a % 2 == 0 { 0.012 } else { -0.01 };
-            from_oklab([l + off, x, y])
-        })
-        .collect();
-    let tone = overall(&areas, &sizes);
     let mut script = Script::new();
     script.given(
         On::Original,
         Marker::Given,
-        Drawn::Areas(areas.colours.clone()),
+        painted(areas.colours.clone(), true),
     );
-    let mut shown = vec![tone; count];
-    script.step();
-    script.draw(On::Copy, Marker::Ink, Drawn::Areas(shown.clone()));
-    for (turn, area) in order.iter().enumerate() {
-        if turn < 2 {
-            script.step();
-        }
-        shown[*area] = copied[*area];
-        script.draw(On::Copy, Marker::Ink, Drawn::Areas(shown.clone()));
-    }
-    script.step();
-    if let (Some((a, b)), Some(last)) = (weak, last) {
-        for edge in areas.edges(a, Some(b)) {
-            script.draw(On::Copy, Marker::Pencil, Drawn::Line(edge));
-        }
-        shown[last] = areas.colours[last];
-        script.draw(On::Copy, Marker::Ink, Drawn::Areas(shown));
-    }
-    let mut compared = vec![(On::Copy, Marker::Faint, Drawn::Areas(areas.colours.clone()))];
+    copy_areas(
+        &mut script,
+        &areas,
+        (&order, weak, last),
+        overall(&areas, &sizes),
+    );
+    let mut compared = vec![(
+        On::Copy,
+        Marker::Faint,
+        painted(areas.colours.clone(), true),
+    )];
     for on in [On::Original, On::Copy] {
         for edge in areas.edges(order[0], None) {
             compared.push((on, Marker::Given, Drawn::Line(edge)));
@@ -138,6 +134,62 @@ pub(super) fn areas() -> Demo {
     let mut demo = script.compare(Family::Areas, Layout::Pair, compared);
     demo.areas = Some(areas);
     demo
+}
+
+/// The hand's copy of `areas`, a step a pen: Fill frame's `tone`; Big for the areas in `order`, the
+/// largest a step of its own, the others the next; Small keeping the `weak` pair weak, its `last`
+/// area painted against its partner along their pencilled edge; Soft on the soft edges, pencilled,
+/// then softened. Each area a little lighter or darker than the picture's, as a hand copies it.
+fn copy_areas(
+    script: &mut Script,
+    areas: &Areas,
+    (order, weak, last): (&[usize], Option<(usize, usize)>, Option<usize>),
+    tone: Rgb8,
+) {
+    let copied: Vec<Rgb8> = (0..areas.count())
+        .map(|a| {
+            let [l, x, y] = oklab(areas.colours[a]);
+            let off = if a % 2 == 0 { 0.012 } else { -0.01 };
+            from_oklab([l + off, x, y])
+        })
+        .collect();
+    let mut shown = vec![tone; areas.count()];
+    script.step();
+    script.draw(On::Copy, Marker::Ink, painted(shown.clone(), false));
+    // Big: the largest in a step of its own, then its neighbours two at a time.
+    let (largest, neighbours) = order.split_at(order.len().min(1));
+    for (step, turns) in [(largest, 1), (neighbours, 2)] {
+        script.step();
+        for turn in step.chunks(turns) {
+            turn.iter().for_each(|area| shown[*area] = copied[*area]);
+            script.draw(On::Copy, Marker::Ink, painted(shown.clone(), false));
+        }
+    }
+    script.step();
+    if let (Some((a, b)), Some(last)) = (weak, last) {
+        let edges = areas.edges(a, Some(b)).into_iter();
+        script.together(
+            edges
+                .map(|e| (On::Copy, Marker::Pencil, Drawn::Line(e)))
+                .collect(),
+        );
+        shown[last] = areas.colours[last];
+        script.draw(On::Copy, Marker::Ink, painted(shown.clone(), false));
+    }
+    script.step();
+    let looked: Vec<(On, Marker, Drawn)> = (soft_edges(areas).into_iter())
+        .flat_map(|(a, b)| areas.edges(a, Some(b)))
+        .map(|edge| (On::Copy, Marker::Pencil, Drawn::Line(edge)))
+        .collect();
+    script.together(looked);
+    script.draw(On::Copy, Marker::Ink, painted(shown, true));
+}
+
+/// The neighbouring areas whose shared edge is soft in the picture (either area's edge soft).
+fn soft_edges(areas: &Areas) -> Vec<(usize, usize)> {
+    (areas.neighbours.iter().copied())
+        .filter(|(a, b)| areas.soft[*a].max(areas.soft[*b]) > 0.0)
+        .collect()
 }
 
 /// The overall tone: the areas' colours by how much of the frame each holds.

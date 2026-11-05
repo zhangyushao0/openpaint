@@ -4,9 +4,9 @@
 //! which draws it and reads it off the frame loop (S83, as the fits are), and the numbers come
 //! when the reading does, the first Compare's kept in the record. How much of the original
 //! shows over the copy is the user's (a slider); a combination's card compares one area at a
-//! time, its outline marked on both frames; a value scale is painted a cell at a time, the cell
-//! the pen lands in (Fill fills it, then the next); value masses (S96) are read against the
-//! picture's answer. The eyedropper is `practice_pick.rs`.
+//! time, its outline marked on both frames; a value scale is filled a cell at a time, the cell in
+//! hand (Fill fills it, then the next; the pen touching a cell takes it, S100); value masses (S96)
+//! are read against the picture's answer. The eyedropper is `practice_pick.rs`.
 
 use std::sync::Arc;
 
@@ -100,7 +100,7 @@ pub(super) struct Painting {
     /// A colour combination's area compared on the card, and its outline (frame units).
     area: usize,
     outline: Arc<Vec<Vec<Point>>>,
-    /// A value scale's cell the pen paints and Fill fills (an end never).
+    /// A value scale's cell in hand, which Fill fills (an end never).
     cell: usize,
     /// The copy's pixels to read, how many reads the sheet asked and how many before this
     /// exercise came to show (a reading of an earlier exercise arriving late is dropped).
@@ -151,7 +151,8 @@ impl PracticeSheet {
         }
     }
 
-    /// Cell `cell` of exercise `index`'s value scale in hand: the pen paints it, Fill fills it.
+    /// Cell `cell` of exercise `index`'s value scale in hand: Fill fills it (with all tools the
+    /// brush paints it).
     fn take_cell_at(&mut self, index: usize, cell: usize) {
         let Original::Scale(scale) = &self.sheet.originals[index] else {
             return;
@@ -165,17 +166,17 @@ impl PracticeSheet {
     }
 
     /// A pen landing at the frame point `p` of exercise `index`: on a value scale it takes the
-    /// cell between the ends it lands in, or is refused.
-    pub(super) fn take_cell(&mut self, index: usize, p: Point) -> Option<PracticeNotice> {
+    /// cell between the ends it lands in (true), or is refused; elsewhere nothing (false).
+    pub(super) fn take_cell(&mut self, index: usize, p: Point) -> Result<bool, PracticeNotice> {
         let Original::Scale(scale) = &self.sheet.originals[index] else {
-            return None;
+            return Ok(false);
         };
         match scale.cell_at(p) {
             Some(cell) if cell > 0 && cell + 1 < scale.cells => {
                 self.take_cell_at(index, cell);
-                None
+                Ok(true)
             }
-            _ => Some(PracticeNotice::DrawInCell),
+            _ => Err(PracticeNotice::DrawInCell),
         }
     }
 

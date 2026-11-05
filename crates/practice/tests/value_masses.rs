@@ -1,7 +1,8 @@
 //! Value masses (S96): the answer validated on landscapes whose masses are known (`Masses`, its
 //! parts' values as its colours keep them): each mass found and its edges within `ACCURACY` of
-//! the parts' edges, every island under `ISLAND` merged; and the How's demonstration painting the
-//! dark, the light, the middle, then compared. A copy's hatching is `value_masses_hatching.rs`.
+//! the parts' edges, every island under `ISLAND` merged; and the How's demonstration filling the
+//! middle, painting the dark, the light, then compared (S100). A copy's hatching is
+//! `value_masses_hatching.rs`.
 
 use openpaint_practice::{
     Demo, Drawn, Family, ISLAND, MASSES_SIDE, Marker, Masses, RIM, Value, ValueMasses,
@@ -13,13 +14,21 @@ use openpaint_practice::{
 const ACCURACY: f64 = 0.0125;
 
 #[test]
-fn the_demonstration_paints_dark_then_light_then_middle_and_is_compared_with_its_hatching() {
+fn the_demonstration_fills_the_middle_then_paints_dark_then_light_and_is_compared_with_its_hatching()
+ {
     let demo = Demo::of(Family::ValueMasses).expect("a demonstration");
     let [answer, copy] = demo.values.as_deref().expect("its value masses").clone();
     // The hand's copy strays from the answer, wider in dark (its dark masses run on rightwards).
     let dark = |map: &ValueMasses| map.values.iter().filter(|v| **v == 0).count();
     assert!(dark(&copy) > dark(&answer));
-    // Each step paints its values on the copy: the dark, then the light too, then all.
+    // S100: Fill frame first, the copy's frame the middle grey (the overall tone), then each step
+    // paints its values over it: the dark, then the light too.
+    let filled = (demo.marks.iter()).find(|m| m.on == openpaint_practice::On::Copy);
+    let filled = filled.map(|m| (&m.drawn, m.from >= demo.steps[0] && m.to <= demo.steps[1]));
+    assert!(matches!(
+        filled,
+        Some((Drawn::Band { colour: Some(grey), .. }, true)) if *grey == Value::Middle.grey()
+    ));
     let painted: Vec<[bool; 3]> = (demo.marks.iter())
         .filter_map(|m| match m.drawn {
             Drawn::Values {
@@ -28,10 +37,7 @@ fn the_demonstration_paints_dark_then_light_then_middle_and_is_compared_with_its
             _ => None,
         })
         .collect();
-    assert_eq!(
-        painted,
-        [[true, false, false], [true, false, true], [true; 3]]
-    );
+    assert_eq!(painted, [[true, false, false], [true, false, true]]);
     // Compare: the answer's greys faint, its mass edges red, the stray hatched in the grey the
     // answer holds there (the middle of the hills, the light of the sky by the crown's top), never
     // in the dark it was painted.

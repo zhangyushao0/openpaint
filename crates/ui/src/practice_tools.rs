@@ -13,13 +13,15 @@
 //!   with the colour picked in one tap.
 //! - A colour combination: the wheel, Fill frame (the overall tone first) with Undo and Redo,
 //!   the painting pens Big, Small and Soft in the colour picked and the eyedropper (the copy may
-//!   be picked from); a value scale the same with Fill cell (the cell in hand); a colour copy
-//!   shown with its own tools the wheel, Undo, Redo, the pens. While a painted copy is compared
-//!   the wheel gives its room to the comparison's card, and while How shows to its card (S92).
+//!   be picked from); a value scale the wheel, Fill cell (the cell in hand, which the pen touching
+//!   a cell takes), Undo, Redo and the eyedropper, no pens (S100); a colour copy shown with its
+//!   own tools the wheel, Undo, Redo, the pens, and with the full interface its pens beside it.
+//!   While a painted copy is compared the wheel gives its room to the comparison's card, and
+//!   while How shows to its card (S92).
 
 use egui::Align;
 use openpaint_app::{
-    EditorAction, HistoryIntent, Intent, Pen, PracticeIntent, PracticeProjection,
+    BrushProjection, EditorAction, HistoryIntent, Intent, Pen, PracticeIntent, PracticeProjection,
     SessionProjection, Tool, ToolIntent,
 };
 use openpaint_core::Color;
@@ -65,11 +67,16 @@ pub(crate) fn exercise_tools(
     taps: &mut Vec<Intent>,
 ) -> Option<egui::Rect> {
     let practice = projection.practice()?;
-    if practice.current.is_none() || practice.all_tools {
-        return None;
-    }
-    let source = (Source::Within(Align::Center), UNDER_ISLANDS);
     let family = practice.family?;
+    let source = (Source::Within(Align::Center), UNDER_ISLANDS);
+    if practice.all_tools {
+        // A long colour copy's pens stay beside the full interface (S100): the one in hand
+        // ringed, none once the toolbox's own brush paints.
+        let copy = |ui: &mut egui::Ui| {
+            ui.horizontal(|ui| pens(ui, ("pens", &Pen::PAINTING), projection, taps));
+        };
+        return (family == Family::Study).then(|| card(ctx, "practice pens", source, copy).1);
+    }
     if family == Family::WholeCopy {
         let tools = |ui: &mut egui::Ui| whole_copy_tools(ui, projection, colors, taps);
         return Some(card(ctx, "practice pens", source, tools).1);
@@ -98,31 +105,49 @@ pub(crate) fn exercise_tools(
             ui.vertical_centered(|ui| colors.inline_wheel(ui, brush, taps));
             ui.add_space(SPACE);
         }
-        let fill = match family {
-            Family::Scale => Some(t::FILL_CELL),
-            Family::Colour | Family::Areas => Some(t::FILL_FRAME),
-            _ => None,
-        };
-        ui.horizontal(|ui| {
-            if let Some(words) = fill {
-                fill_frame(ui, brush.color, words, taps);
-            }
-            if family.painted() {
-                history(ui, projection, taps);
-            }
-        });
-        if family.painted() {
-            ui.horizontal(|ui| {
-                pens(ui, ("pens", &Pen::PAINTING), projection, taps);
-                // Your own copy may be picked from (V大); the original only after Compare.
-                let picking = brush.picking;
-                if icon_toggle(ui, Icon::Eyedropper, t::EYEDROPPER, picking).clicked() {
-                    push_once(taps, Intent::Tool(ToolIntent::Eyedropper(!picking)));
-                }
-            });
-        }
+        colour_rows(ui, (family, brush), projection, taps);
     });
     Some(rect)
+}
+
+/// A colour's, a combination's, a value scale's or a colour copy's rows under the wheel: Fill
+/// frame or Fill cell with Undo and Redo, then the painting pens and the eyedropper (your own copy
+/// may be picked from, V大; the original only after Compare). A value scale's cells are filled,
+/// never painted (S100): no pens, the eyedropper beside Redo.
+fn colour_rows(
+    ui: &mut egui::Ui,
+    (family, brush): (Family, &BrushProjection),
+    projection: &SessionProjection,
+    taps: &mut Vec<Intent>,
+) {
+    let fill = match family {
+        Family::Scale => Some(t::FILL_CELL),
+        Family::Colour | Family::Areas => Some(t::FILL_FRAME),
+        _ => None,
+    };
+    let pick = |ui: &mut egui::Ui, taps: &mut Vec<Intent>| {
+        let picking = brush.picking;
+        if icon_toggle(ui, Icon::Eyedropper, t::EYEDROPPER, picking).clicked() {
+            push_once(taps, Intent::Tool(ToolIntent::Eyedropper(!picking)));
+        }
+    };
+    ui.horizontal(|ui| {
+        if let Some(words) = fill {
+            fill_frame(ui, brush.color, words, taps);
+        }
+        if family.painted() {
+            history(ui, projection, taps);
+        }
+        if family == Family::Scale {
+            pick(ui, taps);
+        }
+    });
+    if family.painted() && family != Family::Scale {
+        ui.horizontal(|ui| {
+            pens(ui, ("pens", &Pen::PAINTING), projection, taps);
+            pick(ui, taps);
+        });
+    }
 }
 
 /// A whole copy's tools (S95, S96): its division's pens and Draw, then the painting pens for its

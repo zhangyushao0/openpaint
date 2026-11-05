@@ -1,17 +1,17 @@
-//! The pens a practice sheet's exercise is drawn or painted with (`practice_sheet.rs`): which
-//! fit the shown exercise, the style the next stroke takes, and a whole copy's layers (S95, S96):
-//! its division on one, its line drawing with Draw on the one above, its colour blocks with the
-//! painting pens on one under the division (made the first time one is chosen), the division
-//! dimmed while Draw or a painting pen is chosen (V大: lower the division's opacity, then draw or
-//! paint over it; over the blocks it stays a guide) and hidden while compared, as the session lays
-//! them (`practice_layers.rs`).
+//! The pens a practice sheet's exercise is drawn or painted with (`practice_sheet.rs`): where a pen
+//! may land, which fit the shown exercise (each colour kind only what its work needs, S100), the
+//! style the next stroke takes, and a whole copy's layers (S95, S96): its division on one, its line
+//! drawing with Draw on the one above, its colour blocks with the painting pens on one under the
+//! division (made the first time one is chosen), the division dimmed while Draw or a painting pen
+//! is chosen (V大: lower the division's opacity, then draw or paint over it; over the blocks it
+//! stays a guide) and hidden while compared, as the session lays them (`practice_layers.rs`).
 
 use openpaint_core::{Color, StrokeStyle, StrokeTool};
-use openpaint_practice::Family;
+use openpaint_practice::{FRAME, Family};
 
 use super::{PracticeSheet, unavailable};
 use crate::error::AppError;
-use crate::practice::Pen;
+use crate::practice::{Pen, PracticeNotice};
 use crate::practice_pens::value_colour;
 use crate::projection::Availability;
 
@@ -35,19 +35,62 @@ pub(crate) enum CopyLayer {
 }
 
 impl PracticeSheet {
+    /// Whether a pen landing at `point` (canvas pixels) may draw; if not, the notice says why.
+    /// Drawing in the frame takes the comparison away: a correction is made by eye. On a value
+    /// scale it takes the cell between the ends it lands in, for Fill cell, and lays nothing with
+    /// the scale's own tools (S100: a cell is one flat value; with all tools the brush paints it).
+    pub(crate) fn may_draw(&mut self, point: [f32; 2]) -> bool {
+        let point = point.map(f64::from);
+        let landed = match self.current() {
+            None => Err(PracticeNotice::Done),
+            Some(index) => {
+                let frame = self.sheet.pairs[index].copy;
+                if frame.holds(point) {
+                    let cell = self.take_cell(index, frame.to_frame(point));
+                    cell.map(|taken| !taken || self.all_tools)
+                } else {
+                    Err(PracticeNotice::DrawInFrame)
+                }
+            }
+        };
+        // A pen that may land lets an earlier refusal's notice go.
+        self.notice = landed.err();
+        if landed.is_ok() {
+            self.laid();
+        }
+        landed == Ok(true)
+    }
+
     /// The style the next stroke takes instead of the toolbox's `brush`: the pen chosen, while
-    /// the exercise's own tools show and the toolbox paints (its eraser, held or chosen,
-    /// erases); a painting pen in `brush`'s colour. A colour is filled, not painted.
+    /// the exercise's own tools show (a long colour copy's while it is held, S100) and the toolbox
+    /// paints (its eraser, held or chosen, erases); a painting pen in `brush`'s colour, on a long
+    /// copy as large to its frame as to an exercise's. A colour is filled and a value scale's cell
+    /// filled, not painted.
     pub(crate) fn pen_style(&self, brush: &StrokeStyle) -> Option<StrokeStyle> {
-        let family = self.family(self.current()?)?;
-        let pens = !self.all_tools && family != Family::Colour && brush.tool() == StrokeTool::Paint;
-        pens.then(|| self.pens.stroke(self.pen, brush.color()))
+        let index = self.current()?;
+        let family = self.family(index)?;
+        let own = !self.all_tools || (family == Family::Study && self.held);
+        let offered = !matches!(family, Family::Colour | Family::Scale);
+        let scale = if self.record.is_project() {
+            (self.sheet.pairs[index].copy.unit() / FRAME) as f32
+        } else {
+            1.0
+        };
+        let pens = own && offered && brush.tool() == StrokeTool::Paint;
+        pens.then(|| self.pens.stroke(self.pen, brush.color(), scale))
+    }
+
+    /// The toolbox's own brush, size or opacity was chosen (S100): a long colour copy's pen gives
+    /// way to it while the full interface shows, until a pen is chosen again.
+    pub(crate) fn toolbox_chosen(&mut self) {
+        self.held = false;
     }
 
     /// The shown exercise is drawn or painted with `pen` from now on: a drawing pen for lines and
-    /// shapes (the blue one only once compared), a painting pen for painted exercises, a level's
-    /// pen for a division, those, Draw or a painting pen for a whole copy (S95, S96), a grey for
-    /// value masses (S96).
+    /// shapes (the blue one only once compared), a painting pen for a colour combination and a
+    /// long colour copy, a level's pen for a division, those, Draw or a painting pen for a whole
+    /// copy (S95, S96), a grey for value masses (S96); none for a colour or a value scale, which
+    /// are filled (S100).
     pub(super) fn choose(&mut self, pen: Pen) -> Result<(), AppError> {
         let index = self
             .current()
@@ -58,6 +101,7 @@ impl PracticeSheet {
             Some(Family::Division) => level,
             Some(Family::WholeCopy) => level || pen == Pen::Draw || pen.paints(),
             Some(Family::ValueMasses) => valued,
+            Some(Family::Colour | Family::Scale) => false,
             _ if self.drawn(index) => {
                 !pen.paints() && !level && !valued && (pen != Pen::Correct || compared)
             }
@@ -66,6 +110,7 @@ impl PracticeSheet {
         if !fits {
             return Err(unavailable(Availability::NothingLeft));
         }
+        self.held = true;
         self.pen = pen;
         if pen.paints() {
             self.painting = pen;
