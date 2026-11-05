@@ -4,15 +4,53 @@
 /// Longest allowed Rust source file, tests included. Split by responsibility, not by size.
 pub const MAX_RUST_LINES: usize = 400;
 
-/// The only markdown files allowed outside `docs/archive/`, with their line limits.
-pub const DOCS: &[(&str, usize)] = &[
-    ("README.md", 60),
-    ("AGENTS.md", 150),
-    ("docs/STATUS.md", 150),
-    ("docs/ROADMAP.md", 250),
-    ("docs/ARCHITECTURE.md", 300),
-    ("docs/DECISIONS.md", 300),
+/// A markdown file allowed outside `docs/archive/` and its limits.
+pub struct Doc {
+    pub path: &'static str,
+    /// The most lines it may hold.
+    pub lines: usize,
+    /// The most characters (Unicode scalar values) it may hold: set for the four documents,
+    /// which also hold no line longer than `MAX_DOC_LINE_CHARS`.
+    pub chars: Option<usize>,
+}
+
+/// The only markdown files allowed outside `docs/archive/`, with their limits. STATUS and
+/// ROADMAP are read whole at every session's start; ARCHITECTURE and DECISIONS by section.
+pub const DOCS: &[Doc] = &[
+    Doc {
+        path: "README.md",
+        lines: 60,
+        chars: None,
+    },
+    Doc {
+        path: "AGENTS.md",
+        lines: 150,
+        chars: None,
+    },
+    Doc {
+        path: "docs/STATUS.md",
+        lines: 150,
+        chars: Some(40_000),
+    },
+    Doc {
+        path: "docs/ROADMAP.md",
+        lines: 250,
+        chars: Some(40_000),
+    },
+    Doc {
+        path: "docs/ARCHITECTURE.md",
+        lines: 300,
+        chars: Some(69_000),
+    },
+    Doc {
+        path: "docs/DECISIONS.md",
+        lines: 300,
+        chars: Some(89_000),
+    },
 ];
+
+/// The longest line of the four documents, in characters: a fact a line, never a page.
+pub const MAX_DOC_LINE_CHARS: usize = 1_500;
 
 /// Archived documents: written when a document overflows, never read, no limit.
 pub const ARCHIVE_DIR: &str = "docs/archive/";
