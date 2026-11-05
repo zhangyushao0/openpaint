@@ -10,12 +10,10 @@
 //!   differ from the last passing canvas in red), with their paths printed;
 //! - `<export>.export.png` or `.export.jpg`: each exported file as the app wrote it.
 //!
-//! `scenario --all` runs every `tests/scenarios/*.json` in one process, in name order, with the
-//! same artifacts; it prints one line per scenario and the full report of each one that fails.
+//! `scenario --all` runs each of them this way, several at once (`scenarios.rs`).
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::Instant;
 
 use openpaint_devtools::{Checkpoint, Export, Record, Scenario, diff, is_file_name};
 use openpaint_runtime::TextFonts;
@@ -35,60 +33,6 @@ pub fn run(name: &str) -> Result<(), HarnessError> {
         println!("{line}");
     }
     result
-}
-
-/// Every scenario, one after another; fails when any of them fails.
-pub fn run_all() -> Result<(), HarnessError> {
-    let started = Instant::now();
-    let fonts = text_fonts();
-    let names = scenario_names()?;
-    let mut failed = 0;
-    for name in &names {
-        let start = Instant::now();
-        let mut log = Log::new();
-        let result = replay(name, &fonts, &mut log);
-        let seconds = start.elapsed().as_secs_f64();
-        match result {
-            Ok(()) => println!("pass {name} in {seconds:.1} s"),
-            Err(error) => {
-                for line in &log {
-                    println!("  {line}");
-                }
-                println!("FAIL {name} in {seconds:.1} s: {error}");
-                failed += 1;
-            }
-        }
-    }
-    println!(
-        "{} of {} scenarios passed in {:.1} s",
-        names.len() - failed,
-        names.len(),
-        started.elapsed().as_secs_f64()
-    );
-    if failed > 0 {
-        return Err(HarnessError::Scenarios {
-            failed,
-            total: names.len(),
-        });
-    }
-    Ok(())
-}
-
-/// The names of `tests/scenarios/*.json`, sorted.
-pub fn scenario_names() -> Result<Vec<String>, HarnessError> {
-    let mut names = Vec::new();
-    for entry in fs::read_dir(workspace_root().join("tests").join("scenarios"))? {
-        let path = entry?.path();
-        if path
-            .extension()
-            .is_some_and(|extension| extension == "json")
-            && let Some(stem) = path.file_stem()
-        {
-            names.push(stem.to_string_lossy().into_owned());
-        }
-    }
-    names.sort();
-    Ok(names)
 }
 
 fn replay(name: &str, fonts: &TextFonts, log: &mut Log) -> Result<(), HarnessError> {
