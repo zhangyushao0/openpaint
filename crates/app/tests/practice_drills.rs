@@ -107,7 +107,7 @@ fn a_drill_s_summary_sets_it_beside_earlier_drills_of_its_kind_only() {
 }
 
 fn practising(record: SessionRecord, before: Vec<SessionRecord>) -> Session {
-    let [width, height] = Sheet::of(record.exercises.len()).size;
+    let [width, height] = Sheet::of(&vec![None; record.exercises.len()]).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library.clone()).style().expect("style");

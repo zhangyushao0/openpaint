@@ -31,14 +31,15 @@ pub struct MassesCheck {
 
 impl ValueMasses {
     /// The copy whose frame's pixels are `rgba` (8-bit RGBA, `size` pixels, covering the frame
-    /// exactly), the picture lying at `[top left, size]` in it (frame units).
+    /// exactly), the picture lying at `[top left, size]` in it (frame units: one to the frame's
+    /// longer side).
     #[must_use]
     pub fn read(
         &self,
         (size, rgba): ([u32; 2], &[u8]),
         [origin, extent]: [Point; 2],
     ) -> MassesCheck {
-        let unit = f64::from(size[0].max(1));
+        let unit = f64::from(size[0].max(size[1]).max(1));
         let pixel = |v: f64| (v * unit).round().max(0.0) as usize;
         let [x0, y0] = origin.map(pixel);
         let x1 = pixel(origin[0] + extent[0]).min(size[0] as usize);

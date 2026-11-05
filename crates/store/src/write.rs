@@ -116,6 +116,27 @@ pub(crate) fn practice(open: &Open, session: &SessionRecord) -> Result<(), PortE
     batch.commit()
 }
 
+/// A practice sheet laid anew by the store's upgrade (S99, `practice_frames.rs`): every record of
+/// `artwork` over project `id`'s, its head under a new save id, and `session`'s record, in one
+/// batch; the catalogue and `last` untouched.
+pub(crate) fn relaid(
+    open: &Open,
+    id: ProjectId,
+    artwork: &Artwork,
+    session: &SessionRecord,
+) -> Result<(), PortError> {
+    let mut batch = Batch::new(open);
+    write_all(open, &mut batch, id, artwork)?;
+    let head = encode_head(artwork, Some(new_save_id()));
+    batch.insert(&open.projects, head_key(id), head);
+    batch.insert(
+        &open.library,
+        practice_key(session.id),
+        encode_session(session),
+    );
+    batch.commit()
+}
+
 /// Project `id` becomes the open one.
 pub(crate) fn open(open: &Open, id: ProjectId) -> Result<(), PortError> {
     let mut batch = Batch::new(open);

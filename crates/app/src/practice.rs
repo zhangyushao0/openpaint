@@ -208,6 +208,9 @@ pub struct PracticeProjection {
     pub fitting: bool,
     /// The session's pictures read so far (none: one that could not be read).
     pub images: Vec<(openpaint_practice::ItemRef, Option<Arc<PictureImage>>)>,
+    /// Each single shape's picture read with its ground faded, as its original's frame shows it
+    /// (S99); Compare lays the picture itself.
+    pub grounded: Vec<(openpaint_practice::ItemRef, Arc<PictureImage>)>,
     /// A value scale's cell the pen paints and Fill fills.
     pub cell: Option<usize>,
     /// The last point the eyedropper compared, while comparing.
@@ -236,20 +239,15 @@ pub struct SheetView {
 
 impl SheetView {
     /// The sheet of `record` on its canvas of `size` pixels, titled `name`, its pictures as
-    /// `packs` hold them. A colour copy's frames are read from its canvas, so they stay where
-    /// its strokes lie whatever became of its picture.
+    /// `packs` hold them, each in frames of its shape (S99). A colour copy's frames are read from
+    /// its canvas, so they stay where its strokes lie whatever became of its picture.
     #[must_use]
     pub fn of(record: &SessionRecord, packs: &[Pack], (size, name): ([u32; 2], &Title)) -> Self {
-        let sheet = if record.is_project() {
-            Sheet::study_on(size)
-        } else {
-            Sheet::of(record.exercises.len())
-        };
+        let sheet = laid(record, packs, size);
         let originals: Vec<Original> = record.exercises.iter().map(|e| e.original()).collect();
-        let filling = record.is_project();
         let families: Vec<Family> = (record.exercises.iter()).map(|e| e.kind.family()).collect();
         let pictures: Vec<Option<Arc<SheetPicture>>> = (record.exercises.iter())
-            .map(|e| SheetPicture::of(e.picture.as_ref()?, packs, filling).map(Arc::new))
+            .map(|e| SheetPicture::of(e.picture.as_ref()?, packs).map(Arc::new))
             .collect();
         let painted = (originals.iter().zip(&pictures).zip(&families))
             .map(|((original, picture), family)| painted(original, picture.as_deref(), *family))
@@ -286,16 +284,26 @@ fn painted(
 }
 
 /// The sheet a new `record`'s exercises are laid on: a long colour copy's of its picture's shape
-/// (as `packs` hold it), a session's three pairs a row.
+/// (as `packs` hold it), a session's three pairs a row, its pictures' frames of their shape.
 #[must_use]
 pub fn sheet_of(record: &SessionRecord, packs: &[Pack]) -> Sheet {
     if !record.is_project() {
-        return Sheet::of(record.exercises.len());
+        return Sheet::of_session(record, packs);
     }
     let picture = (record.exercises.first())
         .and_then(|e| e.picture.as_ref())
         .and_then(|item| packs.iter().find_map(|pack| pack.find(item)));
     Sheet::study(picture.map_or([1, 1], |item| item.size))
+}
+
+/// The sheet `record` lies on, on its canvas of `size` pixels: a session's as `packs` hold its
+/// pictures, a colour copy's read from its canvas.
+pub(crate) fn laid(record: &SessionRecord, packs: &[Pack], size: [u32; 2]) -> Sheet {
+    if record.is_project() {
+        Sheet::study_on(size)
+    } else {
+        Sheet::of_session(record, packs)
+    }
 }
 
 /// A colour combination's copy as read at the last Compare, and the edges where it made a weak

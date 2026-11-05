@@ -42,9 +42,9 @@ fn a_lone_example_is_framed_on_what_it_is_about_a_trick_on_its_face() {
     for (family, _) in STEPS {
         let demo = demo(family);
         // An object's frames side by side are cropped to its box (S94), a scale's frame to its
-        // rows (S97).
+        // rows (S97), a composition's to its picture (S99).
         let cropped = matches!(demo.layout, Layout::Single | Layout::Wide | Layout::Row);
-        let lone = cropped || family == Family::Object;
+        let lone = cropped || family == Family::Object || family.composed();
         assert_eq!(demo.view.is_some(), lone, "{family:?}");
     }
     let face_of = |demo: &Demo| -> [Point; 2] {
@@ -348,13 +348,16 @@ fn a_division_is_drawn_red_then_green_then_blue_and_a_whole_copy_over_it_dimmed(
     // The turning point first: a dot before any main line.
     let dot = (division.marks.iter()).find(|m| matches!(m.drawn, Drawn::Dot(_)));
     assert!(dot.is_some_and(|d| d.from <= first(&main)));
-    // Every line lies on the picture, whose edge the copy's frame shows from the start.
+    // Every line lies on the picture, which both frames are cropped to (S99): no edge drawn.
     let rect = (division.marks.iter())
         .find_map(|m| match m.drawn {
             Drawn::Masses(rect) if m.on == On::Original => Some(rect),
             _ => None,
         })
         .expect("the picture");
+    assert_eq!(division.view, Some(rect));
+    assert_eq!(rect, [[0.0, 0.0], [1.0, 0.75]], "a landscape four by three");
+    assert!(division.marks.iter().all(|m| m.pen != Marker::Rule));
     let [[left, top], [right, bottom]] = rect;
     for mark in &division.marks {
         if let (Marker::Level(_), Drawn::Line(line)) = (mark.pen, &mark.drawn) {

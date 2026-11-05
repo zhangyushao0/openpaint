@@ -1,16 +1,25 @@
 //! The sheet the app lays a session's exercises out on, a pair of frames each (the original at
 //! the left, the empty frame for the copy at its right), three pairs a row; a long colour copy's
 //! sheet, one pair of frames shaped as its picture (and read back from its canvas, whatever
-//! became of the picture); a picture fitted inside its frame.
+//! became of the picture); a picture filling its frame.
+//!
+//! Frames follow their picture (S99, D103): an exercise copied from a picture (a single shape, a
+//! division, a whole copy, value masses) has both its frames cropped exactly to the picture, its
+//! longer side the frame's length, so one edge measures both; every other kind's frames are
+//! square. Each pair keeps its place on the sheet (its square slot), the frames of a picture's
+//! shape held together in the middle of it, so the sheet's size and every other pair's frames
+//! never depend on the pictures.
 
+use crate::pack::Pack;
 use crate::path::Point;
+use crate::record::SessionRecord;
 
-/// The margin a picture keeps inside its frame, a share of the frame's side.
-pub const PICTURE_MARGIN: f64 = 0.05;
-/// A frame's side on the sheet, in canvas pixels.
+/// A frame's side on the sheet (a picture's frames' longer side), in canvas pixels.
 pub const FRAME: f64 = 400.0;
 /// A long colour copy's frames' longer side, in canvas pixels: room for 10 to 20 hours of detail.
 pub const STUDY_SIDE: f64 = 1600.0;
+/// Strokes may begin this share of a frame's longer side outside it (and are clipped to it).
+pub const FRAME_REACH: f64 = 0.1;
 /// Between the original's frame and the copy's.
 const PAIR_GAP: f64 = 40.0;
 /// Between pairs, across and down, and round the sheet's edge.
@@ -20,65 +29,49 @@ const EDGE: f64 = 80.0;
 /// Pairs a row.
 const COLUMNS: usize = 3;
 
-/// Where a picture lies in its frame: evenly scaled to fit inside `PICTURE_MARGIN`, centred, or
-/// filling a frame of its own shape.
+/// Where a picture lies in its frame: filling it, the frame of its own shape (S99).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct PictureFit {
     /// Frame units per picture pixel.
     pub scale: f64,
-    /// The picture's top left corner, in frame units.
-    pub origin: Point,
-    /// Its width and height, in frame units.
+    /// Its width and height, in frame units: the frame's (`Frame::extent`).
     pub size: Point,
 }
 
 impl PictureFit {
-    /// The fit of a picture of `size` pixels in a square frame.
+    /// The fit of a picture of `size` pixels in its frame.
     #[must_use]
     pub fn of(size: [u32; 2]) -> Self {
         let [width, height] = size.map(|side| f64::from(side.max(1)));
-        let room = 1.0 - 2.0 * PICTURE_MARGIN;
-        let scale = room / width.max(height);
-        let shown = [width * scale, height * scale];
+        let scale = 1.0 / width.max(height);
         Self {
             scale,
-            origin: [(1.0 - shown[0]) / 2.0, (1.0 - shown[1]) / 2.0],
-            size: shown,
-        }
-    }
-
-    /// The fit of a picture of `size` pixels filling a frame of its own shape (a colour copy's).
-    #[must_use]
-    pub fn filling(size: [u32; 2]) -> Self {
-        let [width, height] = size.map(|side| f64::from(side.max(1)));
-        Self {
-            scale: 1.0 / width,
-            origin: [0.0, 0.0],
-            size: [1.0, height / width],
+            size: [width * scale, height * scale],
         }
     }
 
     /// The frame point of the picture's pixel point `p`.
     #[must_use]
     pub fn to_frame(&self, p: Point) -> Point {
-        [
-            self.origin[0] + p[0] * self.scale,
-            self.origin[1] + p[1] * self.scale,
-        ]
+        [p[0] * self.scale, p[1] * self.scale]
     }
 
     /// The picture's pixel point of the frame point `p`.
     #[must_use]
     pub fn to_picture(&self, p: Point) -> Point {
-        [
-            (p[0] - self.origin[0]) / self.scale,
-            (p[1] - self.origin[1]) / self.scale,
-        ]
+        [p[0] / self.scale, p[1] / self.scale]
+    }
+
+    /// Its corners in frame units: top left, top right, bottom right, bottom left.
+    #[must_use]
+    pub const fn corners(&self) -> [Point; 4] {
+        let [w, h] = self.size;
+        [[0.0, 0.0], [w, 0.0], [w, h], [0.0, h]]
     }
 }
 
-/// A frame on the sheet, in canvas pixels: square, or a colour copy's of its picture's shape.
-/// Frame units run evenly on both axes, one to the frame's width.
+/// A frame on the sheet, in canvas pixels: square, or of its picture's shape. Frame units run
+/// evenly on both axes, one to the frame's longer side.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Frame {
     pub origin: Point,
@@ -96,10 +89,25 @@ impl Frame {
         }
     }
 
-    /// Canvas pixels per frame unit: the frame's width.
+    /// Canvas pixels per frame unit: the frame's longer side.
     #[must_use]
     pub const fn unit(&self) -> f64 {
-        self.size[0]
+        self.size[0].max(self.size[1])
+    }
+
+    /// Its width and height in frame units: 1 along its longer side.
+    #[must_use]
+    pub fn extent(&self) -> Point {
+        [self.size[0] / self.unit(), self.size[1] / self.unit()]
+    }
+
+    /// Its middle, in canvas pixels.
+    #[must_use]
+    pub fn middle(&self) -> Point {
+        [
+            self.origin[0] + self.size[0] / 2.0,
+            self.origin[1] + self.size[1] / 2.0,
+        ]
     }
 
     /// The canvas point of the frame point `p` (frame units).
@@ -127,6 +135,13 @@ impl Frame {
             p[axis] >= self.origin[axis] - margin
                 && p[axis] <= self.origin[axis] + self.size[axis] + margin
         })
+    }
+
+    /// Whether a stroke begun at the canvas point `p` belongs to the frame: in it or within
+    /// `FRAME_REACH` of it.
+    #[must_use]
+    pub fn holds(&self, p: Point) -> bool {
+        self.contains(p, FRAME_REACH * self.unit())
     }
 
     /// Its corners, top left first, clockwise, in canvas pixels.
@@ -165,19 +180,31 @@ pub struct Sheet {
 }
 
 impl Sheet {
-    /// The sheet for `count` exercises.
+    /// The sheet for exercises whose frames are each square (`None`) or of a picture of
+    /// `[width, height]` pixels: in its slot, the original's frame against the gap from the
+    /// left, the copy's from the right, both in the slot's middle from top to bottom.
     #[must_use]
-    pub fn of(count: usize) -> Self {
+    pub fn of(pictures: &[Option<[u32; 2]>]) -> Self {
         let pair_width = 2.0 * FRAME + PAIR_GAP;
-        let rows = count.div_ceil(COLUMNS).max(1);
-        let pairs = (0..count)
-            .map(|index| {
+        let rows = pictures.len().div_ceil(COLUMNS).max(1);
+        let pairs = (pictures.iter().enumerate())
+            .map(|(index, picture)| {
                 let (column, row) = ((index % COLUMNS) as f64, (index / COLUMNS) as f64);
                 let x = EDGE + column * (pair_width + COLUMN_GAP);
                 let y = EDGE + row * (FRAME + ROW_GAP);
+                let size = picture.map_or([FRAME; 2], |size| {
+                    PictureFit::of(size).size.map(|side| side * FRAME)
+                });
+                let top = y + (FRAME - size[1]) / 2.0;
                 Pair {
-                    original: Frame::square([x, y], FRAME),
-                    copy: Frame::square([x + FRAME + PAIR_GAP, y], FRAME),
+                    original: Frame {
+                        origin: [x + FRAME - size[0], top],
+                        size,
+                    },
+                    copy: Frame {
+                        origin: [x + FRAME + PAIR_GAP, top],
+                        size,
+                    },
                 }
             })
             .collect();
@@ -187,6 +214,23 @@ impl Sheet {
             size: [width as u32, height as u32],
             pairs,
         }
+    }
+
+    /// The sheet a session's or a drill's `record` lies on, its pictures as `packs` hold them:
+    /// an exercise of a picture in frames of its shape, one no pack holds now (removed) in
+    /// square ones, as every other kind.
+    #[must_use]
+    pub fn of_session(record: &SessionRecord, packs: &[Pack]) -> Self {
+        let pictures: Vec<Option<[u32; 2]>> = (record.exercises.iter())
+            .map(|exercise| {
+                let item = exercise.picture.as_ref()?;
+                packs
+                    .iter()
+                    .find_map(|pack| pack.find(item))
+                    .map(|i| i.size)
+            })
+            .collect();
+        Self::of(&pictures)
     }
 
     /// A long colour copy's sheet for a picture of `picture` pixels: one pair of frames of the

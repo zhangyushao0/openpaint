@@ -2,13 +2,13 @@
 //! the original's and the empty one for the copy (a kind built from given parts the one frame
 //! drawn in, S97), the shown pair's in ink and the earlier ones
 //! faint; each original in its frame (a line or a group of lines in ink, a swatch filling the
-//! frame, a single shape's or a colour copy's picture with its credit small under the frame where
-//! its licence asks for one, a colour combination's or a value scale's in `practice_paint_marks.rs`,
-//! a box's or an ellipse's in `practice_geometry_marks.rs`, an estimate's or a point in space's in
+//! frame, a picture filling its frame of its shape (S99), a single shape's with its ground faded,
+//! with its credit small under the frame where its licence asks for one, a colour combination's
+//! or a value scale's in `practice_paint_marks.rs`, a box's or an ellipse's in
+//! `practice_geometry_marks.rs`, an estimate's or a point in space's in
 //! `practice_points_marks.rs`, a solid's in `practice_solid_marks.rs`, an object's picture and
-//! box in `practice_object_marks.rs`; a division's, whole copy's or value masses' picture's edge
-//! in the copy's frame and a division's compared lines in `practice_division_marks.rs`; value
-//! masses compared in `practice_masses_marks.rs`).
+//! box in `practice_object_marks.rs`; a division's compared lines in
+//! `practice_division_marks.rs`; value masses compared in `practice_masses_marks.rs`).
 //! While compared, the original's lines lie over the copy, in place or aligned onto it, as thick as
 //! the pen that drew the copy and in a semi-transparent marking red the ink shows through (S88:
 //! thicker, the red hid an error of a pen's width inside it), a hairline at least however far the
@@ -25,7 +25,7 @@ use egui::{Color32, FontId, Mesh, Order, Pos2, Shape, Stroke, TextureHandle};
 use openpaint_app::{
     INK_DIAMETER, Overlay, PictureImage, PracticeProjection, SessionProjection, ViewMapping,
 };
-use openpaint_practice::{FRAME, Frame, ItemRef, Original, Rgb8};
+use openpaint_practice::{FRAME, Family, Frame, ItemRef, Original, Rgb8};
 
 use crate::components::{Alpha, canvas_point, picture_texture};
 use crate::design::{CORRECTION, DIVIDER, INK, INK_SECONDARY, PANEL_RULE_WIDTH};
@@ -52,10 +52,12 @@ const CREDIT_SIZE: f32 = 9.0;
 const CREDIT_GAP: f32 = 6.0;
 
 /// The session's pictures as textures, uploaded as the store reads them (none: one that could not
-/// be read), and its colour combinations' pictures.
+/// be read), its single shapes' with their ground faded (S99), and its colour combinations'
+/// pictures.
 #[derive(Default)]
 pub(crate) struct SheetPictures {
     shown: Vec<(ItemRef, Option<TextureHandle>)>,
+    grounded: Vec<(ItemRef, TextureHandle)>,
     painted: paint_marks::PaintedPictures,
 }
 
@@ -82,10 +84,30 @@ impl SheetPictures {
         }
     }
 
+    /// Uploads the faded pictures `grounded` holds that are new, lets go of the others.
+    fn sync_grounded(&mut self, ctx: &egui::Context, grounded: &[(ItemRef, Arc<PictureImage>)]) {
+        self.grounded
+            .retain(|(item, _)| grounded.iter().any(|(held, _)| held == item));
+        for (item, image) in grounded {
+            if self.grounded.iter().any(|(shown, _)| shown == item) {
+                continue;
+            }
+            let name = format!("practice-ground-{}-{}", item.pack, item.item);
+            let texture = picture_texture(ctx, name, (image.size, &image.pixels, Alpha::Straight));
+            self.grounded.push((item.clone(), texture));
+        }
+    }
+
     /// `item`'s texture: `None` while not read yet, `Some(None)` when it could not be.
     fn texture(&self, item: &ItemRef) -> Option<Option<&TextureHandle>> {
         let (_, texture) = self.shown.iter().find(|(shown, _)| shown == item)?;
         Some(texture.as_ref())
+    }
+
+    /// `item`'s texture with its ground faded, once made.
+    fn grounded(&self, item: &ItemRef) -> Option<&TextureHandle> {
+        let (_, texture) = self.grounded.iter().find(|(shown, _)| shown == item)?;
+        Some(texture)
     }
 }
 
@@ -101,6 +123,7 @@ pub(crate) fn show_marks(
         return;
     };
     pictures.sync(ctx, &practice.images);
+    pictures.sync_grounded(ctx, &practice.grounded);
     pictures.painted.sync(ctx, &practice.sheet.painted);
     let layer = egui::LayerId::new(Order::Background, egui::Id::new("practice sheet"));
     let painter = ctx.layer_painter(layer);
@@ -164,7 +187,6 @@ fn show_original(
         Original::Picture(_) => {
             let shown = (index, &pair.original);
             show_picture(painter, practice, shown, (at, scale), pictures);
-            division_marks::show_edge(painter, practice, (index, pair), at);
         }
         Original::Areas(_) | Original::Scale(_) => {
             let painted = &pictures.painted;
@@ -184,9 +206,10 @@ fn show_original(
     }
 }
 
-/// Exercise `index`'s picture fitted in its `frame` (or, where no pack kept holds it now, that
-/// it was removed: the strokes copied from it stay), its credit under the frame; `at` maps
-/// canvas points to the screen, `scale` is points per canvas pixel.
+/// Exercise `index`'s picture filling its `frame` of its shape (S99; a single shape's with its
+/// ground faded where it has an outline), or, where no pack kept holds it now, that it was
+/// removed (the strokes copied from it stay); its credit under the frame; `at` maps canvas points
+/// to the screen, `scale` is points per canvas pixel.
 fn show_picture(
     painter: &egui::Painter,
     practice: &PracticeProjection,
@@ -195,19 +218,19 @@ fn show_picture(
     pictures: &SheetPictures,
 ) {
     let picture = practice.sheet.pictures.get(index).and_then(Option::as_ref);
+    let shape = practice.sheet.families.get(index) == Some(&Family::Shape);
+    let grounded = picture
+        .filter(|_| shape)
+        .and_then(|p| pictures.grounded(&p.item));
     let texture = picture.and_then(|p| pictures.texture(&p.item));
-    // Frame units run one to the frame's width: its middle lies half its height down.
-    let middle = at(frame.to_canvas([0.5, 0.5 * frame.size[1] / frame.unit()]));
+    let middle = at(frame.middle());
     // In step with the frame: a colour copy's frame is four times a session's.
     let grown = (frame.unit() / FRAME) as f32;
     let font = FontId::proportional((14.0 * scale * grown).max(6.0));
     match (picture, texture) {
         (Some(picture), Some(Some(texture))) => {
-            let [x, y] = picture.fit.origin;
-            let [w, h] = picture.fit.size;
-            let place = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
-            let corners = place.map(|p| at(frame.to_canvas(p)));
-            painter.add(quad(texture, corners, Color32::WHITE));
+            let corners = picture.fit.corners().map(|p| at(frame.to_canvas(p)));
+            painter.add(quad(grounded.unwrap_or(texture), corners, Color32::WHITE));
         }
         (Some(_), None) => {}
         _ => {
@@ -219,8 +242,7 @@ fn show_picture(
     let Some(credit) = picture.and_then(|p| p.credit.as_ref()) else {
         return;
     };
-    let left = at(frame.to_canvas([0.0, 1.0]));
-    let right = at(frame.to_canvas([1.0, 1.0]));
+    let [_, _, right, left] = frame.corners().map(at);
     let angle = (right.y - left.y).atan2(right.x - left.x);
     let below = at([
         frame.origin[0],

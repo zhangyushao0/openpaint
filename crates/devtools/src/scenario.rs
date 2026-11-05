@@ -162,6 +162,10 @@ pub enum Step {
     /// The app process ends and starts again with the same screen and the same library, as
     /// after leaving the app and coming back once the system has closed it.
     Restart,
+    /// As `restart`, the library put back first as 1.16.0 kept it (S99, `older.rs`): each copy
+    /// of a picture in the square frame the picture lay in at 90 %, each practice record without
+    /// the layout 1.17.0 writes; the store's upgrade lays it anew as the app starts.
+    RestartOnOldSheets,
     /// From now on every storage call fails, as on a full or removed disk.
     StorageFails,
     /// Storage works again.

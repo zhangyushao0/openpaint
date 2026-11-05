@@ -16,6 +16,7 @@ use openpaint_practice::SessionRecord;
 
 use crate::batch::Batch;
 use crate::editor::decode_editor;
+use crate::packs::Packs;
 use crate::records::{FORMAT, FORMAT_KEY, LIBRARY, PROJECTS, decode_format, encode_format};
 use crate::{artwork_file, practice, read, versions, write};
 
@@ -31,6 +32,9 @@ pub(crate) struct Open {
 /// one (a failed write leaves fjall refusing further writes).
 pub struct Library {
     dir: PathBuf,
+    /// The practice packs kept beside it, whose pictures the store's upgrade lays old practice
+    /// sheets anew by (S99); none: no pack.
+    packs: Option<Packs>,
     open: Option<Open>,
     /// The version the disk holds for one project, known exactly; the base for the next save
     /// of that project. Forgotten whenever a call fails, so that save rewrites the project.
@@ -51,10 +55,19 @@ impl Library {
     pub fn at(dir: impl Into<PathBuf>) -> Self {
         Self {
             dir: dir.into(),
+            packs: None,
             open: None,
             stored: None,
             noted: 0,
         }
+    }
+
+    /// The library with the practice packs kept in `packs` (the app's), by whose pictures the
+    /// store's upgrade lays practice sheets of 1.16.0 and before anew (S99).
+    #[must_use]
+    pub fn with_packs(mut self, packs: Packs) -> Self {
+        self.packs = Some(packs);
+        self
     }
 
     /// What fjall holds in memory now: its block cache and its memtables (written, not flushed
@@ -97,7 +110,7 @@ impl Library {
                 library,
                 projects,
             };
-            prepare(&open)?;
+            prepare(&open, self.packs.as_ref())?;
             log::info!("library opened at {}", self.dir.display());
             self.open = Some(open);
         }
@@ -121,10 +134,10 @@ impl Library {
 /// Checks the format of an opened database: an empty one is marked with this build's format;
 /// one of another format, or holding records without a format (every library before 1.0), is
 /// refused as it is, nothing written. One of this format has its practice records upgraded
-/// (`practice::upgrade`).
-fn prepare(open: &Open) -> Result<(), PortError> {
+/// (`practice::upgrade`), its old sheets laid anew by the pictures `packs` hold.
+fn prepare(open: &Open, packs: Option<&Packs>) -> Result<(), PortError> {
     check_format(open)?;
-    practice::upgrade(open)
+    practice::upgrade(open, packs)
 }
 
 fn check_format(open: &Open) -> Result<(), PortError> {

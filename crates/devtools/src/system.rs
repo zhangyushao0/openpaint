@@ -51,6 +51,9 @@ pub enum SystemAnswer {
     /// In the file picker, a composition pack painted for the tests (`test_compositions.rs`,
     /// S95).
     TestCompositions,
+    /// In the file picker, a pack of shapes whose pictures are not square, an upright vase and a
+    /// long fish (`test_pack.rs`, S99).
+    TestFrames,
 }
 
 /// The fixture pictures, built into the runner (it never reads files).
@@ -140,7 +143,7 @@ fn answers(answer: SystemAnswer, request: &HostRequest) -> bool {
         SystemAnswer::SavedFile | SystemAnswer::DamagedFile => {
             matches!(request, HostRequest::OpenArtwork)
         }
-        SystemAnswer::TestPack | SystemAnswer::TestCompositions => {
+        SystemAnswer::TestPack | SystemAnswer::TestCompositions | SystemAnswer::TestFrames => {
             matches!(request, HostRequest::OpenPack)
         }
         SystemAnswer::Cancel | SystemAnswer::PickerFails => {
@@ -162,6 +165,8 @@ fn chosen(answer: SystemAnswer, written: &Written) -> Result<Vec<u8>, ScenarioEr
         SystemAnswer::TestCompositions => crate::test_compositions::test_compositions().ok_or(
             ScenarioError::Missing("the test compositions could not be made"),
         )?,
+        SystemAnswer::TestFrames => crate::test_pack::test_frames()
+            .ok_or(ScenarioError::Missing("the test frames could not be made"))?,
         SystemAnswer::SavedFile | SystemAnswer::DamagedFile => {
             let saved = written.lock().unwrap_or_else(PoisonError::into_inner);
             let mut bytes = saved

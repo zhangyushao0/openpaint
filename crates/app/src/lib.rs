@@ -107,7 +107,7 @@ pub use crate::practice_layers::{BLOCKS_LAYER, DIVISION_DIMMED, DIVISION_LAYER, 
 pub use crate::practice_log::PracticeLog;
 pub use crate::practice_pens::{INK_DIAMETER, PracticePens, value_colour};
 pub use crate::practice_pictures::{
-    FitJob, MassesShown, PackShown, PictureImage, SHOWN_SIDE, SheetPicture,
+    FitJob, GROUND_SHOWN, MassesShown, PackShown, PictureImage, SHOWN_SIDE, SheetPicture,
 };
 pub use crate::practice_sheet::{
     CopyRead, Finished, PRACTICE_ROOM, PracticePick, Practising, ReadAs, ReadJob,

@@ -106,7 +106,9 @@ pub extern "system" fn Java_dev_openpaint_Native_create<'local>(
             packs: Some(packs),
             ..StartOptions::default()
         };
-        let runtime = Runtime::start(density, Box::new(Library::at(library)), options)?;
+        // The library lays old practice sheets anew by the pictures the packs hold (S99).
+        let library = Library::at(library).with_packs(Packs::at(files.join("packs")));
+        let runtime = Runtime::start(density, Box::new(library), options)?;
         let host = Host {
             runtime,
             latency: PenLatency::default(),

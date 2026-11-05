@@ -1,45 +1,18 @@
 //! A division's and a whole copy's marks over a practice sheet (S95), drawn by the screen through
 //! the view as every original is (`practice_marks.rs`), never into the artwork: the picture in the
-//! original's frame (`practice_marks.rs` lays it, with its credit), and in the copy's frame the
-//! picture's edge in pencil, the empty frame of its size the division and the copy are drawn in.
-//! Compared, a division's lines lie over its picture (as strong as the card's slider sets) in their
-//! levels' colours as thick as the pen and inside the copy's frame (V大's red, green and blue: no
-//! answer, the picture under them is the check).
+//! original's frame (`practice_marks.rs` lays it, with its credit) and the copy's frame of its
+//! shape (S99), empty, the division and the copy drawn in it. Compared, a division's lines lie over
+//! its picture (as strong as the card's slider sets) in their levels' colours as thick as the pen
+//! and inside the copy's frame (V大's red, green and blue: no answer, the picture under them is the
+//! check).
 
-use egui::{Color32, Pos2, Rect, Shape, Stroke};
-use openpaint_app::PracticeProjection;
-use openpaint_practice::{DivisionCheck, Frame, Level, Pair, within};
-
-use crate::design::DIVIDER;
-
-/// The picture's edge in the copy's frame, in points.
-const EDGE: f32 = 1.0;
+use egui::{Color32, Pos2, Rect, Stroke};
+use openpaint_practice::{DivisionCheck, Frame, Level, within};
 
 /// A division's level's colour, as its pen draws it.
 pub(crate) fn level_colour(level: Level) -> Color32 {
     let [r, g, b] = level.colour();
     Color32::from_rgb(r, g, b)
-}
-
-/// Exercise `index`'s picture's edge in its copy's frame, where it is a division, a whole copy or
-/// value masses (S96).
-pub(crate) fn show_edge(
-    painter: &egui::Painter,
-    practice: &PracticeProjection,
-    (index, pair): (usize, &Pair),
-    at: &dyn Fn([f64; 2]) -> Pos2,
-) {
-    let divided = (practice.sheet.families.get(index)).is_some_and(|family| family.composed());
-    let Some(picture) = practice.sheet.pictures.get(index).and_then(Option::as_ref) else {
-        return;
-    };
-    if !divided {
-        return;
-    }
-    let ([x, y], [w, h]) = (picture.fit.origin, picture.fit.size);
-    let corners = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
-    let edge = corners.map(|p| at(pair.copy.to_canvas(p))).to_vec();
-    painter.add(Shape::closed_line(edge, Stroke::new(EDGE, DIVIDER)));
 }
 
 /// A division's lines over its copy in `frame`, each in its level's colour, `width` points (the
@@ -52,7 +25,7 @@ pub(crate) fn show_lines(
     (at, width): (&dyn Fn([f64; 2]) -> Pos2, f32),
 ) {
     let painter = painter.with_clip_rect(Rect::from_points(&frame.corners().map(at)));
-    let size = [1.0, frame.size[1] / frame.unit()];
+    let size = frame.extent();
     for line in &check.lines {
         let colour = level_colour(line.level);
         for part in within(&line.points, size) {

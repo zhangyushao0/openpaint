@@ -134,16 +134,14 @@ impl PracticeSheet {
         })
     }
 
-    /// Exercise `index`'s picture's corners (top left, top right, bottom right, bottom left)
-    /// laid by `laid`.
+    /// Exercise `index`'s picture's corners (top left, top right, bottom right, bottom left), its
+    /// frame's (S99), laid by `laid`.
     fn picture_corners(
         &self,
         index: usize,
         laid: impl Fn(&Point) -> [f32; 2],
     ) -> Option<[[f32; 2]; 4]> {
         let picture = self.sheet.pictures[index].as_ref()?;
-        let ([x, y], [w, h]) = (picture.fit.origin, picture.fit.size);
-        let corners = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]];
-        Some(corners.map(|p| laid(&p)))
+        Some(picture.fit.corners().map(|p| laid(&p)))
     }
 }

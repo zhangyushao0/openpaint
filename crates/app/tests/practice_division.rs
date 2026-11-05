@@ -1,7 +1,8 @@
 //! Divisions and whole copies on a practice sheet (S95): a composition beside the empty frame of
-//! its size; a division drawn with the levels' pens (no Sketch, Draw or Correct), its picture laid
-//! under its lines at Compare as strongly as the slider sets (a line drawn at a known place of the
-//! picture lies on that pixel), its lines joined, counted and measured, the first numbers kept,
+//! its shape (S99); a division drawn with the levels' pens (no Sketch, Draw or Correct), its
+//! picture laid exactly over the frame under its lines at Compare as strongly as the slider sets
+//! (a line drawn at a known place of the picture lies on that pixel), its lines joined, counted
+//! and measured against the picture's longer side, the frame's, the first numbers kept,
 //! lines drawn after Compare part of it; a whole copy's division on a layer of its own, dimmed
 //! under Draw's line drawing and hidden at Compare, none of it a step undo takes back; stage 4
 //! from the log with and without the composition pack.
@@ -163,6 +164,10 @@ fn a_division_is_drawn_by_level_and_compared_with_its_picture_under_it() {
     let (frame, known) = divided(&mut session);
     practise(&mut session, PracticeIntent::Compare(true));
     let (laid, shown, check) = division_overlay(&session);
+    // The frames are the picture's shape and the picture lies exactly over the copy's (S99).
+    assert_eq!(frame.size, [400.0, 300.0]);
+    assert_eq!(practice.sheet.pairs[0].original.size, frame.size);
+    assert_eq!(laid, frame.corners().map(|p| p.map(|v| v as f32)));
     assert_eq!(check.rows.map(|row| row.lines), [2, 3, 1]);
     assert!((shown - 0.5).abs() < 1e-6, "at half strength");
     // The slider raises the picture under the same lines.
@@ -199,8 +204,10 @@ fn lines_drawn_after_a_divisions_compare_are_part_of_it_and_the_first_numbers_ke
     let first = check.metrics.clone();
     assert_eq!(value(&first, Metric::DivisionLines(Level::Main)), Some(2.0));
     practise(&mut session, PracticeIntent::Pen(Pen::Main));
+    // In the frame, the picture's shape: 1 wide, 0.75 tall (S99).
+    assert_eq!(frame.extent(), [1.0, 0.75]);
     for k in 0..4 {
-        let y = 0.75 + 0.04 * f64::from(k);
+        let y = 0.55 + 0.04 * f64::from(k);
         draw(&mut session, &frame, &[[0.1, y], [0.5, y]]);
     }
     let gone = (session.projection().practice()).is_some_and(|p| !p.comparing);

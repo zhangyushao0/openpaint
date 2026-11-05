@@ -21,6 +21,9 @@
 //!   start and end (u64 seconds since 1970 UTC, the end not before the start). A record written
 //!   before ends before them; the store's upgrade (`upgrade`) gives it the spans its compares'
 //!   times tell, once, when the library opens: nothing else reads a record without its time.
+//! - Then (1.17.0 on, S99) its sheet's layout, a byte: 1, its pictures' frames their shape
+//!   (`LAID`). A record written before ends before it, its copies of pictures laid in square
+//!   frames; the store's upgrade lays its sheet anew once (`practice_frames.rs`).
 //!
 //! 1.5.0 adds no field: kinds 5 to 7 (colour combinations, value scales, a colour copy), metric
 //! codes 29 to 34, and a long colour copy as a record of stage 0 (`PROJECT`) holding its one
@@ -45,9 +48,13 @@ use openpaint_practice::{
 use crate::batch::Batch;
 use crate::codec::{Reader, Writer};
 use crate::library::{Open, device};
+use crate::packs::Packs;
+use crate::practice_frames;
 
 /// The first byte of every practice record's key.
 pub(crate) const PRACTICE: &[u8] = b"p";
+/// The layout a record ends with from 1.17.0 (S99): its pictures' frames their shape.
+pub(crate) const LAID: u8 = 1;
 
 /// Bytes of an exercise, and of a result and a metric without their lists, and of a result's
 /// tail, a picture's place and a span.
@@ -113,15 +120,18 @@ pub(crate) fn encode_session(session: &SessionRecord) -> Vec<u8> {
         writer.u64(span.from);
         writer.u64(span.to);
     }
+    writer.u8(LAID);
     writer.finish()
 }
 
 /// What the store's upgrade still owes a record read (`upgrade`): its time (one written before
-/// 1.7.0 keeps none) and its value scales' cells (one written before 1.15.0 holding a scale).
+/// 1.7.0 keeps none), its value scales' cells (one written before 1.15.0 holding a scale) and its
+/// sheet laid anew (one written before 1.17.0).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) struct Owed {
     pub(crate) time: bool,
     pub(crate) scales: bool,
+    pub(crate) frames: bool,
 }
 
 /// The session stored under `key` as `bytes`, and what the store's upgrade owes its record.
@@ -161,6 +171,10 @@ pub(crate) fn decode_session(key: &[u8], bytes: &[u8]) -> Result<(SessionRecord,
             time.push(span);
         }
     }
+    let laid = !reader.is_done();
+    if laid && reader.u8()? != LAID {
+        return Err(reader.corrupt());
+    }
     reader.end()?;
     let session = SessionRecord {
         id,
@@ -179,6 +193,7 @@ pub(crate) fn decode_session(key: &[u8], bytes: &[u8]) -> Result<(SessionRecord,
     let owed = Owed {
         time: !timed,
         scales,
+        frames: !laid,
     };
     Ok((session, owed))
 }
@@ -265,11 +280,15 @@ fn decode_pictures(reader: &mut Reader<'_>, exercises: &mut [Exercise]) -> Resul
 /// 1.7.0, which keeps no time, is given the spans its compares' times tell
 /// (`SessionRecord::time_of_compares`, S89); one holding a value scale as 1.5.0 to 1.14.0 stored
 /// it gets the scale's cells in its kind (`older_scale`, S97); each written again as this version
-/// writes it, all in one batch. A record that cannot be read is left as it is (`sessions` leaves
-/// it out).
-pub(crate) fn upgrade(open: &Open) -> Result<(), PortError> {
+/// writes it, all in one batch. One written before 1.17.0 has its sheet laid anew as the packs
+/// in `packs` (none: no pack) hold its pictures, its sheet and record in a batch of their own
+/// (`practice_frames.rs`, S99); while the packs cannot be listed, or its batch fails, it waits as
+/// it was (logged) and the library opens all the same. A record that cannot be read is left as it
+/// is (`sessions` leaves it out).
+pub(crate) fn upgrade(open: &Open, packs: Option<&Packs>) -> Result<(), PortError> {
     let mut batch = Batch::new(open);
     let mut upgraded = 0;
+    let mut unlaid = Vec::new();
     for guard in open.library.prefix(PRACTICE) {
         let (key, value) = guard.into_inner().map_err(device)?;
         let Ok((mut session, owed)) = decode_session(&key, &value) else {
@@ -278,16 +297,35 @@ pub(crate) fn upgrade(open: &Open) -> Result<(), PortError> {
         if owed.time {
             session.time = session.time_of_compares();
         }
-        if owed.time || owed.scales {
+        if owed.frames {
+            unlaid.push(session);
+        } else if owed.time || owed.scales {
             batch.insert(&open.library, key, encode_session(&session));
             upgraded += 1;
         }
     }
-    if upgraded == 0 {
+    if upgraded > 0 {
+        batch.commit()?;
+        log::info!("{upgraded} practice records upgraded (their time, their value scales' cells)");
+    }
+    if unlaid.is_empty() {
         return Ok(());
     }
-    batch.commit()?;
-    log::info!("{upgraded} practice records upgraded (their time, their value scales' cells)");
+    let held = match packs.map(Packs::list).transpose() {
+        Ok(held) => held.unwrap_or_default(),
+        Err(error) => {
+            log::warn!("practice sheets not laid anew: the packs are not listed: {error}");
+            return Ok(());
+        }
+    };
+    for session in &unlaid {
+        // A sheet that cannot be laid anew now waits as it was (its batch writes nothing), and
+        // the library opens all the same.
+        match practice_frames::relay(open, session, &held) {
+            Ok(()) => log::info!("practice record {} laid anew (S99)", session.id),
+            Err(error) => log::warn!("practice record {} not laid anew: {error}", session.id),
+        }
+    }
     Ok(())
 }
 

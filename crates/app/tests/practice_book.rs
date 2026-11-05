@@ -26,7 +26,7 @@ const VIEWPORT: Viewport = Viewport {
 const NOON: u64 = 1_791_201_600;
 
 fn practising(record: SessionRecord, (before, others): (Vec<SessionRecord>, Tally)) -> Session {
-    let [width, height] = Sheet::of(record.exercises.len()).size;
+    let [width, height] = Sheet::of(&vec![None; record.exercises.len()]).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library.clone()).style().expect("style");
@@ -179,19 +179,22 @@ fn the_book_reads_a_sheet_s_first_line_its_first_colour_its_frames_and_marks() {
     let later = Color::rgb(0.1, 0.2, 0.8).expect("colour");
     practise(&mut session, PracticeIntent::Fill(later));
     let record = session.practice_save_request().expect("the record");
-    let read = SheetRead::of(session.artwork(), &record);
-    assert_eq!(read.size, Sheet::of(record.exercises.len()).size);
+    let read = SheetRead::of(session.artwork(), &record, &[]);
+    assert_eq!(
+        read.size,
+        Sheet::of(&vec![None; record.exercises.len()]).size
+    );
     assert_eq!(read.frames.len(), 2 * record.exercises.len());
     // A kind built in one frame shows that one (S97).
     let mut scaled = record.clone();
     scaled.exercises[3].kind = Kind::Scale(ScaleTone::Grey, 9);
-    let one_less = SheetRead::of(session.artwork(), &scaled).frames.len();
+    let one_less = SheetRead::of(session.artwork(), &scaled, &[]).frames.len();
     assert_eq!(one_less, 2 * record.exercises.len() - 1);
     // A trick and a solid alike (S98); an estimate keeps its original beside its copy.
     scaled.exercises[4].kind = Kind::Space(Trick::Centre);
     scaled.exercises[5].kind = Kind::Solid(Solid::Cone);
     scaled.exercises[6].kind = Kind::Flat(Estimate::Point);
-    let alike = SheetRead::of(session.artwork(), &scaled).frames.len();
+    let alike = SheetRead::of(session.artwork(), &scaled, &[]).frames.len();
     assert_eq!(alike, 2 * record.exercises.len() - 3);
     assert_eq!(read.lines.len(), 1);
     assert_eq!(read.lines[0].index, 0);

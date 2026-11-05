@@ -235,8 +235,11 @@ fn laid(demo: &Demo, rect: Rect) -> Frames {
             let side = ((rect.width() - GAP) / 2.0).min(rect.height());
             let left = rect.center().x - side - GAP / 2.0;
             let [original, copy] = [square(left, side), square(left + side + GAP, side)];
-            // An object's example cropped to its box in both frames (S94), so it reads large.
-            if demo.view.is_some() {
+            // An object's example cropped to its box in both frames (S94), so it reads large; a
+            // composition's to its picture, the frames its shape (S99).
+            if let Some(view) = demo.view {
+                let [original, copy] = [(original, true), (copy, false)]
+                    .map(|(frame, against)| shaped(view, frame, against));
                 return Frames {
                     shown: Some([original, copy]),
                     ..Frames::of(Some(fitted(demo, original)), fitted(demo, copy), None)
@@ -266,6 +269,21 @@ fn laid(demo: &Demo, rect: Rect) -> Frames {
             }
         }
     }
+}
+
+/// The largest part of `square` of the shape of `view` (a demonstration's part shown, frame
+/// units), in its middle from top to bottom and against its right side if `right` (the
+/// original's, against the gap) or its left (the copy's), as the sheet lays frames (S99).
+fn shaped([low, high]: [[f64; 2]; 2], square: Rect, right: bool) -> Rect {
+    let span = [high[0] - low[0], high[1] - low[1]].map(|v| v.max(1e-3) as f32);
+    let scale = (square.width() / span[0]).min(square.height() / span[1]);
+    let size = Vec2::new(span[0] * scale, span[1] * scale);
+    let left = if right {
+        square.right() - size.x
+    } else {
+        square.left()
+    };
+    Rect::from_min_size(egui::pos2(left, square.center().y - size.y / 2.0), size)
 }
 
 /// Where the frame lies so the part of it the example shows (`Demo::view`: a box with its

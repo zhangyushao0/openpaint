@@ -192,7 +192,8 @@ pub struct Demo {
     /// The part of the copy's frame a lone example shows, as large as the card lets it: its top
     /// left and bottom right (frame units); what lies beyond is cut at the picture's edge. None
     /// for frames side by side, shown whole, but an object's (S94): both cropped to its box; a
-    /// value scale's frame cropped to its rows (S97).
+    /// division's, a whole copy's and value masses' to their picture, the frames its shape (S99);
+    /// a value scale's frame cropped to its rows (S97).
     pub view: Option<[Point; 2]>,
 }
 

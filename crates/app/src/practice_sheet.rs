@@ -20,7 +20,6 @@ use openpaint_practice::{
 
 use crate::error::AppError;
 use crate::practice::{Pen, PracticeIntent, PracticeNotice, PracticeProjection, SheetView};
-use crate::practice_copy::MARGIN;
 use crate::practice_pens::PracticePens;
 use crate::practice_pictures::{FitJob, PictureImage};
 use crate::projection::{Availability, EditorAction};
@@ -102,8 +101,10 @@ pub(crate) struct PracticeSheet {
     /// A painted exercise's state: how much of the original shows, the area compared, the
     /// value scale's cell, the copy's pixels asked for, the eyedropper's comparison.
     painting_state: Painting,
-    /// The pictures read (none: unreadable) and those asked of the store.
+    /// The pictures read (none: unreadable), a single shape's with its ground faded (S99), and
+    /// those asked of the store.
     images: Vec<(ItemRef, Option<Arc<PictureImage>>)>,
+    grounded: Vec<(ItemRef, Arc<PictureImage>)>,
     asked: HashSet<ItemRef>,
 }
 
@@ -154,6 +155,7 @@ impl PracticeSheet {
             fits: 0,
             painting_state: Painting::default(),
             images: Vec::new(),
+            grounded: Vec::new(),
             asked: HashSet::new(),
         };
         practice.shown();
@@ -170,9 +172,20 @@ impl PracticeSheet {
         Some(item)
     }
 
-    /// The store read `item`'s picture (`None`: it could not).
+    /// The store read `item`'s picture (`None`: it could not); a single shape's with its ground
+    /// faded once (S99).
     pub(crate) fn picture_read(&mut self, item: ItemRef, image: Option<PictureImage>) {
         self.images.retain(|(kept, _)| *kept != item);
+        self.grounded.retain(|(kept, _)| *kept != item);
+        let shape = (self.sheet.pictures.iter().zip(&self.sheet.families))
+            .filter(|(_, family)| **family == Family::Shape)
+            .find_map(|(picture, _)| picture.as_ref().filter(|p| p.item == item));
+        let grounded = shape
+            .zip(image.as_ref())
+            .and_then(|(p, image)| p.grounded(image));
+        if let Some(grounded) = grounded {
+            self.grounded.push((item.clone(), Arc::new(grounded)));
+        }
         self.images.push((item, image.map(Arc::new)));
     }
 
@@ -215,19 +228,15 @@ impl PracticeSheet {
         }
     }
 
-    /// An exercise came to show: its frame (a value scale's first cell, value masses' picture's
-    /// place in it) becomes the clip; lines compared before are corrected in blue, others drawn
-    /// with the pen last chosen, painted exercises painted with the painting pen last chosen (value
-    /// masses with the grey last chosen); its family's instructions show by themselves the first
-    /// time.
+    /// An exercise came to show: its frame (a value scale's first cell) becomes the clip; lines
+    /// compared before are corrected in blue, others drawn with the pen last chosen, painted
+    /// exercises painted with the painting pen last chosen (value masses with the grey last
+    /// chosen); its family's instructions show by themselves the first time.
     fn shown(&mut self) {
         let frame = self.current().map(|index| self.sheet.pairs[index].copy);
         self.clip = frame.and_then(|frame| self.region(&frame));
         let compared = (self.current()).is_some_and(|index| self.record.result(index).is_some());
         let family = self.current().and_then(|index| self.family(index));
-        if family == Some(Family::ValueMasses) {
-            self.clip = self.current().and_then(|index| self.picture_region(index));
-        }
         self.pen = match family {
             Some(Family::ValueMasses) => self.valuing,
             Some(family) if !family.drawn() => self.painting,
@@ -251,17 +260,6 @@ impl PracticeSheet {
         RegionMask::polygon(self.canvas, &corners)
     }
 
-    /// The region of the canvas exercise `index`'s picture lies on in its copy's frame (value
-    /// masses' clip, a whole copy's colour blocks' fill, S96); none without a picture.
-    fn picture_region(&self, index: usize) -> Option<RegionMask> {
-        let picture = self.sheet.pictures.get(index)?.as_ref()?;
-        let frame = self.sheet.pairs[index].copy;
-        let ([x, y], [w, h]) = (picture.fit.origin, picture.fit.size);
-        let corners = [[x, y], [x + w, y], [x + w, y + h], [x, y + h]]
-            .map(|p| frame.to_canvas(p).map(|v| v as f32));
-        RegionMask::polygon(self.canvas, &corners)
-    }
-
     /// What strokes and fills stay inside.
     pub(crate) fn clip(&self) -> Option<&RegionMask> {
         self.clip.as_ref()
@@ -276,7 +274,7 @@ impl PracticeSheet {
             None => Some(PracticeNotice::Done),
             Some(index) => {
                 let frame = self.sheet.pairs[index].copy;
-                if frame.contains(point, MARGIN * frame.unit()) {
+                if frame.holds(point) {
                     self.take_cell(index, frame.to_frame(point))
                 } else {
                     Some(PracticeNotice::DrawInFrame)
@@ -385,6 +383,7 @@ impl PracticeSheet {
             aligned_offered: current.is_some_and(|index| self.aligned_offered(index)),
             fitting: self.fitting(),
             images: self.images.clone(),
+            grounded: self.grounded.clone(),
             cell: self.cell(),
             probe: self.probe(),
         }

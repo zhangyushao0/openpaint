@@ -1,6 +1,6 @@
 //! Value masses' demonstration (`demo.rs`, S96): V大's way on a landscape of known masses made
-//! without a pack (`masses.rs`), beside its picture, the copy's frame showing the picture's edge
-//! as the exercise's does. Squinting, the darkest big masses painted first in their grey, then the
+//! without a pack (`masses.rs`), beside its picture, both frames the picture's shape as the
+//! exercise's are (S99). Squinting, the darkest big masses painted first in their grey, then the
 //! light ones, the middle last over what is left; Compare lays the answer's greys faint over the
 //! copy, its mass edges red, and hatches in the answer's grey where the hand's copy strayed over
 //! more than the grey pen's width (the dark masses painted wide on their right).
@@ -27,20 +27,9 @@ pub(super) fn value_masses() -> Demo {
     let (size, pixels) = masses.picture(WIDTH);
     let answer = ValueMasses::of(size, &pixels);
     let copy = strayed(&answer);
-    let fit = PictureFit::of(size);
-    let [x, y] = fit.origin;
-    let rect = [[x, y], [x + fit.size[0], y + fit.size[1]]];
+    let rect = [[0.0, 0.0], PictureFit::of(size).size];
     let mut script = Script::new();
     script.given(On::Original, Marker::Given, Drawn::Masses(rect));
-    let [[left, top], [right, bottom]] = rect;
-    let edge = vec![
-        [left, top],
-        [right, top],
-        [right, bottom],
-        [left, bottom],
-        [left, top],
-    ];
-    script.given(On::Copy, Marker::Rule, Drawn::Line(edge));
     // The darkest masses first, then the light, the middle last over what is left.
     for shown in [[true, false, false], [true, false, true], [true; 3]] {
         script.step();
@@ -53,6 +42,7 @@ pub(super) fn value_masses() -> Demo {
     }
     let compared = compared(&answer, &copy, rect);
     let mut demo = script.compare(Family::ValueMasses, Layout::Pair, compared);
+    demo.view = Some(rect);
     demo.masses = Some(Box::new(masses));
     demo.values = Some(Box::new([answer, copy]));
     demo

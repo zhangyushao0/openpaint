@@ -233,7 +233,7 @@ impl PracticeSheet {
                 else {
                     return Reading::Shown;
                 };
-                ReadAs::Masses(Arc::clone(&masses.answer), [fit.origin, fit.size])
+                ReadAs::Masses(Arc::clone(&masses.answer), [[0.0, 0.0], fit.size])
             }
             _ => return Reading::Shown,
         };

@@ -26,6 +26,7 @@ mod ellipse;
 mod ellipse_fit;
 mod flat;
 mod grid;
+mod ground;
 mod judgement;
 mod licence;
 mod line;
@@ -101,6 +102,7 @@ pub use ellipse_fit::{
     DEGREE, EllipseCheck, Missed, REACH, Reach, Roundness, Side, TILT, Tilt, fit_ellipse,
 };
 pub use flat::{Estimate, Flat, FlatAnswer, FlatCheck};
+pub use ground::faded_ground;
 pub use judgement::{Axis, DELTA_SPAN, Judgement, NOTICEABLE, PART_SPAN, judgement};
 pub use licence::Licence;
 pub use line::{LineExercise, LineTier};
@@ -140,7 +142,7 @@ pub use seals::{Earned, Seal, Tally, earned, sealed};
 pub use session::{Before, Plan, WARM_UP, WARM_UP_TWO, plan, stage_one, stage_two};
 pub use session_four::stage_four;
 pub use session_three::stage_three;
-pub use sheet::{FRAME, Frame, PICTURE_MARGIN, Pair, PictureFit, STUDY_SIDE, Sheet};
+pub use sheet::{FRAME, FRAME_REACH, Frame, Pair, PictureFit, STUDY_SIDE, Sheet};
 pub use solid::{PEN_WIDTH, Pose, Solid, SolidTask, diagonals, middle_lines};
 pub use solid_answer::{SolidAnswer, Stretch};
 pub use solid_check::{COVERED, ReadCurve, SolidCheck};

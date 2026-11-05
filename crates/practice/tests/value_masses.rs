@@ -4,8 +4,7 @@
 //! dark, the light, the middle, then compared. A copy's hatching is `value_masses_hatching.rs`.
 
 use openpaint_practice::{
-    Demo, Drawn, Family, ISLAND, MASSES_SIDE, Marker, Masses, PICTURE_MARGIN, RIM, Value,
-    ValueMasses,
+    Demo, Drawn, Family, ISLAND, MASSES_SIDE, Marker, Masses, RIM, Value, ValueMasses,
 };
 
 /// How near the answer's mass edges lie to the landscape's known ones, frame units (5 canvas
@@ -47,9 +46,9 @@ fn the_demonstration_paints_dark_then_light_then_middle_and_is_compared_with_its
     assert!(!hatched.contains(&Marker::Hatch(Value::Dark)));
 }
 
-/// `ACCURACY` in an answer's cells: the picture's longer side fills the frame but its margin.
+/// `ACCURACY` in an answer's cells: the picture's longer side fills its frame (S99).
 fn accuracy_cells() -> f64 {
-    ACCURACY / (1.0 - 2.0 * PICTURE_MARGIN) * f64::from(MASSES_SIDE)
+    ACCURACY * f64::from(MASSES_SIDE)
 }
 
 /// The landscapes: seeds and aspects, day and evening among them.

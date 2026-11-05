@@ -56,6 +56,7 @@ fn a_value_scale_as_1_14_0_stored_it_reads_as_the_same_scale() {
         let scales = Owed {
             time: false,
             scales: true,
+            frames: false,
         };
         assert_eq!(owed, scales);
         let Original::Scale(scale) = upgraded.exercises[1].original() else {

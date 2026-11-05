@@ -111,16 +111,25 @@ pub(crate) fn run(
             let moved = packs.map(|packs| packs.set_tier(&item, tier));
             PracticeDone::Pictures(moved.unwrap_or(Err(PortError::Stopped)))
         }
-        PracticeJob::Read(records) => PracticeDone::Read(read_sheets(store, &records)),
+        PracticeJob::Read(records) => PracticeDone::Read(read_sheets((store, packs), &records)),
     })
 }
 
-/// What the practice book shows of `records`' sheets, each read without writing anything.
-fn read_sheets(store: &mut dyn ProjectStore, records: &[SessionRecord]) -> Vec<(u64, SheetRead)> {
+/// What the practice book shows of `records`' sheets, each read without writing anything, their
+/// pictures' frames as the packs kept in `packs` hold them.
+fn read_sheets(
+    (store, packs): (&mut dyn ProjectStore, Option<&Packs>),
+    records: &[SessionRecord],
+) -> Vec<(u64, SheetRead)> {
+    let held = (packs.map(Packs::list).transpose())
+        .inspect_err(|error| log::warn!("the practice packs are not listed: {error}"))
+        .ok()
+        .flatten()
+        .unwrap_or_default();
     let mut read = Vec::with_capacity(records.len());
     for record in records {
         match store.sheet(ProjectId::new(record.canvas)) {
-            Ok(artwork) => read.push((record.id, SheetRead::of(&artwork, record))),
+            Ok(artwork) => read.push((record.id, SheetRead::of(&artwork, record, &held))),
             Err(error) => log::warn!(
                 "the sheet of practice record {} not read: {error}",
                 record.id

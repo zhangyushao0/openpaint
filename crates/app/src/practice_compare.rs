@@ -253,28 +253,23 @@ impl PracticeSheet {
     }
 
     /// The region a fill of the shown colour's, colour combination's or value scale's cell's
-    /// frame covers, of value masses' picture's place (S96) or, while a painting pen is chosen,
-    /// of a whole copy's (its colour blocks, S96) (with `selection`), or why none: not one of
-    /// those shown, or the active layer of `artwork` hidden or locked (the notice says so).
-    /// Filling takes the comparison away; a value scale's next cell comes in hand.
+    /// frame covers, of value masses' (S96) or, while a painting pen is chosen, of a whole copy's
+    /// (its colour blocks, S96): the frame, the picture's shape (S99) (with `selection`); or why
+    /// none: not one of those shown, or the active layer of `artwork` hidden or locked (the
+    /// notice says so). Filling takes the comparison away; a value scale's next cell comes in
+    /// hand.
     pub(crate) fn fill_region(
         &mut self,
         artwork: &Artwork,
         selection: Option<&RegionMask>,
     ) -> Result<RegionMask, AppError> {
-        let index = self.current();
-        let family = index.and_then(|index| self.family(index));
+        let family = self.current().and_then(|index| self.family(index));
         let fills = matches!(
             family,
             Some(Family::Colour | Family::Areas | Family::Scale | Family::ValueMasses)
         );
         let blocks = family == Some(Family::WholeCopy) && self.pen.paints();
-        let clip = if blocks {
-            index.and_then(|index| self.picture_region(index))
-        } else {
-            self.clip.clone().filter(|_| fills)
-        };
-        let Some(clip) = clip else {
+        let Some(clip) = self.clip.clone().filter(|_| fills || blocks) else {
             return Err(unavailable(Availability::NothingLeft));
         };
         if let Some(refusal) = LayerRefusal::of(artwork) {

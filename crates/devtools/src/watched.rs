@@ -14,7 +14,7 @@ use openpaint_app::{
 };
 use openpaint_core::Artwork;
 use openpaint_practice::SessionRecord;
-use openpaint_store::Library;
+use openpaint_store::{Library, Packs};
 
 /// What the library just wrote, for the look after it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -41,6 +41,16 @@ impl Watched {
             library: Library::at(dir),
             off,
             look: None,
+        }
+    }
+
+    /// The library with the practice packs in `packs`, as the app's (S99: its old sheets laid
+    /// anew by their pictures).
+    #[must_use]
+    pub fn with_packs(self, packs: Packs) -> Self {
+        Self {
+            library: self.library.with_packs(packs),
+            ..self
         }
     }
 

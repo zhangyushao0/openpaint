@@ -2,12 +2,13 @@
 //! artwork's records. StreamLine and QuickShape are off on a practice sheet, so a stroke's
 //! samples are the pen's own: where it went, how hard and when (kept for a later study).
 //!
-//! A stroke belongs to the frame its first sample lies in (grown by `MARGIN` of its side, where
-//! strokes may begin and are clipped to the frame). A line's copy, which the aligned overlay is
-//! fitted to, is its paint strokes but the sketch pen's construction lines, oldest first, less
-//! what a later eraser stroke passed over within its radius (the brush's size, the pressure not
-//! counted). A colour's copy is the colours laid: each paint stroke's colour and each fill's whose
-//! region lies in the frame, in the order they lie on their layer, layers bottom to top.
+//! A stroke belongs to the frame its first sample lies in (grown by `FRAME_REACH` of its longer
+//! side, where strokes may begin and are clipped to the frame: `Frame::holds`). A line's copy,
+//! which the aligned overlay is fitted to, is its paint strokes but the sketch pen's construction
+//! lines, oldest first, less what a later eraser stroke passed over within its radius (the
+//! brush's size, the pressure not counted). A colour's copy is the colours laid: each paint
+//! stroke's colour and each fill's whose region lies in the frame, in the order they lie on their
+//! layer, layers bottom to top.
 
 use std::ops::Range;
 
@@ -16,8 +17,6 @@ use openpaint_practice::{ColourCopy, Frame, Level, Point, Rgb8, nearest};
 
 use crate::practice_pens::{levelled, sketched};
 
-/// Strokes may begin this share of the frame's width outside it.
-pub(crate) const MARGIN: f64 = 0.1;
 /// The paper under a sheet, as the canvas shows it where nothing was laid (the runtime's).
 pub(crate) const PAPER: Rgb8 = [255; 3];
 
@@ -28,7 +27,7 @@ fn first_point(stroke: &Stroke) -> Option<Point> {
 
 /// Whether `stroke` began in `frame`.
 fn in_frame(stroke: &Stroke, frame: &Frame) -> bool {
-    first_point(stroke).is_some_and(|p| frame.contains(p, MARGIN * frame.unit()))
+    first_point(stroke).is_some_and(|p| frame.holds(p))
 }
 
 /// Every stroke of `artwork` begun in `frame`, oldest first.

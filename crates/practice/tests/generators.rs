@@ -1,10 +1,10 @@
 //! The generators: the same seed gives the same exercise, exercises stay in their frames and
-//! vary, a session holds what stage 1 asks with its warm-up drawn only from the kinds met, and
-//! the sheet keeps its pairs apart.
+//! vary, and a session holds what stage 1 asks with its warm-up drawn only from the kinds met (the
+//! sheet: `sheet.rs`).
 
 use openpaint_practice::{
-    Combination, CombinedLines, Exercise, FRAME, Family, ItemRef, Kind, LineExercise, LineTier,
-    Original, PICTURE_MARGIN, PictureFit, Sheet, Tier, Tone, WARM_UP, hsv, length, stage_one,
+    Combination, CombinedLines, Exercise, Family, ItemRef, Kind, LineExercise, LineTier, Original,
+    Tier, Tone, WARM_UP, hsv, length, stage_one,
 };
 
 #[test]
@@ -245,89 +245,4 @@ fn an_exercise_is_its_kind_and_seed() {
     assert_eq!(shape.original(), Original::Picture(item));
     assert_eq!(shape.kind.code(), (4, 2));
     assert_eq!(Kind::of_code(4, 2), Some(shape.kind));
-}
-
-#[test]
-fn a_picture_fits_inside_its_frame_evenly_and_centred() {
-    let wide = PictureFit::of([2000, 1000]);
-    assert!((wide.size[0] - (1.0 - 2.0 * PICTURE_MARGIN)).abs() < 1e-12);
-    assert!((wide.size[1] - wide.size[0] / 2.0).abs() < 1e-12);
-    assert!(
-        (wide.origin[1] - 0.25 - PICTURE_MARGIN / 2.0).abs() < 1e-12,
-        "{wide:?}"
-    );
-    let corner = wide.to_frame([2000.0, 1000.0]);
-    assert!((corner[0] - (1.0 - PICTURE_MARGIN)).abs() < 1e-12);
-    let tall = PictureFit::of([300, 900]);
-    assert!(
-        (tall.to_frame([150.0, 450.0])[0] - 0.5).abs() < 1e-12,
-        "the middle in the middle"
-    );
-}
-
-#[test]
-fn a_colour_copy_s_sheet_is_one_pair_of_frames_shaped_as_its_picture() {
-    let sheet = Sheet::study([1200, 900]);
-    assert_eq!(sheet.pairs.len(), 1);
-    let pair = sheet.pairs[0];
-    assert_eq!(pair.original.size, [1600.0, 1200.0]);
-    assert_eq!(pair.copy.size, pair.original.size);
-    assert_eq!(pair.copy.origin[1], pair.original.origin[1]);
-    assert!(pair.copy.origin[0] > pair.original.origin[0] + 1600.0);
-    assert_eq!(sheet.size, [3400, 1360]);
-    let tall = Sheet::study([600, 1000]);
-    assert_eq!(tall.pairs[0].copy.size, [960.0, 1600.0]);
-    // Read back from its canvas, as a copy whose picture was removed is laid out.
-    for picture in [[1200, 900], [600, 1000], [777, 333], [1, 2048]] {
-        let made = Sheet::study(picture);
-        assert_eq!(Sheet::study_on(made.size), made, "{picture:?}");
-    }
-    // The picture fills its frame; frame units run evenly, one to the frame's width.
-    let fit = PictureFit::filling([1200, 900]);
-    assert_eq!(fit.size, [1.0, 0.75]);
-    assert_eq!(fit.to_frame([1200.0, 900.0]), [1.0, 0.75]);
-    let middle = fit.to_picture([0.5, 0.375]);
-    assert!((middle[0] - 600.0).abs() < 1e-9 && (middle[1] - 450.0).abs() < 1e-9);
-    let corner = pair.copy.to_canvas([1.0, 0.75]);
-    assert_eq!(
-        corner,
-        [pair.copy.origin[0] + 1600.0, pair.copy.origin[1] + 1200.0]
-    );
-    assert!(pair.copy.contains(corner, 0.0));
-    assert_eq!(pair.copy.to_frame(corner), [1.0, 0.75]);
-}
-
-#[test]
-fn the_sheet_lays_pairs_three_a_row_apart_and_inside() {
-    let sheet = Sheet::of(18);
-    assert_eq!(sheet.size, [2920, 3160]);
-    assert_eq!(
-        Sheet::of(16).size,
-        [2920, 3160],
-        "a first session's sheet as S75's"
-    );
-    assert_eq!(sheet.pairs.len(), 18);
-    let [width, height] = sheet.size.map(f64::from);
-    let frames: Vec<_> = sheet
-        .pairs
-        .iter()
-        .flat_map(|pair| [pair.original, pair.copy])
-        .collect();
-    for (index, a) in frames.iter().enumerate() {
-        assert_eq!(a.size, [FRAME, FRAME]);
-        assert!(a.origin[0] >= 0.0 && a.origin[0] + a.size[0] <= width);
-        assert!(a.origin[1] >= 0.0 && a.origin[1] + a.size[1] <= height);
-        for b in &frames[index + 1..] {
-            let apart = (0..2).any(|axis| {
-                a.origin[axis] + a.size[axis] < b.origin[axis]
-                    || b.origin[axis] + b.size[axis] < a.origin[axis]
-            });
-            assert!(apart, "{a:?} and {b:?} overlap");
-        }
-    }
-    let pair = sheet.pairs[4];
-    assert!(pair.copy.origin[0] > pair.original.origin[0]);
-    assert_eq!(pair.copy.origin[1], pair.original.origin[1]);
-    let centre = pair.centre();
-    assert!(pair.original.contains(centre, 30.0) && pair.copy.contains(centre, 30.0));
 }

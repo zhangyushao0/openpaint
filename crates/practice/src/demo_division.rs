@@ -1,6 +1,6 @@
 //! A division's and a whole copy's demonstrations (`demo.rs`, S95), V大's way on a landscape of a
-//! few masses made without a pack (`masses.rs`), beside its picture, the copy's frame showing the
-//! picture's edge as the exercise's does. A division: the ridge's turning point found first, the
+//! few masses made without a pack (`masses.rs`), beside its picture, both frames the picture's
+//! shape as the exercise's are (S99). A division: the ridge's turning point found first, the
 //! two longest lines red right through the picture; from them each part's frame green; shorter
 //! still blue; Compare lays the picture faint under the lines. A whole copy: the division red and
 //! green; Draw, the division dimming under the big shapes' lines in ink; Compare lays the picture
@@ -21,8 +21,7 @@ const STRAY: f64 = 0.004;
 /// Lines drawn in the time of one, so the many short ones go at a hand's pace overall.
 const TOGETHER: usize = 3;
 
-/// The example, where its picture lies in a frame (top left, bottom right) and how a picture
-/// point lies there.
+/// The example and how a picture point lies in its frames, which are the picture's shape.
 struct Example {
     masses: Masses,
     fit: PictureFit,
@@ -41,31 +40,17 @@ impl Example {
     /// The frame point of the picture point `p` (picture units, its width 1).
     fn at(&self, p: Point) -> Point {
         let side = self.fit.size[0];
-        [
-            self.fit.origin[0] + p[0] * side,
-            self.fit.origin[1] + p[1] * side,
-        ]
+        [p[0] * side, p[1] * side]
     }
 
+    /// The picture's place, the whole frame: its top left and bottom right.
     fn rect(&self) -> [Point; 2] {
-        let [x, y] = self.fit.origin;
-        let [w, h] = self.fit.size;
-        [[x, y], [x + w, y + h]]
+        [[0.0, 0.0], self.fit.size]
     }
 
-    /// The picture in the original's frame, its edge in the copy's.
+    /// The picture in the original's frame.
     fn given(&self, script: &mut Script) {
-        let rect = self.rect();
-        script.given(On::Original, Marker::Given, Drawn::Masses(rect));
-        let [[left, top], [right, bottom]] = rect;
-        let edge = vec![
-            [left, top],
-            [right, top],
-            [right, bottom],
-            [left, bottom],
-            [left, top],
-        ];
-        script.given(On::Copy, Marker::Rule, Drawn::Line(edge));
+        script.given(On::Original, Marker::Given, Drawn::Masses(self.rect()));
     }
 
     /// The division's lines of `level` in the frame.
@@ -124,6 +109,7 @@ pub(super) fn division() -> Demo {
         compared.extend(lines.map(|line| (On::Copy, Marker::Level(level), Drawn::Line(line))));
     }
     let mut demo = script.compare(Family::Division, Layout::Pair, compared);
+    demo.view = Some(example.rect());
     demo.masses = Some(Box::new(example.masses));
     demo
 }
@@ -158,6 +144,7 @@ pub(super) fn whole_copy() -> Demo {
         [_, draw, compare] => Some([draw, compare]),
         _ => None,
     };
+    demo.view = Some(example.rect());
     demo.masses = Some(Box::new(example.masses));
     demo
 }

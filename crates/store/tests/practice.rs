@@ -12,7 +12,7 @@ use openpaint_practice::{ExerciseResult, Metric, SessionRecord, Sheet, met};
 use openpaint_store::Library;
 
 fn sheet() -> Artwork {
-    let [width, height] = Sheet::of(18).size;
+    let [width, height] = Sheet::of(&[None; 18]).size;
     Artwork::new(CanvasSize::new(width, height).expect("size"))
 }
 
@@ -194,10 +194,11 @@ fn a_record_of_1_6_2_is_timed_by_its_compares_once_when_the_library_opens() {
     let at = (stored.iter())
         .position(|(_, k, _)| *k == key(1))
         .expect("the record");
-    // As 1.6.2 wrote it: without the pictures' count and the spans' (both 0 here).
+    // As 1.6.2 wrote it: without the pictures' count and the spans' (both 0 here), nor the
+    // layout 1.17.0 ends a record with (S99).
     let length = stored[at].2.len();
-    assert_eq!(stored[at].2[length - 8..], [0; 8]);
-    stored[at].2.truncate(length - 8);
+    assert_eq!(stored[at].2[length - 9..], [0, 0, 0, 0, 0, 0, 0, 0, 1]);
+    stored[at].2.truncate(length - 9);
     write_records(&dir, std::slice::from_ref(&stored[at]));
     let before = records(&dir);
 

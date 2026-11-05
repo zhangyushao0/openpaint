@@ -1,18 +1,22 @@
 //! Pictures on a practice sheet (S80): a single shape's or a colour copy's picture as its pack
-//! holds it (its size, its outline and the credit to show under it), fitted in its frame; the
-//! picture's pixels as the store read them for the screen; the packs kept as the Today card's
-//! options list them; and the aligned overlay's fit, found off the frame loop (`FitJob`).
+//! holds it (its size, its outline and the credit to show under it), filling its frame of its
+//! shape (S99); the picture's pixels as the store read them for the screen, and a single shape's
+//! with its ground faded (S99); the packs kept as the Today card's options list them; and the
+//! aligned overlay's fit, found off the frame loop (`FitJob`).
 
 use std::sync::Arc;
 
 use openpaint_practice::{
-    Fit, ItemRef, Pack, PackItem, PictureFit, Point, ValueMasses, align, align_shape,
+    Fit, ItemRef, Pack, PackItem, PictureFit, Point, ValueMasses, align, align_shape, faded_ground,
 };
 
 /// The longest side a picture is read at for the screen, in pixels: a frame shows it at most
 /// about 900 pixels on the tablet, and the reduced picture keeps every session's few pictures
 /// within some 30 MB.
 pub const SHOWN_SIDE: u32 = 1024;
+/// How strongly a single shape's ground shows in its original's frame (S99, a trial put to the
+/// author): faded towards the paper, still there for context; the object at full strength.
+pub const GROUND_SHOWN: f32 = 0.3;
 
 /// A single shape's picture on the sheet.
 #[derive(Debug, Clone, PartialEq)]
@@ -39,25 +43,20 @@ pub struct MassesShown {
 }
 
 impl SheetPicture {
-    /// The picture `item` names, as `packs` hold it, fitted in a square frame or `filling` one
-    /// of its own shape (a colour copy's); `None` when no pack kept holds it.
+    /// The picture `item` names, as `packs` hold it, filling its frame of its own shape (S99);
+    /// `None` when no pack kept holds it.
     #[must_use]
-    pub fn of(item: &ItemRef, packs: &[Pack], filling: bool) -> Option<Self> {
+    pub fn of(item: &ItemRef, packs: &[Pack]) -> Option<Self> {
         let found: &PackItem = packs.iter().find_map(|pack| pack.find(item))?;
-        let fit = if filling {
-            PictureFit::filling(found.size)
-        } else {
-            PictureFit::of(found.size)
-        };
+        let fit = PictureFit::of(found.size);
         let outline = (found.outline.as_ref()).map(|outline| {
             (outline.lines().into_iter())
                 .map(|line| line.iter().map(|p| fit.to_frame(*p)).collect())
                 .collect()
         });
         let masses = found.masses.as_ref().map(|answer| {
-            let [x, y] = fit.origin;
             let [w, h] = fit.size;
-            let at = |[u, v]: Point| [x + u * w, y + v * h];
+            let at = |[u, v]: Point| [u * w, v * h];
             MassesShown {
                 edges: (answer.edges().into_iter())
                     .map(|edge| edge.into_iter().map(at).collect())
@@ -72,6 +71,28 @@ impl SheetPicture {
             outline,
             credit: found.shown_credit().map(str::to_owned),
             masses,
+        })
+    }
+
+    /// `image` (this picture as read for the screen) with its ground, outside its outline, at
+    /// `GROUND_SHOWN` (S99): a single shape's original, the object whole against the frame; none
+    /// without an outline.
+    #[must_use]
+    pub fn grounded(&self, image: &PictureImage) -> Option<PictureImage> {
+        let outline = self.outline.as_ref()?;
+        // Frame units to the image's pixels: the picture fills its frame.
+        let scale = [0, 1].map(|axis| f64::from(image.size[axis]) / self.fit.size[axis]);
+        let lines: Vec<Vec<Point>> = (outline.iter())
+            .map(|line| {
+                line.iter()
+                    .map(|p| [p[0] * scale[0], p[1] * scale[1]])
+                    .collect()
+            })
+            .collect();
+        let shown = f64::from(GROUND_SHOWN);
+        Some(PictureImage {
+            size: image.size,
+            pixels: faded_ground(image.size, &image.pixels, &lines, shown),
         })
     }
 }

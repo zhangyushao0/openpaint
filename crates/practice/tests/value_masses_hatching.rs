@@ -8,29 +8,26 @@ use openpaint_practice::{
     Masses, MassesCheck, Metric, PictureFit, Point, VALUE_PEN, Value, ValueMasses, value,
 };
 
-/// The frame's side the copies are painted on, pixels: the sheet's.
+/// The frame's longer side the copies are painted on, pixels: the sheet's.
 const SIDE: u32 = 400;
 
-/// The frame's pixels (`side` square, white paper) of a copy painted in greys: inside the
-/// picture's place in the frame, each pixel the grey `paint` gives its picture share.
-fn painted(side: u32, fit: &PictureFit, paint: impl Fn(Point) -> Option<Value>) -> Vec<u8> {
-    let unit = f64::from(side);
-    (0..side * side)
+/// The frame's pixels (the picture's shape, S99: its longer side `SIDE`; white paper) of a copy
+/// painted in greys, each pixel the grey `paint` gives its picture share, and its size.
+fn painted(fit: &PictureFit, paint: impl Fn(Point) -> Option<Value>) -> ([u32; 2], Vec<u8>) {
+    let unit = f64::from(SIDE);
+    let size = fit.size.map(|side| (side * unit).round() as u32);
+    let pixels = (0..size[0] * size[1])
         .flat_map(|at| {
-            let (x, y) = (f64::from(at % side), f64::from(at / side));
-            let p = [(x + 0.5) / unit, (y + 0.5) / unit];
+            let (x, y) = (f64::from(at % size[0]), f64::from(at / size[0]));
             let share = [
-                (p[0] - fit.origin[0]) / fit.size[0],
-                (p[1] - fit.origin[1]) / fit.size[1],
+                (x + 0.5) / unit / fit.size[0],
+                (y + 0.5) / unit / fit.size[1],
             ];
-            let inside = share.iter().all(|s| (0.0..1.0).contains(s));
-            let [r, g, b] = inside
-                .then(|| paint(share))
-                .flatten()
-                .map_or([255; 3], Value::grey);
+            let [r, g, b] = paint(share).map_or([255; 3], Value::grey);
             [r, g, b, 255]
         })
-        .collect()
+        .collect();
+    (size, pixels)
 }
 
 /// The landscape the hatching is tried on: its answer and where its picture lies in the frame.
@@ -46,16 +43,13 @@ fn read(
     fit: &PictureFit,
     paint: impl Fn(Point) -> Option<Value>,
 ) -> MassesCheck {
-    let copy = painted(SIDE, fit, paint);
-    answer.read(([SIDE, SIDE], &copy), [fit.origin, fit.size])
+    let (size, copy) = painted(fit, paint);
+    answer.read((size, &copy), [[0.0, 0.0], fit.size])
 }
 
 /// A hatching stretch's end as a share of the picture.
 fn share_of(fit: &PictureFit, [x, y]: Point) -> Point {
-    [
-        (x - fit.origin[0]) / fit.size[0],
-        (y - fit.origin[1]) / fit.size[1],
-    ]
+    [x / fit.size[0], y / fit.size[1]]
 }
 
 /// The hatching of `answer`'s copy shifted sideways by `pens` of the grey pen's width, and the

@@ -12,8 +12,9 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use openpaint_core::{Artwork, Layer, StrokeTool};
-use openpaint_practice::{Book, Family, Original, Point, Rgb8, SessionRecord, Sheet};
+use openpaint_practice::{Book, Family, Original, Pack, Point, Rgb8, SessionRecord, Sheet};
 
+use crate::practice::laid;
 use crate::practice_copy::{ALL_STROKES, colour_copy, line_pieces, rgb8};
 use crate::project::ProjectId;
 use crate::title::Title;
@@ -91,16 +92,12 @@ pub struct LineRead {
 }
 
 impl SheetRead {
-    /// What `record`'s sheet `artwork` shows the book.
+    /// What `record`'s sheet `artwork` shows the book, its pictures' frames as `packs` hold them.
     #[must_use]
-    pub fn of(artwork: &Artwork, record: &SessionRecord) -> Self {
+    pub fn of(artwork: &Artwork, record: &SessionRecord, packs: &[Pack]) -> Self {
         let canvas = artwork.canvas();
         let size = [canvas.width(), canvas.height()];
-        let sheet = if record.is_project() {
-            Sheet::study_on(size)
-        } else {
-            Sheet::of(record.exercises.len())
-        };
+        let sheet = laid(record, packs, size);
         let mut lines = Vec::new();
         let mut colours = Vec::new();
         let mut results: Vec<_> = record.results.iter().collect();

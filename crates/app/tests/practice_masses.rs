@@ -1,6 +1,7 @@
 //! Value masses and whole copies in colour blocks on a practice sheet (S96): a composition whose
-//! masses read painted with the three greys only (Fill frame filling the picture's place in the
-//! grey chosen), compared by its copy read against the picture's answer on the runtime's worker
+//! masses read painted with the three greys only (Fill frame filling the frame, the picture's
+//! shape, S99, in the grey chosen), compared by its copy read against the picture's answer on the
+//! runtime's worker
 //! (the answer's greys under the slider, the hatching where the copy differs, the share at the
 //! answer's value kept); a whole copy painted in colour blocks on a layer under its division, the
 //! division dimmed over them, a point of the blocks compared by the eyedropper; stage 4 from the
@@ -89,13 +90,13 @@ fn practise(session: &mut Session, intent: PracticeIntent) {
     session.practise(intent, NOW).expect("practised");
 }
 
-/// The frame's pixels (400 square, white paper) as the answer `masses` would be painted where
-/// the picture lies (`place`: its top left and size, frame units).
-fn painted(masses: &ValueMasses, [origin, size]: [[f64; 2]; 2]) -> PictureImage {
-    let side = 400_u32;
-    let pixels = (0..side * side)
+/// The frame's pixels (`frame` pixels, white paper) as the answer `masses` would be painted where
+/// the picture lies (`place`: its top left and size, frame units: one to the frame's longer side).
+fn painted(masses: &ValueMasses, [origin, size]: [[f64; 2]; 2], frame: [u32; 2]) -> PictureImage {
+    let unit = f64::from(frame[0].max(frame[1]));
+    let pixels = (0..frame[0] * frame[1])
         .flat_map(|at| {
-            let p = [f64::from(at % side) + 0.5, f64::from(at / side) + 0.5].map(|v| v / 400.0);
+            let p = [at % frame[0], at / frame[0]].map(|v| (f64::from(v) + 0.5) / unit);
             let share = [(p[0] - origin[0]) / size[0], (p[1] - origin[1]) / size[1]];
             let inside = share.iter().all(|s| (0.0..1.0).contains(s));
             let [r, g, b] = if inside {
@@ -107,7 +108,7 @@ fn painted(masses: &ValueMasses, [origin, size]: [[f64; 2]; 2]) -> PictureImage 
         })
         .collect();
     PictureImage {
-        size: [side, side],
+        size: frame,
         pixels,
     }
 }
@@ -131,18 +132,28 @@ fn value_masses_are_painted_in_three_greys_and_read_against_the_answer() {
         .expect("a fill");
     let grey = value_colour(Value::Middle).expect("a grey");
     assert_eq!(fill.color(), grey);
+    // The frame is the picture's shape (S99): Fill frame fills it whole.
     let frame = practice.sheet.pairs[0].copy;
-    let picture = practice.sheet.pictures[0].clone().expect("its picture");
-    let [w, _] = fill.mask().size();
-    let width = picture.fit.size[0] * frame.unit();
-    assert!((f64::from(w) - width).abs() <= 2.0, "{w} {width}");
-    // Compare asks the copy of the worker, read against the answer.
+    assert_eq!(frame.size, [400.0, 300.0]);
+    let [x, y] = fill.mask().origin().map(f64::from);
+    let [w, h] = fill.mask().size().map(f64::from);
+    for (filled, edge) in [
+        (x, frame.origin[0]),
+        (y, frame.origin[1]),
+        (w, 400.0),
+        (h, 300.0),
+    ] {
+        assert!((filled - edge).abs() <= 1.0, "{filled} {edge}");
+    }
+    // Compare asks the copy of the worker, the frame read against the answer over it whole.
     practise(&mut session, PracticeIntent::Compare(true));
     let job = session.practice_read_request().expect("the copy asked for");
+    assert_eq!(job.size, [400, 300]);
     let ReadAs::Masses(answer, place) = job.read.clone() else {
         panic!("{:?}", job.read);
     };
-    let (read, metrics) = job.run(&painted(&answer, place)).expect("read");
+    assert_eq!(place, [[0.0, 0.0], [1.0, 0.75]]);
+    let (read, metrics) = job.run(&painted(&answer, place, job.size)).expect("read");
     let CopyRead::Masses(check) = &read else {
         panic!("{read:?}");
     };

@@ -1,9 +1,11 @@
-//! The practice pack a scenario's picker offers (`SystemAnswer::TestPack`): pictures drawn here
-//! for the tests (no third-party picture), built as the harness builds the official pack: each
-//! made as a pack holds it and its outline derived. Two entry figures on transparency (one CC BY
-//! with its credit, so the credit shows under it), the one simple picture on a busy ground, which
-//! gets no outline (so a first stage-2 session meets it), and objects on a studio sweep and on
-//! flat white in the harder tiers. The same bytes every run.
+//! The practice packs a scenario's picker offers (`SystemAnswer::TestPack`, `TestFrames`):
+//! pictures drawn here for the tests (no third-party picture), built as the harness builds the
+//! official pack: each made as a pack holds it and its outline derived. The test pack: two entry
+//! figures on transparency (one CC BY with its credit, so the credit shows under it), the one
+//! simple picture on a busy ground, which gets no outline (so a first stage-2 session meets it),
+//! and objects on a studio sweep and on flat white in the harder tiers, all square. The frames
+//! pack (S99): an upright vase and a long fish on studio sweeps, pictures that are not square.
+//! The same bytes every run.
 
 use openpaint_practice::{Credit, Licence, Pack, PackItem, PictureKind, Random, Tier, outline};
 use openpaint_runtime::ImageFormat;
@@ -13,6 +15,24 @@ use openpaint_store::{encode_image, encode_pack, pack_picture};
 const SOURCE: &str = "https://github.com/zhangyushao0/openpaint";
 /// A test picture's side, in pixels.
 const SIDE: u32 = 480;
+
+/// The frames pack's pictures: id, tier, size, ground and figure.
+const FRAMES: [(&str, Tier, [u32; 2], Ground, Figure); 2] = [
+    (
+        "tall-vase",
+        Tier::Entry,
+        [360, 480],
+        Ground::Studio,
+        Figure::Vase,
+    ),
+    (
+        "long-fish",
+        Tier::Simple,
+        [480, 300],
+        Ground::Studio,
+        Figure::Fish,
+    ),
+];
 
 /// The pictures: id, tier, licence, ground and figure.
 const PICTURES: [(&str, Tier, Licence, Ground, Figure); 6] = [
@@ -62,25 +82,49 @@ const PICTURES: [(&str, Tier, Licence, Ground, Figure); 6] = [
 
 /// The test pack file; `None` when it cannot be made (a bug).
 pub(crate) fn test_pack() -> Option<Vec<u8>> {
+    let pictures = PICTURES.map(|(id, tier, licence, ground, figure)| {
+        (id, tier, licence, draw(ground, figure, [SIDE; 2]))
+    });
+    built(("test-shapes", "Test shapes"), pictures)
+}
+
+/// The frames pack's file (S99): pictures that are not square; `None` when it cannot be made.
+pub(crate) fn test_frames() -> Option<Vec<u8>> {
+    let pictures = FRAMES.map(|(id, tier, size, ground, figure)| {
+        (id, tier, Licence::Cc0, draw(ground, figure, size))
+    });
+    built(("test-frames", "Test frames"), pictures)
+}
+
+/// A picture to pack: its id, tier, licence and its size and pixels.
+type Drawn<'a> = (&'a str, Tier, Licence, ([u32; 2], Vec<u8>));
+
+/// The pack `(id, title)` of `pictures`.
+fn built<const N: usize>((id, title): (&str, &str), pictures: [Drawn<'_>; N]) -> Option<Vec<u8>> {
     let mut items = Vec::new();
     let mut files = Vec::new();
-    for (id, tier, licence, ground, figure) in PICTURES {
-        let (item, file) = item(id, tier, licence, draw(ground, figure))?;
+    for (id, tier, licence, picture) in pictures {
+        let (item, file) = item(id, tier, licence, picture)?;
         items.push(item);
         files.push(file);
     }
     let pack = Pack {
-        id: "test-shapes".to_owned(),
-        title: "Test shapes".to_owned(),
+        id: id.to_owned(),
+        title: title.to_owned(),
         items,
     };
     encode_pack(&pack, &files).ok()
 }
 
-/// The item `id` of `pixels` (`SIDE` square) as a pack holds it, with its credit and the outline
+/// The item `id` of `pixels` (`size` pixels) as a pack holds it, with its credit and the outline
 /// derived from it, and its picture's file.
-fn item(id: &str, tier: Tier, licence: Licence, pixels: Vec<u8>) -> Option<(PackItem, Vec<u8>)> {
-    let file = encode_image(ImageFormat::Png, [SIDE, SIDE], &pixels).ok()?;
+fn item(
+    id: &str,
+    tier: Tier,
+    licence: Licence,
+    (size, pixels): ([u32; 2], Vec<u8>),
+) -> Option<(PackItem, Vec<u8>)> {
+    let file = encode_image(ImageFormat::Png, size, &pixels).ok()?;
     let picture = pack_picture(&file).ok()?;
     let title = format!("Test {id}");
     let attribution = format!(
@@ -121,9 +165,10 @@ enum Figure {
     Bird,
     Vase,
     Lamp,
+    Fish,
 }
 
-/// Whether `figure` covers the point `(x, y)` of a picture of `SIDE`, in units of the side.
+/// Whether `figure` covers the point `(x, y)` of a picture, in shares of its width and height.
 fn covers(figure: Figure, x: f64, y: f64) -> bool {
     let ellipse = |cx: f64, cy: f64, rx: f64, ry: f64| {
         ((x - cx) / rx).powi(2) + ((y - cy) / ry).powi(2) <= 1.0
@@ -152,25 +197,31 @@ fn covers(figure: Figure, x: f64, y: f64) -> bool {
             let foot = (0.78..0.84).contains(&y) && (x - 0.5).abs() < 0.16;
             shade || stem || foot
         }
+        Figure::Fish => {
+            let tail = (0.74..0.92).contains(&x) && (y - 0.5).abs() < (x - 0.7) * 1.4;
+            let fin = (0.36..0.56).contains(&x) && y > 0.14 + (x - 0.36) * 0.55 && y < 0.3;
+            ellipse(0.44, 0.5, 0.32, 0.27) || tail || fin
+        }
     }
 }
 
-/// The picture: `figure` on `ground`, 8-bit RGBA.
-fn draw(ground: Ground, figure: Figure) -> Vec<u8> {
+/// The picture: `figure` on `ground`, `size` pixels, and its pixels as 8-bit RGBA.
+fn draw(ground: Ground, figure: Figure, size: [u32; 2]) -> ([u32; 2], Vec<u8>) {
     let mut noise = Random::new(0x5EED_0080);
     let colour = match figure {
         Figure::Cat => [232.0, 140.0, 60.0],
         Figure::Bird => [70.0, 120.0, 200.0],
         Figure::Vase => [70.0, 110.0, 90.0],
         Figure::Lamp => [120.0, 80.0, 50.0],
+        Figure::Fish => [196.0, 96.0, 70.0],
     };
-    let side = f64::from(SIDE);
-    let mut pixels = Vec::with_capacity((SIDE * SIDE * 4) as usize);
-    for row in 0..SIDE {
-        for column in 0..SIDE {
+    let [width, height] = size;
+    let mut pixels = Vec::with_capacity((width * height * 4) as usize);
+    for row in 0..height {
+        for column in 0..width {
             let (x, y) = (
-                (f64::from(column) + 0.5) / side,
-                (f64::from(row) + 0.5) / side,
+                (f64::from(column) + 0.5) / f64::from(width),
+                (f64::from(row) + 0.5) / f64::from(height),
             );
             let grain = noise.range(-3.0, 3.0);
             let under = match ground {
@@ -198,5 +249,5 @@ fn draw(ground: Ground, figure: Figure) -> Vec<u8> {
             pixels.extend(pixel.iter().map(|c| c.clamp(0.0, 255.0).round() as u8));
         }
     }
-    pixels
+    (size, pixels)
 }

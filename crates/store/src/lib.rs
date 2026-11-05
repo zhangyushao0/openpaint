@@ -25,6 +25,7 @@ mod pack_picture;
 mod pack_upgrade;
 mod packs;
 mod practice;
+mod practice_frames;
 mod read;
 mod records;
 mod shapes;

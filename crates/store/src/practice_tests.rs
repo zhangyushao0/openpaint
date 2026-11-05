@@ -3,8 +3,8 @@ use openpaint_practice::{Combination, LineTier};
 use super::*;
 
 /// Bytes after the results' tail of a record holding no pictures and no time: the warm-up's
-/// count, the pictures' and the spans'.
-const END_BYTES: usize = 4 + 4 + 4;
+/// count, the pictures', the spans' and the layout (S99).
+const END_BYTES: usize = 4 + 4 + 4 + 1;
 
 fn session() -> SessionRecord {
     let met = [Kind::Line(LineTier::Arc), Kind::Combined(Combination::Near)];
@@ -38,7 +38,17 @@ fn a_session_round_trips_and_damage_is_refused() {
         decode_session(&key, &bytes),
         Ok((session.clone(), Owed::default()))
     );
-    assert!(decode_session(&key, &bytes[..bytes.len() - 1]).is_err());
+    // As 1.7.0 to 1.16.0 wrote it: no layout last, its sheet owed laying anew (S99).
+    let frames = Owed {
+        frames: true,
+        ..Owed::default()
+    };
+    let unlaid = &bytes[..bytes.len() - 1];
+    assert_eq!(decode_session(&key, unlaid), Ok((session.clone(), frames)));
+    assert!(decode_session(&key, &bytes[..bytes.len() - 2]).is_err());
+    let mut other = bytes.clone();
+    *other.last_mut().expect("its layout") = 2;
+    assert!(decode_session(&key, &other).is_err(), "a layout unknown");
     assert!(
         decode_session(&key, &[bytes.as_slice(), &[0]].concat()).is_err(),
         "a byte after the tail"
@@ -177,11 +187,12 @@ fn a_record_keeps_its_time_and_one_of_1_6_2_reads_without_it() {
         decode_session(&key, &bytes),
         Ok((session.clone(), Owed::default()))
     );
-    // The spans last: their count, then each one's start and end.
-    let spans = bytes.len() - 2 * SPAN_BYTES;
+    // The spans before the layout: their count, then each one's start and end.
+    let end = bytes.len() - 1;
+    let spans = end - 2 * SPAN_BYTES;
     assert_eq!(bytes[spans - 4..spans], 2u32.to_le_bytes());
     let mut backwards = bytes.clone();
-    backwards[bytes.len() - 8..].copy_from_slice(&1_791_209_999u64.to_le_bytes());
+    backwards[end - 8..end].copy_from_slice(&1_791_209_999u64.to_le_bytes());
     assert!(
         decode_session(&key, &backwards).is_err(),
         "a span ending first"
@@ -212,16 +223,17 @@ fn a_stage_two_record_keeps_its_pictures_and_one_of_1_6_2_with_pictures_reads_un
     session.exercises[2].kind = Kind::Shape(openpaint_practice::Tier::Medium);
     let bytes = encode_session(&session);
     assert_eq!(read(&practice_key(7), &bytes), Ok(session.clone()));
-    assert!(decode_session(&practice_key(7), &bytes[..bytes.len() - 1]).is_err());
+    assert!(decode_session(&practice_key(7), &bytes[..bytes.len() - 2]).is_err());
     // As 1.4.0 to 1.6.2 wrote it: the pictures last.
-    let old = &bytes[..bytes.len() - 4];
+    let old = &bytes[..bytes.len() - 5];
     assert_eq!(
         decode_session(&practice_key(7), old),
         Ok((
             session.clone(),
             Owed {
                 time: true,
-                scales: false
+                scales: false,
+                frames: true
             }
         ))
     );
@@ -235,7 +247,7 @@ fn a_stage_two_record_keeps_its_pictures_and_one_of_1_6_2_with_pictures_reads_un
             .collect(),
         ..session.clone()
     });
-    let at = plain.len() - 8 + 4;
+    let at = plain.len() - 9 + 4;
     far[at..at + 4].copy_from_slice(&99u32.to_le_bytes());
     assert!(decode_session(&practice_key(7), &far).is_err());
 }
