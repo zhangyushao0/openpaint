@@ -42,6 +42,8 @@ pub enum DeviceError {
     StillRunning(String),
     /// No backup was written today in this directory (`device-reset` refuses).
     NoBackup(PathBuf),
+    /// Someone uses the tablet (`device-idle`): why it is not free.
+    InUse(String),
     /// The command line asks for something else.
     Usage(&'static str),
 }
@@ -78,6 +80,7 @@ impl fmt::Display for DeviceError {
                 "no backup written today in {}: run cargo device-backup first",
                 dir.display()
             ),
+            Self::InUse(why) => write!(f, "in use: {why}"),
             Self::Usage(usage) => write!(f, "usage: {usage}"),
         }
     }

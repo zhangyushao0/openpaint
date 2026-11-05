@@ -18,12 +18,15 @@
 //! - `cargo device-screens [n]`: the tablet's newest screenshots copied to
 //!   `artifacts/device/screens/` and listed, nothing on the tablet changed (`screens.rs`);
 //! - `cargo device-reset`: the app's data cleared by `pm clear`, each file it held listed;
-//!   refused without a backup written today (`reset.rs`).
+//!   refused without a backup written today (`reset.rs`);
+//! - `cargo device-idle [--minutes N]`: whether the tablet is free (screen off, or untouched for
+//!   N minutes), read-only, the first step of every device routine (`idle.rs`).
 //!
 //! Every adb call takes explicit arguments, never a host shell, so no path is rewritten.
 
 mod adb;
 mod check;
+mod idle;
 mod info;
 mod input;
 mod library;
@@ -45,6 +48,7 @@ use adb::{Adb, Result};
 
 pub use adb::DeviceError;
 pub use check::check;
+pub use idle::idle;
 pub use info::info;
 pub use input::input;
 pub use library::{backup, restore};
