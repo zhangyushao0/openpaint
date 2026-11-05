@@ -1,8 +1,9 @@
 //! Shared by the runtime's GPU tests: the device, a hand's gestures and the cold draw, a library
-//! that keeps nothing, starting on it, where the canvas shows, a test's own directory, and the
-//! few steps many tests take. The binaries of their own (`../budget.rs` and the others) take the
-//! files they need alone.
+//! that keeps nothing, starting on it, where the canvas shows, a test's own directory, the
+//! benchmarks' pile, and the few steps many tests take. The binaries of their own
+//! (`../budget.rs` and the others) take the files they need alone.
 
+pub mod bench;
 pub mod gpu;
 pub mod hand;
 pub mod launch;

@@ -4,7 +4,8 @@ xtask = "run --quiet --package xtask --"
 gate = "xtask gate"
 # Replay tests/scenarios/<name>.json through the frame loop offscreen (see apps/harness).
 scenario = "run --quiet --package openpaint-harness -- scenario"
-# Every tests/scenarios/*.json in one process: one line each, the full report of each failure.
+# Every tests/scenarios/*.json, each in a process of its own, several at once (`--jobs N`; the
+# machine's threads by default): one line each in name order, the full report of each failure.
 scenarios = "run --quiet --package openpaint-harness -- scenario --all"
 # Structural rules the compiler cannot enforce (see xtask/src/check/rules.rs).
 repo-check = "xtask check"
@@ -15,7 +16,8 @@ android-build = "xtask android-build"
 # a picture into the test folder for the system picker; the display's colour facts, read-only;
 # the installed build walked through its main features on a test artwork (about 20 s); the
 # app's data cleared, only after a backup written the same day; the tablet's newest screenshots
-# copied here, nothing on it changed.
+# copied here, nothing on it changed; whether the tablet is free (screen off or untouched for 10
+# minutes: exit 0), read-only.
 device-backup = "xtask device-backup"
 device-restore = "xtask device-restore"
 device-check = "xtask device-check"
@@ -26,6 +28,7 @@ device-info = "xtask device-info"
 device-smoke = "xtask device-smoke"
 device-screens = "xtask device-screens"
 device-reset = "xtask device-reset"
+device-idle = "xtask device-idle"
 # Test artworks as OpenPaint files, deterministic (apps/harness/src/test_art/):
 # `cargo test-art pile|a4|a4-plain|kinds|session [n] [out]` -> artifacts/test-art/<kind>-<n>.openpaint.
 test-art = "run --quiet --package openpaint-harness -- test-art"

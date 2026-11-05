@@ -18,6 +18,7 @@ Do not rebuild the big picture from source; the module map is in ARCHITECTURE. D
 - Run `git status --short --branch` first; never touch pre-existing uncommitted changes.
 - ROADMAP defines the scope. Problems outside it go to STATUS "Known limits" or ROADMAP "Candidates"; do not fix them in passing.
 - Stopping to ask the author is fine. Finish the parts that do not depend on the answer first, then list concrete options with a recommendation.
+- A choice that only makes the interface consistent with what the author asked for is made, not listed as a decision for them.
 
 ## Reading and editing
 
@@ -33,9 +34,11 @@ Do not rebuild the big picture from source; the module map is in ARCHITECTURE. D
 | --- | --- | --- |
 | 1 | `cargo check -p <crate>` | after every coherent edit; seconds |
 | 2 | `cargo test -p <crate> [filter]` | the tests this slice touches |
-| 3 | `cargo gate` | once before the commit: fmt, clippy, all tests, repo-check |
+| 3 | `cargo gate` | once before the commit: fmt, clippy, all tests (every test binary at once, `xtask/src/test_run.rs`), repo-check; about 2.5 min |
 
-- Scenarios: `cargo scenario <name>` replays one; `cargo scenarios` replays all in one process (about 2 min), one line each.
+- Scenarios: `cargo scenario <name>` replays one; `cargo scenarios` replays all, each in a process of its own, as many at once as the machine has threads (`--jobs N`): about 3 min for 72, one line each in name order.
+- Start `cargo scenarios` in the background as soon as the code is done, and write the documents while it runs.
+- A fix after review reruns the scenarios it can reach plus the gate; the whole suite only when shared drawing or layout code changed.
 - When tier 3 fails, go back to tier 1 to fix; do not rerun tier 3 repeatedly.
 - Read the exit code. Never judge a pass from gate output piped through `tail` or `grep`.
 - Fix clippy findings in code; no `#[allow]`. A justified exception is `#[expect(lint, reason = "...")]`.
@@ -45,7 +48,8 @@ Do not rebuild the big picture from source; the module map is in ARCHITECTURE. D
 
 ## Device chores: these commands only, never hand-typed adb
 
-- `cargo device-backup [name]`: the author's library and practice packs to `artifacts/device/backups/<name>.tar`, listed. Always first.
+- `cargo device-idle [--minutes N]`: whether the tablet is free, read-only: the screen's state, the app in front, the minutes since the last touch, pen or key. Exit 0 when the screen is off or nothing touched it for 10 minutes (N), 1 otherwise. Every device routine starts with it instead of asking the author: proceed on 0; on 1 wait about 5 minutes and probe again. The agent's own injected gestures count as touches.
+- `cargo device-backup [name]`: the author's library and practice packs to `artifacts/device/backups/<name>.tar`, listed. Always first after `device-idle`.
 - `cargo device-check [label] [--no-install]`: wake, build and install, launch, screenshot to `artifacts/device/<label>.png`, the app's logcat errors; fails on a panic.
 - `cargo device-input pen x,y,... [pressure]` | `finger x,y[,x,y] [x,y[,x,y] [ms]]` | `hover x,y [ms]`: one injected gesture (debug build), screen woken first.
 - `cargo device-restore <name>`: the library and packs as found saved first to `backups/<name>-found-<time>.tar` (listed), then the backup put back in place (a pack the app kept after the backup removed by its exact path) and compared byte for byte. Always last, after removing test artworks in the gallery.

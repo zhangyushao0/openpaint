@@ -2,8 +2,8 @@
 
 use std::time::Instant;
 
-use crate::check;
 use crate::process::cargo;
+use crate::{check, test_run};
 
 type Step = fn() -> Result<(), String>;
 
@@ -11,7 +11,7 @@ const STEPS: &[(&str, Step)] = &[
     ("fmt", fmt),
     ("clippy", clippy),
     ("clippy-android", clippy_android),
-    ("test", test),
+    ("test", test_run::run),
     ("scenario smoke", scenario_smoke),
     ("repo-check", check::run),
 ];
@@ -49,10 +49,6 @@ fn clippy_android() -> Result<(), String> {
         "-D",
         "warnings",
     ])
-}
-
-fn test() -> Result<(), String> {
-    cargo(&["test", "--workspace"])
 }
 
 /// The short harness scenario: the app opens, takes a pen stroke and passes a canvas checkpoint
