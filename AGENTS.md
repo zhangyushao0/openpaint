@@ -73,11 +73,12 @@ Do not rebuild the big picture from source; the module map is in ARCHITECTURE. D
 
 | File | Limit | Contains | Never contains |
 | --- | --- | --- | --- |
-| docs/STATUS.md | 150 lines | current facts: working features, verification results with dates, known limits, not_run items, decisions pending from the author | history, process, plans |
-| docs/ROADMAP.md | 250 lines | product definition, stages, each slice's goal and done criteria; finished slices as one line each | implementation detail, results |
-| docs/ARCHITECTURE.md | 300 lines | crate map, dependency direction, core types, threading and error model, enforced rules | migration plans, audit findings |
-| docs/DECISIONS.md | 300 lines | decisions that constrain future code and are not self-evident; each at most 15 lines: date, decision, reason, consequences | research reports, long option comparisons |
+| docs/STATUS.md | 150 lines, 40,000 characters | current facts: working features, each said once and briefly; each verification's latest result with its date; known limits; not_run items; decisions pending from the author, in full | history, process, plans, earlier results |
+| docs/ROADMAP.md | 250 lines, 40,000 characters | product definition, stages, each slice's goal and done criteria; finished slices as one line each, at most about 300 characters: id, date, version, the gist, its decision | implementation detail, results |
+| docs/ARCHITECTURE.md | 300 lines, 69,000 characters | crate map, dependency direction, core types, threading and error model, enforced rules | migration plans, audit findings |
+| docs/DECISIONS.md | 300 lines, 89,000 characters | decisions that constrain future code and are not self-evident; each at most 15 lines: date, decision, reason, consequences | research reports, long option comparisons |
 
+- No line of the four documents is longer than 1,500 characters: one fact a line, never a page. `cargo repo-check` refuses a document past its lines or characters and a line past 1,500, naming the file, the line and the limit (`xtask/src/check/rules.rs`, S105).
 - No other markdown in the repository (README.md at most 60 lines and this file at most 150 lines excepted). No CHANGELOG: history is `git log`. No ADR directory, no research directory, no local notes directory.
 - At the end of a slice: rewrite STATUS as the new current facts (delete stale sentences, do not append); move the slice to "Done" in ROADMAP as one line; touch DECISIONS only when a new decision was made.
 - Archiving: when a document exceeds its limit, delete useless content first; if it still exceeds, move finished slices or superseded decisions wholesale to `docs/archive/<name>-<YYYY-MM>.md`. The archive is written, never read, and has no limit.
