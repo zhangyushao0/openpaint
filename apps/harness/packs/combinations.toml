@@ -156,6 +156,7 @@ source = "ambientcg"
 object = "Metal022"
 licence = "CC0"
 reason = "rust eating into blue-grey steel: warm and cool side by side"
+no_crop.1 = "rust speckle over grey: a texture, not areas"
 
 [[item]]
 id = "acg-rust-grey-steel"
@@ -208,6 +209,7 @@ source = "ambientcg"
 object = "PaintedMetal006"
 licence = "CC0"
 reason = "teal paint flaking off rust in islands: two hues in a strong contrast"
+no_crop.1 = "the rust islands read as one olive area: the answer is wrong"
 
 [[item]]
 id = "acg-blue-paint-rust"
@@ -641,6 +643,7 @@ source = "commons"
 object = "File:Wassily Kandinsky Composition VIII.jpg"
 licence = "PD-old"
 reason = "Kandinsky's Composition VIII: flat planes and circles on a pale ground"
+no_crop.2 = "its purple circle and yellow triangle are not areas: the answer misses its subject"
 
 [[item]]
 id = "kandinsky-composition-9"
