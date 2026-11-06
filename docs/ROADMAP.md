@@ -52,6 +52,7 @@ Stages 1 to 4 are built (S75 to S105 are done: the list at the end and its archi
 
 - Then, each specified when the one before lands:
   - S101b Crops sharp at the size the tablet shows them (1.19.0's tablet run, 2026-11-06: a crop of 384 px shown 770 px tall reads blurred). A photograph listed for crops is fetched at its original size (4,096 px at most), a composition's corner cut from its source's full pixels, never the packed picture's; a crop is kept only when its longer side reaches 768 px before it is reduced to 1,024, so sizes that cannot are not offered. The crops listed out (`no_crop`) carry over by what they show, not by their numbers. Done: a builder test that every crop's longer side is 768 to 1,024 px; both packs built twice to the same bytes; the new sheets looked at by the agent, every crop listed for the main session, which judges them again.
+  - S102b Official packs named in the language (1.20.0's tablet run in Chinese: the options list "Compositions" and "Single shapes" in English, as their files hold them). The official packs' names come from the text tables by their id (`openpaint-shapes`, `openpaint-compositions`, `openpaint-textures`) in either language; any other pack shows as its file names it. Done: the options and the import notices in Chinese with the official names, a scenario's screenshot looked at.
   - Key shifts, gamut masks and abstract analysis.
   - Structure rotation against renders.
   - Trajectories, stage reports and re-tests.
