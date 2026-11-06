@@ -201,6 +201,7 @@ fn pack(id: &str, item: &str) -> Pack {
             credit: None,
             outline: None,
             masses: None,
+            areas: None,
         }],
     }
 }

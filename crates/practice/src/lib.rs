@@ -13,11 +13,15 @@ mod align_shape;
 mod areas;
 mod areas_edges;
 mod areas_field;
+mod areas_found;
+mod areas_generated;
 mod areas_read;
+mod areas_regions;
 mod book;
 mod colour;
 mod colour_match;
 mod combined;
+mod crop;
 mod demo;
 mod division;
 mod drill;
@@ -83,14 +87,21 @@ mod vector;
 
 pub use align::{Fit, align};
 pub use align_shape::align_shape;
-pub use areas::{Areas, Arrangement, GRID, STRONG, WEAK};
+pub use areas::{Areas, GRID, MOST_AREAS, STRONG, WEAK};
+pub use areas_found::{Found, SQUINT};
+pub use areas_generated::{Arrangement, GeneratedAreas};
 pub use areas_read::{AreasCopy, Contrast, MADE_STRONG};
+pub use areas_regions::ONE_STEP;
 pub use book::{Book, Day, LineShown, Road};
 pub use colour::{
     Difference, HUELESS, Rgb8, delta_e, from_hsv, from_oklab, from_oklch, hsv, oklab, oklch,
 };
 pub use colour_match::{ColourCopy, ColourScore, Lightness, Purity, Tone, score_colour};
 pub use combined::{Combination, CombinedLines};
+pub use crop::{
+    BUSIEST, Crop, CropRefusal, DISTINCT, FEWEST_AREAS, GREYISH, LEAST_SIDE, Places, best,
+    candidates, cut, refusal, tier_of,
+};
 pub use demo::{Demo, Drawn, Layout, Mark, Marker, On, WIDE_REACH};
 pub use division::{
     DivisionCheck, DivisionLine, HEADING_ON, JOIN_REACH, Level, LevelRow, MOST_MAIN, joined,

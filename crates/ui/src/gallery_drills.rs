@@ -4,8 +4,9 @@
 //! kinds as tiles (`components::kind_tile`), in ink once compared anywhere, in pencil before,
 //! ringed while a drill of the kind is left unfinished. A tile tapped starts a drill of its kind,
 //! or continues the one left unfinished; the Shape tile without any pack picture, Division and
-//! Whole copy without a composition (S95), or Value masses without one whose masses read (S96),
-//! say where to import a pack instead, and nothing starts.
+//! Whole copy without a composition (S95), Value masses without one whose masses read (S96), or
+//! Colour combination without a crop (S101), say where to import a pack instead, and nothing
+//! starts.
 
 use egui::{Align2, Sense, TextStyle, Vec2, WidgetInfo, WidgetType};
 use openpaint_app::{DrillShown, GalleryIntent, Language, TodayProjection};
@@ -48,6 +49,7 @@ pub(super) fn practice_section(
                 (Family::ValueMasses, None) if !today.masses => {
                     *needs_pack = Some(tapped.family);
                 }
+                (Family::Areas, None) if !today.crops => *needs_pack = Some(Family::Areas),
                 (_, Some(sheet)) => chosen = Some(Tapped::Intent(GalleryIntent::Open(sheet), true)),
                 (family, None) => chosen = Some(Tapped::Intent(GalleryIntent::Drill(family), true)),
             }
@@ -56,6 +58,7 @@ pub(super) fn practice_section(
         match needed {
             Some(Family::Shape) => note(ui, t::DRILL_NEEDS_PACK.into(), false),
             Some(Family::ValueMasses) => note(ui, t::DRILL_NEEDS_MASSES.into(), false),
+            Some(Family::Areas) => note(ui, t::DRILL_NEEDS_CROPS.into(), false),
             Some(_) => note(ui, t::DRILL_NEEDS_COMPOSITIONS.into(), false),
             None => {}
         }

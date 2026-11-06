@@ -153,7 +153,8 @@ fn the_log_begins_stage_four_and_offers_it_after_stage_three() {
     let families: Vec<Family> = record.exercises.iter().map(|e| e.kind.family()).collect();
     assert_eq!(families[..3], [Family::Object; 3]);
     assert_eq!(families[3], Family::Cylinder);
-    assert_eq!(families.last(), Some(&Family::Areas));
+    // No pack: no shape, no crop for a combination (S101); the solid last.
+    assert_eq!(families.last(), Some(&Family::Cylinder));
     assert_eq!(log.today().ready, 4);
     let tiles = log.today().drills;
     assert!(

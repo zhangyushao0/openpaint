@@ -147,6 +147,7 @@ fn item(
         }),
         outline: outline(picture.size, &picture.rgba).ok(),
         masses: None,
+        areas: None,
     };
     Some((item, picture.file))
 }

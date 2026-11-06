@@ -313,7 +313,11 @@ fn the_official_compositions_list_holds_about_60_items_in_three_tiers() {
     let list = SourceList::parse(&fs::read_to_string(&path).expect("the list")).expect("reads");
     assert_eq!(list.kind, PictureKind::Composition);
     for tier in PictureKind::Composition.tiers() {
-        let count = list.items.iter().filter(|item| item.tier == *tier).count();
+        let count = list
+            .items
+            .iter()
+            .filter(|item| item.tier == Some(*tier))
+            .count();
         assert!((15..=25).contains(&count), "{}: {count} items", tier.name());
     }
     assert!(

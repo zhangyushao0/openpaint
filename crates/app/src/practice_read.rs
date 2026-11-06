@@ -34,7 +34,8 @@ pub struct ReadJob {
 /// What a painted copy is read against.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ReadAs {
-    Areas(Areas),
+    /// A colour combination's areas and the size its picture fills in the frame (frame units).
+    Areas(Arc<Areas>, Point),
     Scale(ValueScale),
     /// Value masses' answer (S96) and where the picture lies in the frame: its top left and its
     /// size, frame units.
@@ -61,11 +62,11 @@ impl ReadJob {
                 let metrics = check.metrics.clone();
                 Some((CopyRead::Masses(Arc::new(check)), metrics))
             }
-            ReadAs::Areas(areas) => {
+            ReadAs::Areas(areas, extent) => {
                 let copy = areas.read(pixels.size, &pixels.pixels, PAPER);
                 let strong = (copy.contrasts.iter())
                     .filter(|c| c.made_strong())
-                    .flat_map(|c| areas.edges(c.areas.0, Some(c.areas.1)))
+                    .flat_map(|c| in_frame(areas.edges(c.areas.0, Some(c.areas.1)), *extent))
                     .collect();
                 let metrics = copy.metrics(areas);
                 Some((
@@ -80,6 +81,17 @@ impl ReadJob {
             }
         }
     }
+}
+
+/// `lines` in shares of a picture as frame units, the picture filling `extent` of its frame.
+fn in_frame(lines: Vec<Vec<Point>>, extent: Point) -> Vec<Vec<Point>> {
+    (lines.into_iter())
+        .map(|line| {
+            (line.into_iter())
+                .map(|[u, v]| [u * extent[0], v * extent[1]])
+                .collect()
+        })
+        .collect()
 }
 
 /// What a painted copy read as.
@@ -142,12 +154,11 @@ impl PracticeSheet {
         let Some(index) = self.current() else {
             return;
         };
-        match &self.sheet.originals[index] {
-            Original::Areas(areas) => {
-                self.painting_state.outline = Arc::new(areas.edges(0, None));
-            }
-            Original::Scale(_) => self.take_cell_at(index, 1),
-            _ => {}
+        if let Some((areas, extent)) = self.sheet.areas(index) {
+            self.painting_state.outline = Arc::new(in_frame(areas.edges(0, None), extent));
+        }
+        if let Original::Scale(_) = &self.sheet.originals[index] {
+            self.take_cell_at(index, 1);
         }
     }
 
@@ -203,13 +214,13 @@ impl PracticeSheet {
         let index = self
             .current()
             .ok_or(unavailable(Availability::NothingLeft))?;
-        let Original::Areas(areas) = &self.sheet.originals[index] else {
+        let Some((areas, extent)) = self.sheet.areas(index) else {
             return Err(unavailable(Availability::NothingLeft));
         };
         if area >= areas.count() {
             return Err(unavailable(Availability::NothingLeft));
         }
-        self.painting_state.outline = Arc::new(areas.edges(area, None));
+        self.painting_state.outline = Arc::new(in_frame(areas.edges(area, None), extent));
         self.painting_state.area = area;
         // The card shows the area chosen, not the point compared before.
         self.painting_state.probe = None;
@@ -225,8 +236,11 @@ impl PracticeSheet {
     /// The copy of exercise `index` asked of the runtime for Compare; nothing to read where its
     /// original is no painted one (value masses without their answer: a picture removed).
     pub(super) fn ask_read(&mut self, index: usize) -> Reading {
+        let combination = self.sheet.areas(index);
         let read = match &self.sheet.originals[index] {
-            Original::Areas(areas) => ReadAs::Areas(areas.clone()),
+            _ if let Some((areas, extent)) = combination => {
+                ReadAs::Areas(Arc::new(areas.clone()), extent)
+            }
             Original::Scale(scale) => ReadAs::Scale(*scale),
             Original::Picture(_) => {
                 let picture = self.sheet.pictures.get(index).and_then(Option::as_ref);

@@ -44,6 +44,7 @@ fn item(id: &str, tier: Tier, size: [u32; 2], licence: Licence) -> PackItem {
         }),
         outline: None,
         masses: None,
+        areas: None,
     }
 }
 

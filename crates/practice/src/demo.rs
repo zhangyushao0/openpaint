@@ -177,7 +177,7 @@ pub struct Demo {
     pub family: Family,
     pub layout: Layout,
     /// The colour combination its `Drawn::Areas` marks paint (a combination's only).
-    pub areas: Option<crate::areas::Areas>,
+    pub areas: Option<crate::areas_generated::GeneratedAreas>,
     /// The object its `Drawn::Shaded` mark shows (an object's only, S94).
     pub object: Option<Box<crate::object::ObjectTask>>,
     /// The landscape its `Drawn::Masses` marks show (a division's and a whole copy's, S95).

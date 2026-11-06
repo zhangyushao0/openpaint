@@ -1,7 +1,7 @@
 {
   "walkthrough": [
     "Goal: week 2's perspective (V大's 透视盒子, with Drawabox's checks): complete a box in perspective from its front corner, draw ellipses that fit their frames, and draw boxes freely on a horizon; then see the geometry itself, the exact answer over my lines and my own edges drawn on to where they vanish, never a score.",
-    "Entry: in the gallery the Today card's options start Stage 2 · Single shapes. Without a practice pack a stage-2 session holds no shapes: a colour combination and a value scale, then its perspective in turn by session: in the first a box to complete and an ellipse, in the second a page of free boxes (the next sessions a three-point box and an ellipse in perspective, free boxes on a high horizon, and so on). I pass the colour work with Next.",
+    "Entry (S101: the test crops imported first, so a combination copies a crop): in the gallery the Today card's options start Stage 2 · Single shapes. Without a pack of shapes a stage-2 session holds no shapes: a colour combination and a value scale, then its perspective in turn by session: in the first a box to complete and an ellipse, in the second a page of free boxes (the next sessions a three-point box and an ellipse in perspective, free boxes on a high horizon, and so on). I pass the colour work with Next.",
     "The box: in the left frame the horizon (labelled) and the box's front corner with its three edges (of a box across the horizon, the corner farther from it); the same in the empty frame beside it, where I draw. The first time, the instructions show by themselves: near is bigger, far is smaller; edges running the same way meet at one vanishing point, those parallel to the ground on the horizon; judge where the given edges meet (the points may lie off the frame); draw the other nine edges with Draw, the hidden ones too, each in one sure stroke, ghosted first; Sketch for construction lines; then Compare. The tools beside the frame: Sketch, Draw, Undo, Redo.",
     "Copy: a construction line with Sketch, then the nine edges with Draw, one of the bottom edges a little off.",
     "Compare: the exact box lies over mine in red, its two vanishing points ringed red off the frame; each of my edges is drawn on dashed towards its point, blue where it heads for it, red for the one I drew off, which misses its ring. The card: '8 of 9 edges head for their vanishing point.' No In place or Aligned: geometry has one answer. The pen is blue: I redraw the edge over the wrong one; the overlay goes as my pen lands; Compare again: the correction counts in place of the edge it redraws, 'All 9 edges head for their vanishing point.'. The left frame now shows the whole box, its hidden edges dashed, with its lines to its points, kept inside its frame.",
@@ -15,6 +15,10 @@
   "density": 1.75,
   "steps": [
     { "tap": { "at": "Gallery" } },
+    { "tap": { "at": "Practice options" } },
+    { "tap": { "at": "Import practice pack…" } },
+    { "system": "test_crops" },
+    { "tap": { "at": "OK" } },
     { "tap": { "at": "Practice options" } },
     { "tap": { "at": "Stage 2 · Single shapes" } },
     { "screenshot": { "name": "stage-two-opened" } },

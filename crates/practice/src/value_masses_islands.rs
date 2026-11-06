@@ -102,7 +102,7 @@ impl Masses {
 }
 
 /// Each cell's mass (cells of one value touching side by side), and how many masses there are.
-fn labelled(values: &[u8], w: usize, h: usize) -> (Vec<usize>, usize) {
+pub(crate) fn labelled(values: &[u8], w: usize, h: usize) -> (Vec<usize>, usize) {
     let mut labels = vec![usize::MAX; values.len()];
     let mut count = 0;
     let mut stack = Vec::new();

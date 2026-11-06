@@ -1,7 +1,7 @@
 {
   "walkthrough": [
     "Goal: paint every colour kind knowing which pen to take when, and never see a colour other than the one I picked because I pressed lightly (the author, 2026-10-30, new to painting: why Opaque Paint, what Big, Small and Soft are for; its opacity followed pressure, 30 % at the lightest, and its bristly edge was texture V大 keeps for later). V大's four brushes: a round hard opaque tip for blocks, a round whose pressure sets its opacity for transitions, an airbrush for soft gradients, a textured tip for later; opacity and flow kept at 100 % and controlled by hand, early on little pressure and little texture.",
-    "Entry: the practice options. I import the composition pack and the test pack of shapes (the picker answered by the harness). Each colour kind's tile starts a drill of it, its How first.",
+    "Entry (S101: the test crops imported first, so a combination copies a crop): the practice options. I import the composition pack and the test pack of shapes (the picker answered by the harness). Each colour kind's tile starts a drill of it, its How first.",
     "A colour combination: its How names the pens and when, and its example's hand uses them in that order: 1 Squint: Fill frame with the overall tone (the frame covered), 2 Big: the largest area first, 3 Big: each neighbour against it, 4 Small: the edges, the weak contrast kept weak (its edge pencilled, the area painted against its partner), 5 Soft: only where the picture's edge is soft (those edges pencilled, then softened; until then the copy's edges are hard), 6 Compare. The tools: the wheel, Fill frame, Undo, Redo, Big, Small, Soft and the eyedropper; no Sketch or Draw.",
     "I pick a tone and tap Fill frame. Then a colour, and Big pressed as lightly as the pen allows across the top band: a solid band of exactly that colour, narrower than at full pressure but never paler; Big at full pressure across the middle; Small along an edge; Soft across the bottom, fading at its sides. Compare: the original over my copy at half strength; with the eyedropper on my light stroke the colour table shows my colour there, the one I picked.",
     "A value scale: its tools the wheel, Fill cell, Undo, Redo and the eyedropper (the ends can be picked); no pens: a cell is one flat value and Fill cell lays it. The pen touching the middle cell takes it in hand and paints nothing; a value picked and Fill cell fills that cell.",
@@ -17,6 +17,10 @@
   "density": 1.75,
   "steps": [
     { "tap": { "at": "Gallery" } },
+    { "tap": { "at": "Practice options" } },
+    { "tap": { "at": "Import practice pack…" } },
+    { "system": "test_crops" },
+    { "tap": { "at": "OK" } },
     { "tap": { "at": "Practice options" } },
     { "tap": { "at": "Import practice pack…" } },
     { "system": "test_compositions" },

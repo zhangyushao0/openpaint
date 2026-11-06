@@ -104,7 +104,7 @@ impl ValueMasses {
     /// pixels.
     #[must_use]
     pub fn of(size: [u32; 2], rgba: &[u8]) -> Self {
-        let cells = cells_of(size);
+        let cells = cells_of(size, MASSES_SIDE);
         let light = reduced(size, rgba, cells);
         let lightness: Vec<f64> = light.iter().map(|c| lightness_of_linear(*c)).collect();
         let longer = f64::from(cells[0].max(cells[1]));
@@ -178,12 +178,12 @@ impl ValueMasses {
     }
 }
 
-/// The answer's cells for a picture of `size` pixels: `MASSES_SIDE` on the longer side (the
-/// picture's own where it is smaller), the other in proportion.
-fn cells_of([width, height]: [u32; 2]) -> [u32; 2] {
+/// An answer's cells for a picture of `size` pixels: `most` on the longer side (`MASSES_SIDE`,
+/// or a combination's `GRID`; the picture's own where it is smaller), the other in proportion.
+pub(crate) fn cells_of([width, height]: [u32; 2], most: u32) -> [u32; 2] {
     let (width, height) = (width.max(1), height.max(1));
     let longer = width.max(height);
-    let side = MASSES_SIDE.min(longer);
+    let side = most.min(longer);
     let scaled = |length: u32| {
         let cells = (f64::from(length) * f64::from(side) / f64::from(longer)).round() as u32;
         cells.clamp(1, side)
@@ -193,7 +193,7 @@ fn cells_of([width, height]: [u32; 2]) -> [u32; 2] {
 
 /// Each cell's mean light (linear sRGB) over the pixels it covers, a pixel's colour over white
 /// as much as it is transparent.
-fn reduced([width, height]: [u32; 2], rgba: &[u8], cells: [u32; 2]) -> Vec<[f64; 3]> {
+pub(crate) fn reduced([width, height]: [u32; 2], rgba: &[u8], cells: [u32; 2]) -> Vec<[f64; 3]> {
     let table: Vec<f64> = (0..=255u8).map(|c| linear(f64::from(c) / 255.0)).collect();
     let span = |cell: u32, cells: u32, length: u32| {
         let from = (u64::from(cell) * u64::from(length) / u64::from(cells)) as usize;
@@ -244,7 +244,7 @@ fn rimless(cells: &[f64], [width, height]: [u32; 2], rim: usize) -> Vec<f64> {
 
 /// `cells` blurred by a Gaussian of standard deviation `sigma` cells, across then down, the
 /// edges held.
-fn blurred(cells: &[f64], [width, height]: [u32; 2], sigma: f64) -> Vec<f64> {
+pub(crate) fn blurred(cells: &[f64], [width, height]: [u32; 2], sigma: f64) -> Vec<f64> {
     let reach = (3.0 * sigma).ceil().max(1.0) as isize;
     let weights: Vec<f64> = (-reach..=reach)
         .map(|k| (-(k as f64).powi(2) / (2.0 * sigma.max(1e-6).powi(2))).exp())

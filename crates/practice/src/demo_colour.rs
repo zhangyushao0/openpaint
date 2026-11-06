@@ -6,7 +6,8 @@
 //! the wheel's square), each then compared.
 
 use super::{Demo, Drawn, Layout, Marker, On, Script, clearest};
-use crate::areas::{Areas, Arrangement, GRID};
+use crate::areas::Areas;
+use crate::areas_generated::{Arrangement, GeneratedAreas};
 use crate::colour::{Rgb8, delta_e, from_hsv, from_oklab, hsv, oklab};
 use crate::colour_match::{Lightness, Purity, Tone};
 use crate::path::Point;
@@ -94,10 +95,11 @@ const fn painted(colours: Vec<Rgb8>, soft: bool) -> Drawn {
 pub(super) fn areas() -> Demo {
     // Four or five bands of middle lightness, so each area and the weak contrast read small; some
     // edges soft and some hard, so Soft shows where it belongs and where it does not.
-    let areas = clearest(
+    let generated = clearest(
         (AREAS_SEED, 8),
-        |seed| Areas::generate(Arrangement::Strata, seed),
-        |areas| {
+        |seed| GeneratedAreas::generate(Arrangement::Strata, seed),
+        |generated| {
+            let areas = &generated.areas;
             let count = areas.count() as f64;
             let light = areas.colours.iter().map(|c| oklab(*c)[0]).sum::<f64>() / count;
             let soft = soft_edges(areas).len();
@@ -107,8 +109,9 @@ pub(super) fn areas() -> Demo {
                 - if mixed { 0.0 } else { 0.5 }
         },
     );
-    let sizes = sizes(&areas);
-    let (order, weak, last) = painting(&areas, &sizes);
+    let areas = &generated.areas;
+    let sizes = areas.sizes();
+    let (order, weak, last) = painting(areas, &sizes);
     let mut script = Script::new();
     script.given(
         On::Original,
@@ -117,9 +120,9 @@ pub(super) fn areas() -> Demo {
     );
     copy_areas(
         &mut script,
-        &areas,
+        areas,
         (&order, weak, last),
-        overall(&areas, &sizes),
+        overall(areas, &sizes),
     );
     let mut compared = vec![(
         On::Copy,
@@ -132,7 +135,7 @@ pub(super) fn areas() -> Demo {
         }
     }
     let mut demo = script.compare(Family::Areas, Layout::Pair, compared);
-    demo.areas = Some(areas);
+    demo.areas = Some(generated.clone());
     demo
 }
 
@@ -221,19 +224,6 @@ fn painting(areas: &Areas, sizes: &[usize]) -> (Vec<usize>, Option<(usize, usize
     let largest = order[0];
     order.retain(|a| Some(*a) != last || *a == largest);
     (order, weak, last)
-}
-
-/// How many of the map's cells each area holds.
-fn sizes(areas: &Areas) -> Vec<usize> {
-    let mut sizes = vec![0; areas.count()];
-    for row in 0..GRID {
-        for column in 0..GRID {
-            if let Some(size) = sizes.get_mut(areas.cell([column, row])) {
-                *size += 1;
-            }
-        }
-    }
-    sizes
 }
 
 /// A value scale of `cells` cells (the scale in hand's count; never its colours), painted in

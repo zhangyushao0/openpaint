@@ -48,6 +48,7 @@ pub(crate) fn test_compositions() -> Option<Vec<u8>> {
             title,
             outline: None,
             masses: Some(Arc::new(ValueMasses::of(picture.size, &picture.rgba))),
+            areas: None,
         });
         files.push(picture.file);
     }

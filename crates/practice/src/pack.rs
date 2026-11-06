@@ -12,6 +12,7 @@ use std::collections::HashSet;
 use std::fmt;
 use std::sync::Arc;
 
+use crate::areas::Areas;
 use crate::licence::Licence;
 use crate::outline::Outline;
 use crate::value_masses::ValueMasses;
@@ -35,10 +36,14 @@ pub enum PictureKind {
     /// colour blocks or colour, analysed for its focal point and contrasts. Compared by the
     /// picture itself laid in place, never by an outline.
     Composition,
+    /// A crop of a real picture holding a few areas of distinct colour (S101, V大's 色彩组合: a
+    /// corner of an abstract painting or of a rusted old thing), copied by eye as a colour
+    /// combination against its areas, which the builder found and the pack keeps.
+    Crop,
 }
 
 impl PictureKind {
-    pub const ALL: [Self; 2] = [Self::Shape, Self::Composition];
+    pub const ALL: [Self; 3] = [Self::Shape, Self::Composition, Self::Crop];
 
     /// As stored; a code names one kind for good.
     #[must_use]
@@ -46,6 +51,7 @@ impl PictureKind {
         match self {
             Self::Shape => 1,
             Self::Composition => 2,
+            Self::Crop => 3,
         }
     }
 
@@ -60,6 +66,7 @@ impl PictureKind {
         match self {
             Self::Shape => "shape",
             Self::Composition => "composition",
+            Self::Crop => "crop",
         }
     }
 
@@ -72,11 +79,12 @@ impl PictureKind {
     /// masses, so their three tiers follow how the structure is read: Simple (two or three big
     /// masses and one focal point, a Notan in two values), Medium (four to six masses, three
     /// values, secondary dividing lines), Hard (many masses, figures in space, close values).
+    /// Crops likewise by their areas (`crop::tier_of`): three or four, five, six or seven.
     #[must_use]
     pub const fn tiers(self) -> &'static [Tier] {
         match self {
             Self::Shape => &Tier::ALL,
-            Self::Composition => &[Tier::Simple, Tier::Medium, Tier::Hard],
+            Self::Composition | Self::Crop => &[Tier::Simple, Tier::Medium, Tier::Hard],
         }
     }
 
@@ -91,6 +99,12 @@ impl PictureKind {
     #[must_use]
     pub const fn massed(self) -> bool {
         matches!(self, Self::Composition)
+    }
+
+    /// Whether its pictures carry colour areas (S101): a crop's always, no other's.
+    #[must_use]
+    pub const fn cropped(self) -> bool {
+        matches!(self, Self::Crop)
     }
 }
 
@@ -166,6 +180,9 @@ pub struct PackItem {
     /// sheet; none where they were judged not to read as a squinting eye sees them: the picture
     /// is never offered for value masses then.
     pub masses: Option<Arc<ValueMasses>>,
+    /// Its colour areas (a crop's, S101), found when the pack was built and judged on its sheet;
+    /// a crop always has them, no other picture does.
+    pub areas: Option<Arc<Areas>>,
 }
 
 /// What an official item's licence and its curator say about it.
@@ -326,6 +343,9 @@ impl PackItem {
             if !masses.valid() {
                 return Err("its value masses are no map of values");
             }
+        }
+        if self.kind.cropped() != self.areas.is_some() {
+            return Err("a crop has no colour areas, or another picture has them");
         }
         let Some(outline) = &self.outline else {
             return Ok(());

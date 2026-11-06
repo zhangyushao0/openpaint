@@ -120,6 +120,7 @@ impl Packs {
             credit: None,
             outline,
             masses: None,
+            areas: None,
         };
         log::info!(
             "picture {} added to the personal pack ({} items) at {}, outline {}",

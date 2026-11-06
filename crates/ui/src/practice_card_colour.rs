@@ -15,7 +15,7 @@
 
 use egui::{Rect, Sense, Stroke, Vec2};
 use openpaint_app::{Intent, Overlay, PracticeIntent, PracticeProjection, Probe};
-use openpaint_practice::{Family, KindSummary, Original, Rgb8, ScaleCheck};
+use openpaint_practice::{Family, KindSummary, Rgb8, ScaleCheck};
 
 use crate::components::{
     Choices, SettingSlider, card_columns, card_text, choices, controls, setting_slider,
@@ -101,7 +101,7 @@ fn areas(ui: &mut egui::Ui, practice: &PracticeProjection, taps: &mut Vec<Intent
     else {
         return;
     };
-    let Original::Areas(areas) = &practice.sheet.originals[index] else {
+    let Some((areas, _)) = practice.sheet.areas(index) else {
         return;
     };
     shown_slider(ui, *shown, taps);

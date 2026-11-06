@@ -17,6 +17,7 @@ fn item(id: &str, tier: Tier) -> PackItem {
         credit: None,
         outline: None,
         masses: None,
+        areas: None,
     }
 }
 
@@ -44,7 +45,16 @@ fn with_own(tiers: &[Tier], per_tier: usize, mine: &[Tier]) -> Pictures {
             .map(|(n, tier)| item(&format!("mine-{n}"), *tier))
             .collect(),
     };
-    Pictures::of(&[official, personal])
+    let crop = |n| PackItem {
+        kind: PictureKind::Crop,
+        ..item(&format!("crop-{n}"), Tier::Simple)
+    };
+    let crops = Pack {
+        id: "test-crops".to_owned(),
+        title: "Test crops".to_owned(),
+        items: (0..per_tier).map(crop).collect(),
+    };
+    Pictures::of(&[official, personal, crops])
 }
 
 fn before<'a>(met: &'a [Kind], pictures: &'a Pictures, used: &'a [ItemRef]) -> Before<'a> {
@@ -124,27 +134,17 @@ fn a_first_stage_two_session_is_four_shapes_of_the_easy_tiers_then_colour_work_a
 }
 
 #[test]
-fn the_combination_s_arrangement_and_the_scale_s_tone_come_in_turn() {
+fn the_combination_is_a_crop_and_the_scale_s_tone_comes_in_turn() {
     let all = pictures(&Tier::ALL, 5, 0);
-    let colour_work = |number| -> Vec<Kind> {
-        let plan = stage_two(number, 9, &before(&[], &all, &[]));
-        plan.exercises[4..6].iter().map(|e| e.kind).collect()
-    };
-    assert_eq!(
-        colour_work(1),
-        [
-            Kind::Areas(Arrangement::Strata),
-            Kind::Scale(ScaleTone::Grey, 5)
-        ]
-    );
-    assert_eq!(
-        colour_work(2),
-        [
-            Kind::Areas(Arrangement::Patches),
-            Kind::Scale(ScaleTone::Hue, 5)
-        ]
-    );
-    assert_eq!(colour_work(3)[0], Kind::Areas(Arrangement::Blocks));
+    let colour_work =
+        |number| stage_two(number, 9, &before(&[], &all, &[])).exercises[4..6].to_vec();
+    let [first, second] = [1, 2].map(colour_work);
+    let kinds = |work: &[Exercise]| [work[0].kind, work[1].kind];
+    let [grey, hue] = [ScaleTone::Grey, ScaleTone::Hue].map(|t| Kind::Scale(t, 5));
+    assert_eq!(kinds(&first), [Kind::Crop(Tier::Simple), grey]);
+    assert_eq!(kinds(&second), [Kind::Crop(Tier::Simple), hue]);
+    let picture = first[0].picture.as_ref().map(|p| p.pack.as_str());
+    assert_eq!(picture, Some("test-crops"), "a crop of the packs'");
 }
 
 #[test]
@@ -253,10 +253,10 @@ fn a_tier_without_pictures_falls_back_and_no_pictures_means_no_shapes() {
     assert!(shapes(&plan.exercises).is_empty());
     assert_eq!(
         plan.exercises.len(),
-        4,
-        "the combination, the scale, a box and an ellipse"
+        3,
+        "no crop: the scale, a box, an ellipse"
     );
-    assert_eq!(stage_two(2, 3, &before(&[], &none, &[])).exercises.len(), 3);
+    assert_eq!(stage_two(2, 3, &before(&[], &none, &[])).exercises.len(), 2);
 }
 
 #[test]

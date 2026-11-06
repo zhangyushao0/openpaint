@@ -8,7 +8,8 @@
 //! twice in a session and none of the last ten sessions' while others are left. Without a
 //! composition, S94's mix: the objects, a solid in its box in turn (a cylinder, a cone, a sphere),
 //! a single shape of the medium tier, then of the hard one, in turn (the user's own of that tier
-//! or an easier one when they have one) and a colour combination, its arrangement in turn.
+//! or an easier one when they have one) and a colour combination of a crop (S101; none without
+//! one).
 //!
 //! An object taken at about 4.5 minutes (its box completed and its points found with Sketch, its
 //! visible edges with Draw, compared, corrected once), a division at about 5 (half of it on its
@@ -21,7 +22,6 @@
 //! Objects, solids, divisions, whole copies and value masses, taking minutes each, stay out of the
 //! warm-up's quick places.
 
-use crate::areas::Arrangement;
 use crate::object_design::Carve;
 use crate::pack::Tier;
 use crate::plan::Kind;
@@ -61,10 +61,10 @@ pub fn stage_four(number: u32, seed: u64, before: &Before<'_>) -> Plan {
     } else {
         let shape = picker.shapes(&[tier]);
         let solid = Kind::Solid(Solid::ALL[turn % Solid::ALL.len()]);
-        let combination = Kind::Areas(Arrangement::ALL[turn % Arrangement::ALL.len()]);
+        let combination = picker.crop();
         (std::iter::once((solid, None)))
             .chain(shape)
-            .chain([(combination, None)])
+            .chain(combination)
             .collect()
     };
     let all = (warm_up.into_iter()).chain(objects).chain(rest);

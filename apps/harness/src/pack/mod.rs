@@ -12,6 +12,7 @@
 
 mod build;
 mod commons;
+mod crops;
 mod fetch;
 mod list;
 mod nga;
@@ -23,17 +24,20 @@ mod sources;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
+mod tests_crops;
+#[cfg(test)]
 mod tests_sources;
 
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use openpaint_practice::Tier;
+use openpaint_practice::{PackItem, Tier};
 use openpaint_store::{decode_image, encode_pack};
 
 use crate::error::HarnessError;
 use crate::output::workspace_root;
 use build::{Built, Massed, Outlined};
+use crops::{describe_crops, write_crop_sheets};
 use fetch::Fetcher;
 use list::{Source, SourceList};
 use segment::Segmenter;
@@ -126,7 +130,7 @@ fn describe(built: &Built) {
             .items
             .iter()
             .zip(built.outlines.iter().zip(&built.masses)))
-        .filter(|(item, _)| item.tier == tier);
+        .filter(|(item, _)| item.tier == tier && !item.kind.cropped());
         for (number, (item, (outlined, massed))) in items.enumerate() {
             let licence = item.credit.as_ref().map_or("", |c| c.licence.name());
             let outline = match (outlined, massed) {
@@ -152,7 +156,8 @@ fn describe(built: &Built) {
     let counts: Vec<String> = Tier::ALL
         .iter()
         .filter_map(|tier| {
-            let count = pack.items.iter().filter(|item| item.tier == *tier).count();
+            let whole = |item: &&PackItem| item.tier == *tier && !item.kind.cropped();
+            let count = pack.items.iter().filter(whole).count();
             (count > 0).then(|| format!("{} {count}", tier.name()))
         })
         .collect();
@@ -162,8 +167,12 @@ fn describe(built: &Built) {
     let massed = (built.masses.iter())
         .filter(|m| **m == Massed::Kept)
         .count();
+    describe_crops(&built.crops);
+    let crops = (built.crops.iter())
+        .filter(|crop| crop.left_out.is_none())
+        .count();
     println!(
-        "{}; {kept} outlines, {massed} value masses",
+        "{}; {kept} outlines, {massed} value masses, {crops} crops",
         counts.join(", ")
     );
 }
@@ -178,7 +187,7 @@ fn write_sheets(built: &Built, dir: &Path) -> Result<(), HarnessError> {
         let items =
             (pack.items.iter().zip(&built.pictures)).zip(built.outlines.iter().zip(&built.masses));
         for ((item, bytes), (outlined, massed)) in items {
-            if item.tier == tier {
+            if item.tier == tier && !item.kind.cropped() {
                 let (size, rgba) = decode_image(bytes).map_err(|error| HarnessError::Pack {
                     item: item.id.clone(),
                     problem: format!("its built picture: {error}"),
@@ -201,14 +210,18 @@ fn write_sheets(built: &Built, dir: &Path) -> Result<(), HarnessError> {
                     rgba,
                     outline,
                     masses,
+                    areas: None,
                 });
             }
         }
         if !cells.is_empty() {
             let path = dir.join(format!("{}-{}.png", pack.id, tier.name()));
-            write_sheet(&cells, &path)?;
+            write_sheet(&cells, 1, &path)?;
             println!("{}: {} pictures", path.display(), cells.len());
         }
+    }
+    if !built.crops.is_empty() {
+        write_crop_sheets(&built.crops, &pack.id, dir)?;
     }
     Ok(())
 }

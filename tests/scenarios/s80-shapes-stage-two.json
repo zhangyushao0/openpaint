@@ -1,6 +1,6 @@
 {
   "walkthrough": [
-    "Goal: copy single shapes (V大's 复制单体图形) from a practice pack and from pictures of my own, the way week 2 asks: see the whole silhouette, place its ends in the frame, check the negative shapes, the big masses before the detail; then compare my line drawing with the picture's outline, in place and aligned. And move on to stage 2 before stage 1's fifteen sessions are done.",
+    "Goal (S101: the test crops imported first, so a combination copies a crop): copy single shapes (V大's 复制单体图形) from a practice pack and from pictures of my own, the way week 2 asks: see the whole silhouette, place its ends in the frame, check the negative shapes, the big masses before the detail; then compare my line drawing with the picture's outline, in place and aligned. And move on to stage 2 before stage 1's fifteen sessions are done.",
     "Packs: in the gallery the Today card has an options button under it, beside 'Practice'. It opens the practice options: the stages I can move to (Stage 2 · Single shapes, Start), the practice packs kept (none yet: 'single shapes copy a pack's pictures'), Import practice pack… and Add my picture…. Import practice pack… opens the system's file picker; I choose the pack file; a notice says it is imported and its pictures come up in single shapes. A file that is no pack is refused with a notice and nothing changes; cancelling changes nothing.",
     "My pictures: Add my picture… asks how hard it is to copy (S83); I tap Simple and the picture picker opens; I choose a picture of my own. It goes into My pictures, kept only on this tablet, never mixed with the pack; the notice says whether its outline was found (Compare lays the outline over my copy) or not (Compare lays the picture itself over my copy, faint). The options now list the pack (its pictures, how many with an outline) and My pictures.",
     "Stage 2 early: in the options I tap Stage 2 · Single shapes. A session of stage 2 starts at once: four single shapes (entry and simple ones in my first sessions, harder ones mixed in as sessions go, the last one of my own pictures), then week 2's colour work (a colour combination, a value scale) and its perspective (a box to complete and an ellipse; free boxes in the next session), about 30 minutes. Nothing was compared before, so there is no warm-up.",
@@ -16,6 +16,10 @@
   "density": 1.75,
   "steps": [
     { "tap": { "at": "Gallery" } },
+    { "tap": { "at": "Practice options" } },
+    { "tap": { "at": "Import practice pack…" } },
+    { "system": "test_crops" },
+    { "tap": { "at": "OK" } },
     { "tap": { "at": "Practice options" } },
     { "screenshot": { "name": "options-empty" } },
     { "tap": { "at": "Import practice pack…" } },

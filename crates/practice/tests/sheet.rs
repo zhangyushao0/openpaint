@@ -137,6 +137,7 @@ fn a_session_s_frames_follow_the_pictures_its_packs_hold() {
             credit: None,
             outline: None,
             masses: None,
+            areas: None,
         }],
     };
     let sheet = Sheet::of_session(&record, std::slice::from_ref(&pack));

@@ -35,6 +35,7 @@ fn pack() -> Pack {
         credit: None,
         outline,
         masses: None,
+        areas: None,
     };
     let rectangle = vec![[75.0, 100.0], [225.0, 100.0], [225.0, 300.0], [75.0, 300.0]];
     Pack {

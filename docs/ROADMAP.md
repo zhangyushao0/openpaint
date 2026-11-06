@@ -48,22 +48,8 @@ The author, 2026-10-23: practice is their main activity now. The app gets a prac
 - **No accounts, community or sharing service.**
 - **Method notes.** V大's methods, distilled from the course's subtitles, guide every exercise's instructions and checks. They are not in the repository.
 
-Stages 1 to 4 are built (S75 to S100 and S103 to S105 are done: the list at the end and its archive).
+Stages 1 to 4 are built (S75 to S105 are done: the list at the end and its archive).
 
-- S101 Colour combinations from real crops (1.19.0; D105 amended; the author, 2026-10-30, decided: the generated combinations vary too little beside the crops of real pictures they copied before, such as rusted iron. This is V大's own choice: a corner of an abstract oil painting or a rusted old thing, never a concrete object. The generated ones are retired).
-  - **The crops.** The pack builder cuts crops from two sources: corners of the composition pack's paintings, and a new official pack `openpaint-textures`, about 40 CC0 or public-domain photographs of rust, peeling paint, stone, lichen, weathered wood and the like. Every licence is read from its source's API, as the packs before were (Wikimedia Commons' API is a source if needed). A crop is a rectangle of its picture holding 3 to 7 areas of distinct colour, no recognisable object, some areas low in saturation and at least one weak contrast. Each picture gives a few crops and the builder keeps the best. Crops are judged on contact sheets (each beside its areas), and a bad one is listed out with its reason, as `no_masses` was.
-  - **The answer, made by the builder and kept in the pack** (pack format 4, format 3 upgraded by the store): each crop's areas found by blur and Oklab clustering, islands merged, edges traced; each area's colour; and the neighbour pairs whose contrast is weak.
-    - It is validated on pictures of known areas: S82's generator, retired from exercises, lives on as the test that the answer finds its areas and weak pairs.
-    - It is then judged by eye on the sheets.
-  - **The exercise.** A combination is a crop beside an empty frame of its shape (S99), copied with Fill frame, Big, Small and Soft (S100). Compare keeps what S82 and S86 gave: the original over the copy under the slider, a chip per area on the wheel and in the colour table, and weak contrasts made strong drawn red. Sessions and drills take crops in turn, none twice while others are left. Without a pack holding crops, a combination is not offered, and its tile says to import one, as Shape's does. Its How plays on a generated example, as every kind's does.
-  - **Afterwards (not this slice):** the user's own pictures as crops, their answer made on the device, unjudged. This goes to Candidates.
-  Done:
-  - tests: the answer on the generator's pictures of known areas (each area found, its colour within ΔE 0.02, the weak pairs found), crops kept to their rules, the pack upgraded, a combination on a crop compared;
-  - the textures pack built twice to the same bytes, its sheets and the composition crops' sheets, every crop looked at by the agent and listed for the main session to judge;
-  - `s101-real-crops` in both languages, every screenshot looked at;
-  - every scenario before with its hashes, except those of combinations (named);
-  - `cargo gate`;
-  - the tablet run is the main session's.
 - Then, each specified when the one before lands:
   - S102 Chinese written Chinese-first (the author: it reads oddly): every Chinese string rewritten as a teacher would say it, from a glossary of standard art terms, V大's words and Procreate's Chinese. The author's terms (2026-10-30): 勾线笔 for Draw (Inker 描线笔), 素材包, 原图浓淡, 单色 named on its own, 等距扩展, 三级分割 where it fits, 柔边笔, 色环, 笔触, 描边, 变换, 叠加, 防抖, 压感. The sentences are the main session's call ("however is best").
   - Key shifts, gamut masks and abstract analysis.
@@ -77,6 +63,8 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 ## Candidates
 
 (Findings outside the current slice, one line each, dated.)
+
+- 2026-11-05 The user's own crops after S101: a picture of their own cut into crops on the device, its areas found there by the builder's rule (`Areas::found`), unjudged; crops of the official packs only now. Also: a crop's areas could be shown as its How's example (the How plays on a generated one).
 
 - 2026-10-30 Only what is off after S98: a piece is marked against the part it is read for (S93's nearest within 40 px), so an upright drawn between two thirds rings the nearer third's point, a wide near end of a cylinder whose ends lie close can ring a far end's middle (1 in 100 simulated), a cone seen nearly down its axis reads an aimed-off side as its base (4 in 100); an ellipse's middles say nothing of a lump between them or a tilt (the red answer shows it); Construction's lines are faint grey (`DIVIDER`), hard to see over a printed grey segment: a darker faint if the author asks.
 - 2026-10-23 The long copy's picker lists each picture as a row with its full credit and links, which crowds a tier of 30: a grid of thumbnails, the credit shown with the picture chosen (S83).
@@ -151,3 +139,4 @@ Slices S0 to S72 and the stage exits: `docs/archive/ROADMAP-2026-10.md`; S73 to 
 - S100 2026-11-05 1.18.0: the practice pens recipes of their own after V大's brushes (Big, Small and value masses' greys the hard tip, Soft the airbrush), each colour kind offering only what its work needs (D105 amended).
 - S105 2026-11-05 documents and tooling: STATUS to current facts (138,683 -> 39,223 characters), done slices one line each and the finished ones archived (ROADMAP 77,780 -> 29,195); repo-check limits each document's characters and any line of the four to 1,500 (no decision).
 - S104 2026-11-05 1.18.1: Hard Paint (硬边颜料), the practice's hard tip from one file, opens Painting with V大's four (Hard Paint, Hard Round, Soft Brush, Textured Round); kept toolboxes get it by the record's rules, no upgrade; a long copy opens on it at 256 px in the full interface, no pen card; D74, D105.
+- S101 2026-11-05 1.19.0: colour combinations copy crops of real pictures, a texture photograph's best two or a composition's best corner (`openpaint-textures` 34, compositions 11), their areas found by the pack builder (blur, Oklab clusters, bands and shadings merged) and kept in the pack (format 4); the generator kept for old records, the How and the tests (D105).

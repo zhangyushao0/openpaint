@@ -252,6 +252,7 @@ fn the_log_begins_stage_three_and_offers_it_after_stage_two() {
         families[..3],
         [Family::Point, Family::Proportion, Family::Angle]
     );
-    assert_eq!(families.last(), Some(&Family::Areas));
+    // No pack: no shapes, no crop for a combination (S101); the solids last.
+    assert_eq!(families.last(), Some(&Family::Cone));
     assert!(log.today().ready >= 3);
 }

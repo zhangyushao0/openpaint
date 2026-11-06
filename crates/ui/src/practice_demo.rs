@@ -194,9 +194,9 @@ impl Demonstrations {
         }
         let made = match &key {
             PictureKey::Areas(colours, soft) => demo.areas.clone().map(|mut areas| {
-                areas.colours.clone_from(colours);
+                areas.areas.colours.clone_from(colours);
                 if !soft {
-                    areas.soft.fill(0.0);
+                    areas.areas.soft.fill(0.0);
                 }
                 ([PICTURE; 2], areas.picture(PICTURE))
             }),

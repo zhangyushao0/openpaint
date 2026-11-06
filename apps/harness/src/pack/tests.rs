@@ -300,7 +300,11 @@ fn the_official_shapes_list_holds_30_to_40_items_a_tier() {
     let path = workspace_root().join("apps/harness/packs/shapes.toml");
     let list = SourceList::parse(&fs::read_to_string(&path).expect("the list")).expect("reads");
     for tier in Tier::ALL {
-        let count = list.items.iter().filter(|item| item.tier == tier).count();
+        let count = list
+            .items
+            .iter()
+            .filter(|item| item.tier == Some(tier))
+            .count();
         assert!((30..=40).contains(&count), "{}: {count} items", tier.name());
     }
     assert!(list.items.iter().all(|item| item.reason.len() >= 12));

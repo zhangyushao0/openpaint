@@ -1,9 +1,11 @@
 //! A pack's source list (`apps/harness/packs/<name>.toml`, kept in the repository): which
 //! pictures go into the pack and why, never the pictures. The pack's id, title and kind
-//! (`shape` or `composition`), then per item:
+//! (`shape`, `composition` or `crop`: a picture only cropped, S101), then per item:
 //!
-//! - `id`: the item's id in the pack, kept across editions (exercises name it);
+//! - `id`: the item's id in the pack, kept across editions (exercises name it); its crops' ids are
+//!   it and their number, `<id>-1`, `<id>-2`;
 //! - `tier`: one its kind takes (`entry`, `simple`, `medium`, `hard`; a composition no `entry`);
+//!   none in a list of crops, whose tiers are their areas' (`crop::tier_of`);
 //! - `source`: `cleveland` (the Cleveland Museum of Art's Open Access API), `met` (the
 //!   Metropolitan Museum of Art's Collection API), `aic` (the Art Institute of Chicago's API),
 //!   `nga` (the National Gallery of Art's open data), `rijks` (the Rijksmuseum's Linked Art
@@ -20,10 +22,13 @@
 //! - `no_masses` (a composition only, where it applies, S96): why the item has no value masses,
 //!   its answer looked at beside it on the contact sheet and judged not to read as a squinting eye
 //!   sees the picture; it is never offered for value masses. A shape never has them.
+//! - `no_crop.<n>` (a composition's or a crop list's, S101): why its crop `n` is left out, the
+//!   crop looked at beside its areas on the crops' sheet and judged no colour combination (an
+//!   object recognisable, areas that do not read); one line, `no_crop.2 = "a bolt's head"`.
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
-use openpaint_practice::{Licence, PictureKind, Tier, valid_id};
+use openpaint_practice::{Licence, PictureKind, Places, Tier, valid_id};
 use serde::Deserialize;
 
 use crate::error::HarnessError;
@@ -80,7 +85,8 @@ struct Written {
 #[serde(deny_unknown_fields)]
 struct WrittenItem {
     id: String,
-    tier: String,
+    #[serde(default)]
+    tier: Option<String>,
     source: String,
     object: String,
     #[serde(default)]
@@ -91,6 +97,8 @@ struct WrittenItem {
     no_outline: Option<String>,
     #[serde(default)]
     no_masses: Option<String>,
+    #[serde(default)]
+    no_crop: BTreeMap<String, String>,
 }
 
 /// A source list, read and checked.
@@ -106,7 +114,8 @@ pub struct SourceList {
 #[derive(Debug, Clone)]
 pub struct Listed {
     pub id: String,
-    pub tier: Tier,
+    /// Its tier; none in a list of crops, whose tiers are their areas'.
+    pub tier: Option<Tier>,
     pub source: Source,
     pub object: String,
     /// The second of a Commons video's frame taken as the picture.
@@ -117,6 +126,9 @@ pub struct Listed {
     pub no_outline: Option<String>,
     /// Why it has no value masses, when it has none (a composition's, S96).
     pub no_masses: Option<String>,
+    /// Its crops left out, by number (from 1, as the crops' sheet numbers them within the item),
+    /// each with why (S101).
+    pub no_crop: BTreeMap<usize, String>,
 }
 
 impl Listed {
@@ -185,10 +197,16 @@ fn listed(kind: PictureKind, item: WrittenItem) -> Result<Listed, HarnessError> 
         }
         _ => {}
     }
-    let tier = Tier::of_name(&item.tier).ok_or_else(|| wrong("no such tier"))?;
-    if !kind.tiers().contains(&tier) {
+    let tier = match (&item.tier, kind) {
+        (None, PictureKind::Crop) => None,
+        (Some(_), PictureKind::Crop) => return Err(wrong("a crop's tier is its areas'")),
+        (None, _) => return Err(wrong("it has no tier")),
+        (Some(name), _) => Some(Tier::of_name(name).ok_or_else(|| wrong("no such tier"))?),
+    };
+    if tier.is_some_and(|tier| !kind.tiers().contains(&tier)) {
         return Err(wrong("its tier is not one its kind takes"));
     }
+    let no_crop = no_crop(kind, &item.no_crop).map_err(|what| wrong(&what))?;
     let source = Source::of_name(&item.source).ok_or_else(|| wrong("no such source"))?;
     match item.at {
         Some(_) if source != Source::Commons => return Err(wrong("a frame comes from Commons")),
@@ -205,5 +223,37 @@ fn listed(kind: PictureKind, item: WrittenItem) -> Result<Listed, HarnessError> 
         reason: item.reason,
         no_outline: item.no_outline,
         no_masses: item.no_masses,
+        no_crop,
     })
+}
+
+/// How many crops a picture of `kind` gives (S101), and where they are taken: a composition's
+/// one, at its corners; a texture's two, anywhere; a shape none.
+pub fn cropping(kind: PictureKind) -> Option<(Places, usize)> {
+    match kind {
+        PictureKind::Composition => Some((Places::Corners, 1)),
+        PictureKind::Crop => Some((Places::Anywhere, 2)),
+        PictureKind::Shape => None,
+    }
+}
+
+/// The crops `written` lists out, by number, each with why: only for a kind cropped, a number
+/// it gives, a reason given.
+fn no_crop(
+    kind: PictureKind,
+    written: &BTreeMap<String, String>,
+) -> Result<BTreeMap<usize, String>, String> {
+    let most = cropping(kind).map_or(0, |(_, count)| count);
+    (written.iter())
+        .map(|(number, why)| {
+            let crop: usize = number.parse().map_err(|_| format!("no crop {number}"))?;
+            if !(1..=most).contains(&crop) {
+                return Err(format!("its picture gives no crop {crop}"));
+            }
+            if why.trim().is_empty() {
+                return Err(format!("crop {crop} is left out and says not why"));
+            }
+            Ok((crop, why.clone()))
+        })
+        .collect()
 }

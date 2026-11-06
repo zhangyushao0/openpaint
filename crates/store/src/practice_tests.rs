@@ -58,8 +58,8 @@ fn a_session_round_trips_and_damage_is_refused() {
         "a key without its id"
     );
     let mut unknown = bytes.clone();
-    // The first exercise's kind, after the session's fixed fields and the count: none of 1.15.0's.
-    unknown[1 + 4 + 8 * 4 + 4 + 4] = 18;
+    // The first exercise's kind, after the session's fixed fields and the count: none of 1.19.0's.
+    unknown[1 + 4 + 8 * 4 + 4 + 4] = 19;
     assert!(decode_session(&key, &unknown).is_err());
 }
 

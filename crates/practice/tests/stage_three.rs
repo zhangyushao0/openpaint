@@ -17,6 +17,7 @@ fn pictures(tiers: &[Tier]) -> Pictures {
         credit: None,
         outline: None,
         masses: None,
+        areas: None,
     };
     let pack = Pack {
         id: "test-shapes".to_owned(),
@@ -25,7 +26,17 @@ fn pictures(tiers: &[Tier]) -> Pictures {
             .flat_map(|tier| (0..4).map(move |n| item(format!("{}-{n}", tier.name()), *tier)))
             .collect(),
     };
-    Pictures::of(&[pack])
+    // Crops (S101) where there are shapes: the tests without pictures have none.
+    let crop = |n: usize| PackItem {
+        kind: PictureKind::Crop,
+        ..item(format!("crop-{n}"), Tier::Medium)
+    };
+    let crops = Pack {
+        id: "test-crops".to_owned(),
+        title: "Test crops".to_owned(),
+        items: (0..4).filter(|_| !tiers.is_empty()).map(crop).collect(),
+    };
+    Pictures::of(&[pack, crops])
 }
 
 fn before<'a>(met: &'a [Kind], pictures: &'a Pictures, used: &'a [ItemRef]) -> Before<'a> {
@@ -83,12 +94,16 @@ fn a_first_stage_three_session_is_estimates_points_in_space_shapes_and_a_combina
         };
         assert!(picture.item.starts_with(tier.name()));
     }
-    assert_eq!(kinds[10].family(), Family::Areas);
+    assert_eq!(
+        kinds[10],
+        Kind::Crop(Tier::Medium),
+        "a combination of a crop"
+    );
     assert_eq!(kinds.len(), 11);
-    // Without a pack's pictures, no shapes.
+    // Without a pack's pictures, no shapes and no combination.
     let none = pictures(&[]);
     let bare = plan_of(1, &[], &none);
-    assert_eq!(bare.len(), 9);
+    assert_eq!(bare.len(), 8);
     assert!(bare.iter().all(|kind| kind.family() != Family::Shape));
     // `plan` gives stage 3 its own.
     let planned = openpaint_practice::plan(3, 1, 0x5EED_0090, &before(&[], &all, &[]));

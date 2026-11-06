@@ -15,7 +15,7 @@
 //!   darker all over keeps its contrasts; a strong contrast made stronger is no weak one made
 //!   strong.
 
-use crate::areas::{Areas, GRID, WEAK};
+use crate::areas::{Areas, WEAK};
 use crate::colour::{Difference, Rgb8, delta_e};
 use crate::metric::{Metric, Metrics};
 use crate::path::Point;
@@ -109,13 +109,23 @@ impl Areas {
 
     /// Each area's colour in the copy: its core's median, or none while most of the core is
     /// `paper`.
-    fn copy_colours(
-        &self,
-        [width, height]: [u32; 2],
-        rgba: &[u8],
-        paper: Rgb8,
-    ) -> Vec<Option<Rgb8>> {
-        let mut core = vec![u8::MAX; GRID * GRID];
+    fn copy_colours(&self, size: [u32; 2], rgba: &[u8], paper: Rgb8) -> Vec<Option<Rgb8>> {
+        (self.core_samples(size, rgba).into_iter())
+            .map(|held| {
+                let bare = held.iter().filter(|c| **c == paper).count();
+                if 2 * bare > held.len() {
+                    return None;
+                }
+                median(held)
+            })
+            .collect()
+    }
+
+    /// The pixels of `rgba` (8-bit RGBA, `size` pixels, covering the picture exactly) over each
+    /// area's core.
+    pub(crate) fn core_samples(&self, [width, height]: [u32; 2], rgba: &[u8]) -> Vec<Vec<Rgb8>> {
+        let [cw, ch] = self.size;
+        let mut core = vec![u8::MAX; cw * ch];
         for area in 0..self.count() {
             for cell in self.core(area) {
                 core[cell] = u8::try_from(area).unwrap_or(u8::MAX);
@@ -125,30 +135,29 @@ impl Areas {
         let (w, h) = (width.max(1) as usize, height.max(1) as usize);
         for (index, pixel) in rgba.as_chunks::<4>().0.iter().take(w * h).enumerate() {
             let (x, y) = (index % w, index / w);
-            let cell = (y * GRID / h) * GRID + x * GRID / w;
+            let cell = (y * ch / h) * cw + x * cw / w;
             if let Some(held) = samples.get_mut(usize::from(core[cell])) {
                 held.push([pixel[0], pixel[1], pixel[2]]);
             }
         }
         samples
-            .into_iter()
-            .map(|mut held| {
-                let bare = held.iter().filter(|c| **c == paper).count();
-                if held.is_empty() || 2 * bare > held.len() {
-                    return None;
-                }
-                Some([0, 1, 2].map(|k| {
-                    held.sort_unstable_by_key(|c| c[k]);
-                    held[held.len() / 2][k]
-                }))
-            })
-            .collect()
     }
 
-    /// The area at the frame point `p`, as the map holds it.
+    /// The area at the point `p` (shares of the picture's width and height), as the map holds it.
     #[must_use]
     pub fn area_at(&self, p: Point) -> usize {
-        let cell = |v: f64| ((v * GRID as f64).floor().max(0.0) as usize).min(GRID - 1);
-        self.cell([cell(p[0]), cell(p[1])])
+        let cell =
+            |v: f64, side: usize| ((v * side as f64).floor().max(0.0) as usize).min(side - 1);
+        self.cell([cell(p[0], self.size[0]), cell(p[1], self.size[1])])
     }
+}
+
+/// The median of `held`, channel by channel; none of nothing.
+pub(crate) fn median(mut held: Vec<Rgb8>) -> Option<Rgb8> {
+    (!held.is_empty()).then(|| {
+        [0, 1, 2].map(|k| {
+            held.sort_unstable_by_key(|c| c[k]);
+            held[held.len() / 2][k]
+        })
+    })
 }

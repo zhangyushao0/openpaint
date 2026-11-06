@@ -37,6 +37,11 @@
 # Kimono, Cuyp's riders, Constable's Salisbury, Boudin's Beach; Cosmos Laundromat (CC BY-SA on
 # Commons), Tears of Steel (actors), Glass Half (picture frames), Singularity (no ground).
 # No outline: a composition is compared by its picture in place.
+#
+# Crops (S101): each painting's best corner holding a colour combination is cut as a crop
+# (`openpaint_practice::crop`) and judged on `openpaint-compositions-crops-<n>.png`; a corner
+# showing a recognisable object, a figure or the scan's edge is listed out with why
+# (`no_crop.1`, 2026-11-05), the composition itself unchanged.
 
 id = "openpaint-compositions"
 title = "Compositions"
@@ -67,6 +72,7 @@ source = "aic"
 object = "94841"
 licence = "CC0"
 reason = "one standing figure against a flat dark field, the low red sun beside her: a vertical against horizontals, the focal point at the face"
+no_crop.1 = "the girl's head and shoulder"
 
 [[item]]
 id = "bingham-fur-traders"
@@ -91,6 +97,7 @@ source = "met"
 object = "11130"
 licence = "CC0"
 reason = "a white breaking wave against dark rocks and a grey sky: three masses on a diagonal, the strongest contrast at the crest"
+no_crop.1 = "the breaking wave, and the scan's dark edge along its top and side"
 
 [[item]]
 id = "rembrandt-the-mill"
@@ -107,6 +114,7 @@ source = "nga"
 object = "1225"
 licence = "CC0"
 reason = "the moon between two dark banks of ships, its light down the water: a symmetrical tunnel of value round one focal point"
+no_crop.1 = "a boat's dark hull at its edge"
 
 [[item]]
 id = "monet-woman-with-parasol"
@@ -141,6 +149,7 @@ object = "SK-C-211"
 licence = "PD-old"
 reason = "one dark mill against a towering cloudy sky over a low horizon: a single vertical accent dividing sky and water"
 no_masses = "the scan holds a band of its frame along the bottom, thicker than the rim left out: the answer keeps it as a middle strip under the dark foreground"
+no_crop.1 = "the frame's gilt edge along its top and side"
 
 [[item]]
 id = "asselijn-threatened-swan"
@@ -149,6 +158,7 @@ source = "rijks"
 object = "SK-A-4"
 licence = "PD-old"
 reason = "one white swan, wings spread, on a dark ground: a single light shape filling the frame"
+no_crop.1 = "the swan's wing, and the scan's edge"
 
 [[item]]
 id = "rembrandt-stone-bridge"
@@ -157,6 +167,7 @@ source = "rijks"
 object = "SK-A-1935"
 licence = "PD-old"
 reason = "a lit clump of trees under a storm-dark sky: one light focal mass in a dark field, a Notan of two values"
+no_crop.1 = "trees, a house and the bridge"
 
 [[item]]
 id = "mauve-morning-ride"
@@ -165,6 +176,7 @@ source = "rijks"
 object = "SK-A-3602"
 licence = "PD-old"
 reason = "three riders on a pale beach under a grey sky: dark accents on a light ground, quiet low-saturation colour"
+no_crop.1 = "the canvas's unpainted edge and the frame"
 
 [[item]]
 id = "coorte-asparagus"
@@ -173,6 +185,7 @@ source = "rijks"
 object = "SK-A-2099"
 licence = "PD-old"
 reason = "a bundle of asparagus on a stone ledge before a dark ground: a still life of one light mass and one edge"
+no_crop.1 = "the ledge's corner on black: an object, its areas all but black"
 
 [[item]]
 id = "spring-cliff-above-clouds"
@@ -191,6 +204,7 @@ object = "File:Spring - Blender Open Movie.webm"
 at = 120
 licence = "CC BY 4.0"
 reason = "a carved stone on a mound at the end of a path, lit fog behind it: one silhouette against light, dark framing roots, low saturation"
+no_crop.1 = "a tree's roots in the dark"
 
 [[item]]
 id = "sintel-dunes"
@@ -210,6 +224,7 @@ object = "File:Big Buck Bunny 4K.webm"
 at = 490
 licence = "CC BY 3.0"
 reason = "a big sky and cloud over a low meadow, a dark tree at the edge and a small white figure: a low horizon and one framing mass"
+no_crop.1 = "two trees on a meadow"
 
 [[item]]
 id = "coffee-run-slope"
@@ -219,6 +234,7 @@ object = "File:Coffee Run - Blender Open Movie-full movie.webm"
 at = 8
 licence = "CC BY 4.0"
 reason = "a steep orange slope against pale city silhouettes, a tiny rider on it: one diagonal division, flat low-saturation colour"
+no_crop.1 = "a house's roof and wall"
 
 # Medium
 
@@ -238,6 +254,7 @@ object = "28560"
 licence = "CC0"
 reason = "a small room in flat bright colour: bed, chairs, table and window as five masses in a steep perspective"
 no_masses = "carried by colour at close values: the answer makes the yellow bed and the blue walls one dark mass, which squinting does not show"
+no_crop.1 = "the towel, the mirror, the window and the jug"
 
 [[item]]
 id = "cezanne-basket-of-apples"
@@ -246,6 +263,7 @@ source = "aic"
 object = "111436"
 licence = "CC0"
 reason = "a basket, a bottle, a plate and a white cloth on a tilted table: a still life of several masses, the cloth the strongest light"
+no_crop.1 = "the basket's handle"
 
 [[item]]
 id = "cezanne-bay-of-marseille"
@@ -254,6 +272,7 @@ source = "aic"
 object = "16487"
 licence = "CC0"
 reason = "roofs, the bay and the hills in three bands: picture division by horizontals, warm against cool, the village in many small planes"
+no_crop.1 = "houses and a chimney"
 
 [[item]]
 id = "hokusai-great-wave"
@@ -262,6 +281,7 @@ source = "aic"
 object = "24645"
 licence = "CC0"
 reason = "a wave's claw arching over boats, a small mountain in the hollow: one curved main division and a clear focal point, few colours (a small title panel)"
+no_crop.1 = "the print's blank margin"
 
 [[item]]
 id = "eakins-single-scull"
@@ -278,6 +298,7 @@ source = "met"
 object = "435868"
 licence = "CC0"
 reason = "three players and a standing man round a table: figures as interlocking masses, warm against cool"
+no_crop.1 = "a player's face and hat"
 
 [[item]]
 id = "seurat-circus-sideshow"
@@ -286,6 +307,7 @@ source = "met"
 object = "437654"
 licence = "CC0"
 reason = "a night frieze of a stage, lamps and a crowd's heads: horizontals and verticals in close dark blues and violets, a weak-contrast picture"
+no_crop.1 = "the gas lamps and a tree, and the frame's edge"
 
 [[item]]
 id = "corot-ville-davray"
@@ -326,6 +348,7 @@ source = "rijks"
 object = "SK-A-2344"
 licence = "PD-old"
 reason = "a woman pouring milk by a window: one figure as a vertical mass before a lit wall, blue against yellow"
+no_crop.1 = "the milkmaid herself"
 
 [[item]]
 id = "vermeer-little-street"
@@ -334,6 +357,7 @@ source = "rijks"
 object = "SK-A-2860"
 licence = "PD-old"
 reason = "a house front with two doorways and a strip of sky: rectangles of brick, whitewash and window, two small figures"
+no_crop.1 = "a roof and a chimney in its corner"
 
 [[item]]
 id = "van-de-velde-cannon-shot"
@@ -350,6 +374,7 @@ source = "rijks"
 object = "SK-A-851"
 licence = "PD-old"
 reason = "a nave seen along its arches to the choir: architecture in light greys and ochres, a weak-contrast perspective"
+no_crop.1 = "the church's columns and figures"
 
 [[item]]
 id = "heda-gilt-cup"
@@ -358,6 +383,7 @@ source = "rijks"
 object = "SK-A-4830"
 licence = "PD-old"
 reason = "a gilt cup, a green glass, a pewter jug and plates on a white cloth: a still life in close greys with one gold accent"
+no_crop.1 = "the table's edge and a plate"
 
 [[item]]
 id = "sprite-fright-forest-path"
@@ -413,6 +439,7 @@ source = "aic"
 object = "16571"
 licence = "CC0"
 reason = "a station shed, steam and engines: a big dark roof over soft greys and blues, many small masses held by the arch"
+no_crop.1 = "a figure on the grass under trees"
 
 [[item]]
 id = "caillebotte-paris-street-rain"
@@ -421,6 +448,7 @@ source = "aic"
 object = "20684"
 licence = "CC0"
 reason = "a rainy crossroads in deep perspective, a lamp post dividing it in two: figures at several distances, close greys"
+no_crop.1 = "a window's frame and an umbrella"
 
 [[item]]
 id = "toulouse-lautrec-moulin-rouge"
@@ -429,6 +457,7 @@ source = "aic"
 object = "61128"
 licence = "CC0"
 reason = "figures round a table behind a sharp diagonal rail, a lit face cut by the edge: many overlapping masses, strange colour"
+no_crop.1 = "the figures and a face"
 
 [[item]]
 id = "seurat-grande-jatte"
@@ -437,6 +466,7 @@ source = "aic"
 object = "27992"
 licence = "CC0"
 reason = "a park of many figures in sun and shade: big bands of light and shadow holding dozens of figures, a painted border"
+no_crop.1 = "a man lying on the grass"
 
 [[item]]
 id = "cole-oxbow"
@@ -445,6 +475,7 @@ source = "met"
 object = "10497"
 licence = "CC0"
 reason = "a storm over a wooded hill and a sunlit river bend: a diagonal division between a dark and a light half, much detail"
+no_crop.1 = "a blank sky inside the scan's frame edge"
 
 [[item]]
 id = "bruegel-harvesters"
@@ -453,6 +484,7 @@ source = "met"
 object = "435809"
 licence = "CC0"
 reason = "harvesters resting under a tree, wheat to a far horizon: a gold mass against green, many figures at several depths"
+no_crop.1 = "fields, trees and a haystack"
 
 [[item]]
 id = "pissarro-tuileries-winter"
@@ -461,6 +493,7 @@ source = "met"
 object = "437314"
 licence = "CC0"
 reason = "a garden seen from above, paths, lawns and bare trees under a winter sky: many small masses in close greys"
+no_crop.1 = "the city's roofs and a cathedral's spires"
 
 [[item]]
 id = "bierstadt-rocky-mountains"
@@ -469,6 +502,7 @@ source = "met"
 object = "10154"
 licence = "CC0"
 reason = "peaks, a waterfall, a lake and a camp: layered planes from a dark foreground to a pale distance"
+no_crop.1 = "a mountain range"
 
 [[item]]
 id = "pissarro-boulevard-des-italiens"
@@ -485,6 +519,7 @@ source = "nga"
 object = "32588"
 licence = "CC0"
 reason = "a square in perspective with the basilica, the palace and the flagpoles: architecture and many small figures under a light sky"
+no_crop.1 = "the basilica and its flagpole"
 
 [[item]]
 id = "de-hooch-dutch-courtyard"
@@ -493,6 +528,7 @@ source = "nga"
 object = "63"
 licence = "CC0"
 reason = "a courtyard with figures at a table and a girl by a door: rectangles of wall, door and sky, figures at two depths"
+no_crop.1 = "a tree, roofs and a tower"
 
 [[item]]
 id = "breitner-singel-bridge"
@@ -510,6 +546,7 @@ object = "SK-C-1191"
 licence = "PD-old"
 reason = "two women at a cupboard, rooms opening behind them: interiors in depth, a tiled floor, light through doors"
 no_masses = "the cupboard's carved panels come out as light masses beside the women; a squinting eye sees one dark cupboard and the light only on the women and the far door"
+no_crop.1 = "the women and the cupboard"
 
 [[item]]
 id = "avercamp-skaters"
@@ -518,6 +555,7 @@ source = "rijks"
 object = "SK-A-1718"
 licence = "PD-old"
 reason = "hundreds of skaters on a frozen river: a pale field held by dark trees and buildings at the sides"
+no_crop.1 = "a bare tree with birds"
 
 [[item]]
 id = "rembrandt-night-watch"
@@ -545,6 +583,7 @@ object = "File:Sintel movie 4K.webm"
 at = 290
 licence = "CC BY 3.0"
 reason = "ruined stairs and columns in low warm light, a banner on a pole: many planes and edges in close warm values"
+no_crop.1 = "a ruined building"
 
 [[item]]
 id = "elephants-dream-machine-hall"

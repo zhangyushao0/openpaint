@@ -15,6 +15,9 @@ use openpaint_practice::{
     plan, stage_four,
 };
 
+/// The crops' tiers (S101).
+const CROPS: [Tier; 3] = [Tier::Simple, Tier::Medium, Tier::Hard];
+
 fn pack(id: &str, kind: PictureKind, tiers: &[Tier]) -> Pack {
     let item = |id: String, tier: Tier| PackItem {
         id,
@@ -25,6 +28,7 @@ fn pack(id: &str, kind: PictureKind, tiers: &[Tier]) -> Pack {
         credit: None,
         outline: None,
         masses: None,
+        areas: None,
     };
     Pack {
         id: id.to_owned(),
@@ -36,7 +40,12 @@ fn pack(id: &str, kind: PictureKind, tiers: &[Tier]) -> Pack {
 }
 
 fn pictures(tiers: &[Tier]) -> Pictures {
-    Pictures::of(&[pack("test-shapes", PictureKind::Shape, tiers)])
+    let crops = (!tiers.is_empty()).then(|| pack("test-crops", PictureKind::Crop, &CROPS));
+    let packs: Vec<Pack> = [Some(pack("test-shapes", PictureKind::Shape, tiers)), crops]
+        .into_iter()
+        .flatten()
+        .collect();
+    Pictures::of(&packs)
 }
 
 /// Shapes of every tier and compositions of `tiers`.
@@ -44,6 +53,7 @@ fn with_compositions(tiers: &[Tier]) -> Pictures {
     Pictures::of(&[
         pack("test-shapes", PictureKind::Shape, &Tier::ALL),
         pack("test-compositions", PictureKind::Composition, tiers),
+        pack("test-crops", PictureKind::Crop, &CROPS),
     ])
 }
 
@@ -80,20 +90,26 @@ fn a_first_stage_four_session_without_compositions_is_s94_s_mix() {
     assert_eq!(first.warm_up, 0, "nothing met");
     let held: Vec<Kind> = first.exercises.iter().map(|e| e.kind).collect();
     assert_eq!(
-        held,
+        held[..5],
         [
             Kind::Object(Carve::Block),
             Kind::Object(Carve::Cut),
             Kind::Object(Carve::Taper),
             Kind::Solid(Solid::Cylinder),
             Kind::Shape(Tier::Medium),
-            Kind::Areas(Arrangement::ALL[0]),
         ]
     );
+    assert!(matches!(held[5], Kind::Crop(_)), "a combination of a crop");
     assert!(first.exercises[4].picture.is_some(), "the shape's picture");
+    let crop = first.exercises[5].picture.as_ref().map(|p| p.pack.as_str());
+    assert_eq!(crop, Some("test-crops"));
     let none = pictures(&[]);
     let bare = kinds(1, &[], &none);
-    assert_eq!(bare.len(), 5, "no shape without a picture");
+    assert_eq!(
+        bare.len(),
+        4,
+        "no shape without a picture, no combination without a crop"
+    );
 }
 
 #[test]
@@ -213,8 +229,8 @@ fn objects_solids_shapes_and_combinations_come_in_turn() {
             "session {}",
             index + 1
         );
-        let arrangement = Arrangement::ALL[index % Arrangement::ALL.len()];
-        assert!(session.contains(&Kind::Areas(arrangement)));
+
+        assert!(session.iter().any(|k| matches!(k, Kind::Crop(_))), "a crop");
         let objects = session.iter().filter(|k| k.family() == Family::Object);
         assert_eq!(objects.count(), 3, "session {}", index + 1);
     }
@@ -266,7 +282,8 @@ fn the_warm_up_is_three_of_the_kinds_met_never_an_object_a_solid_or_a_division()
     assert_eq!(masses.code(), (17, 3));
     assert_eq!(Kind::of_code(17, 3), Some(masses));
     assert!(masses.family().painted() && !masses.family().drawn() && masses.family().composed());
-    assert_eq!(Kind::of_code(18, 0), None);
+    assert_eq!(Kind::of_code(18, 3), Some(Kind::Crop(Tier::Medium)));
+    assert_eq!((Kind::of_code(18, 0), Kind::of_code(19, 2)), (None, None));
     assert_eq!(Metric::MassesMatched.code(), 55);
 }
 
@@ -285,6 +302,7 @@ fn with_masses() -> Pictures {
     Pictures::of(&[
         pack("test-shapes", PictureKind::Shape, &Tier::ALL),
         compositions,
+        pack("test-crops", PictureKind::Crop, &CROPS),
     ])
 }
 

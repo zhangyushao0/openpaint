@@ -12,7 +12,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use openpaint_practice::{
-    Before, Book, Family, ItemRef, Kind, PERSONAL, Pack, PictureKind, Pictures, Random,
+    Before, Book, Family, ItemRef, Kind, PERSONAL, Pack, PackItem, PictureKind, Pictures, Random,
     STAGE_SESSIONS, STAGES_READY, SessionRecord, Tally, drill, kinds_of, local_day, met, plan,
     recent, scales_met, used,
 };
@@ -90,6 +90,7 @@ impl PracticeLog {
         let open = (self.sessions().rev())
             .find(|s| s.finished.is_none() && s.canvas != 0)
             .map(|s| ProjectId::new(s.canvas));
+        let any = |held: fn(&PackItem) -> bool| self.packs.iter().any(|p| p.items.iter().any(held));
         TodayProjection {
             stage,
             done,
@@ -98,10 +99,9 @@ impl PracticeLog {
             next: (done >= STAGE_SESSIONS && stage < STAGES_READY).then_some(stage + 1),
             ready: STAGES_READY,
             packs: self.packs.iter().map(PackShown::of).collect(),
-            compositions: (self.packs.iter().flat_map(|pack| &pack.items))
-                .any(|item| item.kind == PictureKind::Composition),
-            masses: (self.packs.iter().flat_map(|pack| &pack.items))
-                .any(|item| item.masses.is_some()),
+            compositions: any(|item| item.kind == PictureKind::Composition),
+            crops: any(|item| item.kind == PictureKind::Crop),
+            masses: any(|item| item.masses.is_some()),
             copies: self.copies(),
             pictures: Arc::clone(&self.pictures),
             book: BookProjection {

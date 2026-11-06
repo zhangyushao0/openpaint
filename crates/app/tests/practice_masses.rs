@@ -41,6 +41,7 @@ fn compositions() -> Pack {
             credit: None,
             outline: None,
             masses: massed.then(|| Arc::new(ValueMasses::of(size, &pixels))),
+            areas: None,
         }
     };
     Pack {

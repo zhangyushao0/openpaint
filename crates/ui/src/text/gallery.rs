@@ -73,6 +73,11 @@ texts! { GALLERY_NOTICES;
         "练习图包已导入：单体图形会用到其中的图片。";
     COMPOSITIONS_IMPORTED = "Practice pack imported: for divisions, value masses and whole \
         copies.", "练习图包已导入：画面分割、黑白灰和整图复制会用到其中的图片。";
+    COMPOSITIONS_AND_CROPS_IMPORTED = "Practice pack imported: for divisions, value masses and \
+        whole copies, and its crops for colour combinations.",
+        "素材包已导入：画面分割、黑白灰和整图复制会用到其中的画，色彩组合会用到从画上截下的局部。";
+    CROPS_IMPORTED = "Practice pack imported: its crops come up in colour combinations.",
+        "素材包已导入：色彩组合会用到其中截下的局部。";
     PACK_DAMAGED = "Couldn't import: the file is not a practice pack, or it is damaged.",
         "无法导入：这不是练习图包，或图包已损坏。";
     PACK_OTHER_FORMAT = "Couldn't import: the pack is from another version of OpenPaint.",
@@ -91,8 +96,20 @@ pub(crate) const fn gallery_notice(notice: GalleryNotice) -> Option<Text> {
     Some(match notice {
         GalleryNotice::PackImported {
             compositions: false,
+            crops: false,
         } => PACK_IMPORTED,
-        GalleryNotice::PackImported { compositions: true } => COMPOSITIONS_IMPORTED,
+        GalleryNotice::PackImported {
+            compositions: true,
+            crops: false,
+        } => COMPOSITIONS_IMPORTED,
+        GalleryNotice::PackImported {
+            compositions: true,
+            crops: true,
+        } => COMPOSITIONS_AND_CROPS_IMPORTED,
+        GalleryNotice::PackImported {
+            compositions: false,
+            crops: true,
+        } => CROPS_IMPORTED,
         GalleryNotice::PackRefused(FileProblem::OtherFormat) => PACK_OTHER_FORMAT,
         GalleryNotice::PackRefused(FileProblem::Unreadable) => FILE_UNREADABLE,
         GalleryNotice::PackRefused(FileProblem::NotOpenPaint | FileProblem::Damaged) => {

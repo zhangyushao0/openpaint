@@ -13,9 +13,9 @@ use std::sync::Arc;
 
 use openpaint_core::Color;
 use openpaint_practice::{
-    AreasCopy, BoxCheck, DivisionCheck, EllipseCheck, ExerciseResult, Family, FlatCheck, FreeCheck,
-    KindSummary, Level, MassesCheck, Original, Pack, Pair, Point, Rgb8, ScaleCheck, SessionRecord,
-    Sheet, SolidCheck, SpaceCheck, Value,
+    Areas, AreasCopy, BoxCheck, DivisionCheck, EllipseCheck, ExerciseResult, Family, FlatCheck,
+    FreeCheck, KindSummary, Level, MassesCheck, Original, Pack, Pair, Point, Rgb8, ScaleCheck,
+    SessionRecord, Sheet, SolidCheck, SpaceCheck, Value,
 };
 
 use crate::layer_rules::LayerRefusal;
@@ -25,7 +25,8 @@ use crate::projection::Availability;
 use crate::title::Title;
 use crate::view::Viewport;
 
-/// The side a colour combination's picture is drawn at, in pixels: one to a frame's canvas pixel.
+/// The side a generated colour combination's picture is drawn at (a record of 1.18.1 and
+/// before), in pixels: one to a frame's canvas pixel.
 pub const AREAS_SIDE: u32 = 400;
 /// The side an object's picture is drawn at (S94), likewise.
 pub const OBJECT_SIDE: u32 = 400;
@@ -262,6 +263,22 @@ impl SheetView {
             families,
         }
     }
+
+    /// Exercise `index`'s colour combination, if it is one: its areas and the size its picture
+    /// fills in its frame (frame units); a crop's as its pack holds them (S101), or a generated
+    /// one's (a record of 1.18.1 and before), its square frame whole. None for another kind or a
+    /// crop no pack holds now (removed).
+    #[must_use]
+    pub fn areas(&self, index: usize) -> Option<(&Areas, Point)> {
+        match self.originals.get(index)? {
+            Original::Areas(generated) => Some((&generated.areas, [1.0, 1.0])),
+            Original::Picture(_) => {
+                let picture = self.pictures.get(index)?.as_ref()?;
+                Some((picture.areas.as_deref()?, picture.fit.size))
+            }
+            _ => None,
+        }
+    }
 }
 
 /// The picture the practice crate draws for an exercise of `family` whose original is `original`
@@ -272,7 +289,7 @@ fn painted(
     family: Family,
 ) -> Option<Arc<PictureImage>> {
     let (size, pixels) = match original {
-        Original::Areas(areas) => ([AREAS_SIDE; 2], areas.picture(AREAS_SIDE)),
+        Original::Areas(generated) => ([AREAS_SIDE; 2], generated.picture(AREAS_SIDE)),
         Original::Object(task) => ([OBJECT_SIDE; 2], task.picture(OBJECT_SIDE)),
         Original::Picture(_) if family == Family::ValueMasses => {
             let masses = picture?.masses.as_ref()?;

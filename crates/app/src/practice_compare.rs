@@ -145,6 +145,8 @@ impl PracticeSheet {
                 }
             }
             _ if !holds_copy(artwork, frame) => return Err(nothing()),
+            // A colour combination, a crop's (S101) or a generated one's: read against its areas.
+            _ if self.sheet.areas(index).is_some() => Compared::Painted(self.ask_read(index)),
             // A division: its lines counted, the picture under them (S95); a whole copy: the
             // picture over it, its division hidden; both as strongly as the slider sets.
             Original::Picture(_) if self.family(index) == Some(Family::Division) => {
@@ -158,7 +160,7 @@ impl PracticeSheet {
             Original::Picture(_) if self.family(index) == Some(Family::ValueMasses) => {
                 Compared::Painted(self.ask_read(index))
             }
-            Original::Areas(_) | Original::Scale(_) => Compared::Painted(self.ask_read(index)),
+            Original::Scale(_) => Compared::Painted(self.ask_read(index)),
             Original::Picture(_) if !self.drawn(index) => Compared::Painted(Reading::Shown),
             Original::Lines(_) | Original::Picture(_) => {
                 Compared::Drawn(self.ask_fit(index, artwork, frame))

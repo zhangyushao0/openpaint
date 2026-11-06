@@ -38,6 +38,7 @@ fn compositions() -> Pack {
         credit: None,
         outline: None,
         masses: None,
+        areas: None,
     };
     Pack {
         id: "test-compositions".to_owned(),

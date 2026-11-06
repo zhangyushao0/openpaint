@@ -1,7 +1,7 @@
 {
   "walkthrough": [
     "Goal: stage 3 (V大's 点定位): learn to place points by eye, first on the flat (a point in its frame, a proportion along a segment, an angle) with exact answers, then in space on a box by V大's five tricks; see the exact answer and the way to see it after each try, never a score.",
-    "Entry: in the gallery the Today card's options list Stage 3 · Points (点定位) among the stages (the Today card offers it by itself once stage 2's 15 sessions are done). A session (S93's mix): a warm-up of three from the kinds met (none in the first), a point, a proportion, an angle and one of them again in turn, two points in space (the five tricks in turn: centre and halves; then thirds and the next face; then a mirror and the centre; ...), two solids in boxes (s93-solids walks them), two shapes of the medium and hard tiers when a pack is kept, then a colour combination.",
+    "Entry (S101: the test crops imported first, so a combination copies a crop): in the gallery the Today card's options list Stage 3 · Points (点定位) among the stages (the Today card offers it by itself once stage 2's 15 sessions are done). A session (S93's mix): a warm-up of three from the kinds met (none in the first), a point, a proportion, an angle and one of them again in turn, two points in space (the five tricks in turn: centre and halves; then thirds and the next face; then a mirror and the centre; ...), two solids in boxes (s93-solids walks them), two shapes of the medium and hard tiers when a pack is kept, then a colour combination.",
     "A point: the left frame holds a dot; the empty frame beside it is mine. The first time, the instructions show by themselves: mark where the dot lies, judged by the frame (never a grid), against the half and then the thirds, again and again; with Draw, a dot or a small cross, the last mark counting; Sketch for my own guides. The tools beside the frame: Sketch, Draw, Undo, Redo, nothing else. I put a dot a little right of and above where it should be.",
     "Compare: the exact point is a red cross over my frame, as thick as my pen and see-through; the point read from my dot is ringed blue. Dashed pencil runs the point across and down to both frames' edges, and both frames' top and left edges are ticked at the half and the thirds, so I see where it really sits: a bit past a third across, a bit past the half down. The card is only its title (the How said what the marks mean). The pen is blue: I make a small cross on the red one, Compare again: the blue ring is on the red cross, the correction read in place of my dot. The record keeps my first error, across and down, for later; no number is shown.",
     "A proportion: the left frame holds a segment with a dot dividing it; mine holds a segment turned and longer or shorter; in both the end the share counts from is ringed, the other barred. I tick my segment at its middle (wrong: the dot sits before the half). Compare: the exact place is a red bar across my segment, my tick ringed blue; both segments' halves and thirds are ticked in pencil, so the dot reads as between a third and the half. A dot in blue on the red bar, Compare: ringed on it.",
@@ -19,6 +19,10 @@
   "density": 1.75,
   "steps": [
     { "tap": { "at": "Gallery" } },
+    { "tap": { "at": "Practice options" } },
+    { "tap": { "at": "Import practice pack…" } },
+    { "system": "test_crops" },
+    { "tap": { "at": "OK" } },
     { "tap": { "at": "Practice options" } },
     { "screenshot": { "name": "stages" } },
     { "tap": { "at": "Stage 3 · Points" } },

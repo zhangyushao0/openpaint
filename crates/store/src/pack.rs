@@ -13,13 +13,17 @@
 //! (strings); its outline, a contour count (u32, 0 none) and per contour a point count (u32) and
 //! each point's x and y in the picture's pixels (f32 each); its value masses (S96), their cells
 //! across and down (u32 each, both 0 none) and then a run count (u32) and per run, row by row, a
-//! value (u8, dark 0, middle 1, light 2) and how many cells hold it (u32); and its picture's
-//! length and CRC-32 (u32 each). A picture is a PNG or JPEG file of the item's size.
+//! value (u8, dark 0, middle 1, light 2) and how many cells hold it (u32); its colour areas (a
+//! crop's, S101), their cells across and down (u32 each, both 0 none), then an area count (u32)
+//! and each area's colour (three u8, sRGB), then runs as the masses' of each cell's area (u8);
+//! and its picture's length and CRC-32 (u32 each). A picture is a PNG or JPEG file of the item's
+//! size.
 //!
 //! So a pack's list reads its head alone and an exercise one picture at its offset, each
 //! checked by its own sum; an import checks every part. Format 2 (1.4.0) added the outline and
-//! the personal pack's uncredited items, format 3 (1.14.0) the value masses; a format-2 pack is
-//! upgraded (`pack_upgrade.rs`); S78's format 1 was never released and is not read.
+//! the personal pack's uncredited items, format 3 (1.14.0) the value masses, format 4 (1.19.0)
+//! the colour areas; a pack of format 2 or 3 is upgraded (`pack_upgrade.rs`); S78's format 1 was
+//! never released and is not read.
 
 use std::io::Cursor;
 use std::sync::Arc;
@@ -27,24 +31,27 @@ use std::sync::Arc;
 use image::{ImageFormat, ImageReader};
 use openpaint_app::PortError;
 use openpaint_practice::{
-    Credit, Licence, MASSES_SIDE, Outline, Pack, PackItem, PictureKind, Point, Tier, ValueMasses,
+    Areas, Credit, GRID, Licence, MASSES_SIDE, Outline, Pack, PackItem, PictureKind, Point, Tier,
+    ValueMasses,
 };
 
 use crate::codec::{Reader, Writer};
 
 /// The layout this build reads and writes.
-pub const PACK_FORMAT: u32 = 3;
+pub const PACK_FORMAT: u32 = 4;
 pub(crate) const MAGIC: &[u8; 14] = b"OpenPaintPack\0";
 /// Bytes before the head: the magic, the format and the head's length.
 pub(crate) const START: usize = MAGIC.len() + 4 + 4;
 /// The longest head a pack may have: a length naming more is damage, never an allocation.
 pub(crate) const MAX_HEAD: usize = 16 << 20;
 /// The fewest bytes of an item in the head (a one-byte id, an empty title, no credit, no
-/// outline, no value masses), of a contour, of a point and of a run of value masses.
-const ITEM_BYTES: usize = 5 + 2 + 8 + 4 + 1 + 4 + 8 + 8;
+/// outline, no value masses, no colour areas), of a contour, of a point, of a run of a map's
+/// cells and of a colour.
+const ITEM_BYTES: usize = 5 + 2 + 8 + 4 + 1 + 4 + 8 + 8 + 8;
 const CONTOUR_BYTES: usize = 4;
 const POINT_BYTES: usize = 8;
 const RUN_BYTES: usize = 5;
+const COLOUR_BYTES: usize = 3;
 
 /// Where an item's picture lies in its pack's file.
 #[derive(Debug, Clone, Copy)]
@@ -131,14 +138,34 @@ fn write_item(head: &mut Writer, item: &PackItem) {
             head.f32(*y as f32);
         }
     }
-    let Some(masses) = &item.masses else {
+    match &item.masses {
+        Some(masses) => {
+            head.u32(masses.size[0]);
+            head.u32(masses.size[1]);
+            write_runs(head, &masses.values);
+        }
+        None => {
+            head.u32(0);
+            head.u32(0);
+        }
+    }
+    let Some(areas) = &item.areas else {
         head.u32(0);
         head.u32(0);
         return;
     };
-    head.u32(masses.size[0]);
-    head.u32(masses.size[1]);
-    let runs = runs(&masses.values);
+    head.len(areas.size[0]);
+    head.len(areas.size[1]);
+    head.len(areas.colours.len());
+    for colour in &areas.colours {
+        head.bytes(colour);
+    }
+    write_runs(head, areas.map());
+}
+
+/// `values` as runs, their count first: each value (u8) and how many cells in a row hold it (u32).
+fn write_runs(head: &mut Writer, values: &[u8]) {
+    let runs = runs(values);
     head.len(runs.len());
     for (value, length) in runs {
         head.u8(value);
@@ -208,7 +235,7 @@ pub(crate) fn head_length(start: &[u8; START]) -> Result<usize, PortError> {
     Ok(length)
 }
 
-/// The pack in a head of `format` (this build's, or format 2 for the upgrade alone,
+/// The pack in a head of `format` (this build's, or format 2 or 3 for the upgrade alone,
 /// `pack_upgrade.rs`) followed by its check sum, and where each item's picture lies in the file.
 ///
 /// # Errors
@@ -223,7 +250,9 @@ pub(crate) fn decode_head(
     }
     let mut reader = Reader::new(head, "practice pack");
     let (id, title) = (reader.str()?, reader.str()?);
-    let count = reader.count(ITEM_BYTES - if format < 3 { 8 } else { 0 })?;
+    // Format 2 has neither value masses nor colour areas, format 3 no colour areas.
+    let missing = 8 * (PACK_FORMAT.saturating_sub(format) as usize);
+    let count = reader.count(ITEM_BYTES - missing)?;
     let mut items = Vec::with_capacity(count);
     let mut placed = Vec::with_capacity(count);
     let mut offset = (START + head_and_check.len()) as u64;
@@ -231,6 +260,9 @@ pub(crate) fn decode_head(
         let mut item = read_item(&mut reader)?;
         if format >= 3 {
             item.masses = read_masses(&mut reader)?;
+        }
+        if format >= 4 {
+            item.areas = read_areas(&mut reader)?;
         }
         items.push(item);
         let (length, check) = (reader.u32()?, reader.u32()?);
@@ -286,6 +318,7 @@ fn read_item(reader: &mut Reader<'_>) -> Result<PackItem, PortError> {
         credit,
         outline: (!contours.is_empty()).then_some(Outline { contours }),
         masses: None,
+        areas: None,
     })
 }
 
@@ -298,7 +331,32 @@ fn read_masses(reader: &mut Reader<'_>) -> Result<Option<Arc<ValueMasses>>, Port
     if !size.iter().all(|side| (1..=MASSES_SIDE).contains(side)) {
         return Err(damaged());
     }
-    let cells = size[0] as usize * size[1] as usize;
+    let values = read_runs(reader, size[0] as usize * size[1] as usize)?;
+    let masses = ValueMasses::checked(size, values).ok_or_else(damaged)?;
+    Ok(Some(Arc::new(masses)))
+}
+
+/// An item's colour areas, after its value masses (format 4, S101); none where both sides are 0.
+fn read_areas(reader: &mut Reader<'_>) -> Result<Option<Arc<Areas>>, PortError> {
+    let size = [reader.u32()? as usize, reader.u32()? as usize];
+    if size == [0, 0] {
+        return Ok(None);
+    }
+    if !size.iter().all(|side| (1..=GRID).contains(side)) {
+        return Err(damaged());
+    }
+    let count = reader.count(COLOUR_BYTES)?;
+    let mut colours = Vec::with_capacity(count);
+    for _ in 0..count {
+        colours.push([reader.u8()?, reader.u8()?, reader.u8()?]);
+    }
+    let map = read_runs(reader, size[0] * size[1])?;
+    let areas = Areas::of_map(size, map, colours).ok_or_else(damaged)?;
+    Ok(Some(Arc::new(areas)))
+}
+
+/// A map of `cells` written as runs: never more cells than it holds.
+fn read_runs(reader: &mut Reader<'_>, cells: usize) -> Result<Vec<u8>, PortError> {
     let runs = reader.count(RUN_BYTES)?;
     let mut values = Vec::with_capacity(cells);
     for _ in 0..runs {
@@ -308,8 +366,7 @@ fn read_masses(reader: &mut Reader<'_>) -> Result<Option<Arc<ValueMasses>>, Port
         }
         values.extend(std::iter::repeat_n(value, length));
     }
-    let masses = ValueMasses::checked(size, values).ok_or_else(damaged)?;
-    Ok(Some(Arc::new(masses)))
+    Ok(values)
 }
 
 /// The width and height a PNG or JPEG file's header states; `None` for any other bytes.

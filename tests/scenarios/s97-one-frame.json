@@ -1,7 +1,7 @@
 {
   "walkthrough": [
     "Goal: the kinds whose answer is built from given parts, a value scale, a box to complete, free boxes and an ellipse, practised in one frame, the one I draw in; what the exercise gives printed in it in a grey I cannot take for my own ink or pencil; and Compare showing the answer laid over my drawing and only what is off, the way to see it (看画法) one tap away (the author, 2026-10-30: the original's frame only repeated the question, a box's Compare was cluttered with every stroke drawn on dashed, an edge drawn twice drawn on twice, and a value scale's How fitted 5 cells while the row had up to 7).",
-    "Entry: the Today card's options start Stage 2 · Single shapes. Without a pack its first session holds a colour combination, a value scale, a box and an ellipse. I pass the combination with Next.",
+    "Entry (S101: the test crops imported first, so a combination copies a crop): the Today card's options start Stage 2 · Single shapes. Without a pack of shapes its first session holds a colour combination, a value scale, a box and an ellipse. I pass the combination with Next.",
     "Value scale, my first: five cells (a beginner's first two scales are five, then nine), the dark and light ends filled as given in the one frame; the frame beside it, where the original lay, is empty. Its How shows by itself, its example as many cells as my row (S97's review: a five-cell row read against a nine-cell example's 'the 5th' confused the author): five cells in other colours than mine, its order numbered 2 1 2 under its inner cells, the middle cell painted first, then each half's middle, each round its step lit; then Compare's marks: the even row under the copy's, cell under cell, one uneven cell outlined red with its even one. Steps: the middle cell first (the 3rd), then the middle of each half (the 2nd and 4th); Compare.",
     "I pick values on the wheel moving only up and down and tap Fill cell three times: the cells fill one after another. Compare: under my row the even scale, cell under cell; the middle cell, too dark, outlined red together with its even one; the card its title and '1 cell uneven.' (no bars any more). Compare again takes it away; a lighter value, the pen touching the middle cell (S100: it takes it in hand and paints nothing, a scale has no pens) and Fill cell, Compare: every cell even, the card its title alone.",
     "Box: one frame, the horizon labelled and the front corner with its three edges printed in slate grey; the original's slot empty. Its How by itself: ghost each edge, draw it once, a wrong one redrawn once with Correct, never scratched over; its example's Compare the red box with its hidden edges dashed, its points ringed, the one edge drawn off run on dashed red past its point. I sketch a construction line, draw the nine edges with Draw (one bottom edge a little off) and redraw another a few pixels and a degree off it, as a hand does.",
@@ -16,6 +16,10 @@
   "density": 1.75,
   "steps": [
     { "tap": { "at": "Gallery" } },
+    { "tap": { "at": "Practice options" } },
+    { "tap": { "at": "Import practice pack…" } },
+    { "system": "test_crops" },
+    { "tap": { "at": "OK" } },
     { "tap": { "at": "Practice options" } },
     { "tap": { "at": "Stage 2 · Single shapes" } },
     { "tap": { "at": "Got it" } },

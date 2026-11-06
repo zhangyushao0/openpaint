@@ -116,8 +116,9 @@ texts! { PRACTICE_DEMO_COLOUR;
         "叠图对比：色轮上墨色圈是你的颜色，红色圈是原色；下面 ΔE 是看起来差多少（约 2 刚能看出），再分明度、纯度、色相，每行一条从原色红线到你的颜色的横条。先改最长的，改两三次。对比之前，吸管吸不到色块。";
     COLOUR_SUMMARY = "The summary's shape is your colour judgement: the rim exact, your earlier \
         sessions dashed.", "练习结束时的图形是你的颜色判断力：外圈为完全准确，虚线是你此前的练习。";
-    AREAS_TRAINS = "Week 2 · colours side by side: the overall tone first, each judged against \
-        its neighbours.", "第 2 周 · 几块颜色并置：先定整体色调，每块和旁边的比。";
+    AREAS_TRAINS = "Week 2 · a corner of a rusted old thing or an abstract painting, a few colours \
+        side by side: the overall tone first, each judged against its neighbours.",
+        "第 2 周 · 生锈旧物或抽象画的一角，几块颜色并置：先定整体色调，每块和旁边的比。";
     AREAS_STEP_1 = "Squint: Fill frame with the overall tone", "眯眼看整体色调，先用填满方框铺满";
     AREAS_STEP_2 = "Big: the largest area first", "大笔先画最大的色块";
     AREAS_STEP_3 = "Big: each neighbour against it", "大笔画相邻的色块，逐一和它比";

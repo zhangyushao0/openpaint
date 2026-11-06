@@ -45,9 +45,10 @@ pub enum GalleryNotice {
     /// The version could not be restored; nothing changed.
     RestoreFailed,
     /// The chosen practice pack is kept: its pictures come up in single shapes, or (a pack of
-    /// compositions) in divisions and whole copies.
+    /// compositions) in divisions and whole copies, its crops (S101) in colour combinations.
     PackImported {
         compositions: bool,
+        crops: bool,
     },
     /// The chosen file was not kept as a practice pack; nothing changed.
     PackRefused(FileProblem),

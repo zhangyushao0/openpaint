@@ -14,6 +14,7 @@ mod scenario;
 mod system;
 mod target;
 mod test_compositions;
+mod test_crops;
 mod test_pack;
 mod watched;
 

@@ -1,7 +1,7 @@
-//! Practice packs of format 3 (S96): a composition's value masses round-trip in its pack's head,
-//! a shape's or a damaged map is refused, and a pack of format 2 (1.4.0 to 1.13.0) is upgraded as
-//! it is imported and where it is kept (the personal pack among them), its items and pictures as
-//! they were, with no value masses.
+//! Practice packs of format 4 (S101): a composition's value masses (S96) and a crop's colour
+//! areas round-trip in its pack's head, a shape's masses or a damaged map is refused, and a pack of
+//! format 2 (1.4.0 to 1.13.0) or 3 (1.14.0 to 1.18.1) is upgraded as it is imported and where it
+//! is kept (the personal pack among them), its items and pictures as they were.
 
 #[path = "common/test_dir.rs"]
 mod test_dir;
@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use openpaint_app::ImageFormat;
 use openpaint_practice::{
-    Credit, Licence, Masses, PERSONAL, Pack, PackItem, PictureKind, Tier, ValueMasses,
+    Areas, Credit, Licence, Masses, PERSONAL, Pack, PackItem, PictureKind, Tier, ValueMasses,
 };
 use openpaint_store::{PACK_FORMAT, Packs, encode_image, encode_pack, open_pack, pack_picture};
 use test_dir::TestDir;
@@ -29,6 +29,7 @@ fn composition(id: &str) -> (PackItem, Vec<u8>) {
         credit: None,
         outline: None,
         masses: Some(Arc::new(ValueMasses::of(picture.size, &picture.rgba))),
+        areas: None,
     };
     (item, picture.file)
 }
@@ -42,7 +43,7 @@ fn value_masses_round_trip_and_only_a_compositions_whole_map_is_kept() {
         items: vec![item.clone()],
     };
     let bytes = encode_pack(&pack, std::slice::from_ref(&file)).expect("encoded");
-    assert_eq!(PACK_FORMAT, 3);
+    assert_eq!(PACK_FORMAT, 4);
     assert_eq!(bytes[14..18], PACK_FORMAT.to_le_bytes());
     let (opened, _) = open_pack(&bytes).expect("opened");
     assert_eq!(opened, pack, "the masses as made");
@@ -63,9 +64,9 @@ fn text(head: &mut Vec<u8>, text: &str) {
     head.extend_from_slice(text.as_bytes());
 }
 
-/// `pack` (no value masses, no outlines) and its pictures as 1.13.0 wrote them: format 2, an
-/// item's head ending at its outline's count.
-fn format_two(pack: &Pack, pictures: &[Vec<u8>]) -> Vec<u8> {
+/// `pack` (no value masses, no outlines) and its pictures as 1.13.0 wrote them (`format` 2, an
+/// item's head ending at its outline's count) or 1.18.1 (3, its value masses none after it).
+fn older(pack: &Pack, pictures: &[Vec<u8>], format: u32) -> Vec<u8> {
     let mut head = Vec::new();
     text(&mut head, &pack.id);
     text(&mut head, &pack.title);
@@ -88,11 +89,14 @@ fn format_two(pack: &Pack, pictures: &[Vec<u8>]) -> Vec<u8> {
             None => head.push(0),
         }
         head.extend_from_slice(&0_u32.to_le_bytes());
+        if format == 3 {
+            head.extend_from_slice(&[0; 8]);
+        }
         head.extend_from_slice(&(picture.len() as u32).to_le_bytes());
         head.extend_from_slice(&crc32fast::hash(picture).to_le_bytes());
     }
     let mut file = b"OpenPaintPack\0".to_vec();
-    file.extend_from_slice(&2_u32.to_le_bytes());
+    file.extend_from_slice(&format.to_le_bytes());
     file.extend_from_slice(&(head.len() as u32).to_le_bytes());
     file.extend_from_slice(&head);
     file.extend_from_slice(&crc32fast::hash(&head).to_le_bytes());
@@ -112,7 +116,7 @@ fn a_format_two_pack_is_upgraded_where_it_is_kept_and_as_it_is_imported() {
         items: vec![item.clone()],
     };
     let pictures = vec![file.clone()];
-    let kept = format_two(&personal, &pictures);
+    let kept = older(&personal, &pictures, 2);
     assert!(open_pack(&kept).is_err(), "no reader but the upgrade's");
     let dir = TestDir::new("packs-upgrade");
     let packs = Packs::at(&dir);
@@ -136,8 +140,78 @@ fn a_format_two_pack_is_upgraded_where_it_is_kept_and_as_it_is_imported() {
         title: "Old compositions".to_owned(),
         items: vec![item],
     };
-    let imported = packs.import(&format_two(&official, &pictures));
+    let imported = packs.import(&older(&official, &pictures, 2));
     assert_eq!(imported, Ok(official.clone()));
     let kept = std::fs::read(packs.path(&official.id)).expect("kept");
     assert_eq!(kept[14..18], PACK_FORMAT.to_le_bytes());
+}
+
+#[test]
+fn a_format_three_pack_is_upgraded_its_masses_kept_and_no_areas() {
+    let (item, file) = composition("valley");
+    let pack = Pack {
+        id: "old-compositions".to_owned(),
+        title: "Old compositions".to_owned(),
+        items: vec![PackItem {
+            masses: None,
+            credit: credited(),
+            ..item
+        }],
+    };
+    let dir = TestDir::new("packs-upgrade-three");
+    let packs = Packs::at(&dir);
+    let three = older(&pack, std::slice::from_ref(&file), 3);
+    assert!(open_pack(&three).is_err(), "no reader but the upgrade's");
+    assert_eq!(packs.import(&three), Ok(pack.clone()));
+    let kept = std::fs::read(packs.path(&pack.id)).expect("kept");
+    assert_eq!(kept[14..18], PACK_FORMAT.to_le_bytes());
+}
+
+#[test]
+fn a_crop_s_areas_round_trip_and_a_damaged_map_is_refused() {
+    let (item, file) = composition("rust");
+    let areas = Areas::of_map(
+        [3, 2],
+        vec![0, 0, 1, 2, 2, 1],
+        vec![[90, 60, 40], [96, 66, 44], [200; 3]],
+    );
+    let crop = PackItem {
+        kind: PictureKind::Crop,
+        credit: credited(),
+        masses: None,
+        areas: areas.map(Arc::new),
+        ..item
+    };
+    let pack = Pack {
+        id: "test-crops".to_owned(),
+        title: "Test crops".to_owned(),
+        items: vec![crop.clone()],
+    };
+    let bytes = encode_pack(&pack, std::slice::from_ref(&file)).expect("encoded");
+    let (opened, _) = open_pack(&bytes).expect("opened");
+    assert_eq!(opened, pack, "the areas as found");
+    let mut bare = pack.clone();
+    bare.items[0].areas = None;
+    assert!(
+        encode_pack(&bare, std::slice::from_ref(&file)).is_err(),
+        "a crop has its areas"
+    );
+    // A map naming an area it has no colour for is damage.
+    let colours = bytes
+        .windows(9)
+        .position(|w| w == [90, 60, 40, 96, 66, 44, 200, 200, 200]);
+    let mut damaged = bytes;
+    damaged[colours.expect("the colours") - 4] = 2;
+    assert!(open_pack(&damaged).is_err());
+}
+
+/// An official item's credit.
+fn credited() -> Option<Credit> {
+    Some(Credit {
+        source: "https://example.org/test".to_owned(),
+        creator: "The tests".to_owned(),
+        licence: Licence::Cc0,
+        attribution: "“A test”, the tests.".to_owned(),
+        notes: "made for the tests".to_owned(),
+    })
 }

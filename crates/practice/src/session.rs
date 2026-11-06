@@ -27,13 +27,13 @@
 //! turn from a family the number moves on, so over sessions every kind met comes back.
 //!
 //! The warm-up's exercises are kinds met, each chosen by the seed among its family's; a shape in
-//! it a picture of its tier. A plan's shapes carry their pictures, picked by the seed
-//! (`pictures.rs`), its divisions and whole copies compositions (S95). Stage 3's sessions:
+//! it a picture of its tier, a combination a crop. A plan's shapes carry their pictures, picked by
+//! the seed (`pictures.rs`), its divisions and whole copies compositions (S95), its combinations
+//! crops of real pictures (S101: none without a pack holding crops). Stage 3's sessions:
 //! `session_three.rs`; stage 4's: `session_four.rs`.
 
 use std::collections::HashSet;
 
-use crate::areas::Arrangement;
 use crate::colour_match::{Lightness, Purity, Tone};
 use crate::combined::Combination;
 use crate::ellipse::Guide;
@@ -155,9 +155,9 @@ pub fn stage_one(seed: u64, met: &[Kind]) -> Plan {
 
 /// Stage 2's session `number` seeded `seed` after `before`: its warm-up, then four shapes of the
 /// session's tiers (the last the user's own when they have some the session reaches), a colour
-/// combination, a value scale and the session's perspective (`perspective`), the combination's
-/// arrangement and the scale's tone (grey, then of a hue) in turn by number. Without any picture
-/// there are no shapes.
+/// combination of a crop (S101), a value scale and the session's perspective (`perspective`), the
+/// scale's tone (grey, then of a hue) in turn by number. Without any shape picture there are no
+/// shapes, without a crop no combination.
 #[must_use]
 pub fn stage_two(number: u32, seed: u64, before: &Before<'_>) -> Plan {
     let tiers = shape_tiers(number);
@@ -165,17 +165,13 @@ pub fn stage_two(number: u32, seed: u64, before: &Before<'_>) -> Plan {
     let warm_up = picker.warm_up(warm_up_of(number, seed, before.met, &QUICK_TWO));
     let shapes = picker.shapes(&tiers);
     let turn = number.saturating_sub(1) as usize;
-    let colour_work = [
-        Kind::Areas(Arrangement::ALL[turn % Arrangement::ALL.len()]),
-        Kind::Scale(ScaleTone::ALL[turn % ScaleTone::ALL.len()], FULL),
-    ];
+    let combination = picker.crop();
+    let scale = Kind::Scale(ScaleTone::ALL[turn % ScaleTone::ALL.len()], FULL);
     let warmed = u32::try_from(warm_up.len()).unwrap_or(0);
-    let all = (warm_up.into_iter()).chain(shapes).chain(
-        colour_work
-            .into_iter()
-            .chain(perspective(turn))
-            .map(|kind| (kind, None)),
-    );
+    let all = (warm_up.into_iter())
+        .chain(shapes)
+        .chain(combination)
+        .chain((std::iter::once(scale).chain(perspective(turn))).map(|kind| (kind, None)));
     Plan {
         exercises: seeded(seed, all, before.scales),
         warm_up: warmed,
@@ -189,6 +185,8 @@ pub fn stage_two(number: u32, seed: u64, before: &Before<'_>) -> Plan {
 pub(crate) struct Picker<'a> {
     before: &'a Before<'a>,
     random: Random,
+    /// The crops' own sequence (S101), so the shapes and compositions pick as before.
+    crops: Random,
     used: HashSet<ItemRef>,
     reach: Tier,
     /// The session's own pictures so far, and those of the last ten sessions.
@@ -201,6 +199,7 @@ impl<'a> Picker<'a> {
         Self {
             before,
             random: Random::new(derived(seed, u64::MAX - 1)),
+            crops: Random::new(derived(seed, u64::MAX - 2)),
             used: before.used.iter().cloned().collect(),
             reach,
             shown: HashSet::new(),
@@ -236,9 +235,21 @@ impl<'a> Picker<'a> {
         picked
     }
 
-    /// `kind` with its picture (a shape's; none for another kind), the user's own when `own`
-    /// and they have one; none when no picture of its tier is left.
+    /// A colour combination with its crop (S101): one no earlier session or drill showed while
+    /// any is left; none without crops.
+    pub(crate) fn crop(&mut self) -> Option<(Kind, Option<ItemRef>)> {
+        let pictures = self.before.pictures;
+        let (tier, item) = pictures.pick_crop(&mut self.crops, &self.used)?;
+        self.used.insert(item.clone());
+        Some((Kind::Crop(tier), Some(item)))
+    }
+
+    /// `kind` with its picture (a shape's, a combination's crop; none for another kind), the
+    /// user's own when `own` and they have one; none when no picture of its tier is left.
     fn pick(&mut self, kind: Kind, own: bool) -> Option<(Kind, Option<ItemRef>)> {
+        if kind.family() == Family::Areas {
+            return self.crop();
+        }
         let Kind::Shape(tier) = kind else {
             return Some((kind, None));
         };

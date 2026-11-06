@@ -1,9 +1,11 @@
 //! A pack's manifest: codes and names that never change, the rules every pack keeps, and how an
 //! exercise finds its picture.
 
+use std::sync::Arc;
+
 use openpaint_practice::{
-    Credit, ItemRef, Licence, MAX_PICTURE_SIDE, Outline, PERSONAL, Pack, PackItem, PackProblem,
-    PictureKind, Tier, valid_id,
+    Areas, Credit, ItemRef, Licence, MAX_PICTURE_SIDE, Outline, PERSONAL, Pack, PackItem,
+    PackProblem, PictureKind, Tier, valid_id,
 };
 
 fn item(id: &str, tier: Tier, licence: Licence) -> PackItem {
@@ -22,6 +24,7 @@ fn item(id: &str, tier: Tier, licence: Licence) -> PackItem {
         }),
         outline: None,
         masses: None,
+        areas: None,
     }
 }
 
@@ -79,12 +82,12 @@ fn codes_and_names_are_fixed_and_round_trip() {
     let kinds: Vec<(u8, &str)> = (PictureKind::ALL.iter())
         .map(|kind| (kind.code(), kind.name()))
         .collect();
-    assert_eq!(kinds, [(1, "shape"), (2, "composition")]);
+    assert_eq!(kinds, [(1, "shape"), (2, "composition"), (3, "crop")]);
     for kind in PictureKind::ALL {
         assert_eq!(PictureKind::of_code(kind.code()), Some(kind));
         assert_eq!(PictureKind::of_name(kind.name()), Some(kind));
     }
-    assert_eq!(PictureKind::of_code(3), None);
+    assert_eq!(PictureKind::of_code(4), None);
     assert_eq!(Licence::of_code(0), None);
     assert_eq!(
         Licence::of_name("CC BY-SA 4.0"),
@@ -227,6 +230,32 @@ fn a_composition_takes_three_tiers_and_never_an_outline() {
         .map(|item| item.id.as_str())
         .collect();
     assert_eq!(shapes, ["teapot"], "a composition is no shape");
+}
+
+#[test]
+fn a_crop_always_has_its_colour_areas_and_no_other_picture_does() {
+    let areas = Areas::of_map([2, 1], vec![0, 1], vec![[90, 60, 40], [200; 3]]).map(Arc::new);
+    let crop = |p: &mut Pack| p.items[3].kind = PictureKind::Crop;
+    let wrong = Err(PackProblem {
+        item: Some("vase".to_owned()),
+        rule: "a crop has no colour areas, or another picture has them",
+    });
+    assert_eq!(broken(crop), wrong, "a crop without its areas");
+    assert_eq!(
+        broken(|p| {
+            crop(p);
+            p.items[3].areas.clone_from(&areas);
+        }),
+        Ok(())
+    );
+    assert_eq!(broken(|p| p.items[3].areas.clone_from(&areas)), wrong);
+    assert!(PictureKind::Crop.cropped() && !PictureKind::Composition.cropped());
+    assert_eq!(PictureKind::Crop.tiers(), PictureKind::Composition.tiers());
+    // A map read from a pack is checked: its cells, its areas, every area holding a cell.
+    assert!(Areas::of_map([2, 1], vec![0, 2], vec![[0; 3]; 2]).is_none());
+    assert!(Areas::of_map([2, 2], vec![0, 1], vec![[0; 3]; 2]).is_none());
+    assert!(Areas::of_map([2, 1], vec![0, 0], vec![[0; 3]; 2]).is_none());
+    assert!(Areas::of_map([129, 1], vec![0; 129], vec![[0; 3]]).is_none());
 }
 
 #[test]

@@ -6,7 +6,8 @@
 //! the session's tiers reach theirs (S83: the tier the user chose for each). A composition is
 //! picked alike among those not shown in the last ten sessions, one of those only when none other
 //! is left, never one the session holds already while another is left; for value masses (S96)
-//! only among those whose masses read (the pack holds them).
+//! only among those whose masses read (the pack holds them). A crop (S101) is picked by its own
+//! sequence among those no earlier session or drill showed, any again once each was.
 
 use std::collections::HashSet;
 
@@ -23,10 +24,12 @@ pub struct Pictures {
     /// The packs' compositions with their tiers (S95), and those whose value masses read (S96).
     compositions: Vec<(Tier, ItemRef)>,
     massed: Vec<(Tier, ItemRef)>,
+    /// The packs' crops (S101), each with its tier.
+    crops: Vec<(Tier, ItemRef)>,
 }
 
 impl Pictures {
-    /// The shape and composition pictures of `packs`.
+    /// The shape, composition and crop pictures of `packs`.
     #[must_use]
     pub fn of(packs: &[Pack]) -> Self {
         let mut pictures = Self::default();
@@ -47,6 +50,7 @@ impl Pictures {
                         pictures.personal.push((item.tier, named));
                     }
                     PictureKind::Shape => pictures.official.push((item.tier, named)),
+                    PictureKind::Crop => pictures.crops.push((item.tier, named)),
                 }
             }
         }
@@ -69,6 +73,25 @@ impl Pictures {
     #[must_use]
     pub fn has_masses(&self) -> bool {
         !self.massed.is_empty()
+    }
+
+    /// Whether there is a crop to copy as a colour combination (S101).
+    #[must_use]
+    pub fn has_crops(&self) -> bool {
+        !self.crops.is_empty()
+    }
+
+    /// A crop picked by `random` among those not `used` before while any is left (S101), with its
+    /// tier; none without crops.
+    pub(crate) fn pick_crop(
+        &self,
+        random: &mut Random,
+        used: &HashSet<ItemRef>,
+    ) -> Option<(Tier, ItemRef)> {
+        let all: Vec<&ItemRef> = self.crops.iter().map(|(_, item)| item).collect();
+        let item = chosen(&all, random, used)?;
+        let tier = (self.crops.iter()).find_map(|(tier, held)| (*held == item).then_some(*tier));
+        tier.map(|tier| (tier, item))
     }
 
     /// Whether the user has pictures of their own of `reach` or an easier tier.

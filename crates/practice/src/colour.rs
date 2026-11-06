@@ -53,7 +53,13 @@ pub fn from_hsv([h, s, v]: [f64; 3]) -> Rgb8 {
 /// (blue to yellow).
 #[must_use]
 pub fn oklab(rgb: Rgb8) -> [f64; 3] {
-    let [r, g, b] = rgb.map(|c| linear(f64::from(c) / 255.0));
+    oklab_of_linear(rgb.map(|c| linear(f64::from(c) / 255.0)))
+}
+
+/// A colour given in linear sRGB (0 to 1 a channel) in Oklab: light mixed, as an eye's blur mixes
+/// it (S101's crops).
+#[must_use]
+pub(crate) fn oklab_of_linear([r, g, b]: [f64; 3]) -> [f64; 3] {
     let l = 0.412_221_470_8 * r + 0.536_332_536_3 * g + 0.051_445_992_9 * b;
     let m = 0.211_903_498_2 * r + 0.680_699_545_1 * g + 0.107_396_956_6 * b;
     let s = 0.088_302_461_9 * r + 0.281_718_837_6 * g + 0.629_978_700_5 * b;

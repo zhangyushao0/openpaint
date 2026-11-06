@@ -5,23 +5,24 @@
 
 use std::collections::HashMap;
 
-use crate::areas::{Areas, GRID};
+use crate::areas::Areas;
 use crate::path::Point;
 
-/// A corner of the map's cells: column and row, 0 to `GRID`.
+/// A corner of the map's cells: column and row, 0 to the map's cells across and down.
 type Corner = [usize; 2];
 
 impl Areas {
-    /// The edges between `area` and `other` (any other area, when none; never the frame's edge)
-    /// as smoothed lines in frame units.
+    /// The edges between `area` and `other` (any other area, when none; never the picture's
+    /// edge) as smoothed lines in shares of the picture's width and height.
     #[must_use]
     pub fn edges(&self, area: usize, other: Option<usize>) -> Vec<Vec<Point>> {
         let segments = self.cell_edges(area, other);
+        let [w, h] = self.size.map(|side| side as f64);
         chained(&segments)
             .into_iter()
             .map(|corners| {
                 let points: Vec<Point> = (corners.iter())
-                    .map(|[c, r]| [*c as f64 / GRID as f64, *r as f64 / GRID as f64])
+                    .map(|[c, r]| [*c as f64 / w, *r as f64 / h])
                     .collect();
                 smoothed(&points)
             })
@@ -31,16 +32,17 @@ impl Areas {
     /// The map's cell edges between `area` and `other` (or any other area).
     fn cell_edges(&self, area: usize, other: Option<usize>) -> Vec<[Corner; 2]> {
         let counts = |there: usize| other.map_or(there != area, |other| there == other);
+        let [w, h] = self.size;
         let mut segments = Vec::new();
-        for row in 0..GRID {
-            for column in 0..GRID {
+        for row in 0..h {
+            for column in 0..w {
                 if self.cell([column, row]) != area {
                     continue;
                 }
-                if column + 1 < GRID && counts(self.cell([column + 1, row])) {
+                if column + 1 < w && counts(self.cell([column + 1, row])) {
                     segments.push([[column + 1, row], [column + 1, row + 1]]);
                 }
-                if row + 1 < GRID && counts(self.cell([column, row + 1])) {
+                if row + 1 < h && counts(self.cell([column, row + 1])) {
                     segments.push([[column, row + 1], [column + 1, row + 1]]);
                 }
                 if column > 0 && counts(self.cell([column - 1, row])) {

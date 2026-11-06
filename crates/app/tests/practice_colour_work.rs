@@ -1,8 +1,8 @@
-//! Week 2's colour work on a practice sheet (S82): a colour combination painted with the
-//! practice brushes and filled, compared in place with its copy read from the canvas's pixels
-//! (the first Compare's numbers kept), one area at a time, the eyedropper comparing a point; a
-//! value scale painted a cell at a time; and a long colour copy beside the sessions, opened with
-//! the full interface, compared in place as strongly as asked and never ended by Next.
+//! Week 2's colour work on a sheet (S82): a generated colour combination (1.18.1's records, S101)
+//! painted with the practice brushes and filled, compared in place with its copy read from the
+//! canvas's pixels (the first Compare's numbers kept), one area at a time, the eyedropper
+//! comparing a point; a value scale painted a cell at a time; and a long colour copy beside the
+//! sessions, opened with every tool, compared in place as asked and never ended by Next.
 
 use std::sync::Arc;
 
@@ -13,8 +13,8 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Areas, Arrangement, Exercise, Family, ItemRef, Kind, Metric, Original, Pack, PackItem, Pair,
-    PictureKind, Plan, ScaleTone, SessionRecord, Tier, ValueScale, value,
+    Arrangement, Exercise, Family, GeneratedAreas, ItemRef, Kind, Metric, Original, Pack, PackItem,
+    Pair, PictureKind, Plan, ScaleTone, SessionRecord, Tier, ValueScale, value,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -113,7 +113,7 @@ fn overlay(session: &Session) -> Option<Overlay> {
 
 /// The combination's frames and areas, painted (its tone filled, a stroke of Big in the colour
 /// picked) and compared.
-fn painted_and_compared(session: &mut Session) -> (Pair, Areas) {
+fn painted_and_compared(session: &mut Session) -> (Pair, GeneratedAreas) {
     let projection = session.projection();
     let practice = projection.practice().expect("a sheet");
     assert_eq!(practice.family, Some(Family::Areas));
@@ -124,10 +124,11 @@ fn painted_and_compared(session: &mut Session) -> (Pair, Areas) {
         "its picture drawn once"
     );
     let pair = practice.sheet.pairs[0];
-    let Original::Areas(areas) = practice.sheet.originals[0].clone() else {
+    let Original::Areas(generated) = practice.sheet.originals[0].clone() else {
         panic!("a colour combination")
     };
-    practise(session, PracticeIntent::Fill(colour(areas.colours[0])));
+    let tone = colour(generated.areas.colours[0]);
+    practise(session, PracticeIntent::Fill(tone));
     let at = pair.copy.to_canvas([0.5, 0.5]).map(|v| v as f32);
     draw(session, &[at, [at[0] + 60.0, at[1]]]);
     let artwork = session.artwork();
@@ -143,7 +144,7 @@ fn painted_and_compared(session: &mut Session) -> (Pair, Areas) {
     let refused = session.practise(PracticeIntent::Pen(Pen::Draw), 1);
     assert!(refused.is_err(), "a painting pen");
     practise(session, PracticeIntent::Compare(true));
-    (pair, areas)
+    (pair, generated)
 }
 
 #[test]
@@ -168,7 +169,7 @@ fn a_colour_combination_is_painted_and_compared_its_numbers_kept_from_its_pixels
     else {
         panic!("read")
     };
-    let all: Vec<_> = areas.colours.iter().copied().map(Some).collect();
+    let all: Vec<_> = areas.areas.colours.iter().copied().map(Some).collect();
     assert_eq!(read.copy.colours, all);
     assert!(read.strong.is_empty() && !outline.is_empty());
     let record = session.practice_save_request().expect("the record changed");
@@ -286,6 +287,7 @@ fn pack() -> Pack {
             credit: None,
             outline: None,
             masses: None,
+            areas: None,
         }],
     }
 }

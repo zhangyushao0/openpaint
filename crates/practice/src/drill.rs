@@ -2,7 +2,8 @@
 //! drills one skill at a time, week by week; the author's 专项训练, 2026-10-28). A drill is a sheet
 //! of that kind only, about ten minutes and no warm-up: 6 single lines, 4 groups of combined lines
 //! (each arrangement), 6 colours (stage 1's), 3 single shapes (their tiers in turn from entry to
-//! hard, the last the user's own as in stage 2), 2 colour combinations, 2 value scales, 3 boxes, a
+//! hard, the last the user's own as in stage 2), 2 colour combinations (crops not shown before
+//! while any are left, S101), 2 value scales, 3 boxes, a
 //! page of free boxes, 4 ellipses, 5 points, proportions or angles, 3 of one of V大's five tricks,
 //! 3 of a solid (S93), 3 objects (S94, their carves in turn), 3 divisions, 3 value masses (S96) or
 //! a whole copy (S95, compositions of the simple and medium tiers in turn); each kind's variants
@@ -10,7 +11,6 @@
 //! drill's number among its kind's drills (a solid's pose by its seed). Its record is one of stage
 //! `DRILL` (`record.rs`): it counts in no session, road or stage.
 
-use crate::areas::Arrangement;
 use crate::colour_match::Tone;
 use crate::ellipse::Guide;
 use crate::flat::Estimate;
@@ -87,7 +87,8 @@ pub const fn kinds_of(stage: u8) -> &'static [Family] {
 /// those shown before, the value scales met; no kind met is drawn on: a drill has no warm-up).
 /// None for a kind no stage
 /// drills (a colour copy), for shapes without any picture, for divisions and whole copies without
-/// a composition and for value masses without one whose masses read.
+/// a composition, for value masses without one whose masses read and for combinations without a
+/// crop.
 #[must_use]
 pub fn drill(family: Family, number: u32, seed: u64, before: &Before<'_>) -> Option<Plan> {
     let turn = number.saturating_sub(1) as usize;
@@ -95,6 +96,10 @@ pub fn drill(family: Family, number: u32, seed: u64, before: &Before<'_>) -> Opt
         Family::Shape => shapes(turn, seed, before),
         Family::Division | Family::WholeCopy | Family::ValueMasses => {
             compositions(family, turn, seed, before)
+        }
+        Family::Areas => {
+            let mut picker = Picker::new(seed, before, Tier::Simple);
+            (0..COMBINATIONS).filter_map(|_| picker.crop()).collect()
         }
         Family::Study => Vec::new(),
         _ => kinds(family, turn).into_iter().map(|k| (k, None)).collect(),
@@ -127,10 +132,6 @@ fn kinds(family: Family, turn: usize) -> Vec<Kind> {
         (Family::Colour, ..) => COLOURS
             .map(|(purity, lightness)| Kind::Colour(Tone { purity, lightness }))
             .to_vec(),
-        (Family::Areas, ..) => in_turn(&Arrangement::ALL, turn, COMBINATIONS)
-            .into_iter()
-            .map(Kind::Areas)
-            .collect(),
         (Family::Scale, ..) => (in_turn(&ScaleTone::ALL, turn, SCALES).into_iter())
             .map(|tone| Kind::Scale(tone, FULL))
             .collect(),

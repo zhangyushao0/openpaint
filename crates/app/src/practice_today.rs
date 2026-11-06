@@ -34,6 +34,8 @@ pub struct TodayProjection {
     /// and one whose value masses read: value masses can be (S96).
     pub compositions: bool,
     pub masses: bool,
+    /// Whether a pack kept holds a crop: colour combinations can be practised (S101).
+    pub crops: bool,
     /// The long colour copies, newest first.
     pub copies: Vec<CopyShown>,
     /// The pictures a colour copy can be begun of: the official packs' by tier (easiest first,

@@ -304,8 +304,11 @@ fn show_overlay(
             swapped(painter, &pair, at, (*original, *last));
         }
         (Overlay::Areas { .. } | Overlay::Scale(_), _) => {
-            let painted = &pictures.painted;
-            paint_marks::show_overlay(painter, practice, overlay, (at, width), painted);
+            let picture = (pictures.painted.of(practice, index)).or_else(|| {
+                let item = &practice.sheet.pictures.get(index)?.as_ref()?.item;
+                pictures.texture(item).flatten()
+            });
+            paint_marks::show_overlay(painter, practice, overlay, (at, width), picture);
         }
         (Overlay::Masses { .. }, _) => {
             let painted = &pictures.painted;

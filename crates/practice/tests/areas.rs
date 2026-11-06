@@ -2,7 +2,8 @@
 //! from pixels as the eye reads it, and the weak-contrast check on known cases.
 
 use openpaint_practice::{
-    Areas, Arrangement, Contrast, Metric, Rgb8, STRONG, WEAK, delta_e, from_hsv, hsv, value,
+    Areas, Arrangement, Contrast, GeneratedAreas, Metric, Rgb8, STRONG, WEAK, delta_e, from_hsv,
+    hsv, value,
 };
 
 /// The sheet's paper.
@@ -15,10 +16,11 @@ fn the_same_seed_gives_the_same_picture_and_every_picture_keeps_its_rules() {
     for arrangement in Arrangement::ALL {
         let mut softs = 0;
         for seed in 0..60 {
-            let areas = Areas::generate(arrangement, seed);
+            let generated = GeneratedAreas::generate(arrangement, seed);
+            let areas = &generated.areas;
             assert_eq!(
-                areas,
-                Areas::generate(arrangement, seed),
+                *areas,
+                GeneratedAreas::generate(arrangement, seed).areas,
                 "{arrangement:?} {seed}"
             );
             let count = areas.count();
@@ -57,8 +59,8 @@ fn the_same_seed_gives_the_same_picture_and_every_picture_keeps_its_rules() {
             "{arrangement:?}: soft edges among the hard ({softs})"
         );
         assert_ne!(
-            Areas::generate(arrangement, 11).colours,
-            Areas::generate(arrangement, 12).colours
+            GeneratedAreas::generate(arrangement, 11).areas.colours,
+            GeneratedAreas::generate(arrangement, 12).areas.colours
         );
     }
 }
@@ -84,13 +86,14 @@ fn the_picture_itself_reads_as_its_colours_whatever_its_soft_edges() {
         (Arrangement::Patches, 5),
         (Arrangement::Blocks, 8),
     ] {
-        let areas = Areas::generate(arrangement, seed);
-        let picture = areas.picture(SIDE);
+        let generated = GeneratedAreas::generate(arrangement, seed);
+        let areas = &generated.areas;
+        let picture = generated.picture(SIDE);
         let copy = areas.read([SIDE, SIDE], &picture, PAPER);
         let expected: Vec<Option<Rgb8>> = areas.colours.iter().copied().map(Some).collect();
         assert_eq!(copy.colours, expected, "{arrangement:?} {seed}");
         assert!(copy.contrasts.iter().all(|c| !c.made_strong()));
-        let metrics = copy.metrics(&areas);
+        let metrics = copy.metrics(areas);
         assert_eq!(value(&metrics, Metric::AreasDelta), Some(0.0));
         assert_eq!(value(&metrics, Metric::AreasMadeStrong), Some(0.0));
         let weak = copy.contrasts.iter().filter(|c| c.weak()).count();
@@ -101,10 +104,11 @@ fn the_picture_itself_reads_as_its_colours_whatever_its_soft_edges() {
 
 #[test]
 fn an_area_reads_as_the_eye_gives_it_edges_off_strays_over_it_or_left_bare() {
-    let areas = Areas::generate(Arrangement::Patches, 21);
+    let generated = GeneratedAreas::generate(Arrangement::Patches, 21);
+    let areas = &generated.areas;
     let colours = areas.colours.clone();
     // Edges three hundredths of the frame off (12 pixels): the same colours.
-    let moved = painted(&areas, &colours, [0.03, -0.02]);
+    let moved = painted(areas, &colours, [0.03, -0.02]);
     let read = areas.read([SIDE, SIDE], &moved, PAPER);
     assert_eq!(
         read.colours,
@@ -112,7 +116,7 @@ fn an_area_reads_as_the_eye_gives_it_edges_off_strays_over_it_or_left_bare() {
     );
     // A third of the pixels another colour (a texture, strokes of the next area across it):
     // the median keeps the area's.
-    let mut strays = painted(&areas, &colours, [0.0, 0.0]);
+    let mut strays = painted(areas, &colours, [0.0, 0.0]);
     for (index, pixel) in strays.as_chunks_mut::<4>().0.iter_mut().enumerate() {
         if index % 3 == 0 {
             pixel[..3].copy_from_slice(&[20, 200, 40]);
@@ -126,7 +130,7 @@ fn an_area_reads_as_the_eye_gives_it_edges_off_strays_over_it_or_left_bare() {
     // An area left as the paper is not painted, and its contrasts are not judged.
     let mut bare = colours.clone();
     bare[0] = PAPER;
-    let read = areas.read([SIDE, SIDE], &painted(&areas, &bare, [0.0, 0.0]), PAPER);
+    let read = areas.read([SIDE, SIDE], &painted(areas, &bare, [0.0, 0.0]), PAPER);
     assert_eq!(read.colours[0], None);
     assert!(read.colours[1..].iter().all(Option::is_some));
     let with_first = read.contrasts.iter().filter(|c| c.areas.0 == 0);
@@ -190,8 +194,9 @@ fn lighter(colour: Rgb8, by: f64) -> Rgb8 {
 #[test]
 fn a_copy_that_widens_a_weak_contrast_is_caught_there_and_one_lighter_all_over_is_not() {
     for (arrangement, seed) in [(Arrangement::Strata, 31), (Arrangement::Blocks, 32)] {
-        let areas = Areas::generate(arrangement, seed);
-        let itself = areas.read([SIDE, SIDE], &areas.picture(SIDE), PAPER);
+        let generated = GeneratedAreas::generate(arrangement, seed);
+        let areas = &generated.areas;
+        let itself = areas.read([SIDE, SIDE], &generated.picture(SIDE), PAPER);
         let weak = *itself
             .contrasts
             .iter()
@@ -200,7 +205,7 @@ fn a_copy_that_widens_a_weak_contrast_is_caught_there_and_one_lighter_all_over_i
         let (a, b) = weak.areas;
         // All over a tenth lighter: every relation kept, nothing made strong.
         let light: Vec<Rgb8> = areas.colours.iter().map(|c| lighter(*c, 0.1)).collect();
-        let read = areas.read([SIDE, SIDE], &painted(&areas, &light, [0.0, 0.0]), PAPER);
+        let read = areas.read([SIDE, SIDE], &painted(areas, &light, [0.0, 0.0]), PAPER);
         assert!(
             read.contrasts.iter().all(|c| !c.made_strong()),
             "{arrangement:?}"
@@ -216,7 +221,7 @@ fn a_copy_that_widens_a_weak_contrast_is_caught_there_and_one_lighter_all_over_i
         };
         let mut wide = areas.colours.clone();
         wide[moved] = lighter(wide[moved], by);
-        let read = areas.read([SIDE, SIDE], &painted(&areas, &wide, [0.0, 0.0]), PAPER);
+        let read = areas.read([SIDE, SIDE], &painted(areas, &wide, [0.0, 0.0]), PAPER);
         let pair = read
             .contrasts
             .iter()
@@ -229,7 +234,7 @@ fn a_copy_that_widens_a_weak_contrast_is_caught_there_and_one_lighter_all_over_i
             elsewhere.into_iter().all(|c| !c.made_strong()),
             "{arrangement:?}"
         );
-        let metrics = read.metrics(&areas);
+        let metrics = read.metrics(areas);
         assert!(value(&metrics, Metric::AreasMadeStrong) >= Some(1.0));
         assert!(value(&metrics, Metric::AreasDelta).is_some_and(|d| d > 0.0));
     }
@@ -237,7 +242,8 @@ fn a_copy_that_widens_a_weak_contrast_is_caught_there_and_one_lighter_all_over_i
 
 #[test]
 fn an_area_s_edges_run_as_smooth_lines_along_its_neighbours() {
-    let areas = Areas::generate(Arrangement::Strata, 4);
+    let generated = GeneratedAreas::generate(Arrangement::Strata, 4);
+    let areas = &generated.areas;
     let (a, b) = areas.neighbours[0];
     let shared = areas.edges(a, Some(b));
     assert_eq!(shared.len(), 1, "two bands meet along one line");
@@ -256,7 +262,7 @@ fn an_area_s_edges_run_as_smooth_lines_along_its_neighbours() {
         assert!(dot > 0.0, "{w:?}");
     }
     // A patch inside the frame closes round itself; the frame's edge is never an edge.
-    let patches = Areas::generate(Arrangement::Patches, 9);
+    let patches = GeneratedAreas::generate(Arrangement::Patches, 9).areas;
     let inside = (0..patches.count()).find(|area| {
         let lines = patches.edges(*area, None);
         lines.len() == 1 && lines[0].first() == lines[0].last()

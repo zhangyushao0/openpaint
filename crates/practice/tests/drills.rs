@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use openpaint_practice::{
-    Before, Book, DRILL, ExerciseResult, Family, ItemRef, Kind, Metric, Pack, PackItem,
+    Areas, Before, Book, DRILL, ExerciseResult, Family, ItemRef, Kind, Metric, Pack, PackItem,
     PictureKind, Pictures, STAGES, STAGES_READY, Seal, SessionRecord, Span, Tally, Tier,
     ValueMasses, drill, kinds_of, met, sealed,
 };
@@ -24,6 +24,7 @@ fn pictures(tiers: &[Tier], personal: Option<Tier>) -> Pictures {
         credit: None,
         outline: None,
         masses: None,
+        areas: None,
     };
     let pack = Pack {
         id: "test-shapes".to_owned(),
@@ -37,9 +38,11 @@ fn pictures(tiers: &[Tier], personal: Option<Tier>) -> Pictures {
         title: "My pictures".to_owned(),
         items: vec![item("mine-1".to_owned(), tier)],
     });
-    // Compositions (S95) only where there are shapes: the tests without pictures have neither.
+    // Compositions (S95) and crops (S101) only where there are shapes: the tests without pictures
+    // have none.
     let compositions = (!tiers.is_empty()).then(|| compositions(&[Tier::Simple, Tier::Medium]));
-    let packs: Vec<Pack> = [Some(pack), mine, compositions]
+    let crops = (!tiers.is_empty()).then(|| crops(4));
+    let packs: Vec<Pack> = [Some(pack), mine, compositions, crops]
         .into_iter()
         .flatten()
         .collect();
@@ -59,6 +62,7 @@ fn compositions(tiers: &[Tier]) -> Pack {
         title: "test".to_owned(),
         credit: None,
         outline: None,
+        areas: None,
     };
     Pack {
         id: "test-compositions".to_owned(),
@@ -66,6 +70,31 @@ fn compositions(tiers: &[Tier]) -> Pack {
         items: (tiers.iter())
             .flat_map(|tier| (0..4).map(move |n| item(format!("{}-{n}", tier.name()), *tier)))
             .collect(),
+    }
+}
+
+/// A pack of `count` crops (S101), each of three areas.
+fn crops(count: usize) -> Pack {
+    let areas = Areas::of_map(
+        [2, 2],
+        vec![0, 1, 2, 0],
+        vec![[90, 60, 40], [96, 66, 44], [200; 3]],
+    );
+    let item = |n: usize| PackItem {
+        id: format!("crop-{n}"),
+        kind: PictureKind::Crop,
+        tier: Tier::Simple,
+        size: [600, 600],
+        title: "test".to_owned(),
+        credit: None,
+        outline: None,
+        masses: None,
+        areas: areas.clone().map(Arc::new),
+    };
+    Pack {
+        id: "test-crops".to_owned(),
+        title: "Test crops".to_owned(),
+        items: (0..count).map(item).collect(),
     }
 }
 
@@ -143,15 +172,6 @@ fn each_kind_s_drill_holds_that_kind_only_as_many_as_the_slice_says() {
 #[test]
 fn variants_come_in_turn_by_the_drill_s_number() {
     let none = pictures(&[], None);
-    let combinations: Vec<Kind> = (1..=3)
-        .flat_map(|n| kinds(Family::Areas, n, &none))
-        .collect();
-    for arrangement in openpaint_practice::Arrangement::ALL {
-        let held = combinations
-            .iter()
-            .filter(|k| **k == Kind::Areas(arrangement));
-        assert_eq!(held.count(), 2, "{arrangement:?}");
-    }
     let horizons: Vec<Kind> = (1..=3)
         .flat_map(|n| kinds(Family::FreeBoxes, n, &none))
         .collect();
@@ -200,6 +220,35 @@ fn a_shapes_drill_takes_its_tiers_in_turn_the_user_s_own_last_and_none_without_p
     // No picture: no shapes drill.
     let none = pictures(&[], None);
     assert_eq!(drill(Family::Shape, 1, 5, &before(&none, &[])), None);
+}
+
+#[test]
+fn a_combinations_drill_takes_crops_not_shown_before_and_none_without_them() {
+    let all = pictures(&Tier::ALL, None);
+    let crop = |n: usize| ItemRef {
+        pack: "test-crops".to_owned(),
+        item: format!("crop-{n}"),
+    };
+    let plan = drill(Family::Areas, 1, 5, &before(&all, &[])).expect("combinations");
+    let items: Vec<&ItemRef> = plan
+        .exercises
+        .iter()
+        .filter_map(|e| e.picture.as_ref())
+        .collect();
+    assert_eq!(items.len(), 2);
+    assert_ne!(items[0], items[1], "two crops, none twice");
+    assert!(
+        plan.exercises
+            .iter()
+            .all(|e| e.kind == Kind::Crop(Tier::Simple))
+    );
+    // Three of the four shown before: the one left comes first, then any.
+    let used = [crop(0), crop(1), crop(3)];
+    let plan = drill(Family::Areas, 2, 5, &before(&all, &used)).expect("combinations");
+    assert_eq!(plan.exercises[0].picture, Some(crop(2)));
+    // No crop: no combinations drill.
+    let none = pictures(&[], None);
+    assert_eq!(drill(Family::Areas, 1, 5, &before(&none, &[])), None);
 }
 
 /// Drill `id` of `family`, its first exercise compared at `at`, practised from `at` for `minutes`.

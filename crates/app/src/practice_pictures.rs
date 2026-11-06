@@ -1,4 +1,4 @@
-//! Pictures on a practice sheet (S80): a single shape's or a colour copy's picture as its pack
+//! Pictures on a practice sheet (S80): a single shape's, a colour copy's or a crop's picture as its pack
 //! holds it (its size, its outline and the credit to show under it), filling its frame of its
 //! shape (S99); the picture's pixels as the store read them for the screen, and a single shape's
 //! with its ground faded (S99); the packs kept as the Today card's options list them; and the
@@ -7,7 +7,8 @@
 use std::sync::Arc;
 
 use openpaint_practice::{
-    Fit, ItemRef, Pack, PackItem, PictureFit, Point, ValueMasses, align, align_shape, faded_ground,
+    Areas, Fit, ItemRef, Pack, PackItem, PictureFit, Point, ValueMasses, align, align_shape,
+    faded_ground,
 };
 
 /// The longest side a picture is read at for the screen, in pixels: a frame shows it at most
@@ -32,6 +33,8 @@ pub struct SheetPicture {
     pub credit: Option<String>,
     /// Its value masses (a composition's whose masses read, S96); none where its pack has none.
     pub masses: Option<MassesShown>,
+    /// Its colour areas (a crop's, S101), in shares of the picture; none for another picture.
+    pub areas: Option<Arc<Areas>>,
 }
 
 /// A picture's value masses as its frame shows them: the answer, and its mass edges in frame
@@ -71,6 +74,7 @@ impl SheetPicture {
             outline,
             credit: found.shown_credit().map(str::to_owned),
             masses,
+            areas: found.areas.clone(),
         })
     }
 

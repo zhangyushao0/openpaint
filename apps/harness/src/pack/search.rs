@@ -66,10 +66,11 @@ pub fn run(fetcher: &Fetcher, source: Source, query: &str, count: u32) -> Result
             rgba,
             outline: None,
             masses: None,
+            areas: None,
         });
     }
     let sheet = sheet_path(source, query, count);
-    write_sheet(&pictures, &sheet)?;
+    write_sheet(&pictures, 1, &sheet)?;
     println!("{} candidates: {}", candidates.len(), sheet.display());
     Ok(())
 }

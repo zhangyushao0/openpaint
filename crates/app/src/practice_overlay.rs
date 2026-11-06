@@ -86,6 +86,16 @@ impl PracticeSheet {
             _ => None,
         };
         match &self.sheet.originals[index] {
+            // A colour combination, a crop's (S101) or a generated one's.
+            _ if self.sheet.areas(index).is_some() => Some(Overlay::Areas {
+                shown,
+                read: match read {
+                    Some(CopyRead::Areas(read)) => Some(Arc::clone(read)),
+                    _ => None,
+                },
+                chosen,
+                outline,
+            }),
             Original::Picture(_) if self.family(index) == Some(Family::ValueMasses) => {
                 Some(Overlay::Masses {
                     corners: self.picture_corners(index, laid)?,
@@ -98,15 +108,6 @@ impl PracticeSheet {
             }
             // A colour copy compares colours: the picture alone, no outline.
             Original::Picture(_) => self.picture_overlay(index, laid, (shown, false)),
-            Original::Areas(_) => Some(Overlay::Areas {
-                shown,
-                read: match read {
-                    Some(CopyRead::Areas(read)) => Some(Arc::clone(read)),
-                    _ => None,
-                },
-                chosen,
-                outline,
-            }),
             Original::Scale(_) => Some(Overlay::Scale(match read {
                 Some(CopyRead::Scale(check)) => Some(Arc::clone(check)),
                 _ => None,

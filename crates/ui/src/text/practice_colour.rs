@@ -28,6 +28,9 @@ texts! { PRACTICE_COLOUR;
     OPEN = "Open", "打开";
     COPIES_NOTE = "A long copy in colour, worked on whenever you like over 10 to 20 hours; it never \
         counts as a session.", "用颜色做的长时间临摹，总共约 10 到 20 小时，随时都可以画；不算在练习次数里。";
+    DRILL_NEEDS_CROPS = "Colour combinations copy crops of real pictures: import the textures or \
+        the composition pack under Practice packs.",
+        "色彩组合临摹的是真实图片上截下的局部：请在“练习图包”下导入纹理素材包或构图素材包。";
 }
 
 /// A value scale compared (S97): how many of its cells are uneven.

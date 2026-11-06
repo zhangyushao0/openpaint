@@ -328,9 +328,11 @@ impl Default for Gallery {
 }
 
 /// What the notice says of `pack` imported: where its pictures come up (S95: a pack of
-/// compositions in divisions and whole copies).
+/// compositions in divisions and whole copies; S101: crops in colour combinations).
 fn imported(pack: &openpaint_practice::Pack) -> GalleryNotice {
-    let compositions =
-        (pack.items.iter()).any(|item| item.kind == openpaint_practice::PictureKind::Composition);
-    GalleryNotice::PackImported { compositions }
+    let holds = |kind| pack.items.iter().any(|item| item.kind == kind);
+    GalleryNotice::PackImported {
+        compositions: holds(openpaint_practice::PictureKind::Composition),
+        crops: holds(openpaint_practice::PictureKind::Crop),
+    }
 }

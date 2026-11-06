@@ -4,7 +4,8 @@
 //! number), two points in space (V大's five tricks in turn: the centre, the halves, the thirds,
 //! the next face, a mirror), two solids found in their boxes (S93: a cylinder, a cone, a sphere in
 //! turn), two single shapes of the medium and hard tiers (the last the user's own of those tiers
-//! or an easier one when they have one) and a colour combination, its arrangement in turn.
+//! or an easier one when they have one) and a colour combination of a crop (S101; none without
+//! one).
 //!
 //! An estimate taken at about 0.6 minutes (looked at, marked, compared, corrected once), a point
 //! in space at about 2 (constructed with Sketch, marked, compared, corrected), a solid at about
@@ -14,7 +15,6 @@
 //! (about 21 without a pack, which holds no shapes). Solids, taking minutes each, stay out of the
 //! warm-up's quick places; every session holds two.
 
-use crate::areas::Arrangement;
 use crate::flat::Estimate;
 use crate::pack::Tier;
 use crate::plan::{Family, Kind};
@@ -62,13 +62,13 @@ pub fn stage_three(number: u32, seed: u64, before: &Before<'_>) -> Plan {
         .map(Kind::Flat);
     let tricks = in_turn(&Trick::ALL, turn, TRICKS).map(Kind::Space);
     let solids = in_turn(&Solid::ALL, turn, SOLIDS).map(Kind::Solid);
-    let combination = Kind::Areas(Arrangement::ALL[turn % Arrangement::ALL.len()]);
+    let combination = picker.crop();
     let warmed = u32::try_from(warm_up.len()).unwrap_or(0);
     let geometry = estimates.chain(tricks).chain(solids);
     let all = (warm_up.into_iter())
         .chain(geometry.map(|kind| (kind, None)))
         .chain(shapes)
-        .chain([(combination, None)]);
+        .chain(combination);
     Plan {
         exercises: seeded(seed, all, before.scales),
         warm_up: warmed,

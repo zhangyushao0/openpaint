@@ -17,8 +17,9 @@ use openpaint_practice::{
 };
 use openpaint_store::{PackPicture, pack_picture};
 
+use super::crops::{Cropped, crops_of};
 use super::fetch::{Fetcher, cache_name};
-use super::list::{Listed, SourceList};
+use super::list::{Listed, SourceList, cropping};
 use super::sources::{Found, Sources, Stated};
 use crate::error::HarnessError;
 
@@ -50,12 +51,13 @@ pub enum Massed {
 }
 
 /// A pack as built: its manifest, its pictures' files in the list's order and what became of
-/// each item's outline and value masses.
+/// each item's outline and value masses; and every crop cut (S101), kept or left out.
 pub struct Built {
     pub pack: Pack,
     pub pictures: Vec<Vec<u8>>,
     pub outlines: Vec<Outlined>,
     pub masses: Vec<Massed>,
+    pub crops: Vec<Cropped>,
 }
 
 /// The segmentation's matte of a picture (8-bit sRGB RGBA of its size): the model's
@@ -74,50 +76,68 @@ pub fn build(
     segment: Segment<'_>,
 ) -> Result<Built, HarnessError> {
     let sources = Sources::new(fetcher);
-    let mut items = Vec::with_capacity(list.items.len());
-    let mut pictures = Vec::with_capacity(list.items.len());
-    let mut outlines = Vec::with_capacity(list.items.len());
-    let mut masses = Vec::with_capacity(list.items.len());
+    let mut built = Built {
+        pack: Pack {
+            id: list.id.clone(),
+            title: list.title.clone(),
+            items: Vec::with_capacity(list.items.len()),
+        },
+        pictures: Vec::with_capacity(list.items.len()),
+        outlines: Vec::with_capacity(list.items.len()),
+        masses: Vec::with_capacity(list.items.len()),
+        crops: Vec::new(),
+    };
     for listed in &list.items {
-        let (item, picture, (outlined, massed)) = item(list.kind, listed, (&sources, segment))
-            .map_err(|error| match error {
+        listed_into(&mut built, (list.kind, listed), (&sources, segment)).map_err(|error| {
+            match error {
                 HarnessError::Pack { .. } => error,
                 other => HarnessError::Pack {
                     item: listed.id.clone(),
                     problem: other.to_string(),
                 },
-            })?;
-        items.push(item);
-        pictures.push(picture);
-        outlines.push(outlined);
-        masses.push(massed);
+            }
+        })?;
     }
-    let pack = Pack {
-        id: list.id.clone(),
-        title: list.title.clone(),
-        items,
-    };
-    pack.check().map_err(|problem| HarnessError::Pack {
+    built.pack.check().map_err(|problem| HarnessError::Pack {
         item: problem.item.unwrap_or_else(|| list.id.clone()),
         problem: problem.rule.to_owned(),
     })?;
-    Ok(Built {
-        pack,
-        pictures,
-        outlines,
-        masses,
-    })
+    Ok(built)
 }
 
-/// An item as built: its manifest entry, its picture's file, what became of its outline and of
-/// its value masses.
-type ItemBuilt = (PackItem, Vec<u8>, (Outlined, Massed));
-
-fn item(
-    kind: PictureKind,
-    listed: &Listed,
+/// `listed` (an item of a list of `kind`) into `built`: its picture whole unless the list is of
+/// crops, then the crops it gives (S101), each kept one an item of its own.
+fn listed_into(
+    built: &mut Built,
+    (kind, listed): (PictureKind, &Listed),
     (sources, segment): (&Sources<'_>, Segment<'_>),
-) -> Result<ItemBuilt, HarnessError> {
+) -> Result<(), HarnessError> {
+    let (found, picture) = fetched(listed, sources)?;
+    if kind != PictureKind::Crop {
+        let (item, file, (outlined, massed)) = item(kind, listed, (&found, &picture), segment)?;
+        built.pack.items.push(item);
+        built.pictures.push(file);
+        built.outlines.push(outlined);
+        built.masses.push(massed);
+    }
+    let Some(cropping) = cropping(kind) else {
+        return Ok(());
+    };
+    for (cropped, kept) in crops_of(listed, (&found, &picture), cropping)? {
+        if let Some((item, file)) = kept {
+            built.pack.items.push(item);
+            built.pictures.push(file);
+            built.outlines.push(Outlined::Never);
+            built.masses.push(Massed::Never);
+        }
+        built.crops.push(cropped);
+    }
+    Ok(())
+}
+
+/// What `listed`'s source says of it, its licence checked against the list's, and its picture
+/// downloaded and made as a pack holds it.
+fn fetched(listed: &Listed, sources: &Sources<'_>) -> Result<(Found, PackPicture), HarnessError> {
     let found = sources.look_up(listed)?;
     if found.stated != Stated::Licence(listed.licence) {
         return Err(HarnessError::Pack {
@@ -135,33 +155,51 @@ fn item(
         url: found.picture.clone(),
         detail: format!("the picture: {error}"),
     })?;
+    Ok((found, picture))
+}
+
+/// An item as built: its manifest entry, its picture's file, what became of its outline and of
+/// its value masses.
+type ItemBuilt = (PackItem, Vec<u8>, (Outlined, Massed));
+
+/// `listed` whole as an item of `kind`: outlined if its kind is (by `segment`'s matte), its value
+/// masses made if its kind takes them.
+fn item(
+    kind: PictureKind,
+    listed: &Listed,
+    (found, picture): (&Found, &PackPicture),
+    segment: Segment<'_>,
+) -> Result<ItemBuilt, HarnessError> {
     let (kept, outlined) = if kind.outlined() {
-        outline(listed, &picture, segment)?
+        outline(listed, picture, segment)?
     } else {
         (None, Outlined::Never)
     };
     let (massed, masses) = if kind.massed() {
-        masses(listed, &picture)
+        masses(listed, picture)
     } else {
         (None, Massed::Never)
     };
     let item = PackItem {
         id: listed.id.clone(),
         kind,
-        tier: listed.tier,
+        tier: listed
+            .tier
+            .ok_or_else(|| HarnessError::List(format!("{}: no tier", listed.id)))?,
         size: picture.size,
         title: found.title.clone(),
         credit: Some(Credit {
-            attribution: attribution(&found, listed.licence),
-            source: found.page,
-            creator: found.creator,
+            attribution: attribution(found, listed.licence),
+            source: found.page.clone(),
+            creator: found.creator.clone(),
             licence: listed.licence,
             notes: listed.reason.clone(),
         }),
         outline: kept,
         masses: massed,
+        areas: None,
     };
-    Ok((item, picture.file, (outlined, masses)))
+    Ok((item, picture.file.clone(), (outlined, masses)))
 }
 
 /// A shape's outline: derived from the segmentation's matte, kept unless the list says why not.

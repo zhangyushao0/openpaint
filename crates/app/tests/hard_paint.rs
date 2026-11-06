@@ -164,6 +164,7 @@ fn vase_pack() -> Pack {
             credit: None,
             outline: None,
             masses: None,
+            areas: None,
         }],
     }
 }

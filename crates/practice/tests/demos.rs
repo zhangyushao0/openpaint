@@ -266,7 +266,7 @@ fn a_boxs_vanishing_points_lie_in_the_room_the_card_gives() {
 #[test]
 fn a_combination_is_painted_area_by_area_with_its_pens_in_their_order() {
     let areas = demo(Family::Areas);
-    let example = areas.areas.as_ref().expect("the combination painted");
+    let example = &areas.areas.as_ref().expect("the combination painted").areas;
     let painted: Vec<(&Vec<openpaint_practice::Rgb8>, bool, usize)> = (areas.marks.iter())
         .filter(|m| m.on == On::Copy && m.pen == Marker::Ink)
         .filter_map(|m| match &m.drawn {

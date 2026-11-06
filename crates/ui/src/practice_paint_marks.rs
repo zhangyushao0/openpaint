@@ -1,7 +1,8 @@
 //! A painted exercise's marks over a practice sheet (S82), drawn by the screen through the view as
 //! every original is (`practice_marks.rs`):
 //!
-//! - a colour combination's picture in its frame; compared, the picture over the copy in place
+//! - a generated colour combination's picture in its frame (a record of 1.18.1 and before; a
+//!   crop's, S101, is its pack's picture, `practice_marks.rs`); compared, the picture over the copy in place
 //!   as strongly as the user sets, the area the card compares outlined in ink on both frames, and
 //!   the edges where the copy made a weak contrast strong in the marking red;
 //! - a value scale, in the one frame drawn in (S97): its cells, the ends filled as given, the
@@ -134,13 +135,14 @@ fn show_scale(
     }
 }
 
-/// A painted copy's comparison over its frame; a red mark `width` points wide.
+/// A painted copy's comparison over its frame, a colour combination's `picture` (a crop's from its
+/// pack, S101, or a generated one's) over it; a red mark `width` points wide.
 pub(crate) fn show_overlay(
     painter: &egui::Painter,
     practice: &PracticeProjection,
     overlay: &Overlay,
     (at, width): (&dyn Fn([f64; 2]) -> Pos2, f32),
-    painted: &PaintedPictures,
+    picture: Option<&TextureHandle>,
 ) {
     let Some(index) = practice.current else {
         return;
@@ -154,9 +156,9 @@ pub(crate) fn show_overlay(
                 outline,
                 ..
             },
-            Original::Areas(_),
+            _,
         ) => {
-            if let Some(texture) = painted.of(practice, index) {
+            if let Some(texture) = picture {
                 let corners = pair.copy.corners().map(at);
                 painter.add(quad(
                     texture,

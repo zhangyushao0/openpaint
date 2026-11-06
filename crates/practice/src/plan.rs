@@ -2,7 +2,7 @@
 //! copy's picture) and its original; the stages' sessions are `session.rs`, the sheet they lie
 //! on `sheet.rs`.
 
-use crate::areas::{Areas, Arrangement};
+use crate::areas_generated::{Arrangement, GeneratedAreas};
 use crate::colour::Rgb8;
 use crate::colour_match::Tone;
 use crate::combined::{Combination, CombinedLines};
@@ -36,8 +36,12 @@ pub enum Kind {
     Combined(Combination),
     /// One object's picture of a tier, copied by its outline as a line drawing.
     Shape(Tier),
-    /// A small abstract picture of a few colour areas, copied by eye (V大's 临摹色彩组合).
+    /// A generated colour combination (S82, 1.5.0 to 1.18.1): kept in its records, its picture
+    /// made again from its seed; never planned since S101.
     Areas(Arrangement),
+    /// A colour combination (V大's 临摹色彩组合, S101): a crop of a real picture of a tier (its
+    /// areas' count, `crop::tier_of`), its few colour areas copied by eye.
+    Crop(Tier),
     /// A row of cells (its count, the ends among them) between a given dark and light, filled in
     /// even steps of value.
     Scale(ScaleTone, u8),
@@ -211,15 +215,15 @@ impl Family {
 impl Kind {
     /// The kind and its variant as stored: (1, tier) for a line, (2, tone) for a colour, (3,
     /// arrangement) for combined lines, (4, the picture's tier code) for a single shape, (5,
-    /// arrangement) for a colour combination, (6, tone + 2 x cells) for a value scale (S97; 1.5.0
-    /// to 1.14.0 stored (6, tone), the cells drawn from the seed: the store's upgrade turns it into
-    /// this, `store/src/practice.rs`), (7, 0) for a colour
+    /// arrangement) for a generated colour combination (records only since S101), (6, tone + 2 x
+    /// cells) for a value scale (S97; 1.5.0 to 1.14.0 stored (6, tone), the cells drawn from the
+    /// seed: the store's upgrade turns it into this, `store/src/practice.rs`), (7, 0) for a colour
     /// copy, (8, view) for a box to complete, (9, horizon) for free boxes, (10, guide) for an
     /// ellipse, (11, estimate) for an estimate on the flat, (12, trick) for a point in space, (13,
-    /// solid) for a solid in a box, (14, carve) for an object simplified into its box, (15, the
-    /// picture's tier code) for a division, (16, the picture's tier code) for a whole copy, (17,
-    /// the picture's tier code) for value masses. A code names one generator for good; a changed
-    /// generator is a new code.
+    /// solid) for a solid in a box, (14, carve) for an object simplified into its box, then the
+    /// picture's tier code for a division (15), a whole copy (16), value masses (17) and a colour
+    /// combination of a crop (18, S101). A code names one generator for good; a changed generator
+    /// is a new code.
     #[must_use]
     pub fn code(self) -> (u8, u8) {
         let index = |found: Option<usize>| found.unwrap_or(0) as u8;
@@ -250,6 +254,7 @@ impl Kind {
             Self::Division(tier) => (15, tier.code()),
             Self::WholeCopy(tier) => (16, tier.code()),
             Self::ValueMasses(tier) => (17, tier.code()),
+            Self::Crop(tier) => (18, tier.code()),
         }
     }
 
@@ -278,6 +283,7 @@ impl Kind {
             15 => Tier::of_code(variant).map(Self::Division),
             16 => Tier::of_code(variant).map(Self::WholeCopy),
             17 => Tier::of_code(variant).map(Self::ValueMasses),
+            18 => Tier::of_code(variant).map(Self::Crop),
             _ => None,
         }
     }
@@ -289,7 +295,7 @@ impl Kind {
             Self::Colour(_) => Family::Colour,
             Self::Combined(_) => Family::Combined,
             Self::Shape(_) => Family::Shape,
-            Self::Areas(_) => Family::Areas,
+            Self::Areas(_) | Self::Crop(_) => Family::Areas,
             Self::Scale(..) => Family::Scale,
             Self::Study => Family::Study,
             Self::Box(_) => Family::Box,
@@ -341,8 +347,11 @@ impl Exercise {
             | Kind::Study
             | Kind::Division(_)
             | Kind::WholeCopy(_)
-            | Kind::ValueMasses(_) => Original::Picture(self.picture.clone().unwrap_or_default()),
-            Kind::Areas(arrangement) => Original::Areas(Areas::generate(arrangement, self.seed)),
+            | Kind::ValueMasses(_)
+            | Kind::Crop(_) => Original::Picture(self.picture.clone().unwrap_or_default()),
+            Kind::Areas(arrangement) => {
+                Original::Areas(GeneratedAreas::generate(arrangement, self.seed))
+            }
             Kind::Scale(tone, cells) => {
                 Original::Scale(ValueScale::generate(tone, usize::from(cells), self.seed))
             }
@@ -368,10 +377,10 @@ pub enum Original {
     Lines(Vec<Vec<Point>>),
     /// A swatch.
     Colour(Rgb8),
-    /// A pack's picture (an empty reference: none was kept).
+    /// A pack's picture (an empty reference: none was kept); a crop's with its areas (S101).
     Picture(ItemRef),
-    /// A colour combination's areas.
-    Areas(Areas),
+    /// A generated colour combination's picture and areas (a record of 1.18.1 and before).
+    Areas(GeneratedAreas),
     /// A value scale's ends and cells.
     Scale(ValueScale),
     /// A box to complete: the exact box, its front corner's three edges given.
