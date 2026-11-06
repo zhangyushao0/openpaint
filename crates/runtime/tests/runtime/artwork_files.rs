@@ -63,6 +63,11 @@ fn items(runtime: &Runtime) -> usize {
     gallery(runtime).map_or(0, |gallery| gallery.items().len())
 }
 
+/// An artwork is open.
+fn open(runtime: &Runtime) -> bool {
+    runtime.artwork().is_some()
+}
+
 /// The only card saved as a file through its options and the system's save dialog, then that
 /// file opened under "+" through the system's picker.
 fn save_and_open(runtime: &mut Runtime, hand: &mut Hand) {
@@ -75,7 +80,7 @@ fn save_and_open(runtime: &mut Runtime, hand: &mut Hand) {
     );
     let saved = Written::default();
     runtime.answer(HostAnswer::File(Box::new(saved.clone())));
-    until(runtime, SIZE, |runtime| {
+    until(runtime, hand, |runtime| {
         gallery(runtime).is_some_and(|g| g.notice() == GalleryNotice::FileSaved)
     });
     hand.tap(runtime, "OK");
@@ -84,7 +89,7 @@ fn save_and_open(runtime: &mut Runtime, hand: &mut Hand) {
     assert_eq!(runtime.host_request(), Some(HostRequest::OpenArtwork));
     let file = saved.bytes();
     runtime.answer(HostAnswer::Image(Box::new(BytesSource(file))));
-    until(runtime, SIZE, |runtime| items(runtime) == 2);
+    until(runtime, hand, |runtime| items(runtime) == 2);
 }
 
 /// The first card's only version restored from its options; returns the version's date as
@@ -99,7 +104,7 @@ fn restore_the_version(runtime: &mut Runtime, hand: &mut Hand) -> String {
         .expect("the version's date on screen")
         .clone();
     hand.tap(runtime, version.as_str());
-    until(runtime, SIZE, |runtime| items(runtime) == before + 1);
+    until(runtime, hand, |runtime| items(runtime) == before + 1);
     version
 }
 
@@ -117,14 +122,14 @@ fn a_saved_file_opens_as_the_same_artwork_and_a_version_restores_what_was_left()
     };
     let mut runtime = Runtime::start(PIXELS_PER_POINT, store, options).expect("the runtime starts");
     let mut hand = Hand::new(SIZE);
-    until(&mut runtime, SIZE, |runtime| items(runtime) == 1);
+    until(&mut runtime, &mut hand, |runtime| items(runtime) == 1);
     hand.tap(&mut runtime, "Open artwork");
-    until(&mut runtime, SIZE, |runtime| runtime.artwork().is_some());
+    until(&mut runtime, &mut hand, open);
     assert_cold(&core, &mut runtime, "the sample opened");
     let original = runtime.artwork().expect("artwork").to_parts();
     let canvas = runtime.read_canvas().expect("readback").expect("canvas");
     assert!(runtime.back(), "to the gallery");
-    until(&mut runtime, SIZE, |runtime| items(runtime) == 1);
+    until(&mut runtime, &mut hand, |runtime| items(runtime) == 1);
     let listed = gallery(&runtime).expect("gallery");
     assert!(
         listed.items()[0].versions.is_empty(),
@@ -134,7 +139,7 @@ fn a_saved_file_opens_as_the_same_artwork_and_a_version_restores_what_was_left()
     save_and_open(&mut runtime, &mut hand);
     // The new card comes first.
     hand.tap(&mut runtime, "Open artwork #1");
-    until(&mut runtime, SIZE, |runtime| runtime.artwork().is_some());
+    until(&mut runtime, &mut hand, open);
     assert_eq!(runtime.artwork().expect("artwork").to_parts(), original);
     let opened = runtime.read_canvas().expect("readback").expect("canvas");
     assert_eq!(
@@ -151,7 +156,7 @@ fn a_saved_file_opens_as_the_same_artwork_and_a_version_restores_what_was_left()
     assert_ne!(left, original);
     let drawn = runtime.read_canvas().expect("readback").expect("canvas");
     assert!(runtime.back(), "to the gallery");
-    until(&mut runtime, SIZE, |runtime| {
+    until(&mut runtime, &mut hand, |runtime| {
         gallery(runtime).is_some_and(|g| g.items()[0].versions.len() == 1)
     });
     let version = restore_the_version(&mut runtime, &mut hand);
@@ -161,7 +166,7 @@ fn a_saved_file_opens_as_the_same_artwork_and_a_version_restores_what_was_left()
         format!("Hafen ({version})")
     );
     hand.tap(&mut runtime, "Open artwork #1");
-    until(&mut runtime, SIZE, |runtime| runtime.artwork().is_some());
+    until(&mut runtime, &mut hand, open);
     let restored = runtime.read_canvas().expect("readback").expect("canvas");
     assert_eq!(
         restored.content_hash(),

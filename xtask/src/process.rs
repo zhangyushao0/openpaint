@@ -17,9 +17,31 @@ pub fn cargo(args: &[&str]) -> Result<(), String> {
     run(cargo_command().args(args))
 }
 
-/// A cargo command for the same toolchain that runs xtask.
+/// A cargo command for the same toolchain that runs xtask, in the shell's environment: without
+/// the variables cargo set for xtask's own run (its package's name, version and manifest), which
+/// a build script (ring's) depends on. With them every gate built ring again and relinked the
+/// harness, which a `cargo scenarios` running beside it holds open (S106).
 pub fn cargo_command() -> Command {
-    Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string()))
+    let mut command = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string()));
+    for (key, _) in std::env::vars_os() {
+        if key.to_str().is_some_and(set_by_cargo_run) {
+            command.env_remove(key);
+        }
+    }
+    command
+}
+
+/// The variables `cargo run` sets for the program it runs.
+fn set_by_cargo_run(key: &str) -> bool {
+    key.starts_with("CARGO_PKG_")
+        || matches!(
+            key,
+            "CARGO_MANIFEST_DIR"
+                | "CARGO_MANIFEST_PATH"
+                | "CARGO_CRATE_NAME"
+                | "CARGO_BIN_NAME"
+                | "CARGO_PRIMARY_PACKAGE"
+        )
 }
 
 /// Runs `command` from the workspace root with inherited output and prints how long it took.

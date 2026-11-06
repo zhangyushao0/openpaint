@@ -3,6 +3,7 @@
 //! and what the tiles are compared with.
 
 use std::collections::BTreeSet;
+use std::time::Instant;
 
 use openpaint_core::{ActiveStroke, Artwork, Color};
 use openpaint_render::{
@@ -10,7 +11,7 @@ use openpaint_render::{
     ViewWork, changed_regions,
 };
 
-use crate::fixture::{SIZE, cold, core};
+use crate::fixture::{HANG, SIZE, cold, core};
 use crate::scale::whole;
 
 /// The screen the tests show the canvas on, in pixels.
@@ -95,14 +96,15 @@ impl Screen {
         view: &ViewFrame,
     ) -> BTreeSet<[u32; 2]> {
         let mut filled = BTreeSet::new();
-        for _ in 0..200 {
+        let start = Instant::now();
+        loop {
             let work = self.frame(core, (artwork, None), &[], view);
             filled.extend(work.filled.iter().copied());
             if work.tier.is_some() && work.waiting == 0 {
                 return filled;
             }
+            assert!(start.elapsed() < HANG, "the tier never filled in");
         }
-        panic!("the tier never filled in");
     }
 
     /// Every ready tile of the tier compared with `export`; how many.

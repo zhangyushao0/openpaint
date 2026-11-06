@@ -1,12 +1,13 @@
 //! GPU test of ColorDrop through the whole frame loop, at fit: the colour dragged from the
 //! colour button into a closed antialiased curve fills it up to the line with no light seam
 //! under the line's soft inner edge (draweave 674c59b), leaves the outside alone, equals a cold
-//! evaluation, and undo takes it back.
+//! evaluation, and undo takes it back. On the hand's held clock: frames slowed by load once held
+//! the pen still long enough to snap the circle to a QuickShape, open, and the fill leaked.
 
 use openpaint_runtime::{Runtime, ToolKind};
 
 use crate::support::{
-    Hand, Nowhere, assert_cold, canvas, core, mapping, on, pixel_at, settle, start, strokes,
+    Nowhere, assert_cold, canvas, core, mapping, on, pixel_at, settle, start, strokes,
 };
 
 /// 800 x 500 points at density 2.
@@ -39,14 +40,13 @@ fn fills(runtime: &Runtime) -> usize {
 #[test]
 fn a_colour_dropped_into_a_closed_curve_fills_it_without_a_seam() {
     let core = core();
-    let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
-    let mut hand = Hand::new(SIZE);
+    let (mut runtime, mut hand) = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
     hand.gesture(&mut runtime, ToolKind::Stylus, &circle(260.0));
     // From the colour button at the right island's end.
     let colour = on(&runtime, "Colour", [0.5, 0.5]);
     let drop = [colour, [1300.0, 300.0], [1000.0, 450.0], CENTRE, CENTRE];
     hand.gesture(&mut runtime, ToolKind::Finger, &drop);
-    settle(&mut runtime, SIZE);
+    settle(&mut runtime, &mut hand);
     assert_eq!(fills(&runtime), 1, "one fill, committed");
     assert_eq!(strokes(&runtime), 1, "the drop drew nothing");
     let image = canvas(&mut runtime);
@@ -67,7 +67,7 @@ fn a_colour_dropped_into_a_closed_curve_fills_it_without_a_seam() {
     assert_eq!(at(line + 30.0), [255; 4], "outside stays paper");
     assert_cold(&core, &mut runtime, "after the fill");
     hand.tap(&mut runtime, "Undo");
-    settle(&mut runtime, SIZE);
+    settle(&mut runtime, &mut hand);
     assert_eq!(fills(&runtime), 0);
     assert_eq!(
         pixel_at(&canvas(&mut runtime), centre),

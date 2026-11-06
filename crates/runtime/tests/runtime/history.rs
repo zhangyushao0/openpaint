@@ -2,7 +2,7 @@
 //! through history, the canvas always equals a cold evaluation of the version shown, and the
 //! bars never take a stroke that started on the canvas or paint one that started on them.
 
-use crate::support::{Hand, Nowhere, assert_cold, core, line, on, start, strokes};
+use crate::support::{Nowhere, assert_cold, core, line, on, start, strokes};
 use openpaint_runtime::ToolKind;
 
 /// 640 x 500 points at density 2: the side bar's sliders shortened to fit (the bar starts
@@ -13,8 +13,7 @@ const PIXELS_PER_POINT: f32 = 2.0;
 #[test]
 fn taps_move_through_history_and_the_canvas_stays_exact() {
     let core = core();
-    let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
-    let mut hand = Hand::new(SIZE);
+    let (mut runtime, mut hand) = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
     for y in [300.0, 440.0, 580.0] {
         hand.gesture(&mut runtime, ToolKind::Stylus, &line(y));
     }
@@ -42,8 +41,7 @@ fn taps_move_through_history_and_the_canvas_stays_exact() {
 
 #[test]
 fn the_bar_and_the_canvas_keep_their_own_contacts() {
-    let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
-    let mut hand = Hand::new(SIZE);
+    let (mut runtime, mut hand) = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
     hand.gesture(&mut runtime, ToolKind::Stylus, &line(400.0));
     let undo = on(&runtime, "Undo", [0.5, 0.5]);
     // A stroke that starts on the canvas and lifts over undo stays a stroke.

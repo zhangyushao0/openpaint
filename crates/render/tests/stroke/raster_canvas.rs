@@ -4,6 +4,8 @@
 //! adjustment applied and undone, it ends as the canvas drawn cold; picks read it; layer samples
 //! are the raster core's.
 
+use std::time::Instant;
+
 use openpaint_core::{
     Adjustment, Artwork, CanvasSize, Color, Hsb, LayerCommand, StrokeSample, StrokeTool,
 };
@@ -12,7 +14,7 @@ use openpaint_render::{
 };
 
 use crate::fixture::{
-    SIZE, cold, core, diagonal, layer, pixel, plain, request, sample, wave, with_stroke,
+    HANG, SIZE, cold, core, diagonal, layer, pixel, plain, request, sample, wave, with_stroke,
 };
 use crate::raster::every_raster_source;
 use crate::raster_smudge::every_smudge;
@@ -52,7 +54,8 @@ impl Screen {
     fn fill(&mut self, core: &Core, artwork: &Artwork, regions: &[PixelRect]) -> u64 {
         let before = core.counts().rastered;
         let mut regions = regions.to_vec();
-        for _ in 0..1000 {
+        let start = Instant::now();
+        loop {
             core.begin_frame();
             self.target
                 .draw_frame(core, &request(artwork), &regions)
@@ -62,8 +65,8 @@ impl Screen {
             if !self.target.pending() {
                 return core.counts().rastered - before;
             }
+            assert!(start.elapsed() < HANG, "the canvas never filled in");
         }
-        panic!("the canvas never filled in");
     }
 
     fn read(&self, core: &Core) -> RgbaImage {

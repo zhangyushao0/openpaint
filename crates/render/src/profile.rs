@@ -53,7 +53,13 @@ use cell::SPENT;
 pub(crate) fn waited<T>(what: &'static str, call: impl FnOnce() -> T) -> T {
     let started = Instant::now();
     let result = call();
-    let ns = nanos(started.elapsed());
+    wait_took(what, started.elapsed());
+    result
+}
+
+/// This thread waited `took` in `what`.
+fn wait_took(what: &'static str, took: Duration) {
+    let ns = nanos(took);
     SPENT.with(|spent| {
         let mut now = spent.get();
         now.waited_ns = now.waited_ns.saturating_add(ns);
@@ -63,7 +69,6 @@ pub(crate) fn waited<T>(what: &'static str, call: impl FnOnce() -> T) -> T {
         }
         spent.set(now);
     });
-    result
 }
 
 /// This thread built and uploaded a scene in `took`.
@@ -102,19 +107,34 @@ mod tests {
     #[test]
     fn waits_add_up_and_the_longest_is_named() {
         let _ = take_spent();
-        waited("short", || std::thread::sleep(Duration::from_millis(1)));
-        let value = waited("long", || {
-            std::thread::sleep(Duration::from_millis(5));
-            7
-        });
-        scene_built(Duration::from_millis(3));
-        drawn(Duration::from_millis(4));
-        assert_eq!(value, 7);
+        let ms = Duration::from_millis;
+        wait_took("short", ms(1));
+        wait_took("long", ms(5));
+        wait_took("shorter", ms(2));
+        scene_built(ms(3));
+        drawn(ms(4));
         let spent = take_spent();
         assert_eq!(spent.longest, "long");
-        assert!(spent.longest_ns >= 5_000_000 && spent.waited_ns >= 6_000_000);
+        assert_eq!((spent.longest_ns, spent.waited_ns), (5_000_000, 8_000_000));
         assert_eq!((spent.scenes, spent.scene_ns), (1, 3_000_000));
         assert_eq!(spent.drawn_ns, 4_000_000);
         assert_eq!(take_spent(), Spent::default(), "taken once");
+    }
+
+    /// A wait counts the time its call took: at least what a sleep asked for, however loaded
+    /// the machine (a sleep is never compared with another, whose timer step and scheduling
+    /// vary: on Windows a 1-ms sleep once outlasted a 5-ms one).
+    #[test]
+    fn a_wait_counts_the_time_its_call_took() {
+        let _ = take_spent();
+        let value = waited("sleep", || {
+            std::thread::sleep(Duration::from_millis(2));
+            7
+        });
+        assert_eq!(value, 7);
+        let spent = take_spent();
+        assert_eq!(spent.longest, "sleep");
+        assert!(spent.waited_ns >= 2_000_000, "{spent:?}");
+        assert_eq!(spent.longest_ns, spent.waited_ns);
     }
 }

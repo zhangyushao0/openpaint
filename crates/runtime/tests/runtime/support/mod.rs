@@ -1,9 +1,10 @@
-//! Shared by the runtime's GPU tests: the device, a hand's gestures and the cold draw, a library
-//! that keeps nothing, starting on it, where the canvas shows, a test's own directory, the
-//! benchmarks' pile, and the few steps many tests take. The binaries of their own
+//! Shared by the runtime's GPU tests: the device, a hand's gestures on the clock it holds and the
+//! cold draw, a library that keeps nothing, starting on it, where the canvas shows, a test's own
+//! directory, the benchmarks' pile, and the few steps many tests take. The binaries of their own
 //! (`../budget.rs` and the others) take the files they need alone.
 
 pub mod bench;
+pub mod frames;
 pub mod gpu;
 pub mod hand;
 pub mod launch;
@@ -12,12 +13,12 @@ pub mod store;
 pub mod test_dir;
 
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
 
 use openpaint_app::{GalleryProjection, ScreenProjection};
 use openpaint_render::RgbaImage;
 use openpaint_runtime::{ImageSink, PortError, Runtime};
 
+pub use frames::{frame, settle, until};
 pub use gpu::core;
 pub use hand::{Hand, assert_cold, cold, on};
 pub use launch::start;
@@ -41,23 +42,6 @@ pub fn line(y: f32) -> Vec<[f32; 2]> {
 /// The canvas as the screen shows it, read back.
 pub fn canvas(runtime: &mut Runtime) -> RgbaImage {
     runtime.read_canvas().expect("readback").expect("canvas")
-}
-
-/// Frames of `size` until the runtime asks for none and no worker is busy; panics after 30
-/// seconds.
-pub fn settle(runtime: &mut Runtime, size: [u32; 2]) {
-    let start = Instant::now();
-    while runtime.frame_offscreen(size).expect("frame") || runtime.storing() {
-        assert!(start.elapsed().as_secs() < 30, "never settled");
-    }
-}
-
-/// Frames of `size` until `ready` holds and the runtime asks for none; panics after 20 seconds.
-pub fn until(runtime: &mut Runtime, size: [u32; 2], ready: impl Fn(&Runtime) -> bool) {
-    let start = Instant::now();
-    while runtime.frame_offscreen(size).expect("frame") || !ready(runtime) {
-        assert!(start.elapsed().as_secs() < 20, "never got there");
-    }
 }
 
 /// A file the system's save dialog gave, in memory: what was written into it last.

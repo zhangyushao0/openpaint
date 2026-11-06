@@ -48,10 +48,9 @@ The author, 2026-10-23: practice is their main activity now. The app gets a prac
 - **No accounts, community or sharing service.**
 - **Method notes.** V大's methods, distilled from the course's subtitles, guide every exercise's instructions and checks. They are not in the repository.
 
-Stages 1 to 4 are built (S75 to S105 are done: the list at the end and its archive).
+Stages 1 to 4 are built (S75 to S106 are done: the list at the end and its archive).
 
 - Then, each specified when the one before lands:
-  - S106 Tests that hold under load (2026-11-06: four gates in a row failed each in another test that passed alone: a library's open past its 10 s, a store still busy after 400 frames on the held clock, a 1-ms sleep outlasting a 5-ms one on Windows' 15.6-ms timer step, a colour drop held still long enough in real time to adjust its threshold and leak past the line; S102b's 01c5b72 went in on such a gate). Every wait on a worker is guarded by wall time, a hang guard of two minutes, never by a count of frames; every gesture whose meaning depends on time (a hold, a drop, a flick) runs on the held clock (`fix_clock`), so a slow frame never changes what a test draws. The guards the main session raised (launch, settle, until, budget, profile; uncommitted) fold in. Done: the gate passes five times in a row with `cargo scenarios` running beside it.
   - Key shifts, gamut masks and abstract analysis.
   - Structure rotation against renders.
   - Trajectories, stage reports and re-tests.
@@ -144,3 +143,4 @@ Slices S0 to S72 and the stage exits: `docs/archive/ROADMAP-2026-10.md`; S73 to 
 - S101b 2026-11-06 packs: crops cut from the source's full pixels (Commons originals, IIIF at full size, films' stills at their own width; at most 4,096 px), each 768 to 1,024 px long so it shows sharp on the tablet (`openpaint-textures` 13, compositions 6), the list-outs carried over by what they show (D105 amended).
 - S101c 2026-11-06 packs: `openpaint-textures` becomes `openpaint-combinations` (Colour combinations), 56 crops: CC0 photographs 12, ambientCG and Poly Haven colour maps 6 (two new sources), public-domain paintings whose corners read abstract 38; compositions 5; 61 in all (D105 amended).
 - S102b 2026-11-06 1.20.1: official packs named in the language by their id (单体图形, 构图, 色彩组合 for `openpaint-combinations` after S101c), any other pack as its file names it; the crops notice names the two packs that hold crops.
+- S106 2026-11-06 tests: every wait for a worker guarded by two minutes of wall time, never a count of frames; `fix_clock` holds the input clock too and the runtime tests' `Hand` holds both, so a hold, a drop or QuickShape means the same under load; five gates in a row passed beside `cargo scenarios --jobs 2` (the width: pending 49; D44 amended).

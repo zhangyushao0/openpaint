@@ -29,8 +29,8 @@ fn assert_drawn_cold(core: &Core, runtime: &mut Runtime, when: &str) {
     assert_eq!(canvas.content_hash(), expected.content_hash(), "{when}");
 }
 
-/// The pen through `points` (screen pixels), a batch each 16 ms apart from
-/// `hand.clock` with the frames it asks for, lifting at the last; `each` looks after each.
+/// The pen through `points` (screen pixels), a batch each 16 ms of the hand's clock with the
+/// frames it asks for, lifting at the last; `each` looks after each.
 fn pen(
     hand: &mut Hand,
     runtime: &mut Runtime,
@@ -43,13 +43,12 @@ fn pen(
             i if i == points.len() - 1 => MotionPhase::Up,
             _ => MotionPhase::Move,
         };
-        hand.clock += 16;
         let sample = PointerSample {
             position: *at,
             pressure: 0.6,
             tilt: 0.0,
             orientation: 0.0,
-            time_ms: hand.clock,
+            time_ms: hand.tick(runtime, 16),
         };
         let batch = MotionBatch {
             phase,
@@ -61,11 +60,7 @@ fn pen(
             }],
         };
         runtime.motion(&batch);
-        for _ in 0..4 {
-            if !runtime.frame_offscreen(SIZE).expect("frame") {
-                break;
-            }
-        }
+        hand.follow(runtime);
         each(runtime, index);
     }
 }
@@ -73,8 +68,7 @@ fn pen(
 #[test]
 fn radial_copies_show_as_cold_while_drawn_and_commit_as_one_step() {
     let core = core();
-    let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
-    let mut hand = Hand::new(SIZE);
+    let (mut runtime, mut hand) = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
     hand.tap(&mut runtime, "Actions");
     hand.tap(&mut runtime, "Radial");
     assert!(runtime.projection().guide().on);
@@ -102,8 +96,7 @@ fn radial_copies_show_as_cold_while_drawn_and_commit_as_one_step() {
 #[test]
 fn a_held_circle_snaps_and_its_edited_shape_stays_cold() {
     let core = core();
-    let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
-    let mut hand = Hand::new(SIZE);
+    let (mut runtime, mut hand) = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
     let mut circle: Vec<[f32; 2]> = (0..40)
         .map(|k| {
             let t = (k as f32 * 9.0).to_radians();

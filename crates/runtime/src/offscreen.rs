@@ -1,6 +1,6 @@
 //! The harness's side of the frame loop: frames into an offscreen target instead of a window,
-//! reading them and the canvas back, and the fixed clock that makes motion deterministic in
-//! scenarios (D44).
+//! reading them and the canvas back, and the fixed clock that makes motion and timed gestures
+//! deterministic in scenarios and tests (D44).
 
 use openpaint_core::{ActiveStroke, Artwork};
 use openpaint_render::{RenderError, RgbaImage, ScreenPainter, ScreenTarget};
@@ -54,10 +54,20 @@ impl Runtime {
         Ok(repaint)
     }
 
-    /// Holds the clock motion runs on at `ms` until the next call, instead of the wall clock:
-    /// the harness steps it, so every run moves alike.
+    /// Holds the clocks motion and input run on at `ms` until the next call, instead of the wall
+    /// clock: the harness steps them, so every run moves alike and a gesture whose meaning
+    /// depends on time (a hold, a drop, a tap's length) means the same however long its frames
+    /// took. The harness stamps its input samples on the same clock.
     pub fn fix_clock(&mut self, ms: i64) {
         self.frame_clock.fix(ms);
+        self.clock.fix(ms);
+    }
+
+    /// Lets the clocks run on in real time again from where they were held, for a benchmark
+    /// between held steps.
+    pub fn release_clock(&mut self) {
+        self.frame_clock.release();
+        self.clock.release();
     }
 
     /// Every stroke from now on takes `seed` for its stamps, instead of one of its own:

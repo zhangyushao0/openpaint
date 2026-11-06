@@ -18,8 +18,9 @@ use crate::error::RuntimeError;
 use crate::shared::SharedCore;
 use crate::worker::Queue;
 
-/// How long an offscreen frame waits for the worker at most.
-const DRAIN: Duration = Duration::from_secs(10);
+/// How long an offscreen frame (the harness's and the tests') waits for the worker at most: a
+/// guard against a hang, never a measure, so a loaded machine still takes the same frames.
+const DRAIN: Duration = Duration::from_secs(120);
 
 enum Request {
     /// Make the raster core's pipelines on the device now.

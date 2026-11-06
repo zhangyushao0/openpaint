@@ -11,6 +11,7 @@
 
 use std::f32::consts::PI;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
+use std::time::{Duration, Instant};
 
 use openpaint_core::{
     ActiveStroke, Artwork, BrushRecipe, CanvasPoint, CanvasSize, Color, StrokeSample, StrokeStyle,
@@ -25,6 +26,9 @@ const SIZE: [u32; 2] = [320, 200];
 /// A small budget, so these small canvases take many frames whatever the GPU.
 const BUDGET: f64 = 10_000.0;
 const SCREEN: [u32; 2] = [400, 300];
+/// The longest a test runs frames until something fills in: two minutes of wall time, a guard
+/// against a hang, never a count of frames.
+const HANG: Duration = Duration::from_secs(120);
 
 fn core() -> &'static Core {
     static CORE: OnceLock<Core> = OnceLock::new();
@@ -167,10 +171,11 @@ fn a_frame_takes_its_budget_and_the_rest_fills_in_over_the_next_frames() {
     frame((&mut target, &mut cache), (&artwork, None), &all, None);
     assert!(target.pending(), "a dense canvas takes more than a frame");
     let mut frames = 1;
+    let start = Instant::now();
     while target.pending() {
         frame((&mut target, &mut cache), (&artwork, None), &[], None);
         frames += 1;
-        assert!(frames < 100_000, "the canvas never filled in");
+        assert!(start.elapsed() < HANG, "the canvas never filled in");
     }
     let counts = core().counts().since(before);
     eprintln!(
@@ -225,11 +230,10 @@ fn a_stroke_drawn_while_tiles_wait_shows_at_once_and_leaves_them_waiting() {
         crop(&wanted, &reached) == crop(&shown, &reached),
         "the stroke = cold where it reaches"
     );
-    let mut frames = 0;
+    let start = Instant::now();
     while target.pending() {
         frame((&mut target, &mut cache), (&so_far, None), &[], None);
-        frames += 1;
-        assert!(frames < 100_000, "the canvas never filled in");
+        assert!(start.elapsed() < HANG, "the canvas never filled in");
     }
     assert!(target.read(core()).expect("read") == wanted, "then = cold");
 }
@@ -257,11 +261,12 @@ fn a_pinch_and_a_pan_take_no_more_than_their_budget_and_the_tiers_fill_in() {
         step(&mut target, &mut cache, &pan);
     }
     let mut frames = 0;
+    let start = Instant::now();
     let last = view(4.0, [88.0, 100.0]);
     while target.pending() || cache.tier() != Some(4) || frames < 2 {
         step(&mut target, &mut cache, &last);
         frames += 1;
-        assert!(frames < 100_000, "the tier never filled in");
+        assert!(start.elapsed() < HANG, "the tier never filled in");
     }
     assert!(target.read(core()).expect("read") == cold(&artwork));
 }
@@ -274,8 +279,10 @@ fn each_residual_is_evaluated_once_by_the_canvas_and_never_again_by_the_tiers() 
     let before = core().counts();
     let all = [PixelRect::full(SIZE)];
     frame((&mut target, &mut cache), (&artwork, None), &all, None);
+    let start = Instant::now();
     while target.pending() {
         frame((&mut target, &mut cache), (&artwork, None), &[], None);
+        assert!(start.elapsed() < HANG, "the canvas never filled in");
     }
     let filled = core().counts().since(before);
     assert_eq!(filled.derived, 9, "each smudge's residual once");
@@ -324,13 +331,17 @@ fn a_cached_canvas_evaluates_its_residuals_over_frames_and_its_tier_waits_for_th
     let shown = view(4.0, [100.0, 80.0]);
     let before = core().counts();
     let mut frames = 0;
+    let start = Instant::now();
     while frames < 2000 || target.warming() {
         let now = f64::from(frames) / 120.0;
         let screen = (&mut target, &mut cache);
         frame(screen, (&artwork, None), &[], Some((&shown, now)));
         assert!(!target.pending(), "nothing waits on the canvas");
         frames += 1;
-        assert!(frames < 40_000, "the residuals were never all evaluated");
+        assert!(
+            start.elapsed() < HANG,
+            "the residuals were never all evaluated"
+        );
     }
     let counts = core().counts().since(before);
     assert_eq!(counts.derived, 9, "each residual once, over frames");
@@ -349,13 +360,14 @@ fn a_canvas_fills_in_when_its_residuals_pass_the_arenas_room() {
     let (mut target, mut cache) = screen();
     let before = core().counts();
     let mut frames = 0;
+    let start = Instant::now();
     let mut regions = vec![PixelRect::full(SIZE)];
     while frames == 0 || target.pending() {
         target.set_arena_room(core(), 1 << 20).expect("room");
         frame((&mut target, &mut cache), (&artwork, None), &regions, None);
         regions.clear();
         frames += 1;
-        assert!(frames < 20_000, "the canvas never filled in");
+        assert!(start.elapsed() < HANG, "the canvas never filled in");
     }
     let filled = core().counts().since(before);
     assert_eq!(

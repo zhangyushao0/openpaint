@@ -6,10 +6,13 @@
 //! canvas itself is never let go and stays equal to a cold evaluation throughout, also for a
 //! smudge drawn over a residual let go. A zoom round from 2x to 8x and back evaluates no tier
 //! tile twice: the tiers left are kept (S58). A test binary of its own: the zoom round reads its
-//! device's counts. Every state asserted is reached on the held clock alone: the snapshots taken
-//! ahead all taken before the caches are weighed, the pen over the glass while the budget acts,
-//! so nothing depends on how long a frame or a cold draw took.
+//! device's counts. Every state asserted is reached on the hand's held clock alone: the snapshots
+//! taken ahead all taken before the caches are weighed, the pen over the glass while the budget
+//! acts, frames waiting for a worker at the same time, so nothing depends on how long a frame, a
+//! store or a cold draw took.
 
+#[path = "runtime/support/frames.rs"]
+mod frames;
 #[path = "runtime/support/gpu.rs"]
 mod gpu;
 #[path = "runtime/support/hand.rs"]
@@ -20,8 +23,10 @@ mod launch;
 mod store;
 
 use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::time::Instant;
 
-use hand::{Hand, assert_cold};
+use frames::{frame, settle};
+use hand::{HANG, Hand, assert_cold};
 use openpaint_render::CacheBytes;
 use openpaint_runtime::{
     Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime, ToolKind,
@@ -45,10 +50,11 @@ fn line(y: f32) -> Vec<[f32; 2]> {
         .collect()
 }
 
-/// Two fingers moving apart from `from` to `to` (a pinch out), then frames on a held clock until
-/// the view tier fills in; returns the tier tiles filled after the fingers lifted.
+/// Two fingers moving apart from `from` to `to` (a pinch out), a batch each 16 ms with a frame,
+/// then frames until the view tier fills in; returns the tier tiles filled after the fingers
+/// lifted.
 fn pinch(runtime: &mut Runtime, hand: &mut Hand, from: [[f32; 2]; 2], to: [[f32; 2]; 2]) -> u64 {
-    let at = |step: u8| -> Vec<Pointer> {
+    let at = |step: u8, time_ms: i64| -> Vec<Pointer> {
         let t = f32::from(step) / 12.0;
         (0..)
             .zip(from.iter().zip(&to))
@@ -60,62 +66,53 @@ fn pinch(runtime: &mut Runtime, hand: &mut Hand, from: [[f32; 2]; 2], to: [[f32;
                     pressure: 1.0,
                     tilt: 0.0,
                     orientation: 0.0,
-                    time_ms: hand.clock + i64::from(step) * 16,
+                    time_ms,
                 }],
             })
             .collect()
     };
     let phases = [MotionPhase::Down, MotionPhase::PointerDown { index: 1 }];
-    let mut batches: Vec<(MotionPhase, Vec<Pointer>)> = (0..2)
-        .map(|index| (phases[index], at(0)[..=index].to_vec()))
-        .collect();
-    batches.extend((1..12).map(|step| (MotionPhase::Move, at(step))));
-    batches.push((MotionPhase::PointerUp { index: 1 }, at(12)));
-    batches.push((MotionPhase::Up, at(12)[..1].to_vec()));
-    for (phase, pointers) in batches {
-        hand.clock += 16;
-        runtime.fix_clock(hand.clock);
+    let mut steps: Vec<(MotionPhase, u8, usize)> =
+        (0..2).map(|index| (phases[index], 0, index + 1)).collect();
+    steps.extend((1..12).map(|step| (MotionPhase::Move, step, 2)));
+    steps.push((MotionPhase::PointerUp { index: 1 }, 12, 2));
+    steps.push((MotionPhase::Up, 12, 1));
+    for (phase, step, fingers) in steps {
+        let time_ms = hand.tick(runtime, 16);
         let batch = MotionBatch {
             phase,
             buttons: Buttons::default(),
-            pointers,
+            pointers: at(step, time_ms)[..fingers].to_vec(),
         };
         runtime.motion(&batch);
-        runtime.frame_offscreen(SIZE).expect("frame");
+        hand.frame_now(runtime);
     }
     let lifted = runtime.core().counts().filled;
-    settle(runtime, hand);
+    still(runtime, hand);
     runtime.core().counts().filled - lifted
 }
 
-/// Frames 16 ms apart on a held clock until nothing moves or fills in and no worker is busy.
-fn settle(runtime: &mut Runtime, hand: &mut Hand) {
-    for _ in 0..400 {
-        hand.clock += 16;
-        runtime.fix_clock(hand.clock);
-        runtime.frame_offscreen(SIZE).expect("frame");
-        if !runtime.moving() && !runtime.storing() {
-            return;
-        }
+/// Frames until nothing moves or fills in (at least one), not waiting for what is taken ahead
+/// once nothing touched for half a second.
+fn still(runtime: &mut Runtime, hand: &mut Hand) {
+    let start = Instant::now();
+    frame(runtime, hand);
+    while runtime.moving() {
+        frame(runtime, hand);
+        assert!(start.elapsed() < HANG, "still moving");
     }
-    panic!("still moving after 400 frames");
 }
 
-/// Settles, then frames on the held clock until the canvas has no background work left: half a
-/// second after the last touch the snapshots under the next stroke are taken ahead, every one
-/// the budget leaves room for. What the caches hold then does not depend on how long the
-/// frames took.
+/// Settles, then frames until the canvas has no background work left: half a second of the held
+/// clock after the last touch the snapshots under the next stroke are taken ahead, every one the
+/// budget leaves room for. What the caches hold then does not depend on how long the frames took.
 fn settle_ahead(runtime: &mut Runtime, hand: &mut Hand) {
-    settle(runtime, hand);
-    for _ in 0..400 {
-        if !runtime.canvas_waiting() {
-            return;
-        }
-        hand.clock += 16;
-        runtime.fix_clock(hand.clock);
-        runtime.frame_offscreen(SIZE).expect("frame");
+    still(runtime, hand);
+    let start = Instant::now();
+    while runtime.canvas_waiting() {
+        frame(runtime, hand);
+        assert!(start.elapsed() < HANG, "the canvas still had work");
     }
-    panic!("the canvas still had work after 400 frames");
 }
 
 fn held(runtime: &Runtime) -> CacheBytes {
@@ -126,8 +123,7 @@ fn held(runtime: &Runtime) -> CacheBytes {
 /// screen is not idle, so nothing is taken ahead.
 fn hover(runtime: &mut Runtime, hand: &mut Hand) {
     for phase in [MotionPhase::HoverEnter, MotionPhase::HoverExit] {
-        hand.clock += 16;
-        runtime.fix_clock(hand.clock);
+        let time_ms = hand.tick(runtime, 16);
         let pointer = Pointer {
             id: 0,
             tool: ToolKind::Stylus,
@@ -136,7 +132,7 @@ fn hover(runtime: &mut Runtime, hand: &mut Hand) {
                 pressure: 0.0,
                 tilt: 0.0,
                 orientation: 0.0,
-                time_ms: hand.clock,
+                time_ms,
             }],
         };
         let batch = MotionBatch {
@@ -145,7 +141,7 @@ fn hover(runtime: &mut Runtime, hand: &mut Hand) {
             pointers: vec![pointer],
         };
         runtime.motion(&batch);
-        runtime.frame_offscreen(SIZE).expect("frame");
+        hand.frame_now(runtime);
     }
 }
 
@@ -154,7 +150,7 @@ fn hover(runtime: &mut Runtime, hand: &mut Hand) {
 fn budget(runtime: &mut Runtime, hand: &mut Hand, bytes: u64) -> CacheBytes {
     hover(runtime, hand);
     runtime.set_memory_budget(bytes);
-    settle(runtime, hand);
+    still(runtime, hand);
     held(runtime)
 }
 
@@ -166,20 +162,19 @@ fn zoom_by(runtime: &mut Runtime, hand: &mut Hand, apart: f32, ratio: f32) -> u6
     pinch(runtime, hand, at(apart / 2.0), at(apart * ratio / 2.0))
 }
 
-/// The stroke `points` drawn on a clock held a second on from the last.
+/// The stroke `points` drawn a second on from the last.
 fn draw(runtime: &mut Runtime, hand: &mut Hand, points: &[[f32; 2]]) {
-    hand.clock += 1000;
-    runtime.fix_clock(hand.clock);
+    hand.tick(runtime, 1000);
     hand.gesture(runtime, ToolKind::Stylus, points);
-    settle(runtime, hand);
+    still(runtime, hand);
 }
 
 #[test]
 fn a_lower_budget_lets_the_least_recently_used_go_and_never_what_the_frame_needs() {
     let _one = alone();
     let core = gpu::core();
-    let mut runtime = launch::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
-    let mut hand = Hand::new(SIZE);
+    let (mut runtime, mut hand) =
+        launch::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
     draw(&mut runtime, &mut hand, &line(600.0));
     // A smudge across it: its residual in the arena, its material beside it (used last now).
     hand.tap(&mut runtime, "Smudge");
@@ -190,9 +185,9 @@ fn a_lower_budget_lets_the_least_recently_used_go_and_never_what_the_frame_needs
     draw(&mut runtime, &mut hand, &line(620.0));
     // The layer pictures made while the panel shows, then the panel closed.
     hand.tap(&mut runtime, "Layers");
-    settle(&mut runtime, &mut hand);
+    still(&mut runtime, &mut hand);
     hand.tap(&mut runtime, "Layers");
-    settle(&mut runtime, &mut hand);
+    still(&mut runtime, &mut hand);
     // Zoomed in about three times, then twice more: the 2x tier left, the 4x tier shown.
     zoom_by(&mut runtime, &mut hand, 200.0, 3.0);
     zoom_by(&mut runtime, &mut hand, 400.0, 2.0);
@@ -245,11 +240,13 @@ fn a_lower_budget_lets_the_least_recently_used_go_and_never_what_the_frame_needs
 fn a_zoom_round_to_8x_and_back_evaluates_no_tier_tile_twice() {
     let _one = alone();
     let core = gpu::core();
-    let mut runtime = launch::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
-    let mut hand = Hand::new(SIZE);
+    let (mut runtime, mut hand) =
+        launch::start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
     for y in [500.0, 700.0, 900.0, 1100.0] {
         draw(&mut runtime, &mut hand, &line(y));
     }
+    // Everything taken ahead first: the round's frames fill tier tiles only.
+    settle(&mut runtime, &mut hand);
     let inwards = [
         zoom_by(&mut runtime, &mut hand, 200.0, 2.2),
         zoom_by(&mut runtime, &mut hand, 300.0, 2.0),

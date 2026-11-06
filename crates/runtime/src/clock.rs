@@ -1,10 +1,11 @@
 //! The input clock: platform time as input samples carry it, carried on by the wall clock
 //! between batches, so gestures that wait without input (fingers held for a repeating
-//! shortcut, the view status fading) see time pass in the same clock their samples use. And the
-//! frame clock motion runs on (D44): real elapsed time from the start, or a time the harness
-//! holds fixed so scenarios are deterministic.
+//! shortcut, a drop or the pen held still, the view status fading) see time pass in the same
+//! clock their samples use. And the frame clock motion runs on (D44): real elapsed time from the
+//! start. The harness holds both at one time (`Runtime::fix_clock`), so what a gesture means
+//! never depends on how long its frames took.
 
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use openpaint_app::InputBatch;
 
@@ -13,6 +14,8 @@ pub(crate) struct InputClock {
     /// The newest sample time seen and when it arrived.
     last: Option<(i64, Instant)>,
     started: Instant,
+    /// Milliseconds the harness holds the clock at, instead of carrying it on.
+    fixed: Option<i64>,
 }
 
 impl Default for InputClock {
@@ -20,6 +23,7 @@ impl Default for InputClock {
         Self {
             last: None,
             started: Instant::now(),
+            fixed: None,
         }
     }
 }
@@ -41,11 +45,27 @@ impl InputClock {
         }
     }
 
-    /// Milliseconds now: the newest sample's time plus the wall time since it arrived.
+    /// Milliseconds now: the newest sample's time plus the wall time since it arrived, or the
+    /// time the harness holds.
     pub(crate) fn now_ms(&self) -> i64 {
+        if let Some(ms) = self.fixed {
+            return ms;
+        }
         let (base, since) = self.last.unwrap_or((0, self.started));
         let elapsed = i64::try_from(since.elapsed().as_millis()).unwrap_or(i64::MAX);
         base.saturating_add(elapsed)
+    }
+
+    /// From now on the clock reads `ms` until the next call or `release`.
+    pub(crate) const fn fix(&mut self, ms: i64) {
+        self.fixed = Some(ms);
+    }
+
+    /// The clock is carried on by the wall clock again, from the time it was held at.
+    pub(crate) fn release(&mut self) {
+        if let Some(ms) = self.fixed.take() {
+            self.last = Some((ms, Instant::now()));
+        }
     }
 }
 
@@ -67,9 +87,17 @@ impl Default for FrameClock {
 }
 
 impl FrameClock {
-    /// From now on the clock reads `ms` until the next call.
+    /// From now on the clock reads `ms` until the next call or `release`.
     pub(crate) const fn fix(&mut self, ms: i64) {
         self.fixed = Some(ms);
+    }
+
+    /// The clock runs on with the wall clock again, from the time it was held at.
+    pub(crate) fn release(&mut self) {
+        if let Some(ms) = self.fixed.take() {
+            let held = Duration::from_millis(u64::try_from(ms).unwrap_or(0));
+            self.started = Instant::now().checked_sub(held).unwrap_or(self.started);
+        }
     }
 
     /// Seconds now.

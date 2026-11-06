@@ -5,12 +5,15 @@
 //! the committed stroke is stored. Leaving the app mid-stroke (`onPause`) stores it too, before
 //! the process may be killed.
 
+use std::time::Instant;
+
 use openpaint_runtime::{
     Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime, ToolKind,
 };
 use openpaint_store::Library;
 
-use crate::support::{Hand, TestDir, assert_cold, line, start};
+use crate::support::hand::HANG;
+use crate::support::{Hand, TestDir, assert_cold, frame, line, settle, start};
 
 const SIZE: [u32; 2] = [1600, 1000];
 const PIXELS_PER_POINT: f32 = 2.0;
@@ -22,12 +25,9 @@ fn samples(runtime: &Runtime) -> Vec<usize> {
     layer.strokes().iter().map(|s| s.samples().len()).collect()
 }
 
-/// One pen event of `phase` at `at`, then one frame, as on the device. Frames until the runtime
-/// settles would hold the pen still on the clock for as long as background work runs, and a held
-/// pen becomes a QuickShape after `HOLD_MS`, which reshapes the stroke's samples.
+/// One pen event of `phase` at `at`, then one frame 8 ms later, as on the device.
 fn pen(runtime: &mut Runtime, hand: &mut Hand, phase: MotionPhase, at: [f32; 2]) {
-    hand.clock += 8;
-    runtime.fix_clock(hand.clock);
+    let time_ms = hand.tick(runtime, 8);
     runtime.motion(&MotionBatch {
         phase,
         buttons: Buttons::default(),
@@ -39,25 +39,12 @@ fn pen(runtime: &mut Runtime, hand: &mut Hand, phase: MotionPhase, at: [f32; 2])
                 pressure: 0.8,
                 tilt: 0.0,
                 orientation: 0.0,
-                time_ms: hand.clock,
+                time_ms,
             }],
         }],
     });
-    hand.clock += 8;
-    runtime.fix_clock(hand.clock);
-    runtime.frame_offscreen(SIZE).expect("frame");
-}
-
-/// Frames on a held clock until nothing moves, fills in or waits for the store.
-fn settle(runtime: &mut Runtime, hand: &mut Hand) {
-    for _ in 0..400 {
-        hand.clock += 16;
-        runtime.fix_clock(hand.clock);
-        let again = runtime.frame_offscreen(SIZE).expect("frame");
-        if !again && !runtime.moving() && !runtime.storing() {
-            return;
-        }
-    }
+    hand.tick(runtime, 8);
+    hand.frame_now(runtime);
 }
 
 /// Two fingers moving apart and turning: the view zooms, pans and rotates.
@@ -66,7 +53,7 @@ fn pinch(runtime: &mut Runtime, hand: &mut Hand) {
         [[700.0, 500.0], [900.0, 500.0]],
         [[620.0, 420.0], [960.0, 600.0]],
     );
-    let at = |step: u8, clock: i64| -> Vec<Pointer> {
+    let at = |step: u8, time_ms: i64| -> Vec<Pointer> {
         let t = f32::from(step) / 12.0;
         (0..)
             .zip(from.iter().zip(&to))
@@ -78,35 +65,27 @@ fn pinch(runtime: &mut Runtime, hand: &mut Hand) {
                     pressure: 1.0,
                     tilt: 0.0,
                     orientation: 0.0,
-                    time_ms: clock,
+                    time_ms,
                 }],
             })
             .collect()
     };
-    let mut batches = vec![
-        (MotionPhase::Down, at(0, hand.clock)[..1].to_vec()),
-        (MotionPhase::PointerDown { index: 1 }, at(0, hand.clock)),
+    // Each batch's phase, step and fingers, a batch 16 ms after the one before, with a frame.
+    let mut steps = vec![
+        (MotionPhase::Down, 0, 1),
+        (MotionPhase::PointerDown { index: 1 }, 0, 2),
     ];
-    batches.extend((1..=12).map(|step| {
-        (
-            MotionPhase::Move,
-            at(step, hand.clock + 16 * i64::from(step)),
-        )
-    }));
-    batches.push((
-        MotionPhase::PointerUp { index: 1 },
-        at(12, hand.clock + 208),
-    ));
-    batches.push((MotionPhase::Up, at(12, hand.clock + 208)[..1].to_vec()));
-    for (phase, pointers) in batches {
-        hand.clock += 16;
-        runtime.fix_clock(hand.clock);
+    steps.extend((1..=12).map(|step| (MotionPhase::Move, step, 2)));
+    steps.push((MotionPhase::PointerUp { index: 1 }, 12, 2));
+    steps.push((MotionPhase::Up, 12, 1));
+    for (phase, step, fingers) in steps {
+        let time_ms = hand.tick(runtime, 16);
         runtime.motion(&MotionBatch {
             phase,
             buttons: Buttons::default(),
-            pointers,
+            pointers: at(step, time_ms)[..fingers].to_vec(),
         });
-        runtime.frame_offscreen(SIZE).expect("frame");
+        hand.frame_now(runtime);
     }
     settle(runtime, hand);
 }
@@ -114,8 +93,7 @@ fn pinch(runtime: &mut Runtime, hand: &mut Hand) {
 #[test]
 fn a_stroke_being_drawn_when_the_window_goes_is_committed_and_the_view_kept() {
     let dir = TestDir::new("detached");
-    let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Library::at(&dir)));
-    let mut hand = Hand::new(SIZE);
+    let (mut runtime, mut hand) = start(PIXELS_PER_POINT, SIZE, Box::new(Library::at(&dir)));
     hand.gesture(&mut runtime, ToolKind::Stylus, &line(300.0));
     pinch(&mut runtime, &mut hand);
     let view = runtime.projection().view();
@@ -141,8 +119,14 @@ fn a_stroke_being_drawn_when_the_window_goes_is_committed_and_the_view_kept() {
         10,
         "committed with every sample so far"
     );
-    // The window comes back (offscreen: frames go on).
-    settle(&mut runtime, &mut hand);
+    // The window comes back (offscreen: frames go on), until nothing moves: the pen's contact,
+    // never lifted, wants frames until the platform cancels it.
+    let back = Instant::now();
+    frame(&mut runtime, &mut hand);
+    while runtime.moving() {
+        frame(&mut runtime, &mut hand);
+        assert!(back.elapsed() < HANG, "still moving");
+    }
     assert_eq!(runtime.projection().view(), view, "the view as it was");
     let core = runtime.core();
     assert_cold(&core, &mut runtime, "after the window came back");
@@ -161,7 +145,7 @@ fn a_stroke_being_drawn_when_the_window_goes_is_committed_and_the_view_kept() {
     assert_cold(&core, &mut runtime, "after undo and redo");
     let parts = runtime.artwork().expect("artwork").to_parts();
     drop(runtime);
-    let reopened = start(PIXELS_PER_POINT, SIZE, Box::new(Library::at(&dir)));
+    let (reopened, _) = start(PIXELS_PER_POINT, SIZE, Box::new(Library::at(&dir)));
     assert_eq!(
         reopened.artwork().expect("artwork").to_parts(),
         parts,
@@ -172,8 +156,7 @@ fn a_stroke_being_drawn_when_the_window_goes_is_committed_and_the_view_kept() {
 #[test]
 fn leaving_the_app_mid_stroke_stores_the_stroke_drawn_so_far() {
     let dir = TestDir::new("left");
-    let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Library::at(&dir)));
-    let mut hand = Hand::new(SIZE);
+    let (mut runtime, mut hand) = start(PIXELS_PER_POINT, SIZE, Box::new(Library::at(&dir)));
     hand.gesture(&mut runtime, ToolKind::Stylus, &line(300.0));
     let points = line(480.0);
     pen(&mut runtime, &mut hand, MotionPhase::Down, points[0]);
@@ -185,7 +168,7 @@ fn leaving_the_app_mid_stroke_stores_the_stroke_drawn_so_far() {
     let parts = runtime.artwork().expect("artwork").to_parts();
     assert_eq!(samples(&runtime), [21, 15]);
     drop(runtime);
-    let mut reopened = start(PIXELS_PER_POINT, SIZE, Box::new(Library::at(&dir)));
+    let (mut reopened, _) = start(PIXELS_PER_POINT, SIZE, Box::new(Library::at(&dir)));
     assert_eq!(reopened.artwork().expect("artwork").to_parts(), parts);
     assert_cold(&reopened.core(), &mut reopened, "reopened");
 }

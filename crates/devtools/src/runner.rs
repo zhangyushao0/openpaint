@@ -6,8 +6,9 @@
 //! as the user would (`system.rs`). Checkpoints, screenshots and exported files are collected
 //! into a report; a failed checkpoint does not stop the run.
 //!
-//! Motion (D44) runs on a clock the runner holds: the time of the input being handed over, then
-//! one 60 Hz frame further per frame without input. Input steps never wait for motion (the hand
+//! Motion (D44) and every gesture that waits (a hold, a drop, QuickShape) run on a clock the
+//! runner holds: the time of the input being handed over, then one 60 Hz frame further per frame
+//! without input; waiting for a worker never moves it. Input steps never wait for motion (the hand
 //! acts on the final state at once); a step that looks (a checkpoint, a screenshot, a view, an
 //! export, an expect) first lets every motion settle, unless a screenshot asks for a moment
 //! `after_ms` the last input. A last newline of a `type` step is Enter, the keyboard's Done.
@@ -35,11 +36,10 @@ use crate::{gesture, pen};
 const FRAME_MS: i64 = 16;
 /// Most frames run after one because the runtime asked for them.
 const FOLLOW_UPS: usize = 4;
-/// Longest wait for the storage worker after a step.
-const STORAGE_LIMIT: Duration = Duration::from_secs(10);
-/// Most frames motion may take to settle before a step looks: a How card's demonstration plays
-/// for up to about 10 s (S92).
-const SETTLE_FRAMES: usize = 900;
+/// Longest wait for a worker after a step, or for motion to settle before a step looks (a How
+/// card's demonstration plays for up to about 10 s of the held clock, S92): wall time, a guard
+/// against a hang, never a count of frames (the scenarios run a dozen at once beside the gate).
+const HANG: Duration = Duration::from_secs(120);
 /// The seed every stroke's stamps take: fixed, so hashes hold.
 const SEED: u32 = 0x5EED_0045;
 
@@ -347,7 +347,7 @@ impl Runner<'_> {
             let again = runtime.frame_offscreen(screen)?;
             self.frames += 1;
             if runtime.storing() {
-                if start.elapsed() > STORAGE_LIMIT {
+                if start.elapsed() > HANG {
                     return Err(ScenarioError::Missing("the storage worker did not finish"));
                 }
                 if !again {

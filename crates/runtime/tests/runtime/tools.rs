@@ -7,7 +7,7 @@ use openpaint_core::Color;
 use openpaint_render::RgbaImage;
 use openpaint_runtime::{Runtime, ToolKind};
 
-use crate::support::{Hand, Nowhere, assert_cold, core, line, mapping, pixel_at, start, strokes};
+use crate::support::{Nowhere, assert_cold, core, line, mapping, pixel_at, start, strokes};
 
 /// 800 x 500 points at density 2.
 const SIZE: [u32; 2] = [1600, 1000];
@@ -21,8 +21,7 @@ fn pixel(runtime: &Runtime, canvas: &RgbaImage, at: [f32; 2]) -> [u8; 4] {
 
 #[test]
 fn the_eyedropper_picks_the_pixel_the_readback_holds() {
-    let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
-    let mut hand = Hand::new(SIZE);
+    let (mut runtime, mut hand) = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
     hand.gesture(&mut runtime, ToolKind::Stylus, &line(500.0));
     // On the line's antialiased edge: a grey, neither the ink nor the paper, at a texel centre.
     let canvas = runtime.read_canvas().expect("readback").expect("canvas");
@@ -58,8 +57,7 @@ fn the_eyedropper_picks_the_pixel_the_readback_holds() {
 #[test]
 fn the_eraser_button_makes_the_pen_take_paint_away() {
     let core = core();
-    let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
-    let mut hand = Hand::new(SIZE);
+    let (mut runtime, mut hand) = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
     hand.gesture(&mut runtime, ToolKind::Stylus, &line(500.0));
     let crossing = [780.0, 500.0];
     let canvas = runtime.read_canvas().expect("readback").expect("canvas");

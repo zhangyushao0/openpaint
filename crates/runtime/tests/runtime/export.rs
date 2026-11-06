@@ -8,7 +8,7 @@ use openpaint_render::{RgbaImage, image_difference};
 use openpaint_runtime::{BytesSource, HostAnswer, HostRequest, ImageFormat, ToolKind};
 use openpaint_store::{decode_image, encode_image};
 
-use crate::support::{Hand, Nowhere, Written, assert_cold, core, mapping, pixel_at, settle, start};
+use crate::support::{Nowhere, Written, assert_cold, core, mapping, pixel_at, settle, start};
 
 /// 800 x 600 points at density 2: the Actions panel, with S29's scale row, fits.
 const SIZE: [u32; 2] = [1600, 1200];
@@ -26,8 +26,7 @@ fn zigzag(y: f32) -> Vec<[f32; 2]> {
 #[test]
 fn the_exported_png_holds_exactly_what_the_screen_shows() {
     let core = core();
-    let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
-    let mut hand = Hand::new(SIZE);
+    let (mut runtime, mut hand) = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
     hand.gesture(&mut runtime, ToolKind::Stylus, &zigzag(400.0));
     hand.gesture(&mut runtime, ToolKind::Stylus, &zigzag(700.0));
     hand.tap(&mut runtime, "Actions");
@@ -41,7 +40,7 @@ fn the_exported_png_holds_exactly_what_the_screen_shows() {
     );
     let file = Written::default();
     runtime.answer(HostAnswer::File(Box::new(file.clone())));
-    settle(&mut runtime, SIZE);
+    settle(&mut runtime, &mut hand);
     let bytes = file.bytes();
     let (size, pixels) = decode_image(&bytes).expect("a PNG");
     let canvas = runtime.read_canvas().expect("readback").expect("canvas");
@@ -77,8 +76,7 @@ fn the_exported_png_holds_exactly_what_the_screen_shows() {
 
 #[test]
 fn the_eyedropper_picks_the_reference_pictures_colour_exactly() {
-    let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
-    let mut hand = Hand::new(SIZE);
+    let (mut runtime, mut hand) = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
     hand.tap(&mut runtime, "Actions");
     hand.tap(&mut runtime, "Reference");
     assert_eq!(runtime.host_request(), Some(HostRequest::OpenImage));
@@ -92,7 +90,7 @@ fn the_eyedropper_picks_the_reference_pictures_colour_exactly() {
         .collect();
     let png = encode_image(ImageFormat::Png, [480, 320], &pixels).expect("png");
     runtime.answer(HostAnswer::Image(Box::new(BytesSource(png))));
-    settle(&mut runtime, SIZE);
+    settle(&mut runtime, &mut hand);
     let transfers = runtime
         .projection()
         .transfers()

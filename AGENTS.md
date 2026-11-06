@@ -38,6 +38,7 @@ Do not rebuild the big picture from source; the module map is in ARCHITECTURE. D
 
 - Scenarios: `cargo scenario <name>` replays one; `cargo scenarios` replays all, each in a process of its own, as many at once as the machine has threads (`--jobs N`): about 3 min for 72, one line each in name order.
 - Start `cargo scenarios` in the background as soon as the code is done, and write the documents while it runs. Run the gate and the suite alone: each uses every core, and anything heavy beside them (another test run, clippy) makes tests time out or run out of memory (S104).
+- Tests wait for a worker, a fill or motion by wall time, a hang guard of two minutes, never by a count of frames; every gesture whose meaning depends on time (a hold, a drop, a tap, QuickShape) runs on the held clock (`fix_clock`), its samples stamped on it: the runtime tests' `Hand` (`support/hand.rs`, `frames.rs`) and the scenario runner hold it, frames waiting for a worker at the same time (S106).
 - A fix after review reruns the scenarios it can reach plus the gate; the whole suite only when shared drawing or layout code changed.
 - When tier 3 fails, go back to tier 1 to fix; do not rerun tier 3 repeatedly.
 - Read the exit code. Never judge a pass from gate output piped through `tail` or `grep`.

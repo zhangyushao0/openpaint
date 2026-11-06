@@ -3,7 +3,7 @@
 //! equals a cold evaluation, a pen starting on the panel never paints and a tap outside closes
 //! it.
 
-use crate::support::{Hand, Nowhere, assert_cold, core, line, on, start, strokes};
+use crate::support::{Hand, Nowhere, assert_cold, core, frame, line, on, start, strokes};
 use openpaint_runtime::{
     Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime, TextInput, ToolKind,
 };
@@ -21,7 +21,7 @@ fn layers(runtime: &Runtime) -> Vec<(u64, bool, f32)> {
 }
 
 /// A finger pressed on `from` and held still for half a second (a layer row lifts), then
-/// moved straight to `to` and lifted, on the runtime's clock fixed to the gesture's (S38).
+/// moved straight to `to` and lifted, a batch each 16 ms with a frame (S38).
 fn hold_and_drag(hand: &mut Hand, runtime: &mut Runtime, from: [f32; 2], to: [f32; 2]) {
     let held = std::iter::repeat_n(from, 32);
     let moved = (1..=10u8).map(|step| {
@@ -39,14 +39,13 @@ fn hold_and_drag(hand: &mut Hand, runtime: &mut Runtime, from: [f32; 2], to: [f3
             i if i == last => MotionPhase::Up,
             _ => MotionPhase::Move,
         };
-        hand.clock += 16;
-        runtime.fix_clock(hand.clock);
+        let time_ms = hand.tick(runtime, 16);
         let sample = PointerSample {
             position,
             pressure: 1.0,
             tilt: 0.0,
             orientation: 0.0,
-            time_ms: hand.clock,
+            time_ms,
         };
         runtime.motion(&MotionBatch {
             phase,
@@ -57,16 +56,15 @@ fn hold_and_drag(hand: &mut Hand, runtime: &mut Runtime, from: [f32; 2], to: [f3
                 samples: vec![sample],
             }],
         });
-        runtime.frame_offscreen(hand.size).expect("frame");
+        hand.frame_now(runtime);
     }
-    runtime.frame_offscreen(hand.size).expect("frame");
+    frame(runtime, hand);
 }
 
 #[test]
 fn panel_actions_change_the_layers_and_undo_takes_each_back() {
     let core = core();
-    let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
-    let mut hand = Hand::new(SIZE);
+    let (mut runtime, mut hand) = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
     hand.gesture(&mut runtime, ToolKind::Stylus, &line(500.0));
     let start = runtime.artwork().expect("artwork").clone();
     hand.tap(&mut runtime, "Layers");
@@ -99,7 +97,7 @@ fn panel_actions_change_the_layers_and_undo_takes_each_back() {
     assert_cold(&core, &mut runtime, "after duplicating");
     hand.tap(&mut runtime, "Rename");
     runtime.text(TextInput::Commit("Sky".into()));
-    runtime.frame_offscreen(SIZE).expect("frame");
+    frame(&mut runtime, &mut hand);
     hand.tap(&mut runtime, "Done");
     let artwork = runtime.artwork().expect("artwork");
     assert_eq!(
@@ -121,8 +119,7 @@ fn panel_actions_change_the_layers_and_undo_takes_each_back() {
 #[test]
 fn merge_down_keeps_the_canvas_and_undo_takes_it_back() {
     let core = core();
-    let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
-    let mut hand = Hand::new(SIZE);
+    let (mut runtime, mut hand) = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
     hand.gesture(&mut runtime, ToolKind::Stylus, &line(500.0));
     hand.tap(&mut runtime, "Layers");
     hand.tap(&mut runtime, "Add layer");
@@ -149,8 +146,7 @@ fn merge_down_keeps_the_canvas_and_undo_takes_it_back() {
 
 #[test]
 fn the_pen_never_paints_through_the_panel_and_a_tap_outside_closes_it() {
-    let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
-    let mut hand = Hand::new(SIZE);
+    let (mut runtime, mut hand) = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
     hand.tap(&mut runtime, "Layers");
     // Where the panel's add button lies while it is open; shut, that spot is canvas.
     let add = on(&runtime, "Add layer", [0.5, 0.5]);

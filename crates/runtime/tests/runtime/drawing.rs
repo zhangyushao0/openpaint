@@ -8,7 +8,7 @@ use openpaint_runtime::{
     Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime, ToolKind,
 };
 
-use crate::support::{Nowhere, canvas, mapping, pixel_at, start, strokes};
+use crate::support::{Hand, Nowhere, canvas, mapping, pixel_at, settle, start, strokes};
 
 const SIZE: [u32; 2] = [640, 400];
 const PIXELS_PER_POINT: f32 = 2.0;
@@ -35,12 +35,20 @@ fn batch(phase: MotionPhase, pointers: Vec<Pointer>) -> MotionBatch {
     }
 }
 
-/// Fingers (or the pen) moving from `from` to `to` in `steps` frames, as Android reports them:
-/// down one by one, every pointer in each move, up one by one with the last move.
-fn touch(runtime: &mut Runtime, tool: ToolKind, from: &[[f32; 2]], to: &[[f32; 2]], steps: u8) {
-    let at = |step: u8, time_ms: i64| -> Vec<Pointer> {
+/// Fingers (or the pen) moving from `from` to `to` in `steps` frames 16 ms apart on the hand's
+/// clock, as Android reports them: down one by one, every pointer in each move, up one by one
+/// with the last move; a frame after each.
+fn touch(
+    (runtime, hand): (&mut Runtime, &mut Hand),
+    tool: ToolKind,
+    (from, to): (&[[f32; 2]], &[[f32; 2]]),
+    steps: u8,
+) {
+    let begun = hand.clock + 16;
+    let at = |step: u8| -> (i64, Vec<Pointer>) {
         let t = f32::from(step) / f32::from(steps);
-        (0..)
+        let time_ms = begun + i64::from(step) * 16;
+        let pointers = (0..)
             .zip(from.iter().zip(to))
             .map(|(id, (a, b))| Pointer {
                 id,
@@ -50,7 +58,8 @@ fn touch(runtime: &mut Runtime, tool: ToolKind, from: &[[f32; 2]], to: &[[f32; 2
                     time_ms,
                 )],
             })
-            .collect()
+            .collect();
+        (time_ms, pointers)
     };
     let count = from.len();
     let mut batches = Vec::new();
@@ -60,32 +69,33 @@ fn touch(runtime: &mut Runtime, tool: ToolKind, from: &[[f32; 2]], to: &[[f32; 2
         } else {
             MotionPhase::PointerDown { index }
         };
-        let mut pointers = at(0, 0);
+        let (time_ms, mut pointers) = at(0);
         pointers.truncate(index + 1);
-        batches.push(batch(phase, pointers));
+        batches.push((time_ms, batch(phase, pointers)));
     }
     for step in 1..steps {
-        batches.push(batch(MotionPhase::Move, at(step, i64::from(step) * 16)));
+        let (time_ms, pointers) = at(step);
+        batches.push((time_ms, batch(MotionPhase::Move, pointers)));
     }
-    let end = i64::from(steps) * 16;
     for index in (0..count).rev() {
         let phase = if index == 0 {
             MotionPhase::Up
         } else {
             MotionPhase::PointerUp { index }
         };
-        let mut pointers = at(steps, end);
+        let (time_ms, mut pointers) = at(steps);
         pointers.truncate(index + 1);
-        batches.push(batch(phase, pointers));
+        batches.push((time_ms, batch(phase, pointers)));
     }
-    for batch in batches {
+    for (time_ms, batch) in batches {
+        hand.tick(runtime, time_ms - hand.clock);
         runtime.motion(&batch);
-        runtime.frame_offscreen(SIZE).expect("frame");
+        hand.frame_now(runtime);
     }
 }
 
-fn swipe(runtime: &mut Runtime, tool: ToolKind, from: [f32; 2], to: [f32; 2]) {
-    touch(runtime, tool, &[from], &[to], 20);
+fn swipe(on: (&mut Runtime, &mut Hand), tool: ToolKind, from: [f32; 2], to: [f32; 2]) {
+    touch(on, tool, (&[from], &[to]), 20);
 }
 
 /// Panics unless the screen point `at` and the canvas pixel the view puts under it are ink.
@@ -102,9 +112,9 @@ fn ink_under(runtime: &mut Runtime, at: [f32; 2]) {
 
 #[test]
 fn the_pen_draws_under_its_tip_and_a_finger_moves_the_canvas_instead() {
-    let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
+    let (mut runtime, mut hand) = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
     swipe(
-        &mut runtime,
+        (&mut runtime, &mut hand),
         ToolKind::Stylus,
         [180.0, 200.0],
         [580.0, 200.0],
@@ -118,7 +128,7 @@ fn the_pen_draws_under_its_tip_and_a_finger_moves_the_canvas_instead() {
     );
     let inked = mapping(&runtime, SIZE, PIXELS_PER_POINT).to_canvas([300.0, 200.0]);
     swipe(
-        &mut runtime,
+        (&mut runtime, &mut hand),
         ToolKind::Finger,
         [300.0, 320.0],
         [420.0, 290.0],
@@ -129,21 +139,26 @@ fn the_pen_draws_under_its_tip_and_a_finger_moves_the_canvas_instead() {
         pan[0] > 20.0 && pan[1] < 0.0,
         "the finger moved the canvas: {pan:?}"
     );
-    // The stroke shows where the view now puts it, once the view status has faded (a second
-    // by the input clock, which runs on with the wall clock).
+    // The stroke shows where the view now puts it, once the view status has faded (a second of
+    // the hand's clock).
     let moved = mapping(&runtime, SIZE, PIXELS_PER_POINT).to_screen(inked);
     assert!(moved[0] > 340.0, "{moved:?}");
-    std::thread::sleep(std::time::Duration::from_millis(1100));
+    settle(&mut runtime, &mut hand);
     ink_under(&mut runtime, moved);
 }
 
 #[test]
 fn painting_lands_under_the_pen_at_any_zoom_and_rotation() {
-    let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
+    let (mut runtime, mut hand) = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
     // Two fingers spread and twist about the canvas's middle.
     let from = [[340.0, 250.0], [440.0, 250.0]];
     let to = [[300.0, 180.0], [480.0, 320.0]];
-    touch(&mut runtime, ToolKind::Finger, &from, &to, 24);
+    touch(
+        (&mut runtime, &mut hand),
+        ToolKind::Finger,
+        (&from, &to),
+        24,
+    );
     let view = runtime.projection().view();
     assert!(view.zoom() > 2.0, "zoomed in: {view:?}");
     assert!(view.rotation() > 0.3, "turned: {view:?}");
@@ -153,7 +168,7 @@ fn painting_lands_under_the_pen_at_any_zoom_and_rotation() {
         "the fingers drew nothing and undid nothing"
     );
     swipe(
-        &mut runtime,
+        (&mut runtime, &mut hand),
         ToolKind::Stylus,
         [250.0, 150.0],
         [550.0, 330.0],
@@ -164,10 +179,12 @@ fn painting_lands_under_the_pen_at_any_zoom_and_rotation() {
     }
     // A quick inward pinch fits the canvas again.
     touch(
-        &mut runtime,
+        (&mut runtime, &mut hand),
         ToolKind::Finger,
-        &[[200.0, 250.0], [500.0, 250.0]],
-        &[[330.0, 250.0], [370.0, 250.0]],
+        (
+            &[[200.0, 250.0], [500.0, 250.0]],
+            &[[330.0, 250.0], [370.0, 250.0]],
+        ),
         6,
     );
     assert_eq!(runtime.projection().view(), openpaint_app::CanvasView::FIT);
@@ -175,18 +192,23 @@ fn painting_lands_under_the_pen_at_any_zoom_and_rotation() {
 
 #[test]
 fn a_two_finger_tap_undoes_and_a_three_finger_tap_redoes() {
-    let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
+    let (mut runtime, mut hand) = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
     swipe(
-        &mut runtime,
+        (&mut runtime, &mut hand),
         ToolKind::Stylus,
         [180.0, 200.0],
         [580.0, 200.0],
     );
     let two = [[300.0, 300.0], [400.0, 300.0]];
-    touch(&mut runtime, ToolKind::Finger, &two, &two, 2);
+    touch((&mut runtime, &mut hand), ToolKind::Finger, (&two, &two), 2);
     assert_eq!(strokes(&runtime), 0, "undone");
     let three = [[300.0, 300.0], [350.0, 300.0], [400.0, 300.0]];
-    touch(&mut runtime, ToolKind::Finger, &three, &three, 2);
+    touch(
+        (&mut runtime, &mut hand),
+        ToolKind::Finger,
+        (&three, &three),
+        2,
+    );
     assert_eq!(strokes(&runtime), 1, "redone");
 }
 
@@ -203,32 +225,34 @@ fn side_bar(screen: &RgbaImage) -> Vec<u8> {
 
 #[test]
 fn the_side_bar_looks_the_same_between_pen_down_and_pen_up() {
-    let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
+    let (mut runtime, mut hand) = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
     for drawn_before in [false, true] {
         if drawn_before {
             swipe(
-                &mut runtime,
+                (&mut runtime, &mut hand),
                 ToolKind::Stylus,
                 [200.0, 150.0],
                 [560.0, 150.0],
             );
         }
         let resting = side_bar(&runtime.screenshot(SIZE).expect("screenshot"));
-        let pen = |x| Pointer {
+        let pen = |x, time_ms| Pointer {
             id: 0,
             tool: ToolKind::Stylus,
-            samples: vec![sample([x, 300.0], 0)],
+            samples: vec![sample([x, 300.0], time_ms)],
         };
-        runtime.motion(&batch(MotionPhase::Down, vec![pen(240.0)]));
-        runtime.motion(&batch(MotionPhase::Move, vec![pen(300.0)]));
+        let time_ms = hand.tick(&mut runtime, 16);
+        runtime.motion(&batch(MotionPhase::Down, vec![pen(240.0, time_ms)]));
+        runtime.motion(&batch(MotionPhase::Move, vec![pen(300.0, time_ms)]));
         let drawing = side_bar(&runtime.screenshot(SIZE).expect("screenshot"));
         assert!(runtime.projection().drawing(), "the pen is on the glass");
         assert!(
             resting == drawing,
             "undo and redo kept their look (step before: {drawn_before})"
         );
-        runtime.motion(&batch(MotionPhase::Up, vec![pen(360.0)]));
-        runtime.frame_offscreen(SIZE).expect("frame");
+        let time_ms = hand.tick(&mut runtime, 16);
+        runtime.motion(&batch(MotionPhase::Up, vec![pen(360.0, time_ms)]));
+        hand.frame_now(&mut runtime);
     }
 }
 
@@ -244,9 +268,9 @@ fn partial_pixels(screen: &RgbaImage, y: u32, (x0, x1): (u32, u32)) -> (usize, u
 
 #[test]
 fn zoomed_in_the_screen_shows_ink_edges_one_screen_pixel_wide() {
-    let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
+    let (mut runtime, mut hand) = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
     swipe(
-        &mut runtime,
+        (&mut runtime, &mut hand),
         ToolKind::Stylus,
         [300.0, 120.0],
         [330.0, 300.0],
@@ -257,16 +281,14 @@ fn zoomed_in_the_screen_shows_ink_edges_one_screen_pixel_wide() {
     // Spread to about four screen pixels per canvas pixel; the view tier fills in.
     let from = [[270.0, 200.0], [370.0, 200.0]];
     let to = [[95.0, 200.0], [545.0, 200.0]];
-    touch(&mut runtime, ToolKind::Finger, &from, &to, 24);
-    // Frames 16 ms apart on a held clock, as the host paces them, until it rests.
-    for frame in 0..300 {
-        if !runtime.moving() {
-            break;
-        }
-        runtime.fix_clock(60_000 + frame * 16);
-        runtime.frame_offscreen(SIZE).expect("frame");
-    }
-    assert!(!runtime.moving(), "the tier filled in");
+    touch(
+        (&mut runtime, &mut hand),
+        ToolKind::Finger,
+        (&from, &to),
+        24,
+    );
+    // Frames until the tier filled in.
+    settle(&mut runtime, &mut hand);
     let zoom = runtime.projection().view().zoom();
     assert!(zoom > 3.5, "zoomed in: {zoom}");
     let screen = runtime.screenshot(SIZE).expect("screenshot");

@@ -6,6 +6,8 @@
 //! tiles, every ready tile its export. Without the worker (the tests' screen) strokes one after
 //! another over a dense place are cold too, their snapshots taken and brought up by the frames.
 
+use std::time::Instant;
+
 use openpaint_core::{ActiveStroke, Artwork, Color, LayerCommand};
 use openpaint_render::{
     CanvasTarget, Core, FrameRequest, PixelRect, RasterDrawer, ViewCache, ViewFrame,
@@ -13,7 +15,7 @@ use openpaint_render::{
 };
 
 use crate::drawing::{begun, committed, path, screen, shows};
-use crate::fixture::{SIZE, cold, layer, plain, with_stroke};
+use crate::fixture::{HANG, SIZE, cold, layer, plain, with_stroke};
 use crate::raster::{color, every_raster_source};
 use crate::scale::whole;
 use crate::tiers::{assert_tiles, frame};
@@ -72,14 +74,15 @@ impl Loop {
 
     /// Idle frames of `artwork` until nothing waits and every snapshot is taken.
     fn settle(&mut self, core: &Core, artwork: &Artwork) {
-        for _ in 0..400 {
+        let start = Instant::now();
+        loop {
             self.frame(core, (artwork, None), &[]);
             let taking = self.target.taking_ahead() || self.view.taking_ahead();
             if !self.target.pending() && !self.pending && !taking {
                 return;
             }
+            assert!(start.elapsed() < HANG, "the snapshots were never taken");
         }
-        panic!("the snapshots were never taken");
     }
 
     /// The canvas is `artwork` drawn cold, and every ready tile of the tier its export.

@@ -24,7 +24,7 @@ fn row(pixels: &[[u8; 4]], y: usize) -> &[[u8; 4]] {
 
 #[test]
 fn frame_shows_the_islands_over_the_desk_and_the_canvas_under_them() {
-    let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
+    let (mut runtime, _) = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
     let image = runtime.screenshot(SIZE).expect("offscreen frame");
     assert_eq!(image.size(), SIZE);
     let (pixels, _) = image.pixels().as_chunks::<4>();
@@ -73,7 +73,7 @@ fn frame_shows_the_islands_over_the_desk_and_the_canvas_under_them() {
 
 #[test]
 fn second_frame_reuses_the_ui_textures() {
-    let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
+    let (mut runtime, _) = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
     let first = runtime.screenshot(SIZE).expect("first frame");
     let second = runtime.screenshot(SIZE).expect("second frame");
     assert_eq!(first.content_hash(), second.content_hash());

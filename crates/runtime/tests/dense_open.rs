@@ -13,8 +13,9 @@ mod store;
 
 use std::f32::consts::PI;
 use std::sync::Arc;
+use std::time::Instant;
 
-use hand::{Hand, assert_cold};
+use hand::{HANG, Hand, assert_cold};
 use openpaint_core::{
     Artwork, BrushRecipe, CanvasPoint, CanvasSize, Color, StrokeSample, StrokeStyle,
 };
@@ -70,13 +71,17 @@ fn a_dense_artwork_fills_in_over_frames_while_taps_work_and_ends_exact() {
     };
     let mut runtime =
         Runtime::start(PIXELS_PER_POINT, Box::new(store), options).expect("the runtime starts");
-    let mut frames = 0;
-    while runtime.artwork().is_none() {
-        runtime.frame_offscreen(SIZE).expect("frame");
-        frames += 1;
-        assert!(frames < 10_000, "the artwork never opened");
-    }
     let mut hand = Hand::new(SIZE);
+    // Single frames a 60 Hz frame apart, each counted.
+    let frame = |runtime: &mut Runtime, hand: &mut Hand| {
+        hand.tick(runtime, 16);
+        runtime.frame_offscreen(SIZE).expect("frame");
+    };
+    let start = Instant::now();
+    while runtime.artwork().is_none() {
+        frame(&mut runtime, &mut hand);
+        assert!(start.elapsed() < HANG, "the artwork never opened");
+    }
     let mut filling = 0;
     while runtime.moving() {
         if filling == 2 {
@@ -89,9 +94,9 @@ fn a_dense_artwork_fills_in_over_frames_while_taps_work_and_ends_exact() {
             );
             assert!(runtime.moving(), "still filling in after the tap");
         }
-        runtime.frame_offscreen(SIZE).expect("frame");
+        frame(&mut runtime, &mut hand);
         filling += 1;
-        assert!(filling < 10_000, "the canvas never filled in");
+        assert!(start.elapsed() < HANG, "the canvas never filled in");
     }
     eprintln!("the dense artwork filled in over {filling} frames");
     assert!(filling > 4, "{filling} frames");

@@ -6,6 +6,8 @@
 //! drawn cold, after a smudge drawn at a tier, and when the canvas's arena moved before the worker
 //! drew the tiles handed to it.
 
+use std::time::Instant;
+
 use openpaint_core::{
     Artwork, ArtworkCommand, Color, LayerCommand, LayerId, MaskCommand, Placement, StrokeSample,
     StrokeStyle, StrokeTool,
@@ -13,7 +15,7 @@ use openpaint_core::{
 use openpaint_render::Banding;
 
 use crate::fixture::{
-    airbrush, blank, core, layer, plain, region, sample, with_layer, with_stroke,
+    HANG, airbrush, blank, core, layer, plain, region, sample, with_layer, with_stroke,
 };
 use crate::raster::{assert_scales_agree, color, picture};
 use crate::scale::{export, whole};
@@ -210,7 +212,8 @@ fn tiles_drawn_after_the_arena_moved_are_the_export() {
     let view = frame(3.7, [150.0, 110.0]);
     let mut screen = Screen::new(&core, &artwork);
     let mut moved = 0;
-    for _ in 0..400 {
+    let start = Instant::now();
+    loop {
         let work = screen.update(&core, (&artwork, None), &[], &view);
         let freed = screen.target.set_arena_room(&core, 64).expect("room");
         moved += usize::from(freed > 0 && work.waiting > 0);
@@ -218,6 +221,7 @@ fn tiles_drawn_after_the_arena_moved_are_the_export() {
         if work.tier.is_some() && work.waiting == 0 {
             break;
         }
+        assert!(start.elapsed() < HANG, "the tier never filled in");
     }
     assert!(
         moved > 0,

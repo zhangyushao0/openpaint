@@ -7,6 +7,8 @@
 //! writes the cache anew. A test binary of its own: it makes its device's frames' share small, so
 //! a fill takes many frames.
 
+#[path = "runtime/support/frames.rs"]
+mod frames;
 #[path = "runtime/support/gpu.rs"]
 mod gpu;
 #[path = "runtime/support/hand.rs"]
@@ -16,8 +18,10 @@ mod test_dir;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::Instant;
 
-use hand::{Hand, assert_cold};
+use frames::settle;
+use hand::{HANG, Hand, assert_cold};
 use openpaint_app::{ProjectId, ProjectStore, SaveId, Title};
 use openpaint_core::{
     Artwork, BrushRecipe, CanvasPoint, CanvasSize, Color, StrokeSample, StrokeStyle,
@@ -72,9 +76,9 @@ fn strokes(count: u32, shift: f32) -> Artwork {
     artwork
 }
 
-/// A runtime on the library and cache of `dirs`, run until its canvas opened; whether tiles
-/// waited in the frame it opened.
-fn open(dirs: &Dirs) -> (Runtime, bool) {
+/// A runtime on the library and cache of `dirs` and a hand on it, run until its canvas opened;
+/// whether tiles waited in the frame it opened.
+fn open(dirs: &Dirs) -> (Runtime, Hand, bool) {
     let core = gpu::core();
     // Each frame takes one piece: a fill takes many frames.
     core.set_frame_budget(10_000.0);
@@ -85,22 +89,20 @@ fn open(dirs: &Dirs) -> (Runtime, bool) {
     };
     let store = Box::new(Library::at(&dirs.library));
     let mut runtime = Runtime::start(PIXELS_PER_POINT, store, options).expect("the runtime starts");
-    let mut frames = 0;
-    while runtime.artwork().is_none() {
-        runtime.frame_offscreen(SIZE).expect("frame");
-        frames += 1;
-        assert!(frames < 10_000, "the artwork never opened");
-    }
+    let mut hand = Hand::new(SIZE);
+    opened(&mut runtime, &mut hand);
     let filling = runtime.canvas_filling();
-    (runtime, filling)
+    (runtime, hand, filling)
 }
 
-/// Frames until nothing fills and every worker is done (the cache written).
-fn settle(runtime: &mut Runtime) {
-    let mut frames = 0;
-    while runtime.frame_offscreen(SIZE).expect("frame") || runtime.moving() {
-        frames += 1;
-        assert!(frames < 100_000, "the runtime never rested");
+/// Single frames a 60 Hz frame apart until the canvas is open, so the frame it opened is the
+/// last one run.
+fn opened(runtime: &mut Runtime, hand: &mut Hand) {
+    let start = Instant::now();
+    while runtime.artwork().is_none() {
+        hand.tick(runtime, 16);
+        runtime.frame_offscreen(SIZE).expect("frame");
+        assert!(start.elapsed() < HANG, "the artwork never opened");
     }
 }
 
@@ -133,9 +135,9 @@ fn alter(dirs: &Dirs, change: impl FnOnce(&mut CacheKey)) {
 /// Opens `dirs` and checks the canvas is not taken as complete: it fills, equals a cold
 /// evaluation, and its cache is written anew under the head's save id.
 fn fills_and_writes_anew(dirs: &Dirs, when: &str) {
-    let (mut runtime, filling) = open(dirs);
+    let (mut runtime, mut hand, filling) = open(dirs);
     assert!(filling, "{when}: the cache was taken as complete");
-    settle(&mut runtime);
+    settle(&mut runtime, &mut hand);
     assert_cold(&gpu::core(), &mut runtime, when);
     drop(runtime);
     assert_eq!(cached(dirs).saved, head(dirs), "{when}: written anew");
@@ -150,16 +152,16 @@ fn a_canvas_opens_complete_from_its_cache_equal_to_cold_and_stays_so_after_an_ed
         .create(&artwork, &Title::untitled())
         .expect("create");
     drop(library);
-    let (mut runtime, filling) = open(&dirs);
+    let (mut runtime, mut hand, filling) = open(&dirs);
     assert!(filling, "no cache yet: the canvas fills");
-    settle(&mut runtime);
+    settle(&mut runtime, &mut hand);
     assert_cold(&gpu::core(), &mut runtime, "filled");
     drop(runtime);
     let key = cached(&dirs);
     assert_eq!((key.saved, key.size), (head(&dirs), CANVAS));
     assert_eq!(key.renderer, gpu::core().renderer_identity());
 
-    let (mut runtime, filling) = open(&dirs);
+    let (mut runtime, mut hand, filling) = open(&dirs);
     assert!(!filling, "complete from the frame it opened");
     assert_cold(&gpu::core(), &mut runtime, "shown from the cache");
     let middle = [SIZE[0] as f32 / 2.0, SIZE[1] as f32 / 2.0];
@@ -171,9 +173,8 @@ fn a_canvas_opens_complete_from_its_cache_equal_to_cold_and_stays_so_after_an_ed
             ]
         })
         .collect();
-    let mut hand = Hand::new(SIZE);
     hand.gesture(&mut runtime, ToolKind::Stylus, &line);
-    settle(&mut runtime);
+    settle(&mut runtime, &mut hand);
     assert_cold(
         &gpu::core(),
         &mut runtime,
@@ -188,7 +189,7 @@ fn a_canvas_opens_complete_from_its_cache_equal_to_cold_and_stays_so_after_an_ed
         "the stroke's save rewrote it"
     );
     assert_eq!(cached(&dirs).saved, head(&dirs));
-    let (mut runtime, filling) = open(&dirs);
+    let (mut runtime, _, filling) = open(&dirs);
     assert!(!filling, "complete again");
     assert_eq!(
         runtime.artwork().expect("artwork").to_parts(),
@@ -201,15 +202,10 @@ fn a_canvas_opens_complete_from_its_cache_equal_to_cold_and_stays_so_after_an_ed
 /// and the canvas is complete from the frame it opens.
 fn to_the_gallery_and_back(runtime: &mut Runtime, hand: &mut Hand) {
     hand.tap(runtime, "Gallery");
-    settle(runtime);
+    settle(runtime, hand);
     assert!(runtime.artwork().is_none(), "in the gallery");
     hand.tap(runtime, ("Open artwork", [0.5, 0.5]));
-    let mut frames = 0;
-    while runtime.artwork().is_none() {
-        runtime.frame_offscreen(SIZE).expect("frame");
-        frames += 1;
-        assert!(frames < 10_000, "the card never opened");
-    }
+    opened(runtime, hand);
     assert!(!runtime.canvas_filling(), "complete from its card");
     assert_cold(&gpu::core(), runtime, "opened from its card");
 }
@@ -235,7 +231,7 @@ fn a_cache_of_another_save_renderer_format_or_size_is_never_complete() {
     fills_and_writes_anew(&dirs, "another format");
     alter(&dirs, |key| key.size[1] -= 1);
     fills_and_writes_anew(&dirs, "another size");
-    let (_, filling) = open(&dirs);
+    let (_, _, filling) = open(&dirs);
     assert!(!filling, "complete once written anew");
 }
 
@@ -257,9 +253,9 @@ fn a_library_rolled_back_never_takes_a_later_saves_cache_as_complete() {
     let later = cached(&dirs);
     std::fs::remove_dir_all(&dirs.library).expect("the library goes");
     copy_dir(&backup, &dirs.library);
-    let (mut runtime, filling) = open(&dirs);
+    let (mut runtime, mut hand, filling) = open(&dirs);
     assert!(filling, "the later save's cache is not taken as complete");
-    settle(&mut runtime);
+    settle(&mut runtime, &mut hand);
     assert_eq!(
         runtime.artwork().expect("artwork").to_parts(),
         older.to_parts()

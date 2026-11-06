@@ -2,9 +2,11 @@
 //! settles, or up to a moment after the last input; or minutes on at once, the app untouched or
 //! hidden (the practice book's time, S89).
 
+use std::time::Instant;
+
 use openpaint_runtime::Runtime;
 
-use super::{FRAME_MS, Runner, SETTLE_FRAMES};
+use super::{FRAME_MS, HANG, Runner};
 use crate::error::ScenarioError;
 
 impl Runner<'_> {
@@ -31,16 +33,17 @@ impl Runner<'_> {
         self.frame(runtime)
     }
 
-    /// Frames one 60 Hz frame apart until nothing moves on screen, at most `SETTLE_FRAMES`.
+    /// Frames one 60 Hz frame apart until nothing moves on screen, for at most `HANG`.
     pub(super) fn settle(&mut self, runtime: &mut Runtime) -> Result<(), ScenarioError> {
-        for _ in 0..SETTLE_FRAMES {
-            if !runtime.moving() {
-                return Ok(());
+        let start = Instant::now();
+        while runtime.moving() {
+            if start.elapsed() > HANG {
+                return Err(ScenarioError::Missing("motion did not settle"));
             }
             self.frame(runtime)?;
             self.clock_ms += FRAME_MS;
         }
-        Err(ScenarioError::Missing("motion did not settle"))
+        Ok(())
     }
 
     /// Frames one 60 Hz frame apart up to `target`, then one at `target`.

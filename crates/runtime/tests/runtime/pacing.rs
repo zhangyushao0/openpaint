@@ -7,7 +7,7 @@ use openpaint_runtime::{
     Buttons, MotionBatch, MotionPhase, Pointer, PointerSample, Runtime, ToolKind,
 };
 
-use crate::support::{Hand, Nowhere, assert_cold, start};
+use crate::support::{Hand, Nowhere, assert_cold, settle, start};
 
 const SIZE: [u32; 2] = [1280, 1000];
 const PIXELS_PER_POINT: f32 = 2.0;
@@ -24,7 +24,7 @@ fn wave(y: f32) -> Vec<[f32; 2]> {
 
 /// One pen event at `at` and one frame call; returns whether that call was skipped.
 fn pen(runtime: &mut Runtime, hand: &mut Hand, phase: MotionPhase, at: [f32; 2]) -> bool {
-    hand.clock += 8;
+    let time_ms = hand.tick(runtime, 8);
     let wanted = runtime.motion(&MotionBatch {
         phase,
         buttons: Buttons::default(),
@@ -36,22 +36,13 @@ fn pen(runtime: &mut Runtime, hand: &mut Hand, phase: MotionPhase, at: [f32; 2])
                 pressure: 0.8,
                 tilt: 0.0,
                 orientation: 0.0,
-                time_ms: hand.clock,
+                time_ms,
             }],
         }],
     });
     assert!(wanted, "a pen event asks for a frame");
     assert!(runtime.frame_offscreen(SIZE).expect("frame"));
     runtime.paced().skipped
-}
-
-/// Frames until the runtime rests.
-fn rest(runtime: &mut Runtime) {
-    for _ in 0..240 {
-        if !runtime.frame_offscreen(SIZE).expect("frame") {
-            return;
-        }
-    }
 }
 
 /// The samples of the last stroke on the bottom layer.
@@ -63,12 +54,11 @@ fn last_samples(runtime: &Runtime) -> usize {
 
 #[test]
 fn a_stroke_drawn_while_frames_are_skipped_commits_every_sample() {
-    let mut runtime = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
-    let mut hand = Hand::new(SIZE);
+    let (mut runtime, mut hand) = start(PIXELS_PER_POINT, SIZE, Box::new(Nowhere::default()));
     // Without skipping: the reference.
     hand.gesture(&mut runtime, ToolKind::Stylus, &wave(300.0));
     let drawn = last_samples(&runtime);
-    rest(&mut runtime);
+    settle(&mut runtime, &mut hand);
     // The pen touches down in a frame drawn; then the GPU is held behind: every frame call while
     // the pen moves and lifts is skipped, and the input waits.
     let points = wave(560.0);
@@ -83,7 +73,7 @@ fn a_stroke_drawn_while_frames_are_skipped_commits_every_sample() {
     assert_eq!(artwork.layers()[0].strokes().len(), 1, "nothing drawn yet");
     // The GPU catches up: the next frame drawn takes every sample and the lift.
     runtime.hold_gpu(0);
-    rest(&mut runtime);
+    settle(&mut runtime, &mut hand);
     assert!(!runtime.paced().skipped);
     let artwork = runtime.artwork().expect("artwork");
     assert_eq!(

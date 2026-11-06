@@ -3,6 +3,7 @@
 
 use std::ops::Deref;
 use std::sync::{Arc, OnceLock};
+use std::time::Duration;
 
 use openpaint_core::{
     Accumulation, Artwork, ArtworkCommand, BrushRecipe, CanvasPoint, CanvasSize, Color, CoreError,
@@ -12,6 +13,10 @@ use openpaint_core::{
 use openpaint_render::{CanvasTarget, Core, FrameRequest, RgbaImage};
 
 pub const SIZE: [u32; 2] = [320, 200];
+
+/// The longest a test runs frames until the canvas or a tier fills in: two minutes of wall time,
+/// a guard against a hang, never a count of frames (the gate runs a dozen test binaries at once).
+pub const HANG: Duration = Duration::from_secs(120);
 
 /// The one GPU device of this test binary, opened by the first test that asks. A device per
 /// test once deadlocked NVIDIA's Windows driver: opening one loads a library under the driver's

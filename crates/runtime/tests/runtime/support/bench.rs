@@ -1,13 +1,18 @@
 //! What the scenario benchmarks' tests start on (S58): a small pile of the built-ins' strokes in
-//! a library and display cache of their own, on a window tall enough for `ui`. Shared by the
-//! canvas benchmarks here and the practice benchmarks' binary of its own (`bench_practice.rs`).
+//! a library and display cache of their own, on a window tall enough for `ui`; and the real time
+//! the benchmarks run in between the hand's held steps. Shared by the canvas benchmarks here and
+//! the practice benchmarks' binary of its own (`bench_practice.rs`).
+
+use std::time::Instant;
 
 use openpaint_app::{BrushLibrary, ProjectStore, Title};
 use openpaint_core::{Artwork, CanvasSize};
 use openpaint_runtime::{DisplayCache, Runtime, StartOptions, drawn, pile_path, style_of};
 use openpaint_store::Library;
 
+use super::frames::until;
 use super::gpu::core;
+use super::hand::Hand;
 use super::test_dir::TestDir;
 
 /// Tall enough that `ui` finds the brush editor's StreamLine row in its column.
@@ -37,9 +42,9 @@ fn pile() -> Artwork {
     artwork
 }
 
-/// A runtime on the pile in a library and display cache of their own, and their directory (bound
-/// first by the caller, so it outlives the runtime).
-pub fn on_the_pile() -> (TestDir, Runtime) {
+/// A runtime on the pile in a library and display cache of their own, opened on the clock of a
+/// hand on it, and their directory (bound first by the caller, so it outlives the runtime).
+pub fn on_the_pile() -> (TestDir, Runtime, Hand) {
     let root = TestDir::new("bench-app");
     let mut library = Library::at(root.join("library"));
     let title = Title::new("Bench").expect("title");
@@ -51,11 +56,26 @@ pub fn on_the_pile() -> (TestDir, Runtime) {
     };
     let mut runtime =
         Runtime::start(PIXELS_PER_POINT, Box::new(library), options).expect("the runtime starts");
-    let mut frames = 0;
-    while runtime.artwork().is_none() {
-        runtime.frame_offscreen(SIZE).expect("frame");
-        frames += 1;
-        assert!(frames < 10_000, "the artwork never opened");
-    }
-    (root, runtime)
+    let mut hand = Hand::new(SIZE);
+    // The canvas's bar laid out, so a tap lands on it.
+    until(&mut runtime, &mut hand, |runtime| {
+        runtime.artwork().is_some()
+    });
+    (root, runtime, hand)
+}
+
+/// `run` (a benchmark: it paces itself by the wall clock, as a person does) with the runtime's
+/// clocks in real time from where `hand` held them; then held again by the hand a second past
+/// where real time took them, past any input the benchmark stamped ahead of its clock.
+pub fn in_real_time<T>(
+    hand: &mut Hand,
+    runtime: &mut Runtime,
+    run: impl FnOnce(&mut Runtime) -> T,
+) -> T {
+    let started = Instant::now();
+    runtime.release_clock();
+    let result = run(runtime);
+    let took = i64::try_from(started.elapsed().as_millis()).expect("milliseconds");
+    hand.tick(runtime, took + 1000);
+    result
 }

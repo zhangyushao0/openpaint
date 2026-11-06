@@ -4,17 +4,18 @@
 //! artwork's strokes to a new one, which then holds them all but the undone ones. `book` and
 //! `practice` run in a binary of their own (`bench_practice.rs`), beside this one (S103): the
 //! benchmarks time their device's frames, which two at once on one device cannot, and one after
-//! another they took over three minutes, at a person's pace.
+//! another they took over three minutes, at a person's pace. Each runs in real time
+//! (`in_real_time`), the steps between on the hand's held clock.
 
 use openpaint_runtime::{SCENARIOS, STROKES_ADDED};
 
-use crate::support::bench::{STROKES, on_the_pile};
+use crate::support::bench::{STROKES, in_real_time, on_the_pile};
 use crate::support::{assert_cold, core, strokes};
 
 #[test]
 fn every_canvas_benchmark_runs_through_the_frame_loop() {
     let core = core();
-    let (_root, mut runtime) = on_the_pile();
+    let (_root, mut runtime, mut hand) = on_the_pile();
     let mut appended = 0;
     // `practice` runs on a practice sheet and `book` in the gallery (`bench_practice.rs`).
     for name in SCENARIOS
@@ -24,7 +25,9 @@ fn every_canvas_benchmark_runs_through_the_frame_loop() {
         if name == "session" {
             appended = strokes(&runtime);
         }
-        let lines = runtime.bench_scenario(name).expect(name);
+        let lines = in_real_time(&mut hand, &mut runtime, |runtime| {
+            runtime.bench_scenario(name).expect(name)
+        });
         eprintln!("{}", lines.join("\n"));
         assert!(lines.len() > 1, "{name}: {lines:?}");
         assert!(
@@ -41,9 +44,12 @@ fn every_canvas_benchmark_runs_through_the_frame_loop() {
     // and its first zoom reached (the first ends there and so): neither its centring pan nor that
     // pinch is a two-finger tap, so nothing is undone.
     for _ in 0..2 {
-        runtime.bench_scenario("zoom").expect("zoom again");
+        in_real_time(&mut hand, &mut runtime, |runtime| {
+            runtime.bench_scenario("zoom").expect("zoom again")
+        });
     }
     assert_eq!(strokes(&runtime), appended - 1, "the zoom undid nothing");
+    // Both refused before a frame.
     assert!(runtime.bench_scenario("dance").is_err());
     assert!(
         runtime.bench_scenario("practice").is_err(),

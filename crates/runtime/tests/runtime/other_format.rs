@@ -11,7 +11,7 @@ use openpaint_core::Artwork;
 use openpaint_practice::SessionRecord;
 use openpaint_runtime::{Runtime, StartOptions};
 
-use crate::support::{core, settle};
+use crate::support::{Hand, core, settle};
 
 const SIZE: [u32; 2] = [1600, 1000];
 const PIXELS_PER_POINT: f32 = 2.0;
@@ -142,7 +142,8 @@ fn a_library_of_another_format_starts_the_app_in_the_gallery_saying_so_and_write
         ..StartOptions::default()
     };
     let mut runtime = Runtime::start(PIXELS_PER_POINT, Box::new(store), options).expect("starts");
-    settle(&mut runtime, SIZE);
+    let mut hand = Hand::new(SIZE);
+    settle(&mut runtime, &mut hand);
     let ScreenProjection::Gallery(gallery) = runtime.screen() else {
         panic!("not the gallery: {:?}", runtime.screen());
     };
@@ -150,6 +151,6 @@ fn a_library_of_another_format_starts_the_app_in_the_gallery_saying_so_and_write
     assert!(gallery.items().is_empty());
     assert!(runtime.artwork().is_none(), "no canvas opened");
     runtime.leave();
-    settle(&mut runtime, SIZE);
+    settle(&mut runtime, &mut hand);
     assert!(writes.lock().expect("calls").is_empty(), "{writes:?}");
 }

@@ -131,7 +131,8 @@ mod tests {
         for _ in 0..3 {
             release.send(()).expect("release");
         }
-        assert!(worker.drain(Duration::from_secs(5)));
+        // A guard against a hang, however loaded the machine.
+        assert!(worker.drain(Duration::from_secs(120)));
         let results: Vec<u32> = std::iter::from_fn(|| worker.take()).collect();
         assert_eq!(results, [10, 20, 30]);
         assert!(!worker.busy());
