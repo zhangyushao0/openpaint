@@ -50,9 +50,13 @@ The author, 2026-10-23: practice is their main activity now. The app gets a prac
 
 Stages 1 to 4 are built (S75 to S106 are done: the list at the end and its archive).
 
+Stage 5 follows V大's weeks 5 and 6 as the author approved it on a mock (2026-11-06, every recommendation taken): key shifts, abstract analysis, structure rotation.
+
+- S107 Key shifts (变调), 1.21.0. A sheet pairs a crop of the packs (its areas from the pack) with an empty frame and a tendency colour printed beside it as a given, the tendencies in turn warm and cool, saturated and grey, never near the crop's own main hue; the user paints the crop shifted toward it with the combination's pens. Compare gives no answer (V大: a key shift has none) and marks only what is off, on the copy and on the card's swatches: an area whose lightness left the original's, an area that did not move toward the tendency, two areas apart in the original that merged; a Grey view (看黑白) shows both frames in grey with only lightness marked. The card's hue and chroma disc draws each area from its original (a ring) to the copy's colour (a dot), the tendency, and Gurney's gamut mask (a triangle, its apex the tendency, its base past grey, the outside veiled), shown only after Compare. The How plays V大's rules on an example: the largest colour first, greys move most and gain chroma, the tendency's opposites move a little and grey, the lightest barely move, lightness kept, areas still apart. Stage 5 opens: a warm-up of three and three key shifts; a drill tile. Done: the walk-through a passing scenario; the three checks judged right on contact sheets of shifts made by rule and by hand; the gate.
 - Then, each specified when the one before lands:
-  - Key shifts, gamut masks and abstract analysis.
-  - Structure rotation against renders.
+  - S108 Abstract analysis (抽象分析): the user marks a picture's strongest place, its contrasts, the secondary and weak ones and their distribution on a layer over it; Compare veils where each measurable contrast (value, chroma, hue, sharpness) is weak and scores nothing.
+  - S109 Structure rotation against renders.
+  - Stage 7 (V大's weeks 7 and 8): curved structure rotation and objects placed by a plan, whole-picture key shifts toward two tendencies, abstract analysis for one's own small composition.
   - Trajectories, stage reports and re-tests.
 
 ## G8 Independent extensions after stabilisation
