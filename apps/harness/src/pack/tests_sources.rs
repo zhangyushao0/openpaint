@@ -98,7 +98,8 @@ fn rijks(number: &str, rights: &str) -> String {
 fn commons_film(short: &str, code: &str) -> String {
     format!(
         r#"{{"query": {{"pages": [{{"title": "{FILM}", "templates": [],
-        "imageinfo": [{{"mime": "video/webm", "url": "https://upload.example.org/spring.webm",
+        "imageinfo": [{{"mime": "video/webm", "width": 1920,
+        "url": "https://upload.example.org/spring.webm",
         "thumburl": "https://upload.example.org/spring-seek120.jpg",
         "descriptionurl": "https://commons.wikimedia.org/wiki/File:Spring_-_Blender_Open_Movie.webm",
         "extmetadata": {{"LicenseShortName": {{"value": "{short}"}},
@@ -161,6 +162,19 @@ fn cache(name: &str, [aic, nga, rijks_object, film]: [String; 4]) -> Scratch {
     let frame = format!("{FILM}@120");
     put(cache_name("commons", &frame, "json"), film.as_bytes());
     put(cache_name("commons", &frame, "img"), &picture([480, 201]));
+    // Each picture's full pixels, for its corners (S101b): a IIIF service's size, the film's
+    // still asked again at its own width.
+    let info = |size: [u32; 2]| format!(r#"{{"width": {}, "height": {}}}"#, size[0], size[1]);
+    for (source, key, answer, size) in [
+        ("aic", "64818", info([600, 360]), [600, 360]),
+        ("nga", "1201", info([480, 400]), [480, 400]),
+        ("rijks", "SK-A-1718", info([640, 380]), [640, 380]),
+        ("commons", frame.as_str(), film.clone(), [960, 402]),
+    ] {
+        let name = |extension| cache_name(source, &format!("{key} full"), extension);
+        put(name("json"), answer.as_bytes());
+        put(name("img"), &picture(size));
+    }
     dir
 }
 

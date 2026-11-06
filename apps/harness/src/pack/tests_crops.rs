@@ -1,11 +1,12 @@
 //! Crops (S101) on a cache of made-up answers (no network): a list of crops gives its picture's
 //! best two crops, each a crop item with its areas, the same bytes every build; one the list
-//! leaves out is cut and drawn but never packed; the list's marks are checked.
+//! leaves out is cut and drawn but never packed; every crop 768 to 1,024 pixels long (S101b); the
+//! list's marks are checked.
 
 use std::fs;
 
 use openpaint_app::ImageFormat;
-use openpaint_practice::{Licence, PictureKind};
+use openpaint_practice::{LEAST_LONGER, Licence, PictureKind};
 use openpaint_store::{encode_image, encode_pack, open_pack};
 
 use super::build::build;
@@ -35,13 +36,13 @@ const ANSWER: &str = r#"{"query": {"pages": [{"title": "File:Test rust.png", "te
     "ObjectName": {"value": "Test rust"}, "Artist": {"value": "A. Welder"}}}]}]}}"#;
 
 /// Rust: four patches meeting at a point left of the middle and four right of it, two browns a
-/// weak contrast apart, a grey and a blue grey.
+/// weak contrast apart, a grey and a blue grey; large enough for crops of `LEAST_LONGER` (S101b).
 fn rust() -> Vec<u8> {
-    let size = [1600, 800];
+    let size = [2800, 1400];
     let pixels: Vec<u8> = (0..size[0] * size[1])
         .flat_map(|at| {
             let [x, y] = [at % size[0], at / size[0]];
-            let centre = if x < size[0] / 2 { 220 } else { 1380 };
+            let centre = if x < size[0] / 2 { 385 } else { 2415 };
             let colour: [u8; 3] = match (x < centre, y < size[1] / 2) {
                 (true, true) => [120, 80, 60],
                 (false, true) => [128, 86, 64],
@@ -107,7 +108,32 @@ fn a_list_of_crops_packs_its_best_crops_with_their_areas_the_same_every_build() 
         (Licence::Cc0, "A. Welder")
     );
     assert!(crop.title.starts_with("Test rust (detail 1)"));
-    assert!(crop.size[0].max(crop.size[1]) <= 1024);
+}
+
+#[test]
+fn every_crop_is_768_to_1024_pixels_long() {
+    let list = SourceList::parse(LIST).expect("the list");
+    let dir = cache();
+    let built = build(&list, &Fetcher::cache_only(&dir), &no_segment).expect("built");
+    assert!(!built.crops.is_empty());
+    for crop in &built.crops {
+        let longer = crop.size[0].max(crop.size[1]);
+        assert!(
+            (LEAST_LONGER..=1024).contains(&longer),
+            "{}: {longer}",
+            crop.id
+        );
+    }
+    let (pack, _) = open_pack(&encode_pack(&built.pack, &built.pictures).expect("encoded"))
+        .expect("a whole pack");
+    for item in &pack.items {
+        let longer = item.size[0].max(item.size[1]);
+        assert!(
+            (LEAST_LONGER..=1024).contains(&longer),
+            "{}: {longer}",
+            item.id
+        );
+    }
 }
 
 #[test]

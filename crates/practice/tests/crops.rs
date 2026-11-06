@@ -3,8 +3,8 @@
 //! pairs found), and the rules a crop is held to.
 
 use openpaint_practice::{
-    Areas, Arrangement, CropRefusal, FEWEST_AREAS, GeneratedAreas, MOST_AREAS, Places, Tier, best,
-    candidates, delta_e, refusal, tier_of,
+    Areas, Arrangement, CropRefusal, FEWEST_AREAS, GeneratedAreas, LEAST_LONGER, MOST_AREAS,
+    Places, Tier, best, candidates, delta_e, refusal, tier_of,
 };
 
 /// The generated pictures' side in pixels: about a crop's.
@@ -178,8 +178,8 @@ fn a_shading_is_one_area_and_rust_keeps_every_rule() {
 #[test]
 fn the_builder_keeps_the_best_crops_none_overlapping_and_the_same_every_time() {
     // A wide picture: four patches of rust meeting at a point left of its middle and right of
-    // it, as a crop sees them.
-    let size = [1600, 800];
+    // it, as a crop sees them; only its largest size reaches `LEAST_LONGER` (0.55 of 1,400).
+    let size = [2800, 1400];
     let rgba = picture(size, |[x, y]| {
         let centre = if x < 0.5 { 0.1375 } else { 0.8625 };
         match (x < centre, y < 0.5) {
@@ -190,7 +190,16 @@ fn the_builder_keeps_the_best_crops_none_overlapping_and_the_same_every_time() {
         }
     });
     let all = candidates(size, &rgba, Places::Anywhere);
-    assert!(!all.is_empty());
+    assert_eq!(all.len(), 27, "one size, three shapes, nine places");
+    assert!(
+        all.iter()
+            .all(|crop| crop.size[0].max(crop.size[1]) >= LEAST_LONGER)
+    );
+    let small = picture([1200, 600], |_| [128; 3]);
+    assert!(
+        candidates([1200, 600], &small, Places::Anywhere).is_empty(),
+        "no size of a small picture reaches it"
+    );
     let kept = best(all.clone(), 2);
     assert_eq!(kept.len(), 2);
     let again = best(candidates(size, &rgba, Places::Anywhere), 2);

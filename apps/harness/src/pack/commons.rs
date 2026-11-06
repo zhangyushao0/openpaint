@@ -5,22 +5,35 @@
 //! states no licence is never taken. The picture is the original when it is a JPEG or PNG,
 //! else the API's 1,280-pixel rendering (an SVG's, a TIFF's). A frame of a video (a Blender open
 //! film's official release) is the API's 1,920-pixel still at the second the list names
-//! (`seek`), under the video file's licence, titled with its time.
+//! (`seek`), under the video file's licence, titled with its time; for its crops the still is
+//! asked again at the video's own width (`still_url`, S101b).
 
 use openpaint_practice::Licence;
 use serde_json::Value;
 
 use super::fetch::query_text;
-use super::sources::{Found, Stated, lacking, text};
+use super::sources::{Found, Full, Stated, lacking, text};
 use crate::error::HarnessError;
 
 /// The API's answer about the file `title` (`File:…`): its picture's URLs, size and type, its
 /// metadata and its templates; with `at`, the still of a video at that second.
 pub fn info_url(title: &str, at: Option<f64>) -> String {
-    let rendering = match at {
-        Some(at) => format!("iiurlwidth=1920&iiurlparam=1920px-seek%3D{at}"),
-        None => "iiurlwidth=1280".to_owned(),
-    };
+    match at {
+        Some(at) => still_url(title, at, 1920),
+        None => answer_url(title, "iiurlwidth=1280"),
+    }
+}
+
+/// The API's answer about the video `title` with its still at second `at`, `width` pixels wide.
+pub fn still_url(title: &str, at: f64, width: u32) -> String {
+    answer_url(
+        title,
+        &format!("iiurlwidth={width}&iiurlparam={width}px-seek%3D{at}"),
+    )
+}
+
+/// The API's answer about `title`, its rendering asked as `rendering`.
+fn answer_url(title: &str, rendering: &str) -> String {
     format!(
         "https://commons.wikimedia.org/w/api.php?action=query&format=json&formatversion=2\
          &prop=imageinfo%7Ctemplates&titles={}&iiprop=url%7Csize%7Cmime%7Cextmetadata\
@@ -80,6 +93,14 @@ pub fn found(answer: &Value, url: &str, at: Option<f64>) -> Result<Found, Harnes
             "resized"
         },
         headers: &[],
+        full: match at {
+            Some(_) => Full::Still {
+                width: (info["width"].as_u64())
+                    .and_then(|width| u32::try_from(width).ok())
+                    .ok_or_else(|| lacking(url, "width"))?,
+            },
+            None => Full::Picture,
+        },
     })
 }
 

@@ -19,6 +19,7 @@ use openpaint_store::{PackPicture, pack_picture};
 
 use super::crops::{Cropped, crops_of};
 use super::fetch::{Fetcher, cache_name};
+use super::full::full_picture;
 use super::list::{Listed, SourceList, cropping};
 use super::sources::{Found, Sources, Stated};
 use crate::error::HarnessError;
@@ -106,14 +107,16 @@ pub fn build(
 }
 
 /// `listed` (an item of a list of `kind`) into `built`: its picture whole unless the list is of
-/// crops, then the crops it gives (S101), each kept one an item of its own.
+/// crops, then the crops it gives (S101), cut from its full pixels (S101b), each kept one an item
+/// of its own.
 fn listed_into(
     built: &mut Built,
     (kind, listed): (PictureKind, &Listed),
     (sources, segment): (&Sources<'_>, Segment<'_>),
 ) -> Result<(), HarnessError> {
-    let (found, picture) = fetched(listed, sources)?;
+    let found = looked_up(listed, sources)?;
     if kind != PictureKind::Crop {
+        let picture = packed(listed, &found, sources)?;
         let (item, file, (outlined, massed)) = item(kind, listed, (&found, &picture), segment)?;
         built.pack.items.push(item);
         built.pictures.push(file);
@@ -123,7 +126,8 @@ fn listed_into(
     let Some(cropping) = cropping(kind) else {
         return Ok(());
     };
-    for (cropped, kept) in crops_of(listed, (&found, &picture), cropping)? {
+    let full = full_picture(listed, &found, sources.fetcher())?;
+    for (cropped, kept) in crops_of(listed, (&found, &full), cropping)? {
         if let Some((item, file)) = kept {
             built.pack.items.push(item);
             built.pictures.push(file);
@@ -135,9 +139,8 @@ fn listed_into(
     Ok(())
 }
 
-/// What `listed`'s source says of it, its licence checked against the list's, and its picture
-/// downloaded and made as a pack holds it.
-fn fetched(listed: &Listed, sources: &Sources<'_>) -> Result<(Found, PackPicture), HarnessError> {
+/// What `listed`'s source says of it, its licence checked against the list's.
+fn looked_up(listed: &Listed, sources: &Sources<'_>) -> Result<Found, HarnessError> {
     let found = sources.look_up(listed)?;
     if found.stated != Stated::Licence(listed.licence) {
         return Err(HarnessError::Pack {
@@ -149,13 +152,21 @@ fn fetched(listed: &Listed, sources: &Sources<'_>) -> Result<(Found, PackPicture
             ),
         });
     }
+    Ok(found)
+}
+
+/// `listed`'s picture (as `found` describes it) downloaded and made as a pack holds it.
+fn packed(
+    listed: &Listed,
+    found: &Found,
+    sources: &Sources<'_>,
+) -> Result<PackPicture, HarnessError> {
     let name = cache_name(listed.source.name(), &listed.key(), "img");
     let original = (sources.fetcher()).get_with(&name, &found.picture, found.headers)?;
-    let picture = pack_picture(&original).map_err(|error| HarnessError::Fetch {
+    pack_picture(&original).map_err(|error| HarnessError::Fetch {
         url: found.picture.clone(),
         detail: format!("the picture: {error}"),
-    })?;
-    Ok((found, picture))
+    })
 }
 
 /// An item as built: its manifest entry, its picture's file, what became of its outline and of

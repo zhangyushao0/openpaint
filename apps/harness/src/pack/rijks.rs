@@ -10,7 +10,8 @@ use openpaint_practice::Licence;
 use serde_json::Value;
 
 use super::fetch::{Fetcher, cache_name, query_text};
-use super::sources::{Found, Stated, lacking, text, unknown_maker};
+use super::full::FULL_SIDE;
+use super::sources::{Found, Full, Stated, lacking, text, unknown_maker};
 use crate::error::HarnessError;
 
 /// What a record is asked for as: Linked Art's JSON-LD.
@@ -50,7 +51,7 @@ fn record(fetcher: &Fetcher, id: &str) -> Result<Value, HarnessError> {
 }
 
 fn described(fetcher: &Fetcher, object: &Value, id: &str) -> Result<Found, HarnessError> {
-    let (picture, rights) = picture(object).ok_or_else(|| lacking(id, "IIIF picture"))?;
+    let (base, rights) = picture(object).ok_or_else(|| lacking(id, "IIIF picture"))?;
     let creator = match person(&object["produced_by"]) {
         Some(person) => english(&record(fetcher, &person)?["identified_by"])
             .unwrap_or_else(|| unknown_maker(None)),
@@ -62,14 +63,19 @@ fn described(fetcher: &Fetcher, object: &Value, id: &str) -> Result<Found, Harne
         creator,
         page: id.to_owned(),
         stated: stated(&rights),
-        picture,
+        picture: format!("{base}/full/!2048,2048/0/default.jpg"),
         collection: "Rijksmuseum, Amsterdam",
         changes: "resized",
         headers: &[],
+        full: Full::Iiif {
+            base,
+            most: FULL_SIDE,
+        },
     })
 }
 
-/// The IIIF picture a record names (fitted within 2,048 pixels) and that picture's statements.
+/// The IIIF image service a record names (its base URL; its picture is fitted within 2,048
+/// pixels) and that picture's statements.
 fn picture(object: &Value) -> Option<(String, Vec<String>)> {
     let subjects = object["subject_of"].as_array()?;
     let carriers = (subjects.iter()).flat_map(|subject| {
@@ -90,7 +96,7 @@ fn picture(object: &Value) -> Option<(String, Vec<String>)> {
         let rights = (carrier["referred_to_by"].as_array().into_iter().flatten())
             .filter_map(|statement| text(statement, "content"))
             .collect();
-        return Some((format!("{base}/full/!2048,2048/0/default.jpg"), rights));
+        return Some((base, rights));
     }
     None
 }

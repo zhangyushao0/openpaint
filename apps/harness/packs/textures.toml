@@ -1,7 +1,7 @@
-# The textures pack (S101): photographs of rust, peeling paint, weathered walls and torn posters,
-# only ever cropped. V大's 色彩组合 copies a corner of an abstract oil painting or of a rusted old
-# thing, never a concrete object: each photograph gives its best two crops of three to seven areas
-# of distinct colour, some low in saturation, at least one weak contrast between neighbours
+# The textures pack (S101): photographs of rust, peeling paint and torn posters, only ever
+# cropped. V大's 色彩组合 copies a corner of an abstract oil painting or of a rusted old thing,
+# never a concrete object: each photograph gives its best two crops of three to seven areas of
+# distinct colour, some low in saturation, at least one weak contrast between neighbours
 # (`openpaint_practice::crop`), each crop an item of the pack with its areas. Built by
 # `cargo practice-pack build apps/harness/packs/textures.toml --sheet`; the crops are judged on the
 # crops' sheets (`openpaint-textures-crops-<n>.png`, each beside its areas, its weak contrasts
@@ -11,26 +11,22 @@
 # Commons, whose own licence field (`License`, `LicenseShortName`) must state CC0.
 #
 # Chosen from Commons' CC0 texture series and searches (rust, peeling paint, weathered paint) for
-# large patches of a few colours: of 87 photographs tried, these give crops. Left out: material
-# maps made for 3D; objects (rivets, bolts, gears, ropes, house fronts and eaves, numbers and
-# signs); one flat colour or an even pattern over the whole photograph (concrete, carpet, grass,
-# tiles, shingles, wood grain); photographs whose every crop breaks a rule: lichen and rock read as
-# specks (more texture than areas), vivid paint without a grey, and most rust and peeling paint,
-# whose crops hold one colour shading into another (fewer than three areas); and any file whose
-# licence the API does not state as CC0.
+# large patches of a few colours: of 87 photographs tried, these give crops. Since S101b a crop is
+# cut from the original (at most 4,096 pixels) and is at least 768 pixels long, so a photograph
+# under about 1,400 pixels on its shorter side gives none (six 1,280-pixel files of S101 left
+# out), and six more of S101's gave none at that size. Left out as well: material maps made for
+# 3D; objects (rivets, bolts, gears, ropes, house fronts and eaves, numbers and signs); one flat
+# colour or an even pattern over the whole photograph (concrete, carpet, grass, tiles, shingles,
+# wood grain); photographs whose every crop breaks a rule: lichen and rock read as specks (more
+# texture than areas), vivid paint without a grey, and most rust and peeling paint, whose crops
+# hold one colour shading into another (fewer than three areas); and any file whose licence the
+# API does not state as CC0.
 
 id = "openpaint-textures"
 title = "Textures"
 kind = "crop"
 
 # Rust and paint on metal
-
-[[item]]
-id = "grey-plate-rust"
-source = "commons"
-object = "File:Texture P7180168.JPG"
-licence = "CC0"
-reason = "a grey plate rusting from one side: large greys against a broken rust edge"
 
 [[item]]
 id = "green-red-streak"
@@ -69,20 +65,6 @@ licence = "CC0"
 reason = "pale blue paint weathered over grey, rust and dark flecks: cool greys close together and a warm accent"
 
 [[item]]
-id = "blue-weathered-flecks"
-source = "commons"
-object = "File:Texture 2017 11.jpg"
-licence = "CC0"
-reason = "weathered blue paint in close greyed blues, dark flecks"
-
-[[item]]
-id = "teal-wash-grey"
-source = "commons"
-object = "File:Texture 2017 13.jpg"
-licence = "CC0"
-reason = "a pale teal wash over greys and greens: weak contrasts throughout"
-
-[[item]]
 id = "rust-over-grey"
 source = "commons"
 object = "File:Texture 2017 28.jpg"
@@ -103,7 +85,7 @@ source = "commons"
 object = "File:Texture 2018 08.jpg"
 licence = "CC0"
 reason = "rust running down over grey: warm and cool greys in bands"
-no_crop.1 = "the dark drip down its middle is not an area"
+no_crop.2 = "the dark drip down its middle is not an area"
 
 [[item]]
 id = "grey-metal-rust-edge"
@@ -111,7 +93,7 @@ source = "commons"
 object = "File:Textures 2015 01.jpg"
 licence = "CC0"
 reason = "grey sheet metal along a rusted edge: close blue-greys and an ochre"
-no_crop.2 = "a seam's weld and its ledge: an object's edge"
+no_crop.1 = "a seam's weld and its ledge: an object's edge"
 
 [[item]]
 id = "blue-paint-rust"
@@ -119,59 +101,6 @@ source = "commons"
 object = "File:Textures 2015 07.jpg"
 licence = "CC0"
 reason = "blue paint rusting through: a greyed blue beside dull red-browns"
-
-[[item]]
-id = "grey-panel-rust-streaks"
-source = "commons"
-object = "File:Textures 23.JPG"
-licence = "CC0"
-reason = "grey panels streaked with rust and pale paint"
-
-[[item]]
-id = "blue-paint-lichen"
-source = "commons"
-object = "File:Textures 24.JPG"
-licence = "CC0"
-reason = "purple-blue paint with orange rust and yellow lichen"
-no_crop.1 = "busy: lichen specks along a ledge"
-
-# Peeling paint and plaster
-
-[[item]]
-id = "pink-blue-door"
-source = "commons"
-object = "File:Close-up of an old door with peeling pink and blue paint.jpg"
-licence = "CC0"
-reason = "pink paint peeling to blue and grey wood: a few greyed hues"
-
-[[item]]
-id = "water-stained-ceiling"
-source = "commons"
-object = "File:Ceiling sheetrock damaged by water so paint was peeling.jpg"
-licence = "CC0"
-reason = "a grey ceiling stained and peeling: weak contrasts of warm and cool greys"
-
-[[item]]
-id = "grey-peeling-boards"
-source = "commons"
-object = "File:Texture - P7220298.JPG"
-licence = "CC0"
-reason = "grey paint peeling in layers off boards: greys in close steps"
-
-[[item]]
-id = "red-peeling-wall"
-source = "commons"
-object = "File:Texture - P7220226.JPG"
-licence = "CC0"
-reason = "red paint worn to a pale ground: a strong contrast and dull reds close together"
-
-[[item]]
-id = "green-wall-red-peeling"
-source = "commons"
-object = "File:Texture 2018 09.jpg"
-licence = "CC0"
-reason = "a dark mottled wall peeling to rust and white"
-no_crop.1 = "a dark mottle read as three greys"
 
 # Torn posters
 
@@ -184,23 +113,8 @@ reason = "a navy poster torn to its grey backing: one strong contrast and close 
 no_crop.2 = "plain: one diagonal of navy against grey"
 
 [[item]]
-id = "torn-poster-scraps"
-source = "commons"
-object = "File:Textures 2015 04.jpg"
-licence = "CC0"
-reason = "a torn poster's grey backing with dark, navy and green scraps"
-no_crop.1 = "plain: grey paper, its scraps too small to be areas"
-
-[[item]]
 id = "torn-navy-scraps"
 source = "commons"
 object = "File:Textures 2015 05.jpg"
 licence = "CC0"
 reason = "navy scraps of a torn poster over grey paper"
-
-[[item]]
-id = "torn-poster-layers"
-source = "commons"
-object = "File:Textures 2015 06.jpg"
-licence = "CC0"
-reason = "layers of a torn poster: navy, black and greys"

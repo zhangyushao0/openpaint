@@ -51,6 +51,22 @@ pub struct Found {
     pub changes: &'static str,
     /// The headers the source asks the picture's request to carry.
     pub headers: &'static [(&'static str, &'static str)],
+    /// Where its full pixels come from, for its crops (S101b, `full.rs`).
+    pub full: Full,
+}
+
+/// Where a picture's full pixels come from for its crops (S101b): never the packed picture.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Full {
+    /// The picture downloaded is the source's own file at its full size: Commons' original (an
+    /// SVG's or TIFF's rendering, the only one taken), the Met's primary picture, Cleveland's
+    /// print.
+    Picture,
+    /// A IIIF image service, by its base URL: the picture asked at its full size, its longer side
+    /// at most `most` pixels (the most the server hands out).
+    Iiif { base: String, most: u32 },
+    /// A film's still on Commons, asked again at the video's own width (pixels).
+    Still { width: u32 },
 }
 
 /// The sources' APIs through one cache, the National Gallery's tables read once for all items.
@@ -121,6 +137,9 @@ impl<'a> Sources<'a> {
 /// The header the Art Institute asks every request to its API and pictures to carry: who is
 /// asking (without it the requests are turned away).
 pub const AIC_HEADERS: [(&str, &str); 1] = [("AIC-User-Agent", USER_AGENT)];
+/// The longest side the Art Institute's IIIF server hands out (`!3000,3000`; it refuses larger
+/// sizes, and most others, with 403, as tried on 2026-11-06).
+const AIC_MOST: u32 = 3000;
 
 /// The text at `field`, trimmed; `None` when missing or empty.
 pub fn text(value: &Value, field: &str) -> Option<String> {
@@ -165,6 +184,7 @@ fn cleveland(data: &Value, url: &str) -> Result<Found, HarnessError> {
         collection: "The Cleveland Museum of Art",
         changes: "resized",
         headers: &[],
+        full: Full::Picture,
     })
 }
 
@@ -186,6 +206,7 @@ fn met(object: &Value, url: &str) -> Result<Found, HarnessError> {
         collection: "The Metropolitan Museum of Art",
         changes: "resized",
         headers: &[],
+        full: Full::Picture,
     })
 }
 
@@ -220,6 +241,10 @@ fn aic(answer: &Value, url: &str) -> Result<Found, HarnessError> {
         collection: "The Art Institute of Chicago",
         changes: "resized",
         headers: &AIC_HEADERS,
+        full: Full::Iiif {
+            base: format!("{iiif}/{image}"),
+            most: AIC_MOST,
+        },
     })
 }
 

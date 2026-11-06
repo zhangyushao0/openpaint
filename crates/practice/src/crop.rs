@@ -27,8 +27,11 @@ pub const GREYISH: f64 = 0.3;
 /// Two neighbours at least this far apart (Oklab, five just-noticeable steps) are plainly
 /// distinct colours; a crop holds such a pair.
 pub const DISTINCT: f64 = 0.1;
-/// The least side of a crop, in pixels.
-pub const LEAST_SIDE: u32 = 256;
+/// The least longer side of a crop, in pixels of the picture it is cut from (S101b): the pack
+/// holds a crop at most 1,024 pixels long and the tablet shows it about 770 device pixels tall,
+/// so a crop cut smaller would be enlarged there and read blurred. A size a picture cannot cut so
+/// large is not offered on it.
+pub const LEAST_LONGER: u32 = 768;
 /// A crop's longer side as a share of the picture's shorter side, and its shapes (width to
 /// height).
 const SIDES: [f64; 3] = [0.25, 0.4, 0.55];
@@ -179,7 +182,7 @@ pub fn candidates(size: [u32; 2], rgba: &[u8], places: Places) -> Vec<Crop> {
                 [(longer * shape).round(), longer]
             }
             .map(|v| v as u32);
-            if w.min(h) < LEAST_SIDE || w > size[0] || h > size[1] {
+            if w.max(h) < LEAST_LONGER || w > size[0] || h > size[1] {
                 continue;
             }
             for at in spots(size, [w, h], places) {

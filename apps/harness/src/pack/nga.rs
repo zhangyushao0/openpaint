@@ -11,7 +11,8 @@ use std::collections::HashMap;
 use openpaint_practice::Licence;
 
 use super::fetch::Fetcher;
-use super::sources::{Found, Stated, lacking, unknown_maker};
+use super::full::FULL_SIDE;
+use super::sources::{Found, Full, Stated, lacking, unknown_maker};
 use crate::error::HarnessError;
 
 /// The open data's commit the tables are read at.
@@ -123,6 +124,10 @@ impl Tables {
             collection: "National Gallery of Art, Washington",
             changes: "resized",
             headers: &[],
+            full: Full::Iiif {
+                base: primary.iiif.clone(),
+                most: FULL_SIDE,
+            },
         })
     }
 }

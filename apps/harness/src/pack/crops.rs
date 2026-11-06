@@ -1,8 +1,9 @@
 //! A pack's crops (S101, V大's 色彩组合: a corner of an abstract oil painting or of a rusted old
 //! thing, never a concrete object): the crops a picture gives (`list::cropping`: a composition's
 //! best corner, a texture's best two places), found and held to a combination's rules by the
-//! practice crate (`openpaint_practice::candidates`, `best`), each cut from the picture as the pack
-//! holds it, reduced to `LONGEST`, made as a pack holds a picture and answered anew from those
+//! practice crate (`openpaint_practice::candidates`, `best`), each cut from the picture at its full
+//! size (`full.rs`, S101b: at least `LEAST_LONGER` long, never the packed picture's 2,048
+//! pixels), reduced to `LONGEST`, made as a pack holds a picture and answered anew from those
 //! pixels (`Areas::found`), so the answer is the picture's the app shows. A crop the list leaves
 //! out (`no_crop`) is still cut and drawn on the sheets, never packed. Their contact sheets:
 //! `<pack id>-crops-<page>.png`, `PAGE` crops a page, each beside its areas, numbered as the
@@ -15,12 +16,13 @@ use image::RgbaImage;
 use image::imageops::{self, FilterType};
 use openpaint_app::ImageFormat;
 use openpaint_practice::{
-    Areas, Credit, Crop, Found, PackItem, PictureKind, Places, best, candidates, cut, refusal,
-    tier_of,
+    Areas, Credit, Crop, Found, LEAST_LONGER, PackItem, PictureKind, Places, best, candidates, cut,
+    refusal, tier_of,
 };
-use openpaint_store::{PackPicture, encode_image, pack_picture};
+use openpaint_store::{encode_image, pack_picture};
 
 use super::build::attribution;
+use super::full::FullPicture;
 use super::list::Listed;
 use super::sheet::{Mark, Picture, write_sheet};
 use super::sources;
@@ -45,7 +47,7 @@ pub struct Cropped {
     pub left_out: Option<String>,
 }
 
-/// The crops `listed`'s picture (as the pack holds it; `source` what its API says of it) gives at
+/// The crops `listed`'s picture (at its full size; `source` what its API says of it) gives at
 /// `places`, `count` at most, best first; each with its item and file unless the list leaves it
 /// out or its answer, made anew from the packed pixels, breaks a rule.
 ///
@@ -53,7 +55,7 @@ pub struct Cropped {
 /// `Pack` when a crop cannot be made as a pack holds a picture.
 pub fn crops_of(
     listed: &Listed,
-    (source, picture): (&sources::Found, &PackPicture),
+    (source, picture): (&sources::Found, &FullPicture),
     (places, count): (Places, usize),
 ) -> Result<Vec<(Cropped, Option<Packed>)>, HarnessError> {
     let all = candidates(picture.size, &picture.rgba, places);
@@ -96,7 +98,7 @@ pub fn crops_of(
 fn say_none(listed: &Listed, all: &[Crop]) {
     let nearest = all.iter().max_by(|a, b| a.score().total_cmp(&b.score()));
     let why = nearest.map_or_else(
-        || "too small to crop".to_owned(),
+        || format!("too small: no crop of it reaches {LEAST_LONGER} px"),
         |crop| {
             let rule = refusal(&crop.found).map_or_else(String::new, |rule| rule.to_string());
             let areas = crop.found.areas.count();

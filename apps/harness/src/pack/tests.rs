@@ -13,7 +13,7 @@ use super::build::{Outlined, attribution, build};
 use super::commons::{plain, stated};
 use super::fetch::{Fetcher, cache_name};
 use super::list::SourceList;
-use super::sources::{Found, Stated};
+use super::sources::{Found, Full, Stated};
 use crate::error::HarnessError;
 use crate::output::workspace_root;
 use crate::scratch::Scratch;
@@ -270,6 +270,7 @@ fn an_attribution_names_the_creator_and_the_credit_asked_for() {
         collection: "Wikimedia Commons",
         changes: "resized",
         headers: &[],
+        full: Full::Picture,
     };
     assert_eq!(
         attribution(&found, Licence::CcBy4),
