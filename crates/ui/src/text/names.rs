@@ -20,6 +20,26 @@ texts! { NAMES;
     DIVISION_LAYER_NAME = "Division", "画面分割";
     LINES_LAYER_NAME = "Line drawing", "线稿";
     BLOCKS_LAYER_NAME = "Colour blocks", "色块";
+    SHAPES_PACK = "Single shapes", "单体图形";
+    COMPOSITIONS_PACK = "Compositions", "构图";
+    COMBINATIONS_PACK = "Colour combinations", "色彩组合";
+}
+
+/// The official packs by their id, each with its name (S102b).
+const OFFICIAL_PACKS: [(&str, super::Text); 3] = [
+    ("openpaint-shapes", SHAPES_PACK),
+    ("openpaint-compositions", COMPOSITIONS_PACK),
+    ("openpaint-combinations", COMBINATIONS_PACK),
+];
+
+/// A pack's name as `language` shows it: an official pack's from the table by its `id`, any
+/// other's `title` as its file holds it.
+#[must_use]
+pub(crate) fn pack_title<'a>(language: Language, id: &str, title: &'a str) -> &'a str {
+    OFFICIAL_PACKS
+        .iter()
+        .find(|(official, _)| *official == id)
+        .map_or(title, |(_, name)| name.get(language))
 }
 
 /// `name` as `language` shows it.
@@ -108,5 +128,19 @@ mod tests {
         assert_eq!(DIVISION_LAYER_NAME.id(), openpaint_app::DIVISION_LAYER);
         assert_eq!(LINES_LAYER_NAME.id(), openpaint_app::LINES_LAYER);
         assert_eq!(BLOCKS_LAYER_NAME.id(), openpaint_app::BLOCKS_LAYER);
+    }
+
+    #[test]
+    fn official_packs_are_named_in_the_language_and_others_as_their_files() {
+        let zh = |id, title| pack_title(Language::Chinese, id, title);
+        assert_eq!(zh("openpaint-shapes", "Single shapes"), "单体图形");
+        assert_eq!(zh("openpaint-compositions", "Compositions"), "构图");
+        assert_eq!(
+            zh("openpaint-combinations", "Colour combinations"),
+            "色彩组合"
+        );
+        let en = pack_title(Language::English, "openpaint-compositions", "Old title");
+        assert_eq!(en, "Compositions");
+        assert_eq!(zh("someone-else", "Harbour studies"), "Harbour studies");
     }
 }

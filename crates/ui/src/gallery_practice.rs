@@ -275,7 +275,8 @@ fn packs(ui: &mut egui::Ui, today: &TodayProjection) -> Option<Tapped> {
                 chosen = Some(Tapped::Page(Page::Mine));
             }
         } else {
-            let line = t::pack_line(language, &pack.title, (pack.pictures, pack.outlines));
+            let title = t::pack_title(language, &pack.id, &pack.title);
+            let line = t::pack_line(language, title, (pack.pictures, pack.outlines));
             note(ui, Words::made(&line), false);
         }
     }
