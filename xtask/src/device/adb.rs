@@ -13,6 +13,10 @@ use crate::android::sdk_dir;
 /// The app on the tablet.
 pub const PACKAGE: &str = "dev.openpaint";
 
+/// The tablet's model as `adb devices -l` lists it (the Wacom MovinkPad 14): the device the
+/// chores talk to, whatever else is connected (a phone on wireless debugging).
+const TABLET_MODEL: &str = "model:DTHA140";
+
 /// Why a device command failed.
 #[derive(Debug)]
 pub enum DeviceError {
@@ -88,19 +92,30 @@ impl fmt::Display for DeviceError {
 
 pub type Result<T> = std::result::Result<T, DeviceError>;
 
-/// The SDK's adb.
+/// The SDK's adb, talking to the tablet alone.
 pub struct Adb {
     program: PathBuf,
+    /// The tablet's serial, given to every command (`-s`).
+    serial: String,
 }
 
 impl Adb {
-    /// adb from the Android SDK, with a device ready for commands.
+    /// adb from the Android SDK, with the tablet ready for commands.
     pub fn connected() -> Result<Self> {
         let sdk = sdk_dir().map_err(DeviceError::NoAdb)?;
         let program = sdk
             .join("platform-tools")
             .join(format!("adb{}", std::env::consts::EXE_SUFFIX));
-        let adb = Self { program };
+        let mut adb = Self {
+            program,
+            serial: String::new(),
+        };
+        let listed = adb.text(&["devices", "-l"])?;
+        adb.serial = tablet_serial(&listed)
+            .ok_or_else(|| {
+                DeviceError::NoDevice(format!("no {TABLET_MODEL} in: {}", listed.trim()))
+            })?
+            .to_owned();
         let state = adb.text(&["get-state"]).map_err(|error| match error {
             DeviceError::Failed { output, .. } => DeviceError::NoDevice(output),
             other => other,
@@ -177,8 +192,11 @@ impl Adb {
     }
 
     fn spawn(&self, args: &[&str], input: bool, command: &str) -> Result<Child> {
-        Command::new(&self.program)
-            .args(args)
+        let mut adb = Command::new(&self.program);
+        if !self.serial.is_empty() {
+            adb.args(["-s", &self.serial]);
+        }
+        adb.args(args)
             .stdin(if input { Stdio::piped() } else { Stdio::null() })
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -220,6 +238,16 @@ impl Adb {
     }
 }
 
+/// The serial of the tablet's line in `adb devices -l`, when it is there and ready.
+fn tablet_serial(listed: &str) -> Option<&str> {
+    listed.lines().find_map(|line| {
+        let mut words = line.split_whitespace();
+        let serial = words.next()?;
+        let ready = words.next() == Some("device");
+        (ready && words.any(|word| word == TABLET_MODEL)).then_some(serial)
+    })
+}
+
 /// Writes `bytes` to `path`, making its directory.
 pub fn write_file(path: &Path, bytes: &[u8]) -> Result<()> {
     let error = |error: std::io::Error| DeviceError::File {
@@ -247,4 +275,24 @@ fn drain(mut pipe: impl std::io::Read + Send + 'static) -> JoinHandle<Vec<u8>> {
         let _ = pipe.read_to_end(&mut bytes);
         bytes
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::tablet_serial;
+
+    #[test]
+    fn the_tablet_is_picked_beside_a_phone() {
+        let listed = "List of devices attached\n\
+            adb-ZA2._adb-tls-connect._tcp device product:fogo_g model:moto_g_5G___2024 device:fogo transport_id:3\n\
+            5il21u1003366          device product:Wacom_MovinkPad_14 model:DTHA140 device:Wacom_MovinkPad_14 transport_id:1\n";
+        assert_eq!(tablet_serial(listed), Some("5il21u1003366"));
+    }
+
+    #[test]
+    fn an_unauthorized_tablet_or_none_is_no_tablet() {
+        assert_eq!(tablet_serial("List of devices attached\n"), None);
+        let unauthorized = "5il21u1003366 unauthorized usb:1-1 transport_id:4\n";
+        assert_eq!(tablet_serial(unauthorized), None);
+    }
 }
