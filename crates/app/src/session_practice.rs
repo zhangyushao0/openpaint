@@ -73,7 +73,8 @@ impl Session {
     ///
     /// # Errors
     /// `Unavailable` off a practice sheet, for Compare with nothing to compare, the blue pen
-    /// before Compare, a fill but on a colour's frame (or of a hidden or locked layer, which the
+    /// before Compare, a pen the exercise does not offer, a long colour copy's own tools (it has
+    /// none, S104), a fill but on a colour's frame (or of a hidden or locked layer, which the
     /// notice says) and One more before the session is done; `Core` when the artwork refuses the
     /// fill.
     pub fn practise(&mut self, intent: PracticeIntent, now: u64) -> Result<(), AppError> {

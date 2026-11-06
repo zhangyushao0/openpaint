@@ -27,23 +27,11 @@ fn field(name: &str) -> String {
 fn the_built_in_brushes_are_listed_by_job() {
     let library = built_in();
     let names: Vec<_> = library.brushes().iter().map(|brush| brush.name()).collect();
-    assert_eq!(
-        names,
-        [
-            "Pencil",
-            "Ink Pen",
-            "Inker",
-            "Monoline",
-            "Hard Round",
-            "Soft Brush",
-            "Textured Round",
-            "Flat",
-            "Opaque Paint",
-            "Speckle"
-        ]
-    );
-    let [pencil, ink, _, _, _, soft, ..] = library.brushes() else {
-        panic!("ten brushes");
+    let by_job = "Pencil, Ink Pen, Inker, Monoline, Hard Paint, Hard Round, Soft Brush, \
+                  Textured Round, Flat, Opaque Paint, Speckle";
+    assert_eq!(names.join(", "), by_job);
+    let [pencil, ink, _, _, _, _, soft, ..] = library.brushes() else {
+        panic!("the built-in brushes");
     };
     assert_eq!(
         **ink.recipe(),

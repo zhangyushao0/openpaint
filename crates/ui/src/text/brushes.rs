@@ -80,8 +80,9 @@ texts! { BRUSH_NAMES;
     INK_PEN = "Ink Pen", "墨水笔";
     INKER = "Inker", "勾线笔";
     MONOLINE = "Monoline", "单线笔";
+    HARD_PAINT = "Hard Paint", "硬边颜料";
     HARD_ROUND = "Hard Round", "硬圆笔";
-    SOFT_BRUSH = "Soft Brush", "柔边笔刷";
+    SOFT_BRUSH = "Soft Brush", "柔边笔";
     FLAT_BRUSH = "Flat", "平头笔";
     OPAQUE_PAINT = "Opaque Paint", "不透明颜料";
     TEXTURED_ROUND = "Textured Round", "纹理圆笔";
@@ -89,11 +90,12 @@ texts! { BRUSH_NAMES;
 }
 
 /// The built-in brushes' names, as their files give them.
-pub(crate) const BUILT_IN: [Text; 10] = [
+pub(crate) const BUILT_IN: [Text; 11] = [
     PENCIL,
     INK_PEN,
     INKER,
     MONOLINE,
+    HARD_PAINT,
     HARD_ROUND,
     SOFT_BRUSH,
     FLAT_BRUSH,

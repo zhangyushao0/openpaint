@@ -57,16 +57,19 @@ impl BrushSet {
 pub const RECENT_BRUSHES: usize = 6;
 
 /// The set each built-in starts in, by its job; a built-in not listed starts in `ELSEWHERE`.
-const HOMES: [(&str, BrushSet); 10] = [
+/// Painting opens with V大's four (S104): Hard Paint for blocks, Hard Round for transitions, the
+/// Soft Brush as the airbrush, Textured Round for texture later.
+const HOMES: [(&str, BrushSet); 11] = [
     ("pencil", BrushSet::Sketching),
     ("ink-pen", BrushSet::Inking),
     ("inker", BrushSet::Inking),
     ("monoline", BrushSet::Inking),
+    ("hard-paint", BrushSet::Painting),
     ("hard-round", BrushSet::Painting),
     ("soft-brush", BrushSet::Painting),
+    ("textured-round", BrushSet::Painting),
     ("flat", BrushSet::Painting),
     ("opaque-paint", BrushSet::Painting),
-    ("textured-round", BrushSet::Texture),
     ("speckle", BrushSet::Texture),
 ];
 /// Where a brush goes that has no set of its own to go to: a copy whose source is gone.

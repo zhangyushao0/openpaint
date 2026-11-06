@@ -1,22 +1,21 @@
 //! The practice pens (S100), after V大's brushes: Big, Small and value masses' greys are the hard
 //! tip, a round hard edge at full opacity whose pressure sets only its size, a little; Soft is the
-//! airbrush as it was; Sketch and Draw the pencil and ink pen as they were. Each is a recipe of its
-//! own, never the toolbox's, so no edit of the user's reaches it. Each colour kind offers only what
-//! its work needs: a value scale none (its cells are filled), a long colour copy the hard tip at
-//! first beside the full interface until the toolbox's own brush, size or opacity is chosen. That
-//! a light stroke lays the colour picked exactly on the canvas is the runtime's GPU test.
+//! airbrush as it was; Sketch and Draw the pencil and ink pen as they were. No pen is the
+//! toolbox's brush, so no edit of the user's reaches it (the hard tip is Hard Paint's file, S104:
+//! `hard_paint.rs`). Each colour kind offers only what its work needs: a value scale none (its
+//! cells are filled). That a light stroke lays the colour picked exactly on the canvas is the
+//! runtime's GPU test.
 
 use std::sync::Arc;
 
 use openpaint_app::{
     BrushKey, BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Pen,
-    PracticeIntent, PracticeLog, PracticePens, Session, SheetView, StrokeIntent, Title, Toolbox,
-    Viewport, sheet_of,
+    PracticeIntent, PracticePens, Session, SheetView, StrokeIntent, Title, Toolbox, Viewport,
+    sheet_of,
 };
-use openpaint_core::{Artwork, CanvasSize, Color, Deposit, StrokeStyle, StrokeTool};
+use openpaint_core::{Artwork, CanvasSize, Color, Deposit, StrokeStyle};
 use openpaint_practice::{
-    Arrangement, Exercise, ItemRef, Kind, LineTier, Pack, PackItem, PictureKind, Plan, ScaleTone,
-    SessionRecord, Tier,
+    Arrangement, Exercise, Kind, LineTier, Pack, Plan, ScaleTone, SessionRecord,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -112,6 +111,7 @@ fn edited_toolbox() -> Toolbox {
         "soft-brush",
         "opaque-paint",
         "hard-round",
+        "hard-paint",
     ];
     let texts: Vec<(String, String)> = (keys.iter())
         .map(|key| ((*key).to_owned(), edited(key)))
@@ -119,7 +119,7 @@ fn edited_toolbox() -> Toolbox {
     let files: Vec<(&str, &str)> = (texts.iter())
         .map(|(key, text)| (key.as_str(), text.as_str()))
         .collect();
-    Toolbox::new(BrushLibrary::from_files(&files, "opaque-paint").expect("edited brushes"))
+    Toolbox::new(BrushLibrary::from_files(&files, "hard-paint").expect("edited brushes"))
 }
 
 /// A sheet of `exercises` (and `packs`) opened with `toolbox`'s brush, its How closed.
@@ -252,64 +252,4 @@ fn a_value_scale_is_filled_its_pen_only_taking_a_cell_in_hand() {
     practise(&mut session, PracticeIntent::AllTools(true));
     draw(&mut session, &[at, [at[0], at[1] + 6.0]], 0.5);
     assert!(last_stroke(&session).is_some(), "the brush paints");
-}
-
-fn vase_pack() -> Pack {
-    Pack {
-        id: "test-shapes".to_owned(),
-        title: "Test shapes".to_owned(),
-        items: vec![PackItem {
-            id: "vase".to_owned(),
-            kind: PictureKind::Shape,
-            tier: Tier::Medium,
-            size: [600, 800],
-            title: "Vase".to_owned(),
-            credit: None,
-            outline: None,
-            masses: None,
-        }],
-    }
-}
-
-#[test]
-fn a_long_copy_opens_on_the_hard_tip_beside_the_full_interface_until_a_brush_of_ones_own() {
-    let toolbox = Toolbox::new(BrushLibrary::built_in().expect("built-in brushes"));
-    let log = PracticeLog::new(Vec::new(), Vec::new(), vec![vase_pack()]);
-    let vase = ItemRef {
-        pack: "test-shapes".to_owned(),
-        item: "vase".to_owned(),
-    };
-    let (record, _) = log.begin_copy(&vase, 1, 2).expect("a picture");
-    let mut session = opened(record, &[vase_pack()], &toolbox);
-    let practice = session.projection().practice().cloned().expect("a sheet");
-    assert!(practice.all_tools, "the full interface");
-    let unit = practice.sheet.pairs[0].copy.unit() as f32;
-    let scale = unit / 400.0;
-    assert!((3.5..=4.5).contains(&scale), "a 1,600-pixel frame: {unit}");
-    assert_eq!(practice.pen, Some((Pen::Big, 64.0 * scale)), "the hard tip");
-    // A colour picked keeps it; a light stroke lays the hard tip at full opacity in it.
-    let brush = toolbox.style().expect("style");
-    let colour = Color::rgb(0.6, 0.2, 0.3).expect("colour");
-    let recoloured = StrokeStyle::new(Arc::clone(brush.recipe()), brush.size(), 1.0, colour);
-    session.set_brush(recoloured.expect("style"));
-    let at = middle(&session);
-    draw(&mut session, &[at, [at[0] + 60.0, at[1]]], 0.02);
-    let stroke = last_stroke(&session).expect("painted");
-    assert_eq!(stroke.recipe(), pens().style(Pen::Big).recipe());
-    assert_eq!((stroke.opacity(), stroke.color()), (1.0, colour));
-    // The toolbox's eraser erases and gives the pen back after; its own size takes over.
-    let erasing = brush.clone().with_tool(StrokeTool::Erase);
-    session.set_brush(erasing);
-    session.set_brush(brush.clone());
-    let pen = |session: &Session| session.projection().practice().and_then(|p| p.pen);
-    assert_eq!(pen(&session).map(|(pen, _)| pen), Some(Pen::Big));
-    let larger = StrokeStyle::new(Arc::clone(brush.recipe()), brush.size() * 2.0, 1.0, colour);
-    session.set_brush(larger.expect("style"));
-    assert_eq!(pen(&session), None, "the toolbox's own brush paints");
-    draw(&mut session, &[at, [at[0], at[1] + 60.0]], 0.5);
-    let own = last_stroke(&session).expect("painted");
-    assert_eq!(own.recipe(), brush.recipe());
-    // A pen tapped takes it back.
-    practise(&mut session, PracticeIntent::Pen(Pen::Small));
-    assert_eq!(pen(&session), Some((Pen::Small, 20.0 * scale)));
 }

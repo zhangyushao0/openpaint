@@ -6,7 +6,7 @@ use std::time::Instant;
 use openpaint_app::{
     Clipboard, ContactPhase, FillFailed, Intent, LiftFailed, PracticeIntent, PracticePens,
     SelectionIntent, Session, StrokeIntent, Title, ToolIntent, Toolbox, TransformJob, ViewMapping,
-    Viewport,
+    Viewport, copy_brush,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, Patch, RegionMask, StrokeTool};
 
@@ -89,17 +89,21 @@ pub(crate) struct Canvas {
 impl Canvas {
     /// `content` shown at fit (a practice sheet, given its session in `sheet`, on its shown
     /// pair in `viewport`); a blank artwork is the size of the area it fits in; strokes start
-    /// with the toolbox's brush and StreamLine. `None` while the area is empty. Later area
-    /// changes (rotation) refit the view, which is relative to fit, and never resize the canvas.
+    /// with the toolbox's brush and StreamLine, a long colour copy's with Hard Paint at a size for
+    /// its frame (S104). `None` while the area is empty. Later area changes (rotation) refit the
+    /// view, which is relative to fit, and never resize the canvas.
     pub(crate) fn open(
         core: &Core,
         (area, viewport): (&CanvasArea, &Viewport),
         content: &Content,
-        (toolbox, sheet): (&Toolbox, SheetOf),
+        (toolbox, sheet): (&mut Toolbox, SheetOf),
     ) -> Result<Option<Self>, RuntimeError> {
         let area = &area.fit;
         if area.size.contains(&0) {
             return Ok(None);
+        }
+        if let Some((key, size)) = sheet.as_ref().and_then(copy_brush) {
+            toolbox.paint_with(&key, size);
         }
         let brush = toolbox.style()?;
         let (mut session, title) = match (content, sheet) {

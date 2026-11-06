@@ -68,7 +68,7 @@ pub use crate::brush_edit::BrushChange;
 pub use crate::brush_fit::{EDITOR_TAPER, MIN_DENSITY, MIN_FLOW, MIN_SIZE};
 pub use crate::brush_knobs::{Axis, Dynamic, Knob, KnobRange, curve_top};
 pub use crate::brush_sets::{BrushSet, RECENT_BRUSHES};
-pub use crate::brushes::{Brush, BrushKey, BrushLibrary, SizeRange};
+pub use crate::brushes::{Brush, BrushKey, BrushLibrary, HARD_PAINT, SizeRange};
 pub use crate::clipboard::{Clipboard, ClipboardAction};
 pub use crate::edited_brush::EditedBrush;
 pub use crate::editor_state::{BrushChoice, BrushParts, BrushSetting, EditorState, StoredBrush};
@@ -105,7 +105,7 @@ pub use crate::practice::{
 pub use crate::practice_book::{BookProjection, BookRecord, LineRead, Mark, SheetRead};
 pub use crate::practice_layers::{BLOCKS_LAYER, DIVISION_DIMMED, DIVISION_LAYER, LINES_LAYER};
 pub use crate::practice_log::PracticeLog;
-pub use crate::practice_pens::{INK_DIAMETER, PracticePens, value_colour};
+pub use crate::practice_pens::{INK_DIAMETER, PracticePens, copy_brush, value_colour};
 pub use crate::practice_pictures::{
     FitJob, GROUND_SHOWN, MassesShown, PackShown, PictureImage, SHOWN_SIDE, SheetPicture,
 };

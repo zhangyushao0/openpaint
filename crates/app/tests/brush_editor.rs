@@ -189,7 +189,7 @@ fn the_library_round_trips_through_the_stored_toolbox() {
     });
     toolbox.dispatch_tool(&ToolIntent::Use(Tool::Smudge));
     let state = toolbox.state();
-    assert_eq!(state.library.len(), 11);
+    assert_eq!(state.library.len(), 12);
     let edited = state
         .library
         .iter()

@@ -7,7 +7,7 @@
 //! stays a guide) and hidden while compared, as the session lays them (`practice_layers.rs`).
 
 use openpaint_core::{Color, StrokeStyle, StrokeTool};
-use openpaint_practice::{FRAME, Family};
+use openpaint_practice::Family;
 
 use super::{PracticeSheet, unavailable};
 use crate::error::AppError;
@@ -62,35 +62,22 @@ impl PracticeSheet {
     }
 
     /// The style the next stroke takes instead of the toolbox's `brush`: the pen chosen, while
-    /// the exercise's own tools show (a long colour copy's while it is held, S100) and the toolbox
-    /// paints (its eraser, held or chosen, erases); a painting pen in `brush`'s colour, on a long
-    /// copy as large to its frame as to an exercise's. A colour is filled and a value scale's cell
-    /// filled, not painted.
+    /// the exercise's own tools show and the toolbox paints (its eraser, held or chosen, erases);
+    /// a painting pen in `brush`'s colour. A colour is filled and a value scale's cell filled, not
+    /// painted; a long colour copy shows the full interface only, so its toolbox's brush paints
+    /// (S104).
     pub(crate) fn pen_style(&self, brush: &StrokeStyle) -> Option<StrokeStyle> {
-        let index = self.current()?;
-        let family = self.family(index)?;
-        let own = !self.all_tools || (family == Family::Study && self.held);
+        let family = self.family(self.current()?)?;
         let offered = !matches!(family, Family::Colour | Family::Scale);
-        let scale = if self.record.is_project() {
-            (self.sheet.pairs[index].copy.unit() / FRAME) as f32
-        } else {
-            1.0
-        };
-        let pens = own && offered && brush.tool() == StrokeTool::Paint;
-        pens.then(|| self.pens.stroke(self.pen, brush.color(), scale))
-    }
-
-    /// The toolbox's own brush, size or opacity was chosen (S100): a long colour copy's pen gives
-    /// way to it while the full interface shows, until a pen is chosen again.
-    pub(crate) fn toolbox_chosen(&mut self) {
-        self.held = false;
+        let pens = !self.all_tools && offered && brush.tool() == StrokeTool::Paint;
+        pens.then(|| self.pens.stroke(self.pen, brush.color()))
     }
 
     /// The shown exercise is drawn or painted with `pen` from now on: a drawing pen for lines and
-    /// shapes (the blue one only once compared), a painting pen for a colour combination and a
-    /// long colour copy, a level's pen for a division, those, Draw or a painting pen for a whole
-    /// copy (S95, S96), a grey for value masses (S96); none for a colour or a value scale, which
-    /// are filled (S100).
+    /// shapes (the blue one only once compared), a painting pen for a colour combination, a
+    /// level's pen for a division, those, Draw or a painting pen for a whole copy (S95, S96), a
+    /// grey for value masses (S96); none for a colour or a value scale, which are filled (S100),
+    /// nor for a long colour copy, painted with the toolbox's own brushes (S104).
     pub(super) fn choose(&mut self, pen: Pen) -> Result<(), AppError> {
         let index = self
             .current()
@@ -101,7 +88,7 @@ impl PracticeSheet {
             Some(Family::Division) => level,
             Some(Family::WholeCopy) => level || pen == Pen::Draw || pen.paints(),
             Some(Family::ValueMasses) => valued,
-            Some(Family::Colour | Family::Scale) => false,
+            Some(Family::Colour | Family::Scale | Family::Study) => false,
             _ if self.drawn(index) => {
                 !pen.paints() && !level && !valued && (pen != Pen::Correct || compared)
             }
@@ -110,7 +97,6 @@ impl PracticeSheet {
         if !fits {
             return Err(unavailable(Availability::NothingLeft));
         }
-        self.held = true;
         self.pen = pen;
         if pen.paints() {
             self.painting = pen;

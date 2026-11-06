@@ -90,12 +90,13 @@ impl Screen {
     }
 
     /// Shows `content` on a canvas once the area is known, drawing with the toolbox's brush; a
-    /// practice sheet of `practice` opens as one, on a screen of `pixels_per_point`.
+    /// practice sheet of `practice` opens as one, on a screen of `pixels_per_point` (a long
+    /// colour copy choosing the toolbox's Hard Paint, S104).
     pub(crate) fn open(
         &mut self,
         core: &Core,
         (area, pixels_per_point): (Option<CanvasArea>, f32),
-        (toolbox, practice): (&Toolbox, &PracticeLog),
+        (toolbox, practice): (&mut Toolbox, &PracticeLog),
     ) -> Result<(), RuntimeError> {
         if let (Self::Opening(Some(content)), Some(area)) = (&*self, area) {
             let sheet = match content {

@@ -270,7 +270,7 @@ fn a_stored_brush_the_engine_refuses_falls_back_to_its_built_in() {
     assert_eq!((copy.name(), copy.recipe()), ("Inker copy", inker.recipe()));
     assert_eq!(
         reopened.library().brushes().len(),
-        11,
+        12,
         "the unknown key skipped"
     );
     let empty = EditorState {
@@ -279,5 +279,5 @@ fn a_stored_brush_the_engine_refuses_falls_back_to_its_built_in() {
     };
     let mut fresh = Toolbox::new(library);
     fresh.restore(&empty);
-    assert_eq!(fresh.library().brushes().len(), 10, "empty: the built-ins");
+    assert_eq!(fresh.library().brushes().len(), 11, "empty: the built-ins");
 }

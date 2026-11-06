@@ -9,12 +9,20 @@ use openpaint_core::{BrushRecipe, MAX_BRUSH_SIZE};
 
 use crate::recipe::{RecipeError, parse};
 
+/// Hard Paint's key (S104): V大's round hard tip for blocks, full opacity at any pressure.
+pub const HARD_PAINT: &str = "hard-paint";
+/// Hard Paint's file, the one definition of the hard tip: the toolbox's built-in and the
+/// practice's Big, Small and value masses' greys (`practice_pens.rs`).
+pub(crate) const HARD_PAINT_FILE: (&str, &str) =
+    (HARD_PAINT, include_str!("../brushes/hard-paint.toml"));
+
 /// The built-in brushes in picker order, by job (sketch, ink, line, paint, texture): key, file.
-const BUILT_IN: [(&str, &str); 10] = [
+const BUILT_IN: [(&str, &str); 11] = [
     ("pencil", include_str!("../brushes/pencil.toml")),
     ("ink-pen", include_str!("../brushes/ink-pen.toml")),
     ("inker", include_str!("../brushes/inker.toml")),
     ("monoline", include_str!("../brushes/monoline.toml")),
+    HARD_PAINT_FILE,
     ("hard-round", include_str!("../brushes/hard-round.toml")),
     ("soft-brush", include_str!("../brushes/soft-brush.toml")),
     (

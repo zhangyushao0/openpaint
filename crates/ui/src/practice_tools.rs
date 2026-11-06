@@ -5,7 +5,8 @@
 //!
 //! - All tools: a word after Gallery in the left island; while the full interface shows it
 //!   carries the ink pill and the usual islands and side bar are back (the toolbox's brush
-//!   draws).
+//!   draws). A long colour copy has no tools of its own and no All tools: it is painted in the
+//!   full interface with the toolbox's own brushes, opening on Hard Paint (S104).
 //! - A line, combined lines or a single shape: the pens, Sketch (a light pencil for marks and
 //!   construction lines) and Draw, and after Compare Correct (blue); under them Undo and Redo. A
 //!   division: its levels' pens, Main, Second, Third (S95); a whole copy those and Draw.
@@ -14,10 +15,9 @@
 //! - A colour combination: the wheel, Fill frame (the overall tone first) with Undo and Redo,
 //!   the painting pens Big, Small and Soft in the colour picked and the eyedropper (the copy may
 //!   be picked from); a value scale the wheel, Fill cell (the cell in hand, which the pen touching
-//!   a cell takes), Undo, Redo and the eyedropper, no pens (S100); a colour copy shown with its
-//!   own tools the wheel, Undo, Redo, the pens, and with the full interface its pens beside it.
-//!   While a painted copy is compared the wheel gives its room to the comparison's card, and
-//!   while How shows to its card (S92).
+//!   a cell takes), Undo, Redo and the eyedropper, no pens (S100). While a painted copy is
+//!   compared the wheel gives its room to the comparison's card, and while How shows to its card
+//!   (S92).
 
 use egui::Align;
 use openpaint_app::{
@@ -43,8 +43,12 @@ pub(crate) fn own_tools(projection: &SessionProjection) -> bool {
         .is_some_and(|practice| !practice.all_tools)
 }
 
-/// All tools, in the left island after Gallery.
+/// All tools, in the left island after Gallery; none on a long colour copy, which shows the full
+/// interface only (S104).
 pub(crate) fn all_tools(ui: &mut egui::Ui, practice: &PracticeProjection, taps: &mut Vec<Intent>) {
+    if practice.family == Some(Family::Study) {
+        return;
+    }
     choices(ui, "all tools", |ui, group| {
         let on = practice.all_tools;
         if text_choice(ui, group, t::ALL_TOOLS, on).clicked() {
@@ -67,16 +71,11 @@ pub(crate) fn exercise_tools(
     taps: &mut Vec<Intent>,
 ) -> Option<egui::Rect> {
     let practice = projection.practice()?;
-    let family = practice.family?;
-    let source = (Source::Within(Align::Center), UNDER_ISLANDS);
-    if practice.all_tools {
-        // A long colour copy's pens stay beside the full interface (S100): the one in hand
-        // ringed, none once the toolbox's own brush paints.
-        let copy = |ui: &mut egui::Ui| {
-            ui.horizontal(|ui| pens(ui, ("pens", &Pen::PAINTING), projection, taps));
-        };
-        return (family == Family::Study).then(|| card(ctx, "practice pens", source, copy).1);
+    if practice.current.is_none() || practice.all_tools {
+        return None;
     }
+    let source = (Source::Within(Align::Center), UNDER_ISLANDS);
+    let family = practice.family?;
     if family == Family::WholeCopy {
         let tools = |ui: &mut egui::Ui| whole_copy_tools(ui, projection, colors, taps);
         return Some(card(ctx, "practice pens", source, tools).1);
@@ -110,10 +109,10 @@ pub(crate) fn exercise_tools(
     Some(rect)
 }
 
-/// A colour's, a combination's, a value scale's or a colour copy's rows under the wheel: Fill
-/// frame or Fill cell with Undo and Redo, then the painting pens and the eyedropper (your own copy
-/// may be picked from, V大; the original only after Compare). A value scale's cells are filled,
-/// never painted (S100): no pens, the eyedropper beside Redo.
+/// A colour's, a combination's or a value scale's rows under the wheel: Fill frame or Fill cell
+/// with Undo and Redo, then the painting pens and the eyedropper (your own copy may be picked
+/// from, V大; the original only after Compare). A value scale's cells are filled, never painted
+/// (S100): no pens, the eyedropper beside Redo.
 fn colour_rows(
     ui: &mut egui::Ui,
     (family, brush): (Family, &BrushProjection),

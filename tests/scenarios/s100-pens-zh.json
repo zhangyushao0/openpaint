@@ -7,7 +7,7 @@
     "A value scale: its tools the wheel, Fill cell, Undo, Redo and the eyedropper (the ends can be picked); no pens: a cell is one flat value and Fill cell lays it. The pen touching the middle cell takes it in hand and paints nothing; a value picked and Fill cell fills that cell.",
     "Value masses: its How fills the frame with Middle first, the overall tone, then the darkest big masses with Dark, then the light ones with Light, then Compare. The tools Dark, Middle, Light, Fill frame, Undo, Redo. Middle and Fill frame, Dark pressed lightly down the tree's crown and Light lightly across the sky: each the grey it names, not a paler one. Compare: the answer's greys over mine; my light strokes read as their own greys (no hatching for a pale stroke).",
     "A whole copy in blocks: its How's paragraph names Fill frame for the overall tone, Big for the big blocks, Small for edges and small areas, Soft only where the picture's own edge or gradient is soft. A main line, then Big: the wheel and Fill frame; a light tone filled, Big pressed lightly for the hills, Small along the ridge.",
-    "The long colour copy: New copy…, Medium, the vase. Its How names the pens and when. The full interface shows, and beside my frame a card with Big, Small and Soft, Big ringed: the copy opens on the hard tip at full opacity, as large to its 1,600-pixel frame as Big is to an exercise's. A colour from the colour panel, a light stroke: the colour picked, solid. The side bar's size slider moved: my own brush from the toolbox paints now, no pen ringed; Small tapped: Small paints, ringed.",
+    "The long colour copy: New copy…, Medium, the vase. Since S104 it is painted in the full interface with the toolbox's own brushes and no card of pens: it opens on Hard Paint, the same hard tip, at 256 pixels, as large to its 1,600-pixel frame as Big is to an exercise's (s104-hard-paint walks it). A colour from the colour panel, a light stroke: the colour picked, solid, the same stroke as S100's.",
     "Undo and redo are as before; reopening a sheet keeps its strokes, each drawn with the recipe it was drawn with (a stroke keeps its recipe's snapshot, so strokes made with Opaque Paint before 1.18.0 look as they did).",
     "In Chinese (this file, s100-pens run as on a Chinese tablet): 大笔, 小笔, 柔边笔, 填满方框, 填满格子, the How cards' new steps; the steps and the canvas's hashes are s100-pens's.",
     "Not here: the author's hand on the tablet; V大's transition round (pressure on opacity) and textured tip, which no kind uses yet."
@@ -115,7 +115,7 @@
     { "tap": { "at": "Test vase" } },
     { "screenshot": { "name": "copy-how" } },
     { "tap": { "at": "Got it" } },
-    { "expect": { "shown": ["Actions", "Big", "Small", "Soft", "Brush size"], "absent": ["Next", "Fill frame"] } },
+    { "expect": { "shown": ["Actions", "Brush size"], "absent": ["All tools", "Big", "Small", "Soft", "Next", "Fill frame"] } },
     { "screenshot": { "name": "copy-opened" } },
     { "tap": { "at": "Colour" } },
     { "tap": { "at": { "on": "Colour wheel", "fraction": [0.54, 0.046] } } },
@@ -124,13 +124,6 @@
     { "stroke": { "points": [[1440, 1000, 0.02], [1540, 1010, 0.02], [1640, 1000, 0.02]] } },
     { "checkpoint": { "name": "copy-light-stroke", "canvas": "4fb7845d5c7b3345" } },
     { "screenshot": { "name": "copy-light-stroke-screen" } },
-    { "tap": { "at": { "on": "Brush size", "fraction": [0.5, 0.4] } } },
-    { "screenshot": { "name": "copy-own-brush" } },
-    { "stroke": { "points": [[1540, 680, 0.8], [1541, 760, 0.8], [1540, 840, 0.8]] } },
-    { "tap": { "at": "Small" } },
-    { "stroke": { "points": [[1480, 1240, 0.5], [1600, 1240, 0.5]] } },
-    { "checkpoint": { "name": "copy-own-brush-and-small", "canvas": "b64629005aa83f59" } },
-    { "screenshot": { "name": "copy-small" } },
     { "tap": { "at": "Gallery" } }
   ]
 }

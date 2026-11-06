@@ -10,30 +10,32 @@
 //! a hard edge, the colour picked at full strength at any pressure (pressure sets only its size, a
 //! little), for blocks: Big for the big ones, Small for edges and small areas; Soft is the
 //! airbrush, only where the picture's own edge or gradient is soft. Value masses' Dark, Middle and
-//! Light (S96) are the hard tip in their three greys, a size for big masses. On a long colour copy
-//! the painting pens are as large to its frame as they are to an exercise's.
+//! Light (S96) are the hard tip in their three greys, a size for big masses.
 //!
-//! Every pen is a recipe of its own (`app/pens/`), never one of the toolbox's built-ins: neither a
-//! user's brush edits nor a retuned built-in reaches them, and a stroke keeps its recipe's
-//! snapshot, so strokes drawn before draw as they did. The toolbox is not touched.
+//! No pen is the toolbox's brush: a user's brush edits never reach them, and a stroke keeps its
+//! recipe's snapshot, so strokes drawn before draw as they did. The hard tip is the toolbox's
+//! Hard Paint file (S104), one definition, so the practice and the toolbox paint blocks alike; the
+//! others are files of their own (`app/pens/`). A long colour copy is painted with the toolbox's
+//! own brushes, opening on Hard Paint at a size for its frame (`copy_brush`).
 
 use std::sync::Arc;
 
 use openpaint_core::{Color, CoreError, MAX_BRUSH_SIZE, StrokeStyle};
 use openpaint_practice::{FRAME, Level, VALUE_PEN, Value};
 
-use crate::brushes::{BrushKey, BrushLibrary};
+use crate::brushes::{BrushKey, BrushLibrary, HARD_PAINT, HARD_PAINT_FILE};
 use crate::practice::Pen;
+use crate::practice_sheet::Practising;
 
 /// The Draw and Correct pens' diameter, canvas pixels: Compare lays the original's lines over the
 /// copy as thick (S88), so an error of a pen's width shows.
 pub const INK_DIAMETER: f32 = 5.0;
 
-/// The pens' recipes: files of their own, compiled into the app.
+/// The pens' recipes, compiled into the app: the hard tip Hard Paint's file, the others their own.
 const RECIPES: [(&str, &str); 4] = [
     ("sketch", include_str!("../pens/sketch.toml")),
     ("ink", include_str!("../pens/ink.toml")),
-    ("hard-tip", include_str!("../pens/hard-tip.toml")),
+    HARD_PAINT_FILE,
     ("soft-tip", include_str!("../pens/soft-tip.toml")),
 ];
 
@@ -42,12 +44,24 @@ const RECIPES: [(&str, &str); 4] = [
 const SKETCH: (&str, f32, f32, [f32; 3]) = ("sketch", 4.0, 0.6, [0.48, 0.46, 0.43]);
 const DRAW: (&str, f32, f32, [f32; 3]) = ("ink", INK_DIAMETER, 1.0, [0.149, 0.145, 0.137]);
 const CORRECT: (&str, f32, f32, [f32; 3]) = ("ink", INK_DIAMETER, 1.0, [0.12, 0.33, 0.80]);
-const BIG: (&str, f32, f32, [f32; 3]) = ("hard-tip", 64.0, 1.0, [0.5; 3]);
-const SMALL: (&str, f32, f32, [f32; 3]) = ("hard-tip", 20.0, 1.0, [0.5; 3]);
+const BIG: (&str, f32, f32, [f32; 3]) = (HARD_PAINT, 64.0, 1.0, [0.5; 3]);
+const SMALL: (&str, f32, f32, [f32; 3]) = (HARD_PAINT, 20.0, 1.0, [0.5; 3]);
 const SOFT: (&str, f32, f32, [f32; 3]) = ("soft-tip", 100.0, 0.8, [0.5; 3]);
 /// Value masses' pens: the hard tip in each value's grey, as wide as Compare's tolerance
 /// (`VALUE_PEN` of a frame: 24 pixels), big for masses.
-const VALUE: (&str, f32, f32) = ("hard-tip", (VALUE_PEN * FRAME) as f32, 1.0);
+const VALUE: (&str, f32, f32) = (HARD_PAINT, (VALUE_PEN * FRAME) as f32, 1.0);
+
+/// What a long colour copy opens on (S104): the toolbox's Hard Paint, as large to the copy's frame
+/// as Big is to an exercise's (256 pixels on its 1,600-pixel frame); none on any other sheet. The
+/// copy is painted with the app's own brushes, one way of painting, so its hand starts with the
+/// big blocks.
+#[must_use]
+pub fn copy_brush((record, _, sheet, _): &Practising) -> Option<(BrushKey, f32)> {
+    let frame = sheet.pairs.first().filter(|_| record.is_project())?.copy;
+    let (_, big, _, _) = BIG;
+    let size = (big * (frame.unit() / FRAME) as f32).min(MAX_BRUSH_SIZE);
+    Some((BrushKey::new(HARD_PAINT), size))
+}
 
 /// The pens' styles.
 #[derive(Debug, Clone, PartialEq)]
@@ -142,16 +156,15 @@ impl PracticePens {
         }
     }
 
-    /// `pen`'s style for the next stroke, a painting pen in `colour` and `scale` times its size (a
-    /// long colour copy's frame against an exercise's).
-    pub(crate) fn stroke(&self, pen: Pen, colour: Color, scale: f32) -> StrokeStyle {
+    /// `pen`'s style for the next stroke, a painting pen in `colour`.
+    pub(crate) fn stroke(&self, pen: Pen, colour: Color) -> StrokeStyle {
         let style = self.style(pen);
         if !pen.paints() {
             return style.clone();
         }
         let recipe = Arc::clone(style.recipe());
-        let size = (style.size() * scale).min(MAX_BRUSH_SIZE);
-        StrokeStyle::new(recipe, size, style.opacity(), colour).unwrap_or_else(|_| style.clone())
+        StrokeStyle::new(recipe, style.size(), style.opacity(), colour)
+            .unwrap_or_else(|_| style.clone())
     }
 }
 

@@ -21,7 +21,7 @@ mod sample;
 use std::path::Path;
 
 use common::{TestDir, records, untitled, write_records};
-use openpaint_app::{PortError, ProjectStore, Title};
+use openpaint_app::{BrushLibrary, BrushSet, PortError, ProjectStore, Title, Toolbox};
 use openpaint_core::Artwork;
 use openpaint_store::{FORMAT, Library};
 use sample::{
@@ -179,4 +179,37 @@ fn an_empty_library_is_made_format_1() {
     let made = records(&dir);
     let format = ("library".to_owned(), b"format".to_vec(), vec![1, 0, 0, 0]);
     assert_eq!(made, [format]);
+}
+
+#[test]
+fn the_sample_s_toolbox_from_before_hard_paint_gets_it_first_in_painting() {
+    // The frozen toolbox predates Hard Paint (S104). The record holds built-ins by key and a
+    // brush in no stored set goes where a first start puts it (D74), so the bytes as they are
+    // give it: no upgrade step, the arrangement kept (Textured Round where it was stored).
+    let frozen = decode(&std::fs::read(sample_path()).expect("the sample"));
+    let dir = TestDir::new("sample-toolbox");
+    write_records(&dir, &frozen);
+    let state = Library::at(&dir)
+        .editor()
+        .expect("read")
+        .expect("a toolbox");
+    let mut toolbox = Toolbox::new(BrushLibrary::built_in().expect("built-in brushes"));
+    toolbox.restore(&state);
+    assert!(toolbox.dropped().is_empty());
+    let names = |set: BrushSet| -> Vec<String> {
+        let brush = toolbox.projection();
+        brush.rows(set).iter().map(|row| row.name.clone()).collect()
+    };
+    assert_eq!(
+        names(BrushSet::Painting),
+        [
+            "Hard Paint",
+            "Speckle",
+            "Hard Round",
+            "Soft Brush",
+            "Flat",
+            "Opaque Paint"
+        ]
+    );
+    assert_eq!(names(BrushSet::Texture), ["Textured Round"]);
 }

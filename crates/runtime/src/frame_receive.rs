@@ -74,7 +74,7 @@ impl Runtime {
     /// Opens a canvas that is ready.
     pub(super) fn open_canvas(&mut self) -> Result<(), RuntimeError> {
         let area = (self.shell.canvas_area(), self.pixels_per_point);
-        let app = (&self.toolbox, &self.practice);
+        let app = (&mut self.toolbox, &self.practice);
         self.screen.open(&self.core, area, app)
     }
 }

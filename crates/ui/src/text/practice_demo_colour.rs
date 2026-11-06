@@ -2,7 +2,8 @@
 //! a colour's hue first, then its lightness and purity, pick once by eye and correct two or
 //! three times; squint for the overall tone and cover the frame first, the big areas by colour,
 //! each against its neighbours, weak contrasts kept weak), and the colour copy's, which has no
-//! demonstration. In his terms: 色相, 明度, 纯度, 更亮/更暗, 更纯/更灰, 眯眼, 色调, 弱对比, 明度推移.
+//! demonstration and names his four brushes, the toolbox's (S104). In his terms: 色相, 明度,
+//! 纯度, 更亮/更暗, 更纯/更灰, 眯眼, 色调, 弱对比, 明度推移.
 //! A value scale's steps name the cells of the row in hand (S97's review): of five the 3rd, then
 //! the 2nd and 4th; of nine the 5th, the 3rd and 7th, then the rest.
 
@@ -92,11 +93,13 @@ pub(crate) const SCALE: How = How {
     steps: &[COMPARE_STEP],
     says: &[SCALE_SAYS],
 };
+/// A long colour copy's How names V大's four brushes, the toolbox's own (S104), and when to take
+/// each, then his order of work with them.
 pub(crate) const STUDY: How = How {
     heading: super::STUDY_EXERCISE,
     trains: None,
     steps: &[],
-    says: &[STUDY_1, STUDY_2, STUDY_3, STUDY_4],
+    says: &[STUDY_1, STUDY_BRUSHES, STUDY_2, STUDY_3, STUDY_4],
 };
 
 texts! { PRACTICE_DEMO_COLOUR;
@@ -138,12 +141,16 @@ texts! { PRACTICE_DEMO_COLOUR;
     STUDY_1 = "Copy the picture in colour into the empty frame beside it, over as many sittings as \
         you like: about 10 to 20 hours in all. It never counts as a session.",
         "把这张图用颜色临摹到旁边的空白框里，分多次画完，总共约 10 到 20 小时。它不算在练习次数里。";
-    STUDY_2 = "Squint for the overall tone and cover the frame first with Big; then the middle \
-        tones, by colour, still with Big; then the hierarchy and the detail with Small. Soft only \
-        where the picture's own edge or gradient is soft. These three lay the colour you picked \
-        however lightly you press; a brush, size or opacity of your own chosen in the full \
-        interface takes over until you tap one of them again.",
-        "眯眼看整体色调，先用大笔铺满整个框；再按颜色分中间调，仍用大笔；最后用小笔画层次和细节。柔边笔只用在原图边缘或渐变柔和的地方。这三支笔不管压感轻重，画出的都是选中的颜色；在完整界面里另选画笔、大小或不透明度，就改用你自己的笔，再点这三支中的一支就换回来。";
+    STUDY_BRUSHES = "Paint with V大's four brushes, in the Painting set. Hard Paint for blocks: \
+        it lays the colour you picked however lightly you press. Hard Round for transitions: \
+        pressed lightly it lays a thin layer, so two colours turn into each other. Soft Brush, \
+        the airbrush, only where the picture's own edge or gradient is soft. Textured Round for \
+        texture, later, once the colours are right.",
+        "用“绘画”组里 V大 的四支笔。硬边颜料画色块：不管压感轻重，画出的都是选中的颜色。硬圆笔画过渡：轻压时颜色薄，两块颜色就能自然衔接。柔边笔是喷枪，只用在原图边缘或渐变柔和的地方。纹理圆笔画质感，等颜色都对了以后再用。";
+    STUDY_2 = "Squint for the overall tone and cover the frame first with Hard Paint, large; then \
+        the middle tones, by colour, still with Hard Paint; then, smaller, the hierarchy and the \
+        detail.",
+        "眯眼看整体色调，先把硬边颜料调大，铺满整个框；再按颜色分中间调，仍用硬边颜料；最后把笔调小，画层次和细节。";
     STUDY_3 = "Bring every part to the same finish; zoom in and work a part as if it were the \
         whole picture. Keep weak contrasts weak.",
         "各处的完成度要一致；放大画局部时，把局部当成一张完整的画。弱对比要保持弱。";

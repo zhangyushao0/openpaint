@@ -38,11 +38,19 @@ fn a_first_start_puts_every_built_in_in_the_set_of_its_job() {
         (BrushSet::Recent, vec![]),
         (BrushSet::Sketching, vec!["Pencil"]),
         (BrushSet::Inking, vec!["Ink Pen", "Inker", "Monoline"]),
+        // V大's four first (S104): Hard Paint, Hard Round, the airbrush, Textured Round.
         (
             BrushSet::Painting,
-            vec!["Hard Round", "Soft Brush", "Flat", "Opaque Paint"],
+            vec![
+                "Hard Paint",
+                "Hard Round",
+                "Soft Brush",
+                "Textured Round",
+                "Flat",
+                "Opaque Paint",
+            ],
         ),
-        (BrushSet::Texture, vec!["Textured Round", "Speckle"]),
+        (BrushSet::Texture, vec!["Speckle"]),
     ];
     let expected: Vec<(BrushSet, Vec<String>)> = expected
         .into_iter()
@@ -78,7 +86,7 @@ fn a_copy_lies_right_after_its_source_and_leaves_with_its_deletion() {
     toolbox.dispatch(&BrushIntent::MoveToSet(BrushSet::Painting));
     toolbox.dispatch(&BrushIntent::Reorder {
         key: key("speckle"),
-        to: 1,
+        to: 2,
     });
     toolbox.dispatch(&BrushIntent::Duplicate);
     let copy = toolbox.projection();
@@ -86,10 +94,12 @@ fn a_copy_lies_right_after_its_source_and_leaves_with_its_deletion() {
     assert_eq!(
         listed(&toolbox, BrushSet::Painting),
         [
+            "Hard Paint",
             "Hard Round",
             "Speckle",
             "Speckle copy",
             "Soft Brush",
+            "Textured Round",
             "Flat",
             "Opaque Paint"
         ]
@@ -214,30 +224,37 @@ fn a_carried_row_lands_where_it_is_let_go_and_where_it_was_changes_nothing() {
             to,
         });
     };
-    reorder(&mut toolbox, "soft-brush", 1);
+    reorder(&mut toolbox, "soft-brush", 2);
     assert_eq!(toolbox.save_request(), None, "where it was: nothing");
     reorder(&mut toolbox, "opaque-paint", 0);
+    let painting = [
+        "Hard Paint",
+        "Hard Round",
+        "Soft Brush",
+        "Textured Round",
+        "Flat",
+    ];
     assert_eq!(
         listed(&toolbox, BrushSet::Painting),
-        ["Opaque Paint", "Hard Round", "Soft Brush", "Flat"]
+        [&["Opaque Paint"][..], &painting].concat()
     );
     assert!(toolbox.save_request().is_some(), "stored");
     reorder(&mut toolbox, "opaque-paint", 99);
     assert_eq!(
         listed(&toolbox, BrushSet::Painting),
-        ["Hard Round", "Soft Brush", "Flat", "Opaque Paint"],
+        [&painting[..], &["Opaque Paint"]].concat(),
         "past the end: last"
     );
-    reorder(&mut toolbox, "speckle", 0);
+    reorder(&mut toolbox, "monoline", 0);
     assert_eq!(
-        listed(&toolbox, BrushSet::Texture),
-        ["Speckle", "Textured Round"],
+        listed(&toolbox, BrushSet::Inking),
+        ["Monoline", "Ink Pen", "Inker"],
         "within its own set"
     );
     reorder(&mut toolbox, "charcoal", 0);
     assert_eq!(
         listed(&toolbox, BrushSet::Inking),
-        ["Ink Pen", "Inker", "Monoline"]
+        ["Monoline", "Ink Pen", "Inker"]
     );
     assert_eq!(toolbox.projection().current, key("ink-pen"), "still chosen");
 }
@@ -257,7 +274,10 @@ fn the_set_row_moves_the_brush_to_the_end_of_another_set_and_it_stays_chosen() {
         (brush.current, brush.set),
         (key("speckle"), BrushSet::Painting)
     );
-    assert_eq!(listed(&toolbox, BrushSet::Texture), ["Textured Round"]);
+    assert!(
+        listed(&toolbox, BrushSet::Texture).is_empty(),
+        "a set emptied lists nothing"
+    );
     assert_eq!(
         listed(&toolbox, BrushSet::Painting)
             .last()

@@ -317,9 +317,9 @@ fn copy_opened() -> (PracticeLog, SessionRecord, Session, Pair) {
     let mut session = opened(record.clone(), &[pack()]);
     let projection = session.projection();
     let practice = projection.practice().expect("a sheet");
-    // The full interface, opening on the hard tip as large to its frame as to an exercise's (S100).
+    // The full interface only, painted with the toolbox's own brushes: no pen (S104).
     assert!(practice.all_tools, "the full interface");
-    assert_eq!(practice.pen, Some((Pen::Big, 256.0)));
+    assert_eq!(practice.pen, None);
     assert_eq!(practice.instructions, Some(Family::Study));
     let pair = practice.sheet.pairs[0];
     assert_eq!(pair.copy.size, [1600.0, 1200.0]);

@@ -1,7 +1,8 @@
 //! The toolbox's brush intents: choosing a brush and setting its size, opacity and StreamLine
 //! for the tool the pen uses now, and the brush editor's: a setting of the brush,
 //! its name, a copy, Reset and Delete. Editing a brush changes it for every tool from the next
-//! stroke on; strokes already drawn keep their recipes, and nothing is a history step.
+//! stroke on; strokes already drawn keep their recipes, and nothing is a history step. A long
+//! colour copy chooses its brush as the hand would (`paint_with`).
 
 use crate::brush_edit::{BrushChange, edited};
 use crate::brushes::{BrushKey, SizeRange};
@@ -49,6 +50,22 @@ impl Toolbox {
             BrushIntent::Reorder { key, to } => self.reorder(key, *to),
             BrushIntent::MoveToSet(set) => self.move_to_set(tool, *set),
         }
+    }
+
+    /// The brush tool chosen, painting with the brush `key` at `size` (held inside its range), as
+    /// the hand would choose them: a long colour copy opens on Hard Paint at a size for its frame
+    /// (S104). A key the library does not hold changes nothing.
+    pub fn paint_with(&mut self, key: &BrushKey, size: f32) {
+        let Some(brush) = self.library.brush(key) else {
+            return;
+        };
+        let mut values = self.setting(Tool::Brush, brush);
+        values[SIZE] = brush.size().clamp(size);
+        let set = &mut self.sets[Tool::Brush.index()];
+        self.unsaved |= set.current != *key || set.settings.get(key) != Some(&values);
+        set.current = key.clone();
+        set.settings.insert(key.clone(), values);
+        self.choose(Tool::Brush);
     }
 
     /// One of the tool's settings of its brush.

@@ -7,8 +7,8 @@
 //! `practice_view.rs`; after the last the session ends over the whole sheet), the instructions
 //! (by themselves the first time a family comes up), the summary and the notices; the session's
 //! pictures as the store reads them. A long colour copy is a sheet of one pair, the full
-//! interface showing at first and no Next. The session record changes here and goes to the store
-//! whenever it did (`save_request`).
+//! interface always showing (painted with the toolbox's own brushes, S104) and no Next. The
+//! session record changes here and goes to the store whenever it did (`save_request`).
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -73,10 +73,9 @@ pub(crate) struct PracticeSheet {
     aligned: bool,
     /// A compared geometric answer's construction shows (S97, S98); each Compare starts without it.
     construction: bool,
-    /// The full interface shows, else the exercise's own tools; a long colour copy's pen paints
-    /// there too until the toolbox's brush, size or opacity is chosen (`held`, S100).
+    /// The full interface shows, else the exercise's own tools; a long colour copy's always
+    /// (S104: painted with the toolbox's own brushes).
     all_tools: bool,
-    held: bool,
     /// The pen the exercise draws or paints with now, the last of Sketch and Draw chosen, the
     /// last painting pen chosen, the last division's pen chosen (S95) and value masses' last
     /// grey chosen (S96).
@@ -133,7 +132,6 @@ impl PracticeSheet {
         let mut practice = Self {
             told: Family::ALL.map(done),
             all_tools: record.is_project(),
-            held: true,
             hidden: true,
             time_saved: seconds(&record.time),
             others,
@@ -307,7 +305,13 @@ impl PracticeSheet {
             PracticeIntent::Shown(share) => self.painting_state.shown = share.clamp(0.0, 1.0),
             PracticeIntent::Area(area) => self.choose_area(area)?,
             PracticeIntent::Pen(pen) => self.choose(pen)?,
-            PracticeIntent::AllTools(on) => self.all_tools = on,
+            PracticeIntent::AllTools(on) => {
+                // A long colour copy has no tools of its own (S104).
+                if !on && self.record.is_project() {
+                    return Err(unavailable(Availability::NothingLeft));
+                }
+                self.all_tools = on;
+            }
             PracticeIntent::Next(viewport) => self.next(view, &viewport, now)?,
             PracticeIntent::OneMore => {
                 if self.current().is_some() {
