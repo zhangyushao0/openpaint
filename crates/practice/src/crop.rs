@@ -171,6 +171,15 @@ pub fn cut(picture: [u32; 2], rgba: &[u8], at: [u32; 2], size: [u32; 2]) -> Vec<
 /// Every candidate crop of the picture `rgba` (`size` pixels) at `places`, with its areas found.
 #[must_use]
 pub fn candidates(size: [u32; 2], rgba: &[u8], places: Places) -> Vec<Crop> {
+    (rectangles(size, places).into_iter())
+        .map(|(at, crop)| candidate(size, rgba, (at, crop)))
+        .collect()
+}
+
+/// Where the candidate crops of a picture of `size` lie at `places`, in `candidates`' order: each
+/// one's top left corner and size (so a builder may find their areas side by side).
+#[must_use]
+pub fn rectangles(size: [u32; 2], places: Places) -> Vec<([u32; 2], [u32; 2])> {
     let shorter = f64::from(size[0].min(size[1]));
     let mut found = Vec::new();
     for side in SIDES {
@@ -185,18 +194,26 @@ pub fn candidates(size: [u32; 2], rgba: &[u8], places: Places) -> Vec<Crop> {
             if w.max(h) < LEAST_LONGER || w > size[0] || h > size[1] {
                 continue;
             }
-            for at in spots(size, [w, h], places) {
-                let pixels = cut(size, rgba, at, [w, h]);
-                let crop = Crop {
-                    at,
-                    size: [w, h],
-                    found: Areas::found([w, h], &pixels),
-                };
-                found.push(crop);
-            }
+            found.extend(
+                spots(size, [w, h], places)
+                    .into_iter()
+                    .map(|at| (at, [w, h])),
+            );
         }
     }
     found
+}
+
+/// The candidate crop of the picture `rgba` (`size` pixels) at `at` of `crop` pixels, its areas
+/// found.
+#[must_use]
+pub fn candidate(size: [u32; 2], rgba: &[u8], (at, crop): ([u32; 2], [u32; 2])) -> Crop {
+    let pixels = cut(size, rgba, at, crop);
+    Crop {
+        at,
+        size: crop,
+        found: Areas::found(crop, &pixels),
+    }
 }
 
 /// Where a crop of `crop` pixels lies in a picture of `size` at `places`: its top left corners.

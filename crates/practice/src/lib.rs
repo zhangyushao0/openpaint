@@ -100,7 +100,7 @@ pub use colour_match::{ColourCopy, ColourScore, Lightness, Purity, Tone, score_c
 pub use combined::{Combination, CombinedLines};
 pub use crop::{
     BUSIEST, Crop, CropRefusal, DISTINCT, FEWEST_AREAS, GREYISH, LEAST_LONGER, Places, best,
-    candidates, cut, refusal, tier_of,
+    candidate, candidates, cut, rectangles, refusal, tier_of,
 };
 pub use demo::{Demo, Drawn, Layout, Mark, Marker, On, WIDE_REACH};
 pub use division::{

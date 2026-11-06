@@ -37,7 +37,7 @@ const ANSWER: &str = r#"{"query": {"pages": [{"title": "File:Test rust.png", "te
 
 /// Rust: four patches meeting at a point left of the middle and four right of it, two browns a
 /// weak contrast apart, a grey and a blue grey; large enough for crops of `LEAST_LONGER` (S101b).
-fn rust() -> Vec<u8> {
+pub(super) fn rust() -> Vec<u8> {
     let size = [2800, 1400];
     let pixels: Vec<u8> = (0..size[0] * size[1])
         .flat_map(|at| {
@@ -70,7 +70,7 @@ fn cache() -> Scratch {
     dir
 }
 
-fn no_segment(_: [u32; 2], _: &[u8]) -> Result<openpaint_practice::Matte, HarnessError> {
+pub(super) fn no_segment(_: [u32; 2], _: &[u8]) -> Result<openpaint_practice::Matte, HarnessError> {
     Err(HarnessError::Missing("no outline is derived for a crop"))
 }
 

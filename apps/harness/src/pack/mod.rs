@@ -15,6 +15,7 @@ mod commons;
 mod crops;
 mod fetch;
 mod full;
+mod libraries;
 mod list;
 mod nga;
 mod rijks;
@@ -26,6 +27,8 @@ mod sources;
 mod tests;
 #[cfg(test)]
 mod tests_crops;
+#[cfg(test)]
+mod tests_libraries;
 #[cfg(test)]
 mod tests_sources;
 

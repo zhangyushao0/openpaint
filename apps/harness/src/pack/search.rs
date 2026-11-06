@@ -34,7 +34,7 @@ pub fn run(fetcher: &Fetcher, source: Source, query: &str, count: u32) -> Result
         Source::Cleveland => cleveland(fetcher, query, count)?,
         Source::Met => met(fetcher, query, count)?,
         Source::Commons => commons(fetcher, query, count)?,
-        Source::Aic | Source::Nga | Source::Rijks => {
+        Source::Aic | Source::Nga | Source::Rijks | Source::AmbientCg | Source::PolyHaven => {
             return Err(HarnessError::Missing(
                 "search takes cleveland, met or commons; the others' items are found on their \
                  sites and checked by the build",

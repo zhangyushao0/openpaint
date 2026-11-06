@@ -9,10 +9,12 @@
 //! - `source`: `cleveland` (the Cleveland Museum of Art's Open Access API), `met` (the
 //!   Metropolitan Museum of Art's Collection API), `aic` (the Art Institute of Chicago's API),
 //!   `nga` (the National Gallery of Art's open data), `rijks` (the Rijksmuseum's Linked Art
-//!   API) or `commons` (Wikimedia Commons' API);
+//!   API), `commons` (Wikimedia Commons' API), `ambientcg` or `polyhaven` (the two CC0 texture
+//!   libraries' APIs, S101c: a material's colour map, only ever cropped);
 //! - `object`: what the source knows it by: Cleveland's accession number, the Met's, the Art
 //!   Institute's or the National Gallery's object id, the Rijksmuseum's object number, a Commons
-//!   file's title (`File:…`);
+//!   file's title (`File:…`), an ambientCG asset id (`PaintedMetal006`), a Poly Haven asset id
+//!   (`rusty_metal_02`);
 //! - `at` (a Commons video only): the second of the frame taken, as a still;
 //! - `licence`: the licence the API must state (`CC0`, `PD-US-gov`, `PD-old`, `CC BY 4.0`, …);
 //! - `reason`: why it is in its tier, which the pack keeps as the item's notes;
@@ -42,16 +44,20 @@ pub enum Source {
     Nga,
     Rijks,
     Commons,
+    AmbientCg,
+    PolyHaven,
 }
 
 impl Source {
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 8] = [
         Self::Cleveland,
         Self::Met,
         Self::Aic,
         Self::Nga,
         Self::Rijks,
         Self::Commons,
+        Self::AmbientCg,
+        Self::PolyHaven,
     ];
 
     pub const fn name(self) -> &'static str {
@@ -62,6 +68,8 @@ impl Source {
             Self::Nga => "nga",
             Self::Rijks => "rijks",
             Self::Commons => "commons",
+            Self::AmbientCg => "ambientcg",
+            Self::PolyHaven => "polyhaven",
         }
     }
 
@@ -208,6 +216,10 @@ fn listed(kind: PictureKind, item: WrittenItem) -> Result<Listed, HarnessError> 
     }
     let no_crop = no_crop(kind, &item.no_crop).map_err(|what| wrong(&what))?;
     let source = Source::of_name(&item.source).ok_or_else(|| wrong("no such source"))?;
+    let library = matches!(source, Source::AmbientCg | Source::PolyHaven);
+    if library && kind != PictureKind::Crop {
+        return Err(wrong("a texture library's colour map is only ever cropped"));
+    }
     match item.at {
         Some(_) if source != Source::Commons => return Err(wrong("a frame comes from Commons")),
         Some(at) if !(at >= 0.0 && at.is_finite()) => return Err(wrong("its frame's second")),

@@ -1,0 +1,831 @@
+# The colour combinations pack (S101, named so in S101c): pictures only ever cropped, every crop
+# of colour combinations but the composition pack's corners. V大's 色彩组合 copies a corner of an
+# abstract oil painting or of a rusted old thing, never a concrete object: each picture gives its
+# best two crops of three to seven areas of distinct colour, some low in saturation, at least one
+# weak contrast between neighbours (`openpaint_practice::crop`), each crop an item of the pack
+# with its areas, cut from the picture's full pixels (at most 4,096) and 768 to 1,024 pixels long.
+# Built by `cargo practice-pack build apps/harness/packs/combinations.toml --sheet`; the crops are
+# judged on the crops' sheets (`openpaint-combinations-crops-<n>.png`, each beside its areas, its
+# weak contrasts red), and one that shows a recognisable object or whose areas do not read is
+# listed out on its picture's item with why: `no_crop.2 = "a bolt's head"`. The format is in
+# apps/harness/src/pack/list.rs. No picture is kept here: each item names its object at its
+# source, which states its licence (Commons' `License`, the museums' public-domain fields), or
+# dedicates every asset to CC0 (the texture libraries, `libraries.rs`).
+#
+# Four sources:
+# - CC0 photographs on Commons (S101): rust, peeling paint and torn posters, from Commons' CC0
+#   texture series; of 87 tried, these give crops. A photograph under about 1,400 pixels on its
+#   shorter side gives none (S101b). Left out: objects (rivets, bolts, gears, ropes, house fronts
+#   and eaves, numbers and signs); one flat colour or an even pattern over the whole photograph;
+#   photographs whose every crop breaks a rule (lichen and rock read as specks, vivid paint without
+#   a grey, rust shading from one colour into another).
+# - Colour maps of CC0 texture libraries at 4K (S101c): ambientCG's and Poly Haven's rusted and
+#   painted metal, peeling paint, plaster and painted wood, never their normal, roughness or height
+#   maps; materials of one flat colour or a printed sign left out. Of 43 maps, 11 give a crop that
+#   keeps the rules: a colour map is even, most crops of it one or two areas.
+# - Public-domain paintings whose corners read abstract (S101c), from open-access collections at
+#   their full size (the Art Institute's at 3,000 pixels): late Turner, Monet's water lilies and
+#   London, Whistler's nocturnes, Kandinsky, Klee, Marc, Delaunay. Cropped like the photographs,
+#   never compositions; a crop showing a figure, a boat, a building, a signature or the canvas's or
+#   frame's edge is listed out. Left out: a Whistler etching on Commons (a print, its plate's edge).
+
+id = "openpaint-combinations"
+title = "Colour combinations"
+kind = "crop"
+
+# Rust and paint on metal
+
+[[item]]
+id = "green-red-streak"
+source = "commons"
+object = "File:Texture - Juin 2015 18.JPG"
+licence = "CC0"
+reason = "green paint with a red streak and grey showing through: a strong contrast beside weak ones"
+
+[[item]]
+id = "orange-rust-band"
+source = "commons"
+object = "File:Texture - Juin 2015 06.JPG"
+licence = "CC0"
+reason = "a band of orange rust between duller bands"
+
+[[item]]
+id = "pink-paint-rust"
+source = "commons"
+object = "File:Texture - Juin 2015 13.JPG"
+licence = "CC0"
+reason = "pink paint over rust with pale patches: a dull orange, a pink and a cream"
+no_crop.2 = "a bolt's head in its corner"
+
+[[item]]
+id = "dark-rust-ochre"
+source = "commons"
+object = "File:Texture - Juin 2015 09.JPG"
+licence = "CC0"
+reason = "dark rust with ochre blooms: warm darks close together"
+
+[[item]]
+id = "blue-paint-rust-spots"
+source = "commons"
+object = "File:Texture 2017 10.jpg"
+licence = "CC0"
+reason = "pale blue paint weathered over grey, rust and dark flecks: cool greys close together and a warm accent"
+no_crop.1 = "the black fleck patch is not an area"
+
+[[item]]
+id = "rust-over-grey"
+source = "commons"
+object = "File:Texture 2017 28.jpg"
+licence = "CC0"
+reason = "a dull orange coat flaking off grey metal: two warm areas a weak step apart beside a grey"
+no_crop.2 = "near-identical to its first crop"
+
+[[item]]
+id = "grey-sheet-rust-patch"
+source = "commons"
+object = "File:Texture 2017 30.jpg"
+licence = "CC0"
+reason = "a pale grey sheet with a dark rust patch and stains"
+
+[[item]]
+id = "rust-drips"
+source = "commons"
+object = "File:Texture 2018 08.jpg"
+licence = "CC0"
+reason = "rust running down over grey: warm and cool greys in bands"
+no_crop.2 = "the dark drip down its middle is not an area"
+
+[[item]]
+id = "grey-metal-rust-edge"
+source = "commons"
+object = "File:Textures 2015 01.jpg"
+licence = "CC0"
+reason = "grey sheet metal along a rusted edge: close blue-greys and an ochre"
+no_crop.1 = "a seam's weld and its ledge: an object's edge"
+
+[[item]]
+id = "blue-paint-rust"
+source = "commons"
+object = "File:Textures 2015 07.jpg"
+licence = "CC0"
+reason = "blue paint rusting through: a greyed blue beside dull red-browns"
+
+# Torn posters
+
+[[item]]
+id = "torn-navy-poster"
+source = "commons"
+object = "File:Textures 2015 02.jpg"
+licence = "CC0"
+reason = "a navy poster torn to its grey backing: one strong contrast and close greys"
+no_crop.2 = "plain: one diagonal of navy against grey"
+
+[[item]]
+id = "torn-navy-scraps"
+source = "commons"
+object = "File:Textures 2015 05.jpg"
+licence = "CC0"
+reason = "navy scraps of a torn poster over grey paper"
+
+# ambientCG: colour maps of rusted metal
+
+[[item]]
+id = "acg-rust-on-steel"
+source = "ambientcg"
+object = "Metal018"
+licence = "CC0"
+reason = "rust over steel in broad patches: warm browns beside greys"
+
+[[item]]
+id = "acg-silver-rust"
+source = "ambientcg"
+object = "Metal020"
+licence = "CC0"
+reason = "pale steel streaked with rust: cool greys and an orange"
+
+[[item]]
+id = "acg-blue-grey-steel"
+source = "ambientcg"
+object = "Metal021"
+licence = "CC0"
+reason = "blue-grey steel stained dark and pale: close cool greys"
+
+[[item]]
+id = "acg-rust-blue-steel"
+source = "ambientcg"
+object = "Metal022"
+licence = "CC0"
+reason = "rust eating into blue-grey steel: warm and cool side by side"
+
+[[item]]
+id = "acg-rust-grey-steel"
+source = "ambientcg"
+object = "Metal023"
+licence = "CC0"
+reason = "rust and grey steel in patches: dull warm and cool"
+no_crop.1 = "near-identical to the rust on blue-grey steel's crop"
+
+[[item]]
+id = "acg-grey-steel-stains"
+source = "ambientcg"
+object = "Metal024"
+licence = "CC0"
+reason = "grey steel with darker stains and pale wear: greys close in value"
+
+[[item]]
+id = "acg-dark-rust"
+source = "ambientcg"
+object = "Metal025"
+licence = "CC0"
+reason = "dark rust with grey showing through: warm darks"
+
+[[item]]
+id = "acg-rust-grey-patches"
+source = "ambientcg"
+object = "Metal026"
+licence = "CC0"
+reason = "rust and grey steel in large patches"
+
+[[item]]
+id = "acg-pale-steel-rust"
+source = "ambientcg"
+object = "Metal041B"
+licence = "CC0"
+reason = "pale scratched steel streaked with rust"
+
+[[item]]
+id = "acg-rusted-plate"
+source = "ambientcg"
+object = "Metal041C"
+licence = "CC0"
+reason = "a rusted plate, orange and brown with grey left"
+
+# ambientCG: painted metal, rusting
+
+[[item]]
+id = "acg-teal-paint-rust"
+source = "ambientcg"
+object = "PaintedMetal006"
+licence = "CC0"
+reason = "teal paint flaking off rust in islands: two hues in a strong contrast"
+
+[[item]]
+id = "acg-blue-paint-rust"
+source = "ambientcg"
+object = "PaintedMetal007"
+licence = "CC0"
+reason = "deep blue paint with rust coming through"
+
+[[item]]
+id = "acg-orange-paint-rust"
+source = "ambientcg"
+object = "PaintedMetal008"
+licence = "CC0"
+reason = "orange paint with rust coming through in patches"
+
+[[item]]
+id = "acg-yellow-paint-rust"
+source = "ambientcg"
+object = "PaintedMetal009"
+licence = "CC0"
+reason = "pale yellow paint flaking off rust"
+
+[[item]]
+id = "acg-white-paint-rust"
+source = "ambientcg"
+object = "PaintedMetal010"
+licence = "CC0"
+reason = "white paint with rust islands: a pale ground and warm darks"
+no_crop.1 = "plain: white with one rust edge"
+
+[[item]]
+id = "acg-cream-paint-rust"
+source = "ambientcg"
+object = "PaintedMetal011"
+licence = "CC0"
+reason = "cream paint worn through to rust in large patches"
+
+[[item]]
+id = "acg-white-paint-dark-rust"
+source = "ambientcg"
+object = "PaintedMetal012"
+licence = "CC0"
+reason = "white paint with dark rust and black chips"
+
+[[item]]
+id = "acg-grey-paint-rust"
+source = "ambientcg"
+object = "PaintedMetal013"
+licence = "CC0"
+reason = "grey and white paint over dark rust: greys and warm darks"
+
+[[item]]
+id = "acg-mint-paint-rust"
+source = "ambientcg"
+object = "PaintedMetal014"
+licence = "CC0"
+reason = "pale mint paint with rust spreading through it"
+
+# ambientCG: painted plaster and wood
+
+[[item]]
+id = "acg-yellow-plaster"
+source = "ambientcg"
+object = "PaintedPlaster007"
+licence = "CC0"
+reason = "yellow paint peeling off grey plaster"
+
+[[item]]
+id = "acg-blue-plaster"
+source = "ambientcg"
+object = "PaintedPlaster008"
+licence = "CC0"
+reason = "faded blue paint peeling off plaster"
+no_crop.1 = "bricks showing through"
+
+[[item]]
+id = "acg-green-grey-plaster"
+source = "ambientcg"
+object = "PaintedPlaster009"
+licence = "CC0"
+reason = "greyish green paint worn off plaster: close greys"
+
+[[item]]
+id = "acg-white-plaster"
+source = "ambientcg"
+object = "PaintedPlaster014"
+licence = "CC0"
+reason = "white paint peeling off a buff plaster"
+
+[[item]]
+id = "acg-cream-plaster"
+source = "ambientcg"
+object = "PaintedPlaster018"
+licence = "CC0"
+reason = "cream and yellow paint peeling off grey plaster"
+
+[[item]]
+id = "acg-navy-wood"
+source = "ambientcg"
+object = "PaintedWood007B"
+licence = "CC0"
+reason = "navy paint worn off pale wood in streaks"
+
+[[item]]
+id = "acg-blue-grey-wood"
+source = "ambientcg"
+object = "PaintedWood008B"
+licence = "CC0"
+reason = "pale blue paint worn off brown wood"
+
+[[item]]
+id = "acg-green-wood"
+source = "ambientcg"
+object = "PaintedWood009B"
+licence = "CC0"
+reason = "green paint worn off pale wood"
+
+# Poly Haven: colour maps
+
+[[item]]
+id = "ph-teal-plaster"
+source = "polyhaven"
+object = "blue_plaster_weathered"
+licence = "CC0"
+reason = "weathered teal plaster: close greyed greens"
+
+[[item]]
+id = "ph-damaged-plaster"
+source = "polyhaven"
+object = "damaged_plaster"
+licence = "CC0"
+reason = "pale plaster broken to a warm ground"
+no_crop.1 = "bricks showing through"
+no_crop.2 = "bricks showing through"
+
+[[item]]
+id = "ph-lichen-rock"
+source = "polyhaven"
+object = "lichen_rock"
+licence = "CC0"
+reason = "dark rock spotted with pale lichen"
+
+[[item]]
+id = "ph-peeling-pink-wall"
+source = "polyhaven"
+object = "peeling_painted_wall"
+licence = "CC0"
+reason = "pink paint cracking and peeling off a grey wall"
+
+[[item]]
+id = "ph-coarse-rust"
+source = "polyhaven"
+object = "rust_coarse_01"
+licence = "CC0"
+reason = "coarse rust in browns close together"
+
+[[item]]
+id = "ph-white-rust-spots"
+source = "polyhaven"
+object = "rusty_metal_02"
+licence = "CC0"
+reason = "white paint speckled with rust"
+
+[[item]]
+id = "ph-yellow-rust"
+source = "polyhaven"
+object = "rusty_metal_03"
+licence = "CC0"
+reason = "yellow paint eaten by dark rust"
+
+[[item]]
+id = "ph-brown-grey-rust"
+source = "polyhaven"
+object = "rusty_metal_04"
+licence = "CC0"
+reason = "dark brown rust with grey paint left in streaks"
+
+[[item]]
+id = "ph-rust-blue-grey"
+source = "polyhaven"
+object = "rusty_metal_05"
+licence = "CC0"
+reason = "rust over blue-grey paint"
+
+[[item]]
+id = "ph-rusty-sheet"
+source = "polyhaven"
+object = "rusty_metal_sheet"
+licence = "CC0"
+reason = "a grey sheet stained ochre with rust"
+
+[[item]]
+id = "ph-peeling-timber"
+source = "polyhaven"
+object = "weathered_peeling_timber"
+licence = "CC0"
+reason = "green and white paint peeling off brown timber"
+
+[[item]]
+id = "ph-black-paint-wood"
+source = "polyhaven"
+object = "wood_peeling_paint_weathered"
+licence = "CC0"
+reason = "black paint peeling off orange wood"
+
+[[item]]
+id = "ph-mossy-plaster"
+source = "polyhaven"
+object = "worn_mossy_plasterwall"
+licence = "CC0"
+reason = "a pale plaster wall stained grey and green"
+
+[[item]]
+id = "ph-worn-plaster"
+source = "polyhaven"
+object = "worn_plaster_wall"
+licence = "CC0"
+reason = "grey plaster with brown patches showing through"
+
+[[item]]
+id = "ph-distressed-planks"
+source = "polyhaven"
+object = "distressed_painted_planks"
+licence = "CC0"
+reason = "pale green paint worn off planks, a red showing"
+
+[[item]]
+id = "ph-red-plaster"
+source = "polyhaven"
+object = "red_plaster_weathered"
+licence = "CC0"
+reason = "weathered red plaster in close warm values"
+
+# Paintings whose corners read abstract (the Art Institute, CC0)
+
+[[item]]
+id = "kandinsky-improvisation-30"
+source = "aic"
+object = "8991"
+licence = "CC0"
+reason = "Kandinsky's Improvisation No. 30 (Cannons): patches of colour without objects"
+no_crop.1 = "the painter's signature"
+
+[[item]]
+id = "kandinsky-green-centre"
+source = "aic"
+object = "8987"
+licence = "CC0"
+reason = "Kandinsky's Painting with Green Center: abstract areas of colour"
+
+[[item]]
+id = "kandinsky-troika"
+source = "aic"
+object = "8983"
+licence = "CC0"
+reason = "Kandinsky's Painting with Troika: broad strokes of colour"
+no_crop.1 = "the frame's edge along its top"
+
+[[item]]
+id = "marc-bewitched-mill"
+source = "aic"
+object = "9021"
+licence = "CC0"
+reason = "Marc's The Bewitched Mill: prismatic planes of colour"
+
+[[item]]
+id = "monet-water-lilies-1906"
+source = "aic"
+object = "16568"
+licence = "CC0"
+reason = "Monet's Water Lilies: reflections in soft areas of colour"
+
+[[item]]
+id = "monet-lily-pond-1917"
+source = "aic"
+object = "97933"
+licence = "CC0"
+reason = "Monet's late Water Lily Pond: loose strokes of greens, blues and pinks"
+
+[[item]]
+id = "monet-lily-pond-1900"
+source = "aic"
+object = "87088"
+licence = "CC0"
+reason = "Monet's Water Lily Pond: greens and blues in close values"
+
+[[item]]
+id = "monet-irises"
+source = "aic"
+object = "4887"
+licence = "CC0"
+reason = "Monet's late Irises: loose strokes of violets and greens"
+
+[[item]]
+id = "monet-parliament-aic"
+source = "aic"
+object = "16584"
+licence = "CC0"
+reason = "Monet's Houses of Parliament: mist and water in close hues"
+no_crop.1 = "the Parliament's tower at its edge"
+
+[[item]]
+id = "monet-waterloo-grey"
+source = "aic"
+object = "103139"
+licence = "CC0"
+reason = "Monet's Waterloo Bridge, Gray Weather: fog in close greys and blues"
+no_crop.2 = "the bridge's arch"
+
+[[item]]
+id = "whistler-southampton"
+source = "aic"
+object = "56905"
+licence = "CC0"
+reason = "Whistler's Nocturne: Blue and Gold: a night of close blues"
+no_crop.1 = "plain: a dark night with nothing to read"
+
+[[item]]
+id = "whistler-deep-sea"
+source = "aic"
+object = "84088"
+licence = "CC0"
+reason = "Whistler's Violet and Silver: The Deep Sea: sea and sky in bands of close colour"
+
+[[item]]
+id = "whistler-trouville"
+source = "aic"
+object = "81572"
+licence = "CC0"
+reason = "Whistler's Trouville (Grey and Green, the Silver Sea): bands of grey and green"
+no_crop.2 = "a sailing boat"
+
+[[item]]
+id = "turner-fishing-boats"
+source = "aic"
+object = "4796"
+licence = "CC0"
+reason = "Turner's Fishing Boats with Hucksters: a sky and sea of warm and cool greys"
+no_crop.2 = "a boat and its crew"
+
+[[item]]
+id = "turner-aosta"
+source = "aic"
+object = "109938"
+licence = "CC0"
+reason = "Turner's Valley of Aosta: a storm dissolved into swirls of colour"
+
+# Paintings whose corners read abstract (the National Gallery of Art, CC0)
+
+[[item]]
+id = "turner-deluge"
+source = "nga"
+object = "46064"
+licence = "CC0"
+reason = "Turner's The Evening of the Deluge: a vortex of warm and cool"
+
+[[item]]
+id = "turner-approach-venice"
+source = "nga"
+object = "117"
+licence = "CC0"
+reason = "Turner's Approach to Venice: light dissolving sky and water"
+
+[[item]]
+id = "turner-dogana-1843"
+source = "nga"
+object = "46089"
+licence = "CC0"
+reason = "Turner's The Dogana and Santa Maria della Salute: a pale sky and water"
+no_crop.1 = "boats and a dome"
+no_crop.2 = "a building in the haze"
+
+[[item]]
+id = "monet-japanese-footbridge"
+source = "nga"
+object = "74796"
+licence = "CC0"
+reason = "Monet's The Japanese Footbridge: water lilies in close greens"
+no_crop.2 = "the footbridge's rail"
+
+[[item]]
+id = "monet-parliament-sunset"
+source = "nga"
+object = "46523"
+licence = "CC0"
+reason = "Monet's The Houses of Parliament, Sunset: violet and orange in mist"
+no_crop.1 = "the Parliament's tower"
+no_crop.2 = "the Parliament's towers"
+
+[[item]]
+id = "monet-waterloo-grey-day"
+source = "nga"
+object = "46658"
+licence = "CC0"
+reason = "Monet's Waterloo Bridge, Gray Day: close greys and violets"
+
+[[item]]
+id = "monet-waterloo-dusk"
+source = "nga"
+object = "61377"
+licence = "CC0"
+reason = "Monet's Waterloo Bridge at Dusk: blues and violets in fog"
+
+[[item]]
+id = "delaunay-political-drama"
+source = "nga"
+object = "52397"
+licence = "CC0"
+reason = "Delaunay's Political Drama: discs and planes of colour"
+
+[[item]]
+id = "whistler-battersea-reach"
+source = "nga"
+object = "82416"
+licence = "CC0"
+reason = "Whistler's Battersea Reach: a river at dusk in close greys"
+no_crop.1 = "masts and roofs"
+
+# Paintings whose corners read abstract (public domain by age, on Commons)
+
+[[item]]
+id = "kandinsky-composition-vii"
+source = "commons"
+object = "File:Composition VII - Wassily Kandinsky, GAC.jpg"
+licence = "PD-old"
+reason = "Kandinsky's Composition VII: a storm of colour without objects"
+
+[[item]]
+id = "kandinsky-composition-viii"
+source = "commons"
+object = "File:Wassily Kandinsky Composition VIII.jpg"
+licence = "PD-old"
+reason = "Kandinsky's Composition VIII: flat planes and circles on a pale ground"
+
+[[item]]
+id = "kandinsky-composition-9"
+source = "commons"
+object = "File:Vassily Kandinsky, 1936 - Composition 9.jpg"
+licence = "PD-old"
+reason = "Kandinsky's Composition IX: diagonal bands of colour"
+
+[[item]]
+id = "kandinsky-composition-j"
+source = "commons"
+object = "File:Composition J, Kandinsky (1916).jpg"
+licence = "PD-old"
+reason = "Kandinsky's Composition J: patches of colour in a loose weave"
+no_crop.1 = "the painter's monogram"
+
+[[item]]
+id = "kandinsky-improvisation-18"
+source = "commons"
+object = "File:Kandinsky - Improvisation 18 PA291129.jpg"
+licence = "PD-old"
+reason = "Kandinsky's Improvisation 18: patches of colour"
+
+[[item]]
+id = "kandinsky-improvisation-19"
+source = "commons"
+object = "File:Kandinsky - Improvisation 19 PA291208.jpg"
+licence = "PD-old"
+reason = "Kandinsky's Improvisation 19: blue and violet fields"
+no_crop.1 = "the canvas's dark edge along its side"
+
+[[item]]
+id = "kandinsky-improvisation-21a"
+source = "commons"
+object = "File:Kandinsky - Improvisation 21A PA291203.jpg"
+licence = "PD-old"
+reason = "Kandinsky's Improvisation 21A: colour fields and black lines"
+no_crop.2 = "strokes that read as handwriting"
+
+[[item]]
+id = "kandinsky-improvisation-35"
+source = "commons"
+object = "File:Kandinsky - Improvisation 35, 1914 (Mai).jpg"
+licence = "PD-old"
+reason = "Kandinsky's Improvisation 35: soft patches of colour"
+
+[[item]]
+id = "kandinsky-little-yellow"
+source = "commons"
+object = "File:Kandinsky - Little Painting with Yellow (Improvisation), 1914.jpg"
+licence = "PD-old"
+reason = "Kandinsky's Little Painting with Yellow: patches of colour around a yellow"
+
+[[item]]
+id = "kandinsky-swan"
+source = "commons"
+object = "File:Kandinsky - Improvisation No. 29 (The Swan), 1912, 1950-134-102.jpg"
+licence = "PD-old"
+reason = "Kandinsky's Improvisation No. 29: patches of colour"
+
+[[item]]
+id = "marc-tirol"
+source = "commons"
+object = "File:Franz Marc - Tirol 1914.jpg"
+licence = "PD-old"
+reason = "Marc's Tirol: prismatic planes of colour"
+
+[[item]]
+id = "klee-kristall-stufung"
+source = "commons"
+object = "File:Kristall-Stufung, Paul Klee (1921).jpg"
+licence = "PD-old"
+reason = "Klee's Kristall-Stufung: graded blocks of colour"
+no_crop.1 = "the mount's handwritten title"
+
+[[item]]
+id = "klee-polyphony"
+source = "commons"
+object = "File:Polyphony, 1932 Paul Klee, 2.jpg"
+licence = "PD-old"
+reason = "Klee's Polyphony: a grid of dabs over soft blocks of colour"
+
+[[item]]
+id = "klee-static-dynamic"
+source = "commons"
+object = "File:Static-Dynamic Gradation, 1923 - Paul Klee, MET DP-817-001.jpg"
+licence = "PD-old"
+reason = "Klee's Static-Dynamic Gradation: blocks of colour in steps of value"
+
+[[item]]
+id = "delaunay-rythme-1934"
+source = "commons"
+object = "File:Robert Delaunay Rythme 1934.jpg"
+licence = "PD-old"
+reason = "Delaunay's Rythme: discs and arcs of colour"
+
+[[item]]
+id = "delaunay-formes-circulaires"
+source = "commons"
+object = "File:Delaunay, Robert - Formes circulaires; lune no. 1 - Google Art Project.jpg"
+licence = "PD-old"
+reason = "Delaunay's Formes circulaires: rings of colour"
+
+[[item]]
+id = "turner-red-rigi"
+source = "commons"
+object = "File:J. M. W. Turner - The Red Rigi - Google Art Project.jpg"
+licence = "PD-old"
+reason = "Turner's The Red Rigi: a lake and sky in washes of warm colour"
+no_crop.1 = "mountains over a lake"
+no_crop.2 = "a boat of figures"
+
+[[item]]
+id = "turner-049"
+source = "commons"
+object = "File:Joseph Mallord William Turner 049.jpg"
+licence = "PD-old"
+reason = "a late Turner: sea and sky dissolved in light"
+no_crop.1 = "ships and figures on the shore"
+no_crop.2 = "a sail and figures"
+
+[[item]]
+id = "turner-norham"
+source = "commons"
+object = "File:Joseph Mallord William Turner 063.jpg"
+licence = "PD-old"
+reason = "Turner's Norham Castle, Sunrise: pale washes of blue and gold"
+
+[[item]]
+id = "monet-blue-water-lilies"
+source = "commons"
+object = "File:Claude Monet - Blue Water Lilies - Google Art Project.jpg"
+licence = "PD-old"
+reason = "Monet's Blue Water Lilies: blues and greens in loose strokes"
+no_crop.1 = "the canvas's unpainted edge"
+
+[[item]]
+id = "monet-bassin-nympheas"
+source = "commons"
+object = "File:Claude Monet - Le Bassin des Nympheas - Google Art Project.jpg"
+licence = "PD-old"
+reason = "Monet's Le Bassin des Nymphéas: reflections in close greens"
+
+[[item]]
+id = "monet-water-lilies-gap"
+source = "commons"
+object = "File:Claude Monet - Water Lilies - Google Art Project.jpg"
+licence = "PD-old"
+reason = "Monet's Water Lilies: a pond's surface in soft colour"
+
+[[item]]
+id = "monet-water-lilies-square"
+source = "commons"
+object = "File:Claude Monet - Water Lilies - Google Art Project (462013).jpg"
+licence = "PD-old"
+reason = "Monet's Water Lilies: reflections in soft colour"
+no_crop.2 = "the painter's signature"
+
+[[item]]
+id = "monet-setting-sun"
+source = "commons"
+object = "File:Monet - Water-Lilies, Setting Sun.jpg"
+licence = "PD-old"
+reason = "Monet's Water-Lilies, Setting Sun: blues and golds in broad strokes"
+no_crop.2 = "the canvas's edge along its side and foot"
+
+[[item]]
+id = "whistler-lagoon-venice"
+source = "commons"
+object = "File:James Abbott McNeill Whistler - Nocturne in Blue and Silver- The Lagoon, Venice - Google Art Project.jpg"
+licence = "PD-old"
+reason = "Whistler's Nocturne in Blue and Silver, the Lagoon: close blues"
+no_crop.1 = "a campanile"
+
+[[item]]
+id = "whistler-blue-silver"
+source = "commons"
+object = "File:James McNeill Whistler - Nocturne in Blue and Silver - Google Art Project.jpg"
+licence = "PD-old"
+reason = "Whistler's Nocturne in Blue and Silver: close blue-greens"
+
+[[item]]
+id = "whistler-black-gold"
+source = "commons"
+object = "File:Whistler-Nocturne in black and gold.jpg"
+licence = "PD-old"
+reason = "Whistler's Nocturne in Black and Gold: darks and sparks of gold"
+

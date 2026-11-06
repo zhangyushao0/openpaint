@@ -10,14 +10,16 @@
 //! command lists them.
 
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, mpsc};
+use std::thread;
 
 use image::RgbaImage;
 use image::imageops::{self, FilterType};
 use openpaint_app::ImageFormat;
 use openpaint_practice::{
-    Areas, Credit, Crop, Found, LEAST_LONGER, PackItem, PictureKind, Places, best, candidates, cut,
-    refusal, tier_of,
+    Areas, Credit, Crop, Found, LEAST_LONGER, PackItem, PictureKind, Places, best, candidate, cut,
+    rectangles, refusal, tier_of,
 };
 use openpaint_store::{encode_image, pack_picture};
 
@@ -58,7 +60,7 @@ pub fn crops_of(
     (source, picture): (&sources::Found, &FullPicture),
     (places, count): (Places, usize),
 ) -> Result<Vec<(Cropped, Option<Packed>)>, HarnessError> {
-    let all = candidates(picture.size, &picture.rgba, places);
+    let all = found_side_by_side(picture, places);
     let kept = best(all.clone(), count);
     if kept.is_empty() {
         say_none(listed, &all);
@@ -92,6 +94,38 @@ pub fn crops_of(
         made.push((cropped, item));
     }
     Ok(made)
+}
+
+/// Every candidate crop of `picture` at `places` with its areas found (`candidates`), the
+/// candidates shared out over the machine's threads, each found alone, so in the same order and
+/// the same as one after another (a 4,096-pixel picture's 81 take about a minute alone).
+fn found_side_by_side(picture: &FullPicture, places: Places) -> Vec<Crop> {
+    let rectangles = rectangles(picture.size, places);
+    let workers = thread::available_parallelism().map_or(1, usize::from);
+    let next = AtomicUsize::new(0);
+    let (send, receive) = mpsc::channel();
+    thread::scope(|scope| {
+        let (rectangles, next) = (&rectangles, &next);
+        for _ in 0..workers.min(rectangles.len()) {
+            let send = send.clone();
+            scope.spawn(move || {
+                loop {
+                    let at = next.fetch_add(1, Ordering::Relaxed);
+                    let Some(rectangle) = rectangles.get(at) else {
+                        break;
+                    };
+                    let found = candidate(picture.size, &picture.rgba, *rectangle);
+                    if send.send((at, found)).is_err() {
+                        break;
+                    }
+                }
+            });
+        }
+    });
+    drop(send);
+    let mut found: Vec<(usize, Crop)> = receive.into_iter().collect();
+    found.sort_by_key(|(at, _)| *at);
+    found.into_iter().map(|(_, crop)| crop).collect()
 }
 
 /// That `listed`'s picture gives no crop, and why: the rule its best candidate breaks.

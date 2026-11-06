@@ -70,6 +70,7 @@ fn described(fetcher: &Fetcher, object: &Value, id: &str) -> Result<Found, Harne
         full: Full::Iiif {
             base,
             most: FULL_SIDE,
+            only_most: false,
         },
     })
 }

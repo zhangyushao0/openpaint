@@ -58,6 +58,7 @@ source = "aic"
 object = "16560"
 licence = "CC0"
 reason = "one dark stack on a pale snow field under a band of blue hills: three masses, one focal point, close cool greys"
+no_crop.1 = "a recognisable haystack"
 
 [[item]]
 id = "monet-cliff-walk"

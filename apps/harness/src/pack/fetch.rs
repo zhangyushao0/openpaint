@@ -22,6 +22,9 @@ const MOST_BYTES: u64 = 256 << 20;
 /// A pause after every request that reached the network.
 const PAUSE: Duration = Duration::from_millis(150);
 
+/// What of a download is kept: the bytes, or why it holds nothing to keep.
+pub type Part<'a> = &'a dyn Fn(&[u8]) -> Result<Vec<u8>, String>;
+
 /// Downloads through a cache directory.
 pub struct Fetcher {
     cache: PathBuf,
@@ -71,6 +74,21 @@ impl Fetcher {
         url: &str,
         headers: &[(&str, &str)],
     ) -> Result<Vec<u8>, HarnessError> {
+        self.get_part(name, url, (headers, &|bytes| Ok(bytes.to_vec())))
+    }
+
+    /// The part `part` takes out of the download at `url` (requested with `headers`), the part
+    /// alone kept in the cache as `name` (a texture library's colour map out of its archive,
+    /// S101c).
+    ///
+    /// # Errors
+    /// As `get`; `Fetch` when `part` finds no part in the download.
+    pub fn get_part(
+        &self,
+        name: &str,
+        url: &str,
+        (headers, part): (&[(&str, &str)], Part<'_>),
+    ) -> Result<Vec<u8>, HarnessError> {
         let path = self.cache.join(name);
         if let Ok(bytes) = fs::read(&path) {
             return Ok(bytes);
@@ -99,12 +117,13 @@ impl Fetcher {
             })
             .map_err(|error| failed(error.to_string()))?;
         std::thread::sleep(PAUSE);
+        let bytes = part(&bytes).map_err(failed)?;
         if let Some(dir) = path.parent() {
             fs::create_dir_all(dir)?;
         }
-        let part = path.with_extension("part");
-        fs::write(&part, &bytes)?;
-        fs::rename(&part, &path)?;
+        let partial = path.with_extension("part");
+        fs::write(&partial, &bytes)?;
+        fs::rename(&partial, &path)?;
         Ok(bytes)
     }
 

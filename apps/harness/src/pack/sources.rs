@@ -3,7 +3,8 @@
 //! (Cleveland's `share_license_status`, the Met's `isPublicDomain`, the Art Institute's
 //! `is_public_domain`, the National Gallery's `openaccess`, `nga.rs`, the Rijksmuseum's rights
 //! statement of its picture, `rijks.rs`, Commons' machine-readable `License` with its templates,
-//! `commons.rs`), never assumed from the source.
+//! `commons.rs`), never assumed from the source; but for the two texture libraries, which
+//! dedicate every asset to CC0 and state no licence per asset (`libraries.rs`, S101c).
 
 use std::cell::OnceCell;
 
@@ -12,7 +13,7 @@ use serde_json::Value;
 
 use super::fetch::{Fetcher, USER_AGENT, cache_name, query_text};
 use super::list::{Listed, Source};
-use super::{commons, nga, rijks};
+use super::{commons, libraries, nga, rijks};
 use crate::error::HarnessError;
 
 /// The licence an API states for an object.
@@ -60,13 +61,21 @@ pub struct Found {
 pub enum Full {
     /// The picture downloaded is the source's own file at its full size: Commons' original (an
     /// SVG's or TIFF's rendering, the only one taken), the Met's primary picture, Cleveland's
-    /// print.
+    /// print, Poly Haven's colour map at 4K.
     Picture,
     /// A IIIF image service, by its base URL: the picture asked at its full size, its longer side
-    /// at most `most` pixels (the most the server hands out).
-    Iiif { base: String, most: u32 },
+    /// at most `most` pixels (the most the server hands out); asked as `!most,most` alone when
+    /// `only_most` (the Art Institute refuses any other fitted size and never enlarges).
+    Iiif {
+        base: String,
+        most: u32,
+        only_most: bool,
+    },
     /// A film's still on Commons, asked again at the video's own width (pixels).
     Still { width: u32 },
+    /// The colour map in the zip archive downloaded (an ambientCG material's, S101c), the map
+    /// alone kept.
+    Archive,
 }
 
 /// The sources' APIs through one cache, the National Gallery's tables read once for all items.
@@ -126,6 +135,8 @@ impl<'a> Sources<'a> {
                 tables.found(object)
             }
             Source::Rijks => rijks::found(fetcher, object),
+            Source::AmbientCg => libraries::ambientcg(fetcher, object),
+            Source::PolyHaven => libraries::polyhaven(fetcher, object),
             Source::Commons => {
                 let url = commons::info_url(object, listed.at);
                 commons::found(&fetcher.json(&name, &url)?, &url, listed.at)
@@ -138,7 +149,8 @@ impl<'a> Sources<'a> {
 /// asking (without it the requests are turned away).
 pub const AIC_HEADERS: [(&str, &str); 1] = [("AIC-User-Agent", USER_AGENT)];
 /// The longest side the Art Institute's IIIF server hands out (`!3000,3000`; it refuses larger
-/// sizes, and most others, with 403, as tried on 2026-11-06).
+/// sizes, and most others, with 403, and gives a smaller picture at its own size, as tried on
+/// 2026-11-06).
 const AIC_MOST: u32 = 3000;
 
 /// The text at `field`, trimmed; `None` when missing or empty.
@@ -244,6 +256,7 @@ fn aic(answer: &Value, url: &str) -> Result<Found, HarnessError> {
         full: Full::Iiif {
             base: format!("{iiif}/{image}"),
             most: AIC_MOST,
+            only_most: true,
         },
     })
 }

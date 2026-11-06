@@ -127,6 +127,7 @@ impl Tables {
             full: Full::Iiif {
                 base: primary.iiif.clone(),
                 most: FULL_SIDE,
+                only_most: false,
             },
         })
     }

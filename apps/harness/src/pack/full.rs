@@ -3,8 +3,10 @@
 //! `FULL_SIDE` (`sources::Full`): the file downloaded when it is the source's own (Commons'
 //! original, the Met's primary picture, Cleveland's print); a IIIF service's picture asked at
 //! its full size (`!n,n`), its `info.json` read first so it is never enlarged nor asked past the
-//! server's `maxArea` or the most it hands out (3,000 pixels at the Art Institute); a film's
-//! still asked of Commons again at the video's own width. Every download comes through the cache
+//! server's `maxArea` (the Art Institute's asked as `!3000,3000` alone, the one fitted size its
+//! server takes, never enlarged there); a film's
+//! still asked of Commons again at the video's own width; an ambientCG material's colour map out
+//! of its archive (S101c), the map alone kept. Every download comes through the cache
 //! under the item's key and `full`, and decoding (`decode_image`: upright, into sRGB) and reducing
 //! are exact, so the same list and cache give the same crops.
 
@@ -15,6 +17,7 @@ use serde_json::Value;
 
 use super::commons;
 use super::fetch::{Fetcher, cache_name};
+use super::libraries::{AMBIENTCG_COLOUR, stored_entry};
 use super::list::Listed;
 use super::sources::{Found, Full, lacking};
 use crate::error::HarnessError;
@@ -54,13 +57,28 @@ pub fn full_picture(
             let bytes = fetcher.get_with(&name, &found.picture, found.headers)?;
             (found.picture.clone(), bytes)
         }
-        Full::Iiif { base, most } => {
-            let info_url = format!("{base}/info.json");
-            let info = fetcher.json_with(&full_name(listed, "json"), &info_url, found.headers)?;
-            let side = iiif_side(&info, &info_url, *most)?;
+        Full::Iiif {
+            base,
+            most,
+            only_most,
+        } => {
+            let side = if *only_most {
+                *most
+            } else {
+                let info_url = format!("{base}/info.json");
+                let info =
+                    fetcher.json_with(&full_name(listed, "json"), &info_url, found.headers)?;
+                iiif_side(&info, &info_url, *most)?
+            };
             let url = format!("{base}/full/!{side},{side}/0/default.jpg");
             let bytes = fetcher.get_with(&full_name(listed, "img"), &url, found.headers)?;
             (url, bytes)
+        }
+        Full::Archive => {
+            let colour = |archive: &[u8]| stored_entry(archive, AMBIENTCG_COLOUR);
+            let name = full_name(listed, "img");
+            let bytes = fetcher.get_part(&name, &found.picture, (found.headers, &colour))?;
+            (found.picture.clone(), bytes)
         }
         Full::Still { width } => {
             let at = (listed.at).ok_or_else(|| lacking(&found.page, "second of its still"))?;
