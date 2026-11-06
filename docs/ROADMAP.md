@@ -50,8 +50,21 @@ The author, 2026-10-23: practice is their main activity now. The app gets a prac
 
 Stages 1 to 4 are built (S75 to S100 and S103 to S105 are done: the list at the end and its archive).
 
+- S101 Colour combinations from real crops (1.19.0; D105 amended; the author, 2026-10-30, decided: the generated combinations vary too little beside the crops of real pictures they copied before, such as rusted iron. This is V大's own choice: a corner of an abstract oil painting or a rusted old thing, never a concrete object. The generated ones are retired).
+  - **The crops.** The pack builder cuts crops from two sources: corners of the composition pack's paintings, and a new official pack `openpaint-textures`, about 40 CC0 or public-domain photographs of rust, peeling paint, stone, lichen, weathered wood and the like. Every licence is read from its source's API, as the packs before were (Wikimedia Commons' API is a source if needed). A crop is a rectangle of its picture holding 3 to 7 areas of distinct colour, no recognisable object, some areas low in saturation and at least one weak contrast. Each picture gives a few crops and the builder keeps the best. Crops are judged on contact sheets (each beside its areas), and a bad one is listed out with its reason, as `no_masses` was.
+  - **The answer, made by the builder and kept in the pack** (pack format 4, format 3 upgraded by the store): each crop's areas found by blur and Oklab clustering, islands merged, edges traced; each area's colour; and the neighbour pairs whose contrast is weak.
+    - It is validated on pictures of known areas: S82's generator, retired from exercises, lives on as the test that the answer finds its areas and weak pairs.
+    - It is then judged by eye on the sheets.
+  - **The exercise.** A combination is a crop beside an empty frame of its shape (S99), copied with Fill frame, Big, Small and Soft (S100). Compare keeps what S82 and S86 gave: the original over the copy under the slider, a chip per area on the wheel and in the colour table, and weak contrasts made strong drawn red. Sessions and drills take crops in turn, none twice while others are left. Without a pack holding crops, a combination is not offered, and its tile says to import one, as Shape's does. Its How plays on a generated example, as every kind's does.
+  - **Afterwards (not this slice):** the user's own pictures as crops, their answer made on the device, unjudged. This goes to Candidates.
+  Done:
+  - tests: the answer on the generator's pictures of known areas (each area found, its colour within ΔE 0.02, the weak pairs found), crops kept to their rules, the pack upgraded, a combination on a crop compared;
+  - the textures pack built twice to the same bytes, its sheets and the composition crops' sheets, every crop looked at by the agent and listed for the main session to judge;
+  - `s101-real-crops` in both languages, every screenshot looked at;
+  - every scenario before with its hashes, except those of combinations (named);
+  - `cargo gate`;
+  - the tablet run is the main session's.
 - Then, each specified when the one before lands:
-  - S101 Colour combinations from real crops (the author: the generated ones vary too little; V大 copies a corner of an abstract painting or a rusted old thing): generated ones retired; crops of the composition pack's paintings, a CC0 pack of rust, peeling paint and stone, and the user's own; each crop's areas and weak contrasts found by the pack builder (validated on crops of known areas, judged on contact sheets), Compare keeping the chips, the wheel and the weak contrasts.
   - S102 Chinese written Chinese-first (the author: it reads oddly): every Chinese string rewritten as a teacher would say it, from a glossary of standard art terms, V大's words and Procreate's Chinese. The author's terms (2026-10-30): 勾线笔 for Draw (Inker 描线笔), 素材包, 原图浓淡, 单色 named on its own, 等距扩展, 三级分割 where it fits, 柔边笔, 色环, 笔触, 描边, 变换, 叠加, 防抖, 压感. The sentences are the main session's call ("however is best").
   - Key shifts, gamut masks and abstract analysis.
   - Structure rotation against renders.
