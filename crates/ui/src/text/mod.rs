@@ -14,6 +14,14 @@
 //! (D48), so scenarios, benches and device chores name controls alike in both. A name the user
 //! gave shows as given; the names the app gives by default show in the language (`names.rs`).
 //! The shell sets the language for the pass on the egui context; components read it.
+//!
+//! The Chinese is written Chinese-first (S102, D100): as a Chinese art teacher says it, short, a
+//! command from its verb, a hint saying what to do; one Chinese term for each English one in
+//! every table: V大's words in the practice (原图 the picture copied, never 原色, a primary colour;
+//! 明度, 纯度, 色块, 勾线笔, 素材包), Procreate's for the painting tools unless the author chose
+//! (压感, 防抖, 色环, 变换, 叠加). A space between Han and Latin letters or digits ("第 2 周",
+//! "保存 PNG…"), none in dates (2026年10月5日) or after V大; numbers in the app's units (50 %,
+//! 90°); a control named in a sentence in “”. A term dropped joins the tests' `RETIRED`.
 
 /// A table: each line `NAME = "English", "中文";` makes a `Text` constant, and `$all` lists them
 /// for the tables' tests.
@@ -207,9 +215,9 @@ mod tests {
         assert_eq!(Words::from(REDO).shown(&ctx), "重做");
     }
 
-    #[test]
-    fn every_text_reads_in_both_languages_and_the_chinese_in_chinese() {
-        let tables = [
+    /// Every table's texts.
+    fn every_text() -> Vec<Text> {
+        [
             COMMON,
             CANVAS,
             CANVAS_WORDS,
@@ -241,15 +249,77 @@ mod tests {
             PRACTICE_PERSPECTIVE,
             PRACTICE_POINTS,
             PRACTICE_SOLIDS,
-        ];
+        ]
+        .concat()
+    }
+
+    #[test]
+    fn every_text_reads_in_both_languages_and_the_chinese_in_chinese() {
         let han = |c: char| ('\u{4e00}'..='\u{9fff}').contains(&c);
-        for text in tables.concat() {
+        for text in every_text() {
             let (english, chinese) = (text.id(), text.get(Language::Chinese));
             assert!(!english.is_empty() && !chinese.is_empty(), "{english}");
             assert!(
                 chinese.chars().any(han) || text == ENGLISH,
                 "{english}: {chinese}"
             );
+        }
+    }
+
+    /// Terms the Chinese no longer uses (S102), each with what took its place.
+    const RETIRED: [(&str, &str); 13] = [
+        ("原色", "原图的颜色: 原色 is a primary colour"),
+        ("画图笔", "勾线笔 (Draw)"),
+        ("图包", "素材包"),
+        ("色轮", "色环"),
+        ("色片", "色卡"),
+        (
+            "笔画",
+            "笔触 (a stroke drawn); 描边 (the brush editor's page)",
+        ),
+        ("外形轮廓", "外轮廓, or 轮廓 on a label"),
+        ("图像", "图片"),
+        ("压力", "压感"),
+        ("流线", "防抖"),
+        ("等距延伸", "等距扩展"),
+        ("等比分割", "按比例找点"),
+        ("原点", "已知点: 原点 is the origin"),
+    ];
+
+    #[test]
+    fn the_chinese_holds_no_retired_term() {
+        use openpaint_app::ImageError;
+        use openpaint_practice::{CELLS, Family};
+        let zh = Language::Chinese;
+        // A pen's or brush's name then 画 (draws), and 一笔画 (one stroke), are no 笔画.
+        let pens = [SKETCH, DRAW, CORRECT, BIG, SMALL, SOFT].into_iter();
+        let drawing: Vec<String> = (pens.chain(BUILT_IN))
+            .map(|pen| format!("{}画", pen.get(zh)))
+            .chain(["一笔画".to_owned()])
+            .collect();
+        let mut made: Vec<String> = Family::ALL
+            .iter()
+            .flat_map(|&family| {
+                let mut words = how_steps(family, CELLS, zh);
+                words.push(compared_of(zh, family, (1, 2)));
+                words.push(drill_done(zh, family));
+                words
+            })
+            .collect();
+        for error in [
+            ImageError::Unsupported,
+            ImageError::Damaged,
+            ImageError::TooLarge,
+        ] {
+            made.push(image_failed(zh, true, &error));
+        }
+        made.push(picture_goes(zh, (2, 1)));
+        let tables = every_text().into_iter().map(|text| text.get(zh).to_owned());
+        for chinese in tables.chain(made) {
+            let read = (drawing.iter()).fold(chinese.clone(), |read, verb| read.replace(verb, ""));
+            for (term, instead) in RETIRED {
+                assert!(!read.contains(term), "{chinese}: {term}, now {instead}");
+            }
         }
     }
 }

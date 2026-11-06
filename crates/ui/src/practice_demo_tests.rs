@@ -49,9 +49,9 @@ fn every_kinds_card_has_a_step_for_each_step_of_its_demonstration() {
         ]
     );
     let nine = text::how_steps(Family::Scale, 9, text::Language::Chinese);
-    assert_eq!(nine[0], "先填正中一格（第 5 格）：明度取两端的正中");
-    assert_eq!(nine[1], "再填两半各自的正中（第 3、7 格）");
-    assert_eq!(nine[2], "最后填剩下的格子（第 2、4、6、8 格）");
+    assert_eq!(nine[0], "先填正中的第 5 格：明度取两端的正中");
+    assert_eq!(nine[1], "再填两半各自的正中：第 3、7 格");
+    assert_eq!(nine[2], "最后填剩下的第 2、4、6、8 格");
 }
 
 #[test]

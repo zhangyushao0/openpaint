@@ -79,7 +79,7 @@ pub(crate) fn day_title(language: Language, date: Date, weekday: u32) -> String 
 }
 
 /// A time practised, to the minute (at least one when there is any): "54 min", "1 h 12 min";
-/// "54 分钟", "1 小时 12 分".
+/// "54 分钟", "1 小时 12 分钟".
 pub(crate) fn practice_time(language: Language, seconds: u64) -> String {
     let minutes = if seconds == 0 {
         0
@@ -91,11 +91,11 @@ pub(crate) fn practice_time(language: Language, seconds: u64) -> String {
         (Language::English, 0) => format!("{minutes} min"),
         (Language::English, _) => format!("{hours} h {minutes} min"),
         (Language::Chinese, 0) => format!("{minutes} 分钟"),
-        (Language::Chinese, _) => format!("{hours} 小时 {minutes} 分"),
+        (Language::Chinese, _) => format!("{hours} 小时 {minutes} 分钟"),
     }
 }
 
-/// The book's totals: "9 sessions · 4 h 12 min", "9 次 · 4 小时 12 分".
+/// The book's totals: "9 sessions · 4 h 12 min", "9 次 · 4 小时 12 分钟".
 pub(crate) fn book_totals(language: Language, sessions: u32, seconds: u64) -> String {
     let time = practice_time(language, seconds);
     match language {
@@ -149,11 +149,11 @@ pub(crate) fn seal_name(language: Language, seal: Seal) -> String {
         Seal::FiftySessions => named("Fifty sessions", "练满五十次"),
         Seal::Stage(stage) => match language {
             Language::English => format!("Stage {stage} done"),
-            Language::Chinese => format!("第 {stage} 阶段练完"),
+            Language::Chinese => format!("完成第 {stage} 阶段"),
         },
         Seal::HundredLines => named("A hundred lines", "一百条线"),
         Seal::HundredColours => named("A hundred colours", "一百种颜色"),
-        Seal::FirstCopy => named("First colour copy", "第一张色彩临摹"),
+        Seal::FirstCopy => named("First colour copy", "第一幅色彩临摹"),
         Seal::TenHours => named("Ten hours", "练满十小时"),
     }
 }
@@ -174,11 +174,11 @@ mod tests {
         assert_eq!(practice_time(Language::English, 54 * 60), "54 min");
         assert_eq!(
             practice_time(Language::Chinese, 4 * 3600 + 720),
-            "4 小时 12 分"
+            "4 小时 12 分钟"
         );
         assert_eq!(
             book_totals(Language::Chinese, 9, 4 * 3600 + 720),
-            "9 次 · 4 小时 12 分"
+            "9 次 · 4 小时 12 分钟"
         );
         let date = Date::of(20_754);
         assert_eq!(month_title(Language::English, date), "October 2026");

@@ -4,7 +4,7 @@
 //! half the time spent on them; from them the second level, then the third; no right or wrong, but
 //! roughly what others see; the canvas not zoomed in. Then the division dimmed and the whole
 //! picture copied over it at low completion, the big shapes right, small errors fine. In his
-//! terms: 画面分割, 主分割, 次分割, 三级, 整图复制, 眯眼.
+//! terms: 画面分割, 主分割, 次分割, 三级分割, 整图复制, 眯眼.
 
 use super::practice_demo::{COMPARE_STEP, How};
 
@@ -32,22 +32,22 @@ texts! { PRACTICE_DEMO_DIVISION;
         drawn beside it in three levels.",
         "第 3、4 周 · 眯眼找出整幅画最明显的几条分割线，在图旁分三级画出。";
     DIVISION_STEP_1 = "Squint: the few most obvious lines, red, right through",
-        "眯眼：最明显的几条主分割线，红色，尽量贯穿画面";
-    DIVISION_STEP_2 = "From them, each part's frame, green", "由主分割线找出各部分的外框，绿色";
-    DIVISION_STEP_3 = "Shorter still, blue", "更短的三级分割线，蓝色";
+        "眯眼找最明显的主分割线，用红色贯穿画面";
+    DIVISION_STEP_2 = "From them, each part's frame, green", "由主分割线找出各部分的外框，用绿色";
+    DIVISION_STEP_3 = "Shorter still, blue", "再画更短的三级分割线，用蓝色";
     DIVISION_SAYS = "Spend about half the time on the red lines: at most five, as long as they \
         run, small turns ignored, a bent line's turning point found first; the canvas not zoomed \
         in. There is no right or wrong, but others see roughly the same. Red, green and blue are \
         the three levels; Compare lays the picture under your lines, the slider sets how \
         strongly it shows, and the table counts each level's lines and how far they run on \
         average.",
-        "一半左右的时间花在红色主分割线上：最多五条，尽量长，忽略小的转折，有弯折的长线先找转折点；不要放大画布。分割没有对错，但大家找到的大致相同。红、绿、蓝是三级分割；叠图对比把原图放在你的线条下面，滑块调节原图的浓淡，表格列出每一级的条数和平均长度。";
+        "一半左右的时间花在红色主分割线上：最多五条，尽量长，忽略小的转折，有弯折的长线先找转折点；不要放大画布。分割没有对错，但大家找到的大致相同。红、绿、蓝分别是主分割、次分割和三级分割；叠图对比把原图放在你的线条下面，滑块调节原图浓淡，表格列出每一级的条数和平均长度。";
     WHOLE_COPY_TRAINS = "Weeks 3 and 4 · a division continued into a copy of the whole picture: \
         the big shapes right, no details.",
         "第 3、4 周 · 在画面分割的基础上整图复制：大形准确，不画细节。";
     WHOLE_COPY_STEP_1 = "Divide it: red, then green", "先分割：先红后绿";
     WHOLE_COPY_STEP_2 = "Draw: the big shapes over it, no details",
-        "画图笔：在上面画出大形，不画细节";
+        "用勾线笔在上面画出大形，不画细节";
     WHOLE_COPY_SAYS = "Choose Draw and your division dims under the line drawing, as a lower \
         layer's opacity would; or, if your shapes are strong, paint it in colour blocks over the \
         division dimmed: Fill frame for the overall tone, Big for the big blocks, Small for edges \
@@ -55,5 +55,5 @@ texts! { PRACTICE_DEMO_DIVISION;
         the picture over your copy, your division hidden; the slider sets how strongly it shows, \
         and the eyedropper compares a point of your blocks. The big shapes should be right; small \
         local errors are fine.",
-        "选画图笔后，你的分割线会变淡，留在线稿下面，就像降低了图层的不透明度；造型能力强的话，也可以在变淡的分割线上画色块：填满方框铺整体色调，大笔画大色块，小笔收边、画小色块，柔边笔只用在原图边缘或渐变柔和的地方。叠图对比把原图叠在你的临摹上，分割线隐藏；滑块调节原图的浓淡，吸管可以对比色块上的一点。大形要准，局部的小误差没关系。";
+        "选勾线笔后，你的分割线会变淡，留在线稿下面，就像调低了下层的不透明度；抓形能力强的话，也可以在变淡的分割线上画色块：用“填满方框”铺整体色调，大笔画大色块，小笔收边、画小色块，柔边笔只用在原图边缘或渐变柔和的地方。叠图对比把原图叠在你的临摹上，分割线隐藏；滑块调节原图浓淡，吸管可以对比色块上的一点。大形要准，局部的小误差没关系。";
 }

@@ -13,7 +13,7 @@ texts! { NAMES;
     LAYER_NAME = "Layer", "图层";
     GROUP_NAME = "Group", "组";
     PICTURE_NAME = "Picture", "图片";
-    INSERTED_IMAGE = "Inserted image", "插入的图像";
+    INSERTED_IMAGE = "Inserted image", "插入的图片";
     PASTED_LAYER = "Pasted layer", "粘贴的图层";
     UNTITLED_ARTWORK = "Untitled Artwork", "未命名作品";
     COPY_NAME = "copy", "副本";

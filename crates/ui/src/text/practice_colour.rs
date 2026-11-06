@@ -13,24 +13,25 @@ texts! { PRACTICE_COLOUR;
     SMALL = "Small", "小笔";
     SOFT = "Soft", "柔边笔";
     FILL_CELL = "Fill cell", "填满格子";
-    ORIGINAL_SHOWN = "Original shown", "原图显示";
+    ORIGINAL_SHOWN = "Original shown", "原图浓淡";
     READING_COPY = "Reading your copy…", "正在读取你的临摹…";
     NOT_PAINTED = "This area is not painted yet.", "这个色块还没有画。";
     COMBINATIONS = "Combinations", "色彩组合";
     SCALES = "Value scales", "明度推移";
     AREAS_DELTA = "Areas ΔE", "色块 ΔE";
     WEAK_CONTRASTS = "Weak contrasts", "弱对比";
-    WEAK_MADE_STRONG = "Weak made strong", "弱对比画强";
-    OFF_EVEN = "Off even", "偏离均匀";
-    UNEVEN_CELLS = "Uneven cells", "不均匀的格";
-    OUT_OF_ORDER = "Out of order", "顺序反了";
+    WEAK_MADE_STRONG = "Weak made strong", "画强的弱对比";
+    OFF_EVEN = "Off even", "明度偏差";
+    UNEVEN_CELLS = "Uneven cells", "不均匀的格子";
+    OUT_OF_ORDER = "Out of order", "明暗颠倒";
     COLOUR_COPIES = "Colour copies (long projects)", "色彩临摹（大作业）";
     OPEN = "Open", "打开";
     COPIES_NOTE = "A long copy in colour, worked on whenever you like over 10 to 20 hours; it never \
-        counts as a session.", "用颜色做的长时间临摹，总共约 10 到 20 小时，随时都可以画；不算在练习次数里。";
+        counts as a session.",
+        "一幅慢慢画的色彩临摹，总共约 10 到 20 小时，什么时候画都行；不计入练习次数。";
     DRILL_NEEDS_CROPS = "Colour combinations copy crops of real pictures: import the textures or \
         the composition pack under Practice packs.",
-        "色彩组合临摹的是真实图片上截下的局部：请在“练习图包”下导入纹理素材包或构图素材包。";
+        "色彩组合临摹的是真实图片上截取的局部：请在“素材包”下导入纹理素材包或构图素材包。";
 }
 
 /// A value scale compared (S97): how many of its cells are uneven.

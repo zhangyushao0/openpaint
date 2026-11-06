@@ -22,7 +22,7 @@ texts! { LAYERS_TABLE;
     MASK_INVERTED = "Inverted", "已反转";
     TURN_MASK_OFF = "Turn mask off", "关闭蒙版";
     TURN_MASK_ON = "Turn mask on", "开启蒙版";
-    BLACK_HIDES = "Black hides · white shows", "黑色隐藏 · 白色显示";
+    BLACK_HIDES = "Black hides · white shows", "黑色遮住 · 白色显示";
     DELETE_MASK = "Delete mask", "删除蒙版";
     HIDE_GROUP = "Hide group", "隐藏组";
     SHOW_GROUP = "Show group", "显示组";
@@ -35,12 +35,12 @@ texts! { LAYER_WORDS;
     MULTIPLY = "Multiply", "正片叠底";
     BLEND_SCREEN = "Screen", "滤色";
     OVERLAY = "Overlay", "叠加";
-    NOTHING_BELOW = "Nothing below", "下方无图层";
+    NOTHING_BELOW = "Nothing below", "下面没有图层";
     HIDDEN_LAYER = "Hidden layer", "图层已隐藏";
     LOCKED_LAYER = "Locked layer", "图层已锁定";
     MODES_CLASH = "Modes clash", "混合模式冲突";
-    BELOW_CLIPS = "Below clips", "下方有剪辑";
-    HAS_CLIPS = "Has clips", "带有剪辑";
+    BELOW_CLIPS = "Below clips", "下层是剪辑蒙版";
+    HAS_CLIPS = "Has clips", "上面有剪辑蒙版";
     TOO_DEEP = "Too deep", "嵌套过深";
 }
 

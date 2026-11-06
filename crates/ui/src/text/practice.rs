@@ -15,9 +15,9 @@ texts! { PRACTICE_TABLE;
     ONE_MORE = "One more", "再练一次";
     ALL_TOOLS = "All tools", "全部工具";
     SKETCH = "Sketch", "草稿笔";
-    DRAW = "Draw", "画图笔";
+    DRAW = "Draw", "勾线笔";
     CORRECT = "Correct", "修正笔";
-    COLOUR_PICKED = "Colour picked", "所选颜色";
+    COLOUR_PICKED = "Colour picked", "当前颜色";
     FILL_FRAME = "Fill frame", "填满方框";
     GOT_IT = "Got it", "知道了";
     IN_PLACE = "In place", "原位";
@@ -25,21 +25,23 @@ texts! { PRACTICE_TABLE;
     WARM_UP = "Warm-up", "热身";
     LINE = "Line", "线条";
     COMBINED_LINES = "Combined lines", "组合线条";
-    COPY_A_LINE = "Copy a line", "单根线条";
-    COPY_COMBINED = "Copy combined lines", "组合线条";
-    MATCH_A_COLOUR = "Match a colour", "单色";
+    // V大's name for the single-colour exercise, apart from the canvas's Colour (颜色).
+    COLOUR_EXERCISE = "Colour", "单色";
+    COPY_A_LINE = "Copy a line", "临摹单根线条";
+    COPY_COMBINED = "Copy combined lines", "临摹组合线条";
+    MATCH_A_COLOUR = "Match a colour", "临摹单色";
     SHAPE_EXERCISE = "Shape", "单体图形";
-    COPY_A_SHAPE = "Copy a single shape", "单体图形";
-    NO_OUTLINE = "This picture has no outline to align.", "这张图没有外形轮廓，不能对齐。";
+    COPY_A_SHAPE = "Copy a single shape", "临摹单体图形";
+    NO_OUTLINE = "This picture has no outline to align.", "这张图没有外轮廓，无法对齐。";
     ALIGNING = "Aligning…", "正在对齐…";
     THIS_SESSION = "this", "本次";
-    BEFORE = "before", "此前";
-    COLOURS = "Colours", "颜色";
+    BEFORE = "before", "以往";
+    COLOURS = "Colours", "单色";
     FIRST_PICK_DELTA = "First pick ΔE", "首次选色 ΔE";
     FINAL_DELTA = "Final ΔE", "最终 ΔE";
     CORRECTIONS = "Corrections", "修正次数";
     DARK = "Dark", "暗色";
-    GREYISH = "Greyish", "偏灰";
+    GREYISH = "Greyish", "灰色";
     FIRST_TO_FINAL = "First → final", "首次 → 最终";
 }
 
@@ -111,7 +113,7 @@ pub(crate) fn drill_done(language: Language, family: Family) -> String {
     let name = kind_name(family).get(language);
     match language {
         Language::English => format!("{name} drill done"),
-        Language::Chinese => format!("{name}专项完成"),
+        Language::Chinese => format!("{name}专项练习完成"),
     }
 }
 
@@ -150,7 +152,7 @@ const fn called(family: Family, warming_up: bool) -> Text {
         (false, Family::Division) => super::DIVISION_EXERCISE,
         (false, Family::WholeCopy) => super::WHOLE_COPY_EXERCISE,
         (false, Family::ValueMasses) => super::VALUE_MASSES_EXERCISE,
-        (false, Family::Colour) => super::COLOUR,
+        (false, Family::Colour) => COLOUR_EXERCISE,
         (false, Family::Areas) => super::AREAS_EXERCISE,
         (false, Family::Scale) => super::SCALE_EXERCISE,
         (false, Family::Study) => super::STUDY_EXERCISE,
@@ -236,7 +238,7 @@ pub(crate) fn compared_of(
         (Language::Chinese, Family::Box) => format!("透视盒子：已对比 {checked}/{held}"),
         (Language::Chinese, Family::FreeBoxes) => format!("自由盒子：已对比 {checked}/{held}"),
         (Language::Chinese, Family::Ellipse) => format!("椭圆：已对比 {checked}/{held}"),
-        (Language::Chinese, Family::Colour) => format!("颜色：已对比 {checked}/{held}"),
+        (Language::Chinese, Family::Colour) => format!("单色：已对比 {checked}/{held}"),
         (Language::Chinese, Family::Areas) => format!("色彩组合：已对比 {checked}/{held}"),
         (Language::Chinese, Family::Scale) => format!("明度推移：已对比 {checked}/{held}"),
         (Language::Chinese, Family::Study) => format!("色彩临摹：已对比 {checked}/{held}"),

@@ -161,7 +161,7 @@ fn in_chinese_the_sets_and_brushes_read_in_chinese_and_keep_their_names() {
     let toolbox = toolbox();
     let mut state = ListState::default();
     let (_, map, texts) = shown(&ctx, &toolbox, &mut state, (1.0, Vec::new()));
-    for word in ["笔刷", "最近", "上墨", "墨水笔", "勾线笔", "流线"] {
+    for word in ["笔刷", "最近", "上墨", "墨水笔", "描线笔", "防抖"] {
         assert!(texts.iter().any(|text| text == word), "{word} in {texts:?}");
     }
     assert!(

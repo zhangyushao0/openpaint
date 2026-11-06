@@ -9,7 +9,7 @@ use super::{Language, Text};
 texts! { GALLERY_TABLE;
     SEARCH = "Search", "搜索";
     NEW_ARTWORK = "New artwork", "新建作品";
-    NO_ARTWORKS = "No artworks yet. Tap + to start one.", "还没有作品。轻点 + 开始创作。";
+    NO_ARTWORKS = "No artworks yet. Tap + to start one.", "还没有作品，轻点 + 新建一幅。";
     TODAY = "Today", "今天";
     PRACTICE = "Practice", "练习";
     START_PRACTICE = "Start practice", "开始练习";
@@ -22,11 +22,11 @@ texts! { GALLERY_TABLE;
     NO_PREVIEW = "No preview", "无预览";
     TITLE = "Title", "标题";
     CANNOT_BE_UNDONE = "This can't be undone. Its kept versions go with it.",
-        "此操作无法撤销，保留的版本也会一并删除。";
+        "删除后无法撤销，它的历史版本也会一起删除。";
     SAVE_AS_FILE = "Save as OpenPaint file…", "存为 OpenPaint 文件…";
-    VERSIONS = "Versions", "版本";
-    KEPT_WHEN_LEFT = "Kept when you leave it after a change.", "改动后离开作品时保留。";
-    OPENS_AS_COPY = "Each opens as a new copy.", "每个版本都作为新副本打开。";
+    VERSIONS = "Versions", "历史版本";
+    KEPT_WHEN_LEFT = "Kept when you leave it after a change.", "改动作品后离开时，会保留一个版本。";
+    OPENS_AS_COPY = "Each opens as a new copy.", "每个版本都会作为副本打开。";
     NEW_CANVAS = "New canvas", "新建画布";
     SCREEN_SIZE = "Screen size", "屏幕尺寸";
     CANVAS_SQUARE = "Square", "正方形";
@@ -34,23 +34,24 @@ texts! { GALLERY_TABLE;
     A4_LANDSCAPE = "A4 landscape", "A4 横向";
     FROM_A_FILE = "From a file", "从文件";
     OPEN_FILE = "Open OpenPaint file…", "打开 OpenPaint 文件…";
-    LINES_AND_COLOURS = "Lines and colours", "线条与颜色";
+    LINES_AND_COLOURS = "Lines and colours", "线条与色彩";
     SINGLE_SHAPES = "Single shapes", "单体图形";
     PRACTICE_OPTIONS = "Practice options", "练习选项";
     START_NEXT_STAGE = "Start the next stage", "开始下一阶段";
     START_A_SESSION = "Start a session", "开始一次练习";
     DRILL_NEEDS_PACK = "Shapes copy a practice pack's pictures: import one under Practice packs.",
-        "单体图形临摹的是练习图包里的图片：请在“练习图包”下导入。";
-    PRACTICE_PACKS = "Practice packs", "练习图包";
+        "单体图形临摹的是素材包里的图片：请在“素材包”下导入一个。";
+    PRACTICE_PACKS = "Practice packs", "素材包";
     MY_PICTURES = "My pictures", "我的图片";
-    IMPORT_PACK = "Import practice pack…", "导入练习图包…";
+    IMPORT_PACK = "Import practice pack…", "导入素材包…";
     ADD_PICTURE = "Add my picture…", "添加我的图片…";
     NO_PACKS = "No pack yet: single shapes copy a pack's pictures.",
-        "还没有图包：单体图形临摹的是图包里的图片。";
+        "还没有素材包：单体图形要临摹素材包里的图片。";
     PACKS_NOTE = "Your own pictures stay on this tablet; one comes up in each stage 2 or 3 \
-        session that reaches its tier.", "你自己的图片只保存在这台平板上；第 2、3 阶段的练习进行到它的难度后，每次会出现一张。";
+        session that reaches its tier.",
+        "你的图片只存在这台平板上。第 2、3 阶段练到它的难度后，每次练习会用到其中一张。";
     SHAPES_NEED_PACK = "Shapes need a practice pack: see the options.",
-        "单体图形需要练习图包：见选项。";
+        "单体图形需要素材包：见练习选项。";
 }
 
 texts! { GALLERY_NOTICES;
@@ -70,23 +71,23 @@ texts! { GALLERY_NOTICES;
     FILE_UNREADABLE = "Couldn't read the file.", "无法读取文件。";
     RESTORE_FAILED = "Couldn't restore this version.", "无法恢复此版本。";
     PACK_IMPORTED = "Practice pack imported: its pictures come up in single shapes.",
-        "练习图包已导入：单体图形会用到其中的图片。";
+        "素材包已导入：单体图形会用到里面的图片。";
     COMPOSITIONS_IMPORTED = "Practice pack imported: for divisions, value masses and whole \
-        copies.", "练习图包已导入：画面分割、黑白灰和整图复制会用到其中的图片。";
+        copies.", "素材包已导入：用于画面分割、黑白灰和整图复制。";
     COMPOSITIONS_AND_CROPS_IMPORTED = "Practice pack imported: for divisions, value masses and \
         whole copies, and its crops for colour combinations.",
-        "素材包已导入：画面分割、黑白灰和整图复制会用到其中的画，色彩组合会用到从画上截下的局部。";
+        "素材包已导入：用于画面分割、黑白灰和整图复制，截取的局部用于色彩组合。";
     CROPS_IMPORTED = "Practice pack imported: its crops come up in colour combinations.",
-        "素材包已导入：色彩组合会用到其中截下的局部。";
+        "素材包已导入：截取的局部用于色彩组合。";
     PACK_DAMAGED = "Couldn't import: the file is not a practice pack, or it is damaged.",
-        "无法导入：这不是练习图包，或图包已损坏。";
+        "无法导入：这不是素材包，或文件已损坏。";
     PACK_OTHER_FORMAT = "Couldn't import: the pack is from another version of OpenPaint.",
-        "无法导入：图包来自其他版本的 OpenPaint。";
+        "无法导入：这个素材包来自其他版本的 OpenPaint。";
     PICTURE_ADDED = "Added to My pictures. Its outline was found: Compare lays it over your copy.",
-        "已添加到“我的图片”。已找到外形轮廓：叠图对比时会叠在你的临摹上。";
+        "已添加到“我的图片”，并找到了它的外轮廓：叠图对比时会把轮廓叠在你的临摹上。";
     PICTURE_ADDED_PLAIN = "Added to My pictures. No outline was found for it: Compare lays the \
         picture itself over your copy, faint.",
-        "已添加到“我的图片”。没有找到它的外形轮廓：叠图对比时会把原图淡淡地叠在你的临摹上。";
+        "已添加到“我的图片”，但没找到外轮廓：叠图对比时会把原图淡淡地叠在你的临摹上。";
     PICTURE_REFUSED = "Couldn't add the picture: only PNG and JPEG pictures are taken.",
         "无法添加图片：只支持 PNG 和 JPEG 图片。";
 }
@@ -148,7 +149,7 @@ pub(crate) const fn preset(preset: CanvasPreset) -> Text {
 pub(crate) fn nothing_found(language: Language, search: &str) -> String {
     match language {
         Language::English => format!("No title holds “{search}”."),
-        Language::Chinese => format!("没有标题包含“{search}”。"),
+        Language::Chinese => format!("没有标题含“{search}”的作品。"),
     }
 }
 

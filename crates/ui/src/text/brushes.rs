@@ -8,11 +8,11 @@ use super::{Language, Text};
 
 texts! { BRUSHES_TABLE;
     RECENT_EMPTY = "Brushes you draw with appear here.", "用过的笔刷会出现在这里。";
-    STREAMLINE = "StreamLine", "流线";
+    STREAMLINE = "StreamLine", "防抖";
     RENAME_BRUSH = "Rename brush", "重命名笔刷";
-    STROKES_STAY = "Strokes drawn with it stay.", "用它画过的笔画会保留。";
+    STROKES_STAY = "Strokes drawn with it stay.", "用它画过的笔触都会保留。";
     SET = "Set", "笔刷组";
-    STROKE = "Stroke", "笔画";
+    STROKE = "Stroke", "描边";
     SHAPE = "Shape", "形状";
     GRAIN = "Grain", "颗粒";
     SIZE = "Size", "大小";
@@ -21,14 +21,14 @@ texts! { BRUSHES_TABLE;
     COVERING = "Covering", "覆盖";
     BUILDS_UP = "Builds up", "累积";
     TIP = "Tip", "笔尖";
-    TIP_FLAT = "Flat", "扁平";
+    TIP_FLAT = "Flat", "平顶";
     BELL = "Bell", "钟形";
     PAPER = "Paper", "纸纹";
     SKETCH_PAPER = "Sketch", "素描纸";
-    PAPER_CONTINUOUS = "Paper keeps the stroke continuous.", "有纸纹时笔画保持连续。";
+    PAPER_CONTINUOUS = "Paper keeps the stroke continuous.", "有纸纹时，笔触保持连续。";
     ROTATION = "Rotation", "旋转";
     FIXED = "Fixed", "固定";
-    DIRECTION = "Direction", "方向";
+    DIRECTION = "Direction", "随方向";
     AZIMUTH = "Azimuth", "方位角";
     CONTINUOUS = "Continuous", "连续";
     SIZE_DYNAMICS = "Size dynamics", "大小动态";
@@ -37,7 +37,7 @@ texts! { BRUSHES_TABLE;
     FIRM = "Firm", "重";
     SLOW = "Slow", "慢";
     UPRIGHT = "Upright", "竖直";
-    LYING_FLAT = "Flat", "平躺";
+    LYING_FLAT = "Flat", "平放";
     PREVIEW = "Preview", "预览";
 }
 
@@ -51,13 +51,13 @@ texts! { BRUSH_WORDS;
     STAMP_SQUARE = "Square", "方形";
     ELLIPSE = "Ellipse", "椭圆";
     CHALK = "Chalk", "粉笔";
-    GRAINY = "Grainy", "颗粒";
+    GRAINY = "Grainy", "颗粒感";
     SPLATTER = "Splatter", "飞溅";
-    ROUGH_SQUARE = "Rough square", "粗糙方形";
+    ROUGH_SQUARE = "Rough square", "毛边方形";
     SPACING = "Spacing", "间距";
     TAPER_START = "Taper start", "起笔渐细";
     TAPER_END = "Taper end", "收笔渐细";
-    TAPER_TIP = "Taper tip", "渐细笔尖";
+    TAPER_TIP = "Taper tip", "尖端粗细";
     ASPECT = "Aspect", "纵横比";
     ANGLE = "Angle", "角度";
     ROTATION_JITTER = "Rotation jitter", "旋转抖动";
@@ -70,7 +70,7 @@ texts! { BRUSH_WORDS;
     MAX_DENSITY = "Max density", "最大浓度";
     MINIMUM = "Minimum", "最小";
     MAXIMUM = "Maximum", "最大";
-    PRESSURE = "Pressure", "压力";
+    PRESSURE = "Pressure", "压感";
     SPEED = "Speed", "速度";
     TILT = "Tilt", "倾斜";
 }
@@ -78,7 +78,7 @@ texts! { BRUSH_WORDS;
 texts! { BRUSH_NAMES;
     PENCIL = "Pencil", "铅笔";
     INK_PEN = "Ink Pen", "墨水笔";
-    INKER = "Inker", "勾线笔";
+    INKER = "Inker", "描线笔";
     MONOLINE = "Monoline", "单线笔";
     HARD_PAINT = "Hard Paint", "硬边颜料";
     HARD_ROUND = "Hard Round", "硬圆笔";
@@ -191,7 +191,7 @@ pub(crate) fn times(language: Language, value: f32, radius: bool) -> String {
 pub(crate) fn up_to(language: Language, top: f32) -> String {
     match language {
         Language::English => format!("Up to {top:.0}×"),
-        Language::Chinese => format!("最高 {top:.0}×"),
+        Language::Chinese => format!("最高 {top:.0} 倍"),
     }
 }
 

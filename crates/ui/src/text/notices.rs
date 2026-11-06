@@ -11,21 +11,21 @@ texts! { NOTICES;
     SAVE_FAILED = "Couldn't save. Your drawing is still here.", "无法保存，你的画还在这里。";
     SAVING = "Saving…", "正在保存…";
     LAST_DRAWING_FAILED = "Couldn't open the last drawing. This is a new one.",
-        "无法打开上次的画，这是一张新画。";
-    DRAW_IN_FRAME = "Draw in the empty frame.", "请在空白框里画。";
-    DRAW_IN_CELL = "Paint in a cell between the two ends.", "请在两端之间的格子里画。";
-    PICK_AFTER_COMPARE = "The original can be picked after Compare.", "叠图对比之后才能吸取原图的颜色。";
-    SESSION_DONE = "This session is done.", "这次练习已完成。";
-    DROP_IN_FRAME = "Drop inside the empty frame to fill.", "拖到空白框里即可填充。";
-    DROP_IN_SELECTION = "Drop inside the selection to fill.", "拖到选区里即可填充。";
+        "无法打开上次的画，已新建一张。";
+    DRAW_IN_FRAME = "Draw in the empty frame.", "只能在空白框里画。";
+    DRAW_IN_CELL = "Paint in a cell between the two ends.", "只能在两端之间的格子里画。";
+    PICK_AFTER_COMPARE = "The original can be picked after Compare.", "叠图对比之后才能吸原图的颜色。";
+    SESSION_DONE = "This session is done.", "这次练习已经完成。";
+    DROP_IN_FRAME = "Drop inside the empty frame to fill.", "拖到空白框里松手即可填充。";
+    DROP_IN_SELECTION = "Drop inside the selection to fill.", "拖到选区里松手即可填充。";
     FILL_FAILED = "Couldn't fill there. Try again.", "无法在这里填充，请重试。";
     NOTHING_TO_TRANSFORM = "Nothing to transform here.", "这里没有可变换的内容。";
-    NOTHING_PASTED = "Nothing to paste: the copy holds no paint.", "没有可粘贴的内容：拷贝里没有颜料。";
-    LIFT_FAILED = "Couldn't pick up the layer. Try again.", "无法拾取图层，请重试。";
+    NOTHING_PASTED = "Nothing to paste: the copy holds no paint.", "没有可粘贴的内容：拷贝的区域是空的。";
+    LIFT_FAILED = "Couldn't pick up the layer. Try again.", "无法提取图层内容，请重试。";
     MASK_NOT_TRANSFORMED = "A mask can't be transformed. Tap the layer to move its paint.",
-        "蒙版不能变换。轻点图层来移动它的内容。";
+        "蒙版不能变换。要移动内容，请轻点图层本身。";
     NO_ROOM = "Can't insert: no room for another layer.", "无法插入：图层数量已达上限。";
-    OPENING_IMAGE = "Opening the image…", "正在打开图像…";
+    OPENING_IMAGE = "Opening the image…", "正在打开图片…";
     SAVE_DIALOG_FAILED = "Couldn't open the save dialog. Nothing was saved.",
         "无法打开保存对话框，未保存任何内容。";
     RENDER_FAILED = "Couldn't render the artwork. Nothing was saved.", "无法渲染作品，未保存任何内容。";
@@ -117,7 +117,7 @@ pub(crate) fn export_failed(
             format!("Couldn't write the {format} file. Is there space left?")
         }
         (ExportError::Write(_), Delivery::Save) => {
-            format!("无法写入 {format} 文件。存储空间是否已满？")
+            format!("无法写入 {format} 文件，请检查存储空间是否已满。")
         }
     }
 }
@@ -125,19 +125,19 @@ pub(crate) fn export_failed(
 /// Why a reference picture (`insert` false) or a picture to insert could not be used.
 pub(crate) fn image_failed(language: Language, insert: bool, error: &ImageError) -> String {
     let (english, chinese) = match error {
-        ImageError::Picker(_) => ("the picker failed.", "选择器出错。"),
+        ImageError::Picker(_) => ("the picker failed.", "文件选择器出错。"),
         ImageError::Read(_) => ("the file could not be read.", "无法读取文件。"),
         ImageError::Unsupported => (
             "only PNG and JPEG images can be used.",
-            "只能使用 PNG 和 JPEG 图像。",
+            "只能使用 PNG 和 JPEG 图片。",
         ),
         ImageError::Damaged => ("the file is damaged.", "文件已损坏。"),
-        ImageError::TooLarge => ("it is larger than 50 megapixels.", "图像超过 5000 万像素。"),
+        ImageError::TooLarge => ("it is larger than 50 megapixels.", "图片超过 5000 万像素。"),
     };
     match (language, insert) {
         (Language::English, false) => format!("Couldn't open the image: {english}"),
         (Language::English, true) => format!("Couldn't insert the image: {english}"),
-        (Language::Chinese, false) => format!("无法打开图像：{chinese}"),
-        (Language::Chinese, true) => format!("无法插入图像：{chinese}"),
+        (Language::Chinese, false) => format!("无法打开图片：{chinese}"),
+        (Language::Chinese, true) => format!("无法插入图片：{chinese}"),
     }
 }

@@ -13,19 +13,19 @@ pub(crate) const VALUE_MASSES: How = How {
 
 texts! { PRACTICE_MASSES;
     VALUE_MASSES_EXERCISE = "Value masses", "黑白灰";
-    PAINT_VALUE_MASSES = "Paint the value masses", "黑白灰";
+    PAINT_VALUE_MASSES = "Paint the value masses", "归纳黑白灰";
     DARK_PEN = "Dark", "黑";
     MIDDLE_PEN = "Middle", "灰";
     LIGHT_PEN = "Light", "白";
     MASSES_COUNTED = "Value masses", "黑白灰";
-    AT_ITS_VALUE = "At its value", "明度对的面积";
+    AT_ITS_VALUE = "At its value", "画对的面积";
     DRILL_NEEDS_MASSES = "Value masses use the composition pack: import it under Practice \
-        packs.", "黑白灰用的是构图图包：请在“练习图包”下导入。";
+        packs.", "黑白灰要用构图素材包：请在“素材包”下导入。";
     MASSES_TRAINS = "Weeks 2 to 4 · a picture squinted at until only its few big masses are \
         left, each dark, middle or light, grouped by value and not by object.",
-        "第 2 至 4 周 · 眯眼看画面，只剩几块大的色块，每块归为黑、白或灰：按明度归纳，不按物体分。";
+        "第 2 至 4 周 · 眯眼看画面，直到只剩几块大色块，每块归为黑、灰、白之一：按明度归纳，不按物体分。";
     MASSES_STEP_1 = "Squint: Fill frame with Middle, the overall tone",
-        "眯眼：先用灰填满方框，作为整体色调";
+        "眯眼，先用灰填满方框，作为整体色调";
     MASSES_STEP_2 = "The darkest big masses with Dark", "用黑画最暗的几块大色块";
     MASSES_STEP_3 = "Then the light ones with Light", "再用白画亮的色块";
     MASSES_SAYS = "A shadow and a dark ground are one mass; leave out what squinting loses, and \
@@ -33,5 +33,5 @@ texts! { PRACTICE_MASSES;
         as strongly as the slider sets: its mass edges red, and where your grey differs over more \
         than a pen's width, hatched in the grey it should be. Repaint with the same pens and \
         compare again.",
-        "阴影和暗的背景是同一块；眯眼看不见的就不画，大块地画，不要放大画布。叠图对比把答案的三种灰按滑块的浓淡叠在你的画上：色块的边界是红色，你的灰度和答案不同、宽过一支笔的地方，用应有的灰画上斜线。用同样的笔重画，再对比。";
+        "暗部和暗的背景并成一块；眯眼时看不出的就不画；大块地画，不要放大画布。叠图对比把答案的黑白灰叠在你的画上，浓淡由滑块调节：色块的边界画成红线；你的灰画错、且错处宽过一个笔宽的地方，用应有的灰打上斜线。用同样的笔重画，再对比。";
 }
