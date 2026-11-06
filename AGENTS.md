@@ -37,7 +37,7 @@ Do not rebuild the big picture from source; the module map is in ARCHITECTURE. D
 | 3 | `cargo gate` | once before the commit: fmt, clippy, all tests (every test binary at once, `xtask/src/test_run.rs`), repo-check; about 2.5 min |
 
 - Scenarios: `cargo scenario <name>` replays one; `cargo scenarios` replays all, each in a process of its own, as many at once as the machine has threads (`--jobs N`): about 3 min for 72, one line each in name order.
-- Start `cargo scenarios` in the background as soon as the code is done, and write the documents while it runs.
+- Start `cargo scenarios` in the background as soon as the code is done, and write the documents while it runs. Run the gate and the suite alone: each uses every core, and anything heavy beside them (another test run, clippy) makes tests time out or run out of memory (S104).
 - A fix after review reruns the scenarios it can reach plus the gate; the whole suite only when shared drawing or layout code changed.
 - When tier 3 fails, go back to tier 1 to fix; do not rerun tier 3 repeatedly.
 - Read the exit code. Never judge a pass from gate output piped through `tail` or `grep`.
