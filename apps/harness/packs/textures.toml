@@ -88,6 +88,7 @@ source = "commons"
 object = "File:Texture 2017 28.jpg"
 licence = "CC0"
 reason = "a dull orange coat flaking off grey metal: two warm areas a weak step apart beside a grey"
+no_crop.2 = "near-identical to its first crop"
 
 [[item]]
 id = "grey-sheet-rust-patch"
@@ -102,6 +103,7 @@ source = "commons"
 object = "File:Texture 2018 08.jpg"
 licence = "CC0"
 reason = "rust running down over grey: warm and cool greys in bands"
+no_crop.1 = "the dark drip down its middle is not an area"
 
 [[item]]
 id = "grey-metal-rust-edge"
@@ -131,6 +133,7 @@ source = "commons"
 object = "File:Textures 24.JPG"
 licence = "CC0"
 reason = "purple-blue paint with orange rust and yellow lichen"
+no_crop.1 = "busy: lichen specks along a ledge"
 
 # Peeling paint and plaster
 
@@ -168,6 +171,7 @@ source = "commons"
 object = "File:Texture 2018 09.jpg"
 licence = "CC0"
 reason = "a dark mottled wall peeling to rust and white"
+no_crop.1 = "a dark mottle read as three greys"
 
 # Torn posters
 
@@ -177,6 +181,7 @@ source = "commons"
 object = "File:Textures 2015 02.jpg"
 licence = "CC0"
 reason = "a navy poster torn to its grey backing: one strong contrast and close greys"
+no_crop.2 = "plain: one diagonal of navy against grey"
 
 [[item]]
 id = "torn-poster-scraps"
@@ -184,6 +189,7 @@ source = "commons"
 object = "File:Textures 2015 04.jpg"
 licence = "CC0"
 reason = "a torn poster's grey backing with dark, navy and green scraps"
+no_crop.1 = "plain: grey paper, its scraps too small to be areas"
 
 [[item]]
 id = "torn-navy-scraps"

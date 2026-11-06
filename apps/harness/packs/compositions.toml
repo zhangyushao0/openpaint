@@ -89,6 +89,7 @@ source = "met"
 object = "11050"
 licence = "CC0"
 reason = "a black sky over a pale shore and dark still water, a white sail as the accent: a two-value Notan almost as painted"
+no_crop.1 = "a dark storm, a village on the horizon and the scan's edge"
 
 [[item]]
 id = "homer-northeaster"
@@ -290,6 +291,7 @@ source = "met"
 object = "10819"
 licence = "CC0"
 reason = "a sculler on a still river under a bridge: horizontal bands of sky, trees and water, one bright boat as the focal point"
+no_crop.1 = "the tree line: a recognisable landscape"
 
 [[item]]
 id = "cezanne-card-players"
@@ -429,6 +431,7 @@ object = "File:Caminandes 3 - Llamigos - Blender Animated Short.webm"
 at = 10
 licence = "CC BY 3.0"
 reason = "a llama on a frozen pond before a fence and snowy hills: one warm figure on cool light grounds, the fence as a dividing line"
+no_crop.1 = "tiny figures on the ice"
 
 # Hard
 
