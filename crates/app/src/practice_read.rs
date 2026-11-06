@@ -11,12 +11,14 @@
 use std::sync::Arc;
 
 use openpaint_practice::{
-    Areas, MassesCheck, Metrics, Original, Point, Rgb8, ScaleCheck, ValueMasses, ValueScale,
+    Areas, MassesCheck, Metrics, Original, Point, Rgb8, ScaleCheck, Tendency, ValueMasses,
+    ValueScale,
 };
 
+use super::key::read_key;
 use super::{Compared, PracticeSheet, unavailable};
 use crate::error::AppError;
-use crate::practice::{AreasRead, PracticeNotice, Probe, SHOWN};
+use crate::practice::{AreasRead, KeyRead, PracticeNotice, Probe, SHOWN};
 use crate::practice_copy::PAPER;
 use crate::practice_pictures::PictureImage;
 use crate::projection::Availability;
@@ -40,6 +42,14 @@ pub enum ReadAs {
     /// Value masses' answer (S96) and where the picture lies in the frame: its top left and its
     /// size, frame units.
     Masses(Arc<ValueMasses>, [Point; 2]),
+    /// A key shift's (S107): its crop's areas, the size its picture fills in the frame, its
+    /// tendency, and its picture as read for the screen (none while not read), greyed with it.
+    KeyShift {
+        areas: Arc<Areas>,
+        extent: Point,
+        tendency: Tendency,
+        original: Option<Arc<PictureImage>>,
+    },
 }
 
 /// A painted copy as read: a colour combination's areas and the edges where it made a weak
@@ -49,6 +59,7 @@ pub enum CopyRead {
     Areas(Arc<AreasRead>),
     Scale(Arc<ScaleCheck>),
     Masses(Arc<MassesCheck>),
+    KeyShift(Arc<KeyRead>),
 }
 
 impl ReadJob {
@@ -57,6 +68,16 @@ impl ReadJob {
     #[must_use]
     pub fn run(&self, pixels: &PictureImage) -> Option<(CopyRead, Metrics)> {
         match &self.read {
+            ReadAs::KeyShift {
+                areas,
+                extent,
+                tendency,
+                original,
+            } => Some(read_key(
+                (areas, *extent, *tendency),
+                original.as_deref(),
+                pixels,
+            )),
             ReadAs::Masses(answer, place) => {
                 let check = answer.read((pixels.size, &pixels.pixels), *place);
                 let metrics = check.metrics.clone();
@@ -84,7 +105,7 @@ impl ReadJob {
 }
 
 /// `lines` in shares of a picture as frame units, the picture filling `extent` of its frame.
-fn in_frame(lines: Vec<Vec<Point>>, extent: Point) -> Vec<Vec<Point>> {
+pub(super) fn in_frame(lines: Vec<Vec<Point>>, extent: Point) -> Vec<Vec<Point>> {
     (lines.into_iter())
         .map(|line| {
             (line.into_iter())
@@ -123,6 +144,8 @@ pub(super) struct Painting {
     /// original's colour), and the last one compared (`practice_pick.rs`).
     pub(super) probing: Option<(Point, Rgb8)>,
     pub(super) probe: Option<Probe>,
+    /// A compared key shift's frames shown in grey (S107).
+    pub(super) grey: bool,
 }
 
 impl Default for Painting {
@@ -137,6 +160,7 @@ impl Default for Painting {
             since: 0,
             probing: None,
             probe: None,
+            grey: false,
         }
     }
 }
@@ -227,10 +251,11 @@ impl PracticeSheet {
         Ok(())
     }
 
-    /// A Compare begins: no point compared yet.
+    /// A Compare begins: no point compared yet, a key shift in colour.
     pub(super) fn forget_probe(&mut self) {
         self.painting_state.probe = None;
         self.painting_state.probing = None;
+        self.painting_state.grey = false;
     }
 
     /// The copy of exercise `index` asked of the runtime for Compare; nothing to read where its
@@ -238,6 +263,7 @@ impl PracticeSheet {
     pub(super) fn ask_read(&mut self, index: usize) -> Reading {
         let combination = self.sheet.areas(index);
         let read = match &self.sheet.originals[index] {
+            _ if let Some(asked) = self.key_asked(index) => asked,
             _ if let Some((areas, extent)) = combination => {
                 ReadAs::Areas(Arc::new(areas.clone()), extent)
             }

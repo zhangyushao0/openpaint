@@ -40,6 +40,7 @@ mod practice_log;
 mod practice_pens;
 mod practice_pictures;
 mod practice_sheet;
+mod practice_shown;
 mod practice_today;
 mod project;
 mod projection;
@@ -99,7 +100,7 @@ pub use crate::palette::{Hsv, MAX_SWATCHES, RECENT_COLORS, hex_of, parse_hex};
 pub use crate::palm::PalmRejection;
 pub use crate::pen_buttons::{ButtonAction, ButtonMap, ButtonTracker, HeldTool, PenButton};
 pub use crate::practice::{
-    AREAS_SIDE, AreasRead, OBJECT_SIDE, Overlay, Pen, PracticeIntent, PracticeNotice,
+    AREAS_SIDE, AreasRead, KeyRead, OBJECT_SIDE, Overlay, Pen, PracticeIntent, PracticeNotice,
     PracticeProjection, Probe, SHAPE_SHOWN, SHOWN, SheetView, sheet_of,
 };
 pub use crate::practice_book::{BookProjection, BookRecord, LineRead, Mark, SheetRead};

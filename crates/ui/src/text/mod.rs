@@ -4,9 +4,8 @@
 //! `layers.rs`, `brushes.rs`, `colour.rs`, `gallery.rs`, `notices.rs`, `practice.rs`,
 //! `practice_colour.rs`, `practice_options.rs`, `practice_perspective.rs`, `practice_points.rs`,
 //! `practice_solids.rs`, `practice_objects.rs`, `practice_division.rs`, `practice_masses.rs`,
-//! `practice_book.rs`; each
-//! kind's How card in
-//! `practice_demo*.rs`), words made with numbers are functions beside them. Screens write no
+//! `practice_key.rs`, `practice_book.rs`; each kind's How card in `practice_demo*.rs`), words
+//! made with numbers are functions beside them. Screens write no
 //! words of their own (`cargo repo-check` refuses a capitalised literal under `crates/ui/src`
 //! outside this module).
 //!
@@ -53,6 +52,7 @@ mod practice_demo_points;
 mod practice_demo_solids;
 mod practice_demo_space;
 mod practice_division;
+mod practice_key;
 mod practice_masses;
 mod practice_objects;
 mod practice_options;
@@ -73,6 +73,7 @@ pub(crate) use practice_book::*;
 pub(crate) use practice_colour::*;
 pub(crate) use practice_demo::{AGAIN, how, how_steps};
 pub(crate) use practice_division::*;
+pub(crate) use practice_key::*;
 pub(crate) use practice_masses::{
     AT_ITS_VALUE, DARK_PEN, DRILL_NEEDS_MASSES, LIGHT_PEN, MASSES_COUNTED, MIDDLE_PEN,
     VALUE_MASSES_EXERCISE,
@@ -243,6 +244,7 @@ mod tests {
             practice_demo_solids::PRACTICE_DEMO_SOLIDS,
             practice_demo_space::PRACTICE_DEMO_SPACE,
             PRACTICE_DIVISION,
+            PRACTICE_KEY,
             practice_masses::PRACTICE_MASSES,
             PRACTICE_OBJECTS,
             PRACTICE_OPTIONS_TABLE,

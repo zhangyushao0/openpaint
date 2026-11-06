@@ -21,7 +21,7 @@ mod nga;
 mod rijks;
 mod search;
 mod segment;
-mod sheet;
+pub(crate) mod sheet;
 mod sources;
 #[cfg(test)]
 mod tests;

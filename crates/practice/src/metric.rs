@@ -6,7 +6,8 @@
 //! the overlay is the feedback). Colours, colour combinations and value scales do (D105, D108);
 //! estimates, points in space, solids and objects keep their exact errors for the trajectories,
 //! never shown (D107); a division its lines' counts and lengths per level, for its card's table
-//! and later trajectories (S95); value masses the share painted at the answer's value (S96).
+//! and later trajectories (S95); value masses the share painted at the answer's value (S96); a
+//! key shift how many areas each of its checks marked (S107).
 //! Retired, never reused, passed over when read: codes 1 to 8, 1.1.0's line metrics (key points,
 //! frame, shape, speed, wobble, strokes, erased, seconds); 21 to 23 and 25 to 27, a colour's hue
 //! (degrees, only where both passed an RGB chroma gate), saturation and value on the wheel's HSV
@@ -62,10 +63,15 @@ pub enum Metric {
     /// Value masses (S96): the share of the picture painted at the answer's value
     /// (`value_masses_read.rs`).
     MassesMatched,
+    /// A key shift (S107): the areas whose lightness left the original's, those that did not move
+    /// toward the tendency and the neighbours apart that merged (`key_shift_check.rs`).
+    KeyLightness,
+    KeyUnmoved,
+    KeyMerged,
 }
 
 impl Metric {
-    pub const ALL: [Self; 29] = [
+    pub const ALL: [Self; 32] = [
         Self::FirstDelta,
         Self::FirstLightness,
         Self::FirstChroma,
@@ -95,6 +101,9 @@ impl Metric {
         Self::DivisionLines(Level::Third),
         Self::DivisionLength(Level::Third),
         Self::MassesMatched,
+        Self::KeyLightness,
+        Self::KeyUnmoved,
+        Self::KeyMerged,
     ];
 
     /// The code it is stored by; never reused.
@@ -130,6 +139,9 @@ impl Metric {
             Self::DivisionLines(Level::Third) => 53,
             Self::DivisionLength(Level::Third) => 54,
             Self::MassesMatched => 55,
+            Self::KeyLightness => 56,
+            Self::KeyUnmoved => 57,
+            Self::KeyMerged => 58,
         }
     }
 

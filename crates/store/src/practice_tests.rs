@@ -58,8 +58,8 @@ fn a_session_round_trips_and_damage_is_refused() {
         "a key without its id"
     );
     let mut unknown = bytes.clone();
-    // The first exercise's kind, after the session's fixed fields and the count: none of 1.19.0's.
-    unknown[1 + 4 + 8 * 4 + 4 + 4] = 19;
+    // The first exercise's kind, after the session's fixed fields and the count: none of 1.21.0's.
+    unknown[1 + 4 + 8 * 4 + 4 + 4] = 20;
     assert!(decode_session(&key, &unknown).is_err());
 }
 
@@ -166,6 +166,30 @@ fn divisions_whole_copies_and_value_masses_round_trip_with_their_pictures_and_nu
     (session.results).push(ExerciseResult::first(2, 18, 9, matched));
     let bytes = encode_session(&session);
     assert_eq!(read(&practice_key(15), &bytes), Ok(session));
+}
+
+#[test]
+fn key_shifts_round_trip_with_their_tendencies_crops_and_counts() {
+    use openpaint_practice::{ItemRef, Lean, Plan, Tendency};
+    let shift = |lean: Lean, hue: u16, item: &str| Exercise {
+        picture: Some(ItemRef {
+            pack: "openpaint-combinations".to_owned(),
+            item: item.to_owned(),
+        }),
+        ..Exercise::generated(Kind::KeyShift(Tendency { lean, hue }), 9)
+    };
+    let plan = Plan {
+        exercises: vec![
+            shift(Lean::WarmPure, 350, "rust"),
+            shift(Lean::CoolGrey, 210, "a"),
+        ],
+        warm_up: 0,
+    };
+    let mut session = SessionRecord::begun(16, (5, 1), (16, 17), plan);
+    let counts = vec![(Metric::KeyLightness, 1.0), (Metric::KeyMerged, 2.0)];
+    (session.results).push(ExerciseResult::first(1, 18, 5, counts));
+    let bytes = encode_session(&session);
+    assert_eq!(read(&practice_key(16), &bytes), Ok(session));
 }
 
 #[test]

@@ -7,10 +7,12 @@
 //! picked alike among those not shown in the last ten sessions, one of those only when none other
 //! is left, never one the session holds already while another is left; for value masses (S96)
 //! only among those whose masses read (the pack holds them). A crop (S101) is picked by its own
-//! sequence among those no earlier session or drill showed, any again once each was.
+//! sequence among those no earlier session or drill showed, any again once each was, for a
+//! colour combination or a key shift (S107, which also reads its main hue).
 
 use std::collections::HashSet;
 
+use crate::key_shift::main_hue;
 use crate::pack::{ItemRef, Pack, PictureKind, Tier};
 use crate::random::Random;
 
@@ -24,8 +26,10 @@ pub struct Pictures {
     /// The packs' compositions with their tiers (S95), and those whose value masses read (S96).
     compositions: Vec<(Tier, ItemRef)>,
     massed: Vec<(Tier, ItemRef)>,
-    /// The packs' crops (S101), each with its tier.
+    /// The packs' crops (S101), each with its tier, and the main hue of those with one (S107,
+    /// whole degrees).
     crops: Vec<(Tier, ItemRef)>,
+    hues: Vec<(ItemRef, u16)>,
 }
 
 impl Pictures {
@@ -50,7 +54,12 @@ impl Pictures {
                         pictures.personal.push((item.tier, named));
                     }
                     PictureKind::Shape => pictures.official.push((item.tier, named)),
-                    PictureKind::Crop => pictures.crops.push((item.tier, named)),
+                    PictureKind::Crop => {
+                        let hue = item.areas.as_deref().and_then(main_hue);
+                        let hue = hue.map(|hue| hue.round() as u16 % 360);
+                        pictures.hues.extend(hue.map(|hue| (named.clone(), hue)));
+                        pictures.crops.push((item.tier, named));
+                    }
                 }
             }
         }
@@ -92,6 +101,12 @@ impl Pictures {
         let item = chosen(&all, random, used)?;
         let tier = (self.crops.iter()).find_map(|(tier, held)| (*held == item).then_some(*tier));
         tier.map(|tier| (tier, item))
+    }
+
+    /// The main hue of the crop `item` (S107, `key_shift::main_hue`); none for a crop without one
+    /// or another picture.
+    pub(crate) fn crop_hue(&self, item: &ItemRef) -> Option<f64> {
+        (self.hues.iter()).find_map(|(held, hue)| (held == item).then_some(f64::from(*hue)))
     }
 
     /// Whether the user has pictures of their own of `reach` or an easier tier.

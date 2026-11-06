@@ -86,6 +86,8 @@ impl PracticeSheet {
             _ => None,
         };
         match &self.sheet.originals[index] {
+            // A key shift (S107): no answer, only what is off.
+            _ if self.key_shift(index) => Some(self.key_overlay(reading)),
             // A colour combination, a crop's (S101) or a generated one's.
             _ if self.sheet.areas(index).is_some() => Some(Overlay::Areas {
                 shown,

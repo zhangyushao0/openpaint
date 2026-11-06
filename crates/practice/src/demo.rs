@@ -29,6 +29,8 @@ mod division;
 mod drawn;
 #[path = "demo_hand.rs"]
 mod hand;
+#[path = "demo_key.rs"]
+mod key;
 #[path = "demo_masses.rs"]
 mod masses;
 #[path = "demo_objects.rs"]
@@ -40,7 +42,10 @@ mod solids;
 #[path = "demo_space.rs"]
 mod space;
 
-pub(crate) use hand::{DRAWN_OFF, clearest, line, off_marks, off_middle, tick, wobbled};
+pub(crate) use hand::{
+    DRAWN_OFF, bounds, clearest, line, off_marks, off_middle, seen, tick, wobbled,
+};
+pub use key::ShiftDemo;
 
 /// Seconds before the first mark (the card grows meanwhile), between marks and between steps (a
 /// moment to read the step's words before it draws).
@@ -187,6 +192,8 @@ pub struct Demo {
     pub dimmed: Option<[f64; 2]>,
     /// The value masses its `Drawn::Values` marks show (S96): the answer's, then the hand's copy's.
     pub values: Option<Box<[ValueMasses; 2]>>,
+    /// A key shift's tendency and the chip under its frames (S107).
+    pub shift: Option<Box<ShiftDemo>>,
     /// Its marks in the order drawn, given ones first.
     pub marks: Vec<Mark>,
     /// When each step begins, seconds; a step's words are the UI's.
@@ -224,6 +231,7 @@ impl Demo {
             Family::Division => division::division(),
             Family::WholeCopy => division::whole_copy(),
             Family::ValueMasses => masses::value_masses(),
+            Family::KeyShift => key::key_shift(),
             Family::Study => return None,
         })
     }
@@ -330,48 +338,13 @@ impl Script {
             masses: None,
             dimmed: None,
             values: None,
+            shift: None,
             marks: self.marks,
             steps: self.steps,
             length: from + SHOWING + HOLD,
             view: view.flatten(),
         }
     }
-}
-
-/// What a lone example shows: on the copy's frame what is given, inked or answered, and every
-/// ring (a box's vanishing points).
-fn seen(marks: &[Mark]) -> Option<[Point; 2]> {
-    let mut points: Vec<Point> = Vec::new();
-    for mark in marks.iter().filter(|mark| mark.on == On::Copy) {
-        let example = matches!(
-            mark.pen,
-            Marker::Given
-                | Marker::Printed
-                | Marker::PrintedHidden
-                | Marker::Ink
-                | Marker::Answer
-                | Marker::Shade
-        );
-        match &mark.drawn {
-            Drawn::Ring(p) => points.push(*p),
-            Drawn::Line(line) if example => points.extend(line),
-            Drawn::Band { rows, .. } if example => points.extend(rows.iter().flatten()),
-            Drawn::Cross(p) | Drawn::Dot(p) if example => points.push(*p),
-            _ => {}
-        }
-    }
-    bounds(&points)
-}
-
-/// The top left and bottom right of `points`; none when there are none.
-pub(crate) fn bounds(points: &[Point]) -> Option<[Point; 2]> {
-    let first = *points.first()?;
-    Some(points.iter().fold([first, first], |[low, high], p| {
-        [
-            [low[0].min(p[0]), low[1].min(p[1])],
-            [high[0].max(p[0]), high[1].max(p[1])],
-        ]
-    }))
 }
 
 /// How long `drawn` takes in `pen` at a hand's pace: a line by its length (a pass in the air and

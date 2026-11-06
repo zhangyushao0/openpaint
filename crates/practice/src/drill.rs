@@ -3,13 +3,12 @@
 //! of that kind only, about ten minutes and no warm-up: 6 single lines, 4 groups of combined lines
 //! (each arrangement), 6 colours (stage 1's), 3 single shapes (their tiers in turn from entry to
 //! hard, the last the user's own as in stage 2), 2 colour combinations (crops not shown before
-//! while any are left, S101), 2 value scales, 3 boxes, a
-//! page of free boxes, 4 ellipses, 5 points, proportions or angles, 3 of one of V大's five tricks,
-//! 3 of a solid (S93), 3 objects (S94, their carves in turn), 3 divisions, 3 value masses (S96) or
-//! a whole copy (S95, compositions of the simple and medium tiers in turn); each kind's variants
-//! in turn by the
-//! drill's number among its kind's drills (a solid's pose by its seed). Its record is one of stage
-//! `DRILL` (`record.rs`): it counts in no session, road or stage.
+//! while any are left, S101), 2 value scales, 3 boxes, a page of free boxes, 4 ellipses, 5 points,
+//! proportions or angles, 3 of one of V大's five tricks, 3 of a solid (S93), 3 objects (S94, their
+//! carves in turn), 3 divisions, 3 value masses (S96) or a whole copy (S95, compositions of the
+//! simple and medium tiers in turn), 2 key shifts (S107, their leans in turn); each kind's
+//! variants in turn by the drill's number among its kind's drills (a solid's pose by its seed).
+//! Its record is one of stage `DRILL` (`record.rs`): it counts in no session, road or stage.
 
 use crate::colour_match::Tone;
 use crate::ellipse::Guide;
@@ -20,6 +19,7 @@ use crate::perspective::BoxView;
 use crate::plan::{Family, Kind};
 use crate::scale::ScaleTone;
 use crate::session::{Before, COLOURS, COMBINED, FULL, HORIZONS, LINES, Picker, Plan, seeded};
+use crate::session_five::key_shifts;
 use crate::session_four::COMPOSITION_TIERS;
 use crate::solid::Solid;
 use crate::space::Trick;
@@ -57,6 +57,9 @@ const STAGE_FOUR: [Family; 4] = [
     Family::WholeCopy,
 ];
 
+/// Stage 5's kinds: key shifts (S107); abstract analysis and structure rotation join them.
+const STAGE_FIVE: [Family; 1] = [Family::KeyShift];
+
 /// How many exercises a drill of each kind holds.
 const SHAPES: usize = 3;
 const COMBINATIONS: usize = 2;
@@ -70,6 +73,7 @@ const OBJECTS: usize = 3;
 const DIVISIONS: usize = 3;
 const WHOLE_COPIES: usize = 1;
 const VALUE_MASSES: usize = 3;
+const KEY_SHIFTS: usize = 2;
 
 /// The kinds `stage` practises, in its tiles' order; none for a stage not ready.
 #[must_use]
@@ -79,6 +83,7 @@ pub const fn kinds_of(stage: u8) -> &'static [Family] {
         2 => &STAGE_TWO,
         3 => &STAGE_THREE,
         4 => &STAGE_FOUR,
+        5 => &STAGE_FIVE,
         _ => &[],
     }
 }
@@ -100,6 +105,10 @@ pub fn drill(family: Family, number: u32, seed: u64, before: &Before<'_>) -> Opt
         Family::Areas => {
             let mut picker = Picker::new(seed, before, Tier::Simple);
             (0..COMBINATIONS).filter_map(|_| picker.crop()).collect()
+        }
+        Family::KeyShift => {
+            let mut picker = Picker::new(seed, before, Tier::Simple);
+            key_shifts(&mut picker, (KEY_SHIFTS, turn), (seed, before))
         }
         Family::Study => Vec::new(),
         _ => kinds(family, turn).into_iter().map(|k| (k, None)).collect(),

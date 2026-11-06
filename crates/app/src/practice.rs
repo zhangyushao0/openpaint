@@ -7,20 +7,21 @@
 //! `practice_pens.rs`, the copy read from its records `practice_copy.rs`; the app's log of every
 //! session and copy `practice_log.rs`.
 //!
-//! This module holds what the user asks of a sheet and what the screen draws of it.
+//! This module holds what the user asks of a sheet and what the screen draws of it (what lies
+//! over a compared copy: `practice_shown.rs`).
 
 use std::sync::Arc;
 
 use openpaint_core::Color;
 use openpaint_practice::{
-    Areas, AreasCopy, BoxCheck, DivisionCheck, EllipseCheck, ExerciseResult, Family, FlatCheck,
-    FreeCheck, KindSummary, Level, MassesCheck, Original, Pack, Pair, Point, Rgb8, ScaleCheck,
-    SessionRecord, Sheet, SolidCheck, SpaceCheck, Value,
+    Areas, ExerciseResult, Family, Kind, KindSummary, Level, Original, Pack, Pair, Point, Rgb8,
+    SessionRecord, Sheet, Tendency, Value,
 };
 
 use crate::layer_rules::LayerRefusal;
 use crate::practice_pictures::{PictureImage, SheetPicture};
 use crate::practice_sheet::Finished;
+pub use crate::practice_shown::{AreasRead, KeyRead, Overlay};
 use crate::projection::Availability;
 use crate::title::Title;
 use crate::view::Viewport;
@@ -52,8 +53,11 @@ pub enum PracticeIntent {
     /// How much of a colour combination's, a colour copy's, a division's or a whole copy's
     /// original shows over the copy, 0 to 1.
     Shown(f32),
-    /// The colour combination's area the card compares on the wheel.
+    /// The colour combination's area the card compares on the wheel (a key shift's whose
+    /// lightness it shows).
     Area(usize),
+    /// A compared key shift's frames in grey (true) or in colour (S107).
+    Grey(bool),
     /// The pen the exercise's own tools draw or paint with.
     Pen(Pen),
     /// The full interface over the sheet (true), or the exercise's own tools.
@@ -145,6 +149,8 @@ pub enum PracticeNotice {
     DrawInCell,
     /// The eyedropper over an original not compared yet.
     PickAfterCompare,
+    /// The eyedropper over a key shift's original, which is never picked (S107).
+    OriginalLocked,
     /// The frame could not be filled: the layer is hidden or locked.
     CannotFill(LayerRefusal),
     /// The session is done.
@@ -236,6 +242,8 @@ pub struct SheetView {
     /// `OBJECT_SIDE` square, and each value masses' answer in its greys, a pixel a cell (S96):
     /// pictures the practice crate draws.
     pub painted: Vec<Option<Arc<PictureImage>>>,
+    /// Each key shift's tendency, printed beside its frame (S107).
+    pub tendencies: Vec<Option<Tendency>>,
 }
 
 impl SheetView {
@@ -253,21 +261,28 @@ impl SheetView {
         let painted = (originals.iter().zip(&pictures).zip(&families))
             .map(|((original, picture), family)| painted(original, picture.as_deref(), *family))
             .collect();
+        let tendencies = (record.exercises.iter())
+            .map(|e| match e.kind {
+                Kind::KeyShift(tendency) => Some(tendency),
+                _ => None,
+            })
+            .collect();
         Self {
             name: name.clone(),
             size: sheet.size,
             pairs: sheet.pairs,
             pictures,
             painted,
+            tendencies,
             originals,
             families,
         }
     }
 
-    /// Exercise `index`'s colour combination, if it is one: its areas and the size its picture
-    /// fills in its frame (frame units); a crop's as its pack holds them (S101), or a generated
-    /// one's (a record of 1.18.1 and before), its square frame whole. None for another kind or a
-    /// crop no pack holds now (removed).
+    /// Exercise `index`'s colour combination or key shift (S107), if it is one: its areas and the
+    /// size its picture fills in its frame (frame units); a crop's as its pack holds them (S101),
+    /// or a generated one's (a record of 1.18.1 and before), its square frame whole. None for
+    /// another kind or a crop no pack holds now (removed).
     #[must_use]
     pub fn areas(&self, index: usize) -> Option<(&Areas, Point)> {
         match self.originals.get(index)? {
@@ -321,79 +336,4 @@ pub(crate) fn laid(record: &SessionRecord, packs: &[Pack], size: [u32; 2]) -> Sh
     } else {
         Sheet::of_session(record, packs)
     }
-}
-
-/// A colour combination's copy as read at the last Compare, and the edges where it made a weak
-/// contrast strong (frame units).
-#[derive(Debug, Clone, PartialEq)]
-pub struct AreasRead {
-    pub copy: AreasCopy,
-    pub strong: Vec<Vec<Point>>,
-}
-
-/// The comparison over the copy's frame, as the last Compare found the copy.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Overlay {
-    /// The original's lines where they lie over the copy (in place or aligned), in canvas pixels.
-    Lines(Vec<Vec<[f32; 2]>>),
-    /// A single shape's, a colour copy's or a whole copy's picture over the copy, `shown` strong
-    /// (a whole copy's division hidden under it, S95), its corners (top
-    /// left, top right, bottom right, bottom left) in canvas pixels, with a shape's outline's
-    /// lines (none without one), in place or aligned.
-    Picture {
-        corners: [[f32; 2]; 4],
-        outline: Vec<Vec<[f32; 2]>>,
-        shown: f32,
-    },
-    /// The swatch and the first and last colours laid.
-    Colour {
-        original: Rgb8,
-        first: Rgb8,
-        last: Rgb8,
-    },
-    /// A colour combination's picture over the copy in place, `shown` strong; the copy as read
-    /// (none until its pixels are read), the area the card compares and its outline (frame
-    /// units).
-    Areas {
-        shown: f32,
-        read: Option<Arc<AreasRead>>,
-        chosen: usize,
-        outline: Arc<Vec<Vec<Point>>>,
-    },
-    /// A value scale's copy as checked (none until its pixels are read).
-    Scale(Option<Arc<ScaleCheck>>),
-    /// A completed box: the exact box lies over the copy, the copy's edges extended towards its
-    /// vanishing points (frame units).
-    Box(Arc<BoxCheck>),
-    /// Free boxes: each one's edges extended to the horizon, where each direction meets it and
-    /// its front corners under 90 degrees (frame units).
-    FreeBoxes(Arc<FreeCheck>),
-    /// An ellipse: the exact one and the one fitted to the copy's lines, and their differences.
-    Ellipse(Arc<EllipseCheck>),
-    /// An estimate on the flat: the last mark or line read (frame units) and its error.
-    Flat(Arc<FlatCheck>),
-    /// A point in space: the last mark or lines read (frame units) and the error on the face.
-    Space(Arc<SpaceCheck>),
-    /// A solid in its box: the curves and sides read (frame units), the ellipses fitted.
-    Solid(Arc<SolidCheck>),
-    /// An object simplified into its box (S94): the curves and edges read against its visible
-    /// edges and outlines.
-    Object(Arc<SolidCheck>),
-    /// A division (S95): its picture in place under the copy, its corners (top left, top
-    /// right, bottom right, bottom left) in canvas pixels, `shown` strong; the lines as drawn,
-    /// joined, by level (frame units), and each level's count and length.
-    Division {
-        corners: [[f32; 2]; 4],
-        shown: f32,
-        check: Arc<DivisionCheck>,
-    },
-    /// Value masses (S96): the answer's greys (the sheet's painted picture) over the picture's
-    /// place in the copy's frame, its corners (top left, top right, bottom right, bottom left) in
-    /// canvas pixels, `shown` strong, its mass edges (the sheet picture's) red over it; the copy
-    /// as read (none until its pixels arrive): the hatching where it differs.
-    Masses {
-        corners: [[f32; 2]; 4],
-        shown: f32,
-        read: Option<Arc<MassesCheck>>,
-    },
 }

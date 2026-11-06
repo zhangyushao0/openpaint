@@ -1,13 +1,15 @@
 //! What a session holds: the stages, an exercise's kind and seed (and a single shape's or a colour
-//! copy's picture) and its original; the stages' sessions are `session.rs`, the sheet they lie
-//! on `sheet.rs`.
+//! copy's picture) and its original; a kind's family is `family.rs`, the stages' sessions are
+//! `session.rs`, the sheet they lie on `sheet.rs`.
 
 use crate::areas_generated::{Arrangement, GeneratedAreas};
 use crate::colour::Rgb8;
 use crate::colour_match::Tone;
 use crate::combined::{Combination, CombinedLines};
 use crate::ellipse::{EllipseGuide, Guide};
+pub use crate::family::Family;
 use crate::flat::{Estimate, Flat};
+use crate::key_shift::Tendency;
 use crate::line::{LineExercise, LineTier};
 use crate::object::ObjectTask;
 use crate::object_design::Carve;
@@ -21,7 +23,7 @@ use crate::space::{SpaceTask, Trick};
 /// The course's stages, after V大's eight weeks.
 pub const STAGES: u8 = 8;
 /// The stages whose exercises exist so far: a session can be started in these.
-pub const STAGES_READY: u8 = 4;
+pub const STAGES_READY: u8 = 5;
 /// About how many sessions a stage holds; only a guide, never a quota.
 pub const STAGE_SESSIONS: u32 = 15;
 
@@ -73,143 +75,8 @@ pub enum Kind {
     /// A composition's picture of a tier painted as its few big masses in three greys, grouped by
     /// value (V大's 黑白灰 and colour blocks by attribute, S96).
     ValueMasses(Tier),
-}
-
-/// What an exercise asks for, whatever its variant: its instructions, its tools, its line in
-/// the summary.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum Family {
-    Line,
-    Combined,
-    Shape,
-    Box,
-    FreeBoxes,
-    Ellipse,
-    /// Estimates on the flat: a point, a proportion, an angle.
-    Point,
-    Proportion,
-    Angle,
-    /// Points in space, a family each of V大's five tricks: each has its own instructions.
-    Centre,
-    Halves,
-    Thirds,
-    Step,
-    Mirror,
-    /// Solids found in a box, a family each: each has its own instructions.
-    Cylinder,
-    Cone,
-    Sphere,
-    /// Objects simplified into boxes (S94).
-    Object,
-    /// A picture divided in three levels, and one copied whole over its division (S95).
-    Division,
-    WholeCopy,
-    Colour,
-    Areas,
-    Scale,
-    Study,
-    /// A picture's value masses painted in three greys (S96).
-    ValueMasses,
-}
-
-impl Family {
-    /// In a warm-up's order.
-    pub const ALL: [Self; 25] = [
-        Self::Line,
-        Self::Combined,
-        Self::Shape,
-        Self::Box,
-        Self::FreeBoxes,
-        Self::Ellipse,
-        Self::Point,
-        Self::Proportion,
-        Self::Angle,
-        Self::Centre,
-        Self::Halves,
-        Self::Thirds,
-        Self::Step,
-        Self::Mirror,
-        Self::Cylinder,
-        Self::Cone,
-        Self::Sphere,
-        Self::Object,
-        Self::Division,
-        Self::WholeCopy,
-        Self::Colour,
-        Self::Areas,
-        Self::Scale,
-        Self::Study,
-        Self::ValueMasses,
-    ];
-
-    /// Whether its exercises are drawn with the pens as lines (lines, combined lines, single
-    /// shapes, boxes, ellipses, estimates, points in space, solids, objects, divisions and whole
-    /// copies), not coloured.
-    #[must_use]
-    pub const fn drawn(self) -> bool {
-        !matches!(
-            self,
-            Self::Colour | Self::Areas | Self::Scale | Self::Study | Self::ValueMasses
-        )
-    }
-
-    /// Whether its copy is checked as geometry (boxes in perspective, ellipses, estimates, points
-    /// in space, solids, objects): what it holds found in the lines and set against an exact
-    /// answer or rule, never aligned.
-    #[must_use]
-    pub const fn geometric(self) -> bool {
-        self.drawn()
-            && !matches!(self, Self::Line | Self::Combined | Self::Shape)
-            && !self.divided()
-    }
-
-    /// Whether it is drawn with a division's pens in V大's three colours (a division, a whole
-    /// copy's division): no answer, the picture laid under the lines (S95).
-    #[must_use]
-    pub const fn divided(self) -> bool {
-        matches!(self, Self::Division | Self::WholeCopy)
-    }
-
-    /// Whether its exercises are painted with brushes and read from the copy's pixels (colour
-    /// combinations, value scales, colour copies, value masses).
-    #[must_use]
-    pub const fn painted(self) -> bool {
-        matches!(
-            self,
-            Self::Areas | Self::Scale | Self::Study | Self::ValueMasses
-        )
-    }
-
-    /// Whether its answer is built from given parts in the one frame drawn in (S97): a value
-    /// scale, a box, free boxes, an ellipse; V大's five tricks and the three solids (S98). The
-    /// original's frame beside it is left empty, room for what Compare draws beyond the frame (the
-    /// sheet keeps its place, so strokes stay put). An estimate and an object keep their original
-    /// beside them: it is copied by eye.
-    #[must_use]
-    pub const fn constructed(self) -> bool {
-        matches!(
-            self,
-            Self::Scale
-                | Self::Box
-                | Self::FreeBoxes
-                | Self::Ellipse
-                | Self::Centre
-                | Self::Halves
-                | Self::Thirds
-                | Self::Step
-                | Self::Mirror
-                | Self::Cylinder
-                | Self::Cone
-                | Self::Sphere
-        )
-    }
-
-    /// Whether its exercises copy a composition's picture (S95, S96): a division, a whole copy,
-    /// value masses.
-    #[must_use]
-    pub const fn composed(self) -> bool {
-        matches!(self, Self::Division | Self::WholeCopy | Self::ValueMasses)
-    }
+    /// A crop painted again shifted toward a tendency the exercise gives (V大's 变调, S107).
+    KeyShift(Tendency),
 }
 
 impl Kind {
@@ -222,8 +89,8 @@ impl Kind {
     /// ellipse, (11, estimate) for an estimate on the flat, (12, trick) for a point in space, (13,
     /// solid) for a solid in a box, (14, carve) for an object simplified into its box, then the
     /// picture's tier code for a division (15), a whole copy (16), value masses (17) and a colour
-    /// combination of a crop (18, S101). A code names one generator for good; a changed generator
-    /// is a new code.
+    /// combination of a crop (18, S101); (19, the tendency's code) for a key shift (S107). A code
+    /// names one generator for good; a changed generator is a new code.
     #[must_use]
     pub fn code(self) -> (u8, u8) {
         let index = |found: Option<usize>| found.unwrap_or(0) as u8;
@@ -255,6 +122,7 @@ impl Kind {
             Self::WholeCopy(tier) => (16, tier.code()),
             Self::ValueMasses(tier) => (17, tier.code()),
             Self::Crop(tier) => (18, tier.code()),
+            Self::KeyShift(tendency) => (19, tendency.code()),
         }
     }
 
@@ -284,6 +152,7 @@ impl Kind {
             16 => Tier::of_code(variant).map(Self::WholeCopy),
             17 => Tier::of_code(variant).map(Self::ValueMasses),
             18 => Tier::of_code(variant).map(Self::Crop),
+            19 => Tendency::of_code(variant).map(Self::KeyShift),
             _ => None,
         }
     }
@@ -308,6 +177,7 @@ impl Kind {
             Self::Division(_) => Family::Division,
             Self::WholeCopy(_) => Family::WholeCopy,
             Self::ValueMasses(_) => Family::ValueMasses,
+            Self::KeyShift(_) => Family::KeyShift,
         }
     }
 }
@@ -348,7 +218,8 @@ impl Exercise {
             | Kind::Division(_)
             | Kind::WholeCopy(_)
             | Kind::ValueMasses(_)
-            | Kind::Crop(_) => Original::Picture(self.picture.clone().unwrap_or_default()),
+            | Kind::Crop(_)
+            | Kind::KeyShift(_) => Original::Picture(self.picture.clone().unwrap_or_default()),
             Kind::Areas(arrangement) => {
                 Original::Areas(GeneratedAreas::generate(arrangement, self.seed))
             }

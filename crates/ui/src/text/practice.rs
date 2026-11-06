@@ -100,6 +100,9 @@ pub(crate) const fn metric(metric: Metric) -> Text {
         Metric::DivisionLines(_) => super::LINES_DRAWN,
         Metric::DivisionLength(_) => super::MEAN_LENGTH,
         Metric::MassesMatched => super::AT_ITS_VALUE,
+        Metric::KeyLightness => super::LIGHTNESS_LEFT,
+        Metric::KeyUnmoved => super::NOT_TOWARD,
+        Metric::KeyMerged => super::MERGED_PAIRS,
     }
 }
 
@@ -156,6 +159,7 @@ const fn called(family: Family, warming_up: bool) -> Text {
         (false, Family::Areas) => super::AREAS_EXERCISE,
         (false, Family::Scale) => super::SCALE_EXERCISE,
         (false, Family::Study) => super::STUDY_EXERCISE,
+        (false, Family::KeyShift) => super::KEY_SHIFT_EXERCISE,
     }
 }
 
@@ -212,6 +216,7 @@ pub(crate) fn compared_of(
         (_, Family::Division) => named(super::DIVISIONS_COUNTED),
         (_, Family::WholeCopy) => named(super::WHOLE_COPIES_COUNTED),
         (_, Family::ValueMasses) => named(super::MASSES_COUNTED),
+        (_, Family::KeyShift) => named(super::KEY_SHIFTS_COUNTED),
         (Language::English, Family::Line) => format!("Lines: {checked} of {held} compared"),
         (Language::English, Family::Combined) => {
             format!("Combined lines: {checked} of {held} compared")

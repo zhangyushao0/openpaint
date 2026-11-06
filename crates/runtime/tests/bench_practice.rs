@@ -90,11 +90,20 @@ fn stage_three(runtime: &mut Runtime, hand: &mut Hand) {
     until(runtime, hand, |runtime| gallery(runtime).is_some());
     hand.tap(runtime, "Practice options");
     // On this short window stage 3's row lies below the Practice column's room: a finger drags
-    // the column up to it (S91's tiles take the room).
+    // the column up, a little at a time, until it shows (S91's tiles and later stages, S107,
+    // take the room).
     let [x, y] = on(runtime, "Stage 2 · Single shapes", [0.3, 0.5]);
-    let drag: Vec<[f32; 2]> = (0..=12).map(|step| [x, y - 50.0 * step as f32]).collect();
-    hand.gesture(runtime, ToolKind::Finger, &drag);
-    settle(runtime, hand);
+    for _ in 0..12 {
+        if runtime.controls().find("Stage 3 · Points").is_ok() {
+            break;
+        }
+        // Held still at its end, so the column does not fling on past.
+        let drag: Vec<[f32; 2]> = (0..=10)
+            .map(|step| [x, y - 25.0 * step.min(4) as f32])
+            .collect();
+        hand.gesture(runtime, ToolKind::Finger, &drag);
+        settle(runtime, hand);
+    }
     hand.tap(runtime, "Stage 3 · Points");
     until(runtime, hand, |runtime| {
         (runtime.projection().practice()).is_some_and(|practice| practice.stage == 3)

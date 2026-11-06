@@ -2,8 +2,9 @@
 //! copying kind the original and the copy side by side; a box, an ellipse or a point in space
 //! alone, as large as the card lets it, a box's vanishing points beside it; a colour's two frames
 //! and a little wheel; a value scale's one frame cropped to its rows beside the wheel, of as many
-//! cells as the row in hand, S97) where V大's way draws itself step by step
-//! (`openpaint_practice::Demo`), and under it the numbered steps, the one being drawn in ink and the
+//! cells as the row in hand, S97; a key shift's pair over its chip and tendency, S107) where V大's
+//! way draws itself step by step (`openpaint_practice::Demo`), and under it the numbered steps,
+//! the one being drawn in ink and the
 //! others in pencil grey, every one in ink once it is over. It plays whenever How opens, once
 //! through on the frame clock, then stands still on its last frame; Again plays it from the start.
 //! Frames are wanted only while it moves (D97). Nothing of it touches the sheet.
@@ -16,6 +17,7 @@ use openpaint_practice::{Demo, Drawn, Family, Layout, Marker, On, Rgb8, ValueMas
 
 use crate::components::{Alpha, card_step, keep_moving, picture_texture};
 use crate::design::{INK, PENCIL, SPACE};
+use crate::practice_demo_key::{self, STRIP};
 use crate::practice_demo_marks::{Frames, paint};
 use crate::text::Words;
 
@@ -161,8 +163,14 @@ impl Demonstrations {
             Layout::Single | Layout::Wide => LONE_HEIGHT,
             Layout::Pair | Layout::Row => HEIGHT,
         };
-        let (rect, _) = ui.allocate_exact_size(Vec2::new(width, height), Sense::hover());
+        // A key shift's strip under its frames: its chip and its tendency (S107).
+        let strip = if demo.shift.is_some() { STRIP } else { 0.0 };
+        let (whole, _) = ui.allocate_exact_size(Vec2::new(width, height + strip), Sense::hover());
+        let rect = Rect::from_min_size(whole.min, Vec2::new(width, height));
         let frames = laid(demo, rect);
+        if let Some(shift) = &demo.shift {
+            practice_demo_key::strip(ui.painter(), shift, seconds, (&frames, rect.bottom()));
+        }
         for mark in &demo.marks {
             let key = match &mark.drawn {
                 Drawn::Areas { colours, soft } if mark.from <= seconds => {

@@ -11,8 +11,8 @@ use std::sync::Arc;
 
 use openpaint_practice::{
     Arrangement, Before, Carve, Family, ItemRef, Kind, LineTier, Metric, Pack, PackItem,
-    PictureKind, Pictures, STAGES_READY, Solid, Tier, ValueMasses, WARM_UP_TWO, drill, kinds_of,
-    plan, stage_four,
+    PictureKind, Pictures, Solid, Tier, ValueMasses, WARM_UP_TWO, drill, kinds_of, plan,
+    stage_four,
 };
 
 /// The crops' tiers (S101).
@@ -74,7 +74,6 @@ fn kinds(number: u32, met: &[Kind], pictures: &Pictures) -> Vec<Kind> {
 
 #[test]
 fn a_first_stage_four_session_without_compositions_is_s94_s_mix() {
-    assert_eq!(STAGES_READY, 4);
     assert_eq!(
         kinds_of(4),
         [
@@ -283,7 +282,7 @@ fn the_warm_up_is_three_of_the_kinds_met_never_an_object_a_solid_or_a_division()
     assert_eq!(Kind::of_code(17, 3), Some(masses));
     assert!(masses.family().painted() && !masses.family().drawn() && masses.family().composed());
     assert_eq!(Kind::of_code(18, 3), Some(Kind::Crop(Tier::Medium)));
-    assert_eq!((Kind::of_code(18, 0), Kind::of_code(19, 2)), (None, None));
+    assert_eq!((Kind::of_code(18, 0), Kind::of_code(20, 2)), (None, None));
     assert_eq!(Metric::MassesMatched.code(), 55);
 }
 

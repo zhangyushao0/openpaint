@@ -133,7 +133,7 @@ fn fitted([width, height]: [u32; 2]) -> [u32; 2] {
 }
 
 /// The picture `rgba` of `size` fitted inside a cell, resized by `filter`.
-fn thumbnail(size: [u32; 2], rgba: &[u8], filter: FilterType) -> Option<RgbaImage> {
+pub(crate) fn thumbnail(size: [u32; 2], rgba: &[u8], filter: FilterType) -> Option<RgbaImage> {
     let image = RgbaImage::from_raw(size[0], size[1], rgba.to_vec())?;
     let [width, height] = fitted(size);
     Some(imageops::resize(&image, width, height, filter))
@@ -172,6 +172,16 @@ fn draw_lines(
         Mark::Kept => Rgba([225, 25, 25, 255]),
         Mark::Dropped => Rgba([30, 90, 235, 255]),
     };
+    draw_in(sheet, lines, place, (colour, OUTLINE_WIDTH));
+}
+
+/// `lines` (points `place` puts on the sheet) in `colour`, `width` sheet pixels wide.
+pub(crate) fn draw_in(
+    sheet: &mut RgbaImage,
+    lines: &[Vec<Point>],
+    place: &dyn Fn(Point) -> [f64; 2],
+    (colour, width): (Rgba<u8>, f64),
+) {
     for line in lines {
         for pair in line.windows(2) {
             let [a, b] = [place(pair[0]), place(pair[1])];
@@ -179,16 +189,20 @@ fn draw_lines(
             for step in 0..=steps {
                 let t = step as f64 / steps as f64;
                 let [cx, cy] = [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
-                let half = OUTLINE_WIDTH / 2.0;
-                let corner = |v: f64| (v - half).round().max(0.0) as u32;
-                let side = OUTLINE_WIDTH as u32;
+                let corner = |v: f64| (v - width / 2.0).round().max(0.0) as u32;
+                let side = width.round().max(1.0) as u32;
                 fill(sheet, [corner(cx), corner(cy)], [side, side], colour);
             }
         }
     }
 }
 
-fn fill(sheet: &mut RgbaImage, [x, y]: [u32; 2], [width, height]: [u32; 2], colour: Rgba<u8>) {
+pub(crate) fn fill(
+    sheet: &mut RgbaImage,
+    [x, y]: [u32; 2],
+    [width, height]: [u32; 2],
+    colour: Rgba<u8>,
+) {
     for row in y..(y + height).min(sheet.height()) {
         for column in x..(x + width).min(sheet.width()) {
             sheet.put_pixel(column, row, colour);
@@ -197,7 +211,7 @@ fn fill(sheet: &mut RgbaImage, [x, y]: [u32; 2], [width, height]: [u32; 2], colo
 }
 
 /// `value` in black on a white tab at the cell's top left corner.
-fn number(sheet: &mut RgbaImage, [x, y]: [u32; 2], value: usize) {
+pub(crate) fn number(sheet: &mut RgbaImage, [x, y]: [u32; 2], value: usize) {
     let digits: Vec<usize> = value
         .to_string()
         .bytes()

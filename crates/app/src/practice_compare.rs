@@ -268,7 +268,13 @@ impl PracticeSheet {
         let family = self.current().and_then(|index| self.family(index));
         let fills = matches!(
             family,
-            Some(Family::Colour | Family::Areas | Family::Scale | Family::ValueMasses)
+            Some(
+                Family::Colour
+                    | Family::Areas
+                    | Family::Scale
+                    | Family::ValueMasses
+                    | Family::KeyShift
+            )
         );
         let blocks = family == Some(Family::WholeCopy) && self.pen.paints();
         let Some(clip) = self.clip.clone().filter(|_| fills || blocks) else {

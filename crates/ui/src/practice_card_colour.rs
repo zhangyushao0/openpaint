@@ -20,7 +20,7 @@ use openpaint_practice::{Family, KindSummary, Rgb8, ScaleCheck};
 use crate::components::{
     Choices, SettingSlider, card_columns, card_text, choices, controls, setting_slider,
 };
-use crate::design::{DIVIDER, INK, Outline, PANEL, TOUCH_TARGET};
+use crate::design::{CORRECTION, DIVIDER, INK, Outline, PANEL, TOUCH_TARGET};
 use crate::practice_card::{metric_text, pair_on_wheel};
 use crate::practice_marks::colour;
 use crate::taps::push_once;
@@ -106,7 +106,7 @@ fn areas(ui: &mut egui::Ui, practice: &PracticeProjection, taps: &mut Vec<Intent
     };
     shown_slider(ui, *shown, taps);
     let copy = read.as_ref().map(|read| read.copy.colours.as_slice());
-    chips(ui, (&areas.colours, copy), *chosen, taps);
+    chips(ui, (&areas.colours, copy), (*chosen, &[]), taps);
     match (practice.probe, read) {
         (Some(probe), _) => probed(ui, probe, AREAS_WHEEL),
         (None, None) => card_text(ui, t::READING_COPY, true),
@@ -117,12 +117,12 @@ fn areas(ui: &mut egui::Ui, practice: &PracticeProjection, taps: &mut Vec<Intent
     }
 }
 
-/// A chip for each area: the original's colour over yours (the paper while not painted), the
-/// chosen one ringed; a tap chooses one.
-fn chips(
+/// A chip for each area: the original's colour over yours (the paper while not painted, a key
+/// shift's `marked` outlined red, S107), the chosen one ringed; a tap chooses one.
+pub(crate) fn chips(
     ui: &mut egui::Ui,
     (originals, copy): (&[Rgb8], Option<&[Option<Rgb8>]>),
-    chosen: usize,
+    (chosen, marked): (usize, &[usize]),
     taps: &mut Vec<Intent>,
 ) {
     let language = language(ui.ctx());
@@ -139,7 +139,7 @@ fn chips(
                 if area == chosen {
                     group.chosen(Outline::ring(rect));
                 }
-                paint_chip(ui, rect, (*original, mine));
+                paint_chip(ui, rect, (*original, mine), marked.contains(&area));
                 if response.clicked() && area != chosen {
                     push_once(taps, Intent::Practice(PracticeIntent::Area(area)));
                 }
@@ -148,13 +148,18 @@ fn chips(
     });
 }
 
-fn paint_chip(ui: &egui::Ui, rect: Rect, (original, mine): (Rgb8, Option<Rgb8>)) {
+fn paint_chip(ui: &egui::Ui, rect: Rect, (original, mine): (Rgb8, Option<Rgb8>), marked: bool) {
     let chip = Rect::from_center_size(rect.center(), Vec2::new(CHIP - 12.0, TOUCH_TARGET - 16.0));
     let (top, bottom) = chip.split_top_bottom_at_fraction(0.5);
     let painter = ui.painter();
     painter.rect_filled(top, 0.0, colour(original));
     painter.rect_filled(bottom, 0.0, mine.map_or(PANEL, colour));
-    painter.rect_stroke(chip, 0.0, Stroke::new(1.0, INK), egui::StrokeKind::Outside);
+    let outline = if marked {
+        Stroke::new(2.5, CORRECTION)
+    } else {
+        Stroke::new(1.0, INK)
+    };
+    painter.rect_stroke(chip, 0.0, outline, egui::StrokeKind::Outside);
     if mine.is_none() {
         let middle = [bottom.left_center(), bottom.right_center()];
         painter.line_segment(middle, Stroke::new(1.0, DIVIDER));

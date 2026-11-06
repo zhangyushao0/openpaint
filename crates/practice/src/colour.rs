@@ -73,7 +73,13 @@ pub(crate) fn oklab_of_linear([r, g, b]: [f64; 3]) -> [f64; 3] {
 
 /// The 8-bit sRGB colour of the Oklab point `[l, a, b]`, each channel clipped to sRGB's range.
 #[must_use]
-pub fn from_oklab([l, a, b]: [f64; 3]) -> Rgb8 {
+pub fn from_oklab(lab: [f64; 3]) -> Rgb8 {
+    linear_of_oklab(lab).map(|c| (encoded(c.clamp(0.0, 1.0)) * 255.0).round() as u8)
+}
+
+/// The Oklab point `[l, a, b]` in linear sRGB, unclipped: a channel under 0 or over 1 lies outside
+/// sRGB's gamut.
+pub(crate) fn linear_of_oklab([l, a, b]: [f64; 3]) -> [f64; 3] {
     let l_ = l + 0.396_337_777_4 * a + 0.215_803_757_3 * b;
     let m_ = l - 0.105_561_345_8 * a - 0.063_854_172_8 * b;
     let s_ = l - 0.089_484_177_5 * a - 1.291_485_548_0 * b;
@@ -83,7 +89,36 @@ pub fn from_oklab([l, a, b]: [f64; 3]) -> Rgb8 {
         -1.268_438_004_6 * l + 2.609_757_401_1 * m - 0.341_319_396_5 * s,
         -0.004_196_086_3 * l - 0.703_418_614_7 * m + 1.707_614_701_0 * s,
     ]
-    .map(|c| (encoded(c.clamp(0.0, 1.0)) * 255.0).round() as u8)
+}
+
+/// The colour of lightness `l` and hue `h` (degrees) in Oklab with as much of `chroma` as sRGB
+/// holds there: the chroma halved towards grey until every channel lies in range, so the
+/// lightness and hue stay as asked.
+#[must_use]
+pub fn in_gamut([l, chroma, h]: [f64; 3]) -> Rgb8 {
+    from_oklch([l, chroma.max(0.0).min(most_chroma(l, h, chroma)), h])
+}
+
+/// The most chroma sRGB holds at lightness `l` and hue `h` (degrees) in Oklab, up to `asked`.
+pub(crate) fn most_chroma(l: f64, h: f64, asked: f64) -> f64 {
+    let (sin, cos) = h.to_radians().sin_cos();
+    let inside = |c: f64| {
+        let linear = linear_of_oklab([l, c * cos, c * sin]);
+        linear.iter().all(|v| (-1e-4..=1.0 + 1e-4).contains(v))
+    };
+    let (mut low, mut high) = (0.0, asked.max(0.0));
+    if inside(high) {
+        return high;
+    }
+    for _ in 0..24 {
+        let middle = (low + high) / 2.0;
+        if inside(middle) {
+            low = middle;
+        } else {
+            high = middle;
+        }
+    }
+    low
 }
 
 /// `rgb` in Oklab's polar form: lightness `L`, chroma (the distance from grey) and hue in degrees
@@ -112,6 +147,22 @@ pub(crate) fn lightness_of_linear([r, g, b]: [f64; 3]) -> f64 {
     let s = 0.088_302_461_9 * r + 0.281_718_837_6 * g + 0.629_978_700_5 * b;
     let [l, m, s] = [l, m, s].map(f64::cbrt);
     0.210_454_255_3 * l + 0.793_617_785_0 * m - 0.004_072_046_8 * s
+}
+
+/// 8-bit RGBA pixels in grey: each the grey of its Oklab lightness, its alpha kept (a key shift's
+/// Grey view, S107).
+#[must_use]
+pub fn in_grey(rgba: &[u8]) -> Vec<u8> {
+    let table: Vec<f64> = (0..=255u8).map(|c| linear(f64::from(c) / 255.0)).collect();
+    let mut out = Vec::with_capacity(rgba.len());
+    for pixel in rgba.as_chunks::<4>().0 {
+        let [r, g, b] = [pixel[0], pixel[1], pixel[2]].map(|c| table[usize::from(c)]);
+        let l = lightness_of_linear([r, g, b]);
+        // A grey of Oklab lightness `l` has every linear channel `l³`.
+        let grey = (encoded((l * l * l).clamp(0.0, 1.0)) * 255.0).round() as u8;
+        out.extend_from_slice(&[grey, grey, grey, pixel[3]]);
+    }
+    out
 }
 
 /// sRGB's transfer function undone.

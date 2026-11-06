@@ -28,10 +28,14 @@ mod drill;
 mod edges;
 mod ellipse;
 mod ellipse_fit;
+mod family;
 mod flat;
 mod grid;
 mod ground;
 mod judgement;
+mod key_shift;
+mod key_shift_check;
+mod key_shift_rule;
 mod licence;
 mod line;
 mod marks;
@@ -70,6 +74,7 @@ mod record;
 mod scale;
 mod seals;
 mod session;
+mod session_five;
 mod session_four;
 mod session_three;
 mod sheet;
@@ -94,7 +99,8 @@ pub use areas_read::{AreasCopy, Contrast, MADE_STRONG};
 pub use areas_regions::ONE_STEP;
 pub use book::{Book, Day, LineShown, Road};
 pub use colour::{
-    Difference, HUELESS, Rgb8, delta_e, from_hsv, from_oklab, from_oklch, hsv, oklab, oklch,
+    Difference, HUELESS, Rgb8, delta_e, from_hsv, from_oklab, from_oklch, hsv, in_gamut, in_grey,
+    oklab, oklch,
 };
 pub use colour_match::{ColourCopy, ColourScore, Lightness, Purity, Tone, score_colour};
 pub use combined::{Combination, CombinedLines};
@@ -102,7 +108,7 @@ pub use crop::{
     BUSIEST, Crop, CropRefusal, DISTINCT, FEWEST_AREAS, GREYISH, LEAST_LONGER, Places, best,
     candidate, candidates, cut, rectangles, refusal, tier_of,
 };
-pub use demo::{Demo, Drawn, Layout, Mark, Marker, On, WIDE_REACH};
+pub use demo::{Demo, Drawn, Layout, Mark, Marker, On, ShiftDemo, WIDE_REACH};
 pub use division::{
     DivisionCheck, DivisionLine, HEADING_ON, JOIN_REACH, Level, LevelRow, MOST_MAIN, joined,
 };
@@ -115,6 +121,12 @@ pub use ellipse_fit::{
 pub use flat::{Estimate, Flat, FlatAnswer, FlatCheck};
 pub use ground::faded_ground;
 pub use judgement::{Axis, DELTA_SPAN, Judgement, NOTICEABLE, PART_SPAN, judgement};
+pub use key_shift::{
+    AWAY, GREY_CHROMA, HUE_STEP, Lean, MAIN_CHROMA, PURE_CHROMA, Tendency, main_hue, turn,
+};
+pub use key_shift_check::{
+    APART, AT, KeyCheck, LIGHTEST, LIGHTNESS_OFF, MERGED, MOVED, NEAR_SHARE, toward,
+};
 pub use licence::Licence;
 pub use line::{LineExercise, LineTier};
 pub use marks::{MARK, last_edges, last_mark};
@@ -151,6 +163,7 @@ pub use scale::{
 };
 pub use seals::{Earned, Seal, Tally, earned, sealed};
 pub use session::{Before, Plan, WARM_UP, WARM_UP_TWO, plan, stage_one, stage_two};
+pub use session_five::stage_five;
 pub use session_four::stage_four;
 pub use session_three::stage_three;
 pub use sheet::{FRAME, FRAME_REACH, Frame, Pair, PictureFit, STUDY_SIDE, Sheet};

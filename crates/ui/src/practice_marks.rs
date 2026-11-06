@@ -8,7 +8,8 @@
 //! `practice_geometry_marks.rs`, an estimate's or a point in space's in
 //! `practice_points_marks.rs`, a solid's in `practice_solid_marks.rs`, an object's picture and
 //! box in `practice_object_marks.rs`; a division's compared lines in
-//! `practice_division_marks.rs`; value masses compared in `practice_masses_marks.rs`).
+//! `practice_division_marks.rs`; value masses compared in `practice_masses_marks.rs`; a key
+//! shift's tendency and marks in `practice_key_marks.rs`).
 //! While compared, the original's lines lie over the copy, in place or aligned onto it, as thick as
 //! the pen that drew the copy and in a semi-transparent marking red the ink shows through (S88:
 //! thicker, the red hid an error of a pen's width inside it), a hairline at least however far the
@@ -31,6 +32,7 @@ use crate::components::{Alpha, canvas_point, picture_texture};
 use crate::design::{CORRECTION, DIVIDER, INK, INK_SECONDARY, PANEL_RULE_WIDTH};
 use crate::practice_division_marks as division_marks;
 use crate::practice_geometry_marks as geometry_marks;
+use crate::practice_key_marks as key_marks;
 use crate::practice_mark_lines::At;
 use crate::practice_masses_marks as masses_marks;
 use crate::practice_object_marks as object_marks;
@@ -59,6 +61,7 @@ pub(crate) struct SheetPictures {
     shown: Vec<(ItemRef, Option<TextureHandle>)>,
     grounded: Vec<(ItemRef, TextureHandle)>,
     painted: paint_marks::PaintedPictures,
+    greys: key_marks::GreyPictures,
 }
 
 impl fmt::Debug for SheetPictures {
@@ -125,6 +128,7 @@ pub(crate) fn show_marks(
     pictures.sync(ctx, &practice.images);
     pictures.sync_grounded(ctx, &practice.grounded);
     pictures.painted.sync(ctx, &practice.sheet.painted);
+    pictures.greys.sync(ctx, practice.overlay.as_ref());
     let layer = egui::LayerId::new(Order::Background, egui::Id::new("practice sheet"));
     let painter = ctx.layer_painter(layer);
     let screen = ctx.content_rect();
@@ -148,6 +152,7 @@ pub(crate) fn show_marks(
         };
         let marks = At::new(&at, sheet.size);
         show_original(&painter, practice, (index, pair), (marks, widths), pictures);
+        key_marks::show_tendency(&painter, practice, (index, pair), (&at, scale));
         // A kind built from given parts has the one frame drawn in (S97).
         if !practice.sheet.families[index].constructed() {
             painter.add(Shape::closed_line(original.to_vec(), frame));
@@ -301,7 +306,7 @@ fn show_overlay(
             laid(painter, (practice, index), overlay, (at, width), pictures);
         }
         (Overlay::Colour { original, last, .. }, Original::Colour(_)) => {
-            swapped(painter, &pair, at, (*original, *last));
+            paint_marks::swapped(painter, &pair, at, (*original, *last));
         }
         (Overlay::Areas { .. } | Overlay::Scale(_), _) => {
             let picture = (pictures.painted.of(practice, index)).or_else(|| {
@@ -309,6 +314,9 @@ fn show_overlay(
                 pictures.texture(item).flatten()
             });
             paint_marks::show_overlay(painter, practice, overlay, (at, width), picture);
+        }
+        (Overlay::KeyShift { .. }, _) => {
+            key_marks::show_overlay(painter, practice, overlay, (at, width), &pictures.greys);
         }
         (Overlay::Masses { .. }, _) => {
             let painted = &pictures.painted;
@@ -366,28 +374,6 @@ fn laid(
         }
         _ => {}
     }
-}
-
-/// A colour compared: each colour as a patch in the middle of the other's frame.
-fn swapped(
-    painter: &egui::Painter,
-    pair: &openpaint_practice::Pair,
-    at: &dyn Fn([f64; 2]) -> Pos2,
-    (original, last): (Rgb8, Rgb8),
-) {
-    let patch = |frame: &Frame| {
-        let [[x, y], _, [right, bottom], _] = frame.corners();
-        let (inset, side) = ((right - x) / 4.0, (bottom - y) / 2.0);
-        let [x, y] = [x + inset, y + inset];
-        vec![[x, y], [x + side, y], [x + side, y + side], [x, y + side]]
-            .into_iter()
-            .map(at)
-            .collect::<Vec<Pos2>>()
-    };
-    let copy = Shape::convex_polygon(patch(&pair.copy), colour(original), Stroke::NONE);
-    painter.add(copy);
-    let shown = Shape::convex_polygon(patch(&pair.original), colour(last), Stroke::NONE);
-    painter.add(shown);
 }
 
 pub(crate) fn colour([r, g, b]: Rgb8) -> Color32 {

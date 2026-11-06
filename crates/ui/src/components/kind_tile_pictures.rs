@@ -2,7 +2,8 @@
 //! picture's edge, a long line right through it, a bent one meeting its sides and a part's small
 //! frame standing on it), a whole copy (the same edge, a ridge, a field's edge, a tree and a
 //! house) and value masses (S96: the same edge, its ground under the ridge tinted middle, a
-//! crown and a roof dark, the sky and a wall left light), in `TILE`'s units.
+//! crown and a roof dark, the sky and a wall left light), and a key shift (S107: a crop's bands,
+//! an arrow, the tendency's disc), in `TILE`'s units.
 
 use openpaint_practice::Family;
 
@@ -39,6 +40,33 @@ pub(super) fn picture(family: Family) -> Vec<Mark> {
         _ => return Vec::new(),
     }
     marks
+}
+
+/// A key shift (S107): a crop's two bands, an arrow, the tendency's disc it shifts toward.
+pub(super) fn shift() -> Vec<Mark> {
+    let crop = square([7.0, 10.0], [27.0, 30.0]);
+    let disc: Vec<[f32; 2]> = (0..12)
+        .map(|k| {
+            let turn = std::f32::consts::TAU * k as f32 / 12.0;
+            [42.0 + 5.0 * turn.cos(), 20.0 + 5.0 * turn.sin()]
+        })
+        .collect();
+    vec![
+        Mark::Tint(
+            vec![[7.0, 10.0], [27.0, 10.0], [27.0, 17.0], [7.0, 21.0]],
+            0.15,
+        ),
+        Mark::Tint(
+            vec![[7.0, 21.0], [27.0, 17.0], [27.0, 30.0], [7.0, 30.0]],
+            0.45,
+        ),
+        Mark::Line(closed(&crop)),
+        Mark::Line(vec![[7.0, 21.0], [27.0, 17.0]]),
+        Mark::Line(vec![[30.0, 20.0], [35.0, 20.0]]),
+        Mark::Line(vec![[33.0, 18.0], [35.0, 20.0], [33.0, 22.0]]),
+        Mark::Tint(disc.clone(), 0.6),
+        Mark::Line(closed(&disc)),
+    ]
 }
 
 /// Value masses' blocks: the ground middle, a crown and a roof dark, a wall light on the ground.

@@ -29,8 +29,8 @@
 //! The warm-up's exercises are kinds met, each chosen by the seed among its family's; a shape in
 //! it a picture of its tier, a combination a crop. A plan's shapes carry their pictures, picked by
 //! the seed (`pictures.rs`), its divisions and whole copies compositions (S95), its combinations
-//! crops of real pictures (S101: none without a pack holding crops). Stage 3's sessions:
-//! `session_three.rs`; stage 4's: `session_four.rs`.
+//! crops of real pictures (S101: none without a pack holding crops). Stages 3, 4 and 5:
+//! `session_three.rs`, `session_four.rs`, `session_five.rs`.
 
 use std::collections::HashSet;
 
@@ -44,6 +44,7 @@ use crate::pictures::Pictures;
 use crate::plan::{Exercise, Family, Kind};
 use crate::random::{Random, derived};
 use crate::scale::{CELLS, FIRST_CELLS, FIRST_SCALES, ScaleTone};
+use crate::session_five::stage_five;
 use crate::session_four::stage_four;
 use crate::session_three::stage_three;
 
@@ -117,14 +118,15 @@ pub struct Before<'a> {
     pub scales: usize,
 }
 
-/// Session `number` of `stage` seeded `seed` after `before`: stage 2's for stage 2, stage 3's for
-/// stage 3 (`session_three.rs`), stage 4's for stage 4 (`session_four.rs`), else stage 1's.
+/// Session `number` of `stage` seeded `seed` after `before`: stage 1's, 2's, 3's
+/// (`session_three.rs`), 4's (`session_four.rs`) or 5's (`session_five.rs`); stage 1's else.
 #[must_use]
 pub fn plan(stage: u8, number: u32, seed: u64, before: &Before<'_>) -> Plan {
     match stage {
         2 => stage_two(number, seed, before),
         3 => stage_three(number, seed, before),
         4 => stage_four(number, seed, before),
+        5 => stage_five(number, seed, before),
         _ => stage_one(seed, before.met),
     }
 }
@@ -178,10 +180,9 @@ pub fn stage_two(number: u32, seed: u64, before: &Before<'_>) -> Plan {
     }
 }
 
-/// The pictures a session's shapes copy, picked by the seed: others than those shown before while
-/// there are, the last of the session's shapes the user's own of its hardest tier (`reach`) or an
-/// easier one when they have one; its compositions others than those of the last ten sessions
-/// while there are, none twice while another is left (S95).
+/// A session's pictures, picked by the seed: shapes others than those shown before while there
+/// are, the last the user's own of its hardest tier (`reach`) or an easier one; compositions
+/// others than the last ten sessions' while there are, none twice while another is left (S95).
 pub(crate) struct Picker<'a> {
     before: &'a Before<'a>,
     random: Random,
@@ -235,13 +236,19 @@ impl<'a> Picker<'a> {
         picked
     }
 
-    /// A colour combination with its crop (S101): one no earlier session or drill showed while
-    /// any is left; none without crops.
+    /// A colour combination with its crop (S101).
     pub(crate) fn crop(&mut self) -> Option<(Kind, Option<ItemRef>)> {
+        let (tier, item) = self.picked_crop()?;
+        Some((Kind::Crop(tier), Some(item)))
+    }
+
+    /// A crop with its tier (a combination's, a key shift's): one no earlier session or drill
+    /// showed while any is left; none without crops.
+    pub(crate) fn picked_crop(&mut self) -> Option<(Tier, ItemRef)> {
         let pictures = self.before.pictures;
         let (tier, item) = pictures.pick_crop(&mut self.crops, &self.used)?;
         self.used.insert(item.clone());
-        Some((Kind::Crop(tier), Some(item)))
+        Some((tier, item))
     }
 
     /// `kind` with its picture (a shape's, a combination's crop; none for another kind), the

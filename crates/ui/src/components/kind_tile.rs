@@ -4,7 +4,7 @@
 //! cells, a box, boxes on a horizon, an ellipse in a square, a dot in a frame, a segment, a
 //! slanted line, a box with its face's diagonals, halving line, two uprights, next face or a
 //! dot, a cylinder, a cone, a sphere, a block with a post: `kind_tile_solids.rs`; a picture's edge
-//! divided or copied whole: `kind_tile_pictures.rs`), drawn here
+//! divided or copied whole and a crop shifted toward a disc: `kind_tile_pictures.rs`), drawn here
 //! rather than by the generators: at this size a generated original reads as noise, and a shape's
 //! needs a pack's picture. A kind compared at least once is drawn and named in ink, one never
 //! compared in pencil, as the road draws what is done and what lies ahead; a drill left unfinished
@@ -197,6 +197,7 @@ fn sketch(family: Family) -> Vec<Mark> {
         }
         Family::Cylinder | Family::Cone | Family::Sphere | Family::Object => solids::solid(family),
         Family::Division | Family::WholeCopy | Family::ValueMasses => pictures::picture(family),
+        Family::KeyShift => pictures::shift(),
     }
 }
 

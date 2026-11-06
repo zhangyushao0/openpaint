@@ -2,12 +2,11 @@
 //! them its warm-up), where its sheet is, its progress and every compared exercise (when first
 //! compared, how often, which strokes are corrections, a colour's, combination's or scale's
 //! numbers) and the spans its sheet was practised in (`time.rs`, S89): enough for the summary
-//! (this session's means and colour judgement beside its stage's earlier sessions'), the next
-//! warm-up, the practice book, and later trajectories, re-tests and a study of the strokes.
+//! (its means and colour judgement beside its stage's earlier sessions'), the next warm-up, the
+//! practice book, later trajectories, re-tests, a study of the strokes.
 //!
-//! A long colour copy (V大's 色彩临摹) is kept the same way, as a project beside the sessions:
-//! stage `PROJECT` (none of the course's), its number among the copies, one exercise, the copy of
-//! its picture, never finished by a session's Next. It counts in no stage, warm-up or summary.
+//! A long colour copy (V大's 色彩临摹) is kept the same way beside the sessions: stage `PROJECT`,
+//! its number among the copies, one exercise, never finished by Next, in no stage or summary.
 //!
 //! A drill (S91, `drill.rs`) too: stage `DRILL` (past the course's eight), its number among its
 //! kind's drills, exercises of one kind, which is the kind it drills. It counts in the kinds met,
@@ -286,8 +285,8 @@ const fn rows_of(family: Family) -> &'static [Metric] {
         Family::Colour => &COLOUR_ROWS,
         Family::Areas => &AREAS_ROWS,
         Family::Scale => &SCALE_ROWS,
-        // Estimates, points in space and solids keep their errors for the trajectories, never
-        // shown (D107); a division its counts and lengths, shown on its card only (S95); value
+        // Estimates, points in space, solids and key shifts keep their numbers for trajectories,
+        // never shown (D107, S107); a division its counts and lengths on its card only (S95); value
         // masses their share at the answer's value, shown nowhere (S96).
         Family::Line
         | Family::Combined
@@ -310,6 +309,7 @@ const fn rows_of(family: Family) -> &'static [Metric] {
         | Family::Division
         | Family::WholeCopy
         | Family::ValueMasses
+        | Family::KeyShift
         | Family::Study => &[],
     }
 }

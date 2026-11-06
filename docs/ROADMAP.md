@@ -48,12 +48,11 @@ The author, 2026-10-23: practice is their main activity now. The app gets a prac
 - **No accounts, community or sharing service.**
 - **Method notes.** V大's methods, distilled from the course's subtitles, guide every exercise's instructions and checks. They are not in the repository.
 
-Stages 1 to 4 are built (S75 to S106 are done: the list at the end and its archive).
+Stages 1 to 4 are built and stage 5 has begun (S75 to S107 are done: the list at the end and its archive).
 
-Stage 5 follows V大's weeks 5 and 6 as the author approved it on a mock (2026-11-06, every recommendation taken): key shifts, abstract analysis, structure rotation.
+Stage 5 follows V大's weeks 5 and 6 as the author approved it on a mock (2026-11-06, every recommendation taken): key shifts (S107, done), abstract analysis, structure rotation; each joins stage 5's sessions after the key shifts and gets a drill tile.
 
-- S107 Key shifts (变调), 1.21.0. A sheet pairs a crop of the packs (its areas from the pack) with an empty frame and a tendency colour printed beside it as a given, the tendencies in turn warm and cool, saturated and grey, never near the crop's own main hue; the user paints the crop shifted toward it with the combination's pens. Compare gives no answer (V大: a key shift has none) and marks only what is off, on the copy and on the card's swatches: an area whose lightness left the original's, an area that did not move toward the tendency, two areas apart in the original that merged; a Grey view (看黑白) shows both frames in grey with only lightness marked. The card's hue and chroma disc draws each area from its original (a ring) to the copy's colour (a dot), the tendency, and Gurney's gamut mask (a triangle, its apex the tendency, its base past grey, the outside veiled), shown only after Compare. The How plays V大's rules on an example: the largest colour first, greys move most and gain chroma, the tendency's opposites move a little and grey, the lightest barely move, lightness kept, areas still apart. Stage 5 opens: a warm-up of three and three key shifts; a drill tile. Done: the walk-through a passing scenario; the three checks judged right on contact sheets of shifts made by rule and by hand; the gate.
-- Then, each specified when the one before lands:
+- Next, each specified when the one before lands:
   - S108 Abstract analysis (抽象分析): the user marks a picture's strongest place, its contrasts, the secondary and weak ones and their distribution on a layer over it; Compare veils where each measurable contrast (value, chroma, hue, sharpness) is weak and scores nothing.
   - S109 Structure rotation against renders.
   - Stage 7 (V大's weeks 7 and 8): curved structure rotation and objects placed by a plan, whole-picture key shifts toward two tendencies, abstract analysis for one's own small composition.
@@ -67,6 +66,7 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 
 (Findings outside the current slice, one line each, dated.)
 
+- 2026-11-06 Key shifts after S107: Today's or the book's Start on stage 5 without a pack of crops plays its warm-up only (the options' row refuses); the How ends on Compare's grey frames, Again shows the colours; the Grey view shows the original grey only once its picture was read before Compare; a pack rebuilt with other areas keeps each record's tendency but moves its marks; the card's failure lines sit wide apart (each a card paragraph).
 - 2026-11-05 The user's own crops after S101: a picture of their own cut into crops on the device, its areas found there by the builder's rule (`Areas::found`), unjudged; crops of the official packs only now. Also: a crop's areas could be shown as its How's example (the How plays on a generated one).
 
 - 2026-10-30 Only what is off after S98: a piece is marked against the part it is read for (S93's nearest within 40 px), so an upright drawn between two thirds rings the nearer third's point, a wide near end of a cylinder whose ends lie close can ring a far end's middle (1 in 100 simulated), a cone seen nearly down its axis reads an aimed-off side as its base (4 in 100); an ellipse's middles say nothing of a lump between them or a tilt (the red answer shows it); Construction's lines are faint grey (`DIVIDER`), hard to see over a printed grey segment: a darker faint if the author asks.
@@ -148,3 +148,4 @@ Slices S0 to S72 and the stage exits: `docs/archive/ROADMAP-2026-10.md`; S73 to 
 - S101c 2026-11-06 packs: `openpaint-textures` becomes `openpaint-combinations` (Colour combinations), 56 crops: CC0 photographs 12, ambientCG and Poly Haven colour maps 6 (two new sources), public-domain paintings whose corners read abstract 38; compositions 5; 61 in all (D105 amended).
 - S102b 2026-11-06 1.20.1: official packs named in the language by their id (单体图形, 构图, 色彩组合 for `openpaint-combinations` after S101c), any other pack as its file names it; the crops notice names the two packs that hold crops.
 - S106 2026-11-06 tests: every wait for a worker guarded by two minutes of wall time, never a count of frames; `fix_clock` holds the input clock too and the runtime tests' `Hand` holds both, so a hold, a drop or QuickShape means the same under load; five gates in a row passed beside `cargo scenarios --jobs 2` (2 workers: beside 12 this machine ran out of memory, never of time; D44 amended).
+- S107 2026-11-06 1.21.0: key shifts (变调): a crop beside an empty frame and its tendency (warm or cool, pure or grey, never near its own hue); Compare marks only lightness off, not toward the tendency, areas merged; Grey view; a hue disc with Gurney's mask; stage 5 opens; D105 amended.

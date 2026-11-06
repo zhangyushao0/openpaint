@@ -1,9 +1,9 @@
 //! How a demonstration's hand marks a line (`demo.rs`): a line through two points, a short tick
 //! across it, and a copy of it that strays a little as a hand's does; how far it lands off a part
 //! on purpose and how Compare marks it (S98); how far an example lies off the frame's middle, and
-//! which example of a fixed seed's sequence is clearest.
+//! which example of a fixed seed's sequence is clearest; what a lone example shows.
 
-use super::{Drawn, Marker, On, bounds};
+use super::{Drawn, Mark, Marker, On};
 use crate::off::Off;
 use crate::path::{Point, distance, length};
 
@@ -91,4 +91,40 @@ pub(crate) fn wobbled(points: &[Point], amount: f64, phase: f64) -> Vec<Point> {
         out.push([p[0] - d[1] / long * off, p[1] + d[0] / long * off]);
     }
     out
+}
+
+/// What a lone example shows: on the copy's frame what is given, inked or answered, and every
+/// ring (a box's vanishing points).
+pub(crate) fn seen(marks: &[Mark]) -> Option<[Point; 2]> {
+    let mut points: Vec<Point> = Vec::new();
+    for mark in marks.iter().filter(|mark| mark.on == On::Copy) {
+        let example = matches!(
+            mark.pen,
+            Marker::Given
+                | Marker::Printed
+                | Marker::PrintedHidden
+                | Marker::Ink
+                | Marker::Answer
+                | Marker::Shade
+        );
+        match &mark.drawn {
+            Drawn::Ring(p) => points.push(*p),
+            Drawn::Line(line) if example => points.extend(line),
+            Drawn::Band { rows, .. } if example => points.extend(rows.iter().flatten()),
+            Drawn::Cross(p) | Drawn::Dot(p) if example => points.push(*p),
+            _ => {}
+        }
+    }
+    bounds(&points)
+}
+
+/// The top left and bottom right of `points`; none when there are none.
+pub(crate) fn bounds(points: &[Point]) -> Option<[Point; 2]> {
+    let first = *points.first()?;
+    Some(points.iter().fold([first, first], |[low, high], p| {
+        [
+            [low[0].min(p[0]), low[1].min(p[1])],
+            [high[0].max(p[0]), high[1].max(p[1])],
+        ]
+    }))
 }

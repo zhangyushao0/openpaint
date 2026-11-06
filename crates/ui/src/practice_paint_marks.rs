@@ -9,14 +9,15 @@
 //!   cell in hand outlined in ink; compared, the even scale as a row under the copy's, cell under
 //!   cell (a hued scale keeping its hue), a cell of the copy's that is uneven outlined red
 //!   together with its even one;
-//! - the point the eyedropper compared, ringed on both frames.
+//! - the point the eyedropper compared, ringed on both frames;
+//! - a colour compared: each colour as a patch in the other's frame.
 
 use std::fmt;
 use std::sync::Arc;
 
 use egui::{Color32, Pos2, Shape, Stroke, TextureHandle};
 use openpaint_app::{Overlay, PictureImage, PracticeProjection};
-use openpaint_practice::{Frame, Original, Pair, Point, ROW, ScaleCheck, ValueScale};
+use openpaint_practice::{Frame, Original, Pair, Point, ROW, Rgb8, ScaleCheck, ValueScale};
 
 use crate::components::{Alpha, picture_texture};
 use crate::design::{CORRECTION, DIVIDER, INK, PANEL, PANEL_RULE_WIDTH};
@@ -252,4 +253,26 @@ pub(crate) fn show_probe(
         painter.circle_stroke(centre, PROBE, Stroke::new(HALO, PANEL));
         painter.circle_stroke(centre, PROBE, Stroke::new(OUTLINE, INK));
     }
+}
+
+/// A colour compared: each colour as a patch in the middle of the other's frame.
+pub(crate) fn swapped(
+    painter: &egui::Painter,
+    pair: &openpaint_practice::Pair,
+    at: &dyn Fn([f64; 2]) -> Pos2,
+    (original, last): (Rgb8, Rgb8),
+) {
+    let patch = |frame: &Frame| {
+        let [[x, y], _, [right, bottom], _] = frame.corners();
+        let (inset, side) = ((right - x) / 4.0, (bottom - y) / 2.0);
+        let [x, y] = [x + inset, y + inset];
+        vec![[x, y], [x + side, y], [x + side, y + side], [x, y + side]]
+            .into_iter()
+            .map(at)
+            .collect::<Vec<Pos2>>()
+    };
+    let copy = Shape::convex_polygon(patch(&pair.copy), colour(original), Stroke::NONE);
+    painter.add(copy);
+    let shown = Shape::convex_polygon(patch(&pair.original), colour(last), Stroke::NONE);
+    painter.add(shown);
 }

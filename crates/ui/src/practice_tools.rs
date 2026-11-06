@@ -121,7 +121,7 @@ fn colour_rows(
 ) {
     let fill = match family {
         Family::Scale => Some(t::FILL_CELL),
-        Family::Colour | Family::Areas => Some(t::FILL_FRAME),
+        Family::Colour | Family::Areas | Family::KeyShift => Some(t::FILL_FRAME),
         _ => None,
     };
     let pick = |ui: &mut egui::Ui, taps: &mut Vec<Intent>| {

@@ -142,6 +142,7 @@ fn each_kind_s_drill_holds_that_kind_only_as_many_as_the_slice_says() {
         (Family::Division, 3),
         (Family::ValueMasses, 3),
         (Family::WholeCopy, 1),
+        (Family::KeyShift, 2),
     ];
     for (family, count) in counts {
         let drilled = kinds(family, 1, &all);

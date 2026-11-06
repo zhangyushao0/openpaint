@@ -3,6 +3,7 @@
 //! colour combination, a colour copy or a whole copy's colour blocks (S96) are compared, a point
 //! of either frame compares the original and the copy there (`Probe`): the runtime reads the
 //! copy's pixel and hands it back (`probed`). Value masses compare greys, not colours: nothing.
+//! A key shift's original is never picked, its copy as the canvas (S107).
 
 use openpaint_core::Color;
 use openpaint_practice::{Family, Original, Point, Rgb8};
@@ -52,6 +53,11 @@ impl PracticeSheet {
             })
         };
         if let Some(index) = over(false) {
+            // A key shift's original is never picked (S107): its colours are judged by eye.
+            if self.key_shift(index) {
+                self.notice = Some(PracticeNotice::OriginalLocked);
+                return PracticePick::Refused;
+            }
             if self.record.result(index).is_none() {
                 self.notice = Some(PracticeNotice::PickAfterCompare);
                 return PracticePick::Refused;
@@ -87,8 +93,16 @@ impl PracticeSheet {
             }
             Original::Areas(areas) => Some(areas.colour_at(at, 0.0)),
             // A colour copy's picture, and a whole copy's where its colour blocks are compared
-            // (S96); value masses compare greys, not colours.
-            Original::Picture(_) if self.family(index) == Some(Family::ValueMasses) => None,
+            // (S96); value masses compare greys, not colours; a key shift's copy is picked as the
+            // canvas, its original never (S107).
+            Original::Picture(_)
+                if matches!(
+                    self.family(index),
+                    Some(Family::ValueMasses | Family::KeyShift)
+                ) =>
+            {
+                None
+            }
             Original::Picture(_) if !self.drawn(index) => self.picture_colour(index, at),
             Original::Picture(_) if self.family(index) == Some(Family::WholeCopy) => {
                 self.picture_colour(index, at)

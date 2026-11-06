@@ -8,6 +8,9 @@ mod brush_sheet;
 mod error;
 mod export_timing;
 mod heap;
+mod key_copies;
+mod key_sheet;
+mod key_shifts;
 mod launch;
 mod long_session;
 mod output;
@@ -49,6 +52,7 @@ fn main() -> ExitCode {
         ["stroke-stats", dir] => stroke_stats::run(dir),
         ["test-art", ref rest @ ..] => test_art::run(rest),
         ["practice-pack", ref rest @ ..] => pack::run(rest),
+        ["key-shifts", ref rest @ ..] => key_shifts::run(rest),
         ["scenario", "--all"] => scenarios::run_all(None),
         ["scenario", "--all", "--jobs", jobs] => match jobs.parse() {
             Ok(jobs) if jobs >= 1 => scenarios::run_all(Some(jobs)),

@@ -3,7 +3,8 @@
 //! exercise's own tools or the full interface, the pen drawn exercises are drawn with (a single
 //! line, combined lines, a single shape) or painted ones painted with (a colour combination, a
 //! value scale), Compare and its overlay (`practice_compare.rs`), a painted copy's reading and the
-//! eyedropper (`practice_read.rs`), Next (the view glides to the next pair at its zoom,
+//! eyedropper (`practice_read.rs`), a key shift's reading and Grey view (`practice_key.rs`), Next
+//! (the view glides to the next pair at its zoom,
 //! `practice_view.rs`; after the last the session ends over the whole sheet), the instructions
 //! (by themselves the first time a family comes up), the summary and the notices; the session's
 //! pictures as the store reads them. A long colour copy is a sheet of one pair, the full
@@ -34,6 +35,8 @@ pub type Practising = (SessionRecord, Vec<SessionRecord>, SheetView, Tally);
 mod checks;
 #[path = "practice_compare.rs"]
 mod compare;
+#[path = "practice_key.rs"]
+mod key;
 #[path = "practice_overlay.rs"]
 mod overlay;
 #[path = "practice_sheet_pens.rs"]
@@ -304,6 +307,7 @@ impl PracticeSheet {
             }
             PracticeIntent::Shown(share) => self.painting_state.shown = share.clamp(0.0, 1.0),
             PracticeIntent::Area(area) => self.choose_area(area)?,
+            PracticeIntent::Grey(on) => self.grey(on)?,
             PracticeIntent::Pen(pen) => self.choose(pen)?,
             PracticeIntent::AllTools(on) => {
                 // A long colour copy has no tools of its own (S104).

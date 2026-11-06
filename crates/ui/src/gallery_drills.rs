@@ -5,8 +5,8 @@
 //! ringed while a drill of the kind is left unfinished. A tile tapped starts a drill of its kind,
 //! or continues the one left unfinished; the Shape tile without any pack picture, Division and
 //! Whole copy without a composition (S95), Value masses without one whose masses read (S96), or
-//! Colour combination without a crop (S101), say where to import a pack instead, and nothing
-//! starts.
+//! Colour combination or Key shift without a crop (S101, S107; Stage 5's row too), say where to
+//! import a pack instead, and nothing starts.
 
 use egui::{Align2, Sense, TextStyle, Vec2, WidgetInfo, WidgetType};
 use openpaint_app::{DrillShown, GalleryIntent, Language, TodayProjection};
@@ -17,6 +17,8 @@ use crate::components::{KindTile, controls, kind_tile, section};
 use crate::design::{INK, Outline, SPACE, TOUCH_TARGET, paint_pressed};
 use crate::text::{self as t, Words};
 
+/// The stage whose sessions are key shifts, of crops only (S107).
+const KEY_SHIFTS_STAGE: u8 = 5;
 /// The least width a tile takes with its name under it, in points.
 const TILE_CELL: f32 = 72.0;
 
@@ -29,12 +31,18 @@ pub(super) fn practice_section(
 ) -> Option<Tapped> {
     let language = t::language(ui.ctx());
     let mut chosen = None;
+    let asked = *needs_pack;
     section(ui, t::PRACTICE);
     for stage in 1..=today.ready {
         let name = t::stage(language, stage);
         let english = t::stage(Language::English, stage);
         if stage_row(ui, Words::named(&english, &name)).clicked() {
-            chosen = Some(Tapped::Intent(GalleryIntent::Practice(stage), true));
+            // Stage 5's sessions are key shifts of crops (S107): none without a pack of them.
+            if stage == KEY_SHIFTS_STAGE && !today.crops {
+                *needs_pack = Some(Family::KeyShift);
+            } else {
+                chosen = Some(Tapped::Intent(GalleryIntent::Practice(stage), true));
+            }
         }
         let tiles: Vec<&DrillShown> = (today.drills.iter())
             .filter(|tile| tile.stage == stage)
@@ -49,7 +57,9 @@ pub(super) fn practice_section(
                 (Family::ValueMasses, None) if !today.masses => {
                     *needs_pack = Some(tapped.family);
                 }
-                (Family::Areas, None) if !today.crops => *needs_pack = Some(Family::Areas),
+                (Family::Areas | Family::KeyShift, None) if !today.crops => {
+                    *needs_pack = Some(tapped.family);
+                }
                 (_, Some(sheet)) => chosen = Some(Tapped::Intent(GalleryIntent::Open(sheet), true)),
                 (family, None) => chosen = Some(Tapped::Intent(GalleryIntent::Drill(family), true)),
             }
@@ -58,9 +68,13 @@ pub(super) fn practice_section(
         match needed {
             Some(Family::Shape) => note(ui, t::DRILL_NEEDS_PACK.into(), false),
             Some(Family::ValueMasses) => note(ui, t::DRILL_NEEDS_MASSES.into(), false),
-            Some(Family::Areas) => note(ui, t::DRILL_NEEDS_CROPS.into(), false),
+            Some(Family::Areas | Family::KeyShift) => note(ui, t::DRILL_NEEDS_CROPS.into(), false),
             Some(_) => note(ui, t::DRILL_NEEDS_COMPOSITIONS.into(), false),
             None => {}
+        }
+        // The note this tap asked for comes into view (stage 5's lies at the column's end).
+        if needed.is_some() && *needs_pack != asked {
+            ui.scroll_to_cursor(None);
         }
     }
     chosen
