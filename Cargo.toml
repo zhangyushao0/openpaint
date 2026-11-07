@@ -70,16 +70,17 @@ ureq = "=3.5.0"
 tract-onnx = { version = "=0.23.9", default-features = false }
 wgpu = "=30.0.1"
 
-# Debug builds for agents and tests: workspace crates keep line tables (backtraces show file
-# and line, no variables in a debugger); dependencies are optimised and carry no debug info, so
-# GPU tests, egui and PNG writing in scenarios run near release speed and links stay small.
-# Neither changes a result: no fast-math, debug assertions and overflow checks stay on.
+# Debug builds for agents and tests carry no debug info (S106c): a panic still names its file and
+# line (the panic's location is compiled in), a backtrace its functions (the .pdb keeps symbols),
+# and a test binary's .pdb is a third of its size with line tables (the runtime tests' 62 to 23
+# MB). Dependencies are optimised, so GPU tests, egui and PNG writing in scenarios run near
+# release speed. Neither changes a result: no fast-math, debug assertions and overflow checks
+# stay on.
 [profile.dev]
-debug = "line-tables-only"
+debug = false
 
 [profile.dev.package."*"]
 opt-level = 2
-debug = false
 
 # Practice's geometry casts some millions of rays a test (S94: objects' exact edges and pictures,
 # 300 of each); unoptimised, its tests took two minutes of the gate. Line tables kept, results

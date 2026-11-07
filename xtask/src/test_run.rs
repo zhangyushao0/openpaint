@@ -6,10 +6,12 @@
 //! (5 of its 6 minutes). One line per binary as it ends (its result and time), the whole output
 //! of each that fails; fails when any does. Since S106b a binary still running after `HANG_LIMIT`
 //! is killed and fails, the tests libtest saw running past a minute named (`guard.rs`), and a
-//! binary starts only while enough memory stays free (`memory.rs`).
+//! binary starts only while enough memory stays free (`memory.rs`). Since S106c the gate's last
+//! step removes what this build superseded (`prune.rs`).
 
 mod guard;
 mod memory;
+pub mod prune;
 
 use std::io;
 use std::path::PathBuf;
@@ -105,11 +107,7 @@ fn build() -> Result<Vec<Binary>, String> {
 /// The test binary a cargo message announces: an artifact of the test profile with an
 /// executable.
 fn binary(message: &str) -> Option<Binary> {
-    if !message.starts_with("{\"reason\":\"compiler-artifact\"") {
-        return None;
-    }
-    let profile = &message[message.find("\"profile\":{")?..];
-    if !profile[..profile.find('}')?].contains("\"test\":true") {
+    if !tested(message)? {
         return None;
     }
     let executable = PathBuf::from(string(message, "executable")?);
@@ -125,20 +123,48 @@ fn binary(message: &str) -> Option<Binary> {
     })
 }
 
+/// Whether a cargo message announces an artifact, and if so whether of the test profile.
+fn tested(message: &str) -> Option<bool> {
+    if !message.starts_with("{\"reason\":\"compiler-artifact\"") {
+        return None;
+    }
+    let profile = &message[message.find("\"profile\":{")?..];
+    Some(profile[..profile.find('}')?].contains("\"test\":true"))
+}
+
 /// The string value of `"key"` in a cargo message (compact JSON), unescaped; `None` when the
 /// key is missing or its value is not a string.
 fn string(message: &str, key: &str) -> Option<String> {
     let start = message.find(&format!("\"{key}\":\""))? + key.len() + 4;
+    quoted(&message[start..]).map(|(value, _)| value)
+}
+
+/// The strings of the array `"key"` in a cargo message, unescaped; none when it is missing.
+fn strings(message: &str, key: &str) -> Vec<String> {
+    let Some(start) = message.find(&format!("\"{key}\":[")) else {
+        return Vec::new();
+    };
+    let mut rest = &message[start + key.len() + 4..];
+    let mut values = Vec::new();
+    while let Some((value, after)) = rest.strip_prefix('"').and_then(quoted) {
+        values.push(value);
+        rest = after.strip_prefix(',').unwrap_or(after);
+    }
+    values
+}
+
+/// A JSON string from just after its opening quote: its value and what follows its closing quote.
+fn quoted(text: &str) -> Option<(String, &str)> {
     let mut value = String::new();
-    let mut chars = message[start..].chars();
-    while let Some(c) = chars.next() {
+    let mut chars = text.char_indices();
+    while let Some((at, c)) = chars.next() {
         match c {
-            '"' => return Some(value),
-            '\\' => match chars.next()? {
+            '"' => return Some((value, &text[at + 1..])),
+            '\\' => match chars.next()?.1 {
                 'n' => value.push('\n'),
                 't' => value.push('\t'),
                 'u' => {
-                    let hex: String = chars.by_ref().take(4).collect();
+                    let hex: String = chars.by_ref().take(4).map(|(_, c)| c).collect();
                     value.push(char::from_u32(u32::from_str_radix(&hex, 16).ok()?)?);
                 }
                 escaped => value.push(escaped),

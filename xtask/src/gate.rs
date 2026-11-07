@@ -14,7 +14,11 @@ const STEPS: &[(&str, Step)] = &[
     ("test", test_run::run),
     ("scenario smoke", scenario_smoke),
     ("repo-check", check::run),
+    ("prune", test_run::prune::run),
 ];
+
+/// The tablet's target, which the gate checks with clippy.
+pub const ANDROID_TRIPLE: &str = "aarch64-linux-android";
 
 /// Locally the gate formats the workspace first, so a formatting slip never fails it; under CI
 /// (the `CI` variable every CI service sets) it only checks, so unformatted code fails there.
@@ -43,7 +47,7 @@ fn clippy_android() -> Result<(), String> {
         "--package",
         "openpaint-android",
         "--target",
-        "aarch64-linux-android",
+        ANDROID_TRIPLE,
         "--all-targets",
         "--",
         "-D",
