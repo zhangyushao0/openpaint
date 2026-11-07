@@ -17,13 +17,13 @@
 //!
 //! Frame units.
 
-use crate::edges::Edge;
-use crate::ellipse::{Ellipse, EllipseGuide};
-use crate::ellipse_fit::missed;
-use crate::path::{Point, across_frame, distance, length, resample};
-use crate::perspective_check::{ON_ANGLE, line_angle, plumb, reach, sub, toward};
-use crate::solid::PEN_WIDTH;
-use crate::solid_check::ReadCurve;
+use crate::geometry::edges::Edge;
+use crate::geometry::ellipse::{Ellipse, EllipseGuide};
+use crate::kinds::boxes::perspective_check::{ON_ANGLE, line_angle, plumb, reach, sub, toward};
+use crate::kinds::ellipses::ellipse_fit::missed;
+use crate::kinds::solids::solid::PEN_WIDTH;
+use crate::kinds::solids::solid_check::ReadCurve;
+use crate::maths::path::{Point, across_frame, distance, length, resample};
 
 /// A curve's pieces are read at this even step; a middle is judged only where they pass it within
 /// `PASSES` of its turn either way, from the points within `ABOUT` of it (radians round the

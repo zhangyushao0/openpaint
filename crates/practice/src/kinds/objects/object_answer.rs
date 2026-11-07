@@ -9,13 +9,13 @@
 //!
 //! The ends of an edge's stretches are the object's corners: where its surface turns another way.
 
-use crate::ellipse::Ellipse;
-use crate::ellipse::{EllipseGuide, square_on};
-use crate::object_body::{Body, TOUCH, Touch};
-use crate::object_design::Local;
-use crate::path::{Point, distance};
-use crate::solid_answer::{SolidAnswer, Square, Stretch, View};
-use crate::vector::{Vector, across, add, dot, norm, sub, times, unit};
+use crate::geometry::ellipse::Ellipse;
+use crate::geometry::ellipse::{EllipseGuide, square_on};
+use crate::kinds::objects::object_body::{Body, TOUCH, Touch};
+use crate::kinds::objects::object_design::Local;
+use crate::kinds::solids::solid_answer::{SolidAnswer, Square, Stretch, View};
+use crate::maths::path::{Point, distance};
+use crate::maths::vector::{Vector, across, add, dot, norm, sub, times, unit};
 
 /// Each round part's ends: their ellipses, their stretches, their squares as guides.
 type Rims = (Vec<Ellipse>, Vec<Vec<Stretch>>, Vec<EllipseGuide>);
@@ -148,7 +148,9 @@ fn lines(body: &Body) -> Vec<Line> {
 }
 
 /// A round part's outlines along its side, where planes through the eye touch it (S93's sides).
-fn outlines(round: &crate::object_body::Round) -> impl Iterator<Item = [Vector; 2]> {
+fn outlines(
+    round: &crate::kinds::objects::object_body::Round,
+) -> impl Iterator<Item = [Vector; 2]> {
     let centre = round.base.centre();
     let [u, v] = across(round.axis);
     let r = round.radius();

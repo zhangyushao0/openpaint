@@ -12,9 +12,9 @@
 
 use std::collections::HashSet;
 
-use crate::key_shift::main_hue;
-use crate::pack::{ItemRef, Pack, PictureKind, Tier};
-use crate::random::Random;
+use crate::kinds::key_shifts::key_shift::main_hue;
+use crate::maths::random::Random;
+use crate::packs::pack::{ItemRef, Pack, PictureKind, Tier};
 
 /// Every picture a session can pick from.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]

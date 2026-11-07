@@ -10,9 +10,9 @@
 //! shape held together in the middle of it, so the sheet's size and every other pair's frames
 //! never depend on the pictures.
 
-use crate::pack::Pack;
-use crate::path::Point;
-use crate::record::SessionRecord;
+use crate::maths::path::Point;
+use crate::packs::pack::Pack;
+use crate::records::record::SessionRecord;
 
 /// A frame's side on the sheet (a picture's frames' longer side), in canvas pixels.
 pub const FRAME: f64 = 400.0;

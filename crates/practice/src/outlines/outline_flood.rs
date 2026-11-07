@@ -12,9 +12,9 @@
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 
-use crate::outline_ground::shade_distance;
-use crate::outline_mask::parts;
-use crate::outline_mesh::mesh;
+use crate::outlines::outline_ground::shade_distance;
+use crate::outlines::outline_mask::parts;
+use crate::outlines::outline_mesh::mesh;
 
 /// A pixel is surely the ground's when it differs from the ground by under `CLEAR` noises (and
 /// from `LEAST_CLEAR` to `MOST_CLEAR`), in a pocket of at least `LEAST_POCKET` of the picture.

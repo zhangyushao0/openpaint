@@ -10,19 +10,21 @@
 //! variants in turn by the drill's number among its kind's drills (a solid's pose by its seed).
 //! Its record is one of stage `DRILL` (`record.rs`): it counts in no session, road or stage.
 
-use crate::colour_match::Tone;
-use crate::ellipse::Guide;
-use crate::flat::Estimate;
-use crate::object_design::Carve;
-use crate::pack::Tier;
-use crate::perspective::BoxView;
-use crate::plan::{Family, Kind};
-use crate::scale::ScaleTone;
-use crate::session::{Before, COLOURS, COMBINED, FULL, HORIZONS, LINES, Picker, Plan, seeded};
-use crate::session_five::key_shifts;
-use crate::session_four::COMPOSITION_TIERS;
-use crate::solid::Solid;
-use crate::space::Trick;
+use crate::geometry::ellipse::Guide;
+use crate::geometry::perspective::BoxView;
+use crate::kinds::colours::colour_match::Tone;
+use crate::kinds::estimates::flat::Estimate;
+use crate::kinds::objects::object_design::Carve;
+use crate::kinds::points_in_space::space::Trick;
+use crate::kinds::scales::scale::ScaleTone;
+use crate::kinds::solids::solid::Solid;
+use crate::packs::pack::Tier;
+use crate::sessions::plan::{Family, Kind};
+use crate::sessions::session::{
+    Before, COLOURS, COMBINED, FULL, HORIZONS, LINES, Picker, Plan, seeded,
+};
+use crate::sessions::session_five::key_shifts;
+use crate::sessions::session_four::COMPOSITION_TIERS;
 
 /// The kinds each ready stage practises, as the practice options' tiles show them.
 const STAGE_ONE: [Family; 3] = [Family::Line, Family::Combined, Family::Colour];
@@ -168,7 +170,7 @@ fn shapes(
     turn: usize,
     seed: u64,
     before: &Before<'_>,
-) -> Vec<(Kind, Option<crate::pack::ItemRef>)> {
+) -> Vec<(Kind, Option<crate::packs::pack::ItemRef>)> {
     let mut tiers = in_turn(&Tier::ALL, turn, SHAPES);
     tiers.sort();
     let mut picker = Picker::new(seed, before, tiers[tiers.len() - 1]);
@@ -183,7 +185,7 @@ fn compositions(
     turn: usize,
     seed: u64,
     before: &Before<'_>,
-) -> Vec<(Kind, Option<crate::pack::ItemRef>)> {
+) -> Vec<(Kind, Option<crate::packs::pack::ItemRef>)> {
     let (count, kind): (usize, fn(Tier) -> Kind) = match family {
         Family::Division => (DIVISIONS, Kind::Division),
         Family::ValueMasses => (VALUE_MASSES, Kind::ValueMasses),

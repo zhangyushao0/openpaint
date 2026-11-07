@@ -10,9 +10,9 @@
 //! A level's strokes whose ends meet within two pen widths heading on are one line: V大 draws a
 //! long line from short ones.
 
-use crate::colour::Rgb8;
-use crate::metric::{Metric, Metrics};
-use crate::path::{Point, distance, length};
+use crate::maths::colour::Rgb8;
+use crate::maths::path::{Point, distance, length};
+use crate::records::metric::{Metric, Metrics};
 
 /// The most main lines V大 asks for.
 pub const MOST_MAIN: usize = 5;

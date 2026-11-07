@@ -6,14 +6,16 @@
 //! compares it (S97): the answer red, an edge that misses its point drawn on past it, the middles
 //! an ellipse misses ringed; nothing on what is right.
 
-use super::{Demo, Drawn, Layout, Marker, On, Script, WIDE_REACH, clearest, line, wobbled};
-use crate::edges::Edge;
-use crate::ellipse::{Ellipse, EllipseGuide, Guide};
-use crate::ellipse_fit::EllipseCheck;
-use crate::path::{Point, distance};
-use crate::perspective::{BoxView, Direction, EDGES, Horizon, PerspectiveBox};
-use crate::perspective_check::toward;
-use crate::plan::Family;
+use crate::demos::demo::{
+    Demo, Drawn, Layout, Marker, On, Script, WIDE_REACH, clearest, line, wobbled,
+};
+use crate::geometry::edges::Edge;
+use crate::geometry::ellipse::{Ellipse, EllipseGuide, Guide};
+use crate::geometry::perspective::{BoxView, Direction, EDGES, Horizon, PerspectiveBox};
+use crate::kinds::boxes::perspective_check::toward;
+use crate::kinds::ellipses::ellipse_fit::EllipseCheck;
+use crate::maths::path::{Point, distance};
+use crate::sessions::plan::Family;
 
 const BOX_SEED: u64 = 0xDE30_5EED_0007;
 const FREE_SEED: u64 = 0xDE30_5EED_0008;
@@ -132,7 +134,7 @@ fn red_rings(points: impl Iterator<Item = Point>) -> Vec<(On, Marker, Drawn)> {
 }
 
 /// A box to complete.
-pub(super) fn perspective_box() -> Demo {
+pub(crate) fn perspective_box() -> Demo {
     let exact = within_reach(BOX_SEED, |s| PerspectiveBox::generate(BoxView::TwoPoint, s));
     let mut script = Script::new();
     script.given(On::Copy, Marker::Guide, horizon(exact.horizon));
@@ -187,7 +189,7 @@ pub(super) fn perspective_box() -> Demo {
 }
 
 /// Free boxes on a horizon: one drawn as the method draws it.
-pub(super) fn free_boxes() -> Demo {
+pub(crate) fn free_boxes() -> Demo {
     let example = within_reach(FREE_SEED, |s| {
         PerspectiveBox::on_horizon(Horizon::Middle, s)
     });
@@ -234,7 +236,7 @@ pub(super) fn free_boxes() -> Demo {
 }
 
 /// An ellipse in a square in perspective.
-pub(super) fn ellipse() -> Demo {
+pub(crate) fn ellipse() -> Demo {
     // A square lying as a cylinder's top does: its ellipse about half as deep as wide, lying
     // nearly level, large in its frame.
     let guide = clearest(

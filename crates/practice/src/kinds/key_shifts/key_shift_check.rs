@@ -18,10 +18,10 @@
 //! 3. Still apart (V大: 偏完各色仍要分得开): two neighbours `APART` or more in the original whose
 //!    copies came within `MERGED` of each other, under two just-noticeable steps: one block.
 
-use crate::areas::Areas;
-use crate::colour::{Rgb8, delta_e, oklab};
-use crate::key_shift::Tendency;
-use crate::metric::{Metric, Metrics};
+use crate::colour_areas::areas::Areas;
+use crate::kinds::key_shifts::key_shift::Tendency;
+use crate::maths::colour::{Rgb8, delta_e, oklab};
+use crate::records::metric::{Metric, Metrics};
 
 /// How far an area's lightness may leave the original's (Oklab `L`).
 pub const LIGHTNESS_OFF: f64 = 0.08;

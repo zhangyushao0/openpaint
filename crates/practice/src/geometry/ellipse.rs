@@ -5,9 +5,9 @@
 //! the circle inscribed in the square: its conic carried through the homography from the square
 //! to the guide. Generated the same for the same seed; frame units (the frame's side 1, y down).
 
-use crate::path::{Point, distance};
-use crate::perspective_eye::{Eye, directions};
-use crate::random::Random;
+use crate::geometry::perspective_eye::{Eye, directions};
+use crate::maths::path::{Point, distance};
+use crate::maths::random::Random;
 
 /// Guides laid before the generator keeps the last one whatever it is.
 const TRIES: usize = 400;

@@ -14,12 +14,12 @@
 //! opposite face's diagonals cross. Each change's corners make a stage, the biggest change's
 //! first. What it finds is the object in space projected (`tests/objects/`).
 
-use crate::ellipse::square_on;
-use crate::object_answer::merged;
-use crate::object_design::{Local, SAME};
-use crate::path::{Point, distance, meet};
-use crate::perspective::{Direction, PerspectiveBox};
-use crate::solid::{diagonals, middle_lines};
+use crate::geometry::ellipse::square_on;
+use crate::geometry::perspective::{Direction, PerspectiveBox};
+use crate::kinds::objects::object_answer::merged;
+use crate::kinds::objects::object_design::{Local, SAME};
+use crate::kinds::solids::solid::{diagonals, middle_lines};
+use crate::maths::path::{Point, distance, meet};
 
 /// Half a tick across the near upright where a height is measured (frame units).
 const TICK: f64 = 0.015;

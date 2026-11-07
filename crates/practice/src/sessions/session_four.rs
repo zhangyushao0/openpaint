@@ -22,12 +22,12 @@
 //! Objects, solids, divisions, whole copies and value masses, taking minutes each, stay out of the
 //! warm-up's quick places.
 
-use crate::object_design::Carve;
-use crate::pack::Tier;
-use crate::plan::Kind;
-use crate::session::{Before, Picker, Plan, seeded, warm_up_of};
-use crate::session_three::QUICK_THREE;
-use crate::solid::Solid;
+use crate::kinds::objects::object_design::Carve;
+use crate::kinds::solids::solid::Solid;
+use crate::packs::pack::Tier;
+use crate::sessions::plan::Kind;
+use crate::sessions::session::{Before, Picker, Plan, seeded, warm_up_of};
+use crate::sessions::session_three::QUICK_THREE;
 
 /// Objects a session holds; its shape's tier in turn; its compositions' tiers in turn.
 const OBJECTS: usize = 3;

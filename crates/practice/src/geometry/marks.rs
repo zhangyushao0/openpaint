@@ -6,8 +6,8 @@
 //!
 //! Frame units (a frame's side is 1).
 
-use crate::edges::{Edge, edges};
-use crate::path::{Point, crossings};
+use crate::geometry::edges::{Edge, edges};
+use crate::maths::path::{Point, crossings};
 
 /// A mark is no wider and no taller than this: 40 pixels of a 400-pixel frame.
 pub const MARK: f64 = 0.1;

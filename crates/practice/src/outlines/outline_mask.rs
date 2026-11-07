@@ -6,9 +6,9 @@
 //! silhouette's parts: one dominant part on a plain ground, any number of real parts over a clear
 //! ground.
 
-use crate::outline::OutlineRefusal;
-use crate::outline_flood::{Flooded, object};
-use crate::outline_ground::{Difference, Ground};
+use crate::outlines::outline::OutlineRefusal;
+use crate::outlines::outline_flood::{Flooded, object};
+use crate::outlines::outline_ground::{Difference, Ground};
 
 /// Parts of the object smaller than this share of the grid are specks, left out.
 const SPECK: f64 = 0.000_2;

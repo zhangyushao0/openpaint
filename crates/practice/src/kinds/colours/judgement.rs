@@ -17,8 +17,8 @@
 //! and before hold their parts on the wheel's HSV (codes retired), so they count in the last
 //! three axes only.
 
-use crate::colour_match::{Lightness, Purity, Tone};
-use crate::metric::{Metric, value};
+use crate::kinds::colours::colour_match::{Lightness, Purity, Tone};
+use crate::records::metric::{Metric, value};
 
 /// One of a judgement's axes, in the radar's order (clockwise from the top).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

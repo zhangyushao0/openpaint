@@ -5,14 +5,14 @@
 //! the middle cell first, then each half's middle, then the rest, the pick moving only up and down
 //! the wheel's square), each then compared.
 
-use super::{Demo, Drawn, Layout, Marker, On, Script, clearest};
-use crate::areas::Areas;
-use crate::areas_generated::{Arrangement, GeneratedAreas};
-use crate::colour::{Rgb8, delta_e, from_hsv, from_oklab, hsv, oklab};
-use crate::colour_match::{Lightness, Purity, Tone};
-use crate::path::Point;
-use crate::plan::Family;
-use crate::scale::{ROW, ScaleTone, ValueScale, halving};
+use crate::colour_areas::areas::Areas;
+use crate::demos::demo::{Demo, Drawn, Layout, Marker, On, Script, clearest};
+use crate::kinds::colours::colour_match::{Lightness, Purity, Tone};
+use crate::kinds::combinations::areas_generated::{Arrangement, GeneratedAreas};
+use crate::kinds::scales::scale::{ROW, ScaleTone, ValueScale, halving};
+use crate::maths::colour::{Rgb8, delta_e, from_hsv, from_oklab, hsv, oklab};
+use crate::maths::path::Point;
+use crate::sessions::plan::Family;
 
 const COLOUR_SEED: u64 = 0xDE30_5EED_0004;
 const AREAS_SEED: u64 = 0xDE30_5EED_0005;
@@ -43,7 +43,7 @@ fn band(rows: Vec<[Point; 2]>, colour: Rgb8) -> Drawn {
 }
 
 /// A single colour.
-pub(super) fn colour() -> Demo {
+pub(crate) fn colour() -> Demo {
     let tone = Tone {
         purity: Purity::Muted,
         lightness: Lightness::Middle,
@@ -92,7 +92,7 @@ const fn painted(colours: Vec<Rgb8>, soft: bool) -> Drawn {
 /// tone; Big for the largest area, then each neighbour against it; Small along the weak contrast's
 /// edge, keeping it weak; Soft only on the edges soft in the picture (the copy's edges hard until
 /// then, as the hard tip lays them); then Compare.
-pub(super) fn areas() -> Demo {
+pub(crate) fn areas() -> Demo {
     // Four or five bands of middle lightness, so each area and the weak contrast read small; some
     // edges soft and some hard, so Soft shows where it belongs and where it does not.
     let generated = clearest(
@@ -228,7 +228,7 @@ fn painting(areas: &Areas, sizes: &[usize]) -> (Vec<usize>, Option<(usize, usize
 
 /// A value scale of `cells` cells (the scale in hand's count; never its colours), painted in
 /// V大's order of halving.
-pub(super) fn scale(cells: usize) -> Demo {
+pub(crate) fn scale(cells: usize) -> Demo {
     let scale = ValueScale::generate(ScaleTone::Hue, cells, SCALE_SEED);
     let rounds = halving(scale.cells);
     let mut script = Script::new();

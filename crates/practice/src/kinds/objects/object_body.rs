@@ -6,11 +6,11 @@
 //!
 //! The world: y up, z away from the eye, which looks level from the origin.
 
-use crate::object_design::{Block, Design, Local};
-use crate::object_hull::{hull, minus, round};
-use crate::object_rays::{hull_hit, round_hit, round_off, round_values};
-use crate::solid_answer::Square;
-use crate::vector::{Vector, add, dot, norm, sub, times};
+use crate::kinds::objects::object_design::{Block, Design, Local};
+use crate::kinds::objects::object_hull::{hull, minus, round};
+use crate::kinds::objects::object_rays::{hull_hit, round_hit, round_off, round_values};
+use crate::kinds::solids::solid_answer::Square;
+use crate::maths::vector::{Vector, add, dot, norm, sub, times};
 
 /// Within this of a surface (world units) a point lies on it.
 pub(crate) const TOUCH: f64 = 1e-7;

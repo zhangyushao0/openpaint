@@ -7,9 +7,9 @@
 //! parts (which way to correct: lighter or darker, purer or greyer, towards which neighbouring
 //! hue), and by how many corrections it took.
 
-use crate::colour::{Difference, Rgb8, from_hsv};
-use crate::metric::{Metric, Metrics};
-use crate::random::Random;
+use crate::maths::colour::{Difference, Rgb8, from_hsv};
+use crate::maths::random::Random;
+use crate::records::metric::{Metric, Metrics};
 
 /// How pure a swatch is: its saturation band.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

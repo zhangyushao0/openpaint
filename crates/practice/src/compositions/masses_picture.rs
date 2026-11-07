@@ -7,11 +7,11 @@
 //! 0.92), the hills and the field middle (0.53 to 0.63), the crown, the roof, the trunk and the
 //! openings dark (0.28 to 0.41), whatever the hues.
 
-use crate::colour::Rgb8;
-use crate::masses::{Masses, Paint, Part, bounds};
-use crate::path::Point;
-use crate::random::Random;
-use crate::value_masses::Value;
+use crate::compositions::masses::{Masses, Paint, Part, bounds};
+use crate::compositions::value_masses::Value;
+use crate::maths::colour::Rgb8;
+use crate::maths::path::Point;
+use crate::maths::random::Random;
 
 /// Each paint's colour at its top and at its foot, by day and in the evening.
 const fn colours(paint: Paint, evening: bool) -> [[f64; 3]; 2] {

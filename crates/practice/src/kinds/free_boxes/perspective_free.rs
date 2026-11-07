@@ -8,10 +8,10 @@
 //! towards its meeting point) under 90 degrees is marked: V大 calls it distortion, the vanishing
 //! points too close.
 
-use crate::edges::Edge;
-use crate::path::{Point, apart, distance};
-use crate::perspective::{Direction, FAR, angle_between};
-use crate::perspective_check::{Checked, ON_ANGLE, checked, line_angle, sub};
+use crate::geometry::edges::Edge;
+use crate::geometry::perspective::{Direction, FAR, angle_between};
+use crate::kinds::boxes::perspective_check::{Checked, ON_ANGLE, checked, line_angle, sub};
+use crate::maths::path::{Point, apart, distance};
 
 /// On a free page an edge within this angle of the vertical is a vertical (degrees).
 const VERTICAL: f64 = 12.0;

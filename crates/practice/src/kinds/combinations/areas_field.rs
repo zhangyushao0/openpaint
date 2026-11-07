@@ -7,8 +7,8 @@
 
 use std::f64::consts::TAU;
 
-use crate::path::Point;
-use crate::random::Random;
+use crate::maths::path::Point;
+use crate::maths::random::Random;
 
 /// A smooth displacement of the frame: two slow waves along each axis.
 #[derive(Debug, Clone, PartialEq)]

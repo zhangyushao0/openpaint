@@ -14,10 +14,10 @@
 //! to the point: a miss of 2 degrees is about 3 pixels over a 100-pixel edge, unseen on the edge,
 //! but some 20 pixels at a vanishing point a frame away, where the extension shows it.
 
-use crate::edges::Edge;
-use crate::off::Off;
-use crate::path::{Point, distance};
-use crate::perspective::{Direction, PerspectiveBox, angle_between};
+use crate::geometry::edges::Edge;
+use crate::geometry::off::Off;
+use crate::geometry::perspective::{Direction, PerspectiveBox, angle_between};
+use crate::maths::path::{Point, distance};
 
 /// An edge heads for a point within this angle (degrees); a two-point vertical leans past it.
 pub const ON_ANGLE: f64 = 2.0;

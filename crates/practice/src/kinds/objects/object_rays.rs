@@ -2,8 +2,8 @@
 //! through its planes, a cylinder or a cone through its ends' slab and its side; and how far a
 //! point lies past a round part's surfaces.
 
-use crate::object_body::{Hit, Hull, ROUND_SURFACES, Round};
-use crate::vector::{Vector, add, dot, norm, sub, times, unit};
+use crate::kinds::objects::object_body::{Hit, Hull, ROUND_SURFACES, Round};
+use crate::maths::vector::{Vector, add, dot, norm, sub, times, unit};
 
 /// How far `p` lies outside `round` (negative inside).
 pub(crate) fn round_off(round: &Round, p: Vector) -> f64 {

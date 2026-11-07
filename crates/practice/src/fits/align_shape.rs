@@ -13,9 +13,9 @@
 //! (`Grid`, each a lone point), so a busy copy fits in milliseconds; it runs off the frame loop
 //! all the same.
 
-use crate::align::{Fit, Similarity, solve};
-use crate::grid::{Grid, bounds};
-use crate::path::{Point, distance, resample};
+use crate::fits::align::{Fit, Similarity, solve};
+use crate::maths::grid::{Grid, bounds};
+use crate::maths::path::{Point, distance, resample};
 
 /// Steps the outline and the copy are compared at, in frame sides.
 const SPACING: f64 = 0.01;

@@ -15,12 +15,12 @@
 //! (about 21 without a pack, which holds no shapes). Solids, taking minutes each, stay out of the
 //! warm-up's quick places; every session holds two.
 
-use crate::flat::Estimate;
-use crate::pack::Tier;
-use crate::plan::{Family, Kind};
-use crate::session::{Before, Picker, Plan, seeded, warm_up_of};
-use crate::solid::Solid;
-use crate::space::Trick;
+use crate::kinds::estimates::flat::Estimate;
+use crate::kinds::points_in_space::space::Trick;
+use crate::kinds::solids::solid::Solid;
+use crate::packs::pack::Tier;
+use crate::sessions::plan::{Family, Kind};
+use crate::sessions::session::{Before, Picker, Plan, seeded, warm_up_of};
 
 /// The quick families a stage-3 warm-up takes in turn: the stage's own first, then stage 1's and
 /// stage 2's.

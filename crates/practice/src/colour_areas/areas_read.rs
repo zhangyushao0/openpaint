@@ -15,10 +15,10 @@
 //!   darker all over keeps its contrasts; a strong contrast made stronger is no weak one made
 //!   strong.
 
-use crate::areas::{Areas, WEAK};
-use crate::colour::{Difference, Rgb8, delta_e};
-use crate::metric::{Metric, Metrics};
-use crate::path::Point;
+use crate::colour_areas::areas::{Areas, WEAK};
+use crate::maths::colour::{Difference, Rgb8, delta_e};
+use crate::maths::path::Point;
+use crate::records::metric::{Metric, Metrics};
 
 /// How much more than the original's a weak contrast's copy must be, at least, to have been made
 /// strong (Oklab: two and a half just-noticeable steps).

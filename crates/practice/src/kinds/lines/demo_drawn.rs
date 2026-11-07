@@ -3,13 +3,15 @@
 //! first, each other from where it meets it) and a single shape (its extremes ticked, blocked in
 //! with long straight lines, a negative shape looked at, the outline in ink), each then compared.
 
-use super::{Demo, Drawn, Layout, Marker, On, Script, clearest, off_middle, tick, wobbled};
-use crate::colour::Rgb8;
-use crate::combined::{Combination, CombinedLines};
-use crate::line::{LineExercise, LineTier};
-use crate::path::{Point, crossings, distance, length, nearest};
-use crate::plan::Family;
-use crate::random::Random;
+use crate::demos::demo::{
+    Demo, Drawn, Layout, Marker, On, Script, clearest, off_middle, tick, wobbled,
+};
+use crate::kinds::combined_lines::combined::{Combination, CombinedLines};
+use crate::kinds::lines::line::{LineExercise, LineTier};
+use crate::maths::colour::Rgb8;
+use crate::maths::path::{Point, crossings, distance, length, nearest};
+use crate::maths::random::Random;
+use crate::sessions::plan::Family;
 
 /// The examples' seeds: never an exercise's but by a chance of one in 2^64.
 const LINE_SEED: u64 = 0xDE30_5EED_0001;
@@ -22,7 +24,7 @@ const SAME: f64 = 0.03;
 const CLAY: Rgb8 = [176, 118, 88];
 
 /// A single line.
-pub(super) fn line() -> Demo {
+pub(crate) fn line() -> Demo {
     // A long arc near the frame's middle, plainly bent.
     let original = clearest(
         (LINE_SEED, 32),
@@ -95,7 +97,7 @@ fn bulges(line: &[Point]) -> Vec<usize> {
 }
 
 /// Combined lines.
-pub(super) fn combined() -> Demo {
+pub(crate) fn combined() -> Demo {
     // Three lines or more, the group near the frame's middle.
     let lines = clearest(
         (GROUP_SEED, 16),
@@ -163,7 +165,7 @@ fn key_points(lines: &[Vec<Point>]) -> Vec<Point> {
 }
 
 /// A single shape: a vase, its silhouette in the original's frame.
-pub(super) fn shape() -> Demo {
+pub(crate) fn shape() -> Demo {
     let vase = Vase::generate(SHAPE_SEED);
     let outline = vase.outline();
     let mut script = Script::new();

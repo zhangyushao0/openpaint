@@ -13,7 +13,7 @@
 //! (degrees, only where both passed an RGB chroma gate), saturation and value on the wheel's HSV
 //! until 1.6.0; 32, 1.5.0's value scale off its even steps on the wheel's value.
 
-use crate::division::Level;
+use crate::kinds::divisions::division::Level;
 
 /// One measured quantity of a result.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

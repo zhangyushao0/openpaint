@@ -5,8 +5,8 @@
 
 use std::collections::HashMap;
 
-use crate::areas::Areas;
-use crate::path::Point;
+use crate::colour_areas::areas::Areas;
+use crate::maths::path::Point;
 
 /// A corner of the map's cells: column and row, 0 to the map's cells across and down.
 type Corner = [usize; 2];

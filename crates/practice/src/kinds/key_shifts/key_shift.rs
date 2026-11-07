@@ -6,9 +6,9 @@
 //! was painted to whatever the pack becomes. How a painter shifts is `key_shift_rule.rs`; what
 //! Compare marks, `key_shift_check.rs`: a key shift has no answer.
 
-use crate::areas::Areas;
-use crate::colour::{Rgb8, in_gamut, most_chroma, oklch};
-use crate::random::Random;
+use crate::colour_areas::areas::Areas;
+use crate::maths::colour::{Rgb8, in_gamut, most_chroma, oklch};
+use crate::maths::random::Random;
 
 /// A tendency's hues lie on this many degrees' steps.
 pub const HUE_STEP: u16 = 10;

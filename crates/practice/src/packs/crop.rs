@@ -12,10 +12,10 @@
 
 use std::fmt;
 
-use crate::areas::{Areas, LEAST_CORE, STRONG};
-use crate::areas_found::Found;
-use crate::colour::{delta_e, hsv};
-use crate::pack::Tier;
+use crate::colour_areas::areas::{Areas, LEAST_CORE, STRONG};
+use crate::colour_areas::areas_found::Found;
+use crate::maths::colour::{delta_e, hsv};
+use crate::packs::pack::Tier;
 
 /// The fewest areas a crop holds.
 pub const FEWEST_AREAS: usize = 3;

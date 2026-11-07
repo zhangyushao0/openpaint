@@ -4,7 +4,7 @@
 //! scaled, so the paper under it shows through; along the outline by how much of each pixel lies
 //! inside it, so the edge stays smooth.
 
-use crate::path::Point;
+use crate::maths::path::Point;
 
 /// Rows sampled in each pixel row along the outline (across, a pixel's share is exact).
 const ROWS: usize = 4;

@@ -5,11 +5,11 @@
 //! single line shows side by side (the first and the latest), the seals earned, and how much was
 //! done in all. Progress counts what was done, never days in a row.
 
-use crate::metric::{Metric, value};
-use crate::plan::{Family, STAGES};
-use crate::record::SessionRecord;
-use crate::seals::{Earned, earned};
-use crate::time::{by_day, seconds};
+use crate::records::metric::{Metric, value};
+use crate::records::record::SessionRecord;
+use crate::records::seals::{Earned, earned};
+use crate::records::time::{by_day, seconds};
+use crate::sessions::plan::{Family, STAGES};
 
 /// The practice book's contents.
 #[derive(Debug, Clone, Default, PartialEq)]

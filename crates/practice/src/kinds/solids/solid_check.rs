@@ -18,17 +18,17 @@
 //! the box's vanishing point it runs to, upright, or, slanted, nowhere) or the points fixing it
 //! ringed (a side's touches, an edge's corners).
 
-use crate::edges::edges;
-use crate::ellipse::{Ellipse, EllipseGuide};
-use crate::ellipse_fit::fit_ellipse;
-use crate::metric::{Metric, Metrics};
-use crate::object::ObjectTask;
-use crate::off::{Heads, Off, Straight, middles_missed, once, turn};
-use crate::path::{Point, distance, length, nearest, nearest_on_segment, resample};
-use crate::perspective::{Direction, PerspectiveBox};
-use crate::perspective_check::{line_angle, sub};
-use crate::solid::{Pose, Solid, SolidTask};
-use crate::solid_answer::SolidAnswer;
+use crate::geometry::edges::edges;
+use crate::geometry::ellipse::{Ellipse, EllipseGuide};
+use crate::geometry::off::{Heads, Off, Straight, middles_missed, once, turn};
+use crate::geometry::perspective::{Direction, PerspectiveBox};
+use crate::kinds::boxes::perspective_check::{line_angle, sub};
+use crate::kinds::ellipses::ellipse_fit::fit_ellipse;
+use crate::kinds::objects::object::ObjectTask;
+use crate::kinds::solids::solid::{Pose, Solid, SolidTask};
+use crate::kinds::solids::solid_answer::SolidAnswer;
+use crate::maths::path::{Point, distance, length, nearest, nearest_on_segment, resample};
+use crate::records::metric::{Metric, Metrics};
 
 /// The even step lines are read at.
 const SPACING: f64 = 0.004;

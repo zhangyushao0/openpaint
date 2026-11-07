@@ -15,10 +15,10 @@
 //! value scales sRGB's channels together, so hue and purity hold), and so does the even scale
 //! between them: a hue held, its lightness stepped.
 
-use crate::colour::{Rgb8, from_hsv, from_oklab, oklab};
-use crate::metric::{Metric, Metrics};
-use crate::path::Point;
-use crate::random::Random;
+use crate::maths::colour::{Rgb8, from_hsv, from_oklab, oklab};
+use crate::maths::path::Point;
+use crate::maths::random::Random;
+use crate::records::metric::{Metric, Metrics};
 
 /// Where the row lies in the copy's frame: left, top, right, bottom (frame units).
 pub const ROW: [f64; 4] = [0.06, 0.34, 0.94, 0.56];

@@ -7,10 +7,10 @@
 //! copy's example. Everything is in picture units, its width 1 and its height `size[1]`; the
 //! picture itself is `masses_picture.rs`.
 
-use crate::division::Level;
-use crate::path::Point;
-use crate::random::Random;
-use crate::value_masses::Value;
+use crate::compositions::value_masses::Value;
+use crate::kinds::divisions::division::Level;
+use crate::maths::path::Point;
+use crate::maths::random::Random;
 
 /// What a part is painted as.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

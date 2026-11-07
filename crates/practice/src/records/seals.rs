@@ -3,9 +3,9 @@
 //! record removed (a test session) takes its part with it. Each seal counts what was done, never
 //! when: no days in a row, quotas or reminders (the author, 2026-10-28).
 
-use crate::plan::{Family, STAGE_SESSIONS, STAGES};
-use crate::record::SessionRecord;
-use crate::time::seconds;
+use crate::records::record::SessionRecord;
+use crate::records::time::seconds;
+use crate::sessions::plan::{Family, STAGE_SESSIONS, STAGES};
 
 /// A milestone.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

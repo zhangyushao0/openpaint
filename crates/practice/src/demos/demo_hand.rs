@@ -4,12 +4,12 @@
 //! which example of a fixed seed's sequence is clearest; what a lone example shows.
 
 use super::{Drawn, Mark, Marker, On};
-use crate::off::Off;
-use crate::path::{Point, distance, length};
+use crate::geometry::off::Off;
+use crate::maths::path::{Point, distance, length};
 
 /// What a hand draws in the examples a little off a part on purpose (frame units): twice the Draw
 /// pen's width, so Compare marks it as the exercise would (S98).
-pub(crate) const DRAWN_OFF: f64 = 2.0 * crate::solid::PEN_WIDTH;
+pub(crate) const DRAWN_OFF: f64 = 2.0 * crate::kinds::solids::solid::PEN_WIDTH;
 
 /// The line through `a` and `b`, two points.
 pub(crate) fn line(a: Point, b: Point) -> Drawn {
@@ -50,10 +50,10 @@ pub(crate) fn clearest<T>(
     made: impl Fn(u64) -> T,
     score: impl Fn(&T) -> f64,
 ) -> T {
-    let mut best = made(crate::random::derived(seed, 0));
+    let mut best = made(crate::maths::random::derived(seed, 0));
     let mut best_score = score(&best);
     for k in 1..tries {
-        let example = made(crate::random::derived(seed, k));
+        let example = made(crate::maths::random::derived(seed, k));
         let scored = score(&example);
         if scored > best_score {
             (best, best_score) = (example, scored);

@@ -16,12 +16,12 @@
 
 use std::collections::BTreeMap;
 
-use crate::areas::{Areas, GRID};
-use crate::areas_read::median;
-use crate::areas_regions::{Lab, distance, grouped};
-use crate::colour::{Rgb8, from_oklab, oklab, oklab_of_linear};
-use crate::value_masses::{blurred, cells_of, reduced};
-use crate::value_masses_islands::labelled;
+use crate::colour_areas::areas::{Areas, GRID};
+use crate::colour_areas::areas_read::median;
+use crate::colour_areas::areas_regions::{Lab, distance, grouped};
+use crate::compositions::value_masses::{blurred, cells_of, reduced};
+use crate::compositions::value_masses_islands::labelled;
+use crate::maths::colour::{Rgb8, from_oklab, oklab, oklab_of_linear};
 
 /// The squint: the blur's standard deviation, in cells.
 pub const SQUINT: f64 = 1.5;

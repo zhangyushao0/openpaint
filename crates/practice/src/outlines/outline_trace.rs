@@ -2,7 +2,7 @@
 //! so the contour runs between pixels rather than along their stairs), traced at half by
 //! marching squares into closed polylines, and thinned by Douglas and Peucker's rule.
 
-use crate::path::{Point, distance};
+use crate::maths::path::{Point, distance};
 
 /// The mask, padded by one ground pixel all round and blurred by [1 2 1] across and down.
 struct Field {

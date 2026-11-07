@@ -12,20 +12,20 @@
 //! running together, each change showing at least two corners, and every visible edge a step of
 //! shade the eye sees (`object_picture.rs`).
 
-use crate::ellipse::EllipseGuide;
-use crate::object_answer::seen;
-use crate::object_body::{Body, Placed};
-use crate::object_construction::{Stage, Wanted, construction};
-use crate::object_design::{Carve, Change, Design, Local, SAME, SECOND, designed};
-use crate::object_rules::{creased, fraction, shown, spaced, stands};
-use crate::path::Point;
-use crate::perspective::{PerspectiveBox, Place};
-use crate::perspective_eye::{box_corners, directions, fitted, framing};
+use crate::geometry::ellipse::EllipseGuide;
+use crate::geometry::perspective::{PerspectiveBox, Place};
+use crate::geometry::perspective_eye::{box_corners, directions, fitted, framing};
+use crate::kinds::objects::object_answer::seen;
+use crate::kinds::objects::object_body::{Body, Placed};
+use crate::kinds::objects::object_construction::{Stage, Wanted, construction};
+use crate::kinds::objects::object_design::{Carve, Change, Design, Local, SAME, SECOND, designed};
+use crate::kinds::objects::object_rules::{creased, fraction, shown, spaced, stands};
+use crate::maths::path::Point;
 
-use crate::random::Random;
-use crate::solid_answer::{SolidAnswer, View};
-use crate::space::projected;
-use crate::vector::{Vector, add, times, unit};
+use crate::kinds::points_in_space::space::projected;
+use crate::kinds::solids::solid_answer::{SolidAnswer, View};
+use crate::maths::random::Random;
+use crate::maths::vector::{Vector, add, times, unit};
 
 /// Objects laid before the generator keeps the last one whatever it is.
 const TRIES: usize = 400;
@@ -277,7 +277,7 @@ fn claims(change: &Change, corner: Local) -> bool {
 /// A plain object, the generator's last resort (never met by a seed tested): the box with a step
 /// taken out of its top front, in a box laid from a fixed sequence.
 fn plain(carve: Carve) -> ObjectTask {
-    let step = crate::object_design::Block {
+    let step = crate::kinds::objects::object_design::Block {
         low: [0.0, 0.5, 0.0],
         high: [1.0, 1.0, 0.5],
     };

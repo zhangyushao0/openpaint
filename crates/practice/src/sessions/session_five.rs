@@ -11,12 +11,12 @@
 //! minutes, the warm-up about 5, a session about 23 until abstract analysis and structure
 //! rotation join it.
 
-use crate::key_shift::{Lean, Tendency};
-use crate::pack::{ItemRef, Tier};
-use crate::plan::Kind;
-use crate::random::{Random, derived};
-use crate::session::{Before, Picker, Plan, seeded, warm_up_of};
-use crate::session_three::QUICK_THREE;
+use crate::kinds::key_shifts::key_shift::{Lean, Tendency};
+use crate::maths::random::{Random, derived};
+use crate::packs::pack::{ItemRef, Tier};
+use crate::sessions::plan::Kind;
+use crate::sessions::session::{Before, Picker, Plan, seeded, warm_up_of};
+use crate::sessions::session_three::QUICK_THREE;
 
 /// Key shifts a session holds.
 const KEY_SHIFTS: usize = 3;

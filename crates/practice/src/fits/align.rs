@@ -30,8 +30,8 @@
 //! placement, which a similarity keeps (distances only scale), so the original is indexed once,
 //! not every round.
 
-use crate::grid::Grid;
-use crate::path::{Point, centre_and_spread, distance, resample};
+use crate::maths::grid::Grid;
+use crate::maths::path::{Point, centre_and_spread, distance, resample};
 
 /// Steps the two lines are compared at, in frame sides.
 const SPACING: f64 = 0.01;

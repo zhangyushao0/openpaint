@@ -6,13 +6,13 @@
 //! in the answer's grey where the hand's copy strayed over more than the grey pen's width (the dark
 //! masses painted wide on their right).
 
-use super::{Demo, Drawn, Layout, Marker, On, Script};
-use crate::masses::Masses;
-use crate::path::Point;
-use crate::plan::Family;
-use crate::sheet::PictureFit;
-use crate::value_masses::{Value, ValueMasses};
-use crate::value_masses_read::{HATCH_GAP, VALUE_PEN, differences, hatched};
+use crate::compositions::masses::Masses;
+use crate::compositions::value_masses::{Value, ValueMasses};
+use crate::demos::demo::{Demo, Drawn, Layout, Marker, On, Script};
+use crate::kinds::value_masses::value_masses_read::{HATCH_GAP, VALUE_PEN, differences, hatched};
+use crate::maths::path::Point;
+use crate::sessions::plan::Family;
+use crate::sessions::sheet::PictureFit;
 
 /// The example: a landscape four by three, its picture this wide.
 const SEED: u64 = 0xDE30_5EED_0096;
@@ -23,7 +23,7 @@ const WIDTH: u32 = 400;
 const STRAY: usize = 20;
 
 /// Value masses.
-pub(super) fn value_masses() -> Demo {
+pub(crate) fn value_masses() -> Demo {
     let masses = Masses::generate(SEED, ASPECT);
     let (size, pixels) = masses.picture(WIDTH);
     let answer = ValueMasses::of(size, &pixels);

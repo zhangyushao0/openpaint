@@ -8,14 +8,14 @@
 //! purpose). The tricks' lines are `SpaceTask::construction`'s and their answers
 //! `SpaceTask::answer`'s.
 
-use super::{
+use crate::demos::demo::{
     DRAWN_OFF, Demo, Drawn, Layout, Marker, On, Script, bounds, clearest, line, off_marks, tick,
 };
-use crate::flat::{Estimate, Flat, FlatAnswer, FlatCheck};
-use crate::path::{Point, across_frame, distance};
-use crate::plan::Family;
-use crate::space::{SpaceAnswer, SpaceTask, Trick};
-use crate::space_check::SpaceCheck;
+use crate::kinds::estimates::flat::{Estimate, Flat, FlatAnswer, FlatCheck};
+use crate::kinds::points_in_space::space::{SpaceAnswer, SpaceTask, Trick};
+use crate::kinds::points_in_space::space_check::SpaceCheck;
+use crate::maths::path::{Point, across_frame, distance};
+use crate::sessions::plan::Family;
 
 /// The examples' seeds, one per kind.
 const SEEDS: [u64; 8] = [
@@ -55,7 +55,7 @@ fn moved(p: Point, by: Point) -> Point {
 }
 
 /// An estimate on the flat: a point, a proportion or an angle.
-pub(super) fn estimate(family: Family) -> Option<Demo> {
+pub(crate) fn estimate(family: Family) -> Option<Demo> {
     let (estimate, seed) = match family {
         Family::Point => (Estimate::Point, SEEDS[0]),
         Family::Proportion => (Estimate::Proportion, SEEDS[1]),
@@ -241,7 +241,7 @@ fn angle(flat: &Flat, original: [Point; 2], through: Point) -> Option<Demo> {
 }
 
 /// A point in space by one of V大's tricks.
-pub(super) fn trick(family: Family) -> Option<Demo> {
+pub(crate) fn trick(family: Family) -> Option<Demo> {
     // The construction's lines by step; the answer's step draws the last ones listed with it.
     let (trick, seed, steps): (Trick, u64, &[&[usize]]) = match family {
         Family::Centre => (Trick::Centre, SEEDS[3], &[&[0, 1], &[]]),

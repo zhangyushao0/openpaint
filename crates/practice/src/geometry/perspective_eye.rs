@@ -4,8 +4,8 @@
 //! and moved there, its horizon and vanishing points with it (a picture made larger and moved
 //! is still the same view, seen with a longer lens).
 
-use crate::path::Point;
-use crate::perspective::{Horizon, PerspectiveBox};
+use crate::geometry::perspective::{Horizon, PerspectiveBox};
+use crate::maths::path::Point;
 
 /// The box's three directions in the world (y up, z away from the eye) turned `yaw` about the
 /// vertical, in `Direction`'s order: the left one, the right one, up.

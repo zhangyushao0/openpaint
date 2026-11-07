@@ -4,7 +4,7 @@
 //! long the lines are and however densely the pen sampled them. The nearest point is the exact
 //! one `path::nearest` finds over every segment.
 
-use crate::path::{Point, distance, nearest_on_segment};
+use crate::maths::path::{Point, distance, nearest_on_segment};
 
 /// A cell's side, in frame sides.
 const CELL: f64 = 0.02;
@@ -201,7 +201,7 @@ pub(crate) fn bounds(points: &[Point]) -> Option<(Point, Point)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::path::nearest;
+    use crate::maths::path::nearest;
 
     #[test]
     fn the_nearest_point_is_the_one_every_segment_gives() {

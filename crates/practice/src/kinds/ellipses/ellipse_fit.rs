@@ -11,9 +11,9 @@
 //! pen's width (`REACH`), the side's middle where the exact one touches it ringed (S97: the fitted
 //! one is not drawn; the copy's own line beside the red answer shows its shape).
 
-use crate::ellipse::{Ellipse, EllipseGuide, upright};
-use crate::path::{Point, resample};
-use crate::solid::PEN_WIDTH;
+use crate::geometry::ellipse::{Ellipse, EllipseGuide, upright};
+use crate::kinds::solids::solid::PEN_WIDTH;
+use crate::maths::path::{Point, resample};
 
 /// The even step the lines are read at.
 const SPACING: f64 = 0.005;

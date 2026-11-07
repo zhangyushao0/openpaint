@@ -3,8 +3,10 @@
 //! cut (a slope, a wedge, a corner), the top drawn in (方台), a post standing on a top, a smaller
 //! change at a corner beside the first; and the room each leaves on the top.
 
-use crate::object_design::{Block, Change, Cut, FRACTIONS, Local, SAME, THINNEST, Turned, pick};
-use crate::random::Random;
+use crate::kinds::objects::object_design::{
+    Block, Change, Cut, FRACTIONS, Local, SAME, THINNEST, Turned, pick,
+};
+use crate::maths::random::Random;
 
 /// A round part's width at least, a share of the box.
 const ROUND_WIDTH: f64 = 0.25;

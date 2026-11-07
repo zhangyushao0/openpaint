@@ -15,32 +15,25 @@
 //! picture, construction and visible edges (S94), a landscape's picture, its division in V大's
 //! three levels and its line drawing (S95), its value masses and a copy of them read (S96).
 
-use crate::colour::Rgb8;
-use crate::division::Level;
-use crate::path::{Point, length};
-use crate::plan::Family;
-use crate::value_masses::{Value, ValueMasses};
+use crate::compositions::value_masses::{Value, ValueMasses};
+use crate::kinds::divisions::division::Level;
+use crate::maths::colour::Rgb8;
+use crate::maths::path::{Point, length};
+use crate::sessions::plan::Family;
 
-#[path = "demo_colour.rs"]
-mod colour;
-#[path = "demo_division.rs"]
-mod division;
-#[path = "demo_drawn.rs"]
-mod drawn;
+// Each kind's How lives in its kind's folder (`kinds/`); the hand they share is here.
 #[path = "demo_hand.rs"]
 mod hand;
-#[path = "demo_key.rs"]
-mod key;
-#[path = "demo_masses.rs"]
-mod masses;
-#[path = "demo_objects.rs"]
-mod objects;
-#[path = "demo_points.rs"]
-mod points;
-#[path = "demo_solids.rs"]
-mod solids;
-#[path = "demo_space.rs"]
-mod space;
+
+use crate::kinds::boxes::demo_space as space;
+use crate::kinds::colours::demo_colour as colour;
+use crate::kinds::divisions::demo_division as division;
+use crate::kinds::estimates::demo_points as points;
+use crate::kinds::key_shifts::demo_key as key;
+use crate::kinds::lines::demo_drawn as drawn;
+use crate::kinds::objects::demo_objects as objects;
+use crate::kinds::solids::demo_solids as solids;
+use crate::kinds::value_masses::demo_masses as masses;
 
 pub(crate) use hand::{
     DRAWN_OFF, bounds, clearest, line, off_marks, off_middle, seen, tick, wobbled,
@@ -182,11 +175,11 @@ pub struct Demo {
     pub family: Family,
     pub layout: Layout,
     /// The colour combination its `Drawn::Areas` marks paint (a combination's only).
-    pub areas: Option<crate::areas_generated::GeneratedAreas>,
+    pub areas: Option<crate::kinds::combinations::areas_generated::GeneratedAreas>,
     /// The object its `Drawn::Shaded` mark shows (an object's only, S94).
-    pub object: Option<Box<crate::object::ObjectTask>>,
+    pub object: Option<Box<crate::kinds::objects::object::ObjectTask>>,
     /// The landscape its `Drawn::Masses` marks show (a division's and a whole copy's, S95).
-    pub masses: Option<Box<crate::masses::Masses>>,
+    pub masses: Option<Box<crate::compositions::masses::Masses>>,
     /// A whole copy's division (S95): its marks dim from the first time on (Draw chosen) and are
     /// gone from the second (Compare hides them).
     pub dimmed: Option<[f64; 2]>,
@@ -218,7 +211,7 @@ impl Demo {
             Family::Shape => drawn::shape(),
             Family::Colour => colour::colour(),
             Family::Areas => colour::areas(),
-            Family::Scale => colour::scale(crate::scale::CELLS),
+            Family::Scale => colour::scale(crate::kinds::scales::scale::CELLS),
             Family::Box => space::perspective_box(),
             Family::FreeBoxes => space::free_boxes(),
             Family::Ellipse => space::ellipse(),
@@ -256,7 +249,7 @@ impl Demo {
 pub(crate) struct Script {
     marks: Vec<Mark>,
     steps: Vec<f64>,
-    at: f64,
+    pub(crate) at: f64,
 }
 
 impl Script {

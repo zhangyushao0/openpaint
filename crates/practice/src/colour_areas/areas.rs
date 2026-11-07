@@ -11,7 +11,7 @@
 //! misplaced ones reach them. The copy is read there (`areas_read.rs`), its edges drawn from it
 //! (`areas_edges.rs`). Points are shares of the picture's width and height (0 to 1).
 
-use crate::colour::{Rgb8, delta_e};
+use crate::maths::colour::{Rgb8, delta_e};
 
 /// The map's cells along the picture's longer side.
 pub const GRID: usize = 128;

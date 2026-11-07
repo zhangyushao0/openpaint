@@ -10,14 +10,14 @@
 //! Frame units (a frame's side is 1, y down); angles in degrees, turned clockwise as the screen
 //! shows them.
 
-use crate::edges::Edge;
-use crate::marks::{last_edges, last_mark};
-use crate::metric::{Metric, Metrics};
-use crate::off::{Heads, Off, Straight, ringed};
-use crate::path::{Point, distance};
-use crate::plan::Family;
-use crate::random::Random;
-use crate::solid::PEN_WIDTH;
+use crate::geometry::edges::Edge;
+use crate::geometry::marks::{last_edges, last_mark};
+use crate::geometry::off::{Heads, Off, Straight, ringed};
+use crate::kinds::solids::solid::PEN_WIDTH;
+use crate::maths::path::{Point, distance};
+use crate::maths::random::Random;
+use crate::records::metric::{Metric, Metrics};
+use crate::sessions::plan::Family;
 
 /// How far inside its frame a given segment keeps.
 const INSIDE: f64 = 0.08;

@@ -2,10 +2,10 @@
 //! theirs out, each cut by the changes' planes, as convex hulls with their corners and edges (in
 //! the box's own coordinates), and a round part in its block.
 
-use crate::object_body::{Hull, Placed, Round};
-use crate::object_design::{Block, Local, SAME, Turned};
-use crate::solid_answer::Square;
-use crate::vector::{add, cross, dot, norm, sub, times, unit};
+use crate::kinds::objects::object_body::{Hull, Placed, Round};
+use crate::kinds::objects::object_design::{Block, Local, SAME, Turned};
+use crate::kinds::solids::solid_answer::Square;
+use crate::maths::vector::{add, cross, dot, norm, sub, times, unit};
 
 /// `whole` with `out` taken out: up to six blocks, the lowest whole first (along height, then
 /// width, then depth).

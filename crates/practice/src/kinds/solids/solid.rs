@@ -19,16 +19,16 @@
 //!
 //! Frame units throughout (the frame's side is 1, y down).
 
-use crate::ellipse::{EllipseGuide, square_on};
-use crate::path::{Point, distance};
-use crate::perspective::{PerspectiveBox, level, place};
-use crate::perspective_eye::{box_corners, directions, fitted, framing};
-use crate::plan::Family;
-use crate::random::Random;
-use crate::sheet::FRAME;
-use crate::solid_answer::{Body, SolidAnswer, Square, View, answer};
-use crate::space::projected;
-use crate::vector::{Vector, add, sub};
+use crate::geometry::ellipse::{EllipseGuide, square_on};
+use crate::geometry::perspective::{PerspectiveBox, level, place};
+use crate::geometry::perspective_eye::{box_corners, directions, fitted, framing};
+use crate::kinds::points_in_space::space::projected;
+use crate::kinds::solids::solid_answer::{Body, SolidAnswer, Square, View, answer};
+use crate::maths::path::{Point, distance};
+use crate::maths::random::Random;
+use crate::maths::vector::{Vector, add, sub};
+use crate::sessions::plan::Family;
+use crate::sessions::sheet::FRAME;
 
 /// The Draw pen's width (the app's `INK_DIAMETER`, 5 canvas pixels) on a frame of `FRAME`.
 pub const PEN_WIDTH: f64 = 5.0 / FRAME;

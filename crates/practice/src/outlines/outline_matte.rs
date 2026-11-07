@@ -19,9 +19,9 @@
 use std::cmp::Reverse;
 use std::collections::VecDeque;
 
-use crate::outline::{Outline, OutlineRefusal, check_silhouette, outline, traced};
-use crate::outline_ground::{Grid, clear, grid};
-use crate::outline_mask::{parts, reached_from_edge};
+use crate::outlines::outline::{Outline, OutlineRefusal, check_silhouette, outline, traced};
+use crate::outlines::outline_ground::{Grid, clear, grid};
+use crate::outlines::outline_mask::{parts, reached_from_edge};
 
 /// The matte's level at which a place is the object's.
 const HALF: f32 = 0.5;

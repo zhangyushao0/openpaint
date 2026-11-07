@@ -6,8 +6,8 @@
 //! length, then turned, sized and placed in the frame. Everything follows from the tier and the
 //! seed (`Random`), so the same seed gives the same line.
 
-use crate::path::Point;
-use crate::random::Random;
+use crate::maths::path::Point;
+use crate::maths::random::Random;
 
 /// The frame's margin the line keeps clear of, in frame sides.
 const MARGIN: f64 = 0.12;

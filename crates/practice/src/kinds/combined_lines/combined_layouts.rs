@@ -12,9 +12,9 @@
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
 use super::{Combination, Draft, Touch};
-use crate::line::{Curvature, LineTier, integrate};
-use crate::path::{Point, along, crossings};
-use crate::random::Random;
+use crate::kinds::lines::line::{Curvature, LineTier, integrate};
+use crate::maths::path::{Point, along, crossings};
+use crate::maths::random::Random;
 
 pub(super) fn draft(combination: Combination, random: &mut Random) -> Draft {
     match combination {

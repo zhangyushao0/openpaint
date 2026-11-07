@@ -11,12 +11,12 @@
 //! A face's own coordinates `[u, v]`: `u` along its depth from its near upright edge (0) to its
 //! far one (1), `v` up from its bottom edge (0) to its top (1). Frame units otherwise.
 
-use crate::ellipse::{apply, homography, inverse};
-use crate::path::{Point, distance};
-use crate::perspective::{Direction, PerspectiveBox, level, place};
-use crate::perspective_eye::{box_corners, directions, fitted, framing};
-use crate::plan::Family;
-use crate::random::Random;
+use crate::geometry::ellipse::{apply, homography, inverse};
+use crate::geometry::perspective::{Direction, PerspectiveBox, level, place};
+use crate::geometry::perspective_eye::{box_corners, directions, fitted, framing};
+use crate::maths::path::{Point, distance};
+use crate::maths::random::Random;
+use crate::sessions::plan::Family;
 
 /// Boxes laid before the generator keeps the last one whatever it is (every seed tested keeps the
 /// rules well within).

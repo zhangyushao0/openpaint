@@ -6,13 +6,15 @@
 //! is off, by `SolidCheck`'s own marks on the hand's ink, the construction faint under them. The
 //! copy's givens are printed grey. The picture, the lines and the points are `ObjectTask`'s.
 
-use super::{DRAWN_OFF, Demo, Drawn, Layout, Marker, On, Script, bounds, line, off_marks, wobbled};
-use crate::object::ObjectTask;
-use crate::object_design::Carve;
-use crate::path::Point;
-use crate::plan::Family;
-use crate::random::derived;
-use crate::solid_check::SolidCheck;
+use crate::demos::demo::{
+    DRAWN_OFF, Demo, Drawn, Layout, Marker, On, Script, bounds, line, off_marks, wobbled,
+};
+use crate::kinds::objects::object::ObjectTask;
+use crate::kinds::objects::object_design::Carve;
+use crate::kinds::solids::solid_check::SolidCheck;
+use crate::maths::path::Point;
+use crate::maths::random::derived;
+use crate::sessions::plan::Family;
 
 /// The example: a box with a slope cut down its far end and a notch out of its near corner, seen
 /// from above; of the first 2,000 cuts of its seed's sequence with a second change seen so, the
@@ -30,7 +32,7 @@ const INKED_TOGETHER: usize = 4;
 const AROUND: f64 = 0.04;
 
 /// An object's demonstration: a box cut, then a smaller part taken out.
-pub(super) fn object() -> Option<Demo> {
+pub(crate) fn object() -> Option<Demo> {
     let task = ObjectTask::generate(Carve::Cut, derived(SEED, EXAMPLE));
     let [biggest, smaller] = [task.stages.first()?, task.stages.get(1)?];
     let mut script = Script::new();

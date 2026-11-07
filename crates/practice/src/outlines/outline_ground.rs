@@ -13,9 +13,9 @@
 //! ground's there (Oklab, darker differences weighed less, so a soft shadow on the floor counts
 //! for less than the object), or its opacity over a clear ground.
 
-use crate::colour::oklab;
-use crate::outline::OutlineRefusal;
-use crate::outline_sides::profile;
+use crate::maths::colour::oklab;
+use crate::outlines::outline::OutlineRefusal;
+use crate::outlines::outline_sides::profile;
 
 /// The grid's long side, in grid pixels.
 pub(crate) const WORK_SIDE: usize = 512;

@@ -12,9 +12,9 @@
 //! lines apart with a gap the eye sees; near lines near. A group breaking a rule is made again
 //! from where the sequence stands, so the same seed gives the same group.
 
-use crate::line::Placing;
-use crate::path::{Point, apart, crossings, distance, length, resample};
-use crate::random::Random;
+use crate::kinds::lines::line::Placing;
+use crate::maths::path::{Point, apart, crossings, distance, length, resample};
+use crate::maths::random::Random;
 
 #[path = "combined_layouts.rs"]
 mod layouts;

@@ -9,8 +9,8 @@
 //! tricks find every corner, and two along an axis lie at least a sixth apart (`THINNEST`): no
 //! part, gap or step thinner.
 
-use crate::object_changes::{at_corner, beside, block_out, cut, on_top, taper};
-use crate::random::Random;
+use crate::kinds::objects::object_changes::{at_corner, beside, block_out, cut, on_top, taper};
+use crate::maths::random::Random;
 
 /// A point in the box's own coordinates.
 pub(crate) type Local = [f64; 3];

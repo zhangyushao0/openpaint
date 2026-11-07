@@ -12,10 +12,10 @@ use std::collections::HashSet;
 use std::fmt;
 use std::sync::Arc;
 
-use crate::areas::Areas;
-use crate::licence::Licence;
-use crate::outline::Outline;
-use crate::value_masses::ValueMasses;
+use crate::colour_areas::areas::Areas;
+use crate::compositions::value_masses::ValueMasses;
+use crate::outlines::outline::Outline;
+use crate::packs::licence::Licence;
 
 /// The longest side a pack's picture may have, in pixels.
 pub const MAX_PICTURE_SIDE: u32 = 2048;

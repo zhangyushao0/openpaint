@@ -8,9 +8,9 @@
 //! eye merges it. The share of the picture painted at the answer's value is kept by the first
 //! Compare (`Metric::MassesMatched`), shown nowhere.
 
-use crate::metric::{Metric, Metrics};
-use crate::path::Point;
-use crate::value_masses::{Value, ValueMasses};
+use crate::compositions::value_masses::{Value, ValueMasses};
+use crate::maths::path::Point;
+use crate::records::metric::{Metric, Metrics};
 
 /// The grey pens' width, frame units (24 canvas pixels on a 400-pixel frame): the app paints value
 /// masses this wide, and a difference from the answer narrower than it is none.

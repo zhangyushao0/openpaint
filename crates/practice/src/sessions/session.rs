@@ -34,19 +34,19 @@
 
 use std::collections::HashSet;
 
-use crate::colour_match::{Lightness, Purity, Tone};
-use crate::combined::Combination;
-use crate::ellipse::Guide;
-use crate::line::LineTier;
-use crate::pack::{ItemRef, Tier};
-use crate::perspective::{BoxView, Horizon};
-use crate::pictures::Pictures;
-use crate::plan::{Exercise, Family, Kind};
-use crate::random::{Random, derived};
-use crate::scale::{CELLS, FIRST_CELLS, FIRST_SCALES, ScaleTone};
-use crate::session_five::stage_five;
-use crate::session_four::stage_four;
-use crate::session_three::stage_three;
+use crate::geometry::ellipse::Guide;
+use crate::geometry::perspective::{BoxView, Horizon};
+use crate::kinds::colours::colour_match::{Lightness, Purity, Tone};
+use crate::kinds::combined_lines::combined::Combination;
+use crate::kinds::lines::line::LineTier;
+use crate::kinds::scales::scale::{CELLS, FIRST_CELLS, FIRST_SCALES, ScaleTone};
+use crate::maths::random::{Random, derived};
+use crate::packs::pack::{ItemRef, Tier};
+use crate::packs::pictures::Pictures;
+use crate::sessions::plan::{Exercise, Family, Kind};
+use crate::sessions::session_five::stage_five;
+use crate::sessions::session_four::stage_four;
+use crate::sessions::session_three::stage_three;
 
 /// Exercises a stage-1 warm-up holds.
 pub const WARM_UP: usize = 4;

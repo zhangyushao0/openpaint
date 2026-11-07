@@ -4,12 +4,12 @@
 //! frame), no two running together, a round part's ends no slivers, each change showing at least
 //! two corners; and every visible edge a step of shade (`object_picture.rs`).
 
-use crate::object::ObjectTask;
-use crate::object_body::Body;
-use crate::object_construction::Wanted;
-use crate::object_design::{Design, FRACTIONS, Local, SAME, THINNEST};
-use crate::path::{Point, apart, distance, length};
-use crate::vector::{Vector, dot};
+use crate::kinds::objects::object::ObjectTask;
+use crate::kinds::objects::object_body::Body;
+use crate::kinds::objects::object_construction::Wanted;
+use crate::kinds::objects::object_design::{Design, FRACTIONS, Local, SAME, THINNEST};
+use crate::maths::path::{Point, apart, distance, length};
+use crate::maths::vector::{Vector, dot};
 
 /// A surface turning by less than this (degrees) is a seam the eye could not tell.
 const CREASE: f64 = 15.0;

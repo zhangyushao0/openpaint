@@ -5,7 +5,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::areas::{CORE, LEAST_CORE, LEAST_SHARE, MOST_AREAS, depth};
+use crate::colour_areas::areas::{CORE, LEAST_CORE, LEAST_SHARE, MOST_AREAS, depth};
 
 /// Neighbouring areas nearer than this in Oklab are one: under a just-noticeable step.
 pub const ONE_STEP: f64 = 0.02;

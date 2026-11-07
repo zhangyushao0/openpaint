@@ -17,7 +17,7 @@
 //!
 //! Frame units (a frame's side is 1). How reliable it is on hand-drawn boxes: `tests/edges.rs`.
 
-use crate::path::{Point, distance, length, resample};
+use crate::maths::path::{Point, distance, length, resample};
 
 /// The even step lines are read at: 1.6 pixels of a 400-pixel frame.
 const SPACING: f64 = 0.004;

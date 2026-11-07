@@ -6,7 +6,7 @@
 //! `TREND_ROUNDS` (so an object touching more of the side than the median spans is still found).
 //! The profile is then smoothed over `SMOOTH` of the side.
 
-use crate::outline_ground::distance;
+use crate::outlines::outline_ground::distance;
 
 const MEDIAN_SPAN: f64 = 0.16;
 const TRIMMED: f64 = 0.55;

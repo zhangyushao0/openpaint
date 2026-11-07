@@ -15,9 +15,9 @@
 //!
 //! Frame units throughout (the frame's side is 1, y down).
 
-use crate::path::{Point, distance};
-use crate::perspective_eye::{Eye, box_corners, directions, fitted};
-use crate::random::Random;
+use crate::geometry::perspective_eye::{Eye, box_corners, directions, fitted};
+use crate::maths::path::{Point, distance};
+use crate::maths::random::Random;
 
 /// How far a vanishing point may lie from the frame's middle (frame units).
 pub const FAR: f64 = 3.0;

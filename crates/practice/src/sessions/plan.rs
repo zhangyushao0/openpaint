@@ -2,23 +2,23 @@
 //! copy's picture) and its original; a kind's family is `family.rs`, the stages' sessions are
 //! `session.rs`, the sheet they lie on `sheet.rs`.
 
-use crate::areas_generated::{Arrangement, GeneratedAreas};
-use crate::colour::Rgb8;
-use crate::colour_match::Tone;
-use crate::combined::{Combination, CombinedLines};
-use crate::ellipse::{EllipseGuide, Guide};
-pub use crate::family::Family;
-use crate::flat::{Estimate, Flat};
-use crate::key_shift::Tendency;
-use crate::line::{LineExercise, LineTier};
-use crate::object::ObjectTask;
-use crate::object_design::Carve;
-use crate::pack::{ItemRef, Tier};
-use crate::path::Point;
-use crate::perspective::{BoxView, Horizon, PerspectiveBox};
-use crate::scale::{CELLS, FIRST_CELLS, ScaleTone, ValueScale};
-use crate::solid::{Solid, SolidTask};
-use crate::space::{SpaceTask, Trick};
+use crate::geometry::ellipse::{EllipseGuide, Guide};
+use crate::geometry::perspective::{BoxView, Horizon, PerspectiveBox};
+use crate::kinds::colours::colour_match::Tone;
+use crate::kinds::combinations::areas_generated::{Arrangement, GeneratedAreas};
+use crate::kinds::combined_lines::combined::{Combination, CombinedLines};
+use crate::kinds::estimates::flat::{Estimate, Flat};
+use crate::kinds::key_shifts::key_shift::Tendency;
+use crate::kinds::lines::line::{LineExercise, LineTier};
+use crate::kinds::objects::object::ObjectTask;
+use crate::kinds::objects::object_design::Carve;
+use crate::kinds::points_in_space::space::{SpaceTask, Trick};
+use crate::kinds::scales::scale::{CELLS, FIRST_CELLS, ScaleTone, ValueScale};
+use crate::kinds::solids::solid::{Solid, SolidTask};
+use crate::maths::colour::Rgb8;
+use crate::maths::path::Point;
+use crate::packs::pack::{ItemRef, Tier};
+pub use crate::sessions::family::Family;
 
 /// The course's stages, after V大's eight weeks.
 pub const STAGES: u8 = 8;

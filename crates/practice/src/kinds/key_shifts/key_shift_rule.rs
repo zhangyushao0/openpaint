@@ -18,10 +18,10 @@
 //! `KEPT_APART` of each other move less, a step at a time, until they are apart again (V大:
 //! after the shift the colours still separate).
 
-use crate::areas::Areas;
-use crate::colour::{Rgb8, delta_e, in_gamut, oklab};
-use crate::key_shift::{Tendency, turn};
-use crate::key_shift_check::APART;
+use crate::colour_areas::areas::Areas;
+use crate::kinds::key_shifts::key_shift::{Tendency, turn};
+use crate::kinds::key_shifts::key_shift_check::APART;
+use crate::maths::colour::{Rgb8, delta_e, in_gamut, oklab};
 
 /// The share of the way a near hue turns toward the tendency's.
 const TURN: f64 = 0.35;

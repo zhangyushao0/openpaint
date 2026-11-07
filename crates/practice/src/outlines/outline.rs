@@ -20,10 +20,10 @@
 
 use std::fmt;
 
-use crate::outline_ground::{Grid, Ground, difference, grid};
-use crate::outline_mask::silhouette;
-use crate::outline_trace::{area, contours, perimeter, thinned};
-use crate::path::Point;
+use crate::maths::path::Point;
+use crate::outlines::outline_ground::{Grid, Ground, difference, grid};
+use crate::outlines::outline_mask::silhouette;
+use crate::outlines::outline_trace::{area, contours, perimeter, thinned};
 
 /// How far a thinned contour may stray from the traced one, in grid pixels.
 const THINNING: f64 = 0.35;

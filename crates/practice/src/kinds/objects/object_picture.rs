@@ -8,10 +8,10 @@
 //! Every visible edge must show as a step of shade the eye sees (`legible`): across it, a pen's
 //! width either side, the shades differ by `SHADE_STEP` at least, or the object is laid again.
 
-use crate::object::ObjectTask;
-use crate::object_body::ROUND_SURFACES;
-use crate::path::{Point, distance};
-use crate::vector::dot;
+use crate::kinds::objects::object::ObjectTask;
+use crate::kinds::objects::object_body::ROUND_SURFACES;
+use crate::maths::path::{Point, distance};
+use crate::maths::vector::dot;
 
 /// The light: what every surface shows, what the light adds facing it; a round part's share
 /// (another material, a little darker); the clay's tint.
@@ -143,7 +143,7 @@ impl ObjectTask {
         let round = (self.answer.outlines.iter().flatten())
             .filter(|stretch| !stretch.hidden)
             .all(|stretch| {
-                let total = crate::path::length(&stretch.points);
+                let total = crate::maths::path::length(&stretch.points);
                 let mut walked = 0.0;
                 (stretch.points.windows(2)).enumerate().all(|(k, pair)| {
                     let (a, b) = (pair[0], pair[1]);

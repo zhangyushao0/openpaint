@@ -6,9 +6,9 @@
 //! see-through red drawn along it never doubles over itself. In the picture's shares of its width
 //! and height (0 to 1).
 
-use crate::outline_trace::{off_segment, thinned};
-use crate::path::Point;
-use crate::value_masses::ValueMasses;
+use crate::compositions::value_masses::ValueMasses;
+use crate::maths::path::Point;
+use crate::outlines::outline_trace::{off_segment, thinned};
 
 /// How far a thinned edge may leave the cells' sides, in cells.
 const THIN: f64 = 1.5;

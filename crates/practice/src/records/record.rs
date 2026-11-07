@@ -12,13 +12,13 @@
 //! kind's drills, exercises of one kind, which is the kind it drills. It counts in the kinds met,
 //! the pictures shown, the time and the seals of lines and colours, never as a session.
 
-use crate::colour_match::Tone;
-use crate::judgement::{Judgement, judgement};
-use crate::metric::{Metric, Metrics, value};
-use crate::pack::ItemRef;
-use crate::plan::{Exercise, Family, Kind};
-use crate::session::{Plan, stage_one};
-use crate::time::{Span, spans_of};
+use crate::kinds::colours::colour_match::Tone;
+use crate::kinds::colours::judgement::{Judgement, judgement};
+use crate::packs::pack::ItemRef;
+use crate::records::metric::{Metric, Metrics, value};
+use crate::records::time::{Span, spans_of};
+use crate::sessions::plan::{Exercise, Family, Kind};
+use crate::sessions::session::{Plan, stage_one};
 
 /// The stage a long colour copy's record holds: none of the course's.
 pub const PROJECT: u8 = 0;

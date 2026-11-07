@@ -7,10 +7,10 @@
 //! example and as pictures of known areas the found answer is validated on
 //! (`areas_found.rs`).
 
-use crate::areas::{Areas, CORE, GRID, LEAST_CORE, LEAST_SHARE, STRONG, WEAK};
-use crate::areas_field::Field;
-use crate::colour::{Rgb8, delta_e, from_hsv, hsv};
-use crate::random::Random;
+use crate::colour_areas::areas::{Areas, CORE, GRID, LEAST_CORE, LEAST_SHARE, STRONG, WEAK};
+use crate::kinds::combinations::areas_field::Field;
+use crate::maths::colour::{Rgb8, delta_e, from_hsv, hsv};
+use crate::maths::random::Random;
 
 /// Every pair of neighbours differs by at least this (Oklab), so every area shows.
 const LEAST: f64 = 0.025;

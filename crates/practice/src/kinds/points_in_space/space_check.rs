@@ -10,13 +10,13 @@
 //! leans given its true vertical, one standing off its place ringed where V大's construction finds
 //! it (a third's point on the diagonal, the next face's foot on the bottom edge run on).
 
-use crate::edges::Edge;
-use crate::marks::{last_edges, last_mark};
-use crate::metric::{Metric, Metrics};
-use crate::off::{Heads, Off, Straight, once, ringed};
-use crate::path::{Point, meet};
-use crate::perspective_check::line_angle;
-use crate::space::{SpaceAnswer, SpaceTask, Trick};
+use crate::geometry::edges::Edge;
+use crate::geometry::marks::{last_edges, last_mark};
+use crate::geometry::off::{Heads, Off, Straight, once, ringed};
+use crate::kinds::boxes::perspective_check::line_angle;
+use crate::kinds::points_in_space::space::{SpaceAnswer, SpaceTask, Trick};
+use crate::maths::path::{Point, meet};
+use crate::records::metric::{Metric, Metrics};
 
 /// A line is read as an upright within this of the vertical, any other as a halving line
 /// (degrees).

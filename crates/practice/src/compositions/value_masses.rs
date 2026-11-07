@@ -20,9 +20,9 @@
 //! Its edges are `value_masses_edges.rs`; a copy painted in the three greys is read against it in
 //! `value_masses_read.rs`.
 
-use crate::colour::{Rgb8, lightness_of_linear, linear, oklab};
-use crate::path::Point;
-use crate::value_masses_islands::merge_islands;
+use crate::compositions::value_masses_islands::merge_islands;
+use crate::maths::colour::{Rgb8, lightness_of_linear, linear, oklab};
+use crate::maths::path::Point;
 
 /// The cells of an answer on the picture's longer side.
 pub const MASSES_SIDE: u32 = 200;

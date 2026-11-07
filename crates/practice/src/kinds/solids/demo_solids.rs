@@ -9,14 +9,14 @@
 //! a little narrow: the middles it misses ringed; a cone's second side drawn past its point: run
 //! on past it; V大's sphere circle near enough). The lines are `SolidTask`'s.
 
-use super::{
+use crate::demos::demo::{
     DRAWN_OFF, Demo, Drawn, Layout, Marker, On, Script, clearest, line, off_marks, wobbled,
 };
-use crate::ellipse::{Ellipse, EllipseGuide};
-use crate::path::Point;
-use crate::plan::Family;
-use crate::solid::{Pose, Solid, SolidTask, diagonals, middle_lines};
-use crate::solid_check::SolidCheck;
+use crate::geometry::ellipse::{Ellipse, EllipseGuide};
+use crate::kinds::solids::solid::{Pose, Solid, SolidTask, diagonals, middle_lines};
+use crate::kinds::solids::solid_check::SolidCheck;
+use crate::maths::path::Point;
+use crate::sessions::plan::Family;
 
 /// The examples' seeds: a cylinder's, a cone's, a sphere's.
 const SEEDS: [u64; 3] = [0xDE30_5EED_0012, 0xDE30_5EED_0013, 0xDE30_5EED_0014];
@@ -28,7 +28,7 @@ const STRAY: f64 = 0.006;
 const OFF: f64 = 0.004;
 
 /// A solid's demonstration.
-pub(super) fn solid(family: Family) -> Option<Demo> {
+pub(crate) fn solid(family: Family) -> Option<Demo> {
     let (solid, seed) = match family {
         Family::Cylinder => (Solid::Cylinder, SEEDS[0]),
         Family::Cone => (Solid::Cone, SEEDS[1]),
