@@ -1,0 +1,58 @@
+# The practice-pack builder (S111): content curation, not product, so a workspace of its own,
+# outside the gate: `cargo practice-pack build|search` from the repository's root. It reads and
+# writes packs with the store's and the practice crate's own code, by path, exactly as the app
+# reads them (DECISIONS D101). Its builds go to `tools/packs/target/` (untracked), never the root
+# `target/` the gate prunes; `cargo repo-check` holds it to the repository's rules (rustfmt,
+# clippy below, file lengths, no scripts).
+[workspace]
+resolver = "3"
+
+[package]
+name = "openpaint-packs"
+version = "1.0.0"
+edition = "2024"
+rust-version = "1.98"
+license = "MIT"
+publish = false
+
+[dependencies]
+openpaint-app = { path = "../../crates/app" }
+openpaint-practice = { path = "../../crates/practice" }
+openpaint-sheet = { path = "../../crates/sheet" }
+openpaint-store = { path = "../../crates/store" }
+# Pinned exactly as the root workspace pins its own (DECISIONS D14); the lock started from the
+# root's, so a pack's encoders are the app's.
+image = { version = "=0.25.10", default-features = false, features = ["jpeg", "png"] }
+png = "=0.18.1"
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
+toml = { version = "=1.1.6", default-features = false, features = ["std", "parse", "serde"] }
+# Downloads from the museums' and Commons' APIs: HTTPS through rustls, gzip.
+ureq = "=3.5.0"
+# Salient-object segmentation, U²-Net through ONNX in pure Rust, no native library (S81);
+# without its transformer operators.
+tract-onnx = { version = "=0.23.9", default-features = false }
+
+[lints]
+workspace = true
+
+# As the root workspace's: no debug info, every dependency optimised, the practice and store
+# crates among them (U²-Net and the crops' areas would take minutes unoptimised); no
+# fast-math, so results are unchanged.
+[profile.dev]
+debug = false
+
+[profile.dev.package."*"]
+opt-level = 2
+
+# The root workspace's lints, word for word (`cargo repo-check` compares them); the function
+# length's threshold is the root's `clippy.toml`.
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+# Threshold lives in clippy.toml (60 lines of code per function).
+too_many_lines = "deny"
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"

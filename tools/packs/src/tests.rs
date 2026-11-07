@@ -14,8 +14,8 @@ use super::commons::{plain, stated};
 use super::fetch::{Fetcher, cache_name};
 use super::list::SourceList;
 use super::sources::{Found, Full, Stated};
-use crate::error::HarnessError;
-use crate::output::workspace_root;
+use crate::error::PackError;
+use crate::repo_root;
 use crate::scratch::Scratch;
 
 const LIST: &str = r#"
@@ -113,7 +113,7 @@ fn cache(name: &str, answers: [String; 3]) -> Scratch {
 }
 
 /// The tests' segmentation: an ellipse filling the middle of any picture, its edge soft.
-fn ellipse_matte(_: [u32; 2], _: &[u8]) -> Result<Matte, HarnessError> {
+fn ellipse_matte(_: [u32; 2], _: &[u8]) -> Result<Matte, PackError> {
     let side = 64u32;
     let values = (0..side * side)
         .map(|i| {
@@ -199,7 +199,7 @@ fn failure(name: &str, answers: [String; 3]) -> (String, String) {
     let dir = cache(name, answers);
     let failed = build(&list, &Fetcher::cache_only(&dir), &ellipse_matte);
     match failed {
-        Err(HarnessError::Pack { item, problem }) => (item, problem),
+        Err(PackError::Pack { item, problem }) => (item, problem),
         other => panic!("not a failed item: {:?}", other.map(|built| built.pack.id)),
     }
 }
@@ -226,7 +226,7 @@ fn nothing_missing_from_the_cache_is_taken_without_the_network() {
     let list = SourceList::parse(LIST).expect("the list");
     let dir = Scratch::new("pack-empty").expect("a directory");
     match build(&list, &Fetcher::cache_only(&dir), &ellipse_matte) {
-        Err(HarnessError::Pack { item, problem }) => {
+        Err(PackError::Pack { item, problem }) => {
             assert_eq!(item, "teapot");
             assert!(problem.contains("not in the cache"), "{problem}");
         }
@@ -295,10 +295,10 @@ fn an_attribution_names_the_creator_and_the_credit_asked_for() {
     assert!(attribution(&museum, Licence::PdUsGov).ends_with("US federal government."));
 }
 
-/// The official lists in `apps/harness/packs/`: each reads, every item with its reason.
+/// The official lists in `tools/packs/lists/`: each reads, every item with its reason.
 #[test]
 fn the_official_shapes_list_holds_30_to_40_items_a_tier() {
-    let path = workspace_root().join("apps/harness/packs/shapes.toml");
+    let path = repo_root().join("tools/packs/lists/shapes.toml");
     let list = SourceList::parse(&fs::read_to_string(&path).expect("the list")).expect("reads");
     for tier in Tier::ALL {
         let count = list

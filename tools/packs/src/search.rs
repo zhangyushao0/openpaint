@@ -14,8 +14,8 @@ use super::fetch::{Fetcher, cache_name, fnv, query_text};
 use super::list::Source;
 use super::sheet::{Picture, write_sheet};
 use super::sources::text;
-use crate::error::HarnessError;
-use crate::output::workspace_root;
+use crate::error::PackError;
+use crate::repo_root;
 
 /// A candidate as the search found it.
 struct Candidate {
@@ -29,13 +29,13 @@ struct Candidate {
 ///
 /// # Errors
 /// `Fetch` when the API cannot be reached; `Io` when the sheet cannot be written.
-pub fn run(fetcher: &Fetcher, source: Source, query: &str, count: u32) -> Result<(), HarnessError> {
+pub fn run(fetcher: &Fetcher, source: Source, query: &str, count: u32) -> Result<(), PackError> {
     let candidates = match source {
         Source::Cleveland => cleveland(fetcher, query, count)?,
         Source::Met => met(fetcher, query, count)?,
         Source::Commons => commons(fetcher, query, count)?,
         Source::Aic | Source::Nga | Source::Rijks | Source::AmbientCg | Source::PolyHaven => {
-            return Err(HarnessError::Missing(
+            return Err(PackError::Missing(
                 "search takes cleveland, met or commons; the others' items are found on their \
                  sites and checked by the build",
             ));
@@ -77,11 +77,8 @@ pub fn run(fetcher: &Fetcher, source: Source, query: &str, count: u32) -> Result
 
 fn sheet_path(source: Source, query: &str, count: u32) -> PathBuf {
     let key = fnv(&format!("{query}\n{count}")) as u32;
-    (workspace_root()
-        .join("artifacts")
-        .join("packs")
-        .join("search"))
-    .join(format!("{}-{key:08x}.png", source.name()))
+    (repo_root().join("artifacts").join("packs").join("search"))
+        .join(format!("{}-{key:08x}.png", source.name()))
 }
 
 /// The API's parameters for `query`: as written when it holds some, else its words as `q`.
@@ -93,12 +90,12 @@ fn parameters(query: &str) -> String {
     }
 }
 
-fn answer(fetcher: &Fetcher, source: Source, url: &str) -> Result<Value, HarnessError> {
+fn answer(fetcher: &Fetcher, source: Source, url: &str) -> Result<Value, PackError> {
     let name = format!("search/{}-{:016x}.json", source.name(), fnv(url));
     fetcher.json(&name, url)
 }
 
-fn cleveland(fetcher: &Fetcher, query: &str, count: u32) -> Result<Vec<Candidate>, HarnessError> {
+fn cleveland(fetcher: &Fetcher, query: &str, count: u32) -> Result<Vec<Candidate>, PackError> {
     let url = format!(
         "https://openaccess-api.clevelandart.org/api/artworks/?cc0=1&has_image=1&limit={count}&{}",
         parameters(query)
@@ -117,7 +114,7 @@ fn cleveland(fetcher: &Fetcher, query: &str, count: u32) -> Result<Vec<Candidate
         .collect())
 }
 
-fn met(fetcher: &Fetcher, query: &str, count: u32) -> Result<Vec<Candidate>, HarnessError> {
+fn met(fetcher: &Fetcher, query: &str, count: u32) -> Result<Vec<Candidate>, PackError> {
     let url = format!(
         "https://collectionapi.metmuseum.org/public/collection/v1.1/search?hasImages=true\
          &limit={count}&{}",
@@ -146,7 +143,7 @@ fn met(fetcher: &Fetcher, query: &str, count: u32) -> Result<Vec<Candidate>, Har
     Ok(candidates)
 }
 
-fn commons(fetcher: &Fetcher, query: &str, count: u32) -> Result<Vec<Candidate>, HarnessError> {
+fn commons(fetcher: &Fetcher, query: &str, count: u32) -> Result<Vec<Candidate>, PackError> {
     let api = "https://commons.wikimedia.org/w/api.php?action=query&format=json&formatversion=2";
     let list = if query.starts_with("Category:") {
         let category = query_text(query);

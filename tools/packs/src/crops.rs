@@ -28,7 +28,7 @@ use super::full::FullPicture;
 use super::list::Listed;
 use super::sheet::{Mark, Picture, write_sheet};
 use super::sources;
-use crate::error::HarnessError;
+use crate::error::PackError;
 
 /// A crop's longest side in the pack, in pixels: as large as the app shows a picture.
 const LONGEST: u32 = 1024;
@@ -59,7 +59,7 @@ pub fn crops_of(
     listed: &Listed,
     (source, picture): (&sources::Found, &FullPicture),
     (places, count): (Places, usize),
-) -> Result<Vec<(Cropped, Option<Packed>)>, HarnessError> {
+) -> Result<Vec<(Cropped, Option<Packed>)>, PackError> {
     let all = found_side_by_side(picture, places);
     let kept = best(all.clone(), count);
     if kept.is_empty() {
@@ -69,7 +69,7 @@ pub fn crops_of(
     for (number, crop) in (1..).zip(kept) {
         let pixels = cut(picture.size, &picture.rgba, crop.at, crop.size);
         let (size, pixels) = reduced(crop.size, pixels);
-        let failed = |detail: String| HarnessError::Pack {
+        let failed = |detail: String| PackError::Pack {
             item: listed.id.clone(),
             problem: format!("its crop {number}: {detail}"),
         };
@@ -190,7 +190,7 @@ fn item(listed: &Listed, source: &sources::Found, cropped: &Cropped) -> PackItem
 ///
 /// # Errors
 /// `Io` or `Png` when a sheet cannot be written.
-pub fn write_crop_sheets(crops: &[Cropped], pack: &str, dir: &Path) -> Result<(), HarnessError> {
+pub fn write_crop_sheets(crops: &[Cropped], pack: &str, dir: &Path) -> Result<(), PackError> {
     for (page, chunk) in crops.chunks(PAGE).enumerate() {
         let pictures: Vec<Picture> = (chunk.iter())
             .map(|crop| {

@@ -9,6 +9,7 @@ members = [
     "crates/raster",
     "crates/render",
     "crates/runtime",
+    "crates/sheet",
     "crates/store",
     "crates/ui",
     "xtask",
@@ -32,6 +33,7 @@ openpaint-practice = { path = "crates/practice" }
 openpaint-raster = { path = "crates/raster" }
 openpaint-render = { path = "crates/render" }
 openpaint-runtime = { path = "crates/runtime" }
+openpaint-sheet = { path = "crates/sheet" }
 openpaint-store = { path = "crates/store" }
 openpaint-ui = { path = "crates/ui" }
 
@@ -62,12 +64,6 @@ serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.151"
 # Brush recipe files (app only): read as a table, no serde derive in product code.
 toml = { version = "=1.1.6", default-features = false, features = ["std", "parse", "serde"] }
-# The practice pack builder's downloads from the museums' and Commons' APIs (harness only,
-# never a product crate): HTTPS through rustls, gzip.
-ureq = "=3.5.0"
-# The practice pack builder's salient-object segmentation, U²-Net through ONNX in pure Rust, no
-# native library (harness only, never a product crate; S81); without its transformer operators.
-tract-onnx = { version = "=0.23.9", default-features = false }
 wgpu = "=30.0.1"
 
 # Debug builds for agents and tests carry no debug info (S106c): a panic still names its file and

@@ -2,7 +2,7 @@
 //! `artifacts/` at the workspace root (untracked).
 
 use std::fs::{self, File};
-use std::io::{BufReader, BufWriter};
+use std::io::BufReader;
 use std::path::{Path, PathBuf};
 
 use openpaint_core::{Artwork, Color};
@@ -32,14 +32,7 @@ pub fn write_png(name: &str, image: &RgbaImage) -> Result<PathBuf, HarnessError>
 
 /// Writes 8-bit RGBA pixels of `size` as a PNG at `path`; the directory must exist.
 pub fn write_rgba(path: &Path, size: [u32; 2], pixels: &[u8]) -> Result<(), HarnessError> {
-    let [width, height] = size;
-    let mut encoder = png::Encoder::new(BufWriter::new(File::create(path)?), width, height);
-    encoder.set_color(png::ColorType::Rgba);
-    encoder.set_depth(png::BitDepth::Eight);
-    let mut writer = encoder.write_header()?;
-    writer.write_image_data(pixels)?;
-    writer.finish()?;
-    Ok(())
+    Ok(openpaint_sheet::write_rgba(path, size, pixels)?)
 }
 
 /// Reads a PNG this harness wrote: 8-bit RGBA, one frame. `None` when the file is missing or

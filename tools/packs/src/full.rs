@@ -20,7 +20,7 @@ use super::fetch::{Fetcher, cache_name};
 use super::libraries::{AMBIENTCG_COLOUR, stored_entry};
 use super::list::Listed;
 use super::sources::{Found, Full, lacking};
-use crate::error::HarnessError;
+use crate::error::PackError;
 
 /// The longest side a picture is cropped at, in pixels.
 pub const FULL_SIDE: u32 = 4096;
@@ -50,7 +50,7 @@ pub fn full_picture(
     listed: &Listed,
     found: &Found,
     fetcher: &Fetcher,
-) -> Result<FullPicture, HarnessError> {
+) -> Result<FullPicture, PackError> {
     let (url, bytes) = match &found.full {
         Full::Picture => {
             let name = cache_name(listed.source.name(), &listed.key(), "img");
@@ -89,11 +89,11 @@ pub fn full_picture(
             (url, bytes)
         }
     };
-    let (size, rgba) = decode_image(&bytes).map_err(|error| HarnessError::Fetch {
+    let (size, rgba) = decode_image(&bytes).map_err(|error| PackError::Fetch {
         url: url.clone(),
         detail: format!("the picture: {error}"),
     })?;
-    fitted(size, rgba).ok_or_else(|| HarnessError::Fetch {
+    fitted(size, rgba).ok_or_else(|| PackError::Fetch {
         url,
         detail: "the picture's pixels do not match its size".to_owned(),
     })
@@ -102,7 +102,7 @@ pub fn full_picture(
 /// The longer side a IIIF service's picture is asked at (fitted in a square of it): its full
 /// size's (`width`, `height` of its `info.json`), within `most` and its `maxArea` when it states
 /// one, never enlarged.
-fn iiif_side(info: &Value, url: &str, most: u32) -> Result<u32, HarnessError> {
+fn iiif_side(info: &Value, url: &str, most: u32) -> Result<u32, PackError> {
     let side = |field: &str| {
         (info[field].as_u64())
             .and_then(|side| u32::try_from(side).ok())

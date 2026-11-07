@@ -12,7 +12,7 @@ use openpaint_practice::Licence;
 
 use super::fetch::{Fetcher, cache_name, query_text};
 use super::sources::{Found, Full, Stated, lacking, text};
-use crate::error::HarnessError;
+use crate::error::PackError;
 
 /// The archive of an ambientCG material taken: its maps at 4K as JPEG.
 const AMBIENTCG_ARCHIVE: &str = "4K-JPG";
@@ -26,7 +26,7 @@ const POLYHAVEN_SIZE: &str = "4k";
 /// # Errors
 /// `Fetch` when the API cannot be reached or knows no such material, or the material has no
 /// archive at 4K.
-pub fn ambientcg(fetcher: &Fetcher, id: &str) -> Result<Found, HarnessError> {
+pub fn ambientcg(fetcher: &Fetcher, id: &str) -> Result<Found, PackError> {
     let url = format!(
         "https://ambientcg.com/api/v2/full_json?id={}&include=downloadData",
         query_text(id)
@@ -54,7 +54,7 @@ pub fn ambientcg(fetcher: &Fetcher, id: &str) -> Result<Found, HarnessError> {
 /// # Errors
 /// `Fetch` when the API cannot be reached or knows no such texture, or the texture has no colour
 /// map at 4K.
-pub fn polyhaven(fetcher: &Fetcher, id: &str) -> Result<Found, HarnessError> {
+pub fn polyhaven(fetcher: &Fetcher, id: &str) -> Result<Found, PackError> {
     let info_url = format!("https://api.polyhaven.com/info/{}", query_text(id));
     let info = fetcher.json(&cache_name("polyhaven", id, "json"), &info_url)?;
     let title = text(&info, "name").ok_or_else(|| lacking(&info_url, "texture of that id"))?;

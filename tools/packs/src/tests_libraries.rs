@@ -12,8 +12,8 @@ use super::build::build;
 use super::fetch::{Fetcher, cache_name};
 use super::list::SourceList;
 use super::tests_crops::{no_segment, rust};
-use crate::error::HarnessError;
-use crate::output::workspace_root;
+use crate::error::PackError;
+use crate::repo_root;
 use crate::scratch::Scratch;
 
 const LIST: &str = r#"
@@ -124,16 +124,16 @@ fn a_library_s_map_is_only_ever_cropped() {
         .replace("kind = \"crop\"", "kind = \"composition\"")
         .replace("licence = \"CC0\"", "tier = \"simple\"\nlicence = \"CC0\"");
     match SourceList::parse(&text) {
-        Err(HarnessError::List(why)) => assert!(why.contains("only ever cropped"), "{why}"),
+        Err(PackError::List(why)) => assert!(why.contains("only ever cropped"), "{why}"),
         other => panic!("read: {:?}", other.map(|list| list.id)),
     }
 }
 
-/// The official list in `apps/harness/packs/combinations.toml`: a list of crops, every item with
+/// The official list in `tools/packs/lists/combinations.toml`: a list of crops, every item with
 /// its reason, its photographs, texture libraries and paintings all there.
 #[test]
 fn the_official_combinations_list_reads() {
-    let path = workspace_root().join("apps/harness/packs/combinations.toml");
+    let path = repo_root().join("tools/packs/lists/combinations.toml");
     let list = SourceList::parse(&fs::read_to_string(&path).expect("the list")).expect("reads");
     assert_eq!(
         (list.id.as_str(), list.kind),

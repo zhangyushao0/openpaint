@@ -103,12 +103,29 @@ pub const LAYERS: &[(&str, &[&str])] = &[
     ),
     // Diagnostics and automation: never a dependency of a product crate (DECISIONS D10).
     ("crates/devtools", &ALL_PRODUCT),
+    // Contact sheets for the harness and the pack builder (S111); never a product crate's.
+    ("crates/sheet", &[]),
     ("apps/harness", &WITH_DEVTOOLS),
     ("apps/android", &ALL_PRODUCT),
+    // The practice-pack builder, a workspace of its own (S111): the pack format and its
+    // computations from the crates the app reads packs with.
+    (
+        "tools/packs",
+        &[
+            "openpaint-practice",
+            "openpaint-app",
+            "openpaint-store",
+            "openpaint-sheet",
+        ],
+    ),
 ];
 
-/// The harness assembles the product crates and the devtools.
-const WITH_DEVTOOLS: [&str; 9] = [
+/// Workspaces of their own, outside the root one and the gate, that repo-check still holds to
+/// the code rules (`tools.rs`).
+pub const TOOLS: &[&str] = &["tools/packs"];
+
+/// The harness assembles the product crates, the devtools and the contact sheets.
+const WITH_DEVTOOLS: [&str; 10] = [
     "openpaint-core",
     "openpaint-practice",
     "openpaint-raster",
@@ -118,6 +135,7 @@ const WITH_DEVTOOLS: [&str; 9] = [
     "openpaint-ui",
     "openpaint-runtime",
     "openpaint-devtools",
+    "openpaint-sheet",
 ];
 
 /// Substrings that must not appear in a crate's sources; they keep the lower layers pure.

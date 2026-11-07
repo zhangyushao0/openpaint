@@ -29,9 +29,11 @@ This page is the design contract: how modules are cut, which way dependencies po
 | `openpaint-ui` | shared interface: egui panels and components, input ownership, canvas arbitration; reads app projections, emits intents | core, app, render | direct wgpu, file system |
 | `openpaint-runtime` | frame loop, input normalisation, workers, lifecycle, startup, the GPU budget, debug benchmarks | core, app, store, render, ui, raster | JNI |
 | `openpaint-devtools` | scenario files, the scenario runner, checkpoint diffs, the switchable store wrapper `Watched` | product crates | product rules; never a dependency of a product crate |
-| `openpaint-harness` | development harness: `scenario` (`--all` on parallel workers, each scenario a process of its own: `scenarios.rs`), test art, replay, statistics, PNG and hash output; `key-shifts` (S107: the key shift checks on the packs' crops, contact sheets); the `practice-pack` builder from a curated list (sources: Cleveland, the Met, the Art Institute, the National Gallery, the Rijksmuseum, Commons and its film stills, `pack/sources.rs`; ambientCG, Poly Haven, `libraries.rs`), outlines for an outlined kind from U²-Net's matte through tract-onnx (`pack/segment.rs`), or a clear ground's alpha (D106), drawn on the sheets (D101, D103); a composition's value masses made and drawn beside it on the sheets, kept unless listed `no_masses` (`pack/build.rs`, `pack/sheet.rs`, D108); crops cut from full pixels, answered, drawn by their areas, kept unless listed `no_crop` (`pack/crops.rs`, `full.rs`, D105); never shipped | all, devtools | windowing, mouse input, product rules |
+| `openpaint-harness` | development harness: `scenario` (`--all` on parallel workers, each scenario a process of its own: `scenarios.rs`), test art, replay, statistics, PNG and hash output; `key-shifts` (S107: the key shift checks on the built packs' crops, contact sheets); never shipped | all, devtools, sheet | windowing, mouse input, product rules |
+| `openpaint-sheet` | the harness's and the pack builder's contact sheets (S111) | nothing | product code |
 | `openpaint-android` | the only product composition root: activity lifecycle, Surface, system pickers, JNI | all | product rules |
 | `xtask` | repository tooling: `cargo gate` (test binaries built once, run twelve at a time longest first, hung ones killed, superseded builds removed: `test_run/`), `cargo repo-check`, the Android build and version, device chores over adb, shape textures | nothing | product code |
+| `tools/packs` | a workspace of its own outside the gate, built in its `target/` (S111): `cargo practice-pack build|search`, a pack from a list (`lists/`; web clients `sources.rs`, `libraries.rs`), downloads cached in `artifacts/packs/cache/`; U²-Net via tract-onnx (`segment.rs`, D106), value masses (D108), crops from full pixels (`crops.rs`, D105), contact sheets | practice, app, store, sheet, by path | product code; a second implementation of the app's computations |
 
 Dependencies only point down (`A <- B` means B depends on A):
 
@@ -43,6 +45,7 @@ core <- raster <- runtime
 practice <- app; practice <- store, ui, runtime
 store, render <- runtime
 runtime <- devtools <- harness
+sheet <- {harness, tools/packs}; practice, app, store <- tools/packs
 ```
 
 A new crate is registered in `LAYERS` in `xtask/src/check/rules.rs` first (D02). The app's version is `[workspace.package] version` in the root manifest; `xtask/src/version.rs` hands it to Gradle with the store's `FORMAT` as build metadata and a version code, and the runtime hands the same two to the shell (`Shell::set_version`), which shows them as Actions' last line in the language shown (D79).
@@ -259,7 +262,7 @@ Device chores are `cargo device-*` (`xtask/src/device/`: adb with explicit argum
 
 ## 9. Enforced rules
 
-`cargo repo-check` (`xtask/src/check/`, over tracked and new unignored files): .rs files at most 400 lines; dependency direction per section 2; purity tokens per crate (core never mentions serde; devtools never touches `std::fs`); egui in render only under `adapter/`; no cargo features in product crates; crate roots carry `#![forbid(unsafe_code)]` (android excepted, and the harness, which denies it but for its counting allocator); markdown limited to the four documents, README and AGENTS.md, plus the archive; the four documents within their line and character limits, none of their lines over 1,500 characters (`lengths.rs`); no script files; no CRLF; under `crates/ui/src/` outside `text/` and tests no literal reading as words (a capital, then a small letter) and none handed to `Words::made` or `named` (`words.rs`, D100). clippy: functions at most 60 lines, no `todo!` / `unimplemented!` / `dbg!`, warnings are errors; a justified exception is `#[expect(lint, reason = "...")]`, never `#[allow]`.
+`cargo repo-check` (`xtask/src/check/`, over tracked and new unignored files): .rs files at most 400 lines; dependency direction per section 2; purity tokens per crate (core never mentions serde; devtools never touches `std::fs`); egui in render only under `adapter/`; no cargo features in product crates; crate roots carry `#![forbid(unsafe_code)]` (android and the harness's allocator excepted); markdown only the four documents (within their lines and characters, 1,500 a line: `lengths.rs`), README, AGENTS.md and the archive; no script files; no CRLF; `tools/packs` with the root's lints, its rustfmt and clippy run (`tools.rs`); under `crates/ui/src/` outside `text/` and tests no literal reading as words (a capital, then a small letter) and none handed to `Words::made` or `named` (`words.rs`, D100). clippy: functions at most 60 lines, no `todo!` / `unimplemented!` / `dbg!`, warnings are errors; a justified exception is `#[expect(lint, reason = "...")]`, never `#[allow]`.
 
 ## 10. UI conventions
 

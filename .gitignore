@@ -1,5 +1,6 @@
-# Build output
+# Build output (the pack builder's workspace builds into its own, S111)
 /target/
+/tools/packs/target/
 
 # Never tracked: notes, measurements, device captures, scratch work (repo-check also rejects them).
 /local/

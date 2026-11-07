@@ -6,6 +6,7 @@ mod hygiene;
 mod lengths;
 mod purity;
 mod rules;
+mod tools;
 mod words;
 
 use std::path::Path;
@@ -38,6 +39,7 @@ pub fn run() -> Result<(), String> {
     findings.extend(purity::check(&root, &files));
     findings.extend(hygiene::check(&root, &files));
     findings.extend(words::check(&root, &files));
+    findings.extend(tools::check(&root));
     if findings.is_empty() {
         println!(
             "repo-check: {} tracked and new files, all rules hold",

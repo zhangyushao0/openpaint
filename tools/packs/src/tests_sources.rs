@@ -13,8 +13,8 @@ use super::build::{Massed, Outlined, build};
 use super::fetch::{Fetcher, cache_name};
 use super::list::SourceList;
 use super::nga::table_name;
-use crate::error::HarnessError;
-use crate::output::workspace_root;
+use crate::error::PackError;
+use crate::repo_root;
 use crate::scratch::Scratch;
 
 const LIST: &str = r#"
@@ -179,7 +179,7 @@ fn cache(name: &str, [aic, nga, rijks_object, film]: [String; 4]) -> Scratch {
 }
 
 /// Never called: a composition is not outlined.
-fn no_segment(_: [u32; 2], _: &[u8]) -> Result<openpaint_practice::Matte, HarnessError> {
+fn no_segment(_: [u32; 2], _: &[u8]) -> Result<openpaint_practice::Matte, PackError> {
     panic!("a composition's outline step ran")
 }
 
@@ -252,7 +252,7 @@ fn failure(name: &str, answers: [String; 4]) -> (String, String) {
     let dir = cache(name, answers);
     let failed = build(&list, &Fetcher::cache_only(&dir), &no_segment);
     match failed {
-        Err(HarnessError::Pack { item, problem }) => (item, problem),
+        Err(PackError::Pack { item, problem }) => (item, problem),
         other => panic!("not a failed item: {:?}", other.map(|built| built.pack.id)),
     }
 }
@@ -297,7 +297,7 @@ fn a_composition_list_refuses_an_outline_mark_entry_and_frames_off_commons() {
     let refused = |from: &str, to: &str| {
         let text = LIST.replacen(from, to, 1);
         match SourceList::parse(&text) {
-            Err(HarnessError::List(why)) => why,
+            Err(PackError::List(why)) => why,
             other => panic!("read: {:?}", other.map(|list| list.id)),
         }
     };
@@ -319,11 +319,11 @@ fn a_composition_list_refuses_an_outline_mark_entry_and_frames_off_commons() {
     assert!(why.contains("its frame's second"), "{why}");
 }
 
-/// The official list in `apps/harness/packs/compositions.toml`: about 60 items in three tiers,
+/// The official list in `tools/packs/lists/compositions.toml`: about 60 items in three tiers,
 /// every one with its reason.
 #[test]
 fn the_official_compositions_list_holds_about_60_items_in_three_tiers() {
-    let path = workspace_root().join("apps/harness/packs/compositions.toml");
+    let path = repo_root().join("tools/packs/lists/compositions.toml");
     let list = SourceList::parse(&fs::read_to_string(&path).expect("the list")).expect("reads");
     assert_eq!(list.kind, PictureKind::Composition);
     for tier in PictureKind::Composition.tiers() {

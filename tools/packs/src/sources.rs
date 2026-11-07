@@ -14,7 +14,7 @@ use serde_json::Value;
 use super::fetch::{Fetcher, USER_AGENT, cache_name, query_text};
 use super::list::{Listed, Source};
 use super::{commons, libraries, nga, rijks};
-use crate::error::HarnessError;
+use crate::error::PackError;
 
 /// The licence an API states for an object.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -101,7 +101,7 @@ impl<'a> Sources<'a> {
     /// # Errors
     /// `Fetch` when the API cannot be reached or does not answer as documented (a field
     /// missing).
-    pub fn look_up(&self, listed: &Listed) -> Result<Found, HarnessError> {
+    pub fn look_up(&self, listed: &Listed) -> Result<Found, PackError> {
         let fetcher = self.fetcher;
         let object = listed.object.as_str();
         let name = cache_name(listed.source.name(), &listed.key(), "json");
@@ -160,8 +160,8 @@ pub fn text(value: &Value, field: &str) -> Option<String> {
 }
 
 /// The error for an answer of `url` lacking `field`.
-pub fn lacking(url: &str, field: &str) -> HarnessError {
-    HarnessError::Fetch {
+pub fn lacking(url: &str, field: &str) -> PackError {
+    PackError::Fetch {
         url: url.to_owned(),
         detail: format!("the answer has no {field}"),
     }
@@ -178,7 +178,7 @@ fn cc0_when(open: bool, otherwise: &str) -> Stated {
 
 /// The Cleveland Museum of Art's Open Access API: `share_license_status` "CC0" for its open
 /// access objects; the print picture (about 3,400 pixels on its long side).
-fn cleveland(data: &Value, url: &str) -> Result<Found, HarnessError> {
+fn cleveland(data: &Value, url: &str) -> Result<Found, PackError> {
     let status = text(data, "share_license_status").ok_or_else(|| lacking(url, "licence"))?;
     let culture = data["culture"].get(0).and_then(Value::as_str);
     let creator = data["creators"]
@@ -202,7 +202,7 @@ fn cleveland(data: &Value, url: &str) -> Result<Found, HarnessError> {
 
 /// The Metropolitan Museum of Art's Collection API: `isPublicDomain` true for its Open Access
 /// objects, which the museum dedicates under CC0; the primary picture at its full size.
-fn met(object: &Value, url: &str) -> Result<Found, HarnessError> {
+fn met(object: &Value, url: &str) -> Result<Found, PackError> {
     let public = object["isPublicDomain"]
         .as_bool()
         .ok_or_else(|| lacking(url, "isPublicDomain"))?;
@@ -234,7 +234,7 @@ pub fn aic_url(id: &str) -> String {
 /// The Art Institute of Chicago's API: `is_public_domain` true for the works whose pictures the
 /// museum releases under CC0; the picture from its IIIF server (the answer's `iiif_url`),
 /// fitted within 2,048 pixels.
-fn aic(answer: &Value, url: &str) -> Result<Found, HarnessError> {
+fn aic(answer: &Value, url: &str) -> Result<Found, PackError> {
     let data = &answer["data"];
     let public = data["is_public_domain"]
         .as_bool()

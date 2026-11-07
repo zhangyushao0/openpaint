@@ -12,7 +12,7 @@ use serde_json::Value;
 use super::fetch::{Fetcher, cache_name, query_text};
 use super::full::FULL_SIDE;
 use super::sources::{Found, Full, Stated, lacking, text, unknown_maker};
-use crate::error::HarnessError;
+use crate::error::PackError;
 
 /// What a record is asked for as: Linked Art's JSON-LD.
 const LINKED_ART: [(&str, &str); 1] = [("Accept", "application/ld+json")];
@@ -26,7 +26,7 @@ const ZERO: &str = "https://creativecommons.org/publicdomain/zero/1.0/";
 /// # Errors
 /// `Fetch` when the API cannot be reached, finds no object of that number, or its record lacks
 /// an English title or a IIIF picture.
-pub fn found(fetcher: &Fetcher, number: &str) -> Result<Found, HarnessError> {
+pub fn found(fetcher: &Fetcher, number: &str) -> Result<Found, PackError> {
     let url = format!(
         "https://data.rijksmuseum.nl/search/collection?objectNumber={}",
         query_text(number)
@@ -46,11 +46,11 @@ pub fn found(fetcher: &Fetcher, number: &str) -> Result<Found, HarnessError> {
 }
 
 /// The Linked Art record at `id`, cached.
-fn record(fetcher: &Fetcher, id: &str) -> Result<Value, HarnessError> {
+fn record(fetcher: &Fetcher, id: &str) -> Result<Value, PackError> {
     fetcher.json_with(&cache_name("rijks", id, "json"), id, &LINKED_ART)
 }
 
-fn described(fetcher: &Fetcher, object: &Value, id: &str) -> Result<Found, HarnessError> {
+fn described(fetcher: &Fetcher, object: &Value, id: &str) -> Result<Found, PackError> {
     let (base, rights) = picture(object).ok_or_else(|| lacking(id, "IIIF picture"))?;
     let creator = match person(&object["produced_by"]) {
         Some(person) => english(&record(fetcher, &person)?["identified_by"])

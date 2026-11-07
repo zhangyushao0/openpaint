@@ -32,10 +32,11 @@ device-idle = "xtask device-idle"
 # Test artworks as OpenPaint files, deterministic (apps/harness/src/test_art/):
 # `cargo test-art pile|a4|a4-plain|kinds|session [n] [out]` -> artifacts/test-art/<kind>-<n>.openpaint.
 test-art = "run --quiet --package openpaint-harness -- test-art"
-# Practice packs from the curated source lists in apps/harness/packs/ (see apps/harness/src/pack/):
+# Practice packs from the curated source lists in tools/packs/lists/ (see tools/packs/src/; a
+# workspace of its own outside the gate, built in tools/packs/target/):
 # `cargo practice-pack build <list> [out] [--sheet]` -> artifacts/packs/<pack id>.pack, the same
 # bytes from the same list and download cache; `cargo practice-pack search <source> <query>`.
-practice-pack = "run --quiet --package openpaint-harness -- practice-pack"
+practice-pack = "run --quiet --manifest-path tools/packs/Cargo.toml --"
 # The brush shape textures (crates/render/assets/shape-*.bin) from seeded noise (see
 # xtask/src/shapes.rs); deterministic, committed, their hashes in DECISIONS.
 shape-assets = "xtask shape-assets"

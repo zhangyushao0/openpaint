@@ -1,4 +1,4 @@
-//! A pack's source list (`apps/harness/packs/<name>.toml`, kept in the repository): which
+//! A pack's source list (`tools/packs/lists/<name>.toml`, kept in the repository): which
 //! pictures go into the pack and why, never the pictures. The pack's id, title and kind
 //! (`shape`, `composition` or `crop`: a picture only cropped, S101), then per item:
 //!
@@ -33,7 +33,7 @@ use std::collections::{BTreeMap, HashSet};
 use openpaint_practice::{Licence, PictureKind, Places, Tier, valid_id};
 use serde::Deserialize;
 
-use crate::error::HarnessError;
+use crate::error::PackError;
 
 /// Where an item's picture comes from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -157,20 +157,20 @@ impl SourceList {
     /// a tier the kind does not take, an id that is not a pack's, taken twice, an item without
     /// its object or reason, a frame's second outside Commons or below zero, or `no_outline` on
     /// a kind never outlined.
-    pub fn parse(text: &str) -> Result<Self, HarnessError> {
+    pub fn parse(text: &str) -> Result<Self, PackError> {
         let written: Written =
-            toml::from_str(text).map_err(|error| HarnessError::List(error.to_string()))?;
+            toml::from_str(text).map_err(|error| PackError::List(error.to_string()))?;
         let kind = PictureKind::of_name(&written.kind)
-            .ok_or_else(|| HarnessError::List(format!("no kind named {}", written.kind)))?;
+            .ok_or_else(|| PackError::List(format!("no kind named {}", written.kind)))?;
         if !valid_id(&written.id) {
-            return Err(HarnessError::List(format!("{} is no pack id", written.id)));
+            return Err(PackError::List(format!("{} is no pack id", written.id)));
         }
         let mut seen = HashSet::new();
         let mut items = Vec::with_capacity(written.items.len());
         for item in written.items {
             if !valid_id(&item.id) || !seen.insert(item.id.clone()) {
                 let id = &item.id;
-                return Err(HarnessError::List(format!(
+                return Err(PackError::List(format!(
                     "item {id}: its id is no item id or is taken"
                 )));
             }
@@ -186,8 +186,8 @@ impl SourceList {
 }
 
 /// One written item of a list of `kind`, checked.
-fn listed(kind: PictureKind, item: WrittenItem) -> Result<Listed, HarnessError> {
-    let wrong = |what: &str| HarnessError::List(format!("item {}: {what}", item.id));
+fn listed(kind: PictureKind, item: WrittenItem) -> Result<Listed, PackError> {
+    let wrong = |what: &str| PackError::List(format!("item {}: {what}", item.id));
     if item.object.trim().is_empty() || item.reason.trim().is_empty() {
         return Err(wrong("it has no object or no reason"));
     }

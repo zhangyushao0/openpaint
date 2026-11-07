@@ -22,7 +22,7 @@ use super::fetch::{Fetcher, cache_name};
 use super::full::full_picture;
 use super::list::{Listed, SourceList, cropping};
 use super::sources::{Found, Sources, Stated};
-use crate::error::HarnessError;
+use crate::error::PackError;
 
 /// What became of an item's outline.
 #[derive(Debug, Clone, PartialEq)]
@@ -63,7 +63,7 @@ pub struct Built {
 
 /// The segmentation's matte of a picture (8-bit sRGB RGBA of its size): the model's
 /// (`Segmenter::matte`), or a test's own. Never called for a kind not outlined.
-pub type Segment<'a> = &'a dyn Fn([u32; 2], &[u8]) -> Result<Matte, HarnessError>;
+pub type Segment<'a> = &'a dyn Fn([u32; 2], &[u8]) -> Result<Matte, PackError>;
 
 /// The pack `list` names and its pictures, in the list's order, outlined with `segment` when
 /// its kind is.
@@ -75,7 +75,7 @@ pub fn build(
     list: &SourceList,
     fetcher: &Fetcher,
     segment: Segment<'_>,
-) -> Result<Built, HarnessError> {
+) -> Result<Built, PackError> {
     let sources = Sources::new(fetcher);
     let mut built = Built {
         pack: Pack {
@@ -91,15 +91,15 @@ pub fn build(
     for listed in &list.items {
         listed_into(&mut built, (list.kind, listed), (&sources, segment)).map_err(|error| {
             match error {
-                HarnessError::Pack { .. } => error,
-                other => HarnessError::Pack {
+                PackError::Pack { .. } => error,
+                other => PackError::Pack {
                     item: listed.id.clone(),
                     problem: other.to_string(),
                 },
             }
         })?;
     }
-    built.pack.check().map_err(|problem| HarnessError::Pack {
+    built.pack.check().map_err(|problem| PackError::Pack {
         item: problem.item.unwrap_or_else(|| list.id.clone()),
         problem: problem.rule.to_owned(),
     })?;
@@ -113,7 +113,7 @@ fn listed_into(
     built: &mut Built,
     (kind, listed): (PictureKind, &Listed),
     (sources, segment): (&Sources<'_>, Segment<'_>),
-) -> Result<(), HarnessError> {
+) -> Result<(), PackError> {
     let found = looked_up(listed, sources)?;
     if kind != PictureKind::Crop {
         let picture = packed(listed, &found, sources)?;
@@ -140,10 +140,10 @@ fn listed_into(
 }
 
 /// What `listed`'s source says of it, its licence checked against the list's.
-fn looked_up(listed: &Listed, sources: &Sources<'_>) -> Result<Found, HarnessError> {
+fn looked_up(listed: &Listed, sources: &Sources<'_>) -> Result<Found, PackError> {
     let found = sources.look_up(listed)?;
     if found.stated != Stated::Licence(listed.licence) {
-        return Err(HarnessError::Pack {
+        return Err(PackError::Pack {
             item: listed.id.clone(),
             problem: format!(
                 "its source states the licence {}, the list expects {}",
@@ -156,14 +156,10 @@ fn looked_up(listed: &Listed, sources: &Sources<'_>) -> Result<Found, HarnessErr
 }
 
 /// `listed`'s picture (as `found` describes it) downloaded and made as a pack holds it.
-fn packed(
-    listed: &Listed,
-    found: &Found,
-    sources: &Sources<'_>,
-) -> Result<PackPicture, HarnessError> {
+fn packed(listed: &Listed, found: &Found, sources: &Sources<'_>) -> Result<PackPicture, PackError> {
     let name = cache_name(listed.source.name(), &listed.key(), "img");
     let original = (sources.fetcher()).get_with(&name, &found.picture, found.headers)?;
-    pack_picture(&original).map_err(|error| HarnessError::Fetch {
+    pack_picture(&original).map_err(|error| PackError::Fetch {
         url: found.picture.clone(),
         detail: format!("the picture: {error}"),
     })
@@ -180,7 +176,7 @@ fn item(
     listed: &Listed,
     (found, picture): (&Found, &PackPicture),
     segment: Segment<'_>,
-) -> Result<ItemBuilt, HarnessError> {
+) -> Result<ItemBuilt, PackError> {
     let (kept, outlined) = if kind.outlined() {
         outline(listed, picture, segment)?
     } else {
@@ -196,7 +192,7 @@ fn item(
         kind,
         tier: listed
             .tier
-            .ok_or_else(|| HarnessError::List(format!("{}: no tier", listed.id)))?,
+            .ok_or_else(|| PackError::List(format!("{}: no tier", listed.id)))?,
         size: picture.size,
         title: found.title.clone(),
         credit: Some(Credit {
@@ -218,7 +214,7 @@ fn outline(
     listed: &Listed,
     picture: &PackPicture,
     segment: Segment<'_>,
-) -> Result<(Option<Outline>, Outlined), HarnessError> {
+) -> Result<(Option<Outline>, Outlined), PackError> {
     let matte = segment(picture.size, &picture.rgba)?;
     let derived = outline_of_matte(picture.size, &picture.rgba, &matte);
     Ok(match (&listed.no_outline, derived) {

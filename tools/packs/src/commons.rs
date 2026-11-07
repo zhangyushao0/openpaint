@@ -13,7 +13,7 @@ use serde_json::Value;
 
 use super::fetch::query_text;
 use super::sources::{Found, Full, Stated, lacking, text};
-use crate::error::HarnessError;
+use crate::error::PackError;
 
 /// The API's answer about the file `title` (`File:…`): its picture's URLs, size and type, its
 /// metadata and its templates; with `at`, the still of a video at that second.
@@ -47,7 +47,7 @@ fn answer_url(title: &str, rendering: &str) -> String {
 /// # Errors
 /// `Fetch` for a missing file, one whose page states no licence or no author, or a still asked
 /// of a file that is no video.
-pub fn found(answer: &Value, url: &str, at: Option<f64>) -> Result<Found, HarnessError> {
+pub fn found(answer: &Value, url: &str, at: Option<f64>) -> Result<Found, PackError> {
     let page = &answer["query"]["pages"][0];
     if page.get("missing").is_some() || page.get("invalid").is_some() {
         return Err(lacking(url, "file: Commons has no such file"));

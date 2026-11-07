@@ -13,7 +13,7 @@ use openpaint_practice::Licence;
 use super::fetch::Fetcher;
 use super::full::FULL_SIDE;
 use super::sources::{Found, Full, Stated, lacking, unknown_maker};
-use crate::error::HarnessError;
+use crate::error::PackError;
 
 /// The open data's commit the tables are read at.
 const COMMIT: &str = "8d276f6462a4513eeeeefe00a4880744a9dccd42";
@@ -54,7 +54,7 @@ impl Tables {
     ///
     /// # Errors
     /// `Fetch` when a table cannot be downloaded or lacks a column it is read by.
-    pub fn load(fetcher: &Fetcher) -> Result<Self, HarnessError> {
+    pub fn load(fetcher: &Fetcher) -> Result<Self, PackError> {
         let mut tables = Self {
             objects: HashMap::new(),
             pictures: HashMap::new(),
@@ -100,7 +100,7 @@ impl Tables {
     ///
     /// # Errors
     /// `Fetch` when the tables hold no such object or no primary picture of it.
-    pub fn found(&self, object: &str) -> Result<Found, HarnessError> {
+    pub fn found(&self, object: &str) -> Result<Found, PackError> {
         let url = table_url("objects");
         let [title, attribution] =
             (self.objects.get(object)).ok_or_else(|| lacking(&url, "such object"))?;
@@ -149,7 +149,7 @@ impl<'a> Rows<'a> {
         &mut self,
         names: [&str; N],
         url: &str,
-    ) -> Result<[usize; N], HarnessError> {
+    ) -> Result<[usize; N], PackError> {
         let header = self.next().unwrap_or_default();
         let mut places = [0; N];
         for (place, name) in places.iter_mut().zip(names) {

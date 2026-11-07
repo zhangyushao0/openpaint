@@ -1,6 +1,7 @@
-//! `practice-pack` (also `cargo practice-pack`): practice packs built from curated source lists
-//! (ROADMAP S78). The repository keeps the lists (`apps/harness/packs/`), never a picture; a pack
-//! and its downloads live under `artifacts/packs/` (untracked).
+//! `openpaint-packs` (`cargo practice-pack` from the repository's root): practice packs built
+//! from curated source lists (ROADMAP S78), in a workspace of its own outside the gate (S111).
+//! The repository keeps the lists (`tools/packs/lists/`), never a picture; a pack and its
+//! downloads live under `artifacts/packs/` (untracked).
 //!
 //! - `build <list> [out] [--sheet]`: the pack the list names (`build.rs`), written to `out` or
 //!   `artifacts/packs/<pack id>.pack`, one line per item; with `--sheet` a contact sheet per tier
@@ -9,19 +10,23 @@
 //!   build); a list of compositions never does.
 //! - `search <cleveland|met|commons> <query> [count]`: candidates and their contact sheet for the
 //!   curator (`search.rs`).
+#![forbid(unsafe_code)]
 
 mod build;
 mod commons;
 mod crops;
+mod error;
 mod fetch;
 mod full;
 mod libraries;
 mod list;
 mod nga;
 mod rijks;
+#[cfg(test)]
+mod scratch;
 mod search;
 mod segment;
-pub(crate) mod sheet;
+mod sheet;
 mod sources;
 #[cfg(test)]
 mod tests;
@@ -34,12 +39,12 @@ mod tests_sources;
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::ExitCode;
 
 use openpaint_practice::{PackItem, Tier};
 use openpaint_store::{decode_image, encode_pack};
 
-use crate::error::HarnessError;
-use crate::output::workspace_root;
+use crate::error::PackError;
 use build::{Built, Massed, Outlined};
 use crops::{describe_crops, write_crop_sheets};
 use fetch::Fetcher;
@@ -50,15 +55,33 @@ use sheet::{Mark, Picture, write_sheet};
 const USAGE: &str = "practice-pack build <list.toml> [out.pack] [--sheet]\n       \
                      practice-pack search <cleveland|met|commons> <query> [count]";
 
-pub fn run(args: &[&str]) -> Result<(), HarnessError> {
+fn main() -> ExitCode {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    match run(&args) {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("error: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// The repository's root: the builder lives at `tools/packs`, two levels down.
+pub fn repo_root() -> &'static Path {
+    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+    manifest.ancestors().nth(2).unwrap_or(manifest)
+}
+
+fn run(args: &[&str]) -> Result<(), PackError> {
     match args {
         ["build", rest @ ..] => build_command(rest),
         ["search", source, query, rest @ ..] => {
-            let source = Source::of_name(source).ok_or(HarnessError::Missing(USAGE))?;
+            let source = Source::of_name(source).ok_or(PackError::Missing(USAGE))?;
             let count = match rest {
                 [] => 30,
-                [count] => count.parse().map_err(|_| HarnessError::Missing(USAGE))?,
-                _ => return Err(HarnessError::Missing(USAGE)),
+                [count] => count.parse().map_err(|_| PackError::Missing(USAGE))?,
+                _ => return Err(PackError::Missing(USAGE)),
             };
             search::run(
                 &Fetcher::new(packs_dir().join("cache")),
@@ -67,22 +90,22 @@ pub fn run(args: &[&str]) -> Result<(), HarnessError> {
                 count,
             )
         }
-        _ => Err(HarnessError::Missing(USAGE)),
+        _ => Err(PackError::Missing(USAGE)),
     }
 }
 
 /// Where packs, their sheets and the download cache live.
 fn packs_dir() -> PathBuf {
-    workspace_root().join("artifacts").join("packs")
+    repo_root().join("artifacts").join("packs")
 }
 
-fn build_command(rest: &[&str]) -> Result<(), HarnessError> {
+fn build_command(rest: &[&str]) -> Result<(), PackError> {
     let sheets = rest.contains(&"--sheet");
     let paths: Vec<&str> = rest.iter().copied().filter(|a| *a != "--sheet").collect();
     let (list, out) = match paths[..] {
         [list] => (list, None),
         [list, out] => (list, Some(PathBuf::from(out))),
-        _ => return Err(HarnessError::Missing(USAGE)),
+        _ => return Err(PackError::Missing(USAGE)),
     };
     let list = SourceList::parse(&fs::read_to_string(list)?)?;
     let fetcher = Fetcher::new(packs_dir().join("cache"));
@@ -91,7 +114,7 @@ fn build_command(rest: &[&str]) -> Result<(), HarnessError> {
         .transpose()?;
     let built = build::build(&list, &fetcher, &|size, rgba| match &segmenter {
         Some(segmenter) => segmenter.matte(size, rgba),
-        None => Err(HarnessError::Missing("no outline is derived for this kind")),
+        None => Err(PackError::Missing("no outline is derived for this kind")),
     })?;
     let out = out.unwrap_or_else(|| packs_dir().join(format!("{}.pack", built.pack.id)));
     if let Some(dir) = out.parent() {
@@ -106,14 +129,14 @@ fn build_command(rest: &[&str]) -> Result<(), HarnessError> {
         .zip(&built.outlines)
         .find(|(_, outlined)| matches!(outlined, Outlined::Refused(_)))
     {
-        return Err(HarnessError::Pack {
+        return Err(PackError::Pack {
             item: item.id.clone(),
             problem: format!(
                 "its outline was refused ({refusal}); mark it `no_outline` with a reason"
             ),
         });
     }
-    let bytes = encode_pack(&built.pack, &built.pictures).map_err(HarnessError::Port)?;
+    let bytes = encode_pack(&built.pack, &built.pictures).map_err(PackError::Port)?;
     fs::write(&out, &bytes)?;
     println!(
         "{}: {} items, {} bytes",
@@ -184,7 +207,7 @@ fn describe(built: &Built) {
 /// A contact sheet per tier of the built pack in `dir`, `<pack id>-<tier>.png`, each picture
 /// with its outline in red, or the one the derivation made of an item listed without one in
 /// blue; a composition beside its value masses, their edges red, or blue where listed without.
-fn write_sheets(built: &Built, dir: &Path) -> Result<(), HarnessError> {
+fn write_sheets(built: &Built, dir: &Path) -> Result<(), PackError> {
     let pack = &built.pack;
     for tier in Tier::ALL {
         let mut cells = Vec::new();
@@ -192,7 +215,7 @@ fn write_sheets(built: &Built, dir: &Path) -> Result<(), HarnessError> {
             (pack.items.iter().zip(&built.pictures)).zip(built.outlines.iter().zip(&built.masses));
         for ((item, bytes), (outlined, massed)) in items {
             if item.tier == tier && !item.kind.cropped() {
-                let (size, rgba) = decode_image(bytes).map_err(|error| HarnessError::Pack {
+                let (size, rgba) = decode_image(bytes).map_err(|error| PackError::Pack {
                     item: item.id.clone(),
                     problem: format!("its built picture: {error}"),
                 })?;

@@ -27,7 +27,10 @@ pub fn check(root: &Path, files: &[String]) -> Vec<Finding> {
 }
 
 fn is_crate_manifest(path: &str) -> bool {
-    path.ends_with("/Cargo.toml") && (path.starts_with("crates/") || path.starts_with("apps/"))
+    path.ends_with("/Cargo.toml")
+        && ["crates/", "apps/", "tools/"]
+            .iter()
+            .any(|d| path.starts_with(d))
 }
 
 fn check_manifest(

@@ -12,7 +12,7 @@ use openpaint_store::{encode_image, encode_pack, open_pack};
 use super::build::build;
 use super::fetch::{Fetcher, cache_name};
 use super::list::SourceList;
-use crate::error::HarnessError;
+use crate::error::PackError;
 use crate::scratch::Scratch;
 
 const LIST: &str = r#"
@@ -70,8 +70,8 @@ fn cache() -> Scratch {
     dir
 }
 
-pub(super) fn no_segment(_: [u32; 2], _: &[u8]) -> Result<openpaint_practice::Matte, HarnessError> {
-    Err(HarnessError::Missing("no outline is derived for a crop"))
+pub(super) fn no_segment(_: [u32; 2], _: &[u8]) -> Result<openpaint_practice::Matte, PackError> {
+    Err(PackError::Missing("no outline is derived for a crop"))
 }
 
 #[test]
@@ -141,10 +141,10 @@ fn a_crop_list_s_marks_are_checked() {
     let with = |line: &str| SourceList::parse(&LIST.replace("no_crop.2", line));
     assert!(matches!(
         with("tier = \"simple\"\nno_crop.2"),
-        Err(HarnessError::List(_))
+        Err(PackError::List(_))
     ));
     assert!(
-        matches!(with("no_crop.3"), Err(HarnessError::List(_))),
+        matches!(with("no_crop.3"), Err(PackError::List(_))),
         "two crops a photograph"
     );
     let blank = LIST.replace("\"a test of the list's mark\"", "\" \"");

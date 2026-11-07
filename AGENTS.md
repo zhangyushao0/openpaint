@@ -25,7 +25,7 @@ Do not rebuild the big picture from source; the module map is in ARCHITECTURE. D
 - Read source with Read; search with Grep / Glob. Do not read source through cat, sed or grep commands.
 - Edit source with Edit; use Write for new files or full rewrites. `sed` is fine where it is quicker (one-line changes, renames, hash replacements; author, 2026-10-04, after a trial in S30); no Python or heredoc scripts.
 - Deletes name every path exactly (author, 2026-11-07): many at once is fine when each path is spelt out, from a listing looked at first or a tool that computes and prints them, or one named folder by its quoted absolute path; never shell wildcards or globs, never `cargo clean` or `git clean`, and never anything under `artifacts/device/backups/`.
-- No .py / .sh / .ps1 files in the repository; tooling is Rust in `xtask`. `cargo repo-check` rejects them.
+- No .py / .sh / .ps1 files in the repository (`cargo repo-check` rejects them); tooling is Rust in `xtask`, the practice-pack builder in `tools/packs` (a workspace of its own outside the gate: `cargo test --manifest-path tools/packs/Cargo.toml` when it changes).
 - Bash is for cargo, git and running programs only.
 
 ## Three verification tiers, in order

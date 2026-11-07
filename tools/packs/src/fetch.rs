@@ -7,7 +7,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use crate::error::HarnessError;
+use crate::error::PackError;
 
 /// Who is asking, and where to find out more.
 pub const USER_AGENT: &str = concat!(
@@ -60,7 +60,7 @@ impl Fetcher {
     /// # Errors
     /// `Fetch` when the download fails or, without the network, the cache lacks it; `Io` when
     /// the cache cannot be written.
-    pub fn get(&self, name: &str, url: &str) -> Result<Vec<u8>, HarnessError> {
+    pub fn get(&self, name: &str, url: &str) -> Result<Vec<u8>, PackError> {
         self.get_with(name, url, &[])
     }
 
@@ -73,7 +73,7 @@ impl Fetcher {
         name: &str,
         url: &str,
         headers: &[(&str, &str)],
-    ) -> Result<Vec<u8>, HarnessError> {
+    ) -> Result<Vec<u8>, PackError> {
         self.get_part(name, url, (headers, &|bytes| Ok(bytes.to_vec())))
     }
 
@@ -88,12 +88,12 @@ impl Fetcher {
         name: &str,
         url: &str,
         (headers, part): (&[(&str, &str)], Part<'_>),
-    ) -> Result<Vec<u8>, HarnessError> {
+    ) -> Result<Vec<u8>, PackError> {
         let path = self.cache.join(name);
         if let Ok(bytes) = fs::read(&path) {
             return Ok(bytes);
         }
-        let failed = |detail: String| HarnessError::Fetch {
+        let failed = |detail: String| PackError::Fetch {
             url: url.to_owned(),
             detail,
         };
@@ -131,7 +131,7 @@ impl Fetcher {
     ///
     /// # Errors
     /// As `get`; `Fetch` when the answer is not JSON (the cached file stays for a look).
-    pub fn json(&self, name: &str, url: &str) -> Result<serde_json::Value, HarnessError> {
+    pub fn json(&self, name: &str, url: &str) -> Result<serde_json::Value, PackError> {
         self.json_with(name, url, &[])
     }
 
@@ -144,9 +144,9 @@ impl Fetcher {
         name: &str,
         url: &str,
         headers: &[(&str, &str)],
-    ) -> Result<serde_json::Value, HarnessError> {
+    ) -> Result<serde_json::Value, PackError> {
         let bytes = self.get_with(name, url, headers)?;
-        serde_json::from_slice(&bytes).map_err(|error| HarnessError::Fetch {
+        serde_json::from_slice(&bytes).map_err(|error| PackError::Fetch {
             url: url.to_owned(),
             detail: format!("not JSON ({error}); cached as {name}"),
         })

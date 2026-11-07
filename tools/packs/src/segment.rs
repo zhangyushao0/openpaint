@@ -17,7 +17,7 @@ use openpaint_practice::Matte;
 use tract_onnx::prelude::*;
 
 use super::fetch::{Fetcher, fnv_bytes};
-use crate::error::HarnessError;
+use crate::error::PackError;
 
 /// A segmentation model as the builder fetches and feeds it.
 struct Model {
@@ -56,9 +56,9 @@ impl Segmenter {
     ///
     /// # Errors
     /// `Fetch` when it cannot be downloaded, is not the file expected, or does not load.
-    pub fn load(fetcher: &Fetcher) -> Result<Self, HarnessError> {
+    pub fn load(fetcher: &Fetcher) -> Result<Self, PackError> {
         let model = &U2NET;
-        let failed = |detail: String| HarnessError::Fetch {
+        let failed = |detail: String| PackError::Fetch {
             url: model.url.to_owned(),
             detail,
         };
@@ -86,7 +86,7 @@ impl Segmenter {
     ///
     /// # Errors
     /// `Missing` when the pixels are not a picture of `size` or the model does not run.
-    pub fn matte(&self, size: [u32; 2], rgba: &[u8]) -> Result<Matte, HarnessError> {
+    pub fn matte(&self, size: [u32; 2], rgba: &[u8]) -> Result<Matte, PackError> {
         let model = self.model;
         let side = model.side;
         let on_white: Vec<u8> = (rgba.as_chunks::<4>().0.iter())
@@ -96,9 +96,8 @@ impl Segmenter {
                     .map(|c| ((u32::from(p[c]) * alpha + 255 * (255 - alpha) + 127) / 255) as u8)
             })
             .collect();
-        let picture = RgbImage::from_raw(size[0], size[1], on_white).ok_or(
-            HarnessError::Missing("a picture's pixels are not of its size"),
-        )?;
+        let picture = RgbImage::from_raw(size[0], size[1], on_white)
+            .ok_or(PackError::Missing("a picture's pixels are not of its size"))?;
         let input = imageops::resize(&picture, side, side, FilterType::Lanczos3);
         let brightest = f32::from(input.pixels().flat_map(|Rgb(p)| *p).max().unwrap_or(0)).max(1.0);
         let side = side as usize;
@@ -111,13 +110,13 @@ impl Segmenter {
         let outputs = self
             .plan
             .run(tvec!(tensor.into()))
-            .map_err(|_| HarnessError::Missing("the segmentation model did not run"))?;
+            .map_err(|_| PackError::Missing("the segmentation model did not run"))?;
         let map = outputs[0]
             .to_plain_array_view::<f32>()
-            .map_err(|_| HarnessError::Missing("the segmentation model gave no map"))?;
+            .map_err(|_| PackError::Missing("the segmentation model gave no map"))?;
         let values: Vec<f32> = map.iter().map(|v| v.clamp(0.0, 1.0)).collect();
         if values.len() != side * side {
-            return Err(HarnessError::Missing(
+            return Err(PackError::Missing(
                 "the segmentation model's map is not its side",
             ));
         }

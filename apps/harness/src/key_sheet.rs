@@ -13,9 +13,8 @@ use openpaint_practice::{Areas, Point, Rgb8};
 use crate::error::HarnessError;
 use crate::key_shifts::{Crop, Painted, Row};
 use crate::output::write_rgba;
-use crate::pack::sheet::{draw_in, fill, number, thumbnail};
+use openpaint_sheet::{CELL, draw_in, fill, number, thumbnail};
 
-const CELL: u32 = 480;
 const GAP: u32 = 14;
 const COLUMNS: u32 = 6;
 const ROWS: usize = 8;
