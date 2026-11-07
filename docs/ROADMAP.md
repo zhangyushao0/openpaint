@@ -52,9 +52,15 @@ Stages 1 to 4 are built and stage 5 has begun (S75 to S107 are done: the list at
 
 Stage 5 follows V大's weeks 5 and 6 as the author approved it on a mock (2026-11-06, every recommendation taken): key shifts (S107, done), abstract analysis, structure rotation; each joins stage 5's sessions after the key shifts and gets a drill tile.
 
+Practice as a module (the author, 2026-11-07, after a review): a kind's code is spread by layer over six crates and dispatched by central matches (S107 touched 69 files: 21 in ui, 19 in practice, 11 in app, 6 in the harness; `Kind` and `Overlay` matched 416 times in 52 files outside practice), the practice crate lies flat (93 files named by prefix), and the pack builder's web clients and ONNX matte build and test in every gate. Before more kinds, practice becomes a module: a kind in one folder behind one description, its own crates, the painting crates not depending on it. Behaviour, scenarios and their hashes stay as they are in each slice.
+
+- S108 Practice in folders: `crates/practice/src` regrouped so a kind's generator, answer, check and How live in its own folder and shared algorithms (geometry, outlines, colour areas, value masses, sessions and records, packs) in theirs; only `lib.rs` at the root. `Kind::Areas` (never planned since S101) leaves the type: the store's upgrade turns its records into what the book and times need, nothing the author painted or counted lost. Done: the gate; `cargo scenarios` with no hash changed; the book of a library holding such records reads as before (a store test).
 - Next, each specified when the one before lands:
-  - S108 Abstract analysis (抽象分析): the user marks a picture's strongest place, its contrasts, the secondary and weak ones and their distribution on a layer over it; Compare veils where each measurable contrast (value, chroma, hue, sharpness) is weak and scores nothing.
-  - S109 Structure rotation against renders.
+  - S109 One description per kind: a kind's facts (name, family, frames, pens, How, check) in one place in its folder; a check returns generic marks (outlines, swatches, a disc, a bar, construction lines, the card's lines) that the ui draws without knowing the kind; each kind's texts in one file; no `Kind` or `Overlay` match outside practice but in tests.
+  - S110 Practice crates of their own: the flow (from app) in `openpaint-practice-app`, the cards, marks, tiles and How (from ui) in `openpaint-practice-ui`; app, ui and store depend on no practice crate, offering a mode slot, an opaque record keyspace and gallery and canvas hooks; the runtime composes them.
+  - S111 Pack tools apart: the pack builder, its web clients and the ONNX matte in a workspace of their own under `tools/packs/`, outside the gate; the harness keeps the validation sheets; the packs built byte-identical.
+  - S112 Abstract analysis (抽象分析), the first kind on the module: the user marks a picture's strongest place, its contrasts, the secondary and weak ones and their distribution on a layer over it; Compare veils where each measurable contrast (value, chroma, hue, sharpness) is weak and scores nothing.
+  - S113 Structure rotation against renders.
   - Stage 7 (V大's weeks 7 and 8): curved structure rotation and objects placed by a plan, whole-picture key shifts toward two tendencies, abstract analysis for one's own small composition.
   - Trajectories, stage reports and re-tests.
 
