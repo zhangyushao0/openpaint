@@ -92,6 +92,7 @@ Agent output belongs in `crates/` product code and tests. The following count as
 - Design from the best end state (author, 2026-10-16): code and module structure follow the design as it should be, never bent by history or compatibility; restructure when a new design wants it; what a slice replaces goes in that slice or in the cleanup slice ROADMAP names; old data shapes are converted only by the store's upgrade steps, nothing else in the code handles them.
 - Reasoning effort is set by the author at session start: high for design and trade-offs, low for splitting files, updating call sites and fixing compile errors.
 - At most 3 subagents at a time (author, 2026-10-22), no nesting, no reviewer swarms; parallel slices work in their own worktrees on disjoint crates, and the main session merges them and keeps the four documents. Do in the main session what can be done there.
+- Structure stays a module's own (author, 2026-11-07): before dispatching a slice, the main session reads the last slices' footprints; when one feature spreads over more than three crates or a central list every feature must edit keeps growing, a structural slice goes into ROADMAP before more features. Rules that can be checked go into repo-check, not into reviews.
 - Code rules (enforced by repo-check and clippy): .rs files at most 400 lines; functions at most 60 lines; dependencies only point down (see ARCHITECTURE); core never mentions GPU, UI, file system or threads; `Result<_, String>` only at platform boundaries and in xtask; no `cfg(feature)` in product crates; every crate root has `#![forbid(unsafe_code)]` (JNI in `apps/android` excepted, and the harness, which denies it but for its counting allocator, S51).
 
 ## Design from the user inward
@@ -105,4 +106,4 @@ A feature is an interaction first and code second. For every slice that changes 
 
 ## Handover note
 
-At the end, state: what was done, what was verified (commands and results), what was not done, what the author must decide. Do not restate the documents.
+At the end, state: what was done, what was verified (commands and results), what was not done, what the author must decide, and the footprint: the crates and files touched, the central places every such feature must edit, any structural friction met. Do not restate the documents.
