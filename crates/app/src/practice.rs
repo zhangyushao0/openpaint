@@ -14,14 +14,14 @@ use std::sync::Arc;
 
 use openpaint_core::Color;
 use openpaint_practice::{
-    Areas, ExerciseResult, Family, Kind, KindSummary, Level, Original, Pack, Pair, Point, Rgb8,
-    SessionRecord, Sheet, Tendency, Value,
+    Areas, CardItem, ExerciseResult, Family, KindSummary, Level, Original, Pack, Pair, Point, Rgb8,
+    SessionRecord, Sheet, SheetMark, Tendency, Value,
 };
 
 use crate::layer_rules::LayerRefusal;
 use crate::practice_pictures::{PictureImage, SheetPicture};
 use crate::practice_sheet::Finished;
-pub use crate::practice_shown::{AreasRead, KeyRead, Overlay};
+pub use crate::practice_shown::{CopyRead, Greys};
 use crate::projection::Availability;
 use crate::title::Title;
 use crate::view::Viewport;
@@ -32,10 +32,8 @@ pub const AREAS_SIDE: u32 = 400;
 /// The side an object's picture is drawn at (S94), likewise.
 pub const OBJECT_SIDE: u32 = 400;
 /// How much of a colour combination's, a colour copy's, a division's or a whole copy's original
-/// shows over the copy at first, in place; and how much of a single shape's picture shows under
-/// its outline.
+/// shows over the copy at first, in place.
 pub const SHOWN: f32 = 0.5;
-pub const SHAPE_SHOWN: f32 = 0.35;
 
 /// What the user can ask of a practice session.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -201,7 +199,11 @@ pub struct PracticeProjection {
     /// The shown exercise's stored result, once compared.
     pub result: Option<ExerciseResult>,
     /// What lies over the copy while comparing.
-    pub overlay: Option<Overlay>,
+    pub overlay: Option<Vec<SheetMark>>,
+    /// What the card shows of the comparison under its title (S109).
+    pub card: Vec<CardItem>,
+    /// A compared key shift's frames in grey, while the Grey view shows them (S107).
+    pub greys: Option<Arc<Greys>>,
     /// The instructions shown, for a family.
     pub instructions: Option<Family>,
     /// Once done: this session's means beside the earlier ones', per kind.
@@ -222,6 +224,14 @@ pub struct PracticeProjection {
     pub cell: Option<usize>,
     /// The last point the eyedropper compared, while comparing.
     pub probe: Option<Probe>,
+    /// The comparison shown, as its kind found the copy (S109): what `overlay` and `card` come
+    /// from.
+    pub compared: Option<openpaint_practice::Comparison>,
+    /// How strongly the original shows over the copy, the area the card compares and whether a
+    /// key shift's frames show in grey, as the user set them.
+    pub shown: f32,
+    pub area: usize,
+    pub grey: bool,
 }
 
 /// A session's sheet as the screen draws it.
@@ -244,6 +254,8 @@ pub struct SheetView {
     pub painted: Vec<Option<Arc<PictureImage>>>,
     /// Each key shift's tendency, printed beside its frame (S107).
     pub tendencies: Vec<Option<Tendency>>,
+    /// What each exercise gives in its frames before Compare, as its kind draws it (S109).
+    pub givens: Vec<Vec<SheetMark>>,
 }
 
 impl SheetView {
@@ -261,11 +273,11 @@ impl SheetView {
         let painted = (originals.iter().zip(&pictures).zip(&families))
             .map(|((original, picture), family)| painted(original, picture.as_deref(), *family))
             .collect();
+        let givens = (record.exercises.iter().zip(&originals))
+            .map(|(exercise, original)| exercise.givens(original))
+            .collect();
         let tendencies = (record.exercises.iter())
-            .map(|e| match e.kind {
-                Kind::KeyShift(tendency) => Some(tendency),
-                _ => None,
-            })
+            .map(|e| e.kind.tendency())
             .collect();
         Self {
             name: name.clone(),
@@ -276,6 +288,7 @@ impl SheetView {
             tendencies,
             originals,
             families,
+            givens,
         }
     }
 

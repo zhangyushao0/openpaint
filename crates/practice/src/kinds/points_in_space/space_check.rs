@@ -11,9 +11,9 @@
 //! it (a third's point on the diagonal, the next face's foot on the bottom edge run on).
 
 use crate::geometry::edges::Edge;
+use crate::geometry::heading::line_angle;
 use crate::geometry::marks::{last_edges, last_mark};
 use crate::geometry::off::{Heads, Off, Straight, once, ringed};
-use crate::kinds::boxes::perspective_check::line_angle;
 use crate::kinds::points_in_space::space::{SpaceAnswer, SpaceTask, Trick};
 use crate::maths::path::{Point, meet};
 use crate::records::metric::{Metric, Metrics};

@@ -78,7 +78,8 @@ pub(crate) struct HowOf {
 impl HowOf {
     /// `family`'s How with a value scale of `cells` in hand.
     pub(crate) fn new(family: Family, cells: usize) -> Self {
-        let cells = if family == Family::Scale { cells } else { 0 };
+        let made = crate::text::kind_words(family).made.is_some();
+        let cells = if made { cells } else { 0 };
         Self { family, cells }
     }
 
@@ -146,10 +147,7 @@ impl Demonstrations {
         if let Some((_, made)) = self.made.iter().find(|(made, _)| *made == of) {
             return Some(Arc::clone(made));
         }
-        let demo = match of.family {
-            Family::Scale => Demo::of_scale(of.cells),
-            family => Demo::of(family)?,
-        };
+        let demo = Demo::of_cells(of.family, of.cells)?;
         let made = Arc::new(demo);
         self.made.push((of, Arc::clone(&made)));
         Some(made)

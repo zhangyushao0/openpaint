@@ -9,8 +9,8 @@
 //! points too close.
 
 use crate::geometry::edges::Edge;
+use crate::geometry::heading::{Checked, ON_ANGLE, checked, line_angle, sub};
 use crate::geometry::perspective::{Direction, FAR, angle_between};
-use crate::kinds::boxes::perspective_check::{Checked, ON_ANGLE, checked, line_angle, sub};
 use crate::maths::path::{Point, apart, distance};
 
 /// On a free page an edge within this angle of the vertical is a vertical (degrees).

@@ -39,7 +39,13 @@ fn every_kinds_card_has_a_step_for_each_step_of_its_demonstration() {
     // A value scale's How follows the row in hand (S97's review): of five, three steps naming its
     // cells; of nine, four.
     let five = text::how_steps(Family::Scale, 5, english);
-    assert_eq!(five.len(), Demo::of_scale(5).steps.len());
+    assert_eq!(
+        five.len(),
+        Demo::of_cells(Family::Scale, 5)
+            .expect("a scale's")
+            .steps
+            .len()
+    );
     assert_eq!(
         five,
         [
@@ -64,7 +70,11 @@ fn a_scale_s_how_plays_the_count_of_the_row_in_hand() {
         let mut output = ctx.run_ui(egui::RawInput::default(), |ui| demos.show(ui, of, &steps));
         output.textures_delta.clear();
         let playing = demos.playing.as_ref().expect("a demonstration");
-        assert_eq!(*playing.demo, Demo::of_scale(cells), "{cells}");
+        assert_eq!(
+            *playing.demo,
+            Demo::of_cells(Family::Scale, cells).expect("a scale's"),
+            "{cells}"
+        );
     }
     assert_eq!(demos.made.len(), 2, "each count made once");
     let line = HowOf::new(Family::Line, 5);

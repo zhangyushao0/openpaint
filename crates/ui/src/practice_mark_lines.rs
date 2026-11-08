@@ -7,9 +7,9 @@
 //! S88 kept a box's (`At::keeping_off`).
 
 use egui::{Align2, FontId, Pos2, Shape, Stroke};
-use openpaint_practice::{Frame, Off, Point, outside, within};
+use openpaint_practice::{Frame, Point, outside, within};
 
-use crate::design::{CORRECTION, DIVIDER, PANEL, PRINTED};
+use crate::design::{DIVIDER, PANEL, PRINTED};
 use crate::text::{self as t, Words};
 
 /// A ring's radius round a point or a middle, in points; a mark's line and the paper's halo under
@@ -19,8 +19,8 @@ pub(crate) const MARK: f32 = 2.0;
 pub(crate) const HALO: f32 = 3.0;
 pub(crate) const FAINT: f32 = 1.25;
 /// Dashes and gaps, in points.
-const DASH: f32 = 7.0;
-const GAP: f32 = 5.0;
+pub(crate) const DASH: f32 = 7.0;
+pub(crate) const GAP: f32 = 5.0;
 /// How strongly the answer's red lies over the copy.
 pub(crate) const SEE_THROUGH: f32 = 0.6;
 /// The horizon's label's size in canvas pixels of a frame.
@@ -109,20 +109,6 @@ pub(crate) fn line(
     }
 }
 
-/// The line through `points` (frame units) of `frame`, dashed, cut at the sheet's edge.
-pub(crate) fn dashed(
-    painter: &egui::Painter,
-    frame: &Frame,
-    points: &[Point],
-    at: At<'_>,
-    stroke: Stroke,
-) {
-    let canvas: Vec<Point> = points.iter().map(|p| frame.to_canvas(*p)).collect();
-    for part in at.parts(&canvas) {
-        painter.extend(Shape::dashed_line(&part, stroke, DASH, GAP));
-    }
-}
-
 /// A ring round `p` (frame units of `frame`) over the paper's halo, in `colour`; none off the
 /// sheet.
 pub(crate) fn ring(
@@ -143,22 +129,6 @@ pub(crate) fn ring(
 /// A faint line's stroke: the way to see an answer, laid on request (Construction).
 pub(crate) fn faint() -> Stroke {
     Stroke::new(FAINT, DIVIDER)
-}
-
-/// What is off over the copy in `frame` (S97, S98), in the marking red: a point or a middle
-/// ringed, an edge run on dashed past where it heads (that point ringed), a true vertical.
-pub(crate) fn marked(painter: &egui::Painter, frame: &Frame, off: &Off, at: At<'_>) {
-    let red = Stroke::new(MARK, CORRECTION);
-    match off {
-        Off::Ring(p) => ring(painter, (frame, *p), at, CORRECTION),
-        Off::RunOn { line, past } => {
-            dashed(painter, frame, line, at, red);
-            if let Some(p) = past {
-                ring(painter, (frame, *p), at, CORRECTION);
-            }
-        }
-        Off::Plumb(line) => segment(painter, frame, *line, at, red),
-    }
 }
 
 /// The horizon at `height` across `frame`, printed grey and labelled small at its left; `scale`

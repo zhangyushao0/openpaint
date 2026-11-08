@@ -7,8 +7,8 @@
 //! copy's example. Everything is in picture units, its width 1 and its height `size[1]`; the
 //! picture itself is `masses_picture.rs`.
 
+use crate::compositions::levels::Level;
 use crate::compositions::value_masses::Value;
-use crate::kinds::divisions::division::Level;
 use crate::maths::path::Point;
 use crate::maths::random::Random;
 

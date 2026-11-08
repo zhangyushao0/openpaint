@@ -13,8 +13,9 @@
 //! checked as geometry against its exact answer, at once on the frame loop
 //! (`practice_checks.rs`). A division (S95) has its picture laid under its lines, which are
 //! counted and measured per level, and a whole copy its picture laid over it, its division
-//! hidden: both in place and as strongly as the user sets. What lies over the copy is
-//! `practice_overlay.rs`.
+//! hidden: both in place and as strongly as the user sets. Whatever was found is a comparison
+//! (`openpaint_practice::Comparison`, S109) whose marks and card the screen draws
+//! (`practice_overlay.rs`).
 //!
 //! The first Compare stores the exercise's result: when, the sheet's next stroke id (every stroke
 //! in the frame from it on is a correction) and a colour's numbers (a painted copy's when its
@@ -22,40 +23,33 @@
 //! answer was seen; every later one counts. A drawn exercise's pen turns blue. Anything laid in
 //! the frame afterwards takes the comparison away: corrections are made by eye.
 
-use std::sync::Arc;
-
 use openpaint_core::{Artwork, RegionMask};
 use openpaint_practice::{
-    DivisionCheck, ExerciseResult, Family, Fit, Frame, Metrics, Original, Rgb8, score_colour,
+    ColourCompared, Comparison, DivisionCompared, ExerciseResult, Family, Fit, Frame,
+    LinesCompared, Metrics, Original, PictureCompared, ShapeCompared, score_colour,
 };
 
 use super::read::Reading;
 use super::{PracticeSheet, unavailable};
 use crate::error::AppError;
 use crate::layer_rules::LayerRefusal;
-use crate::practice::{Overlay, Pen, PracticeNotice};
+use crate::practice::{Pen, PracticeNotice};
 use crate::practice_copy::{ALL_STROKES, colour_copy, holds_copy, line_pieces};
 use crate::practice_pictures::FitJob;
 use crate::projection::Availability;
 
-/// The check over the shown copy, as Compare found the copy.
+/// The comparison over the shown copy, as Compare found the copy.
 #[derive(Debug, Clone, PartialEq)]
 pub(super) enum Compared {
     /// A drawn copy (lines, a group or a shape) and the original's fit onto it.
-    Drawn(Fitting),
-    Colour {
-        original: Rgb8,
-        first: Rgb8,
-        last: Rgb8,
-    },
-    /// A painted copy and what its pixels read as.
-    Painted(Reading),
-    /// A box's or an ellipse's copy, its geometry checked (`Overlay::Box`, `FreeBoxes`,
-    /// `Ellipse`).
-    Checked(Overlay),
-    /// A division's lines read (S95): its picture lies under them as strongly as the user sets.
-    /// Lines drawn after it are the division's own: no correcting pen.
-    Divided(Arc<DivisionCheck>),
+    Drawn(Fitting, Comparison),
+    /// A colour's colours, or a division's lines read (S95: lines drawn after it are the
+    /// division's own, no correcting pen).
+    Made(Comparison),
+    /// A painted copy, what its pixels read as, and what shows until they are read.
+    Painted(Reading, Comparison),
+    /// A copy checked as geometry (S97, S98): a Construction to lay over it.
+    Checked(Comparison),
 }
 
 /// The aligned overlay's fit.
@@ -67,6 +61,19 @@ pub(super) enum Fitting {
     Found(Option<Fit>),
     /// None to be had: a picture without an outline.
     Unavailable,
+}
+
+impl Compared {
+    /// What it shows now.
+    pub(super) fn shown(&self) -> &Comparison {
+        match self {
+            Self::Painted(Reading::Read(read), _) => &read.comparison,
+            Self::Drawn(_, shown)
+            | Self::Made(shown)
+            | Self::Painted(_, shown)
+            | Self::Checked(shown) => shown,
+        }
+    }
 }
 
 impl PracticeSheet {
@@ -107,7 +114,7 @@ impl PracticeSheet {
             }
         }
         self.changed = true;
-        if matches!(compared, Compared::Drawn(_) | Compared::Checked(_)) {
+        if matches!(compared, Compared::Drawn(..) | Compared::Checked(_)) {
             self.pen = Pen::Correct;
         }
         self.compared = Some(compared);
@@ -132,44 +139,73 @@ impl PracticeSheet {
         frame: &Frame,
     ) -> Result<Compared, AppError> {
         let nothing = || unavailable(Availability::NothingLeft);
-        Ok(match &self.sheet.originals[index] {
+        let corners = |sheet: &Self| {
+            (sheet.sheet.pictures.get(index).and_then(Option::as_ref)).map(|p| p.fit.corners())
+        };
+        let sheet = std::sync::Arc::clone(&self.sheet);
+        Ok(match &sheet.originals[index] {
             Original::Colour(original) => {
-                let picks = colour_copy(artwork, frame).picks;
-                let (Some(&first), Some(&last)) = (picks.first(), picks.last()) else {
+                let copy = colour_copy(artwork, frame);
+                let (Some(&first), Some(&last)) = (copy.picks.first(), copy.picks.last()) else {
                     return Err(nothing());
                 };
-                Compared::Colour {
+                let metrics = (score_colour(*original, &copy))
+                    .map(|score| score.metrics())
+                    .unwrap_or_default();
+                Compared::Made(Comparison::of(ColourCompared {
                     original: *original,
                     first,
                     last,
-                }
+                    metrics,
+                }))
             }
             _ if !holds_copy(artwork, frame) => return Err(nothing()),
-            // A colour combination, a crop's (S101) or a generated one's: read against its areas.
-            _ if self.sheet.areas(index).is_some() => Compared::Painted(self.ask_read(index)),
-            // A division: its lines counted, the picture under them (S95); a whole copy: the
-            // picture over it, its division hidden; both as strongly as the slider sets.
+            // A division: its lines counted, the picture under them (S95).
             Original::Picture(_) if self.family(index) == Some(Family::Division) => {
                 let check = self.division(index, artwork).ok_or_else(nothing)?;
-                Compared::Divided(Arc::new(check))
+                let corners = corners(self).ok_or_else(nothing)?;
+                Compared::Made(Comparison::of(DivisionCompared { corners, check }))
             }
-            Original::Picture(_) if self.family(index) == Some(Family::WholeCopy) => {
-                Compared::Painted(Reading::Shown)
+            _ if let Some((reading, unread)) = self.ask_read(index) => {
+                Compared::Painted(reading, unread)
             }
-            // Value masses (S96): the copy read against the picture's answer.
-            Original::Picture(_) if self.family(index) == Some(Family::ValueMasses) => {
-                Compared::Painted(self.ask_read(index))
+            // A colour copy or a whole copy: its picture over it as strongly as the slider sets;
+            // a whole copy keeps its own division's numbers.
+            Original::Picture(_) if !self.drawn(index) || self.whole_copy(index) => {
+                let corners = corners(self).ok_or_else(nothing)?;
+                let metrics = (self.whole_copy(index))
+                    .then(|| self.division(index, artwork))
+                    .flatten()
+                    .map(|check| check.metrics)
+                    .unwrap_or_default();
+                let shown = Comparison::of(PictureCompared { corners, metrics });
+                Compared::Painted(Reading::Shown, shown)
             }
-            Original::Scale(_) => Compared::Painted(self.ask_read(index)),
-            Original::Picture(_) if !self.drawn(index) => Compared::Painted(Reading::Shown),
-            Original::Lines(_) | Original::Picture(_) => {
-                Compared::Drawn(self.ask_fit(index, artwork, frame))
+            Original::Lines(lines) => {
+                let shown = Comparison::of(LinesCompared {
+                    lines: lines.clone(),
+                });
+                Compared::Drawn(self.ask_fit(index, artwork, frame), shown)
+            }
+            Original::Picture(_) => {
+                let picture = self.sheet.pictures.get(index).and_then(Option::as_ref);
+                let picture = picture.ok_or_else(nothing)?;
+                let shown = Comparison::of(ShapeCompared {
+                    corners: picture.fit.corners(),
+                    outline: picture.outline.clone(),
+                });
+                Compared::Drawn(self.ask_fit(index, artwork, frame), shown)
             }
             geometry => {
                 let checked = self.checked(index, geometry, (artwork, frame));
                 Compared::Checked(checked.ok_or_else(nothing)?)
             }
         })
+    }
+
+    /// Whether exercise `index` is a whole copy.
+    fn whole_copy(&self, index: usize) -> bool {
+        self.family(index) == Some(Family::WholeCopy)
     }
 
     /// Whether Compare is offered on exercise `current` of `artwork`: once it holds a copy or was
@@ -220,7 +256,7 @@ impl PracticeSheet {
     /// The fit for the Compare numbered `sequence` was found (`None`: the copy had no length);
     /// a later Compare's or none waiting drops it.
     pub(crate) fn fitted(&mut self, sequence: u64, fit: Option<Fit>) {
-        if let Some(Compared::Drawn(fitting)) = &mut self.compared
+        if let Some(Compared::Drawn(fitting, _)) = &mut self.compared
             && *fitting == Fitting::Asked(sequence)
         {
             *fitting = Fitting::Found(fit);
@@ -232,26 +268,11 @@ impl PracticeSheet {
         self.fit_job.take()
     }
 
-    /// A colour's numbers now, or an estimate's or a point in space's error as `compared` found
-    /// it; other drawn exercises have none, a painted one's come with its pixels.
-    fn numbers(&self, artwork: &Artwork, index: usize, compared: &Compared) -> Metrics {
-        let frame = self.sheet.pairs[index].copy;
-        match (compared, &self.sheet.originals[index]) {
-            (_, Original::Colour(rgb)) => (score_colour(*rgb, &colour_copy(artwork, &frame)))
-                .map(|score| score.metrics())
-                .unwrap_or_default(),
-            (Compared::Checked(Overlay::Flat(check)), _) => check.metrics.clone(),
-            (Compared::Checked(Overlay::Space(check)), _) => check.metrics.clone(),
-            (Compared::Checked(Overlay::Solid(check) | Overlay::Object(check)), _) => {
-                check.metrics.clone()
-            }
-            (Compared::Divided(check), _) => check.metrics.clone(),
-            // A whole copy keeps its own division's numbers.
-            _ if self.family(index) == Some(Family::WholeCopy) => (self.division(index, artwork))
-                .map(|check| check.metrics)
-                .unwrap_or_default(),
-            _ => Metrics::new(),
-        }
+    /// The numbers a first Compare keeps as `compared` found them: a colour's, an estimate's, a
+    /// point in space's, a solid's, an object's or a division's error or counts (a whole copy its
+    /// own division's); a painted copy's come with its pixels.
+    fn numbers(&self, _artwork: &Artwork, _index: usize, compared: &Compared) -> Metrics {
+        compared.shown().metrics()
     }
 
     /// The region a fill of the shown colour's, colour combination's or value scale's cell's

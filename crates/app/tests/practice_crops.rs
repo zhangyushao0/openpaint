@@ -7,12 +7,13 @@
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Overlay, PictureImage, PracticeIntent, PracticeLog, PracticePens, PracticePick,
-    Session, SheetView, Title, Toolbox, Viewport, sheet_of,
+    BrushLibrary, PictureImage, PracticeIntent, PracticeLog, PracticePens, PracticePick, Session,
+    SheetView, Title, Toolbox, Viewport, sheet_of,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Areas, Exercise, Family, ItemRef, Kind, Pack, PackItem, PictureKind, Plan, SessionRecord, Tier,
+    Areas, AreasCompared, Exercise, Family, Figure, ItemRef, Kind, Pack, PackItem, PictureKind,
+    Plan, SessionRecord, Tier,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -94,8 +95,23 @@ fn practise(session: &mut Session, intent: PracticeIntent) {
     session.practise(intent, 1_791_400_000).expect("practised");
 }
 
-fn overlay(session: &Session) -> Option<Overlay> {
-    session.projection().practice()?.overlay.clone()
+/// The colour combination as compared, and the outline of the area the card compares as the
+/// frames show it.
+fn overlay(session: &Session) -> Option<(AreasCompared, Vec<Vec<[f64; 2]>>)> {
+    let projection = session.projection();
+    let practice = projection.practice()?;
+    let compared = practice
+        .compared
+        .as_ref()?
+        .downcast::<AreasCompared>()?
+        .clone();
+    let outline = (practice.overlay.iter().flatten())
+        .find_map(|mark| match &mark.drawn {
+            Figure::Haloed { lines, red: false } => Some(lines.clone()),
+            _ => None,
+        })
+        .unwrap_or_default();
+    Some((compared, outline))
 }
 
 /// The copy Compare asks for, read as painted: the bands right, but the second pushed far from
@@ -147,11 +163,12 @@ fn a_crop_is_copied_beside_it_in_a_frame_of_its_shape_and_read_against_its_areas
     );
     practise(&mut session, PracticeIntent::Compare(true));
     read_wide_copy(&mut session);
-    let Some(Overlay::Areas {
-        read: Some(read),
+    let Some((
+        AreasCompared {
+            read: Some(read), ..
+        },
         outline,
-        ..
-    }) = overlay(&session)
+    )) = overlay(&session)
     else {
         panic!("the copy read")
     };

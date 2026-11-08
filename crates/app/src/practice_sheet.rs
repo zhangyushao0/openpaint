@@ -50,9 +50,10 @@ mod time;
 #[path = "practice_view.rs"]
 mod view;
 
+pub use crate::practice_shown::CopyRead;
 pub(crate) use pens::{CopyLayer, Layering};
 pub use pick::PracticePick;
-pub use read::{CopyRead, ReadAs, ReadJob};
+pub use read::{ReadAs, ReadJob};
 pub use time::Finished;
 pub use view::PRACTICE_ROOM;
 
@@ -344,6 +345,12 @@ impl PracticeSheet {
         let place = current.map_or((0, 0), |index| self.record.place(index));
         let before: Vec<&SessionRecord> = self.before.iter().collect();
         let pen = self.pen_style(brush).map(|style| (self.pen, style.size()));
+        let painted = self.painted_overlay();
+        let (overlay, card, greys) = current
+            .and_then(|_| self.overlay())
+            .map_or((None, Vec::new(), None), |(marks, card, greys)| {
+                (Some(marks), card, greys)
+            });
         PracticeProjection {
             sheet: Arc::clone(&self.sheet),
             revealed: self.revealed(),
@@ -362,7 +369,9 @@ impl PracticeSheet {
             all_tools: self.all_tools,
             pen,
             result: result.cloned(),
-            overlay: current.and_then(|index| self.overlay(index)),
+            overlay,
+            card,
+            greys,
             instructions: self.instructions,
             summary: current.is_none().then(|| summary(&self.record, &before)),
             finished: self.finished(),
@@ -373,6 +382,10 @@ impl PracticeSheet {
             grounded: self.grounded.clone(),
             cell: self.cell(),
             probe: self.probe(),
+            compared: (self.compared.as_ref()).map(|compared| compared.shown().clone()),
+            shown: painted.0,
+            area: painted.1,
+            grey: painted.3,
         }
     }
 }

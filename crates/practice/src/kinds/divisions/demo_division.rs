@@ -6,9 +6,9 @@
 //! green; Draw, the division dimming under the big shapes' lines in ink; Compare lays the picture
 //! over the copy, the division gone.
 
+use crate::compositions::levels::Level;
 use crate::compositions::masses::Masses;
 use crate::demos::demo::{Demo, Drawn, Layout, Marker, On, Script, wobbled};
-use crate::kinds::divisions::division::Level;
 use crate::maths::path::Point;
 use crate::sessions::plan::Family;
 use crate::sessions::sheet::PictureFit;

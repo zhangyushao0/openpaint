@@ -12,8 +12,8 @@
 
 use crate::geometry::edges::Edge;
 use crate::geometry::marks::{last_edges, last_mark};
+use crate::geometry::off::PEN_WIDTH;
 use crate::geometry::off::{Heads, Off, Straight, ringed};
-use crate::kinds::solids::solid::PEN_WIDTH;
 use crate::maths::path::{Point, distance};
 use crate::maths::random::Random;
 use crate::records::metric::{Metric, Metrics};

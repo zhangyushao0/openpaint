@@ -7,14 +7,15 @@
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Overlay, Pen, PictureImage,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Pen, PictureImage,
     PracticeIntent, PracticeLog, PracticeNotice, PracticePens, PracticePick, Probe, Session,
     SheetView, StrokeIntent, Title, Toolbox, Viewport, sheet_of,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Arrangement, Exercise, Family, GeneratedAreas, ItemRef, Kind, Metric, Original, Pack, PackItem,
-    Pair, PictureKind, Plan, ScaleTone, SessionRecord, Tier, ValueScale, value,
+    AreasCompared, Arrangement, Compared, Exercise, Family, Figure, GeneratedAreas, ItemRef, Kind,
+    Metric, Original, Pack, PackItem, Pair, PictureCompared, PictureKind, Plan, ScaleCompared,
+    ScaleTone, SessionRecord, Tier, ValueScale, value,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -107,8 +108,21 @@ fn read(session: &mut Session, pixels: Vec<u8>) {
     session.practice_read(job.sequence, job.run(&image));
 }
 
-fn overlay(session: &Session) -> Option<Overlay> {
-    session.projection().practice()?.overlay.clone()
+/// The comparison shown, as its kind's own.
+fn compared<T: Compared + Clone>(session: &Session) -> Option<T> {
+    let shown = session.projection().practice()?.compared.clone()?;
+    shown.downcast::<T>().cloned()
+}
+
+/// How strongly the original shows, the area compared, whether it is outlined over the frames.
+fn seen(session: &Session) -> (f32, usize, bool) {
+    let projection = session.projection();
+    let p = projection.practice().expect("a sheet");
+    let haloed = |m: &openpaint_practice::SheetMark| match &m.drawn {
+        Figure::Haloed { lines, red } => !red && !lines.is_empty(),
+        _ => false,
+    };
+    (p.shown, p.area, p.overlay.iter().flatten().any(haloed))
 }
 
 /// The combination's frames and areas, painted (its tone filled, a stroke of Big in the colour
@@ -152,26 +166,18 @@ fn a_colour_combination_is_painted_and_compared_its_numbers_kept_from_its_pixels
     let mut session = colour_work();
     let (_, areas) = painted_and_compared(&mut session);
     // Until the copy's frame is read, the picture shows without numbers.
-    let Some(Overlay::Areas {
-        read: None, shown, ..
-    }) = overlay(&session)
-    else {
+    let Some(AreasCompared { read: None, .. }) = compared(&session) else {
         panic!("the picture over the copy, not read yet")
     };
-    assert_eq!(shown, 0.5);
+    assert_eq!(seen(&session).0, 0.5);
     read(&mut session, areas.picture(400));
-    let Some(Overlay::Areas {
-        read: Some(read),
-        chosen: 0,
-        outline,
-        ..
-    }) = overlay(&session)
-    else {
-        panic!("read")
-    };
+    let read = compared::<AreasCompared>(&session).and_then(|a| a.read);
+    let read = read.expect("read");
+    let (_, chosen, outlined) = seen(&session);
+    assert_eq!(chosen, 0);
     let all: Vec<_> = areas.areas.colours.iter().copied().map(Some).collect();
     assert_eq!(read.copy.colours, all);
-    assert!(read.strong.is_empty() && !outline.is_empty());
+    assert!(read.strong.is_empty() && outlined);
     let record = session.practice_save_request().expect("the record changed");
     let metrics = &record.result(0).expect("compared").metrics;
     assert_eq!(value(metrics, Metric::AreasDelta), Some(0.0));
@@ -185,12 +191,8 @@ fn a_combination_s_card_shows_any_area_and_the_eyedropper_compares_a_point() {
     read(&mut session, areas.picture(400));
     practise(&mut session, PracticeIntent::Area(2));
     practise(&mut session, PracticeIntent::Shown(0.8));
-    let Some(Overlay::Areas {
-        chosen: 2, shown, ..
-    }) = overlay(&session)
-    else {
-        panic!("area 2")
-    };
+    let (shown, chosen, _) = seen(&session);
+    assert_eq!(chosen, 2, "area 2");
     assert!((shown - 0.8).abs() < 1e-6);
     assert!(session.practise(PracticeIntent::Area(9), 1).is_err());
     let point = pair.copy.to_canvas([0.3, 0.6]).map(|v| v as f32);
@@ -265,7 +267,10 @@ fn a_value_scale_is_painted_a_cell_at_a_time_and_read_against_an_even_scale() {
     assert_eq!(cell(&session), Some(3));
     practise(&mut session, PracticeIntent::Compare(true));
     read(&mut session, even_scale(&scale));
-    let Some(Overlay::Scale(Some(check))) = overlay(&session) else {
+    let Some(ScaleCompared {
+        check: Some(check), ..
+    }) = compared(&session)
+    else {
         panic!("the scale read")
     };
     assert!(check.uneven.is_empty() && check.reversed.is_empty());
@@ -345,17 +350,12 @@ fn a_long_colour_copy_opens_with_every_tool_compares_in_place_and_never_ends_by_
     let at = pair.copy.to_canvas([0.5, 0.375]).map(|v| v as f32);
     draw(&mut session, &[at, [at[0] + 80.0, at[1]]]);
     practise(&mut session, PracticeIntent::Compare(true));
-    let Some(Overlay::Picture {
-        corners,
-        outline,
-        shown,
-    }) = overlay(&session)
-    else {
+    let Some(PictureCompared { corners, .. }) = compared(&session) else {
         panic!("the picture over the copy")
     };
-    assert!(outline.is_empty() && (shown - 0.5).abs() < 1e-6);
+    assert!((seen(&session).0 - 0.5).abs() < 1e-6);
     let corner = pair.copy.to_canvas([1.0, 0.75]).map(|v| v as f32);
-    assert_eq!(corners[2], corner);
+    assert_eq!(pair.copy.to_canvas(corners[2]).map(|v| v as f32), corner);
     assert!(session.practice_read_request().is_none(), "nothing to read");
     practise(&mut session, PracticeIntent::Shown(1.0));
     let picked = session.practice_pick(on_original);

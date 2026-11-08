@@ -5,7 +5,7 @@
 //! (D108). The drawn kinds here; the colour kinds in `practice_demo_colour.rs`, perspective in
 //! `practice_demo_space.rs`, stage 3 in `practice_demo_points.rs` and `practice_demo_solids.rs`.
 
-use openpaint_practice::{Estimate, Family, Trick};
+use openpaint_practice::Family;
 
 use super::{Language, Text};
 
@@ -22,19 +22,19 @@ pub(crate) struct How {
     pub(crate) says: &'static [Text],
 }
 
-const LINE: How = How {
+pub(crate) const LINE: How = How {
     heading: super::COPY_A_LINE,
     trains: Some(LINE_TRAINS),
     steps: &[LINE_STEP_1, LINE_STEP_2, LINE_STEP_3, COMPARE_STEP],
     says: &[LINE_SAYS],
 };
-const COMBINED: How = How {
+pub(crate) const COMBINED: How = How {
     heading: super::COPY_COMBINED,
     trains: Some(GROUP_TRAINS),
     steps: &[GROUP_STEP_1, GROUP_STEP_2, GROUP_STEP_3, COMPARE_STEP],
     says: &[GROUP_SAYS],
 };
-const SHAPE: How = How {
+pub(crate) const SHAPE: How = How {
     heading: super::COPY_A_SHAPE,
     trains: Some(SHAPE_TRAINS),
     steps: &[
@@ -48,52 +48,27 @@ const SHAPE: How = How {
 };
 
 /// `family`'s How card's numbered steps as `language` reads them, one per step of its
-/// demonstration: a value scale's made for the `cells` of the row in hand (S97), then the card's
-/// own, Compare last.
+/// demonstration: those made for the `cells` of a value scale's row in hand (S97), then the
+/// card's own, Compare last.
 pub(crate) fn how_steps(family: Family, cells: usize, language: Language) -> Vec<String> {
-    let mut steps = if family == Family::Scale {
-        super::practice_demo_colour::scale_steps(language, cells)
-    } else {
-        Vec::new()
-    };
-    let own = how(family).steps.iter();
-    steps.extend(own.map(|step| step.get(language).to_owned()));
+    let words = super::kind_words(family);
+    let mut steps = words
+        .made
+        .map(|made| made(language, cells))
+        .unwrap_or_default();
+    steps.extend(
+        words
+            .how
+            .steps
+            .iter()
+            .map(|step| step.get(language).to_owned()),
+    );
     steps
 }
 
 /// `family`'s How card.
-pub(crate) const fn how(family: Family) -> How {
-    use super::practice_demo_colour as c;
-    use super::practice_demo_points as p;
-    use super::practice_demo_space as s;
-    match family {
-        Family::Line => LINE,
-        Family::Combined => COMBINED,
-        Family::Shape => SHAPE,
-        Family::Box => s::BOX,
-        Family::FreeBoxes => s::FREE,
-        Family::Ellipse => s::ELLIPSE,
-        Family::Point => p::estimate(Estimate::Point),
-        Family::Proportion => p::estimate(Estimate::Proportion),
-        Family::Angle => p::estimate(Estimate::Angle),
-        Family::Centre => p::trick(Trick::Centre),
-        Family::Halves => p::trick(Trick::Halves),
-        Family::Thirds => p::trick(Trick::Thirds),
-        Family::Step => p::trick(Trick::Step),
-        Family::Mirror => p::trick(Trick::Mirror),
-        Family::Cylinder => super::practice_demo_solids::CYLINDER,
-        Family::Cone => super::practice_demo_solids::CONE,
-        Family::Sphere => super::practice_demo_solids::SPHERE,
-        Family::Object => super::practice_demo_objects::OBJECT,
-        Family::Division => super::practice_demo_division::DIVISION,
-        Family::WholeCopy => super::practice_demo_division::WHOLE_COPY,
-        Family::ValueMasses => super::practice_masses::VALUE_MASSES,
-        Family::KeyShift => super::practice_key::KEY_SHIFT,
-        Family::Colour => c::COLOUR,
-        Family::Areas => c::AREAS,
-        Family::Scale => c::SCALE,
-        Family::Study => c::STUDY,
-    }
+pub(crate) fn how(family: Family) -> How {
+    super::kind_words(family).how
 }
 
 texts! { PRACTICE_DEMO;

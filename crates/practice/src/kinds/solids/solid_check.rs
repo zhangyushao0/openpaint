@@ -20,10 +20,10 @@
 
 use crate::geometry::edges::edges;
 use crate::geometry::ellipse::{Ellipse, EllipseGuide};
-use crate::geometry::off::{Heads, Off, Straight, middles_missed, once, turn};
+use crate::geometry::ellipse_fit::fit_ellipse;
+use crate::geometry::heading::{line_angle, sub};
+use crate::geometry::off::{Heads, Off, ReadCurve, Straight, middles_missed, once, turn};
 use crate::geometry::perspective::{Direction, PerspectiveBox};
-use crate::kinds::boxes::perspective_check::{line_angle, sub};
-use crate::kinds::ellipses::ellipse_fit::fit_ellipse;
 use crate::kinds::objects::object::ObjectTask;
 use crate::kinds::solids::solid::{Pose, Solid, SolidTask};
 use crate::kinds::solids::solid_answer::SolidAnswer;
@@ -48,14 +48,6 @@ const REDRAWN: f64 = 0.05;
 const SAME_WAY: f64 = 1e-4;
 /// A side is marked by an edge drawn along this share of it at least (S98).
 const ALONG: f64 = 0.4;
-
-/// What was read for one of the answer's ellipses: the curves drawn nearest it, and the ellipse
-/// fitted to them once they go far enough round.
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct ReadCurve {
-    pub pieces: Vec<Vec<Point>>,
-    pub fitted: Option<Ellipse>,
-}
 
 /// A solid's copy as Compare read it: per ellipse of the answer and per side, what is off, and
 /// how far off.

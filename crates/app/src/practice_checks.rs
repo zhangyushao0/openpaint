@@ -1,117 +1,33 @@
 //! The copies Compare checks as geometry, at once on the frame loop (each in well under a
-//! millisecond): a box's edges found and extended towards its vanishing points or a free page's
-//! horizon (a correction in place of the edge it redraws), an ellipse fitted to the lines (to the
-//! corrections once there are some), (S90) an estimate's or a point in space's last mark or lines
-//! read against the exact answer, and (S93) a solid's curves and sides read against the exact
-//! solid, (S94) an object's against its visible edges and outlines, the corrections in place of
-//! what they redraw. The sketch pen's construction is never read. And (S95) a division's lines,
-//! read by their pens' levels, joined, counted and measured: no answer to check them against.
+//! millisecond): the copy's lines handed to its kind's check (`Exercise::check`, S109) as drawn,
+//! and once compared before, as drawn before its first Compare and corrected after it; the sketch
+//! pen's construction is never read. And (S95) a division's lines, read by their pens' levels,
+//! joined, counted and measured: no answer to check them against.
 
 use std::ops::Range;
-use std::sync::Arc;
 
 use openpaint_core::Artwork;
-use openpaint_practice::{
-    BoxCheck, DivisionCheck, Edge, EllipseCheck, EllipseGuide, FlatCheck, Frame, FreeCheck,
-    Original, Point, SolidCheck, SpaceCheck, corrected, edges,
-};
+use openpaint_practice::{Comparison, DivisionCheck, DrawnCopy, Frame, Original};
 
 use super::PracticeSheet;
-use crate::practice::Overlay;
 use crate::practice_copy::{ALL_STROKES, division_pieces, line_pieces};
 
 impl PracticeSheet {
     /// Exercise `index`'s copy in `frame` of `artwork` checked as geometry; none for an exercise
-    /// of another kind.
+    /// of a kind not checked so.
     pub(super) fn checked(
         &self,
         index: usize,
         original: &Original,
         (artwork, frame): (&Artwork, &Frame),
-    ) -> Option<Overlay> {
-        let drawn = || line_pieces(artwork, frame, ALL_STROKES);
-        Some(match original {
-            Original::Box(exact) => {
-                let found = self.edges_in(index, artwork, frame);
-                Overlay::Box(Arc::new(BoxCheck::of(exact, &found)))
-            }
-            Original::FreeBoxes(page) => {
-                let found = self.edges_in(index, artwork, frame);
-                Overlay::FreeBoxes(Arc::new(FreeCheck::of(page.horizon, &found)))
-            }
-            Original::Ellipse(guide) => {
-                Overlay::Ellipse(Arc::new(self.ellipse_in(index, guide, (artwork, frame))))
-            }
-            Original::Flat(flat) => {
-                let pieces = drawn();
-                Overlay::Flat(Arc::new(FlatCheck::of(flat, &read(&pieces))))
-            }
-            Original::Space(task) => {
-                let pieces = drawn();
-                Overlay::Space(Arc::new(SpaceCheck::of(task, &read(&pieces))))
-            }
-            Original::Solid(task) => {
-                let (first, corrections) = self.drawn_then_corrected(index, (artwork, frame));
-                let lines = (read(&first), read(&corrections));
-                Overlay::Solid(Arc::new(SolidCheck::of(task, (&lines.0, &lines.1))))
-            }
-            Original::Object(task) => {
-                let (first, corrections) = self.drawn_then_corrected(index, (artwork, frame));
-                let lines = (read(&first), read(&corrections));
-                Overlay::Object(Arc::new(SolidCheck::of_object(task, (&lines.0, &lines.1))))
-            }
-            Original::Lines(_)
-            | Original::Colour(_)
-            | Original::Picture(_)
-            | Original::Areas(_)
-            | Original::Scale(_) => return None,
-        })
-    }
-
-    /// The straight edges of exercise `index`'s copy drawn in `frame` (the sketch pen's
-    /// construction left out), a correction in place of the edge it redraws.
-    fn edges_in(&self, index: usize, artwork: &Artwork, frame: &Frame) -> Vec<Edge> {
-        let found = |ids: Range<u64>| {
-            let pieces = line_pieces(artwork, frame, ids);
-            let lines: Vec<&[Point]> = pieces.iter().map(Vec::as_slice).collect();
-            edges(&lines)
+    ) -> Option<Comparison> {
+        let pieces = |ids: Range<u64>| line_pieces(artwork, frame, ids);
+        let copy = DrawnCopy {
+            all: pieces(ALL_STROKES),
+            corrected: (self.corrected_from(index))
+                .map(|since| (pieces(0..since), pieces(since..u64::MAX))),
         };
-        match self.corrected_from(index) {
-            Some(since) => corrected(found(0..since), found(since..u64::MAX)),
-            None => found(ALL_STROKES),
-        }
-    }
-
-    /// The ellipse drawn in `frame` against `guide`: the corrections once there are some (the
-    /// latest try, not one averaged with the first), else every line drawn.
-    fn ellipse_in(
-        &self,
-        index: usize,
-        guide: &EllipseGuide,
-        (artwork, frame): (&Artwork, &Frame),
-    ) -> EllipseCheck {
-        let pieces = |ids: Range<u64>| line_pieces(artwork, frame, ids);
-        let corrections = self
-            .corrected_from(index)
-            .map(|since| pieces(since..u64::MAX));
-        let drawn = (corrections.filter(|pieces| !pieces.is_empty()))
-            .unwrap_or_else(|| pieces(ALL_STROKES));
-        let lines: Vec<&[Point]> = drawn.iter().map(Vec::as_slice).collect();
-        EllipseCheck::of(guide, &lines)
-    }
-
-    /// Exercise `index`'s lines in `frame` drawn before its first Compare and the corrections
-    /// after it (the sketch pen's left out).
-    fn drawn_then_corrected(
-        &self,
-        index: usize,
-        (artwork, frame): (&Artwork, &Frame),
-    ) -> (Vec<Vec<Point>>, Vec<Vec<Point>>) {
-        let pieces = |ids: Range<u64>| line_pieces(artwork, frame, ids);
-        match self.corrected_from(index) {
-            Some(since) => (pieces(0..since), pieces(since..u64::MAX)),
-            None => (pieces(ALL_STROKES), Vec::new()),
-        }
+        self.record.exercises.get(index)?.check(original, &copy)
     }
 
     /// The first stroke id of exercise `index`'s corrections, once it was compared.
@@ -128,9 +44,4 @@ impl PracticeSheet {
         let side = picture.fit.size[0].max(picture.fit.size[1]);
         Some(DivisionCheck::of(&division_pieces(artwork, &frame), side))
     }
-}
-
-/// `pieces` as lines to read.
-fn read(pieces: &[Vec<Point>]) -> Vec<&[Point]> {
-    pieces.iter().map(Vec::as_slice).collect()
 }

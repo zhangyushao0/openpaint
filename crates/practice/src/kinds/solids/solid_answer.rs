@@ -17,8 +17,8 @@
 //! The world: y up, z away from the eye. Frame units on the picture.
 
 use crate::geometry::ellipse::{Ellipse, EllipseGuide};
-use crate::kinds::ellipses::ellipse_fit::placed;
-use crate::kinds::points_in_space::space::projected;
+use crate::geometry::ellipse_fit::placed;
+use crate::geometry::perspective_eye::projected;
 use crate::maths::path::Point;
 use crate::maths::vector::{Vector, add, dot, sub, times};
 

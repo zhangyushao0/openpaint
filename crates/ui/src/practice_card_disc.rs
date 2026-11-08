@@ -7,7 +7,7 @@
 //! everything outside it veiled in paper. It shows only on a compared key shift's card.
 
 use egui::{Color32, Mesh, Pos2, Sense, Shape, Stroke, Vec2};
-use openpaint_practice::{Point, Rgb8, Tendency, in_gamut, oklab};
+use openpaint_practice::{Point, Rgb8, in_gamut, oklab};
 
 use crate::design::{DIVIDER, INK, INK_SECONDARY, PANEL};
 use crate::practice_marks::colour;
@@ -23,21 +23,17 @@ const RINGS: usize = 5;
 const SECTORS: usize = 48;
 const VEIL_STEPS: usize = 96;
 const VEIL: f32 = 0.82;
-/// The mask's apex past the tendency's chroma, its base past grey and its base's half width, as
-/// shares of the apex's chroma.
-const APEX_PAST: f64 = 0.05;
-const BASE_PAST: f64 = 0.4;
-const BASE_HALF: f64 = 0.6;
 /// A ring's and a dot's radius, and the tendency's, in points.
 const MARK: f32 = 4.5;
 const TENDENCY_MARK: f32 = 8.0;
 
-/// The disc for the crop's `originals` and the copy's `colours` (none where not painted), its
-/// tendency and gamut mask, the `chosen` area heavier.
+/// The disc for the crop's `originals` and the copy's `colours` (none where not painted), the
+/// tendency where it lies in its colour, Gurney's `mask`, the `chosen` area heavier.
 pub(crate) fn disc(
     ui: &mut egui::Ui,
     (originals, colours): (&[Rgb8], &[Option<Rgb8>]),
-    tendency: Tendency,
+    (tendency, tendency_colour): (Point, Rgb8),
+    mask: &[Point; 3],
     chosen: usize,
 ) {
     let width = ui.available_width();
@@ -53,7 +49,7 @@ pub(crate) fn disc(
     };
     let painter = ui.painter();
     painter.add(Shape::mesh(colours_of(centre, radius)));
-    veil(painter, (centre, radius), &mask(tendency));
+    veil(painter, (centre, radius), mask);
     painter.circle_stroke(centre, radius, Stroke::new(1.0, DIVIDER));
     let ab = |c: Rgb8| {
         let [_, a, b] = oklab(c);
@@ -69,11 +65,11 @@ pub(crate) fn disc(
         }
         painter.circle_stroke(from, MARK, Stroke::new(weight, INK));
     }
-    let shown = at(tendency.ab());
+    let shown = at(tendency);
     painter.circle(
         shown,
         TENDENCY_MARK,
-        colour(tendency.colour()),
+        colour(tendency_colour),
         Stroke::new(1.5, INK),
     );
 }
@@ -103,19 +99,6 @@ fn colours_of(centre: Pos2, radius: f32) -> Mesh {
         }
     }
     mesh
-}
-
-/// Gurney's gamut mask for `tendency` (Oklab `a`, `b`): the apex at the tendency's direction past
-/// its chroma, the base across the other side past grey.
-fn mask(tendency: Tendency) -> [Point; 3] {
-    let [u, v] = tendency.direction();
-    let apex = tendency.chroma() + APEX_PAST;
-    let (base, half) = (-BASE_PAST * apex, BASE_HALF * apex);
-    [
-        [u * apex, v * apex],
-        [u * base - v * half, v * base + u * half],
-        [u * base + v * half, v * base - u * half],
-    ]
 }
 
 /// Paper over the disc (`centre`, `radius`) outside `triangle` (Oklab `a`, `b`, holding grey):

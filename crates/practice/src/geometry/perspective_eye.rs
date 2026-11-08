@@ -119,3 +119,12 @@ pub(crate) fn fitted(
         front,
     }
 }
+
+/// Where the eye looking level (`Eye` at no pitch) sees the world point or direction `p`. Every
+/// point it is asked of lies well in front of it: a box's middle at least 2.0 away, its corners
+/// at most 1.3 from its middle, a face's next one as far again, its depth turned 25 to 65 degrees
+/// from the eye's line.
+pub(crate) fn projected([x, y, z]: [f64; 3]) -> Point {
+    let z = z.max(1e-9);
+    [x / z, -y / z]
+}

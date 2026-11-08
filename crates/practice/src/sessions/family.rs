@@ -1,5 +1,8 @@
-//! What an exercise asks for, whatever its variant (`plan.rs`'s `Kind`): its instructions, its
-//! tools, its line in the summary.
+//! What an exercise asks for, whatever its variant (`Kind`): its family, as the user meets it (a
+//! tile, a How, a line in the summary). What each family is, its key, work and frames, its kind's
+//! description says (`Facts`, `kinds/`).
+
+use crate::kinds::{Described, Facts, KINDS, Work};
 
 /// An exercise's family.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -70,69 +73,69 @@ impl Family {
         Self::KeyShift,
     ];
 
+    /// The description of the kind it belongs to.
+    pub(crate) fn described(self) -> &'static dyn Described {
+        (KINDS.iter().copied())
+            .find(|kind| kind.facts().iter().any(|facts| facts.family == self))
+            .unwrap_or(KINDS[0])
+    }
+
+    /// What its kind's description says of it.
+    #[must_use]
+    pub fn facts(self) -> &'static Facts {
+        let facts = self.described().facts();
+        (facts.iter())
+            .find(|facts| facts.family == self)
+            .unwrap_or(&facts[0])
+    }
+
+    /// The family keyed `key` (`Facts::key`), if any.
+    #[must_use]
+    pub fn of_key(key: &str) -> Option<Self> {
+        Self::ALL
+            .into_iter()
+            .find(|family| family.facts().key == key)
+    }
+
     /// Whether its exercises are drawn with the pens as lines (lines, combined lines, single
     /// shapes, boxes, ellipses, estimates, points in space, solids, objects, divisions and whole
     /// copies), not coloured.
     #[must_use]
-    pub const fn drawn(self) -> bool {
-        !self.painted() && !matches!(self, Self::Colour)
-    }
-
-    /// Whether its copy is checked as geometry (boxes in perspective, ellipses, estimates, points
-    /// in space, solids, objects): what it holds found in the lines and set against an exact
-    /// answer or rule, never aligned.
-    #[must_use]
-    pub const fn geometric(self) -> bool {
-        self.drawn()
-            && !matches!(self, Self::Line | Self::Combined | Self::Shape)
-            && !self.divided()
-    }
-
-    /// Whether it is drawn with a division's pens in V大's three colours (a division, a whole
-    /// copy's division): no answer, the picture laid under the lines (S95).
-    #[must_use]
-    pub const fn divided(self) -> bool {
-        matches!(self, Self::Division | Self::WholeCopy)
-    }
-
-    /// Whether its exercises are painted with brushes and read from the copy's pixels (colour
-    /// combinations, value scales, colour copies, value masses, key shifts).
-    #[must_use]
-    pub const fn painted(self) -> bool {
+    pub fn drawn(self) -> bool {
         matches!(
-            self,
-            Self::Areas | Self::Scale | Self::Study | Self::ValueMasses | Self::KeyShift
+            self.facts().work,
+            Work::Lines | Work::Geometry | Work::Divided
         )
     }
 
-    /// Whether its answer is built from given parts in the one frame drawn in (S97): a value
-    /// scale, a box, free boxes, an ellipse; V大's five tricks and the three solids (S98). The
-    /// original's frame beside it is left empty, room for what Compare draws beyond the frame (the
-    /// sheet keeps its place, so strokes stay put). An estimate and an object keep their original
-    /// beside them: it is copied by eye.
+    /// Whether its copy is checked as geometry: what it holds found in the lines and set against
+    /// an exact answer or rule, never aligned.
     #[must_use]
-    pub const fn constructed(self) -> bool {
-        matches!(
-            self,
-            Self::Scale
-                | Self::Box
-                | Self::FreeBoxes
-                | Self::Ellipse
-                | Self::Centre
-                | Self::Halves
-                | Self::Thirds
-                | Self::Step
-                | Self::Mirror
-                | Self::Cylinder
-                | Self::Cone
-                | Self::Sphere
-        )
+    pub fn geometric(self) -> bool {
+        self.facts().work == Work::Geometry
     }
 
-    /// Whether its exercises copy a composition's picture (S95, S96): a division, a whole copy,
-    /// value masses.
+    /// Whether it is drawn with a division's pens in V大's three colours (S95).
     #[must_use]
-    pub const fn composed(self) -> bool {
-        matches!(self, Self::Division | Self::WholeCopy | Self::ValueMasses)
+    pub fn divided(self) -> bool {
+        self.facts().work == Work::Divided
+    }
+
+    /// Whether its exercises are painted with brushes and read from the copy's pixels.
+    #[must_use]
+    pub fn painted(self) -> bool {
+        self.facts().work == Work::Painted
+    }
+
+    /// Whether its answer is built from given parts in the one frame drawn in (S97, S98).
+    #[must_use]
+    pub fn constructed(self) -> bool {
+        self.facts().constructed
+    }
+
+    /// Whether its exercises copy a composition's picture (S95, S96).
+    #[must_use]
+    pub fn composed(self) -> bool {
+        self.facts().composed
     }
 }

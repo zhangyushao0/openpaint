@@ -10,7 +10,7 @@ use std::time::Instant;
 
 use openpaint_app::{CopyRead, FitJob, PictureImage, ReadJob};
 use openpaint_core::Artwork;
-use openpaint_practice::{Fit, Metrics};
+use openpaint_practice::Fit;
 use openpaint_render::Core;
 
 use crate::canvas::{Canvas, PAPER};
@@ -27,7 +27,7 @@ enum Job {
 enum Done {
     /// The fit asked by the Compare numbered so, and how long it took, ms.
     Fit(u64, Option<Fit>, f64),
-    Read(u64, Option<(CopyRead, Metrics)>),
+    Read(u64, Option<CopyRead>),
 }
 
 pub(crate) struct CompareWorker {

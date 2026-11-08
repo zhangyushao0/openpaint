@@ -19,11 +19,21 @@
 
 use crate::geometry::edges::Edge;
 use crate::geometry::ellipse::{Ellipse, EllipseGuide};
-use crate::kinds::boxes::perspective_check::{ON_ANGLE, line_angle, plumb, reach, sub, toward};
-use crate::kinds::ellipses::ellipse_fit::missed;
-use crate::kinds::solids::solid::PEN_WIDTH;
-use crate::kinds::solids::solid_check::ReadCurve;
+use crate::geometry::ellipse_sides::missed;
+use crate::geometry::heading::{ON_ANGLE, line_angle, plumb, reach, sub, toward};
 use crate::maths::path::{Point, across_frame, distance, length, resample};
+use crate::sessions::sheet::FRAME;
+
+/// The Draw pen's width (the app's `INK_DIAMETER`, 5 canvas pixels) on a frame of `FRAME`.
+pub const PEN_WIDTH: f64 = 5.0 / FRAME;
+
+/// What was read for one of an answer's ellipses (a solid's end, an object's round end): the
+/// curves drawn nearest it, and the ellipse fitted to them once they go far enough round.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct ReadCurve {
+    pub pieces: Vec<Vec<Point>>,
+    pub fitted: Option<Ellipse>,
+}
 
 /// A curve's pieces are read at this even step; a middle is judged only where they pass it within
 /// `PASSES` of its turn either way, from the points within `ABOUT` of it (radians round the

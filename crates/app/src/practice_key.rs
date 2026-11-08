@@ -3,36 +3,43 @@
 //! paint only: its original is never picked, `practice_pick.rs`), compared with no answer: its
 //! copy is read on the compare worker (`ReadJob`) as a combination's areas are and judged by the
 //! three checks (`openpaint_practice::KeyCheck`); the marked areas' outlines, the merged pairs'
-//! edges and both frames in grey come with the reading, the Grey view showing only while compared.
+//! edges and both frames in grey come with the reading (`KeyCompared`), the Grey view showing only
+//! while compared.
 
 use std::sync::Arc;
 
-use openpaint_practice::{Areas, Family, KeyCheck, Metrics, Point, Tendency, in_grey};
+use openpaint_practice::{Comparison, Family, KeyCheck, KeyCompared, KeyRead, in_grey};
 
-use super::read::{CopyRead, ReadAs, Reading, in_frame};
+use super::read::{ReadAs, in_frame};
 use super::{PracticeSheet, unavailable};
 use crate::error::AppError;
-use crate::practice::{KeyRead, Overlay};
 use crate::practice_copy::PAPER;
 use crate::practice_pictures::PictureImage;
+use crate::practice_shown::{CopyRead, Greys};
 use crate::projection::Availability;
 
-/// A key shift's copy, its frame's `pixels`, read against its crop's `areas` (filling `extent` of
-/// the frame) shifted toward `tendency`: what is off, the marks' lines, both frames in grey (the
-/// crop's picture `original`, where read); with the numbers a first Compare keeps.
-pub(super) fn read_key(
-    (areas, extent, tendency): (&Areas, Point, Tendency),
-    original: Option<&PictureImage>,
-    pixels: &PictureImage,
-) -> (CopyRead, Metrics) {
+/// A key shift's copy, its frame's `pixels`, read as `asked` (its crop's areas filling its extent
+/// of the frame, shifted toward its tendency): what is off, the marks' lines, both frames in grey
+/// (the crop's picture, where read); with the numbers a first Compare keeps.
+pub(super) fn read_key(asked: &ReadAs, pixels: &PictureImage) -> CopyRead {
+    let ReadAs::KeyShift {
+        areas,
+        extent,
+        tendency,
+        corners,
+        original,
+    } = asked
+    else {
+        return unread(asked);
+    };
     let colours = areas.read(pixels.size, &pixels.pixels, PAPER).colours;
-    let check = KeyCheck::of(areas, &colours, tendency);
+    let check = KeyCheck::of(areas, &colours, *tendency);
     let outlines = (0..areas.count())
         .filter(|area| check.off_lightness.contains(area) || check.unmoved.contains(area))
-        .map(|area| (area, in_frame(areas.edges(area, None), extent)))
+        .map(|area| (area, in_frame(areas.edges(area, None), *extent)))
         .collect();
     let edges = (check.merged.iter())
-        .flat_map(|(a, b)| in_frame(areas.edges(*a, Some(*b)), extent))
+        .flat_map(|(a, b)| in_frame(areas.edges(*a, Some(*b)), *extent))
         .collect();
     let grey = |image: &PictureImage| {
         Arc::new(PictureImage {
@@ -41,15 +48,56 @@ pub(super) fn read_key(
         })
     };
     let metrics = check.metrics();
-    let read = KeyRead {
-        colours,
-        check,
-        outlines,
-        edges,
-        grey_copy: grey(pixels),
-        grey_original: original.map(grey),
+    let compared = KeyCompared {
+        colours: areas.colours.clone(),
+        corners: *corners,
+        tendency: *tendency,
+        read: Some(KeyRead {
+            colours,
+            check,
+            outlines,
+            edges,
+        }),
     };
-    (CopyRead::KeyShift(Arc::new(read)), metrics)
+    CopyRead {
+        comparison: Comparison::of(compared),
+        metrics,
+        greys: Some(Arc::new(Greys {
+            copy: grey(pixels),
+            original: original.as_deref().map(grey),
+        })),
+    }
+}
+
+/// What a key shift shows until its copy is read: nothing but its card's saying so.
+fn unread(asked: &ReadAs) -> CopyRead {
+    CopyRead {
+        comparison: unread_key(asked),
+        metrics: openpaint_practice::Metrics::new(),
+        greys: None,
+    }
+}
+
+/// A key shift asked as `asked`, not read yet.
+pub(super) fn unread_key(asked: &ReadAs) -> Comparison {
+    let ReadAs::KeyShift {
+        areas,
+        tendency,
+        corners,
+        ..
+    } = asked
+    else {
+        return Comparison::of(openpaint_practice::PictureCompared {
+            corners: [[0.0; 2]; 4],
+            metrics: openpaint_practice::Metrics::new(),
+        });
+    };
+    Comparison::of(KeyCompared {
+        colours: areas.colours.clone(),
+        corners: *corners,
+        tendency: *tendency,
+        read: None,
+    })
 }
 
 impl PracticeSheet {
@@ -59,7 +107,7 @@ impl PracticeSheet {
     }
 
     /// What exercise `index`'s copy is read as, if it is a key shift whose crop a pack holds: its
-    /// areas, its tendency and its picture as read for the screen.
+    /// areas, its tendency, its picture's corners and its picture as read for the screen.
     pub(super) fn key_asked(&self, index: usize) -> Option<ReadAs> {
         let tendency = (*self.sheet.tendencies.get(index)?)?;
         let (areas, extent) = self.sheet.areas(index)?;
@@ -71,24 +119,9 @@ impl PracticeSheet {
             areas: Arc::new(areas.clone()),
             extent,
             tendency,
+            corners: picture.fit.corners(),
             original,
         })
-    }
-
-    /// What lies over a compared key shift read as `reading`: its marks once read, the area the
-    /// card shows and its outline, in grey or in colour.
-    pub(super) fn key_overlay(&self, reading: &Reading) -> Overlay {
-        let (_, chosen, outline) = self.painted_overlay();
-        let read = match reading {
-            Reading::Read(CopyRead::KeyShift(read)) => Some(Arc::clone(read)),
-            _ => None,
-        };
-        Overlay::KeyShift {
-            read,
-            chosen,
-            outline,
-            grey: self.painting_state.grey,
-        }
     }
 
     /// The compared key shift's frames in grey (`on`) or in colour; refused on anything else.

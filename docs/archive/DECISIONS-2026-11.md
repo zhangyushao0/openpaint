@@ -26,3 +26,7 @@
 - D108's stored read: "- Stored (format 1, additive): codes 36 to 41, a colour's first and final ΔL, ΔC, ΔH; 21 to 23 and 25 to 27 (HSV hue behind the gate, saturation, value) retired and passed over. The radar (`judgement.rs`): hue, chroma and lightness in place of hue, saturation and value, each 1 - part/`PART_SPAN` 0.05 clamped, then dark, greyish (ΔE against 0.10) and first pick to final as before, over the earlier sessions' dashed; the summary's rows unchanged."
 - D109: "- Motion: a finish's dot inking in (two rings spreading) and a seal stamping down are D44's acknowledge on the OPEN spring, each waiting for the card to grow."
 - D110: "- Tiles: fixed line drawings in the UI (`components/kind_tile.rs`), ink once the kind was compared anywhere, pencil before, ringed while a drill is unfinished; Shape without a pack's picture says where to import one. The options' first page in two columns where the screen holds 800 points."
+
+## Archived 2026-11-07 (S109: a validation report, kept in STATUS; the decision unchanged)
+
+- D105's key shift validation read: Validated on the official 61 crops (`openpaint-harness key-shifts`, sheets judged by eye) against shifts by rule (`key_shift_rule.rs`, also the How's) and by a simulated hand, 61 of 61 unmarked each; lightness 0.14 and 0.09 off, an area unmoved or a quarter moved, two within 0.025 marked; 0.06, three fifths, 0.05 not.

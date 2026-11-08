@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Overlay, Pen, PracticeIntent,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Pen, PracticeIntent,
     PracticeLog, PracticePens, Session, SheetView, StrokeIntent, Title, Toolbox, Viewport,
     sheet_of,
 };
@@ -83,15 +83,12 @@ fn practise(session: &mut Session, intent: PracticeIntent) {
 }
 
 /// The solid's check over the copy.
-fn checked(session: &Session) -> std::sync::Arc<openpaint_practice::SolidCheck> {
-    match session
-        .projection()
-        .practice()
-        .and_then(|p| p.overlay.clone())
-    {
-        Some(Overlay::Solid(check)) => check,
-        other => panic!("the solid's check: {other:?}"),
-    }
+fn checked(session: &Session) -> openpaint_practice::SolidCheck {
+    let projection = session.projection();
+    let practice = projection.practice().expect("a sheet");
+    let compared = practice.compared.as_ref().expect("compared");
+    let solid = compared.downcast::<openpaint_practice::SolidCompared>();
+    solid.expect("the solid's check").check.clone()
 }
 
 #[test]

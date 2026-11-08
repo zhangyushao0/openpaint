@@ -6,9 +6,9 @@
 //! the wheel's square), each then compared.
 
 use crate::colour_areas::areas::Areas;
+use crate::colour_areas::areas_generated::{Arrangement, GeneratedAreas};
 use crate::demos::demo::{Demo, Drawn, Layout, Marker, On, Script, clearest};
 use crate::kinds::colours::colour_match::{Lightness, Purity, Tone};
-use crate::kinds::combinations::areas_generated::{Arrangement, GeneratedAreas};
 use crate::kinds::scales::scale::{ROW, ScaleTone, ValueScale, halving};
 use crate::maths::colour::{Rgb8, delta_e, from_hsv, from_oklab, hsv, oklab};
 use crate::maths::path::Point;

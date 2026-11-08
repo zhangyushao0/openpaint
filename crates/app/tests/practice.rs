@@ -8,13 +8,14 @@
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Overlay, Pen, PracticeIntent,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Pen, PracticeIntent,
     PracticeNotice, PracticePens, PracticePick, Session, SheetView, StreamLine, StrokeIntent,
     Title, Toolbox, Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Family, Metric, Metrics, Original, Pair, SessionRecord, Sheet, Tally, value,
+    ColourCompared, Family, Figure, Metric, Metrics, Original, Pair, SessionRecord, Sheet, Tally,
+    value,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -111,12 +112,20 @@ fn fit(session: &mut Session) {
     }
 }
 
-/// The overlay's line, while it shows.
+/// The overlay's line laid over the copy (canvas pixels), while it shows.
 fn overlay(session: &Session) -> Option<Vec<[f32; 2]>> {
-    match session.projection().practice()?.overlay.clone()? {
-        Overlay::Lines(lines) => lines.into_iter().next(),
-        _ => None,
-    }
+    let projection = session.projection();
+    let practice = projection.practice()?;
+    let frame = practice.sheet.pairs[practice.current?].copy;
+    let canvas = |p: &[f64; 2]| frame.to_canvas(*p).map(|v| v as f32);
+    practice
+        .overlay
+        .iter()
+        .flatten()
+        .find_map(|mark| match &mark.drawn {
+            Figure::Line { points, .. } => Some(points.iter().map(canvas).collect()),
+            _ => None,
+        })
 }
 
 /// A sheet whose first line was copied, moved 30 px right and drawn smaller about its frame's
@@ -341,28 +350,17 @@ fn a_colour_is_filled_from_beside_its_frame_picked_once_compared_and_summed_up()
 /// again shows the copy as it is now with the numbers as they were.
 fn filled_again(session: &mut Session, metrics: &Metrics) {
     practise(session, PracticeIntent::Fill(Color::WHITE));
-    assert_eq!(
-        session
-            .projection()
-            .practice()
-            .and_then(|p| p.overlay.clone()),
-        None
-    );
+    let taken = session.projection().practice().map(|p| p.overlay.is_none());
+    assert_eq!(taken, Some(true));
     practise(session, PracticeIntent::Compare(true));
     let record = session.practice_save_request().expect("the record changed");
     assert_eq!(&record.result(10).expect("compared").metrics, metrics);
-    let Some(Overlay::Colour { last, .. }) = session
-        .projection()
-        .practice()
-        .and_then(|p| p.overlay.clone())
-    else {
+    let projection = session.projection();
+    let compared = (projection.practice()).and_then(|p| p.compared.as_ref());
+    let Some(ColourCompared { last, .. }) = compared.and_then(|c| c.downcast()) else {
         panic!("the colours compared");
     };
-    assert_eq!(
-        last,
-        [255, 255, 255],
-        "the overlay shows the copy as it is now"
-    );
+    assert_eq!(*last, [255; 3], "the overlay shows the copy as it is now");
 }
 
 /// `session`, its eleventh exercise compared, taken past its last: the summary shows with the

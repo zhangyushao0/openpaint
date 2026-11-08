@@ -8,7 +8,7 @@
 //! (`areas_found.rs`).
 
 use crate::colour_areas::areas::{Areas, CORE, GRID, LEAST_CORE, LEAST_SHARE, STRONG, WEAK};
-use crate::kinds::combinations::areas_field::Field;
+use crate::colour_areas::areas_field::Field;
 use crate::maths::colour::{Rgb8, delta_e, from_hsv, hsv};
 use crate::maths::random::Random;
 

@@ -53,11 +53,13 @@ mod practice_demo_solids;
 mod practice_demo_space;
 mod practice_division;
 mod practice_key;
+mod practice_kinds;
 mod practice_masses;
 mod practice_objects;
 mod practice_options;
 mod practice_perspective;
 mod practice_points;
+mod practice_says;
 mod practice_solids;
 
 pub(crate) use brushes::*;
@@ -74,6 +76,7 @@ pub(crate) use practice_colour::*;
 pub(crate) use practice_demo::{AGAIN, how, how_steps};
 pub(crate) use practice_division::*;
 pub(crate) use practice_key::*;
+pub(crate) use practice_kinds::kind_words;
 pub(crate) use practice_masses::{
     AT_ITS_VALUE, DARK_PEN, DRILL_NEEDS_MASSES, LIGHT_PEN, MASSES_COUNTED, MIDDLE_PEN,
     VALUE_MASSES_EXERCISE,
@@ -82,6 +85,7 @@ pub(crate) use practice_objects::*;
 pub(crate) use practice_options::*;
 pub(crate) use practice_perspective::*;
 pub(crate) use practice_points::*;
+pub(crate) use practice_says::said;
 pub(crate) use practice_solids::*;
 
 pub use openpaint_app::Language;
@@ -245,6 +249,7 @@ mod tests {
             practice_demo_space::PRACTICE_DEMO_SPACE,
             PRACTICE_DIVISION,
             PRACTICE_KEY,
+            practice_kinds::PRACTICE_KINDS,
             practice_masses::PRACTICE_MASSES,
             PRACTICE_OBJECTS,
             PRACTICE_OPTIONS_TABLE,

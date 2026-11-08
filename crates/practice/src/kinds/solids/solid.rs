@@ -20,18 +20,16 @@
 //! Frame units throughout (the frame's side is 1, y down).
 
 use crate::geometry::ellipse::{EllipseGuide, square_on};
+use crate::geometry::off::PEN_WIDTH;
 use crate::geometry::perspective::{PerspectiveBox, level, place};
+use crate::geometry::perspective_eye::projected;
 use crate::geometry::perspective_eye::{box_corners, directions, fitted, framing};
-use crate::kinds::points_in_space::space::projected;
 use crate::kinds::solids::solid_answer::{Body, SolidAnswer, Square, View, answer};
 use crate::maths::path::{Point, distance};
 use crate::maths::random::Random;
 use crate::maths::vector::{Vector, add, sub};
 use crate::sessions::plan::Family;
-use crate::sessions::sheet::FRAME;
 
-/// The Draw pen's width (the app's `INK_DIAMETER`, 5 canvas pixels) on a frame of `FRAME`.
-pub const PEN_WIDTH: f64 = 5.0 / FRAME;
 /// Boxes laid before the generator keeps the last one whatever it is (every seed tested keeps
 /// the rules well within).
 const TRIES: usize = 400;

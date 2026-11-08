@@ -7,8 +7,8 @@
 //! arrow and its shifted colour; under the copy the tendency's disc. Compare: both frames in grey,
 //! the lightness kept.
 
+use crate::colour_areas::areas_generated::{Arrangement, GeneratedAreas};
 use crate::demos::demo::{Demo, Drawn, Layout, Marker, On, Script, clearest};
-use crate::kinds::combinations::areas_generated::{Arrangement, GeneratedAreas};
 use crate::kinds::key_shifts::key_shift::{Lean, Tendency};
 use crate::maths::colour::{Rgb8, delta_e, from_oklab, in_gamut, oklab};
 use crate::sessions::plan::Family;

@@ -6,14 +6,14 @@
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Overlay, Pen, PracticeIntent,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Pen, PracticeIntent,
     PracticeLog, PracticePens, Session, SheetView, StrokeIntent, Title, Toolbox, Viewport,
     sheet_of,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Estimate, Exercise, Family, Flat, FlatAnswer, Frame, Kind, Metric, Off, Original, Plan, Point,
-    SessionRecord, SpaceAnswer, Trick, value,
+    Compared, Estimate, Exercise, Family, Flat, FlatAnswer, FlatCompared, Frame, Kind, Metric, Off,
+    Original, Plan, Point, SessionRecord, SpaceAnswer, SpaceCompared, Trick, value,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -95,8 +95,10 @@ fn practise(session: &mut Session, intent: PracticeIntent) {
     session.practise(intent, 1_791_900_000).expect("practised");
 }
 
-fn overlay(session: &Session) -> Option<Overlay> {
-    session.projection().practice()?.overlay.clone()
+fn compared<T: Compared + Clone>(session: &Session) -> Option<T> {
+    let projection = session.projection();
+    let practice = projection.practice()?;
+    practice.compared.as_ref()?.downcast::<T>().cloned()
 }
 
 #[test]
@@ -124,7 +126,7 @@ fn a_point_is_marked_compared_and_corrected_its_first_error_kept() {
     practise(&mut session, PracticeIntent::Pen(Pen::Draw));
     cross(&mut session, &frame, [at[0] + 0.05, at[1]]);
     practise(&mut session, PracticeIntent::Compare(true));
-    let Some(Overlay::Flat(check)) = overlay(&session) else {
+    let Some(FlatCompared { check, .. }) = compared(&session) else {
         panic!("the estimate's check")
     };
     let mark = check.mark.expect("the cross read");
@@ -134,9 +136,12 @@ fn a_point_is_marked_compared_and_corrected_its_first_error_kept() {
     assert!(session.practise(PracticeIntent::Aligned(true), 1).is_err());
     // Corrected onto the answer: read in place of the first, the first error kept.
     cross(&mut session, &frame, at);
-    assert!(overlay(&session).is_none(), "the pen landing takes it away");
+    assert!(
+        compared::<FlatCompared>(&session).is_none(),
+        "the pen landing takes it away"
+    );
     practise(&mut session, PracticeIntent::Compare(true));
-    let Some(Overlay::Flat(check)) = overlay(&session) else {
+    let Some(FlatCompared { check, .. }) = compared(&session) else {
         panic!("the estimate's check")
     };
     let mark = check.mark.expect("the correction read");
@@ -163,7 +168,7 @@ fn an_angle_s_last_line_is_read_and_a_point_in_space_marked_on_its_face() {
     };
     draw(&mut session, &frame, &[a, b]);
     practise(&mut session, PracticeIntent::Compare(true));
-    let Some(Overlay::Flat(check)) = overlay(&session) else {
+    let Some(FlatCompared { check, .. }) = compared(&session) else {
         panic!("the angle's check")
     };
     let off = value(&check.metrics, Metric::AngleOff).expect("measured");
@@ -187,7 +192,7 @@ fn an_angle_s_last_line_is_read_and_a_point_in_space_marked_on_its_face() {
         &[middle, [middle[0] + 0.004, middle[1]]],
     );
     practise(&mut session, PracticeIntent::Compare(true));
-    let Some(Overlay::Space(check)) = overlay(&session) else {
+    let Some(SpaceCompared { check, .. }) = compared(&session) else {
         panic!("the point's check")
     };
     let off = value(&check.metrics, Metric::SpaceOff).expect("measured");
@@ -198,7 +203,7 @@ fn an_angle_s_last_line_is_read_and_a_point_in_space_marked_on_its_face() {
         &[centre, [centre[0] + 0.004, centre[1]]],
     );
     practise(&mut session, PracticeIntent::Compare(true));
-    let Some(Overlay::Space(check)) = overlay(&session) else {
+    let Some(SpaceCompared { check, .. }) = compared(&session) else {
         panic!("the point's check")
     };
     assert!(value(&check.metrics, Metric::SpaceOff).is_some_and(|v| v < 0.02));
@@ -221,7 +226,7 @@ fn an_estimate_rings_only_a_mark_off_and_shows_its_construction_on_request() {
     };
     cross(&mut session, &frame, [at[0] + 0.05, at[1]]);
     practise(&mut session, PracticeIntent::Compare(true));
-    let Some(Overlay::Flat(check)) = overlay(&session) else {
+    let Some(FlatCompared { check, .. }) = compared(&session) else {
         panic!("the estimate's check")
     };
     assert_eq!(check.off, vec![Off::Ring(at)]);
@@ -230,7 +235,7 @@ fn an_estimate_rings_only_a_mark_off_and_shows_its_construction_on_request() {
     assert_eq!(construction(&session), Some(true));
     cross(&mut session, &frame, at);
     practise(&mut session, PracticeIntent::Compare(true));
-    let Some(Overlay::Flat(check)) = overlay(&session) else {
+    let Some(FlatCompared { check, .. }) = compared(&session) else {
         panic!("the estimate's check")
     };
     assert!(check.off.is_empty(), "{:?}", check.off);

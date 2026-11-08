@@ -13,7 +13,7 @@
 
 use crate::geometry::ellipse::{apply, homography, inverse};
 use crate::geometry::perspective::{Direction, PerspectiveBox, level, place};
-use crate::geometry::perspective_eye::{box_corners, directions, fitted, framing};
+use crate::geometry::perspective_eye::{box_corners, directions, fitted, framing, projected};
 use crate::maths::path::{Point, distance};
 use crate::maths::random::Random;
 use crate::sessions::plan::Family;
@@ -104,15 +104,6 @@ impl Face {
             image[1] * self.scale + self.offset[1],
         ]
     }
-}
-
-/// Where the eye looking level (`Eye` at no pitch) sees the world point or direction `p`. Every
-/// point it is asked of lies well in front of it: a box's middle at least 2.0 away, its corners
-/// at most 1.3 from its middle, a face's next one as far again, its depth turned 25 to 65 degrees
-/// from the eye's line.
-pub(crate) fn projected([x, y, z]: [f64; 3]) -> Point {
-    let z = z.max(1e-9);
-    [x / z, -y / z]
 }
 
 /// A point in space to fix on a box, generated the same for the same trick and seed.

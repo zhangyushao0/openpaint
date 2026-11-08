@@ -19,7 +19,8 @@
 //! after the shift the colours still separate).
 
 use crate::colour_areas::areas::Areas;
-use crate::kinds::key_shifts::key_shift::{Tendency, turn};
+use crate::colour_areas::main_hue::turn;
+use crate::kinds::key_shifts::key_shift::Tendency;
 use crate::kinds::key_shifts::key_shift_check::APART;
 use crate::maths::colour::{Rgb8, delta_e, in_gamut, oklab};
 

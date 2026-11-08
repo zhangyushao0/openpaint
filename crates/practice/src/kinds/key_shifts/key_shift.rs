@@ -6,21 +6,21 @@
 //! was painted to whatever the pack becomes. How a painter shifts is `key_shift_rule.rs`; what
 //! Compare marks, `key_shift_check.rs`: a key shift has no answer.
 
-use crate::colour_areas::areas::Areas;
-use crate::maths::colour::{Rgb8, in_gamut, most_chroma, oklch};
+use crate::colour_areas::main_hue::{HUE_STEP, turn};
+use crate::maths::colour::{Rgb8, in_gamut, most_chroma};
 use crate::maths::random::Random;
 
-/// A tendency's hues lie on this many degrees' steps.
-pub const HUE_STEP: u16 = 10;
 /// A pure tendency's chroma and a grey one's (Oklab): a pure one about an orange's or a sky's, a
 /// grey one a warm or cool grey, plainly not neutral (two and a half just-noticeable steps).
 pub const PURE_CHROMA: f64 = 0.13;
 pub const GREY_CHROMA: f64 = 0.05;
+/// Gurney's mask's apex past the tendency's chroma, its base past grey and its base's half width,
+/// as shares of the apex's chroma.
+const APEX_PAST: f64 = 0.05;
+const BASE_PAST: f64 = 0.4;
+const BASE_HALF: f64 = 0.6;
 /// The lightnesses its disc may be shown at: its hue's most colourful between them.
 const SHOWN: (f64, f64) = (0.55, 0.88);
-/// A crop's colours gathered on the hue circle by share and chroma under this peak give no main
-/// hue: any tendency will do.
-pub const MAIN_CHROMA: f64 = 0.012;
 /// The least turn between a tendency's hue and the crop's main hue, degrees.
 pub const AWAY: f64 = 60.0;
 /// Warm hues from magenta-red round to yellow, cool ones from green round to violet-blue (Oklab
@@ -149,42 +149,19 @@ impl Tendency {
             .unwrap_or(SHOWN.0);
         in_gamut([lightness, self.chroma(), hue])
     }
-}
 
-/// The turn from hue `from` to hue `to`, degrees, the short way round (`-180..180`, positive
-/// the way red goes to yellow).
-#[must_use]
-pub fn turn(from: f64, to: f64) -> f64 {
-    (to - from + 180.0).rem_euclid(360.0) - 180.0
-}
-
-/// The crop's main hue: where its colours gather on the hue circle, each by its share of the crop
-/// and its chroma, near hues together (each counted at `cos²` of its turn off, none past a quarter
-/// turn), so a crop of several greens beside a blue is green and opposite colours never cancel;
-/// none where even that peak is greyer than `MAIN_CHROMA` (a grey crop). On `HUE_STEP`'s steps.
-#[must_use]
-pub fn main_hue(areas: &Areas) -> Option<f64> {
-    let sizes = areas.sizes();
-    let total = sizes.iter().sum::<usize>().max(1) as f64;
-    let held: Vec<(f64, [f64; 3])> = (areas.colours.iter().zip(&sizes))
-        .map(|(colour, size)| (*size as f64 / total, oklch(*colour)))
-        .collect();
-    let gathered = |hue: f64| -> f64 {
-        (held.iter())
-            .map(|(share, [_, chroma, at])| {
-                let off = turn(*at, hue).to_radians();
-                let near = if off.abs() < std::f64::consts::FRAC_PI_2 {
-                    off.cos().powi(2)
-                } else {
-                    0.0
-                };
-                share * chroma * near
-            })
-            .sum()
-    };
-    let (hue, peak) = (0..360 / HUE_STEP)
-        .map(|step| f64::from(step * HUE_STEP))
-        .map(|hue| (hue, gathered(hue)))
-        .max_by(|x, y| x.1.total_cmp(&y.1))?;
-    (peak >= MAIN_CHROMA).then_some(hue)
+    /// Gurney's gamut mask for it (Oklab `a`, `b`): a triangle whose apex lies along its
+    /// direction past its chroma and whose base lies across the other side past grey, so its
+    /// opposites are allowed only greyed.
+    #[must_use]
+    pub fn mask(self) -> [[f64; 2]; 3] {
+        let [u, v] = self.direction();
+        let apex = self.chroma() + APEX_PAST;
+        let (base, half) = (-BASE_PAST * apex, BASE_HALF * apex);
+        [
+            [u * apex, v * apex],
+            [u * base - v * half, v * base + u * half],
+            [u * base + v * half, v * base - u * half],
+        ]
+    }
 }

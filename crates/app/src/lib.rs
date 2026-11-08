@@ -100,8 +100,8 @@ pub use crate::palette::{Hsv, MAX_SWATCHES, RECENT_COLORS, hex_of, parse_hex};
 pub use crate::palm::PalmRejection;
 pub use crate::pen_buttons::{ButtonAction, ButtonMap, ButtonTracker, HeldTool, PenButton};
 pub use crate::practice::{
-    AREAS_SIDE, AreasRead, KeyRead, OBJECT_SIDE, Overlay, Pen, PracticeIntent, PracticeNotice,
-    PracticeProjection, Probe, SHAPE_SHOWN, SHOWN, SheetView, sheet_of,
+    AREAS_SIDE, CopyRead, Greys, OBJECT_SIDE, Pen, PracticeIntent, PracticeNotice,
+    PracticeProjection, Probe, SHOWN, SheetView, sheet_of,
 };
 pub use crate::practice_book::{BookProjection, BookRecord, LineRead, Mark, SheetRead};
 pub use crate::practice_layers::{BLOCKS_LAYER, DIVISION_DIMMED, DIVISION_LAYER, LINES_LAYER};
@@ -111,7 +111,7 @@ pub use crate::practice_pictures::{
     FitJob, GROUND_SHOWN, MassesShown, PackShown, PictureImage, SHOWN_SIDE, SheetPicture,
 };
 pub use crate::practice_sheet::{
-    CopyRead, Finished, PRACTICE_ROOM, PracticePick, Practising, ReadAs, ReadJob,
+    Finished, PRACTICE_ROOM, PracticePick, Practising, ReadAs, ReadJob,
 };
 pub use crate::practice_today::{CopyShown, DrillShown, PictureShown, TodayProjection};
 pub use crate::project::{

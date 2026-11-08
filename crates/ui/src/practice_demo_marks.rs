@@ -20,7 +20,7 @@ use crate::design::{
 };
 use crate::practice_demo::{PictureKey, by_hand, drawn, placed};
 use crate::practice_demo_wheel::wheel;
-use crate::practice_division_marks::level_colour;
+use crate::practice_marks::level_colour;
 use crate::practice_marks::quad;
 
 /// Line widths, in points: what is given, the pencil, the ink, the red answer, an edge drawn on

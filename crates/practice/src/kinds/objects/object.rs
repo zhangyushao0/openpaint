@@ -22,7 +22,7 @@ use crate::kinds::objects::object_design::{Carve, Change, Design, Local, SAME, S
 use crate::kinds::objects::object_rules::{creased, fraction, shown, spaced, stands};
 use crate::maths::path::Point;
 
-use crate::kinds::points_in_space::space::projected;
+use crate::geometry::perspective_eye::projected;
 use crate::kinds::solids::solid_answer::{SolidAnswer, View};
 use crate::maths::random::Random;
 use crate::maths::vector::{Vector, add, times, unit};

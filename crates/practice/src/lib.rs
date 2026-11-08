@@ -14,6 +14,7 @@ mod demos;
 mod fits;
 mod geometry;
 mod kinds;
+mod marks;
 mod maths;
 mod outlines;
 mod packs;
@@ -22,8 +23,11 @@ mod sessions;
 
 pub use colour_areas::areas::{Areas, GRID, MOST_AREAS, STRONG, WEAK};
 pub use colour_areas::areas_found::{Found, SQUINT};
+pub use colour_areas::areas_generated::{Arrangement, GeneratedAreas};
 pub use colour_areas::areas_read::{AreasCopy, Contrast, MADE_STRONG};
 pub use colour_areas::areas_regions::ONE_STEP;
+pub use colour_areas::main_hue::{HUE_STEP, MAIN_CHROMA, main_hue, turn};
+pub use compositions::levels::{Level, LevelRow};
 pub use compositions::masses::Masses;
 pub use compositions::value_masses::{BLUR, ISLAND, MASSES_SIDE, RIM, Value, ValueMasses};
 pub use demos::demo::{Demo, Drawn, Layout, Mark, Marker, On, ShiftDemo, WIDE_REACH};
@@ -31,48 +35,66 @@ pub use fits::align::{Fit, align};
 pub use fits::align_shape::align_shape;
 pub use geometry::edges::{Edge, SHORTEST, corrected, edges};
 pub use geometry::ellipse::{Ellipse, EllipseGuide, Guide};
+pub use geometry::ellipse_fit::fit_ellipse;
+pub use geometry::ellipse_sides::{Missed, REACH, Reach, Side};
+pub use geometry::heading::{Checked, ON_ANGLE, PAST};
 pub use geometry::marks::{MARK, last_edges, last_mark};
-pub use geometry::off::{Heads, Off, Straight, ringed};
+pub use geometry::off::{Heads, Off, PEN_WIDTH, ReadCurve, Straight, ringed};
 pub use geometry::perspective::{BoxView, Direction, EDGES, FAR, Horizon, PerspectiveBox};
-pub use kinds::boxes::perspective_check::{BoxCheck, Checked, ON_ANGLE, PAST};
+pub use kinds::boxes::marks::BoxCompared;
+pub use kinds::boxes::perspective_check::BoxCheck;
 pub use kinds::colours::colour_match::{
     ColourCopy, ColourScore, Lightness, Purity, Tone, score_colour,
 };
 pub use kinds::colours::judgement::{
     Axis, DELTA_SPAN, Judgement, NOTICEABLE, PART_SPAN, judgement,
 };
-pub use kinds::combinations::areas_generated::{Arrangement, GeneratedAreas};
+pub use kinds::colours::marks::ColourCompared;
+pub use kinds::combinations::marks::{AreasCompared, AreasRead};
 pub use kinds::combined_lines::combined::{Combination, CombinedLines};
 pub use kinds::divisions::division::{
-    DivisionCheck, DivisionLine, HEADING_ON, JOIN_REACH, Level, LevelRow, MOST_MAIN, joined,
+    DivisionCheck, DivisionLine, HEADING_ON, JOIN_REACH, MOST_MAIN, joined,
 };
-pub use kinds::ellipses::ellipse_fit::{
-    DEGREE, EllipseCheck, Missed, REACH, Reach, Roundness, Side, TILT, Tilt, fit_ellipse,
-};
+pub use kinds::divisions::marks::DivisionCompared;
+pub use kinds::ellipses::ellipse_check::{DEGREE, EllipseCheck, Roundness, TILT, Tilt};
+pub use kinds::ellipses::marks::EllipseCompared;
 pub use kinds::estimates::flat::{Estimate, Flat, FlatAnswer, FlatCheck};
+pub use kinds::estimates::marks::FlatCompared;
+pub use kinds::free_boxes::marks::FreeCompared;
 pub use kinds::free_boxes::perspective_free::{Corner, FreeBox, FreeCheck, RIGHT_ANGLE};
-pub use kinds::key_shifts::key_shift::{
-    AWAY, GREY_CHROMA, HUE_STEP, Lean, MAIN_CHROMA, PURE_CHROMA, Tendency, main_hue, turn,
-};
+pub use kinds::key_shifts::key_shift::{AWAY, GREY_CHROMA, Lean, PURE_CHROMA, Tendency};
 pub use kinds::key_shifts::key_shift_check::{
     APART, AT, KeyCheck, LIGHTEST, LIGHTNESS_OFF, MERGED, MOVED, NEAR_SHARE, toward,
 };
+pub use kinds::key_shifts::marks::{KeyCompared, KeyRead};
 pub use kinds::lines::line::{LineExercise, LineTier};
+pub use kinds::lines::marks::LinesCompared;
+pub use kinds::objects::marks::ObjectCompared;
 pub use kinds::objects::object::ObjectTask;
 pub use kinds::objects::object_construction::Stage;
 pub use kinds::objects::object_design::Carve;
 pub use kinds::objects::object_picture::{PAPER_SHADE, SHADE_STEP};
 pub use kinds::objects::object_rules::LEAST_EDGE;
+pub use kinds::points_in_space::marks::SpaceCompared;
 pub use kinds::points_in_space::space::{SpaceAnswer, SpaceTask, Trick};
 pub use kinds::points_in_space::space_check::SpaceCheck;
+pub use kinds::scales::marks::ScaleCompared;
 pub use kinds::scales::scale::{
     CELLS, EVEN_ROW, FIRST_CELLS, FIRST_SCALES, ROW, ScaleCheck, ScaleTone, ValueScale, halving,
 };
 pub use kinds::shapes::ground::faded_ground;
-pub use kinds::solids::solid::{PEN_WIDTH, Pose, Solid, SolidTask, diagonals, middle_lines};
+pub use kinds::shapes::marks::{SHAPE_SHOWN, ShapeCompared};
+pub use kinds::solids::marks::SolidCompared;
+pub use kinds::solids::solid::{Pose, Solid, SolidTask, diagonals, middle_lines};
 pub use kinds::solids::solid_answer::{SolidAnswer, Stretch};
-pub use kinds::solids::solid_check::{COVERED, ReadCurve, SolidCheck};
+pub use kinds::solids::solid_check::{COVERED, SolidCheck};
+pub use kinds::value_masses::marks::MassesCompared;
 pub use kinds::value_masses::value_masses_read::{HATCH_GAP, MassesCheck, VALUE_PEN};
+pub use kinds::{DrawnCopy, Facts, Kind, Original, Work};
+pub use marks::card::{Arg, CardItem, Say, WheelSize};
+pub use marks::compared::{Compared, Comparison, Seen};
+pub use marks::drawing::PictureCompared;
+pub use marks::mark::{Clip, Figure, In, LinePen, Place, SheetMark, Source};
 pub use maths::colour::{
     Difference, HUELESS, Rgb8, delta_e, from_hsv, from_oklab, from_oklch, hsv, in_gamut, in_grey,
     oklab, oklch,
@@ -105,7 +127,7 @@ pub use records::time::{
     Date, PAUSE, Span, by_day, local_day, practised, seconds, spans_of, weekday,
 };
 pub use sessions::drill::{drill, kinds_of};
-pub use sessions::plan::{Exercise, Family, Kind, Original, STAGE_SESSIONS, STAGES, STAGES_READY};
+pub use sessions::plan::{Exercise, Family, STAGE_SESSIONS, STAGES, STAGES_READY};
 pub use sessions::session::{Before, Plan, WARM_UP, WARM_UP_TWO, plan, stage_one, stage_two};
 pub use sessions::session_five::stage_five;
 pub use sessions::session_four::stage_four;

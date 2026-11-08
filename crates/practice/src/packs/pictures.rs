@@ -12,7 +12,7 @@
 
 use std::collections::HashSet;
 
-use crate::kinds::key_shifts::key_shift::main_hue;
+use crate::colour_areas::main_hue::main_hue;
 use crate::maths::random::Random;
 use crate::packs::pack::{ItemRef, Pack, PictureKind, Tier};
 
@@ -103,7 +103,7 @@ impl Pictures {
         tier.map(|tier| (tier, item))
     }
 
-    /// The main hue of the crop `item` (S107, `key_shift::main_hue`); none for a crop without one
+    /// The main hue of the crop `item` (S107, `colour_areas::main_hue`); none for a crop without one
     /// or another picture.
     pub(crate) fn crop_hue(&self, item: &ItemRef) -> Option<f64> {
         (self.hues.iter()).find_map(|(held, hue)| (held == item).then_some(f64::from(*hue)))

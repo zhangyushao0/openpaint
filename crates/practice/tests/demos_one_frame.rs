@@ -108,11 +108,11 @@ fn the_tricks_solids_objects_and_estimates_mark_only_what_the_hand_drew_off() {
 #[test]
 fn a_scale_of_five_is_numbered_and_painted_as_a_five_cell_row_is() {
     assert_eq!(
-        Demo::of_scale(9),
+        Demo::of_cells(Family::Scale, 9).expect("a scale's"),
         demo(Family::Scale),
         "nine's is the kind's"
     );
-    let scale = Demo::of_scale(5);
+    let scale = Demo::of_cells(Family::Scale, 5).expect("a scale's");
     assert_eq!((scale.family, scale.layout), (Family::Scale, Layout::Row));
     let numbered: Vec<(f64, u8)> = (scale.marks.iter())
         .filter_map(|m| match m.drawn {

@@ -8,7 +8,7 @@
 //! each change.
 
 use openpaint_core::{Artwork, RegionMask, StrokeStyle};
-use openpaint_practice::{Fit, ItemRef, Metrics, SessionRecord};
+use openpaint_practice::{Fit, ItemRef, SessionRecord};
 
 use super::Session;
 use crate::error::AppError;
@@ -162,7 +162,7 @@ impl Session {
 
     /// The runtime read the copy for the Compare numbered `sequence` (`ReadJob::run`; `None`: it
     /// could not).
-    pub fn practice_read(&mut self, sequence: u64, painted: Option<(CopyRead, Metrics)>) {
+    pub fn practice_read(&mut self, sequence: u64, painted: Option<CopyRead>) {
         if let Some(practice) = self.practice.as_mut() {
             practice.read(sequence, painted);
         }

@@ -10,7 +10,7 @@
 //! A level's strokes whose ends meet within two pen widths heading on are one line: V大 draws a
 //! long line from short ones.
 
-use crate::maths::colour::Rgb8;
+use crate::compositions::levels::{Level, LevelRow};
 use crate::maths::path::{Point, distance, length};
 use crate::records::metric::{Metric, Metrics};
 
@@ -25,54 +25,11 @@ pub const HEADING_ON: f64 = 35.0;
 /// How far back from a stroke's end its heading is read, frame units.
 const HEADING_BACK: f64 = 0.03;
 
-/// A division's levels, in V大's order and colours.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum Level {
-    /// 主分割: the few most obvious lines, red.
-    Main,
-    /// 次分割: found from the main lines, green.
-    Second,
-    /// 三级: shorter still, blue.
-    Third,
-}
-
-impl Level {
-    pub const ALL: [Self; 3] = [Self::Main, Self::Second, Self::Third];
-
-    /// Its pen's colour, as a stroke of it holds it and Compare draws it: V大's red, green, blue.
-    #[must_use]
-    pub const fn colour(self) -> Rgb8 {
-        match self {
-            Self::Main => [214, 40, 36],
-            Self::Second => [30, 150, 70],
-            Self::Third => [40, 100, 220],
-        }
-    }
-
-    /// Its place in `ALL`.
-    #[must_use]
-    pub const fn index(self) -> usize {
-        match self {
-            Self::Main => 0,
-            Self::Second => 1,
-            Self::Third => 2,
-        }
-    }
-}
-
 /// One line of a division: its level and its points (frame units), the strokes joined.
 #[derive(Debug, Clone, PartialEq)]
 pub struct DivisionLine {
     pub level: Level,
     pub points: Vec<Point>,
-}
-
-/// A level's lines as the card counts them: how many, and how far they run on the mean as a share
-/// of the picture's longer side (none without a line).
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct LevelRow {
-    pub lines: usize,
-    pub length: Option<f64>,
 }
 
 /// A division as drawn: its lines, each level's row and the numbers a first Compare keeps.

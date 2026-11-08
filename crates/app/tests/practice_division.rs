@@ -11,13 +11,13 @@ use std::sync::Arc;
 
 use openpaint_app::{
     BrushLibrary, Contact, ContactPhase, DIVISION_DIMMED, DIVISION_LAYER, Device, InputSample,
-    Intent, LINES_LAYER, Overlay, Pen, PracticeIntent, PracticeLog, PracticePens, Session,
-    SheetView, StrokeIntent, Title, Toolbox, Viewport, sheet_of,
+    Intent, LINES_LAYER, Pen, PracticeIntent, PracticeLog, PracticePens, Session, SheetView,
+    StrokeIntent, Title, Toolbox, Viewport, sheet_of,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    DivisionCheck, Exercise, Family, Frame, ItemRef, Kind, Level, Metric, Pack, PackItem,
-    PictureKind, Plan, Point, SessionRecord, Tier, resample, value,
+    DivisionCheck, DivisionCompared, Exercise, Family, Frame, ItemRef, Kind, Level, Metric, Pack,
+    PackItem, PictureCompared, PictureKind, Plan, Point, SessionRecord, Tier, resample, value,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -141,15 +141,18 @@ fn divided(session: &mut Session) -> (Frame, Point) {
 }
 
 /// The division's overlay as compared: the picture's corners, how strongly it shows, the check.
-fn division_overlay(session: &Session) -> ([[f32; 2]; 4], f32, Arc<DivisionCheck>) {
-    match (session.projection().practice()).and_then(|p| p.overlay.clone()) {
-        Some(Overlay::Division {
-            corners,
-            shown,
-            check,
-        }) => (corners, shown, check),
-        other => panic!("a division's overlay: {other:?}"),
-    }
+fn division_overlay(session: &Session) -> ([[f32; 2]; 4], f32, DivisionCheck) {
+    let projection = session.projection();
+    let practice = projection.practice().expect("a sheet");
+    let compared = practice.compared.as_ref().expect("compared");
+    let division = compared
+        .downcast::<DivisionCompared>()
+        .expect("a division's overlay");
+    let frame = practice.sheet.pairs[practice.current.expect("shown")].copy;
+    let corners = division
+        .corners
+        .map(|p| frame.to_canvas(p).map(|v| v as f32));
+    (corners, practice.shown, division.check.clone())
 }
 
 #[test]
@@ -242,13 +245,14 @@ fn layer(session: &Session, name: &str) -> (f32, bool, usize, bool) {
 
 /// How strongly a whole copy's picture lies over the copy, compared (no outline).
 fn picture_shown(session: &Session) -> f32 {
-    match (session.projection().practice()).and_then(|p| p.overlay.clone()) {
-        Some(Overlay::Picture { shown, outline, .. }) => {
-            assert!(outline.is_empty());
-            shown
-        }
-        other => panic!("{other:?}"),
-    }
+    let projection = session.projection();
+    let practice = projection.practice().expect("a sheet");
+    let compared = practice.compared.as_ref().expect("compared");
+    assert!(
+        compared.downcast::<PictureCompared>().is_some(),
+        "the picture, no outline"
+    );
+    practice.shown
 }
 
 #[test]

@@ -7,13 +7,14 @@
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, GROUND_SHOWN, InputSample, Intent, Overlay,
-    PictureImage, PracticeIntent, PracticePens, PracticeProjection, SHAPE_SHOWN, Session,
-    SheetView, StrokeIntent, Title, Toolbox, Viewport, sheet_of,
+    BrushLibrary, Contact, ContactPhase, Device, GROUND_SHOWN, InputSample, Intent, PictureImage,
+    PracticeIntent, PracticePens, PracticeProjection, Session, SheetView, StrokeIntent, Title,
+    Toolbox, Viewport, sheet_of,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Exercise, ItemRef, Kind, Outline, Pack, PackItem, PictureKind, Plan, SessionRecord, Tier,
+    Exercise, Figure, ItemRef, Kind, Outline, Pack, PackItem, PictureKind, Plan, SHAPE_SHOWN,
+    SessionRecord, ShapeCompared, Tier,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -184,19 +185,29 @@ fn compare_lays_the_picture_exactly_over_the_copy_s_frame() {
         .collect();
     draw(&mut session, &points);
     practise(&mut session, PracticeIntent::Compare(true));
-    match practice(&session).overlay {
-        Some(Overlay::Picture {
-            corners,
-            outline,
-            shown,
-        }) => {
-            assert_eq!(corners, frame.corners().map(|p| p.map(|v| v as f32)));
-            assert!((shown - SHAPE_SHOWN).abs() < 1e-6);
-            let first = outline.first().and_then(|line| line.first()).copied();
-            assert_eq!(first, Some(points[0]), "the outline where the picture's is");
-        }
-        other => panic!("a picture's overlay: {other:?}"),
-    }
+    let shown = practice(&session);
+    let compared = shown.compared.as_ref().expect("compared");
+    let shape = compared
+        .downcast::<ShapeCompared>()
+        .expect("a picture's overlay");
+    let canvas = |p: [f64; 2]| frame.to_canvas(p).map(|v| v as f32);
+    assert_eq!(
+        shape.corners.map(canvas),
+        frame.corners().map(|p| p.map(|v| v as f32))
+    );
+    let laid = (shown.overlay.iter().flatten()).find_map(|mark| match &mark.drawn {
+        Figure::Picture { shown, .. } => Some(*shown),
+        _ => None,
+    });
+    assert!(laid.is_some_and(|laid| (laid - SHAPE_SHOWN).abs() < 1e-6));
+    let first = (shape.outline.iter().flatten())
+        .next()
+        .and_then(|line| line.first());
+    assert_eq!(
+        first.map(|p| canvas(*p)),
+        Some(points[0]),
+        "the outline where the picture's is"
+    );
 }
 
 #[test]

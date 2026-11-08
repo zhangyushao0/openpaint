@@ -11,9 +11,9 @@ use crate::demos::demo::{
 };
 use crate::geometry::edges::Edge;
 use crate::geometry::ellipse::{Ellipse, EllipseGuide, Guide};
+use crate::geometry::heading::toward;
 use crate::geometry::perspective::{BoxView, Direction, EDGES, Horizon, PerspectiveBox};
-use crate::kinds::boxes::perspective_check::toward;
-use crate::kinds::ellipses::ellipse_fit::EllipseCheck;
+use crate::kinds::ellipses::ellipse_check::EllipseCheck;
 use crate::maths::path::{Point, distance};
 use crate::sessions::plan::Family;
 

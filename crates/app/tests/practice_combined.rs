@@ -6,11 +6,11 @@
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Overlay, Pen, PracticeIntent,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Pen, PracticeIntent,
     PracticeLog, PracticePens, Session, SheetView, StrokeIntent, Title, Toolbox, Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
-use openpaint_practice::{ExerciseResult, Family, Original, SessionRecord, Sheet};
+use openpaint_practice::{ExerciseResult, Family, Figure, LinePen, Original, SessionRecord, Sheet};
 
 const VIEWPORT: Viewport = Viewport {
     origin: [0.0, 84.0],
@@ -95,11 +95,26 @@ fn shown(session: &Session) -> (Option<Family>, bool, (usize, usize), Option<Fam
     (p.family, p.warming_up, p.place, p.instructions)
 }
 
-fn overlay(session: &Session) -> Option<Vec<Vec<[f32; 2]>>> {
-    match session.projection().practice()?.overlay.clone()? {
-        Overlay::Lines(lines) => Some(lines),
-        _ => None,
-    }
+/// The original's lines laid over the copy (canvas pixels), while they show.
+fn laid(session: &Session) -> Option<Vec<Vec<[f32; 2]>>> {
+    let projection = session.projection();
+    let practice = projection.practice()?;
+    let frame = practice.sheet.pairs[practice.current?].copy;
+    let lines: Vec<Vec<[f32; 2]>> = (practice.overlay.as_ref()?.iter())
+        .filter_map(|mark| match &mark.drawn {
+            Figure::Line {
+                points,
+                pen: LinePen::Laid,
+                ..
+            } => Some(
+                (points.iter())
+                    .map(|p| frame.to_canvas(*p).map(|v| v as f32))
+                    .collect(),
+            ),
+            _ => None,
+        })
+        .collect();
+    (!lines.is_empty()).then_some(lines)
 }
 
 fn close(a: [f32; 2], b: [f32; 2], within: f32) -> bool {
@@ -180,12 +195,12 @@ fn combined_lines_are_compared_in_place_and_aligned_as_one_shape() {
         draw(&mut session, copy);
     }
     practise(&mut session, PracticeIntent::Compare(true));
-    let in_place = overlay(&session).expect("the overlay");
+    let in_place = laid(&session).expect("the overlay");
     assert_eq!(in_place.len(), lines.len(), "every line laid");
     let placed = pair.copy.to_canvas(lines[0][0]).map(|v| v as f32);
     assert!(close(in_place[0][0], placed, 0.01), "in place");
     practise(&mut session, PracticeIntent::Aligned(true));
-    let aligned = overlay(&session).expect("the overlay");
+    let aligned = laid(&session).expect("the overlay");
     for (line, copy) in aligned.iter().zip(copies.iter().rev()) {
         let (Some(first), Some(last)) = (line.first(), line.last()) else {
             panic!("a line")
@@ -197,7 +212,7 @@ fn combined_lines_are_compared_in_place_and_aligned_as_one_shape() {
     assert_eq!(pen.map(|(pen, _)| pen), Some(Pen::Correct), "blue now");
     // A correction takes the comparison away; Compare again counts.
     draw(&mut session, &copies[0][..10]);
-    assert!(overlay(&session).is_none());
+    assert!(laid(&session).is_none());
     practise(&mut session, PracticeIntent::Compare(true));
     let record = session.practice_save_request().expect("the record changed");
     assert_eq!(record.result(10).map(|r| r.compares), Some(2));

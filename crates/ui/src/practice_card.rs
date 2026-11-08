@@ -1,18 +1,18 @@
 //! What the practice card says: how to practise each family (S92: its title, what it trains and
 //! its week, V大's way played on an example with its numbered steps, `practice_demo.rs`, and once
 //! what Compare shows, `text/practice_demo*.rs`; Again and Got it); a comparison, which shows
-//! rather than tells (D108): lines in place or aligned, no numbers, a line only where Aligned is
-//! unavailable; a colour both on the wheel and in the colour table; week 2's colour work and a
-//! colour copy in `practice_card_colour.rs`, a key shift in `practice_card_key.rs` (S107), boxes
-//! and ellipses in `practice_card_geometry.rs`, a
-//! division's table and a whole copy's slider in `practice_card_division.rs` (S95);
-//! and a session's summary (the colour judgement's radar over the earlier sessions', the colour
-//! means beside theirs). The words are `text/practice.rs`'s, in the pass's language.
+//! rather than tells (D108): its title, then the items its comparison gives whatever its kind
+//! (S109, `practice_card_items.rs`): in place or aligned, a line of words, Construction, Grey, the
+//! slider, the areas' chips, colours on the wheel and in the colour table, a key shift's disc
+//! (`practice_card_disc.rs`) and lightness bar, a division's table; and a session's summary (the
+//! colour judgement's radar over the earlier sessions', the colour means beside theirs). The words
+//! are `text/practice.rs`'s, in the pass's language.
 
-use openpaint_app::{Finished, Hsv, Intent, Overlay, PracticeIntent, PracticeProjection};
+use openpaint_app::{Finished, Hsv, Intent, PracticeIntent, PracticeProjection};
 use openpaint_core::Color;
 use openpaint_practice::{
-    Axis, CELLS, Family, HUELESS, KindSummary, Metric, Original, Rgb8, oklch,
+    Axis, CELLS, CardItem, Family, HUELESS, KindSummary, Metric, Original, PROJECT, Rgb8,
+    WheelSize, oklch,
 };
 
 use crate::components::{
@@ -21,15 +21,18 @@ use crate::components::{
 };
 use crate::design::motion::OPEN;
 use crate::design::{CORRECTION, DIALOG_WIDTH, INK_SECONDARY, SPACE, TOUCH_TARGET};
+use crate::practice_card_disc::disc;
+use crate::practice_card_items as items;
 use crate::practice_demo::{Demonstrations, HowOf};
 use crate::taps::push_once;
 use crate::text::{self as t, Words, language};
-use crate::{
-    practice_card_colour, practice_card_division, practice_card_geometry, practice_card_key,
-};
 
-/// The comparison wheel's side on the card, in points.
+/// The comparison wheel's side on the card, in points: a colour's, a colour copy's point
+/// compared, and a colour combination's (smaller, so the card fits under the exercise's tools on
+/// a landscape screen).
 const COMPARE_WHEEL: f32 = 280.0;
+const STUDY_WHEEL: f32 = 240.0;
+const AREAS_WHEEL: f32 = 180.0;
 /// The summary's radar's side when the colour combinations' and value scales' rows or a new seal
 /// share the card with it.
 const SUMMARY_RADAR: f32 = 260.0;
@@ -51,10 +54,7 @@ pub(crate) fn how_of(practice: &PracticeProjection, family: Family) -> HowOf {
     let shown = practice
         .current
         .and_then(|index| practice.sheet.originals.get(index));
-    let cells = match shown {
-        Some(Original::Scale(scale)) => scale.cells,
-        _ => CELLS,
-    };
+    let cells = shown.and_then(Original::cells).unwrap_or(CELLS);
     HowOf::new(family, cells)
 }
 
@@ -96,50 +96,91 @@ pub(crate) fn instructions(ui: &mut egui::Ui, of: HowOf, demos: &mut Demonstrati
     .inner
 }
 
-/// The shown exercise as compared.
+/// The shown exercise as compared: its title (a colour copy's name), then its comparison's items
+/// (S109), whatever its kind.
 pub(crate) fn compared(ui: &mut egui::Ui, practice: &PracticeProjection, taps: &mut Vec<Intent>) {
     let Some(family) = practice.family else {
         return;
     };
+    if !practice.comparing {
+        return;
+    }
     let language = language(ui.ctx());
-    let heading = if family == Family::Study {
+    let heading = if practice.stage == PROJECT {
         t::shown_name(language, practice.sheet.name.as_str()).into_owned()
     } else {
         t::exercise(language, (family, practice.warming_up), practice.place.0)
     };
-    let drawn = practice.comparing && family.drawn();
-    match &practice.overlay {
-        Some(Overlay::Colour { original, last, .. }) => {
-            ui.heading(heading);
-            pair_on_wheel(ui, (*original, *last), COMPARE_WHEEL);
+    ui.heading(heading);
+    for item in &practice.card {
+        item_of(ui, practice, item, taps);
+    }
+}
+
+/// One of the card's items.
+fn item_of(
+    ui: &mut egui::Ui,
+    practice: &PracticeProjection,
+    item: &CardItem,
+    taps: &mut Vec<Intent>,
+) {
+    let chosen = practice.area;
+    match item {
+        CardItem::Reading => card_text(ui, t::READING_COPY, true),
+        CardItem::Overlaid => lines(ui, practice, taps),
+        CardItem::Says(say) => items::says(ui, say),
+        CardItem::Failed(say) => items::failed(ui, say),
+        CardItem::Construction => {
+            let on = practice.construction;
+            items::toggle(
+                ui,
+                ("construction", t::CONSTRUCTION, on),
+                taps,
+                PracticeIntent::Construction,
+            );
         }
-        _ if drawn && family.divided() => {
-            ui.heading(heading);
-            practice_card_division::compared(ui, practice, taps);
+        CardItem::Grey => {
+            items::toggle(
+                ui,
+                ("grey", t::GREY_VIEW, practice.grey),
+                taps,
+                PracticeIntent::Grey,
+            );
         }
-        _ if drawn && family.geometric() => {
-            ui.heading(heading);
-            practice_card_geometry::compared(ui, practice, taps);
-        }
-        _ if drawn => {
-            ui.heading(heading);
-            lines(ui, practice, family, taps);
-        }
-        Some(Overlay::KeyShift { .. }) => {
-            ui.heading(heading);
-            practice_card_key::compared(ui, practice, taps);
-        }
-        Some(_) if family.painted() => {
-            ui.heading(heading);
-            practice_card_colour::compared(ui, practice, taps);
-        }
-        _ => {}
+        CardItem::Slider => items::shown_slider(ui, practice.shown, taps),
+        CardItem::Chips {
+            originals,
+            copy,
+            marked,
+        } => items::chips(ui, (originals, copy.as_deref()), (chosen, marked), taps),
+        CardItem::Wheel {
+            original,
+            copy,
+            size,
+        } => pair_on_wheel(ui, (*original, *copy), wheel_side(*size)),
+        CardItem::Disc {
+            originals,
+            copy,
+            tendency,
+            mask,
+        } => disc(ui, (originals, copy), *tendency, mask, chosen),
+        CardItem::Bar { original, copy } => items::lightness(ui, *original, *copy),
+        CardItem::Levels(rows) => items::levels(ui, rows),
+    }
+}
+
+/// The wheel's side on the card, in points.
+const fn wheel_side(size: WheelSize) -> f32 {
+    match size {
+        WheelSize::Large => COMPARE_WHEEL,
+        WheelSize::Middle => STUDY_WHEEL,
+        WheelSize::Small => AREAS_WHEEL,
     }
 }
 
 /// A drawn exercise compared (a line, a group of them, a single shape): in place or aligned
-/// (while its fit is found, saying so); a shape without an outline says why Aligned is greyed.
-fn lines(ui: &mut egui::Ui, practice: &PracticeProjection, family: Family, taps: &mut Vec<Intent>) {
+/// (while its fit is found, saying so).
+fn lines(ui: &mut egui::Ui, practice: &PracticeProjection, taps: &mut Vec<Intent>) {
     ui.horizontal(|ui| {
         choices(ui, "overlay", |ui, group| {
             for (aligned, word) in [(false, t::IN_PLACE), (true, t::ALIGNED)] {
@@ -155,9 +196,6 @@ fn lines(ui: &mut egui::Ui, practice: &PracticeProjection, family: Family, taps:
             hint(ui, t::ALIGNING);
         }
     });
-    if family == Family::Shape && !practice.aligned_offered {
-        card_text(ui, t::NO_OUTLINE, false);
-    }
 }
 
 /// `original` and `mine` on the wheel (`side` points), the way from one to the other, and the
@@ -197,7 +235,7 @@ pub(crate) fn summary(ui: &mut egui::Ui, practice: &PracticeProjection, kinds: &
         card_text(ui, Words::made(&line), false);
     }
     let Some(colours) = kinds.iter().find(|kind| kind.family == Family::Colour) else {
-        practice_card_colour::summary_rows(ui, kinds);
+        items::summary_rows(ui, kinds);
         return;
     };
     if let Some([this, before]) = colours.judgement {
@@ -229,7 +267,7 @@ pub(crate) fn summary(ui: &mut egui::Ui, practice: &PracticeProjection, kinds: &
         let name = t::metric(*metric).get(language);
         card_columns(ui, &[name, &shown(this), &shown(before)], false);
     }
-    practice_card_colour::summary_rows(ui, kinds);
+    items::summary_rows(ui, kinds);
 }
 
 /// A finished session's heading ("Session 3 done"), or a drill's ("Centre drill done").

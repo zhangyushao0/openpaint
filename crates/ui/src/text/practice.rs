@@ -107,7 +107,7 @@ pub(crate) const fn metric(metric: Metric) -> Text {
 }
 
 /// A kind's name as its tile and its drill say it: "Line", "Centre" (S91).
-pub(crate) const fn kind_name(family: Family) -> Text {
+pub(crate) fn kind_name(family: Family) -> Text {
     called(family, false)
 }
 
@@ -130,36 +130,12 @@ pub(crate) fn drill_number(language: Language, family: Family, number: u32) -> S
 }
 
 /// What an exercise is called ("Line", "Warm-up"): a warm-up's by its part of the session, any
-/// other by its family.
-const fn called(family: Family, warming_up: bool) -> Text {
-    match (warming_up, family) {
-        (true, _) => WARM_UP,
-        (false, Family::Line) => LINE,
-        (false, Family::Combined) => COMBINED_LINES,
-        (false, Family::Shape) => SHAPE_EXERCISE,
-        (false, Family::Box) => super::BOX_EXERCISE,
-        (false, Family::FreeBoxes) => super::FREE_BOXES_EXERCISE,
-        (false, Family::Ellipse) => super::ELLIPSE_EXERCISE,
-        (false, Family::Point) => super::POINT_EXERCISE,
-        (false, Family::Proportion) => super::PROPORTION_EXERCISE,
-        (false, Family::Angle) => super::ANGLE_EXERCISE,
-        (false, Family::Centre) => super::CENTRE_EXERCISE,
-        (false, Family::Halves) => super::HALVES_EXERCISE,
-        (false, Family::Thirds) => super::THIRDS_EXERCISE,
-        (false, Family::Step) => super::STEP_EXERCISE,
-        (false, Family::Mirror) => super::MIRROR_EXERCISE,
-        (false, Family::Cylinder) => super::CYLINDER_EXERCISE,
-        (false, Family::Cone) => super::CONE_EXERCISE,
-        (false, Family::Sphere) => super::SPHERE_EXERCISE,
-        (false, Family::Object) => super::OBJECT_EXERCISE,
-        (false, Family::Division) => super::DIVISION_EXERCISE,
-        (false, Family::WholeCopy) => super::WHOLE_COPY_EXERCISE,
-        (false, Family::ValueMasses) => super::VALUE_MASSES_EXERCISE,
-        (false, Family::Colour) => COLOUR_EXERCISE,
-        (false, Family::Areas) => super::AREAS_EXERCISE,
-        (false, Family::Scale) => super::SCALE_EXERCISE,
-        (false, Family::Study) => super::STUDY_EXERCISE,
-        (false, Family::KeyShift) => super::KEY_SHIFT_EXERCISE,
+/// other by its kind's words.
+fn called(family: Family, warming_up: bool) -> Text {
+    if warming_up {
+        WARM_UP
+    } else {
+        super::kind_words(family).name
     }
 }
 
@@ -199,53 +175,5 @@ pub(crate) fn compared_of(
     family: Family,
     (checked, held): (usize, usize),
 ) -> String {
-    let named = |name: Text| super::counted(language, name, (checked, held));
-    match (language, family) {
-        (_, Family::Point) => named(super::POINTS_COUNTED),
-        (_, Family::Proportion) => named(super::PROPORTIONS_COUNTED),
-        (_, Family::Angle) => named(super::ANGLES_COUNTED),
-        (_, Family::Centre) => named(super::CENTRES_COUNTED),
-        (_, Family::Halves) => named(super::HALVES_COUNTED),
-        (_, Family::Thirds) => named(super::THIRDS_COUNTED),
-        (_, Family::Step) => named(super::STEPS_COUNTED),
-        (_, Family::Mirror) => named(super::MIRRORS_COUNTED),
-        (_, Family::Cylinder) => named(super::CYLINDERS_COUNTED),
-        (_, Family::Cone) => named(super::CONES_COUNTED),
-        (_, Family::Sphere) => named(super::SPHERES_COUNTED),
-        (_, Family::Object) => named(super::OBJECTS_COUNTED),
-        (_, Family::Division) => named(super::DIVISIONS_COUNTED),
-        (_, Family::WholeCopy) => named(super::WHOLE_COPIES_COUNTED),
-        (_, Family::ValueMasses) => named(super::MASSES_COUNTED),
-        (_, Family::KeyShift) => named(super::KEY_SHIFTS_COUNTED),
-        (Language::English, Family::Line) => format!("Lines: {checked} of {held} compared"),
-        (Language::English, Family::Combined) => {
-            format!("Combined lines: {checked} of {held} compared")
-        }
-        (Language::English, Family::Colour) => format!("Colours: {checked} of {held} compared"),
-        (Language::English, Family::Shape) => format!("Shapes: {checked} of {held} compared"),
-        (Language::English, Family::Box) => format!("Boxes: {checked} of {held} compared"),
-        (Language::English, Family::FreeBoxes) => {
-            format!("Free boxes: {checked} of {held} compared")
-        }
-        (Language::English, Family::Ellipse) => format!("Ellipses: {checked} of {held} compared"),
-        (Language::English, Family::Areas) => {
-            format!("Colour combinations: {checked} of {held} compared")
-        }
-        (Language::English, Family::Scale) => {
-            format!("Value scales: {checked} of {held} compared")
-        }
-        (Language::English, Family::Study) => {
-            format!("Colour copies: {checked} of {held} compared")
-        }
-        (Language::Chinese, Family::Line) => format!("线条：已对比 {checked}/{held}"),
-        (Language::Chinese, Family::Combined) => format!("组合线条：已对比 {checked}/{held}"),
-        (Language::Chinese, Family::Shape) => format!("单体图形：已对比 {checked}/{held}"),
-        (Language::Chinese, Family::Box) => format!("透视盒子：已对比 {checked}/{held}"),
-        (Language::Chinese, Family::FreeBoxes) => format!("自由盒子：已对比 {checked}/{held}"),
-        (Language::Chinese, Family::Ellipse) => format!("椭圆：已对比 {checked}/{held}"),
-        (Language::Chinese, Family::Colour) => format!("单色：已对比 {checked}/{held}"),
-        (Language::Chinese, Family::Areas) => format!("色彩组合：已对比 {checked}/{held}"),
-        (Language::Chinese, Family::Scale) => format!("明度推移：已对比 {checked}/{held}"),
-        (Language::Chinese, Family::Study) => format!("色彩临摹：已对比 {checked}/{held}"),
-    }
+    super::counted(language, super::kind_words(family).counted, (checked, held))
 }

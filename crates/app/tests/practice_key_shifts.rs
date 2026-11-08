@@ -7,13 +7,13 @@
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Overlay, PictureImage, PracticeIntent, PracticeLog, PracticeNotice, PracticePens,
+    BrushLibrary, PictureImage, PracticeIntent, PracticeLog, PracticeNotice, PracticePens,
     PracticePick, ReadAs, Session, SheetView, Title, Toolbox, Viewport, sheet_of,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Areas, Exercise, Family, ItemRef, Kind, Lean, Metric, Pack, PackItem, PictureKind, Plan,
-    SessionRecord, Tendency, Tier, value,
+    Areas, Exercise, Family, ItemRef, KeyCompared, Kind, Lean, Metric, Pack, PackItem, PictureKind,
+    Plan, SessionRecord, Tendency, Tier, value,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -107,8 +107,15 @@ fn read_sheet() -> Session {
     session
 }
 
-fn overlay(session: &Session) -> Option<Overlay> {
-    session.projection().practice()?.overlay.clone()
+fn overlay(session: &Session) -> Option<(KeyCompared, bool, bool)> {
+    let projection = session.projection();
+    let practice = projection.practice()?;
+    let compared = practice
+        .compared
+        .as_ref()?
+        .downcast::<KeyCompared>()?
+        .clone();
+    Some((compared, practice.grey, practice.greys.is_some()))
 }
 
 #[test]
@@ -154,11 +161,13 @@ fn compare_marks_only_what_is_off_and_shows_grey_while_compared() {
         pixels: bands(job.size, copy),
     };
     session.practice_read(job.sequence, job.run(&pixels));
-    let Some(Overlay::KeyShift {
-        read: Some(read),
-        grey: false,
-        ..
-    }) = overlay(&session)
+    let Some((
+        KeyCompared {
+            read: Some(read), ..
+        },
+        false,
+        _,
+    )) = overlay(&session)
     else {
         panic!("the copy read")
     };
@@ -169,7 +178,6 @@ fn compare_marks_only_what_is_off_and_shows_grey_while_compared() {
     assert!(read.check.off_lightness.contains(&grey), "the grey lighter");
     assert_eq!(read.check.lighter_darker(), (1, 0));
     assert!(read.outline(grey).is_some() && read.outline(rust).is_some());
-    assert_eq!(read.grey_copy.size, job.size);
     let result = session
         .projection()
         .practice()
@@ -178,11 +186,9 @@ fn compare_marks_only_what_is_off_and_shows_grey_while_compared() {
     assert_eq!(value(&metrics, Metric::KeyLightness), Some(1.0));
     // The Grey view, until the comparison goes.
     practise(&mut session, PracticeIntent::Grey(true));
-    let grey_view = overlay(&session);
-    assert!(matches!(
-        grey_view,
-        Some(Overlay::KeyShift { grey: true, .. })
-    ));
+    let Some((_, true, true)) = overlay(&session) else {
+        panic!("the Grey view, its frames in grey")
+    };
     practise(&mut session, PracticeIntent::Fill(Color::WHITE));
     assert!(overlay(&session).is_none());
 }

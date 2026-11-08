@@ -9,7 +9,7 @@ use crate::maths::path::{Point, distance, length};
 
 /// What a hand draws in the examples a little off a part on purpose (frame units): twice the Draw
 /// pen's width, so Compare marks it as the exercise would (S98).
-pub(crate) const DRAWN_OFF: f64 = 2.0 * crate::kinds::solids::solid::PEN_WIDTH;
+pub(crate) const DRAWN_OFF: f64 = 2.0 * crate::geometry::off::PEN_WIDTH;
 
 /// The line through `a` and `b`, two points.
 pub(crate) fn line(a: Point, b: Point) -> Drawn {

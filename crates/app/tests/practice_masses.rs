@@ -10,14 +10,14 @@
 use std::sync::Arc;
 
 use openpaint_app::{
-    BLOCKS_LAYER, BrushLibrary, CopyRead, DIVISION_DIMMED, DIVISION_LAYER, Overlay, Pen,
-    PictureImage, PracticeIntent, PracticeLog, PracticePens, PracticePick, ReadAs, Session,
-    SheetView, Title, Toolbox, Viewport, sheet_of, value_colour,
+    BLOCKS_LAYER, BrushLibrary, DIVISION_DIMMED, DIVISION_LAYER, Pen, PictureImage, PracticeIntent,
+    PracticeLog, PracticePens, PracticePick, ReadAs, Session, SheetView, Title, Toolbox, Viewport,
+    sheet_of, value_colour,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Exercise, Family, ItemRef, Kind, Masses, Metric, Pack, PackItem, PictureKind, Plan,
-    SessionRecord, Tier, Value, ValueMasses, value,
+    Exercise, Family, ItemRef, Kind, Masses, MassesCompared, Metric, Pack, PackItem, PictureKind,
+    Plan, SessionRecord, Tier, Value, ValueMasses, value,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -151,27 +151,28 @@ fn value_masses_are_painted_in_three_greys_and_read_against_the_answer() {
     practise(&mut session, PracticeIntent::Compare(true));
     let job = session.practice_read_request().expect("the copy asked for");
     assert_eq!(job.size, [400, 300]);
-    let ReadAs::Masses(answer, place) = job.read.clone() else {
+    let ReadAs::Masses(answer, place, ..) = job.read.clone() else {
         panic!("{:?}", job.read);
     };
     assert_eq!(place, [[0.0, 0.0], [1.0, 0.75]]);
-    let (read, metrics) = job.run(&painted(&answer, place, job.size)).expect("read");
-    let CopyRead::Masses(check) = &read else {
+    let read = job.run(&painted(&answer, place, job.size)).expect("read");
+    let masses = read.comparison.downcast::<MassesCompared>();
+    let Some(MassesCompared {
+        check: Some(check), ..
+    }) = masses
+    else {
         panic!("{read:?}");
     };
     assert!(check.hatching.is_empty() && check.matched > 0.99);
-    session.practice_read(job.sequence, Some((read.clone(), metrics)));
-    match session
-        .projection()
-        .practice()
-        .and_then(|p| p.overlay.clone())
-    {
-        Some(Overlay::Masses { shown, read, .. }) => {
-            assert!((shown - 0.5).abs() < 1e-6);
-            assert!(read.is_some());
-        }
-        other => panic!("{other:?}"),
-    }
+    session.practice_read(job.sequence, Some(read.clone()));
+    let projection = session.projection();
+    let practice = projection.practice().expect("a sheet");
+    assert!((practice.shown - 0.5).abs() < 1e-6);
+    let shown = practice
+        .compared
+        .as_ref()
+        .and_then(|c| c.downcast::<MassesCompared>());
+    assert!(shown.is_some_and(|masses| masses.check.is_some()));
     let record = session.practice_save_request().expect("compared");
     let kept = value(
         &record.result(0).expect("compared").metrics,

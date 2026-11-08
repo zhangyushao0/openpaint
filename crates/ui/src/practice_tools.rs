@@ -234,7 +234,7 @@ fn pens(
             let word = text_choice(ui, group, t::pen(pen), chosen == Some(pen));
             // A division's level shows its colour under its word (S95), a grey its grey (S96).
             let colour = (pen.level())
-                .map(crate::practice_division_marks::level_colour)
+                .map(crate::practice_marks::level_colour)
                 .or_else(|| pen.value().map(crate::practice_marks::value_colour));
             if let Some(colour) = colour {
                 let rect = word.rect;

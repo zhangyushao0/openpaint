@@ -15,8 +15,8 @@
 //! picture, construction and visible edges (S94), a landscape's picture, its division in V大's
 //! three levels and its line drawing (S95), its value masses and a copy of them read (S96).
 
+use crate::compositions::levels::Level;
 use crate::compositions::value_masses::{Value, ValueMasses};
-use crate::kinds::divisions::division::Level;
 use crate::maths::colour::Rgb8;
 use crate::maths::path::{Point, length};
 use crate::sessions::plan::Family;
@@ -25,15 +25,7 @@ use crate::sessions::plan::Family;
 #[path = "demo_hand.rs"]
 mod hand;
 
-use crate::kinds::boxes::demo_space as space;
-use crate::kinds::colours::demo_colour as colour;
-use crate::kinds::divisions::demo_division as division;
-use crate::kinds::estimates::demo_points as points;
 use crate::kinds::key_shifts::demo_key as key;
-use crate::kinds::lines::demo_drawn as drawn;
-use crate::kinds::objects::demo_objects as objects;
-use crate::kinds::solids::demo_solids as solids;
-use crate::kinds::value_masses::demo_masses as masses;
 
 pub(crate) use hand::{
     DRAWN_OFF, bounds, clearest, line, off_marks, off_middle, seen, tick, wobbled,
@@ -175,7 +167,7 @@ pub struct Demo {
     pub family: Family,
     pub layout: Layout,
     /// The colour combination its `Drawn::Areas` marks paint (a combination's only).
-    pub areas: Option<crate::kinds::combinations::areas_generated::GeneratedAreas>,
+    pub areas: Option<crate::colour_areas::areas_generated::GeneratedAreas>,
     /// The object its `Drawn::Shaded` mark shows (an object's only, S94).
     pub object: Option<Box<crate::kinds::objects::object::ObjectTask>>,
     /// The landscape its `Drawn::Masses` marks show (a division's and a whole copy's, S95).
@@ -205,35 +197,14 @@ impl Demo {
     /// `family`'s demonstration; none for the colour copy.
     #[must_use]
     pub fn of(family: Family) -> Option<Self> {
-        Some(match family {
-            Family::Line => drawn::line(),
-            Family::Combined => drawn::combined(),
-            Family::Shape => drawn::shape(),
-            Family::Colour => colour::colour(),
-            Family::Areas => colour::areas(),
-            Family::Scale => colour::scale(crate::kinds::scales::scale::CELLS),
-            Family::Box => space::perspective_box(),
-            Family::FreeBoxes => space::free_boxes(),
-            Family::Ellipse => space::ellipse(),
-            Family::Point | Family::Proportion | Family::Angle => points::estimate(family)?,
-            Family::Centre | Family::Halves | Family::Thirds | Family::Step | Family::Mirror => {
-                points::trick(family)?
-            }
-            Family::Cylinder | Family::Cone | Family::Sphere => solids::solid(family)?,
-            Family::Object => objects::object()?,
-            Family::Division => division::division(),
-            Family::WholeCopy => division::whole_copy(),
-            Family::ValueMasses => masses::value_masses(),
-            Family::KeyShift => key::key_shift(),
-            Family::Study => return None,
-        })
+        family.described().how(family)
     }
 
-    /// A value scale's demonstration of `cells` cells, the count of the scale in hand (S97: its
-    /// steps name that row's cells); `of(Family::Scale)` is nine's.
+    /// `family`'s demonstration for an exercise of `cells` cells in hand (S97: a value scale's
+    /// steps name that row's cells; other kinds' are the same whatever it holds).
     #[must_use]
-    pub fn of_scale(cells: usize) -> Self {
-        colour::scale(cells)
+    pub fn of_cells(family: Family, cells: usize) -> Option<Self> {
+        family.described().how_of(family, cells)
     }
 
     /// The step being drawn `seconds` after the start (the first before it begins, the last once

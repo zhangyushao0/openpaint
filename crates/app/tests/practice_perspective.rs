@@ -7,14 +7,14 @@
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Overlay, Pen, PracticeIntent,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Pen, PracticeIntent,
     PracticeLog, PracticePens, Session, SheetView, StrokeIntent, Title, Toolbox, Viewport,
     sheet_of,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    BoxView, Ellipse, Exercise, Family, Frame, Guide, Horizon, Kind, Original, Plan, Point,
-    Roundness, SessionRecord,
+    BoxCompared, BoxView, Compared, Ellipse, EllipseCompared, Exercise, Family, Frame,
+    FreeCompared, Guide, Horizon, Kind, Original, Plan, Point, Roundness, SessionRecord,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -93,8 +93,10 @@ fn practise(session: &mut Session, intent: PracticeIntent) {
     session.practise(intent, 1_791_500_000).expect("practised");
 }
 
-fn overlay(session: &Session) -> Option<Overlay> {
-    session.projection().practice()?.overlay.clone()
+fn compared<T: Compared + Clone>(session: &Session) -> Option<T> {
+    let projection = session.projection();
+    let practice = projection.practice()?;
+    practice.compared.as_ref()?.downcast::<T>().cloned()
 }
 
 /// The opened sheet's box completed (the nine edges but the front corner's, one of them a little
@@ -132,7 +134,7 @@ fn a_box_is_completed_and_only_its_edge_that_misses_is_drawn_on() {
     assert_eq!(practice.pen.map(|(pen, _)| pen), Some(Pen::Draw));
     assert!(!practice.aligned_offered, "geometry is never aligned");
     let frame = completed(&mut session);
-    let Some(Overlay::Box(check)) = overlay(&session) else {
+    let Some(BoxCompared { check, .. }) = compared(&session) else {
         panic!("the box's check")
     };
     assert_eq!(check.edges.len(), 9);
@@ -150,7 +152,7 @@ fn a_box_is_completed_and_only_its_edge_that_misses_is_drawn_on() {
     assert!(session.practise(PracticeIntent::Aligned(true), 1).is_err());
     // A correction takes the check away; Compare again counts, no numbers kept.
     draw(&mut session, &frame, &[[0.4, 0.4], [0.45, 0.47]]);
-    assert!(overlay(&session).is_none());
+    assert!(compared::<BoxCompared>(&session).is_none());
     practise(&mut session, PracticeIntent::Compare(true));
     let record = session.practice_save_request().expect("the record changed");
     let result = record.result(0).expect("compared");
@@ -214,7 +216,7 @@ fn free_boxes_are_read_box_by_box_against_the_page_s_horizon() {
         }
     }
     practise(&mut session, PracticeIntent::Compare(true));
-    let Some(Overlay::FreeBoxes(check)) = overlay(&session) else {
+    let Some(FreeCompared { check, .. }) = compared(&session) else {
         panic!("the page's check")
     };
     assert_eq!(check.boxes.len(), 2);
@@ -238,7 +240,7 @@ fn an_ellipse_is_fitted_then_its_correction_alone() {
     let round = |e: &Ellipse| e.outline(48);
     draw(&mut session, &frame, &round(&guide.exact));
     practise(&mut session, PracticeIntent::Compare(true));
-    let Some(Overlay::Ellipse(check)) = overlay(&session) else {
+    let Some(EllipseCompared { check, .. }) = compared(&session) else {
         panic!("the ellipse's check")
     };
     assert!(check.fitted.is_some() && check.roundness.is_none() && check.sides.is_empty());
@@ -249,7 +251,7 @@ fn an_ellipse_is_fitted_then_its_correction_alone() {
     };
     draw(&mut session, &frame, &round(&flatter));
     practise(&mut session, PracticeIntent::Compare(true));
-    let Some(Overlay::Ellipse(check)) = overlay(&session) else {
+    let Some(EllipseCompared { check, .. }) = compared(&session) else {
         panic!("the ellipse's check")
     };
     assert_eq!(check.roundness, Some(Roundness::Flatter));

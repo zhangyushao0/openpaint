@@ -6,21 +6,23 @@
 //! shows over the copy is the user's (a slider); a combination's card compares one area at a
 //! time, its outline marked on both frames; a value scale is filled a cell at a time, the cell in
 //! hand (Fill fills it, then the next; the pen touching a cell takes it, S100); value masses (S96)
-//! are read against the picture's answer. The eyedropper is `practice_pick.rs`.
+//! are read against the picture's answer. The eyedropper is `practice_pick.rs`. What a reading
+//! shows is its comparison's (`openpaint_practice::Compared`, S109).
 
 use std::sync::Arc;
 
 use openpaint_practice::{
-    Areas, MassesCheck, Metrics, Original, Point, Rgb8, ScaleCheck, Tendency, ValueMasses,
-    ValueScale,
+    Areas, AreasCompared, AreasRead, Comparison, Family, MassesCompared, Metrics, Original, Point,
+    Rgb8, ScaleCompared, Tendency, ValueMasses, ValueScale,
 };
 
 use super::key::read_key;
 use super::{Compared, PracticeSheet, unavailable};
 use crate::error::AppError;
-use crate::practice::{AreasRead, KeyRead, PracticeNotice, Probe, SHOWN};
+use crate::practice::{PracticeNotice, Probe, SHOWN};
 use crate::practice_copy::PAPER;
 use crate::practice_pictures::PictureImage;
+use crate::practice_shown::{CopyRead, Greys};
 use crate::projection::Availability;
 
 /// The copy's frame for the runtime to draw and read, for the Compare numbered `sequence`:
@@ -39,49 +41,47 @@ pub enum ReadAs {
     /// A colour combination's areas and the size its picture fills in the frame (frame units).
     Areas(Arc<Areas>, Point),
     Scale(ValueScale),
-    /// Value masses' answer (S96) and where the picture lies in the frame: its top left and its
-    /// size, frame units.
-    Masses(Arc<ValueMasses>, [Point; 2]),
+    /// Value masses' answer (S96), where the picture lies in the frame (its top left and its
+    /// size, frame units), its corners and its mass edges (frame units).
+    Masses(
+        Arc<ValueMasses>,
+        [Point; 2],
+        [Point; 4],
+        Arc<Vec<Vec<Point>>>,
+    ),
     /// A key shift's (S107): its crop's areas, the size its picture fills in the frame, its
-    /// tendency, and its picture as read for the screen (none while not read), greyed with it.
+    /// tendency, its picture's corners, and its picture as read for the screen (none while not
+    /// read), greyed with it.
     KeyShift {
         areas: Arc<Areas>,
         extent: Point,
         tendency: Tendency,
+        corners: [Point; 4],
         original: Option<Arc<PictureImage>>,
     },
-}
-
-/// A painted copy as read: a colour combination's areas and the edges where it made a weak
-/// contrast strong, a value scale's cells checked, or value masses' hatching (S96).
-#[derive(Debug, Clone, PartialEq)]
-pub enum CopyRead {
-    Areas(Arc<AreasRead>),
-    Scale(Arc<ScaleCheck>),
-    Masses(Arc<MassesCheck>),
-    KeyShift(Arc<KeyRead>),
 }
 
 impl ReadJob {
     /// The copy whose frame's pixels are `pixels` (8-bit RGBA on the sheet's paper) as read, with
     /// the numbers a first Compare keeps.
     #[must_use]
-    pub fn run(&self, pixels: &PictureImage) -> Option<(CopyRead, Metrics)> {
+    pub fn run(&self, pixels: &PictureImage) -> Option<CopyRead> {
+        let read = |compared: Comparison, metrics: Metrics| CopyRead {
+            comparison: compared,
+            metrics,
+            greys: None,
+        };
         match &self.read {
-            ReadAs::KeyShift {
-                areas,
-                extent,
-                tendency,
-                original,
-            } => Some(read_key(
-                (areas, *extent, *tendency),
-                original.as_deref(),
-                pixels,
-            )),
-            ReadAs::Masses(answer, place) => {
+            ReadAs::KeyShift { .. } => Some(read_key(&self.read, pixels)),
+            ReadAs::Masses(answer, place, corners, edges) => {
                 let check = answer.read((pixels.size, &pixels.pixels), *place);
                 let metrics = check.metrics.clone();
-                Some((CopyRead::Masses(Arc::new(check)), metrics))
+                let compared = MassesCompared {
+                    corners: *corners,
+                    edges: edges.to_vec(),
+                    check: Some(check),
+                };
+                Some(read(Comparison::of(compared), metrics))
             }
             ReadAs::Areas(areas, extent) => {
                 let copy = areas.read(pixels.size, &pixels.pixels, PAPER);
@@ -90,16 +90,42 @@ impl ReadJob {
                     .flat_map(|c| in_frame(areas.edges(c.areas.0, Some(c.areas.1)), *extent))
                     .collect();
                 let metrics = copy.metrics(areas);
-                Some((
-                    CopyRead::Areas(Arc::new(AreasRead { copy, strong })),
-                    metrics,
-                ))
+                let compared = AreasCompared {
+                    colours: areas.colours.clone(),
+                    read: Some(AreasRead { copy, strong }),
+                };
+                Some(read(Comparison::of(compared), metrics))
             }
             ReadAs::Scale(scale) => {
                 let check = scale.read(pixels.size, &pixels.pixels, PAPER);
                 let metrics = check.metrics();
-                Some((CopyRead::Scale(Arc::new(check)), metrics))
+                let compared = ScaleCompared {
+                    scale: *scale,
+                    check: Some(check),
+                };
+                Some(read(Comparison::of(compared), metrics))
             }
+        }
+    }
+
+    /// What its copy shows until it is read.
+    #[must_use]
+    pub(super) fn unread(&self) -> Comparison {
+        match &self.read {
+            ReadAs::KeyShift { .. } => super::key::unread_key(&self.read),
+            ReadAs::Masses(_, _, corners, edges) => Comparison::of(MassesCompared {
+                corners: *corners,
+                edges: edges.to_vec(),
+                check: None,
+            }),
+            ReadAs::Areas(areas, _) => Comparison::of(AreasCompared {
+                colours: areas.colours.clone(),
+                read: None,
+            }),
+            ReadAs::Scale(scale) => Comparison::of(ScaleCompared {
+                scale: *scale,
+                check: None,
+            }),
         }
     }
 }
@@ -258,9 +284,10 @@ impl PracticeSheet {
         self.painting_state.grey = false;
     }
 
-    /// The copy of exercise `index` asked of the runtime for Compare; nothing to read where its
-    /// original is no painted one (value masses without their answer: a picture removed).
-    pub(super) fn ask_read(&mut self, index: usize) -> Reading {
+    /// The copy of exercise `index` asked of the runtime for Compare, and what shows until it is
+    /// read; none where its original is no painted one (value masses without their answer: a
+    /// picture removed).
+    pub(super) fn ask_read(&mut self, index: usize) -> Option<(Reading, Comparison)> {
         let combination = self.sheet.areas(index);
         let read = match &self.sheet.originals[index] {
             _ if let Some(asked) = self.key_asked(index) => asked,
@@ -268,25 +295,27 @@ impl PracticeSheet {
                 ReadAs::Areas(Arc::new(areas.clone()), extent)
             }
             Original::Scale(scale) => ReadAs::Scale(*scale),
-            Original::Picture(_) => {
-                let picture = self.sheet.pictures.get(index).and_then(Option::as_ref);
-                let Some((masses, fit)) = picture.and_then(|p| Some((p.masses.as_ref()?, p.fit)))
-                else {
-                    return Reading::Shown;
-                };
-                ReadAs::Masses(Arc::clone(&masses.answer), [[0.0, 0.0], fit.size])
+            Original::Picture(_) if self.family(index) == Some(Family::ValueMasses) => {
+                let picture = self.sheet.pictures.get(index).and_then(Option::as_ref)?;
+                let masses = picture.masses.as_ref()?;
+                let place = [[0.0, 0.0], picture.fit.size];
+                let edges = Arc::new(masses.edges.clone());
+                let corners = picture.fit.corners();
+                ReadAs::Masses(Arc::clone(&masses.answer), place, corners, edges)
             }
-            _ => return Reading::Shown,
+            _ => return None,
         };
         let frame = self.sheet.pairs[index].copy;
         self.painting_state.reads += 1;
-        self.painting_state.job = Some(ReadJob {
+        let job = ReadJob {
             sequence: self.painting_state.reads,
             origin: frame.origin.map(|v| v.round().max(0.0) as u32),
             size: frame.size.map(|v| v.round().max(1.0) as u32),
             read,
-        });
-        Reading::Asked(self.painting_state.reads)
+        };
+        let unread = job.unread();
+        self.painting_state.job = Some(job);
+        Some((Reading::Asked(self.painting_state.reads), unread))
     }
 
     /// The copy's pixels to read, once: the runtime takes it.
@@ -297,11 +326,10 @@ impl PracticeSheet {
     /// The runtime read the copy for the Compare numbered `sequence` (`None`: it could not): the
     /// copy as read shows if that Compare's comparison still does, and its numbers are kept as
     /// the exercise's first.
-    pub(crate) fn read(&mut self, sequence: u64, painted: Option<(CopyRead, Metrics)>) {
+    pub(crate) fn read(&mut self, sequence: u64, painted: Option<CopyRead>) {
         if self.current().is_none() || sequence <= self.painting_state.since {
             return;
         }
-        let reading = painted.map(|(read, metrics)| (Reading::Read(read), metrics));
         let index = self.record.current as usize;
         if let Some(result) = self
             .record
@@ -309,21 +337,41 @@ impl PracticeSheet {
             .iter_mut()
             .find(|r| r.index as usize == index)
             && result.metrics.is_empty()
-            && let Some((_, metrics)) = &reading
+            && let Some(read) = &painted
         {
-            result.metrics.clone_from(metrics);
+            result.metrics.clone_from(&read.metrics);
             self.changed = true;
         }
-        if let Some(Compared::Painted(shown)) = &mut self.compared
+        if let Some(Compared::Painted(shown, _)) = &mut self.compared
             && *shown == Reading::Asked(sequence)
         {
-            *shown = reading.map_or(Reading::Shown, |(reading, _)| reading);
+            *shown = painted.map_or(Reading::Shown, Reading::Read);
         }
     }
 
-    /// How much of the original shows, the area compared and its outline, for the overlay.
-    pub(super) fn painted_overlay(&self) -> (f32, usize, Arc<Vec<Vec<Point>>>) {
+    /// How much of the original shows, the area compared and its outline, a key shift's frames in
+    /// grey, and the point the eyedropper compared, for the comparison's marks and card.
+    pub(super) fn painted_overlay(&self) -> (f32, usize, Arc<Vec<Vec<Point>>>, bool) {
         let state = &self.painting_state;
-        (state.shown, state.area, Arc::clone(&state.outline))
+        (
+            state.shown,
+            state.area,
+            Arc::clone(&state.outline),
+            state.grey,
+        )
+    }
+
+    /// The point the eyedropper compared: the original's colour there and the copy's.
+    pub(super) fn probe_colours(&self) -> Option<(Rgb8, Rgb8)> {
+        (self.painting_state.probe).map(|probe| (probe.original, probe.copy))
+    }
+}
+
+/// A key shift's frames in grey, as its reading brought them (none until read, or for another
+/// kind).
+pub(super) fn greys(reading: &Reading) -> Option<Arc<Greys>> {
+    match reading {
+        Reading::Read(read) => read.greys.clone(),
+        _ => None,
     }
 }
