@@ -2,9 +2,6 @@
 //! process, over the frozen sample (`tests/samples/format-1.bin`). Unit tests: they make writes
 //! fail through the test hook in `batch.rs`.
 
-#[path = "../tests/common/test_dir.rs"]
-mod test_dir;
-
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -14,11 +11,11 @@ use openpaint_core::{
     Artwork, ArtworkCommand, BrushRecipe, CanvasPoint, Color, LayerCommand, StrokeSample,
     StrokeStyle,
 };
-use test_dir::TestDir;
 
 use crate::Library;
 use crate::batch::faults;
 use crate::records::{LIBRARY, PROJECTS};
+use crate::test_dir::TestDir;
 
 /// Records as the frozen sample holds them: keyspace, key, value.
 type Dump = Vec<(&'static str, Vec<u8>, Vec<u8>)>;

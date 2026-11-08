@@ -3,14 +3,17 @@
 //! them beside a painting: a stage-2 session holding two among its mix and a drill of them, each
 //! with its sheet, results and time. Read by this build, every count the practice book, the time
 //! and the seals take from them is what it was, each combination's original its generated picture
-//! again. The sample is what a store upgrade retiring the kind must keep these facts for (S108).
+//! again. The sample is what an upgrade retiring the kind must keep these facts for (S108); since
+//! S110 it is written through the library's record space and read through this crate.
 //!
-//! The dump format is the format-1 sample's (`tests/sample/dump.rs`); a missing sample is written
+//! The dump format is the store's format-1 sample's (`store/tests/sample/dump.rs`, its helpers
+//! taken by path); a missing sample is written
 //! from the current encoding and the test fails, so a new sample is reviewed before it is
 //! committed.
 
+#[path = "../../store/tests/common/mod.rs"]
 mod common;
-#[path = "sample/dump.rs"]
+#[path = "../../store/tests/sample/dump.rs"]
 mod dump;
 
 use std::path::PathBuf;
@@ -22,7 +25,7 @@ use openpaint_practice::{
     Arrangement, Book, Combination, Exercise, ExerciseResult, Family, GeneratedAreas, Kind,
     LineTier, Metric, Original, Plan, ScaleTone, SessionRecord, Sheet, Span, Tally, summary,
 };
-use openpaint_store::Library;
+use openpaint_practice_store::{library_at, save, sessions, start};
 
 /// The dump's records, as `tests/sample/mod.rs` names them.
 type Records = Vec<(String, Vec<u8>, Vec<u8>)>;
@@ -112,20 +115,18 @@ fn drill() -> SessionRecord {
 /// A library holding a painting, the two records and their sheets, as its records.
 fn written() -> Records {
     let dir = TestDir::new("areas-write");
-    let mut library = Library::at(&dir);
+    let mut library = library_at(&dir, None);
     let painting = Artwork::new(CanvasSize::new(64, 48).expect("size"));
     library.create(&painting, &untitled()).expect("a painting");
     for (record, title) in [(session(), "Practice 3"), (drill(), "Drill 1")] {
         let title = Title::new(title).expect("title");
         let pairs = record.exercises.len();
-        let id = library
-            .start_practice(&sheet(pairs), &title, &record)
-            .expect("started");
+        let id = start(&mut library, (&sheet(pairs), &title), &record).expect("started");
         let kept = SessionRecord {
             canvas: id.get(),
             ..record
         };
-        library.save_practice(&kept).expect("saved");
+        save(&mut library, &kept).expect("saved");
     }
     drop(library);
     records(&dir)
@@ -158,8 +159,8 @@ fn the_areas_sample_is_what_this_build_writes() {
 fn generated_combinations_count_and_show_as_they_did() {
     let dir = TestDir::new("areas-read");
     write_records(&dir, &frozen());
-    let mut library = Library::at(&dir);
-    let records = library.practice().expect("practice");
+    let mut library = library_at(&dir, None);
+    let records = sessions(&mut library).expect("practice");
     assert_eq!(
         records,
         [session(), drill()].map(|r| SessionRecord {
@@ -168,10 +169,10 @@ fn generated_combinations_count_and_show_as_they_did() {
         })
     );
     let listed = library.list().expect("list");
-    assert_eq!(listed.len(), 1, "the painting alone, the sheets hidden");
+    assert_eq!(listed.len(), 3, "the painting and the two sheets");
     for record in &records {
         let id = openpaint_app::ProjectId::new(record.canvas);
-        assert_eq!(library.sheet(id), Ok(sheet(record.exercises.len())));
+        assert_eq!(library.artwork(id), Ok(sheet(record.exercises.len())));
     }
 
     let book = Book::of(&records, 2, 480);

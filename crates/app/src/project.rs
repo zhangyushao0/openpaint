@@ -6,7 +6,6 @@ use std::fmt;
 use std::sync::Arc;
 
 use openpaint_core::{Artwork, CoreError};
-use openpaint_practice::SessionRecord;
 
 use crate::editor_state::EditorState;
 use crate::title::Title;
@@ -150,7 +149,8 @@ pub trait ProjectStore: Send {
     /// user was in the gallery). Its head gains a save id if it has none.
     fn open_last(&mut self) -> Result<Option<Project>, PortError>;
 
-    /// Every artwork, the one changed last first.
+    /// Every project, the one changed last first: those a mode's records own among them (which
+    /// they are is the mode's to say, D112).
     fn list(&mut self) -> Result<Vec<ProjectSummary>, PortError>;
 
     /// Stores `artwork` as a new project titled `title`, which becomes the open one.
@@ -206,34 +206,62 @@ pub trait ProjectStore: Send {
         title: &Title,
     ) -> Result<ProjectId, PortError>;
 
-    /// Every practice session the library holds, oldest first. Their sheets are projects that
-    /// `list` leaves out.
-    fn practice(&mut self) -> Result<Vec<SessionRecord>, PortError>;
+    /// Project `id`'s artwork as stored, read without writing anything: it does not become the
+    /// open one.
+    fn artwork(&mut self, id: ProjectId) -> Result<Artwork, PortError>;
 
-    /// The titles of the practice sheets (a colour copy's is its name), by project.
-    fn sheet_titles(&mut self) -> Result<Vec<(ProjectId, Title)>, PortError>;
+    /// Every record of `space` (D112), in key order.
+    fn records(&mut self, space: Space) -> Result<Vec<Record>, PortError>;
 
-    /// Practice sheet `id`'s artwork as stored, read for the practice book; nothing is written
-    /// (it does not become the open one).
-    fn sheet(&mut self, id: ProjectId) -> Result<Artwork, PortError>;
+    /// `bytes` under `key` in `space`, replacing what was there, in one write.
+    fn put_record(&mut self, space: Space, key: &[u8], bytes: &[u8]) -> Result<(), PortError>;
 
-    /// A new practice session: `sheet` as a new project titled `title`, which becomes the open
-    /// one, and `session` with that project as its canvas, in one write. Returns the project.
-    fn start_practice(
+    /// `project`'s artwork as a new project of its title, which becomes the open one, and the
+    /// record of `space` that `record` makes for it, given the project, in one write. Returns
+    /// the project.
+    fn create_owned(
         &mut self,
-        sheet: &Artwork,
-        title: &Title,
-        session: &SessionRecord,
+        project: (&Artwork, &Title),
+        space: Space,
+        record: &dyn Fn(ProjectId) -> Record,
     ) -> Result<ProjectId, PortError>;
 
-    /// Replaces the stored record of `session` (by its id); its sheet is saved as any artwork.
-    fn save_practice(&mut self, session: &SessionRecord) -> Result<(), PortError>;
+    /// Record `key` of `space` and the project it owns, if any, with everything stored for it,
+    /// removed for good in one write; every other record stays as it is.
+    fn remove_owned(
+        &mut self,
+        space: Space,
+        key: &[u8],
+        project: Option<ProjectId>,
+    ) -> Result<(), PortError>;
+}
 
-    /// Removes the record of `session` (by its id) and its sheet, everything stored for it, for
-    /// good, in one write; every other record stays as it is. A colour copy removed from the
-    /// practice options, and the test-session chore's (debug builds) undoing of a session it
-    /// started.
-    fn remove_practice(&mut self, session: &SessionRecord) -> Result<(), PortError>;
+/// One record of a space: its key (beginning with the space's byte) and its bytes.
+pub type Record = (Vec<u8>, Vec<u8>);
+
+/// A mode's records in the library (D112): every record whose key begins with its byte. The
+/// keys and bytes are the mode's own and the store never reads them; it refuses a key outside
+/// its space, and a space whose byte begins one of its own keys, as `Corrupt`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Space(u8);
+
+impl Space {
+    #[must_use]
+    pub const fn new(byte: u8) -> Self {
+        Self(byte)
+    }
+
+    /// The first byte of every key of the space.
+    #[must_use]
+    pub const fn byte(self) -> u8 {
+        self.0
+    }
+
+    /// Whether `key` is one of the space's.
+    #[must_use]
+    pub fn holds(self, key: &[u8]) -> bool {
+        key.first() == Some(&self.0)
+    }
 }
 
 /// Why a port (the library, a file the system gave) could not serve a call.

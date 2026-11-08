@@ -12,7 +12,7 @@ use fjall::{Database, KeyspaceCreateOptions, PersistMode};
 use openpaint_app::{PortError, ProjectId, ProjectStore};
 use openpaint_core::{Artwork, MaskParts, RegionMask};
 use openpaint_practice::{Frame, Pack, SessionRecord, Sheet};
-use openpaint_store::{Library, Packs};
+use openpaint_practice_store::{PRACTICE, Packs, library_at, sessions};
 
 use crate::error::ScenarioError;
 
@@ -24,14 +24,14 @@ const OLD_SHOWN: f64 = 0.9;
 pub(crate) fn as_before(library: &Path, packs: &Path) -> Result<(), ScenarioError> {
     let failed = |_: PortError| ScenarioError::Missing("the library could not be put back");
     let held = Packs::at(packs).list().map_err(failed)?;
-    let mut store = Library::at(library);
-    for record in store.practice().map_err(failed)? {
+    let mut store = library_at(library, Some(Packs::at(packs)));
+    for record in sessions(&mut store).map_err(failed)? {
         let backs = backs(&record, &held);
         if backs.is_empty() || record.canvas == 0 {
             continue;
         }
         let id = ProjectId::new(record.canvas);
-        let artwork = store.sheet(id).map_err(failed)?;
+        let artwork = store.artwork(id).map_err(failed)?;
         let moved = moved_back(&artwork, &backs).map_err(failed)?;
         store.save(id, &moved).map_err(failed)?;
     }
@@ -116,7 +116,7 @@ fn unlaid(dir: &Path) -> Result<(), fjall::Error> {
     let db = Database::builder(dir).open()?;
     let library = db.keyspace("library", KeyspaceCreateOptions::default)?;
     let mut records = Vec::new();
-    for guard in library.prefix(b"p") {
+    for guard in library.prefix([PRACTICE.byte()]) {
         let (key, value) = guard.into_inner()?;
         records.push((key.to_vec(), value.to_vec()));
     }

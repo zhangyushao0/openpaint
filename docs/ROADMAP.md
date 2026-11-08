@@ -48,14 +48,14 @@ The author, 2026-10-23: practice is their main activity now. The app gets a prac
 - **No accounts, community or sharing service.**
 - **Method notes.** V大's methods, distilled from the course's subtitles, guide every exercise's instructions and checks. They are not in the repository.
 
-Stages 1 to 4 are built and stage 5 has begun (S75 to S109b are done: the list at the end and its archive).
+Stages 1 to 4 are built and stage 5 has begun (S75 to S110 are done: the list at the end and its archive).
 
 Stage 5 follows V大's weeks 5 and 6 as the author approved it on a mock (2026-11-06, every recommendation taken): key shifts (S107, done), abstract analysis, structure rotation; each joins stage 5's sessions after the key shifts and gets a drill tile.
 
 Practice as a module (the author, 2026-11-07, after a review): a kind's code is spread by layer over six crates and dispatched by central matches (S107 touched 69 files: 21 in ui, 19 in practice, 11 in app, 6 in the harness; `Kind` and `Overlay` matched 416 times in 52 files outside practice), the practice crate lies flat (93 files named by prefix), and the pack builder's web clients and ONNX matte build and test in every gate. Before more kinds, practice becomes a module: a kind in one folder behind one description, its own crates, the painting crates not depending on it. Behaviour, scenarios and their hashes stay as they are in each slice.
 
 - Next, each specified when the one before lands:
-  - S110 Practice crates of their own: the flow (from app) in `openpaint-practice-app`, the cards, marks, tiles and How (from ui) in `openpaint-practice-ui`; app, ui and store depend on no practice crate, offering a mode slot, an opaque record keyspace and gallery and canvas hooks; the runtime composes them. repo-check then refuses a painting crate naming practice, a match over a practice kind outside the practice crates, and a source folder past a set count of files.
+  - S110b Practice's app and UI crates, S110's second cut: the flow (from app) in `openpaint-practice-app`, the cards, marks, tiles, How, book, options and words (from ui) in `openpaint-practice-ui`; app and ui depend on no practice crate, offering a mode slot on the session, gallery and canvas hooks, practice's intents outside app's `Intent`; the runtime composes them. repo-check then refuses core, raster, render, app and ui naming practice (comments too), and a source folder past 64 `.rs` files (one over it today held at its count).
   - S112 Abstract analysis (抽象分析), the first kind on the module: the user marks a picture's strongest place, its contrasts, the secondary and weak ones and their distribution on a layer over it; Compare veils where each measurable contrast (value, chroma, hue, sharpness) is weak and scores nothing.
   - S113 Structure rotation against renders.
   - Stage 7 (V大's weeks 7 and 8): curved structure rotation and objects placed by a plan, whole-picture key shifts toward two tendencies, abstract analysis for one's own small composition.
@@ -69,6 +69,9 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 
 (Findings outside the current slice, one line each, dated.)
 
+- 2026-11-07 S110: `crates/render/src` holds 98 `.rs` files, past S110b's cap of 64 (held at its count until then): a structural slice puts it in folders (scene, raster core, canvas, view tiers, readers, pacing), as S108 did for practice.
+- 2026-11-07 S110: two screenshots depend on load on 12 workers, each once in four runs, byte-identical alone, hashes passing: `s7-resume` after its first Retry (the notice pill caught mid-resize, the second Retry, named, tapping Layers under it) and `s26-insert-image`'s `picker-asked` (the top band's right end); find what there waits on wall time, not the held clock (S106).
+- 2026-11-07 S110: `cargo scenarios` at 7b8c343 (1.21.3) ran a harness that said 1.21.2 on its Actions line and drew s84's three ellipse screens one level apart from that tree's own build: a binary of another build stood in `target/` and cargo ran it; a run could check the binary's version and tree against the checkout's.
 - 2026-11-07 the author: the generated colour combinations as a drill of their own beside the crops, to practise computed ones on a day the real ones are not wanted (the kind is kept, S109).
 
 - 2026-11-06 Key shifts after S107: Today's or the book's Start on stage 5 without a pack of crops plays its warm-up only (the options' row refuses); the How ends on Compare's grey frames, Again shows the colours; the Grey view shows the original grey only once its picture was read before Compare; a pack rebuilt with other areas keeps each record's tendency but moves its marks; the card's failure lines sit wide apart (each a card paragraph).
@@ -160,3 +163,4 @@ Slices S0 to S72 and the stage exits: `docs/archive/ROADMAP-2026-10.md`; S73 to 
 - S111 2026-11-07 tooling: the pack builder in `tools/packs`, a workspace of its own outside the gate on practice, app and store by path; contact sheets in `openpaint-sheet` (with key-shifts); ureq and tract out of the root; repo-check runs its rustfmt and clippy; packs rebuilt byte-identical; D101 amended.
 - S109 2026-11-07 1.21.2: one description per kind: each kind folder implements `Described`, registered in `KINDS`; Compare's result a `Comparison` giving generic `SheetMark`s and `CardItem`s the UI draws kind-blind (`Overlay` and 12 per-kind ui files gone), words by key; shared folders point down; screenshots pixel-identical; D111; the rest S109b.
 - S109b 2026-11-07 1.21.3: tools, eyedropper, needs, book, summary rows as `Facts`; Compare, readings, painted pictures, answers, tiles as kind methods, the copy read as a kind asks; each kind's How and words a file of its own; no `Family` or `Original` variant outside practice; pixel-identical; D111.
+- S110 2026-11-07 1.21.4: `openpaint-practice-store`: practice's records in a record space of opaque bytes, their upgrades registered by `library_at` (the one way to open a library), its packs; the store names no practice; the gallery's list composed in the runtime; byte-identical; D112.

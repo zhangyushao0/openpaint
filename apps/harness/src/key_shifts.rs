@@ -22,7 +22,8 @@ use openpaint_practice::{
     Areas, KeyCheck, LIGHTEST, Lean, PictureKind, Random, Rgb8, Tendency, delta_e, derived,
     from_oklab, main_hue, oklab, toward,
 };
-use openpaint_store::{decode_image, open_pack};
+use openpaint_practice_store::open_pack;
+use openpaint_store::decode_image;
 
 use crate::error::HarnessError;
 use crate::key_copies::{by_hand, flat, picked_by_hand, size_of};

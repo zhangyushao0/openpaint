@@ -1091,19 +1091,19 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "openpaint-android"
-version = "1.21.3"
+version = "1.21.4"
 dependencies = [
  "android_logger",
  "jni",
  "log",
+ "openpaint-practice-store",
  "openpaint-runtime",
- "openpaint-store",
  "raw-window-handle",
 ]
 
 [[package]]
 name = "openpaint-app"
-version = "1.21.3"
+version = "1.21.4"
 dependencies = [
  "openpaint-core",
  "openpaint-practice",
@@ -1112,16 +1112,17 @@ dependencies = [
 
 [[package]]
 name = "openpaint-core"
-version = "1.21.3"
+version = "1.21.4"
 
 [[package]]
 name = "openpaint-devtools"
-version = "1.21.3"
+version = "1.21.4"
 dependencies = [
  "fjall",
  "openpaint-app",
  "openpaint-core",
  "openpaint-practice",
+ "openpaint-practice-store",
  "openpaint-render",
  "openpaint-runtime",
  "openpaint-store",
@@ -1131,13 +1132,14 @@ dependencies = [
 
 [[package]]
 name = "openpaint-harness"
-version = "1.21.3"
+version = "1.21.4"
 dependencies = [
  "image",
  "openpaint-app",
  "openpaint-core",
  "openpaint-devtools",
  "openpaint-practice",
+ "openpaint-practice-store",
  "openpaint-render",
  "openpaint-runtime",
  "openpaint-sheet",
@@ -1147,18 +1149,32 @@ dependencies = [
 
 [[package]]
 name = "openpaint-practice"
-version = "1.21.3"
+version = "1.21.4"
+
+[[package]]
+name = "openpaint-practice-store"
+version = "1.21.4"
+dependencies = [
+ "crc32fast",
+ "fjall",
+ "image",
+ "log",
+ "openpaint-app",
+ "openpaint-core",
+ "openpaint-practice",
+ "openpaint-store",
+]
 
 [[package]]
 name = "openpaint-raster"
-version = "1.21.3"
+version = "1.21.4"
 dependencies = [
  "openpaint-core",
 ]
 
 [[package]]
 name = "openpaint-render"
-version = "1.21.3"
+version = "1.21.4"
 dependencies = [
  "egui",
  "egui-wgpu",
@@ -1170,7 +1186,7 @@ dependencies = [
 
 [[package]]
 name = "openpaint-runtime"
-version = "1.21.3"
+version = "1.21.4"
 dependencies = [
  "crc32fast",
  "egui",
@@ -1178,6 +1194,7 @@ dependencies = [
  "openpaint-app",
  "openpaint-core",
  "openpaint-practice",
+ "openpaint-practice-store",
  "openpaint-raster",
  "openpaint-render",
  "openpaint-store",
@@ -1186,7 +1203,7 @@ dependencies = [
 
 [[package]]
 name = "openpaint-sheet"
-version = "1.21.3"
+version = "1.21.4"
 dependencies = [
  "image",
  "png",
@@ -1194,7 +1211,7 @@ dependencies = [
 
 [[package]]
 name = "openpaint-store"
-version = "1.21.3"
+version = "1.21.4"
 dependencies = [
  "crc32fast",
  "fjall",
@@ -1204,13 +1221,12 @@ dependencies = [
  "moxcms",
  "openpaint-app",
  "openpaint-core",
- "openpaint-practice",
  "png",
 ]
 
 [[package]]
 name = "openpaint-ui"
-version = "1.21.3"
+version = "1.21.4"
 dependencies = [
  "egui",
  "openpaint-app",
@@ -2276,7 +2292,7 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 
 [[package]]
 name = "xtask"
-version = "1.21.3"
+version = "1.21.4"
 
 [[package]]
 name = "xxhash-rust"

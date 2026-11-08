@@ -5,12 +5,16 @@
 //! removed or moved to another tier in their pack. And the job a new one starts with: the next
 //! session in the app's practice log, a drill of the kind chosen (S91), or a colour copy of the
 //! picture chosen, seeded from the strokes' seed source (fixed in the harness), its sheet the size
-//! its layout asks.
+//! its layout asks. And the gallery's list, which leaves the practice sheets out (D112).
 
-use openpaint_app::{PortError, PracticeLog, ProjectId, ProjectStore, SheetRead, Title, sheet_of};
+use std::collections::HashSet;
+
+use openpaint_app::{
+    PortError, PracticeLog, ProjectId, ProjectStore, ProjectSummary, SheetRead, Title, sheet_of,
+};
 use openpaint_core::{Artwork, CanvasSize};
 use openpaint_practice::{Family, ItemRef, Pack, SessionRecord, Tier};
-use openpaint_store::Packs;
+use openpaint_practice_store::{Packs, remove, save, sessions, start};
 
 use crate::error::RuntimeError;
 use crate::seeds::Seeds;
@@ -70,7 +74,7 @@ pub(crate) fn run(
             sheet,
             title,
             session,
-        } => match store.start_practice(&sheet, &title, &session) {
+        } => match start(store, (&sheet, &title), &session) {
             Ok(id) => {
                 *kept = Kept {
                     open: Some(id),
@@ -92,7 +96,7 @@ pub(crate) fn run(
                 PracticeDone::Failed(error)
             }
         },
-        PracticeJob::Save(session) => PracticeDone::Saved(store.save_practice(&session)),
+        PracticeJob::Save(session) => PracticeDone::Saved(save(store, &session)),
         PracticeJob::Rename(sheet, title) => {
             let result = store.rename(sheet, &title);
             PracticeDone::Renamed(sheet, title, result)
@@ -101,7 +105,7 @@ pub(crate) fn run(
             if kept.open.is_some_and(|open| open.get() == session.canvas) {
                 *kept = Kept::default();
             }
-            PracticeDone::Removed(session.id, store.remove_practice(&session))
+            PracticeDone::Removed(session.id, remove(store, &session))
         }
         PracticeJob::RemovePicture(item) => {
             let removed = packs.map(|packs| packs.remove_picture(&item));
@@ -128,7 +132,7 @@ fn read_sheets(
         .unwrap_or_default();
     let mut read = Vec::with_capacity(records.len());
     for record in records {
-        match store.sheet(ProjectId::new(record.canvas)) {
+        match store.artwork(ProjectId::new(record.canvas)) {
             Ok(artwork) => read.push((record.id, SheetRead::of(&artwork, record, &held))),
             Err(error) => log::warn!(
                 "the sheet of practice record {} not read: {error}",
@@ -137,6 +141,33 @@ fn read_sheets(
         }
     }
     read
+}
+
+/// The library's projects as the gallery takes them (`gallery_list`).
+pub(crate) struct Listed {
+    /// The artworks the gallery lists, the one changed last first.
+    pub(crate) artworks: Vec<ProjectSummary>,
+    /// The practice sheets, which it never lists, with their titles (a colour copy's is its
+    /// name).
+    pub(crate) sheets: Vec<(ProjectId, Title)>,
+}
+
+/// The gallery's list: the library's projects but the practice sheets, which only their records
+/// open (D112), and the sheets apart. The sheets are the projects the practice records name; a
+/// record that cannot be read names none.
+pub(crate) fn gallery_list(store: &mut dyn ProjectStore) -> Result<Listed, PortError> {
+    let sheets: HashSet<u64> = (sessions(store)?.iter())
+        .map(|session| session.canvas)
+        .filter(|canvas| *canvas != 0)
+        .collect();
+    let (sheets, artworks): (Vec<ProjectSummary>, Vec<ProjectSummary>) = (store.list()?)
+        .into_iter()
+        .partition(|project| sheets.contains(&project.id.get()));
+    let sheets = sheets.into_iter().map(|sheet| (sheet.id, sheet.title));
+    Ok(Listed {
+        artworks,
+        sheets: sheets.collect(),
+    })
 }
 
 /// What `job` answers when the store panicked.

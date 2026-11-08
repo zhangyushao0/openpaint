@@ -7,7 +7,8 @@ use std::fs;
 
 use openpaint_app::ImageFormat;
 use openpaint_practice::{LEAST_LONGER, Licence, PictureKind};
-use openpaint_store::{encode_image, encode_pack, open_pack};
+use openpaint_practice_store::{encode_pack, open_pack};
+use openpaint_store::encode_image;
 
 use super::build::build;
 use super::fetch::{Fetcher, cache_name};

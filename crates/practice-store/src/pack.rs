@@ -34,8 +34,7 @@ use openpaint_practice::{
     Areas, Credit, GRID, Licence, MASSES_SIDE, Outline, Pack, PackItem, PictureKind, Point, Tier,
     ValueMasses,
 };
-
-use crate::codec::{Reader, Writer};
+use openpaint_store::{Reader, Writer};
 
 /// The layout this build reads and writes.
 pub const PACK_FORMAT: u32 = 4;

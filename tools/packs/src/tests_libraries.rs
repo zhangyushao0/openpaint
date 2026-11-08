@@ -6,7 +6,7 @@
 use std::fs;
 
 use openpaint_practice::{Licence, PictureKind};
-use openpaint_store::{encode_pack, open_pack};
+use openpaint_practice_store::{encode_pack, open_pack};
 
 use super::build::build;
 use super::fetch::{Fetcher, cache_name};

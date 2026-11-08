@@ -9,7 +9,7 @@ use openpaint_app::{
     PictureImage, PortError, ProjectStore,
 };
 use openpaint_practice::{ItemRef, Pack, Tier, outline};
-use openpaint_store::{Packs, pack_picture, shown_picture};
+use openpaint_practice_store::{Packs, pack_picture, shown_picture};
 
 /// Runs `job` on `store` and `packs`; what the gallery is told.
 pub(super) fn run(

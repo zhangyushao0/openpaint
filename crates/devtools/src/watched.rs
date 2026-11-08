@@ -9,12 +9,12 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use openpaint_app::{
-    EditorState, PortError, Project, ProjectId, ProjectStore, ProjectSummary, SaveId, Thumbnail,
-    Title, VersionId,
+    EditorState, PortError, Project, ProjectId, ProjectStore, ProjectSummary, Record, SaveId,
+    Space, Thumbnail, Title, VersionId,
 };
 use openpaint_core::Artwork;
-use openpaint_practice::SessionRecord;
-use openpaint_store::{Library, Packs};
+use openpaint_practice_store::{Packs, library_at};
+use openpaint_store::Library;
 
 /// What the library just wrote, for the look after it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,23 +34,14 @@ pub struct Watched {
 }
 
 impl Watched {
-    /// The library in `dir`, failing while `off` is set.
+    /// The library in `dir` as the app opens it (`library_at`: its old practice sheets laid anew
+    /// by the pictures the packs in `packs` hold, S99), failing while `off` is set.
     #[must_use]
-    pub fn new(dir: &Path, off: Arc<AtomicBool>) -> Self {
+    pub fn new(dir: &Path, packs: Option<Packs>, off: Arc<AtomicBool>) -> Self {
         Self {
-            library: Library::at(dir),
+            library: library_at(dir, packs),
             off,
             look: None,
-        }
-    }
-
-    /// The library with the practice packs in `packs`, as the app's (S99: its old sheets laid
-    /// anew by their pictures).
-    #[must_use]
-    pub fn with_packs(self, packs: Packs) -> Self {
-        Self {
-            library: self.library.with_packs(packs),
-            ..self
         }
     }
 
@@ -155,32 +146,33 @@ impl ProjectStore for Watched {
         self.on(|library| library.restore_version(id, version, title))
     }
 
-    fn practice(&mut self) -> Result<Vec<SessionRecord>, PortError> {
-        self.on(Library::practice)
+    fn artwork(&mut self, id: ProjectId) -> Result<Artwork, PortError> {
+        self.on(|library| library.artwork(id))
     }
 
-    fn sheet_titles(&mut self) -> Result<Vec<(ProjectId, Title)>, PortError> {
-        self.on(Library::sheet_titles)
+    fn records(&mut self, space: Space) -> Result<Vec<Record>, PortError> {
+        self.on(|library| library.records(space))
     }
 
-    fn sheet(&mut self, id: ProjectId) -> Result<Artwork, PortError> {
-        self.on(|library| library.sheet(id))
+    fn put_record(&mut self, space: Space, key: &[u8], bytes: &[u8]) -> Result<(), PortError> {
+        self.on(|library| library.put_record(space, key, bytes))
     }
 
-    fn start_practice(
+    fn create_owned(
         &mut self,
-        sheet: &Artwork,
-        title: &Title,
-        session: &SessionRecord,
+        project: (&Artwork, &Title),
+        space: Space,
+        record: &dyn Fn(ProjectId) -> Record,
     ) -> Result<ProjectId, PortError> {
-        self.on(|library| library.start_practice(sheet, title, session))
+        self.on(|library| library.create_owned(project, space, record))
     }
 
-    fn save_practice(&mut self, session: &SessionRecord) -> Result<(), PortError> {
-        self.on(|library| library.save_practice(session))
-    }
-
-    fn remove_practice(&mut self, session: &SessionRecord) -> Result<(), PortError> {
-        self.on(|library| library.remove_practice(session))
+    fn remove_owned(
+        &mut self,
+        space: Space,
+        key: &[u8],
+        project: Option<ProjectId>,
+    ) -> Result<(), PortError> {
+        self.on(|library| library.remove_owned(space, key, project))
     }
 }

@@ -1,0 +1,23 @@
+[package]
+name = "openpaint-practice-store"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+openpaint-app.workspace = true
+openpaint-core.workspace = true
+openpaint-practice.workspace = true
+openpaint-store.workspace = true
+crc32fast.workspace = true
+image.workspace = true
+log.workspace = true
+
+[dev-dependencies]
+# The store's test helpers, taken by path, dump and write a library's records raw.
+fjall.workspace = true
+
+[lints]
+workspace = true

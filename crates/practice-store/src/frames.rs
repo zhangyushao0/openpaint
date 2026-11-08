@@ -1,7 +1,7 @@
-//! The store's upgrade of the practice sheets laid before 1.17.0 (S99, D103). Up to 1.16.0 every
+//! The records' upgrade of the practice sheets laid before 1.17.0 (S99, D103). Up to 1.16.0 every
 //! pair's frames were square and a picture lay in its copy's square at 90 % of it, centred; from
 //! 1.17.0 a picture's frames are its shape (`Sheet::of_session`). A record written before ends
-//! without its layout byte, and the store lays its sheet anew once, when the library opens: each
+//! without its layout byte, and the upgrade lays its sheet anew once, when the library opens: each
 //! stroke and fill begun in the square of a copy of a picture a pack holds moved by the picture's
 //! place in the square onto the frame of its shape, so it lies where it lay on its picture; a
 //! stroke's clip and a fill's region moved alike and kept to the new frame (ink in the old
@@ -13,9 +13,9 @@ use openpaint_core::{
     Artwork, ArtworkParts, CanvasSize, EditParts, MaskParts, RegionMask, StrokeParts,
 };
 use openpaint_practice::{Frame, Pack, Point, SessionRecord, Sheet};
+use openpaint_store::Upgrading;
 
-use crate::library::Open;
-use crate::{read, write};
+use crate::records::{PRACTICE, encode_session, practice_key};
 
 /// Where a picture lay in its square frame up to 1.16.0: at this share of the frame, centred.
 const OLD_SHOWN: f64 = 0.9;
@@ -76,30 +76,36 @@ fn moves(record: &SessionRecord, packs: &[Pack]) -> Vec<Move> {
 /// `session`'s record (written before 1.17.0) and its sheet laid anew as `packs` hold its
 /// pictures, in one batch; the record alone when nothing moves. A sheet that cannot be read
 /// keeps what it holds (logged).
-pub(crate) fn relay(open: &Open, session: &SessionRecord, packs: &[Pack]) -> Result<(), PortError> {
+pub(crate) fn relay(
+    library: &Upgrading<'_>,
+    session: &SessionRecord,
+    packs: &[Pack],
+) -> Result<(), PortError> {
+    let (key, bytes) = (practice_key(session.id), encode_session(session));
+    let record = || library.put(PRACTICE, &[(key.clone(), bytes.clone())]);
     let moves = moves(session, packs);
     if moves.is_empty() || session.canvas == 0 {
-        return write::practice(open, session);
+        return record();
     }
     let id = ProjectId::new(session.canvas);
-    let artwork = match read::artwork(&open.projects, id) {
+    let artwork = match library.artwork(id) {
         Ok(artwork) => artwork,
         Err(error) => {
             log::warn!("practice sheet {} not laid anew: {error}", id.get());
-            return write::practice(open, session);
+            return record();
         }
     };
     let mut parts = artwork.to_parts();
     let moved = relaid(&mut parts, artwork.canvas(), &moves);
     if moved == 0 {
-        return write::practice(open, session);
+        return record();
     }
     let laid = Artwork::from_storage(parts)?;
     log::info!(
         "practice sheet {}: {moved} strokes and fills laid anew",
         id.get()
     );
-    write::relaid(open, id, &laid, session)
+    library.replace_owned((id, &laid), PRACTICE, (&key, &bytes))
 }
 
 /// Every stroke and fill of `parts` begun in one of `moves`' squares moved onto its frame, on a
@@ -205,5 +211,5 @@ fn moved_mask(mask: &MaskParts, canvas: CanvasSize, by: &Move) -> Option<MaskPar
 }
 
 #[cfg(test)]
-#[path = "practice_frames_tests.rs"]
+#[path = "frames_tests.rs"]
 mod tests;

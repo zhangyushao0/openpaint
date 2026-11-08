@@ -19,7 +19,11 @@ pub fn check(root: &Path, files: &[String]) -> Vec<Finding> {
 
 fn check_source(path: &str, text: &str, findings: &mut Vec<Finding>) {
     for (dir, tokens) in FORBIDDEN_TOKENS {
-        if path.starts_with(dir) {
+        // The crate's own folder: `crates/practice` is not `crates/practice-store`.
+        if path
+            .strip_prefix(dir)
+            .is_some_and(|rest| rest.starts_with('/'))
+        {
             for token in *tokens {
                 report_token(path, text, token, findings);
             }

@@ -5,10 +5,9 @@ use std::sync::{Arc, Mutex};
 
 use openpaint_app::{
     EditorState, GalleryNotice, PortError, Project, ProjectId, ProjectStore, ProjectSummary,
-    SaveId, ScreenProjection, Thumbnail, Title, VersionId,
+    Record, SaveId, ScreenProjection, Space, Thumbnail, Title, VersionId,
 };
 use openpaint_core::Artwork;
-use openpaint_practice::SessionRecord;
 use openpaint_runtime::{Runtime, StartOptions};
 
 use crate::support::{Hand, core, settle};
@@ -103,33 +102,34 @@ impl ProjectStore for Other {
         self.wrote("restore")
     }
 
-    fn practice(&mut self) -> Result<Vec<SessionRecord>, PortError> {
+    fn artwork(&mut self, _id: ProjectId) -> Result<Artwork, PortError> {
         Err(refused())
     }
 
-    fn sheet_titles(&mut self) -> Result<Vec<(ProjectId, Title)>, PortError> {
+    fn records(&mut self, _space: Space) -> Result<Vec<Record>, PortError> {
         Err(refused())
     }
 
-    fn sheet(&mut self, _id: ProjectId) -> Result<Artwork, PortError> {
-        Err(refused())
+    fn put_record(&mut self, _space: Space, _key: &[u8], _bytes: &[u8]) -> Result<(), PortError> {
+        self.wrote("record")
     }
 
-    fn start_practice(
+    fn create_owned(
         &mut self,
-        _sheet: &Artwork,
-        _title: &Title,
-        _session: &SessionRecord,
+        _project: (&Artwork, &Title),
+        _space: Space,
+        _record: &dyn Fn(ProjectId) -> Record,
     ) -> Result<ProjectId, PortError> {
-        self.wrote("practice")
+        self.wrote("owned project")
     }
 
-    fn save_practice(&mut self, _session: &SessionRecord) -> Result<(), PortError> {
-        self.wrote("practice record")
-    }
-
-    fn remove_practice(&mut self, _session: &SessionRecord) -> Result<(), PortError> {
-        self.wrote("practice removal")
+    fn remove_owned(
+        &mut self,
+        _space: Space,
+        _key: &[u8],
+        _project: Option<ProjectId>,
+    ) -> Result<(), PortError> {
+        self.wrote("record removal")
     }
 }
 

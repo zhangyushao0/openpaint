@@ -18,6 +18,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
+use openpaint_practice_store::Packs;
 use openpaint_render::Core;
 use openpaint_runtime::{
     EditKey, HostRequest, Language, MotionBatch, Runtime, RuntimeError, StartOptions, TextFonts,
@@ -126,8 +127,8 @@ impl Runner<'_> {
     /// A new app process on the library: everything a runtime held before is gone, history
     /// included; what survives is what the library stores. Runs frames until it has opened.
     fn start(&mut self) -> Result<Runtime, ScenarioError> {
-        let store = Watched::new(self.library, Arc::clone(&self.storage_off))
-            .with_packs(openpaint_store::Packs::at(self.packs));
+        let packs = Some(Packs::at(self.packs));
+        let store = Watched::new(self.library, packs, Arc::clone(&self.storage_off));
         let language = match self.scenario.system_language {
             SystemLanguage::English => Language::English,
             SystemLanguage::Chinese => Language::Chinese,
@@ -135,7 +136,7 @@ impl Runner<'_> {
         let options = StartOptions {
             core: Some(Arc::clone(&self.core)),
             language,
-            packs: Some(openpaint_store::Packs::at(self.packs)),
+            packs: Some(Packs::at(self.packs)),
             ..StartOptions::default()
         };
         let mut runtime = Runtime::start(self.scenario.density, Box::new(store), options)?;

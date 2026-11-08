@@ -114,7 +114,7 @@ pub use crate::practice_sheet::{Finished, PRACTICE_ROOM, PracticePick, Practisin
 pub use crate::practice_today::{CopyShown, DrillShown, PictureShown, TodayProjection};
 pub use crate::project::{
     KEPT_VERSIONS, KeptVersion, PortError, Project, ProjectId, ProjectStore, ProjectSummary,
-    SaveId, Thumbnail, VersionId,
+    Record, SaveId, Space, Thumbnail, VersionId,
 };
 pub use crate::projection::{Availability, EditorAction, ScreenProjection, SessionProjection};
 pub use crate::recipe::{MAX_BRUSH_NAME, RecipeError, brush_name};

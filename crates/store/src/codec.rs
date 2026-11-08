@@ -1,49 +1,50 @@
 //! Byte-level encoding of stored values: fixed-width little-endian integers and floats,
 //! length-prefixed UTF-8 strings. Reading checks every length against the bytes left, so a
-//! corrupt record is an error, never a panic or a huge allocation.
+//! corrupt record is an error, never a panic or a huge allocation. Public: a record space's
+//! owner encodes its records and files with it too (D112).
 
 use openpaint_app::PortError;
 
 /// Appends values to a record.
 #[derive(Debug, Default)]
-pub(crate) struct Writer {
+pub struct Writer {
     bytes: Vec<u8>,
 }
 
 impl Writer {
-    pub(crate) fn with_capacity(capacity: usize) -> Self {
+    pub fn with_capacity(capacity: usize) -> Self {
         Self {
             bytes: Vec::with_capacity(capacity),
         }
     }
 
-    pub(crate) fn u8(&mut self, value: u8) {
+    pub fn u8(&mut self, value: u8) {
         self.bytes.push(value);
     }
 
-    pub(crate) fn bool(&mut self, value: bool) {
+    pub fn bool(&mut self, value: bool) {
         self.u8(u8::from(value));
     }
 
-    pub(crate) fn u32(&mut self, value: u32) {
+    pub fn u32(&mut self, value: u32) {
         self.bytes.extend_from_slice(&value.to_le_bytes());
     }
 
-    pub(crate) fn u64(&mut self, value: u64) {
+    pub fn u64(&mut self, value: u64) {
         self.bytes.extend_from_slice(&value.to_le_bytes());
     }
 
-    pub(crate) fn f32(&mut self, value: f32) {
+    pub fn f32(&mut self, value: f32) {
         self.bytes.extend_from_slice(&value.to_le_bytes());
     }
 
-    pub(crate) fn f64(&mut self, value: f64) {
+    pub fn f64(&mut self, value: f64) {
         self.bytes.extend_from_slice(&value.to_le_bytes());
     }
 
     /// `value` in 1 to 5 bytes, 7 bits each, least significant first (LEB128): small values,
     /// such as most runs of a fill mask, take one byte.
-    pub(crate) fn varint(&mut self, mut value: u32) {
+    pub fn varint(&mut self, mut value: u32) {
         while value >= 0x80 {
             self.u8((value & 0x7f) as u8 | 0x80);
             value >>= 7;
@@ -52,43 +53,43 @@ impl Writer {
     }
 
     /// A count or length, which the store keeps below 2^32.
-    pub(crate) fn len(&mut self, len: usize) {
+    pub fn len(&mut self, len: usize) {
         self.u32(u32::try_from(len).unwrap_or(u32::MAX));
     }
 
-    pub(crate) fn str(&mut self, text: &str) {
+    pub fn str(&mut self, text: &str) {
         self.len(text.len());
         self.bytes.extend_from_slice(text.as_bytes());
     }
 
     /// Bytes after their length.
-    pub(crate) fn blob(&mut self, bytes: &[u8]) {
+    pub fn blob(&mut self, bytes: &[u8]) {
         self.len(bytes.len());
         self.bytes.extend_from_slice(bytes);
     }
 
     /// Raw bytes without a length: only as the last field of a record.
-    pub(crate) fn bytes(&mut self, bytes: &[u8]) {
+    pub fn bytes(&mut self, bytes: &[u8]) {
         self.bytes.extend_from_slice(bytes);
     }
 
-    pub(crate) fn finish(self) -> Vec<u8> {
+    pub fn finish(self) -> Vec<u8> {
         self.bytes
     }
 }
 
 /// Reads values from a record; every error names the record.
-pub(crate) struct Reader<'a> {
+pub struct Reader<'a> {
     bytes: &'a [u8],
     what: &'static str,
 }
 
 impl<'a> Reader<'a> {
-    pub(crate) fn new(bytes: &'a [u8], what: &'static str) -> Self {
+    pub fn new(bytes: &'a [u8], what: &'static str) -> Self {
         Self { bytes, what }
     }
 
-    pub(crate) fn corrupt(&self) -> PortError {
+    pub fn corrupt(&self) -> PortError {
         PortError::Corrupt { what: self.what }
     }
 
@@ -98,11 +99,11 @@ impl<'a> Reader<'a> {
         Ok(*head)
     }
 
-    pub(crate) fn u8(&mut self) -> Result<u8, PortError> {
+    pub fn u8(&mut self) -> Result<u8, PortError> {
         Ok(self.take::<1>()?[0])
     }
 
-    pub(crate) fn bool(&mut self) -> Result<bool, PortError> {
+    pub fn bool(&mut self) -> Result<bool, PortError> {
         match self.u8()? {
             0 => Ok(false),
             1 => Ok(true),
@@ -110,24 +111,24 @@ impl<'a> Reader<'a> {
         }
     }
 
-    pub(crate) fn u32(&mut self) -> Result<u32, PortError> {
+    pub fn u32(&mut self) -> Result<u32, PortError> {
         self.take().map(u32::from_le_bytes)
     }
 
-    pub(crate) fn u64(&mut self) -> Result<u64, PortError> {
+    pub fn u64(&mut self) -> Result<u64, PortError> {
         self.take().map(u64::from_le_bytes)
     }
 
-    pub(crate) fn f32(&mut self) -> Result<f32, PortError> {
+    pub fn f32(&mut self) -> Result<f32, PortError> {
         self.take().map(f32::from_le_bytes)
     }
 
-    pub(crate) fn f64(&mut self) -> Result<f64, PortError> {
+    pub fn f64(&mut self) -> Result<f64, PortError> {
         self.take().map(f64::from_le_bytes)
     }
 
     /// A value `Writer::varint` wrote; longer or larger than a `u32` is corrupt.
-    pub(crate) fn varint(&mut self) -> Result<u32, PortError> {
+    pub fn varint(&mut self) -> Result<u32, PortError> {
         let mut value = 0u32;
         for shift in (0..35).step_by(7) {
             let byte = self.u8()?;
@@ -145,7 +146,7 @@ impl<'a> Reader<'a> {
 
     /// A count of items of at least `item_bytes` each; refused when the bytes left cannot hold
     /// that many, so a corrupt count never allocates.
-    pub(crate) fn count(&mut self, item_bytes: usize) -> Result<usize, PortError> {
+    pub fn count(&mut self, item_bytes: usize) -> Result<usize, PortError> {
         let count = usize::try_from(self.u32()?).map_err(|_| self.corrupt())?;
         let needed = count.checked_mul(item_bytes).ok_or(self.corrupt())?;
         if needed > self.bytes.len() {
@@ -154,7 +155,7 @@ impl<'a> Reader<'a> {
         Ok(count)
     }
 
-    pub(crate) fn str(&mut self) -> Result<String, PortError> {
+    pub fn str(&mut self) -> Result<String, PortError> {
         let len = self.count(1)?;
         let (text, rest) = self.bytes.split_at(len);
         self.bytes = rest;
@@ -162,7 +163,7 @@ impl<'a> Reader<'a> {
     }
 
     /// Bytes `Writer::blob` wrote.
-    pub(crate) fn blob(&mut self) -> Result<&'a [u8], PortError> {
+    pub fn blob(&mut self) -> Result<&'a [u8], PortError> {
         let len = self.count(1)?;
         let (bytes, rest) = self.bytes.split_at(len);
         self.bytes = rest;
@@ -170,17 +171,17 @@ impl<'a> Reader<'a> {
     }
 
     /// Every byte not read yet: the last field of a record.
-    pub(crate) fn rest(&mut self) -> &'a [u8] {
+    pub fn rest(&mut self) -> &'a [u8] {
         std::mem::take(&mut self.bytes)
     }
 
     /// Whether every byte was read: a record that grew a tail later ends here when written before.
-    pub(crate) const fn is_done(&self) -> bool {
+    pub const fn is_done(&self) -> bool {
         self.bytes.is_empty()
     }
 
     /// Succeeds only when every byte was read.
-    pub(crate) fn end(&self) -> Result<(), PortError> {
+    pub fn end(&self) -> Result<(), PortError> {
         if self.bytes.is_empty() {
             Ok(())
         } else {

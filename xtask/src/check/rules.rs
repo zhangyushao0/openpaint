@@ -56,12 +56,13 @@ pub const MAX_DOC_LINE_CHARS: usize = 1_500;
 pub const ARCHIVE_DIR: &str = "docs/archive/";
 
 /// Every workspace crate a composition root may use.
-pub const ALL_PRODUCT: [&str; 8] = [
+pub const ALL_PRODUCT: [&str; 9] = [
     "openpaint-core",
     "openpaint-practice",
     "openpaint-raster",
     "openpaint-app",
     "openpaint-store",
+    "openpaint-practice-store",
     "openpaint-render",
     "openpaint-ui",
     "openpaint-runtime",
@@ -75,9 +76,17 @@ pub const LAYERS: &[(&str, &[&str])] = &[
     // Pure pixel geometry (flood fill): no GPU, no threads, no file system.
     ("crates/raster", &["openpaint-core"]),
     ("crates/app", &["openpaint-core", "openpaint-practice"]),
+    // The library knows no mode: a mode's records are bytes in a space of its own (D112).
+    ("crates/store", &["openpaint-core", "openpaint-app"]),
+    // Practice's records and their upgrade in the library's record space, and its packs (S110).
     (
-        "crates/store",
-        &["openpaint-core", "openpaint-practice", "openpaint-app"],
+        "crates/practice-store",
+        &[
+            "openpaint-core",
+            "openpaint-practice",
+            "openpaint-app",
+            "openpaint-store",
+        ],
     ),
     ("crates/render", &["openpaint-core"]),
     (
@@ -97,6 +106,7 @@ pub const LAYERS: &[(&str, &[&str])] = &[
             "openpaint-raster",
             "openpaint-app",
             "openpaint-store",
+            "openpaint-practice-store",
             "openpaint-render",
             "openpaint-ui",
         ],
@@ -115,6 +125,7 @@ pub const LAYERS: &[(&str, &[&str])] = &[
             "openpaint-practice",
             "openpaint-app",
             "openpaint-store",
+            "openpaint-practice-store",
             "openpaint-sheet",
         ],
     ),
@@ -125,12 +136,13 @@ pub const LAYERS: &[(&str, &[&str])] = &[
 pub const TOOLS: &[&str] = &["tools/packs"];
 
 /// The harness assembles the product crates, the devtools and the contact sheets.
-const WITH_DEVTOOLS: [&str; 10] = [
+const WITH_DEVTOOLS: [&str; 11] = [
     "openpaint-core",
     "openpaint-practice",
     "openpaint-raster",
     "openpaint-app",
     "openpaint-store",
+    "openpaint-practice-store",
     "openpaint-render",
     "openpaint-ui",
     "openpaint-runtime",
@@ -179,7 +191,12 @@ pub const FORBIDDEN_TOKENS: &[(&str, &[&str])] = &[
         ],
     ),
     ("crates/app", &["wgpu", "egui", "winit", "jni", "std::fs"]),
-    ("crates/store", &["wgpu", "egui", "winit", "jni"]),
+    // The library names no mode, in code or comment (D112): "practice" either way.
+    (
+        "crates/store",
+        &["wgpu", "egui", "winit", "jni", "practice", "Practice"],
+    ),
+    ("crates/practice-store", &["wgpu", "egui", "winit", "jni"]),
     ("crates/render", &["winit", "jni", "std::fs"]),
     ("crates/ui", &["wgpu", "winit", "jni", "std::fs"]),
     ("crates/runtime", &["jni"]),

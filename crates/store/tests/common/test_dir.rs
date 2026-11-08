@@ -3,7 +3,8 @@
 //! database whose journal takes 64 MiB: kept from every run, they filled the disk.
 //!
 //! The integration tests take it through `common` (or alone, `saves.rs` and `picture.rs`), the
-//! unit tests (`src/robustness_tests.rs`) by this file's path.
+//! unit tests (`src/robustness_tests.rs`, `src/spaces_tests.rs`) through `src/lib.rs`, by this
+//! file's path.
 
 use std::ffi::OsStr;
 use std::io::{ErrorKind, Write};

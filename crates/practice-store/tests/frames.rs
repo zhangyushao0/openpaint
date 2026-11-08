@@ -5,6 +5,7 @@
 //! margin kept outside it; other kinds' strokes and a copy of a picture no pack holds as they
 //! were; the record marked, and nothing written at the next opening.
 
+#[path = "../../store/tests/common/mod.rs"]
 mod common;
 
 use std::sync::Arc;
@@ -18,7 +19,8 @@ use openpaint_core::{
 use openpaint_practice::{
     Exercise, ItemRef, Kind, LineTier, PERSONAL, Plan, Point, SessionRecord, Sheet, Tier,
 };
-use openpaint_store::{Library, Packs, encode_image, pack_picture};
+use openpaint_practice_store::{Packs, library_at, pack_picture, sessions, start};
+use openpaint_store::encode_image;
 
 /// A picture of the user's own, upright 300 by 400, added to the personal pack in `packs`.
 fn portrait(packs: &Packs) -> ItemRef {
@@ -105,9 +107,9 @@ fn laid_before(dir: &std::path::Path, record: &SessionRecord) -> (ProjectId, Art
         &[[x + 50.0, y + 50.0], [x + 350.0, y + 350.0]],
         gone,
     );
-    let mut library = Library::at(dir);
+    let mut library = library_at(dir, None);
     let title = untitled();
-    let id = (library.start_practice(&blank, &title, record)).expect("started");
+    let id = start(&mut library, (&blank, &title), record).expect("started");
     library.save(id, &sheet).expect("saved");
     drop(library);
     let key = [b"p".as_slice(), &record.id.to_be_bytes()].concat();
@@ -131,19 +133,19 @@ fn an_old_copy_of_a_picture_is_laid_on_the_frame_of_its_shape_once() {
     let held = portrait(&Packs::at(&packs));
     let record = record(&held);
     let (id, before) = laid_before(&library, &record);
-    let mut opened = Library::at(&library).with_packs(Packs::at(&packs));
-    let sessions = opened.practice().expect("practice");
+    let mut opened = library_at(&library, Some(Packs::at(&packs)));
+    let read = sessions(&mut opened).expect("practice");
     assert_eq!(
-        sessions,
+        read,
         vec![SessionRecord {
             canvas: id.get(),
             ..record
         }]
     );
-    let laid = opened.sheet(id).expect("its sheet");
+    let laid = opened.artwork(id).expect("its sheet");
     drop(opened);
     let held_packs = Packs::at(&packs).list().expect("listed");
-    let frames = Sheet::of_session(&sessions[0], &held_packs);
+    let frames = Sheet::of_session(&read[0], &held_packs);
     let frame = frames.pairs[1].copy;
     assert_eq!(frame.size, [300.0, 400.0]);
     let [was, now] = [strokes(&before), strokes(&laid)];
@@ -169,8 +171,8 @@ fn an_old_copy_of_a_picture_is_laid_on_the_frame_of_its_shape_once() {
     assert_eq!(frames.pairs[2].copy.size, [400.0, 400.0]);
     // Laid once: opened again, nothing written.
     let after = records(&library);
-    let mut again = Library::at(&library).with_packs(Packs::at(&packs));
-    assert_eq!(again.practice().expect("practice"), sessions);
+    let mut again = library_at(&library, Some(Packs::at(&packs)));
+    assert_eq!(sessions(&mut again).expect("practice"), read);
     drop(again);
     assert_eq!(records(&library), after);
 }
@@ -182,8 +184,8 @@ fn opened_without_packs_an_old_sheet_keeps_its_strokes_and_is_marked() {
     let held = portrait(&Packs::at(&packs));
     let record = record(&held);
     let (id, before) = laid_before(&library, &record);
-    let mut opened = Library::at(&library);
-    let laid = opened.sheet(id).expect("its sheet");
+    let mut opened = library_at(&library, None);
+    let laid = opened.artwork(id).expect("its sheet");
     assert_eq!(
         strokes(&laid),
         strokes(&before),

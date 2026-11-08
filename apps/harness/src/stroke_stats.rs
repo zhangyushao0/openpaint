@@ -8,7 +8,7 @@
 
 use openpaint_app::ProjectStore;
 use openpaint_core::{Artwork, Stroke, StrokeSample};
-use openpaint_store::Library;
+use openpaint_practice_store::library_at;
 
 use crate::error::HarnessError;
 use crate::launch::library_copy;
@@ -68,7 +68,7 @@ struct Stats {
 }
 
 pub fn run(dir: &str) -> Result<(), HarnessError> {
-    let mut library = Library::at(library_copy(dir, "stroke-stats")?);
+    let mut library = library_at(library_copy(dir, "stroke-stats")?, None);
     let listed = library.list().map_err(HarnessError::Port)?;
     // The toolbox as this build reads it.
     match library.editor() {

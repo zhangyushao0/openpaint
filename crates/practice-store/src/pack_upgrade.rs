@@ -8,8 +8,8 @@
 //! an older layout.
 
 use openpaint_app::PortError;
+use openpaint_store::Reader;
 
-use crate::codec::Reader;
 use crate::pack::{MAGIC, MAX_HEAD, START, damaged, decode_head, encode_pack};
 
 /// The layouts upgraded.

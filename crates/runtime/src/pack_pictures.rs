@@ -7,7 +7,7 @@ use std::time::Instant;
 
 use openpaint_app::PictureImage;
 use openpaint_practice::ItemRef;
-use openpaint_store::{Packs, thumbnail_picture};
+use openpaint_practice_store::{Packs, thumbnail_picture};
 use openpaint_ui::Shell;
 
 use crate::error::RuntimeError;

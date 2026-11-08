@@ -1,6 +1,6 @@
 # The practice-pack builder (S111): content curation, not product, so a workspace of its own,
 # outside the gate: `cargo practice-pack build|search` from the repository's root. It reads and
-# writes packs with the store's and the practice crate's own code, by path, exactly as the app
+# writes packs with the practice crates' and the store's own code, by path, exactly as the app
 # reads them (DECISIONS D101). Its builds go to `tools/packs/target/` (untracked), never the root
 # `target/` the gate prunes; `cargo repo-check` holds it to the repository's rules (rustfmt,
 # clippy below, file lengths, no scripts).
@@ -18,6 +18,7 @@ publish = false
 [dependencies]
 openpaint-app = { path = "../../crates/app" }
 openpaint-practice = { path = "../../crates/practice" }
+openpaint-practice-store = { path = "../../crates/practice-store" }
 openpaint-sheet = { path = "../../crates/sheet" }
 openpaint-store = { path = "../../crates/store" }
 # Pinned exactly as the root workspace pins its own (DECISIONS D14); the lock started from the

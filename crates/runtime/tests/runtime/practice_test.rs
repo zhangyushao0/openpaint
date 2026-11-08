@@ -6,8 +6,8 @@
 
 use openpaint_app::{ProjectId, ProjectStore, TodayProjection};
 use openpaint_practice::Family;
+use openpaint_practice_store::{library_at, sessions};
 use openpaint_runtime::{Runtime, ToolKind};
-use openpaint_store::Library;
 
 use crate::support::{Hand, TestDir, gallery, mapping, start, until};
 
@@ -18,7 +18,7 @@ const PIXELS_PER_POINT: f32 = 2.0;
 /// A runtime on the library in `dir` and the hand on it, in the gallery: no artwork is listed,
 /// so the app starts on a blank canvas, left for the gallery.
 fn in_the_gallery(dir: &std::path::Path) -> (Runtime, Hand) {
-    let (mut runtime, mut hand) = start(PIXELS_PER_POINT, SIZE, Box::new(Library::at(dir)));
+    let (mut runtime, mut hand) = start(PIXELS_PER_POINT, SIZE, Box::new(library_at(dir, None)));
     assert!(runtime.back(), "to the gallery");
     until(&mut runtime, &mut hand, |r| gallery(r).is_some());
     (runtime, hand)
@@ -70,14 +70,17 @@ fn a_test_session_beside_the_authors_leaves_theirs_as_it_was() {
     let theirs = today(&runtime);
     let sheet = theirs.open.expect("their session open");
     drop(runtime);
-    let mut library = Library::at(&dir);
-    let records = library.practice().expect("their records");
+    let mut library = library_at(&dir, None);
+    let records = sessions(&mut library).expect("their records");
     let file = library.artwork_file(sheet).expect("their sheet");
     drop(library);
 
-    // The chore: a test session beside theirs, worked on, then removed.
+    // The chore: a test session beside theirs, worked on, then removed. The gallery never lists
+    // their sheet (the runtime's gallery list, D112).
     let (mut runtime, mut hand) = in_the_gallery(&dir);
     assert_eq!(today(&runtime), theirs);
+    let listed = gallery(&runtime).map(|g| g.items().iter().any(|item| item.id == sheet));
+    assert_eq!(listed, Some(false), "their sheet is no artwork");
     let id = (runtime.start_test_practice(None, None)).expect("started");
     until(&mut runtime, &mut hand, |r| r.test_practice(id).is_some());
     let test = runtime.test_practice(id).expect("its name");
@@ -102,9 +105,9 @@ fn a_test_session_beside_the_authors_leaves_theirs_as_it_was() {
     let refused = runtime.end_test_practice(&other);
     assert!(refused.is_err(), "nothing else is removed");
     drop(runtime);
-    let mut library = Library::at(&dir);
+    let mut library = library_at(&dir, None);
     assert_eq!(
-        library.practice().expect("records"),
+        sessions(&mut library).expect("records"),
         records,
         "their records"
     );

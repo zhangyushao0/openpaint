@@ -12,8 +12,8 @@ use jni::objects::{
 };
 use jni::sys::{jboolean, jfloat, jint, jlong};
 use jni::{Env, EnvUnowned};
+use openpaint_practice_store::{Packs, library_at};
 use openpaint_runtime::{DisplayCache, Language, Runtime, StartOptions, TextFonts, take_spent};
-use openpaint_store::{Library, Packs};
 
 use crate::error::HostError;
 use crate::fonts::read_face;
@@ -106,8 +106,9 @@ pub extern "system" fn Java_dev_openpaint_Native_create<'local>(
             packs: Some(packs),
             ..StartOptions::default()
         };
-        // The library lays old practice sheets anew by the pictures the packs hold (S99).
-        let library = Library::at(library).with_packs(Packs::at(files.join("packs")));
+        // The library as the app opens it: its old practice sheets laid anew by the pictures the
+        // packs hold (S99, D112).
+        let library = library_at(library, Some(Packs::at(files.join("packs"))));
         let runtime = Runtime::start(density, Box::new(library), options)?;
         let host = Host {
             runtime,

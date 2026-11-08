@@ -21,7 +21,8 @@ use openpaint_practice::{
     Areas, Credit, Crop, Found, LEAST_LONGER, PackItem, PictureKind, Places, best, candidate, cut,
     rectangles, refusal, tier_of,
 };
-use openpaint_store::{encode_image, pack_picture};
+use openpaint_practice_store::pack_picture;
+use openpaint_store::encode_image;
 
 use super::build::attribution;
 use super::full::FullPicture;

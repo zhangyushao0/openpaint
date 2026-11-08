@@ -3,7 +3,7 @@
 //! format 2 (1.4.0 to 1.13.0) or 3 (1.14.0 to 1.18.1) is upgraded as it is imported and where it
 //! is kept (the personal pack among them), its items and pictures as they were.
 
-#[path = "common/test_dir.rs"]
+#[path = "../../store/tests/common/test_dir.rs"]
 mod test_dir;
 
 use std::sync::Arc;
@@ -12,7 +12,8 @@ use openpaint_app::ImageFormat;
 use openpaint_practice::{
     Areas, Credit, Licence, Masses, PERSONAL, Pack, PackItem, PictureKind, Tier, ValueMasses,
 };
-use openpaint_store::{PACK_FORMAT, Packs, encode_image, encode_pack, open_pack, pack_picture};
+use openpaint_practice_store::{PACK_FORMAT, Packs, encode_pack, open_pack, pack_picture};
+use openpaint_store::encode_image;
 use test_dir::TestDir;
 
 /// A composition of a landscape and its value masses, and its picture's file.

@@ -7,7 +7,8 @@ use std::path::Path;
 
 use openpaint_app::ImageFormat;
 use openpaint_practice::{Licence, Matte, Tier};
-use openpaint_store::{encode_image, encode_pack, open_pack};
+use openpaint_practice_store::{encode_pack, open_pack};
+use openpaint_store::encode_image;
 
 use super::build::{Outlined, attribution, build};
 use super::commons::{plain, stated};

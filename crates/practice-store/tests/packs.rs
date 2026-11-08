@@ -2,7 +2,9 @@
 //! imported pack is kept beside the library and read back, its manifest and one picture at a
 //! time, and the library beside it keeps every byte.
 
+#[path = "../../store/tests/common/mod.rs"]
 mod common;
+#[path = "../../store/tests/sample/mod.rs"]
 mod sample;
 
 use common::{TestDir, records, untitled, write_records};
@@ -10,9 +12,10 @@ use openpaint_app::{ImageFormat, PortError, ProjectStore};
 use openpaint_practice::{
     Credit, ItemRef, Licence, Outline, PERSONAL, Pack, PackItem, PictureKind, Tier,
 };
-use openpaint_store::{
-    Library, PACK_FORMAT, Packs, encode_image, encode_pack, open_pack, pack_picture, shown_picture,
+use openpaint_practice_store::{
+    PACK_FORMAT, Packs, encode_pack, open_pack, pack_picture, shown_picture,
 };
+use openpaint_store::{Library, encode_image};
 use sample::{decode, encode, parts, sample_editor, sample_path, sample_thumbnail, sample_title};
 
 /// A picture of `size`, its pixels from `seed`, as a PNG or (`jpeg`) a JPEG file.

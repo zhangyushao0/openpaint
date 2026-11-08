@@ -6,8 +6,9 @@ use std::sync::Arc;
 use openpaint_app::{
     BrushLibrary, Clipboard, Language, PalmRejection, PracticeLog, ProjectStore, Toolbox, Transfers,
 };
+use openpaint_practice_store::Packs;
 use openpaint_render::Core;
-use openpaint_store::{DisplayCache, Packs};
+use openpaint_store::DisplayCache;
 use openpaint_ui::Shell;
 use openpaint_ui::design;
 

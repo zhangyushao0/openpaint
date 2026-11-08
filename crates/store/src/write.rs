@@ -5,9 +5,8 @@ use std::collections::HashSet;
 use std::hash::{BuildHasher, RandomState};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use openpaint_app::{EditorState, PortError, ProjectId, SaveId, Thumbnail, Title};
+use openpaint_app::{EditorState, PortError, ProjectId, Record, SaveId, Space, Thumbnail, Title};
 use openpaint_core::Artwork;
-use openpaint_practice::SessionRecord;
 
 use crate::artwork_file::Opened;
 use crate::batch::Batch;
@@ -16,14 +15,13 @@ use crate::delta::{contents, delta};
 use crate::editor::{EDITOR, encode_editor};
 use crate::edits::{edit_key, edits_prefix, encode_edit};
 use crate::library::{Open, device};
-use crate::practice::{encode_session, practice_key};
-use crate::read;
 use crate::records::{
     CLOCK, LAST, NEXT, decode_id, encode_head, encode_id, entry_key, head_key, project_prefix,
     stroke_key, strokes_prefix, thumbnail_key,
 };
 use crate::strokes::encode_stroke;
 use crate::versions::{entries_prefix, is_version};
+use crate::{read, spaces};
 
 /// The next unused project id, and the batch entry that uses it up.
 fn next_id(open: &Open, batch: &mut Batch) -> Result<ProjectId, PortError> {
@@ -88,52 +86,37 @@ fn new_project(
     Ok(id)
 }
 
-/// A new practice session: `sheet` as a new project titled `title`, which becomes the open one,
-/// and `session`'s record naming it, in one batch.
-pub(crate) fn start_practice(
+/// A project a record owns (D112): `artwork` as a new project titled `title`, which becomes the
+/// open one, and the record of `space` that `record` makes for it, in one batch.
+pub(crate) fn create_owned(
     open: &Open,
-    (sheet, title): (&Artwork, &Title),
-    session: &SessionRecord,
+    (artwork, title): (&Artwork, &Title),
+    space: Space,
+    record: &dyn Fn(ProjectId) -> Record,
 ) -> Result<ProjectId, PortError> {
     let mut batch = Batch::new(open);
-    let id = new_project(open, &mut batch, sheet, title)?;
+    let id = new_project(open, &mut batch, artwork, title)?;
     batch.insert(&open.library, LAST, encode_id(id.get()));
-    let session = SessionRecord {
-        canvas: id.get(),
-        ..session.clone()
-    };
-    let key = practice_key(session.id);
-    batch.insert(&open.library, key, encode_session(&session));
+    let (key, bytes) = record(id);
+    spaces::checked(space, Some(&key))?;
+    batch.insert(&open.library, key, bytes);
     batch.commit()?;
     Ok(id)
 }
 
-/// Replaces `session`'s record.
-pub(crate) fn practice(open: &Open, session: &SessionRecord) -> Result<(), PortError> {
-    let mut batch = Batch::new(open);
-    let key = practice_key(session.id);
-    batch.insert(&open.library, key, encode_session(session));
-    batch.commit()
-}
-
-/// A practice sheet laid anew by the store's upgrade (S99, `practice_frames.rs`): every record of
-/// `artwork` over project `id`'s, its head under a new save id, and `session`'s record, in one
-/// batch; the catalogue and `last` untouched.
-pub(crate) fn relaid(
+/// A project a record owns written anew by its owner's upgrade (`Upgrading::replace_owned`):
+/// every record of `artwork` over project `id`'s, its head under a new save id, and the record
+/// (its key and bytes), in one batch; the catalogue and `last` untouched.
+pub(crate) fn replaced(
     open: &Open,
-    id: ProjectId,
-    artwork: &Artwork,
-    session: &SessionRecord,
+    (id, artwork): (ProjectId, &Artwork),
+    (key, bytes): (&[u8], &[u8]),
 ) -> Result<(), PortError> {
     let mut batch = Batch::new(open);
     write_all(open, &mut batch, id, artwork)?;
     let head = encode_head(artwork, Some(new_save_id()));
     batch.insert(&open.projects, head_key(id), head);
-    batch.insert(
-        &open.library,
-        practice_key(session.id),
-        encode_session(session),
-    );
+    batch.insert(&open.library, key, bytes);
     batch.commit()
 }
 
@@ -263,12 +246,17 @@ pub(crate) fn delete(open: &Open, id: ProjectId) -> Result<(), PortError> {
     batch.commit()
 }
 
-/// `session`'s record and its sheet removed, in one batch.
-pub(crate) fn remove_practice(open: &Open, session: &SessionRecord) -> Result<(), PortError> {
+/// Record `key` of `space` and the project it owns, if any, removed in one batch.
+pub(crate) fn remove_owned(
+    open: &Open,
+    (space, key): (Space, &[u8]),
+    project: Option<ProjectId>,
+) -> Result<(), PortError> {
+    spaces::checked(space, Some(key))?;
     let mut batch = Batch::new(open);
-    batch.remove(&open.library, practice_key(session.id));
-    if session.canvas != 0 {
-        remove_project(open, &mut batch, ProjectId::new(session.canvas))?;
+    batch.remove(&open.library, key);
+    if let Some(id) = project {
+        remove_project(open, &mut batch, id)?;
     }
     batch.commit()
 }

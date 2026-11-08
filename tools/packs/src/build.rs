@@ -15,7 +15,7 @@ use openpaint_practice::{
     Credit, Licence, Matte, Outline, OutlineRefusal, Pack, PackItem, PictureKind, ValueMasses,
     outline_of_matte,
 };
-use openpaint_store::{PackPicture, pack_picture};
+use openpaint_practice_store::{PackPicture, pack_picture};
 
 use super::crops::{Cropped, crops_of};
 use super::fetch::{Fetcher, cache_name};

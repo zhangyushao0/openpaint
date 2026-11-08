@@ -14,7 +14,8 @@ use openpaint_app::{
 };
 use openpaint_core::Artwork;
 use openpaint_practice::{ItemRef, Pack, SessionRecord};
-use openpaint_store::{Cached, DisplayCache, Packs};
+use openpaint_practice_store::Packs;
+use openpaint_store::{Cached, DisplayCache};
 
 use crate::error::RuntimeError;
 use crate::practice::{self, PracticeDone, PracticeJob};
@@ -227,12 +228,11 @@ fn run((store, cache, packs): Served<'_>, kept: &mut Kept, job: Job) -> Done {
                 .inspect_err(|error| log::warn!("the stored toolbox is unreadable: {error}"))
                 .ok()
                 .flatten();
-            let sessions = store
-                .practice()
+            let sessions = openpaint_practice_store::sessions(store)
                 .inspect_err(|error| log::warn!("the practice sessions are unreadable: {error}"))
                 .unwrap_or_default();
-            let titles = store
-                .sheet_titles()
+            let titles = practice::gallery_list(store)
+                .map(|listed| listed.sheets)
                 .inspect_err(|error| log::warn!("the practice sheets' titles are unread: {error}"))
                 .unwrap_or_default();
             let packs = (packs.map(Packs::list).transpose())
@@ -301,7 +301,7 @@ fn start(store: &mut dyn ProjectStore, kept: &mut Kept, cache: Option<&DisplayCa
             kept.open = Some(last.id);
             Opened::Last(loaded(cache, last))
         }
-        Ok(None) => match store.list() {
+        Ok(None) => match practice::gallery_list(store).map(|listed| listed.artworks) {
             Ok(items) if items.is_empty() => Opened::Empty,
             listed => Opened::Gallery(listed),
         },
@@ -373,7 +373,9 @@ fn library(
     call: LibraryCall,
 ) -> Done {
     Done::Gallery(match call {
-        LibraryCall::List => LibraryAnswer::Listed(store.list()),
+        LibraryCall::List => {
+            LibraryAnswer::Listed(practice::gallery_list(store).map(|listed| listed.artworks))
+        }
         LibraryCall::Load(id) => match store.load(id) {
             Ok(project) => {
                 *kept = Kept {

@@ -3,9 +3,9 @@
 //! `Kind` (an arm or a `matches!` naming `Kind::`), names a `Family` or an `Original` variant at
 //! all (an arm, a `matches!`, an `if let`, a comparison: what a family or an original does is its
 //! kind's description's, `Facts` and the description's methods), or names the retired `Overlay`.
-//! A kind is built outside only where a stored code is read (`Kind::Scale` in the store's upgrade
-//! of 1.14.0's scales). The rest of S110's rule (no painting crate naming practice) comes with
-//! S110.
+//! A kind is built outside only where a stored code is read (`Kind::Scale` in the practice
+//! records' upgrade of 1.14.0's scales, `crates/practice-store`). The store names no practice
+//! since S110 (`rules.rs`); the other painting crates follow with S110b.
 
 use std::path::Path;
 
@@ -28,7 +28,8 @@ pub fn check(root: &Path, files: &[String]) -> Vec<Finding> {
     });
     for path in checked {
         match read(root, path) {
-            Ok(text) if text.contains("openpaint_practice") => {
+            // The practice crate itself, not `openpaint_practice_store`.
+            Ok(text) if text.contains("openpaint_practice::") => {
                 findings.extend(matches_in(path, &text));
             }
             Ok(_) => {}

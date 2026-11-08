@@ -5,11 +5,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use openpaint_app::{
-    EditorState, PortError, Project, ProjectId, ProjectStore, ProjectSummary, SaveId, Thumbnail,
-    Title, VersionId,
+    EditorState, PortError, Project, ProjectId, ProjectStore, ProjectSummary, Record, SaveId,
+    Space, Thumbnail, Title, VersionId,
 };
 use openpaint_core::Artwork;
-use openpaint_practice::SessionRecord;
 
 /// Lists nothing and opens `last` (none: a new canvas); creating and saving keep the artwork in
 /// `saved` and fail, as a full or removed disk would, while `fail` is set; everything else
@@ -110,32 +109,33 @@ impl ProjectStore for Nowhere {
         Err(PortError::Missing(id))
     }
 
-    fn practice(&mut self) -> Result<Vec<SessionRecord>, PortError> {
-        Ok(Vec::new())
-    }
-
-    fn sheet_titles(&mut self) -> Result<Vec<(ProjectId, Title)>, PortError> {
-        Ok(Vec::new())
-    }
-
-    fn sheet(&mut self, id: ProjectId) -> Result<Artwork, PortError> {
+    fn artwork(&mut self, id: ProjectId) -> Result<Artwork, PortError> {
         Err(PortError::Missing(id))
     }
 
-    fn start_practice(
-        &mut self,
-        sheet: &Artwork,
-        _title: &Title,
-        _session: &SessionRecord,
-    ) -> Result<ProjectId, PortError> {
-        self.keep(sheet).map(|()| ProjectId::new(2))
+    fn records(&mut self, _space: Space) -> Result<Vec<Record>, PortError> {
+        Ok(Vec::new())
     }
 
-    fn save_practice(&mut self, _session: &SessionRecord) -> Result<(), PortError> {
+    fn put_record(&mut self, _space: Space, _key: &[u8], _bytes: &[u8]) -> Result<(), PortError> {
         Ok(())
     }
 
-    fn remove_practice(&mut self, _session: &SessionRecord) -> Result<(), PortError> {
+    fn create_owned(
+        &mut self,
+        (artwork, _title): (&Artwork, &Title),
+        _space: Space,
+        _record: &dyn Fn(ProjectId) -> Record,
+    ) -> Result<ProjectId, PortError> {
+        self.keep(artwork).map(|()| ProjectId::new(2))
+    }
+
+    fn remove_owned(
+        &mut self,
+        _space: Space,
+        _key: &[u8],
+        _project: Option<ProjectId>,
+    ) -> Result<(), PortError> {
         Ok(())
     }
 }

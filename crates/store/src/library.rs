@@ -8,17 +8,16 @@ use std::path::PathBuf;
 
 use fjall::{Database, Keyspace, KeyspaceCreateOptions};
 use openpaint_app::{
-    EditorState, PortError, Project, ProjectId, ProjectStore, ProjectSummary, SaveId, Thumbnail,
-    Title, VersionId,
+    EditorState, PortError, Project, ProjectId, ProjectStore, ProjectSummary, Record, SaveId,
+    Space, Thumbnail, Title, VersionId,
 };
 use openpaint_core::Artwork;
-use openpaint_practice::SessionRecord;
 
 use crate::batch::Batch;
 use crate::editor::decode_editor;
-use crate::packs::Packs;
 use crate::records::{FORMAT, FORMAT_KEY, LIBRARY, PROJECTS, decode_format, encode_format};
-use crate::{artwork_file, practice, read, versions, write};
+use crate::spaces::{Upgrade, Upgrading};
+use crate::{artwork_file, read, spaces, versions, write};
 
 /// The database and its two keyspaces.
 pub(crate) struct Open {
@@ -32,9 +31,9 @@ pub(crate) struct Open {
 /// one (a failed write leaves fjall refusing further writes).
 pub struct Library {
     dir: PathBuf,
-    /// The practice packs kept beside it, whose pictures the store's upgrade lays old practice
-    /// sheets anew by (S99); none: no pack.
-    packs: Option<Packs>,
+    /// The record spaces' owners' upgrades of their old records, run in order each time the
+    /// database opens (D112).
+    upgrades: Vec<Box<dyn Upgrade>>,
     open: Option<Open>,
     /// The version the disk holds for one project, known exactly; the base for the next save
     /// of that project. Forgotten whenever a call fails, so that save rewrites the project.
@@ -55,18 +54,19 @@ impl Library {
     pub fn at(dir: impl Into<PathBuf>) -> Self {
         Self {
             dir: dir.into(),
-            packs: None,
+            upgrades: Vec::new(),
             open: None,
             stored: None,
             noted: 0,
         }
     }
 
-    /// The library with the practice packs kept in `packs` (the app's), by whose pictures the
-    /// store's upgrade lays practice sheets of 1.16.0 and before anew (S99).
+    /// The library with `upgrade`, a record space's owner's upgrade of its old records (D112),
+    /// run each time the library opens: after the format check and the upgrades given before it,
+    /// before any call is served.
     #[must_use]
-    pub fn with_packs(mut self, packs: Packs) -> Self {
-        self.packs = Some(packs);
+    pub fn with_upgrade(mut self, upgrade: Box<dyn Upgrade>) -> Self {
+        self.upgrades.push(upgrade);
         self
     }
 
@@ -110,7 +110,7 @@ impl Library {
                 library,
                 projects,
             };
-            prepare(&open, self.packs.as_ref())?;
+            prepare(&open, &self.upgrades)?;
             log::info!("library opened at {}", self.dir.display());
             self.open = Some(open);
         }
@@ -133,11 +133,14 @@ impl Library {
 
 /// Checks the format of an opened database: an empty one is marked with this build's format;
 /// one of another format, or holding records without a format (every library before 1.0), is
-/// refused as it is, nothing written. One of this format has its practice records upgraded
-/// (`practice::upgrade`), its old sheets laid anew by the pictures `packs` hold.
-fn prepare(open: &Open, packs: Option<&Packs>) -> Result<(), PortError> {
+/// refused as it is, nothing written. One of this format has the old records of each record
+/// space upgraded by its owner's `upgrades`, in order (D112).
+fn prepare(open: &Open, upgrades: &[Box<dyn Upgrade>]) -> Result<(), PortError> {
     check_format(open)?;
-    practice::upgrade(open, packs)
+    let library = Upgrading::new(open);
+    upgrades
+        .iter()
+        .try_for_each(|upgrade| upgrade.upgrade(&library))
 }
 
 fn check_format(open: &Open) -> Result<(), PortError> {
@@ -298,48 +301,50 @@ impl ProjectStore for Library {
         Ok(copy)
     }
 
-    fn practice(&mut self) -> Result<Vec<SessionRecord>, PortError> {
-        self.with(practice::sessions)
-    }
-
-    fn sheet_titles(&mut self) -> Result<Vec<(ProjectId, Title)>, PortError> {
-        self.with(practice::titles)
-    }
-
-    fn sheet(&mut self, id: ProjectId) -> Result<Artwork, PortError> {
+    fn artwork(&mut self, id: ProjectId) -> Result<Artwork, PortError> {
         self.with(|open| read::artwork(&open.projects, id))
     }
 
-    fn start_practice(
+    fn records(&mut self, space: Space) -> Result<Vec<Record>, PortError> {
+        self.with(|open| spaces::records(open, space))
+    }
+
+    fn put_record(&mut self, space: Space, key: &[u8], bytes: &[u8]) -> Result<(), PortError> {
+        let record = (key.to_vec(), bytes.to_vec());
+        self.with(|open| spaces::put(open, space, std::slice::from_ref(&record)))
+    }
+
+    fn create_owned(
         &mut self,
-        sheet: &Artwork,
-        title: &Title,
-        session: &SessionRecord,
+        (artwork, title): (&Artwork, &Title),
+        space: Space,
+        record: &dyn Fn(ProjectId) -> Record,
     ) -> Result<ProjectId, PortError> {
-        let id = self.with(|open| write::start_practice(open, (sheet, title), session))?;
+        let id = self.with(|open| write::create_owned(open, (artwork, title), space, record))?;
         log::info!(
-            "practice session {} started on project {}",
-            session.id,
-            id.get()
+            "project {} created with its record of space '{}'",
+            id.get(),
+            char::from(space.byte())
         );
-        self.stored = Some((id, sheet.clone()));
+        self.stored = Some((id, artwork.clone()));
         Ok(id)
     }
 
-    fn save_practice(&mut self, session: &SessionRecord) -> Result<(), PortError> {
-        self.with(|open| write::practice(open, session))
-    }
-
-    fn remove_practice(&mut self, session: &SessionRecord) -> Result<(), PortError> {
-        self.with(|open| write::remove_practice(open, session))?;
-        let sheet = ProjectId::new(session.canvas);
-        if self.stored.as_ref().is_some_and(|(id, _)| *id == sheet) {
+    fn remove_owned(
+        &mut self,
+        space: Space,
+        key: &[u8],
+        project: Option<ProjectId>,
+    ) -> Result<(), PortError> {
+        self.with(|open| write::remove_owned(open, (space, key), project))?;
+        if let Some(removed) = project
+            && self.stored.as_ref().is_some_and(|(id, _)| *id == removed)
+        {
             self.stored = None;
         }
         log::info!(
-            "practice session {} and its sheet {} removed",
-            session.id,
-            session.canvas
+            "a record of space '{}' removed with project {project:?}",
+            char::from(space.byte())
         );
         Ok(())
     }

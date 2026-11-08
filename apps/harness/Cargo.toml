@@ -11,6 +11,7 @@ openpaint-app.workspace = true
 openpaint-core.workspace = true
 openpaint-devtools.workspace = true
 openpaint-practice.workspace = true
+openpaint-practice-store.workspace = true
 openpaint-render.workspace = true
 openpaint-runtime.workspace = true
 openpaint-sheet.workspace = true

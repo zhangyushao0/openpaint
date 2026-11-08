@@ -10,6 +10,7 @@ publish.workspace = true
 openpaint-app.workspace = true
 openpaint-core.workspace = true
 openpaint-practice.workspace = true
+openpaint-practice-store.workspace = true
 openpaint-render.workspace = true
 openpaint-runtime.workspace = true
 openpaint-store.workspace = true

@@ -9,9 +9,7 @@ use image::RgbaImage;
 use image::imageops::{self, FilterType};
 use openpaint_app::{ImageError, ImageFormat, PictureImage, SHOWN_SIDE};
 use openpaint_practice::MAX_PICTURE_SIDE;
-
-use crate::export_file::encode_image;
-use crate::image_file::decode_image;
+use openpaint_store::{decode_image, encode_image};
 
 /// A picture ready for a pack: its size, its pixels (8-bit sRGB, straight alpha) and its file.
 #[derive(Debug, Clone, PartialEq, Eq)]

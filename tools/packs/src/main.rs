@@ -42,7 +42,8 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use openpaint_practice::{PackItem, Tier};
-use openpaint_store::{decode_image, encode_pack};
+use openpaint_practice_store::encode_pack;
+use openpaint_store::decode_image;
 
 use crate::error::PackError;
 use build::{Built, Massed, Outlined};

@@ -8,8 +8,9 @@
 //! The same bytes every run.
 
 use openpaint_practice::{Credit, Licence, Pack, PackItem, PictureKind, Random, Tier, outline};
+use openpaint_practice_store::{encode_pack, pack_picture};
 use openpaint_runtime::ImageFormat;
-use openpaint_store::{encode_image, encode_pack, pack_picture};
+use openpaint_store::encode_image;
 
 /// Where the test pictures say they come from.
 const SOURCE: &str = "https://github.com/zhangyushao0/openpaint";
