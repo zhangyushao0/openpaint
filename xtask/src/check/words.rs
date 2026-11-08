@@ -1,22 +1,25 @@
-//! The interface's words live in the UI's text tables (DECISIONS D100): under `crates/ui/src/`,
-//! outside `text/` and the tests, no string literal reads like a word shown to the user (a
-//! capital, then a small letter: "Undo", "Can't fill"), and no literal is handed to
-//! `Words::made` or `Words::named`. Ids, salts and numbers ("left island", "{} %") stay where
-//! they are.
+//! The interface's words live in its text tables (DECISIONS D100): under `crates/ui/src/` and
+//! `crates/practice-ui/src/` (S110c), outside each one's `text/` and the tests, no string literal
+//! reads like a word shown to the user (a capital, then a small letter: "Undo", "Can't fill"),
+//! and no literal is handed to `Words::made` or `Words::named`. Ids, salts and numbers ("left
+//! island", "{} %") stay where they are.
 
 use std::path::Path;
 
-use super::rules::{TEXT_TABLES, UI_SOURCES};
+use super::rules::UI_SOURCES;
 use super::{Finding, read};
+
+/// Whether `path` is a screen's source outside its text tables and tests.
+fn screen_source(path: &str) -> bool {
+    path.ends_with(".rs")
+        && !path.ends_with("_tests.rs")
+        && (UI_SOURCES.iter())
+            .any(|(sources, tables)| path.starts_with(sources) && !path.starts_with(tables))
+}
 
 pub fn check(root: &Path, files: &[String]) -> Vec<Finding> {
     let mut findings = Vec::new();
-    let checked = files.iter().filter(|path| {
-        path.starts_with(UI_SOURCES)
-            && path.ends_with(".rs")
-            && !path.starts_with(TEXT_TABLES)
-            && !path.ends_with("_tests.rs")
-    });
+    let checked = files.iter().filter(|path| screen_source(path));
     for path in checked {
         match read(root, path) {
             Ok(text) => findings.extend(words_in(path, &text)),
@@ -103,5 +106,15 @@ mod tests {
                 "line 7: \"Two\" belongs in the text tables",
             ]
         );
+    }
+
+    #[test]
+    fn both_interfaces_are_checked_outside_their_tables_and_tests() {
+        assert!(screen_source("crates/ui/src/shell.rs"));
+        assert!(screen_source("crates/practice-ui/src/sheet/bar.rs"));
+        assert!(!screen_source("crates/ui/src/text/canvas.rs"));
+        assert!(!screen_source("crates/practice-ui/src/text/kinds/lines.rs"));
+        assert!(!screen_source("crates/practice-ui/src/sheet/demo_tests.rs"));
+        assert!(!screen_source("crates/runtime/src/frame.rs"));
     }
 }

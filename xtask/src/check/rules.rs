@@ -13,8 +13,6 @@ pub const MAX_FOLDER_FILES: usize = 64;
 pub const HELD_FOLDERS: &[(&str, usize)] = &[
     // The renderer's 98 modules, a structural slice ahead (ROADMAP Candidates).
     ("crates/render/src", 98),
-    // Practice's screens leave it with S110c.
-    ("crates/ui/src", 70),
 ];
 
 /// A markdown file allowed outside `docs/archive/` and its limits.
@@ -69,7 +67,7 @@ pub const MAX_DOC_LINE_CHARS: usize = 1_500;
 pub const ARCHIVE_DIR: &str = "docs/archive/";
 
 /// Every workspace crate a composition root may use.
-pub const ALL_PRODUCT: [&str; 10] = [
+pub const ALL_PRODUCT: [&str; 11] = [
     "openpaint-core",
     "openpaint-practice",
     "openpaint-practice-app",
@@ -79,6 +77,7 @@ pub const ALL_PRODUCT: [&str; 10] = [
     "openpaint-practice-store",
     "openpaint-render",
     "openpaint-ui",
+    "openpaint-practice-ui",
     "openpaint-runtime",
 ];
 
@@ -111,15 +110,21 @@ pub const LAYERS: &[(&str, &[&str])] = &[
         ],
     ),
     ("crates/render", &["openpaint-core"]),
-    // Practice's screens until S110c moves them into a crate of their own.
+    // The interface knows no mode but its hooks (D112).
     (
         "crates/ui",
+        &["openpaint-core", "openpaint-app", "openpaint-render"],
+    ),
+    // Practice's screens behind the ui's hooks (S110c): cards, marks, tiles, How, the book, the
+    // options and their words.
+    (
+        "crates/practice-ui",
         &[
             "openpaint-core",
             "openpaint-practice",
             "openpaint-practice-app",
             "openpaint-app",
-            "openpaint-render",
+            "openpaint-ui",
         ],
     ),
     (
@@ -134,6 +139,7 @@ pub const LAYERS: &[(&str, &[&str])] = &[
             "openpaint-practice-store",
             "openpaint-render",
             "openpaint-ui",
+            "openpaint-practice-ui",
         ],
     ),
     // Diagnostics and automation: never a dependency of a product crate (DECISIONS D10).
@@ -161,7 +167,7 @@ pub const LAYERS: &[(&str, &[&str])] = &[
 pub const TOOLS: &[&str] = &["tools/packs"];
 
 /// The harness assembles the product crates, the devtools and the contact sheets.
-const WITH_DEVTOOLS: [&str; 12] = [
+const WITH_DEVTOOLS: [&str; 13] = [
     "openpaint-core",
     "openpaint-practice",
     "openpaint-practice-app",
@@ -171,6 +177,7 @@ const WITH_DEVTOOLS: [&str; 12] = [
     "openpaint-practice-store",
     "openpaint-render",
     "openpaint-ui",
+    "openpaint-practice-ui",
     "openpaint-runtime",
     "openpaint-devtools",
     "openpaint-sheet",
@@ -220,8 +227,7 @@ pub const FORBIDDEN_TOKENS: &[(&str, &[&str])] = &[
             "Practice",
         ],
     ),
-    // The painting crates name no mode, in code or comment (D112): "practice" either way; the
-    // UI follows with S110c.
+    // The painting crates name no mode, in code or comment (D112): "practice" either way.
     (
         "crates/app",
         &[
@@ -241,14 +247,21 @@ pub const FORBIDDEN_TOKENS: &[(&str, &[&str])] = &[
         "crates/render",
         &["winit", "jni", "std::fs", "practice", "Practice"],
     ),
-    ("crates/ui", &["wgpu", "winit", "jni", "std::fs"]),
+    (
+        "crates/ui",
+        &["wgpu", "winit", "jni", "std::fs", "practice", "Practice"],
+    ),
+    ("crates/practice-ui", &["wgpu", "winit", "jni", "std::fs"]),
     ("crates/runtime", &["jni"]),
     ("crates/devtools", &["jni", "std::fs"]),
 ];
 
-/// The interface's sources, whose words live in its text tables (DECISIONS D100).
-pub const UI_SOURCES: &str = "crates/ui/src/";
-pub const TEXT_TABLES: &str = "crates/ui/src/text/";
+/// The interfaces' sources, each crate's words in its own text tables (DECISIONS D100): the ui's
+/// and practice's screens (S110c).
+pub const UI_SOURCES: &[(&str, &str)] = &[
+    ("crates/ui/src/", "crates/ui/src/text/"),
+    ("crates/practice-ui/src/", "crates/practice-ui/src/text/"),
+];
 
 /// The renderer may mention the UI framework only inside its adapter directory.
 pub const RENDER_DIR: &str = "crates/render/";

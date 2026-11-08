@@ -140,7 +140,7 @@ impl LayerPanel {
             asked = footer(ui, list, projection, taps);
         });
         if let (Some(from), Some(active)) = (asked, list.active_row()) {
-            let name = t::shown_name(t::language(ctx), active.name.as_str());
+            let name = t::shown_name(ctx, active.name.as_str());
             self.rename = Some((active.id, Naming::new(&name, from), name.into_owned()));
         }
         self.area = rect.map(|rect| ScreenArea::from_points(rect, ctx.pixels_per_point()));

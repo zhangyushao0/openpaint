@@ -1,58 +1,61 @@
 //! The names the app gives, shown in the language. The app stores them as it made them, in
 //! English ("Layer 3", "Group 2", "Inserted image", "Pasted layer", "Untitled Artwork", the
-//! built-in brushes' names, "<name> copy", a colour copy's "Colour copy 2", a picture of one's
-//! own "Picture 4", a whole copy's "Division", "Line drawing" and "Colour blocks" layers), so they
-//! read in whichever language shows and the stored name stays the control's name. A name the user typed shows as typed; one that reads like a default shows as
+//! built-in brushes' names, "<name> copy"), so they read in whichever language shows and the
+//! stored name stays the control's name; a mode gives names of its own alike (`Names`, set on
+//! the shell, D112). A name the user typed shows as typed; one that reads like a default shows as
 //! the default would.
 
 use std::borrow::Cow;
 
-use super::{BUILT_IN, Language, STUDY_EXERCISE};
+use egui::Id;
+
+use super::{BUILT_IN, Language, Text, language};
 
 texts! { NAMES;
     LAYER_NAME = "Layer", "图层";
     GROUP_NAME = "Group", "组";
-    PICTURE_NAME = "Picture", "图片";
     INSERTED_IMAGE = "Inserted image", "插入的图片";
     PASTED_LAYER = "Pasted layer", "粘贴的图层";
     UNTITLED_ARTWORK = "Untitled Artwork", "未命名作品";
     COPY_NAME = "copy", "副本";
-    DIVISION_LAYER_NAME = "Division", "画面分割";
-    LINES_LAYER_NAME = "Line drawing", "线稿";
-    BLOCKS_LAYER_NAME = "Colour blocks", "色块";
-    SHAPES_PACK = "Single shapes", "单体图形";
-    COMPOSITIONS_PACK = "Compositions", "构图";
-    COMBINATIONS_PACK = "Colour combinations", "色彩组合";
 }
 
-/// The official packs by their id, each with its name (S102b).
-const OFFICIAL_PACKS: [(&str, super::Text); 3] = [
-    ("openpaint-shapes", SHAPES_PACK),
-    ("openpaint-compositions", COMPOSITIONS_PACK),
-    ("openpaint-combinations", COMBINATIONS_PACK),
-];
+/// Where the pass's mode names are kept in egui's memory.
+const STATE: &str = "mode names";
 
-/// A pack's name as `language` shows it: an official pack's from the table by its `id`, any
-/// other's `title` as its file holds it.
-#[must_use]
-pub(crate) fn pack_title<'a>(language: Language, id: &str, title: &'a str) -> &'a str {
-    OFFICIAL_PACKS
-        .iter()
-        .find(|(official, _)| *official == id)
-        .map_or(title, |(_, name)| name.get(language))
+/// The names a mode gives its records and layers, stored in English and shown in the language: a
+/// word then a number ("Picture 4"), or a name as it is ("Division").
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Names {
+    pub numbered: &'static [Text],
+    pub fixed: &'static [Text],
 }
 
-/// `name` as `language` shows it.
+/// The mode's names this pass shows in the language (the shell sets them, `Shell::set_names`).
+pub fn set_names(ctx: &egui::Context, names: Names) {
+    ctx.data_mut(|data| data.insert_temp(Id::new(STATE), names));
+}
+
+/// `name` as the pass's language shows it.
 #[must_use]
-pub(crate) fn shown_name(language: Language, name: &str) -> Cow<'_, str> {
+pub fn shown_name<'a>(ctx: &egui::Context, name: &'a str) -> Cow<'a, str> {
+    let names: Names = ctx
+        .data(|data| data.get_temp(Id::new(STATE)))
+        .unwrap_or_default();
+    named((language(ctx), names), name)
+}
+
+/// `name` as `language` shows it, the mode giving `names`.
+fn named(on: (Language, Names), name: &str) -> Cow<'_, str> {
+    let (language, names) = on;
     if language == Language::English {
         return Cow::Borrowed(name);
     }
     if let Some(base) = name.strip_suffix(" copy") {
         let copy = COPY_NAME.get(language);
-        return Cow::Owned(format!("{} {copy}", shown_name(language, base)));
+        return Cow::Owned(format!("{} {copy}", named(on, base)));
     }
-    for word in [LAYER_NAME, GROUP_NAME, PICTURE_NAME, STUDY_EXERCISE] {
+    for word in [LAYER_NAME, GROUP_NAME].iter().chain(names.numbered) {
         if let Some(number) = name
             .strip_prefix(word.id())
             .and_then(|rest| rest.strip_prefix(' '))
@@ -62,15 +65,9 @@ pub(crate) fn shown_name(language: Language, name: &str) -> Cow<'_, str> {
             return Cow::Owned(format!("{} {number}", word.get(language)));
         }
     }
-    let fixed = [
-        INSERTED_IMAGE,
-        PASTED_LAYER,
-        UNTITLED_ARTWORK,
-        DIVISION_LAYER_NAME,
-        LINES_LAYER_NAME,
-        BLOCKS_LAYER_NAME,
-    ];
-    match fixed.iter().chain(&BUILT_IN).find(|text| text.id() == name) {
+    let fixed = [INSERTED_IMAGE, PASTED_LAYER, UNTITLED_ARTWORK];
+    let mut given = fixed.iter().chain(names.fixed).chain(&BUILT_IN);
+    match given.find(|text| text.id() == name) {
         Some(text) => Cow::Borrowed(text.get(language)),
         None => Cow::Borrowed(name),
     }
@@ -83,15 +80,31 @@ mod tests {
 
     use super::*;
 
+    const NUMBERED: Text = Text::new("Sketch", "速写");
+    const FIXED: Text = Text::new("Ground", "底色");
+
+    /// A pass's context in Chinese, a mode giving "Sketch n" and "Ground".
+    fn chinese() -> egui::Context {
+        let ctx = egui::Context::default();
+        super::super::set_language(&ctx, Language::Chinese);
+        let names = Names {
+            numbered: &[NUMBERED],
+            fixed: &[FIXED],
+        };
+        set_names(&ctx, names);
+        ctx
+    }
+
     #[test]
     fn the_app_s_names_read_in_chinese_and_the_user_s_as_typed() {
-        let zh = |name| shown_name(Language::Chinese, name).into_owned();
+        let ctx = chinese();
+        let zh = |name| shown_name(&ctx, name).into_owned();
         assert_eq!(zh("Layer 12"), "图层 12");
         assert_eq!(zh("Group 3"), "组 3");
         assert_eq!(zh("Pencil copy copy"), "铅笔 副本 副本");
         assert_eq!(zh("Untitled Artwork"), "未命名作品");
-        assert_eq!(zh("Colour copy 2"), "色彩临摹 2");
-        assert_eq!(zh("Picture 4"), "图片 4");
+        assert_eq!(zh("Sketch 2"), "速写 2", "a mode's numbered name");
+        assert_eq!(zh("Ground copy"), "底色 副本", "a mode's fixed name");
         for kept in [
             "Layer",
             "Layer x",
@@ -102,7 +115,9 @@ mod tests {
         ] {
             assert_eq!(zh(kept), kept);
         }
-        assert_eq!(shown_name(Language::English, "Layer 2"), "Layer 2");
+        let english = egui::Context::default();
+        assert_eq!(shown_name(&english, "Layer 2"), "Layer 2");
+        assert_eq!(shown_name(&english, "Sketch 2"), "Sketch 2");
     }
 
     #[test]
@@ -111,8 +126,9 @@ mod tests {
         let canvas = CanvasSize::new(8, 8).expect("size");
         let artwork = Artwork::new(canvas);
         let layer = &artwork.layers()[0];
+        let ctx = chinese();
         assert_ne!(
-            shown_name(Language::Chinese, layer.name().as_str()),
+            shown_name(&ctx, layer.name().as_str()),
             layer.name().as_str()
         );
         let library = BrushLibrary::built_in().expect("brushes");
@@ -124,26 +140,5 @@ mod tests {
             );
         }
         assert_eq!(library.brushes().len(), BUILT_IN.len());
-        // A whole copy's layers (S95).
-        assert_eq!(
-            DIVISION_LAYER_NAME.id(),
-            openpaint_practice_app::DIVISION_LAYER
-        );
-        assert_eq!(LINES_LAYER_NAME.id(), openpaint_practice_app::LINES_LAYER);
-        assert_eq!(BLOCKS_LAYER_NAME.id(), openpaint_practice_app::BLOCKS_LAYER);
-    }
-
-    #[test]
-    fn official_packs_are_named_in_the_language_and_others_as_their_files() {
-        let zh = |id, title| pack_title(Language::Chinese, id, title);
-        assert_eq!(zh("openpaint-shapes", "Single shapes"), "单体图形");
-        assert_eq!(zh("openpaint-compositions", "Compositions"), "构图");
-        assert_eq!(
-            zh("openpaint-combinations", "Colour combinations"),
-            "色彩组合"
-        );
-        let en = pack_title(Language::English, "openpaint-compositions", "Old title");
-        assert_eq!(en, "Compositions");
-        assert_eq!(zh("someone-else", "Harbour studies"), "Harbour studies");
     }
 }

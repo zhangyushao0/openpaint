@@ -32,14 +32,3 @@ pub const PRESSED: Color32 = Color32::from_black_alpha(18);
 pub const CHECKER: Color32 = Color32::from_rgb(228, 226, 222);
 /// The canvas's and the gallery pictures' shadow on the desk: strength at the sheet's edge.
 pub const SHEET_SHADOW: u8 = 34;
-/// The marking red a check lays over a practice copy: the original or the answer, and what of the
-/// copy is off. Never chrome.
-pub const CORRECTION: Color32 = Color32::from_rgb(200, 58, 44);
-/// What a constructed exercise gives in the frame drawn in (S97: a box's horizon, corner and
-/// edges, an ellipse's frame): a solid slate grey, as if printed on the sheet, cool and even
-/// beside Draw's black ink and Sketch's warm grainy pencil. Never chrome.
-pub const PRINTED: Color32 = Color32::from_rgb(112, 122, 134);
-/// The practice book's seals (S89): its only colour besides the user's own colours. Never chrome.
-pub const VERMILION: Color32 = Color32::from_rgb(184, 58, 38);
-/// The pencil the practice book draws what lies ahead with.
-pub const PENCIL: Color32 = Color32::from_rgb(189, 186, 177);

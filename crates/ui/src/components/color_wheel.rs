@@ -162,7 +162,7 @@ impl Geometry {
 
 /// Two colours on the wheel as a picture (no hand moves it), `side` points square, the square
 /// shaded at `to`'s hue: `from` ringed in ink, `to` in `mark`, and arrows in `mark` from one to
-/// the other round the ring (when both have a hue, `hued`) and across the square. The practice
+/// the other round the ring (when both have a hue, `hued`) and across the square. A mode's
 /// card's comparison of a pick with its original (S76): the geometry the hand picks in.
 pub fn color_compare(
     ui: &mut egui::Ui,

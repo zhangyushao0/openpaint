@@ -102,7 +102,7 @@ pub fn hold_at(ctx: &egui::Context, id: Id, place: f32) {
 }
 
 /// Something moves this frame: the next frame is wanted at once.
-pub(crate) fn keep_moving(ctx: &egui::Context) {
+pub fn keep_moving(ctx: &egui::Context) {
     let pass = ctx.cumulative_pass_nr();
     ctx.data_mut(|data| data.insert_temp(Id::new(MOVING), pass));
     ctx.request_repaint();

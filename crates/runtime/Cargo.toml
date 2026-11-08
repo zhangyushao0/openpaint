@@ -12,6 +12,7 @@ openpaint-core.workspace = true
 openpaint-practice.workspace = true
 openpaint-practice-app.workspace = true
 openpaint-practice-store.workspace = true
+openpaint-practice-ui.workspace = true
 openpaint-raster.workspace = true
 openpaint-render.workspace = true
 openpaint-store.workspace = true

@@ -4,10 +4,10 @@
 //! intents, One more leaving it for the next session or drill (`apply`); what the sheet asks of
 //! the store and the workers, and what they answer, passes through `sheet`, the one place the
 //! runtime reaches the sheet; the practice options take their turn beside the gallery
-//! (`options.rs`); practice's part of the screen goes to the shell beside the screen's
-//! projection (`Shown`). The store's jobs are `jobs.rs` and `files.rs`, Compare's worker
-//! `compare.rs`, the options' pictures `pack_pictures.rs`, the test sessions of debug builds
-//! `test.rs`.
+//! (`options.rs`); practice's part of the screen (`Shown`) fills the shell's hooks through its
+//! screens (`openpaint_practice_ui::PracticeScreens`). The store's jobs are `jobs.rs` and
+//! `files.rs`, Compare's worker `compare.rs`, the options' pictures `pack_pictures.rs`, the test
+//! sessions of debug builds `test.rs`.
 
 mod compare;
 mod files;
@@ -20,7 +20,7 @@ use openpaint_practice_app::{
     OptionsNotice, PracticeIntent, PracticeLog, PracticeProjection, PracticeSheet, TodayProjection,
     practise,
 };
-use openpaint_ui::PracticeShown;
+use openpaint_practice_ui::{Hooked, PracticeScreens};
 
 use crate::canvas::{Canvas, Leaving, Then};
 use crate::screen::Screen;
@@ -92,13 +92,10 @@ impl Shown {
         }
     }
 
-    /// As the shell takes it.
-    pub(crate) fn for_shell(&self) -> PracticeShown<'_> {
-        PracticeShown {
-            sheet: self.sheet.as_ref(),
-            today: self.today.as_ref(),
-            notice: self.notice,
-        }
+    /// The hooks `screens` fill for it in one frame.
+    pub(crate) fn hooked<'a>(&'a self, screens: &'a mut PracticeScreens) -> Hooked<'a> {
+        let today = self.today.as_ref().map(|today| (today, self.notice));
+        screens.hooked((self.sheet.as_ref(), today))
     }
 }
 

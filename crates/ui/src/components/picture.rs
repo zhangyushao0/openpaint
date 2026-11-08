@@ -3,7 +3,7 @@
 
 /// How a picture's colour channels hold its alpha.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Alpha {
+pub enum Alpha {
     /// Colour as it shows, alpha beside it.
     Straight,
     /// Colour already multiplied by alpha (the renderer's layer pictures).
@@ -11,7 +11,7 @@ pub(crate) enum Alpha {
 }
 
 /// `pixels`, 8-bit RGBA rows top first of `size`, as a texture named `name`.
-pub(crate) fn picture_texture(
+pub fn picture_texture(
     ctx: &egui::Context,
     name: impl Into<String>,
     (size, pixels, alpha): ([u32; 2], &[u8], Alpha),

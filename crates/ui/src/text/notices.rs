@@ -12,11 +12,6 @@ texts! { NOTICES;
     SAVING = "Saving…", "正在保存…";
     LAST_DRAWING_FAILED = "Couldn't open the last drawing. This is a new one.",
         "无法打开上次的画，已新建一张。";
-    DRAW_IN_FRAME = "Draw in the empty frame.", "只能在空白框里画。";
-    DRAW_IN_CELL = "Paint in a cell between the two ends.", "只能在两端之间的格子里画。";
-    PICK_AFTER_COMPARE = "The original can be picked after Compare.", "叠图对比之后才能吸原图的颜色。";
-    SESSION_DONE = "This session is done.", "这次练习已经完成。";
-    DROP_IN_FRAME = "Drop inside the empty frame to fill.", "拖到空白框里松手即可填充。";
     DROP_IN_SELECTION = "Drop inside the selection to fill.", "拖到选区里松手即可填充。";
     FILL_FAILED = "Couldn't fill there. Try again.", "无法在这里填充，请重试。";
     NOTHING_TO_TRANSFORM = "Nothing to transform here.", "这里没有可变换的内容。";
@@ -33,7 +28,7 @@ texts! { NOTICES;
 
 /// What the active layer refused to do.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Refused {
+pub enum Refused {
     Fill,
     Transform,
     Adjust,
@@ -41,7 +36,8 @@ pub(crate) enum Refused {
 
 /// Why the active layer took no fill, transform or adjustment ("Can't fill: the layer is
 /// hidden.").
-pub(crate) fn refused(language: Language, verb: Refused, refusal: LayerRefusal) -> String {
+#[must_use]
+pub fn refused(language: Language, verb: Refused, refusal: LayerRefusal) -> String {
     let hidden = refusal == LayerRefusal::Hidden;
     match language {
         Language::English => {

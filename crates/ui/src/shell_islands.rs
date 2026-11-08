@@ -1,68 +1,57 @@
 //! The canvas screen's top islands: Gallery, Actions, Adjustments, Selection and Transform at
 //! the left (Procreate's order);
 //! Brush, Smudge, Eraser, Layers and the colour at the right; the notice pill left of the right
-//! one. On a practice sheet All tools follows Gallery, and while the exercise's own tools show
-//! (`practice_tools.rs`) the left island holds only those two and there is no right one. The
-//! calls that hand the panels what the renderer drew (brush previews, layer pictures) and the
-//! practice options the pictures read for them.
+//! one. On a mode's sheet its controls follow Gallery (`CanvasHook::left`), and while its own
+//! tools show the left island holds only those and there is no right one. The calls that hand
+//! the panels what the renderer drew (brush previews, layer pictures).
 
 use openpaint_app::{BrushKey, EditorAction, GalleryIntent, Intent, SessionProjection};
 use openpaint_core::LayerId;
-use openpaint_practice::ItemRef;
-use openpaint_practice_app::{PictureImage, PracticeProjection};
 use openpaint_render::RgbaImage;
 
 use super::Shell;
 use crate::brush_strip::StripStrokes;
 use crate::components::{Place, ScreenArea, island, text_button};
 use crate::design::SPACE;
+use crate::hooks::CanvasHook;
 use crate::layer_panel::picture_pixels;
 use crate::notices::notice_pill;
 use crate::panels::Panel;
-use crate::practice_shown::SheetTaps;
-use crate::practice_tools;
 use crate::text as t;
 
 impl Shell {
     /// The left island (Gallery, Actions, Selection, Transform), the right one (Brush, Smudge,
-    /// Eraser, Layers, the colour) and, left of it, the notice pill; on a practice sheet with its
-    /// own tools only Gallery and All tools. Opening one panel closes the others.
+    /// Eraser, Layers, the colour) and, left of it, the notice pill; on a mode's sheet with its
+    /// own tools only Gallery and the mode's controls. Opening one panel closes the others.
     pub(super) fn top_islands(
         &mut self,
         ctx: &egui::Context,
-        (projection, sheet): (&SessionProjection, Option<&PracticeProjection>),
+        projection: &SessionProjection,
+        mut hook: Option<&mut (dyn CanvasHook + '_)>,
     ) {
-        let own = practice_tools::own_tools(sheet);
+        let own = hook.as_deref().is_some_and(|hook| hook.own_tools());
         let ((), left) = island(ctx, "left island", Place::top_left(), |ui| {
             let enabled = projection.availability(EditorAction::Gallery).is_offered();
             if text_button(ui, t::GALLERY, enabled).clicked() {
                 self.taps.push(Intent::Gallery(GalleryIntent::Show));
             }
-            if let Some(practice) = sheet {
-                let mut taps = SheetTaps {
-                    painting: &mut self.taps,
-                    sheet: &mut self.practice_taps.sheet,
-                };
-                practice_tools::all_tools(ui, practice, &mut taps);
+            if let Some(hook) = hook.as_deref_mut() {
+                hook.left(ui, &mut self.taps);
             }
             if !own {
                 self.full_left(ui, projection);
             }
         });
-        // The exercise's own tools lie beside its frame (`practice_tools.rs`).
+        // The mode's own tools lie where it lays them (`CanvasHook::chrome`).
         let right = (!own).then(|| self.full_right(ctx, projection));
-        // On a practice sheet its bar holds the band's middle: the notice goes under it.
-        let place = if sheet.is_some() {
+        // On a mode's sheet its chrome holds the band's middle: the notice goes under it.
+        let place = if hook.is_some() {
             Place::middle_unless(true)
         } else {
             Place::top_right(right.map_or(0.0, |right| right.width()) + SPACE)
         };
         let shown = (place, &mut self.reset_notice);
-        let mut taps = SheetTaps {
-            painting: &mut self.taps,
-            sheet: &mut self.practice_taps.sheet,
-        };
-        let notice = notice_pill(ctx, (projection, sheet), shown, &mut taps);
+        let notice = notice_pill(ctx, projection, shown, (&mut self.taps, hook));
         let ppp = self.pixels_per_point;
         self.islands = [Some(left), right, notice]
             .into_iter()
@@ -159,18 +148,6 @@ impl Shell {
     /// its row shows it from the next pass on, until a newer one comes.
     pub fn set_layer_picture(&mut self, (layer, mask): (LayerId, bool), image: RgbaImage) {
         self.panels.layers.set_picture((layer, mask), image);
-    }
-
-    /// The next picture the gallery's practice options want read (a pack's, by its item), once
-    /// each: the rows showing first.
-    pub fn pack_picture_wanted(&mut self) -> Option<ItemRef> {
-        self.gallery.pack_picture_wanted()
-    }
-
-    /// `item`'s picture for the practice options, 8-bit sRGB with straight alpha (none: it could
-    /// not be read): its rows show it from the next pass on.
-    pub fn set_pack_picture(&mut self, item: ItemRef, picture: Option<PictureImage>) {
-        self.gallery.set_pack_picture(item, picture);
     }
 
     /// Lets every layer picture go (the GPU memory budget's last step); rows show none

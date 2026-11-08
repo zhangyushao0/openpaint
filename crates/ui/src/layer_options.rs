@@ -172,7 +172,7 @@ fn group(
         return;
     };
     ui.separator();
-    let name = t::shown_name(t::language(ui.ctx()), group.name.as_str());
+    let name = t::shown_name(ui.ctx(), group.name.as_str());
     value_row(ui, Words::made(&name), &percent(group.opacity));
     if let Some(change) = slider(ui, t::GROUP_OPACITY, group.opacity, enabled) {
         let intent = Intent::Layer(LayerIntent::SetGroupOpacity {

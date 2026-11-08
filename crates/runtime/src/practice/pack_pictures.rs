@@ -8,7 +8,7 @@ use std::time::Instant;
 use openpaint_practice::ItemRef;
 use openpaint_practice_app::PictureImage;
 use openpaint_practice_store::{Packs, thumbnail_picture};
-use openpaint_ui::Shell;
+use openpaint_practice_ui::PracticeScreens;
 
 use crate::error::RuntimeError;
 use crate::worker::Queue;
@@ -45,12 +45,12 @@ impl PackPictureWorker {
 
     /// One frame's pictures: those read go to the options (one that could not be read as none),
     /// the next the options want to the worker.
-    pub(crate) fn step(&mut self, shell: &mut Shell) {
+    pub(crate) fn step(&mut self, screens: &mut PracticeScreens) {
         while let Some((item, picture)) = self.worker.take() {
-            shell.set_pack_picture(item, picture);
+            screens.set_pack_picture(item, picture);
         }
         if !self.worker.busy()
-            && let Some(item) = shell.pack_picture_wanted()
+            && let Some(item) = screens.pack_picture_wanted()
         {
             self.worker.submit(item);
         }

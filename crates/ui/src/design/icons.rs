@@ -83,7 +83,7 @@ pub enum Icon {
     Mask,
     /// Three dots in a row: more for this item.
     More,
-    /// A chevron to the left and one to the right: earlier and later (the practice book's months).
+    /// A chevron to the left and one to the right: earlier and later (a calendar's months).
     Earlier,
     Later,
 }

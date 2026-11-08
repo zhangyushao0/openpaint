@@ -9,7 +9,7 @@ use crate::components::chrome::{self, Source};
 
 /// Shows `area` (`id` is its id) as paper growing out of `source`, with `add_contents` inside.
 /// Returns what the contents returned and the finished surface's rectangle in points.
-pub(crate) fn paper<R>(
+pub fn paper<R>(
     ctx: &egui::Context,
     id: Id,
     source: Source,

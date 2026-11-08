@@ -9,12 +9,12 @@
 //! colour shows the loupe (`pen_marks`). In the gallery: its name, "+" in an island, the cards.
 //! What comes and goes moves (D44): panels, pills, dialogs, the loupe and the reference window
 //! grow out of where they come from; an artwork grows out of its card and goes back into it; a
-//! quick pinch settles the view at fit.
+//! quick pinch settles the view at fit. A mode's screens come in through the frame's hooks
+//! (`hooks.rs`), each called where its part of the screen lies.
 
 use openpaint_app::{
     GalleryIntent, Intent, Language, ScreenProjection, SessionProjection, ViewMapping,
 };
-use openpaint_practice_app::{OptionsIntent, PracticeIntent, PracticeProjection};
 use openpaint_render::BrushCursor;
 
 use crate::adjust_panel::AdjustPanel;
@@ -29,17 +29,16 @@ use crate::design::DESK;
 use crate::design::motion::OPEN;
 use crate::drop_bar;
 use crate::gallery::GalleryScreen;
+use crate::hooks::{CanvasHook, Chrome, GalleryHook, Hooks};
 use crate::panels::Panels;
 use crate::pen_marks;
-use crate::practice_bar::PracticeBar;
-use crate::practice_shown::{PracticeShown, PracticeTaps, SheetTaps};
 use crate::reference_window::ReferenceWindow;
 use crate::selection_bar::{self, SelectionBar};
 use crate::shape_bar::{self, ShapeBar};
 use crate::sheet::{self, Showing};
 use crate::side_bar::SideBar;
+use crate::text::{self, Names};
 use crate::transform_bar::TransformBar;
-use crate::{practice_marks, practice_tools, text};
 
 #[path = "shell_islands.rs"]
 mod islands;
@@ -68,10 +67,8 @@ pub struct Shell {
     copy: CopyBar,
     /// QuickShape's pill.
     shape: ShapeBar,
-    /// A practice sheet's pictures as textures.
-    practice_pictures: practice_marks::SheetPictures,
-    /// A practice sheet's bar and card.
-    practice: PracticeBar,
+    /// Where a mode's chrome lies on screen, from the last pass (`CanvasHook::chrome`).
+    mode_areas: Vec<ScreenArea>,
     /// The shape's handles while it is edited and the guide's centre while it is on, in canvas
     /// pixels, from the last pass.
     handles: Vec<[f32; 2]>,
@@ -83,10 +80,8 @@ pub struct Shell {
     /// Where the top islands and the notice pill lie, from the last pass.
     islands: Vec<ScreenArea>,
     gallery: GalleryScreen,
-    /// Intents from taps on the chrome since the last `route`, and practice's since the last
-    /// `take_practice`.
+    /// Intents from taps on the chrome since the last `route` (a mode keeps its own).
     taps: Vec<Intent>,
-    practice_taps: PracticeTaps,
     /// The view the screen shows while it settles, and the artwork on its way from its card.
     view: ViewSettle,
     opening: Option<Opening>,
@@ -99,27 +94,28 @@ pub struct Shell {
     controls: ControlMap,
     /// The GPU device was made again: the notice says so until OK or the next stroke.
     reset_notice: bool,
-    /// The language every word shows in.
+    /// The language every word shows in, and the names a mode gives.
     language: Language,
+    names: Names,
 }
 
 impl Shell {
-    /// Builds one frame inside the root `ui` from `projection` and `practice`'s, remembers where
-    /// the canvas is and collects the buttons tapped. egui hands input to the first pass of a
-    /// frame only, so a tap is collected once however many passes run.
-    pub fn show(
-        &mut self,
-        ui: &mut egui::Ui,
-        projection: &ScreenProjection,
-        practice: &PracticeShown<'_>,
-    ) {
+    /// Builds one frame inside the root `ui` from `projection` and the mode's `hooks`, remembers
+    /// where the canvas is and collects the buttons tapped. egui hands input to the first pass of
+    /// a frame only, so a tap is collected once however many passes run.
+    pub fn show(&mut self, ui: &mut egui::Ui, projection: &ScreenProjection, hooks: Hooks<'_>) {
         let ctx = ui.ctx().clone();
         chrome::begin(&ctx);
         controls::begin(&ctx);
         text::set_language(&ctx, self.language);
+        text::set_names(&ctx, self.names);
+        let Hooks {
+            canvas,
+            mut gallery,
+        } = hooks;
         let showing = Showing::of(projection);
         if showing != self.showing {
-            self.switch(&ctx, showing);
+            self.switch(&ctx, showing, gallery.as_deref_mut());
         }
         self.pixels_per_point = ctx.pixels_per_point();
         self.shown = None;
@@ -132,18 +128,16 @@ impl Shell {
                 }
                 rect
             }
-            ScreenProjection::Canvas(session) => self.canvas_screen(ui, session, practice.sheet),
-            ScreenProjection::Gallery(gallery) => {
-                let options = &mut self.practice_taps.options;
-                let taps = (&mut self.taps, options);
-                self.gallery.islands(&ctx, (gallery, practice), taps);
+            ScreenProjection::Canvas(session) => self.canvas_screen(ui, session, canvas),
+            ScreenProjection::Gallery(projection) => {
+                let taps = &mut self.taps;
+                self.gallery
+                    .islands(&ctx, projection, (gallery.as_deref_mut(), taps));
                 // On the desk, so the list's edge fade has its colour.
                 egui::CentralPanel::default()
                     .frame(egui::Frame::new().fill(DESK))
                     .show(ui, |ui| {
-                        let options = &mut self.practice_taps.options;
-                        let taps = (&mut self.taps, options);
-                        self.gallery.body(ui, (gallery, practice.today), taps);
+                        self.gallery.body(ui, projection, (gallery, &mut self.taps));
                         ui.max_rect()
                     })
                     .inner
@@ -155,22 +149,21 @@ impl Shell {
         self.controls = controls::take(&ctx);
     }
 
-    /// Practice's taps since the last call: the sheet's and the options' (D112). Call after
-    /// `route`; the runtime applies them after the frame's painting intents.
-    pub fn take_practice(&mut self) -> (Vec<PracticeIntent>, Vec<OptionsIntent>) {
-        let taps = std::mem::take(&mut self.practice_taps);
-        (taps.sheet, taps.options)
-    }
-
     /// Every control the last pass laid out, by name, in screen pixels.
     #[must_use]
     pub const fn controls(&self) -> &ControlMap {
         &self.controls
     }
 
-    /// A new screen starts with its panels and dialogs closed. An artwork opened from its
-    /// card grows out of it; the canvas left goes back into its card.
-    fn switch(&mut self, ctx: &egui::Context, showing: Showing) {
+    /// A new screen starts with its panels and dialogs closed (a mode's in the gallery too,
+    /// `gallery`). An artwork opened from its card grows out of it; the canvas left goes back
+    /// into its card.
+    fn switch(
+        &mut self,
+        ctx: &egui::Context,
+        showing: Showing,
+        gallery: Option<&mut (dyn GalleryHook + '_)>,
+    ) {
         chrome::forget(ctx);
         self.panels.close();
         self.panels.layers.forget_pictures();
@@ -186,16 +179,16 @@ impl Shell {
                 self.came_from = self.opening.as_ref().and_then(|opening| opening.id);
             }
             (Showing::Canvas, Showing::Gallery) => {
-                // The last canvas pass's: a practice sheet goes back into the Today card.
-                let practice = self.shown.is_some_and(|shown| shown.practising);
+                // The last canvas pass's: a mode's sheet goes back into the mode's card.
+                let card = self.shown.is_some_and(|shown| shown.mode);
                 if let Some(from) = self.shown_at.take() {
-                    self.gallery.arrive(from, (self.came_from, practice));
+                    self.gallery.arrive(from, (self.came_from, card));
                 }
             }
             _ => {}
         }
         if showing != Showing::Starting {
-            self.gallery.back();
+            self.gallery.back(gallery);
         }
         self.showing = showing;
     }
@@ -204,10 +197,10 @@ impl Shell {
         &mut self,
         ui: &mut egui::Ui,
         projection: &SessionProjection,
-        sheet: Option<&PracticeProjection>,
+        mut hook: Option<&mut (dyn CanvasHook + '_)>,
     ) -> egui::Rect {
         let brush = projection.brush();
-        self.shown = Shown::of(projection, sheet.is_some());
+        self.shown = Shown::of(projection, hook.is_some());
         let rect = canvas_frame(ui);
         let ctx = ui.ctx().clone();
         let area = CanvasArea::from_points(rect, self.pixels_per_point);
@@ -221,8 +214,9 @@ impl Shell {
             let ppp = self.pixels_per_point;
             self.transform.show_frame(&ctx, projection, &shown, ppp);
             shape_bar::show_marks(&ctx, projection, &shown, ppp);
-            let pictures = &mut self.practice_pictures;
-            practice_marks::show_marks(&ctx, sheet, (&shown, ppp), pictures);
+            if let Some(hook) = hook.as_deref_mut() {
+                hook.marks(&ctx, &shown, ppp);
+            }
         }
         let editing = projection.shape().filter(|shape| shape.editing);
         self.handles = editing
@@ -232,18 +226,12 @@ impl Shell {
         self.guide_centre = guide.on.then_some(guide.centre);
         self.shape.show(&ctx, projection, &mut self.taps);
         sheet::show_view(self, &ctx, &area);
-        self.top_islands(&ctx, (projection, sheet));
-        let viewport = Some(area.viewport(self.pixels_per_point));
-        let colors = &mut self.panels.colors;
-        let mut taps = SheetTaps {
-            painting: &mut self.taps,
-            sheet: &mut self.practice_taps.sheet,
-        };
-        (self.practice).show(&ctx, (projection, sheet), (viewport, colors), &mut taps);
+        self.top_islands(&ctx, projection, hook.as_deref_mut());
+        self.mode_chrome(&ctx, (projection, &area), hook.as_deref_mut());
         self.selection.show(&ctx, projection, &mut self.taps);
         self.transform.show(&ctx, projection, &mut self.taps);
-        if practice_tools::own_tools(sheet) {
-            // The exercise's own tools: no side bar, and no panel without its button.
+        if hook.as_deref().is_some_and(|hook| hook.own_tools()) {
+            // The mode's own tools: no side bar, and no panel without its button.
             self.side.hide();
             self.panels.close();
         } else {
@@ -259,11 +247,28 @@ impl Shell {
             self.copy.open();
         }
         self.copy.show(&ctx, projection, &mut self.taps);
-        let shown = (projection, sheet.is_some());
+        let shown = (projection, hook.is_some());
         self.drop_bar = drop_bar::show(&mut self.drop, &ctx, shown, self.pixels_per_point);
         let picking_at = self.reference.picking_at().or(self.input.picking_at());
         pen_marks::show_loupe(&ctx, picking_at, brush, self.pixels_per_point);
         rect
+    }
+
+    /// A mode's bar, tools and card, lent the canvas's projection, its room in `area`, the
+    /// painting's taps and the colour wheel; where they lie, for routing.
+    fn mode_chrome(
+        &mut self,
+        ctx: &egui::Context,
+        (projection, area): (&SessionProjection, &CanvasArea),
+        hook: Option<&mut (dyn CanvasHook + '_)>,
+    ) {
+        self.mode_areas.clear();
+        if let Some(hook) = hook {
+            let viewport = Some(area.viewport(self.pixels_per_point));
+            let colors = &mut self.panels.colors;
+            let mut lent = Chrome::new((projection, viewport), &mut self.taps, colors);
+            self.mode_areas = hook.chrome(ctx, &mut lent);
+        }
     }
 
     /// The first canvas frame after an artwork was opened from its card: the canvas starts
@@ -324,6 +329,11 @@ impl Shell {
         self.language = language;
     }
 
+    /// The names a mode gives, which show in the language from the next pass on (D112).
+    pub fn set_names(&mut self, names: Names) {
+        self.names = names;
+    }
+
     /// The pen's outline in screen pixels: the current brush at full size around where the pen
     /// hovers over open canvas, or, while the pen erases there, `erasing` (the eraser's tip:
     /// centre and radius in canvas pixels); `None` over controls, during multi-touch, while
@@ -358,8 +368,9 @@ impl Shell {
     }
 
     /// The system's back button: from the canvas it goes to the gallery; in the gallery it
-    /// closes an open dialog. Returns whether it was used; otherwise the system's back applies.
-    pub fn back(&mut self, projection: &ScreenProjection) -> bool {
+    /// closes an open dialog (a mode's through `hooks`). Returns whether it was used; otherwise
+    /// the system's back applies.
+    pub fn back(&mut self, projection: &ScreenProjection, hooks: Hooks<'_>) -> bool {
         match projection {
             ScreenProjection::Canvas(_) if self.panels.layers.cancel_rename() => true,
             ScreenProjection::Canvas(_) if self.panels.brushes.back() => true,
@@ -367,7 +378,7 @@ impl Shell {
                 self.taps.push(Intent::Gallery(GalleryIntent::Show));
                 true
             }
-            ScreenProjection::Gallery(_) => self.gallery.back(),
+            ScreenProjection::Gallery(_) => self.gallery.back(hooks.gallery),
             ScreenProjection::Starting => false,
         }
     }

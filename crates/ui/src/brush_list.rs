@@ -96,14 +96,13 @@ fn brush_rows(
     let order = shown(rows, drag.as_ref().or(dropped.as_ref()));
     let ordered = set != BrushSet::Recent;
     let mut edit = false;
-    let language = t::language(ui.ctx());
     for (index, row) in order.iter().enumerate() {
         let carried = drag.as_ref().filter(|d| d.key == row.key);
         let lifted = carried
             .zip(hand)
             .map(|(d, hand)| d.top(hand).max(0.0) - index as f32 * BRUSH_ROW);
         let selected = row.key == brush.current;
-        let name = t::shown_name(language, &row.name);
+        let name = t::shown_name(ui.ctx(), &row.name);
         let view = BrushRowView {
             key: egui::Id::new(("brush row", set, row.key.as_str())),
             name: Words::named(&row.name, &name),

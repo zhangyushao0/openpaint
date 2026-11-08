@@ -25,13 +25,13 @@ pub(crate) struct Shown {
     pub(crate) brush_size: Option<f32>,
     /// What the pen's side buttons do.
     pub(crate) buttons: ButtonMap,
-    /// A practice sheet: its bar holds the band's middle.
-    pub(crate) practising: bool,
+    /// A mode's sheet: its chrome holds the band's middle.
+    pub(crate) mode: bool,
 }
 
 impl Shown {
-    /// What `projection`'s canvas shows, while there is one (`practising` on a practice sheet).
-    pub(crate) fn of(projection: &SessionProjection, practising: bool) -> Option<Self> {
+    /// What `projection`'s canvas shows, while there is one (`mode` on a mode's sheet).
+    pub(crate) fn of(projection: &SessionProjection, mode: bool) -> Option<Self> {
         let brush = projection.brush();
         // A mode's pen draws instead of the toolbox's brush: its size.
         let pen = projection.pen();
@@ -48,7 +48,7 @@ impl Shown {
             threshold: projection.fill().threshold,
             brush_size: pen.or(brush.map(|brush| brush.size)),
             buttons: brush.map(|brush| brush.buttons).unwrap_or_default(),
-            practising,
+            mode,
         })
     }
 }

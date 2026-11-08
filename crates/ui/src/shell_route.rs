@@ -4,20 +4,20 @@
 //! the copy menu.
 
 use openpaint_app::{ContactPhase, InputBatch, Intent, StrokeIntent, ViewIntent, ViewMapping};
-use openpaint_practice_app::PracticeIntent;
 
 use super::Shell;
 use crate::canvas_input::{CanvasFrame, touched_outside};
 use crate::color_drop::DropFrame;
 use crate::components::ScreenArea;
 use crate::design::motion::SETTLE;
+use crate::hooks::Hooks;
 use crate::sheet::Showing;
 
 impl Shell {
     /// The intents this frame asks for: on the canvas its contacts first, then the taps on the
     /// chrome, so a stroke lifted just before undo is tapped is committed before it is undone.
-    /// Call after `show`.
-    pub fn route(&mut self, batches: &[InputBatch]) -> Vec<Intent> {
+    /// Call after `show`, with the same `hooks`: a mode's taps stay with it.
+    pub fn route(&mut self, batches: &[InputBatch], hooks: Hooks<'_>) -> Vec<Intent> {
         let now_ms = self.now_ms;
         let area = self.canvas.filter(|_| self.showing == Showing::Canvas);
         let (Some(area), Some(shown)) = (area, self.shown) else {
@@ -28,10 +28,12 @@ impl Shell {
             .into_iter()
             .chain([self.drop_bar, self.selection.area(), self.transform.area()])
             .chain([self.adjust.area(), self.copy.area(), self.shape.area()])
-            .chain(self.practice.areas())
             .flatten()
+            .chain(self.mode_areas.iter().copied())
             .chain(self.islands.iter().copied())
             .collect();
+        let canvas = hooks.canvas.as_deref();
+        let (tapped, glides) = canvas.map_or((false, false), |hook| (hook.tapped(), hook.glides()));
         let frame = CanvasFrame {
             area,
             covers: &covers,
@@ -45,7 +47,7 @@ impl Shell {
             transform: shown.transform,
             drawing: shown.drawing,
             buttons: shown.buttons,
-            control: !self.taps.is_empty() || !self.practice_taps.is_empty(),
+            control: !self.taps.is_empty() || tapped,
             handles: &self.handles,
             guide_centre: self.guide_centre,
         };
@@ -73,7 +75,7 @@ impl Shell {
             self.panels.close();
             self.copy.open();
         }
-        self.settle_view(&intents, frame.mapping());
+        self.settle_view(&intents, (frame.mapping(), glides));
         self.ended_by(&intents);
         intents.append(&mut self.taps);
         intents
@@ -98,13 +100,11 @@ fn starts_stroke(intent: &Intent) -> bool {
 }
 
 impl Shell {
-    /// A quick pinch settles the view at fit from where it showed, and Next on a practice sheet
-    /// at its next pair; a contact on the canvas or a navigation ends any settling at once, so
-    /// the hand always acts on what it sees.
-    fn settle_view(&mut self, intents: &[Intent], mapping: ViewMapping) {
-        // A tap on Next: the view glides to the next exercise, or to the whole sheet once done.
-        let next = |tap: &PracticeIntent| matches!(tap, PracticeIntent::Next(_));
-        if self.practice_taps.sheet.iter().any(next) {
+    /// A quick pinch settles the view at fit from where it showed, and a mode's tap that moved
+    /// the view on (`glides`) where it moved it; a contact on the canvas or a navigation ends any
+    /// settling at once, so the hand always acts on what it sees.
+    fn settle_view(&mut self, intents: &[Intent], (mapping, glides): (ViewMapping, bool)) {
+        if glides {
             self.view.start(self.view.shown(mapping), SETTLE);
         }
         for intent in intents {

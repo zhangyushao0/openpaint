@@ -129,9 +129,7 @@ pub use records::record::{
     SessionRecord, met, recent, scales_met, summary, used,
 };
 pub use records::seals::{Earned, Seal, Tally, earned, sealed};
-pub use records::time::{
-    Date, PAUSE, Span, by_day, local_day, practised, seconds, spans_of, weekday,
-};
+pub use records::time::{PAUSE, Span, by_day, local_day, practised, seconds, spans_of};
 pub use sessions::drill::{drill, kinds_of, stage_needs};
 pub use sessions::plan::{Exercise, Family, STAGE_SESSIONS, STAGES, STAGES_READY};
 pub use sessions::session::{Before, Plan, WARM_UP, WARM_UP_TWO, plan, stage_one, stage_two};

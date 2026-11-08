@@ -31,7 +31,7 @@ pub fn dialog<T>(
     dialog_of_width(ctx, id, (placement, from, DIALOG_WIDTH), add_contents)
 }
 
-/// As `dialog`, `width` points wide (a page of two columns, the practice options' first).
+/// As `dialog`, `width` points wide (a page of two columns, a mode's options).
 pub fn dialog_of_width<T>(
     ctx: &egui::Context,
     id: &str,

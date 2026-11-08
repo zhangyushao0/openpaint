@@ -75,7 +75,7 @@ impl Runtime {
             Screen::Gallery(gallery, asked) => {
                 dispatch_gallery(gallery, intents);
                 practice::dispatch_options((gallery, asked), options);
-                self.pack_pictures.step(&mut self.shell);
+                self.pack_pictures.step(&mut self.practice_screens);
                 false
             }
             Screen::Opening(_) => false,

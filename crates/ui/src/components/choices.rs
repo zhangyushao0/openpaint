@@ -21,7 +21,7 @@ pub struct Choices {
 
 impl Choices {
     /// The item whose mark lies in `outline` is the chosen one.
-    pub(crate) fn chosen(&mut self, outline: Outline) {
+    pub fn chosen(&mut self, outline: Outline) {
         self.chosen = Some(outline);
     }
 }

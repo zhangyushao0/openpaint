@@ -4,13 +4,13 @@
 use openpaint_app::{BrushIntent, Intent};
 
 /// Pushes `intent` unless it is the one pushed last.
-pub(crate) fn push_once<T: PartialEq>(taps: &mut Vec<T>, intent: T) {
+pub fn push_once<T: PartialEq>(taps: &mut Vec<T>, intent: T) {
     if taps.last() != Some(&intent) {
         taps.push(intent);
     }
 }
 
 /// As `push_once`, for the toolbox's brush.
-pub(crate) fn push_brush(taps: &mut Vec<Intent>, intent: BrushIntent) {
+pub fn push_brush(taps: &mut Vec<Intent>, intent: BrushIntent) {
     push_once(taps, Intent::Brush(intent));
 }

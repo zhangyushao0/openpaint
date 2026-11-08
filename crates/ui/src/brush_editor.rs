@@ -52,7 +52,7 @@ impl BrushEditor {
         taps: &mut Vec<Intent>,
     ) -> bool {
         let edited = &brush.edited;
-        let name = t::shown_name(t::language(ui.ctx()), &edited.name);
+        let name = t::shown_name(ui.ctx(), &edited.name);
         let (named, back) = ui
             .horizontal(|ui| {
                 ui.set_height(TOUCH_TARGET);
@@ -134,7 +134,7 @@ impl BrushEditor {
     ) -> (bool, bool) {
         if let Some(from) = self.deleting {
             let language = t::language(ctx);
-            let name = t::shown_name(language, &brush.edited.name);
+            let name = t::shown_name(ctx, &brush.edited.name);
             let question = t::delete_brush(language, &name);
             let note = |ui: &mut egui::Ui| hint(ui, t::STROKES_STAY);
             let answer = delete_dialog(ctx, "delete brush", from, &question, note);

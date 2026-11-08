@@ -12,10 +12,10 @@ use crate::design::motion::{CLOSE, lerp};
 /// The artwork being opened: where its picture lay on screen (points), which one, and the
 /// picture.
 #[derive(Clone)]
-pub(crate) struct Opening {
-    pub(crate) from: Rect,
-    pub(crate) id: Option<ProjectId>,
-    pub(crate) picture: Option<egui::TextureHandle>,
+pub struct Opening {
+    pub from: Rect,
+    pub id: Option<ProjectId>,
+    pub picture: Option<egui::TextureHandle>,
 }
 
 impl std::fmt::Debug for Opening {
@@ -34,8 +34,8 @@ pub(crate) struct Arrival {
     pub(crate) from: Rect,
     /// Its card; `None` for the first card (the artwork changed last).
     pub(crate) id: Option<ProjectId>,
-    /// A practice sheet, which goes back into the Today card.
-    pub(crate) practice: bool,
+    /// A mode's sheet, which goes back into the mode's card (`GalleryHook::card`).
+    pub(crate) card: bool,
     /// One motion per return.
     pub(crate) run: u64,
 }

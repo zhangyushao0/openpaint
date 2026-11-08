@@ -39,7 +39,7 @@ impl GalleryScreen {
             return;
         };
         let language = t::language(ctx);
-        let question = t::delete_artwork(language, shown_title(language, title).as_str());
+        let question = t::delete_artwork(language, shown_title(ctx, title).as_str());
         let note = |ui: &mut egui::Ui| {
             ui.label(t::CANNOT_BE_UNDONE.get(language));
         };
@@ -72,7 +72,7 @@ impl GalleryScreen {
         };
         let offset = self.utc_offset;
         let language = t::language(ctx);
-        let shown = shown_title(language, &item.title);
+        let shown = shown_title(ctx, &item.title);
         let ((chosen, close), outside) = dialog(ctx, "options", (Placement::Top, card), |ui| {
             ui.heading(shown.as_str());
             let mut chosen = None;

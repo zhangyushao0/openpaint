@@ -8,6 +8,7 @@ use openpaint_app::{
 };
 use openpaint_practice_app::PracticeLog;
 use openpaint_practice_store::Packs;
+use openpaint_practice_ui::PracticeScreens;
 use openpaint_render::Core;
 use openpaint_store::DisplayCache;
 use openpaint_ui::Shell;
@@ -78,10 +79,7 @@ impl Runtime {
         core.catch_errors();
         let ui = egui::Context::default();
         design::install(&ui);
-        let mut shell = Shell::default();
-        // Actions' last line (D79): the workspace's version, which xtask also hands to Android
-        // as `versionName` with the same format as build metadata, and the storage format.
-        shell.set_version(env!("CARGO_PKG_VERSION"), openpaint_store::FORMAT);
+        let mut shell = shell();
         let library = toolbox.library();
         let shared = SharedCore::new(Arc::clone(&core));
         let brushes =
@@ -111,6 +109,7 @@ impl Runtime {
             shared,
             ui,
             shell,
+            practice_screens: PracticeScreens::default(),
             painter: None,
             surface: None,
             window: None,
@@ -128,4 +127,14 @@ impl Runtime {
             keyboard: false,
         })
     }
+}
+
+/// The shell with Actions' last line (D79): the workspace's version, which xtask also hands to
+/// Android as `versionName` with the same format as build metadata, and the storage format; and
+/// the names practice gives its copies, pictures and layers, shown in the language (D112).
+fn shell() -> Shell {
+    let mut shell = Shell::default();
+    shell.set_version(env!("CARGO_PKG_VERSION"), openpaint_store::FORMAT);
+    shell.set_names(openpaint_practice_ui::NAMES);
+    shell
 }

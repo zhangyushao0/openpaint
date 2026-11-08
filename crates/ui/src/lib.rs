@@ -1,5 +1,6 @@
 //! Shared interface: panels, input ownership, canvas arbitration. Reads the app projection,
-//! keeps UI-local state, emits intents. Never writes artwork or GPU state directly.
+//! keeps UI-local state, emits intents. Never writes artwork or GPU state directly. A mode's
+//! screens come in through hooks (`hooks.rs`, D112); the ui names no mode.
 //!
 //! No direct GPU API, no file system (`cargo repo-check`).
 #![forbid(unsafe_code)]
@@ -19,9 +20,11 @@ mod color_palette;
 mod color_panel;
 pub mod components;
 mod copy_bar;
+pub mod dates;
 pub mod design;
 mod drop_bar;
 mod gallery;
+mod hooks;
 mod layer_drag;
 mod layer_options;
 mod layer_panel;
@@ -30,19 +33,6 @@ mod notices;
 mod panels;
 mod pen_buttons_page;
 mod pen_marks;
-mod practice_bar;
-mod practice_card;
-mod practice_card_disc;
-mod practice_card_items;
-mod practice_demo;
-mod practice_demo_marks;
-mod practice_demo_strip;
-mod practice_demo_wheel;
-mod practice_mark_draw;
-mod practice_mark_lines;
-mod practice_marks;
-mod practice_shown;
-mod practice_tools;
 mod reference_touch;
 mod reference_window;
 mod row_drag;
@@ -52,12 +42,12 @@ mod shape_drag;
 mod sheet;
 mod shell;
 mod side_bar;
-mod taps;
+pub mod taps;
 pub mod text;
 mod transform_bar;
 mod transform_drag;
 
 pub use crate::brush_strip::StripStrokes;
 pub use crate::components::{CanvasArea, Control, ControlMap, ScreenArea, TOP_BAND, Unresolved};
-pub use crate::practice_shown::PracticeShown;
+pub use crate::hooks::{CanvasHook, Chrome, GalleryHook, Hooks, Page};
 pub use crate::shell::Shell;

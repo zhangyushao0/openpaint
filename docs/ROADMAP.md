@@ -48,14 +48,13 @@ The author, 2026-10-23: practice is their main activity now. The app gets a prac
 - **No accounts, community or sharing service.**
 - **Method notes.** V大's methods, distilled from the course's subtitles, guide every exercise's instructions and checks. They are not in the repository.
 
-Stages 1 to 4 are built and stage 5 has begun (S75 to S110b are done: the list at the end and its archive).
+Stages 1 to 4 are built and stage 5 has begun (S75 to S110c are done: the list at the end and its archive).
 
 Stage 5 follows V大's weeks 5 and 6 as the author approved it on a mock (2026-11-06, every recommendation taken): key shifts (S107, done), abstract analysis, structure rotation; each joins stage 5's sessions after the key shifts and gets a drill tile.
 
 Practice as a module (the author, 2026-11-07, after a review): a kind's code is spread by layer over six crates and dispatched by central matches (S107 touched 69 files: 21 in ui, 19 in practice, 11 in app, 6 in the harness; `Kind` and `Overlay` matched 416 times in 52 files outside practice), the practice crate lies flat (93 files named by prefix), and the pack builder's web clients and ONNX matte build and test in every gate. Before more kinds, practice becomes a module: a kind in one folder behind one description, its own crates, the painting crates not depending on it. Behaviour, scenarios and their hashes stay as they are in each slice.
 
 - Next, each specified when the one before lands:
-  - S110c Practice's UI crate, S110's last cut (D112): the cards, marks, tiles, How, book, options and their words (from ui) in `openpaint-practice-ui`, behind canvas and gallery hooks the ui offers (`ui/src/hooks.rs`: `CanvasHook`, `GalleryHook`, `Chrome`; `Shell::set_names` for the names a mode gives; ui's `Text`, `Words` and `texts!` exported), in place of S110b's `PracticeShown` and practice taps; ui then depends on no practice crate, repo-check refuses ui naming practice and extends the word rule to practice-ui outside its `text/`, and `crates/ui/src` (held at 70 `.rs` files) falls within 64.
   - S112 Abstract analysis (抽象分析), the first kind on the module: the user marks a picture's strongest place, its contrasts, the secondary and weak ones and their distribution on a layer over it; Compare veils where each measurable contrast (value, chroma, hue, sharpness) is weak and scores nothing.
   - S113 Structure rotation against renders.
   - Stage 7 (V大's weeks 7 and 8): curved structure rotation and objects placed by a plan, whole-picture key shifts toward two tendencies, abstract analysis for one's own small composition.
@@ -70,7 +69,7 @@ Wet media, dual brushes, a brush ecosystem, animation, multi-platform, cloud syn
 (Findings outside the current slice, one line each, dated.)
 
 - 2026-11-07 S110: `crates/render/src` holds 98 `.rs` files, past repo-check's cap of 64 (held at its count since S110b): a structural slice puts it in folders (scene, raster core, canvas, view tiers, readers, pacing), as S108 did for practice.
-- 2026-11-07 S110: two screenshots depend on load on 12 workers, each once in four runs, byte-identical alone, hashes passing: `s7-resume` after its first Retry (the notice pill caught mid-resize, the second Retry, named, tapping Layers under it) and `s26-insert-image`'s `picker-asked` (the top band's right end); find what there waits on wall time, not the held clock (S106).
+- 2026-11-07 S110: screenshots depend on load on 12 workers, each once in several runs, byte-identical alone, hashes passing: `s7-resume` after its first Retry (the notice pill caught mid-resize, the second Retry, named, tapping Layers under it), `s26-insert-image`'s `picker-asked` (the top band's right end) and (S110c) `s88-thin-overlay`'s `line-zoomed-out` (the quick pinch to fit not taken, the view left at 400 %); find what there waits on wall time, not the held clock (S106).
 - 2026-11-07 S110: `cargo scenarios` at 7b8c343 (1.21.3) ran a harness that said 1.21.2 on its Actions line and drew s84's three ellipse screens one level apart from that tree's own build: a binary of another build stood in `target/` and cargo ran it; a run could check the binary's version and tree against the checkout's.
 - 2026-11-07 the author: the generated colour combinations as a drill of their own beside the crops, to practise computed ones on a day the real ones are not wanted (the kind is kept, S109).
 
@@ -165,3 +164,4 @@ Slices S0 to S72 and the stage exits: `docs/archive/ROADMAP-2026-10.md`; S73 to 
 - S109b 2026-11-07 1.21.3: tools, eyedropper, needs, book, summary rows as `Facts`; Compare, readings, painted pictures, answers, tiles as kind methods, the copy read as a kind asks; each kind's How and words a file of its own; no `Family` or `Original` variant outside practice; pixel-identical; D111.
 - S110 2026-11-07 1.21.4: `openpaint-practice-store`: practice's records in a record space of opaque bytes, their upgrades registered by `library_at` (the one way to open a library), its packs; the store names no practice; the gallery's list composed in the runtime; byte-identical; D112.
 - S110b 2026-11-07 1.21.5: `openpaint-practice-app`, the flow out of app: the sheet as the session's mode (`app::Mode`, `Lent`), practice's intents after the painting ones, a mode's pickers in the gallery's turn; app, core, raster, render name no practice; folders of 64 `.rs` at most; pixel-identical; D112.
+- S110c 2026-11-07 1.21.6: `openpaint-practice-ui`, practice's screens and words out of ui behind its hooks (`CanvasHook`, `GalleryHook`, a lent `Chrome`, `Shell::set_names`); the ui names no practice, `Date` in ui; `crates/ui/src` 51 `.rs`; byte-identical screenshots; D112.

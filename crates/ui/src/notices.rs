@@ -1,20 +1,20 @@
 //! What the canvas tells in a pill in the top band, one thing at a time, most urgent first: a
 //! failed save or open (with Retry or OK), that the display was reset (the GPU device was
-//! lost and made again; with OK, and a new stroke lets it go), a refused or failed fill (with
-//! OK), then exporting (working, saved, failed), then the reference image and a picture to
-//! insert (opening, failed). Running work shows a spinner and asks nothing; a result waits for
-//! OK. The messages are the user-facing form of the app's typed errors, in the pass's language
-//! (`text/notices.rs`). At fit the pill lies on the desk above the canvas.
+//! lost and made again; with OK, and a new stroke lets it go), what a mode's sheet tells
+//! (`CanvasHook::notice`, with OK), a refused or failed fill (with OK), then exporting (working,
+//! saved, failed), then the reference image and a picture to insert (opening, failed). Running
+//! work shows a spinner and asks nothing; a result waits for OK. The messages are the
+//! user-facing form of the app's typed errors, in the pass's language (`text/notices.rs`). At fit
+//! the pill lies on the desk above the canvas.
 
 use openpaint_app::{
     AdjustIntent, EditorAction, ExportIntent, ExportNotice, FillIntent, FillRefusal, InsertIntent,
     Intent, Language, ReferenceIntent, ReferenceNotice, SessionProjection, StorageIntent,
     StorageNotice, TransformIntent, TransformRefusal,
 };
-use openpaint_practice_app::{PracticeIntent, PracticeNotice, PracticeProjection};
 
 use crate::components::{Place, Source, confirmation, notice, pill, status};
-use crate::practice_shown::SheetTaps;
+use crate::hooks::CanvasHook;
 use crate::taps::push_once;
 use crate::text::{self as t, Refused, Text, Words};
 
@@ -29,7 +29,7 @@ enum Told {
     Done(String, Intent),
     /// The display was reset, dismissed with OK; nothing is asked of the app.
     Reset,
-    /// Why the practice sheet took no contact, dismissed with OK.
+    /// What a mode's sheet tells, dismissed with OK.
     Sheet(String),
 }
 
@@ -40,20 +40,20 @@ enum Answer {
     Sheet,
 }
 
-/// The pill for `projection` (on a practice `sheet`), if there is something to tell, at `place`,
-/// with the notice that the display was reset while `reset` holds (OK clears it); its taps go to
-/// `taps`. Returns its rectangle in points.
+/// The pill for `projection` (on a mode's sheet, `hook`), if there is something to tell, at
+/// `place`, with the notice that the display was reset while `reset` holds (OK clears it); its
+/// taps go to `taps`. Returns its rectangle in points.
 pub(crate) fn notice_pill(
     ctx: &egui::Context,
-    (projection, sheet): (&SessionProjection, Option<&PracticeProjection>),
+    projection: &SessionProjection,
     (place, reset): (Place, &mut bool),
-    taps: &mut SheetTaps<'_>,
+    (taps, hook): (&mut Vec<Intent>, Option<&mut (dyn CanvasHook + '_)>),
 ) -> Option<egui::Rect> {
     let language = t::language(ctx);
     let told = storage(projection, language)
         .or_else(|| (*reset).then_some(Told::Reset))
-        .or_else(|| practice(sheet, language))
-        .or_else(|| fill((projection, sheet.is_some()), language))
+        .or_else(|| Some(Told::Sheet(hook.as_deref()?.notice(language)?)))
+        .or_else(|| fill(projection, hook.as_deref(), language))
         .or_else(|| transform(projection, language))
         .or_else(|| adjust(projection, language))
         .or_else(|| transfers(projection, language))?;
@@ -79,11 +79,11 @@ pub(crate) fn notice_pill(
             .clicked()
             .then_some(Answer::Sheet),
     });
-    match tapped {
-        Some(Answer::Ask(intent)) => push_once(taps.painting, intent),
-        Some(Answer::Reset) => *reset = false,
-        Some(Answer::Sheet) => push_once(taps.sheet, PracticeIntent::Dismiss),
-        None => {}
+    match (tapped, hook) {
+        (Some(Answer::Ask(intent)), _) => push_once(taps, intent),
+        (Some(Answer::Reset), _) => *reset = false,
+        (Some(Answer::Sheet), Some(hook)) => hook.dismiss(),
+        _ => {}
     }
     Some(rect)
 }
@@ -125,29 +125,21 @@ fn storage(projection: &SessionProjection, language: Language) -> Option<Told> {
     ))
 }
 
-/// Why a practice sheet took no contact, with OK.
-fn practice(sheet: Option<&PracticeProjection>, language: Language) -> Option<Told> {
-    let message = match sheet?.notice? {
-        PracticeNotice::DrawInFrame => t::DRAW_IN_FRAME.get(language).to_owned(),
-        PracticeNotice::DrawInCell => t::DRAW_IN_CELL.get(language).to_owned(),
-        PracticeNotice::PickAfterCompare => t::PICK_AFTER_COMPARE.get(language).to_owned(),
-        PracticeNotice::OriginalLocked => t::ORIGINAL_LOCKED.get(language).to_owned(),
-        PracticeNotice::CannotFill(refusal) => t::refused(language, Refused::Fill, refusal),
-        PracticeNotice::Done => t::SESSION_DONE.get(language).to_owned(),
-    };
-    Some(Told::Sheet(message))
-}
-
-/// A refused or failed fill, with OK; `practising` on a practice sheet.
-fn fill((projection, practising): (&SessionProjection, bool), language: Language) -> Option<Told> {
+/// A refused or failed fill, with OK; on a mode's sheet (`hook`) what it says of a fill outside
+/// its clip.
+fn fill(
+    projection: &SessionProjection,
+    hook: Option<&(dyn CanvasHook + '_)>,
+    language: Language,
+) -> Option<Told> {
     let fill = projection.fill();
+    let outside = hook.and_then(CanvasHook::outside);
     let message = match (fill.refused, fill.failed) {
         (Some(FillRefusal::Layer(refusal)), _) => t::refused(language, Refused::Fill, refusal),
-        // On a practice sheet the empty frame is what a fill stays inside.
-        (Some(FillRefusal::OutsideSelection), _) if practising => {
-            t::DROP_IN_FRAME.get(language).to_owned()
-        }
-        (Some(FillRefusal::OutsideSelection), _) => t::DROP_IN_SELECTION.get(language).to_owned(),
+        (Some(FillRefusal::OutsideSelection), _) => outside
+            .unwrap_or(t::DROP_IN_SELECTION)
+            .get(language)
+            .to_owned(),
         (None, true) => t::FILL_FAILED.get(language).to_owned(),
         (None, false) => return None,
     };

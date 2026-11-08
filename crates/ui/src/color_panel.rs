@@ -90,7 +90,7 @@ impl ColorPanel {
         self.area = rect.map(|rect| ScreenArea::from_points(rect, ctx.pixels_per_point()));
     }
 
-    /// The wheel outside the panel, at the current colour of `brush`: a practice colour's, beside
+    /// The wheel outside the panel, at the current colour of `brush`: a mode's colour beside
     /// its frame. The same wheel as the panel's, keeping the hue the hand left on a grey.
     pub(crate) fn inline_wheel(
         &mut self,

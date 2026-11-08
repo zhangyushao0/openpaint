@@ -90,7 +90,7 @@ texts! { BRUSH_NAMES;
 }
 
 /// The built-in brushes' names, as their files give them.
-pub(crate) const BUILT_IN: [Text; 11] = [
+pub const BUILT_IN: [Text; 11] = [
     PENCIL,
     INK_PEN,
     INKER,

@@ -40,11 +40,11 @@ pub enum Source {
 
 /// How a declared surface shows in this pass.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct Showing {
+pub struct Showing {
     /// Share of the content shown.
-    pub(crate) reveal: f32,
+    pub reveal: f32,
     /// How far the surface has grown, 0 to 1.
-    pub(crate) grown: f32,
+    pub grown: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -103,7 +103,7 @@ pub(crate) fn island(ctx: &egui::Context, id: Id, rect: Rect) {
 
 /// The surface `id`, coming from `source`, is `open` in this pass. Returns how it shows, or
 /// `None` when it is closed and gone: then nothing of it is drawn.
-pub(crate) fn declare(
+pub fn declare(
     ctx: &egui::Context,
     id: Id,
     source: Source,

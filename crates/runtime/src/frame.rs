@@ -16,6 +16,7 @@ use openpaint_app::{
 };
 use openpaint_core::Artwork;
 use openpaint_practice_app::PracticeLog;
+use openpaint_practice_ui::PracticeScreens;
 use openpaint_render::{Core, ScreenPainter, ScreenTarget, Surface, SurfaceWindow, UiFrame};
 use openpaint_ui::design::{self, TextFonts};
 use openpaint_ui::{CanvasArea, Shell};
@@ -52,6 +53,8 @@ pub struct Runtime {
     pub(crate) shared: SharedCore,
     ui: egui::Context,
     pub(crate) shell: Shell,
+    /// Practice's screens, which fill the shell's hooks (D112).
+    pub(crate) practice_screens: PracticeScreens,
     /// Created with the first target and kept for the process: it holds the UI's textures.
     pub(crate) painter: Option<ScreenPainter>,
     pub(crate) surface: Option<Surface>,
@@ -208,7 +211,10 @@ impl Runtime {
     /// more): from the canvas it goes to the gallery, in the gallery it closes an open dialog.
     /// Otherwise the system's own back applies.
     pub fn back(&mut self) -> bool {
-        self.shell.back(&self.screen())
+        let screen = self.screen();
+        let practised = practice::Shown::of(&self.screen, &self.practice);
+        let mut hooked = practised.hooked(&mut self.practice_screens);
+        self.shell.back(&screen, hooked.hooks())
     }
 
     /// Runs one frame into the window. Returns whether another frame is wanted at once. A lost
@@ -322,12 +328,13 @@ impl Runtime {
         self.shell.set_language(language);
         let shown = self.screen();
         let practised = practice::Shown::of(&self.screen, &self.practice);
+        let mut hooked = practised.hooked(&mut self.practice_screens);
         let laid = std::time::Instant::now();
         let pass = run_ui(
             &self.ui,
             UiPass {
                 shell: &mut self.shell,
-                projection: (&shown, &practised.for_shell()),
+                projection: (&shown, hooked.hooks()),
                 size,
                 pixels_per_point: self.pixels_per_point,
                 events,
@@ -336,8 +343,8 @@ impl Runtime {
         );
         self.ui_ns = u64::try_from(laid.elapsed().as_nanos()).unwrap_or(u64::MAX);
         self.keyboard = pass.keyboard;
-        let intents = self.shell.route(&batches);
-        let practising = self.shell.take_practice();
+        let intents = self.shell.route(&batches, hooked.hooks());
+        let practising = self.practice_screens.take();
         let mut intents = route(&mut self.transfers, self.screen.canvas(), intents);
         // A picture read for inserting goes to the canvas open now, before this frame's taps.
         if let Some(picture) = self.transfers.take_picture() {

@@ -131,7 +131,7 @@ pub(crate) fn mute(ctx: &egui::Context, layer: LayerId) {
 
 /// The control `name` lies at `rect` (points) in `ui`: kept where it shows, unless its layer is
 /// muted or this is a sizing pass that shows nothing.
-pub(crate) fn register(ui: &egui::Ui, name: &str, rect: Rect) {
+pub fn register(ui: &egui::Ui, name: &str, rect: Rect) {
     let shown = rect.intersect(ui.clip_rect());
     if ui.is_sizing_pass() || !shown.is_positive() {
         return;

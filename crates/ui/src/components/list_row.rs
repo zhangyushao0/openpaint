@@ -188,7 +188,7 @@ fn paint(
     paint_icon(painter, row.icon, square, color);
 }
 
-/// A row a picture leads, as tall as its picture and words need (the practice options' pictures:
+/// A row a picture leads, as tall as its picture and words need (a mode's pictures:
 /// choosing one to copy): the picture fitted in `PICTURE_ROW` points, its title in ink and
 /// under it its note and credit, small, quiet and wrapped. Tapping it chooses the picture.
 #[derive(Debug, Clone, Copy)]

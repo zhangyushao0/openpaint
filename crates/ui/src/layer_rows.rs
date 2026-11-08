@@ -197,7 +197,7 @@ fn group_row(
     taps: &mut Vec<Intent>,
 ) {
     let closed = collapsed.contains(&group.id);
-    let name = t::shown_name(t::language(ui.ctx()), group.name.as_str());
+    let name = t::shown_name(ui.ctx(), group.name.as_str());
     let (icon, icon_label) = if group.visible {
         (Icon::Visible, t::HIDE_GROUP)
     } else {
@@ -246,7 +246,7 @@ fn layer_row(
     taps: &mut Vec<Intent>,
 ) -> egui::Response {
     let language = t::language(ui.ctx());
-    let name = t::shown_name(language, row.name.as_str());
+    let name = t::shown_name(ui.ctx(), row.name.as_str());
     let mut detail = Vec::new();
     if row.alpha_locked {
         detail.push(t::ALPHA_LOCK.get(language).to_owned());

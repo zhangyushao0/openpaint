@@ -1,0 +1,18 @@
+[package]
+name = "openpaint-practice-ui"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+openpaint-app.workspace = true
+openpaint-core.workspace = true
+openpaint-practice.workspace = true
+openpaint-practice-app.workspace = true
+openpaint-ui.workspace = true
+egui.workspace = true
+
+[lints]
+workspace = true

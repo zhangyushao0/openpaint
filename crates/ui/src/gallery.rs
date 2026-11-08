@@ -1,38 +1,27 @@
 //! The gallery screen (Procreate's model): its name on the desk at the top left, a search field
 //! in the top band's middle, an island at the top right with the "+" that makes a new artwork
-//! of a size chosen in a small popover or opens an OpenPaint file, and below them the Today card
-//! (practice, G9; not while searching; its sheet opens the practice book, `gallery_book.rs`),
-//! then every artwork whose title holds the search's text
-//! as a card in a grid, the one changed last first. Tap a
+//! of a size chosen in a small popover or opens an OpenPaint file, and below them a mode's card
+//! (`GalleryHook::card`; not while searching), then every artwork whose title holds the search's
+//! text as a card in a grid, the one changed last first. Tap a
 //! picture to open it, its title to rename it (a dialog under the islands, above the soft
 //! keyboard), the options to save it as an OpenPaint file or restore a kept version, the copy
-//! button to duplicate it and the bin to delete it, which asks first: it cannot be undone.
+//! button to duplicate it and the bin to delete it, which asks first: it cannot be undone. A
+//! mode's page lies over the gallery with an island of its own, its dialogs after the gallery's.
 
-#[path = "gallery_book.rs"]
-mod book;
-#[path = "gallery_copies.rs"]
-mod copies;
 #[path = "gallery_dates.rs"]
 mod dates;
 #[path = "gallery_dialogs.rs"]
 mod dialogs;
-#[path = "gallery_drills.rs"]
-mod drills;
 #[path = "gallery_new.rs"]
 mod new;
-#[path = "gallery_pictures.rs"]
-mod pictures;
-#[path = "gallery_practice.rs"]
-mod practice;
 
 use std::collections::HashMap;
 
 use egui::{Align, Layout, Rect, Vec2};
 use openpaint_app::{
-    GalleryIntent, GalleryProjection, Intent, Language, MAX_TITLE_CHARS, ProjectId, ProjectSummary,
+    GalleryIntent, GalleryProjection, Intent, MAX_TITLE_CHARS, ProjectId, ProjectSummary,
     Thumbnail, Title,
 };
-use openpaint_practice_app::{OptionsIntent, TodayProjection};
 
 use crate::components::carry::{Arrival, Opening, land};
 use crate::components::{
@@ -40,8 +29,11 @@ use crate::components::{
     icon_button, icon_toggle, island, notice, picture_texture, pill, text_field,
 };
 use crate::design::{CARD_GAP, Icon, SPACE, TOUCH_TARGET};
-use crate::practice_shown::PracticeShown;
+use crate::hooks::{GalleryHook, Page};
 use crate::text::{self as t, Words};
+
+/// A mode's part of the gallery this pass, and the gallery's taps.
+type Taps<'a, 'h> = (Option<&'a mut (dyn GalleryHook + 'h)>, &'a mut Vec<Intent>);
 
 /// The island "+" sits on; the new-canvas popover grows out of it.
 const ISLAND: &str = "gallery island";
@@ -70,10 +62,6 @@ pub(crate) struct GalleryScreen {
     confirm: Option<(ProjectId, openpaint_app::Title, Rect)>,
     /// The artwork whose options show, and its card (points).
     options: Option<(ProjectId, Rect)>,
-    /// The practice options, grown from the Today card, their pages and pictures.
-    practice: practice::PracticeOptions,
-    /// The practice book, grown from the Today card's sheet (S89).
-    book: book::BookState,
     /// What the search field holds; not stored.
     search: String,
     /// The device's offset from UTC in minutes (`Shell::set_utc_offset`).
@@ -107,15 +95,22 @@ impl GalleryScreen {
     }
 
     /// The canvas, last shown at `from` (points), comes back into the card of `id` (or the
-    /// first card), a practice sheet into the Today card.
-    pub(crate) fn arrive(&mut self, from: Rect, (id, practice): (Option<ProjectId>, bool)) {
+    /// first card), a mode's sheet into the mode's `card`.
+    pub(crate) fn arrive(&mut self, from: Rect, (id, card): (Option<ProjectId>, bool)) {
         self.arrivals += 1;
         self.arriving = Some(Arrival {
             from,
             id,
-            practice,
+            card,
             run: self.arrivals,
         });
+    }
+
+    /// What the mode opened (if anything) since it was last asked: the canvas grows out of it.
+    fn opened_by(&mut self, hook: &mut (dyn GalleryHook + '_)) {
+        if let Some(opening) = hook.opening() {
+            self.opening = Some(opening);
+        }
     }
 
     /// The top band: the screen's name on the desk at the left, the search field in the
@@ -124,12 +119,11 @@ impl GalleryScreen {
     pub(crate) fn islands(
         &mut self,
         ctx: &egui::Context,
-        (projection, practice): (&GalleryProjection, &PracticeShown<'_>),
-        (taps, options): (&mut Vec<Intent>, &mut Vec<OptionsIntent>),
+        projection: &GalleryProjection,
+        (mut hook, taps): Taps<'_, '_>,
     ) {
-        // The practice book takes the whole screen: its own island only.
-        if self.book.shows() && practice.today.is_some() {
-            self.book_island(ctx);
+        // A mode's page takes the whole screen: its own island only.
+        if hook.as_deref_mut().is_some_and(|hook| hook.island(ctx)) {
             return;
         }
         egui::Area::new(egui::Id::new("gallery title"))
@@ -164,9 +158,9 @@ impl GalleryScreen {
         if button.clicked() {
             self.sizes = if open { Sizes::Closed } else { Sizes::Opened };
         }
-        // The gallery's own notice first, then the practice options'.
+        // The gallery's own notice first, then the mode's.
         let told = (t::gallery_notice(projection.notice()).map(|m| (m, true)))
-            .or_else(|| t::options_notice(practice.notice?).map(|m| (m, false)));
+            .or_else(|| Some((hook.as_deref()?.notice()?, false)));
         if let Some((message, own)) = told {
             let place = Place::top_right(plus.width() + SPACE);
             let source = Source::Within(Align::Max);
@@ -175,24 +169,25 @@ impl GalleryScreen {
             });
             if dismissed && own {
                 taps.push(Intent::Gallery(GalleryIntent::Dismiss));
-            } else if dismissed {
-                options.push(OptionsIntent::Dismiss);
+            } else if let (true, Some(hook)) = (dismissed, hook) {
+                hook.dismiss();
             }
         }
     }
 
     /// The grid of the cards the search finds inside `ui` (the whole screen, the cards under
-    /// the top band), and an open dialog.
+    /// the top band), and an open dialog; a mode's page over them while it shows.
     pub(crate) fn body(
         &mut self,
         ui: &mut egui::Ui,
-        (projection, today): (&GalleryProjection, Option<&TodayProjection>),
-        (taps, options): (&mut Vec<Intent>, &mut Vec<OptionsIntent>),
+        projection: &GalleryProjection,
+        (mut hook, taps): Taps<'_, '_>,
     ) {
         let ctx = ui.ctx().clone();
-        if let Some(today) = today.filter(|_| self.book.shows()) {
-            self.book_page(&ctx, today, (taps, options));
-            if self.book.covers() {
+        if let Some(hook) = hook.as_deref_mut() {
+            let page = hook.page(&ctx, taps);
+            self.opened_by(hook);
+            if page == Page::Covers {
                 return;
             }
         }
@@ -206,28 +201,30 @@ impl GalleryScreen {
         let found: Vec<&ProjectSummary> = projection
             .items()
             .iter()
-            .filter(|item| shown_title(language, &item.title).matches(&self.search))
+            .filter(|item| shown_title(&ctx, &item.title).matches(&self.search))
             .collect();
-        // The Today card comes first, unless a search is typed.
-        let all = today;
-        let today = today.filter(|_| self.search.trim().is_empty());
-        if projection.listed() && projection.items().is_empty() && today.is_none() {
+        // The mode's card comes first, unless a search is typed.
+        let searching = !self.search.trim().is_empty();
+        let first = hook.is_some() && !searching;
+        if projection.listed() && projection.items().is_empty() && !first {
             self.arriving = None;
             let empty = Words::from(t::NO_ARTWORKS).shown(&ctx);
             list.centered_and_justified(|ui| ui.label(empty));
-        } else if found.is_empty() && !projection.items().is_empty() && today.is_none() {
+        } else if found.is_empty() && !projection.items().is_empty() && !first {
             let text = t::nothing_found(language, self.search.trim());
             list.centered_and_justified(|ui| ui.label(text));
         } else {
+            let card = hook.as_deref_mut().filter(|_| !searching);
             egui::ScrollArea::vertical().show(&mut list, |ui| {
-                self.grid(ui, (today, &found), enabled, (&mut *taps, &mut *options));
+                self.grid(ui, &found, enabled, (card, &mut *taps));
             });
         }
         self.rename_dialog(ui.ctx(), taps);
         self.confirm_dialog(ui.ctx(), taps);
         self.options_dialog(ui.ctx(), projection.items(), taps);
-        if let Some(today) = all {
-            self.practice_dialog(ui.ctx(), today, (&mut *taps, options));
+        if let Some(hook) = hook {
+            hook.dialogs(ui.ctx(), taps);
+            self.opened_by(hook);
         }
         self.sizes_popover(ui.ctx(), under, taps);
     }
@@ -235,15 +232,15 @@ impl GalleryScreen {
     fn grid(
         &mut self,
         ui: &mut egui::Ui,
-        (today, items): (Option<&TodayProjection>, &[&ProjectSummary]),
+        items: &[&ProjectSummary],
         enabled: bool,
-        (taps, options): (&mut Vec<Intent>, &mut Vec<OptionsIntent>),
+        (hook, taps): Taps<'_, '_>,
     ) {
         // Left-aligned rows, `CARD_GAP` around and between the cards.
         let pitch = card_size() + Vec2::splat(CARD_GAP);
         let width = ui.available_width();
         let columns = (((width - CARD_GAP) / pitch.x).floor() as usize).max(1);
-        let first = usize::from(today.is_some());
+        let first = usize::from(hook.is_some());
         let rows = (items.len() + first).div_ceil(columns);
         let origin = ui.cursor().min + Vec2::splat(CARD_GAP);
         let height = rows as f32 * pitch.y + CARD_GAP;
@@ -252,9 +249,10 @@ impl GalleryScreen {
             let cell = Vec2::new((slot % columns) as f32, (slot / columns) as f32);
             egui::Rect::from_min_size(origin + cell * pitch, card_size())
         };
-        if let Some(today) = today {
-            let sheet = self.today(ui, place(0), (today, enabled), (&mut *taps, &mut *options));
-            if let Some(arrival) = self.arriving.filter(|arrival| arrival.practice)
+        if let Some(hook) = hook {
+            let sheet = hook.card(ui, place(0), enabled, taps);
+            self.opened_by(hook);
+            if let Some(arrival) = self.arriving.filter(|arrival| arrival.card)
                 && land(ui.ctx(), &arrival, None, sheet)
             {
                 self.arriving = None;
@@ -263,7 +261,7 @@ impl GalleryScreen {
         // The card the canvas comes back into: its own, else the first (changed last).
         let arriving = self
             .arriving
-            .filter(|arrival| !arrival.practice)
+            .filter(|arrival| !arrival.card)
             .map(|arrival| {
                 let listed = items.iter().any(|item| Some(item.id) == arrival.id);
                 let id = arrival
@@ -295,7 +293,7 @@ impl GalleryScreen {
         taps: &mut Vec<Intent>,
     ) -> Rect {
         let picture = self.pictures.get(&item.id).map(|(_, texture)| texture);
-        let title = t::shown_name(t::language(ui.ctx()), item.title.as_str());
+        let title = t::shown_name(ui.ctx(), item.title.as_str());
         let tapped = artwork_card(
             ui,
             &ArtworkCard {
@@ -326,14 +324,14 @@ impl GalleryScreen {
         tapped.picture
     }
 
-    /// Closes an open dialog as Cancel would, or the new-canvas popover. Returns whether one
-    /// was open.
-    pub(crate) fn back(&mut self) -> bool {
-        let practice = self.practice.close() | self.book.close();
+    /// Closes an open dialog as Cancel would (a mode's too), or the new-canvas popover. Returns
+    /// whether one was open.
+    pub(crate) fn back(&mut self, hook: Option<&mut (dyn GalleryHook + '_)>) -> bool {
+        let mode = hook.is_some_and(|hook| hook.back());
         let open = self.rename.is_some()
             || self.confirm.is_some()
             || self.options.is_some()
-            || practice
+            || mode
             || self.sizes != Sizes::Closed;
         self.rename = None;
         self.confirm = None;
@@ -366,8 +364,8 @@ impl GalleryScreen {
     }
 }
 
-/// `title` as `language` shows it: the app's "Untitled Artwork" in the language, the user's as
-/// typed. What the search looks in, and what a restored version's title is noted on.
-pub(crate) fn shown_title(language: Language, title: &Title) -> Title {
-    Title::new(&t::shown_name(language, title.as_str())).unwrap_or_else(|_| title.clone())
+/// `title` as the pass's language shows it: the app's "Untitled Artwork" in the language, the
+/// user's as typed. What the search looks in, and what a restored version's title is noted on.
+pub(crate) fn shown_title(ctx: &egui::Context, title: &Title) -> Title {
+    Title::new(&t::shown_name(ctx, title.as_str())).unwrap_or_else(|_| title.clone())
 }
