@@ -12,8 +12,7 @@
 //! kind's drills, exercises of one kind, which is the kind it drills. It counts in the kinds met,
 //! the pictures shown, the time and the seals of lines and colours, never as a session.
 
-use crate::kinds::colours::colour_match::Tone;
-use crate::kinds::colours::judgement::{Judgement, judgement};
+use crate::kinds::colours::judgement::Judgement;
 use crate::packs::pack::ItemRef;
 use crate::records::metric::{Metric, Metrics, value};
 use crate::records::time::{Span, spans_of};
@@ -279,41 +278,6 @@ pub const COLOUR_ROWS: [Metric; 3] = [Metric::FirstDelta, Metric::FinalDelta, Me
 pub const AREAS_ROWS: [Metric; 2] = [Metric::AreasDelta, Metric::AreasMadeStrong];
 pub const SCALE_ROWS: [Metric; 2] = [Metric::ScaleOff, Metric::ScaleReversed];
 
-/// The metrics the summary sets side by side for `family`.
-const fn rows_of(family: Family) -> &'static [Metric] {
-    match family {
-        Family::Colour => &COLOUR_ROWS,
-        Family::Areas => &AREAS_ROWS,
-        Family::Scale => &SCALE_ROWS,
-        // Estimates, points in space, solids and key shifts keep their numbers for trajectories,
-        // never shown (D107, S107); a division its counts and lengths on its card only (S95); value
-        // masses their share at the answer's value, shown nowhere (S96).
-        Family::Line
-        | Family::Combined
-        | Family::Shape
-        | Family::Box
-        | Family::FreeBoxes
-        | Family::Ellipse
-        | Family::Point
-        | Family::Proportion
-        | Family::Angle
-        | Family::Centre
-        | Family::Halves
-        | Family::Thirds
-        | Family::Step
-        | Family::Mirror
-        | Family::Cylinder
-        | Family::Cone
-        | Family::Sphere
-        | Family::Object
-        | Family::Division
-        | Family::WholeCopy
-        | Family::ValueMasses
-        | Family::KeyShift
-        | Family::Study => &[],
-    }
-}
-
 /// One family of exercises in a session's summary.
 #[derive(Debug, Clone, PartialEq)]
 pub struct KindSummary {
@@ -349,10 +313,14 @@ pub fn summary(this: &SessionRecord, before: &[&SessionRecord]) -> Vec<KindSumma
             (held > 0).then(|| {
                 let mine = results_of(&[this], family);
                 let earlier = results_of(before, family);
-                let rows = (rows_of(family).iter())
+                let rows = (family.facts().rows.iter())
                     .map(|m| (*m, mean(&mine, *m), mean(&earlier, *m)))
                     .collect();
-                let judged = (family == Family::Colour).then(|| [judged(&mine), judged(&earlier)]);
+                // The judgement its kind's description makes (a colour's radar, D108).
+                let described = family.described();
+                let judged = (described.judgement(&mine))
+                    .zip(described.judgement(&earlier))
+                    .map(|(this, before)| [this, before]);
                 KindSummary {
                     family,
                     checked: mine.len(),
@@ -385,16 +353,4 @@ fn mean(results: &[(Kind, &Metrics)], metric: Metric) -> Option<f64> {
         .filter_map(|(_, m)| value(m, metric))
         .collect();
     (!values.is_empty()).then(|| values.iter().sum::<f64>() / values.len() as f64)
-}
-
-/// The judgement of the colour results among `results`.
-fn judged(results: &[(Kind, &Metrics)]) -> Judgement {
-    let colours: Vec<(Tone, &[(Metric, f64)])> = results
-        .iter()
-        .filter_map(|(kind, metrics)| match kind {
-            Kind::Colour(tone) => Some((*tone, metrics.as_slice())),
-            _ => None,
-        })
-        .collect();
-    judgement(&colours)
 }

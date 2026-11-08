@@ -8,12 +8,12 @@ use std::sync::Arc;
 
 use openpaint_app::{
     BrushLibrary, PictureImage, PracticeIntent, PracticeLog, PracticeNotice, PracticePens,
-    PracticePick, ReadAs, Session, SheetView, Title, Toolbox, Viewport, sheet_of,
+    PracticePick, Session, SheetView, Title, Toolbox, Viewport, sheet_of,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Areas, Exercise, Family, ItemRef, KeyCompared, Kind, Lean, Metric, Pack, PackItem, PictureKind,
-    Plan, SessionRecord, Tendency, Tier, value,
+    Areas, Exercise, Family, Figure, ItemRef, KeyCompared, KeyReading, Kind, Lean, Metric, Pack,
+    PackItem, PictureKind, Plan, SessionRecord, Tendency, Tier, value,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -124,7 +124,13 @@ fn a_key_shift_shows_its_tendency_and_its_original_is_never_picked() {
     let projection = session.projection();
     let practice = projection.practice().expect("a sheet");
     assert_eq!(practice.family, Some(Family::KeyShift));
-    assert_eq!(practice.sheet.tendencies[0], Some(BLUE));
+    let tendency = practice.sheet.givens[0]
+        .iter()
+        .find_map(|mark| match mark.drawn {
+            Figure::Tendency(colour) => Some(colour),
+            _ => None,
+        });
+    assert_eq!(tendency, Some(BLUE.colour()), "printed beside the copy");
     assert!(practice.sheet.areas(0).is_some(), "the crop's areas");
     let pair = practice.sheet.pairs[0];
     let on = pair.original.to_canvas([0.1, 0.3]).map(|v| v as f32);
@@ -147,13 +153,10 @@ fn compare_marks_only_what_is_off_and_shows_grey_while_compared() {
     practise(&mut session, PracticeIntent::Fill(Color::BLACK));
     practise(&mut session, PracticeIntent::Compare(true));
     let job = session.practice_read_request().expect("the copy asked for");
-    let ReadAs::KeyShift {
-        tendency, original, ..
-    } = &job.read
-    else {
+    let Some(KeyReading { tendency, .. }) = job.reading.downcast::<KeyReading>() else {
         panic!("read as a key shift")
     };
-    assert_eq!((*tendency, original.is_some()), (BLUE, true));
+    assert_eq!((*tendency, job.original.is_some()), (BLUE, true));
     // The copy: the rust left as it was, the grey made far lighter, the cream as it was.
     let copy = [BANDS[0], [200, 202, 206], BANDS[2]];
     let pixels = PictureImage {

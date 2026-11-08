@@ -1,7 +1,7 @@
 //! Boxes to complete (`Kind::Box`, V大's 透视盒子): the check of a completed box's edges, and the
-//! How of boxes, free boxes and ellipses. The box itself is `geometry/perspective.rs`.
+//! How and tile of boxes. The box itself is `geometry/perspective.rs`.
 
-pub(crate) mod demo_space;
+pub(crate) mod demo;
 pub(crate) mod marks;
 pub(crate) mod perspective_check;
 
@@ -10,6 +10,7 @@ use crate::geometry::perspective::{BoxView, PerspectiveBox};
 use crate::kinds::{Described, Facts, Kind, Original, Turn, Work, place};
 use crate::marks::compared::{Compared, DrawnCopy};
 use crate::marks::mark::SheetMark;
+use crate::marks::tile::{TileMark, boxed};
 use crate::packs::pack::ItemRef;
 use crate::sessions::drill::turned;
 use crate::sessions::family::Family;
@@ -66,11 +67,16 @@ impl Described for Boxes {
     }
 
     fn how(&self, _family: Family) -> Option<Demo> {
-        Some(demo_space::perspective_box())
+        Some(demo::perspective_box())
     }
 
     /// A drill: three boxes, their views in turn.
     fn drill(&self, _family: Family, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
         turned((&BoxView::ALL, DRILLED), turn, Kind::Box)
+    }
+
+    /// A box seen from above, its front corner nearest.
+    fn tile(&self, _family: Family) -> Vec<TileMark> {
+        boxed([0.0, 0.0], 1.0)
     }
 }

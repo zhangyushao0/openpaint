@@ -54,7 +54,7 @@ impl PracticeSheet {
         };
         let comparison = compared.shown();
         let greys = match compared {
-            Compared::Painted(reading, _) if grey => greys(reading),
+            Compared::Painted(_, state, _) if grey => greys(state),
             _ => None,
         };
         Some((comparison.marks(&seen), comparison.card(&seen), greys))

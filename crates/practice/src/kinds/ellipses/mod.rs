@@ -1,15 +1,16 @@
 //! Ellipses (`Kind::Ellipse`, S84): the fit of a hand's ellipse and its check. The guide and its
-//! exact ellipse are `geometry/ellipse.rs`; the How is the boxes' (`demo_space.rs`).
+//! exact ellipse are `geometry/ellipse.rs`; its How `demo.rs`.
 
+pub(crate) mod demo;
 pub(crate) mod ellipse_check;
 pub(crate) mod marks;
 
 use crate::demos::demo::Demo;
 use crate::geometry::ellipse::{EllipseGuide, Guide};
-use crate::kinds::boxes::demo_space;
 use crate::kinds::{Described, Facts, Kind, Original, Turn, Work, place};
 use crate::marks::compared::{Compared, DrawnCopy};
 use crate::marks::mark::SheetMark;
+use crate::marks::tile::{TileMark, closed, curve, line};
 use crate::packs::pack::ItemRef;
 use crate::sessions::drill::turned;
 use crate::sessions::family::Family;
@@ -66,11 +67,27 @@ impl Described for Ellipses {
     }
 
     fn how(&self, _family: Family) -> Option<Demo> {
-        Some(demo_space::ellipse())
+        Some(demo::ellipse())
     }
 
     /// A drill: four ellipses, their guides in turn.
     fn drill(&self, _family: Family, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
         turned((&Guide::ALL, DRILLED), turn, Kind::Ellipse)
+    }
+
+    /// An ellipse in a square in perspective.
+    fn tile(&self, _family: Family) -> Vec<TileMark> {
+        vec![
+            line(&closed(&[
+                [12.0, 31.0],
+                [42.0, 31.0],
+                [36.0, 11.0],
+                [18.0, 11.0],
+            ])),
+            TileMark::Line(curve(|t| {
+                let turn = std::f32::consts::TAU * t;
+                [27.0 + 12.6 * turn.cos(), 21.5 + 8.6 * turn.sin()]
+            })),
+        ]
     }
 }

@@ -1,5 +1,5 @@
-//! Week 2's perspective on a practice sheet (S84): the bar's names and the cards' words (the How
-//! cards are `practice_demo_space.rs`). In V大's terms: 透视盒子, 视平线, 消失点, 前角, 椭圆, 补全盒子,
+//! Week 2's perspective on a practice sheet (S84): the cards' words (the names and How
+//! cards are `practice/`). In V大's terms: 透视盒子, 视平线, 消失点, 前角, 椭圆, 补全盒子,
 //! 自由盒子, 看画法.
 
 use openpaint_practice::{Missed, Reach, Roundness, Side, Tilt};
@@ -8,11 +8,6 @@ use super::{Language, Text};
 
 texts! { PRACTICE_PERSPECTIVE;
     HORIZON = "Horizon", "视平线";
-    BOX_EXERCISE = "Box", "透视盒子";
-    FREE_BOXES_EXERCISE = "Free boxes", "自由盒子";
-    ELLIPSE_EXERCISE = "Ellipse", "椭圆";
-    COMPLETE_THE_BOX = "Complete the box", "补全盒子";
-    DRAW_AN_ELLIPSE = "Draw an ellipse in its frame", "在方框里画椭圆";
     CONSTRUCTION = "Construction", "看画法";
     NO_EDGES = "No straight edge found in your lines.", "你的线条里没找到直线。";
     NO_ELLIPSE = "No ellipse found in your lines.", "你的线条里没找到椭圆。";

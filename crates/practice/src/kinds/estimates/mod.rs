@@ -1,18 +1,21 @@
-//! Estimates on the flat (`Kind::Flat`, S90): a point, a proportion and an angle, their check, and
-//! the How of estimates and points in space.
+//! Estimates on the flat (`Kind::Flat`, S90): a point, a proportion and an angle, their check,
+//! their How (`demo.rs`), tiles and answers as a hand draws them.
 
-pub(crate) mod demo_points;
+pub(crate) mod demo;
 pub(crate) mod flat;
 pub(crate) mod marks;
 
 use crate::demos::demo::Demo;
+use crate::demos::demo_points::crossed;
 use crate::kinds::{Described, Facts, Kind, Original, Turn, Work, place};
 use crate::marks::compared::{Compared, DrawnCopy};
 use crate::marks::mark::SheetMark;
+use crate::marks::tile::{TileMark, closed, line, square};
+use crate::maths::path::Point;
 use crate::packs::pack::ItemRef;
 use crate::sessions::family::Family;
 use crate::sessions::plan::Exercise;
-use flat::{Estimate, Flat};
+use flat::{Estimate, Flat, FlatAnswer};
 use std::sync::Arc;
 
 pub(crate) struct Estimates;
@@ -74,7 +77,7 @@ impl Described for Estimates {
     }
 
     fn how(&self, family: Family) -> Option<Demo> {
-        demo_points::estimate(family)
+        demo::estimate(family)
     }
 
     /// A drill: five of the one estimate.
@@ -83,5 +86,37 @@ impl Described for Estimates {
             .filter(|estimate| estimate.family() == family)
             .flat_map(|estimate| std::iter::repeat_n((Kind::Flat(estimate), None), DRILLED))
             .collect()
+    }
+
+    /// A small cross on a point, a stroke along a line.
+    fn answer(&self, original: &Original) -> Vec<Vec<Point>> {
+        let Original::Flat(flat) = original else {
+            return Vec::new();
+        };
+        match flat.answer() {
+            FlatAnswer::Point(at) => crossed(at).to_vec(),
+            FlatAnswer::Line(line) => vec![line.to_vec()],
+        }
+    }
+
+    /// A dot in a frame, a segment its first end ringed and its last barred with a dot along it,
+    /// a slanted line through a dot.
+    fn tile(&self, family: Family) -> Vec<TileMark> {
+        match family {
+            Family::Point => vec![
+                line(&closed(&square([14.0, 7.0], [40.0, 33.0]))),
+                TileMark::Dot([31.0, 15.0]),
+            ],
+            Family::Proportion => vec![
+                line(&[[10.0, 28.0], [45.0, 14.0]]),
+                TileMark::Ring([10.0, 28.0]),
+                line(&[[44.0, 11.5], [46.0, 16.5]]),
+                TileMark::Dot([23.3, 22.7]),
+            ],
+            _ => vec![
+                line(&[[14.0, 33.0], [40.0, 7.0]]),
+                TileMark::Dot([27.0, 20.0]),
+            ],
+        }
     }
 }

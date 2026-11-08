@@ -31,6 +31,25 @@ use crate::input::ToolKind;
 const LINE_MS: i64 = 400;
 const GROUP_LINE_MS: i64 = 800;
 const WHEEL_MS: i64 = 1000;
+/// The families the walk visits, by their keys (`openpaint_practice::Facts::key`): the bench names
+/// kinds as a test drill does (S109), what it does at each from what its kind gives.
+const LINE: &str = "line";
+const GROUP: &str = "combined";
+const SHAPE: &str = "shape";
+const COMBINATION: &str = "combination";
+const COLOUR: &str = "colour";
+/// Stage 2's perspective: its key, its name in the lines, and whether it is drawn round (an
+/// ellipse) or by its straight edges.
+const PERSPECTIVE: [(&str, &str, bool); 3] = [
+    ("box", "box", false),
+    ("free-boxes", "free boxes", false),
+    ("ellipse", "ellipse", true),
+];
+
+/// The family keyed `key`.
+pub(super) fn of_key(key: &str) -> Result<Family, RuntimeError> {
+    Family::of_key(key).ok_or(RuntimeError::NotNow("a practice kind of that key"))
+}
 
 impl Runtime {
     /// `practice`: see the module.
@@ -47,7 +66,7 @@ impl Runtime {
             let line = self.bench_tap("How", ToolKind::Finger)?;
             lines.push(format!("instructions {when}: {line}"));
         }
-        if family == Some(Family::Line) {
+        if family.is_some_and(|family| family.facts().key == LINE) {
             self.bench_copy()?;
             for (label, control) in [
                 ("compare opens", "Compare"),
@@ -87,16 +106,12 @@ impl Runtime {
     /// an ellipse, each drawn (edges or a loop) and compared, the comparison then taken away: a
     /// line each.
     fn bench_perspective(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
-        for (family, name) in [
-            (Family::Box, "box"),
-            (Family::FreeBoxes, "free boxes"),
-            (Family::Ellipse, "ellipse"),
-        ] {
-            if !self.bench_on_to(family)? {
+        for (key, name, round) in PERSPECTIVE {
+            if !self.bench_on_to(of_key(key)?)? {
                 lines.push(format!("no {name} after this point of the session"));
                 continue;
             }
-            if family == Family::Ellipse {
+            if round {
                 self.bench_outline()?;
             } else {
                 self.bench_edges()?;
@@ -160,7 +175,7 @@ impl Runtime {
     /// copy, Compare (the copy's frame read back, the picture over it), another area chosen, the
     /// original shown dragged to full and Compare taken away: a line each.
     fn bench_combination(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
-        if !self.bench_on_to(Family::Areas)? {
+        if !self.bench_on_to(of_key(COMBINATION)?)? {
             lines.push("no colour combination after this point of the session".to_owned());
             return Ok(());
         }
@@ -185,7 +200,7 @@ impl Runtime {
     /// frame, then Compare (the picture and its outline in place), Aligned (fitted off the frame
     /// loop) and In place, Compare taken away: a line each.
     fn bench_shape(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
-        if !self.bench_on_to(Family::Shape)? {
+        if !self.bench_on_to(of_key(SHAPE)?)? {
             lines.push("no single shape after this point of the session".to_owned());
             return Ok(());
         }
@@ -206,18 +221,15 @@ impl Runtime {
     /// pen along its original a little moved and smaller (a stroke of `GROUP_LINE_MS`, the pen's
     /// samples 8 ms apart), then compared aligned (`bench_fit_shown`).
     fn bench_group(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
-        use openpaint_practice::Original;
-        if !self.bench_on_to(Family::Combined)? {
+        if !self.bench_on_to(of_key(GROUP)?)? {
             lines.push("no combined lines after this point of the session".to_owned());
             return Ok(());
         }
         let practice = self.projection().practice().cloned();
         let shown = (practice.as_ref()).and_then(|p| {
             let index = p.current?;
-            let Original::Lines(group) = &p.sheet.originals[index] else {
-                return None;
-            };
-            Some((group.clone(), p.sheet.pairs[index].copy))
+            let group = p.sheet.originals[index].lines()?.to_vec();
+            Some((group, p.sheet.pairs[index].copy))
         });
         let (group, frame) = shown.ok_or(RuntimeError::NotNow("combined lines shown"))?;
         let view = self.bench_view()?;
@@ -299,7 +311,7 @@ impl Runtime {
     /// The session taken on to its first colour (its instructions closed), the inline wheel's
     /// square dragged round, Fill frame and Compare: a line each.
     fn bench_colour(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
-        if !self.bench_on_to(Family::Colour)? {
+        if !self.bench_on_to(of_key(COLOUR)?)? {
             lines.push("no colour after this point of the session".to_owned());
             return Ok(());
         }

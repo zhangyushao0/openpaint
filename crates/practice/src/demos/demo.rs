@@ -15,6 +15,10 @@
 //! picture, construction and visible edges (S94), a landscape's picture, its division in V大's
 //! three levels and its line drawing (S95), its value masses and a copy of them read (S96).
 
+use std::any::Any;
+use std::fmt::Debug;
+use std::sync::Arc;
+
 use crate::compositions::levels::Level;
 use crate::compositions::value_masses::{Value, ValueMasses};
 use crate::maths::colour::Rgb8;
@@ -25,12 +29,47 @@ use crate::sessions::plan::Family;
 #[path = "demo_hand.rs"]
 mod hand;
 
-use crate::kinds::key_shifts::demo_key as key;
-
 pub(crate) use hand::{
-    DRAWN_OFF, bounds, clearest, line, off_marks, off_middle, seen, tick, wobbled,
+    DRAWN_OFF, TICK, band, bounds, clearest, line, off_marks, off_middle, rect, seen, tick, wobbled,
 };
-pub use key::ShiftDemo;
+
+/// A picture an example shows that its kind draws (an object's, S94), made when first shown.
+pub trait Pictured: Any + Debug + Send + Sync {
+    /// Its pixels at `side` pixels square: 8-bit RGBA, straight alpha.
+    fn picture(&self, side: u32) -> Vec<u8>;
+    /// Whether `other` is the same picture.
+    fn same(&self, other: &dyn Any) -> bool;
+}
+
+/// The picture a `Drawn::Shaded` mark lays, held; equal when it is the same picture.
+#[derive(Debug, Clone)]
+pub struct Shaded(pub Arc<dyn Pictured>);
+
+impl PartialEq for Shaded {
+    fn eq(&self, other: &Self) -> bool {
+        let other: &dyn Any = &*other.0;
+        self.0.same(other)
+    }
+}
+
+impl Shaded {
+    /// It as its kind's own picture `T`, if it is one (the tests read it so).
+    #[must_use]
+    pub fn downcast<T: Pictured>(&self) -> Option<&T> {
+        let any: &dyn Any = &*self.0;
+        any.downcast_ref::<T>()
+    }
+}
+
+/// What a demonstration shows under its frames (a key shift's, S107): a chip of the colour being
+/// painted (its colour and the colour it goes to) from when its painting begins, and a disc of
+/// the colour aimed at under the copy, ringed in pencil from `looked` on.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Strip {
+    pub disc: Rgb8,
+    pub looked: f64,
+    pub chips: Vec<(f64, [Rgb8; 2])>,
+}
 
 /// Seconds before the first mark (the card grows meanwhile), between marks and between steps (a
 /// moment to read the step's words before it draws).
@@ -168,8 +207,8 @@ pub struct Demo {
     pub layout: Layout,
     /// The colour combination its `Drawn::Areas` marks paint (a combination's only).
     pub areas: Option<crate::colour_areas::areas_generated::GeneratedAreas>,
-    /// The object its `Drawn::Shaded` mark shows (an object's only, S94).
-    pub object: Option<Box<crate::kinds::objects::object::ObjectTask>>,
+    /// The picture its `Drawn::Shaded` mark shows (an object's, S94).
+    pub shaded: Option<Shaded>,
     /// The landscape its `Drawn::Masses` marks show (a division's and a whole copy's, S95).
     pub masses: Option<Box<crate::compositions::masses::Masses>>,
     /// A whole copy's division (S95): its marks dim from the first time on (Draw chosen) and are
@@ -177,8 +216,8 @@ pub struct Demo {
     pub dimmed: Option<[f64; 2]>,
     /// The value masses its `Drawn::Values` marks show (S96): the answer's, then the hand's copy's.
     pub values: Option<Box<[ValueMasses; 2]>>,
-    /// A key shift's tendency and the chip under its frames (S107).
-    pub shift: Option<Box<ShiftDemo>>,
+    /// What shows under its frames (a key shift's chips and tendency, S107).
+    pub strip: Option<Box<Strip>>,
     /// Its marks in the order drawn, given ones first.
     pub marks: Vec<Mark>,
     /// When each step begins, seconds; a step's words are the UI's.
@@ -298,11 +337,11 @@ impl Script {
             family,
             layout,
             areas: None,
-            object: None,
+            shaded: None,
             masses: None,
             dimmed: None,
             values: None,
-            shift: None,
+            strip: None,
             marks: self.marks,
             steps: self.steps,
             length: from + SHOWING + HOLD,

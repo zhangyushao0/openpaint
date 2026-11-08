@@ -1,14 +1,18 @@
-//! Key shifts (`Kind::KeyShift`, S107, V大's 变调): tendencies, a shift by rule, the check, the How.
+//! Key shifts (`Kind::KeyShift`, S107, V大's 变调): tendencies, a shift by rule, the check, how a
+//! copy is read (`reading.rs`), the How and the tile.
 
-pub(crate) mod demo_key;
+pub(crate) mod demo;
 pub(crate) mod key_shift;
 pub(crate) mod key_shift_check;
 pub(crate) mod key_shift_rule;
 pub(crate) mod marks;
+pub(crate) mod reading;
 
 use crate::demos::demo::Demo;
-use crate::kinds::{Described, Facts, Kind, Original, Turn, Work};
+use crate::kinds::{Described, Facts, Kind, Needs, Original, Picks, Turn, Work};
+use crate::marks::asked::{Asked, Compare};
 use crate::marks::mark::SheetMark;
+use crate::marks::tile::{TileMark, closed, square};
 use crate::packs::pack::{ItemRef, Tier};
 use crate::sessions::family::Family;
 use crate::sessions::plan::Exercise;
@@ -18,7 +22,9 @@ use key_shift::Tendency;
 
 pub(crate) struct KeyShifts;
 
-const FACTS: [Facts; 1] = [Facts::of(Family::KeyShift, "key-shift", Work::Painted)];
+const FACTS: [Facts; 1] = [Facts::of(Family::KeyShift, "key-shift", Work::Painted)
+    .picks(Picks::Locked)
+    .needs(Needs::Crops)];
 /// How many key shifts a drill holds.
 const DRILLED: usize = 2;
 
@@ -54,12 +60,43 @@ impl Described for KeyShifts {
     }
 
     fn how(&self, _family: Family) -> Option<Demo> {
-        Some(demo_key::key_shift())
+        Some(demo::key_shift())
     }
 
     /// A drill: two crops, their leans in turn.
     fn drill(&self, _family: Family, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
         let mut picker = Picker::new(turn.seed, turn.before, Tier::Simple);
         key_shifts(&mut picker, (DRILLED, turn.turn), (turn.seed, turn.before))
+    }
+
+    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
+        reading::compare(asked)
+    }
+
+    /// A crop's two bands, an arrow, the tendency's disc it shifts toward.
+    fn tile(&self, _family: Family) -> Vec<TileMark> {
+        let crop = square([7.0, 10.0], [27.0, 30.0]);
+        let disc: Vec<[f32; 2]> = (0..12)
+            .map(|k| {
+                let turn = std::f32::consts::TAU * k as f32 / 12.0;
+                [42.0 + 5.0 * turn.cos(), 20.0 + 5.0 * turn.sin()]
+            })
+            .collect();
+        vec![
+            TileMark::Tint(
+                vec![[7.0, 10.0], [27.0, 10.0], [27.0, 17.0], [7.0, 21.0]],
+                0.15,
+            ),
+            TileMark::Tint(
+                vec![[7.0, 21.0], [27.0, 17.0], [27.0, 30.0], [7.0, 30.0]],
+                0.45,
+            ),
+            TileMark::Line(closed(&crop)),
+            TileMark::Line(vec![[7.0, 21.0], [27.0, 17.0]]),
+            TileMark::Line(vec![[30.0, 20.0], [35.0, 20.0]]),
+            TileMark::Line(vec![[33.0, 18.0], [35.0, 20.0], [33.0, 22.0]]),
+            TileMark::Tint(disc.clone(), 0.6),
+            TileMark::Line(closed(&disc)),
+        ]
     }
 }

@@ -1,15 +1,16 @@
 //! Free boxes (`Kind::FreeBoxes`, S84): boxes drawn freely on a horizon, checked by the rules
-//! alone. Their page is `geometry/perspective.rs`; the How is the boxes' (`demo_space.rs`).
+//! alone. Their page is `geometry/perspective.rs`; its How `demo.rs`.
 
+pub(crate) mod demo;
 pub(crate) mod marks;
 pub(crate) mod perspective_free;
 
 use crate::demos::demo::Demo;
 use crate::geometry::perspective::{Horizon, PerspectiveBox};
-use crate::kinds::boxes::demo_space;
 use crate::kinds::{Described, Facts, Kind, Original, Turn, Work, place};
 use crate::marks::compared::{Compared, DrawnCopy};
 use crate::marks::mark::SheetMark;
+use crate::marks::tile::{TileMark, boxed};
 use crate::packs::pack::ItemRef;
 use crate::sessions::drill::turned;
 use crate::sessions::family::Family;
@@ -64,11 +65,19 @@ impl Described for FreeBoxes {
     }
 
     fn how(&self, _family: Family) -> Option<Demo> {
-        Some(demo_space::free_boxes())
+        Some(demo::free_boxes())
     }
 
     /// A drill: one page, its horizon in turn.
     fn drill(&self, _family: Family, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
         turned((&HORIZONS, 1), turn, Kind::FreeBoxes)
+    }
+
+    /// Two small boxes on a horizon.
+    fn tile(&self, _family: Family) -> Vec<TileMark> {
+        let mut marks = vec![TileMark::Line(vec![[4.0, 12.0], [50.0, 12.0]])];
+        marks.extend(boxed([-12.0, 6.0], 0.45));
+        marks.extend(boxed([12.0, 5.0], 0.4));
+        marks
     }
 }

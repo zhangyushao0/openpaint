@@ -10,10 +10,28 @@ use crate::maths::path::{Point, distance, length};
 /// What a hand draws in the examples a little off a part on purpose (frame units): twice the Draw
 /// pen's width, so Compare marks it as the exercise would (S98).
 pub(crate) const DRAWN_OFF: f64 = 2.0 * crate::geometry::off::PEN_WIDTH;
+/// The half length of a tick that marks how far a line or a silhouette reaches (frame units).
+pub(crate) const TICK: f64 = 0.035;
 
 /// The line through `a` and `b`, two points.
 pub(crate) fn line(a: Point, b: Point) -> Drawn {
     Drawn::Line(vec![a, b])
+}
+
+/// The rectangle from `[left, top]` to `[right, bottom]` as two rows.
+pub(crate) fn rect([left, top]: Point, [right, bottom]: Point) -> Vec<[Point; 2]> {
+    vec![
+        [[left, top], [right, top]],
+        [[left, bottom], [right, bottom]],
+    ]
+}
+
+/// The area between `rows` in `colour`.
+pub(crate) fn band(rows: Vec<[Point; 2]>, colour: crate::maths::colour::Rgb8) -> Drawn {
+    Drawn::Band {
+        rows,
+        colour: Some(colour),
+    }
 }
 
 /// Compare's marks of what is off (`off.rs`) on the copy's frame: a ring in the answer's red, an

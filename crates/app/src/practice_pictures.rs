@@ -1,15 +1,9 @@
-//! Pictures on a practice sheet (S80): a single shape's, a colour copy's or a crop's picture as its pack
-//! holds it (its size, its outline and the credit to show under it), filling its frame of its
-//! shape (S99); the picture's pixels as the store read them for the screen, and a single shape's
-//! with its ground faded (S99); the packs kept as the Today card's options list them; and the
-//! aligned overlay's fit, found off the frame loop (`FitJob`).
+//! Pictures on a practice sheet (S80): a pack's picture's pixels as the store read them for the
+//! screen, and a single shape's with its ground faded (S99); where a picture lies in its frame is
+//! the practice crate's (`SheetPicture`); the packs kept as the Today card's options list them;
+//! and the aligned overlay's fit, found off the frame loop (`FitJob`).
 
-use std::sync::Arc;
-
-use openpaint_practice::{
-    Areas, Fit, ItemRef, Pack, PackItem, PictureFit, Point, ValueMasses, align, align_shape,
-    faded_ground,
-};
+use openpaint_practice::{Fit, Pack, Point, SheetPicture, ToFit, align, align_shape, faded_ground};
 
 /// The longest side a picture is read at for the screen, in pixels: a frame shows it at most
 /// about 900 pixels on the tablet, and the reduced picture keeps every session's few pictures
@@ -19,86 +13,26 @@ pub const SHOWN_SIDE: u32 = 1024;
 /// author): faded towards the paper, still there for context; the object at full strength.
 pub const GROUND_SHOWN: f32 = 0.3;
 
-/// A single shape's picture on the sheet.
-#[derive(Debug, Clone, PartialEq)]
-pub struct SheetPicture {
-    pub item: ItemRef,
-    /// The picture's size, in its pack's pixels.
-    pub size: [u32; 2],
-    /// Where it lies in its frame.
-    pub fit: PictureFit,
-    /// Its outline's closed lines in frame units; none where its pack has none.
-    pub outline: Option<Vec<Vec<Point>>>,
-    /// The credit that shows small under it: an Attribution licence's.
-    pub credit: Option<String>,
-    /// Its value masses (a composition's whose masses read, S96); none where its pack has none.
-    pub masses: Option<MassesShown>,
-    /// Its colour areas (a crop's, S101), in shares of the picture; none for another picture.
-    pub areas: Option<Arc<Areas>>,
-}
-
-/// A picture's value masses as its frame shows them: the answer, and its mass edges in frame
-/// units (where the picture lies in its frame).
-#[derive(Debug, Clone, PartialEq)]
-pub struct MassesShown {
-    pub answer: Arc<ValueMasses>,
-    pub edges: Vec<Vec<Point>>,
-}
-
-impl SheetPicture {
-    /// The picture `item` names, as `packs` hold it, filling its frame of its own shape (S99);
-    /// `None` when no pack kept holds it.
-    #[must_use]
-    pub fn of(item: &ItemRef, packs: &[Pack]) -> Option<Self> {
-        let found: &PackItem = packs.iter().find_map(|pack| pack.find(item))?;
-        let fit = PictureFit::of(found.size);
-        let outline = (found.outline.as_ref()).map(|outline| {
-            (outline.lines().into_iter())
-                .map(|line| line.iter().map(|p| fit.to_frame(*p)).collect())
+/// `image` (`picture` as read for the screen) with its ground, outside its outline, at
+/// `GROUND_SHOWN` (S99): a single shape's original, the object whole against the frame; none
+/// without an outline.
+#[must_use]
+pub fn grounded(picture: &SheetPicture, image: &PictureImage) -> Option<PictureImage> {
+    let outline = picture.outline.as_ref()?;
+    // Frame units to the image's pixels: the picture fills its frame.
+    let scale = [0, 1].map(|axis| f64::from(image.size[axis]) / picture.fit.size[axis]);
+    let lines: Vec<Vec<Point>> = (outline.iter())
+        .map(|line| {
+            line.iter()
+                .map(|p| [p[0] * scale[0], p[1] * scale[1]])
                 .collect()
-        });
-        let masses = found.masses.as_ref().map(|answer| {
-            let [w, h] = fit.size;
-            let at = |[u, v]: Point| [u * w, v * h];
-            MassesShown {
-                edges: (answer.edges().into_iter())
-                    .map(|edge| edge.into_iter().map(at).collect())
-                    .collect(),
-                answer: Arc::clone(answer),
-            }
-        });
-        Some(Self {
-            item: item.clone(),
-            size: found.size,
-            fit,
-            outline,
-            credit: found.shown_credit().map(str::to_owned),
-            masses,
-            areas: found.areas.clone(),
         })
-    }
-
-    /// `image` (this picture as read for the screen) with its ground, outside its outline, at
-    /// `GROUND_SHOWN` (S99): a single shape's original, the object whole against the frame; none
-    /// without an outline.
-    #[must_use]
-    pub fn grounded(&self, image: &PictureImage) -> Option<PictureImage> {
-        let outline = self.outline.as_ref()?;
-        // Frame units to the image's pixels: the picture fills its frame.
-        let scale = [0, 1].map(|axis| f64::from(image.size[axis]) / self.fit.size[axis]);
-        let lines: Vec<Vec<Point>> = (outline.iter())
-            .map(|line| {
-                line.iter()
-                    .map(|p| [p[0] * scale[0], p[1] * scale[1]])
-                    .collect()
-            })
-            .collect();
-        let shown = f64::from(GROUND_SHOWN);
-        Some(PictureImage {
-            size: image.size,
-            pixels: faded_ground(image.size, &image.pixels, &lines, shown),
-        })
-    }
+        .collect();
+    let shown = f64::from(GROUND_SHOWN);
+    Some(PictureImage {
+        size: image.size,
+        pixels: faded_ground(image.size, &image.pixels, &lines, shown),
+    })
 }
 
 /// A picture's pixels as the screen shows them: 8-bit sRGB with straight alpha, a pack's reduced
@@ -163,6 +97,17 @@ pub struct FitJob {
 }
 
 impl FitJob {
+    /// The fit for the Compare numbered `sequence` of `asked` onto the lines of `copy`.
+    #[must_use]
+    pub(crate) fn of(sequence: u64, asked: ToFit, copy: Vec<Vec<Point>>) -> Self {
+        Self {
+            sequence,
+            original: asked.original,
+            copy,
+            shape: asked.shape,
+        }
+    }
+
     /// The fit; `None` when either side has no length.
     #[must_use]
     pub fn run(&self) -> Option<Fit> {

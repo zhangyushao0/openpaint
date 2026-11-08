@@ -1,12 +1,15 @@
-//! Combined lines (`Kind::Combined`): two to four lines copied as one shape, in four arrangements.
+//! Combined lines (`Kind::Combined`): two to four lines copied as one shape, in four arrangements;
+//! given, compared and fitted as a single line's lines are (`lines/marks.rs`).
 
 pub(crate) mod combined;
+pub(crate) mod demo;
 
 use crate::demos::demo::Demo;
-use crate::kinds::lines::demo_drawn;
 use crate::kinds::lines::marks as line_marks;
 use crate::kinds::{Described, Facts, Kind, Original, Turn, Work, place};
+use crate::marks::asked::{Asked, Compare};
 use crate::marks::mark::SheetMark;
+use crate::marks::tile::{TileMark, curve};
 use crate::packs::pack::ItemRef;
 use crate::sessions::family::Family;
 use crate::sessions::plan::Exercise;
@@ -46,18 +49,28 @@ impl Described for CombinedLines {
 
     /// A group's lines, as a single line's (combined lines are lines copied as one shape).
     fn givens(&self, _exercise: &Exercise, original: &Original) -> Vec<SheetMark> {
-        match original {
-            Original::Lines(lines) => line_marks::givens(lines),
-            _ => Vec::new(),
-        }
+        original.lines().map(line_marks::givens).unwrap_or_default()
     }
 
     fn how(&self, _family: Family) -> Option<Demo> {
-        Some(demo_drawn::combined())
+        Some(demo::combined())
     }
 
     /// A drill: each arrangement once.
     fn drill(&self, _family: Family, _turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
         COMBINED.map(|c| (Kind::Combined(c), None)).to_vec()
+    }
+
+    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
+        line_marks::compare(asked)
+    }
+
+    /// Two lines joined, each gently bowed.
+    fn tile(&self, _family: Family) -> Vec<TileMark> {
+        let bow = |t: f32| (std::f32::consts::PI * t).sin();
+        vec![
+            TileMark::Line(curve(|t| [9.0 + 15.0 * t, 30.0 - 19.0 * t - 2.0 * bow(t)])),
+            TileMark::Line(curve(|t| [24.0 + 21.0 * t, 11.0 + 16.0 * t - 2.5 * bow(t)])),
+        ]
     }
 }

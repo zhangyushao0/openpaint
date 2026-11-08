@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use openpaint_core::{Artwork, Layer, StrokeTool};
-use openpaint_practice::{Book, Family, Original, Pack, Point, Rgb8, SessionRecord, Sheet};
+use openpaint_practice::{Book, Family, Kept, Pack, Point, Rgb8, SessionRecord, Sheet};
 
 use crate::practice::laid;
 use crate::practice_copy::{ALL_STROKES, colour_copy, line_pieces, rgb8};
@@ -109,21 +109,23 @@ impl SheetRead {
             else {
                 continue;
             };
-            // Only a line's and a colour's original is read: others (an object's) take time to lay.
-            if !matches!(exercise.kind.family(), Family::Line | Family::Colour) {
+            // Only what the book keeps is read: others' originals (an object's) take time to lay.
+            let kept = exercise.kind.facts().kept;
+            if kept == Kept::Nothing {
                 continue;
             }
-            match (exercise.kind.family(), exercise.original()) {
-                (Family::Line, Original::Lines(original)) => {
+            let original = exercise.original();
+            match (kept, original.lines(), original.swatch()) {
+                (Kept::Line, Some(original), _) => {
                     let first = result.corrected_from.map_or(ALL_STROKES, |from| 0..from);
                     let copy = line_pieces(artwork, &pair.copy, first);
                     lines.push(LineRead {
                         index: result.index,
-                        original,
+                        original: original.to_vec(),
                         copy,
                     });
                 }
-                (Family::Colour, Original::Colour(original)) => {
+                (Kept::Pick, _, Some(original)) => {
                     let laid = colour_copy(artwork, &pair.copy);
                     if let Some(first) = laid.picks.first() {
                         colours.push((original, *first));

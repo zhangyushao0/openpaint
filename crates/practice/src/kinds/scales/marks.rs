@@ -4,10 +4,49 @@
 //! its even one. The card says how many cells are uneven.
 
 use crate::kinds::scales::scale::{ROW, ScaleCheck, ValueScale};
+use crate::marks::asked::{Asked, Compare, Read, Reading, Reads};
 use crate::marks::card::{CardItem, Say};
-use crate::marks::compared::{Compared, Seen};
+use crate::marks::compared::{Compared, Comparison, Seen};
 use crate::marks::mark::{Figure, In, SheetMark};
+use crate::maths::colour::Rgb8;
 use crate::maths::path::Point;
+
+/// A value scale's copy, read from its frame's pixels on the compare worker: each cell's lightness
+/// against its even step.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ScaleReading {
+    pub scale: ValueScale,
+}
+
+impl Reads for ScaleReading {
+    fn unread(&self) -> Comparison {
+        Comparison::of(ScaleCompared {
+            scale: self.scale,
+            check: None,
+        })
+    }
+
+    fn read(&self, size: [u32; 2], pixels: &[u8], paper: Rgb8) -> Read {
+        let check = self.scale.read(size, pixels, paper);
+        let metrics = check.metrics();
+        Read {
+            comparison: Comparison::of(ScaleCompared {
+                scale: self.scale,
+                check: Some(check),
+            }),
+            metrics,
+        }
+    }
+}
+
+/// A value scale's copy compared, once anything lies in its frame: read from its pixels.
+pub(crate) fn compare(asked: &Asked<'_>) -> Option<Compare> {
+    if !asked.held() {
+        return None;
+    }
+    let scale = *asked.original.scale()?;
+    Some(Compare::Read(Reading::of(ScaleReading { scale })))
+}
 
 /// The ends filled as given and every cell outlined.
 pub(crate) fn givens(scale: &ValueScale) -> Vec<SheetMark> {

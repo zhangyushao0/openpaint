@@ -2,10 +2,31 @@
 //! outline in the marking red, in place or aligned (`Seen::fit`); a picture without an outline lies
 //! in place only, and the card says why Aligned is greyed.
 
+use crate::marks::asked::{Asked, Compare, ToFit};
 use crate::marks::card::{CardItem, Say};
-use crate::marks::compared::{Compared, Seen};
+use crate::marks::compared::{Compared, Comparison, Seen};
 use crate::marks::mark::{Clip, Figure, In, LinePen, Place, SheetMark, Source};
 use crate::maths::path::Point;
+
+/// A single shape's copy compared, once anything lies in its frame and its picture is held: the
+/// picture and its outline laid over it, the outline fitted onto it for Aligned (none to fit
+/// without an outline: in place only).
+pub(crate) fn compare(asked: &Asked<'_>) -> Option<Compare> {
+    if !asked.held() {
+        return None;
+    }
+    let picture = asked.picture?;
+    let outline = picture.outline.clone();
+    let fit = (outline.clone()).map(|original| ToFit {
+        original,
+        shape: true,
+    });
+    let shown = Comparison::of(ShapeCompared {
+        corners: picture.fit.corners(),
+        outline,
+    });
+    Some(Compare::Fitted(shown, fit))
+}
 
 /// How much of a single shape's picture shows under its outline.
 pub const SHAPE_SHOWN: f32 = 0.35;

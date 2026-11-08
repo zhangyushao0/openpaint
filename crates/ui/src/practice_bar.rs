@@ -9,7 +9,7 @@
 
 use egui::Align;
 use openpaint_app::{Intent, PracticeIntent, PracticeProjection, SessionProjection, Viewport};
-use openpaint_practice::Family;
+use openpaint_practice::PROJECT;
 
 use crate::color_panel::ColorPanel;
 use crate::components::{
@@ -106,7 +106,7 @@ impl PracticeBar {
             }
             return;
         }
-        let study = practice.family == Some(Family::Study);
+        let study = practice.stage == PROJECT;
         if study {
             // Its name: its sheet's title, "Colour copy n" until renamed.
             ui.label(t::shown_name(language, practice.sheet.name.as_str()));

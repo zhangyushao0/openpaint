@@ -234,33 +234,36 @@ pub(crate) fn summary(ui: &mut egui::Ui, practice: &PracticeProjection, kinds: &
         let line = t::compared_of(language, kind.family, (kind.checked, kind.held));
         card_text(ui, Words::made(&line), false);
     }
-    let Some(colours) = kinds.iter().find(|kind| kind.family == Family::Colour) else {
+    // The kind the summary judges (the colours' radar, D108), its rows under it.
+    let Some((colours, [this, before])) =
+        (kinds.iter()).find_map(|kind| kind.judgement.map(|judged| (kind, judged)))
+    else {
         items::summary_rows(ui, kinds);
         return;
     };
-    if let Some([this, before]) = colours.judgement {
-        let axes: Vec<RadarAxis<'_>> = Axis::ALL
-            .iter()
-            .map(|&axis| {
-                (
-                    t::judgement_axis(axis).get(language),
-                    share(this.of(axis)),
-                    share(before.of(axis)),
-                )
-            })
-            .collect();
-        // Smaller where the combinations' and scales' rows follow, so the card fits the screen.
-        let more = sealed
-            || (kinds.iter()).any(|kind| kind.family != Family::Colour && !kind.rows.is_empty());
-        let side = if more {
-            SUMMARY_RADAR
-        } else {
-            DIALOG_WIDTH - 4.0 * SPACE
-        };
-        radar(ui, &axes, side);
+    let axes: Vec<RadarAxis<'_>> = Axis::ALL
+        .iter()
+        .map(|&axis| {
+            (
+                t::judgement_axis(axis).get(language),
+                share(this.of(axis)),
+                share(before.of(axis)),
+            )
+        })
+        .collect();
+    // Smaller where the combinations' and scales' rows follow, so the card fits the screen.
+    let more =
+        sealed || (kinds.iter()).any(|kind| kind.judgement.is_none() && !kind.rows.is_empty());
+    let side = if more {
+        SUMMARY_RADAR
+    } else {
+        DIALOG_WIDTH - 4.0 * SPACE
+    };
+    radar(ui, &axes, side);
+    if let Some(head) = t::kind_words(colours.family).rows {
+        let heads = [head, t::THIS_SESSION, t::BEFORE].map(|head| head.get(language));
+        card_columns(ui, &heads, true);
     }
-    let heads = [t::COLOURS, t::THIS_SESSION, t::BEFORE].map(|head| head.get(language));
-    card_columns(ui, &heads, true);
     for (metric, this, before) in &colours.rows {
         let shown =
             |mean: &Option<f64>| mean.map_or_else(|| "—".to_owned(), |v| metric_text(*metric, v));

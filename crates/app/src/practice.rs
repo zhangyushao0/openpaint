@@ -15,22 +15,17 @@ use std::sync::Arc;
 use openpaint_core::Color;
 use openpaint_practice::{
     Areas, CardItem, ExerciseResult, Family, KindSummary, Level, Original, Pack, Pair, Point, Rgb8,
-    SessionRecord, Sheet, SheetMark, Tendency, Value,
+    SessionRecord, Sheet, SheetMark, SheetPicture, Value,
 };
 
 use crate::layer_rules::LayerRefusal;
-use crate::practice_pictures::{PictureImage, SheetPicture};
+use crate::practice_pictures::PictureImage;
 use crate::practice_sheet::Finished;
 pub use crate::practice_shown::{CopyRead, Greys};
 use crate::projection::Availability;
 use crate::title::Title;
 use crate::view::Viewport;
 
-/// The side a generated colour combination's picture is drawn at (a record of 1.18.1 and
-/// before), in pixels: one to a frame's canvas pixel.
-pub const AREAS_SIDE: u32 = 400;
-/// The side an object's picture is drawn at (S94), likewise.
-pub const OBJECT_SIDE: u32 = 400;
 /// How much of a colour combination's, a colour copy's, a division's or a whole copy's original
 /// shows over the copy at first, in place.
 pub const SHOWN: f32 = 0.5;
@@ -242,18 +237,14 @@ pub struct SheetView {
     pub size: [u32; 2],
     pub pairs: Vec<Pair>,
     pub originals: Vec<Original>,
-    /// Each exercise's family: a picture's original is a shape's, a copy's, a division's or a
-    /// whole copy's.
+    /// Each exercise's family, whose facts the flow and the screen read.
     pub families: Vec<Family>,
-    /// Each exercise's picture, a single shape's or a colour copy's (none: another kind, or a
-    /// picture no pack holds now: removed).
+    /// Each exercise's pack picture (none: a kind without one, or a picture no pack holds now:
+    /// removed).
     pub pictures: Vec<Option<Arc<SheetPicture>>>,
-    /// Each colour combination's picture, `AREAS_SIDE` square, each object's (S94),
-    /// `OBJECT_SIDE` square, and each value masses' answer in its greys, a pixel a cell (S96):
-    /// pictures the practice crate draws.
+    /// Each exercise's picture the practice crate draws (`Exercise::painted`: a generated
+    /// combination's, an object's, value masses' answer in its greys).
     pub painted: Vec<Option<Arc<PictureImage>>>,
-    /// Each key shift's tendency, printed beside its frame (S107).
-    pub tendencies: Vec<Option<Tendency>>,
     /// What each exercise gives in its frames before Compare, as its kind draws it (S109).
     pub givens: Vec<Vec<SheetMark>>,
 }
@@ -270,14 +261,14 @@ impl SheetView {
         let pictures: Vec<Option<Arc<SheetPicture>>> = (record.exercises.iter())
             .map(|e| SheetPicture::of(e.picture.as_ref()?, packs).map(Arc::new))
             .collect();
-        let painted = (originals.iter().zip(&pictures).zip(&families))
-            .map(|((original, picture), family)| painted(original, picture.as_deref(), *family))
+        let painted = (record.exercises.iter().zip(&originals).zip(&pictures))
+            .map(|((exercise, original), picture)| {
+                let (size, pixels) = exercise.painted(original, picture.as_deref())?;
+                Some(Arc::new(PictureImage { size, pixels }))
+            })
             .collect();
         let givens = (record.exercises.iter().zip(&originals))
             .map(|(exercise, original)| exercise.givens(original))
-            .collect();
-        let tendencies = (record.exercises.iter())
-            .map(|e| e.kind.tendency())
             .collect();
         Self {
             name: name.clone(),
@@ -285,47 +276,23 @@ impl SheetView {
             pairs: sheet.pairs,
             pictures,
             painted,
-            tendencies,
             originals,
             families,
             givens,
         }
     }
 
-    /// Exercise `index`'s colour combination or key shift (S107), if it is one: its areas and the
-    /// size its picture fills in its frame (frame units); a crop's as its pack holds them (S101),
-    /// or a generated one's (a record of 1.18.1 and before), its square frame whole. None for
-    /// another kind or a crop no pack holds now (removed).
+    /// Exercise `index`'s colour areas, if it has any: its areas and the size its picture fills in
+    /// its frame (frame units); a crop's as its pack holds them (S101), or a generated
+    /// combination's (a record of 1.18.1 and before), its square frame whole. None for another
+    /// kind or a crop no pack holds now (removed).
     #[must_use]
     pub fn areas(&self, index: usize) -> Option<(&Areas, Point)> {
-        match self.originals.get(index)? {
-            Original::Areas(generated) => Some((&generated.areas, [1.0, 1.0])),
-            Original::Picture(_) => {
-                let picture = self.pictures.get(index)?.as_ref()?;
-                Some((picture.areas.as_deref()?, picture.fit.size))
-            }
-            _ => None,
+        if let Some(made) = self.originals.get(index)?.areas() {
+            return Some(made);
         }
+        self.pictures.get(index)?.as_ref()?.areas_in_frame()
     }
-}
-
-/// The picture the practice crate draws for an exercise of `family` whose original is `original`
-/// (its pack's `picture`, if any): a colour combination's, an object's, value masses' answer.
-fn painted(
-    original: &Original,
-    picture: Option<&SheetPicture>,
-    family: Family,
-) -> Option<Arc<PictureImage>> {
-    let (size, pixels) = match original {
-        Original::Areas(generated) => ([AREAS_SIDE; 2], generated.picture(AREAS_SIDE)),
-        Original::Object(task) => ([OBJECT_SIDE; 2], task.picture(OBJECT_SIDE)),
-        Original::Picture(_) if family == Family::ValueMasses => {
-            let masses = picture?.masses.as_ref()?;
-            (masses.answer.size, masses.answer.picture())
-        }
-        _ => return None,
-    };
-    Some(Arc::new(PictureImage { size, pixels }))
 }
 
 /// The sheet a new `record`'s exercises are laid on: a long colour copy's of its picture's shape

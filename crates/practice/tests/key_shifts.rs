@@ -262,7 +262,7 @@ fn stage_five_is_a_warm_up_then_three_key_shifts_of_crops_their_leans_in_turn() 
 fn the_how_shifts_its_example_step_by_step_and_compares_it_in_grey() {
     let demo = Demo::of(Family::KeyShift).expect("a demonstration");
     assert_eq!(demo.steps.len(), 7, "V大's six steps and Compare");
-    let shift = demo.shift.as_ref().expect("its tendency and chips");
+    let shift = demo.strip.as_ref().expect("its tendency and chips");
     assert_eq!(shift.chips.len(), 5, "a chip an area");
     assert!(shift.looked < shift.chips[0].0);
     let areas = &demo.areas.as_ref().expect("its example").areas;

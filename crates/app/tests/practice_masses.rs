@@ -11,13 +11,13 @@ use std::sync::Arc;
 
 use openpaint_app::{
     BLOCKS_LAYER, BrushLibrary, DIVISION_DIMMED, DIVISION_LAYER, Pen, PictureImage, PracticeIntent,
-    PracticeLog, PracticePens, PracticePick, ReadAs, Session, SheetView, Title, Toolbox, Viewport,
+    PracticeLog, PracticePens, PracticePick, Session, SheetView, Title, Toolbox, Viewport,
     sheet_of, value_colour,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Exercise, Family, ItemRef, Kind, Masses, MassesCompared, Metric, Pack, PackItem, PictureKind,
-    Plan, SessionRecord, Tier, Value, ValueMasses, value,
+    Exercise, Family, ItemRef, Kind, Masses, MassesCompared, MassesReading, Metric, Pack, PackItem,
+    PictureKind, Plan, SessionRecord, Tier, Value, ValueMasses, value,
 };
 
 const VIEWPORT: Viewport = Viewport {
@@ -151,9 +151,10 @@ fn value_masses_are_painted_in_three_greys_and_read_against_the_answer() {
     practise(&mut session, PracticeIntent::Compare(true));
     let job = session.practice_read_request().expect("the copy asked for");
     assert_eq!(job.size, [400, 300]);
-    let ReadAs::Masses(answer, place, ..) = job.read.clone() else {
-        panic!("{:?}", job.read);
+    let Some(MassesReading { answer, place, .. }) = job.reading.downcast::<MassesReading>() else {
+        panic!("{:?}", job.reading);
     };
+    let (answer, place) = (Arc::clone(answer), *place);
     assert_eq!(place, [[0.0, 0.0], [1.0, 0.75]]);
     let read = job.run(&painted(&answer, place, job.size)).expect("read");
     let masses = read.comparison.downcast::<MassesCompared>();

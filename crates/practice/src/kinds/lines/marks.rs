@@ -2,10 +2,26 @@
 //! the copy in place or aligned (`Seen::fit`) in the marking red as thick as the pen and
 //! see-through; the card offers In place and Aligned.
 
+use crate::marks::asked::{Asked, Compare, ToFit};
 use crate::marks::card::CardItem;
-use crate::marks::compared::{Compared, Seen};
+use crate::marks::compared::{Compared, Comparison, Seen};
 use crate::marks::mark::{Clip, In, LinePen, SheetMark};
 use crate::maths::path::Point;
+
+/// A line's or a group's copy compared, once anything lies in its frame: its original's lines laid
+/// over it, fitted onto it for Aligned.
+pub(crate) fn compare(asked: &Asked<'_>) -> Option<Compare> {
+    if !asked.held() {
+        return None;
+    }
+    let lines = asked.original.lines()?.to_vec();
+    let fit = ToFit {
+        original: lines.clone(),
+        shape: false,
+    };
+    let shown = Comparison::of(LinesCompared { lines });
+    Some(Compare::Fitted(shown, Some(fit)))
+}
 
 /// The lines in ink in the original's frame.
 pub(crate) fn givens(lines: &[Vec<Point>]) -> Vec<SheetMark> {

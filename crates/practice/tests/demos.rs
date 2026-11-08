@@ -2,7 +2,7 @@
 //! pace, ending on Compare's marks; the constructions it draws land on the exact answers.
 
 use openpaint_practice::{
-    Demo, Drawn, Family, Layout, Marker, On, Point, WIDE_REACH, distance, meet,
+    Demo, Drawn, Family, Layout, Marker, ObjectTask, On, Point, WIDE_REACH, distance, meet,
 };
 
 /// Each kind's steps, Compare the last.
@@ -302,7 +302,8 @@ fn a_combination_is_painted_area_by_area_with_its_pens_in_their_order() {
 fn an_objects_example_shows_its_picture_beside_the_box_and_its_corners_on_the_construction() {
     let demo = demo(Family::Object);
     assert_eq!(demo.layout, Layout::Pair);
-    let task = demo.object.as_deref().expect("the example object");
+    let shaded = demo.shaded.as_ref().expect("the example object");
+    let task = shaded.downcast::<ObjectTask>().expect("an object");
     assert_eq!(task.stages.len(), 2, "big to small: two changes");
     // Each step reads on the card: a dozen lines at most, no round part's square and middles.
     assert!(task.squares.is_empty());

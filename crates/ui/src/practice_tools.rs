@@ -25,7 +25,7 @@ use openpaint_app::{
     SessionProjection, Tool, ToolIntent,
 };
 use openpaint_core::Color;
-use openpaint_practice::Family;
+use openpaint_practice::Tools;
 
 use crate::color_panel::ColorPanel;
 use crate::components::{
@@ -46,7 +46,10 @@ pub(crate) fn own_tools(projection: &SessionProjection) -> bool {
 /// All tools, in the left island after Gallery; none on a long colour copy, which shows the full
 /// interface only (S104).
 pub(crate) fn all_tools(ui: &mut egui::Ui, practice: &PracticeProjection, taps: &mut Vec<Intent>) {
-    if practice.family == Some(Family::Study) {
+    if practice
+        .family
+        .is_some_and(|family| family.facts().tools == Tools::Full)
+    {
         return;
     }
     choices(ui, "all tools", |ui, group| {
@@ -75,36 +78,39 @@ pub(crate) fn exercise_tools(
         return None;
     }
     let source = (Source::Within(Align::Center), UNDER_ISLANDS);
-    let family = practice.family?;
-    if family == Family::WholeCopy {
-        let tools = |ui: &mut egui::Ui| whole_copy_tools(ui, projection, colors, taps);
-        return Some(card(ctx, "practice pens", source, tools).1);
-    }
-    if family.drawn() {
-        let offered: &[Pen] = match family {
-            Family::Division => &Pen::DIVIDING,
-            _ => &Pen::DRAWING,
-        };
+    let tools = practice.family?.facts().tools;
+    let offered: &[Pen] = match tools {
+        Tools::Copying => {
+            let tools = |ui: &mut egui::Ui| whole_copy_tools(ui, projection, colors, taps);
+            return Some(card(ctx, "practice pens", source, tools).1);
+        }
+        Tools::Greys => {
+            let greys = |ui: &mut egui::Ui| masses_tools(ui, projection, taps);
+            return Some(card(ctx, "practice greys", source, greys).1);
+        }
+        Tools::Full => return None,
+        Tools::Drawing => &Pen::DRAWING,
+        Tools::Dividing => &Pen::DIVIDING,
+        Tools::Colour | Tools::Cells | Tools::Painting => &[],
+    };
+    if !offered.is_empty() {
         let pens = |ui: &mut egui::Ui| {
             ui.horizontal(|ui| pens(ui, ("pens", offered), projection, taps));
             ui.horizontal(|ui| history(ui, projection, taps));
         };
         return Some(card(ctx, "practice pens", source, pens).1);
     }
-    if family == Family::ValueMasses {
-        let greys = |ui: &mut egui::Ui| masses_tools(ui, projection, taps);
-        return Some(card(ctx, "practice greys", source, greys).1);
-    }
     let brush = projection.brush()?;
     // A painted copy compared, or any How with its demonstration: the card needs the room; the
     // wheel comes back with the pen or Got it.
-    let wheel = !(practice.comparing && family.painted()) && practice.instructions.is_none();
+    let painted = tools != Tools::Colour;
+    let wheel = !(practice.comparing && painted) && practice.instructions.is_none();
     let ((), rect) = card(ctx, "practice colour", source, |ui| {
         if wheel {
             ui.vertical_centered(|ui| colors.inline_wheel(ui, brush, taps));
             ui.add_space(SPACE);
         }
-        colour_rows(ui, (family, brush), projection, taps);
+        colour_rows(ui, (tools, brush), projection, taps);
     });
     Some(rect)
 }
@@ -115,13 +121,13 @@ pub(crate) fn exercise_tools(
 /// (S100): no pens, the eyedropper beside Redo.
 fn colour_rows(
     ui: &mut egui::Ui,
-    (family, brush): (Family, &BrushProjection),
+    (tools, brush): (Tools, &BrushProjection),
     projection: &SessionProjection,
     taps: &mut Vec<Intent>,
 ) {
-    let fill = match family {
-        Family::Scale => Some(t::FILL_CELL),
-        Family::Colour | Family::Areas | Family::KeyShift => Some(t::FILL_FRAME),
+    let fill = match tools {
+        Tools::Cells => Some(t::FILL_CELL),
+        Tools::Colour | Tools::Painting => Some(t::FILL_FRAME),
         _ => None,
     };
     let pick = |ui: &mut egui::Ui, taps: &mut Vec<Intent>| {
@@ -134,14 +140,14 @@ fn colour_rows(
         if let Some(words) = fill {
             fill_frame(ui, brush.color, words, taps);
         }
-        if family.painted() {
+        if tools != Tools::Colour {
             history(ui, projection, taps);
         }
-        if family == Family::Scale {
+        if tools == Tools::Cells {
             pick(ui, taps);
         }
     });
-    if family.painted() && family != Family::Scale {
+    if tools == Tools::Painting {
         ui.horizontal(|ui| {
             pens(ui, ("pens", &Pen::PAINTING), projection, taps);
             pick(ui, taps);

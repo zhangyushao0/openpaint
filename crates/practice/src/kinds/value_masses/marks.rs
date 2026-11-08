@@ -4,11 +4,71 @@
 //! as thick as the pen and see-through (S88). The card: the slider; until the copy is read, saying
 //! so.
 
+use std::sync::Arc;
+
+use crate::compositions::value_masses::ValueMasses;
 use crate::kinds::value_masses::value_masses_read::MassesCheck;
+use crate::marks::asked::{Asked, Compare, Read, Reading, Reads};
 use crate::marks::card::CardItem;
-use crate::marks::compared::{Compared, Seen};
+use crate::marks::compared::{Compared, Comparison, Seen};
+use crate::marks::drawing::picture_laid;
 use crate::marks::mark::{Clip, Figure, In, LinePen, Place, SheetMark, Source};
+use crate::maths::colour::Rgb8;
 use crate::maths::path::Point;
+use crate::records::metric::Metrics;
+
+/// Value masses' copy, read from its frame's pixels on the compare worker against the answer: the
+/// answer, where the picture lies in the frame (its top left and its size), its corners and its
+/// mass edges (frame units).
+#[derive(Debug, Clone, PartialEq)]
+pub struct MassesReading {
+    pub answer: Arc<ValueMasses>,
+    pub place: [Point; 2],
+    pub corners: [Point; 4],
+    pub edges: Arc<Vec<Vec<Point>>>,
+}
+
+impl Reads for MassesReading {
+    fn unread(&self) -> Comparison {
+        Comparison::of(MassesCompared {
+            corners: self.corners,
+            edges: self.edges.to_vec(),
+            check: None,
+        })
+    }
+
+    fn read(&self, size: [u32; 2], pixels: &[u8], _paper: Rgb8) -> Read {
+        let check = self.answer.read((size, pixels), self.place);
+        let metrics = check.metrics.clone();
+        let compared = MassesCompared {
+            corners: self.corners,
+            edges: self.edges.to_vec(),
+            check: Some(check),
+        };
+        Read {
+            comparison: Comparison::of(compared),
+            metrics,
+        }
+    }
+}
+
+/// Value masses' copy compared, once anything lies in its frame: read against the answer its
+/// picture holds, or with none (a picture removed), the picture laid over it.
+pub(crate) fn compare(asked: &Asked<'_>) -> Option<Compare> {
+    if !asked.held() {
+        return None;
+    }
+    let picture = asked.picture?;
+    let Some(masses) = picture.masses.as_ref() else {
+        return picture_laid(asked, Metrics::new());
+    };
+    Some(Compare::Read(Reading::of(MassesReading {
+        answer: Arc::clone(&masses.answer),
+        place: [[0.0, 0.0], picture.fit.size],
+        corners: picture.fit.corners(),
+        edges: Arc::new(masses.edges.clone()),
+    })))
+}
 
 /// Value masses compared: where the picture lies in the copy's frame (its corners, frame units),
 /// its mass edges (frame units) and the copy as read (none until its pixels are).

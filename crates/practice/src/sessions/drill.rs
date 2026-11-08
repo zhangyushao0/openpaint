@@ -5,7 +5,7 @@
 //! drills). Its record is one of stage `DRILL` (`record.rs`): it counts in no session, road or
 //! stage.
 
-use crate::kinds::Turn;
+use crate::kinds::{Needs, Turn};
 use crate::packs::pack::{ItemRef, Tier};
 use crate::sessions::plan::{Family, Kind};
 use crate::sessions::session::{Before, Picker, Plan, seeded};
@@ -57,6 +57,15 @@ pub const fn kinds_of(stage: u8) -> &'static [Family] {
         4 => &STAGE_FOUR,
         5 => &STAGE_FIVE,
         _ => &[],
+    }
+}
+
+/// What `stage`'s sessions need kept before one starts: stage 5's key shifts a crop (S107).
+#[must_use]
+pub const fn stage_needs(stage: u8) -> Needs {
+    match stage {
+        5 => Needs::Crops,
+        _ => Needs::Nothing,
     }
 }
 

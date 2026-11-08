@@ -1,14 +1,11 @@
 //! Week 2's colour work on a practice sheet (colour combinations, value scales) and the long
-//! colour copy: the bar's names, the painting pens, the cards' words (the How cards are
-//! `practice_demo_colour.rs`) and the practice options' colour copies. In V大's terms: 色彩组合,
+//! colour copy: the painting pens, the cards' words (the kinds' names and How cards are
+//! `practice/`) and the practice options' colour copies. In V大's terms: 色彩组合,
 //! 明度推移, 色彩临摹, 大作业, 叠图对比, 原位, 色相, 饱和度, 明度, 弱对比.
 
 use super::Language;
 
 texts! { PRACTICE_COLOUR;
-    AREAS_EXERCISE = "Colour combination", "色彩组合";
-    SCALE_EXERCISE = "Value scale", "明度推移";
-    STUDY_EXERCISE = "Colour copy", "色彩临摹";
     BIG = "Big", "大笔";
     SMALL = "Small", "小笔";
     SOFT = "Soft", "柔边笔";
@@ -16,8 +13,6 @@ texts! { PRACTICE_COLOUR;
     ORIGINAL_SHOWN = "Original shown", "原图浓淡";
     READING_COPY = "Reading your copy…", "正在读取你的临摹…";
     NOT_PAINTED = "This area is not painted yet.", "这个色块还没有画。";
-    COMBINATIONS = "Combinations", "色彩组合";
-    SCALES = "Value scales", "明度推移";
     AREAS_DELTA = "Areas ΔE", "色块 ΔE";
     WEAK_CONTRASTS = "Weak contrasts", "弱对比";
     WEAK_MADE_STRONG = "Weak made strong", "画强的弱对比";

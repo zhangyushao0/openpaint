@@ -17,8 +17,8 @@ use openpaint_practice::{Demo, Drawn, Family, Layout, Marker, On, Rgb8, ValueMas
 
 use crate::components::{Alpha, card_step, keep_moving, picture_texture};
 use crate::design::{INK, PENCIL, SPACE};
-use crate::practice_demo_key::{self, STRIP};
 use crate::practice_demo_marks::{Frames, paint};
+use crate::practice_demo_strip::{self, STRIP};
 use crate::text::Words;
 
 /// The example's height (a lone one's taller: a box with its points, a trick's face), and between
@@ -162,12 +162,12 @@ impl Demonstrations {
             Layout::Pair | Layout::Row => HEIGHT,
         };
         // A key shift's strip under its frames: its chip and its tendency (S107).
-        let strip = if demo.shift.is_some() { STRIP } else { 0.0 };
+        let strip = if demo.strip.is_some() { STRIP } else { 0.0 };
         let (whole, _) = ui.allocate_exact_size(Vec2::new(width, height + strip), Sense::hover());
         let rect = Rect::from_min_size(whole.min, Vec2::new(width, height));
         let frames = laid(demo, rect);
-        if let Some(shift) = &demo.shift {
-            practice_demo_key::strip(ui.painter(), shift, seconds, (&frames, rect.bottom()));
+        if let Some(shown) = &demo.strip {
+            practice_demo_strip::strip(ui.painter(), shown, seconds, (&frames, rect.bottom()));
         }
         for mark in &demo.marks {
             let key = match &mark.drawn {
@@ -206,8 +206,8 @@ impl Demonstrations {
                 }
                 ([PICTURE; 2], areas.picture(PICTURE))
             }),
-            PictureKey::Object => (demo.object.as_deref())
-                .map(|object| ([OBJECT_PICTURE; 2], object.picture(OBJECT_PICTURE))),
+            PictureKey::Object => (demo.shaded.as_ref())
+                .map(|shaded| ([OBJECT_PICTURE; 2], shaded.0.picture(OBJECT_PICTURE))),
             PictureKey::Masses => (demo.masses.as_deref()).map(|m| m.picture(MASSES_PICTURE)),
             PictureKey::Values { copy, shown } => (demo.values.as_deref()).map(|maps| {
                 let map = &maps[usize::from(*copy)];

@@ -10,17 +10,36 @@
 
 use egui::{Align2, Sense, TextStyle, Vec2, WidgetInfo, WidgetType};
 use openpaint_app::{DrillShown, GalleryIntent, Language, TodayProjection};
-use openpaint_practice::Family;
+use openpaint_practice::{Family, Needs, stage_needs};
 
 use super::practice::{Tapped, note};
 use crate::components::{KindTile, controls, kind_tile, section};
 use crate::design::{INK, Outline, SPACE, TOUCH_TARGET, paint_pressed};
 use crate::text::{self as t, Words};
 
-/// The stage whose sessions are key shifts, of crops only (S107).
-const KEY_SHIFTS_STAGE: u8 = 5;
 /// The least width a tile takes with its name under it, in points.
 const TILE_CELL: f32 = 72.0;
+
+/// Whether `today` keeps what `needs` asks for.
+fn kept(today: &TodayProjection, needs: Needs) -> bool {
+    match needs {
+        Needs::Nothing => true,
+        Needs::Pictures => !today.pictures.is_empty(),
+        Needs::Compositions => today.compositions,
+        Needs::Masses => today.masses,
+        Needs::Crops => today.crops,
+    }
+}
+
+/// The note under a stage's tiles saying where to import what `needs` asks for.
+fn needs_note(needs: Needs) -> t::Text {
+    match needs {
+        Needs::Pictures => t::DRILL_NEEDS_PACK,
+        Needs::Masses => t::DRILL_NEEDS_MASSES,
+        Needs::Crops => t::DRILL_NEEDS_CROPS,
+        Needs::Compositions | Needs::Nothing => t::DRILL_NEEDS_COMPOSITIONS,
+    }
+}
 
 /// The Practice section; `needs_pack` is set to the kind whose tile was tapped without its pack's
 /// pictures (its note shows under its stage's tiles). Returns what was tapped.
@@ -36,41 +55,35 @@ pub(super) fn practice_section(
     for stage in 1..=today.ready {
         let name = t::stage(language, stage);
         let english = t::stage(Language::English, stage);
-        if stage_row(ui, Words::named(&english, &name)).clicked() {
-            // Stage 5's sessions are key shifts of crops (S107): none without a pack of them.
-            if stage == KEY_SHIFTS_STAGE && !today.crops {
-                *needs_pack = Some(Family::KeyShift);
-            } else {
-                chosen = Some(Tapped::Intent(GalleryIntent::Practice(stage), true));
-            }
-        }
         let tiles: Vec<&DrillShown> = (today.drills.iter())
             .filter(|tile| tile.stage == stage)
             .collect();
+        if stage_row(ui, Words::named(&english, &name)).clicked() {
+            // A stage whose sessions need what is not kept (S107: stage 5's key shifts, crops)
+            // starts none: its tile needing the same says where to import it.
+            let needs = stage_needs(stage);
+            if kept(today, needs) {
+                chosen = Some(Tapped::Intent(GalleryIntent::Practice(stage), true));
+            } else {
+                *needs_pack = (tiles.iter())
+                    .map(|tile| tile.family)
+                    .find(|family| family.facts().needs == needs);
+            }
+        }
         if let Some(tapped) = tiles_of(ui, &tiles) {
-            let pictures = !today.pictures.is_empty();
-            match (tapped.family, tapped.open) {
-                (Family::Shape, None) if !pictures => *needs_pack = Some(Family::Shape),
-                (Family::Division | Family::WholeCopy, None) if !today.compositions => {
-                    *needs_pack = Some(tapped.family);
+            let needs = tapped.family.facts().needs;
+            match tapped.open {
+                Some(sheet) => chosen = Some(Tapped::Intent(GalleryIntent::Open(sheet), true)),
+                None if !kept(today, needs) => *needs_pack = Some(tapped.family),
+                None => {
+                    let drill = GalleryIntent::Drill(tapped.family);
+                    chosen = Some(Tapped::Intent(drill, true));
                 }
-                (Family::ValueMasses, None) if !today.masses => {
-                    *needs_pack = Some(tapped.family);
-                }
-                (Family::Areas | Family::KeyShift, None) if !today.crops => {
-                    *needs_pack = Some(tapped.family);
-                }
-                (_, Some(sheet)) => chosen = Some(Tapped::Intent(GalleryIntent::Open(sheet), true)),
-                (family, None) => chosen = Some(Tapped::Intent(GalleryIntent::Drill(family), true)),
             }
         }
         let needed = needs_pack.filter(|family| tiles.iter().any(|tile| tile.family == *family));
-        match needed {
-            Some(Family::Shape) => note(ui, t::DRILL_NEEDS_PACK.into(), false),
-            Some(Family::ValueMasses) => note(ui, t::DRILL_NEEDS_MASSES.into(), false),
-            Some(Family::Areas | Family::KeyShift) => note(ui, t::DRILL_NEEDS_CROPS.into(), false),
-            Some(_) => note(ui, t::DRILL_NEEDS_COMPOSITIONS.into(), false),
-            None => {}
+        if let Some(family) = needed {
+            note(ui, needs_note(family.facts().needs).into(), false);
         }
         // The note this tap asked for comes into view (stage 5's lies at the column's end).
         if needed.is_some() && *needs_pack != asked {

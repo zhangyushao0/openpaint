@@ -3,7 +3,7 @@
 //! on the solids (`solids/`): its answer is a solid's kind (`SolidAnswer`) and its check theirs
 //! (`SolidCheck::of_object`).
 
-pub(crate) mod demo_objects;
+pub(crate) mod demo;
 pub(crate) mod marks;
 pub(crate) mod object;
 pub(crate) mod object_answer;
@@ -18,12 +18,16 @@ pub(crate) mod object_rules;
 
 use crate::demos::demo::Demo;
 use crate::kinds::{Described, Facts, Kind, Original, Turn, Work, place};
+use crate::marks::asked::Painted;
 use crate::marks::compared::{Compared, DrawnCopy};
 use crate::marks::mark::SheetMark;
+use crate::marks::tile::{TileMark, arc, boxed};
+use crate::maths::path::Point;
 use crate::packs::pack::ItemRef;
 use crate::sessions::drill::turned;
 use crate::sessions::family::Family;
 use crate::sessions::plan::Exercise;
+use crate::sessions::sheet_picture::SheetPicture;
 use object::ObjectTask;
 use object_design::Carve;
 use std::sync::Arc;
@@ -33,6 +37,8 @@ pub(crate) struct Objects;
 const FACTS: [Facts; 1] = [Facts::of(Family::Object, "objects", Work::Geometry)];
 /// How many objects a drill holds.
 const DRILLED: usize = 3;
+/// The side its picture is drawn at, in pixels: one to a frame's canvas pixel.
+pub const OBJECT_SIDE: u32 = 400;
 
 impl Described for Objects {
     fn code(&self) -> u8 {
@@ -78,11 +84,53 @@ impl Described for Objects {
     }
 
     fn how(&self, _family: Family) -> Option<Demo> {
-        demo_objects::object()
+        demo::object()
     }
 
     /// A drill: three objects, their carves in turn.
     fn drill(&self, _family: Family, turn: &Turn<'_>) -> Vec<(Kind, Option<ItemRef>)> {
         turned((&Carve::ALL, DRILLED), turn, Kind::Object)
+    }
+
+    /// Its picture, `OBJECT_SIDE` square (S94).
+    fn painted(&self, original: &Original, _picture: Option<&SheetPicture>) -> Option<Painted> {
+        let Original::Object(task) = original else {
+            return None;
+        };
+        Some(([OBJECT_SIDE; 2], task.picture(OBJECT_SIDE)))
+    }
+
+    /// A stroke along each visible edge and seen curve.
+    fn answer(&self, original: &Original) -> Vec<Vec<Point>> {
+        let Original::Object(task) = original else {
+            return Vec::new();
+        };
+        (task.answer.sides.iter().map(|side| side.to_vec()))
+            .chain(
+                (task.answer.outlines.iter().flatten())
+                    .filter(|stretch| !stretch.hidden)
+                    .map(|stretch| stretch.points.clone()),
+            )
+            .collect()
+    }
+
+    /// A low block seen from above, a post standing on its top.
+    fn tile(&self, _family: Family) -> Vec<TileMark> {
+        let mut marks = boxed([0.0, 4.0], 0.85);
+        let (centre, axes) = ([27.4, 16.6], [5.0, 2.0]);
+        let top = [centre[0], 7.0];
+        marks.extend([
+            arc(centre, axes, (0.0, 180.0)),
+            arc(top, axes, (0.0, 360.0)),
+            TileMark::Line(vec![
+                [centre[0] - axes[0], top[1]],
+                [centre[0] - axes[0], centre[1]],
+            ]),
+            TileMark::Line(vec![
+                [centre[0] + axes[0], top[1]],
+                [centre[0] + axes[0], centre[1]],
+            ]),
+        ]);
+        marks
     }
 }

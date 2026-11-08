@@ -9,3 +9,4 @@ pub(crate) mod session_five;
 pub(crate) mod session_four;
 pub(crate) mod session_three;
 pub(crate) mod sheet;
+pub(crate) mod sheet_picture;

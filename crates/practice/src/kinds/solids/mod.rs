@@ -2,7 +2,7 @@
 //! check (an object's too: objects are boxes simplified, their answer and check these, `objects/`)
 //! and its How.
 
-pub(crate) mod demo_solids;
+pub(crate) mod demo;
 pub(crate) mod marks;
 pub(crate) mod solid;
 pub(crate) mod solid_answer;
@@ -12,6 +12,8 @@ use crate::demos::demo::Demo;
 use crate::kinds::{Described, Facts, Kind, Original, Turn, Work, place};
 use crate::marks::compared::{Compared, DrawnCopy};
 use crate::marks::mark::SheetMark;
+use crate::marks::tile::{TileMark, arc};
+use crate::maths::path::Point;
 use crate::packs::pack::ItemRef;
 use crate::sessions::family::Family;
 use crate::sessions::plan::Exercise;
@@ -27,6 +29,8 @@ const FACTS: [Facts; 3] = [
 ];
 /// How many of a solid a drill holds.
 const DRILLED: usize = 3;
+/// An ellipse of an answer as a hand draws it once round, in pieces.
+const ROUND: usize = 48;
 
 impl Described for Solids {
     fn code(&self) -> u8 {
@@ -79,7 +83,7 @@ impl Described for Solids {
     }
 
     fn how(&self, family: Family) -> Option<Demo> {
-        demo_solids::solid(family)
+        demo::solid(family)
     }
 
     /// A drill: three of the one solid (its pose by its seed).
@@ -88,5 +92,39 @@ impl Described for Solids {
             .filter(|solid| solid.family() == family)
             .flat_map(|solid| std::iter::repeat_n((Kind::Solid(solid), None), DRILLED))
             .collect()
+    }
+
+    /// Once round each ellipse, a stroke along each side.
+    fn answer(&self, original: &Original) -> Vec<Vec<Point>> {
+        let Original::Solid(task) = original else {
+            return Vec::new();
+        };
+        (task.answer.ellipses.iter())
+            .map(|ellipse| ellipse.outline(ROUND))
+            .chain(task.answer.sides.iter().map(|side| side.to_vec()))
+            .collect()
+    }
+
+    /// An upright cylinder (its top whole, its bottom's front, two sides), an upright cone (its
+    /// base's front, two sides from its point), a sphere with its middle section's front.
+    fn tile(&self, family: Family) -> Vec<TileMark> {
+        match family {
+            Family::Cylinder => vec![
+                arc([27.0, 11.0], [11.0, 4.0], (0.0, 360.0)),
+                arc([27.0, 30.0], [11.0, 4.0], (0.0, 180.0)),
+                TileMark::Line(vec![[16.0, 11.0], [16.0, 30.0]]),
+                TileMark::Line(vec![[38.0, 11.0], [38.0, 30.0]]),
+            ],
+            // The sides touch the base where lines from the point do: 10.4 degrees above its middle.
+            Family::Cone => vec![
+                arc([27.0, 30.0], [12.0, 4.5], (-10.4, 190.4)),
+                TileMark::Line(vec![[27.0, 5.0], [38.8, 29.2]]),
+                TileMark::Line(vec![[27.0, 5.0], [15.2, 29.2]]),
+            ],
+            _ => vec![
+                arc([27.0, 20.0], [13.0, 13.0], (0.0, 360.0)),
+                arc([27.0, 21.5], [13.0, 4.5], (0.0, 180.0)),
+            ],
+        }
     }
 }

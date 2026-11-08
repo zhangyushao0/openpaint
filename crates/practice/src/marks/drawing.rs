@@ -6,8 +6,9 @@ use crate::geometry::edges::{Edge, corrected, edges};
 use crate::geometry::heading::Checked;
 use crate::geometry::off::Off;
 use crate::geometry::perspective::{Direction, PerspectiveBox};
+use crate::marks::asked::{Asked, Compare};
 use crate::marks::card::{CardItem, Say, WheelSize};
-use crate::marks::compared::{Compared, DrawnCopy, Seen};
+use crate::marks::compared::{Compared, Comparison, DrawnCopy, Seen};
 use crate::marks::mark::{Clip, Figure, In, LinePen, Place, SheetMark, Source};
 use crate::maths::path::Point;
 use crate::records::metric::Metrics;
@@ -97,6 +98,16 @@ impl Compared for PictureCompared {
     fn metrics(&self) -> Metrics {
         self.metrics.clone()
     }
+}
+
+/// `asked`'s copy compared by its pack picture laid over it as strongly as the user sets, with
+/// `metrics` (a colour copy's none, a whole copy's its division's); none without its picture.
+pub(crate) fn picture_laid(asked: &Asked<'_>, metrics: Metrics) -> Option<Compare> {
+    let corners = asked.corners()?;
+    Some(Compare::Made(Comparison::of(PictureCompared {
+        corners,
+        metrics,
+    })))
 }
 
 /// The straight edges of `copy` (a correction in place of the edge it redraws).

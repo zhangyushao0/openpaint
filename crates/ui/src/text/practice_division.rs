@@ -1,21 +1,15 @@
 //! Divisions and whole copies on a practice sheet (S95, V大's weeks 3 and 4 assignment): the
-//! kinds' names, the levels' pens, the card's table and the summary's lines; the How cards are
-//! `practice_demo_division.rs`. In his terms: 画面分割, 主分割, 次分割, 三级分割, 整图复制.
+//! levels' pens, the card's table and the summary's numbers; the kinds' names and How cards are
+//! `practice/`. In his terms: 画面分割, 主分割, 次分割, 三级分割, 整图复制.
 
 use openpaint_practice::Level;
 
 texts! { PRACTICE_DIVISION;
-    DIVISION_EXERCISE = "Division", "画面分割";
-    WHOLE_COPY_EXERCISE = "Whole copy", "整图复制";
-    DIVIDE_A_PICTURE = "Divide a picture", "画面分割";
-    COPY_A_WHOLE_PICTURE = "Copy a whole picture", "整图复制";
     MAIN_PEN = "Main", "主分割";
     SECOND_PEN = "Second", "次分割";
     THIRD_PEN = "Third", "三级分割";
     LINES_DRAWN = "Lines", "条数";
     MEAN_LENGTH = "Length", "平均长度";
-    DIVISIONS_COUNTED = "Divisions", "画面分割";
-    WHOLE_COPIES_COUNTED = "Whole copies", "整图复制";
     DRILL_NEEDS_COMPOSITIONS = "Divisions and whole copies use the composition pack: import it \
         under Practice packs.", "画面分割和整图复制要用构图素材包：请在“素材包”下导入。";
 }

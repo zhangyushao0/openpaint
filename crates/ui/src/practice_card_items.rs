@@ -9,7 +9,7 @@
 use egui::{Align2, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, TextStyle, Vec2};
 use openpaint_app::{Intent, PracticeIntent};
 use openpaint_practice::{
-    Family, KindSummary, LIGHTNESS_OFF, Level, LevelRow, MOST_MAIN, Rgb8, Say, from_oklab, oklab,
+    KindSummary, LIGHTNESS_OFF, Level, LevelRow, MOST_MAIN, Rgb8, Say, from_oklab, oklab,
 };
 
 use crate::components::{
@@ -220,15 +220,14 @@ fn row(
     }
 }
 
-/// The summary's rows for colour combinations and value scales: this session's means beside the
-/// earlier sessions'.
+/// The summary's rows of the kinds it does not judge (colour combinations, value scales: S109b,
+/// their head their kind's words'): this session's means beside the earlier sessions'.
 pub(crate) fn summary_rows(ui: &mut egui::Ui, kinds: &[KindSummary]) {
     let language = language(ui.ctx());
-    for kind in kinds.iter().filter(|kind| !kind.rows.is_empty()) {
-        let head = match kind.family {
-            Family::Areas => t::COMBINATIONS,
-            Family::Scale => t::SCALES,
-            _ => continue,
+    let shown = |kind: &&KindSummary| !kind.rows.is_empty() && kind.judgement.is_none();
+    for kind in kinds.iter().filter(shown) {
+        let Some(head) = t::kind_words(kind.family).rows else {
+            continue;
         };
         let heads = [head, t::THIS_SESSION, t::BEFORE].map(|head| head.get(language));
         card_columns(ui, &heads, true);

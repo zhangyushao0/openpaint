@@ -29,6 +29,24 @@ impl Areas {
             .collect()
     }
 
+    /// The edges between `area` and `other` as `edges` gives them, in frame units, the picture
+    /// filling `extent` of its frame.
+    #[must_use]
+    pub fn edges_in_frame(
+        &self,
+        area: usize,
+        other: Option<usize>,
+        extent: Point,
+    ) -> Vec<Vec<Point>> {
+        (self.edges(area, other).into_iter())
+            .map(|line| {
+                (line.into_iter())
+                    .map(|[u, v]| [u * extent[0], v * extent[1]])
+                    .collect()
+            })
+            .collect()
+    }
+
     /// The map's cell edges between `area` and `other` (or any other area).
     fn cell_edges(&self, area: usize, other: Option<usize>) -> Vec<[Corner; 2]> {
         let counts = |there: usize| other.map_or(there != area, |other| there == other);

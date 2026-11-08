@@ -1,12 +1,11 @@
 //! Every word the interface shows, in English and Chinese (DECISIONS D100). A `Text` holds both,
 //! side by side, so a missing translation does not compile and each Chinese line sits beside the
 //! English it renders; the tables are split by where the words show (`common.rs`, `canvas.rs`,
-//! `layers.rs`, `brushes.rs`, `colour.rs`, `gallery.rs`, `notices.rs`, `practice.rs`,
+//! `layers.rs`, `brushes.rs`, `colour.rs`, `gallery.rs`, `notices.rs`, `practice_sheet.rs`,
 //! `practice_colour.rs`, `practice_options.rs`, `practice_perspective.rs`, `practice_points.rs`,
-//! `practice_solids.rs`, `practice_objects.rs`, `practice_division.rs`, `practice_masses.rs`,
-//! `practice_key.rs`, `practice_book.rs`; each kind's How card in `practice_demo*.rs`), words
-//! made with numbers are functions beside them. Screens write no
-//! words of their own (`cargo repo-check` refuses a capitalised literal under `crates/ui/src`
+//! `practice_solids.rs`, `practice_objects.rs`, `practice_division.rs`, `practice_book.rs`; each
+//! kind's name, summary line and How card in a file of its own under `practice/`, S109b), words
+//! made with numbers are functions beside them. Screens write no words of their own (`cargo repo-check` refuses a capitalised literal under `crates/ui/src`
 //! outside this module).
 //!
 //! The English is a control's name too: the control map registers it whichever language shows
@@ -44,22 +43,13 @@ mod notices;
 mod practice;
 mod practice_book;
 mod practice_colour;
-mod practice_demo;
-mod practice_demo_colour;
-mod practice_demo_division;
-mod practice_demo_objects;
-mod practice_demo_points;
-mod practice_demo_solids;
-mod practice_demo_space;
 mod practice_division;
-mod practice_key;
-mod practice_kinds;
-mod practice_masses;
 mod practice_objects;
 mod practice_options;
 mod practice_perspective;
 mod practice_points;
 mod practice_says;
+mod practice_sheet;
 mod practice_solids;
 
 pub(crate) use brushes::*;
@@ -73,19 +63,13 @@ pub(crate) use notices::*;
 pub(crate) use practice::*;
 pub(crate) use practice_book::*;
 pub(crate) use practice_colour::*;
-pub(crate) use practice_demo::{AGAIN, how, how_steps};
 pub(crate) use practice_division::*;
-pub(crate) use practice_key::*;
-pub(crate) use practice_kinds::kind_words;
-pub(crate) use practice_masses::{
-    AT_ITS_VALUE, DARK_PEN, DRILL_NEEDS_MASSES, LIGHT_PEN, MASSES_COUNTED, MIDDLE_PEN,
-    VALUE_MASSES_EXERCISE,
-};
 pub(crate) use practice_objects::*;
 pub(crate) use practice_options::*;
 pub(crate) use practice_perspective::*;
 pub(crate) use practice_points::*;
 pub(crate) use practice_says::said;
+pub(crate) use practice_sheet::*;
 pub(crate) use practice_solids::*;
 
 pub use openpaint_app::Language;
@@ -240,23 +224,16 @@ mod tests {
             PRACTICE_BOOK_TABLE,
             PRACTICE_BOOK_WEEKDAYS,
             PRACTICE_COLOUR,
-            practice_demo::PRACTICE_DEMO,
-            practice_demo_colour::PRACTICE_DEMO_COLOUR,
-            practice_demo_division::PRACTICE_DEMO_DIVISION,
-            practice_demo_objects::PRACTICE_DEMO_OBJECTS,
-            practice_demo_points::PRACTICE_DEMO_POINTS,
-            practice_demo_solids::PRACTICE_DEMO_SOLIDS,
-            practice_demo_space::PRACTICE_DEMO_SPACE,
             PRACTICE_DIVISION,
-            PRACTICE_KEY,
-            practice_kinds::PRACTICE_KINDS,
-            practice_masses::PRACTICE_MASSES,
             PRACTICE_OBJECTS,
             PRACTICE_OPTIONS_TABLE,
             PRACTICE_PERSPECTIVE,
             PRACTICE_POINTS,
             PRACTICE_SOLIDS,
         ]
+        .into_iter()
+        .chain(practice::tables())
+        .collect::<Vec<_>>()
         .concat()
     }
 

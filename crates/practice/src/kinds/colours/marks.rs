@@ -2,11 +2,32 @@
 //! patch in the middle of the other's frame, and on the card both on the wheel and in the colour
 //! table (D108).
 
+use super::colour_match::{ColourCopy, score_colour};
+use crate::marks::asked::{Asked, Compare};
 use crate::marks::card::{CardItem, WheelSize};
-use crate::marks::compared::{Compared, Seen};
+use crate::marks::compared::{Compared, Comparison, Seen};
 use crate::marks::mark::{Figure, In, SheetMark};
 use crate::maths::colour::Rgb8;
 use crate::records::metric::Metrics;
+
+/// A colour's copy compared, once a colour was laid in its frame: the swatch beside the first and
+/// last colours laid, the numbers of the match.
+pub(crate) fn compare(asked: &Asked<'_>) -> Option<Compare> {
+    let original = asked.original.swatch()?;
+    let copy = ColourCopy {
+        picks: asked.copy.picks(),
+    };
+    let (&first, &last) = (copy.picks.first()?, copy.picks.last()?);
+    let metrics = (score_colour(original, &copy))
+        .map(|score| score.metrics())
+        .unwrap_or_default();
+    Some(Compare::Made(Comparison::of(ColourCompared {
+        original,
+        first,
+        last,
+        metrics,
+    })))
+}
 
 /// The swatch filling the original's frame.
 pub(crate) fn givens(colour: Rgb8) -> Vec<SheetMark> {

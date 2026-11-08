@@ -7,14 +7,14 @@
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, OBJECT_SIDE, Pen,
-    PracticeIntent, PracticeLog, PracticePens, Session, SheetView, StrokeIntent, Title, Toolbox,
-    Viewport, sheet_of,
+    BrushLibrary, Contact, ContactPhase, Device, InputSample, Intent, Pen, PracticeIntent,
+    PracticeLog, PracticePens, Session, SheetView, StrokeIntent, Title, Toolbox, Viewport,
+    sheet_of,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    Carve, Exercise, Family, Frame, Kind, Metric, Original, Plan, Point, SessionRecord, SolidCheck,
-    resample, value,
+    Carve, Exercise, Family, Frame, Kind, Metric, OBJECT_SIDE, Original, Plan, Point,
+    SessionRecord, SolidCheck, resample, value,
 };
 
 const VIEWPORT: Viewport = Viewport {

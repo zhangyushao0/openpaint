@@ -1,33 +1,39 @@
-//! What a kind is and what its description tells (S109, D111): `Kind` names an exercise's kind with
-//! what varies its look, `Original` what it gives, `Facts` what the app and the UI read of each of
-//! its families (its key, its work, its frames), and `Described` what each kind's folder implements:
-//! its stored code, generator, How and drill. Every call here goes through `KINDS`.
+//! What a kind is and what its description tells (S109, S109b, D111): `Kind` names an exercise's
+//! kind with what varies its look, `Described` what each kind's folder implements: its stored
+//! code, its families' facts (`facts.rs`), its generator, How, drill, givens, how its copy is
+//! compared, the picture it draws, the answer a hand would draw, its tile, its summary's colour
+//! judgement. Every call here goes through `KINDS`.
 
 use std::sync::Arc;
 
 use super::KINDS;
-use crate::colour_areas::areas_generated::{Arrangement, GeneratedAreas};
+use super::facts::Facts;
+use super::original::Original;
+use crate::colour_areas::areas_generated::Arrangement;
 use crate::demos::demo::Demo;
-use crate::geometry::ellipse::{EllipseGuide, Guide};
-use crate::geometry::perspective::{BoxView, Horizon, PerspectiveBox};
+use crate::geometry::ellipse::Guide;
+use crate::geometry::perspective::{BoxView, Horizon};
 use crate::kinds::colours::colour_match::Tone;
+use crate::kinds::colours::judgement::Judgement;
 use crate::kinds::combined_lines::combined::Combination;
-use crate::kinds::estimates::flat::{Estimate, Flat};
+use crate::kinds::estimates::flat::Estimate;
 use crate::kinds::key_shifts::key_shift::Tendency;
 use crate::kinds::lines::line::LineTier;
-use crate::kinds::objects::object::ObjectTask;
 use crate::kinds::objects::object_design::Carve;
-use crate::kinds::points_in_space::space::{SpaceTask, Trick};
-use crate::kinds::scales::scale::{ScaleTone, ValueScale};
-use crate::kinds::solids::solid::{Solid, SolidTask};
+use crate::kinds::points_in_space::space::Trick;
+use crate::kinds::scales::scale::ScaleTone;
+use crate::kinds::solids::solid::Solid;
+use crate::marks::asked::{Asked, Compare, Painted};
 use crate::marks::compared::{Compared, Comparison, DrawnCopy};
 use crate::marks::mark::SheetMark;
-use crate::maths::colour::Rgb8;
+use crate::marks::tile::TileMark;
 use crate::maths::path::Point;
 use crate::packs::pack::{ItemRef, Tier};
+use crate::records::metric::Metrics;
 use crate::sessions::family::Family;
 use crate::sessions::plan::Exercise;
 use crate::sessions::session::Before;
+use crate::sessions::sheet_picture::SheetPicture;
 
 /// The kind of an exercise, with what varies its look; each variant's folder in `kinds/`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -117,95 +123,6 @@ impl Kind {
     }
 }
 
-/// What an exercise's original is.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Original {
-    /// One line or a group of them, each in frame units.
-    Lines(Vec<Vec<Point>>),
-    /// A swatch.
-    Colour(Rgb8),
-    /// A pack's picture (an empty reference: none was kept); a crop's with its areas (S101).
-    Picture(ItemRef),
-    /// A generated colour combination's picture and areas (a record of 1.18.1 and before).
-    Areas(GeneratedAreas),
-    /// A value scale's ends and cells.
-    Scale(ValueScale),
-    /// A box to complete: the exact box, its front corner's three edges given.
-    Box(PerspectiveBox),
-    /// A free-boxes page: its horizon is the example box's.
-    FreeBoxes(PerspectiveBox),
-    /// An ellipse's guide and the exact ellipse.
-    Ellipse(EllipseGuide),
-    /// An estimate's givens: its answer follows from them.
-    Flat(Flat),
-    /// A box with a face to fix a point in space on.
-    Space(Box<SpaceTask>),
-    /// A box with a solid to find in it.
-    Solid(Box<SolidTask>),
-    /// An object to simplify into its box.
-    Object(Box<ObjectTask>),
-}
-
-/// How a family's copy is made and compared.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Work {
-    /// Figure with the pens as lines and laid over the original, in place or aligned (lines,
-    /// combined lines, single shapes).
-    Lines,
-    /// Figure as lines and checked as geometry against an exact answer or rule, never aligned
-    /// (boxes, ellipses, estimates, points in space, solids, objects).
-    Geometry,
-    /// Figure with a division's pens in V大's three colours: no answer, the picture laid under the
-    /// lines (a division, a whole copy's division, S95).
-    Divided,
-    /// A single colour matched by picking.
-    Colour,
-    /// Painted with brushes and read from the copy's pixels (colour combinations, value scales,
-    /// colour copies, value masses, key shifts).
-    Painted,
-}
-
-/// What the app and the UI read of a family: the key its words go by in the UI's tables
-/// (`ui/src/text/practice/`; its tile, its test drill's name too), how its copy is made and
-/// compared, whether its answer is built from given parts in the one frame drawn in (S97, S98:
-/// the original's frame beside it left empty, room for what Compare draws beyond the frame) and
-/// whether it copies a composition's picture (S95, S96).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Facts {
-    pub family: Family,
-    pub key: &'static str,
-    pub work: Work,
-    pub constructed: bool,
-    pub composed: bool,
-}
-
-impl Facts {
-    /// A family of `work` keyed `key`, neither constructed nor composed.
-    pub(crate) const fn of(family: Family, key: &'static str, work: Work) -> Self {
-        Self {
-            family,
-            key,
-            work,
-            constructed: false,
-            composed: false,
-        }
-    }
-
-    pub(crate) const fn constructed(self) -> Self {
-        Self {
-            constructed: true,
-            ..self
-        }
-    }
-
-    pub(crate) const fn composed(self) -> Self {
-        Self {
-            composed: true,
-            ..self
-        }
-    }
-}
-
 /// A drill's place among its kind's (from 0), its seed and what came before it.
 pub(crate) struct Turn<'a> {
     pub(crate) turn: usize,
@@ -213,7 +130,7 @@ pub(crate) struct Turn<'a> {
     pub(crate) before: &'a Before<'a>,
 }
 
-/// What a kind's folder tells of it (S109, D111).
+/// What a kind's folder tells of it (S109, S109b, D111).
 pub(crate) trait Described: Sync {
     /// Its stored code, its place in `KINDS` from 1.
     fn code(&self) -> u8;
@@ -253,6 +170,35 @@ pub(crate) trait Described: Sync {
     fn check(&self, _original: &Original, _copy: &DrawnCopy) -> Option<Arc<dyn Compared>> {
         None
     }
+    /// How `asked`'s copy is compared; none while there is nothing to compare (S109b). By
+    /// default its drawn lines, once anything lies in its frame, checked as geometry.
+    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
+        if !asked.held() {
+            return None;
+        }
+        let checked = self.check(asked.original, &asked.copy.drawn())?;
+        Some(Compare::Checked(Comparison(checked)))
+    }
+    /// The picture it draws for `original` (its pack's `picture`, if any): a generated
+    /// combination's, an object's, value masses' answer; none for most kinds.
+    fn painted(&self, _original: &Original, _picture: Option<&SheetPicture>) -> Option<Painted> {
+        None
+    }
+    /// `original`'s answer as a hand would draw it, a stroke at a time in frame units (a cross on a
+    /// point, a stroke along each line, once round each ellipse): what `bench practice` draws a
+    /// little off; none for a kind without one.
+    fn answer(&self, _original: &Original) -> Vec<Vec<Point>> {
+        Vec::new()
+    }
+    /// `family`'s tile picture (S91, `marks/tile.rs`).
+    fn tile(&self, _family: Family) -> Vec<TileMark> {
+        Vec::new()
+    }
+    /// The summary's judgement of `results` of its family (a colour's radar, D108); none for a
+    /// kind the summary does not judge.
+    fn judgement(&self, _results: &[(Kind, &Metrics)]) -> Option<Judgement> {
+        None
+    }
 }
 
 impl Exercise {
@@ -267,6 +213,35 @@ impl Exercise {
     pub fn check(&self, original: &Original, copy: &DrawnCopy) -> Option<Comparison> {
         self.kind.described().check(original, copy).map(Comparison)
     }
+
+    /// How its copy is compared, as `asked` (whose exercise it is); none while there is nothing
+    /// to compare.
+    #[must_use]
+    pub fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
+        self.kind.described().compare(asked)
+    }
+
+    /// The picture the practice crate draws for it (`original` its original, `picture` its
+    /// pack's): a generated combination's, an object's, value masses' answer.
+    #[must_use]
+    pub fn painted(&self, original: &Original, picture: Option<&SheetPicture>) -> Option<Painted> {
+        self.kind.described().painted(original, picture)
+    }
+}
+
+impl Family {
+    /// Its tile picture (S91), as its kind's folder draws it.
+    #[must_use]
+    pub fn tile(self) -> Vec<TileMark> {
+        self.described().tile(self)
+    }
+
+    /// `original`'s answer (an exercise of this family's) as a hand would draw it, a stroke at a
+    /// time (frame units); none for a kind without one.
+    #[must_use]
+    pub fn answer(self, original: &Original) -> Vec<Vec<Point>> {
+        self.described().answer(original)
+    }
 }
 
 /// `item`'s place in `all`, as a stored variant (0 where it is not there).
@@ -274,26 +249,4 @@ pub(crate) fn place<T: PartialEq>(all: &[T], item: &T) -> u8 {
     all.iter()
         .position(|held| held == item)
         .map_or(0, |at| u8::try_from(at).unwrap_or(0))
-}
-
-impl Original {
-    /// A value scale's count of cells; none for another original.
-    #[must_use]
-    pub fn cells(&self) -> Option<usize> {
-        match self {
-            Self::Scale(scale) => Some(scale.cells),
-            _ => None,
-        }
-    }
-}
-
-impl Kind {
-    /// A key shift's tendency; none for another kind.
-    #[must_use]
-    pub const fn tendency(self) -> Option<Tendency> {
-        match self {
-            Self::KeyShift(tendency) => Some(tendency),
-            _ => None,
-        }
-    }
 }

@@ -1,8 +1,11 @@
-//! The course's kinds of exercise, a folder each: its generator, answer, check and How (its
-//! demonstration), and in its `mod.rs` its description (S109, D111): the one place the rest of the
-//! crate learns a kind's facts from (`Described`). Registering a kind is its variant in `Kind` (and
-//! in `Original` when it brings a new answer) and its line in `KINDS`; the app and the UI learn of
-//! it through `Kind::facts` and `Family::facts` and name its words by its key.
+//! The course's kinds of exercise, a folder each: its generator, answer, check, reading, marks,
+//! How (its demonstration) and tile, and in its `mod.rs` its description (S109, S109b, D111): the
+//! one place the rest of the crate and the app and the UI learn a kind from (`Described`).
+//! Registering a kind is its variant in `Kind` (and in `Original` when it brings a new answer) and
+//! its line in `KINDS`; the app and the UI ask its families' facts (`facts.rs`: work, tools, what
+//! the eyedropper reads, what a drill needs, what the book keeps, the summary's rows) and its
+//! description's methods (`Exercise::compare`, `Exercise::painted`, `Family::tile`,
+//! `Family::answer`) and name its words by its key, never which kind it is.
 //!
 //! A kind folder may build on another's where the dependency is the course's own: objects are
 //! V大's boxes simplified (their answer and check the solids', `solids/`), solids stand in a box
@@ -28,11 +31,15 @@ pub(crate) mod study;
 pub(crate) mod value_masses;
 pub(crate) mod whole_copies;
 
+mod facts;
 mod kind;
+mod original;
 
 pub use crate::marks::compared::DrawnCopy;
+pub use facts::{Facts, Kept, Needs, Picks, Tools, Work};
+pub use kind::Kind;
 pub(crate) use kind::{Described, Turn, place};
-pub use kind::{Facts, Kind, Original, Work};
+pub use original::Original;
 
 /// Every kind, by its stored code (1 to 19): its line here registers it.
 pub(crate) const KINDS: [&dyn Described; 19] = [

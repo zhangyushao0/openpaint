@@ -1,14 +1,18 @@
-//! Value scales (`Kind::Scale`, S97): a row of cells on Oklab L, read and checked. Its How is the
-//! colours' (`demo_colour.rs`), of the row in hand's count.
+//! Value scales (`Kind::Scale`, S97): a row of cells between given ends, filled in even steps of
+//! Oklab lightness; read from the copy's pixels (`marks.rs`). Its How plays a scale of the row in
+//! hand's count (`demo.rs`).
 
+pub(crate) mod demo;
 pub(crate) mod marks;
 pub(crate) mod scale;
 
 use crate::demos::demo::Demo;
-use crate::kinds::colours::demo_colour;
-use crate::kinds::{Described, Facts, Kind, Original, Turn, Work, place};
+use crate::kinds::{Described, Facts, Kind, Original, Picks, Tools, Turn, Work, place};
+use crate::marks::asked::{Asked, Compare};
 use crate::marks::mark::SheetMark;
+use crate::marks::tile::{TileMark, closed, square};
 use crate::packs::pack::ItemRef;
+use crate::records::record::SCALE_ROWS;
 use crate::sessions::drill::turned;
 use crate::sessions::family::Family;
 use crate::sessions::plan::Exercise;
@@ -17,7 +21,11 @@ use scale::{CELLS, FIRST_CELLS, ScaleTone, ValueScale};
 
 pub(crate) struct Scales;
 
-const FACTS: [Facts; 1] = [Facts::of(Family::Scale, "scale", Work::Painted).constructed()];
+const FACTS: [Facts; 1] = [Facts::of(Family::Scale, "scale", Work::Painted)
+    .constructed()
+    .tools(Tools::Cells)
+    .picks(Picks::Ends)
+    .rows(&SCALE_ROWS)];
 /// How many scales a drill holds.
 const DRILLED: usize = 2;
 
@@ -58,20 +66,17 @@ impl Described for Scales {
     }
 
     fn givens(&self, _exercise: &Exercise, original: &Original) -> Vec<SheetMark> {
-        match original {
-            Original::Scale(scale) => marks::givens(scale),
-            _ => Vec::new(),
-        }
+        original.scale().map(marks::givens).unwrap_or_default()
     }
 
     /// Nine cells'.
     fn how(&self, _family: Family) -> Option<Demo> {
-        Some(demo_colour::scale(CELLS))
+        Some(demo::scale(CELLS))
     }
 
     /// The row in hand's (S97).
     fn how_of(&self, _family: Family, cells: usize) -> Option<Demo> {
-        Some(demo_colour::scale(cells))
+        Some(demo::scale(cells))
     }
 
     /// A drill: two full scales, their tones in turn.
@@ -79,5 +84,24 @@ impl Described for Scales {
         turned((&ScaleTone::ALL, DRILLED), turn, |tone| {
             Kind::Scale(tone, FULL)
         })
+    }
+
+    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
+        marks::compare(asked)
+    }
+
+    /// Five cells, darker to the right.
+    fn tile(&self, _family: Family) -> Vec<TileMark> {
+        (0..5)
+            .flat_map(|cell| {
+                let left = 8.0 + 7.6 * cell as f32;
+                let corners = square([left, 14.0], [left + 7.6, 26.0]);
+                let share = 0.08 + 0.18 * cell as f32;
+                [
+                    TileMark::Tint(corners.to_vec(), share),
+                    TileMark::Line(closed(&corners)),
+                ]
+            })
+            .collect()
     }
 }

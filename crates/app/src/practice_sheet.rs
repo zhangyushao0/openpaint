@@ -3,7 +3,7 @@
 //! exercise's own tools or the full interface, the pen drawn exercises are drawn with (a single
 //! line, combined lines, a single shape) or painted ones painted with (a colour combination, a
 //! value scale), Compare and its overlay (`practice_compare.rs`), a painted copy's reading and the
-//! eyedropper (`practice_read.rs`), a key shift's reading and Grey view (`practice_key.rs`), Next
+//! eyedropper (`practice_read.rs`, a reading's frames in grey on asking), Next
 //! (the view glides to the next pair at its zoom,
 //! `practice_view.rs`; after the last the session ends over the whole sheet), the instructions
 //! (by themselves the first time a family comes up), the summary and the notices; the session's
@@ -16,13 +16,13 @@ use std::sync::Arc;
 
 use openpaint_core::{Artwork, CanvasSize, RegionMask, StrokeStyle};
 use openpaint_practice::{
-    Family, Frame, ItemRef, Original, Pair, SessionRecord, Tally, seconds, summary,
+    Facts, Family, Frame, ItemRef, Pair, SessionRecord, Tally, Tools, Work, seconds, summary,
 };
 
 use crate::error::AppError;
 use crate::practice::{Pen, PracticeIntent, PracticeNotice, PracticeProjection, SheetView};
 use crate::practice_pens::PracticePens;
-use crate::practice_pictures::{FitJob, PictureImage};
+use crate::practice_pictures::{FitJob, PictureImage, grounded};
 use crate::projection::{Availability, EditorAction};
 use crate::view::CanvasView;
 
@@ -35,8 +35,6 @@ pub type Practising = (SessionRecord, Vec<SessionRecord>, SheetView, Tally);
 mod checks;
 #[path = "practice_compare.rs"]
 mod compare;
-#[path = "practice_key.rs"]
-mod key;
 #[path = "practice_overlay.rs"]
 mod overlay;
 #[path = "practice_sheet_pens.rs"]
@@ -53,7 +51,7 @@ mod view;
 pub use crate::practice_shown::CopyRead;
 pub(crate) use pens::{CopyLayer, Layering};
 pub use pick::PracticePick;
-pub use read::{ReadAs, ReadJob};
+pub use read::ReadJob;
 pub use time::Finished;
 pub use view::PRACTICE_ROOM;
 
@@ -177,17 +175,17 @@ impl PracticeSheet {
         Some(item)
     }
 
-    /// The store read `item`'s picture (`None`: it could not); a single shape's with its ground
-    /// faded once (S99).
+    /// The store read `item`'s picture (`None`: it could not); one whose ground shows faded (a
+    /// single shape's) faded once (S99).
     pub(crate) fn picture_read(&mut self, item: ItemRef, image: Option<PictureImage>) {
         self.images.retain(|(kept, _)| *kept != item);
         self.grounded.retain(|(kept, _)| *kept != item);
-        let shape = (self.sheet.pictures.iter().zip(&self.sheet.families))
-            .filter(|(_, family)| **family == Family::Shape)
+        let faded = (self.sheet.pictures.iter().zip(&self.sheet.families))
+            .filter(|(_, family)| family.facts().grounded)
             .find_map(|(picture, _)| picture.as_ref().filter(|p| p.item == item));
-        let grounded = shape
+        let grounded = faded
             .zip(image.as_ref())
-            .and_then(|(p, image)| p.grounded(image));
+            .and_then(|(picture, image)| grounded(picture, image));
         if let Some(grounded) = grounded {
             self.grounded.push((item.clone(), Arc::new(grounded)));
         }
@@ -214,23 +212,24 @@ impl PracticeSheet {
         Some(exercise.kind.family())
     }
 
-    /// Whether exercise `index` is drawn with the pens as lines (lines, a group, a single shape).
-    fn drawn(&self, index: usize) -> bool {
-        self.family(index).is_some_and(Family::drawn)
+    /// What exercise `index`'s family's description says of it.
+    fn facts(&self, index: usize) -> Option<&'static Facts> {
+        Some(self.family(index)?.facts())
     }
 
-    /// Whether Aligned can be chosen for exercise `index`: lines, or a shape's picture with an
-    /// outline.
+    /// What the shown exercise's family's description says of it.
+    fn shown_facts(&self) -> Option<&'static Facts> {
+        self.facts(self.current()?)
+    }
+
+    /// Whether Aligned can be chosen for exercise `index`: its copy is laid over as lines, its
+    /// original lines or a picture with an outline.
     fn aligned_offered(&self, index: usize) -> bool {
-        match self.sheet.originals.get(index) {
-            Some(Original::Lines(_)) => true,
-            Some(Original::Picture(_)) => {
-                self.drawn(index)
-                    && (self.sheet.pictures.get(index))
-                        .is_some_and(|p| p.as_ref().is_some_and(|p| p.outline.is_some()))
-            }
-            _ => false,
-        }
+        let lines = self.facts(index).is_some_and(|f| f.work == Work::Lines);
+        let original = self.sheet.originals.get(index);
+        let outlined = (self.sheet.pictures.get(index))
+            .is_some_and(|p| p.as_ref().is_some_and(|p| p.outline.is_some()));
+        lines && (original.is_some_and(|o| o.lines().is_some()) || outlined)
     }
 
     /// An exercise came to show: its frame (a value scale's first cell) becomes the clip; lines
@@ -242,10 +241,10 @@ impl PracticeSheet {
         self.clip = frame.and_then(|frame| self.region(&frame));
         let compared = (self.current()).is_some_and(|index| self.record.result(index).is_some());
         let family = self.current().and_then(|index| self.family(index));
-        self.pen = match family {
-            Some(Family::ValueMasses) => self.valuing,
-            Some(family) if !family.drawn() => self.painting,
-            Some(family) if family.divided() => self.dividing,
+        self.pen = match family.map(|family| family.facts().tools) {
+            Some(Tools::Greys) => self.valuing,
+            Some(Tools::Colour | Tools::Cells | Tools::Painting | Tools::Full) => self.painting,
+            Some(Tools::Dividing | Tools::Copying) => self.dividing,
             _ if compared => Pen::Correct,
             _ => self.drawing,
         };

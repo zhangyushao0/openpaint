@@ -1,16 +1,22 @@
-//! Long colour copies (`Kind::Study`, V大's 色彩临摹, S83): a chosen picture copied in colour beside
-//! a large frame in the full interface, a project of its own beside the sessions (a record of stage
-//! `PROJECT`), never one of their exercises nor drilled; no How of its own (its card names V大's
-//! four brushes, S100).
+//! Long colour copies (`Kind::Study`, V大's 色彩临摹): a project beside the sessions, one pair of
+//! frames of its picture's shape, painted in the full interface with the toolbox's brushes (S104);
+//! compared by its picture laid over the copy as strongly as the user sets, the eyedropper
+//! comparing a point. No How.
 
-use crate::kinds::{Described, Facts, Kind, Original, Work};
+use crate::kinds::{Described, Facts, Kind, Original, Picks, Tools, Work};
+use crate::marks::asked::{Asked, Compare};
+use crate::marks::drawing::picture_laid;
 use crate::marks::mark::SheetMark;
+use crate::marks::tile::{TileMark, swatch};
+use crate::records::metric::Metrics;
 use crate::sessions::family::Family;
 use crate::sessions::plan::Exercise;
 
 pub(crate) struct Study;
 
-const FACTS: [Facts; 1] = [Facts::of(Family::Study, "study", Work::Painted)];
+const FACTS: [Facts; 1] = [Facts::of(Family::Study, "study", Work::Painted)
+    .tools(Tools::Full)
+    .picks(Picks::Probed)];
 
 impl Described for Study {
     fn code(&self) -> u8 {
@@ -35,5 +41,16 @@ impl Described for Study {
 
     fn original(&self, exercise: &Exercise) -> Original {
         exercise.picture()
+    }
+
+    fn compare(&self, asked: &Asked<'_>) -> Option<Compare> {
+        if !asked.held() {
+            return None;
+        }
+        picture_laid(asked, Metrics::new())
+    }
+
+    fn tile(&self, _family: Family) -> Vec<TileMark> {
+        swatch()
     }
 }
