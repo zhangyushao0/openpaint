@@ -4,6 +4,19 @@
 /// Longest allowed Rust source file, tests included. Split by responsibility, not by size.
 pub const MAX_RUST_LINES: usize = 400;
 
+/// Most `.rs` files one folder may hold: past it a crate lies flat, its modules told apart by
+/// prefix, and goes into folders by responsibility (S108, S110b).
+pub const MAX_FOLDER_FILES: usize = 64;
+
+/// Folders over `MAX_FOLDER_FILES` when the rule came, each held at its count: it may only go
+/// down, the number lowered as it does, the line gone once it is within the rule.
+pub const HELD_FOLDERS: &[(&str, usize)] = &[
+    // The renderer's 98 modules, a structural slice ahead (ROADMAP Candidates).
+    ("crates/render/src", 98),
+    // Practice's screens leave it with S110c.
+    ("crates/ui/src", 70),
+];
+
 /// A markdown file allowed outside `docs/archive/` and its limits.
 pub struct Doc {
     pub path: &'static str,
@@ -56,9 +69,10 @@ pub const MAX_DOC_LINE_CHARS: usize = 1_500;
 pub const ARCHIVE_DIR: &str = "docs/archive/";
 
 /// Every workspace crate a composition root may use.
-pub const ALL_PRODUCT: [&str; 9] = [
+pub const ALL_PRODUCT: [&str; 10] = [
     "openpaint-core",
     "openpaint-practice",
+    "openpaint-practice-app",
     "openpaint-raster",
     "openpaint-app",
     "openpaint-store",
@@ -75,7 +89,14 @@ pub const LAYERS: &[(&str, &[&str])] = &[
     ("crates/practice", &[]),
     // Pure pixel geometry (flood fill): no GPU, no threads, no file system.
     ("crates/raster", &["openpaint-core"]),
-    ("crates/app", &["openpaint-core", "openpaint-practice"]),
+    // The painting flow knows no mode but its slot (D112).
+    ("crates/app", &["openpaint-core"]),
+    // Practice's flow on the painting flow (S110b): the sheet as the session's mode, its log, the
+    // practice options.
+    (
+        "crates/practice-app",
+        &["openpaint-core", "openpaint-practice", "openpaint-app"],
+    ),
     // The library knows no mode: a mode's records are bytes in a space of its own (D112).
     ("crates/store", &["openpaint-core", "openpaint-app"]),
     // Practice's records and their upgrade in the library's record space, and its packs (S110).
@@ -84,16 +105,19 @@ pub const LAYERS: &[(&str, &[&str])] = &[
         &[
             "openpaint-core",
             "openpaint-practice",
+            "openpaint-practice-app",
             "openpaint-app",
             "openpaint-store",
         ],
     ),
     ("crates/render", &["openpaint-core"]),
+    // Practice's screens until S110c moves them into a crate of their own.
     (
         "crates/ui",
         &[
             "openpaint-core",
             "openpaint-practice",
+            "openpaint-practice-app",
             "openpaint-app",
             "openpaint-render",
         ],
@@ -103,6 +127,7 @@ pub const LAYERS: &[(&str, &[&str])] = &[
         &[
             "openpaint-core",
             "openpaint-practice",
+            "openpaint-practice-app",
             "openpaint-raster",
             "openpaint-app",
             "openpaint-store",
@@ -136,9 +161,10 @@ pub const LAYERS: &[(&str, &[&str])] = &[
 pub const TOOLS: &[&str] = &["tools/packs"];
 
 /// The harness assembles the product crates, the devtools and the contact sheets.
-const WITH_DEVTOOLS: [&str; 11] = [
+const WITH_DEVTOOLS: [&str; 12] = [
     "openpaint-core",
     "openpaint-practice",
+    "openpaint-practice-app",
     "openpaint-raster",
     "openpaint-app",
     "openpaint-store",
@@ -163,6 +189,8 @@ pub const FORBIDDEN_TOKENS: &[(&str, &[&str])] = &[
             "std::thread",
             "std::time::Instant",
             "serde",
+            "practice",
+            "Practice",
         ],
     ),
     (
@@ -188,16 +216,31 @@ pub const FORBIDDEN_TOKENS: &[(&str, &[&str])] = &[
             "std::fs",
             "std::thread",
             "std::time::Instant",
+            "practice",
+            "Practice",
         ],
     ),
-    ("crates/app", &["wgpu", "egui", "winit", "jni", "std::fs"]),
-    // The library names no mode, in code or comment (D112): "practice" either way.
+    // The painting crates name no mode, in code or comment (D112): "practice" either way; the
+    // UI follows with S110c.
+    (
+        "crates/app",
+        &[
+            "wgpu", "egui", "winit", "jni", "std::fs", "practice", "Practice",
+        ],
+    ),
+    (
+        "crates/practice-app",
+        &["wgpu", "egui", "winit", "jni", "std::fs"],
+    ),
     (
         "crates/store",
         &["wgpu", "egui", "winit", "jni", "practice", "Practice"],
     ),
     ("crates/practice-store", &["wgpu", "egui", "winit", "jni"]),
-    ("crates/render", &["winit", "jni", "std::fs"]),
+    (
+        "crates/render",
+        &["winit", "jni", "std::fs", "practice", "Practice"],
+    ),
     ("crates/ui", &["wgpu", "winit", "jni", "std::fs"]),
     ("crates/runtime", &["jni"]),
     ("crates/devtools", &["jni", "std::fs"]),

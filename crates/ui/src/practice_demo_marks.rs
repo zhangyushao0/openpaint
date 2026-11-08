@@ -12,8 +12,8 @@
 //! example's inside the whole example (its vanishing points lie beside its frame).
 
 use egui::{Color32, Mesh, Pos2, Rect, Shape, Stroke, TextureHandle, Vec2};
-use openpaint_app::DIVISION_DIMMED;
 use openpaint_practice::{Demo, Drawn, Mark, Marker, On, Point, Rgb8, length};
+use openpaint_practice_app::DIVISION_DIMMED;
 
 use crate::design::{
     CORRECTION, DIVIDER, INK, INK_SECONDARY, PANEL, PANEL_RULE_WIDTH, PENCIL, PRINTED,

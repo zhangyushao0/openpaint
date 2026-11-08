@@ -16,8 +16,9 @@ mod progress;
 use std::collections::HashSet;
 
 use egui::{Align2, Id, Order, Pos2, Rect, Sense, TextStyle, Vec2};
-use openpaint_app::{BookProjection, GalleryIntent, Intent, TodayProjection};
+use openpaint_app::{GalleryIntent, Intent};
 use openpaint_practice::{Date, Road, STAGE_SESSIONS, STAGES, STAGES_READY, Seal};
+use openpaint_practice_app::{BookProjection, OptionsIntent, TodayProjection};
 
 use super::GalleryScreen;
 use crate::components::carry::Opening;
@@ -99,7 +100,7 @@ impl GalleryScreen {
         ui: &mut egui::Ui,
         rect: Rect,
         (today, enabled): (&TodayProjection, bool),
-        taps: &mut Vec<Intent>,
+        (taps, options): (&mut Vec<Intent>, &mut Vec<OptionsIntent>),
     ) -> Rect {
         let mut slot = ui.new_child(egui::UiBuilder::new().max_rect(rect));
         let stage = t::stage(t::language(ui.ctx()), today.stage);
@@ -118,8 +119,10 @@ impl GalleryScreen {
         };
         let tapped = today_card(&mut slot, &card);
         if tapped.action {
-            let intent = (today.open).map_or(GalleryIntent::Practice(starts), GalleryIntent::Open);
-            taps.push(Intent::Gallery(intent));
+            match today.open {
+                Some(sheet) => taps.push(Intent::Gallery(GalleryIntent::Open(sheet))),
+                None => options.push(OptionsIntent::Practice(starts)),
+            }
             self.opening = Some(Opening {
                 from: tapped.rect,
                 id: today.open,
@@ -148,12 +151,12 @@ impl GalleryScreen {
         &mut self,
         ctx: &egui::Context,
         today: &TodayProjection,
-        taps: &mut Vec<Intent>,
+        (taps, options): (&mut Vec<Intent>, &mut Vec<OptionsIntent>),
     ) {
         let Some(from) = self.book.from else {
             return;
         };
-        self.ask_sheets(&today.book, taps);
+        self.ask_sheets(&today.book, options);
         let screen = ctx.content_rect();
         let id = Id::new("practice book");
         let source = Source::Rect {
@@ -193,7 +196,7 @@ impl GalleryScreen {
 
     /// Asks the store for the sheets the page shows (the lines' sessions, the day's) not read
     /// or asked yet.
-    fn ask_sheets(&mut self, book: &BookProjection, taps: &mut Vec<Intent>) {
+    fn ask_sheets(&mut self, book: &BookProjection, taps: &mut Vec<OptionsIntent>) {
         let mut wanted: Vec<u64> = book.book.lines.iter().map(|line| line.record).collect();
         if let Some(day) = self.book.day.and_then(|(day, _)| book.book.day(day)) {
             wanted.extend(&day.records);
@@ -203,7 +206,7 @@ impl GalleryScreen {
             .filter(|id| !book.read.contains_key(id) && asked.insert(*id))
             .collect();
         if !new.is_empty() {
-            taps.push(Intent::Gallery(GalleryIntent::ReadSheets(new)));
+            taps.push(OptionsIntent::ReadSheets(new));
         }
     }
 }

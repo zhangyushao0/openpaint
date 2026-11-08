@@ -1,14 +1,11 @@
 //! The gallery's files (DECISIONS D62): "Save as OpenPaint file…" on a card asks the system's
 //! save dialog for a place and the library writes the artwork there; "Open OpenPaint file…"
-//! under "+" asks the system's picker for a file and the library adds it as a new artwork. From
-//! the Today card's options (S80): "Import practice pack…" asks the picker for a pack file, kept
-//! beside the library, and "Add my picture…" for a picture, added to the user's own. One system
-//! dialog at a time; the library's worker does the reading and writing.
+//! under "+" asks the system's picker for a file and the library adds it as a new artwork. A
+//! mode's own pickers take the same turn (`Gallery::choose`), their answers handed back to it by
+//! tag. One system dialog at a time; the library's worker does the reading and writing.
 
 use std::collections::VecDeque;
 use std::fmt;
-
-use openpaint_practice::Tier;
 
 use crate::export::artwork_file_name;
 use crate::gallery::{FileProblem, GalleryNotice};
@@ -18,8 +15,6 @@ use crate::transfer::{HostAnswer, HostRequest, ImageSink, ImageSource};
 
 /// Most bytes an OpenPaint file may have to be opened (the file is read whole).
 pub const MAX_ARTWORK_FILE_BYTES: u64 = 512 << 20;
-/// Most bytes a practice pack may have to be imported (read whole, then checked).
-pub const MAX_PACK_BYTES: u64 = 512 << 20;
 
 /// Work for the library's worker once the system answered.
 pub enum FileJob {
@@ -30,12 +25,12 @@ pub enum FileJob {
     },
     /// Read `source` and add it as a new artwork.
     Open { source: Box<dyn ImageSource> },
-    /// Read `source` as a practice pack and keep it.
-    ImportPack { source: Box<dyn ImageSource> },
-    /// Read `source` as a picture and add it to the user's own at `tier`, its outline derived.
-    AddPicture {
-        source: Box<dyn ImageSource>,
-        tier: Tier,
+    /// A mode's picker asked with `tag` answered: the file chosen, or none when the system could
+    /// not show the picker or open what was chosen. The mode calls `Gallery::file_done` once its
+    /// work with the file is over.
+    Mode {
+        tag: u32,
+        source: Option<Box<dyn ImageSource>>,
     },
 }
 
@@ -44,8 +39,7 @@ impl fmt::Debug for FileJob {
         match self {
             Self::Save { id, .. } => write!(f, "Save({})", id.get()),
             Self::Open { .. } => f.write_str("Open"),
-            Self::ImportPack { .. } => f.write_str("ImportPack"),
-            Self::AddPicture { tier, .. } => write!(f, "AddPicture({})", tier.name()),
+            Self::Mode { tag, source } => write!(f, "Mode({tag}, {})", source.is_some()),
         }
     }
 }
@@ -55,8 +49,8 @@ impl fmt::Debug for FileJob {
 enum Choice {
     Save(ProjectId),
     Open,
-    Pack,
-    Picture(Tier),
+    /// A mode's, by its tag.
+    Mode(u32),
 }
 
 #[derive(Debug, Default)]
@@ -92,14 +86,9 @@ impl Files {
         self.ask(HostRequest::OpenArtwork, Choice::Open);
     }
 
-    /// Asks for the picker of a practice pack.
-    pub(crate) fn import_pack(&mut self) {
-        self.ask(HostRequest::OpenPack, Choice::Pack);
-    }
-
-    /// Asks for the picker of a picture of the user's own, to add at `tier`.
-    pub(crate) fn add_picture(&mut self, tier: Tier) {
-        self.ask(HostRequest::OpenImage, Choice::Picture(tier));
+    /// Asks for a mode's picker `request`, answered by `tag`.
+    pub(crate) fn choose(&mut self, request: HostRequest, tag: u32) {
+        self.ask(request, Choice::Mode(tag));
     }
 
     fn ask(&mut self, request: HostRequest, choice: Choice) {
@@ -125,14 +114,13 @@ impl Files {
             (_, HostAnswer::Cancelled) => return Ok(None),
             (Choice::Save(id), HostAnswer::File(sink)) => FileJob::Save { id, sink },
             (Choice::Open, HostAnswer::Image(source)) => FileJob::Open { source },
-            (Choice::Pack, HostAnswer::Image(source)) => FileJob::ImportPack { source },
-            (Choice::Picture(tier), HostAnswer::Image(source)) => {
-                FileJob::AddPicture { source, tier }
-            }
+            (Choice::Mode(tag), HostAnswer::Image(source)) => FileJob::Mode {
+                tag,
+                source: Some(source),
+            },
+            (Choice::Mode(tag), _) => return Ok(Some(FileJob::Mode { tag, source: None })),
             (Choice::Save(_), _) => return Err(GalleryNotice::FileSaveFailed),
             (Choice::Open, _) => return Err(GalleryNotice::FileRefused(FileProblem::Unreadable)),
-            (Choice::Pack, _) => return Err(GalleryNotice::PackRefused(FileProblem::Unreadable)),
-            (Choice::Picture(_), _) => return Err(GalleryNotice::PictureRefused),
         };
         self.state = State::Working;
         Ok(Some(job))
@@ -145,7 +133,8 @@ impl Files {
 }
 
 /// What the user is told about a file that could not be opened.
-pub(crate) const fn problem(error: &PortError) -> FileProblem {
+#[must_use]
+pub const fn problem(error: &PortError) -> FileProblem {
     match error {
         PortError::NotArtworkFile => FileProblem::NotOpenPaint,
         PortError::OtherFormat { .. } => FileProblem::OtherFormat,

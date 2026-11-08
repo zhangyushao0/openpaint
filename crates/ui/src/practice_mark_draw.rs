@@ -9,8 +9,8 @@
 //! original's frame, or kept inside their own frame.
 
 use egui::{Align2, Color32, FontId, Pos2, Rect, Shape, Stroke};
-use openpaint_app::PracticeProjection;
 use openpaint_practice::{Clip, Figure, Frame, In, LinePen, Place, SheetMark, Source, within};
+use openpaint_practice_app::PracticeProjection;
 
 use crate::design::{CORRECTION, DIVIDER, INK, INK_SECONDARY, PANEL, PANEL_RULE_WIDTH, PRINTED};
 use crate::practice_mark_lines::{

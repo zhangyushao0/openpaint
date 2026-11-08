@@ -6,8 +6,8 @@
 //! is shows: no axes, no legends.
 
 use egui::{Align2, Pos2, Rect, Shape, Stroke, TextStyle, Vec2};
-use openpaint_app::BookProjection;
 use openpaint_practice::Point;
+use openpaint_practice_app::BookProjection;
 
 use crate::components::{paint_seal, paint_sheet, seal_turn};
 use crate::design::{CORRECTION, INK, INK_SECONDARY, PENCIL, SPACE};

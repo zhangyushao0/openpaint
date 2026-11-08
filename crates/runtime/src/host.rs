@@ -4,13 +4,14 @@
 
 use std::time::Duration;
 
-use openpaint_app::{BytesSource, GalleryIntent, HostAnswer, HostRequest};
+use openpaint_app::{BytesSource, FileJob, GalleryIntent, HostAnswer, HostRequest};
+use openpaint_practice_app::OptionsIntent;
 use openpaint_ui::CanvasArea;
 
 use crate::canvas::Leaving;
 use crate::error::RuntimeError;
 use crate::frame::Runtime;
-use crate::practice::PracticeJob;
+use crate::practice;
 use crate::screen::leave_job;
 use crate::storage::Job;
 
@@ -28,12 +29,10 @@ impl Runtime {
         if let Some(canvas) = self.screen.canvas_mut() {
             canvas.end_stroke(&mut self.toolbox);
             // Time hidden is no practice: a sheet's time so far goes to the store.
-            canvas.session_mut().practice_hidden();
-            if let Some(record) = canvas.session_mut().practice_save_request() {
-                self.practice.keep(record.clone());
-                self.storage
-                    .submit(Job::Practice(PracticeJob::Save(record)));
+            if let Some(sheet) = practice::sheet(canvas) {
+                sheet.hidden();
             }
+            practice::save_record(canvas, (&mut self.practice, &mut self.storage));
         }
         if let Some(state) = self.toolbox.save_request() {
             self.storage.submit(Job::SaveEditor(Box::new(state)));
@@ -80,10 +79,18 @@ impl Runtime {
             if let Some(job) = self.transfers.answer(answer) {
                 self.transfer.submit(job);
             }
-        } else if let Some(gallery) = self.screen.gallery_mut().filter(|g| g.waiting()) {
+        } else if let Some((gallery, options)) =
+            self.screen.options_mut().filter(|(g, _)| g.waiting())
+        {
             log::info!("the host answered the gallery: {answer:?}");
-            if let Some(job) = gallery.host_answer(answer) {
-                self.storage.submit(Job::File(job));
+            match gallery.host_answer(answer) {
+                Some(FileJob::Mode { tag, source }) => {
+                    if let Some(job) = practice::chosen(options, (tag, source)) {
+                        self.storage.submit(job);
+                    }
+                }
+                Some(job) => self.storage.submit(Job::File(job)),
+                None => {}
             }
         } else {
             log::warn!("an answer from the host nobody waits for: {answer:?}");
@@ -113,20 +120,22 @@ impl Runtime {
     /// `NotNow` when the gallery does not show; `App` while it opens an artwork or a file is
     /// being read or written.
     pub fn open_file_now(&mut self, bytes: Vec<u8>) -> Result<(), RuntimeError> {
-        let gallery = (self.screen.gallery_mut()).ok_or(RuntimeError::NotNow("the gallery"))?;
-        let intent = if bytes.starts_with(b"OpenPaintPack\0") {
-            GalleryIntent::ImportPack
+        let (gallery, options) =
+            (self.screen.options_mut()).ok_or(RuntimeError::NotNow("the gallery"))?;
+        if bytes.starts_with(b"OpenPaintPack\0") {
+            options.dispatch(OptionsIntent::ImportPack, gallery)?;
         } else {
-            GalleryIntent::OpenFile
-        };
-        gallery.dispatch(intent)?;
+            gallery.dispatch(GalleryIntent::OpenFile)?;
+        }
         while let Some(request) = gallery.host_request() {
             log::info!("not shown, the file given at once: {request:?}");
         }
-        let job = gallery
-            .host_answer(HostAnswer::Image(Box::new(BytesSource(bytes))))
-            .ok_or(RuntimeError::NotNow("a gallery taking the file"))?;
-        self.storage.submit(Job::File(job));
+        let job = match gallery.host_answer(HostAnswer::Image(Box::new(BytesSource(bytes)))) {
+            Some(FileJob::Mode { tag, source }) => practice::chosen(options, (tag, source)),
+            other => other.map(Job::File),
+        };
+        let job = job.ok_or(RuntimeError::NotNow("a gallery taking the file"))?;
+        self.storage.submit(job);
         Ok(())
     }
 

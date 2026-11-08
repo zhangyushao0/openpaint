@@ -1,9 +1,10 @@
 //! The eyedropper on the open canvas: what a picking contact previews, read back from the
 //! canvas target, and on a practice sheet what its originals let it read (a painted copy's frame
-//! is read off the frame loop: `compare.rs`).
+//! is read off the frame loop: `practice/compare.rs`).
 
-use openpaint_app::{Contact, ContactPhase, PracticePick, ToolIntent, Toolbox};
+use openpaint_app::{Contact, ContactPhase, ToolIntent, Toolbox};
 use openpaint_core::Color;
+use openpaint_practice_app::PracticePick;
 use openpaint_render::Core;
 
 use super::Canvas;
@@ -26,7 +27,8 @@ impl Canvas {
         let Some(sample) = contact.samples.last() else {
             return;
         };
-        let at = match self.session_mut().practice_pick(sample.position) {
+        let pick = crate::practice::sheet(self).map(|sheet| sheet.pick(sample.position));
+        let at = match pick.unwrap_or(PracticePick::Canvas) {
             PracticePick::Canvas => sample.position,
             PracticePick::Refused => return,
             PracticePick::Colour(color) => {
@@ -38,8 +40,8 @@ impl Canvas {
                 on_original,
             } => {
                 let read = self.canvas_colour(core, copy);
-                if let Some(rgb) = read {
-                    self.session_mut().practice_probed(rgb);
+                if let (Some(rgb), Some(sheet)) = (read, crate::practice::sheet(self)) {
+                    sheet.probed(rgb);
                 }
                 let shown = if on_original {
                     Some(original)

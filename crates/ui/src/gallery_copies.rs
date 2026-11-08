@@ -4,7 +4,8 @@
 //! dialog, asking first and saying what goes and what stays). Answered, the options show again.
 
 use egui::{Rect, Vec2};
-use openpaint_app::{GalleryIntent, Intent, MAX_TITLE_CHARS, ProjectId, Title, TodayProjection};
+use openpaint_app::{GalleryIntent, MAX_TITLE_CHARS, ProjectId, Title};
+use openpaint_practice_app::{OptionsIntent, TodayProjection};
 
 use super::GalleryScreen;
 use super::pictures::OptionsPictures;
@@ -69,7 +70,7 @@ impl GalleryScreen {
     /// The practice options' naming or removing dialog, whichever waits; answered, the options
     /// show again (the copy renamed, the first page after a copy went, My pictures after one of
     /// them went).
-    pub(super) fn answer_dialogs(&mut self, ctx: &egui::Context, taps: &mut Vec<Intent>) {
+    pub(super) fn answer_dialogs(&mut self, ctx: &egui::Context, taps: &mut Vec<OptionsIntent>) {
         let card = self.practice.card().unwrap_or(Rect::NOTHING);
         if let Some((sheet, naming)) = &mut self.practice.rename {
             let words = (t::RENAME, t::NAME, MAX_TITLE_CHARS);
@@ -79,7 +80,7 @@ impl GalleryScreen {
             };
             let sheet = *sheet;
             if done && let Ok(title) = Title::new(&naming.text) {
-                taps.push(Intent::Gallery(GalleryIntent::RenameCopy { sheet, title }));
+                taps.push(OptionsIntent::RenameCopy { sheet, title });
             }
             self.practice.rename = None;
             self.practice.show(Page::Copy(sheet));
@@ -92,13 +93,13 @@ impl GalleryScreen {
         let (name, intent, goes, after) = match removal {
             Removal::Copy(sheet, name) => (
                 name.as_str(),
-                GalleryIntent::RemoveCopy(*sheet),
+                OptionsIntent::RemoveCopy(*sheet),
                 t::COPY_GOES.get(language).to_owned(),
                 Page::Main,
             ),
             Removal::Picture(item, name, uses) => (
                 name.as_str(),
-                GalleryIntent::RemovePicture(item.clone()),
+                OptionsIntent::RemovePicture(item.clone()),
                 t::picture_goes(language, *uses),
                 Page::Mine,
             ),
@@ -111,7 +112,7 @@ impl GalleryScreen {
             return;
         };
         if remove {
-            taps.push(Intent::Gallery(intent));
+            taps.push(intent);
         }
         self.practice.remove = None;
         self.practice.show(after);

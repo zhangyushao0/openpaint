@@ -16,8 +16,8 @@
 //! (if one is left), the inline wheel's square dragged round, Fill frame and Compare (the colours
 //! on the wheel). Between motions the frames still wanted, then a pause as the hand moves on.
 
-use openpaint_app::{Intent, PracticeIntent};
 use openpaint_practice::Family;
+use openpaint_practice_app::PracticeIntent;
 
 use super::Watch;
 use super::hand::to_screen;
@@ -54,7 +54,7 @@ pub(super) fn of_key(key: &str) -> Result<Family, RuntimeError> {
 impl Runtime {
     /// `practice`: see the module.
     pub(crate) fn bench_practice(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
-        let Some(family) = self.projection().practice().map(|p| p.family) else {
+        let Some(family) = self.practice().map(|p| p.family) else {
             return Err(RuntimeError::NotNow("a practice sheet open"));
         };
         let mut watch = Watch::paced(self);
@@ -82,7 +82,7 @@ impl Runtime {
             lines.push("no line shown first: its Compare left out".to_owned());
         }
         for next in 1..=3 {
-            let shown = |runtime: &Self| runtime.projection().practice().and_then(|p| p.current);
+            let shown = |runtime: &Self| runtime.practice().and_then(|p| p.current);
             let before = shown(self);
             let line = self.bench_tap("Next", ToolKind::Finger)?;
             if shown(self) == before {
@@ -127,8 +127,8 @@ impl Runtime {
     /// Next until an exercise of `family` shows, its instructions closed and the hand at rest;
     /// false when none comes after the one shown.
     pub(super) fn bench_on_to(&mut self, family: Family) -> Result<bool, RuntimeError> {
-        let shown = |runtime: &Self| runtime.projection().practice().and_then(|p| p.family);
-        let holds = (self.projection().practice()).is_some_and(|p| {
+        let shown = |runtime: &Self| runtime.practice().and_then(|p| p.family);
+        let holds = self.practice().is_some_and(|p| {
             let from = p.current.unwrap_or(p.sheet.families.len());
             (p.sheet.families.iter().skip(from)).any(|held| *held == family)
         });
@@ -138,11 +138,11 @@ impl Runtime {
         let mut watch = Watch::paced(self);
         while shown(self) != Some(family) {
             let viewport = self.bench_viewport()?;
-            let next = Intent::Practice(PracticeIntent::Next(viewport));
-            self.bench_intents(vec![next], &mut watch)?;
+            let next = PracticeIntent::Next(viewport);
+            self.bench_practise(vec![next], &mut watch)?;
         }
-        let close = Intent::Practice(PracticeIntent::Instructions(false));
-        self.bench_intents(vec![close], &mut watch)?;
+        let close = PracticeIntent::Instructions(false);
+        self.bench_practise(vec![close], &mut watch)?;
         self.bench_settle()?;
         self.bench_rest()?;
         Ok(true)
@@ -151,7 +151,7 @@ impl Runtime {
     /// A box's edges drawn by the pen in the shown copy's frame: three verticals and the lines
     /// between their ends, each a stroke.
     fn bench_edges(&mut self) -> Result<(), RuntimeError> {
-        let practice = self.projection().practice().cloned();
+        let practice = self.practice();
         let frame = (practice.as_ref())
             .and_then(|p| p.current.map(|index| p.sheet.pairs[index].copy))
             .ok_or(RuntimeError::NotNow("an exercise shown"))?;
@@ -225,7 +225,7 @@ impl Runtime {
             lines.push("no combined lines after this point of the session".to_owned());
             return Ok(());
         }
-        let practice = self.projection().practice().cloned();
+        let practice = self.practice();
         let shown = (practice.as_ref()).and_then(|p| {
             let index = p.current?;
             let group = p.sheet.originals[index].lines()?.to_vec();
@@ -251,12 +251,14 @@ impl Runtime {
     /// the tap's lift; then In place chosen again and Compare taken away, unmeasured.
     fn bench_fit_shown(&mut self, name: &str, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
         let mut watch = Watch::paced(self);
-        let aligned = Intent::Practice(PracticeIntent::Aligned(true));
-        self.bench_intents(vec![aligned], &mut watch)?;
+        let aligned = PracticeIntent::Aligned(true);
+        self.bench_practise(vec![aligned], &mut watch)?;
         self.bench_rest()?;
         let at = self.bench_control("Compare")?;
         let fitted = |runtime: &Self| {
-            (runtime.projection().practice()).is_some_and(|p| p.comparing && !p.fitting)
+            runtime
+                .practice()
+                .is_some_and(|p| p.comparing && !p.fitting)
         };
         let motion = self.bench_motion_until(tap(at, ToolKind::Finger), fitted)?;
         self.bench_rest()?;
@@ -269,15 +271,15 @@ impl Runtime {
              ms on its worker); {}",
             motion.line()
         ));
-        let in_place = Intent::Practice(PracticeIntent::Aligned(false));
-        self.bench_intents(vec![in_place], &mut watch)?;
+        let in_place = PracticeIntent::Aligned(false);
+        self.bench_practise(vec![in_place], &mut watch)?;
         self.bench_tap("Compare", ToolKind::Finger)?;
         Ok(())
     }
 
     /// A loop drawn by the pen round the middle of the shown copy's frame, with a line inside.
     fn bench_outline(&mut self) -> Result<(), RuntimeError> {
-        let practice = self.projection().practice().cloned();
+        let practice = self.practice();
         let frame = (practice.as_ref())
             .and_then(|p| p.current.map(|index| p.sheet.pairs[index].copy))
             .ok_or(RuntimeError::NotNow("an exercise shown"))?;
@@ -297,7 +299,7 @@ impl Runtime {
 
     /// A line drawn by the pen across the shown copy's frame, its instructions closed first.
     fn bench_copy(&mut self) -> Result<(), RuntimeError> {
-        let practice = self.projection().practice().cloned();
+        let practice = self.practice();
         let frame = (practice.as_ref())
             .and_then(|p| p.current.map(|index| p.sheet.pairs[index].copy))
             .ok_or(RuntimeError::NotNow("an exercise shown"))?;

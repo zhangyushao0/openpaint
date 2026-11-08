@@ -1,10 +1,8 @@
 //! The gallery as one UI frame sees it (`gallery.rs`): the artworks listed, whether they are
-//! listed yet, whether an artwork is being opened, the notice, and the Today card the app's
-//! practice log adds.
+//! listed yet, whether an artwork is being opened and the notice.
 
 use std::sync::Arc;
 
-use crate::practice_today::TodayProjection;
 use crate::project::ProjectSummary;
 use crate::projection::Availability;
 
@@ -34,8 +32,8 @@ pub enum GalleryNotice {
     /// The artwork could not be opened; it stays in the library as it was.
     OpenFailed,
     CreateFailed,
-    /// A rename, duplicate or delete failed (an artwork's, a colour copy's or a picture's); the
-    /// gallery shows the library as it is.
+    /// A rename, duplicate or delete failed (an artwork's, or a mode's change); the gallery shows
+    /// the library as it is.
     ChangeFailed,
     /// The artwork was saved as an OpenPaint file.
     FileSaved,
@@ -44,20 +42,6 @@ pub enum GalleryNotice {
     FileRefused(FileProblem),
     /// The version could not be restored; nothing changed.
     RestoreFailed,
-    /// The chosen practice pack is kept: its pictures come up in single shapes, or (a pack of
-    /// compositions) in divisions and whole copies, its crops (S101) in colour combinations.
-    PackImported {
-        compositions: bool,
-        crops: bool,
-    },
-    /// The chosen file was not kept as a practice pack; nothing changed.
-    PackRefused(FileProblem),
-    /// The chosen picture is among the user's own, with an outline found or none.
-    PictureAdded {
-        outline: bool,
-    },
-    /// The chosen picture was not added (not a PNG or JPEG one, or unreadable); nothing changed.
-    PictureRefused,
 }
 
 /// A snapshot of the gallery for one UI frame.
@@ -67,7 +51,6 @@ pub struct GalleryProjection {
     pub(crate) listed: bool,
     pub(crate) opening: bool,
     pub(crate) notice: GalleryNotice,
-    pub(crate) today: Option<TodayProjection>,
 }
 
 /// Every gallery action, unless an artwork is being `opening`.
@@ -101,20 +84,5 @@ impl GalleryProjection {
     #[must_use]
     pub const fn notice(&self) -> GalleryNotice {
         self.notice
-    }
-
-    /// The Today card, once the app's practice log is added (`with_today`).
-    #[must_use]
-    pub const fn today(&self) -> Option<&TodayProjection> {
-        self.today.as_ref()
-    }
-
-    /// This projection with the Today card, which the app's practice log gives.
-    #[must_use]
-    pub fn with_today(self, today: TodayProjection) -> Self {
-        Self {
-            today: Some(today),
-            ..self
-        }
     }
 }

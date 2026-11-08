@@ -4,7 +4,7 @@
 use openpaint_app::{BrushIntent, Intent};
 
 /// Pushes `intent` unless it is the one pushed last.
-pub(crate) fn push_once(taps: &mut Vec<Intent>, intent: Intent) {
+pub(crate) fn push_once<T: PartialEq>(taps: &mut Vec<T>, intent: T) {
     if taps.last() != Some(&intent) {
         taps.push(intent);
     }

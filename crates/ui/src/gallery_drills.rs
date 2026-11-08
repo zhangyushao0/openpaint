@@ -9,8 +9,9 @@
 //! import a pack instead, and nothing starts.
 
 use egui::{Align2, Sense, TextStyle, Vec2, WidgetInfo, WidgetType};
-use openpaint_app::{DrillShown, GalleryIntent, Language, TodayProjection};
+use openpaint_app::{GalleryIntent, Language};
 use openpaint_practice::{Family, Needs, stage_needs};
+use openpaint_practice_app::{DrillShown, OptionsIntent, TodayProjection};
 
 use super::practice::{Tapped, note};
 use crate::components::{KindTile, controls, kind_tile, section};
@@ -63,7 +64,7 @@ pub(super) fn practice_section(
             // starts none: its tile needing the same says where to import it.
             let needs = stage_needs(stage);
             if kept(today, needs) {
-                chosen = Some(Tapped::Intent(GalleryIntent::Practice(stage), true));
+                chosen = Some(Tapped::Options(OptionsIntent::Practice(stage), true));
             } else {
                 *needs_pack = (tiles.iter())
                     .map(|tile| tile.family)
@@ -76,8 +77,8 @@ pub(super) fn practice_section(
                 Some(sheet) => chosen = Some(Tapped::Intent(GalleryIntent::Open(sheet), true)),
                 None if !kept(today, needs) => *needs_pack = Some(tapped.family),
                 None => {
-                    let drill = GalleryIntent::Drill(tapped.family);
-                    chosen = Some(Tapped::Intent(drill, true));
+                    let drill = OptionsIntent::Drill(tapped.family);
+                    chosen = Some(Tapped::Options(drill, true));
                 }
             }
         }

@@ -4,8 +4,9 @@
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, Clipboard, Language, PalmRejection, PracticeLog, ProjectStore, Toolbox, Transfers,
+    BrushLibrary, Clipboard, Language, PalmRejection, ProjectStore, Toolbox, Transfers,
 };
+use openpaint_practice_app::PracticeLog;
 use openpaint_practice_store::Packs;
 use openpaint_render::Core;
 use openpaint_store::DisplayCache;
@@ -16,14 +17,13 @@ use super::Runtime;
 use crate::brush_pictures::BrushPictures;
 use crate::budget::Budget;
 use crate::clock::{FrameClock, InputClock};
-use crate::compare::CompareWorker;
 use crate::display::CacheWorker;
 use crate::error::RuntimeError;
 use crate::fill::FillWorker;
 use crate::normalise::Normaliser;
 use crate::pacing::Pacing;
-use crate::pack_pictures::PackPictureWorker;
 use crate::pictures::PictureWorker;
+use crate::practice::{CompareWorker, PackPictureWorker};
 use crate::raster::RasterWorker;
 use crate::recover::Recoveries;
 use crate::screen::Screen;

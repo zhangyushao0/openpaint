@@ -11,10 +11,11 @@
 use std::sync::Arc;
 
 use openpaint_app::{
-    Clipboard, InputBatch, Intent, Language, PalmRejection, PracticeLog, ScreenProjection,
-    SessionProjection, Toolbox, Transfers, TransformIntent,
+    Clipboard, InputBatch, Intent, Language, PalmRejection, ScreenProjection, SessionProjection,
+    Toolbox, Transfers, TransformIntent,
 };
 use openpaint_core::Artwork;
+use openpaint_practice_app::PracticeLog;
 use openpaint_render::{Core, ScreenPainter, ScreenTarget, Surface, SurfaceWindow, UiFrame};
 use openpaint_ui::design::{self, TextFonts};
 use openpaint_ui::{CanvasArea, Shell};
@@ -31,6 +32,7 @@ use crate::normalise::Normaliser;
 use crate::pacing::{Paced, Pacing, Wanted};
 use crate::pictures::PictureWorker;
 use crate::pointer::pointer_events;
+use crate::practice;
 use crate::raster::RasterWorker;
 use crate::recover::{Reattach, Recoveries};
 use crate::screen::Screen;
@@ -100,10 +102,10 @@ pub struct Runtime {
     pub(crate) transfers: Transfers,
     pub(crate) transfer: TransferWorker,
     fill: FillWorker,
-    pub(crate) compare: crate::compare::CompareWorker,
+    pub(crate) compare: crate::practice::CompareWorker,
     pub(crate) pictures: PictureWorker,
     /// The practice options' pictures (the gallery's).
-    pack_pictures: crate::pack_pictures::PackPictureWorker,
+    pack_pictures: crate::practice::PackPictureWorker,
     /// Makes the raster core's pipelines and draws the view tiers' tiles.
     pub(crate) raster: RasterWorker,
     /// The brush panel's pictures and the editor's preview strip.
@@ -277,7 +279,7 @@ impl Runtime {
     /// What the whole screen offers: the canvas, the gallery, or nothing yet.
     #[must_use]
     pub fn screen(&self) -> ScreenProjection {
-        let app = (&self.transfers, &self.clipboard, &self.practice);
+        let app = (&self.transfers, &self.clipboard);
         self.screen.projection(&self.toolbox, app)
     }
 
@@ -308,8 +310,10 @@ impl Runtime {
         let now = self.frame_clock.wall_seconds();
         self.practice.set_clock(now, self.utc_offset);
         // A use of the pen (touching or hovering), a finger or a control on a practice sheet.
-        if let (false, Some(canvas)) = (batches.is_empty(), self.screen.canvas_mut()) {
-            canvas.session_mut().practised(now);
+        if let (false, Some(canvas)) = (batches.is_empty(), self.screen.canvas_mut())
+            && let Some(sheet) = practice::sheet(canvas)
+        {
+            sheet.practised(now);
         }
         let mut events = pointer_events(&batches, self.pixels_per_point);
         events.append(&mut self.typed);
@@ -317,12 +321,13 @@ impl Runtime {
         let language = self.language();
         self.shell.set_language(language);
         let shown = self.screen();
+        let practised = practice::Shown::of(&self.screen, &self.practice);
         let laid = std::time::Instant::now();
         let pass = run_ui(
             &self.ui,
             UiPass {
                 shell: &mut self.shell,
-                projection: &shown,
+                projection: (&shown, &practised.for_shell()),
                 size,
                 pixels_per_point: self.pixels_per_point,
                 events,
@@ -332,6 +337,7 @@ impl Runtime {
         self.ui_ns = u64::try_from(laid.elapsed().as_nanos()).unwrap_or(u64::MAX);
         self.keyboard = pass.keyboard;
         let intents = self.shell.route(&batches);
+        let practising = self.shell.take_practice();
         let mut intents = route(&mut self.transfers, self.screen.canvas(), intents);
         // A picture read for inserting goes to the canvas open now, before this frame's taps.
         if let Some(picture) = self.transfers.take_picture() {
@@ -339,7 +345,7 @@ impl Runtime {
         }
         let area = self.shell.canvas_area();
         self.open_canvas()?;
-        let arrived = self.apply(intents);
+        let arrived = self.apply(intents, practising);
         if let Some(state) = self.toolbox.save_request() {
             self.storage.submit(Job::SaveEditor(Box::new(state)));
         }
@@ -348,7 +354,9 @@ impl Runtime {
         self.evaluate_screen(area)?;
         self.core.end_background();
         self.send_raster(idle);
-        let changed = self.screen() != shown || self.language() != language;
+        let changed = self.screen() != shown
+            || practice::Shown::of(&self.screen, &self.practice) != practised
+            || self.language() != language;
         // Also until the next tier's atlas is asked for, made ahead once nothing touches.
         let viewing = (self.screen.canvas())
             .is_some_and(|canvas| canvas.waiting() || canvas.view().wants_spare());

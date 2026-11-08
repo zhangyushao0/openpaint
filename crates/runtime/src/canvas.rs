@@ -4,11 +4,11 @@
 use std::time::Instant;
 
 use openpaint_app::{
-    Clipboard, ContactPhase, FillFailed, Intent, LiftFailed, PracticeIntent, PracticePens,
-    SelectionIntent, Session, StrokeIntent, Title, ToolIntent, Toolbox, TransformJob, ViewMapping,
-    Viewport, copy_brush,
+    Clipboard, ContactPhase, FillFailed, Intent, LiftFailed, SelectionIntent, Session,
+    StrokeIntent, Title, ToolIntent, Toolbox, TransformJob, ViewMapping, Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, Patch, RegionMask, StrokeTool};
+use openpaint_practice_app::{PracticePens, copy_brush, open_sheet};
 
 use openpaint_render::{
     BrushCursor, CanvasPlacement, CanvasTarget, Core, ViewCache, ViewFrame, tip_radius,
@@ -58,7 +58,7 @@ pub(crate) enum Then {
 
 /// A practice sheet: its session record, the finished sessions of its stage before it and the
 /// sheet as drawn.
-pub(crate) type SheetOf = Option<openpaint_app::Practising>;
+pub(crate) type SheetOf = Option<openpaint_practice_app::Practising>;
 
 pub(crate) struct Canvas {
     session: Session,
@@ -109,7 +109,7 @@ impl Canvas {
         let (mut session, title) = match (content, sheet) {
             (Content::Stored(artwork, title, _), Some(sheet)) => {
                 let pens = PracticePens::built_in()?;
-                let session = Session::practising(artwork.clone(), (brush, pens), sheet, viewport);
+                let session = open_sheet(artwork.clone(), (brush, pens), sheet, viewport);
                 (session, title.clone())
             }
             (Content::Stored(artwork, title, _), None) => {
@@ -152,13 +152,12 @@ impl Canvas {
     /// session draws its next stroke with the style that results. While the eyedropper is on,
     /// canvas contacts pick colours instead of drawing (`pick`). The copy menu's commands copy
     /// into and paste from `clipboard`, the app's. Every contact touching down takes the next of
-    /// `seeds` for the stroke it may begin. Practice's intents happen at `now` (seconds since
-    /// 1970 UTC); One more leaves the sheet for the next session's.
+    /// `seeds` for the stroke it may begin. A mode's own intents follow (`by_mode`).
     pub(crate) fn dispatch(
         &mut self,
         core: &Core,
         intents: Vec<Intent>,
-        (toolbox, clipboard, seeds, now): (&mut Toolbox, &mut Clipboard, &mut Seeds, u64),
+        (toolbox, clipboard, seeds): (&mut Toolbox, &mut Clipboard, &mut Seeds),
     ) {
         for intent in intents {
             if self.leaving != Leaving::Staying {
@@ -186,17 +185,6 @@ impl Canvas {
             let before = self.session.shown().clone();
             let result = match intent {
                 Intent::Clipboard(action) => self.session.clipboard(action, clipboard),
-                Intent::Practice(practice) => {
-                    let result = self.session.practise(practice, now);
-                    if result.is_ok() && practice == PracticeIntent::OneMore {
-                        let next = self
-                            .session
-                            .practice_drill()
-                            .map_or(Next::Session, Next::Drill);
-                        (self.leaving, self.then) = (Leaving::Waiting, Then::Practice(next));
-                    }
-                    result
-                }
                 intent => self.session.dispatch(intent),
             };
             if cancel && self.session.active().is_none() {
@@ -217,6 +205,28 @@ impl Canvas {
             // A transform just begun lifts its pixels now, so the frame shows it at once.
             if let Some(job) = self.session.transform_request() {
                 self.session.transform_lifted(lift(core, &job));
+            }
+        }
+    }
+
+    /// A mode's own intent `apply` (`Session::lend`) as the frame's intents are: none while leaving,
+    /// a refusal logged, a success evaluated against what showed before. Whether it applied.
+    pub(crate) fn by_mode<E: std::fmt::Display>(
+        &mut self,
+        apply: impl FnOnce(&mut Session) -> Result<(), E>,
+    ) -> bool {
+        if self.leaving != Leaving::Staying {
+            return false;
+        }
+        let before = self.session.shown().clone();
+        match apply(&mut self.session) {
+            Ok(()) => {
+                self.changed_from.get_or_insert(before);
+                true
+            }
+            Err(error) => {
+                log::warn!("intent refused: {error}");
+                false
             }
         }
     }

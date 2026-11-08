@@ -89,8 +89,8 @@ pub fn request_line(request: &HostRequest, share_dir: &Path) -> Option<(String, 
         HostRequest::SaveArtwork { name } => {
             Some((format!("save\t{ARTWORK_MIME}\t{name}"), Some(Pick::Save)))
         }
-        // A practice pack is any file too: the host's file picker, the pack read by the app.
-        HostRequest::OpenArtwork | HostRequest::OpenPack => {
+        // A mode's file is any file too: the host's file picker, the file read by the app.
+        HostRequest::OpenArtwork | HostRequest::OpenFile => {
             Some(("open-file".to_owned(), Some(Pick::Open)))
         }
         HostRequest::Send { name, format } => {

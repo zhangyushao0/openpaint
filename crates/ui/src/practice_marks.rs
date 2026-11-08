@@ -14,10 +14,9 @@ use std::sync::Arc;
 
 use egui::epaint::TextShape;
 use egui::{Align2, Color32, FontId, Mesh, Order, Pos2, Shape, Stroke, TextureHandle};
-use openpaint_app::{
-    Greys, INK_DIAMETER, PictureImage, PracticeProjection, SessionProjection, ViewMapping,
-};
+use openpaint_app::ViewMapping;
 use openpaint_practice::{FRAME, Frame, ItemRef, Rgb8};
+use openpaint_practice_app::{Greys, INK_DIAMETER, PictureImage, PracticeProjection};
 
 use crate::components::{Alpha, canvas_point, picture_texture};
 use crate::design::{DIVIDER, INK, INK_SECONDARY, PANEL, PANEL_RULE_WIDTH};
@@ -159,15 +158,15 @@ impl SheetPictures {
     }
 }
 
-/// The sheet of `projection`'s practice, if it is one, through `mapping` on a screen of
+/// The open practice `sheet`, if there is one, through `mapping` on a screen of
 /// `pixels_per_point`, its pictures from `pictures`.
 pub(crate) fn show_marks(
     ctx: &egui::Context,
-    projection: &SessionProjection,
+    sheet: Option<&PracticeProjection>,
     (mapping, pixels_per_point): (&ViewMapping, f32),
     pictures: &mut SheetPictures,
 ) {
-    let Some(practice) = projection.practice() else {
+    let Some(practice) = sheet else {
         return;
     };
     pictures.sync(ctx, practice);

@@ -11,8 +11,9 @@
 //! Back goes to the first page; Close or a tap outside closes them.
 
 use egui::{Align, Layout, Rect};
-use openpaint_app::{GalleryIntent, Intent, ProjectId, TodayProjection};
+use openpaint_app::{GalleryIntent, Intent, ProjectId};
 use openpaint_practice::{ItemRef, Tier};
+use openpaint_practice_app::{OptionsIntent, TodayProjection};
 
 use super::GalleryScreen;
 use super::pictures::OptionsPictures;
@@ -56,6 +57,8 @@ pub(super) enum Removal {
 pub(super) enum Tapped {
     /// The gallery's intent, and whether it opens a sheet (grown out of the Today card).
     Intent(GalleryIntent, bool),
+    /// The practice options' intent, and whether it opens a sheet.
+    Options(OptionsIntent, bool),
     Page(Page),
     /// A colour copy renamed: its sheet and its name as shown, in the naming dialog.
     Rename(ProjectId, String),
@@ -121,11 +124,11 @@ impl GalleryScreen {
         &mut self,
         ctx: &egui::Context,
         today: &TodayProjection,
-        taps: &mut Vec<Intent>,
+        (taps, asked): (&mut Vec<Intent>, &mut Vec<OptionsIntent>),
     ) {
         self.practice.pictures.upload(ctx);
         if self.practice.rename.is_some() || self.practice.remove.is_some() {
-            self.answer_dialogs(ctx, taps);
+            self.answer_dialogs(ctx, asked);
             return;
         }
         let Some((card, page)) = self.practice.shown.clone() else {
@@ -143,15 +146,14 @@ impl GalleryScreen {
             });
         match tapped {
             Some(Tapped::Intent(intent, opens)) => {
-                if opens {
-                    self.opening = Some(crate::components::carry::Opening {
-                        from: card,
-                        id: None,
-                        picture: None,
-                    });
-                }
-                let stays = matches!(intent, GalleryIntent::PictureTier(..));
+                self.opening_from(card, opens);
                 taps.push(Intent::Gallery(intent));
+                self.practice.shown = None;
+            }
+            Some(Tapped::Options(intent, opens)) => {
+                self.opening_from(card, opens);
+                let stays = matches!(intent, OptionsIntent::PictureTier(..));
+                asked.push(intent);
                 if !stays {
                     self.practice.shown = None;
                 }
@@ -164,6 +166,17 @@ impl GalleryScreen {
             None if back => self.practice.shown = Some((card, Page::Main)),
             None if close || outside => self.practice.shown = None,
             None => {}
+        }
+    }
+
+    /// A sheet opening from the options grows out of `card` (the Today card), when it `opens`.
+    fn opening_from(&mut self, card: Rect, opens: bool) {
+        if opens {
+            self.opening = Some(crate::components::carry::Opening {
+                from: card,
+                id: None,
+                picture: None,
+            });
         }
     }
 }
@@ -281,7 +294,7 @@ fn packs(ui: &mut egui::Ui, today: &TodayProjection) -> Option<Tapped> {
         }
     }
     if menu_row(ui, t::IMPORT_PACK, Words::EMPTY, true).clicked() {
-        chosen = Some(Tapped::Intent(GalleryIntent::ImportPack, false));
+        chosen = Some(Tapped::Options(OptionsIntent::ImportPack, false));
     }
     if menu_row(ui, t::ADD_PICTURE, Words::EMPTY, true).clicked() {
         chosen = Some(Tapped::Page(Page::Add));

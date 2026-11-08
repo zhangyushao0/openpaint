@@ -341,10 +341,21 @@ impl Runtime {
     /// `intents` applied to the open canvas as the frame applies a hand's.
     pub(crate) fn bench_dispatch(&mut self, intents: Vec<Intent>) {
         if let Screen::Canvas(canvas) = &mut self.screen {
-            let now = self.frame_clock.wall_seconds();
-            let app = (&mut self.toolbox, &mut self.clipboard, &mut self.seeds, now);
+            let app = (&mut self.toolbox, &mut self.clipboard, &mut self.seeds);
             canvas.dispatch(&self.core, intents, app);
         }
+    }
+
+    /// `intents` applied to the open practice sheet, then a frame drawn.
+    pub(crate) fn bench_practise(
+        &mut self,
+        intents: Vec<openpaint_practice_app::PracticeIntent>,
+        watch: &mut Watch,
+    ) -> Result<(), RuntimeError> {
+        if let Screen::Canvas(canvas) = &mut self.screen {
+            crate::practice::apply(canvas, intents, self.frame_clock.wall_seconds());
+        }
+        self.bench_drawn(watch)
     }
 
     /// `intents` applied to the open canvas, then a frame drawn.

@@ -3,6 +3,7 @@
 
 use openpaint_app::{CanvasPreset, FileProblem, GalleryNotice};
 use openpaint_practice::Date;
+use openpaint_practice_app::OptionsNotice;
 
 use super::{Language, Text};
 
@@ -92,33 +93,39 @@ texts! { GALLERY_NOTICES;
         "无法添加图片：只支持 PNG 和 JPEG 图片。";
 }
 
-/// What the gallery's notice says.
-pub(crate) const fn gallery_notice(notice: GalleryNotice) -> Option<Text> {
+/// What the practice options' notice says.
+pub(crate) const fn options_notice(notice: OptionsNotice) -> Option<Text> {
     Some(match notice {
-        GalleryNotice::PackImported {
+        OptionsNotice::PackImported {
             compositions: false,
             crops: false,
         } => PACK_IMPORTED,
-        GalleryNotice::PackImported {
+        OptionsNotice::PackImported {
             compositions: true,
             crops: false,
         } => COMPOSITIONS_IMPORTED,
-        GalleryNotice::PackImported {
+        OptionsNotice::PackImported {
             compositions: true,
             crops: true,
         } => COMPOSITIONS_AND_CROPS_IMPORTED,
-        GalleryNotice::PackImported {
+        OptionsNotice::PackImported {
             compositions: false,
             crops: true,
         } => CROPS_IMPORTED,
-        GalleryNotice::PackRefused(FileProblem::OtherFormat) => PACK_OTHER_FORMAT,
-        GalleryNotice::PackRefused(FileProblem::Unreadable) => FILE_UNREADABLE,
-        GalleryNotice::PackRefused(FileProblem::NotOpenPaint | FileProblem::Damaged) => {
+        OptionsNotice::PackRefused(FileProblem::OtherFormat) => PACK_OTHER_FORMAT,
+        OptionsNotice::PackRefused(FileProblem::Unreadable) => FILE_UNREADABLE,
+        OptionsNotice::PackRefused(FileProblem::NotOpenPaint | FileProblem::Damaged) => {
             PACK_DAMAGED
         }
-        GalleryNotice::PictureAdded { outline: true } => PICTURE_ADDED,
-        GalleryNotice::PictureAdded { outline: false } => PICTURE_ADDED_PLAIN,
-        GalleryNotice::PictureRefused => PICTURE_REFUSED,
+        OptionsNotice::PictureAdded { outline: true } => PICTURE_ADDED,
+        OptionsNotice::PictureAdded { outline: false } => PICTURE_ADDED_PLAIN,
+        OptionsNotice::PictureRefused => PICTURE_REFUSED,
+    })
+}
+
+/// What the gallery's notice says.
+pub(crate) const fn gallery_notice(notice: GalleryNotice) -> Option<Text> {
+    Some(match notice {
         GalleryNotice::None => return None,
         GalleryNotice::ListFailed => LIST_FAILED,
         GalleryNotice::OtherLibrary => OTHER_LIBRARY,

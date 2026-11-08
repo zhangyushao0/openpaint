@@ -1,8 +1,8 @@
 # Hard Paint (硬边颜料), V大's first brush: a round tip with a hard edge for blocks of colour. It
 # lays the colour picked at full strength at any pressure, so a light touch never shows a colour
 # other than the one picked; pressure sets only its size, a little (early on, little pressure
-# dependence). Where a stroke crosses itself it never darkens. The practice's hard tip (Big, Small,
-# value masses' greys, S100) is this file too (S104): one definition for the toolbox and the pens.
+# dependence). Where a stroke crosses itself it never darkens. A mode's pens that lay blocks are
+# this file too (S100, S104): one definition for the toolbox and the pens.
 name = "Hard Paint"
 
 [size]

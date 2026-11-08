@@ -31,7 +31,7 @@ impl Runtime {
     /// See the module.
     pub(super) fn bench_points(&mut self, lines: &mut Vec<String>) -> Result<(), RuntimeError> {
         let first = |keys: &[&str]| {
-            (self.projection().practice()).and_then(|p| {
+            self.practice().and_then(|p| {
                 let from = p.current.unwrap_or(p.sheet.families.len());
                 (p.sheet.families.iter().skip(from))
                     .find(|family| keys.contains(&family.facts().key))
@@ -65,7 +65,7 @@ impl Runtime {
     /// The shown exercise's answer as its kind gives it (`Family::answer`) drawn by the pen a little
     /// off: a cross for a point, a stroke along each line, once round each ellipse.
     fn bench_answer(&mut self) -> Result<(), RuntimeError> {
-        let shown = (self.projection().practice()).and_then(|p| {
+        let shown = self.practice().and_then(|p| {
             let index = p.current?;
             let strokes = p.sheet.families[index].answer(&p.sheet.originals[index]);
             (!strokes.is_empty()).then(|| (strokes, p.sheet.pairs[index].copy))

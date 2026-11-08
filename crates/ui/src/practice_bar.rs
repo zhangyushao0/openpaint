@@ -8,8 +8,9 @@
 //! (`practice_card.rs`). The sheet itself is `practice_marks.rs`.
 
 use egui::Align;
-use openpaint_app::{Intent, PracticeIntent, PracticeProjection, SessionProjection, Viewport};
+use openpaint_app::{SessionProjection, Viewport};
 use openpaint_practice::PROJECT;
+use openpaint_practice_app::{PracticeIntent, PracticeProjection};
 
 use crate::color_panel::ColorPanel;
 use crate::components::{
@@ -19,6 +20,7 @@ use crate::components::{
 use crate::design::SPACE;
 use crate::practice_card;
 use crate::practice_demo::Demonstrations;
+use crate::practice_shown::SheetTaps;
 use crate::practice_tools::exercise_tools;
 use crate::taps::push_once;
 use crate::text as t;
@@ -36,29 +38,30 @@ pub(crate) struct PracticeBar {
 }
 
 impl PracticeBar {
-    /// The bar, the exercise's tools (a colour's wheel `colors` keeps) and the card on a practice sheet,
-    /// their taps pushed to `taps`; Next moves the view within `viewport`. The tools and the card
-    /// lie at the right under the islands, in the room the view leaves them (`PRACTICE_ROOM`).
+    /// The bar, the exercise's tools (a colour's wheel `colors` keeps) and the card on the open
+    /// practice `sheet`, their taps pushed to `taps`; Next moves the view within `viewport`. The
+    /// tools and the card lie at the right under the islands, in the room the view leaves them
+    /// (`PRACTICE_ROOM`).
     pub(crate) fn show(
         &mut self,
         ctx: &egui::Context,
-        projection: &SessionProjection,
+        (projection, sheet): (&SessionProjection, Option<&PracticeProjection>),
         (viewport, colors): (Option<Viewport>, &mut ColorPanel),
-        taps: &mut Vec<Intent>,
+        taps: &mut SheetTaps<'_>,
     ) {
         (self.bar, self.tools, self.card) = (None, None, None);
-        let Some(practice) = projection.practice() else {
+        let Some(practice) = sheet else {
             return;
         };
         let taken = projection.selection().tool || projection.transform().tool;
         let place = Place::middle_unless(taken);
         let source = Source::Within(Align::Center);
         let ((), bar) = pill(ctx, "practice bar", place, source, |ui| {
-            self.words(ui, practice, viewport, taps);
+            self.words(ui, practice, viewport, taps.sheet);
         });
         let ppp = ctx.pixels_per_point();
         self.bar = Some(ScreenArea::from_points(bar, ppp));
-        let tools = exercise_tools(ctx, projection, colors, taps);
+        let tools = exercise_tools(ctx, (projection, practice), colors, taps);
         self.tools = tools.map(|rect| ScreenArea::from_points(rect, ppp));
         let top = tools.map_or(UNDER_ISLANDS, |rect| rect.bottom() + SPACE);
         let opened = (ring_of(self.source.unwrap_or(bar)), top);
@@ -73,12 +76,12 @@ impl PracticeBar {
                 practice_card::instructions(ui, of, demos)
             });
             if done {
-                push_once(taps, Intent::Practice(PracticeIntent::Instructions(false)));
+                push_once(taps.sheet, PracticeIntent::Instructions(false));
             }
             rect
         } else if practice.comparing {
             card(ctx, "practice card", opened, |ui| {
-                practice_card::compared(ui, practice, taps);
+                practice_card::compared(ui, practice, taps.sheet);
             })
             .1
         } else {
@@ -93,7 +96,7 @@ impl PracticeBar {
         ui: &mut egui::Ui,
         practice: &PracticeProjection,
         viewport: Option<Viewport>,
-        taps: &mut Vec<Intent>,
+        taps: &mut Vec<PracticeIntent>,
     ) {
         // A label, then the commands, as far apart as a notice's message and its answer.
         let language = t::language(ui.ctx());
@@ -102,7 +105,7 @@ impl PracticeBar {
             ui.add_space(2.0 * SPACE);
             divider(ui);
             if text_button(ui, t::ONE_MORE, true).clicked() {
-                push_once(taps, Intent::Practice(PracticeIntent::OneMore));
+                push_once(taps, PracticeIntent::OneMore);
             }
             return;
         }
@@ -119,7 +122,7 @@ impl PracticeBar {
         let how = text_button(ui, t::HOW, true);
         if how.clicked() {
             let show = practice.instructions.is_none();
-            push_once(taps, Intent::Practice(PracticeIntent::Instructions(show)));
+            push_once(taps, PracticeIntent::Instructions(show));
             self.source = Some(how.rect);
         }
         let offered = practice.compare.is_offered();
@@ -127,7 +130,7 @@ impl PracticeBar {
             let on = practice.comparing;
             let compare = text_choice_wide(ui, group, t::COMPARE, (offered, on), 0.0);
             if compare.clicked() {
-                push_once(taps, Intent::Practice(PracticeIntent::Compare(!on)));
+                push_once(taps, PracticeIntent::Compare(!on));
                 self.source = Some(compare.rect);
             }
         });
@@ -138,7 +141,7 @@ impl PracticeBar {
         let next = if practice.last { t::FINISH } else { t::NEXT };
         let tapped = text_button(ui, next, viewport.is_some());
         if let (true, Some(viewport)) = (tapped.clicked(), viewport) {
-            push_once(taps, Intent::Practice(PracticeIntent::Next(viewport)));
+            push_once(taps, PracticeIntent::Next(viewport));
             self.source = Some(tapped.rect);
         }
     }

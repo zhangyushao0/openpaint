@@ -141,7 +141,7 @@ fn answers(answer: SystemAnswer, request: &HostRequest) -> bool {
         | SystemAnswer::P3Jpeg => matches!(request, HostRequest::OpenImage),
         SystemAnswer::TextFile => matches!(
             request,
-            HostRequest::OpenImage | HostRequest::OpenArtwork | HostRequest::OpenPack
+            HostRequest::OpenImage | HostRequest::OpenArtwork | HostRequest::OpenFile
         ),
         SystemAnswer::SavedFile | SystemAnswer::DamagedFile => {
             matches!(request, HostRequest::OpenArtwork)
@@ -150,7 +150,7 @@ fn answers(answer: SystemAnswer, request: &HostRequest) -> bool {
         | SystemAnswer::TestCompositions
         | SystemAnswer::TestFrames
         | SystemAnswer::TestCrops => {
-            matches!(request, HostRequest::OpenPack)
+            matches!(request, HostRequest::OpenFile)
         }
         SystemAnswer::Cancel | SystemAnswer::PickerFails => {
             !matches!(request, HostRequest::Send { .. })

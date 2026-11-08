@@ -5,8 +5,9 @@
 
 use std::sync::Arc;
 
-use openpaint_app::{BrushKey, BrushLibrary, Pen, PracticePens};
+use openpaint_app::{BrushKey, BrushLibrary};
 use openpaint_core::{Artwork, CanvasPoint, CanvasSize, Color, StrokeSample, StrokeStyle};
+use openpaint_practice_app::{Pen, PracticePens};
 use openpaint_render::RgbaImage;
 
 use crate::support::{cold, core};

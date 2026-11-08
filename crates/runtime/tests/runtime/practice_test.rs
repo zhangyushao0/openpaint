@@ -4,8 +4,9 @@
 //! its OpenPaint file) and the Today card are as before; the store's own test holds every other
 //! record to its bytes. Motion runs on the hand's held clock, 16 ms a frame, as in scenarios.
 
-use openpaint_app::{ProjectId, ProjectStore, TodayProjection};
+use openpaint_app::{ProjectId, ProjectStore};
 use openpaint_practice::Family;
+use openpaint_practice_app::TodayProjection;
 use openpaint_practice_store::{library_at, sessions};
 use openpaint_runtime::{Runtime, ToolKind};
 
@@ -25,9 +26,7 @@ fn in_the_gallery(dir: &std::path::Path) -> (Runtime, Hand) {
 }
 
 fn today(runtime: &Runtime) -> TodayProjection {
-    gallery(runtime)
-        .and_then(|g| g.today().cloned())
-        .expect("the Today card")
+    runtime.today().expect("the Today card")
 }
 
 /// A line across the shown exercise's empty frame, Compare, and back to the gallery.
@@ -39,11 +38,7 @@ fn copy_and_compare(runtime: &mut Runtime, hand: &mut Hand) {
 
 /// A line across the shown exercise's empty frame, and Compare.
 fn copy(runtime: &mut Runtime, hand: &mut Hand) {
-    let practice = runtime
-        .projection()
-        .practice()
-        .cloned()
-        .expect("a practice sheet");
+    let practice = runtime.practice().expect("a practice sheet");
     let frame = practice.sheet.pairs[practice.current.expect("an exercise")].copy;
     let view = mapping(runtime, SIZE, PIXELS_PER_POINT);
     let at = |p: [f64; 2]| view.to_screen(frame.to_canvas(p).map(|v| v as f32));
@@ -53,7 +48,7 @@ fn copy(runtime: &mut Runtime, hand: &mut Hand) {
         &[at([0.3, 0.3]), at([0.5, 0.5]), at([0.7, 0.6])],
     );
     hand.tap(runtime, "Compare");
-    assert!(runtime.projection().practice().is_some_and(|p| p.comparing));
+    assert!(runtime.practice().is_some_and(|p| p.comparing));
 }
 
 #[test]
@@ -62,9 +57,7 @@ fn a_test_session_beside_the_authors_leaves_theirs_as_it_was() {
     // The author's session: a line copied and compared, the session left open.
     let (mut runtime, mut hand) = in_the_gallery(&dir);
     hand.tap(&mut runtime, "Start practice");
-    until(&mut runtime, &mut hand, |r| {
-        r.projection().practice().is_some()
-    });
+    until(&mut runtime, &mut hand, |r| r.practice().is_some());
     hand.tap(&mut runtime, "Got it");
     copy_and_compare(&mut runtime, &mut hand);
     let theirs = today(&runtime);
@@ -85,11 +78,7 @@ fn a_test_session_beside_the_authors_leaves_theirs_as_it_was() {
     until(&mut runtime, &mut hand, |r| r.test_practice(id).is_some());
     let test = runtime.test_practice(id).expect("its name");
     assert_ne!(test.sheet, sheet.get(), "a sheet of its own");
-    let practice = runtime
-        .projection()
-        .practice()
-        .cloned()
-        .expect("the test sheet");
+    let practice = runtime.practice().expect("the test sheet");
     assert!(
         practice.warming_up,
         "it starts as their next session would, warming up"
@@ -117,7 +106,7 @@ fn a_test_session_beside_the_authors_leaves_theirs_as_it_was() {
 
 /// The kind a drill's sheet drills and its number, while one shows.
 fn drilled(runtime: &Runtime) -> Option<(Family, u32)> {
-    let practice = runtime.projection().practice().cloned()?;
+    let practice = runtime.practice()?;
     Some((practice.drill?, practice.number))
 }
 
@@ -131,7 +120,7 @@ fn a_test_drill_is_named_by_its_kind_counts_in_no_session_and_one_more_drills_ag
     until(&mut runtime, &mut hand, |r| r.test_practice(id).is_some());
     assert_eq!(drilled(&runtime), Some((Family::Centre, 1)));
     let test = runtime.test_practice(id).expect("its name");
-    let shown = runtime.projection().practice().cloned().expect("a sheet");
+    let shown = runtime.practice().expect("a sheet");
     assert_eq!(shown.instructions, Some(Family::Centre), "its How first");
     // Its How closes by its word (on this small screen Got it lies below the card's room).
     hand.tap(&mut runtime, "How");
@@ -143,7 +132,7 @@ fn a_test_drill_is_named_by_its_kind_counts_in_no_session_and_one_more_drills_ag
     until(&mut runtime, &mut hand, |r| {
         drilled(r).is_some_and(|(_, number)| number == 2)
     });
-    let again = runtime.projection().practice().cloned().expect("a sheet");
+    let again = runtime.practice().expect("a sheet");
     assert_eq!(again.instructions, Some(Family::Centre));
     assert!(runtime.back(), "back to the gallery");
     until(&mut runtime, &mut hand, |r| gallery(r).is_some());

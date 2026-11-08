@@ -116,9 +116,9 @@ pub enum HostRequest {
     /// The system's picker for one file of any kind, to open as an OpenPaint file; answered with
     /// `HostAnswer::Image` (the file to read), `Cancelled` or `Failed`.
     OpenArtwork,
-    /// The system's picker for one file of any kind, to import as a practice pack; answered as
+    /// The system's picker for one file of any kind, for a mode to read; answered as
     /// `OpenArtwork`.
-    OpenPack,
+    OpenFile,
 }
 
 /// How the platform answered the last request that asks for an answer.

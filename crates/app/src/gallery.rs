@@ -1,15 +1,14 @@
 //! The gallery (Procreate's model): every artwork as a thumbnail with its title, the one changed
 //! last first; "+" makes a new one, a tap opens one, and each can be renamed, duplicated or
 //! deleted, saved as an OpenPaint file or brought back from a kept version as a copy; "+" also
-//! opens an OpenPaint file as a new artwork (`gallery_files.rs`); the Today card's options import
-//! practice packs and add pictures of the user's own. This module decides what to ask of the
-//! library and what the user is told; the store answers on the runtime's worker. Deleting cannot
-//! be undone: the UI asks first. What a frame shows is `gallery_projection.rs`.
+//! opens an OpenPaint file as a new artwork (`gallery_files.rs`). A mode's own system dialogs
+//! share the gallery's one at a time (`choose`), and a mode opening an artwork of its own holds
+//! the gallery as an open does (`opening`). This module decides what to ask of the library and
+//! what the user is told; the store answers on the runtime's worker. Deleting cannot be undone:
+//! the UI asks first. What a frame shows is `gallery_projection.rs`.
 
 use std::collections::VecDeque;
 use std::sync::Arc;
-
-use openpaint_practice::{Family, ItemRef, Tier};
 
 use crate::error::AppError;
 use crate::gallery_files::{FileJob, Files, problem};
@@ -49,32 +48,6 @@ pub enum GalleryIntent {
         version: VersionId,
         title: Title,
     },
-    /// A new practice session of the stage given, opened at once (the Today card and its
-    /// options; an open one is continued by opening its sheet).
-    Practice(u8),
-    /// A new drill of the kind given, opened at once (a tile of the practice options, S91; one
-    /// left unfinished is continued by opening its sheet).
-    Drill(Family),
-    /// A new long colour copy of the picture chosen, opened at once (the practice options' New
-    /// copy; one begun is opened by its sheet).
-    Copy(ItemRef),
-    /// A colour copy's name: its sheet's title.
-    RenameCopy {
-        sheet: ProjectId,
-        title: Title,
-    },
-    /// A colour copy removed with its sheet, for good; asked only after the user confirmed it.
-    RemoveCopy(ProjectId),
-    /// "Import practice pack…": a pack file the user chooses, kept beside the library.
-    ImportPack,
-    /// "Add my picture…": a picture the user chooses, added to their own at the tier chosen first.
-    AddPicture(Tier),
-    /// One of the user's own pictures deleted, once the user confirmed it (`PictureShown`).
-    RemovePicture(ItemRef),
-    /// One of the user's own pictures moved to a tier.
-    PictureTier(ItemRef, Tier),
-    /// The practice book reads the sheets of these practice records (by id) to show them.
-    ReadSheets(Vec<u64>),
 }
 
 /// The canvas sizes "+" offers (Procreate's new-canvas menu, reduced to four).
@@ -157,19 +130,8 @@ impl Gallery {
             self.notice = GalleryNotice::None;
             return Ok(());
         }
-        let file = matches!(
-            intent,
-            GalleryIntent::SaveFile(_)
-                | GalleryIntent::OpenFile
-                | GalleryIntent::ImportPack
-                | GalleryIntent::AddPicture(_)
-        );
-        let availability = if file && self.files.busy() {
-            Availability::Running
-        } else {
-            self.availability()
-        };
-        availability.require(EditorAction::Gallery)?;
+        let file = matches!(intent, GalleryIntent::SaveFile(_) | GalleryIntent::OpenFile);
+        self.offered(file).require(EditorAction::Gallery)?;
         if !self.file_dialog(&intent)
             && let Some(request) = request_of(intent)
         {
@@ -178,8 +140,18 @@ impl Gallery {
         Ok(())
     }
 
-    /// A system dialog `intent` asks for (a file to save into, a file, a pack or a picture to
-    /// read); whether it was one.
+    /// Whether the gallery takes an action now: none while an artwork is being opened, and no
+    /// `file` while a system dialog is open or a file is read or written.
+    fn offered(&self, file: bool) -> Availability {
+        if file && self.files.busy() {
+            Availability::Running
+        } else {
+            self.availability()
+        }
+    }
+
+    /// A system dialog `intent` asks for (a file to save into, a file to read); whether it was
+    /// one.
     fn file_dialog(&mut self, intent: &GalleryIntent) -> bool {
         match intent {
             GalleryIntent::SaveFile(id) => {
@@ -188,11 +160,32 @@ impl Gallery {
                 self.files.save(*id, &title);
             }
             GalleryIntent::OpenFile => self.files.open(),
-            GalleryIntent::ImportPack => self.files.import_pack(),
-            GalleryIntent::AddPicture(tier) => self.files.add_picture(*tier),
             _ => return false,
         }
         true
+    }
+
+    /// A mode's system dialog `request` (a picker), its answer handed back as
+    /// `FileJob::Mode` with `tag`; one dialog or file at a time, the gallery's among them.
+    ///
+    /// # Errors
+    /// `Unavailable` while an artwork is being opened, a system dialog is open or a file is read
+    /// or written.
+    pub fn choose(&mut self, request: HostRequest, tag: u32) -> Result<(), AppError> {
+        self.offered(true).require(EditorAction::Gallery)?;
+        self.files.choose(request, tag);
+        Ok(())
+    }
+
+    /// The mode's file job (`FileJob::Mode`) finished: the next dialog may open.
+    pub fn file_done(&mut self) {
+        self.files.finished();
+    }
+
+    /// A mode makes an artwork of its own that opens once stored: everything else waits for it,
+    /// as for an open (a failure is answered as `LibraryAnswer::CreateFailed`).
+    pub const fn opening(&mut self) {
+        self.opening = true;
     }
 
     /// `request` asked of the library, in order; an open or create waits for nothing more, any
@@ -200,15 +193,10 @@ impl Gallery {
     fn ask(&mut self, request: LibraryRequest) {
         self.opening = matches!(
             request,
-            LibraryRequest::Create(..)
-                | LibraryRequest::Open(_)
-                | LibraryRequest::Practice(_)
-                | LibraryRequest::Drill(_)
-                | LibraryRequest::Copy(_)
+            LibraryRequest::Create(..) | LibraryRequest::Open(_)
         );
-        let artworks = request.changes_artworks();
         self.requests.push_back(request);
-        if !self.opening && artworks {
+        if !self.opening {
             self.requests.push_back(LibraryRequest::List);
         }
     }
@@ -261,22 +249,6 @@ impl Gallery {
                     Err(error) => self.notice = GalleryNotice::FileRefused(problem(&error)),
                 }
             }
-            LibraryAnswer::PackImported(result) => {
-                self.files.finished();
-                self.notice = result.map_or_else(
-                    |error| GalleryNotice::PackRefused(problem(&error)),
-                    |pack| imported(&pack),
-                );
-            }
-            LibraryAnswer::PictureAdded(result) => {
-                self.files.finished();
-                self.notice = match result {
-                    Ok(pack) => GalleryNotice::PictureAdded {
-                        outline: pack.items.last().is_some_and(|i| i.outline.is_some()),
-                    },
-                    Err(_) => GalleryNotice::PictureRefused,
-                };
-            }
         }
     }
 
@@ -316,7 +288,6 @@ impl Gallery {
             listed: self.listed,
             opening: self.opening,
             notice: self.notice,
-            today: None,
         }
     }
 }
@@ -324,15 +295,5 @@ impl Gallery {
 impl Default for Gallery {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// What the notice says of `pack` imported: where its pictures come up (S95: a pack of
-/// compositions in divisions and whole copies; S101: crops in colour combinations).
-fn imported(pack: &openpaint_practice::Pack) -> GalleryNotice {
-    let holds = |kind| pack.items.iter().any(|item| item.kind == kind);
-    GalleryNotice::PackImported {
-        compositions: holds(openpaint_practice::PictureKind::Composition),
-        crops: holds(openpaint_practice::PictureKind::Crop),
     }
 }

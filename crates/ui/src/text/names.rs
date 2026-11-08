@@ -125,9 +125,12 @@ mod tests {
         }
         assert_eq!(library.brushes().len(), BUILT_IN.len());
         // A whole copy's layers (S95).
-        assert_eq!(DIVISION_LAYER_NAME.id(), openpaint_app::DIVISION_LAYER);
-        assert_eq!(LINES_LAYER_NAME.id(), openpaint_app::LINES_LAYER);
-        assert_eq!(BLOCKS_LAYER_NAME.id(), openpaint_app::BLOCKS_LAYER);
+        assert_eq!(
+            DIVISION_LAYER_NAME.id(),
+            openpaint_practice_app::DIVISION_LAYER
+        );
+        assert_eq!(LINES_LAYER_NAME.id(), openpaint_practice_app::LINES_LAYER);
+        assert_eq!(BLOCKS_LAYER_NAME.id(), openpaint_practice_app::BLOCKS_LAYER);
     }
 
     #[test]

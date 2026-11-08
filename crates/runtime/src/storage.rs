@@ -9,11 +9,11 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::time::{Duration, Instant};
 
 use openpaint_app::{
-    EditorState, FileJob, LibraryAnswer, PictureImage, PortError, Project, ProjectId, ProjectStore,
+    EditorState, FileJob, LibraryAnswer, PortError, Project, ProjectId, ProjectStore,
     ProjectSummary, SaveId, Thumbnail, Title, VersionId,
 };
 use openpaint_core::Artwork;
-use openpaint_practice::{ItemRef, Pack, SessionRecord};
+use openpaint_practice::{Pack, SessionRecord};
 use openpaint_practice_store::Packs;
 use openpaint_store::{Cached, DisplayCache};
 
@@ -23,6 +23,7 @@ use crate::worker::Queue;
 
 #[path = "storage_files.rs"]
 mod files;
+pub(crate) use files::read;
 
 /// An artwork the library opened, with its cached canvas if the display cache holds one.
 #[derive(Debug)]
@@ -74,14 +75,12 @@ pub(crate) enum Job {
     Create { artwork: Artwork, title: Title },
     /// A gallery call other than create, which needs the blank artwork from the frame loop.
     Library(LibraryCall),
-    /// An OpenPaint file to write or to read, a practice pack to import or a picture to add,
-    /// once the system gave it.
+    /// An OpenPaint file to write or to read, once the system gave it.
     File(FileJob),
-    /// A practice session started or its record changed; a colour copy renamed or removed; one
-    /// of the user's own pictures removed or moved to a tier.
+    /// A practice session started or its record changed; a colour copy renamed or removed; a
+    /// pack imported; one of the user's own pictures added, removed or moved to a tier; a pack's
+    /// picture read for the screen.
     Practice(PracticeJob),
-    /// A practice picture read for the screen.
-    Picture(ItemRef),
 }
 
 /// The gallery's calls the store serves as they are.
@@ -99,8 +98,6 @@ pub(crate) enum Done {
     /// read, logged here: the brushes keep their defaults), the practice sessions, their sheets'
     /// titles and the packs kept (none when they could not be read, logged).
     Started(Opened, Option<Box<EditorState>>, Practised),
-    /// A practice picture as read for the screen; none when it could not be (logged).
-    Picture(ItemRef, Option<PictureImage>),
     EditorSaved(Result<(), PortError>),
     /// A version saved, and where to: `None` for the first save of an artwork started blank,
     /// which created its project (its head holds no save id yet).
@@ -199,7 +196,6 @@ fn stopped(job: &Job) -> Done {
     let error = PortError::Stopped;
     match job {
         Job::Start => Done::Started(Opened::Failed(error), None, Practised::default()),
-        Job::Picture(item) => Done::Picture(item.clone(), None),
         Job::SaveEditor(_) => Done::EditorSaved(Err(error)),
         Job::Save(artwork) => Done::Saved(artwork.clone(), Err(error)),
         Job::Leave { version, .. } => Done::Left {
@@ -242,10 +238,6 @@ fn run((store, cache, packs): Served<'_>, kept: &mut Kept, job: Job) -> Done {
                 .unwrap_or_default();
             Done::Started(opened, editor.map(Box::new), (sessions, titles, packs))
         }
-        Job::Picture(item) => {
-            let image = files::picture(packs, &item);
-            Done::Picture(item, image)
-        }
         Job::SaveEditor(state) => Done::EditorSaved(store.save_editor(&state)),
         Job::Save(artwork) => {
             let result = save(store, kept, &artwork);
@@ -268,7 +260,7 @@ fn run((store, cache, packs): Served<'_>, kept: &mut Kept, job: Job) -> Done {
             Err(error) => Done::Gallery(LibraryAnswer::CreateFailed(error)),
         },
         Job::Library(request) => library((store, cache), kept, request),
-        Job::File(job) => Done::Gallery(files::run(store, packs, job)),
+        Job::File(job) => Done::Gallery(files::run(store, job)),
         Job::Practice(job) => practice::run((store, packs), kept, job),
     }
 }

@@ -52,7 +52,7 @@ impl Runtime {
     /// The canvas left for the gallery as Gallery does, frames until the gallery shows.
     pub(super) fn bench_leave(&mut self, watch: &mut Watch) -> Result<(), RuntimeError> {
         self.bench_dispatch(vec![Intent::Gallery(GalleryIntent::Show)]);
-        let gallery = |runtime: &Self| matches!(runtime.screen, Screen::Gallery(_));
+        let gallery = |runtime: &Self| matches!(runtime.screen, Screen::Gallery(..));
         if self.bench_until(watch, gallery)? {
             Ok(())
         } else {

@@ -13,7 +13,7 @@ use crate::text::{self as t, Words};
 pub(crate) fn show(
     drop: &mut ColorDrop,
     ctx: &egui::Context,
-    projection: &SessionProjection,
+    (projection, practising): (&SessionProjection, bool),
     pixels_per_point: f32,
 ) -> Option<ScreenArea> {
     let ppp = pixels_per_point;
@@ -38,9 +38,7 @@ pub(crate) fn show(
         DropBar::Continuing => (t::TAP_TO_FILL.get(language).to_owned(), Some(t::DONE)),
     };
     // Under the islands while another bar holds the band's middle (a practice sheet's always).
-    let taken = projection.selection().tool
-        || projection.transform().tool
-        || projection.practice().is_some();
+    let taken = projection.selection().tool || projection.transform().tool || practising;
     let action = action.map(Words::from);
     let (rect, clicked) = fill_bar(ctx, Words::made(&text), action, taken);
     if clicked {

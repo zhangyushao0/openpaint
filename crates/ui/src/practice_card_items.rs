@@ -7,10 +7,10 @@
 //! combinations' and scales' means beside the earlier sessions'.
 
 use egui::{Align2, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, TextStyle, Vec2};
-use openpaint_app::{Intent, PracticeIntent};
 use openpaint_practice::{
     KindSummary, LIGHTNESS_OFF, Level, LevelRow, MOST_MAIN, Rgb8, Say, from_oklab, oklab,
 };
+use openpaint_practice_app::PracticeIntent;
 
 use crate::components::{
     Choices, SettingSlider, card_columns, card_text, choices, controls, setting_slider, text_choice,
@@ -53,20 +53,20 @@ pub(crate) fn failed(ui: &mut egui::Ui, say: &Say) {
 pub(crate) fn toggle(
     ui: &mut egui::Ui,
     (id, word, on): (&str, Text, bool),
-    taps: &mut Vec<Intent>,
+    taps: &mut Vec<PracticeIntent>,
     intent: fn(bool) -> PracticeIntent,
 ) {
     ui.horizontal(|ui| {
         choices(ui, id, |ui, group| {
             if text_choice(ui, group, word, on).clicked() {
-                push_once(taps, Intent::Practice(intent(!on)));
+                push_once(taps, intent(!on));
             }
         });
     });
 }
 
 /// How strongly the original shows over the copy.
-pub(crate) fn shown_slider(ui: &mut egui::Ui, shown: f32, taps: &mut Vec<Intent>) {
+pub(crate) fn shown_slider(ui: &mut egui::Ui, shown: f32, taps: &mut Vec<PracticeIntent>) {
     let percent = format!("{:.0} %", shown * 100.0);
     let slider = SettingSlider {
         label: t::ORIGINAL_SHOWN.into(),
@@ -75,7 +75,7 @@ pub(crate) fn shown_slider(ui: &mut egui::Ui, shown: f32, taps: &mut Vec<Intent>
         enabled: true,
     };
     if let Some(change) = setting_slider(ui, &slider) {
-        push_once(taps, Intent::Practice(PracticeIntent::Shown(change.value)));
+        push_once(taps, PracticeIntent::Shown(change.value));
     }
 }
 
@@ -85,7 +85,7 @@ pub(crate) fn chips(
     ui: &mut egui::Ui,
     (originals, copy): (&[Rgb8], Option<&[Option<Rgb8>]>),
     (chosen, marked): (usize, &[usize]),
-    taps: &mut Vec<Intent>,
+    taps: &mut Vec<PracticeIntent>,
 ) {
     let language = language(ui.ctx());
     ui.horizontal(|ui| {
@@ -103,7 +103,7 @@ pub(crate) fn chips(
                 }
                 paint_chip(ui, rect, (*original, mine), marked.contains(&area));
                 if response.clicked() && area != chosen {
-                    push_once(taps, Intent::Practice(PracticeIntent::Area(area)));
+                    push_once(taps, PracticeIntent::Area(area));
                 }
             }
         });

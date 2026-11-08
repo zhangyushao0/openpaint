@@ -88,7 +88,7 @@ impl Core {
     }
 
     /// The `size` pixels of `artwork` from `origin` at 1x on `background` paper, as the screen's
-    /// canvas shows them (a practice copy's frame, read off the frame loop): drawn in a worker's
+    /// canvas shows them (a frame a mode reads off the frame loop): drawn in a worker's
     /// paced regions on targets of their own, so the screen draws on meanwhile.
     ///
     /// # Errors

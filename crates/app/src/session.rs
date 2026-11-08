@@ -13,7 +13,7 @@ use crate::history::{HISTORY_BUDGET, History, HistoryIntent};
 use crate::intent::Intent;
 use crate::layer_rules;
 use crate::layers::{LayerList, Layers};
-use crate::practice_sheet::PracticeSheet;
+use crate::mode::Mode;
 use crate::projection::{Availability, EditorAction, LAYER_ACTIONS, SessionProjection};
 use crate::selection::{Selection, SelectionIntent};
 use crate::storage::Autosave;
@@ -27,8 +27,8 @@ use crate::view::{CanvasView, ViewIntent};
 mod session_adjust;
 #[path = "session_clipboard.rs"]
 mod session_clipboard;
-#[path = "session_practice.rs"]
-mod session_practice;
+#[path = "session_mode.rs"]
+mod session_mode;
 #[path = "session_storage.rs"]
 mod session_storage;
 #[path = "session_transform.rs"]
@@ -47,12 +47,12 @@ pub struct Session {
     /// The adjustment under way until it is applied or cancelled (D59).
     adjusts: Adjusts,
     autosave: Autosave,
-    /// How the artwork shows; it lives as long as the session (every artwork opens at fit, a
-    /// practice sheet on its shown pair).
+    /// How the artwork shows; it lives as long as the session (every artwork opens at fit, one
+    /// held by a mode as the mode opens it).
     view: CanvasView,
-    /// On a practice sheet, its session's flow (`session_practice.rs`).
-    practice: Option<PracticeSheet>,
-    /// The toolbox's style; strokes start with it unless a practice sheet's pen draws.
+    /// What the artwork is for beyond painting, if anything (`session_mode.rs`).
+    mode: Option<Box<dyn Mode>>,
+    /// The toolbox's style; strokes start with it unless the mode draws with its own.
     brush: StrokeStyle,
 }
 
@@ -79,7 +79,7 @@ impl Session {
             transforms: Transforms::default(),
             adjusts: Adjusts::default(),
             view: CanvasView::FIT,
-            practice: None,
+            mode: None,
         }
     }
 
@@ -92,8 +92,8 @@ impl Session {
         session
     }
 
-    /// The next stroke starts with `brush` (on a practice sheet, unless its pen draws); a stroke
-    /// being drawn keeps the style it began with.
+    /// The next stroke starts with `brush` (unless the mode draws with its own); a stroke being
+    /// drawn keeps the style it began with.
     pub fn set_brush(&mut self, brush: StrokeStyle) {
         self.brush = brush;
         self.restyle();
@@ -112,15 +112,15 @@ impl Session {
     }
 
     /// Applies one intent. On error the session is as it was before, except that a stroke
-    /// whose lift failed to extend is still committed with the samples it had. On a sheet holding
-    /// a whole copy its layers then follow the pen and Compare (`practice_layers.rs`).
+    /// whose lift failed to extend is still committed with the samples it had. The mode's layers
+    /// are then amended as it keeps them (`Mode::amended`).
     ///
     /// # Errors
     /// `Core` when the artwork refuses the edit (a locked layer, an invalid sample);
     /// `Unavailable` when the projection does not offer the action.
     pub fn dispatch(&mut self, intent: Intent) -> Result<(), AppError> {
         let result = self.apply(intent);
-        self.practice_layers();
+        self.mode_layers();
         result
     }
 
@@ -160,10 +160,11 @@ impl Session {
         match intent {
             Intent::Stroke(stroke) if self.refuses(&stroke) => Ok(()),
             Intent::Stroke(stroke) => {
-                // A whole copy's stroke begins on the layer its pen draws on.
-                self.practice_layers();
+                // A stroke begins on the layer the mode keeps for its style.
+                self.mode_layers();
                 let clip = self.clip();
-                self.strokes.handle(&mut self.history, stroke, clip.as_ref())
+                self.strokes
+                    .handle(&mut self.history, stroke, clip.as_ref())
             }
             Intent::Selection(selection) => {
                 self.select(selection);
@@ -184,9 +185,7 @@ impl Session {
             | Intent::Export(_)
             | Intent::Reference(_)
             | Intent::Insert(_)
-            | Intent::Clipboard(_)
-            // Practice is `practise`'s, which the runtime calls with the time.
-            | Intent::Practice(_) => Ok(()),
+            | Intent::Clipboard(_) => Ok(()),
             // Leaving is the runtime's (it stores the artwork first); the session only says
             // whether it may happen now.
             Intent::Gallery(_) => self.check(EditorAction::Gallery),
@@ -309,8 +308,9 @@ impl Session {
             shape: self.strokes.shape().map(Box::new),
             brush: None,
             transfers: None,
-            practice: (self.practice.as_ref())
-                .map(|p| Box::new(p.projection(artwork, &self.brush))),
+            pen: (self.mode.as_ref())
+                .and_then(|mode| mode.style(&self.brush))
+                .map(|style| style.size()),
         }
     }
 

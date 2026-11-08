@@ -1,0 +1,319 @@
+//! Practice (G9): sessions of the course's exercises on practice sheets, and long colour copies
+//! beside them. A practice sheet is stored like an artwork (its strokes and fills through the
+//! same history, autosave and library), but the gallery never lists it: it belongs to its
+//! session's record, which practice-store keeps in the library's record space. The
+//! open sheet's flow is `sheet.rs` (Compare in `compare.rs`, a painted copy's
+//! reading and the eyedropper in `read.rs`, its views in `view.rs`), its pens
+//! `pens.rs`, the copy read from its records `copy.rs`; the log of every
+//! session and copy `log.rs`.
+//!
+//! This module holds what the user asks of a sheet and what the screen draws of it (what lies
+//! over a compared copy: `shown.rs`).
+
+use std::sync::Arc;
+
+use openpaint_core::Color;
+use openpaint_practice::{
+    Areas, CardItem, ExerciseResult, Family, KindSummary, Level, Original, Pack, Pair, Point, Rgb8,
+    SessionRecord, Sheet, SheetMark, SheetPicture, Value,
+};
+
+use crate::pictures::PictureImage;
+use crate::sheet::Finished;
+pub use crate::shown::{CopyRead, Greys};
+use openpaint_app::Availability;
+use openpaint_app::LayerRefusal;
+use openpaint_app::Title;
+use openpaint_app::Viewport;
+
+/// How much of a colour combination's, a colour copy's, a division's or a whole copy's original
+/// shows over the copy at first, in place.
+pub const SHOWN: f32 = 0.5;
+
+/// What the user can ask of a practice session.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PracticeIntent {
+    /// The instructions for the shown exercise's kind, shown (true) or closed.
+    Instructions(bool),
+    /// The original laid over the copy (true; the first time stores the exercise's result, every
+    /// time counts), or taken away.
+    Compare(bool),
+    /// A line's original laid over the copy aligned onto it (true) or in place.
+    Aligned(bool),
+    /// The way to see a compared geometric answer laid faint over it (true) or taken away (S97,
+    /// 看画法; S98 every kind checked as geometry); each Compare starts without it.
+    Construction(bool),
+    /// How much of a colour combination's, a colour copy's, a division's or a whole copy's
+    /// original shows over the copy, 0 to 1.
+    Shown(f32),
+    /// The colour combination's area the card compares on the wheel (a key shift's whose
+    /// lightness it shows).
+    Area(usize),
+    /// A compared key shift's frames in grey (true) or in colour (S107).
+    Grey(bool),
+    /// The pen the exercise's own tools draw or paint with.
+    Pen(Pen),
+    /// The full interface over the sheet (true), or the exercise's own tools.
+    AllTools(bool),
+    /// The shown colour's, colour combination's or value scale's cell's frame filled with `Color`
+    /// (the wheel beside it).
+    Fill(Color),
+    /// On to the next exercise, the view moved to it within `viewport` at its zoom; after the
+    /// last the session ends and its summary shows over the whole sheet.
+    Next(Viewport),
+    /// Another session (after a drill, another drill of its kind), from the summary.
+    OneMore,
+    /// Closes the notice.
+    Dismiss,
+}
+
+/// The pens an exercise's own tools offer (`pens.rs`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Pen {
+    /// A light pencil: marks and construction lines, left out of the aligned fit.
+    Sketch,
+    /// The ink pen the copy is drawn with.
+    Draw,
+    /// The blue pen that corrects a compared copy.
+    Correct,
+    /// Painting in the colour picked: a big brush for the masses, a small one for the edges and
+    /// the hierarchy, a soft one for soft edges.
+    Big,
+    Small,
+    Soft,
+    /// A division's levels in V大's colours (S95): its main lines red, the second green, the
+    /// third blue.
+    Main,
+    Second,
+    Third,
+    /// Value masses' three greys (S96): the dark, the middle and the light.
+    Dark,
+    Middle,
+    Light,
+}
+
+impl Pen {
+    /// The pens a line or a shape is drawn with, and those a colour combination or a value scale
+    /// is painted with.
+    pub const DRAWING: [Self; 3] = [Self::Sketch, Self::Draw, Self::Correct];
+    pub const PAINTING: [Self; 3] = [Self::Big, Self::Small, Self::Soft];
+    /// A division's pens, and a whole copy's: its division's, then Draw for its line drawing (and
+    /// the painting pens for its colour blocks, S96).
+    pub const DIVIDING: [Self; 3] = [Self::Main, Self::Second, Self::Third];
+    pub const COPYING: [Self; 4] = [Self::Main, Self::Second, Self::Third, Self::Draw];
+    /// Value masses' greys (S96).
+    pub const VALUES: [Self; 3] = [Self::Dark, Self::Middle, Self::Light];
+
+    /// Whether it paints in the colour picked.
+    #[must_use]
+    pub fn paints(self) -> bool {
+        Self::PAINTING.contains(&self)
+    }
+
+    /// The value it paints, if it is one of value masses' greys.
+    #[must_use]
+    pub const fn value(self) -> Option<Value> {
+        match self {
+            Self::Dark => Some(Value::Dark),
+            Self::Middle => Some(Value::Middle),
+            Self::Light => Some(Value::Light),
+            _ => None,
+        }
+    }
+
+    /// The division's level it draws, if it is a division's pen.
+    #[must_use]
+    pub const fn level(self) -> Option<Level> {
+        match self {
+            Self::Main => Some(Level::Main),
+            Self::Second => Some(Level::Second),
+            Self::Third => Some(Level::Third),
+            _ => None,
+        }
+    }
+}
+
+/// Why the practice sheet did not take a contact or a fill.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PracticeNotice {
+    /// The pen landed outside the shown exercise's empty frame.
+    DrawInFrame,
+    /// The pen landed in a value scale's frame outside the cells between its ends.
+    DrawInCell,
+    /// The eyedropper over an original not compared yet.
+    PickAfterCompare,
+    /// The eyedropper over a key shift's original, which is never picked (S107).
+    OriginalLocked,
+    /// The frame could not be filled: the layer is hidden or locked.
+    CannotFill(LayerRefusal),
+    /// The session is done.
+    Done,
+}
+
+/// A point the eyedropper compared on a colour copy or a colour combination: where (frame units),
+/// the original's colour there and the copy's.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Probe {
+    pub at: Point,
+    pub original: Rgb8,
+    pub copy: Rgb8,
+}
+
+/// The open practice sheet for one UI frame.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PracticeProjection {
+    /// The session's frames and originals; the first `revealed` pairs show.
+    pub sheet: Arc<SheetView>,
+    pub revealed: usize,
+    /// The stage (`openpaint_practice::PROJECT` for a long colour copy).
+    pub stage: u8,
+    /// The session's number in its stage (a drill's among its kind's drills).
+    pub number: u32,
+    /// The kind a drill drills (S91); none on a session's or a copy's sheet.
+    pub drill: Option<Family>,
+    /// The exercise shown (none once the session is done), its family (none once done), whether
+    /// it is part of the warm-up, its place among the warm-up's exercises or those of its family
+    /// after it and how many those are.
+    pub current: Option<usize>,
+    pub family: Option<Family>,
+    pub warming_up: bool,
+    pub place: (usize, usize),
+    /// Whether Next ends the session.
+    pub last: bool,
+    pub compare: Availability,
+    pub comparing: bool,
+    /// A line's original lies over the copy aligned onto it, else in place.
+    pub aligned: bool,
+    /// A compared geometric answer's construction shows (S97, S98).
+    pub construction: bool,
+    /// The full interface shows over the sheet, else the exercise's own tools.
+    pub all_tools: bool,
+    /// The pen the exercise's own tools draw with now and its diameter (canvas pixels); `None`
+    /// while they do not show or the toolbox's eraser is used.
+    pub pen: Option<(Pen, f32)>,
+    /// The shown exercise's stored result, once compared.
+    pub result: Option<ExerciseResult>,
+    /// What lies over the copy while comparing.
+    pub overlay: Option<Vec<SheetMark>>,
+    /// What the card shows of the comparison under its title (S109).
+    pub card: Vec<CardItem>,
+    /// A compared key shift's frames in grey, while the Grey view shows them (S107).
+    pub greys: Option<Arc<Greys>>,
+    /// The instructions shown, for a family.
+    pub instructions: Option<Family>,
+    /// Once done: this session's means beside the earlier ones', per kind.
+    pub summary: Option<Vec<KindSummary>>,
+    /// Once a session is done: its dot on its stage's road and the seals it earned (S89).
+    pub finished: Option<Finished>,
+    pub notice: Option<PracticeNotice>,
+    /// Whether Aligned can be chosen for the shown exercise: lines, or a picture with an outline.
+    pub aligned_offered: bool,
+    /// Aligned is chosen and its fit is still being found (off the frame loop).
+    pub fitting: bool,
+    /// The session's pictures read so far (none: one that could not be read).
+    pub images: Vec<(openpaint_practice::ItemRef, Option<Arc<PictureImage>>)>,
+    /// Each single shape's picture read with its ground faded, as its original's frame shows it
+    /// (S99); Compare lays the picture itself.
+    pub grounded: Vec<(openpaint_practice::ItemRef, Arc<PictureImage>)>,
+    /// A value scale's cell the pen paints and Fill fills.
+    pub cell: Option<usize>,
+    /// The last point the eyedropper compared, while comparing.
+    pub probe: Option<Probe>,
+    /// The comparison shown, as its kind found the copy (S109): what `overlay` and `card` come
+    /// from.
+    pub compared: Option<openpaint_practice::Comparison>,
+    /// How strongly the original shows over the copy, the area the card compares and whether a
+    /// key shift's frames show in grey, as the user set them.
+    pub shown: f32,
+    pub area: usize,
+    pub grey: bool,
+}
+
+/// A session's sheet as the screen draws it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SheetView {
+    /// Its project's title: a colour copy's name.
+    pub name: Title,
+    pub size: [u32; 2],
+    pub pairs: Vec<Pair>,
+    pub originals: Vec<Original>,
+    /// Each exercise's family, whose facts the flow and the screen read.
+    pub families: Vec<Family>,
+    /// Each exercise's pack picture (none: a kind without one, or a picture no pack holds now:
+    /// removed).
+    pub pictures: Vec<Option<Arc<SheetPicture>>>,
+    /// Each exercise's picture the practice crate draws (`Exercise::painted`: a generated
+    /// combination's, an object's, value masses' answer in its greys).
+    pub painted: Vec<Option<Arc<PictureImage>>>,
+    /// What each exercise gives in its frames before Compare, as its kind draws it (S109).
+    pub givens: Vec<Vec<SheetMark>>,
+}
+
+impl SheetView {
+    /// The sheet of `record` on its canvas of `size` pixels, titled `name`, its pictures as
+    /// `packs` hold them, each in frames of its shape (S99). A colour copy's frames are read from
+    /// its canvas, so they stay where its strokes lie whatever became of its picture.
+    #[must_use]
+    pub fn of(record: &SessionRecord, packs: &[Pack], (size, name): ([u32; 2], &Title)) -> Self {
+        let sheet = laid(record, packs, size);
+        let originals: Vec<Original> = record.exercises.iter().map(|e| e.original()).collect();
+        let families: Vec<Family> = (record.exercises.iter()).map(|e| e.kind.family()).collect();
+        let pictures: Vec<Option<Arc<SheetPicture>>> = (record.exercises.iter())
+            .map(|e| SheetPicture::of(e.picture.as_ref()?, packs).map(Arc::new))
+            .collect();
+        let painted = (record.exercises.iter().zip(&originals).zip(&pictures))
+            .map(|((exercise, original), picture)| {
+                let (size, pixels) = exercise.painted(original, picture.as_deref())?;
+                Some(Arc::new(PictureImage { size, pixels }))
+            })
+            .collect();
+        let givens = (record.exercises.iter().zip(&originals))
+            .map(|(exercise, original)| exercise.givens(original))
+            .collect();
+        Self {
+            name: name.clone(),
+            size: sheet.size,
+            pairs: sheet.pairs,
+            pictures,
+            painted,
+            originals,
+            families,
+            givens,
+        }
+    }
+
+    /// Exercise `index`'s colour areas, if it has any: its areas and the size its picture fills in
+    /// its frame (frame units); a crop's as its pack holds them (S101), or a generated
+    /// combination's (a record of 1.18.1 and before), its square frame whole. None for another
+    /// kind or a crop no pack holds now (removed).
+    #[must_use]
+    pub fn areas(&self, index: usize) -> Option<(&Areas, Point)> {
+        if let Some(made) = self.originals.get(index)?.areas() {
+            return Some(made);
+        }
+        self.pictures.get(index)?.as_ref()?.areas_in_frame()
+    }
+}
+
+/// The sheet a new `record`'s exercises are laid on: a long colour copy's of its picture's shape
+/// (as `packs` hold it), a session's three pairs a row, its pictures' frames of their shape.
+#[must_use]
+pub fn sheet_of(record: &SessionRecord, packs: &[Pack]) -> Sheet {
+    if !record.is_project() {
+        return Sheet::of_session(record, packs);
+    }
+    let picture = (record.exercises.first())
+        .and_then(|e| e.picture.as_ref())
+        .and_then(|item| packs.iter().find_map(|pack| pack.find(item)));
+    Sheet::study(picture.map_or([1, 1], |item| item.size))
+}
+
+/// The sheet `record` lies on, on its canvas of `size` pixels: a session's as `packs` hold its
+/// pictures, a colour copy's read from its canvas.
+pub(crate) fn laid(record: &SessionRecord, packs: &[Pack], size: [u32; 2]) -> Sheet {
+    if record.is_project() {
+        Sheet::study_on(size)
+    } else {
+        Sheet::of_session(record, packs)
+    }
+}

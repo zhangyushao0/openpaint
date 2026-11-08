@@ -41,6 +41,7 @@ mod practice_demo_wheel;
 mod practice_mark_draw;
 mod practice_mark_lines;
 mod practice_marks;
+mod practice_shown;
 mod practice_tools;
 mod reference_touch;
 mod reference_window;
@@ -58,4 +59,5 @@ mod transform_drag;
 
 pub use crate::brush_strip::StripStrokes;
 pub use crate::components::{CanvasArea, Control, ControlMap, ScreenArea, TOP_BAND, Unresolved};
+pub use crate::practice_shown::PracticeShown;
 pub use crate::shell::Shell;

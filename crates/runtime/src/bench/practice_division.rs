@@ -8,7 +8,7 @@
 //! dragged, Compare closed: a line each; in a session holding value masses instead, those
 //! (`practice_masses.rs`).
 
-use openpaint_app::{Intent, Pen, PracticeIntent};
+use openpaint_practice_app::{Pen, PracticeIntent};
 
 use super::Watch;
 use super::hand::to_screen;
@@ -85,14 +85,14 @@ impl Runtime {
         pen: Pen,
         [a, b]: [[f64; 2]; 2],
     ) -> Result<(), RuntimeError> {
-        let chosen = (self.projection().practice()).and_then(|p| p.pen.map(|(pen, _)| pen));
+        let chosen = self.practice().and_then(|p| p.pen.map(|(pen, _)| pen));
         if chosen != Some(pen) {
             let mut watch = Watch::paced(self);
-            let choose = Intent::Practice(PracticeIntent::Pen(pen));
-            self.bench_intents(vec![choose], &mut watch)?;
+            let choose = PracticeIntent::Pen(pen);
+            self.bench_practise(vec![choose], &mut watch)?;
             self.bench_rest()?;
         }
-        let practice = self.projection().practice().cloned();
+        let practice = self.practice();
         let frame = (practice.as_ref())
             .and_then(|p| p.current.map(|index| p.sheet.pairs[index].copy))
             .ok_or(RuntimeError::NotNow("an exercise shown"))?;

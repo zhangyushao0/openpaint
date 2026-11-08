@@ -12,10 +12,9 @@
 //! quick pinch settles the view at fit.
 
 use openpaint_app::{
-    ButtonMap, CanvasView, GalleryIntent, Intent, Language, ScreenProjection, SessionProjection,
-    TransformFrame, ViewMapping,
+    GalleryIntent, Intent, Language, ScreenProjection, SessionProjection, ViewMapping,
 };
-use openpaint_core::{CanvasSize, Color};
+use openpaint_practice_app::{OptionsIntent, PracticeIntent, PracticeProjection};
 use openpaint_render::BrushCursor;
 
 use crate::adjust_panel::AdjustPanel;
@@ -33,6 +32,7 @@ use crate::gallery::GalleryScreen;
 use crate::panels::Panels;
 use crate::pen_marks;
 use crate::practice_bar::PracticeBar;
+use crate::practice_shown::{PracticeShown, PracticeTaps, SheetTaps};
 use crate::reference_window::ReferenceWindow;
 use crate::selection_bar::{self, SelectionBar};
 use crate::shape_bar::{self, ShapeBar};
@@ -45,55 +45,9 @@ use crate::{practice_marks, practice_tools, text};
 mod islands;
 #[path = "shell_route.rs"]
 mod route;
-
-/// What the canvas showed in the last pass, for routing this frame's contacts.
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct Shown {
-    pub(crate) canvas: CanvasSize,
-    pub(crate) view: CanvasView,
-    pub(crate) picking: bool,
-    /// The Selection tool is on.
-    pub(crate) selecting: bool,
-    /// The Transform tool is on, and its frame once the content is lifted.
-    pub(crate) transforming: bool,
-    /// An adjustment is under way: the pen draws nothing.
-    pub(crate) adjusting: bool,
-    pub(crate) transform: Option<TransformFrame>,
-    pub(crate) drawing: bool,
-    /// The colour a drop carries and the threshold it starts with.
-    pub(crate) color: Option<Color>,
-    pub(crate) threshold: f32,
-    /// The current tool's brush diameter in canvas pixels.
-    pub(crate) brush_size: Option<f32>,
-    /// What the pen's side buttons do.
-    pub(crate) buttons: ButtonMap,
-    /// A practice sheet: its bar holds the band's middle.
-    pub(crate) practising: bool,
-}
-
-impl Shown {
-    /// What `projection`'s canvas shows, while there is one.
-    fn of(projection: &SessionProjection) -> Option<Self> {
-        let brush = projection.brush();
-        // A practice pen draws instead of the toolbox's brush: its size.
-        let pen = projection.practice().and_then(|p| p.pen);
-        projection.canvas().map(|canvas| Self {
-            canvas,
-            view: projection.view(),
-            picking: brush.is_some_and(|brush| brush.picking),
-            selecting: projection.selection().tool,
-            transforming: projection.transform().tool,
-            adjusting: projection.adjust().adjustment.is_some(),
-            transform: projection.transform().frame,
-            drawing: projection.drawing(),
-            color: brush.map(|brush| brush.color),
-            threshold: projection.fill().threshold,
-            brush_size: pen.map(|(_, size)| size).or(brush.map(|brush| brush.size)),
-            buttons: brush.map(|brush| brush.buttons).unwrap_or_default(),
-            practising: projection.practice().is_some(),
-        })
-    }
-}
+#[path = "shell_shown.rs"]
+mod shown;
+pub(crate) use shown::Shown;
 
 /// The screen's UI-local state between frames.
 #[derive(Debug, Default)]
@@ -129,8 +83,10 @@ pub struct Shell {
     /// Where the top islands and the notice pill lie, from the last pass.
     islands: Vec<ScreenArea>,
     gallery: GalleryScreen,
-    /// Intents from taps on the chrome since the last `route`.
+    /// Intents from taps on the chrome since the last `route`, and practice's since the last
+    /// `take_practice`.
     taps: Vec<Intent>,
+    practice_taps: PracticeTaps,
     /// The view the screen shows while it settles, and the artwork on its way from its card.
     view: ViewSettle,
     opening: Option<Opening>,
@@ -148,10 +104,15 @@ pub struct Shell {
 }
 
 impl Shell {
-    /// Builds one frame inside the root `ui` from `projection`, remembers where the canvas is
-    /// and collects the buttons tapped. egui hands input to the first pass of a frame only, so
-    /// a tap is collected once however many passes run.
-    pub fn show(&mut self, ui: &mut egui::Ui, projection: &ScreenProjection) {
+    /// Builds one frame inside the root `ui` from `projection` and `practice`'s, remembers where
+    /// the canvas is and collects the buttons tapped. egui hands input to the first pass of a
+    /// frame only, so a tap is collected once however many passes run.
+    pub fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        projection: &ScreenProjection,
+        practice: &PracticeShown<'_>,
+    ) {
         let ctx = ui.ctx().clone();
         chrome::begin(&ctx);
         controls::begin(&ctx);
@@ -171,14 +132,18 @@ impl Shell {
                 }
                 rect
             }
-            ScreenProjection::Canvas(session) => self.canvas_screen(ui, session),
+            ScreenProjection::Canvas(session) => self.canvas_screen(ui, session, practice.sheet),
             ScreenProjection::Gallery(gallery) => {
-                self.gallery.islands(&ctx, gallery, &mut self.taps);
+                let options = &mut self.practice_taps.options;
+                let taps = (&mut self.taps, options);
+                self.gallery.islands(&ctx, (gallery, practice), taps);
                 // On the desk, so the list's edge fade has its colour.
                 egui::CentralPanel::default()
                     .frame(egui::Frame::new().fill(DESK))
                     .show(ui, |ui| {
-                        self.gallery.body(ui, gallery, &mut self.taps);
+                        let options = &mut self.practice_taps.options;
+                        let taps = (&mut self.taps, options);
+                        self.gallery.body(ui, (gallery, practice.today), taps);
                         ui.max_rect()
                     })
                     .inner
@@ -188,6 +153,13 @@ impl Shell {
         chrome::finish(&ctx);
         self.moving = moving(&ctx);
         self.controls = controls::take(&ctx);
+    }
+
+    /// Practice's taps since the last call: the sheet's and the options' (D112). Call after
+    /// `route`; the runtime applies them after the frame's painting intents.
+    pub fn take_practice(&mut self) -> (Vec<PracticeIntent>, Vec<OptionsIntent>) {
+        let taps = std::mem::take(&mut self.practice_taps);
+        (taps.sheet, taps.options)
     }
 
     /// Every control the last pass laid out, by name, in screen pixels.
@@ -228,9 +200,14 @@ impl Shell {
         self.showing = showing;
     }
 
-    fn canvas_screen(&mut self, ui: &mut egui::Ui, projection: &SessionProjection) -> egui::Rect {
+    fn canvas_screen(
+        &mut self,
+        ui: &mut egui::Ui,
+        projection: &SessionProjection,
+        sheet: Option<&PracticeProjection>,
+    ) -> egui::Rect {
         let brush = projection.brush();
-        self.shown = Shown::of(projection);
+        self.shown = Shown::of(projection, sheet.is_some());
         let rect = canvas_frame(ui);
         let ctx = ui.ctx().clone();
         let area = CanvasArea::from_points(rect, self.pixels_per_point);
@@ -245,7 +222,7 @@ impl Shell {
             self.transform.show_frame(&ctx, projection, &shown, ppp);
             shape_bar::show_marks(&ctx, projection, &shown, ppp);
             let pictures = &mut self.practice_pictures;
-            practice_marks::show_marks(&ctx, projection, (&shown, ppp), pictures);
+            practice_marks::show_marks(&ctx, sheet, (&shown, ppp), pictures);
         }
         let editing = projection.shape().filter(|shape| shape.editing);
         self.handles = editing
@@ -255,14 +232,17 @@ impl Shell {
         self.guide_centre = guide.on.then_some(guide.centre);
         self.shape.show(&ctx, projection, &mut self.taps);
         sheet::show_view(self, &ctx, &area);
-        self.top_islands(&ctx, projection);
+        self.top_islands(&ctx, (projection, sheet));
         let viewport = Some(area.viewport(self.pixels_per_point));
         let colors = &mut self.panels.colors;
-        self.practice
-            .show(&ctx, projection, (viewport, colors), &mut self.taps);
+        let mut taps = SheetTaps {
+            painting: &mut self.taps,
+            sheet: &mut self.practice_taps.sheet,
+        };
+        (self.practice).show(&ctx, (projection, sheet), (viewport, colors), &mut taps);
         self.selection.show(&ctx, projection, &mut self.taps);
         self.transform.show(&ctx, projection, &mut self.taps);
-        if practice_tools::own_tools(projection) {
+        if practice_tools::own_tools(sheet) {
             // The exercise's own tools: no side bar, and no panel without its button.
             self.side.hide();
             self.panels.close();
@@ -279,7 +259,8 @@ impl Shell {
             self.copy.open();
         }
         self.copy.show(&ctx, projection, &mut self.taps);
-        self.drop_bar = drop_bar::show(&mut self.drop, &ctx, projection, self.pixels_per_point);
+        let shown = (projection, sheet.is_some());
+        self.drop_bar = drop_bar::show(&mut self.drop, &ctx, shown, self.pixels_per_point);
         let picking_at = self.reference.picking_at().or(self.input.picking_at());
         pen_marks::show_loupe(&ctx, picking_at, brush, self.pixels_per_point);
         rect

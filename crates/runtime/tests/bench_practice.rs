@@ -53,9 +53,7 @@ fn the_book_and_practice_benchmarks_run_in_the_gallery_and_on_sheets() {
     let book = bench(hand, runtime, "book");
     assert_eq!(book.len(), 6, "{book:?}");
     hand.tap(runtime, "Start practice");
-    until(runtime, hand, |runtime| {
-        runtime.projection().practice().is_some()
-    });
+    until(runtime, hand, |runtime| runtime.practice().is_some());
     let lines = bench(hand, runtime, "practice");
     eprintln!("{}", lines.join("\n"));
     for motion in [
@@ -73,8 +71,7 @@ fn the_book_and_practice_benchmarks_run_in_the_gallery_and_on_sheets() {
         lines.iter().all(|line| !line.contains("NOT shown")),
         "every fit shown: {lines:?}"
     );
-    let projection = runtime.projection();
-    let practice = projection.practice().expect("the sheet");
+    let practice = runtime.practice().expect("the sheet");
     assert_eq!(practice.current, Some(10), "on to the first colour");
     assert!(
         practice.comparing && practice.result.is_some(),
@@ -106,7 +103,9 @@ fn stage_three(runtime: &mut Runtime, hand: &mut Hand) {
     }
     hand.tap(runtime, "Stage 3 · Points");
     until(runtime, hand, |runtime| {
-        (runtime.projection().practice()).is_some_and(|practice| practice.stage == 3)
+        runtime
+            .practice()
+            .is_some_and(|practice| practice.stage == 3)
     });
     let lines = bench(hand, runtime, "practice");
     eprintln!("{}", lines.join("\n"));

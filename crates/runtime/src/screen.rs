@@ -5,17 +5,18 @@
 use std::sync::Arc;
 
 use openpaint_app::{
-    Clipboard, Gallery, LibraryAnswer, LibraryRequest, PortError, PracticeLog, ScreenProjection,
-    SheetView, Toolbox, Transfers,
+    Clipboard, Gallery, LibraryAnswer, LibraryRequest, PortError, ScreenProjection, Toolbox,
+    Transfers,
 };
 use openpaint_core::Artwork;
+use openpaint_practice_app::{Options, PracticeLog, SheetView};
 use openpaint_render::Core;
 use openpaint_ui::CanvasArea;
 
 use crate::canvas::{Canvas, Content, Held, Leaving, Then};
 use crate::display::{CacheJob, CacheWorker};
 use crate::error::RuntimeError;
-use crate::practice::{Next, PracticeJob};
+use crate::practice::{Next, submit_options};
 use crate::seeds::Seeds;
 use crate::storage::{Done, Job, Loaded, Opened, Storage, Stored};
 
@@ -39,17 +40,17 @@ pub(crate) enum Screen {
     Opening(Option<Content>),
     /// Boxed: a canvas holds its GPU target and is much larger than the other screens.
     Canvas(Box<Canvas>),
-    Gallery(Gallery),
+    /// The gallery and the practice options beside it.
+    Gallery(Gallery, Options),
 }
 
 impl Screen {
     /// What the screen offers; on the canvas with the toolbox's brush, size and opacity, the
-    /// export and reference flows and whether the clipboard can paste; in the gallery with the
-    /// Today card.
+    /// export and reference flows and whether the clipboard can paste.
     pub(crate) fn projection(
         &self,
         toolbox: &Toolbox,
-        (transfers, clipboard, practice): (&Transfers, &Clipboard, &PracticeLog),
+        (transfers, clipboard): (&Transfers, &Clipboard),
     ) -> ScreenProjection {
         match self {
             Self::Opening(_) => ScreenProjection::Starting,
@@ -62,9 +63,7 @@ impl Screen {
                         .with_clipboard(clipboard.canvas()),
                 ))
             }
-            Self::Gallery(gallery) => {
-                ScreenProjection::Gallery(gallery.projection().with_today(practice.today()))
-            }
+            Self::Gallery(gallery, _) => ScreenProjection::Gallery(gallery.projection()),
         }
     }
 
@@ -83,10 +82,20 @@ impl Screen {
     }
 
     pub(crate) fn gallery_mut(&mut self) -> Option<&mut Gallery> {
+        Some(self.options_mut()?.0)
+    }
+
+    /// The gallery and the practice options beside it, while the gallery shows.
+    pub(crate) fn options_mut(&mut self) -> Option<(&mut Gallery, &mut Options)> {
         match self {
-            Self::Gallery(gallery) => Some(gallery),
+            Self::Gallery(gallery, options) => Some((gallery, options)),
             _ => None,
         }
+    }
+
+    /// The gallery shown anew, the practice options beside it closed.
+    pub(crate) fn gallery(gallery: Gallery) -> Self {
+        Self::Gallery(gallery, Options::default())
     }
 
     /// Shows `content` on a canvas once the area is known, drawing with the toolbox's brush; a
@@ -146,11 +155,6 @@ impl Screen {
                 *practice = PracticeLog::new(sessions, titles, packs);
                 *self = started(opened);
             }
-            Done::Picture(item, image) => {
-                if let Some(canvas) = self.canvas_mut() {
-                    canvas.session_mut().practice_picture_read(item, image);
-                }
-            }
             Done::EditorSaved(result) => {
                 if let Err(error) = result {
                     log::warn!("storing the toolbox failed: {error}");
@@ -167,14 +171,7 @@ impl Screen {
                 log::info!("new artwork {}", id.get());
                 *self = Self::Opening(Some(Content::Stored(artwork, title, new_project(id))));
             }
-            Done::Gallery(answer) => {
-                if let LibraryAnswer::PackImported(Ok(pack))
-                | LibraryAnswer::PictureAdded(Ok(pack)) = &answer
-                {
-                    practice.keep_pack(pack.clone());
-                }
-                self.gallery_answer(answer);
-            }
+            Done::Gallery(answer) => self.gallery_answer(answer),
             Done::Practice(done) => self.practice(done, practice),
         }
         None
@@ -190,11 +187,11 @@ impl Screen {
     /// (One more) shows it with the failure.
     fn gallery_answer(&mut self, answer: LibraryAnswer) {
         match self {
-            Self::Gallery(gallery) => gallery.answer(answer),
+            Self::Gallery(gallery, _) => gallery.answer(answer),
             _ if matches!(answer, LibraryAnswer::CreateFailed(_)) => {
                 let mut gallery = Gallery::new();
                 gallery.answer(answer);
-                *self = Self::Gallery(gallery);
+                *self = Self::gallery(gallery);
             }
             _ => log::warn!("a gallery answer arrived after the gallery closed"),
         }
@@ -254,7 +251,7 @@ impl Screen {
         match canvas.then {
             Then::Gallery => {
                 log::info!("left the artwork for the gallery");
-                *self = Self::Gallery(Gallery::new());
+                *self = Self::gallery(Gallery::new());
                 None
             }
             Then::Practice(next) => {
@@ -281,13 +278,12 @@ impl Screen {
                 canvas.evaluate(core)?;
                 canvas.keep_cache(core, cache);
                 // A sheet being left takes its time to the store with it.
-                if canvas.leaving != Leaving::Staying {
-                    canvas.session_mut().practice_flush();
+                if canvas.leaving != Leaving::Staying
+                    && let Some(sheet) = crate::practice::sheet(canvas)
+                {
+                    sheet.flush();
                 }
-                if let Some(session) = canvas.session_mut().practice_save_request() {
-                    practice.keep(session.clone());
-                    storage.submit(Job::Practice(PracticeJob::Save(session)));
-                }
+                crate::practice::save_record(canvas, (practice, storage));
                 match canvas.leaving {
                     Leaving::Staying => {
                         if let Some(version) = canvas.session_mut().save_request() {
@@ -302,20 +298,14 @@ impl Screen {
                     Leaving::Waiting | Leaving::Storing => {}
                 }
             }
-            Self::Gallery(gallery) => {
+            Self::Gallery(gallery, options) => {
                 while let Some(request) = gallery.request() {
-                    // A deleted artwork's or copy's cached canvas goes after any write queued.
-                    if let LibraryRequest::Delete(id) | LibraryRequest::RemoveCopy(id) = &request {
+                    // A deleted artwork's cached canvas goes after any write queued.
+                    if let LibraryRequest::Delete(id) = &request {
                         cache.submit(CacheJob::Delete(*id));
                     }
-                    let creates = matches!(
-                        request,
-                        LibraryRequest::Create(..)
-                            | LibraryRequest::Practice(_)
-                            | LibraryRequest::Drill(_)
-                            | LibraryRequest::Copy(_)
-                    );
-                    match gallery_job(request, area, (practice, seeds, now)) {
+                    let creates = matches!(request, LibraryRequest::Create(..));
+                    match gallery_job(request, area) {
                         Ok(job) => storage.submit(job),
                         Err(error) if creates => {
                             log::error!("nothing to open: {error}");
@@ -327,6 +317,8 @@ impl Screen {
                         }
                     }
                 }
+                let workers = (storage, cache);
+                submit_options((gallery, options), workers, (practice, seeds, now));
             }
             Self::Opening(_) => {}
         }
@@ -371,7 +363,7 @@ fn started(opened: Opened) -> Screen {
         Opened::Gallery(listed) => {
             let mut gallery = Gallery::listed(Vec::new());
             gallery.answer(LibraryAnswer::Listed(listed));
-            Screen::Gallery(gallery)
+            Screen::gallery(gallery)
         }
     }
 }

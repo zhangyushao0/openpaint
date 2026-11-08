@@ -29,19 +29,10 @@ mod intent;
 mod language;
 mod layer_rules;
 mod layers;
+mod mode;
 mod palette;
 mod palm;
 mod pen_buttons;
-mod practice;
-mod practice_book;
-mod practice_copy;
-mod practice_layers;
-mod practice_log;
-mod practice_pens;
-mod practice_pictures;
-mod practice_sheet;
-mod practice_shown;
-mod practice_today;
 mod project;
 mod projection;
 mod quickshape;
@@ -69,7 +60,7 @@ pub use crate::brush_edit::BrushChange;
 pub use crate::brush_fit::{EDITOR_TAPER, MIN_DENSITY, MIN_FLOW, MIN_SIZE};
 pub use crate::brush_knobs::{Axis, Dynamic, Knob, KnobRange, curve_top};
 pub use crate::brush_sets::{BrushSet, RECENT_BRUSHES};
-pub use crate::brushes::{Brush, BrushKey, BrushLibrary, HARD_PAINT, SizeRange};
+pub use crate::brushes::{Brush, BrushKey, BrushLibrary, HARD_PAINT, HARD_PAINT_FILE, SizeRange};
 pub use crate::clipboard::{Clipboard, ClipboardAction};
 pub use crate::edited_brush::EditedBrush;
 pub use crate::editor_state::{BrushChoice, BrushParts, BrushSetting, EditorState, StoredBrush};
@@ -85,7 +76,7 @@ pub use crate::gallery::{
     CanvasPreset, FileProblem, Gallery, GalleryIntent, GalleryNotice, GalleryProjection,
     LibraryAnswer, LibraryRequest,
 };
-pub use crate::gallery_files::{FileJob, MAX_ARTWORK_FILE_BYTES, MAX_PACK_BYTES};
+pub use crate::gallery_files::{FileJob, MAX_ARTWORK_FILE_BYTES, problem};
 pub use crate::gestures::{
     GestureFrame, Gestured, Gestures, PictureGestured, PictureGestures, Touch, TouchAction,
 };
@@ -96,22 +87,10 @@ pub use crate::intent::Intent;
 pub use crate::language::Language;
 pub use crate::layer_rules::LayerRefusal;
 pub use crate::layers::{GroupRow, LayerIntent, LayerList, LayerRow, MaskRow};
+pub use crate::mode::{Lent, Mode};
 pub use crate::palette::{Hsv, MAX_SWATCHES, RECENT_COLORS, hex_of, parse_hex};
 pub use crate::palm::PalmRejection;
 pub use crate::pen_buttons::{ButtonAction, ButtonMap, ButtonTracker, HeldTool, PenButton};
-pub use crate::practice::{
-    CopyRead, Greys, Pen, PracticeIntent, PracticeNotice, PracticeProjection, Probe, SHOWN,
-    SheetView, sheet_of,
-};
-pub use crate::practice_book::{BookProjection, BookRecord, LineRead, Mark, SheetRead};
-pub use crate::practice_layers::{BLOCKS_LAYER, DIVISION_DIMMED, DIVISION_LAYER, LINES_LAYER};
-pub use crate::practice_log::PracticeLog;
-pub use crate::practice_pens::{INK_DIAMETER, PracticePens, copy_brush, value_colour};
-pub use crate::practice_pictures::{
-    FitJob, GROUND_SHOWN, PackShown, PictureImage, SHOWN_SIDE, grounded,
-};
-pub use crate::practice_sheet::{Finished, PRACTICE_ROOM, PracticePick, Practising, ReadJob};
-pub use crate::practice_today::{CopyShown, DrillShown, PictureShown, TodayProjection};
 pub use crate::project::{
     KEPT_VERSIONS, KeptVersion, PortError, Project, ProjectId, ProjectStore, ProjectSummary,
     Record, SaveId, Space, Thumbnail, VersionId,

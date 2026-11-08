@@ -9,7 +9,6 @@ use crate::gallery::GalleryIntent;
 use crate::history::HistoryIntent;
 use crate::insert::InsertIntent;
 use crate::layers::LayerIntent;
-use crate::practice::PracticeIntent;
 use crate::reference::ReferenceIntent;
 use crate::selection::SelectionIntent;
 use crate::storage::StorageIntent;
@@ -37,6 +36,4 @@ pub enum Intent {
     Insert(InsertIntent),
     /// The copy menu; the runtime hands it to the session with the app's clipboard.
     Clipboard(ClipboardAction),
-    /// A practice sheet's controls; the runtime hands them to the session with the time.
-    Practice(PracticeIntent),
 }

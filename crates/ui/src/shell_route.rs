@@ -3,9 +3,8 @@
 //! the canvas outside closes the panels and the copy menu, and three fingers swiped down open
 //! the copy menu.
 
-use openpaint_app::{
-    ContactPhase, InputBatch, Intent, PracticeIntent, StrokeIntent, ViewIntent, ViewMapping,
-};
+use openpaint_app::{ContactPhase, InputBatch, Intent, StrokeIntent, ViewIntent, ViewMapping};
+use openpaint_practice_app::PracticeIntent;
 
 use super::Shell;
 use crate::canvas_input::{CanvasFrame, touched_outside};
@@ -46,7 +45,7 @@ impl Shell {
             transform: shown.transform,
             drawing: shown.drawing,
             buttons: shown.buttons,
-            control: !self.taps.is_empty(),
+            control: !self.taps.is_empty() || !self.practice_taps.is_empty(),
             handles: &self.handles,
             guide_centre: self.guide_centre,
         };
@@ -104,8 +103,8 @@ impl Shell {
     /// the hand always acts on what it sees.
     fn settle_view(&mut self, intents: &[Intent], mapping: ViewMapping) {
         // A tap on Next: the view glides to the next exercise, or to the whole sheet once done.
-        let next = |tap: &Intent| matches!(tap, Intent::Practice(PracticeIntent::Next(_)));
-        if self.taps.iter().any(next) {
+        let next = |tap: &PracticeIntent| matches!(tap, PracticeIntent::Next(_));
+        if self.practice_taps.sheet.iter().any(next) {
             self.view.start(self.view.shown(mapping), SETTLE);
         }
         for intent in intents {

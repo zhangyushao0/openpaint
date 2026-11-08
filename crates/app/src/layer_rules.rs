@@ -18,7 +18,8 @@ pub enum LayerRefusal {
 
 impl LayerRefusal {
     /// Why `artwork`'s active layer refuses an edit, if it does.
-    pub(crate) fn of(artwork: &Artwork) -> Option<Self> {
+    #[must_use]
+    pub fn of(artwork: &Artwork) -> Option<Self> {
         let layer = artwork.layer(artwork.active())?;
         if !artwork.shown(layer.id()) {
             Some(Self::Hidden)

@@ -2,6 +2,7 @@
 //! in `rules.rs`; each other file checks one family of rules.
 
 mod deps;
+mod folders;
 mod hygiene;
 mod kinds;
 mod lengths;
@@ -41,6 +42,7 @@ pub fn run() -> Result<(), String> {
     findings.extend(hygiene::check(&root, &files));
     findings.extend(words::check(&root, &files));
     findings.extend(kinds::check(&root, &files));
+    findings.extend(folders::check(&files));
     findings.extend(tools::check(&root));
     if findings.is_empty() {
         println!(

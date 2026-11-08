@@ -3,14 +3,15 @@
 
 use openpaint_app::ScreenProjection;
 use openpaint_render::{ScreenFrame, UiFrame};
-use openpaint_ui::{Shell, design};
+use openpaint_ui::{PracticeShown, Shell, design};
 
 use crate::canvas::Canvas;
 
 /// What one UI pass needs.
 pub(crate) struct UiPass<'a> {
     pub(crate) shell: &'a mut Shell,
-    pub(crate) projection: &'a ScreenProjection,
+    /// What the screen and practice offer.
+    pub(crate) projection: (&'a ScreenProjection, &'a PracticeShown<'a>),
     /// The screen in pixels.
     pub(crate) size: [u32; 2],
     pub(crate) pixels_per_point: f32,
@@ -69,7 +70,7 @@ pub(crate) fn run_ui(ctx: &egui::Context, pass: UiPass<'_>) -> UiOutput {
         .entry(egui::ViewportId::ROOT)
         .or_default()
         .native_pixels_per_point = Some(pixels_per_point);
-    let output = ctx.run_ui(input, |ui| shell.show(ui, projection));
+    let output = ctx.run_ui(input, |ui| shell.show(ui, projection.0, projection.1));
     let repaint = output
         .viewport_output
         .get(&egui::ViewportId::ROOT)

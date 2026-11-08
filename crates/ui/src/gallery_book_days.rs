@@ -6,8 +6,8 @@
 //! corner, the original above the diagonal and the copy's first pick below it.
 
 use egui::{Align, Align2, Id, Layout, Order, Pos2, Rect, Sense, Shape, Stroke, TextStyle, Vec2};
-use openpaint_app::{BookProjection, BookRecord, Mark, SheetRead};
 use openpaint_practice::{Date, Rgb8, weekday};
+use openpaint_practice_app::{BookProjection, BookRecord, Mark, SheetRead};
 
 use super::{BookTap, layout};
 use crate::components::chrome::Source;

@@ -6,11 +6,10 @@
 //! calls that hand the panels what the renderer drew (brush previews, layer pictures) and the
 //! practice options the pictures read for them.
 
-use openpaint_app::{
-    BrushKey, EditorAction, GalleryIntent, Intent, PictureImage, SessionProjection,
-};
+use openpaint_app::{BrushKey, EditorAction, GalleryIntent, Intent, SessionProjection};
 use openpaint_core::LayerId;
 use openpaint_practice::ItemRef;
+use openpaint_practice_app::{PictureImage, PracticeProjection};
 use openpaint_render::RgbaImage;
 
 use super::Shell;
@@ -20,6 +19,7 @@ use crate::design::SPACE;
 use crate::layer_panel::picture_pixels;
 use crate::notices::notice_pill;
 use crate::panels::Panel;
+use crate::practice_shown::SheetTaps;
 use crate::practice_tools;
 use crate::text as t;
 
@@ -27,15 +27,23 @@ impl Shell {
     /// The left island (Gallery, Actions, Selection, Transform), the right one (Brush, Smudge,
     /// Eraser, Layers, the colour) and, left of it, the notice pill; on a practice sheet with its
     /// own tools only Gallery and All tools. Opening one panel closes the others.
-    pub(super) fn top_islands(&mut self, ctx: &egui::Context, projection: &SessionProjection) {
-        let own = practice_tools::own_tools(projection);
+    pub(super) fn top_islands(
+        &mut self,
+        ctx: &egui::Context,
+        (projection, sheet): (&SessionProjection, Option<&PracticeProjection>),
+    ) {
+        let own = practice_tools::own_tools(sheet);
         let ((), left) = island(ctx, "left island", Place::top_left(), |ui| {
             let enabled = projection.availability(EditorAction::Gallery).is_offered();
             if text_button(ui, t::GALLERY, enabled).clicked() {
                 self.taps.push(Intent::Gallery(GalleryIntent::Show));
             }
-            if let Some(practice) = projection.practice() {
-                practice_tools::all_tools(ui, practice, &mut self.taps);
+            if let Some(practice) = sheet {
+                let mut taps = SheetTaps {
+                    painting: &mut self.taps,
+                    sheet: &mut self.practice_taps.sheet,
+                };
+                practice_tools::all_tools(ui, practice, &mut taps);
             }
             if !own {
                 self.full_left(ui, projection);
@@ -44,13 +52,17 @@ impl Shell {
         // The exercise's own tools lie beside its frame (`practice_tools.rs`).
         let right = (!own).then(|| self.full_right(ctx, projection));
         // On a practice sheet its bar holds the band's middle: the notice goes under it.
-        let place = if projection.practice().is_some() {
+        let place = if sheet.is_some() {
             Place::middle_unless(true)
         } else {
             Place::top_right(right.map_or(0.0, |right| right.width()) + SPACE)
         };
         let shown = (place, &mut self.reset_notice);
-        let notice = notice_pill(ctx, projection, shown, &mut self.taps);
+        let mut taps = SheetTaps {
+            painting: &mut self.taps,
+            sheet: &mut self.practice_taps.sheet,
+        };
+        let notice = notice_pill(ctx, (projection, sheet), shown, &mut taps);
         let ppp = self.pixels_per_point;
         self.islands = [Some(left), right, notice]
             .into_iter()

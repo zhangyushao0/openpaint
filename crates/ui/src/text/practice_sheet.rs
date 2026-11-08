@@ -1,8 +1,8 @@
 //! A practice sheet: the bar, the exercise's own tools, the card (each kind's words and How in
 //! `practice/`) and the summary, in V大's terms: 叠图对比, 原位, 对齐, 明度, 纯度, 色相; 热身.
 
-use openpaint_app::Pen;
 use openpaint_practice::{Axis, Family, Metric};
+use openpaint_practice_app::Pen;
 
 use super::{Language, Text};
 

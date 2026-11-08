@@ -8,8 +8,9 @@
 use std::collections::{HashMap, HashSet};
 
 use egui::{Rect, TextureHandle, Vec2};
-use openpaint_app::{GalleryIntent, PictureImage, PictureShown, TodayProjection};
+
 use openpaint_practice::{ItemRef, Tier};
+use openpaint_practice_app::{OptionsIntent, PictureImage, PictureShown, TodayProjection};
 
 use super::practice::{Page, Removal, Tapped, note, row_picture, scrolled};
 use crate::components::{
@@ -153,8 +154,8 @@ pub(super) fn picker(
             );
             pictures.want(ui, &picture.item, row.rect);
             if row.clicked() {
-                tapped = Some(Tapped::Intent(
-                    GalleryIntent::Copy(picture.item.clone()),
+                tapped = Some(Tapped::Options(
+                    OptionsIntent::Copy(picture.item.clone()),
                     true,
                 ));
             }
@@ -261,8 +262,8 @@ pub(super) fn picture(
             for tier in Tier::ALL {
                 let on = picture.tier == tier;
                 if text_choice(ui, group, t::tier(tier), on).clicked() && !on {
-                    let moved = GalleryIntent::PictureTier(item.clone(), tier);
-                    tapped = Some(Tapped::Intent(moved, false));
+                    let moved = OptionsIntent::PictureTier(item.clone(), tier);
+                    tapped = Some(Tapped::Options(moved, false));
                 }
             }
         });
@@ -287,7 +288,7 @@ pub(super) fn add(ui: &mut egui::Ui) -> Option<Tapped> {
     let mut tapped = None;
     for tier in Tier::ALL {
         if menu_row(ui, t::tier(tier), t::tier_hint(tier), true).clicked() {
-            tapped = Some(Tapped::Intent(GalleryIntent::AddPicture(tier), false));
+            tapped = Some(Tapped::Options(OptionsIntent::AddPicture(tier), false));
         }
     }
     tapped

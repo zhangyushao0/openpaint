@@ -102,8 +102,8 @@ impl History {
     }
 
     /// Keeps the current version alone: undo and redo reach nothing before or after it, as when
-    /// the artwork was opened. A practice sheet's next exercise starts so (D08, D20: the floor of
-    /// its undo is the version it came to show on).
+    /// the artwork was opened. A mode moving on starts so (D08, D20: the floor of
+    /// its undo is the version it moved on from).
     pub fn keep_only_current(&mut self) {
         let artwork = self.current().clone();
         self.entries = VecDeque::from([Entry { artwork, bytes: 0 }]);

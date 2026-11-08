@@ -78,6 +78,15 @@ impl Session {
         }
     }
 
+    /// What a mode's own intent ends first (`Session::lend`), as any edit: the shape snapped last,
+    /// an adjustment under way (kept as it shows) and a transform (committed where it shows).
+    pub(super) fn end_every_draft(&mut self) {
+        self.strokes.end_shape();
+        self.apply_adjustment();
+        self.commit_transform();
+        self.transforms.forget_refusal();
+    }
+
     /// Any other edit, tool or leaving keeps the adjustment under way as it shows; its notice
     /// goes.
     pub(super) fn apply_adjustment(&mut self) {

@@ -8,12 +8,13 @@
 //! colour judgement's radar over the earlier sessions', the colour means beside theirs). The words
 //! are `text/practice.rs`'s, in the pass's language.
 
-use openpaint_app::{Finished, Hsv, Intent, PracticeIntent, PracticeProjection};
+use openpaint_app::Hsv;
 use openpaint_core::Color;
 use openpaint_practice::{
     Axis, CELLS, CardItem, Family, HUELESS, KindSummary, Metric, Original, PROJECT, Rgb8,
     WheelSize, oklch,
 };
+use openpaint_practice_app::{Finished, PracticeIntent, PracticeProjection};
 
 use crate::components::{
     RadarAxis, animate_from, card_columns, card_text, choices, color_compare, colour_table, hint,
@@ -98,7 +99,11 @@ pub(crate) fn instructions(ui: &mut egui::Ui, of: HowOf, demos: &mut Demonstrati
 
 /// The shown exercise as compared: its title (a colour copy's name), then its comparison's items
 /// (S109), whatever its kind.
-pub(crate) fn compared(ui: &mut egui::Ui, practice: &PracticeProjection, taps: &mut Vec<Intent>) {
+pub(crate) fn compared(
+    ui: &mut egui::Ui,
+    practice: &PracticeProjection,
+    taps: &mut Vec<PracticeIntent>,
+) {
     let Some(family) = practice.family else {
         return;
     };
@@ -122,7 +127,7 @@ fn item_of(
     ui: &mut egui::Ui,
     practice: &PracticeProjection,
     item: &CardItem,
-    taps: &mut Vec<Intent>,
+    taps: &mut Vec<PracticeIntent>,
 ) {
     let chosen = practice.area;
     match item {
@@ -180,7 +185,7 @@ const fn wheel_side(size: WheelSize) -> f32 {
 
 /// A drawn exercise compared (a line, a group of them, a single shape): in place or aligned
 /// (while its fit is found, saying so).
-fn lines(ui: &mut egui::Ui, practice: &PracticeProjection, taps: &mut Vec<Intent>) {
+fn lines(ui: &mut egui::Ui, practice: &PracticeProjection, taps: &mut Vec<PracticeIntent>) {
     ui.horizontal(|ui| {
         choices(ui, "overlay", |ui, group| {
             for (aligned, word) in [(false, t::IN_PLACE), (true, t::ALIGNED)] {
@@ -188,7 +193,7 @@ fn lines(ui: &mut egui::Ui, practice: &PracticeProjection, taps: &mut Vec<Intent
                 let offered = !aligned || practice.aligned_offered;
                 let tapped = text_choice_wide(ui, group, word, (offered, chosen), 0.0).clicked();
                 if tapped && !chosen && offered {
-                    push_once(taps, Intent::Practice(PracticeIntent::Aligned(aligned)));
+                    push_once(taps, PracticeIntent::Aligned(aligned));
                 }
             }
         });

@@ -8,11 +8,13 @@
 
 use openpaint_app::{
     AdjustIntent, EditorAction, ExportIntent, ExportNotice, FillIntent, FillRefusal, InsertIntent,
-    Intent, Language, PracticeIntent, PracticeNotice, ReferenceIntent, ReferenceNotice,
-    SessionProjection, StorageIntent, StorageNotice, TransformIntent, TransformRefusal,
+    Intent, Language, ReferenceIntent, ReferenceNotice, SessionProjection, StorageIntent,
+    StorageNotice, TransformIntent, TransformRefusal,
 };
+use openpaint_practice_app::{PracticeIntent, PracticeNotice, PracticeProjection};
 
 use crate::components::{Place, Source, confirmation, notice, pill, status};
+use crate::practice_shown::SheetTaps;
 use crate::taps::push_once;
 use crate::text::{self as t, Refused, Text, Words};
 
@@ -27,22 +29,31 @@ enum Told {
     Done(String, Intent),
     /// The display was reset, dismissed with OK; nothing is asked of the app.
     Reset,
+    /// Why the practice sheet took no contact, dismissed with OK.
+    Sheet(String),
 }
 
-/// The pill for `projection`, if there is something to tell, at `place`, with the notice that the
-/// display was reset while `reset` holds (OK clears it); its taps go to `taps`. Returns its
-/// rectangle in points.
+/// What OK or Retry asks.
+enum Answer {
+    Ask(Intent),
+    Reset,
+    Sheet,
+}
+
+/// The pill for `projection` (on a practice `sheet`), if there is something to tell, at `place`,
+/// with the notice that the display was reset while `reset` holds (OK clears it); its taps go to
+/// `taps`. Returns its rectangle in points.
 pub(crate) fn notice_pill(
     ctx: &egui::Context,
-    projection: &SessionProjection,
+    (projection, sheet): (&SessionProjection, Option<&PracticeProjection>),
     (place, reset): (Place, &mut bool),
-    taps: &mut Vec<Intent>,
+    taps: &mut SheetTaps<'_>,
 ) -> Option<egui::Rect> {
     let language = t::language(ctx);
     let told = storage(projection, language)
         .or_else(|| (*reset).then_some(Told::Reset))
-        .or_else(|| practice(projection, language))
-        .or_else(|| fill(projection, language))
+        .or_else(|| practice(sheet, language))
+        .or_else(|| fill((projection, sheet.is_some()), language))
         .or_else(|| transform(projection, language))
         .or_else(|| adjust(projection, language))
         .or_else(|| transfers(projection, language))?;
@@ -56,18 +67,22 @@ pub(crate) fn notice_pill(
         Told::Failed(message, action, enabled, intent) => {
             notice(ui, Words::made(&message), action, enabled)
                 .clicked()
-                .then_some(Some(intent))
+                .then_some(Answer::Ask(intent))
         }
         Told::Done(message, intent) => confirmation(ui, Words::made(&message))
             .clicked()
-            .then_some(Some(intent)),
+            .then_some(Answer::Ask(intent)),
         Told::Reset => notice(ui, t::DISPLAY_RESET, t::OK, true)
             .clicked()
-            .then_some(None),
+            .then_some(Answer::Reset),
+        Told::Sheet(message) => notice(ui, Words::made(&message), t::OK, true)
+            .clicked()
+            .then_some(Answer::Sheet),
     });
     match tapped {
-        Some(Some(intent)) => push_once(taps, intent),
-        Some(None) => *reset = false,
+        Some(Answer::Ask(intent)) => push_once(taps.painting, intent),
+        Some(Answer::Reset) => *reset = false,
+        Some(Answer::Sheet) => push_once(taps.sheet, PracticeIntent::Dismiss),
         None => {}
     }
     Some(rect)
@@ -111,8 +126,8 @@ fn storage(projection: &SessionProjection, language: Language) -> Option<Told> {
 }
 
 /// Why a practice sheet took no contact, with OK.
-fn practice(projection: &SessionProjection, language: Language) -> Option<Told> {
-    let message = match projection.practice()?.notice? {
+fn practice(sheet: Option<&PracticeProjection>, language: Language) -> Option<Told> {
+    let message = match sheet?.notice? {
         PracticeNotice::DrawInFrame => t::DRAW_IN_FRAME.get(language).to_owned(),
         PracticeNotice::DrawInCell => t::DRAW_IN_CELL.get(language).to_owned(),
         PracticeNotice::PickAfterCompare => t::PICK_AFTER_COMPARE.get(language).to_owned(),
@@ -120,16 +135,16 @@ fn practice(projection: &SessionProjection, language: Language) -> Option<Told> 
         PracticeNotice::CannotFill(refusal) => t::refused(language, Refused::Fill, refusal),
         PracticeNotice::Done => t::SESSION_DONE.get(language).to_owned(),
     };
-    Some(with_ok(message, Intent::Practice(PracticeIntent::Dismiss)))
+    Some(Told::Sheet(message))
 }
 
-/// A refused or failed fill, with OK.
-fn fill(projection: &SessionProjection, language: Language) -> Option<Told> {
+/// A refused or failed fill, with OK; `practising` on a practice sheet.
+fn fill((projection, practising): (&SessionProjection, bool), language: Language) -> Option<Told> {
     let fill = projection.fill();
     let message = match (fill.refused, fill.failed) {
         (Some(FillRefusal::Layer(refusal)), _) => t::refused(language, Refused::Fill, refusal),
         // On a practice sheet the empty frame is what a fill stays inside.
-        (Some(FillRefusal::OutsideSelection), _) if projection.practice().is_some() => {
+        (Some(FillRefusal::OutsideSelection), _) if practising => {
             t::DROP_IN_FRAME.get(language).to_owned()
         }
         (Some(FillRefusal::OutsideSelection), _) => t::DROP_IN_SELECTION.get(language).to_owned(),

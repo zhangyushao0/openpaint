@@ -30,8 +30,9 @@ use std::collections::HashMap;
 use egui::{Align, Layout, Rect, Vec2};
 use openpaint_app::{
     GalleryIntent, GalleryProjection, Intent, Language, MAX_TITLE_CHARS, ProjectId, ProjectSummary,
-    Thumbnail, Title, TodayProjection,
+    Thumbnail, Title,
 };
+use openpaint_practice_app::{OptionsIntent, TodayProjection};
 
 use crate::components::carry::{Arrival, Opening, land};
 use crate::components::{
@@ -39,6 +40,7 @@ use crate::components::{
     icon_button, icon_toggle, island, notice, picture_texture, pill, text_field,
 };
 use crate::design::{CARD_GAP, Icon, SPACE, TOUCH_TARGET};
+use crate::practice_shown::PracticeShown;
 use crate::text::{self as t, Words};
 
 /// The island "+" sits on; the new-canvas popover grows out of it.
@@ -122,11 +124,11 @@ impl GalleryScreen {
     pub(crate) fn islands(
         &mut self,
         ctx: &egui::Context,
-        projection: &GalleryProjection,
-        taps: &mut Vec<Intent>,
+        (projection, practice): (&GalleryProjection, &PracticeShown<'_>),
+        (taps, options): (&mut Vec<Intent>, &mut Vec<OptionsIntent>),
     ) {
         // The practice book takes the whole screen: its own island only.
-        if self.book.shows() && projection.today().is_some() {
+        if self.book.shows() && practice.today.is_some() {
             self.book_island(ctx);
             return;
         }
@@ -162,14 +164,19 @@ impl GalleryScreen {
         if button.clicked() {
             self.sizes = if open { Sizes::Closed } else { Sizes::Opened };
         }
-        if let Some(message) = t::gallery_notice(projection.notice()) {
+        // The gallery's own notice first, then the practice options'.
+        let told = (t::gallery_notice(projection.notice()).map(|m| (m, true)))
+            .or_else(|| t::options_notice(practice.notice?).map(|m| (m, false)));
+        if let Some((message, own)) = told {
             let place = Place::top_right(plus.width() + SPACE);
             let source = Source::Within(Align::Max);
             let (dismissed, _) = pill(ctx, "gallery notice", place, source, |ui| {
                 notice(ui, message, t::OK, true).clicked()
             });
-            if dismissed {
+            if dismissed && own {
                 taps.push(Intent::Gallery(GalleryIntent::Dismiss));
+            } else if dismissed {
+                options.push(OptionsIntent::Dismiss);
             }
         }
     }
@@ -179,12 +186,12 @@ impl GalleryScreen {
     pub(crate) fn body(
         &mut self,
         ui: &mut egui::Ui,
-        projection: &GalleryProjection,
-        taps: &mut Vec<Intent>,
+        (projection, today): (&GalleryProjection, Option<&TodayProjection>),
+        (taps, options): (&mut Vec<Intent>, &mut Vec<OptionsIntent>),
     ) {
         let ctx = ui.ctx().clone();
-        if let Some(today) = projection.today().filter(|_| self.book.shows()) {
-            self.book_page(&ctx, today, taps);
+        if let Some(today) = today.filter(|_| self.book.shows()) {
+            self.book_page(&ctx, today, (taps, options));
             if self.book.covers() {
                 return;
             }
@@ -202,7 +209,8 @@ impl GalleryScreen {
             .filter(|item| shown_title(language, &item.title).matches(&self.search))
             .collect();
         // The Today card comes first, unless a search is typed.
-        let today = projection.today().filter(|_| self.search.trim().is_empty());
+        let all = today;
+        let today = today.filter(|_| self.search.trim().is_empty());
         if projection.listed() && projection.items().is_empty() && today.is_none() {
             self.arriving = None;
             let empty = Words::from(t::NO_ARTWORKS).shown(&ctx);
@@ -212,14 +220,14 @@ impl GalleryScreen {
             list.centered_and_justified(|ui| ui.label(text));
         } else {
             egui::ScrollArea::vertical().show(&mut list, |ui| {
-                self.grid(ui, (today, &found), enabled, taps);
+                self.grid(ui, (today, &found), enabled, (&mut *taps, &mut *options));
             });
         }
         self.rename_dialog(ui.ctx(), taps);
         self.confirm_dialog(ui.ctx(), taps);
         self.options_dialog(ui.ctx(), projection.items(), taps);
-        if let Some(today) = projection.today() {
-            self.practice_dialog(ui.ctx(), today, taps);
+        if let Some(today) = all {
+            self.practice_dialog(ui.ctx(), today, (&mut *taps, options));
         }
         self.sizes_popover(ui.ctx(), under, taps);
     }
@@ -229,7 +237,7 @@ impl GalleryScreen {
         ui: &mut egui::Ui,
         (today, items): (Option<&TodayProjection>, &[&ProjectSummary]),
         enabled: bool,
-        taps: &mut Vec<Intent>,
+        (taps, options): (&mut Vec<Intent>, &mut Vec<OptionsIntent>),
     ) {
         // Left-aligned rows, `CARD_GAP` around and between the cards.
         let pitch = card_size() + Vec2::splat(CARD_GAP);
@@ -245,7 +253,7 @@ impl GalleryScreen {
             egui::Rect::from_min_size(origin + cell * pitch, card_size())
         };
         if let Some(today) = today {
-            let sheet = self.today(ui, place(0), (today, enabled), taps);
+            let sheet = self.today(ui, place(0), (today, enabled), (&mut *taps, &mut *options));
             if let Some(arrival) = self.arriving.filter(|arrival| arrival.practice)
                 && land(ui.ctx(), &arrival, None, sheet)
             {

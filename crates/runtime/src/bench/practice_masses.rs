@@ -4,7 +4,7 @@
 //! worker, the answer's greys, edges and hatching shown when it arrives), the slider dragged and
 //! Compare closed: a line each.
 
-use openpaint_app::Pen;
+use openpaint_practice_app::Pen;
 
 use super::motion::drag;
 use super::practice::of_key;
