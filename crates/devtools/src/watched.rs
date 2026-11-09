@@ -13,7 +13,6 @@ use openpaint_app::{
     Space, Thumbnail, Title, VersionId,
 };
 use openpaint_core::Artwork;
-use openpaint_practice_store::{Packs, library_at};
 use openpaint_store::Library;
 
 /// What the library just wrote, for the look after it.
@@ -34,12 +33,11 @@ pub struct Watched {
 }
 
 impl Watched {
-    /// The library in `dir` as the app opens it (`library_at`: its old practice sheets laid anew
-    /// by the pictures the packs in `packs` hold, S99), failing while `off` is set.
+    /// The library in `dir`, failing while `off` is set.
     #[must_use]
-    pub fn new(dir: &Path, packs: Option<Packs>, off: Arc<AtomicBool>) -> Self {
+    pub fn new(dir: &Path, off: Arc<AtomicBool>) -> Self {
         Self {
-            library: library_at(dir, packs),
+            library: Library::at(dir),
             off,
             look: None,
         }

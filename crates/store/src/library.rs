@@ -16,7 +16,6 @@ use openpaint_core::Artwork;
 use crate::batch::Batch;
 use crate::editor::decode_editor;
 use crate::records::{FORMAT, FORMAT_KEY, LIBRARY, PROJECTS, decode_format, encode_format};
-use crate::spaces::{Upgrade, Upgrading};
 use crate::{artwork_file, read, spaces, versions, write};
 
 /// The database and its two keyspaces.
@@ -31,9 +30,6 @@ pub(crate) struct Open {
 /// one (a failed write leaves fjall refusing further writes).
 pub struct Library {
     dir: PathBuf,
-    /// The record spaces' owners' upgrades of their old records, run in order each time the
-    /// database opens (D112).
-    upgrades: Vec<Box<dyn Upgrade>>,
     open: Option<Open>,
     /// The version the disk holds for one project, known exactly; the base for the next save
     /// of that project. Forgotten whenever a call fails, so that save rewrites the project.
@@ -54,20 +50,10 @@ impl Library {
     pub fn at(dir: impl Into<PathBuf>) -> Self {
         Self {
             dir: dir.into(),
-            upgrades: Vec::new(),
             open: None,
             stored: None,
             noted: 0,
         }
-    }
-
-    /// The library with `upgrade`, a record space's owner's upgrade of its old records (D112),
-    /// run each time the library opens: after the format check and the upgrades given before it,
-    /// before any call is served.
-    #[must_use]
-    pub fn with_upgrade(mut self, upgrade: Box<dyn Upgrade>) -> Self {
-        self.upgrades.push(upgrade);
-        self
     }
 
     /// What fjall holds in memory now: its block cache and its memtables (written, not flushed
@@ -110,7 +96,7 @@ impl Library {
                 library,
                 projects,
             };
-            prepare(&open, &self.upgrades)?;
+            prepare(&open)?;
             log::info!("library opened at {}", self.dir.display());
             self.open = Some(open);
         }
@@ -132,18 +118,9 @@ impl Library {
 }
 
 /// Checks the format of an opened database: an empty one is marked with this build's format;
-/// one of another format, or holding records without a format (every library before 1.0), is
-/// refused as it is, nothing written. One of this format has the old records of each record
-/// space upgraded by its owner's `upgrades`, in order (D112).
-fn prepare(open: &Open, upgrades: &[Box<dyn Upgrade>]) -> Result<(), PortError> {
-    check_format(open)?;
-    let library = Upgrading::new(open);
-    upgrades
-        .iter()
-        .try_for_each(|upgrade| upgrade.upgrade(&library))
-}
-
-fn check_format(open: &Open) -> Result<(), PortError> {
+/// one of another format, or holding records without a format, is refused as it is, nothing
+/// written.
+fn prepare(open: &Open) -> Result<(), PortError> {
     let found = match open.library.get(FORMAT_KEY).map_err(device)? {
         Some(bytes) => decode_format(&bytes),
         None if open.library.iter().next().is_none() && open.projects.iter().next().is_none() => {

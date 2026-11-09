@@ -1,6 +1,6 @@
 //! Local artwork library: the persistent format (format 1, `records.rs`), OpenPaint files and
-//! kept versions, image files in and out, and record spaces whose bytes and upgrades their owners
-//! keep (`spaces.rs`, D112). Implements the storage ports declared in `openpaint-app`.
+//! kept versions, image files in and out, and record spaces whose bytes their owners keep
+//! (`spaces.rs`, D112). Implements the storage ports declared in `openpaint-app`.
 //!
 //! No GPU, no UI (`cargo repo-check`).
 #![forbid(unsafe_code)]
@@ -40,4 +40,3 @@ pub use crate::export_file::{ImageEncoder, encode_image};
 pub use crate::image_file::{decode_image, open_picture, open_reference};
 pub use crate::library::Library;
 pub use crate::records::FORMAT;
-pub use crate::spaces::{Upgrade, Upgrading};

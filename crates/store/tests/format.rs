@@ -6,8 +6,8 @@
 //!
 //! Storing them as a new project gives exactly the frozen bytes, so format 1 can never change by
 //! accident; opening the sample gives them back, and storing what it opened gives the same bytes
-//! again: every record round-trips byte for byte. A library of any other format, or one made
-//! before 1.0, is refused and left exactly as it was.
+//! again: every record round-trips byte for byte. A library of any other format, or one holding
+//! records but no format, is refused and left exactly as it was.
 //!
 //! A sample file is a record dump: per record the keyspace index (u8: 0 `library`, 1
 //! `projects`), then key and value, each as a u32 little-endian length and the bytes, sorted by
@@ -155,18 +155,13 @@ fn a_library_of_another_format_is_refused_untouched() {
     let dir = TestDir::new("format-2");
     write_records(&dir, &later);
     refused_untouched(&dir, Some(2));
-    // A library made before 1.0: its schema, a project, no format.
-    let mut older: Records = frozen
+    // A library holding records (a project) but no format.
+    let unmarked: Records = frozen
         .into_iter()
         .filter(|(_, key, _)| key != b"format")
         .collect();
-    older.push((
-        "library".into(),
-        b"schema".to_vec(),
-        23u32.to_le_bytes().to_vec(),
-    ));
-    let dir = TestDir::new("schema-23");
-    write_records(&dir, &older);
+    let dir = TestDir::new("no-format");
+    write_records(&dir, &unmarked);
     refused_untouched(&dir, None);
 }
 

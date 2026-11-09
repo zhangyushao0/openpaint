@@ -1,17 +1,14 @@
 //! Record spaces (S110, D112): a space's records are bytes the store keeps and hands back as they
 //! were, apart from every other space's and the store's own; a space or key the store's keys take
 //! is refused with nothing written; a project created or removed with its record lands whole or
-//! not at all, whichever write fails; an owner's upgrade runs as the library opens, after the
-//! format check, and its failure fails the opening.
+//! not at all, whichever write fails.
 
 use std::path::Path;
-use std::sync::{Arc, Mutex};
 
 use fjall::{Database, KeyspaceCreateOptions};
 use openpaint_app::{PortError, ProjectId, ProjectStore, Record, Space, Title};
 use openpaint_core::{Artwork, CanvasSize};
 
-use super::{Upgrade, Upgrading};
 use crate::Library;
 use crate::batch::faults;
 use crate::records::{LIBRARY, PROJECTS};
@@ -191,51 +188,4 @@ fn a_project_with_its_record_is_removed_whole_or_not_at_all() {
         drop(library);
         assert_eq!(dump(&dir), before, "write {n} of {count} failed: nothing");
     }
-}
-
-/// What an upgrade saw: its space's records as the library opened.
-struct Seen {
-    records: Arc<Mutex<Vec<Vec<Record>>>>,
-    fails: bool,
-}
-
-impl Upgrade for Seen {
-    fn upgrade(&self, library: &Upgrading<'_>) -> Result<(), PortError> {
-        let records = library.records(MINE)?;
-        self.records.lock().expect("seen").push(records.clone());
-        let upgraded: Vec<_> = (records.into_iter())
-            .map(|(key, mut bytes)| {
-                bytes.push(b'!');
-                (key, bytes)
-            })
-            .collect();
-        library.put(MINE, &upgraded)?;
-        if self.fails {
-            return Err(PortError::Stopped);
-        }
-        Ok(())
-    }
-}
-
-#[test]
-fn an_owner_s_upgrade_runs_as_the_library_opens_and_its_failure_fails_the_opening() {
-    let dir = TestDir::new("spaces-upgrade");
-    let mut library = Library::at(&dir);
-    library
-        .put_record(MINE, &key(MINE, 1), b"old")
-        .expect("put");
-    drop(library);
-    let seen = Arc::new(Mutex::new(Vec::new()));
-    let upgrade = |fails| {
-        let records = Arc::clone(&seen);
-        Box::new(Seen { records, fails })
-    };
-    let mut library = Library::at(&dir).with_upgrade(upgrade(false));
-    assert_eq!(seen.lock().expect("seen").len(), 0, "not before a call");
-    let read = library.records(MINE).expect("upgraded");
-    assert_eq!(read, [(key(MINE, 1), b"old!".to_vec())]);
-    assert_eq!(seen.lock().expect("seen").len(), 1, "once as it opened");
-    drop(library);
-    let mut failing = Library::at(&dir).with_upgrade(upgrade(true));
-    assert_eq!(failing.list(), Err(PortError::Stopped));
 }

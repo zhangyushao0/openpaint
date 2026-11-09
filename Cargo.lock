@@ -1098,6 +1098,7 @@ dependencies = [
  "log",
  "openpaint-practice-store",
  "openpaint-runtime",
+ "openpaint-store",
  "raw-window-handle",
 ]
 
@@ -1117,7 +1118,6 @@ version = "1.21.6"
 name = "openpaint-devtools"
 version = "1.21.6"
 dependencies = [
- "fjall",
  "openpaint-app",
  "openpaint-core",
  "openpaint-practice",

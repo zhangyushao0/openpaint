@@ -25,7 +25,8 @@ use openpaint_practice::{
     Arrangement, Book, Combination, Exercise, ExerciseResult, Family, GeneratedAreas, Kind,
     LineTier, Metric, Original, Plan, ScaleTone, SessionRecord, Sheet, Span, Tally, summary,
 };
-use openpaint_practice_store::{library_at, save, sessions, start};
+use openpaint_practice_store::{save, sessions, start};
+use openpaint_store::Library;
 
 /// The dump's records, as `tests/sample/mod.rs` names them.
 type Records = Vec<(String, Vec<u8>, Vec<u8>)>;
@@ -115,7 +116,7 @@ fn drill() -> SessionRecord {
 /// A library holding a painting, the two records and their sheets, as its records.
 fn written() -> Records {
     let dir = TestDir::new("areas-write");
-    let mut library = library_at(&dir, None);
+    let mut library = Library::at(&dir);
     let painting = Artwork::new(CanvasSize::new(64, 48).expect("size"));
     library.create(&painting, &untitled()).expect("a painting");
     for (record, title) in [(session(), "Practice 3"), (drill(), "Drill 1")] {
@@ -159,7 +160,7 @@ fn the_areas_sample_is_what_this_build_writes() {
 fn generated_combinations_count_and_show_as_they_did() {
     let dir = TestDir::new("areas-read");
     write_records(&dir, &frozen());
-    let mut library = library_at(&dir, None);
+    let mut library = Library::at(&dir);
     let records = sessions(&mut library).expect("practice");
     assert_eq!(
         records,

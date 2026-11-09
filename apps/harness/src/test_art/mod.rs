@@ -28,8 +28,8 @@ use std::path::PathBuf;
 
 use openpaint_app::{BrushLibrary, ProjectStore, Title};
 use openpaint_core::{Artwork, CanvasPoint, CanvasSize, StrokeSample, StrokeStyle};
-use openpaint_practice_store::library_at;
 use openpaint_runtime::{drawn, pile_path, style_of};
+use openpaint_store::Library;
 
 use crate::error::HarnessError;
 use crate::output::workspace_root;
@@ -173,7 +173,7 @@ fn pile(library: &BrushLibrary, n: u32) -> Result<Artwork, HarnessError> {
 pub fn file_bytes(artwork: &Artwork, title: &str) -> Result<Vec<u8>, HarnessError> {
     let title = Title::new(title).map_err(|_| HarnessError::Missing("not a title"))?;
     let dir = Scratch::new("test-art-library")?;
-    let mut library = library_at(&dir, None);
+    let mut library = Library::at(&dir);
     let id = library
         .create(artwork, &title)
         .map_err(HarnessError::Port)?;
@@ -271,7 +271,7 @@ mod tests {
             let again = file_bytes(&make(kind).expect("made again"), "Test").expect("again");
             assert!(first == again, "{kind:?}: two runs, two files");
             let dir = Scratch::new("test-art-open").expect("a directory");
-            let mut library = library_at(&dir, None);
+            let mut library = Library::at(&dir);
             let id = library.import_file(&first).expect("the file opens");
             let opened = library.load(id).expect("loaded").artwork;
             let count = |artwork: &Artwork| -> usize {

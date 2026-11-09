@@ -104,22 +104,6 @@ pub(crate) fn create_owned(
     Ok(id)
 }
 
-/// A project a record owns written anew by its owner's upgrade (`Upgrading::replace_owned`):
-/// every record of `artwork` over project `id`'s, its head under a new save id, and the record
-/// (its key and bytes), in one batch; the catalogue and `last` untouched.
-pub(crate) fn replaced(
-    open: &Open,
-    (id, artwork): (ProjectId, &Artwork),
-    (key, bytes): (&[u8], &[u8]),
-) -> Result<(), PortError> {
-    let mut batch = Batch::new(open);
-    write_all(open, &mut batch, id, artwork)?;
-    let head = encode_head(artwork, Some(new_save_id()));
-    batch.insert(&open.projects, head_key(id), head);
-    batch.insert(&open.library, key, bytes);
-    batch.commit()
-}
-
 /// Project `id` becomes the open one.
 pub(crate) fn open(open: &Open, id: ProjectId) -> Result<(), PortError> {
     let mut batch = Batch::new(open);

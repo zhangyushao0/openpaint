@@ -90,16 +90,15 @@ fn foreign_damaged_and_other_format_files_are_refused_and_change_nothing() {
     flipped[file.len() / 2] ^= 1;
     // A whole file whose records break the artwork's rules: no head.
     let headless = file_of(FORMAT, "Hafen", &[]);
-    let cases: [(&[u8], Option<u32>); 8] = [
+    let cases: [(&[u8], Option<u32>); 7] = [
         (b"Shopping list: ink, paper.\n", None),
         (b"", None),
         (&file[..9], None),
         (&flipped, None),
         (&file[..file.len() - 1], None),
         (&headless, None),
-        // A later format, and a file made before 1.0 (its schema where the format lies).
+        // A later format.
         (&marked(&file, 2), Some(2)),
-        (&marked(&file, 23), Some(23)),
     ];
     for (at, (bytes, format)) in cases.into_iter().enumerate() {
         let refused = library.import_file(bytes).expect_err("refused");

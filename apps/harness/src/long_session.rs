@@ -136,7 +136,7 @@ impl Painter {
         let library = fresh_library(library_dir("long-session"))?;
         let versions = Arc::new(Mutex::new(0));
         let fjall = Arc::new(Mutex::new([0; 2]));
-        let store = Watched::new(&library, None, Arc::default()).after_writes({
+        let store = Watched::new(&library, Arc::default()).after_writes({
             let (versions, fjall) = (Arc::clone(&versions), Arc::clone(&fjall));
             move |library, wrote| watch(library, wrote, (&versions, &fjall))
         });

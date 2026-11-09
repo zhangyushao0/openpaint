@@ -14,7 +14,6 @@ openpaint-practice-store.workspace = true
 openpaint-render.workspace = true
 openpaint-runtime.workspace = true
 openpaint-store.workspace = true
-fjall.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 

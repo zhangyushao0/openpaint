@@ -1,55 +1,37 @@
-//! Practice records (format 1, added in 1.1 beside the records before them, whose bytes stay as
-//! they were): `['p'][session u64]` in the library's record space `PRACTICE` -> one practice
-//! session (DECISIONS D98, D99, D112). Its sheet is an ordinary project the record owns, which
-//! the gallery never lists.
+//! Practice records (format 1): `['p'][session u64]` in the library's record space `PRACTICE`
+//! -> one practice session (DECISIONS D98, D99, D112). Its sheet is an ordinary project the record
+//! owns, which the gallery never lists. A record is read only in this shape, every field present;
+//! anything else is refused (`sessions` leaves it out).
 //!
 //! - Session: stage (u8), number in the stage (u32), seed (u64), its sheet's project (u64, 0
 //!   none), started and finished (u64 seconds since 1970 UTC, finished 0 while open), the
 //!   exercise shown (u32); its exercises, a count (u32) and each one's kind and variant (u8 each,
 //!   `Kind::code`) and seed (u64); its results, a count (u32) and each one's exercise (u32), when
 //!   it was first compared (u64) and its metrics, a count (u32) and each one's code (u8,
-//!   `Metric::code`) and value (f64). A metric of a code this version does not know is passed
-//!   over: 1.1.0's line metrics (codes 1 to 8) read as none.
-//! - Then (1.1.1 on) the results' tail, each result in the same order: how often it was compared
-//!   (u32) and the sheet's first stroke id after its first Compare (u64, 0 unknown). A record
-//!   1.1.0 wrote ends before it: compared once, no stroke a correction.
-//! - Then (1.3.0 on) how many of the first exercises are the warm-up (u32). A record written
-//!   before ends before it: no warm-up.
+//!   `Metric::code`) and value (f64). A kind or a metric of a code this version does not know is
+//!   refused (retired codes are never reused).
+//! - Then the results' tail, each result in the same order: how often it was compared (u32) and
+//!   the sheet's first stroke id after its first Compare (u64, 0 unknown).
+//! - Then how many of the first exercises are the warm-up (u32).
 //! - Then the pictures single shapes and colour copies copy: a count (u32) and each one's
-//!   exercise (u32) and picture, its pack's id and its item's id (strings). From 1.4.0 to 1.6.2 a
-//!   record without any ended before the count.
-//! - Then (1.7.0 on, S89) the spans its sheet was practised in: a count (u32) and each one's
-//!   start and end (u64 seconds since 1970 UTC, the end not before the start). A record written
-//!   before ends before them; the records' upgrade (`upgrade.rs`) gives it the spans its
-//!   compares' times tell, once, when the library opens: nothing else reads a record without
-//!   its time.
-//! - Then (1.17.0 on, S99) its sheet's layout, a byte: 1, its pictures' frames their shape
-//!   (`LAID`). A record written before ends before it, its copies of pictures laid in square
-//!   frames; the records' upgrade lays its sheet anew once (`frames.rs`).
+//!   exercise (u32) and picture, its pack's id and its item's id (strings).
+//! - Then the spans its sheet was practised in (S89): a count (u32) and each one's start and end
+//!   (u64 seconds since 1970 UTC, the end not before the start).
+//! - Last its sheet's layout, a byte: 1, its pictures' frames their shape (`LAID`, S99).
 //!
-//! 1.5.0 adds no field: kinds 5 to 7 (colour combinations, value scales, a colour copy), metric
-//! codes 29 to 34, and a long colour copy as a record of stage 0 (`PROJECT`) holding its one
-//! exercise and its picture (D105). 1.5.1 adds none either: a value scale's mean off its even
-//! steps in lightness is code 35 (32, on the wheel's value, retired); a colour copy's name is its
-//! sheet's title. 1.6.0 adds none: kinds 8 to 10 (a box to complete, free boxes, an ellipse),
-//! which keep no numbers. 1.6.1 adds none: a colour's lightness, chroma and hue parts of its
-//! Oklab difference are codes 36 to 41 (21 to 23 and 25 to 27, on the wheel's HSV, retired).
-//! 1.8.0 adds none: kinds 11 and 12 (an estimate on the flat, a point in space) and their errors,
-//! metric codes 42 to 46 (D107). 1.9.0 adds none: a drill (S91) is a record of stage `DRILL`
-//! (255), its number among its kind's drills, its exercises all of the kind it drills; earlier
-//! records read as they are. 1.15.0 adds none: a value scale's kind holds its cells, (6, tone + 2
-//! x cells); a record holding one as (6, tone) is turned so by the records' upgrade.
+//! A long colour copy is a record of stage 0 (`PROJECT`) holding its one exercise and its picture
+//! (D105), its name its sheet's title; a drill (S91) a record of stage `DRILL` (255), its number
+//! among its kind's drills, its exercises all of the kind it drills. A value scale's kind holds
+//! its cells, (6, tone + 2 x cells).
 
 use openpaint_app::{PortError, Space};
-use openpaint_practice::{
-    Exercise, ExerciseResult, ItemRef, Kind, Metric, Random, ScaleTone, SessionRecord, Span,
-};
+use openpaint_practice::{Exercise, ExerciseResult, ItemRef, Kind, Metric, SessionRecord, Span};
 use openpaint_store::{Reader, Writer};
 
 /// The practice records' space in the library: the first byte of every practice record's key.
 pub const PRACTICE: Space = Space::new(b'p');
-/// The layout a record ends with from 1.17.0 (S99): its pictures' frames their shape.
-pub(crate) const LAID: u8 = 1;
+/// The layout a record ends with (S99): its pictures' frames their shape.
+const LAID: u8 = 1;
 
 /// Bytes of an exercise, and of a result and a metric without their lists, and of a result's
 /// tail, a picture's place and a span.
@@ -119,18 +101,8 @@ pub(crate) fn encode_session(session: &SessionRecord) -> Vec<u8> {
     writer.finish()
 }
 
-/// What the records' upgrade still owes a record read (`upgrade.rs`): its time (one written before
-/// 1.7.0 keeps none), its value scales' cells (one written before 1.15.0 holding a scale) and its
-/// sheet laid anew (one written before 1.17.0).
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(crate) struct Owed {
-    pub(crate) time: bool,
-    pub(crate) scales: bool,
-    pub(crate) frames: bool,
-}
-
-/// The session stored under `key` as `bytes`, and what the records' upgrade owes its record.
-pub(crate) fn decode_session(key: &[u8], bytes: &[u8]) -> Result<(SessionRecord, Owed), PortError> {
+/// The session stored under `key` as `bytes`.
+pub(crate) fn decode_session(key: &[u8], bytes: &[u8]) -> Result<SessionRecord, PortError> {
     let mut reader = Reader::new(bytes, "practice session");
     let id = key
         .strip_prefix(&[PRACTICE.byte()])
@@ -140,38 +112,20 @@ pub(crate) fn decode_session(key: &[u8], bytes: &[u8]) -> Result<(SessionRecord,
     let (stage, number, seed) = (reader.u8()?, reader.u32()?, reader.u64()?);
     let (canvas, started, finished) = (reader.u64()?, reader.u64()?, reader.u64()?);
     let current = reader.u32()?;
-    let (mut exercises, scales) = decode_exercises(&mut reader)?;
+    let mut exercises = decode_exercises(&mut reader)?;
     let mut results = decode_results(&mut reader)?;
-    if !reader.is_done() {
-        for result in &mut results {
-            result.compares = reader.u32()?;
-            result.corrected_from = Some(reader.u64()?).filter(|id| *id != 0);
-        }
+    for result in &mut results {
+        result.compares = reader.u32()?;
+        result.corrected_from = Some(reader.u64()?).filter(|id| *id != 0);
     }
-    let warm_up = if reader.is_done() { 0 } else { reader.u32()? };
-    if !reader.is_done() {
-        decode_pictures(&mut reader, &mut exercises)?;
-    }
-    let timed = !reader.is_done();
-    let mut time = Vec::new();
-    if timed {
-        for _ in 0..reader.count(SPAN_BYTES)? {
-            let span = Span {
-                from: reader.u64()?,
-                to: reader.u64()?,
-            };
-            if span.to < span.from {
-                return Err(reader.corrupt());
-            }
-            time.push(span);
-        }
-    }
-    let laid = !reader.is_done();
-    if laid && reader.u8()? != LAID {
+    let warm_up = reader.u32()?;
+    decode_pictures(&mut reader, &mut exercises)?;
+    let time = decode_time(&mut reader)?;
+    if reader.u8()? != LAID {
         return Err(reader.corrupt());
     }
     reader.end()?;
-    let session = SessionRecord {
+    Ok(SessionRecord {
         id,
         stage,
         number,
@@ -184,55 +138,23 @@ pub(crate) fn decode_session(key: &[u8], bytes: &[u8]) -> Result<(SessionRecord,
         warm_up,
         results,
         time,
-    };
-    let owed = Owed {
-        time: !timed,
-        scales,
-        frames: !laid,
-    };
-    Ok((session, owed))
+    })
 }
 
-/// The exercises, and whether any is a value scale as 1.5.0 to 1.14.0 stored it (`older_scale`).
-fn decode_exercises(reader: &mut Reader<'_>) -> Result<(Vec<Exercise>, bool), PortError> {
+/// The exercises; a kind this version does not know is refused.
+fn decode_exercises(reader: &mut Reader<'_>) -> Result<Vec<Exercise>, PortError> {
     let count = reader.count(EXERCISE_BYTES)?;
     let mut exercises = Vec::with_capacity(count);
-    let mut older = false;
     for _ in 0..count {
         let (kind, variant, seed) = (reader.u8()?, reader.u8()?, reader.u64()?);
-        let exercise = match Kind::of_code(kind, variant) {
-            Some(kind) => Exercise::generated(kind, seed),
-            None => {
-                older = true;
-                older_scale((kind, variant), seed).ok_or(reader.corrupt())?
-            }
-        };
-        exercises.push(exercise);
+        let kind = Kind::of_code(kind, variant).ok_or(reader.corrupt())?;
+        exercises.push(Exercise::generated(kind, seed));
     }
-    Ok((exercises, older))
+    Ok(exercises)
 }
 
-/// SplitMix64's step (`openpaint_practice::Random`): a seed one draw on.
-const ONE_DRAW: u64 = 0x9E37_79B9_7F4A_7C15;
-
-/// A value scale as 1.5.0 to 1.14.0 stored it, kind (6, tone): its cells, 5 to 7, were its seed's
-/// first draw and its ends the draws after. As this version keeps it (S97): its cells in its kind
-/// and its seed one draw on, so it is the same scale, its strokes where they lay. None for any
-/// other kind this version does not know.
-fn older_scale((kind, variant): (u8, u8), seed: u64) -> Option<Exercise> {
-    let tone = *ScaleTone::ALL
-        .get(usize::from(variant))
-        .filter(|_| kind == 6)?;
-    let mut random = Random::new(seed);
-    let cells = 5 + ((random.unit() * 3.0) as u8).min(2);
-    Some(Exercise::generated(
-        Kind::Scale(tone, cells),
-        seed.wrapping_add(ONE_DRAW),
-    ))
-}
-
-/// The results, as a record of 1.1.0 holds them: compared once, no stroke a correction until
-/// the tail says otherwise.
+/// The results without their tail (`decode_session` reads it after them); a metric this version
+/// does not know is refused.
 fn decode_results(reader: &mut Reader<'_>) -> Result<Vec<ExerciseResult>, PortError> {
     let count = reader.count(RESULT_BYTES)?;
     let mut results = Vec::with_capacity(count);
@@ -242,14 +164,13 @@ fn decode_results(reader: &mut Reader<'_>) -> Result<Vec<ExerciseResult>, PortEr
         let mut metrics = Vec::with_capacity(count);
         for _ in 0..count {
             let (code, value) = (reader.u8()?, reader.f64()?);
-            if let Some(metric) = Metric::of_code(code) {
-                metrics.push((metric, value));
-            }
+            let metric = Metric::of_code(code).ok_or(reader.corrupt())?;
+            metrics.push((metric, value));
         }
         results.push(ExerciseResult {
             index,
             checked_at,
-            compares: 1,
+            compares: 0,
             corrected_from: None,
             metrics,
         });
@@ -271,9 +192,23 @@ fn decode_pictures(reader: &mut Reader<'_>, exercises: &mut [Exercise]) -> Resul
     Ok(())
 }
 
+/// The spans the sheet was practised in; one ending before it starts is refused.
+fn decode_time(reader: &mut Reader<'_>) -> Result<Vec<Span>, PortError> {
+    let count = reader.count(SPAN_BYTES)?;
+    let mut time = Vec::with_capacity(count);
+    for _ in 0..count {
+        let span = Span {
+            from: reader.u64()?,
+            to: reader.u64()?,
+        };
+        if span.to < span.from {
+            return Err(reader.corrupt());
+        }
+        time.push(span);
+    }
+    Ok(time)
+}
+
 #[cfg(test)]
 #[path = "records_tests.rs"]
 mod tests;
-#[cfg(test)]
-#[path = "records_upgrade_tests.rs"]
-mod upgrade_tests;

@@ -75,15 +75,12 @@ pub fn run(
     let mut records = Vec::new();
     for (index, step) in scenario.steps.iter().enumerate() {
         runner.index = index;
-        if matches!(step, Step::Restart | Step::RestartOnOldSheets) {
+        if *step == Step::Restart {
             // The user leaves (the host's `onPause`), then the system ends the process: what
             // the leave handed over is written and the library closes before the new start.
             runtime.leave();
             drop(runtime);
             runner.requests.clear();
-            if *step == Step::RestartOnOldSheets {
-                crate::older::as_before(runner.library, runner.packs)?;
-            }
             runtime = runner.start()?;
             continue;
         }
@@ -127,8 +124,7 @@ impl Runner<'_> {
     /// A new app process on the library: everything a runtime held before is gone, history
     /// included; what survives is what the library stores. Runs frames until it has opened.
     fn start(&mut self) -> Result<Runtime, ScenarioError> {
-        let packs = Some(Packs::at(self.packs));
-        let store = Watched::new(self.library, packs, Arc::clone(&self.storage_off));
+        let store = Watched::new(self.library, Arc::clone(&self.storage_off));
         let language = match self.scenario.system_language {
             SystemLanguage::English => Language::English,
             SystemLanguage::Chinese => Language::Chinese,
@@ -184,7 +180,7 @@ impl Runner<'_> {
             }
             Step::Wait { frames } => self.wait(runtime, *frames)?,
             Step::Later { minutes, hidden } => self.later(runtime, (*minutes, *hidden))?,
-            Step::Restart | Step::RestartOnOldSheets => {
+            Step::Restart => {
                 return Err(ScenarioError::Missing("restart is run by `run`"));
             }
             Step::StorageFails => self.storage_off.store(true, Ordering::Relaxed),

@@ -17,7 +17,7 @@ pub fn sessions(store: &mut dyn ProjectStore) -> Result<Vec<SessionRecord>, Port
     let mut sessions = Vec::new();
     for (key, value) in store.records(PRACTICE)? {
         match decode_session(&key, &value) {
-            Ok((session, _)) => sessions.push(session),
+            Ok(session) => sessions.push(session),
             Err(error) => log::warn!("a practice record is not read: {error}"),
         }
     }
