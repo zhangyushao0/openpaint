@@ -106,27 +106,25 @@ impl ProjectStore for Other {
         Err(refused())
     }
 
-    fn records(&mut self, _space: Space) -> Result<Vec<Record>, PortError> {
+    fn records(&mut self, _space: Space, _under: &[u8]) -> Result<Vec<Record>, PortError> {
         Err(refused())
     }
 
-    fn put_record(&mut self, _space: Space, _key: &[u8], _bytes: &[u8]) -> Result<(), PortError> {
+    fn put_records(&mut self, _records: &[(Space, Record)]) -> Result<(), PortError> {
         self.wrote("record")
     }
 
     fn create_owned(
         &mut self,
         _project: (&Artwork, &Title),
-        _space: Space,
-        _record: &dyn Fn(ProjectId) -> Record,
+        _owned: &dyn Fn(ProjectId) -> Vec<(Space, Record)>,
     ) -> Result<ProjectId, PortError> {
         self.wrote("owned project")
     }
 
     fn remove_owned(
         &mut self,
-        _space: Space,
-        _key: &[u8],
+        _keys: &[(Space, Vec<u8>)],
         _project: Option<ProjectId>,
     ) -> Result<(), PortError> {
         self.wrote("record removal")

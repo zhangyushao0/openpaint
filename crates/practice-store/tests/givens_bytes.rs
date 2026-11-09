@@ -4,11 +4,12 @@
 
 use openpaint_app::PortError;
 use openpaint_practice::{
-    Clip, Figure, In, Level, LinePen, Painted, Place, Point, SheetMark, Source, Value,
+    Clip, Figure, Given, Givens, In, Level, LinePen, Painted, Place, Point, SheetMark, Source,
+    Value,
 };
 use openpaint_practice_store::{
-    GIVENS_FORMAT, Given, Givens, decode_givens, decode_marks, decode_painted, encode_givens,
-    encode_marks, encode_painted,
+    GIVENS_FORMAT, decode_givens, decode_marks, decode_painted, encode_givens, encode_marks,
+    encode_painted,
 };
 
 /// Points at a float's edges: -0.0, the largest, a subnormal.

@@ -8,11 +8,11 @@
 
 use crate::compositions::masses::Masses;
 use crate::compositions::value_masses::{Value, ValueMasses};
-use crate::demos::demo::{Demo, Drawn, Layout, Marker, On, Script};
+use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script};
 use crate::kinds::value_masses::value_masses_read::{HATCH_GAP, VALUE_PEN, differences, hatched};
 use crate::maths::path::Point;
+use crate::sessions::layout::PictureFit;
 use crate::sessions::plan::Family;
-use crate::sessions::sheet::PictureFit;
 
 /// The example: a landscape four by three, its picture this wide.
 const SEED: u64 = 0xDE30_5EED_0096;
@@ -53,7 +53,7 @@ pub(crate) fn value_masses() -> Demo {
         script.draw(On::Copy, Marker::Ink, values);
     }
     let compared = compared(&answer, &copy, rect);
-    let mut demo = script.compare(Family::ValueMasses, Layout::Pair, compared);
+    let mut demo = script.compare(Family::ValueMasses, DemoLayout::Pair, compared);
     demo.view = Some(rect);
     demo.masses = Some(Box::new(masses));
     demo.values = Some(Box::new([answer, copy]));

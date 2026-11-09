@@ -10,7 +10,7 @@
 //! on past it; V大's sphere circle near enough). The lines are `SolidTask`'s.
 
 use crate::demos::demo::{
-    DRAWN_OFF, Demo, Drawn, Layout, Marker, On, Script, clearest, line, off_marks, wobbled,
+    DRAWN_OFF, Demo, DemoLayout, Drawn, Marker, On, Script, clearest, line, off_marks, wobbled,
 };
 use crate::geometry::ellipse::{Ellipse, EllipseGuide};
 use crate::kinds::solids::solid::{Pose, Solid, SolidTask, diagonals, middle_lines};
@@ -222,5 +222,5 @@ fn compared(script: Script, family: Family, task: &SolidTask, drawn: Vec<Vec<Poi
     }
     let lines: Vec<&[Point]> = drawn.iter().map(Vec::as_slice).collect();
     marks.extend(off_marks(&SolidCheck::of(task, (&lines, &[])).off));
-    script.compare(family, Layout::Single, marks)
+    script.compare(family, DemoLayout::Single, marks)
 }

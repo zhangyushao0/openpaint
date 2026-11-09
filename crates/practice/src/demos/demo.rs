@@ -85,7 +85,7 @@ pub const WIDE_REACH: f64 = 0.85;
 
 /// How the example lies in the card.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Layout {
+pub enum DemoLayout {
     /// The original's frame and the copy's side by side.
     Pair,
     /// The copy's frame alone, what the exercise gives lying in it: the example shown as large as
@@ -204,7 +204,7 @@ pub struct Mark {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Demo {
     pub family: Family,
-    pub layout: Layout,
+    pub layout: DemoLayout,
     /// The colour combination its `Drawn::Areas` marks paint (a combination's only).
     pub areas: Option<crate::colour_areas::areas_generated::GeneratedAreas>,
     /// The picture its `Drawn::Shaded` mark shows (an object's, S94).
@@ -318,7 +318,7 @@ impl Script {
     pub(crate) fn compare(
         mut self,
         family: Family,
-        layout: Layout,
+        layout: DemoLayout,
         marks: Vec<(On, Marker, Drawn)>,
     ) -> Demo {
         self.step();
@@ -332,7 +332,8 @@ impl Script {
                 to: from + SHOWING,
             });
         }
-        let view = matches!(layout, Layout::Single | Layout::Wide).then(|| seen(&self.marks));
+        let view =
+            matches!(layout, DemoLayout::Single | DemoLayout::Wide).then(|| seen(&self.marks));
         Demo {
             family,
             layout,

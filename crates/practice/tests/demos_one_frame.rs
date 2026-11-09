@@ -3,7 +3,7 @@
 //! ellipse's rings only on the middles it misses; a value scale of nine numbered in the order of
 //! halving and painted a round at a time, its uneven cell outlined with its even one.
 
-use openpaint_practice::{Demo, Drawn, Family, Layout, Marker, On, PAST, Point, distance};
+use openpaint_practice::{Demo, DemoLayout, Drawn, Family, Marker, On, PAST, Point, distance};
 
 fn demo(family: Family) -> Demo {
     Demo::of(family).unwrap_or_else(|| panic!("{family:?} has no demonstration"))
@@ -97,7 +97,7 @@ fn the_tricks_solids_objects_and_estimates_mark_only_what_the_hand_drew_off() {
     assert!(rings + missed >= 1 && rings <= 3, "{rings} {missed}");
     for family in [Family::Centre, Family::Cylinder] {
         let demo = demo(family);
-        assert_eq!(demo.layout, Layout::Single, "{family:?}: one frame");
+        assert_eq!(demo.layout, DemoLayout::Single, "{family:?}: one frame");
         let printed = (demo.marks.iter()).filter(|m| m.to == 0.0 && m.pen == Marker::Given);
         assert_eq!(printed.count(), 0, "{family:?}: its givens printed grey");
     }
@@ -113,7 +113,10 @@ fn a_scale_of_five_is_numbered_and_painted_as_a_five_cell_row_is() {
         "nine's is the kind's"
     );
     let scale = Demo::of_cells(Family::Scale, 5).expect("a scale's");
-    assert_eq!((scale.family, scale.layout), (Family::Scale, Layout::Row));
+    assert_eq!(
+        (scale.family, scale.layout),
+        (Family::Scale, DemoLayout::Row)
+    );
     let numbered: Vec<(f64, u8)> = (scale.marks.iter())
         .filter_map(|m| match m.drawn {
             Drawn::Numeral(at, n) if m.to == 0.0 => Some((at[0], n)),
@@ -151,7 +154,7 @@ fn a_scale_of_five_is_numbered_and_painted_as_a_five_cell_row_is() {
 #[test]
 fn a_scale_of_nine_is_numbered_and_painted_a_round_at_a_time() {
     let scale = demo(Family::Scale);
-    assert_eq!(scale.layout, Layout::Row);
+    assert_eq!(scale.layout, DemoLayout::Row);
     let numbered: Vec<u8> = (scale.marks.iter())
         .filter_map(|m| match m.drawn {
             Drawn::Numeral(_, n) if m.to == 0.0 => Some(n),

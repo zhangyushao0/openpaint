@@ -30,7 +30,9 @@ pub use colour_areas::main_hue::{HUE_STEP, MAIN_CHROMA, main_hue, turn};
 pub use compositions::levels::{Level, LevelRow};
 pub use compositions::masses::Masses;
 pub use compositions::value_masses::{BLUR, ISLAND, MASSES_SIDE, RIM, Value, ValueMasses};
-pub use demos::demo::{Demo, Drawn, Layout, Mark, Marker, On, Pictured, Shaded, Strip, WIDE_REACH};
+pub use demos::demo::{
+    Demo, DemoLayout, Drawn, Mark, Marker, On, Pictured, Shaded, Strip, WIDE_REACH,
+};
 pub use fits::align::{Fit, align};
 pub use fits::align_shape::align_shape;
 pub use geometry::edges::{Edge, SHORTEST, corrected, edges};
@@ -128,6 +130,7 @@ pub use packs::pack::{
 };
 pub use packs::pictures::Pictures;
 pub use records::book::{Book, Day, LineShown, Road};
+pub use records::givens::{Given, Givens};
 pub use records::metric::{Metric, Metrics, value};
 pub use records::record::{
     AREAS_ROWS, COLOUR_ROWS, DRILL, ExerciseResult, KindSummary, PROJECT, RECENT, SCALE_ROWS,
@@ -136,10 +139,10 @@ pub use records::record::{
 pub use records::seals::{Earned, Seal, Tally, earned, sealed};
 pub use records::time::{PAUSE, Span, by_day, local_day, practised, seconds};
 pub use sessions::drill::{drill, kinds_of, stage_needs};
+pub use sessions::layout::{FRAME, FRAME_REACH, Frame, Layout, Pair, PictureFit, STUDY_SIDE};
 pub use sessions::plan::{Exercise, Family, STAGE_SESSIONS, STAGES, STAGES_READY};
 pub use sessions::session::{Before, Plan, WARM_UP, WARM_UP_TWO, plan, stage_one, stage_two};
 pub use sessions::session_five::stage_five;
 pub use sessions::session_four::stage_four;
 pub use sessions::session_three::stage_three;
-pub use sessions::sheet::{FRAME, FRAME_REACH, Frame, Pair, PictureFit, STUDY_SIDE, Sheet};
 pub use sessions::sheet_picture::{MassesShown, SheetPicture};

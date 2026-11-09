@@ -1,7 +1,7 @@
 //! A colour's demonstration (`demos/demo.rs`): the wheel's ring to the hue's family, then lighter
 //! or darker, then purer or greyer, the frame filled, then compared.
 
-use crate::demos::demo::{Demo, Drawn, Layout, Marker, On, Script, band, rect};
+use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script, band, rect};
 use crate::kinds::colours::colour_match::{Lightness, Purity, Tone};
 use crate::maths::colour::{from_hsv, hsv};
 use crate::sessions::plan::Family;
@@ -46,5 +46,5 @@ pub(crate) fn colour() -> Demo {
         (On::Original, Marker::Given, band(patch, picked)),
         (On::Wheel, Marker::Answer, Drawn::Ringed([h, s, v])),
     ];
-    script.compare(Family::Colour, Layout::Wheel, compared)
+    script.compare(Family::Colour, DemoLayout::Wheel, compared)
 }

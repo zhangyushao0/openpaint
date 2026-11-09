@@ -2,7 +2,7 @@
 //! passes in the air, one quick stroke, then compared.
 
 use crate::demos::demo::{
-    Demo, Drawn, Layout, Marker, On, Script, TICK, clearest, off_middle, tick, wobbled,
+    Demo, DemoLayout, Drawn, Marker, On, Script, TICK, clearest, off_middle, tick, wobbled,
 };
 use crate::kinds::lines::line::{LineExercise, LineTier};
 use crate::maths::path::{Point, distance};
@@ -44,7 +44,7 @@ pub(crate) fn line() -> Demo {
     let copy = wobbled(&original, 0.03, 0.5);
     script.draw(On::Copy, Marker::Ink, Drawn::Line(copy));
     let red = vec![(On::Copy, Marker::Answer, Drawn::Line(original))];
-    script.compare(Family::Line, Layout::Pair, red)
+    script.compare(Family::Line, DemoLayout::Pair, red)
 }
 
 /// How far `line` lies from the chord between its ends at most.

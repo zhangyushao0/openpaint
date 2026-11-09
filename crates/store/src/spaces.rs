@@ -27,30 +27,60 @@ pub(crate) fn checked(space: Space, key: Option<&[u8]>) -> Result<(), PortError>
     Ok(())
 }
 
-/// Every record of `space`, its key and bytes, in key order.
-pub(crate) fn records(open: &Open, space: Space) -> Result<Vec<Record>, PortError> {
+/// Every record of `space` whose key goes on from its byte with `under`, its key and bytes, in
+/// key order.
+pub(crate) fn records(open: &Open, space: Space, under: &[u8]) -> Result<Vec<Record>, PortError> {
     checked(space, None)?;
+    let mut prefix = vec![space.byte()];
+    prefix.extend_from_slice(under);
     let mut records = Vec::new();
-    for guard in open.library.prefix([space.byte()]) {
+    for guard in open.library.prefix(prefix) {
         let (key, value) = guard.into_inner().map_err(device)?;
         records.push((key.to_vec(), value.to_vec()));
     }
     Ok(records)
 }
 
-/// `records` of `space` written over what their keys held, in one batch; none, nothing written.
-pub(crate) fn put(open: &Open, space: Space, records: &[Record]) -> Result<(), PortError> {
-    for (key, _) in records {
-        checked(space, Some(key))?;
-    }
+/// `records` written over what their keys held, in one batch; none, nothing written.
+pub(crate) fn put(open: &Open, records: &[(Space, Record)]) -> Result<(), PortError> {
+    let mut batch = Batch::new(open);
+    insert(open, &mut batch, records)?;
     if records.is_empty() {
         return Ok(());
     }
-    let mut batch = Batch::new(open);
-    for (key, bytes) in records {
+    batch.commit()
+}
+
+/// `records` added to `batch` over what their keys held, once every key is checked against its
+/// space; one refused, nothing added.
+pub(crate) fn insert(
+    open: &Open,
+    batch: &mut Batch,
+    records: &[(Space, Record)],
+) -> Result<(), PortError> {
+    for (space, (key, _)) in records {
+        checked(*space, Some(key))?;
+    }
+    for (_, (key, bytes)) in records {
         batch.insert(&open.library, key.as_slice(), bytes.as_slice());
     }
-    batch.commit()
+    Ok(())
+}
+
+/// `keys` removed in `batch`, once every key is checked against its space; one refused, nothing
+/// removed.
+pub(crate) fn remove(
+    open: &Open,
+    batch: &mut Batch,
+    keys: &[(Space, Vec<u8>)],
+) -> Result<(), PortError> {
+    for (space, key) in keys {
+        checked(*space, Some(key))?;
+    }
+    for (_, key) in keys {
+        batch.remove(&open.library, key.as_slice());
+    }
+    Ok(())
 }
 
 #[cfg(test)]

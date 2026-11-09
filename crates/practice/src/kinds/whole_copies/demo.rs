@@ -3,7 +3,7 @@
 //! under the big shapes' lines in ink; Compare lays the picture over the copy, the division gone.
 
 use crate::compositions::levels::Level;
-use crate::demos::demo::{Demo, Drawn, Layout, Marker, On, Script, wobbled};
+use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script, wobbled};
 use crate::demos::demo_landscape::{Landscape, STRAY, TOGETHER};
 use crate::maths::path::Point;
 use crate::sessions::plan::Family;
@@ -31,7 +31,7 @@ pub(crate) fn whole_copy() -> Demo {
     }
     let mut demo = script.compare(
         Family::WholeCopy,
-        Layout::Pair,
+        DemoLayout::Pair,
         vec![example.laid(Marker::Faint)],
     );
     demo.dimmed = match demo.steps[..] {

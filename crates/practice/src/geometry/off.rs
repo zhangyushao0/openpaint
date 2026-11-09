@@ -22,7 +22,7 @@ use crate::geometry::ellipse::{Ellipse, EllipseGuide};
 use crate::geometry::ellipse_sides::missed;
 use crate::geometry::heading::{ON_ANGLE, line_angle, plumb, reach, sub, toward};
 use crate::maths::path::{Point, across_frame, distance, length, resample};
-use crate::sessions::sheet::FRAME;
+use crate::sessions::layout::FRAME;
 
 /// The Draw pen's width (the app's `INK_DIAMETER`, 5 canvas pixels) on a frame of `FRAME`.
 pub const PEN_WIDTH: f64 = 5.0 / FRAME;

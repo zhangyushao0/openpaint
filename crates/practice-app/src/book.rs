@@ -12,7 +12,7 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use openpaint_core::{Artwork, Layer, StrokeTool};
-use openpaint_practice::{Book, Family, Kept, Pack, Point, Rgb8, SessionRecord, Sheet};
+use openpaint_practice::{Book, Family, Kept, Layout, Pack, Point, Rgb8, SessionRecord};
 
 use crate::copy::{ALL_STROKES, colour_copy, line_pieces, rgb8};
 use crate::projection::laid;
@@ -146,7 +146,7 @@ impl SheetRead {
 
 /// `sheet`'s frames as `record`'s exercises show them (top left to bottom right): a kind built in
 /// one frame that one (S97), the others both.
-fn frames(sheet: &Sheet, record: &SessionRecord) -> Vec<[[f32; 2]; 2]> {
+fn frames(sheet: &Layout, record: &SessionRecord) -> Vec<[[f32; 2]; 2]> {
     let one =
         |index: usize| (record.exercises.get(index)).is_some_and(|e| e.kind.family().constructed());
     (sheet.pairs.iter().enumerate())

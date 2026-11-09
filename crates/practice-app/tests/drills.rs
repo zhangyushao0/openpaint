@@ -9,7 +9,8 @@ use std::sync::Arc;
 use openpaint_app::{BrushLibrary, ProjectId, Session, Title, Toolbox, Viewport};
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    DRILL, ExerciseResult, Family, Kind, STAGES_READY, SessionRecord, Sheet, Tally, Trick, kinds_of,
+    DRILL, ExerciseResult, Family, Kind, Layout, STAGES_READY, SessionRecord, Tally, Trick,
+    kinds_of,
 };
 use openpaint_practice_app::{
     DrillShown, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, PracticeSheet,
@@ -108,7 +109,7 @@ fn a_drill_s_summary_sets_it_beside_earlier_drills_of_its_kind_only() {
 }
 
 fn practising(record: SessionRecord, before: Vec<SessionRecord>) -> Session {
-    let [width, height] = Sheet::of(&vec![None; record.exercises.len()]).size;
+    let [width, height] = Layout::of(&vec![None; record.exercises.len()]).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
     let library = BrushLibrary::built_in().expect("built-in brushes");
     let style = Toolbox::new(library.clone()).style().expect("style");

@@ -1,7 +1,9 @@
 //! Combined lines' demonstration (`demos/demo.rs`): the key points, the longest line first, each
 //! other from where it meets it, then compared.
 
-use crate::demos::demo::{Demo, Drawn, Layout, Marker, On, Script, clearest, off_middle, wobbled};
+use crate::demos::demo::{
+    Demo, DemoLayout, Drawn, Marker, On, Script, clearest, off_middle, wobbled,
+};
 use crate::kinds::combined_lines::combined::{Combination, CombinedLines};
 use crate::maths::path::{Point, crossings, distance, length, nearest};
 use crate::sessions::plan::Family;
@@ -56,7 +58,7 @@ pub(crate) fn combined() -> Demo {
         .into_iter()
         .map(|line| (On::Copy, Marker::Answer, Drawn::Line(line)))
         .collect();
-    script.compare(Family::Combined, Layout::Pair, red)
+    script.compare(Family::Combined, DemoLayout::Pair, red)
 }
 
 /// A group's key points: every line's ends and where lines cross, each place once.

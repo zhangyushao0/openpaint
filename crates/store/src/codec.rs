@@ -26,6 +26,10 @@ impl Writer {
         self.u8(u8::from(value));
     }
 
+    pub fn u16(&mut self, value: u16) {
+        self.bytes.extend_from_slice(&value.to_le_bytes());
+    }
+
     pub fn u32(&mut self, value: u32) {
         self.bytes.extend_from_slice(&value.to_le_bytes());
     }
@@ -109,6 +113,10 @@ impl<'a> Reader<'a> {
             1 => Ok(true),
             _ => Err(self.corrupt()),
         }
+    }
+
+    pub fn u16(&mut self) -> Result<u16, PortError> {
+        self.take().map(u16::from_le_bytes)
     }
 
     pub fn u32(&mut self) -> Result<u32, PortError> {
@@ -199,14 +207,17 @@ mod tests {
         let mut writer = Writer::default();
         writer.u8(7);
         writer.bool(true);
+        writer.u16(0xfe01);
         writer.u32(0x0102_0304);
         writer.u64(u64::MAX - 1);
         writer.f32(-0.0);
         writer.str("Ebene ü");
         let bytes = writer.finish();
+        assert_eq!(bytes[2..4], [0x01, 0xfe], "little-endian");
         let mut reader = Reader::new(&bytes, "test");
         assert_eq!(reader.u8(), Ok(7));
         assert_eq!(reader.bool(), Ok(true));
+        assert_eq!(reader.u16(), Ok(0xfe01));
         assert_eq!(reader.u32(), Ok(0x0102_0304));
         assert_eq!(reader.u64(), Ok(u64::MAX - 1));
         assert_eq!(reader.f32().map(f32::to_bits), Ok((-0.0f32).to_bits()));

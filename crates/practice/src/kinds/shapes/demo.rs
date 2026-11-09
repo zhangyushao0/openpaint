@@ -2,7 +2,7 @@
 //! extremes ticked, blocked in with long straight lines, a negative shape looked at, the outline
 //! in ink, then compared.
 
-use crate::demos::demo::{Demo, Drawn, Layout, Marker, On, Script, TICK, tick, wobbled};
+use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script, TICK, tick, wobbled};
 use crate::maths::colour::Rgb8;
 use crate::maths::path::Point;
 use crate::maths::random::Random;
@@ -59,7 +59,7 @@ pub(crate) fn shape() -> Demo {
         (On::Copy, Marker::Faint, faint),
         (On::Copy, Marker::Answer, Drawn::Line(outline)),
     ];
-    script.compare(Family::Shape, Layout::Pair, compared)
+    script.compare(Family::Shape, DemoLayout::Pair, compared)
 }
 
 /// A vase seen from the side: its rows from the lip down, each its left and right edge.

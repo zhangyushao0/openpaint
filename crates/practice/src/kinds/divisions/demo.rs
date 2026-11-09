@@ -4,7 +4,7 @@
 //! Compare lays the picture faint under the lines.
 
 use crate::compositions::levels::Level;
-use crate::demos::demo::{Demo, Drawn, Layout, Marker, On, Script};
+use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script};
 use crate::demos::demo_landscape::Landscape;
 use crate::sessions::plan::Family;
 
@@ -24,7 +24,7 @@ pub(crate) fn division() -> Demo {
         let lines = example.lines(level).into_iter();
         compared.extend(lines.map(|line| (On::Copy, Marker::Level(level), Drawn::Line(line))));
     }
-    let mut demo = script.compare(Family::Division, Layout::Pair, compared);
+    let mut demo = script.compare(Family::Division, DemoLayout::Pair, compared);
     demo.view = Some(example.rect());
     demo.masses = Some(Box::new(example.masses));
     demo

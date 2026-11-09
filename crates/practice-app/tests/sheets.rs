@@ -15,7 +15,7 @@ use openpaint_app::{
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
 use openpaint_practice::{
-    ColourCompared, Family, Figure, Metric, Metrics, Original, Pair, SessionRecord, Sheet, Tally,
+    ColourCompared, Family, Figure, Layout, Metric, Metrics, Original, Pair, SessionRecord, Tally,
     value,
 };
 use openpaint_practice_app::{
@@ -43,7 +43,7 @@ fn pens() -> PracticePens {
 
 fn practising() -> Session {
     let record = SessionRecord::stage_one(1, 1, 0x5EED_0045, 1_791_201_600, &[]);
-    let [width, height] = Sheet::of(&vec![None; record.exercises.len()]).size;
+    let [width, height] = Layout::of(&vec![None; record.exercises.len()]).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
     let tools = (brush(Color::BLACK), pens());
     let view = SheetView::of(&record, &[], ([width, height], &Title::untitled()));

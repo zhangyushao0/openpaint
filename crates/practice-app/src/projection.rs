@@ -14,8 +14,8 @@ use std::sync::Arc;
 
 use openpaint_core::Color;
 use openpaint_practice::{
-    Areas, CardItem, ExerciseResult, Family, KindSummary, Level, Original, Pack, Pair, Point, Rgb8,
-    SessionRecord, Sheet, SheetMark, SheetPicture, Value,
+    Areas, CardItem, ExerciseResult, Family, KindSummary, Layout, Level, Original, Pack, Pair,
+    Point, Rgb8, SessionRecord, SheetMark, SheetPicture, Value,
 };
 
 use crate::pictures::PictureImage;
@@ -298,22 +298,22 @@ impl SheetView {
 /// The sheet a new `record`'s exercises are laid on: a long colour copy's of its picture's shape
 /// (as `packs` hold it), a session's three pairs a row, its pictures' frames of their shape.
 #[must_use]
-pub fn sheet_of(record: &SessionRecord, packs: &[Pack]) -> Sheet {
+pub fn sheet_of(record: &SessionRecord, packs: &[Pack]) -> Layout {
     if !record.is_project() {
-        return Sheet::of_session(record, packs);
+        return Layout::of_session(record, packs);
     }
     let picture = (record.exercises.first())
         .and_then(|e| e.picture.as_ref())
         .and_then(|item| packs.iter().find_map(|pack| pack.find(item)));
-    Sheet::study(picture.map_or([1, 1], |item| item.size))
+    Layout::study(picture.map_or([1, 1], |item| item.size))
 }
 
 /// The sheet `record` lies on, on its canvas of `size` pixels: a session's as `packs` hold its
 /// pictures, a colour copy's read from its canvas.
-pub(crate) fn laid(record: &SessionRecord, packs: &[Pack], size: [u32; 2]) -> Sheet {
+pub(crate) fn laid(record: &SessionRecord, packs: &[Pack], size: [u32; 2]) -> Layout {
     if record.is_project() {
-        Sheet::study_on(size)
+        Layout::study_on(size)
     } else {
-        Sheet::of_session(record, packs)
+        Layout::of_session(record, packs)
     }
 }

@@ -7,8 +7,8 @@
 //! copy's givens are printed grey. The picture, the lines and the points are `ObjectTask`'s.
 
 use crate::demos::demo::{
-    DRAWN_OFF, Demo, Drawn, Layout, Marker, On, Pictured, Script, Shaded, bounds, line, off_marks,
-    wobbled,
+    DRAWN_OFF, Demo, DemoLayout, Drawn, Marker, On, Pictured, Script, Shaded, bounds, line,
+    off_marks, wobbled,
 };
 use crate::kinds::objects::object::ObjectTask;
 use crate::kinds::objects::object_design::Carve;
@@ -141,5 +141,5 @@ fn compared(script: Script, task: &ObjectTask, drawn: Vec<Vec<Point>>) -> Demo {
     }));
     let lines: Vec<&[Point]> = drawn.iter().map(Vec::as_slice).collect();
     marks.extend(off_marks(&SolidCheck::of_object(task, (&lines, &[])).off));
-    script.compare(Family::Object, Layout::Pair, marks)
+    script.compare(Family::Object, DemoLayout::Pair, marks)
 }

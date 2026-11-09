@@ -14,8 +14,8 @@ mod records;
 mod stored;
 
 pub use crate::givens::{
-    GIVENS_FORMAT, Given, Givens, decode_givens, decode_marks, decode_painted, encode_givens,
-    encode_marks, encode_painted,
+    GIVENS_FORMAT, decode_givens, decode_marks, decode_painted, encode_givens, encode_marks,
+    encode_painted,
 };
 pub use crate::pack::{PACK_FORMAT, encode_pack, open_pack};
 pub use crate::pack_picture::{PackPicture, pack_picture, shown_picture, thumbnail_picture};

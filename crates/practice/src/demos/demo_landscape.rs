@@ -6,7 +6,7 @@ use crate::compositions::levels::Level;
 use crate::compositions::masses::Masses;
 use crate::demos::demo::{Drawn, Marker, On, Script, wobbled};
 use crate::maths::path::Point;
-use crate::sessions::sheet::PictureFit;
+use crate::sessions::layout::PictureFit;
 
 /// The example: a landscape four by three.
 const SEED: u64 = 0xDE30_5EED_0095;

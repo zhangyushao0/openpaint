@@ -15,7 +15,7 @@ use crate::records::{PRACTICE, decode_session, encode_session, practice_key};
 /// Whatever reading the library's records fails with.
 pub fn sessions(store: &mut dyn ProjectStore) -> Result<Vec<SessionRecord>, PortError> {
     let mut sessions = Vec::new();
-    for (key, value) in store.records(PRACTICE)? {
+    for (key, value) in store.records(PRACTICE, &[])? {
         match decode_session(&key, &value) {
             Ok(session) => sessions.push(session),
             Err(error) => log::warn!("a practice record is not read: {error}"),
@@ -39,9 +39,9 @@ pub fn start(
             canvas: id.get(),
             ..session.clone()
         };
-        (practice_key(session.id), encode_session(&named))
+        vec![(PRACTICE, (practice_key(session.id), encode_session(&named)))]
     };
-    let id = store.create_owned((sheet, title), PRACTICE, &record)?;
+    let id = store.create_owned((sheet, title), &record)?;
     log::info!(
         "practice session {} started on project {}",
         session.id,
@@ -55,11 +55,8 @@ pub fn start(
 /// # Errors
 /// Whatever the write fails with; the record stays as it was then.
 pub fn save(store: &mut dyn ProjectStore, session: &SessionRecord) -> Result<(), PortError> {
-    store.put_record(
-        PRACTICE,
-        &practice_key(session.id),
-        &encode_session(session),
-    )
+    let record = (practice_key(session.id), encode_session(session));
+    store.put_records(&[(PRACTICE, record)])
 }
 
 /// `session`'s record (by its id) and its sheet, everything stored for it, removed for good in
@@ -70,7 +67,7 @@ pub fn save(store: &mut dyn ProjectStore, session: &SessionRecord) -> Result<(),
 /// Whatever the write fails with; nothing is removed then.
 pub fn remove(store: &mut dyn ProjectStore, session: &SessionRecord) -> Result<(), PortError> {
     let sheet = (session.canvas != 0).then(|| ProjectId::new(session.canvas));
-    store.remove_owned(PRACTICE, &practice_key(session.id), sheet)?;
+    store.remove_owned(&[(PRACTICE, practice_key(session.id))], sheet)?;
     log::info!(
         "practice session {} and its sheet {} removed",
         session.id,

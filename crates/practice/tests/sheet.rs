@@ -3,7 +3,7 @@
 //! one pair shaped as its picture.
 
 use openpaint_practice::{
-    Exercise, FRAME, ItemRef, Kind, Pack, PackItem, PictureFit, PictureKind, SessionRecord, Sheet,
+    Exercise, FRAME, ItemRef, Kind, Layout, Pack, PackItem, PictureFit, PictureKind, SessionRecord,
     Tier,
 };
 
@@ -21,10 +21,10 @@ fn a_picture_fills_its_frame_one_unit_to_its_longer_side() {
 
 #[test]
 fn the_sheet_lays_pairs_three_a_row_apart_and_inside() {
-    let sheet = Sheet::of(&[None; 18]);
+    let sheet = Layout::of(&[None; 18]);
     assert_eq!(sheet.size, [2920, 3160]);
     assert_eq!(
-        Sheet::of(&[None; 16]).size,
+        Layout::of(&[None; 16]).size,
         [2920, 3160],
         "a first session's sheet as S75's"
     );
@@ -42,7 +42,7 @@ fn the_sheet_lays_pairs_three_a_row_apart_and_inside() {
 }
 
 /// No two frames of `sheet` touch, and each lies on it.
-fn apart_and_inside(sheet: &Sheet) {
+fn apart_and_inside(sheet: &Layout) {
     let [width, height] = sheet.size.map(f64::from);
     let frames: Vec<_> = (sheet.pairs.iter())
         .flat_map(|pair| [pair.original, pair.copy])
@@ -69,8 +69,8 @@ fn frames_follow_their_picture_in_their_pair_s_place() {
         None,
         Some([1, 2048]),
     ];
-    let sheet = Sheet::of(&pictures);
-    let squares = Sheet::of(&[None; 5]);
+    let sheet = Layout::of(&pictures);
+    let squares = Layout::of(&[None; 5]);
     assert_eq!(sheet.size, squares.size, "the sheet's size never moves");
     apart_and_inside(&sheet);
     let [portrait, landscape, square, plain, thin] = [0, 1, 2, 3, 4].map(|i| sheet.pairs[i]);
@@ -140,7 +140,7 @@ fn a_session_s_frames_follow_the_pictures_its_packs_hold() {
             areas: None,
         }],
     };
-    let sheet = Sheet::of_session(&record, std::slice::from_ref(&pack));
+    let sheet = Layout::of_session(&record, std::slice::from_ref(&pack));
     assert_eq!(sheet.pairs[1].copy.size, [300.0, 400.0]);
     assert_eq!(
         sheet.pairs[2].copy.size,
@@ -148,14 +148,14 @@ fn a_session_s_frames_follow_the_pictures_its_packs_hold() {
         "a picture no pack holds now: square"
     );
     assert_eq!(sheet.pairs[0].copy.size, [FRAME, FRAME], "a line's");
-    let without = Sheet::of_session(&record, &[]);
+    let without = Layout::of_session(&record, &[]);
     assert_eq!(without.pairs[1].copy.size, [FRAME, FRAME]);
     assert_eq!(without.size, sheet.size);
 }
 
 #[test]
 fn a_colour_copy_s_sheet_is_one_pair_of_frames_shaped_as_its_picture() {
-    let sheet = Sheet::study([1200, 900]);
+    let sheet = Layout::study([1200, 900]);
     assert_eq!(sheet.pairs.len(), 1);
     let pair = sheet.pairs[0];
     assert_eq!(pair.original.size, [1600.0, 1200.0]);
@@ -163,7 +163,7 @@ fn a_colour_copy_s_sheet_is_one_pair_of_frames_shaped_as_its_picture() {
     assert_eq!(pair.copy.origin[1], pair.original.origin[1]);
     assert!(pair.copy.origin[0] > pair.original.origin[0] + 1600.0);
     assert_eq!(sheet.size, [3400, 1360]);
-    let tall = Sheet::study([600, 1000]);
+    let tall = Layout::study([600, 1000]);
     assert_eq!(tall.pairs[0].copy.size, [960.0, 1600.0]);
     assert_eq!(
         tall.pairs[0].copy.unit(),
@@ -172,8 +172,8 @@ fn a_colour_copy_s_sheet_is_one_pair_of_frames_shaped_as_its_picture() {
     );
     // Read back from its canvas, as a copy whose picture was removed is laid out.
     for picture in [[1200, 900], [600, 1000], [777, 333], [1, 2048]] {
-        let made = Sheet::study(picture);
-        assert_eq!(Sheet::study_on(made.size), made, "{picture:?}");
+        let made = Layout::study(picture);
+        assert_eq!(Layout::study_on(made.size), made, "{picture:?}");
     }
     // The picture fills its frame; frame units run evenly, one to the frame's longer side.
     let fit = PictureFit::of([1200, 900]);

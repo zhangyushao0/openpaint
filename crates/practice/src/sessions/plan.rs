@@ -1,6 +1,6 @@
 //! What a session holds: the stages and its exercises, each a kind and seed (and a single shape's
 //! or a colour copy's picture) and its original; a kind and its original are `kinds/`, a family
-//! `family.rs`, the stages' sessions `session.rs`, the sheet they lie on `sheet.rs`.
+//! `family.rs`, the stages' sessions `session.rs`, how they lie on the sheet `layout.rs`.
 
 pub use crate::kinds::{Kind, Original};
 use crate::packs::pack::ItemRef;

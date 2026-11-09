@@ -6,7 +6,7 @@
 //! `SpaceTask::answer`'s.
 
 use crate::demos::demo::{
-    DRAWN_OFF, Demo, Drawn, Layout, Marker, On, Script, bounds, clearest, line, off_marks, tick,
+    DRAWN_OFF, Demo, DemoLayout, Drawn, Marker, On, Script, bounds, clearest, line, off_marks, tick,
 };
 use crate::demos::demo_points::{THIRD_TICK, crossed, moved, read};
 use crate::kinds::points_in_space::space::{SpaceAnswer, SpaceTask, Trick};
@@ -74,7 +74,7 @@ pub(crate) fn trick(family: Family) -> Option<Demo> {
     for drawn in mine {
         script.draw(On::Copy, Marker::Ink, drawn);
     }
-    let mut demo = script.compare(family, Layout::Single, compared);
+    let mut demo = script.compare(family, DemoLayout::Single, compared);
     // Framed on the shaded face (and a next face beyond it), so every construction line and the
     // answer read apart; the rest of the box and the lines to its vanishing point leave the
     // picture at its edge.

@@ -4,7 +4,7 @@
 
 use crate::colour_areas::areas::Areas;
 use crate::colour_areas::areas_generated::{Arrangement, GeneratedAreas};
-use crate::demos::demo::{Demo, Drawn, Layout, Marker, On, Script, clearest};
+use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script, clearest};
 use crate::maths::colour::{Rgb8, delta_e, from_oklab, oklab};
 use crate::sessions::plan::Family;
 
@@ -63,7 +63,7 @@ pub(crate) fn areas() -> Demo {
             compared.push((on, Marker::Given, Drawn::Line(edge)));
         }
     }
-    let mut demo = script.compare(Family::Areas, Layout::Pair, compared);
+    let mut demo = script.compare(Family::Areas, DemoLayout::Pair, compared);
     demo.areas = Some(generated.clone());
     demo
 }

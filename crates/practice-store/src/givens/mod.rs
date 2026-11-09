@@ -11,7 +11,7 @@ mod marks;
 mod painted;
 
 use openpaint_app::PortError;
-use openpaint_practice::{Painted, SheetMark};
+use openpaint_practice::{Given, Givens, Painted, SheetMark};
 use openpaint_store::{Reader, Writer};
 
 /// The layout of a sheet's givens this build reads and writes.
@@ -20,36 +20,13 @@ pub const GIVENS_FORMAT: u8 = 1;
 const SLOT_BYTES: usize = 2 + 4 + 1;
 const WHAT: &str = "practice givens";
 
-/// What one exercise printed: its marks before Compare, and the picture its kind drew for it.
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct Given {
-    pub marks: Vec<SheetMark>,
-    pub painted: Option<Painted>,
-}
-
-/// What each exercise of a sheet printed, by its slot.
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct Givens {
-    pub slots: Vec<(u16, Given)>,
-}
-
-impl Givens {
-    /// What the exercise in `slot` printed; none for a slot not kept.
-    #[must_use]
-    pub fn of(&self, slot: u16) -> Option<&Given> {
-        (self.slots.iter())
-            .find(|(held, _)| *held == slot)
-            .map(|(_, given)| given)
-    }
-}
-
 #[must_use]
 pub fn encode_givens(givens: &Givens) -> Vec<u8> {
     let mut writer = Writer::default();
     writer.u8(GIVENS_FORMAT);
     writer.len(givens.slots.len());
     for (slot, given) in &givens.slots {
-        writer.bytes(&slot.to_le_bytes());
+        writer.u16(*slot);
         marks::write_marks(&mut writer, &given.marks);
         match &given.painted {
             None => writer.u8(0),
@@ -75,7 +52,7 @@ pub fn decode_givens(bytes: &[u8]) -> Result<Givens, PortError> {
     let count = reader.count(SLOT_BYTES)?;
     let mut slots = Vec::with_capacity(count);
     for _ in 0..count {
-        let slot = u16::from_le_bytes([reader.u8()?, reader.u8()?]);
+        let slot = reader.u16()?;
         let marks = marks::read_marks(&mut reader)?;
         let painted = match reader.u8()? {
             0 => None,

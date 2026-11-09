@@ -3,7 +3,7 @@
 //! once, then compared as the exercise compares it (S97): the answer red, an edge that misses its
 //! point drawn on past it; nothing on what is right.
 
-use crate::demos::demo::{Demo, Drawn, Layout, Marker, On, Script, line};
+use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script, line};
 use crate::demos::demo_space::{horizon, point, red_rings, rule_edges, within_reach};
 use crate::geometry::perspective::{BoxView, Direction, EDGES, PerspectiveBox};
 use crate::maths::path::distance;
@@ -88,5 +88,5 @@ pub(crate) fn perspective_box() -> Demo {
         .collect();
     compared.extend(red_rings(exact.vanishing.iter().flatten().copied()));
     compared.extend(missed);
-    script.compare(Family::Box, Layout::Wide, compared)
+    script.compare(Family::Box, DemoLayout::Wide, compared)
 }

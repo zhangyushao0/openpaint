@@ -22,8 +22,8 @@ use common::{TestDir, records, untitled, write_records};
 use openpaint_app::{ProjectStore, Title};
 use openpaint_core::{Artwork, CanvasSize};
 use openpaint_practice::{
-    Arrangement, Book, Combination, Exercise, ExerciseResult, Family, GeneratedAreas, Kind,
-    LineTier, Metric, Original, Plan, ScaleTone, SessionRecord, Sheet, Span, Tally, summary,
+    Arrangement, Book, Combination, Exercise, ExerciseResult, Family, GeneratedAreas, Kind, Layout,
+    LineTier, Metric, Original, Plan, ScaleTone, SessionRecord, Span, Tally, summary,
 };
 use openpaint_practice_store::{save, sessions, start};
 use openpaint_store::Library;
@@ -39,7 +39,7 @@ fn sample_path() -> PathBuf {
 }
 
 fn sheet(pairs: usize) -> Artwork {
-    let [width, height] = Sheet::of(&vec![None; pairs]).size;
+    let [width, height] = Layout::of(&vec![None; pairs]).size;
     Artwork::new(CanvasSize::new(width, height).expect("size"))
 }
 

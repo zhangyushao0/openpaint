@@ -2,7 +2,7 @@
 //! their order numbered under them, the middle cell first, then each half's middle, then the rest,
 //! the pick moving only up and down the wheel's square; then compared.
 
-use crate::demos::demo::{Demo, Drawn, Layout, Marker, On, Script, band, rect};
+use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script, band, rect};
 use crate::kinds::scales::scale::{ROW, ScaleTone, ValueScale, halving};
 use crate::maths::colour::hsv;
 use crate::maths::path::Point;
@@ -56,7 +56,7 @@ pub(crate) fn scale(cells: usize) -> Demo {
         );
     }
     let compared = scale_compared(&scale, &values);
-    let mut demo = script.compare(Family::Scale, Layout::Row, compared);
+    let mut demo = script.compare(Family::Scale, DemoLayout::Row, compared);
     demo.view = Some(SCALE_VIEW);
     demo
 }

@@ -2,7 +2,7 @@
 //! pace, ending on Compare's marks; the constructions it draws land on the exact answers.
 
 use openpaint_practice::{
-    Demo, Drawn, Family, Layout, Marker, ObjectTask, On, Point, WIDE_REACH, distance, meet,
+    Demo, DemoLayout, Drawn, Family, Marker, ObjectTask, On, Point, WIDE_REACH, distance, meet,
 };
 
 /// Each kind's steps, Compare the last.
@@ -43,7 +43,10 @@ fn a_lone_example_is_framed_on_what_it_is_about_a_trick_on_its_face() {
         let demo = demo(family);
         // An object's frames side by side are cropped to its box (S94), a scale's frame to its
         // rows (S97), a composition's to its picture (S99).
-        let cropped = matches!(demo.layout, Layout::Single | Layout::Wide | Layout::Row);
+        let cropped = matches!(
+            demo.layout,
+            DemoLayout::Single | DemoLayout::Wide | DemoLayout::Row
+        );
         let lone = cropped || family == Family::Object || family.composed();
         assert_eq!(demo.view.is_some(), lone, "{family:?}");
     }
@@ -244,7 +247,7 @@ fn a_solids_middles_lie_on_its_red_answer_and_its_hidden_part_is_dashed() {
 fn a_boxs_vanishing_points_lie_in_the_room_the_card_gives() {
     for family in [Family::Box, Family::FreeBoxes] {
         let demo = demo(family);
-        assert_eq!(demo.layout, Layout::Wide);
+        assert_eq!(demo.layout, DemoLayout::Wide);
         let rings: Vec<Point> = (demo.marks.iter())
             .filter(|m| m.pen == Marker::Pencil)
             .filter_map(|m| match m.drawn {
@@ -301,7 +304,7 @@ fn a_combination_is_painted_area_by_area_with_its_pens_in_their_order() {
 #[test]
 fn an_objects_example_shows_its_picture_beside_the_box_and_its_corners_on_the_construction() {
     let demo = demo(Family::Object);
-    assert_eq!(demo.layout, Layout::Pair);
+    assert_eq!(demo.layout, DemoLayout::Pair);
     let shaded = demo.shaded.as_ref().expect("the example object");
     let task = shaded.downcast::<ObjectTask>().expect("an object");
     assert_eq!(task.stages.len(), 2, "big to small: two changes");
@@ -345,7 +348,7 @@ fn an_objects_example_shows_its_picture_beside_the_box_and_its_corners_on_the_co
 fn a_division_is_drawn_red_then_green_then_blue_and_a_whole_copy_over_it_dimmed() {
     use openpaint_practice::Level;
     let division = demo(Family::Division);
-    assert_eq!(division.layout, Layout::Pair);
+    assert_eq!(division.layout, DemoLayout::Pair);
     assert!(division.masses.is_some() && division.dimmed.is_none());
     let drawn = |demo: &Demo, level: Level| -> Vec<f64> {
         let before = demo.steps[demo.steps.len() - 1];

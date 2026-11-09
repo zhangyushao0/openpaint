@@ -5,7 +5,7 @@
 //! marks on the hand's ink, which lands a little off on purpose).
 
 use crate::demos::demo::{
-    Demo, Drawn, Layout, Marker, On, Script, clearest, line, off_marks, tick,
+    Demo, DemoLayout, Drawn, Marker, On, Script, clearest, line, off_marks, tick,
 };
 use crate::demos::demo_points::{THIRD_TICK, crossed, moved, read};
 use crate::kinds::estimates::flat::{Estimate, Flat, FlatAnswer, FlatCheck};
@@ -113,7 +113,7 @@ fn point(at: Point) -> Demo {
     let check = FlatCheck::of(&flat, &read(&crossed(mark)));
     let mut compared = vec![(On::Copy, Marker::Answer, Drawn::Cross(at))];
     compared.extend(off_marks(&check.off));
-    script.compare(Family::Point, Layout::Pair, compared)
+    script.compare(Family::Point, DemoLayout::Pair, compared)
 }
 
 /// A segment's halves and thirds ticked across it.
@@ -168,7 +168,7 @@ fn proportion(original: [Point; 2], share: f64, copy: [Point; 2]) -> Demo {
         Drawn::Line(tick(exact, copy[1], HALF_TICK)),
     )];
     compared.extend(off_marks(&check.off));
-    script.compare(Family::Proportion, Layout::Pair, compared)
+    script.compare(Family::Proportion, DemoLayout::Pair, compared)
 }
 
 fn angle(flat: &Flat, original: [Point; 2], through: Point) -> Option<Demo> {
@@ -203,5 +203,5 @@ fn angle(flat: &Flat, original: [Point; 2], through: Point) -> Option<Demo> {
     let check = FlatCheck::of(flat, &[mine.as_slice()]);
     let mut compared = vec![(On::Copy, Marker::Answer, line(answer[0], answer[1]))];
     compared.extend(off_marks(&check.off));
-    Some(script.compare(Family::Angle, Layout::Pair, compared))
+    Some(script.compare(Family::Angle, DemoLayout::Pair, compared))
 }

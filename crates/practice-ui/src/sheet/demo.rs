@@ -13,7 +13,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use egui::{Rect, Sense, TextureHandle, Vec2};
-use openpaint_practice::{Demo, Drawn, Family, Layout, Marker, On, Rgb8, ValueMasses};
+use openpaint_practice::{Demo, DemoLayout, Drawn, Family, Marker, On, Rgb8, ValueMasses};
 
 use openpaint_ui::components::{Alpha, card_step, keep_moving, picture_texture};
 use openpaint_ui::design::{INK, SPACE};
@@ -159,9 +159,9 @@ impl Demonstrations {
     fn example(&mut self, ui: &mut egui::Ui, demo: &Demo, seconds: f64) {
         let width = ui.available_width();
         let height = match demo.layout {
-            Layout::Wheel => (width - 2.0 * GAP) / 3.0,
-            Layout::Single | Layout::Wide => LONE_HEIGHT,
-            Layout::Pair | Layout::Row => HEIGHT,
+            DemoLayout::Wheel => (width - 2.0 * GAP) / 3.0,
+            DemoLayout::Single | DemoLayout::Wide => LONE_HEIGHT,
+            DemoLayout::Pair | DemoLayout::Row => HEIGHT,
         };
         // A key shift's strip under its frames: its chip and its tendency (S107).
         let strip = if demo.strip.is_some() { STRIP } else { 0.0 };
@@ -245,7 +245,7 @@ fn laid(demo: &Demo, rect: Rect) -> Frames {
         Rect::from_min_size(egui::pos2(left, top), Vec2::splat(side))
     };
     match demo.layout {
-        Layout::Pair => {
+        DemoLayout::Pair => {
             let side = ((rect.width() - GAP) / 2.0).min(rect.height());
             let left = rect.center().x - side - GAP / 2.0;
             let [original, copy] = [square(left, side), square(left + side + GAP, side)];
@@ -261,11 +261,11 @@ fn laid(demo: &Demo, rect: Rect) -> Frames {
             }
             Frames::of(Some(original), copy, None)
         }
-        Layout::Single | Layout::Wide => Frames {
+        DemoLayout::Single | DemoLayout::Wide => Frames {
             wide: Some(rect),
             ..Frames::of(None, fitted(demo, rect.shrink(FIT_MARGIN)), None)
         },
-        Layout::Wheel => {
+        DemoLayout::Wheel => {
             let side = rect.height();
             let left = rect.left();
             let at = |k: f32| square(left + k * (side + GAP), side);
@@ -273,7 +273,7 @@ fn laid(demo: &Demo, rect: Rect) -> Frames {
         }
         // A value scale's one frame cropped to its rows, the wheel smaller at its right (S97),
         // so the row's nine cells and their numbers read.
-        Layout::Row => {
+        DemoLayout::Row => {
             let side = rect.height() * ROW_WHEEL;
             let wheel = square(rect.right() - side, side);
             let row = Rect::from_min_max(rect.min, egui::pos2(wheel.left() - GAP, rect.max.y));

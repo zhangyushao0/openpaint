@@ -113,27 +113,25 @@ impl ProjectStore for Nowhere {
         Err(PortError::Missing(id))
     }
 
-    fn records(&mut self, _space: Space) -> Result<Vec<Record>, PortError> {
+    fn records(&mut self, _space: Space, _under: &[u8]) -> Result<Vec<Record>, PortError> {
         Ok(Vec::new())
     }
 
-    fn put_record(&mut self, _space: Space, _key: &[u8], _bytes: &[u8]) -> Result<(), PortError> {
+    fn put_records(&mut self, _records: &[(Space, Record)]) -> Result<(), PortError> {
         Ok(())
     }
 
     fn create_owned(
         &mut self,
         (artwork, _title): (&Artwork, &Title),
-        _space: Space,
-        _record: &dyn Fn(ProjectId) -> Record,
+        _owned: &dyn Fn(ProjectId) -> Vec<(Space, Record)>,
     ) -> Result<ProjectId, PortError> {
         self.keep(artwork).map(|()| ProjectId::new(2))
     }
 
     fn remove_owned(
         &mut self,
-        _space: Space,
-        _key: &[u8],
+        _keys: &[(Space, Vec<u8>)],
         _project: Option<ProjectId>,
     ) -> Result<(), PortError> {
         Ok(())

@@ -2,7 +2,7 @@
 //! the centre, passes in the air, one stroke, then compared as the exercise compares it (S97):
 //! the answer red, the middles it misses ringed.
 
-use crate::demos::demo::{Demo, Drawn, Layout, Marker, On, Script, clearest, line, wobbled};
+use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script, clearest, line, wobbled};
 use crate::demos::demo_space::red_rings;
 use crate::geometry::ellipse::{Ellipse, EllipseGuide, Guide};
 use crate::kinds::ellipses::ellipse_check::EllipseCheck;
@@ -64,5 +64,5 @@ pub(crate) fn ellipse() -> Demo {
     let mut compared = vec![(On::Copy, Marker::Answer, Drawn::Line(exact.outline(PIECES)))];
     let check = EllipseCheck::of(&guide, &[&drawn]);
     compared.extend(red_rings(check.sides.iter().map(|missed| missed.middle)));
-    script.compare(Family::Ellipse, Layout::Single, compared)
+    script.compare(Family::Ellipse, DemoLayout::Single, compared)
 }

@@ -8,7 +8,7 @@ use crate::colour_areas::areas::Areas;
 use crate::compositions::value_masses::ValueMasses;
 use crate::maths::path::Point;
 use crate::packs::pack::{ItemRef, Pack, PackItem};
-use crate::sessions::sheet::PictureFit;
+use crate::sessions::layout::PictureFit;
 
 /// A pack's picture on the sheet.
 #[derive(Debug, Clone, PartialEq)]

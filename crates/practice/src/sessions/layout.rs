@@ -170,16 +170,16 @@ impl Pair {
     }
 }
 
-/// The sheet a session's exercises lie on.
+/// How a session's exercises lie on its sheet: the sheet's size and each exercise's frames.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Sheet {
+pub struct Layout {
     /// Width and height in canvas pixels.
     pub size: [u32; 2],
     /// Each exercise's frames, in order: three pairs a row, rows down the sheet.
     pub pairs: Vec<Pair>,
 }
 
-impl Sheet {
+impl Layout {
     /// The sheet for exercises whose frames are each square (`None`) or of a picture of
     /// `[width, height]` pixels: in its slot, the original's frame against the gap from the
     /// left, the copy's from the right, both in the slot's middle from top to bottom.

@@ -86,20 +86,17 @@ fn new_project(
     Ok(id)
 }
 
-/// A project a record owns (D112): `artwork` as a new project titled `title`, which becomes the
-/// open one, and the record of `space` that `record` makes for it, in one batch.
+/// A project records own (D112): `artwork` as a new project titled `title`, which becomes the
+/// open one, and every record `owned` makes for it, in one batch.
 pub(crate) fn create_owned(
     open: &Open,
     (artwork, title): (&Artwork, &Title),
-    space: Space,
-    record: &dyn Fn(ProjectId) -> Record,
+    owned: &dyn Fn(ProjectId) -> Vec<(Space, Record)>,
 ) -> Result<ProjectId, PortError> {
     let mut batch = Batch::new(open);
     let id = new_project(open, &mut batch, artwork, title)?;
     batch.insert(&open.library, LAST, encode_id(id.get()));
-    let (key, bytes) = record(id);
-    spaces::checked(space, Some(&key))?;
-    batch.insert(&open.library, key, bytes);
+    spaces::insert(open, &mut batch, &owned(id))?;
     batch.commit()?;
     Ok(id)
 }
@@ -230,15 +227,14 @@ pub(crate) fn delete(open: &Open, id: ProjectId) -> Result<(), PortError> {
     batch.commit()
 }
 
-/// Record `key` of `space` and the project it owns, if any, removed in one batch.
+/// The records `keys` of their spaces and the project they own, if any, removed in one batch.
 pub(crate) fn remove_owned(
     open: &Open,
-    (space, key): (Space, &[u8]),
+    keys: &[(Space, Vec<u8>)],
     project: Option<ProjectId>,
 ) -> Result<(), PortError> {
-    spaces::checked(space, Some(key))?;
     let mut batch = Batch::new(open);
-    batch.remove(&open.library, key);
+    spaces::remove(open, &mut batch, keys)?;
     if let Some(id) = project {
         remove_project(open, &mut batch, id)?;
     }

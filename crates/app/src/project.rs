@@ -210,28 +210,26 @@ pub trait ProjectStore: Send {
     /// open one.
     fn artwork(&mut self, id: ProjectId) -> Result<Artwork, PortError>;
 
-    /// Every record of `space` (D112), in key order.
-    fn records(&mut self, space: Space) -> Result<Vec<Record>, PortError>;
+    /// Every record of `space` (D112) whose key goes on from the space's byte with `under`, in
+    /// key order; an empty `under`, every record of the space.
+    fn records(&mut self, space: Space, under: &[u8]) -> Result<Vec<Record>, PortError>;
 
-    /// `bytes` under `key` in `space`, replacing what was there, in one write.
-    fn put_record(&mut self, space: Space, key: &[u8], bytes: &[u8]) -> Result<(), PortError>;
+    /// Each record under its key in its space, replacing what was there, all in one write.
+    fn put_records(&mut self, records: &[(Space, Record)]) -> Result<(), PortError>;
 
-    /// `project`'s artwork as a new project of its title, which becomes the open one, and the
-    /// record of `space` that `record` makes for it, given the project, in one write. Returns
-    /// the project.
+    /// `project`'s artwork as a new project of its title, which becomes the open one, and every
+    /// record `owned` makes for it, given the project, in one write. Returns the project.
     fn create_owned(
         &mut self,
         project: (&Artwork, &Title),
-        space: Space,
-        record: &dyn Fn(ProjectId) -> Record,
+        owned: &dyn Fn(ProjectId) -> Vec<(Space, Record)>,
     ) -> Result<ProjectId, PortError>;
 
-    /// Record `key` of `space` and the project it owns, if any, with everything stored for it,
-    /// removed for good in one write; every other record stays as it is.
+    /// The records `keys` of their spaces and the project they own, if any, with everything
+    /// stored for it, removed for good in one write; every other record stays as it is.
     fn remove_owned(
         &mut self,
-        space: Space,
-        key: &[u8],
+        keys: &[(Space, Vec<u8>)],
         project: Option<ProjectId>,
     ) -> Result<(), PortError>;
 }

@@ -12,7 +12,9 @@ use openpaint_app::{
     Toolbox, Viewport,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, StrokeStyle};
-use openpaint_practice::{ExerciseResult, Family, Figure, LinePen, Original, SessionRecord, Sheet};
+use openpaint_practice::{
+    ExerciseResult, Family, Figure, Layout, LinePen, Original, SessionRecord,
+};
 use openpaint_practice_app::{
     Pen, PracticeIntent, PracticeLog, PracticePens, PracticeProjection, SheetView,
 };
@@ -49,7 +51,7 @@ fn after_first(finished: bool) -> Session {
     ];
     let log = PracticeLog::new(vec![first.clone()], Vec::new(), Vec::new());
     let (record, _) = log.begin((1, None), 0x5EED_0079, 1_791_290_000);
-    let [width, height] = Sheet::of(&vec![None; record.exercises.len()]).size;
+    let [width, height] = Layout::of(&vec![None; record.exercises.len()]).size;
     let sheet = Artwork::new(CanvasSize::new(width, height).expect("size"));
     let before = if finished { vec![first] } else { Vec::new() };
     let view = SheetView::of(&record, &[], ([width, height], &Title::untitled()));

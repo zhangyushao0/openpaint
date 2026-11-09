@@ -10,12 +10,12 @@ mod common;
 use common::{TestDir, records, untitled, write_records};
 use openpaint_app::{ProjectStore, Title};
 use openpaint_core::{Artwork, CanvasSize};
-use openpaint_practice::{ExerciseResult, Metric, SessionRecord, Sheet, met};
+use openpaint_practice::{ExerciseResult, Layout, Metric, SessionRecord, met};
 use openpaint_practice_store::{remove, save, sessions, start};
 use openpaint_store::Library;
 
 fn sheet() -> Artwork {
-    let [width, height] = Sheet::of(&[None; 18]).size;
+    let [width, height] = Layout::of(&[None; 18]).size;
     Artwork::new(CanvasSize::new(width, height).expect("size"))
 }
 

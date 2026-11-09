@@ -2,7 +2,7 @@
 //! upright, its edges towards the points, the rest, then compared as the exercise compares it
 //! (S97): an edge that misses its point drawn on past it, the points ringed red.
 
-use crate::demos::demo::{Demo, Drawn, Layout, Marker, On, Script, line};
+use crate::demos::demo::{Demo, DemoLayout, Drawn, Marker, On, Script, line};
 use crate::demos::demo_space::{horizon, point, red_rings, rule_edges, ruled, within_reach};
 use crate::geometry::perspective::{Direction, EDGES, Horizon, PerspectiveBox};
 use crate::sessions::plan::Family;
@@ -54,5 +54,5 @@ pub(crate) fn free_boxes() -> Demo {
         (1, Some(far.len() - 1)),
     ));
     compared.extend(red_rings([left, right].into_iter().flatten()));
-    script.compare(Family::FreeBoxes, Layout::Wide, compared)
+    script.compare(Family::FreeBoxes, DemoLayout::Wide, compared)
 }

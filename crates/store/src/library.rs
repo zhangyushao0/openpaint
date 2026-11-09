@@ -282,47 +282,37 @@ impl ProjectStore for Library {
         self.with(|open| read::artwork(&open.projects, id))
     }
 
-    fn records(&mut self, space: Space) -> Result<Vec<Record>, PortError> {
-        self.with(|open| spaces::records(open, space))
+    fn records(&mut self, space: Space, under: &[u8]) -> Result<Vec<Record>, PortError> {
+        self.with(|open| spaces::records(open, space, under))
     }
 
-    fn put_record(&mut self, space: Space, key: &[u8], bytes: &[u8]) -> Result<(), PortError> {
-        let record = (key.to_vec(), bytes.to_vec());
-        self.with(|open| spaces::put(open, space, std::slice::from_ref(&record)))
+    fn put_records(&mut self, records: &[(Space, Record)]) -> Result<(), PortError> {
+        self.with(|open| spaces::put(open, records))
     }
 
     fn create_owned(
         &mut self,
         (artwork, title): (&Artwork, &Title),
-        space: Space,
-        record: &dyn Fn(ProjectId) -> Record,
+        owned: &dyn Fn(ProjectId) -> Vec<(Space, Record)>,
     ) -> Result<ProjectId, PortError> {
-        let id = self.with(|open| write::create_owned(open, (artwork, title), space, record))?;
-        log::info!(
-            "project {} created with its record of space '{}'",
-            id.get(),
-            char::from(space.byte())
-        );
+        let id = self.with(|open| write::create_owned(open, (artwork, title), owned))?;
+        log::info!("project {} created with the records owning it", id.get());
         self.stored = Some((id, artwork.clone()));
         Ok(id)
     }
 
     fn remove_owned(
         &mut self,
-        space: Space,
-        key: &[u8],
+        keys: &[(Space, Vec<u8>)],
         project: Option<ProjectId>,
     ) -> Result<(), PortError> {
-        self.with(|open| write::remove_owned(open, (space, key), project))?;
+        self.with(|open| write::remove_owned(open, keys, project))?;
         if let Some(removed) = project
             && self.stored.as_ref().is_some_and(|(id, _)| *id == removed)
         {
             self.stored = None;
         }
-        log::info!(
-            "a record of space '{}' removed with project {project:?}",
-            char::from(space.byte())
-        );
+        log::info!("{} records removed with project {project:?}", keys.len());
         Ok(())
     }
 }

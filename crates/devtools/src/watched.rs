@@ -148,29 +148,27 @@ impl ProjectStore for Watched {
         self.on(|library| library.artwork(id))
     }
 
-    fn records(&mut self, space: Space) -> Result<Vec<Record>, PortError> {
-        self.on(|library| library.records(space))
+    fn records(&mut self, space: Space, under: &[u8]) -> Result<Vec<Record>, PortError> {
+        self.on(|library| library.records(space, under))
     }
 
-    fn put_record(&mut self, space: Space, key: &[u8], bytes: &[u8]) -> Result<(), PortError> {
-        self.on(|library| library.put_record(space, key, bytes))
+    fn put_records(&mut self, records: &[(Space, Record)]) -> Result<(), PortError> {
+        self.on(|library| library.put_records(records))
     }
 
     fn create_owned(
         &mut self,
         project: (&Artwork, &Title),
-        space: Space,
-        record: &dyn Fn(ProjectId) -> Record,
+        owned: &dyn Fn(ProjectId) -> Vec<(Space, Record)>,
     ) -> Result<ProjectId, PortError> {
-        self.on(|library| library.create_owned(project, space, record))
+        self.on(|library| library.create_owned(project, owned))
     }
 
     fn remove_owned(
         &mut self,
-        space: Space,
-        key: &[u8],
+        keys: &[(Space, Vec<u8>)],
         project: Option<ProjectId>,
     ) -> Result<(), PortError> {
-        self.on(|library| library.remove_owned(space, key, project))
+        self.on(|library| library.remove_owned(keys, project))
     }
 }
