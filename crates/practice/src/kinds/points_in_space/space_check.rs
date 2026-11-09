@@ -15,14 +15,18 @@ use crate::geometry::heading::line_angle;
 use crate::geometry::marks::{last_edges, last_mark};
 use crate::geometry::off::{Heads, Off, Straight, once, ringed};
 use crate::kinds::points_in_space::space::{SpaceAnswer, SpaceTask, Trick};
+use crate::marks::compared::{Outcome, Verdict};
 use crate::maths::path::{Point, meet};
-use crate::records::metric::{Metric, Metrics};
+use crate::records::metric::{Metric, Metrics, value};
 
 /// A line is read as an upright within this of the vertical, any other as a halving line
 /// (degrees).
 const UPRIGHT: f64 = 15.0;
 /// The error kept at most: a whole face.
 const WHOLE: f64 = 1.0;
+/// A near point in space is off by at most this share of the face: under half the way from a
+/// half to a third (0.17 apart), so a near copy is still nearer the trick asked than another.
+pub const NEAR_FACE: f64 = 0.08;
 
 /// A point in space's copy as Compare read it: the last mark or the lines read, what of them is
 /// off, and how far off (a share of the face; none when nothing was read).
@@ -74,6 +78,27 @@ impl SpaceCheck {
             lines: read,
             metrics,
         }
+    }
+
+    /// `task`'s copy so read: incomplete while no mark or line was found (or fewer uprights than
+    /// the thirds ask); clean when nothing is marked; near within `NEAR_FACE` of the face; else
+    /// redo.
+    #[must_use]
+    pub fn verdict(&self, task: &SpaceTask) -> Verdict {
+        let uprights = matches!(task.trick, Trick::Thirds | Trick::Step);
+        let Some(off) = value(&self.metrics, Metric::SpaceOff) else {
+            return Verdict::Incomplete;
+        };
+        if uprights && self.lines.len() < task.target().len() {
+            return Verdict::Incomplete;
+        }
+        Verdict::App(if self.off.is_empty() {
+            Outcome::Clean
+        } else if off <= NEAR_FACE {
+            Outcome::Near
+        } else {
+            Outcome::Redo
+        })
     }
 }
 

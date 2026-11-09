@@ -1,7 +1,9 @@
 //! An exercise as Compare found it, whatever its kind (S109, D111): each kind's check or reading
 //! implements `Compared`, giving the marks over the pair and the card's items for what the user
-//! set (`Seen`), and the numbers a first Compare keeps. The app holds it as it comes and asks it
-//! each frame; the screen draws what it gives.
+//! set (`Seen`), the numbers a first Compare keeps, and its verdict (S119: `Verdict`, the app's
+//! `Outcome` where an exact answer judges, the eye's where only it can, or none yet while the copy
+//! is incomplete). The app holds it as it comes and asks it each frame; the screen draws what it
+//! gives.
 
 use std::fmt::Debug;
 
@@ -78,6 +80,57 @@ impl std::ops::Deref for Comparison {
     }
 }
 
+/// What an exercise ends with (S119): copied clean, near, or to do again.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Outcome {
+    /// Compare marks nothing (a colour or an area within what the eye barely notices).
+    Clean,
+    /// Off a little: one part marked, or within the kind's near band.
+    Near,
+    /// Off more: draw or paint it again.
+    Redo,
+}
+
+impl Outcome {
+    /// Of a copy off by `off`: clean at most `clean`, near at most `near`, else redo.
+    #[must_use]
+    pub fn within(off: f64, [clean, near]: [f64; 2]) -> Self {
+        if off <= clean {
+            Self::Clean
+        } else if off <= near {
+            Self::Near
+        } else {
+            Self::Redo
+        }
+    }
+
+    /// Of a copy Compare marked `marked` times: clean at none, near at most `near`, else redo.
+    #[must_use]
+    pub const fn counting(marked: usize, near: usize) -> Self {
+        if marked == 0 {
+            Self::Clean
+        } else if marked <= near {
+            Self::Near
+        } else {
+            Self::Redo
+        }
+    }
+}
+
+/// Who judges a comparison (S119): the app where the kind holds an exact answer, the user's eye
+/// where only the eye can (the overlay is the feedback, D99), or nobody yet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Verdict {
+    /// The app judged the copy against its answer.
+    App(Outcome),
+    /// The user chooses the outcome: lines, shapes, free boxes, divisions, whole and colour copies,
+    /// a painted kind whose answer no pack holds now.
+    Eye,
+    /// No verdict is honest yet: the copy does not cover what the exercise asks, or its pixels
+    /// are still being read.
+    Incomplete,
+}
+
 /// An exercise compared.
 pub trait Compared: std::any::Any + Debug + Send + Sync {
     /// What lies over the pair, in order.
@@ -88,6 +141,9 @@ pub trait Compared: std::any::Any + Debug + Send + Sync {
     fn metrics(&self) -> Metrics {
         Metrics::new()
     }
+    /// Who judges it and, where the app does, its outcome (S119); every kind says, none by
+    /// default.
+    fn verdict(&self) -> Verdict;
 }
 
 /// `pieces` as lines to read.

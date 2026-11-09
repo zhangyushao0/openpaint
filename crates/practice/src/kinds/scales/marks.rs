@@ -6,7 +6,7 @@
 use crate::kinds::scales::scale::{ROW, ScaleCheck, ValueScale};
 use crate::marks::asked::{Asked, Compare, Read, Reading, Reads};
 use crate::marks::card::{CardItem, Say};
-use crate::marks::compared::{Compared, Comparison, Seen};
+use crate::marks::compared::{Compared, Comparison, Seen, Verdict};
 use crate::marks::mark::{Figure, In, SheetMark};
 use crate::maths::colour::Rgb8;
 use crate::maths::path::Point;
@@ -103,5 +103,12 @@ impl Compared for ScaleCompared {
             }
             Some(_) => Vec::new(),
         }
+    }
+
+    /// Once read, its check's (`ScaleCheck::verdict`); unread, no verdict yet.
+    fn verdict(&self) -> Verdict {
+        self.check
+            .as_ref()
+            .map_or(Verdict::Incomplete, ScaleCheck::verdict)
     }
 }

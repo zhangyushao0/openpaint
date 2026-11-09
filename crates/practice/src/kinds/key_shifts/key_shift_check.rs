@@ -38,6 +38,8 @@ pub const AT: f64 = 0.02;
 /// are one block.
 pub const APART: f64 = 0.08;
 pub const MERGED: f64 = 0.035;
+/// A near key shift has at most this many areas marked by any of the three checks.
+pub const NEAR_AREAS: usize = 1;
 
 /// A key shift's copy judged: what is off, area by area.
 #[derive(Debug, Clone, PartialEq)]

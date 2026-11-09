@@ -11,7 +11,7 @@ use crate::geometry::perspective::PerspectiveBox;
 use crate::kinds::DrawnCopy;
 use crate::kinds::boxes::perspective_check::BoxCheck;
 use crate::marks::card::{CardItem, Say};
-use crate::marks::compared::{Compared, Seen};
+use crate::marks::compared::{Compared, Seen, Verdict};
 use crate::marks::drawing::{counted, edges_of, off_marks, run_on, segment};
 use crate::marks::mark::{Clip, Figure, In, LinePen, SheetMark};
 
@@ -77,5 +77,9 @@ impl Compared for BoxCompared {
             CardItem::Says(Say::counting("off", &counts)),
             CardItem::Construction,
         ]
+    }
+
+    fn verdict(&self) -> Verdict {
+        self.check.verdict(&self.exact)
     }
 }

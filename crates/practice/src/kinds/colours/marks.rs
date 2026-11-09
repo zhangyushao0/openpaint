@@ -3,11 +3,12 @@
 //! table (D108).
 
 use super::colour_match::{ColourCopy, score_colour};
+use super::judgement::{NOTICEABLE, PART_SPAN};
 use crate::marks::asked::{Asked, Compare};
 use crate::marks::card::{CardItem, WheelSize};
-use crate::marks::compared::{Compared, Comparison, Seen};
+use crate::marks::compared::{Compared, Comparison, Outcome, Seen, Verdict};
 use crate::marks::mark::{Figure, In, SheetMark};
-use crate::maths::colour::Rgb8;
+use crate::maths::colour::{Difference, Rgb8};
 use crate::records::metric::Metrics;
 
 /// A colour's copy compared, once a colour was laid in its frame: the swatch beside the first and
@@ -61,5 +62,13 @@ impl Compared for ColourCompared {
 
     fn metrics(&self) -> Metrics {
         self.metrics.clone()
+    }
+
+    /// The colour laid at this Compare against the swatch, as one Oklab difference: clean within
+    /// a just-noticeable step (`NOTICEABLE`), near within two and a half (`PART_SPAN`), else redo.
+    /// A first Compare's is the eye's before the answer (D99).
+    fn verdict(&self) -> Verdict {
+        let off = Difference::of(self.original, self.last).delta;
+        Verdict::App(Outcome::within(off, [NOTICEABLE, PART_SPAN]))
     }
 }

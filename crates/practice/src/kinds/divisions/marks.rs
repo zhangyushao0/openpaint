@@ -6,7 +6,7 @@
 use crate::kinds::divisions::division::DivisionCheck;
 use crate::marks::asked::{Asked, Compare};
 use crate::marks::card::CardItem;
-use crate::marks::compared::{Compared, Comparison, Seen};
+use crate::marks::compared::{Compared, Comparison, Seen, Verdict};
 use crate::marks::mark::{Clip, Figure, In, LinePen, Place, SheetMark, Source};
 use crate::maths::path::Point;
 use crate::records::metric::Metrics;
@@ -68,5 +68,10 @@ impl Compared for DivisionCompared {
 
     fn metrics(&self) -> Metrics {
         self.check.metrics.clone()
+    }
+
+    /// A division has no answer (S95): the eye judges it against the picture under it.
+    fn verdict(&self) -> Verdict {
+        Verdict::Eye
     }
 }

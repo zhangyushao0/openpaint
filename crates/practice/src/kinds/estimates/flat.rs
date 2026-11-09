@@ -14,6 +14,7 @@ use crate::geometry::edges::Edge;
 use crate::geometry::marks::{last_edges, last_mark};
 use crate::geometry::off::PEN_WIDTH;
 use crate::geometry::off::{Heads, Off, Straight, ringed};
+use crate::marks::compared::{Outcome, Verdict};
 use crate::maths::path::{Point, distance};
 use crate::maths::random::Random;
 use crate::records::metric::{Metric, Metrics};
@@ -23,6 +24,12 @@ use crate::sessions::plan::Family;
 const INSIDE: f64 = 0.08;
 /// The shortest line read as an angle's copy: a mark is no line.
 const LINE: f64 = 0.1;
+/// A near estimate's mark lies within this of the answer (three pen widths, 15 pixels of a
+/// 400-pixel frame), an angle's line passes as near its dot.
+pub const NEAR_OFF: f64 = 3.0 * PEN_WIDTH;
+/// A near angle's line turns at most this far from the original's (degrees: twice `ON_ANGLE`,
+/// where an edge stops heading for its point).
+pub const NEAR_ANGLE: f64 = 4.0;
 
 /// What an estimate asks for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -227,6 +234,36 @@ impl FlatCheck {
             }
         }
     }
+
+    /// `flat`'s copy so read: incomplete while no mark or line was found; clean when nothing is
+    /// marked (within a pen's width); near when a mark lies within `NEAR_OFF` of the answer (along
+    /// a proportion's segment) or a line turns `NEAR_ANGLE` at most and passes within `NEAR_OFF`
+    /// of its dot; else redo.
+    #[must_use]
+    pub fn verdict(&self, flat: &Flat) -> Verdict {
+        let near = match (*flat, self.mark, self.line) {
+            (Flat::Point { at }, Some(mark), _) => distance(mark, at) <= NEAR_OFF,
+            (Flat::Proportion { share, copy, .. }, Some(mark), _) => {
+                (share_along(copy, mark) - share).abs() * distance(copy[0], copy[1]) <= NEAR_OFF
+            }
+            (Flat::Angle { original, through }, _, Some(line)) => {
+                let turned = wrapped(heading(line.ends) - heading(original));
+                turned.abs() <= NEAR_ANGLE && from_line(line.ends, through) <= NEAR_OFF
+            }
+            _ => return Verdict::Incomplete,
+        };
+        Verdict::App(match (self.off.is_empty(), near) {
+            (true, _) => Outcome::Clean,
+            (false, true) => Outcome::Near,
+            (false, false) => Outcome::Redo,
+        })
+    }
+}
+
+/// How far `p` lies from the line through `a` and `b`.
+fn from_line([a, b]: [Point; 2], p: Point) -> f64 {
+    let d = unit([a, b]);
+    ((p[0] - a[0]) * d[1] - (p[1] - a[1]) * d[0]).abs()
 }
 
 /// A segment `length` long at `angle` degrees, its middle placed by `random` so it keeps inside

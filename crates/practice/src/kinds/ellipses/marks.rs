@@ -10,7 +10,7 @@ use crate::geometry::ellipse_sides::{Reach, Side};
 use crate::geometry::off::Off;
 use crate::kinds::ellipses::ellipse_check::{EllipseCheck, Roundness, Tilt};
 use crate::marks::card::{Arg, CardItem, Say};
-use crate::marks::compared::{Compared, DrawnCopy, Seen};
+use crate::marks::compared::{Compared, DrawnCopy, Seen, Verdict};
 use crate::marks::drawing::{off_marks, segment};
 use crate::marks::mark::{Clip, Figure, In, LinePen, SheetMark};
 use crate::maths::path::Point;
@@ -85,6 +85,10 @@ impl Compared for EllipseCompared {
             differs(check)
         };
         vec![CardItem::Says(said), CardItem::Construction]
+    }
+
+    fn verdict(&self) -> Verdict {
+        self.check.verdict()
     }
 }
 

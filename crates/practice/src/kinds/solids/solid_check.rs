@@ -27,6 +27,7 @@ use crate::geometry::perspective::{Direction, PerspectiveBox};
 use crate::kinds::objects::object::ObjectTask;
 use crate::kinds::solids::solid::{Pose, Solid, SolidTask};
 use crate::kinds::solids::solid_answer::SolidAnswer;
+use crate::marks::compared::{Outcome, Verdict};
 use crate::maths::path::{Point, distance, length, nearest, nearest_on_segment, resample};
 use crate::records::metric::{Metric, Metrics};
 
@@ -46,8 +47,11 @@ const REDRAWN: f64 = 0.05;
 /// An object's edge runs to a vanishing point, or stands upright, within this (degrees): exact
 /// edges do to the last bits.
 const SAME_WAY: f64 = 1e-4;
-/// A side is marked by an edge drawn along this share of it at least (S98).
+/// A side is marked by an edge drawn along this share of it at least (S98); a part is read once
+/// this share of its length is (S119).
 const ALONG: f64 = 0.4;
+/// A near solid or object has at most this many marks of what is off.
+pub const NEAR_MARKS: usize = 2;
 
 /// A solid's copy as Compare read it: per ellipse of the answer and per side, what is off, and
 /// how far off.
@@ -138,6 +142,28 @@ impl SolidCheck {
             sides,
             metrics,
         }
+    }
+
+    /// Its copy against `answer`: incomplete while a part of it (an ellipse as drawn, whole or
+    /// where seen; a side or an edge) has less read for it than `ALONG` of its length; clean with
+    /// every part read and nothing marked; near with `NEAR_MARKS` marks at most; else redo.
+    #[must_use]
+    pub fn verdict(&self, answer: &SolidAnswer) -> Verdict {
+        let long = |pieces: &[Vec<Point>]| pieces.iter().map(|piece| length(piece)).sum::<f64>();
+        let read = |pieces: &[Vec<Point>], of: f64| long(pieces) >= ALONG * of;
+        let drawn = |k: usize| {
+            (answer.outlines[k].iter())
+                .filter(|stretch| answer.whole || !stretch.hidden)
+                .map(|stretch| length(&stretch.points))
+                .sum::<f64>()
+        };
+        let curves = (self.curves.iter().enumerate()).all(|(k, c)| read(&c.pieces, drawn(k)));
+        let sides = (self.sides.iter().zip(&answer.sides))
+            .all(|(pieces, [a, b])| read(pieces, distance(*a, *b)));
+        if !(curves && sides) {
+            return Verdict::Incomplete;
+        }
+        Verdict::App(Outcome::counting(self.off.len(), NEAR_MARKS))
     }
 }
 
@@ -294,7 +320,7 @@ fn read(answer: &SolidAnswer, lines: &[&[Point]]) -> Parts {
 
 /// Whether `pieces` go `COVERED` round `exact`: the share of its `BINS` arcs (by the angle round
 /// its own centre, as on the circle it is drawn from) that hold a point.
-fn covered(exact: &Ellipse, pieces: &[Vec<Point>]) -> bool {
+pub(crate) fn covered(exact: &Ellipse, pieces: &[Vec<Point>]) -> bool {
     let mut held = [false; BINS];
     for p in pieces.iter().flat_map(|piece| resample(piece, SPACING)) {
         let turn = turn(exact, p).rem_euclid(std::f64::consts::TAU);

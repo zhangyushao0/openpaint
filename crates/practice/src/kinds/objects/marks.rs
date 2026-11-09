@@ -10,7 +10,7 @@ use std::sync::Arc;
 use crate::kinds::objects::object::ObjectTask;
 use crate::kinds::solids::solid_check::SolidCheck;
 use crate::marks::card::{CardItem, Say};
-use crate::marks::compared::{Compared, DrawnCopy, Seen};
+use crate::marks::compared::{Compared, DrawnCopy, Seen, Verdict};
 use crate::marks::drawing::{box_edges, off_marks, segment};
 use crate::marks::mark::{Clip, Figure, In, LinePen, Place, SheetMark, Source};
 use crate::records::metric::Metrics;
@@ -93,5 +93,9 @@ impl Compared for ObjectCompared {
 
     fn metrics(&self) -> Metrics {
         self.check.metrics.clone()
+    }
+
+    fn verdict(&self) -> Verdict {
+        self.check.verdict(&self.task.answer)
     }
 }

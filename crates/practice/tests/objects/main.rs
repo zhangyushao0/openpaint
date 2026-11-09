@@ -12,3 +12,4 @@ mod exact;
 mod hands;
 mod off;
 mod picture;
+mod verdict;

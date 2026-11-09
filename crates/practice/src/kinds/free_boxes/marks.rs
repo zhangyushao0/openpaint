@@ -10,7 +10,7 @@ use crate::geometry::perspective::{Direction, PerspectiveBox};
 use crate::kinds::DrawnCopy;
 use crate::kinds::free_boxes::perspective_free::FreeCheck;
 use crate::marks::card::{CardItem, Say};
-use crate::marks::compared::{Compared, Seen};
+use crate::marks::compared::{Compared, Seen, Verdict};
 use crate::marks::drawing::{counted, edges_of, off_marks, run_on, segment};
 use crate::marks::mark::{Clip, Figure, In, LinePen, SheetMark};
 use crate::maths::path::Point;
@@ -84,6 +84,11 @@ impl Compared for FreeCompared {
             CardItem::Says(Say::counting("off", &counts)),
             CardItem::Construction,
         ]
+    }
+
+    /// Free boxes have no answer but the rules: the eye judges (S122 takes their red verdict).
+    fn verdict(&self) -> Verdict {
+        Verdict::Eye
     }
 }
 

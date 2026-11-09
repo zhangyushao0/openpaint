@@ -4,7 +4,7 @@
 
 use crate::marks::asked::{Asked, Compare, ToFit};
 use crate::marks::card::CardItem;
-use crate::marks::compared::{Compared, Comparison, Seen};
+use crate::marks::compared::{Compared, Comparison, Seen, Verdict};
 use crate::marks::mark::{Clip, In, LinePen, SheetMark};
 use crate::maths::path::Point;
 
@@ -52,5 +52,10 @@ impl Compared for LinesCompared {
 
     fn card(&self, _seen: &Seen<'_>) -> Vec<CardItem> {
         vec![CardItem::Overlaid]
+    }
+
+    /// The overlay is the feedback (D99): the eye judges.
+    fn verdict(&self) -> Verdict {
+        Verdict::Eye
     }
 }

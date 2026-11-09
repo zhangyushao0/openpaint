@@ -8,7 +8,7 @@ use std::sync::Arc;
 use crate::kinds::points_in_space::space::{SpaceAnswer, SpaceTask, Trick};
 use crate::kinds::points_in_space::space_check::SpaceCheck;
 use crate::marks::card::CardItem;
-use crate::marks::compared::{Compared, DrawnCopy, Seen};
+use crate::marks::compared::{Compared, DrawnCopy, Seen, Verdict};
 use crate::marks::drawing::{box_edges, cross, nothing_read, off_marks, segment};
 use crate::marks::mark::{Clip, Figure, In, LinePen, SheetMark};
 use crate::maths::path::Point;
@@ -76,5 +76,9 @@ impl Compared for SpaceCompared {
 
     fn metrics(&self) -> Metrics {
         self.check.metrics.clone()
+    }
+
+    fn verdict(&self) -> Verdict {
+        self.check.verdict(&self.task)
     }
 }

@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use crate::kinds::estimates::flat::{Flat, FlatAnswer, FlatCheck};
 use crate::marks::card::CardItem;
-use crate::marks::compared::{Compared, DrawnCopy, Seen};
+use crate::marks::compared::{Compared, DrawnCopy, Seen, Verdict};
 use crate::marks::drawing::{cross, nothing_read, off_marks, segment};
 use crate::marks::mark::{Clip, Figure, In, LinePen, SheetMark};
 use crate::maths::path::{Point, across_frame};
@@ -91,6 +91,10 @@ impl Compared for FlatCompared {
 
     fn metrics(&self) -> Metrics {
         self.check.metrics.clone()
+    }
+
+    fn verdict(&self) -> Verdict {
+        self.check.verdict(&self.flat)
     }
 }
 

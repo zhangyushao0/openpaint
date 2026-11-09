@@ -8,9 +8,9 @@
 //! chosen area's lightness bar.
 
 use crate::kinds::key_shifts::key_shift::Tendency;
-use crate::kinds::key_shifts::key_shift_check::KeyCheck;
+use crate::kinds::key_shifts::key_shift_check::{KeyCheck, NEAR_AREAS};
 use crate::marks::card::{Arg, CardItem, Say};
-use crate::marks::compared::{Compared, Seen};
+use crate::marks::compared::{Compared, Outcome, Seen, Verdict};
 use crate::marks::mark::{Figure, In, Place, SheetMark, Source};
 use crate::maths::colour::Rgb8;
 use crate::maths::path::Point;
@@ -112,6 +112,21 @@ impl Compared for KeyCompared {
             },
         );
         items
+    }
+
+    /// Once read: incomplete while an area is not painted; clean when no area is marked by any of
+    /// the three checks, near when `NEAR_AREAS` are, else redo. Unread, no verdict yet.
+    fn verdict(&self) -> Verdict {
+        let Some(read) = &self.read else {
+            return Verdict::Incomplete;
+        };
+        if read.colours.iter().any(Option::is_none) {
+            return Verdict::Incomplete;
+        }
+        let marked = (0..self.colours.len())
+            .filter(|area| read.check.marked(*area))
+            .count();
+        Verdict::App(Outcome::counting(marked, NEAR_AREAS))
     }
 }
 

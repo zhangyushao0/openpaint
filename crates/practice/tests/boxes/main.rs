@@ -4,3 +4,4 @@
 mod checks;
 mod edges;
 mod hand;
+mod verdict;

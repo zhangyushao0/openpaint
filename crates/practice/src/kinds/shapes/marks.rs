@@ -4,7 +4,7 @@
 
 use crate::marks::asked::{Asked, Compare, ToFit};
 use crate::marks::card::{CardItem, Say};
-use crate::marks::compared::{Compared, Comparison, Seen};
+use crate::marks::compared::{Compared, Comparison, Seen, Verdict};
 use crate::marks::mark::{Clip, Figure, In, LinePen, Place, SheetMark, Source};
 use crate::maths::path::Point;
 
@@ -64,5 +64,10 @@ impl Compared for ShapeCompared {
             .is_none()
             .then(|| CardItem::Says(Say::plain("no-outline")));
         std::iter::once(CardItem::Overlaid).chain(none).collect()
+    }
+
+    /// The overlay is the feedback (D99, D103): the eye judges.
+    fn verdict(&self) -> Verdict {
+        Verdict::Eye
     }
 }

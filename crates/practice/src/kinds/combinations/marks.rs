@@ -6,11 +6,18 @@
 //! and before) shows its picture drawn again in its original's frame.
 
 use crate::colour_areas::areas_read::AreasCopy;
+use crate::kinds::colours::judgement::DELTA_SPAN;
 use crate::marks::card::{CardItem, Say, WheelSize};
-use crate::marks::compared::{Compared, Seen};
+use crate::marks::compared::{Compared, Outcome, Seen, Verdict};
 use crate::marks::mark::{Figure, In, Place, SheetMark, Source};
-use crate::maths::colour::Rgb8;
+use crate::maths::colour::{Difference, Rgb8};
 use crate::maths::path::Point;
+
+/// A combination is clean when its areas are off by at most this on the mean (Oklab: two and a
+/// half just-noticeable steps, a colour's near band) and near within `DELTA_SPAN` (five).
+pub const AREAS_CLEAN: f64 = 0.05;
+/// A near combination made at most this many weak contrasts strong.
+pub const NEAR_STRONG: usize = 1;
 
 /// A generated combination's picture, drawn again, in its original's frame.
 pub(crate) fn generated_givens() -> Vec<SheetMark> {
@@ -85,5 +92,31 @@ impl Compared for AreasCompared {
             },
         };
         vec![CardItem::Slider, chips, last]
+    }
+
+    /// Once read: incomplete while an area is not painted; clean when the areas are off by
+    /// `AREAS_CLEAN` at most on the mean and no weak contrast was made strong; near within
+    /// `DELTA_SPAN` and `NEAR_STRONG` made strong; else redo. Unread, no verdict yet.
+    fn verdict(&self) -> Verdict {
+        let Some(read) = &self.read else {
+            return Verdict::Incomplete;
+        };
+        let painted: Option<Vec<Rgb8>> = read.copy.colours.iter().copied().collect();
+        let Some(painted) = painted.filter(|painted| !painted.is_empty()) else {
+            return Verdict::Incomplete;
+        };
+        let off = (self.colours.iter().zip(&painted))
+            .map(|(original, copy)| Difference::of(*original, *copy).delta)
+            .sum::<f64>()
+            / painted.len() as f64;
+        let strong = (read.copy.contrasts.iter())
+            .filter(|c| c.made_strong())
+            .count();
+        let outcome = match (Outcome::within(off, [AREAS_CLEAN, DELTA_SPAN]), strong) {
+            (Outcome::Clean, 0) => Outcome::Clean,
+            (Outcome::Clean | Outcome::Near, ..=NEAR_STRONG) => Outcome::Near,
+            _ => Outcome::Redo,
+        };
+        Verdict::App(outcome)
     }
 }

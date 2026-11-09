@@ -8,7 +8,7 @@ use crate::geometry::off::Off;
 use crate::geometry::perspective::{Direction, PerspectiveBox};
 use crate::marks::asked::{Asked, Compare};
 use crate::marks::card::{CardItem, Say, WheelSize};
-use crate::marks::compared::{Compared, Comparison, DrawnCopy, Seen};
+use crate::marks::compared::{Compared, Comparison, DrawnCopy, Seen, Verdict};
 use crate::marks::mark::{Clip, Figure, In, LinePen, Place, SheetMark, Source};
 use crate::maths::path::Point;
 use crate::records::metric::Metrics;
@@ -97,6 +97,12 @@ impl Compared for PictureCompared {
 
     fn metrics(&self) -> Metrics {
         self.metrics.clone()
+    }
+
+    /// No answer but the picture itself (a colour copy, a whole copy, a painted kind whose areas
+    /// or masses no pack holds now): the eye judges.
+    fn verdict(&self) -> Verdict {
+        Verdict::Eye
     }
 }
 

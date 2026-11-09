@@ -15,6 +15,7 @@
 //! value scales sRGB's channels together, so hue and purity hold), and so does the even scale
 //! between them: a hue held, its lightness stepped.
 
+use crate::marks::compared::{Outcome, Verdict};
 use crate::maths::colour::{Rgb8, from_hsv, from_oklab, oklab};
 use crate::maths::path::Point;
 use crate::maths::random::Random;
@@ -30,6 +31,10 @@ pub const FIRST_CELLS: usize = 5;
 pub const FIRST_SCALES: usize = 2;
 /// A cell's middle, which is read: the share of its width and height kept inside its edges.
 const MIDDLE: f64 = 0.6;
+/// A near scale has none out of order and at most this many cells uneven: of a beginner's five
+/// cells one, of more cells (seven or nine) `NEAR_UNEVEN_LONG`.
+pub const NEAR_UNEVEN: usize = 1;
+pub const NEAR_UNEVEN_LONG: usize = 2;
 
 /// Whether a value scale is grey or of a hue.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -247,6 +252,26 @@ pub fn halving(cells: usize) -> Vec<Vec<usize>> {
 }
 
 impl ScaleCheck {
+    /// Incomplete while a cell is not filled; clean when no cell is uneven or reversed; near when
+    /// none is reversed and at most `NEAR_UNEVEN` are uneven (of five cells; `NEAR_UNEVEN_LONG` of
+    /// more); else redo.
+    #[must_use]
+    pub fn verdict(&self) -> Verdict {
+        if self.values.iter().any(Option::is_none) {
+            return Verdict::Incomplete;
+        }
+        let near = if self.values.len() <= FIRST_CELLS {
+            NEAR_UNEVEN
+        } else {
+            NEAR_UNEVEN_LONG
+        };
+        Verdict::App(match (self.uneven.len(), self.reversed.len()) {
+            (0, 0) => Outcome::Clean,
+            (uneven, 0) if uneven <= near => Outcome::Near,
+            _ => Outcome::Redo,
+        })
+    }
+
     /// The numbers kept at the first Compare: how far the cells filled are off on average,
     /// how many are uneven and how many out of order.
     #[must_use]

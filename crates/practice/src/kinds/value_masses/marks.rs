@@ -10,7 +10,7 @@ use crate::compositions::value_masses::ValueMasses;
 use crate::kinds::value_masses::value_masses_read::MassesCheck;
 use crate::marks::asked::{Asked, Compare, Read, Reading, Reads};
 use crate::marks::card::CardItem;
-use crate::marks::compared::{Compared, Comparison, Seen};
+use crate::marks::compared::{Compared, Comparison, Seen, Verdict};
 use crate::marks::drawing::picture_laid;
 use crate::marks::mark::{Clip, Figure, In, LinePen, Place, SheetMark, Source};
 use crate::maths::colour::Rgb8;
@@ -99,5 +99,10 @@ impl Compared for MassesCompared {
     fn card(&self, _seen: &Seen<'_>) -> Vec<CardItem> {
         let reading = self.check.is_none().then_some(CardItem::Reading);
         std::iter::once(CardItem::Slider).chain(reading).collect()
+    }
+
+    /// Once read, its check's (`MassesCheck::verdict`); unread, no verdict yet.
+    fn verdict(&self) -> Verdict {
+        (self.check.as_ref()).map_or(Verdict::Incomplete, MassesCheck::verdict)
     }
 }

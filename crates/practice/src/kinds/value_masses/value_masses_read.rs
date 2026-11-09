@@ -6,9 +6,11 @@
 //! inside them: a morphological opening), the answer's value is hatched there in its grey; a mass
 //! edge off by less, or a seam the strokes leave between them, is no difference, as a squinting
 //! eye merges it. The share of the picture painted at the answer's value is kept by the first
-//! Compare (`Metric::MassesMatched`), shown nowhere.
+//! Compare (`Metric::MassesMatched`), shown nowhere; the share left bare over more than the pen's
+//! width says whether the copy is complete (S119).
 
 use crate::compositions::value_masses::{Value, ValueMasses};
+use crate::marks::compared::{Outcome, Verdict};
 use crate::maths::path::Point;
 use crate::records::metric::{Metric, Metrics};
 
@@ -19,13 +21,20 @@ pub const VALUE_PEN: f64 = 0.06;
 pub const HATCH_GAP: f64 = 0.02;
 /// The shortest stretch of hatching kept, in the grid's steps.
 const LEAST_HATCH: usize = 2;
+/// A copy is not yet complete while more than this share of its picture is left bare over more
+/// than the pen's width.
+pub const BARE_LEFT: f64 = 0.02;
+/// A near copy has at least this share of its picture painted at the answer's value.
+pub const NEAR_MATCHED: f64 = 0.8;
 
 /// A copy as read: the hatching (each stretch's ends in frame units, with the value the answer
-/// holds there) and the share of the picture painted at the answer's value.
+/// holds there), the share of the picture painted at the answer's value and the share left bare
+/// over more than the pen's width.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MassesCheck {
     pub hatching: Vec<(Value, [Point; 2])>,
     pub matched: f64,
+    pub bare: f64,
     pub metrics: Metrics,
 }
 
@@ -63,20 +72,49 @@ impl ValueMasses {
                 answer.push(self.at(p));
             }
         }
-        let opened = differences(&copy, &answer, [w, h], VALUE_PEN / 2.0 * unit);
+        let radius = VALUE_PEN / 2.0 * unit;
+        let opened = differences(&copy, &answer, [w, h], radius);
         let at = |[x, y]: Point| [(x0 as f64 + x) / unit, (y0 as f64 + y) / unit];
         let hatching = (hatched(&opened, &answer, [w, h], HATCH_GAP * unit).into_iter())
             .map(|(value, [a, b])| (value, [at(a), at(b)]))
             .collect();
+        let share = |count: usize| count as f64 / (w * h).max(1) as f64;
         let same = (copy.iter().zip(&answer))
             .filter(|(c, a)| **c == Some(**a))
             .count();
-        let matched = same as f64 / (w * h).max(1) as f64;
+        let matched = share(same);
+        let bare: Vec<bool> = copy.iter().map(Option::is_none).collect();
+        let bare = share(
+            wider(&bare, [w, h], radius)
+                .into_iter()
+                .filter(|b| *b)
+                .count(),
+        );
         MassesCheck {
             hatching,
             matched,
+            bare,
             metrics: vec![(Metric::MassesMatched, matched)],
         }
+    }
+}
+
+impl MassesCheck {
+    /// Incomplete while more than `BARE_LEFT` of the picture is left bare over more than the pen's
+    /// width; clean with nothing hatched; near with `NEAR_MATCHED` of the picture at the answer's
+    /// value at least; else redo.
+    #[must_use]
+    pub fn verdict(&self) -> Verdict {
+        if self.bare > BARE_LEFT {
+            return Verdict::Incomplete;
+        }
+        Verdict::App(if self.hatching.is_empty() {
+            Outcome::Clean
+        } else if self.matched >= NEAR_MATCHED {
+            Outcome::Near
+        } else {
+            Outcome::Redo
+        })
     }
 }
 
@@ -92,6 +130,12 @@ pub(crate) fn differences(
     let differ: Vec<bool> = (copy.iter().zip(answer))
         .map(|(c, a)| *c != Some(*a))
         .collect();
+    wider(&differ, [w, h], radius)
+}
+
+/// The steps of `differ` (over a grid of `[w, h]`) wider than a disc of `radius` steps: opened by
+/// the disc, which must lie inside the grid.
+fn wider(differ: &[bool], [w, h]: [usize; 2], radius: f64) -> Vec<bool> {
     let reach = radius.floor() as isize;
     let disc: Vec<[isize; 2]> = (-reach..=reach)
         .flat_map(|dy| (-reach..=reach).map(move |dx| [dx, dy]))

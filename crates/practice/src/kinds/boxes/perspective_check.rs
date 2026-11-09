@@ -13,10 +13,18 @@
 use crate::geometry::edges::Edge;
 use crate::geometry::heading::{Checked, checked, line_angle, reach, sub};
 use crate::geometry::perspective::{Direction, PerspectiveBox};
-use crate::maths::path::Point;
+use crate::marks::compared::{Outcome, Verdict};
+use crate::maths::path::{Point, distance, nearest_on_segment};
 
 /// An edge is taken for a box's direction only within this angle of it (degrees).
 const TAKEN: f64 = 20.0;
+/// A box to complete from its front corner adds the nine edges it shows less the three given:
+/// fewer read, it is not yet complete.
+pub const EDGES_TO_ADD: usize = 6;
+/// A near box has at most this many edges missing their vanishing point.
+pub const NEAR_MISSED: usize = 1;
+/// An edge whose middle lies this near a given edge (frame units, two pen widths) redraws it.
+const ALONG: f64 = 0.025;
 
 /// A completed box as checked against the exact one.
 #[derive(Debug, Clone, PartialEq)]
@@ -42,6 +50,29 @@ impl BoxCheck {
     pub fn missed(&self) -> usize {
         self.edges.iter().filter(|edge| !edge.on).count()
     }
+
+    /// Incomplete while fewer than `EDGES_TO_ADD` edges are read beside the three given (an edge
+    /// drawn over a given one is no edge added); clean when no edge misses its vanishing point
+    /// (within `ON_ANGLE`) or leans; near when `NEAR_MISSED` does; else redo.
+    #[must_use]
+    pub fn verdict(&self, exact: &PerspectiveBox) -> Verdict {
+        let given = exact.given();
+        let added = (self.edges.iter())
+            .filter(|checked| !given.iter().any(|(a, b, _)| along(&checked.edge, [*a, *b])))
+            .count();
+        if added < EDGES_TO_ADD {
+            return Verdict::Incomplete;
+        }
+        Verdict::App(Outcome::counting(self.missed(), NEAR_MISSED))
+    }
+}
+
+/// Whether `edge` lies along the segment `[a, b]`: within `TAKEN`'s half of its direction, its
+/// middle within `ALONG` of the segment.
+fn along(edge: &Edge, [a, b]: [Point; 2]) -> bool {
+    let middle = edge.middle();
+    line_angle(edge.direction(), sub(b, a)) <= TAKEN / 2.0
+        && distance(middle, nearest_on_segment(a, b, middle)) <= ALONG
 }
 
 /// `edge` taken for the direction of `exact` its line lies nearest, a miss extended within `reach`
