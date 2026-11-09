@@ -4,13 +4,15 @@
 
 An Android-first, stylus-first 2D painting app that completes, on one tablet: sketch -> inking -> layered flat colour -> smudging and shaping -> selection revisions -> masks and colour overlays -> adjustments and finishing -> export -> resume after interruption. Interaction follows the user's mental model from Procreate by default, adapted to Android tablets; no copying of look, icons or assets.
 
+One app, two products on one engine (the author, 2026-11-09): a studio a professional paints in, meant to stand beside Procreate and Clip Studio Paint, and a practice path that takes someone who has never drawn to drawing ("the Duolingo of drawing", more professional). Neither is cut or frozen for the other: a beginner practises, then paints, in the same app.
+
 Stage exits are judged on representative artworks made by the author on the tablet: W1 inking and flat colour, W2 painterly shading, W3 complex composition revision, W4 edit, restore and deliver. The device matrix is the Wacom MovinkPad 14 alone (author, 2026-10-09).
 
 Non-goals of the main line: network, accounts, cloud sync, community, animation, 3D, multi-platform, plugin systems, a desktop product or desktop window of any kind (G8 projects, each the author's call).
 
 ## Rules
 
-- A slice is a vertical cut one session can finish, verify and roll back on its own. Slices run in numbered order; no skipping.
+- A slice is a vertical cut one session can finish, verify and roll back on its own. Slices run in the order their batch gives (Reshape); no skipping.
 - Every slice states its goal, the crates involved and done criteria. Done criteria are executable or observable, never "better".
 - A slice that changes what the user sees or does begins with its walk-through written as the user and ends with that walk-through as a passing scenario plus a screenshot review (AGENTS.md, "Design from the user inward").
 - The dev-machine loop is the harness (`apps/harness`): offscreen rendering, replay, scenarios, PNG and hash output. "Seeing" a result means reading its PNG. Real input and pen feel exist only on the tablet.
@@ -52,15 +54,21 @@ Stages 1 to 4 are built and stage 5 has begun (S75 to S110c are done: the list a
 
 Stage 5 follows V大's weeks 5 and 6 as the author approved it on a mock (2026-11-06, every recommendation taken): key shifts (S107, done), abstract analysis, structure rotation; each joins stage 5's sessions after the key shifts and gets a drill tile.
 
-Practice as a module (the author, 2026-11-07, after a review): a kind's code is spread by layer over six crates and dispatched by central matches (S107 touched 69 files: 21 in ui, 19 in practice, 11 in app, 6 in the harness; `Kind` and `Overlay` matched 416 times in 52 files outside practice), the practice crate lies flat (93 files named by prefix), and the pack builder's web clients and ONNX matte build and test in every gate. Before more kinds, practice becomes a module: a kind in one folder behind one description, its own crates, the painting crates not depending on it. Behaviour, scenarios and their hashes stay as they are in each slice.
+Practice is a module of its own since S108 to S110c (D111, D112); what comes next for it is in Reshape.
 
-- Next, each specified when the one before lands:
-  - S114 Free boxes judged by eye (the author, 2026-11-07: 2° was strict and the eye can judge): Compare on a free page draws the copy's edges on to their crossings as now, with no verdict that a direction's edges miss one point and no red for it; the boxed kinds with an exact answer keep their checks.
-  - S112 Abstract analysis (抽象分析), the first kind on the module: the user marks a picture's strongest place, its contrasts, the secondary and weak ones and their distribution on a layer over it; Compare veils where each measurable contrast (value, chroma, hue, sharpness) is weak and scores nothing.
-  - S113 Structure rotation against renders.
-  - S115 Adjustment previews that finish (the author, 2026-11-07: the part-redrawn look is poor; pending 22): while a slider moves, the part of the layer the screen shows redrawn at the screen's resolution so every frame completes, the full resolution after release; any tile still waiting redrawn outward from the view's middle, so a slow one spreads from the centre.
-  - Stage 7 (V大's weeks 7 and 8): curved structure rotation and objects placed by a plan, whole-picture key shifts toward two tendencies, abstract analysis for one's own small composition.
-  - Trajectories, stage reports and re-tests.
+## Reshape
+
+The author, 2026-11-09, after an audit of the whole repository: the structure follows the order things were built in. Practice, now a product, hangs on the painting app as its one guest (`Mode`, `CanvasHook`, `GalleryHook`: one implementor each, the gallery the only home); the course is a function a stage and nothing reads the results kept, so there is no learning model; a kind's facts are parallel enums the flow turns back into branches; the painting flow has no owner (the runtime routes 7 of 16 intent families) and the draft in hand is implicit (18 hand-placed interrupts, 34 popover closes); the engine rebuilds one flat scene a version and keeps two tile caches alike; history and debug code ride in the product.
+
+Work runs in batches: a batch is one result the author can try (3 to 6 slices), opened by a walk-through or a mock for what the user sees, closed by a build to try, a measured retrospect and a slice that only deletes. A slice expected past about 25 files or 3 crates is split, or a structural slice goes first; a large one is designed by one agent, read-only, and built by another. Structure and prune slices change nothing the user sees: their proof is screenshots byte for byte, and the author is not asked.
+
+- Batch A, Prune (no behaviour change), each designed first:
+  - S116 History out of the code: the practice records' upgrades (1.7.0, 1.14.0, 1.17.0) and what serves only them (`frames.rs`, the store's `Upgrade` path and `replace_owned`, devtools' `older.rs` and its scenario step), pack formats 2 and 3, the fixtures of shapes before 1.0. First proven on the newest backup of the author's library that every record and pack reads without them; a pack kept in an older format is written anew once on the tablet before its reader goes. Done: the lines gone, the backup opening as before, gate and scenarios as they are.
+  - S117 Diagnostics out of the product: the runtime's benches, offscreen frames and test painting (about 3,000 lines) and render's items only tests and tools use, into crates the composition roots assemble (ARCHITECTURE principle 3). Done: the product crates hold none, `device-input bench` and the scenarios as before.
+  - S118 Documents and rules: AGENTS.md to batches; ARCHITECTURE the contract only, each module's inventory in its own `//!`; Candidates kept to what a lane may take up; the version moved when a build goes to the author, not a slice; `#[path]` siblings into folders as their crates are next touched.
+- Batch B, Practice as a path, after the author takes its mock (a home with practice and the studio as equal entrances, lessons of 3 to 8 minutes, a clear result an exercise, the first lesson): a record an exercise with what it gave, on its sheet (the sheet stays the canvas: the author, 2026-11-09, sees there what was just drawn); the course as data with a learner model and a scheduler in place of the stage functions; screens the shell hosts, the canvas a part both products embed. With it: a fill found within its frame's box, the next pair's tiles ahead of Next, and S114 Free boxes judged by eye (the author, 2026-11-07: no verdict that a direction's edges miss one point, no red for it; the boxed kinds keep their checks).
+- Batch C, the studio's structure, beside B on other crates and before new painting features: one editor root owning session, toolbox, transfers and gallery behind one dispatch and one projection; the draft in hand as one state with one transition; then the engine, each step on the tablet's benches: a scene a layer with an index, one tile cache for every scale, one derived store of layer pixels with the budget inside render. Records stay the truth.
+- Then, in both lanes: S112 Abstract analysis (抽象分析: the user marks a picture's strongest place, its contrasts and their distribution on a layer over it; Compare veils where each measurable contrast is weak and scores nothing), S113 Structure rotation against renders, stage 7 (curved structure rotation, objects placed by a plan, whole-picture key shifts toward two tendencies), trajectories and re-tests on the learner model; studio features chosen with the author from Candidates, S115 Adjustment previews that finish among them (the author, 2026-11-07: while a slider moves the part the screen shows redrawn at the screen's resolution, the full one after release, waiting tiles from the view's middle outward).
 
 ## G8 Independent extensions after stabilisation
 
