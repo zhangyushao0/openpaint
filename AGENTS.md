@@ -4,17 +4,20 @@ This file is the shared entry point for agents and maintainers and sets the defa
 
 ## Reading order
 
-1. `docs/STATUS.md`: what works now and what has been verified.
-2. `docs/ROADMAP.md`: find the next slice; do only that slice.
-3. `docs/ARCHITECTURE.md`: only the sections for the crates this slice touches.
-4. The affected sources. Every file is under 400 lines: read whole files with Read, locate with Grep.
+1. The slice's brief from the main session, when there is one: it names what to read and what is already established.
+2. `docs/ROADMAP.md`: the slice's line in its batch; do only that slice.
+3. `docs/STATUS.md` and `docs/ARCHITECTURE.md`: only the parts the brief or the slice's crates call for.
+4. The affected sources. Every file is under 400 lines: read whole files with Read, locate with Grep; a module's `//!` says what it holds.
 5. `docs/DECISIONS.md`: only when changing an existing decision or when you need the "why".
 
 Do not rebuild the big picture from source; the module map is in ARCHITECTURE. Do not dig through git history for progress; progress is in STATUS.
 
 ## One session, one slice
 
-- A session does exactly one slice from ROADMAP. When the gate passes, the commit exists and the documents are updated, the session ends. Do not start the next slice.
+- A session does exactly one slice from ROADMAP. When the gate passes, the commit exists and the documents are updated (or its lines handed to the main session, where the brief keeps the documents there), the session ends. Do not start the next slice.
+- Work runs in batches (author, 2026-11-09): a batch is one result the author can try, 3 to 6 slices, opened by a walk-through or a mock for what the user sees, closed by a build to try, a retrospect measured from the agents' transcripts (calls, context, files, rework) and a slice that only deletes.
+- A slice is one of three kinds. Experience: what the user sees or does; the author takes its mock or walk-through before code. Structure and prune: nothing the user sees changes; the proof is every screenshot byte for byte against a run of the commit before, and the author is not asked.
+- A slice expected past about 25 files or 3 crates is split, or a structural slice goes first; a large one is designed by one agent, read-only, and built by another from the design.
 - Run `git status --short --branch` first; never touch pre-existing uncommitted changes.
 - ROADMAP defines the scope. Problems outside it go to STATUS "Known limits" or ROADMAP "Candidates"; do not fix them in passing.
 - Stopping to ask the author is fine. Finish the parts that do not depend on the answer first, then list concrete options with a recommendation.
@@ -36,7 +39,8 @@ Do not rebuild the big picture from source; the module map is in ARCHITECTURE. D
 | 2 | `cargo test -p <crate> [filter]` | the tests this slice touches |
 | 3 | `cargo gate` | once before the commit: fmt, clippy, all tests (every test binary at once, `xtask/src/test_run.rs`), repo-check; about 2.5 min |
 
-- Scenarios: `cargo scenario <name>` replays one; `cargo scenarios` replays all, each in a process of its own, as many at once as the machine has threads (`--jobs N`): about 3 min for 72, one line each in name order.
+- Scenarios: `cargo scenario <name>` replays one; `cargo scenarios` replays all, each in a process of its own, as many at once as the machine has threads (`--jobs N`): about 3.5 min for 82, one line each in name order.
+- A structure or prune slice takes its baseline first: `cargo scenarios` at HEAD, `artifacts/scenarios` copied aside, compared at the end in one command (`git diff --no-index --stat`). A slice in a pure crate that nothing shown reaches yet runs the gate and the scenarios its code can reach, not the suite.
 - Start `cargo scenarios` in the background as soon as the code is done, and write the documents while it runs. Run the gate and the suite alone: each uses every core, and anything heavy beside them (another test run, clippy) makes tests time out or run out of memory (S104).
 - Tests wait for a worker, a fill or motion by wall time, a hang guard of two minutes, never by a count of frames; every gesture whose meaning depends on time (a hold, a drop, a tap, QuickShape) runs on the held clock (`fix_clock`), its samples stamped on it: the runtime tests' `Hand` (`support/hand.rs`, `frames.rs`) and the scenario runner hold it, frames waiting for a worker at the same time (S106).
 - A fix after review reruns the scenarios it can reach plus the gate; the whole suite only when shared drawing or layout code changed.
@@ -69,6 +73,7 @@ Do not rebuild the big picture from source; the module map is in ARCHITECTURE. D
 - Conventional Commits, scope is the crate name, slice id at the end: `feat(core): artwork value type (S2)`.
 - Usually one commit per slice. Stage file by file and review `git diff --cached --stat` before committing; never `git add -A`.
 - No commit while the gate fails. Push, rebase and amend only on the author's explicit instruction.
+- The version moves when a build goes to the author, never for a slice (author, 2026-11-09; D79).
 
 ## Documents: four files, hard limits, enforced by repo-check
 
@@ -81,7 +86,7 @@ Do not rebuild the big picture from source; the module map is in ARCHITECTURE. D
 
 - No line of the four documents is longer than 1,500 characters: one fact a line, never a page. `cargo repo-check` refuses a document past its lines or characters and a line past 1,500, naming the file, the line and the limit (`xtask/src/check/rules.rs`, S105).
 - No other markdown in the repository (README.md at most 60 lines and this file at most 150 lines excepted). No CHANGELOG: history is `git log`. No ADR directory, no research directory, no local notes directory.
-- At the end of a slice: rewrite STATUS as the new current facts (delete stale sentences, do not append); move the slice to "Done" in ROADMAP as one line; touch DECISIONS only when a new decision was made.
+- At the end of a slice: rewrite STATUS as the new current facts (delete stale sentences, do not append); move the slice to "Done" in ROADMAP as one line; touch DECISIONS only when a new decision was made. Where slices run side by side the main session keeps the four documents and each agent hands over its lines.
 - Archiving: when a document exceeds its limit, delete useless content first; if it still exceeds, move finished slices or superseded decisions wholesale to `docs/archive/<name>-<YYYY-MM>.md`. The archive is written, never read, and has no limit.
 - Research, audits and option comparisons are not written as files. Conclusions go to DECISIONS (at most 15 lines) or the commit message; the process stays in the session.
 
@@ -91,8 +96,9 @@ Agent output belongs in `crates/` product code and tests. The following count as
 
 - Design from the best end state (author, 2026-10-16): code and module structure follow the design as it should be, never bent by history or compatibility; restructure when a new design wants it; what a slice replaces goes in that slice or in the cleanup slice ROADMAP names; a reader reads only the newest shape of what it stores; a changed shape is converted once, on the one library and the packs that exist, by a step in an interim build proved on the newest backup, and that step is deleted by the next slice (S116); a library or file of another format is refused, never read.
 - Reasoning effort is set by the author at session start: high for design and trade-offs, low for splitting files, updating call sites and fixing compile errors.
-- At most 3 subagents at a time (author, 2026-10-22), no nesting, no reviewer swarms; parallel slices work in their own worktrees on disjoint crates, and the main session merges them and keeps the four documents. Do in the main session what can be done there.
+- At most 3 subagents at a time (author, 2026-10-22), no nesting, no reviewer swarms; parallel slices work in their own worktrees on disjoint crates, and the main session merges them and keeps the four documents. Do in the main session what can be done there. Slices run on the cheaper model; a hard design may use the main session's (author, 2026-11-09).
 - Structure stays a module's own (author, 2026-11-07): before dispatching a slice, the main session reads the last slices' footprints; when one feature spreads over more than three crates or a central list every feature must edit keeps growing, a structural slice goes into ROADMAP before more features. Rules that can be checked go into repo-check, not into reviews.
+- A file past its lines is split by ownership into a folder (`mod.rs` and its parts), never into `#[path]` siblings named by a prefix: a size limit is no design. Those there are move when their crate is next touched.
 - Code rules (enforced by repo-check and clippy): .rs files at most 400 lines; functions at most 60 lines; dependencies only point down (see ARCHITECTURE); core never mentions GPU, UI, file system or threads; `Result<_, String>` only at platform boundaries and in xtask; no `cfg(feature)` in product crates; every crate root has `#![forbid(unsafe_code)]` (JNI in `apps/android` excepted, and the harness, which denies it but for its counting allocator, S51).
 
 ## Design from the user inward
