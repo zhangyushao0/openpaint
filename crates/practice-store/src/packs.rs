@@ -15,11 +15,8 @@ use std::path::{Path, PathBuf};
 use openpaint_app::PortError;
 use openpaint_practice::{ItemRef, Outline, PERSONAL, Pack, PackItem, PictureKind, Tier, valid_id};
 
-use crate::pack::{
-    PACK_FORMAT, Placed, START, damaged, decode_head, encode_pack, head_length, open_pack,
-};
+use crate::pack::{Placed, START, damaged, decode_head, encode_pack, head_length, open_pack};
 use crate::pack_picture::PackPicture;
-use crate::pack_upgrade::upgraded;
 
 /// The personal pack's title, the start of its items' ids and of their titles, numbered from 1.
 const PERSONAL_TITLE: &str = "My pictures";
@@ -55,12 +52,9 @@ impl Packs {
     /// its manifest.
     ///
     /// # Errors
-    /// As `open_pack` (nothing is written then); `Device` when the file cannot be written
-    /// (nothing is replaced then).
+    /// As `open_pack` (nothing is written then: a pack of another format is `OtherFormat`);
+    /// `Device` when the file cannot be written (nothing is replaced then).
     pub fn import(&self, bytes: &[u8]) -> Result<Pack, PortError> {
-        // A pack of the layout before is upgraded first (`pack_upgrade.rs`).
-        let upgraded = upgraded(bytes)?;
-        let bytes = upgraded.as_deref().unwrap_or(bytes);
         let (pack, _) = open_pack(bytes)?;
         if pack.personal() {
             log::warn!("a personal pack is never imported");
@@ -189,13 +183,6 @@ impl Packs {
             }
             Err(error) => return Err(device(&error)),
         };
-        let bytes = match upgraded(&bytes)? {
-            Some(upgraded) => {
-                self.keep(PERSONAL, &upgraded)?;
-                upgraded
-            }
-            None => bytes,
-        };
         let (pack, pictures) = open_pack(&bytes)?;
         let pictures = pictures.into_iter().map(<[u8]>::to_vec).collect();
         Ok((pack, pictures))
@@ -216,8 +203,8 @@ impl Packs {
         Ok(())
     }
 
-    /// Every kept pack's manifest, by id; a pack of the layout before upgraded in place first
-    /// (`pack_upgrade.rs`); a pack that cannot be read is left out (logged).
+    /// Every kept pack's manifest, by id; a pack that cannot be read, one of another format among
+    /// them, is left out as it is (logged).
     ///
     /// # Errors
     /// `Device` when the directory cannot be listed.
@@ -233,26 +220,13 @@ impl Packs {
             let Some(id) = pack_id(&path) else {
                 continue;
             };
-            let read = match read_head(&path, id) {
-                Err(PortError::OtherFormat { .. }) => self
-                    .upgrade_kept(&path, id)
-                    .and_then(|()| read_head(&path, id)),
-                read => read,
-            };
-            match read {
+            match read_head(&path, id) {
                 Ok((pack, _)) => packs.push(pack),
                 Err(error) => log::warn!("{} is not read: {error}", path.display()),
             }
         }
         packs.sort_by(|a, b| a.id.cmp(&b.id));
         Ok(packs)
-    }
-
-    /// The kept pack `id` at `path`, of the layout before, written again in this build's.
-    fn upgrade_kept(&self, path: &Path, id: &str) -> Result<(), PortError> {
-        let bytes = fs::read(path).map_err(|error| device(&error))?;
-        let upgraded = upgraded(&bytes)?.ok_or(PortError::OtherFormat { found: None })?;
-        self.keep(id, &upgraded)
     }
 
     /// The picture (a PNG or JPEG file's bytes) of the item `item` names; `None` when its pack is
@@ -299,7 +273,7 @@ fn read_head(path: &Path, id: &str) -> Result<(Pack, Vec<Placed>), PortError> {
     file.read_exact(&mut start).map_err(|error| short(&error))?;
     let mut head = vec![0; head_length(&start)? + 4];
     file.read_exact(&mut head).map_err(|error| short(&error))?;
-    let (pack, placed) = decode_head(&head, PACK_FORMAT)?;
+    let (pack, placed) = decode_head(&head)?;
     if pack.id != id {
         return Err(damaged());
     }

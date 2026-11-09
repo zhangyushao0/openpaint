@@ -3,8 +3,8 @@
 //! `Kind` (an arm or a `matches!` naming `Kind::`), names a `Family` or an `Original` variant at
 //! all (an arm, a `matches!`, an `if let`, a comparison: what a family or an original does is its
 //! kind's description's, `Facts` and the description's methods), or names the retired `Overlay`.
-//! A kind is built outside only where a stored code is read (`Kind::Scale` in the practice
-//! records' upgrade of 1.14.0's scales, `crates/practice-store`). The flow (`crates/practice-app`)
+//! A kind is built outside only where a stored code is read (`Kind::of_code` in the practice
+//! records, `crates/practice-store`). The flow (`crates/practice-app`)
 //! asks the facts as the app did. Core, raster, render, app and the store name no practice at all
 //! (`rules.rs`, S110, S110b); the UI follows with S110c.
 

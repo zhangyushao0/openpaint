@@ -88,7 +88,7 @@ fn the_first_two_scales_met_have_five_cells_the_rest_nine() {
     assert_eq!(
         Kind::of_code(6, 1),
         None,
-        "1.14.0's form: the store's upgrade turns it"
+        "a tone alone, 1.14.0's form: no scale"
     );
 }
 

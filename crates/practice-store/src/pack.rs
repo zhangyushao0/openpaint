@@ -20,10 +20,8 @@
 //! size.
 //!
 //! So a pack's list reads its head alone and an exercise one picture at its offset, each
-//! checked by its own sum; an import checks every part. Format 2 (1.4.0) added the outline and
-//! the personal pack's uncredited items, format 3 (1.14.0) the value masses, format 4 (1.19.0)
-//! the colour areas; a pack of format 2 or 3 is upgraded (`pack_upgrade.rs`); S78's format 1 was
-//! never released and is not read.
+//! checked by its own sum; an import checks every part. Format 4 (1.19.0) is the only one read: a
+//! pack of any other is `OtherFormat`.
 
 use std::io::Cursor;
 use std::sync::Arc;
@@ -38,11 +36,11 @@ use openpaint_store::{Reader, Writer};
 
 /// The layout this build reads and writes.
 pub const PACK_FORMAT: u32 = 4;
-pub(crate) const MAGIC: &[u8; 14] = b"OpenPaintPack\0";
+const MAGIC: &[u8; 14] = b"OpenPaintPack\0";
 /// Bytes before the head: the magic, the format and the head's length.
 pub(crate) const START: usize = MAGIC.len() + 4 + 4;
 /// The longest head a pack may have: a length naming more is damage, never an allocation.
-pub(crate) const MAX_HEAD: usize = 16 << 20;
+const MAX_HEAD: usize = 16 << 20;
 /// The fewest bytes of an item in the head (a one-byte id, an empty title, no credit, no
 /// outline, no value masses, no colour areas), of a contour, of a point, of a run of a map's
 /// cells and of a colour.
@@ -195,7 +193,7 @@ pub fn open_pack(bytes: &[u8]) -> Result<(Pack, Vec<&[u8]>), PortError> {
     let (head, mut rest) = bytes[START..]
         .split_at_checked(length + 4)
         .ok_or_else(damaged)?;
-    let (pack, placed) = decode_head(head, PACK_FORMAT)?;
+    let (pack, placed) = decode_head(head)?;
     let mut pictures = Vec::with_capacity(placed.len());
     for (item, place) in pack.items.iter().zip(&placed) {
         let (picture, after) = rest
@@ -234,35 +232,26 @@ pub(crate) fn head_length(start: &[u8; START]) -> Result<usize, PortError> {
     Ok(length)
 }
 
-/// The pack in a head of `format` (this build's, or format 2 or 3 for the upgrade alone,
-/// `pack_upgrade.rs`) followed by its check sum, and where each item's picture lies in the file.
+/// The pack in a head of this build's format followed by its check sum, and where each item's
+/// picture lies in the file.
 ///
 /// # Errors
 /// `Corrupt` when the sum does not hold, the head does not decode or the pack breaks a rule.
-pub(crate) fn decode_head(
-    head_and_check: &[u8],
-    format: u32,
-) -> Result<(Pack, Vec<Placed>), PortError> {
+pub(crate) fn decode_head(head_and_check: &[u8]) -> Result<(Pack, Vec<Placed>), PortError> {
     let (head, check) = head_and_check.split_last_chunk::<4>().ok_or_else(damaged)?;
     if crc32fast::hash(head) != u32::from_le_bytes(*check) {
         return Err(damaged());
     }
     let mut reader = Reader::new(head, "practice pack");
     let (id, title) = (reader.str()?, reader.str()?);
-    // Format 2 has neither value masses nor colour areas, format 3 no colour areas.
-    let missing = 8 * (PACK_FORMAT.saturating_sub(format) as usize);
-    let count = reader.count(ITEM_BYTES - missing)?;
+    let count = reader.count(ITEM_BYTES)?;
     let mut items = Vec::with_capacity(count);
     let mut placed = Vec::with_capacity(count);
     let mut offset = (START + head_and_check.len()) as u64;
     for _ in 0..count {
         let mut item = read_item(&mut reader)?;
-        if format >= 3 {
-            item.masses = read_masses(&mut reader)?;
-        }
-        if format >= 4 {
-            item.areas = read_areas(&mut reader)?;
-        }
+        item.masses = read_masses(&mut reader)?;
+        item.areas = read_areas(&mut reader)?;
         items.push(item);
         let (length, check) = (reader.u32()?, reader.u32()?);
         placed.push(Placed {
@@ -321,7 +310,7 @@ fn read_item(reader: &mut Reader<'_>) -> Result<PackItem, PortError> {
     })
 }
 
-/// An item's value masses, after its outline (format 3); none where both sides are 0.
+/// An item's value masses, after its outline (S96); none where both sides are 0.
 fn read_masses(reader: &mut Reader<'_>) -> Result<Option<Arc<ValueMasses>>, PortError> {
     let size = [reader.u32()?, reader.u32()?];
     if size == [0, 0] {
@@ -335,7 +324,7 @@ fn read_masses(reader: &mut Reader<'_>) -> Result<Option<Arc<ValueMasses>>, Port
     Ok(Some(Arc::new(masses)))
 }
 
-/// An item's colour areas, after its value masses (format 4, S101); none where both sides are 0.
+/// An item's colour areas, after its value masses (S101); none where both sides are 0.
 fn read_areas(reader: &mut Reader<'_>) -> Result<Option<Arc<Areas>>, PortError> {
     let size = [reader.u32()? as usize, reader.u32()? as usize];
     if size == [0, 0] {

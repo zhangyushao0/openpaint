@@ -8,10 +8,11 @@
 //! never shown (D107); a division its lines' counts and lengths per level, for its card's table
 //! and later trajectories (S95); value masses the share painted at the answer's value (S96); a
 //! key shift how many areas each of its checks marked (S107).
-//! Retired, never reused, passed over when read: codes 1 to 8, 1.1.0's line metrics (key points,
-//! frame, shape, speed, wobble, strokes, erased, seconds); 21 to 23 and 25 to 27, a colour's hue
-//! (degrees, only where both passed an RGB chroma gate), saturation and value on the wheel's HSV
-//! until 1.6.0; 32, 1.5.0's value scale off its even steps on the wheel's value.
+//! Retired, never reused, unknown when read (a record holding one is refused): codes 1 to 8,
+//! 1.1.0's line metrics (key points, frame, shape, speed, wobble, strokes, erased, seconds); 21 to
+//! 23 and 25 to 27, a colour's hue (degrees, only where both passed an RGB chroma gate),
+//! saturation and value on the wheel's HSV until 1.6.0; 32, 1.5.0's value scale off its even
+//! steps on the wheel's value.
 
 use crate::compositions::levels::Level;
 

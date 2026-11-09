@@ -38,8 +38,7 @@ impl Described for Scales {
         &FACTS
     }
 
-    /// Its tone and twice its cells (S97; 1.5.0 to 1.14.0 stored its tone alone, the cells drawn
-    /// from the seed: the store's upgrade turns it into this, `store/src/practice.rs`).
+    /// Its tone and twice its cells (S97); cells 5 to 9 read (a 1.14.0 scale holds 6 or 7).
     fn variant(&self, kind: Kind) -> Option<u8> {
         match kind {
             Kind::Scale(tone, cells) => Some(place(&ScaleTone::ALL, &tone) + 2 * cells),

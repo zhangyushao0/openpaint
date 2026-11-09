@@ -98,7 +98,7 @@ pub const LAYERS: &[(&str, &[&str])] = &[
     ),
     // The library knows no mode: a mode's records are bytes in a space of its own (D112).
     ("crates/store", &["openpaint-core", "openpaint-app"]),
-    // Practice's records and their upgrade in the library's record space, and its packs (S110).
+    // Practice's records in the library's record space, and its packs (S110).
     (
         "crates/practice-store",
         &[

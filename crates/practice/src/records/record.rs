@@ -15,7 +15,7 @@
 use crate::kinds::colours::judgement::Judgement;
 use crate::packs::pack::ItemRef;
 use crate::records::metric::{Metric, Metrics, value};
-use crate::records::time::{Span, spans_of};
+use crate::records::time::Span;
 use crate::sessions::plan::{Exercise, Family, Kind};
 use crate::sessions::session::{Plan, stage_one};
 
@@ -118,18 +118,6 @@ impl SessionRecord {
             results: Vec::new(),
             time: Vec::new(),
         }
-    }
-
-    /// The spans a record kept before S89 practised, as the times it holds tell them: when it
-    /// began, when each exercise was first compared and when it finished, joined where at most
-    /// `PAUSE` apart (`time.rs`).
-    #[must_use]
-    pub fn time_of_compares(&self) -> Vec<Span> {
-        let compared = self.results.iter().map(|result| result.checked_at);
-        let times: Vec<u64> = (std::iter::once(self.started).chain(compared))
-            .chain(self.finished)
-            .collect();
-        spans_of(&times)
     }
 
     /// Long colour copy `number`, the `id`th of all sessions and copies, seeded `seed`, begun at

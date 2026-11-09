@@ -1,14 +1,13 @@
 //! Practice packs of format 4 (S101): a composition's value masses (S96) and a crop's colour
 //! areas round-trip in its pack's head, a shape's masses or a damaged map is refused, and a pack of
-//! format 2 (1.4.0 to 1.13.0) or 3 (1.14.0 to 1.18.1) is upgraded as it is imported and where it
-//! is kept (the personal pack among them), its items and pictures as they were.
+//! another format is refused on import and left out of the list as it is (S116).
 
 #[path = "../../store/tests/common/test_dir.rs"]
 mod test_dir;
 
 use std::sync::Arc;
 
-use openpaint_app::ImageFormat;
+use openpaint_app::{ImageFormat, PortError};
 use openpaint_practice::{
     Areas, Credit, Licence, Masses, PERSONAL, Pack, PackItem, PictureKind, Tier, ValueMasses,
 };
@@ -59,113 +58,30 @@ fn value_masses_round_trip_and_only_a_compositions_whole_map_is_kept() {
     assert!(encode_pack(&short, std::slice::from_ref(&file)).is_err());
 }
 
-/// `text` as a pack's head holds it: its length, then its bytes.
-fn text(head: &mut Vec<u8>, text: &str) {
-    head.extend_from_slice(&(text.len() as u32).to_le_bytes());
-    head.extend_from_slice(text.as_bytes());
-}
-
-/// `pack` (no value masses, no outlines) and its pictures as 1.13.0 wrote them (`format` 2, an
-/// item's head ending at its outline's count) or 1.18.1 (3, its value masses none after it).
-fn older(pack: &Pack, pictures: &[Vec<u8>], format: u32) -> Vec<u8> {
-    let mut head = Vec::new();
-    text(&mut head, &pack.id);
-    text(&mut head, &pack.title);
-    head.extend_from_slice(&(pack.items.len() as u32).to_le_bytes());
-    for (item, picture) in pack.items.iter().zip(pictures) {
-        text(&mut head, &item.id);
-        head.extend_from_slice(&[item.kind.code(), item.tier.code()]);
-        head.extend_from_slice(&item.size[0].to_le_bytes());
-        head.extend_from_slice(&item.size[1].to_le_bytes());
-        text(&mut head, &item.title);
-        match &item.credit {
-            Some(credit) => {
-                head.push(1);
-                text(&mut head, &credit.source);
-                text(&mut head, &credit.creator);
-                head.push(credit.licence.code());
-                text(&mut head, &credit.attribution);
-                text(&mut head, &credit.notes);
-            }
-            None => head.push(0),
-        }
-        head.extend_from_slice(&0_u32.to_le_bytes());
-        if format == 3 {
-            head.extend_from_slice(&[0; 8]);
-        }
-        head.extend_from_slice(&(picture.len() as u32).to_le_bytes());
-        head.extend_from_slice(&crc32fast::hash(picture).to_le_bytes());
-    }
-    let mut file = b"OpenPaintPack\0".to_vec();
-    file.extend_from_slice(&format.to_le_bytes());
-    file.extend_from_slice(&(head.len() as u32).to_le_bytes());
-    file.extend_from_slice(&head);
-    file.extend_from_slice(&crc32fast::hash(&head).to_le_bytes());
-    for picture in pictures {
-        file.extend_from_slice(picture);
-    }
-    file
-}
-
 #[test]
-fn a_format_two_pack_is_upgraded_where_it_is_kept_and_as_it_is_imported() {
-    let (mut item, file) = composition("valley");
-    item.masses = None;
-    let personal = Pack {
-        id: PERSONAL.to_owned(),
-        title: "My pictures".to_owned(),
-        items: vec![item.clone()],
-    };
-    let pictures = vec![file.clone()];
-    let kept = older(&personal, &pictures, 2);
-    assert!(open_pack(&kept).is_err(), "no reader but the upgrade's");
-    let dir = TestDir::new("packs-upgrade");
-    let packs = Packs::at(&dir);
-    std::fs::write(packs.path(PERSONAL), &kept).expect("kept as 1.13.0 left it");
-    // Listed: upgraded in place, its items and pictures as they were.
-    assert_eq!(packs.list(), Ok(vec![personal.clone()]));
-    let upgraded = std::fs::read(packs.path(PERSONAL)).expect("the pack");
-    assert_eq!(upgraded[14..18], PACK_FORMAT.to_le_bytes());
-    let (opened, read) = open_pack(&upgraded).expect("opened");
-    assert_eq!((opened, read), (personal, vec![file.as_slice()]));
-    // Imported: an official pack of format 2 (one left in Download before) is upgraded first.
-    item.credit = Some(Credit {
-        source: "https://example.org/valley".to_owned(),
-        creator: "The tests".to_owned(),
-        licence: Licence::Cc0,
-        attribution: "“A landscape”, the tests.".to_owned(),
-        notes: "a landscape".to_owned(),
-    });
-    let official = Pack {
-        id: "old-compositions".to_owned(),
-        title: "Old compositions".to_owned(),
-        items: vec![item],
-    };
-    let imported = packs.import(&older(&official, &pictures, 2));
-    assert_eq!(imported, Ok(official.clone()));
-    let kept = std::fs::read(packs.path(&official.id)).expect("kept");
-    assert_eq!(kept[14..18], PACK_FORMAT.to_le_bytes());
-}
-
-#[test]
-fn a_format_three_pack_is_upgraded_its_masses_kept_and_no_areas() {
+fn a_pack_of_another_format_is_refused_on_import_and_left_out_of_the_list_untouched() {
     let (item, file) = composition("valley");
     let pack = Pack {
         id: "old-compositions".to_owned(),
         title: "Old compositions".to_owned(),
         items: vec![PackItem {
-            masses: None,
             credit: credited(),
             ..item
         }],
     };
-    let dir = TestDir::new("packs-upgrade-three");
+    let mut three = encode_pack(&pack, std::slice::from_ref(&file)).expect("encoded");
+    three[14..18].copy_from_slice(&3_u32.to_le_bytes());
+    let dir = TestDir::new("packs-other-format");
     let packs = Packs::at(&dir);
-    let three = older(&pack, std::slice::from_ref(&file), 3);
-    assert!(open_pack(&three).is_err(), "no reader but the upgrade's");
-    assert_eq!(packs.import(&three), Ok(pack.clone()));
-    let kept = std::fs::read(packs.path(&pack.id)).expect("kept");
-    assert_eq!(kept[14..18], PACK_FORMAT.to_le_bytes());
+    assert_eq!(
+        packs.import(&three),
+        Err(PortError::OtherFormat { found: Some(3) })
+    );
+    assert!(!packs.path(&pack.id).exists(), "nothing kept");
+    // One kept beside the library (format 3, 1.14.0 to 1.18.1): not listed, its bytes as found.
+    std::fs::write(packs.path(&pack.id), &three).expect("kept as 1.18.1 left it");
+    assert_eq!(packs.list(), Ok(Vec::new()));
+    assert_eq!(std::fs::read(packs.path(&pack.id)).expect("kept"), three);
 }
 
 #[test]

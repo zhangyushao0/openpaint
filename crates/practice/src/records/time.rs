@@ -5,8 +5,6 @@
 //! hour or four while doing something else), and neither does time with the app hidden. So a
 //! span's time is its length. Spans are kept in seconds since 1970 UTC; the book counts them by
 //! the device's local day, split at its midnights, so a copy painted over two days shows on both.
-//! A record from before S89 gets its spans from the times its session began, its exercises were
-//! first compared and it finished, by the same rule (the store's upgrade).
 //!
 //! The book lays its days by number (`local_day`); the screen names them as dates.
 
@@ -44,18 +42,6 @@ pub fn practised(spans: &mut Vec<Span>, now: u64, hidden: bool) -> bool {
     }
     spans.push(Span { from: now, to: now });
     true
-}
-
-/// The spans of uses at `times` (in any order) by the same rule, the app never hidden.
-#[must_use]
-pub fn spans_of(times: &[u64]) -> Vec<Span> {
-    let mut sorted = times.to_vec();
-    sorted.sort_unstable();
-    let mut spans = Vec::new();
-    for at in sorted {
-        practised(&mut spans, at, false);
-    }
-    spans
 }
 
 /// The time `spans` hold, in seconds.
@@ -133,31 +119,6 @@ mod tests {
         practised(&mut spans, NOON + 200, false);
         assert_eq!(seconds(&spans), 100 + 40);
         assert_eq!(spans.len(), 2);
-    }
-
-    #[test]
-    fn spans_from_times_follow_the_same_rule() {
-        let times = [
-            NOON + 400,
-            NOON,
-            NOON + 200,
-            NOON + 3 * 3600,
-            NOON + 3 * 3600 + 30,
-        ];
-        assert_eq!(
-            spans_of(&times),
-            [
-                Span {
-                    from: NOON,
-                    to: NOON + 400
-                },
-                Span {
-                    from: NOON + 3 * 3600,
-                    to: NOON + 3 * 3600 + 30
-                }
-            ]
-        );
-        assert!(spans_of(&[]).is_empty());
     }
 
     #[test]

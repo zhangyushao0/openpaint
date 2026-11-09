@@ -1,7 +1,7 @@
 //! The practice book on known records (S89): practice time from the uses only (a session left
 //! untouched two hours counts its minutes, time hidden counts nothing, a copy painted over two
-//! days shows on both), records from before S89 timed by their compares, seals earned from what
-//! was done, the colour's first pick per session and the lines shown.
+//! days shows on both), seals earned from what was done, the colour's first pick per session and
+//! the lines shown.
 
 use openpaint_practice::{
     Book, Day, ExerciseResult, Family, ItemRef, LineShown, Metric, PAUSE, STAGE_SESSIONS, Seal,
@@ -115,31 +115,6 @@ fn a_copy_painted_over_two_days_shows_on_both() {
             }
         ]
     );
-}
-
-#[test]
-fn records_from_before_are_timed_by_their_compares() {
-    let mut old = session(4, 2, NOON);
-    let line = of(&old, Family::Line, 0);
-    let colour = of(&old, Family::Colour, 0);
-    old.results
-        .push(ExerciseResult::first(line, NOON + 120, 3, Vec::new()));
-    old.results
-        .push(ExerciseResult::first(colour, NOON + 300, 9, Vec::new()));
-    old.finished = Some(NOON + 500);
-    assert_eq!(
-        old.time_of_compares(),
-        [Span {
-            from: NOON,
-            to: NOON + 500
-        }]
-    );
-    // Two hours between two compares: two spans, the two hours left out.
-    old.results[1].checked_at = NOON + 120 + 2 * 3600;
-    old.finished = Some(NOON + 120 + 2 * 3600 + 200);
-    assert_eq!(seconds(&old.time_of_compares()), 120 + 200);
-    // Begun and never compared: nothing practised.
-    assert_eq!(seconds(&session(5, 3, NOON).time_of_compares()), 0);
 }
 
 /// A finished session of stage 1 holding `lines` single lines and `colours` colours compared,
