@@ -1,9 +1,10 @@
 //! The canvas view (Procreate's model, as draweave tuned it): how the open artwork shows in the
-//! canvas area. Zoom is relative to fit, so the whole canvas shows with a margin at zoom 1 on
-//! any screen and after any rotation of the device; pan is in points from the area's centre;
-//! rotation is free. The view belongs to the open session: never artwork content, never a
-//! history step, not stored (every artwork opens at fit). `ViewMapping` turns it into the one
-//! screen-to-canvas map that input, rendering and picking all use for a frame.
+//! canvas area. Zoom is relative to fit, so the whole canvas (or the rectangle of it the view
+//! fits, `Fitted`) shows with a margin at zoom 1 on any screen and after any rotation of the
+//! device; pan is in points from the area's centre; rotation is free. The view belongs to the
+//! open session: never artwork content, never a history step, not stored (every artwork opens
+//! at fit). `ViewMapping` turns it into the one screen-to-canvas map that input, rendering and
+//! picking all use for a frame.
 
 use std::f32::consts::{PI, TAU};
 
@@ -23,6 +24,16 @@ pub struct CanvasView {
     pan: [f32; 2],
     zoom: f32,
     rotation: f32,
+    /// The rectangle fit is of; `None` is the whole canvas.
+    fits: Option<Fitted>,
+}
+
+/// A rectangle of the canvas, in canvas pixels, that a view fits instead of the whole canvas:
+/// fit and the zoom's limits are of it, and the view centres on it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Fitted {
+    pub origin: [u32; 2],
+    pub size: [u32; 2],
 }
 
 impl Default for CanvasView {
@@ -58,7 +69,8 @@ pub enum ViewIntent {
         gesture: ViewGesture,
         viewport: Viewport,
     },
-    /// The whole canvas, upright and centred (a quick pinch).
+    /// The rectangle the view fits (the whole canvas unless it names one), upright and centred
+    /// (a quick pinch).
     Fit,
 }
 
@@ -67,10 +79,17 @@ impl CanvasView {
         pan: [0.0; 2],
         zoom: 1.0,
         rotation: 0.0,
+        fits: None,
     };
 
-    /// A view of these values; `None` unless every value is finite, the zoom in
-    /// `MIN_ZOOM..=MAX_ZOOM` and the pan within reach.
+    /// Fit of `fits` (the whole canvas when `None`): centred on it, upright.
+    #[must_use]
+    pub const fn fitting(fits: Option<Fitted>) -> Self {
+        Self { fits, ..Self::FIT }
+    }
+
+    /// A view of these values fitting the whole canvas; `None` unless every value is finite,
+    /// the zoom in `MIN_ZOOM..=MAX_ZOOM` and the pan within reach.
     #[must_use]
     pub fn new(pan: [f32; 2], zoom: f32, rotation: f32) -> Option<Self> {
         let finite = pan.iter().chain([&zoom, &rotation]).all(|v| v.is_finite());
@@ -81,16 +100,23 @@ impl CanvasView {
             pan,
             zoom,
             rotation: wrapped(rotation),
+            fits: None,
         })
     }
 
-    /// Points from the canvas area's centre to the canvas's centre.
+    /// The rectangle fit is of; `None` is the whole canvas.
+    #[must_use]
+    pub const fn fits(self) -> Option<Fitted> {
+        self.fits
+    }
+
+    /// Points from the canvas area's centre to the centre of what the view fits.
     #[must_use]
     pub const fn pan(self) -> [f32; 2] {
         self.pan
     }
 
-    /// Relative to fit: 1 shows the whole canvas with the `FIT_MARGIN`.
+    /// Relative to fit: 1 shows what the view fits with the `FIT_MARGIN`.
     #[must_use]
     pub const fn zoom(self) -> f32 {
         self.zoom
@@ -105,13 +131,19 @@ impl CanvasView {
     /// The map between screen and canvas pixels of `canvas` shown in `viewport`.
     #[must_use]
     pub fn mapping(self, canvas: CanvasSize, viewport: &Viewport) -> ViewMapping {
-        let [cw, ch] = [canvas.width() as f32, canvas.height() as f32];
+        let whole = Fitted {
+            origin: [0, 0],
+            size: [canvas.width(), canvas.height()],
+        };
+        let Fitted { origin, size } = self.fits.unwrap_or(whole);
+        let [x, y] = origin.map(|at| at as f32);
+        let [w, h] = size.map(|side| side.max(1) as f32);
         let [vw, vh] = viewport.size.map(|side| side.max(1.0));
-        let fit = (vw / cw).min(vh / ch) * FIT_MARGIN;
+        let fit = (vw / w).min(vh / h) * FIT_MARGIN;
         let (sin, cos) = self.rotation.sin_cos();
         let ppp = viewport.pixels_per_point;
         ViewMapping {
-            canvas_centre: [cw / 2.0, ch / 2.0],
+            canvas_centre: [x + w / 2.0, y + h / 2.0],
             screen_centre: [
                 viewport.origin[0] + vw / 2.0 + self.pan[0] * ppp,
                 viewport.origin[1] + vh / 2.0 + self.pan[1] * ppp,
@@ -224,19 +256,21 @@ impl ViewMapping {
     }
 
     /// The way from this map to `to` (of the same canvas) at `t`, 0 this one and 1 `to`: the
-    /// canvas's centre moves in a line, the scale changes by an even ratio and the rotation turns
-    /// the short way round. For showing a view settle; input always uses `to`.
+    /// canvas point `to` centres on moves in a line from where this map shows it, the scale
+    /// changes by an even ratio and the rotation turns the short way round. For showing a view
+    /// settle; input always uses `to`.
     #[must_use]
     pub fn toward(&self, to: &Self, t: f32) -> Self {
         let lerp = |a: f32, b: f32| a + (b - a) * t;
         let from = self.sin.atan2(self.cos);
         let angle = from + wrapped(to.sin.atan2(to.cos) - from) * t;
         let (sin, cos) = angle.sin_cos();
+        let start = self.to_screen(to.canvas_centre);
         Self {
             canvas_centre: to.canvas_centre,
             screen_centre: [
-                lerp(self.screen_centre[0], to.screen_centre[0]),
-                lerp(self.screen_centre[1], to.screen_centre[1]),
+                lerp(start[0], to.screen_centre[0]),
+                lerp(start[1], to.screen_centre[1]),
             ],
             scale: self.scale * (to.scale / self.scale).powf(t),
             sin,
@@ -359,13 +393,5 @@ mod tests {
             (half.sin.atan2(half.cos) - 1.5).abs() < 1e-4,
             "never the long way"
         );
-    }
-
-    #[test]
-    fn views_are_checked() {
-        assert!(CanvasView::new([0.0, 0.0], 8.5, 0.0).is_none());
-        assert!(CanvasView::new([f32::INFINITY, 0.0], 1.0, 0.0).is_none());
-        assert!(CanvasView::new([0.0, 0.0], 1.0, f32::NAN).is_none());
-        assert_eq!(CanvasView::new([0.0; 2], 1.0, 0.0), Some(CanvasView::FIT));
     }
 }

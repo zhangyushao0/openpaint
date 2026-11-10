@@ -66,6 +66,10 @@ pub struct FillJob {
     pub mask: bool,
     pub point: [u32; 2],
     pub threshold: f32,
+    /// The box the region is found within, `(origin, size)` in canvas pixels: the bounding box of
+    /// the mode's clip, so a flood never leaks round it through the paper outside; `None` is the
+    /// whole canvas (painting, and a selection's flood).
+    pub within: Option<([u32; 2], [u32; 2])>,
 }
 
 /// What the UI shows about filling.
@@ -100,6 +104,8 @@ struct Draft {
     commit: bool,
     /// The selection when the fill was asked for: the fill is the flooded region inside it.
     clip: Option<RegionMask>,
+    /// The box the region is found within (`FillJob::within`).
+    within: Option<([u32; 2], [u32; 2])>,
 }
 
 #[derive(Debug)]
@@ -128,20 +134,27 @@ impl Default for Fills {
 
 impl Fills {
     /// Applies `intent`; while `clip` is selected a fill covers only its pixels, and a drop
-    /// outside it is refused.
+    /// outside it is refused; the region is found `within` that box when one is given.
     pub(crate) fn handle(
         &mut self,
         history: &mut History,
         drawing: bool,
         intent: FillIntent,
         clip: Option<&RegionMask>,
+        within: Option<([u32; 2], [u32; 2])>,
     ) -> Result<(), AppError> {
         match intent {
             FillIntent::Request {
                 point,
                 threshold,
                 color,
-            } => self.request(history.current(), drawing, (point, threshold, color), clip),
+            } => self.request(
+                history.current(),
+                drawing,
+                (point, threshold, color),
+                clip,
+                within,
+            ),
             FillIntent::Commit => {
                 if let Some(draft) = self.draft.as_mut() {
                     draft.commit = true;
@@ -163,6 +176,7 @@ impl Fills {
         drawing: bool,
         (point, threshold, color): ([f32; 2], f32, Color),
         clip: Option<&RegionMask>,
+        within: Option<([u32; 2], [u32; 2])>,
     ) -> Result<(), AppError> {
         if drawing {
             return Availability::StrokeInProgress.require(EditorAction::Fill);
@@ -197,6 +211,7 @@ impl Fills {
                 && draft.layer == layer
                 && draft.point == point
                 && draft.clip.as_ref() == clip
+                && draft.within == within
         });
         let preview = self.draft.take().filter(|_| same).and_then(|d| d.preview);
         self.draft = Some(Draft {
@@ -210,6 +225,7 @@ impl Fills {
             preview,
             commit: false,
             clip: clip.cloned(),
+            within,
         });
         Ok(())
     }
@@ -229,6 +245,7 @@ impl Fills {
             mask: draft.base.on_mask(),
             point: draft.point,
             threshold: draft.threshold,
+            within: draft.within,
         })
     }
 

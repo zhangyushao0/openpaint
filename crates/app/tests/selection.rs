@@ -219,6 +219,8 @@ fn strokes_and_fills_keep_inside_the_selection_and_keep_their_clip_after_deselec
     );
     session.dispatch(request([30.0, 20.0])).expect("inside");
     let job = session.fill_request().expect("a job");
+    // Found over the whole canvas: a region joined only through unselected pixels keeps them.
+    assert_eq!(job.within, None);
     session.fill_finished(
         job.sequence,
         Ok(RegionMask::whole(session.artwork().canvas())),

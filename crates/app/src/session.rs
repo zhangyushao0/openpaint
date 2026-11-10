@@ -146,10 +146,8 @@ impl Session {
         if let Intent::Fill(fill) = intent {
             self.filling_frame();
             let drawing = self.strokes.active().is_some();
-            let clip = self.clip();
-            return self
-                .fills
-                .handle(&mut self.history, drawing, fill, clip.as_ref());
+            let (clip, within) = (self.clip(), self.mode_bounds());
+            return (self.fills).handle(&mut self.history, drawing, fill, clip.as_ref(), within);
         }
         if matches!(
             intent,
@@ -327,7 +325,7 @@ impl Session {
                 let canvas = self.artwork().canvas();
                 self.view = self.view.after(&gesture, canvas, &viewport);
             }
-            ViewIntent::Fit => self.view = CanvasView::FIT,
+            ViewIntent::Fit => self.view = CanvasView::fitting(self.view.fits()),
         }
     }
 

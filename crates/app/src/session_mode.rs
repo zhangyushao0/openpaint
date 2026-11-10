@@ -1,7 +1,7 @@
 //! The session's side of its mode (`mode.rs`): a session opened with one keeps its view as the
 //! mode opens it, its strokes keep the pen's own samples when the mode asks, a pen landing where
 //! the mode refuses draws nothing, every stroke and fill stays inside the mode's clip (and the
-//! selection), the next stroke takes the mode's style instead of the toolbox's brush, a fill
+//! selection; a fill's region is found within the clip's box), the next stroke takes the mode's style instead of the toolbox's brush, a fill
 //! beginning is the mode's to know, and the mode's layers are amended into the version shown
 //! after every intent. The composition root reaches the mode by its type.
 
@@ -105,6 +105,13 @@ impl Session {
                 .or_else(|| Some(clip.clone())),
             None => selected.cloned(),
         }
+    }
+
+    /// The bounding box of the mode's clip, `(origin, size)` in canvas pixels: a fill's region is
+    /// found within it, so a flood never leaks round the clip through the paper outside.
+    pub(super) fn mode_bounds(&self) -> Option<([u32; 2], [u32; 2])> {
+        let clip = self.mode.as_ref()?.clip()?;
+        Some((clip.origin(), clip.size()))
     }
 
     /// Whether the mode refuses `stroke`: a pen landing where it may not.

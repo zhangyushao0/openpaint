@@ -119,5 +119,6 @@ pub use crate::transform::{
     TransformRefusal, picture_place,
 };
 pub use crate::view::{
-    CanvasView, FIT_MARGIN, MAX_ZOOM, MIN_ZOOM, ViewGesture, ViewIntent, ViewMapping, Viewport,
+    CanvasView, FIT_MARGIN, Fitted, MAX_ZOOM, MIN_ZOOM, ViewGesture, ViewIntent, ViewMapping,
+    Viewport,
 };

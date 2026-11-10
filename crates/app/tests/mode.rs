@@ -1,16 +1,19 @@
 //! The session's mode slot (D112) with a mode of the test's own: the session asks it where a pen
 //! may land, what strokes stay inside, which style the next stroke takes and which layers it
-//! keeps, and lends it the artwork and the view; the composition root reaches it by its type. And
-//! a mode's picker taking its turn with the gallery's dialogs.
+//! keeps, and lends it the artwork and the view; the composition root reaches it by its type; a
+//! fill on it is found within its clip's box. And a mode's picker taking its turn with the
+//! gallery's dialogs.
 
 use std::sync::Arc;
 
 use openpaint_app::{
-    BrushLibrary, BytesSource, CanvasView, Contact, ContactPhase, Device, FileJob, Gallery,
-    GalleryIntent, HistoryIntent, HostAnswer, HostRequest, InputSample, Intent, LayerIntent, Mode,
-    PortError, Session, StrokeIntent, Toolbox,
+    BrushLibrary, BytesSource, CanvasView, Contact, ContactPhase, Device, FileJob, FillIntent,
+    Gallery, GalleryIntent, HistoryIntent, HostAnswer, HostRequest, InputSample, Intent,
+    LayerIntent, Mode, PortError, Session, StrokeIntent, Toolbox,
 };
 use openpaint_core::{Artwork, CanvasSize, Color, RegionMask, StrokeStyle};
+
+const FIT: CanvasView = CanvasView::FIT;
 
 /// A mode holding a frame on the left half: pens land only there, strokes stay inside it, its
 /// own pen draws at 12 pixels, and it keeps a second layer.
@@ -145,6 +148,39 @@ fn a_mode_says_where_the_pen_lands_draws_with_its_own_pen_and_keeps_its_layers()
     assert!(drawn.clip().is_some(), "kept inside the frame");
     let frame = session.mode::<Frame>().expect("the mode");
     assert_eq!((frame.landed, frame.laid), (2, 0));
+}
+
+#[test]
+fn a_fill_on_a_framed_sheet_is_found_within_the_frame_s_box_and_kept_inside_the_frame() {
+    let mut session = framed();
+    let drop = |point| {
+        Intent::Fill(FillIntent::Request {
+            point,
+            threshold: 0.5,
+            color: Color::BLACK,
+        })
+    };
+    session.dispatch(drop([10.0, 20.0])).expect("inside");
+    let job = session.fill_request().expect("a job");
+    // The worker floods only this box, so a line across the frame keeps the flood on its side.
+    assert_eq!(job.within, Some(([0, 0], [100, 100])));
+    let canvas = session.artwork().canvas();
+    session.fill_finished(job.sequence, Ok(RegionMask::whole(canvas)));
+    session
+        .dispatch(Intent::Fill(FillIntent::Commit))
+        .expect("commit");
+    let layer = (session.artwork().layers().iter()).find(|layer| !layer.edits().is_empty());
+    let edit = &layer.expect("the filled layer").edits()[0];
+    let fill = edit.fill().expect("a fill").mask();
+    assert_eq!(
+        (fill.origin(), fill.size()),
+        ([0, 0], [100, 100]),
+        "cut to it"
+    );
+    let mut plain = Session::with_mode(Artwork::new(canvas), brush(), Box::new(Other), FIT);
+    plain.dispatch(drop([150.0, 20.0])).expect("no clip");
+    let job = plain.fill_request().expect("a job");
+    assert_eq!(job.within, None, "a mode without a clip floods the canvas");
 }
 
 #[test]

@@ -71,6 +71,7 @@ fn a_preview_is_shown_but_not_kept_and_a_commit_is_one_undoable_step() {
     request(&mut session, 3.0, 0.25).expect("request");
     let job = session.fill_request().expect("a job");
     assert_eq!((job.point, job.threshold), ([3, 5], 0.25));
+    assert_eq!(job.within, None, "found over the whole canvas");
     assert!(session.projection().fill().pending);
     assert!(session.fill_request().is_none(), "handed out once");
     session.fill_finished(job.sequence, Ok(region(10)));
