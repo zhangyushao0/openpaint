@@ -137,7 +137,6 @@ pub use records::record::{
     used,
 };
 pub use records::seals::{Earned, Seal, Tally, earned, sealed};
-pub use records::settled::settled;
 pub use records::sheet::{First, Judge, Laid, Lesson, Picked, Purpose, Sheet, number};
 pub use records::time::{PAUSE, Span, by_day, local_day, practised, seconds};
 pub use sessions::drill::{drill, kinds_of, stage_needs};

@@ -6,6 +6,5 @@ pub(crate) mod givens;
 pub(crate) mod metric;
 pub(crate) mod record;
 pub(crate) mod seals;
-pub(crate) mod settled;
 pub(crate) mod sheet;
 pub(crate) mod time;

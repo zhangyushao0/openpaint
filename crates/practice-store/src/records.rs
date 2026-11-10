@@ -4,7 +4,7 @@
 //! owns, which the gallery never lists. A record is read only in this shape, every field present;
 //! anything else is refused (`sheets` leaves it out).
 //!
-//! - The tag `SHEET` (u8; the records before S120 began with their stage, 0 to 8 or 255), its
+//! - The tag `SHEET` (u8; a record beginning otherwise is refused, 1.21.6's too), its
 //!   project (u64, 0 none), when it started (u64 seconds since 1970 UTC), its purpose (u8: 1 the
 //!   day's practice, 2 a long colour copy).
 //! - The spans it was practised in: a count (u32) and each one's start and end (u64 seconds since
@@ -35,7 +35,7 @@ pub const PRACTICE: Space = Space::new(b'p');
 /// The printed givens' space: the first byte of every lesson's givens' key.
 pub const GIVENS: Space = Space::new(b'g');
 /// The first byte of every sheet record (S120).
-pub(crate) const SHEET: u8 = 0x53;
+const SHEET: u8 = 0x53;
 
 /// The fewest bytes of a span, a lesson, an exercise and a metric.
 const SPAN_BYTES: usize = 8 + 8;

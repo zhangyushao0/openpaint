@@ -3,8 +3,8 @@
 //! as they were written), its project (one its record owns, the runtime's gallery list leaves out)
 //! opens as the last artwork, the records before practice keep their bytes, and a sheet removed
 //! (the test-session chore's) takes its record, its givens and its project with it and leaves
-//! every other byte; a record that cannot be read is left out; its givens read back whole or
-//! refuse it.
+//! every other byte; a record that cannot be read, or does not begin with a sheet's tag, is left
+//! out; its givens read back whole or refuse it.
 
 #[path = "../../store/tests/common/mod.rs"]
 mod common;
@@ -254,9 +254,16 @@ fn a_practice_record_that_cannot_be_read_is_left_out() {
     let title = Title::new("Practice 1").expect("title");
     start(&mut library, (&artwork(), &title), &sheet, &givens(&sheet)).expect("started");
     drop(library);
-    let mut key = b"p".to_vec();
-    key.extend_from_slice(&2u64.to_be_bytes());
-    write_records(&dir, &[("library".to_owned(), key, vec![0x53, 2, 3])]);
+    let key = |id: u64| [b"p".as_slice(), &id.to_be_bytes()].concat();
+    // A sheet's tag with too few bytes after it, and a record beginning with a stage as 1.21.6's
+    // session records did: neither is read.
+    write_records(
+        &dir,
+        &[
+            ("library".to_owned(), key(2), vec![0x53, 2, 3]),
+            ("library".to_owned(), key(3), vec![2, 1, 0, 0, 0]),
+        ],
+    );
     let mut library = Library::at(&dir);
     let read = sheets(&mut library).expect("practice");
     assert_eq!(read.len(), 1);

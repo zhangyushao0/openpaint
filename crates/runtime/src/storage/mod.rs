@@ -204,11 +204,6 @@ fn run((store, cache, packs): Served<'_>, kept: &mut Kept, job: Job) -> Done {
                 .ok()
                 .flatten()
                 .unwrap_or_default();
-            // The session records of 1.21.6 and before become sheets, once (S120c), before a
-            // sheet left open reads its givens.
-            if let Err(error) = openpaint_practice_store::convert(store, &packs) {
-                log::error!("the practice records were not converted: {error}");
-            }
             let opened = start(store, kept, cache);
             let editor = store
                 .editor()

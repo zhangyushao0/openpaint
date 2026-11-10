@@ -4,8 +4,7 @@
 //! its project, its lesson's givens, its firsts, results and time. Read by this build, every count
 //! the practice book, the time and the seals take from them is what it was, each combination's
 //! original its generated picture again. The sample is what an upgrade retiring the kind must
-//! keep these facts for (S108); S120c's conversion of the same sheets as 1.21.6 stored them
-//! (`session-records.bin`) gives these bytes (`convert.rs`).
+//! keep these facts for (S108).
 //!
 //! The dump format is the store's format-1 sample's (`store/tests/sample/dump.rs`, its helpers
 //! taken by path); a missing sample is written
